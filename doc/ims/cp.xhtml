@@ -1,0 +1,418 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "../../xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <title>PyAssess.ims.cp</title>
+        <link rel="stylesheet" href="../../stylesheet.css" type="text/css"/>
+    </head>
+    <body>
+        <h1>PyAssess.ims.cp</h1>
+        <p/>
+        <div class="constant">
+            <h2 id="IMSContentPackagingNamespace">IMSContentPackagingNamespace</h2>
+            <p>A string constant for the prefered XML namespace identifier for the IMS Content
+                Packaging data elements, currently http://www.imsglobal.org/xsd/imscp_v1p1</p>
+        </div>
+        <div class="class">
+            <h2 id="CPError">CPError(Exception)</h2>
+            <p>The class of errors returned by this module.</p>
+        </div>
+        <div class="class">
+            <h2 id="ContentPackage">ContentPackage</h2>
+            <p>A class for managing content packages. This class manages the relationship between
+                the file system and the content package. It also manages a table of identifiers in
+                order to ensure the uniqueness of identifiers within the package.</p>
+            <div class="method">
+                <h3>__init__(self,path)</h3>
+                <p>A <var>ContentPackage</var> instance is created by specifying the path (in the
+                    local file system) to the content package's directory (which must already exist)
+                    or the path to the manifest file itself. If the manifest file already exists it
+                    is loaded into the instance, otherwise a new manifest is created.</p>
+            </div>
+            <div class="method">
+                <h3>GetIdentifier(self,identifier,stem)</h3>
+                <p>
+                    <var>GetIdentifier</var> operates in two modes depending on the type of
+                        <var>identifier</var>:</p>
+                <dl>
+                    <dt>StringType, UnicodeType</dt>
+                    <dd>
+                        <var>identifier</var> is examined and errors raised if it is syntactically
+                        invalid or if it is already in use, otherwise it is returned unchanged.</dd>
+                    <dt>None</dt>
+                    <dd>An unused identifier based on <var>stem</var> is returned.</dd>
+                </dl>
+            </div>
+        </div>
+        <div class="class">
+            <h2 id="Metadata">Metadata</h2>
+            <p>A base class for all objects that can have associated metadata.</p>
+            <div class="member">
+                <h3 id="mdSchema">mdSchema</h3>
+                <p>An optional schema name for the metadata</p>
+            </div>
+            <div class="member">
+                <h3 id="mdSchema">mdSchemaVersion</h3>
+                <p>An optional schema version for the metadata</p>
+            </div>
+            <div class="member">
+                <h3 id="mdSchema">metadata</h3>
+                <p>A list of metadata objects - these object can be of any type.</p>
+            </div>
+            <div class="method">
+                <h3 id="Metadata.__init__">__init__(self)</h3>
+                <p>New Metadata instances are created with no default schema name or version.</p>
+            </div>
+            <div class="method">
+                <h3 id="Metadata.SetMDSchemaInfo">SetMDSchemaInfo(self,schema,schemaVersion)</h3>
+                <p>Sets the schema name and version information. <var>schema</var> and
+                        <var>schemaVersion</var> may be None.</p>
+            </div>
+            <div class="method">
+                <h3 id="Metadata.AddMetadata">AddMetadata(self,metadata)</h3>
+                <p>Adds a metadata object to the instance. The object is appended to the end of list
+                    of metadata objects.</p>
+            </div>
+            <div class="method">
+                <h3 id="Metadata.RemoveMetadata">RemoveMetadata(self,i)</h3>
+                <p>Removes the <var>i</var>th metadata object from the instances list of metadata
+                    objects.</p>
+            </div>
+            <div class="method">
+                <h3 id="Metadata.HasMetadata">HasMetadata(self)</h3>
+                <p>Returns a boolean indicating whether or not the instance has metadata or not. An
+                    instance is assumed to have metadata if <em>any</em> of the schema name, version
+                    or metadata objects is present.</p>
+            </div>
+        </div>
+        <div class="class">
+            <h2 id="Manifest">Manifest(<a href="#Metadata">Metadata</a>)</h2>
+            <p>A class corresponding to a manifest.</p>
+            <div class="member">
+                <h3 id="Manifest.package">package</h3>
+                <p>The <var>ContentPackage</var> that contains the manifest. A manifest always has
+                    an associated content package instance.</p>
+            </div>
+            <div class="member">
+                <h3 id="Manifest.parentManifest">parentManifest</h3>
+                <p>The parent of a manifest is either another <var>Manifest</var> or, for the
+                    top-level manifest in the package, None.</p>
+            </div>
+            <div class="member">
+                <h3 id="Manifest.identifier">identifier</h3>
+                <p>The identifier of the manifest, a string.</p>
+            </div>
+            <div class="member">
+                <h3 id="Manifest.version">version</h3>
+                <p>The version of the manifest, an optional string.</p>
+            </div>
+            <div class="member">
+                <h3 id="Manifest.defaultOrganization">defaultOrganization</h3>
+                <p>The optional identifier of the default organization. Note that if there is no
+                    default organization then the first listed organization is treated as the
+                    default.</p>
+            </div>
+            <div class="member">
+                <h3 id="Manifest.organizations">organizations</h3>
+                <p>A list of <a class="var" href="#Organization">Organization</a> instances.</p>
+            </div>
+            <div class="member">
+                <h3 id="Manifest.resources">resources</h3>
+                <p>A list of <a class="var" href="#Resource">Resource</a> instances.</p>
+            </div>
+            <div class="member">
+                <h3 id="Manifest.subManifests">subManifests</h3>
+                <p>A list of <a class="var" href="#Manifest">Manifest</a> instances that are
+                    sub-manifests of this one.</p>
+            </div>
+            <div class="method">
+                <h3 id="Manifest.__Init__">__init__(self,parent,identifier=None)</h3>
+                <p>The top-level manifest within a content package is created automatically when the
+                    package is created. Additional sub-manifests are constructed by passing a
+                        <var>parent</var> manifest and an optional identifier. If no identifier is
+                    given a default identifier is assigned.</p>
+            </div>
+            <div class="method">
+                <h3 id="Manifest.SetIdentifier">SetIdentifier(self,identifier)</h3>
+                <p>Sets the identifier of the manifest, updating its entry in the content package.
+                    Note that other references to the manifest in the package are <em>not</em>
+                    updated.</p>
+            </div>
+            <div class="method">
+                <h3 id="Manifest.SetVersion">SetVersion(self,version)</h3>
+                <p>Sets the manifest's version. If <var>version</var> is None then any existing
+                    version is removed.</p>
+            </div>
+            <div class="method">
+                <h3 id="Manifest.SetDefaultOrganization"
+                    >SetDefaultOrganization(self,defaultOrganization)</h3>
+                <p>Sets the identifier of the default organization. If
+                    <var>defaultOrganization</var> is None then any existing identifier is removed -
+                    note that this has the effect of making the first listed organization the
+                    default.</p>
+            </div>
+            <div class="method">
+                <h3 id="Manifest.CheckIDs">CheckIDs(self)</h3>
+                <p>Checks the consistency of identifier references within the manifest.
+                    Specifically, checks that the <var>defaultOrganization</var> references an
+                    organization and then calls the CheckIDs method of each of the organizations,
+                    resources and sub-manifests in turn. If CheckIDs discovers an inconsistency an
+                    error is raised.</p>
+            </div>
+            <div class="method">
+                <h3 id="Manifest.RemoveOrganization">RemoveOrganization(self,identifier)</h3>
+                <p>Deletes the organization with the given <var>identifier</var> from the manifest.
+                    Organizations are automatically added to the manifest when they are created.</p>
+            </div>
+            <div class="method">
+                <h3 id="Manifest.RemoveResource">RemoveResource(self,identifier)</h3>
+                <p>Deletes the resource with the given <var>identifier</var> from the manifest.
+                    Resources are automatically added to the manifest when they are created.</p>
+            </div>
+            <div class="method">
+                <h3 id="Manifest.RemoveManifest">RemoveManifest(self,identifier)</h3>
+                <p>Deletes the sub-manifest with the given <var>identifier</var> from this manifest.
+                    Manifests are automatically added to their parent when they are created (see <a
+                        class="var" href="#Manifest.__init__">__init__</a> for more
+                information).</p>
+            </div>
+            <div class="method">
+                <h3 id="Manifest.WriteXML">WriteXML(self,f)</h3>
+                <p>Writes the top-level &lt;manifest&gt; element and all its child elements
+                    to the open file <var>f</var>. <em>No</em> XML declaration is written. The
+                    output is restricted to unicode characters with codes less than 0x7F, all other
+                    characters being escaped.</p>
+                <p>Currently, only metadata objects of type <a class="var"
+                        href="../ieee/p1484_12.xhtml#LOMMetadata">LOMMetadata</a> are supported, and
+                    these are written using the XML binding described by the IMS LRM Specification
+                    using the prefix imsmd.</p>
+            </div>
+        </div>
+        <div class="class">
+            <h2 id="ItemContainer">ItemContainer</h2>
+            <p>A base class for all objects that can contain <em>items</em>.</p>
+            <div class="member">
+                <h3 id="ItemContainer.manifest">manifest</h3>
+                <p>The parent manifest of this object.</p>
+            </div>
+            <div class="member">
+                <h3 id="ItemContainer.parent">parent</h3>
+                <p>The parent object of this object.</p>
+            </div>
+            <div class="member">
+                <h3 id="ItemContainer.title">title</h3>
+                <p>The title of this object, an optional string.</p>
+            </div>
+            <div class="member">
+                <h3 id="ItemContainer.items">items</h3>
+                <p>The list of items contained by this object.</p>
+            </div>
+            <div class="method">
+                <h3 id="ItemContainer.__Init__">__init__(self,parent)</h3>
+                <p>ItemContainers are created empty. The <var>parent</var> argument is the required
+                    parent object, the <var>manifest</var> member is set automatically.</p>
+            </div>
+            <div class="method">
+                <h3 id="ItemContainer.CheckIDs">CheckIDs(self)</h3>
+                <p>Calls the CheckIDs methods for each of the contained <var>items</var>. See the
+                    description of <a class="var" href="#Manifest.CheckIDs">Manifest.CheckIDs</a>
+                    for more information.</p>
+            </div>
+            <div class="method">
+                <h3 id="ItemContainer.SetTitle">SetTitle(self,title)</h3>
+                <p>Sets the title of the object, <var>title</var> may be None.</p>
+            </div>
+            <div class="method">
+                <h3 id="ItemContainer.RemoveItem">RemoveItem(self,identifier)</h3>
+                <p>Removes the item with the given <var>identifier</var> from the list of
+                    <var>items</var>. This method does <strong>not</strong> work recursively, in
+                    other words, the item being removed must be an immediate child of the object.</p>
+                <p>Items are added to ItemContainers automatically when they are created.</p>
+            </div>
+        </div>
+        <div class="class">
+            <h2 id="Organization">Organization(<a href="#ItemContainer">ItemContainer</a>,<a
+                    href="#Metadata">Metadata</a>)</h2>
+            <p>An Organization can contain items and may have metadata.</p>
+            <div class="member">
+                <h3 id="Organization.identifier">identifier</h3>
+                <p>The identifier of the organization</p>
+            </div>
+            <div class="member">
+                <h3 id="Organization.structure">structure</h3>
+                <p>Describes the 'shape' of the organization.</p>
+            </div>
+            <div class="method">
+                <h3 id="Organization.__init__">__init__(self,manifest,identifier=None)</h3>
+                <p>Each organization is created within the context of an associated
+                    <var>manifest</var>. If no <var>identifier</var> is supplied a default choice is
+                    made. The new organization is added to the parent manifest.</p>
+                <p>The <var>structure</var> of the organization is initialized to
+                    <em>hierarchical</em>.</p>
+            </div>
+            <div class="method">
+                <h3 id="Organization.SetStructure">SetStructure(self,structure)</h3>
+                <p>Sets the <var>structure</var> of the organization, may be None.</p>
+            </div>
+        </div>
+        <div class="class">
+            <h2 id="Item">Item(<a href="#ItemContainer">ItemContainer</a>,<a href="#Metadata"
+                    >Metadata</a>)</h2>
+            <p>An Item can contain other items and may have metadata.</p>
+            <div class="member">
+                <h3 id="Item.identifier">identifier</h3>
+                <p>The identifier of the item</p>
+            </div>
+            <div class="member">
+                <h3 id="Item.identifierRef">identifierRef</h3>
+                <p>An optional reference to a resource or a (sub)-manifest.</p>
+            </div>
+            <div class="member">
+                <h3 id="Item.isVisible">isVisible</h3>
+                <p>A boolean to indicate whether or not the item is displayed when the structure of
+                    the package is displayed ro rendered.</p>
+            </div>
+            <div class="member">
+                <h3 id="Item.parameters">parameters</h3>
+                <p>An optional string containing parameters to be passed to the resource at
+                launch.</p>
+            </div>
+            <div class="method">
+                <h3 id="Item.__init__">__init__(self,parent,identifier=None)</h3>
+                <p>Each item is created within the context of an associated <var>parent</var> which
+                    may be an <a class="var" href="#Organization">Organization</a> or another Item.
+                    If no <var>identifier</var> is supplied a default choice is made. The new item
+                    is added to its parent.</p>
+                <p>
+                    <var>isVisible</var> is initialized to 1.</p>
+            </div>
+            <div class="method">
+                <h3 id="Item.CheckIDs">CheckIDs(self)</h3>
+                <p>Extends the behaviour of this method to check that the <var>identifierRef</var>
+                    referes to a valid <a class="var" href="#Resource">Resource</a> or <a
+                        class="var" href="#Manifest">Manifest</a>. See the description of <a
+                        class="var" href="#Manifest.CheckIDs">Manifest.CheckIDs</a> for more
+                    information.</p>
+            </div>
+            <div class="method">
+                <h3 id="Item.SetIdentifierRef">SetIdentifierRef(self,identifierRef)</h3>
+                <p>Sets the <var>identifierRef</var>, may be None.</p>
+            </div>
+            <div class="method">
+                <h3 id="Item.SetIsVisible">SetIdentifierRef(self,isVisible)</h3>
+                <p>Sets the <var>isVisible</var> flag. If the argument is of a string type the
+                    boolean value is parsed from it according to the rules of XML Schema.</p>
+                <p>If the argument is None then <var>isVisible</var> reverts to the default value of
+                    1.</p>
+            </div>
+            <div class="method">
+                <h3 id="Item.SetParameters">SetIdentifierRef(self,parameters)</h3>
+                <p>Sets the <var>parameters</var> member, may be None.</p>
+            </div>
+        </div>
+        <div class="class">
+            <h2 id="Resource">Resource(<a href="#Metadata">Metadata</a>)</h2>
+            <div class="member">
+                <h3 id="Resource.manifest">manifest</h3>
+                <p>The parent manifest of the resource.</p>
+            </div>
+            <div class="member">
+                <h3 id="Resource.identifier">identifier</h3>
+                <p>The identifier of the resource</p>
+            </div>
+            <div class="member">
+                <h3 id="Resource.type">type</h3>
+                <p>The type of the resource</p>
+            </div>
+            <div class="member">
+                <h3 id="Resource.href">href</h3>
+                <p>An optional <a class="var" href="../ietf/rfc2396.xhtml#URIReference"
+                    >URIReference</a>.</p>
+            </div>
+            <div class="member">
+                <h3 id="Resource.files">files</h3>
+                <p>A list of <a class="var" href="#File">File</a> objects contained by this
+                    resource.</p>
+            </div>
+            <div class="member">
+                <h3 id="Resource.dependencies">dependencies</h3>
+                <p>A list of identifiers that identify other resources whose files this resource
+                    depends upon.</p>
+            </div>
+            <div class="method">
+                <h3 id="Resource.__init__">__init__(self,manifest,identifier=None,type="webcontent")</h3>
+                <p>Each item is created within the context of an associated <var>manifest</var>. If
+                    no <var>identifier</var> is supplied a default choice is made. The new resource
+                    is added to the manifest.</p>
+                <p>By default, the <var>type</var> of the resource is <em>webcontent</em>.</p>
+            </div>
+            <div class="method">
+                <h3 id="Resource.CheckIDs">CheckIDs(self)</h3>
+                <p>Checks that each of the dependencies refers to a resource within the package. See
+                    the description of <a class="var" href="#Manifest.CheckIDs"
+                    >Manifest.CheckIDs</a> for more information.</p>
+            </div>
+            <div class="method">
+                <h3 id="Resource.SetType">SetType(self,resourceType)</h3>
+                <p>Sets the <var>resourceType</var>, may be None.</p>
+            </div>
+            <div class="method">
+                <h3 id="Resource.SetHREF">SetHREF(self,href)</h3>
+                <p>Sets the <var>href</var>, may be None. If not None, the argument is used to
+                    construct a new <a class="var" href="../ietf/rfc2396.xhtml#URIReference"
+                        >URIReference</a> instance directly.</p>
+            </div>
+            <div class="method">
+                <h3 id="Resource.RemoveFile">RemoveFile(self,href)</h3>
+                <p>Removes the first File in the list with a matching <var>href</var>. The argument
+                    can be anything that compares with a <a class="var"
+                        href="../ietf/rfc2396.xhtml#URIReference">URIReference</a> instance. Note
+                    the caveats there about comparing URIs in the absence of a well defined
+                    canonicalization algorithm.</p>
+                <p>Files are added to resources automatically when they are created.</p>
+            </div>
+            <div class="method">
+                <h3 id="Resource.AddDependency">AddDependency(self,identifierRef)</h3>
+                <p>Adds a new dependency to the resource.</p>
+            </div>
+            <div class="method">
+                <h3 id="Resource.RemoveDependency">RemoveDependency(self,identifierRef)</h3>
+                <p>Removes the first matching dependency of the resource.</p>
+            </div>
+        </div>
+        <div class="class">
+            <h2 id="File">File(<a href="#Metadata">Metadata</a>)</h2>
+            <p>A File is simply a URI with optional associated metadata.</p>
+            <div class="member">
+                <h3 id="File.href">href</h3>
+                <p>A <a class="var" href="../ietf/rfc2396.xhtml#URIReference">URIReference</a> to
+                    the file.</p>
+            </div>
+            <div class="method">
+                <h3 id="File.__init__">__init__(self,href)</h3>
+                <p>File instances are constructed from the URI passed in <var>href</var>. The
+                    argument is used to construct a new <a class="var"
+                        href="../ietf/rfc2396.xhtml#URIReference">URIReference</a> instance for the
+                        <var>href</var> member.</p>
+            </div>
+        </div>
+        <div class="class">
+            <h2 id="ContentPackageParser">ContentPackageParser</h2>
+            <p>A class used for parsing manifest files.</p>
+            <div class="method">
+                <h3 id="ContentPackageParser.ReadManifest">ReadManifest(self,package,manifestFile)</h3>
+                <p>Given an empty content package and an open file from which to read the manifest
+                this method parsers the manifest XML and populates the package with the corresponding
+                    data structures.</p>
+                <p>Historically, there have been a variety of different namespaces used to describe
+                the XML binding of the Content Packaging specification.  Their use has also been
+                inconsistent.  Therefore, this method simple ignores the namespace of the manifest
+                    element, requiring only that it is the topmost element in the document.</p>
+                <p>IMS LRM metadata instances are correctly parsed provided that one of the namespaces
+                listed in <a href="../md.xhtml#IMSMetadataNamespaces" class="var">IMSMetadataNamespaces</a>
+                    is used.</p>
+                <p>Any unrecognized elements are ignored.</p>
+            </div>
+        </div>
+    </body>
+</html>

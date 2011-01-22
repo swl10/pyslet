@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T010.18" title="Test 10.18: Response
+    Rules" adaptive="false" timeDependent="false">
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer"/>
+    <outcomeDeclaration identifier="RECORD" cardinality="record">
+        <defaultValue>
+            <value fieldIdentifier="id" baseType="identifier">A</value>
+            <value fieldIdentifier="pi" baseType="float">3.141</value>
+            <value fieldIdentifier="score_value" baseType="integer">1</value>
+        </defaultValue>
+    </outcomeDeclaration>
+    <itemBody>
+        <p>In this item the fieldValue operator is used to set the score. A system fails if
+            you do not SCORE 1 for this item.</p>
+    </itemBody>
+    <responseProcessing>
+        <setOutcomeValue identifier="SCORE">
+            <fieldValue fieldIdentifier="score_value">
+                <variable identifier="RECORD"/>
+            </fieldValue>
+        </setOutcomeValue>
+    </responseProcessing>
+</assessmentItem>

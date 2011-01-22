@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="T011.05" title="Test 11.05: Extended Text Interaction" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="RESPONSE" cardinality="ordered" baseType="string"/>
+    <itemBody>
+        <extendedTextInteraction responseIdentifier="RESPONSE" maxStrings="3">
+            <prompt>A system fails if you are not given three separate and ordered text-entry areas.</prompt>
+        </extendedTextInteraction>
+    </itemBody>
+</assessmentItem>

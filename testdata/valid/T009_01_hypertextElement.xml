@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T009.01" title="Test 9.01: Hypertext
+    Element" adaptive="false" timeDependent="false">
+    <itemBody>
+        <p>This item uses the hypertext element to link to an external resource: <a href="test.htm" type="text/html">HTML File</a>.
+        A system fails if the words "HTML File" are not distinguished in some way and cannot be used as a hyperlink
+        to the associated HTML file.</p>
+    </itemBody>
+</assessmentItem>

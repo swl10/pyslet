@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T010.14" title="Test 10.14: Response
+    Rules" adaptive="false" timeDependent="false">
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer"/>
+    <itemBody>
+        <p>In this item the isNull operator is used to set the score. A system fails if you do not
+            SCORE 1 for this item.</p>
+    </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <or>
+                    <isNull>
+                        <baseValue baseType="integer">1</baseValue>
+                    </isNull>
+                    <isNull>
+                        <baseValue baseType="string">Hello</baseValue>
+                    </isNull>
+                    <isNull>
+                        <multiple>
+                            <baseValue baseType="identifier">A</baseValue>
+                        </multiple>
+                    </isNull>
+                    <isNull>
+                        <ordered>
+                            <baseValue baseType="identifier">A</baseValue>
+                        </ordered>
+                    </isNull>
+                </or>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="integer">2</baseValue>
+                </setOutcomeValue>
+            </responseIf>
+            <responseElseIf>
+                <and>
+                    <isNull>
+                        <null/>
+                    </isNull>
+                    <isNull>
+                        <baseValue baseType="string"></baseValue>
+                    </isNull>
+                    <isNull>
+                        <multiple/>
+                    </isNull>
+                    <isNull>
+                        <ordered/>
+                    </isNull>
+                </and>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="integer">1</baseValue>
+                </setOutcomeValue>
+            </responseElseIf>
+        </responseCondition>
+    </responseProcessing>
+</assessmentItem>

@@ -1,0 +1,24 @@
+body { font-family: times, serif; }
+
+h1 { margin: 0.1ex; padding: 0.2ex; text-align: center; 
+    font-family: Helvetica, sans-serif; font-size: 150%; font-weight: bold; font-style: normal;
+    background-color: rgb(0,153,204); color: white }
+h2 { font-family: Helvetica, sans-serif; font-size: 120%; font-weight: bold; font-style: normal }
+h3 { font-family: Helvetica, sans-serif; font-size: 120%; font-weight: normal; font-style: normal }
+h4 { font-family: Helvetica, sans-serif; font-size: 100%; font-weight: bold; font-style: normal }
+h5 { font-family: Helvetica, sans-serif; font-size: 100%; font-weight: normal; font-style: normal }
+h6 { font-family: Helvetica, sans-serif; font-size: 100%; font-weight: normal; font-style: italic }
+
+div.constant { margin-left: 2ex }
+div.constant h2 { font-family: Courier, monospace; font-size: 100%; font-weight: bold; font-style: normal; }
+
+div.class { margin-left: 2ex }
+div.class h2 { font-family: Courier, monospace; font-size: 120%; font-weight: bold; font-style: normal; }
+div.class h3 { font-family: Courier, monospace; font-size: 100%; font-weight: bold; font-style: normal; }
+
+div.method { margin-left: 2ex; }
+div.member { margin-left: 2ex; }
+
+var, .var { font-family: Courier, monospace; font-size: 90%; font-weight: normal; font-style: italic }
+
+

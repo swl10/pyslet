@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T010.17" title="Test 10.17: Response
+    Rules" adaptive="false" timeDependent="false">
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer"/>
+    <itemBody>
+        <p>In this item the ordered and index operators are used to set the score. A system fails if
+            you do not SCORE 1 for this item.</p>
+    </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <isNull>
+                    <index n="3">
+                        <ordered>
+                            <baseValue baseType="identifier">A</baseValue>
+                            <baseValue baseType="identifier">B</baseValue>
+                        </ordered>
+                    </index>
+                </isNull>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="integer">1</baseValue>
+                </setOutcomeValue>
+            </responseIf>
+        </responseCondition>
+    </responseProcessing>
+</assessmentItem>

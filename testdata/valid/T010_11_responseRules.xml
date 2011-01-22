@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T010.11" title="Test 10.11: Response
+    Rules" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="RESPONSE" cardinality="single" baseType="identifier">
+        <defaultValue>
+            <value>D</value>
+        </defaultValue>
+        <mapping defaultValue="1.0">
+            <mapEntry mapKey="A" mappedValue="4.0"/>
+            <mapEntry mapKey="B" mappedValue="3.0"/>
+            <mapEntry mapKey="C" mappedValue="2.0"/>
+        </mapping>
+    </responseDeclaration>
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="float"/>
+    <itemBody>
+        <p>In this item the mapResponse operator is used to set the score using the defaultValue for
+            the mapping. A system fails if you do not SCORE 1 for this item when providing the
+            default response.</p>
+        <choiceInteraction responseIdentifier="RESPONSE" shuffle="false" maxChoices="1">
+            <simpleChoice identifier="A">Choice A: worth 4 marks</simpleChoice>
+            <simpleChoice identifier="B">Choice B: worth 3 marks</simpleChoice>
+            <simpleChoice identifier="C">Choice C: worth 2 marks</simpleChoice>
+            <simpleChoice identifier="D">Choice D: worth 1 mark</simpleChoice>
+        </choiceInteraction>
+    </itemBody>
+    <responseProcessing>
+        <setOutcomeValue identifier="SCORE">
+            <mapResponse identifier="RESPONSE"/>
+        </setOutcomeValue>
+    </responseProcessing>
+</assessmentItem>

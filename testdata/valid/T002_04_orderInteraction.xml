@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T002.04" title="Test 2.04: Order
+    Interaction" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="RESPONSE" cardinality="ordered" baseType="identifier"/>
+    <itemBody>
+        <orderInteraction responseIdentifier="RESPONSE" shuffle="false" orientation="horizontal">
+            <prompt>Look at the presentation of the choices, they should be listed horizontally
+                in display systems for which that makes sense.  This test highlights an issue of best practice only.</prompt>
+            <simpleChoice identifier="A">First choice.</simpleChoice>
+            <simpleChoice identifier="B">Second Choice</simpleChoice>
+            <simpleChoice identifier="C">Third Choice</simpleChoice>
+            <simpleChoice identifier="D">Fourth Choice</simpleChoice>
+        </orderInteraction>
+    </itemBody>
+</assessmentItem>

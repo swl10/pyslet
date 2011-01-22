@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T003.01" title="Test 5.02: Object
+    Elements" adaptive="false" timeDependent="false">
+    <itemBody>
+        <p>This item contains an object element that tests the use of paramater passing to a java
+            applet. Systems are not required to support java applets but, if they do, they must
+            support parameter passing using this model. A system fails if the applet displays
+            the word "Fail".</p>
+        <p>Object parameters: <object data="test.class" type="application/x-java-applet">
+            <param name="text" value="Supported" valuetype="DATA"/> Unsupported </object>
+        </p>
+    </itemBody>
+</assessmentItem>

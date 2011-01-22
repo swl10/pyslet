@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="T001.03" title="Test 1.03: Choice Interaction" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="RESPONSE" cardinality="multiple" baseType="identifier"/>
+    <itemBody>
+        <choiceInteraction responseIdentifier="RESPONSE" shuffle="false" maxChoices="4">
+            <prompt>Select the first choice, then one of the other choices then another and so on
+                until all the choices have been selected, then unselect all of the choices in a
+                similar fashion. A system fails if (a) the choices are not listed in the order
+                "First", "Second", etc.; (b) you are unable to make a chosen selection at any time;
+                (c) you are unable to unselect a choice at any time.</prompt>
+            <simpleChoice identifier="A">First choice.</simpleChoice>
+            <simpleChoice identifier="B">Second Choice</simpleChoice>
+            <simpleChoice identifier="C">Third Choice</simpleChoice>
+            <simpleChoice identifier="D">Fourth Choice</simpleChoice>
+        </choiceInteraction>
+    </itemBody>
+</assessmentItem>

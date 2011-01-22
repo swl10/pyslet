@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T003.01" title="Test 5.01: Object
+    Elements" adaptive="false" timeDependent="false">
+    <itemBody>
+        <p>This item contains a number of objects included with the 'object' element.  It can be used to
+            determine if a system supports a variety of commonly used internet media types.
+            Systems are not required to support any, however, a system fails if any that are missing are
+            not replaced by the single word 'Unsupported'.</p>
+        <p>Media type image/gif: <object data="test.gif" type="image/gif" width="100" height="50">Unsupported</object></p>
+        <p>Media type image/jpg: <object data="test.jpg" type="image/jpg" width="100" height="50">Unsupported</object></p>
+        <p>Media type image/png: <object data="test.png" type="image/png" width="100" height="50">Unsupported</object></p>
+        <p>Media type image/tiff: <object data="test.tiff" type="image/tiff" width="100" height="50">Unsupported</object></p>
+    </itemBody>
+</assessmentItem>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2.dtd">
+<questestinterop>
+    <objectbank ident="objectBankID">
+        <qticomment>This is an objectbank</qticomment>
+        <qtimetadata>
+            <qtimetadatafield>
+                <fieldlabel>qmd_unknown</fieldlabel>
+                <fieldentry>Unrecognized objectbank metadata field</fieldentry>
+            </qtimetadatafield>
+        </qtimetadata>
+        <item ident="item001" label="migration" maxattempts="1" title="Item 001" xml:lang="en-GB"/>
+        <section ident="section001" title="Section 001" xml:lang="en-GB">
+            <qticomment>Comment on Section001</qticomment>
+            <duration>PT1H30M</duration>            
+            <qtimetadata>
+                <qtimetadatafield>
+                    <fieldlabel>qmd_unknown</fieldlabel>
+                    <fieldentry>Unrecognized objectbank metadata field</fieldentry>
+                </qtimetadatafield>
+            </qtimetadata>
+            <objectives view="All">
+                <material><mattext texttype="text/plain">General section objectives</mattext></material>
+            </objectives>
+            <objectives view="Scorer">
+                <material>
+                    <mattext texttype="text/plain">Section objectives for Scorer.</mattext>
+                </material>
+            </objectives>
+            <selection_ordering sequence_type="Normal">                
+                <selection>                    
+                    <and_selection>
+                        <selection_metadata mdname="identifier" mdoperator="EQ"
+                        >item001</selection_metadata>
+                    </and_selection>
+                </selection>
+            </selection_ordering>
+            <item ident="item002"/>
+        </section>
+    </objectbank>
+</questestinterop>

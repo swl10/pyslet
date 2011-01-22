@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T010.28" title="Test 10.28: Response
+    Rules" adaptive="false" timeDependent="false">
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer"/>
+    <itemBody>
+        <p>In this item the match operator is used to set the score. A system fails if you do not
+            SCORE 1 for this item.</p>
+    </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <or>
+                    <match>
+                        <baseValue baseType="boolean">true</baseValue>
+                        <baseValue baseType="boolean">false</baseValue>
+                    </match>
+                    <match>
+                        <baseValue baseType="directedPair">A B</baseValue>
+                        <baseValue baseType="directedPair">B A</baseValue>
+                    </match>
+                    <match>
+                        <baseValue baseType="float">1.0</baseValue>
+                        <baseValue baseType="float">1.1</baseValue>
+                    </match>
+                    <match>
+                        <baseValue baseType="identifier">A</baseValue>
+                        <baseValue baseType="identifier">B</baseValue>
+                    </match>
+                    <match>
+                        <baseValue baseType="integer">1</baseValue>
+                        <baseValue baseType="integer">2</baseValue>
+                    </match>
+                    <match>
+                        <baseValue baseType="pair">A B</baseValue>
+                        <baseValue baseType="pair">A C</baseValue>
+                    </match>
+                    <match>
+                        <baseValue baseType="point">1 2</baseValue>
+                        <baseValue baseType="point">1 3</baseValue>
+                    </match>
+                    <match>
+                        <baseValue baseType="string">True</baseValue>
+                        <baseValue baseType="string">true</baseValue>
+                    </match>
+                    <match>
+                        <baseValue baseType="uri">http://www.imsglobal.org/</baseValue>
+                        <baseValue baseType="uri">http://www.imsglobal.org/question/</baseValue>
+                    </match>
+                </or>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="integer">2</baseValue>
+                </setOutcomeValue>
+            </responseIf>
+            <responseElseIf>
+                <and>
+                    <match>
+                        <baseValue baseType="boolean">true</baseValue>
+                        <baseValue baseType="boolean">true</baseValue>
+                    </match>
+                    <match>
+                        <baseValue baseType="directedPair">A B</baseValue>
+                        <baseValue baseType="directedPair">A B</baseValue>
+                    </match>
+                    <match>
+                        <baseValue baseType="float">1.0</baseValue>
+                        <baseValue baseType="float">1.0</baseValue>
+                    </match>
+                    <match>
+                        <baseValue baseType="identifier">A</baseValue>
+                        <baseValue baseType="identifier">A</baseValue>
+                    </match>
+                    <match>
+                        <baseValue baseType="integer">1</baseValue>
+                        <baseValue baseType="integer">1</baseValue>
+                    </match>
+                    <match>
+                        <baseValue baseType="pair">A B</baseValue>
+                        <baseValue baseType="pair">B A</baseValue>
+                    </match>
+                    <match>
+                        <baseValue baseType="point">1 2</baseValue>
+                        <baseValue baseType="point">1 2</baseValue>
+                    </match>
+                    <match>
+                        <baseValue baseType="string">false</baseValue>
+                        <baseValue baseType="string">false</baseValue>
+                    </match>
+                    <match>
+                        <baseValue baseType="uri">http://www.imsglobal.org/</baseValue>
+                        <baseValue baseType="uri">http://www.imsglobal.org/</baseValue>
+                    </match>
+                    <isNull>
+                        <match>
+                            <baseValue baseType="identifier">A</baseValue>
+                            <null/>
+                        </match>
+                    </isNull>
+                    <isNull>
+                        <match>
+                            <null/>
+                            <baseValue baseType="identifier">A</baseValue>
+                        </match>
+                    </isNull>
+                    <isNull>
+                        <match>
+                            <baseValue baseType="string">A</baseValue>
+                            <null/>
+                        </match>
+                    </isNull>
+                    <isNull>
+                        <match>
+                            <null/>
+                            <null/>
+                        </match>
+                    </isNull>
+                </and>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="integer">1</baseValue>
+                </setOutcomeValue>
+            </responseElseIf>
+        </responseCondition>
+    </responseProcessing>
+</assessmentItem>

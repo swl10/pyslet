@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T007.04" title="Test 7.04: Table
+    Elements" adaptive="false" timeDependent="false">
+    <stylesheet href="tableElements.css" type="text/css"/>
+    <itemBody>
+        <p>This test uses col and colgroup elements to group cells by column.  In the default
+        style, the table should look the same as the one in Test 7.02, but without the caption.
+        For systems that support CSS the 3 columns should have red, green and blue backgrounds
+        (from left to right).</p>
+        <table>
+            <colgroup class="left"/>
+            <colgroup>
+                <col class="middle"/>
+                <col class="right"/>
+            </colgroup>
+            <tbody>
+                <tr>
+                    <th/>
+                    <th>Col 1</th>
+                    <th>Col 2</th>
+                </tr>
+                <tr>
+                    <th>Row A</th>
+                    <td>A1</td>
+                    <td>A2</td>
+                </tr>
+                <tr>
+                    <th>Row B</th>
+                    <td>B1</td>
+                    <td>B2</td>
+                </tr>
+            </tbody>
+        </table>
+        <p>Note that this example will not validate against the QTI 2.0 schema due to a bug in that
+        specification concerning the span attribute.</p>
+    </itemBody>
+</assessmentItem>

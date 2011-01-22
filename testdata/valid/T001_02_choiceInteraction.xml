@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="T001.02" title="Test 1.02: Choice Interaction" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="RESPONSE" cardinality="single" baseType="identifier"/>
+    <itemBody>
+        <choiceInteraction responseIdentifier="RESPONSE" shuffle="true" maxChoices="1">
+            <prompt>Look at the order of the choices. The "First Choice" and "Third Choice" should
+                be transposed for approximately 50% of the test runs. A system fails if (a) it
+                repeatedly presents the same order or (b) the "Second Choice" and "Fourth Choice"
+                are ever presented out of position.</prompt>
+            <simpleChoice identifier="A">First Choice.</simpleChoice>
+            <simpleChoice identifier="B" fixed="true">Second Choice</simpleChoice>
+            <simpleChoice identifier="C">Third Choice</simpleChoice>
+            <simpleChoice identifier="D" fixed="true">Fourth Choice</simpleChoice>
+        </choiceInteraction>
+    </itemBody>
+</assessmentItem>

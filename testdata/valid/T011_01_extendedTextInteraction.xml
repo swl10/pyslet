@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="T011.01" title="Test 11.01: Extended Text Interaction" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="RESPONSE" cardinality="single" baseType="string"/>
+    <itemBody>
+        <extendedTextInteraction responseIdentifier="RESPONSE">
+            <prompt>A system fails if you are unable to enter a text response.</prompt>
+        </extendedTextInteraction>
+    </itemBody>
+</assessmentItem>

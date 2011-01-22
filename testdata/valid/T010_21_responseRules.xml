@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T010.21" title="Test 10.21: Response
+    Rules" adaptive="false" timeDependent="false">
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer"/>
+    <itemBody>
+        <p>In this item the delete operator is used to set the score. A system fails if you do not
+            SCORE 1 for this item.</p>
+    </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <or>
+                    <member>
+                        <baseValue baseType="identifier">C</baseValue>
+                        <delete>
+                            <baseValue baseType="identifier">C</baseValue>
+                            <multiple>
+                                <baseValue baseType="identifier">A</baseValue>
+                                <baseValue baseType="identifier">B</baseValue>
+                                <baseValue baseType="identifier">C</baseValue>
+                                <baseValue baseType="identifier">D</baseValue>
+                                <baseValue baseType="identifier">C</baseValue>
+                            </multiple>
+                        </delete>
+                    </member>
+                    <member>
+                        <baseValue baseType="identifier">C</baseValue>
+                        <delete>
+                            <baseValue baseType="identifier">C</baseValue>
+                            <multiple>
+                                <baseValue baseType="identifier">A</baseValue>
+                                <baseValue baseType="identifier">B</baseValue>
+                            </multiple>
+                        </delete>
+                    </member>
+                </or>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="integer">2</baseValue>
+                </setOutcomeValue>
+            </responseIf>
+            <responseElseIf>
+                <and>
+                    <member>
+                        <baseValue baseType="identifier">C</baseValue>
+                        <delete>
+                            <baseValue baseType="identifier">A</baseValue>
+                            <multiple>
+                                <baseValue baseType="identifier">A</baseValue>
+                                <baseValue baseType="identifier">B</baseValue>
+                                <baseValue baseType="identifier">C</baseValue>
+                            </multiple>
+                        </delete>
+                    </member>
+                    <isNull>
+                        <delete>
+                            <null/>
+                            <multiple>
+                                <baseValue baseType="identifier">A</baseValue>
+                                <baseValue baseType="identifier">B</baseValue>
+                                <baseValue baseType="identifier">C</baseValue>
+                            </multiple>
+                        </delete>
+                    </isNull>
+                    <isNull>
+                        <delete>
+                            <baseValue baseType="identifier">A</baseValue>
+                            <multiple/>
+                        </delete>
+                    </isNull>
+                </and>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="integer">1</baseValue>
+                </setOutcomeValue>
+            </responseElseIf>
+        </responseCondition>
+    </responseProcessing>
+</assessmentItem>

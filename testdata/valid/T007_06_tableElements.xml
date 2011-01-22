@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T007.06" title="Test 7.06: Table
+    Elements" adaptive="false" timeDependent="false">
+    <stylesheet href="tableElements.css" type="text/css"/>
+    <itemBody>
+        <p>This test uses colspan and rowspan attributes to combine cells.  Systems
+            fail is the cells A1 and A2 are not combined horizontally or the cells
+            A3 and B3 are not combined vertically.</p>
+        <table>
+            <tbody>
+                <tr>
+                    <th/>
+                    <th>Col 1</th>
+                    <th>Col 2</th>
+                    <th>Col 3</th>
+                </tr>
+                <tr>
+                    <th>Row A</th>
+                    <td colspan="2">A1-2</td>
+                    <td rowspan="2">A-B3</td>
+                </tr>
+                <tr>
+                    <th>Row B</th>
+                    <td>B1</td>
+                    <td>B2</td>
+                </tr>
+            </tbody>
+        </table>
+    </itemBody>
+</assessmentItem>

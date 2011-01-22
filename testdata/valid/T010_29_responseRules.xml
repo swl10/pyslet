@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T010.29" title="Test 10.29: Response
+    Rules" adaptive="false" timeDependent="false">
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer"/>
+    <itemBody>
+        <p>In this item the stringMatch operator is used to set the score. A system fails if you do not
+            SCORE 1 for this item.</p>
+    </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <or>
+                    <stringMatch caseSensitive="true" substring="false">
+                        <baseValue baseType="string">match</baseValue>
+                        <baseValue baseType="string">Match</baseValue>
+                    </stringMatch>
+                    <stringMatch caseSensitive="true" substring="false">
+                        <baseValue baseType="string">matches</baseValue>
+                        <baseValue baseType="string">match</baseValue>
+                    </stringMatch>
+                    <stringMatch caseSensitive="true" substring="true">
+                        <baseValue baseType="string">Matches</baseValue>
+                        <baseValue baseType="string">match</baseValue>
+                    </stringMatch>
+                    <stringMatch caseSensitive="false" substring="true">
+                        <baseValue baseType="string">match</baseValue>
+                        <baseValue baseType="string">matches</baseValue>
+                    </stringMatch>
+                </or>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="integer">2</baseValue>
+                </setOutcomeValue>
+            </responseIf>
+            <responseElseIf>
+                <and>
+                    <stringMatch caseSensitive="false" substring="false">
+                        <baseValue baseType="string">Match</baseValue>
+                        <baseValue baseType="string">match</baseValue>
+                    </stringMatch>
+                    <stringMatch caseSensitive="true" substring="false">
+                        <baseValue baseType="string">match</baseValue>
+                        <baseValue baseType="string">match</baseValue>
+                    </stringMatch>
+                    <stringMatch caseSensitive="true" substring="true">
+                        <baseValue baseType="string">matches</baseValue>
+                        <baseValue baseType="string">match</baseValue>
+                    </stringMatch>
+                    <stringMatch caseSensitive="false" substring="true">
+                        <baseValue baseType="string">MATCHES</baseValue>
+                        <baseValue baseType="string">tche</baseValue>
+                    </stringMatch>
+                    <isNull>
+                        <stringMatch caseSensitive="false" substring="false">
+                            <baseValue baseType="string">match</baseValue>
+                            <null/>
+                        </stringMatch>
+                    </isNull>
+                    <isNull>
+                        <stringMatch caseSensitive="false" substring="false">
+                            <null/>
+                            <baseValue baseType="string">match</baseValue>
+                        </stringMatch>
+                    </isNull>
+                    <isNull>
+                        <stringMatch caseSensitive="false" substring="false">
+                            <baseValue baseType="string"></baseValue>
+                            <baseValue baseType="string">match</baseValue>
+                        </stringMatch>
+                    </isNull>
+                    <isNull>
+                        <stringMatch caseSensitive="false" substring="false">
+                            <null/>
+                            <null/>
+                        </stringMatch>
+                    </isNull>
+                </and>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="integer">1</baseValue>
+                </setOutcomeValue>
+            </responseElseIf>
+        </responseCondition>
+    </responseProcessing>
+</assessmentItem>

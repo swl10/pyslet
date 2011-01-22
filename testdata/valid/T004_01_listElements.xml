@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T003.01" title="Test 4.01: List
+    Elements" adaptive="false" timeDependent="false">
+    <itemBody>
+        <p>Check the three lists in this item, each one has three items.  A system fails if any
+        are missing.</p>
+        <dl>
+            <dt>Term 1</dt>
+            <dd>Definition of term 1</dd>
+            <dt>Term 2</dt>
+            <dd>Definition of term 2</dd>
+            <dt>Term 3</dt>
+            <dd>Definition of term 3</dd>
+        </dl>
+        <ol>
+            <li>Ordered item 1</li>
+            <li>Ordered item 2</li>
+            <li>Ordered item 3</li>
+        </ol>
+        <ul>
+            <li>Unordered item 1</li>
+            <li>Unordered item 2</li>
+            <li>Unordered item 3</li>
+        </ul>
+    </itemBody>
+</assessmentItem>

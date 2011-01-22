@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T002.02" title="Test 2.02: Order
+    Interaction" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="RESPONSE" cardinality="ordered" baseType="identifier">
+        <defaultValue>
+            <value>D</value>
+            <value>B</value>
+            <value>C</value>
+            <value>A</value>
+        </defaultValue>
+    </responseDeclaration>
+    <itemBody>
+        <orderInteraction responseIdentifier="RESPONSE" shuffle="false">
+            <prompt>Look at the order of the choices, they should be Fourth, Second, Third, First
+                when initially displayed. This test highlights an issue of best practice only.</prompt>
+            <simpleChoice identifier="A">First choice.</simpleChoice>
+            <simpleChoice identifier="B">Second Choice</simpleChoice>
+            <simpleChoice identifier="C">Third Choice</simpleChoice>
+            <simpleChoice identifier="D">Fourth Choice</simpleChoice>
+        </orderInteraction>
+    </itemBody>
+</assessmentItem>

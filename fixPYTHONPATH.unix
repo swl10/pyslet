@@ -1,0 +1,5 @@
+
+# if you want to run an individual module test from the distribution directory some
+# installations will need to have the current directory added to sys.path, this
+# command will do the trick for UNIX users
+PYTHONPATH="."; export PYTHONPATH

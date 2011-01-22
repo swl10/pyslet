@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p0
+    http://www.imsglobal.org/xsd/imsqti_v2p0.xsd" identifier="F001.02" title="Fail Test 1.02: Choice
+    Interaction" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="RESPONSE" cardinality="ordered" baseType="identifier"/>
+    <itemBody>
+        <choiceInteraction responseIdentifier="RESPONSE" shuffle="false" maxChoices="1">
+            <prompt>The choiceInteraction must be bound to a responseVariable with a baseType of
+                identifier and single or multiple cardinality: this test should fail because
+                the cardinality of the associated response is ordered.</prompt>
+            <simpleChoice identifier="A">First Choice.</simpleChoice>
+            <simpleChoice identifier="B">Second Choice</simpleChoice>
+            <simpleChoice identifier="C">Third Choice</simpleChoice>
+            <simpleChoice identifier="D">Fourth Choice</simpleChoice>
+        </choiceInteraction>
+    </itemBody>
+</assessmentItem>

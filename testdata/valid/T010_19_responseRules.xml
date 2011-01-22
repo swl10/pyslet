@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T010.19" title="Test 10.19: Response
+    Rules" adaptive="false" timeDependent="false">
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer"/>
+    <itemBody>
+        <p>In this item the random operator is used to set the score from a container with a single
+            value. A system fails if you do not
+            SCORE 1 for this item.</p>
+    </itemBody>
+    <responseProcessing>
+        <setOutcomeValue identifier="SCORE">
+            <random>
+                <multiple>
+                    <baseValue baseType="integer">1</baseValue>
+                </multiple>
+            </random>
+        </setOutcomeValue>
+    </responseProcessing>
+</assessmentItem>

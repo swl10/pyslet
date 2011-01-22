@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1
+    http://www.imsglobal.org/xsd/imsqti_v2p1.xsd" identifier="T010.26" title="Test 10.26: Response
+    Rules" adaptive="false" timeDependent="false">
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer"/>
+    <itemBody>
+        <p>In this item the anyN and null operators are used to set the score. A system fails if you do
+            not SCORE 1 for this item.</p>
+    </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <or>
+                    <anyN min="1" max="2">
+                        <baseValue baseType="boolean">false</baseValue>
+                    </anyN>
+                    <anyN min="1" max="2">
+                        <baseValue baseType="boolean">false</baseValue>
+                        <baseValue baseType="boolean">false</baseValue>
+                    </anyN>
+                    <anyN min="1" max="2">
+                        <baseValue baseType="boolean">false</baseValue>
+                        <baseValue baseType="boolean">false</baseValue>
+                        <baseValue baseType="boolean">false</baseValue>
+                    </anyN>
+                    <anyN min="1" max="2">
+                        <baseValue baseType="boolean">true</baseValue>
+                        <baseValue baseType="boolean">true</baseValue>
+                        <baseValue baseType="boolean">true</baseValue>
+                    </anyN>
+                </or>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="integer">2</baseValue>
+                </setOutcomeValue>
+            </responseIf>
+            <responseElseIf>
+                <and>
+                    <anyN min="1" max="2">
+                        <baseValue baseType="boolean">true</baseValue>
+                    </anyN>
+                    <anyN min="1" max="2">
+                        <baseValue baseType="boolean">true</baseValue>
+                        <baseValue baseType="boolean">false</baseValue>
+                    </anyN>
+                    <anyN min="1" max="2">
+                        <baseValue baseType="boolean">true</baseValue>
+                        <baseValue baseType="boolean">true</baseValue>
+                    </anyN>
+                    <anyN min="1" max="2">
+                        <baseValue baseType="boolean">true</baseValue>
+                        <null/>
+                    </anyN>
+                    <anyN min="1" max="2">
+                        <baseValue baseType="boolean">true</baseValue>
+                        <baseValue baseType="boolean">true</baseValue>
+                        <baseValue baseType="boolean">false</baseValue>
+                    </anyN>
+                    <anyN min="1" max="2">
+                        <baseValue baseType="boolean">true</baseValue>
+                        <baseValue baseType="boolean">false</baseValue>
+                        <baseValue baseType="boolean">false</baseValue>
+                    </anyN>
+                    <anyN min="1" max="2">
+                        <baseValue baseType="boolean">true</baseValue>
+                        <baseValue baseType="boolean">false</baseValue>
+                        <null/>
+                    </anyN>
+                    <isNull>
+                        <anyN min="1" max="2">
+                            <null/>
+                        </anyN>
+                    </isNull>
+                    <isNull>
+                        <anyN min="1" max="2">
+                            <baseValue baseType="boolean">false</baseValue>
+                            <null/>
+                        </anyN>
+                    </isNull>
+                    <isNull>
+                        <anyN min="1" max="2">
+                            <null/>
+                            <null/>
+                        </anyN>
+                    </isNull>
+                    <isNull>
+                        <anyN min="1" max="2">
+                            <baseValue baseType="boolean">true</baseValue>
+                            <baseValue baseType="boolean">true</baseValue>
+                            <null/>
+                        </anyN>
+                    </isNull>
+                    <isNull>
+                        <anyN min="1" max="2">
+                            <baseValue baseType="boolean">false</baseValue>
+                            <baseValue baseType="boolean">false</baseValue>
+                            <null/>
+                        </anyN>
+                    </isNull>
+                    <isNull>
+                        <anyN min="1" max="2">
+                            <baseValue baseType="boolean">true</baseValue>
+                            <null/>
+                            <null/>
+                        </anyN>
+                    </isNull>
+                    <isNull>
+                        <anyN min="1" max="2">
+                            <baseValue baseType="boolean">false</baseValue>
+                            <null/>
+                            <null/>
+                        </anyN>
+                    </isNull>
+                    <isNull>
+                        <anyN min="1" max="2">
+                            <null/>
+                            <null/>
+                            <null/>
+                        </anyN>
+                    </isNull>
+                </and>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="integer">1</baseValue>
+                </setOutcomeValue>
+            </responseElseIf>
+        </responseCondition>
+    </responseProcessing>
+</assessmentItem>
