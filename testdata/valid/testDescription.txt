@@ -1,0 +1,3 @@
+Long Description of Test Image
+
+This image shows the single work "Supported" in yellow on a green background.

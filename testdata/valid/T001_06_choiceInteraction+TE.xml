@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p0
+    http://www.imsglobal.org/xsd/imsqti_v2p0.xsd" identifier="T003.01" title="Test 3.01: Text
+    Elements" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="RESPONSE" cardinality="single" baseType="identifier"/>
+    <itemBody>
+        <p>Look at the content and the formatting of the choices in this item, the first choice uses
+            all text elements, the second uses only inline elements (up to and including the part
+            labelled 36). The criteria for passing this test are the same as those in Test 3.01:
+            Text Elements.</p>
+        <choiceInteraction responseIdentifier="RESPONSE" shuffle="false" maxChoices="1">
+            <simpleChoice identifier="A">
+                <h1>[1:B] h1 (Heading Level 1)</h1>
+                <h2>[2:B] h2 (Heading Level 2)</h2>
+                <h3>[3:B] h3 (Heading Level 3)</h3>
+                <h4>[4:B] h4 (Heading Level 4)</h4>
+                <h5>[5:B] h5 (Heading Level 5)</h5>
+                <h6>[6:B] h6 (Heading Level 6)</h6>
+                <p>[7:B] p: <abbr>[8:I] abbr</abbr>
+                    <acronym>[9:I] acronym</acronym>
+                    <cite>[10:I] cite</cite>
+                    <dfn>[11:I] dfn</dfn>
+                    <span>[12:I] span</span> [EOL]<br/>
+                    <code>[13:I] code</code>
+                    <kbd>[14:I] kbd</kbd>
+                    <samp>[15:I] samp</samp>
+                    <var>[16:I] var</var> [EOL]<br/>
+                    <em>[17:I] em</em>
+                    <strong>[18:I] strong</strong> [EOL]<br/>
+                    <q>[19:I] q</q>
+                </p>
+                <address>[20:B] address</address>
+                <blockquote><p>[21:B] blockquote p</p></blockquote>
+                <div>[22:B] div</div>
+                <pre>[23:B] pre</pre>
+            </simpleChoice>
+            <simpleChoice identifier="B">[24:B] Each choice should start a new block: <abbr>[25:I]
+                    abbr</abbr>
+                <acronym>[26:I] acronym</acronym>
+                <cite>[27:I] cite</cite>
+                <dfn>[28:I] dfn</dfn>
+                <span>[29:I] span</span> [EOL]<br/>
+                <code>[30:I] code</code>
+                <kbd>[31:I] kbd</kbd>
+                <samp>[32:I] samp</samp>
+                <var>[33:I] var</var> [EOL]<br/>
+                <em>[34:I] em</em>
+                <strong>[35:I] strong</strong> [EOL]<br/>
+                <q>[36:I] q</q>
+            </simpleChoice>
+        </choiceInteraction>
+    </itemBody>
+</assessmentItem>

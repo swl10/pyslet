@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p0
+    http://www.imsglobal.org/xsd/imsqti_v2p0.xsd" identifier="T003.01" title="Test 3.01: Text
+    Elements" adaptive="false" timeDependent="false">
+    <itemBody>
+        <p>[1:B] Look at the content and the formatting of the text in this item. Each part of the
+            text is labelled with a number, in sequence, followed by one of the letters 'B' or 'I'
+            which stand for 'block' or 'inline' respectively. A system fails if (a) any of the
+            numbered parts are missing; (b) any block parts run in with the previous text; (c) any
+            inline parts do not run in with the previous text; (d) any of the parts labelled as
+            being distinguishable appear the same when rendered. </p>
+        <p>[2:B] The following 6 headings should be distinguishable:</p>
+        <h1>[3:B] h1 (Heading Level 1)</h1>
+        <h2>[4:B] h2 (Heading Level 2)</h2>
+        <h3>[5:B] h3 (Heading Level 3)</h3>
+        <h4>[6:B] h4 (Heading Level 4)</h4>
+        <h5>[7:B] h5 (Heading Level 5)</h5>
+        <h6>[8:B] h6 (Heading Level 6)</h6>
+        <p>[9:B] This paragraph contains inline parts that do not need to be distinguishable from
+            this run of plain text: <abbr>[10:I] abbr (abbreviated form)</abbr>
+            <acronym>[11:I] acronym (an acronym)</acronym>
+            <cite>[12:I] cite (a citation or a reference to other sources)</cite>
+            <dfn>[13:I] dfn (the defining instance of the enclosed term)</dfn>
+            <span>[14:I] span (grouping element)</span>
+        </p>
+        <p>[15:B] This paragraph contains inline parts that should be distinguishable from plain
+            text by the user: <code>[16:I] code (a fragment of computer code)</code>
+            <kbd>[17:I] kbd (text to be entered by the user)</kbd>
+            <samp>[18:I] samp (sample output from programs, scripts, etc.)</samp>
+            <var>[19:I] var (an instance of a variable or program argument)</var>
+        </p>
+        <p>[20:B] This paragraph contains inline parts that must be distinguishable by the user:
+                <em>[21:I] em (emphasis)</em>
+            <strong>[22:I] strong (strong emphasis)</strong>
+        </p>
+        <address>[22:B] address (contact information for an item).</address>
+        <blockquote cite="http://www.w3.org/TR/1999/RED-html401-19991224">
+            <p>[23:B] blockquote (quoted text). There is no specific requirement for rendering of
+                blockquote text, except to note the following remark from the HTML 4.01
+                specification.</p>
+            <p>[24:B] We recommend that style sheet implementations provide a mechanism for
+                inserting quotation marks before and after a quotation delimited by BLOCKQUOTE in a
+                manner appropriate to the current language context and the degree of nesting of
+                quotations. However, as some authors have used BLOCKQUOTE merely as a mechanism to
+                indent text, in order to preserve the intention of the authors, user agents should
+                not insert quotation marks in the default style.</p>
+        </blockquote>
+        <p>[25:B] The handling of quoted text requires particular attention, as per the folling
+            note, which itself should appear with delimiting quotation marks: <q
+                cite="http://www.w3.org/TR/1999/RED-html401-19991224">[26:I] Visual user agents must
+                ensure that the content of the Q element is rendered with delimiting quotation
+                marks. Authors should not put quotation marks at the beginning and end of the
+                content of a Q element.</q>
+        </p>
+        <div>[27:B] div (generic language/style container): although marked as a block element div
+            is normally used to contain other block elements.</div>
+        <pre><![CDATA[[28:B] pre (preformatted text)
+The rendering should (where appropriate):
+  (a) leave white space intact
+  (b) render with a fixed-pitch font
+  (c) disable automatic word wrapping]]></pre>
+        <p/>
+        <p>[29:B] This paragraph illustrates the use of forced line breaks, systems must start a new
+            line as indicated at each [EOL]<br/> Line 1 [EOL]<br/> Line 2 [EOL]<br/> Line 3 [EOL]</p>
+        <p>[30:B] This is the last paragraph.</p>
+    </itemBody>
+</assessmentItem>

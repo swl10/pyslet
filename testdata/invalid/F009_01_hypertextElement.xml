@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p0
+    http://www.imsglobal.org/xsd/imsqti_v2p0.xsd" identifier="F009.01" title="Fail Test 9.01: Hypertext
+    Element" adaptive="false" timeDependent="false">
+    <itemBody>
+        <p>This item uses two hypertext elements, one embedded in the other, to link to an external resource:
+            <a href="fail.htm" type="text/html">This a link to an <em><a href="test.htm">HTML File</a></em></a>.</p>
+    </itemBody>
+</assessmentItem>

@@ -1,0 +1,14 @@
+col.left,
+colgroup.left  { 
+    background:red 
+}
+col.middle  { 
+    background:green 
+}
+col.right  { 
+    background:blue 
+}
+td[axis=diagonal]  
+{ 
+    background:red 
+}
