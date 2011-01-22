@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p0
+    http://www.imsglobal.org/xsd/imsqti_v2p0.xsd" identifier="T010.15" title="Test 10.15: Response
+    Rules" adaptive="false" timeDependent="false">
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer"/>
+    <itemBody>
+        <p>In this item the multiple and member operators are used to set the score. A system fails
+            if you do not SCORE 1 for this item.</p>
+    </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <or>
+                    <member>
+                        <baseValue baseType="identifier">E</baseValue>
+                        <multiple>
+                            <baseValue baseType="identifier">A</baseValue>
+                            <baseValue baseType="identifier">B</baseValue>
+                            <baseValue baseType="identifier">C</baseValue>
+                            <baseValue baseType="identifier">D</baseValue>
+                        </multiple>
+                    </member>
+                </or>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="integer">2</baseValue>
+                </setOutcomeValue>
+            </responseIf>
+            <responseElseIf>
+                <and>
+                    <isNull>
+                        <member>
+                            <null/>
+                            <multiple>
+                                <baseValue baseType="identifier">A</baseValue>
+                            </multiple>
+                        </member>
+                    </isNull>
+                    <isNull>
+                        <member>
+                            <baseValue baseType="identifier">C</baseValue>
+                            <!-- Note: empty container is same as NULL -->
+                            <multiple/>
+                        </member>
+                    </isNull>
+                    <member>
+                        <baseValue baseType="identifier">C</baseValue>
+                        <multiple>
+                            <baseValue baseType="identifier">A</baseValue>
+                            <baseValue baseType="identifier">B</baseValue>
+                            <baseValue baseType="identifier">C</baseValue>
+                            <baseValue baseType="identifier">D</baseValue>
+                        </multiple>
+                    </member>
+                </and>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="integer">1</baseValue>
+                </setOutcomeValue>
+            </responseElseIf>
+        </responseCondition>
+    </responseProcessing>
+</assessmentItem>

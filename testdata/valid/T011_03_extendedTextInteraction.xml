@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p0 http://www.imsglobal.org/xsd/imsqti_v2p0.xsd"
+    identifier="T011.03" title="Test 11.03: Extended Text Interaction" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="RESPONSE" cardinality="single" baseType="integer"/>
+    <itemBody>
+        <extendedTextInteraction responseIdentifier="RESPONSE">
+            <prompt>Enter a floating point number, a system fails if you are able to successfully
+                submit a non-numeric response.</prompt>
+        </extendedTextInteraction>
+    </itemBody>
+</assessmentItem>

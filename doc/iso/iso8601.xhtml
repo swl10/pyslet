@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "../../xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <title>PyAssess.iso.iso8601</title>
+        <link rel="stylesheet" href="../../stylesheet.css" type="text/css"/>
+    </head>
+    <body>
+        <h1>PyAssess.iso.iso8601</h1>
+        <div class="class">
+            <h2>Duration</h2>
+            <p>Duration instances hold periods measured in either:</p>
+            <ul>
+                <li>years, months, days, hours, minutes and seconds; or</li>
+                <li>weeks.</li>
+            </ul>
+            <p>The consituent parts are called components. An instance that uses the first form is
+                referred to as being in <em>calendar</em> mode, in the second form <em>week</em>
+                mode.</p>
+            <p>A <var>Duration</var> instance in calendar mode may have reduced precision by the
+                omission of a value for the seconds, the seconds and minutes, the seconds, minutes
+                and hours, and so on. An instance in calendar mode always has a value for the number
+                of years, though this may be omitted when the instance is represented as a string if
+                it is zero.</p>
+            <div class="method">
+                <h3 id="Duration.__init__">__init__(self,value=None)</h3>
+                <p>Construction depends on the type of <var>value</var>.</p>
+                <dl>
+                    <dt>
+                        <var>StringType</var>, <var>UnicodeType</var>
+                    </dt>
+                    <dd>The new instance is parsed from the string using <a
+                            href="#Duration.SetFromString">SetFromString</a>.</dd>
+                    <dt>
+                        <var>Duration</var> instance</dt>
+                    <dd>The new instance is copied using <a class="var"
+                            href="#Duration.SetFromDuration">SetFromDuration</a>
+                    </dd>
+                    <dt>None</dt>
+                    <dd>The new instance is initialized with <a class="var" href="#Duration.SetZero"
+                            >SetZero</a>.</dd>
+                </dl>
+            </div>
+            <div class="method">
+                <h3 id="Duration.SetZero">SetZero(self)</h3>
+                <p>Sets the instance to calendar mode with all components set to 0.</p>
+            </div>
+            <div class="method">
+                <h3 id="Duration.SetCalendarDuration"
+                    >SetCalendarDuration(self,years,months,days,hours,minutes,seconds)</h3>
+                <p>Sets the instance to calendar mode with the given component values.</p>
+            </div>
+            <div class="method">
+                <h3 id="Duration.GetCalendarDuration">GetCalendarDuration(self)</h3>
+                <p>Returns the tuple of (years,months,days,hours,minutes,seconds) representing the
+                    duration when in calendar mode or raises an error.co</p>
+            </div>
+            <div class="method">
+                <h3 id="Duration.SetWeekDuration">SetWeekDuration(self,weeks)</h3>
+                <p>Sets the duration to week mode with the given value.</p>
+            </div>
+            <div class="method">
+                <h3 id="Duration.GetWeekDuration">GetWeekDuration(self)</h3>
+                <p>Returns the number of weeks when in week mode or raises an error.</p>
+            </div>
+            <div class="method">
+                <h3 id="Duration.SetFromString">SetFromString(self,durationStr)</h3>
+                <p>Sets the duration from the string representation in durationStr.</p>
+            </div>
+            <div class="method">
+                <h3 id="Duration.GetFromString">GetString(self,truncateZeros=0,ndp=0)</h3>
+                <p>Returns a string representation of the duration, formatted according to the
+                    standard.</p>
+                <p>Leading components with zero values can be omitted by setting truncateZeros, in
+                    the case of truncated zero durations the least significant component is printed
+                    to satisfy the requirement that at least one value/designator pair must be
+                    given.</p>
+                <p>The magnitude of ndp determines the number of decimal places printed after the
+                    value of the least significant component <em>if that component was originally
+                        specified as a decimal</em>. If ndp is positive the prefered decimal point
+                    character, the comma, is used. If ndp is negative then the alternative decimal
+                    point character, the period, is used instead. Note that fractional components of
+                    durations are always rounded towards zero.</p>
+            </div>
+        </div>
+    </body>
+</html>

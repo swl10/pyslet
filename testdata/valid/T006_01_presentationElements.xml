@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p0
+    http://www.imsglobal.org/xsd/imsqti_v2p0.xsd" identifier="T006.01" title="Test 6.01:
+    Presentation Elements" adaptive="false" timeDependent="false">
+    <itemBody>
+        <p>Look at the content and the formatting of the text in the following paragraph. Each part
+            of the text is labelled with a number, in sequence. A system fails if (a) any of the
+            numbered parts are missing; (b) a part does not run in with the previous text; (c) any
+            part fails to be rendered in the way described (this is stricter than the requirement in
+            HTML) or (d) there is no horizontal rule between this paragraph and the next. Non-visual
+            systems, by definition, cannot support these elements.</p>
+        <hr/>
+        <p>[1] plain text: the appearance of the following parts must be distinguishable from plain
+            text in the manner described.<b>[2]: bold text</b>, <big>[3]: big text</big>, <i>[4]
+                italic text</i>, <small>[5] small text</small>, <sub>[6] subscripted text</sub>,
+                <sup>[7] superscripted text</sup>, <tt>[8] monospaced text</tt>, <b>
+                <i>[9] bold italic text</i>
+            </b>. [10] plain text: end of paragraph.</p>
+    </itemBody>
+</assessmentItem>

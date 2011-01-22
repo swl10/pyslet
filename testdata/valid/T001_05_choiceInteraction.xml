@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p0 http://www.imsglobal.org/xsd/imsqti_v2p0.xsd"
+    identifier="T001.05" title="Test 1.05: Choice Interaction" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="RESPONSE" cardinality="multiple" baseType="identifier"/>
+    <itemBody>
+        <choiceInteraction responseIdentifier="RESPONSE" shuffle="false" maxChoices="1">
+            <prompt>Select the "First Choice" then attempt to select the "Second Choice" and so on, you
+                should be prevented from selecting a second choice until you have unselected
+                your first choice. A system
+                fails if (a) you are unable to unselect a choice at any time (b) you
+                are able to select more than one choice at any time.</prompt>
+            <simpleChoice identifier="A">First choice.</simpleChoice>
+            <simpleChoice identifier="B">Second Choice</simpleChoice>
+            <simpleChoice identifier="C">Third Choice</simpleChoice>
+            <simpleChoice identifier="D">Fourth Choice</simpleChoice>
+        </choiceInteraction>
+    </itemBody>
+</assessmentItem>

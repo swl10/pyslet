@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p0
+    http://www.imsglobal.org/xsd/imsqti_v2p0.xsd" identifier="T007.01" title="Test 7.01:     Table
+    Elements" adaptive="false" timeDependent="false">
+    <itemBody>
+        <p>Look at the content and the formatting of the text in the table below. A system fails if
+            any of the 9 cells is missing or they are mis-arranged.</p>
+        <table>
+            <tbody>
+                <tr>
+                    <th>&lt;blank&gt;</th>
+                    <th>Col 1</th>
+                    <th>Col 2</th>
+                </tr>
+                <tr>
+                    <th>Row A</th>
+                    <td>A1</td>
+                    <td>A2</td>
+                </tr>
+                <tr>
+                    <th>Row B</th>
+                    <td>B1</td>
+                    <td>B2</td>
+                </tr>
+            </tbody>
+        </table>
+    </itemBody>
+</assessmentItem>

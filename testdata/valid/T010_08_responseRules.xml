@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p0
+    http://www.imsglobal.org/xsd/imsqti_v2p0.xsd" identifier="T010.08" title="Test 10.08: Response
+    Rules" adaptive="false" timeDependent="false">
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer"/>
+    <outcomeDeclaration identifier="SCOREVALUE" cardinality="single" baseType="integer">
+        <defaultValue>
+            <value>1</value>
+        </defaultValue>
+    </outcomeDeclaration>
+    <itemBody>
+        <p>In this item the default operator is used to set the score. A system fails if you do not SCORE 1 for this
+            item.</p>
+    </itemBody>
+    <responseProcessing>
+        <setOutcomeValue identifier="SCOREVALUE">
+            <baseValue baseType="integer">2</baseValue>
+        </setOutcomeValue>
+        <setOutcomeValue identifier="SCORE">
+            <default identifier="SCOREVALUE"/>
+        </setOutcomeValue>
+    </responseProcessing>
+</assessmentItem>

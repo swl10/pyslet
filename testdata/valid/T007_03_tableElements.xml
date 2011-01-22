@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p0
+    http://www.imsglobal.org/xsd/imsqti_v2p0.xsd" identifier="T007.03" title="Test 7.03:     Table
+    Elements" adaptive="false" timeDependent="false">
+    <itemBody>
+        <p>Look at the following large table. A system fails if the header and footer are not
+            visible. Systems should display both header and footer even if the body of the table
+            cannot be displayed completely on the screen, page etc. Note that this example does not
+            validate against v2.0 of the QTI schema due to a bug in that specification.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Table Header:</th>
+                    <th>Col 1</th>
+                    <th>Col 2</th>
+                </tr>
+            </thead>
+            <tfoot>
+                <tr>
+                    <th>Table Footer:</th>
+                    <th>Col 1</th>
+                    <th>Col 2</th>
+                </tr>
+            </tfoot>
+            <tbody>
+                <tr>
+                    <th>Row A</th>
+                    <td>A1</td>
+                    <td>A2</td>
+                </tr>
+                <tr>
+                    <th>Row B</th>
+                    <td>B1</td>
+                    <td>B2</td>
+                </tr>
+                <tr>
+                    <th>Row C</th>
+                    <td>C1</td>
+                    <td>C2</td>
+                </tr>
+                <tr>
+                    <th>Row D</th>
+                    <td>D1</td>
+                    <td>D2</td>
+                </tr>
+                <tr>
+                    <th>Row E</th>
+                    <td>E1</td>
+                    <td>E2</td>
+                </tr>
+                <tr>
+                    <th>Row F</th>
+                    <td>F1</td>
+                    <td>F2</td>
+                </tr>
+                <tr>
+                    <th>Row G</th>
+                    <td>G1</td>
+                    <td>G2</td>
+                </tr>
+                <tr>
+                    <th>Row H</th>
+                    <td>H1</td>
+                    <td>H2</td>
+                </tr>
+                <tr>
+                    <th>Row I</th>
+                    <td>I1</td>
+                    <td>I2</td>
+                </tr>
+                <tr>
+                    <th>Row J</th>
+                    <td>J1</td>
+                    <td>J2</td>
+                </tr>
+                <tr>
+                    <th>Row K</th>
+                    <td>K1</td>
+                    <td>K2</td>
+                </tr>
+                <tr>
+                    <th>Row L</th>
+                    <td>L1</td>
+                    <td>L2</td>
+                </tr>
+                <tr>
+                    <th>Row M</th>
+                    <td>M1</td>
+                    <td>M2</td>
+                </tr>
+                <tr>
+                    <th>Row N</th>
+                    <td>N1</td>
+                    <td>N2</td>
+                </tr>
+                <tr>
+                    <th>Row O</th>
+                    <td>O1</td>
+                    <td>O2</td>
+                </tr>
+                <tr>
+                    <th>Row P</th>
+                    <td>P1</td>
+                    <td>P2</td>
+                </tr>
+                <tr>
+                    <th>Row Q</th>
+                    <td>Q1</td>
+                    <td>Q2</td>
+                </tr>
+                <tr>
+                    <th>Row R</th>
+                    <td>R1</td>
+                    <td>R2</td>
+                </tr>
+                <tr>
+                    <th>Row S</th>
+                    <td>S1</td>
+                    <td>S2</td>
+                </tr>
+                <tr>
+                    <th>Row T</th>
+                    <td>T1</td>
+                    <td>T2</td>
+                </tr>
+                <tr>
+                    <th>Row U</th>
+                    <td>U1</td>
+                    <td>U2</td>
+                </tr>
+                <tr>
+                    <th>Row V</th>
+                    <td>V1</td>
+                    <td>V2</td>
+                </tr>
+                <tr>
+                    <th>Row W</th>
+                    <td>W1</td>
+                    <td>W2</td>
+                </tr>
+                <tr>
+                    <th>Row X</th>
+                    <td>X1</td>
+                    <td>X2</td>
+                </tr>
+                <tr>
+                    <th>Row Y</th>
+                    <td>Y1</td>
+                    <td>Y2</td>
+                </tr>
+                <tr>
+                    <th>Row Z</th>
+                    <td>Z1</td>
+                    <td>Z2</td>
+                </tr>
+            </tbody>
+        </table>
+    </itemBody>
+</assessmentItem>

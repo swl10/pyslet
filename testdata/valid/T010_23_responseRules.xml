@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p0
+    http://www.imsglobal.org/xsd/imsqti_v2p0.xsd" identifier="T010.23" title="Test 10.23: Response
+    Rules" adaptive="false" timeDependent="false">
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer"/>
+    <itemBody>
+        <p>In this item the substring operator is used to set the score. A system fails if you do not
+            SCORE 1 for this item.</p>
+    </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <or>
+                    <substring caseSensitive="false">
+                        <baseValue baseType="string">Hell</baseValue>
+                        <baseValue baseType="string">Cockle</baseValue>
+                    </substring>
+                    <substring caseSensitive="true">
+                        <baseValue baseType="string">Hell</baseValue>
+                        <baseValue baseType="string">CockleShell</baseValue>
+                    </substring>
+                </or>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="integer">2</baseValue>
+                </setOutcomeValue>
+            </responseIf>
+            <responseElseIf>
+                <and>
+                    <substring caseSensitive="false">
+                        <baseValue baseType="string">Hell</baseValue>
+                        <baseValue baseType="string">CockleShell</baseValue>
+                    </substring>
+                    <substring caseSensitive="true">
+                        <baseValue baseType="string">Hell</baseValue>
+                        <baseValue baseType="string">Hell</baseValue>
+                    </substring>
+                    <isNull>
+                        <substring caseSensitive="false">
+                            <null/>
+                            <baseValue baseType="string">CockleShell</baseValue>
+                        </substring>
+                    </isNull>
+                    <isNull>
+                        <substring caseSensitive="true">
+                            <baseValue baseType="string">Hell</baseValue>
+                            <null/>
+                        </substring>
+                    </isNull>
+                </and>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="integer">1</baseValue>
+                </setOutcomeValue>
+            </responseElseIf>
+        </responseCondition>
+    </responseProcessing>
+</assessmentItem>
