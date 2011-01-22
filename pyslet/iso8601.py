@@ -34,7 +34,7 @@ import string
 from math import modf,floor
 import time as pytime
 
-from PyAssess.ietf.rfc2234 import RFC2234CoreParser, IsDIGIT
+from pyslet.rfc2234 import RFC2234CoreParser, IsDIGIT
 
 class DateTimeError(Exception): pass
 
