@@ -42,7 +42,7 @@ def suite():
 	t=Thread(target=runAPPServer)
 	t.setDaemon(True)
 	t.start()
-	print "Starting HTTP server on localhost, port %i"%HTTP_PORT
+	print "APP tests starting HTTP server on localhost, port %i"%HTTP_PORT
 	return unittest.TestSuite((
 		unittest.makeSuite(APP5023Tests,'test'),
 		unittest.makeSuite(APPElementTests,'test'),
