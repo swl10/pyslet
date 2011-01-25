@@ -15,6 +15,7 @@ def suite():
 		unittest.makeSuite(XMLDocumentTests,'test'),
 		unittest.makeSuite(XMLCharacterTests,'test'),
 		unittest.makeSuite(XMLElementTests,'test'),
+		unittest.makeSuite(XMLParserTests,'test')
 		))
 
 from pyslet.xml20081126 import *
@@ -115,6 +116,28 @@ class XMLElementTests(unittest.TestCase):
 		attrs=e.GetAttributes()
 		self.failUnless(len(attrs.keys())==0,"Attributes present on construction")
 
-		
+
+EXAMPLE_1="""<?xml version="1.0" encoding="utf-8"?>
+<tag>Hello World</tag>"""
+
+class XMLParserTests(unittest.TestCase):
+	def testCaseConstructor(self):
+		p=XMLParser()
+	
+	def testCaseExample1(self):
+		p=XMLParser()
+		doc=p.ParseDocument(EXAMPLE_1)
+		self.failUnless(isinstance(doc,XMLDocument))
+		root=doc.rootElement
+		self.failUnless(isinstance(root,XMLElement))
+		self.failUnless(root.ns==None and root.xmlname=='tag' and root.GetValue()=='Hello World')
+
+	def testCaseDefaultNS(self):
+		ns='http://www.example.com/default'
+		p=XMLParser()
+		p.SetDefaultNS(ns)
+		root=p.ParseDocument(EXAMPLE_1).rootElement
+		self.failUnless(root.ns==ns and root.xmlname=='tag')
+	
 if __name__ == "__main__":
 	unittest.main()

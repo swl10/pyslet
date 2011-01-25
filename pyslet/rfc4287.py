@@ -20,10 +20,6 @@ import string, types
 import pyslet.iso8601 as iso8601
 import pyslet.xml20081126 as xml
 
-XML_NAMESPACE="http://www.w3.org/XML/1998/namespace"
-xml_base=(XML_NAMESPACE,'base')
-xml_lang=(XML_NAMESPACE,'lang')
-
 ATOM_NAMESPACE="http://www.w3.org/2005/Atom"
 atom_author=(ATOM_NAMESPACE,'author')
 atom_entry=(ATOM_NAMESPACE,'entry')

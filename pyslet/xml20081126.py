@@ -229,18 +229,29 @@ class XMLElement:
 	def ResolveURI(self,uri):
 		baser=self
 		baseURI=None
-		while baser is not None:
+		while True:
 			baseURI=baser.GetBase()
 			if baseURI:
 				uri=urlparse.urljoin(baseURI,uri)
-			baser=baser.parent
+			if isinstance(baser,XMLElement):
+				baser=baser.parent
+			else:
+				break
 		return uri
 
 
 class XMLDocument:
-	def __init__(self):
+	def __init__(self, baseURI=None):
 		self.rootElement=None
+		self.baseURI=baseURI
 
+	def GetBase(self):
+		return self.baseURI
+		
+	def AddChild(self,child):
+		if isinstance(child,XMLElement):
+			self.rootElement=child
+	
 			
 class XMLParser(handler.ContentHandler, handler.ErrorHandler):
 	def __init__(self):
@@ -249,38 +260,48 @@ class XMLParser(handler.ContentHandler, handler.ErrorHandler):
 		self.parser.setFeature(handler.feature_validation,0)
 		self.parser.setContentHandler(self)
 		self.parser.setErrorHandler(self)
-		self.parser.setEntityResolver(self)
+		#self.parser.setEntityResolver(self)
 		self.defaultNS=None
 		self.classMap={}
+	
+	def SetDefaultNS(self,ns):
+		self.defaultNS=ns
 		
 	def GetClassMap(self):
 		return self.classMap
+	
+	def ParseDocument (self,src,baseURI=None):
+		f=StringIO(src)
+		self.baseURI=baseURI
+		self.doc=XMLDocument(baseURI)
+		self.cObject=self.doc
+		self.objStack=[]
+		self.data=[]
+		self.parser.parse(f)
+		return self.doc
 		
 	def ParseString (self,src,baseURI=None):
 		f=StringIO(src)
 		self.baseURI=baseURI
-		self.rootObject=None
-		self.cObject=None
+		self.doc=XMLDocument(baseURI)
+		self.cObject=self.doc
 		self.objStack=[]
 		self.data=[]
 		self.parser.parse(f)
-		return self.rootObject
+		return self.doc.rootElement
 		
 	def startElementNS(self, name, qname, attrs):
 		parent=self.cObject
-		if parent:
-			self.objStack.append(self.cObject)
-			if self.data:
-				parent.AddChild(string.join(self.data,''))
-				self.data=[]
+		self.objStack.append(self.cObject)
+		if self.data:
+			parent.AddChild(string.join(self.data,''))
+			self.data=[]
 		if name[0] is None:
 			name=(self.defaultNS,name[1])
+		#print name, qname, attrs
 		eClass=self.classMap.get(name,self.classMap.get((name[0],None),XMLElement))
 		self.cObject=eClass(parent)
 		self.cObject.SetXMLName(name)
-		if parent is None:
-			self.rootObject=self.cObject
-			self.cObject.SetBase(self.baseURI)
 		for attr in attrs.keys():
 			if attr[0] is None:
 				self.cObject.SetAttribute(attr[1],attrs[attr])
@@ -299,8 +320,7 @@ class XMLParser(handler.ContentHandler, handler.ErrorHandler):
 			self.cObject.AddChild(string.join(self.data,''))
 			self.data=[]
 		self.cObject.GotChildren()
-		if parent:
-			parent.AddChild(self.cObject)
+		parent.AddChild(self.cObject)
 		self.cObject=parent
 
 

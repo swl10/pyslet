@@ -86,7 +86,6 @@ EXAMPLE_2="""<?xml version="1.0" encoding="utf-8"?>
 
 class Atom4287Tests(unittest.TestCase):
 	def testCaseConstants(self):
-		self.failUnless(XML_NAMESPACE=="http://www.w3.org/XML/1998/namespace", "Wrong xml namespace: %s"%XML_NAMESPACE)
 		self.failUnless(ATOM_NAMESPACE=="http://www.w3.org/2005/Atom","Wrong atom namespace: %s"%ATOM_NAMESPACE)
 		self.failUnless(atom_title==(ATOM_NAMESPACE,'title'),"atom_title not defined")
 		self.failUnless(ATOM_MIMETYPE=="application/atom+xml","Wrong atom mime type: %s"%ATOM_MIMETYPE)
@@ -112,8 +111,8 @@ class AtomElementTests(unittest.TestCase):
 		self.failUnless(e.GetLang()=="en-US","Get/Set example xml:lang value")
 		attrs=e.GetAttributes()
 		self.failUnless(len(attrs.keys())==2,"Two attributes expected")
-		self.failUnless(attrs[(XML_NAMESPACE,'base')]=="http://www.example.com/","Base attribute")
-		self.failUnless(attrs[(XML_NAMESPACE,'lang')]=="en-US","Lang attribute")
+		self.failUnless(attrs[(xml.XML_NAMESPACE,'base')]=="http://www.example.com/","Base attribute")
+		self.failUnless(attrs[(xml.XML_NAMESPACE,'lang')]=="en-US","Lang attribute")
 		e.SetBase(None)
 		self.failUnless(e.GetBase() is None,"Get/Set empty xml:base value")
 		self.failUnless(len(attrs.keys())==1,"One attribute expected")
