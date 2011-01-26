@@ -4,7 +4,9 @@
 
 import unittest
 
+import test_imscpv1p2
 import test_imsqtiv1p2p1
+import test_imsqtiv2p1
 import test_iso8601
 import test_rfc2234
 import test_rfc2616
@@ -15,7 +17,9 @@ import test_xml20081126
 
 def suite():
 	s=unittest.TestSuite()
+	s.addTest(test_imscpv1p2.suite())
 	s.addTest(test_imsqtiv1p2p1.suite())
+	s.addTest(test_imsqtiv2p1.suite())
 	s.addTest(test_iso8601.suite())
 	s.addTest(test_rfc2234.suite())
 	s.addTest(test_rfc2616.suite())

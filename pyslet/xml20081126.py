@@ -3,8 +3,9 @@
 from xml.sax import make_parser, handler, SAXParseException
 import string, types
 from StringIO import StringIO
-import urlparse
+import urlparse, urllib,  os.path
 from sys import maxunicode
+import codecs
 
 XML_NAMESPACE="http://www.w3.org/XML/1998/namespace"
 xml_base=(XML_NAMESPACE,'base')
@@ -162,6 +163,9 @@ class XMLElement:
 			self.xmlname=xmlname
 		else:
 			self.ns,self.xmlname=xmlname
+
+	def GetChildren(self):
+		return self.children
 		
 	def GetBase(self):
 		return self.attrs.get(xml_base,None)
@@ -239,12 +243,50 @@ class XMLElement:
 				break
 		return uri
 
+	def WriteXML(self,f):
+		if self.children:
+			f.write('<%s>'%self.xmlname)
+			for child in self.children:
+				if type(child) in StringTypes:
+					f.write(child)
+				else:
+					child.WriteXML(f)
+			f.write('</%s>'%self.xmlname)
+		else:
+			f.write('<%s/>'%self.xmlname)
+				
 
 class XMLDocument:
-	def __init__(self, baseURI=None):
-		self.rootElement=None
+	def __init__(self, src=None):
+		"""Initialises a new XMLDocument from src.
+		
+		If src is a class object (descended from XMLElement) it is used
+		to create the root element of the document.
+		
+		if src is in StringTypes then it is treated as the baseURI of the
+		document.  The document is not automatically parsed but it might
+		be in future."""
+		self.baseURI=None
+		if type(src) is types.ClassType:
+			if not issubclass(src,XMLElement):
+				raise ValueError
+			self.rootElement=src(self)
+		elif type(src) in types.StringTypes:
+			self.rootElement=None
+			self.SetBase(src)
+		else:
+			self.rootElement=None
+	
+	def SetBase(self,baseURI):
+		"""Sets the baseURI of the document to the given URI.
+		
+		If the baseURI is a local file or relative path then the file path
+		is updated to point to the file."""
 		self.baseURI=baseURI
-
+		if self.baseURI:
+			base='file://'+urllib.pathname2url(os.getcwd())+'/'
+			self.baseURI=urlparse.urljoin(base,self.baseURI)
+	
 	def GetBase(self):
 		return self.baseURI
 		
@@ -252,6 +294,33 @@ class XMLDocument:
 		if isinstance(child,XMLElement):
 			self.rootElement=child
 	
+	def Create(self,reqManager=None):
+		if self.baseURI is None:
+			raise XMLMissingLocation
+		if self.baseURI:
+			url=urlparse.urlsplit(self.baseURI)
+			if url.scheme=='file':
+				fPath=urllib.url2pathname(url.path)
+				f=codecs.open(fPath,'wb','utf-8')
+				f.write('<?xml version="1.0" encoding="utf-8"?>\n')
+				try:
+					if self.rootElement:
+						self.rootElement.WriteXML(f)
+				finally:
+					f.close()
+			else:
+				raise XMLUnsupportedScheme
+		pass
+	
+	def Read(self,reqManager=None):
+		pass
+	
+	def Update(self,reqManager=None):
+		pass
+	
+	def Delete(self,reqManager=None):
+		pass
+		
 			
 class XMLParser(handler.ContentHandler, handler.ErrorHandler):
 	def __init__(self):

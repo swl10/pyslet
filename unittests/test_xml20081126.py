@@ -3,6 +3,8 @@
 import unittest
 
 from sys import maxunicode
+from tempfile import mkdtemp
+import shutil, os.path, urllib
 
 MAX_CHAR=0x10FFFF
 if maxunicode<MAX_CHAR:
@@ -20,7 +22,7 @@ def suite():
 
 from pyslet.xml20081126 import *
 
-class XML20081126Tests(unittest.TestCase):
+class XML20081126Tests(unittest.TestCase):		
 	def testCaseConstants(self):
 		#self.failUnless(APP_NAMESPACE=="http://www.w3.org/2007/app","Wrong APP namespace: %s"%APP_NAMESPACE)
 		#self.failUnless(ATOMSVC_MIMETYPE=="application/atomsvc+xml","Wrong APP service mime type: %s"%ATOMSVC_MIMETYPE)
@@ -28,10 +30,50 @@ class XML20081126Tests(unittest.TestCase):
 		pass
 
 class XMLDocumentTests(unittest.TestCase):
+	def setUp(self):
+		self.cwd=os.getcwd()
+		self.d=mkdtemp('.d','pyslet-test_xml20081126-')
+		os.chdir(self.d)
+		
+	def tearDown(self):
+		os.chdir(self.cwd)
+		shutil.rmtree(self.d,True)
+
 	def testCaseConstructor(self):
 		d=XMLDocument()
 		self.failUnless(d.rootElement is None,'rootElement on construction')
-
+		self.failUnless(d.GetBase() is None,'base set on construction') 
+		d=XMLDocument(XMLElement)
+		self.failUnless(isinstance(d.rootElement,XMLElement),'rootElement not created on construction')
+		
+	def testCaseBase(self):
+		"""Test the setting of a file path"""
+		fpath=os.path.abspath('fpath.xml')
+		furl='file://'+urllib.pathname2url(fpath)
+		d=XMLDocument(urllib.pathname2url(fpath))
+		self.failUnless(d.GetBase()==furl,"Base not set in constructor")
+		d=XMLDocument(urllib.pathname2url('fpath.xml'))
+		self.failUnless(d.GetBase()==furl,"Base not made absolute from relative URL")
+		d=XMLDocument()
+		d.SetBase(urllib.pathname2url(fpath))
+		self.failUnless(d.GetBase()==furl,"Base not set by SetBase")
+				
+	def testCaseCreate(self):
+		"""Test the creating of the XMLDocument on the file system"""
+		CREATE_1_XML="""<?xml version="1.0" encoding="utf-8"?>
+<createTag/>"""
+		d=XMLDocument(XMLElement)
+		d.rootElement.SetXMLName("createTag")
+		d.SetBase('create1.xml')
+		d.Create()
+		try:
+			f=open("create1.xml")
+			data=f.read()
+			f.close()
+			self.failUnless(data==CREATE_1_XML,"Create Test")
+		except IOError:
+			self.fail("Create Test failed to create file")
+		
 class XMLCharacterTests(unittest.TestCase):
 	# Test IsNameChar
 	def testChar(self):
