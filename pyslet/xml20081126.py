@@ -5,12 +5,19 @@ import string, types
 from StringIO import StringIO
 import urlparse, urllib,  os.path
 from sys import maxunicode
-import codecs
+import codecs, random
 
 XML_NAMESPACE="http://www.w3.org/XML/1998/namespace"
 xml_base=(XML_NAMESPACE,'base')
 xml_lang=(XML_NAMESPACE,'lang')
 xml_space=(XML_NAMESPACE,'space')
+
+class XMLError(Exception): pass
+
+class XMLIDClashError(XMLError): pass
+class XMLMissingLocationError(XMLError): pass
+class XMLMixedContentError(XMLError): pass
+class XMLUnsupportedSchemeError(XMLError): pass
 
 from pyslet.unicode5 import CharClass
 
@@ -164,6 +171,15 @@ class XMLElement:
 		else:
 			self.ns,self.xmlname=xmlname
 
+	def GetDocument(self):
+		if self.parent:
+			if isinstance(self.parent,XMLDocument):
+				return self.parent
+			else:
+				return self.parent.GetDocument()
+		else:
+			return None
+
 	def GetChildren(self):
 		return self.children
 		
@@ -189,7 +205,7 @@ class XMLElement:
 		return self.attrs.get(xml_space,None)
 	
 	def SetSpace(self,space):
-		if base is None:
+		if space is None:
 			self.attrs.pop(xml_space,None)
 		else:
 			self.attrs[xml_space]=space
@@ -201,8 +217,16 @@ class XMLElement:
 		return self.attrs.get(name,None)
 
 	def SetAttribute(self,name,value):
+		oldValue=self.attrs.pop(name,None)
+		if hasattr(self.__class__,'ID') and name==self.__class__.ID:
+			# This is an ID attribute
+			doc=self.GetDocument()
+			if doc:
+				if oldValue and value!=oldValue:
+					doc.UnregisterElementID(self,oldValue)
+				doc.RegisterElementID(self,value)
 		self.attrs[name]=value
-		
+				
 	def AddChild(self,child):
 		self.children.append(child)
 	
@@ -218,7 +242,7 @@ class XMLElement:
 		
 	def GetValue(self):
 		if self.IsMixed():
-			raise XMLMixedContent
+			raise XMLMixedContentError
 		elif self.children:
 			return string.join(map(unicode,self.children),'')
 		else:
@@ -226,7 +250,7 @@ class XMLElement:
 
 	def SetValue(self,value):
 		if self.IsMixed():
-			raise XMLMixedContent
+			raise XMLMixedContentError
 		else:
 			self.children=[value]
 
@@ -256,27 +280,48 @@ class XMLElement:
 			f.write('<%s/>'%self.xmlname)
 				
 
-class XMLDocument:
-	def __init__(self, src=None):
-		"""Initialises a new XMLDocument from src.
+class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
+	def __init__(self, root=None, baseURI=None, defaultNS=None, **args):
+		"""Initialises a new XMLDocument from optional keyword arguments.
 		
-		If src is a class object (descended from XMLElement) it is used
+		With no arguments, a new XMLDocument is created with no baseURI
+		or root element.
+		
+		If root is a class object (descended from XMLElement) it is used
 		to create the root element of the document.
 		
-		if src is in StringTypes then it is treated as the baseURI of the
-		document.  The document is not automatically parsed but it might
-		be in future."""
+		baseURI can be set on construction (see SetBase)
+		
+		The defaultNS used for elements without an associated namespace
+		can be specified on construction."""
+		self.defaultNS=defaultNS
+		self.parser=make_parser()
+		self.parser.setFeature(handler.feature_namespaces,1)
+		self.parser.setFeature(handler.feature_validation,0)
+		self.parser.setContentHandler(self)
+		self.parser.setErrorHandler(self)
 		self.baseURI=None
-		if type(src) is types.ClassType:
-			if not issubclass(src,XMLElement):
+		if root:
+			if not issubclass(root,XMLElement):
 				raise ValueError
-			self.rootElement=src(self)
-		elif type(src) in types.StringTypes:
-			self.rootElement=None
-			self.SetBase(src)
+			self.rootElement=root(self)
 		else:
 			self.rootElement=None
-	
+		self.SetBase(baseURI)
+		#self.parser.setEntityResolver(self)
+		self.idTable={}
+		
+	def SetDefaultNS(self,ns):
+		self.defaultNS=ns
+		
+	def GetElementClass(self,name):
+		"""Returns a class object suitable for representing name
+		
+		name is a tuple of (namespace, name)
+		
+		The default implementation returns XMLElement."""
+		return XMLElement
+				
 	def SetBase(self,baseURI):
 		"""Sets the baseURI of the document to the given URI.
 		
@@ -286,7 +331,10 @@ class XMLDocument:
 		if self.baseURI:
 			base='file://'+urllib.pathname2url(os.getcwd())+'/'
 			self.baseURI=urlparse.urljoin(base,self.baseURI)
-	
+			self.url=urlparse.urlsplit(self.baseURI)
+		else:
+			self.url=None
+			
 	def GetBase(self):
 		return self.baseURI
 		
@@ -294,26 +342,98 @@ class XMLDocument:
 		if isinstance(child,XMLElement):
 			self.rootElement=child
 	
-	def Create(self,reqManager=None):
-		if self.baseURI is None:
-			raise XMLMissingLocation
-		if self.baseURI:
-			url=urlparse.urlsplit(self.baseURI)
-			if url.scheme=='file':
-				fPath=urllib.url2pathname(url.path)
-				f=codecs.open(fPath,'wb','utf-8')
-				f.write('<?xml version="1.0" encoding="utf-8"?>\n')
-				try:
-					if self.rootElement:
-						self.rootElement.WriteXML(f)
-				finally:
-					f.close()
-			else:
-				raise XMLUnsupportedScheme
-		pass
+	def RegisterElementID(self,element,id):
+		if self.idTable.has_key(id):
+			raise XMLIDClashError
+		else:
+			self.idTable[id]=element
 	
-	def Read(self,reqManager=None):
-		pass
+	def UnregisterElementID(self,id):
+		del self.idTable[id]
+	
+	def GetElementByID(self,id):
+		return self.idTable.get(id,None)
+	
+	def GetUniqueID (self,baseStr=None):
+		if not baseStr:
+			baseStr='%X'%random.randint(0,0xFFFF)
+		idStr=baseStr
+		idExtra=0
+		while self.idTable.has_key(idStr):
+			if not idExtra:
+				idExtra=random.randint(0,0xFFFF)
+			idStr='%s-%X'%(baseStr,idExtra)
+			idExtra=idExtra+1
+		return idStr
+
+	def Read(self,src=None):
+		if src:
+			# Read from this stream, ignore baseURI
+			self.ReadFromStream(src)
+		elif self.baseURI is None:
+			raise XMLMissingLocationError
+		elif self.url.scheme=='file':
+			f=codecs.open(urllib.url2pathname(self.url.path),'rb','utf-8')
+			try:
+				self.ReadFromStream(f)
+			finally:
+				f.close()
+		else:
+			raise XMLUnsupportedScheme
+	
+	def ReadFromStream(self,src):
+		self.cObject=self
+		self.objStack=[]
+		self.data=[]
+		self.parser.parse(src)
+		
+	def startElementNS(self, name, qname, attrs):
+		parent=self.cObject
+		self.objStack.append(self.cObject)
+		if self.data:
+			parent.AddChild(string.join(self.data,''))
+			self.data=[]
+		if name[0] is None:
+			name=(self.defaultNS,name[1])
+		#print name, qname, attrs
+		#eClass=self.classMap.get(name,self.classMap.get((name[0],None),XMLElement))
+		eClass=self.GetElementClass(name)
+		self.cObject=eClass(parent)
+		self.cObject.SetXMLName(name)
+		for attr in attrs.keys():
+			if attr[0] is None:
+				self.cObject.SetAttribute(attr[1],attrs[attr])
+			else:
+				self.cObject.SetAttribute(attr,attrs[attr])
+
+	def characters(self,ch):
+		self.data.append(ch)
+			
+	def endElementNS(self,name,qname):
+		if self.objStack:
+			parent=self.objStack.pop()
+		else:
+			parent=None
+		if self.data:
+			self.cObject.AddChild(string.join(self.data,''))
+			self.data=[]
+		self.cObject.GotChildren()
+		parent.AddChild(self.cObject)
+		self.cObject=parent
+			
+	def Create(self,**args):
+		if self.baseURI is None:
+			raise XMLMissingLocationError
+		elif self.url.scheme=='file':
+			f=codecs.open(urllib.url2pathname(self.url.path),'wb','utf-8')
+			f.write('<?xml version="1.0" encoding="utf-8"?>\n')
+			try:
+				if self.rootElement:
+					self.rootElement.WriteXML(f)
+			finally:
+				f.close()
+		else:
+			raise XMLUnsupportedSchemeError
 	
 	def Update(self,reqManager=None):
 		pass
@@ -342,7 +462,7 @@ class XMLParser(handler.ContentHandler, handler.ErrorHandler):
 	def ParseDocument (self,src,baseURI=None):
 		f=StringIO(src)
 		self.baseURI=baseURI
-		self.doc=XMLDocument(baseURI)
+		self.doc=XMLDocument(baseURI=baseURI)
 		self.cObject=self.doc
 		self.objStack=[]
 		self.data=[]
@@ -352,7 +472,7 @@ class XMLParser(handler.ContentHandler, handler.ErrorHandler):
 	def ParseString (self,src,baseURI=None):
 		f=StringIO(src)
 		self.baseURI=baseURI
-		self.doc=XMLDocument(baseURI)
+		self.doc=XMLDocument(baseURI=baseURI)
 		self.cObject=self.doc
 		self.objStack=[]
 		self.data=[]

@@ -1,14 +1,15 @@
 #! /usr/bin/env python
 
 import unittest
-import os.path, urllib, urlparse
+import os.path, urllib, urlparse, shutil
+from StringIO import StringIO
 
 def suite():
 	return unittest.TestSuite((
 		unittest.makeSuite(CPTests,'test'),
 		unittest.makeSuite(CPElementTests,'test'),
 		unittest.makeSuite(CPManifestTests,'test'),
-		unittest.makeSuite(CPParserTests,'test'),
+		unittest.makeSuite(CPDocumentTests,'test'),
 		unittest.makeSuite(ContentPackageTests,'test'),
 		))
 
@@ -98,35 +99,51 @@ http://www.imsglobal.org/xsd/imsmd_v1p2 imsmd_v1p2p4.xsd  http://www.imsglobal.o
 	</resources>
 </manifest>"""
 
-class CPParserTests(unittest.TestCase):
-	def testCaseConstructor(self):
-		p=CPParser()
 
-	def testCaseExample1(self):
-		p=CPParser()
-		doc=p.ParseDocument(EXAMPLE_1)
+class CPDocumentTests(unittest.TestCase):
+	def testCaseConstructor(self):
+		doc=CPDocument()
 		self.failUnless(isinstance(doc,xml.XMLDocument))
+		doc=CPDocument(root=CPManifest)
+		root=doc.rootElement
+		self.failUnless(isinstance(root,CPManifest))
+		
+	def testCaseExample1(self):
+		doc=CPDocument()
+		doc.Read(src=StringIO(EXAMPLE_1))
 		root=doc.rootElement
 		self.failUnless(isinstance(root,CPManifest))
 		self.failUnless(root.ns==IMSCP_NAMESPACE and root.xmlname=='manifest')
-
+		self.failUnless(root.GetIdentifier()=='test')
+		
 	def testCaseExample1(self):
-		p=CPParser()
-		doc=p.ParseDocument(EXAMPLE_2)
+		doc=CPDocument()
+		doc.Read(src=StringIO(EXAMPLE_2))
 		resources=doc.rootElement.GetResources()
 		self.failUnless(len(resources.children)==1 and isinstance(resources.children[0],CPResource))
-
+		
 
 class ContentPackageTests(unittest.TestCase):
+	def setUp(self):
+		self.dList=[]
+		
+	def tearDown(self):
+		for d in self.dList:
+			shutil.rmtree(d,True)
+
 	def testCaseConstructor(self):
 		cp=ContentPackage()
 		self.failUnless(os.path.isdir(cp.dPath),"Default constructor must create a temp directory")
+		# Ensure the temporary directory is cleaned up
+		self.dList.append(cp.dPath)
 		url=urlparse.urlsplit(cp.manifest.GetBase())
 		self.failUnless(isinstance(cp.manifest,xml.XMLDocument) and isinstance(cp.manifest.rootElement,CPManifest),"Constructor must create manifest")
 		self.failUnless(os.path.split(urllib.url2pathname(url.path))[1]=='imsmanifest.xml',"Manifest file name")
 		self.failUnless(isinstance(cp.manifest.rootElement,CPManifest),"Constructor must create manifest element")
+		id=cp.manifest.rootElement.GetIdentifier()
+		self.failUnless(cp.manifest.GetElementByID(id) is cp.manifest.rootElement,"Manifest identifief not declared")
 		self.failUnless(os.path.isfile(urllib.url2pathname(url.path)),"Constructor must create manifest file")
-
+		
 if __name__ == "__main__":
 	unittest.main()
 

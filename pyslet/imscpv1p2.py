@@ -17,6 +17,8 @@ cp_organizations=(IMSCP_NAMESPACE,'organizations')
 cp_resource=(IMSCP_NAMESPACE,'resource')
 cp_resources=(IMSCP_NAMESPACE,'resources')
 
+cp_identifier="identifier"
+
 
 class CPException(Exception): pass
 class CPValidationError(CPException): pass
@@ -29,12 +31,20 @@ class CPElement(xml.XMLElement):
 
 
 class CPManifest(CPElement):
+	ID=cp_identifier
+	
 	def __init__(self,parent):
 		CPElement.__init__(self,parent)
 		self.SetXMLName(cp_manifest)
 		self.organizations=CPOrganizations(self)
 		self.resources=CPResources(self)
 
+	def GetIdentifier(self):
+		return self.attrs.get(cp_identifier,None)
+		
+	def SetIdentifier(self,identifier):
+		CPElement.SetAttribute(self,cp_identifier,identifier)
+		
 	def GetOrganizations(self):
 		return self.organizations
 		
@@ -92,25 +102,30 @@ class CPResource(CPElement):
 		self.SetXMLName(cp_resource)
 		
 	
-class CPParser(xml.XMLParser):
-	def __init__(self):
+class CPDocument(xml.XMLDocument):
+	def __init__(self,**args):
 		""""""
-		xml.XMLParser.__init__(self)
+		xml.XMLDocument.__init__(self,**args)
 		self.defaultNS=IMSCP_NAMESPACE
-		self.classMap={
-			cp_manifest:CPManifest,
-			cp_organizations:CPOrganizations,
-			cp_organization:CPOrganization,
-			cp_resources:CPResources,
-			cp_resource:CPResource
-			}
+
+	def GetElementClass(self,name):
+		return CPDocument.classMap.get(name,CPDocument.classMap.get((name[0],None),xml.XMLElement))
+
+	classMap={
+		cp_manifest:CPManifest,
+		cp_organizations:CPOrganizations,
+		cp_organization:CPOrganization,
+		cp_resources:CPResources,
+		cp_resource:CPResource
+		}
 
 
 class ContentPackage:
 	def __init__(self):
 		self.CreateTempDirectory()
-		self.manifest=xml.XMLDocument(CPManifest)
+		self.manifest=xml.XMLDocument(root=CPManifest)
 		self.manifest.SetBase(urllib.pathname2url(os.path.join(self.dPath,'imsmanifest.xml')))
+		self.manifest.rootElement.SetIdentifier(self.manifest.GetUniqueID('manifest'))
 		self.manifest.Create()
 		
 	def CreateTempDirectory(self):

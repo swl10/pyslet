@@ -22,6 +22,9 @@ def suite():
 
 from pyslet.xml20081126 import *
 
+EXAMPLE_1="""<?xml version="1.0" encoding="utf-8"?>
+<tag>Hello World</tag>"""
+
 class XML20081126Tests(unittest.TestCase):		
 	def testCaseConstants(self):
 		#self.failUnless(APP_NAMESPACE=="http://www.w3.org/2007/app","Wrong APP namespace: %s"%APP_NAMESPACE)
@@ -29,51 +32,6 @@ class XML20081126Tests(unittest.TestCase):
 		#self.failUnless(ATOMCAT_MIMETYPE=="application/atomcat+xml","Wrong APP category mime type: %s"%ATOMCAT_MIMETYPE)
 		pass
 
-class XMLDocumentTests(unittest.TestCase):
-	def setUp(self):
-		self.cwd=os.getcwd()
-		self.d=mkdtemp('.d','pyslet-test_xml20081126-')
-		os.chdir(self.d)
-		
-	def tearDown(self):
-		os.chdir(self.cwd)
-		shutil.rmtree(self.d,True)
-
-	def testCaseConstructor(self):
-		d=XMLDocument()
-		self.failUnless(d.rootElement is None,'rootElement on construction')
-		self.failUnless(d.GetBase() is None,'base set on construction') 
-		d=XMLDocument(XMLElement)
-		self.failUnless(isinstance(d.rootElement,XMLElement),'rootElement not created on construction')
-		
-	def testCaseBase(self):
-		"""Test the setting of a file path"""
-		fpath=os.path.abspath('fpath.xml')
-		furl='file://'+urllib.pathname2url(fpath)
-		d=XMLDocument(urllib.pathname2url(fpath))
-		self.failUnless(d.GetBase()==furl,"Base not set in constructor")
-		d=XMLDocument(urllib.pathname2url('fpath.xml'))
-		self.failUnless(d.GetBase()==furl,"Base not made absolute from relative URL")
-		d=XMLDocument()
-		d.SetBase(urllib.pathname2url(fpath))
-		self.failUnless(d.GetBase()==furl,"Base not set by SetBase")
-				
-	def testCaseCreate(self):
-		"""Test the creating of the XMLDocument on the file system"""
-		CREATE_1_XML="""<?xml version="1.0" encoding="utf-8"?>
-<createTag/>"""
-		d=XMLDocument(XMLElement)
-		d.rootElement.SetXMLName("createTag")
-		d.SetBase('create1.xml')
-		d.Create()
-		try:
-			f=open("create1.xml")
-			data=f.read()
-			f.close()
-			self.failUnless(data==CREATE_1_XML,"Create Test")
-		except IOError:
-			self.fail("Create Test failed to create file")
-		
 class XMLCharacterTests(unittest.TestCase):
 	# Test IsNameChar
 	def testChar(self):
@@ -149,19 +107,101 @@ class XMLCharacterTests(unittest.TestCase):
 				flag=not flag
 				edges.append(code)
 		return edges
+
 		
 class XMLElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		e=XMLElement(None)
 		self.failUnless(e.ns==None,'ns on construction')
 		self.failUnless(e.xmlname==None,'element name on construction')
+		self.failUnless(e.GetDocument() is None,'document set on construction')
 		attrs=e.GetAttributes()
 		self.failUnless(len(attrs.keys())==0,"Attributes present on construction")
 
+class XMLDocumentTests(unittest.TestCase):
+	def setUp(self):
+		self.cwd=os.getcwd()
+		self.d=mkdtemp('.d','pyslet-test_xml20081126-')
+		os.chdir(self.d)
+		
+	def tearDown(self):
+		os.chdir(self.cwd)
+		shutil.rmtree(self.d,True)
 
-EXAMPLE_1="""<?xml version="1.0" encoding="utf-8"?>
-<tag>Hello World</tag>"""
-
+	def testCaseConstructor(self):
+		d=XMLDocument()
+		self.failUnless(d.rootElement is None,'rootElement on construction')
+		self.failUnless(d.GetBase() is None,'base set on construction')
+		d=XMLDocument(root=XMLElement)
+		self.failUnless(isinstance(d.rootElement,XMLElement),'rootElement not created on construction')
+		self.failUnless(d.rootElement.GetDocument() is d,'rootElement not linked to document')
+		
+	def testCaseBase(self):
+		"""Test the use of a file path on construction"""
+		fpath=os.path.abspath('fpath.xml')
+		furl='file://'+urllib.pathname2url(fpath)
+		d=XMLDocument(baseURI=urllib.pathname2url(fpath))
+		self.failUnless(d.GetBase()==furl,"Base not set in constructor")
+		self.failUnless(d.rootElement is None,'rootElement on construction')
+		d=XMLDocument(baseURI=urllib.pathname2url('fpath.xml'),root=XMLElement)
+		self.failUnless(d.GetBase()==furl,"Base not made absolute from relative URL")
+		self.failUnless(isinstance(d.rootElement,XMLElement),'rootElement not created on construction')
+		d=XMLDocument()
+		d.SetBase(urllib.pathname2url(fpath))
+		self.failUnless(d.GetBase()==furl,"Base not set by SetBase")
+	
+	def testCaseCreate(self):
+		"""Test the creating of the XMLDocument on the file system"""
+		CREATE_1_XML="""<?xml version="1.0" encoding="utf-8"?>
+<createTag/>"""
+		d=XMLDocument(root=XMLElement)
+		d.rootElement.SetXMLName("createTag")
+		d.SetBase('create1.xml')
+		d.Create()
+		try:
+			f=open("create1.xml")
+			data=f.read()
+			f.close()
+			self.failUnless(data==CREATE_1_XML,"Create Test")
+		except IOError:
+			self.fail("Create Test failed to create file")
+		
+	def testCaseReadFile(self):
+		"""Test the reading of the XMLDocument from the file system"""
+		f=codecs.open('read1.xml','wb','utf-8')
+		f.write(EXAMPLE_1)
+		f.close()
+		d=XMLDocument(baseURI='read1.xml')
+		d.Read()
+		root=d.rootElement
+		self.failUnless(isinstance(root,XMLElement))
+		self.failUnless(root.ns==None and root.xmlname=='tag' and root.GetValue()=='Hello World')
+		
+	def testCaseReadString(self):
+		"""Test the reading of the XMLDocument from the file system"""
+		d=XMLDocument(baseURI='read2.xml')
+		d.Read(src=StringIO(EXAMPLE_1))
+		root=d.rootElement
+		self.failUnless(isinstance(root,XMLElement))
+		self.failUnless(root.ns==None and root.xmlname=='tag' and root.GetValue()=='Hello World')
+		
+	def testCaseID(self):
+		"""Test the built-in handling of a document's ID space."""
+		doc=XMLDocument()
+		e1=XMLElement(doc)
+		e2=XMLElement(doc)
+		doc.RegisterElementID(e1,'test')
+		try:
+			doc.RegisterElementID(e2,'test')
+			self.fail("Failed to spot ID clash")
+		except XMLIDClashError:
+			pass
+		doc.RegisterElementID(e2,'test2')
+		self.failUnless(doc.GetElementByID('test') is e1,"Element look-up failed")
+		newID=doc.GetUniqueID('test')
+		self.failIf(newID=='test' or newID=='test2')
+		
+		
 class XMLParserTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		p=XMLParser()
