@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-from xml.sax import make_parser, handler, SAXParseException
+from xml.sax import make_parser, handler, SAXParseException, saxutils
 import string, types
 from StringIO import StringIO
 import urlparse, urllib,  os.path
@@ -15,6 +15,7 @@ xml_space=(XML_NAMESPACE,'space')
 class XMLError(Exception): pass
 
 class XMLIDClashError(XMLError): pass
+class XMLIDValueError(XMLError): pass
 class XMLMissingLocationError(XMLError): pass
 class XMLMixedContentError(XMLError): pass
 class XMLUnsupportedSchemeError(XMLError): pass
@@ -155,6 +156,16 @@ def IsNameStartChar(c):
 def IsNameChar(c):
 	return NameCharClass.Test(c)
 
+def IsValidName(name):
+	if name:
+		if not IsNameStartChar(name[0]):
+			return False
+		for c in name[1:]:
+			if not IsNameChar(c):
+				return False
+		return True
+	else:
+		return False
 
 class XMLElement:
 	def __init__(self,parent):
@@ -220,6 +231,8 @@ class XMLElement:
 		oldValue=self.attrs.pop(name,None)
 		if hasattr(self.__class__,'ID') and name==self.__class__.ID:
 			# This is an ID attribute
+			if not IsValidName(value):
+				raise XMLIDValueError(value)
 			doc=self.GetDocument()
 			if doc:
 				if oldValue and value!=oldValue:
@@ -267,17 +280,84 @@ class XMLElement:
 				break
 		return uri
 
-	def WriteXML(self,f):
+	def GetNSPrefix(self,ns,nsList):
+		for i in xrange(len(nsList)):
+			if nsList[i][0]==ns:
+				# Now run backwards to check that prefix is not in use
+				used=False
+				j=i
+				while j:
+					j=j-1
+					if nsList[j][1]==nsList[i][1]:
+						used=True
+						break
+				if not used:
+					return nsList[i][1]
+		return None
+	
+	def SetNSPrefix(self,ns,prefix,attributes,nsList):
+		if prefix:
+			aname='xmlns:'+prefix
+			prefix=prefix+':'
+			nsList[0:0]=[(ns,prefix)]
+		else:
+			nsList[0:0]=[(ns,'')]
+			aname='xmlns'
+		attributes.append('%s=%s'%(aname,saxutils.quoteattr(ns)))
+		return prefix
+		
+	def WriteXMLAttributes(self,attributes,nsList):
+		"""Adds strings representing the element's attributes
+		
+		attributes is a list of unicode strings.  Attributes should be appended
+		as strins of the form 'name="value"' with values escaped appropriately
+		for XML output.
+		
+		ns is a dictionary of pre-existing declared namespace prefixes.  This
+		includes any declarations made by the current element."""
+		keys=self.attrs.keys()
+		keys.sort()
+		for a in keys:
+			if type(a) in types.StringTypes:
+				aname=a
+				prefix=''
+			else:
+				ns,aname=a
+				prefix=self.GetNSPrefix(ns,nsList)
+				if prefix is None:
+					prefix=self.SetNSPrefix(ns,'???',attributes,nsList)
+			attributes.append('%s%s=%s'%(prefix,aname,saxutils.quoteattr(self.attrs[a])))
+		
+	def WriteXML(self,f,nsList=None):
+		if nsList is None:
+			nsList=[(XML_NAMESPACE,"xml:")]
+		attributes=[]
+		nsListLen=len(nsList)
+		if self.ns:
+			# look up the element prefix
+			prefix=self.GetNSPrefix(self.ns,nsList)
+			if prefix is None:
+				# We need to declare our namespace
+				prefix=self.SetNSPrefix(self.ns,'',attributes,nsList)
+		else:
+			prefix=''
+		self.WriteXMLAttributes(attributes,nsList)
+		if attributes:
+			attributes[0:0]=['']
+			attributes=string.join(attributes,' ')
+		else:
+			attributes=''
 		if self.children:
-			f.write('<%s>'%self.xmlname)
+			f.write('<%s%s%s>'%(prefix,self.xmlname,attributes))
 			for child in self.children:
-				if type(child) in StringTypes:
+				if type(child) in types.StringTypes:
 					f.write(child)
 				else:
-					child.WriteXML(f)
+					child.WriteXML(f,nsList)
 			f.write('</%s>'%self.xmlname)
 		else:
-			f.write('<%s/>'%self.xmlname)
+			f.write('<%s%s%s/>'%(prefix,self.xmlname,attributes))
+		nsList=nsList[-nsListLen:]
 				
 
 class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
@@ -421,19 +501,24 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		parent.AddChild(self.cObject)
 		self.cObject=parent
 			
-	def Create(self,**args):
-		if self.baseURI is None:
+	def Create(self,dst=None,**args):
+		if dst:
+			self.WriteToStream(dst)
+		elif self.baseURI is None:
 			raise XMLMissingLocationError
 		elif self.url.scheme=='file':
 			f=codecs.open(urllib.url2pathname(self.url.path),'wb','utf-8')
-			f.write('<?xml version="1.0" encoding="utf-8"?>\n')
 			try:
-				if self.rootElement:
-					self.rootElement.WriteXML(f)
+				self.WriteToStream(f)
 			finally:
 				f.close()
 		else:
 			raise XMLUnsupportedSchemeError
+	
+	def WriteToStream(self,f):
+		f.write('<?xml version="1.0" encoding="utf-8"?>\n')
+		if self.rootElement:
+			self.rootElement.WriteXML(f)
 	
 	def Update(self,reqManager=None):
 		pass

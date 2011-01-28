@@ -18,9 +18,11 @@ cp_resource=(IMSCP_NAMESPACE,'resource')
 cp_resources=(IMSCP_NAMESPACE,'resources')
 
 cp_identifier="identifier"
+cp_type="type"
 
 
 class CPException(Exception): pass
+class CPManifestError(CPException): pass
 class CPValidationError(CPException): pass
 
 class CPElement(xml.XMLElement):
@@ -97,9 +99,23 @@ class CPResources(CPElement):
 
 
 class CPResource(CPElement):
+	ID=cp_identifier
+
 	def __init__(self,parent):
 		CPElement.__init__(self,parent)
 		self.SetXMLName(cp_resource)
+		
+	def GetIdentifier(self):
+		return self.attrs.get(cp_identifier,None)
+		
+	def SetIdentifier(self,identifier):
+		CPElement.SetAttribute(self,cp_identifier,identifier)
+		
+	def GetType(self):
+		return self.attrs.get(cp_type,None)
+		
+	def SetType(self,type):
+		CPElement.SetAttribute(self,cp_type,type)
 		
 	
 class CPDocument(xml.XMLDocument):
@@ -121,13 +137,38 @@ class CPDocument(xml.XMLDocument):
 
 
 class ContentPackage:
-	def __init__(self):
-		self.CreateTempDirectory()
-		self.manifest=xml.XMLDocument(root=CPManifest)
-		self.manifest.SetBase(urllib.pathname2url(os.path.join(self.dPath,'imsmanifest.xml')))
-		self.manifest.rootElement.SetIdentifier(self.manifest.GetUniqueID('manifest'))
-		self.manifest.Create()
-		
-	def CreateTempDirectory(self):
-		self.dPath=mkdtemp('.d','imscpv1p2-')
-		
+	def __init__(self,dPath=None):
+		if dPath is None:
+			self.dPath=mkdtemp('.d','imscpv1p2-')
+		else:
+			self.dPath=os.path.abspath(dPath)
+			if os.path.isdir(self.dPath):
+				# existing directory
+				pass
+			elif os.path.exists(self.dPath):
+				# anything other than a directory should be a manifest file
+				self.dPath,mPath=os.path.split(self.dPath)
+				if os.path.normcase(mPath)!='imsmanifest.xml':
+					raise CPManifestError("%s must be named imsmanifest.xml"%mPath)
+			else:
+				os.mkdir(self.dPath)
+		mPath=os.path.join(self.dPath,'imsmanifest.xml')
+		if os.path.exists(mPath):
+			self.manifest=CPDocument(baseURI=urllib.pathname2url(mPath))
+			self.manifest.Read()
+			if not isinstance(self.manifest.rootElement,CPManifest):
+				raise CPManifestError("%s not a manifest file, found %s::%s "%
+					(mPath,self.manifest.rootElement.ns,self.manifest.rootElement.xmlname))
+		else:
+			self.manifest=CPDocument(root=CPManifest, baseURI=urllib.pathname2url(mPath))
+			self.manifest.rootElement.SetIdentifier(self.manifest.GetUniqueID('manifest'))
+			self.manifest.Create()
+	
+	def CPResource(self,identifier,type):
+		resources=self.manifest.rootElement.GetResources()
+		r=CPResource(resources)
+		r.SetIdentifier(identifier)
+		r.SetType(type)
+		self.manifest.rootElement.resources.AddChild(r)
+		return r
+

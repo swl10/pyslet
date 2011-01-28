@@ -17,6 +17,7 @@ def suite():
 		unittest.makeSuite(XMLDocumentTests,'test'),
 		unittest.makeSuite(XMLCharacterTests,'test'),
 		unittest.makeSuite(XMLElementTests,'test'),
+		unittest.makeSuite(XMLValidationTests,'test'),
 		unittest.makeSuite(XMLParserTests,'test')
 		))
 
@@ -108,6 +109,18 @@ class XMLCharacterTests(unittest.TestCase):
 				edges.append(code)
 		return edges
 
+class XMLValidationTests(unittest.TestCase):
+	def testCaseName(self):
+		self.failUnless(IsValidName("Simple"))
+		self.failUnless(IsValidName(":BadNCName"))
+		self.failUnless(IsValidName("_GoodNCName"))
+		self.failIf(IsValidName("-BadName"))
+		self.failIf(IsValidName(".BadName"))
+		self.failIf(IsValidName("0BadName"))
+		self.failUnless(IsValidName("GoodName-0.12"))
+		self.failIf(IsValidName("BadName$"))
+		self.failIf(IsValidName("BadName+"))
+		self.failIf(IsValidName(".BadName"))
 		
 class XMLElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
@@ -150,22 +163,6 @@ class XMLDocumentTests(unittest.TestCase):
 		d.SetBase(urllib.pathname2url(fpath))
 		self.failUnless(d.GetBase()==furl,"Base not set by SetBase")
 	
-	def testCaseCreate(self):
-		"""Test the creating of the XMLDocument on the file system"""
-		CREATE_1_XML="""<?xml version="1.0" encoding="utf-8"?>
-<createTag/>"""
-		d=XMLDocument(root=XMLElement)
-		d.rootElement.SetXMLName("createTag")
-		d.SetBase('create1.xml')
-		d.Create()
-		try:
-			f=open("create1.xml")
-			data=f.read()
-			f.close()
-			self.failUnless(data==CREATE_1_XML,"Create Test")
-		except IOError:
-			self.fail("Create Test failed to create file")
-		
 	def testCaseReadFile(self):
 		"""Test the reading of the XMLDocument from the file system"""
 		f=codecs.open('read1.xml','wb','utf-8')
@@ -184,6 +181,47 @@ class XMLDocumentTests(unittest.TestCase):
 		root=d.rootElement
 		self.failUnless(isinstance(root,XMLElement))
 		self.failUnless(root.ns==None and root.xmlname=='tag' and root.GetValue()=='Hello World')
+		
+	def testCaseCreate(self):
+		"""Test the creating of the XMLDocument on the file system"""
+		CREATE_1_XML="""<?xml version="1.0" encoding="utf-8"?>
+<createTag/>"""
+		d=XMLDocument(root=XMLElement)
+		d.rootElement.SetXMLName("createTag")
+		d.SetBase('create1.xml')
+		d.Create()
+		try:
+			f=open("create1.xml")
+			data=f.read()
+			f.close()
+			self.failUnless(data==CREATE_1_XML,"Create Test")
+		except IOError:
+			self.fail("Create Test failed to create file")
+		
+	def testCaseCreateNS(self):
+		"""Test the handling of namespaces in output"""
+		CREATE_2_XML="""<?xml version="1.0" encoding="utf-8"?>
+<createTag xmlns:alt="http://www.example.com/alt">
+	<alt:createTag xml:base="http://www.example.com/create.xml">
+		<tag2>Hello World</tag2>
+	</alt:createTag>
+</createTag>"""
+		CREATE_2_OUTPUT="""<?xml version="1.0" encoding="utf-8"?>
+<createTag xmlns="http://www.example.com">
+	<createTag xmlns="http://www.example.com/alt" xml:base="http://www.example.com/create.xml">
+		<tag2 xmlns="http://www.example.com">Hello World</tag2>
+	</createTag>
+</createTag>"""		
+		d=XMLDocument()
+		d.SetDefaultNS("http://www.example.com")
+		d.Read(src=StringIO(CREATE_2_XML))
+		dst=StringIO()
+		d.Create(dst=dst)
+		#print
+		#print repr(dst.getvalue())
+		#print
+		#print repr(CREATE_2_OUTPUT)
+		self.failUnless(dst.getvalue()==CREATE_2_OUTPUT,"Simple NS output: \n%s"%dst.getvalue())
 		
 	def testCaseID(self):
 		"""Test the built-in handling of a document's ID space."""

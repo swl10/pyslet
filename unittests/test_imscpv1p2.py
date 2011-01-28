@@ -1,8 +1,10 @@
 #! /usr/bin/env python
 
 import unittest
-import os.path, urllib, urlparse, shutil
+from tempfile import mkdtemp
+import os, os.path, urllib, urlparse, shutil
 from StringIO import StringIO
+
 
 def suite():
 	return unittest.TestSuite((
@@ -121,13 +123,27 @@ class CPDocumentTests(unittest.TestCase):
 		doc.Read(src=StringIO(EXAMPLE_2))
 		resources=doc.rootElement.GetResources()
 		self.failUnless(len(resources.children)==1 and isinstance(resources.children[0],CPResource))
+		manifest=doc.GetElementByID("MANIFEST-QTI-1")
+		self.failUnless(doc.rootElement is manifest and isinstance(manifest,CPManifest))
+		resource=doc.GetElementByID("choice")
+		self.failUnless(resource is resources.children[0])
 		
-
 class ContentPackageTests(unittest.TestCase):
 	def setUp(self):
+		self.cwd=os.getcwd()
 		self.dList=[]
+		self.d=mkdtemp('.d','pyslet-test_imscpv1p2-')
+		os.chdir(self.d)
+		os.mkdir('package')
+		os.mkdir('mpackage')
+		mpath=os.path.join('mpackage','imsmanifest.xml')
+		f=open(mpath,'wb')
+		f.write(EXAMPLE_2)
+		f.close()
+		self.dList.append(self.d)
 		
 	def tearDown(self):
+		os.chdir(self.cwd)
 		for d in self.dList:
 			shutil.rmtree(d,True)
 
@@ -143,7 +159,32 @@ class ContentPackageTests(unittest.TestCase):
 		id=cp.manifest.rootElement.GetIdentifier()
 		self.failUnless(cp.manifest.GetElementByID(id) is cp.manifest.rootElement,"Manifest identifief not declared")
 		self.failUnless(os.path.isfile(urllib.url2pathname(url.path)),"Constructor must create manifest file")
+		#print 
+		#print file(urllib.url2pathname(url.path)).read()
+		cp=ContentPackage('newpackage')
+		self.failUnless(os.path.isdir(cp.dPath) and os.path.abspath('newpackage')==cp.dPath,"Constructor creates specified directory")
+		cp=ContentPackage('package')
+		self.failUnless(os.path.abspath('package')==cp.dPath,"Constructor with existing directory, no manifest")
+		cp=ContentPackage('mpackage')
+		self.failUnless(cp.manifest.rootElement.GetIdentifier()=="MANIFEST-QTI-1","Constructor with existing directory and manifest")
+		cp=ContentPackage(os.path.join('mpackage','imsmanifest.xml'))
+		self.failUnless(os.path.isdir(cp.dPath) and os.path.abspath('mpackage')==cp.dPath,"Constructor identifies pkg dir from manifest file")
+		self.failUnless(cp.manifest.rootElement.GetIdentifier()=="MANIFEST-QTI-1","Constructor from manifest file")
+	
+	def testCaseNewResource(self):
+		cp=ContentPackage('newresource')
+		try:
+			resource=cp.CPResource('resource#1','imsqti_item_xmlv2p1')
+			self.fail("Invalid Name for resource identifier")
+		except xml.XMLIDValueError:
+			pass
+		resource=cp.CPResource('resource_1','imsqti_item_xmlv2p1')
+		self.failUnless(isinstance(resource,CPResource))
+		self.failUnless(cp.manifest.GetElementByID('resource_1') is resource)
+		resources=cp.manifest.rootElement.GetResources()
+		self.failUnless(len(resources.children)==1 and resources.children[0] is resource)
 		
+
 if __name__ == "__main__":
 	unittest.main()
 
