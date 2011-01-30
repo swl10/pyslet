@@ -7,20 +7,28 @@ import urlparse, urllib,  os.path
 from sys import maxunicode
 import codecs, random
 
-XML_NAMESPACE="http://www.w3.org/XML/1998/namespace"
-xml_base=(XML_NAMESPACE,'base')
-xml_lang=(XML_NAMESPACE,'lang')
-xml_space=(XML_NAMESPACE,'space')
+xml_base='xml:base'
+xml_lang='xml:lang'
+xml_space='xml:space'
 
+XML_MIMETYPES={
+	'text/xml':True,
+	'application/xml':True,
+	'text/application+xml':True	
+	}
+	
 class XMLError(Exception): pass
 
+class XMLContentTypeError(XMLError): pass
 class XMLIDClashError(XMLError): pass
 class XMLIDValueError(XMLError): pass
 class XMLMissingLocationError(XMLError): pass
 class XMLMixedContentError(XMLError): pass
+class XMLUnexpectedHTTPResponse(XMLError): pass
 class XMLUnsupportedSchemeError(XMLError): pass
 
 from pyslet.unicode5 import CharClass
+from pyslet import rfc2616 as http
 
 NameStartCharClass=CharClass(u':', (u'A',u'Z'), u'_', (u'a',u'z'),
 	(u'\xc0',u'\xd6'), (u'\xd8',u'\xf6'),
@@ -170,17 +178,12 @@ def IsValidName(name):
 class XMLElement:
 	def __init__(self,parent):
 		self.parent=parent
-		self.ns=None
 		self.xmlname=None
 		self.attrs={}
 		self.children=[]
 
 	def SetXMLName(self,xmlname):
-		if type(xmlname) in types.StringTypes:
-			self.ns=None
-			self.xmlname=xmlname
-		else:
-			self.ns,self.xmlname=xmlname
+		self.xmlname=xmlname
 
 	def GetDocument(self):
 		if self.parent:
@@ -201,7 +204,7 @@ class XMLElement:
 		if base is None:
 			self.attrs.pop(xml_base,None)
 		else:
-			self.attrs[xml_base]=base
+			self.attrs[xml_base]=str(base)
 	
 	def GetLang(self):
 		return self.attrs.get(xml_lang,None)
@@ -231,15 +234,18 @@ class XMLElement:
 		oldValue=self.attrs.pop(name,None)
 		if hasattr(self.__class__,'ID') and name==self.__class__.ID:
 			# This is an ID attribute
-			if not IsValidName(value):
+			if not self.IsValidName(value):
 				raise XMLIDValueError(value)
 			doc=self.GetDocument()
-			if doc:
-				if oldValue and value!=oldValue:
-					doc.UnregisterElementID(self,oldValue)
+			if doc and value!=oldValue:
+				if oldValue:
+					doc.UnregisterElementID(oldValue)
 				doc.RegisterElementID(self,value)
 		self.attrs[name]=value
 				
+	def IsValidName(self,value):
+		return IsValidName(value)
+	
 	def AddChild(self,child):
 		self.children.append(child)
 	
@@ -268,96 +274,65 @@ class XMLElement:
 			self.children=[value]
 
 	def ResolveURI(self,uri):
+		"""Returns a fully specified URL, resolving URI in the current context.
+		
+		The uri is resolved relative to the xml:base values of the element's
+		ancestors and ultimately relative to the document's baseURI.
+		
+		The result is a string (of bytes), not a unicode string.  Likewise, uri
+		must be passed in as a string of bytes.
+
+		The reason for this restriction is best illustrated with an example:
+		
+		The URI %E8%8B%B1%E5%9B%BD.xml is a UTF-8 and URL-encoded path segment
+		using the Chinese word for United Kingdom.  When we remove the URL-encoding
+		we get the string '\xe8\x8b\xb1\xe5\x9b\xbd.xml' which must be interpreted
+		with utf-8 to get the intended path segment value: u'\u82f1\u56fd'.  However,
+		if the URL was marked as being a unicode string of characters then this second
+		stage would not be carried out and the result would be the unicode string
+		u'\xe8\x8b\xb1\xe5\x9b\xbd', which is string of 6 characters taken from the
+		European Latin-1 character set."""		
 		baser=self
 		baseURI=None
 		while True:
 			baseURI=baser.GetBase()
 			if baseURI:
-				uri=urlparse.urljoin(baseURI,uri)
+				uri=urlparse.urljoin(baseURI,str(uri))
 			if isinstance(baser,XMLElement):
 				baser=baser.parent
 			else:
 				break
 		return uri
 
-	def GetNSPrefix(self,ns,nsList):
-		for i in xrange(len(nsList)):
-			if nsList[i][0]==ns:
-				# Now run backwards to check that prefix is not in use
-				used=False
-				j=i
-				while j:
-					j=j-1
-					if nsList[j][1]==nsList[i][1]:
-						used=True
-						break
-				if not used:
-					return nsList[i][1]
-		return None
-	
-	def SetNSPrefix(self,ns,prefix,attributes,nsList):
-		if prefix:
-			aname='xmlns:'+prefix
-			prefix=prefix+':'
-			nsList[0:0]=[(ns,prefix)]
-		else:
-			nsList[0:0]=[(ns,'')]
-			aname='xmlns'
-		attributes.append('%s=%s'%(aname,saxutils.quoteattr(ns)))
-		return prefix
-		
-	def WriteXMLAttributes(self,attributes,nsList):
+	def WriteXMLAttributes(self,attributes):
 		"""Adds strings representing the element's attributes
 		
 		attributes is a list of unicode strings.  Attributes should be appended
-		as strins of the form 'name="value"' with values escaped appropriately
-		for XML output.
-		
-		ns is a dictionary of pre-existing declared namespace prefixes.  This
-		includes any declarations made by the current element."""
+		as strings of the form 'name="value"' with values escaped appropriately
+		for XML output."""
 		keys=self.attrs.keys()
 		keys.sort()
 		for a in keys:
-			if type(a) in types.StringTypes:
-				aname=a
-				prefix=''
-			else:
-				ns,aname=a
-				prefix=self.GetNSPrefix(ns,nsList)
-				if prefix is None:
-					prefix=self.SetNSPrefix(ns,'???',attributes,nsList)
-			attributes.append('%s%s=%s'%(prefix,aname,saxutils.quoteattr(self.attrs[a])))
+			attributes.append('%s=%s'%(a,saxutils.quoteattr(self.attrs[a])))
 		
-	def WriteXML(self,f,nsList=None):
-		if nsList is None:
-			nsList=[(XML_NAMESPACE,"xml:")]
+	def WriteXML(self,f):
 		attributes=[]
-		nsListLen=len(nsList)
-		if self.ns:
-			# look up the element prefix
-			prefix=self.GetNSPrefix(self.ns,nsList)
-			if prefix is None:
-				# We need to declare our namespace
-				prefix=self.SetNSPrefix(self.ns,'',attributes,nsList)
-		else:
-			prefix=''
-		self.WriteXMLAttributes(attributes,nsList)
+		self.WriteXMLAttributes(attributes)
 		if attributes:
 			attributes[0:0]=['']
 			attributes=string.join(attributes,' ')
 		else:
 			attributes=''
 		if self.children:
-			f.write('<%s%s%s>'%(prefix,self.xmlname,attributes))
+			f.write('<%s%s>'%(self.xmlname,attributes))
 			for child in self.children:
 				if type(child) in types.StringTypes:
 					f.write(child)
 				else:
-					child.WriteXML(f,nsList)
+					child.WriteXML(f)
 			f.write('</%s>'%self.xmlname)
 		else:
-			f.write('<%s%s%s/>'%(prefix,self.xmlname,attributes))
-		nsList=nsList[-nsListLen:]
+			f.write('<%s%s/>'%(self.xmlname,attributes))
 				
 
 class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
@@ -376,7 +351,7 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		can be specified on construction."""
 		self.defaultNS=defaultNS
 		self.parser=make_parser()
-		self.parser.setFeature(handler.feature_namespaces,1)
+		self.parser.setFeature(handler.feature_namespaces,0)
 		self.parser.setFeature(handler.feature_validation,0)
 		self.parser.setContentHandler(self)
 		self.parser.setErrorHandler(self)
@@ -393,6 +368,9 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		
 	def SetDefaultNS(self,ns):
 		self.defaultNS=ns
+	
+	def ValidateMimeType(self,mimetype):
+		return XML_MIMETYPES.has_key(mimetype)
 		
 	def GetElementClass(self,name):
 		"""Returns a class object suitable for representing name
@@ -446,18 +424,37 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 			idExtra=idExtra+1
 		return idStr
 
-	def Read(self,src=None):
+	def Read(self,src=None,reqManager=None,**args):
 		if src:
 			# Read from this stream, ignore baseURI
 			self.ReadFromStream(src)
 		elif self.baseURI is None:
 			raise XMLMissingLocationError
 		elif self.url.scheme=='file':
-			f=codecs.open(urllib.url2pathname(self.url.path),'rb','utf-8')
+			#f=codecs.open(urllib.url2pathname(self.url.path),'rb','utf-8')
+			f=open(urllib.url2pathname(self.url.path),'rb')
 			try:
 				self.ReadFromStream(f)
 			finally:
 				f.close()
+		elif self.url.scheme in ['http','https']:
+			if reqManager is None:
+				reqManager=http.HTTPRequestManager()
+			req=http.HTTPRequest(self.baseURI)
+			reqManager.ProcessRequest(req)
+			if req.status==200:
+				mtype=req.response.GetContentType()
+				if mtype is None:
+					# We'll attempt to do this with xml and utf8
+					charset='utf8'
+					raise UnimplementedError
+				else:
+					mimetype=mtype.type.lower()+'/'+mtype.subtype.lower()
+					if not self.ValidateMimeType(mimetype):
+						raise XMLContentTypeError(mimetype)
+					self.ReadFromStream(StringIO(req.resBody))
+			else:
+				raise XMLUnexpectedHTTPResponse(str(req.status))
 		else:
 			raise XMLUnsupportedScheme
 	
@@ -467,29 +464,24 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		self.data=[]
 		self.parser.parse(src)
 		
-	def startElementNS(self, name, qname, attrs):
+	def startElement(self, name, attrs):
 		parent=self.cObject
 		self.objStack.append(self.cObject)
 		if self.data:
 			parent.AddChild(string.join(self.data,''))
 			self.data=[]
-		if name[0] is None:
-			name=(self.defaultNS,name[1])
 		#print name, qname, attrs
 		#eClass=self.classMap.get(name,self.classMap.get((name[0],None),XMLElement))
 		eClass=self.GetElementClass(name)
 		self.cObject=eClass(parent)
 		self.cObject.SetXMLName(name)
 		for attr in attrs.keys():
-			if attr[0] is None:
-				self.cObject.SetAttribute(attr[1],attrs[attr])
-			else:
-				self.cObject.SetAttribute(attr,attrs[attr])
+			self.cObject.SetAttribute(attr,attrs[attr])
 
 	def characters(self,ch):
 		self.data.append(ch)
 			
-	def endElementNS(self,name,qname):
+	def endElement(self,name):
 		if self.objStack:
 			parent=self.objStack.pop()
 		else:
@@ -526,77 +518,6 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 	def Delete(self,reqManager=None):
 		pass
 		
-			
-class XMLParser(handler.ContentHandler, handler.ErrorHandler):
-	def __init__(self):
-		self.parser=make_parser()
-		self.parser.setFeature(handler.feature_namespaces,1)
-		self.parser.setFeature(handler.feature_validation,0)
-		self.parser.setContentHandler(self)
-		self.parser.setErrorHandler(self)
-		#self.parser.setEntityResolver(self)
-		self.defaultNS=None
-		self.classMap={}
-	
-	def SetDefaultNS(self,ns):
-		self.defaultNS=ns
-		
-	def GetClassMap(self):
-		return self.classMap
-	
-	def ParseDocument (self,src,baseURI=None):
-		f=StringIO(src)
-		self.baseURI=baseURI
-		self.doc=XMLDocument(baseURI=baseURI)
-		self.cObject=self.doc
-		self.objStack=[]
-		self.data=[]
-		self.parser.parse(f)
-		return self.doc
-		
-	def ParseString (self,src,baseURI=None):
-		f=StringIO(src)
-		self.baseURI=baseURI
-		self.doc=XMLDocument(baseURI=baseURI)
-		self.cObject=self.doc
-		self.objStack=[]
-		self.data=[]
-		self.parser.parse(f)
-		return self.doc.rootElement
-		
-	def startElementNS(self, name, qname, attrs):
-		parent=self.cObject
-		self.objStack.append(self.cObject)
-		if self.data:
-			parent.AddChild(string.join(self.data,''))
-			self.data=[]
-		if name[0] is None:
-			name=(self.defaultNS,name[1])
-		#print name, qname, attrs
-		eClass=self.classMap.get(name,self.classMap.get((name[0],None),XMLElement))
-		self.cObject=eClass(parent)
-		self.cObject.SetXMLName(name)
-		for attr in attrs.keys():
-			if attr[0] is None:
-				self.cObject.SetAttribute(attr[1],attrs[attr])
-			else:
-				self.cObject.SetAttribute(attr,attrs[attr])
-
-	def characters(self,ch):
-		self.data.append(ch)
-			
-	def endElementNS(self,name,qname):
-		if self.objStack:
-			parent=self.objStack.pop()
-		else:
-			parent=None
-		if self.data:
-			self.cObject.AddChild(string.join(self.data,''))
-			self.data=[]
-		self.cObject.GotChildren()
-		parent.AddChild(self.cObject)
-		self.cObject=parent
-
 
 def ParseXMLClass(classDefStr):
 	"""The purpose of this function is to provide a convenience for creating character

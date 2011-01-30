@@ -18,7 +18,7 @@ A Date construct is an element whose content MUST conform to the "date-time" pro
 import string, types
 
 import pyslet.iso8601 as iso8601
-import pyslet.xml20081126 as xml
+import pyslet.xmlnames20091208 as xmlns
 
 ATOM_NAMESPACE="http://www.w3.org/2005/Atom"
 atom_author=(ATOM_NAMESPACE,'author')
@@ -39,7 +39,7 @@ ATOM_MIMETYPE="application/atom+xml"
 
 _ATOM_TEXT_TYPES={'text':1,'html':1,'xhtml':1}
 
-class AtomElement(xml.XMLElement):
+class AtomElement(xmlns.XMLNSElement):
 	"""Basic element to represent all Atom elements; not that xml:base and xml:lang are handled by
 	the XMLElement mix-in class.
 	
@@ -49,7 +49,7 @@ class AtomElement(xml.XMLElement):
 		undefinedAttribute*
 	"""  
 	def __init__(self,parent):
-		xml.XMLElement.__init__(self,parent)
+		xmlns.XMLNSElement.__init__(self,parent)
 		self.SetXMLName((ATOM_NAMESPACE,None))
 		
 class AtomSingle:
@@ -206,7 +206,7 @@ class AtomEntity(AtomElement):
 				self.metadata[child.xmlname].append(child)
 			else:
 				self.metadata[child.xmlname]=[child]
-		elif isinstance(child,xml.XMLElement):
+		elif isinstance(child,xmlns.XMLNSElement):
 			key=(child.ns,child.xmlname)
 			if self.metadata.has_key(key):
 				self.metadata[key].append(child)
@@ -394,22 +394,26 @@ class AtomEntry(AtomEntity):
 			AtomEntity.AddChild(self,child)
 
 
-class AtomParser(xml.XMLParser):
-	def __init__(self):
-		xml.XMLParser.__init__(self)
-		self.defaultNS=ATOM_NAMESPACE
-		self.classMap={
-			atom_author:AtomAuthor,
-			atom_category:AtomCategory,
-			atom_entry:AtomEntry,
-			atom_feed:AtomFeed,
-			atom_generator:AtomGenerator,
-			atom_id:AtomId,
-			atom_link:AtomLink,
-			atom_name:AtomName,
-			atom_rights:AtomRights,
-			atom_subtitle:AtomSubtitle,
-			atom_summary:AtomSummary,
-			atom_title:AtomTitle,
-			atom_updated:AtomUpdated			
-			}
+class AtomDocument(xmlns.XMLNSDocument):
+	def __init__(self,**args):
+		""""""
+		xmlns.XMLNSDocument.__init__(self,defaultNS=ATOM_NAMESPACE,**args)
+
+	def GetElementClass(self,name):
+		return AtomDocument.classMap.get(name,AtomDocument.classMap.get((name[0],None),xmlns.XMLNSElement))
+
+	classMap={
+		atom_author:AtomAuthor,
+		atom_category:AtomCategory,
+		atom_entry:AtomEntry,
+		atom_feed:AtomFeed,
+		atom_generator:AtomGenerator,
+		atom_id:AtomId,
+		atom_link:AtomLink,
+		atom_name:AtomName,
+		atom_rights:AtomRights,
+		atom_subtitle:AtomSubtitle,
+		atom_summary:AtomSummary,
+		atom_title:AtomTitle,
+		atom_updated:AtomUpdated			
+		}

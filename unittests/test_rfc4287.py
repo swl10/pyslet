@@ -16,6 +16,7 @@ def suite():
 from pyslet.rfc4287 import *
 
 import os
+from StringIO import StringIO
 
 EXAMPLE_1="""<?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
@@ -111,8 +112,8 @@ class AtomElementTests(unittest.TestCase):
 		self.failUnless(e.GetLang()=="en-US","Get/Set example xml:lang value")
 		attrs=e.GetAttributes()
 		self.failUnless(len(attrs.keys())==2,"Two attributes expected")
-		self.failUnless(attrs[(xml.XML_NAMESPACE,'base')]=="http://www.example.com/","Base attribute")
-		self.failUnless(attrs[(xml.XML_NAMESPACE,'lang')]=="en-US","Lang attribute")
+		self.failUnless(attrs[(xmlns.XML_NAMESPACE,'base')]=="http://www.example.com/","Base attribute")
+		self.failUnless(attrs[(xmlns.XML_NAMESPACE,'lang')]=="en-US","Lang attribute")
 		e.SetBase(None)
 		self.failUnless(e.GetBase() is None,"Get/Set empty xml:base value")
 		self.failUnless(len(attrs.keys())==1,"One attribute expected")
@@ -237,8 +238,9 @@ class AtomFeedTests(unittest.TestCase):
 		self.failUnless(len(metadata.keys())==0,"Metadata present on construction")
 	
 	def testCaseReadXML(self):
-		p=AtomParser()
-		feed=p.ParseString(EXAMPLE_1)
+		doc=AtomDocument()
+		doc.Read(src=StringIO(EXAMPLE_1))
+		feed=doc.rootElement
 		self.failUnless(isinstance(feed,AtomFeed),"Example 1 not a feed")
 		title=feed.GetTitle()
 		self.failUnless(isinstance(title,AtomText) and title.GetValue()=="Example Feed","Example 1 title")
@@ -265,7 +267,8 @@ class AtomFeedTests(unittest.TestCase):
 		self.failUnless(isinstance(updated,AtomDate) and updated.GetValue()=="2003-12-13T18:30:02Z","Example 1 entry updated")
 		summary=entry.GetSummary()
 		self.failUnless(isinstance(summary,AtomText) and summary.GetValue()=="Some text.","Example 1 entry summary")
-		feed=p.ParseString(EXAMPLE_2)
+		doc.Read(src=StringIO(EXAMPLE_2))
+		feed=doc.rootElement
 		subtitle=feed.GetSubtitle()
 		self.failUnless(isinstance(subtitle,AtomSubtitle) and subtitle.GetType()=='html'
 			and subtitle.GetValue().strip()=="A <em>lot</em> of effort went into making this effortless","Example 2 subtitle")

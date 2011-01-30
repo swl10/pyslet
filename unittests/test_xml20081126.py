@@ -17,8 +17,7 @@ def suite():
 		unittest.makeSuite(XMLDocumentTests,'test'),
 		unittest.makeSuite(XMLCharacterTests,'test'),
 		unittest.makeSuite(XMLElementTests,'test'),
-		unittest.makeSuite(XMLValidationTests,'test'),
-		unittest.makeSuite(XMLParserTests,'test')
+		unittest.makeSuite(XMLValidationTests,'test')
 		))
 
 from pyslet.xml20081126 import *
@@ -113,6 +112,7 @@ class XMLValidationTests(unittest.TestCase):
 	def testCaseName(self):
 		self.failUnless(IsValidName("Simple"))
 		self.failUnless(IsValidName(":BadNCName"))
+		self.failUnless(IsValidName("prefix:BadNCName"))
 		self.failUnless(IsValidName("_GoodNCName"))
 		self.failIf(IsValidName("-BadName"))
 		self.failIf(IsValidName(".BadName"))
@@ -120,12 +120,10 @@ class XMLValidationTests(unittest.TestCase):
 		self.failUnless(IsValidName("GoodName-0.12"))
 		self.failIf(IsValidName("BadName$"))
 		self.failIf(IsValidName("BadName+"))
-		self.failIf(IsValidName(".BadName"))
 		
 class XMLElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		e=XMLElement(None)
-		self.failUnless(e.ns==None,'ns on construction')
 		self.failUnless(e.xmlname==None,'element name on construction')
 		self.failUnless(e.GetDocument() is None,'document set on construction')
 		attrs=e.GetAttributes()
@@ -172,15 +170,15 @@ class XMLDocumentTests(unittest.TestCase):
 		d.Read()
 		root=d.rootElement
 		self.failUnless(isinstance(root,XMLElement))
-		self.failUnless(root.ns==None and root.xmlname=='tag' and root.GetValue()=='Hello World')
+		self.failUnless(root.xmlname=='tag' and root.GetValue()=='Hello World')
 		
 	def testCaseReadString(self):
-		"""Test the reading of the XMLDocument from the file system"""
+		"""Test the reading of the XMLDocument from a supplied stream"""
 		d=XMLDocument(baseURI='read2.xml')
 		d.Read(src=StringIO(EXAMPLE_1))
 		root=d.rootElement
 		self.failUnless(isinstance(root,XMLElement))
-		self.failUnless(root.ns==None and root.xmlname=='tag' and root.GetValue()=='Hello World')
+		self.failUnless(root.xmlname=='tag' and root.GetValue()=='Hello World')
 		
 	def testCaseCreate(self):
 		"""Test the creating of the XMLDocument on the file system"""
@@ -197,32 +195,7 @@ class XMLDocumentTests(unittest.TestCase):
 			self.failUnless(data==CREATE_1_XML,"Create Test")
 		except IOError:
 			self.fail("Create Test failed to create file")
-		
-	def testCaseCreateNS(self):
-		"""Test the handling of namespaces in output"""
-		CREATE_2_XML="""<?xml version="1.0" encoding="utf-8"?>
-<createTag xmlns:alt="http://www.example.com/alt">
-	<alt:createTag xml:base="http://www.example.com/create.xml">
-		<tag2>Hello World</tag2>
-	</alt:createTag>
-</createTag>"""
-		CREATE_2_OUTPUT="""<?xml version="1.0" encoding="utf-8"?>
-<createTag xmlns="http://www.example.com">
-	<createTag xmlns="http://www.example.com/alt" xml:base="http://www.example.com/create.xml">
-		<tag2 xmlns="http://www.example.com">Hello World</tag2>
-	</createTag>
-</createTag>"""		
-		d=XMLDocument()
-		d.SetDefaultNS("http://www.example.com")
-		d.Read(src=StringIO(CREATE_2_XML))
-		dst=StringIO()
-		d.Create(dst=dst)
-		#print
-		#print repr(dst.getvalue())
-		#print
-		#print repr(CREATE_2_OUTPUT)
-		self.failUnless(dst.getvalue()==CREATE_2_OUTPUT,"Simple NS output: \n%s"%dst.getvalue())
-		
+				
 	def testCaseID(self):
 		"""Test the built-in handling of a document's ID space."""
 		doc=XMLDocument()
@@ -239,7 +212,7 @@ class XMLDocumentTests(unittest.TestCase):
 		newID=doc.GetUniqueID('test')
 		self.failIf(newID=='test' or newID=='test2')
 		
-		
+"""		
 class XMLParserTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		p=XMLParser()
@@ -250,14 +223,8 @@ class XMLParserTests(unittest.TestCase):
 		self.failUnless(isinstance(doc,XMLDocument))
 		root=doc.rootElement
 		self.failUnless(isinstance(root,XMLElement))
-		self.failUnless(root.ns==None and root.xmlname=='tag' and root.GetValue()=='Hello World')
+		self.failUnless(root.xmlname=='tag' and root.GetValue()=='Hello World')
+"""
 
-	def testCaseDefaultNS(self):
-		ns='http://www.example.com/default'
-		p=XMLParser()
-		p.SetDefaultNS(ns)
-		root=p.ParseDocument(EXAMPLE_1).rootElement
-		self.failUnless(root.ns==ns and root.xmlname=='tag')
-	
 if __name__ == "__main__":
 	unittest.main()

@@ -6,19 +6,33 @@ def suite():
 	return unittest.TestSuite((
 		unittest.makeSuite(QTITests,'test'),
 		unittest.makeSuite(QTIElementTests,'test'),
-		unittest.makeSuite(QTIParserTests,'test')
+		unittest.makeSuite(QTIDocumentTests,'test')
 		))
 
 from pyslet.imsqtiv1p2p1 import *
 
+from StringIO import StringIO
+
 class QTITests(unittest.TestCase):
 	def testCaseConstants(self):
-		self.failUnless(IMSQTI_NAMESPACE=="http://www.imsglobal.org/xsd/ims_qtiasiv1p2","Wrong QTI namespace: %s"%IMSQTI_NAMESPACE)
+		#self.failUnless(IMSQTI_NAMESPACE=="http://www.imsglobal.org/xsd/ims_qtiasiv1p2","Wrong QTI namespace: %s"%IMSQTI_NAMESPACE)
+		pass
 
+	def testCaseNCNameFixup(self):
+		self.failUnless(MakeValidName("Simple")=="Simple")
+		self.failUnless(MakeValidName(":BadNCName")==":BadNCName")
+		self.failUnless(MakeValidName("prefix:BadNCName")=="prefix:BadNCName")
+		self.failUnless(MakeValidName("_GoodNCName")=="_GoodNCName")
+		self.failUnless(MakeValidName("-BadName")=="_-BadName")
+		self.failUnless(MakeValidName(".BadName")=="_.BadName")
+		self.failUnless(MakeValidName("0BadName")=="_0BadName")
+		self.failUnless(MakeValidName("GoodName-0.12")=="GoodName-0.12")
+		self.failUnless(MakeValidName("BadName$")=="BadName_")
+		self.failUnless(MakeValidName("BadName+")=="BadName_")
+		
 class QTIElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		e=QTIElement(None)
-		self.failUnless(e.ns==IMSQTI_NAMESPACE,'ns on construction')
 
 	def testCaseQuesTestInterop(self):
 		e=QTIQuesTestInterop(None)
@@ -71,21 +85,21 @@ EXAMPLE_2="""<?xml version = "1.0" encoding = "UTF-8" standalone = "no"?>
 	</item>
 </questestinterop>"""
 
-class QTIParserTests(unittest.TestCase):
+class QTIDocumentTests(unittest.TestCase):
 	def testCaseConstructor(self):
-		p=QTIParser()
+		doc=QTIDocument()
+		self.failUnless(isinstance(doc,xml.XMLDocument))
 
 	def testCaseExample1(self):
-		p=QTIParser()
-		doc=p.ParseDocument(EXAMPLE_1)
-		self.failUnless(isinstance(doc,xml.XMLDocument))
+		doc=QTIDocument()
+		doc.Read(src=StringIO(EXAMPLE_1))
 		root=doc.rootElement
 		self.failUnless(isinstance(root,QTIQuesTestInterop))
-		self.failUnless(root.ns==IMSQTI_NAMESPACE and root.xmlname=='questestinterop')
+		self.failUnless(root.xmlname=='questestinterop')
 
-	def testCaseExample1(self):
-		p=QTIParser()
-		doc=p.ParseDocument(EXAMPLE_2)
+	def testCaseExample2(self):
+		doc=QTIDocument()
+		doc.Read(src=StringIO(EXAMPLE_2))
 		objects=doc.rootElement.GetObjectList()
 		self.failUnless(len(objects)==1 and isinstance(objects[0],QTIItem))
 	

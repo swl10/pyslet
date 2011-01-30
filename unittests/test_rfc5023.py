@@ -3,6 +3,7 @@
 import unittest
 
 import os, random, time
+from StringIO import StringIO
 from threading import Thread
 from SocketServer import ThreadingMixIn
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
@@ -222,8 +223,9 @@ class APPServiceTests(unittest.TestCase):
 		self.failUnless(len(workspaces)==0,"Workspaces present on construction")
 
 	def testCaseReadXML(self):
-		p=APPParser()
-		svc=p.ParseString(SVC_EXAMPLE_1)
+		doc=APPDocument()
+		doc.Read(src=StringIO(SVC_EXAMPLE_1))
+		svc=doc.rootElement
 		self.failUnless(isinstance(svc,APPService),"Example 1 not a service")
 		wspace=svc.GetWorkspaces()
 		self.failUnless(len(wspace)==2,"Example 1 has no workspaces")
@@ -258,12 +260,16 @@ class APPClientTests(unittest.TestCase):
 		self.failUnless(isinstance(client,http.HTTPRequestManager),'APPClient super')
 		
 	def testCaseAPPGet(self):
+		doc=APPDocument(baseURI='http://localhost:%i/service'%HTTP_PORT)
 		client=APPClient()
-		svc=client.Get('http://localhost:%i/service'%HTTP_PORT)
+		doc.Read(reqManager=client)
+		svc=doc.rootElement
 		self.failUnless(isinstance(svc,APPService),"GET /service")
 		for ws in svc.GetWorkspaces():
 			for c in ws.GetCollections():
-				feed=client.Get(c.GetFeedURL())
+				feedDoc=APPDocument(baseURI=c.GetFeedURL())
+				feedDoc.Read(reqManager=client)
+				feed=feedDoc.rootElement
 				self.failUnless(isinstance(feed,atom.AtomFeed),"Collection not a feed for %s"%c.GetTitle().GetValue())
 
 		

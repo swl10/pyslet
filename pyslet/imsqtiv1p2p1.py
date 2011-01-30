@@ -4,17 +4,37 @@
 
 
 import pyslet.xml20081126 as xml
+import string
 
-IMSQTI_NAMESPACE="http://www.imsglobal.org/xsd/ims_qtiasiv1p2"
-qti_item=(IMSQTI_NAMESPACE,'item')
-qti_questestinterop=(IMSQTI_NAMESPACE,'questestinterop')
+#IMSQTI_NAMESPACE="http://www.imsglobal.org/xsd/ims_qtiasiv1p2"
+qti_item='item'
+qti_questestinterop='questestinterop'
+
+
+def MakeValidName(name):
+	"""This function takes a string that is supposed to match the
+	production for Name in XML and forces to to comply by replacing
+	illegal characters with '_'.  If name starts with a valid name
+	character but not a valid name start character, it is prefixed
+	with '_' too."""
+	if name:
+		goodName=[]
+		if not xml.IsNameStartChar(name[0]):
+			goodName.append('_')
+		for c in name:
+			if xml.IsNameChar(c):
+				goodName.append(c)
+			else:
+				goodName.append('_')
+		return string.join(goodName,'')
+	else:
+		return '_'
 
 
 class QTIElement(xml.XMLElement):
 	"""Basic element to represent all QTI elements"""  
 	def __init__(self,parent):
 		xml.XMLElement.__init__(self,parent)
-		self.SetXMLName((IMSQTI_NAMESPACE,None))
 
 
 class QTIQuesTestInterop(QTIElement):
@@ -51,21 +71,22 @@ class QTIItem(QTIElement):
 		self.SetXMLName(qti_item)
 
 
-class QTIParser(xml.XMLParser):
-	def __init__(self):
-		"""In addition to adding our custom classes to the classMap for this parser we make
-		two important changes to the parser.  Firstly, we set our QTI namespace as the default
-		namespace to use for elements without an explicit namespace set.  Secondly, we turn
-		off the parsing of external general entities to prevent a missing DTD causing the parse
-		to fail.  This is a significant limitation as it is possible that some sophisticated
-		users have used general entities to augment the specification or to define boiler-plate
-		code.  If this causes problems then you can turn the setting back on again for
-		specific instances of the parser that will be used with that type of data."""
-		xml.XMLParser.__init__(self)
+class QTIDocument(xml.XMLDocument):
+	def __init__(self,**args):
+		"""We turn off the parsing of external general entities to prevent a
+		missing DTD causing the parse to fail.  This is a significant limitation
+		as it is possible that some sophisticated users have used general
+		entities to augment the specification or to define boiler-plate code. 
+		If this causes problems then you can turn the setting back on again for
+		specific instances of the parser that will be used with that type of
+		data."""
+		xml.XMLDocument.__init__(self,**args)
 		self.parser.setFeature(xml.handler.feature_external_ges, False)
-		self.defaultNS=IMSQTI_NAMESPACE
-		self.classMap={
-			qti_item:QTIItem,
-			qti_questestinterop:QTIQuesTestInterop
-			}
-		
+
+	def GetElementClass(self,name):
+		return QTIDocument.classMap.get(name,QTIDocument.classMap.get(None,xml.XMLElement))
+
+	classMap={
+		qti_item:QTIItem,
+		qti_questestinterop:QTIQuesTestInterop
+		}

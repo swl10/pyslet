@@ -14,6 +14,7 @@ import test_rfc4287
 import test_rfc5023
 import test_unicode5
 import test_xml20081126
+import test_xmlnames20091208
 
 def suite():
 	s=unittest.TestSuite()
@@ -27,6 +28,7 @@ def suite():
 	s.addTest(test_rfc5023.suite())
 	s.addTest(test_unicode5.suite())
 	s.addTest(test_xml20081126.suite())
+	s.addTest(test_xmlnames20091208.suite())
 	return s
 	
 if __name__ == "__main__":

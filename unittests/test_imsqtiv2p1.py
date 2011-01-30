@@ -6,10 +6,12 @@ def suite():
 	return unittest.TestSuite((
 		unittest.makeSuite(QTITests,'test'),
 		unittest.makeSuite(QTIElementTests,'test'),
-		unittest.makeSuite(QTIParserTests,'test')
+		unittest.makeSuite(QTIDocumentTests,'test')
 		))
 
 from pyslet.imsqtiv2p1 import *
+
+from StringIO import StringIO
 
 class QTITests(unittest.TestCase):
 	def testCaseConstants(self):
@@ -56,21 +58,21 @@ EXAMPLE_2="""<?xml version="1.0" encoding="UTF-8"?>
 </assessmentItem>
 """
 
-class QTIParserTests(unittest.TestCase):
+class QTIDocumentTests(unittest.TestCase):
 	def testCaseConstructor(self):
-		p=QTIParser()
+		doc=QTIDocument()
+		self.failUnless(isinstance(doc,xmlns.XMLNSDocument))
 
 	def testCaseExample1(self):
-		p=QTIParser()
-		doc=p.ParseDocument(EXAMPLE_1)
-		self.failUnless(isinstance(doc,xml.XMLDocument))
+		doc=QTIDocument()
+		doc.Read(src=StringIO(EXAMPLE_1))
 		root=doc.rootElement
 		self.failUnless(isinstance(root,QTIAssessmentItem))
 		self.failUnless(root.ns==IMSQTI_NAMESPACE and root.xmlname=='assessmentItem')
 
-	def testCaseExample1(self):
-		p=QTIParser()
-		doc=p.ParseDocument(EXAMPLE_2)
+	def testCaseExample2(self):
+		doc=QTIDocument()
+		doc.Read(src=StringIO(EXAMPLE_2))
 		vardefs=doc.rootElement.GetDeclarations()
 		self.failUnless(len(vardefs.keys())==1 and isinstance(vardefs['RESPONSE'],QTIResponseDeclaration))
 	

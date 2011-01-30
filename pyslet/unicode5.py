@@ -7,6 +7,8 @@
 from sys import maxunicode
 import types, string
 
+CHINESE_TEST=u'\u82f1\u56fd'
+
 class CharClass:
 	"""Represents a class of unicode characters.
 	

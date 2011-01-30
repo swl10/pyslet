@@ -11,7 +11,7 @@ xml:base attribute [W3C.REC-xmlbase-20010627]
 xml:lang attribute [W3C.REC-xml-20040204], Section 2.12
 """
 
-from pyslet import xml20081126 as xml
+import pyslet.xmlnames20091208 as xmlns
 from pyslet import rfc4287 as atom
 from pyslet import rfc2616 as http
 
@@ -19,7 +19,12 @@ from pyslet import rfc2616 as http
 APP_NAMESPACE="http://www.w3.org/2007/app"
 ATOMSVC_MIMETYPE="application/atomsvc+xml"
 ATOMCAT_MIMETYPE="application/atomcat+xml"
-
+APP_MIMETYPES={
+	ATOMSVC_MIMETYPE:True,
+	ATOMCAT_MIMETYPE:True,
+	atom.ATOM_MIMETYPE:True
+	}
+	
 app_accept=(APP_NAMESPACE,'accept')
 app_categories=(APP_NAMESPACE,'categories')
 app_collection=(APP_NAMESPACE,'collection')
@@ -27,7 +32,7 @@ app_service=(APP_NAMESPACE,'service')
 app_workspace=(APP_NAMESPACE,'workspace')
 
 
-class APPElement(xml.XMLElement):
+class APPElement(xmlns.XMLNSElement):
 	"""Basic element to represent all APP elements; not that xml:base, xml:lang and xml:space
 	are handled by the XMLElement mix-in class.
 	
@@ -38,7 +43,7 @@ class APPElement(xml.XMLElement):
 		undefinedAttribute*
 	"""  
 	def __init__(self,parent):
-		xml.XMLElement.__init__(self,parent)
+		xmlns.XMLNSElement.__init__(self,parent)
 		self.SetXMLName((APP_NAMESPACE,None))
 
 
@@ -152,38 +157,32 @@ class APPCollection(APPElement):
 		return self.ResolveURI(self.GetHREF())
 
 		
-class APPParser(atom.AtomParser):
-	def __init__(self):
-		atom.AtomParser.__init__(self)
+class APPDocument(atom.AtomDocument):
+	def __init__(self,**args):
+		""""""
+		atom.AtomDocument.__init__(self,**args)
 		self.defaultNS=APP_NAMESPACE
-		self.classMap[app_accept]=APPAccept
-		self.classMap[app_categories]=APPCategories
-		self.classMap[app_collection]=APPCollection
-		self.classMap[app_service]=APPService
-		self.classMap[app_workspace]=APPWorkspace
+	
+	def ValidateMimeType(self,mimetype):
+		return APP_MIMETYPES.has_key(mimetype) or atom.AtomDocument.ValidateMimeType(self,mimetype)
+		
+	def GetElementClass(self,name):
+		if name[0]==APP_NAMESPACE:
+			return APPDocument.classMap.get(name,atom.AtomDocument.classMap.get((name[0],None),APPElement))
+		else:
+			return atom.AtomDocument.GetElementClass(self,name)
+		
+	classMap={
+		app_accept:APPAccept,
+		app_categories:APPCategories,
+		app_collection:APPCollection,
+		app_service:APPService,
+		app_workspace:APPWorkspace
+		}
+		
 
 
 class APPClient(http.HTTPRequestManager):
 	def __init__(self):
 		http.HTTPRequestManager.__init__(self)
-		self.parser=APPParser()
-	
-	def Get(self,url):
-		req=http.HTTPRequest(url)
-		self.ProcessRequest(req)
-		if req.status==200:
-			mtype=req.response.GetContentType()
-			if mtype is None:
-				# We'll attempt to do this with xml and utf8
-				charset='utf8'
-				raise UnimplementedError
-			else:
-				mimetype=mtype.type.lower()+'/'+mtype.subtype.lower()
-				if mimetype in (ATOMSVC_MIMETYPE,ATOMCAT_MIMETYPE,atom.ATOM_MIMETYPE,'application/xml','text/xml'):
-					return self.parser.ParseString(req.resBody,req.requestURI)
-				else:
-					print mimetype
-					raise UnknownContentType
-		else:
-			raise UnexpectedHTTPResponse
-			
+				

@@ -15,6 +15,7 @@ else:
 		author="Steve Lay",
 		author_email="steve.w.lay@googlemail.com",
 		packages=['pyslet']
+		package_data={'pyslet': [ ] }
 		)
 	
 

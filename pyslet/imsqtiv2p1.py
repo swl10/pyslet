@@ -2,17 +2,17 @@
 """This module implements the QTI 2.1 specification defined by IMS GLC
 """
 
-import pyslet.xml20081126 as xml
+import pyslet.xmlnames20091208 as xmlns
 
 IMSQTI_NAMESPACE="http://www.imsglobal.org/xsd/imsqti_v2p1"
 qti_assessmentItem=(IMSQTI_NAMESPACE,'assessmentItem')
 qti_responseDeclaration=(IMSQTI_NAMESPACE,'responseDeclaration')
 
 
-class QTIElement(xml.XMLElement):
+class QTIElement(xmlns.XMLNSElement):
 	"""Basic element to represent all QTI elements"""  
 	def __init__(self,parent):
-		xml.XMLElement.__init__(self,parent)
+		xmlns.XMLElement.__init__(self,parent)
 		self.SetXMLName((IMSQTI_NAMESPACE,None))
 
 
@@ -51,13 +51,15 @@ class QTIItem(QTIElement):
 		self.SetXMLName(qti_item)
 
 
-class QTIParser(xml.XMLParser):
-	def __init__(self):
+class QTIDocument(xmlns.XMLNSDocument):
+	def __init__(self,**args):
 		""""""
-		xml.XMLParser.__init__(self)
-		self.defaultNS=IMSQTI_NAMESPACE
-		self.classMap={
-			qti_assessmentItem:QTIAssessmentItem,
-			qti_responseDeclaration:QTIResponseDeclaration
-			}
-		
+		xmlns.XMLNSDocument.__init__(self,defaultNS=IMSQTI_NAMESPACE,**args)
+
+	def GetElementClass(self,name):
+		return QTIDocument.classMap.get(name,QTIDocument.classMap.get((name[0],None),xmlns.XMLNSElement))
+
+	classMap={
+		qti_assessmentItem:QTIAssessmentItem,
+		qti_responseDeclaration:QTIResponseDeclaration
+		}

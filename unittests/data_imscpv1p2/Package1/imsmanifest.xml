@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest xmlns="http://www.imsglobal.org/xsd/imscp_v1p1"
+	xmlns:imsmd="http://www.imsglobal.org/xsd/imsmd_v1p2" 
+	xmlns:imsqti="http://www.imsglobal.org/xsd/imsqti_v2p1"
+	identifier="MANIFEST-QTI-1">
+	<organizations/>
+	<resources>
+		<resource identifier="test" type="webcontent" href="%E8%8B%B1%E5%9B%BD.xml">
+			<file href="%E8%8B%B1%E5%9B%BD.xml"/>
+		</resource>
+	</resources>
+</manifest>

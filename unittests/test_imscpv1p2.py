@@ -4,7 +4,7 @@ import unittest
 from tempfile import mkdtemp
 import os, os.path, urllib, urlparse, shutil
 from StringIO import StringIO
-
+from codecs import encode
 
 def suite():
 	return unittest.TestSuite((
@@ -14,6 +14,8 @@ def suite():
 		unittest.makeSuite(CPDocumentTests,'test'),
 		unittest.makeSuite(ContentPackageTests,'test'),
 		))
+
+TEST_DATA_DIR=os.path.join(os.path.split(__file__)[0],'data_imscpv1p2')
 
 from pyslet.imscpv1p2 import *
 
@@ -105,7 +107,7 @@ http://www.imsglobal.org/xsd/imsmd_v1p2 imsmd_v1p2p4.xsd  http://www.imsglobal.o
 class CPDocumentTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		doc=CPDocument()
-		self.failUnless(isinstance(doc,xml.XMLDocument))
+		self.failUnless(isinstance(doc,xmlns.XMLNSDocument))
 		doc=CPDocument(root=CPManifest)
 		root=doc.rootElement
 		self.failUnless(isinstance(root,CPManifest))
@@ -127,7 +129,17 @@ class CPDocumentTests(unittest.TestCase):
 		self.failUnless(doc.rootElement is manifest and isinstance(manifest,CPManifest))
 		resource=doc.GetElementByID("choice")
 		self.failUnless(resource is resources.children[0])
-		
+	
+	def testCaseSetID(self):
+		doc=CPDocument()
+		doc.Read(src=StringIO(EXAMPLE_1))
+		manifest=doc.GetElementByID("test")
+		self.failUnless(doc.rootElement is manifest)
+		manifest.SetIdentifier("manifest")
+		self.failUnless(doc.GetElementByID("test") is None,"Old identifier still declared")
+		self.failUnless(doc.GetElementByID("manifest") is manifest,"New identifier not declared")
+
+
 class ContentPackageTests(unittest.TestCase):
 	def setUp(self):
 		self.cwd=os.getcwd()
@@ -153,7 +165,7 @@ class ContentPackageTests(unittest.TestCase):
 		# Ensure the temporary directory is cleaned up
 		self.dList.append(cp.dPath)
 		url=urlparse.urlsplit(cp.manifest.GetBase())
-		self.failUnless(isinstance(cp.manifest,xml.XMLDocument) and isinstance(cp.manifest.rootElement,CPManifest),"Constructor must create manifest")
+		self.failUnless(isinstance(cp.manifest,xmlns.XMLNSDocument) and isinstance(cp.manifest.rootElement,CPManifest),"Constructor must create manifest")
 		self.failUnless(os.path.split(urllib.url2pathname(url.path))[1]=='imsmanifest.xml',"Manifest file name")
 		self.failUnless(isinstance(cp.manifest.rootElement,CPManifest),"Constructor must create manifest element")
 		id=cp.manifest.rootElement.GetIdentifier()
@@ -171,20 +183,79 @@ class ContentPackageTests(unittest.TestCase):
 		self.failUnless(os.path.isdir(cp.dPath) and os.path.abspath('mpackage')==cp.dPath,"Constructor identifies pkg dir from manifest file")
 		self.failUnless(cp.manifest.rootElement.GetIdentifier()=="MANIFEST-QTI-1","Constructor from manifest file")
 	
+	def testCaseUnicode(self):
+		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package1'))
+		resources=cp.manifest.rootElement.GetResources()
+		r=resources.children[0]
+		self.failUnless(len(r.children)==1)
+		f=r.children[0]
+		self.failUnless(isinstance(f,CPFile) and f.GetHREF()=="%E8%8B%B1%E5%9B%BD.xml","File path")
+		doc=xmlns.XMLDocument(baseURI=f.ResolveURI(f.GetHREF()))
+		doc.Read()
+		self.failUnless(doc.rootElement.xmlname=='tag' and
+			doc.rootElement.GetValue()==u"Unicode Test: \u82f1\u56fd")
+		cp2=ContentPackage(os.path.join(TEST_DATA_DIR,encode(u'\u82f1\u56fd','utf-8')))
+
+	def testCaseZipRead(self):
+		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package1.zip'))
+		self.failUnless(os.path.isdir(cp.dPath),"Zip constructor must create a temp directory")
+		# Ensure the temporary directory is cleaned up
+		self.dList.append(cp.dPath)
+		resources=cp.manifest.rootElement.GetResources()
+		f=resources.children[0].children[0]
+		doc=xmlns.XMLDocument(baseURI=f.ResolveURI(f.GetHREF()))
+		doc.Read()
+		self.failUnless(doc.rootElement.xmlname=='tag' and
+			doc.rootElement.GetValue()==u"Unicode Test: \u82f1\u56fd")
+	
+	def testCaseZipWrite(self):
+		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package1.zip'))
+		self.dList.append(cp.dPath)
+		cp.ExportToPIF('Package2.zip')
+		cp2=ContentPackage('Package2.zip')
+		self.dList.append(cp.dPath)
+		resources=cp2.manifest.rootElement.GetResources()
+		f=resources.children[0].children[0]
+		doc=xmlns.XMLDocument(baseURI=f.ResolveURI(f.GetHREF()))
+		doc.Read()
+		self.failUnless(doc.rootElement.xmlname=='tag' and
+			doc.rootElement.GetValue()==u"Unicode Test: \u82f1\u56fd")
+	
 	def testCaseNewResource(self):
 		cp=ContentPackage('newresource')
 		try:
 			resource=cp.CPResource('resource#1','imsqti_item_xmlv2p1')
 			self.fail("Invalid Name for resource identifier")
-		except xml.XMLIDValueError:
+		except xmlns.XMLIDValueError:
 			pass
 		resource=cp.CPResource('resource_1','imsqti_item_xmlv2p1')
 		self.failUnless(isinstance(resource,CPResource))
 		self.failUnless(cp.manifest.GetElementByID('resource_1') is resource)
 		resources=cp.manifest.rootElement.GetResources()
 		self.failUnless(len(resources.children)==1 and resources.children[0] is resource)
-		
+	
+	def testCaseFileTable(self):
+		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package3'))
+		ft=cp.GetFileTable()
+		self.failUnless(len(ft.keys())==6)
+		self.failUnless(len(ft['file1.xml'])==2 and isinstance(ft['file1.xml'][0],CPFile))
+		self.failUnless(len(ft['file4.xml'])==0,CPFile)
 
+	def testCaseCleanUp(self):
+		cp=ContentPackage()
+		dPath=cp.dPath
+		self.failUnless(os.path.isdir(dPath))
+		cp.Close()
+		self.failUnless(cp.manifest is None,"Manifest not removed on close")
+		self.failIf(os.path.isdir(dPath),"Temp directory not deleted on close")
+		cp=ContentPackage('package')
+		dPath=cp.dPath
+		self.failUnless(os.path.isdir(dPath))
+		cp.Close()
+		self.failUnless(cp.manifest is None,"Manifest not removed on close")
+		self.failUnless(os.path.isdir(dPath),"Non-temp directory removed on close")
+		
+		
 if __name__ == "__main__":
 	unittest.main()
 
