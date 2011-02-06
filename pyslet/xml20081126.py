@@ -178,10 +178,13 @@ def IsValidName(name):
 class XMLElement:
 	def __init__(self,parent):
 		self.parent=parent
-		self.xmlname=None
+		if hasattr(self.__class__,'XMLNAME'):
+			self.xmlname=self.__class__.XMLNAME
+		else:
+			self.xmlname=None
 		self.attrs={}
 		self.children=[]
-
+			
 	def SetXMLName(self,xmlname):
 		self.xmlname=xmlname
 
@@ -290,8 +293,8 @@ class XMLElement:
 		with utf-8 to get the intended path segment value: u'\u82f1\u56fd'.  However,
 		if the URL was marked as being a unicode string of characters then this second
 		stage would not be carried out and the result would be the unicode string
-		u'\xe8\x8b\xb1\xe5\x9b\xbd', which is string of 6 characters taken from the
-		European Latin-1 character set."""		
+		u'\xe8\x8b\xb1\xe5\x9b\xbd', which is a meaningless string of 6
+		characters taken from the European Latin-1 character set."""
 		baser=self
 		baseURI=None
 		while True:

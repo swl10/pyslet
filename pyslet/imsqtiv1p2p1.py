@@ -4,7 +4,7 @@
 
 
 import pyslet.xml20081126 as xml
-import string
+import string, codecs
 
 #IMSQTI_NAMESPACE="http://www.imsglobal.org/xsd/ims_qtiasiv1p2"
 qti_item='item'
@@ -90,3 +90,25 @@ class QTIDocument(xml.XMLDocument):
 		qti_item:QTIItem,
 		qti_questestinterop:QTIQuesTestInterop
 		}
+
+
+try:
+	BIG5=codecs.lookup('big5')
+except LookupError:
+	BIG5=None
+
+# Obscure code alert
+def CNBig5CodecSearch(name):
+	if name=="cn-big5":
+		return BIG5
+	else:
+		return None
+
+def FixupCNBig5():
+	"""The example files that are distributed with the QTI specification contain
+	a set of Chinese examples encoded using big5.  However, the xml declarations
+	on these files refer to the charset as "CN-BIG5" and this causes errors when
+	parsing them as this is a non-standard way of refering to big5.  This
+	function, which you should only call once (if at all) within your
+	application, declares a codec search function that fixes this issues."""
+	codecs.register(CNBig5CodecSearch)

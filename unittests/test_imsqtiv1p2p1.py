@@ -12,6 +12,7 @@ def suite():
 from pyslet.imsqtiv1p2p1 import *
 
 from StringIO import StringIO
+import codecs
 
 class QTITests(unittest.TestCase):
 	def testCaseConstants(self):
@@ -103,6 +104,23 @@ class QTIDocumentTests(unittest.TestCase):
 		objects=doc.rootElement.GetObjectList()
 		self.failUnless(len(objects)==1 and isinstance(objects[0],QTIItem))
 	
+
+class QTIBig5Tests(unittest.TestCase):
+	def testCaseBIG5(self):
+		try:
+			big5=codecs.lookup('CN-BIG5')
+			self.fail("CN-BIG5 already declared: stale test?")
+			big5=codecs.lookup('big5')
+		except codecs.LookupError:
+			pass
+		FixupCNBig5()
+		try:
+			cnbig5=codecs.lookup('CN-BIG5')
+			self.failUnless(cnbig5 is big5,"Big5 mismatch")
+		except codecs.LookupError:
+			self.fail("CN-BIG5 registration failed")
+			
+		
 
 if __name__ == "__main__":
 	unittest.main()

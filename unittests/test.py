@@ -4,7 +4,9 @@
 
 import unittest
 
+import test_imscc_profilev1p0
 import test_imscpv1p2
+import test_imsmdv1p2p1
 import test_imsqtiv1p2p1
 import test_imsqtiv2p1
 import test_iso8601
@@ -18,7 +20,9 @@ import test_xmlnames20091208
 
 def suite():
 	s=unittest.TestSuite()
+	s.addTest(test_imscc_profilev1p0.suite())
 	s.addTest(test_imscpv1p2.suite())
+	s.addTest(test_imsmdv1p2p1.suite())
 	s.addTest(test_imsqtiv1p2p1.suite())
 	s.addTest(test_imsqtiv2p1.suite())
 	s.addTest(test_iso8601.suite())

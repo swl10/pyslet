@@ -14,7 +14,7 @@ else:
 		description="pyslet: standards for learning education and training",
 		author="Steve Lay",
 		author_email="steve.w.lay@googlemail.com",
-		packages=['pyslet']
+		packages=['pyslet'],
 		package_data={'pyslet': [ ] }
 		)
 	

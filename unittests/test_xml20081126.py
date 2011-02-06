@@ -25,6 +25,9 @@ from pyslet.xml20081126 import *
 EXAMPLE_1="""<?xml version="1.0" encoding="utf-8"?>
 <tag>Hello World</tag>"""
 
+class NamedElement(XMLElement):
+	XMLNAME="test"
+	
 class XML20081126Tests(unittest.TestCase):		
 	def testCaseConstants(self):
 		#self.failUnless(APP_NAMESPACE=="http://www.w3.org/2007/app","Wrong APP namespace: %s"%APP_NAMESPACE)
@@ -129,6 +132,10 @@ class XMLElementTests(unittest.TestCase):
 		attrs=e.GetAttributes()
 		self.failUnless(len(attrs.keys())==0,"Attributes present on construction")
 
+	def testCaseDefaultName(self):
+		e=NamedElement(None)
+		self.failUnless(e.xmlname=='test','element default name on construction')
+		
 class XMLDocumentTests(unittest.TestCase):
 	def setUp(self):
 		self.cwd=os.getcwd()
@@ -212,19 +219,5 @@ class XMLDocumentTests(unittest.TestCase):
 		newID=doc.GetUniqueID('test')
 		self.failIf(newID=='test' or newID=='test2')
 		
-"""		
-class XMLParserTests(unittest.TestCase):
-	def testCaseConstructor(self):
-		p=XMLParser()
-	
-	def testCaseExample1(self):
-		p=XMLParser()
-		doc=p.ParseDocument(EXAMPLE_1)
-		self.failUnless(isinstance(doc,XMLDocument))
-		root=doc.rootElement
-		self.failUnless(isinstance(root,XMLElement))
-		self.failUnless(root.xmlname=='tag' and root.GetValue()=='Hello World')
-"""
-
 if __name__ == "__main__":
 	unittest.main()
