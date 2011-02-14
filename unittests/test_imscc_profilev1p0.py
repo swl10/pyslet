@@ -54,8 +54,8 @@ class CommonCartridgeTests(unittest.TestCase):
 		dList=map(lambda x:cc.laoTable[x][0],cc.laoTable.keys())
 		dList.sort()
 		self.failUnless(dList==['L0001','L0002','L0003'])
-		r6=cp.manifest.GetElementByID('R0006')
-		head,acr=cc.laoTable[r6]
+		#r6=cp.manifest.GetElementByID('R0006')
+		head,acr=cc.laoTable['R0006']
 		self.failUnless(acr is cp.manifest.GetElementByID('R0007'))
 		self.failUnless(len(acr.fileList)==3)
 		

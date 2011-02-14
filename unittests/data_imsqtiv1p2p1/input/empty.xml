@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
+<questestinterop>
+    <qticomment>Empty Item</qticomment>
+    <item ident="emptyitem">
+    </item>
+</questestinterop>

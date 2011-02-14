@@ -63,7 +63,7 @@ class CommonCartridge:
 				if isinstance(rDep,imscp.CPResource) and rDep.GetType()==AssociatedContentType:
 					acr=rDep
 					break
-			self.laoTable[r]=[head,acr]
+			self.laoTable[r.GetIdentifier()]=[head,acr]
 		
 	def Close(self):
 		if self.cp:
@@ -92,6 +92,7 @@ class CCTestCase(unittest.TestCase):
 		that contains the associated Learning Application Object's descriptor
 		file or any of its subdirectories."""
 		for lao in self.cc.laoTable.keys():
+			laoResource=self.cc.cp.manifest.GetElementByID(lao)
 			dPath,acr=self.cc.laoTable[lao]
 			# acr must have a file element for all items in dPath
 			fPaths=self.cc.cp.fileTable.keys()
@@ -104,7 +105,7 @@ class CCTestCase(unittest.TestCase):
 						if f.parent is acr:
 							foundResource=True
 							break
-						elif f.parent is lao:
+						elif f.parent is laoResource:
 							foundResource=True
 							break
 					if not foundResource:
@@ -137,14 +138,16 @@ class CCTestCase(unittest.TestCase):
 		1. It must contain a file element that points to the Learning
 		Application Object's descriptor file."""
 		for lao in self.cc.laoTable.keys():
-			self.failIf(len(lao.fileList)==0)
+			laoResource=self.cc.cp.manifest.GetElementByID(lao)
+			self.failIf(len(laoResource.fileList)==0)
 	
 	def test1_4_LAO_2(self):
 		"""A resource that represents a Learning Application Object has the
 		following general restrictions:...
 		2. It must not contain any other file elements."""
 		for lao in self.cc.laoTable.keys():
-			self.failIf(len(lao.fileList)>1)
+			laoResource=self.cc.cp.manifest.GetElementByID(lao)
+			self.failIf(len(laoResource.fileList)>1)
 	
 	def GetACRListForDirectory(self,dPath):
 		"""Returns a list of associated content resources that have file's
@@ -173,12 +176,13 @@ class CCTestCase(unittest.TestCase):
 		of type 'associatedcontent' which contains the references to these
 		files."""
 		for lao in self.cc.laoTable.keys():
+			laoResource=self.cc.cp.manifest.GetElementByID(lao)
 			dPath,acr=self.cc.laoTable[lao]
 			if dPath is None:  # this is a fail of a different sort
 				continue			
 			acrList=self.GetACRListForDirectory(dPath)
 			# Now we must have a dependency for each element of acrList
-			for d in lao.dependencies:
+			for d in laoResource.dependencies:
 				acr=self.cc.cp.manifest.GetElementByID(d.GetIdentifierRef())
 				if acr in acrList:
 					del acrList[acrList.index(acr)]
@@ -191,6 +195,7 @@ class CCTestCase(unittest.TestCase):
 		4. It must not contain any other dependency elements of type
 		'associatedcontent'."""
 		for lao in self.cc.laoTable.keys():
+			laoResource=self.cc.cp.manifest.GetElementByID(lao)
 			dPath,acr=self.cc.laoTable[lao]
 			if dPath is None:  # this is a fail of a different sort
 				continue			
@@ -200,7 +205,7 @@ class CCTestCase(unittest.TestCase):
 			if len(acrList):
 				# And hence all associated content dependencies in lao must be to
 				# the single acr in this list.
-				for d in lao.dependencies:
+				for d in laoResource.dependencies:
 					acr=self.cc.cp.manifest.GetElementByID(d.GetIdentifierRef())
 					if acr.GetType()!=AssociatedContentType:
 						continue

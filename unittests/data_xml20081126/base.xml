@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<tag><childTag xml:base="/hello/base.xml"><grandChildTag>Hello World!</grandChildTag></childTag></tag>

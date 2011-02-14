@@ -6,13 +6,15 @@ def suite():
 	return unittest.TestSuite((
 		unittest.makeSuite(QTITests,'test'),
 		unittest.makeSuite(QTIElementTests,'test'),
-		unittest.makeSuite(QTIDocumentTests,'test')
+		unittest.makeSuite(QTIDocumentTests,'test'),
+		unittest.makeSuite(QTIV2ConversionTests,'test')
 		))
 
 from pyslet.imsqtiv1p2p1 import *
+import pyslet.imscpv1p2 as imscp
 
 from StringIO import StringIO
-import codecs
+import codecs, os, os.path, urllib
 
 class QTITests(unittest.TestCase):
 	def testCaseConstants(self):
@@ -97,13 +99,53 @@ class QTIDocumentTests(unittest.TestCase):
 		root=doc.rootElement
 		self.failUnless(isinstance(root,QTIQuesTestInterop))
 		self.failUnless(root.xmlname=='questestinterop')
-
+		
 	def testCaseExample2(self):
 		doc=QTIDocument()
 		doc.Read(src=StringIO(EXAMPLE_2))
+		root=doc.rootElement
+		self.failUnless(root.GetComment().GetValue()=='Example2')
 		objects=doc.rootElement.GetObjectList()
 		self.failUnless(len(objects)==1 and isinstance(objects[0],QTIItem))
+		self.failUnless(len(root.objectList)==1)
 	
+
+class QTIV2ConversionTests(unittest.TestCase):
+	def setUp(self):
+		self.cwd=os.getcwd()
+		self.dataPath=os.path.join(os.path.split(__file__)[0],'data_imsqtiv1p2p1')
+		self.cp=imscp.ContentPackage()
+		
+	def tearDown(self):
+		self.cp.Close()
+		os.chdir(self.cwd)
+	
+	def testCaseOutputV2(self):
+		self.cp.manifest.rootElement.SetIdentifier('outputv2')
+		dPath=os.path.join(self.dataPath,'input')
+		for f in os.listdir(dPath):
+			if self.cp.IgnoreFile(f):
+				continue
+			stem,ext=os.path.splitext(f)
+			if ext.lower()=='.xml':
+				doc=QTIDocument(baseURI=urllib.pathname2url(os.path.join(dPath,f)))
+				doc.Read()
+				doc.MigrateV2(self.cp)
+		# Having migrated everything in the input folder, we now check our CP against the output
+		cp2=imscp.ContentPackage(os.path.join(self.dataPath,'outputv2'))
+		# To do....
+		# Compare the manifests
+		# Compare each file
+		fList1=self.cp.fileTable.keys()
+		fList1.sort()
+		fList2=cp2.fileTable.keys()
+		fList2.sort()
+		self.failUnless(fList1==fList2)
+		output=str(self.cp.manifest)
+		outputDesired=str(cp2.manifest)
+		self.failUnless(self.cp.manifest.rootElement==cp2.manifest.rootElement,"Output manifest:\n%s\n\nInput manifest:\n%s"%(output,outputDesired))
+		
+		
 
 class QTIBig5Tests(unittest.TestCase):
 	def testCaseBIG5(self):

@@ -29,7 +29,6 @@ class CPTests(unittest.TestCase):
 class CPElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		e=CPElement(None)
-		self.failUnless(e.ns==IMSCP_NAMESPACE,'ns on construction')
 		
 class CPXElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
@@ -140,7 +139,7 @@ class CPManifestTests(unittest.TestCase):
 		self.failUnless(m.GetMetadata() is None,"Metadata present on construction")
 		self.failUnless(isinstance(m.organizations,CPOrganizations),"Organizations element required on construction")
 		self.failUnless(isinstance(m.resources,CPResources),"Resources element required on construction")
-		self.failUnless(len(m.GetChildren())==0,"Child manifests present on construction")
+		self.failUnless(len(m.childManifests)==0,"Child manifests present on construction")
 
 
 class CPResourcesTests(unittest.TestCase):
@@ -285,6 +284,14 @@ class ContentPackageTests(unittest.TestCase):
 		cp.RebuildFileTable()
 		ft=cp.fileTable
 		self.failUnless(len(ft.keys())==5)
+
+	def testCaseUniqueFile(self):
+		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package3'))
+		ft=cp.fileTable
+		fPath=cp.GetUniqueFile('file1.xml')
+		self.failIf(fPath=='file1.xml',"file path must be unique")
+		self.failUnless(fPath[-4:]=='.xml',"Must preserve extension")
+		self.failIf(ft.has_key(fPath), "file path must not be in use")
 
 	def testCaseDeleteFile(self):
 		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package3'))

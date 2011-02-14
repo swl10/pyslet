@@ -21,13 +21,15 @@ def IsValidNCName(name):
 
 class XMLNSElement(XMLElement):
 	def __init__(self,parent):
-		XMLElement.__init__(self,parent)
 		self.ns=None
+		XMLElement.__init__(self,parent)
 
 	def SetXMLName(self,xmlname):
 		if type(xmlname) in types.StringTypes:
 			self.ns=None
 			self.xmlname=xmlname
+		elif xmlname is None:
+			self.ns=self.xmlname=None
 		else:
 			self.ns,self.xmlname=xmlname
 
@@ -60,7 +62,11 @@ class XMLNSElement(XMLElement):
 	
 	def IsValidName(self,value):
 		return IsValidNCName(value)
-	
+
+	def CheckOther(self,child,ns):
+		"""Checks child to ensure it satisfies ##other w.r.t. the given ns"""
+		return isinstance(child,XMLNSElement) and child.ns!=ns
+				
 	def GetNSPrefix(self,ns,nsList):
 		for i in xrange(len(nsList)):
 			if nsList[i][0]==ns:
@@ -109,7 +115,16 @@ class XMLNSElement(XMLElement):
 					prefix=self.SetNSPrefix(ns,'???',attributes,nsList)
 			attributes.append('%s%s=%s'%(prefix,aname,saxutils.quoteattr(self.attrs[a])))
 		
-	def WriteXML(self,f,nsList=None):
+	def WriteXML(self,f,indent='',tab='\t',nsList=None):
+		if tab:
+			ws='\n'+indent
+			indent=indent+tab
+		else:
+			ws=''
+		if hasattr(self.__class__,'XMLMIXED') and self.__class__.XMLMIXED:
+			# inline all children
+			indent=''
+			tab=''
 		if nsList is None:
 			nsList=[(XML_NAMESPACE,"xml:")]
 		attributes=[]
@@ -128,16 +143,19 @@ class XMLNSElement(XMLElement):
 			attributes=string.join(attributes,' ')
 		else:
 			attributes=''
-		if self.children:
-			f.write('<%s%s%s>'%(prefix,self.xmlname,attributes))
-			for child in self.children:
+		children=self.GetChildren()
+		if children:
+			f.write('%s<%s%s%s>'%(ws,prefix,self.xmlname,attributes))
+			for child in children:
 				if type(child) in types.StringTypes:
 					f.write(child)
+					# if we have character data content skip closing ws
+					ws=''
 				else:
-					child.WriteXML(f,nsList)
-			f.write('</%s>'%self.xmlname)
+					child.WriteXML(f,indent,tab,nsList)
+			f.write('%s</%s>'%(ws,self.xmlname))
 		else:
-			f.write('<%s%s%s/>'%(prefix,self.xmlname,attributes))
+			f.write('%s<%s%s%s/>'%(ws,prefix,self.xmlname,attributes))
 		nsList=nsList[-nsListLen:]
 
 

@@ -6,6 +6,8 @@ from StringIO import StringIO
 import urlparse, urllib,  os.path
 from sys import maxunicode
 import codecs, random
+from types import StringTypes
+
 
 xml_base='xml:base'
 xml_lang='xml:lang'
@@ -175,16 +177,125 @@ def IsValidName(name):
 	else:
 		return False
 
+def NormPath(urlPath):
+	"""Normalizes a URL path, removing '.' and '..' components.
+	
+	An empty string (which tends to be a relative URL matching the current URL
+	exactly) is returned unchanged.  The string "./" is also returned unchanged
+	to avoid confusion with the empty string."""
+	components=urlPath.split('/')
+	pos=0
+	while pos<len(components):
+		if components[pos]=='.':
+			# We can always remove '.', though "./" will need fixing later
+			del components[pos]
+		elif components[pos]=='':
+			if pos>0 and pos<len(components)-1:
+				# Remove "//"
+				del components[pos]
+			else:
+				pos=pos+1
+		elif components[pos]=='..':
+			if pos>0 and components[pos-1] and components[pos-1]!='..':
+				# remove "dir/.."
+				del components[pos-1:pos+1]
+				pos=pos-1
+			else:
+				pos=pos+1
+		else:
+			pos=pos+1
+	if components==['']:
+		return "./"
+	else:
+		return string.join(components,'/')
+
+
+def RelPath(basePath,urlPath,touchRoot=False):
+	"""Return urlPath relative to basePath"""
+	basePath=NormPath(basePath).split('/')
+	urlPath=NormPath(urlPath).split('/')
+	if basePath[0]:
+		raise XMLURLPathError(string.join(basePath,'/'))
+	if urlPath[0]:
+		raise XMLURLPathError(string.join(urlPath,'/'))
+	result=[]
+	pos=1
+	while pos<len(basePath):
+		if result:
+			if pos==2 and not touchRoot:
+				result=['']+result
+				break
+			result=['..']+result
+		else:
+			if pos>=len(urlPath) or basePath[pos]!=urlPath[pos]:
+				result=result+urlPath[pos:]
+		pos=pos+1
+	if not result and len(urlPath)>len(basePath):
+		# full match but urlPath is longer
+		return string.join(urlPath[len(basePath)-1:],'/')
+	elif result==['']:
+		return "./"
+	else:
+		return string.join(result,'/')		
+
+	
 class XMLElement:
 	def __init__(self,parent):
 		self.parent=parent
 		if hasattr(self.__class__,'XMLNAME'):
-			self.xmlname=self.__class__.XMLNAME
+			self.SetXMLName(self.__class__.XMLNAME)
 		else:
-			self.xmlname=None
+			self.SetXMLName(None)
 		self.attrs={}
 		self.children=[]
-			
+	
+	def __cmp__(self,element):
+		"""Compares element with this one.
+		
+		XMLELement can only be compared with other XMLElements."""
+		if not isinstance(element,XMLElement):
+			raise TypeError
+		result=cmp(self.xmlname,element.xmlname)
+		if result:
+			return result
+		# sort and compare all attributes
+		selfAttrNames=self.attrs.keys()
+		selfAttrNames.sort()
+		elementAttrNames=element.attrs.keys()
+		elementAttrNames.sort()
+		for i in xrange(len(selfAttrNames)):
+			if i>=len(elementAttrNames):
+				# We're bigger by virtue of having more attributes!
+				return 1
+			selfAName=selfAttrNames[i]
+			elementAName=elementAttrNames[i]
+			result=cmp(selfAName,elementAName)
+			if result:
+				return result
+			result=cmp(self.attrs[selfAName],element.attrs[selfAName])
+			if result:
+				return result
+		if len(elementAttrNames)>len(selfAttrNames):
+			# They're bigger by virtue of having more attributes!
+			return -1
+		selfChildren=self.GetChildren()
+		elementChildren=element.GetChildren()
+		for i in xrange(len(selfChildren)):
+			if i>=len(elementChildren):
+				# We're bigger by virtue of having more children
+				return 1
+			result=cmp(selfChildren[i],elementChildren[i])
+		if len(elementChildren)>len(selfChildren):
+			return -1
+		# Name, all attributes and child elements match!!
+		return 0
+	
+	def __str__(self):
+		"""Returns the XML element as a string"""
+		s=StringIO()
+		self.WriteXML(s)
+		return s.getvalue()
+		
 	def SetXMLName(self,xmlname):
 		self.xmlname=xmlname
 
@@ -208,7 +319,93 @@ class XMLElement:
 			self.attrs.pop(xml_base,None)
 		else:
 			self.attrs[xml_base]=str(base)
+
+	def ResolveBase(self):
+		"""Returns a fully specified URI for the base of the current element.
+		
+		The URI is calculated using any xml:base values of the element or its
+		ancestors and ultimately relative to the baseURI.
+		
+		If the element is not contained by an XMLDocument, or the document does
+		not have a fully specified baseURI then the return result may be a
+		relative path or even None, if no base information is available."""
+		baser=self
+		baseURI=None
+		while True:
+			rebase=baser.GetBase()
+			if baseURI:
+				baseURI=urlparse.urljoin(rebase,baseURI)
+			else:
+				baseURI=rebase
+			if isinstance(baser,XMLElement):
+				baser=baser.parent
+			else:
+				break
+		return baseURI
+				
+	def ResolveURI(self,uri):
+		"""Returns a fully specified URL, resolving URI in the current context.
+		
+		The uri is resolved relative to the xml:base values of the element's
+		ancestors and ultimately relative to the document's baseURI.
+		
+		The result is a string (of bytes), not a unicode string.  Likewise, uri
+		must be passed in as a string of bytes.
+
+		The reason for this restriction is best illustrated with an example:
+		
+		The URI %E8%8B%B1%E5%9B%BD.xml is a UTF-8 and URL-encoded path segment
+		using the Chinese word for United Kingdom.  When we remove the URL-encoding
+		we get the string '\xe8\x8b\xb1\xe5\x9b\xbd.xml' which must be interpreted
+		with utf-8 to get the intended path segment value: u'\u82f1\u56fd'.  However,
+		if the URL was marked as being a unicode string of characters then this second
+		stage would not be carried out and the result would be the unicode string
+		u'\xe8\x8b\xb1\xe5\x9b\xbd', which is a meaningless string of 6
+		characters taken from the European Latin-1 character set."""
+		baseURI=self.ResolveBase()
+		if baseURI:
+			return urlparse.urljoin(baseURI,str(uri))
+		else:
+			return uri
 	
+	def RelativeURI(self,href):
+		"""Returns href expressed relative to the element's base.
+
+		If href is a relative URI then it is converted to a fully specified URL
+		by interpreting it as being the URI of a file expressed relative to the
+		current working directory.
+
+		If the element does not have a fully-specified base URL then href is
+		returned as a fully-specified URL itself."""
+		result=[]
+		hrefBase='file://'+urllib.pathname2url(os.getcwd())+'/'
+		href=urlparse.urljoin(hrefBase,href)
+		hrefParts=urlparse.urlsplit(href)
+		baseParts=urlparse.urlsplit(self.ResolveBase())
+		if not baseParts.scheme or baseParts.scheme!=hrefParts.scheme:
+			return href
+		if baseParts.scheme not in ('file','http','https'):
+			raise XMLUnsupportedSchemeError(self.url.scheme)
+		result.append('')
+		if baseParts.netloc!=hrefParts.netloc:
+			result=result+list(hrefParts[1:])
+			return urlparse.urlunsplit(result)
+		result.append('')
+		if baseParts.path!=hrefParts.path:
+			result.append(RelPath(baseParts.path,hrefParts.path))
+			result=result+list(hrefParts[3:])
+			return urlparse.urlunsplit(result)
+		result.append('')
+		if baseParts.query!=hrefParts.query:
+			result=result+list(hrefParts[3:])
+			return urlparse.urlunsplit(result)
+		result.append('')
+		if baseParts.fragment!=hrefParts.fragment:
+			result=result+list(hrefParts[4:])
+			return urlparse.urlunsplit(result)
+		# href is exactly base!
+		return ""		
+
 	def GetLang(self):
 		return self.attrs.get(xml_lang,None)
 	
@@ -249,64 +446,74 @@ class XMLElement:
 	def IsValidName(self,value):
 		return IsValidName(value)
 	
+	def GetChildren(self):
+		"""Returns a tuple of the element's children.
+		
+		This method returns a tuple to highlight the fact that the
+		list cannot be manipulated directly."""
+		return tuple(self.children)
+		
 	def AddChild(self,child):
 		self.children.append(child)
-	
+
+	def ValidationError(self,parent,child):
+		"""May be called when you attempt to add child to parent in error."""
+		if type(child) in StringTypes:
+			if not child.strip():
+				# white space is ignorable anywhere
+				return
+		doc=self.GetDocument()
+		if doc:
+			doc.ValidationError(parent,child)
+			
 	def GotChildren(self):
 		# called when all children have been parsed
 		pass
+	
+	def IsEmpty(self):
+		return len(self.GetChildren())==0
 		
 	def IsMixed(self):
-		for child in self.children:
+		element=cdata=False
+		for child in self.GetChildre():
 			if isinstance(child,XMLElement):
-				return True
-		return False
-		
+				element=True
+			elif type(child) in StringTypes:
+				cdata=True
+		return element and cdata
+
 	def GetValue(self):
-		if self.IsMixed():
-			raise XMLMixedContentError
-		elif self.children:
-			return string.join(map(unicode,self.children),'')
+		"""Returns a single unicode string representing the element's data.
+		
+		If the element contains child elements XMLMixedContentError is raised.
+		
+		If the element is empty None is returned."""		
+		children=self.GetChildren()
+		for child in children:
+			if not type(child) in StringTypes:
+				raise XMLMixedContentError
+		if children:
+			return string.join(map(unicode,children),'')
 		else:
 			return None
 
 	def SetValue(self,value):
-		if self.IsMixed():
-			raise XMLMixedContentError
-		else:
-			self.children=[value]
+		"""Deletes all children and replaces them with the (unicode) value"""
+		self.DeleteAllChildren()
+		self.AddChild(unicode(value))
 
-	def ResolveURI(self,uri):
-		"""Returns a fully specified URL, resolving URI in the current context.
-		
-		The uri is resolved relative to the xml:base values of the element's
-		ancestors and ultimately relative to the document's baseURI.
-		
-		The result is a string (of bytes), not a unicode string.  Likewise, uri
-		must be passed in as a string of bytes.
-
-		The reason for this restriction is best illustrated with an example:
-		
-		The URI %E8%8B%B1%E5%9B%BD.xml is a UTF-8 and URL-encoded path segment
-		using the Chinese word for United Kingdom.  When we remove the URL-encoding
-		we get the string '\xe8\x8b\xb1\xe5\x9b\xbd.xml' which must be interpreted
-		with utf-8 to get the intended path segment value: u'\u82f1\u56fd'.  However,
-		if the URL was marked as being a unicode string of characters then this second
-		stage would not be carried out and the result would be the unicode string
-		u'\xe8\x8b\xb1\xe5\x9b\xbd', which is a meaningless string of 6
-		characters taken from the European Latin-1 character set."""
-		baser=self
-		baseURI=None
-		while True:
-			baseURI=baser.GetBase()
-			if baseURI:
-				uri=urlparse.urljoin(baseURI,str(uri))
-			if isinstance(baser,XMLElement):
-				baser=baser.parent
-			else:
+	def DeleteChild(self,child):
+		for i in xrange(len(self.children)):
+			if self.children[i] is child:
+				child.parent=None
+				del self.children[i]
 				break
-		return uri
-
+				
+	def DeleteAllChildren(self):
+		"""Deletes all children of this element"""
+		for child in self.GetChildren():
+			self.DeleteChild(child)
+		
 	def WriteXMLAttributes(self,attributes):
 		"""Adds strings representing the element's attributes
 		
@@ -318,7 +525,16 @@ class XMLElement:
 		for a in keys:
 			attributes.append('%s=%s'%(a,saxutils.quoteattr(self.attrs[a])))
 		
-	def WriteXML(self,f):
+	def WriteXML(self,f,indent='',tab='\t'):
+		if tab:
+			ws='\n'+indent
+			indent=indent+tab
+		else:
+			ws=''
+		if hasattr(self.__class__,'XMLMIXED') and self.__class__.XMLMIXED:
+			# inline all children
+			indent=''
+			tab=''
 		attributes=[]
 		self.WriteXMLAttributes(attributes)
 		if attributes:
@@ -327,15 +543,17 @@ class XMLElement:
 		else:
 			attributes=''
 		if self.children:
-			f.write('<%s%s>'%(self.xmlname,attributes))
+			f.write('%s<%s%s>'%(ws,self.xmlname,attributes))
 			for child in self.children:
 				if type(child) in types.StringTypes:
 					f.write(child)
+					# if we have character data content skip closing ws
+					ws=''
 				else:
-					child.WriteXML(f)
-			f.write('</%s>'%self.xmlname)
+					child.WriteXML(f,indent,tab)
+			f.write('%s</%s>'%(ws,self.xmlname))
 		else:
-			f.write('<%s%s/>'%(self.xmlname,attributes))
+			f.write('%s<%s%s/>'%(ws,self.xmlname,attributes))
 				
 
 class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
@@ -368,7 +586,13 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		self.SetBase(baseURI)
 		#self.parser.setEntityResolver(self)
 		self.idTable={}
-		
+
+	def __str__(self):
+		"""Returns the XML document as a string"""
+		s=StringIO()
+		self.WriteXML(s)
+		return s.getvalue()
+				
 	def SetDefaultNS(self,ns):
 		self.defaultNS=ns
 	
@@ -403,6 +627,14 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		if isinstance(child,XMLElement):
 			self.rootElement=child
 	
+	def ValidationError(self,parent,child):
+		"""May be called when you attempt to add child to parent in error.
+		
+		This method is designed to be overriden to implement custom error
+		handling or logging (which is likely to be added in future to this
+		module)."""
+		pass
+		
 	def RegisterElementID(self,element,id):
 		if self.idTable.has_key(id):
 			raise XMLIDClashError
@@ -498,22 +730,25 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 			
 	def Create(self,dst=None,**args):
 		if dst:
-			self.WriteToStream(dst)
+			self.WriteXML(dst)
 		elif self.baseURI is None:
 			raise XMLMissingLocationError
 		elif self.url.scheme=='file':
 			f=codecs.open(urllib.url2pathname(self.url.path),'wb','utf-8')
 			try:
-				self.WriteToStream(f)
+				self.WriteXML(f)
 			finally:
 				f.close()
 		else:
-			raise XMLUnsupportedSchemeError
+			raise XMLUnsupportedSchemeError(self.url.scheme)
 	
-	def WriteToStream(self,f):
-		f.write('<?xml version="1.0" encoding="utf-8"?>\n')
+	def WriteXML(self,f,tab='\t'):
+		if tab:
+			f.write('<?xml version="1.0" encoding="utf-8"?>')
+		else:
+			f.write('<?xml version="1.0" encoding="utf-8"?>\n')
 		if self.rootElement:
-			self.rootElement.WriteXML(f)
+			self.rootElement.WriteXML(f,'',tab)
 	
 	def Update(self,reqManager=None):
 		pass

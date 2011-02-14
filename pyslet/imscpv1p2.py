@@ -8,7 +8,7 @@ from types import StringTypes
 from tempfile import mkdtemp
 import os, os.path, urlparse, urllib, shutil
 import zipfile
-import re
+import re, random
 
 IMSCP_NAMESPACE="http://www.imsglobal.org/xsd/imscp_v1p1"
 IMSCPX_NAMESPACE="http://www.imsglobal.org/xsd/imscp_extensionv1p2"
@@ -16,6 +16,7 @@ IMSCPX_NAMESPACE="http://www.imsglobal.org/xsd/imscp_extensionv1p2"
 cp_dependency=(IMSCP_NAMESPACE,'dependency')
 cp_file=(IMSCP_NAMESPACE,'file')
 cp_manifest=(IMSCP_NAMESPACE,'manifest')
+cp_metadata=(IMSCP_NAMESPACE,'metadata')
 cp_organization=(IMSCP_NAMESPACE,'organization')
 cp_organizations=(IMSCP_NAMESPACE,'organizations')
 cp_resource=(IMSCP_NAMESPACE,'resource')
@@ -40,22 +41,22 @@ class CPZIPDuplicateFileError(CPException): pass
 class CPZIPFilenameError(CPException): pass
 
 class CPElement(xmlns.XMLNSElement):
-	"""Basic element to represent all CP elements"""  
-	def __init__(self,parent):
-		xmlns.XMLNSElement.__init__(self,parent)
-		self.SetXMLName((IMSCP_NAMESPACE,None))
+	"""Basic element to represent all CP elements"""
+	pass
 
 
 def PathInPath(childPath, parentPath):
 	"""Returns childPath expressed relative to parentPath
 	
-	If childPath is not contained in parentPath then None is
-	returned.  (There is no use of '..' notation for navigating
-	parent paths.)
+	Both paths are normalized to remove any navigational segments, the resulting
+	path will not contain these either.
 
-	If childPath and parentPath are equal an empty string is
-	returned."""
+	If childPath is not contained in parentPath then None is returned.
+
+	If childPath and parentPath are equal an empty string is returned."""
 	relPath=[]
+	childPath=os.path.normpath(childPath)
+	parentPath=os.path.normpath(parentPath)
 	while os.path.normcase(childPath)!=os.path.normcase(parentPath):
 		childPath,tail=os.path.split(childPath)
 		if not childPath or not tail:
@@ -73,8 +74,11 @@ class CPManifest(CPElement):
 	
 	def __init__(self,parent):
 		CPElement.__init__(self,parent)
+		self.metadata=None
 		self.organizations=CPOrganizations(self)
 		self.resources=CPResources(self)
+		self.childManifests=[]
+		self.extensions=[]
 		
 	def GetIdentifier(self):
 		return self.attrs.get(cp_identifier,None)
@@ -86,10 +90,31 @@ class CPManifest(CPElement):
 		return None
 		
 	def AddChild(self,child):
-		if isinstance(child,CPResources):
+		if isinstance(child,CPMetadata):
+			self.metadata=child
+		elif isinstance(child,CPOrganizations):
+			self.organizations=child
+		elif isinstance(child,CPResources):
 			self.resources=child
-		CPElement.AddChild(self,child)
+		elif isinstance(child,CPManifest):
+			self.childManifests,append(child)
+		elif self.CheckOther(child,IMSCP_NAMESPACE):
+			self.extensions.append(child)
+		else:
+			self.ValidationError(self,child)
 
+	def GetChildren(self):
+		children=[]
+		if self.metadata:
+			children.append(self.metadata)
+		children.append(self.organizations)
+		children.append(self.resources)
+		return tuple(children+self.childManifests+self.extensions)
+		
+
+class CPMetadata(CPElement):
+	XMLNAME=cp_metadata
+	
 
 class CPOrganizations(CPElement):
 	XMLNAME=cp_organizations
@@ -103,6 +128,7 @@ class CPOrganizations(CPElement):
 			self.list.append(child)
 		CPElement.AddChild(self,child)
 
+
 class CPOrganization(CPElement):
 	XMLNAME=cp_organization
 			
@@ -113,12 +139,19 @@ class CPResources(CPElement):
 	def __init__(self,parent):
 		CPElement.__init__(self,parent)
 		self.list=[]
+		self.extensions=[]
 		
 	def AddChild(self,child):
 		if isinstance(child,CPResource):
 			self.list.append(child)
-		CPElement.AddChild(self,child)
+		elif self.CheckOther(child,IMSCP_NAMESPACE):
+			self.extensions.append(child)
+		else:
+			self.ValidationError(self,child)
 
+	def GetChildren(self):
+		return tuple(self.list+self.extensions)
+		
 	def CPResource(self,identifier,type):
 		r=CPResource(self)
 		r.SetIdentifier(identifier)
@@ -133,8 +166,10 @@ class CPResource(CPElement):
 
 	def __init__(self,parent):
 		CPElement.__init__(self,parent)
+		self.metadata=None
 		self.fileList=[]
 		self.dependencies=[]
+		self.extensions=[]
 		
 	def GetIdentifier(self):
 		return self.attrs.get(cp_identifier,None)
@@ -176,12 +211,23 @@ class CPResource(CPElement):
 		del self.dependencies[index]
 		
 	def AddChild(self,child):
-		if isinstance(child,CPFile):
+		if isinstance(child,CPMetadata):
+			self.metadata=child
+		elif isinstance(child,CPFile):
 			self.fileList.append(child)
 		elif isinstance(child,CPDependency):
 			self.dependencies.append(child)
-		CPElement.AddChild(self,child)
+		elif self.CheckOther(child,IMSCP_NAMESPACE):
+			self.extensions.append(child)
+		else:
+			self.ValidationError(self,child)
 
+	def GetChildren(self):
+		children=[]
+		if self.metadata:
+			children.append(self.metadata)
+		return tuple(children+self.fileList+self.dependencies+self.extensions)
+		
 
 class CPDependency(CPElement):
 	XMLNAME=cp_dependency
@@ -405,6 +451,59 @@ class ContentPackage:
 		else: # skip non-regular files.
 			pass
 	
+	def GetUniqueFile(self,suggestedPath):
+		"""Returns a unique file path suitable for creating a new file in the package.
+		
+		suggestedPath is used to provide a suggested path for the file.  This
+		may be relative (to the root and manifest) or absolute but it must
+		resolve to an file (potentially) in the package.
+
+		The return result is always normalized and returned relative to the
+		package root.
+		"""
+		fPath=os.path.join(self.dPath,suggestedPath)
+		fPath=PathInPath(fPath,self.dPath)
+		if fPath is None:
+			raise CPFilePathError(suggestedPath)
+		fPath=os.path.normcase(fPath)
+		# Now we can try and make it unique
+		pathStr=fPath
+		pathExtra=0
+		while self.fileTable.has_key(pathStr):
+			if not pathExtra:
+				pathExtra=random.randint(0,0xFFFF)
+			fName,fExt=os.path.splitext(fPath)
+			pathStr='%s_%X%s'%(fName,pathExtra,fExt)
+			pathExtra=pathExtra+1
+		# we have the path string
+		return pathStr
+	
+	def CPFile(self,resource,href):
+		"""Creates a new CPFile attached to a resource, pointing to href
+
+		href is expressed relative to resource, e.g., using
+		resource.RelativeURI"""
+		fURL=resource.ResolveURI(href)
+		url=urlparse.urlsplit(fURL)
+		if not(url.scheme=='file' and url.netloc==''):
+			# Not a local file
+			return resource.CPFile(href)
+		fullPath=urllib.url2pathname(url.path)
+		head,tail=os.path.split(fullPath)
+		if self.IgnoreFile(tail):
+			raise CPFilePathError(url.path)
+		relPath=PathInPath(fullPath,self.dPath)
+		if relPath is None or relPath.lower=='imsmanifest.xml':
+			raise CPFilePathError(url.path)
+		# normalise the case ready to put in the file table
+		relPath=os.path.normcase(relPath)
+		f=resource.CPFile(href)
+		if not self.fileTable.has_key(relPath):
+			self.fileTable[relPath]=[f]
+		else:
+			self.fileTable[relPath].append(f)
+		return f
+		
 	def DeleteFile(self,href):
 		"""Removes the file at href from the file system
 		

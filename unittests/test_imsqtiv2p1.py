@@ -16,7 +16,8 @@ from StringIO import StringIO
 class QTITests(unittest.TestCase):
 	def testCaseConstants(self):
 		self.failUnless(IMSQTI_NAMESPACE=="http://www.imsglobal.org/xsd/imsqti_v2p1","Wrong QTI namespace: %s"%IMSQTI_NAMESPACE)
-
+		self.failUnless(IMSQTI_ITEM_RESOURCETYPE=="imsqti_item_xmlv2p1","Wrong QTI resource type: %s"%IMSQTI_ITEM_RESOURCETYPE)
+		
 class QTIElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		e=QTIElement(None)

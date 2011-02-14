@@ -20,10 +20,9 @@ def suite():
 		unittest.makeSuite(XMLValidationTests,'test')
 		))
 
-from pyslet.xml20081126 import *
+TEST_DATA_DIR=os.path.join(os.path.split(__file__)[0],'data_xml20081126')
 
-EXAMPLE_1="""<?xml version="1.0" encoding="utf-8"?>
-<tag>Hello World</tag>"""
+from pyslet.xml20081126 import *
 
 class NamedElement(XMLElement):
 	XMLNAME="test"
@@ -135,7 +134,7 @@ class XMLElementTests(unittest.TestCase):
 	def testCaseDefaultName(self):
 		e=NamedElement(None)
 		self.failUnless(e.xmlname=='test','element default name on construction')
-		
+			
 class XMLDocumentTests(unittest.TestCase):
 	def setUp(self):
 		self.cwd=os.getcwd()
@@ -167,13 +166,11 @@ class XMLDocumentTests(unittest.TestCase):
 		d=XMLDocument()
 		d.SetBase(urllib.pathname2url(fpath))
 		self.failUnless(d.GetBase()==furl,"Base not set by SetBase")
-	
+
 	def testCaseReadFile(self):
 		"""Test the reading of the XMLDocument from the file system"""
-		f=codecs.open('read1.xml','wb','utf-8')
-		f.write(EXAMPLE_1)
-		f.close()
-		d=XMLDocument(baseURI='read1.xml')
+		os.chdir(TEST_DATA_DIR)
+		d=XMLDocument(baseURI='readFile.xml')
 		d.Read()
 		root=d.rootElement
 		self.failUnless(isinstance(root,XMLElement))
@@ -181,11 +178,56 @@ class XMLDocumentTests(unittest.TestCase):
 		
 	def testCaseReadString(self):
 		"""Test the reading of the XMLDocument from a supplied stream"""
-		d=XMLDocument(baseURI='read2.xml')
-		d.Read(src=StringIO(EXAMPLE_1))
+		os.chdir(TEST_DATA_DIR)
+		d=XMLDocument(baseURI='readFile.xml')
+		f=open('readFile.xml')
+		d.Read(src=f)
+		f.close()
 		root=d.rootElement
 		self.failUnless(isinstance(root,XMLElement))
 		self.failUnless(root.xmlname=='tag' and root.GetValue()=='Hello World')
+	
+	def testCaseString(self):
+		os.chdir(TEST_DATA_DIR)
+		d=XMLDocument(baseURI='readFile.xml')
+		d.Read()
+		f=open('readFile.xml')
+		fData=f.read()
+		f.close()
+		self.failUnless(str(d)==fData,"XML output: %s"%str(d))
+		
+	def testCaseResolveBase(self):
+		"""Test the use of ResolveURI and ResolveBase"""
+		os.chdir(TEST_DATA_DIR)
+		fpath=urllib.pathname2url(os.path.abspath('base.xml'))
+		hrefPath=urllib.pathname2url(os.path.abspath('link.xml'))
+		furl='file://'+fpath
+		href='file://'+hrefPath
+		altRef='file:///hello/link.xml'
+		d=XMLDocument(baseURI='base.xml')
+		self.failUnless(d.GetBase()==furl,"Base not resolved relative to w.d. by constructor")
+		d.Read()
+		tag=d.rootElement
+		self.failUnless(tag.ResolveBase()==furl,"Root element resolves from document")
+		self.failUnless(tag.ResolveURI("link.xml")==href,"Root element HREF")
+		self.failUnless(tag.RelativeURI(href)=='link.xml',"Root element relative")
+		self.failUnless(tag.RelativeURI(altRef)=='/hello/link.xml','Root element full path relative')
+		childTag=tag.children[0]
+		self.failUnless(childTag.ResolveBase()=="file:///hello/base.xml","xml:base overrides in childTag (%s)"%childTag.ResolveBase())
+		self.failUnless(childTag.ResolveURI("link.xml")==altRef,"child element HREF")
+		self.failUnless(childTag.RelativeURI(href)==hrefPath,"child element relative resulting in full path")
+		self.failUnless(childTag.RelativeURI(altRef)=='link.xml','child element relative')
+		# We require this next test to ensure that an href to the current document comes up blank
+		# Although this was a major source of bugs in browsers (<img src=''> causing infinite loading loops)
+		# these are largely fixed now and obfuscating by using a non-empty relative link to ourselves is
+		# likely to start the whole thing going again.
+		self.failUnless(childTag.RelativeURI(childTag.ResolveBase())=='','child element relative avoiding empty URI(%s)'%childTag.RelativeURI(childTag.ResolveBase()))
+		grandChildTag=childTag.children[0]
+		self.failUnless(grandChildTag.ResolveBase()=="file:///hello/base.xml","xml:base inherited")
+		self.failUnless(grandChildTag.ResolveURI("link.xml")==altRef,"grandChild element HREF inherited")
+		self.failUnless(grandChildTag.RelativeURI(href)==hrefPath,"grandChild element relative inherited")
+		self.failUnless(grandChildTag.RelativeURI(altRef)=='link.xml','grandChild element relative inherited')
+		
 		
 	def testCaseCreate(self):
 		"""Test the creating of the XMLDocument on the file system"""

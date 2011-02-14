@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest xmlns="http://www.imsglobal.org/xsd/imscp_v1p1"
+	xmlns:imsmd="http://www.imsglobal.org/xsd/imsmd_v1p2"
+	xmlns:imsqti="http://www.imsglobal.org/xsd/imsqti_v2p1" identifier="outputv2">
+	<organizations/>
+	<resources>
+		<resource identifier="emptyitem" type="imsqti_item_xmlv2p1" href="empty/emptyitem.xml">
+			<file href="empty/emptyitem.xml"/>
+		</resource>
+	</resources>
+</manifest>
