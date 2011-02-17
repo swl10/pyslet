@@ -83,6 +83,16 @@ class XMLNSElement(XMLElement):
 		return None
 	
 	def SetNSPrefix(self,ns,prefix,attributes,nsList):
+		if prefix is None:
+			doc=self.GetDocument()
+			if doc:
+				prefix=doc.SuggestPrefix(ns)
+				for nsi,prefixi in nsList:
+					if prefixi==prefix:
+						prefix=None
+						break
+		if prefix is None:
+			prefix=self.SuggestNewPrefix(nsList)
 		if prefix:
 			aname='xmlns:'+prefix
 			prefix=prefix+':'
@@ -92,6 +102,29 @@ class XMLNSElement(XMLElement):
 			aname='xmlns'
 		attributes.append('%s=%s'%(aname,saxutils.quoteattr(ns)))
 		return prefix
+	
+	def SuggestNewPrefix(self,nsList,stem='ns'):
+		"""Return an unused prefix of the form stem#, stem defaults to ns.
+		
+		We could be more economical here, sometimes one declaration hides another
+		allowing us to reuse a prefix with a lower index, however this is likely
+		to be too confusing as it will lead to multiple namespaces being bound to
+		the same prefix in the same document (which we only allow for the default
+		namespace).  We don't prevent the reverse though, if a namespace prefix
+		has been hidden by being redeclared some other way, we may be forced to
+		assign it a new prefix and hence have multiple prefixes bound to the same
+		namespace in the same document."""
+		i=0
+		ns=1
+		prefix="%s%i:"%(stem,ns)
+		while i<len(nsList):
+			if nsList[i][1]==prefix:
+				i=0
+				ns=ns+1
+				prefix="%s%i:"%(stem,ns)
+			else:
+				i=i+1
+		return "%s%i"%(stem,ns)
 		
 	def WriteXMLAttributes(self,attributes,nsList):
 		"""Adds strings representing the element's attributes
@@ -111,8 +144,8 @@ class XMLNSElement(XMLElement):
 			else:
 				ns,aname=a
 				prefix=self.GetNSPrefix(ns,nsList)
-				if prefix is None:
-					prefix=self.SetNSPrefix(ns,'???',attributes,nsList)
+			if prefix is None:
+				prefix=self.SetNSPrefix(ns,None,attributes,nsList)
 			attributes.append('%s%s=%s'%(prefix,aname,saxutils.quoteattr(self.attrs[a])))
 		
 	def WriteXML(self,f,indent='',tab='\t',nsList=None):
@@ -145,6 +178,9 @@ class XMLNSElement(XMLElement):
 			attributes=''
 		children=self.GetChildren()
 		if children:
+			if type(children[0]) in StringTypes and len(children[0]) and IsS(children[0][0]):
+				# First character is WS, so assume pre-formatted.
+				indent=tab=''			
 			f.write('%s<%s%s%s>'%(ws,prefix,self.xmlname,attributes))
 			for child in children:
 				if type(child) in types.StringTypes:
@@ -167,11 +203,26 @@ class XMLNSDocument(XMLDocument):
 		defaultNS used for elements without an associated namespace
 		can be specified on construction."""
 		self.defaultNS=defaultNS
+		self.prefixTable={}
+		self.nsTable={}
 		XMLDocument.__init__(self,**args)
 		self.parser.setFeature(handler.feature_namespaces,1)
 		
 	def SetDefaultNS(self,ns):
 		self.defaultNS=ns
+	
+	def SetNSPrefix(self,ns,prefix):
+		"""Sets the preferred prefix for the given namespace, ns.
+		
+		If the prefix or the ns has already been mapped then ValueError is
+		raised."""
+		if self.prefixTable.has_key(prefix):
+			raise ValueError
+		self.prefixTable[prefix]=ns
+		self.nsTable[ns]=prefix
+
+	def SuggestPrefix(self,ns):
+		return self.nsTable.get(ns,None)
 		
 	def GetElementClass(self,name):
 		"""Returns a class object suitable for representing <name>

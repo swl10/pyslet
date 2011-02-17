@@ -188,7 +188,31 @@ class CPResource(CPElement):
 		
 	def SetHREF(self,href):
 		CPElement.SetAttribute(self,cp_href,href)
-			
+	
+	def GetEntryPoint(self):
+		"""Returns the CPFile object that is identified as the entry point.
+		
+		If there is no entry point, or no CPFile object with a matching
+		href, then None is returned."""
+		href=self.GetHREF()
+		if href:
+			href=self.ResolveURI(href)
+			for f in self.fileList:
+				fHREF=f.GetHREF()
+				if fHREF:
+					fHREF=f.ResolveURI(fHREF)
+					if href==fHREF:
+						return f
+		return None
+
+	def SetEntryPoint(self,f):
+		"""Set's the CPFile object that is identified as the entry point.
+		
+		The CPFile must already exist and be associated with the resource."""
+		# We resolve and recalculate just in case xml:base lurks on this file
+		href=self.RelativeURI(f.ResolveURI(f.GetHREF()))
+		self.SetHREF(href)
+		
 	def CPFile(self,href):
 		child=CPFile(self)
 		child.SetHREF(href)
@@ -248,20 +272,17 @@ class CPFile(CPElement):
 	def SetHREF(self,href):
 		CPElement.SetAttribute(self,cp_href,href)
 				
-	def GetRelativePath(self,dPath):
-		"""Returns a case-normal file path relative to the root of the content package.
-		
-		If the file is not a local file then None is returned.
-		If the file points to a local file outside of the content package
-		then CPFilePathError is raised."""		
+	def PackagePath(self,cp):
+		"""Returns the normalized file path relative to the root of the content
+		package.
+
+		If the HREF does not point to a local file then None is returned. 
+		Otherwise, this function calculates an absolute path to the file and
+		then calls the content package's PackagePath method."""
 		url=urlparse.urlsplit(self.ResolveURI(self.GetHREF()))
 		if not(url.scheme=='file' and url.netloc==''):
 			return None
-		fPath=PathInPath(urllib.url2pathname(url.path),dPath)
-		if fPath is None:
-			raise CPFilePathError(url.path)
-		else:
-			return os.path.normcase(fPath)
+		return cp.PackagePath(urllib.url2pathname(url.path))
 
 	
 class CPDocument(xmlns.XMLNSDocument):
@@ -356,7 +377,7 @@ class ContentPackage:
 		# Now scan the manifest and identify which file objects refer to which files
 		for r in self.manifest.rootElement.resources.list:
 			for f in r.fileList:
-				fPath=f.GetRelativePath(self.dPath)
+				fPath=f.PackagePath(self)
 				if fPath is None:
 					continue
 				if self.fileTable.has_key(fPath):
@@ -543,7 +564,7 @@ class ContentPackage:
 			delList=[]
 			for f in r.fileList:
 				# Does f point to the same file?
-				if f.GetRelativePath(self.dPath)==relPath:
+				if f.PackagePath(self)==relPath:
 					delList.append(f)
 			for f in delList:
 				r.DeleteFile(f)

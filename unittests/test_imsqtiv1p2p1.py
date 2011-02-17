@@ -144,8 +144,19 @@ class QTIV2ConversionTests(unittest.TestCase):
 		output=str(self.cp.manifest)
 		outputDesired=str(cp2.manifest)
 		self.failUnless(self.cp.manifest.rootElement==cp2.manifest.rootElement,"Output manifest:\n%s\n\nInput manifest:\n%s"%(output,outputDesired))
-		
-		
+		checkFiles={}
+		for r in cp2.manifest.rootElement.resources.list:
+			# Check the entry-point of each resource
+			f=r.GetEntryPoint()
+			if f:
+				fPath=f.PackagePath(cp2)				
+				qtiDoc=qtiv2.QTIDocument(baseURI='file://'+urllib.pathname2url(os.path.join(self.cp.dPath,fPath)))
+				qtiDoc.Read()
+				qtiDoc2=qtiv2.QTIDocument(baseURI='file://'+urllib.pathname2url(os.path.join(cp2.dPath,fPath)))
+				qtiDoc2.Read()
+				output=str(qtiDoc)
+				outputDesired=str(qtiDoc2)
+				self.failUnless(qtiDoc.rootElement==qtiDoc2.rootElement,"Output manifest:\n%s\n\nInput manifest:\n%s"%(output,outputDesired))	
 
 class QTIBig5Tests(unittest.TestCase):
 	def testCaseBIG5(self):

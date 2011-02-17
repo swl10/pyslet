@@ -138,7 +138,7 @@ def IsChar(c):
 		(ord(c)>=0xE000 and ord(c)<=0xFFFD) or
 		(ord(c)>=0x10000 and ord(c)<=0x10FFFF))
 
-def IsSpace(c):
+def IsS(c):
 	return c and (ord(c)==0x9 or ord(c)==0xA or ord(c)==0xD or ord(c)==0x20)
 
 def IsLetter(c):
@@ -542,7 +542,11 @@ class XMLElement:
 			attributes=string.join(attributes,' ')
 		else:
 			attributes=''
-		if self.children:
+		children=self.GetChildren()
+		if children:
+			if type(children[0]) in StringTypes and len(children[0])>0 and IsS(children[0][0]):
+				# First character is WS, so assume pre-formatted
+				indent=tab=''
 			f.write('%s<%s%s>'%(ws,self.xmlname,attributes))
 			for child in self.children:
 				if type(child) in types.StringTypes:
@@ -734,7 +738,11 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		elif self.baseURI is None:
 			raise XMLMissingLocationError
 		elif self.url.scheme=='file':
-			f=codecs.open(urllib.url2pathname(self.url.path),'wb','utf-8')
+			fPath=urllib.url2pathname(self.url.path)
+			fdir,fname=os.path.split(fPath)
+			if not os.path.isdir(fdir):
+				os.makedirs(fdir)
+			f=codecs.open(fPath,'wb','utf-8')
 			try:
 				self.WriteXML(f)
 			finally:

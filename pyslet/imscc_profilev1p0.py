@@ -48,7 +48,7 @@ class CommonCartridge:
 			# All other resoure types are treated as LAOs
 			if len(r.fileList)>=1:
 				laoDescriptor=r.fileList[0]
-				fPath=laoDescriptor.GetRelativePath(self.cp.dPath)
+				fPath=laoDescriptor.PackagePath(self.cp)
 				head,tail=os.path.split(fPath)
 				if not head:
 					# The LAO must be in a directory, not at the top-level of the CP
@@ -120,7 +120,7 @@ class CCTestCase(unittest.TestCase):
 			if acr is None:
 				continue
 			for f in acr.fileList:
-				fPath=f.GetRelativePath(self.cc.cp.dPath)
+				fPath=f.PackagePath(self.cc.cp)
 				self.failUnless(imscp.PathInPath(fPath,dPath))
 	
 	def test1_4_AssociatedContent_3(self):
@@ -224,7 +224,7 @@ class CCTestCase(unittest.TestCase):
 				dPathList.append(dPath)
 		for wc in self.cc.cwcList:
 			for f in wc.fileList:
-				fPath=f.GetRelativePath(self.cc.cp.dPath)
+				fPath=f.PackagePath(self.cc.cp)
 				for dPath in dPathList:
 					self.failIf(imscp.PathInPath(fPath,dPath))
 	

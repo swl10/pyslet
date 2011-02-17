@@ -6,7 +6,8 @@ def suite():
 	return unittest.TestSuite((
 		unittest.makeSuite(XMLNames20091208Tests,'test'),
 		unittest.makeSuite(XMLNSValidationTests,'test'),
-		unittest.makeSuite(XMLNSElementTests,'test')
+		unittest.makeSuite(XMLNSElementTests,'test'),
+		unittest.makeSuite(XMLNSDocumentTests,'test')
 		))
 
 from pyslet.xmlnames20091208 import *
@@ -75,5 +76,21 @@ class XMLNSDocumentTests(unittest.TestCase):
 		#print repr(CREATE_2_OUTPUT)
 		self.failUnless(dst.getvalue()==CREATE_2_OUTPUT,"Simple NS output: \n%s"%dst.getvalue())
 
+	def testAttrNSDeclared(self):
+		"""Test that attributes can be used to trigger NS declarations"""
+		ATTR_XML="""<?xml version="1.0" encoding="utf-8"?>
+<createTag xmlns="http://www.example.com" xmlns:ns1="http://www.example.com/attributes" ns1:test="Hello"/>"""		
+		ATTR_XML_ALT="""<?xml version="1.0" encoding="utf-8"?>
+<createTag xmlns="http://www.example.com" xmlns:test="http://www.example.com/attributes" test:test="Hello"/>"""		
+		d=XMLNSDocument()
+		d.Read(src=StringIO(ATTR_XML))
+		dst=StringIO()
+		d.Create(dst=dst)
+		self.failUnless(dst.getvalue()==ATTR_XML,"Simple NS attribyte: \nWanted: %s\n\nGot: %s"%(ATTR_XML,dst.getvalue()))
+		d.SetNSPrefix("http://www.example.com/attributes",'test')
+		dst=StringIO()
+		d.Create(dst=dst)
+		self.failUnless(dst.getvalue()==ATTR_XML_ALT,"Simple NS attribyte, preferred prefix: \nWanted: %s\n\nGot: %s"%(ATTR_XML,dst.getvalue()))
+		
 if __name__ == "__main__":
 	unittest.main()
