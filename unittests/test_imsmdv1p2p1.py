@@ -20,7 +20,8 @@ class LRMTests(unittest.TestCase):
 		self.failUnless(len(IMSLRM_NAMESPACE_ALIASES)==2)
 		for alias in IMSLRM_NAMESPACE_ALIASES:
 			self.failIf(alias==IMSLRM_NAMESPACE)
-	
+		self.failUnless(IMSLRM_SCHEMALOCATION=="http://www.imsglobal.org/xsd/imsmd_v1p2p4.xsd","LRM schemaLocation: %s"%IMSLRM_SCHEMALOCATION)
+
 	def testCaseClassMap(self):
 		self.failUnless(GetElementClass((IMSLRM_NAMESPACE,'lom')) is LOM)
 		for alias in IMSLRM_NAMESPACE_ALIASES:
@@ -31,7 +32,7 @@ class LRMTests(unittest.TestCase):
 class LRMElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		e=LRMElement(None)
-		self.failUnless(e.ns==IMSLRM_NAMESPACE,'ns on construction')
+		#self.failUnless(e.ns==IMSLRM_NAMESPACE,'ns on construction')
 		
 EXAMPLE_1="""<manifest xmlns="http://www.imsglobal.org/xsd/imscp_v1p1" xmlns:imsmd="http://www.imsglobal.org/xsd/imsmd_v1p2" 
 xmlns:imsqti="http://www.imsglobal.org/xsd/imsqti_v2p1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="MANIFEST-QTI-1" 
@@ -95,7 +96,8 @@ class LRMDocumentTests(unittest.TestCase):
 	def testCaseExample1(self):
 		doc=imscp.CPDocument()
 		doc.Read(src=StringIO(EXAMPLE_1))
-		resources=doc.rootElement.resources
+		r=doc.GetElementByID('choice')
+		self.failUnless(isinstance(r.metadata.GetChildren()[0],LOM),"LOM")
 		
 if __name__ == "__main__":
 	unittest.main()

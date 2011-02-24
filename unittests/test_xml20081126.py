@@ -20,12 +20,75 @@ def suite():
 		unittest.makeSuite(XMLValidationTests,'test')
 		))
 
-TEST_DATA_DIR=os.path.join(os.path.split(__file__)[0],'data_xml20081126')
+TEST_DATA_DIR=os.path.join(os.path.split(os.path.abspath(__file__))[0],'data_xml20081126')
 
 from pyslet.xml20081126 import *
 
 class NamedElement(XMLElement):
 	XMLNAME="test"
+
+
+class ReflectiveElement(XMLElement):
+	def __init__(self,parent,name=None):
+		XMLElement.__init__(self,parent,name)
+		self.atest=None
+		self.child=None
+	
+	def GetAttributes(self):
+		attrs=XMLElement.GetAttributes(self)
+		if self.atest:
+			attrs['atest']=self.atest
+		return attrs
+		
+	def Set_atest(self,value):
+		self.atest=value
+	
+	def GetChildren(self):
+		children=XMLElement.GetChildren(self)
+		if self.child:
+			children.append(self.child)
+		return children
+		
+	def ReflectiveElement(self,name):
+		if self.child:
+			return self.child
+		else:
+			e=ReflectiveElement(self,name)
+			self.child=e
+			return e
+
+	def Adopt_ReflectiveElement(self,child):
+		if self.child:
+			raise XMLParentError
+		else:
+			child.parent=self
+			child.AttachToDocument()
+			self.child=child
+
+
+class ReflectiveDocument(XMLDocument):
+	def GetElementClass(self,name):
+		if name in ["reflection","etest"]:
+			return ReflectiveElement
+		else:
+			return XMLElement
+
+class EmptyElement(XMLElement):
+	XMLNAME="empty"
+	XMLCONTENT=XMLEmpty
+	
+class ElementContent(XMLElement):
+	XMLNAME="elements"
+	XMLCONTENT=XMLElementContent
+
+class MixedElement(XMLElement):
+	XMLNAME="mixed"
+	XMLCONTENT=XMLMixedContent
+
+class IDElement(XMLElement):
+	XMLName="ide"
+	XMLCONTENT=XMLEmpty
+	ID="id"
 	
 class XML20081126Tests(unittest.TestCase):		
 	def testCaseConstants(self):
@@ -130,11 +193,114 @@ class XMLElementTests(unittest.TestCase):
 		self.failUnless(e.GetDocument() is None,'document set on construction')
 		attrs=e.GetAttributes()
 		self.failUnless(len(attrs.keys())==0,"Attributes present on construction")
-
+		children=e.GetChildren()
+		self.failUnless(len(children)==0,"Children present on construction")
+		e=XMLElement(None,'test')
+		self.failUnless(e.xmlname=='test','element named on construction')
+		
 	def testCaseDefaultName(self):
 		e=NamedElement(None)
 		self.failUnless(e.xmlname=='test','element default name on construction')
-			
+	
+	def testSetXMLName(self):
+		e=NamedElement(None,'test2')
+		self.failUnless(e.xmlname=='test2','element named explicitly in construction')
+
+	def testAttributes(self):
+		e=XMLElement(None,'test')
+		e.SetAttribute('atest','value')
+		attrs=e.GetAttributes()
+		self.failUnless(len(attrs.keys())==1,"Attribute not set")
+		self.failUnless(attrs['atest']=='value',"Attribute not set correctly")
+		e=ReflectiveElement(None,'test')
+		e.SetAttribute('atest','value')
+		self.failUnless(e.atest=='value',"Attribute relfection")
+		attrs=e.GetAttributes()
+		self.failUnless(len(attrs.keys())==1,"Attribute not set")
+		self.failUnless(attrs['atest']=='value',"Attribute not set correctly")
+
+	def testChildElements(self):
+		"""Test child element behaviour"""
+		e=XMLElement(None,'test')
+		child1=e.ChildElement(XMLElement,'test1')
+		children=e.GetChildren()
+		self.failUnless(len(children)==1,"ChildElement failed to add child element")
+		# Create an orphan
+		child2=XMLElement(None,'test2')
+		e.AdoptChild(child2)
+		children=e.GetChildren()
+		self.failUnless(len(children)==2,"AdoptChild failed to add second child")
+		self.failUnless(children[1] is child2,"Orphan not attached")
+	
+	def testChildElementRelection(self):
+		"""Test child element cases using reflection"""
+		e=ReflectiveElement(None,'test')
+		child1=e.ChildElement(ReflectiveElement,'test1')
+		self.failUnless(e.child is child1,"Element not set by reflection")
+		children=e.GetChildren()
+		self.failUnless(len(children)==1 and children[0] is child1,"ChildElement failed to add child element")
+		# Now create a second child, should return the same one due to model restriction
+		child2=e.ChildElement(ReflectiveElement,'test1')
+		self.failUnless(e.child is child1 and child2 is child1,"Element model violated")
+		child3=ReflectiveElement(None,'test3')
+		child1.AdoptChild(child3)
+		self.failUnless(child1.child is child3 and child3.parent is child1,"Bad parenting in adoption-reflection")
+		
+	def testData(self):
+		e=XMLElement(None)
+		self.failUnless(e.IsMixed(),"Mixed default")
+		e.AddData('Hello')
+		self.failUnless(e.GetValue()=='Hello',"Data value")
+		children=e.GetChildren()
+		self.failUnless(len(children)==1,"Data child not set")
+		self.failUnless(children[0]=="Hello","Data child not set correctly")
+	
+	def testEmpty(self):
+		e=EmptyElement(None)
+		self.failIf(e.IsMixed(),"EmptyElement is mixed")
+		self.failUnless(e.IsEmpty(),"EmptyElement not empty")
+		try:
+			e.AddData('Hello')
+			self.fail("Data in EmptyElement")
+		except XMLValidationError:
+			pass
+		try:
+			child=e.ChildElement(XMLElement)
+			self.fail("Elements allowed in EmptyElement")
+		except XMLValidationError:
+			pass		
+
+	def testElementContent(self):	
+		e=ElementContent(None)
+		self.failIf(e.IsMixed(),"ElementContent appears mixed")
+		self.failIf(e.IsEmpty(),"ElementContent appears empty")
+		try:
+			e.AddData('Hello')
+			self.fail("Data in ElementContent")
+		except XMLValidationError:
+			pass
+		# white space should silently be ignored.
+		e.AddData('  \n\r  \t')
+		children=e.GetChildren()
+		self.failUnless(len(children)==0,"Unexpected children")
+		# elements can be added
+		child=e.ChildElement(XMLElement)
+		children=e.GetChildren()
+		self.failUnless(len(children)==1,"Expected one child")
+	
+	def testMixedContent(self):
+		e=MixedElement(None)
+		self.failUnless(e.IsMixed(),"MixedElement not mixed")
+		self.failIf(e.IsEmpty(),"MixedElement appears empty")
+		e.AddData('Hello')
+		self.failUnless(e.GetValue()=='Hello','Mixed content with a single value')
+		child=e.ChildElement(XMLElement)
+		try:
+			e.GetValue()
+		except XMLMixedContentError:
+			pass
+		
+		
 class XMLDocumentTests(unittest.TestCase):
 	def setUp(self):
 		self.cwd=os.getcwd()
@@ -147,11 +313,27 @@ class XMLDocumentTests(unittest.TestCase):
 
 	def testCaseConstructor(self):
 		d=XMLDocument()
-		self.failUnless(d.rootElement is None,'rootElement on construction')
+		self.failUnless(d.root is None,'root on construction')
 		self.failUnless(d.GetBase() is None,'base set on construction')
 		d=XMLDocument(root=XMLElement)
-		self.failUnless(isinstance(d.rootElement,XMLElement),'rootElement not created on construction')
-		self.failUnless(d.rootElement.GetDocument() is d,'rootElement not linked to document')
+		self.failUnless(isinstance(d.root,XMLElement),'root not created on construction')
+		self.failUnless(d.root.GetDocument() is d,'root not linked to document')
+	
+	def testCaseAttach(self):
+		d=XMLDocument(root=XMLElement)
+		root=d.root
+		id1=IDElement(None)
+		id1.SetAttribute('id','e1')
+		root.AdoptChild(id1)
+		self.failUnless(id1.GetDocument() is d,'id1 not linked to document')
+		self.failUnless(d.GetElementByID('e1') is id1,'id1 not id registered')
+		id2=IDElement(None)
+		id2.SetAttribute('id','e1')
+		try:
+			root.AdoptChild(id2)
+			self.fail("id2 failed to trigger ID error")
+		except XMLIDClashError:
+			pass
 		
 	def testCaseBase(self):
 		"""Test the use of a file path on construction"""
@@ -159,10 +341,10 @@ class XMLDocumentTests(unittest.TestCase):
 		furl='file://'+urllib.pathname2url(fpath)
 		d=XMLDocument(baseURI=urllib.pathname2url(fpath))
 		self.failUnless(d.GetBase()==furl,"Base not set in constructor")
-		self.failUnless(d.rootElement is None,'rootElement on construction')
+		self.failUnless(d.root is None,'root on construction')
 		d=XMLDocument(baseURI=urllib.pathname2url('fpath.xml'),root=XMLElement)
 		self.failUnless(d.GetBase()==furl,"Base not made absolute from relative URL")
-		self.failUnless(isinstance(d.rootElement,XMLElement),'rootElement not created on construction')
+		self.failUnless(isinstance(d.root,XMLElement),'root not created on construction')
 		d=XMLDocument()
 		d.SetBase(urllib.pathname2url(fpath))
 		self.failUnless(d.GetBase()==furl,"Base not set by SetBase")
@@ -172,7 +354,7 @@ class XMLDocumentTests(unittest.TestCase):
 		os.chdir(TEST_DATA_DIR)
 		d=XMLDocument(baseURI='readFile.xml')
 		d.Read()
-		root=d.rootElement
+		root=d.root
 		self.failUnless(isinstance(root,XMLElement))
 		self.failUnless(root.xmlname=='tag' and root.GetValue()=='Hello World')
 		
@@ -183,7 +365,7 @@ class XMLDocumentTests(unittest.TestCase):
 		f=open('readFile.xml')
 		d.Read(src=f)
 		f.close()
-		root=d.rootElement
+		root=d.root
 		self.failUnless(isinstance(root,XMLElement))
 		self.failUnless(root.xmlname=='tag' and root.GetValue()=='Hello World')
 	
@@ -207,12 +389,12 @@ class XMLDocumentTests(unittest.TestCase):
 		d=XMLDocument(baseURI='base.xml')
 		self.failUnless(d.GetBase()==furl,"Base not resolved relative to w.d. by constructor")
 		d.Read()
-		tag=d.rootElement
+		tag=d.root
 		self.failUnless(tag.ResolveBase()==furl,"Root element resolves from document")
 		self.failUnless(tag.ResolveURI("link.xml")==href,"Root element HREF")
 		self.failUnless(tag.RelativeURI(href)=='link.xml',"Root element relative")
 		self.failUnless(tag.RelativeURI(altRef)=='/hello/link.xml','Root element full path relative')
-		childTag=tag.children[0]
+		childTag=tag._children[0]
 		self.failUnless(childTag.ResolveBase()=="file:///hello/base.xml","xml:base overrides in childTag (%s)"%childTag.ResolveBase())
 		self.failUnless(childTag.ResolveURI("link.xml")==altRef,"child element HREF")
 		self.failUnless(childTag.RelativeURI(href)==hrefPath,"child element relative resulting in full path")
@@ -222,7 +404,7 @@ class XMLDocumentTests(unittest.TestCase):
 		# these are largely fixed now and obfuscating by using a non-empty relative link to ourselves is
 		# likely to start the whole thing going again.
 		self.failUnless(childTag.RelativeURI(childTag.ResolveBase())=='','child element relative avoiding empty URI(%s)'%childTag.RelativeURI(childTag.ResolveBase()))
-		grandChildTag=childTag.children[0]
+		grandChildTag=childTag._children[0]
 		self.failUnless(grandChildTag.ResolveBase()=="file:///hello/base.xml","xml:base inherited")
 		self.failUnless(grandChildTag.ResolveURI("link.xml")==altRef,"grandChild element HREF inherited")
 		self.failUnless(grandChildTag.RelativeURI(href)==hrefPath,"grandChild element relative inherited")
@@ -230,11 +412,10 @@ class XMLDocumentTests(unittest.TestCase):
 		
 		
 	def testCaseCreate(self):
-		"""Test the creating of the XMLDocument on the file system"""
+		"""Test the creating of the XMLDocument on the file system"""		
 		CREATE_1_XML="""<?xml version="1.0" encoding="utf-8"?>
-<createTag/>"""
-		d=XMLDocument(root=XMLElement)
-		d.rootElement.SetXMLName("createTag")
+<test/>"""
+		d=XMLDocument(root=NamedElement)
 		d.SetBase('create1.xml')
 		d.Create()
 		try:
@@ -250,16 +431,30 @@ class XMLDocumentTests(unittest.TestCase):
 		doc=XMLDocument()
 		e1=XMLElement(doc)
 		e2=XMLElement(doc)
-		doc.RegisterElementID(e1,'test')
+		e1.id=e2.id='test'
+		doc.RegisterElement(e1)
 		try:
-			doc.RegisterElementID(e2,'test')
+			doc.RegisterElement(e2)
 			self.fail("Failed to spot ID clash")
 		except XMLIDClashError:
 			pass
-		doc.RegisterElementID(e2,'test2')
+		e2.id='test2'
+		doc.RegisterElement(e2)
 		self.failUnless(doc.GetElementByID('test') is e1,"Element look-up failed")
 		newID=doc.GetUniqueID('test')
 		self.failIf(newID=='test' or newID=='test2')
+	
+	def testCaseReflection(self):
+		"""Test the built-in handling of reflective attributes and elements."""
+		REFLECTIVE_XML="""<?xml version="1.0" encoding="utf-8"?>
+<reflection atest="Hello"><etest>Hello Again</etest></reflection>"""
+		f=StringIO(REFLECTIVE_XML)
+		d=ReflectiveDocument()
+		d.Read(src=f)
+		root=d.root
+		self.failUnless(isinstance(root,ReflectiveElement))
+		self.failUnless(root.atest,"Attribute relfection")
+		self.failUnless(root.child,"Element relfection")
 		
 if __name__ == "__main__":
 	unittest.main()

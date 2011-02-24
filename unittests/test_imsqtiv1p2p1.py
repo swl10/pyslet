@@ -39,10 +39,10 @@ class QTIElementTests(unittest.TestCase):
 
 	def testCaseQuesTestInterop(self):
 		e=QTIQuesTestInterop(None)
-		self.failUnless(e.GetComment() is None)
-		self.failUnless(e.GetObjectBank() is None)
-		self.failUnless(e.GetAssessment() is None)
-		self.failUnless(e.GetObjectList()==[])
+		self.failUnless(e.comment is None)
+		self.failUnless(e.objectBank is None)
+		self.failUnless(e.assessment is None)
+		self.failUnless(e.objectList==[])
 		
 
 EXAMPLE_1="""<?xml version="1.0" encoding="utf-8"?>
@@ -96,16 +96,16 @@ class QTIDocumentTests(unittest.TestCase):
 	def testCaseExample1(self):
 		doc=QTIDocument()
 		doc.Read(src=StringIO(EXAMPLE_1))
-		root=doc.rootElement
+		root=doc.root
 		self.failUnless(isinstance(root,QTIQuesTestInterop))
 		self.failUnless(root.xmlname=='questestinterop')
 		
 	def testCaseExample2(self):
 		doc=QTIDocument()
 		doc.Read(src=StringIO(EXAMPLE_2))
-		root=doc.rootElement
-		self.failUnless(root.GetComment().GetValue()=='Example2')
-		objects=doc.rootElement.GetObjectList()
+		root=doc.root
+		self.failUnless(root.comment.GetValue()=='Example2')
+		objects=doc.root.objectList
 		self.failUnless(len(objects)==1 and isinstance(objects[0],QTIItem))
 		self.failUnless(len(root.objectList)==1)
 	
@@ -121,7 +121,7 @@ class QTIV2ConversionTests(unittest.TestCase):
 		os.chdir(self.cwd)
 	
 	def testCaseOutputV2(self):
-		self.cp.manifest.rootElement.SetIdentifier('outputv2')
+		self.cp.manifest.root.SetID('outputv2')
 		dPath=os.path.join(self.dataPath,'input')
 		for f in os.listdir(dPath):
 			if self.cp.IgnoreFile(f):
@@ -140,12 +140,16 @@ class QTIV2ConversionTests(unittest.TestCase):
 		fList1.sort()
 		fList2=cp2.fileTable.keys()
 		fList2.sort()
-		self.failUnless(fList1==fList2)
+		self.failUnless(fList1==fList2,"File lists: %s\n%s\n"%(str(fList1),str(fList2)))
 		output=str(self.cp.manifest)
 		outputDesired=str(cp2.manifest)
-		self.failUnless(self.cp.manifest.rootElement==cp2.manifest.rootElement,"Output manifest:\n%s\n\nInput manifest:\n%s"%(output,outputDesired))
+		#print
+		#print outputDesired
+		#print 
+		#print output
+		self.failUnless(self.cp.manifest.root==cp2.manifest.root,"Output manifest:\n%s\n\nInput manifest:\n%s"%(output,outputDesired))
 		checkFiles={}
-		for r in cp2.manifest.rootElement.resources.list:
+		for r in cp2.manifest.root.resources.list:
 			# Check the entry-point of each resource
 			f=r.GetEntryPoint()
 			if f:
@@ -156,7 +160,7 @@ class QTIV2ConversionTests(unittest.TestCase):
 				qtiDoc2.Read()
 				output=str(qtiDoc)
 				outputDesired=str(qtiDoc2)
-				self.failUnless(qtiDoc.rootElement==qtiDoc2.rootElement,"Output manifest:\n%s\n\nInput manifest:\n%s"%(output,outputDesired))	
+				self.failUnless(qtiDoc.root==qtiDoc2.root,"Output QTI:\n%s\n\nInput QTI:\n%s"%(output,outputDesired))	
 
 class QTIBig5Tests(unittest.TestCase):
 	def testCaseBIG5(self):

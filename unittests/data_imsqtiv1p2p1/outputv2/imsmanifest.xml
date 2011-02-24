@@ -1,11 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <manifest xmlns="http://www.imsglobal.org/xsd/imscp_v1p1"
 	xmlns:imsmd="http://www.imsglobal.org/xsd/imsmd_v1p2"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.imsglobal.org/xsd/imscp_v1p1 http://www.imsglobal.org/xsd/imscp_v1p1.xsd http://www.imsglobal.org/xsd/imsmd_v1p2 http://www.imsglobal.org/xsd/imsmd_v1p2p4.xsd http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
 	xmlns:imsqti="http://www.imsglobal.org/xsd/imsqti_v2p1" identifier="outputv2">
+	<metadata>
+		<schema>IMS Content</schema>
+		<schemaversion>1.2</schemaversion>
+	</metadata>
 	<organizations/>
 	<resources>
 		<resource identifier="emptyitem" type="imsqti_item_xmlv2p1" href="empty/emptyitem.xml">
+			<metadata>
+				<imsmd:lom>
+					<imsmd:general>
+						<imsmd:description>
+							<imsmd:langstring>Empty Item</imsmd:langstring>
+						</imsmd:description>
+					</imsmd:general>
+				</imsmd:lom>
+			</metadata>
 			<file href="empty/emptyitem.xml"/>
+		</resource>
+		<resource identifier="fullitem" type="imsqti_item_xmlv2p1" href="full/fullitem.xml">
+			<metadata>
+				<imsmd:lom>
+					<imsmd:general>
+						<imsmd:description>
+							<imsmd:langstring>Full Item</imsmd:langstring>
+						</imsmd:description>
+					</imsmd:general>
+				</imsmd:lom>
+			</metadata>
+			<file href="full/fullitem.xml"/>
 		</resource>
 	</resources>
 </manifest>

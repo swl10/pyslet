@@ -92,13 +92,15 @@ class CCConformanceTests(unittest.TestCase):
 		f.write('Hello World!')
 		f.close()
 		r1=self.cc.cp.manifest.GetElementByID('R0004')
-		f=r1.CPFile('Extra.txt')
+		f=r1.CPFile()
+		f.Set_href('Extra.txt')
 		self.cc.cp.RebuildFileTable()
 		self.RunTests(['test1_4_AssociatedContent_2'])
 	
 	def testCase1p4AssociatedContent_3(self):
 		r1=self.cc.cp.manifest.GetElementByID('R0004')
-		dep=r1.CPDependency('R0001')
+		dep=r1.CPDependency()
+		dep.Set_identifierref('R0001')
 		self.RunTests(['test1_4_AssociatedContent_3'])
 	
 	def testCase1p4LAO_1(self):
@@ -111,7 +113,8 @@ class CCConformanceTests(unittest.TestCase):
 		r3=self.cc.cp.manifest.GetElementByID('R0003')
 		# Tricky, to prevent other tests failing we add a reference to a file already referenced
 		# by the associated content for the resource.
-		f=r3.CPFile('L0001/Welcome.gif')
+		f=r3.CPFile()
+		f.Set_href('L0001/Welcome.gif')
 		self.RunTests(['test1_4_LAO_2'])
 
 	def testCase1p4LAO_3(self):
@@ -121,12 +124,14 @@ class CCConformanceTests(unittest.TestCase):
 
 	def testCase1p4LAO_4(self):
 		r3=self.cc.cp.manifest.GetElementByID('R0003')
-		r3.CPDependency('R0007')
+		d=r3.CPDependency()
+		d.Set_identifierref('R0007')
 		self.RunTests(['test1_4_LAO_4'])
 
 	def testCase1p4WebContent_1(self):
 		r1=self.cc.cp.manifest.GetElementByID('R0001')
-		f=r1.CPFile('L0001/Welcome.gif')
+		f=r1.CPFile()
+		f.Set_href('L0001/Welcome.gif')
 		self.RunTests(['test1_4_WebContent_1'])
 
 	def RunTests(self,expectedFailures):
@@ -135,9 +140,12 @@ class CCConformanceTests(unittest.TestCase):
 		ccp.run(r)
 		# Cross check with the expected failures:
 		fList=map(lambda x:x[0].id().split('.')[-1],r.failures)
+		for e in r.errors:
+			print e[1]
 		fList.sort()
 		#print
 		#print "%s : %s"%(self.id(),fList)
+		#print "Errors %s : %s"%(self.id(),eList)
 		self.failUnless(fList==expectedFailures)
 		
 if __name__ == "__main__":

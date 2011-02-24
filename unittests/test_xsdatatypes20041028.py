@@ -12,10 +12,7 @@ from pyslet.xsdatatypes20041028 import *
 
 class XSDatatypes20041028Tests(unittest.TestCase):		
 	def testCaseConstants(self):
-		pass
-		#self.failUnless(APP_NAMESPACE=="http://www.w3.org/2007/app","Wrong APP namespace: %s"%APP_NAMESPACE)
-		#self.failUnless(ATOMSVC_MIMETYPE=="application/atomsvc+xml","Wrong APP service mime type: %s"%ATOMSVC_MIMETYPE)
-		#self.failUnless(ATOMCAT_MIMETYPE=="application/atomcat+xml","Wrong APP category mime type: %s"%ATOMCAT_MIMETYPE)
+		self.failUnless(XMLSCHEMA_NAMESPACE=="http://www.w3.org/2001/XMLSchema-instance","XSI namespace: %s"%XMLSCHEMA_NAMESPACE)
 
 class XSDatatypesBooleanTests(unittest.TestCase):		
 	def testCaseDencode(self):

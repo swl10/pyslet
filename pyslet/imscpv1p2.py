@@ -3,14 +3,18 @@
 """
 
 import pyslet.xmlnames20091208 as xmlns
+import pyslet.xsdatatypes20041028 as xsi
+import pyslet.imsmdv1p2p1 as imsmd
+import pyslet.imsqtiv2p1 as imsqti
 
 from types import StringTypes
 from tempfile import mkdtemp
 import os, os.path, urlparse, urllib, shutil
+import string,re, random
 import zipfile
-import re, random
 
 IMSCP_NAMESPACE="http://www.imsglobal.org/xsd/imscp_v1p1"
+IMSCP_SCHEMALOCATION="http://www.imsglobal.org/xsd/imscp_v1p1.xsd"
 IMSCPX_NAMESPACE="http://www.imsglobal.org/xsd/imscp_extensionv1p2"
 
 cp_dependency=(IMSCP_NAMESPACE,'dependency')
@@ -21,6 +25,8 @@ cp_organization=(IMSCP_NAMESPACE,'organization')
 cp_organizations=(IMSCP_NAMESPACE,'organizations')
 cp_resource=(IMSCP_NAMESPACE,'resource')
 cp_resources=(IMSCP_NAMESPACE,'resources')
+cp_schema=(IMSCP_NAMESPACE,'schema')
+cp_schemaversion=(IMSCP_NAMESPACE,'schemaversion')
 
 cp_identifier="identifier"
 cp_identifierref="identifierref"
@@ -71,63 +77,94 @@ def PathInPath(childPath, parentPath):
 class CPManifest(CPElement):
 	ID=cp_identifier
 	XMLNAME=cp_manifest
+	XMLCONTENT=xmlns.XMLElementContent
 	
-	def __init__(self,parent):
-		CPElement.__init__(self,parent)
+	def __init__(self,parent,name=None):
+		CPElement.__init__(self,parent,name)
 		self.metadata=None
 		self.organizations=CPOrganizations(self)
 		self.resources=CPResources(self)
 		self.childManifests=[]
-		self.extensions=[]
-		
-	def GetIdentifier(self):
-		return self.attrs.get(cp_identifier,None)
-		
-	def SetIdentifier(self,identifier):
-		CPElement.SetAttribute(self,cp_identifier,identifier)
-		
-	def GetMetadata(self):
-		return None
-		
-	def AddChild(self,child):
-		if isinstance(child,CPMetadata):
-			self.metadata=child
-		elif isinstance(child,CPOrganizations):
-			self.organizations=child
-		elif isinstance(child,CPResources):
-			self.resources=child
-		elif isinstance(child,CPManifest):
-			self.childManifests,append(child)
-		elif self.CheckOther(child,IMSCP_NAMESPACE):
-			self.extensions.append(child)
-		else:
-			self.ValidationError(self,child)
-
+	
 	def GetChildren(self):
 		children=[]
 		if self.metadata:
 			children.append(self.metadata)
 		children.append(self.organizations)
 		children.append(self.resources)
-		return tuple(children+self.childManifests+self.extensions)
-		
+		return children+self.childManifests+CPElement.GetChildren(self)
 
+	def CPMetadata(self,name=None):
+		"""Factory method to create the metadata object if necessary.
+		
+		If the metadata object already exists then it is returned instead"""
+		if not self.metadata:
+			self.metadata=CPMetadata(self)
+		return self.metadata
+
+	def CPOrganizations(self,name=None):
+		return self.organizations
+	
+	def CPResources(self,name=None):
+		return self.resources
+
+	def CPManifest(self,name=None):
+		child=CPManifest(self,name)
+		self.childManifests.append(child)
+		return child
+
+		
+class CPSchema(CPElement):
+	XMLNAME=cp_schema
+	
+class CPSchemaVersion(CPElement):
+	XMLNAME=cp_schemaversion
+	
 class CPMetadata(CPElement):
 	XMLNAME=cp_metadata
+	XMLCONTENT=xmlns.XMLElementContent
+	
+	def __init__(self,parent,name=None):
+		CPElement.__init__(self,parent,name)
+		self.schema=None
+		self.schemaVersion=None
+
+	def GetChildren(self):
+		children=[]
+		if self.schema:
+			children.append(self.schema)
+		if self.schemaVersion:
+			children.append(self.schemaVersion)
+		return children+CPElement.GetChildren(self)
+
+	def CPSchema(self,name=None):
+		if not self.schema:
+			self.schema=CPSchema(self,name)
+		return self.schema
+		
+	def CPSchemaVersion(self,name=None):
+		if not self.schemaVersion:
+			self.schemaVersion=CPSchemaVersion(self,name)
+		return self.schemaVersion
+		
 	
 
 class CPOrganizations(CPElement):
 	XMLNAME=cp_organizations
+	XMLCONTENT=xmlns.XMLElementContent
 	
 	def __init__(self,parent):
 		CPElement.__init__(self,parent)
 		self.list=[]
+	
+	def GetChildren(self):
+		return self.list+CPElement.GetChildren(self)
+	
+	def CPOrganization(self,name=None):
+		child=CPOrganization(self,name)
+		self.list.append(child)
+		return child
 		
-	def AddChild(self,child):
-		if isinstance(child,CPOrganization):
-			self.list.append(child)
-		CPElement.AddChild(self,child)
-
 
 class CPOrganization(CPElement):
 	XMLNAME=cp_organization
@@ -135,70 +172,58 @@ class CPOrganization(CPElement):
 
 class CPResources(CPElement):
 	XMLNAME=cp_resources
+	XMLCONTENT=xmlns.XMLElementContent
 
-	def __init__(self,parent):
-		CPElement.__init__(self,parent)
+	def __init__(self,parent,name=None):
+		CPElement.__init__(self,parent,name)
 		self.list=[]
-		self.extensions=[]
-		
-	def AddChild(self,child):
-		if isinstance(child,CPResource):
-			self.list.append(child)
-		elif self.CheckOther(child,IMSCP_NAMESPACE):
-			self.extensions.append(child)
-		else:
-			self.ValidationError(self,child)
-
+	
 	def GetChildren(self):
-		return tuple(self.list+self.extensions)
-		
-	def CPResource(self,identifier,type):
-		r=CPResource(self)
-		r.SetIdentifier(identifier)
-		r.SetType(type)
-		self.AddChild(r)
-		return r
+		return self.list+CPElement.GetChildren(self)
+	
+	def CPResource(self,name=None):
+		child=CPResource(self,name)
+		self.list.append(child)
+		return child
 
 
 class CPResource(CPElement):
 	XMLNAME=cp_resource
 	ID=cp_identifier
-
-	def __init__(self,parent):
-		CPElement.__init__(self,parent)
+	XMLCONTENT=xmlns.XMLElementContent
+	
+	def __init__(self,parent,name=None):
+		CPElement.__init__(self,parent,name)
+		self.type=None
+		self.href=None
 		self.metadata=None
 		self.fileList=[]
 		self.dependencies=[]
-		self.extensions=[]
+	
+	def GetAttributes(self):
+		attrs=CPElement.GetAttributes(self)
+		if self.type:
+			attrs['type']=self.type
+		if self.href:
+			attrs['href']=self.href
+		return attrs
 		
-	def GetIdentifier(self):
-		return self.attrs.get(cp_identifier,None)
+	def Set_type(self,value):
+		self.type=value
 		
-	def SetIdentifier(self,identifier):
-		CPElement.SetAttribute(self,cp_identifier,identifier)
-		
-	def GetType(self):
-		return self.attrs.get(cp_type,None)
-		
-	def SetType(self,type):
-		CPElement.SetAttribute(self,cp_type,type)
-		
-	def GetHREF(self):
-		return self.attrs.get(cp_href,None)
-		
-	def SetHREF(self,href):
-		CPElement.SetAttribute(self,cp_href,href)
+	def Set_href(self,href):
+		self.href=href
 	
 	def GetEntryPoint(self):
 		"""Returns the CPFile object that is identified as the entry point.
 		
 		If there is no entry point, or no CPFile object with a matching
 		href, then None is returned."""
-		href=self.GetHREF()
+		href=self.href
 		if href:
 			href=self.ResolveURI(href)
 			for f in self.fileList:
-				fHREF=f.GetHREF()
+				fHREF=f.href
 				if fHREF:
 					fHREF=f.ResolveURI(fHREF)
 					if href==fHREF:
@@ -210,67 +235,78 @@ class CPResource(CPElement):
 		
 		The CPFile must already exist and be associated with the resource."""
 		# We resolve and recalculate just in case xml:base lurks on this file
-		href=self.RelativeURI(f.ResolveURI(f.GetHREF()))
-		self.SetHREF(href)
-		
-	def CPFile(self,href):
-		child=CPFile(self)
-		child.SetHREF(href)
-		self.fileList.append(child)
-		CPElement.AddChild(self,child)
-		return child
-	
-	def DeleteFile(self,f):
-		index=self.fileList.index(f)
-		del self.fileList[index]
-		
-	def CPDependency(self,identifierref):
-		child=CPDependency(self)
-		child.SetIdentifierRef(identifierref)
-		self.dependencies.append(child)
-		CPElement.AddChild(self,child)
-		
-	def DeleteDependency(self,d):
-		index=self.dependencies.index(d)
-		del self.dependencies[index]
-		
-	def AddChild(self,child):
-		if isinstance(child,CPMetadata):
-			self.metadata=child
-		elif isinstance(child,CPFile):
-			self.fileList.append(child)
-		elif isinstance(child,CPDependency):
-			self.dependencies.append(child)
-		elif self.CheckOther(child,IMSCP_NAMESPACE):
-			self.extensions.append(child)
-		else:
-			self.ValidationError(self,child)
+		href=self.RelativeURI(f.ResolveURI(f.href))
+		self.href=href
 
 	def GetChildren(self):
 		children=[]
 		if self.metadata:
 			children.append(self.metadata)
-		return tuple(children+self.fileList+self.dependencies+self.extensions)
-		
+		return children+self.fileList+self.dependencies+CPElement.GetChildren(self)
 
+	def CPMetadata(self,name=None):
+		"""Factory method to create the metadata object if necessary.
+		
+		If the metadata object already exists then it is returned instead"""
+		if not self.metadata:
+			self.metadata=CPMetadata(self,name)
+		return self.metadata
+				
+	def CPFile(self,name=None):
+		child=CPFile(self)
+		self.fileList.append(child)
+		return child
+	
+	def DeleteFile(self,f):
+		index=self.fileList.index(f)
+		f.DetachFromDocument()
+		f.parent=None
+		del self.fileList[index]
+		
+	def CPDependency(self,name=None):
+		child=CPDependency(self,name)
+		self.dependencies.append(child)
+		return child
+		
+	def DeleteDependency(self,d):
+		index=self.dependencies.index(d)
+		d.DetachFromDocument()
+		d.parent=None
+		del self.dependencies[index]
+		
+		
 class CPDependency(CPElement):
 	XMLNAME=cp_dependency
 
-	def GetIdentifierRef(self):
-		return self.attrs.get(cp_identifierref,None)
+	def __init__(self,parent,name=None):
+		CPElement.__init__(self,parent,name)
+		self.identifierref=None
 		
-	def SetIdentifierRef(self,identifierref):
-		CPElement.SetAttribute(self,cp_identifierref,identifierref)
+	def GetAttributes(self):
+		attrs=CPElement.GetAttributes(self)
+		if self.identifierref:
+			attrs['identifierref']=self.identifierref
+		return attrs
+
+	def Set_identifierref(self,value):
+		self.identifierref=value
 
 			
 class CPFile(CPElement):
 	XMLNAME=cp_file
-	
-	def GetHREF(self):
-		return self.attrs.get(cp_href,None)
+
+	def __init__(self,parent,name=None):
+		CPElement.__init__(self,parent,name)
+		self.href=None
 		
-	def SetHREF(self,href):
-		CPElement.SetAttribute(self,cp_href,href)
+	def GetAttributes(self):
+		attrs=CPElement.GetAttributes(self)
+		if self.href:
+			attrs['href']=self.href
+		return attrs
+
+	def Set_href(self,href):
+		self.href=href
 				
 	def PackagePath(self,cp):
 		"""Returns the normalized file path relative to the root of the content
@@ -279,7 +315,7 @@ class CPFile(CPElement):
 		If the HREF does not point to a local file then None is returned. 
 		Otherwise, this function calculates an absolute path to the file and
 		then calls the content package's PackagePath method."""
-		url=urlparse.urlsplit(self.ResolveURI(self.GetHREF()))
+		url=urlparse.urlsplit(self.ResolveURI(self.href))
 		if not(url.scheme=='file' and url.netloc==''):
 			return None
 		return cp.PackagePath(urllib.url2pathname(url.path))
@@ -290,18 +326,33 @@ class CPDocument(xmlns.XMLNSDocument):
 		""""""
 		xmlns.XMLNSDocument.__init__(self,**args)
 		self.defaultNS=IMSCP_NAMESPACE
+		self.SetNSPrefix(xsi.XMLSCHEMA_NAMESPACE,'xsi')
+		self.SetNSPrefix(imsmd.IMSLRM_NAMESPACE,'imsmd')
+		self.SetNSPrefix(imsqti.IMSQTI_NAMESPACE,'imsqti')
+		schemaLocation=[IMSCP_NAMESPACE,IMSCP_SCHEMALOCATION,
+			imsmd.IMSLRM_NAMESPACE,imsmd.IMSLRM_SCHEMALOCATION,
+			imsqti.IMSQTI_NAMESPACE,imsqti.IMSQTI_SCHEMALOCATION]
+		if isinstance(self.root,CPElement):
+			self.root.SetAttribute((xsi.XMLSCHEMA_NAMESPACE,'schemaLocation'),string.join(schemaLocation,' '))
 
 	def GetElementClass(self,name):
-		return CPDocument.classMap.get(name,CPDocument.classMap.get((name[0],None),xmlns.XMLNSElement))
-
+		eClass=CPDocument.classMap.get(name,CPDocument.classMap.get((name[0],None),xmlns.XMLNSElement))
+		if eClass is xmlns.XMLNSElement:
+			eClass=imsmd.GetElementClass(name)
+		# Add other supported metadata schemas in here
+		return eClass
+	
 	classMap={
 		cp_dependency:CPDependency,
 		cp_file:CPFile,
 		cp_manifest:CPManifest,
+		cp_metadata:CPMetadata,
 		cp_organizations:CPOrganizations,
 		cp_organization:CPOrganization,
 		cp_resources:CPResources,
-		cp_resource:CPResource
+		cp_resource:CPResource,
+		cp_schema:CPSchema,
+		cp_schemaversion:CPSchemaVersion
 		}
 
 
@@ -341,12 +392,15 @@ class ContentPackage:
 			if os.path.exists(mPath):
 				self.manifest=CPDocument(baseURI=urllib.pathname2url(mPath))
 				self.manifest.Read()
-				if not isinstance(self.manifest.rootElement,CPManifest):
+				if not isinstance(self.manifest.root,CPManifest):
 					raise CPManifestError("%s not a manifest file, found %s::%s "%
-						(mPath,self.manifest.rootElement.ns,self.manifest.rootElement.xmlname))
+						(mPath,self.manifest.root.ns,self.manifest.root.xmlname))
 			else:
 				self.manifest=CPDocument(root=CPManifest, baseURI=urllib.pathname2url(mPath))
-				self.manifest.rootElement.SetIdentifier(self.manifest.GetUniqueID('manifest'))
+				self.manifest.root.SetID(self.manifest.GetUniqueID('manifest'))
+				md=self.manifest.root.CPMetadata()
+				md.CPSchema().SetValue("IMS Content")
+				md.CPSchemaVersion().SetValue("1.2")
 				self.manifest.Create()
 			self.SetIgnoreFiles(IGNOREFILES_RE)
 			self.RebuildFileTable()
@@ -375,7 +429,7 @@ class ContentPackage:
 				continue
 			self.FileScanner(f,beenThere)
 		# Now scan the manifest and identify which file objects refer to which files
-		for r in self.manifest.rootElement.resources.list:
+		for r in self.manifest.root.resources.list:
 			for f in r.fileList:
 				fPath=f.PackagePath(self)
 				if fPath is None:
@@ -508,7 +562,8 @@ class ContentPackage:
 		url=urlparse.urlsplit(fURL)
 		if not(url.scheme=='file' and url.netloc==''):
 			# Not a local file
-			return resource.CPFile(href)
+			r=resource.CPFile()
+			r.Set_href(href)		
 		fullPath=urllib.url2pathname(url.path)
 		head,tail=os.path.split(fullPath)
 		if self.IgnoreFile(tail):
@@ -518,7 +573,8 @@ class ContentPackage:
 			raise CPFilePathError(url.path)
 		# normalise the case ready to put in the file table
 		relPath=os.path.normcase(relPath)
-		f=resource.CPFile(href)
+		f=resource.CPFile()
+		f.Set_href(href)
 		if not self.fileTable.has_key(relPath):
 			self.fileTable[relPath]=[f]
 		else:
@@ -560,7 +616,7 @@ class ContentPackage:
 			raise CPFilePathError(url.path)
 		# normalise the case ready for comparisons
 		relPath=os.path.normcase(relPath)
-		for r in self.manifest.rootElement.resources.list:
+		for r in self.manifest.root.resources.list:
 			delList=[]
 			for f in r.fileList:
 				# Does f point to the same file?

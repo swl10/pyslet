@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+XMLSCHEMA_NAMESPACE="http://www.w3.org/2001/XMLSchema-instance"
+
 def DecodeBoolean(src):
 	"""Decodes a boolean value from src.
 	

@@ -5,6 +5,7 @@
 import pyslet.xmlnames20091208 as xmlns
 
 IMSLRM_NAMESPACE="http://www.imsglobal.org/xsd/imsmd_v1p2"
+IMSLRM_SCHEMALOCATION="http://www.imsglobal.org/xsd/imsmd_v1p2p4.xsd"
 
 IMSLRM_NAMESPACE_ALIASES={
 #	"http://www.imsproject.org/metadata":"1.1",
@@ -12,25 +13,275 @@ IMSLRM_NAMESPACE_ALIASES={
 	"http://www.imsproject.org/xsd/imsmd_rootv1p2":IMSLRM_NAMESPACE,
 	"http://www.imsglobal.org/xsd/imsmd_rootv1p2p1":IMSLRM_NAMESPACE}
 
+lrm_aggregationlevel=(IMSLRM_NAMESPACE,'aggregationlevel')
+lrm_annotation=(IMSLRM_NAMESPACE,'annotation')
+lrm_catalogentry=(IMSLRM_NAMESPACE,'catalogentry')
+lrm_classification=(IMSLRM_NAMESPACE,'classification')
+lrm_coverage=(IMSLRM_NAMESPACE,'coverage')
+lrm_description=(IMSLRM_NAMESPACE,'description')
+lrm_educational=(IMSLRM_NAMESPACE,'educational')
+lrm_general=(IMSLRM_NAMESPACE,'general')
+lrm_identifier=(IMSLRM_NAMESPACE,'identifier')
+lrm_keyword=(IMSLRM_NAMESPACE,'keyword')
+lrm_language=(IMSLRM_NAMESPACE,'language')
+lrm_langstring=(IMSLRM_NAMESPACE,'langstring')
+lrm_lifecycle=(IMSLRM_NAMESPACE,'lifecycle')
 lrm_lom=(IMSLRM_NAMESPACE,'lom')
-lrm_wildcard=(IMSLRM_NAMESPACE,None)
+lrm_metametadata=(IMSLRM_NAMESPACE,'metametadata')
+lrm_relation=(IMSLRM_NAMESPACE,'relation')
+lrm_structure=(IMSLRM_NAMESPACE,'structure')
+lrm_technical=(IMSLRM_NAMESPACE,'technical')
+lrm_title=(IMSLRM_NAMESPACE,'title')
 
+lrm_wildcard=(IMSLRM_NAMESPACE,None)
+	
 md_lom=(IMSLRM_NAMESPACE,'lom')
 
 class LRMException(Exception): pass
 
 class LRMElement(xmlns.XMLNSElement):
 	"""Basic element to represent all CP elements"""  
-	def __init__(self,parent):
-		xmlns.XMLNSElement.__init__(self,parent)
-		self.SetXMLName((IMSLRM_NAMESPACE,None))
+	def __init__(self,parent,name=None):
+		xmlns.XMLNSElement.__init__(self,parent,name)
 
 class LOM(LRMElement):
-	pass
+	XMLNAME=md_lom
+	XMLCONTENT=xmlns.XMLElementContent
+	
+	def __init__(self,parent,name=None):
+		LRMElement.__init__(self,parent,name)
+		self.general=None
+		self.lifecycle=None
+		self.metametadata=None
+		self.technical=None
+		self.educational=None
+		self.rights=None
+		self.relations=[]
+		self.annotations=[]
+		self.classifications=[]
+	
+	def GetChildren(self):
+		children=[]
+		if self.general: 
+			children.append(self.general)
+		if self.lifecycle: 
+			children.append(self.lifecycle)
+		if self.metametadata: 
+			children.append(self.metametadata)
+		if self.technical: 
+			children.append(self.technical)
+		if self.educational: 
+			children.append(self.educational)
+		if self.rights: 
+			children.append(self.rights)
+		return children+self.relations+self.annotations+self.classifications+LRMElement.GetChildren(self)
+		
+	def LOMGeneral(self,name=None):
+		if not self.general:
+			self.general=LOMGeneral(self,name)
+		return self.general
+	
+	def LOMLifecycle(self,name=None):
+		if not self.lifecycle:
+			self.lifecycle=LOMLifecycle(self,name)
+		return self.lifecycle
+	
+	def LOMMetaMetadata(self,name=None):
+		if not self.metametadata:
+			self.metametadata=LOMMetaMetadata(self,name)
+		return self.metametadata
+	
+	def LOMTechnical(self,name=None):
+		if not self.technical:
+			self.technical=LOMTechnical(self,name)
+		return self.technical
+	
+	def LOMEducational(self,name=None):
+		if not self.educational:
+			self.educational=LOMEducational(self,name)
+		return self.educational
+	
+	def LOMRelation(self,name=None):
+		r=LOMRelation(self,name)
+		self.relations.append(r)
+		return r
+
+	def LOMAnnotation(self,name=None):
+		a=LOMAnnotation(self,name)
+		self.annotations.append(a)
+		return a
+		
+	def LOMClassification(self,name=None):
+		c=LOMClassification(self,name)
+		self.classifications.append(c)
+		return c
+
+		
+class LOMGeneral(LRMElement):
+	XMLNAME=lrm_general
+	XMLCONTENT=xmlns.XMLElementContent
+
+	def __init__(self,parent,name=None):
+		LRMElement.__init__(self,parent,name)
+		self.identifier=None
+		self.title=None
+		self.catalogEntries=[]
+		self.languages=[]
+		self.description=[]
+		self.keywords=[]
+		self.coverage=[]
+		self.structure=None
+		self.aggregationLevel=None
+	
+	def GetChildren(self):
+		children=[]
+		if self.identifier:
+			children.append(self.identifier)
+		if self.title:
+			children.append(self.title)
+		children=children+self.catalogEntries+self.languages+self.description+self.keywords+self.coverage
+		if self.structure:
+			children.append(self.structure)
+		if self.aggregationLevel:
+			children.append(self.aggregationLevel)
+		return children+LRMElement.GetChildren(self)
+
+	def LOMIdentifier(self,name=None):
+		if not self.identifier:
+			self.identifier=LOMIdentifier(self,name)
+		return self.identifier
+	
+	def LOMTitle(self,name=None):
+		if not self.title:
+			self.title=LOMTitle(self,name)
+		return self.title
+	
+	def LOMCatalogEntry(self,name=None):
+		c=LOMCatalogEntry(self,name)
+		self.catalogEntries.append(c)
+		return c
+
+	def LOMLanguage(self,name=None):
+		l=LOMLanguage(self,name)
+		self.languages.append(l)
+		return l
+
+	def LOMDescription(self,name=None):
+		d=LOMDescription(self,name)
+		self.description.append(d)
+		return d
+	
+	def LOMKeyword(self,name=None):
+		kw=LOMKeyword(self,name)
+		self.keywords.append(kw)
+		return kw
+	
+	def LOMCoverage(self,name=None):
+		c=LOMCoverage(self,name)
+		self.coverage.append(c)
+		return c
+
+	def LOMStructure(self,name=None):
+		if not self.structure:
+			self.structure=LOMStructure(self,name)
+		return self.structure
+	
+	def LOMAggregationLevel(self,name=None):
+		if not self.aggregationLevel:
+			self.aggregationLevel=LOMAggregationLevel(self,name)
+		return self.aggregationLevel
+	
+
+class LangString(LRMElement):
+	XMLNAME=lrm_langstring
+		
+class LangStringList(LRMElement):	
+
+	def __init__(self,parent,name=None):
+		LRMElement.__init__(self,parent,name)
+		self.langStrings=[]
+
+	def GetChildren(self):
+		return self.langStrings
+	
+	def LangString(self,name=None):
+		s=LangString(self,name)
+		self.langStrings.append(s)
+		return s
+		
+
+class LOMIdentifier(LRMElement):
+	XMLNAME=lrm_identifier
+	
+class LOMTitle(LRMElement):
+	XMLNAME=lrm_title
+
+class LOMCatalogEntry(LRMElement):
+	XMLNAME=lrm_catalogentry
+
+class LOMLanguage(LRMElement):
+	XMLNAME=lrm_language
+	
+class LOMDescription(LangStringList):
+	XMLNAME=lrm_description
+	XMLCONTENT=xmlns.XMLElementContent
+
+class LOMKeyword(LangStringList):
+	XMLNAME=lrm_keyword
+
+class LOMCoverage(LangStringList):
+	XMLNAME=lrm_coverage
+
+class LOMStructure(LangStringList):
+	XMLNAME=lrm_structure
+
+class LOMAggregationLevel(LangStringList):
+	XMLNAME=lrm_aggregationlevel
+
+
+class LOMLifecycle(LRMElement):
+	XMLNAME=lrm_lifecycle
+	
+class LOMMetaMetadata(LRMElement):
+	XMLNAME=lrm_metametadata
+	
+class LOMTechnical(LRMElement):
+	XMLNAME=lrm_technical
+	
+class LOMEducational(LRMElement):
+	XMLNAME=lrm_educational
+	
+class LOMRelation(LRMElement):
+	XMLNAME=lrm_relation
+	
+class LOMAnnotation(LRMElement):
+	XMLNAME=lrm_annotation
+	
+class LOMClassification(LRMElement):
+	XMLNAME=lrm_classification
+	
 	
 classMap={
+	lrm_wildcard:LRMElement,
+	lrm_aggregationlevel:LOMAggregationLevel,
+	lrm_annotation:LOMAnnotation,
+	lrm_catalogentry:LOMCatalogEntry,
+	lrm_classification:LOMClassification,
+	lrm_coverage:LOMCoverage,
+	lrm_description:LOMDescription,
+	lrm_educational:LOMEducational,
+	lrm_general:LOMGeneral,
+	lrm_identifier:LOMIdentifier,
+	lrm_keyword:LOMKeyword,
+	lrm_language:LOMLanguage,
+	lrm_langstring:LangString,
+	lrm_lifecycle:LOMLifecycle,
 	lrm_lom:LOM,
-	lrm_wildcard:LRMElement
+	lrm_metametadata:LOMMetaMetadata,
+	lrm_relation:LOMRelation,
+	lrm_structure:LOMStructure,
+	lrm_technical:LOMTechnical,
+	lrm_title:LOMTitle
 	}
 
 def GetElementClass(name):

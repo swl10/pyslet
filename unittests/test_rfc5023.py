@@ -164,8 +164,7 @@ class APP5023Tests(unittest.TestCase):
 class APPElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		e=APPElement(None)
-		self.failUnless(e.ns==APP_NAMESPACE,'ns on construction')
-		self.failUnless(e.xmlname==None,'element name on construction')
+		self.failUnless(e.xmlname is None,'element name on construction')
 		self.failUnless(e.GetBase() is None,"xml:base present on construction")
 		self.failUnless(e.GetLang() is None,"xml:lang present on construction")
 		self.failUnless(e.GetSpace() is None,"xml:space present on construction")
@@ -182,23 +181,23 @@ class APPCategoriesTests(unittest.TestCase):
 		self.failUnless(e.GetSpace() is None,"xml:space present on construction")
 		attrs=e.GetAttributes()
 		self.failUnless(len(attrs.keys())==0,"Attributes present on construction")
-		self.failUnless(e.GetHREF() is None,"href present on construction")
-		self.failUnless(e.GetFixed() is None and e.IsFixed() is False,"fixed on construction")
-		self.failUnless(e.GetScheme() is None,"scheme present on construction")
-		self.failUnless(len(e.GetCategoryList())==0,"Category  list non empty on construction")
+		self.failUnless(e.href is None,"href present on construction")
+		self.failUnless(e.fixed is None,"fixed on construction")
+		self.failUnless(e.scheme is None,"scheme present on construction")
+		self.failUnless(len(e.categoryList)==0,"Category  list non empty on construction")
 		
 class APPCollectionTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		c=APPCollection(None)
 		self.failUnless(isinstance(c,APPElement),"APPCollection not an APPElement")
 		self.failUnless(c.xmlname=="collection","APPCollection XML name")
-		self.failUnless(c.GetHREF() is None,"HREF present on construction")
+		self.failUnless(c.href is None,"HREF present on construction")
 		attrs=c.GetAttributes()
 		self.failUnless(len(attrs.keys())==0,"Attributes present on construction")
-		self.failUnless(c.GetTitle() is None,"Title present on construction")
-		acceptList=c.GetAcceptList()
+		self.failUnless(c.title is None,"Title present on construction")
+		acceptList=c.acceptList
 		self.failUnless(len(acceptList)==0,"Accept list non-empty on construction")
-		categories=c.GetCategories()
+		categories=c.categories
 		self.failUnless(isinstance(categories,APPCategories),"Categories not of correct class type")
 		
 class APPWorkspaceTests(unittest.TestCase):
@@ -208,7 +207,7 @@ class APPWorkspaceTests(unittest.TestCase):
 		self.failUnless(ws.xmlname=="workspace","APPWorkspace XML name")
 		attrs=ws.GetAttributes()
 		self.failUnless(len(attrs.keys())==0,"Attributes present on construction")
-		self.failUnless(ws.GetTitle() is None,"Title present on construction")
+		self.failUnless(ws.title is None,"Title present on construction")
 		collections=ws.GetCollections()
 		self.failUnless(len(collections)==0,"Collections present on construction")
 
@@ -219,39 +218,39 @@ class APPServiceTests(unittest.TestCase):
 		self.failUnless(svc.xmlname=="service","APPService XML name")
 		attrs=svc.GetAttributes()
 		self.failUnless(len(attrs.keys())==0,"Attributes present on construction")
-		workspaces=svc.GetWorkspaces()
+		workspaces=svc.workspaces
 		self.failUnless(len(workspaces)==0,"Workspaces present on construction")
 
 	def testCaseReadXML(self):
 		doc=APPDocument()
 		doc.Read(src=StringIO(SVC_EXAMPLE_1))
-		svc=doc.rootElement
+		svc=doc.root
 		self.failUnless(isinstance(svc,APPService),"Example 1 not a service")
-		wspace=svc.GetWorkspaces()
+		wspace=svc.workspaces
 		self.failUnless(len(wspace)==2,"Example 1 has no workspaces")
 		ws=wspace[0]
-		title=ws.GetTitle()
+		title=ws.title
 		self.failUnless(isinstance(title,atom.AtomText) and title.GetValue()=="Main Site","Example 1, workspace 1 title")
 		collections=ws.GetCollections()
 		self.failUnless(len(collections)==2,"Example 1, workspace 1 has no collections")
 		c=collections[0]
-		self.failUnless(isinstance(c,APPCollection) and c.GetHREF()=="http://example.org/blog/main","Collection type or href")
-		title=c.GetTitle()
+		self.failUnless(isinstance(c,APPCollection) and c.href=="http://example.org/blog/main","Collection type or href")
+		title=c.title
 		self.failUnless(isinstance(title,atom.AtomText) and title.GetValue()=="My Blog Entries","Collection title")
-		cats=c.GetCategories()
-		self.failUnless(isinstance(cats,APPCategories) and cats.GetHREF()=="http://example.com/cats/forMain.cats","Collection categories")
-		accepts=collections[1].GetAcceptList()
+		cats=c.categories
+		self.failUnless(isinstance(cats,APPCategories) and cats.href=="http://example.com/cats/forMain.cats","Collection categories")
+		accepts=collections[1].acceptList
 		self.failUnless(len(accepts)==3 and accepts[0].GetValue()=="image/png" and accepts[2].GetValue()=="image/gif","Collection accepts")
-		cats=wspace[1].GetCollections()[0].GetCategories()
-		self.failUnless(cats.IsFixed(),"Collection categories fixed")
-		catList=cats.GetCategoryList()
+		cats=wspace[1].GetCollections()[0].categories
+		self.failUnless(cats.fixed,"Collection categories fixed")
+		catList=cats.categoryList
 		self.failUnless(len(catList)==2,"Collection category list")
 		cat=catList[0]
-		self.failUnless(isinstance(cat,atom.AtomCategory) and cat.GetScheme()=="http://example.org/extra-cats/"
-			and cat.GetTerm()=="joke","Collection category 1")
+		self.failUnless(isinstance(cat,atom.AtomCategory) and cat.scheme=="http://example.org/extra-cats/"
+			and cat.term=="joke","Collection category 1")
 		cat=catList[1]
-		self.failUnless(isinstance(cat,atom.AtomCategory) and cat.GetScheme()=="http://example.org/extra-cats/"
-			and cat.GetTerm()=="serious","Collection category 2")
+		self.failUnless(isinstance(cat,atom.AtomCategory) and cat.scheme=="http://example.org/extra-cats/"
+			and cat.term=="serious","Collection category 2")
 
 
 class APPClientTests(unittest.TestCase):
@@ -263,14 +262,14 @@ class APPClientTests(unittest.TestCase):
 		doc=APPDocument(baseURI='http://localhost:%i/service'%HTTP_PORT)
 		client=APPClient()
 		doc.Read(reqManager=client)
-		svc=doc.rootElement
+		svc=doc.root
 		self.failUnless(isinstance(svc,APPService),"GET /service")
-		for ws in svc.GetWorkspaces():
+		for ws in svc.workspaces:
 			for c in ws.GetCollections():
 				feedDoc=APPDocument(baseURI=c.GetFeedURL())
 				feedDoc.Read(reqManager=client)
-				feed=feedDoc.rootElement
-				self.failUnless(isinstance(feed,atom.AtomFeed),"Collection not a feed for %s"%c.GetTitle().GetValue())
+				feed=feedDoc.root
+				self.failUnless(isinstance(feed,atom.AtomFeed),"Collection not a feed for %s"%c.title.GetValue())
 
 		
 if __name__ == "__main__":

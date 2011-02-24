@@ -102,24 +102,24 @@ class CPDocumentTests(unittest.TestCase):
 		doc=CPDocument()
 		self.failUnless(isinstance(doc,xmlns.XMLNSDocument))
 		doc=CPDocument(root=CPManifest)
-		root=doc.rootElement
+		root=doc.root
 		self.failUnless(isinstance(root,CPManifest))
 		
 	def testCaseExample1(self):
 		doc=CPDocument()
 		doc.Read(src=StringIO(EXAMPLE_1))
-		root=doc.rootElement
+		root=doc.root
 		self.failUnless(isinstance(root,CPManifest))
 		self.failUnless(root.ns==IMSCP_NAMESPACE and root.xmlname=='manifest')
-		self.failUnless(root.GetIdentifier()=='test')
+		self.failUnless(root.id=='test')
 		
 	def testCaseExample2(self):
 		doc=CPDocument()
 		doc.Read(src=StringIO(EXAMPLE_2))
-		resources=doc.rootElement.resources
+		resources=doc.root.resources
 		self.failUnless(len(resources.list)==1 and isinstance(resources.list[0],CPResource))
 		manifest=doc.GetElementByID("MANIFEST-QTI-1")
-		self.failUnless(doc.rootElement is manifest and isinstance(manifest,CPManifest))
+		self.failUnless(doc.root is manifest and isinstance(manifest,CPManifest))
 		resource=doc.GetElementByID("choice")
 		self.failUnless(resource is resources.list[0])
 	
@@ -127,8 +127,8 @@ class CPDocumentTests(unittest.TestCase):
 		doc=CPDocument()
 		doc.Read(src=StringIO(EXAMPLE_1))
 		manifest=doc.GetElementByID("test")
-		self.failUnless(doc.rootElement is manifest)
-		manifest.SetIdentifier("manifest")
+		self.failUnless(doc.root is manifest)
+		manifest.SetID("manifest")
 		self.failUnless(doc.GetElementByID("test") is None,"Old identifier still declared")
 		self.failUnless(doc.GetElementByID("manifest") is manifest,"New identifier not declared")
 
@@ -136,7 +136,7 @@ class CPDocumentTests(unittest.TestCase):
 class CPManifestTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		m=CPManifest(None)
-		self.failUnless(m.GetMetadata() is None,"Metadata present on construction")
+		self.failUnless(m.metadata is None,"Metadata present on construction")
 		self.failUnless(isinstance(m.organizations,CPOrganizations),"Organizations element required on construction")
 		self.failUnless(isinstance(m.resources,CPResources),"Resources element required on construction")
 		self.failUnless(len(m.childManifests)==0,"Child manifests present on construction")
@@ -149,13 +149,16 @@ class CPResourcesTests(unittest.TestCase):
 		
 	def testCaseNewResource(self):
 		doc=CPDocument(root=CPManifest)
-		resources=doc.rootElement.resources
+		resources=doc.root.resources
 		try:
-			resource=resources.CPResource('resource#1','imsqti_item_xmlv2p1')
+			resource=resources.CPResource()
+			resource.SetID('resource#1')
+			resource.Set_type('imsqti_item_xmlv2p1')
 			self.fail("Invalid Name for resource identifier")
 		except xmlns.XMLIDValueError:
 			pass
-		resource=resources.CPResource('resource_1','imsqti_item_xmlv2p1')
+		resource.SetID('resource_1')
+		resource.Set_type('imsqti_item_xmlv2p1')
 		self.failUnless(isinstance(resource,CPResource))
 		self.failUnless(doc.GetElementByID('resource_1') is resource)
 		self.failUnless(len(resources.list)==1 and resources.list[0] is resource)
@@ -213,11 +216,11 @@ class ContentPackageTests(unittest.TestCase):
 		# Ensure the temporary directory is cleaned up
 		self.dList.append(cp.dPath)
 		url=urlparse.urlsplit(cp.manifest.GetBase())
-		self.failUnless(isinstance(cp.manifest,xmlns.XMLNSDocument) and isinstance(cp.manifest.rootElement,CPManifest),"Constructor must create manifest")
+		self.failUnless(isinstance(cp.manifest,xmlns.XMLNSDocument) and isinstance(cp.manifest.root,CPManifest),"Constructor must create manifest")
 		self.failUnless(os.path.split(urllib.url2pathname(url.path))[1]=='imsmanifest.xml',"Manifest file name")
-		self.failUnless(isinstance(cp.manifest.rootElement,CPManifest),"Constructor must create manifest element")
-		id=cp.manifest.rootElement.GetIdentifier()
-		self.failUnless(cp.manifest.GetElementByID(id) is cp.manifest.rootElement,"Manifest identifief not declared")
+		self.failUnless(isinstance(cp.manifest.root,CPManifest),"Constructor must create manifest element")
+		id=cp.manifest.root.id
+		self.failUnless(cp.manifest.GetElementByID(id) is cp.manifest.root,"Manifest identifief not declared")
 		self.failUnless(os.path.isfile(urllib.url2pathname(url.path)),"Constructor must create manifest file")
 		#print 
 		#print file(urllib.url2pathname(url.path)).read()
@@ -227,23 +230,23 @@ class ContentPackageTests(unittest.TestCase):
 		cp=ContentPackage('package')
 		self.failUnless(os.path.abspath('package')==cp.dPath,"Constructor with existing directory, no manifest")
 		cp=ContentPackage('mpackage')
-		self.failUnless(cp.manifest.rootElement.GetIdentifier()=="MANIFEST-QTI-1","Constructor with existing directory and manifest")
+		self.failUnless(cp.manifest.root.id=="MANIFEST-QTI-1","Constructor with existing directory and manifest")
 		self.failUnless(cp.GetPackageName()=='mpackage',"Package name wrongly affected by manifest")
 		cp=ContentPackage(os.path.join('mpackage','imsmanifest.xml'))
 		self.failUnless(os.path.isdir(cp.dPath) and os.path.abspath('mpackage')==cp.dPath,"Constructor identifies pkg dir from manifest file")
-		self.failUnless(cp.manifest.rootElement.GetIdentifier()=="MANIFEST-QTI-1","Constructor from manifest file")
+		self.failUnless(cp.manifest.root.id=="MANIFEST-QTI-1","Constructor from manifest file")
 	
 	def testCaseUnicode(self):
 		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package1'))
-		resources=cp.manifest.rootElement.resources
+		resources=cp.manifest.root.resources
 		r=resources.list[0]
 		self.failUnless(len(r.fileList)==1)
 		f=r.fileList[0]
-		self.failUnless(isinstance(f,CPFile) and f.GetHREF()=="%E8%8B%B1%E5%9B%BD.xml","File path")
-		doc=xmlns.XMLDocument(baseURI=f.ResolveURI(f.GetHREF()))
+		self.failUnless(isinstance(f,CPFile) and f.href=="%E8%8B%B1%E5%9B%BD.xml","File path")
+		doc=xmlns.XMLDocument(baseURI=f.ResolveURI(f.href))
 		doc.Read()
-		self.failUnless(doc.rootElement.xmlname=='tag' and
-			doc.rootElement.GetValue()==u"Unicode Test: \u82f1\u56fd")
+		self.failUnless(doc.root.xmlname=='tag' and
+			doc.root.GetValue()==u"Unicode Test: \u82f1\u56fd")
 		cp2=ContentPackage(os.path.join(TEST_DATA_DIR,encode(u'\u82f1\u56fd','utf-8')))
 		self.failUnless(cp2.GetPackageName()==u'\u82f1\u56fd',"Unicode package name test")
 
@@ -253,12 +256,12 @@ class ContentPackageTests(unittest.TestCase):
 		# Ensure the temporary directory is cleaned up
 		self.dList.append(cp.dPath)
 		self.failUnless(cp.GetPackageName()=='Package1',"Zip extension not removed for name")
-		resources=cp.manifest.rootElement.resources
+		resources=cp.manifest.root.resources
 		f=resources.list[0].fileList[0]
-		doc=xmlns.XMLDocument(baseURI=f.ResolveURI(f.GetHREF()))
+		doc=xmlns.XMLDocument(baseURI=f.ResolveURI(f.href))
 		doc.Read()
-		self.failUnless(doc.rootElement.xmlname=='tag' and
-			doc.rootElement.GetValue()==u"Unicode Test: \u82f1\u56fd")
+		self.failUnless(doc.root.xmlname=='tag' and
+			doc.root.GetValue()==u"Unicode Test: \u82f1\u56fd")
 	
 	def testCaseZipWrite(self):
 		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package1.zip'))
@@ -266,12 +269,12 @@ class ContentPackageTests(unittest.TestCase):
 		cp.ExportToPIF('Package2.zip')
 		cp2=ContentPackage('Package2.zip')
 		self.dList.append(cp2.dPath)
-		resources=cp2.manifest.rootElement.resources
+		resources=cp2.manifest.root.resources
 		f=resources.list[0].fileList[0]
-		doc=xmlns.XMLDocument(baseURI=f.ResolveURI(f.GetHREF()))
+		doc=xmlns.XMLDocument(baseURI=f.ResolveURI(f.href))
 		doc.Read()
-		self.failUnless(doc.rootElement.xmlname=='tag' and
-			doc.rootElement.GetValue()==u"Unicode Test: \u82f1\u56fd")
+		self.failUnless(doc.root.xmlname=='tag' and
+			doc.root.GetValue()==u"Unicode Test: \u82f1\u56fd")
 	
 	def testCaseFileTable(self):
 		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package3'))

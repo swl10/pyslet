@@ -19,50 +19,93 @@ def IsValidNCName(name):
 		return False
 
 
+def AttributeNameKey(aname):
+	"""A nasty function to make sorting attribute names predictable."""
+	if type(aname) in StringTypes:
+		return (None,unicode(aname))
+	else:
+		return aname
+		
+
 class XMLNSElement(XMLElement):
-	def __init__(self,parent):
-		self.ns=None
-		XMLElement.__init__(self,parent)
-
-	def SetXMLName(self,xmlname):
-		if type(xmlname) in types.StringTypes:
+	def __init__(self,parent,name=None):
+		if type(name) in types.StringTypes:
 			self.ns=None
-			self.xmlname=xmlname
-		elif xmlname is None:
-			self.ns=self.xmlname=None
+		elif name is None:
+			if hasattr(self.__class__,'XMLNAME'):
+				self.ns,name=self.__class__.XMLNAME
+			else:
+				self.ns=None
 		else:
-			self.ns,self.xmlname=xmlname
+			self.ns,name=name
+		XMLElement.__init__(self,parent,name)
+		
+	def SetAttribute(self,name,value):
+		"""Sets the value of an attribute.
+		
+		Overrides the default behaviour by accepting a (ns,name) tuple
+		in addition to a plain string/unicode string name.
+		
+		Custom setters are called for attributes with no namespace, or
+		a namespace matching the current element's namespace.  Also,
+		XML namespace generates custom setter calls of the form Set_xml_aname
+		for compatibility with the default implementation.
+		
+		Custom setter cannot be defined for attriubtes from other namespaces,
+		these are subjet to default processing defined by XMLElement's
+		SetAttribute implementation."""
+		if type(name) in types.StringTypes:
+			ns=None
+			aname=name
+		else:
+			ns,aname=name
+		if ns is None or ns==self.ns:
+			setter=getattr(self,"Set_"+aname,None)
+		elif ns==XML_NAMESPACE:
+			setter=getattr(self,"Set_xml_"+aname,None)
+		else:
+			setter=None
+		if setter is None:
+			if hasattr(self.__class__,'ID') and name==self.__class__.ID:
+				self.SetID(value)
+			else:
+				self._attrs[name]=value
+		else:
+			setter(value)
 
-	def GetBase(self):
-		return self.attrs.get(xmlns_base,None)
-	
-	def SetBase(self,base):
-		if base is None:
-			self.attrs.pop(xmlns_base,None)
-		else:
-			self.attrs[xmlns_base]=base
-	
-	def GetLang(self):
-		return self.attrs.get(xmlns_lang,None)
-	
-	def SetLang(self,lang):
-		if lang is None:
-			self.attrs.pop(xmlns_lang,None)
-		else:
-			self.attrs[xmlns_lang]=lang
-	
-	def GetSpace(self):
-		return self.attrs.get(xmlns_space,None)
-	
-	def SetSpace(self,space):
-		if space is None:
-			self.attrs.pop(xmlns_space,None)
-		else:
-			self.attrs[xmlns_space]=space
-	
 	def IsValidName(self,value):
 		return IsValidNCName(value)
 
+	def SortNames(self,nameList):
+		nameList.sort(key=AttributeNameKey)
+
+	def GetBase(self):
+		return self._attrs.get(xmlns_base,None)
+	
+	def SetBase(self,base):
+		if base is None:
+			self._attrs.pop(xmlns_base,None)
+		else:
+			self._attrs[xmlns_base]=base
+	
+	def GetLang(self):
+		return self._attrs.get(xmlns_lang,None)
+	
+	def SetLang(self,lang):
+		if lang is None:
+			self._attrs.pop(xmlns_lang,None)
+		else:
+			self._attrs[xmlns_lang]=lang
+	
+	def GetSpace(self):
+		return self._attrs.get(xmlns_space,None)
+	
+	def SetSpace(self,space):
+		if space is None:
+			self._attrs.pop(xmlns_space,None)
+		else:
+			self._attrs[xmlns_space]=space
+	
 	def CheckOther(self,child,ns):
 		"""Checks child to ensure it satisfies ##other w.r.t. the given ns"""
 		return isinstance(child,XMLNSElement) and child.ns!=ns
@@ -83,14 +126,18 @@ class XMLNSElement(XMLElement):
 		return None
 	
 	def SetNSPrefix(self,ns,prefix,attributes,nsList):
-		if prefix is None:
+		if not prefix:
+			# None or empty string: so we don't make this the default if it has
+			# a preferred prefix defined in the document.
 			doc=self.GetDocument()
 			if doc:
-				prefix=doc.SuggestPrefix(ns)
+				newprefix=doc.SuggestPrefix(ns)
 				for nsi,prefixi in nsList:
-					if prefixi==prefix:
-						prefix=None
+					if prefixi==newprefix:
+						newprefix=None
 						break
+				if newprefix:
+					prefix=newprefix
 		if prefix is None:
 			prefix=self.SuggestNewPrefix(nsList)
 		if prefix:
@@ -130,12 +177,13 @@ class XMLNSElement(XMLElement):
 		"""Adds strings representing the element's attributes
 		
 		attributes is a list of unicode strings.  Attributes should be appended
-		as strins of the form 'name="value"' with values escaped appropriately
+		as strings of the form 'name="value"' with values escaped appropriately
 		for XML output.
 		
 		ns is a dictionary of pre-existing declared namespace prefixes.  This
 		includes any declarations made by the current element."""
-		keys=self.attrs.keys()
+		attrs=self.GetAttributes()
+		keys=attrs.keys()
 		keys.sort()
 		for a in keys:
 			if type(a) in types.StringTypes:
@@ -146,8 +194,8 @@ class XMLNSElement(XMLElement):
 				prefix=self.GetNSPrefix(ns,nsList)
 			if prefix is None:
 				prefix=self.SetNSPrefix(ns,None,attributes,nsList)
-			attributes.append('%s%s=%s'%(prefix,aname,saxutils.quoteattr(self.attrs[a])))
-		
+			attributes.append('%s%s=%s'%(prefix,aname,saxutils.quoteattr(attrs[a])))
+			
 	def WriteXML(self,f,indent='',tab='\t',nsList=None):
 		if tab:
 			ws='\n'+indent
@@ -189,7 +237,7 @@ class XMLNSElement(XMLElement):
 					ws=''
 				else:
 					child.WriteXML(f,indent,tab,nsList)
-			f.write('%s</%s>'%(ws,self.xmlname))
+			f.write('%s</%s%s>'%(ws,prefix,self.xmlname))
 		else:
 			f.write('%s<%s%s%s/>'%(ws,prefix,self.xmlname,attributes))
 		nsList=nsList[-nsListLen:]
@@ -237,15 +285,17 @@ class XMLNSDocument(XMLDocument):
 		parent=self.cObject
 		self.objStack.append(self.cObject)
 		if self.data:
-			parent.AddChild(string.join(self.data,''))
+			parent.AddData(string.join(self.data,''))
 			self.data=[]
 		if name[0] is None:
 			name=(self.defaultNS,name[1])
-		#print name, qname, attrs
-		#eClass=self.classMap.get(name,self.classMap.get((name[0],None),XMLElement))
 		eClass=self.GetElementClass(name)
-		self.cObject=eClass(parent)
-		self.cObject.SetXMLName(name)
+		try:
+			self.cObject=parent.ChildElement(eClass,name)
+		except TypeError:
+			raise TypeError("Can't create %s in %s"%(eClass.__name__,parent.__class__.__name__))
+		if self.cObject is None:
+			raise ValueError("None when creating %s in %s"%(eClass.__name__,parent.__class__.__name__))
 		for attr in attrs.keys():
 			if attr[0] is None:
 				self.cObject.SetAttribute(attr[1],attrs[attr])
@@ -258,8 +308,7 @@ class XMLNSDocument(XMLDocument):
 		else:
 			parent=None
 		if self.data:
-			self.cObject.AddChild(string.join(self.data,''))
+			self.cObject.AddData(string.join(self.data,''))
 			self.data=[]
 		self.cObject.GotChildren()
-		parent.AddChild(self.cObject)
 		self.cObject=parent

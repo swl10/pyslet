@@ -21,7 +21,6 @@ class QTITests(unittest.TestCase):
 class QTIElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		e=QTIElement(None)
-		self.failUnless(e.ns==IMSQTI_NAMESPACE,'ns on construction')
 		
 
 EXAMPLE_1="""<?xml version="1.0" encoding="utf-8"?>
@@ -67,14 +66,14 @@ class QTIDocumentTests(unittest.TestCase):
 	def testCaseExample1(self):
 		doc=QTIDocument()
 		doc.Read(src=StringIO(EXAMPLE_1))
-		root=doc.rootElement
+		root=doc.root
 		self.failUnless(isinstance(root,QTIAssessmentItem))
 		self.failUnless(root.ns==IMSQTI_NAMESPACE and root.xmlname=='assessmentItem')
 
 	def testCaseExample2(self):
 		doc=QTIDocument()
 		doc.Read(src=StringIO(EXAMPLE_2))
-		vardefs=doc.rootElement.GetDeclarations()
+		vardefs=doc.root.declarations
 		self.failUnless(len(vardefs.keys())==1 and isinstance(vardefs['RESPONSE'],QTIResponseDeclaration))
 	
 

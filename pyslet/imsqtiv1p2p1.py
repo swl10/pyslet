@@ -5,6 +5,7 @@
 
 import pyslet.xml20081126 as xml
 import pyslet.imsqtiv2p1 as qtiv2
+import pyslet.imsmdv1p2p1 as imsmd
 
 import string, codecs
 import os.path, urllib
@@ -14,11 +15,8 @@ qti_comment='qticomment'
 qti_item='item'
 qti_questestinterop='questestinterop'
 
-# Attribute names
-
-qti_ident='ident'
+# Attribute definitions
 # <!ENTITY % I_Ident " ident CDATA  #REQUIRED">
-qti_title='title'
 # <!ENTITY % I_Title " title CDATA  #IMPLIED">
 
 
@@ -44,42 +42,61 @@ def MakeValidName(name):
 
 class QTIElement(xml.XMLElement):
 	"""Basic element to represent all QTI elements"""  
-	def __init__(self,parent):
-		xml.XMLElement.__init__(self,parent)
+	def __init__(self,parent,name=None):
+		xml.XMLElement.__init__(self,parent,name)
 
 
-class QTIQuesTestInterop(QTIElement):
+class QTIComment(QTIElement):
+	XMLNAME=qti_comment
+
+class QTICommentElement(QTIElement):
+	"""Basic element to represent all QTI elements that can contain a comment"""
+	def __init__(self,parent,name):
+		QTIElement.__init__(self,parent,name)
+		self.comment=None
+
+	def GetChildren(self):
+		if self.comment:
+			return [self.comment]
+		else:
+			return []
+			
+	def QTIComment(self,name=None):
+		if self.comment:
+			child=self.comment
+		else:
+			child=QTIComment(self,name)
+			self.comment=child
+		return child
+
+
+	
+class QTIQuesTestInterop(QTICommentElement):
 	"""<!ELEMENT questestinterop (qticomment? , (objectbank | assessment | (section | item)+))>"""
 	
 	XMLNAME=qti_questestinterop
 
-	def __init__(self,parent):
-		QTIElement.__init__(self,parent)
-		self.comment=None
+	def __init__(self,parent,name=None):
+		QTICommentElement.__init__(self,parent,name)
 		self.objectBank=None
 		self.assessment=None
 		self.objectList=[]
-		
-	def GetComment(self):
-		return self.comment
-
-	def GetObjectBank(self):
-		return self.objectBank
-
-	def GetAssessment(self):
-		return self.assessment
-
-	def GetObjectList(self):
-		return self.objectList
-
-	def AddChild(self,child):
-		if isinstance(child,QTIItem):
-			self.objectList.append(child)
-		elif isinstance(child,QTIComment):
-			self.comment=child
+	
+	def GetChildren(self):
+		children=QTICommentElement.GetChildren(self)
+		if self.objectBank:
+			children.append(self.objectBank)
+		elif self.assessment:
+			children.append(self.assessment)
 		else:
-			QTIElement.AddChild(self,child)
+			children=children+self.objectList
+		return children
 
+	def QTIItem(self,name=None):
+		child=QTIItem(self,name)
+		self.objectList.append(child)
+		return child
+		
 	def MigrateV2(self):
 		"""Converts this element to QTI v2
 		
@@ -105,11 +122,14 @@ class QTIQuesTestInterop(QTIElement):
 					pass
 			elif len(self.objectList)==1:
 				# Add this comment to this object's metdata description
-				pass
+				doc,lom,log=output[0]
+				general=lom.LOMGeneral()
+				description=general.LOMDescription().LangString()
+				description.SetValue(self.comment.GetValue())
 		return output
 
 
-class QTIItem(QTIElement):
+class QTIItem(QTICommentElement):
 	"""
 	<!ELEMENT item (qticomment? , duration? , itemmetadata? , objectives* , itemcontrol* , itemprecondition* , itempostcondition* , (itemrubric | rubric)* , presentation? , resprocessing* , itemproc_extension? , itemfeedback* , reference?)>
 
@@ -120,30 +140,56 @@ class QTIItem(QTIElement):
 		xml:lang    CDATA  #IMPLIED >"""
 	XMLNAME=qti_item
 
+	def __init__(self,parent,name=None):
+		QTICommentElement.__init__(self,parent,name)
+		self.label=None
+		self.ident=None
+		self.title=None
+	
+	def GetAttribute(self):
+		attrs=QTICommentElement.GetAttributes(self)
+		if self.label:
+			attrs['label']=self.label
+		if self.ident:
+			attrs['ident']=self.ident
+		if self.title:
+			attrs['title']=self.title
+
+	def Set_label(self,value):
+		self.label=value
+		
+	def Set_ident(self,value):
+		self.ident=value
+		
+	def Set_title(self,value):
+		self.title=value
+		
 	def MigrateV2(self):
 		"""Converts this item to QTI v2
 		
 		For details, see QTIQuesTestInterop.MigrateV2."""
 		doc=qtiv2.QTIDocument(root=qtiv2.QTIAssessmentItem)
-		item=doc.rootElement
-		metadata=None
+		item=doc.root
+		lom=imsmd.LOM(None)
 		log=[]
-		value=self.GetAttribute(qti_ident)
+		value=self.ident
 		newValue=qtiv2.MakeValidNCName(value)
 		if value!=newValue:
 			log.append("Warning: illegal NCName for ident: %s, replaced with: %s"%(value,newValue))
 		identifier=newValue
-		item.SetIdentifier(identifier)			
-		value=self.GetAttribute(qti_title)
+		item.Set_identifier(identifier)
+		value=self.title
 		if value is None:
 			value=identifier
-		item.SetTitle(value)
-		return (doc, metadata, log)
+		item.Set_title(value)
+		# A comment on an item is added as a description to the metadata
+		if self.comment:
+			general=lom.LOMGeneral()
+			description=general.LOMDescription().LangString()
+			description.SetValue(self.comment.GetValue())						
+		return (doc, lom, log)
 		
 		
-class QTIComment(QTIElement):
-	XMLNAME=qti_comment
-
 
 class QTIDocument(xml.XMLDocument):
 	def __init__(self,**args):
@@ -170,8 +216,8 @@ class QTIDocument(xml.XMLDocument):
 		"""Converts the contents of this document to QTI v2
 		
 		The output is stored into the content package passed in cp."""
-		if isinstance(self.rootElement,QTIQuesTestInterop):
-			results=self.rootElement.MigrateV2()
+		if isinstance(self.root,QTIQuesTestInterop):
+			results=self.root.MigrateV2()
 			# list of tuples ( <QTIv2 Document>, <Metadata>, <Log Messages> )
 			if results:
 				# Make a directory to hold the files (makes it easier to find unique names for media files)
@@ -182,7 +228,12 @@ class QTIDocument(xml.XMLDocument):
 				dName,ext=os.path.splitext(dName)
 				dName=cp.GetUniqueFile(dName)
 				for doc,metadata,log in results:
-					doc.AddToContentPackage(cp,dName)
+					# ** Add the log as an annotation in the metadata
+					for logEntry in log:
+						a=metadata.LOMAnnotation()
+						description=a.LOMDescription()
+						a.LangString(logEntry)						
+					doc.AddToContentPackage(cp,metadata,dName)
 		else:
 			pass
 		

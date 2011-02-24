@@ -47,7 +47,7 @@ class XMLNSDocumentTests(unittest.TestCase):
 		"""Test the reading of the XMLNSDocument from a supplied stream"""
 		d=XMLNSDocument()
 		d.Read(src=StringIO(EXAMPLE_1))
-		root=d.rootElement
+		root=d.root
 		self.failUnless(isinstance(root,XMLNSElement))
 		self.failUnless(root.ns==None and root.xmlname=='tag' and root.GetValue()=='Hello World')
 

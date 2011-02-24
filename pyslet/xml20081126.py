@@ -7,7 +7,7 @@ import urlparse, urllib,  os.path
 from sys import maxunicode
 import codecs, random
 from types import StringTypes
-
+from copy import copy
 
 xml_base='xml:base'
 xml_lang='xml:lang'
@@ -18,6 +18,11 @@ XML_MIMETYPES={
 	'application/xml':True,
 	'text/application+xml':True	
 	}
+
+XMLMixedContent=0
+XMLElementContent=1
+XMLEmpty=2
+
 	
 class XMLError(Exception): pass
 
@@ -26,8 +31,10 @@ class XMLIDClashError(XMLError): pass
 class XMLIDValueError(XMLError): pass
 class XMLMissingLocationError(XMLError): pass
 class XMLMixedContentError(XMLError): pass
+class XMLParentError(XMLError): pass
 class XMLUnexpectedHTTPResponse(XMLError): pass
 class XMLUnsupportedSchemeError(XMLError): pass
+class XMLValidationError(XMLError): pass
 
 from pyslet.unicode5 import CharClass
 from pyslet import rfc2616 as http
@@ -238,31 +245,299 @@ def RelPath(basePath,urlPath,touchRoot=False):
 	else:
 		return string.join(result,'/')		
 
-	
 class XMLElement:
-	def __init__(self,parent):
+	def __init__(self,parent,name=None):
 		self.parent=parent
-		if hasattr(self.__class__,'XMLNAME'):
-			self.SetXMLName(self.__class__.XMLNAME)
+		if name is None and hasattr(self.__class__,'XMLNAME'):
+			self.xmlname=self.__class__.XMLNAME
 		else:
-			self.SetXMLName(None)
-		self.attrs={}
-		self.children=[]
+			self.xmlname=name
+		self.id=None
+		self._attrs={}
+		self._children=[]		
+			
+	def GetDocument(self):
+		"""Returns the document that contains the element.
+		
+		If the element is an orphan, or is the descendent of an orphan
+		then None is returned."""
+		if self.parent:
+			if isinstance(self.parent,XMLDocument):
+				return self.parent
+			else:
+				return self.parent.GetDocument()
+		else:
+			return None
+
+	def SetID(self,id):
+		"""Sets the id of the element, registering the change with the enclosing document.
+		
+		If the id is already taken then XMLIDClashError is raised."""
+		if not self.IsValidName(id):
+			raise XMLIDValueError(id)
+		doc=self.GetDocument()
+		if doc:
+			doc.UnregisterElement(self)
+			self.id=id
+			doc.RegisterElement(self)
+		else:
+			self.id=id
+		
+	def GetAttributes(self):
+		"""Returns a dictionary object that maps attribute names onto values.
+		
+		Each attribute value is represented as a (possibly unicode) string.
+		Derived classes should override this method if they define any custom
+		attribute setters.
+		
+		The dictionary returned represents a copy of the information in the element
+		and so may be modified by the caller."""
+		attrs=copy(self._attrs)
+		if self.id:
+			attrs[self.__class__.ID]=self.id
+		return attrs
+
+	def SetAttribute(self,name,value):
+		"""Sets the value of an attribute.
+		
+		The attribute name is assumed to be a string or unicode string.  The
+		default implementation checks for a custom setter and calls it if
+		defined and does no further processing.  A custom setter is a method of
+		the form Set_aname.
+		
+		XML attribute names may contain many characters that are not legal in
+		Python method names but, in practice, the only significant limitation is
+		the colon.  This is replaced by '_' before searching for a custom setter.
+		
+		If no custom setter is defined then the default processing stores the
+		attribute in a local dictionary, a copy of which can be obtained with
+		the GetAttributes method.  Additionally, if the class has an ID
+		attribute it is used as the name of the attribute that represents the
+		element's ID.  ID handling is performed automatically at document level
+		and the element's 'id' attribute set accordingly."""
+		setter=getattr(self,"Set_"+name,None)
+		if setter is None:
+			if hasattr(self.__class__,'ID') and name==self.__class__.ID:
+				self.SetID(value)
+			else:
+				self._attrs[name]=value
+		else:
+			setter(value)
 	
+	def IsValidName(self,value):
+		return IsValidName(value)
+
+	def IsEmpty(self):
+		"""Returns True/False indicating whether this element *must* be empty.
+		
+		If the class defines the XMLCONTENT attribute then the model is taken
+		from there and this method return True only if XMLCONTENT is XMLEmpty.
+		
+		Otherwise, the method defaults to False"""
+		if hasattr(self.__class__,'XMLCONTENT'):
+			return self.__class__.XMLCONTENT==XMLEmpty
+		else:
+			return False
+		
+	def IsMixed(self):
+		"""Indicates whether or not the element *may* contain mixed content.
+		
+		If the class defines the XMLCONTENT attribute then the model is taken
+		from there and this method return True only if XMLCONTENT is
+		XMLMixedContent.
+		
+		Otherwise, the method default ot True"""
+		if hasattr(self.__class__,'XMLCONTENT'):
+			return self.__class__.XMLCONTENT==XMLMixedContent
+		else:
+			return True
+
+	def GetChildren(self):
+		"""Returns a list of the element's children.
+		
+		This method returns a copy of local list of children and so may be
+		modified by the caller.  Derived classes with custom factory methods
+		must override this method.
+
+		Each child is either a string type, unicode string type or instance of
+		XMLElement (or a derived class thereof)"""
+		return copy(self._children)
+
+	def ChildElement(self,childClass,name=None):
+		"""Returns a new child of the given class attached to this element.
+		
+		A new child is created and attached to the element's model unless the
+		model supports a single element of the given childClass and the element
+		already exists, in which case the existing instance is returned.
+		
+		childClass is a class (or callable) used to create a new instance.
+		
+		name is the name given to the element (by the caller).  If no name is
+		given then the default name for the child should be used.  When the
+		child returned is an existing instance name is ignored.
+		
+		The default implementation checks for a custom factory method and calls
+		it if defined and does no further processing.  A custom factory method
+		is a method of the form ClassName.
+		
+		If no custom factory method is defined then the default processing
+		simply creates an instance of child (if necessary) setting its name
+		accordingly and attaches it to the local list of children."""
+		if self.IsEmpty():
+			self.ValidationError("Unexpected child element",name)
+		factory=getattr(self,childClass.__name__,None)
+		if factory is None:
+			try:
+				child=childClass(self,name)
+			except TypeError:
+				raise TypeError("Can't create %s in %s"%(childClass.__name__,self.__class__.__name__))
+			self._children.append(child)
+			return child
+		else:
+			return factory(name)	
+	
+	def AdoptChild(self,child):
+		"""Attaches an existing orphan child element to this one.
+		
+		The default implementation checks for a custom adoption method and
+		calls it if defined and does no further processing.  A custom adoption
+		method is a method of the form Adopt_ClassName.
+		
+		If no custom adoption method exists and the element is not empty then
+		child is added to the local list of children."""
+		if child.parent:
+			raise XMLParentError
+		elif self.IsEmpty():
+			self.ValidationError("Unexpected child element",child.xmlname)
+		adopter=getattr(self,"Adopt_"+child.__class__.__name__,None)
+		if adopter is None:
+			child.parent=self
+			child.AttachToDocument()
+			self._children.append(child)
+		else:
+			return adopter(child)
+			
+	def AttachToDocument(self,doc=None):
+		"""Called when the element is first attached to a document.
+		
+		The default implementation ensures that any ID attributes belonging
+		to this element or its descendents are registered."""
+		if doc is None:
+			doc=self.GetDocument()
+		if doc:
+			if self.id:
+				doc.RegisterElement(self)
+			for child in self.GetChildren():
+				if isinstance(child,XMLElement):
+					child.AttachToDocument(doc)
+	
+	def DetachFromDocument(self,doc=None):
+		"""Called when an element is being detached from a document.
+		
+		The default implementation ensure that an ID attributes belonging
+		to this element or its descendents are unregistered."""
+		if doc is None:
+			doc=self.GetDocument()
+		if doc:
+			if self.id:
+				doc.UnregisterElement(self)
+			for child in self.GetChildren():
+				if isinstance(child,XMLElement):
+					child.DetachFromDocument(doc)
+		
+	def AddData(self,data):
+		"""Adds a string or unicode string to this element's children.
+		
+		If the element does not have mixed content then the data is ignored if
+		it is white space, otherwise, ValidationError is called with the
+		offending data."""
+		if self.IsMixed():
+			self._children.append(data)
+		else:
+			ws=True
+			for c in data:
+				if not IsS(c):
+					ws=False
+			if not ws:
+				self.ValidationError("Unexpected data",data)
+
+	def GotChildren(self):
+		"""Notifies an element that all children have been added or created."""
+		pass
+	
+	def GetValue(self):
+		"""Returns a single unicode string representing the element's data.
+		
+		If the element contains child elements XMLMixedContentError is raised.
+		
+		If the element is empty None is returned."""		
+		children=self.GetChildren()
+		for child in children:
+			if not type(child) in StringTypes:
+				raise XMLMixedContentError
+		if children:
+			return string.join(map(unicode,children),'')
+		else:
+			return None
+
+	def SetValue(self,value):
+		"""Replaces the value of the element with the (unicode) value.
+		
+		If the element has mixed content then XMLMixedContentError is
+		raised."""
+		if not self.IsMixed():
+			raise XMLMixedContentError
+		children=self.GetChildren()
+		if len(children)!=len(self._children):
+			raise XMLMixedContentError
+		for child in children:
+			if isinstance(child,XMLElement):
+				child.DetachFromDocument()
+				child.parent=None
+		self._children=[unicode(value)]
+
+	def ValidationError(self,msg,data=None,aname=None):
+		"""Indicates that a validation error occurred in this element.
+		
+		An error message indicates the nature of the error.
+
+		The data that caused the error may be given in data.
+		
+		Furthermore, the  attribute name may also be given indicating that the
+		offending data was in an attribute of the element and not the element
+		itself."""
+		doc=self.GetDocument()
+		if doc:
+			doc.ValidationError(msg,self,data,aname)
+		else:
+			raise XMLValidationError(msg)
+			
+
+	def SortNames(self,nameList):
+		"""Given a list of element or attribute names, sorts them in a predictable order
+		
+		The default implementation assumes that the names are strings or unicode strings
+		so uses the default sort method."""
+		nameList.sort()
+		
 	def __cmp__(self,element):
 		"""Compares element with this one.
 		
 		XMLELement can only be compared with other XMLElements."""
 		if not isinstance(element,XMLElement):
 			raise TypeError
+		#print "Comparing: <%s>, <%s>"%(str(self.xmlname),str(element.xmlname))
 		result=cmp(self.xmlname,element.xmlname)
 		if result:
 			return result
 		# sort and compare all attributes
-		selfAttrNames=self.attrs.keys()
-		selfAttrNames.sort()
-		elementAttrNames=element.attrs.keys()
-		elementAttrNames.sort()
+		selfAttrs=self.GetAttributes()
+		selfAttrNames=selfAttrs.keys()
+		self.SortNames(selfAttrNames)
+		elementAttrs=element.GetAttributes()
+		elementAttrNames=elementAttrs.keys()
+		element.SortNames(elementAttrNames)
+		#print "Comparing attributes: \n%s\n...\n%s"%(str(selfAttrNames),str(elementAttrNames))
 		for i in xrange(len(selfAttrNames)):
 			if i>=len(elementAttrNames):
 				# We're bigger by virtue of having more attributes!
@@ -272,7 +547,7 @@ class XMLElement:
 			result=cmp(selfAName,elementAName)
 			if result:
 				return result
-			result=cmp(self.attrs[selfAName],element.attrs[selfAName])
+			result=cmp(selfAttrs[selfAName],elementAttrs[selfAName])
 			if result:
 				return result
 		if len(elementAttrNames)>len(selfAttrNames):
@@ -284,7 +559,16 @@ class XMLElement:
 			if i>=len(elementChildren):
 				# We're bigger by virtue of having more children
 				return 1
-			result=cmp(selfChildren[i],elementChildren[i])
+			if isinstance(selfChildren[i],XMLElement):
+				if isinstance(elementChildren[i],XMLElement):
+					result=cmp(selfChildren[i],elementChildren[i])
+				else:
+					# elements sort before data
+					return -1
+			elif isinstance(elementChildren[i],XMLElement):
+				return 1
+			if result:
+				return result
 		if len(elementChildren)>len(selfChildren):
 			return -1
 		# Name, all attributes and child elements match!!
@@ -296,29 +580,14 @@ class XMLElement:
 		self.WriteXML(s)
 		return s.getvalue()
 		
-	def SetXMLName(self,xmlname):
-		self.xmlname=xmlname
-
-	def GetDocument(self):
-		if self.parent:
-			if isinstance(self.parent,XMLDocument):
-				return self.parent
-			else:
-				return self.parent.GetDocument()
-		else:
-			return None
-
-	def GetChildren(self):
-		return self.children
-		
 	def GetBase(self):
-		return self.attrs.get(xml_base,None)
+		return self._attrs.get(xml_base,None)
 	
 	def SetBase(self,base):
 		if base is None:
-			self.attrs.pop(xml_base,None)
+			self._attrs.pop(xml_base,None)
 		else:
-			self.attrs[xml_base]=str(base)
+			self._attrs[xml_base]=str(base)
 
 	def ResolveBase(self):
 		"""Returns a fully specified URI for the base of the current element.
@@ -407,123 +676,34 @@ class XMLElement:
 		return ""		
 
 	def GetLang(self):
-		return self.attrs.get(xml_lang,None)
+		return self._attrs.get(xml_lang,None)
 	
 	def SetLang(self,lang):
 		if lang is None:
-			self.attrs.pop(xml_lang,None)
+			self._attrs.pop(xml_lang,None)
 		else:
-			self.attrs[xml_lang]=lang
+			self._attrs[xml_lang]=lang
 	
 	def GetSpace(self):
-		return self.attrs.get(xml_space,None)
+		return self._attrs.get(xml_space,None)
 	
 	def SetSpace(self,space):
 		if space is None:
-			self.attrs.pop(xml_space,None)
+			self._attrs.pop(xml_space,None)
 		else:
-			self.attrs[xml_space]=space
+			self._attrs[xml_space]=space
 	
-	def GetAttributes(self):
-		return self.attrs
-
-	def GetAttribute(self,name):
-		return self.attrs.get(name,None)
-
-	def SetAttribute(self,name,value):
-		oldValue=self.attrs.pop(name,None)
-		if hasattr(self.__class__,'ID') and name==self.__class__.ID:
-			# This is an ID attribute
-			if not self.IsValidName(value):
-				raise XMLIDValueError(value)
-			doc=self.GetDocument()
-			if doc and value!=oldValue:
-				if oldValue:
-					doc.UnregisterElementID(oldValue)
-				doc.RegisterElementID(self,value)
-		self.attrs[name]=value
-				
-	def IsValidName(self,value):
-		return IsValidName(value)
-	
-	def GetChildren(self):
-		"""Returns a tuple of the element's children.
-		
-		This method returns a tuple to highlight the fact that the
-		list cannot be manipulated directly."""
-		return tuple(self.children)
-		
-	def AddChild(self,child):
-		self.children.append(child)
-
-	def ValidationError(self,parent,child):
-		"""May be called when you attempt to add child to parent in error."""
-		if type(child) in StringTypes:
-			if not child.strip():
-				# white space is ignorable anywhere
-				return
-		doc=self.GetDocument()
-		if doc:
-			doc.ValidationError(parent,child)
-			
-	def GotChildren(self):
-		# called when all children have been parsed
-		pass
-	
-	def IsEmpty(self):
-		return len(self.GetChildren())==0
-		
-	def IsMixed(self):
-		element=cdata=False
-		for child in self.GetChildre():
-			if isinstance(child,XMLElement):
-				element=True
-			elif type(child) in StringTypes:
-				cdata=True
-		return element and cdata
-
-	def GetValue(self):
-		"""Returns a single unicode string representing the element's data.
-		
-		If the element contains child elements XMLMixedContentError is raised.
-		
-		If the element is empty None is returned."""		
-		children=self.GetChildren()
-		for child in children:
-			if not type(child) in StringTypes:
-				raise XMLMixedContentError
-		if children:
-			return string.join(map(unicode,children),'')
-		else:
-			return None
-
-	def SetValue(self,value):
-		"""Deletes all children and replaces them with the (unicode) value"""
-		self.DeleteAllChildren()
-		self.AddChild(unicode(value))
-
-	def DeleteChild(self,child):
-		for i in xrange(len(self.children)):
-			if self.children[i] is child:
-				child.parent=None
-				del self.children[i]
-				break
-				
-	def DeleteAllChildren(self):
-		"""Deletes all children of this element"""
-		for child in self.GetChildren():
-			self.DeleteChild(child)
-		
 	def WriteXMLAttributes(self,attributes):
 		"""Adds strings representing the element's attributes
 		
 		attributes is a list of unicode strings.  Attributes should be appended
 		as strings of the form 'name="value"' with values escaped appropriately
 		for XML output."""
-		keys=self.attrs.keys()
-		keys.sort()
+		attrs=self.GetAttributes()
+		keys=attrs.keys()
+		self.SortNames(keys)
 		for a in keys:
-			attributes.append('%s=%s'%(a,saxutils.quoteattr(self.attrs[a])))
+			attributes.append('%s=%s'%(a,saxutils.quoteattr(attrs[a])))
 		
 	def WriteXML(self,f,indent='',tab='\t'):
 		if tab:
@@ -548,7 +728,7 @@ class XMLElement:
 				# First character is WS, so assume pre-formatted
 				indent=tab=''
 			f.write('%s<%s%s>'%(ws,self.xmlname,attributes))
-			for child in self.children:
+			for child in children:
 				if type(child) in types.StringTypes:
 					f.write(child)
 					# if we have character data content skip closing ws
@@ -584,9 +764,9 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		if root:
 			if not issubclass(root,XMLElement):
 				raise ValueError
-			self.rootElement=root(self)
+			self.root=root(self)
 		else:
-			self.rootElement=None
+			self.root=None
 		self.SetBase(baseURI)
 		#self.parser.setEntityResolver(self)
 		self.idTable={}
@@ -606,11 +786,25 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 	def GetElementClass(self,name):
 		"""Returns a class object suitable for representing name
 		
-		name is a tuple of (namespace, name)
+		name is a unicode string representing the element name.
 		
 		The default implementation returns XMLElement."""
 		return XMLElement
-				
+
+	def ChildElement(self,childClass,name=None):
+		"""Creates the root element of the given document.
+		
+		The signature of this method matches the ChildElement method of
+		XMLElement but no custom factory method mechanism exists.  If there
+		is already a root element it is detached from the document first."""
+		if self.root:
+			self.root.DetachFromDocument()
+			self.root.parent=None
+			self.root=None
+		child=childClass(self,name)
+		self.root=child
+		return self.root
+		
 	def SetBase(self,baseURI):
 		"""Sets the baseURI of the document to the given URI.
 		
@@ -627,26 +821,27 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 	def GetBase(self):
 		return self.baseURI
 		
-	def AddChild(self,child):
-		if isinstance(child,XMLElement):
-			self.rootElement=child
-	
-	def ValidationError(self,parent,child):
-		"""May be called when you attempt to add child to parent in error.
-		
+	def ValidationError(self,msg,element,data=None,aname=None):
+		"""Called when a validation error is triggered by element.
+
 		This method is designed to be overriden to implement custom error
 		handling or logging (which is likely to be added in future to this
-		module)."""
+		module).
+
+		msg contains a brief message suitable for describing the error in a log
+		file.  data and aname have the same meanings as
+		XMLElement.ValidationError."""
 		pass
 		
-	def RegisterElementID(self,element,id):
-		if self.idTable.has_key(id):
+	def RegisterElement(self,element):
+		if self.idTable.has_key(element.id):
 			raise XMLIDClashError
 		else:
-			self.idTable[id]=element
+			self.idTable[element.id]=element
 	
-	def UnregisterElementID(self,id):
-		del self.idTable[id]
+	def UnregisterElement(self,element):
+		if element.id:
+			del self.idTable[element.id]
 	
 	def GetElementByID(self,id):
 		return self.idTable.get(id,None)
@@ -707,13 +902,10 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		parent=self.cObject
 		self.objStack.append(self.cObject)
 		if self.data:
-			parent.AddChild(string.join(self.data,''))
+			parent.AddData(string.join(self.data,''))
 			self.data=[]
-		#print name, qname, attrs
-		#eClass=self.classMap.get(name,self.classMap.get((name[0],None),XMLElement))
 		eClass=self.GetElementClass(name)
-		self.cObject=eClass(parent)
-		self.cObject.SetXMLName(name)
+		self.cObject=parent.ChildElement(eClass,name)
 		for attr in attrs.keys():
 			self.cObject.SetAttribute(attr,attrs[attr])
 
@@ -726,10 +918,9 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		else:
 			parent=None
 		if self.data:
-			self.cObject.AddChild(string.join(self.data,''))
+			self.cObject.AddData(string.join(self.data,''))
 			self.data=[]
 		self.cObject.GotChildren()
-		parent.AddChild(self.cObject)
 		self.cObject=parent
 			
 	def Create(self,dst=None,**args):
@@ -755,8 +946,8 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 			f.write('<?xml version="1.0" encoding="utf-8"?>')
 		else:
 			f.write('<?xml version="1.0" encoding="utf-8"?>\n')
-		if self.rootElement:
-			self.rootElement.WriteXML(f,'',tab)
+		if self.root:
+			self.root.WriteXML(f,'',tab)
 	
 	def Update(self,reqManager=None):
 		pass

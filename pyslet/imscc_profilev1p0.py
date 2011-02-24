@@ -35,10 +35,10 @@ class CommonCartridge:
 		resources.  Any other resources are treated as passengers."""		
 		self.cwcList=[]
 		self.laoTable={}
-		resources=self.cp.manifest.rootElement.resources
+		resources=self.cp.manifest.root.resources
 		# First pass is a search for CWCs and LAOs
 		for r in resources.list:
-			rType=r.GetType()
+			rType=r.type
 			if rType==AssociatedContentType:
 				# Associated content is linked from the LAO later
 				continue
@@ -59,11 +59,11 @@ class CommonCartridge:
 			acr=None
 			depList=r.dependencies
 			for dep in depList:
-				rDep=self.cp.manifest.GetElementByID(dep.GetIdentifierRef())
-				if isinstance(rDep,imscp.CPResource) and rDep.GetType()==AssociatedContentType:
+				rDep=self.cp.manifest.GetElementByID(dep.identifierref)
+				if isinstance(rDep,imscp.CPResource) and rDep.type==AssociatedContentType:
 					acr=rDep
 					break
-			self.laoTable[r.GetIdentifier()]=[head,acr]
+			self.laoTable[r.id]=[head,acr]
 		
 	def Close(self):
 		if self.cp:
@@ -130,7 +130,7 @@ class CCTestCase(unittest.TestCase):
 			dPath,acr=self.cc.laoTable[lao]
 			if acr is None:
 				continue
-			self.failIf(len(acr.dependencies)>0,acr.GetIdentifier())
+			self.failIf(len(acr.dependencies)>0,acr.id)
 
 	def test1_4_LAO_1(self):
 		"""A resource that represents a Learning Application Object has the
@@ -160,7 +160,7 @@ class CCTestCase(unittest.TestCase):
 				fList=self.cc.cp.fileTable[fPath]
 				foundResource=False
 				for f in fList:
-					if f.parent.GetType()!=AssociatedContentType:
+					if f.parent.type!=AssociatedContentType:
 						continue
 					if f.parent in acrList:
 						continue
@@ -183,7 +183,7 @@ class CCTestCase(unittest.TestCase):
 			acrList=self.GetACRListForDirectory(dPath)
 			# Now we must have a dependency for each element of acrList
 			for d in laoResource.dependencies:
-				acr=self.cc.cp.manifest.GetElementByID(d.GetIdentifierRef())
+				acr=self.cc.cp.manifest.GetElementByID(d.identifierref)
 				if acr in acrList:
 					del acrList[acrList.index(acr)]
 			self.failIf(len(acrList))
@@ -206,8 +206,11 @@ class CCTestCase(unittest.TestCase):
 				# And hence all associated content dependencies in lao must be to
 				# the single acr in this list.
 				for d in laoResource.dependencies:
-					acr=self.cc.cp.manifest.GetElementByID(d.GetIdentifierRef())
-					if acr.GetType()!=AssociatedContentType:
+					acr=self.cc.cp.manifest.GetElementByID(d.identifierref)
+					if acr is None:
+						print d.identifierref
+						print self.cc.cp.manifest.root
+					if acr.type!=AssociatedContentType:
 						continue
 					self.failUnless(acr is acrList[0])
 	

@@ -95,7 +95,6 @@ class AtomElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		e=AtomElement(None)
 		self.failUnless(e.parent is None,'empty parent on construction')
-		self.failUnless(e.ns==ATOM_NAMESPACE,'ns on construction')
 		self.failUnless(e.xmlname==None,'element name on construction')
 		self.failUnless(e.GetBase() is None,"xml:base present on construction")
 		self.failUnless(e.GetLang() is None,"xml:lang present on construction")
@@ -115,9 +114,11 @@ class AtomElementTests(unittest.TestCase):
 		self.failUnless(attrs[(xmlns.XML_NAMESPACE,'base')]=="http://www.example.com/","Base attribute")
 		self.failUnless(attrs[(xmlns.XML_NAMESPACE,'lang')]=="en-US","Lang attribute")
 		e.SetBase(None)
+		attrs=e.GetAttributes()
 		self.failUnless(e.GetBase() is None,"Get/Set empty xml:base value")
 		self.failUnless(len(attrs.keys())==1,"One attribute expected")
 		e.SetLang(None)
+		attrs=e.GetAttributes()
 		self.failUnless(e.GetLang() is None,"Get/Set empty xml:lang value")
 		self.failUnless(len(attrs.keys())==0,"No attributes expected")
 
@@ -133,7 +134,6 @@ class AtomTextTests(unittest.TestCase):
 	The XHTML div element itself MUST NOT be considered part of the content."""
 	def testCaseConstructor(self):
 		text=AtomText(None)
-		self.failUnless(text.ns is ATOM_NAMESPACE,'ns on construction')
 		self.failUnless(text.xmlname==None,'element name on construction')
 		self.failUnless(isinstance(text,AtomElement),"AtomText not an AtomElement")
 		self.failUnless(text.GetBase() is None,"xml:base present on construction")
@@ -142,13 +142,15 @@ class AtomTextTests(unittest.TestCase):
 		self.failUnless(len(attrs.keys())==1,"Attributes present on construction")
 		self.failUnless(text.GetValue() is None,"Content present on construction")
 
-	def testCaseStringConstructor(self):
-		text=AtomText(None,"Some text")
+	def testCaseStringValue(self):
+		text=AtomText(None)
+		text.SetValue("Some text")
 		self.failUnless(text.GetValue()=="Some text","String constructor data")
-		self.failUnless(text.GetType()=="text","Default text type not 'text' on construction")		
-		text=AtomText(None,"Some other text","xhtml")
+		self.failUnless(text.type=="text","Default text type not 'text' on construction")		
+		text=AtomText(None)
+		text.SetValue("Some other text","xhtml")
 		self.failUnless(text.GetValue()=="Some other text","String constructor data")		
-		self.failUnless(text.GetType()=="xhtml","Override text type on construction")		
+		self.failUnless(text.type=="xhtml","Override text type on construction")		
 
 	def testCaseTypes(self):
 		"""Text constructs MAY have a "type" attribute.  When present, the value
@@ -157,13 +159,13 @@ class AtomTextTests(unittest.TestCase):
 		present with a value of "text"."""
 		text=AtomText(None)
 		attrs=text.GetAttributes()
-		self.failUnless(text.GetType()=="text" and attrs['type']=="text","Default text type not 'text' on construction")
-		text.SetType('html')
-		self.failUnless(text.GetType()=='html',"html text type failed")
-		text.SetType('xhtml')
-		self.failUnless(text.GetType()=='xhtml',"xhtml text type failed")
+		self.failUnless(text.type=="text" and attrs['type']=="text","Default text type not 'text' on construction")
+		text.SetValue('<p>Hello','html')
+		self.failUnless(text.type=='html',"html text type failed")
+		text.SetValue('<p>Hello</p>','xhtml')
+		self.failUnless(text.type=='xhtml',"xhtml text type failed")
 		try:
-			text.SetType('rtf')
+			text.SetValue('Hello\\par ','rtf')
 			self.fail("rtf text type failed to raise error")
 		except ValueError:
 			pass
@@ -180,18 +182,17 @@ class AtomPersonTests(unittest.TestCase):
 	MUST conform to the "addr-spec" production in [RFC2822]."""
 	def testCaseConstructor(self):
 		person=AtomPerson(None)
-		self.failUnless(person.ns is ATOM_NAMESPACE,'ns on construction')
 		self.failUnless(person.xmlname==None,'element name on construction')
 		self.failUnless(isinstance(person,AtomElement),"AtomPerson not an AtomElement")
 		self.failUnless(person.GetBase() is None,"xml:base present on construction")
 		self.failUnless(person.GetLang() is None,"xml:lang present on construction")
 		attrs=person.GetAttributes()
 		self.failUnless(len(attrs.keys())==0,"Attributes present on construction")
-		#name=person.GetName()
-		#self.failUnless(isinstance(name,AtomText) and name.GetType()=='text',"Name on construction")
-		self.failUnless(person.GetName() is None,"Name on construction")
-		self.failUnless(person.GetURI() is None,"URI on construction")
-		self.failUnless(person.GetEmail() is None,"Email on construction")
+		#name=person.name
+		#self.failUnless(isinstance(name,AtomText) and name.type=='text',"Name on construction")
+		self.failUnless(person.name is None,"Name on construction")
+		self.failUnless(person.uri is None,"URI on construction")
+		self.failUnless(person.email is None,"Email on construction")
 
 
 class AtomDateTests(unittest.TestCase):
@@ -208,7 +209,6 @@ class AtomDateTests(unittest.TestCase):
 	"""
 	def testAtomDateConstructor(self):
 		date=AtomDate(None)
-		self.failUnless(date.ns is ATOM_NAMESPACE,'ns on construction')
 		self.failUnless(date.xmlname==None,'element name on construction')
 		self.failUnless(isinstance(date,AtomElement),"AtomDate not an AtomElement")
 		self.failUnless(date.GetBase() is None,"xml:base present on construction")
@@ -231,35 +231,35 @@ class AtomFeedTests(unittest.TestCase):
 		self.failUnless(feed.xmlname=="feed","AtomFeed XML name")
 		self.failUnless(feed.GetBase() is None,"xml:base present on construction")
 		self.failUnless(feed.GetLang() is None,"xml:lang present on construction")
-		self.failUnless(len(feed.GetEntries())==0,"Non-empty feed on construction")
+		self.failUnless(len(feed.entries)==0,"Non-empty feed on construction")
 		attrs=feed.GetAttributes()
 		self.failUnless(len(attrs.keys())==0,"Attributes present on construction")
-		metadata=feed.GetMetadata()
+		metadata=feed.metadata
 		self.failUnless(len(metadata.keys())==0,"Metadata present on construction")
 	
 	def testCaseReadXML(self):
 		doc=AtomDocument()
 		doc.Read(src=StringIO(EXAMPLE_1))
-		feed=doc.rootElement
+		feed=doc.root
 		self.failUnless(isinstance(feed,AtomFeed),"Example 1 not a feed")
 		title=feed.GetTitle()
-		self.failUnless(isinstance(title,AtomText) and title.GetValue()=="Example Feed","Example 1 title")
+		self.failUnless(isinstance(title,AtomText) and title.GetValue()=="Example Feed","Example 1 title: "+str(title))
 		link=feed.GetLinks()[0]
-		self.failUnless(isinstance(link,AtomLink) and link.GetHref()=="http://example.org/","Example 1 link")
+		self.failUnless(isinstance(link,AtomLink) and link.href=="http://example.org/","Example 1 link")
 		updated=feed.GetUpdated()
 		self.failUnless(isinstance(updated,AtomDate) and updated.GetValue()=="2003-12-13T18:30:02Z","Example 1 updated")
 		author=feed.GetAuthors()[0]
-		self.failUnless(isinstance(author,AtomPerson) and author.GetName().GetValue()=="John Doe","Example 1 author")
+		self.failUnless(isinstance(author,AtomPerson) and author.name.GetValue()=="John Doe","Example 1 author")
 		id=feed.GetId()
 		self.failUnless(isinstance(id,AtomId) and id.GetValue()=="urn:uuid:60a76c80-d399-11d9-b93C-0003939e0af6",
 			"Example 1 id")
-		entries=feed.GetEntries()
+		entries=feed.entries
 		self.failUnless(len(entries)==1,"Example 1: wrong number of entries (%i)"%len(entries))
 		entry=entries[0]
 		title=entry.GetTitle()
 		self.failUnless(isinstance(title,AtomText) and title.GetValue()=="Atom-Powered Robots Run Amok","Example 1 entry title")
 		link=entry.GetLinks()[0]
-		self.failUnless(isinstance(link,AtomLink) and link.GetHref()=="http://example.org/2003/12/13/atom03","Example 1 entry link")
+		self.failUnless(isinstance(link,AtomLink) and link.href=="http://example.org/2003/12/13/atom03","Example 1 entry link")
 		id=entry.GetId()
 		self.failUnless(isinstance(id,AtomId) and id.GetValue()=="urn:uuid:1225c695-cfb8-4ebb-aaaa-80da344efa6a",
 			"Example 1 entry id")
@@ -268,20 +268,20 @@ class AtomFeedTests(unittest.TestCase):
 		summary=entry.GetSummary()
 		self.failUnless(isinstance(summary,AtomText) and summary.GetValue()=="Some text.","Example 1 entry summary")
 		doc.Read(src=StringIO(EXAMPLE_2))
-		feed=doc.rootElement
+		feed=doc.root
 		subtitle=feed.GetSubtitle()
-		self.failUnless(isinstance(subtitle,AtomSubtitle) and subtitle.GetType()=='html'
+		self.failUnless(isinstance(subtitle,AtomSubtitle) and subtitle.type=='html'
 			and subtitle.GetValue().strip()=="A <em>lot</em> of effort went into making this effortless","Example 2 subtitle")
 		links=feed.GetLinks()
-		self.failUnless(links[0].GetRel()=="alternate" and links[0].GetType()=="text/html" and links[0].GetHrefLang()=="en" and
-			links[0].GetHref()=="http://example.org/","Example 2, link 0 attributes")
-		self.failUnless(links[1].GetRel()=="self" and links[1].GetType()=="application/atom+xml" and links[1].GetHrefLang() is None and
-			links[1].GetHref()=="http://example.org/feed.atom","Example 2, link 1 attributes")
+		self.failUnless(links[0].rel=="alternate" and links[0].type=="text/html" and links[0].hreflang=="en" and
+			links[0].href=="http://example.org/","Example 2, link 0 attributes")
+		self.failUnless(links[1].rel=="self" and links[1].type=="application/atom+xml" and links[1].hreflang is None and
+			links[1].href=="http://example.org/feed.atom","Example 2, link 1 attributes")
 		rights=feed.GetRights()
 		self.failUnless(isinstance(rights,AtomRights) and rights.GetValue()=="Copyright (c) 2003, Mark Pilgrim","Example 2, rights")
 		generator=feed.GetGenerator()
-		self.failUnless(isinstance(generator,AtomGenerator) and generator.GetURI()=="http://www.example.com/" and
-			generator.GetVersion()=="1.0" and generator.GetValue().strip()=="Example Toolkit","Example 2, generator")
+		self.failUnless(isinstance(generator,AtomGenerator) and generator.uri=="http://www.example.com/" and
+			generator.version=="1.0" and generator.GetValue().strip()=="Example Toolkit","Example 2, generator")
 
 		""" <entry>
 			<title>Atom draft-07 snapshot</title>

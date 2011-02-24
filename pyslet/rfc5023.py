@@ -42,63 +42,64 @@ class APPElement(xmlns.XMLNSElement):
 		attribute xml:space {"default"|"preserved"}?,
 		undefinedAttribute*
 	"""  
-	def __init__(self,parent):
-		xmlns.XMLNSElement.__init__(self,parent)
-		self.SetXMLName((APP_NAMESPACE,None))
+	pass
 
 
 class APPAccept(APPElement):
-	def __init__(self,parent):
-		APPElement.__init__(self,parent)
-		self.SetXMLName(app_accept)
+	XMLNAME=app_accept
 
 	
 class APPCategories(APPElement):
+	XMLNAME=app_categories
+	
 	def __init__(self,parent):
 		APPElement.__init__(self,parent)
-		self.SetXMLName(app_categories)
+		self.href=None
+		self.fixed=None
+		self.scheme=None
 		self.categoryList=[]
-		
-	def GetHREF(self):
-		return self.attrs.get("href",None)
-		
-	def GetFixed(self):
-		return self.attrs.get("fixed",None)
-	
-	def IsFixed(self):
-		return self.attrs.get("fixed","no")=="yes"
-		
-	def GetScheme(self):
-		return self.attrs.get("scheme",None)
-		
-	def GetCategoryList(self):
-		return self.categoryList
 
-	def AddChild(self,child):
-		if isinstance(child,atom.AtomCategory):
-			self.categoryList.append(child)
-		else:
-			APPElement.AddChild(self,child)
+	def Set_href(self,value):
+		self.href=value
+	
+	def Set_fixed(self,value):
+		self.fixed=(value=="yes")
+
+	def Set_scheme(self,value):
+		self.scheme=value
+
+	def GetChildren(self):
+		children=self.categoryList+APPElement.GetChildren(self)
+		return children
+		
+	def AtomCategory(self,name):
+		child=atom.AtomCategory(self,name)
+		self.categoryList.append(child)
+		return child
+		
 		
 class APPService(APPElement):
-	def __init__(self,parent):
-		APPElement.__init__(self,parent)
-		self.SetXMLName(app_service)
+	XMLNAME=app_service
+	
+	def __init__(self,parent,name=None):
+		APPElement.__init__(self,parent,name)
 		self.workspaces=[]
 		
-	def GetWorkspaces(self):
-		return self.workspaces
+	def GetChildren(self):
+		children=APPElement.GetChildren(self)+self.workspaces
+		return children
 
-	def AddChild(self,child):
-		if isinstance(child,APPWorkspace):
-			self.workspaces.append(child)
-		else:
-			APPElement.AddChild(self,child)
+	def APPWorkspace(self,name=None):
+		child=APPWorkspace(self,name)
+		self.workspaces.append(child)
+		return child
+		
 
 class APPWorkspace(APPElement):
-	def __init__(self,parent):
-		APPElement.__init__(self,parent)
-		self.SetXMLName(app_workspace)
+	XMLNAME=app_workspace
+	
+	def __init__(self,parent,name=None):
+		APPElement.__init__(self,parent,name)
 		self.title=None
 		self.collections=[]
 		
@@ -111,50 +112,66 @@ class APPWorkspace(APPElement):
 	def SetTitle(self,title):
 		self.title=title
 
-	def AddChild(self,child):
-		if isinstance(child,atom.AtomTitle):
-			self.title=child
-		elif isinstance(child,APPCollection):
-			self.collections.append(child)
-		else:
-			APPElement.AddChild(self,child)
+	def GetChildren(self):
+		children=APPElement.GetChildren(self)
+		if self.title:
+			children.append(self.title)
+		children=children+self.collections
+		return self.collections
+		
+	def AtomTitle(self,name=None):
+		self.title=atom.AtomTitle(self,name)
+		return self.title
+	
+	def APPCollection(self,name=None):
+		child=APPCollection(self,name)
+		self.collections.append(child)
+		return child
+		
 
 
 class APPCollection(APPElement):
-	def __init__(self,parent):
-		APPElement.__init__(self,parent)
-		self.SetXMLName(app_collection)
+	XMLNAME=app_collection
+	
+	def __init__(self,parent,name=None):	
+		APPElement.__init__(self,parent,name)
+		self.href=None
 		self.title=None
 		self.acceptList=[]
 		self.categories=APPCategories(None)
-		
-	def GetHREF(self):
-		return self.attrs.get("href",None)
-		
-	def GetTitle(self):
-		return self.title
 	
-	def SetTitle(self,title):
-		self.title=title
+	def GetAttributes(self):
+		attrs=APPElement.GetAttributes(self)
+		if self.href:
+			attrs['href']=self.href
+		return attrs
+		
+	def Set_href(self,value):
+		self.href=value
 
-	def GetAcceptList(self):
-		return self.acceptList
-
-	def GetCategories(self):
+	def GetChildren(self):
+		children=APPElement.GetChildren(self)
+		if self.title:
+			children.append(self.title)
+		children=children+self.acceptList
+		children.append(self.categories)
+		return children
+		
+	def AtomTitle(self,name):
+		child=atom.AtomTitle(self,name)
+		self.title=child
+		return self.title
+		
+	def APPCategories(self,name):
 		return self.categories
 
-	def AddChild(self,child):
-		if isinstance(child,atom.AtomTitle):
-			self.title=child
-		elif isinstance(child,APPCategories):
-			self.categories=child
-		elif isinstance(child,APPAccept):
-			self.acceptList.append(child)
-		else:
-			APPElement.AddChild(self,child)
-
+	def APPAccept(self,name):
+		child=APPAccept(self,name)
+		self.acceptList.append(child)
+		return child
+		
 	def GetFeedURL(self):
-		return self.ResolveURI(self.GetHREF())
+		return self.ResolveURI(self.href)
 
 		
 class APPDocument(atom.AtomDocument):
