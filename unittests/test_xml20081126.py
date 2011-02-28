@@ -24,13 +24,16 @@ TEST_DATA_DIR=os.path.join(os.path.split(os.path.abspath(__file__))[0],'data_xml
 
 from pyslet.xml20081126 import *
 
+	
 class NamedElement(XMLElement):
 	XMLNAME="test"
 
 
 class ReflectiveElement(XMLElement):
-	def __init__(self,parent,name=None):
-		XMLElement.__init__(self,parent,name)
+	XMLNAME="reflection"
+	
+	def __init__(self,parent):
+		XMLElement.__init__(self,parent)
 		self.atest=None
 		self.child=None
 	
@@ -49,11 +52,11 @@ class ReflectiveElement(XMLElement):
 			children.append(self.child)
 		return children
 		
-	def ReflectiveElement(self,name):
+	def ReflectiveElement(self):
 		if self.child:
 			return self.child
 		else:
-			e=ReflectiveElement(self,name)
+			e=ReflectiveElement(self)
 			self.child=e
 			return e
 
@@ -89,6 +92,19 @@ class IDElement(XMLElement):
 	XMLName="ide"
 	XMLCONTENT=XMLEmpty
 	ID="id"
+
+class BadElement:
+	XMLNAME="bad"
+
+	
+class Elements:
+	named=NamedElement
+	reflective=ReflectiveElement
+	empty=EmptyElement
+	elements=ElementContent
+	mixed=MixedElement
+	id=IDElement
+	bad=BadElement
 	
 class XML20081126Tests(unittest.TestCase):		
 	def testCaseConstants(self):
@@ -97,6 +113,13 @@ class XML20081126Tests(unittest.TestCase):
 		#self.failUnless(ATOMCAT_MIMETYPE=="application/atomcat+xml","Wrong APP category mime type: %s"%ATOMCAT_MIMETYPE)
 		pass
 
+	def testCaseDeclare(self):
+		classMap={}
+		MapClassElements(classMap,Elements)
+		self.failUnless(type(classMap['mixed']) is types.ClassType,"class type not declared")
+		self.failIf(hasattr(classMap,'bad'),"class type declared by mistake")
+
+		
 class XMLCharacterTests(unittest.TestCase):
 	# Test IsNameChar
 	def testChar(self):
@@ -212,7 +235,7 @@ class XMLElementTests(unittest.TestCase):
 		attrs=e.GetAttributes()
 		self.failUnless(len(attrs.keys())==1,"Attribute not set")
 		self.failUnless(attrs['atest']=='value',"Attribute not set correctly")
-		e=ReflectiveElement(None,'test')
+		e=ReflectiveElement(None)
 		e.SetAttribute('atest','value')
 		self.failUnless(e.atest=='value',"Attribute relfection")
 		attrs=e.GetAttributes()
@@ -234,7 +257,7 @@ class XMLElementTests(unittest.TestCase):
 	
 	def testChildElementRelection(self):
 		"""Test child element cases using reflection"""
-		e=ReflectiveElement(None,'test')
+		e=ReflectiveElement(None)
 		child1=e.ChildElement(ReflectiveElement,'test1')
 		self.failUnless(e.child is child1,"Element not set by reflection")
 		children=e.GetChildren()
@@ -242,7 +265,7 @@ class XMLElementTests(unittest.TestCase):
 		# Now create a second child, should return the same one due to model restriction
 		child2=e.ChildElement(ReflectiveElement,'test1')
 		self.failUnless(e.child is child1 and child2 is child1,"Element model violated")
-		child3=ReflectiveElement(None,'test3')
+		child3=ReflectiveElement(None)
 		child1.AdoptChild(child3)
 		self.failUnless(child1.child is child3 and child3.parent is child1,"Bad parenting in adoption-reflection")
 		
@@ -455,6 +478,7 @@ class XMLDocumentTests(unittest.TestCase):
 		self.failUnless(isinstance(root,ReflectiveElement))
 		self.failUnless(root.atest,"Attribute relfection")
 		self.failUnless(root.child,"Element relfection")
+
 		
 if __name__ == "__main__":
 	unittest.main()

@@ -25,12 +25,6 @@ APP_MIMETYPES={
 	atom.ATOM_MIMETYPE:True
 	}
 	
-app_accept=(APP_NAMESPACE,'accept')
-app_categories=(APP_NAMESPACE,'categories')
-app_collection=(APP_NAMESPACE,'collection')
-app_service=(APP_NAMESPACE,'service')
-app_workspace=(APP_NAMESPACE,'workspace')
-
 
 class APPElement(xmlns.XMLNSElement):
 	"""Basic element to represent all APP elements; not that xml:base, xml:lang and xml:space
@@ -46,11 +40,11 @@ class APPElement(xmlns.XMLNSElement):
 
 
 class APPAccept(APPElement):
-	XMLNAME=app_accept
+	XMLNAME=(APP_NAMESPACE,'accept')
 
 	
 class APPCategories(APPElement):
-	XMLNAME=app_categories
+	XMLNAME=(APP_NAMESPACE,'categories')
 	
 	def __init__(self,parent):
 		APPElement.__init__(self,parent)
@@ -72,34 +66,34 @@ class APPCategories(APPElement):
 		children=self.categoryList+APPElement.GetChildren(self)
 		return children
 		
-	def AtomCategory(self,name):
-		child=atom.AtomCategory(self,name)
+	def AtomCategory(self):
+		child=atom.AtomCategory(self)
 		self.categoryList.append(child)
 		return child
 		
 		
 class APPService(APPElement):
-	XMLNAME=app_service
+	XMLNAME=(APP_NAMESPACE,'service')
 	
-	def __init__(self,parent,name=None):
-		APPElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		APPElement.__init__(self,parent)
 		self.workspaces=[]
 		
 	def GetChildren(self):
 		children=APPElement.GetChildren(self)+self.workspaces
 		return children
 
-	def APPWorkspace(self,name=None):
-		child=APPWorkspace(self,name)
+	def APPWorkspace(self):
+		child=APPWorkspace(self)
 		self.workspaces.append(child)
 		return child
 		
 
 class APPWorkspace(APPElement):
-	XMLNAME=app_workspace
+	XMLNAME=(APP_NAMESPACE,'workspace')
 	
-	def __init__(self,parent,name=None):
-		APPElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		APPElement.__init__(self,parent)
 		self.title=None
 		self.collections=[]
 		
@@ -119,22 +113,22 @@ class APPWorkspace(APPElement):
 		children=children+self.collections
 		return self.collections
 		
-	def AtomTitle(self,name=None):
-		self.title=atom.AtomTitle(self,name)
+	def AtomTitle(self):
+		self.title=atom.AtomTitle(self)
 		return self.title
 	
-	def APPCollection(self,name=None):
-		child=APPCollection(self,name)
+	def APPCollection(self):
+		child=APPCollection(self)
 		self.collections.append(child)
 		return child
 		
 
 
 class APPCollection(APPElement):
-	XMLNAME=app_collection
+	XMLNAME=(APP_NAMESPACE,'collection')
 	
-	def __init__(self,parent,name=None):	
-		APPElement.__init__(self,parent,name)
+	def __init__(self,parent):	
+		APPElement.__init__(self,parent)
 		self.href=None
 		self.title=None
 		self.acceptList=[]
@@ -157,16 +151,16 @@ class APPCollection(APPElement):
 		children.append(self.categories)
 		return children
 		
-	def AtomTitle(self,name):
-		child=atom.AtomTitle(self,name)
+	def AtomTitle(self):
+		child=atom.AtomTitle(self)
 		self.title=child
 		return self.title
 		
-	def APPCategories(self,name):
+	def APPCategories(self):
 		return self.categories
 
-	def APPAccept(self,name):
-		child=APPAccept(self,name)
+	def APPAccept(self):
+		child=APPAccept(self)
 		self.acceptList.append(child)
 		return child
 		
@@ -175,6 +169,8 @@ class APPCollection(APPElement):
 
 		
 class APPDocument(atom.AtomDocument):
+	classMap={}
+	
 	def __init__(self,**args):
 		""""""
 		atom.AtomDocument.__init__(self,**args)
@@ -188,16 +184,10 @@ class APPDocument(atom.AtomDocument):
 			return APPDocument.classMap.get(name,atom.AtomDocument.classMap.get((name[0],None),APPElement))
 		else:
 			return atom.AtomDocument.GetElementClass(self,name)
-		
-	classMap={
-		app_accept:APPAccept,
-		app_categories:APPCategories,
-		app_collection:APPCollection,
-		app_service:APPService,
-		app_workspace:APPWorkspace
-		}
-		
 
+
+xmlns.MapClassElements(APPDocument.classMap,globals())
+				
 
 class APPClient(http.HTTPRequestManager):
 	def __init__(self):

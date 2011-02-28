@@ -175,7 +175,8 @@ class CPResourceTests(unittest.TestCase):
 		doc.Read(src=StringIO(EXAMPLE_2))
 		r=doc.GetElementByID('choice')
 		index=len(r.fileList)
-		f=r.CPFile('Extra.txt')
+		f=r.CPFile()
+		f.Set_href('Extra.txt')
 		self.failUnless(isinstance(f,CPFile))
 		self.failUnless(len(r.fileList)==index+1 and r.fileList[index] is f)
 

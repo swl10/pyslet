@@ -35,11 +35,18 @@ class XMLNSElement(XMLElement):
 			if hasattr(self.__class__,'XMLNAME'):
 				self.ns,name=self.__class__.XMLNAME
 			else:
-				self.ns=None
+				self.ns=self.name=None
 		else:
 			self.ns,name=name
 		XMLElement.__init__(self,parent,name)
-		
+
+	def SetXMLName(self,name):
+		if type(name) in StringTypes:
+			self.ns=None
+			self.xmlname=name
+		else:
+			self.ns,self.xmlname=name
+														
 	def SetAttribute(self,name,value):
 		"""Sets the value of an attribute.
 		

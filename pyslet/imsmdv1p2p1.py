@@ -40,16 +40,15 @@ md_lom=(IMSLRM_NAMESPACE,'lom')
 class LRMException(Exception): pass
 
 class LRMElement(xmlns.XMLNSElement):
-	"""Basic element to represent all CP elements"""  
-	def __init__(self,parent,name=None):
-		xmlns.XMLNSElement.__init__(self,parent,name)
+	"""Basic element to represent all CP elements"""
+	pass
 
 class LOM(LRMElement):
 	XMLNAME=md_lom
 	XMLCONTENT=xmlns.XMLElementContent
 	
-	def __init__(self,parent,name=None):
-		LRMElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		LRMElement.__init__(self,parent)
 		self.general=None
 		self.lifecycle=None
 		self.metametadata=None
@@ -76,43 +75,43 @@ class LOM(LRMElement):
 			children.append(self.rights)
 		return children+self.relations+self.annotations+self.classifications+LRMElement.GetChildren(self)
 		
-	def LOMGeneral(self,name=None):
+	def LOMGeneral(self):
 		if not self.general:
-			self.general=LOMGeneral(self,name)
+			self.general=LOMGeneral(self)
 		return self.general
 	
-	def LOMLifecycle(self,name=None):
+	def LOMLifecycle(self):
 		if not self.lifecycle:
-			self.lifecycle=LOMLifecycle(self,name)
+			self.lifecycle=LOMLifecycle(self)
 		return self.lifecycle
 	
-	def LOMMetaMetadata(self,name=None):
+	def LOMMetaMetadata(self):
 		if not self.metametadata:
-			self.metametadata=LOMMetaMetadata(self,name)
+			self.metametadata=LOMMetaMetadata(self)
 		return self.metametadata
 	
-	def LOMTechnical(self,name=None):
+	def LOMTechnical(self):
 		if not self.technical:
-			self.technical=LOMTechnical(self,name)
+			self.technical=LOMTechnical(self)
 		return self.technical
 	
-	def LOMEducational(self,name=None):
+	def LOMEducational(self):
 		if not self.educational:
-			self.educational=LOMEducational(self,name)
+			self.educational=LOMEducational(self)
 		return self.educational
 	
-	def LOMRelation(self,name=None):
-		r=LOMRelation(self,name)
+	def LOMRelation(self):
+		r=LOMRelation(self)
 		self.relations.append(r)
 		return r
 
-	def LOMAnnotation(self,name=None):
-		a=LOMAnnotation(self,name)
+	def LOMAnnotation(self):
+		a=LOMAnnotation(self)
 		self.annotations.append(a)
 		return a
 		
-	def LOMClassification(self,name=None):
-		c=LOMClassification(self,name)
+	def LOMClassification(self):
+		c=LOMClassification(self)
 		self.classifications.append(c)
 		return c
 
@@ -121,8 +120,8 @@ class LOMGeneral(LRMElement):
 	XMLNAME=lrm_general
 	XMLCONTENT=xmlns.XMLElementContent
 
-	def __init__(self,parent,name=None):
-		LRMElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		LRMElement.__init__(self,parent)
 		self.identifier=None
 		self.title=None
 		self.catalogEntries=[]
@@ -146,49 +145,49 @@ class LOMGeneral(LRMElement):
 			children.append(self.aggregationLevel)
 		return children+LRMElement.GetChildren(self)
 
-	def LOMIdentifier(self,name=None):
+	def LOMIdentifier(self):
 		if not self.identifier:
-			self.identifier=LOMIdentifier(self,name)
+			self.identifier=LOMIdentifier(self)
 		return self.identifier
 	
-	def LOMTitle(self,name=None):
+	def LOMTitle(self):
 		if not self.title:
-			self.title=LOMTitle(self,name)
+			self.title=LOMTitle(self)
 		return self.title
 	
-	def LOMCatalogEntry(self,name=None):
-		c=LOMCatalogEntry(self,name)
+	def LOMCatalogEntry(self):
+		c=LOMCatalogEntry(self)
 		self.catalogEntries.append(c)
 		return c
 
-	def LOMLanguage(self,name=None):
-		l=LOMLanguage(self,name)
+	def LOMLanguage(self):
+		l=LOMLanguage(self)
 		self.languages.append(l)
 		return l
 
-	def LOMDescription(self,name=None):
-		d=LOMDescription(self,name)
+	def LOMDescription(self):
+		d=LOMDescription(self)
 		self.description.append(d)
 		return d
 	
-	def LOMKeyword(self,name=None):
-		kw=LOMKeyword(self,name)
+	def LOMKeyword(self):
+		kw=LOMKeyword(self)
 		self.keywords.append(kw)
 		return kw
 	
-	def LOMCoverage(self,name=None):
-		c=LOMCoverage(self,name)
+	def LOMCoverage(self):
+		c=LOMCoverage(self)
 		self.coverage.append(c)
 		return c
 
-	def LOMStructure(self,name=None):
+	def LOMStructure(self):
 		if not self.structure:
-			self.structure=LOMStructure(self,name)
+			self.structure=LOMStructure(self)
 		return self.structure
 	
-	def LOMAggregationLevel(self,name=None):
+	def LOMAggregationLevel(self):
 		if not self.aggregationLevel:
-			self.aggregationLevel=LOMAggregationLevel(self,name)
+			self.aggregationLevel=LOMAggregationLevel(self)
 		return self.aggregationLevel
 	
 
@@ -197,15 +196,15 @@ class LangString(LRMElement):
 		
 class LangStringList(LRMElement):	
 
-	def __init__(self,parent,name=None):
-		LRMElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		LRMElement.__init__(self,parent)
 		self.langStrings=[]
 
 	def GetChildren(self):
 		return self.langStrings
 	
-	def LangString(self,name=None):
-		s=LangString(self,name)
+	def LangString(self):
+		s=LangString(self)
 		self.langStrings.append(s)
 		return s
 		

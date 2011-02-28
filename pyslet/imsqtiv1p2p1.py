@@ -41,9 +41,8 @@ def MakeValidName(name):
 
 
 class QTIElement(xml.XMLElement):
-	"""Basic element to represent all QTI elements"""  
-	def __init__(self,parent,name=None):
-		xml.XMLElement.__init__(self,parent,name)
+	"""Basic element to represent all QTI elements"""
+	pass
 
 
 class QTIComment(QTIElement):
@@ -51,8 +50,8 @@ class QTIComment(QTIElement):
 
 class QTICommentElement(QTIElement):
 	"""Basic element to represent all QTI elements that can contain a comment"""
-	def __init__(self,parent,name):
-		QTIElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
 		self.comment=None
 
 	def GetChildren(self):
@@ -61,11 +60,11 @@ class QTICommentElement(QTIElement):
 		else:
 			return []
 			
-	def QTIComment(self,name=None):
+	def QTIComment(self):
 		if self.comment:
 			child=self.comment
 		else:
-			child=QTIComment(self,name)
+			child=QTIComment(self)
 			self.comment=child
 		return child
 
@@ -76,8 +75,8 @@ class QTIQuesTestInterop(QTICommentElement):
 	
 	XMLNAME=qti_questestinterop
 
-	def __init__(self,parent,name=None):
-		QTICommentElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		QTICommentElement.__init__(self,parent)
 		self.objectBank=None
 		self.assessment=None
 		self.objectList=[]
@@ -92,8 +91,8 @@ class QTIQuesTestInterop(QTICommentElement):
 			children=children+self.objectList
 		return children
 
-	def QTIItem(self,name=None):
-		child=QTIItem(self,name)
+	def QTIItem(self):
+		child=QTIItem(self)
 		self.objectList.append(child)
 		return child
 		
@@ -140,8 +139,8 @@ class QTIItem(QTICommentElement):
 		xml:lang    CDATA  #IMPLIED >"""
 	XMLNAME=qti_item
 
-	def __init__(self,parent,name=None):
-		QTICommentElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		QTICommentElement.__init__(self,parent)
 		self.label=None
 		self.ident=None
 		self.title=None
@@ -206,11 +205,11 @@ class QTIDocument(xml.XMLDocument):
 	def GetElementClass(self,name):
 		return QTIDocument.classMap.get(name,QTIDocument.classMap.get(None,xml.XMLElement))
 
-	classMap={
-		qti_comment:QTIComment,
-		qti_item:QTIItem,
-		qti_questestinterop:QTIQuesTestInterop
-		}
+	classMap={}
+		#qti_comment:QTIComment,
+		#qti_item:QTIItem,
+		#qti_questestinterop:QTIQuesTestInterop
+		#}
 
 	def MigrateV2(self,cp):
 		"""Converts the contents of this document to QTI v2
@@ -236,8 +235,9 @@ class QTIDocument(xml.XMLDocument):
 					doc.AddToContentPackage(cp,metadata,dName)
 		else:
 			pass
-		
 
+xml.MapClassElements(QTIDocument.classMap,globals())
+		
 try:
 	BIG5=codecs.lookup('big5')
 except LookupError:
@@ -258,3 +258,4 @@ def FixupCNBig5():
 	function, which you should only call once (if at all) within your
 	application, declares a codec search function that fixes this issue."""
 	codecs.register(CNBig5CodecSearch)
+

@@ -21,24 +21,6 @@ import pyslet.iso8601 as iso8601
 import pyslet.xmlnames20091208 as xmlns
 
 ATOM_NAMESPACE="http://www.w3.org/2005/Atom"
-atom_author=(ATOM_NAMESPACE,'author')
-atom_entry=(ATOM_NAMESPACE,'entry')
-atom_category=(ATOM_NAMESPACE,"category")
-atom_content=(ATOM_NAMESPACE,"content")
-atom_contributor=(ATOM_NAMESPACE,"contributor")
-atom_feed=(ATOM_NAMESPACE,'feed')
-atom_generator=(ATOM_NAMESPACE,'generator')
-atom_icon=(ATOM_NAMESPACE,'icon')
-atom_id=(ATOM_NAMESPACE,'id')
-atom_link=(ATOM_NAMESPACE,'link')
-atom_logo=(ATOM_NAMESPACE,'logo')
-atom_name=(ATOM_NAMESPACE,'name')
-atom_rights=(ATOM_NAMESPACE,'rights')
-atom_source=(ATOM_NAMESPACE,'source')
-atom_subtitle=(ATOM_NAMESPACE,'subtitle')
-atom_summary=(ATOM_NAMESPACE,'summary')
-atom_title=(ATOM_NAMESPACE,'title')
-atom_updated=(ATOM_NAMESPACE,'updated')
 
 ATOM_MIMETYPE="application/atom+xml"
 
@@ -57,10 +39,10 @@ class AtomElement(xmlns.XMLNSElement):
 	
 	
 class AtomId(AtomElement):
-	XMLNAME=atom_id
+	XMLNAME=(ATOM_NAMESPACE,'id')
 
 class AtomName(AtomElement):
-	XMLNAME=atom_name
+	XMLNAME=(ATOM_NAMESPACE,'name')
 
 class AtomText(AtomElement):
 	"""
@@ -76,8 +58,8 @@ class AtomText(AtomElement):
 
 	atomTextConstruct = atomPlainTextConstruct | atomXHTMLTextConstruct
 	"""	
-	def __init__(self,parent,name=None):
-		AtomElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		AtomElement.__init__(self,parent)
 		self.type='text'
 
 	def SetValue(self,value,type='text'):
@@ -99,16 +81,16 @@ class AtomText(AtomElement):
 			raise ValueError		
 
 class AtomTitle(AtomText):
-	XMLNAME=atom_title
+	XMLNAME=(ATOM_NAMESPACE,'title')
 
 class AtomSubtitle(AtomText):
-	XMLNAME=atom_subtitle
+	XMLNAME=(ATOM_NAMESPACE,'subtitle')
 
 class AtomSummary(AtomText):
-	XMLNAME=atom_summary
+	XMLNAME=(ATOM_NAMESPACE,'summary')
 
 class AtomRights(AtomText):
-	XMLNAME=atom_rights
+	XMLNAME=(ATOM_NAMESPACE,'rights')
 
 	
 class AtomDate(AtomElement):
@@ -116,8 +98,8 @@ class AtomDate(AtomElement):
 		atomDateConstruct =
 			atomCommonAttributes,
 			xsd:dateTime"""
-	def __init__(self,parent,name=None):
-		AtomElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		AtomElement.__init__(self,parent)
 		self.date=iso8601.TimePoint()
 	
 	def GetValue(self):
@@ -128,14 +110,14 @@ class AtomDate(AtomElement):
 		self.date.SetFromString(AtomElement.GetValue(self))
 
 class AtomUpdated(AtomDate):
-	XMLNAME=atom_updated
+	XMLNAME=(ATOM_NAMESPACE,'updated')
 
 		
 class AtomLink(AtomElement):
-	XMLNAME=atom_link
+	XMLNAME=(ATOM_NAMESPACE,'link')
 	
-	def __init__(self,parent,name=None):
-		AtomElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		AtomElement.__init__(self,parent)
 		self.href=None
 		self.hreflang=None
 		self.rel=None
@@ -172,9 +154,9 @@ class AtomIcon(AtomElement):
 		atomCommonAttributes,
 		(atomUri)
 		}"""
-	XMLNAME=atom_icon
+	XMLNAME=(ATOM_NAMESPACE,'icon')
    
-	def __init__(self,parent,name=None):
+	def __init__(self,parent):
 		AtomElement.__init__(self,parent)
 		self.uri=None
 
@@ -188,7 +170,7 @@ class AtomIcon(AtomElement):
 		self.uri=value
 
 class AtomLogo(AtomIcon):
-	XMLNAME=atom_logo
+	XMLNAME=(ATOM_NAMESPACE,'logo')
 
 
 class AtomGenerator(AtomElement):
@@ -199,9 +181,9 @@ class AtomGenerator(AtomElement):
 		attribute version { text }?,
 		text
 	}"""
-	XMLNAME=atom_generator
+	XMLNAME=(ATOM_NAMESPACE,'generator')
 	
-	def __init__(self,parent,name=None):
+	def __init__(self,parent):
 		AtomElement.__init__(self,parent)
 		self.uri=None
 		self.version=None
@@ -222,13 +204,13 @@ class AtomGenerator(AtomElement):
 			
 
 class AtomContent(AtomElement):
-	XMLNAME=atom_content
+	XMLNAME=(ATOM_NAMESPACE,"content")
 	
 
 class AtomEntity(AtomElement):
 	"""Used to model feed, entry and source: more complex constructs which can have their own metadata."""
-	def __init__(self,parent,name=None):
-		AtomElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		AtomElement.__init__(self,parent)
 		self.metadata={}
 
 	def GetAuthors(self):
@@ -267,45 +249,45 @@ class AtomEntity(AtomElement):
 				children.append(value)
 		return children+AtomElement.GetChildren(self)
 	
-	def SingleMetadata(self,childClass,name):
-		child=childClass(self,name)
+	def SingleMetadata(self,childClass):
+		child=childClass(self)
 		oldChild=self.metadata.get(child.xmlname,None)
 		if oldChild:
 			oldChild.DetachFromDocument()
 		self.metadata[child.xmlname]=child
 		return child
 	
-	def MultipleMetadata(self,childClass,name):
-		child=childClass(self,name)
+	def MultipleMetadata(self,childClass):
+		child=childClass(self)
 		if self.metadata.has_key(child.xmlname):
 			self.metadata[child.xmlname].append(child)
 		else:
 			self.metadata[child.xmlname]=[child]
 		return child
 		
-	def AtomAuthor(self,name=None):
-		return self.MultipleMetadata(AtomAuthor,name)
+	def AtomAuthor(self):
+		return self.MultipleMetadata(AtomAuthor)
 		
-	def AtomCategory(self,name=None):
-		return self.MultipleMetadata(AtomCategory,name)
+	def AtomCategory(self):
+		return self.MultipleMetadata(AtomCategory)
 		
-	def AtomContributor(self,name=None):
-		return self.MultipleMetadata(AtomContributor,name)
+	def AtomContributor(self):
+		return self.MultipleMetadata(AtomContributor)
 		
-	def AtomId(self,name=None):
-		return self.SingleMetadata(AtomId,name)
+	def AtomId(self):
+		return self.SingleMetadata(AtomId)
 	
-	def AtomLink(self,name=None):
-		return self.MultipleMetadata(AtomLink,name)
+	def AtomLink(self):
+		return self.MultipleMetadata(AtomLink)
 	
-	def AtomRights(self,name=None):
-		return self.SingleMetadata(AtomRights,name)
+	def AtomRights(self):
+		return self.SingleMetadata(AtomRights)
 	
-	def AtomTitle(self,name=None):
-		return self.SingleMetadata(AtomTitle,name)
+	def AtomTitle(self):
+		return self.SingleMetadata(AtomTitle)
 	
-	def AtomUpdated(self,name=None):
-		return self.SingleMetadata(AtomUpdated,name)
+	def AtomUpdated(self):
+		return self.SingleMetadata(AtomUpdated)
 	
 
 class AtomPerson(AtomElement):
@@ -316,8 +298,8 @@ class AtomPerson(AtomElement):
 			& element atom:email { atomEmailAddress }?
 			& extensionElement*)
 	"""
-	def __init__(self,parent,name=None):
-		AtomElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		AtomElement.__init__(self,parent)
 		self.name=None
 		self.uri=None
 		self.email=None
@@ -332,42 +314,42 @@ class AtomPerson(AtomElement):
 			children.append(self.email)
 		return children+AtomElement.GetChildren(self)
 		
-	def AtomName(self,name=None):
+	def AtomName(self):
 		if self.name:
 			child=self.name
 		else:
-			child=AtomName(self,name)
+			child=AtomName(self)
 			self.name=child
 		return child
 
-	def AtomURI(self,name=None):
+	def AtomURI(self):
 		if self.uri:
 			child=self.uri
 		else:
-			child=AtomURI(self,name)
+			child=AtomURI(self)
 			self.uri=child
 		return child
 		
-	def AtomEmail(self,name=None):
+	def AtomEmail(self):
 		if self.email:
 			child=self.email
 		else:
-			child=AtomEmail(self,name)
+			child=AtomEmail(self)
 			self.email=child
 		return child
 
 	
 class AtomAuthor(AtomPerson):
-	XMLNAME=atom_author
+	XMLNAME=(ATOM_NAMESPACE,'author')
 
 class AtomContributor(AtomPerson):
-	XMLNAME=atom_contributor
+	XMLNAME=(ATOM_NAMESPACE,"contributor")
 	
 class AtomCategory(AtomElement):
-	XMLNAME=atom_category
+	XMLNAME=(ATOM_NAMESPACE,"category")
 	
-	def __init__(self,parent,name=None):
-		AtomElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		AtomElement.__init__(self,parent)
 		self.scheme=None
 		self.term=None
 	
@@ -405,7 +387,7 @@ class AtomSource(AtomEntity):
           & extensionElement*)
       }
 	"""
-	XMLNAME=atom_source
+	XMLNAME=(ATOM_NAMESPACE,'source')
 
 	def GetGenerator(self):
 		return self.metadata.get('generator',None)
@@ -419,17 +401,17 @@ class AtomSource(AtomEntity):
 	def GetSubtitle(self):
 		return self.metadata.get('subtitle',None)
 	
-	def AtomGenerator(self,name=None):
-		return self.SingleMetadata(AtomGenerator,name)
+	def AtomGenerator(self):
+		return self.SingleMetadata(AtomGenerator)
 
-	def AtomIcon(self,name=None):
-		return self.SingleMetadata(AtomIcon,name)
+	def AtomIcon(self):
+		return self.SingleMetadata(AtomIcon)
 		
-	def AtomLogo(self,name=None):
-		return self.SingleMetadata(AtomLogo,name)
+	def AtomLogo(self):
+		return self.SingleMetadata(AtomLogo)
 	
-	def AtomSubtitle(self,name=None):
-		return self.SingleMetadata(AtomSubtitle,name)
+	def AtomSubtitle(self):
+		return self.SingleMetadata(AtomSubtitle)
 	
 			
 class AtomFeed(AtomSource):
@@ -453,18 +435,18 @@ class AtomFeed(AtomSource):
 			atomEntry*
 		}
 	"""
-	XMLNAME=atom_feed
+	XMLNAME=(ATOM_NAMESPACE,'feed')
 	
-	def __init__(self,parent,name=None):
-		AtomSource.__init__(self,parent,name)
+	def __init__(self,parent):
+		AtomSource.__init__(self,parent)
 		self.entries=[]
 
 	def GetChildren(self):
 		children=AtomEntity.GetChildren(self)
 		return children+self.entries
 
-	def AtomEntry(self,name=None):
-		child=AtomEntry(self,name)
+	def AtomEntry(self):
+		child=AtomEntry(self)
 		self.entries.append(child)
 		return child
 
@@ -488,10 +470,10 @@ class AtomEntry(AtomEntity):
 			& extensionElement*)
 		}
 	"""
-	XMLNAME=atom_entry
+	XMLNAME=(ATOM_NAMESPACE,'entry')
 
-	def __init__(self,parent,name=None):
-		AtomEntity.__init__(self,parent,name)
+	def __init__(self,parent):
+		AtomEntity.__init__(self,parent)
 		self.content=None
 		
 	def GetPublished(self):
@@ -512,25 +494,27 @@ class AtomEntry(AtomEntity):
 			children.append(self.content)
 		return children
 	
-	def AtomPublished(self,name=None):
-		return self.SingleMetadata(AtomPublished,name)
+	def AtomPublished(self):
+		return self.SingleMetadata(AtomPublished)
 		
-	def AtomSource(self,name=None):
-		return self.SingleMetadata(AtomSource,name)
+	def AtomSource(self):
+		return self.SingleMetadata(AtomSource)
 		
-	def AtomSummary(self,name=None):
-		return self.SingleMetadata(AtomSummary,name)
+	def AtomSummary(self):
+		return self.SingleMetadata(AtomSummary)
 		
-	def AtomContent(self,name):
+	def AtomContent(self):
 		if self.content:
 			return self.content
 		else:
-			child=AtomContent(self,name)
+			child=AtomContent(self)
 			self.content=child
 			return child
 				
 
 class AtomDocument(xmlns.XMLNSDocument):
+	classMap={}
+	
 	def __init__(self,**args):
 		""""""
 		xmlns.XMLNSDocument.__init__(self,defaultNS=ATOM_NAMESPACE,**args)
@@ -538,23 +522,4 @@ class AtomDocument(xmlns.XMLNSDocument):
 	def GetElementClass(self,name):
 		return AtomDocument.classMap.get(name,AtomDocument.classMap.get((name[0],None),xmlns.XMLNSElement))
 
-	classMap={
-		atom_author:AtomAuthor,
-		atom_category:AtomCategory,
-		atom_content:AtomContent,
-		atom_contributor:AtomContributor,
-		atom_entry:AtomEntry,
-		atom_feed:AtomFeed,
-		atom_generator:AtomGenerator,
-		atom_icon:AtomIcon,
-		atom_id:AtomId,
-		atom_link:AtomLink,
-		atom_logo:AtomLogo,
-		atom_name:AtomName,
-		atom_rights:AtomRights,
-		atom_source:AtomSource,
-		atom_subtitle:AtomSubtitle,
-		atom_summary:AtomSummary,
-		atom_title:AtomTitle,
-		atom_updated:AtomUpdated			
-		}
+xmlns.MapClassElements(AtomDocument.classMap,globals())

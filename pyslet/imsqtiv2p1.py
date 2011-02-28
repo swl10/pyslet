@@ -14,9 +14,6 @@ IMSQTI_NAMESPACE="http://www.imsglobal.org/xsd/imsqti_v2p1"
 IMSQTI_SCHEMALOCATION="http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
 IMSQTI_ITEM_RESOURCETYPE="imsqti_item_xmlv2p1"
 
-qti_assessmentItem=(IMSQTI_NAMESPACE,'assessmentItem')
-qti_responseDeclaration=(IMSQTI_NAMESPACE,'responseDeclaration')
-
 
 class QTIError(Exception): pass
 class QTIDeclarationError(QTIError): pass
@@ -58,11 +55,11 @@ class QTIElement(xmlns.XMLNSElement):
 
 
 class QTIAssessmentItem(QTIElement):
-	XMLNAME=qti_assessmentItem
+	XMLNAME=(IMSQTI_NAMESPACE,'assessmentItem')
 	XMLCONTENT=xmlns.XMLElementContent
 	
-	def __init__(self,parent,name=None):
-		QTIElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
 		self.identifier=None
 		self.title=None
 		self.adaptive=False
@@ -99,9 +96,9 @@ class QTIAssessmentItem(QTIElement):
 			children.append(self.declarations[v])
 		return children+QTIElement.GetChildren(self)
 	
-	def QTIResponseDeclaration(self,name=None):
+	def QTIResponseDeclaration(self):
 		# Not linked properly to us until it is finished.
-		return QTIResponseDeclaration(self,name)
+		return QTIResponseDeclaration(self)
 		
 	def RegisterDeclaration(self,declaration):
 		if self.declarations.has_key(declaration.identifier):
@@ -137,10 +134,10 @@ class QTIAssessmentItem(QTIElement):
 		
 
 class QTIResponseDeclaration(QTIElement):
-	XMLNAME=qti_responseDeclaration
+	XMLNAME=(IMSQTI_NAMESPACE,'responseDeclaration')
 	
-	def __init__(self,parent,name=None):
-		QTIElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
 		self.identifier=None
 	
 	def GetAttributes(self):
@@ -157,6 +154,8 @@ class QTIResponseDeclaration(QTIElement):
 
 
 class QTIDocument(xmlns.XMLNSDocument):
+	classMap={}
+	
 	def __init__(self,**args):
 		""""""
 		xmlns.XMLNSDocument.__init__(self,defaultNS=IMSQTI_NAMESPACE,**args)
@@ -166,11 +165,6 @@ class QTIDocument(xmlns.XMLNSDocument):
 			
 	def GetElementClass(self,name):
 		return QTIDocument.classMap.get(name,QTIDocument.classMap.get((name[0],None),xmlns.XMLNSElement))
-
-	classMap={
-		qti_assessmentItem:QTIAssessmentItem,
-		qti_responseDeclaration:QTIResponseDeclaration
-		}
 
 	def AddToContentPackage(self,cp,metadata,dName=None):
 		"""Copies this QTI document into a content package and returns the resource ID used.
@@ -185,3 +179,5 @@ class QTIDocument(xmlns.XMLNSDocument):
 		self.SetBase(baseURI)
 		# Finish by writing out the document to the new baseURI
 		self.Create()
+
+xmlns.MapClassElements(QTIDocument.classMap,globals())

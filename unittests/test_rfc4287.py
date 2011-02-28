@@ -88,7 +88,6 @@ EXAMPLE_2="""<?xml version="1.0" encoding="utf-8"?>
 class Atom4287Tests(unittest.TestCase):
 	def testCaseConstants(self):
 		self.failUnless(ATOM_NAMESPACE=="http://www.w3.org/2005/Atom","Wrong atom namespace: %s"%ATOM_NAMESPACE)
-		self.failUnless(atom_title==(ATOM_NAMESPACE,'title'),"atom_title not defined")
 		self.failUnless(ATOM_MIMETYPE=="application/atom+xml","Wrong atom mime type: %s"%ATOM_MIMETYPE)
 
 class AtomElementTests(unittest.TestCase):

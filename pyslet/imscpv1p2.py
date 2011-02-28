@@ -17,22 +17,6 @@ IMSCP_NAMESPACE="http://www.imsglobal.org/xsd/imscp_v1p1"
 IMSCP_SCHEMALOCATION="http://www.imsglobal.org/xsd/imscp_v1p1.xsd"
 IMSCPX_NAMESPACE="http://www.imsglobal.org/xsd/imscp_extensionv1p2"
 
-cp_dependency=(IMSCP_NAMESPACE,'dependency')
-cp_file=(IMSCP_NAMESPACE,'file')
-cp_manifest=(IMSCP_NAMESPACE,'manifest')
-cp_metadata=(IMSCP_NAMESPACE,'metadata')
-cp_organization=(IMSCP_NAMESPACE,'organization')
-cp_organizations=(IMSCP_NAMESPACE,'organizations')
-cp_resource=(IMSCP_NAMESPACE,'resource')
-cp_resources=(IMSCP_NAMESPACE,'resources')
-cp_schema=(IMSCP_NAMESPACE,'schema')
-cp_schemaversion=(IMSCP_NAMESPACE,'schemaversion')
-
-cp_identifier="identifier"
-cp_identifierref="identifierref"
-cp_href="href"
-cp_type="type"
-
 IGNOREFILES_RE="\\..*"
 
 class CPException(Exception): pass
@@ -75,12 +59,12 @@ def PathInPath(childPath, parentPath):
 		return ''
 	
 class CPManifest(CPElement):
-	ID=cp_identifier
-	XMLNAME=cp_manifest
+	ID="identifier"
+	XMLNAME=(IMSCP_NAMESPACE,'manifest')
 	XMLCONTENT=xmlns.XMLElementContent
 	
-	def __init__(self,parent,name=None):
-		CPElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		CPElement.__init__(self,parent)
 		self.metadata=None
 		self.organizations=CPOrganizations(self)
 		self.resources=CPResources(self)
@@ -94,7 +78,7 @@ class CPManifest(CPElement):
 		children.append(self.resources)
 		return children+self.childManifests+CPElement.GetChildren(self)
 
-	def CPMetadata(self,name=None):
+	def CPMetadata(self):
 		"""Factory method to create the metadata object if necessary.
 		
 		If the metadata object already exists then it is returned instead"""
@@ -102,30 +86,30 @@ class CPManifest(CPElement):
 			self.metadata=CPMetadata(self)
 		return self.metadata
 
-	def CPOrganizations(self,name=None):
+	def CPOrganizations(self):
 		return self.organizations
 	
-	def CPResources(self,name=None):
+	def CPResources(self):
 		return self.resources
 
-	def CPManifest(self,name=None):
-		child=CPManifest(self,name)
+	def CPManifest(self):
+		child=CPManifest(self)
 		self.childManifests.append(child)
 		return child
 
 		
 class CPSchema(CPElement):
-	XMLNAME=cp_schema
+	XMLNAME=(IMSCP_NAMESPACE,'schema')
 	
 class CPSchemaVersion(CPElement):
-	XMLNAME=cp_schemaversion
+	XMLNAME=(IMSCP_NAMESPACE,'schemaversion')
 	
 class CPMetadata(CPElement):
-	XMLNAME=cp_metadata
+	XMLNAME=(IMSCP_NAMESPACE,'metadata')
 	XMLCONTENT=xmlns.XMLElementContent
 	
-	def __init__(self,parent,name=None):
-		CPElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		CPElement.__init__(self,parent)
 		self.schema=None
 		self.schemaVersion=None
 
@@ -137,20 +121,20 @@ class CPMetadata(CPElement):
 			children.append(self.schemaVersion)
 		return children+CPElement.GetChildren(self)
 
-	def CPSchema(self,name=None):
+	def CPSchema(self):
 		if not self.schema:
-			self.schema=CPSchema(self,name)
+			self.schema=CPSchema(self)
 		return self.schema
 		
-	def CPSchemaVersion(self,name=None):
+	def CPSchemaVersion(self):
 		if not self.schemaVersion:
-			self.schemaVersion=CPSchemaVersion(self,name)
+			self.schemaVersion=CPSchemaVersion(self)
 		return self.schemaVersion
 		
 	
 
 class CPOrganizations(CPElement):
-	XMLNAME=cp_organizations
+	XMLNAME=(IMSCP_NAMESPACE,'organizations')
 	XMLCONTENT=xmlns.XMLElementContent
 	
 	def __init__(self,parent):
@@ -160,40 +144,40 @@ class CPOrganizations(CPElement):
 	def GetChildren(self):
 		return self.list+CPElement.GetChildren(self)
 	
-	def CPOrganization(self,name=None):
-		child=CPOrganization(self,name)
+	def CPOrganization(self):
+		child=CPOrganization(self)
 		self.list.append(child)
 		return child
 		
 
 class CPOrganization(CPElement):
-	XMLNAME=cp_organization
+	XMLNAME=(IMSCP_NAMESPACE,'organization')
 			
 
 class CPResources(CPElement):
-	XMLNAME=cp_resources
+	XMLNAME=(IMSCP_NAMESPACE,'resources')
 	XMLCONTENT=xmlns.XMLElementContent
 
-	def __init__(self,parent,name=None):
-		CPElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		CPElement.__init__(self,parent)
 		self.list=[]
 	
 	def GetChildren(self):
 		return self.list+CPElement.GetChildren(self)
 	
-	def CPResource(self,name=None):
-		child=CPResource(self,name)
+	def CPResource(self):
+		child=CPResource(self)
 		self.list.append(child)
 		return child
 
 
 class CPResource(CPElement):
-	XMLNAME=cp_resource
-	ID=cp_identifier
+	XMLNAME=(IMSCP_NAMESPACE,'resource')
+	ID="identifier"
 	XMLCONTENT=xmlns.XMLElementContent
 	
-	def __init__(self,parent,name=None):
-		CPElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		CPElement.__init__(self,parent)
 		self.type=None
 		self.href=None
 		self.metadata=None
@@ -244,15 +228,15 @@ class CPResource(CPElement):
 			children.append(self.metadata)
 		return children+self.fileList+self.dependencies+CPElement.GetChildren(self)
 
-	def CPMetadata(self,name=None):
+	def CPMetadata(self):
 		"""Factory method to create the metadata object if necessary.
 		
 		If the metadata object already exists then it is returned instead"""
 		if not self.metadata:
-			self.metadata=CPMetadata(self,name)
+			self.metadata=CPMetadata(self)
 		return self.metadata
 				
-	def CPFile(self,name=None):
+	def CPFile(self):
 		child=CPFile(self)
 		self.fileList.append(child)
 		return child
@@ -263,8 +247,8 @@ class CPResource(CPElement):
 		f.parent=None
 		del self.fileList[index]
 		
-	def CPDependency(self,name=None):
-		child=CPDependency(self,name)
+	def CPDependency(self):
+		child=CPDependency(self)
 		self.dependencies.append(child)
 		return child
 		
@@ -276,10 +260,10 @@ class CPResource(CPElement):
 		
 		
 class CPDependency(CPElement):
-	XMLNAME=cp_dependency
+	XMLNAME=(IMSCP_NAMESPACE,'dependency')
 
-	def __init__(self,parent,name=None):
-		CPElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		CPElement.__init__(self,parent)
 		self.identifierref=None
 		
 	def GetAttributes(self):
@@ -293,10 +277,10 @@ class CPDependency(CPElement):
 
 			
 class CPFile(CPElement):
-	XMLNAME=cp_file
+	XMLNAME=(IMSCP_NAMESPACE,'file')
 
-	def __init__(self,parent,name=None):
-		CPElement.__init__(self,parent,name)
+	def __init__(self,parent):
+		CPElement.__init__(self,parent)
 		self.href=None
 		
 	def GetAttributes(self):
@@ -322,6 +306,8 @@ class CPFile(CPElement):
 
 	
 class CPDocument(xmlns.XMLNSDocument):
+	classMap={}
+
 	def __init__(self,**args):
 		""""""
 		xmlns.XMLNSDocument.__init__(self,**args)
@@ -337,23 +323,11 @@ class CPDocument(xmlns.XMLNSDocument):
 
 	def GetElementClass(self,name):
 		eClass=CPDocument.classMap.get(name,CPDocument.classMap.get((name[0],None),xmlns.XMLNSElement))
-		if eClass is xmlns.XMLNSElement:
-			eClass=imsmd.GetElementClass(name)
-		# Add other supported metadata schemas in here
 		return eClass
 	
-	classMap={
-		cp_dependency:CPDependency,
-		cp_file:CPFile,
-		cp_manifest:CPManifest,
-		cp_metadata:CPMetadata,
-		cp_organizations:CPOrganizations,
-		cp_organization:CPOrganization,
-		cp_resources:CPResources,
-		cp_resource:CPResource,
-		cp_schema:CPSchema,
-		cp_schemaversion:CPSchemaVersion
-		}
+xmlns.MapClassElements(CPDocument.classMap,globals())
+xmlns.MapClassElements(CPDocument.classMap,imsmd)
+# Add other supported metadata schemas in here
 
 
 class ContentPackage:

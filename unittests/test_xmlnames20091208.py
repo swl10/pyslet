@@ -38,9 +38,9 @@ class XMLNSValidationTests(unittest.TestCase):
 
 class XMLNSElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
-		e=XMLNSElement(None)
+		e=XMLNSElement(None,'test')
 		self.failUnless(e.ns==None,'ns set on construction')
-		self.failUnless(e.xmlname==None,'element name set on construction')
+		self.failUnless(e.xmlname=='test','element name not set on construction')
 
 class XMLNSDocumentTests(unittest.TestCase):
 	def testCaseReadString(self):

@@ -6,7 +6,7 @@ from StringIO import StringIO
 import urlparse, urllib,  os.path
 from sys import maxunicode
 import codecs, random
-from types import StringTypes
+from types import StringTypes, ClassType, DictType
 from copy import copy
 
 xml_base='xml:base'
@@ -248,14 +248,20 @@ def RelPath(basePath,urlPath,touchRoot=False):
 class XMLElement:
 	def __init__(self,parent,name=None):
 		self.parent=parent
-		if name is None and hasattr(self.__class__,'XMLNAME'):
-			self.xmlname=self.__class__.XMLNAME
+		if name is None:
+			if hasattr(self.__class__,'XMLNAME'):
+				self.xmlname=self.__class__.XMLNAME
+			else:
+				self.xmlname=None
 		else:
 			self.xmlname=name
 		self.id=None
 		self._attrs={}
-		self._children=[]		
-			
+		self._children=[]
+
+	def SetXMLName(self,name):
+		self.xmlname=name
+		
 	def GetDocument(self):
 		"""Returns the document that contains the element.
 		
@@ -388,13 +394,18 @@ class XMLElement:
 		factory=getattr(self,childClass.__name__,None)
 		if factory is None:
 			try:
-				child=childClass(self,name)
+				child=childClass(self)
+				if name:
+					child.SetXMLName(name)
 			except TypeError:
 				raise TypeError("Can't create %s in %s"%(childClass.__name__,self.__class__.__name__))
 			self._children.append(child)
 			return child
 		else:
-			return factory(name)	
+			child=factory()
+			if name:
+				child.SetXMLName(name)
+			return child
 	
 	def AdoptChild(self,child):
 		"""Attaches an existing orphan child element to this one.
@@ -801,7 +812,9 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 			self.root.DetachFromDocument()
 			self.root.parent=None
 			self.root=None
-		child=childClass(self,name)
+		child=childClass(self)
+		if name:
+			child.SetXMLName(name)
 		self.root=child
 		return self.root
 		
@@ -954,7 +967,23 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 	
 	def Delete(self,reqManager=None):
 		pass
-		
+
+
+def MapClassElements(classMap,namespace):
+	"""Searches namespace and adds element name -> class mappings to classMap
+	
+	If namespace is none the current namespace is searched.  The search is
+	not recursive, to add class elements from imported modules you must call
+	MapClassElements for each module."""
+	if type(namespace) is not DictType:
+		namespace=namespace.__dict__
+	names=namespace.keys()
+	for name in names:
+		obj=namespace[name]
+		if type(obj) is ClassType and issubclass(obj,XMLElement):
+			if hasattr(obj,'XMLNAME'):
+				classMap[obj.XMLNAME]=obj
+
 
 def ParseXMLClass(classDefStr):
 	"""The purpose of this function is to provide a convenience for creating character
