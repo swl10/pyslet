@@ -55,6 +55,31 @@ class QTIElement(xmlns.XMLNSElement):
 
 
 class QTIAssessmentItem(QTIElement):
+	"""
+	<xsd:attributeGroup name="assessmentItem.AttrGroup">
+		<xsd:attribute name="identifier" type="string.Type" use="required"/>
+		<xsd:attribute name="title" type="string.Type" use="required"/>
+		<xsd:attribute name="label" type="string256.Type" use="optional"/>
+		<xsd:attribute ref="xml:lang"/>
+		<xsd:attribute name="adaptive" type="boolean.Type" use="required"/>
+		<xsd:attribute name="timeDependent" type="boolean.Type" use="required"/>
+		<xsd:attribute name="toolName" type="string256.Type" use="optional"/>
+		<xsd:attribute name="toolVersion" type="string256.Type" use="optional"/>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="assessmentItem.ContentGroup">
+		<xsd:sequence>
+			<xsd:element ref="responseDeclaration" minOccurs="0" maxOccurs="unbounded"/>
+			<xsd:element ref="outcomeDeclaration" minOccurs="0" maxOccurs="unbounded"/>
+			<xsd:element ref="templateDeclaration" minOccurs="0" maxOccurs="unbounded"/>
+			<xsd:element ref="templateProcessing" minOccurs="0" maxOccurs="1"/>
+			<xsd:element ref="stylesheet" minOccurs="0" maxOccurs="unbounded"/>
+			<xsd:element ref="itemBody" minOccurs="0" maxOccurs="1"/>
+			<xsd:element ref="responseProcessing" minOccurs="0" maxOccurs="1"/>
+			<xsd:element ref="modalFeedback" minOccurs="0" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
 	XMLNAME=(IMSQTI_NAMESPACE,'assessmentItem')
 	XMLCONTENT=xmlns.XMLElementContent
 	
@@ -62,6 +87,7 @@ class QTIAssessmentItem(QTIElement):
 		QTIElement.__init__(self,parent)
 		self.identifier=None
 		self.title=None
+		self.label=None
 		self.adaptive=False
 		self.timeDependent=False
 		self.declarations={}
@@ -72,6 +98,8 @@ class QTIAssessmentItem(QTIElement):
 			attrs['identifier']=self.identifier
 		if self.title:
 			attrs['title']=self.title
+		if self.label:
+			attrs['label']=self.label
 		attrs['adaptive']=xsdatatypes.EncodeBoolean(self.adaptive)
 		attrs['timeDependent']=xsdatatypes.EncodeBoolean(self.timeDependent)
 		return attrs
@@ -81,6 +109,9 @@ class QTIAssessmentItem(QTIElement):
 		
 	def Set_title(self,value):
 		self.title=value
+	
+	def Set_label(self,value):
+		self.label=value
 	
 	def Set_adaptive(self,value):
 		self.adaptive=xsdatatypes.DecodeBoolean(value)

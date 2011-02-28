@@ -141,12 +141,15 @@ class QTIItem(QTICommentElement):
 
 	def __init__(self,parent):
 		QTICommentElement.__init__(self,parent)
+		self.maxattempts=None
 		self.label=None
 		self.ident=None
 		self.title=None
 	
-	def GetAttribute(self):
+	def GetAttributes(self):
 		attrs=QTICommentElement.GetAttributes(self)
+		if self.maxattempts:
+			attrs['maxattempts']=self.maxattempts
 		if self.label:
 			attrs['label']=self.label
 		if self.ident:
@@ -154,6 +157,9 @@ class QTIItem(QTICommentElement):
 		if self.title:
 			attrs['title']=self.title
 
+	def Set_maxattempts(self,value):
+		self.maxattempts=value
+		
 	def Set_label(self,value):
 		self.label=value
 		
@@ -181,9 +187,18 @@ class QTIItem(QTICommentElement):
 		if value is None:
 			value=identifier
 		item.Set_title(value)
+		if self.maxattempts is not None:
+			log.append("Warning: maxattempts can not be controlled at item level, ignored: maxattempts='"+self.maxattempts+"'")
+			log.append("Note: in future, maxattempts will probably be controllable at assessment or assessment section level")
+		if self.label:
+			item.Set_label(self.label)
+		item.SetLang(self.GetLang())
 		# A comment on an item is added as a description to the metadata
+		general=lom.LOMGeneral()
+		id=general.LOMIdentifier()
+		#id.SetValue(None,self.ident)	
+		id.SetValue(self.ident)	
 		if self.comment:
-			general=lom.LOMGeneral()
 			description=general.LOMDescription().LangString()
 			description.SetValue(self.comment.GetValue())						
 		return (doc, lom, log)

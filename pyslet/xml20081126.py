@@ -414,14 +414,23 @@ class XMLElement:
 		calls it if defined and does no further processing.  A custom adoption
 		method is a method of the form Adopt_ClassName.
 		
-		If no custom adoption method exists and the element is not empty then
-		child is added to the local list of children."""
+		If a custom factory method is defined for the class of child but not a
+		custom adoption method then TypeError is raised.  You are not required
+		to provide a custom adoption method but you must do so if you wish to
+		support the adoption of elements that would other require a custom
+		factory to instantiate.
+		
+		If no custom adoption method or custom factory exists and the element is
+		not empty then the child is added to the local list of children."""
 		if child.parent:
 			raise XMLParentError
 		elif self.IsEmpty():
 			self.ValidationError("Unexpected child element",child.xmlname)
+		factory=getattr(self,child.__class__.__name__,None)
 		adopter=getattr(self,"Adopt_"+child.__class__.__name__,None)
 		if adopter is None:
+			if factory:
+				raise TypeError
 			child.parent=self
 			child.AttachToDocument()
 			self._children.append(child)

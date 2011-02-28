@@ -14,6 +14,7 @@
 			<metadata>
 				<imsmd:lom>
 					<imsmd:general>
+						<imsmd:identifier>emptyitem</imsmd:identifier>
 						<imsmd:description>
 							<imsmd:langstring>Empty Item</imsmd:langstring>
 						</imsmd:description>
@@ -26,6 +27,7 @@
 			<metadata>
 				<imsmd:lom>
 					<imsmd:general>
+						<imsmd:identifier>fullitem</imsmd:identifier>						
 						<imsmd:description>
 							<imsmd:langstring>Full Item</imsmd:langstring>
 						</imsmd:description>
