@@ -404,6 +404,13 @@ class XMLDocumentTests(unittest.TestCase):
 	def testCaseResolveBase(self):
 		"""Test the use of ResolveURI and ResolveBase"""
 		os.chdir(TEST_DATA_DIR)
+		parent=XMLElement(None)
+		self.failUnless(parent.ResolveBase() is None,"No default base")
+		child=XMLElement(parent)
+		self.failUnless(child.ResolveBase() is None,"No xml:base by default")
+		parent.SetBase('file:///index.xml')
+		self.failUnless(child.ResolveBase()=='file:///index.xml',"No xml:base inheritance")
+		# Tests with a document follow....
 		fpath=urllib.pathname2url(os.path.abspath('base.xml'))
 		hrefPath=urllib.pathname2url(os.path.abspath('link.xml'))
 		furl='file://'+fpath
@@ -432,7 +439,20 @@ class XMLDocumentTests(unittest.TestCase):
 		self.failUnless(grandChildTag.ResolveURI("link.xml")==altRef,"grandChild element HREF inherited")
 		self.failUnless(grandChildTag.RelativeURI(href)==hrefPath,"grandChild element relative inherited")
 		self.failUnless(grandChildTag.RelativeURI(altRef)=='link.xml','grandChild element relative inherited')
-		
+	
+	def testCaseResolveLang(self):
+		"""Test the use of ResolveLang"""
+		parent=XMLElement(None)
+		self.failUnless(parent.ResolveLang() is None,"No default language")
+		parent.SetLang('en-GB')
+		self.failUnless(parent.GetLang()=='en-GB',"Lang Get/Set")
+		child=XMLElement(parent)
+		self.failUnless(child.GetLang() is None,"No xml:lang by default")
+		self.failUnless(child.ResolveLang()=='en-GB',"Lang inheritence")
+		# repeat tests with a parent document
+		d=XMLDocument()
+		parent=XMLElement(d)
+		self.failUnless(parent.ResolveLang() is None,"No default language")
 		
 	def testCaseCreate(self):
 		"""Test the creating of the XMLDocument on the file system"""		

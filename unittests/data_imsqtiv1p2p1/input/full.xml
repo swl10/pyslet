@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
 <questestinterop>
-    <item ident="fullitem">
-        <qticomment>Full Item</qticomment>        
+    <item ident="fullitem" maxattempts="1" title="Title: Full Item" label="Label: Full Item" xml:lang="en-GB">
+        <qticomment>Full Item</qticomment>
+        <duration>1H</duration>
+        <itemmetadata>
+            <qmd_levelofdifficulty>Professional Development</qmd_levelofdifficulty>
+            <qmd_maximumscore>50.0</qmd_maximumscore>
+            <qmd_topic>Migration</qmd_topic>
+        </itemmetadata>
     </item>
 </questestinterop>

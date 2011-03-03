@@ -39,7 +39,7 @@ class QTIElementTests(unittest.TestCase):
 
 	def testCaseQuesTestInterop(self):
 		e=QTIQuesTestInterop(None)
-		self.failUnless(e.comment is None)
+		self.failUnless(e.QTIComment is None)
 		self.failUnless(e.objectBank is None)
 		self.failUnless(e.assessment is None)
 		self.failUnless(e.objectList==[])
@@ -104,7 +104,7 @@ class QTIDocumentTests(unittest.TestCase):
 		doc=QTIDocument()
 		doc.Read(src=StringIO(EXAMPLE_2))
 		root=doc.root
-		self.failUnless(root.comment.GetValue()=='Example2')
+		self.failUnless(root.QTIComment.GetValue()=='Example2')
 		objects=doc.root.objectList
 		self.failUnless(len(objects)==1 and isinstance(objects[0],QTIItem))
 		self.failUnless(len(root.objectList)==1)

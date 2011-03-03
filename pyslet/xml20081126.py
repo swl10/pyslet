@@ -6,7 +6,7 @@ from StringIO import StringIO
 import urlparse, urllib,  os.path
 from sys import maxunicode
 import codecs, random
-from types import StringTypes, ClassType, DictType
+from types import *
 from copy import copy
 
 xml_base='xml:base'
@@ -245,6 +245,13 @@ def RelPath(basePath,urlPath,touchRoot=False):
 	else:
 		return string.join(result,'/')		
 
+
+def OptionalAppend(itemList,newItem):
+	"""A convenience function which appends newItem to itemList if newItem is not None""" 
+	if newItem is not None:
+		itemList.append(newItem)
+
+		
 class XMLElement:
 	def __init__(self,parent,name=None):
 		self.parent=parent
@@ -384,29 +391,45 @@ class XMLElement:
 		
 		The default implementation checks for a custom factory method and calls
 		it if defined and does no further processing.  A custom factory method
-		is a method of the form ClassName.
+		is a method of the form ClassName or an attribute that is being used to
+		hold instances of this child.  The attribute must already exist and can
+		be one of None (optional child, new child is created), a list (optional
+		repeatable child, new child is created and appended) or an instance of
+		childClass (required child, no new child is created, existing instance
+		returned).
 		
 		If no custom factory method is defined then the default processing
-		simply creates an instance of child (if necessary) setting its name
-		accordingly and attaches it to the local list of children."""
+		simply creates an instance of child (if necessary) and attaches it to
+		the local list of children."""
 		if self.IsEmpty():
 			self.ValidationError("Unexpected child element",name)
-		factory=getattr(self,childClass.__name__,None)
-		if factory is None:
-			try:
-				child=childClass(self)
+		if hasattr(self,childClass.__name__):
+			factory=getattr(self,childClass.__name__)
+			if type(factory) is MethodType:
+				child=factory()
 				if name:
 					child.SetXMLName(name)
+				return child
+			elif type(factory) is NoneType:
+				child=childClass(self)
+				setattr(self,childClass.__name__,child)
+			elif type(factory) is ListType:
+				child=childClass(self)
+				factory.append(child)
+			elif type(factory) is InstanceType and isinstance(factory,childClass):
+				child=factory
+			else:
+				raise TypeError
+		else:
+			try:
+				child=childClass(self)
 			except TypeError:
 				raise TypeError("Can't create %s in %s"%(childClass.__name__,self.__class__.__name__))
 			self._children.append(child)
-			return child
-		else:
-			child=factory()
-			if name:
-				child.SetXMLName(name)
-			return child
-	
+		if name:
+			child.SetXMLName(name)
+		return child
+			
 	def AdoptChild(self,child):
 		"""Attaches an existing orphan child element to this one.
 		
@@ -620,7 +643,7 @@ class XMLElement:
 		relative path or even None, if no base information is available."""
 		baser=self
 		baseURI=None
-		while True:
+		while baser:
 			rebase=baser.GetBase()
 			if baseURI:
 				baseURI=urlparse.urljoin(rebase,baseURI)
@@ -703,6 +726,23 @@ class XMLElement:
 			self._attrs.pop(xml_lang,None)
 		else:
 			self._attrs[xml_lang]=lang
+
+	def ResolveLang(self):
+		"""Returns the effective language for the current element.
+		
+		The language is resolved using the xml:lang value of the element or its
+		ancestors.  If no xml:lang is in effect then None is returned."""
+		baser=self
+		baseLang=None
+		while baser:
+			lang=baser.GetLang()
+			if lang:
+				return lang
+			if isinstance(baser,XMLElement):
+				baser=baser.parent
+			else:
+				break
+		return None
 	
 	def GetSpace(self):
 		return self._attrs.get(xml_space,None)
@@ -781,6 +821,7 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		self.parser.setContentHandler(self)
 		self.parser.setErrorHandler(self)
 		self.baseURI=None
+		self.lang=None
 		if root:
 			if not issubclass(root,XMLElement):
 				raise ValueError
@@ -842,6 +883,14 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 			
 	def GetBase(self):
 		return self.baseURI
+	
+	def SetLang(self,lang):
+		"""Sets the default language for the document."""
+		self.lang=lang
+	
+	def GetLang(self):
+		"""Returns the default language for the document."""
+		return self.lang
 		
 	def ValidationError(self,msg,element,data=None,aname=None):
 		"""Called when a validation error is triggered by element.

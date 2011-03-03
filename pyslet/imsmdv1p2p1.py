@@ -13,29 +13,6 @@ IMSLRM_NAMESPACE_ALIASES={
 	"http://www.imsproject.org/xsd/imsmd_rootv1p2":IMSLRM_NAMESPACE,
 	"http://www.imsglobal.org/xsd/imsmd_rootv1p2p1":IMSLRM_NAMESPACE}
 
-lrm_aggregationlevel=(IMSLRM_NAMESPACE,'aggregationlevel')
-lrm_annotation=(IMSLRM_NAMESPACE,'annotation')
-lrm_catalogentry=(IMSLRM_NAMESPACE,'catalogentry')
-lrm_classification=(IMSLRM_NAMESPACE,'classification')
-lrm_coverage=(IMSLRM_NAMESPACE,'coverage')
-lrm_description=(IMSLRM_NAMESPACE,'description')
-lrm_educational=(IMSLRM_NAMESPACE,'educational')
-lrm_general=(IMSLRM_NAMESPACE,'general')
-lrm_identifier=(IMSLRM_NAMESPACE,'identifier')
-lrm_keyword=(IMSLRM_NAMESPACE,'keyword')
-lrm_language=(IMSLRM_NAMESPACE,'language')
-lrm_langstring=(IMSLRM_NAMESPACE,'langstring')
-lrm_lifecycle=(IMSLRM_NAMESPACE,'lifecycle')
-lrm_lom=(IMSLRM_NAMESPACE,'lom')
-lrm_metametadata=(IMSLRM_NAMESPACE,'metametadata')
-lrm_relation=(IMSLRM_NAMESPACE,'relation')
-lrm_structure=(IMSLRM_NAMESPACE,'structure')
-lrm_technical=(IMSLRM_NAMESPACE,'technical')
-lrm_title=(IMSLRM_NAMESPACE,'title')
-
-lrm_wildcard=(IMSLRM_NAMESPACE,None)
-	
-md_lom=(IMSLRM_NAMESPACE,'lom')
 
 class LRMException(Exception): pass
 
@@ -43,8 +20,61 @@ class LRMElement(xmlns.XMLNSElement):
 	"""Basic element to represent all CP elements"""
 	pass
 
+class LangString(LRMElement):
+	XMLNAME=(IMSLRM_NAMESPACE,'langstring')
+	def __init__(self,parent,value=None):
+		LRMElement.__init__(self,parent)
+		if value is not None:
+			self.SetValue(value)
+		
+class LangStringList(LRMElement):	
+
+	def __init__(self,parent):
+		LRMElement.__init__(self,parent)
+		self.langStrings=[]
+
+	def GetChildren(self):
+		return self.langStrings
+	
+	def LangString(self,value=None):
+		s=LangString(self,value)
+		self.langStrings.append(s)
+		return s
+
+class LRMSource(LRMElement):
+	XMLNAME=(IMSLRM_NAMESPACE,'source')
+
+	def __init__(self,parent):
+		LRMElement.__init__(self,parent)
+		self.LangString=LangString(self)
+	
+	def GetChildren(self):
+		return [self.LangString]
+
+		
+class LRMValue(LRMElement):
+	XMLNAME=(IMSLRM_NAMESPACE,'value')
+
+	def __init__(self,parent):
+		LRMElement.__init__(self,parent)
+		self.LangString=LangString(self)
+	
+	def GetChildren(self):
+		return [self.LangString]
+
+	
+class LRMSourceValue(LRMElement):
+	def __init__(self,parent):
+		LRMElement.__init__(self,parent)
+		self.LRMSource=LRMSource(self)
+		self.LRMValue=LRMValue(self)
+	
+	def GetChildren(self):
+		return [self.LRMSource,self.LRMValue]
+
+		
 class LOM(LRMElement):
-	XMLNAME=md_lom
+	XMLNAME=(IMSLRM_NAMESPACE,'lom')
 	XMLCONTENT=xmlns.XMLElementContent
 	
 	def __init__(self,parent):
@@ -115,9 +145,8 @@ class LOM(LRMElement):
 		self.classifications.append(c)
 		return c
 
-		
 class LOMGeneral(LRMElement):
-	XMLNAME=lrm_general
+	XMLNAME=(IMSLRM_NAMESPACE,'general')
 	XMLCONTENT=xmlns.XMLElementContent
 
 	def __init__(self,parent):
@@ -191,97 +220,161 @@ class LOMGeneral(LRMElement):
 		return self.aggregationLevel
 	
 
-class LangString(LRMElement):
-	XMLNAME=lrm_langstring
-		
-class LangStringList(LRMElement):	
-
-	def __init__(self,parent):
-		LRMElement.__init__(self,parent)
-		self.langStrings=[]
-
-	def GetChildren(self):
-		return self.langStrings
-	
-	def LangString(self):
-		s=LangString(self)
-		self.langStrings.append(s)
-		return s
-		
-
 class LOMIdentifier(LRMElement):
-	XMLNAME=lrm_identifier
+	XMLNAME=(IMSLRM_NAMESPACE,'identifier')
 	
-class LOMTitle(LRMElement):
-	XMLNAME=lrm_title
+class LOMTitle(LangStringList):
+	XMLNAME=(IMSLRM_NAMESPACE,'title')
 
 class LOMCatalogEntry(LRMElement):
-	XMLNAME=lrm_catalogentry
+	XMLNAME=(IMSLRM_NAMESPACE,'catalogentry')
 
 class LOMLanguage(LRMElement):
-	XMLNAME=lrm_language
+	XMLNAME=(IMSLRM_NAMESPACE,'language')
 	
 class LOMDescription(LangStringList):
-	XMLNAME=lrm_description
+	XMLNAME=(IMSLRM_NAMESPACE,'description')
 	XMLCONTENT=xmlns.XMLElementContent
 
 class LOMKeyword(LangStringList):
-	XMLNAME=lrm_keyword
+	XMLNAME=(IMSLRM_NAMESPACE,'keyword')
 
 class LOMCoverage(LangStringList):
-	XMLNAME=lrm_coverage
+	XMLNAME=(IMSLRM_NAMESPACE,'coverage')
 
-class LOMStructure(LangStringList):
-	XMLNAME=lrm_structure
+class LOMStructure(LRMSourceValue):
+	XMLNAME=(IMSLRM_NAMESPACE,'structure')
 
-class LOMAggregationLevel(LangStringList):
-	XMLNAME=lrm_aggregationlevel
-
+class LOMAggregationLevel(LRMSourceValue):
+	XMLNAME=(IMSLRM_NAMESPACE,'aggregationlevel')
 
 class LOMLifecycle(LRMElement):
-	XMLNAME=lrm_lifecycle
+	XMLNAME=(IMSLRM_NAMESPACE,'lifecycle')
 	
 class LOMMetaMetadata(LRMElement):
-	XMLNAME=lrm_metametadata
+	XMLNAME=(IMSLRM_NAMESPACE,'metametadata')
 	
 class LOMTechnical(LRMElement):
-	XMLNAME=lrm_technical
+	XMLNAME=(IMSLRM_NAMESPACE,'technical')
 	
 class LOMEducational(LRMElement):
-	XMLNAME=lrm_educational
+	"""
+    <xsd:complexType name="educationalType" mixed="true">
+      <xsd:sequence>
+         <xsd:element ref="interactivitytype" minOccurs="0"/>
+         <xsd:element ref="learningresourcetype" minOccurs="0" maxOccurs="unbounded"/>
+         <xsd:element ref="interactivitylevel" minOccurs="0"/>
+         <xsd:element ref="semanticdensity" minOccurs="0"/>
+         <xsd:element ref="intendedenduserrole" minOccurs="0" maxOccurs="unbounded"/>
+         <xsd:element ref="context" minOccurs="0" maxOccurs="unbounded"/>
+         <xsd:element ref="typicalagerange" minOccurs="0" maxOccurs="unbounded"/>
+         <xsd:element ref="difficulty" minOccurs="0"/>
+         <xsd:element ref="typicallearningtime" minOccurs="0"/>
+         <xsd:element ref="description" minOccurs="0"/>
+         <xsd:element ref="language" minOccurs="0" maxOccurs="unbounded"/>
+         <xsd:group ref="grp.any"/>
+      </xsd:sequence>
+    </xsd:complexType>
+	"""	
+	XMLNAME=(IMSLRM_NAMESPACE,'educational')
+	XMLCONTENT=xmlns.XMLElementContent
 	
+	def __init__(self,parent):
+		LRMElement.__init__(self,parent)
+		self.LOMInteractivityType=None
+		self.LOMLearningResourceType=[]
+		self.LOMInteractivityLevel=None
+		self.LOMSemanticDensity=None
+		self.LOMIntendedEndUserRole=[]
+		self.LOMContext=[]
+		self.LOMTypicalAgeRange=[]
+		self.LOMDifficulty=None
+		self.LOMTypicalLearningTime=None
+		self.LOMDescription=None
+		self.LOMLanguage=[]
+
+	def GetChildren(self):
+		children=[]
+		xmlns.OptionalAppend(children,self.LOMInteractivityType)
+		children=children+self.LOMLearningResourceType
+		xmlns.OptionalAppend(children,self.LOMInteractivityLevel)
+		xmlns.OptionalAppend(children,self.LOMSemanticDensity)
+		children=children+self.LOMIntendedEndUserRole+self.LOMContext+self.LOMTypicalAgeRange
+		xmlns.OptionalAppend(children,self.LOMDifficulty)
+		xmlns.OptionalAppend(children,self.LOMTypicalLearningTime)
+		xmlns.OptionalAppend(children,self.LOMDescription)
+		children=children+self.LOMLanguage+LRMElement.GetChildren(self)
+		return children
+
+		
+class LOMInteractivityType(LRMSourceValue):
+	XMLNAME=(IMSLRM_NAMESPACE,'interactivitytype')
+	
+class LOMLearningResourceType(LRMSourceValue):
+	XMLNAME=(IMSLRM_NAMESPACE,'learningresourcetype')
+
+class LOMInteractivityLevel(LRMSourceValue):
+	XMLNAME=(IMSLRM_NAMESPACE,'interactivitylevel')
+
+class LOMSemanticDensity(LRMSourceValue):
+	XMLNAME=(IMSLRM_NAMESPACE,'semanticdensity')
+
+class LOMIntendedEndUserRole(LRMSourceValue):
+	XMLNAME=(IMSLRM_NAMESPACE,'intendedenduserrole')
+
+class LOMContext(LRMSourceValue):
+	XMLNAME=(IMSLRM_NAMESPACE,'context')
+
+class LOMTypicalAgeRange(LangStringList):
+	XMLNAME=(IMSLRM_NAMESPACE,'typicalagerange')
+
+class LOMDifficulty(LRMSourceValue):
+	XMLNAME=(IMSLRM_NAMESPACE,'difficulty')
+
+class LOMTypicalLearningTime(LRMElement):
+	XMLNAME=(IMSLRM_NAMESPACE,'typicallearningimte')
+
+
 class LOMRelation(LRMElement):
-	XMLNAME=lrm_relation
+	XMLNAME=(IMSLRM_NAMESPACE,'relation')
 	
 class LOMAnnotation(LRMElement):
-	XMLNAME=lrm_annotation
+	""" 
+	<xsd:complexType name="annotationType" mixed="true">
+      <xsd:sequence>
+         <xsd:element ref="person" minOccurs="0"/>
+         <xsd:element ref="date" minOccurs="0"/>
+         <xsd:element ref="description" minOccurs="0"/>
+         <xsd:group ref="grp.any"/>
+      </xsd:sequence>
+	</xsd:complexType>
+	"""
+	XMLNAME=(IMSLRM_NAMESPACE,'annotation')
+	XMLCONTENT=xmlns.XMLElementContent
+	
+	def __init__(self,parent):
+		LRMElement.__init__(self,parent)
+		self.LOMPerson=None
+		self.LOMDate=None
+		self.LOMDescription=None
+	
+	def GetChildren(self):
+		children=[]
+		xmlns.OptionalAppend(children,self.LOMPerson)
+		xmlns.OptionalAppend(children,self.LOMDate)
+		xmlns.OptionalAppend(children,self.LOMDescription)
+		return children+LRMElement.GetChildren(self)
+
 	
 class LOMClassification(LRMElement):
-	XMLNAME=lrm_classification
+	XMLNAME=(IMSLRM_NAMESPACE,'classification')
 	
 	
 classMap={
-	lrm_wildcard:LRMElement,
-	lrm_aggregationlevel:LOMAggregationLevel,
-	lrm_annotation:LOMAnnotation,
-	lrm_catalogentry:LOMCatalogEntry,
-	lrm_classification:LOMClassification,
-	lrm_coverage:LOMCoverage,
-	lrm_description:LOMDescription,
-	lrm_educational:LOMEducational,
-	lrm_general:LOMGeneral,
-	lrm_identifier:LOMIdentifier,
-	lrm_keyword:LOMKeyword,
-	lrm_language:LOMLanguage,
-	lrm_langstring:LangString,
-	lrm_lifecycle:LOMLifecycle,
-	lrm_lom:LOM,
-	lrm_metametadata:LOMMetaMetadata,
-	lrm_relation:LOMRelation,
-	lrm_structure:LOMStructure,
-	lrm_technical:LOMTechnical,
-	lrm_title:LOMTitle
+	(IMSLRM_NAMESPACE,None):LRMElement
 	}
+
+xmlns.MapClassElements(classMap,globals())
 
 def GetElementClass(name):
 	ns,xmlname=name

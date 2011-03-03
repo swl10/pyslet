@@ -27,14 +27,58 @@
 			<metadata>
 				<imsmd:lom>
 					<imsmd:general>
-						<imsmd:identifier>fullitem</imsmd:identifier>						
+						<imsmd:identifier>fullitem</imsmd:identifier>
 						<imsmd:description>
 							<imsmd:langstring>Full Item</imsmd:langstring>
 						</imsmd:description>
 					</imsmd:general>
+					<imsmd:educational>
+						<imsmd:context>
+							<imsmd:source>
+								<imsmd:langstring xml:lang="x-none">LOMv1.0</imsmd:langstring>
+							</imsmd:source>
+							<imsmd:value>
+								<imsmd:langstring xml:lang="x-none">training</imsmd:langstring>
+							</imsmd:value>
+						</imsmd:context>						
+						<imsmd:description>
+							<imsmd:langstring xml:lang="en-GB">Migration</imsmd:langstring>
+						</imsmd:description>						
+					</imsmd:educational>
+					<imsmd:annotation>
+						<imsmd:description>
+							<imsmd:langstring>Warning: maxattempts can not be controlled at item level, ignored: maxattempts='1'
+Note: in future, maxattempts will probably be controllable at assessment or assessment section level
+Warning: duration is currently outside the scope of version 2: ignored 1H</imsmd:langstring>
+						</imsmd:description>						
+					</imsmd:annotation>
 				</imsmd:lom>
 			</metadata>
 			<file href="full/fullitem.xml"/>
+		</resource>
+		<resource identifier="qmdextensions" type="imsqti_item_xmlv2p1" href="qmdextensions/qmdextensions.xml">
+			<metadata>
+				<imsmd:lom>
+					<imsmd:general>
+						<imsmd:identifier>qmdextensions</imsmd:identifier>
+						<imsmd:keyword>
+							<imsmd:langstring xml:lang="en-GB">QMD</imsmd:langstring>
+						</imsmd:keyword>
+						<imsmd:keyword>
+							<imsmd:langstring xml:lang="en-GB">Extension</imsmd:langstring>
+						</imsmd:keyword>						
+						<imsmd:keyword>
+							<imsmd:langstring xml:lang="en-GB">Extension Domain</imsmd:langstring>
+						</imsmd:keyword>						
+					</imsmd:general>
+					<imsmd:annotation>
+						<imsmd:description>
+							<imsmd:langstring>Warning: qmd_domain extension field will be added as LOM keyword</imsmd:langstring>
+						</imsmd:description>						
+					</imsmd:annotation>
+				</imsmd:lom>
+			</metadata>
+			<file href="qmdextensions/qmdextensions.xml"/>
 		</resource>
 	</resources>
 </manifest>

@@ -11,9 +11,6 @@ import string, codecs
 import os.path, urllib
 
 #IMSQTI_NAMESPACE="http://www.imsglobal.org/xsd/ims_qtiasiv1p2"
-qti_comment='qticomment'
-qti_item='item'
-qti_questestinterop='questestinterop'
 
 # Attribute definitions
 # <!ENTITY % I_Ident " ident CDATA  #REQUIRED">
@@ -46,34 +43,25 @@ class QTIElement(xml.XMLElement):
 
 
 class QTIComment(QTIElement):
-	XMLNAME=qti_comment
+	XMLNAME='qticomment'
 
 class QTICommentElement(QTIElement):
 	"""Basic element to represent all QTI elements that can contain a comment"""
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
-		self.comment=None
+		self.QTIComment=None
 
 	def GetChildren(self):
-		if self.comment:
-			return [self.comment]
+		if self.QTIComment:
+			return [self.QTIComment]
 		else:
 			return []
-			
-	def QTIComment(self):
-		if self.comment:
-			child=self.comment
-		else:
-			child=QTIComment(self)
-			self.comment=child
-		return child
-
 
 	
 class QTIQuesTestInterop(QTICommentElement):
 	"""<!ELEMENT questestinterop (qticomment? , (objectbank | assessment | (section | item)+))>"""
 	
-	XMLNAME=qti_questestinterop
+	XMLNAME='questestinterop'
 
 	def __init__(self,parent):
 		QTICommentElement.__init__(self,parent)
@@ -111,7 +99,7 @@ class QTIQuesTestInterop(QTICommentElement):
 		# ignore assessment for the moment
 		for object in self.objectList:
 			output.append(object.MigrateV2())
-		if self.comment:
+		if self.QTIComment:
 			if self.objectBank:
 				# where to put the comment?
 				pass
@@ -124,28 +112,53 @@ class QTIQuesTestInterop(QTICommentElement):
 				doc,lom,log=output[0]
 				general=lom.LOMGeneral()
 				description=general.LOMDescription().LangString()
-				description.SetValue(self.comment.GetValue())
+				description.SetValue(self.QTIComment.GetValue())
 		return output
 
 
 class QTIItem(QTICommentElement):
 	"""
-	<!ELEMENT item (qticomment? , duration? , itemmetadata? , objectives* , itemcontrol* , itemprecondition* , itempostcondition* , (itemrubric | rubric)* , presentation? , resprocessing* , itemproc_extension? , itemfeedback* , reference?)>
+	<!ELEMENT item (qticomment?
+		duration?
+		itemmetadata?
+		objectives*
+		itemcontrol*
+		itemprecondition*
+		itempostcondition*
+		(itemrubric | rubric)*
+		presentation?
+		resprocessing*
+		itemproc_extension?
+		itemfeedback*
+		reference?)>
 
 	<!ATTLIST item  maxattempts CDATA  #IMPLIED
 		%I_Label;
 		%I_Ident;
 		%I_Title;
 		xml:lang    CDATA  #IMPLIED >"""
-	XMLNAME=qti_item
-
+	XMLNAME='item'
+	XMLCONTENT=xml.XMLElementContent
+	
 	def __init__(self,parent):
 		QTICommentElement.__init__(self,parent)
 		self.maxattempts=None
 		self.label=None
 		self.ident=None
 		self.title=None
-	
+		self.QTIDuration=None
+		self.QTIItemMetadata=None
+		self.QTIObjectives=[]
+		self.QTIItemControl=[]
+		self.QTIItemPrecondition=[]
+		self.QTIItemPostcondition=[]
+		self.rubric=[]
+		self.QTIPresentation=None
+		self.QTIResprocessing=[]
+		self.QTIItemProcExtension=None
+		self.QTIItemFeedback=[]
+		self.QTIReference=None
+		
 	def GetAttributes(self):
 		attrs=QTICommentElement.GetAttributes(self)
 		if self.maxattempts:
@@ -168,7 +181,19 @@ class QTIItem(QTICommentElement):
 		
 	def Set_title(self,value):
 		self.title=value
-		
+	
+	def GetChildren(self):
+		children=QTIComment.GetChildren(self)
+		OptionalAppend(children,self.QTIDuration)
+		OptionalAppend(children,self.QTIItemMetadata)
+		children=children+self.QITObjectives+self.QTIItemControl+self.QTIItemPrecondition+self.QTIPostCondition+self.rubric
+		OptionalAppend(children,self.QTIPresentation)
+		children=children+self.QTIResprocessing
+		OptionalAppend(children,QTIItemProcExtension)
+		children=children+self.QTIItemFeedback
+		OptionalAppend(children,QTIReference)
+		return children
+	
 	def MigrateV2(self):
 		"""Converts this item to QTI v2
 		
@@ -177,34 +202,270 @@ class QTIItem(QTICommentElement):
 		item=doc.root
 		lom=imsmd.LOM(None)
 		log=[]
-		value=self.ident
-		newValue=qtiv2.MakeValidNCName(value)
-		if value!=newValue:
-			log.append("Warning: illegal NCName for ident: %s, replaced with: %s"%(value,newValue))
-		identifier=newValue
-		item.Set_identifier(identifier)
-		value=self.title
-		if value is None:
-			value=identifier
-		item.Set_title(value)
+		ident=qtiv2.MakeValidNCName(self.ident)
+		if self.ident!=ident:
+			log.append("Warning: illegal NCName for ident: %s, replaced with: %s"%(self.ident,ident))
+		item.Set_identifier(ident)
+		title=self.title
+		if title is None:
+			title=ident
+		item.Set_title(title)
 		if self.maxattempts is not None:
 			log.append("Warning: maxattempts can not be controlled at item level, ignored: maxattempts='"+self.maxattempts+"'")
 			log.append("Note: in future, maxattempts will probably be controllable at assessment or assessment section level")
 		if self.label:
 			item.Set_label(self.label)
 		item.SetLang(self.GetLang())
-		# A comment on an item is added as a description to the metadata
 		general=lom.LOMGeneral()
 		id=general.LOMIdentifier()
-		#id.SetValue(None,self.ident)	
 		id.SetValue(self.ident)	
-		if self.comment:
-			description=general.LOMDescription().LangString()
-			description.SetValue(self.comment.GetValue())						
+		if self.QTIComment:
+			# A comment on an item is added as a description to the metadata
+			description=general.LOMDescription().LangString(self.QTIComment.GetValue())
+		if self.QTIDuration:
+			log.append("Warning: duration is currently outside the scope of version 2: ignored "+self.QTIDuration.GetValue())
+		if self.QTIItemMetadata:
+			self.QTIItemMetadata.MigrateV2(doc,lom,log)
+			
 		return (doc, lom, log)
 		
-		
 
+class QTIDuration(QTIElement):
+	XMLNAME='duration'
+
+class QTIMetadata(QTIElement):
+	XMLNAME='qtimetadata'
+	
+class QMDComputerScored(QTIElement):
+	XMLNAME='qmd_computerscored'
+	
+class QMDFeedbackPermitted(QTIElement):
+	XMLNAME='qmd_feedbackpermitted'
+	
+class QMDHintsPermitted(QTIElement):
+	XMLNAME='qmd_hintspermitted'
+
+class QMDItemType(QTIElement):
+	XMLNAME='qmd_itemtype'
+
+class QMDLevelOfDifficulty(QTIElement):
+	"""<!ELEMENT qmd_levelofdifficulty (#PCDATA)>"""	
+	XMLNAME='qmd_levelofdifficulty'
+
+QMDLevelOfDifficultyMap={
+	"pre-school":("pre-school",False), # value is outside LOM defined vocab
+	"school":("school",True),
+	"he/fe":("higher education",True),
+	"vocational":("vocational",False), # value is outside LOM defined vocab
+	"professional development":("training",True)
+	}
+
+QMDDifficultyMap={
+	"very easy":1,
+	"easy":1,
+	"medium":1,
+	"difficult":1,
+	"very difficult":1
+	}
+
+class QMDMaximumScore(QTIElement):
+	XMLNAME='qmd_maximumscore'
+
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.value=None
+	
+	def GetValue(self):
+		return self.value
+	
+	def SetValue(self,value):
+		self.value=float(value)			
+		QTIElement.SetValue(self,unicode(value))
+		
+	def GotChildren(self):
+		self.value=float(QTIElement.GetValue(self).strip())
+
+
+class QMDRenderingType(QTIElement):
+	XMLNAME='qmd_renderingtype'
+
+class QMDResponseType(QTIElement):
+	XMLNAME='qmd_responsetype'
+
+class QMDScoringPermitted(QTIElement):
+	XMLNAME='qmd_scoringpermitted'
+
+class QMDSolutionsPermitted(QTIElement):
+	XMLNAME='qmd_solutionspermitted'
+
+class QMDStatus(QTIElement):
+	XMLNAME='qmd_status'
+
+class QMDTimeDependence(QTIElement):
+	XMLNAME='qmd_timedependence'
+
+class QMDTimeLimit(QTIElement):
+	XMLNAME='qmd_timelimit'
+
+class QMDToolVendor(QTIElement):
+	XMLNAME='qmd_toolvendor'
+
+class QMDTopic(QTIElement):
+	XMLNAME='qmd_topic'
+
+class QMDWeighting(QTIElement):
+	XMLNAME='qmd_weighting'
+
+class QMDMaterial(QTIElement):
+	XMLNAME='qmd_material'
+
+class QMDTypeOfSolution(QTIElement):
+	XMLNAME='qmd_typeofsolution'
+
+
+class QMDKeywords(QTIElement):
+	"""Not defined by QTI but seems to be in common use."""
+	XMLNAME='qmd_keywords'
+
+class QMDDomain(QTIElement):
+	"""Not defined by QTI but seems to be in common use."""
+	XMLNAME='qmd_domain'
+	
+class QTIItemMetadata(QTIElement):
+	"""
+	<!ELEMENT itemmetadata (
+		qtimetadata*
+		qmd_computerscored?
+		qmd_feedbackpermitted?
+		qmd_hintspermitted?
+		qmd_itemtype?
+		qmd_levelofdifficulty?
+		qmd_maximumscore?
+		qmd_renderingtype*
+		qmd_responsetype*
+		qmd_scoringpermitted?
+		qmd_solutionspermitted?
+		qmd_status?
+		qmd_timedependence?
+		qmd_timelimit?
+		qmd_toolvendor?
+		qmd_topic?
+		qmd_weighting?
+		qmd_material*
+		qmd_typeofsolution?
+		)>
+	"""
+	XMLNAME='itemmetadata'
+	XMLCONTENT=xml.XMLElementContent
+	
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.QTIMetadata=[]
+		self.QMDComputerScored=None
+		self.QMDFeedbackPermitted=None
+		self.QMDHintsPermitted=None
+		self.QMDItemType=None
+		self.QMDLevelOfDifficulty=None
+		self.QMDMaximumScore=None
+		self.QMDRenderingType=[]
+		self.QMDResponseType=[]
+		self.QMDScoringPermitted=None
+		self.QMDSolutionsPermitted=None
+		self.QMDStatus=None
+		self.QMDTimeDependence=None
+		self.QMDTimeLimit=None
+		self.QMDToolVendor=None
+		self.QMDTopic=None
+		self.QMDWeighting=None
+		self.QMDMaterial=[]
+		self.QMDTypeOfSolution=None
+		# Extensions in common use....
+		self.QMDKeywords=[]
+		self.QMDDomain=[]
+		
+	def GetChildren(self):
+		children=self.QTIMetadata
+		OptionalAppend(children,self.QMDComputerScored)
+		OptionalAppend(children,self.QMDFeedbackPermitted)
+		OptionalAppend(children,self.QMDHintsPermitted)
+		OptionalAppend(children,self.QMDItemType)
+		OptionalAppend(children,self.QMDLevelOfDifficulty)
+		OptionalAppend(children,self.QMDMaximumScore)
+		children=children+self.QMDRenderingType+self.QMDResponseType
+		OptionalAppend(children,self.QMDScoringPermitted)
+		OptionalAppend(children,self.QMDSolutionsPermitted)
+		OptionalAppend(children,self.QMDStatus)
+		OptionalAppend(children,self.QMDTimeDependence)
+		OptionalAppend(children,self.QMDTimeLimit)
+		OptionalAppend(children,self.QMDToolVendor)
+		OptionalAppend(children,self.QMDTopic)
+		OptionalAppend(children,self.QMDWeighting)
+		children=children+self.QMDMaterial
+		OptionalAppend(children,self.QMDTypeOfSolution)
+		return self.children+self.QMDKeywords+self.QMDDomain
+
+	def MigrateV2(self,doc,lom,log):
+		if self.QMDLevelOfDifficulty:
+			# IMS Definition says: The options are: "Pre-school", "School" or
+			# "HE/FE", # "Vocational" and "Professional Development" so we bind
+			# this value to the "Context" in LOM if one of the QTI or LOM
+			# defined terms have been used, otherwise, we bind to Difficulty, as
+			# this seems to be more common usage.
+			value=self.QMDLevelOfDifficulty.GetValue().strip()
+			context,lomFlag=QMDLevelOfDifficultyMap.get(value.lower(),(None,False))
+			educational=lom.ChildElement(imsmd.LOMEducational)
+			if context is None:
+				# add value as difficulty
+				difficulty,lomFlag=QMDDifficultyMap.get(value.lower(),(value,False))
+				d=educational.ChildElement(imsmd.LOMDifficulty)
+				if lomFlag:
+					d.LRMSource.LangString.SetValue("LOMv1.0")
+				else:
+					d.LRMSource.LangString.SetValue("None")					
+				d.LRMSource.LangString.SetLang("x-none")
+				d.LRMValue.LangString.SetValue(difficulty)
+				d.LRMValue.LangString.SetLang("x-none")
+			else:
+				# add value as educational context
+				c=educational.ChildElement(imsmd.LOMContext)
+				if lomFlag:
+					c.LRMSource.LangString.SetValue("LOMv1.0")
+				else:
+					c.LRMSource.LangString.SetValue("None")					
+				c.LRMSource.LangString.SetLang("x-none")
+				c.LRMValue.LangString.SetValue(context)
+				c.LRMValue.LangString.SetLang("x-none")
+		for kw in self.QMDKeywords:
+			lang=kw.ResolveLang()
+			general=lom.ChildElement(imsmd.LOMGeneral)
+			values=string.split(kw.GetValue(),',')
+			for value in values:
+				kwValue=value.strip()
+				if kwValue:
+					kwContainer=general.ChildElement(imsmd.LOMKeyword).LangString(kwValue)
+					# set the language of the kw
+					if lang:
+						kwContainer.SetLang(lang)
+		warn=False
+		for domain in self.QMDDomain:
+			lang=domain.ResolveLang()
+			general=lom.ChildElement(imsmd.LOMGeneral)
+			kwValue=domain.GetValue().strip()
+			if kwValue:
+				kwContainer=general.ChildElement(imsmd.LOMKeyword).LangString(kwValue)
+				# set the language of the kw
+				if lang:
+					kwContainer.SetLang(lang)
+				if not warn:
+					log.append("Warning: qmd_domain extension field will be added as LOM keyword")
+					warn=True
+		if self.QMDTopic:
+			lang=self.QMDTopic.ResolveLang()
+			value=self.QMDTopic.GetValue().strip()
+			description=lom.ChildElement(imsmd.LOMEducational).ChildElement(imsmd.LOMDescription).LangString(value)
+			if lang:
+				description.SetLang(lang)
+				
 class QTIDocument(xml.XMLDocument):
 	def __init__(self,**args):
 		"""We turn off the parsing of external general entities to prevent a
@@ -221,10 +482,6 @@ class QTIDocument(xml.XMLDocument):
 		return QTIDocument.classMap.get(name,QTIDocument.classMap.get(None,xml.XMLElement))
 
 	classMap={}
-		#qti_comment:QTIComment,
-		#qti_item:QTIItem,
-		#qti_questestinterop:QTIQuesTestInterop
-		#}
 
 	def MigrateV2(self,cp):
 		"""Converts the contents of this document to QTI v2
@@ -243,10 +500,11 @@ class QTIDocument(xml.XMLDocument):
 				dName=cp.GetUniqueFile(dName)
 				for doc,metadata,log in results:
 					# ** Add the log as an annotation in the metadata
-					for logEntry in log:
-						a=metadata.LOMAnnotation()
-						description=a.LOMDescription()
-						a.LangString(logEntry)						
+					if log:
+						annotation=metadata.LOMAnnotation()
+						annotationMsg=string.join(log,'\n')
+						description=annotation.ChildElement(imsmd.LOMDescription)
+						description.LangString(annotationMsg)
 					doc.AddToContentPackage(cp,metadata,dName)
 		else:
 			pass
