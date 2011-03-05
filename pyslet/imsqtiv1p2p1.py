@@ -323,13 +323,18 @@ class QMDTypeOfSolution(QTIElement):
 	XMLNAME='qmd_typeofsolution'
 
 
+class QMDDescription(QTIElement):
+	"""Not defined by QTI bug seems to be in common use."""
+	XMLNAME='qmd_description'
+	
+class QMDDomain(QTIElement):
+	"""Not defined by QTI but seems to be in common use."""
+	XMLNAME='qmd_domain'
+
 class QMDKeywords(QTIElement):
 	"""Not defined by QTI but seems to be in common use."""
 	XMLNAME='qmd_keywords'
 
-class QMDDomain(QTIElement):
-	"""Not defined by QTI but seems to be in common use."""
-	XMLNAME='qmd_domain'
 	
 class QTIItemMetadata(QTIElement):
 	"""
@@ -380,8 +385,9 @@ class QTIItemMetadata(QTIElement):
 		self.QMDMaterial=[]
 		self.QMDTypeOfSolution=None
 		# Extensions in common use....
-		self.QMDKeywords=[]
+		self.QMDDescription=[]
 		self.QMDDomain=[]
+		self.QMDKeywords=[]
 		
 	def GetChildren(self):
 		children=self.QTIMetadata
@@ -402,7 +408,7 @@ class QTIItemMetadata(QTIElement):
 		OptionalAppend(children,self.QMDWeighting)
 		children=children+self.QMDMaterial
 		OptionalAppend(children,self.QMDTypeOfSolution)
-		return self.children+self.QMDKeywords+self.QMDDomain
+		return self.children+self.QMDDescription+self.QMDDomain+self.QMDKeywords
 
 	def MigrateV2(self,doc,lom,log):
 		if self.QMDLevelOfDifficulty:
@@ -435,18 +441,20 @@ class QTIItemMetadata(QTIElement):
 				c.LRMSource.LangString.SetLang("x-none")
 				c.LRMValue.LangString.SetValue(context)
 				c.LRMValue.LangString.SetLang("x-none")
-		for kw in self.QMDKeywords:
-			lang=kw.ResolveLang()
-			general=lom.ChildElement(imsmd.LOMGeneral)
-			values=string.split(kw.GetValue(),',')
-			for value in values:
-				kwValue=value.strip()
-				if kwValue:
-					kwContainer=general.ChildElement(imsmd.LOMKeyword).LangString(kwValue)
-					# set the language of the kw
-					if lang:
-						kwContainer.SetLang(lang)
 		warn=False
+		if self.QMDTopic:
+			lang=self.QMDTopic.ResolveLang()
+			value=self.QMDTopic.GetValue().strip()
+			description=lom.ChildElement(imsmd.LOMEducational).ChildElement(imsmd.LOMDescription).LangString(value)
+			if lang:
+				description.SetLang(lang)
+		for description in self.QMDDescription:
+			lang=description.ResolveLang()
+			general=lom.ChildElement(imsmd.LOMGeneral)
+			dValue=description.GetValue()
+			genDescription=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.LOMDescription).LangString(dValue)
+			if lang:
+				genDescription.SetLang(lang)
 		for domain in self.QMDDomain:
 			lang=domain.ResolveLang()
 			general=lom.ChildElement(imsmd.LOMGeneral)
@@ -459,12 +467,18 @@ class QTIItemMetadata(QTIElement):
 				if not warn:
 					log.append("Warning: qmd_domain extension field will be added as LOM keyword")
 					warn=True
-		if self.QMDTopic:
-			lang=self.QMDTopic.ResolveLang()
-			value=self.QMDTopic.GetValue().strip()
-			description=lom.ChildElement(imsmd.LOMEducational).ChildElement(imsmd.LOMDescription).LangString(value)
-			if lang:
-				description.SetLang(lang)
+		for kw in self.QMDKeywords:
+			lang=kw.ResolveLang()
+			general=lom.ChildElement(imsmd.LOMGeneral)
+			values=string.split(kw.GetValue(),',')
+			for value in values:
+				kwValue=value.strip()
+				if kwValue:
+					kwContainer=general.ChildElement(imsmd.LOMKeyword).LangString(kwValue)
+					# set the language of the kw
+					if lang:
+						kwContainer.SetLang(lang)
+
 				
 class QTIDocument(xml.XMLDocument):
 	def __init__(self,**args):

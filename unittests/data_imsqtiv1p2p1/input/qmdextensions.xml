@@ -3,8 +3,9 @@
 <questestinterop>
     <item ident="qmdextensions" title="QMD Extensions" xml:lang="en-GB">
         <itemmetadata>
-            <qmd_keywords>QMD, Extension</qmd_keywords>
+            <qmd_description>General Description Extension</qmd_description>            
             <qmd_domain>Extension Domain</qmd_domain>
+            <qmd_keywords>QMD, Extension</qmd_keywords>
         </itemmetadata>
     </item>
 </questestinterop>

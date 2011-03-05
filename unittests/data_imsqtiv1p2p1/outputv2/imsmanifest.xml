@@ -61,14 +61,17 @@ Warning: duration is currently outside the scope of version 2: ignored 1H</imsmd
 				<imsmd:lom>
 					<imsmd:general>
 						<imsmd:identifier>qmdextensions</imsmd:identifier>
+						<imsmd:description>
+							<imsmd:langstring xml:lang="en-GB">General Description Extension</imsmd:langstring>
+						</imsmd:description>						
+						<imsmd:keyword>
+							<imsmd:langstring xml:lang="en-GB">Extension Domain</imsmd:langstring>
+						</imsmd:keyword>						
 						<imsmd:keyword>
 							<imsmd:langstring xml:lang="en-GB">QMD</imsmd:langstring>
 						</imsmd:keyword>
 						<imsmd:keyword>
 							<imsmd:langstring xml:lang="en-GB">Extension</imsmd:langstring>
-						</imsmd:keyword>						
-						<imsmd:keyword>
-							<imsmd:langstring xml:lang="en-GB">Extension Domain</imsmd:langstring>
 						</imsmd:keyword>						
 					</imsmd:general>
 					<imsmd:annotation>
