@@ -208,17 +208,38 @@ class QTIItem(QTICommentElement):
 		item.Set_identifier(ident)
 		title=self.title
 		if title is None:
-			title=ident
+			# may be specified in the metadata
+			if self.QTIItemMetadata and self.QTIItemMetadata.QMDTitle:
+				title=self.QTIItemMetadata.QMDTitle.GetValue()
+			else:
+				title=ident
 		item.Set_title(title)
 		if self.maxattempts is not None:
 			log.append("Warning: maxattempts can not be controlled at item level, ignored: maxattempts='"+self.maxattempts+"'")
 			log.append("Note: in future, maxattempts will probably be controllable at assessment or assessment section level")
 		if self.label:
 			item.Set_label(self.label)
-		item.SetLang(self.GetLang())
+		lang=self.GetLang()
+		item.SetLang(lang)
 		general=lom.LOMGeneral()
 		id=general.LOMIdentifier()
-		id.SetValue(self.ident)	
+		id.SetValue(self.ident)
+		if self.title:
+			title=general.ChildElement(imsmd.LOMTitle).LangString(self.title)
+			if lang:
+				title.SetLang(lang)
+		if self.QTIItemMetadata and self.QTIItemMetadata.QMDTitle:
+			title=self.QTIItemMetadata.QMDTitle.GetValue()
+			mdLang=self.QTIItemMetadata.QMDTitle.ResolveLang()
+			if self.title:
+				# If we already have a title, then we add qmd_title as addition metadata
+				# you may think qmd_title is a better choice than the title attribute
+				# but qmd_title is an extension so the title attribute takes precedence
+				mdTitle=general.LOMDescription().LangString(title)
+			else:
+				mdTitle=general.ChildElement(imsmd.LOMTitle).LangString(title)
+			if mdLang:
+				mdTitle.SetLang(mdLang)
 		if self.QTIComment:
 			# A comment on an item is added as a description to the metadata
 			description=general.LOMDescription().LangString(self.QTIComment.GetValue())
@@ -323,8 +344,12 @@ class QMDTypeOfSolution(QTIElement):
 	XMLNAME='qmd_typeofsolution'
 
 
+class QMDAuthor(QTIElement):
+	"""Not defined by QTI but seems to be in common use."""
+	XMLNAME='qmd_author'
+	
 class QMDDescription(QTIElement):
-	"""Not defined by QTI bug seems to be in common use."""
+	"""Not defined by QTI but seems to be in common use."""
 	XMLNAME='qmd_description'
 	
 class QMDDomain(QTIElement):
@@ -335,6 +360,10 @@ class QMDKeywords(QTIElement):
 	"""Not defined by QTI but seems to be in common use."""
 	XMLNAME='qmd_keywords'
 
+class QMDTitle(QTIElement):
+	"""Not defined by QTI but seems to be in common use."""
+	XMLNAME='qmd_title'
+	
 	
 class QTIItemMetadata(QTIElement):
 	"""
@@ -385,9 +414,11 @@ class QTIItemMetadata(QTIElement):
 		self.QMDMaterial=[]
 		self.QMDTypeOfSolution=None
 		# Extensions in common use....
+		self.QMDAuthor=[]
 		self.QMDDescription=[]
 		self.QMDDomain=[]
 		self.QMDKeywords=[]
+		self.QMDTitle=None
 		
 	def GetChildren(self):
 		children=self.QTIMetadata
@@ -408,8 +439,10 @@ class QTIItemMetadata(QTIElement):
 		OptionalAppend(children,self.QMDWeighting)
 		children=children+self.QMDMaterial
 		OptionalAppend(children,self.QMDTypeOfSolution)
-		return self.children+self.QMDDescription+self.QMDDomain+self.QMDKeywords
-
+		children=children+self.QMDAuthor+self.QMDDescription+self.QMDDomain+self.QMDKeywords
+		OptionalAppend(children,self.QMDTitle)
+		return children
+		
 	def MigrateV2(self,doc,lom,log):
 		if self.QMDLevelOfDifficulty:
 			# IMS Definition says: The options are: "Pre-school", "School" or
@@ -425,7 +458,7 @@ class QTIItemMetadata(QTIElement):
 				difficulty,lomFlag=QMDDifficultyMap.get(value.lower(),(value,False))
 				d=educational.ChildElement(imsmd.LOMDifficulty)
 				if lomFlag:
-					d.LRMSource.LangString.SetValue("LOMv1.0")
+					d.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
 				else:
 					d.LRMSource.LangString.SetValue("None")					
 				d.LRMSource.LangString.SetLang("x-none")
@@ -435,7 +468,7 @@ class QTIItemMetadata(QTIElement):
 				# add value as educational context
 				c=educational.ChildElement(imsmd.LOMContext)
 				if lomFlag:
-					c.LRMSource.LangString.SetValue("LOMv1.0")
+					c.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
 				else:
 					c.LRMSource.LangString.SetValue("None")					
 				c.LRMSource.LangString.SetLang("x-none")
@@ -448,6 +481,28 @@ class QTIItemMetadata(QTIElement):
 			description=lom.ChildElement(imsmd.LOMEducational).ChildElement(imsmd.LOMDescription).LangString(value)
 			if lang:
 				description.SetLang(lang)
+		if len(self.QMDAuthor):
+			if imsmd.vobject is None:
+				log.append('Warning: qmd_author support disabled (vobject not installed)')
+			else:
+				for author in self.QMDAuthor:
+					lifecycle=lom.ChildElement(imsmd.LOMLifecycle)
+					contributor=lifecycle.ChildElement(imsmd.LOMContribute)
+					role=contributor.LOMRole
+					role.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
+					role.LRMSource.LangString.SetLang("x-none")
+					role.LRMValue.LangString.SetValue("author")
+					role.LRMValue.LangString.SetLang("x-none")
+					names=author.GetValue().strip().split(',')
+					for name in names:
+						if not name.strip():
+							continue
+						vcard=imsmd.vobject.vCard()
+						vcard.add('n')
+						vcard.n.value=imsmd.vobject.vcard.Name(family=name,given='')
+						vcard.add('fn')
+						vcard.fn.value=name
+						contributor.ChildElement(imsmd.LOMCEntity).LOMVCard.SetValue(vcard)		
 		for description in self.QMDDescription:
 			lang=description.ResolveLang()
 			general=lom.ChildElement(imsmd.LOMGeneral)

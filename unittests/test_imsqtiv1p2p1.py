@@ -141,13 +141,8 @@ class QTIV2ConversionTests(unittest.TestCase):
 		fList2=cp2.fileTable.keys()
 		fList2.sort()
 		self.failUnless(fList1==fList2,"File lists: %s\n%s\n"%(str(fList1),str(fList2)))
-		output=str(self.cp.manifest)
-		outputDesired=str(cp2.manifest)
-		#print
-		#print outputDesired
-		#print 
-		#print output
-		self.failUnless(self.cp.manifest.root==cp2.manifest.root,"Output manifest:\n%s\n\nInput manifest:\n%s"%(output,outputDesired))
+		output=self.cp.manifest.DiffString(cp2.manifest)
+		self.failUnless(self.cp.manifest.root==cp2.manifest.root,"Manifests differ:\n%s"%output)
 		checkFiles={}
 		for r in cp2.manifest.root.resources.list:
 			# Check the entry-point of each resource
@@ -158,9 +153,8 @@ class QTIV2ConversionTests(unittest.TestCase):
 				qtiDoc.Read()
 				qtiDoc2=qtiv2.QTIDocument(baseURI='file://'+urllib.pathname2url(os.path.join(cp2.dPath,fPath)))
 				qtiDoc2.Read()
-				output=str(qtiDoc)
-				outputDesired=str(qtiDoc2)
-				self.failUnless(qtiDoc.root==qtiDoc2.root,"Output QTI:\n%s\n\nInput QTI:\n%s"%(output,outputDesired))	
+				output=qtiDoc.DiffString(qtiDoc2)
+				self.failUnless(qtiDoc.root==qtiDoc2.root,"Files differ at %s\n%s"%(fPath,output))	
 
 class QTIBig5Tests(unittest.TestCase):
 	def testCaseBIG5(self):

@@ -1026,6 +1026,55 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 	def Delete(self,reqManager=None):
 		pass
 
+	def DiffString(self,otherDoc,before=10,after=5):
+		"""Compares this document to otherDoc and returns first point of difference."""
+		lines=str(self).split('\n')
+		otherLines=str(otherDoc).split('\n')
+		output=[]
+		i=0
+		iDiff=None
+		while i<len(lines) and i<len(otherLines):
+			if i>=len(lines):
+				line=''
+			else:
+				line=lines[i]
+			if i>=len(otherLines):
+				otherLine=''
+			else:
+				otherLine=otherLines[i]
+			if line==otherLine:
+				i=i+1
+				continue
+			else:
+				# The strings differ from here.
+				iDiff=i
+				break
+		if iDiff is None:
+			return None
+		for i in xrange(iDiff-before,iDiff):
+			if i<0:
+				continue
+			if i>=len(lines):
+				line='[%3i] **EOF**'%i
+			else:
+				line='[%3i] '%i+lines[i]
+			output.append(line)
+		output.append('>>>>> Showing %i lines of difference'%after)
+		for i in xrange(iDiff,iDiff+after):
+			if i>=len(lines):
+				line='[%3i] **EOF**'%i
+			else:
+				line='[%3i] '%i+lines[i]
+			output.append(line)
+		output.append('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+		for i in xrange(iDiff,iDiff+after):
+			if i>=len(otherLines):
+				line='[%3i] **EOF**'%i
+			else:
+				line='[%3i] '%i+otherLines[i]
+			output.append(line)
+		return string.join(output,'\n')
+
 
 def MapClassElements(classMap,namespace):
 	"""Searches namespace and adds element name -> class mappings to classMap

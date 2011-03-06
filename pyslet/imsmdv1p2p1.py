@@ -4,8 +4,15 @@
 
 import pyslet.xmlnames20091208 as xmlns
 
+try:
+	import vobject
+except ImportError:
+	vobject=None
+
+	
 IMSLRM_NAMESPACE="http://www.imsglobal.org/xsd/imsmd_v1p2"
 IMSLRM_SCHEMALOCATION="http://www.imsglobal.org/xsd/imsmd_v1p2p4.xsd"
+
 
 IMSLRM_NAMESPACE_ALIASES={
 #	"http://www.imsproject.org/metadata":"1.1",
@@ -40,6 +47,9 @@ class LangStringList(LRMElement):
 		s=LangString(self,value)
 		self.langStrings.append(s)
 		return s
+
+
+LOM_SOURCE="LOMv1.0"
 
 class LRMSource(LRMElement):
 	XMLNAME=(IMSLRM_NAMESPACE,'source')
@@ -249,8 +259,97 @@ class LOMAggregationLevel(LRMSourceValue):
 	XMLNAME=(IMSLRM_NAMESPACE,'aggregationlevel')
 
 class LOMLifecycle(LRMElement):
+	"""
+	<xsd:sequence>
+		<xsd:element ref = "version" minOccurs = "0"/>
+		<xsd:element ref = "status" minOccurs = "0"/>
+		<xsd:element ref = "contribute" minOccurs = "0" maxOccurs = "unbounded"/>
+		<xsd:group ref = "grp.any"/>
+	</xsd:sequence>
+	"""	
 	XMLNAME=(IMSLRM_NAMESPACE,'lifecycle')
+	XMLCONTENT=xmlns.XMLElementContent
 	
+	def __init__(self,parent):
+		LRMElement.__init__(self,parent)
+		self.LOMVersion=None
+		self.LOMStatus=None
+		self.LOMContribute=[]
+	
+	def GetChildren(self):
+		children=[]
+		xmlns.OptionalAppend(children,self.LOMVersion)
+		xmlns.OptionalAppend(children,self.LOMStatus)
+		return children+self.LOMContribute+LRMElement.GetChildren(self)
+
+class LOMVersion(LangStringList):
+	XMLNAME=(IMSLRM_NAMESPACE,'version')
+
+class LOMStatus(LRMSourceValue):
+	XMLNAME=(IMSLRM_NAMESPACE,'status')
+	
+class LOMContribute(LRMElement):
+	"""
+	<xsd:sequence>
+		<xsd:element ref = "role"/>
+		<xsd:element ref = "centity" minOccurs = "0" maxOccurs = "unbounded"/>
+		<xsd:element ref = "date" minOccurs = "0"/>
+		<xsd:group ref = "grp.any"/>
+	</xsd:sequence>
+	"""
+	XMLNAME=(IMSLRM_NAMESPACE,'contribute')
+	XMLCONTENT=xmlns.XMLElementContent
+	
+	def __init__(self,parent):
+		LRMElement.__init__(self,parent)
+		self.LOMRole=LOMRole(self)
+		self.LOMCEntity=[]
+		self.LOMDate=None
+	
+	def GetChildren(self):
+		children=[self.LOMRole]+self.LOMCEntity
+		xmlns.OptionalAppend(children,self.LOMDate)
+		return children+LRMElement.GetChildren(self)
+
+class LOMRole(LRMSourceValue):
+	XMLNAME=(IMSLRM_NAMESPACE,'role')
+
+class LOMCEntity(LRMElement):
+	"""
+	"""
+	XMLNAME=(IMSLRM_NAMESPACE,'centity')
+	XMLCONTENT=xmlns.XMLElementContent
+	
+	def __init__(self,parent):
+		LRMElement.__init__(self,parent)
+		self.LOMVCard=LOMVCard(self)
+	
+	def GetChildren(self):
+		return [self.LOMVCard]+LRMElement.GetChildren(self)
+
+class LOMVCard(LRMElement):
+	XMLNAME=(IMSLRM_NAMESPACE,'vcard')
+
+	def __init__(self,parent):
+		LRMElement.__init__(self,parent)
+		self.vcard=None
+	
+	def GetValue(self):
+		return self.vcard
+	
+	def SetValue(self,vcard):
+		self.vcard=vcard
+		LRMElement.SetValue(self,vcard.serialize())
+		
+	def GotChildren(self):
+		# called when all children have been parsed
+		if vobject is not None:
+			src=LRMElement.GetValue(self)
+			if src is not None and src.strip():
+				self.vcard=vobject.readOne(src)
+			else:
+				self.vcard=None
+				
 class LOMMetaMetadata(LRMElement):
 	XMLNAME=(IMSLRM_NAMESPACE,'metametadata')
 	

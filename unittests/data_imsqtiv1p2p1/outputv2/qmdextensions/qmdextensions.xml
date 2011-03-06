@@ -2,5 +2,5 @@
 <assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
-    identifier="qmdextensions" title="QMD Extensions" xml:lang="en-GB" adaptive="false" timeDependent="false">
+    identifier="qmdextensions" title="QMD Title Extension" xml:lang="en-GB" adaptive="false" timeDependent="false">
 </assessmentItem>

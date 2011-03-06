@@ -28,6 +28,9 @@
 				<imsmd:lom>
 					<imsmd:general>
 						<imsmd:identifier>fullitem</imsmd:identifier>
+						<imsmd:title>
+							<imsmd:langstring xml:lang="en-GB">Title: Full Item</imsmd:langstring>
+						</imsmd:title>
 						<imsmd:description>
 							<imsmd:langstring>Full Item</imsmd:langstring>
 						</imsmd:description>
@@ -61,6 +64,9 @@ Warning: duration is currently outside the scope of version 2: ignored 1H</imsmd
 				<imsmd:lom>
 					<imsmd:general>
 						<imsmd:identifier>qmdextensions</imsmd:identifier>
+						<imsmd:title>
+							<imsmd:langstring xml:lang="en-GB">QMD Title Extension</imsmd:langstring>
+						</imsmd:title>
 						<imsmd:description>
 							<imsmd:langstring xml:lang="en-GB">General Description Extension</imsmd:langstring>
 						</imsmd:description>						
@@ -74,6 +80,26 @@ Warning: duration is currently outside the scope of version 2: ignored 1H</imsmd
 							<imsmd:langstring xml:lang="en-GB">Extension</imsmd:langstring>
 						</imsmd:keyword>						
 					</imsmd:general>
+					<imsmd:lifecycle>
+						<imsmd:contribute>
+							<imsmd:role>
+								<imsmd:source>
+									<imsmd:langstring xml:lang="x-none">LOMv1.0</imsmd:langstring>
+								</imsmd:source>
+								<imsmd:value>
+									<imsmd:langstring xml:lang="x-none">author</imsmd:langstring>
+								</imsmd:value>
+							</imsmd:role>
+							<imsmd:centity>
+								<imsmd:vcard>BEGIN:VCARD
+VERSION:3.0
+FN:Steve Lay
+N:Steve Lay;;;;
+END:VCARD
+</imsmd:vcard>
+							</imsmd:centity>
+						</imsmd:contribute>
+					</imsmd:lifecycle>
 					<imsmd:annotation>
 						<imsmd:description>
 							<imsmd:langstring>Warning: qmd_domain extension field will be added as LOM keyword</imsmd:langstring>

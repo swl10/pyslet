@@ -14,6 +14,18 @@ def suite():
 from pyslet.imsmdv1p2p1 import *
 import pyslet.imscpv1p2 as imscp
 
+import pkg_resources
+
+if vobject is None:
+	print "vobject tests skipped"
+	print "\tTry installing vobject from http://vobject.skyhouseconsulting.com/  (vobject-0.8.1c)"
+	print "\t\talso requires http://labix.org/python-dateutil"
+else:
+	print "Designed for vobject-0.8.1c; python-dateutil-1.5"
+	print "\tTesting with vobject: %s"%pkg_resources.get_distribution("vobject").version
+	print "\tTesting with python-dateutil: %s"%pkg_resources.get_distribution("python-dateutil").version
+
+	
 class LRMTests(unittest.TestCase):
 	def testCaseConstants(self):
 		self.failUnless(IMSLRM_NAMESPACE=="http://www.imsglobal.org/xsd/imsmd_v1p2","Wrong LRM namespace: %s"%IMSLRM_NAMESPACE)
@@ -21,7 +33,8 @@ class LRMTests(unittest.TestCase):
 		for alias in IMSLRM_NAMESPACE_ALIASES:
 			self.failIf(alias==IMSLRM_NAMESPACE)
 		self.failUnless(IMSLRM_SCHEMALOCATION=="http://www.imsglobal.org/xsd/imsmd_v1p2p4.xsd","LRM schemaLocation: %s"%IMSLRM_SCHEMALOCATION)
-
+		self.failUnless(LOM_SOURCE=="LOMv1.0","LOM_SOURCE")
+		
 	def testCaseClassMap(self):
 		self.failUnless(GetElementClass((IMSLRM_NAMESPACE,'lom')) is LOM)
 		for alias in IMSLRM_NAMESPACE_ALIASES:
