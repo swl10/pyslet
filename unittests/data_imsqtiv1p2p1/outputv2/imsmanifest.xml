@@ -91,11 +91,30 @@ Warning: duration is currently outside the scope of version 2: ignored 1H</imsmd
 								</imsmd:value>
 							</imsmd:role>
 							<imsmd:centity>
-								<imsmd:vcard>BEGIN:VCARD
-VERSION:3.0
-FN:Steve Lay
-N:Steve Lay;;;;
-END:VCARD
+								<imsmd:vcard>BEGIN:VCARD&#xD;
+VERSION:3.0&#xD;
+FN:Steve Lay&#xD;
+N:Steve Lay;;;;&#xD;
+END:VCARD&#xD;
+</imsmd:vcard>
+							</imsmd:centity>
+						</imsmd:contribute>
+						<imsmd:contribute>
+							<imsmd:role>
+								<imsmd:source>
+									<imsmd:langstring xml:lang="x-none">LOMv1.0</imsmd:langstring>
+								</imsmd:source>
+								<imsmd:value>
+									<imsmd:langstring xml:lang="x-none">unknown</imsmd:langstring>
+								</imsmd:value>
+							</imsmd:role>
+							<imsmd:centity>
+								<imsmd:vcard>BEGIN:VCARD&#xD;
+VERSION:3.0&#xD;
+FN:Example Inc&#xD;
+N:Example Inc;;;;&#xD;
+ORG:Example Inc&#xD;
+END:VCARD&#xD;
 </imsmd:vcard>
 							</imsmd:centity>
 						</imsmd:contribute>

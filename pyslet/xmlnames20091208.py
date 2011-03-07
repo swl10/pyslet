@@ -239,7 +239,8 @@ class XMLNSElement(XMLElement):
 			f.write('%s<%s%s%s>'%(ws,prefix,self.xmlname,attributes))
 			for child in children:
 				if type(child) in types.StringTypes:
-					f.write(child)
+					# We force encoding of carriage return as these are subject to removal
+					f.write(saxutils.escape(child,{'\r':'&#xD;'}))
 					# if we have character data content skip closing ws
 					ws=''
 				else:

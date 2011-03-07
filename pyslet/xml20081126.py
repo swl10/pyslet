@@ -22,7 +22,6 @@ XML_MIMETYPES={
 XMLMixedContent=0
 XMLElementContent=1
 XMLEmpty=2
-
 	
 class XMLError(Exception): pass
 
@@ -607,9 +606,12 @@ class XMLElement:
 					result=cmp(selfChildren[i],elementChildren[i])
 				else:
 					# elements sort before data
-					return -1
+					result=-1
 			elif isinstance(elementChildren[i],XMLElement):
-				return 1
+				result=1
+			else:
+				# Data sorts by string comparison
+				result=cmp(selfChildren[i],elementChildren[i])
 			if result:
 				return result
 		if len(elementChildren)>len(selfChildren):
@@ -790,7 +792,8 @@ class XMLElement:
 			f.write('%s<%s%s>'%(ws,self.xmlname,attributes))
 			for child in children:
 				if type(child) in types.StringTypes:
-					f.write(child)
+					# We force encoding of carriage return as these are subject to removal
+					f.write(saxutils.escape(child,{'\r':'&#xD;'}))
 					# if we have character data content skip closing ws
 					ws=''
 				else:
@@ -1064,14 +1067,14 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 			if i>=len(lines):
 				line='[%3i] **EOF**'%i
 			else:
-				line='[%3i] '%i+lines[i]
+				line='[%3i] '%i+repr(lines[i])
 			output.append(line)
 		output.append('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
 		for i in xrange(iDiff,iDiff+after):
 			if i>=len(otherLines):
 				line='[%3i] **EOF**'%i
 			else:
-				line='[%3i] '%i+otherLines[i]
+				line='[%3i] '%i+repr(otherLines[i])
 			output.append(line)
 		return string.join(output,'\n')
 

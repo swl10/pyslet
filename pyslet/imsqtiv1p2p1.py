@@ -348,6 +348,25 @@ class QMDAuthor(QTIElement):
 	"""Not defined by QTI but seems to be in common use."""
 	XMLNAME='qmd_author'
 	
+	def MigrateLRM(self,lom):
+		lifecycle=lom.ChildElement(imsmd.LOMLifecycle)
+		contributor=lifecycle.ChildElement(imsmd.LOMContribute)
+		role=contributor.LOMRole
+		role.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
+		role.LRMSource.LangString.SetLang("x-none")
+		role.LRMValue.LangString.SetValue("author")
+		role.LRMValue.LangString.SetLang("x-none")
+		names=self.GetValue().strip().split(',')
+		for name in names:
+			if not name.strip():
+				continue
+			vcard=imsmd.vobject.vCard()
+			vcard.add('n')
+			vcard.n.value=imsmd.vobject.vcard.Name(family=name,given='')
+			vcard.add('fn')
+			vcard.fn.value=name
+			contributor.ChildElement(imsmd.LOMCEntity).LOMVCard.SetValue(vcard)	
+
 class QMDDescription(QTIElement):
 	"""Not defined by QTI but seems to be in common use."""
 	XMLNAME='qmd_description'
@@ -360,6 +379,28 @@ class QMDKeywords(QTIElement):
 	"""Not defined by QTI but seems to be in common use."""
 	XMLNAME='qmd_keywords'
 
+class QMDOrganization(QTIElement):
+	"""Not defined by QTI but seems to be in common use."""
+	XMLNAME='qmd_organization'
+
+	def MigrateLRM(self,lom):
+		lifecycle=lom.ChildElement(imsmd.LOMLifecycle)
+		contributor=lifecycle.ChildElement(imsmd.LOMContribute)
+		role=contributor.LOMRole
+		role.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
+		role.LRMSource.LangString.SetLang("x-none")
+		role.LRMValue.LangString.SetValue("unknown")
+		role.LRMValue.LangString.SetLang("x-none")
+		name=self.GetValue().strip()
+		vcard=imsmd.vobject.vCard()
+		vcard.add('n')
+		vcard.n.value=imsmd.vobject.vcard.Name(family=name,given='')
+		vcard.add('fn')
+		vcard.fn.value=name
+		vcard.add('org')
+		vcard.org.value=[name]
+		contributor.ChildElement(imsmd.LOMCEntity).LOMVCard.SetValue(vcard)	
+	
 class QMDTitle(QTIElement):
 	"""Not defined by QTI but seems to be in common use."""
 	XMLNAME='qmd_title'
@@ -418,6 +459,7 @@ class QTIItemMetadata(QTIElement):
 		self.QMDDescription=[]
 		self.QMDDomain=[]
 		self.QMDKeywords=[]
+		self.QMDOrganization=[]
 		self.QMDTitle=None
 		
 	def GetChildren(self):
@@ -439,7 +481,7 @@ class QTIItemMetadata(QTIElement):
 		OptionalAppend(children,self.QMDWeighting)
 		children=children+self.QMDMaterial
 		OptionalAppend(children,self.QMDTypeOfSolution)
-		children=children+self.QMDAuthor+self.QMDDescription+self.QMDDomain+self.QMDKeywords
+		children=children+self.QMDAuthor+self.QMDDescription+self.QMDDomain+self.QMDKeywords+self.QMDOrganization
 		OptionalAppend(children,self.QMDTitle)
 		return children
 		
@@ -486,23 +528,7 @@ class QTIItemMetadata(QTIElement):
 				log.append('Warning: qmd_author support disabled (vobject not installed)')
 			else:
 				for author in self.QMDAuthor:
-					lifecycle=lom.ChildElement(imsmd.LOMLifecycle)
-					contributor=lifecycle.ChildElement(imsmd.LOMContribute)
-					role=contributor.LOMRole
-					role.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
-					role.LRMSource.LangString.SetLang("x-none")
-					role.LRMValue.LangString.SetValue("author")
-					role.LRMValue.LangString.SetLang("x-none")
-					names=author.GetValue().strip().split(',')
-					for name in names:
-						if not name.strip():
-							continue
-						vcard=imsmd.vobject.vCard()
-						vcard.add('n')
-						vcard.n.value=imsmd.vobject.vcard.Name(family=name,given='')
-						vcard.add('fn')
-						vcard.fn.value=name
-						contributor.ChildElement(imsmd.LOMCEntity).LOMVCard.SetValue(vcard)		
+					author.MigrateLRM(lom)							
 		for description in self.QMDDescription:
 			lang=description.ResolveLang()
 			general=lom.ChildElement(imsmd.LOMGeneral)
@@ -533,6 +559,12 @@ class QTIItemMetadata(QTIElement):
 					# set the language of the kw
 					if lang:
 						kwContainer.SetLang(lang)
+		if len(self.QMDOrganization):
+			if imsmd.vobject is None:
+				log.append('Warning: qmd_organization support disabled (vobject not installed)')
+			else:
+				for org in self.QMDOrganization:
+					org.MigrateLRM(lom)							
 
 				
 class QTIDocument(xml.XMLDocument):

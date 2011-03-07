@@ -132,6 +132,8 @@
 
 <!ELEMENT qmd_maximumscore (#PCDATA)>
 
+<!ELEMENT qmd_organization (#PCDATA)>
+
 <!ELEMENT qmd_renderingtype (#PCDATA)>
 
 <!ELEMENT qmd_responsetype (#PCDATA)>
@@ -480,7 +482,7 @@
                  %I_Title;
                  xml:lang    CDATA  #IMPLIED >
 <!ELEMENT itemmetadata (qtimetadata* , qmd_computerscored? , qmd_feedbackpermitted? , qmd_hintspermitted? , qmd_itemtype? , qmd_levelofdifficulty? , qmd_maximumscore? , qmd_renderingtype* , qmd_responsetype* , qmd_scoringpermitted? , qmd_solutionspermitted? , qmd_status? , qmd_timedependence? , qmd_timelimit? , qmd_toolvendor? , qmd_topic? , qmd_weighting? , qmd_material* , qmd_typeofsolution?,
-				qmd_title?, (qmd_keywords | qmd_domain | qmd_description | qmd_author)* )>
+				qmd_title?, (qmd_keywords | qmd_domain | qmd_description | qmd_author | qmd_organization)* )>
 
 <!ELEMENT itemcontrol (qticomment?)>
 
