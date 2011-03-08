@@ -331,6 +331,9 @@ class QMDTimeLimit(QTIElement):
 class QMDToolVendor(QTIElement):
 	XMLNAME='qmd_toolvendor'
 
+	def MigrateV2(self,item):
+		item.metadata.ChildElement(qtiv2.QMDToolVendor).SetValue(self.GetValue())
+		
 class QMDTopic(QTIElement):
 	XMLNAME='qmd_topic'
 
@@ -517,6 +520,8 @@ class QTIItemMetadata(QTIElement):
 				c.LRMValue.LangString.SetValue(context)
 				c.LRMValue.LangString.SetLang("x-none")
 		warn=False
+		if self.QMDToolVendor:
+			self.QMDToolVendor.MigrateV2(doc.root)
 		if self.QMDTopic:
 			lang=self.QMDTopic.ResolveLang()
 			value=self.QMDTopic.GetValue().strip()

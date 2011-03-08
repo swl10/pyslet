@@ -85,6 +85,7 @@ class QTIAssessmentItem(QTIElement):
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
+		self.metadata=QTIMetadata(None)
 		self.identifier=None
 		self.title=None
 		self.label=None
@@ -137,14 +138,15 @@ class QTIAssessmentItem(QTIElement):
 		else:
 			self.declarations[declaration.identifier]=declaration
 		
-	def AddToContentPackage(self,cp,metadata,dName=None):
+	def AddToContentPackage(self,cp,lom,dName=None):
 		"""Adds a resource and associated files to the content package."""
 		resourceID=cp.manifest.GetUniqueID(self.identifier)
 		resource=cp.manifest.root.resources.CPResource()
 		resource.SetID(resourceID)
 		resource.Set_type(IMSQTI_ITEM_RESOURCETYPE)
 		resourceMetadata=resource.CPMetadata()
-		resourceMetadata.AdoptChild(metadata)
+		resourceMetadata.AdoptChild(lom)
+		resourceMetadata.AdoptChild(self.metadata.Copy())
 		# Security alert: we're leaning heavily on MakeValidNCName assuming it returns a good file name
 		fPath=MakeValidNCName(resourceID).encode('utf-8')+'.xml'
 		if dName:
@@ -184,6 +186,78 @@ class QTIResponseDeclaration(QTIElement):
 		self.parent.RegisterDeclaration(self)
 
 
+class QTIMetadata(QTIElement):
+	"""
+	<xsd:group name="qtiMetadata.ContentGroup">
+		<xsd:sequence>
+			<xsd:element ref="itemTemplate" minOccurs="0" maxOccurs="1"/>
+			<xsd:element ref="timeDependent" minOccurs="0" maxOccurs="1"/>
+			<xsd:element ref="composite" minOccurs="0" maxOccurs="1"/>
+			<xsd:element ref="interactionType" minOccurs="0" maxOccurs="unbounded"/>
+			<xsd:element ref="feedbackType" minOccurs="0" maxOccurs="1"/>
+			<xsd:element ref="solutionAvailable" minOccurs="0" maxOccurs="1"/>
+			<xsd:element ref="toolName" minOccurs="0" maxOccurs="1"/>
+			<xsd:element ref="toolVersion" minOccurs="0" maxOccurs="1"/>
+			<xsd:element ref="toolVendor" minOccurs="0" maxOccurs="1"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""	
+	XMLNAME=(IMSQTI_NAMESPACE,'qtiMetadata')
+	XMLCONTENT=xmlns.XMLElementContent
+	
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.QMDItemTemplate=None
+		self.QMDTimeDependent=None
+		self.QMDComposite=None
+		self.QMDInteractionType=[]
+		self.QMDFeedbackType=None
+		self.QMDSolutionAvailable=None
+		self.QMDToolName=None
+		self.QMDToolVersion=None
+		self.QMDToolVendor=None
+	
+	def GetChildren(self):
+		children=[]
+		xmlns.OptionalAppend(children,self.QMDItemTemplate)
+		xmlns.OptionalAppend(children,self.QMDTimeDependent)
+		xmlns.OptionalAppend(children,self.QMDComposite)
+		children=children+self.QMDInteractionType
+		xmlns.OptionalAppend(children,self.QMDFeedbackType)
+		xmlns.OptionalAppend(children,self.QMDSolutionAvailable)
+		xmlns.OptionalAppend(children,self.QMDToolName)
+		xmlns.OptionalAppend(children,self.QMDToolVersion)
+		xmlns.OptionalAppend(children,self.QMDToolVendor)
+		return children+QTIElement.GetChildren(self)
+
+class QMDItemTemplate(QTIElement):
+	XMLNAME=(IMSQTI_NAMESPACE,'itemTemplate')
+
+class QMDTimeDependent(QTIElement):
+	XMLNAME=(IMSQTI_NAMESPACE,'timeDependent')
+
+class QMDComposite(QTIElement):
+	XMLNAME=(IMSQTI_NAMESPACE,'composite')
+
+class QMDInteractionType(QTIElement):
+	XMLNAME=(IMSQTI_NAMESPACE,'interactionType')
+
+class QMDFeedbackType(QTIElement):
+	XMLNAME=(IMSQTI_NAMESPACE,'feedbackType')
+
+class QMDSolutionAvailable(QTIElement):
+	XMLNAME=(IMSQTI_NAMESPACE,'solutionAvailable')
+
+class QMDToolName(QTIElement):
+	XMLNAME=(IMSQTI_NAMESPACE,'toolName')
+
+class QMDToolVersion(QTIElement):
+	XMLNAME=(IMSQTI_NAMESPACE,'toolVersion')
+
+class QMDToolVendor(QTIElement):
+	XMLNAME=(IMSQTI_NAMESPACE,'toolVendor')
+
+		
 class QTIDocument(xmlns.XMLNSDocument):
 	classMap={}
 	

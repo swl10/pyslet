@@ -327,6 +327,7 @@ class CPDocument(xmlns.XMLNSDocument):
 	
 xmlns.MapClassElements(CPDocument.classMap,globals())
 xmlns.MapClassElements(CPDocument.classMap,imsmd)
+xmlns.MapClassElements(CPDocument.classMap,imsqti)
 # Add other supported metadata schemas in here
 
 

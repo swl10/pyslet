@@ -46,7 +46,10 @@ class XMLNSElement(XMLElement):
 			self.xmlname=name
 		else:
 			self.ns,self.xmlname=name
-														
+
+	def GetXMLName(self):
+		return (self.ns,self.xmlname)
+
 	def SetAttribute(self,name,value):
 		"""Sets the value of an attribute.
 		

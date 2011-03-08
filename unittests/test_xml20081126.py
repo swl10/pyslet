@@ -255,7 +255,7 @@ class XMLElementTests(unittest.TestCase):
 		self.failUnless(len(children)==2,"AdoptChild failed to add second child")
 		self.failUnless(children[1] is child2,"Orphan not attached")
 	
-	def testChildElementRelection(self):
+	def testChildElementReflection(self):
 		"""Test child element cases using reflection"""
 		e=ReflectiveElement(None)
 		child1=e.ChildElement(ReflectiveElement,'test1')
@@ -323,7 +323,13 @@ class XMLElementTests(unittest.TestCase):
 		except XMLMixedContentError:
 			pass
 		
+	def testCopy(self):
+		e1=XMLElement(None)
+		e2=e1.Copy()
+		self.failUnless(isinstance(e2,XMLElement),"Copy didn't make XMLElement")
+		self.failUnless(e1==e2 and e1 is not e2)
 		
+
 class XMLDocumentTests(unittest.TestCase):
 	def setUp(self):
 		self.cwd=os.getcwd()

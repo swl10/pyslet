@@ -20,6 +20,7 @@
 						</imsmd:description>
 					</imsmd:general>
 				</imsmd:lom>
+				<imsqti:qtiMetadata/>
 			</metadata>
 			<file href="empty/emptyitem.xml"/>
 		</resource>
@@ -56,6 +57,9 @@ Warning: duration is currently outside the scope of version 2: ignored 1H</imsmd
 						</imsmd:description>						
 					</imsmd:annotation>
 				</imsmd:lom>
+				<imsqti:qtiMetadata>
+					<imsqti:toolVendor>Steve Lay</imsqti:toolVendor>
+				</imsqti:qtiMetadata>
 			</metadata>
 			<file href="full/fullitem.xml"/>
 		</resource>
@@ -125,6 +129,7 @@ END:VCARD&#xD;
 						</imsmd:description>						
 					</imsmd:annotation>
 				</imsmd:lom>
+				<imsqti:qtiMetadata/>
 			</metadata>
 			<file href="qmdextensions/qmdextensions.xml"/>
 		</resource>

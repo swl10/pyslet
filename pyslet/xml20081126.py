@@ -267,6 +267,9 @@ class XMLElement:
 
 	def SetXMLName(self,name):
 		self.xmlname=name
+	
+	def GetXMLName(self):
+		return self.xmlname
 		
 	def GetDocument(self):
 		"""Returns the document that contains the element.
@@ -624,6 +627,23 @@ class XMLElement:
 		s=StringIO()
 		self.WriteXML(s)
 		return s.getvalue()
+	
+	def Copy(self,parent=None):
+		"""Creates a new instance of this element which is a deep copy of this one."""
+		if parent:
+			e=parent.ChildElement(self.__class__,self.GetXMLName())
+		else:
+			e=self.__class__(None)
+		attrs=self.GetAttributes()
+		for aname in attrs.keys():
+			e.SetAttribute(aname,attrs[aname])
+		children=self.GetChildren()
+		for child in children:
+			if type(child) in types.StringTypes:
+				e.AddData(child)
+			else:
+				child.Copy(e)
+		return e
 		
 	def GetBase(self):
 		return self._attrs.get(xml_base,None)
