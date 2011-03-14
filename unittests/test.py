@@ -4,6 +4,7 @@
 
 import unittest
 
+import test_imsbltiv1p0
 import test_imscc_profilev1p0
 import test_imscpv1p2
 import test_imsmdv1p2p1
@@ -21,6 +22,7 @@ import test_xsdatatypes20041028
 
 def suite():
 	s=unittest.TestSuite()
+	s.addTest(test_imsbltiv1p0.suite())
 	s.addTest(test_imscc_profilev1p0.suite())
 	s.addTest(test_imscpv1p2.suite())
 	s.addTest(test_imsmdv1p2p1.suite())

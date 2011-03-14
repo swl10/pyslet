@@ -13,12 +13,14 @@ except ImportError:
 IMSLRM_NAMESPACE="http://www.imsglobal.org/xsd/imsmd_v1p2"
 IMSLRM_SCHEMALOCATION="http://www.imsglobal.org/xsd/imsmd_v1p2p4.xsd"
 
-
 IMSLRM_NAMESPACE_ALIASES={
 #	"http://www.imsproject.org/metadata":"1.1",
 #	"http://www.imsproject.org/metadata/":"1.1",
 	"http://www.imsproject.org/xsd/imsmd_rootv1p2":IMSLRM_NAMESPACE,
 	"http://www.imsglobal.org/xsd/imsmd_rootv1p2p1":IMSLRM_NAMESPACE}
+
+LOM_SOURCE="LOMv1.0"
+LOM_UNKNOWNSOURCE="None"
 
 
 class LRMException(Exception): pass
@@ -49,7 +51,6 @@ class LangStringList(LRMElement):
 		return s
 
 
-LOM_SOURCE="LOMv1.0"
 
 class LRMSource(LRMElement):
 	XMLNAME=(IMSLRM_NAMESPACE,'source')

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
+<questestinterop>
+    <item ident="metadataNewStyle" xml:lang="en-GB">
+        <itemmetadata>
+            <qtimetadata>
+                <qtimetadatafield>
+                    <fieldlabel>name</fieldlabel>
+                    <fieldentry>Metadata New-Style</fieldentry>
+                </qtimetadatafield>
+                <qtimetadatafield>
+                    <fieldlabel>marks</fieldlabel>
+                    <fieldentry>50.0</fieldentry>
+                </qtimetadatafield>
+                <qtimetadatafield>
+                    <fieldlabel>syllabusarea</fieldlabel>
+                    <fieldentry>Migration</fieldentry>
+                </qtimetadatafield>
+                <qtimetadatafield>
+                    <fieldlabel>author</fieldlabel>
+                    <fieldentry>Steve Author</fieldentry>
+                </qtimetadatafield>
+                <qtimetadatafield>
+                    <fieldlabel>creator</fieldlabel>
+                    <fieldentry>Steve Creator</fieldentry>
+                </qtimetadatafield>
+                <qtimetadatafield>
+                    <fieldlabel>owner</fieldlabel>
+                    <fieldentry>Steve Owner</fieldentry>
+                </qtimetadatafield>
+                <qtimetadatafield>
+                    <fieldlabel>item type</fieldlabel>
+                    <fieldentry>MCQ</fieldentry>
+                </qtimetadatafield>
+                <qtimetadatafield>
+                    <fieldlabel>status</fieldlabel>
+                    <fieldentry>Experimental</fieldentry>
+                </qtimetadatafield>
+                <qtimetadatafield>
+                    <fieldlabel>qmd_levelofdifficulty</fieldlabel>
+                    <fieldentry>Professional Development</fieldentry>
+                </qtimetadatafield>
+                <qtimetadatafield>
+                    <fieldlabel>qmd_toolvendor</fieldlabel>
+                    <fieldentry>Steve Lay</fieldentry>
+                </qtimetadatafield>
+            </qtimetadata>
+        </itemmetadata>
+    </item>
+</questestinterop>

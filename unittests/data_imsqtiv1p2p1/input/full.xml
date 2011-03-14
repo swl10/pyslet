@@ -5,8 +5,10 @@
         <qticomment>Full Item</qticomment>
         <duration>1H</duration>
         <itemmetadata>
+            <qmd_itemtype>MCQ</qmd_itemtype>
             <qmd_levelofdifficulty>Professional Development</qmd_levelofdifficulty>
             <qmd_maximumscore>50.0</qmd_maximumscore>
+            <qmd_status>Experimental</qmd_status>
             <qmd_toolvendor>Steve Lay</qmd_toolvendor>
             <qmd_topic>Migration</qmd_topic>
         </itemmetadata>

@@ -36,6 +36,16 @@
 							<imsmd:langstring>Full Item</imsmd:langstring>
 						</imsmd:description>
 					</imsmd:general>
+					<imsmd:lifecycle>
+						<imsmd:status>
+							<imsmd:source>
+								<imsmd:langstring xml:lang="x-none">QTIv1</imsmd:langstring>
+							</imsmd:source>
+							<imsmd:value>
+								<imsmd:langstring xml:lang="x-none">experimental</imsmd:langstring>
+							</imsmd:value>
+						</imsmd:status>						
+					</imsmd:lifecycle>
 					<imsmd:educational>
 						<imsmd:context>
 							<imsmd:source>
@@ -52,8 +62,8 @@
 					<imsmd:annotation>
 						<imsmd:description>
 							<imsmd:langstring>Warning: maxattempts can not be controlled at item level, ignored: maxattempts='1'
-Note: in future, maxattempts will probably be controllable at assessment or assessment section level
-Warning: duration is currently outside the scope of version 2: ignored 1H</imsmd:langstring>
+Warning: duration is currently outside the scope of version 2: ignored 1H
+Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, ignoring MCQ</imsmd:langstring>
 						</imsmd:description>						
 					</imsmd:annotation>
 				</imsmd:lom>
@@ -62,6 +72,25 @@ Warning: duration is currently outside the scope of version 2: ignored 1H</imsmd
 				</imsqti:qtiMetadata>
 			</metadata>
 			<file href="full/fullitem.xml"/>
+		</resource>
+		<resource identifier="metadataNewStyle" type="imsqti_item_xmlv2p1" href="metadataNewStyle/metadataNewStyle.xml">
+			<metadata>
+				<imsmd:lom>
+					<imsmd:general>
+						<imsmd:identifier>metadataNewStyle</imsmd:identifier>
+						<imsmd:title>
+							<imsmd:langstring xml:lang="en-GB">Metadata New-Style</imsmd:langstring>
+						</imsmd:title>						
+					</imsmd:general>
+					<imsmd:annotation>
+						<imsmd:description>
+							<imsmd:langstring>Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, ignoring MCQ</imsmd:langstring>
+						</imsmd:description>						
+					</imsmd:annotation>
+				</imsmd:lom>
+				<imsqti:qtiMetadata/>
+			</metadata>
+			<file href="metadataNewStyle/metadataNewStyle.xml"/>
 		</resource>
 		<resource identifier="qmdextensions" type="imsqti_item_xmlv2p1" href="qmdextensions/qmdextensions.xml">
 			<metadata>

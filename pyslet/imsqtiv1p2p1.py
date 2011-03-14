@@ -11,11 +11,14 @@ import string, codecs
 import os.path, urllib
 
 #IMSQTI_NAMESPACE="http://www.imsglobal.org/xsd/ims_qtiasiv1p2"
+QTI_SOURCE='QTIv1'
+
 
 # Attribute definitions
+# <!ENTITY % I_EntityRef " entityref ENTITY  #IMPLIED">
 # <!ENTITY % I_Ident " ident CDATA  #REQUIRED">
 # <!ENTITY % I_Title " title CDATA  #IMPLIED">
-
+# <!ENTITY % I_Uri " uri CDATA  #IMPLIED">
 
 def MakeValidName(name):
 	"""This function takes a string that is supposed to match the
@@ -39,7 +42,18 @@ def MakeValidName(name):
 
 class QTIElement(xml.XMLElement):
 	"""Basic element to represent all QTI elements"""
-	pass
+	
+	def DeclareMetadata(self,label,entry,definition=None):
+		"""Declares a piece of metadata associated with the element.
+		
+		Most QTIElements will be contained by a some type of metadata container
+		than collects metadata in a format suitable for easy lookup and export
+		to other metadata formats.  The default implementation simply passes the
+		call to the parent QTIElement or ignores the definition"""
+		if isinstance(self.parent,QTIElement):
+			self.parent.DeclareMetadata(label,entry,definition)
+		else:
+			pass
 
 
 class QTIComment(QTIElement):
@@ -207,16 +221,19 @@ class QTIItem(QTICommentElement):
 			log.append("Warning: illegal NCName for ident: %s, replaced with: %s"%(self.ident,ident))
 		item.Set_identifier(ident)
 		title=self.title
-		if title is None:
-			# may be specified in the metadata
-			if self.QTIItemMetadata and self.QTIItemMetadata.QMDTitle:
-				title=self.QTIItemMetadata.QMDTitle.GetValue()
-			else:
-				title=ident
-		item.Set_title(title)
+		# may be specified in the metadata
+		if self.QTIItemMetadata:
+			mdTitles=self.QTIItemMetadata.metadata.get('title',())
+		else:
+			mdTitles=()
+		if title:
+			item.Set_title(title)
+		elif mdTitles:
+			item.Set_title(mdTitles[0][0])
+		else:
+			item.Set_title(ident)
 		if self.maxattempts is not None:
 			log.append("Warning: maxattempts can not be controlled at item level, ignored: maxattempts='"+self.maxattempts+"'")
-			log.append("Note: in future, maxattempts will probably be controllable at assessment or assessment section level")
 		if self.label:
 			item.Set_label(self.label)
 		lang=self.GetLang()
@@ -224,22 +241,27 @@ class QTIItem(QTICommentElement):
 		general=lom.LOMGeneral()
 		id=general.LOMIdentifier()
 		id.SetValue(self.ident)
-		if self.title:
-			title=general.ChildElement(imsmd.LOMTitle).LangString(self.title)
+		if title:
+			lomTitle=general.ChildElement(imsmd.LOMTitle).LangString(title)
 			if lang:
-				title.SetLang(lang)
-		if self.QTIItemMetadata and self.QTIItemMetadata.QMDTitle:
-			title=self.QTIItemMetadata.QMDTitle.GetValue()
-			mdLang=self.QTIItemMetadata.QMDTitle.ResolveLang()
-			if self.title:
+				lomTitle.SetLang(lang)
+		if mdTitles:
+			if title:
 				# If we already have a title, then we add qmd_title as addition metadata
 				# you may think qmd_title is a better choice than the title attribute
 				# but qmd_title is an extension so the title attribute takes precedence
-				mdTitle=general.LOMDescription().LangString(title)
+				i=0
 			else:
-				mdTitle=general.ChildElement(imsmd.LOMTitle).LangString(title)
-			if mdLang:
-				mdTitle.SetLang(mdLang)
+				lomTitle=general.ChildElement(imsmd.LOMTitle).LangString(mdTitles[0][0])
+				lang=mdTitles[0][1].ResolveLang()
+				if lang:
+					lomTitle.SetLang(lang)
+				i=1
+			for mdTitle in mdTitles[i:]:
+				lomTitle=general.LOMDescription().LangString(mdTitle[0])
+				mdLang=mdTitle[1].ResolveLang()
+				if mdLang:
+					lomTitle.SetLang(mdLang)
 		if self.QTIComment:
 			# A comment on an item is added as a description to the metadata
 			description=general.LOMDescription().LangString(self.QTIComment.GetValue())
@@ -255,21 +277,114 @@ class QTIDuration(QTIElement):
 	XMLNAME='duration'
 
 class QTIMetadata(QTIElement):
+	"""
+	<!ELEMENT qtimetadata (vocabulary? , qtimetadatafield+)>
+	"""
 	XMLNAME='qtimetadata'
+	XMLCONTENT=xml.XMLElementContent
 	
-class QMDComputerScored(QTIElement):
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.QTIVocabulary=None
+		self.QTIMetadataField=[]
+	
+	def GetChildren(self):
+		children=[]
+		xml.OptionalAppend(children,self.QTIVocabulary)
+		return children+self.QTIMetadataField+QTIElement.GetChildren(self)
+
+class QTIVocabulary(QTIElement):
+	"""
+	<!ELEMENT vocabulary (#PCDATA)>
+
+	<!ATTLIST vocabulary  %I_Uri;
+		%I_EntityRef;
+		vocab_type  CDATA  #IMPLIED >
+	"""
+	XMLNAME="vocabulary"
+
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.uri=None
+		self.entityRef=None
+		self.vocabType=None
+	
+	def GetAttributes(self):
+		attrs=QTIElement.GetAttributes(self)
+		if self.uri:
+			attrs['uri']=self.uri
+		if self.entityRef:
+			attrs['entityref']=self.entityRef
+		if self.vocabType:
+			attrs['vocab_type']=self.vocabType
+
+	def Set_uri(self,value):
+		self.uri=value
+		
+	def Set_entityref(self,value):
+		self.entityRef=value
+		
+	def Set_vocab_type(self,value):
+		self.vocabType=value
+
+
+class QTIMetadataField(QTIElement):
+	"""
+	<!ELEMENT qtimetadatafield (fieldlabel , fieldentry)>
+
+	<!ATTLIST qtimetadatafield  xml:lang CDATA  #IMPLIED >
+	"""
+	XMLNAME='qtimetadatafield'
+	XMLCONTENT=xml.XMLElementContent
+	
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.QTIFieldLabel=QTIFieldLabel(self)
+		self.QTIFieldEntry=QTIFieldEntry(self)
+	
+	def GetChildren(self):
+		return [self.QTIFieldLabel,self.QTIFieldEntry]
+	
+	def GotChildren(self):
+		label=self.QTIFieldLabel.GetValue()
+		label={'marks':'maximumscore',
+			'qmd_marks':'maximumscore',
+			'name':'title',
+			'qmd_name':'title',
+			'syllabusarea':'topic',
+			'qmd_syllabusarea':'topic',
+			'item type':'itemtype',
+			'question type':'itemtype',
+			'qmd_layoutstatus':'status',
+			'layoutstatus':'status'}.get(label,label)
+		# Still need to handle creator and owner	
+		self.DeclareMetadata(label,self.QTIFieldEntry.GetValue(),self)
+		
+class QTIFieldLabel(QTIElement):
+	XMLNAME="fieldlabel"
+
+class QTIFieldEntry(QTIElement):
+	XMLNAME="fieldentry"
+
+class QMDMetadataElement(QTIElement):
+	"""Abstract class to represent old-style qmd_ tags"""
+	
+	def GotChildren(self):
+		self.DeclareMetadata(self.GetXMLName(),self.GetValue(),self)
+		
+class QMDComputerScored(QMDMetadataElement):
 	XMLNAME='qmd_computerscored'
 	
-class QMDFeedbackPermitted(QTIElement):
+class QMDFeedbackPermitted(QMDMetadataElement):
 	XMLNAME='qmd_feedbackpermitted'
 	
-class QMDHintsPermitted(QTIElement):
+class QMDHintsPermitted(QMDMetadataElement):
 	XMLNAME='qmd_hintspermitted'
 
-class QMDItemType(QTIElement):
+class QMDItemType(QMDMetadataElement):
 	XMLNAME='qmd_itemtype'
 
-class QMDLevelOfDifficulty(QTIElement):
+class QMDLevelOfDifficulty(QMDMetadataElement):
 	"""<!ELEMENT qmd_levelofdifficulty (#PCDATA)>"""	
 	XMLNAME='qmd_levelofdifficulty'
 
@@ -289,65 +404,69 @@ QMDDifficultyMap={
 	"very difficult":1
 	}
 
-class QMDMaximumScore(QTIElement):
+class QMDMaximumScore(QMDMetadataElement):
 	XMLNAME='qmd_maximumscore'
 
-	def __init__(self,parent):
-		QTIElement.__init__(self,parent)
-		self.value=None
-	
-	def GetValue(self):
-		return self.value
-	
-	def SetValue(self,value):
-		self.value=float(value)			
-		QTIElement.SetValue(self,unicode(value))
-		
-	def GotChildren(self):
-		self.value=float(QTIElement.GetValue(self).strip())
-
-
-class QMDRenderingType(QTIElement):
+class QMDRenderingType(QMDMetadataElement):
 	XMLNAME='qmd_renderingtype'
 
-class QMDResponseType(QTIElement):
+class QMDResponseType(QMDMetadataElement):
 	XMLNAME='qmd_responsetype'
 
-class QMDScoringPermitted(QTIElement):
+class QMDScoringPermitted(QMDMetadataElement):
 	XMLNAME='qmd_scoringpermitted'
 
-class QMDSolutionsPermitted(QTIElement):
+class QMDSolutionsPermitted(QMDMetadataElement):
 	XMLNAME='qmd_solutionspermitted'
 
-class QMDStatus(QTIElement):
+QMDStatusSourceMap={
+	'draft':imsmd.LOM_SOURCE,
+	'final':imsmd.LOM_SOURCE,
+	'revised':imsmd.LOM_SOURCE,
+	'unavailable':imsmd.LOM_SOURCE,
+	'experimental':QTI_SOURCE,
+	'normal':QTI_SOURCE,
+	'retired':QTI_SOURCE
+	}
+
+class QMDStatus(QMDMetadataElement):
 	XMLNAME='qmd_status'
 
-class QMDTimeDependence(QTIElement):
+	def MigrateLRM(self,lom):
+		status=lom.ChildElement(imsmd.LOMLifecycle).ChildElement(imsmd.LOMStatus)
+		value=self.GetValue().lower()
+		source=QMDStatusSourceMap.get(value,imsmd.LOM_UNKNOWNSOURCE)
+		status.LRMSource.LangString.SetValue(source)
+		status.LRMSource.LangString.SetLang("x-none")
+		status.LRMValue.LangString.SetValue(value)
+		status.LRMValue.LangString.SetLang("x-none")
+
+class QMDTimeDependence(QMDMetadataElement):
 	XMLNAME='qmd_timedependence'
 
-class QMDTimeLimit(QTIElement):
+class QMDTimeLimit(QMDMetadataElement):
 	XMLNAME='qmd_timelimit'
 
-class QMDToolVendor(QTIElement):
+class QMDToolVendor(QMDMetadataElement):
 	XMLNAME='qmd_toolvendor'
 
 	def MigrateV2(self,item):
 		item.metadata.ChildElement(qtiv2.QMDToolVendor).SetValue(self.GetValue())
 		
-class QMDTopic(QTIElement):
+class QMDTopic(QMDMetadataElement):
 	XMLNAME='qmd_topic'
 
-class QMDWeighting(QTIElement):
+class QMDWeighting(QMDMetadataElement):
 	XMLNAME='qmd_weighting'
 
-class QMDMaterial(QTIElement):
+class QMDMaterial(QMDMetadataElement):
 	XMLNAME='qmd_material'
 
-class QMDTypeOfSolution(QTIElement):
+class QMDTypeOfSolution(QMDMetadataElement):
 	XMLNAME='qmd_typeofsolution'
 
 
-class QMDAuthor(QTIElement):
+class QMDAuthor(QMDMetadataElement):
 	"""Not defined by QTI but seems to be in common use."""
 	XMLNAME='qmd_author'
 	
@@ -370,19 +489,19 @@ class QMDAuthor(QTIElement):
 			vcard.fn.value=name
 			contributor.ChildElement(imsmd.LOMCEntity).LOMVCard.SetValue(vcard)	
 
-class QMDDescription(QTIElement):
+class QMDDescription(QMDMetadataElement):
 	"""Not defined by QTI but seems to be in common use."""
 	XMLNAME='qmd_description'
 	
-class QMDDomain(QTIElement):
+class QMDDomain(QMDMetadataElement):
 	"""Not defined by QTI but seems to be in common use."""
 	XMLNAME='qmd_domain'
 
-class QMDKeywords(QTIElement):
+class QMDKeywords(QMDMetadataElement):
 	"""Not defined by QTI but seems to be in common use."""
 	XMLNAME='qmd_keywords'
 
-class QMDOrganization(QTIElement):
+class QMDOrganization(QMDMetadataElement):
 	"""Not defined by QTI but seems to be in common use."""
 	XMLNAME='qmd_organization'
 
@@ -404,12 +523,32 @@ class QMDOrganization(QTIElement):
 		vcard.org.value=[name]
 		contributor.ChildElement(imsmd.LOMCEntity).LOMVCard.SetValue(vcard)	
 	
-class QMDTitle(QTIElement):
+class QMDTitle(QMDMetadataElement):
 	"""Not defined by QTI but seems to be in common use."""
 	XMLNAME='qmd_title'
 	
+
+class QTIMetadataContainer(QTIElement):
+	"""An abstract class used to hold dictionaries of metadata.
 	
-class QTIItemMetadata(QTIElement):
+	There is a single dictionary maintained to hold all metadata values, each
+	value is a list of tuples of the form (value string, defining element).
+	Values are keyed on the field label or tag name with any leading qmd_ prefix
+	removed."""
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.metadata={}
+
+	def DeclareMetadata(self,label,entry,definition=None):
+		label=label.lower()
+		if label[:4]=="qmd_":
+			label=label[4:]
+		if not self.metadata.has_key(label):
+			self.metadata[label]=[]
+		self.metadata[label].append((entry,definition))
+
+
+class QTIItemMetadata(QTIMetadataContainer):
 	"""
 	<!ELEMENT itemmetadata (
 		qtimetadata*
@@ -437,7 +576,7 @@ class QTIItemMetadata(QTIElement):
 	XMLCONTENT=xml.XMLElementContent
 	
 	def __init__(self,parent):
-		QTIElement.__init__(self,parent)
+		QTIMetadataContainer.__init__(self,parent)
 		self.QTIMetadata=[]
 		self.QMDComputerScored=None
 		self.QMDFeedbackPermitted=None
@@ -486,9 +625,12 @@ class QTIItemMetadata(QTIElement):
 		OptionalAppend(children,self.QMDTypeOfSolution)
 		children=children+self.QMDAuthor+self.QMDDescription+self.QMDDomain+self.QMDKeywords+self.QMDOrganization
 		OptionalAppend(children,self.QMDTitle)
-		return children
-		
+		return children+QTIMetadataContainer.GetChildren(self)
+				
 	def MigrateV2(self,doc,lom,log):
+		itemtypes=self.metadata.get('itemtype',())
+		for itemtype,itemtypeDef in itemtypes:
+			log.append("Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, ignoring %s"%itemtype)
 		if self.QMDLevelOfDifficulty:
 			# IMS Definition says: The options are: "Pre-school", "School" or
 			# "HE/FE", # "Vocational" and "Professional Development" so we bind
@@ -505,7 +647,7 @@ class QTIItemMetadata(QTIElement):
 				if lomFlag:
 					d.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
 				else:
-					d.LRMSource.LangString.SetValue("None")					
+					d.LRMSource.LangString.SetValue(imsmd.LOM_UNKNOWNSOURCE)					
 				d.LRMSource.LangString.SetLang("x-none")
 				d.LRMValue.LangString.SetValue(difficulty)
 				d.LRMValue.LangString.SetLang("x-none")
@@ -515,11 +657,13 @@ class QTIItemMetadata(QTIElement):
 				if lomFlag:
 					c.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
 				else:
-					c.LRMSource.LangString.SetValue("None")					
+					c.LRMSource.LangString.SetValue(imsmd.LOM_UNKNOWNSOURCE)					
 				c.LRMSource.LangString.SetLang("x-none")
 				c.LRMValue.LangString.SetValue(context)
 				c.LRMValue.LangString.SetLang("x-none")
 		warn=False
+		if self.QMDStatus:
+			self.QMDStatus.MigrateLRM(lom)
 		if self.QMDToolVendor:
 			self.QMDToolVendor.MigrateV2(doc.root)
 		if self.QMDTopic:

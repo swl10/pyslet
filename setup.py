@@ -10,10 +10,11 @@ else:
 	pkgBase=get_python_lib()
 	
 	setup(name="pyslet",
-		version="20110122",
+		version="0.1.20110314",
 		description="pyslet: standards for learning education and training",
 		author="Steve Lay",
 		author_email="steve.w.lay@googlemail.com",
+		url="http://code.google.com/p/qtimigration/",
 		packages=['pyslet'],
 		package_data={'pyslet': [ ] }
 		)
