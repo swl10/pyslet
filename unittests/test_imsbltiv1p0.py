@@ -1,6 +1,12 @@
 #! /usr/bin/env python
 
-import unittest, pkg_resources, StringIO
+import unittest, StringIO
+
+try:
+	import pkg_resources
+except ImportError:
+	pkg_resources=None
+
 
 from pyslet.imsbltiv1p0 import *
 
@@ -15,7 +21,10 @@ if oauth is None:
 
 else:
 	print "Designed for oauth-1.0.1"
-	print "\tTesting with oauth: %s"%pkg_resources.get_distribution("oauth").version
+	if pkg_resources:
+		print "\tTesting with oauth: %s"%pkg_resources.get_distribution("oauth").version
+	else:
+		print "\tCannot determine installed package versions; try installing setuptools"
 
 	def suite():		
 		return unittest.TestSuite((

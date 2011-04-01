@@ -14,17 +14,22 @@ def suite():
 from pyslet.imsmdv1p2p1 import *
 import pyslet.imscpv1p2 as imscp
 
-import pkg_resources
-
+try:
+	import pkg_resources
+except ImportError:
+	pkg_resources=None
+	
 if vobject is None:
 	print "vobject tests skipped"
 	print "\tTry installing vobject from http://vobject.skyhouseconsulting.com/  (vobject-0.8.1c)"
 	print "\t\talso requires http://labix.org/python-dateutil"
 else:
 	print "Designed for vobject-0.8.1c; python-dateutil-1.5"
-	print "\tTesting with vobject: %s"%pkg_resources.get_distribution("vobject").version
-	print "\tTesting with python-dateutil: %s"%pkg_resources.get_distribution("python-dateutil").version
-
+	if pkg_resources:
+		print "\tTesting with vobject: %s"%pkg_resources.get_distribution("vobject").version
+		print "\tTesting with python-dateutil: %s"%pkg_resources.get_distribution("python-dateutil").version
+	else:
+		print "\tCannot determine installed package versions; try installing setuptools"
 	
 class LRMTests(unittest.TestCase):
 	def testCaseConstants(self):
