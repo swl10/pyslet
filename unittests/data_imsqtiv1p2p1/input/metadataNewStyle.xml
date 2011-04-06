@@ -44,6 +44,10 @@
                     <fieldlabel>qmd_toolvendor</fieldlabel>
                     <fieldentry>Steve Lay</fieldentry>
                 </qtimetadatafield>
+                <qtimetadatafield>
+                    <fieldlabel>description</fieldlabel>
+                    <fieldentry>General Description Extension</fieldentry>
+                </qtimetadatafield>
             </qtimetadata>
         </itemmetadata>
     </item>

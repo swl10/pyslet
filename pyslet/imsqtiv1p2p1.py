@@ -46,8 +46,8 @@ class QTIElement(xml.XMLElement):
 	def DeclareMetadata(self,label,entry,definition=None):
 		"""Declares a piece of metadata associated with the element.
 		
-		Most QTIElements will be contained by a some type of metadata container
-		than collects metadata in a format suitable for easy lookup and export
+		Most QTIElements will be contained by some type of metadata container
+		that collects metadata in a format suitable for easy lookup and export
 		to other metadata formats.  The default implementation simply passes the
 		call to the parent QTIElement or ignores the definition"""
 		if isinstance(self.parent,QTIElement):
@@ -432,15 +432,6 @@ QMDStatusSourceMap={
 class QMDStatus(QMDMetadataElement):
 	XMLNAME='qmd_status'
 
-	def MigrateLRM(self,lom):
-		status=lom.ChildElement(imsmd.LOMLifecycle).ChildElement(imsmd.LOMStatus)
-		value=self.GetValue().lower()
-		source=QMDStatusSourceMap.get(value,imsmd.LOM_UNKNOWNSOURCE)
-		status.LRMSource.LangString.SetValue(source)
-		status.LRMSource.LangString.SetLang("x-none")
-		status.LRMValue.LangString.SetValue(value)
-		status.LRMValue.LangString.SetLang("x-none")
-
 class QMDTimeDependence(QMDMetadataElement):
 	XMLNAME='qmd_timedependence'
 
@@ -449,9 +440,6 @@ class QMDTimeLimit(QMDMetadataElement):
 
 class QMDToolVendor(QMDMetadataElement):
 	XMLNAME='qmd_toolvendor'
-
-	def MigrateV2(self,item):
-		item.metadata.ChildElement(qtiv2.QMDToolVendor).SetValue(self.GetValue())
 		
 class QMDTopic(QMDMetadataElement):
 	XMLNAME='qmd_topic'
@@ -469,25 +457,6 @@ class QMDTypeOfSolution(QMDMetadataElement):
 class QMDAuthor(QMDMetadataElement):
 	"""Not defined by QTI but seems to be in common use."""
 	XMLNAME='qmd_author'
-	
-	def MigrateLRM(self,lom):
-		lifecycle=lom.ChildElement(imsmd.LOMLifecycle)
-		contributor=lifecycle.ChildElement(imsmd.LOMContribute)
-		role=contributor.LOMRole
-		role.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
-		role.LRMSource.LangString.SetLang("x-none")
-		role.LRMValue.LangString.SetValue("author")
-		role.LRMValue.LangString.SetLang("x-none")
-		names=self.GetValue().strip().split(',')
-		for name in names:
-			if not name.strip():
-				continue
-			vcard=imsmd.vobject.vCard()
-			vcard.add('n')
-			vcard.n.value=imsmd.vobject.vcard.Name(family=name,given='')
-			vcard.add('fn')
-			vcard.fn.value=name
-			contributor.ChildElement(imsmd.LOMCEntity).LOMVCard.SetValue(vcard)	
 
 class QMDDescription(QMDMetadataElement):
 	"""Not defined by QTI but seems to be in common use."""
@@ -505,24 +474,6 @@ class QMDOrganization(QMDMetadataElement):
 	"""Not defined by QTI but seems to be in common use."""
 	XMLNAME='qmd_organization'
 
-	def MigrateLRM(self,lom):
-		lifecycle=lom.ChildElement(imsmd.LOMLifecycle)
-		contributor=lifecycle.ChildElement(imsmd.LOMContribute)
-		role=contributor.LOMRole
-		role.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
-		role.LRMSource.LangString.SetLang("x-none")
-		role.LRMValue.LangString.SetValue("unknown")
-		role.LRMValue.LangString.SetLang("x-none")
-		name=self.GetValue().strip()
-		vcard=imsmd.vobject.vCard()
-		vcard.add('n')
-		vcard.n.value=imsmd.vobject.vcard.Name(family=name,given='')
-		vcard.add('fn')
-		vcard.fn.value=name
-		vcard.add('org')
-		vcard.org.value=[name]
-		contributor.ChildElement(imsmd.LOMCEntity).LOMVCard.SetValue(vcard)	
-	
 class QMDTitle(QMDMetadataElement):
 	"""Not defined by QTI but seems to be in common use."""
 	XMLNAME='qmd_title'
@@ -549,7 +500,14 @@ class QTIMetadataContainer(QTIElement):
 
 
 class QTIItemMetadata(QTIMetadataContainer):
-	"""
+	"""Represents the QTIItemMetadata element.
+	
+	This element contains more structure than is in common use, at the moment we
+	represent this structure directly and automaticaly conform output to it,
+	adding extension elements at the end.  In the future we might be more
+	generous and allow input *and* output of elements in any sequence and
+	provide separate methods for conforming these elements.
+	
 	<!ELEMENT itemmetadata (
 		qtimetadata*
 		qmd_computerscored?
@@ -626,30 +584,27 @@ class QTIItemMetadata(QTIMetadataContainer):
 		children=children+self.QMDAuthor+self.QMDDescription+self.QMDDomain+self.QMDKeywords+self.QMDOrganization
 		OptionalAppend(children,self.QMDTitle)
 		return children+QTIMetadataContainer.GetChildren(self)
-				
-	def MigrateV2(self,doc,lom,log):
-		itemtypes=self.metadata.get('itemtype',())
-		for itemtype,itemtypeDef in itemtypes:
-			log.append("Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, ignoring %s"%itemtype)
-		if self.QMDLevelOfDifficulty:
+	
+	def LRMMigrateLevelOfDifficulty(self,lom,log):
+		difficulty=self.metadata.get('levelofdifficulty',())
+		for value,definition in difficulty:
 			# IMS Definition says: The options are: "Pre-school", "School" or
 			# "HE/FE", # "Vocational" and "Professional Development" so we bind
 			# this value to the "Context" in LOM if one of the QTI or LOM
 			# defined terms have been used, otherwise, we bind to Difficulty, as
 			# this seems to be more common usage.
-			value=self.QMDLevelOfDifficulty.GetValue().strip()
 			context,lomFlag=QMDLevelOfDifficultyMap.get(value.lower(),(None,False))
 			educational=lom.ChildElement(imsmd.LOMEducational)
 			if context is None:
 				# add value as difficulty
-				difficulty,lomFlag=QMDDifficultyMap.get(value.lower(),(value,False))
+				value,lomFlag=QMDDifficultyMap.get(value.lower(),(value,False))
 				d=educational.ChildElement(imsmd.LOMDifficulty)
 				if lomFlag:
 					d.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
 				else:
 					d.LRMSource.LangString.SetValue(imsmd.LOM_UNKNOWNSOURCE)					
 				d.LRMSource.LangString.SetLang("x-none")
-				d.LRMValue.LangString.SetValue(difficulty)
+				d.LRMValue.LangString.SetValue(value)
 				d.LRMValue.LangString.SetLang("x-none")
 			else:
 				# add value as educational context
@@ -661,59 +616,130 @@ class QTIItemMetadata(QTIMetadataContainer):
 				c.LRMSource.LangString.SetLang("x-none")
 				c.LRMValue.LangString.SetValue(context)
 				c.LRMValue.LangString.SetLang("x-none")
-		warn=False
-		if self.QMDStatus:
-			self.QMDStatus.MigrateLRM(lom)
-		if self.QMDToolVendor:
-			self.QMDToolVendor.MigrateV2(doc.root)
-		if self.QMDTopic:
-			lang=self.QMDTopic.ResolveLang()
-			value=self.QMDTopic.GetValue().strip()
+	
+	def LRMMigrateStatus(self,lom,log):
+		status=self.metadata.get('status',())
+		for value,definition in status:
+			s=lom.ChildElement(imsmd.LOMLifecycle).ChildElement(imsmd.LOMStatus)
+			value=value.lower()
+			source=QMDStatusSourceMap.get(value,imsmd.LOM_UNKNOWNSOURCE)
+			s.LRMSource.LangString.SetValue(source)
+			s.LRMSource.LangString.SetLang("x-none")
+			s.LRMValue.LangString.SetValue(value)
+			s.LRMValue.LangString.SetLang("x-none")
+	
+	def LRMMigrateTopic(self,lom,log):
+		topics=self.metadata.get('topic',())
+		for value,definition in topics:
+			lang=definition.ResolveLang()
+			value=value.strip()
 			description=lom.ChildElement(imsmd.LOMEducational).ChildElement(imsmd.LOMDescription).LangString(value)
 			if lang:
 				description.SetLang(lang)
-		if len(self.QMDAuthor):
+	
+	def LRMMigrateContributor(self,fieldName,lomRole,lom,log):
+		contributors=self.metadata.get(fieldName,())
+		if contributors:
 			if imsmd.vobject is None:
-				log.append('Warning: qmd_author support disabled (vobject not installed)')
+				log.append('Warning: qmd_%s support disabled (vobject not installed)'%fieldName)
 			else:
-				for author in self.QMDAuthor:
-					author.MigrateLRM(lom)							
-		for description in self.QMDDescription:
-			lang=description.ResolveLang()
-			general=lom.ChildElement(imsmd.LOMGeneral)
-			dValue=description.GetValue()
-			genDescription=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.LOMDescription).LangString(dValue)
+				for value,definition in contributors:
+					lifecycle=lom.ChildElement(imsmd.LOMLifecycle)
+					contributor=lifecycle.ChildElement(imsmd.LOMContribute)
+					role=contributor.LOMRole
+					role.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
+					role.LRMSource.LangString.SetLang("x-none")
+					role.LRMValue.LangString.SetValue(lomRole)
+					role.LRMValue.LangString.SetLang("x-none")
+					names=value.strip().split(',')
+					for name in names:
+						if not name.strip():
+							continue
+						vcard=imsmd.vobject.vCard()
+						vcard.add('n')
+						vcard.n.value=imsmd.vobject.vcard.Name(family=name,given='')
+						vcard.add('fn')
+						vcard.fn.value=name.strip()
+						contributor.ChildElement(imsmd.LOMCEntity).LOMVCard.SetValue(vcard)	
+	
+	def LRMMigrateDescription(self,lom,log):
+		descriptions=self.metadata.get('description',())
+		for value,definition in descriptions:
+			lang=definition.ResolveLang()
+			genDescription=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.LOMDescription).LangString(value)
 			if lang:
 				genDescription.SetLang(lang)
-		for domain in self.QMDDomain:
-			lang=domain.ResolveLang()
-			general=lom.ChildElement(imsmd.LOMGeneral)
-			kwValue=domain.GetValue().strip()
+
+	def LRMMigrateDomain(self,lom,log):
+		domains=self.metadata.get('domain',())
+		warn=False
+		for value,definition in domains:
+			lang=definition.ResolveLang()
+			kwValue=value.strip()
 			if kwValue:
-				kwContainer=general.ChildElement(imsmd.LOMKeyword).LangString(kwValue)
+				kwContainer=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.LOMKeyword).LangString(kwValue)
 				# set the language of the kw
 				if lang:
 					kwContainer.SetLang(lang)
 				if not warn:
 					log.append("Warning: qmd_domain extension field will be added as LOM keyword")
 					warn=True
-		for kw in self.QMDKeywords:
-			lang=kw.ResolveLang()
-			general=lom.ChildElement(imsmd.LOMGeneral)
-			values=string.split(kw.GetValue(),',')
-			for value in values:
-				kwValue=value.strip()
-				if kwValue:
-					kwContainer=general.ChildElement(imsmd.LOMKeyword).LangString(kwValue)
+	
+	def LRMMigrateKeywords(self,lom,log):
+		keywords=self.metadata.get('keywords',())
+		for value,definition in keywords:
+			lang=definition.ResolveLang()
+			values=string.split(value,',')
+			for kwValue in values:
+				v=kwValue.strip()
+				if v:
+					kwContainer=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.LOMKeyword).LangString(v)
 					# set the language of the kw
 					if lang:
 						kwContainer.SetLang(lang)
-		if len(self.QMDOrganization):
+	
+	def LRMMigrateOrganization(self,lom,log):
+		organizations=self.metadata.get('organization',())
+		if organizations:
 			if imsmd.vobject is None:
 				log.append('Warning: qmd_organization support disabled (vobject not installed)')
 			else:
-				for org in self.QMDOrganization:
-					org.MigrateLRM(lom)							
+				for value,definition in organizations:
+					lifecycle=lom.ChildElement(imsmd.LOMLifecycle)
+					contributor=lifecycle.ChildElement(imsmd.LOMContribute)
+					role=contributor.LOMRole
+					role.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
+					role.LRMSource.LangString.SetLang("x-none")
+					role.LRMValue.LangString.SetValue("unknown")
+					role.LRMValue.LangString.SetLang("x-none")
+					name=value.strip()
+					vcard=imsmd.vobject.vCard()
+					vcard.add('n')
+					vcard.n.value=imsmd.vobject.vcard.Name(family=name,given='')
+					vcard.add('fn')
+					vcard.fn.value=name
+					vcard.add('org')
+					vcard.org.value=[name]
+					contributor.ChildElement(imsmd.LOMCEntity).LOMVCard.SetValue(vcard)	
+			
+	def MigrateV2(self,doc,lom,log):
+		item=doc.root
+		itemtypes=self.metadata.get('itemtype',())
+		for itemtype,itemtypeDef in itemtypes:
+			log.append("Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, ignoring %s"%itemtype)
+		self.LRMMigrateLevelOfDifficulty(lom,log)
+		self.LRMMigrateStatus(lom,log)
+		vendors=self.metadata.get('toolvendor',())
+		for value,definition in vendors:
+			item.metadata.ChildElement(qtiv2.QMDToolVendor).SetValue(value)
+		self.LRMMigrateTopic(lom,log)
+		self.LRMMigrateContributor('author','author',lom,log)
+		self.LRMMigrateContributor('creator','initiator',lom,log)
+		self.LRMMigrateContributor('owner','publisher',lom,log)
+		self.LRMMigrateDescription(lom,log)
+		self.LRMMigrateDomain(lom,log)
+		self.LRMMigrateKeywords(lom,log)
+		self.LRMMigrateOrganization(lom,log)
 
 				
 class QTIDocument(xml.XMLDocument):

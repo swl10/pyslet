@@ -6,7 +6,7 @@ releases.  Use with caution.
 """
 
 try:
-	import oauth.oauth as oauth
+	from oauth import oauth
 except ImportError:
 	oauth=None
 

@@ -81,14 +81,96 @@ Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, i
 						<imsmd:title>
 							<imsmd:langstring xml:lang="en-GB">Metadata New-Style</imsmd:langstring>
 						</imsmd:title>						
+						<imsmd:description>
+							<imsmd:langstring xml:lang="en-GB">General Description Extension</imsmd:langstring>
+						</imsmd:description>						
 					</imsmd:general>
+					<imsmd:lifecycle>
+						<imsmd:status>
+							<imsmd:source>
+								<imsmd:langstring xml:lang="x-none">QTIv1</imsmd:langstring>
+							</imsmd:source>
+							<imsmd:value>
+								<imsmd:langstring xml:lang="x-none">experimental</imsmd:langstring>
+							</imsmd:value>
+						</imsmd:status>						
+						<imsmd:contribute>
+							<imsmd:role>
+								<imsmd:source>
+									<imsmd:langstring xml:lang="x-none">LOMv1.0</imsmd:langstring>
+								</imsmd:source>
+								<imsmd:value>
+									<imsmd:langstring xml:lang="x-none">author</imsmd:langstring>
+								</imsmd:value>
+							</imsmd:role>
+							<imsmd:centity>
+								<imsmd:vcard>BEGIN:VCARD&#xD;
+VERSION:3.0&#xD;
+FN:Steve Author&#xD;
+N:Steve Author;;;;&#xD;
+END:VCARD&#xD;
+</imsmd:vcard>
+							</imsmd:centity>
+						</imsmd:contribute>
+						<imsmd:contribute>
+							<imsmd:role>
+								<imsmd:source>
+									<imsmd:langstring xml:lang="x-none">LOMv1.0</imsmd:langstring>
+								</imsmd:source>
+								<imsmd:value>
+									<imsmd:langstring xml:lang="x-none">initiator</imsmd:langstring>
+								</imsmd:value>
+							</imsmd:role>
+							<imsmd:centity>
+								<imsmd:vcard>BEGIN:VCARD&#xD;
+VERSION:3.0&#xD;
+FN:Steve Creator&#xD;
+N:Steve Creator;;;;&#xD;
+END:VCARD&#xD;
+</imsmd:vcard>
+							</imsmd:centity>
+						</imsmd:contribute>
+						<imsmd:contribute>
+							<imsmd:role>
+								<imsmd:source>
+									<imsmd:langstring xml:lang="x-none">LOMv1.0</imsmd:langstring>
+								</imsmd:source>
+								<imsmd:value>
+									<imsmd:langstring xml:lang="x-none">publisher</imsmd:langstring>
+								</imsmd:value>
+							</imsmd:role>
+							<imsmd:centity>
+								<imsmd:vcard>BEGIN:VCARD&#xD;
+VERSION:3.0&#xD;
+FN:Steve Owner&#xD;
+N:Steve Owner;;;;&#xD;
+END:VCARD&#xD;
+</imsmd:vcard>
+							</imsmd:centity>
+						</imsmd:contribute>
+					</imsmd:lifecycle>
+					<imsmd:educational>
+						<imsmd:context>
+							<imsmd:source>
+								<imsmd:langstring xml:lang="x-none">LOMv1.0</imsmd:langstring>
+							</imsmd:source>
+							<imsmd:value>
+								<imsmd:langstring xml:lang="x-none">training</imsmd:langstring>
+							</imsmd:value>
+						</imsmd:context>						
+						<imsmd:description>
+							<imsmd:langstring xml:lang="en-GB">Migration</imsmd:langstring>
+						</imsmd:description>						
+					</imsmd:educational>
 					<imsmd:annotation>
 						<imsmd:description>
 							<imsmd:langstring>Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, ignoring MCQ</imsmd:langstring>
 						</imsmd:description>						
 					</imsmd:annotation>
 				</imsmd:lom>
-				<imsqti:qtiMetadata/>
+				<imsqti:qtiMetadata>
+					<imsqti:toolVendor>Steve Lay</imsqti:toolVendor>					
+				</imsqti:qtiMetadata>
 			</metadata>
 			<file href="metadataNewStyle/metadataNewStyle.xml"/>
 		</resource>
