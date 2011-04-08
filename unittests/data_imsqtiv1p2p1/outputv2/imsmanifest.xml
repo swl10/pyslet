@@ -56,14 +56,17 @@
 							</imsmd:value>
 						</imsmd:context>						
 						<imsmd:description>
-							<imsmd:langstring xml:lang="en-GB">Migration</imsmd:langstring>
-						</imsmd:description>						
+							<imsmd:langstring xml:lang="en-GB">Migration; Objectives for fullitem as metadata</imsmd:langstring>
+						</imsmd:description>
 					</imsmd:educational>
 					<imsmd:annotation>
 						<imsmd:description>
 							<imsmd:langstring>Warning: maxattempts can not be controlled at item level, ignored: maxattempts='1'
 Warning: duration is currently outside the scope of version 2: ignored 1H
-Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, ignoring MCQ</imsmd:langstring>
+Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, ignoring MCQ
+Warning: itemcontrol is currently outside the scope of version 2
+Warning: changing view Administrator to proctor
+Warning: rubric with view="All" replaced by &lt;div&gt; with class="rubric"</imsmd:langstring>
 						</imsmd:description>						
 					</imsmd:annotation>
 				</imsmd:lom>

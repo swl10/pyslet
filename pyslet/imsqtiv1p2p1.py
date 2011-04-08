@@ -39,7 +39,16 @@ def MakeValidName(name):
 	else:
 		return '_'
 
+def ParseYesNo(src):
+	return src.strip().lower()=='yes'
 
+def FormatYesNo(value):
+	if value:
+		return 'Yes'
+	else:
+		return 'No'
+
+		
 class QTIElement(xml.XMLElement):
 	"""Basic element to represent all QTI elements"""
 	
@@ -166,7 +175,7 @@ class QTIItem(QTICommentElement):
 		self.QTIItemControl=[]
 		self.QTIItemPrecondition=[]
 		self.QTIItemPostcondition=[]
-		self.rubric=[]
+		self.QTIRubric=[]
 		self.QTIPresentation=None
 		self.QTIResprocessing=[]
 		self.QTIItemProcExtension=None
@@ -183,7 +192,8 @@ class QTIItem(QTICommentElement):
 			attrs['ident']=self.ident
 		if self.title:
 			attrs['title']=self.title
-
+		return attrs
+		
 	def Set_maxattempts(self,value):
 		self.maxattempts=value
 		
@@ -196,16 +206,22 @@ class QTIItem(QTICommentElement):
 	def Set_title(self,value):
 		self.title=value
 	
+	def QTIItemRubric(self):
+		"""itemrubric is deprecated in favour of rubric."""
+		child=QTIItemRubric(self)
+		self.QTIRubric.append(child)
+		return child
+		
 	def GetChildren(self):
 		children=QTIComment.GetChildren(self)
-		OptionalAppend(children,self.QTIDuration)
-		OptionalAppend(children,self.QTIItemMetadata)
-		children=children+self.QITObjectives+self.QTIItemControl+self.QTIItemPrecondition+self.QTIPostCondition+self.rubric
-		OptionalAppend(children,self.QTIPresentation)
+		xml.OptionalAppend(children,self.QTIDuration)
+		xml.OptionalAppend(children,self.QTIItemMetadata)
+		children=children+self.QITObjectives+self.QTIItemControl+self.QTIItemPrecondition+self.QTIPostCondition+self.QTIRubric
+		xml.OptionalAppend(children,self.QTIPresentation)
 		children=children+self.QTIResprocessing
-		OptionalAppend(children,QTIItemProcExtension)
+		xml.OptionalAppend(children,self.QTIItemProcExtension)
 		children=children+self.QTIItemFeedback
-		OptionalAppend(children,QTIReference)
+		xml.OptionalAppend(children,self.QTIReference)
 		return children
 	
 	def MigrateV2(self):
@@ -247,7 +263,7 @@ class QTIItem(QTICommentElement):
 				lomTitle.SetLang(lang)
 		if mdTitles:
 			if title:
-				# If we already have a title, then we add qmd_title as addition metadata
+				# If we already have a title, then we have to add qmd_title as description metadata
 				# you may think qmd_title is a better choice than the title attribute
 				# but qmd_title is an extension so the title attribute takes precedence
 				i=0
@@ -269,7 +285,15 @@ class QTIItem(QTICommentElement):
 			log.append("Warning: duration is currently outside the scope of version 2: ignored "+self.QTIDuration.GetValue())
 		if self.QTIItemMetadata:
 			self.QTIItemMetadata.MigrateV2(doc,lom,log)
-			
+		for objective in self.QTIObjectives:
+			if objective.view.lower()!='all':
+				objective.MigrateV2(item,log)
+			else:
+				objective.LRMMigrateObjectives(lom,log)
+		if self.QTIItemControl:
+			log.append("Warning: itemcontrol is currently outside the scope of version 2")
+		for rubric in self.QTIRubric:
+			rubric.MigrateV2(item,log)
 		return (doc, lom, log)
 		
 
@@ -317,7 +341,8 @@ class QTIVocabulary(QTIElement):
 			attrs['entityref']=self.entityRef
 		if self.vocabType:
 			attrs['vocab_type']=self.vocabType
-
+		return attrs
+		
 	def Set_uri(self,value):
 		self.uri=value
 		
@@ -564,25 +589,25 @@ class QTIItemMetadata(QTIMetadataContainer):
 		
 	def GetChildren(self):
 		children=self.QTIMetadata
-		OptionalAppend(children,self.QMDComputerScored)
-		OptionalAppend(children,self.QMDFeedbackPermitted)
-		OptionalAppend(children,self.QMDHintsPermitted)
-		OptionalAppend(children,self.QMDItemType)
-		OptionalAppend(children,self.QMDLevelOfDifficulty)
-		OptionalAppend(children,self.QMDMaximumScore)
+		xml.OptionalAppend(children,self.QMDComputerScored)
+		xml.OptionalAppend(children,self.QMDFeedbackPermitted)
+		xml.OptionalAppend(children,self.QMDHintsPermitted)
+		xml.OptionalAppend(children,self.QMDItemType)
+		xml.OptionalAppend(children,self.QMDLevelOfDifficulty)
+		xml.OptionalAppend(children,self.QMDMaximumScore)
 		children=children+self.QMDRenderingType+self.QMDResponseType
-		OptionalAppend(children,self.QMDScoringPermitted)
-		OptionalAppend(children,self.QMDSolutionsPermitted)
-		OptionalAppend(children,self.QMDStatus)
-		OptionalAppend(children,self.QMDTimeDependence)
-		OptionalAppend(children,self.QMDTimeLimit)
-		OptionalAppend(children,self.QMDToolVendor)
-		OptionalAppend(children,self.QMDTopic)
-		OptionalAppend(children,self.QMDWeighting)
+		xml.OptionalAppend(children,self.QMDScoringPermitted)
+		xml.OptionalAppend(children,self.QMDSolutionsPermitted)
+		xml.OptionalAppend(children,self.QMDStatus)
+		xml.OptionalAppend(children,self.QMDTimeDependence)
+		xml.OptionalAppend(children,self.QMDTimeLimit)
+		xml.OptionalAppend(children,self.QMDToolVendor)
+		xml.OptionalAppend(children,self.QMDTopic)
+		xml.OptionalAppend(children,self.QMDWeighting)
 		children=children+self.QMDMaterial
-		OptionalAppend(children,self.QMDTypeOfSolution)
+		xml.OptionalAppend(children,self.QMDTypeOfSolution)
 		children=children+self.QMDAuthor+self.QMDDescription+self.QMDDomain+self.QMDKeywords+self.QMDOrganization
-		OptionalAppend(children,self.QMDTitle)
+		xml.OptionalAppend(children,self.QMDTitle)
 		return children+QTIMetadataContainer.GetChildren(self)
 	
 	def LRMMigrateLevelOfDifficulty(self,lom,log):
@@ -633,9 +658,8 @@ class QTIItemMetadata(QTIMetadataContainer):
 		for value,definition in topics:
 			lang=definition.ResolveLang()
 			value=value.strip()
-			description=lom.ChildElement(imsmd.LOMEducational).ChildElement(imsmd.LOMDescription).LangString(value)
-			if lang:
-				description.SetLang(lang)
+			description=lom.ChildElement(imsmd.LOMEducational).ChildElement(imsmd.LOMDescription)
+			description.AddString(lang,value)
 	
 	def LRMMigrateContributor(self,fieldName,lomRole,lom,log):
 		contributors=self.metadata.get(fieldName,())
@@ -741,7 +765,293 @@ class QTIItemMetadata(QTIMetadataContainer):
 		self.LRMMigrateKeywords(lom,log)
 		self.LRMMigrateOrganization(lom,log)
 
+
+class QTIFlowContainer(QTICommentElement):
+	"""Abstract class used to represent objects that contain flow_mat
+	
+	<!ELEMENT XXXXXXXXXX (qticomment? , (material+ | flow_mat+))>
+	"""
+	def __init__(self,parent):
+		QTICommentElement.__init__(self,parent)
+
+	def GetChildren(self):
+		children=QTICommentElement.GetChildren(self)+QTIElement.GetChildren(self)
+		return children
+
+	def ExtractText(self):
+		"""Returns text,lang representing this object."""
+		result=[]
+		children=QTIElement.GetChildren(self)
+		lang=None
+		for child in children:
+			childText,childLang=child.ExtractText()
+			if lang is None:
+				lang=childLang
+			if childText:
+				result.append(childText.strip())
+		return string.join(result,' '),lang
+
+	def MigrateV2Content(self,parent,log):
+		children=QTIElement.GetChildren(self)
+		# initially assume we can just use a paragraph
+		p=parent.ChildElement(qtiv2.XHTMLP)
+		for child in children:
+			child.MigrateV2Content(p,log)
+
+
+class QTIViewMixin:
+	"""Mixin class for handling view attribute.
+	
+	VIEWMAP attribute maps lower-cased view names from v1.2 onto corresponding v2 view values.
+	"""
+	VIEWMAP={
+		'administrator':'proctor',
+		'adminauthority':'proctor',
+		'assessor':'scorer',
+		'author':'author',
+		'candidate':'candidate',
+		'invigilator':'proctor',
+		'proctor':'proctor',
+		'invigilatorproctor':'proctor',
+		'psychometrician':'testConstructor',
+		'tutor':'tutor',
+		'scorer':'scorer'}
+		
+	VIEWALL='author candidate proctor scorer testConstructor tutor'
+
+	def __init__(self):
+		self.view='All'
+
+	def Set_view(self,value):
+		self.view=value
 				
+	def GetAttributesMixin(self,attrs):
+		attrs['view']=self.view
+
+	
+class QTIObjectives(QTIFlowContainer,QTIViewMixin):
+	"""Represents the objectives element
+	
+	<!ELEMENT objectives (qticomment? , (material+ | flow_mat+))>
+
+	<!ATTLIST objectives  %I_View; >"""
+	XMLNAME='objectives'
+	XMLCONTENT=xml.XMLElementContent
+		
+	def __init__(self,parent):
+		QTIFlowContainer.__init__(self,parent)
+		QTIViewMixin.__init__(self)
+		self.view='All'
+		
+	def GetAttributes(self):
+		attrs=QTIFlowContainer.GetAttributes(self)
+		QTIViewElement.GetAttributesMixin(self,attrs)
+		return attrs
+		
+	def MigrateV2(self,v2item,log):
+		"""Adds rubric representing these objectives to the given item's body"""
+		rubric=v2item.ChildElement(qtiv2.QTIItemBody).ChildElement(qtiv2.QTIRubricBlock)
+		if self.view.lower()=='all':
+			rubric.Set_view(QTIObjectives.VIEWALL)
+		else:
+			oldView=self.view.lower()
+			view=QTIObjectives.VIEWMAP.get(oldView,'author')
+			if view!=oldView:
+				log.append("Warning: changing view %s to %s"%(self.view,view))
+			rubric.Set_view(view)
+		self.MigrateV2Content(rubric,log)
+				
+	def LRMMigrateObjectives(self,lom,log):
+		"""Adds educational description from these objectives."""
+		description,lang=self.ExtractText()
+		eduDescription=lom.ChildElement(imsmd.LOMEducational).ChildElement(imsmd.LOMDescription)
+		eduDescription.AddString(lang,description)
+
+
+class QTIMaterial(QTICommentElement):
+	"""Represents the material element
+	
+	<!ELEMENT material (qticomment? , (mattext | matemtext | matimage | mataudio | matvideo | matapplet | matapplication | matref | matbreak | mat_extension)+ , altmaterial*)>
+	
+	<!ATTLIST material  %I_Label;
+						xml:lang CDATA  #IMPLIED >
+	"""
+	XMLNAME='material'
+	XMLCONTENT=xml.XMLElementContent
+	
+	def __init__(self,parent):
+		QTICommentElement.__init__(self,parent)
+		self.label=None
+		
+	def GetAttributes(self):
+		attrs=QTICommentElement.GetAttributes(self)
+		if self.label: attrs['label']=self.label
+		return attrs
+		
+	def Set_label(self,label):
+		self.label=label
+				
+	def MigrateV2Content(self,parent,log):
+		children=QTIElement.GetChildren(self)
+		# ignore material for the moment
+		for child in children:
+			child.MigrateV2Content(parent,log)
+
+	def ExtractText(self):
+		result=[]
+		children=QTIElement.GetChildren(self)
+		lang=None
+		for child in children:
+			childText,childLang=child.ExtractText()
+			if lang is None:
+				lang=childLang
+			if childText:
+				result.append(childText.strip())
+		if lang is None:
+			lang=self.ResolveLang()
+		return string.join(result,' '),lang
+		
+
+class QTIMatText(QTIElement):
+	"""Represents the mattext element
+
+	<!ELEMENT mattext (#PCDATA)>
+	
+	<!ATTLIST mattext  texttype    CDATA  'text/plain'
+						%I_Label;
+						%I_CharSet;
+						%I_Uri;
+						xml:space    (preserve | default )  'default'
+						xml:lang    CDATA  #IMPLIED
+						%I_EntityRef;
+						%I_Width;
+						%I_Height;
+						%I_Y0;
+						%I_X0; >	
+	"""
+	XMLNAME='mattext'
+	XMLCONTENT=xml.XMLMixedContent
+	
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.texttype='text/plain'
+		self.label=None
+
+	def GetAttributes(self):
+		attrs=QTIElement.GetAttributes(self)
+		if self.label: attrs['label']=self.label
+		attrs['texttype']=self.texttype
+		return attrs
+		
+	def Set_texttype(self,texttype):
+		self.texttype=texttype
+				
+	def Set_label(self,label):
+		self.label=label
+				
+	def MigrateV2Content(self,parent,log):
+		parent.AddData(self.GetValue())
+
+	def ExtractText(self):
+		return self.GetValue(),self.ResolveLang()
+
+
+class QTIItemControl(QTICommentElement,QTIViewMixin):
+	"""Represents the itemcontrol element
+	
+	<!ELEMENT itemcontrol (qticomment?)>
+	
+	<!ATTLIST itemcontrol  %I_FeedbackSwitch;
+							%I_HintSwitch;
+							%I_SolutionSwitch;
+							%I_View; >
+	"""
+	XMLNAME='itemcontrol'
+	XMLCONTENT=xml.XMLElementContent
+
+	def __init__(self,parent):
+		QTICommentElement.__init__(self,parent)
+		QTIViewMixin.__init__(self)
+		self.feedbackswitch=True
+		self.hintswitch=True
+		self.solutionswitch=True	
+
+	def GetAttributes(self):
+		attrs=QTICommentElement.GetAttributes(self)
+		QTIViewElement.GetAttributesMixin(self,attrs)
+		attrs['feedbackswitch']=FormatYesNo(self.feedbackswitch)
+		attrs['hintswitch']=FormatYesNo(self.hintswitch)
+		attrs['solutionswitch']=FormatYesNo(self.solutionswitch)
+		return attrs
+		
+	def Set_feedbackswitch(self,switchValue):
+		self.feedbackswitch=ParseYesNo(switchValue)
+				
+	def Set_hintswitch(self,switchValue):
+		self.hintswitch=ParseYesNo(switchValue)
+
+	def Set_solutionswitch(self,switchValue):
+		self.solutionswitch=ParseYesNo(switchValue)
+
+
+class QTIItemPreCondition(QTIElement):
+	"""Represents the itemprecondition element
+	
+	<!ELEMENT itemprecondition (#PCDATA)>"""
+	XMLNAME='itemprecondition'
+
+
+class QTIItemPostCondition(QTIElement):
+	"""Represents the itempostcondition element
+	
+	<!ELEMENT itempostcondition (#PCDATA)>"""
+	XMLNAME='itempostcondition'
+
+
+class QTIItemRubric(QTIElement):
+	"""Represents the itemrubric element.
+	
+	<!ELEMENT itemrubric (material)>
+
+	<!ATTLIST itemrubric  %I_View; >
+	"""
+	XMLNAME='itemrubric'
+	XMLCONTENT=xml.XMLElementContent
+
+
+class QTIRubric(QTIFlowContainer,QTIViewMixin):
+	"""Represents the rubric element.
+	
+	<!ELEMENT rubric (qticomment? , (material+ | flow_mat+))>
+	
+	<!ATTLIST rubric  %I_View; >"""
+	XMLNAME='rubric'
+	XMLCONTENT=xml.XMLElementContent
+	
+	def __init__(self,parent):
+		QTIFlowContainer.__init__(self,parent)
+		QTIViewMixin.__init__(self)
+
+	def GetAttributes(self):
+		attrs=QTIFlowContainer.GetAttributes(self)
+		QTIViewElement.GetAttributesMixin(self,attrs)
+		return attrs		
+	
+	def MigrateV2(self,v2item,log):
+		if self.view.lower()=='all':
+			log.append('Warning: rubric with view="All" replaced by <div> with class="rubric"')
+			rubric=v2item.ChildElement(qtiv2.QTIItemBody).ChildElement(qtiv2.XHTMLDiv)
+			rubric.Set_class('rubric')
+		else:
+			rubric=v2item.ChildElement(qtiv2.QTIItemBody).ChildElement(qtiv2.QTIRubricBlock)
+			oldView=self.view.lower()
+			view=QTIObjectives.VIEWMAP.get(oldView,'author')
+			if view!=oldView:
+				log.append("Warning: changing view %s to %s"%(self.view,view))
+			rubric.Set_view(view)
+		self.MigrateV2Content(rubric,log)
+				
+
 class QTIDocument(xml.XMLDocument):
 	def __init__(self,**args):
 		"""We turn off the parsing of external general entities to prevent a

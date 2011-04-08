@@ -497,7 +497,11 @@ class XMLElement:
 		it is white space, otherwise, ValidationError is called with the
 		offending data."""
 		if self.IsMixed():
-			self._children.append(data)
+			if self._children and type(self._children[-1]) in StringTypes:
+				# To ease the comparison function we collapse string children
+				self._children[-1]=self._children[-1]+data
+			else:
+				self._children.append(data)
 		else:
 			ws=True
 			for c in data:
@@ -793,7 +797,7 @@ class XMLElement:
 			indent=indent+tab
 		else:
 			ws=''
-		if hasattr(self.__class__,'XMLMIXED') and self.__class__.XMLMIXED:
+		if hasattr(self.__class__,'XMLCONTENT') and self.__class__.XMLCONTENT==XMLMixedContent:
 			# inline all children
 			indent=''
 			tab=''
@@ -818,6 +822,9 @@ class XMLElement:
 					ws=''
 				else:
 					child.WriteXML(f,indent,tab)
+			if not tab:
+				# if we weren't tabbing children we need to skip closing white space
+				ws=''
 			f.write('%s</%s>'%(ws,self.xmlname))
 		else:
 			f.write('%s<%s%s/>'%(ws,self.xmlname,attributes))

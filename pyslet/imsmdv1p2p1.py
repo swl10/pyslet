@@ -50,8 +50,34 @@ class LangStringList(LRMElement):
 		self.langStrings.append(s)
 		return s
 
+	def GetLangString(self,lang=None):
+		if lang is None:
+			for s in self.langStrings:
+				if s.GetLang() is None:
+					return s
+			return None
+		else:
+			for s in self.langStrings:
+				if s.GetLang()==lang:
+					return s
+			lang=lang.split('-')[0]
+			for s in self.langStrings:
+				sLang=s.GetLang().split('-')[0]
+				if sLang==lang:
+					return s
+		return None
 
+	def AddString(self,lang,value):
+		s=self.GetLangString(lang)
+		if s is None:
+			s=self.LangString(value)
+			if lang:
+				s.SetLang(lang)
+		else:
+			s.AddData('; '+value)			
+		return s
 
+			
 class LRMSource(LRMElement):
 	XMLNAME=(IMSLRM_NAMESPACE,'source')
 

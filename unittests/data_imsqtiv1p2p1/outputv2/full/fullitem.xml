@@ -2,5 +2,15 @@
 <assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
-    identifier="fullitem" title="Title: Full Item" label="Label: Full Item" xml:lang="en-GB" adaptive="false" timeDependent="false">
+    identifier="fullitem" title="Title: Full Item" label="Label: Full Item" xml:lang="en-GB"
+    adaptive="false" timeDependent="false">
+    <itemBody>
+        <rubricBlock view="author">
+            <p>Objectives for fullitem</p>
+        </rubricBlock>
+        <rubricBlock view="proctor">
+            <p>Administrator rubric</p>
+        </rubricBlock>
+        <div class="rubric"><p>Rubric for All</p></div>
+    </itemBody>
 </assessmentItem>

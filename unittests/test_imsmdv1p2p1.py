@@ -8,6 +8,7 @@ def suite():
 	return unittest.TestSuite((
 		unittest.makeSuite(LRMTests,'test'),
 		unittest.makeSuite(LRMElementTests,'test'),
+		unittest.makeSuite(LRMEducationalTests,'test'),
 		unittest.makeSuite(LRMDocumentTests,'test')
 		))
 
@@ -109,6 +110,34 @@ http://www.imsglobal.org/xsd/imsmd_v1p2 imsmd_v1p2p4.xsd  http://www.imsglobal.o
 	</resources>
 </manifest>"""
 
+
+class LRMEducationalTests(unittest.TestCase):
+	def testCaseDescription(self):
+		"""We have to deal with the LRM binding's lack of multiplicity on educational description.
+		That means that we need method in lists of LangStrings that allow us to add language-tagged
+		text to an existing list of langstrings."""
+		edu=LOMEducational(None)
+		description=edu.ChildElement(LOMDescription)
+		hello=description.LangString("Hello")
+		hello.SetLang('en-GB')
+		ciao=description.LangString("Ciao")
+		ciao.SetLang('it')
+		helloTest=description.GetLangString('en')
+		self.failUnless(helloTest.GetValue()=='Hello')
+		ciaoTest=description.GetLangString('it')
+		self.failUnless(ciaoTest.GetValue()=='Ciao')
+		ciaoTest=description.GetLangString('it-IT')
+		self.failUnless(ciaoTest.GetValue()=='Ciao')
+		description.AddString('en','World')
+		helloTest=description.GetLangString('en')
+		self.failUnless(helloTest.GetValue()=='Hello; World')
+		bonjour=description.AddString('fr','Bonjour')
+		bonjourTest=description.GetLangString('fr')
+		self.failUnless(bonjourTest.GetValue()=='Bonjour')
+		unknown=description.AddString(None,'Hi')
+		unknownTest=description.GetLangString(None)
+		self.failUnless(unknownTest.GetValue()=='Hi')
+		
 
 class LRMDocumentTests(unittest.TestCase):
 	def testCaseExample1(self):

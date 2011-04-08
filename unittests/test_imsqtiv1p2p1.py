@@ -148,7 +148,7 @@ class QTIV2ConversionTests(unittest.TestCase):
 			# Check the entry-point of each resource
 			f=r.GetEntryPoint()
 			if f:
-				fPath=f.PackagePath(cp2)				
+				fPath=f.PackagePath(cp2)
 				qtiDoc=qtiv2.QTIDocument(baseURI='file://'+urllib.pathname2url(os.path.join(self.cp.dPath,fPath)))
 				qtiDoc.Read()
 				qtiDoc2=qtiv2.QTIDocument(baseURI='file://'+urllib.pathname2url(os.path.join(cp2.dPath,fPath)))
@@ -161,14 +161,14 @@ class QTIBig5Tests(unittest.TestCase):
 		try:
 			big5=codecs.lookup('CN-BIG5')
 			self.fail("CN-BIG5 already declared: stale test?")
-			big5=codecs.lookup('big5')
-		except codecs.LookupError:
+		except LookupError:
 			pass
+		big5=codecs.lookup('big5')
 		FixupCNBig5()
 		try:
 			cnbig5=codecs.lookup('CN-BIG5')
 			self.failUnless(cnbig5 is big5,"Big5 mismatch")
-		except codecs.LookupError:
+		except LookupError:
 			self.fail("CN-BIG5 registration failed")
 			
 		

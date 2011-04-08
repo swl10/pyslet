@@ -46,12 +46,13 @@ def MakeValidNCName(name):
 		return '_'
 
 class QTIElement(xmlns.XMLNSElement):
-	"""Basic element to represent all QTI elements"""  
+	"""Basic element to represent all QTI elements""" 
+	
 	def AddToCPResource(self,cp,resource,baseURI):
 		"""Adds any linked files that exist on the local file system to the content package."""
 		for child in self.GetChildren():
 			if isinstance(child,QTIElement):
-				child.AddToCPResource(cp,resource,uri)
+				child.AddToCPResource(cp,resource,baseURI)
 
 
 class QTIAssessmentItem(QTIElement):
@@ -92,7 +93,8 @@ class QTIAssessmentItem(QTIElement):
 		self.adaptive=False
 		self.timeDependent=False
 		self.declarations={}
-	
+		self.QTIItemBody=None
+		
 	def GetAttributes(self):
 		attrs=QTIElement.GetAttributes(self)
 		if self.identifier:
@@ -126,6 +128,7 @@ class QTIAssessmentItem(QTIElement):
 		vars.sort()
 		for v in vars:
 			children.append(self.declarations[v])
+		xmlns.OptionalAppend(children,self.QTIItemBody)
 		return children+QTIElement.GetChildren(self)
 	
 	def QTIResponseDeclaration(self):
@@ -186,8 +189,172 @@ class QTIResponseDeclaration(QTIElement):
 		self.parent.RegisterDeclaration(self)
 
 
-class QTIMetadata(QTIElement):
+class QTIBodyElement(QTIElement):
+	"""Abstract class to represent elements within content.
+	
+	<xsd:attributeGroup name="bodyElement.AttrGroup">
+		<xsd:attribute name="id" type="identifier.Type" use="optional"/>
+		<xsd:attribute name="class" use="optional">
+			<xsd:simpleType>
+				<xsd:list itemType="styleclass.Type"/>
+			</xsd:simpleType>
+		</xsd:attribute>
+		<xsd:attribute ref="xml:lang"/>
+		<xsd:attribute name="label" type="string256.Type" use="optional"/>
+	</xsd:attributeGroup>
 	"""
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.id=None
+		self.styleClass=None
+		self.label=None
+	
+	def GetAttributes(self):
+		attrs=QTIElement.GetAttributes(self)
+		if self.id: attrs['id']=self.id
+		if self.styleClass: attrs['class']=self.styleClass
+		if self.label: attrs['label']=self.label
+		return attrs
+		
+	def Set_id(self,value):
+		self.id=value
+		
+	def Set_class(self,value):
+		self.styleClass=value
+		
+	def Set_label(self,value):
+		self.label=value
+
+class QTIObjectFlowMixin: pass
+class QTIInlineMixin: pass
+class QTIBlockMixin: pass
+class QTIFlowMixin(QTIObjectFlowMixin): pass  		# xml:base is handled automatically for all elements
+class QTIInlineStaticMixin(QTIInlineMixin): pass	# StringTypes are also treated as inlineStatic
+class QTIBlockStaticMixin(QTIBlockMixin): pass
+class QTIFlowStaticMixin(QTIFlowMixin): pass 		# StringTypes are also treated as flowStatic
+
+class QTISimpleInline(QTIBodyElement,QTIFlowStaticMixin,QTIInlineStaticMixin): pass
+	# need to constrain content to QTIInlineMixin
+
+class QTISimpleBlock(QTIBodyElement,QTIBlockStaticMixin,QTIFlowStaticMixin): pass
+	# need to constrain content to QTIBlockMixin
+
+class QTIAtomicInline(QTIBodyElement,QTIFlowStaticMixin,QTIInlineStaticMixin): pass
+
+class QTIAtomicBlock(QTIBodyElement,QTIBlockStaticMixin,QTIFlowStaticMixin): pass
+	# need to constrain content to QTIInlineMixin
+
+
+class QTIItemBody(QTIBodyElement):
+	"""Represents the itemBody element.
+	
+	<xsd:attributeGroup name="itemBody.AttrGroup">
+		<xsd:attributeGroup ref="bodyElement.AttrGroup"/>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="itemBody.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="block.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""	
+	XMLNAME=(IMSQTI_NAMESPACE,'itemBody')
+	XMLCONTENT=xmlns.XMLElementContent	
+
+
+class QTIRubricBlock(QTISimpleBlock):
+	"""Represent the rubricBlock element.
+
+	<xsd:attributeGroup name="rubricBlock.AttrGroup">
+		<xsd:attributeGroup ref="simpleBlock.AttrGroup"/>
+		<xsd:attribute name="view" use="required">
+			<xsd:simpleType>
+				<xsd:list itemType="view.Type"/>
+			</xsd:simpleType>
+		</xsd:attribute>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="rubricBlock.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="simpleBlock.ContentGroup"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'rubricBlock')
+	XMLCONTENT=xmlns.XMLElementContent
+
+	QTI_VIEWS={
+		"author":'author',
+		"candidate":'candidate',
+		"proctor":'proctor',
+		"scorer":'scorer',
+		"testconstructor":'testConstructor',
+		"tutor":'tutor'		
+		}
+		
+	def __init__(self,parent):
+		QTISimpleBlock.__init__(self,parent)
+		self.view={}
+	
+	def GetAttributes(self):
+		attrs=QTISimpleBlock.GetAttributes(self)
+		viewpoints=self.view.keys()
+		viewpoints.sort()
+		attrs['view']=string.join(viewpoints,' ')
+		return attrs
+		
+	def Set_view(self,value):
+		self.view={}
+		viewpoints=value.split()
+		for view in viewpoints:
+			self.AddView(view)
+	
+	def AddView(self,view):
+		view=view.strip()
+		value=QTIRubricBlock.QTI_VIEWS.get(view.lower(),'')
+		if value:
+			self.view[value]=1
+		else:
+			raise ValueError("illegal value for view: %s"%view)
+
+		
+class XHTMLP(QTIAtomicBlock):
+	"""Represents the XHTML p element.
+	
+	<xsd:attributeGroup name="p.AttrGroup">
+		<xsd:attributeGroup ref="atomicBlock.AttrGroup"/>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="p.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="atomicBlock.ContentGroup"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'p')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+class XHTMLDiv(QTIBodyElement,QTIFlowStaticMixin):
+	"""Represents the XHTML div element.
+	
+	<xsd:attributeGroup name="div.AttrGroup">
+		<xsd:attributeGroup ref="bodyElement.AttrGroup"/>
+		<xsd:attributeGroup ref="flowStatic.AttrGroup"/>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="div.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="flow.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'div')
+	XMLCONTENT=xmlns.XMLMixedContent
+	# need to constrain content to QTIFlowMixin
+	
+class QTIMetadata(QTIElement):
+	"""Represents the qtiMetadata element used in content packages.
+	
 	<xsd:group name="qtiMetadata.ContentGroup">
 		<xsd:sequence>
 			<xsd:element ref="itemTemplate" minOccurs="0" maxOccurs="1"/>

@@ -212,7 +212,7 @@ class XMLNSElement(XMLElement):
 			indent=indent+tab
 		else:
 			ws=''
-		if hasattr(self.__class__,'XMLMIXED') and self.__class__.XMLMIXED:
+		if hasattr(self.__class__,'XMLCONTENT') and self.__class__.XMLCONTENT==XMLMixedContent:
 			# inline all children
 			indent=''
 			tab=''
@@ -248,6 +248,9 @@ class XMLNSElement(XMLElement):
 					ws=''
 				else:
 					child.WriteXML(f,indent,tab,nsList)
+			if not tab:
+				# if we weren't tabbing children we need to skip closing white space
+				ws=''
 			f.write('%s</%s%s>'%(ws,prefix,self.xmlname))
 		else:
 			f.write('%s<%s%s%s/>'%(ws,prefix,self.xmlname,attributes))

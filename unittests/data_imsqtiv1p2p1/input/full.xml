@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
 <questestinterop>
-    <item ident="fullitem" maxattempts="1" title="Title: Full Item" label="Label: Full Item" xml:lang="en-GB">
+    <item ident="fullitem" maxattempts="1" title="Title: Full Item" label="Label: Full Item"
+        xml:lang="en-GB">
         <qticomment>Full Item</qticomment>
         <duration>1H</duration>
         <itemmetadata>
@@ -12,5 +13,31 @@
             <qmd_toolvendor>Steve Lay</qmd_toolvendor>
             <qmd_topic>Migration</qmd_topic>
         </itemmetadata>
+        <objectives view="Author">
+            <material>
+                <mattext texttype="text/plain">Objectives </mattext>
+                <mattext texttype="text/plain">for fullitem</mattext>
+            </material>
+        </objectives>
+        <objectives view="All">
+            <material>
+                <mattext texttype="text/plain">Objectives for fullitem as metadata</mattext>
+            </material>
+        </objectives>
+        <itemcontrol feedbackswitch="No" hintswitch="No" solutionswitch="No">
+            <qticomment>Unsupported</qticomment>
+        </itemcontrol>
+        <itemprecondition>Unsupported</itemprecondition>
+        <itempostcondition>Unsupported</itempostcondition>
+        <rubric view="Administrator">
+            <material>
+                <mattext texttype="text/plain">Administrator rubric</mattext>
+            </material>
+        </rubric>
+        <rubric view="All">
+            <material>
+                <mattext texttype="text/plain">Rubric for All</mattext>
+            </material>
+        </rubric>
     </item>
 </questestinterop>
