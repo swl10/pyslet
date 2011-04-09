@@ -244,7 +244,127 @@ class QTIAtomicInline(QTIBodyElement,QTIFlowStaticMixin,QTIInlineStaticMixin): p
 class QTIAtomicBlock(QTIBodyElement,QTIBlockStaticMixin,QTIFlowStaticMixin): pass
 	# need to constrain content to QTIInlineMixin
 
+# Test Elements
+class XHTMLAbbr(QTISimpleInline):
+	XMLNAME=(IMSQTI_NAMESPACE,'abbr')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+class XHTMLAcronym(QTISimpleInline):
+	XMLNAME=(IMSQTI_NAMESPACE,'acronym')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+class XHTMLAddress(QTIAtomicBlock):
+	XMLNAME=(IMSQTI_NAMESPACE,'address')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+class XHTMLBlockquote(QTISimpleBlock):
+	XMLNAME=(IMSQTI_NAMESPACE,'blockquote')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+	def __init__(self,parent):
+		QTISimpleBlock.__init__(self,parent)
+		self.cite=None
+	
+	def GetAttributes(self):
+		attrs=QTISimpleBlock.GetAttributes(self)
+		if self.cite:
+			attrs['cite']=self.cite
+		return attrs
+	
+	def Set_cite(self,value):
+		self.cite=value
 
+class XHTMLBr(QTISimpleInline):
+	XMLNAME=(IMSQTI_NAMESPACE,'br')
+	XMLCONTENT=xmlns.XMLEmpty
+	
+class XHTMLCite(QTISimpleInline):
+	XMLNAME=(IMSQTI_NAMESPACE,'cite')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+class XHTMLCode(QTISimpleInline):
+	XMLNAME=(IMSQTI_NAMESPACE,'code')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+class XHTMLDfn(QTISimpleInline):
+	XMLNAME=(IMSQTI_NAMESPACE,'dfn')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+class XHTMLDiv(QTIBodyElement,QTIBlockStaticMixin,QTIFlowStaticMixin):
+	XMLNAME=(IMSQTI_NAMESPACE,'div')
+	XMLCONTENT=xmlns.XMLMixedContent
+	# need to constrain content to QTIFlowMixin
+
+class XHTMLEm(QTISimpleInline):
+	XMLNAME=(IMSQTI_NAMESPACE,'em')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+class XHTMLH1(QTIAtomicBlock):
+	XMLNAME=(IMSQTI_NAMESPACE,'h1')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+class XHTMLH2(QTIAtomicBlock):
+	XMLNAME=(IMSQTI_NAMESPACE,'h2')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+class XHTMLH3(QTIAtomicBlock):
+	XMLNAME=(IMSQTI_NAMESPACE,'h3')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+class XHTMLH4(QTIAtomicBlock):
+	XMLNAME=(IMSQTI_NAMESPACE,'h4')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+class XHTMLH5(QTIAtomicBlock):
+	XMLNAME=(IMSQTI_NAMESPACE,'h5')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+class XHTMLH6(QTIAtomicBlock):
+	XMLNAME=(IMSQTI_NAMESPACE,'h6')
+	XMLCONTENT=xmlns.XMLMixedContent	
+
+class XHTMLP(QTIAtomicBlock):
+	XMLNAME=(IMSQTI_NAMESPACE,'p')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+class XHTMLPre(QTIAtomicBlock):
+	XMLNAME=(IMSQTI_NAMESPACE,'pre')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+class XHTMLQ(QTISimpleInline):
+	XMLNAME=(IMSQTI_NAMESPACE,'q')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+	def __init__(self,parent):
+		QTISimpleBlock.__init__(self,parent)
+		self.cite=None
+	
+	def GetAttributes(self):
+		attrs=QTISimpleBlock.GetAttributes(self)
+		if self.cite:
+			attrs['cite']=self.cite
+		return attrs
+	
+	def Set_cite(self,value):
+		self.cite=value
+
+class XHTMLSamp(QTISimpleInline):
+	XMLNAME=(IMSQTI_NAMESPACE,'samp')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+class XHTMLSpan(QTISimpleInline):
+	XMLNAME=(IMSQTI_NAMESPACE,'span')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+class XHTMLStrong(QTISimpleInline):
+	XMLNAME=(IMSQTI_NAMESPACE,'strong')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+class XHTMLVar(QTISimpleInline):
+	XMLNAME=(IMSQTI_NAMESPACE,'var')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+	
 class QTIItemBody(QTIBodyElement):
 	"""Represents the itemBody element.
 	
@@ -318,40 +438,6 @@ class QTIRubricBlock(QTISimpleBlock):
 			raise ValueError("illegal value for view: %s"%view)
 
 		
-class XHTMLP(QTIAtomicBlock):
-	"""Represents the XHTML p element.
-	
-	<xsd:attributeGroup name="p.AttrGroup">
-		<xsd:attributeGroup ref="atomicBlock.AttrGroup"/>
-	</xsd:attributeGroup>
-	
-	<xsd:group name="p.ContentGroup">
-		<xsd:sequence>
-			<xsd:group ref="atomicBlock.ContentGroup"/>
-		</xsd:sequence>
-	</xsd:group>
-	"""
-	XMLNAME=(IMSQTI_NAMESPACE,'p')
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-class XHTMLDiv(QTIBodyElement,QTIFlowStaticMixin):
-	"""Represents the XHTML div element.
-	
-	<xsd:attributeGroup name="div.AttrGroup">
-		<xsd:attributeGroup ref="bodyElement.AttrGroup"/>
-		<xsd:attributeGroup ref="flowStatic.AttrGroup"/>
-	</xsd:attributeGroup>
-	
-	<xsd:group name="div.ContentGroup">
-		<xsd:sequence>
-			<xsd:group ref="flow.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
-		</xsd:sequence>
-	</xsd:group>
-	"""
-	XMLNAME=(IMSQTI_NAMESPACE,'div')
-	XMLCONTENT=xmlns.XMLMixedContent
-	# need to constrain content to QTIFlowMixin
-	
 class QTIMetadata(QTIElement):
 	"""Represents the qtiMetadata element used in content packages.
 	

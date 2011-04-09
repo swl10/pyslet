@@ -20,6 +20,9 @@ QTI_SOURCE='QTIv1'
 # <!ENTITY % I_Title " title CDATA  #IMPLIED">
 # <!ENTITY % I_Uri " uri CDATA  #IMPLIED">
 
+class QTIError(Exception): pass
+class QTIUnimplementedError(QTIError): pass
+
 def MakeValidName(name):
 	"""This function takes a string that is supposed to match the
 	production for Name in XML and forces to to comply by replacing
@@ -47,6 +50,15 @@ def FormatYesNo(value):
 		return 'Yes'
 	else:
 		return 'No'
+
+def ParseInteger(src):
+	try:
+		return int(src)
+	except:
+		return None
+
+def FormatInteger(value):
+	return "%i"%value
 
 		
 class QTIElement(xml.XMLElement):
@@ -83,21 +95,20 @@ class QTICommentElement(QTIElement):
 	
 class QTIQuesTestInterop(QTICommentElement):
 	"""<!ELEMENT questestinterop (qticomment? , (objectbank | assessment | (section | item)+))>"""
-	
 	XMLNAME='questestinterop'
 
 	def __init__(self,parent):
 		QTICommentElement.__init__(self,parent)
-		self.objectBank=None
-		self.assessment=None
+		self.QTIObjectBank=None
+		self.QTIAssessment=None
 		self.objectList=[]
 	
 	def GetChildren(self):
 		children=QTICommentElement.GetChildren(self)
-		if self.objectBank:
-			children.append(self.objectBank)
-		elif self.assessment:
-			children.append(self.assessment)
+		if self.QTIObjectBank:
+			children.append(self.QTIObjectBank)
+		elif self.QTIAssessment:
+			children.append(self.QTIAssessment)
 		else:
 			children=children+self.objectList
 		return children
@@ -118,15 +129,17 @@ class QTIQuesTestInterop(QTICommentElement):
 		from the baseURI of the QuesTestInterop element using the object
 		identifier to derive a file name."""
 		output=[]
-		# ignore objectBank for the moment
-		# ignore assessment for the moment
+		# ignore QTIObjectBank for the moment
+		# ignore QTIAssessment for the moment
+		if self.QTIAssessment:
+			self.QTIAssessment.MigrateV2(output)
 		for object in self.objectList:
-			output.append(object.MigrateV2())
+			object.MigrateV2(output)
 		if self.QTIComment:
-			if self.objectBank:
+			if self.QTIObjectBank:
 				# where to put the comment?
 				pass
-			elif self.assessment:
+			elif self.QTIAssessment:
 				if len(self.objectList)==0:
 					# Add this comment as a metadata description on the assessment
 					pass
@@ -139,6 +152,189 @@ class QTIQuesTestInterop(QTICommentElement):
 		return output
 
 
+class QTIAssessment(QTICommentElement):
+	"""Represents the assessment element.
+	
+	<!ELEMENT assessment (qticomment? ,
+		duration? ,
+		qtimetadata* ,
+		objectives* ,
+		assessmentcontrol* ,
+		rubric* ,
+		presentation_material? ,
+		outcomes_processing* ,
+		assessproc_extension? ,
+		assessfeedback* ,
+		selection_ordering? ,
+		reference? ,
+		(sectionref | section)+
+		)>
+	
+	<!ATTLIST assessment  %I_Ident;
+						   %I_Title;
+						   xml:lang CDATA  #IMPLIED >
+	"""
+	XMLNAME="assessment"
+	XMLCONTENT=xml.XMLElementContent
+	
+	def __init__(self,parent):
+		QTICommentElement.__init__(self,parent)
+		self.ident=None
+		self.title=None
+		self.QTIDuration=None
+		self.QTIMetadata=[]
+		self.QTIObjectives=[]
+		self.QTIAssessmentControl=[]
+		self.QTIRubric=[]
+		self.QTIPresentationMaterial=None
+		self.QTIOutcomesProcessing=[]
+		self.QTIAssessProcExtension=None
+		self.QTIAssessFeedback=[]
+		self.QTISelectionOrdering=None
+		self.QTIReference=None
+		self.objectList=[]
+		
+	def GetAttributes(self):
+		attrs=QTICommentElement.GetAttributes(self)
+		if self.ident:
+			attrs['ident']=self.ident
+		if self.title:
+			attrs['title']=self.title
+		return attrs
+		
+	def Set_ident(self,value):
+		self.ident=value
+		
+	def Set_title(self,value):
+		self.title=value
+	
+	def QTISectionRef(self):
+		child=QTISectionRef(self)
+		self.objectList.append(child)
+		return child
+		
+	def QTISection(self):
+		child=QTISection(self)
+		self.objectList.append(child)
+		return child
+		
+	def GetChildren(self):
+		children=QTIComment.GetChildren(self)
+		children=children+self.QTIMetadata+self.QTIObjectives+self.QTIAssessmentControl+self.QTIRubric
+		xml.OptionalAppend(children,self.QTIPresentationMaterial)
+		children=children+QTIOutcomesProcessing
+		xml.OptionalAppend(children,self.QTIAssessProcExtension)
+		children=children+self.QTIAssessFeedback
+		xml.OptionalAppend(children,self.QTISelectionOrdering)
+		xml.OptionalAppend(children,self.QTIReference)
+		return children+self.objectList
+
+	def MigrateV2(self,output):
+		"""Converts this assessment to QTI v2
+		
+		For details, see QTIQuesTestInterop.MigrateV2."""
+		for object in self.objectList:
+			object.MigrateV2(output)
+
+
+class QTISection(QTICommentElement):
+	"""Represents section element.
+	<!ELEMENT section (qticomment? ,
+		duration? ,
+		qtimetadata* ,
+		objectives* ,
+		sectioncontrol* ,
+		sectionprecondition* ,
+		sectionpostcondition* ,
+		rubric* ,
+		presentation_material? ,
+		outcomes_processing* ,
+		sectionproc_extension? ,
+		sectionfeedback* ,
+		selection_ordering? ,
+		reference? ,
+		(itemref | item | sectionref | section)*
+		)>
+	
+	<!ATTLIST section  %I_Ident;
+						%I_Title;
+						xml:lang CDATA  #IMPLIED >
+	"""
+	XMLNAME="section"
+	XMLCONTENT=xml.XMLElementContent
+	
+	def __init__(self,parent):
+		QTICommentElement.__init__(self,parent)
+		self.ident=None
+		self.title=None
+		self.QTIDuration=None
+		self.QTIMetadata=[]
+		self.QTIObjectives=[]
+		self.QTISectionControl=[]
+		self.QTISectionPrecondition=[]
+		self.QTISectionPostcondition=[]
+		self.QTIRubric=[]
+		self.QTIPresentationMaterial=None
+		self.QTIOutcomesProcessing=[]
+		self.QTISectionProcExtension=None
+		self.QTISectionFeedback=[]
+		self.QTISelectionOrdering=None
+		self.QTIReference=None
+		self.objectList=[]
+		
+	def GetAttributes(self):
+		attrs=QTICommentElement.GetAttributes(self)
+		if self.ident:
+			attrs['ident']=self.ident
+		if self.title:
+			attrs['title']=self.title
+		return attrs
+		
+	def Set_ident(self,value):
+		self.ident=value
+		
+	def Set_title(self,value):
+		self.title=value
+	
+	def QTIItemRef(self):
+		child=QTIItemRef(self)
+		self.objectList.append(child)
+		return child
+		
+	def QTIItem(self):
+		child=QTIItem(self)
+		self.objectList.append(child)
+		return child
+		
+	def QTISectionRef(self):
+		child=QTISectionRef(self)
+		self.objectList.append(child)
+		return child
+		
+	def QTISection(self):
+		child=QTISection(self)
+		self.objectList.append(child)
+		return child
+		
+	def GetChildren(self):
+		children=QTIComment.GetChildren(self)
+		children=children+self.QTIMetadata+self.QTIObjectives+self.QTISectionControl+self.QTISectionPrecondition+self.QTISectionPostcondition+self.QTIRubric
+		xml.OptionalAppend(children,self.QTIPresentationMaterial)
+		children=children+QTIOutcomesProcessing
+		xml.OptionalAppend(children,self.QTISectionProcExtension)
+		children=children+self.QTISectionFeedback
+		xml.OptionalAppend(children,self.QTISelectionOrdering)
+		xml.OptionalAppend(children,self.QTIReference)
+		return children+self.objectList
+
+	def MigrateV2(self,output):
+		"""Converts this section to QTI v2
+		
+		For details, see QTIQuesTestInterop.MigrateV2."""
+		for object in self.objectList:
+			object.MigrateV2(output)
+	
+	
 class QTIItem(QTICommentElement):
 	"""
 	<!ELEMENT item (qticomment?
@@ -224,7 +420,7 @@ class QTIItem(QTICommentElement):
 		xml.OptionalAppend(children,self.QTIReference)
 		return children
 	
-	def MigrateV2(self):
+	def MigrateV2(self,output):
 		"""Converts this item to QTI v2
 		
 		For details, see QTIQuesTestInterop.MigrateV2."""
@@ -294,7 +490,9 @@ class QTIItem(QTICommentElement):
 			log.append("Warning: itemcontrol is currently outside the scope of version 2")
 		for rubric in self.QTIRubric:
 			rubric.MigrateV2(item,log)
-		return (doc, lom, log)
+		if self.QTIPresentation:
+			self.QTIPresentation.MigrateV2(item,log)
+		output.append((doc, lom, log))
 		
 
 class QTIDuration(QTIElement):
@@ -766,7 +964,29 @@ class QTIItemMetadata(QTIMetadataContainer):
 		self.LRMMigrateOrganization(lom,log)
 
 
-class QTIFlowContainer(QTICommentElement):
+class QTIContentMixin:
+	"""Mixin class for handling content elements."""
+
+	def IsInline(self):
+		"""True if this element can be inlined, False if it is block level
+		
+		The default implementation return True if all children can be inlined."""
+		return self.InlineChildren()
+		
+	def InlineChildren(self):
+		"""True if this element's children can all be inlined."""
+		children=QTIElement.GetChildren(self)
+		for child in children:
+			if not child.IsInline():
+				return False
+		return True
+		
+	def MigrateV2Content(self,parent,log):
+		"""Migrates this content to v2 adding it to the parent content node."""
+		raise QTIUnimplementedError
+
+		
+class QTIFlowMatContainer(QTICommentElement, QTIContentMixin):
 	"""Abstract class used to represent objects that contain flow_mat
 	
 	<!ELEMENT XXXXXXXXXX (qticomment? , (material+ | flow_mat+))>
@@ -825,11 +1045,11 @@ class QTIViewMixin:
 	def Set_view(self,value):
 		self.view=value
 				
-	def GetAttributesMixin(self,attrs):
+	def GetViewAttributes(self,attrs):
 		attrs['view']=self.view
 
 	
-class QTIObjectives(QTIFlowContainer,QTIViewMixin):
+class QTIObjectives(QTIFlowMatContainer,QTIViewMixin,QTIContentMixin):
 	"""Represents the objectives element
 	
 	<!ELEMENT objectives (qticomment? , (material+ | flow_mat+))>
@@ -839,13 +1059,13 @@ class QTIObjectives(QTIFlowContainer,QTIViewMixin):
 	XMLCONTENT=xml.XMLElementContent
 		
 	def __init__(self,parent):
-		QTIFlowContainer.__init__(self,parent)
+		QTIFlowMatContainer.__init__(self,parent)
 		QTIViewMixin.__init__(self)
 		self.view='All'
 		
 	def GetAttributes(self):
-		attrs=QTIFlowContainer.GetAttributes(self)
-		QTIViewElement.GetAttributesMixin(self,attrs)
+		attrs=QTIFlowMatContainer.GetAttributes(self)
+		QTIViewElement.GetViewAttributes(self,attrs)
 		return attrs
 		
 	def MigrateV2(self,v2item,log):
@@ -868,7 +1088,7 @@ class QTIObjectives(QTIFlowContainer,QTIViewMixin):
 		eduDescription.AddString(lang,description)
 
 
-class QTIMaterial(QTICommentElement):
+class QTIMaterial(QTICommentElement,QTIContentMixin):
 	"""Represents the material element
 	
 	<!ELEMENT material (qticomment? , (mattext | matemtext | matimage | mataudio | matvideo | matapplet | matapplication | matref | matbreak | mat_extension)+ , altmaterial*)>
@@ -912,7 +1132,7 @@ class QTIMaterial(QTICommentElement):
 		return string.join(result,' '),lang
 		
 
-class QTIMatText(QTIElement):
+class QTIMatText(QTIElement,QTIContentMixin):
 	"""Represents the mattext element
 
 	<!ELEMENT mattext (#PCDATA)>
@@ -948,14 +1168,44 @@ class QTIMatText(QTIElement):
 				
 	def Set_label(self,label):
 		self.label=label
-				
+
+	def IsInline(self):
+		if self.texttype=='text/plain':
+			return True
+		else:
+			# we need to be smart here
+			print self
+			raise QTIUnimplementedError(self.texttype)
+			
 	def MigrateV2Content(self,parent,log):
-		parent.AddData(self.GetValue())
+		if self.texttype=='text/plain':
+			lang=self.GetLang()
+			if lang or self.label:
+				span=parent.ChildElement(qtiv2.XHTMLSpan)
+				if lang:
+					span.SetLang(lang)
+				if self.label:
+					span.Set_label(self.label)
+				span.AddData(self.GetValue())
+			else:
+				parent.AddData(self.GetValue())
+		else:
+			raise QTIUnimplementedError
 
 	def ExtractText(self):
 		return self.GetValue(),self.ResolveLang()
 
-
+	def GotChildren(self):
+		if self.texttype=='text/html':
+			# parse the HTML content into an empty div
+			try:
+				text=self.GetValue()
+			except xml.XMLMixedContentError:
+				print self
+		elif self.texttype=='text/rtf':
+			# parse the RTF content
+			pass
+	
 class QTIItemControl(QTICommentElement,QTIViewMixin):
 	"""Represents the itemcontrol element
 	
@@ -978,7 +1228,7 @@ class QTIItemControl(QTICommentElement,QTIViewMixin):
 
 	def GetAttributes(self):
 		attrs=QTICommentElement.GetAttributes(self)
-		QTIViewElement.GetAttributesMixin(self,attrs)
+		QTIViewElement.GetViewAttributes(self,attrs)
 		attrs['feedbackswitch']=FormatYesNo(self.feedbackswitch)
 		attrs['hintswitch']=FormatYesNo(self.hintswitch)
 		attrs['solutionswitch']=FormatYesNo(self.solutionswitch)
@@ -1008,18 +1258,7 @@ class QTIItemPostCondition(QTIElement):
 	XMLNAME='itempostcondition'
 
 
-class QTIItemRubric(QTIElement):
-	"""Represents the itemrubric element.
-	
-	<!ELEMENT itemrubric (material)>
-
-	<!ATTLIST itemrubric  %I_View; >
-	"""
-	XMLNAME='itemrubric'
-	XMLCONTENT=xml.XMLElementContent
-
-
-class QTIRubric(QTIFlowContainer,QTIViewMixin):
+class QTIRubric(QTIFlowMatContainer,QTIViewMixin):
 	"""Represents the rubric element.
 	
 	<!ELEMENT rubric (qticomment? , (material+ | flow_mat+))>
@@ -1029,12 +1268,12 @@ class QTIRubric(QTIFlowContainer,QTIViewMixin):
 	XMLCONTENT=xml.XMLElementContent
 	
 	def __init__(self,parent):
-		QTIFlowContainer.__init__(self,parent)
+		QTIFlowMatContainer.__init__(self,parent)
 		QTIViewMixin.__init__(self)
 
 	def GetAttributes(self):
-		attrs=QTIFlowContainer.GetAttributes(self)
-		QTIViewElement.GetAttributesMixin(self,attrs)
+		attrs=QTIFlowMatContainer.GetAttributes(self)
+		QTIViewElement.GetViewAttributes(self,attrs)
 		return attrs		
 	
 	def MigrateV2(self,v2item,log):
@@ -1050,7 +1289,203 @@ class QTIRubric(QTIFlowContainer,QTIViewMixin):
 				log.append("Warning: changing view %s to %s"%(self.view,view))
 			rubric.Set_view(view)
 		self.MigrateV2Content(rubric,log)
-				
+
+
+class QTIItemRubric(QTIRubric):
+	"""Represents the itemrubric element.
+	
+	<!ELEMENT itemrubric (material)>
+
+	<!ATTLIST itemrubric  %I_View; >
+	
+	We are generous with this element, extending the allowable content model
+	to make it equivalent to <rubric> which is a superset.  <itemrubric> was
+	deprecated in favour of <rubric> with QTI v1.2
+	"""
+	XMLNAME='itemrubric'
+	XMLCONTENT=xml.XMLElementContent
+
+
+class QTIPositionMixin:
+	def __init__(self):
+		self.x0=None
+		self.y0=None
+		self.width=None
+		self.height=None
+
+	def Set_x0(self,value):
+		self.x0=ParseInteger(value)
+		
+	def Set_y0(self,value):
+		self.y0=ParseInteger(value)
+		
+	def Set_width(self,value):
+		self.width=ParseInteger(value)
+		
+	def Set_height(self,value):
+		self.height=ParseInteger(value)
+		
+	def GetPositionAttributes(self,attrs):
+		if self.x0 is not None: attrs['x0']=FormatInteger(self.x0)
+		if self.y0 is not None: attrs['y0']=FormatInteger(self.y0)
+		if self.width is not None: attrs['width']=FormatInteger(self.width)
+		if self.height is not None: attrs['height']=FormatInteger(self.height)
+
+	def GotPosition(self):
+		return self.x0 is not None or self.y0 is not None or self.width is not None or self.height is not None
+		
+		
+class QTIFlowContainer(QTICommentElement,QTIContentMixin):
+	"""Abstract class used to represent objects that contain flow_mat
+	
+	<!ELEMENT XXXXXXXXXX (qticomment? , (material | flow | response_*)* )>
+	"""
+	def __init__(self,parent):
+		QTICommentElement.__init__(self,parent)
+
+	def GetChildren(self):
+		children=QTICommentElement.GetChildren(self)+QTIElement.GetChildren(self)
+		return children
+
+	def MigrateV2Content(self,parent,log):
+		children=QTIElement.GetChildren(self)
+		if self.InlineChildren():
+			# we add our children directly to the parent
+			for child in children:
+				child.MigrateV2Content(parent,log)
+		else:
+			p=None
+			for child in children:
+				if child.IsInline():
+					if p is None:
+						p=parent.ChildElement(qtiv2.XHTMLP)
+						#p.Set_label(self.__class__.__name__)
+					child.MigrateV2Content(p,log)
+				else:
+					# stop collecting inlines
+					p=None
+					child.MigrateV2Content(parent,log)
+					
+		
+class QTIPresentation(QTIFlowContainer,QTIPositionMixin):
+	"""Represents the presentation element.
+	
+	<!ELEMENT presentation (qticomment? ,
+		(flow |
+			(material |
+			response_lid |
+			response_xy |
+			response_str |
+			response_num |
+			response_grp |
+			response_extension)+
+			)
+		)>
+	
+	<!ATTLIST presentation  %I_Label;
+							 xml:lang CDATA  #IMPLIED
+							 %I_Y0;
+							 %I_X0;
+							 %I_Width;
+							 %I_Height; >"""
+	XMLNAME='presentation'
+	XMLCONTENT=xml.XMLElementContent
+	
+	def __init__(self,parent):
+		QTIFlowContainer.__init__(self,parent)
+		QTIPositionMixin.__init__(self)
+		self.label=None
+		
+	def GetAttributes(self):
+		attrs=QTIFlowContainer.GetAttributes(self)
+		QTIPositionMixin.GetPositionAttributes(self,attrs)
+		if self.label is not None: attrs['label']=self.label
+		return attrs		
+	
+	def Set_label(self,value):
+		self.label=value
+		
+	def MigrateV2(self,v2Item,log):
+		"""Presentation maps to the main content in itemBody."""
+		itemBody=v2Item.ChildElement(qtiv2.QTIItemBody)
+		if self.GotPosition():
+			log.append("Warning: discarding absolute positioning information on presentation")
+		if self.InlineChildren():
+			p=itemBody.ChildElement(qtiv2.XHTMLP)
+			if self.label is not None:
+				p.Set_label(self.label)
+			self.MigrateV2Content(p,log)
+		elif self.label is not None:
+			# We must generate a div to hold the label, we can't rely on owning itemBody
+			div=itemBody.ChildElement(qtiv2.XHTMLDiv)
+			div.Set_label(self.label)
+			self.MigrateV2Content(div,log)
+		else:
+			self.MigrateV2Content(itemBody,log)
+
+	def IsInline(self):
+		return False
+		
+
+class QTIFlow(QTIFlowContainer):
+	"""Represents the flow element.
+	
+	<!ELEMENT flow (qticomment? ,
+		(flow |
+		material |
+		material_ref |
+		response_lid |
+		response_xy |
+		response_str |
+		response_num |
+		response_grp |
+		response_extension)+
+		)>
+	
+	<!ATTLIST flow  %I_Class; >
+	"""
+	XMLNAME='flow'
+	XMLCONTENT=xml.XMLElementContent
+	
+	def __init__(self,parent):
+		QTIFlowContainer.__init__(self,parent)
+		self.flowClass=None
+		
+	def GetAttributes(self):
+		attrs=QTIFlowContainer.GetAttributes(self)
+		if self.flowClass is not None: attrs['class']=self.flowClass
+		return attrs		
+	
+	def Set_flowClass(self,value):
+		self.flowClass=value
+	
+	def IsInline(self):
+		"""flow is always treated as a block if flowClass is specified, otherwise
+		it is treated as a block unless it is an only child."""
+		if len(QTIElement.GetChildren(self.parent))==1 and self.flowClass is None:
+			return self.InlineChildren()
+		else:
+			return False
+
+	def MigrateV2Content(self,parent,log):
+		"""flow typically maps to a div element.
+		
+		If the presentation only contains inline items then we create
+		a paragraph to hold them."""
+		if len(QTIElement.GetChildren(self.parent))==1 and self.flowClass is None:
+			QTIFlowContainer.MigrateV2Content(self,parent,log)
+		else:
+			if self.flowClass is not None:
+				div=parent.ChildElement(qtiv2.XHTMLDiv)
+				div.Set_class(self.flowClass)
+				parent=div
+			if self.InlineChildren():
+				p=parent.ChildElement(qtiv2.XHTMLP)
+				QTIFlowContainer.MigrateV2Content(self,p,log)
+			else:
+				# we don't generate classless divs
+				QTIFlowContainer.MigrateV2Content(self,itemBody,log)
+			
 
 class QTIDocument(xml.XMLDocument):
 	def __init__(self,**args):

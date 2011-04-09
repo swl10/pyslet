@@ -5,6 +5,7 @@ import unittest
 from sys import maxunicode
 from tempfile import mkdtemp
 import shutil, os.path, urllib
+from StringIO import StringIO
 
 MAX_CHAR=0x10FFFF
 if maxunicode<MAX_CHAR:
@@ -16,6 +17,7 @@ def suite():
 		unittest.makeSuite(XML20081126Tests,'test'),
 		unittest.makeSuite(XMLDocumentTests,'test'),
 		unittest.makeSuite(XMLCharacterTests,'test'),
+		unittest.makeSuite(XMLEntityTests,'test'),
 		unittest.makeSuite(XMLElementTests,'test'),
 		unittest.makeSuite(XMLValidationTests,'test')
 		))
@@ -208,7 +210,156 @@ class XMLValidationTests(unittest.TestCase):
 		self.failUnless(IsValidName("GoodName-0.12"))
 		self.failIf(IsValidName("BadName$"))
 		self.failIf(IsValidName("BadName+"))
+
+
+class XMLEntityTests(unittest.TestCase):
+	def testCaseConstructor(self):
+		e=XMLEntity("<hello>")
+		self.failUnless(e.lineNum==0)
+		self.failUnless(e.linePos==0)
+		self.failUnless(e.theChar=='<')
+		e=XMLEntity(StringIO("<hello>"))
+		self.failUnless(e.lineNum==0)
+		self.failUnless(e.linePos==0)
+		self.failUnless(e.theChar=='<')
+
+	def testCaseChars(self):
+		e=XMLEntity("<hello>")
+		for c in "<hello>":
+			self.failUnless(e.theChar==c)
+			e.NextChar()
+		self.failUnless(e.theChar is None)
+		e.Reset()
+		self.failUnless(e.theChar=='<')
+
+	def testLines(self):
+		e=XMLEntity("Hello\nWorld\n!")
+		while e.theChar is not None:
+			c=e.theChar
+			e.NextChar()
+			if c=='\n': e.NextLine()
+		self.failUnless(e.lineNum==2)
+		self.failUnless(e.linePos==1)
+
+	def testLookahead(self):
+		e=XMLEntity("Hello")
+		e.StartLookahead()
+		e.NextChar()
+		e.StopLookahead()
+		self.failUnless(e.theChar=='e')
+		e.StartLookahead()
+		e.NextChar()
+		self.failUnless(e.theChar=='l')
+		e.RewindLookahead()
+		self.failUnless(e.theChar=='e')
+
+	def testCodecs(self):
+		m=u'Caf\xe9'
+		e=XMLEntity('Caf\xc3\xa9')
+		for c in m:
+			self.failUnless(e.theChar==c,"Print: parsing utf-8 got %s instead of %s"%(repr(e.theChar),repr(c)))
+			e.NextChar()
+		e=XMLEntity('Caf\xe9','latin_1')
+		for c in m:
+			self.failUnless(e.theChar==c,"Print: parsing latin-1 got %s instead of %s"%(repr(e.theChar),repr(c)))
+			e.NextChar()
+		# This string should be automatically detected
+		e=XMLEntity('\xff\xfeC\x00a\x00f\x00\xe9\x00','utf-16')
+		for c in m:
+			self.failUnless(e.theChar==c,"Print: parsing utf-16LE got %s instead of %s"%(repr(e.theChar),repr(c)))
+			e.NextChar()		
+		e=XMLEntity('\xfe\xff\x00C\x00a\x00f\x00\xe9','utf-16')
+		for c in m:
+			self.failUnless(e.theChar==c,"Print: parsing utf-16BE got %s instead of %s"%(repr(e.theChar),repr(c)))
+			e.NextChar()			
+		e=XMLEntity('\xef\xbb\xbfCaf\xc3\xa9','utf-8')
+		for c in m:
+			self.failUnless(e.theChar==c,"Print: parsing utf-8 with BOM got %s instead of %s"%(repr(e.theChar),repr(c)))
+			e.NextChar()
+		e=XMLEntity('Caf\xe9')
+		for c in 'Ca':
+			e.NextChar()
+		e.ChangeEncoding('ISO-8859-1')
+		self.failUnless(e.theChar=='f',"Bad encoding change")
+		e.NextChar()
+		self.failUnless(e.theChar==u'\xe9',"Print: change encoding got %s instead of %s"%(repr(e.theChar),repr(u'\xe9')))
+
 		
+class XMLParserTests(unittest.TestCase):
+	def testCaseConstructor(self):
+		p=XMLParser()
+		e=XMLEntity("<hello>")
+		p=XMLParser(e)
+
+	def testCaseS(self):
+		e=XMLEntity(" \t\r\n \r \nHello")
+		p=XMLParser(e)
+		self.failUnless(p.ParseS()==" \t\n \n \n")
+		self.failUnless(e.theChar=='H')
+	
+	def testCaseNames(self):
+		e=XMLEntity("Hello World -Atlantis!")
+		p=XMLParser(e)
+		self.failUnless(p.ParseNames()==['Hello','World'])
+		e.Reset()
+		p=XMLParser(e)
+		tokens=p.ParseNmtokens()
+		self.failUnless(tokens==['Hello','World','-Atlantis'],repr(tokens))
+	
+	def testCaseCharData(self):
+		e=XMLEntity("First<Second&Third]]&Fourth]]>")
+		m=['First','Second','Third]]','Fourth']
+		p=XMLParser(e)
+		for match in m:
+			pStr=p.ParseCharData()
+			p.NextChar()
+			self.failUnless(pStr==match,"Match failed: %s (expected %s)"%(pStr,match))
+
+	def testCaseComment(self):
+		e=XMLEntity("<!--First--><!--Secon-d--><!--Thi<&r]]>d--><!--Fourt<!-h--><!--Bad--Comment-->")
+		m=['First','Secon-d','Thi<&r]]>d','Fourt<!-h']
+		p=XMLParser(e)
+		for match in m:
+			pStr=p.ParseComment()
+			self.failUnless(pStr==match,"Match failed: %s (expected %s)"%(pStr,match))
+		try:
+			pStr=p.ParseComment()
+			self.fail("Parsed bad comment: %s"%pStr)
+		except XMLFatalError:
+			pass
+
+	def testCasePI(self):
+		e=XMLEntity("<?target instruction?><?xm_xml \n\r<!--no comment-->?><?markup \t]]>?&<?><?xml reserved?>")
+		m=[('target','instruction'),('xm_xml','<!--no comment-->'),('markup',']]>?&<'),('xml','reserved')]
+		p=XMLParser(e)
+		for matchTarget,matchStr in m:
+			target,pStr=p.ParsePI()
+			self.failUnless(target==matchTarget,"Match failed for target: %s (expected %s)"%(target,matchTarget))
+			self.failUnless(pStr==matchStr,"Match failed for instruction: %s (expected %s)"%(pStr,matchStr))
+			
+	def testCaseCDATA(self):
+		e=XMLEntity("<![CDATA[]]><![CDATA[<hello>&world;]]><![CDATA[hello]]world]]>")
+		m=['','<hello>&world;','hello]]world']
+		p=XMLParser(e)
+		for match in m:
+			pStr=p.ParseCDATA()
+			self.failUnless(pStr==match,"Match failed: %s (expected %s)"%(pStr,match))
+
+	def testCaseTags(self):
+		e=XMLEntity("<tag hello='world'>")
+		p=XMLParser(e)
+		name,attrs,type=p.ParseTag()
+		self.failUnless(name=='tag' and attrs['hello']=='world' and type==XMLParser.STag)
+		e=XMLEntity("<tag hello>")
+		p=XMLParser(e)
+		name,attrs,type=p.ParseTag()
+		self.failUnless(name=='tag' and attrs['hello']==None and type==XMLParser.STag)
+		e=XMLEntity("<tag width=20%>")
+		p=XMLParser(e)
+		name,attrs,type=p.ParseTag()
+		self.failUnless(name=='tag' and attrs['width']=='20%' and type==XMLParser.STag)
+
+
 class XMLElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		e=XMLElement(None)

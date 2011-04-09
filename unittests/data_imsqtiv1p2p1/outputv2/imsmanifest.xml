@@ -66,7 +66,8 @@ Warning: duration is currently outside the scope of version 2: ignored 1H
 Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, ignoring MCQ
 Warning: itemcontrol is currently outside the scope of version 2
 Warning: changing view Administrator to proctor
-Warning: rubric with view="All" replaced by &lt;div&gt; with class="rubric"</imsmd:langstring>
+Warning: rubric with view="All" replaced by &lt;div&gt; with class="rubric"
+Warning: discarding absolute positioning information on presentation</imsmd:langstring>
 						</imsmd:description>						
 					</imsmd:annotation>
 				</imsmd:lom>

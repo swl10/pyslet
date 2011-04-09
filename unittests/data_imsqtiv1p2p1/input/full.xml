@@ -34,10 +34,21 @@
                 <mattext texttype="text/plain">Administrator rubric</mattext>
             </material>
         </rubric>
-        <rubric view="All">
+        <itemrubric view="All">
             <material>
                 <mattext texttype="text/plain">Rubric for All</mattext>
             </material>
-        </rubric>
+        </itemrubric>
+        <presentation x0="0" y0="0" width="640" height="480" label="presentation_label">
+            <qticomment>Ignored</qticomment>
+            <flow>
+                <qticomment>Ignored</qticomment>
+                <material>
+                    <mattext x0="0" y0="0" width="100" height="16" texttype="text/plain">Question text: </mattext>
+                    <mattext xml:lang="it" texttype="text/plain">Ciao, </mattext>
+                    <mattext label="French" texttype="text/plain">Bonjour</mattext>
+                </material>
+            </flow>
+        </presentation>
     </item>
 </questestinterop>

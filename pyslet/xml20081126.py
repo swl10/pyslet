@@ -24,6 +24,8 @@ XMLElementContent=1
 XMLEmpty=2
 	
 class XMLError(Exception): pass
+class XMLFatalError(XMLError): pass
+class XMLCommentError(XMLFatalError): pass
 
 class XMLContentTypeError(XMLError): pass
 class XMLIDClashError(XMLError): pass
@@ -250,7 +252,385 @@ def OptionalAppend(itemList,newItem):
 	if newItem is not None:
 		itemList.append(newItem)
 
+
+class XMLEntity:
+	CHUNKSIZE=4096
+	
+	def __init__(self,src,encoding='utf-8'):
+		self.encoding=encoding
+		if type(src) is UnicodeType:
+			self.dataSource=None
+			self.charSource=StringIO(src)
+		else:
+			if type(src) is StringType:
+				self.dataSource=StringIO(src)
+			else:
+				self.dataSource=src
+			self.charSource=codecs.getreader(encoding)(self.dataSource)
+		self.basePos=self.charSource.tell()
+		self.Reset()
 		
+	def Reset(self):
+		self.charSource.seek(self.basePos)
+		self.lineNum=0
+		self.linePos=-1
+		self.chars=''
+		self.charSeek=self.basePos
+		self.charPos=-1
+		self.theChar=''
+		self.lookahead=[]
+		self.NextChar()
+		# python handles the utf-16 BOM automatically but we have to skip it for utf-8
+		if self.encoding.lower()=='utf-8' and self.theChar==u'\ufeff':
+			self.NextChar()			
+		
+	def NextChar(self):
+		if self.theChar is None:
+			return
+		self.charPos=self.charPos+1
+		self.linePos=self.linePos+1
+		if self.charPos>=len(self.chars):
+			# watch out for look ahead
+			if self.lookahead:
+				self.chars=self.chars+self.charSource.read(XMLEntity.CHUNKSIZE)
+			else:
+				self.charSeek=self.charSource.tell()
+				self.chars=self.charSource.read(XMLEntity.CHUNKSIZE)
+				self.charPos=0
+		if self.charPos>=len(self.chars):
+			self.theChar=None
+		else:
+			self.theChar=self.chars[self.charPos]
+	
+	def ChangeEncoding(self,encoding):
+		if self.dataSource:
+			# Need to rewind and re-read the current buffer
+			self.charSource.seek(self.charSeek)
+			self.charSource=codecs.getreader(encoding)(self.dataSource)
+			self.chars=self.charSource.read(len(self.chars))
+			# We assume that charPos will still point to the correct next character
+			self.theChar=self.chars[self.charPos]
+			
+	def NextLine(self):
+		self.lineNum=self.lineNum+1
+		self.linePos=0
+
+	def StartLookahead(self):
+		self.lookahead.append([self.lineNum,self.linePos,self.charPos,self.theChar])
+		
+	def StopLookahead(self):
+		self.lookahead.pop()
+		
+	def RewindLookahead(self):
+		self.lineNum,self.linePos,self.charPos,self.theChar=self.lookahead.pop()
+		
+
+class XMLParser:
+	def __init__(self,entity=None):
+		self.entity=entity
+		if self.entity:
+			self.normalizing=True
+			self.NextChar()
+		else:
+			self.normalizing=False
+			self.theChar=None
+			
+	def NextChar(self):
+		"""Move to the next character in the stream.
+		
+		This method takes case of the End-of-Line handling rules for XML which force
+		us to remove any CR characters and replace them with LF if they appear on their
+		own or silenty drop them if they appear as part of a CR-LF combination."""
+		if self.normalizing:
+			self.normalizing=False
+		else:
+			self.entity.NextChar()
+		if self.entity.theChar=='\x0D':
+			self.entity.NextChar()
+			if self.entity.theChar!='\x0A':
+				# Replace CR with LF when it appears on its own
+				self.normalizing=True
+				self.theChar='\x0A'
+			else:
+				self.theChar='\x0A'
+		else:
+			self.theChar=self.entity.theChar
+
+	def Rewind(self):
+		self.entity.RewindLookahead()
+		self.theChar=self.entity.theChar
+
+	def ParseS(self):
+		s=[]
+		while IsS(self.theChar):
+			s.append(self.theChar)
+			self.NextChar()
+		if s:
+			return string.join(s,'')
+		else:
+			return None
+		
+	def ParseName(self):
+		name=[]
+		if IsNameStartChar(self.theChar):
+			name.append(self.theChar)
+			self.NextChar()
+			while IsNameChar(self.theChar):
+				name.append(self.theChar)
+				self.NextChar()
+		if name:
+			return string.join(name,'')
+		else:
+			return None
+
+	def ParseNames(self):
+		names=[]
+		name=self.ParseName()
+		if name is None:
+			return None
+		names.append(name)
+		while self.theChar==' ':
+			self.entity.StartLookahead()
+			self.NextChar()
+			name=self.ParseName()
+			if name is None:
+				self.Rewind()
+				break
+			names.append(name)
+			self.entity.StopLookahead()
+		if names:
+			return names
+		else:
+			return None
+	
+	def ParseNmtoken(self):
+		nmtoken=[]
+		while IsNameChar(self.theChar):
+			nmtoken.append(self.theChar)
+			self.NextChar()
+		if nmtoken:
+			return string.join(nmtoken,'')
+		else:
+			return None
+
+	def ParseNmtokens(self):
+		nmtokens=[]
+		nmtoken=self.ParseNmtoken()
+		if nmtoken is None:
+			return None
+		nmtokens.append(nmtoken)
+		while self.theChar==' ':
+			self.entity.StartLookahead()
+			self.NextChar()
+			nmtoken=self.ParseNmtoken()
+			if nmtoken is None:
+				self.Rewind()
+				break
+			nmtokens.append(nmtoken)
+			self.entity.StopLookahead()
+		if nmtokens:
+			return nmtokens
+		else:
+			return None
+	
+	def ParseLiteral(self,match):
+		for c in match:
+			if self.theChar!=c:
+				return None
+			else:
+				self.NextChar()
+		return match
+			
+	def ParseCharData(self):
+		data=[]
+		while self.theChar is not None:
+			if self.theChar=='<' or self.theChar=='&':
+				break
+			if self.theChar==']':
+				self.entity.StartLookahead()
+				cdEnd=self.ParseLiteral(']]>')
+				self.Rewind()
+				if cdEnd:
+					break
+			data.append(self.theChar)
+			self.NextChar()
+		return string.join(data,'')					
+
+	def ParseComment(self):
+		data=[]
+		start=self.ParseLiteral('<!--')
+		if start is None:
+			return None
+		while self.theChar is not None:
+			if self.theChar=='-':
+				self.NextChar()
+				if self.theChar=='-':
+					# must be the end of the comment
+					self.NextChar()
+					if self.theChar=='>':
+						self.NextChar()
+						break
+					else:					
+						raise XMLCommentError
+				else:
+					# just a single '-'
+					data.append('-')
+			data.append(self.theChar)
+			self.NextChar()
+		return string.join(data,'')
+
+	def ParsePI(self):
+		data=[]
+		start=self.ParseLiteral('<?')
+		if start is None:
+			return None
+		target=self.ParseName()
+		if target is None:
+			return None
+		if self.ParseS() is None:
+			return None
+		while self.theChar is not None:
+			if self.theChar=='?':
+				self.NextChar()
+				if self.theChar=='>':
+					self.NextChar()
+					break
+				else:
+					# just a single '?'
+					data.append('?')
+			data.append(self.theChar)
+			self.NextChar()
+		return target,string.join(data,'')
+		
+	def ParseCDATA(self):
+		data=[]
+		start=self.ParseLiteral('<![CDATA[')
+		if start is None:
+			return None
+		while self.theChar is not None:
+			if self.theChar==']':
+				self.NextChar()
+				if self.theChar==']':
+					self.NextChar()
+					if self.theChar=='>':
+						self.NextChar()
+						break
+					else:
+						data.append(']]')
+				else:
+					data.append(']')
+			data.append(self.theChar)
+			self.NextChar()
+		return string.join(data,'')				
+
+	EmptyElemTag=39
+	STag=40
+	ETag=42
+	
+	def ParseTag(self):
+		"""Returns the name, a dictionary of attributes and one of above constants."""
+		name=None
+		attrs={}
+		type=None
+		if self.theChar=='<':
+			self.NextChar()
+			if self.theChar=='/':
+				type=XMLParser.ETag
+				self.NextChar()
+			name=self.ParseName()
+			self.ParseS()
+			if type is None:
+				while self.theChar is not None:
+					if self.theChar=='/':
+						self.ParseLiteral('/>')
+						type=XMLParser.EmptyElemTag
+						break
+					elif self.theChar=='>':
+						type=XMLParser.STag
+						self.NextChar()
+						break
+					aName,aValue=self.ParseAttribute()
+					self.ParseS()
+					attrs[aName]=aValue
+			else:
+				self.ParseLiteral('>')
+		return name, attrs, type
+	
+	def ParseAttribute(self):
+		"""Return name, value
+		
+		We are very generous in our parsing of these values to accommodate common
+		failings such as missing or unquoted values for attributes."""
+		name=self.ParseName()
+		self.ParseS()
+		if self.ParseLiteral('='):
+			self.ParseS()
+			value=self.ParseAttValue()
+		else:
+			value=None
+		return name,value
+	
+	def ParseAttValue(self):
+		data=[]
+		q=self.theChar
+		if q=='"' or q=="'":
+			self.NextChar()
+			while self.theChar is not None:
+				if self.theChar==q:
+					self.NextChar()
+					break
+				elif self.theChar=='&':
+					refData=self.ParseReference()
+					data.append(refData)
+				else:
+					data.append(self.theChar)
+					self.NextChar()
+		else:
+			while self.theChar is not None:
+				if IsS(self.theChar) or self.theChar in ('"',"'",'>'):
+					break
+				data.append(self.theChar)
+				self.NextChar()
+		return string.join(data,'')
+
+	stdEntities={
+		'lt':'<',
+		'gt':'>',
+		'apos':"'",
+		'quot':'"',
+		'amp':'&'}
+		
+	def ParseReference(self):
+		if self.theChar=='&':
+			self.NextChar()
+			if self.theChar=='#':
+				self.NextChar()
+				if self.theChar=='x':
+					self.NextChar()
+					data=unichr(int(ParseHexDigits(),16))
+				else:
+					data=unichr(int(ParseDecimalDigits()))
+			else:
+				name=self.ParseName()
+				data=XMLParser.stdEntities.get(name,'')
+			self.ParseLiteral(';')
+		return data
+	
+	def ParseDecimalDigits(self):
+		data=[]
+		while self.theChar in "0123456789":
+			data.append(self.theChar)
+			self.NextChar()
+		return string.join(data,'')
+
+	def ParseHexDigits(self):
+		data=[]
+		while self.theChar in "0123456789abcdefABCDEF":
+			data.append(self.theChar)
+			self.NextChar()
+		return string.join(data,'')
+
+
 class XMLElement:
 	def __init__(self,parent,name=None):
 		self.parent=parent

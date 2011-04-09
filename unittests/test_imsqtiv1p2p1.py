@@ -40,8 +40,8 @@ class QTIElementTests(unittest.TestCase):
 	def testCaseQuesTestInterop(self):
 		e=QTIQuesTestInterop(None)
 		self.failUnless(e.QTIComment is None)
-		self.failUnless(e.objectBank is None)
-		self.failUnless(e.assessment is None)
+		self.failUnless(e.QTIObjectBank is None)
+		self.failUnless(e.QTIAssessment is None)
 		self.failUnless(e.objectList==[])
 		
 
