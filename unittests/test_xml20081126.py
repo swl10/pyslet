@@ -346,10 +346,10 @@ class XMLParserTests(unittest.TestCase):
 			self.failUnless(pStr==match,"Match failed: %s (expected %s)"%(pStr,match))
 
 	def testCaseTags(self):
-		e=XMLEntity("<tag hello='world'>")
+		e=XMLEntity("<tag hello='world' ciao=\"tutti\">")
 		p=XMLParser(e)
 		name,attrs,type=p.ParseTag()
-		self.failUnless(name=='tag' and attrs['hello']=='world' and type==XMLParser.STag)
+		self.failUnless(name=='tag' and attrs['hello']=='world' and attrs['ciao']=='tutti' and type==XMLParser.STag)
 		e=XMLEntity("<tag hello>")
 		p=XMLParser(e)
 		name,attrs,type=p.ParseTag()

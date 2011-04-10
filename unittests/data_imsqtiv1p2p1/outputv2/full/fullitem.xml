@@ -12,6 +12,6 @@
             <p>Administrator rubric</p>
         </rubricBlock>
         <div class="rubric"><p>Rubric for All</p></div>
-        <p label="presentation_label">Question text: <span xml:lang="it">Ciao, </span><span label="French">Bonjour</span></p>
+        <p label="presentation_label">Question text: <span xml:lang="it">Ciao, </span><span label="French">Bonjour</span> hello from <em>html4</em>!</p>
     </itemBody>
 </assessmentItem>

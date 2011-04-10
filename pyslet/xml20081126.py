@@ -612,10 +612,15 @@ class XMLParser:
 					data=unichr(int(ParseDecimalDigits()))
 			else:
 				name=self.ParseName()
-				data=XMLParser.stdEntities.get(name,'')
+				data=XMLParser.stdEntities.get(name,None)
+				if data is None:
+					data=self.LookupEntity(name)
 			self.ParseLiteral(';')
 		return data
 	
+	def LookupEntity(self,name):
+		return ''
+		
 	def ParseDecimalDigits(self):
 		data=[]
 		while self.theChar in "0123456789":

@@ -5,10 +5,13 @@
 import pyslet.xml20081126 as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsdatatypes
+import pyslet.html40_19991224 as html
+
 xsi=xsdatatypes
 
 import string
 import os.path, urllib, urlparse
+from types import StringTypes
 
 IMSQTI_NAMESPACE="http://www.imsglobal.org/xsd/imsqti_v2p1"
 IMSQTI_SCHEMALOCATION="http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
@@ -17,8 +20,28 @@ IMSQTI_ITEM_RESOURCETYPE="imsqti_item_xmlv2p1"
 
 class QTIError(Exception): pass
 class QTIDeclarationError(QTIError): pass
+class QTIValidityError(QTIError): pass
 
+QTI_HTMLProfile=[
+	'abbr','acronym','address','blockquote','br','cite','code','dfn','div',
+	'em','h1','h2','h3','h4','h5','h6','kbd','p','pre','q','samp','span',
+	'strong','var','dl','dt','dd','ol','ul','li','object','param','b','big',
+	'hr','i','small','sub','sup','tt','caption','col','colgroup','table',
+	'tbody','tfoot','thead','td','th','tr','img','a']
 
+def FixHTMLNamespace(e):
+	"""Fixes e and all children to be in the QTINamespace"""
+	if e.ns==html.XHTML_NAMESPACE:
+		name=(IMSQTI_NAMESPACE,e.xmlname.lower())
+		if QTIDocument.classMap.has_key(name):
+			e.SetXMLName(name)
+	children=e.GetChildren()
+	for e in children:
+		if type(e) in StringTypes:
+			continue
+		FixHTMLNamespace(e)
+		
+	
 def MakeValidNCName(name):
 	"""This function takes a string that is supposed to match the production for
 	NCName in XML and forces to to comply by replacing illegal characters with
@@ -44,6 +67,7 @@ def MakeValidNCName(name):
 		return string.join(goodName,'')
 	else:
 		return '_'
+
 
 class QTIElement(xmlns.XMLNSElement):
 	"""Basic element to represent all QTI elements""" 
@@ -226,143 +250,38 @@ class QTIBodyElement(QTIElement):
 		self.label=value
 
 class QTIObjectFlowMixin: pass
-class QTIInlineMixin: pass
-class QTIBlockMixin: pass
-class QTIFlowMixin(QTIObjectFlowMixin): pass  		# xml:base is handled automatically for all elements
-class QTIInlineStaticMixin(QTIInlineMixin): pass	# StringTypes are also treated as inlineStatic
-class QTIBlockStaticMixin(QTIBlockMixin): pass
-class QTIFlowStaticMixin(QTIFlowMixin): pass 		# StringTypes are also treated as flowStatic
+QTIInlineMixin=html.XHTMLInlineMixin
+QTIBlockMixin=html.XHTMLBlockMixin
+QTIFlowMixin=html.XHTMLFlowMixin		# xml:base is handled automatically for all elements
 
-class QTISimpleInline(QTIBodyElement,QTIFlowStaticMixin,QTIInlineStaticMixin): pass
+class QTISimpleInline(QTIInlineMixin,QTIBodyElement):
 	# need to constrain content to QTIInlineMixin
+	def ChildElement(self,childClass,name=None):
+		if issubclass(childClass,QTIInlineMixin):
+			return QTIBodyElement.ChildElement(self,childClass,name)
+		else:
+			# This child cannot go in here
+			raise QTIValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
 
-class QTISimpleBlock(QTIBodyElement,QTIBlockStaticMixin,QTIFlowStaticMixin): pass
+class QTISimpleBlock(QTIBlockMixin,QTIBodyElement):
 	# need to constrain content to QTIBlockMixin
+	def ChildElement(self,childClass,name=None):
+		if issubclass(childClass,QTIBlockMixin):
+			return QTIBodyElement.ChildElement(self,childClass,name)
+		else:
+			# This child cannot go in here
+			raise QTIValidityError("%s in %s"%(repr(name),self.__class__.__name__))		
 
-class QTIAtomicInline(QTIBodyElement,QTIFlowStaticMixin,QTIInlineStaticMixin): pass
+class QTIAtomicInline(QTIInlineMixin,QTIBodyElement): pass
 
-class QTIAtomicBlock(QTIBodyElement,QTIBlockStaticMixin,QTIFlowStaticMixin): pass
+class QTIAtomicBlock(QTIBlockMixin,QTIBodyElement):
 	# need to constrain content to QTIInlineMixin
-
-# Test Elements
-class XHTMLAbbr(QTISimpleInline):
-	XMLNAME=(IMSQTI_NAMESPACE,'abbr')
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-class XHTMLAcronym(QTISimpleInline):
-	XMLNAME=(IMSQTI_NAMESPACE,'acronym')
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-class XHTMLAddress(QTIAtomicBlock):
-	XMLNAME=(IMSQTI_NAMESPACE,'address')
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-class XHTMLBlockquote(QTISimpleBlock):
-	XMLNAME=(IMSQTI_NAMESPACE,'blockquote')
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-	def __init__(self,parent):
-		QTISimpleBlock.__init__(self,parent)
-		self.cite=None
-	
-	def GetAttributes(self):
-		attrs=QTISimpleBlock.GetAttributes(self)
-		if self.cite:
-			attrs['cite']=self.cite
-		return attrs
-	
-	def Set_cite(self,value):
-		self.cite=value
-
-class XHTMLBr(QTISimpleInline):
-	XMLNAME=(IMSQTI_NAMESPACE,'br')
-	XMLCONTENT=xmlns.XMLEmpty
-	
-class XHTMLCite(QTISimpleInline):
-	XMLNAME=(IMSQTI_NAMESPACE,'cite')
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-class XHTMLCode(QTISimpleInline):
-	XMLNAME=(IMSQTI_NAMESPACE,'code')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class XHTMLDfn(QTISimpleInline):
-	XMLNAME=(IMSQTI_NAMESPACE,'dfn')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class XHTMLDiv(QTIBodyElement,QTIBlockStaticMixin,QTIFlowStaticMixin):
-	XMLNAME=(IMSQTI_NAMESPACE,'div')
-	XMLCONTENT=xmlns.XMLMixedContent
-	# need to constrain content to QTIFlowMixin
-
-class XHTMLEm(QTISimpleInline):
-	XMLNAME=(IMSQTI_NAMESPACE,'em')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class XHTMLH1(QTIAtomicBlock):
-	XMLNAME=(IMSQTI_NAMESPACE,'h1')
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-class XHTMLH2(QTIAtomicBlock):
-	XMLNAME=(IMSQTI_NAMESPACE,'h2')
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-class XHTMLH3(QTIAtomicBlock):
-	XMLNAME=(IMSQTI_NAMESPACE,'h3')
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-class XHTMLH4(QTIAtomicBlock):
-	XMLNAME=(IMSQTI_NAMESPACE,'h4')
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-class XHTMLH5(QTIAtomicBlock):
-	XMLNAME=(IMSQTI_NAMESPACE,'h5')
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-class XHTMLH6(QTIAtomicBlock):
-	XMLNAME=(IMSQTI_NAMESPACE,'h6')
-	XMLCONTENT=xmlns.XMLMixedContent	
-
-class XHTMLP(QTIAtomicBlock):
-	XMLNAME=(IMSQTI_NAMESPACE,'p')
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-class XHTMLPre(QTIAtomicBlock):
-	XMLNAME=(IMSQTI_NAMESPACE,'pre')
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-class XHTMLQ(QTISimpleInline):
-	XMLNAME=(IMSQTI_NAMESPACE,'q')
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-	def __init__(self,parent):
-		QTISimpleBlock.__init__(self,parent)
-		self.cite=None
-	
-	def GetAttributes(self):
-		attrs=QTISimpleBlock.GetAttributes(self)
-		if self.cite:
-			attrs['cite']=self.cite
-		return attrs
-	
-	def Set_cite(self,value):
-		self.cite=value
-
-class XHTMLSamp(QTISimpleInline):
-	XMLNAME=(IMSQTI_NAMESPACE,'samp')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class XHTMLSpan(QTISimpleInline):
-	XMLNAME=(IMSQTI_NAMESPACE,'span')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class XHTMLStrong(QTISimpleInline):
-	XMLNAME=(IMSQTI_NAMESPACE,'strong')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class XHTMLVar(QTISimpleInline):
-	XMLNAME=(IMSQTI_NAMESPACE,'var')
-	XMLCONTENT=xmlns.XMLMixedContent
+	def ChildElement(self,childClass,name=None):
+		if issubclass(childClass,QTIInlineMixin):
+			return QTIBodyElement.ChildElement(self,childClass,name)
+		else:
+			# This child cannot go in here
+			raise QTIValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))
 
 	
 class QTIItemBody(QTIBodyElement):
@@ -539,3 +458,8 @@ class QTIDocument(xmlns.XMLNSDocument):
 		self.Create()
 
 xmlns.MapClassElements(QTIDocument.classMap,globals())
+# also add in the profile of HTML but with the namespace rewritten to ours
+for name in QTI_HTMLProfile:
+	eClass=html.XHTMLDocument.classMap.get((html.XHTML_NAMESPACE,name),None)
+	if eClass:
+		QTIDocument.classMap[(IMSQTI_NAMESPACE,name)]=eClass

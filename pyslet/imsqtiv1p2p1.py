@@ -6,9 +6,11 @@
 import pyslet.xml20081126 as xml
 import pyslet.imsqtiv2p1 as qtiv2
 import pyslet.imsmdv1p2p1 as imsmd
+import pyslet.html40_19991224 as html
 
 import string, codecs
 import os.path, urllib
+from types import StringTypes
 
 #IMSQTI_NAMESPACE="http://www.imsglobal.org/xsd/ims_qtiasiv1p2"
 QTI_SOURCE='QTIv1'
@@ -1014,7 +1016,7 @@ class QTIFlowMatContainer(QTICommentElement, QTIContentMixin):
 	def MigrateV2Content(self,parent,log):
 		children=QTIElement.GetChildren(self)
 		# initially assume we can just use a paragraph
-		p=parent.ChildElement(qtiv2.XHTMLP)
+		p=parent.ChildElement(html.XHTMLP,(qtiv2.IMSQTI_NAMESPACE,'p'))
 		for child in children:
 			child.MigrateV2Content(p,log)
 
@@ -1156,7 +1158,8 @@ class QTIMatText(QTIElement,QTIContentMixin):
 		QTIElement.__init__(self,parent)
 		self.texttype='text/plain'
 		self.label=None
-
+		self.matChilren=[]
+		
 	def GetAttributes(self):
 		attrs=QTIElement.GetAttributes(self)
 		if self.label: attrs['label']=self.label
@@ -1172,23 +1175,37 @@ class QTIMatText(QTIElement,QTIContentMixin):
 	def IsInline(self):
 		if self.texttype=='text/plain':
 			return True
+		elif self.texttype=='text/html':
+			# we are inline if all elements in matChildren are inline
+			for child in self.matChildren:
+				if type(child) in StringTypes or issubclass(child.__class__,html.XHTMLInlineMixin):
+					continue
+				else:
+					return False
+			return True
 		else:
-			# we need to be smart here
-			print self
 			raise QTIUnimplementedError(self.texttype)
 			
 	def MigrateV2Content(self,parent,log):
 		if self.texttype=='text/plain':
 			lang=self.GetLang()
 			if lang or self.label:
-				span=parent.ChildElement(qtiv2.XHTMLSpan)
+				span=parent.ChildElement(html.XHTMLSpan,(qtiv2.IMSQTI_NAMESPACE,'span'))
 				if lang:
 					span.SetLang(lang)
 				if self.label:
-					span.Set_label(self.label)
+					#span.Set_label(self.label)
+					span.SetAttribute('label',self.label)
 				span.AddData(self.GetValue())
 			else:
 				parent.AddData(self.GetValue())
+		elif self.texttype=='text/html':
+			for child in self.matChildren:
+				if type(child) in StringTypes:
+					parent.AddData(child)
+				else:
+					newChild=child.Copy(parent)
+					qtiv2.FixHTMLNamespace(newChild)					
 		else:
 			raise QTIUnimplementedError
 
@@ -1197,14 +1214,22 @@ class QTIMatText(QTIElement,QTIContentMixin):
 
 	def GotChildren(self):
 		if self.texttype=='text/html':
-			# parse the HTML content into an empty div
+			# parse the HTML content into an array of pseudo-children
 			try:
-				text=self.GetValue()
+				value=self.GetValue()
 			except xml.XMLMixedContentError:
-				print self
+				# Assume that the element content was not protected by CDATA
+				children=self.GetChildren()
+				value=[]
+				for child in children:
+					value.append(unicode(child))
+				value=string.join(value,'')
+			e=xml.XMLEntity(value)
+			p=html.HTMLParser(e)
+			self.matChildren=p.ParseHTMLFragment()
 		elif self.texttype=='text/rtf':
 			# parse the RTF content
-			pass
+			raise QTIUnimplementedError
 	
 class QTIItemControl(QTICommentElement,QTIViewMixin):
 	"""Represents the itemcontrol element
@@ -1279,7 +1304,7 @@ class QTIRubric(QTIFlowMatContainer,QTIViewMixin):
 	def MigrateV2(self,v2item,log):
 		if self.view.lower()=='all':
 			log.append('Warning: rubric with view="All" replaced by <div> with class="rubric"')
-			rubric=v2item.ChildElement(qtiv2.QTIItemBody).ChildElement(qtiv2.XHTMLDiv)
+			rubric=v2item.ChildElement(qtiv2.QTIItemBody).ChildElement(html.XHTMLDiv,(qtiv2.IMSQTI_NAMESPACE,'div'))
 			rubric.Set_class('rubric')
 		else:
 			rubric=v2item.ChildElement(qtiv2.QTIItemBody).ChildElement(qtiv2.QTIRubricBlock)
@@ -1358,7 +1383,7 @@ class QTIFlowContainer(QTICommentElement,QTIContentMixin):
 			for child in children:
 				if child.IsInline():
 					if p is None:
-						p=parent.ChildElement(qtiv2.XHTMLP)
+						p=parent.ChildElement(html.XHTMLP,(qtiv2.IMSQTI_NAMESPACE,'p'))
 						#p.Set_label(self.__class__.__name__)
 					child.MigrateV2Content(p,log)
 				else:
@@ -1411,14 +1436,16 @@ class QTIPresentation(QTIFlowContainer,QTIPositionMixin):
 		if self.GotPosition():
 			log.append("Warning: discarding absolute positioning information on presentation")
 		if self.InlineChildren():
-			p=itemBody.ChildElement(qtiv2.XHTMLP)
+			p=itemBody.ChildElement(html.XHTMLP,(qtiv2.IMSQTI_NAMESPACE,'p'))
 			if self.label is not None:
-				p.Set_label(self.label)
+				#p.Set_label(self.label)
+				p.SetAttribute('label',self.label)
 			self.MigrateV2Content(p,log)
 		elif self.label is not None:
 			# We must generate a div to hold the label, we can't rely on owning itemBody
-			div=itemBody.ChildElement(qtiv2.XHTMLDiv)
-			div.Set_label(self.label)
+			div=itemBody.ChildElement(html.XHTMLDiv,(qtiv2.IMSQTI_NAMESPACE,'div'))
+			#div.Set_label(self.label)
+			div.SetAttribute('label',self.label)
 			self.MigrateV2Content(div,log)
 		else:
 			self.MigrateV2Content(itemBody,log)
@@ -1476,11 +1503,11 @@ class QTIFlow(QTIFlowContainer):
 			QTIFlowContainer.MigrateV2Content(self,parent,log)
 		else:
 			if self.flowClass is not None:
-				div=parent.ChildElement(qtiv2.XHTMLDiv)
+				div=parent.ChildElement(html.XHTMLDiv,(qtiv2.IMSQTI_NAMESPACE,'div'))
 				div.Set_class(self.flowClass)
 				parent=div
 			if self.InlineChildren():
-				p=parent.ChildElement(qtiv2.XHTMLP)
+				p=parent.ChildElement(html.XHTMLP,(qtiv2.IMSQTI_NAMESPACE,'p'))
 				QTIFlowContainer.MigrateV2Content(self,p,log)
 			else:
 				# we don't generate classless divs
