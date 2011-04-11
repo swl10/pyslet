@@ -146,6 +146,58 @@ def IsChar(c):
 		(ord(c)>=0xE000 and ord(c)<=0xFFFD) or
 		(ord(c)>=0x10000 and ord(c)<=0x10FFFF))
 
+def EscapeCharData(src,quote=False):
+	"""Returns a unicode string with XML reserved characters escaped.
+	
+	We also escape return characters to prevent them being ignored.  If quote
+	is True then the string is returned as a quoted attribute value."""
+	if quote:
+		return saxutils.quoteattr(src,{'\r':'&#xD;'})
+	else:
+		return saxutils.escape(src,{'\r':'&#xD;'})
+
+def EscapeCharData7(src,quote=False):
+	"""Returns a unicode string with reserved and non-ASCII characters escaped."""
+	dst=[]
+	if quote:
+		if "'" in src:
+			q='"';qStr='&#x22'
+		elif '"' in src:
+			q="'";qStr='&#x27'
+		else:
+			q='"';qStr='&#x22'
+		dst.append(q)
+	else:
+		q=None;qStr=''
+	for c in src:
+		if ord(c)>0x7F:
+			if ord(c)>0xFF:
+				if ord(c)>0xFFFF:
+					if ord(c)>0xFFFFFF:
+						dst.append("&#x%08X;"%ord(c))
+					else:
+						dst.append("&#x%06X;"%ord(c))
+				else:
+						dst.append("&#x%04X;"%ord(c))
+			else:
+					dst.append("&#x%02X;"%ord(c))
+		elif c=='<':
+			dst.append("&lt;")
+		elif c=='&':
+			dst.append("&gt;")
+		elif c=='>':
+			dst.append("&gt;")
+		elif c=='\r':
+			dst.append("&#x0D;")
+		elif c==q:
+			dst.append(qStr)
+		else:
+			dst.append(c)
+	if quote:
+		dst.append(q)	
+	return string.join(dst,'')
+	
+
 def IsS(c):
 	return c and (ord(c)==0x9 or ord(c)==0xA or ord(c)==0xD or ord(c)==0x20)
 
@@ -1012,11 +1064,22 @@ class XMLElement:
 		return 0
 	
 	def __str__(self):
-		"""Returns the XML element as a string"""
+		"""Returns the XML element as a string.
+		
+		We force use of character references for all non-ascii characters in data
+		but this isn't enough to guarantee success.  We will still get an encoding
+		error if non-ascii characters have been used in markup names as such files
+		cannot be encoded in US-ASCII."""
 		s=StringIO()
-		self.WriteXML(s)
-		return s.getvalue()
+		self.WriteXML(s,EscapeCharData7)
+		return str(s.getvalue())
 	
+	def __unicode__(self):
+		"""Returns the XML element as a unicode string"""
+		s=StringIO()
+		self.WriteXML(s,EscapeCharData)
+		return unicode(s.getvalue())
+		
 	def Copy(self,parent=None):
 		"""Creates a new instance of this element which is a deep copy of this one."""
 		if parent:
@@ -1164,7 +1227,7 @@ class XMLElement:
 		else:
 			self._attrs[xml_space]=space
 	
-	def WriteXMLAttributes(self,attributes):
+	def WriteXMLAttributes(self,attributes,escapeFunction=EscapeCharData):
 		"""Adds strings representing the element's attributes
 		
 		attributes is a list of unicode strings.  Attributes should be appended
@@ -1174,9 +1237,9 @@ class XMLElement:
 		keys=attrs.keys()
 		self.SortNames(keys)
 		for a in keys:
-			attributes.append('%s=%s'%(a,saxutils.quoteattr(attrs[a])))
+			attributes.append(u'%s=%s'%(a,escapeFunction(attrs[a],True)))
 		
-	def WriteXML(self,f,indent='',tab='\t'):
+	def WriteXML(self,writer,escapeFunction=EscapeCharData,indent='',tab='\t'):
 		if tab:
 			ws='\n'+indent
 			indent=indent+tab
@@ -1187,7 +1250,7 @@ class XMLElement:
 			indent=''
 			tab=''
 		attributes=[]
-		self.WriteXMLAttributes(attributes)
+		self.WriteXMLAttributes(attributes,escapeFunction)
 		if attributes:
 			attributes[0:0]=['']
 			attributes=string.join(attributes,' ')
@@ -1198,21 +1261,21 @@ class XMLElement:
 			if type(children[0]) in StringTypes and len(children[0])>0 and IsS(children[0][0]):
 				# First character is WS, so assume pre-formatted
 				indent=tab=''
-			f.write('%s<%s%s>'%(ws,self.xmlname,attributes))
+			writer.write(u'%s<%s%s>'%(ws,self.xmlname,attributes))
 			for child in children:
 				if type(child) in types.StringTypes:
 					# We force encoding of carriage return as these are subject to removal
-					f.write(saxutils.escape(child,{'\r':'&#xD;'}))
+					writer.write(escapeFunction(child))
 					# if we have character data content skip closing ws
 					ws=''
 				else:
-					child.WriteXML(f,indent,tab)
+					child.WriteXML(f,escapeFunction,indent,tab)
 			if not tab:
 				# if we weren't tabbing children we need to skip closing white space
 				ws=''
-			f.write('%s</%s>'%(ws,self.xmlname))
+			writer.write(u'%s</%s>'%(ws,self.xmlname))
 		else:
-			f.write('%s<%s%s/>'%(ws,self.xmlname,attributes))
+			writer.write(u'%s<%s%s/>'%(ws,self.xmlname,attributes))
 				
 
 class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
@@ -1250,9 +1313,14 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 	def __str__(self):
 		"""Returns the XML document as a string"""
 		s=StringIO()
-		self.WriteXML(s)
-		return s.getvalue()
-				
+		self.WriteXML(s,EscapeCharData7)
+		return str(s.getvalue())
+	
+	def __unicode__(self):
+		s=StringIO()
+		self.WriteXML(s,EscapeCharData)
+		return unicode(s.getvalue())
+	
 	def SetDefaultNS(self,ns):
 		self.defaultNS=ns
 	
@@ -1427,13 +1495,13 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		else:
 			raise XMLUnsupportedSchemeError(self.url.scheme)
 	
-	def WriteXML(self,f,tab='\t'):
+	def WriteXML(self,writer,escapeFunction=EscapeCharData,tab='\t'):
 		if tab:
-			f.write('<?xml version="1.0" encoding="utf-8"?>')
+			writer.write(u'<?xml version="1.0" encoding="UTF-8"?>')
 		else:
-			f.write('<?xml version="1.0" encoding="utf-8"?>\n')
+			writer.write(u'<?xml version="1.0" encoding="UTF-8"?>\n')
 		if self.root:
-			self.root.WriteXML(f,'',tab)
+			self.root.WriteXML(writer,escapeFunction,'',tab)
 	
 	def Update(self,reqManager=None):
 		pass

@@ -985,10 +985,10 @@ class QTIContentMixin:
 		
 	def MigrateV2Content(self,parent,log):
 		"""Migrates this content to v2 adding it to the parent content node."""
-		raise QTIUnimplementedError
+		raise QTIUnimplementedError(self.xmlname)
 
 		
-class QTIFlowMatContainer(QTICommentElement, QTIContentMixin):
+class QTIFlowMatContainer(QTIContentMixin,QTICommentElement):
 	"""Abstract class used to represent objects that contain flow_mat
 	
 	<!ELEMENT XXXXXXXXXX (qticomment? , (material+ | flow_mat+))>
@@ -1020,7 +1020,7 @@ class QTIFlowMatContainer(QTICommentElement, QTIContentMixin):
 		for child in children:
 			child.MigrateV2Content(p,log)
 
-
+		
 class QTIViewMixin:
 	"""Mixin class for handling view attribute.
 	
@@ -1051,7 +1051,7 @@ class QTIViewMixin:
 		attrs['view']=self.view
 
 	
-class QTIObjectives(QTIFlowMatContainer,QTIViewMixin,QTIContentMixin):
+class QTIObjectives(QTIViewMixin,QTIFlowMatContainer,QTIContentMixin):
 	"""Represents the objectives element
 	
 	<!ELEMENT objectives (qticomment? , (material+ | flow_mat+))>
@@ -1090,7 +1090,7 @@ class QTIObjectives(QTIFlowMatContainer,QTIViewMixin,QTIContentMixin):
 		eduDescription.AddString(lang,description)
 
 
-class QTIMaterial(QTICommentElement,QTIContentMixin):
+class QTIMaterial(QTIContentMixin,QTICommentElement):
 	"""Represents the material element
 	
 	<!ELEMENT material (qticomment? , (mattext | matemtext | matimage | mataudio | matvideo | matapplet | matapplication | matref | matbreak | mat_extension)+ , altmaterial*)>
@@ -1112,6 +1112,10 @@ class QTIMaterial(QTICommentElement,QTIContentMixin):
 		
 	def Set_label(self,label):
 		self.label=label
+
+	def GetChildren(self):
+		children=QTICommentElement.GetChildren(self)+QTIElement.GetChildren(self)
+		return children
 				
 	def MigrateV2Content(self,parent,log):
 		children=QTIElement.GetChildren(self)
@@ -1268,6 +1272,10 @@ class QTIItemControl(QTICommentElement,QTIViewMixin):
 	def Set_solutionswitch(self,switchValue):
 		self.solutionswitch=ParseYesNo(switchValue)
 
+	def GetChildren(self):
+		children=QTICommentElement.GetChildren(self)+QTIElement.GetChildren(self)
+		return children
+				
 
 class QTIItemPreCondition(QTIElement):
 	"""Represents the itemprecondition element
@@ -1381,16 +1389,21 @@ class QTIFlowContainer(QTICommentElement,QTIContentMixin):
 		else:
 			p=None
 			for child in children:
-				if child.IsInline():
-					if p is None:
-						p=parent.ChildElement(html.XHTMLP,(qtiv2.IMSQTI_NAMESPACE,'p'))
-						#p.Set_label(self.__class__.__name__)
-					child.MigrateV2Content(p,log)
-				else:
-					# stop collecting inlines
+				try:
+					if child.IsInline():
+						if p is None:
+							p=parent.ChildElement(html.XHTMLP,(qtiv2.IMSQTI_NAMESPACE,'p'))
+							#p.Set_label(self.__class__.__name__)
+						child.MigrateV2Content(p,log)
+					else:
+						# stop collecting inlines
+						p=None
+						child.MigrateV2Content(parent,log)
+				except AttributeError:
+					print "Print: unsupported content element "+child.xmlname
+					print child
 					p=None
-					child.MigrateV2Content(parent,log)
-					
+					continue
 		
 class QTIPresentation(QTIFlowContainer,QTIPositionMixin):
 	"""Represents the presentation element.

@@ -135,7 +135,7 @@ class XMLNSElement(XMLElement):
 					return nsList[i][1]
 		return None
 	
-	def SetNSPrefix(self,ns,prefix,attributes,nsList):
+	def SetNSPrefix(self,ns,prefix,attributes,nsList,escapeFunction):
 		if not prefix:
 			# None or empty string: so we don't make this the default if it has
 			# a preferred prefix defined in the document.
@@ -157,7 +157,7 @@ class XMLNSElement(XMLElement):
 		else:
 			nsList[0:0]=[(ns,'')]
 			aname='xmlns'
-		attributes.append('%s=%s'%(aname,saxutils.quoteattr(ns)))
+		attributes.append('%s=%s'%(aname,escapeFunction(ns,True)))
 		return prefix
 	
 	def SuggestNewPrefix(self,nsList,stem='ns'):
@@ -183,7 +183,7 @@ class XMLNSElement(XMLElement):
 				i=i+1
 		return "%s%i"%(stem,ns)
 		
-	def WriteXMLAttributes(self,attributes,nsList):
+	def WriteXMLAttributes(self,attributes,nsList,escapeFunction=EscapeCharData):
 		"""Adds strings representing the element's attributes
 		
 		attributes is a list of unicode strings.  Attributes should be appended
@@ -203,10 +203,10 @@ class XMLNSElement(XMLElement):
 				ns,aname=a
 				prefix=self.GetNSPrefix(ns,nsList)
 			if prefix is None:
-				prefix=self.SetNSPrefix(ns,None,attributes,nsList)
-			attributes.append('%s%s=%s'%(prefix,aname,saxutils.quoteattr(attrs[a])))
+				prefix=self.SetNSPrefix(ns,None,attributes,nsList,escapeFunction)
+			attributes.append(u'%s%s=%s'%(prefix,aname,escapeFunction(attrs[a],True)))
 			
-	def WriteXML(self,f,indent='',tab='\t',nsList=None):
+	def WriteXML(self,writer,escapeFunction=EscapeCharData,indent='',tab='\t',nsList=None):
 		if tab:
 			ws='\n'+indent
 			indent=indent+tab
@@ -225,10 +225,10 @@ class XMLNSElement(XMLElement):
 			prefix=self.GetNSPrefix(self.ns,nsList)
 			if prefix is None:
 				# We need to declare our namespace
-				prefix=self.SetNSPrefix(self.ns,'',attributes,nsList)
+				prefix=self.SetNSPrefix(self.ns,'',attributes,nsList,escapeFunction)
 		else:
 			prefix=''
-		self.WriteXMLAttributes(attributes,nsList)
+		self.WriteXMLAttributes(attributes,nsList,escapeFunction)
 		if attributes:
 			attributes[0:0]=['']
 			attributes=string.join(attributes,' ')
@@ -239,21 +239,21 @@ class XMLNSElement(XMLElement):
 			if type(children[0]) in StringTypes and len(children[0]) and IsS(children[0][0]):
 				# First character is WS, so assume pre-formatted.
 				indent=tab=''			
-			f.write('%s<%s%s%s>'%(ws,prefix,self.xmlname,attributes))
+			writer.write(u'%s<%s%s%s>'%(ws,prefix,self.xmlname,attributes))
 			for child in children:
 				if type(child) in types.StringTypes:
 					# We force encoding of carriage return as these are subject to removal
-					f.write(saxutils.escape(child,{'\r':'&#xD;'}))
+					writer.write(escapeFunction(child))
 					# if we have character data content skip closing ws
 					ws=''
 				else:
-					child.WriteXML(f,indent,tab,nsList)
+					child.WriteXML(writer,escapeFunction,indent,tab,nsList)
 			if not tab:
 				# if we weren't tabbing children we need to skip closing white space
 				ws=''
-			f.write('%s</%s%s>'%(ws,prefix,self.xmlname))
+			writer.write(u'%s</%s%s>'%(ws,prefix,self.xmlname))
 		else:
-			f.write('%s<%s%s%s/>'%(ws,prefix,self.xmlname,attributes))
+			writer.write(u'%s<%s%s%s/>'%(ws,prefix,self.xmlname,attributes))
 		nsList=nsList[-nsListLen:]
 
 

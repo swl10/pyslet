@@ -12,7 +12,7 @@ def suite():
 
 from pyslet.xmlnames20091208 import *
 
-EXAMPLE_1="""<?xml version="1.0" encoding="utf-8"?>
+EXAMPLE_1="""<?xml version="1.0" encoding="UTF-8"?>
 <tag>Hello World</tag>"""
 
 
@@ -53,13 +53,13 @@ class XMLNSDocumentTests(unittest.TestCase):
 
 	def testCaseCreateNS(self):
 		"""Test the handling of namespaces in output"""
-		CREATE_2_XML="""<?xml version="1.0" encoding="utf-8"?>
+		CREATE_2_XML="""<?xml version="1.0" encoding="UTF-8"?>
 <createTag xmlns:alt="http://www.example.com/alt">
 	<alt:createTag xml:base="http://www.example.com/create.xml">
 		<tag2>Hello World</tag2>
 	</alt:createTag>
 </createTag>"""
-		CREATE_2_OUTPUT="""<?xml version="1.0" encoding="utf-8"?>
+		CREATE_2_OUTPUT="""<?xml version="1.0" encoding="UTF-8"?>
 <createTag xmlns="http://www.example.com">
 	<createTag xmlns="http://www.example.com/alt" xml:base="http://www.example.com/create.xml">
 		<tag2 xmlns="http://www.example.com">Hello World</tag2>
@@ -78,9 +78,9 @@ class XMLNSDocumentTests(unittest.TestCase):
 
 	def testAttrNSDeclared(self):
 		"""Test that attributes can be used to trigger NS declarations"""
-		ATTR_XML="""<?xml version="1.0" encoding="utf-8"?>
+		ATTR_XML="""<?xml version="1.0" encoding="UTF-8"?>
 <createTag xmlns="http://www.example.com" xmlns:ns1="http://www.example.com/attributes" ns1:test="Hello"/>"""		
-		ATTR_XML_ALT="""<?xml version="1.0" encoding="utf-8"?>
+		ATTR_XML_ALT="""<?xml version="1.0" encoding="UTF-8"?>
 <createTag xmlns="http://www.example.com" xmlns:test="http://www.example.com/attributes" test:test="Hello"/>"""		
 		d=XMLNSDocument()
 		d.Read(src=StringIO(ATTR_XML))

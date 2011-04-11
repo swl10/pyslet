@@ -6,6 +6,7 @@ from sys import maxunicode
 from tempfile import mkdtemp
 import shutil, os.path, urllib
 from StringIO import StringIO
+from types import UnicodeType
 
 MAX_CHAR=0x10FFFF
 if maxunicode<MAX_CHAR:
@@ -210,6 +211,8 @@ class XMLValidationTests(unittest.TestCase):
 		self.failUnless(IsValidName("GoodName-0.12"))
 		self.failIf(IsValidName("BadName$"))
 		self.failIf(IsValidName("BadName+"))
+		self.failUnless(IsValidName(u"Caf\xe9"))
+
 
 
 class XMLEntityTests(unittest.TestCase):
@@ -217,11 +220,13 @@ class XMLEntityTests(unittest.TestCase):
 		e=XMLEntity("<hello>")
 		self.failUnless(e.lineNum==0)
 		self.failUnless(e.linePos==0)
-		self.failUnless(e.theChar=='<')
+		self.failUnless(type(e.theChar) is UnicodeType and e.theChar==u'<')
+		e=XMLEntity(u"<hello>")
+		self.failUnless(type(e.theChar) is UnicodeType and e.theChar==u'<')
 		e=XMLEntity(StringIO("<hello>"))
 		self.failUnless(e.lineNum==0)
 		self.failUnless(e.linePos==0)
-		self.failUnless(e.theChar=='<')
+		self.failUnless(type(e.theChar) is UnicodeType and e.theChar==u'<')
 
 	def testCaseChars(self):
 		e=XMLEntity("<hello>")
@@ -557,6 +562,12 @@ class XMLDocumentTests(unittest.TestCase):
 		fData=f.read()
 		f.close()
 		self.failUnless(str(d)==fData,"XML output: %s"%str(d))
+		d=XMLDocument(baseURI='ascii.xml')
+		d.Read()
+		f=open('ascii.xml')
+		fData=f.read()
+		f.close()
+		self.failUnless(str(d)==fData,"XML output: %s"%str(d))
 		
 	def testCaseResolveBase(self):
 		"""Test the use of ResolveURI and ResolveBase"""
@@ -613,7 +624,7 @@ class XMLDocumentTests(unittest.TestCase):
 		
 	def testCaseCreate(self):
 		"""Test the creating of the XMLDocument on the file system"""		
-		CREATE_1_XML="""<?xml version="1.0" encoding="utf-8"?>
+		CREATE_1_XML="""<?xml version="1.0" encoding="UTF-8"?>
 <test/>"""
 		d=XMLDocument(root=NamedElement)
 		d.SetBase('create1.xml')
@@ -646,7 +657,7 @@ class XMLDocumentTests(unittest.TestCase):
 	
 	def testCaseReflection(self):
 		"""Test the built-in handling of reflective attributes and elements."""
-		REFLECTIVE_XML="""<?xml version="1.0" encoding="utf-8"?>
+		REFLECTIVE_XML="""<?xml version="1.0" encoding="UTF-8"?>
 <reflection atest="Hello"><etest>Hello Again</etest></reflection>"""
 		f=StringIO(REFLECTIVE_XML)
 		d=ReflectiveDocument()
