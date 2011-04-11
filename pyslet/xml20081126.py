@@ -1269,7 +1269,7 @@ class XMLElement:
 					# if we have character data content skip closing ws
 					ws=''
 				else:
-					child.WriteXML(f,escapeFunction,indent,tab)
+					child.WriteXML(writer,escapeFunction,indent,tab)
 			if not tab:
 				# if we weren't tabbing children we need to skip closing white space
 				ws=''

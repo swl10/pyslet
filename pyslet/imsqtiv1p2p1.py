@@ -1401,7 +1401,7 @@ class QTIFlowContainer(QTICommentElement,QTIContentMixin):
 						child.MigrateV2Content(parent,log)
 				except AttributeError:
 					print "Print: unsupported content element "+child.xmlname
-					print child
+					# print child
 					p=None
 					continue
 		
