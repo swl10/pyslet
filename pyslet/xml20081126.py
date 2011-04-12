@@ -951,16 +951,18 @@ class XMLElement:
 		"""Notifies an element that all children have been added or created."""
 		pass
 	
-	def GetValue(self):
+	def GetValue(self,ignoreElements=False):
 		"""Returns a single unicode string representing the element's data.
 		
-		If the element contains child elements XMLMixedContentError is raised.
+		If the element contains child elements and ignoreElements is False
+		then XMLMixedContentError is raised.
 		
 		If the element is empty None is returned."""		
 		children=self.GetChildren()
-		for child in children:
-			if not type(child) in StringTypes:
-				raise XMLMixedContentError
+		if not ignoreElements:
+			for child in children:
+				if not type(child) in StringTypes:
+					raise XMLMixedContentError(str(self))
 		if children:
 			return string.join(map(unicode,children),'')
 		else:

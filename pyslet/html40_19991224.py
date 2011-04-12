@@ -54,7 +54,7 @@ class XHTMLInlineContainer(XHTMLElement):
 			return XHTMLElement.ChildElement(self,childClass,name)
 		else:
 			# This child cannot go in here
-			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
+			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 
 	
 class XHTMLFlowContainer(XHTMLElement):
@@ -63,7 +63,8 @@ class XHTMLFlowContainer(XHTMLElement):
 			return XHTMLElement.ChildElement(self,childClass,name)
 		else:
 			# This child cannot go in here
-			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
+			print self
+			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 	
 class XHTMLSpecialMixin(XHTMLInlineMixin):
 	# <!ENTITY % special "A | IMG | OBJECT | BR | SCRIPT | MAP | Q | SUB | SUP | SPAN | BDO">
@@ -76,7 +77,7 @@ class XHTMLList(XHTMLBlockMixin,XHTMLElement):
 		if issubclass(childClass,XHTMLLI):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
 		else:
-			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
+			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 	
 # Text Elements
 
@@ -106,7 +107,7 @@ class XHTMLBlockquote(XHTMLBlockMixin,XHTMLElement):
 		if issubclass(childClass,XHTMLBlockMixin) or issubclass(childClass,XHTMLScript):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
 		else:
-			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
+			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 	
 class XHTMLBr(XHTMLSpecialMixin,XHTMLElement):
 	# <!ELEMENT BR - O EMPTY                 -- forced line break -->
@@ -210,7 +211,7 @@ class XHTMLDL(XHTMLBlockMixin,XHTMLElement):
 		if issubclass(childClass,(XHTMLDT,XHTMLDD)):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
 		else:
-			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
+			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 
 class XHTMLDT(XHTMLInlineContainer):
 	# <!ELEMENT DT - O (%inline;)*           -- definition term -->
@@ -248,7 +249,7 @@ class XHTMLObject(XHTMLSpecialMixin,XHTMLElement):
 		if issubclass(childClass,(XHTMLFlowMixin,XHTMLParam)):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
 		else:
-			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
+			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 	
 class XHTMLParam(XHTMLElement):
 	# <!ELEMENT PARAM - O EMPTY              -- named property value -->
@@ -312,7 +313,7 @@ class XHTMLTable(XHTMLBlockMixin,XHTMLElement):
 			tbody=self.ChildElement(XHTMLTBody)
 			return tbody.ChildElement(childClass)
 		else:
-			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))
+			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))
 
 class XHTMLCaption(XHTMLInlineContainer):
 	# <!ELEMENT CAPTION  - - (%inline;)*     -- table caption -->
@@ -324,7 +325,7 @@ class XHTMLTRContainer(XHTMLElement):
 		if issubclass(childClass,XHTMLTR):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
 		else:
-			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
+			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 		
 class XHTMLTHead(XHTMLTRContainer):
 	# <!ELEMENT THEAD    - O (TR)+           -- table header -->
@@ -350,7 +351,7 @@ class XHTMLColGroup(XHTMLElement):
 		if issubclass(childClass,XHTMLCol):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
 		else:
-			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
+			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 	
 class XHTMLCol(XHTMLBlockMixin,XHTMLElement):
 	# <!ELEMENT COL      - O EMPTY           -- table column -->
@@ -366,7 +367,7 @@ class XHTMLTR(XHTMLElement):
 		if issubclass(childClass,(XHTMLTH,XHTMLTD)):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
 		else:
-			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
+			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 	
 class XHTMLTH(XHTMLFlowContainer):
 	# <!ELEMENT (TH|TD)  - O (%flow;)*       -- table header cell, table data cell-->

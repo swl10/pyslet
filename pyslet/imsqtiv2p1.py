@@ -40,24 +40,33 @@ def FixHTMLNamespace(e):
 		if type(e) in StringTypes:
 			continue
 		FixHTMLNamespace(e)
-		
+
+
+#
+# Functions for basic types
+#
+def ValidateIdentifier(value):
+	"""Decodes an identifier from a string.
+
+	<xsd:simpleType name="identifier.Type">
+		<xsd:restriction base="xsd:NCName"/>
+	</xsd:simpleType>
 	
-def MakeValidNCName(name):
-	"""This function takes a string that is supposed to match the production for
+	This function takes a string that is supposed to match the production for
 	NCName in XML and forces to to comply by replacing illegal characters with
 	'_', except the ':' which is replaced with a hyphen for compatibility with
 	previous versions of the QTI migraiton script.  If name starts with a valid
 	name character but not a valid name start character, it is prefixed with '_'
 	too."""
-	if name:
+	if value:
 		goodName=[]
-		if not xmlns.IsNameStartChar(name[0]):
+		if not xmlns.IsNameStartChar(value[0]):
 			goodName.append('_')
-		elif name[0]==':':
+		elif value[0]==':':
 			# Previous versions of the migrate script didn't catch this problem
 			# as a result, we deviate from its broken behaviour or using '-'
 			goodName.append('_')			
-		for c in name:
+		for c in value:
 			if c==':':
 				goodName.append('-')
 			elif xmlns.IsNameChar(c):
@@ -68,6 +77,36 @@ def MakeValidNCName(name):
 	else:
 		return '_'
 
+MakeValidNCName=ValidateIdentifier
+
+QTI_SHOW=1
+QTI_HIDE=2
+
+def DecodeShowHide(value):
+	"""Decodes a showHide value from a string.
+
+	<xsd:simpleType name="showHide.Type">
+		<xsd:restriction base="xsd:NMTOKEN">
+			<xsd:enumeration value="hide"/>
+			<xsd:enumeration value="show"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	"""
+	if value.lower()=='hide':
+		return QTI_HIDE
+	elif value.lower()=='show':
+		return QTI_SHOW
+	else:
+		raise ValueError("Can't decode show/hide from %s"%value)
+
+def EncodeShowHide(value):
+	if value:
+		return ["show","hide"][value-1]
+	else:
+		raise ValueError("Can't encode show/hide from %i"%value)
+
+	
+	
 
 class QTIElement(xmlns.XMLNSElement):
 	"""Basic element to represent all QTI elements""" 
@@ -127,8 +166,8 @@ class QTIAssessmentItem(QTIElement):
 			attrs['title']=self.title
 		if self.label:
 			attrs['label']=self.label
-		attrs['adaptive']=xsdatatypes.EncodeBoolean(self.adaptive)
-		attrs['timeDependent']=xsdatatypes.EncodeBoolean(self.timeDependent)
+		attrs['adaptive']=xsi.EncodeBoolean(self.adaptive)
+		attrs['timeDependent']=xsi.EncodeBoolean(self.timeDependent)
 		return attrs
 		
 	def Set_identifier(self,value):
@@ -141,10 +180,10 @@ class QTIAssessmentItem(QTIElement):
 		self.label=value
 	
 	def Set_adaptive(self,value):
-		self.adaptive=xsdatatypes.DecodeBoolean(value)
+		self.adaptive=xsi.DecodeBoolean(value)
 		
 	def Set_timeDependent(self,value):
-		self.timeDependent=xsdatatypes.DecodeBoolean(value)
+		self.timeDependent=xsi.DecodeBoolean(value)
 				
 	def GetChildren(self):
 		children=[]
@@ -241,7 +280,7 @@ class QTIBodyElement(QTIElement):
 		return attrs
 		
 	def Set_id(self,value):
-		self.id=value
+		self.id=ValidateIdentifier(value)
 		
 	def Set_class(self,value):
 		self.styleClass=value
@@ -250,14 +289,14 @@ class QTIBodyElement(QTIElement):
 		self.label=value
 
 class QTIObjectFlowMixin: pass
-QTIInlineMixin=html.XHTMLInlineMixin
+
 QTIBlockMixin=html.XHTMLBlockMixin
 QTIFlowMixin=html.XHTMLFlowMixin		# xml:base is handled automatically for all elements
 
-class QTISimpleInline(QTIInlineMixin,QTIBodyElement):
-	# need to constrain content to QTIInlineMixin
+class QTISimpleInline(html.XHTMLInlineMixin,QTIBodyElement):
+	# need to constrain content to html.XHTMLInlineMixin
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,QTIInlineMixin):
+		if issubclass(childClass,html.XHTMLInlineMixin):
 			return QTIBodyElement.ChildElement(self,childClass,name)
 		else:
 			# This child cannot go in here
@@ -272,12 +311,12 @@ class QTISimpleBlock(QTIBlockMixin,QTIBodyElement):
 			# This child cannot go in here
 			raise QTIValidityError("%s in %s"%(repr(name),self.__class__.__name__))		
 
-class QTIAtomicInline(QTIInlineMixin,QTIBodyElement): pass
+class QTIAtomicInline(html.XHTMLInlineMixin,QTIBodyElement): pass
 
 class QTIAtomicBlock(QTIBlockMixin,QTIBodyElement):
-	# need to constrain content to QTIInlineMixin
+	# need to constrain content to html.XHTMLInlineMixin
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,QTIInlineMixin):
+		if issubclass(childClass,html.XHTMLInlineMixin):
 			return QTIBodyElement.ChildElement(self,childClass,name)
 		else:
 			# This child cannot go in here
@@ -356,7 +395,208 @@ class QTIRubricBlock(QTISimpleBlock):
 		else:
 			raise ValueError("illegal value for view: %s"%view)
 
+#
+#	INTERACTIONS
+#
+class QTIInteraction(QTIBodyElement):
+	"""Abstract class to act as a base for all interactions.
+
+	<xsd:attributeGroup name="interaction.AttrGroup">
+		<xsd:attributeGroup ref="bodyElement.AttrGroup"/>
+		<xsd:attribute name="responseIdentifier" type="identifier.Type" use="required"/>
+	</xsd:attributeGroup>
+	"""
+	def __init__(self,parent):
+		QTIBodyElement.__init__(self,parent)
+		self.responseIdentifier=''
+	
+	def Set_responseIdentifier(self,value):
+		self.responseIdentifier=ValidateIdentifier(value)
+
+	def GetAttributes(self):
+		attrs=QTIBodyElement.GetAttributes(self)
+		attrs['responseIdentifier']=self.responseIdentifier
+		return attrs
+
+
+class QTIInlineInteration(QTIInteraction,html.XHTMLInlineMixin):
+	"""Abstract class for interactions that are treated as inline."""
+	pass
+
+
+class QTIBlockInteraction(QTIInteraction,html.XHTMLBlockMixin):
+	"""Abstract class for interactions that are treated as blocks.
+	
+	<xsd:group name="blockInteraction.ContentGroup">
+		<xsd:sequence>
+			<xsd:element ref="prompt" minOccurs="0" maxOccurs="1"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	def __init__(self,parent):
+		QTIInteraction.__init__(self,parent)
+		self.QTIPrompt=None
+	
+
+class QTIPrompt(QTIBodyElement):
+	"""The prompt used in block interactions.
+
+	<xsd:group name="prompt.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="inlineStatic.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'prompt')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+	def __init__(self,parent):
+		QTIBodyElement.__init__(self,parent)
+
+	def ChildElement(self,childClass,name=None):
+		if issubclass(childClass,html.XHTMLInlineMixin):
+			return QTIBodyElement.ChildElement(self,childClass,name)
+		else:
+			# This child cannot go in here
+			raise QTIValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
+
+
+class QTIChoice(QTIBodyElement):		
+	"""The base class used for all choices.
+
+	<xsd:attributeGroup name="choice.AttrGroup">
+		<xsd:attributeGroup ref="bodyElement.AttrGroup"/>
+		<xsd:attribute name="identifier" type="identifier.Type" use="required"/>
+		<xsd:attribute name="fixed" type="boolean.Type" use="optional"/>
+		<xsd:attribute name="templateIdentifier" type="identifier.Type" use="optional"/>
+		<xsd:attribute name="showHide" type="showHide.Type" use="optional"/>
+	</xsd:attributeGroup>
+	"""
+	def __init__(self,parent):
+		QTIBodyElement.__init__(self,parent)
+		self.identifier=''
+		self.fixed=None
+		self.templateIdentifier=None
+		self.showHide=None
+	
+	def Set_identifier(self,value):
+		self.identifier=ValidateIdentifier(value)
+	
+	def Set_fixed(self,value):
+		self.fixed=xsi.DecodeBoolean(value)
+	
+	def Set_templateIdentifier(self,value):
+		self.templateIdentifier=ValidateIdentifier(value)
+	
+	def Set_showHide(self,value):
+		self.showHide=DecodeShowHide(value)
+	
+	def GetAttributes(self):
+		attrs=QTIBodyElement.GetAttributes(self)
+		attrs['identifier']=self.identifier
+		if self.fixed is not None: attrs['fixed']=xsi.EncodeBoolean(self.fixed)
+		if self.templateIdentifier: attrs['templateIdentifier']=self.templateIdentifier
+		if self.showHide is not None: attrs['showHide']=EncodeShowHide(self.showHide)
+		return attrs
+
+
+class QTIAssociableChoice(QTIChoice):
+	"""The base class used for choices used in associations.
+	
+	<xsd:attributeGroup name="associableChoice.AttrGroup">
+		<xsd:attributeGroup ref="choice.AttrGroup"/>
+		<xsd:attribute name="matchGroup" use="optional">
+			<xsd:simpleType>
+				<xsd:list itemType="identifier.Type"/>
+			</xsd:simpleType>
+		</xsd:attribute>
+	</xsd:attributeGroup>
+	"""
+	def __init__(self,parent):
+		QTIChoice.__init__(self,parent)
+		self.matchGroup=[]
+	
+	def Set_matchGroup(self,value):
+		self.matchGroup=map(ValidateIdentifier,value.split())
+	
+	def GetAttributes(self):
+		attrs=QTIChoice.GetAttributes(self)
+		if self.matchGroup: attrs['matchGroup']=string.join(self.matchGroup,' ')
+		return attrs
+
+
+#
+#		SIMPLE INTERACTIONS
+#
+
+class QTIChoiceInteraction(QTIBlockInteraction):
+	"""Represents the choiceInteraction element.
+	
+	<xsd:attributeGroup name="choiceInteraction.AttrGroup">
+		<xsd:attributeGroup ref="blockInteraction.AttrGroup"/>
+		<xsd:attribute name="shuffle" type="boolean.Type" use="required"/>
+		<xsd:attribute name="maxChoices" type="integer.Type" use="required"/>
+		<xsd:attribute name="minChoices" type="integer.Type" use="optional"/>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="choiceInteraction.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="blockInteraction.ContentGroup"/>
+			<xsd:element ref="simpleChoice" minOccurs="1" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'choiceInteraction')
+	XMLCONTENT=xmlns.XMLElementContent
+
+	def __init__(self,parent):
+		QTIBlockInteraction.__init__(self,parent)
+		self.shuffle=False
+		self.maxChoices=1
+		self.minChoices=None
+		self.QTISimpleChoice=[]
 		
+	def Set_shuffle(self,value):
+		self.shuffle=xsi.DecodeBoolean(value)
+	
+	def Set_maxChoices(self,value):
+		self.maxChoices=xsi.DecodeInteger(value)
+	
+	def Set_minChoices(self,value):
+		self.minChoices=xsi.DecodeInteger(value)
+	
+	def GetAttributes(self):
+		attrs=QTIBlockInteraction.GetAttributes(self)
+		attrs['shuffle']=xsi.EncodeBoolean(self.shuffle)
+		attrs['maxChoices']=xsi.EncodeInteger(self.maxChoices)
+		if self.minChoices is not None:
+			attrs['minChoices']=xsi.EncodeInteger(self.minChoices)
+		return attrs
+
+	def GetChildren(self):
+		return QTIBlockInteraction.GetChildren(self)+self.QTISimpleChoice
+		
+
+class QTISimpleChoice(QTIChoice):
+	"""Represents the simpleChoice element.
+
+	<xsd:group name="simpleChoice.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="flowStatic.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'simpleChoice')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+	def ChildElement(self,childClass,name=None):
+		if issubclass(childClass,html.XHTMLFlowMixin):
+			return QTIChoice.ChildElement(self,childClass,name)
+		else:
+			# This child cannot go in here
+			raise QTIValidityError("%s in %s"%(repr(name),self.__class__.__name__))		
+	
+	
 class QTIMetadata(QTIElement):
 	"""Represents the qtiMetadata element used in content packages.
 	

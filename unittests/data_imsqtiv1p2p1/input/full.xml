@@ -49,6 +49,28 @@
                     <mattext label="French" texttype="text/plain">Bonjour</mattext>
                     <mattext texttype="text/html"><![CDATA[ hello from <em>html4</em>&nbsp;!]]></mattext>
                 </material>
+                <response_lid ident="R1">
+                    <material>
+                        <mattext texttype="text/plain">Prompt: response_lid x </mattext>
+                    </material>
+                    <render_choice minnumber="1" maxnumber="2" shuffle="Yes">
+                        <material>
+                            <mattext texttype="text/html"><![CDATA[<i>render_choice</i>]]></mattext>
+                        </material>
+                        <flow_label>
+                            <response_label ident="R1A" rshuffle="Yes">
+                                <material>
+                                    <mattext texttype="text/html"><![CDATA[<p>Paragraph choice</p>]]></mattext>                                    
+                                </material>
+                            </response_label>
+                            <response_label ident="R1B" rshuffle="No">
+                                <material>
+                                    <mattext texttype="text/plain">Plain text choice</mattext>                                    
+                                </material>
+                            </response_label>
+                        </flow_label>
+                    </render_choice>
+                </response_lid>
             </flow>
         </presentation>
     </item>

@@ -31,3 +31,13 @@ def EncodeBoolean(src):
 		return "true"
 	else:
 		return "false"
+
+
+def DecodeInteger(src):
+	try:
+		return int(src)
+	except:
+		return None
+
+def EncodeInteger(value):
+	return "%i"%value
