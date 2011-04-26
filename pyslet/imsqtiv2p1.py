@@ -43,8 +43,82 @@ def FixHTMLNamespace(e):
 
 
 #
-# Functions for basic types
+# Definitions for basic types
 #
+class QTIBaseType:
+	"""baseType enumeration.
+	
+	<xsd:simpleType name="baseType.Type">
+		<xsd:restriction base="xsd:NMTOKEN">
+			<xsd:enumeration value="boolean"/>
+			<xsd:enumeration value="directedPair"/>
+			<xsd:enumeration value="duration"/>
+			<xsd:enumeration value="file"/>
+			<xsd:enumeration value="float"/>
+			<xsd:enumeration value="identifier"/>
+			<xsd:enumeration value="integer"/>
+			<xsd:enumeration value="pair"/>
+			<xsd:enumeration value="point"/>
+			<xsd:enumeration value="string"/>
+			<xsd:enumeration value="uri"/>
+		</xsd:restriction>
+	</xsd:simpleType>"""
+	decode={
+		'boolean':1,
+		'directedPair':2,
+		'duration':3,
+		'file':4,
+		'float':5,
+		'identifier':5,
+		'integer':6,
+		'pair':7,
+		'point':8,
+		'string':9,
+		'uri':10
+		}
+xsi.MakeEnumeration(QTIBaseType)
+
+def DecodeBaseType(value):
+	"""Decodes a baseType value from a string."""
+	try:
+		return QTIBaseType.decode[value.lower()]
+	except KeyError:
+		raise ValueError("Can't decode baseType from %s"%value)
+
+def EncodeBaseType(value):
+	return QTIBaseType.encode.get(value,'')
+
+
+class QTICardinality:
+	"""Cardinality enumeration.
+
+	<xsd:simpleType name="cardinality.Type">
+		<xsd:restriction base="xsd:NMTOKEN">
+			<xsd:enumeration value="multiple"/>
+			<xsd:enumeration value="ordered"/>
+			<xsd:enumeration value="record"/>
+			<xsd:enumeration value="single"/>
+		</xsd:restriction>
+	</xsd:simpleType>"""
+	decode={
+		'multiple':1,
+		'ordered':2,
+		'record':3,
+		'single':4
+		}
+xsi.MakeEnumeration(QTICardinality)
+
+def DecodeCardinality(value):
+	"""Decodes a cardinality value from a string."""
+	try:
+		return QTICardinality.decode[value.lower()]
+	except KeyError:
+		raise ValueError("Can't decode cardinality from %s"%value)
+
+def EncodeCardinality(value):
+	return QTICardinality.encode.get(value,'')
+
+
 def ValidateIdentifier(value):
 	"""Decodes an identifier from a string.
 
@@ -79,9 +153,14 @@ def ValidateIdentifier(value):
 
 MakeValidNCName=ValidateIdentifier
 
-QTI_SHOW=1
-QTI_HIDE=2
 
+class QTIShowHide:
+	decode={
+		'show':1,
+		'hide':2
+		}
+xsi.MakeEnumeration(QTIShowHide)
+		
 def DecodeShowHide(value):
 	"""Decodes a showHide value from a string.
 
@@ -92,21 +171,43 @@ def DecodeShowHide(value):
 		</xsd:restriction>
 	</xsd:simpleType>
 	"""
-	if value.lower()=='hide':
-		return QTI_HIDE
-	elif value.lower()=='show':
-		return QTI_SHOW
-	else:
+	try:
+		return QTIShowHide.decode[value.lower()]
+	except KeyError:
 		raise ValueError("Can't decode show/hide from %s"%value)
 
 def EncodeShowHide(value):
-	if value:
-		return ["show","hide"][value-1]
-	else:
-		raise ValueError("Can't encode show/hide from %i"%value)
+	return QTIShowHide.encode.get(value,'')
 
-	
-	
+
+class QTIView:
+	fixups={
+		'testconstructor':'testConstructor'
+		}
+	decode={
+		'author':1,
+		'candidate':2,
+		'proctor':3,
+		'scorer':4,
+		'testConstructor':5,
+		'tutor':6
+		}
+xsi.MakeEnumeration(QTIView)
+
+def DecodeView(value):
+	try:
+		return QTIView.decode[value]
+	except KeyError:
+		value=value.lower()
+		value=QTIView.fixups.get(value,value)
+	try:
+		return QTIView.decode[value]
+	except KeyError:
+		raise ValueError("Can't decode view from %s"%value)
+
+def EncodeView(value):
+	return QTIView.encode.get(value,'')
+		
 
 class QTIElement(xmlns.XMLNSElement):
 	"""Basic element to represent all QTI elements""" 
@@ -116,6 +217,14 @@ class QTIElement(xmlns.XMLNSElement):
 		for child in self.GetChildren():
 			if isinstance(child,QTIElement):
 				child.AddToCPResource(cp,resource,baseURI)
+
+	def GetAssessmentItem(self):
+		iParent=self
+		while iParent is not None:
+			if isinstance(iParent,QTIAssessmentItem):
+				return iParent
+			else:
+				iParent=iParent.parent
 
 
 class QTIAssessmentItem(QTIElement):
@@ -145,6 +254,11 @@ class QTIAssessmentItem(QTIElement):
 	</xsd:group>
 	"""
 	XMLNAME=(IMSQTI_NAMESPACE,'assessmentItem')
+	XMLATTR_adaptive=('adaptive',xsi.DecodeBoolean,xsi.EncodeBoolean)
+	XMLATTR_identifier='identifier'		
+	XMLATTR_label='label'
+	XMLATTR_timeDependent=('timeDependent',xsi.DecodeBoolean,xsi.EncodeBoolean)
+	XMLATTR_title='title'	
 	XMLCONTENT=xmlns.XMLElementContent
 	
 	def __init__(self,parent):
@@ -157,33 +271,6 @@ class QTIAssessmentItem(QTIElement):
 		self.timeDependent=False
 		self.declarations={}
 		self.QTIItemBody=None
-		
-	def GetAttributes(self):
-		attrs=QTIElement.GetAttributes(self)
-		if self.identifier:
-			attrs['identifier']=self.identifier
-		if self.title:
-			attrs['title']=self.title
-		if self.label:
-			attrs['label']=self.label
-		attrs['adaptive']=xsi.EncodeBoolean(self.adaptive)
-		attrs['timeDependent']=xsi.EncodeBoolean(self.timeDependent)
-		return attrs
-		
-	def Set_identifier(self,value):
-		self.identifier=value
-		
-	def Set_title(self,value):
-		self.title=value
-	
-	def Set_label(self,value):
-		self.label=value
-	
-	def Set_adaptive(self,value):
-		self.adaptive=xsi.DecodeBoolean(value)
-		
-	def Set_timeDependent(self,value):
-		self.timeDependent=xsi.DecodeBoolean(value)
 				
 	def GetChildren(self):
 		children=[]
@@ -197,6 +284,10 @@ class QTIAssessmentItem(QTIElement):
 	def QTIResponseDeclaration(self):
 		# Not linked properly to us until it is finished.
 		return QTIResponseDeclaration(self)
+	
+	def QTIOutcomeDeclaration(self):
+		# Not linked properly to us until it is finished.
+		return QTIOutcomeDeclaration(self)
 		
 	def RegisterDeclaration(self,declaration):
 		if self.declarations.has_key(declaration.identifier):
@@ -231,27 +322,185 @@ class QTIAssessmentItem(QTIElement):
 		return uri
 	
 		
+class QTIVariableDeclaration(QTIElement):
+	"""Abstract class for all variable declarations.
 
-class QTIResponseDeclaration(QTIElement):
-	XMLNAME=(IMSQTI_NAMESPACE,'responseDeclaration')
+	<xsd:attributeGroup name="variableDeclaration.AttrGroup">
+		<xsd:attribute name="identifier" type="identifier.Type" use="required"/>
+		<xsd:attribute name="cardinality" type="cardinality.Type" use="required"/>
+		<xsd:attribute name="baseType" type="baseType.Type" use="optional"/>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="variableDeclaration.ContentGroup">
+		<xsd:sequence>
+			<xsd:element ref="defaultValue" minOccurs="0" maxOccurs="1"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLATTR_baseType=('baseType',DecodeBaseType,EncodeBaseType)	
+	XMLATTR_cardinality=('cardinality',DecodeCardinality,EncodeCardinality)	
+	XMLATTR_identifier=('identifier',ValidateIdentifier,lambda x:x)
+
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.identifier=''
+		self.cardinality=0
+		self.baseType=None
+		self.QTIDefaultValue=None
+	
+	def GetChildren(self):
+		children=[]
+		xml.OptionalAppend(children,self.QTIDefaultValue)
+		return children+QTIElement.GetChildren(self)
+
+
+class QTIValue(QTIElement):
+	"""Represents the value element.
+	
+	<xsd:attributeGroup name="value.AttrGroup">
+		<xsd:attribute name="fieldIdentifier" type="identifier.Type" use="optional"/>
+		<xsd:attribute name="baseType" type="baseType.Type" use="optional"/>
+	</xsd:attributeGroup>
+	
+	<xsd:complexType name="value.Type">
+		<xsd:simpleContent>
+			<xsd:extension base="xsd:string">
+				<xsd:attributeGroup ref="value.AttrGroup"/>
+			</xsd:extension>
+		</xsd:simpleContent>
+	</xsd:complexType>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'value')
+	XMLATTR_baseType=('baseType',DecodeBaseType,EncodeBaseType)
+	XMLATTR_fieldIdentifier=('fieldIdentifier',ValidateIdentifier,lambda x:x)
+	XMLCONTENT=xml.XMLMixedContent
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
-		self.identifier=None
-	
-	def GetAttributes(self):
-		attrs=QTIElement.GetAttributes(self)
-		if self.identifier:
-			attrs['identifier']=self.identifier
-		return attrs
+		self.fieldIdentifier=None
+		self.baseType=None
+
+
+class QTIDefaultValue(QTIElement):
+	"""Represents the defaultValue element.
 		
-	def Set_identifier(self,value):
-		self.identifier=value
+	<xsd:attributeGroup name="defaultValue.AttrGroup">
+		<xsd:attribute name="interpretation" type="string.Type" use="optional"/>
+	</xsd:attributeGroup>
 	
+	<xsd:group name="defaultValue.ContentGroup">
+		<xsd:sequence>
+			<xsd:element ref="value" minOccurs="1" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'defaultValue')
+	XMLATTR_interpretation='interpretation'
+	XMLCONTENT=xml.XMLElementContent
+	
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.interpretation=None
+		self.QTIValue=[]
+	
+	def GetChildren(self):
+		return self.QTIValue+QTIElement.GetChildren(self)
+
+		
+class QTIResponseDeclaration(QTIVariableDeclaration):
+	"""Represents a responseDeclaration.
+	
+	<xsd:group name="responseDeclaration.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="variableDeclaration.ContentGroup"/>
+			<xsd:element ref="correctResponse" minOccurs="0" maxOccurs="1"/>
+			<xsd:element ref="mapping" minOccurs="0" maxOccurs="1"/>
+			<xsd:element ref="areaMapping" minOccurs="0" maxOccurs="1"/>
+		</xsd:sequence>
+	</xsd:group>"""
+	XMLNAME=(IMSQTI_NAMESPACE,'responseDeclaration')
+	XMLCONTENT=xml.XMLElementContent
+	
+	def __init__(self,parent):
+		QTIVariableDeclaration.__init__(self,parent)
+		self.QTICorrectResponse=None
+		self.QTIMapping=None
+		self.QTIAreaMapping=None
+	
+	def GetChildren(self):
+		children=QTIVariableDeclaration.GetChildren(self)
+		xml.OptionalAppend(children,self.QTICorrectResponse)
+		xml.OptionalAppend(children,self.QTIMapping)
+		xml.OptionalAppend(children,self.QTIAreaMapping)
+		return children
+		
 	def GotChildren(self):
 		self.parent.RegisterDeclaration(self)
 
 
+class QTIOutcomeDeclaration(QTIVariableDeclaration):
+	"""Represents an outcomeDeclaration.
+
+	<xsd:attributeGroup name="outcomeDeclaration.AttrGroup">
+		<xsd:attributeGroup ref="variableDeclaration.AttrGroup"/>
+		<xsd:attribute name="view" use="optional">
+			<xsd:simpleType>
+				<xsd:list itemType="view.Type"/>
+			</xsd:simpleType>
+		</xsd:attribute>
+		<xsd:attribute name="interpretation" type="string.Type" use="optional"/>
+		<xsd:attribute name="longInterpretation" type="uri.Type" use="optional"/>
+		<xsd:attribute name="normalMaximum" type="float.Type" use="optional"/>
+		<xsd:attribute name="normalMinimum" type="float.Type" use="optional"/>
+		<xsd:attribute name="masteryValue" type="float.Type" use="optional"/>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="outcomeDeclaration.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="variableDeclaration.ContentGroup"/>
+			<xsd:group ref="lookupTable.ElementGroup" minOccurs="0" maxOccurs="1"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'outcomeDeclaration')
+	XMLATTR_view=('view',DecodeView,EncodeView)
+	XMLATTR_interpretation='interpretation'
+	XMLATTR_longInterpretation='longInterpretation'
+	XMLATTR_normalMaximum=('normalMaximum',xsi.DecodeFloat,xsi.EncodeFloat)
+	XMLATTR_normalMinimum=('normalMinimum',xsi.DecodeFloat,xsi.EncodeFloat)
+	XMLATTR_masteryValue=('masteryValue',xsi.DecodeFloat,xsi.EncodeFloat)
+	XMLCONTENT=xml.XMLElementContent
+
+	def __init__(self,parent):
+		QTIVariableDeclaration.__init__(self,parent)
+		self.view={}
+		self.interpretation=None
+		self.longInterpretation=None
+		self.normalMaximum=None
+		self.normalMinimum=None
+		self.masteryValue=None
+		self.lookupTable=None
+	
+	def QTIMatchTable(self):
+		child=QTIMatchTable(self)
+		self.lookupTable=child
+		return child
+	
+	def QTIInterpolationTable(self):
+		child=QTIInterpolationTable(self)
+		self.lookupTable=child
+		return child
+	
+	def GetChildren(self):
+		children=QTIVariableDeclaration.GetChildren(self)
+		xml.OptionalAppend(children,self.lookupTable)
+		return children
+	
+	def GotChildren(self):
+		self.parent.RegisterDeclaration(self)
+
+	
+			
 class QTIBodyElement(QTIElement):
 	"""Abstract class to represent elements within content.
 	
@@ -266,27 +515,17 @@ class QTIBodyElement(QTIElement):
 		<xsd:attribute name="label" type="string256.Type" use="optional"/>
 	</xsd:attributeGroup>
 	"""
+	XMLATTR_id=('id',ValidateIdentifier,lambda x:x)		
+	XMLATTR_label='label'
+	XMLATTR_class='styleClass'
+
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
 		self.id=None
 		self.styleClass=None
 		self.label=None
 	
-	def GetAttributes(self):
-		attrs=QTIElement.GetAttributes(self)
-		if self.id: attrs['id']=self.id
-		if self.styleClass: attrs['class']=self.styleClass
-		if self.label: attrs['label']=self.label
-		return attrs
 		
-	def Set_id(self,value):
-		self.id=ValidateIdentifier(value)
-		
-	def Set_class(self,value):
-		self.styleClass=value
-		
-	def Set_label(self,value):
-		self.label=value
 
 class QTIObjectFlowMixin: pass
 
@@ -359,41 +598,22 @@ class QTIRubricBlock(QTISimpleBlock):
 	</xsd:group>
 	"""
 	XMLNAME=(IMSQTI_NAMESPACE,'rubricBlock')
+	XMLATTR_view=('view',DecodeView,EncodeView)
 	XMLCONTENT=xmlns.XMLElementContent
 
-	QTI_VIEWS={
-		"author":'author',
-		"candidate":'candidate',
-		"proctor":'proctor',
-		"scorer":'scorer',
-		"testconstructor":'testConstructor',
-		"tutor":'tutor'		
-		}
-		
 	def __init__(self,parent):
 		QTISimpleBlock.__init__(self,parent)
 		self.view={}
 	
-	def GetAttributes(self):
-		attrs=QTISimpleBlock.GetAttributes(self)
-		viewpoints=self.view.keys()
-		viewpoints.sort()
-		attrs['view']=string.join(viewpoints,' ')
-		return attrs
-		
-	def Set_view(self,value):
-		self.view={}
-		viewpoints=value.split()
-		for view in viewpoints:
-			self.AddView(view)
-	
 	def AddView(self,view):
-		view=view.strip()
-		value=QTIRubricBlock.QTI_VIEWS.get(view.lower(),'')
-		if value:
-			self.view[value]=1
+		if type(view) in StringTypes:
+			view=QTIView.DecodeView(view.strip())
+		viewValue=QTIView.EncodeView(view)
+		if viewValue:	
+			self.view[view]=viewValue
 		else:
 			raise ValueError("illegal value for view: %s"%view)
+
 
 #
 #	INTERACTIONS
@@ -406,18 +626,12 @@ class QTIInteraction(QTIBodyElement):
 		<xsd:attribute name="responseIdentifier" type="identifier.Type" use="required"/>
 	</xsd:attributeGroup>
 	"""
+	XMLATTR_responseIdentifier=('responseIdentifier',ValidateIdentifier,lambda x:x)
+
 	def __init__(self,parent):
 		QTIBodyElement.__init__(self,parent)
 		self.responseIdentifier=''
 	
-	def Set_responseIdentifier(self,value):
-		self.responseIdentifier=ValidateIdentifier(value)
-
-	def GetAttributes(self):
-		attrs=QTIBodyElement.GetAttributes(self)
-		attrs['responseIdentifier']=self.responseIdentifier
-		return attrs
-
 
 class QTIInlineInteration(QTIInteraction,html.XHTMLInlineMixin):
 	"""Abstract class for interactions that are treated as inline."""
@@ -472,32 +686,17 @@ class QTIChoice(QTIBodyElement):
 		<xsd:attribute name="showHide" type="showHide.Type" use="optional"/>
 	</xsd:attributeGroup>
 	"""
+	XMLATTR_fixed=('fixed',xsi.DecodeBoolean,xsi.EncodeBoolean)
+	XMLATTR_identifier=('identifier',ValidateIdentifier,lambda x:x)
+	XMLATTR_showHide=('showHide',DecodeShowHide,EncodeShowHide)
+	XMLATTR_templateIdentifier=('templateIdentifier',ValidateIdentifier,lambda x:x)
+	
 	def __init__(self,parent):
 		QTIBodyElement.__init__(self,parent)
 		self.identifier=''
 		self.fixed=None
 		self.templateIdentifier=None
 		self.showHide=None
-	
-	def Set_identifier(self,value):
-		self.identifier=ValidateIdentifier(value)
-	
-	def Set_fixed(self,value):
-		self.fixed=xsi.DecodeBoolean(value)
-	
-	def Set_templateIdentifier(self,value):
-		self.templateIdentifier=ValidateIdentifier(value)
-	
-	def Set_showHide(self,value):
-		self.showHide=DecodeShowHide(value)
-	
-	def GetAttributes(self):
-		attrs=QTIBodyElement.GetAttributes(self)
-		attrs['identifier']=self.identifier
-		if self.fixed is not None: attrs['fixed']=xsi.EncodeBoolean(self.fixed)
-		if self.templateIdentifier: attrs['templateIdentifier']=self.templateIdentifier
-		if self.showHide is not None: attrs['showHide']=EncodeShowHide(self.showHide)
-		return attrs
 
 
 class QTIAssociableChoice(QTIChoice):
@@ -512,18 +711,12 @@ class QTIAssociableChoice(QTIChoice):
 		</xsd:attribute>
 	</xsd:attributeGroup>
 	"""
+	XMLATTR_matchGroup=('matchGroup',ValidateIdentifier,lambda x:x)
+	
 	def __init__(self,parent):
 		QTIChoice.__init__(self,parent)
 		self.matchGroup=[]
 	
-	def Set_matchGroup(self,value):
-		self.matchGroup=map(ValidateIdentifier,value.split())
-	
-	def GetAttributes(self):
-		attrs=QTIChoice.GetAttributes(self)
-		if self.matchGroup: attrs['matchGroup']=string.join(self.matchGroup,' ')
-		return attrs
-
 
 #
 #		SIMPLE INTERACTIONS
@@ -547,6 +740,9 @@ class QTIChoiceInteraction(QTIBlockInteraction):
 	</xsd:group>
 	"""
 	XMLNAME=(IMSQTI_NAMESPACE,'choiceInteraction')
+	XMLATTR_maxChoices=('maxChoices',xsi.DecodeInteger,xsi.EncodeInteger)	
+	XMLATTR_minChoices=('minChoices',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_shuffle=('shuffle',xsi.DecodeBoolean,xsi.EncodeBoolean)
 	XMLCONTENT=xmlns.XMLElementContent
 
 	def __init__(self,parent):
@@ -556,23 +752,6 @@ class QTIChoiceInteraction(QTIBlockInteraction):
 		self.minChoices=None
 		self.QTISimpleChoice=[]
 		
-	def Set_shuffle(self,value):
-		self.shuffle=xsi.DecodeBoolean(value)
-	
-	def Set_maxChoices(self,value):
-		self.maxChoices=xsi.DecodeInteger(value)
-	
-	def Set_minChoices(self,value):
-		self.minChoices=xsi.DecodeInteger(value)
-	
-	def GetAttributes(self):
-		attrs=QTIBlockInteraction.GetAttributes(self)
-		attrs['shuffle']=xsi.EncodeBoolean(self.shuffle)
-		attrs['maxChoices']=xsi.EncodeInteger(self.maxChoices)
-		if self.minChoices is not None:
-			attrs['minChoices']=xsi.EncodeInteger(self.minChoices)
-		return attrs
-
 	def GetChildren(self):
 		return QTIBlockInteraction.GetChildren(self)+self.QTISimpleChoice
 		
@@ -595,8 +774,474 @@ class QTISimpleChoice(QTIChoice):
 		else:
 			# This child cannot go in here
 			raise QTIValidityError("%s in %s"%(repr(name),self.__class__.__name__))		
+
+#
+#	RESPONSE PROCESSING
+#
+
+#
+#		Generalized Response Processing
+#
+class QTIResponseProcessing(QTIElement):
+	"""Represents the responseProcessing element.
+
+	<xsd:attributeGroup name="responseProcessing.AttrGroup">
+		<xsd:attribute name="template" type="uri.Type" use="optional"/>
+		<xsd:attribute name="templateLocation" type="uri.Type" use="optional"/>
+	</xsd:attributeGroup>
 	
+	<xsd:group name="responseProcessing.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="responseRule.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'responseProcessing')
+	XMLATTR_template='template'
+	XMLATTR_templateLocation='templateLocation'
+	XMLCONTENT=xmlns.XMLElementContent
+
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.template=None
+		self.templateLocation=None
+		self.QTIResponseRule=[]
+		
+	def GetChildren(self):
+		return self.QTIResponseRule+QTIElement.GetChildren(self)
+
+
+class QTIResponseRule(QTIElement):
+	"""Abstract class to represent response rules."""
+	pass
+
+
+class QTIResponseCondition(QTIResponseRule):
+	"""Represents responseRule element.
+
+	<xsd:group name="responseCondition.ContentGroup">
+		<xsd:sequence>
+			<xsd:element ref="responseIf" minOccurs="1" maxOccurs="1"/>
+			<xsd:element ref="responseElseIf" minOccurs="0" maxOccurs="unbounded"/>
+			<xsd:element ref="responseElse" minOccurs="0" maxOccurs="1"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'responseCondition')
+	XMLCONTENT=xmlns.XMLElementContent
+
+	def __init__(self,parent):
+		QTIResponseRule.__init__(self,parent)
+		self.QTIResponseIf=QTIResponseIf(self)
+		self.QTIResponseElseIf=[]
+		self.QTIResponseElse=None
 	
+	def GetChildren(self):
+		children=[self.QTIResponseIf]+self.QTIResponseElseIf
+		xml.OptionalAppend(children,self.QTIResponseElse)
+		return children
+	
+
+class QTIResponseIf(QTIElement):
+	"""Represents the responseIf element.
+
+	<xsd:group name="responseIf.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+			<xsd:group ref="responseRule.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'responseIf')
+	XMLCONTENT=xmlns.XMLElementContent
+	
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.QTIExpression=None
+		self.QTIResponseRule=[]
+	
+	def GetChildren(self):
+		children=[]
+		xml.OptionalAppend(children,self.QTIExpression)
+		return children+self.QTIResponseRule
+
+	def WriteXML(self,writer,escapeFunction,indent,tab,nsList):
+		#import pdb;pdb.set_trace()
+		xmlns.XMLNSElement.WriteXML(self,writer,escapeFunction,indent,tab,nsList)
+
+class QTIResponseElse(QTIElement):
+	"""Represents the responseElse element.
+
+	<xsd:group name="responseElse.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="responseRule.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'responseElse')
+	XMLCONTENT=xmlns.XMLElementContent
+	
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.QTIResponseRule=[]
+	
+	def GetChildren(self):
+		return self.QTIResponseRule
+
+
+class QTISetOutcomeValue(QTIResponseRule):
+	"""Represents the setOutcomeValue element.
+
+	<xsd:attributeGroup name="setOutcomeValue.AttrGroup">
+		<xsd:attribute name="identifier" type="identifier.Type" use="required"/>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="setOutcomeValue.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'setOutcomeValue')
+	XMLATTR_identifier='identifier'
+	XMLCONTENT=xmlns.XMLElementContent
+
+	def __init__(self,parent):
+		QTIResponseRule.__init__(self,parent)
+		self.identifier=''
+		self.QTIExpression=None
+	
+	def GetChildren(self):
+		children=[]
+		xml.OptionalAppend(children,self.QTIExpression)
+		return children	
+
+	
+#
+#	EXPRESSIONS
+#
+class QTIExpression(QTIElement):
+	pass
+	
+
+#
+#		Built-in General Expressions
+#
+class QTIBaseValue(QTIExpression):
+	"""Represents the baseValue element.
+
+	<xsd:attributeGroup name="baseValue.AttrGroup">
+		<xsd:attribute name="baseType" type="baseType.Type" use="required"/>
+	</xsd:attributeGroup>
+	
+	<xsd:complexType name="baseValue.Type">
+		<xsd:simpleContent>
+			<xsd:extension base="xsd:string">
+				<xsd:attributeGroup ref="baseValue.AttrGroup"/>
+			</xsd:extension>
+		</xsd:simpleContent>
+	</xsd:complexType>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'baseValue')
+	XMLATTR_baseType=('baseType',DecodeBaseType,EncodeBaseType)
+	XMLCONTENT=xmlns.XMLMixedContent
+
+	def __init__(self,parent):
+		QTIExpression.__init__(self,parent)
+		self.baseType=QTIBaseType.string
+
+
+class QTIVariable(QTIExpression):
+	"""Represents a variable value look-up.
+
+	<xsd:attributeGroup name="variable.AttrGroup">
+		<xsd:attribute name="identifier" type="identifier.Type" use="required"/>
+		<xsd:attribute name="weightIdentifier" type="identifier.Type" use="optional"/>
+	</xsd:attributeGroup>
+	
+	<xsd:complexType name="variable.Type" mixed="false">
+		<xsd:attributeGroup ref="variable.AttrGroup"/>
+	</xsd:complexType>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'variable')
+	XMLATTR_identifier='identifier'
+	XMLATTR_weightIdentifier='weightIdentifier'
+	XMLCONTENT=xmlns.XMLEmpty
+	
+	def __init__(self,parent):
+		QTIExpression.__init__(self,parent)
+		self.identifier=''
+		self.weightIdentifier=''
+
+#
+#		Expressions Used only in Outcomes Processing
+#
+
+
+#
+#		Operators
+#
+class QTIExpressionList(QTIExpression):
+	"""An abstract class to help implement binary+ operators."""
+	XMLCONTENT=xmlns.XMLElementContent
+	
+	def __init__(self,parent):
+		QTIExpression.__init__(self,parent)
+		self.QTIExpression=[]
+	
+	def GetChildren(self):
+		return self.QTIExpression
+
+
+class QTIUnaryExpression(QTIExpression):
+	"""An abstract class to help implement unary operators."""
+	XMLCONTENT=xmlns.XMLElementContent
+	
+	def __init__(self,parent):
+		QTIExpression.__init__(self,parent)
+		self.QTIExpression=None
+	
+	def GetChildren(self):
+		if self.QTIExpression:
+			return [self.QTIExpression]
+		else:
+			return []
+
+
+class QTIMultiple(QTIExpressionList):
+	"""Represents the multiple operator.
+
+	<xsd:group name="multiple.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'multiple')
+
+		
+class QTIOrdered(QTIExpressionList):
+	"""Represents the ordered operator.
+
+	<xsd:group name="ordered.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'ordered')
+
+			
+class QTIContainerSize(QTIUnaryExpression):
+	"""Represents the containerSize operator.
+
+	<xsd:group name="containerSize.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'containerSize')
+
+			
+class QTIIsNull(QTIUnaryExpression):
+	"""Represents the isNull operator.
+
+	<xsd:group name="isNull.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'isNull')
+
+			
+class QTIIndex(QTIUnaryExpression):
+	"""Represents the index operator.
+
+	<xsd:attributeGroup name="index.AttrGroup">
+		<xsd:attribute name="n" type="integer.Type" use="required"/>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="index.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'index')
+	XMLATTR_n=('n',xsi.DecodeInteger,xsi.EncodeInteger)
+
+	def __init__(self,parent):
+		QTIUnaryExpression.__init__(self,parent)
+		self.n=None
+
+	
+class QTIFieldValue(QTIUnaryExpression):
+	"""Represents the fieldValue operator.
+
+	<xsd:attributeGroup name="fieldValue.AttrGroup">
+		<xsd:attribute name="fieldIdentifier" type="identifier.Type" use="required"/>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="fieldValue.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'fieldValue')
+	XMLATTR_fieldIdentifier=('fieldIdentifier',ValidateIdentifier,lambda x:x)
+
+	def __init__(self,parent):
+		QTIUnaryExpression.__init__(self,parent)
+		self.fieldIdentifier=''
+
+
+class QTIRandom(QTIUnaryExpression):
+	"""Represents the random operator.
+
+	<xsd:group name="random.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'random')
+
+				
+class QTIMember(QTIExpressionList):
+	"""Represents the member operator.
+
+	<xsd:group name="member.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'member')
+
+	
+class QTIDelete(QTIExpressionList):
+	"""Represents the delete operator.
+
+	<xsd:group name="delete.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'delete')
+
+
+class QTIContains(QTIExpressionList):
+	"""Represents the contains operator.
+
+	<xsd:group name="contains.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'contains')
+
+
+class QTISubstring(QTIExpressionList):
+	"""Represents the substring operator.
+
+	<xsd:attributeGroup name="substring.AttrGroup">
+		<xsd:attribute name="caseSensitive" type="boolean.Type" use="required"/>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="substring.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'substring')
+	XMLATTR_caseSensitive=('caseSensitive',xsi.DecodeBoolean,xsi.EncodeBoolean)
+
+	def __init__(self,parent):
+		QTIExpressionList.__init__(self,parent)
+		self.caseSensitive=True
+
+
+class QTINot(QTIUnaryExpression):
+	"""Represents the not operator.
+
+	<xsd:group name="not.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'not')
+
+				
+class QTIAnd(QTIExpressionList):
+	"""Represents the and operator.
+
+	<xsd:group name="and.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'and')
+
+
+class QTIOr(QTIExpressionList):
+	"""Represents the or operator.
+
+	<xsd:group name="or.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'or')
+
+
+class QTIAnyN(QTIExpressionList):
+	"""Represents the anyN operator.
+
+	<xsd:attributeGroup name="anyN.AttrGroup">
+		<xsd:attribute name="min" type="integerOrTemplateRef.Type" use="required"/>
+		<xsd:attribute name="max" type="integerOrTemplateRef.Type" use="required"/>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="anyN.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'anyN')
+	XMLATTR_min='min'
+	XMLATTR_max='max'
+
+	def __init__(self,parent):
+		QTIExpressionList.__init__(self,parent)
+		self.min=''
+		self.max=''
+
+
+class QTIMatch(QTIExpressionList):
+	"""Represents the match operator.
+
+	<xsd:group name="match.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'match')
+
+	
+#
+#	METADATA
+#
 class QTIMetadata(QTIElement):
 	"""Represents the qtiMetadata element used in content packages.
 	

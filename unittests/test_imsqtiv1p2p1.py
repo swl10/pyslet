@@ -151,8 +151,10 @@ class QTIV2ConversionTests(unittest.TestCase):
 				fPath=f.PackagePath(cp2)
 				qtiDoc=qtiv2.QTIDocument(baseURI='file://'+urllib.pathname2url(os.path.join(self.cp.dPath,fPath)))
 				qtiDoc.Read()
+				#print str(qtiDoc)
 				qtiDoc2=qtiv2.QTIDocument(baseURI='file://'+urllib.pathname2url(os.path.join(cp2.dPath,fPath)))
 				qtiDoc2.Read()
+				#print str(qtiDoc2)
 				output=qtiDoc.DiffString(qtiDoc2)
 				self.failUnless(qtiDoc.root==qtiDoc2.root,"Files differ at %s\n%s"%(fPath,output))	
 

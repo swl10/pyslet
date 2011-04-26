@@ -74,7 +74,9 @@ class QTIDocumentTests(unittest.TestCase):
 		doc=QTIDocument()
 		doc.Read(src=StringIO(EXAMPLE_2))
 		vardefs=doc.root.declarations
-		self.failUnless(len(vardefs.keys())==1 and isinstance(vardefs['RESPONSE'],QTIResponseDeclaration))
+		self.failUnless(len(vardefs.keys())==2)
+		self.failUnless(isinstance(vardefs['RESPONSE'],QTIResponseDeclaration))
+		self.failUnless(isinstance(vardefs['SCORE'],QTIOutcomeDeclaration))
 	
 
 if __name__ == "__main__":

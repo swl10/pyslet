@@ -27,6 +27,7 @@ class XMLError(Exception): pass
 class XMLFatalError(XMLError): pass
 class XMLCommentError(XMLFatalError): pass
 
+class XMLAttributeSetter(XMLError): pass
 class XMLContentTypeError(XMLError): pass
 class XMLIDClashError(XMLError): pass
 class XMLIDValueError(XMLError): pass
@@ -747,15 +748,67 @@ class XMLElement:
 		attrs=copy(self._attrs)
 		if self.id:
 			attrs[self.__class__.ID]=self.id
+		for a in dir(self.__class__):
+			if a.startswith('XMLATTR_'):
+				setter=getattr(self.__class__,a)
+				if type(setter) in StringTypes:
+					# use simple attribute assignment
+					name,encode=setter,lambda x:x
+				elif type(setter) is TupleType:
+					name,decode,encode=setter
+				else:
+					raise XMLAttributeSetter("setting %s attribute of %s"%(name,self.__class__.__name__))				
+				value=getattr(self,name,None)
+				if type(value) is ListType:
+					value=string.join(map(encode,value),' ')
+				elif type(value) is DictType:
+					value=map(encode,value.keys())
+					value.sort()
+					value=string.join(value,' ')
+				elif value is not None:
+					value=encode(value)
+				if value:
+					attrs[a[8:]]=value
 		return attrs
 
 	def SetAttribute(self,name,value):
 		"""Sets the value of an attribute.
 		
-		The attribute name is assumed to be a string or unicode string.  The
-		default implementation checks for a custom setter and calls it if
-		defined and does no further processing.  A custom setter is a method of
-		the form Set_aname.
+		The attribute name is assumed to be a string or unicode string.
+		
+		The default implementation checks for a custom setter which can be defined
+		in one of three ways.
+		
+		(1) For simple assignement of the string value to an attribute of the
+		instance just add an attribute to the class of the form
+		XMLATTR_xmlname='member' where 'xmlname' is the attribute name used in
+		the XML tag and 'member' is the attribute name to use in the instance.
+
+		(2) More complex attributes can be handled by setting XMLATTR_xmlname to
+		a tuple of ('member',decodeFunction,encodeFunction) where the
+		decodeFunction is a simple function that take a string argument and
+		returns the decoded value of the attribute, the encodeFunction performs
+		the reverse transformation.
+		
+		In cases (1) and (2), once the member name has been determined the
+		existing value of the member is used to determine how to set the value:
+		
+		List: split the value by whitespace and assign list of decoded values
+
+		Dict: split the value by whitespace and create a mapping from decoded
+		values to the original text used to represent it in the attribute.		
+
+		Any other type: the member is set to the decoded value
+		
+		A values of None or a missing member is as treated as for 'any other type'.
+		
+		(3) Finally, if the *instance* has a method called Set_xmlname then that
+		is called with the value.
+		
+		In the first two cases, GetAttributes will handle the generation of the
+		attribute automatically, in the third case you must override the
+		GetAttributes method to set the attributes appropriately during
+		serialization back to XML.
 		
 		XML attribute names may contain many characters that are not legal in
 		Python method names but, in practice, the only significant limitation is
@@ -766,15 +819,33 @@ class XMLElement:
 		the GetAttributes method.  Additionally, if the class has an ID
 		attribute it is used as the name of the attribute that represents the
 		element's ID.  ID handling is performed automatically at document level
-		and the element's 'id' attribute set accordingly."""
-		setter=getattr(self,"Set_"+name,None)
+		and the element's 'id' attribute is set accordingly."""
+		setter=getattr(self,"XMLATTR_"+name,None)
 		if setter is None:
-			if hasattr(self.__class__,'ID') and name==self.__class__.ID:
-				self.SetID(value)
+			setter=getattr(self,"Set_"+name,None)
+			if setter is None:
+				if hasattr(self.__class__,'ID') and name==self.__class__.ID:
+					self.SetID(value)
+				else:
+					self._attrs[name]=value
 			else:
-				self._attrs[name]=value
+				setter(value)
 		else:
-			setter(value)
+			if type(setter) in StringTypes:
+				# use simple attribute assignment
+				name,decode=setter,lambda x:x
+			elif type(setter) is TupleType:
+				name,decode,encode=setter
+			else:
+				raise XMLAttributeSetter("setting %s attribute of %s"%(name,self.__class__.__name__))
+			x=getattr(self,name,None)
+			if type(x) is ListType:
+				setattr(self,name,map(decode,value.split()))
+			elif type(x) is DictType:
+				value=value.split()
+				setattr(self,name,dict(zip(map(decode,value),value)))
+			else:
+				setattr(self,name,decode(value))
 	
 	def IsValidName(self,value):
 		return IsValidName(value)
@@ -815,6 +886,16 @@ class XMLElement:
 		XMLElement (or a derived class thereof)"""
 		return copy(self._children)
 
+	def _FindFactory(self,childClass):
+		if hasattr(self,childClass.__name__):
+			return childClass.__name__
+		else:
+			for parent in childClass.__bases__:
+				fName=self._FindFactory(parent)
+				if fName:
+					return fName
+			return None
+				
 	def ChildElement(self,childClass,name=None):
 		"""Returns a new child of the given class attached to this element.
 		
@@ -837,21 +918,28 @@ class XMLElement:
 		childClass (required child, no new child is created, existing instance
 		returned).
 		
+		When no custom factory method is found the class hierarchy is also searched
+		enabling generic members/methods to be used to hold similar objects.
+		
 		If no custom factory method is defined then the default processing
 		simply creates an instance of child (if necessary) and attaches it to
 		the local list of children."""
 		if self.IsEmpty():
 			self.ValidationError("Unexpected child element",name)
-		if hasattr(self,childClass.__name__):
-			factory=getattr(self,childClass.__name__)
+		factoryName=self._FindFactory(childClass)
+		if factoryName:
+			factory=getattr(self,factoryName)
 			if type(factory) is MethodType:
-				child=factory()
+				if factoryName!=childClass.__name__:
+					child=factory(childClass)
+				else:
+					child=factory()
 				if name:
 					child.SetXMLName(name)
 				return child
 			elif type(factory) is NoneType:
 				child=childClass(self)
-				setattr(self,childClass.__name__,child)
+				setattr(self,factoryName,child)
 			elif type(factory) is ListType:
 				child=childClass(self)
 				factory.append(child)
@@ -884,6 +972,7 @@ class XMLElement:
 		
 		If no custom adoption method or custom factory exists and the element is
 		not empty then the child is added to the local list of children."""
+		print "Adoption deprecated!"
 		if child.parent:
 			raise XMLParentError
 		elif self.IsEmpty():
@@ -1240,7 +1329,7 @@ class XMLElement:
 		self.SortNames(keys)
 		for a in keys:
 			attributes.append(u'%s=%s'%(a,escapeFunction(attrs[a],True)))
-		
+				
 	def WriteXML(self,writer,escapeFunction=EscapeCharData,indent='',tab='\t'):
 		if tab:
 			ws='\n'+indent

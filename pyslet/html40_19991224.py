@@ -4,7 +4,8 @@ import pyslet.xml20081126 as xml
 import pyslet.xmlnames20091208 as xmlns
 
 import htmlentitydefs
-
+import string
+from types import *
 
 HTML40_PUBLICID="-//W3C//DTD HTML 4.01//EN"
 XHTML_NAMESPACE="http://www.w3.org/1999/xhtml"
@@ -35,7 +36,16 @@ class XHTMLElement(xmlns.XMLNSElement):
 	def Set_title(self,value):
 		self.title=value
 		
-
+	def RenderText(self):
+		output=[]
+		children=self.GetChildren()
+		for child in children:
+			if type(child) in StringTypes:
+				output.append(child)
+			else:
+				output.append(child.RenderText())
+		return string.join(output,'')
+		
 
 class XHTMLFlowMixin:
 	# <!ENTITY % flow "%block; | %inline;">

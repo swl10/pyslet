@@ -67,7 +67,10 @@ Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, i
 Warning: itemcontrol is currently outside the scope of version 2
 Warning: changing view Administrator to proctor
 Warning: rubric with view="All" replaced by &lt;div&gt; with class="rubric"
-Warning: discarding absolute positioning information on presentation</imsmd:langstring>
+Warning: discarding absolute positioning information on presentation
+Warning: view restriction on outcome interpretation no longer supported (Candidate)
+Warning: view restriction on outcome interpretation no longer supported (Tutor)
+Warning: case-insensitive comparison of identifiers not supported in version 2</imsmd:langstring>
 						</imsmd:description>						
 					</imsmd:annotation>
 				</imsmd:lom>

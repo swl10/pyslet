@@ -40,4 +40,26 @@ def DecodeInteger(src):
 		return None
 
 def EncodeInteger(value):
-	return "%i"%value
+	return unicode(value)
+
+
+def DecodeFloat(src):
+	try:
+		return float(src)
+	except:
+		return None
+
+def EncodeFloat(value):
+	return unicode(value)
+
+
+def MakeEnumeration(e):
+	"""Adds convenience attributes to the class 'e'
+	
+	This function assumes that e has an attribute 'decode' that is a dictionary
+	which maps strings onto enumeration values.  This function creates the reverse
+	mapping called 'encode' and also defines constant attribute values that are
+	equivalent to the keys of decode and can be used in code in the form e.key."""
+	setattr(e,'encode',dict(zip(e.decode.values(),e.decode.keys())))
+	map(lambda x:setattr(e,x,e.decode[x]),e.decode.keys())
+

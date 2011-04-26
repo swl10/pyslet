@@ -56,10 +56,9 @@ class XMLNSElement(XMLElement):
 		Overrides the default behaviour by accepting a (ns,name) tuple
 		in addition to a plain string/unicode string name.
 		
-		Custom setters are called for attributes with no namespace, or
-		a namespace matching the current element's namespace.  Also,
-		XML namespace generates custom setter calls of the form Set_xml_aname
-		for compatibility with the default implementation.
+		Custom setters are called using the inherited behaviour only for attributes
+		with no namespace.  Also, XML namespace generates custom setter calls of the
+		form Set_xml_aname for compatibility with the default implementation.
 		
 		Custom setter cannot be defined for attriubtes from other namespaces,
 		these are subjet to default processing defined by XMLElement's
@@ -69,19 +68,16 @@ class XMLNSElement(XMLElement):
 			aname=name
 		else:
 			ns,aname=name
-		if ns is None or ns==self.ns:
-			setter=getattr(self,"Set_"+aname,None)
+		if ns is None:
+			if getattr(self,"XMLATTR_"+aname,False) or getattr(self,"Set_"+aname,False):
+				return XMLElement.SetAttribute(self,aname,value)				
 		elif ns==XML_NAMESPACE:
-			setter=getattr(self,"Set_xml_"+aname,None)
+			if getattr(self,"Set_xml_"+aname,False):
+				return XMLElement.SetAttribute(self,'xml_'+aname,value)		
+		if hasattr(self.__class__,'ID') and name==self.__class__.ID:
+			self.SetID(value)
 		else:
-			setter=None
-		if setter is None:
-			if hasattr(self.__class__,'ID') and name==self.__class__.ID:
-				self.SetID(value)
-			else:
-				self._attrs[name]=value
-		else:
-			setter(value)
+			self._attrs[name]=value
 
 	def IsValidName(self,value):
 		return IsValidNCName(value)

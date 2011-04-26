@@ -31,15 +31,48 @@ from pyslet.xml20081126 import *
 class NamedElement(XMLElement):
 	XMLNAME="test"
 
+def DecodeYN(value):
+	return value=='Yes'
+	
+def EncodeYN(value):
+	if value:
+		return 'Yes'
+	else:
+		return 'No'
+
+
+class GenericElementA(XMLElement):
+	pass
+
+class GenericSubclassA(GenericElementA):
+	pass
+
+class GenericElementB(XMLElement):
+	pass
+
+class GenericSubclassB(GenericElementB):
+	pass
+
 
 class ReflectiveElement(XMLElement):
 	XMLNAME="reflection"
 	
+	XMLATTR_btest='bTest'
+	XMLATTR_ctest=('cTest',DecodeYN,EncodeYN)
+	XMLATTR_dtest=('dTest',DecodeYN,EncodeYN)
+	XMLATTR_etest=('eTest',DecodeYN,EncodeYN)
+	
 	def __init__(self,parent):
 		XMLElement.__init__(self,parent)
 		self.atest=None
+		self.bTest=None
+		self.cTest=None
+		self.dTest=[]
+		self.eTest={}
 		self.child=None
-	
+		self.generics=[]
+		self.GenericElementB=None
+		
 	def GetAttributes(self):
 		attrs=XMLElement.GetAttributes(self)
 		if self.atest:
@@ -63,14 +96,11 @@ class ReflectiveElement(XMLElement):
 			self.child=e
 			return e
 
-	def Adopt_ReflectiveElement(self,child):
-		if self.child:
-			raise XMLParentError
-		else:
-			child.parent=self
-			child.AttachToDocument()
-			self.child=child
-
+	def GenericElementA(self,childClass=GenericElementA):
+		child=childClass(self)
+		self.generics.append(child)
+		return child
+		
 
 class ReflectiveDocument(XMLDocument):
 	def GetElementClass(self,name):
@@ -395,21 +425,30 @@ class XMLElementTests(unittest.TestCase):
 		e.SetAttribute('atest','value')
 		self.failUnless(e.atest=='value',"Attribute relfection")
 		attrs=e.GetAttributes()
-		self.failUnless(len(attrs.keys())==1,"Attribute not set")
 		self.failUnless(attrs['atest']=='value',"Attribute not set correctly")
-
+		e.SetAttribute('btest','Yes')
+		self.failUnless(e.bTest=='Yes',"Attribute relfection with simple assignment")
+		attrs=e.GetAttributes()
+		self.failUnless(attrs['btest']=='Yes',"Attribute not set correctly")
+		e.SetAttribute('ctest','Yes')
+		self.failUnless(e.cTest==True,"Attribute relfection with decode/encode")
+		attrs=e.GetAttributes()
+		self.failUnless(attrs['ctest']=='Yes',"Attribute not set correctly")
+		e.SetAttribute('dtest','Yes No')
+		self.failUnless(e.dTest==[True,False],"Attribute relfection with list")
+		attrs=e.GetAttributes()
+		self.failUnless(attrs['dtest']=='Yes No',"Attribute not set correctly")
+		e.SetAttribute('etest','Yes No')
+		self.failUnless(e.eTest=={True:'Yes',False:'No'},"Attribute relfection with list")
+		attrs=e.GetAttributes()
+		self.failUnless(attrs['etest']=='No Yes',"Attribute not set correctly")
+				
 	def testChildElements(self):
 		"""Test child element behaviour"""
 		e=XMLElement(None,'test')
 		child1=e.ChildElement(XMLElement,'test1')
 		children=e.GetChildren()
 		self.failUnless(len(children)==1,"ChildElement failed to add child element")
-		# Create an orphan
-		child2=XMLElement(None,'test2')
-		e.AdoptChild(child2)
-		children=e.GetChildren()
-		self.failUnless(len(children)==2,"AdoptChild failed to add second child")
-		self.failUnless(children[1] is child2,"Orphan not attached")
 	
 	def testChildElementReflection(self):
 		"""Test child element cases using reflection"""
@@ -421,9 +460,12 @@ class XMLElementTests(unittest.TestCase):
 		# Now create a second child, should return the same one due to model restriction
 		child2=e.ChildElement(ReflectiveElement,'test1')
 		self.failUnless(e.child is child1 and child2 is child1,"Element model violated")
-		child3=ReflectiveElement(None)
-		child1.AdoptChild(child3)
-		self.failUnless(child1.child is child3 and child3.parent is child1,"Bad parenting in adoption-reflection")
+		child3=e.ChildElement(GenericElementA,'test3')
+		self.failUnless(e.generics[0] is child3,"Generic element")
+		child4=e.ChildElement(GenericSubclassA,'test4')
+		self.failUnless(e.generics[1] is child4,"Generic sub-class element via method")
+		child5=e.ChildElement(GenericSubclassB,'test5')
+		self.failUnless(e.GenericElementB is child5,"Generic sub-class element via member")
 		
 	def testData(self):
 		e=XMLElement(None)
@@ -504,22 +546,6 @@ class XMLDocumentTests(unittest.TestCase):
 		self.failUnless(isinstance(d.root,XMLElement),'root not created on construction')
 		self.failUnless(d.root.GetDocument() is d,'root not linked to document')
 	
-	def testCaseAttach(self):
-		d=XMLDocument(root=XMLElement)
-		root=d.root
-		id1=IDElement(None)
-		id1.SetAttribute('id','e1')
-		root.AdoptChild(id1)
-		self.failUnless(id1.GetDocument() is d,'id1 not linked to document')
-		self.failUnless(d.GetElementByID('e1') is id1,'id1 not id registered')
-		id2=IDElement(None)
-		id2.SetAttribute('id','e1')
-		try:
-			root.AdoptChild(id2)
-			self.fail("id2 failed to trigger ID error")
-		except XMLIDClashError:
-			pass
-		
 	def testCaseBase(self):
 		"""Test the use of a file path on construction"""
 		fpath=os.path.abspath('fpath.xml')

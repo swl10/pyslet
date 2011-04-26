@@ -49,7 +49,7 @@
                     <mattext label="French" texttype="text/plain">Bonjour</mattext>
                     <mattext texttype="text/html"><![CDATA[ hello from <em>html4</em>&nbsp;!]]></mattext>
                 </material>
-                <response_lid ident="R1">
+                <response_lid ident="R1" rcardinality="Multiple">
                     <material>
                         <mattext texttype="text/plain">Prompt: response_lid x </mattext>
                     </material>
@@ -73,5 +73,29 @@
                 </response_lid>
             </flow>
         </presentation>
+        <resprocessing>
+            <outcomes>
+                <qticomment>Ignored</qticomment>
+                <decvar varname="SCORE" vartype="Integer" cutvalue="5" maxvalue="10" minvalue="0" defaultval="3"/>
+                <interpretvar varname="SCORE" view="Candidate">
+                    <material>
+                        <mattext texttype="text/plain">Your SCORE on this question.</mattext>
+                    </material>
+                </interpretvar>
+                <interpretvar varname="SCORE" view="Tutor">
+                    <material><mattext texttype="text/html"><![CDATA[SCORE measures Candidate's <i>ability</i>.]]></mattext></material>
+                </interpretvar>
+            </outcomes>
+            <respcondition continue="No">
+                <qticomment>Ignored</qticomment>
+                <conditionvar><varequal respident="R1">R1A</varequal></conditionvar>
+                <setvar varname="SCORE" action="Set">8</setvar>
+            </respcondition>
+            <respcondition continue="Yes">
+                <conditionvar><varequal respident="R1">R1B</varequal></conditionvar>
+                <setvar varname="SCORE" action="Set">1</setvar>
+            </respcondition>            
+        </resprocessing>
+        
     </item>
 </questestinterop>

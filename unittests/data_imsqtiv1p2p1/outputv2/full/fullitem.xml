@@ -4,7 +4,12 @@
     xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
     identifier="fullitem" title="Title: Full Item" label="Label: Full Item" xml:lang="en-GB"
     adaptive="false" timeDependent="false">
-    <!--<responseDeclaration identifier="R1A" cardinality="multiple" baseType="identifier"/>-->
+    <responseDeclaration identifier="R1" cardinality="multiple" baseType="identifier"/>
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer" masteryValue="5" interpretation="Your SCORE on this question.; SCORE measures Candidate's ability.">
+        <defaultValue>
+            <value>3</value>
+        </defaultValue>
+    </outcomeDeclaration>
     <itemBody>
         <rubricBlock view="author">
             <p>Objectives for fullitem</p>
@@ -19,4 +24,30 @@
             <simpleChoice identifier="R1B" fixed="true">Plain text choice</simpleChoice>
         </choiceInteraction></div>
     </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <member>
+                    <baseValue baseType="identifier">R1A</baseValue>
+                    <variable identifier="R1"/>
+                </member>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="integer">8</baseValue>
+                </setOutcomeValue>
+            </responseIf>
+            <responseElse>
+                <responseCondition>
+                    <responseIf>
+                        <member>
+                            <baseValue baseType="identifier">R1B</baseValue>
+                            <variable identifier="R1"/>
+                        </member>
+                        <setOutcomeValue identifier="SCORE">
+                            <baseValue baseType="integer">1</baseValue>
+                        </setOutcomeValue>                        
+                    </responseIf>
+                </responseCondition>     
+            </responseElse>
+        </responseCondition>
+    </responseProcessing>
 </assessmentItem>
