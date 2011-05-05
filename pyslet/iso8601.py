@@ -1204,7 +1204,7 @@ class TimePoint:
 		return self.date.GetCalendarDay()+self.time.GetTime()
 		
 	def SetCalendarTimePoint(self,century,year,month,day,hour,minute,second,baseDate=None):
-		self.date.SetCalendarDay(century,year,ordinalDay,baseDate)
+		self.date.SetCalendarDay(century,year,month,day,baseDate)
 		self.time.SetTime(hour,minute,second)
 		self.CheckTimePoint()
 	

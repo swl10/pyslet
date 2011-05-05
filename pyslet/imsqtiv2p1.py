@@ -865,9 +865,6 @@ class QTIResponseIf(QTIElement):
 		xml.OptionalAppend(children,self.QTIExpression)
 		return children+self.QTIResponseRule
 
-	def WriteXML(self,writer,escapeFunction,indent,tab,nsList):
-		#import pdb;pdb.set_trace()
-		xmlns.XMLNSElement.WriteXML(self,writer,escapeFunction,indent,tab,nsList)
 
 class QTIResponseElse(QTIElement):
 	"""Represents the responseElse element.
@@ -887,6 +884,20 @@ class QTIResponseElse(QTIElement):
 	
 	def GetChildren(self):
 		return self.QTIResponseRule
+
+
+class QTIResponseElseIf(QTIResponseIf):
+	"""Represents the responseElseIf element.
+
+	<xsd:group name="responseElseIf.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+			<xsd:group ref="responseRule.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'responseElseIf')
+
 
 
 class QTISetOutcomeValue(QTIResponseRule):

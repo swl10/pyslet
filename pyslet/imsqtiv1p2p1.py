@@ -1287,15 +1287,15 @@ class QTIVarEqual(QTIElement,QTIExpressionMixin):
 			if d.baseType==qtiv2.QTIBaseType.identifier or qtiv2.QTIBaseType.pair:
 				if not self.case:
 					log.append("Warning: case-insensitive comparison of identifiers not supported in version 2")
-				expression=parent.ChildElement(QTIMatch)
+				expression=parent.ChildElement(qtiv2.QTIMatch)
 			elif d.baseType==qtiv2.QTIBaseType.integer:
-				expression=parent.ChildElement(QTIMatch)
+				expression=parent.ChildElement(qtiv2.QTIMatch)
 			elif d.baseType==qtiv2.QTIBaseType.string:
-				expression=parent.ChildElement(QTIStringMatch)
+				expression=parent.ChildElement(qtiv2.QTIStringMatch)
 				expression.caseSensitive=self.case
 			elif d.baseType==qtiv2.QTIBaseType.float:
 				log.append("Warning: equality operator with float values is deprecated")
-				expression=parent.ChildElement(QTIEqual)
+				expression=parent.ChildElement(qtiv2.QTIEqual)
 			else:
 				raise QTIUnimplementedOperator("varequal(%s)"%qtiv2.QTIBaseType.Encode(d.baseType))
 			self.MigrateV2Variable(d,expression,log)
@@ -2519,7 +2519,7 @@ class QTIFlow(QTIFlowContainer):
 	def IsInline(self):
 		"""flow is always treated as a block if flowClass is specified, otherwise
 		it is treated as a block unless it is an only child."""
-		if len(self.parent.contentChildren)==1 and self.flowClass is None:
+		if self.flowClass is None:
 			return self.InlineChildren()
 		else:
 			return False
@@ -2527,21 +2527,14 @@ class QTIFlow(QTIFlowContainer):
 	def MigrateV2Content(self,parent,log):
 		"""flow typically maps to a div element.
 		
-		If the presentation only contains inline items then we create
-		a paragraph to hold them."""
-		if len(self.parent.contentChildren)==1 and self.flowClass is None:
-			QTIFlowContainer.MigrateV2Content(self,parent,log)
-		else:
-			if self.flowClass is not None:
-				div=parent.ChildElement(html.XHTMLDiv,(qtiv2.IMSQTI_NAMESPACE,'div'))
-				div.styleClass=self.flowClass
-				parent=div
-			if self.InlineChildren():
-				p=parent.ChildElement(html.XHTMLP,(qtiv2.IMSQTI_NAMESPACE,'p'))
-				QTIFlowContainer.MigrateV2Content(self,p,log)
-			else:
-				# we don't generate classless divs
-				QTIFlowContainer.MigrateV2Content(self,itemBody,log)
+		A flow with a specified class always becomes a div
+		A flow with inline children generates a paragraph to hold them
+		A flow with no class is ignored."""
+		if self.flowClass is not None:
+			div=parent.ChildElement(html.XHTMLDiv,(qtiv2.IMSQTI_NAMESPACE,'div'))
+			div.styleClass=self.flowClass
+			parent=div
+		self.MigrateV2ContentMixture(self.contentChildren,parent,log)
 			
 
 class QTIResponseLId(QTIElement,QTIContentMixin):
