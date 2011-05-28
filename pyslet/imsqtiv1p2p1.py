@@ -3496,8 +3496,10 @@ class QTIDocument(xml.XMLDocument):
 						description=annotation.ChildElement(imsmd.LOMDescription)
 						description.LangString(annotationMsg)
 					doc.AddToContentPackage(cp,metadata,dName)
+				cp.manifest.Update()
+			return results
 		else:
-			pass
+			return []
 
 xml.MapClassElements(QTIDocument.classMap,globals())
 		

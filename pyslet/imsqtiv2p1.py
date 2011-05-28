@@ -302,8 +302,10 @@ class QTIAssessmentItem(QTIElement):
 		resource.SetID(resourceID)
 		resource.Set_type(IMSQTI_ITEM_RESOURCETYPE)
 		resourceMetadata=resource.CPMetadata()
-		resourceMetadata.AdoptChild(lom)
-		resourceMetadata.AdoptChild(self.metadata.Copy())
+		#resourceMetadata.AdoptChild(lom)
+		#resourceMetadata.AdoptChild(self.metadata.Copy())
+		lom.Copy(resourceMetadata)
+		self.metadata.Copy(resourceMetadata)
 		# Security alert: we're leaning heavily on MakeValidNCName assuming it returns a good file name
 		fPath=MakeValidNCName(resourceID).encode('utf-8')+'.xml'
 		if dName:

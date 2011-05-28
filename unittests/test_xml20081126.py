@@ -662,7 +662,31 @@ class XMLDocumentTests(unittest.TestCase):
 			self.failUnless(data==CREATE_1_XML,"Create Test")
 		except IOError:
 			self.fail("Create Test failed to create file")
-				
+	
+	def testCaseUpdate(self):
+		"""Test the updating of the MXLDocument on the file system"""
+		UPDATE_1_XML="""<?xml version="1.0" encoding="UTF-8"?>
+<test>
+	<test/>
+</test>"""
+		d=XMLDocument(root=NamedElement)
+		d.SetBase('update1.xml')
+		try:
+			d.Update()
+			self.fail("Update XMLDocument failed to spot missing file")
+		except XMLMissingFileError:
+			pass
+		d.Create()
+		d.root.ChildElement(NamedElement)
+		d.Update()
+		try:
+			f=open("update1.xml")
+			data=f.read()
+			f.close()
+			self.failUnless(data==UPDATE_1_XML,"Update Test")
+		except IOError:
+			self.fail("Update Test failed to update file")			
+		
 	def testCaseID(self):
 		"""Test the built-in handling of a document's ID space."""
 		doc=XMLDocument()

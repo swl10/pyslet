@@ -1291,8 +1291,8 @@ class TimePoint:
 		self.time.SetPrecision(precision,truncate)
 		
 	def CheckTimePoint(self):
-		self.CheckDate()
-		self.CheckTime()
+		self.date.CheckDate()
+		self.time.CheckTime()
 		if self.date.GetPrecision()!=Date.CompletePrecision:
 			raise DateTimeError("timepoint requires complete precision for date")
 	

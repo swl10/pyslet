@@ -31,6 +31,7 @@ class XMLAttributeSetter(XMLError): pass
 class XMLContentTypeError(XMLError): pass
 class XMLIDClashError(XMLError): pass
 class XMLIDValueError(XMLError): pass
+class XMLMissingFileError(XMLError): pass
 class XMLMissingLocationError(XMLError): pass
 class XMLMixedContentError(XMLError): pass
 class XMLParentError(XMLError): pass
@@ -1569,6 +1570,16 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		self.cObject=parent
 			
 	def Create(self,dst=None,**args):
+		"""Creates the XMLDocument.
+		
+		Create outputs the document as an XML stream.  The stream is written
+		to the baseURI by default but if the 'dst' argument is provided then
+		it is written directly to there instead.  dst can be any object that
+		supports the writing of unicode strings.
+		
+		Currently only documents with file type baseURIs are supported.  The
+		file's parent directories are created if required.  The file is
+		always written using the UTF-8 as per the XML standard."""
 		if dst:
 			self.WriteXML(dst)
 		elif self.baseURI is None:
@@ -1594,8 +1605,25 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		if self.root:
 			self.root.WriteXML(writer,escapeFunction,'',tab)
 	
-	def Update(self,reqManager=None):
-		pass
+	def Update(self,**args):
+		"""Updates the XMLDocument.
+		
+		Update outputs the document as an XML stream.  The stream is written
+		to the baseURI which must already exist!  Currently only documents
+		with file type baseURIs are supported."""
+		if self.baseURI is None:
+			raise XMLMissingLocationError
+		elif self.url.scheme=='file':
+			fPath=urllib.url2pathname(self.url.path)
+			if not os.path.isfile(fPath):
+				raise XMLMissingFileError(fPath)
+			f=codecs.open(fPath,'wb','utf-8')
+			try:
+				self.WriteXML(f)
+			finally:
+				f.close()
+		else:
+			raise XMLUnsupportedSchemeError(self.url.scheme)		
 	
 	def Delete(self,reqManager=None):
 		pass
