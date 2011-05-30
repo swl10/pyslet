@@ -12,6 +12,7 @@ import test_imsqtiv1p2p1
 import test_imsqtiv2p1
 import test_iso8601
 import test_rfc2234
+import test_rfc2396
 import test_rfc2616
 import test_rfc4287
 import test_rfc5023
@@ -30,6 +31,7 @@ def suite():
 	s.addTest(test_imsqtiv2p1.suite())
 	s.addTest(test_iso8601.suite())
 	s.addTest(test_rfc2234.suite())
+	s.addTest(test_rfc2396.suite())
 	s.addTest(test_rfc2616.suite())
 	s.addTest(test_rfc4287.suite())
 	s.addTest(test_rfc5023.suite())
