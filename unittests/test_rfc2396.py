@@ -195,6 +195,7 @@ REL_EXAMPLES={
 	'/g':('http://a/g',None,None,'/g',None,None,None),
 	'//g':('http://g',None,'g',None,None,None,None),
 	'?y':('http://a/b/c/?y',None,None,None,'','y',None),
+	'./?y':('http://a/b/c/?y',None,None,None,'./','y',None),
 	'g?y':('http://a/b/c/g?y',None,None,None,'g','y',None),
 	'#s':('current.doc#s',None,None,None,'',None,'s'),
 	'g#s':('http://a/b/c/g#s',None,None,None,'g',None,'s'),
@@ -253,9 +254,11 @@ class URITests(unittest.TestCase):
 		keys=REL_EXAMPLES.keys()
 		base=URI(REL_BASE)
 		current=URI(REL_CURRENT)
+		relatives={}
 		for k in keys:
 			u=URI(k)
 			resolved,scheme,authority,absPath,relPath,query,fragment=REL_EXAMPLES[k]
+			relatives[resolved]=relatives.get(resolved,[])+[k]
 			resolution=str(u.Resolve(base,current))
 			self.failUnless(scheme==u.scheme,"%s found scheme %s"%(k,u.scheme))
 			self.failUnless(authority==u.authority,"%s found authority %s"%(k,u.authority))
@@ -264,7 +267,18 @@ class URITests(unittest.TestCase):
 			self.failUnless(query==u.query,"%s found query %s"%(k,u.query))
 			self.failUnless(fragment==u.fragment,"%s found fragment %s"%(k,u.fragment))
 			self.failUnless(resolved==resolution,"%s resolved to %s ; should be %s"%(k,resolution,resolved))
-
+		for k in relatives.keys():
+			u=URI(k)
+			if not u.IsAbsolute():
+				continue
+			relative=str(u.Relative(base))
+			# relative should be one of the relatives!
+			noMatch=True
+			for r in relatives[k]:
+				if r==relative:
+					noMatch=False
+					break
+			self.failIf(noMatch,"%s relative to base found %s ; expected one of %s"%(k,relative,repr(relatives[k])))
 
 FILE_EXAMPLE="file://vms.host.edu/disk$user/my/notes/note12345.txt"
 

@@ -245,6 +245,53 @@ def SplitAbsPath(absPath):
 def SplitRelPath(relPath):
 	return SplitPath(relPath,False)
 
+def NormalizeSegments(pathSegments):
+	"""Normalizes a list of pathSegments, as returned by Split*Path methods.
+	
+	Normalizing follows the rules for resolving relative URI paths, './'
+	and trailing '.' are removed, 'seg/../' and trailing seg/.. are
+	also removed."""
+	i=0
+	while i<len(pathSegments):
+		if pathSegments[i]=='.':
+			if i+1>=len(pathSegments):
+				pathSegments[i]=''
+			else:
+				del pathSegments[i]
+		elif pathSegments[i]=='..' and (i>0 and pathSegments[i-1]!='..'):
+			if i+1>=len(pathSegments):
+				pathSegments[i]=''
+				del pathSegments[i-1]
+			else:
+				del pathSegments[i]
+				del pathSegments[i-1]
+				i-=1
+		else:
+			i+=1
+
+def MakeRelPath(absPath,basePath):
+	"""Return absPath relative to basePath"""
+	pathSegments=SplitAbsPath(absPath)
+	NormalizeSegments(pathSegments)
+	baseSegments=SplitAbsPath(basePath)
+	NormalizeSegments(baseSegments)
+	result=[]
+	pos=0
+	while pos<len(baseSegments):
+		if result:
+			result=['..']+result
+		else:
+			if pos>=len(pathSegments) or baseSegments[pos]!=pathSegments[pos]:
+				result=result+pathSegments[pos:]
+		pos=pos+1
+	if not result and len(pathSegments)>len(baseSegments):
+		# full match but pathSegments is longer
+		return string.join(pathSegments[len(baseSegments)-1:],'/')
+	elif result==['']:
+		return "./"
+	else:
+		return string.join(result,'/')		
+
 def SplitPathSegment(segment):
 	pchar=''
 	params=[]
@@ -466,23 +513,7 @@ class URI:
 				segments=SplitAbsPath(base.absPath)[:-1]
 				segments=segments+SplitRelPath(self.relPath)
 				# remove all '.' segments
-				i=0
-				while i<len(segments):
-					if segments[i]=='.':
-						if i+1>=len(segments):
-							segments[i]=''
-						else:
-							del segments[i]
-					elif segments[i]=='..' and (i>0 and segments[i-1]!='..'):
-						if i+1>=len(segments):
-							segments[i]=''
-							del segments[i-1]
-						else:
-							del segments[i]
-							del segments[i-1]
-							i-=1
-					else:
-						i+=1
+				NormalizeSegments(segments)
 				absPath='/'+string.join(segments,'/')
 			else:
 				absPath=self.absPath
@@ -502,7 +533,44 @@ class URI:
 			result.append('#')
 			result.append(self.fragment)
 		return URIFactory.URI(string.join(result,''))
-		
+	
+	def Relative(self,base):
+		if not base.IsAbsolute():
+			raise URIRelativeError(str(base))
+		if not self.IsAbsolute():
+			raise URIRelativeError(str(self))
+		if self.opaquePart is not None or self.scheme.lower()!=base.scheme.lower():
+			return URIFactory.URI(str(self))
+		if self.authority!=base.authority:
+			# netloc relative path
+			authority=self.authority
+			absPath=self.absPath
+			query=self.query
+		else:
+			authority=None
+			if self.absPath!=base.absPath:
+				absPath=MakeRelPath(self.absPath,base.absPath)
+				query=self.query
+			else:
+				absPath=None
+				if self.query!=base.query:
+					query=self.query
+				else:
+					query=None
+		result=[]
+		if authority is not None:
+			result.append('//')
+			result.append(authority)
+		if absPath is not None:
+			result.append(absPath)
+		if query is not None:
+			result.append('?')
+			result.append(query)
+		if self.fragment is not None:
+			result.append('#')
+			result.append(self.fragment)
+		return URIFactory.URI(string.join(result,''))			
+			
 	def __str__(self):
 		if self.fragment is not None:
 			return self.octets+'#'+self.fragment
@@ -522,7 +590,9 @@ class URIFactoryClass:
 		
 	def URI(self,octets):
 		scheme=ParseScheme(octets)
-		return self.urlClass.get(scheme.lower(),URI)(octets)
+		if scheme is not None:
+			scheme=scheme.lower()
+		return self.urlClass.get(scheme,URI)(octets)
 
 	def URLFromPathname(self,path):
 		host=''

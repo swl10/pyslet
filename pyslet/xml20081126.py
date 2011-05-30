@@ -3,11 +3,13 @@
 from xml.sax import make_parser, handler, SAXParseException, saxutils
 import string, types
 from StringIO import StringIO
-import urlparse, urllib,  os.path
+import urlparse, urllib,  os, os.path
 from sys import maxunicode
 import codecs, random
 from types import *
 from copy import copy
+
+from pyslet.rfc2396 import URIFactory
 
 xml_base='xml:base'
 xml_lang='xml:lang'
@@ -239,66 +241,65 @@ def IsValidName(name):
 	else:
 		return False
 
-def NormPath(urlPath):
-	"""Normalizes a URL path, removing '.' and '..' components.
-	
-	An empty string (which tends to be a relative URL matching the current URL
-	exactly) is returned unchanged.  The string "./" is also returned unchanged
-	to avoid confusion with the empty string."""
-	components=urlPath.split('/')
-	pos=0
-	while pos<len(components):
-		if components[pos]=='.':
-			# We can always remove '.', though "./" will need fixing later
-			del components[pos]
-		elif components[pos]=='':
-			if pos>0 and pos<len(components)-1:
-				# Remove "//"
-				del components[pos]
-			else:
-				pos=pos+1
-		elif components[pos]=='..':
-			if pos>0 and components[pos-1] and components[pos-1]!='..':
-				# remove "dir/.."
-				del components[pos-1:pos+1]
-				pos=pos-1
-			else:
-				pos=pos+1
-		else:
-			pos=pos+1
-	if components==['']:
-		return "./"
-	else:
-		return string.join(components,'/')
+# def NormPath(urlPath):
+# 	"""Normalizes a URL path, removing '.' and '..' components.
+# 	
+# 	An empty string (which tends to be a relative URL matching the current URL
+# 	exactly) is returned unchanged.  The string "./" is also returned unchanged
+# 	to avoid confusion with the empty string."""
+# 	components=urlPath.split('/')
+# 	pos=0
+# 	while pos<len(components):
+# 		if components[pos]=='.':
+# 			# We can always remove '.', though "./" will need fixing later
+# 			del components[pos]
+# 		elif components[pos]=='':
+# 			if pos>0 and pos<len(components)-1:
+# 				# Remove "//"
+# 				del components[pos]
+# 			else:
+# 				pos=pos+1
+# 		elif components[pos]=='..':
+# 			if pos>0 and components[pos-1] and components[pos-1]!='..':
+# 				# remove "dir/.."
+# 				del components[pos-1:pos+1]
+# 				pos=pos-1
+# 			else:
+# 				pos=pos+1
+# 		else:
+# 			pos=pos+1
+# 	if components==['']:
+# 		return "./"
+# 	else:
+# 		return string.join(components,'/')
 
-
-def RelPath(basePath,urlPath,touchRoot=False):
-	"""Return urlPath relative to basePath"""
-	basePath=NormPath(basePath).split('/')
-	urlPath=NormPath(urlPath).split('/')
-	if basePath[0]:
-		raise XMLURLPathError(string.join(basePath,'/'))
-	if urlPath[0]:
-		raise XMLURLPathError(string.join(urlPath,'/'))
-	result=[]
-	pos=1
-	while pos<len(basePath):
-		if result:
-			if pos==2 and not touchRoot:
-				result=['']+result
-				break
-			result=['..']+result
-		else:
-			if pos>=len(urlPath) or basePath[pos]!=urlPath[pos]:
-				result=result+urlPath[pos:]
-		pos=pos+1
-	if not result and len(urlPath)>len(basePath):
-		# full match but urlPath is longer
-		return string.join(urlPath[len(basePath)-1:],'/')
-	elif result==['']:
-		return "./"
-	else:
-		return string.join(result,'/')		
+# def RelPath(basePath,urlPath,touchRoot=False):
+# 	"""Return urlPath relative to basePath"""
+# 	basePath=NormPath(basePath).split('/')
+# 	urlPath=NormPath(urlPath).split('/')
+# 	if basePath[0]:
+# 		raise XMLURLPathError(string.join(basePath,'/'))
+# 	if urlPath[0]:
+# 		raise XMLURLPathError(string.join(urlPath,'/'))
+# 	result=[]
+# 	pos=1
+# 	while pos<len(basePath):
+# 		if result:
+# 			if pos==2 and not touchRoot:
+# 				result=['']+result
+# 				break
+# 			result=['..']+result
+# 		else:
+# 			if pos>=len(urlPath) or basePath[pos]!=urlPath[pos]:
+# 				result=result+urlPath[pos:]
+# 		pos=pos+1
+# 	if not result and len(urlPath)>len(basePath):
+# 		# full match but urlPath is longer
+# 		return string.join(urlPath[len(basePath)-1:],'/')
+# 	elif result==['']:
+# 		return "./"
+# 	else:
+# 		return string.join(result,'/')		
 
 
 def OptionalAppend(itemList,newItem):
@@ -1256,33 +1257,18 @@ class XMLElement:
 		If the element does not have a fully-specified base URL then href is
 		returned as a fully-specified URL itself."""
 		result=[]
-		hrefBase='file://'+urllib.pathname2url(os.getcwd())+'/'
-		href=urlparse.urljoin(hrefBase,href)
-		hrefParts=urlparse.urlsplit(href)
-		baseParts=urlparse.urlsplit(self.ResolveBase())
-		if not baseParts.scheme or baseParts.scheme!=hrefParts.scheme:
-			return href
-		if baseParts.scheme not in ('file','http','https'):
-			raise XMLUnsupportedSchemeError(self.url.scheme)
-		result.append('')
-		if baseParts.netloc!=hrefParts.netloc:
-			result=result+list(hrefParts[1:])
-			return urlparse.urlunsplit(result)
-		result.append('')
-		if baseParts.path!=hrefParts.path:
-			result.append(RelPath(baseParts.path,hrefParts.path))
-			result=result+list(hrefParts[3:])
-			return urlparse.urlunsplit(result)
-		result.append('')
-		if baseParts.query!=hrefParts.query:
-			result=result+list(hrefParts[3:])
-			return urlparse.urlunsplit(result)
-		result.append('')
-		if baseParts.fragment!=hrefParts.fragment:
-			result=result+list(hrefParts[4:])
-			return urlparse.urlunsplit(result)
-		# href is exactly base!
-		return ""		
+		href=URIFactory.URI(href)
+		if not href.IsAbsolute():
+			href=href.Resolve(URIFactory.URLFromPathname(os.getcwd()))
+		base=self.ResolveBase()
+		if base is not None:
+			base=URIFactory.URI(base)
+			if not base.IsAbsolute():
+				return str(href)
+			else:
+				return str(href.Relative(base))
+		else:
+			return str(href)
 
 	def GetLang(self):
 		return self._attrs.get(xml_lang,None)
@@ -1450,8 +1436,13 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		is updated to point to the file."""
 		self.baseURI=baseURI
 		if self.baseURI:
-			base='file://'+urllib.pathname2url(os.getcwd())+'/'
-			self.baseURI=urlparse.urljoin(base,self.baseURI)
+			base=URIFactory.URI(self.baseURI)
+			if not base.IsAbsolute():
+				cwd=URIFactory.URLFromPathname(os.path.join(os.getcwd(),os.curdir))
+				base=base.Resolve(cwd)
+				self.baseURI=str(base)
+			#base='file://'+urllib.pathname2url(os.getcwd())+'/'
+			#self.baseURI=urlparse.urljoin(base,self.baseURI)
 			self.url=urlparse.urlsplit(self.baseURI)
 		else:
 			self.url=None
