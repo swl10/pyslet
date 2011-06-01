@@ -6,11 +6,12 @@ import pyslet.xml20081126 as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsdatatypes
 import pyslet.html40_19991224 as html
+import pyslet.rfc2396 as uri
 
 xsi=xsdatatypes
 
 import string
-import os.path, urllib, urlparse
+import os.path
 from types import StringTypes
 
 IMSQTI_NAMESPACE="http://www.imsglobal.org/xsd/imsqti_v2p1"
@@ -313,15 +314,15 @@ class QTIAssessmentItem(QTIElement):
 		fPath=cp.GetUniqueFile(fPath)
 		# This will be the path to the file in the package
 		fullPath=os.path.join(cp.dPath,fPath)
-		uri='file://'+urllib.pathname2url(fullPath)
+		url=str(uri.URIFactory.URLFromPathname(fullPath))
 		# Turn this file path into a relative URL in the context of the new resource
-		href=resource.RelativeURI(uri)
+		href=resource.RelativeURI(url)
 		f=cp.CPFile(resource,href)
 		resource.SetEntryPoint(f)
 		for child in self.GetChildren():
 			if isinstance(child,QTIElement):
-				child.AddToCPResource(cp,resource,uri)
-		return uri
+				child.AddToCPResource(cp,resource,url)
+		return url
 	
 		
 class QTIVariableDeclaration(QTIElement):

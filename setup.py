@@ -10,7 +10,7 @@ else:
 	pkgBase=get_python_lib()
 	
 	setup(name="pyslet",
-		version="0.1.20110314",
+		version="0.2.20110601",
 		description="pyslet: standards for learning education and training",
 		author="Steve Lay",
 		author_email="steve.w.lay@googlemail.com",

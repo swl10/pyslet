@@ -24,13 +24,16 @@ if vobject is None:
 	print "vobject tests skipped"
 	print "\tTry installing vobject from http://vobject.skyhouseconsulting.com/  (vobject-0.8.1c)"
 	print "\t\talso requires http://labix.org/python-dateutil"
+elif pkg_resources:
+	vv=pkg_resources.get_distribution("vobject").version
+	dv=pkg_resources.get_distribution("python-dateutil").version
+	if vv!='0.8.1c':
+		print "Designed for vobject-0.8.1c, testing with version %s"%vv
+	if dv!='1.5':
+		print "Designed for python-dateutil-1.5, testing with version %s"%dv
 else:
-	print "Designed for vobject-0.8.1c; python-dateutil-1.5"
-	if pkg_resources:
-		print "\tTesting with vobject: %s"%pkg_resources.get_distribution("vobject").version
-		print "\tTesting with python-dateutil: %s"%pkg_resources.get_distribution("python-dateutil").version
-	else:
-		print "\tCannot determine installed package versions; try installing setuptools"
+	print "\tCannot determine vobject package version, install setuptools to remove this message"
+
 	
 class LRMTests(unittest.TestCase):
 	def testCaseConstants(self):

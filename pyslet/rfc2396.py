@@ -268,13 +268,11 @@ def NormalizeSegments(pathSegments):
 				i-=1
 		else:
 			i+=1
-
-def MakeRelPath(absPath,basePath):
-	"""Return absPath relative to basePath"""
-	pathSegments=SplitAbsPath(absPath)
-	NormalizeSegments(pathSegments)
-	baseSegments=SplitAbsPath(basePath)
-	NormalizeSegments(baseSegments)
+	if pathSegments and pathSegments[-1]=='..':
+		# special case of trailing '..' gets an extra slash for consistency
+		pathSegments.append('')
+		
+def RelativizeSegments(pathSegments,baseSegments):
 	result=[]
 	pos=0
 	while pos<len(baseSegments):
@@ -286,11 +284,51 @@ def MakeRelPath(absPath,basePath):
 		pos=pos+1
 	if not result and len(pathSegments)>len(baseSegments):
 		# full match but pathSegments is longer
-		return string.join(pathSegments[len(baseSegments)-1:],'/')
+		return pathSegments[len(baseSegments)-1:]
 	elif result==['']:
-		return "./"
+		return ['.']+result
 	else:
-		return string.join(result,'/')		
+		return result
+	
+def MakeRelPathAbs(absPath,basePath):
+	"""Return absPath relative to basePath"""
+	pathSegments=SplitAbsPath(absPath)
+	NormalizeSegments(pathSegments)
+	baseSegments=SplitAbsPath(basePath)
+	NormalizeSegments(baseSegments)
+	result=RelativizeSegments(pathSegments,baseSegments)
+	return string.join(result,'/')
+
+def MakeRelPathRel(relPath,baseRelPath):
+	"""Return relPath relative to baseRelPath"""
+	pathSegments=SplitRelPath(relPath)
+	NormalizeSegments(pathSegments)
+	baseSegments=SplitRelPath(baseRelPath)
+	NormalizeSegments(baseSegments)
+	# At this point there are no '.' components, but there may be leading '..'
+	i=0
+	while i<len(pathSegments):
+		if pathSegments[i]=='..':
+			i+=1
+		else:
+			break
+	j=0
+	while j<len(baseSegments):
+		if baseSegments[j]=='..':
+			j+=1
+		else:
+			break
+	if j>i:
+		i=j
+	if i:
+		# we have leading '..' components, add a common path prefix and re-normalize
+		pathSegments=['x']*i+pathSegments
+		NormalizeSegments(pathSegments)
+		baseSegments=['x']*i+baseSegments
+		NormalizeSegments(baseSegments)
+	result=RelativizeSegments(pathSegments,baseSegments)
+	return string.join(result,'/')
+
 
 def SplitPathSegment(segment):
 	pchar=''
@@ -493,8 +531,25 @@ class URI:
 				pos+=1
 
 	def Resolve(self,base,current=None):
-		if not base.IsAbsolute():
-			raise URIRelativeError(str(base))
+		"""Resolves the current (relative) URI relative to base
+		
+		If the current URI is also relative then the result is a relative URI,
+		otherwise the result is an absolute URI.  The RFC does not actually go
+		into the procedure for combining relative URIs but if B is an absolute
+		URI and R1 and R2 are relative URIs then it is attractive to think of
+		the non-commutative resolution operation [*]:
+		
+		U1 = B [*] R1
+		U2 = U1 [*] R2
+		U2 = ( B [*] R1 ) [*] R2
+		
+		The last expression prompts the issue of associativity, in other words,
+		is the following expression also valid?
+		
+		U2 = B [*] ( R1 [*] R2 )
+		
+		For this to work it must be possible to use the operator to combine two
+		relative URIs to make a third, which is what we allow here."""
 		if current is None:
 			current=base
 		if not(self.absPath or self.relPath) and self.scheme is None and self.authority is None and self.query is None:
@@ -510,22 +565,39 @@ class URI:
 		if self.authority is None:
 			authority=base.authority
 			if self.absPath is None:
-				segments=SplitAbsPath(base.absPath)[:-1]
-				segments=segments+SplitRelPath(self.relPath)
-				# remove all '.' segments
-				NormalizeSegments(segments)
-				absPath='/'+string.join(segments,'/')
+				if base.absPath is not None:
+					segments=SplitAbsPath(base.absPath)[:-1]
+					segments=segments+SplitRelPath(self.relPath)
+					NormalizeSegments(segments)
+					absPath='/'+string.join(segments,'/')
+					relPath=None
+				else:
+					segments=SplitRelPath(base.relPath)[:-1]
+					segments=segments+SplitRelPath(self.relPath)
+					NormalizeSegments(segments)
+					absPath=None
+					relPath=string.join(segments,'/')
+					if relPath=='':
+						# degenerate case, as we are relative we won't prefix with /
+						relPath='./'
 			else:
 				absPath=self.absPath
+				relPath=None
 		else:
 			authority=self.authority
 			absPath=self.absPath
-		result=[scheme,':']
+			relPath=None
+		result=[]
+		if scheme is not None:
+			result.append(scheme)
+			result.append(':')
 		if authority is not None:
 			result.append('//')
 			result.append(authority)
 		if absPath is not None:
 			result.append(absPath)
+		elif relPath is not None:
+			result.append(relPath)
 		if self.query is not None:
 			result.append('?')
 			result.append(self.query)
@@ -535,37 +607,109 @@ class URI:
 		return URIFactory.URI(string.join(result,''))
 	
 	def Relative(self,base):
-		if not base.IsAbsolute():
-			raise URIRelativeError(str(base))
-		if not self.IsAbsolute():
-			raise URIRelativeError(str(self))
-		if self.opaquePart is not None or self.scheme.lower()!=base.scheme.lower():
+		"""Returns the current URI expressed relative to base
+		
+		This operation is the complement of the operation defined by Resolve. If
+		we denote this operation with [/], then if B is the base URL and R1 as a
+		relative URL then if we can combine B with R1 to get U we can also
+		calculate R1 by finding U relative to B.
+		
+		U = B [*] R1  => U [/] B = R1
+		
+		We also allow the Resolve method for relative paths:		
+
+		R3 = R1 [*] R2
+		
+		Therefore, it makes sense for the Relative operator to also be defined:
+		
+		R3 [/] R1 = R2
+		
+		Note that there are some restrictions....
+		
+		C = A [*] B
+		
+		If B is absolute, or simply more specified than A on the following scale:
+		
+		absolute URI > authority > absolute path > relative path
+		
+		then C = B regardless of the value of A and therefore:
+		
+		C [/] A = C if A is less specified than C.
+		
+		Also note that if C is a relative URI then A cannot be absolute. In fact
+		A must always be less than, or equally specified to C because A is the
+		base URI from which C has been derived.
+		
+		C [/] A = undefined if A is more specified than C
+		
+		Therefore the only interesting cases are when A is equally specified to
+		C.  To give a concrete example...
+				
+		C = /HD/User/setting.txt
+		A = /HD/folder/file.txt
+		
+		/HD/User/setting.txt [\] /HD/folder/file.txt = ../User/setting.txt
+		/HD/User/setting.txt = /HD/folder/file.txt [*] ../User/setting.txt
+
+		And for relative paths:
+		
+		C = User/setting.txt
+		A = User/folder/file.txt
+		
+		User/setting.txt [\] User/folder/file.txt = ../setting.txt
+		User/setting.txt = User/folder/file.txt [*] ../setting.txt
+		
+		"""
+		if self.opaquePart is not None:
+			# This is not a hierarchical URI so we can ignore base
 			return URIFactory.URI(str(self))
+		if self.scheme is None:
+			if base.scheme is not None:
+				raise URIRelativeError(str(base))
+		elif base.scheme is None or self.scheme.lower()!=base.scheme.lower():
+			return URIFactory.URI(str(self))
+		# continuing with equal schemes; scheme will not be shown in result
+		if self.authority is None:
+			if base.authority is not None:
+				raise URIRelativeError(str(base))
 		if self.authority!=base.authority:
-			# netloc relative path
 			authority=self.authority
 			absPath=self.absPath
-			query=self.query
+			relPath=self.relPath
 		else:
+			# equal or empty authorities
 			authority=None
-			if self.absPath!=base.absPath:
-				absPath=MakeRelPath(self.absPath,base.absPath)
-				query=self.query
-			else:
+			if self.absPath is None:
+				if base.absPath is not None:
+					raise URIRelativeError(str(base))
 				absPath=None
-				if self.query!=base.query:
-					query=self.query
+				if self.relPath is None:
+					raise URIRelativeError(str(base))
+				if base.relPath is None:
+					relPath=self.relPath
 				else:
-					query=None
+					# two relative paths, calculate self relative to base
+					# we add a common leading segment to re-use the absPath routine
+					relPath=MakeRelPathRel(self.relPath,base.relPath)
+			elif base.absPath is None:
+				return URIFactory.URI(str(self))
+			else:
+				# two absolute paths, calculate self relative to base
+				absPath=None
+				relPath=MakeRelPathAbs(self.absPath,base.absPath)
+				# todo: /a/b relative to /c/d really should be '/a/b' and not ../a/b
+				# in particular, drive letters look wrong in relative paths: ../C:/Program%20Files/
 		result=[]
 		if authority is not None:
 			result.append('//')
 			result.append(authority)
 		if absPath is not None:
 			result.append(absPath)
-		if query is not None:
+		elif relPath is not None:
+			result.append(relPath)
+		if self.query is not None:
 			result.append('?')
-			result.append(query)
+			result.append(self.query)
 		if self.fragment is not None:
 			result.append('#')
 			result.append(self.fragment)
@@ -623,6 +767,8 @@ class URIFactoryClass:
 		for i in xrange(len(segments)):
 			if type(segments[i]) is UnicodeType:
 				segments[i]=EscapeData(segments[i].encode(c),IsPathSegmentReserved)
+			else:
+				segments[i]=EscapeData(segments[i],IsPathSegmentReserved)
 		return FileURL('file://%s/%s'%(host,string.join(segments,'/')))
 
 		
@@ -632,15 +778,20 @@ class FileURL(URI):
 		URI.__init__(self,octets)
 		self.userinfo,self.host,self.port=SplitServer(self.authority)
 			
-	def GetPathname(self):
+	def GetPathname(self,force8Bit=False):
 		"""Returns the system path name corresponding to this file URL
 		
 		Note that if the system supports unicode file names (as reported by
 		os.path.supports_unicode_filenames) then GetPathname also returns a
 		unicode string, otherwise it returns an 8-bit string encoded in the
-		underlying file system encoding."""
+		underlying file system encoding.
+		
+		There are some libraries (notably sax) that will fail when passed files
+		opened using unicode paths.  The force8Bit flag can be used to force
+		GetPathname to return a byte string encoded using the native file system
+		encoding."""
 		c=sys.getfilesystemencoding()
-		if os.path.supports_unicode_filenames:
+		if os.path.supports_unicode_filenames and not force8Bit:
 			decode=lambda s:unicode(UnescapeData(s),c)
 		else:
 			decode=lambda s:UnescapeData(s)

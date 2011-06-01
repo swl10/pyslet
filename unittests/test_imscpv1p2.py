@@ -2,7 +2,7 @@
 
 import unittest
 from tempfile import mkdtemp
-import os, os.path, urllib, urlparse, shutil
+import os, os.path, shutil
 from StringIO import StringIO
 from codecs import encode
 
@@ -216,15 +216,13 @@ class ContentPackageTests(unittest.TestCase):
 		self.failUnless(cp.GetPackageName()=='imscp',"Default package name is not empty string")
 		# Ensure the temporary directory is cleaned up
 		self.dList.append(cp.dPath)
-		url=urlparse.urlsplit(cp.manifest.GetBase())
+		url=uri.URIFactory.URI(cp.manifest.GetBase())
 		self.failUnless(isinstance(cp.manifest,xmlns.XMLNSDocument) and isinstance(cp.manifest.root,CPManifest),"Constructor must create manifest")
-		self.failUnless(os.path.split(urllib.url2pathname(url.path))[1]=='imsmanifest.xml',"Manifest file name")
+		self.failUnless(os.path.split(url.GetPathname())[1]=='imsmanifest.xml',"Manifest file name")
 		self.failUnless(isinstance(cp.manifest.root,CPManifest),"Constructor must create manifest element")
 		id=cp.manifest.root.id
 		self.failUnless(cp.manifest.GetElementByID(id) is cp.manifest.root,"Manifest identifief not declared")
-		self.failUnless(os.path.isfile(urllib.url2pathname(url.path)),"Constructor must create manifest file")
-		#print 
-		#print file(urllib.url2pathname(url.path)).read()
+		self.failUnless(os.path.isfile(url.GetPathname()),"Constructor must create manifest file")
 		cp=ContentPackage('newpackage')
 		self.failUnless(os.path.isdir(cp.dPath) and os.path.abspath('newpackage')==cp.dPath,"Constructor creates specified directory")
 		self.failUnless(cp.GetPackageName()=='newpackage',"Package name not taken from directory")

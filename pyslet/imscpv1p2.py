@@ -6,10 +6,11 @@ import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.imsmdv1p2p1 as imsmd
 import pyslet.imsqtiv2p1 as imsqti
+import pyslet.rfc2396 as uri
 
 from types import StringTypes
 from tempfile import mkdtemp
-import os, os.path, urlparse, urllib, shutil
+import os, os.path, shutil
 import string,re, random
 import zipfile
 
@@ -299,10 +300,10 @@ class CPFile(CPElement):
 		If the HREF does not point to a local file then None is returned. 
 		Otherwise, this function calculates an absolute path to the file and
 		then calls the content package's PackagePath method."""
-		url=urlparse.urlsplit(self.ResolveURI(self.href))
-		if not(url.scheme=='file' and url.netloc==''):
+		url=uri.URIFactory.URI(self.ResolveURI(self.href))
+		if not isinstance(url,uri.FileURL):
 			return None
-		return cp.PackagePath(urllib.url2pathname(url.path))
+		return cp.PackagePath(url.GetPathname())
 
 	
 class CPDocument(xmlns.XMLNSDocument):
@@ -365,13 +366,14 @@ class ContentPackage:
 					os.mkdir(self.dPath)
 			mPath=os.path.join(self.dPath,'imsmanifest.xml')
 			if os.path.exists(mPath):
-				self.manifest=CPDocument(baseURI=urllib.pathname2url(mPath))
+				self.manifest=CPDocument(baseURI=str(uri.URIFactory.URLFromPathname(mPath)))				
 				self.manifest.Read()
 				if not isinstance(self.manifest.root,CPManifest):
 					raise CPManifestError("%s not a manifest file, found %s::%s "%
 						(mPath,self.manifest.root.ns,self.manifest.root.xmlname))
 			else:
-				self.manifest=CPDocument(root=CPManifest, baseURI=urllib.pathname2url(mPath))
+				self.manifest=CPDocument(root=CPManifest, 
+					baseURI=str(uri.URIFactory.URLFromPathname(mPath)))
 				self.manifest.root.SetID(self.manifest.GetUniqueID('manifest'))
 				md=self.manifest.root.CPMetadata()
 				md.CPSchema().SetValue("IMS Content")
@@ -533,27 +535,27 @@ class ContentPackage:
 
 		href is expressed relative to resource, e.g., using
 		resource.RelativeURI"""
-		fURL=resource.ResolveURI(href)
-		url=urlparse.urlsplit(fURL)
-		if not(url.scheme=='file' and url.netloc==''):
+		fURL=uri.URIFactory.URI(resource.ResolveURI(href))
+		if not isinstance(fURL,uri.FileURL):
 			# Not a local file
 			r=resource.CPFile()
 			r.Set_href(href)		
-		fullPath=urllib.url2pathname(url.path)
-		head,tail=os.path.split(fullPath)
-		if self.IgnoreFile(tail):
-			raise CPFilePathError(url.path)
-		relPath=PathInPath(fullPath,self.dPath)
-		if relPath is None or relPath.lower=='imsmanifest.xml':
-			raise CPFilePathError(url.path)
-		# normalise the case ready to put in the file table
-		relPath=os.path.normcase(relPath)
-		f=resource.CPFile()
-		f.Set_href(href)
-		if not self.fileTable.has_key(relPath):
-			self.fileTable[relPath]=[f]
 		else:
-			self.fileTable[relPath].append(f)
+			fullPath=fURL.GetPathname()
+			head,tail=os.path.split(fullPath)
+			if self.IgnoreFile(tail):
+				raise CPFilePathError(fullPath)
+			relPath=PathInPath(fullPath,self.dPath)
+			if relPath is None or relPath.lower=='imsmanifest.xml':
+				raise CPFilePathError(url.path)
+			# normalise the case ready to put in the file table
+			relPath=os.path.normcase(relPath)
+			f=resource.CPFile()
+			f.Set_href(href)
+			if not self.fileTable.has_key(relPath):
+				self.fileTable[relPath]=[f]
+			else:
+				self.fileTable[relPath].append(f)
 		return f
 		
 	def DeleteFile(self,href):
@@ -574,21 +576,21 @@ class ContentPackage:
 		file system."""
 		baser=self
 		baseURI=self.manifest.GetBase()
-		fURL=urlparse.urljoin(baseURI,str(href))
-		url=urlparse.urlsplit(fURL)
-		if not(url.scheme=='file' and url.netloc==''):
-			# We cannot delete objects that are not local (though in future
+		base=uri.URIFactory.URI(baseURI)
+		fURL=uri.URIFactory.URI(href).Resolve(base)
+		if not isinstance(fURL,uri.FileURL):
+			# We cannot delete non-file objects (though in future
 			# we should support HTTP DELETE)
-			return CPProtocolError(fURL)
-		fullPath=urllib.url2pathname(url.path)
+			return CPProtocolError(str(fURL))
+		fullPath=fURL.GetPathname()
 		if not os.path.isfile(fullPath):
-			raise CPFileTypeError(url.path)
+			raise CPFileTypeError(fullPath)
 		head,tail=os.path.split(fullPath)
 		if self.IgnoreFile(tail):
-			raise CPFilePathError(url.path)
+			raise CPFilePathError(fullPath)
 		relPath=PathInPath(fullPath,self.dPath)
 		if relPath is None or relPath.lower=='imsmanifest.xml':
-			raise CPFilePathError(url.path)
+			raise CPFilePathError(fullPath)
 		# normalise the case ready for comparisons
 		relPath=os.path.normcase(relPath)
 		for r in self.manifest.root.resources.list:

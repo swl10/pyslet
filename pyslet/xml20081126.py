@@ -3,13 +3,13 @@
 from xml.sax import make_parser, handler, SAXParseException, saxutils
 import string, types
 from StringIO import StringIO
-import urlparse, urllib,  os, os.path
+import urlparse, os, os.path
 from sys import maxunicode
 import codecs, random
 from types import *
 from copy import copy
 
-from pyslet.rfc2396 import URIFactory
+from pyslet.rfc2396 import URIFactory, FileURL
 
 xml_base='xml:base'
 xml_lang='xml:lang'
@@ -1441,11 +1441,9 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 				cwd=URIFactory.URLFromPathname(os.path.join(os.getcwd(),os.curdir))
 				base=base.Resolve(cwd)
 				self.baseURI=str(base)
-			#base='file://'+urllib.pathname2url(os.getcwd())+'/'
-			#self.baseURI=urlparse.urljoin(base,self.baseURI)
-			self.url=urlparse.urlsplit(self.baseURI)
+			self.uri=base
 		else:
-			self.url=None
+			self.uri=None
 			
 	def GetBase(self):
 		return self.baseURI
@@ -1501,14 +1499,14 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 			self.ReadFromStream(src)
 		elif self.baseURI is None:
 			raise XMLMissingLocationError
-		elif self.url.scheme=='file':
-			#f=codecs.open(urllib.url2pathname(self.url.path),'rb','utf-8')
-			f=open(urllib.url2pathname(self.url.path),'rb')
+		elif isinstance(self.uri,FileURL):
+			# force 8bit path names to workaround bug in expat
+			f=open(self.uri.GetPathname(True),'rb')
 			try:
 				self.ReadFromStream(f)
 			finally:
 				f.close()
-		elif self.url.scheme in ['http','https']:
+		elif self.uri.scheme.lower() in ['http','https']:
 			if reqManager is None:
 				reqManager=http.HTTPRequestManager()
 			req=http.HTTPRequest(self.baseURI)
@@ -1575,8 +1573,8 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 			self.WriteXML(dst)
 		elif self.baseURI is None:
 			raise XMLMissingLocationError
-		elif self.url.scheme=='file':
-			fPath=urllib.url2pathname(self.url.path)
+		elif isinstance(self.uri,FileURL):
+			fPath=self.uri.GetPathname()
 			fdir,fname=os.path.split(fPath)
 			if not os.path.isdir(fdir):
 				os.makedirs(fdir)
@@ -1586,7 +1584,7 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 			finally:
 				f.close()
 		else:
-			raise XMLUnsupportedSchemeError(self.url.scheme)
+			raise XMLUnsupportedSchemeError(self.uri.scheme)
 	
 	def WriteXML(self,writer,escapeFunction=EscapeCharData,tab='\t'):
 		if tab:
@@ -1604,8 +1602,8 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		with file type baseURIs are supported."""
 		if self.baseURI is None:
 			raise XMLMissingLocationError
-		elif self.url.scheme=='file':
-			fPath=urllib.url2pathname(self.url.path)
+		elif isinstance(self.uri,FileURL):
+			fPath=self.uri.GetPathname()
 			if not os.path.isfile(fPath):
 				raise XMLMissingFileError(fPath)
 			f=codecs.open(fPath,'wb','utf-8')
@@ -1614,7 +1612,7 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 			finally:
 				f.close()
 		else:
-			raise XMLUnsupportedSchemeError(self.url.scheme)		
+			raise XMLUnsupportedSchemeError(self.uri.scheme)		
 	
 	def Delete(self,reqManager=None):
 		pass

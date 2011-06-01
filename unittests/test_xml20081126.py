@@ -4,7 +4,7 @@ import unittest
 
 from sys import maxunicode
 from tempfile import mkdtemp
-import shutil, os.path, urllib
+import shutil, os.path
 from StringIO import StringIO
 from types import UnicodeType
 
@@ -553,7 +553,7 @@ class XMLDocumentTests(unittest.TestCase):
 		d=XMLDocument(baseURI=furl)
 		self.failUnless(d.GetBase()==furl,"Base not set in constructor")
 		self.failUnless(d.root is None,'root on construction')
-		d=XMLDocument(baseURI=urllib.pathname2url('fpath.xml'),root=XMLElement)
+		d=XMLDocument(baseURI='fpath.xml',root=XMLElement)
 		self.failUnless(d.GetBase()==furl,"Base not made absolute from relative URL:\n\t%s\n\t%s"%(furl,d.GetBase()))
 		self.failUnless(isinstance(d.root,XMLElement),'root not created on construction')
 		d=XMLDocument()
@@ -605,10 +605,10 @@ class XMLDocumentTests(unittest.TestCase):
 		parent.SetBase('file:///index.xml')
 		self.failUnless(child.ResolveBase()=='file:///index.xml',"No xml:base inheritance")
 		# Tests with a document follow....
-		fpath=urllib.pathname2url(os.path.abspath('base.xml'))
-		hrefPath=urllib.pathname2url(os.path.abspath('link.xml'))
-		furl='file://'+fpath
-		href='file://'+hrefPath
+		furl=str(URIFactory.URLFromPathname(os.path.abspath('base.xml')))
+		href=URIFactory.URLFromPathname(os.path.abspath('link.xml'))
+		hrefPath=href.absPath
+		href=str(href)
 		altRef='file:///hello/link.xml'
 		d=XMLDocument(baseURI='base.xml')
 		self.failUnless(d.GetBase()==furl,"Base not resolved relative to w.d. by constructor")

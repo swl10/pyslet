@@ -20,11 +20,12 @@ if oauth is None:
 			))		
 
 else:
-	print "Designed for oauth-1.0.1"
 	if pkg_resources:
-		print "\tTesting with oauth: %s"%pkg_resources.get_distribution("oauth").version
+		v=pkg_resources.get_distribution("oauth").version
+		if v!="1.0.1":
+			print "\tDesigned for oauth-1.0.1, testing with version %s"%v
 	else:
-		print "\tCannot determine installed package versions; try installing setuptools"
+		print "\tCannot determine oauth installed package version; install setuptools to remove this message"
 
 	def suite():		
 		return unittest.TestSuite((

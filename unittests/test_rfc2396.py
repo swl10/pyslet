@@ -185,6 +185,9 @@ ABS_EXAMPLES={
 	}
 
 REL_BASE="http://a/b/c/d;p?q"
+REL_BASE1="http://a/b/"
+REL_BASE2="c/d;p?q"
+
 REL_CURRENT="current.doc"
 REL_EXAMPLES={
 	# resolved URI, scheme, authority, absPath, relPath, query, fragment
@@ -266,19 +269,57 @@ class URITests(unittest.TestCase):
 			self.failUnless(relPath==u.relPath,"%s found relPath %s"%(k,u.relPath))
 			self.failUnless(query==u.query,"%s found query %s"%(k,u.query))
 			self.failUnless(fragment==u.fragment,"%s found fragment %s"%(k,u.fragment))
-			self.failUnless(resolved==resolution,"%s resolved to %s ; should be %s"%(k,resolution,resolved))
-		for k in relatives.keys():
-			u=URI(k)
-			if not u.IsAbsolute():
+			self.failUnless(resolved==resolution,"%s [*] %s = %s ; found %s"%(str(base),k,resolved,resolution))
+		for r in relatives.keys():
+			# print "Testing %s [/] %s = ( %s )"%(r,str(base),string.join(relatives[r],' | '))
+			u=URI(r)
+			if not u.IsAbsolute(): # this check removes the 'current document' case
 				continue
 			relative=str(u.Relative(base))
 			# relative should be one of the relatives!
 			noMatch=True
-			for r in relatives[k]:
-				if r==relative:
+			for k in relatives[r]:
+				if k==relative:
 					noMatch=False
 					break
-			self.failIf(noMatch,"%s relative to base found %s ; expected one of %s"%(k,relative,repr(relatives[k])))
+			self.failIf(noMatch,"%s [/] %s = ( %s ) ; found %s"%(r,str(base),string.join(relatives[r],' | '),relative))
+
+	def testCaseRelativeJoinExamples(self):
+		keys=REL_EXAMPLES.keys()
+		base1=URI(REL_BASE1)
+		base2=URI(REL_BASE2)
+		current=URI(REL_CURRENT)
+		relatives={}
+		for k in keys:
+			u=URI(k)
+			if not u.octets: # don't test same document cases
+				continue
+			resolved,scheme,authority,absPath,relPath,query,fragment=REL_EXAMPLES[k]
+			# print "Testing: %s [*] ( %s [*] %s ) = %s"%(str(base1),str(base2),k,resolved)
+			# two-step resolution, first combines relative URLs, second resolves to absolute
+			resolution1=u.Resolve(base2,current)
+			relatives[str(resolution1)]=relatives.get(str(resolution1),[])+[k]
+			resolution2=str(resolution1.Resolve(base1,current))
+			self.failUnless(scheme==u.scheme,"%s found scheme %s"%(k,u.scheme))
+			self.failUnless(authority==u.authority,"%s found authority %s"%(k,u.authority))
+			self.failUnless(absPath==u.absPath,"%s found absPath %s"%(k,u.absPath))
+			self.failUnless(relPath==u.relPath,"%s found relPath %s"%(k,u.relPath))
+			self.failUnless(query==u.query,"%s found query %s"%(k,u.query))
+			self.failUnless(fragment==u.fragment,"%s found fragment %s"%(k,u.fragment))
+			self.failUnless(resolved==resolution2,"%s [*] ( %s [*] %s ) = %s ; found %s"%(str(base1),str(base2),k,resolved,resolution2))
+		for r in relatives.keys():
+			#print "Testing: %s [/] %s = ( %s )"%(r,str(base2),string.join(relatives[r],' | '))
+			u=URI(r)
+			if u.octets=='current.doc': # this check removes the 'current document' case
+				continue
+			relative=str(u.Relative(base2))
+			# now relative should be one of the relatives!
+			noMatch=True
+			for k in relatives[r]:
+				if k==relative:
+					noMatch=False
+					break
+			self.failIf(noMatch,"%s [/] %s = ( %s ); found %s"%(r,str(base2),repr(relatives[r]),relative))
 
 FILE_EXAMPLE="file://vms.host.edu/disk$user/my/notes/note12345.txt"
 
@@ -298,14 +339,16 @@ class FileURLTests(unittest.TestCase):
 		self.failUnless(str(u)=='file:///','Default file')
 		
 	def testCasePathnames(self):
+		force8Bit=type(self.dataPath) is StringType
 		base=URIFactory.URLFromPathname(self.dataPath)
-		self.failUnless(base.GetPathname()==self.dataPath,
-			"Expected %s found %s"%(self.dataPath,base.GetPathname()))
+		self.failUnless(base.GetPathname(force8Bit)==self.dataPath,
+			"Expected %s found %s"%(self.dataPath,base.GetPathname(force8Bit)))
 		os.path.walk(self.dataPath,self.VisitMethod,None)
 
 	def testCaseUnicodePathnames(self):
-		c=sys.getfilesystemencoding()
-		dataPath=unicode(self.dataPath,c)
+		if type(self.dataPath) is StringType:
+			c=sys.getfilesystemencoding()
+			dataPath=unicode(self.dataPath,c)
 		base=URIFactory.URLFromPathname(dataPath)
 		if os.path.supports_unicode_filenames:
 			dataPath2=base.GetPathname()

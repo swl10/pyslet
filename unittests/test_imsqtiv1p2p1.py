@@ -14,7 +14,7 @@ from pyslet.imsqtiv1p2p1 import *
 import pyslet.imscpv1p2 as imscp
 
 from StringIO import StringIO
-import codecs, os, os.path, urllib
+import codecs, os, os.path
 
 class QTITests(unittest.TestCase):
 	def testCaseConstants(self):
@@ -128,7 +128,7 @@ class QTIV2ConversionTests(unittest.TestCase):
 				continue
 			stem,ext=os.path.splitext(f)
 			if ext.lower()=='.xml':
-				doc=QTIDocument(baseURI=urllib.pathname2url(os.path.join(dPath,f)))
+				doc=QTIDocument(baseURI=str(uri.URIFactory.URLFromPathname(os.path.join(dPath,f))))
 				doc.Read()
 				doc.MigrateV2(self.cp)
 		# Having migrated everything in the input folder, we now check our CP against the output
@@ -149,10 +149,10 @@ class QTIV2ConversionTests(unittest.TestCase):
 			f=r.GetEntryPoint()
 			if f:
 				fPath=f.PackagePath(cp2)
-				qtiDoc=qtiv2.QTIDocument(baseURI='file://'+urllib.pathname2url(os.path.join(self.cp.dPath,fPath)))
+				qtiDoc=qtiv2.QTIDocument(baseURI=str(uri.URIFactory.URLFromPathname(os.path.join(self.cp.dPath,fPath))))
 				qtiDoc.Read()
 				#print str(qtiDoc)
-				qtiDoc2=qtiv2.QTIDocument(baseURI='file://'+urllib.pathname2url(os.path.join(cp2.dPath,fPath)))
+				qtiDoc2=qtiv2.QTIDocument(baseURI=str(uri.URIFactory.URLFromPathname(os.path.join(cp2.dPath,fPath))))
 				qtiDoc2.Read()
 				#print str(qtiDoc2)
 				output=qtiDoc.DiffString(qtiDoc2)

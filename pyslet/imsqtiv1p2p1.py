@@ -7,9 +7,10 @@ import pyslet.imsqtiv2p1 as qtiv2
 import pyslet.imsmdv1p2p1 as imsmd
 import pyslet.html40_19991224 as html
 import pyslet.xsdatatypes20041028 as xsi
+import pyslet.rfc2396 as uri
 
 import string, codecs
-import os.path, urllib
+import os.path
 from types import StringTypes
 
 #IMSQTI_NAMESPACE="http://www.imsglobal.org/xsd/ims_qtiasiv1p2"
@@ -3474,8 +3475,8 @@ class QTIDocument(xml.XMLDocument):
 			# list of tuples ( <QTIv2 Document>, <Metadata>, <Log Messages> )
 			if results:
 				# Make a directory to hold the files (makes it easier to find unique names for media files)
-				if self.url.path:
-					dName=urllib.url2pathname(self.url.path.split('/')[-1])
+				if isinstance(self.uri,uri.FileURL):
+					ignore,dName=os.path.split(self.uri.GetPathname())
 				else:
 					dName="questestinterop"
 				dName,ext=os.path.splitext(dName)
