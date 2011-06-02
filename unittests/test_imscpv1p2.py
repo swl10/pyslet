@@ -309,21 +309,21 @@ class ContentPackageTests(unittest.TestCase):
 		self.failUnless(len(r2.fileList)==r2Len-1)
 		
 	def testCasePathInPath(self):
-		goodPath=os.path.join(TEST_DATA_DIR,'Hello','World')
-		self.failUnless(PathInPath(goodPath,TEST_DATA_DIR)==os.path.join('Hello','World'))
-		self.failUnless(PathInPath(goodPath,os.path.join(TEST_DATA_DIR,'Hello'))=='World')
-		badPath=os.path.join(TEST_DATA_DIR,'Hello','Worlds','Bad')
+		goodPath=os.path.join(TEST_DATA_DIR,'hello','world')
+		self.failUnless(PathInPath(goodPath,TEST_DATA_DIR)==os.path.join('hello','world'))
+		self.failUnless(PathInPath(goodPath,os.path.join(TEST_DATA_DIR,'hello'))=='world')
+		badPath=os.path.join(TEST_DATA_DIR,'hello','worlds','bad')
 		self.failUnless(PathInPath(badPath,goodPath) is None,badPath)
 		self.failUnless(PathInPath(goodPath,goodPath)=='',"Match")
 		self.failUnless(PathInPath(TEST_DATA_DIR,goodPath) is None,"Path contains Path")
 
 	def testCasePackagePaths(self):
 		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_3'))
-		goodPath=os.path.join(cp.dPath,'Hello','World')
-		self.failUnless(cp.PackagePath(goodPath)==os.path.join('Hello','World'))
-		badPath=os.path.join(TEST_DATA_DIR,'package_3x','Hello','World')
+		goodPath=os.path.join(cp.dPath,'hello','world')
+		self.failUnless(cp.PackagePath(goodPath)==os.path.join('hello','world'))
+		badPath=os.path.join(TEST_DATA_DIR,'package_3x','hello','world')
 		self.failUnless(cp.PackagePath(badPath) is None,badPath)
-		badPath=os.path.join(TEST_DATA_DIR,'PackageX')
+		badPath=os.path.join(TEST_DATA_DIR,'package_x')
 		self.failUnless(cp.PackagePath(badPath) is None,badPath)
 		badPath=TEST_DATA_DIR
 		self.failUnless(cp.PackagePath(badPath) is None,badPath)
