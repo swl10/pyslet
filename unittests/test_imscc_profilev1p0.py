@@ -28,11 +28,12 @@ class CCMiscTests(unittest.TestCase):
 
 class CommonCartridgeTests(unittest.TestCase):
 	def setUp(self):
+		# make dataPath before we change directory (___file__ may be relative)
+		self.dataPath=os.path.join(os.path.split(os.path.abspath(__file__))[0],'data_imscc_profilev1p0')
 		self.cwd=os.getcwd()
 		self.cpList=[]
 		self.tmpPath=mkdtemp('.d','pyslet-test_imscpv1p2-')
 		os.chdir(self.tmpPath)
-		self.dataPath=os.path.join(os.path.split(__file__)[0],'data_imscc_profilev1p0')
 		
 	def tearDown(self):
 		for cp in self.cpList:
@@ -45,15 +46,15 @@ class CommonCartridgeTests(unittest.TestCase):
 		self.failUnless(isinstance(cc.cp,imscp.ContentPackage))
 		self.cpList.append(cc.cp)
 		self.failUnless(len(cc.laoTable.keys())==0)
-		cc=CommonCartridge(os.path.join(self.dataPath,'Sample1'))
+		cc=CommonCartridge(os.path.join(self.dataPath,'sample_1'))
 		self.failUnless(len(cc.laoTable.keys())==3)
-		cp=imscp.ContentPackage(os.path.join(self.dataPath,'Sample1'))
+		cp=imscp.ContentPackage(os.path.join(self.dataPath,'sample_1'))
 		self.cpList.append(cp)
 		cc=CommonCartridge(cp)
 		self.failUnless(len(cc.laoTable.keys())==3)
 		dList=map(lambda x:cc.laoTable[x][0],cc.laoTable.keys())
 		dList.sort()
-		self.failUnless(dList==['L0001','L0002','L0003'])
+		self.failUnless(dList==['l0001','l0002','l0003'])
 		#r6=cp.manifest.GetElementByID('R0006')
 		head,acr=cc.laoTable['R0006']
 		self.failUnless(acr is cp.manifest.GetElementByID('R0007'))
@@ -62,13 +63,13 @@ class CommonCartridgeTests(unittest.TestCase):
 # Running tests on the cartridges on hold...		
 class CCConformanceTests(unittest.TestCase):
 	def setUp(self):
+		self.dataPath=os.path.join(os.path.split(os.path.abspath(__file__))[0],'data_imscc_profilev1p0')
 		self.cwd=os.getcwd()
 		self.tmpPath=mkdtemp('.d','pyslet-test_imscpv1p2-')
 		os.chdir(self.tmpPath)
-		self.dataPath=os.path.join(os.path.split(__file__)[0],'data_imscc_profilev1p0')
-		cp=imscp.ContentPackage(os.path.join(self.dataPath,'Sample1'))
-		cp.ExportToPIF('Sample1.zip')
-		self.cc=CommonCartridge('Sample1.zip')
+		cp=imscp.ContentPackage(os.path.join(self.dataPath,'sample_1'))
+		cp.ExportToPIF('sample_1.zip')
+		self.cc=CommonCartridge('sample_1.zip')
 		
 	def tearDown(self):
 		self.cc.Close()
@@ -79,7 +80,7 @@ class CCConformanceTests(unittest.TestCase):
 		self.RunTests([])
 
 	def testCase1p4AssociatedContent_1(self):
-		fPath=os.path.join(self.cc.cp.dPath,'L0001','Attachments','Extra.txt')
+		fPath=os.path.join(self.cc.cp.dPath,'l0001','attachments','extra.txt')
 		f=open(fPath,'wb')
 		f.write('Hello World!')
 		f.close()
@@ -106,7 +107,7 @@ class CCConformanceTests(unittest.TestCase):
 	def testCase1p4LAO_1(self):
 		r3=self.cc.cp.manifest.GetElementByID('R0003')
 		f=r3.fileList[0]
-		self.cc.cp.DeleteFile('L0001/Welcome.forum')
+		self.cc.cp.DeleteFile('l0001/welcome.forum')
 		self.RunTests(['test1_4_LAO_1'])
 		
 	def testCase1p4LAO_2(self):
@@ -114,7 +115,7 @@ class CCConformanceTests(unittest.TestCase):
 		# Tricky, to prevent other tests failing we add a reference to a file already referenced
 		# by the associated content for the resource.
 		f=r3.CPFile()
-		f.Set_href('L0001/Welcome.gif')
+		f.Set_href('l0001/welcome.gif')
 		self.RunTests(['test1_4_LAO_2'])
 
 	def testCase1p4LAO_3(self):
@@ -131,7 +132,7 @@ class CCConformanceTests(unittest.TestCase):
 	def testCase1p4WebContent_1(self):
 		r1=self.cc.cp.manifest.GetElementByID('R0001')
 		f=r1.CPFile()
-		f.Set_href('L0001/Welcome.gif')
+		f.Set_href('l0001/welcome.gif')
 		self.RunTests(['test1_4_WebContent_1'])
 
 	def RunTests(self,expectedFailures):
@@ -143,11 +144,15 @@ class CCConformanceTests(unittest.TestCase):
 		for e in r.errors:
 			print e[1]
 		fList.sort()
-		#print
-		#print "%s : %s"%(self.id(),fList)
-		#print "Errors %s : %s"%(self.id(),eList)
-		self.failUnless(fList==expectedFailures)
+		if fList!=expectedFailures:
+			print
+			print "%s : %s"%(self.id(),fList)
+			print "Errors %s : %s"%(self.id(),expectedFailures)
+			self.fail("CC Conformance test failures")
 		
 if __name__ == "__main__":
-	unittest.main()
+	#unittest.main()
+	# we need can't use main because we don't want to pick up the the conformance tests
+	# as they are designed to be run from within one of the other tests.
+	unittest.TextTestRunner().run(suite())
 

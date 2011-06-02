@@ -5,31 +5,31 @@
     <organizations/>
     <resources>
         <resource identifier="R0001" type="webcontent">
-            <file href="Page001.htm"/>
-            <file href="Images/Image0001.gif"/>            
+            <file href="page_001.htm"/>
+            <file href="images/image_0001.gif"/>            
         </resource>
         <resource identifier="R0002" type="webcontent">
-            <file href="Media/Audio001.mp3"/>
+            <file href="media/audio_001.mp3"/>
         </resource>
         <resource identifier="R0003" type="imsdt_xmlv1p0">
-            <file href="L0001/Welcome.forum"/>
+            <file href="l0001/welcome.forum"/>
             <dependency identifierref="R0004"/>
         </resource>
         <resource identifier="R0004" type="associatedcontent/imscc_xmlv1p0/learning-application-resource">
-            <file href="L0001/Welcome.gif"/>
-            <file href="L0001/Attachments/GettingStarted.doc"/>
+            <file href="l0001/welcome.gif"/>
+            <file href="l0001/attachments/getting_started.doc"/>
         </resource>
         <resource identifier="R0005" type="imsqti_xmlv1p2/imscc_xmlv1p0/assessment">
-            <file href="L0002/Studymate.qti"/>
+            <file href="l0002/studymate.qti"/>
         </resource>
         <resource identifier="R0006" type="imsqti_xmlv1p2/imscc_xmlv1p0/assessment">
-            <file href="L0003/Quiz1.qti"/>
+            <file href="l0003/quiz_1.qti"/>
             <dependency identifierref="R0007"/>
         </resource>
         <resource identifier="R0007" type="associatedcontent/imscc_xmlv1p0/learning-application-resource">
-            <file href="L0003/Sample.doc"/>
-            <file href="L0003/Images/Ques001.gif"/>
-            <file href="L0003/Images/Ques002.gif"/>
+            <file href="l0003/sample.doc"/>
+            <file href="l0003/images/ques_001.gif"/>
+            <file href="l0003/images/ques_002.gif"/>
         </resource>
     </resources>
 </manifest>
