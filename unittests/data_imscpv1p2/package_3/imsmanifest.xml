@@ -5,15 +5,15 @@
 	identifier="MANIFEST-3">
 	<organizations/>
 	<resources>
-		<resource identifier="test1" type="webcontent" href="file1.xml">
-			<file href="fileA.xml"/>
-			<file href="file1.xml"/>
-			<file href="file2.xml"/>
+		<resource identifier="test1" type="webcontent" href="file_1.xml">
+			<file href="file_a.xml"/>
+			<file href="file_1.xml"/>
+			<file href="file_2.xml"/>
 		</resource>
-		<resource identifier="test2" type="webcontent" href="file1.xml">
-			<file href="fileB.xml"/>
-			<file href="file1.xml"/>
-			<file href="file3.xml"/>
+		<resource identifier="test2" type="webcontent" href="file_1.xml">
+			<file href="file_b.xml"/>
+			<file href="file_1.xml"/>
+			<file href="file_3.xml"/>
 		</resource>
 	</resources>
 </manifest>

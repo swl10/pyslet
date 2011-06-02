@@ -17,7 +17,7 @@ def suite():
 		unittest.makeSuite(ContentPackageTests,'test'),
 		))
 
-TEST_DATA_DIR=os.path.join(os.path.split(__file__)[0],'data_imscpv1p2')
+TEST_DATA_DIR=os.path.join(os.path.split(os.path.abspath(__file__))[0],'data_imscpv1p2')
 
 from pyslet.imscpv1p2 import *
 
@@ -30,10 +30,10 @@ class CPElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		e=CPElement(None)
 		
-class CPXElementTests(unittest.TestCase):
-	def testCaseConstructor(self):
-		e=CPXElement(None)
-		self.failUnless(e.ns==IMSCPX_NAMESPACE,'ns on construction')
+# class CPXElementTests(unittest.TestCase):
+# 	def testCaseConstructor(self):
+# 		e=CPXElement(None)
+# 		self.failUnless(e.ns==IMSCPX_NAMESPACE,'ns on construction')
 
 		
 EXAMPLE_1="""<?xml version="1.0" encoding="utf-8"?>
@@ -236,7 +236,7 @@ class ContentPackageTests(unittest.TestCase):
 		self.failUnless(cp.manifest.root.id=="MANIFEST-QTI-1","Constructor from manifest file")
 	
 	def testCaseUnicode(self):
-		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package1'))
+		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_1'))
 		resources=cp.manifest.root.resources
 		r=resources.list[0]
 		self.failUnless(len(r.fileList)==1)
@@ -250,11 +250,11 @@ class ContentPackageTests(unittest.TestCase):
 		self.failUnless(cp2.GetPackageName()==u'\u82f1\u56fd',"Unicode package name test")
 
 	def testCaseZipRead(self):
-		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package1.zip'))
+		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_1.zip'))
 		self.failUnless(os.path.isdir(cp.dPath),"Zip constructor must create a temp directory")
 		# Ensure the temporary directory is cleaned up
 		self.dList.append(cp.dPath)
-		self.failUnless(cp.GetPackageName()=='Package1',"Zip extension not removed for name")
+		self.failUnless(cp.GetPackageName()=='package_1',"Zip extension not removed for name")
 		resources=cp.manifest.root.resources
 		f=resources.list[0].fileList[0]
 		doc=xmlns.XMLDocument(baseURI=f.ResolveURI(f.href))
@@ -263,7 +263,7 @@ class ContentPackageTests(unittest.TestCase):
 			doc.root.GetValue()==u"Unicode Test: \u82f1\u56fd")
 	
 	def testCaseZipWrite(self):
-		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package1.zip'))
+		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_1.zip'))
 		self.dList.append(cp.dPath)
 		cp.ExportToPIF('Package2.zip')
 		cp2=ContentPackage('Package2.zip')
@@ -276,35 +276,35 @@ class ContentPackageTests(unittest.TestCase):
 			doc.root.GetValue()==u"Unicode Test: \u82f1\u56fd")
 	
 	def testCaseFileTable(self):
-		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package3'))
+		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_3'))
 		ft=cp.fileTable
 		self.failUnless(len(ft.keys())==6)
-		self.failUnless(len(ft['file1.xml'])==2 and isinstance(ft['file1.xml'][0],CPFile))
-		self.failUnless(len(ft['file4.xml'])==0,CPFile)
-		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package3'))
+		self.failUnless(len(ft['file_1.xml'])==2 and isinstance(ft['file_1.xml'][0],CPFile))
+		self.failUnless(len(ft['file_4.xml'])==0,CPFile)
+		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_3'))
 		cp.SetIgnoreFiles("\\..*|.*4.*")
 		cp.RebuildFileTable()
 		ft=cp.fileTable
 		self.failUnless(len(ft.keys())==5)
 
 	def testCaseUniqueFile(self):
-		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package3'))
+		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_3'))
 		ft=cp.fileTable
-		fPath=cp.GetUniqueFile('file1.xml')
-		self.failIf(fPath=='file1.xml',"file path must be unique")
+		fPath=cp.GetUniqueFile('file_1.xml')
+		self.failIf(fPath=='file_1.xml',"file path must be unique")
 		self.failUnless(fPath[-4:]=='.xml',"Must preserve extension")
 		self.failIf(ft.has_key(fPath), "file path must not be in use")
 
 	def testCaseDeleteFile(self):
-		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package3'))
-		cp.ExportToPIF('Package3.zip')
-		cp2=ContentPackage('Package3.zip')
+		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_3'))
+		cp.ExportToPIF('package_3.zip')
+		cp2=ContentPackage('package_3.zip')
 		self.dList.append(cp2.dPath)
 		r1=cp2.manifest.GetElementByID('test1')
 		r2=cp2.manifest.GetElementByID('test2')
 		r1Len=len(r1.fileList)
 		r2Len=len(r2.fileList)
-		cp2.DeleteFile('file1.xml')
+		cp2.DeleteFile('file_1.xml')
 		self.failUnless(len(r1.fileList)==r1Len-1)
 		self.failUnless(len(r2.fileList)==r2Len-1)
 		
@@ -318,10 +318,10 @@ class ContentPackageTests(unittest.TestCase):
 		self.failUnless(PathInPath(TEST_DATA_DIR,goodPath) is None,"Path contains Path")
 
 	def testCasePackagePaths(self):
-		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'Package3'))
+		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_3'))
 		goodPath=os.path.join(cp.dPath,'Hello','World')
 		self.failUnless(cp.PackagePath(goodPath)==os.path.join('Hello','World'))
-		badPath=os.path.join(TEST_DATA_DIR,'Package3X','Hello','World')
+		badPath=os.path.join(TEST_DATA_DIR,'package_3x','Hello','World')
 		self.failUnless(cp.PackagePath(badPath) is None,badPath)
 		badPath=os.path.join(TEST_DATA_DIR,'PackageX')
 		self.failUnless(cp.PackagePath(badPath) is None,badPath)
