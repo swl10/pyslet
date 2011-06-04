@@ -8,9 +8,9 @@ import pyslet.imsmdv1p2p1 as imsmd
 import pyslet.imsqtiv2p1 as imsqti
 import pyslet.rfc2396 as uri
 
-from types import StringTypes
+from types import StringTypes, StringType, UnicodeType
 from tempfile import mkdtemp
-import os, os.path, shutil
+import os, os.path, shutil, sys
 import string,re, random
 import zipfile
 
@@ -456,6 +456,9 @@ class ContentPackage:
 					# The current path will need to be a directory
 					if not os.path.isdir(path):
 						os.mkdir(path)
+					pathSeg=unicode(pathSeg,'utf-8')
+					if type(path) is StringType:
+						pathSeg=pathSeg.encode(sys.getfilesystemencoding())
 					path=os.path.normpath(os.path.join(path,pathSeg))
 					if self.PackagePath(path) is None:
 						raise CPZIPFilenameError(zfi.filename)
@@ -490,7 +493,10 @@ class ContentPackage:
 			raise CPZIPBeenThereError(fPath)
 		beenThere[rfName]=True
 		fName=os.path.split(fPath)[1]
-		zpath=zbase+fName.replace('/',':')
+		zfName=fName.replace('/',':')
+		if type(zfName) is StringType:
+			zfName=zfName.decode(sys.getfilesystemencoding())
+		zpath=zbase+zfName.encode('utf-8')
 		if os.path.isdir(fPath):
 			zpath+='/'
 			zf.writestr(zpath,'')
