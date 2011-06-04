@@ -24,6 +24,7 @@ def suite():
 		))
 
 TEST_DATA_DIR=os.path.join(os.path.split(os.path.abspath(__file__))[0],'data_xml20081126')
+DTD_DATA=os.path.join(os.path.split(os.path.abspath(__file__))[0],'data_imsqtiv1p2p1','input')
 
 from pyslet.xml20081126 import *
 
@@ -248,14 +249,14 @@ class XMLValidationTests(unittest.TestCase):
 class XMLEntityTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		e=XMLEntity("<hello>")
-		self.failUnless(e.lineNum==0)
-		self.failUnless(e.linePos==0)
+		self.failUnless(e.lineNum==1)
+		self.failUnless(e.linePos==1)
 		self.failUnless(type(e.theChar) is UnicodeType and e.theChar==u'<')
 		e=XMLEntity(u"<hello>")
 		self.failUnless(type(e.theChar) is UnicodeType and e.theChar==u'<')
 		e=XMLEntity(StringIO("<hello>"))
-		self.failUnless(e.lineNum==0)
-		self.failUnless(e.linePos==0)
+		self.failUnless(e.lineNum==1)
+		self.failUnless(e.linePos==1)
 		self.failUnless(type(e.theChar) is UnicodeType and e.theChar==u'<')
 
 	def testCaseChars(self):
@@ -272,9 +273,8 @@ class XMLEntityTests(unittest.TestCase):
 		while e.theChar is not None:
 			c=e.theChar
 			e.NextChar()
-			if c=='\n': e.NextLine()
-		self.failUnless(e.lineNum==2)
-		self.failUnless(e.linePos==1)
+		self.failUnless(e.lineNum==3)
+		self.failUnless(e.linePos==2)
 
 	def testLookahead(self):
 		e=XMLEntity("Hello")
@@ -326,13 +326,57 @@ class XMLParserTests(unittest.TestCase):
 		e=XMLEntity("<hello>")
 		p=XMLParser(e)
 
+	def testCaseRewind(self):
+		data="Hello\r\nWorld\nCiao\rTutti!"
+		data2="Hello\nWorld\nCiao\nTutti!"
+		e=XMLEntity(data)
+		p=XMLParser(e)
+		for i in xrange(len(data2)):
+			self.failUnless(p.theChar==data2[i],"Failed at data[%i] before look ahead"%i)
+			for j in xrange(5):
+				e.StartLookahead()
+				for k in xrange(j):
+					p.NextChar()
+				p.Rewind()
+				self.failUnless(p.theChar==data2[i],"Failed at data[%i] after Rewind(%i)"%(i,j))
+			p.NextChar()
+		
+	def testDocument(self):
+		"""[1] document ::= prolog element Misc* """
+		os.chdir(TEST_DATA_DIR)
+		f=open('readFile.xml','rb')
+		e=XMLEntity(f)
+		d=XMLDocument()
+		d.Read(e)
+		root=d.root
+		self.failUnless(isinstance(root,XMLElement))
+		self.failUnless(root.xmlname=='tag' and root.GetValue()=='Hello World')
+		f.close()
+
+	def testCaseDTD(self):
+		f=open(os.path.join(DTD_DATA,'qmdextensions.xml'),'rb')
+		e=XMLEntity(f)
+		d=XMLDocument()
+		d.Read(e)
+			
+	#	[2] Char ::= #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
+
 	def testCaseS(self):
+		"""[3] S ::= (#x20 | #x9 | #xD | #xA)+ """
 		e=XMLEntity(" \t\r\n \r \nHello")
 		p=XMLParser(e)
 		self.failUnless(p.ParseS()==" \t\n \n \n")
 		self.failUnless(e.theChar=='H')
 	
 	def testCaseNames(self):
+		"""
+		[4]		NameStartChar ::= ":" | [A-Z] | "_" | [a-z] | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
+		[4a]   	NameChar ::= NameStartChar | "-" | "." | [0-9] | #xB7 | [#x0300-#x036F] | [#x203F-#x2040]
+		[5]   	Name ::= NameStartChar (NameChar)*
+		[6]   	Names ::= Name (#x20 Name)*
+		[7]   	Nmtoken ::= (NameChar)+
+		[8]   	Nmtokens ::= Nmtoken (#x20 Nmtoken)*
+		"""
 		e=XMLEntity("Hello World -Atlantis!")
 		p=XMLParser(e)
 		self.failUnless(p.ParseNames()==['Hello','World'])
@@ -340,8 +384,55 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		tokens=p.ParseNmtokens()
 		self.failUnless(tokens==['Hello','World','-Atlantis'],repr(tokens))
+		
+	def testCaseEntityValue(self):
+		"""[9] EntityValue ::= '"' ([^%&"] | PEReference | Reference)* '"' | "'" ([^%&'] | PEReference | Reference)* "'"	"""
+		e=XMLEntity("'first'\"second\"'3&gt;2''2%ltpe;3'")
+		m=['first','second','3>2','2<3']
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		p.doc.DeclareParameterEntity('ltpe','<')
+		for match in m:
+			value=p.ParseEntityValue()
+			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
 	
+	def testAttValue(self):
+		"""[10] AttValue ::= '"' ([^<&"] | Reference)* '"' |  "'" ([^<&'] | Reference)* "'" """
+		e=XMLEntity("'first'\"second\"'3&gt;2''Caf&#xE9;'")
+		m=['first','second','3>2',u'Caf\xe9']
+		p=XMLParser(e)
+		for match in m:
+			value=p.ParseAttValue()
+			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
+	
+	def testSystemLiteral(self):
+		"""[11] SystemLiteral ::= ('"' [^"]* '"') | ("'" [^']* "'") """
+		e=XMLEntity("'first'\"second\"'3&gt;2''2%ltpe;3''Caf&#xE9;'")
+		m=[u'first',u'second',u'3&gt;2',u'2%ltpe;3',u'Caf&#xE9;']
+		p=XMLParser(e)
+		for match in m:
+			value=p.ParseSystemLiteral()
+			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
+	
+	def testPubidLiteral(self):
+		"""
+		[12] PubidLiteral ::= '"' PubidChar* '"' | "'" (PubidChar - "'")* "'"
+		[13] PubidChar ::= #x20 | #xD | #xA | [a-zA-Z0-9] | [-'()+,./:=?;!*#@$_%]
+		"""
+		e=XMLEntity("'first'\"second\"'http://www.example.com/schema.dtd?strict''[bad]'")
+		m=['first','second','http://www.example.com/schema.dtd?strict']
+		p=XMLParser(e)
+		for match in m:
+			value=p.ParsePubidLiteral()
+			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
+		try:
+			value=p.ParsePubidLiteral()
+			self.fail("Parsed bad PubidLiterasl: %s"%value)
+		except XMLFatalError:
+			pass
+		
 	def testCaseCharData(self):
+		"""[14] CharData ::= [^<&]* - ([^<&]* ']]>' [^<&]*) """
 		e=XMLEntity("First<Second&Third]]&Fourth]]>")
 		m=['First','Second','Third]]','Fourth']
 		p=XMLParser(e)
@@ -351,48 +442,70 @@ class XMLParserTests(unittest.TestCase):
 			self.failUnless(pStr==match,"Match failed: %s (expected %s)"%(pStr,match))
 
 	def testCaseComment(self):
+		"""[15] Comment ::= '<!--' ((Char - '-') | ('-' (Char - '-')))* '-->' """
 		e=XMLEntity("<!--First--><!--Secon-d--><!--Thi<&r]]>d--><!--Fourt<!-h--><!--Bad--Comment-->")
 		m=['First','Secon-d','Thi<&r]]>d','Fourt<!-h']
 		p=XMLParser(e)
 		for match in m:
-			pStr=p.ParseComment()
-			self.failUnless(pStr==match,"Match failed: %s (expected %s)"%(pStr,match))
+			if p.ParseLiteral('<!--'):
+				pStr=p.ParseComment()
+				self.failUnless(pStr==match,"Match failed: %s (expected %s)"%(pStr,match))
+			else:
+				self.fail("Comment start")
 		try:
-			pStr=p.ParseComment()
+			if p.ParseLiteral('<!--'):
+				pStr=p.ParseComment()
 			self.fail("Parsed bad comment: %s"%pStr)
 		except XMLFatalError:
 			pass
 
 	def testCasePI(self):
+		"""[16] PI ::= '<?' PITarget (S (Char* - (Char* '?>' Char*)))? '?>' """
 		e=XMLEntity("<?target instruction?><?xm_xml \n\r<!--no comment-->?><?markup \t]]>?&<?><?xml reserved?>")
 		m=[('target','instruction'),('xm_xml','<!--no comment-->'),('markup',']]>?&<'),('xml','reserved')]
 		p=XMLParser(e)
 		for matchTarget,matchStr in m:
-			target,pStr=p.ParsePI()
+			if p.ParseLiteral('<?'):
+				target,pStr=p.ParsePI()
 			self.failUnless(target==matchTarget,"Match failed for target: %s (expected %s)"%(target,matchTarget))
 			self.failUnless(pStr==matchStr,"Match failed for instruction: %s (expected %s)"%(pStr,matchStr))
 			
-	def testCaseCDATA(self):
+	def testCaseCDSect(self):
+		"""
+		[18] CDSect ::=  CDStart CData CDEnd
+		[19] CDStart ::= '<![CDATA['
+		[20] CData ::= (Char* - (Char* ']]>' Char*))
+		[21] CDEnd ::= ']]>'
+		"""
 		e=XMLEntity("<![CDATA[]]><![CDATA[<hello>&world;]]><![CDATA[hello]]world]]>")
 		m=['','<hello>&world;','hello]]world']
 		p=XMLParser(e)
 		for match in m:
-			pStr=p.ParseCDATA()
+			if p.ParseLiteral('<![CDATA['):
+				pStr=p.ParseCDSect()
 			self.failUnless(pStr==match,"Match failed: %s (expected %s)"%(pStr,match))
+
+		# 	[22]   	prolog	   ::=   	 XMLDecl? Misc* (doctypedecl Misc*)?
+		# 	[23]   	XMLDecl	   ::=   	'<?xml' VersionInfo EncodingDecl? SDDecl? S? '?>'
+		# 	[24]   	VersionInfo	   ::=   	 S 'version' Eq ("'" VersionNum "'" | '"' VersionNum '"')
+		# 	[25]   	Eq	   ::=   	 S? '=' S?
+		# 	[26]   	VersionNum	   ::=   	'1.' [0-9]+
+		# 	[27]   	Misc	   ::=   	 Comment | PI | S
 
 	def testCaseTags(self):
 		e=XMLEntity("<tag hello='world' ciao=\"tutti\">")
 		p=XMLParser(e)
-		name,attrs,type=p.ParseTag()
-		self.failUnless(name=='tag' and attrs['hello']=='world' and attrs['ciao']=='tutti' and type==XMLParser.STag)
+		name,attrs,empty=p.ParseSTag()
+		self.failUnless(name=='tag' and attrs['hello']=='world' and attrs['ciao']=='tutti' and empty==False)
 		e=XMLEntity("<tag hello>")
 		p=XMLParser(e)
-		name,attrs,type=p.ParseTag()
-		self.failUnless(name=='tag' and attrs['hello']==None and type==XMLParser.STag)
+		name,attrs,empty=p.ParseSTag()
+		self.failUnless(name=='tag' and attrs['hello']==None and empty is False)
 		e=XMLEntity("<tag width=20%>")
 		p=XMLParser(e)
-		name,attrs,type=p.ParseTag()
-		self.failUnless(name=='tag' and attrs['width']=='20%' and type==XMLParser.STag)
+		p.compatibilityMode=True
+		name,attrs,empty=p.ParseSTag()
+		self.failUnless(name=='tag' and attrs['width']=='20%' and empty is False)
 
 
 class XMLElementTests(unittest.TestCase):

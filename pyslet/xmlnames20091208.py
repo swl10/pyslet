@@ -2,10 +2,14 @@
 
 from pyslet.xml20081126 import *
 
-XML_NAMESPACE="http://www.w3.org/XML/1998/namespace"
+XML_NAMESPACE=u"http://www.w3.org/XML/1998/namespace"
+XMLNS_NAMESPACE=u"http://www.w3.org/2000/xmlns/"
 xmlns_base=(XML_NAMESPACE,'base')
 xmlns_lang=(XML_NAMESPACE,'lang')
 xmlns_space=(XML_NAMESPACE,'space')
+
+class XMLNSError(XMLFatalError): pass
+
 
 def IsValidNCName(name):
 	if name:
@@ -25,7 +29,88 @@ def AttributeNameKey(aname):
 		return (None,unicode(aname))
 	else:
 		return aname
+
+
+class XMLNSParser(XMLParser):
+
+	def __init__(self,entity=None):
+		XMLParser.__init__(self,entity)
+		self.nsStack=[]
+	
+	def ExpandQName(self,qname,useDefault=True):
+		xname=qname.split(':')
+		if len(xname)==1:
+			if qname=='xmlns':
+				return (XMLNS_NAMESPACE,'')
+			elif useDefault:
+				nsURI=None
+				for ns in self.nsStack:
+					nsURI=ns.get('',None)
+					if nsURI:
+						break
+				return (nsURI,qname)
+			else:
+				return (None,qname)
+		elif len(xname)==2:
+			nsprefix,local=xname
+			if nsprefix=='xml':
+				return (XML_NAMESPACE,local)
+			elif nsprefix=='xmlns':
+				return (XMLNS_NAMESPACE,local)
+			else:
+				nsURI=None
+				for ns in self.nsStack:
+					nsURI=ns.get(nsprefix,None)
+					if nsURI:
+						break
+				return (nsURI,local)		
+		else:
+			# something wrong with this element
+			raise XMLNSError("Illegal QName: %s"%qname)
+			
+	def ParseElement(self):
+		"""[39] element ::= EmptyElemTag | STag content ETag
 		
+		We override this one method to handle namespaces.  The method
+		used is a two-pass scan of the attributes, the first time
+		we identify any namespace declarations and add a new dictionary
+		to a stack of namespace dictionaries.  The second pass is used
+		to create a new dictionary for the attributes using expanded
+		names."""
+		qname,attrs,empty=self.ParseSTag()
+		# go through and find namespace declarations
+		ns={}
+		nsAttrs={}
+		for aname in attrs.keys():
+			if aname.startswith('xmlns'):
+				if len(aname)==5:
+					# default ns declaration
+					ns['']=attrs[aname]
+				elif aname[5]==':':
+					# ns prefix declaration
+					ns[aname[6:]]=attrs[aname]
+		if ns:
+			self.nsStack[0:0]=[ns]
+		for aname in attrs.keys():
+			expandedName=self.ExpandQName(aname,False)
+			if expandedName[0]!=XMLNS_NAMESPACE:
+				# hide xmlns: attributes from the document
+				nsAttrs[expandedName]=attrs[aname]
+		expandedName=self.ExpandQName(qname)
+		if empty:
+			self.doc.startElementNS(expandedName,qname,nsAttrs)
+			self.doc.endElementNS(expandedName,qname)
+		else:
+			self.doc.startElementNS(expandedName,qname,nsAttrs)
+			self.ParseContent()
+			endQName=self.ParseETag()
+			if qname!=endQName:
+				raise XMLWellFormedError("Expected <%s/>"%qname)
+			self.doc.endElementNS(expandedName,qname)
+		if ns:
+			self.nsStack=self.nsStack[1:]
+		return qname
+	
 
 class XMLNSElement(XMLElement):
 	def __init__(self,parent,name=None):
@@ -291,6 +376,13 @@ class XMLNSDocument(XMLDocument):
 		The default implementation returns XMLNSElement."""
 		return XMLNSElement
 				
+	def ReadFromEntity(self,e):
+		self.cObject=self
+		self.objStack=[]
+		self.data=[]
+		parser=XMLNSParser(e)
+		parser.ParseDocument(self)
+
 	def startElementNS(self, name, qname, attrs):
 		parent=self.cObject
 		self.objStack.append(self.cObject)

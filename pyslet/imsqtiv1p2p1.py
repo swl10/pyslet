@@ -704,9 +704,10 @@ class QTIMatText(QTIElement,QTIContentMixin):
 				for child in children:
 					value.append(unicode(child))
 				value=string.join(value,'')
-			e=xml.XMLEntity(value)
-			p=html.HTMLParser(e)
-			self.matChildren=p.ParseHTMLFragment()
+			if value:
+				e=xml.XMLEntity(value)
+				p=html.HTMLParser(e)
+				self.matChildren=p.ParseHTMLFragment()
 		elif self.texttype=='text/rtf':
 			# parse the RTF content
 			raise QTIUnimplementedError

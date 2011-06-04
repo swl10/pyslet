@@ -81,7 +81,7 @@ class XMLNSDocumentTests(unittest.TestCase):
 		ATTR_XML="""<?xml version="1.0" encoding="UTF-8"?>
 <createTag xmlns="http://www.example.com" xmlns:ns1="http://www.example.com/attributes" ns1:test="Hello"/>"""		
 		ATTR_XML_ALT="""<?xml version="1.0" encoding="UTF-8"?>
-<createTag xmlns="http://www.example.com" xmlns:test="http://www.example.com/attributes" test:test="Hello"/>"""		
+<createTag xmlns="http://www.example.com" xmlns:test="http://www.example.com/attributes" test:test="Hello"/>"""
 		d=XMLNSDocument()
 		d.Read(src=StringIO(ATTR_XML))
 		dst=StringIO()

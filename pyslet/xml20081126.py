@@ -37,9 +37,12 @@ class XMLMissingFileError(XMLError): pass
 class XMLMissingLocationError(XMLError): pass
 class XMLMixedContentError(XMLError): pass
 class XMLParentError(XMLError): pass
+class XMLUnimplementedError(XMLError): pass
+class XMLUnexpectedError(XMLError): pass
 class XMLUnexpectedHTTPResponse(XMLError): pass
 class XMLUnsupportedSchemeError(XMLError): pass
 class XMLValidationError(XMLError): pass
+class XMLWellFormedError(XMLFatalError): pass
 
 from pyslet.unicode5 import CharClass
 from pyslet import rfc2616 as http
@@ -53,6 +56,11 @@ NameStartCharClass=CharClass(u':', (u'A',u'Z'), u'_', (u'a',u'z'),
 NameCharClass=CharClass(NameStartCharClass, u'-', u'.', (u'0',u'9'),
 	u'\xb7', (u'\u0300',u'\u036f'), (u'\u203f',u'\u2040'))
 
+EncNameStartCharClass=CharClass((u'A',u'Z'), (u'a',u'z'))
+
+EncNameCharClass=CharClass(u'-', u'.', (u'0',u'9'), (u'A',u'Z'), u'_', 
+	(u'a',u'z'))
+	
 BaseCharClass=CharClass((u'A',u'Z'), (u'a',u'z'), (u'\xc0',u'\xd6'),
 	(u'\xd8',u'\xf6'), (u'\xf8',u'\u0131'), (u'\u0134',u'\u013e'),
 	(u'\u0141',u'\u0148'), (u'\u014a',u'\u017e'), (u'\u0180',u'\u01c3'),
@@ -143,6 +151,9 @@ DigitClass=CharClass((u'0',u'9'), (u'\u0660',u'\u0669'),
 ExtenderClass=CharClass(u'\xb7', (u'\u02d0',u'\u02d1'), u'\u0387', u'\u0640',
 u'\u0e46', u'\u0ec6', u'\u3005', (u'\u3031',u'\u3035'), (u'\u309d',u'\u309e'),
 (u'\u30fc',u'\u30fe'))
+
+PubidCharClass=CharClass(u' ',u'\x0d',u'\x0a', (u'0',u'9'), (u'A',u'Z'), 
+	(u'a',u'z'), "-'()+,./:=?;!*#@$_%")
 
 def IsChar(c):
 	return c and (ord(c)==0x9 or ord(c)==0xA or ord(c)==0xD or
@@ -241,6 +252,10 @@ def IsValidName(name):
 	else:
 		return False
 
+def IsPubidChar(c):
+	return PubidCharClass.Test(c)
+
+
 # def NormPath(urlPath):
 # 	"""Normalizes a URL path, removing '.' and '..' components.
 # 	
@@ -327,19 +342,28 @@ class XMLEntity:
 		
 	def Reset(self):
 		self.charSource.seek(self.basePos)
-		self.lineNum=0
-		self.linePos=-1
+		self.lineNum=1
+		self.linePos=0
 		self.chars=''
 		self.charSeek=self.basePos
 		self.charPos=-1
 		self.theChar=''
+		self.ignoreLF=False
 		self.lookahead=[]
 		self.NextChar()
 		# python handles the utf-16 BOM automatically but we have to skip it for utf-8
 		if self.encoding.lower()=='utf-8' and self.theChar==u'\ufeff':
-			self.NextChar()			
+			self.NextChar()
+	
+	def GetPositionStr(self):
+		return "Line %i.%i"%(self.lineNum,self.linePos)
 		
 	def NextChar(self):
+		"""Advance to the next character in the entity.
+		
+		This method takes care of the End-of-Line handling rules for XML which force
+		us to remove any CR characters and replace them with LF if they appear on their
+		own or silenty drop them if they appear as part of a CR-LF combination."""
 		if self.theChar is None:
 			return
 		self.charPos=self.charPos+1
@@ -356,7 +380,20 @@ class XMLEntity:
 			self.theChar=None
 		else:
 			self.theChar=self.chars[self.charPos]
-	
+			if self.theChar=='\x0D':
+				# change to a line feed and ignore the next line feed
+				self.theChar='\x0A'
+				self.ignoreLF=True
+				self.NextLine()
+			elif self.theChar=='\x0A':
+				if self.ignoreLF:
+					self.ignoreLF=False
+					self.NextChar()
+				else:
+					self.NextLine()
+			else:
+				self.ignoreLF=False
+				
 	def ChangeEncoding(self,encoding):
 		if self.dataSource:
 			# Need to rewind and re-read the current buffer
@@ -371,61 +408,89 @@ class XMLEntity:
 		self.linePos=0
 
 	def StartLookahead(self):
-		self.lookahead.append([self.lineNum,self.linePos,self.charPos,self.theChar])
+		self.lookahead.append([self.lineNum,self.linePos,self.charPos,self.theChar,self.ignoreLF])
 		
 	def StopLookahead(self):
 		self.lookahead.pop()
 		
 	def RewindLookahead(self):
-		self.lineNum,self.linePos,self.charPos,self.theChar=self.lookahead.pop()
+		self.lineNum,self.linePos,self.charPos,self.theChar,self.ignoreLF=self.lookahead.pop()
 		
 
 class XMLParser:
 	def __init__(self,entity=None):
 		self.entity=entity
+		self.entityStack=[]
 		if self.entity:
-			self.normalizing=True
-			self.NextChar()
-		else:
-			self.normalizing=False
-			self.theChar=None
-			
-	def NextChar(self):
-		"""Move to the next character in the stream.
-		
-		This method takes case of the End-of-Line handling rules for XML which force
-		us to remove any CR characters and replace them with LF if they appear on their
-		own or silenty drop them if they appear as part of a CR-LF combination."""
-		if self.normalizing:
-			self.normalizing=False
-		else:
-			self.entity.NextChar()
-		if self.entity.theChar=='\x0D':
-			self.entity.NextChar()
-			if self.entity.theChar!='\x0A':
-				# Replace CR with LF when it appears on its own
-				self.normalizing=True
-				self.theChar='\x0A'
-			else:
-				self.theChar='\x0A'
-		else:
 			self.theChar=self.entity.theChar
+		else:
+			self.theChar=None
+		self.buff=[]
+		self.doc=None
+		self.compatibilityMode=False
+		
+	def NextChar(self):
+		"""Move to the next character in the stream."""
+		if self.buff:
+			self.buff=self.buff[1:]
+		if self.buff:
+			self.theChar=self.buff[0]
+		else:	
+			self.entity.NextChar()
+			self.theChar=self.entity.theChar
+			while self.theChar is None and self.entityStack:
+				self.entity=self.entityStack.pop()
+				self.theChar=self.entity.theChar
 
+	def BuffText(self,unusedChars):
+		if unusedChars:
+			if self.buff:
+				self.buff=list(unusedChars)+self.buff
+			else:
+				self.buff=list(unusedChars)
+				if self.entity.theChar is not None:
+					self.buff.append(self.entity.theChar)
+			self.theChar=self.buff[0]
+	
+	def PushEntity(self,entity):
+		"""Pushes a new entity onto the stack and starts parsing it."""
+		self.entityStack.append(self.entity)
+		self.entity=entity
+		self.theChar=self.entity.theChar
+	
 	def Rewind(self):
 		self.entity.RewindLookahead()
 		self.theChar=self.entity.theChar
 
+	def ParseDocument(self,doc):
+		"""[1] document ::= prolog element Misc* """
+		self.doc=doc
+		self.ParseProlog()
+		self.ParseElement()
+		self.ParseMisc()
+		if self.theChar is not None:
+			raise XMLWellFormedError("Unparsed characters in entity after document")
+
+	#	[2] Char ::= #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
+
 	def ParseS(self):
+		""" [3] S ::= (#x20 | #x9 | #xD | #xA)+ """
 		s=[]
-		while IsS(self.theChar):
-			s.append(self.theChar)
-			self.NextChar()
-		if s:
-			return string.join(s,'')
-		else:
-			return None
-		
+		sLen=0
+		while True:
+			if IsS(self.theChar):
+				s.append(self.theChar)
+				self.NextChar()
+			else:
+				break
+			sLen+=1
+		return string.join(s,'')
+
 	def ParseName(self):
+		"""
+		[4]		NameStartChar ::= ":" | [A-Z] | "_" | [a-z] | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
+		[4a]   	NameChar ::= NameStartChar | "-" | "." | [0-9] | #xB7 | [#x0300-#x036F] | [#x203F-#x2040]
+		[5]   	Name ::= NameStartChar (NameChar)*	"""
 		name=[]
 		if IsNameStartChar(self.theChar):
 			name.append(self.theChar)
@@ -438,7 +503,14 @@ class XMLParser:
 		else:
 			return None
 
+	def ParseRequiredName(self):
+		name=self.ParseName()
+		if name is None:
+			raise XMLWellFormedError("Expected Name")
+		return name
+		
 	def ParseNames(self):
+		""" [6] Names ::= Name (#x20 Name)* """
 		names=[]
 		name=self.ParseName()
 		if name is None:
@@ -459,6 +531,7 @@ class XMLParser:
 			return None
 	
 	def ParseNmtoken(self):
+		"""[7] Nmtoken ::= (NameChar)+ """
 		nmtoken=[]
 		while IsNameChar(self.theChar):
 			nmtoken.append(self.theChar)
@@ -469,6 +542,7 @@ class XMLParser:
 			return None
 
 	def ParseNmtokens(self):
+		""" [8] Nmtokens ::= Nmtoken (#x20 Nmtoken)* """
 		nmtokens=[]
 		nmtoken=self.ParseNmtoken()
 		if nmtoken is None:
@@ -488,34 +562,116 @@ class XMLParser:
 		else:
 			return None
 	
-	def ParseLiteral(self,match):
-		for c in match:
-			if self.theChar!=c:
-				return None
-			else:
+	def ParseEntityValue(self):
+		"""[9] EntityValue ::= '"' ([^%&"] | PEReference | Reference)* '"' | "'" ([^%&'] | PEReference | Reference)* "'"	"""
+		q=self.ParseQuote()
+		value=[]
+		while True:
+			if self.theChar=='&':
+				value.append(self.ParseReference())
+			elif self.theChar=='%':
+				self.ParsePEReference()
+			elif self.theChar==q:
 				self.NextChar()
-		return match
-			
+				break
+			elif IsChar(self.theChar):
+				value.append(self.theChar)
+				self.NextChar()
+			elif self.theChar is None:
+				raise XMLWellFormedError("Incomplete EntityValue")
+			else:
+				raise XMLWellFormedError("Unexpected data in EntityValue")
+		return string.join(value,'')
+
+	def ParseAttValue(self):
+		"""[10] AttValue ::= '"' ([^<&"] | Reference)* '"' |  "'" ([^<&'] | Reference)* "'" """
+		value=[]
+		try:
+			q=self.ParseQuote()
+			end=''
+		except XMLWellFormedError:
+			if not self.compatibilityMode:
+				raise
+			q=None
+			end='<"\'>'
+		while True:
+			if self.theChar==q:
+				self.NextChar()
+				break
+			elif self.theChar=='&':
+				refData=self.ParseReference()
+				value.append(refData)
+			elif self.theChar in end:
+				# compatibility mode for missing quotes
+				break
+			elif self.theChar=='<' and not self.compatibilityMode:
+				raise XMLWellFormedError("Unescaped < in AttValue")
+			elif self.theChar is None:
+				if self.compatiblityMode:
+					break
+				else:
+					raise XMLWellFormedError("Expected end of AttValue")
+			else:
+				value.append(self.theChar)
+				self.NextChar()
+		return string.join(value,'')
+	
+	def ParseSystemLiteral(self):
+		"""[11] SystemLiteral ::= ('"' [^"]* '"') | ("'" [^']* "'") """
+		q=self.ParseQuote()
+		value=[]
+		while True:
+			if self.theChar==q:
+				self.NextChar()
+				break
+			elif IsChar(self.theChar):
+				value.append(self.theChar)
+				self.NextChar()
+			elif self.theChar is None:
+				raise XMLWellFormedError("Incomplete SystemLiteral")
+			else:
+				raise XMLWellFormedError("Unexpected data in SystemLiteral")
+		return string.join(value,'')
+		
+	def ParsePubidLiteral(self):
+		"""
+		[12] PubidLiteral ::= '"' PubidChar* '"' | "'" (PubidChar - "'")* "'"
+		[13] PubidChar ::= #x20 | #xD | #xA | [a-zA-Z0-9] | [-'()+,./:=?;!*#@$_%]
+		"""
+		q=self.ParseQuote()
+		value=[]
+		while True:
+			if self.theChar==q:
+				self.NextChar()
+				break
+			elif IsPubidChar(self.theChar):
+				value.append(self.theChar)
+				self.NextChar()
+			elif self.theChar is None:
+				raise XMLWellFormedError("Incomplete PubidLiteral")
+			else:
+				raise XMLWellFormedError("Unexpected data in PubidLiteral")
+		return string.join(value,'')
+
 	def ParseCharData(self):
+		"""[14] CharData ::= [^<&]* - ([^<&]* ']]>' [^<&]*) """
 		data=[]
 		while self.theChar is not None:
 			if self.theChar=='<' or self.theChar=='&':
 				break
 			if self.theChar==']':
-				self.entity.StartLookahead()
-				cdEnd=self.ParseLiteral(']]>')
-				self.Rewind()
-				if cdEnd:
+				match=self.ParseLiteral(']]>')
+				if match:
 					break
 			data.append(self.theChar)
 			self.NextChar()
 		return string.join(data,'')					
 
 	def ParseComment(self):
+		"""[15] Comment ::= '<!--' ((Char - '-') | ('-' (Char - '-')))* '-->'
+		
+		Assume the literal has already been parsed."""
 		data=[]
-		start=self.ParseLiteral('<!--')
-		if start is None:
-			return None
 		while self.theChar is not None:
 			if self.theChar=='-':
 				self.NextChar()
@@ -535,15 +691,18 @@ class XMLParser:
 		return string.join(data,'')
 
 	def ParsePI(self):
+		"""
+		[16] PI ::= '<?' PITarget (S (Char* - (Char* '?>' Char*)))? '?>'
+		[17] PITarget ::= Name - (('X' | 'x') ('M' | 'm') ('L' | 'l'))
+		
+		Assume the literal has already been parsed.
+		"""
 		data=[]
-		start=self.ParseLiteral('<?')
-		if start is None:
-			return None
 		target=self.ParseName()
 		if target is None:
-			return None
+			raise XMLWellFormedError("Expected PI Target")
 		if self.ParseS() is None:
-			return None
+			return target,None
 		while self.theChar is not None:
 			if self.theChar=='?':
 				self.NextChar()
@@ -557,11 +716,15 @@ class XMLParser:
 			self.NextChar()
 		return target,string.join(data,'')
 		
-	def ParseCDATA(self):
+	def ParseCDSect(self):
+		"""
+		[18] CDSect ::= CDStart CData CDEnd
+		[19] CDStart ::= '<![CDATA['
+		[20] CData ::= (Char* - (Char* ']]>' Char*))
+		[21] CDEnd ::= ']]>'
+		
+		Assume that the literal has already been parsed."""
 		data=[]
-		start=self.ParseLiteral('<![CDATA[')
-		if start is None:
-			return None
 		while self.theChar is not None:
 			if self.theChar==']':
 				self.NextChar()
@@ -576,40 +739,291 @@ class XMLParser:
 					data.append(']')
 			data.append(self.theChar)
 			self.NextChar()
-		return string.join(data,'')				
+		return string.join(data,'')		
 
-	EmptyElemTag=39
+	def ParseProlog(self):
+		"""[22] prolog ::= XMLDecl? Misc* (doctypedecl Misc*)?
+		
+		Returns a any characters parsed but not used."""
+		match=self.ParseLiteral('<?xml')
+		if match:
+			self.ParseXMLDecl()
+		self.ParseMisc()
+		match=self.ParseLiteral('<!DOCTYPE')
+		if match:
+			self.ParseDoctypeDecl()
+			self.ParseMisc()
+		return None
+		
+	def ParseXMLDecl(self):
+		"""Returns the XML declaration information: version, encoding, standalone.
+		
+		The initial literal is assumed to have already been parsed.
+		
+		[23] XMLDecl ::= '<?xml' VersionInfo EncodingDecl? SDDecl? S? '?>'
+		[24] VersionInfo ::= S 'version' Eq ("'" VersionNum "'" | '"' VersionNum '"')
+		[26] VersionNum ::= '1.' [0-9]+
+		"""
+		encoding=None
+		standalone=None
+		self.ParseS()
+		self.ParseRequiredLiteral(u'version')
+		self.ParseEq()
+		q=self.ParseQuote()
+		self.ParseRequiredLiteral(u'1.')
+		digits=self.ParseDecimalDigits(True)
+		version="1."+digits
+		self.ParseQuote(q)
+		s=self.ParseS()
+		if s:
+			match=self.ParseLiteral('encoding')
+			if match:
+				encoding=self.ParseEncodingDecl()
+				s=self.ParseS()
+		if s:
+			match=self.ParseLiteral('standalone')
+			if match:
+				standalone=self.ParseSDDecl()
+				s=self.ParseS()
+		self.ParseRequiredLiteral('?>')
+		return version,encoding,standalone
+	
+	def ParseEq(self):
+		"""[25] Eq ::= S? '=' S? """
+		self.ParseS()
+		self.ParseRequiredLiteral(u'=')
+		self.ParseS()
+		
+	def ParseMisc(self):
+		"""[27] Misc ::= Comment | PI | S """
+		while True:
+			match=self.ParseLiteral('<!--')
+			if match:
+				self.ParseComment()
+				continue
+			match=self.ParseLiteral('<?')
+			if match:
+				self.ParsePI()
+				continue
+			match=self.ParseS()
+			if not match:
+				break
+		return None
+		
+	def ParseDoctypeDecl(self):
+		"""
+		[28]  doctypedecl ::= '<!DOCTYPE' S Name (S ExternalID)? S? ('[' intSubset ']' S?)? '>'
+		[28a] DeclSep ::= PEReference | S	[WFC: PE Between Declarations]
+		[28b] intSubset ::= (markupdecl | DeclSep)*
+		[29]  markupdecl ::= elementdecl | AttlistDecl | EntityDecl | NotationDecl | PI | Comment
+		Assume the literal has already been parsed."""
+		if not self.ParseS():
+			raise XMLWellFormedError("Expected S")
+		dtdName=self.ParseRequiredName()
+		s=self.ParseS()
+		if s:
+			if self.theChar=='S' or self.theChar=='P':
+				pubID,systemID=self.ParseExternalID()
+				self.ParseS()
+		if self.theChar=='[':
+			self.NextChar()
+			while True:
+				if self.theChar=='%':
+					self.ParsePEReference()
+				elif self.theChar==']':
+					self.NextChar()
+					break
+				elif self.theChar=='<':
+					# markupdecl of some sort
+					self.NextChar()
+					if self.theChar=='?':
+						self.NextChar()
+						self.ParsePI()
+					elif self.theChar=='-':
+						self.ParseRequiredLiteral('--')
+						self.ParseComment()
+					elif self.theChar=='!':
+						self.NextChar()
+						if self.ParseLiteral('ELEMENT'):
+							self.ParseElementDecl()
+						elif self.ParseLiteral('ATTLIST'):
+							self.ParseAttlistDecl()
+						elif self.ParseLiteral('ENTITY'):
+							self.PasreEntityDecl()
+						elif self.ParseNotation('NOTATION'):
+							self.ParseNotationDecl()
+					else:
+						raise XMLWellFormedError("Expected markupdecl")
+				elif not self.ParseS():
+					raise XMLWellFormedError("Expected markupdecl or DeclSep")
+			self.ParseS()
+		self.ParseRequiredLiteral('>')
+		return None
+		
+	def ParseSDDecl(self):
+		"""[32] SDDecl ::= S 'standalone' Eq (("'" ('yes' | 'no') "'") | ('"' ('yes' | 'no') '"')) 
+		
+		Assume that the 'standalone' literal has already been parsed."""
+		self.ParseEq()
+		q=self.ParseQuote()
+		if self.theChar==u'y':
+			result=True
+			match=u'yes'
+		else:
+			result=False
+			match=u'no'
+		self.ParseRequiredLiteral(match)
+		self.ParseQuote(q)
+		return result
+		
 	STag=40
 	ETag=42
+	EmptyElemTag=44
+
+	def ParseElement(self):
+		"""[39] element ::= EmptyElemTag | STag content ETag"""
+		name,attrs,empty=self.ParseSTag()
+		if empty:
+			self.doc.startElement(name,attrs)
+			self.doc.endElement(name)
+		else:
+			self.doc.startElement(name,attrs)
+			self.ParseContent()
+			endName=self.ParseETag()
+			if name!=endName:
+				raise XMLWellFormedError("Expected <%s/>"%name)
+			self.doc.endElement(name)
+		return name
 	
-	def ParseTag(self):
-		"""Returns the name, a dictionary of attributes and one of above constants."""
-		name=None
+	def ParseSTag(self):
+		"""To avoid needless lookahead we combine parsing of EmptyElemTag into this method.
+		
+		[40] STag ::= '<' Name (S Attribute)* S? '>'
+		[44] EmptyElemTag ::= '<' Name (S Attribute)* S? '/>'
+		"""
+		empty=False
+		self.ParseRequiredLiteral('<')
+		name=self.ParseName()
+		if name is None:
+			raise XMLWellFormedError("Expected Name")
 		attrs={}
-		type=None
-		if self.theChar=='<':
-			self.NextChar()
-			if self.theChar=='/':
-				type=XMLParser.ETag
+		while True:
+			s=self.ParseS()
+			if self.theChar=='>':
 				self.NextChar()
-			name=self.ParseName()
-			self.ParseS()
-			if type is None:
-				while self.theChar is not None:
-					if self.theChar=='/':
-						self.ParseLiteral('/>')
-						type=XMLParser.EmptyElemTag
-						break
-					elif self.theChar=='>':
-						type=XMLParser.STag
-						self.NextChar()
-						break
-					aName,aValue=self.ParseAttribute()
-					self.ParseS()
-					attrs[aName]=aValue
+				break
+			elif self.theChar=='/':
+				self.ParseRequiredLiteral('/>')
+				empty=True
+				break
+			if s:
+				aName,aValue=self.ParseAttribute()
+				attrs[aName]=aValue
 			else:
-				self.ParseLiteral('>')
-		return name, attrs, type
+				raise XMLWellFormedError("Expected > at %s"%self.entity.GetPositionStr())
+		return name,attrs,empty
+	
+	def ParseETag(self):
+		"""[42] ETag ::= '</' Name S? '>' """
+		self.ParseRequiredLiteral('</')
+		name=self.ParseName()
+		if name is None:
+			raise XMLWellFormedError("Expected Name")
+		self.ParseS()
+		self.ParseRequiredLiteral('>')
+		return name
+		
+	def ParseContent(self):
+		"""[43] content ::= CharData? ((element | Reference | CDSect | PI | Comment) CharData?)* """
+		while True:
+			if self.theChar=='<':
+				self.NextChar()
+				if self.theChar=='!':
+					self.NextChar()
+					if self.theChar=='-':
+						self.ParseRequiredLiteral('--')
+						self.ParseComment()
+					elif self.theChar=='[':
+						self.ParseRequiredLiteral('[CDATA[')
+						data=self.ParseCDSect()
+						if data:
+							self.doc.characters(data)
+					else:
+						raise XMLWellFormedError("Expected Comment or CDSect")
+				elif self.theChar=='?':
+					self.NextChar()
+					self.ParsePI()
+				elif self.theChar!='/':
+					self.BuffText('<')
+					self.ParseElement()
+				else:
+					self.BuffText('<')
+					break
+			elif self.theChar=='&':
+				data=self.ParseReference()
+				if data:
+					self.doc.characters(data)
+			elif self.theChar is None:
+				raise XMLWellFormedError("Unexpected end of content")
+			else:
+				data=self.ParseCharData()
+				if data:
+					self.doc.characters(data)
+				else:
+					raise XMLWellFormedError("Unrecognized character in content: %s"%self.theChar)
+	
+	def ParsePEReference(self):
+		"""[69] PEReference ::= '%' Name ';'  """
+		self.ParseRequiredLiteral('%')
+		name=self.ParseName()
+		self.ParseRequiredLiteral(';')
+		e=self.LookupParameterEntity(name)
+		if e is not None:
+			# Parameter entities are fed back into the parser somehow
+			self.PushEntity(e)
+	
+	def ParseExternalID(self):
+		"""[75] ExternalID ::= 'SYSTEM' S SystemLiteral | 'PUBLIC' S PubidLiteral S SystemLiteral """
+		if self.ParseLiteral('SYSTEM'):
+			pubID=None
+		elif self.ParseLiteral('PUBLIC'):
+			if not self.ParseS():
+				self.XMLWellFormedError("Expected S")
+			pubID=self.ParsePubidLiteral()
+		else:
+			raise XMLWellFormedError("Expected ExternalID")
+		if not self.ParseS():
+			self.XMLWellFormedError("Expected S")
+		systemID=self.ParseSystemLiteral()
+		return pubID,systemID
+			
+	def ParseEncodingDecl(self):
+		"""[80] EncodingDecl ::= S 'encoding' Eq ('"' EncName '"' | "'" EncName "'" )
+		
+		We assume that the 'encoding' literal has already been parsed."""
+		self.ParseEq()
+		q=self.ParseQuote()
+		encName=self.ParseEncName()
+		if not encName:
+			raise XMLWellFormedError("Expected EncName")
+		self.ParseQuote(q)
+		return encName
+		
+	def ParseEncName(self):
+		"""[81] EncName ::= [A-Za-z] ([A-Za-z0-9._] | '-')* """
+		name=[]
+		if EncNameStartCharClass.Test(self.theChar):
+			name.append(self.theChar)
+			self.NextChar()
+			while EncNameCharClass.Test(self.theChar):
+				name.append(self.theChar)
+				self.NextChar()
+		if name:
+			return string.join(name,'')
+		else:
+			return None
+			
+
 	
 	def ParseAttribute(self):
 		"""Return name, value
@@ -625,29 +1039,6 @@ class XMLParser:
 			value=None
 		return name,value
 	
-	def ParseAttValue(self):
-		data=[]
-		q=self.theChar
-		if q=='"' or q=="'":
-			self.NextChar()
-			while self.theChar is not None:
-				if self.theChar==q:
-					self.NextChar()
-					break
-				elif self.theChar=='&':
-					refData=self.ParseReference()
-					data.append(refData)
-				else:
-					data.append(self.theChar)
-					self.NextChar()
-		else:
-			while self.theChar is not None:
-				if IsS(self.theChar) or self.theChar in ('"',"'",'>'):
-					break
-				data.append(self.theChar)
-				self.NextChar()
-		return string.join(data,'')
-
 	stdEntities={
 		'lt':'<',
 		'gt':'>',
@@ -662,9 +1053,9 @@ class XMLParser:
 				self.NextChar()
 				if self.theChar=='x':
 					self.NextChar()
-					data=unichr(int(ParseHexDigits(),16))
+					data=unichr(int(self.ParseHexDigits(),16))
 				else:
-					data=unichr(int(ParseDecimalDigits()))
+					data=unichr(int(self.ParseDecimalDigits()))
 			else:
 				name=self.ParseName()
 				data=XMLParser.stdEntities.get(name,None)
@@ -675,12 +1066,21 @@ class XMLParser:
 	
 	def LookupEntity(self,name):
 		return ''
-		
-	def ParseDecimalDigits(self):
+	
+	def LookupParameterEntity(self,name):
+		if self.doc:
+			e=self.doc.GetParameterEntity(name)
+		else:
+			e=None
+		return e
+
+	def ParseDecimalDigits(self,required=False):
 		data=[]
 		while self.theChar in "0123456789":
 			data.append(self.theChar)
 			self.NextChar()
+		if required and not data:
+			raise XMLWellFormedError("Expected [0-9]+")
 		return string.join(data,'')
 
 	def ParseHexDigits(self):
@@ -690,6 +1090,39 @@ class XMLParser:
 			self.NextChar()
 		return string.join(data,'')
 
+	def ParseQuote(self,q=None):
+		"""Parses the quote character, q, or one of "'" or '"' if q is None.
+		
+		Returns the character parsed or raises a well formed error."""
+		if q:
+			if self.theChar==q:
+				self.NextChar()
+				return q
+			else:
+				raise XMLWellFormedError("Expected %s"%q)
+		elif self.theChar=='"' or self.theChar=="'":
+			q=self.theChar
+			self.NextChar()
+			return q
+		else:
+			raise XMLWellFormedError("Expected '\"' or \"'\"")
+					
+	def ParseRequiredLiteral(self,match):
+		"""Parses a required literal string raising a wellformed error if not matched """
+		if not self.ParseLiteral(match):			
+			raise XMLWellFormedError("Expected %s at %s"%(match,self.entity.GetPositionStr()))
+			
+	def ParseLiteral(self,match):
+		"""Returns a Boolean if the literal was matched successfully"""
+		matchLen=0
+		for m in match:
+			if m!=self.theChar:
+				self.BuffText(match[:matchLen])
+				break
+			matchLen+=1
+			self.NextChar()
+		return matchLen==len(match)
+			
 
 class XMLElement:
 	def __init__(self,parent,name=None):
@@ -1385,6 +1818,7 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		else:
 			self.root=None
 		self.SetBase(baseURI)
+		self.parameterEntities={}
 		#self.parser.setEntityResolver(self)
 		self.idTable={}
 
@@ -1404,7 +1838,15 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 	
 	def ValidateMimeType(self,mimetype):
 		return XML_MIMETYPES.has_key(mimetype)
-		
+	
+	def DeclareParameterEntity(self,name,value):
+		self.parameterEntities[name]=value
+
+	def GetParameterEntity(self,name):
+		v=self.parameterEntities.get(name,None)
+		if v is not None:
+			return XMLEntity(v)
+			
 	def GetElementClass(self,name):
 		"""Returns a class object suitable for representing name
 		
@@ -1496,12 +1938,16 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 	def Read(self,src=None,reqManager=None,**args):
 		if src:
 			# Read from this stream, ignore baseURI
-			self.ReadFromStream(src)
+			if isinstance(src,XMLEntity):
+				self.ReadFromEntity(src)
+			else:
+				self.ReadFromStream(src)
 		elif self.baseURI is None:
 			raise XMLMissingLocationError
 		elif isinstance(self.uri,FileURL):
-			# force 8bit path names to workaround bug in expat
-			f=open(self.uri.GetPathname(True),'rb')
+			# we would need to force 8bit path names to workaround bug in expat
+			# but we've ditched sax so we don't have to do this anymore
+			f=open(self.uri.GetPathname(),'rb')
 			try:
 				self.ReadFromStream(f)
 			finally:
@@ -1531,7 +1977,16 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		self.cObject=self
 		self.objStack=[]
 		self.data=[]
-		self.parser.parse(src)
+		#self.parser.parse(src)
+		e=XMLEntity(src)
+		self.ReadFromEntity(e)
+		
+	def ReadFromEntity(self,e):
+		self.cObject=self
+		self.objStack=[]
+		self.data=[]
+		parser=XMLParser(e)
+		parser.ParseDocument(self)
 		
 	def startElement(self, name, attrs):
 		parent=self.cObject

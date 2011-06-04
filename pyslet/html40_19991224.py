@@ -429,66 +429,71 @@ class HTMLParser(xml.XMLParser):
 				data=None
 			name=None
 			if self.theChar=='<':
-				self.entity.StartLookahead()
 				self.NextChar()
 				if self.theChar=='!':
 					self.NextChar()
 					if self.theChar=='-':
-						self.Rewind()
-						self.ParseComment()
+						if self.ParseLiteral('--'):
+							self.ParseComment()
+						else:
+							data='<!'
+					elif self.theChar=='[':
+						if self.ParseLiteral('[CDATA['):
+							data=self.ParseCDSect()
+						else:
+							data='<!'
 					else:
-						self.Rewind()
-						data=self.ParseCDATA()
+						data='<!'
 				elif self.theChar=='?':
-					self.Rewind()
+					self.NextChar()
 					self.ParsePI()
-				else:
-					self.Rewind()
-					name,attrs,tagType=self.ParseTag()
-					if tagType!=xml.XMLParser.ETag:
-						eClass=XHTMLDocument.classMap.get((XHTML_NAMESPACE,name.lower()),None)
-						if eClass is None:
-							if element is not None and issubclass(element.__class__,(XHTMLInlineContainer,XHTMLFlowContainer)):
-								# try a span with a class attribute
-								eClass=XHTMLSpan
-							else:
-								eClass=XHTMLDiv
-							classValue=name
+				elif self.theChar=='/':
+					self.BuffText('<')
+					name=self.ParseETag()
+					newElement=element
+					while newElement is not None:
+						if newElement.xmlname==name.lower():
+							# close this tag
+							element=newElement.parent
+							break
+						newElement=newElement.parent
+					# if there is no match we ignore the closing tag	
+				else:	
+					self.BuffText('<')
+					name,attrs,empty=self.ParseSTag()
+					eClass=XHTMLDocument.classMap.get((XHTML_NAMESPACE,name.lower()),None)
+					if eClass is None:
+						if element is not None and issubclass(element.__class__,(XHTMLInlineContainer,XHTMLFlowContainer)):
+							# try a span with a class attribute
+							eClass=XHTMLSpan
 						else:
-							classValue=None
-						newElement=None
-						while element is not None:
-							try:
-								newElement=element.ChildElement(eClass)
-								break
-							except XHTMLValidityError:
-								# we can't go in here
-								element=element.parent
-								continue
-						if newElement is None:		
-							newElement=eClass(None)
-							fragment.append(newElement)
-						if classValue is None:
-							newElement.SetXMLName((XHTML_NAMESPACE,name))
-						else:
-							newElement.SetAttribute('class',name)
-						for attr in attrs.keys():
-							newElement.SetAttribute(attr.lower(),attrs[attr])						
-						if tagType!=xml.XMLParser.EmptyElemTag and eClass.XMLCONTENT!=xmlns.XMLEmpty:
-							# A non-empty element becomes the current element
-							element=newElement
-					elif tagType==xml.XMLParser.ETag:
-						# we need to close this element
-						newElement=element
-						while newElement is not None:
-							if newElement.xmlname==name.lower():
-								# close this tag
-								element=newElement.parent
-								break
-							newElement=newElement.parent
-						# if there is no match we ignore the closing tag	
+							eClass=XHTMLDiv
+						classValue=name
+					else:
+						classValue=None
+					newElement=None
+					while element is not None:
+						try:
+							newElement=element.ChildElement(eClass)
+							break
+						except XHTMLValidityError:
+							# we can't go in here
+							element=element.parent
+							continue
+					if newElement is None:		
+						newElement=eClass(None)
+						fragment.append(newElement)
+					if classValue is None:
+						newElement.SetXMLName((XHTML_NAMESPACE,name))
+					else:
+						newElement.SetAttribute('class',name)
+					for attr in attrs.keys():
+						newElement.SetAttribute(attr.lower(),attrs[attr])						
+					if not empty and eClass.XMLCONTENT!=xmlns.XMLEmpty:
+						# A non-empty element becomes the current element
+						element=newElement
 			elif self.theChar=='&':
-				data=self.ParseReference()
+				data=self.ParseReference()	
 			if data:
 				if element:
 					element.AddData(data)
