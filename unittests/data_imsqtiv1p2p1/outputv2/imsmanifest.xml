@@ -80,7 +80,7 @@ Warning: case-insensitive comparison of identifiers not supported in version 2</
 			</metadata>
 			<file href="full/fullitem.xml"/>
 		</resource>
-		<resource identifier="metadataNewStyle" type="imsqti_item_xmlv2p1" href="metadataNewStyle/metadataNewStyle.xml">
+		<resource identifier="metadataNewStyle" type="imsqti_item_xmlv2p1" href="metadata_new_style/metadatanewstyle.xml">
 			<metadata>
 				<imsmd:lom>
 					<imsmd:general>
@@ -179,7 +179,7 @@ END:VCARD&#xD;
 					<imsqti:toolVendor>Steve Lay</imsqti:toolVendor>					
 				</imsqti:qtiMetadata>
 			</metadata>
-			<file href="metadataNewStyle/metadataNewStyle.xml"/>
+			<file href="metadata_new_style/metadatanewstyle.xml"/>
 		</resource>
 		<resource identifier="qmdextensions" type="imsqti_item_xmlv2p1" href="qmdextensions/qmdextensions.xml">
 			<metadata>

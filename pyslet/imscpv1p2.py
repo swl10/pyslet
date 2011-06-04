@@ -508,12 +508,21 @@ class ContentPackage:
 		
 		suggestedPath is used to provide a suggested path for the file.  This
 		may be relative (to the root and manifest) or absolute but it must
-		resolve to an file (potentially) in the package.
+		resolve to a file (potentially) in the package.
+
+		We choose to force the suggestedPath to be lower-case.  This is
+		consistent with the behaviour of os.path.normcase on systems that are
+		case insensitive.  The trouble with case insensitive file systems is
+		that it may be impossible to unpack a content package created on a case
+		sensitive system and store it on a case insenstive one.  Fixing up
+		felative URLs later would be a massive pain so if we channel all file
+		storage through this method (and construct any URIs *after* we have
+		stored the file) then we'll be more portable.
 
 		The return result is always normalized and returned relative to the
 		package root.
 		"""
-		fPath=os.path.join(self.dPath,suggestedPath)
+		fPath=os.path.join(self.dPath,suggestedPath.lower())
 		fPath=PathInPath(fPath,self.dPath)
 		if fPath is None:
 			raise CPFilePathError(suggestedPath)

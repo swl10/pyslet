@@ -11,7 +11,7 @@ import pyslet.rfc2396 as uri
 xsi=xsdatatypes
 
 import string
-import os.path
+import os.path, sys
 from types import StringTypes
 
 IMSQTI_NAMESPACE="http://www.imsglobal.org/xsd/imsqti_v2p1"
@@ -308,7 +308,7 @@ class QTIAssessmentItem(QTIElement):
 		lom.Copy(resourceMetadata)
 		self.metadata.Copy(resourceMetadata)
 		# Security alert: we're leaning heavily on MakeValidNCName assuming it returns a good file name
-		fPath=MakeValidNCName(resourceID).encode('utf-8')+'.xml'
+		fPath=(MakeValidNCName(resourceID)+'.xml').encode(sys.getfilesystemencoding())
 		if dName:
 			fPath=os.path.join(dName,fPath)
 		fPath=cp.GetUniqueFile(fPath)
