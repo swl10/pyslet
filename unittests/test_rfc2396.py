@@ -365,9 +365,12 @@ class FileURLTests(unittest.TestCase):
 		d=URIFactory.URLFromPathname(os.path.join(dirname,os.curdir))
 		c=sys.getfilesystemencoding()
 		for name in names:
+                        if name.startswith('??'):
+                                print "\nWarning: 8-bit path tests limited to ASCII file names by %s encoding"%c
+                                continue
 			joinMatch=os.path.join(dirname,name)
 			if type(name) is UnicodeType:
-				segName=EscapeData(name.encode(c),IsPathSegmentReserved)
+				segName=EscapeData(name.encode('utf-8'),IsPathSegmentReserved)
 			else:
 				segName=EscapeData(name,IsPathSegmentReserved)
 			u=URI(segName)
@@ -377,7 +380,7 @@ class FileURLTests(unittest.TestCase):
 			if type(joinMatch) is StringType and type(joined) is UnicodeType:
 				# if we're walking in 8-bit mode we need to downgrade to compare
 				joined=joined.encode(c)
-			self.failUnless(joined==joinMatch,"Joined pathname: %s"%joined)
+			self.failUnless(joined==joinMatch,"Joined pathnames mismatch:\n%s\n%s"%(joined,joinMatch))
 		
 
 if __name__ == "__main__":

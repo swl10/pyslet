@@ -754,21 +754,22 @@ class URIFactoryClass:
 				segments[0:0]=[tail]
 				if newHead=='\\\\':
 					# This is the unusual case of the UNC path, first segment is machine
-					host=segment[0]
-					del segment[0]
+					host=segments[0]
+					del segments[0]
 					break
 				head=newHead
 		if drive:
-			segment[0:0]=drive
+			segments[0:0]=[drive]
 		# At this point we need to convert to octets
 		c=sys.getfilesystemencoding()
 		if type(host) is UnicodeType:
 			host=EscapeData(host.encode(c),IsAuthorityReserved)
 		for i in xrange(len(segments)):
+                        # we always use utf-8 in URL path segments to make URLs portable
 			if type(segments[i]) is UnicodeType:
-				segments[i]=EscapeData(segments[i].encode(c),IsPathSegmentReserved)
+				segments[i]=EscapeData(segments[i].encode('utf-8'),IsPathSegmentReserved)
 			else:
-				segments[i]=EscapeData(segments[i],IsPathSegmentReserved)
+				segments[i]=EscapeData(unicode(segments[i],c).encode('utf-8'),IsPathSegmentReserved)
 		return FileURL('file://%s/%s'%(host,string.join(segments,'/')))
 
 		
@@ -792,9 +793,9 @@ class FileURL(URI):
 		encoding."""
 		c=sys.getfilesystemencoding()
 		if os.path.supports_unicode_filenames and not force8Bit:
-			decode=lambda s:unicode(UnescapeData(s),c)
+			decode=lambda s:unicode(UnescapeData(s),'utf-8')
 		else:
-			decode=lambda s:UnescapeData(s)
+			decode=lambda s:unicode(UnescapeData(s),'utf-8').encode(c)
 		if self.host and hasattr(os.path,'splitunc'):
 			uncRoot=decode('\\\\%s'%self.host)
 		else:

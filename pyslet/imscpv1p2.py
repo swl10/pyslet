@@ -447,6 +447,8 @@ class ContentPackage:
 		
 	def ExpandZip(self,zPath):
 		self.dPath=mkdtemp('.d','imscpv1p2-')
+		if type(self.dPath) is StringType and os.path.supports_unicode_filenames:
+			self.dPath=self.dPath.decode(sys.getfilesystemencoding())		
 		self.tempDir=True
 		zf=zipfile.ZipFile(zPath)
 		try:
