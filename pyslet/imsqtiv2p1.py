@@ -120,7 +120,7 @@ def EncodeCardinality(value):
 	return QTICardinality.encode.get(value,'')
 
 
-def ValidateIdentifier(value):
+def ValidateIdentifier(value,prefix='_'):
 	"""Decodes an identifier from a string.
 
 	<xsd:simpleType name="identifier.Type">
@@ -128,19 +128,20 @@ def ValidateIdentifier(value):
 	</xsd:simpleType>
 	
 	This function takes a string that is supposed to match the production for
-	NCName in XML and forces to to comply by replacing illegal characters with
+	NCName in XML and forces it to comply by replacing illegal characters with
 	'_', except the ':' which is replaced with a hyphen for compatibility with
 	previous versions of the QTI migraiton script.  If name starts with a valid
 	name character but not a valid name start character, it is prefixed with '_'
-	too."""
+	too, but the prefix string used can be overridden."""
 	if value:
 		goodName=[]
 		if not xmlns.IsNameStartChar(value[0]):
-			goodName.append('_')
+			goodName.append(prefix)
 		elif value[0]==':':
 			# Previous versions of the migrate script didn't catch this problem
-			# as a result, we deviate from its broken behaviour or using '-'
-			goodName.append('_')			
+			# as a result, we deviate from its broken behaviour of using '-'
+			# by using the prefix too.
+			goodName.append(prefix)			
 		for c in value:
 			if c==':':
 				goodName.append('-')
@@ -150,7 +151,7 @@ def ValidateIdentifier(value):
 				goodName.append('_')
 		return string.join(goodName,'')
 	else:
-		return '_'
+		return prefix
 
 MakeValidNCName=ValidateIdentifier
 
