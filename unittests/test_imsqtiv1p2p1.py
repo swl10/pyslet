@@ -156,8 +156,25 @@ class QTIV2ConversionTests(unittest.TestCase):
 				qtiDoc2.Read()
 				#print str(qtiDoc2)
 				output=qtiDoc.DiffString(qtiDoc2)
-				self.failUnless(qtiDoc.root==qtiDoc2.root,"Files differ at %s\n%s"%(fPath,output))	
+				result=(qtiDoc.root==qtiDoc2.root)
+				if not result and output is None:
+					# This should not happen
+					self.PrintPrettyWeird(qtiDoc.root,qtiDoc2.root)
+				self.failUnless(qtiDoc.root==qtiDoc2.root,"Files differ at %s (actual output shown first)\n%s"%(fPath,output))	
 
+	def PrintPrettyWeird(self,e1,e2):
+		c1=e1.GetCanonicalChildren()
+		c2=e2.GetCanonicalChildren()
+		if len(c1)!=len(c2):
+			print "Number of children mismatch in similar elements...\n>>>\n%s\n>>>\n%s\n>>>\n%s"%(repr(c1),repr(c2),str(e1))
+			return
+		for i in xrange(len(c1)):
+			if c1[i]!=c2[i]:
+				if isinstance(c1[i],xml.XMLElement) and isinstance(c2[i],xml.XMLElement):
+					self.PrintPrettyWeird(c1[i],c2[i])
+				else:
+					print "Mismatch in similar elements...\n>>>\n%s\n>>>\n%s"%(repr(e1),repr(e2))
+			
 class QTIBig5Tests(unittest.TestCase):
 	def testCaseBIG5(self):
 		try:

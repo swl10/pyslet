@@ -75,6 +75,21 @@ class XHTMLFlowContainer(XHTMLElement):
 			# This child cannot go in here
 			print self
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
+
+	def PrettyPrint(self):
+		"""Deteremins if this flow-container should be pretty printed.
+		
+		We suppress pretty printing if we have any non-trivial data children or
+		if we have any inline child elements."""
+		children=self.GetChildren()
+		for child in children:
+			if type(child) in StringTypes:
+				for c in child:
+					if not xml.IsS(c):
+						return False
+			elif isinstance(child,XHTMLInlineMixin):
+				return False
+		return True
 	
 class XHTMLSpecialMixin(XHTMLInlineMixin):
 	# <!ENTITY % special "A | IMG | OBJECT | BR | SCRIPT | MAP | Q | SUB | SUP | SPAN | BDO">
@@ -187,6 +202,9 @@ class XHTMLPre(XHTMLBlockMixin,XHTMLInlineContainer):
 	# <!ELEMENT PRE - - (%inline;)* -(%pre.exclusion;) -- preformatted text -->
 	XMLNAME=(XHTML_NAMESPACE,'pre')
 	XMLCONTENT=xmlns.XMLMixedContent
+
+	def PrettyPrint(self):
+		return False
 
 class XHTMLQ(XHTMLSpecialMixin,XHTMLInlineContainer):
 	# <!ELEMENT Q - - (%inline;)*            -- short inline quotation -->

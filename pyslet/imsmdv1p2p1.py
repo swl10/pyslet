@@ -367,6 +367,14 @@ class LOMVCard(LRMElement):
 	def SetValue(self,vcard):
 		self.vcard=vcard
 		LRMElement.SetValue(self,vcard.serialize())
+	
+	def PrettyPrint(self):
+		"""Overridden to prevent pretty-printing of the element contents."""
+		return False
+	
+	def GetCanonicalChildren(self):
+		"""Overridden to prevent collapsing of whitespace"""
+		return self.GetChildren()
 		
 	def GotChildren(self):
 		# called when all children have been parsed

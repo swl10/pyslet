@@ -74,7 +74,7 @@ class XMLNSDocumentTests(unittest.TestCase):
 		#print repr(dst.getvalue())
 		#print
 		#print repr(CREATE_2_OUTPUT)
-		self.failUnless(dst.getvalue()==CREATE_2_OUTPUT,"Simple NS output: \n%s"%dst.getvalue())
+		self.failUnless(dst.getvalue()==CREATE_2_OUTPUT,"Simple NS output: \n%s>>>Expected: \n%s"%(dst.getvalue(),CREATE_2_OUTPUT))
 
 	def testAttrNSDeclared(self):
 		"""Test that attributes can be used to trigger NS declarations"""

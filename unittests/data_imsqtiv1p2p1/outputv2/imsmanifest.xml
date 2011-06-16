@@ -61,16 +61,16 @@
 					</imsmd:educational>
 					<imsmd:annotation>
 						<imsmd:description>
-							<imsmd:langstring>Warning: maxattempts can not be controlled at item level, ignored: maxattempts='1'
-Warning: duration is currently outside the scope of version 2: ignored 1H
-Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, ignoring MCQ
-Warning: itemcontrol is currently outside the scope of version 2
-Warning: changing view Administrator to proctor
-Warning: rubric with view="All" replaced by &lt;div&gt; with class="rubric"
-Warning: discarding absolute positioning information on presentation
-Warning: view restriction on outcome interpretation no longer supported (Candidate)
-Warning: view restriction on outcome interpretation no longer supported (Tutor)
-Warning: case-insensitive comparison of identifiers not supported in version 2</imsmd:langstring>
+							<imsmd:langstring>Warning: maxattempts can not be controlled at item level, ignored: maxattempts='1';
+								Warning: duration is currently outside the scope of version 2: ignored 1H;
+								Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, ignoring MCQ;
+								Warning: itemcontrol is currently outside the scope of version 2;
+								Warning: changing view Administrator to proctor;
+								Warning: rubric with view="All" replaced by &lt;div&gt; with class="rubric";
+								Warning: discarding absolute positioning information on presentation;
+								Warning: view restriction on outcome interpretation no longer supported (Candidate);
+								Warning: view restriction on outcome interpretation no longer supported (Tutor);
+								Warning: case-insensitive comparison of identifiers not supported in version 2</imsmd:langstring>
 						</imsmd:description>						
 					</imsmd:annotation>
 				</imsmd:lom>
@@ -79,6 +79,27 @@ Warning: case-insensitive comparison of identifiers not supported in version 2</
 				</imsqti:qtiMetadata>
 			</metadata>
 			<file href="full/fullitem.xml"/>
+		</resource>
+		<resource identifier="PYSLET_MCHC_IR_01" type="imsqti_item_xmlv2p1" href="mchc_ir_01/pyslet_mchc_ir_01.xml">
+			<metadata>
+				<imsmd:lom>
+					<imsmd:general>
+						<imsmd:identifier>PYSLET_MCHC_IR_01</imsmd:identifier>
+						<imsmd:title>
+							<imsmd:langstring>Standard Multiple Choice Item</imsmd:langstring>
+						</imsmd:title>
+					</imsmd:general>
+					<imsmd:annotation>
+						<imsmd:description>
+							<imsmd:langstring>Warning: case-insensitive comparison of identifiers not supported in version 2;
+								Warning: discarding view on feedback (Candidate)
+							</imsmd:langstring>
+						</imsmd:description>					
+					</imsmd:annotation>
+				</imsmd:lom>
+				<imsqti:qtiMetadata/>
+			</metadata>
+			<file href="mchc_ir_01/pyslet_mchc_ir_01.xml"/>
 		</resource>
 		<resource identifier="metadataNewStyle" type="imsqti_item_xmlv2p1" href="metadata_new_style/metadatanewstyle.xml">
 			<metadata>

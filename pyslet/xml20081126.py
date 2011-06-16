@@ -216,6 +216,33 @@ def EscapeCharData7(src,quote=False):
 def IsS(c):
 	return c and (ord(c)==0x9 or ord(c)==0xA or ord(c)==0xD or ord(c)==0x20)
 
+def CollapseSpace(data,sMode=True,sTest=IsS):
+	"""Returns data with all spaces collapsed to a single space.
+	
+	sMode determines the fate of any leading space, by default it is True and
+	leading spaces are ignored provided the string has some non-space
+	characters.
+
+	You can override the test of what consitutes a space by passing a function
+	for sTest, by default we use IsS.
+
+	Note on degenerate case: this function is intended to be called with
+	non-empty strings and will never *return* an empty string.  If there is no
+	data then a single space is returned (regardless of sMode)."""
+	result=[]
+	for c in data:
+		if sTest(c):
+			if not sMode:
+				result.append(u' ')
+			sMode=True
+		else:
+			sMode=False
+			result.append(c)
+	if result:
+		return string.join(result,'')
+	else:
+		return ' '
+
 def IsLetter(c):
 	return IsBaseChar(c) or IsIdeographic(c)
 
@@ -1309,7 +1336,7 @@ class XMLElement:
 			return self.__class__.XMLCONTENT==XMLMixedContent
 		else:
 			return True
-
+		
 	def GetChildren(self):
 		"""Returns a list of the element's children.
 		
@@ -1321,6 +1348,62 @@ class XMLElement:
 		XMLElement (or a derived class thereof)"""
 		return copy(self._children)
 
+	def GetCanonicalChildren(self):
+		"""Returns a list of the element's children canonicalized for white space.
+		
+		We check the current setting of xml:space, returning the same list
+		of children as GetChildren if 'preserve' is in force.  Otherwise we
+		remove any leading space and collapse all others to a single space character."""
+		children=self.GetChildren()
+		if len(children)==0:
+			return children
+		e=self
+		while isinstance(e,XMLElement):
+			spc=self.GetSpace()
+			if spc is not None:
+				if spc=='preserve':
+					return children
+				else:
+					break
+			e=e.parent
+		if len(children)==1:
+			child=children[0]
+			if type(child) in StringTypes:
+				children[0]=CollapseSpace(child)
+				if len(children[0])>1 and children[0][-1]==' ':
+					# strip the trailing space form the only child
+					children[0]=children[0][:-1]				
+		else:
+			# Collapse strings to a single string entry and collapse spaces
+			i=0
+			while i<len(children):
+				iChild=children[i]
+				j=i
+				while j<len(children):
+					jChild=children[j]
+					if type(jChild) in StringTypes:
+						j=j+1
+					else:
+						break
+				if j>i:
+					# We need to collapse these children
+					data=CollapseSpace(string.join(children[i:j],''),i==0)
+					if i==0 and data==' ':
+						# prune a leading space completely...
+						del children[i:j]
+					else:
+						children[i:j]=[data]
+				i=i+1
+		if len(children)>1:
+			if type(children[-1]) in StringTypes:
+				if children[-1]==' ':
+					# strip the whole last child
+					del children[-1]
+				elif children[-1][-1]==' ':
+					# strip the trailing space form the last child
+					children[-1]=children[-1][:-1]
+		return children
+		
 	def _FindFactory(self,childClass):
 		if hasattr(self,childClass.__name__):
 			return childClass.__name__
@@ -1342,7 +1425,7 @@ class XMLElement:
 		
 		name is the name given to the element (by the caller).  If no name is
 		given then the default name for the child should be used.  When the
-		child returned is an existing instance name is ignored.
+		child returned is an existing instance, name is ignored.
 		
 		The default implementation checks for a custom factory method and calls
 		it if defined and does no further processing.  A custom factory method
@@ -1350,8 +1433,8 @@ class XMLElement:
 		hold instances of this child.  The attribute must already exist and can
 		be one of None (optional child, new child is created), a list (optional
 		repeatable child, new child is created and appended) or an instance of
-		childClass (required child, no new child is created, existing instance
-		returned).
+		childClass (required/existing child, no new child is created, existing
+		instance returned).
 		
 		When no custom factory method is found the class hierarchy is also searched
 		enabling generic members/methods to be used to hold similar objects.
@@ -1565,8 +1648,8 @@ class XMLElement:
 		if len(elementAttrNames)>len(selfAttrNames):
 			# They're bigger by virtue of having more attributes!
 			return -1
-		selfChildren=self.GetChildren()
-		elementChildren=element.GetChildren()
+		selfChildren=self.GetCanonicalChildren()
+		elementChildren=element.GetCanonicalChildren()
 		for i in xrange(len(selfChildren)):
 			if i>=len(elementChildren):
 				# We're bigger by virtue of having more children
@@ -1656,7 +1739,7 @@ class XMLElement:
 		return baseURI
 				
 	def ResolveURI(self,uri):
-		"""Returns a fully specified URL, resolving URI in the current context.
+		r"""Returns a fully specified URL, resolving URI in the current context.
 		
 		The uri is resolved relative to the xml:base values of the element's
 		ancestors and ultimately relative to the document's baseURI.
@@ -1668,11 +1751,11 @@ class XMLElement:
 		
 		The URI %E8%8B%B1%E5%9B%BD.xml is a UTF-8 and URL-encoded path segment
 		using the Chinese word for United Kingdom.  When we remove the URL-encoding
-		we get the string '\xe8\x8b\xb1\xe5\x9b\xbd.xml' which must be interpreted
-		with utf-8 to get the intended path segment value: u'\u82f1\u56fd'.  However,
+		we get the string '\\xe8\\x8b\\xb1\\xe5\\x9b\\xbd.xml' which must be interpreted
+		with utf-8 to get the intended path segment value: u'\\u82f1\\u56fd'.  However,
 		if the URL was marked as being a unicode string of characters then this second
 		stage would not be carried out and the result would be the unicode string
-		u'\xe8\x8b\xb1\xe5\x9b\xbd', which is a meaningless string of 6
+		u'\\xe8\\x8b\\xb1\\xe5\\x9b\\xbd', which is a meaningless string of 6
 		characters taken from the European Latin-1 character set."""
 		baseURI=self.ResolveBase()
 		if baseURI:
@@ -1737,7 +1820,42 @@ class XMLElement:
 			self._attrs.pop(xml_space,None)
 		else:
 			self._attrs[xml_space]=space
-	
+
+	def PrettyPrint(self):
+		"""Indicates if this element's content should be pretty-printed.
+		
+		This method is used when formatting XML files to text streams.  The
+		behaviour can be affected by the xml:space attribute or by derived
+		classes that can override the default behaviour.
+		
+		If this element has xml:space set to 'preserve' then we return False.
+		If self.parent.PrettyPrint() returns False then we return False.
+		
+		Otherwise we return False if we know the element is (or should be) mixed
+		content, True otherwise.
+		
+		Note: an element on undetermined content model that contains only elements
+		and white space *is* pretty printed."""
+		spc=self.GetSpace()
+		if spc is not None and spc=='preserve':
+			return False
+		if isinstance(self.parent,XMLElement):
+			spc=self.parent.PrettyPrint()
+			if spc is False:
+				return False
+		if hasattr(self.__class__,'XMLCONTENT'):
+			# if we have a defined content model then we return False for
+			# mixed content.
+			return self.__class__.XMLCONTENT!=XMLMixedContent
+		else:
+			children=self.GetChildren()
+			for child in self.GetChildren():
+				if type(child) in StringTypes:
+					for c in child:
+						if not IsS(c):
+							return False
+		return True
+		
 	def WriteXMLAttributes(self,attributes,escapeFunction=EscapeCharData):
 		"""Adds strings representing the element's attributes
 		
@@ -1756,7 +1874,7 @@ class XMLElement:
 			indent=indent+tab
 		else:
 			ws=''
-		if hasattr(self.__class__,'XMLCONTENT') and self.__class__.XMLCONTENT==XMLMixedContent:
+		if not self.PrettyPrint():
 			# inline all children
 			indent=''
 			tab=''
@@ -1767,7 +1885,7 @@ class XMLElement:
 			attributes=string.join(attributes,' ')
 		else:
 			attributes=''
-		children=self.GetChildren()
+		children=self.GetCanonicalChildren()
 		if children:
 			if type(children[0]) in StringTypes and len(children[0])>0 and IsS(children[0][0]):
 				# First character is WS, so assume pre-formatted
@@ -1897,7 +2015,7 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 	def GetLang(self):
 		"""Returns the default language for the document."""
 		return self.lang
-		
+			
 	def ValidationError(self,msg,element,data=None,aname=None):
 		"""Called when a validation error is triggered by element.
 
@@ -1908,7 +2026,7 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		msg contains a brief message suitable for describing the error in a log
 		file.  data and aname have the same meanings as
 		XMLElement.ValidationError."""
-		pass
+		raise XMLValidationError("%s (in %s)"%(msg,element.xmlname))
 		
 	def RegisterElement(self,element):
 		if self.idTable.has_key(element.id):

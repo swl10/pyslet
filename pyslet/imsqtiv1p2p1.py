@@ -78,6 +78,8 @@ class QTIElement(xml.XMLElement):
 class QTICommentElement(QTIElement):
 	"""Basic element to represent all QTI elements that contain a comment as first element.
 	
+::
+
 	<!ELEMENT XXXXXXXXXXXX (qticomment? , ....... )>"""
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -256,9 +258,20 @@ class QTIPositionMixin:
 """...
 
 <!ENTITY % I_Embedded " embedded CDATA  'base64'">
+"""
 
-<!ENTITY % I_LinkRefId " linkrefid CDATA  #REQUIRED">
+class QTILinkRefIdMixin:
+	"""Mixin class for handling linkrefid attribute::
+	
+	<!ENTITY % I_LinkRefId " linkrefid CDATA  #REQUIRED">
+	"""
+	XMLATTR_linkrefid='linkRefID'
 
+	def __init__(self):
+		self.linkRefID=None
+
+"""
+...
 <!ENTITY % I_VarName " varname CDATA  'SCORE'">
 
 <!ENTITY % I_RespIdent " respident CDATA  #REQUIRED">
@@ -287,7 +300,7 @@ class QTIMetadataContainer(QTIElement):
 	
 	There is a single dictionary maintained to hold all metadata values, each
 	value is a list of tuples of the form (value string, defining element).
-	Values are keyed on the field label or tag name with any leading qmd_ prefix
+	Values are keyed on the field label or tag name with any leading qmd\_ prefix
 	removed."""
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -303,7 +316,7 @@ class QTIMetadataContainer(QTIElement):
 
 
 class QMDMetadataElement(QTIElement):
-	"""Abstract class to represent old-style qmd_ tags"""
+	"""Abstract class to represent old-style qmd\_ tags"""
 	
 	def GotChildren(self):
 		self.DeclareMetadata(self.GetXMLName(),self.GetValue(),self)
@@ -393,6 +406,8 @@ class QMDTypeOfSolution(QMDMetadataElement):
 class QMDLevelOfDifficulty(QMDMetadataElement):
 	"""Represents the level of difficulty element.
 	
+::
+
 	<!ELEMENT qmd_levelofdifficulty (#PCDATA)>
 	"""	
 	XMLNAME='qmd_levelofdifficulty'
@@ -419,6 +434,8 @@ class QMDWeighting(QMDMetadataElement):
 
 class QTIMetadata(QTIElement):
 	"""
+::
+
 	<!ELEMENT qtimetadata (vocabulary? , qtimetadatafield+)>
 	"""
 	XMLNAME='qtimetadata'
@@ -437,6 +454,8 @@ class QTIMetadata(QTIElement):
 
 class QTIVocabulary(QTIElement):
 	"""
+::
+
 	<!ELEMENT vocabulary (#PCDATA)>
 
 	<!ATTLIST vocabulary  %I_Uri;
@@ -457,6 +476,8 @@ class QTIVocabulary(QTIElement):
 
 class QTIMetadataField(QTIElement):
 	"""
+::
+
 	<!ELEMENT qtimetadatafield (fieldlabel , fieldentry)>
 
 	<!ATTLIST qtimetadatafield  xml:lang CDATA  #IMPLIED >
@@ -500,6 +521,8 @@ class QTIFieldEntry(QTIElement):
 class QTIComment(QTIElement):
 	"""Represents the qticomment element.
 	
+::
+
 	<!ELEMENT qticomment (#PCDATA)>
 	
 	<!ATTLIST qticomment  xml:lang CDATA  #IMPLIED >"""
@@ -570,6 +593,8 @@ class QTIContentMixin:
 class QTIFlowMatContainer(QTICommentElement,QTIContentMixin):
 	"""Abstract class used to represent objects that contain flow_mat
 	
+::
+
 	<!ELEMENT XXXXXXXXXX (qticomment? , (material+ | flow_mat+))>
 	"""
 	def __init__(self,parent):
@@ -591,12 +616,18 @@ class QTIFlowMatContainer(QTICommentElement,QTIContentMixin):
 		return child
 		
 	def MigrateV2Content(self,parent,log):
-		self.MigrateV2ContentMixture(self.contentChildren,parent,log)
+		if self.InlineChildren():
+			for child in self.contentChildren:
+				child.MigrateV2Content(parent,log)
+		else:
+			self.MigrateV2ContentMixture(self.contentChildren,parent,log)
 		
 
 class QTIFlowContainer(QTICommentElement,QTIContentMixin):
 	"""Abstract class used to represent objects that contain flow and friends
 	
+::
+
 	<!ELEMENT XXXXXXXXXX (qticomment? , (material | flow | response_*)* )>
 	"""
 	def __init__(self,parent):
@@ -634,6 +665,8 @@ class QTIFlowContainer(QTICommentElement,QTIContentMixin):
 class QTIMaterial(QTICommentElement,QTIContentMixin):
 	"""Represents the material element
 	
+::
+
 	<!ELEMENT material (qticomment? , (mattext | matemtext | matimage | mataudio | matvideo | matapplet | matapplication | matref | matbreak | mat_extension)+ , altmaterial*)>
 	
 	<!ATTLIST material  %I_Label;
@@ -665,6 +698,8 @@ class QTIMaterial(QTICommentElement,QTIContentMixin):
 
 class QTIMatText(QTIElement,QTIContentMixin):
 	"""Represents the mattext element
+
+::
 
 	<!ELEMENT mattext (#PCDATA)>
 	
@@ -775,6 +810,8 @@ class QTIMatText(QTIElement,QTIContentMixin):
 class QTIMatEmText(QTIElement):
 	"""Represents matemtext element.
 	
+::
+
 	<!ELEMENT matemtext (#PCDATA)>
 	
 	<!ATTLIST matemtext  texttype    CDATA  'text/plain'
@@ -796,6 +833,8 @@ class QTIMatEmText(QTIElement):
 class QTIMatImage(QTIElement):
 	"""Represents matimage element.
 	
+::
+
 	<!ELEMENT matimage (#PCDATA)>
 	
 	<!ATTLIST matimage  imagtype    CDATA  'image/jpeg'
@@ -815,6 +854,8 @@ class QTIMatImage(QTIElement):
 class QTIMatAudio(QTIElement):
 	"""Represents mataudio element.
 	
+::
+
 	<!ELEMENT mataudio (#PCDATA)>
 	
 	<!ATTLIST mataudio  audiotype   CDATA  'audio/base'
@@ -830,6 +871,8 @@ class QTIMatAudio(QTIElement):
 class QTIMatVideo(QTIElement):
 	"""Represents mataudio element.
 	
+::
+
 	<!ELEMENT matvideo (#PCDATA)>
 	
 	<!ATTLIST matvideo  videotype   CDATA  'video/avi'
@@ -849,6 +892,8 @@ class QTIMatVideo(QTIElement):
 class QTIMatApplet(QTIElement):
 	"""Represents matapplet element.
 	
+::
+
 	<!ELEMENT matapplet (#PCDATA)>
 	
 	<!ATTLIST matapplet  %I_Label;
@@ -867,6 +912,8 @@ class QTIMatApplet(QTIElement):
 class QTIMatApplication(QTIElement):
 	"""Represents matapplication element.
 	
+::
+
 	<!ELEMENT matapplication (#PCDATA)>
 	
 	<!ATTLIST matapplication  apptype     CDATA  #IMPLIED
@@ -882,6 +929,8 @@ class QTIMatApplication(QTIElement):
 class QTIMatBreak(QTIElement):
 	"""Represents matbreak element.
 	
+::
+
 	<!ELEMENT matbreak EMPTY>
 	"""
 	XMLNAME="matbreak"
@@ -891,6 +940,8 @@ class QTIMatBreak(QTIElement):
 class QTIMatRef(QTIElement):
 	"""Represents matref element.
 		
+::
+
 	<!ELEMENT matref EMPTY>
 	
 	<!ATTLIST matref  %I_LinkRefId; >
@@ -902,6 +953,8 @@ class QTIMatRef(QTIElement):
 class QTIMaterialRef(QTIElement):
 	"""Represents material_ref element.
 	
+::
+
 	<!ELEMENT material_ref EMPTY>
 	
 	<!ATTLIST material_ref  %I_LinkRefId; >
@@ -912,6 +965,8 @@ class QTIMaterialRef(QTIElement):
 
 class QTIAltMaterial(QTICommentElement):
 	"""Represents the altmaterial element.
+
+::
 
 	<!ELEMENT altmaterial (qticomment? ,
 		(mattext | matemtext | matimage | mataudio | matvideo |
@@ -955,7 +1010,9 @@ def EncodeVarType(value):
 		
 
 class QTIDecVar(QTIElement):
-	"""Represents the decvar element.
+	"""Represents the decvar element
+	
+::
 
 	<!ELEMENT decvar (#PCDATA)>
 	
@@ -1069,6 +1126,8 @@ def EncodeSetVarAction(value):
 class QTISetVar(QTIElement):
 	"""Represents the setvar element.
 
+::
+
 	<!ELEMENT setvar (#PCDATA)>
 	
 	<!ATTLIST setvar  %I_VarName;
@@ -1118,6 +1177,8 @@ class QTISetVar(QTIElement):
 class QTIInterpretVar(QTIElement,QTIContentMixin,QTIViewMixin):
 	"""Represents the interpretvar element.
 
+::
+
 	<!ELEMENT interpretvar (material | material_ref)>
 	
 	<!ATTLIST interpretvar  %I_View;
@@ -1160,6 +1221,8 @@ class QTIInterpretVar(QTIElement,QTIContentMixin,QTIViewMixin):
 class QTIConditionVar(QTIElement):
 	"""Represents the interpretvar element.
 
+::
+
 	<!ELEMENT conditionvar (not | and | or | unanswered | other | varequal | varlt |
 		varlte | vargt | vargte | varsubset | varinside | varsubstring | durequal |
 		durlt | durlte | durgt | durgte | var_extension)+>
@@ -1201,6 +1264,8 @@ class QTIExpressionMixin:
 class QTINot(QTIElement,QTIExpressionMixin):
 	"""Represents the not element.
 
+::
+
 	<!ELEMENT not (and | or | not | unanswered | other | varequal | varlt | varlte |
 		vargt | vargte | varsubset | varinside | varsubstring | durequal | durlt |
 		durlte | durgt | durgte)>	
@@ -1211,6 +1276,8 @@ class QTINot(QTIElement,QTIExpressionMixin):
 
 class QTIAnd(QTIElement,QTIExpressionMixin):
 	"""Represents the and element.
+
+::
 
 	<!ELEMENT and (not | and | or | unanswered | other | varequal | varlt | varlte |
 		vargt | vargte | varsubset | varinside | varsubstring | durequal | durlt |
@@ -1223,6 +1290,8 @@ class QTIAnd(QTIElement,QTIExpressionMixin):
 class QTIOr(QTIElement,QTIExpressionMixin):
 	"""Represents the or element.
 
+::
+
 	<!ELEMENT or (not | and | or | unanswered | other | varequal | varlt | varlte |
 		vargt | vargte | varsubset | varinside | varsubstring | durequal | durlt |
 		durlte | durgt | durgte)+>
@@ -1233,6 +1302,8 @@ class QTIOr(QTIElement,QTIExpressionMixin):
 
 class QTIVarEqual(QTIElement,QTIExpressionMixin):
 	"""Represents the varequal element.
+
+::
 
 	<!ELEMENT varequal (#PCDATA)>
 	
@@ -1322,6 +1393,8 @@ class QTIVarEqual(QTIElement,QTIExpressionMixin):
 class QTIVarLT(QTIElement,QTIExpressionMixin):
 	"""Represents the varlt element.
 
+::
+
 	<!ELEMENT varlt (#PCDATA)>
 	
 	<!ATTLIST varlt  %I_RespIdent;
@@ -1333,6 +1406,8 @@ class QTIVarLT(QTIElement,QTIExpressionMixin):
 
 class QTIVarLTE(QTIElement,QTIExpressionMixin):
 	"""Represents the varlte element.
+
+::
 
 	<!ELEMENT varlte (#PCDATA)>
 	
@@ -1346,6 +1421,8 @@ class QTIVarLTE(QTIElement,QTIExpressionMixin):
 class QTIVarGT(QTIElement,QTIExpressionMixin):
 	"""Represents the vargt element.
 
+::
+
 	<!ELEMENT vargt (#PCDATA)>
 	
 	<!ATTLIST vargt  %I_RespIdent;
@@ -1358,6 +1435,8 @@ class QTIVarGT(QTIElement,QTIExpressionMixin):
 class QTIVarGTE(QTIElement,QTIExpressionMixin):
 	"""Represents the vargte element.
 
+::
+
 	<!ELEMENT vargte (#PCDATA)>
 	
 	<!ATTLIST vargte  %I_RespIdent;
@@ -1369,6 +1448,8 @@ class QTIVarGTE(QTIElement,QTIExpressionMixin):
 
 class QTIVarSubset(QTIElement,QTIExpressionMixin):
 	"""Represents the varsubset element.
+
+::
 
 	<!ELEMENT varsubset (#PCDATA)>
 	
@@ -1383,6 +1464,8 @@ class QTIVarSubset(QTIElement,QTIExpressionMixin):
 class QTIVarInside(QTIElement,QTIExpressionMixin):
 	"""Represents the varinside element.
 
+::
+
 	<!ELEMENT varinside (#PCDATA)>
 	
 	<!ATTLIST varinside  areatype     (Ellipse | Rectangle | Bounded )  #REQUIRED
@@ -1395,6 +1478,8 @@ class QTIVarInside(QTIElement,QTIExpressionMixin):
 
 class QTIVarSubString(QTIElement,QTIExpressionMixin):
 	"""Represents the varsubstring element.
+
+::
 
 	<!ELEMENT varsubstring (#PCDATA)>
 	
@@ -1409,6 +1494,8 @@ class QTIVarSubString(QTIElement,QTIExpressionMixin):
 class QTIDurEqual(QTIElement,QTIExpressionMixin):
 	"""Represents the durequal element.
 
+::
+
 	<!ELEMENT durequal (#PCDATA)>
 	
 	<!ATTLIST durequal  %I_Index;
@@ -1420,6 +1507,8 @@ class QTIDurEqual(QTIElement,QTIExpressionMixin):
 
 class QTIDurLT(QTIElement,QTIExpressionMixin):
 	"""Represents the durlt element.
+
+::
 
 	<!ELEMENT durlt (#PCDATA)>
 	
@@ -1433,6 +1522,8 @@ class QTIDurLT(QTIElement,QTIExpressionMixin):
 class QTIDurLTE(QTIElement,QTIExpressionMixin):
 	"""Represents the durlte element.
 
+::
+
 	<!ELEMENT durlte (#PCDATA)>
 	
 	<!ATTLIST durlte  %I_Index;
@@ -1444,6 +1535,8 @@ class QTIDurLTE(QTIElement,QTIExpressionMixin):
 
 class QTIDurGT(QTIElement,QTIExpressionMixin):
 	"""Represents the durgt element.
+
+::
 
 	<!ELEMENT durgt (#PCDATA)>
 	
@@ -1457,6 +1550,8 @@ class QTIDurGT(QTIElement,QTIExpressionMixin):
 class QTIDurGTE(QTIElement,QTIExpressionMixin):
 	"""Represents the durgte element.
 
+::
+
 	<!ELEMENT durgte (#PCDATA)>
 	
 	<!ATTLIST durgte  %I_Index;
@@ -1469,6 +1564,8 @@ class QTIDurGTE(QTIElement,QTIExpressionMixin):
 class QTIUnanswered(QTIElement,QTIExpressionMixin):
 	"""Represents the unanswered element.
 	
+::
+
 	<!ELEMENT unanswered (#PCDATA)>
 	
 	<!ATTLIST unanswered  %I_RespIdent; >
@@ -1480,6 +1577,8 @@ class QTIUnanswered(QTIElement,QTIExpressionMixin):
 class QTIOther(QTIElement,QTIExpressionMixin):
 	"""Represents the other element.
 	
+::
+
 	<!ELEMENT other (#PCDATA)>	
 	"""
 	XMLNAME="other"
@@ -1489,27 +1588,58 @@ class QTIOther(QTIElement,QTIExpressionMixin):
 class QTIDuration(QTIElement):
 	"""Represents the duration element.
 	
+::
+
 	<!ELEMENT duration (#PCDATA)>
 	"""
 	XMLNAME="duration"
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTIDisplayFeedback(QTIElement):
+class QTIDisplayFeedback(QTIElement,QTILinkRefIdMixin):
 	"""Represents the displayfeedback element.
 	
+::
+
 	<!ELEMENT displayfeedback (#PCDATA)>
 	
 	<!ATTLIST displayfeedback  feedbacktype  (Response | Solution | Hint )  'Response'
 								%I_LinkRefId; >
 	"""
 	XMLNAME="displayfeedback"
+	XMLATTR_feedbacktype='feedbackType'
 	XMLCONTENT=xml.XMLMixedContent
 
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		QTILinkRefIdMixin.__init__(self)
+		self.feedbackType='Response'
+		
+	def MigrateV2Rule(self,parent,log):
+		v2Item=parent.GetAssessmentItem()
+		identifier=qtiv2.ValidateIdentifier(self.linkRefID,'FEEDBACK_')
+		outcome=v2Item.declarations.get('FEEDBACK',None)
+		if outcome is None:
+			d=v2Item.ChildElement(qtiv2.QTIOutcomeDeclaration)
+			d.baseType=qtiv2.QTIBaseType.identifier
+			d.cardinality=qtiv2.QTICardinality.multiple
+			d.identifier='FEEDBACK'
+			v2Item.RegisterDeclaration(d)
+		setValue=parent.ChildElement(qtiv2.QTISetOutcomeValue)
+		setValue.identifier='FEEDBACK'
+		multiple=setValue.ChildElement(qtiv2.QTIMultiple)
+		variable=multiple.ChildElement(qtiv2.QTIVariable)
+		variable.identifier='FEEDBACK'
+		value=multiple.ChildElement(qtiv2.QTIBaseValue)
+		value.baseType=qtiv2.QTIBaseType.identifier
+		value.SetValue(self.linkRefID)
+		
 
 class QTIObjectives(QTIFlowMatContainer,QTIViewMixin):
 	"""Represents the objectives element
 	
+::
+
 	<!ELEMENT objectives (qticomment? , (material+ | flow_mat+))>
 
 	<!ATTLIST objectives  %I_View; >"""
@@ -1531,7 +1661,8 @@ class QTIObjectives(QTIFlowMatContainer,QTIViewMixin):
 			if view!=oldView:
 				log.append("Warning: changing view %s to %s"%(self.view,view))
 			rubric.SetAttribute('view',view)
-		self.MigrateV2Content(rubric,log)
+		# rubric is not a flow-container so we force inlines to be p-wrapped
+		self.MigrateV2ContentMixture(self.contentChildren,rubric,log)
 				
 	def LRMMigrateObjectives(self,lom,log):
 		"""Adds educational description from these objectives."""
@@ -1543,6 +1674,8 @@ class QTIObjectives(QTIFlowMatContainer,QTIViewMixin):
 class QTIRubric(QTIFlowMatContainer,QTIViewMixin):
 	"""Represents the rubric element.
 	
+::
+
 	<!ELEMENT rubric (qticomment? , (material+ | flow_mat+))>
 	
 	<!ATTLIST rubric  %I_View; >"""
@@ -1565,22 +1698,55 @@ class QTIRubric(QTIFlowMatContainer,QTIViewMixin):
 			if view!=oldView:
 				log.append("Warning: changing view %s to %s"%(self.view,view))
 			rubric.SetAttribute('view',view)
-		self.MigrateV2Content(rubric,log)
+		# rubric is not a flow-container so we force inlines to be p-wrapped
+		self.MigrateV2ContentMixture(self.contentChildren,rubric,log)
 
 
-class QTIFlowMat(QTICommentElement):
+class QTIFlowMat(QTIFlowMatContainer):
 	"""Represent flow_mat element
 	
+::
+
 	<!ELEMENT flow_mat (qticomment? , (flow_mat | material | material_ref)+)>
 	
 	<!ATTLIST flow_mat  %I_Class; >"""
 	XMLNAME="flow_mat"
+	XMLATTR_class='flowClass'
 	XMLCONTENT=xml.XMLElementContent
 	
+	def __init__(self,parent):
+		QTIFlowMatContainer.__init__(self,parent)
+		self.flowClass=None
+		
+	def IsInline(self):
+		"""flowmat is always treated as a block if flowClass is specified, otherwise
+		it is treated as a block unless it is an only child."""
+		if self.flowClass is None:
+			return self.InlineChildren()
+		else:
+			return False
+
+	def MigrateV2Content(self,parent,log):
+		"""flow typically maps to a div element.
+		
+		A flow with a specified class always becomes a div."""
+		if self.flowClass is not None:
+			div=parent.ChildElement(html.XHTMLDiv,(qtiv2.IMSQTI_NAMESPACE,'div'))
+			div.styleClass=self.flowClass
+			self.MigrateV2ContentMixture(self.contentChildren,div,log)
+		elif self.InlineChildren():
+			# we add our children directly to the parent
+			for child in self.contentChildren:
+				child.MigrateV2Content(parent,log)
+		else:
+			self.MigrateV2ContentMixture(self.contentChildren,parent,log)
+
 
 class QTIPresentationMaterial(QTICommentElement):
 	"""Represent presentation_material element
 	
+::
+
 	<!ELEMENT presentation_material (qticomment? , flow_mat+)>"""
 	XMLNAME="presentation_material"
 	XMLCONTENT=xml.XMLElementContent
@@ -1589,6 +1755,8 @@ class QTIPresentationMaterial(QTICommentElement):
 class QTIReference(QTICommentElement):
 	"""Represent presentation_material element
 	
+::
+
 	<!ELEMENT reference (qticomment? , (material | mattext | matemtext | matimage | mataudio |
 		matvideo | matapplet | matapplication | matbreak | mat_extension)+)>"""
 	XMLNAME="reference"
@@ -1598,6 +1766,8 @@ class QTIReference(QTICommentElement):
 class QTISelectionOrdering(QTICommentElement):
 	"""Represent selection_ordering element.
 	
+::
+
 	<!ELEMENT selection_ordering (qticomment? , sequence_parameter* , selection* , order?)>
 	
 	<!ATTLIST selection_ordering  sequence_type CDATA  #IMPLIED >"""
@@ -1608,6 +1778,8 @@ class QTISelectionOrdering(QTICommentElement):
 class QTIOutcomesProcessing(QTICommentElement):
 	"""Represent outcomes_processing element.
 	
+::
+
 	<!ELEMENT outcomes_processing (qticomment? , outcomes , objects_condition* ,
 		processing_parameter* , map_output* , outcomes_feedback_test*)>
 	
@@ -1622,6 +1794,8 @@ class QTIOutcomesProcessing(QTICommentElement):
 class QTIMatExtension(QTIElement):
 	"""Represents the mat_extension element.
 	
+::
+
 	<!ELEMENT mat_extension ANY>
 	"""
 	XMLNAME="mat_extension"
@@ -1631,6 +1805,8 @@ class QTIMatExtension(QTIElement):
 class QTIVarExtension(QTIElement):
 	"""Represents the var_extension element.
 	
+::
+
 	<!ELEMENT var_extension ANY>
 	"""
 	XMLNAME="var_extension"
@@ -1640,6 +1816,8 @@ class QTIVarExtension(QTIElement):
 class QTIResponseExtension(QTIElement):
 	"""Represents the response_extension element.
 	
+::
+
 	<!ELEMENT response_extension ANY>
 	"""
 	XMLNAME="response_extension"
@@ -1649,6 +1827,8 @@ class QTIResponseExtension(QTIElement):
 class QTIRenderExtension(QTIElement):
 	"""Represents the render_extension element.
 	
+::
+
 	<!ELEMENT render_extension ANY>
 	"""
 	XMLNAME="render_extension"
@@ -1658,6 +1838,8 @@ class QTIRenderExtension(QTIElement):
 class QTIAssessProcExtension(QTIElement):
 	"""Represents the render_extension element.
 	
+::
+
 	<!ELEMENT assessproc_extension ANY>
 	"""
 	XMLNAME="assessproc_extension"
@@ -1667,6 +1849,8 @@ class QTIAssessProcExtension(QTIElement):
 class QTISectionProcExtension(QTIElement):
 	"""Represents the sectionproc_extension element.
 	
+::
+
 	<!ELEMENT sectionproc_extension ANY>
 	"""
 	XMLNAME="sectionproc_extension"
@@ -1676,6 +1860,8 @@ class QTISectionProcExtension(QTIElement):
 class QTIItemProcExtension(QTIElement):
 	"""Represents the itemproc_extension element.
 	
+::
+
 	<!ELEMENT itemproc_extension ANY>
 	"""
 	XMLNAME="itemproc_extension"
@@ -1685,6 +1871,8 @@ class QTIItemProcExtension(QTIElement):
 class QTIRespCondExtension(QTIElement):
 	"""Represents the respcond_extension element.
 	
+::
+
 	<!ELEMENT respcond_extension ANY>
 	"""
 	XMLNAME="respcond_extension"
@@ -1694,6 +1882,8 @@ class QTIRespCondExtension(QTIElement):
 class QTISelectionExtension(QTIElement):
 	"""Represents the selection_extension element.
 	
+::
+
 	<!ELEMENT selection_extension ANY>
 	"""
 	XMLNAME="selection_extension"
@@ -1703,6 +1893,8 @@ class QTISelectionExtension(QTIElement):
 class QTIObjectsCondExtension(QTIElement):
 	"""Represents the objectscond_extension element.
 	
+::
+
 	<!ELEMENT objectscond_extension (#PCDATA)>
 	"""
 	XMLNAME="objectscond_extension"
@@ -1712,6 +1904,8 @@ class QTIObjectsCondExtension(QTIElement):
 class QTIOrderExtension(QTIElement):
 	"""Represents the order_extension element.
 	
+::
+
 	<!ELEMENT order_extension ANY>
 	"""
 	XMLNAME="order_extension"
@@ -1724,6 +1918,8 @@ class QTIOrderExtension(QTIElement):
 class QTIObjectBank(QTICommentElement):
 	"""Represents the objectbank element.
 	
+::
+
 	<!ELEMENT objectbank (qticomment? , qtimetadata* , (section | item)+)>
 	
 	<!ATTLIST objectbank  %I_Ident; >
@@ -1738,6 +1934,8 @@ class QTIObjectBank(QTICommentElement):
 class QTIAssessment(QTICommentElement):
 	"""Represents the assessment element.
 	
+::
+
 	<!ELEMENT assessment (qticomment? ,
 		duration? ,
 		qtimetadata* ,
@@ -1811,6 +2009,8 @@ class QTIAssessment(QTICommentElement):
 class QTIAssessmentControl(QTICommentElement):
 	"""Represents the assessmentcontrol element.
 	
+::
+
 	<!ELEMENT assessmentcontrol (qticomment?)>
 
 	<!ATTLIST assessmentcontrol  %I_HintSwitch;
@@ -1825,6 +2025,8 @@ class QTIAssessmentControl(QTICommentElement):
 class QTIAssessmentFeedback(QTICommentElement):
 	"""Represents the assessfeedback element.
 	
+::
+
 	<!ELEMENT assessfeedback (qticomment? , (material+ | flow_mat+))>
 	
 	<!ATTLIST assessfeedback  %I_View;
@@ -1838,6 +2040,8 @@ class QTIAssessmentFeedback(QTICommentElement):
 class QTIAssessmentFeedback(QTIElement):
 	"""Represents the sectionref element.
 	
+::
+
 	<!ELEMENT sectionref (#PCDATA)>
 	
 	<!ATTLIST sectionref  %I_LinkRefId; >
@@ -1851,6 +2055,8 @@ class QTIAssessmentFeedback(QTIElement):
 #
 class QTISection(QTICommentElement):
 	"""Represents section element.
+::
+
 	<!ELEMENT section (qticomment? ,
 		duration? ,
 		qtimetadata* ,
@@ -1938,6 +2144,8 @@ class QTISection(QTICommentElement):
 class QTISectionPrecondition(QTIElement):
 	"""Represents the sectionprecondition element.
 	
+::
+
 	<!ELEMENT sectionprecondition (#PCDATA)>"""
 	XMLNAME='sectionprecondition'
 	XMLCONTENT=xml.XMLMixedContent
@@ -1946,6 +2154,8 @@ class QTISectionPrecondition(QTIElement):
 class QTISectionPostcondition(QTIElement):
 	"""Represents the sectionpostcondition element.
 	
+::
+
 	<!ELEMENT sectionpostcondition (#PCDATA)>"""
 	XMLNAME='sectionpostcondition'
 	XMLCONTENT=xml.XMLMixedContent
@@ -1954,6 +2164,8 @@ class QTISectionPostcondition(QTIElement):
 class QTISectionControl(QTICommentElement):
 	"""Represents the sectioncontrol element.
 	
+::
+
 	<!ELEMENT sectioncontrol (qticomment?)>
 	
 	<!ATTLIST sectioncontrol  %I_FeedbackSwitch;
@@ -1968,6 +2180,8 @@ class QTISectionControl(QTICommentElement):
 class QTIItemRef(QTIElement):
 	"""Represents the itemref element.
 	
+::
+
 	<!ELEMENT itemref (#PCDATA)>
 	
 	<!ATTLIST itemref  %I_LinkRefId; >
@@ -1979,6 +2193,8 @@ class QTIItemRef(QTIElement):
 class QTISectionFeedback(QTICommentElement):
 	"""Represents the sectionfeedback element.
 	
+::
+
 	<!ELEMENT sectionfeedback (qticomment? , (material+ | flow_mat+))>
 	
 	<!ATTLIST sectionfeedback  %I_View;
@@ -1995,6 +2211,8 @@ class QTISectionFeedback(QTICommentElement):
 class QTIItem(QTICommentElement):
 	"""Represents the item element.
 	
+::
+
 	<!ELEMENT item (qticomment?
 		duration?
 		itemmetadata?
@@ -2134,6 +2352,8 @@ class QTIItem(QTICommentElement):
 			if len(self.QTIResProcessing)>1:
 				log.append("Warning: multiople <resprocessing> not supported, ignoring all but the last")
 			self.QTIResProcessing[-1].MigrateV2(item,log)
+		for feedback in self.QTIItemFeedback:
+			feedback.MigrateV2(item,log)
 		output.append((doc, lom, log))
 		#print doc.root
 		
@@ -2147,6 +2367,8 @@ class QTIItemMetadata(QTIMetadataContainer):
 	generous and allow input *and* output of elements in any sequence and
 	provide separate methods for conforming these elements.
 	
+::
+
 	<!ELEMENT itemmetadata (
 		qtimetadata*
 		qmd_computerscored?
@@ -2383,6 +2605,8 @@ class QTIItemMetadata(QTIMetadataContainer):
 class QTIItemControl(QTICommentElement,QTIViewMixin):
 	"""Represents the itemcontrol element
 	
+::
+
 	<!ELEMENT itemcontrol (qticomment?)>
 	
 	<!ATTLIST itemcontrol  %I_FeedbackSwitch;
@@ -2411,6 +2635,8 @@ class QTIItemControl(QTICommentElement,QTIViewMixin):
 class QTIItemPreCondition(QTIElement):
 	"""Represents the itemprecondition element
 	
+::
+
 	<!ELEMENT itemprecondition (#PCDATA)>"""
 	XMLNAME='itemprecondition'
 	XMLCONTENT=xml.XMLMixedContent
@@ -2419,6 +2645,8 @@ class QTIItemPreCondition(QTIElement):
 class QTIItemPostCondition(QTIElement):
 	"""Represents the itempostcondition element
 	
+::
+
 	<!ELEMENT itempostcondition (#PCDATA)>"""
 	XMLNAME='itempostcondition'
 	XMLCONTENT=xml.XMLMixedContent
@@ -2427,6 +2655,8 @@ class QTIItemPostCondition(QTIElement):
 class QTIItemRubric(QTIRubric):
 	"""Represents the itemrubric element.
 	
+::
+
 	<!ELEMENT itemrubric (material)>
 
 	<!ATTLIST itemrubric  %I_View; >
@@ -2442,6 +2672,8 @@ class QTIItemRubric(QTIRubric):
 class QTIPresentation(QTIFlowContainer,QTIPositionMixin):
 	"""Represents the presentation element.
 	
+::
+
 	<!ELEMENT presentation (qticomment? ,
 		(flow |
 			(material |
@@ -2496,6 +2728,8 @@ class QTIPresentation(QTIFlowContainer,QTIPositionMixin):
 class QTIFlow(QTIFlowContainer):
 	"""Represents the flow element.
 	
+::
+
 	<!ELEMENT flow (qticomment? ,
 		(flow |
 		material |
@@ -2535,13 +2769,19 @@ class QTIFlow(QTIFlowContainer):
 		if self.flowClass is not None:
 			div=parent.ChildElement(html.XHTMLDiv,(qtiv2.IMSQTI_NAMESPACE,'div'))
 			div.styleClass=self.flowClass
-			parent=div
-		self.MigrateV2ContentMixture(self.contentChildren,parent,log)
-			
+			self.MigrateV2ContentMixture(self.contentChildren,div,log)
+		elif self.InlineChildren():
+			for child in self.contentChildren:
+				child.MigrateV2Content(parent,log)
+		else:
+			self.MigrateV2ContentMixture(self.contentChildren,parent,log)			
+	
 
 class QTIResponseLId(QTIElement,QTIContentMixin):
 	"""Represents the response_lid element.
 	
+::
+
 	<!ELEMENT response_lid ((material | material_ref)? ,
 		(render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
 		(material | material_ref)?)>
@@ -2671,6 +2911,8 @@ class QTIResponseLId(QTIElement,QTIContentMixin):
 class QTIResponseXY(QTIElement,QTIContentMixin):
 	"""Represents the response_xy element.
 	
+::
+
 	<!ELEMENT response_xy ((material | material_ref)? ,
 		(render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
 		(material | material_ref)?)>
@@ -2686,6 +2928,8 @@ class QTIResponseXY(QTIElement,QTIContentMixin):
 class QTIResponseStr(QTIElement,QTIContentMixin):
 	"""Represents the response_str element.
 	
+::
+
 	<!ELEMENT response_str ((material | material_ref)? ,
 		(render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
 		(material | material_ref)?)>
@@ -2701,6 +2945,8 @@ class QTIResponseStr(QTIElement,QTIContentMixin):
 class QTIResponseNum(QTIElement,QTIContentMixin):
 	"""Represents the response_num element.
 	
+::
+
 	<!ELEMENT response_num ((material | material_ref)? ,
 		(render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
 		(material | material_ref)?)>
@@ -2717,6 +2963,8 @@ class QTIResponseNum(QTIElement,QTIContentMixin):
 class QTIResponseGrp(QTIElement,QTIContentMixin):
 	"""Represents the response_grp element.
 	
+::
+
 	<!ELEMENT response_grp ((material | material_ref)? ,
 		(render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
 		(material | material_ref)?)>
@@ -2732,6 +2980,8 @@ class QTIResponseGrp(QTIElement,QTIContentMixin):
 class QTIResponseLabel(QTIElement,QTIContentMixin):
 	"""Represents the response_label element.
 	
+::
+
 	<!ELEMENT response_label (#PCDATA | qticomment | material | material_ref | flow_mat)*>
 	
 	<!ATTLIST response_label  rshuffle     (Yes | No )  'Yes'
@@ -2805,6 +3055,8 @@ class QTIResponseLabel(QTIElement,QTIContentMixin):
 class QTIFlowLabel(QTICommentElement,QTIContentMixin):
 	"""Represents the flow_label element.
 	
+::
+
 	<!ELEMENT flow_label (qticomment? , (flow_label | response_label)+)>
 	
 	<!ATTLIST flow_label  %I_Class; >
@@ -2843,6 +3095,8 @@ class QTIFlowLabel(QTICommentElement,QTIContentMixin):
 class QTIResponseNA(QTIElement):
 	"""Represents the response_na element.
 	
+::
+
 	<!ELEMENT response_na ANY>"""
 	XMLNAME='response_na'
 	XMLCONTENT=xml.XMLMixedContent
@@ -2851,6 +3105,8 @@ class QTIResponseNA(QTIElement):
 class QTIRenderChoice(QTIElement,QTIContentMixin):
 	"""Represents the render_choice element.
 	
+::
+
 	<!ELEMENT render_choice ((material | material_ref | response_label | flow_label)* , response_na?)>
 	
 	<!ATTLIST render_choice  shuffle      (Yes | No )  'No'
@@ -2937,6 +3193,8 @@ class QTIRenderChoice(QTIElement,QTIContentMixin):
 class QTIRenderHotspot(QTIElement):
 	"""Represents the render_hotspot element.
 	
+::
+
 	<!ELEMENT render_hotspot ((material | material_ref | response_label | flow_label)* , response_na?)>
 	
 	<!ATTLIST render_hotspot  %I_MaxNumber;
@@ -2950,6 +3208,8 @@ class QTIRenderHotspot(QTIElement):
 class QTIRenderSlider(QTIElement):
 	"""Represents the render_slider element.
 	
+::
+
 	<!ELEMENT render_slider ((material | material_ref | response_label | flow_label)* , response_na?)>
 	
 	<!ATTLIST render_slider  orientation  (Horizontal | Vertical )  'Horizontal'
@@ -2968,6 +3228,8 @@ class QTIRenderSlider(QTIElement):
 class QTIRenderFIB(QTIElement):
 	"""Represents the render_fib element.
 	
+::
+
 	<!ELEMENT render_fib ((material | material_ref | response_label | flow_label)* , response_na?)>
 	
 	<!ATTLIST render_fib  encoding    CDATA  'UTF_8'
@@ -2987,6 +3249,8 @@ class QTIRenderFIB(QTIElement):
 class QTIResProcessing(QTICommentElement):
 	"""Represents the resprocessing element.
 	
+::
+
 	<!ELEMENT resprocessing (qticomment? , outcomes , (respcondition | itemproc_extension)+)>
 	
 	<!ATTLIST resprocessing  %I_ScoreModel; >
@@ -3028,6 +3292,8 @@ class QTIResProcessing(QTICommentElement):
 class QTIOutcomes(QTICommentElement):
 	"""Represents the outcomes element.
 	
+::
+
 	<!ELEMENT outcomes (qticomment? , (decvar , interpretvar*)+)>
 	
 	The implementation of this element takes a liberty with the content model
@@ -3061,6 +3327,8 @@ class QTIOutcomes(QTICommentElement):
 class QTIRespCondition(QTICommentElement):
 	"""Represents the respcondition element.
 	
+::
+
 	<!ELEMENT respcondition (qticomment? , conditionvar , setvar* , displayfeedback* , respcond_extension?)>
 	
 	<!ATTLIST respcondition  %I_Continue;
@@ -3143,12 +3411,16 @@ class QTIRespCondition(QTICommentElement):
 		self.QTIConditionVar.MigrateV2Expression(rcIf,log)
 		for rule in self.QTISetVar:
 			rule.MigrateV2Rule(rcIf,log)
+		for rule in self.QTIDisplayFeedback:
+			rule.MigrateV2Rule(rcIf,log)
 		return self.continueFlag,ruleContainer
 
 		
-class QTIItemFeedback(QTICommentElement):
+class QTIItemFeedback(QTIElement,QTIViewMixin,QTIContentMixin):
 	"""Represents the itemfeedback element.
 	
+::
+
 	<!ELEMENT itemfeedback ((flow_mat | material) | solution | hint)+>
 	
 	<!ATTLIST itemfeedback  %I_View;
@@ -3156,12 +3428,63 @@ class QTIItemFeedback(QTICommentElement):
 							 %I_Title; >
 	"""
 	XMLNAME='itemfeedback'
+	XMLATTR_title='title'
+	XMLATTR_ident='ident'		
+
 	XMLCONTENT=xml.XMLElementContent
 	
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		QTIViewMixin.__init__(self)
+		QTIContentMixin.__init__(self)
+		self.title=None
+		self.ident=None
 
+	def GetChildren(self):
+		children=QTIElement.GetChildren(self)+self.contentChildren
+		return children
+
+	def QTIMaterial(self):
+		child=QTIMaterial(self)
+		self.contentChildren.append(child)
+		return child
+	
+	def QTIFlowMat(self):
+		child=QTIFlowMat(self)
+		self.contentChildren.append(child)
+		return child
+
+	def QTISolution(self):
+		child=QTISolution(self)
+		self.contentChildren.append(child)
+		return child
+
+	def QTIHint(self):
+		child=QTIHint(self)
+		self.contentChildren.append(child)
+		return child
+		
+	def MigrateV2(self,v2Item,log):
+		feedback=v2Item.ChildElement(qtiv2.QTIModalFeedback)
+		if not (self.view.lower()=='all' and self.view.lower()=='candidate'):
+			log.append("Warning: discarding view on feedback (%s)"%self.view)
+		identifier=qtiv2.ValidateIdentifier(self.ident,'FEEDBACK_')
+		feedback.outcomeIdentifier='FEEDBACK'
+		feedback.showHide=qtiv2.QTIShowHide.show
+		feedback.identifier=identifier
+		feedback.title=self.title
+		if self.InlineChildren():
+			for child in self.contentChildren:
+				child.MigrateV2Content(feedback,log)
+		else:
+			self.MigrateV2ContentMixture(self.contentChildren,feedback,log)
+			
+		
 class QTISolution(QTICommentElement):
 	"""Represents the solution element.
 	
+::
+
 	<!ELEMENT solution (qticomment? , solutionmaterial+)>
 	
 	<!ATTLIST solution  %I_FeedbackStyle; >
@@ -3173,6 +3496,8 @@ class QTISolution(QTICommentElement):
 class QTISolutionMaterial(QTIElement):
 	"""Represents the solutionmaterial element.
 	
+::
+
 	<!ELEMENT solutionmaterial (material+ | flow_mat+)>
 	"""
 	XMLNAME='solutionmaterial'
@@ -3182,6 +3507,8 @@ class QTISolutionMaterial(QTIElement):
 class QTIHint(QTICommentElement):
 	"""Represents the hint element.
 	
+::
+
 	<!ELEMENT hint (qticomment? , hintmaterial+)>
 	
 	<!ATTLIST hint  %I_FeedbackStyle; >
@@ -3193,6 +3520,8 @@ class QTIHint(QTICommentElement):
 class QTIHintMaterial(QTIElement):
 	"""Represents the hintmaterial element.
 	
+::
+
 	<!ELEMENT hintmaterial (material+ | flow_mat+)>
 	"""
 	XMLNAME='hintmaterial'
@@ -3205,6 +3534,8 @@ class QTIHintMaterial(QTIElement):
 class QTISelection(QTIElement):
 	"""Represents the selection element.
 	
+::
+
 	<!ELEMENT selection (sourcebank_ref? , selection_number? , selection_metadata? ,
 		(and_selection | or_selection | not_selection | selection_extension)?)>
 	"""
@@ -3215,6 +3546,8 @@ class QTISelection(QTIElement):
 class QTIOrder(QTIElement):
 	"""Represents the order element.
 	
+::
+
 	<!ELEMENT order (order_extension?)>
 	
 	<!ATTLIST order  order_type CDATA  #REQUIRED >
@@ -3226,6 +3559,8 @@ class QTIOrder(QTIElement):
 class QTISelectionNumber(QTIElement):
 	"""Represents the selection_number element.
 	
+::
+
 	<!ELEMENT selection_number (#PCDATA)>
 	"""
 	XMLNAME='selection_number'
@@ -3235,6 +3570,8 @@ class QTISelectionNumber(QTIElement):
 class QTISelectionMetadata(QTIElement):
 	"""Represents the selection_metadata element.
 	
+::
+
 	<!ELEMENT selection_metadata (#PCDATA)>
 	
 	<!ATTLIST selection_metadata  %I_Mdname;
@@ -3247,6 +3584,8 @@ class QTISelectionMetadata(QTIElement):
 class QTISequenceParameter(QTIElement):
 	"""Represents the sequence_parameter element.
 	
+::
+
 	<!ELEMENT sequence_parameter (#PCDATA)>
 	
 	<!ATTLIST sequence_parameter  %I_Pname; >
@@ -3258,6 +3597,8 @@ class QTISequenceParameter(QTIElement):
 class QTISourcebankRef(QTIElement):
 	"""Represents the sourcebank_ref element.
 	
+::
+
 	<!ELEMENT sourcebank_ref (#PCDATA)>
 	"""
 	XMLNAME='sourcebank_ref'
@@ -3267,6 +3608,8 @@ class QTISourcebankRef(QTIElement):
 class QTIAndSelection(QTIElement):
 	"""Represents the and_selection element.
 	
+::
+
 	<!ELEMENT and_selection (selection_metadata | and_selection | or_selection | not_selection)+>
 	"""
 	XMLNAME='and_selection'
@@ -3276,6 +3619,8 @@ class QTIAndSelection(QTIElement):
 class QTIOrSelection(QTIElement):
 	"""Represents the or_selection element.
 	
+::
+
 	<!ELEMENT or_selection (selection_metadata | and_selection | or_selection | not_selection)+>
 	"""
 	XMLNAME='or_selection'
@@ -3285,6 +3630,8 @@ class QTIOrSelection(QTIElement):
 class QTINotSelection(QTIElement):
 	"""Represents the not_selection element.
 	
+::
+
 	<!ELEMENT not_selection (selection_metadata | and_selection | or_selection | not_selection)>
 	"""
 	XMLNAME='not_selection'
@@ -3297,6 +3644,8 @@ class QTINotSelection(QTIElement):
 class QTIObjectsCondition(QTICommentElement):
 	"""Represents the objects_condition element.
 	
+::
+
 	<!ELEMENT objects_condition (qticomment? ,
 		(outcomes_metadata | and_objects | or_objects | not_objects)? ,
 		objects_parameter* , map_input* , objectscond_extension?)>
@@ -3308,6 +3657,8 @@ class QTIObjectsCondition(QTICommentElement):
 class QTIMapOutput(QTIElement):
 	"""Represents the map_output element.
 	
+::
+
 	<!ELEMENT map_output (#PCDATA)>
 	
 	<!ATTLIST map_output  %I_VarName; >
@@ -3319,6 +3670,8 @@ class QTIMapOutput(QTIElement):
 class QTIMapInput(QTIElement):
 	"""Represents the map_input element.
 	
+::
+
 	<!ELEMENT map_input (#PCDATA)>
 	
 	<!ATTLIST map_input  %I_VarName; >
@@ -3330,6 +3683,8 @@ class QTIMapInput(QTIElement):
 class QTIOutcomesFeedbackTest(QTIElement):
 	"""Represents the outcomes_feedback_test element.
 	
+::
+
 	<!ELEMENT outcomes_feedback_test (test_variable , displayfeedback+)>
 
 	<!ATTLIST outcomes_feedback_test  %I_Title; >
@@ -3341,6 +3696,8 @@ class QTIOutcomesFeedbackTest(QTIElement):
 class QTIOutcomesMetadata(QTIElement):
 	"""Represents the outcomes_metadata element.
 	
+::
+
 	<!ELEMENT outcomes_metadata (#PCDATA)>
 
 	<!ATTLIST outcomes_metadata  %I_Mdname;
@@ -3353,6 +3710,8 @@ class QTIOutcomesMetadata(QTIElement):
 class QTIAndObjects(QTIElement):
 	"""Represents the and_objects element.
 	
+::
+
 	<!ELEMENT and_objects (outcomes_metadata | and_objects | or_objects | not_objects)+>
 	"""
 	XMLNAME='and_objects'
@@ -3362,6 +3721,8 @@ class QTIAndObjects(QTIElement):
 class QTIOrObjects(QTIElement):
 	"""Represents the or_objects element.
 	
+::
+
 	<!ELEMENT or_objects (outcomes_metadata | and_objects | or_objects | not_objects)+>
 	"""
 	XMLNAME='or_objects'
@@ -3371,6 +3732,8 @@ class QTIOrObjects(QTIElement):
 class QTINotObjects(QTIElement):
 	"""Represents the not_objects element.
 	
+::
+
 	<!ELEMENT not_objects (outcomes_metadata | and_objects | or_objects | not_objects)>
 	"""
 	XMLNAME='not_objects'
@@ -3379,6 +3742,8 @@ class QTINotObjects(QTIElement):
 class QTITestVariable(QTIElement):
 	"""Represents the test_variable element.
 	
+::
+
 	<!ELEMENT test_variable (variable_test | and_test | or_test | not_test)>
 	"""
 	XMLNAME='test_variable'
@@ -3387,6 +3752,8 @@ class QTITestVariable(QTIElement):
 class QTIProcessingParameter(QTIElement):
 	"""Represents the processing_parameter element.
 	
+::
+
 	<!ELEMENT processing_parameter (#PCDATA)>
 
 	<!ATTLIST processing_parameter  %I_Pname; >
@@ -3398,6 +3765,8 @@ class QTIProcessingParameter(QTIElement):
 class QTIAndTest(QTIElement):
 	"""Represents the and_test element.
 	
+::
+
 	<!ELEMENT and_test (variable_test | and_test | or_test | not_test)+>
 	"""
 	XMLNAME='and_test'
@@ -3407,6 +3776,8 @@ class QTIAndTest(QTIElement):
 class QTIOrTest(QTIElement):
 	"""Represents the or_test element.
 	
+::
+
 	<!ELEMENT or_test (variable_test | and_test | or_test | not_test)+>
 	"""
 	XMLNAME='or_test'
@@ -3416,6 +3787,8 @@ class QTIOrTest(QTIElement):
 class QTINotTest(QTIElement):
 	"""Represents the not_test element.
 	
+::
+
 	<!ELEMENT not_test (variable_test | and_test | or_test | not_test)>
 	"""
 	XMLNAME='not_test'
@@ -3425,6 +3798,8 @@ class QTINotTest(QTIElement):
 class QTIVariableTest(QTIElement):
 	"""Represents the variable_test element.
 	
+::
+
 	<!ELEMENT variable_test (#PCDATA)>
 
 	<!ATTLIST variable_test  %I_VarName;
@@ -3438,6 +3813,8 @@ class QTIVariableTest(QTIElement):
 class QTIObjectsParameter(QTIElement):
 	"""Represents the objects_parameter element.
 	
+::
+
 	<!ELEMENT objects_parameter (#PCDATA)>
 
 	<!ATTLIST objects_parameter  %I_Pname; >
@@ -3451,6 +3828,8 @@ class QTIObjectsParameter(QTIElement):
 #
 
 class QTIDocument(xml.XMLDocument):
+	"""Class for working with QTI documents."""
+	
 	def __init__(self,**args):
 		"""We turn off the parsing of external general entities to prevent a
 		missing DTD causing the parse to fail.  This is a significant limitation
@@ -3462,15 +3841,27 @@ class QTIDocument(xml.XMLDocument):
 		xml.XMLDocument.__init__(self,**args)
 		self.parser.setFeature(xml.handler.feature_external_ges, False)
 
-	def GetElementClass(self,name):
-		return QTIDocument.classMap.get(name,QTIDocument.classMap.get(None,xml.XMLElement))
-
 	classMap={}
+	"""classMap is a mapping from element names to the class object that will be used to represent them."""
+	
+	def GetElementClass(self,name):
+		"""Returns the class to use to represent an element with the given name.
+		
+		This method is used by the XML parser.  The class object is looked up in
+		:py:attr:`classMap`, if no specialized class is found then the general
+		:py:class:`pyslet.xml20081126.XMLElement` class is returned."""
+		return QTIDocument.classMap.get(name,QTIDocument.classMap.get(None,xml.XMLElement))
 
 	def MigrateV2(self,cp):
 		"""Converts the contents of this document to QTI v2
 		
-		The output is stored into the content package passed in cp."""
+		The output is stored into the content package passed in cp.  Errors and
+		warnings generated by the migration process are added as annotations to
+		the resulting resource objects in the content package.
+		
+		The function returns a list of 3-tuples, one for each object migrated.
+		
+		Each tuple comprises ( <QTI v2 Document>, <LOM Metadata>, <log> )"""
 		if isinstance(self.root,QTIQuesTestInterop):
 			results=self.root.MigrateV2()
 			# list of tuples ( <QTIv2 Document>, <Metadata>, <Log Messages> )
@@ -3494,7 +3885,7 @@ class QTIDocument(xml.XMLDocument):
 								logCleaner[log[i]]=i
 								i=i+1
 						annotation=metadata.LOMAnnotation()
-						annotationMsg=string.join(log,'\n')
+						annotationMsg=string.join(log,';\n')
 						description=annotation.ChildElement(imsmd.LOMDescription)
 						description.LangString(annotationMsg)
 					doc.AddToContentPackage(cp,metadata,dName)

@@ -273,15 +273,22 @@ class QTIAssessmentItem(QTIElement):
 		self.timeDependent=False
 		self.declarations={}
 		self.QTIItemBody=None
-				
+		self.QTIResponseProcessing=None
+		self.QTIModalFeedback=[]
+		
 	def GetChildren(self):
 		children=[]
 		vars=self.declarations.keys()
 		vars.sort()
 		for v in vars:
-			children.append(self.declarations[v])
+			if isinstance(self.declarations[v],QTIResponseDeclaration):
+				children.append(self.declarations[v])
+		for v in vars:
+			if isinstance(self.declarations[v],QTIOutcomeDeclaration):
+				children.append(self.declarations[v])				
 		xmlns.OptionalAppend(children,self.QTIItemBody)
-		return children+QTIElement.GetChildren(self)
+		xmlns.OptionalAppend(children,self.QTIResponseProcessing)
+		return children+self.QTIModalFeedback
 	
 	def QTIResponseDeclaration(self):
 		# Not linked properly to us until it is finished.
@@ -565,6 +572,25 @@ class QTIAtomicBlock(QTIBlockMixin,QTIBodyElement):
 			# This child cannot go in here
 			raise QTIValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))
 
+
+class QTIFlowContainerMixin:
+	"""Mixin class used for objects that can contain flows."""
+
+	def PrettyPrint(self):
+		"""Deteremins if this flow-container-like object should be pretty printed.
+		
+		This is the same algorithm we use in HTML flow containers, suppressing pretty
+		printing if we have inline elements (ignoring non-trivial data)."""
+		children=self.GetChildren()
+		for child in children:
+			if type(child) in StringTypes:
+				for c in child:
+					if not xml.IsS(c):
+						return False
+			elif isinstance(child,html.XHTMLInlineMixin):
+				return False
+		return True
+
 	
 class QTIItemBody(QTIBodyElement):
 	"""Represents the itemBody element.
@@ -637,12 +663,12 @@ class QTIInteraction(QTIBodyElement):
 		self.responseIdentifier=''
 	
 
-class QTIInlineInteration(QTIInteraction,html.XHTMLInlineMixin):
+class QTIInlineInteration(html.XHTMLInlineMixin,QTIInteraction):
 	"""Abstract class for interactions that are treated as inline."""
 	pass
 
 
-class QTIBlockInteraction(QTIInteraction,html.XHTMLBlockMixin):
+class QTIBlockInteraction(html.XHTMLBlockMixin,QTIInteraction):
 	"""Abstract class for interactions that are treated as blocks.
 	
 	<xsd:group name="blockInteraction.ContentGroup">
@@ -655,6 +681,12 @@ class QTIBlockInteraction(QTIInteraction,html.XHTMLBlockMixin):
 		QTIInteraction.__init__(self,parent)
 		self.QTIPrompt=None
 	
+	def GetChildren(self):
+		if self.QTIPrompt:
+			return [self.QTIPrompt]
+		else:
+			return []
+
 
 class QTIPrompt(QTIBodyElement):
 	"""The prompt used in block interactions.
@@ -760,7 +792,7 @@ class QTIChoiceInteraction(QTIBlockInteraction):
 		return QTIBlockInteraction.GetChildren(self)+self.QTISimpleChoice
 		
 
-class QTISimpleChoice(QTIChoice):
+class QTISimpleChoice(QTIFlowContainerMixin,QTIChoice):
 	"""Represents the simpleChoice element.
 
 	<xsd:group name="simpleChoice.ContentGroup">
@@ -930,6 +962,47 @@ class QTISetOutcomeValue(QTIResponseRule):
 		children=[]
 		xml.OptionalAppend(children,self.QTIExpression)
 		return children	
+
+	
+#
+#	RESPONSE PROCESSING
+#
+class QTIModalFeedback(QTIFlowContainerMixin,QTIElement):
+	"""Represents the modalFeedback element.
+
+	<xsd:attributeGroup name="modalFeedback.AttrGroup">
+		<xsd:attribute name="outcomeIdentifier" type="identifier.Type" use="required"/>
+		<xsd:attribute name="showHide" type="showHide.Type" use="required"/>
+		<xsd:attribute name="identifier" type="identifier.Type" use="required"/>
+		<xsd:attribute name="title" type="string.Type" use="optional"/>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="modalFeedback.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="flowStatic.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'modalFeedback')
+	XMLATTR_outcomeIdentifier=('outcomeIdentifier',ValidateIdentifier,lambda x:x)
+	XMLATTR_showHide=('showHide',DecodeShowHide,EncodeShowHide)
+	XMLATTR_identifier=('identifier',ValidateIdentifier,lambda x:x)
+	XMLATTR_title='title'
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.outcomeIdentifier=None
+		self.showHide=None
+		self.identifier=None
+		self.title=None
+
+	def ChildElement(self,childClass,name=None):
+		if issubclass(childClass,html.XHTMLFlowMixin):
+			return QTIElement.ChildElement(self,childClass,name)
+		else:
+			# This child cannot go in here
+			raise QTIValidityError("%s in %s"%(repr(name),self.__class__.__name__))		
 
 	
 #

@@ -1,0 +1,81 @@
+<?xml version = "1.0" encoding = "UTF-8" standalone = "no"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
+<questestinterop>
+	<item title = "Standard Multiple Choice Item" ident = "PYSLET_MCHC_IR_01">
+		<presentation label = "PysletExample_MCHC_IR_01">
+			<flow>
+				<material>
+					<mattext>What size spanner are you most likely to need to adjust the chain tension on a single speed bicycle?</mattext>
+				</material>
+				<response_lid ident = "MCb_01" rcardinality = "Single" rtiming = "No">
+					<render_choice shuffle = "Yes">
+						<flow_label>
+							<response_label ident = "A">
+								<flow_mat class = "list">
+									<material>
+										<mattext>14 mm</mattext>
+									</material>
+								</flow_mat>
+							</response_label>
+						</flow_label>
+						<flow_label>
+							<response_label ident = "B">
+								<flow_mat class = "list">
+									<material>
+										<mattext>15 mm</mattext>
+									</material>
+								</flow_mat>
+							</response_label>
+						</flow_label>
+						<flow_label>
+							<response_label ident = "C">
+								<flow_mat class = "list">
+									<material>
+										<mattext>16 mm</mattext>
+									</material>
+								</flow_mat>
+							</response_label>
+						</flow_label>
+						<flow_label>
+							<response_label ident = "D">
+								<flow_mat class = "list">
+									<material>
+										<mattext>17 mm</mattext>
+									</material>
+								</flow_mat>
+							</response_label>
+						</flow_label>
+						<flow_label>
+							<response_label ident = "E" rshuffle = "No">
+								<flow_mat class = "list">           
+									<material>
+										<mattext>None of the above.</mattext>
+									</material>
+								</flow_mat>        
+							</response_label>
+						</flow_label>
+					</render_choice>
+				</response_lid>
+			</flow>
+		</presentation>
+		<resprocessing>
+			<outcomes>
+				<decvar vartype = "Integer" defaultval = "0"/>
+			</outcomes>
+			<respcondition title = "Correct">
+				<conditionvar>
+					<varequal respident = "MCb_01">B</varequal>
+				</conditionvar>
+				<setvar action = "Set">1</setvar>
+				<displayfeedback feedbacktype = "Response" linkrefid = "Correct"/>
+			</respcondition>
+		</resprocessing>
+		<itemfeedback ident = "Correct" view = "Candidate">
+			<flow_mat>
+				<material>
+					<mattext>Yes, you are right.</mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>
+	</item>
+</questestinterop>

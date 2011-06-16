@@ -293,7 +293,7 @@ class XMLNSElement(XMLElement):
 			indent=indent+tab
 		else:
 			ws=''
-		if hasattr(self.__class__,'XMLCONTENT') and self.__class__.XMLCONTENT==XMLMixedContent:
+		if not self.PrettyPrint():
 			# inline all children
 			indent=''
 			tab=''
@@ -315,7 +315,7 @@ class XMLNSElement(XMLElement):
 			attributes=string.join(attributes,' ')
 		else:
 			attributes=''
-		children=self.GetChildren()
+		children=self.GetCanonicalChildren()
 		if children:
 			if type(children[0]) in StringTypes and len(children[0]) and IsS(children[0][0]):
 				# First character is WS, so assume pre-formatted.

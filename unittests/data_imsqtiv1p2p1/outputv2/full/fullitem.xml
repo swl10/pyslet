@@ -5,7 +5,8 @@
     identifier="fullitem" title="Title: Full Item" label="Label: Full Item" xml:lang="en-GB"
     adaptive="false" timeDependent="false">
     <responseDeclaration identifier="R1" cardinality="multiple" baseType="identifier"/>
-    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer" masteryValue="5" interpretation="Your SCORE on this question.; SCORE measures Candidate's ability.">
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer" masteryValue="5"
+        interpretation="Your SCORE on this question.; SCORE measures Candidate's ability.">
         <defaultValue>
             <value>3</value>
         </defaultValue>
@@ -17,12 +18,20 @@
         <rubricBlock view="proctor">
             <p>Administrator rubric</p>
         </rubricBlock>
-        <div class="rubric"><p>Rubric for All</p></div>
-        <div label="presentation_label"><p>Question text: <span xml:lang="it">Ciao, </span><span label="French">Bonjour</span> hello from <em>html4</em>&#xA0;!</p><choiceInteraction responseIdentifier="R1" shuffle="true" maxChoices="2" minChoices="1">
-            <prompt>Prompt: response_lid x <i>render_choice</i></prompt>
-            <simpleChoice identifier="R1A" fixed="false"><p>Paragraph choice</p></simpleChoice>
-            <simpleChoice identifier="R1B" fixed="true">Plain text choice</simpleChoice>
-        </choiceInteraction></div>
+        <div class="rubric">
+            <p>Rubric for All</p>
+        </div>
+        <div label="presentation_label">
+            <p>Question text: <span xml:lang="it">Ciao, </span><span label="French">Bonjour</span>
+                hello from <em>html4</em>&#xA0;!</p>
+            <choiceInteraction responseIdentifier="R1" shuffle="true" maxChoices="2" minChoices="1">
+                <prompt>Prompt: response_lid x <i>render_choice</i></prompt>
+                <simpleChoice identifier="R1A" fixed="false">
+                    <p>Paragraph choice</p>
+                </simpleChoice>
+                <simpleChoice identifier="R1B" fixed="true">Plain text choice</simpleChoice>
+            </choiceInteraction>
+        </div>
     </itemBody>
     <responseProcessing>
         <responseCondition>
@@ -44,9 +53,9 @@
                         </member>
                         <setOutcomeValue identifier="SCORE">
                             <baseValue baseType="integer">1</baseValue>
-                        </setOutcomeValue>                        
+                        </setOutcomeValue>
                     </responseIf>
-                </responseCondition>     
+                </responseCondition>
             </responseElse>
         </responseCondition>
     </responseProcessing>
