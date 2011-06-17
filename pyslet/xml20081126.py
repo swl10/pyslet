@@ -1212,21 +1212,29 @@ class XMLElement:
 			attrs[self.__class__.ID]=self.id
 		for a in dir(self.__class__):
 			if a.startswith('XMLATTR_'):
+				required=False
 				setter=getattr(self.__class__,a)
 				if type(setter) in StringTypes:
 					# use simple attribute assignment
 					name,encode=setter,lambda x:x
 				elif type(setter) is TupleType:
-					name,decode,encode=setter
+					if len(setter)==3:
+						name,decode,encode=setter
+					elif len(setter)==4:
+						name,decode,encode,required=setter
+					else:
+						raise XMLAttributeSetter("bad XMLATTR_ definition: %s attribute of %s"%(name,self.__class__.__name__))
 				else:
 					raise XMLAttributeSetter("setting %s attribute of %s"%(name,self.__class__.__name__))				
 				value=getattr(self,name,None)
 				if type(value) is ListType:
 					value=string.join(map(encode,value),' ')
+					if not value and not required:
+						value=None
 				elif type(value) is DictType:
-					value=map(encode,value.keys())
-					value.sort()
-					value=string.join(value,' ')
+					value=string.join(sorted(map(encode,value.keys())),' ')
+					if not value and not required:
+						value=None
 				elif value is not None:
 					value=encode(value)
 				if value is not None:
@@ -1297,7 +1305,11 @@ class XMLElement:
 				# use simple attribute assignment
 				name,decode=setter,lambda x:x
 			elif type(setter) is TupleType:
-				name,decode,encode=setter
+				if len(setter)==3:
+					name,decode,encode=setter
+				else:
+					# we ignore required when setting
+					name,decode,encode,required=setter
 			else:
 				raise XMLAttributeSetter("setting %s attribute of %s"%(name,self.__class__.__name__))
 			x=getattr(self,name,None)

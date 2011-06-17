@@ -1,0 +1,94 @@
+<?xml version = "1.0" encoding = "UTF-8" standalone = "no"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
+<questestinterop>
+	<qticomment>MCQ with audio content.</qticomment>
+	<item title="Standard Multiple Choice with Audio Item" ident="PYSLET_MCHC_IR_03">
+		<presentation label="PysletExample_MCHC_IR_03">
+			<flow>
+				<material>
+					<mattext>What sound does this tool make when it is used?</mattext>
+					<matimage imagtype="image/jpeg" uri="mchc_ir_03.jpg"/>
+				</material>
+				<response_lid ident="MC03" rcardinality="Single" rtiming="No">
+					<render_choice>
+						<flow_label>
+							<response_label ident="A">
+								<material>
+									<mataudio audiotype="audio/wav" uri="sound1.wav"/>
+								</material>
+							</response_label>
+						</flow_label>
+						<flow_label>
+							<response_label ident="B">
+								<material>
+									<mataudio audiotype="audio/wav" uri="sound2.wav"/>
+								</material>
+							</response_label>
+						</flow_label>
+						<flow_label>
+							<response_label ident="C">
+								<material>
+									<mataudio audiotype="audio/wav" uri="sound3.wav"/>
+								</material>
+							</response_label>
+						</flow_label>
+						<flow_label>
+							<response_label ident="D">
+								<material>
+									<mataudio audiotype="audio/wav" uri="sound4.wav"/>
+								</material>
+							</response_label>
+						</flow_label>
+					</render_choice>
+				</response_lid>
+			</flow>
+		</presentation>
+		<resprocessing>
+			<outcomes>
+				<decvar varname="SCORE1" vartype="Integer" defaultval="10"/>
+			</outcomes>
+			<respcondition>
+				<qticomment>Scoring for the correct answer.</qticomment>
+				<conditionvar>
+					<varequal respident="MC03">B</varequal>
+				</conditionvar>
+				<setvar action="Add" varname="SCORE1">5</setvar>
+				<displayfeedback feedbacktype="Response" linkrefid="Correct"/>
+			</respcondition>
+			<respcondition>
+				<qticomment>Scoring for the incorrect answer.</qticomment>
+				<conditionvar>
+					<varequal respident="MC03">A</varequal>
+				</conditionvar>
+				<setvar action="Subtract" varname="SCORE1">5</setvar>
+				<displayfeedback feedbacktype="Response" linkrefid="Incorrect"/>
+			</respcondition>
+			<respcondition>
+				<qticomment>Scoring for the incorrect answer. </qticomment>
+				<conditionvar>
+					<varequal respident="MC03">C</varequal>
+				</conditionvar>
+				<setvar action="Subtract" varname="SCORE1">5</setvar>
+				<displayfeedback feedbacktype="Response" linkrefid="Incorrect"/>
+			</respcondition>
+			<respcondition>
+				<qticomment>Scoring for the incorrect answer.</qticomment>
+				<conditionvar>
+					<varequal respident="MC03">D</varequal>
+				</conditionvar>
+				<setvar action="Subtract" varname="SCORE1">5</setvar>
+				<displayfeedback feedbacktype="Response" linkrefid="Incorrect"/>
+			</respcondition>
+		</resprocessing>
+		<itemfeedback ident="Correct" view="Candidate">
+			<material>
+				<mattext>Yes, that is the right sound.</mattext>
+			</material>
+		</itemfeedback>
+		<itemfeedback ident="Incorrect" view="Candidate">
+			<material>
+				<mattext>No, that is not the correct sound.</mattext>
+			</material>
+		</itemfeedback>
+	</item>
+</questestinterop>

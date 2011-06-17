@@ -557,7 +557,39 @@ class ContentPackage:
 			else:
 				self.fileTable[relPath].append(f)
 		return f
+	
+	
+	def CPFileCopy(self,resource,srcURL):
+		"""Copies a new file into the package from srcURL, attached to resource.
 		
+		The file is copied to the same directory as the resource's entry
+		point.  The result CPFile object is returned."""
+		srcPath=srcURL.GetPathname()
+		# We need to create a new file object
+		fStart=resource.GetEntryPoint()
+		if fStart is None:
+			basePath=self.dPath
+		else:
+			url=fStart.ResolveURI(fStart.href)
+			if not isinstance(url,uri.FileURL):
+				basePath=self.dPath
+			else:
+				basePath,tail=os.path.split(url.GetPathname())
+		# now pick up the last component of src
+		head,tail=os.path.split(srcPath)
+		newSrcPath=self.GetUniqueFile(os.path.join(basePath,tail))
+		newSrcPath=os.path.join(self.dPath,newSrcPath)
+		newSrc=uri.URIFactory.URLFromPathname(newSrcPath)
+		# Turn this file path into a relative URL in the context of the new resource
+		href=resource.RelativeURI(newSrc)
+		f=self.CPFile(resource,href)
+		dName,fName=os.path.split(newSrcPath)
+		if not os.path.isdir(dName):
+			os.makedirs(dName)				
+		shutil.copy(srcPath,newSrcPath)
+		return f
+
+	
 	def DeleteFile(self,href):
 		"""Removes the file at href from the file system
 		

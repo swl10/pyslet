@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="PYSLET_MCHC_IR_02" title="Standard Multiple Choice Item with Images"
+    adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="MC02" cardinality="single" baseType="identifier"/>
+    <outcomeDeclaration identifier="FEEDBACK" cardinality="multiple" baseType="identifier"/>
+    <outcomeDeclaration identifier="SCORE1" cardinality="single" baseType="integer">
+        <defaultValue>
+            <value>1</value>
+        </defaultValue>
+    </outcomeDeclaration>
+    <itemBody>
+        <div label="PysletExample_MCHC_IR_02">
+            <p>Which shape of road sign generally introduces a prohibition?</p>
+            <choiceInteraction responseIdentifier="MC02" shuffle="true" maxChoices="1">
+                <simpleChoice identifier="A" fixed="false">
+                    <img src="mchc_ir_02-1.gif" alt=""/>
+                </simpleChoice>
+                <simpleChoice identifier="B" fixed="false">
+                    <img src="mchc_ir_02-2.gif" alt=""/>
+                </simpleChoice>
+                <simpleChoice identifier="C" fixed="false">
+                    <img src="mchc_ir_02-3.gif" alt=""/>
+                </simpleChoice>
+                <simpleChoice identifier="D" fixed="false">
+                    <img src="mchc_ir_02-4.gif" alt=""/>
+                </simpleChoice>
+            </choiceInteraction>
+        </div>
+    </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <match>
+                    <variable identifier="MC02"/>
+                    <baseValue baseType="identifier">D</baseValue>
+                </match>
+                <setOutcomeValue identifier="SCORE1">
+                    <sum>
+                        <variable identifier="SCORE1"/>
+                        <baseValue baseType="integer">10</baseValue>
+                    </sum>
+                </setOutcomeValue>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">Correct</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseIf>
+        </responseCondition>
+    </responseProcessing>
+    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Correct">Yes, you are
+        right.</modalFeedback>
+</assessmentItem>

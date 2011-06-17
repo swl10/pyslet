@@ -884,7 +884,7 @@ class QTIMatImage(QTIElement,QTIPositionMixin,QTIMatThingMixin):
 			img.height=(html.LengthType.pixel,self.height)
 	
 
-class QTIMatAudio(QTIElement):
+class QTIMatAudio(QTIElement,QTIMatThingMixin):
 	"""Represents mataudio element.
 	
 ::
@@ -899,6 +899,32 @@ class QTIMatAudio(QTIElement):
 	"""
 	XMLNAME="mataudio"
 	XMLCONTENT=xml.XMLMixedContent
+
+	XMLATTR_audiotype='audioType'
+	XMLATTR_label='label'
+	XMLATTR_uri=('uri',html.DecodeURI,html.EncodeURI)
+	XMLCONTENT=xml.XMLMixedContent
+	
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		QTIMatThingMixin.__init__(self)
+		self.audioType='audio/base'
+		self.label=None
+		self.uri=None
+				
+	def IsInline(self):
+		return True
+			
+	def ExtractText(self):
+		"""We cannot extract text from mataudio so we return a simple string."""
+		return "[sound]"
+
+	def MigrateV2Content(self,parent,log):
+		if self.uri is None:
+			raise QTIUnimplementedError("inclusion of inline audio")
+		obj=parent.ChildElement(html.XHTMLObject,(qtiv2.IMSQTI_NAMESPACE,'object'))
+		obj.data=self.ResolveURI(self.uri)
+		obj.type=self.audioType
 
 
 class QTIMatVideo(QTIElement):
@@ -1356,7 +1382,7 @@ class QTIVarEqual(QTIElement,QTIExpressionMixin):
 		self.responseIdentifier=''
 		self.index=None
 	
-	def MigrateV2Missing(identifier,parent,log):
+	def MigrateV2Missing(self,identifier,parent,log):
 		log.append("Warning: test of undeclared response (%s) replaced with Null operator"%identifier)
 		parent.ChildElement(qtiv2.QTINull)
 	

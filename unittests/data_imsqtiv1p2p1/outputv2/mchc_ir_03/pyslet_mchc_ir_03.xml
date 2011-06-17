@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="PYSLET_MCHC_IR_03" title="Standard Multiple Choice with Audio Item" adaptive="false"
+    timeDependent="false">
+    <responseDeclaration identifier="MC03" cardinality="single" baseType="identifier"/>
+    <outcomeDeclaration identifier="FEEDBACK" cardinality="multiple" baseType="identifier"/>
+    <outcomeDeclaration identifier="SCORE1" cardinality="single" baseType="integer">
+        <defaultValue>
+            <value>10</value>
+        </defaultValue>
+    </outcomeDeclaration>
+    <itemBody>
+        <div label="PysletExample_MCHC_IR_03">
+            <p>What sound does this tool make when it is used?<img src="mchc_ir_03.jpg" alt=""/></p>
+            <choiceInteraction responseIdentifier="MC03" shuffle="false" maxChoices="1">
+                <simpleChoice identifier="A" fixed="false">
+                    <object data="sound1.wav" type="audio/wav"/>
+                </simpleChoice>
+                <simpleChoice identifier="B" fixed="false">
+                    <object data="sound2.wav" type="audio/wav"/>
+                </simpleChoice>
+                <simpleChoice identifier="C" fixed="false">
+                    <object data="sound3.wav" type="audio/wav"/>
+                </simpleChoice>
+                <simpleChoice identifier="D" fixed="false">
+                    <object data="sound4.wav" type="audio/wav"/>
+                </simpleChoice>
+            </choiceInteraction>
+        </div>
+    </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <match>
+                    <variable identifier="MC03"/>
+                    <baseValue baseType="identifier">B</baseValue>
+                </match>
+                <setOutcomeValue identifier="SCORE1">
+                    <sum>
+                        <variable identifier="SCORE1"/>
+                        <baseValue baseType="integer">5</baseValue>
+                    </sum>
+                </setOutcomeValue>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">Correct</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseIf>
+            <responseElseIf>
+                <match>
+                    <variable identifier="MC03"/>
+                    <baseValue baseType="identifier">A</baseValue>
+                </match>
+                <setOutcomeValue identifier="SCORE1">
+                    <subtract>
+                        <variable identifier="SCORE1"/>
+                        <baseValue baseType="integer">5</baseValue>
+                    </subtract>
+                </setOutcomeValue>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">Incorrect</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseElseIf>
+            <responseElseIf>
+                <match>
+                    <variable identifier="MC03"/>
+                    <baseValue baseType="identifier">C</baseValue>
+                </match>
+                <setOutcomeValue identifier="SCORE1">
+                    <subtract>
+                        <variable identifier="SCORE1"/>
+                        <baseValue baseType="integer">5</baseValue>
+                    </subtract>
+                </setOutcomeValue>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">Incorrect</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseElseIf>
+            <responseElseIf>
+                <match>
+                    <variable identifier="MC03"/>
+                    <baseValue baseType="identifier">D</baseValue>
+                </match>
+                <setOutcomeValue identifier="SCORE1">
+                    <subtract>
+                        <variable identifier="SCORE1"/>
+                        <baseValue baseType="integer">5</baseValue>
+                    </subtract>
+                </setOutcomeValue>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">Incorrect</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseElseIf>
+        </responseCondition>
+    </responseProcessing>
+    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Correct">Yes, that is the right sound.</modalFeedback>
+    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Incorrect">No, that is
+        not the correct sound.</modalFeedback>
+</assessmentItem>

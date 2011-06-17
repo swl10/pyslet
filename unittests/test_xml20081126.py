@@ -61,7 +61,9 @@ class ReflectiveElement(XMLElement):
 	XMLATTR_btest='bTest'
 	XMLATTR_ctest=('cTest',DecodeYN,EncodeYN)
 	XMLATTR_dtest=('dTest',DecodeYN,EncodeYN)
+	XMLATTR_dtestR=('dTestR',DecodeYN,EncodeYN,True)
 	XMLATTR_etest=('eTest',DecodeYN,EncodeYN)
+	XMLATTR_etestR=('eTestR',DecodeYN,EncodeYN,True)
 	
 	def __init__(self,parent):
 		XMLElement.__init__(self,parent)
@@ -69,7 +71,9 @@ class ReflectiveElement(XMLElement):
 		self.bTest=None
 		self.cTest=None
 		self.dTest=[]
+		self.dTestR=[]
 		self.eTest={}
+		self.eTestR={}
 		self.child=None
 		self.generics=[]
 		self.GenericElementB=None
@@ -547,15 +551,19 @@ class XMLElementTests(unittest.TestCase):
 		self.failUnless(e.cTest==True,"Attribute relfection with decode/encode")
 		attrs=e.GetAttributes()
 		self.failUnless(attrs['ctest']=='Yes',"Attribute not set correctly")
+		self.failIf(attrs.has_key('dtest'),"Optional ordered list attribute") 
+		self.failUnless(attrs['dtestR']=='',"Required ordered list attribute") 
 		e.SetAttribute('dtest','Yes No')
 		self.failUnless(e.dTest==[True,False],"Attribute relfection with list")
 		attrs=e.GetAttributes()
 		self.failUnless(attrs['dtest']=='Yes No',"Attribute not set correctly")
+		self.failIf(attrs.has_key('etest'),"Optional unordered list attribute") 
+		self.failUnless(attrs['etestR']=='',"Required unordered list attribute") 
 		e.SetAttribute('etest','Yes No')
 		self.failUnless(e.eTest=={True:'Yes',False:'No'},"Attribute relfection with list")
 		attrs=e.GetAttributes()
 		self.failUnless(attrs['etest']=='No Yes',"Attribute not set correctly")
-				
+	
 	def testChildElements(self):
 		"""Test child element behaviour"""
 		e=XMLElement(None,'test')

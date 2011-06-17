@@ -52,8 +52,7 @@ def EncodeLength(length):
 			return unicode(value)+'%'
 		elif valueType==LengthType.pixel:
 			return unicode(value)
-	else:
-		return ''
+	return None
 
 
 def DecodeURI(src):
@@ -321,15 +320,61 @@ class XHTMLLI(XHTMLFlowContainer):
 # Object Elements
 
 class XHTMLObject(XHTMLSpecialMixin,XHTMLElement):
-	# <!ELEMENT OBJECT - - (PARAM | %flow;)*
+	"""Represents the object element::
+	
+	<!ELEMENT OBJECT - - (PARAM | %flow;)*
+
+	<!ATTLIST OBJECT
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  declare     (declare)      #IMPLIED  -- declare but don't instantiate flag --
+	  classid     %URI;          #IMPLIED  -- identifies an implementation --
+	  codebase    %URI;          #IMPLIED  -- base URI for classid, data, archive--
+	  data        %URI;          #IMPLIED  -- reference to object's data --
+	  type        %ContentType;  #IMPLIED  -- content type for data --
+	  codetype    %ContentType;  #IMPLIED  -- content type for code --
+	  archive     CDATA          #IMPLIED  -- space-separated list of URIs --
+	  standby     %Text;         #IMPLIED  -- message to show while loading --
+	  height      %Length;       #IMPLIED  -- override height --
+	  width       %Length;       #IMPLIED  -- override width --
+	  usemap      %URI;          #IMPLIED  -- use client-side image map --
+	  name        CDATA          #IMPLIED  -- submit as part of form --
+	  tabindex    NUMBER         #IMPLIED  -- position in tabbing order --
+	  %reserved;                           -- reserved for possible future use --
+	  >
+	"""	
 	XMLNAME=(XHTML_NAMESPACE,'object')
+	XMLATTR_data=('data',DecodeURI,EncodeURI)
+	XMLATTR_type='type'
+	XMLATTR_height=('height',DecodeLength,EncodeLength)
+	XMLATTR_width=('width',DecodeLength,EncodeLength)
+	XMLATTR_usemap=('usemap',DecodeURI,EncodeURI)	
+	XMLATTR_name='name'
 	XMLCONTENT=xmlns.XMLMixedContent
+	
+	def __init__(self,parent):
+		XHTMLElement.__init__(self,parent)
+		self.data=None
+		self.type=None
+		self.height=(None,None)
+		self.width=(None,None)
+		self.usemap=None
+		self.name=None
 
 	def ChildElement(self,childClass,name=None):
 		if issubclass(childClass,(XHTMLFlowMixin,XHTMLParam)):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
+
+	def AddToCPResource(self,cp,resource,beenThere):
+		if isinstance(self.data,FileURL):
+			f=beenThere.get(str(self.data),None)
+			if f is None:
+				f=cp.CPFileCopy(resource,self.data)
+				beenThere[str(self.data)]=f
+			newData=f.ResolveURI(f.href)
+			self.data=self.RelativeURI(newData)		
+
 	
 class XHTMLParam(XHTMLElement):
 	# <!ELEMENT PARAM - O EMPTY              -- named property value -->
@@ -503,34 +548,11 @@ class XHTMLImg(XHTMLSpecialMixin,XHTMLElement):
 		if isinstance(self.src,FileURL):
 			f=beenThere.get(str(self.src),None)
 			if f is None:
-				srcPath=self.src.GetPathname()
-				# We need to create a new file object
-				fStart=resource.GetEntryPoint()
-				if fStart is None:
-					basePath=cp.dPath
-				else:
-					url=fStart.ResolveURI(fStart.href)
-					if not isinstance(url,FileURL):
-						basePath=cp.dPath
-					else:
-						basePath,tail=os.path.split(url.GetPathname())
-				# now pick up the last component of src
-				head,tail=os.path.split(srcPath)
-				newSrcPath=cp.GetUniqueFile(os.path.join(basePath,tail))
-				newSrcPath=os.path.join(cp.dPath,newSrcPath)
-				newSrc=URIFactory.URLFromPathname(newSrcPath)
-				# Turn this file path into a relative URL in the context of the new resource
-				href=resource.RelativeURI(newSrc)
-				f=cp.CPFile(resource,href)
-				dName,fName=os.path.split(newSrcPath)
-				if not os.path.isdir(dName):
-					os.makedirs(dName)				
-				shutil.copy(srcPath,newSrcPath)
+				f=cp.CPFileCopy(resource,self.src)
 				beenThere[str(self.src)]=f
-			else:
-				newSrc=f.ResolveURI(f.href)
+			newSrc=f.ResolveURI(f.href)
 			# Finally, we need change our src attribute
-			self.src=self.RelativeURI(newSrc)
+			self.src=self.RelativeURI(newSrc)		
 		
 # Hypertext Element
 

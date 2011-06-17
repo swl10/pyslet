@@ -642,7 +642,7 @@ class QTIRubricBlock(QTISimpleBlock):
 	</xsd:group>
 	"""
 	XMLNAME=(IMSQTI_NAMESPACE,'rubricBlock')
-	XMLATTR_view=('view',DecodeView,EncodeView)
+	XMLATTR_view=('view',DecodeView,EncodeView,True)
 	XMLCONTENT=xmlns.XMLElementContent
 
 	def __init__(self,parent):
@@ -1073,8 +1073,18 @@ class QTIVariable(QTIExpression):
 	def __init__(self,parent):
 		QTIExpression.__init__(self,parent)
 		self.identifier=''
-		self.weightIdentifier=''
+		self.weightIdentifier=None
 
+
+class QTINull(QTIExpression):
+	"""Represents the null value.
+	
+	<xsd:complexType name="null.Type"/>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'null')
+	XMLCONTENT=xmlns.XMLEmpty
+
+	
 #
 #		Expressions Used only in Outcomes Processing
 #
