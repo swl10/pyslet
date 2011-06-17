@@ -153,12 +153,12 @@ class CPResourcesTests(unittest.TestCase):
 		try:
 			resource=resources.CPResource()
 			resource.SetID('resource#1')
-			resource.Set_type('imsqti_item_xmlv2p1')
+			resource.type='imsqti_item_xmlv2p1'
 			self.fail("Invalid Name for resource identifier")
 		except xmlns.XMLIDValueError:
 			pass
 		resource.SetID('resource_1')
-		resource.Set_type('imsqti_item_xmlv2p1')
+		resource.type='imsqti_item_xmlv2p1'
 		self.failUnless(isinstance(resource,CPResource))
 		self.failUnless(doc.GetElementByID('resource_1') is resource)
 		self.failUnless(len(resources.list)==1 and resources.list[0] is resource)
@@ -176,7 +176,7 @@ class CPResourceTests(unittest.TestCase):
 		r=doc.GetElementByID('choice')
 		index=len(r.fileList)
 		f=r.CPFile()
-		f.Set_href('Extra.txt')
+		f.SetAttribute('href','Extra.txt')
 		self.failUnless(isinstance(f,CPFile))
 		self.failUnless(len(r.fileList)==index+1 and r.fileList[index] is f)
 
@@ -241,7 +241,7 @@ class ContentPackageTests(unittest.TestCase):
 		r=resources.list[0]
 		self.failUnless(len(r.fileList)==1)
 		f=r.fileList[0]
-		self.failUnless(isinstance(f,CPFile) and f.href=="%E8%8B%B1%E5%9B%BD.xml","File path")
+		self.failUnless(isinstance(f,CPFile) and str(f.href)=="%E8%8B%B1%E5%9B%BD.xml","File path")
 		doc=xmlns.XMLDocument(baseURI=f.ResolveURI(f.href))
 		doc.Read()
 		self.failUnless(doc.root.xmlname=='tag' and

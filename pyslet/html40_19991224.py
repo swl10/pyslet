@@ -2,10 +2,12 @@
 
 import pyslet.xml20081126 as xml
 import pyslet.xmlnames20091208 as xmlns
+from pyslet.rfc2396 import URIFactory, EncodeUnicodeURI, FileURL
 
 import htmlentitydefs
 import string
 from types import *
+import os.path, shutil
 
 HTML40_PUBLICID="-//W3C//DTD HTML 4.01//EN"
 XHTML_NAMESPACE="http://www.w3.org/1999/xhtml"
@@ -13,29 +15,79 @@ XHTML_NAMESPACE="http://www.w3.org/1999/xhtml"
 class XHTMLError(Exception): pass
 class XHTMLValidityError(XHTMLError): pass
 
+
+class LengthType:
+	pixel=0
+	percentage=1
+
+def DecodeLength(src):
+	"""Parses a length from src returning a tuple of (valueType,value)::
+	
+		# <!ENTITY % Length "CDATA" -- nn for pixels or nn% for percentage length -->
+	
+	* valueType is one of the the LengthType constants or None if no valid value was found
+	* value is the integer value associated with the length
+	"""
+	valueType=None
+	value=None
+	try:
+		src=src.strip()
+		if src and src[-1]==u'%':
+			src=src[:-1]
+			valueType=LengthType.percentage
+		else:
+			valueType=LengthType.pixel
+		value=int(src)
+		if value<0:
+			value=None
+	except:
+		pass
+	return valueType,value
+
+def EncodeLength(length):
+	"""Encodes a length value from a tuple of valueType and value."""
+	valueType,value=length
+	if value is not None:
+		if valueType==LengthType.percentage:
+			return unicode(value)+'%'
+		elif valueType==LengthType.pixel:
+			return unicode(value)
+	else:
+		return ''
+
+
+def DecodeURI(src):
+	"""Decodes a URI from src::
+	
+	<!ENTITY % URI "CDATA"  -- a Uniform Resource Identifier -->
+	
+	Note that we adopt the algorithm recommended in Appendix B of the specification,
+	which involves replacing non-ASCII characters with percent-encoded UTF-sequences.
+	"""
+	return URIFactory.URI(EncodeUnicodeURI(src))
+
+def EncodeURI(uri):
+	"""Encoding a URI means just converting it into a string."""
+	return str(uri)
+
+	
 class XHTMLElement(xmlns.XMLNSElement):
+	XMLATTR_id='id'
+	XMLATTR_class='styleClass'
+	XMLATTR_title='title'
+	
 	def __init__(self,parent):
 		xmlns.XMLNSElement.__init__(self,parent)
 		self.id=None
 		self.styleClass=None
 		self.title=None
 	
-	def GetAttributes(self):
-		attrs=xmlns.XMLNSElement.GetAttributes(self)
-		if self.id: attrs['id']=self.id
-		if self.styleClass: attrs['class']=self.styleClass
-		if self.title: attrs['title']=self.title
-		return attrs
-		
-	def Set_id(self,value):
-		self.id=value
-		
-	def Set_class(self,value):
-		self.styleClass=value
-		
-	def Set_title(self,value):
-		self.title=value
-		
+	def AddToCPResource(self,cp,resource,beenThere):
+		"""See :py:meth:`pyslet.imsqtiv2p1.QTIElement.AddToCPResource`  """
+		for child in self.GetChildren():
+			if hasattr(child,'AddToCPResource'):
+				child.AddToCPResource(cp,resource,beenThere)
+	
 	def RenderText(self):
 		output=[]
 		children=self.GetChildren()
@@ -410,10 +462,76 @@ class XHTMLTD(XHTMLFlowContainer):
 # Image Element
 
 class XHTMLImg(XHTMLSpecialMixin,XHTMLElement):
-	# <!ELEMENT IMG - O EMPTY                -- Embedded image -->
+	"""Represents the <img> element::
+	
+	<!ELEMENT IMG - O EMPTY                -- Embedded image -->
+	<!ATTLIST IMG
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  src         %URI;          #REQUIRED -- URI of image to embed --
+	  alt         %Text;         #REQUIRED -- short description --
+	  longdesc    %URI;          #IMPLIED  -- link to long description
+											  (complements alt) --
+	  name        CDATA          #IMPLIED  -- name of image for scripting --
+	  height      %Length;       #IMPLIED  -- override height --
+	  width       %Length;       #IMPLIED  -- override width --
+	  usemap      %URI;          #IMPLIED  -- use client-side image map --
+	  ismap       (ismap)        #IMPLIED  -- use server-side image map --
+	  >"""
 	XMLNAME=(XHTML_NAMESPACE,'img')
 	XMLCONTENT=xmlns.XMLEmpty
+	XMLATTR_src=('src',DecodeURI,EncodeURI)
+	XMLATTR_alt='alt'
+	XMLATTR_longdesc=('longdesc',DecodeURI,EncodeURI)
+	XMLATTR_name='name'
+	XMLATTR_height=('height',DecodeLength,EncodeLength)
+	XMLATTR_width=('width',DecodeLength,EncodeLength)
+	XMLATTR_usemap=('usemap',DecodeURI,EncodeURI)
+	XMLATTR_ismap=('ismap',lambda x:x.strip().lower()=='ismap',lambda x:'ismap' if x else None)
+	
+	def __init__(self,parent):
+		XHTMLElement.__init__(self,parent)
+		self.src=None
+		self.alt=''
+		self.londesc=None
+		self.name=None
+		self.height=(None,None)
+		self.width=(None,None)
+		self.usemap=None
+		self.ismap=False
 
+	def AddToCPResource(self,cp,resource,beenThere):
+		if isinstance(self.src,FileURL):
+			f=beenThere.get(str(self.src),None)
+			if f is None:
+				srcPath=self.src.GetPathname()
+				# We need to create a new file object
+				fStart=resource.GetEntryPoint()
+				if fStart is None:
+					basePath=cp.dPath
+				else:
+					url=fStart.ResolveURI(fStart.href)
+					if not isinstance(url,FileURL):
+						basePath=cp.dPath
+					else:
+						basePath,tail=os.path.split(url.GetPathname())
+				# now pick up the last component of src
+				head,tail=os.path.split(srcPath)
+				newSrcPath=cp.GetUniqueFile(os.path.join(basePath,tail))
+				newSrcPath=os.path.join(cp.dPath,newSrcPath)
+				newSrc=URIFactory.URLFromPathname(newSrcPath)
+				# Turn this file path into a relative URL in the context of the new resource
+				href=resource.RelativeURI(newSrc)
+				f=cp.CPFile(resource,href)
+				dName,fName=os.path.split(newSrcPath)
+				if not os.path.isdir(dName):
+					os.makedirs(dName)				
+				shutil.copy(srcPath,newSrcPath)
+				beenThere[str(self.src)]=f
+			else:
+				newSrc=f.ResolveURI(f.href)
+			# Finally, we need change our src attribute
+			self.src=self.RelativeURI(newSrc)
+		
 # Hypertext Element
 
 class XHTMLA(XHTMLSpecialMixin,XHTMLInlineContainer):

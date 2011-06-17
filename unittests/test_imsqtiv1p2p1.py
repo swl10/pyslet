@@ -140,7 +140,7 @@ class QTIV2ConversionTests(unittest.TestCase):
 		fList1.sort()
 		fList2=cp2.fileTable.keys()
 		fList2.sort()
-		self.failUnless(fList1==fList2,"File lists: %s\n%s\n"%(str(fList1),str(fList2)))
+		self.failUnless(fList1==fList2,"File lists: \n%s\n%s\n"%(str(fList1),str(fList2)))
 		output=self.cp.manifest.DiffString(cp2.manifest)
 		self.failUnless(self.cp.manifest.root==cp2.manifest.root,"Manifests differ:\n%s"%output)
 		checkFiles={}

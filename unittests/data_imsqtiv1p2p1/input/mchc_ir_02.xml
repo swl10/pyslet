@@ -1,0 +1,63 @@
+<?xml version = "1.0" encoding = "UTF-8" standalone = "no"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
+
+<!-- Author:	Steve Lay		-->
+
+<questestinterop>
+	<qticomment>Test of image content.</qticomment>  
+	<item title = "Standard Multiple Choice Item with Images" ident = "PYSLET_MCHC_IR_02">    
+		<presentation label = "PysletExample_MCHC_IR_02">
+			<flow>
+				<material>        
+					<mattext>Which shape of road sign generally introduces a prohibition?</mattext>      
+				</material>
+				<response_lid ident = "MC02" rcardinality = "Single" rtiming = "No">        
+					<render_choice shuffle = "Yes">
+						<flow_label>
+							<response_label ident = "A">          
+								<material>            
+									<matimage imagtype = "image/gif" uri = "mchc_ir_02-1.gif"/>          
+								</material>        
+							</response_label>
+							<response_label ident = "B">          
+								<material>             
+									<matimage imagtype = "image/gif" uri = "mchc_ir_02-2.gif"/>          
+								</material>        
+							</response_label>
+							<response_label ident = "C">          
+								<material>             
+									<matimage imagtype = "image/gif" uri = "mchc_ir_02-3.gif"/>          
+								</material>        
+							</response_label>
+							<response_label ident = "D">          
+								<material>             
+									<matimage imagtype = "image/gif" uri = "mchc_ir_02-4.gif"/>          
+								</material>        
+							</response_label>
+						</flow_label>                                
+					</render_choice>      
+				</response_lid>
+			</flow>                
+		</presentation>
+		<resprocessing>
+			<outcomes>
+				<decvar varname = "SCORE1" vartype = "Integer" defaultval = "1"/>
+			</outcomes>
+			<respcondition>
+				<qticomment>Scoring for the correct answer.</qticomment>
+				<conditionvar>
+					<varequal respident = "MC02">A</varequal>
+				</conditionvar>
+				<setvar action = "Add" varname = "SCORE1"> 10 </setvar>
+				<displayfeedback feedbacktype = "Response" linkrefid = "Correct"/>
+			</respcondition>
+		</resprocessing>
+		<itemfeedback ident = "Correct" view = "Candidate">
+			<flow_mat>
+				<material>
+					<mattext>Yes, you are right.</mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>
+	</item>
+</questestinterop>

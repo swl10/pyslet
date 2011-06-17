@@ -214,11 +214,20 @@ def EncodeView(value):
 class QTIElement(xmlns.XMLNSElement):
 	"""Basic element to represent all QTI elements""" 
 	
-	def AddToCPResource(self,cp,resource,baseURI):
-		"""Adds any linked files that exist on the local file system to the content package."""
+	def AddToCPResource(self,cp,resource,beenThere):
+		"""We need to add any files with URL's in the local file system to the
+		content package.
+
+		beenThere is a dictionary we use for mapping URLs to CPFile objects so
+		that we don't keep adding the same linked resource multiple times.
+
+		This implementation is a little more horrid, we avoid circular module
+		references by playing dumb about our children.  HTML doesn't actually
+		know anything about QTI even though QTI wants to define children for
+		some XHTML elements so we pass the call only to "CP-Aware" elements."""
 		for child in self.GetChildren():
-			if isinstance(child,QTIElement):
-				child.AddToCPResource(cp,resource,baseURI)
+			if hasattr(child,'AddToCPResource'):
+				child.AddToCPResource(cp,resource,beenThere)
 
 	def GetAssessmentItem(self):
 		iParent=self
@@ -309,7 +318,7 @@ class QTIAssessmentItem(QTIElement):
 		resourceID=cp.manifest.GetUniqueID(self.identifier)
 		resource=cp.manifest.root.resources.CPResource()
 		resource.SetID(resourceID)
-		resource.Set_type(IMSQTI_ITEM_RESOURCETYPE)
+		resource.type=IMSQTI_ITEM_RESOURCETYPE
 		resourceMetadata=resource.CPMetadata()
 		#resourceMetadata.AdoptChild(lom)
 		#resourceMetadata.AdoptChild(self.metadata.Copy())
@@ -322,15 +331,20 @@ class QTIAssessmentItem(QTIElement):
 		fPath=cp.GetUniqueFile(fPath)
 		# This will be the path to the file in the package
 		fullPath=os.path.join(cp.dPath,fPath)
-		url=str(uri.URIFactory.URLFromPathname(fullPath))
+		base=uri.URIFactory.URLFromPathname(fullPath)
+		if isinstance(self.parent,xml.XMLDocument):
+			# we are the root so we change the document base
+			self.parent.SetBase(base)
+		else:
+			self.SetBase(base)
 		# Turn this file path into a relative URL in the context of the new resource
-		href=resource.RelativeURI(url)
+		href=resource.RelativeURI(base)
 		f=cp.CPFile(resource,href)
 		resource.SetEntryPoint(f)
 		for child in self.GetChildren():
 			if isinstance(child,QTIElement):
-				child.AddToCPResource(cp,resource,url)
-		return url
+				child.AddToCPResource(cp,resource,{})
+		return resource
 	
 		
 class QTIVariableDeclaration(QTIElement):
@@ -1326,6 +1340,90 @@ class QTIMatch(QTIExpressionList):
 	"""
 	XMLNAME=(IMSQTI_NAMESPACE,'match')
 
+
+class QTISum(QTIExpressionList):
+	"""Represents the sum operator::
+
+	<xsd:group name="sum.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'sum')
+	
+	
+class QTIProduct(QTIExpressionList):
+	"""Represents the product operator::
+
+	<xsd:group name="product.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'product')
+	
+	
+class QTISubtract(QTIExpressionList):
+	"""Represents the subtract operator::
+
+	<xsd:group name="subtract.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'subtract')
+	
+	
+class QTIDivide(QTIExpressionList):
+	"""Represents the divide operator::
+
+	<xsd:group name="divide.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'divide')
+	
+	
+class QTIPower(QTIExpressionList):
+	"""Represents the power operator::
+
+	<xsd:group name="power.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'power')
+	
+	
+class QTIIntegerDivide(QTIExpressionList):
+	"""Represents the integerDivide operator::
+
+	<xsd:group name="integerDivide.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'integerDivide')
+	
+	
+class QTIIntegerModulus(QTIExpressionList):
+	"""Represents the integerModulus operator::
+
+	<xsd:group name="integerModulus.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'integerModulus')
+	
 	
 #
 #	METADATA
@@ -1423,10 +1521,9 @@ class QTIDocument(xmlns.XMLNSDocument):
 		if not isinstance(self.root,QTIAssessmentItem):
 			print self.root
 			raise TypeError
-		# We call the elemement's AddToContentPackage method which returns the new base URI
-		# of the document.
-		baseURI=self.root.AddToContentPackage(cp,metadata,dName)
-		self.SetBase(baseURI)
+		# We call the elemement's AddToContentPackage method which returns the new resource
+		# The document's base is automatically set to the URI of the resource entry point
+		self.root.AddToContentPackage(cp,metadata,dName)
 		# Finish by writing out the document to the new baseURI
 		self.Create()
 

@@ -685,18 +685,21 @@ class QTIMaterial(QTICommentElement,QTIContentMixin):
 		children=QTICommentElement.GetChildren(self)+self.contentChildren
 		return children
 	
-	def QTIMatText(self):
-		# In future need to use sub-class matching.
-		child=QTIMatText(self)
+	def QTIMatThingMixin(self,childClass):
+		child=childClass(self)
 		self.contentChildren.append(child)
 		return child
-		
+	
 	def MigrateV2Content(self,parent,log):
 		for child in self.contentChildren:
 			child.MigrateV2Content(parent,log)
 		
 
-class QTIMatText(QTIElement,QTIContentMixin):
+class QTIMatThingMixin(QTIContentMixin):
+	"""An abstract class used to help identify the mat* elements."""
+	pass
+
+class QTIMatText(QTIElement,QTIPositionMixin,QTIMatThingMixin):
 	"""Represents the mattext element
 
 ::
@@ -722,7 +725,8 @@ class QTIMatText(QTIElement,QTIContentMixin):
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
-		QTIContentMixin.__init__(self)
+		QTIPositionMixin.__init__(self)
+		QTIMatThingMixin.__init__(self)
 		self.texttype='text/plain'
 		self.label=None
 		self.matChildren=[]
@@ -807,7 +811,7 @@ class QTIMatText(QTIElement,QTIContentMixin):
 			raise QTIUnimplementedError
 
 
-class QTIMatEmText(QTIElement):
+class QTIMatEmText(QTIMatText):
 	"""Represents matemtext element.
 	
 ::
@@ -830,7 +834,7 @@ class QTIMatEmText(QTIElement):
 	XMLCONTENT=xml.XMLMixedContent
 	
 
-class QTIMatImage(QTIElement):
+class QTIMatImage(QTIElement,QTIPositionMixin,QTIMatThingMixin):
 	"""Represents matimage element.
 	
 ::
@@ -848,7 +852,36 @@ class QTIMatImage(QTIElement):
 						 %I_EntityRef; >
 	"""
 	XMLNAME="matimage"
+	XMLATTR_imagtype='imageType'
+	XMLATTR_label='label'
+	XMLATTR_uri=('uri',html.DecodeURI,html.EncodeURI)
 	XMLCONTENT=xml.XMLMixedContent
+	
+	
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		QTIPositionMixin.__init__(self)
+		QTIMatThingMixin.__init__(self)
+		self.imageType='image/jpeg'
+		self.label=None
+		self.uri=None
+				
+	def IsInline(self):
+		return True
+			
+	def ExtractText(self):
+		"""We cannot extract text from matimage so we return a simple string."""
+		return "[image]"
+
+	def MigrateV2Content(self,parent,log):
+		if self.uri is None:
+			raise QTIUnimplementedError("inclusion of inline images")
+		img=parent.ChildElement(html.XHTMLImg,(qtiv2.IMSQTI_NAMESPACE,'img'))
+		img.src=self.ResolveURI(self.uri)
+		if self.width is not None:
+			img.width=(html.LengthType.pixel,self.width)
+		if self.height is not None:
+			img.height=(html.LengthType.pixel,self.height)
 	
 
 class QTIMatAudio(QTIElement):
@@ -3867,8 +3900,8 @@ class QTIDocument(xml.XMLDocument):
 			# list of tuples ( <QTIv2 Document>, <Metadata>, <Log Messages> )
 			if results:
 				# Make a directory to hold the files (makes it easier to find unique names for media files)
-				if isinstance(self.uri,uri.FileURL):
-					ignore,dName=os.path.split(self.uri.GetPathname())
+				if isinstance(self.baseURI,uri.FileURL):
+					ignore,dName=os.path.split(self.baseURI.GetPathname())
 				else:
 					dName="questestinterop"
 				dName,ext=os.path.splitext(dName)

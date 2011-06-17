@@ -94,7 +94,7 @@ class CCConformanceTests(unittest.TestCase):
 		f.close()
 		r1=self.cc.cp.manifest.GetElementByID('R0004')
 		f=r1.CPFile()
-		f.Set_href('Extra.txt')
+		f.SetAttribute('href','Extra.txt')
 		self.cc.cp.RebuildFileTable()
 		self.RunTests(['test1_4_AssociatedContent_2'])
 	
@@ -115,7 +115,7 @@ class CCConformanceTests(unittest.TestCase):
 		# Tricky, to prevent other tests failing we add a reference to a file already referenced
 		# by the associated content for the resource.
 		f=r3.CPFile()
-		f.Set_href('l0001/welcome.gif')
+		f.SetAttribute('href','l0001/welcome.gif')
 		self.RunTests(['test1_4_LAO_2'])
 
 	def testCase1p4LAO_3(self):
@@ -132,7 +132,7 @@ class CCConformanceTests(unittest.TestCase):
 	def testCase1p4WebContent_1(self):
 		r1=self.cc.cp.manifest.GetElementByID('R0001')
 		f=r1.CPFile()
-		f.Set_href('l0001/welcome.gif')
+		f.SetAttribute('href','l0001/welcome.gif')
 		self.RunTests(['test1_4_WebContent_1'])
 
 	def RunTests(self,expectedFailures):

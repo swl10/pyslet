@@ -224,6 +224,16 @@ class URITests(unittest.TestCase):
 		self.failUnless(str(u)==SIMPLE_EXAMPLE)
 		u=URI(LIST_EXAMPLE)
 		self.failUnless(str(u)==SIMPLE_EXAMPLE,"Simple from list")
+		u=URI(u'\u82f1\u56fd.xml')
+		self.failUnless(str(u)=='%E8%8B%B1%E5%9B%BD.xml',"Unicode example: %s"%str(u))
+		self.failUnless(type(u.octets) is StringType,"octest must be string")
+	
+	def testCaseCompare(self):
+		u1=URI(SIMPLE_EXAMPLE)
+		u2=URI(SIMPLE_EXAMPLE)
+		self.failUnless(u1.Match(u2) and u2.Match(u1),"Equal URIs fail to match")
+		u2=URI('hello.xml')
+		self.failIf(u1.Match(u2) or u2.Match(u1),"Mismatched URIs do match")		
 	
 	def testCaseScheme(self):
 		u=URI(SIMPLE_EXAMPLE)

@@ -728,24 +728,24 @@ class XMLDocumentTests(unittest.TestCase):
 		d.Read()
 		tag=d.root
 		self.failUnless(tag.ResolveBase()==furl,"Root element resolves from document")
-		self.failUnless(tag.ResolveURI("link.xml")==href,"Root element HREF")
-		self.failUnless(tag.RelativeURI(href)=='link.xml',"Root element relative")
+		self.failUnless(str(tag.ResolveURI("link.xml"))==href,"Root element HREF")
+		self.failUnless(str(tag.RelativeURI(href))=='link.xml',"Root element relative")
 		#self.failUnless(tag.RelativeURI(altRef)=='/hello/link.xml','Root element full path relative: %s'%tag.RelativeURI(altRef))
 		childTag=tag._children[0]
 		self.failUnless(childTag.ResolveBase()=="file:///hello/base.xml","xml:base overrides in childTag (%s)"%childTag.ResolveBase())
-		self.failUnless(childTag.ResolveURI("link.xml")==altRef,"child element HREF")
-		self.failUnless(childTag.RelativeURI(href)=='..'+hrefPath,"child element relative resulting in full path: %s"%childTag.RelativeURI(href))
-		self.failUnless(childTag.RelativeURI(altRef)=='link.xml','child element relative')
+		self.failUnless(str(childTag.ResolveURI("link.xml"))==altRef,"child element HREF")
+		self.failUnless(str(childTag.RelativeURI(href))=='..'+hrefPath,"child element relative resulting in full path: %s"%childTag.RelativeURI(href))
+		self.failUnless(str(childTag.RelativeURI(altRef))=='link.xml','child element relative')
 		# We require this next test to ensure that an href to the current document comes up blank
 		# Although this was a major source of bugs in browsers (<img src=''> causing infinite loading loops)
 		# these are largely fixed now and obfuscating by using a non-empty relative link to ourselves is
 		# likely to start the whole thing going again.
-		self.failUnless(childTag.RelativeURI(childTag.ResolveBase())=='','child element relative avoiding empty URI(%s)'%childTag.RelativeURI(childTag.ResolveBase()))
+		self.failUnless(str(childTag.RelativeURI(childTag.ResolveBase()))=='','child element relative avoiding empty URI(%s)'%childTag.RelativeURI(childTag.ResolveBase()))
 		grandChildTag=childTag._children[0]
 		self.failUnless(grandChildTag.ResolveBase()=="file:///hello/base.xml","xml:base inherited")
-		self.failUnless(grandChildTag.ResolveURI("link.xml")==altRef,"grandChild element HREF inherited")
-		self.failUnless(grandChildTag.RelativeURI(href)=='..'+hrefPath,"grandChild element relative inherited: %s"%grandChildTag.RelativeURI(href))
-		self.failUnless(grandChildTag.RelativeURI(altRef)=='link.xml','grandChild element relative inherited')
+		self.failUnless(str(grandChildTag.ResolveURI("link.xml"))==altRef,"grandChild element HREF inherited")
+		self.failUnless(str(grandChildTag.RelativeURI(href))=='..'+hrefPath,"grandChild element relative inherited: %s"%grandChildTag.RelativeURI(href))
+		self.failUnless(str(grandChildTag.RelativeURI(altRef))=='link.xml','grandChild element relative inherited')
 	
 	def testCaseResolveLang(self):
 		"""Test the use of ResolveLang"""

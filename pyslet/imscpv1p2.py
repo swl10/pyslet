@@ -175,6 +175,8 @@ class CPResources(CPElement):
 class CPResource(CPElement):
 	XMLNAME=(IMSCP_NAMESPACE,'resource')
 	ID="identifier"
+	XMLATTR_href=('href',uri.URIFactory.URI,str)
+	XMLATTR_type='type'
 	XMLCONTENT=xmlns.XMLElementContent
 	
 	def __init__(self,parent):
@@ -184,20 +186,6 @@ class CPResource(CPElement):
 		self.metadata=None
 		self.fileList=[]
 		self.dependencies=[]
-	
-	def GetAttributes(self):
-		attrs=CPElement.GetAttributes(self)
-		if self.type:
-			attrs['type']=self.type
-		if self.href:
-			attrs['href']=self.href
-		return attrs
-		
-	def Set_type(self,value):
-		self.type=value
-		
-	def Set_href(self,href):
-		self.href=href
 	
 	def GetEntryPoint(self):
 		"""Returns the CPFile object that is identified as the entry point.
@@ -211,7 +199,7 @@ class CPResource(CPElement):
 				fHREF=f.href
 				if fHREF:
 					fHREF=f.ResolveURI(fHREF)
-					if href==fHREF:
+					if href.Match(fHREF):
 						return f
 		return None
 
@@ -279,20 +267,12 @@ class CPDependency(CPElement):
 			
 class CPFile(CPElement):
 	XMLNAME=(IMSCP_NAMESPACE,'file')
+	XMLATTR_href=('href',uri.URIFactory.URI,str)
 
 	def __init__(self,parent):
 		CPElement.__init__(self,parent)
 		self.href=None
 		
-	def GetAttributes(self):
-		attrs=CPElement.GetAttributes(self)
-		if self.href:
-			attrs['href']=self.href
-		return attrs
-
-	def Set_href(self,href):
-		self.href=href
-				
 	def PackagePath(self,cp):
 		"""Returns the normalized file path relative to the root of the content
 		package.
@@ -300,7 +280,7 @@ class CPFile(CPElement):
 		If the HREF does not point to a local file then None is returned. 
 		Otherwise, this function calculates an absolute path to the file and
 		then calls the content package's PackagePath method."""
-		url=uri.URIFactory.URI(self.ResolveURI(self.href))
+		url=self.ResolveURI(self.href)
 		if not isinstance(url,uri.FileURL):
 			return None
 		return cp.PackagePath(url.GetPathname())
@@ -530,7 +510,10 @@ class ContentPackage:
 		The return result is always normalized and returned relative to the
 		package root.
 		"""
-		fPath=os.path.join(self.dPath,suggestedPath.lower())
+		if os.path.isabs(suggestedPath):
+			fPath=suggestedPath
+		else:
+			fPath=os.path.join(self.dPath,suggestedPath.lower())
 		fPath=PathInPath(fPath,self.dPath)
 		if fPath is None:
 			raise CPFilePathError(suggestedPath)
@@ -552,11 +535,11 @@ class ContentPackage:
 
 		href is expressed relative to resource, e.g., using
 		resource.RelativeURI"""
-		fURL=uri.URIFactory.URI(resource.ResolveURI(href))
+		fURL=resource.ResolveURI(href)
 		if not isinstance(fURL,uri.FileURL):
 			# Not a local file
 			r=resource.CPFile()
-			r.Set_href(href)		
+			r.href=href
 		else:
 			fullPath=fURL.GetPathname()
 			head,tail=os.path.split(fullPath)
@@ -568,7 +551,7 @@ class ContentPackage:
 			# normalise the case ready to put in the file table
 			relPath=os.path.normcase(relPath)
 			f=resource.CPFile()
-			f.Set_href(href)
+			f.href=href
 			if not self.fileTable.has_key(relPath):
 				self.fileTable[relPath]=[f]
 			else:
@@ -633,7 +616,10 @@ class ContentPackage:
 		
 		Note that the name is returned as a unicode string suitable for showing to
 		the user and may need to be encoded before being used in file path operations."""
-		return unicode(self.packageName,'utf-8')
+		if type(self.packageName) is StringType:
+			return unicode(self.packageName,'utf-8')
+		else:
+			return self.packageName
 		
 	def Close(self):
 		self.manifest=None

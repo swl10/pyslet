@@ -364,10 +364,28 @@ def IsQueryReserved(c):
 	return (c and ord(c) in (0x3B,0x2F,0x3F,0x3A,0x40,0x26,0x3D,0x2B,0x2C,0x24))
 	
 
+def EncodeUnicodeURI(uSrc):
+	"""Takes a unicode string that is supposed to be a URI and removes non-ASCII characters.
+	
+	The algorithm used is the same as the one adopted by HTML: utf-8 and then %-escape.
+	This is not part of the RFC standard which only defines the behaviour for streams
+	of octets."""
+	octets=[]
+	for c in uSrc:
+		if ord(c)>0x7F:
+			octets=octets+map(lambda x:"%%%2X"%ord(x),c.encode('UTF-8'))
+			clean=False
+		else:
+			octets.append(chr(ord(c)))
+	return string.join(octets,'')
+
+	
 class URI:
 	"""Class to represent URI."""
 			
 	def __init__(self,octets):
+		if type(octets) is UnicodeType:
+			octets=EncodeUnicodeURI(octets)
 		uriLen=ParseURIC(octets)
 		self.octets=octets[0:uriLen]
 		self.fragment=None
@@ -716,11 +734,31 @@ class URI:
 		return URIFactory.URI(string.join(result,''))			
 			
 	def __str__(self):
+		r"""URI are always returned as a string (of bytes), not a unicode string.
+		
+		The reason for this restriction is best illustrated with an example:
+
+		The URI %E8%8B%B1%E5%9B%BD.xml is a UTF-8 and URL-encoded path segment
+		using the Chinese word for United Kingdom.  When we remove the
+		URL-encoding we get the string '\\xe8\\x8b\\xb1\\xe5\\x9b\\xbd.xml'
+		which must be interpreted with utf-8 to get the intended path segment
+		value: u'\\u82f1\\u56fd.xml'.  However, if the URL was marked as being a
+		unicode string of characters then this second stage would not be carried
+		out and the result would be the unicode string
+		u'\\xe8\\x8b\\xb1\\xe5\\x9b\\xbd', which is a meaningless string of 6
+		characters taken from the European Latin-1 character set."""
 		if self.fragment is not None:
 			return self.octets+'#'+self.fragment
 		else:
 			return self.octets
 
+	def Match(self,otherURI):
+		"""Compares this URI against otherURI returning True if they match.
+		
+		At the moment this is a very simple algorithm: just compare the octet
+		strings.  In the future we should canonicalize before comparing."""
+		return str(self)==str(otherURI)
+		
 	def IsAbsolute(self):
 		return self.scheme is not None
 				
@@ -772,6 +810,26 @@ class URIFactoryClass:
 				segments[i]=EscapeData(unicode(segments[i],c).encode('utf-8'),IsPathSegmentReserved)
 		return FileURL('file://%s/%s'%(host,string.join(segments,'/')))
 
+	def Resolve(self,b,r):
+		"""Evaluates the resolve operator B [*] R, resolving R relative to B
+		
+		The input parameters are converted to URI objects if necessary."""
+		if not isinstance(b,URI):
+			b=self.URI(b)
+		if not isinstance(r,URI):
+			r=self.URI(r)
+		return r.Resolve(b)
+
+	def Relative(self,u,b):
+		"""Evaluates the relative operator U [\] B, returning U relative to B
+		
+		The input parameters are converted to URI objects if necessary."""
+		if not isinstance(u,URI):
+			u=self.URI(u)
+		if not isinstance(b,URI):
+			b=self.URI(b)
+		return u.Relative(b)
+		
 		
 class FileURL(URI):
 	"""Represents the FileURL defined by RFC1738"""

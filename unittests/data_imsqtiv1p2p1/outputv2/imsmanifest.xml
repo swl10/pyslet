@@ -101,6 +101,34 @@
 			</metadata>
 			<file href="mchc_ir_01/pyslet_mchc_ir_01.xml"/>
 		</resource>
+		<resource identifier="PYSLET_MCHC_IR_02" type="imsqti_item_xmlv2p1" href="mchc_ir_02/pyslet_mchc_ir_02.xml">
+			<metadata>
+				<imsmd:lom>
+					<imsmd:general>
+						<imsmd:identifier>PYSLET_MCHC_IR_02</imsmd:identifier>
+						<imsmd:title>
+							<imsmd:langstring>Standard Multiple Choice Item with Images</imsmd:langstring>
+						</imsmd:title>
+						<imsmd:description>
+							<imsmd:langstring>Test of image content.</imsmd:langstring>
+						</imsmd:description>						
+					</imsmd:general>
+					<imsmd:annotation>
+						<imsmd:description>
+							<imsmd:langstring>Warning: case-insensitive comparison of identifiers not supported in version 2;
+								Warning: discarding view on feedback (Candidate)
+							</imsmd:langstring>
+						</imsmd:description>					
+					</imsmd:annotation>
+				</imsmd:lom>
+				<imsqti:qtiMetadata/>
+			</metadata>
+			<file href="mchc_ir_02/pyslet_mchc_ir_02.xml"/>
+			<file href="mchc_ir_02/mchc_ir_02-1.gif"/>
+			<file href="mchc_ir_02/mchc_ir_02-2.gif"/>
+			<file href="mchc_ir_02/mchc_ir_02-3.gif"/>
+			<file href="mchc_ir_02/mchc_ir_02-4.gif"/>
+		</resource>
 		<resource identifier="metadataNewStyle" type="imsqti_item_xmlv2p1" href="metadata_new_style/metadatanewstyle.xml">
 			<metadata>
 				<imsmd:lom>

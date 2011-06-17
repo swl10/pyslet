@@ -9,7 +9,7 @@ import codecs, random
 from types import *
 from copy import copy
 
-from pyslet.rfc2396 import URIFactory, FileURL
+from pyslet.rfc2396 import URIFactory, URI, FileURL
 
 xml_base='xml:base'
 xml_lang='xml:lang'
@@ -1229,7 +1229,7 @@ class XMLElement:
 					value=string.join(value,' ')
 				elif value is not None:
 					value=encode(value)
-				if value:
+				if value is not None:
 					attrs[a[8:]]=value
 		return attrs
 
@@ -1742,26 +1742,14 @@ class XMLElement:
 		r"""Returns a fully specified URL, resolving URI in the current context.
 		
 		The uri is resolved relative to the xml:base values of the element's
-		ancestors and ultimately relative to the document's baseURI.
-		
-		The result is a string (of bytes), not a unicode string.  Likewise, uri
-		must be passed in as a string of bytes.
-
-		The reason for this restriction is best illustrated with an example:
-		
-		The URI %E8%8B%B1%E5%9B%BD.xml is a UTF-8 and URL-encoded path segment
-		using the Chinese word for United Kingdom.  When we remove the URL-encoding
-		we get the string '\\xe8\\x8b\\xb1\\xe5\\x9b\\xbd.xml' which must be interpreted
-		with utf-8 to get the intended path segment value: u'\\u82f1\\u56fd'.  However,
-		if the URL was marked as being a unicode string of characters then this second
-		stage would not be carried out and the result would be the unicode string
-		u'\\xe8\\x8b\\xb1\\xe5\\x9b\\xbd', which is a meaningless string of 6
-		characters taken from the European Latin-1 character set."""
+		ancestors and ultimately relative to the document's baseURI."""
 		baseURI=self.ResolveBase()
 		if baseURI:
-			return urlparse.urljoin(baseURI,str(uri))
+			return URIFactory.Resolve(baseURI,uri)
+		elif isinstance(uri,URI):
+			return URI
 		else:
-			return uri
+			return URIFactory.URI(uri)
 	
 	def RelativeURI(self,href):
 		"""Returns href expressed relative to the element's base.
@@ -1773,18 +1761,20 @@ class XMLElement:
 		If the element does not have a fully-specified base URL then href is
 		returned as a fully-specified URL itself."""
 		result=[]
-		href=URIFactory.URI(href)
+		if not isinstance(href,URI):
+			href=URIFactory.URI(href)
 		if not href.IsAbsolute():
 			href=href.Resolve(URIFactory.URLFromPathname(os.getcwd()))
 		base=self.ResolveBase()
 		if base is not None:
-			base=URIFactory.URI(base)
-			if not base.IsAbsolute():
-				return str(href)
-			else:
-				return str(href.Relative(base))
+			return URIFactory.Relative(href,base)
+# 			base=URIFactory.URI(base)
+# 			if not base.IsAbsolute():
+# 				return str(href)
+# 			else:
+# 				return str(href.Relative(base))
 		else:
-			return str(href)
+			return href
 
 	def GetLang(self):
 		return self._attrs.get(xml_lang,None)
@@ -1994,19 +1984,22 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		
 		If the baseURI is a local file or relative path then the file path
 		is updated to point to the file."""
-		self.baseURI=baseURI
-		if self.baseURI:
-			base=URIFactory.URI(self.baseURI)
-			if not base.IsAbsolute():
-				cwd=URIFactory.URLFromPathname(os.path.join(os.getcwd(),os.curdir))
-				base=base.Resolve(cwd)
-				self.baseURI=str(base)
-			self.uri=base
+		if baseURI is None:
+			self.baseURI=None
 		else:
-			self.uri=None
+			if isinstance(baseURI,URI):
+				self.baseURI=baseURI
+			else:
+				self.baseURI=URIFactory.URI(baseURI)
+			if not self.baseURI.IsAbsolute():
+				cwd=URIFactory.URLFromPathname(os.path.join(os.getcwd(),os.curdir))
+				self.baseURI=self.baseURI.Resolve(cwd)
 			
 	def GetBase(self):
-		return self.baseURI
+		if self.baseURI is None:
+			return None
+		else:
+			return str(self.baseURI)
 	
 	def SetLang(self,lang):
 		"""Sets the default language for the document."""
@@ -2062,18 +2055,18 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 				self.ReadFromStream(src)
 		elif self.baseURI is None:
 			raise XMLMissingLocationError
-		elif isinstance(self.uri,FileURL):
+		elif isinstance(self.baseURI,FileURL):
 			# we would need to force 8bit path names to workaround bug in expat
 			# but we've ditched sax so we don't have to do this anymore
-			f=open(self.uri.GetPathname(),'rb')
+			f=open(self.baseURI.GetPathname(),'rb')
 			try:
 				self.ReadFromStream(f)
 			finally:
 				f.close()
-		elif self.uri.scheme.lower() in ['http','https']:
+		elif self.baseURI.scheme.lower() in ['http','https']:
 			if reqManager is None:
 				reqManager=http.HTTPRequestManager()
-			req=http.HTTPRequest(self.baseURI)
+			req=http.HTTPRequest(str(self.baseURI))
 			reqManager.ProcessRequest(req)
 			if req.status==200:
 				mtype=req.response.GetContentType()
@@ -2146,8 +2139,8 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 			self.WriteXML(dst)
 		elif self.baseURI is None:
 			raise XMLMissingLocationError
-		elif isinstance(self.uri,FileURL):
-			fPath=self.uri.GetPathname()
+		elif isinstance(self.baseURI,FileURL):
+			fPath=self.baseURI.GetPathname()
 			fdir,fname=os.path.split(fPath)
 			if not os.path.isdir(fdir):
 				os.makedirs(fdir)
@@ -2157,7 +2150,7 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 			finally:
 				f.close()
 		else:
-			raise XMLUnsupportedSchemeError(self.uri.scheme)
+			raise XMLUnsupportedSchemeError(self.baseURI.scheme)
 	
 	def WriteXML(self,writer,escapeFunction=EscapeCharData,tab='\t'):
 		if tab:
@@ -2175,8 +2168,8 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		with file type baseURIs are supported."""
 		if self.baseURI is None:
 			raise XMLMissingLocationError
-		elif isinstance(self.uri,FileURL):
-			fPath=self.uri.GetPathname()
+		elif isinstance(self.baseURI,FileURL):
+			fPath=self.baseURI.GetPathname()
 			if not os.path.isfile(fPath):
 				raise XMLMissingFileError(fPath)
 			f=codecs.open(fPath,'wb','utf-8')
@@ -2185,7 +2178,7 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 			finally:
 				f.close()
 		else:
-			raise XMLUnsupportedSchemeError(self.uri.scheme)		
+			raise XMLUnsupportedSchemeError(self.baseURI.scheme)		
 	
 	def Delete(self,reqManager=None):
 		pass
