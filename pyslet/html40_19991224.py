@@ -96,7 +96,7 @@ class XHTMLElement(xmlns.XMLNSElement):
 			else:
 				output.append(child.RenderText())
 		return string.join(output,'')
-		
+	
 
 class XHTMLFlowMixin:
 	# <!ENTITY % flow "%block; | %inline;">

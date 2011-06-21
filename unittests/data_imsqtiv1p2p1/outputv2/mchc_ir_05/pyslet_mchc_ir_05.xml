@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+	identifier="PYSLET_MCHC_IR_05" title="MCQ with Slider Item" adaptive="false"
+	timeDependent="false">
+	<responseDeclaration identifier="MC05" cardinality="single" baseType="identifier"/>
+	<outcomeDeclaration identifier="FEEDBACK" cardinality="multiple" baseType="identifier"/>
+	<outcomeDeclaration identifier="SLIDECHOICE" cardinality="single" baseType="integer">
+		<defaultValue>
+			<value>0</value>
+		</defaultValue>
+	</outcomeDeclaration>
+	<itemBody>
+		<div label="PysletExample_MCHC_IR_05">
+			<p>What size spanner (in mm) are you most likely to need to adjust the chain tension on
+				a single speed bicycle?</p>
+			<choiceInteraction responseIdentifier="MC05" shuffle="false" maxChoices="1"
+				class="slider" minChoices="1">
+				<simpleChoice identifier="A">9</simpleChoice>
+				<simpleChoice identifier="B">11</simpleChoice>
+				<simpleChoice identifier="C">13</simpleChoice>
+				<simpleChoice identifier="D">15</simpleChoice>
+				<simpleChoice identifier="E">17</simpleChoice>
+			</choiceInteraction>
+		</div>
+	</itemBody>
+	<responseProcessing>
+		<responseCondition>
+			<responseIf>
+				<match>
+					<variable identifier="MC05"/>
+					<baseValue baseType="identifier">D</baseValue>
+				</match>
+				<setOutcomeValue identifier="SLIDECHOICE">
+					<sum>
+						<variable identifier="SLIDECHOICE"/>
+						<baseValue baseType="integer">5</baseValue>
+					</sum>
+				</setOutcomeValue>
+				<setOutcomeValue identifier="FEEDBACK">
+					<multiple>
+						<variable identifier="FEEDBACK"/>
+						<baseValue baseType="identifier">Correct</baseValue>
+					</multiple>
+				</setOutcomeValue>
+			</responseIf>
+			<responseElseIf>
+				<or>
+					<match>
+						<variable identifier="MC05"/>
+						<baseValue baseType="identifier">A</baseValue>
+					</match>
+					<match>
+						<variable identifier="MC05"/>
+						<baseValue baseType="identifier">B</baseValue>
+					</match>
+					<match>
+						<variable identifier="MC05"/>
+						<baseValue baseType="identifier">C</baseValue>
+					</match>
+					<match>
+						<variable identifier="MC05"/>
+						<baseValue baseType="identifier">E</baseValue>
+					</match>
+				</or>
+				<setOutcomeValue identifier="FEEDBACK">
+					<multiple>
+						<variable identifier="FEEDBACK"/>
+						<baseValue baseType="identifier">Incorrect</baseValue>
+					</multiple>
+				</setOutcomeValue>
+			</responseElseIf>
+		</responseCondition>
+	</responseProcessing>
+	<modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Correct">Correct.</modalFeedback>
+	<modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Incorrect">No, you are
+		most likely to need a 15mm spanner for the wheel-nuts.</modalFeedback>
+	<modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Incorrect">The student
+		may need help with chain-tension adjustment.</modalFeedback>
+</assessmentItem>

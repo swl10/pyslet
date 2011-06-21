@@ -158,6 +158,57 @@
 			<file href="mchc_ir_03/sound3.wav"/>
 			<file href="mchc_ir_03/sound4.wav"/>
 		</resource>
+		<resource identifier="PYSLET_MCHC_IR_04" type="imsqti_item_xmlv2p1" href="mchc_ir_04/pyslet_mchc_ir_04.xml">
+			<metadata>
+				<imsmd:lom>
+					<imsmd:general>
+						<imsmd:identifier>PYSLET_MCHC_IR_04</imsmd:identifier>
+						<imsmd:title>
+							<imsmd:langstring>MCQ with Image Hotspot Rendering Item</imsmd:langstring>
+						</imsmd:title>
+						<imsmd:description>
+							<imsmd:langstring>MCQ with image hot spot.</imsmd:langstring>
+						</imsmd:description>
+					</imsmd:general>
+					<imsmd:annotation>
+						<imsmd:description>
+							<imsmd:langstring>Warning: case-insensitive comparison of identifiers not supported in version 2;
+								Warning: discarding view on feedback (Candidate)
+							</imsmd:langstring>
+						</imsmd:description>					
+					</imsmd:annotation>
+				</imsmd:lom>
+				<imsqti:qtiMetadata/>
+			</metadata>
+			<file href="mchc_ir_04/pyslet_mchc_ir_04.xml"/>
+			<file href="mchc_ir_04/ukair.gif"/>
+		</resource>
+		<resource identifier="PYSLET_MCHC_IR_05" type="imsqti_item_xmlv2p1" href="mchc_ir_05/pyslet_mchc_ir_05.xml">
+			<metadata>
+				<imsmd:lom>
+					<imsmd:general>
+						<imsmd:identifier>PYSLET_MCHC_IR_05</imsmd:identifier>
+						<imsmd:title>
+							<imsmd:langstring>MCQ with Slider Item</imsmd:langstring>
+						</imsmd:title>
+						<imsmd:description>
+							<imsmd:langstring>This is an MCQ-slider question.</imsmd:langstring>
+						</imsmd:description>
+					</imsmd:general>
+					<imsmd:annotation>
+						<imsmd:description>
+							<imsmd:langstring>Warning: choice-slider replaced with choiceInteraction.slider;
+								Warning: case-insensitive comparison of identifiers not supported in version 2;
+								Warning: discarding view on feedback (Candidate);
+								Warning: discarding view on feedback (Tutor)
+							</imsmd:langstring>
+						</imsmd:description>					
+					</imsmd:annotation>
+				</imsmd:lom>
+				<imsqti:qtiMetadata/>
+			</metadata>
+			<file href="mchc_ir_05/pyslet_mchc_ir_05.xml"/>
+		</resource>
 		<resource identifier="metadataNewStyle" type="imsqti_item_xmlv2p1" href="metadata_new_style/metadatanewstyle.xml">
 			<metadata>
 				<imsmd:lom>

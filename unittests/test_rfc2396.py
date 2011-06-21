@@ -167,21 +167,21 @@ LIST_EXAMPLE='http://www.example.com/ http://www.example.com/index.htm'
 
 ABS_EXAMPLES={
 	'ftp://ftp.is.co.za/rfc/rfc1808.txt':
-		('ftp',None,'ftp.is.co.za','/rfc/rfc1808.txt',None),
+		('ftp',None,'ftp.is.co.za','/rfc/rfc1808.txt',None,'rfc1808.txt'),
 	'gopher://spinaltap.micro.umn.edu/00/Weather/California/Los%20Angeles':
-		('gopher',None,'spinaltap.micro.umn.edu','/00/Weather/California/Los%20Angeles',None),
+		('gopher',None,'spinaltap.micro.umn.edu','/00/Weather/California/Los%20Angeles',None,'Los Angeles'),
 	'http://www.math.uio.no/faq/compression-faq/part1.html':
-		('http',None,'www.math.uio.no','/faq/compression-faq/part1.html',None),
+		('http',None,'www.math.uio.no','/faq/compression-faq/part1.html',None,'part1.html'),
 	'mailto:mduerst@ifi.unizh.ch':
-		('mailto','mduerst@ifi.unizh.ch',None,None,None),
+		('mailto','mduerst@ifi.unizh.ch',None,None,None,None),
 	'news:comp.infosystems.www.servers.unix':
-		('news','comp.infosystems.www.servers.unix',None,None,None),
+		('news','comp.infosystems.www.servers.unix',None,None,None,None),
 	'telnet://melvyl.ucop.edu/':
-		('telnet',None,'melvyl.ucop.edu','/',None),
+		('telnet',None,'melvyl.ucop.edu','/',None,''),
 	'http://www.ics.uci.edu/pub/ietf/uri/#Related':
-		('http',None,'www.ics.uci.edu','/pub/ietf/uri/',None),
+		('http',None,'www.ics.uci.edu','/pub/ietf/uri/',None,''),
 	'http://a/b/c/g?y':
-		('http',None,'a','/b/c/g','y')
+		('http',None,'a','/b/c/g','y','g')
 	}
 
 REL_BASE="http://a/b/c/d;p?q"
@@ -256,12 +256,13 @@ class URITests(unittest.TestCase):
 		keys=ABS_EXAMPLES.keys()
 		for k in keys:
 			u=URI(k)
-			scheme,opaquePart,authority,absPath,query=ABS_EXAMPLES[k]
+			scheme,opaquePart,authority,absPath,query,fName=ABS_EXAMPLES[k]
 			self.failUnless(scheme==u.scheme,"%s found scheme %s"%(k,u.scheme))
 			self.failUnless(opaquePart==u.opaquePart,"%s found opaquePart %s"%(k,u.opaquePart))
 			self.failUnless(authority==u.authority,"%s found authority %s"%(k,u.authority))
 			self.failUnless(absPath==u.absPath,"%s found absPath %s"%(k,u.absPath))
 			self.failUnless(query==u.query,"%s found query %s"%(k,u.query))
+			self.failUnless(fName==u.GetFileName(),"%s found file name %s"%(k,u.GetFileName()))
 		
 	def testCaseRelativeExamples(self):
 		keys=REL_EXAMPLES.keys()

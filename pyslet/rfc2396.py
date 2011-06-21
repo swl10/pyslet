@@ -548,6 +548,31 @@ class URI:
 					break
 				pos+=1
 
+	def GetFileName(self):
+		"""Returns the file name associated with this resource or None if the
+		URL scheme does not have the concept.  By default the file name is
+		extracted from the last component of the path. Note the subtle
+		difference between returning None and returning an empty string
+		(indicating that the URI represents a directory-like object)."""
+		if self.absPath:
+			segments=SplitAbsPath(self.absPath)
+		elif self.relPath:
+			segments=SplitRelPath(self.relPath)
+		else:
+			segments=[]
+		fileName=None
+		# we loop around until we have a non-empty fileName
+		while fileName is None:
+			if segments:
+				fileName=segments.pop()
+			else:
+				break
+		if fileName is not None:
+			fileName=unicode(UnescapeData(fileName),'utf-8')
+			return fileName
+		else:
+			return None
+		
 	def Resolve(self,base,current=None):
 		"""Resolves the current (relative) URI relative to base
 		

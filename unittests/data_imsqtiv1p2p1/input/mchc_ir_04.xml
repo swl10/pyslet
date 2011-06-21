@@ -1,0 +1,44 @@
+<?xml version = "1.0" encoding = "UTF-8" standalone = "no"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
+<questestinterop>
+	<qticomment>MCQ with image hot spot.</qticomment> 
+	<item title = "MCQ with Image Hotspot Rendering Item" ident = "PYSLET_MCHC_IR_04">    
+		<presentation label = "PysletExample_MCHC_IR_04">
+			<flow>
+				<response_lid ident = "MC04" rcardinality = "Single" rtiming = "No">        
+					<render_hotspot>          
+						<material>             
+							<matimage imagtype = "image/gif" uri = "ukair.gif" x0 = "0" width = "206" y0 = "512" height = "280"/>
+							<mattext>The picture illustrates four of the most popular destinations for air travellers arriving
+								in the United Kingdom: London, Manchester, Edinburgh and Glasgow.  Which one is Glasgow?</mattext>
+						</material>        
+						<response_label ident = "A" rarea = "Ellipse">77,115,16,16</response_label>        
+						<response_label ident = "B" rarea = "Ellipse">96,114,16,16</response_label>        
+						<response_label ident = "C" rarea = "Ellipse">119,184,16,16</response_label>        
+						<response_label ident = "D" rarea = "Ellipse">150,235,16,16</response_label>          
+					</render_hotspot>
+				</response_lid>
+			</flow>          
+		</presentation>
+		<resprocessing>
+			<outcomes>
+				<decvar varname = "SCORE1" vartype = "Integer" defaultval = "1"/>
+			</outcomes>
+			<respcondition>
+				<qticomment>Scoring for the correct answer.</qticomment>
+				<conditionvar>
+					<varequal respident = "MC04"> B </varequal>
+				</conditionvar>
+				<setvar action = "Add" varname = "SCORE1">10</setvar>
+				<displayfeedback feedbacktype = "Response" linkrefid = "Correct"/>
+			</respcondition>
+		</resprocessing>
+		<itemfeedback ident = "Correct" view = "Candidate">
+			<flow_mat>
+				<material>
+					<mattext>Yes, you are right.</mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>  
+	</item>
+</questestinterop>

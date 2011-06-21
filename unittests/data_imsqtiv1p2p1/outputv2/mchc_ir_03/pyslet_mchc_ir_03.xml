@@ -15,16 +15,16 @@
         <div label="PysletExample_MCHC_IR_03">
             <p>What sound does this tool make when it is used?<img src="mchc_ir_03.jpg" alt=""/></p>
             <choiceInteraction responseIdentifier="MC03" shuffle="false" maxChoices="1">
-                <simpleChoice identifier="A" fixed="false">
+                <simpleChoice identifier="A">
                     <object data="sound1.wav" type="audio/wav"/>
                 </simpleChoice>
-                <simpleChoice identifier="B" fixed="false">
+                <simpleChoice identifier="B">
                     <object data="sound2.wav" type="audio/wav"/>
                 </simpleChoice>
-                <simpleChoice identifier="C" fixed="false">
+                <simpleChoice identifier="C">
                     <object data="sound3.wav" type="audio/wav"/>
                 </simpleChoice>
-                <simpleChoice identifier="D" fixed="false">
+                <simpleChoice identifier="D">
                     <object data="sound4.wav" type="audio/wav"/>
                 </simpleChoice>
             </choiceInteraction>
@@ -106,7 +106,8 @@
             </responseElseIf>
         </responseCondition>
     </responseProcessing>
-    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Correct">Yes, that is the right sound.</modalFeedback>
+    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Correct">Yes, that is
+        the right sound.</modalFeedback>
     <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Incorrect">No, that is
         not the correct sound.</modalFeedback>
 </assessmentItem>

@@ -87,7 +87,7 @@ def DecodeBaseType(value):
 		raise ValueError("Can't decode baseType from %s"%value)
 
 def EncodeBaseType(value):
-	return QTIBaseType.encode.get(value,'')
+	return QTIBaseType.encode.get(value,None)
 
 
 class QTICardinality:
@@ -117,7 +117,7 @@ def DecodeCardinality(value):
 		raise ValueError("Can't decode cardinality from %s"%value)
 
 def EncodeCardinality(value):
-	return QTICardinality.encode.get(value,'')
+	return QTICardinality.encode.get(value,None)
 
 
 def ValidateIdentifier(value,prefix='_'):
@@ -156,6 +156,47 @@ def ValidateIdentifier(value,prefix='_'):
 MakeValidNCName=ValidateIdentifier
 
 
+class QTIShape:
+	decode={
+		'circle':1,
+		'default':2,
+		'ellipse':3,
+		'poly':4,
+		'rect':5
+		}
+xsi.MakeEnumeration(QTIShape)
+		
+def DecodeShape(value):
+	"""Decodes a shape value from a string.
+
+	<xsd:simpleType name="shape.Type">
+		<xsd:restriction base="xsd:NMTOKEN">
+			<xsd:enumeration value="circle"/>
+			<xsd:enumeration value="default"/>
+			<xsd:enumeration value="ellipse"/>
+			<xsd:enumeration value="poly"/>
+			<xsd:enumeration value="rect"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	"""
+	try:
+		return QTIShape.decode[value.lower()]
+	except KeyError:
+		raise ValueError("Can't decode shape from %s"%value)
+
+def EncodeShape(value):
+	return QTIShape.encode.get(value,None)
+
+
+def DecodeCoords(value):
+	"""Decodes coords into a tuple of length values (which are themselves 2-tuples)."""
+	coords=value.split()
+	return tuple(map(lambda x:html.DecodeLength(x),coords))
+
+def EncodeCoords(coords):
+	return string.join(map(lambda x:html.EncodeLength(x),coords),' ')
+
+	
 class QTIShowHide:
 	decode={
 		'show':1,
@@ -179,7 +220,7 @@ def DecodeShowHide(value):
 		raise ValueError("Can't decode show/hide from %s"%value)
 
 def EncodeShowHide(value):
-	return QTIShowHide.encode.get(value,'')
+	return QTIShowHide.encode.get(value,None)
 
 
 class QTIView:
@@ -208,7 +249,7 @@ def DecodeView(value):
 		raise ValueError("Can't decode view from %s"%value)
 
 def EncodeView(value):
-	return QTIView.encode.get(value,'')
+	return QTIView.encode.get(value,None)
 		
 
 class QTIElement(xmlns.XMLNSElement):
@@ -825,6 +866,95 @@ class QTISimpleChoice(QTIFlowContainerMixin,QTIChoice):
 			# This child cannot go in here
 			raise QTIValidityError("%s in %s"%(repr(name),self.__class__.__name__))		
 
+#
+#		GRAPHICAL INTERACTIONS
+#
+class QTIHotspotMixin:
+	"""Represent the hotspot abstract class::
+	
+	<xsd:attributeGroup name="hotspot.AttrGroup">
+		<xsd:attribute name="shape" type="shape.Type" use="required"/>
+		<xsd:attribute name="coords" type="coords.Type" use="required"/>
+		<xsd:attribute name="hotspotLabel" type="string256.Type" use="optional"/>
+	</xsd:attributeGroup>
+	"""
+	XMLATTR_shape=('shape',DecodeShape,EncodeShape)
+	XMLATTR_coords=('coords',html.DecodeLength,html.EncodeLength)
+	XMLATTR_hotspotLabel='hotspotLabel'
+	
+	def __init__(self):
+		self.shape=None
+		self.coords=[]
+		self.hotspotLabel=None
+	
+
+class QTIHotspotChoice(QTIHotspotMixin,QTIChoice):
+	"""Represents the hotspotChoide class."""
+	XMLNAME=(IMSQTI_NAMESPACE,'hotspotChoice')
+	XMLCONTENT=xmlns.XMLEmpty
+	def __init__(self,parent):
+		QTIChoice.__init__(self,parent)
+		QTIHotspotMixin.__init__(self)
+	
+
+class QTIGraphicInteraction(QTIBlockInteraction):
+	"""Represents the abstract graphicInteraction class::
+	
+	<xsd:attributeGroup name="graphicInteraction.AttrGroup">
+		<xsd:attributeGroup ref="blockInteraction.AttrGroup"/>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="graphicInteraction.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="blockInteraction.ContentGroup"/>
+			<xsd:element ref="object" minOccurs="1" maxOccurs="1"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLCONTENT=xmlns.XMLElementContent
+
+	def __init__(self,parent):
+		QTIBlockInteraction.__init__(self,parent)
+		self.XHTMLObject=html.XHTMLObject(self)
+		FixHTMLNamespace(self.XHTMLObject)
+	
+	def GetChildren(self):
+		children=QTIBlockInteraction.GetChildren(self)
+		children.append(self.XHTMLObject)
+		return children
+
+
+class QTIHotspotInteraction(QTIGraphicInteraction):
+	"""Represents the hotspotInteraction element::
+
+	<xsd:attributeGroup name="hotspotInteraction.AttrGroup">
+		<xsd:attributeGroup ref="graphicInteraction.AttrGroup"/>
+		<xsd:attribute name="maxChoices" type="integer.Type" use="required"/>
+		<xsd:attribute name="minChoices" type="integer.Type" use="optional"/>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="hotspotInteraction.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="graphicInteraction.ContentGroup"/>
+			<xsd:element ref="hotspotChoice" minOccurs="1" maxOccurs="unbounded"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'hotspotInteraction')
+	XMLATTR_maxChoices=('maxChoices',xsi.DecodeInteger,xsi.EncodeInteger)	
+	XMLATTR_minChoices=('minChoices',xsi.DecodeInteger,xsi.EncodeInteger)
+
+	def __init__(self,parent):
+		QTIGraphicInteraction.__init__(self,parent)
+		self.maxChoices=1
+		self.minChoices=None
+		self.QTIHotspotChoice=[]
+	
+	def GetChildren(self):
+		children=QTIGraphicInteraction.GetChildren(self)
+		return children+self.QTIHotspotChoice
+	
+	
 #
 #	RESPONSE PROCESSING
 #

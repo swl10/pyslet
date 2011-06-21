@@ -44,6 +44,8 @@ class XMLUnsupportedSchemeError(XMLError): pass
 class XMLValidationError(XMLError): pass
 class XMLWellFormedError(XMLFatalError): pass
 
+class XMLUnknownChild(XMLError): pass
+
 from pyslet.unicode5 import CharClass
 from pyslet import rfc2616 as http
 
@@ -1486,37 +1488,115 @@ class XMLElement:
 		if name:
 			child.SetXMLName(name)
 		return child
-			
-	def AdoptChild(self,child):
-		"""Attaches an existing orphan child element to this one.
+	
+	def DeleteChild(self,child):
+		"""Deletes the given child from this element's children.
 		
-		The default implementation checks for a custom adoption method and
-		calls it if defined and does no further processing.  A custom adoption
-		method is a method of the form Adopt_ClassName.
-		
-		If a custom factory method is defined for the class of child but not a
-		custom adoption method then TypeError is raised.  You are not required
-		to provide a custom adoption method but you must do so if you wish to
-		support the adoption of elements that would other require a custom
-		factory to instantiate.
-		
-		If no custom adoption method or custom factory exists and the element is
-		not empty then the child is added to the local list of children."""
-		print "Adoption deprecated!"
-		if child.parent:
-			raise XMLParentError
-		elif self.IsEmpty():
-			self.ValidationError("Unexpected child element",child.xmlname)
-		factory=getattr(self,child.__class__.__name__,None)
-		adopter=getattr(self,"Adopt_"+child.__class__.__name__,None)
-		if adopter is None:
-			if factory:
+		We follow the same factory conventions as for child creation except
+		that an attribute pointing to a single child (or this class) will be
+		replaced with None.  If a custom factory method is found then the
+		corresponding Delete_ClassName method must also be defined.
+		"""
+		if self.IsEmpty():
+			raise XMLUnknownChild(child.xmlname)
+		factoryName=self._FindFactory(child.__class__)
+		if factoryName:
+			factory=getattr(self,factoryName)
+			if type(factory) is MethodType:
+				deleteFactory=getattr(self,"Delete_"+factoryName)
+				deleteFactory(child)
+			elif type(factory) is NoneType:
+				raise XMLUnknownChild(child.xmlname)
+			elif type(factory) is ListType:
+				match=False
+				for i in xrange(len(factory)):
+					if factory[i] is child:
+						child.DetachFromDocument()
+						child.parent=None
+						del factory[i]
+						match=True
+						break
+				if not match:
+					raise XMLUnknownChild(child.xmlname)
+			elif factory is child:
+				child.DetachFromDocument()
+				child.parent=None
+				factory=None
+			else:
 				raise TypeError
-			child.parent=self
-			child.AttachToDocument()
-			self._children.append(child)
 		else:
-			return adopter(child)
+			match=False
+			for i in xrange(len(self._children)):
+				if self._children[i] is child:
+					child.DetachFromDocument()
+					child.parent=None
+					del self._children[i]
+					match=True
+					break
+			if not match:
+				raise XMLUnknownChild(child.xmlname)
+		
+	def FindChildren(self,childClass,childList,max=None):
+		"""Finds up to max children of class childClass from the element and
+		its children.
+
+		All matching children are added to childList.  If specifing a max number
+		of matches then the incoming list must originally be empty to prevent
+		early termination.
+
+		Note that if max is None, the default, then all children of the given
+		class are returned with the proviso that nested matches are not
+		included.  In other words, if the model of childClass allows further
+		elements of type childClass as children (directly or indirectly) then
+		only the top-level match is returned.
+		
+		Effectively this method provides a breadth-first list of children.  For
+		example, to get all <div> elements in an HTML <body> you would have to
+		recurse over the resulting list calling FindChildren again until the
+		list of matching children stops growing.		
+		"""
+		children=self.GetChildren()
+		if max is not None and len(childList)>=max:
+			return
+		for child in children:
+			if isinstance(child,childClass):
+				childList.append(child)
+			else:
+				child.FindChildren(childClass,childList,max)
+			if max is not None and len(childList)>=max:
+				break
+
+		
+# 	def AdoptChild(self,child):
+# 		"""Attaches an existing orphan child element to this one.
+# 		
+# 		The default implementation checks for a custom adoption method and
+# 		calls it if defined and does no further processing.  A custom adoption
+# 		method is a method of the form Adopt_ClassName.
+# 		
+# 		If a custom factory method is defined for the class of child but not a
+# 		custom adoption method then TypeError is raised.  You are not required
+# 		to provide a custom adoption method but you must do so if you wish to
+# 		support the adoption of elements that would other require a custom
+# 		factory to instantiate.
+# 		
+# 		If no custom adoption method or custom factory exists and the element is
+# 		not empty then the child is added to the local list of children."""
+# 		print "Adoption deprecated!"
+# 		if child.parent:
+# 			raise XMLParentError
+# 		elif self.IsEmpty():
+# 			self.ValidationError("Unexpected child element",child.xmlname)
+# 		factory=getattr(self,child.__class__.__name__,None)
+# 		adopter=getattr(self,"Adopt_"+child.__class__.__name__,None)
+# 		if adopter is None:
+# 			if factory:
+# 				raise TypeError
+# 			child.parent=self
+# 			child.AttachToDocument()
+# 			self._children.append(child)
+# 		else:
+# 			return adopter(child)
 			
 	def AttachToDocument(self,doc=None):
 		"""Called when the element is first attached to a document.
@@ -1552,6 +1632,7 @@ class XMLElement:
 		If the element does not have mixed content then the data is ignored if
 		it is white space, otherwise, ValidationError is called with the
 		offending data."""
+		assert(type(data) in StringTypes)
 		if self.IsMixed():
 			if self._children and type(self._children[-1]) in StringTypes:
 				# To ease the comparison function we collapse string children
@@ -1759,7 +1840,7 @@ class XMLElement:
 		if baseURI:
 			return URIFactory.Resolve(baseURI,uri)
 		elif isinstance(uri,URI):
-			return URI
+			return uri
 		else:
 			return URIFactory.URI(uri)
 	
