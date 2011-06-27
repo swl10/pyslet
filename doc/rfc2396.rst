@@ -1,0 +1,48 @@
+Uniform Resource Identifiers (RFC2396)
+======================================
+
+.. py:module:: pyslet.rfc2396
+
+This module defines functions and classes for working with URIs as defined by
+RFC2396: http://www.ietf.org/rfc/rfc2396.txt
+
+In addition to parsing and formating URI from strings of octets, this module also supports computing and resolving relative URI.  To do this we define two notaional operators.
+
+The resolve operator::
+
+	U = B [*] R
+
+calculates a new URI 'U' from a base URI 'B' and a relative URI 'R'.
+
+The relative operator::
+
+	U [/] B = R
+
+calcualtes the relative URI 'R' formed by expressing 'U' relative to 'B'.
+
+Clearly the Relative operator defines the reverse of the resolve operator, however note that in some cases several different values of R can resolve to the same URL with a common base URI.
+
+
+Creating URI Instances
+----------------------
+
+..	data:: URIFactory
+	
+	An instance of :class:`URIFactoryClass` that can be used for creating :class:`URI` instances.
+
+..	autoclass:: URIFactoryClass
+	:members:
+	:show-inheritance:
+
+..	autofunction:: EncodeUnicodeURI
+
+
+URI
+---
+
+..	autoclass:: URI
+	:members:
+	:show-inheritance:
+
+..	automethod:: URI.__str__
+

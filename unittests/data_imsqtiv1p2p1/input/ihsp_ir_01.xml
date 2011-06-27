@@ -1,0 +1,65 @@
+<?xml version = "1.0" encoding = "UTF-8" standalone = "no"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
+<questestinterop>
+	<qticomment>Image with hidden hotspot</qticomment>
+	<item title="Standard Hotspot Item" ident="PYSLET_IHSP_IR_01">
+		<presentation label="PysletExample_IHSP_IR_01">
+			<flow>
+				<response_xy ident="IHS01" rcardinality="Single" rtiming="No">
+					<material>
+						<mattext texttype="text/html"><![CDATA[The arrows in the diagram illustrate the way
+							absorbed solar radiation is radiated away from the earth. The energy
+							flows are shown as percentages of the total incoming solar radiation of
+							342 W/m <sup>2</sup> based on figures published by the IPCC in 2001. One
+							of the arrows has been labelled incorrectly, indicate which one by
+							marking it on the diagram.]]></mattext>
+					</material>
+					<render_hotspot>
+						<material>
+							<matimage imagtype="image/gif" uri="absorbed.gif" x0="0" width="240"
+								y0="0" height="180"/>
+						</material>
+						<response_label ident="A" rarea="Rectangle">140,90,65,50</response_label>
+					</render_hotspot>
+				</response_xy>
+			</flow>
+		</presentation>
+		<resprocessing>
+			<outcomes>
+				<decvar varname="IHSSCORE" vartype="Integer" defaultval="1"/>
+			</outcomes>
+			<respcondition>
+				<qticomment>Scoring for the correct answer.</qticomment>
+				<conditionvar>
+					<varinside respident="IHS01" areatype="Rectangle">140,90,65,50</varinside>
+				</conditionvar>
+				<setvar action="Add" varname="IHSSCORE">1</setvar>
+				<displayfeedback feedbacktype="Response" linkrefid="Correct"/>
+			</respcondition>
+			<respcondition>
+				<qticomment>Scoring for the incorrect answer.</qticomment>
+				<conditionvar>
+					<not>
+						<varinside respident="IHS01" areatype="Rectangle">140,90,65,50</varinside>
+					</not>
+				</conditionvar>
+				<setvar action="Subtract" varname="IHSSCORE"> 1 </setvar>
+				<displayfeedback feedbacktype="Response" linkrefid="Incorrect"/>
+			</respcondition>
+		</resprocessing>
+		<itemfeedback ident="Correct" view="Candidate">
+			<flow_mat>
+				<material>
+					<mattext>Yes, back radiation from greenhouse gases is much higher.</mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>
+		<itemfeedback ident="Incorrect" view="Candidate">
+			<flow_mat>
+				<material>
+					<mattext>No, it was the greenhouse gas back radiation which was labelled incorrectly, it is nearer 95%</mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>
+	</item>
+</questestinterop>

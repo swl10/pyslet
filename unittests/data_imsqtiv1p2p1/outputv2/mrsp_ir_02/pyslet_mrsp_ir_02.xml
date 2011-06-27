@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+	identifier="PYSLET_MRSP_IR_02" title="Multiple Response Hotspot Item" adaptive="false"
+	timeDependent="false">
+	<responseDeclaration identifier="MR02_01" cardinality="multiple" baseType="identifier"/>
+	<responseDeclaration identifier="MR02_02" cardinality="multiple" baseType="identifier"/>
+	<outcomeDeclaration identifier="FEEDBACK" cardinality="multiple" baseType="identifier"/>
+	<outcomeDeclaration identifier="MR02" cardinality="multiple" baseType="identifier"/>
+	<outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer">
+		<defaultValue>
+			<value>0</value>
+		</defaultValue>
+	</outcomeDeclaration>
+	<itemBody>
+		<div label="PysletExample_MRSP_IR_02">
+			<p>The arrows in the diagrams show the approximate energy balance of the earth. The
+				energy flows are shown as percentages of the total incoming solar radiation of 342
+					W/m<sup>2</sup> based on figures published by the IPCC in 2001. Two of the
+				labels have been labelled incorrectly, indicate which two by marking selecting them
+				on the diagram.</p>
+			<hotspotInteraction responseIdentifier="MR02_01" maxChoices="2">
+				<object data="solar.gif" type="image/gif" width="240" height="180"/>
+				<hotspotChoice identifier="A" shape="rect" coords="90,80,144,149"/>
+				<hotspotChoice identifier="B" shape="rect" coords="140,35,194,104"/>
+			</hotspotInteraction>
+			<hotspotInteraction responseIdentifier="MR02_02" maxChoices="2">
+				<object data="absorbed.gif" type="image/gif" width="240" height="180"/>
+				<hotspotChoice identifier="C" shape="rect" coords="35,90,84,154"/>
+				<hotspotChoice identifier="D" shape="rect" coords="85,25,134,79"/>
+				<hotspotChoice identifier="E" shape="rect" coords="140,90,189,154"/>
+			</hotspotInteraction>
+		</div>
+	</itemBody>
+	<responseProcessing>
+		<setOutcomeValue identifier="MR02">
+			<multiple>
+				<variable identifier="MR02_01"/>
+				<variable identifier="MR02_02"/>
+			</multiple>
+		</setOutcomeValue>
+		<responseCondition>
+			<responseIf>
+				<and>
+					<member>
+						<baseValue baseType="identifier">A</baseValue>
+						<variable identifier="MR02"/>
+					</member>
+					<member>
+						<baseValue baseType="identifier">E</baseValue>
+						<variable identifier="MR02"/>
+					</member>
+				</and>
+				<setOutcomeValue identifier="SCORE">
+					<sum>
+						<variable identifier="SCORE"/>
+						<baseValue baseType="integer">1</baseValue>
+					</sum>
+				</setOutcomeValue>
+				<setOutcomeValue identifier="FEEDBACK">
+					<multiple>
+						<variable identifier="FEEDBACK"/>
+						<baseValue baseType="identifier">Correct</baseValue>
+					</multiple>
+				</setOutcomeValue>
+			</responseIf>
+			<responseElseIf>
+				<not>
+					<and>
+						<member>
+							<baseValue baseType="identifier">A</baseValue>
+							<variable identifier="MR02"/>
+						</member>
+						<member>
+							<baseValue baseType="identifier">E</baseValue>
+							<variable identifier="MR02"/>
+						</member>
+					</and>
+				</not>
+				<setOutcomeValue identifier="SCORE">
+					<sum>
+						<variable identifier="SCORE"/>
+						<baseValue baseType="integer">0</baseValue>
+					</sum>
+				</setOutcomeValue>
+				<setOutcomeValue identifier="FEEDBACK">
+					<multiple>
+						<variable identifier="FEEDBACK"/>
+						<baseValue baseType="identifier">CorrectSoln</baseValue>
+					</multiple>
+				</setOutcomeValue>
+				
+			</responseElseIf>
+		</responseCondition>
+	</responseProcessing>
+	<modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Correct">Yes, surface
+		reflection is much lower than indicated and back radiation from greenhouse gases is much
+		higher.</modalFeedback>
+	<modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="CorrectSoln">The surface
+		reflection and greenhouse gas back radiation were labelled incorrectly. The correct labels
+		are shown here.<img src="solar1.gif" width="240" height="180" alt=""/><img
+			src="absorbed1.gif" width="240" height="180" alt=""/></modalFeedback>
+</assessmentItem>

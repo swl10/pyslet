@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="PYSLET_IHSP_IR_01" title="Standard Hotspot Item" adaptive="false"
+    timeDependent="false">
+    <responseDeclaration identifier="IHS01" cardinality="single" baseType="point"/>
+    <outcomeDeclaration identifier="FEEDBACK" cardinality="multiple" baseType="identifier"/>
+    <outcomeDeclaration identifier="IHSSCORE" cardinality="single" baseType="integer">
+        <defaultValue>
+            <value>1</value>
+        </defaultValue>
+    </outcomeDeclaration>
+    <itemBody>
+        <div label="PysletExample_IHSP_IR_01">
+            <selectPointInteraction responseIdentifier="IHS01" maxChoices="1">
+                <prompt>The arrows in the diagram illustrate the way absorbed solar radiation is
+                    radiated away from the earth. The energy flows are shown as percentages of the
+                    total incoming solar radiation of 342 W/m <sup>2</sup> based on figures
+                    published by the IPCC in 2001. One of the arrows has been labelled incorrectly,
+                    indicate which one by marking it on the diagram.</prompt>
+                <object data="absorbed.gif" type="image/gif" width="240" height="180"/>
+            </selectPointInteraction>
+        </div>
+    </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <inside shape="rect" coords="140,90,189,154">
+                    <variable identifier="IHS01"/>
+                </inside>
+                <setOutcomeValue identifier="IHSSCORE">
+                    <sum>
+                        <variable identifier="IHSSCORE"/>
+                        <baseValue baseType="integer">1</baseValue>
+                    </sum>
+                </setOutcomeValue>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">Correct</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseIf>
+            <responseElseIf>
+                <not>
+                    <inside shape="rect" coords="140,90,189,154">
+                        <variable identifier="IHS01"/>
+                    </inside>
+                </not>
+                <setOutcomeValue identifier="IHSSCORE">
+                    <subtract>
+                        <variable identifier="IHSSCORE"/>
+                        <baseValue baseType="integer">1</baseValue>
+                    </subtract>
+                </setOutcomeValue>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">Incorrect</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseElseIf>
+        </responseCondition>
+    </responseProcessing>
+    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Correct">Yes, back
+        radiation from greenhouse gases is much higher.</modalFeedback>
+    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Incorrect">No, it was
+        the greenhouse gas back radiation which was labelled incorrectly, it is nearer
+        95%</modalFeedback>
+</assessmentItem>

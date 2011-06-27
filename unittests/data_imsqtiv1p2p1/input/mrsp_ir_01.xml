@@ -1,0 +1,95 @@
+<?xml version = "1.0" encoding = "UTF-8" standalone = "no"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
+<questestinterop>
+	<qticomment>Simple MRQ Example</qticomment>
+	<item title="Simple Multiple Response Item" ident="PYSLET_MRSP_IR_01">
+		<presentation label="PysletExample_MRSP_IR_01">
+			<flow>
+				<material>
+					<mattext>Which of the following tools would you need to replace a Shimano
+						10-speed Front Derailleur?</mattext>
+				</material>
+				<response_lid ident="MR01" rcardinality="Multiple" rtiming="No">
+					<render_choice shuffle="Yes" minnumber="1" maxnumber="4">
+						<flow_label>
+							<response_label ident="A">
+								<material>
+									<mattext>Chain splitting tool</mattext>
+								</material>
+							</response_label>
+						</flow_label>
+						<flow_label>
+							<response_label ident="B">
+								<material>
+									<mattext>15mm spanner</mattext>
+								</material>
+							</response_label>
+						</flow_label>
+						<flow_label>
+							<response_label ident="C">
+
+								<material>
+									<mattext>Set of metric allen keys</mattext>
+								</material>
+							</response_label>
+						</flow_label>
+						<flow_label>
+							<response_label ident="D">
+								<material>
+									<mattext>Pump</mattext>
+								</material>
+							</response_label>
+						</flow_label>
+						<flow_label>
+							<response_label ident="E">
+								<material>
+									<mattext>Set of imperial allen keys</mattext>
+								</material>
+							</response_label>
+						</flow_label>
+						<flow_label>
+							<response_label ident="F">
+								<material>
+									<mattext>Small cross-headed screwdriver</mattext>
+								</material>
+							</response_label>
+						</flow_label>
+					</render_choice>
+				</response_lid>
+			</flow>
+		</presentation>
+		<resprocessing>
+			<outcomes>
+				<decvar varname="SCORE1" vartype="Integer" defaultval="1"/>
+			</outcomes>
+			<respcondition>
+				<qticomment>Scoring for the correct answer.</qticomment>
+				<conditionvar>
+					<varequal respident="MR01">A</varequal>
+					<varequal respident="MR01">C</varequal>
+					<varequal respident="MR01">F</varequal>
+					<not>
+						<varequal respident="MR01">B</varequal>
+					</not>
+					<not>
+						<varequal respident="MR01">D</varequal>
+					</not>
+					<not>
+						<varequal respident="MR01">E</varequal>
+					</not>
+				</conditionvar>
+				<setvar action="Add" varname="SCORE1">5</setvar>
+				<displayfeedback feedbacktype="Response" linkrefid="Correct"/>
+			</respcondition>
+		</resprocessing>
+		<itemfeedback ident="Correct" view="Candidate">
+			<flow_mat>
+				<material>
+					<mattext>Yes, modern Shimano FDs require a chain splitter and metric allen keys
+						for installation. You will also need a cross-headed screwdriver for final
+						adjustments.</mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>
+	</item>
+</questestinterop>

@@ -1,0 +1,91 @@
+<?xml version = "1.0" encoding = "UTF-8" standalone = "no"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
+<questestinterop>
+	<qticomment>MRQ hotspot question with hard to find images.</qticomment>
+	<item title="Multiple Response Hotspot Item" ident="PYSLET_MRSP_IR_02">
+		<presentation label="PysletExample_MRSP_IR_02">
+			<flow>
+				<material>
+					<matimage imagtype="image/gif" uri="solar.gif" x0="50" width="240" y0="200"
+						height="180"/>
+					<matimage imagtype="image/gif" uri="absorbed.gif" x0="350" width="240" y0="200"
+						height="180"/>
+				</material>
+				<flow>
+					<material>
+						<mattext texttype="text/html"><![CDATA[The arrows in the diagrams show the approximate
+							energy balance of the earth. The energy flows are shown as percentages
+							of the total incoming solar radiation of 342 W/m<sup>2</sup> based on
+							figures published by the IPCC in 2001. Two of the labels have been
+							labelled incorrectly, indicate which two by marking selecting them on
+							the diagram.]]></mattext>
+					</material>
+					<response_lid ident="MR02" rcardinality="Multiple" rtiming="No">
+						<render_hotspot minnumber="0" maxnumber="2">
+							<response_label ident="A" rarea="Rectangle"
+								>140,280,70,55</response_label>
+							<response_label ident="B" rarea="Rectangle"
+								>190,235,70,55</response_label>
+							<response_label ident="C" rarea="Rectangle"
+								>385,290,65,50</response_label>
+							<response_label ident="D" rarea="Rectangle"
+								>435,225,55,50</response_label>
+							<response_label ident="E" rarea="Rectangle"
+								>490,290,65,50</response_label>
+						</render_hotspot>
+					</response_lid>
+				</flow>
+			</flow>
+		</presentation>
+		<resprocessing>
+			<outcomes>
+				<decvar defaultval="0"/>
+			</outcomes>
+			<respcondition>
+				<qticomment>Scoring for the correct answer.</qticomment>
+				<conditionvar>
+					<varequal respident="MR02">A</varequal>
+					<varequal respident="MR02">E</varequal>
+				</conditionvar>
+				<setvar action="Add">1</setvar>
+				<displayfeedback feedbacktype="Response" linkrefid="Correct"/>
+			</respcondition>
+			<respcondition>
+				<qticomment>Response trigger for incorrect answer.</qticomment>
+				<conditionvar>
+					<not>
+						<and>
+							<varequal respident="MR02">A</varequal>
+							<varequal respident="MR02">E</varequal>
+						</and>
+					</not>
+				</conditionvar>
+				<setvar action="Add">0</setvar>
+				<displayfeedback feedbacktype="Solution" linkrefid="CorrectSoln"/>
+			</respcondition>
+		</resprocessing>
+		<itemfeedback ident="Correct" view="Candidate">
+			<flow_mat>
+				<material>
+					<mattext>Yes, surface reflection is much lower than indicated and back radiation from greenhouse gases is much higher.</mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>
+		<itemfeedback ident="CorrectSoln" view="Candidate">
+			<solution feedbackstyle="Complete">
+				<solutionmaterial>
+					<flow_mat>
+						<material>
+							<mattext>The surface reflection and greenhouse gas back radiation were labelled incorrectly.  The
+							correct labels are shown here.</mattext>
+							<matimage imagtype="image/gif" uri="solar1.gif" x0="50" width="240" y0="200"
+								height="180"/>
+							<matimage imagtype="image/gif" uri="absorbed1.gif" x0="350" width="240" y0="200"
+								height="180"/>
+						</material>
+					</flow_mat>
+				</solutionmaterial>
+			</solution>
+		</itemfeedback>
+	</item>
+</questestinterop>

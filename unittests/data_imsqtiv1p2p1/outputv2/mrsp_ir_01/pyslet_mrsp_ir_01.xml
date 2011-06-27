@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+	identifier="PYSLET_MRSP_IR_01" title="Simple Multiple Response Item" adaptive="false"
+	timeDependent="false">
+	<responseDeclaration identifier="MR01" cardinality="multiple" baseType="identifier"/>
+	<outcomeDeclaration identifier="FEEDBACK" cardinality="multiple" baseType="identifier"/>
+	<outcomeDeclaration identifier="SCORE1" cardinality="single" baseType="integer">
+		<defaultValue>
+			<value>1</value>
+		</defaultValue>
+	</outcomeDeclaration>
+	<itemBody>
+		<div label="PysletExample_MRSP_IR_01">
+			<p>Which of the following tools would you need to replace a Shimano 10-speed Front
+				Derailleur?</p>
+			<choiceInteraction responseIdentifier="MR01" shuffle="true" maxChoices="4"
+				minChoices="1">
+				<simpleChoice identifier="A" fixed="false">Chain splitting tool</simpleChoice>
+				<simpleChoice identifier="B" fixed="false">15mm spanner</simpleChoice>
+				<simpleChoice identifier="C" fixed="false">Set of metric allen keys</simpleChoice>
+				<simpleChoice identifier="D" fixed="false">Pump</simpleChoice>
+				<simpleChoice identifier="E" fixed="false">Set of imperial allen keys</simpleChoice>
+				<simpleChoice identifier="F" fixed="false">Small cross-headed screwdriver</simpleChoice>
+			</choiceInteraction>
+		</div>
+	</itemBody>
+	<responseProcessing>
+		<responseCondition>
+			<responseIf>
+				<and>
+					<member>
+						<baseValue baseType="identifier">A</baseValue>
+						<variable identifier="MR01"/>
+					</member>
+					<member>
+						<baseValue baseType="identifier">C</baseValue>
+						<variable identifier="MR01"/>
+					</member>
+					<member>
+						<baseValue baseType="identifier">F</baseValue>
+						<variable identifier="MR01"/>
+					</member>
+					<not>
+						<member>
+							<baseValue baseType="identifier">B</baseValue>
+							<variable identifier="MR01"/>
+						</member>
+					</not>
+					<not>
+						<member>
+							<baseValue baseType="identifier">D</baseValue>
+							<variable identifier="MR01"/>
+						</member>
+					</not>
+					<not>
+						<member>
+							<baseValue baseType="identifier">E</baseValue>
+							<variable identifier="MR01"/>
+						</member>
+					</not>
+				</and>
+				<setOutcomeValue identifier="SCORE1">
+					<sum>
+						<variable identifier="SCORE1"/>
+						<baseValue baseType="integer">5</baseValue>
+					</sum>
+				</setOutcomeValue>
+				<setOutcomeValue identifier="FEEDBACK">
+					<multiple>
+						<variable identifier="FEEDBACK"/>
+						<baseValue baseType="identifier">Correct</baseValue>
+					</multiple>
+				</setOutcomeValue>
+			</responseIf>
+		</responseCondition>
+	</responseProcessing>
+	<modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Correct">Yes, modern
+		Shimano FDs require a chain splitter and metric allen keys for installation. You will also
+		need a cross-headed screwdriver for final adjustments.</modalFeedback>
+</assessmentItem>

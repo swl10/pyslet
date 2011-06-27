@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="PYSLET_FIBS_IR_01" title="Standard FIB Text Item" adaptive="false"
+    timeDependent="false">
+    <responseDeclaration identifier="FIB01" cardinality="single" baseType="string"/>
+    <outcomeDeclaration identifier="FEEDBACK" cardinality="multiple" baseType="identifier"/>
+    <outcomeDeclaration identifier="FIBSCORE" cardinality="single" baseType="integer">
+        <defaultValue>
+            <value>0</value>
+        </defaultValue>
+    </outcomeDeclaration>
+    <itemBody>
+            <p label="PysletExample_FIBS_IR_01">What is the next letter in this famous sequence: <br/>O, T, T, F, F,
+                    <textEntryInteraction responseIdentifier="FIB01" expectedLength="1"/>,...</p>
+    </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <match>
+                    <variable identifier="FIB01"/>
+                    <baseValue baseType="string">S</baseValue>
+                </match>
+                <setOutcomeValue identifier="FIBSCORE">
+                    <sum>
+                        <variable identifier="FIBSCORE"/>
+                        <baseValue baseType="integer">1</baseValue>
+                    </sum>
+                </setOutcomeValue>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">Correct</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseIf>
+        </responseCondition>
+    </responseProcessing>
+    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Correct">'S' is correct.
+        These are of course the first letters of the words one, two, three,...</modalFeedback>
+</assessmentItem>

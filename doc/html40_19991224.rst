@@ -1,0 +1,59 @@
+HTML
+====
+
+.. py:module:: pyslet.html40_19991224
+
+This module defines functions and classes for working with HTML documents.  The
+version of the standard implemented is, loosely speaking, the HTML 4.0.1
+Specification: http://www.w3.org/TR/html401/
+
+This module contains code that can help parse HTML documents into classes based
+on the basic :mod:`xml20081126` XML module, acting as a gateway to XHTML.
+
+This module also exposes a number of internal functions typically defined
+privately in HTML parser implementations which make it easier to reuse concepts
+from HTML in other modules.  For example, the :class:`LengthType` used for
+storing HTML lengths (which can be pixel or relative) is used extensively by
+:mod:`imsqtiv2p1`.
+
+
+..	data:: HTML40_PUBLICID
+
+	The public ID to use in the declaration of an HTML document
+
+..	data:: XHTML_NAMESPACE
+
+	The namespace to use in the delcaration of an XHTML document
+
+
+Basic Types
+-----------
+
+..	autoclass:: LengthType
+	:members:
+	:show-inheritance:
+
+..	automethod:: LengthType.__unicode__
+
+..	automethod:: LengthType.__str__
+
+
+..	autofunction:: DecodeLength
+
+..	autofunction:: EncodeLength
+
+..	autoclass:: Coords
+	:members:
+	:show-inheritance:
+
+..	automethod:: Coords.__unicode__
+
+..	automethod:: Coords.__str__
+
+..	autofunction:: DecodeCoords
+
+..	autofunction:: EncodeCoords
+
+
+
+

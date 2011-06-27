@@ -1,0 +1,47 @@
+<?xml version = "1.0" encoding = "UTF-8" standalone = "no"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
+<questestinterop>
+	<qticomment>Fill-in-the-blank text example.</qticomment>
+	<item title = "Standard FIB Text Item" ident = "PYSLET_FIBS_IR_01">
+		<presentation label = "PysletExample_FIBS_IR_01">
+			<flow>
+				<material>
+					<mattext>What is the next letter in this famous sequence: </mattext>
+				</material>
+				<flow>
+					<material> 
+						<mattext>O, T, T, F, F, </mattext>
+					</material>
+					<response_str ident = "FIB01" rcardinality = "Single" rtiming = "No">
+						<render_fib fibtype = "String" prompt = "Dashline" maxchars = "1">
+							<response_label ident = "A"/>
+							<material>
+								<mattext>,...</mattext>
+							</material>
+						</render_fib>
+					</response_str>
+				</flow>
+			</flow>
+		</presentation>
+		<resprocessing>
+			<outcomes>
+				<decvar varname = "FIBSCORE" vartype = "Integer" defaultval = "0"/>
+			</outcomes>
+			<respcondition>
+				<qticomment>Scoring for the correct answer.</qticomment>
+				<conditionvar>
+					<varequal respident = "FIB01" case = "Yes">S</varequal>
+				</conditionvar>
+				<setvar action = "Add" varname = "FIBSCORE">1</setvar>
+				<displayfeedback feedbacktype = "Response" linkrefid = "Correct"/>
+			</respcondition>
+		</resprocessing>
+		<itemfeedback ident = "Correct" view = "Candidate">
+			<flow_mat>
+				<material>
+					<mattext>'S' is correct.  These are of course the first letters of the words one, two, three,...</mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>
+	</item>
+</questestinterop>
