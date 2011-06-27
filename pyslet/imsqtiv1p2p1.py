@@ -84,6 +84,57 @@ def EncodeArea(value):
 	return QTIArea.encode.get(value,None)
 
 
+class QTIFIBType:
+	"""fibtype enumeration::
+	
+	fibtype      (String | Integer | Decimal | Scientific )  'String'
+	"""
+	decode={
+		'String':1,
+		'Integer':2,
+		'Decimal':3,
+		'Scientific':4
+		}
+xsi.MakeEnumeration(QTIFIBType)
+
+def DecodeFIBType(value):
+	"""Decodes a fibtype value from a string."""
+	try:
+		value=value.strip()
+		value=value[0].upper()+value[1:].lower()
+		return QTIFIBType.decode[value]
+	except KeyError:
+		raise ValueError("Can't decode fibtype from %s"%value)
+
+def EncodeFIBType(value):
+	return QTIFIBType.encode.get(value,None)
+
+
+class QTIPromptType:
+	"""prompt enumeration::
+	
+	prompt       (Box | Dashline | Asterisk | Underline )"""
+	decode={
+		'Box':1,
+		'Dashline':2,
+		'Asterisk':3,
+		'Underline':4
+		}
+xsi.MakeEnumeration(QTIPromptType)
+
+def DecodePromptType(value):
+	"""Decodes a prompt value from a string."""
+	try:
+		value=value.strip()
+		value=value[0].upper()+value[1:].lower()
+		return QTIPromptType.decode[value]
+	except KeyError:
+		raise ValueError("Can't decode prompt from %s"%value)
+
+def EncodePromptType(value):
+	return QTIPromptType.encode.get(value,None)
+
+
 class QTIOrientation:
 	"""Orientation enumeration::
 	
@@ -423,9 +474,35 @@ class QTILinkRefIdMixin:
 <!ENTITY % I_MinNumber " minnumber CDATA  #IMPLIED">
 
 <!ENTITY % I_MaxNumber " maxnumber CDATA  #IMPLIED">
+"""
 
-<!ENTITY % I_FeedbackStyle " feedbackstyle  (Complete | Incremental | Multilevel | Proprietary )  'Complete'">
+class QTIFeedbackStyle:
+	"""feedbackstyle enumeration::
+	
+	<!ENTITY % I_FeedbackStyle " feedbackstyle  (Complete | Incremental | Multilevel | Proprietary )  'Complete'">
+	"""
+	decode={
+		'Complete':1,
+		'Incremental':2,
+		'Multilevel':3,
+		'Proprietary':4
+		}		
+xsi.MakeEnumeration(QTIFeedbackStyle)
 
+def DecodeFeedbackStyle(value):
+	"""Decodes a feedbackstyle value from a string."""
+	try:
+		value=value.strip()
+		value=value[0].upper()+value[1:].lower()
+		return QTIFeedbackStyle.decode[value]
+	except KeyError:
+		raise ValueError("Can't decode feedbackstyle from %s"%value)
+
+def EncodeFeedbackStyle(value):
+	return QTIFeedbackStyle.encode.get(value,'Complete')
+
+
+"""
 <!ENTITY % I_Case " case  (Yes | No )  'No'">
 
 <!ENTITY % I_EntityRef " entityref ENTITY  #IMPLIED">
@@ -704,21 +781,48 @@ class QTIContentMixin:
 		return string.join(result,' '),lang
 	
 	def MigrateV2Content(self,parent,log):
-		"""Migrates this content to v2 adding it to the parent content node."""
-		raise QTIUnimplementedError(self.xmlname)
+		"""Migrates any contentChildren to v2 adding it to the parent content node."""
+		if self.InlineChildren():
+			brBefore=brAfter=False
+			firstItem=True
+			for child in self.contentChildren:
+				if brAfter:
+					parent.ChildElement(html.XHTMLBr,(qtiv2.IMSQTI_NAMESPACE,'br'))
+					brAfter=False
+				if isinstance(child,(QTIFlow,QTIFlowMat,QTIFlowLabel)):
+					brBefore=not firstItem
+					brAfter=True
+				if brBefore:
+					parent.ChildElement(html.XHTMLBr,(qtiv2.IMSQTI_NAMESPACE,'br'))
+					brBefore=False
+				child.MigrateV2Content(parent,log)
+				firstItem=False
+		else:
+			self.MigrateV2ContentMixture(self.contentChildren,parent,log)
 
 	def MigrateV2ContentMixture(self,mixedupChildren,parent,log):
 		p=None
+		brBefore=False
+		brAfter=False
 		for child in mixedupChildren:
 			try:
 				if child.IsInline():
+					if brAfter:
+						parent.ChildElement(html.XHTMLBr,(qtiv2.IMSQTI_NAMESPACE,'br'))
+						brAfter=False
+					if isinstance(child,(QTIFlow,QTIFlowMat,QTIFlowLabel)):
+						brBefore=brAfter=True
 					if p is None:
 						p=parent.ChildElement(html.XHTMLP,(qtiv2.IMSQTI_NAMESPACE,'p'))
-						#p.styleClass=self.__class__.__name__
+						brBefore=False
+					if brBefore:
+						parent.ChildElement(html.XHMTLBr)
+						brBefore=False
 					child.MigrateV2Content(p,log)
 				else:
 					# stop collecting inlines
 					p=None
+					brBefore=brAfter=False
 					child.MigrateV2Content(parent,log)
 			except AttributeError:
 				log.append("Error: unsupported content element "+child.xmlname)
@@ -752,14 +856,7 @@ class QTIFlowMatContainer(QTICommentElement,QTIContentMixin):
 		child=QTIFlowMat(self)
 		self.contentChildren.append(child)
 		return child
-		
-	def MigrateV2Content(self,parent,log):
-		if self.InlineChildren():
-			for child in self.contentChildren:
-				child.MigrateV2Content(parent,log)
-		else:
-			self.MigrateV2ContentMixture(self.contentChildren,parent,log)
-		
+				
 
 class QTIFlowContainer(QTICommentElement,QTIContentMixin):
 	"""Abstract class used to represent objects that contain flow and friends
@@ -786,18 +883,10 @@ class QTIFlowContainer(QTICommentElement,QTIContentMixin):
 		self.contentChildren.append(child)
 		return child
 	
-	def QTIResponseLId(self):
-		child=QTIResponseLId(self)
+	def QTIResponseThing(self,childClass):
+		child=childClass(self)
 		self.contentChildren.append(child)
 		return child
-
-	def MigrateV2Content(self,parent,log):
-		if self.InlineChildren():
-			# we add our children directly to the parent
-			for child in self.contentChildren:
-				child.MigrateV2Content(parent,log)
-		else:
-			self.MigrateV2ContentMixture(self.contentChildren,parent,log)
 
 
 class QTIMaterial(QTICommentElement,QTIContentMixin):
@@ -827,10 +916,6 @@ class QTIMaterial(QTICommentElement,QTIContentMixin):
 		child=childClass(self)
 		self.contentChildren.append(child)
 		return child
-	
-	def MigrateV2Content(self,parent,log):
-		for child in self.contentChildren:
-			child.MigrateV2Content(parent,log)
 		
 
 class QTIMatThingMixin(QTIContentMixin):
@@ -1017,9 +1102,9 @@ class QTIMatImage(QTIElement,QTIPositionMixin,QTIMatThingMixin):
 		img=parent.ChildElement(html.XHTMLImg,(qtiv2.IMSQTI_NAMESPACE,'img'))
 		img.src=self.ResolveURI(self.uri)
 		if self.width is not None:
-			img.width=(html.LengthType.pixel,self.width)
+			img.width=html.LengthType(self.width)
 		if self.height is not None:
-			img.height=(html.LengthType.pixel,self.height)
+			img.height=html.LengthType(self.height)
 	
 
 class QTIMatAudio(QTIElement,QTIMatThingMixin):
@@ -1470,6 +1555,21 @@ class QTINot(QTIElement,QTIExpressionMixin):
 	XMLNAME="not"
 	XMLCONTENT=xml.XMLElementContent
 	
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.QTIExpressionMixin=None
+	
+	def GetChildren(self):
+		return self.QTIExpressionMixin
+
+	def MigrateV2Expression(self,parent,log):
+		if self.QTIExpressionMixin is None:
+			log.append("Warning: empty not condition replaced with null operator")
+			parent.ChildElement(qtiv2.QTINull)
+		else:
+			eNot=parent.ChildElement(qtiv2.QTINot)
+			self.QTIExpressionMixin.MigrateV2Expression(eNot,log)
+
 
 class QTIAnd(QTIElement,QTIExpressionMixin):
 	"""Represents the and element.
@@ -1483,6 +1583,22 @@ class QTIAnd(QTIElement,QTIExpressionMixin):
 	XMLNAME="and"
 	XMLCONTENT=xml.XMLElementContent
 	
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		self.QTIExpressionMixin=[]
+	
+	def GetChildren(self):
+		return self.QTIExpressionMixin
+
+	def MigrateV2Expression(self,parent,log):
+		if len(self.QTIExpressionMixin):
+			eAnd=parent.ChildElement(qtiv2.QTIAnd)
+			for e in self.QTIExpressionMixin:
+				e.MigrateV2Expression(eAnd,log)
+		else:
+			log.append("Warning: empty and condition replaced with null operator")
+			parent.ChildElement(qtiv2.QTINull)
+
 
 class QTIOr(QTIElement,QTIExpressionMixin):
 	"""Represents the or element.
@@ -1513,29 +1629,17 @@ class QTIOr(QTIElement,QTIExpressionMixin):
 			parent.ChildElement(qtiv2.QTINull)
 		
 
-class QTIVarEqual(QTIElement,QTIExpressionMixin):
-	"""Represents the varequal element.
-
-::
-
-	<!ELEMENT varequal (#PCDATA)>
-	
-	<!ATTLIST varequal  %I_Case;
-						 %I_RespIdent;
-						 %I_Index; >
-	"""
-	XMLNAME="varequal"
-	XMLATTR_case=('case',ParseYesNo,FormatYesNo)
+class QTIVarThing(QTIElement,QTIExpressionMixin):
+	"""Abstract class for var* elements."""
 	XMLATTR_respident='responseIdentifier'
 	XMLATTR_index=('index',ParseInteger,FormatInteger)
 	XMLCONTENT=xml.XMLMixedContent
 
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
-		self.case=False
 		self.responseIdentifier=''
 		self.index=None
-	
+
 	def MigrateV2Missing(self,identifier,parent,log):
 		log.append("Warning: test of undeclared response (%s) replaced with Null operator"%identifier)
 		parent.ChildElement(qtiv2.QTINull)
@@ -1554,7 +1658,7 @@ class QTIVarEqual(QTIElement,QTIExpressionMixin):
 	
 	def MigrateV2Value(self,d,parent,log):
 		value=self.GetValue().strip()
-		if d.baseType in (qtiv2.QTIBaseType.pair,qtiv2.QTIBaseType.directedPair):
+		if d.baseType in (qtiv2.QTIBaseType.pair,qtiv2.QTIBaseType.directedPair,qtiv2.QTIBaseType.point):
 			value=value.replace(',',' ')
 		elif d.baseType==qtiv2.QTIBaseType.identifier:
 			value=qtiv2.ValidateIdentifier(value)
@@ -1562,6 +1666,25 @@ class QTIVarEqual(QTIElement,QTIExpressionMixin):
 		bv.baseType=d.baseType
 		bv.SetValue(value)
 		
+	
+class QTIVarEqual(QTIVarThing):
+	"""Represents the varequal element.
+
+::
+
+	<!ELEMENT varequal (#PCDATA)>
+	
+	<!ATTLIST varequal  %I_Case;
+						 %I_RespIdent;
+						 %I_Index; >
+	"""
+	XMLNAME="varequal"
+	XMLATTR_case=('case',ParseYesNo,FormatYesNo)
+
+	def __init__(self,parent):
+		QTIVarThing.__init__(self,parent)
+		self.case=False
+	
 	def MigrateV2Expression(self,parent,log):
 		v2Item=parent.GetAssessmentItem()
 		identifier=qtiv2.ValidateIdentifier(self.responseIdentifier)
@@ -1674,7 +1797,7 @@ class QTIVarSubset(QTIElement,QTIExpressionMixin):
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTIVarInside(QTIElement,QTIExpressionMixin):
+class QTIVarInside(QTIVarThing):
 	"""Represents the varinside element.
 
 ::
@@ -1685,8 +1808,32 @@ class QTIVarInside(QTIElement,QTIExpressionMixin):
 						  %I_RespIdent;
 						  %I_Index; >
 	"""
-	XMLNAME="varsubset"
+	XMLNAME="varinside"
+	XMLATTR_areatype=('areaType',DecodeArea,EncodeArea)
 	XMLCONTENT=xml.XMLMixedContent
+
+	def __init__(self,parent):
+		QTIVarThing.__init__(self,parent)
+		self.areaType=None
+	
+	def MigrateV2Expression(self,parent,log):
+		v2Item=parent.FindParent(qtiv2.QTIAssessmentItem)
+		identifier=qtiv2.ValidateIdentifier(self.responseIdentifier)
+		d=v2Item.declarations.get(identifier,None)
+		if d is None:
+			self.MigrateV2Missing(identifier,parent,log)
+		elif d.cardinality==qtiv2.QTICardinality.single:
+			# is the point in the area?
+			if d.baseType==qtiv2.QTIBaseType.point:
+				expression=parent.ChildElement(qtiv2.QTIInside)
+				expression.shape,coords=MigrateV2AreaCoords(self.areaType,self.GetValue(),log)
+				for c in coords:
+					expression.coords.values.append(html.LengthType(c))
+				self.MigrateV2Variable(d,expression,log)			
+			else:
+				raise QTIUnimplementedError("varinside(%s)"%qtiv2.EncodeBaseType(d.baseType))
+		else:
+			raise QTIUnimplementedError("varinside with multiple/orderd variable")
 
 
 class QTIVarSubString(QTIElement,QTIExpressionMixin):
@@ -1947,12 +2094,8 @@ class QTIFlowMat(QTIFlowMatContainer):
 			div=parent.ChildElement(html.XHTMLDiv,(qtiv2.IMSQTI_NAMESPACE,'div'))
 			div.styleClass=self.flowClass
 			self.MigrateV2ContentMixture(self.contentChildren,div,log)
-		elif self.InlineChildren():
-			# we add our children directly to the parent
-			for child in self.contentChildren:
-				child.MigrateV2Content(parent,log)
 		else:
-			self.MigrateV2ContentMixture(self.contentChildren,parent,log)
+			QTIFlowMatContainer.MigrateV2Content(self,parent,log)
 
 
 class QTIPresentationMaterial(QTICommentElement):
@@ -2493,6 +2636,9 @@ class QTIItem(QTICommentElement):
 		"""Converts this item to QTI v2
 		
 		For details, see QTIQuesTestInterop.MigrateV2."""
+		# First thing we do is initialize any fixups
+		for rp in self.QTIResProcessing:
+			rp._interactionFixup={}
 		doc=qtiv2.QTIDocument(root=qtiv2.QTIAssessmentItem)
 		item=doc.root
 		lom=imsmd.LOM(None)
@@ -2637,7 +2783,7 @@ class QTIItemMetadata(QTIMetadataContainer):
 		self.QMDTitle=None
 		
 	def GetChildren(self):
-		children=self.QTIMetadata
+		children=self.QTIMetadata[:]
 		xml.OptionalAppend(children,self.QMDComputerScored)
 		xml.OptionalAppend(children,self.QMDFeedbackPermitted)
 		xml.OptionalAppend(children,self.QMDHintsPermitted)
@@ -2933,7 +3079,32 @@ class QTIPresentation(QTIFlowContainer,QTIPositionMixin):
 			self.MigrateV2Content(div,log)
 		else:
 			self.MigrateV2Content(itemBody,log)
-
+		self.CleanHotspotImages(itemBody)
+	
+	def CleanHotspotImages(self,itemBody):
+		"""Removes spurious img tags which represent images used in hotspotInteractions.
+		
+		Unfortunately we have to do this because images needed in hotspot interactions
+		are often clumsily placed outside the response/render constructs.  Rather than
+		fiddle around at the time we simply migrate the lot, duplicating the images
+		in the hotspotInteractions.  When the itemBody is complete we do a grand tidy
+		up to remove spurious images."""
+		hotspots=[]
+		itemBody.FindChildren((qtiv2.QTIHotspotInteraction,qtiv2.QTISelectPointInteraction),hotspots)
+		images=[]
+		itemBody.FindChildren(html.XHTMLImg,images)
+		for hs in hotspots:
+			for img in images:
+				# migrated images/hotspots will always have absolute URIs
+				if img.src and str(img.src)==str(hs.XHTMLObject.data):
+					parent=img.parent
+					parent.DeleteChild(img)
+					if isinstance(parent,html.XHTMLP) and len(parent.GetChildren())==0:
+						# It is always safe to remove a paragraph left empty by deleting an image
+						# The chance are the paragraphic was created by us to house a matimage
+						parent.parent.DeleteChild(parent)
+					
+		
 	def IsInline(self):
 		return False
 		
@@ -2983,27 +3154,21 @@ class QTIFlow(QTIFlowContainer):
 			div=parent.ChildElement(html.XHTMLDiv,(qtiv2.IMSQTI_NAMESPACE,'div'))
 			div.styleClass=self.flowClass
 			self.MigrateV2ContentMixture(self.contentChildren,div,log)
-		elif self.InlineChildren():
-			for child in self.contentChildren:
-				child.MigrateV2Content(parent,log)
 		else:
-			self.MigrateV2ContentMixture(self.contentChildren,parent,log)			
+			QTIFlowContainer.MigrateV2Content(self,parent,log)
 	
 
-class QTIResponseLId(QTIElement,QTIContentMixin):
-	"""Represents the response_lid element.
+class QTIResponseThing(QTIElement,QTIContentMixin):
+	"""Abstract class for the main response_* elements::
 	
-::
-
-	<!ELEMENT response_lid ((material | material_ref)? ,
+	<!ELEMENT response_* ((material | material_ref)? ,
 		(render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
 		(material | material_ref)?)>
 
-	<!ATTLIST response_lid  %I_Rcardinality;
+	<!ATTLIST response_*  %I_Rcardinality;
                          %I_Rtiming;
-                         %I_Ident; >
+                         %I_Ident; >		
 	"""
-	XMLNAME='response_lid'
 	XMLATTR_ident='ident'
 	XMLATTR_rcardinality=('rCardinality',DecodeRCardinality,EncodeRCardinality)
 	XMLATTR_rtiming=('rTiming',ParseYesNo,FormatYesNo)	
@@ -3012,9 +3177,9 @@ class QTIResponseLId(QTIElement,QTIContentMixin):
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
 		QTIContentMixin.__init__(self)
+		self.ident=None
 		self.rCardinality=QTIRCardinality.Single
 		self.rTiming=False
-		self.ident=None
 		self.intro=[]
 		self.prompt=[]
 		self.inlinePrompt=True
@@ -3022,9 +3187,17 @@ class QTIResponseLId(QTIElement,QTIContentMixin):
 		self.outro=[]
 		self.footer=[]
 		self.inlineFooter=True
-		
+
 	def QTIMaterial(self):
 		child=QTIMaterial(self)
+		if self.render:
+			self.outro.append(child)
+		else:
+			self.intro.append(child)
+		return child
+	
+	def QTIMaterialRef(self):
+		child=QTIMaterialRef(self)
 		if self.render:
 			self.outro.append(child)
 		else:
@@ -3041,24 +3214,27 @@ class QTIResponseLId(QTIElement,QTIContentMixin):
 		self.render=child
 		return child
 	
-	def QTIMaterialRef(self):
-		child=QTIMaterialRef(self)
-		if self.render:
-			self.outro.append(child)
-		else:
-			self.intro.append(child)
-		return child
-	
 	def GetChildren(self):
-		children=self.intro
+		children=self.intro[:]
 		if self.render:
 			children.append(self.render)
 		return children+self.outro
 
 	def GotChildren(self):
-		# multi-interaction fibs need special treatment: to do
-		# Start by finding the prompt
-		if self.render:
+		if isinstance(self.render,QTIRenderFIB) and self.render.labels:
+			# if the interaction is just a bunch of textInteractions we
+			# can do with a simplified the prompt logic.
+			self.prompt=self.intro
+			self.inlintPrompt=True
+			for child in self.prompt:
+				if not child.IsInline():
+					self.inlinePrompt=False
+			self.footer=self.outro			
+			self.inlineFooter=True
+			for child in self.footer:
+				if not child.IsInline():
+					self.inlineFooter=False
+		elif self.render:
 			# all the material up to the first response_label is the prompt
 			self.prompt=[]
 			self.inlinePrompt=True
@@ -3086,6 +3262,10 @@ class QTIResponseLId(QTIElement,QTIContentMixin):
 	def InlineChildren(self):
 		return self.inlinePrompt and (self.render is None or self.render.IsInline()) and self.inlineFooter
 
+	def GetBaseType(self,interaction):
+		"""Returns the base type to use for the given interaction."""
+		raise QTIUnimplementedError("BaseType selection for %s"%self.__class__.__name__)
+
 	def MigrateV2Content(self,parent,log):
 		if self.inlinePrompt:
 			interactionPrompt=self.prompt
@@ -3094,34 +3274,79 @@ class QTIResponseLId(QTIElement,QTIContentMixin):
 			if isinstance(self.render,QTIRenderHotspot):
 				div=parent.ChildElement(html.XHTMLDiv,(qtiv2.IMSQTI_NAMESPACE,'div'))
 				self.MigrateV2ContentMixture(self.prompt,div,log)
-				# Now we need to strip the first image and pass it to render hotspot instead
-				# which we do by reusing the interactionPrompt.
+				# Now we need to find any images and pass them to render hotspot instead
+				# which we do by reusing the interactionPrompt (currently we only find
+				# the first image).
 				interactionPrompt=[]
 				div.FindChildren(html.XHTMLImg,interactionPrompt,1)
-				if interactionPrompt:
-					# we will use this one as the prompt
-					img=interactionPrompt[0]
-					img.parent.DeleteChild(img)
 			else:
 				self.MigrateV2ContentMixture(self.prompt,parent,log)
 		if self.render:
-			interaction=self.render.MigrateV2Interaction(parent,interactionPrompt,log)
-			interaction.responseIdentifier=qtiv2.ValidateIdentifier(self.ident)
-			item=interaction.GetAssessmentItem()
+			interactionList=self.render.MigrateV2Interaction(parent,interactionPrompt,log)
+			item=parent.FindParent(qtiv2.QTIAssessmentItem)
+			if len(interactionList)>1 and self.rCardinality==QTIRCardinality.Single:
+				log.append("Error: unable to migrate a response with Single cardinality to a single interaction: %s"%self.ident) 
+				interactionList=[]
+				responseList=[]
+			else:
+				baseIdentifier=qtiv2.ValidateIdentifier(self.ident)
+				responseList=[]
+				if len(interactionList)>1:
+					i=0
+					for interaction in interactionList:
+						i=i+1
+						while True:
+							rIdentifier="%s_%02i"%(baseIdentifier,i)
+							if item is None or not item.IsDeclared(rIdentifier):
+								break
+						interaction.responseIdentifier=rIdentifier
+						responseList.append(rIdentifier)
+				elif interactionList:	
+					interaction=interactionList[0]
+					interaction.responseIdentifier=baseIdentifier
+					responseList=[interaction.responseIdentifier]
 			if item:
-				d=item.ChildElement(qtiv2.QTIResponseDeclaration)
-				d.identifier=interaction.responseIdentifier
-				d.cardinality=QTIRCardinality.MigrateV2[self.rCardinality]
-				d.baseType=qtiv2.QTIBaseType.identifier
-				item.RegisterDeclaration(d)
+				for r in responseList:
+					d=item.ChildElement(qtiv2.QTIResponseDeclaration)
+					d.identifier=r
+					d.cardinality=QTIRCardinality.MigrateV2[self.rCardinality]
+					d.baseType=self.GetBaseType(interactionList[0])
+					item.RegisterDeclaration(d)
+				if len(responseList)>1:
+					d=item.ChildElement(qtiv2.QTIOutcomeDeclaration)
+					d.identifier=baseIdentifier
+					d.cardinality=QTIRCardinality.MigrateV2[self.rCardinality]
+					d.baseType=self.GetBaseType(interactionList[0])
+					item.RegisterDeclaration(d)
+					# now we need to fix this outcome up with a value in response process
+					selfItem=self.FindParent(QTIItem)
+					if selfItem:
+						for rp in selfItem.QTIResProcessing:
+							rp._interactionFixup[baseIdentifier]=responseList
 		# the footer is in no-man's land so we just back-fill
 		self.MigrateV2ContentMixture(self.footer,parent,log)
 
-
-class QTIResponseXY(QTIElement,QTIContentMixin):
-	"""Represents the response_xy element.
 	
-::
+class QTIResponseLId(QTIResponseThing):
+	"""Represents the response_lid element::
+
+	<!ELEMENT response_lid ((material | material_ref)? ,
+		(render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
+		(material | material_ref)?)>
+
+	<!ATTLIST response_lid  %I_Rcardinality;
+                         %I_Rtiming;
+                         %I_Ident; >
+	"""
+	XMLNAME='response_lid'
+	
+	def GetBaseType(self,interaction):
+		"""We always return identifier for response_lid."""
+		return qtiv2.QTIBaseType.identifier
+
+		
+class QTIResponseXY(QTIResponseThing):
+	"""Represents the response_xy element::
 
 	<!ELEMENT response_xy ((material | material_ref)? ,
 		(render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
@@ -3132,10 +3357,16 @@ class QTIResponseXY(QTIElement,QTIContentMixin):
 							%I_Ident; >
 	"""
 	XMLNAME='response_xy'
-	XMLCONTENT=xml.XMLElementContent
+
+	def GetBaseType(self,interaction):
+		"""We always return identifier for response_lid."""
+		if isinstance(interaction,qtiv2.QTISelectPointInteraction):
+			return qtiv2.QTIBaseType.point
+		else:
+			return QTIResponseThing.GetBaseType(self)
 
 
-class QTIResponseStr(QTIElement,QTIContentMixin):
+class QTIResponseStr(QTIResponseThing):
 	"""Represents the response_str element.
 	
 ::
@@ -3149,7 +3380,10 @@ class QTIResponseStr(QTIElement,QTIContentMixin):
 							 %I_Rtiming; >
 	"""
 	XMLNAME='response_str'
-	XMLCONTENT=xml.XMLElementContent
+
+	def GetBaseType(self,interaction):
+		"""We always return string for response_str."""
+		return qtiv2.QTIBaseType.string
 
 
 class QTIResponseNum(QTIElement,QTIContentMixin):
@@ -3218,6 +3452,21 @@ class QTIResponseLabel(QTIElement,QTIContentMixin):
 		self.ident=''
 		self.rShuffle=True
 		self.rArea=None
+	
+	def IsInline(self):
+		"""Whether or not a response_label is inline depends on the context...
+		
+		render_choice: a choice is a block
+		render_hotspot: at most a label so treated as inline
+		render_fib: always inline
+		"""
+		render=self.FindParent(QTIRenderThing)
+		if isinstance(render,QTIRenderChoice):
+			return False
+		elif isinstance(render,(QTIRenderHotspot,QTIRenderFIB)):
+			return True
+		else:
+			return self.InlineChildren()
 		
 	def InlineChildren(self):
 		children=QTIElement.GetChildren(self)
@@ -3234,9 +3483,12 @@ class QTIResponseLabel(QTIElement,QTIContentMixin):
 			
 	def MigrateV2Content(self,parent,log):
 		"""Migrates this content to v2 adding it to the parent content node."""
-		#raise QTIUnimplementedError(self.xmlname)
-		pass
-
+		render=self.FindParent(QTIRenderThing)
+		if isinstance(render,QTIRenderFIB):
+			interaction=parent.ChildElement(qtiv2.QTITextEntryInteraction)
+			if self.GetChildren():
+				log.append("Warning: ignoring content in response_label")
+		
 	def MigrateV2SimpleChoice(self,interaction,log):
 		"""Migrate this label into a v2 simpleChoice in interaction."""
 		choice=interaction.ChildElement(qtiv2.QTISimpleChoice)
@@ -3264,13 +3516,50 @@ class QTIResponseLabel(QTIElement,QTIContentMixin):
 				if isinstance(child,QTIContentMixin):
 					child.MigrateV2Content(choice,log)
 
-	def MigrateV2HotspotChoice(self,interaction,log):
+	def MigrateV2HotspotChoice(self,interaction,log,xOffset=0,yOffset=0):
 		"""Migrate this label into a v2 hotspotChoice in interaction."""
+		if isinstance(interaction,qtiv2.QTISelectPointInteraction):
+			log.append("Warning: ignoring response_label in selectPointInteraction (%s)"%self.ident)
+			return
 		choice=interaction.ChildElement(qtiv2.QTIHotspotChoice)
 		choice.identifier=qtiv2.ValidateIdentifier(self.ident)
 		# Hard to believe I know, but we sift the content of the response_label
 		# into string data (which is parsed for coordinates) and elements which
 		# have their text extracted for the hotspot label.
+		lang,labelData,valueData=self.ParseValue()
+		choice.shape,coords=MigrateV2AreaCoords(self.rArea,valueData,log)
+		if xOffset or yOffset:
+			qtiv2.OffsetShape(choice.shape,coords,xOffset,yOffset)
+		for c in coords:
+			choice.coords.values.append(html.LengthType(c))
+		if lang is not None:
+			choice.SetLang(lang)
+		if labelData:
+			choice.hotspotLabel=labelData
+		
+	def HotspotInImage(self,matImage):
+		"""Tests this hotspot to see if it overlaps with matImage.
+		
+		The coordinates in the response label are interpreted relative to
+		a notional 'stage' on which the presentation takes place.  If the
+		image does not have X0,Y0 coordinates then it is ignored and
+		we return 0.
+		"""
+		if matImage.x0 is None or matImage.y0 is None:
+			return False
+		if matImage.width is None or matImage.height is None:
+			return False
+		lang,label,value=self.ParseValue()
+		shape,coords=MigrateV2AreaCoords(self.rArea,value,[])
+		bounds=qtiv2.CalculateShapeBounds(shape,coords)
+		if bounds[0]>matImage.x0+matImage.width or bounds[2]<matImage.x0:
+			return False
+		if bounds[1]>matImage.y0+matImage.height or bounds[3]<matImage.y0:
+			return False
+		return True
+	
+	def ParseValue(self):
+		"""Returns lang,label,coords parsed from the value."""
 		valueData=[]
 		labelData=[]
 		lang=None
@@ -3284,15 +3573,8 @@ class QTIResponseLabel(QTIElement,QTIContentMixin):
 				labelData.append(text)
 		valueData=string.join(valueData,' ')
 		labelData=string.join(labelData,' ')
-		choice.shape,coords=MigrateV2AreaCoords(self.rArea,valueData,log)
-		choice.coords=[]
-		for c in coords:
-			choice.coords.append((html.LengthType.pixel,c))
-		if lang is not None:
-			choice.SetLang(lang)
-		if labelData:
-			choice.hotspotLabel=labelData
-		
+		return lang,labelData,valueData
+	
 	
 class QTIFlowLabel(QTICommentElement,QTIContentMixin):
 	"""Represents the flow_label element.
@@ -3321,7 +3603,7 @@ class QTIFlowLabel(QTICommentElement,QTIContentMixin):
 		return child
 
 	def GetChildren(self):
-		children=QTICommentElement.GetChildren()+self.contentChildren
+		children=QTICommentElement.GetChildren(self)+self.contentChildren
 		return children
 		
 	def GetLabelContent(self):
@@ -3377,7 +3659,7 @@ class QTIRenderThing(QTIElement,QTIContentMixin):
 		return child
 		
 	def GetChildren(self):
-		children=self.contentChildren
+		children=self.contentChildren[:]
 		xml.OptionalAppend(children,self.QTIResponseNA)
 		return children
 	
@@ -3389,7 +3671,13 @@ class QTIRenderThing(QTIElement,QTIContentMixin):
 			else:
 				children.append(child)
 		return children
-			
+
+	def IsInline(self):
+		for child in self.GetLabelContent():
+			if not child.IsInline():
+				return False
+		return True
+
 	
 class QTIRenderChoice(QTIRenderThing):
 	"""Represents the render_choice element.
@@ -3440,7 +3728,7 @@ class QTIRenderChoice(QTIRenderThing):
 		for child in self.GetLabelContent():
 			if isinstance(child,QTIResponseLabel):
 				child.MigrateV2SimpleChoice(interaction,log)
-		return interaction
+		return [interaction]
 
 		
 class QTIRenderHotspot(QTIRenderThing):
@@ -3479,16 +3767,22 @@ class QTIRenderHotspot(QTIRenderThing):
 			else:
 				interaction=parent.ChildElement(qtiv2.QTIHotspotInteraction)
 		elif isinstance(self.parent,QTIResponseXY):
-			if self.parent.cardinality=='ordered':
+			if self.parent.rCardinality==QTIRCardinality.Ordered:
 				raise QTIUnimplementedError('response_xy x render_hotspot')
 			else:
-				raise QTIUnimplementedError("SelectPointInteraction")
+				interaction=parent.ChildElement(qtiv2.QTISelectPointInteraction)
 		else:
 			raise QTIUnimplementedError("%s x render_hotspot"%self.parent.__class__.__name__)
 		if self.showDraw:
 			log.append('Warning: ignoring showdraw="Yes", what did you really want to happen?')
+		if self.minNumber is not None:
+			interaction.minChoices=self.minNumber
+		if self.maxNumber is not None:
+			interaction.maxChoices=self.maxNumber
+		labels=[]
+		self.FindChildren(QTIResponseLabel,labels)
 		# prompt is either a single <img> tag we already migrated or.. a set of inline
-		# objects that are still to be migrated (and which must contain the hotspot image).
+		# objects that are still to be migrated (and which should contain the hotspot image).
 		img=None
 		interactionPrompt=None
 		hotspotImage=interaction.ChildElement(html.XHTMLObject,(qtiv2.IMSQTI_NAMESPACE,'object'))
@@ -3498,9 +3792,8 @@ class QTIRenderHotspot(QTIRenderThing):
 				for child in prompt:
 					child.MigrateV2Content(interactionPrompt,log)
 				prompt=[]
-				interactionPrompt.FindChildren(html.XHTMLImg,prompt,1)
-				for img in prompt:
-					img.parent.DeleteChild(img)	
+				interactionPrompt.FindChildren(html.XHTMLImg,prompt,1)				
+		if prompt:
 			# now the prompt should be a list containing a single image to use as the hotspot
 			img=prompt[0]
 			hotspotImage.data=img.src
@@ -3514,16 +3807,67 @@ class QTIRenderHotspot(QTIRenderThing):
 					# Check that this is the right image in case img was embedded in QTIMatText
 					if str(images[0].ResolveURI(images[0].uri))==str(img.ResolveURI(img.src)):
 						hotspotImage.type=images[0].imageType
+			for child in labels:
+				if isinstance(child,QTIResponseLabel):
+					child.MigrateV2HotspotChoice(interaction,log)
+			return [interaction]
 		else:
-			log.append("Error: render_hotspot with no hotspot image")
-		if self.minNumber is not None:
-			interaction.minChoices=self.minNumber
-		if self.maxNumber is not None:
-			interaction.maxChoices=self.maxNumber
-		for child in self.GetLabelContent():
-			if isinstance(child,QTIResponseLabel):
-				child.MigrateV2HotspotChoice(interaction,log)
-		return interaction
+			# tricky, let's start by getting all the matimage elements in the presentation
+			images=[]
+			presentation=self.FindParent(QTIPresentation)
+			if presentation:
+				presentation.FindChildren(QTIMatImage,images)
+			hsi=[]
+			if len(images)==1:
+				# Single image that must have gone AWOL
+				hsi.append((images[0],labels))
+			else:
+				# multiple images are scanned for those at fixed positions in the presentation
+				# which are hit by a hotspot (interpreted relative to the presentation).
+				for img in images:
+					hits=[]
+					for child in labels:
+						if child.HotspotInImage(img):
+							hits.append(child)
+					if hits:
+						# So some of our hotspots hit this image
+						hsi.append((img,hits))
+			if len(hsi)==0:	
+				log.append("Error: omitting render_hotspot with no hotspot image")
+				return []
+			else:
+				img,hits=hsi[0]
+				hotspotImage.data=img.ResolveURI(img.uri)
+				hotspotImage.type=img.imageType
+				hotspotImage.height=html.LengthType(img.height)
+				hotspotImage.width=html.LengthType(img.width)
+				# it will get cleaned up later
+				if len(hsi)>0:
+					# Worst case: multiple images => multiple hotspot interactions
+					if self.maxNumber is not None:
+						log.append("Warning: multi-image hotspot maps to multiple interactions, maxChoices can no longer be enforced")
+					interaction.minChoices=None
+					for child in hits:
+						child.MigrateV2HotspotChoice(interaction,log,img.x0,img.y0)
+					interactionList=[interaction]
+					for img,hits in hsi[1:]:
+						interaction=parent.ChildElement(qtiv2.QTIHotspotInteraction)
+						if self.maxNumber is not None:
+							interaction.maxChoices=self.maxNumber
+						hotspotImage=interaction.ChildElement(html.XHTMLObject,(qtiv2.IMSQTI_NAMESPACE,'object'))
+						hotspotImage.data=img.ResolveURI(img.uri)
+						hotspotImage.type=img.imageType
+						hotspotImage.height=html.LengthType(img.height)
+						hotspotImage.width=html.LengthType(img.width)
+						for child in hits:
+							child.MigrateV2HotspotChoice(interaction,log,img.x0,img.y0)
+						interactionList.append(interaction)
+					return interactionList
+				else:
+					# Best case: single image that just went AWOL
+					for child in labels:
+						child.MigrateV2HotspotChoice(interaction,log,img.x0,img.y0)
+					return [interaction]
 
 
 class QTIRenderSlider(QTIRenderThing):
@@ -3608,10 +3952,10 @@ class QTIRenderSlider(QTIRenderThing):
 			interactionPrompt=interaction.ChildElement(qtiv2.QTIPrompt)
 			for child in prompt:
 				child.MigrateV2Content(interactionPrompt,log)			
-		return interaction
+		return [interaction]
 		
 		
-class QTIRenderFIB(QTIElement):
+class QTIRenderFIB(QTIRenderThing):
 	"""Represents the render_fib element.
 	
 ::
@@ -3629,8 +3973,57 @@ class QTIRenderFIB(QTIElement):
 						   %I_MinNumber; >
 	"""
 	XMLNAME='render_fib'
+	XMLATTR_encoding='encoding'
+	XMLATTR_fibtype=('fibType',DecodeFIBType,EncodeFIBType)
+	XMLATTR_rows=('rows',ParseInteger,FormatInteger)
+	XMLATTR_maxchars=('maxChars',ParseInteger,FormatInteger)
+	XMLATTR_prompt=('prompt',DecodePromptType,EncodePromptType)
+	XMLATTR_columns=('columns',ParseInteger,FormatInteger)
+	XMLATTR_charset='charset'		
+	XMLATTR_maxnumber=('maxNumber',ParseInteger,FormatInteger)
+	XMLATTR_minnumber=('minNumber',ParseInteger,FormatInteger)
 	XMLCONTENT=xml.XMLElementContent
-	
+		
+	def __init__(self,parent):
+		QTIRenderThing.__init__(self,parent)
+		self.encoding='UTF_8'
+		self.fibType=QTIFIBType.String
+		self.rows=None
+		self.maxChars=None
+		self.prompt=None
+		self.columns=None
+		self.charset='ascii-us'
+		self.minNumber=None
+		self.maxNumber=None
+		self.labels=[]
+		
+	def GotChildren(self):
+		self.labels=[]
+		self.FindChildren(QTIResponseLabel,self.labels)
+
+	def IsInline(self):
+		if self.labels:
+			return QTIRenderThing.IsInline(self)
+		else:
+			return False
+		
+	def MigrateV2Interaction(self,parent,prompt,log):
+		if self.labels:
+			QTIRenderThing.MigrateV2Content(self,parent,log)
+			interactionList=[]
+			parent.FindChildren(qtiv2.QTITextEntryInteraction,interactionList)
+			if self.parent.rCardinality==QTIRCardinality.Single and len(interactionList)>1:
+				log.append("Warning: single response fib ignoring all but last <response_label>")
+				for interaction in interactionList[:-1]:
+					interaction.parent.DeleteChild(interaction)
+				interactionList=interactionList[-1:]
+			for interaction in interactionList:
+				if self.maxChars is not None:
+					interaction.expectedLength=self.maxChars
+			return interactionList
+		else:
+			raise QTIUnimplementedError("ExtendedTextInteraction")
+
 
 class QTIResProcessing(QTICommentElement):
 	"""Represents the resprocessing element.
@@ -3669,6 +4062,13 @@ class QTIResProcessing(QTICommentElement):
 	def MigrateV2(self,v2Item,log):
 		"""Migrates v1 resprocessing to v2 ResponseProcessing."""
 		rp=v2Item.ChildElement(qtiv2.QTIResponseProcessing)
+		for outcomeFixup in sorted(self._interactionFixup.keys()):
+			setValue=rp.ChildElement(qtiv2.QTISetOutcomeValue)
+			setValue.identifier=outcomeFixup
+			multi=setValue.ChildElement(qtiv2.QTIMultiple)
+			for rID in self._interactionFixup[outcomeFixup]:
+				var=multi.ChildElement(qtiv2.QTIVariable)
+				var.identifier=rID
 		self.QTIOutcomes.MigrateV2(v2Item,log)
 		cMode=True;ruleContainer=rp
 		for condition in self.conditions:
@@ -3859,36 +4259,66 @@ class QTIItemFeedback(QTIElement,QTIViewMixin,QTIContentMixin):
 		feedback.showHide=qtiv2.QTIShowHide.show
 		feedback.identifier=identifier
 		feedback.title=self.title
-		if self.InlineChildren():
-			for child in self.contentChildren:
-				child.MigrateV2Content(feedback,log)
-		else:
-			self.MigrateV2ContentMixture(self.contentChildren,feedback,log)
+		QTIContentMixin.MigrateV2Content(self,feedback,log)
 			
 		
-class QTISolution(QTICommentElement):
-	"""Represents the solution element.
-	
-::
+class QTISolution(QTIContentMixin,QTICommentElement):
+	"""Represents the solution element::
 
 	<!ELEMENT solution (qticomment? , solutionmaterial+)>
 	
 	<!ATTLIST solution  %I_FeedbackStyle; >
 	"""
 	XMLNAME='solution'
+	XMLATTR_feedbackstyle=('feedbackStyle',DecodeFeedbackStyle,EncodeFeedbackStyle)
+	XMLCONTENT=xml.XMLElementContent
+
+	def __init__(self,parent):
+		QTICommentElement.__init__(self,parent)
+		QTIContentMixin.__init__(self)
+		self.feedbackStyle=QTIFeedbackStyle.Complete
+	
+	def GetChildren(self):
+		return QTICommentElement.GetChildren()+self.contentChildren
+
+	def QTISolutionMaterial(self):
+		child=QTISolutionMaterial(self)
+		self.contentChildren.append(child)
+		return child
+		
+
+class QTIFeedbackMaterial(QTIContentMixin,QTIElement):
+	"""Abstract class for solutionmaterial and hintmaterial::
+
+	<!ELEMENT * (material+ | flow_mat+)>
+	"""
 	XMLCONTENT=xml.XMLElementContent
 	
+	def __init__(self,parent):
+		QTIElement.__init__(self,parent)
+		QTIContentMixin.__init__(self)
 
-class QTISolutionMaterial(QTIElement):
-	"""Represents the solutionmaterial element.
+	def GetChildren(self):
+		return self.contentChildren[:]
+
+	def QTIMaterial(self):
+		child=QTIMaterial(self)
+		self.contentChildren.append(child)
+		return child
 	
-::
+	def QTIFlowMat(self):
+		child=QTIFlowMat(self)
+		self.contentChildren.append(child)
+		return child
+		
+	
+class QTISolutionMaterial(QTIFeedbackMaterial):
+	"""Represents the solutionmaterial element::
 
 	<!ELEMENT solutionmaterial (material+ | flow_mat+)>
 	"""
 	XMLNAME='solutionmaterial'
-	XMLCONTENT=xml.XMLElementContent
-	
+
 
 class QTIHint(QTICommentElement):
 	"""Represents the hint element.
@@ -3900,18 +4330,29 @@ class QTIHint(QTICommentElement):
 	<!ATTLIST hint  %I_FeedbackStyle; >
 	"""
 	XMLNAME='hint'
+	XMLATTR_feedbackstyle=('feedbackStyle',DecodeFeedbackStyle,EncodeFeedbackStyle)
 	XMLCONTENT=xml.XMLElementContent
-	
 
-class QTIHintMaterial(QTIElement):
-	"""Represents the hintmaterial element.
+	def __init__(self,parent):
+		QTICommentElement.__init__(self,parent)
+		QTIContentMixin.__init__(self)
+		self.feedbackStyle=QTIFeedbackStyle.Complete
 	
-::
+	def GetChildren(self):
+		return QTICommentElement.GetChildren()+self.contentChildren
+	
+	def QTIHintMaterial(self):
+		child=QTIHintMaterial(self)
+		self.contentChildren.append(child)
+		return child
+
+
+class QTIHintMaterial(QTIFeedbackMaterial):
+	"""Represents the hintmaterial element::
 
 	<!ELEMENT hintmaterial (material+ | flow_mat+)>
 	"""
 	XMLNAME='hintmaterial'
-	XMLCONTENT=xml.XMLElementContent
 	
 
 #

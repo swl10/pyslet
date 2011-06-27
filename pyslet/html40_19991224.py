@@ -17,43 +17,99 @@ class XHTMLValidityError(XHTMLError): pass
 
 
 class LengthType:
-	pixel=0
-	percentage=1
-
-def DecodeLength(src):
-	"""Parses a length from src returning a tuple of (valueType,value)::
+	"""Represents the HTML Length::
 	
-		# <!ENTITY % Length "CDATA" -- nn for pixels or nn% for percentage length -->
-	
-	* valueType is one of the the LengthType constants or None if no valid value was found
-	* value is the integer value associated with the length
+	<!ENTITY % Length "CDATA" -- nn for pixels or nn% for percentage length -->
 	"""
+	Pixel=0
+	"""data constant used to indicate pixel co-ordinates"""
+	Percentage=1
+	"""data constant used to indicate relative (percentage) co-ordinates"""
+
+	def __init__(self,value,valueType=None):
+		"""	* value can be either an integer value or another LengthType instance.
+	* if value is an integer then valueType can be used to select Pixel or Percentage
+	
+	By default values are assumed to be Pixel lengths."""
+		if isinstance(value,LengthType):
+			self.type=value.type
+			"""type is one of the the LengthType constants: Pixel or Percentage"""
+			self.value=value.value
+			"""value is the integer value of the length"""
+		else:
+			self.type=LengthType.Pixel if valueType is None else valueType 
+			self.value=value
+
+	def __str__(self):
+		"""Formats the length as a string of form nn for pixels or nn% for percentage."""
+		if self.type==LengthType.Percentage:
+			return str(self.value)+'%'
+		else:
+			return str(self.value)
+	
+	def __unicode__(self):
+		"""Formats the length as a unicode string of form nn for pixels or nn% for percentage."""
+		if self.type==LengthType.Percentage:
+			return unicode(self.value)+'%'
+		else:
+			return unicode(self.value)
+
+		
+def DecodeLength(src):
+	"""Parses a length from src returning an instance of LengthType"""
 	valueType=None
 	value=None
 	try:
 		src=src.strip()
 		if src and src[-1]==u'%':
 			src=src[:-1]
-			valueType=LengthType.percentage
+			valueType=LengthType.Percentage
 		else:
-			valueType=LengthType.pixel
+			valueType=LengthType.Pixel
 		value=int(src)
 		if value<0:
-			value=None
-	except:
-		pass
-	return valueType,value
+			raise ValueError
+		return LengthType(value,valueType)
+	except ValueError:
+		raise XHTMLValidityError("Failed to read length from %s"%src)
 
 def EncodeLength(length):
-	"""Encodes a length value from a tuple of valueType and value."""
-	valueType,value=length
-	if value is not None:
-		if valueType==LengthType.percentage:
-			return unicode(value)+'%'
-		elif valueType==LengthType.pixel:
-			return unicode(value)
-	return None
+	"""Encodes a length value from an instance of LengthType."""
+	if length is None:
+		return None
+	else:
+		return unicode(length)
 
+
+class Coords:
+	"""Represents HTML Coords values::
+	
+	<!ENTITY % Coords "CDATA" -- comma-separated list of lengths -->
+	"""
+	def __init__(self,values=None):
+		"""Instances can be initialized from an existing list of values."""
+		if values:
+			self.values=values
+			"""A list of LengthType values."""
+		else:
+			self.values=[]
+
+	def __unicode__(self):
+		"""Formats the Coords as comma-separated unicode string of Length values."""
+		return string.join(map(lambda x:unicode(x),self.values),u',')
+	
+	def __str__(self):
+		"""Formats the Coords as a comma-separated string of Length values."""
+		return string.join(map(lambda x:str(x),self.values),',')
+		
+def DecodeCoords(value):
+	"""Decodes coords from an attribute value into an Coords instance."""
+	return Coords(map(lambda x:DecodeLength(x.strip()),value.split(',')))
+
+def EncodeCoords(coords):
+	"""Encodes an Coords instance as an attribute value."""
+	return unicode(coords)
+			
 
 def DecodeURI(src):
 	"""Decodes a URI from src::
@@ -176,7 +232,7 @@ class XHTMLAddress(XHTMLBlockMixin,XHTMLInlineContainer):
 
 class XHTMLBlockquote(XHTMLBlockMixin,XHTMLElement):
 	# <!ELEMENT BLOCKQUOTE - - (%block;|SCRIPT)+ -- long quotation -->
-	XMLNAME=(XHTML_NAMESPACE,'block')
+	XMLNAME=(XHTML_NAMESPACE,'blockquote')
 	XMLCONTENT=xmlns.XMLElementContent
 
 	def ChildElement(self,childClass,name=None):
@@ -355,8 +411,8 @@ class XHTMLObject(XHTMLSpecialMixin,XHTMLElement):
 		XHTMLElement.__init__(self,parent)
 		self.data=None
 		self.type=None
-		self.height=(None,None)
-		self.width=(None,None)
+		self.height=None
+		self.width=None
 		self.usemap=None
 		self.name=None
 
@@ -539,8 +595,8 @@ class XHTMLImg(XHTMLSpecialMixin,XHTMLElement):
 		self.alt=''
 		self.londesc=None
 		self.name=None
-		self.height=(None,None)
-		self.width=(None,None)
+		self.height=None
+		self.width=None
 		self.usemap=None
 		self.ismap=False
 

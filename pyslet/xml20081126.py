@@ -201,7 +201,7 @@ def EscapeCharData7(src,quote=False):
 		elif c=='<':
 			dst.append("&lt;")
 		elif c=='&':
-			dst.append("&gt;")
+			dst.append("&amp;")
 		elif c=='>':
 			dst.append("&gt;")
 		elif c=='\r':
@@ -768,7 +768,7 @@ class XMLParser:
 					data.append(']')
 			data.append(self.theChar)
 			self.NextChar()
-		return string.join(data,'')		
+		return string.join(data,'')
 
 	def ParseProlog(self):
 		"""[22] prolog ::= XMLDecl? Misc* (doctypedecl Misc*)?
@@ -1561,11 +1561,22 @@ class XMLElement:
 		for child in children:
 			if isinstance(child,childClass):
 				childList.append(child)
-			else:
+			elif isinstance(child,XMLElement):
 				child.FindChildren(childClass,childList,max)
 			if max is not None and len(childList)>=max:
 				break
 
+	def FindParent(self,parentClass):
+		"""Finds the first parent of class parentClass of this element.
+		
+		If this element has no parent of the given class then None is returned."""
+		parent=self.parent
+		while parent and not isinstance(parent,parentClass):
+			if isinstance(parent,XMLElement):
+				parent=parent.parent
+			else:
+				parent=None
+		return parent
 		
 # 	def AdoptChild(self,child):
 # 		"""Attaches an existing orphan child element to this one.

@@ -10,3 +10,5 @@ Contents:
    :maxdepth: 2
    
    xml20081126
+   html40_19991224
+   rfc2396

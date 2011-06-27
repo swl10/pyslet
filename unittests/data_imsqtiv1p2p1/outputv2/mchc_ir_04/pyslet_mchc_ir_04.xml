@@ -17,10 +17,10 @@
                 <prompt>The picture illustrates four of the most popular destinations for air travellers arriving
                     in the United Kingdom: London, Manchester, Edinburgh and Glasgow.  Which one is Glasgow?</prompt>
                 <object data="ukair.gif" type="image/gif" height="280" width="206"></object>
-                <hotspotChoice identifier="A" shape="circle" coords="77 115 8"/>
-                <hotspotChoice identifier="B" shape="circle" coords="96 114 8"/>
-                <hotspotChoice identifier="C" shape="circle" coords="119 184 8"/>
-                <hotspotChoice identifier="D" shape="circle" coords="150 235 8"/>
+                <hotspotChoice identifier="A" shape="circle" coords="77,115,8"/>
+                <hotspotChoice identifier="B" shape="circle" coords="96,114,8"/>
+                <hotspotChoice identifier="C" shape="circle" coords="119,184,8"/>
+                <hotspotChoice identifier="D" shape="circle" coords="150,235,8"/>
             </hotspotInteraction>
         </div>
     </itemBody>

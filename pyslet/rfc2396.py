@@ -365,11 +365,11 @@ def IsQueryReserved(c):
 	
 
 def EncodeUnicodeURI(uSrc):
-	"""Takes a unicode string that is supposed to be a URI and removes non-ASCII characters.
+	"""Takes a unicode string that is supposed to be a URI and returns an octent string.
 	
-	The algorithm used is the same as the one adopted by HTML: utf-8 and then %-escape.
-	This is not part of the RFC standard which only defines the behaviour for streams
-	of octets."""
+	The encoding algorithm used is the same as the one adopted by HTML: utf-8
+	and then %-escape. This is not part of the RFC standard which only defines
+	the behaviour for streams of octets."""
 	octets=[]
 	for c in uSrc:
 		if ord(c)>0x7F:
@@ -381,21 +381,24 @@ def EncodeUnicodeURI(uSrc):
 
 	
 class URI:
-	"""Class to represent URI."""
+	"""Class to represent URI Reference."""
 			
 	def __init__(self,octets):
 		if type(octets) is UnicodeType:
 			octets=EncodeUnicodeURI(octets)
 		uriLen=ParseURIC(octets)
 		self.octets=octets[0:uriLen]
+		"""The octet string representing this URI."""
 		self.fragment=None
+		"""The fragment string that was appended to the URI or None if no fragment was given."""
 		if uriLen<len(octets):
 			if ord(octets[uriLen])==0x23:
 				self.fragment=octets[uriLen+1:]
 		self.scheme=ParseScheme(self.octets)
-		if self.scheme is None:
-			self.schemeSpecificPart=None
-		else:
+		"""The URI scheme, if present."""
+		self.schemeSpecificPart=None
+		"""The scheme specific part of the URI."""
+		if self.scheme is not None:
 			self.schemeSpecificPart=self.octets[len(self.scheme)+1:]
 		if self.IsAbsolute():
 			self.relPath=None
@@ -579,20 +582,20 @@ class URI:
 		If the current URI is also relative then the result is a relative URI,
 		otherwise the result is an absolute URI.  The RFC does not actually go
 		into the procedure for combining relative URIs but if B is an absolute
-		URI and R1 and R2 are relative URIs then it is attractive to think of
-		the non-commutative resolution operation [*]:
+		URI and R1 and R2 are relative URIs then using the resolve operator::
 		
-		U1 = B [*] R1
-		U2 = U1 [*] R2
-		U2 = ( B [*] R1 ) [*] R2
+			U1 = B [*] R1
+			U2 = U1 [*] R2
+			U2 = ( B [*] R1 ) [*] R2
 		
 		The last expression prompts the issue of associativity, in other words,
-		is the following expression also valid?
+		is the following expression also valid? ::
 		
-		U2 = B [*] ( R1 [*] R2 )
+			U2 = B [*] ( R1 [*] R2 )
 		
-		For this to work it must be possible to use the operator to combine two
-		relative URIs to make a third, which is what we allow here."""
+		For this to work it must be possible to use the resolve operator to
+		combine two relative URIs to make a third, which is what we allow
+		here."""
 		if current is None:
 			current=base
 		if not(self.absPath or self.relPath) and self.scheme is None and self.authority is None and self.query is None:
@@ -650,58 +653,48 @@ class URI:
 		return URIFactory.URI(string.join(result,''))
 	
 	def Relative(self,base):
-		"""Returns the current URI expressed relative to base
+		"""Evaluates the Relative operator, returning the current URI expressed relative to base
 		
-		This operation is the complement of the operation defined by Resolve. If
-		we denote this operation with [/], then if B is the base URL and R1 as a
-		relative URL then if we can combine B with R1 to get U we can also
-		calculate R1 by finding U relative to B.
+		As we also allow the Resolve method for relative paths it makes sense
+		for the Relative operator to also be defined::
 		
-		U = B [*] R1  => U [/] B = R1
+			R3 = R1 [*] R2
+			R3 [/] R1 = R2
+			
+		Note that there are some restrictions.... ::
 		
-		We also allow the Resolve method for relative paths:		
-
-		R3 = R1 [*] R2
+			U = B [*] R
 		
-		Therefore, it makes sense for the Relative operator to also be defined:
-		
-		R3 [/] R1 = R2
-		
-		Note that there are some restrictions....
-		
-		C = A [*] B
-		
-		If B is absolute, or simply more specified than A on the following scale:
+		If R is absolute, or simply more specified than B on the following scale:
 		
 		absolute URI > authority > absolute path > relative path
 		
-		then C = B regardless of the value of A and therefore:
+		then U = R regardless of the value of B and therefore::
 		
-		C [/] A = C if A is less specified than C.
+			U [/] B = U if B is less specified than U.
 		
-		Also note that if C is a relative URI then A cannot be absolute. In fact
-		A must always be less than, or equally specified to C because A is the
-		base URI from which C has been derived.
+		Also note that if U is a relative URI then B cannot be absolute. In fact
+		B must always be less than, or equally specified to U because B is the
+		base URI from which U has been derived. ::
 		
-		C [/] A = undefined if A is more specified than C
+			U [/] B = undefined if B is more specified than U
 		
-		Therefore the only interesting cases are when A is equally specified to
-		C.  To give a concrete example...
+		Therefore the only interesting cases are when B is equally specified to
+		U.  To give a concrete example::
 				
-		C = /HD/User/setting.txt
-		A = /HD/folder/file.txt
-		
-		/HD/User/setting.txt [\] /HD/folder/file.txt = ../User/setting.txt
-		/HD/User/setting.txt = /HD/folder/file.txt [*] ../User/setting.txt
+			U = /HD/User/setting.txt
+			B = /HD/folder/file.txt
+			
+			/HD/User/setting.txt [\] /HD/folder/file.txt = ../User/setting.txt
+			/HD/User/setting.txt = /HD/folder/file.txt [*] ../User/setting.txt
 
-		And for relative paths:
+		And for relative paths::
 		
-		C = User/setting.txt
-		A = User/folder/file.txt
-		
-		User/setting.txt [\] User/folder/file.txt = ../setting.txt
-		User/setting.txt = User/folder/file.txt [*] ../setting.txt
-		
+			U = User/setting.txt
+			B = User/folder/file.txt
+			
+			User/setting.txt [\] User/folder/file.txt = ../setting.txt
+			User/setting.txt = User/folder/file.txt [*] ../setting.txt		
 		"""
 		if self.opaquePart is not None:
 			# This is not a hierarchical URI so we can ignore base
@@ -785,10 +778,13 @@ class URI:
 		return str(self)==str(otherURI)
 		
 	def IsAbsolute(self):
+		"""Returns True if this URI is absolute, i.e., fully specified with a scheme name."""
 		return self.scheme is not None
 				
 
 class URIFactoryClass:
+	"""A factory class that contains methods for creating :class:`URI` instances."""
+	
 	def __init__(self):
 		self.urlClass={}
 	
@@ -796,12 +792,23 @@ class URIFactoryClass:
 		self.urlClass[scheme.lower()]=uriClass
 		
 	def URI(self,octets):
+		"""Creates an instance of :class:`URI` from a string of octets."""
 		scheme=ParseScheme(octets)
 		if scheme is not None:
 			scheme=scheme.lower()
 		return self.urlClass.get(scheme,URI)(octets)
 
 	def URLFromPathname(self,path):
+		"""Converts a local file path into a :class:`URI` instance.
+
+		If the path is not absolute it is made absolute by resolving it relative
+		to the current working directory before converting it to a URI.
+
+		Under Windows, the URL is constructed according to the recommendations
+		on this blog post:
+		http://blogs.msdn.com/b/ie/archive/2006/12/06/file-uris-in-windows.aspx
+		So UNC paths are mapped to both the network location and path components
+		of the resulting URI."""
 		host=''
 		segments=[]
 		if not os.path.isabs(path):
@@ -846,7 +853,7 @@ class URIFactoryClass:
 		return r.Resolve(b)
 
 	def Relative(self,u,b):
-		"""Evaluates the relative operator U [\] B, returning U relative to B
+		"""Evaluates the relative operator U [/] B, returning U relative to B
 		
 		The input parameters are converted to URI objects if necessary."""
 		if not isinstance(u,URI):

@@ -2,5 +2,4 @@
 <assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
-    identifier="emptyitem" title="emptyitem" adaptive="false" timeDependent="false">
-</assessmentItem>
+    identifier="emptyitem" title="emptyitem" adaptive="false" timeDependent="false"/>

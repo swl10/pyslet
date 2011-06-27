@@ -160,8 +160,39 @@ class QTIV2ConversionTests(unittest.TestCase):
 				if not result and output is None:
 					# This should not happen
 					self.PrintPrettyWeird(qtiDoc.root,qtiDoc2.root)
-				self.failUnless(qtiDoc.root==qtiDoc2.root,"Files differ at %s (actual output shown first)\n%s"%(fPath,output))	
-
+				self.failUnless(qtiDoc.root==qtiDoc2.root,"QTI Files differ at %s (actual output shown first)\n%s"%(fPath,output))	
+			for f in r.fileList:
+				if f.href is None or f.href.IsAbsolute():
+					continue
+				fPath=f.PackagePath(cp2)
+				fAbsPath=os.path.join(self.cp.dPath,fPath)
+				fAbsPath2=os.path.join(cp2.dPath,fPath)
+				baseURI=str(uri.URIFactory.URLFromPathname(fAbsPath))
+				baseURI2=str(uri.URIFactory.URLFromPathname(fAbsPath2))
+				if os.path.splitext(fAbsPath)[1].lower()=='.xml':
+					# Two xml files, compare with simple XMLElement
+					doc=xml.XMLDocument(baseURI=baseURI)
+					doc.Read()
+					doc2=xml.XMLDocument(baseURI=baseURI2)
+					doc2.Read()
+					output=doc.DiffString(doc2)
+					result=(doc.root==doc2.root)
+					if not result and output is None:
+						# This should not happen
+						self.PrintPrettyWeird(doc.root,doc2.root)
+					self.failUnless(doc.root==doc2.root,"XML Files differ at %s (actual output shown first)\n%s"%(fPath,output))	
+				else:
+					# Binary compare the two files.
+					f=open(fAbsPath,'rb')
+					f2=open(fAbsPath2,'rb')
+					while True:
+						fData=f.read(1024)
+						fData2=f2.read(1024)
+						self.failUnless(fData==fData2,"Binary files don't match: %s"%fPath)
+						if not fData:
+							break							
+				
+				
 	def PrintPrettyWeird(self,e1,e2):
 		c1=e1.GetCanonicalChildren()
 		c2=e2.GetCanonicalChildren()

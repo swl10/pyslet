@@ -188,15 +188,61 @@ def EncodeShape(value):
 	return QTIShape.encode.get(value,None)
 
 
-def DecodeCoords(value):
-	"""Decodes coords into a tuple of length values (which are themselves 2-tuples)."""
-	coords=value.split()
-	return tuple(map(lambda x:html.DecodeLength(x),coords))
+def CalculateShapeBounds(shape,coords):
+	"""Calculates a bounding rectangle from a QTIShape value and a list of *pixel* coordinates."""
+	if shape==QTIShape.circle:
+		return [coords[0]-coords[2],coords[1]-coords[2],coords[0]+coords[2],coords[1]+coords[2]]
+	elif shape==QTIShape.default:
+		return [0,0,1024,768]
+	elif shape==QTIShape.ellipse:
+		return [coords[0]-coords[2],coords[1]-coords[3],coords[0]+coords[2],coords[1]+coords[3]]
+	elif shape==QTIShape.poly:
+		output=[coords[0],coords[1],coords[0],coords[1]]
+		i=1
+		while 2*i+1<len(coords):
+			x=coords[2*i]
+			y=coords[2*i+1]
+			if x<output[0]:
+				output[0]=x
+			elif x>output[2]:
+				output[2]=x
+			if y<output[1]:
+				output[1]=y
+			elif y>output[3]:
+				output[3]=y
+		return output
+	elif shape==QTIShape.rect:
+		return [coords[0],coords[1],coords[2],coords[3]]
+	else:
+		raise ValueError("Unknown value for shape: %s"%str(shape))
 
-def EncodeCoords(coords):
-	return string.join(map(lambda x:html.EncodeLength(x),coords),' ')
 
+def OffsetShape(shape,coords,xOffset,yOffset):
+	"""Interprets the shape coords relative to the given offset and maps them back to the origin.
 	
+	In other words, xOffset and yOffset are subtracted from the coordinates."""
+	if shape==QTIShape.circle:
+		coords[0]-=xOffset
+		coords[1]-=yOffset
+	elif shape==QTIShape.default:
+		pass
+	elif shape==QTIShape.ellipse:
+		coords[0]-=xOffset
+		coords[1]-=yOffset
+	elif shape==QTIShape.poly:
+		i=0
+		while 2*i+1<len(coords):
+			coords[2*i]-=xOffset
+			coords[2*i+1]-=yOffset
+	elif shape==QTIShape.rect:
+		coords[0]-=xOffset
+		coords[1]-=yOffset
+		coords[2]-=xOffset
+		coords[3]-=yOffset
+	else:
+		raise ValueError("Unknown value for shape: %s"%str(shape))
+		
+
 class QTIShowHide:
 	decode={
 		'show':1,
@@ -353,7 +399,10 @@ class QTIAssessmentItem(QTIElement):
 			raise QTIDeclarationError
 		else:
 			self.declarations[declaration.identifier]=declaration
-		
+	
+	def IsDeclared(self,identifier):
+		return self.declarations.has_key(identifier)
+	
 	def AddToContentPackage(self,cp,lom,dName=None):
 		"""Adds a resource and associated files to the content package."""
 		resourceID=cp.manifest.GetUniqueID(self.identifier)
@@ -718,7 +767,7 @@ class QTIInteraction(QTIBodyElement):
 		self.responseIdentifier=''
 	
 
-class QTIInlineInteration(html.XHTMLInlineMixin,QTIInteraction):
+class QTIInlineInteraction(html.XHTMLInlineMixin,QTIInteraction):
 	"""Abstract class for interactions that are treated as inline."""
 	pass
 
@@ -866,6 +915,45 @@ class QTISimpleChoice(QTIFlowContainerMixin,QTIChoice):
 			# This child cannot go in here
 			raise QTIValidityError("%s in %s"%(repr(name),self.__class__.__name__))		
 
+
+#
+#		TEXT-BASED INTERACTIONS
+#
+class QTIStringInteractionMixin:
+	"""Represents the stringInteraction element::
+	
+	<xsd:attributeGroup name="stringInteraction.AttrGroup">
+		<xsd:attribute name="base" type="integer.Type" use="optional"/>
+		<xsd:attribute name="stringIdentifier" type="identifier.Type" use="optional"/>
+		<xsd:attribute name="expectedLength" type="integer.Type" use="optional"/>
+		<xsd:attribute name="patternMask" type="string.Type" use="optional"/>
+		<xsd:attribute name="placeholderText" type="string.Type" use="optional"/>
+	</xsd:attributeGroup>
+	"""	
+	XMLATTR_base=('base',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_stringIdentifier='stringIdentifier'
+	XMLATTR_expectedLength=('expectedLength',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_patternMask='patternMask'
+	XMLATTR_placeholderText='placeholderText'	
+
+	def __init__(self):
+		self.base=None
+		self.stringIdentifier=None
+		self.expectedLength=None
+		self.patternMask=None
+		self.placeholderText=None
+	
+
+class QTITextEntryInteraction(QTIStringInteractionMixin,QTIInlineInteraction):
+	"""Represents the textEntryInteraction element"""
+	XMLNAME=(IMSQTI_NAMESPACE,'textEntryInteraction')
+	XMLCONTENT=xmlns.XMLElementContent
+
+	def __init__(self,parent):
+		QTIInlineInteraction.__init__(self,parent)
+		QTIStringInteractionMixin.__init__(self)
+	
+
 #
 #		GRAPHICAL INTERACTIONS
 #
@@ -879,12 +967,12 @@ class QTIHotspotMixin:
 	</xsd:attributeGroup>
 	"""
 	XMLATTR_shape=('shape',DecodeShape,EncodeShape)
-	XMLATTR_coords=('coords',html.DecodeLength,html.EncodeLength)
+	XMLATTR_coords=('coords',html.DecodeCoords,html.EncodeCoords)
 	XMLATTR_hotspotLabel='hotspotLabel'
 	
 	def __init__(self):
 		self.shape=None
-		self.coords=[]
+		self.coords=html.Coords()
 		self.hotspotLabel=None
 	
 
@@ -953,6 +1041,25 @@ class QTIHotspotInteraction(QTIGraphicInteraction):
 	def GetChildren(self):
 		children=QTIGraphicInteraction.GetChildren(self)
 		return children+self.QTIHotspotChoice
+
+
+class QTISelectPointInteraction(QTIGraphicInteraction):
+	"""Represents the selectPointInteraction element::
+	
+	<xsd:attributeGroup name="selectPointInteraction.AttrGroup">
+		<xsd:attributeGroup ref="graphicInteraction.AttrGroup"/>
+		<xsd:attribute name="maxChoices" type="integer.Type" use="required"/>
+		<xsd:attribute name="minChoices" type="integer.Type" use="optional"/>
+	</xsd:attributeGroup>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'selectPointInteraction')
+	XMLATTR_maxChoices=('maxChoices',xsi.DecodeInteger,xsi.EncodeInteger)	
+	XMLATTR_minChoices=('minChoices',xsi.DecodeInteger,xsi.EncodeInteger)
+
+	def __init__(self,parent):
+		QTIGraphicInteraction.__init__(self,parent)
+		self.maxChoices=1
+		self.minChoices=None
 	
 	
 #
@@ -1481,6 +1588,24 @@ class QTIMatch(QTIExpressionList):
 	XMLNAME=(IMSQTI_NAMESPACE,'match')
 
 
+class QTIInside(QTIUnaryExpression):
+	"""Represents the inside operator::
+
+	<xsd:attributeGroup name="inside.AttrGroup">
+		<xsd:attribute name="shape" type="shape.Type" use="required"/>
+		<xsd:attribute name="coords" type="coords.Type" use="required"/>
+	</xsd:attributeGroup>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'inside')
+	XMLATTR_shape=('shape',DecodeShape,EncodeShape)
+	XMLATTR_coords=('coords',html.DecodeCoords,html.EncodeCoords)
+	
+	def __init__(self,parent):
+		QTIUnaryExpression.__init__(self,parent)
+		self.shape=None
+		self.coords=html.Coords()
+		
+
 class QTISum(QTIExpressionList):
 	"""Represents the sum operator::
 
@@ -1673,3 +1798,5 @@ for name in QTI_HTMLProfile:
 	eClass=html.XHTMLDocument.classMap.get((html.XHTML_NAMESPACE,name),None)
 	if eClass:
 		QTIDocument.classMap[(IMSQTI_NAMESPACE,name)]=eClass
+	else:
+		print "Failed to map XHTML element name %s"%name
