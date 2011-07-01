@@ -1,0 +1,122 @@
+<?xml version = "1.0" encoding = "UTF-8" standalone = "no"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
+<questestinterop>
+	<qticomment>Multiple fill-in-the-blank text example.</qticomment>
+	<item title="Multiple FIB Item" ident="PYSLET_FIBS_IR_02">
+		<presentation label="PysletExample_FIBS_IR_02">
+			<flow>
+				<material>
+					<mattext texttype="text/html"
+						><![CDATA[Fill-in-the blanks in this famous text from <i>As You Like It</i>: ]]></mattext>
+				</material>
+				<flow>
+					<material>
+						<mattext>All the world's a </mattext>
+					</material>
+					<response_str ident="FIB01" rcardinality="Single" rtiming="No">
+						<render_fib fibtype="String" prompt="Dashline" maxchars="10">
+							<response_label ident="A"/>
+						</render_fib>
+					</response_str>
+					<material>
+						<mattext>,</mattext>
+						<matbreak/>
+						<mattext>And all the men and women merely </mattext>
+					</material>
+					<response_str ident="FIB02" rcardinality="Single" rtiming="No">
+						<render_fib fibtype="String" prompt="Dashline" maxchars="10">
+							<response_label ident="A"/>
+						</render_fib>
+					</response_str>
+					<material>
+						<mattext>:</mattext>
+						<matbreak/>
+						<mattext>They have their exits and their entrances;</mattext>
+						<matbreak/>
+						<mattext>And one man in his time plays many parts,</mattext>
+						<matbreak/>
+						<mattext>His acts being </mattext>
+					</material>
+					<response_str ident="FIB03" rcardinality="Single" rtiming="No">
+						<render_fib fibtype="String" prompt="Dashline" maxchars="10">
+							<response_label ident="A"/>
+						</render_fib>
+					</response_str>
+					<material>
+						<mattext> ages.</mattext>
+					</material>
+				</flow>
+			</flow>
+		</presentation>
+		<resprocessing>
+			<outcomes>
+				<decvar varname="FIBSCORE1" vartype="Integer" defaultval="0"/>
+			</outcomes>
+			<respcondition>
+				<qticomment>Scoring for the correct answer.</qticomment>
+				<conditionvar>
+					<varequal respident="FIB01" case="Yes">stage</varequal>
+					<varequal respident="FIB02" case="Yes">players</varequal>
+					<varequal respident="FIB03" case="Yes">seven</varequal>
+				</conditionvar>
+				<setvar action="Add" varname="FIBSCORE1">3</setvar>
+				<displayfeedback feedbacktype="Response" linkrefid="AllCorrect"/>
+			</respcondition>
+			<respcondition>
+				<qticomment>Detecting incorrect answers for feedback.</qticomment>
+				<conditionvar>
+					<not>
+						<varequal respident="FIB01" case="Yes">stage</varequal>
+					</not>
+				</conditionvar>
+				<displayfeedback feedbacktype="Response" linkrefid="InCorrect1"/>
+			</respcondition>
+			<respcondition>
+				<qticomment>Detecting incorrect answers for feedback.</qticomment>
+				<conditionvar>
+					<not>
+						<varequal respident="FIB02" case="Yes">players</varequal>
+					</not>
+				</conditionvar>
+				<displayfeedback feedbacktype="Response" linkrefid="InCorrect2"/>
+			</respcondition>
+			<respcondition>
+				<qticomment>Detecting incorrect answers for feedback.</qticomment>
+				<conditionvar>
+					<not>
+						<varequal respident="FIB03" case="Yes">seven</varequal>
+					</not>
+				</conditionvar>
+				<displayfeedback feedbacktype="Response" linkrefid="InCorrect3"/>
+			</respcondition>
+		</resprocessing>
+		<itemfeedback ident="AllCorrect" view="Candidate">
+			<flow_mat>
+				<material>
+					<mattext>All correct. Well done.</mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>
+		<itemfeedback ident="InCorrect1" view="Candidate">
+			<flow_mat>
+				<material>
+					<mattext texttype="text/html"><![CDATA[No, the correct first line is:<br/>All the world's a <i>stage</i>.]]></mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>
+		<itemfeedback ident="InCorrect2" view="Candidate">
+			<flow_mat>
+				<material>
+					<mattext texttype="text/html"><![CDATA[No, the correct second line is:<br/>And all the men and women merely <i>players</i>.]]></mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>
+		<itemfeedback ident="InCorrect3" view="Candidate">
+			<flow_mat>
+				<material>
+					<mattext texttype="text/html"><![CDATA[No, the correct last line is:<br/>His acts being <i>seven</i> ages.]]></mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>
+	</item>
+</questestinterop>

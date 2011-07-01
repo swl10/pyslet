@@ -1,5 +1,8 @@
 #! /usr/bin/env python
 
+
+import string
+
 XMLSCHEMA_NAMESPACE="http://www.w3.org/2001/XMLSchema-instance"
 
 def DecodeBoolean(src):
@@ -63,3 +66,26 @@ def MakeEnumeration(e):
 	setattr(e,'encode',dict(zip(e.decode.values(),e.decode.keys())))
 	map(lambda x:setattr(e,x,e.decode[x]),e.decode.keys())
 
+
+def WhiteSpaceReplace(value):
+	output=[]
+	for c in value:
+		if c in u"\x09\x0A\x0D":
+			output.append(unichr(0x20))
+		else:
+			output.append(c)
+	return string.join(output,'')
+
+
+def WhiteSpaceCollapse(value):
+	output=[]
+	gotSpace=False
+	for c in value:
+		if c in u"\x09\x0A\x0D\x20":
+			gotSpace=True
+		else:
+			if output and gotSpace:
+				output.append(unichr(0x20))
+				gotSpace=False
+			output.append(c)
+	return string.join(output,'')

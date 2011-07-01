@@ -1,0 +1,65 @@
+<?xml version = "1.0" encoding = "UTF-8" standalone = "no"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd" [
+<!-- This is a generic extension element for human rating of essays -->
+<!ELEMENT humanraterdata (qticomment?, material)>
+]>
+<!-- Adapted from a similar item originally authored by Russell Almond, ETS; 14th Feb 2003 -->
+<questestinterop>
+	<qticomment>Extended answer example with instructions to grader.</qticomment>
+	<item title = "Extended Answer Item" ident = "PYSLET_FIBS_IR_03">
+		<presentation label = "PysletExample_FIBS_IR_03">
+			<flow>
+				<material>
+					<mattext>Briefly explain how you would adjust the chain tension on a fixed-wheel bicycle.</mattext>
+				</material>
+				<response_str ident = "FIB91" rcardinality = "Ordered" rtiming = "No">
+					<render_fib fibtype = "String" prompt = "Box" rows = "20" columns = "80">
+						<response_label ident = "A"/>
+					</render_fib>
+				</response_str>
+			</flow>
+		</presentation>
+		<resprocessing scoremodel = "HumanRater">    
+			<qticomment>Scoring by human rater...</qticomment>      
+			<outcomes>
+				<decvar varname = "TechnicalScore" vartype = "Integer" minvalue = "0" maxvalue = "5"/>
+				<decvar varname = "OrganizationScore" vartype = "Integer" minvalue = "0" maxvalue = "5"/>
+				<interpretvar varname = "TechnicalScore" view = "All"> 
+					<material>    
+						<mattext label = "TechnicalRubric" texttype = "text/plain" charset = "ascii-us">The extent to which the student understands the technical tasks involved:
+	        				5=	All tasks clearly identified with details such as tools required.
+	        				4=	All tasks clearly identified but lacking details.
+	        				3=	Most important tasks identified
+	        				2=	Missing some important tasks
+	        				1=	Little understanding of the tasks involved
+	        				0=	No understanding at all.
+						</mattext>  
+					</material>
+				</interpretvar>
+				<interpretvar varname = "OrganizationScore" view = "All">  
+					<material>    
+						<mattext label = "OrganizationRubric" texttype = "text/plain" charset = "ascii-us">The extent to which the student has organized their answer as plan for completing the procedure:
+	        				5=	Tasks are in the correct order and organized optimally.
+	        				4=	Tasks are in a workable order.
+	        				3=	Tasks are mentioned in workable order but without much evidence of planning.
+	        				2=	Order in which tasks are carried out is unclear from answer.
+	        				1=	Some tasks are out of order.
+	        				0=	No organization of tasks.
+						</mattext>  
+					</material>
+				</interpretvar>      
+			</outcomes>      
+			<itemproc_extension>
+				<qticomment>Extension element is used to express instructions to human raters.</qticomment>
+				<humanraterdata>    
+					<material label = "ScoringRubric">    
+						<mattext texttype = "text/plain" charset = "ascii-us">Provide a rating for both technical and organizational aspects of the answer. </mattext>      
+						<matref linkrefid = "TechnicalRubric"/>      
+						<matref linkrefid = "OrganizationRubric"/>      
+						<mattext label = "Samples" texttype = "text/html" charset = "ascii-us" uri = "fibs_ir_03_samples.html">Sample answers.</mattext>    
+					</material>
+				</humanraterdata>
+			</itemproc_extension>
+		</resprocessing>
+	</item>
+</questestinterop>

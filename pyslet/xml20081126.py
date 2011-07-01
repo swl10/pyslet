@@ -21,6 +21,10 @@ XML_MIMETYPES={
 	'text/application+xml':True	
 	}
 
+def ValidateXMLMimeType(mimetype):
+	return XML_MIMETYPES.has_key(mimetype)
+	
+
 XMLMixedContent=0
 XMLElementContent=1
 XMLEmpty=2
@@ -205,7 +209,7 @@ def EscapeCharData7(src,quote=False):
 		elif c=='>':
 			dst.append("&gt;")
 		elif c=='\r':
-			dst.append("&#x0D;")
+			dst.append("&#xD;")
 		elif c==q:
 			dst.append(qStr)
 		else:
@@ -360,6 +364,30 @@ class XMLEntity:
 		if type(src) is UnicodeType:
 			self.dataSource=None
 			self.charSource=StringIO(src)
+		elif isinstance(src,URI):
+			if isinstance(src,FileURL):
+				self.dataSource=open(src.GetPathname(),'rb')
+				self.charSource=codecs.getreader(encoding)(self.dataSource)
+			elif src.scheme.lower() in ['http','https']:
+				reqManager=http.HTTPRequestManager()
+				req=http.HTTPRequest(str(src))
+				reqManager.ProcessRequest(req)
+				if req.status==200:
+					mtype=req.response.GetContentType()
+					if mtype is None:
+						# We'll attempt to do this with xml and utf8
+						charset='utf8'
+						raise UnimplementedError
+					else:
+						mimetype=mtype.type.lower()+'/'+mtype.subtype.lower()
+						#if not self.ValidateXMLMimeType(mimetype):
+						#	raise XMLContentTypeError(mimetype)
+					self.dataSource=StringIO(req.resBody)
+					self.charSource=codecs.getreader(encoding)(self.dataSource)
+				else:
+					raise XMLUnexpectedHTTPResponse(str(req.status))
+			else:
+				raise XMLUnsupportedScheme			
 		else:
 			if type(src) is StringType:
 				self.dataSource=StringIO(src)
@@ -624,25 +652,31 @@ class XMLParser:
 			q=None
 			end='<"\'>'
 		while True:
-			if self.theChar==q:
-				self.NextChar()
-				break
-			elif self.theChar=='&':
-				refData=self.ParseReference()
-				value.append(refData)
-			elif self.theChar in end:
-				# compatibility mode for missing quotes
-				break
-			elif self.theChar=='<' and not self.compatibilityMode:
-				raise XMLWellFormedError("Unescaped < in AttValue")
-			elif self.theChar is None:
-				if self.compatiblityMode:
+			try:
+				if self.theChar==q:
+					self.NextChar()
 					break
+				elif self.theChar=='&':
+					refData=self.ParseReference()
+					value.append(refData)
+				elif IsS(self.theChar):
+					value.append(unichr(0x20))
+					self.NextChar()
+				elif self.theChar=='<':
+					raise XMLWellFormedError("Unescaped < in AttValue")
+				elif self.theChar is None:
+					raise XMLWellFormedError("EOF in AttValue")
 				else:
-					raise XMLWellFormedError("Expected end of AttValue")
-			else:
-				value.append(self.theChar)
-				self.NextChar()
+					value.append(self.theChar)
+					self.NextChar()
+			except XMLWellFormedError:
+				if not self.compatibilityMode:
+					raise
+				if self.theChar in end:
+					break
+				elif self.theChar=='<':
+					value.append(self.theChar)
+					self.NextChar()
 		return string.join(value,'')
 	
 	def ParseSystemLiteral(self):
@@ -855,6 +889,7 @@ class XMLParser:
 				pubID,systemID=self.ParseExternalID()
 				self.ParseS()
 		if self.theChar=='[':
+			#import pdb;pdb.set_trace()
 			self.NextChar()
 			while True:
 				if self.theChar=='%':
@@ -868,18 +903,18 @@ class XMLParser:
 					if self.theChar=='?':
 						self.NextChar()
 						self.ParsePI()
-					elif self.theChar=='-':
-						self.ParseRequiredLiteral('--')
-						self.ParseComment()
 					elif self.theChar=='!':
 						self.NextChar()
-						if self.ParseLiteral('ELEMENT'):
+						if self.theChar=='-':
+							self.ParseRequiredLiteral('--')
+							self.ParseComment()
+						elif self.ParseLiteral('ELEMENT'):
 							self.ParseElementDecl()
 						elif self.ParseLiteral('ATTLIST'):
 							self.ParseAttlistDecl()
 						elif self.ParseLiteral('ENTITY'):
 							self.PasreEntityDecl()
-						elif self.ParseNotation('NOTATION'):
+						elif self.ParseLiteral('NOTATION'):
 							self.ParseNotationDecl()
 					else:
 						raise XMLWellFormedError("Expected markupdecl")
@@ -1001,6 +1036,88 @@ class XMLParser:
 				else:
 					raise XMLWellFormedError("Unrecognized character in content: %s"%self.theChar)
 	
+	def ParseElementDecl(self):
+		"""[45] elementdecl ::= '<!ELEMENT' S Name S contentspec S? '>'
+		Assume that the literal has already been parsed."""
+		if not self.ParseS():
+			raise XMLWellFormedError("Expected S")
+		name=self.ParseName()
+		if not self.ParseS():
+			raise XMLWellFormedError("Expected S")
+		self.ParseContentSpec()
+		self.ParseS()
+		self.ParseRequiredLiteral('>')
+	
+	def ParseContentSpec(self):
+		"""
+		[46] contentspec ::= 'EMPTY' | 'ANY' | Mixed | children
+		[47] children	::=   	(choice | seq) ('?' | '*' | '+')?
+		[51] Mixed 		::=   	'(' S? '#PCDATA' (S? '|' S? Name)* S? ')*' | '(' S? '#PCDATA' S? ')'
+		"""
+		if self.ParseLiteral('EMPTY'):
+			return
+		elif self.ParseLiteral('ANY'):
+			return
+		else:
+			self.ParseRequiredLiteral('(')
+			self.ParseS()
+			if self.ParseLiteral('#PCDATA'):
+				# Mixed
+				while True:
+					self.ParseS()
+					if self.theChar==')':
+						self.NextChar()
+						break
+					elif self.theChar=='|':
+						self.NextChar()
+						self.ParseS()
+						self.ParseName()
+					else:
+						raise XMLWellFormedError("Expected Name, '|' or ')'")
+				if self.theChar=='*':
+					self.NextChar()
+			else:
+				self.ParseChoiceOrSeq()
+				if self.theChar in '?*+':
+					self.NextChar()
+
+	def ParseChoiceOrSeq(self):
+		"""
+		[48] cp			::=   	(Name | choice | seq) ('?' | '*' | '+')?
+		[49] choice		::=   	'(' S? cp ( S? '|' S? cp )+ S? ')'
+		[50] seq		::=   	'(' S? cp ( S? ',' S? cp )* S? ')'
+		
+		Assume we already have the '(' and any S
+		"""
+		sep=None
+		while True:
+			if self.theChar=='(':
+				self.NextChar()
+				self.ParseS()
+				self.ParseChoiceOrSeq()
+			else:
+				self.ParseName()
+			if self.theChar in '?*+':
+				self.NextChar()
+			self.ParseS()
+			if sep is None:
+				if self.theChar=='|':
+					sep='|'
+				elif self.theChar==',':
+					sep=','
+				elif self.theChar==')':
+					self.NextChar()
+					break
+				self.NextChar()
+			elif self.theChar==sep:
+				self.NextChar()
+			elif self.theChar==')':
+				self.NextChar()
+				break
+			else:
+				raise XMLWellFormedError("Bad separator in content group %s"%self.theChar)
+			self.ParseS()
+
 	def ParsePEReference(self):
 		"""[69] PEReference ::= '%' Name ';'  """
 		self.ParseRequiredLiteral('%')
@@ -1017,12 +1134,12 @@ class XMLParser:
 			pubID=None
 		elif self.ParseLiteral('PUBLIC'):
 			if not self.ParseS():
-				self.XMLWellFormedError("Expected S")
+				raise XMLWellFormedError("Expected S")
 			pubID=self.ParsePubidLiteral()
 		else:
 			raise XMLWellFormedError("Expected ExternalID")
 		if not self.ParseS():
-			self.XMLWellFormedError("Expected S")
+			raise XMLWellFormedError("Expected S")
 		systemID=self.ParseSystemLiteral()
 		return pubID,systemID
 			
@@ -1052,8 +1169,36 @@ class XMLParser:
 		else:
 			return None
 			
+	def ParseNotationDecl(self):
+		"""[82] NotationDecl ::= '<!NOTATION' S Name S (ExternalID | PublicID) S? '>'
+		
+		We assume that <!NOTATION has already been parsed."""
+		if not self.ParseS():
+			raise XMLWellFormedError("Expected S")
+		name=self.ParseName()
+		if name is None:
+			raise XMLWellFormedError("Expected NOTATION Name")
+		if not self.ParseS():
+			raise XMLWellFormedError("Expected S")
+		if self.theChar=='S':
+			# Must be a SYSTEM literal in an ExternalID
+			pubID,systemID=self.ParseExternalID()
+		elif self.ParseLiteral('PUBLIC'):
+			if not self.ParseS():
+				self.XMLWellFormedError("Expected S")
+			pubID=self.ParsePubidLiteral()
+			systemID=None
+			if self.ParseS():
+				# Could also have a SYSTEM ID
+				if self.ParseLiteral('SYSTEM'):
+					systemID=self.ParseSystemLiteral()
+				self.ParseS()
+		else:
+			raise XMLWellFormedError("Expected ExternalID or PublicID")
+		self.ParseRequiredLiteral('>')
+		return pubID,systemID
+			
 
-	
 	def ParseAttribute(self):
 		"""Return name, value
 		
@@ -1843,7 +1988,7 @@ class XMLElement:
 		return baseURI
 				
 	def ResolveURI(self,uri):
-		r"""Returns a fully specified URL, resolving URI in the current context.
+		r"""Returns a fully specified URL, resolving uri in the current context.
 		
 		The uri is resolved relative to the xml:base values of the element's
 		ancestors and ultimately relative to the document's baseURI."""
@@ -2048,9 +2193,6 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 	def SetDefaultNS(self,ns):
 		self.defaultNS=ns
 	
-	def ValidateMimeType(self,mimetype):
-		return XML_MIMETYPES.has_key(mimetype)
-	
 	def DeclareParameterEntity(self,name,value):
 		self.parameterEntities[name]=value
 
@@ -2159,34 +2301,37 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 				self.ReadFromStream(src)
 		elif self.baseURI is None:
 			raise XMLMissingLocationError
-		elif isinstance(self.baseURI,FileURL):
-			# we would need to force 8bit path names to workaround bug in expat
-			# but we've ditched sax so we don't have to do this anymore
-			f=open(self.baseURI.GetPathname(),'rb')
-			try:
-				self.ReadFromStream(f)
-			finally:
-				f.close()
-		elif self.baseURI.scheme.lower() in ['http','https']:
-			if reqManager is None:
-				reqManager=http.HTTPRequestManager()
-			req=http.HTTPRequest(str(self.baseURI))
-			reqManager.ProcessRequest(req)
-			if req.status==200:
-				mtype=req.response.GetContentType()
-				if mtype is None:
-					# We'll attempt to do this with xml and utf8
-					charset='utf8'
-					raise UnimplementedError
-				else:
-					mimetype=mtype.type.lower()+'/'+mtype.subtype.lower()
-					if not self.ValidateMimeType(mimetype):
-						raise XMLContentTypeError(mimetype)
-					self.ReadFromStream(StringIO(req.resBody))
-			else:
-				raise XMLUnexpectedHTTPResponse(str(req.status))
 		else:
-			raise XMLUnsupportedScheme
+			e=XMLEntity(self.baseURI)
+			self.ReadFromEntity(e)
+# 		elif isinstance(self.baseURI,FileURL):
+# 			# we would need to force 8bit path names to workaround bug in expat
+# 			# but we've ditched sax so we don't have to do this anymore
+# 			f=open(self.baseURI.GetPathname(),'rb')
+# 			try:
+# 				self.ReadFromStream(f)
+# 			finally:
+# 				f.close()
+# 		elif self.baseURI.scheme.lower() in ['http','https']:
+# 			if reqManager is None:
+# 				reqManager=http.HTTPRequestManager()
+# 			req=http.HTTPRequest(str(self.baseURI))
+# 			reqManager.ProcessRequest(req)
+# 			if req.status==200:
+# 				mtype=req.response.GetContentType()
+# 				if mtype is None:
+# 					# We'll attempt to do this with xml and utf8
+# 					charset='utf8'
+# 					raise UnimplementedError
+# 				else:
+# 					mimetype=mtype.type.lower()+'/'+mtype.subtype.lower()
+# 					#if not ValidateXMLMimeType(mimetype):
+# 					#	raise XMLContentTypeError(mimetype)
+# 					self.ReadFromStream(StringIO(req.resBody))
+# 			else:
+# 				raise XMLUnexpectedHTTPResponse(str(req.status))
+# 		else:
+# 			raise XMLUnsupportedScheme
 	
 	def ReadFromStream(self,src):
 		self.cObject=self

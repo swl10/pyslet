@@ -48,6 +48,48 @@
 			</metadata>
 			<file href="fibs_ir_01/pyslet_fibs_ir_01.xml"/>
 		</resource>
+		<resource identifier="PYSLET_FIBS_IR_02" type="imsqti_item_xmlv2p1"
+			href="fibs_ir_02/pyslet_fibs_ir_02.xml">
+			<metadata>
+				<imsmd:lom>
+					<imsmd:general>
+						<imsmd:identifier>PYSLET_FIBS_IR_02</imsmd:identifier>
+						<imsmd:title>
+							<imsmd:langstring>Multiple FIB Item</imsmd:langstring>
+						</imsmd:title>
+						<imsmd:description>
+							<imsmd:langstring>Multiple fill-in-the-blank text example.</imsmd:langstring>
+						</imsmd:description>
+					</imsmd:general>
+					<imsmd:annotation>
+						<imsmd:description>
+							<imsmd:langstring>Warning: discarding view on feedback (Candidate)
+							</imsmd:langstring>
+						</imsmd:description>
+					</imsmd:annotation>
+				</imsmd:lom>
+				<imsqti:qtiMetadata/>
+			</metadata>
+			<file href="fibs_ir_02/pyslet_fibs_ir_02.xml"/>
+		</resource>
+		<resource identifier="PYSLET_FIBS_IR_03" type="imsqti_item_xmlv2p1"
+			href="fibs_ir_03/pyslet_fibs_ir_03.xml">
+			<metadata>
+				<imsmd:lom>
+					<imsmd:general>
+						<imsmd:identifier>PYSLET_FIBS_IR_03</imsmd:identifier>
+						<imsmd:title>
+							<imsmd:langstring>Extended Answer Item</imsmd:langstring>
+						</imsmd:title>
+						<imsmd:description>
+							<imsmd:langstring>Extended answer example with instructions to grader.</imsmd:langstring>
+						</imsmd:description>
+					</imsmd:general>
+				</imsmd:lom>
+				<imsqti:qtiMetadata/>
+			</metadata>
+			<file href="fibs_ir_03/pyslet_fibs_ir_03.xml"/>
+		</resource>
 		<resource identifier="fullitem" type="imsqti_item_xmlv2p1" href="full/fullitem.xml">
 			<metadata>
 				<imsmd:lom>

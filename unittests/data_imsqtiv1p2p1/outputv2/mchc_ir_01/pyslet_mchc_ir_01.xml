@@ -17,29 +17,19 @@
                 speed bicycle?</p>
             <choiceInteraction responseIdentifier="MCb_01" shuffle="true" maxChoices="1">
                 <simpleChoice identifier="A" fixed="false">
-                    <div class="list">
-                        <p>14 mm</p>
-                    </div>
+                    <div class="list">14 mm</div>
                 </simpleChoice>
                 <simpleChoice identifier="B" fixed="false">
-                    <div class="list">
-                        <p>15 mm</p>
-                    </div>
+                    <div class="list">15 mm</div>
                 </simpleChoice>
                 <simpleChoice identifier="C" fixed="false">
-                    <div class="list">
-                        <p>16 mm</p>
-                    </div>
+                    <div class="list">16 mm</div>
                 </simpleChoice>
                 <simpleChoice identifier="D" fixed="false">
-                    <div class="list">
-                        <p>17 mm</p>
-                    </div>
+                    <div class="list">17 mm</div>
                 </simpleChoice>
                 <simpleChoice identifier="E" fixed="true">
-                    <div class="list">
-                        <p>None of the above.</p>
-                    </div>
+                    <div class="list">None of the above.</div>
                 </simpleChoice>
             </choiceInteraction>
         </div>

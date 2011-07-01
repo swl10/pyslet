@@ -5,7 +5,8 @@
     identifier="fullitem" title="Title: Full Item" label="Label: Full Item" xml:lang="en-GB"
     adaptive="false" timeDependent="false">
     <responseDeclaration identifier="R1" cardinality="multiple" baseType="identifier"/>
-    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer" masteryValue="5.0"
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer"
+        masteryValue="5.0" normalMaximum="10.0" normalMinimum="0.0"
         interpretation="Your SCORE on this question.; SCORE measures Candidate's ability.">
         <defaultValue>
             <value>3</value>

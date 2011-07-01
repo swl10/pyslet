@@ -46,7 +46,7 @@ def FixHTMLNamespace(e):
 #
 # Definitions for basic types
 #
-class QTIBaseType:
+class BaseType:
 	"""baseType enumeration.
 	
 	<xsd:simpleType name="baseType.Type">
@@ -77,17 +77,17 @@ class QTIBaseType:
 		'string':9,
 		'uri':10
 		}
-xsi.MakeEnumeration(QTIBaseType)
+xsi.MakeEnumeration(BaseType)
 
 def DecodeBaseType(value):
 	"""Decodes a baseType value from a string."""
 	try:
-		return QTIBaseType.decode[value.lower()]
+		return BaseType.decode[value.lower()]
 	except KeyError:
 		raise ValueError("Can't decode baseType from %s"%value)
 
 def EncodeBaseType(value):
-	return QTIBaseType.encode.get(value,None)
+	return BaseType.encode.get(value,None)
 
 
 class QTICardinality:
@@ -267,6 +267,32 @@ def DecodeShowHide(value):
 
 def EncodeShowHide(value):
 	return QTIShowHide.encode.get(value,None)
+
+
+class TextFormat:
+	fixups={
+		'preformatted':'preFormatted'
+		}
+	decode={
+		'plain':1,
+		'preFormatted':2,
+		'xhtml':3
+		}
+xsi.MakeEnumeration(TextFormat)
+
+def DecodeTextFormat(value):
+	try:
+		return TextFormat.decode[value]
+	except KeyError:
+		value=value.lower()
+		value=TextFormat.fixups.get(value,value)
+	try:
+		return TextFormat.decode[value]
+	except KeyError:
+		raise ValueError("Can't decode textFormat from %s"%value)
+
+def EncodeTextFormat(value):
+	return TextFormat.encode.get(value,None)
 
 
 class QTIView:
@@ -616,7 +642,7 @@ class QTIOutcomeDeclaration(QTIVariableDeclaration):
 
 	
 			
-class QTIBodyElement(QTIElement):
+class BodyElement(QTIElement):
 	"""Abstract class to represent elements within content.
 	
 	<xsd:attributeGroup name="bodyElement.AttrGroup">
@@ -641,37 +667,35 @@ class QTIBodyElement(QTIElement):
 		self.label=None
 	
 		
-
+# xml:base is handled automatically for all elements
 class QTIObjectFlowMixin: pass
 
-QTIBlockMixin=html.XHTMLBlockMixin
-QTIFlowMixin=html.XHTMLFlowMixin		# xml:base is handled automatically for all elements
 
-class QTISimpleInline(html.XHTMLInlineMixin,QTIBodyElement):
-	# need to constrain content to html.XHTMLInlineMixin
+class QTISimpleInline(html.InlineMixin,BodyElement):
+	# need to constrain content to html.InlineMixin
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,html.XHTMLInlineMixin):
-			return QTIBodyElement.ChildElement(self,childClass,name)
+		if issubclass(childClass,html.InlineMixin):
+			return BodyElement.ChildElement(self,childClass,name)
 		else:
 			# This child cannot go in here
 			raise QTIValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
 
-class QTISimpleBlock(QTIBlockMixin,QTIBodyElement):
-	# need to constrain content to QTIBlockMixin
+class SimpleBlock(html.BlockMixin,BodyElement):
+	# need to constrain content to html.BlockMixin
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,QTIBlockMixin):
-			return QTIBodyElement.ChildElement(self,childClass,name)
+		if issubclass(childClass,html.BlockMixin):
+			return BodyElement.ChildElement(self,childClass,name)
 		else:
 			# This child cannot go in here
 			raise QTIValidityError("%s in %s"%(repr(name),self.__class__.__name__))		
 
-class QTIAtomicInline(html.XHTMLInlineMixin,QTIBodyElement): pass
+class QTIAtomicInline(html.InlineMixin,BodyElement): pass
 
-class QTIAtomicBlock(QTIBlockMixin,QTIBodyElement):
-	# need to constrain content to html.XHTMLInlineMixin
+class QTIAtomicBlock(html.BlockMixin,BodyElement):
+	# need to constrain content to html.InlineMixin
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,html.XHTMLInlineMixin):
-			return QTIBodyElement.ChildElement(self,childClass,name)
+		if issubclass(childClass,html.InlineMixin):
+			return BodyElement.ChildElement(self,childClass,name)
 		else:
 			# This child cannot go in here
 			raise QTIValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))
@@ -691,12 +715,12 @@ class QTIFlowContainerMixin:
 				for c in child:
 					if not xml.IsS(c):
 						return False
-			elif isinstance(child,html.XHTMLInlineMixin):
+			elif isinstance(child,html.InlineMixin):
 				return False
 		return True
 
 	
-class QTIItemBody(QTIBodyElement):
+class QTIItemBody(BodyElement):
 	"""Represents the itemBody element.
 	
 	<xsd:attributeGroup name="itemBody.AttrGroup">
@@ -713,7 +737,7 @@ class QTIItemBody(QTIBodyElement):
 	XMLCONTENT=xmlns.XMLElementContent	
 
 
-class QTIRubricBlock(QTISimpleBlock):
+class QTIRubricBlock(SimpleBlock):
 	"""Represent the rubricBlock element.
 
 	<xsd:attributeGroup name="rubricBlock.AttrGroup">
@@ -736,7 +760,7 @@ class QTIRubricBlock(QTISimpleBlock):
 	XMLCONTENT=xmlns.XMLElementContent
 
 	def __init__(self,parent):
-		QTISimpleBlock.__init__(self,parent)
+		SimpleBlock.__init__(self,parent)
 		self.view={}
 	
 	def AddView(self,view):
@@ -752,7 +776,7 @@ class QTIRubricBlock(QTISimpleBlock):
 #
 #	INTERACTIONS
 #
-class QTIInteraction(QTIBodyElement):
+class QTIInteraction(BodyElement):
 	"""Abstract class to act as a base for all interactions.
 
 	<xsd:attributeGroup name="interaction.AttrGroup">
@@ -763,16 +787,16 @@ class QTIInteraction(QTIBodyElement):
 	XMLATTR_responseIdentifier=('responseIdentifier',ValidateIdentifier,lambda x:x)
 
 	def __init__(self,parent):
-		QTIBodyElement.__init__(self,parent)
+		BodyElement.__init__(self,parent)
 		self.responseIdentifier=''
 	
 
-class QTIInlineInteraction(html.XHTMLInlineMixin,QTIInteraction):
+class InlineInteraction(html.InlineMixin,QTIInteraction):
 	"""Abstract class for interactions that are treated as inline."""
 	pass
 
 
-class QTIBlockInteraction(html.XHTMLBlockMixin,QTIInteraction):
+class BlockInteraction(html.BlockMixin,QTIInteraction):
 	"""Abstract class for interactions that are treated as blocks.
 	
 	<xsd:group name="blockInteraction.ContentGroup">
@@ -792,7 +816,7 @@ class QTIBlockInteraction(html.XHTMLBlockMixin,QTIInteraction):
 			return []
 
 
-class QTIPrompt(QTIBodyElement):
+class QTIPrompt(BodyElement):
 	"""The prompt used in block interactions.
 
 	<xsd:group name="prompt.ContentGroup">
@@ -805,17 +829,17 @@ class QTIPrompt(QTIBodyElement):
 	XMLCONTENT=xmlns.XMLMixedContent
 
 	def __init__(self,parent):
-		QTIBodyElement.__init__(self,parent)
+		BodyElement.__init__(self,parent)
 
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,html.XHTMLInlineMixin):
-			return QTIBodyElement.ChildElement(self,childClass,name)
+		if issubclass(childClass,html.InlineMixin):
+			return BodyElement.ChildElement(self,childClass,name)
 		else:
 			# This child cannot go in here
 			raise QTIValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
 
 
-class QTIChoice(QTIBodyElement):		
+class QTIChoice(BodyElement):		
 	"""The base class used for all choices.
 
 	<xsd:attributeGroup name="choice.AttrGroup">
@@ -832,7 +856,7 @@ class QTIChoice(QTIBodyElement):
 	XMLATTR_templateIdentifier=('templateIdentifier',ValidateIdentifier,lambda x:x)
 	
 	def __init__(self,parent):
-		QTIBodyElement.__init__(self,parent)
+		BodyElement.__init__(self,parent)
 		self.identifier=''
 		self.fixed=None
 		self.templateIdentifier=None
@@ -862,7 +886,7 @@ class QTIAssociableChoice(QTIChoice):
 #		SIMPLE INTERACTIONS
 #
 
-class QTIChoiceInteraction(QTIBlockInteraction):
+class QTIChoiceInteraction(BlockInteraction):
 	"""Represents the choiceInteraction element.
 	
 	<xsd:attributeGroup name="choiceInteraction.AttrGroup">
@@ -886,14 +910,14 @@ class QTIChoiceInteraction(QTIBlockInteraction):
 	XMLCONTENT=xmlns.XMLElementContent
 
 	def __init__(self,parent):
-		QTIBlockInteraction.__init__(self,parent)
+		BlockInteraction.__init__(self,parent)
 		self.shuffle=False
 		self.maxChoices=1
 		self.minChoices=None
 		self.QTISimpleChoice=[]
 		
 	def GetChildren(self):
-		return QTIBlockInteraction.GetChildren(self)+self.QTISimpleChoice
+		return BlockInteraction.GetChildren(self)+self.QTISimpleChoice
 		
 
 class QTISimpleChoice(QTIFlowContainerMixin,QTIChoice):
@@ -909,7 +933,7 @@ class QTISimpleChoice(QTIFlowContainerMixin,QTIChoice):
 	XMLCONTENT=xmlns.XMLMixedContent
 
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,html.XHTMLFlowMixin):
+		if issubclass(childClass,html.FlowMixin):
 			return QTIChoice.ChildElement(self,childClass,name)
 		else:
 			# This child cannot go in here
@@ -919,7 +943,7 @@ class QTISimpleChoice(QTIFlowContainerMixin,QTIChoice):
 #
 #		TEXT-BASED INTERACTIONS
 #
-class QTIStringInteractionMixin:
+class StringInteractionMixin:
 	"""Represents the stringInteraction element::
 	
 	<xsd:attributeGroup name="stringInteraction.AttrGroup">
@@ -944,16 +968,44 @@ class QTIStringInteractionMixin:
 		self.placeholderText=None
 	
 
-class QTITextEntryInteraction(QTIStringInteractionMixin,QTIInlineInteraction):
+class TextEntryInteraction(StringInteractionMixin,InlineInteraction):
 	"""Represents the textEntryInteraction element"""
 	XMLNAME=(IMSQTI_NAMESPACE,'textEntryInteraction')
 	XMLCONTENT=xmlns.XMLElementContent
 
 	def __init__(self,parent):
-		QTIInlineInteraction.__init__(self,parent)
-		QTIStringInteractionMixin.__init__(self)
-	
+		InlineInteraction.__init__(self,parent)
+		StringInteractionMixin.__init__(self)
 
+
+class ExtendedTextInteraction(StringInteractionMixin,BlockInteraction):
+	"""Represents the extendedTextInteraction element::
+
+	<xsd:attributeGroup name="extendedTextInteraction.AttrGroup">
+		<xsd:attributeGroup ref="blockInteraction.AttrGroup"/>
+		<xsd:attributeGroup ref="stringInteraction.AttrGroup"/>
+		<xsd:attribute name="maxStrings" type="integer.Type" use="optional"/>
+		<xsd:attribute name="minStrings" type="integer.Type" use="optional"/>
+		<xsd:attribute name="expectedLines" type="integer.Type" use="optional"/>
+		<xsd:attribute name="format" type="textFormat.Type" use="optional"/>
+	</xsd:attributeGroup>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'extendedTextInteraction')
+	XMLATTR_maxStrings=('maxStrings',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_minStrings=('minStrings',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_expectedLines=('expectedLines',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_format=('format',DecodeTextFormat,EncodeTextFormat)	
+	XMLCONTENT=xmlns.XMLElementContent
+	
+	def __init__(self,parent):
+		BlockInteraction.__init__(self,parent)
+		StringInteractionMixin.__init__(self)
+		self.maxStrings=None
+		self.minStrings=None
+		self.expectedLines=None
+		self.format=None
+
+		
 #
 #		GRAPHICAL INTERACTIONS
 #
@@ -985,7 +1037,7 @@ class QTIHotspotChoice(QTIHotspotMixin,QTIChoice):
 		QTIHotspotMixin.__init__(self)
 	
 
-class QTIGraphicInteraction(QTIBlockInteraction):
+class QTIGraphicInteraction(BlockInteraction):
 	"""Represents the abstract graphicInteraction class::
 	
 	<xsd:attributeGroup name="graphicInteraction.AttrGroup">
@@ -1002,13 +1054,13 @@ class QTIGraphicInteraction(QTIBlockInteraction):
 	XMLCONTENT=xmlns.XMLElementContent
 
 	def __init__(self,parent):
-		QTIBlockInteraction.__init__(self,parent)
-		self.XHTMLObject=html.XHTMLObject(self)
-		FixHTMLNamespace(self.XHTMLObject)
+		BlockInteraction.__init__(self,parent)
+		self.Object=html.Object(self)
+		FixHTMLNamespace(self.Object)
 	
 	def GetChildren(self):
-		children=QTIBlockInteraction.GetChildren(self)
-		children.append(self.XHTMLObject)
+		children=BlockInteraction.GetChildren(self)
+		children.append(self.Object)
 		return children
 
 
@@ -1249,7 +1301,7 @@ class QTIModalFeedback(QTIFlowContainerMixin,QTIElement):
 		self.title=None
 
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,html.XHTMLFlowMixin):
+		if issubclass(childClass,html.FlowMixin):
 			return QTIElement.ChildElement(self,childClass,name)
 		else:
 			# This child cannot go in here
@@ -1287,7 +1339,7 @@ class QTIBaseValue(QTIExpression):
 
 	def __init__(self,parent):
 		QTIExpression.__init__(self,parent)
-		self.baseType=QTIBaseType.string
+		self.baseType=BaseType.string
 
 
 class QTIVariable(QTIExpression):

@@ -26,8 +26,29 @@ storing HTML lengths (which can be pixel or relative) is used extensively by
 	The namespace to use in the delcaration of an XHTML document
 
 
+(X)HTML Documents
+-----------------
+
+This module contains an experimental class for working with HTML documents.  At
+the time of writing the implementation is designed to provide just enough HTML
+parsing to support the use of HTML within other standards (such as Atom and
+QTI).
+
+.. autoclass:: XHTMLDocument
+	:members:
+	:show-inheritance:
+	
+
 Basic Types
 -----------
+
+Length Values
+~~~~~~~~~~~~~
+
+Length values are used in many places in HTML, the most common being the width
+and height values on images.  There are two ways of specifying a Length, a
+simple integer number of pixels or a percentage of some base length defined by
+the context (such as the width of the browser window).
 
 ..	autoclass:: LengthType
 	:members:
@@ -37,10 +58,19 @@ Basic Types
 
 ..	automethod:: LengthType.__str__
 
-
 ..	autofunction:: DecodeLength
 
 ..	autofunction:: EncodeLength
+
+
+Coordinate Values
+~~~~~~~~~~~~~~~~~
+
+Coordinate values are simple lists of Lengths.  In most cases Pyslet doesn't
+define special types for lists of basic types but coordinates are represented in
+attribute values using comma separation, not space-separation.  As a result they
+require special processing in order to be decoded/encoded correctly from/to XML
+streams.
 
 ..	autoclass:: Coords
 	:members:
@@ -53,6 +83,20 @@ Basic Types
 ..	autofunction:: DecodeCoords
 
 ..	autofunction:: EncodeCoords
+
+
+URIs
+~~~~
+
+URIs are represented by instances of the underlying :class:`pyselt.rfc2396.URI`
+class, these functions provide a simple wrapper around the functions defined in
+that module.
+
+..	autofunction:: DecodeURI
+
+..	autofunction:: EncodeURI
+
+
 
 
 

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="PYSLET_FIBS_IR_02" title="Multiple FIB Item" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="FIB01" cardinality="single" baseType="string"/>
+    <responseDeclaration identifier="FIB02" cardinality="single" baseType="string"/>
+    <responseDeclaration identifier="FIB03" cardinality="single" baseType="string"/>
+    <outcomeDeclaration identifier="FEEDBACK" cardinality="multiple" baseType="identifier"/>
+    <outcomeDeclaration identifier="FIBSCORE1" cardinality="single" baseType="integer">
+        <defaultValue>
+            <value>0</value>
+        </defaultValue>
+    </outcomeDeclaration>
+    <itemBody>
+        <p label="PysletExample_FIBS_IR_02">Fill-in-the blanks in this famous text from <i>As You
+                Like It</i>: <br/>All the world's a <textEntryInteraction responseIdentifier="FIB01"
+                expectedLength="10"/>,<br/>And all the men and women merely <textEntryInteraction
+                responseIdentifier="FIB02" expectedLength="10"/>:<br/>They have their exits and
+            their entrances;<br/>And one man in his time plays many parts,<br/>His acts being
+                <textEntryInteraction responseIdentifier="FIB03" expectedLength="10"/> ages.</p>
+    </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <and>
+                    <match>
+                        <variable identifier="FIB01"/>
+                        <baseValue baseType="string">stage</baseValue>
+                    </match>
+                    <match>
+                        <variable identifier="FIB02"/>
+                        <baseValue baseType="string">players</baseValue>
+                    </match>
+                    <match>
+                        <variable identifier="FIB03"/>
+                        <baseValue baseType="string">seven</baseValue>
+                    </match>
+                </and>
+                <setOutcomeValue identifier="FIBSCORE1">
+                    <sum>
+                        <variable identifier="FIBSCORE1"/>
+                        <baseValue baseType="integer">3</baseValue>
+                    </sum>
+                </setOutcomeValue>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">AllCorrect</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseIf>
+            <responseElseIf>
+                <not>
+                    <match>
+                        <variable identifier="FIB01"/>
+                        <baseValue baseType="string">stage</baseValue>
+                    </match>
+                </not>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">InCorrect1</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseElseIf>
+            <responseElseIf>
+                <not>
+                    <match>
+                        <variable identifier="FIB02"/>
+                        <baseValue baseType="string">players</baseValue>
+                    </match>
+                </not>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">InCorrect2</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseElseIf>
+            <responseElseIf>
+                <not>
+                    <match>
+                        <variable identifier="FIB03"/>
+                        <baseValue baseType="string">seven</baseValue>
+                    </match>
+                </not>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">InCorrect3</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseElseIf>
+        </responseCondition>
+    </responseProcessing>
+    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="AllCorrect">All correct.
+        Well done.</modalFeedback>
+    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="InCorrect1">No, the
+        correct first line is:<br/>All the world's a <i>stage</i>.</modalFeedback>
+    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="InCorrect2">No, the
+        correct second line is:<br/>And all the men and women merely <i>players</i>.</modalFeedback>
+    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="InCorrect3">No, the
+        correct last line is:<br/>His acts being <i>seven</i> ages.</modalFeedback>
+</assessmentItem>

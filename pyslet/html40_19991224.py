@@ -55,26 +55,26 @@ class LengthType:
 			return unicode(self.value)
 
 		
-def DecodeLength(src):
-	"""Parses a length from src returning an instance of LengthType"""
+def DecodeLength(strValue):
+	"""Parses a length from a string returning an instance of LengthType"""
 	valueType=None
 	value=None
 	try:
-		src=src.strip()
-		if src and src[-1]==u'%':
-			src=src[:-1]
+		strValue=strValue.strip()
+		if strValue and strValue[-1]==u'%':
+			strValue=strValue[:-1]
 			valueType=LengthType.Percentage
 		else:
 			valueType=LengthType.Pixel
-		value=int(src)
+		value=int(strValue)
 		if value<0:
 			raise ValueError
 		return LengthType(value,valueType)
 	except ValueError:
-		raise XHTMLValidityError("Failed to read length from %s"%src)
+		raise XHTMLValidityError("Failed to read length from %s"%strValue)
 
 def EncodeLength(length):
-	"""Encodes a length value from an instance of LengthType."""
+	"""Encodes a length value as a unicode string from an instance of LengthType."""
 	if length is None:
 		return None
 	else:
@@ -103,11 +103,11 @@ class Coords:
 		return string.join(map(lambda x:str(x),self.values),',')
 		
 def DecodeCoords(value):
-	"""Decodes coords from an attribute value into an Coords instance."""
+	"""Decodes coords from an attribute value string into a Coords instance."""
 	return Coords(map(lambda x:DecodeLength(x.strip()),value.split(',')))
 
 def EncodeCoords(coords):
-	"""Encodes an Coords instance as an attribute value."""
+	"""Encodes a Coords instance as an attribute value string."""
 	return unicode(coords)
 			
 
@@ -118,12 +118,18 @@ def DecodeURI(src):
 	
 	Note that we adopt the algorithm recommended in Appendix B of the specification,
 	which involves replacing non-ASCII characters with percent-encoded UTF-sequences.
+	
+	For more information see :func:`psylet.rfc2396.EncodeUnicodeURI`
 	"""
 	return URIFactory.URI(EncodeUnicodeURI(src))
 
 def EncodeURI(uri):
-	"""Encoding a URI means just converting it into a string."""
-	return str(uri)
+	"""Encoding a URI means just converting it into a string.
+	
+	By definition, a URI will only result in ASCII characters that can be freely converted
+	to Unicode by the default encoding.  However, it does mean that this function doesn't
+	adhere to the principal of using the ASCII encoding only at the latest possible time."""
+	return unicode(str(uri))
 
 	
 class XHTMLElement(xmlns.XMLNSElement):
@@ -154,29 +160,29 @@ class XHTMLElement(xmlns.XMLNSElement):
 		return string.join(output,'')
 	
 
-class XHTMLFlowMixin:
+class FlowMixin:
 	# <!ENTITY % flow "%block; | %inline;">
 	pass
 
-class XHTMLBlockMixin(XHTMLFlowMixin): pass
+class BlockMixin(FlowMixin): pass
 	# <!ENTITY % block "P | %heading; | %list; | %preformatted; | DL | DIV |
 	#		NOSCRIPT | BLOCKQUOTE | FORM | HR | TABLE | FIELDSET | ADDRESS">
 
-class XHTMLInlineMixin(XHTMLFlowMixin): pass
+class InlineMixin(FlowMixin): pass
 	# <!ENTITY % inline "#PCDATA | %fontstyle; | %phrase; | %special; | %formctrl;">
 
-class XHTMLInlineContainer(XHTMLElement):
+class InlineContainer(XHTMLElement):
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,XHTMLInlineMixin):
+		if issubclass(childClass,InlineMixin):
 			return XHTMLElement.ChildElement(self,childClass,name)
 		else:
 			# This child cannot go in here
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 
 	
-class XHTMLFlowContainer(XHTMLElement):
+class FlowContainer(XHTMLElement):
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,XHTMLFlowMixin):
+		if issubclass(childClass,FlowMixin):
 			return XHTMLElement.ChildElement(self,childClass,name)
 		else:
 			# This child cannot go in here
@@ -194,15 +200,46 @@ class XHTMLFlowContainer(XHTMLElement):
 				for c in child:
 					if not xml.IsS(c):
 						return False
-			elif isinstance(child,XHTMLInlineMixin):
+			elif isinstance(child,InlineMixin):
 				return False
 		return True
 	
-class XHTMLSpecialMixin(XHTMLInlineMixin):
+class SpecialMixin(InlineMixin):
 	# <!ENTITY % special "A | IMG | OBJECT | BR | SCRIPT | MAP | Q | SUB | SUP | SPAN | BDO">
 	pass
 
-class XHTMLList(XHTMLBlockMixin,XHTMLElement):
+
+class Ins(FlowContainer):
+	"""Represents the INS element::
+	
+	<!-- INS/DEL are handled by inclusion on BODY -->
+	<!ELEMENT (INS|DEL) - - (%flow;)*      -- inserted text, deleted text -->
+	<!ATTLIST (INS|DEL)
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  cite        %URI;          #IMPLIED  -- info on reason for change --
+	  datetime    %Datetime;     #IMPLIED  -- date and time of change --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'ins')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+
+class Del(FlowContainer):
+	"""Represents the DEL element::
+	
+	<!-- INS/DEL are handled by inclusion on BODY -->
+	<!ELEMENT (INS|DEL) - - (%flow;)*      -- inserted text, deleted text -->
+	<!ATTLIST (INS|DEL)
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  cite        %URI;          #IMPLIED  -- info on reason for change --
+	  datetime    %Datetime;     #IMPLIED  -- date and time of change --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'del')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+
+class List(BlockMixin,XHTMLElement):
 	# <!ENTITY % list "UL | OL">
 
 	def ChildElement(self,childClass,name=None):
@@ -213,98 +250,98 @@ class XHTMLList(XHTMLBlockMixin,XHTMLElement):
 	
 # Text Elements
 
-class XHTMLPhrase(XHTMLInlineMixin,XHTMLInlineContainer):
+class Phrase(InlineMixin,InlineContainer):
 	# <!ENTITY % phrase "EM | STRONG | DFN | CODE | SAMP | KBD | VAR | CITE | ABBR | ACRONYM" >
 	# <!ELEMENT (%fontstyle;|%phrase;) - - (%inline;)*>
 	pass
 
-class XHTMLAbbr(XHTMLPhrase):
+class Abbr(Phrase):
 	XMLNAME=(XHTML_NAMESPACE,'abbr')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLAcronym(XHTMLPhrase):
+class Acronym(Phrase):
 	XMLNAME=(XHTML_NAMESPACE,'acronym')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLAddress(XHTMLBlockMixin,XHTMLInlineContainer):
+class Address(BlockMixin,InlineContainer):
 	XMLNAME=(XHTML_NAMESPACE,'address')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLBlockquote(XHTMLBlockMixin,XHTMLElement):
+class Blockquote(BlockMixin,XHTMLElement):
 	# <!ELEMENT BLOCKQUOTE - - (%block;|SCRIPT)+ -- long quotation -->
 	XMLNAME=(XHTML_NAMESPACE,'blockquote')
 	XMLCONTENT=xmlns.XMLElementContent
 
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,XHTMLBlockMixin) or issubclass(childClass,XHTMLScript):
+		if issubclass(childClass,BlockMixin) or issubclass(childClass,Script):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 	
-class XHTMLBr(XHTMLSpecialMixin,XHTMLElement):
+class Br(SpecialMixin,XHTMLElement):
 	# <!ELEMENT BR - O EMPTY                 -- forced line break -->
 	XMLNAME=(XHTML_NAMESPACE,'br')
 	XMLCONTENT=xmlns.XMLEmpty
 
-class XHTMLCite(XHTMLPhrase):
+class Cite(Phrase):
 	XMLNAME=(XHTML_NAMESPACE,'cite')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLCode(XHTMLPhrase):
+class Code(Phrase):
 	XMLNAME=(XHTML_NAMESPACE,'code')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLDfn(XHTMLPhrase):
+class Dfn(Phrase):
 	XMLNAME=(XHTML_NAMESPACE,'dfn')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLDiv(XHTMLBlockMixin,XHTMLFlowContainer):
+class Div(BlockMixin,FlowContainer):
 	# <!ELEMENT DIV - - (%flow;)*            -- generic language/style container -->
 	XMLNAME=(XHTML_NAMESPACE,'div')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLEm(XHTMLPhrase):
+class Em(Phrase):
 	XMLNAME=(XHTML_NAMESPACE,'em')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLHeading(XHTMLBlockMixin,XHTMLInlineContainer):
+class Heading(BlockMixin,InlineContainer):
 	# <!ENTITY % heading "H1|H2|H3|H4|H5|H6">
 	pass
 
-class XHTMLH1(XHTMLHeading):
+class H1(Heading):
 	XMLNAME=(XHTML_NAMESPACE,'h1')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLH2(XHTMLHeading):
+class H2(Heading):
 	XMLNAME=(XHTML_NAMESPACE,'h2')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLH3(XHTMLHeading):
+class H3(Heading):
 	XMLNAME=(XHTML_NAMESPACE,'h3')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLH4(XHTMLHeading):
+class H4(Heading):
 	XMLNAME=(XHTML_NAMESPACE,'h4')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLH5(XHTMLHeading):
+class H5(Heading):
 	XMLNAME=(XHTML_NAMESPACE,'h5')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLH6(XHTMLHeading):
+class H6(Heading):
 	XMLNAME=(XHTML_NAMESPACE,'h6')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLKbd(XHTMLPhrase):
+class Kbd(Phrase):
 	XMLNAME=(XHTML_NAMESPACE,'kbd')
 	XMLCONTENT=xmlns.XMLMixedContent
 	
-class XHTMLP(XHTMLBlockMixin,XHTMLInlineContainer):
+class P(BlockMixin,InlineContainer):
 	# <!ELEMENT P - O (%inline;)*            -- paragraph -->
 	XMLNAME=(XHTML_NAMESPACE,'p')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLPre(XHTMLBlockMixin,XHTMLInlineContainer):
+class Pre(BlockMixin,InlineContainer):
 	# <!ENTITY % pre.exclusion "IMG|OBJECT|BIG|SMALL|SUB|SUP">
 	# <!ELEMENT PRE - - (%inline;)* -(%pre.exclusion;) -- preformatted text -->
 	XMLNAME=(XHTML_NAMESPACE,'pre')
@@ -313,69 +350,69 @@ class XHTMLPre(XHTMLBlockMixin,XHTMLInlineContainer):
 	def PrettyPrint(self):
 		return False
 
-class XHTMLQ(XHTMLSpecialMixin,XHTMLInlineContainer):
+class Q(SpecialMixin,InlineContainer):
 	# <!ELEMENT Q - - (%inline;)*            -- short inline quotation -->
 	XMLNAME=(XHTML_NAMESPACE,'q')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLSamp(XHTMLPhrase):
+class Samp(Phrase):
 	XMLNAME=(XHTML_NAMESPACE,'samp')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLSpan(XHTMLSpecialMixin,XHTMLInlineContainer):
+class Span(SpecialMixin,InlineContainer):
 	# <!ELEMENT SPAN - - (%inline;)*         -- generic language/style container -->
 	XMLNAME=(XHTML_NAMESPACE,'span')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLStrong(XHTMLPhrase):
+class Strong(Phrase):
 	XMLNAME=(XHTML_NAMESPACE,'strong')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLVar(XHTMLPhrase):
+class Var(Phrase):
 	XMLNAME=(XHTML_NAMESPACE,'var')
 	XMLCONTENT=xmlns.XMLMixedContent
 
 # List Elements
 
-class XHTMLDL(XHTMLBlockMixin,XHTMLElement):
+class DL(BlockMixin,XHTMLElement):
 	# <!ELEMENT DL - - (DT|DD)+              -- definition list -->
 	XMLNAME=(XHTML_NAMESPACE,'dl')
 	XMLCONTENT=xmlns.XMLElementContent
 
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,(XHTMLDT,XHTMLDD)):
+		if issubclass(childClass,(DT,DD)):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 
-class XHTMLDT(XHTMLInlineContainer):
+class DT(InlineContainer):
 	# <!ELEMENT DT - O (%inline;)*           -- definition term -->
 	XMLNAME=(XHTML_NAMESPACE,'dt')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLDD(XHTMLFlowContainer):
+class DD(FlowContainer):
 	# <!ELEMENT DD - O (%flow;)*             -- definition description -->
 	XMLNAME=(XHTML_NAMESPACE,'dd')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLOL(XHTMLList):
+class OL(List):
 	# <!ELEMENT OL - - (LI)+                 -- ordered list -->
 	XMLNAME=(XHTML_NAMESPACE,'ol')
 	XMLCONTENT=xmlns.XMLElementContent
 	
-class XHTMLUL(XHTMLList):
+class UL(List):
 	# <!ELEMENT UL - - (LI)+                 -- ordered list -->
 	XMLNAME=(XHTML_NAMESPACE,'ul')
 	XMLCONTENT=xmlns.XMLElementContent
 	
-class XHTMLLI(XHTMLFlowContainer):
+class LI(FlowContainer):
 	# <!ELEMENT LI - O (%flow;)*             -- list item -->
 	XMLNAME=(XHTML_NAMESPACE,'li')
 	XMLCONTENT=xmlns.XMLElementContent
 	
 # Object Elements
 
-class XHTMLObject(XHTMLSpecialMixin,XHTMLElement):
+class Object(SpecialMixin,XHTMLElement):
 	"""Represents the object element::
 	
 	<!ELEMENT OBJECT - - (PARAM | %flow;)*
@@ -417,7 +454,7 @@ class XHTMLObject(XHTMLSpecialMixin,XHTMLElement):
 		self.name=None
 
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,(XHTMLFlowMixin,XHTMLParam)):
+		if issubclass(childClass,(FlowMixin,Param)):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
@@ -432,98 +469,98 @@ class XHTMLObject(XHTMLSpecialMixin,XHTMLElement):
 			self.data=self.RelativeURI(newData)		
 
 	
-class XHTMLParam(XHTMLElement):
+class Param(XHTMLElement):
 	# <!ELEMENT PARAM - O EMPTY              -- named property value -->
 	XMLNAME=(XHTML_NAMESPACE,'param')
 	XMLCONTENT=xmlns.XMLEmpty
 	
 # Presentation Elements
 
-class XHTMLFontStyle(XHTMLInlineMixin,XHTMLInlineContainer):
+class FontStyle(InlineMixin,InlineContainer):
 	# <!ENTITY % fontstyle "TT | I | B | BIG | SMALL">
 	# <!ELEMENT (%fontstyle;|%phrase;) - - (%inline;)*>
 	pass
 
-class XHTMLB(XHTMLFontStyle):
+class B(FontStyle):
 	XMLNAME=(XHTML_NAMESPACE,'b')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLBig(XHTMLFontStyle):
+class Big(FontStyle):
 	XMLNAME=(XHTML_NAMESPACE,'big')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLHR(XHTMLBlockMixin,XHTMLElement):
+class HR(BlockMixin,XHTMLElement):
 	# <!ELEMENT HR - O EMPTY -- horizontal rule -->
 	XMLNAME=(XHTML_NAMESPACE,'hr')
 	XMLCONTENT=xmlns.XMLEmpty
 
-class XHTMLI(XHTMLFontStyle):
+class I(FontStyle):
 	XMLNAME=(XHTML_NAMESPACE,'i')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLSmall(XHTMLFontStyle):
+class Small(FontStyle):
 	XMLNAME=(XHTML_NAMESPACE,'small')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLSub(XHTMLSpecialMixin,XHTMLInlineContainer):
+class Sub(SpecialMixin,InlineContainer):
 	# <!ELEMENT (SUB|SUP) - - (%inline;)*    -- subscript, superscript -->
 	XMLNAME=(XHTML_NAMESPACE,'sub')
 	XMLCONTENT=xmlns.XMLMixedContent
 	
-class XHTMLSup(XHTMLSpecialMixin,XHTMLInlineContainer):
+class Sup(SpecialMixin,InlineContainer):
 	# <!ELEMENT (SUB|SUP) - - (%inline;)*    -- subscript, superscript -->
 	XMLNAME=(XHTML_NAMESPACE,'sup')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLTT(XHTMLFontStyle):
+class TT(FontStyle):
 	XMLNAME=(XHTML_NAMESPACE,'tt')
 	XMLCONTENT=xmlns.XMLMixedContent
 
 # Table Elements
 
-class XHTMLTable(XHTMLBlockMixin,XHTMLElement):
+class Table(BlockMixin,XHTMLElement):
 	# <!ELEMENT TABLE - - (CAPTION?, (COL*|COLGROUP*), THEAD?, TFOOT?, TBODY+)>
 	XMLNAME=(XHTML_NAMESPACE,'table')
 	XMLCONTENT=xmlns.XMLElementContent
 
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,(XHTMLCaption,XHTMLCol,XHTMLColGroup,XHTMLTHead,XHTMLTFoot,XHTMLTBody)):
+		if issubclass(childClass,(Caption,Col,ColGroup,THead,TFoot,TBody)):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
 		elif issubclass(childClass,XHTMLTR):
 			# TBODY can have it's start tag omitted
-			tbody=self.ChildElement(XHTMLTBody)
+			tbody=self.ChildElement(TBody)
 			return tbody.ChildElement(childClass)
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))
 
-class XHTMLCaption(XHTMLInlineContainer):
+class Caption(InlineContainer):
 	# <!ELEMENT CAPTION  - - (%inline;)*     -- table caption -->
 	XMLNAME=(XHTML_NAMESPACE,'caption')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class XHTMLTRContainer(XHTMLElement):
+class TRContainer(XHTMLElement):
 	def ChildElement(self,childClass,name=None):
 		if issubclass(childClass,XHTMLTR):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 		
-class XHTMLTHead(XHTMLTRContainer):
+class THead(TRContainer):
 	# <!ELEMENT THEAD    - O (TR)+           -- table header -->
 	XMLNAME=(XHTML_NAMESPACE,'thead')
 	XMLCONTENT=xmlns.XMLElementContent
 
-class XHTMLTFoot(XHTMLTRContainer):
+class TFoot(TRContainer):
 	# <!ELEMENT TFOOT    - O (TR)+           -- table footer -->
 	XMLNAME=(XHTML_NAMESPACE,'tfoot')
 	XMLCONTENT=xmlns.XMLElementContent
 
-class XHTMLTBody(XHTMLTRContainer):
+class TBody(TRContainer):
 	# <!ELEMENT TBODY    O O (TR)+           -- table body -->
 	XMLNAME=(XHTML_NAMESPACE,'tbody')
 	XMLCONTENT=xmlns.XMLElementContent
 
-class XHTMLColGroup(XHTMLElement):
+class ColGroup(XHTMLElement):
 	# <!ELEMENT COLGROUP - O (COL)*          -- table column group -->
 	XMLNAME=(XHTML_NAMESPACE,'colgroup')
 	XMLCONTENT=xmlns.XMLElementContent
@@ -534,35 +571,57 @@ class XHTMLColGroup(XHTMLElement):
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 	
-class XHTMLCol(XHTMLBlockMixin,XHTMLElement):
+class Col(BlockMixin,XHTMLElement):
 	# <!ELEMENT COL      - O EMPTY           -- table column -->
 	XMLNAME=(XHTML_NAMESPACE,'col')
 	XMLCONTENT=xmlns.XMLEmpty
 
-class XHTMLTR(XHTMLElement):
+class TR(XHTMLElement):
 	# <!ELEMENT TR       - O (TH|TD)+        -- table row -->
 	XMLNAME=(XHTML_NAMESPACE,'tr')
 	XMLCONTENT=xmlns.XMLElementContent
 
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,(XHTMLTH,XHTMLTD)):
+		if issubclass(childClass,(TH,TD)):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 	
-class XHTMLTH(XHTMLFlowContainer):
+class TH(FlowContainer):
 	# <!ELEMENT (TH|TD)  - O (%flow;)*       -- table header cell, table data cell-->
 	XMLNAME=(XHTML_NAMESPACE,'th')
 	XMLCONTENT=xmlns.XMLMixedContent
 	
-class XHTMLTD(XHTMLFlowContainer):
+class TD(FlowContainer):
 	# <!ELEMENT (TH|TD)  - O (%flow;)*       -- table header cell, table data cell-->
 	XMLNAME=(XHTML_NAMESPACE,'td')
 	XMLCONTENT=xmlns.XMLMixedContent
+
+
+# Link Element
+
+class Link(XHTMLElement):
+	"""Represents the LINK element::
+	
+	<!ELEMENT LINK - O EMPTY               -- a media-independent link -->
+	<!ATTLIST LINK
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  charset     %Charset;      #IMPLIED  -- char encoding of linked resource --
+	  href        %URI;          #IMPLIED  -- URI for linked resource --
+	  hreflang    %LanguageCode; #IMPLIED  -- language code --
+	  type        %ContentType;  #IMPLIED  -- advisory content type --
+	  rel         %LinkTypes;    #IMPLIED  -- forward link types --
+	  rev         %LinkTypes;    #IMPLIED  -- reverse link types --
+	  media       %MediaDesc;    #IMPLIED  -- for rendering on these media --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'link')
+	XMLCONTENT=xmlns.XMLEmpty
+
 	
 # Image Element
 
-class XHTMLImg(XHTMLSpecialMixin,XHTMLElement):
+class Img(SpecialMixin,XHTMLElement):
 	"""Represents the <img> element::
 	
 	<!ELEMENT IMG - O EMPTY                -- Embedded image -->
@@ -612,12 +671,163 @@ class XHTMLImg(XHTMLSpecialMixin,XHTMLElement):
 		
 # Hypertext Element
 
-class XHTMLA(XHTMLSpecialMixin,XHTMLInlineContainer):
+class A(SpecialMixin,InlineContainer):
 	# <!ELEMENT A - - (%inline;)* -(A)       -- anchor -->
 	XMLNAME=(XHTML_NAMESPACE,'a')
 	XMLCONTENT=xmlns.XMLMixedContent
 
 
+# Document Head
+
+class Head(XHTMLElement):
+	"""Represents the HTML head structure::
+
+	<!-- %head.misc; defined earlier on as "SCRIPT|STYLE|META|LINK|OBJECT" -->
+	<!ENTITY % head.content "TITLE & BASE?">
+	
+	<!ELEMENT HEAD O O (%head.content;) +(%head.misc;) -- document head -->
+	<!ATTLIST HEAD
+	  %i18n;                               -- lang, dir --
+	  profile     %URI;          #IMPLIED  -- named dictionary of meta info --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'head')
+	XMLATTR_profile=('profile',DecodeURI,EncodeURI)
+	XMLCONTENT=xmlns.XMLElementContent
+	
+	def __init__(self,parent):
+		XHTMLElement.__init__(self,parent)
+		self.profile=None
+		self.Title=Title(self)
+		self.Base=None
+
+
+class Title(XHTMLElement):
+	"""Represents the title element::
+
+	<!ELEMENT TITLE - - (#PCDATA) -(%head.misc;) -- document title -->
+	<!ATTLIST TITLE %i18n>
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'title')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+
+class Meta(XHTMLElement):
+	"""Represents the meta element::
+
+	<!ELEMENT META - O EMPTY               -- generic metainformation -->
+	<!ATTLIST META
+	  %i18n;                               -- lang, dir, for use with content --
+	  http-equiv  NAME           #IMPLIED  -- HTTP response header name  --
+	  name        NAME           #IMPLIED  -- metainformation name --
+	  content     CDATA          #REQUIRED -- associated information --
+	  scheme      CDATA          #IMPLIED  -- select form of content --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'meta')
+	XMLCONTENT=xmlns.XMLEmpty
+
+	
+class Base(XHTMLElement):
+	"""Represents the base element::
+
+	<!ELEMENT BASE - O EMPTY               -- document base URI -->
+	<!ATTLIST BASE
+	  href        %URI;          #REQUIRED -- URI that acts as base URI --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'base')
+	XMLCONTENT=xmlns.XMLEmpty
+
+
+class Style(XHTMLElement):
+	"""Represents the style element::
+
+	<!ELEMENT STYLE - - %StyleSheet        -- style info -->
+	<!ATTLIST STYLE
+	  %i18n;                               -- lang, dir, for use with title --
+	  type        %ContentType;  #REQUIRED -- content type of style language --
+	  media       %MediaDesc;    #IMPLIED  -- designed for use with these media --
+	  title       %Text;         #IMPLIED  -- advisory title --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'style')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+
+	
+class Script(XHTMLElement):
+	"""Represents the script element::
+
+	<!ELEMENT SCRIPT - - %Script;          -- script statements -->
+	<!ATTLIST SCRIPT
+	  charset     %Charset;      #IMPLIED  -- char encoding of linked resource --
+	  type        %ContentType;  #REQUIRED -- content type of script language --
+	  src         %URI;          #IMPLIED  -- URI for an external script --
+	  defer       (defer)        #IMPLIED  -- UA may defer execution of script --
+	  event       CDATA          #IMPLIED  -- reserved for possible future use --
+	  for         %URI;          #IMPLIED  -- reserved for possible future use --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'script')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+
+# Document Body
+
+class Body(XHTMLElement):
+	"""Represents the HTML BODY structure::
+
+	<!ELEMENT BODY O O (%block;|SCRIPT)+ +(INS|DEL) -- document body -->
+	<!ATTLIST BODY
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  onload          %Script;   #IMPLIED  -- the document has been loaded --
+	  onunload        %Script;   #IMPLIED  -- the document has been removed --
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'body')
+	XMLCONTENT=xmlns.XMLElementContent
+
+	def ChildElement(self,childClass,name=None):
+		if issubclass(childClass,(BlockMixin,Script,Ins,Del)):
+			return XHTMLElement.ChildElement(self,childClass,name)
+		elif issubclass(childClass,FlowMixin):
+			child=XHTMLElement.ChildElement(self,Div)
+			return child.ChildElement(childClass,name)
+		else:
+			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
+		
+	
+# Document Structures
+
+class HTML(XHTMLElement):
+	"""Represents the HTML document strucuture::
+
+	<!ENTITY % html.content "HEAD, BODY">
+	
+	<!ELEMENT HTML O O (%html.content;)    -- document root element -->
+	<!ATTLIST HTML
+	  %i18n;                               -- lang, dir --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'html')
+	XMLCONTENT=xmlns.XMLElementContent
+	
+	def __init__(self,parent):
+		XHTMLElement.__init__(self,parent)
+		self.Head=Head(self)
+		self.Body=Body(self)
+
+	def ChildElement(self,childClass,name=None):
+		if issubclass(childClass,(Head,Body)):
+			return XHTMLElement.ChildElement(self,childClass,name)
+		elif issubclass(childClass,(Title,Base,Script,Style,Meta,Link,Object)):
+			# Head can have it's start tag omitted
+			return self.Head.ChildElement(childClass)
+		else:
+			# ...as can Body
+			return self.Body.ChildElement(childClass)
+	
+	
 class HTMLParser(xml.XMLParser):
 	def __init__(self,entity=None):
 		xml.XMLParser.__init__(self,entity)
@@ -629,8 +839,9 @@ class HTMLParser(xml.XMLParser):
 		else:
 			return unichr(codepoint)
 			
-	def ParseHTMLFragment(self):
+	def ParseHTML(self):
 		fragment=[]
+		root=None
 		element=None
 		eData=[]
 		while self.theChar is not None:
@@ -638,8 +849,11 @@ class HTMLParser(xml.XMLParser):
 			if data:
 				if element:
 					element.AddData(data)
-				else:
-					fragment.append(data)
+				elif xmlns.CollapseSpace(data)!=u" ":
+					# non-trivial data, use div
+					root=HTML(None)
+					element=root.ChildElement(Div)
+					element.AddData(data)
 				data=None
 			name=None
 			if self.theChar=='<':
@@ -677,26 +891,35 @@ class HTMLParser(xml.XMLParser):
 					name,attrs,empty=self.ParseSTag()
 					eClass=XHTMLDocument.classMap.get((XHTML_NAMESPACE,name.lower()),None)
 					if eClass is None:
-						if element is not None and issubclass(element.__class__,(XHTMLInlineContainer,XHTMLFlowContainer)):
+						if element is not None and issubclass(element.__class__,(InlineContainer,FlowContainer)):
 							# try a span with a class attribute
-							eClass=XHTMLSpan
+							eClass=Span
 						else:
-							eClass=XHTMLDiv
+							eClass=Div
 						classValue=name
 					else:
 						classValue=None
-					newElement=None
-					while element is not None:
-						try:
-							newElement=element.ChildElement(eClass)
-							break
-						except XHTMLValidityError:
-							# we can't go in here
-							element=element.parent
-							continue
-					if newElement is None:		
-						newElement=eClass(None)
-						fragment.append(newElement)
+					if element is None:
+						if eClass is HTML:
+							root=newElement=HTML(None)
+						else:
+							element=root=HTML(None)
+							newElement=root.ChildElement(eClass)
+					else:
+						newElement=None
+						while element is not None:
+							try:
+								newElement=element.ChildElement(eClass)
+								break
+							except XHTMLValidityError:
+								# we can't go in here
+								element=element.parent
+								continue
+						if newElement is None:
+							# if in doubt, one should always be able to create a div
+							element=root
+							newElement=root.ChildElement(Div)
+							classValue=name
 					if classValue is None:
 						newElement.SetXMLName((XHTML_NAMESPACE,name))
 					else:
@@ -711,14 +934,36 @@ class HTMLParser(xml.XMLParser):
 			if data:
 				if element:
 					element.AddData(data)
-				else:
-					fragment.append(data)
+				elif xmlns.CollapseSpace(data)!=u" ":
+					# non-trivial data, use div
+					root=HTML(None)
+					element=root.ChildElement(Div)
+					element.AddData(data)
 				data=None
-		return fragment
+		return root
 
 
 class XHTMLDocument(xmlns.XMLNSDocument):
+	"""Represents an HTML document.
+	
+	Although HTML documents are not always represented using XML they can be,
+	and therefore we base our implementation on the
+	:class:`pyslet.xmlnames20091208.XMLNSDocument` class - a namespace-aware
+	variant of the basic :class:`pyslet.xml20081126.XMLDocument` class."""
+	
 	classMap={}
+	"""Data member used to store a mapping from element names to the classes
+	used to represent them.  This mapping is initialized when the module is
+	loaded."""
+	
+	def __init__(self,**args):
+		xml.XMLDocument.__init__(self,**args)
 
-
+	def ReadFromEntity(self,e):
+		"""We override the basic XML parsing to use a custom method that is
+		intelligent about the use of omitted tags and can force a generous
+		SGML-like parsing mode."""
+		p=HTMLParser(e)
+		self.root=p.ParseHTML()
+		
 xmlns.MapClassElements(XHTMLDocument.classMap,globals())

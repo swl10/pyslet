@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="PYSLET_FIBS_IR_03" title="Extended Answer Item" adaptive="false"
+    timeDependent="false">
+    <responseDeclaration identifier="FIB91" cardinality="ordered" baseType="string"/>
+    <outcomeDeclaration identifier="OrganizationScore" cardinality="single" baseType="integer"
+        normalMinimum="0.0" normalMaximum="5.0"
+        interpretation="The extent to which the student has organized their answer as plan for completing the procedure:
+5= Tasks are in the correct order and organized optimally.
+4=	Tasks are in a workable order.
+3=	Tasks are mentioned in workable order but without much evidence of planning.
+2=	Order in which tasks are carried out is unclear from answer.
+1=	Some tasks are out of order.
+0=	No organization of tasks."/>
+    <outcomeDeclaration identifier="TechnicalScore" cardinality="single" baseType="integer"
+        normalMaximum="5.0" normalMinimum="0.0"
+        interpretation="The extent to which the student understands the technical tasks involved:
+5=	All tasks clearly identified with details such as tools required.
+4=	All tasks clearly identified but lacking details.
+3=	Most important tasks identified
+2=	Missing some important tasks
+1=	Little understanding of the tasks involved
+0=	No understanding at all."/>
+    <itemBody>
+        <div label="PysletExample_FIBS_IR_03">
+            <p>Briefly explain how you would adjust the chain tension on a fixed-wheel bicycle.</p>
+            <extendedTextInteraction responseIdentifier="FIB91" expectedLines="20"
+                expectedLength="1600"/>
+        </div>
+        <rubricBlock view="scorer">
+            <p>Provide a rating for both technical and organizational aspects of the answer. <span
+                    label="TechnicalRubric">The extent to which the student understands the
+                    technical tasks involved: 5= All tasks clearly identified with details such as
+                    tools required. 4= All tasks clearly identified but lacking details. 3= Most
+                    important tasks identified 2= Missing some important tasks 1= Little
+                    understanding of the tasks involved 0= No understanding at all.</span><span
+                    label="OrganizationRubric">The extent to which the student has organized their
+                    answer as plan for completing the procedure: 5= Tasks are in the correct order
+                    and organized optimally. 4= Tasks are in a workable order. 3= Tasks are
+                    mentioned in workable order but without much evidence of planning. 2= Order in
+                    which tasks are carried out is unclear from answer. 1= Some tasks are out of
+                    order. 0= No organization of tasks.</span></p>
+            <dl>
+                <dt>Sample 1 (Full marks)</dt>
+                <dd>Loosen the rear wheel with a 15mm spanner, push the wheel back in the dropouts
+                    until the required tension is obtained. Hold or wedge the wheel firmly in place
+                    and retighten the wheelnut.</dd>
+                <dt>Sample 2 (Medium technical score but no organization)</dt>
+                <dd>I'd move the wheel back.</dd>
+                <dt>Sample 3 (No score)</dt>
+                <dd>Tighten it with a spanner.</dd>
+            </dl>
+        </rubricBlock>
+    </itemBody>
+    <responseProcessing/>
+</assessmentItem>
