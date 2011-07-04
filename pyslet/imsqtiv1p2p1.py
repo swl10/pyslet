@@ -2066,14 +2066,18 @@ class QTIUnanswered(QTIElement,QTIExpressionMixin):
 
 
 class QTIOther(QTIElement,QTIExpressionMixin):
-	"""Represents the other element.
-	
-::
+	"""Represents the other element::
 
 	<!ELEMENT other (#PCDATA)>	
 	"""
 	XMLNAME="other"
 	XMLCONTENT=xml.XMLMixedContent
+
+	def MigrateV2Expression(self,parent,log):
+		log.append("Warning: replacing <other/> with the base value true - what did you want me to do??")
+		bv=parent.ChildElement(qtiv2.QTIBaseValue)
+		bv.baseType=qtiv2.BaseType.boolean
+		bv.SetValue('true')
 
 
 class QTIDuration(QTIElement):
