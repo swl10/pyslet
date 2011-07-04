@@ -987,20 +987,28 @@ class XMLParser:
 			self.WellFormednessViolation("Expected Name")
 		attrs={}
 		while True:
-			s=self.ParseS()
-			if self.theChar=='>':
+			try:
+				s=self.ParseS()
+				if self.theChar=='>':
+					self.NextChar()
+					break
+				elif self.theChar=='/':
+					self.ParseRequiredLiteral('/>')
+					empty=True
+					break
+				if s:
+					aName,aValue=self.ParseAttribute()
+					attrs[aName]=aValue
+				else:
+					#import pdb;pdb.set_trace()
+					self.WellFormednessViolation("Expected S, '>' or '/>', found '%s'"%self.theChar)
+			except XMLWellFormedError:
+				if not self.compatibilityMode:
+					raise
+				# spurious character inside a start tag, in compatibility mode we
+				# just discard it and keep going
 				self.NextChar()
-				break
-			elif self.theChar=='/':
-				self.ParseRequiredLiteral('/>')
-				empty=True
-				break
-			if s:
-				aName,aValue=self.ParseAttribute()
-				attrs[aName]=aValue
-			else:
-				import pdb;pdb.set_trace()
-				self.WellFormednessViolation("Expected S, '>' or '/>', found '%s'"%self.theChar)
+				continue
 		return name,attrs,empty
 	
 	def ParseETag(self):
@@ -1311,7 +1319,7 @@ class XMLParser:
 			self.ParseS()
 			value=self.ParseAttValue()
 		else:
-			value=None
+			value=name
 		return name,value
 	
 	stdEntities={

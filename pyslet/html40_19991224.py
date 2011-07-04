@@ -1228,6 +1228,7 @@ class HTMLParser(xmlns.XMLNSParser):
 			self.ParseDoctypeDecl()
 			self.ParseMisc()
 		if self.xmlFlag:
+			import pdb;pdb.set_trace()
 			self.ParseElement()			
 			self.ParseMisc()
 			if self.theChar is not None:
@@ -1356,9 +1357,11 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 			if isinstance(parent,xml.XMLDocument):
 				if eClass is HTML:
 					self.cObject=parent.ChildElement(HTML)
-				else:
+				elif issubclass(eClass,XHTMLElement):
 					parent=parent.ChildElement(HTML)
 					self.cObject=parent.ChildElement(eClass)
+				else:
+					self.cObject=parent.ChildElement(eClass,name)
 			elif issubclass(eClass,XHTMLElement):
 				# Handle omitted tags
 				self.cObject=None
@@ -1391,7 +1394,7 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 			except xml.XMLIDClashError:
 				# ignore ID clashes as they are common in HTML it seems
 				continue
-		if eClass.XMLCONTENT==xmlns.XMLEmpty:
+		if hasattr(eClass,'XMLCONTENT') and eClass.XMLCONTENT==xmlns.XMLEmpty:
 			self.endElementNS(name,qname)
 		elif hasattr(eClass,'SGMLCDATA'):
 			# This is a CDATA section...

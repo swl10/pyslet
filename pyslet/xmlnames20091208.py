@@ -277,6 +277,8 @@ class XMLNSElement(XMLElement):
 		keys=attrs.keys()
 		keys.sort()
 		for a in keys:
+			if attrs[a] is None:
+				import pdb;pdb.set_trace()
 			if type(a) in types.StringTypes:
 				aname=a
 				prefix=''
