@@ -3317,11 +3317,11 @@ class QTIFlow(QTIFlowContainer):
 			if childType in (html.BlockMixin,html.FlowMixin):
 				div=parent.ChildElement(html.Div,(qtiv2.IMSQTI_NAMESPACE,'div'))
 				div.styleClass=self.flowClass
-				self.MigrateV2Content(div,html.FlowMixin,log)
+				QTIFlowContainer.MigrateV2Content(self,div,html.FlowMixin,log)
 			else:
 				span=parent.ChildElement(html.Span,(qtiv2.IMSQTI_NAMESPACE,'span'))
 				span.styleClass=self.flowClass
-				self.MigrateV2Content(span,html.InlineMixin,log)
+				QTIFlowContainer.MigrateV2Content(self,span,html.InlineMixin,log)
 		else:
 			QTIFlowContainer.MigrateV2Content(self,parent,childType,log)
 	

@@ -177,6 +177,23 @@ def EscapeCharData(src,quote=False):
 	else:
 		return saxutils.escape(src,{'\r':'&#xD;'})
 
+def EscapeCDSect(src):
+	"""Returns a unicode string enclosed in <!CDATA[[ ]]> with ]]> 
+	by the clumsy sequence: ]]>]]&gt;<!CDATA[[
+	
+	Degenerate case: an empty string is returned as an empty string
+	"""
+	data=src.split(u']]>')
+	if data:
+		result=[u'<!CDATA[[',data[0]]
+		for d in data[1:]:
+			result.append(u']]>]]&gt;<!CDATA[[')
+			result.append(d)
+		result.append(u']]>')
+		return string.join(result,u'')
+	else:
+		return u''
+		
 def EscapeCharData7(src,quote=False):
 	"""Returns a unicode string with reserved and non-ASCII characters escaped."""
 	dst=[]
@@ -361,6 +378,7 @@ class XMLEntity:
 	
 	def __init__(self,src,encoding='utf-8'):
 		self.encoding=encoding
+		self.chunk=1
 		if type(src) is UnicodeType:
 			self.dataSource=None
 			self.charSource=StringIO(src)
@@ -428,10 +446,10 @@ class XMLEntity:
 		if self.charPos>=len(self.chars):
 			# watch out for look ahead
 			if self.lookahead:
-				self.chars=self.chars+self.charSource.read(XMLEntity.CHUNKSIZE)
+				self.chars=self.chars+self.charSource.read(self.chunk)
 			else:
 				self.charSeek=self.charSource.tell()
-				self.chars=self.charSource.read(XMLEntity.CHUNKSIZE)
+				self.chars=self.charSource.read(self.chunk)
 				self.charPos=0
 		if self.charPos>=len(self.chars):
 			self.theChar=None
@@ -515,10 +533,9 @@ class XMLParser:
 		self.entity=entity
 		self.theChar=self.entity.theChar
 	
-	def Rewind(self):
-		self.entity.RewindLookahead()
-		self.theChar=self.entity.theChar
-
+	def WellFormednessViolation(self,msg="well-formedness violation"):
+		raise XMLWellFormedError("%s: %s"%(self.entity.GetPositionStr(),msg))
+		
 	def ParseDocument(self,doc):
 		"""[1] document ::= prolog element Misc* """
 		self.doc=doc
@@ -526,7 +543,7 @@ class XMLParser:
 		self.ParseElement()
 		self.ParseMisc()
 		if self.theChar is not None:
-			raise XMLWellFormedError("Unparsed characters in entity after document")
+			self.WellFormednessViolation("Unparsed characters in entity after document")
 
 	#	[2] Char ::= #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
 
@@ -563,7 +580,7 @@ class XMLParser:
 	def ParseRequiredName(self):
 		name=self.ParseName()
 		if name is None:
-			raise XMLWellFormedError("Expected Name")
+			self.WellFormednessViolation("Expected Name")
 		return name
 		
 	def ParseNames(self):
@@ -573,15 +590,13 @@ class XMLParser:
 		if name is None:
 			return None
 		names.append(name)
-		while self.theChar==' ':
-			self.entity.StartLookahead()
+		while self.theChar==u' ':
 			self.NextChar()
 			name=self.ParseName()
 			if name is None:
-				self.Rewind()
+				self.BuffText(u' ')
 				break
 			names.append(name)
-			self.entity.StopLookahead()
 		if names:
 			return names
 		else:
@@ -605,15 +620,13 @@ class XMLParser:
 		if nmtoken is None:
 			return None
 		nmtokens.append(nmtoken)
-		while self.theChar==' ':
-			self.entity.StartLookahead()
+		while self.theChar==u' ':
 			self.NextChar()
 			nmtoken=self.ParseNmtoken()
 			if nmtoken is None:
-				self.Rewind()
+				self.BuffText(u' ')
 				break
 			nmtokens.append(nmtoken)
-			self.entity.StopLookahead()
 		if nmtokens:
 			return nmtokens
 		else:
@@ -635,9 +648,9 @@ class XMLParser:
 				value.append(self.theChar)
 				self.NextChar()
 			elif self.theChar is None:
-				raise XMLWellFormedError("Incomplete EntityValue")
+				self.WellFormednessViolation("Incomplete EntityValue")
 			else:
-				raise XMLWellFormedError("Unexpected data in EntityValue")
+				self.WellFormednessViolation("Unexpected data in EntityValue")
 		return string.join(value,'')
 
 	def ParseAttValue(self):
@@ -650,11 +663,14 @@ class XMLParser:
 			if not self.compatibilityMode:
 				raise
 			q=None
-			end='<"\'>'
+			end='<"\'> \t\r\n'
 		while True:
 			try:
 				if self.theChar==q:
 					self.NextChar()
+					break
+				elif self.theChar in end:
+					# compatibility mode only
 					break
 				elif self.theChar=='&':
 					refData=self.ParseReference()
@@ -663,20 +679,20 @@ class XMLParser:
 					value.append(unichr(0x20))
 					self.NextChar()
 				elif self.theChar=='<':
-					raise XMLWellFormedError("Unescaped < in AttValue")
+					self.WellFormednessViolation("Unescaped < in AttValue")
 				elif self.theChar is None:
-					raise XMLWellFormedError("EOF in AttValue")
+					self.WellFormednessViolation("EOF in AttValue")
 				else:
 					value.append(self.theChar)
 					self.NextChar()
 			except XMLWellFormedError:
 				if not self.compatibilityMode:
 					raise
-				if self.theChar in end:
-					break
 				elif self.theChar=='<':
 					value.append(self.theChar)
 					self.NextChar()
+				elif self.theChar is None:
+					break
 		return string.join(value,'')
 	
 	def ParseSystemLiteral(self):
@@ -691,9 +707,9 @@ class XMLParser:
 				value.append(self.theChar)
 				self.NextChar()
 			elif self.theChar is None:
-				raise XMLWellFormedError("Incomplete SystemLiteral")
+				self.WellFormednessViolation("Incomplete SystemLiteral")
 			else:
-				raise XMLWellFormedError("Unexpected data in SystemLiteral")
+				self.WellFormednessViolation("Unexpected data in SystemLiteral")
 		return string.join(value,'')
 		
 	def ParsePubidLiteral(self):
@@ -711,9 +727,9 @@ class XMLParser:
 				value.append(self.theChar)
 				self.NextChar()
 			elif self.theChar is None:
-				raise XMLWellFormedError("Incomplete PubidLiteral")
+				self.WellFormednessViolation("Incomplete PubidLiteral")
 			else:
-				raise XMLWellFormedError("Unexpected data in PubidLiteral")
+				self.WellFormednessViolation("Unexpected data in PubidLiteral")
 		return string.join(value,'')
 
 	def ParseCharData(self):
@@ -763,7 +779,7 @@ class XMLParser:
 		data=[]
 		target=self.ParseName()
 		if target is None:
-			raise XMLWellFormedError("Expected PI Target")
+			self.WellFormednessViolation("Expected PI Target")
 		if self.ParseS() is None:
 			return target,None
 		while self.theChar is not None:
@@ -779,38 +795,28 @@ class XMLParser:
 			self.NextChar()
 		return target,string.join(data,'')
 		
-	def ParseCDSect(self):
+	def ParseCDSect(self,cdEnd=u']]>'):
 		"""
 		[18] CDSect ::= CDStart CData CDEnd
 		[19] CDStart ::= '<![CDATA['
 		[20] CData ::= (Char* - (Char* ']]>' Char*))
 		[21] CDEnd ::= ']]>'
 		
-		Assume that the literal has already been parsed."""
+		Assume that the initial literal has already been parsed."""
 		data=[]
 		while self.theChar is not None:
-			if self.theChar==']':
-				self.NextChar()
-				if self.theChar==']':
-					self.NextChar()
-					if self.theChar=='>':
-						self.NextChar()
-						break
-					else:
-						data.append(']]')
-				else:
-					data.append(']')
+			if self.ParseLiteral(cdEnd):
+				break
 			data.append(self.theChar)
 			self.NextChar()
 		return string.join(data,'')
 
 	def ParseProlog(self):
-		"""[22] prolog ::= XMLDecl? Misc* (doctypedecl Misc*)?
-		
-		Returns a any characters parsed but not used."""
+		"""[22] prolog ::= XMLDecl? Misc* (doctypedecl Misc*)?"""
 		match=self.ParseLiteral('<?xml')
 		if match:
 			self.ParseXMLDecl()
+		self.entity.chunk=XMLEntity.CHUNKSIZE
 		self.ParseMisc()
 		match=self.ParseLiteral('<!DOCTYPE')
 		if match:
@@ -849,6 +855,8 @@ class XMLParser:
 				standalone=self.ParseSDDecl()
 				s=self.ParseS()
 		self.ParseRequiredLiteral('?>')
+		if encoding and self.entity.encoding.lower()!=encoding.lower():
+			self.entity.ChangeEncoding(encoding)
 		return version,encoding,standalone
 	
 	def ParseEq(self):
@@ -858,20 +866,27 @@ class XMLParser:
 		self.ParseS()
 		
 	def ParseMisc(self):
-		"""[27] Misc ::= Comment | PI | S """
+		"""[27] Misc ::= Comment | PI | S
+		This method returns and trailing data matching S; that is, any data
+		after all comments and processing instructions have been parsed."""
+		s=[]
 		while True:
 			match=self.ParseLiteral('<!--')
 			if match:
+				s=[]
 				self.ParseComment()
 				continue
 			match=self.ParseLiteral('<?')
 			if match:
+				s=[]
 				self.ParsePI()
 				continue
 			match=self.ParseS()
 			if not match:
 				break
-		return None
+			else:
+				s.append(match)
+		return string.join(s,'')
 		
 	def ParseDoctypeDecl(self):
 		"""
@@ -881,7 +896,7 @@ class XMLParser:
 		[29]  markupdecl ::= elementdecl | AttlistDecl | EntityDecl | NotationDecl | PI | Comment
 		Assume the literal has already been parsed."""
 		if not self.ParseS():
-			raise XMLWellFormedError("Expected S")
+			self.WellFormednessViolation("Expected S")
 		dtdName=self.ParseRequiredName()
 		s=self.ParseS()
 		if s:
@@ -917,9 +932,9 @@ class XMLParser:
 						elif self.ParseLiteral('NOTATION'):
 							self.ParseNotationDecl()
 					else:
-						raise XMLWellFormedError("Expected markupdecl")
+						self.WellFormednessViolation("Expected markupdecl")
 				elif not self.ParseS():
-					raise XMLWellFormedError("Expected markupdecl or DeclSep")
+					self.WellFormednessViolation("Expected markupdecl or DeclSep")
 			self.ParseS()
 		self.ParseRequiredLiteral('>')
 		return None
@@ -955,7 +970,7 @@ class XMLParser:
 			self.ParseContent()
 			endName=self.ParseETag()
 			if name!=endName:
-				raise XMLWellFormedError("Expected <%s/>"%name)
+				self.WellFormednessViolation("Expected <%s/>"%name)
 			self.doc.endElement(name)
 		return name
 	
@@ -969,7 +984,7 @@ class XMLParser:
 		self.ParseRequiredLiteral('<')
 		name=self.ParseName()
 		if name is None:
-			raise XMLWellFormedError("Expected Name")
+			self.WellFormednessViolation("Expected Name")
 		attrs={}
 		while True:
 			s=self.ParseS()
@@ -984,7 +999,8 @@ class XMLParser:
 				aName,aValue=self.ParseAttribute()
 				attrs[aName]=aValue
 			else:
-				raise XMLWellFormedError("Expected > at %s"%self.entity.GetPositionStr())
+				import pdb;pdb.set_trace()
+				self.WellFormednessViolation("Expected S, '>' or '/>', found '%s'"%self.theChar)
 		return name,attrs,empty
 	
 	def ParseETag(self):
@@ -992,7 +1008,7 @@ class XMLParser:
 		self.ParseRequiredLiteral('</')
 		name=self.ParseName()
 		if name is None:
-			raise XMLWellFormedError("Expected Name")
+			self.WellFormednessViolation("Expected Name")
 		self.ParseS()
 		self.ParseRequiredLiteral('>')
 		return name
@@ -1013,7 +1029,7 @@ class XMLParser:
 						if data:
 							self.doc.characters(data)
 					else:
-						raise XMLWellFormedError("Expected Comment or CDSect")
+						self.WellFormednessViolation("Expected Comment or CDSect")
 				elif self.theChar=='?':
 					self.NextChar()
 					self.ParsePI()
@@ -1028,22 +1044,22 @@ class XMLParser:
 				if data:
 					self.doc.characters(data)
 			elif self.theChar is None:
-				raise XMLWellFormedError("Unexpected end of content")
+				self.WellFormednessViolation("Unexpected end of content")
 			else:
 				data=self.ParseCharData()
 				if data:
 					self.doc.characters(data)
 				else:
-					raise XMLWellFormedError("Unrecognized character in content: %s"%self.theChar)
+					self.WellFormednessViolation("Unrecognized character in content: %s"%self.theChar)
 	
 	def ParseElementDecl(self):
 		"""[45] elementdecl ::= '<!ELEMENT' S Name S contentspec S? '>'
 		Assume that the literal has already been parsed."""
 		if not self.ParseS():
-			raise XMLWellFormedError("Expected S")
+			self.WellFormednessViolation("Expected S")
 		name=self.ParseName()
 		if not self.ParseS():
-			raise XMLWellFormedError("Expected S")
+			self.WellFormednessViolation("Expected S")
 		self.ParseContentSpec()
 		self.ParseS()
 		self.ParseRequiredLiteral('>')
@@ -1073,7 +1089,7 @@ class XMLParser:
 						self.ParseS()
 						self.ParseName()
 					else:
-						raise XMLWellFormedError("Expected Name, '|' or ')'")
+						self.WellFormednessViolation("Expected Name, '|' or ')'")
 				if self.theChar=='*':
 					self.NextChar()
 			else:
@@ -1115,9 +1131,94 @@ class XMLParser:
 				self.NextChar()
 				break
 			else:
-				raise XMLWellFormedError("Bad separator in content group %s"%self.theChar)
+				self.WellFormednessViolation("Bad separator in content group %s"%self.theChar)
 			self.ParseS()
 
+	def ParseAttlistDecl(self):
+		"""
+		[52] AttlistDecl	::= '<!ATTLIST' S Name AttDef* S? '>'
+		[53] AttDef			::= S Name S AttType S DefaultDecl
+		Assume that the literal has already been parsed."""
+		if not self.ParseS():
+			self.WellFormednessViolation("Expected S")
+		eName=self.ParseName()
+		while True:
+			if not self.ParseS() or self.theChar==">":
+				break
+			aName=self.ParseName()
+			if not self.ParseS():
+				self.WellFormednessViolation("Expected S")
+			aType=self.ParseAttType()
+			if not self.ParseS():
+				self.WellFormednessViolation("Expected S")
+			aDefaultType,aDefaultValue=self.ParseDefaultDecl()
+		self.ParseRequiredLiteral('>')
+	
+	def ParseAttType(self):
+		"""
+		[54] AttType		::= StringType | TokenizedType | EnumeratedType
+		[55] StringType 	::= 'CDATA'
+		[56] TokenizedType	::= 'ID' | 'IDREF' | 'IDREFS' | 'ENTITY' | 'ENTITIES' | 'NMTOKEN' | 'NMTOKENS'
+		[57] EnumeratedType ::= NotationType | Enumeration
+		[58] NotationType	::= 'NOTATION' S '(' S? Name (S? '|' S? Name)* S? ')'
+		[59] Enumeration	::= '(' S? Nmtoken (S? '|' S? Nmtoken)* S? ')'
+		"""
+		if self.theChar=="(":
+			# An Enumeration
+			self.NextChar()
+			enumeration=[]
+			while True:
+				self.ParseS()
+				enumeration.append(self.ParseNmtoken())
+				self.ParseS()
+				if self.theChar=='|':
+					self.NextChar()
+					continue
+				elif self.theChar==')':
+					self.NextChar()
+					break
+				else:
+					self.WellFormednessViolation("Expected '|' or ')' in Enumeration")
+			return ['']+enumeration
+		else:
+			type=self.ParseName()
+			if type=="NOTATION":
+				if not self.ParseS():
+					self.WellFormednessViolation("Expected S")
+				self.ParseRequiredLiteral('(')
+				notation=[]
+				while True:
+					self.ParseS()
+					notation.append(self.ParseName())
+					self.ParseS()
+					if self.theChar=='|':
+						self.NextChar()
+						continue
+					elif self.theChar==')':
+						self.NextChar()
+						break
+					else:
+						self.WellFormednessViolation("Expected '|' or ')' in NotationType")
+				return [type]+notation
+			else:
+				return [type]
+	
+	def ParseDefaultDecl(self):
+		"""[60] DefaultDecl	::=	'#REQUIRED' | '#IMPLIED' | (('#FIXED' S)? AttValue)"""
+		if self.ParseLiteral('#REQUIRED'):
+			return '#REQUIRED',''
+		elif self.ParseLiteral('#IMPLIED'):
+			return '#IMPLIED',''
+		else:
+			if self.ParseLiteral('#FIXED'):
+				type="#FIXED"
+				if not self.ParseS():
+					self.WellFormednessViolation("Expected S")
+			else:
+				type=''
+			value=self.ParseAttValue()
+			return type,value
+			
 	def ParsePEReference(self):
 		"""[69] PEReference ::= '%' Name ';'  """
 		self.ParseRequiredLiteral('%')
@@ -1134,12 +1235,12 @@ class XMLParser:
 			pubID=None
 		elif self.ParseLiteral('PUBLIC'):
 			if not self.ParseS():
-				raise XMLWellFormedError("Expected S")
+				self.WellFormednessViolation("Expected S")
 			pubID=self.ParsePubidLiteral()
 		else:
-			raise XMLWellFormedError("Expected ExternalID")
+			self.WellFormednessViolation("Expected ExternalID")
 		if not self.ParseS():
-			raise XMLWellFormedError("Expected S")
+			self.WellFormednessViolation("Expected S")
 		systemID=self.ParseSystemLiteral()
 		return pubID,systemID
 			
@@ -1151,7 +1252,7 @@ class XMLParser:
 		q=self.ParseQuote()
 		encName=self.ParseEncName()
 		if not encName:
-			raise XMLWellFormedError("Expected EncName")
+			self.WellFormednessViolation("Expected EncName")
 		self.ParseQuote(q)
 		return encName
 		
@@ -1174,18 +1275,18 @@ class XMLParser:
 		
 		We assume that <!NOTATION has already been parsed."""
 		if not self.ParseS():
-			raise XMLWellFormedError("Expected S")
+			self.WellFormednessViolation("Expected S")
 		name=self.ParseName()
 		if name is None:
-			raise XMLWellFormedError("Expected NOTATION Name")
+			self.WellFormednessViolation("Expected NOTATION Name")
 		if not self.ParseS():
-			raise XMLWellFormedError("Expected S")
+			self.WellFormednessViolation("Expected S")
 		if self.theChar=='S':
 			# Must be a SYSTEM literal in an ExternalID
 			pubID,systemID=self.ParseExternalID()
 		elif self.ParseLiteral('PUBLIC'):
 			if not self.ParseS():
-				self.XMLWellFormedError("Expected S")
+				self.WellFormednessViolation("Expected S")
 			pubID=self.ParsePubidLiteral()
 			systemID=None
 			if self.ParseS():
@@ -1194,7 +1295,7 @@ class XMLParser:
 					systemID=self.ParseSystemLiteral()
 				self.ParseS()
 		else:
-			raise XMLWellFormedError("Expected ExternalID or PublicID")
+			self.WellFormednessViolation("Expected ExternalID or PublicID")
 		self.ParseRequiredLiteral('>')
 		return pubID,systemID
 			
@@ -1254,7 +1355,7 @@ class XMLParser:
 			data.append(self.theChar)
 			self.NextChar()
 		if required and not data:
-			raise XMLWellFormedError("Expected [0-9]+")
+			self.WellFormednessViolation("Expected [0-9]+")
 		return string.join(data,'')
 
 	def ParseHexDigits(self):
@@ -1273,18 +1374,18 @@ class XMLParser:
 				self.NextChar()
 				return q
 			else:
-				raise XMLWellFormedError("Expected %s"%q)
+				self.WellFormednessViolation("Expected %s"%q)
 		elif self.theChar=='"' or self.theChar=="'":
 			q=self.theChar
 			self.NextChar()
 			return q
 		else:
-			raise XMLWellFormedError("Expected '\"' or \"'\"")
+			self.WellFormednessViolation("Expected '\"' or \"'\"")
 					
 	def ParseRequiredLiteral(self,match):
 		"""Parses a required literal string raising a wellformed error if not matched """
 		if not self.ParseLiteral(match):			
-			raise XMLWellFormedError("Expected %s at %s"%(match,self.entity.GetPositionStr()))
+			self.WellFormednessViolation("Expected %s"%match)
 			
 	def ParseLiteral(self,match):
 		"""Returns a Boolean if the literal was matched successfully"""
@@ -1299,6 +1400,8 @@ class XMLParser:
 			
 
 class XMLElement:
+	#XMLCONTENT=XMLMixedContent
+	
 	def __init__(self,parent,name=None):
 		self.parent=parent
 		if name is None:
@@ -1518,12 +1621,14 @@ class XMLElement:
 			return children
 		e=self
 		while isinstance(e,XMLElement):
-			spc=self.GetSpace()
+			spc=e.GetSpace()
 			if spc is not None:
 				if spc=='preserve':
 					return children
 				else:
 					break
+			if hasattr(e.__class__,'SGMLCDATA'):
+				return children
 			e=e.parent
 		if len(children)==1:
 			child=children[0]
@@ -2078,6 +2183,8 @@ class XMLElement:
 		spc=self.GetSpace()
 		if spc is not None and spc=='preserve':
 			return False
+		if hasattr(self.__class__,'SGMLCDATA'):
+			return False
 		if isinstance(self.parent,XMLElement):
 			spc=self.parent.PrettyPrint()
 			if spc is False:
@@ -2130,14 +2237,18 @@ class XMLElement:
 				# First character is WS, so assume pre-formatted
 				indent=tab=''
 			writer.write(u'%s<%s%s>'%(ws,self.xmlname,attributes))
-			for child in children:
-				if type(child) in types.StringTypes:
-					# We force encoding of carriage return as these are subject to removal
-					writer.write(escapeFunction(child))
-					# if we have character data content skip closing ws
-					ws=''
-				else:
-					child.WriteXML(writer,escapeFunction,indent,tab)
+			if hasattr(self.__class__,'SGMLCDATA'):
+				# When expressed in SGML this element would have type CDATA so put it in a CDSect
+				writer.write(EscapeCDSect(self.GetValue()))
+			else:
+				for child in children:
+					if type(child) in types.StringTypes:
+						# We force encoding of carriage return as these are subject to removal
+						writer.write(escapeFunction(child))
+						# if we have character data content skip closing ws
+						ws=''
+					else:
+						child.WriteXML(writer,escapeFunction,indent,tab)
 			if not tab:
 				# if we weren't tabbing children we need to skip closing white space
 				ws=''
@@ -2147,7 +2258,7 @@ class XMLElement:
 				
 
 class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
-	def __init__(self, root=None, baseURI=None, defaultNS=None, **args):
+	def __init__(self, root=None, baseURI=None, **args):
 		"""Initialises a new XMLDocument from optional keyword arguments.
 		
 		With no arguments, a new XMLDocument is created with no baseURI
@@ -2157,10 +2268,7 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		to create the root element of the document.
 		
 		baseURI can be set on construction (see SetBase)
-		
-		The defaultNS used for elements without an associated namespace
-		can be specified on construction."""
-		self.defaultNS=defaultNS
+		"""
 		self.parser=make_parser()
 		self.parser.setFeature(handler.feature_namespaces,0)
 		self.parser.setFeature(handler.feature_validation,0)
@@ -2189,9 +2297,6 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		s=StringIO()
 		self.WriteXML(s,EscapeCharData)
 		return unicode(s.getvalue())
-	
-	def SetDefaultNS(self,ns):
-		self.defaultNS=ns
 	
 	def DeclareParameterEntity(self,name,value):
 		self.parameterEntities[name]=value

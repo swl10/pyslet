@@ -321,14 +321,18 @@ class XMLNSElement(XMLElement):
 				# First character is WS, so assume pre-formatted.
 				indent=tab=''			
 			writer.write(u'%s<%s%s%s>'%(ws,prefix,self.xmlname,attributes))
-			for child in children:
-				if type(child) in types.StringTypes:
-					# We force encoding of carriage return as these are subject to removal
-					writer.write(escapeFunction(child))
-					# if we have character data content skip closing ws
-					ws=''
-				else:
-					child.WriteXML(writer,escapeFunction,indent,tab,nsList)
+			if hasattr(self.__class__,'SGMLCDATA'):
+				# When expressed in SGML this element would have type CDATA so put it in a CDSect
+				writer.write(EscapeCDSect(self.GetValue()))
+			else:
+				for child in children:
+					if type(child) in types.StringTypes:
+						# We force encoding of carriage return as these are subject to removal
+						writer.write(escapeFunction(child))
+						# if we have character data content skip closing ws
+						ws=''
+					else:
+						child.WriteXML(writer,escapeFunction,indent,tab,nsList)
 			if not tab:
 				# if we weren't tabbing children we need to skip closing white space
 				ws=''

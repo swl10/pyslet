@@ -61,12 +61,18 @@ def DecodeLength(strValue):
 	value=None
 	try:
 		strValue=strValue.strip()
-		if strValue and strValue[-1]==u'%':
-			strValue=strValue[:-1]
-			valueType=LengthType.Percentage
-		else:
+		v=[]
+		for c in strValue:
+			if valueType is None and c.isdigit():
+				v.append(c)
+			elif c==u"%":
+				valueType=LengthType.Percentage
+				break
+			else:
+				valueType=LengthType.Pixel
+		if valueType is None:
 			valueType=LengthType.Pixel
-		value=int(strValue)
+		value=int(string.join(v,''))
 		if value<0:
 			raise ValueError
 		return LengthType(value,valueType)
@@ -133,13 +139,12 @@ def EncodeURI(uri):
 
 	
 class XHTMLElement(xmlns.XMLNSElement):
-	XMLATTR_id='id'
+	ID='id'
 	XMLATTR_class='styleClass'
 	XMLATTR_title='title'
 	
 	def __init__(self,parent):
 		xmlns.XMLNSElement.__init__(self,parent)
-		self.id=None
 		self.styleClass=None
 		self.title=None
 	
@@ -175,6 +180,9 @@ class InlineContainer(XHTMLElement):
 	def ChildElement(self,childClass,name=None):
 		if issubclass(childClass,InlineMixin):
 			return XHTMLElement.ChildElement(self,childClass,name)
+		elif not issubclass(childClass,XHTMLElement):
+			# children of another namespace can go in here
+			return XHTMLElement.ChildElement(self,childClass,name)
 		else:
 			# This child cannot go in here
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
@@ -184,9 +192,11 @@ class FlowContainer(XHTMLElement):
 	def ChildElement(self,childClass,name=None):
 		if issubclass(childClass,FlowMixin):
 			return XHTMLElement.ChildElement(self,childClass,name)
+		elif not issubclass(childClass,XHTMLElement):
+			# children of another namespace can go in here
+			return XHTMLElement.ChildElement(self,childClass,name)
 		else:
 			# This child cannot go in here
-			print self
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 
 	def PrettyPrint(self):
@@ -200,14 +210,22 @@ class FlowContainer(XHTMLElement):
 				for c in child:
 					if not xml.IsS(c):
 						return False
-			elif isinstance(child,InlineMixin):
-				return False
+			#elif isinstance(child,InlineMixin):
+			#	return False
 		return True
 	
 class SpecialMixin(InlineMixin):
-	# <!ENTITY % special "A | IMG | OBJECT | BR | SCRIPT | MAP | Q | SUB | SUP | SPAN | BDO">
+	"""..	::
+	
+	Strict:	<!ENTITY % special "A | IMG | OBJECT | BR | SCRIPT | MAP | Q | SUB | SUP | SPAN | BDO">
+	Loose:	<!ENTITY % special "A | IMG | APPLET | OBJECT | FONT | BASEFONT | BR | SCRIPT | MAP
+				| Q | SUB | SUP | SPAN | BDO | IFRAME">
+	"""
 	pass
 
+class FormCtrlMixin(InlineMixin):
+	# <!ENTITY % formctrl "INPUT | SELECT | TEXTAREA | LABEL | BUTTON">
+	pass
 
 class Ins(FlowContainer):
 	"""Represents the INS element::
@@ -243,8 +261,14 @@ class List(BlockMixin,XHTMLElement):
 	# <!ENTITY % list "UL | OL">
 
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,XHTMLLI):
+		if issubclass(childClass,LI):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
+		elif issubclass(childClass,FlowMixin):
+			child=xmlns.XMLNSElement.ChildElement(self,LI)
+			return child.ChildElement(childClass)
+		elif not issubclass(childClass,XHTMLElement):
+			# children of another namespace can go in here
+			return XHTMLElement.ChildElement(self,childClass,name)
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 	
@@ -275,8 +299,26 @@ class Blockquote(BlockMixin,XHTMLElement):
 	def ChildElement(self,childClass,name=None):
 		if issubclass(childClass,BlockMixin) or issubclass(childClass,Script):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
+		elif not issubclass(childClass,XHTMLElement):
+			# children of another namespace can go in here
+			return XHTMLElement.ChildElement(self,childClass,name)
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
+
+class Font(SpecialMixin,InlineContainer):
+	"""Font element::
+	
+	<!ELEMENT FONT - - (%inline;)*         -- local change to font -->
+	<!ATTLIST FONT
+	  %coreattrs;                          -- id, class, style, title --
+	  %i18n;		               -- lang, dir --
+	  size        CDATA          #IMPLIED  -- [+|-]nn e.g. size="+1", size="4" --
+	  color       %Color;        #IMPLIED  -- text color --
+	  face        CDATA          #IMPLIED  -- comma-separated list of font names --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'font')
+	XMLCONTENT=xmlns.XMLMixedContent
 	
 class Br(SpecialMixin,XHTMLElement):
 	# <!ELEMENT BR - O EMPTY                 -- forced line break -->
@@ -299,7 +341,7 @@ class Div(BlockMixin,FlowContainer):
 	# <!ELEMENT DIV - - (%flow;)*            -- generic language/style container -->
 	XMLNAME=(XHTML_NAMESPACE,'div')
 	XMLCONTENT=xmlns.XMLMixedContent
-
+		
 class Em(Phrase):
 	XMLNAME=(XHTML_NAMESPACE,'em')
 	XMLCONTENT=xmlns.XMLMixedContent
@@ -382,6 +424,9 @@ class DL(BlockMixin,XHTMLElement):
 	def ChildElement(self,childClass,name=None):
 		if issubclass(childClass,(DT,DD)):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
+		elif not issubclass(childClass,XHTMLElement):
+			# children of another namespace can go in here
+			return XHTMLElement.ChildElement(self,childClass,name)
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 
@@ -408,8 +453,231 @@ class UL(List):
 class LI(FlowContainer):
 	# <!ELEMENT LI - O (%flow;)*             -- list item -->
 	XMLNAME=(XHTML_NAMESPACE,'li')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+
+# Form Elements
+
+class Form(BlockMixin,XHTMLElement):
+	"""Represents the form element::
+
+	<!ELEMENT FORM - - (%block;|SCRIPT)+ -(FORM) -- interactive form -->
+	<!ATTLIST FORM
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  action      %URI;          #REQUIRED -- server-side form handler --
+	  method      (GET|POST)     GET       -- HTTP method used to submit the form--
+	  enctype     %ContentType;  "application/x-www-form-urlencoded"
+	  accept      %ContentTypes; #IMPLIED  -- list of MIME types for file upload --
+	  name        CDATA          #IMPLIED  -- name of form for scripting --
+	  onsubmit    %Script;       #IMPLIED  -- the form was submitted --
+	  onreset     %Script;       #IMPLIED  -- the form was reset --
+	  accept-charset %Charsets;  #IMPLIED  -- list of supported charsets --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'form')
 	XMLCONTENT=xmlns.XMLElementContent
+
+	def ChildElement(self,childClass,name=None):
+		if issubclass(childClass,(BlockMixin,Script)):
+			return XHTMLElement.ChildElement(self,childClass,name)
+		elif issubclass(childClass,FlowMixin):
+			child=XHTMLElement.ChildElement(self,Div)
+			return child.ChildElement(childClass,name)
+		elif not issubclass(childClass,XHTMLElement):
+			# children of another namespace can go in here
+			return XHTMLElement.ChildElement(self,childClass,name)
+		else:
+			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
+
+
+class Label(FormCtrlMixin,InlineContainer):
+	"""Label element::
 	
+	<!ELEMENT LABEL - - (%inline;)* -(LABEL) -- form field label text -->
+	<!ATTLIST LABEL
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  for         IDREF          #IMPLIED  -- matches field ID value --
+	  accesskey   %Character;    #IMPLIED  -- accessibility key character --
+	  onfocus     %Script;       #IMPLIED  -- the element got the focus --
+	  onblur      %Script;       #IMPLIED  -- the element lost the focus --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'label')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+"""	
+<!ENTITY % InputType
+  "(TEXT | PASSWORD | CHECKBOX |
+    RADIO | SUBMIT | RESET |
+    FILE | HIDDEN | IMAGE | BUTTON)"
+   >
+"""
+
+class Input(FormCtrlMixin,XHTMLElement):
+	"""Represents the input element::
+
+	<!-- attribute name required for all but submit and reset -->
+	<!ELEMENT INPUT - O EMPTY              -- form control -->
+	<!ATTLIST INPUT
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  type        %InputType;    TEXT      -- what kind of widget is needed --
+	  name        CDATA          #IMPLIED  -- submit as part of form --
+	  value       CDATA          #IMPLIED  -- Specify for radio buttons and checkboxes --
+	  checked     (checked)      #IMPLIED  -- for radio buttons and check boxes --
+	  disabled    (disabled)     #IMPLIED  -- unavailable in this context --
+	  readonly    (readonly)     #IMPLIED  -- for text and passwd --
+	  size        CDATA          #IMPLIED  -- specific to each type of field --
+	  maxlength   NUMBER         #IMPLIED  -- max chars for text fields --
+	  src         %URI;          #IMPLIED  -- for fields with images --
+	  alt         CDATA          #IMPLIED  -- short description --
+	  usemap      %URI;          #IMPLIED  -- use client-side image map --
+	  ismap       (ismap)        #IMPLIED  -- use server-side image map --
+	  tabindex    NUMBER         #IMPLIED  -- position in tabbing order --
+	  accesskey   %Character;    #IMPLIED  -- accessibility key character --
+	  onfocus     %Script;       #IMPLIED  -- the element got the focus --
+	  onblur      %Script;       #IMPLIED  -- the element lost the focus --
+	  onselect    %Script;       #IMPLIED  -- some text was selected --
+	  onchange    %Script;       #IMPLIED  -- the element value was changed --
+	  accept      %ContentTypes; #IMPLIED  -- list of MIME types for file upload --
+	  %reserved;                           -- reserved for possible future use --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'input')
+	XMLCONTENT=xmlns.XMLEmpty
+
+
+class Select(FormCtrlMixin,XHTMLElement):
+	"""Select element::
+
+	<!ELEMENT SELECT - - (OPTGROUP|OPTION)+ -- option selector -->
+	<!ATTLIST SELECT
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  name        CDATA          #IMPLIED  -- field name --
+	  size        NUMBER         #IMPLIED  -- rows visible --
+	  multiple    (multiple)     #IMPLIED  -- default is single selection --
+	  disabled    (disabled)     #IMPLIED  -- unavailable in this context --
+	  tabindex    NUMBER         #IMPLIED  -- position in tabbing order --
+	  onfocus     %Script;       #IMPLIED  -- the element got the focus --
+	  onblur      %Script;       #IMPLIED  -- the element lost the focus --
+	  onchange    %Script;       #IMPLIED  -- the element value was changed --
+	  %reserved;                           -- reserved for possible future use --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'select')
+	XMLCONTENT=xmlns.XMLElementContent
+	  
+	def __init__(self,parent):
+		XHTMLElement.__init__(self,parent)
+		self.options=[]
+	
+	def OptGroup(self):
+		child=OptGroup(self)
+		self.options.append(child)
+		return child
+		
+	def Option(self):
+		child=Option(self)
+		self.options.append(child)
+		return child
+
+	def GetChildren(self):
+		return self.options
+
+
+class OptGroup(XHTMLElement):
+	"""OptGroup element::
+	
+	<!ELEMENT OPTGROUP - - (OPTION)+ -- option group -->
+	<!ATTLIST OPTGROUP
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  disabled    (disabled)     #IMPLIED  -- unavailable in this context --
+	  label       %Text;         #REQUIRED -- for use in hierarchical menus --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'optgroup')
+	XMLCONTENT=xmlns.XMLElementContent
+
+	def __init__(self,parent):
+		XHTMLElement.__init__(self,parent)
+		self.Option=[]
+	
+	def GetChildren(self):
+		return self.Option
+
+
+class Option(XHTMLElement):
+	"""Option element::
+	
+	<!ELEMENT OPTION - O (#PCDATA)         -- selectable choice -->
+	<!ATTLIST OPTION
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  selected    (selected)     #IMPLIED
+	  disabled    (disabled)     #IMPLIED  -- unavailable in this context --
+	  label       %Text;         #IMPLIED  -- for use in hierarchical menus --
+	  value       CDATA          #IMPLIED  -- defaults to element content --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'option')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+
+class TextArea(FormCtrlMixin,XHTMLElement):
+	"""TextArea element::
+
+	<!ELEMENT TEXTAREA - - (#PCDATA)       -- multi-line text field -->
+	<!ATTLIST TEXTAREA
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  name        CDATA          #IMPLIED
+	  rows        NUMBER         #REQUIRED
+	  cols        NUMBER         #REQUIRED
+	  disabled    (disabled)     #IMPLIED  -- unavailable in this context --
+	  readonly    (readonly)     #IMPLIED
+	  tabindex    NUMBER         #IMPLIED  -- position in tabbing order --
+	  accesskey   %Character;    #IMPLIED  -- accessibility key character --
+	  onfocus     %Script;       #IMPLIED  -- the element got the focus --
+	  onblur      %Script;       #IMPLIED  -- the element lost the focus --
+	  onselect    %Script;       #IMPLIED  -- some text was selected --
+	  onchange    %Script;       #IMPLIED  -- the element value was changed --
+	  %reserved;                           -- reserved for possible future use --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'textarea')
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+"""	
+<!--
+  #PCDATA is to solve the mixed content problem,
+  per specification only whitespace is allowed there!
+ -->
+<!ELEMENT FIELDSET - - (#PCDATA,LEGEND,(%flow;)*) -- form control group -->
+<!ATTLIST FIELDSET
+  %attrs;                              -- %coreattrs, %i18n, %events --
+  >
+
+<!ELEMENT LEGEND - - (%inline;)*       -- fieldset legend -->
+
+<!ATTLIST LEGEND
+  %attrs;                              -- %coreattrs, %i18n, %events --
+  accesskey   %Character;    #IMPLIED  -- accessibility key character --
+  >
+
+<!ELEMENT BUTTON - -
+     (%flow;)* -(A|%formctrl;|FORM|FIELDSET)
+     -- push button -->
+<!ATTLIST BUTTON
+  %attrs;                              -- %coreattrs, %i18n, %events --
+  name        CDATA          #IMPLIED
+  value       CDATA          #IMPLIED  -- sent to server when submitted --
+  type        (button|submit|reset) submit -- for use as form button --
+  disabled    (disabled)     #IMPLIED  -- unavailable in this context --
+  tabindex    NUMBER         #IMPLIED  -- position in tabbing order --
+  accesskey   %Character;    #IMPLIED  -- accessibility key character --
+  onfocus     %Script;       #IMPLIED  -- the element got the focus --
+  onblur      %Script;       #IMPLIED  -- the element lost the focus --
+  %reserved;                           -- reserved for possible future use --
+  >
+"""
+
 # Object Elements
 
 class Object(SpecialMixin,XHTMLElement):
@@ -456,6 +724,9 @@ class Object(SpecialMixin,XHTMLElement):
 	def ChildElement(self,childClass,name=None):
 		if issubclass(childClass,(FlowMixin,Param)):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
+		elif not issubclass(childClass,XHTMLElement):
+			# children of another namespace can go in here
+			return XHTMLElement.ChildElement(self,childClass,name)
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 
@@ -477,7 +748,8 @@ class Param(XHTMLElement):
 # Presentation Elements
 
 class FontStyle(InlineMixin,InlineContainer):
-	# <!ENTITY % fontstyle "TT | I | B | BIG | SMALL">
+	# strict:	<!ENTITY % fontstyle "TT | I | B | BIG | SMALL">
+	# loose:	<!ENTITY % fontstyle "TT | I | B | U | S | STRIKE | BIG | SMALL">
 	# <!ELEMENT (%fontstyle;|%phrase;) - - (%inline;)*>
 	pass
 
@@ -498,8 +770,16 @@ class I(FontStyle):
 	XMLNAME=(XHTML_NAMESPACE,'i')
 	XMLCONTENT=xmlns.XMLMixedContent
 
+class S(FontStyle):
+	XMLNAME=(XHTML_NAMESPACE,'s')
+	XMLCONTENT=xmlns.XMLMixedContent
+
 class Small(FontStyle):
 	XMLNAME=(XHTML_NAMESPACE,'small')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+class Strike(FontStyle):
+	XMLNAME=(XHTML_NAMESPACE,'strike')
 	XMLCONTENT=xmlns.XMLMixedContent
 
 class Sub(SpecialMixin,InlineContainer):
@@ -516,6 +796,10 @@ class TT(FontStyle):
 	XMLNAME=(XHTML_NAMESPACE,'tt')
 	XMLCONTENT=xmlns.XMLMixedContent
 
+class U(FontStyle):
+	XMLNAME=(XHTML_NAMESPACE,'u')
+	XMLCONTENT=xmlns.XMLMixedContent
+
 # Table Elements
 
 class Table(BlockMixin,XHTMLElement):
@@ -526,10 +810,13 @@ class Table(BlockMixin,XHTMLElement):
 	def ChildElement(self,childClass,name=None):
 		if issubclass(childClass,(Caption,Col,ColGroup,THead,TFoot,TBody)):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
-		elif issubclass(childClass,XHTMLTR):
+		elif issubclass(childClass,TR):
 			# TBODY can have it's start tag omitted
 			tbody=self.ChildElement(TBody)
 			return tbody.ChildElement(childClass)
+		elif not issubclass(childClass,XHTMLElement):
+			# children of another namespace can go in here
+			return XHTMLElement.ChildElement(self,childClass,name)
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))
 
@@ -540,8 +827,11 @@ class Caption(InlineContainer):
 
 class TRContainer(XHTMLElement):
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,XHTMLTR):
+		if issubclass(childClass,TR):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
+		elif not issubclass(childClass,XHTMLElement):
+			# children of another namespace can go in here
+			return XHTMLElement.ChildElement(self,childClass,name)
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 		
@@ -566,8 +856,11 @@ class ColGroup(XHTMLElement):
 	XMLCONTENT=xmlns.XMLElementContent
 
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,XHTMLCol):
+		if issubclass(childClass,Col):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
+		elif not issubclass(childClass,XHTMLElement):
+			# children of another namespace can go in here
+			return XHTMLElement.ChildElement(self,childClass,name)
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 	
@@ -584,6 +877,9 @@ class TR(XHTMLElement):
 	def ChildElement(self,childClass,name=None):
 		if issubclass(childClass,(TH,TD)):
 			return xmlns.XMLNSElement.ChildElement(self,childClass,name)
+		elif not issubclass(childClass,XHTMLElement):
+			# children of another namespace can go in here
+			return XHTMLElement.ChildElement(self,childClass,name)
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 	
@@ -672,10 +968,60 @@ class Img(SpecialMixin,XHTMLElement):
 # Hypertext Element
 
 class A(SpecialMixin,InlineContainer):
-	# <!ELEMENT A - - (%inline;)* -(A)       -- anchor -->
+	"""The HTML anchor element::
+
+	<!ELEMENT A - - (%inline;)* -(A)       -- anchor -->
+	<!ATTLIST A
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  charset     %Charset;      #IMPLIED  -- char encoding of linked resource --
+	  type        %ContentType;  #IMPLIED  -- advisory content type --
+	  name        CDATA          #IMPLIED  -- named link end --
+	  href        %URI;          #IMPLIED  -- URI for linked resource --
+	  hreflang    %LanguageCode; #IMPLIED  -- language code --
+	  target      %FrameTarget;  #IMPLIED  -- render in this frame --
+	  rel         %LinkTypes;    #IMPLIED  -- forward link types --
+	  rev         %LinkTypes;    #IMPLIED  -- reverse link types --
+	  accesskey   %Character;    #IMPLIED  -- accessibility key character --
+	  shape       %Shape;        rect      -- for use with client-side image maps --
+	  coords      %Coords;       #IMPLIED  -- for use with client-side image maps --
+	  tabindex    NUMBER         #IMPLIED  -- position in tabbing order --
+	  onfocus     %Script;       #IMPLIED  -- the element got the focus --
+	  onblur      %Script;       #IMPLIED  -- the element lost the focus --
+	  >
+	"""
 	XMLNAME=(XHTML_NAMESPACE,'a')
+	XMLATTR_charset='charset'
+	XMLATTR_type='type'
+	XMLATTR_name='name'
+	XMLATTR_href=('href',DecodeURI,EncodeURI)
+	XMLATTR_hreflang='hrefLang'
+	XMLATTR_target='target'
+	XMLATTR_rel='rel'
+	XMLATTR_rev='rev'
+	XMLATTR_accesskey='accessKey'
+	XMLATTR_shape='shape'
+	XMLATTR_coords='coords'
+	XMLATTR_tabindex='tabIndex'
+	XMLATTR_onfocus='onFocus'
+	XMLATTR_onblur='onBlur'
 	XMLCONTENT=xmlns.XMLMixedContent
 
+	def __init__(self,parent):
+		InlineContainer.__init__(self,parent)
+		self.charset=None
+		self.type=None
+		self.name=None
+		self.href=None
+		self.hrefLang=None
+		self.target=None
+		self.rel=None
+		self.rev=None
+		self.accessKey=None
+		self.shape=None
+		self.coords=None
+		self.tabIndex=None
+		self.onFocus=None
+		self.onBlur=None
 
 # Document Head
 
@@ -701,6 +1047,10 @@ class Head(XHTMLElement):
 		self.Title=Title(self)
 		self.Base=None
 
+	def GetChildren(self):
+		children=[self.Title]
+		xml.OptionalAppend(children,self.Base)
+		return children+XHTMLElement.GetChildren(self)
 
 class Title(XHTMLElement):
 	"""Represents the title element::
@@ -753,12 +1103,13 @@ class Style(XHTMLElement):
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'style')
 	XMLCONTENT=xmlns.XMLMixedContent
-
+	SGMLCDATA=True
 
 	
-class Script(XHTMLElement):
+class Script(SpecialMixin,XHTMLElement):
 	"""Represents the script element::
 
+	<!ENTITY % Script "CDATA" -- script expression -->
 	<!ELEMENT SCRIPT - - %Script;          -- script statements -->
 	<!ATTLIST SCRIPT
 	  charset     %Charset;      #IMPLIED  -- char encoding of linked resource --
@@ -770,6 +1121,19 @@ class Script(XHTMLElement):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'script')
+	XMLCONTENT=xmlns.XMLMixedContent
+	SGMLCDATA=True
+	
+class NoScript(BlockMixin,FlowContainer):
+	"""Represents the noscript element::
+
+	<!ELEMENT NOSCRIPT - - (%flow;)*
+	  -- alternate content container for non script-based rendering -->
+	<!ATTLIST NOSCRIPT
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'noscript')
 	XMLCONTENT=xmlns.XMLMixedContent
 	
 
@@ -793,6 +1157,9 @@ class Body(XHTMLElement):
 		elif issubclass(childClass,FlowMixin):
 			child=XHTMLElement.ChildElement(self,Div)
 			return child.ChildElement(childClass,name)
+		elif not issubclass(childClass,XHTMLElement):
+			# children of another namespace can go in here
+			return XHTMLElement.ChildElement(self,childClass,name)
 		else:
 			raise XHTMLValidityError("%s(%s) in %s"%(childClass.__name__,name,self.__class__.__name__))		
 		
@@ -826,34 +1193,67 @@ class HTML(XHTMLElement):
 		else:
 			# ...as can Body
 			return self.Body.ChildElement(childClass)
+
+	def GetChildren(self):
+		return [self.Head,self.Body]
 	
 	
-class HTMLParser(xml.XMLParser):
+class HTMLParser(xmlns.XMLNSParser):
 	def __init__(self,entity=None):
-		xml.XMLParser.__init__(self,entity)
-	
+		xmlns.XMLNSParser.__init__(self,entity)
+		self.xmlFlag=False
+		"""A flag that indicates if the parser is in xml mode."""
+		
 	def LookupEntity(self,name):
 		codepoint=htmlentitydefs.name2codepoint.get(name,None)
 		if codepoint is None:
 			return ''
 		else:
 			return unichr(codepoint)
+
+	def ParseHTMLDocument(self,doc):
+		self.doc=doc
+		self.xmlFlag=False
+		match=self.ParseLiteral('<?xml')
+		if match:
+			self.ParseXMLDecl()
+			self.xmlFlag=True
+		else:
+			self.compatibilityMode=True		
+		self.entity.chunk=xml.XMLEntity.CHUNKSIZE
+		s=self.ParseMisc()
+		match=self.ParseLiteral('<!DOCTYPE')
+		if match:
+			s=None
+			self.ParseDoctypeDecl()
+			self.ParseMisc()
+		if self.xmlFlag:
+			self.ParseElement()			
+			self.ParseMisc()
+			if self.theChar is not None:
+				raise XMLWellFormedError("Unparsed characters in entity after document")
+		else:
+			# with no xml declaration we revert to a more pragmatic parsing regime
+			if s and self.theChar!='<':
+				# if we matched any of the DOCTYPE literal we discard the space
+				# otherwise we push the space back into the parser so that we
+				# can treat it as content.
+				self.BuffText(s)
+			self.cdataEnd=None
+			self.ParseHTMLContent()
 			
-	def ParseHTML(self):
-		fragment=[]
-		root=None
-		element=None
-		eData=[]
+	def ParseHTMLContent(self):
+		foundElement=False
 		while self.theChar is not None:
 			data=self.ParseCharData()
 			if data:
-				if element:
-					element.AddData(data)
+				if foundElement:
+					self.doc.characters(data)
 				elif xmlns.CollapseSpace(data)!=u" ":
-					# non-trivial data, use div
-					root=HTML(None)
-					element=root.ChildElement(Div)
-					element.AddData(data)
+					foundElement=True
+					self.doc.startElementNS(HTML.XMLNAME,'html',{})
+					self.doc.startElementNS(Div.XMLNAME,'div',{})
+					self.doc.characters(data)
 				data=None
 			name=None
 			if self.theChar=='<':
@@ -878,69 +1278,28 @@ class HTMLParser(xml.XMLParser):
 				elif self.theChar=='/':
 					self.BuffText('<')
 					name=self.ParseETag()
-					newElement=element
-					while newElement is not None:
-						if newElement.xmlname==name.lower():
-							# close this tag
-							element=newElement.parent
-							break
-						newElement=newElement.parent
-					# if there is no match we ignore the closing tag	
+					self.doc.endElementNS((None,name),name)
 				else:	
 					self.BuffText('<')
 					name,attrs,empty=self.ParseSTag()
-					eClass=XHTMLDocument.classMap.get((XHTML_NAMESPACE,name.lower()),None)
-					if eClass is None:
-						if element is not None and issubclass(element.__class__,(InlineContainer,FlowContainer)):
-							# try a span with a class attribute
-							eClass=Span
-						else:
-							eClass=Div
-						classValue=name
-					else:
-						classValue=None
-					if element is None:
-						if eClass is HTML:
-							root=newElement=HTML(None)
-						else:
-							element=root=HTML(None)
-							newElement=root.ChildElement(eClass)
-					else:
-						newElement=None
-						while element is not None:
-							try:
-								newElement=element.ChildElement(eClass)
-								break
-							except XHTMLValidityError:
-								# we can't go in here
-								element=element.parent
-								continue
-						if newElement is None:
-							# if in doubt, one should always be able to create a div
-							element=root
-							newElement=root.ChildElement(Div)
-							classValue=name
-					if classValue is None:
-						newElement.SetXMLName((XHTML_NAMESPACE,name))
-					else:
-						newElement.SetAttribute('class',name)
-					for attr in attrs.keys():
-						newElement.SetAttribute(attr.lower(),attrs[attr])						
-					if not empty and eClass.XMLCONTENT!=xmlns.XMLEmpty:
-						# A non-empty element becomes the current element
-						element=newElement
+					foundElement=True
+					self.doc.startElementNS((None,name),name,attrs)
+					if empty:
+						self.doc.endElementNS((None,name),name)
 			elif self.theChar=='&':
 				data=self.ParseReference()	
 			if data:
-				if element:
-					element.AddData(data)
+				if foundElement:
+					self.doc.characters(data)
 				elif xmlns.CollapseSpace(data)!=u" ":
-					# non-trivial data, use div
-					root=HTML(None)
-					element=root.ChildElement(Div)
-					element.AddData(data)
+					foundElement=True
+					self.doc.startElementNS(HTML.XMLNAME,'html',{})
+					self.doc.startElementNS(Div.XMLNAME,'div',{})
+					self.doc.characters(data)
 				data=None
-		return root
+		# when we reach the end of the stream we end the HTML element on the
+		# 'one for luck' principle (spurious end tags are ignored by XHTMLDocument)
+		self.doc.endElementNS(HTML.XMLNAME,name)
 
 
 class XHTMLDocument(xmlns.XMLNSDocument):
@@ -957,13 +1316,136 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 	loaded."""
 	
 	def __init__(self,**args):
-		xml.XMLDocument.__init__(self,**args)
-
-	def ReadFromEntity(self,e):
-		"""We override the basic XML parsing to use a custom method that is
-		intelligent about the use of omitted tags and can force a generous
-		SGML-like parsing mode."""
-		p=HTMLParser(e)
-		self.root=p.ParseHTML()
+		xmlns.XMLNSDocument.__init__(self,defaultNS=XHTML_NAMESPACE,**args)
+		self.p=None
 		
+	def ReadFromEntity(self,e):
+		"""We override the basic XML parsing to use a custom parser that is
+		intelligent about the use of omitted tags, elements defined to have
+		CDATA content and other SGML-based variations.  Note that if the
+		document starts with an XML declaration then the normal XML parser is
+		used instead.
+		
+		You won't normally need to call this method as it is invoked automatically
+		when you call :meth:`pyslet.xml20081126.XMLDocument.Read`.
+		
+		The result is always a proper element hierarchy rooted in an HTML node,
+		even if no tags are present at all the parser will construct an HTML
+		document containing a single Div element to hold the parsed text."""
+		self.cObject=self
+		self.data=[]
+		self.p=HTMLParser(e)
+		self.p.ParseHTMLDocument(self)
+
+	def GetElementClass(self,name):
+		return XHTMLDocument.classMap.get(name,xmlns.XMLNSElement)
+
+	def startElementNS(self, name, qname, attrs):
+		parent=self.cObject
+		if self.data:
+			data=string.join(self.data,'')
+			if isinstance(parent,xmlns.XMLNSElement):
+				parent.AddData(data)
+			elif xml.CollapseSpace(data)!=u" ":
+				raise XHTMLValidityError("Unexpected document-level data: %s"%data)
+			self.data=[]
+		if name[0] is None:
+			name=(self.defaultNS,name[1].lower())
+		eClass=self.GetElementClass(name)
+		try:
+			if isinstance(parent,xml.XMLDocument):
+				if eClass is HTML:
+					self.cObject=parent.ChildElement(HTML)
+				else:
+					parent=parent.ChildElement(HTML)
+					self.cObject=parent.ChildElement(eClass)
+			elif issubclass(eClass,XHTMLElement):
+				# Handle omitted tags
+				self.cObject=None
+				while isinstance(parent,xml.XMLElement):
+					try:
+						self.cObject=parent.ChildElement(eClass)
+						break
+					except XHTMLValidityError:
+						# we can't go in here, close parent
+						parent.GotChildren()
+						parent=parent.parent
+						continue
+				if self.cObject is None:
+					# so this is rubbish that we can't even add it to an HTML node?
+					import pdb;pdb.set_trace()
+					raise XHTMLValidityError("Found spurious element <%s>"%str(qname))
+			else:
+				print "Unknown element in HTML: %s"%str(name)
+				self.cObject=parent.ChildElement(eClass,name)				
+		except TypeError:
+			raise TypeError("Can't create %s in %s"%(eClass.__name__,parent.__class__.__name__))
+		if self.cObject is None:
+			raise ValueError("None when creating %s in %s"%(eClass.__name__,parent.__class__.__name__))
+		for attr in attrs.keys():
+			try:
+				if attr[0] is None:
+					self.cObject.SetAttribute(attr[1],attrs[attr])
+				else:
+					self.cObject.SetAttribute(attr,attrs[attr])
+			except xml.XMLIDClashError:
+				# ignore ID clashes as they are common in HTML it seems
+				continue
+		if eClass.XMLCONTENT==xmlns.XMLEmpty:
+			self.endElementNS(name,qname)
+		elif hasattr(eClass,'SGMLCDATA'):
+			# This is a CDATA section...
+			while self.p.theChar is not None:
+				data=self.p.ParseCDSect('</')
+				if data:
+					self.cObject.AddData(data)
+				eName=self.p.ParseName()
+				if eName and eName.lower()==qname.lower():
+					s=self.p.ParseS()
+					self.p.ParseRequiredLiteral('>')
+					break
+				else:
+					# This is an error, a CDATA element ends at the first ETAGO
+					# but it seems it is a common error so forgive and forget
+					if eName is None:
+						eName=''
+					self.cObject.AddData('</%s'%eName)
+			self.endElementNS(name,qname)
+			
+	def endElementNS(self,name,qname):
+		if name[0] is None:
+			name=(self.defaultNS,name[1].lower())
+		if self.data:
+			data=string.join(self.data,'')
+			if isinstance(self.cObject,xmlns.XMLNSElement):
+				self.cObject.AddData(data)
+			elif xml.CollapseSpace(data)!=u" ":
+				raise XHTMLValidityError("Unexpected document-level data: %s"%data)
+			self.data=[]
+		# do we have a matching open element?
+		e=self.cObject
+		while isinstance(e,xml.XMLElement):
+			if e.GetXMLName()==name:
+				break
+			else:
+				e=e.parent
+		if isinstance(e,xml.XMLElement):
+			# Yes, repeat the process closing as we go.
+			e=self.cObject
+			while isinstance(e,xml.XMLElement):
+				e.GotChildren()
+				if e.GetXMLName()==name:
+					# close this tag
+					self.cObject=e.parent
+					break
+				else:
+					e=e.parent
+		else:
+			# silently ignore mimatched closing tags, we'll get these anyway if someone
+			# has used <br /> style notation because we know br is empty so closed it
+			# during startElementNS ourselves - the parser follows this up with a second
+			# call which we safely ignore because empty elements can't have instances of
+			# themselves as parents (because they're empty!)
+			pass
+
 xmlns.MapClassElements(XHTMLDocument.classMap,globals())
