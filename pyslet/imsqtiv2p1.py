@@ -1824,7 +1824,7 @@ class QTIDocument(xmlns.XMLNSDocument):
 	def __init__(self,**args):
 		""""""
 		xmlns.XMLNSDocument.__init__(self,defaultNS=IMSQTI_NAMESPACE,**args)
-		self.SetNSPrefix(xsi.XMLSCHEMA_NAMESPACE,'xsi')
+		self.MakePrefix(xsi.XMLSCHEMA_NAMESPACE,'xsi')
 		if isinstance(self.root,QTIElement):
 			self.root.SetAttribute((xsi.XMLSCHEMA_NAMESPACE,'schemaLocation'),IMSQTI_NAMESPACE+' '+IMSQTI_SCHEMALOCATION)
 			

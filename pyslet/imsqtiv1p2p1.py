@@ -4879,7 +4879,6 @@ class QTIDocument(xml.XMLDocument):
 		specific instances of the parser that will be used with that type of
 		data."""
 		xml.XMLDocument.__init__(self,**args)
-		self.parser.setFeature(xml.handler.feature_external_ges, False)
 		self.material={}
 		self.matThings={}
 		

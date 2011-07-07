@@ -69,6 +69,7 @@ class XMLNSDocumentTests(unittest.TestCase):
 		d.SetDefaultNS("http://www.example.com")
 		d.Read(src=StringIO(CREATE_2_XML))
 		dst=StringIO()
+		d.ResetPrefixMap(True)
 		d.Create(dst=dst)
 		#print
 		#print repr(dst.getvalue())
@@ -86,11 +87,12 @@ class XMLNSDocumentTests(unittest.TestCase):
 		d.Read(src=StringIO(ATTR_XML))
 		dst=StringIO()
 		d.Create(dst=dst)
-		self.failUnless(dst.getvalue()==ATTR_XML,"Simple NS attribyte: \nWanted: %s\n\nGot: %s"%(ATTR_XML,dst.getvalue()))
-		d.SetNSPrefix("http://www.example.com/attributes",'test')
+		self.failUnless(dst.getvalue()==ATTR_XML,"Simple NS attribute: \nWanted:\n%s\n\nGot:\n%s"%(repr(ATTR_XML),repr(dst.getvalue())))
+		d.ResetPrefixMap(True)
+		d.MakePrefix("http://www.example.com/attributes",'test')
 		dst=StringIO()
 		d.Create(dst=dst)
-		self.failUnless(dst.getvalue()==ATTR_XML_ALT,"Simple NS attribyte, preferred prefix: \nWanted: %s\n\nGot: %s"%(ATTR_XML,dst.getvalue()))
+		self.failUnless(dst.getvalue()==ATTR_XML_ALT,"Simple NS attribute, preferred prefix: \nWanted:\n%s\n\nGot:\n%s"%(repr(ATTR_XML_ALT),repr(dst.getvalue())))
 		
 if __name__ == "__main__":
 	unittest.main()

@@ -35,18 +35,20 @@ class XMLNSParser(XMLParser):
 
 	def __init__(self,entity=None):
 		XMLParser.__init__(self,entity)
-		self.nsStack=[]
 	
-	def ExpandQName(self,qname,useDefault=True):
+	def ExpandQName(self,qname,nsDefs,useDefault=True):
 		xname=qname.split(':')
 		if len(xname)==1:
 			if qname=='xmlns':
 				return (XMLNS_NAMESPACE,'')
 			elif useDefault:
-				nsURI=None
-				for ns in self.nsStack:
-					nsURI=ns.get('',None)
-					if nsURI:
+				nsURI=nsDefs.get('',None)
+				nsObject=self.doc.cObject
+				while nsURI is None:
+					if nsObject:
+						nsURI=nsObject.GetNS('')
+						nsObject=nsObject.parent
+					else:
 						break
 				return (nsURI,qname)
 			else:
@@ -58,16 +60,40 @@ class XMLNSParser(XMLParser):
 			elif nsprefix=='xmlns':
 				return (XMLNS_NAMESPACE,local)
 			else:
-				nsURI=None
-				for ns in self.nsStack:
-					nsURI=ns.get(nsprefix,None)
-					if nsURI:
+				nsURI=nsDefs.get(nsprefix,None)
+				nsObject=self.doc.cObject
+				while nsURI is None:
+					if nsObject:
+						nsURI=nsObject.GetNS(nsprefix)
+						nsObject=nsObject.parent
+					else:
 						break
 				return (nsURI,local)		
 		else:
 			# something wrong with this element
 			raise XMLNSError("Illegal QName: %s"%qname)
-			
+	
+	def ParseNSAttributes(self,attrs):
+		"""Takes a dictionary of attributes as returned by ParseSTag and finds
+		any namespace prefix mappings returning them as a dictionary of
+		prefix:namespace.  It also removes the namespace declarations from
+		attrs and expands the attribute names into (ns,name) pairs."""
+		ns={}
+		for aname in attrs.keys():
+			if aname.startswith('xmlns'):
+				if len(aname)==5:
+					# default ns declaration
+					ns['']=attrs[aname]
+				elif aname[5]==':':
+					# ns prefix declaration
+					ns[aname[6:]]=attrs[aname]
+				del attrs[aname]
+		for aname in attrs.keys():
+			expandedName=self.ExpandQName(aname,ns,False)
+			attrs[expandedName]=attrs[aname]
+			del attrs[aname]
+		return ns
+		
 	def ParseElement(self):
 		"""[39] element ::= EmptyElemTag | STag content ETag
 		
@@ -79,40 +105,142 @@ class XMLNSParser(XMLParser):
 		names."""
 		qname,attrs,empty=self.ParseSTag()
 		# go through and find namespace declarations
-		ns={}
-		nsAttrs={}
-		for aname in attrs.keys():
-			if aname.startswith('xmlns'):
-				if len(aname)==5:
-					# default ns declaration
-					ns['']=attrs[aname]
-				elif aname[5]==':':
-					# ns prefix declaration
-					ns[aname[6:]]=attrs[aname]
-		if ns:
-			self.nsStack[0:0]=[ns]
-		for aname in attrs.keys():
-			expandedName=self.ExpandQName(aname,False)
-			if expandedName[0]!=XMLNS_NAMESPACE:
-				# hide xmlns: attributes from the document
-				nsAttrs[expandedName]=attrs[aname]
-		expandedName=self.ExpandQName(qname)
+		ns=self.ParseNSAttributes(attrs)
+		expandedName=self.ExpandQName(qname,ns)
 		if empty:
-			self.doc.startElementNS(expandedName,qname,nsAttrs)
+			self.doc.startElementNS(expandedName,qname,attrs)
+			self.doc.cObject.SetPrefixMap(ns)
 			self.doc.endElementNS(expandedName,qname)
 		else:
-			self.doc.startElementNS(expandedName,qname,nsAttrs)
+			self.doc.startElementNS(expandedName,qname,attrs)
+			self.doc.cObject.SetPrefixMap(ns)
 			self.ParseContent()
 			endQName=self.ParseETag()
 			if qname!=endQName:
-				raise XMLWellFormedError("Expected <%s/>"%qname)
+				self.WellFormednessViolation("Expected <%s/>"%qname)
 			self.doc.endElementNS(expandedName,qname)
-		if ns:
-			self.nsStack=self.nsStack[1:]
+#		if ns:
+#			self.nsStack=self.nsStack[1:]
 		return qname
-	
 
-class XMLNSElement(XMLElement):
+	
+class XMLNSElementContainerMixin:
+	"""Mixin class for shared attributes of elements and the document."""
+	
+	def __init__(self):
+		self.prefixToNS={}
+		"""A dictionary of mappings from namespace prefixes to namespace URIs."""
+		self.nsToPrefix={}
+		"""A dictionary of mappings from namespace URIs to prefixes."""
+
+	def ResetPrefixMap(self,recursive=False):
+		self.prefixToNS={}
+		self.nsToPrefix={}
+		if recursive:
+			for child in self.GetChildren():
+				if type(child) not in StringTypes:
+					child.ResetPrefixMap(True)
+
+	def SetPrefixMap(self,nsMap):
+		"""Takes a new mapping from prefix to namespace and replaces the existing one."""
+		self.prefixToNS=nsMap
+		self.nsToPrefix=dict(zip(nsMap.values(),nsMap.keys()))
+
+	def GetPrefix(self,ns):
+		"""Returns the prefix to use for the given namespace in the current
+		context or None if no prefix is currently in force."""
+		if ns==XML_NAMESPACE:
+			return 'xml'
+		prefix=None
+		ei=self
+		while prefix is None and ei is not None:
+			prefix=ei.nsToPrefix.get(ns,None)
+			if prefix is not None:
+				# this is the prefix to use, unless it has been reused...
+				ej=self
+				while ej is not ei:
+					if ej.prefixToNS.get(prefix,None) is not None:
+						# so prefix has been reused, keep searching
+						prefix=None
+						break
+					ej=ej.parent
+			ei=ei.parent
+		return prefix	
+	
+	def GetNS(self,prefix=''):
+		"""Returns the ns associated with prefix in the current context."""
+		if prefix=='xml':
+			return XML_NAMESPACE
+		ns=None
+		ei=self
+		while ei is not None:
+			ns=ei.prefixToNS.get(prefix,None)
+			if ns:
+				break
+			ei=ei.parent
+		return ns
+
+	def NewPrefix(self,stem='ns'):
+		"""Return an unused prefix of the form stem#, stem defaults to ns.
+		
+		We could be more economical here, sometimes one declaration hides another
+		allowing us to reuse a prefix with a lower index, however this is likely
+		to be too confusing as it will lead to multiple namespaces being bound to
+		the same prefix in the same document (which we only allow for the default
+		namespace).  We don't prevent the reverse though, if a namespace prefix
+		has been hidden by being redeclared some other way, we may be forced to
+		assign it a new prefix and hence have multiple prefixes bound to the same
+		namespace in the same document."""
+		ns=1
+		prefix=''
+		while True:
+			prefix="%s%s"%(stem,ns)
+			if self.GetNS(prefix) is not None:
+				ns=ns+1
+			else:
+				break
+		return prefix
+				
+	def MakePrefix(self,ns,prefix=None):
+		"""Creates a new mapping from ns to the given prefix."""
+		if prefix is None:
+			prefix=self.NewPrefix()
+		if self.prefixToNS.has_key(prefix):
+			raise ValueError
+		self.prefixToNS[prefix]=ns
+		self.nsToPrefix[ns]=prefix
+		return prefix
+
+	def GetPrefixMap(self):
+		"""Returns the complete prefix to ns mapping in force at this element"""
+		prefixMap={}
+		ei=self
+		while ei is not None:
+			prefixList=ei.prefixToNS.keys()
+			for prefix in prefixList:
+				if not prefixMap.has_key(prefix):
+					prefixMap[prefix]=ei.prefixToNS[prefix]
+			ei=ei.parent
+		return prefixMap
+
+	def WriteNSAttributes(self,attributes,escapeFunction=EscapeCharData,root=False):
+		"""Adds strings representing any namespace attributes"""
+		nsAttributes=[]
+		if root:
+			prefixMap=self.GetPrefixMap()
+		else:
+			prefixMap=self.prefixToNS
+		prefixList=prefixMap.keys()
+		prefixList.sort()
+		for prefix in prefixList:
+			if prefix:
+				nsAttributes.append(u'xmlns:%s=%s'%(prefix,escapeFunction(prefixMap[prefix],True)))
+			else:
+				nsAttributes.append(u'xmlns=%s'%escapeFunction(prefixMap[prefix],True))
+		attributes[0:0]=nsAttributes
+				
+		
+class XMLNSElement(XMLNSElementContainerMixin,XMLElement):
 	def __init__(self,parent,name=None):
 		if type(name) in types.StringTypes:
 			self.ns=None
@@ -124,7 +252,8 @@ class XMLNSElement(XMLElement):
 		else:
 			self.ns,name=name
 		XMLElement.__init__(self,parent,name)
-
+		XMLNSElementContainerMixin.__init__(self)
+		
 	def SetXMLName(self,name):
 		if type(name) in StringTypes:
 			self.ns=None
@@ -201,95 +330,70 @@ class XMLNSElement(XMLElement):
 		"""Checks child to ensure it satisfies ##other w.r.t. the given ns"""
 		return isinstance(child,XMLNSElement) and child.ns!=ns
 				
-	def GetNSPrefix(self,ns,nsList):
-		for i in xrange(len(nsList)):
-			if nsList[i][0]==ns:
-				# Now run backwards to check that prefix is not in use
-				used=False
-				j=i
-				while j:
-					j=j-1
-					if nsList[j][1]==nsList[i][1]:
-						used=True
-						break
-				if not used:
-					return nsList[i][1]
-		return None
+# 	def GetNSPrefix(self,ns,nsList):
+# 		for i in xrange(len(nsList)):
+# 			if nsList[i][0]==ns:
+# 				# Now run backwards to check that prefix is not in use
+# 				used=False
+# 				j=i
+# 				while j:
+# 					j=j-1
+# 					if nsList[j][1]==nsList[i][1]:
+# 						used=True
+# 						break
+# 				if not used:
+# 					return nsList[i][1]
+# 		return None
 	
-	def SetNSPrefix(self,ns,prefix,attributes,nsList,escapeFunction):
-		if not prefix:
-			# None or empty string: so we don't make this the default if it has
-			# a preferred prefix defined in the document.
-			doc=self.GetDocument()
-			if doc:
-				newprefix=doc.SuggestPrefix(ns)
-				for nsi,prefixi in nsList:
-					if prefixi==newprefix:
-						newprefix=None
-						break
-				if newprefix:
-					prefix=newprefix
-		if prefix is None:
-			prefix=self.SuggestNewPrefix(nsList)
-		if prefix:
-			aname='xmlns:'+prefix
-			prefix=prefix+':'
-			nsList[0:0]=[(ns,prefix)]
-		else:
-			nsList[0:0]=[(ns,'')]
-			aname='xmlns'
-		attributes.append('%s=%s'%(aname,escapeFunction(ns,True)))
-		return prefix
+# 	def SetNSPrefix(self,ns,prefix,attributes,nsList,escapeFunction):
+# 		if not prefix:
+# 			# None or empty string: so we don't make this the default if it has
+# 			# a preferred prefix defined in the document.
+# 			doc=self.GetDocument()
+# 			if doc:
+# 				newprefix=doc.SuggestPrefix(ns)
+# 				for nsi,prefixi in nsList:
+# 					if prefixi==newprefix:
+# 						newprefix=None
+# 						break
+# 				if newprefix:
+# 					prefix=newprefix
+# 		if prefix is None:
+# 			prefix=self.SuggestNewPrefix(nsList)
+# 		if prefix:
+# 			aname='xmlns:'+prefix
+# 			prefix=prefix+':'
+# 			nsList[0:0]=[(ns,prefix)]
+# 		else:
+# 			nsList[0:0]=[(ns,'')]
+# 			aname='xmlns'
+# 		attributes.append('%s=%s'%(aname,escapeFunction(ns,True)))
+# 		return prefix
 	
-	def SuggestNewPrefix(self,nsList,stem='ns'):
-		"""Return an unused prefix of the form stem#, stem defaults to ns.
-		
-		We could be more economical here, sometimes one declaration hides another
-		allowing us to reuse a prefix with a lower index, however this is likely
-		to be too confusing as it will lead to multiple namespaces being bound to
-		the same prefix in the same document (which we only allow for the default
-		namespace).  We don't prevent the reverse though, if a namespace prefix
-		has been hidden by being redeclared some other way, we may be forced to
-		assign it a new prefix and hence have multiple prefixes bound to the same
-		namespace in the same document."""
-		i=0
-		ns=1
-		prefix="%s%i:"%(stem,ns)
-		while i<len(nsList):
-			if nsList[i][1]==prefix:
-				i=0
-				ns=ns+1
-				prefix="%s%i:"%(stem,ns)
-			else:
-				i=i+1
-		return "%s%i"%(stem,ns)
-		
-	def WriteXMLAttributes(self,attributes,nsList,escapeFunction=EscapeCharData):
+	def WriteXMLAttributes(self,attributes,escapeFunction=EscapeCharData,root=False):
 		"""Adds strings representing the element's attributes
 		
 		attributes is a list of unicode strings.  Attributes should be appended
 		as strings of the form 'name="value"' with values escaped appropriately
-		for XML output.
-		
-		ns is a dictionary of pre-existing declared namespace prefixes.  This
-		includes any declarations made by the current element."""
+		for XML output."""
 		attrs=self.GetAttributes()
 		keys=attrs.keys()
 		keys.sort()
 		for a in keys:
-			if attrs[a] is None:
-				import pdb;pdb.set_trace()
 			if type(a) in types.StringTypes:
 				aname=a
 				prefix=''
 			else:
 				ns,aname=a
-				prefix=self.GetNSPrefix(ns,nsList)
+				prefix=self.GetPrefix(ns)
 			if prefix is None:
-				prefix=self.SetNSPrefix(ns,None,attributes,nsList,escapeFunction)
+				prefix=self.MakePrefix(ns)
+			if prefix:
+				prefix=prefix+':'
 			attributes.append(u'%s%s=%s'%(prefix,aname,escapeFunction(attrs[a],True)))
-			
-	def WriteXML(self,writer,escapeFunction=EscapeCharData,indent='',tab='\t',nsList=None):
+		self.WriteNSAttributes(attributes,escapeFunction=EscapeCharData,root=root)
+		
+	def WriteXML(self,writer,escapeFunction=EscapeCharData,indent='',tab='\t',root=False):
 		if tab:
 			ws='\n'+indent
 			indent=indent+tab
@@ -299,19 +403,18 @@ class XMLNSElement(XMLElement):
 			# inline all children
 			indent=''
 			tab=''
-		if nsList is None:
-			nsList=[(XML_NAMESPACE,"xml:")]
 		attributes=[]
-		nsListLen=len(nsList)
 		if self.ns:
 			# look up the element prefix
-			prefix=self.GetNSPrefix(self.ns,nsList)
+			prefix=self.GetPrefix(self.ns)
 			if prefix is None:
 				# We need to declare our namespace
-				prefix=self.SetNSPrefix(self.ns,'',attributes,nsList,escapeFunction)
+				prefix=self.MakePrefix(self.ns,'')
 		else:
 			prefix=''
-		self.WriteXMLAttributes(attributes,nsList,escapeFunction)
+		if prefix:
+			prefix=prefix+':'
+		self.WriteXMLAttributes(attributes,escapeFunction,root=root)
 		if attributes:
 			attributes[0:0]=['']
 			attributes=string.join(attributes,' ')
@@ -334,17 +437,16 @@ class XMLNSElement(XMLElement):
 						# if we have character data content skip closing ws
 						ws=''
 					else:
-						child.WriteXML(writer,escapeFunction,indent,tab,nsList)
+						child.WriteXML(writer,escapeFunction,indent,tab)
 			if not tab:
 				# if we weren't tabbing children we need to skip closing white space
 				ws=''
 			writer.write(u'%s</%s%s>'%(ws,prefix,self.xmlname))
 		else:
 			writer.write(u'%s<%s%s%s/>'%(ws,prefix,self.xmlname,attributes))
-		nsList=nsList[-nsListLen:]
 
 
-class XMLNSDocument(XMLDocument):
+class XMLNSDocument(XMLNSElementContainerMixin,XMLDocument):
 	def __init__(self, defaultNS=None, **args):
 		"""Initialises a new XMLDocument from optional keyword arguments.
 		
@@ -352,27 +454,14 @@ class XMLNSDocument(XMLDocument):
 		defaultNS used for elements without an associated namespace
 		can be specified on construction."""
 		self.defaultNS=defaultNS
-		self.prefixTable={}
-		self.nsTable={}
 		XMLDocument.__init__(self,**args)
-		self.parser.setFeature(handler.feature_namespaces,1)
+		self.cObject=None
+		"""The current object being parsed (including the document itslef)."""
+		XMLNSElementContainerMixin.__init__(self)
 		
 	def SetDefaultNS(self,ns):
 		self.defaultNS=ns
 	
-	def SetNSPrefix(self,ns,prefix):
-		"""Sets the preferred prefix for the given namespace, ns.
-		
-		If the prefix or the ns has already been mapped then ValueError is
-		raised."""
-		if self.prefixTable.has_key(prefix):
-			raise ValueError
-		self.prefixTable[prefix]=ns
-		self.nsTable[ns]=prefix
-
-	def SuggestPrefix(self,ns):
-		return self.nsTable.get(ns,None)
-		
 	def GetElementClass(self,name):
 		"""Returns a class object suitable for representing <name>
 		
@@ -384,14 +473,12 @@ class XMLNSDocument(XMLDocument):
 				
 	def ReadFromEntity(self,e):
 		self.cObject=self
-		self.objStack=[]
 		self.data=[]
 		parser=XMLNSParser(e)
 		parser.ParseDocument(self)
 
 	def startElementNS(self, name, qname, attrs):
 		parent=self.cObject
-		self.objStack.append(self.cObject)
 		if self.data:
 			parent.AddData(string.join(self.data,''))
 			self.data=[]
@@ -411,10 +498,7 @@ class XMLNSDocument(XMLDocument):
 				self.cObject.SetAttribute(attr,attrs[attr])
 
 	def endElementNS(self,name,qname):
-		if self.objStack:
-			parent=self.objStack.pop()
-		else:
-			parent=None
+		parent=self.cObject.parent
 		if self.data:
 			self.cObject.AddData(string.join(self.data,''))
 			self.data=[]

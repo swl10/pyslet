@@ -853,11 +853,14 @@ class HTTPConnection:
 				# waiting for a response before sending it).
 				if self.response:
 					try:
-						r,w,e=self.socketSelect([self.socketFile],[],[],0)
+						r,w,e=self.socketSelect([self.socketFile],[],[self.socketFile],0)
 					except select.error, err:
 						r=[]
 						self.Close(err)
-					if r:
+					if e:
+						# there is an error on our socket...
+						self.Close("socket error indicated by select")
+					elif r:
 						if self.RecvResponseData():
 							# The response is done
 							if self.responseQueue:
@@ -925,6 +928,9 @@ class HTTPConnection:
 			nBytes=len(data)
 			self.recvBuffer.append(data)
 			self.recvBufferSize+=nBytes
+		else:
+			self.Close("recv returned no data when socket was ready to read (socket closed?)")
+			return True
 		# Now loop until we can't satisfy the response anymore (or the response is done)
 		while self.response is not None:
 			recvNeeds=self.response.RecvNeeds()
@@ -1011,6 +1017,10 @@ class HTTPConnection:
 			self.socketFile=self.socket.fileno()
 	
 	def Close(self,err=None):
+		if err:
+			self.manager.Log(HTTP_LOG_ERROR,"%s: closing connection after error %s"%(self.host,str(err)))
+		else:
+			self.manager.Log(HTTP_LOG_DEBUG,"%s: closing connection"%self.host)
 		if self.request:
 			self.request.Disconnect()
 			self.request=None
@@ -1497,6 +1507,10 @@ class HTTPRequest(HTTPMessage):
 		if self.autoRedirect and self.status>=300 and self.status<=399:
 			location=self.response.GetHeader("Location").strip()
 			if location:
+				url=urlparse.urlsplit(location)
+				if not url.hostname:
+					# This is an error but a common one (thanks IIS!)
+					location=urlparse.urljoin(self.requestURI,location)
 				self.Resend(location)
 		
 

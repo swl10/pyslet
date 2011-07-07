@@ -293,9 +293,9 @@ class CPDocument(xmlns.XMLNSDocument):
 		""""""
 		xmlns.XMLNSDocument.__init__(self,**args)
 		self.defaultNS=IMSCP_NAMESPACE
-		self.SetNSPrefix(xsi.XMLSCHEMA_NAMESPACE,'xsi')
-		self.SetNSPrefix(imsmd.IMSLRM_NAMESPACE,'imsmd')
-		self.SetNSPrefix(imsqti.IMSQTI_NAMESPACE,'imsqti')
+		self.MakePrefix(xsi.XMLSCHEMA_NAMESPACE,'xsi')
+		self.MakePrefix(imsmd.IMSLRM_NAMESPACE,'imsmd')
+		self.MakePrefix(imsqti.IMSQTI_NAMESPACE,'imsqti')
 		schemaLocation=[IMSCP_NAMESPACE,IMSCP_SCHEMALOCATION,
 			imsmd.IMSLRM_NAMESPACE,imsmd.IMSLRM_SCHEMALOCATION,
 			imsqti.IMSQTI_NAMESPACE,imsqti.IMSQTI_SCHEMALOCATION]

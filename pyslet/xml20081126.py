@@ -376,7 +376,8 @@ def OptionalAppend(itemList,newItem):
 class XMLEntity:
 	CHUNKSIZE=4096
 	
-	def __init__(self,src,encoding='utf-8'):
+	def __init__(self,src,encoding='utf-8',reqManager=None):
+		self.mimetype=None
 		self.encoding=encoding
 		self.chunk=1
 		if type(src) is UnicodeType:
@@ -385,9 +386,10 @@ class XMLEntity:
 		elif isinstance(src,URI):
 			if isinstance(src,FileURL):
 				self.dataSource=open(src.GetPathname(),'rb')
-				self.charSource=codecs.getreader(encoding)(self.dataSource)
+				self.charSource=codecs.getreader(self.encoding)(self.dataSource)
 			elif src.scheme.lower() in ['http','https']:
-				reqManager=http.HTTPRequestManager()
+				if reqManager is None:
+					reqManager=http.HTTPRequestManager()
 				req=http.HTTPRequest(str(src))
 				reqManager.ProcessRequest(req)
 				if req.status==200:
@@ -397,11 +399,16 @@ class XMLEntity:
 						charset='utf8'
 						raise UnimplementedError
 					else:
-						mimetype=mtype.type.lower()+'/'+mtype.subtype.lower()
-						#if not self.ValidateXMLMimeType(mimetype):
-						#	raise XMLContentTypeError(mimetype)
+						self.mimetype=mtype.type.lower()+'/'+mtype.subtype.lower()
+						respEncoding=mtype.parameters.get('charset',None)
+						if respEncoding is None and mtype.type.lower()=='text':
+							# Text types default to iso-8859-1
+							respEncoding=('text-default',"iso-8859-1")
+						if respEncoding is not None:
+							self.encoding=respEncoding[1].lower()
 					self.dataSource=StringIO(req.resBody)
-					self.charSource=codecs.getreader(encoding)(self.dataSource)
+					print "...reading %s stream with charset=%s"%(self.mimetype,self.encoding)
+					self.charSource=codecs.getreader(self.encoding)(self.dataSource)
 				else:
 					raise XMLUnexpectedHTTPResponse(str(req.status))
 			else:
@@ -411,7 +418,7 @@ class XMLEntity:
 				self.dataSource=StringIO(src)
 			else:
 				self.dataSource=src
-			self.charSource=codecs.getreader(encoding)(self.dataSource)
+			self.charSource=codecs.getreader(self.encoding)(self.dataSource)
 		self.basePos=self.charSource.tell()
 		self.Reset()
 		
@@ -471,9 +478,10 @@ class XMLEntity:
 				
 	def ChangeEncoding(self,encoding):
 		if self.dataSource:
+			self.encoding=encoding
 			# Need to rewind and re-read the current buffer
 			self.charSource.seek(self.charSeek)
-			self.charSource=codecs.getreader(encoding)(self.dataSource)
+			self.charSource=codecs.getreader(self.encoding)(self.dataSource)
 			self.chars=self.charSource.read(len(self.chars))
 			# We assume that charPos will still point to the correct next character
 			self.theChar=self.chars[self.charPos]
@@ -751,23 +759,53 @@ class XMLParser:
 		
 		Assume the literal has already been parsed."""
 		data=[]
+		nHyphens=0
 		while self.theChar is not None:
 			if self.theChar=='-':
 				self.NextChar()
-				if self.theChar=='-':
-					# must be the end of the comment
+				nHyphens+=1
+				if nHyphens>2 and not self.compatibilityMode:
+					self.WellFormednessViolation("-- in Comment")
+			elif self.theChar=='>':
+				if nHyphens==2:
 					self.NextChar()
-					if self.theChar=='>':
-						self.NextChar()
-						break
-					else:					
-						raise XMLCommentError
-				else:
-					# just a single '-'
-					data.append('-')
-			data.append(self.theChar)
-			self.NextChar()
+					break
+				elif nHyphens<2:
+					self.NextChar()
+					data.append('-'*nHyphens+'>')
+					nHyphens=0
+				else: # we must be in compatibilityMode here, we don't need to check.
+					data.append('-'*(nHyphens-2))
+					self.NextChar()
+					break
+			elif IsS(self.theChar):
+				if nHyphens<2:
+					data.append('-'*nHyphens+self.theChar)
+					nHyphens=0
+				# space does not change the hyphen count
+				self.NextChar()
+			else:
+				nHyphens=0
+				data.append(self.theChar)
+				self.NextChar()
 		return string.join(data,'')
+				
+# 				if self.theChar=='-':
+# 					# must be the end of the comment
+# 					self.NextChar()
+# 					if self.theChar=='>':
+# 						self.NextChar()
+# 						break
+# 					elif self.compatibilityMode:
+# 						data.append('--')
+# 						continue
+# 					else:
+# 						self.WellFormednessViolation("-- in Comment")
+# 				else:
+# 					# just a single '-'
+# 					data.append('-')
+# 			data.append(self.theChar)
+# 			self.NextChar()
 
 	def ParsePI(self):
 		"""
@@ -1017,8 +1055,17 @@ class XMLParser:
 		name=self.ParseName()
 		if name is None:
 			self.WellFormednessViolation("Expected Name")
-		self.ParseS()
-		self.ParseRequiredLiteral('>')
+		try:
+			self.ParseS()
+			self.ParseRequiredLiteral('>')
+		except XMLWellFormedError:
+			if not self.compatibilityMode:
+				raise
+			while self.theChar is not None:
+				if self.theChar=='>':
+					self.NextChar()
+					break
+				self.NextChar()
 		return name
 		
 	def ParseContent(self):
@@ -1247,9 +1294,14 @@ class XMLParser:
 			pubID=self.ParsePubidLiteral()
 		else:
 			self.WellFormednessViolation("Expected ExternalID")
-		if not self.ParseS():
-			self.WellFormednessViolation("Expected S")
-		systemID=self.ParseSystemLiteral()
+		try:
+			if not self.ParseS():
+				self.WellFormednessViolation("Expected S")
+			systemID=self.ParseSystemLiteral()
+		except XMLWellFormedError:
+			if not self.compatibilityMode:
+				raise
+			systemID=None
 		return pubID,systemID
 			
 	def ParseEncodingDecl(self):
@@ -1399,19 +1451,30 @@ class XMLParser:
 		"""Returns a Boolean if the literal was matched successfully"""
 		matchLen=0
 		for m in match:
-			if m!=self.theChar:
+			if m!=self.theChar and (not self.compatibilityMode or
+				self.theChar is None or
+				m.lower()!=self.theChar.lower()):
 				self.BuffText(match[:matchLen])
 				break
 			matchLen+=1
 			self.NextChar()
 		return matchLen==len(match)
-			
 
-class XMLElement:
-	#XMLCONTENT=XMLMixedContent
+
+class XMLElementContainerMixin:
+	"""Mixin class for XMLElement and XMLDocument shared attributes."""
+	def __init__(self,parent):
+		self.parent=parent
+
+	def GetChildren(self):
+		raise XMLError("GetChildren defaulted")
+	
+	
+class XMLElement(XMLElementContainerMixin):
+	#XMLCONTENT=None
 	
 	def __init__(self,parent,name=None):
-		self.parent=parent
+		XMLElementContainerMixin.__init__(self,parent)
 		if name is None:
 			if hasattr(self.__class__,'XMLNAME'):
 				self.xmlname=self.__class__.XMLNAME
@@ -1586,7 +1649,7 @@ class XMLElement:
 		"""Returns True/False indicating whether this element *must* be empty.
 		
 		If the class defines the XMLCONTENT attribute then the model is taken
-		from there and this method return True only if XMLCONTENT is XMLEmpty.
+		from there and this method returns True only if XMLCONTENT is XMLEmpty.
 		
 		Otherwise, the method defaults to False"""
 		if hasattr(self.__class__,'XMLCONTENT'):
@@ -2042,13 +2105,13 @@ class XMLElement:
 		error if non-ascii characters have been used in markup names as such files
 		cannot be encoded in US-ASCII."""
 		s=StringIO()
-		self.WriteXML(s,EscapeCharData7)
+		self.WriteXML(s,EscapeCharData7,root=True)
 		return str(s.getvalue())
 	
 	def __unicode__(self):
 		"""Returns the XML element as a unicode string"""
 		s=StringIO()
-		self.WriteXML(s,EscapeCharData)
+		self.WriteXML(s,EscapeCharData,root=True)
 		return unicode(s.getvalue())
 		
 	def Copy(self,parent=None):
@@ -2210,7 +2273,7 @@ class XMLElement:
 							return False
 		return True
 		
-	def WriteXMLAttributes(self,attributes,escapeFunction=EscapeCharData):
+	def WriteXMLAttributes(self,attributes,escapeFunction=EscapeCharData,root=False):
 		"""Adds strings representing the element's attributes
 		
 		attributes is a list of unicode strings.  Attributes should be appended
@@ -2222,7 +2285,7 @@ class XMLElement:
 		for a in keys:
 			attributes.append(u'%s=%s'%(a,escapeFunction(attrs[a],True)))
 				
-	def WriteXML(self,writer,escapeFunction=EscapeCharData,indent='',tab='\t'):
+	def WriteXML(self,writer,escapeFunction=EscapeCharData,indent='',tab='\t',root=False):
 		if tab:
 			ws='\n'+indent
 			indent=indent+tab
@@ -2233,7 +2296,7 @@ class XMLElement:
 			indent=''
 			tab=''
 		attributes=[]
-		self.WriteXMLAttributes(attributes,escapeFunction)
+		self.WriteXMLAttributes(attributes,escapeFunction,root=root)
 		if attributes:
 			attributes[0:0]=['']
 			attributes=string.join(attributes,' ')
@@ -2265,8 +2328,10 @@ class XMLElement:
 			writer.write(u'%s<%s%s/>'%(ws,self.xmlname,attributes))
 				
 
-class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
-	def __init__(self, root=None, baseURI=None, **args):
+class XMLDocument(XMLElementContainerMixin):
+	"""Base class for all XML documents."""
+	
+	def __init__(self, root=None, baseURI=None, reqManager=None, **args):
 		"""Initialises a new XMLDocument from optional keyword arguments.
 		
 		With no arguments, a new XMLDocument is created with no baseURI
@@ -2275,25 +2340,32 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		If root is a class object (descended from XMLElement) it is used
 		to create the root element of the document.
 		
-		baseURI can be set on construction (see SetBase)
+		baseURI can be set on construction (see SetBase) and a reqManager object
+		can optionally be passed for managing and http(s) connections.
 		"""
-		self.parser=make_parser()
-		self.parser.setFeature(handler.feature_namespaces,0)
-		self.parser.setFeature(handler.feature_validation,0)
-		self.parser.setContentHandler(self)
-		self.parser.setErrorHandler(self)
+		XMLElementContainerMixin.__init__(self,None)
+		self.reqManager=reqManager
 		self.baseURI=None
+		"""The base uri of the document."""
 		self.lang=None
+		"""The default language of the document."""
+		self.root=None
+		"""The root element or None if no root element has been created yet."""
 		if root:
 			if not issubclass(root,XMLElement):
 				raise ValueError
 			self.root=root(self)
-		else:
-			self.root=None
+		self.cObject=None
+		"""The element currently being parsed by the parser."""
 		self.SetBase(baseURI)
 		self.parameterEntities={}
-		#self.parser.setEntityResolver(self)
 		self.idTable={}
+
+	def GetChildren(self):
+		if self.root:
+			return [self.root]
+		else:
+			return []
 
 	def __str__(self):
 		"""Returns the XML document as a string"""
@@ -2405,7 +2477,7 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 			idExtra=idExtra+1
 		return idStr
 
-	def Read(self,src=None,reqManager=None,**args):
+	def Read(self,src=None,**args):
 		if src:
 			# Read from this stream, ignore baseURI
 			if isinstance(src,XMLEntity):
@@ -2415,55 +2487,23 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		elif self.baseURI is None:
 			raise XMLMissingLocationError
 		else:
-			e=XMLEntity(self.baseURI)
+			e=XMLEntity(self.baseURI,reqManager=self.reqManager)
 			self.ReadFromEntity(e)
-# 		elif isinstance(self.baseURI,FileURL):
-# 			# we would need to force 8bit path names to workaround bug in expat
-# 			# but we've ditched sax so we don't have to do this anymore
-# 			f=open(self.baseURI.GetPathname(),'rb')
-# 			try:
-# 				self.ReadFromStream(f)
-# 			finally:
-# 				f.close()
-# 		elif self.baseURI.scheme.lower() in ['http','https']:
-# 			if reqManager is None:
-# 				reqManager=http.HTTPRequestManager()
-# 			req=http.HTTPRequest(str(self.baseURI))
-# 			reqManager.ProcessRequest(req)
-# 			if req.status==200:
-# 				mtype=req.response.GetContentType()
-# 				if mtype is None:
-# 					# We'll attempt to do this with xml and utf8
-# 					charset='utf8'
-# 					raise UnimplementedError
-# 				else:
-# 					mimetype=mtype.type.lower()+'/'+mtype.subtype.lower()
-# 					#if not ValidateXMLMimeType(mimetype):
-# 					#	raise XMLContentTypeError(mimetype)
-# 					self.ReadFromStream(StringIO(req.resBody))
-# 			else:
-# 				raise XMLUnexpectedHTTPResponse(str(req.status))
-# 		else:
-# 			raise XMLUnsupportedScheme
 	
 	def ReadFromStream(self,src):
 		self.cObject=self
-		self.objStack=[]
 		self.data=[]
-		#self.parser.parse(src)
-		e=XMLEntity(src)
+		e=XMLEntity(src,reqManager=self.reqManager)
 		self.ReadFromEntity(e)
 		
 	def ReadFromEntity(self,e):
 		self.cObject=self
-		self.objStack=[]
 		self.data=[]
 		parser=XMLParser(e)
 		parser.ParseDocument(self)
 		
 	def startElement(self, name, attrs):
 		parent=self.cObject
-		self.objStack.append(self.cObject)
 		if self.data:
 			parent.AddData(string.join(self.data,''))
 			self.data=[]
@@ -2476,8 +2516,8 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		self.data.append(ch)
 			
 	def endElement(self,name):
-		if self.objStack:
-			parent=self.objStack.pop()
+		if isinstance(self.cObject,XMLElement):
+			parent=self.cObject.parent
 		else:
 			parent=None
 		if self.data:
@@ -2520,7 +2560,7 @@ class XMLDocument(handler.ContentHandler, handler.ErrorHandler):
 		else:
 			writer.write(u'<?xml version="1.0" encoding="UTF-8"?>\n')
 		if self.root:
-			self.root.WriteXML(writer,escapeFunction,'',tab)
+			self.root.WriteXML(writer,escapeFunction,'',tab,root=True)
 	
 	def Update(self,**args):
 		"""Updates the XMLDocument.

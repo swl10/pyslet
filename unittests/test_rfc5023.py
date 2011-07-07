@@ -197,8 +197,7 @@ class APPCollectionTests(unittest.TestCase):
 		self.failUnless(c.title is None,"Title present on construction")
 		acceptList=c.acceptList
 		self.failUnless(len(acceptList)==0,"Accept list non-empty on construction")
-		categories=c.categories
-		self.failUnless(isinstance(categories,APPCategories),"Categories not of correct class type")
+		self.failUnless(len(c.APPCategories)==0,"Categories list non-empty on construction")
 		
 class APPWorkspaceTests(unittest.TestCase):
 	def testCaseConstructor(self):
@@ -237,11 +236,11 @@ class APPServiceTests(unittest.TestCase):
 		self.failUnless(isinstance(c,APPCollection) and c.href=="http://example.org/blog/main","Collection type or href")
 		title=c.title
 		self.failUnless(isinstance(title,atom.AtomText) and title.GetValue()=="My Blog Entries","Collection title")
-		cats=c.categories
+		cats=c.APPCategories[0]
 		self.failUnless(isinstance(cats,APPCategories) and cats.href=="http://example.com/cats/forMain.cats","Collection categories")
 		accepts=collections[1].acceptList
 		self.failUnless(len(accepts)==3 and accepts[0].GetValue()=="image/png" and accepts[2].GetValue()=="image/gif","Collection accepts")
-		cats=wspace[1].GetCollections()[0].categories
+		cats=wspace[1].GetCollections()[0].APPCategories[0]
 		self.failUnless(cats.fixed,"Collection categories fixed")
 		catList=cats.categoryList
 		self.failUnless(len(catList)==2,"Collection category list")

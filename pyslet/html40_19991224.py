@@ -142,6 +142,7 @@ class XHTMLElement(xmlns.XMLNSElement):
 	ID='id'
 	XMLATTR_class='styleClass'
 	XMLATTR_title='title'
+	XMLCONTENT=xmlns.XMLMixedContent
 	
 	def __init__(self,parent):
 		xmlns.XMLNSElement.__init__(self,parent)
@@ -643,40 +644,68 @@ class TextArea(FormCtrlMixin,XHTMLElement):
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'textarea')
 	XMLCONTENT=xmlns.XMLMixedContent
+
+
+class FieldSet(BlockMixin,FlowContainer):
+	"""fieldset element::
 	
-"""	
-<!--
-  #PCDATA is to solve the mixed content problem,
-  per specification only whitespace is allowed there!
- -->
-<!ELEMENT FIELDSET - - (#PCDATA,LEGEND,(%flow;)*) -- form control group -->
-<!ATTLIST FIELDSET
-  %attrs;                              -- %coreattrs, %i18n, %events --
-  >
+	<!ELEMENT FIELDSET - - (#PCDATA,LEGEND,(%flow;)*) -- form control group -->
+	<!ATTLIST FIELDSET
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'fieldset')
+	XMLCONTENT=xmlns.XMLElementContent
 
-<!ELEMENT LEGEND - - (%inline;)*       -- fieldset legend -->
+	def __init__(self,parent):
+		FlowContainer.__init__(self,parent)
+		self.Legend=Legend(self)
+	
+	def GetChildren(self):
+		children=[self.Legend]+FlowContainer.GetChildren(self)
+		return children
 
-<!ATTLIST LEGEND
-  %attrs;                              -- %coreattrs, %i18n, %events --
-  accesskey   %Character;    #IMPLIED  -- accessibility key character --
-  >
+	def ChildElement(self,childClass,name=None):
+		if childClass is Legend:
+			return self.Legend
+		else:
+			return FlowContainer.ChildElement(self,childClass,name)
+		
 
-<!ELEMENT BUTTON - -
-     (%flow;)* -(A|%formctrl;|FORM|FIELDSET)
-     -- push button -->
-<!ATTLIST BUTTON
-  %attrs;                              -- %coreattrs, %i18n, %events --
-  name        CDATA          #IMPLIED
-  value       CDATA          #IMPLIED  -- sent to server when submitted --
-  type        (button|submit|reset) submit -- for use as form button --
-  disabled    (disabled)     #IMPLIED  -- unavailable in this context --
-  tabindex    NUMBER         #IMPLIED  -- position in tabbing order --
-  accesskey   %Character;    #IMPLIED  -- accessibility key character --
-  onfocus     %Script;       #IMPLIED  -- the element got the focus --
-  onblur      %Script;       #IMPLIED  -- the element lost the focus --
-  %reserved;                           -- reserved for possible future use --
-  >
-"""
+class Legend(InlineContainer):
+	"""legend element::
+
+	<!ELEMENT LEGEND - - (%inline;)*       -- fieldset legend -->
+	
+	<!ATTLIST LEGEND
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  accesskey   %Character;    #IMPLIED  -- accessibility key character --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'legend')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+
+class Button(FormCtrlMixin,FlowContainer):
+	"""button element::
+
+	<!ELEMENT BUTTON - - (%flow;)* -(A|%formctrl;|FORM|FIELDSET) -- push button -->
+	<!ATTLIST BUTTON
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  name        CDATA          #IMPLIED
+	  value       CDATA          #IMPLIED  -- sent to server when submitted --
+	  type        (button|submit|reset) submit -- for use as form button --
+	  disabled    (disabled)     #IMPLIED  -- unavailable in this context --
+	  tabindex    NUMBER         #IMPLIED  -- position in tabbing order --
+	  accesskey   %Character;    #IMPLIED  -- accessibility key character --
+	  onfocus     %Script;       #IMPLIED  -- the element got the focus --
+	  onblur      %Script;       #IMPLIED  -- the element lost the focus --
+	  %reserved;                           -- reserved for possible future use --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'button')
+	XMLCONTENT=xmlns.XMLMixedContent
+
 
 # Object Elements
 
@@ -1023,6 +1052,120 @@ class A(SpecialMixin,InlineContainer):
 		self.onFocus=None
 		self.onBlur=None
 
+# Frames
+
+class FrameElement(XHTMLElement):
+	pass
+	
+class Frameset(FrameElement):
+	"""Frameset element::
+
+	<!ELEMENT FRAMESET - - ((FRAMESET|FRAME)+ & NOFRAMES?) -- window subdivision-->
+	<!ATTLIST FRAMESET
+	  %coreattrs;                          -- id, class, style, title --
+	  rows        %MultiLengths; #IMPLIED  -- list of lengths,
+											  default: 100% (1 row) --
+	  cols        %MultiLengths; #IMPLIED  -- list of lengths,
+											  default: 100% (1 col) --
+	  onload      %Script;       #IMPLIED  -- all the frames have been loaded  -- 
+	  onunload    %Script;       #IMPLIED  -- all the frames have been removed -- 
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'frameset')
+	XMLCONTENT=xmlns.XMLElementContent
+
+	def __init__(self,parent):
+		FrameElement.__init__(self,parent)
+		self.FrameElement=[]
+		self.NoFrames=None
+
+	def GetChildren(self):
+		children=self.FrameElement[:]
+		xml.OptionalAppend(children,self.NoFrames)
+		return children
+		
+
+class Frame(FrameElement):
+	"""Frame element:
+	<!-- reserved frame names start with "_" otherwise starts with letter -->
+	<!ELEMENT FRAME - O EMPTY              -- subwindow -->
+	<!ATTLIST FRAME
+	  %coreattrs;                          -- id, class, style, title --
+	  longdesc    %URI;          #IMPLIED  -- link to long description
+											  (complements title) --
+	  name        CDATA          #IMPLIED  -- name of frame for targetting --
+	  src         %URI;          #IMPLIED  -- source of frame content --
+	  frameborder (1|0)          1         -- request frame borders? --
+	  marginwidth %Pixels;       #IMPLIED  -- margin widths in pixels --
+	  marginheight %Pixels;      #IMPLIED  -- margin height in pixels --
+	  noresize    (noresize)     #IMPLIED  -- allow users to resize frames? --
+	  scrolling   (yes|no|auto)  auto      -- scrollbar or none --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'frame')
+	XMLCONTENT=xmlns.XMLEmpty
+
+	
+class IFrame(SpecialMixin,FlowContainer):
+	"""Represents the iframe element::
+
+	<!ELEMENT IFRAME - - (%flow;)*         -- inline subwindow -->
+	<!ATTLIST IFRAME
+	  %coreattrs;                          -- id, class, style, title --
+	  longdesc    %URI;          #IMPLIED  -- link to long description
+											  (complements title) --
+	  name        CDATA          #IMPLIED  -- name of frame for targetting --
+	  src         %URI;          #IMPLIED  -- source of frame content --
+	  frameborder (1|0)          1         -- request frame borders? --
+	  marginwidth %Pixels;       #IMPLIED  -- margin widths in pixels --
+	  marginheight %Pixels;      #IMPLIED  -- margin height in pixels --
+	  scrolling   (yes|no|auto)  auto      -- scrollbar or none --
+	  align       %IAlign;       #IMPLIED  -- vertical or horizontal alignment --
+	  height      %Length;       #IMPLIED  -- frame height --
+	  width       %Length;       #IMPLIED  -- frame width --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'iframe')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+
+class NoFrames(FlowContainer):
+	"""Represents the NOFRAMES element::
+
+	In a frameset document:
+	<!ENTITY % noframes.content "(BODY) -(NOFRAMES)">
+
+	In a regular document:	
+	<!ENTITY % noframes.content "(%flow;)*">
+	
+	<!ELEMENT NOFRAMES - - %noframes.content;
+	 -- alternate content container for non frame-based rendering -->
+	<!ATTLIST NOFRAMES
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  >
+	"""
+	def __init__(self,parent):
+		FlowContainer.__init__(self,parent)
+		self.Body=None
+		
+	def ChildElement(self,childClass,name=None):
+		if self.FindParent(Frameset):
+			if childClass is Body:
+				return XHTMLElement.ChildElement(self,childClass,name)
+			else:
+				# Body can have it's start tag omitted
+				XHTMLElement.ChildElement(self,Body)
+				sefl.Body.ChildElement(childClass,name)
+		else:
+			FlowContainer.ChildElement(self,childClass,name)
+
+	def GetChildren(self):
+		if self.Body:
+			return [self.Body]
+		else:
+			return FlowContainer.GetChildren(self)
+			
+
 # Document Head
 
 class Head(XHTMLElement):
@@ -1228,7 +1371,6 @@ class HTMLParser(xmlns.XMLNSParser):
 			self.ParseDoctypeDecl()
 			self.ParseMisc()
 		if self.xmlFlag:
-			import pdb;pdb.set_trace()
 			self.ParseElement()			
 			self.ParseMisc()
 			if self.theChar is not None:
@@ -1282,11 +1424,15 @@ class HTMLParser(xmlns.XMLNSParser):
 					self.doc.endElementNS((None,name),name)
 				else:	
 					self.BuffText('<')
-					name,attrs,empty=self.ParseSTag()
+					qname,attrs,empty=self.ParseSTag()
 					foundElement=True
-					self.doc.startElementNS((None,name),name,attrs)
-					if empty:
-						self.doc.endElementNS((None,name),name)
+					ns=self.ParseNSAttributes(attrs)
+					expandedName=self.ExpandQName(qname,ns)
+					self.doc.startElementNS(expandedName,qname,attrs)
+					self.doc.cObject.SetPrefixMap(ns)
+					if empty or (isinstance(self.doc.cObject,XHTMLElement) and
+						self.doc.cObject.__class__.XMLCONTENT==xmlns.XMLEmpty):
+						self.doc.endElementNS(expandedName,qname)
 			elif self.theChar=='&':
 				data=self.ParseReference()	
 			if data:
@@ -1300,7 +1446,7 @@ class HTMLParser(xmlns.XMLNSParser):
 				data=None
 		# when we reach the end of the stream we end the HTML element on the
 		# 'one for luck' principle (spurious end tags are ignored by XHTMLDocument)
-		self.doc.endElementNS(HTML.XMLNAME,name)
+		self.doc.endElementNS(HTML.XMLNAME,'html')
 
 
 class XHTMLDocument(xmlns.XMLNSDocument):
@@ -1342,6 +1488,9 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 		return XHTMLDocument.classMap.get(name,xmlns.XMLNSElement)
 
 	def startElementNS(self, name, qname, attrs):
+		if self.p.xmlFlag:
+			xmlns.XMLNSDocument.startElementNS(self,name,qname,attrs)
+			return
 		parent=self.cObject
 		if self.data:
 			data=string.join(self.data,'')
@@ -1352,6 +1501,9 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 			self.data=[]
 		if name[0] is None:
 			name=(self.defaultNS,name[1].lower())
+		elif name[0]==XHTML_NAMESPACE:
+			# any element in the XHTML namespace is lower-cased before lookup
+			name=(XHTML_NAMESPACE,name[1].lower())		
 		eClass=self.GetElementClass(name)
 		try:
 			if isinstance(parent,xml.XMLDocument):
@@ -1394,9 +1546,7 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 			except xml.XMLIDClashError:
 				# ignore ID clashes as they are common in HTML it seems
 				continue
-		if hasattr(eClass,'XMLCONTENT') and eClass.XMLCONTENT==xmlns.XMLEmpty:
-			self.endElementNS(name,qname)
-		elif hasattr(eClass,'SGMLCDATA'):
+		if hasattr(eClass,'SGMLCDATA'):
 			# This is a CDATA section...
 			while self.p.theChar is not None:
 				data=self.p.ParseCDSect('</')
@@ -1416,6 +1566,9 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 			self.endElementNS(name,qname)
 			
 	def endElementNS(self,name,qname):
+		if self.p.xmlFlag:
+			xmlns.XMLNSDocument.endElementNS(self,name,qname)
+			return
 		if name[0] is None:
 			name=(self.defaultNS,name[1].lower())
 		if self.data:

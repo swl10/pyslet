@@ -338,10 +338,12 @@ class XMLParserTests(unittest.TestCase):
 		for i in xrange(len(data2)):
 			self.failUnless(p.theChar==data2[i],"Failed at data[%i] before look ahead"%i)
 			for j in xrange(5):
-				e.StartLookahead()
+				data=[]
 				for k in xrange(j):
+					if p.theChar is not None:
+						data.append(p.theChar)
 					p.NextChar()
-				p.Rewind()
+				p.BuffText(string.join(data,''))
 				self.failUnless(p.theChar==data2[i],"Failed at data[%i] after Rewind(%i)"%(i,j))
 			p.NextChar()
 		
@@ -504,7 +506,7 @@ class XMLParserTests(unittest.TestCase):
 		e=XMLEntity("<tag hello>")
 		p=XMLParser(e)
 		name,attrs,empty=p.ParseSTag()
-		self.failUnless(name=='tag' and attrs['hello']==None and empty is False)
+		self.failUnless(name=='tag' and attrs['hello']=='hello' and empty is False)
 		e=XMLEntity("<tag width=20%>")
 		p=XMLParser(e)
 		p.compatibilityMode=True
@@ -837,7 +839,7 @@ class XMLDocumentTests(unittest.TestCase):
 		self.failUnless(isinstance(root,ReflectiveElement))
 		self.failUnless(root.atest,"Attribute relfection")
 		self.failUnless(root.child,"Element relfection")
-
+		
 		
 if __name__ == "__main__":
 	unittest.main()

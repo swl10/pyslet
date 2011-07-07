@@ -132,7 +132,7 @@ class APPCollection(APPElement):
 		self.href=None
 		self.title=None
 		self.acceptList=[]
-		self.categories=APPCategories(None)
+		self.APPCategories=[]
 	
 	def GetAttributes(self):
 		attrs=APPElement.GetAttributes(self)
@@ -156,9 +156,6 @@ class APPCollection(APPElement):
 		self.title=child
 		return self.title
 		
-	def APPCategories(self):
-		return self.categories
-
 	def APPAccept(self):
 		child=APPAccept(self)
 		self.acceptList.append(child)
