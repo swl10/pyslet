@@ -12,3 +12,4 @@ Contents:
    
    imsqtiv1p2p1
    imsqtiv2p1
+   imsbltiv1p0

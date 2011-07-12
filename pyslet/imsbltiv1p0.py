@@ -10,10 +10,16 @@ import os, random, string, time
 BLTI_VERSION="LTI-1p0"
 BLTI_LAUNCH_REQUEST="basic-lti-launch-request"
 
-class BLTIError(Exception): pass
+class BLTIError(Exception):
+	"""Base class for BLTI errors."""
+	pass
+	
 class BLTIDuplicateKeyError(BLTIError): pass
 class BLTIOAuthParameterError(BLTIError): pass
-class BLTIAuthenticationError(BLTIError): pass
+class BLTIAuthenticationError(BLTIError):
+	"""Error raised when a launch request cannot be authorized."""
+	pass
+
 
 try:
 	from oauth import oauth
@@ -42,13 +48,19 @@ try:
 	
 	
 	class BLTIToolProvider(oauth.OAuthDataStore):
+		"""Represents a Tool Provider."""
 		def __init__(self):
 			self.consumers={}
+			"""A dictionary of :class:`BLTIConsumer` instances keyed on the consumer key."""			
 			self.oauth_server = oauth.OAuthServer(self)
 			self.oauth_server.add_signature_method(oauth.OAuthSignatureMethod_PLAINTEXT())
 			self.oauth_server.add_signature_method(oauth.OAuthSignatureMethod_HMAC_SHA1())
 		
 		def GenerateKey(self,keyLength=128):
+			"""Generates a new key with at least keyLength bits of information
+			in.  The key is returned as a sequence of 16 bit hexadecimal strings
+			separated by '.' to make them easier to read and transcribe into
+			other systems."""
 			key=[]
 			nFours=(keyLength+1)/16
 			try:
@@ -65,6 +77,10 @@ try:
 			return string.join(key,'.')
 			
 		def NewConsumer(self,key=None):
+			"""Creates a new BLTIConsumer instance and adds it to the dictionary
+			of consumers authorized to use this tool.  The consumer key and
+			secret are automatically generated using :meth:`GenerateKey` but key
+			can be passed as an argument."""
 			if key is None:
 				key=self.GenerateKey()
 			elif self.consumers.has_key(key):
@@ -83,6 +99,12 @@ try:
 				return None
 	
 		def LoadFromFile(self,f):
+			"""Loads the list of trusted consumers from a simple file of key,
+			secret pairs formatted as::
+
+			<consumer key> [SPACE]+ <consumer secret>
+
+			Lines starting with a '#' are ignored as comments."""
 			lines=f.readlines()
 			for line in lines:
 				if line and line[0]=='#':
@@ -94,13 +116,18 @@ try:
 					self.consumers[fields[0]]=BLTIConsumer(fields[0],fields[1])
 		
 		def SaveToFile(self,f):
+			"""Saves the list of trusted consumers to a simple file suitable for
+			reading with :meth:`LoadFromFile`."""
 			keys=self.consumers.keys()
 			keys.sort()
 			for key in keys:
 				f.write("%s %s\n"%(key,self.consumers[key].secret))
 		
 		def Launch(self,command,url,headers,query_string):
-			"""Launches a tool link"""
+			"""Checks a launch request for authorization returning a
+			BLTIConsumer instance and a dictionary of parameters on success. If
+			the incoming request is not authorized then
+			:class:`BLTIAuthenticationError` is raised."""
 			oauth_request=oauth.OAuthRequest.from_request(command,url,headers=headers,query_string=query_string)
 			try:
 				if oauth_request:
