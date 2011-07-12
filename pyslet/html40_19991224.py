@@ -12,8 +12,15 @@ import os.path, shutil
 HTML40_PUBLICID="-//W3C//DTD HTML 4.01//EN"
 XHTML_NAMESPACE="http://www.w3.org/1999/xhtml"
 
+XHTML_MIMETYPES={
+	None: False,
+	'text/xml': True,
+	'text/html': False
+	}
+
 class XHTMLError(Exception): pass
 class XHTMLValidityError(XHTMLError): pass
+class XHTMLMimeTypeError(XHTMLError): pass
 
 
 class LengthType:
@@ -1342,9 +1349,9 @@ class HTML(XHTMLElement):
 	
 	
 class HTMLParser(xmlns.XMLNSParser):
-	def __init__(self,entity=None):
+	def __init__(self,entity=None,xmlHint=False):
 		xmlns.XMLNSParser.__init__(self,entity)
-		self.xmlFlag=False
+		self.xmlFlag=xmlHint
 		"""A flag that indicates if the parser is in xml mode."""
 		
 	def LookupEntity(self,name):
@@ -1479,11 +1486,15 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 		The result is always a proper element hierarchy rooted in an HTML node,
 		even if no tags are present at all the parser will construct an HTML
 		document containing a single Div element to hold the parsed text."""
-		self.cObject=self
-		self.data=[]
-		self.p=HTMLParser(e)
-		self.p.ParseHTMLDocument(self)
-
+		xmlHint=XHTML_MIMETYPES.get(e.mimetype,None)
+		if xmlHint is not None:				
+			self.cObject=self
+			#self.data=[]
+			self.p=HTMLParser(e,xmlHint)
+			self.p.ParseHTMLDocument(self)
+		else:
+			raise XHTMLMimeTypeError(e.mimetype)
+			
 	def GetElementClass(self,name):
 		return XHTMLDocument.classMap.get(name,xmlns.XMLNSElement)
 
@@ -1492,13 +1503,13 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 			xmlns.XMLNSDocument.startElementNS(self,name,qname,attrs)
 			return
 		parent=self.cObject
-		if self.data:
-			data=string.join(self.data,'')
-			if isinstance(parent,xmlns.XMLNSElement):
-				parent.AddData(data)
-			elif xml.CollapseSpace(data)!=u" ":
-				raise XHTMLValidityError("Unexpected document-level data: %s"%data)
-			self.data=[]
+# 		if self.data:
+# 			data=string.join(self.data,'')
+# 			if isinstance(parent,xmlns.XMLNSElement):
+# 				parent.AddData(data)
+# 			elif xml.CollapseSpace(data)!=u" ":
+# 				raise XHTMLValidityError("Unexpected document-level data: %s"%data)
+# 			self.data=[]
 		if name[0] is None:
 			name=(self.defaultNS,name[1].lower())
 		elif name[0]==XHTML_NAMESPACE:
@@ -1516,6 +1527,7 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 					self.cObject=parent.ChildElement(eClass,name)
 			elif issubclass(eClass,XHTMLElement):
 				# Handle omitted tags
+				saveCObject=self.cObject
 				self.cObject=None
 				while isinstance(parent,xml.XMLElement):
 					try:
@@ -1527,9 +1539,11 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 						parent=parent.parent
 						continue
 				if self.cObject is None:
-					# so this is rubbish that we can't even add it to an HTML node?
-					import pdb;pdb.set_trace()
-					raise XHTMLValidityError("Found spurious element <%s>"%str(qname))
+					# so this is rubbish that we can't even add to an HTML node?
+					# import pdb;pdb.set_trace()
+					# raise XHTMLValidityError("Found spurious element <%s>"%str(qname))
+					print "Found spurious element <%s>"%str(qname)
+					self.cObject=saveCObject
 			else:
 				print "Unknown element in HTML: %s"%str(name)
 				self.cObject=parent.ChildElement(eClass,name)				
@@ -1545,6 +1559,9 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 					self.cObject.SetAttribute(attr,attrs[attr])
 			except xml.XMLIDClashError:
 				# ignore ID clashes as they are common in HTML it seems
+				continue
+			except xml.XMLIDValueError:
+				# ignore mal-formed ID values
 				continue
 		if hasattr(eClass,'SGMLCDATA'):
 			# This is a CDATA section...
@@ -1564,6 +1581,27 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 						eName=''
 					self.cObject.AddData('</%s'%eName)
 			self.endElementNS(name,qname)
+
+	def characters(self,ch):
+		parent=self.cObject
+		if isinstance(self.cObject,xmlns.XMLElement):
+			try:
+				self.cObject.AddData(ch)
+			except xmlns.XMLValidationError:
+				# character data can't go here, try adding a span
+				try:
+					self.cObject=parent.ChildElement(Span)
+					self.cObject.AddData(ch)
+				except xmlns.XMLValidationError:
+					self.cObject=parent.ChildElement(Div)
+					self.cObject.AddData(ch)
+		elif xmlns.CollapseSpace(ch)!=u" ":
+			parent=parent.ChildElemenet(HTML)
+			self.cObject=parent.ChildElement(Div)
+			self.cObject.AddData(ch)
+		else:
+			# ignorable white space
+			pass
 			
 	def endElementNS(self,name,qname):
 		if self.p.xmlFlag:
@@ -1571,13 +1609,13 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 			return
 		if name[0] is None:
 			name=(self.defaultNS,name[1].lower())
-		if self.data:
-			data=string.join(self.data,'')
-			if isinstance(self.cObject,xmlns.XMLNSElement):
-				self.cObject.AddData(data)
-			elif xml.CollapseSpace(data)!=u" ":
-				raise XHTMLValidityError("Unexpected document-level data: %s"%data)
-			self.data=[]
+# 		if self.data:
+# 			data=string.join(self.data,'')
+# 			if isinstance(self.cObject,xmlns.XMLNSElement):
+# 				self.cObject.AddData(data)
+# 			elif xml.CollapseSpace(data)!=u" ":
+# 				raise XHTMLValidityError("Unexpected document-level data: %s"%data)
+# 			self.data=[]
 		# do we have a matching open element?
 		e=self.cObject
 		while isinstance(e,xml.XMLElement):

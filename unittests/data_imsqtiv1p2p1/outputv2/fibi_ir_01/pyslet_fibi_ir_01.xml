@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="PYSLET_FIBI_IR_01" title="Numeric slider" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="NUM04" cardinality="single" baseType="integer">
+        <defaultValue>
+            <value>100</value>
+        </defaultValue>
+    </responseDeclaration>
+    <outcomeDeclaration identifier="FEEDBACK" cardinality="multiple" baseType="identifier"/>
+    <outcomeDeclaration identifier="SCORE1" cardinality="single" baseType="integer">
+        <defaultValue>
+            <value>1</value>
+        </defaultValue>
+    </outcomeDeclaration>
+    <itemBody>
+        <div label="PysletExample_FIBI_IR_01">
+            <p>How much solar energy (in W/m<sup>2</sup>) does the Earth experience, on average?</p>
+            <sliderInteraction responseIdentifier="NUM04" lowerBound="0.0" upperBound="1000.0" step="10"
+                stepLabel="false" orientation="horizontal"/>
+        </div>
+    </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <match>
+                    <variable identifier="NUM04"/>
+                    <baseValue baseType="integer">340</baseValue>
+                </match>
+                <setOutcomeValue identifier="SCORE1">
+                    <sum>
+                        <variable identifier="SCORE1"/>
+                        <baseValue baseType="integer">9</baseValue>
+                    </sum>
+                </setOutcomeValue>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">Correct</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseIf>
+        </responseCondition>
+    </responseProcessing>
+    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Correct">Yes,
+        approximately 340 W/m<sup>2</sup>.</modalFeedback>
+</assessmentItem>

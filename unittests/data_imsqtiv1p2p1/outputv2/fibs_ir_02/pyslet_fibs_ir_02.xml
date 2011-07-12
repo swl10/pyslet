@@ -24,18 +24,18 @@
         <responseCondition>
             <responseIf>
                 <and>
-                    <match>
+                    <stringMatch caseSensitive="true" substring="false">
                         <variable identifier="FIB01"/>
                         <baseValue baseType="string">stage</baseValue>
-                    </match>
-                    <match>
+                    </stringMatch>
+                    <stringMatch caseSensitive="true" substring="false">
                         <variable identifier="FIB02"/>
                         <baseValue baseType="string">players</baseValue>
-                    </match>
-                    <match>
+                    </stringMatch>
+                        <stringMatch caseSensitive="true" substring="false">
                         <variable identifier="FIB03"/>
                         <baseValue baseType="string">seven</baseValue>
-                    </match>
+                    </stringMatch>
                 </and>
                 <setOutcomeValue identifier="FIBSCORE1">
                     <sum>
@@ -52,10 +52,10 @@
             </responseIf>
             <responseElseIf>
                 <not>
-                    <match>
+                    <stringMatch caseSensitive="true" substring="false">
                         <variable identifier="FIB01"/>
                         <baseValue baseType="string">stage</baseValue>
-                    </match>
+                    </stringMatch>
                 </not>
                 <setOutcomeValue identifier="FEEDBACK">
                     <multiple>
@@ -66,10 +66,10 @@
             </responseElseIf>
             <responseElseIf>
                 <not>
-                    <match>
+                    <stringMatch caseSensitive="true" substring="false">
                         <variable identifier="FIB02"/>
                         <baseValue baseType="string">players</baseValue>
-                    </match>
+                    </stringMatch>
                 </not>
                 <setOutcomeValue identifier="FEEDBACK">
                     <multiple>
@@ -80,10 +80,10 @@
             </responseElseIf>
             <responseElseIf>
                 <not>
-                    <match>
+                    <stringMatch caseSensitive="true" substring="false">
                         <variable identifier="FIB03"/>
                         <baseValue baseType="string">seven</baseValue>
-                    </match>
+                    </stringMatch>
                 </not>
                 <setOutcomeValue identifier="FEEDBACK">
                     <multiple>

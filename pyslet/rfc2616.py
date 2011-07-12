@@ -806,7 +806,10 @@ class HTTPConnection:
 				rBusy=None;wBusy=None
 				self.manager.Log(HTTP_LOG_DEBUG,"%s: request mode=%i, sendBuffer=%s"%(self.host,self.requestMode,repr(self.sendBuffer)))
 				if self.response:
-					self.manager.Log(HTTP_LOG_DEBUG,"%s: response mode=%i, recvBuffer=%s"%(self.host,self.response.mode,repr(self.recvBuffer)))
+					if self.recvBufferSize<4096:
+						self.manager.Log(HTTP_LOG_DEBUG,"%s: response mode=%i, recvBuffer=%s"%(self.host,self.response.mode,repr(self.recvBuffer)))
+					else:
+						self.manager.Log(HTTP_LOG_DEBUG,"%s: response mode=%i, recvBufferSize=%i"%(self.host,self.response.mode,self.recvBufferSize))						
 				else:
 					self.manager.Log(HTTP_LOG_DEBUG,"%s: no response waiting"%self.host)
 				# The section deals with the sending cycle, we pass on to the
@@ -929,7 +932,8 @@ class HTTPConnection:
 			self.recvBuffer.append(data)
 			self.recvBufferSize+=nBytes
 		else:
-			self.Close("recv returned no data when socket was ready to read (socket closed?)")
+			self.manager.Log(HTTP_LOG_DEBUG,"%s: closing connection after recv returned no data on ready to read socket"%self.host)
+			self.Close()
 			return True
 		# Now loop until we can't satisfy the response anymore (or the response is done)
 		while self.response is not None:
@@ -958,13 +962,18 @@ class HTTPConnection:
 					self.response.RecvLine(line)
 			elif type(recvNeeds) is types.IntType:
 				nBytes=int(recvNeeds)
-				self.manager.Log(HTTP_LOG_DEBUG,"Response waiting for %s bytes"%str(nBytes))
 				if nBytes is 0:
 					# As many as possible please
-					bytes=string.join(self.recvBuffer,'')
-					self.recvBuffer=[]
-					self.recvBufferSize=0
+					self.manager.Log(HTTP_LOG_DEBUG,"Response reading until connection closes"%str(nBytes))
+					if self.recvBufferSize>0:
+						bytes=string.join(self.recvBuffer,'')
+						self.recvBuffer=[]
+						self.recvBufferSize=0
+					else:
+						# recvBuffer is empty but we still want more
+						break
 				elif self.recvBufferSize<nBytes:
+					self.manager.Log(HTTP_LOG_DEBUG,"Response waiting for %s bytes"%str(nBytes-self.recvBufferSize))
 					# We can't satisfy the response
 					break
 				else:
@@ -1563,9 +1572,13 @@ class HTTPResponse(HTTPMessage):
 			return None
 		elif self.mode<self.RESP_LINE_MODES:
 			# How much data do we need?
-			return self.transferLength-self.transferPos
+			if self.transferLength:
+				return self.transferLength-self.transferPos
+			else:
+				# reading forever always returns 0 bytes
+				return 0
 		else:
-			return None	
+			return None
 	
 	def RecvLine(self,line):
 		if self.mode==self.RESP_STATUS:
@@ -1641,18 +1654,6 @@ class HTTPResponse(HTTPMessage):
 					raise HTTP2616ProtocolError("Badly formed header line: %s"%h)
 			return True
 
-	def NeedBytes(self):
-		"""Returns the number of bytes we are waiting for from the server or None
-		if we are done, 0 if we we want to read forever, otherwise the minimum
-		number of bytes we expect (we may ask for more later)."""
-		if self.mode==self.RESP_DONE:
-			return None
-		elif self.mode<self.RESP_LINE_MODES:
-			# How much data do we need?
-			return self.transferLength-self.transferPos
-		else:
-			return None
-	
 	def RecvBytes(self,data):
 		if self.mode==self.RESP_CHUNK_DATA:
 			self.transferPos+=len(data)

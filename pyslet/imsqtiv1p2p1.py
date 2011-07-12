@@ -110,6 +110,31 @@ def EncodeFIBType(value):
 	return QTIFIBType.encode.get(value,None)
 
 
+class NumType:
+	"""numtype enumeration::
+	
+	numtype      (Integer | Decimal | Scientific )  'Integer'
+	"""
+	decode={
+		'Integer':1,
+		'Decimal':2,
+		'Scientific':3
+		}
+xsi.MakeEnumeration(NumType)
+
+def DecodeNumType(value):
+	"""Decodes a fibtype value from a string."""
+	try:
+		value=value.strip()
+		value=value[0].upper()+value[1:].lower()
+		return NumType.decode[value]
+	except KeyError:
+		raise ValueError("Can't decode numtype from %s"%value)
+
+def EncodeNumType(value):
+	return NumType.encode.get(value,None)
+
+
 class QTIPromptType:
 	"""prompt enumeration::
 	
@@ -145,6 +170,11 @@ class QTIOrientation:
 		'Vertical':2,
 		}
 xsi.MakeEnumeration(QTIOrientation)
+
+V2ORIENTATION_MAP={
+	QTIOrientation.Horizontal:qtiv2.Orientation.horizontal,
+	QTIOrientation.Vertical:qtiv2.Orientation.vertical
+	}
 
 def DecodeOrientation(value):
 	"""Decodes an orientation value from a string."""
@@ -830,38 +860,40 @@ class QTIContentMixin:
 						brBefore=brAfter=False
 						child.MigrateV2Content(parent,html.BlockMixin,log)
 				except AttributeError:
+					# import traceback;traceback.print_exc()
+					# import pdb;pdb.set_trace()
 					raise QTIError("Error: unsupported QTI v1 content element "+child.xmlname)
 
-	def MigrateV2ContentMixture(self,mixedupChildren,parent,log):
-		p=None
-		brBefore=False
-		brAfter=False
-		for child in mixedupChildren:
-			try:
-				if child.IsInline():
-					if brAfter:
-						parent.ChildElement(html.Br,(qtiv2.IMSQTI_NAMESPACE,'br'))
-						brAfter=False
-					if isinstance(child,(QTIFlow,QTIFlowMat,QTIFlowLabel)):
-						brBefore=brAfter=True
-					if p is None:
-						p=parent.ChildElement(html.P,(qtiv2.IMSQTI_NAMESPACE,'p'))
-						brBefore=False
-					if brBefore:
-						parent.ChildElement(html.Br)
-						brBefore=False
-					child.MigrateV2Content(p,html.InlineMixin,log)
-				else:
-					# stop collecting inlines
-					p=None
-					brBefore=brAfter=False
-					child.MigrateV2Content(parent,html.BlockMixin,log)
-			except AttributeError:
-				log.append("Error: unsupported content element "+child.xmlname)
-				#print "Error: unsupported content element "+child.xmlname
-				raise
-				p=None
-				continue
+# 	def MigrateV2ContentMixture(self,mixedupChildren,parent,log):
+# 		p=None
+# 		brBefore=False
+# 		brAfter=False
+# 		for child in mixedupChildren:
+# 			try:
+# 				if child.IsInline():
+# 					if brAfter:
+# 						parent.ChildElement(html.Br,(qtiv2.IMSQTI_NAMESPACE,'br'))
+# 						brAfter=False
+# 					if isinstance(child,(QTIFlow,QTIFlowMat,QTIFlowLabel)):
+# 						brBefore=brAfter=True
+# 					if p is None:
+# 						p=parent.ChildElement(html.P,(qtiv2.IMSQTI_NAMESPACE,'p'))
+# 						brBefore=False
+# 					if brBefore:
+# 						parent.ChildElement(html.Br)
+# 						brBefore=False
+# 					child.MigrateV2Content(p,html.InlineMixin,log)
+# 				else:
+# 					# stop collecting inlines
+# 					p=None
+# 					brBefore=brAfter=False
+# 					child.MigrateV2Content(parent,html.BlockMixin,log)
+# 			except AttributeError:
+# 				log.append("Error: unsupported content element "+child.xmlname)
+# 				#print "Error: unsupported content element "+child.xmlname
+# 				raise
+# 				p=None
+# 				continue
 
 
 class QTIFlowMatContainer(QTICommentElement,QTIContentMixin):
@@ -1824,7 +1856,7 @@ class QTIVarEqual(QTIVarThing):
 			self.MigrateV2Missing(identifier,parent,log)
 		elif d.cardinality==qtiv2.QTICardinality.single:
 			# simple test of equality
-			if d.baseType==qtiv2.BaseType.identifier or qtiv2.BaseType.pair:
+			if d.baseType==qtiv2.BaseType.identifier or d.baseType==qtiv2.BaseType.pair:
 				if not self.case:
 					log.append("Warning: case-insensitive comparison of identifiers not supported in version 2")
 				expression=parent.ChildElement(qtiv2.QTIMatch)
@@ -3480,11 +3512,12 @@ class QTIResponseThing(QTIElement,QTIContentMixin):
 					interaction.responseIdentifier=baseIdentifier
 					responseList=[interaction.responseIdentifier]
 			if item:
-				for r in responseList:
+				for i,r in zip(interactionList,responseList):
 					d=item.ChildElement(qtiv2.QTIResponseDeclaration)
 					d.identifier=r
 					d.cardinality=QTIRCardinality.MigrateV2[self.rCardinality]
 					d.baseType=self.GetBaseType(interactionList[0])
+					self.render.MigrateV2InteractionDefault(d,i)
 					item.RegisterDeclaration(d)
 				if len(responseList)>1:
 					d=item.ChildElement(qtiv2.QTIOutcomeDeclaration)
@@ -3560,7 +3593,7 @@ class QTIResponseStr(QTIResponseThing):
 		return qtiv2.BaseType.string
 
 
-class QTIResponseNum(QTIElement,QTIContentMixin):
+class QTIResponseNum(QTIResponseThing):
 	"""Represents the response_num element.
 	
 ::
@@ -3575,7 +3608,19 @@ class QTIResponseNum(QTIElement,QTIContentMixin):
 							 %I_Rtiming; >
 	"""
 	XMLNAME='response_num'
+	XMLATTR_numtype=('numType',DecodeNumType,EncodeNumType)	
 	XMLCONTENT=xml.XMLElementContent
+	
+	def __init__(self,parent):
+		QTIResponseThing.__init__(self,parent)
+		self.numType=NumType.Integer
+
+	def GetBaseType(self,interaction):
+		"""We always return string for response_str."""
+		if self.numType==NumType.Integer:
+			return qtiv2.BaseType.integer
+		else:
+			return qtiv2.BaseType.float
 
 
 class QTIResponseGrp(QTIElement,QTIContentMixin):
@@ -3855,7 +3900,14 @@ class QTIRenderThing(QTIElement,QTIContentMixin):
 				return False
 		return True
 
-	
+	def MigrateV2Interaction(self,parent,childType,prompt,log):
+		raise QTIUnimplementedError("%s x %s"%(self.parent.__class__.__name__,self.__class__.__name__))
+		
+	def MigrateV2InteractionDefault(self,parent,interaction):
+		# Most interactions do not need default values.
+		pass
+
+		
 class QTIRenderChoice(QTIRenderThing):
 	"""Represents the render_choice element.
 	
@@ -4070,7 +4122,7 @@ class QTIRenderSlider(QTIRenderThing):
 	XMLATTR_lowerbound=('lowerBound',ParseInteger,FormatInteger)
 	XMLATTR_upperbound=('upperBound',ParseInteger,FormatInteger)
 	XMLATTR_step=('step',ParseInteger,FormatInteger)
-	XMLATTR_startval=('startValue',ParseInteger,FormatInteger)
+	XMLATTR_startval=('startVal',ParseInteger,FormatInteger)
 	XMLATTR_steplabel=('stepLabel',ParseYesNo,FormatYesNo)
 	XMLATTR_maxnumber=('maxNumber',ParseInteger,FormatInteger)
 	XMLATTR_minnumber=('minNumber',ParseInteger,FormatInteger)
@@ -4094,12 +4146,10 @@ class QTIRenderSlider(QTIRenderThing):
 	def MigrateV2Interaction(self,parent,childType,prompt,log):
 		"""Migrates this content to v2 adding it to the parent content node."""
 		interaction=None
-		labelContent=self.GetLabelContent()
+		labels=[]
+		self.FindChildren(QTIResponseLabel,labels)
 		if self.maxNumber is None:
-			maxChoices=0
-			for child in labelContent:
-				if isinstance(child,QTIResponseLabel):
-					maxChoices+=1
+			maxChoices=len(labels)
 		else:
 			maxChoices=self.maxNumber
 		if isinstance(self.parent,QTIResponseLId):
@@ -4122,18 +4172,41 @@ class QTIRenderSlider(QTIRenderThing):
 					interaction.minChoices=maxChoices
 				interaction.maxChoices=maxChoices
 			interaction.shuffle=False
-			for child in labelContent:
-				if isinstance(child,QTIResponseLabel):
-					child.MigrateV2SimpleChoice(interaction,log)
-		else:
-			raise QTIUnimplementedError("%s x render_hotspot"%self.parent.__class__.__name__)
+			for child in labels:
+				child.MigrateV2SimpleChoice(interaction,log)
+		elif isinstance(self.parent,QTIResponseNum):
+			if self.parent.rCardinality==QTIRCardinality.Single:
+				interaction=parent.ChildElement(qtiv2.SliderInteraction)
+				interaction.lowerBound=float(self.lowerBound)
+				interaction.upperBound=float(self.upperBound)
+				if self.step is not None:
+					interaction.step=self.step
+				if self.orientation is not None:
+					interaction.orientation=V2ORIENTATION_MAP[self.orientation]
+				# startValues are handled below after the variable is declared
+			else:
+				raise QTIUnimplementedError("Multiple/Ordered SliderInteraction")
+		else:	
+			raise QTIUnimplementedError("%s x render_slider"%self.parent.__class__.__name__)
 		if prompt:
 			interactionPrompt=interaction.ChildElement(qtiv2.QTIPrompt)
 			for child in prompt:
 				child.MigrateV2Content(interactionPrompt,html.InlineMixin,log)			
 		return [interaction]
 		
-		
+	def MigrateV2InteractionDefault(self,declaration,interaction):
+		# Most interactions do not need default values.
+		if isinstance(interaction,qtiv2.SliderInteraction) and self.startVal is not None:
+			value=declaration.ChildElement(qtiv2.QTIDefaultValue).ChildElement(qtiv2.QTIValue)
+			if declaration.baseType==qtiv2.BaseType.integer:
+				value.SetValue(xsi.EncodeInteger(self.startVal))
+			elif declaration.baseType==qtiv2.BaseType.float:
+				value.SetValue(xsi.EncodeFloat(self.startVal))
+			else:
+				# slider bound to something else?
+				raise QTIError("Unexpected slider type for default: %s"%qtiv2.EncodeBaseType(declaration.baseType))
+
+
 class QTIRenderFIB(QTIRenderThing):
 	"""Represents the render_fib element.
 	

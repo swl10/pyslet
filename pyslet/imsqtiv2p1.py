@@ -156,6 +156,32 @@ def ValidateIdentifier(value,prefix='_'):
 MakeValidNCName=ValidateIdentifier
 
 
+class Orientation:
+	decode={
+		'horizontal':1,
+		'vertical':2
+		}
+xsi.MakeEnumeration(Orientation)
+		
+def DecodeOrientation(value):
+	"""Decodes an orientation value from a string.
+
+	<xsd:simpleType name="orientation.Type">
+		<xsd:restriction base="xsd:NMTOKEN">
+			<xsd:enumeration value="horizontal"/>
+			<xsd:enumeration value="vertical"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	"""
+	try:
+		return Orientation.decode[value.lower()]
+	except KeyError:
+		raise ValueError("Can't decode orientation from %s"%value)
+
+def EncodeOrientation(value):
+	return Orientation.encode.get(value,None)
+
+
 class QTIShape:
 	decode={
 		'circle':1,
@@ -1112,8 +1138,42 @@ class QTISelectPointInteraction(QTIGraphicInteraction):
 		QTIGraphicInteraction.__init__(self,parent)
 		self.maxChoices=1
 		self.minChoices=None
+
+
+#
+#		MISCELLANEOUS INTERACTIONS
+#
+class SliderInteraction(BlockInteraction):
+	"""Represents the sliderInteraction element::
+
+	<xsd:attributeGroup name="sliderInteraction.AttrGroup">
+		<xsd:attributeGroup ref="blockInteraction.AttrGroup"/>
+		<xsd:attribute name="lowerBound" type="float.Type" use="required"/>
+		<xsd:attribute name="upperBound" type="float.Type" use="required"/>
+		<xsd:attribute name="step" type="integer.Type" use="optional"/>
+		<xsd:attribute name="stepLabel" type="boolean.Type" use="optional"/>
+		<xsd:attribute name="orientation" type="orientation.Type" use="optional"/>
+		<xsd:attribute name="reverse" type="boolean.Type" use="optional"/>
+	</xsd:attributeGroup>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'sliderInteraction')
+	XMLATTR_lowerBound=('lowerBound',xsi.DecodeFloat,xsi.EncodeFloat)
+	XMLATTR_upperBound=('upperBound',xsi.DecodeFloat,xsi.EncodeFloat)
+	XMLATTR_step=('step',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_stepLabel=('stepLabel',xsi.DecodeBoolean,xsi.EncodeBoolean)
+	XMLATTR_orientation=('orientation',DecodeOrientation,EncodeOrientation)
+	XMLATTR_reverse=('reverse',xsi.DecodeBoolean,xsi.EncodeBoolean)
 	
-	
+	def __init__(self,parent):
+		BlockInteraction.__init__(self,parent)
+		self.lowerBound=None
+		self.upperBound=None
+		self.step=None
+		self.stepLabel=False
+		self.orientation=None
+		self.reverse=None
+
+		
 #
 #	RESPONSE PROCESSING
 #
@@ -1639,6 +1699,30 @@ class QTIMatch(QTIExpressionList):
 	"""
 	XMLNAME=(IMSQTI_NAMESPACE,'match')
 
+
+class QTIStringMatch(QTIExpressionList):
+	"""Represents the stringMatch operator.
+	
+	<xsd:attributeGroup name="stringMatch.AttrGroup">
+		<xsd:attribute name="caseSensitive" type="boolean.Type" use="required"/>
+		<xsd:attribute name="substring" type="boolean.Type" use="optional"/>
+	</xsd:attributeGroup>
+	
+	<xsd:group name="stringMatch.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'stringMatch')
+	XMLATTR_caseSensitive=('caseSensitive',xsi.DecodeBoolean,xsi.EncodeBoolean)
+	XMLATTR_substring=('substring',xsi.DecodeBoolean,xsi.EncodeBoolean)
+	
+	def __init__(self,parent):
+		QTIExpressionList.__init__(self,parent)
+		self.caseSensitive=None
+		self.substring=False
+		
 
 class QTIInside(QTIUnaryExpression):
 	"""Represents the inside operator::

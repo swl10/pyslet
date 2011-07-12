@@ -1,0 +1,41 @@
+<?xml version = "1.0" encoding = "UTF-8" standalone = "no"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
+<questestinterop>
+	<qticomment>Numeric slider question</qticomment>
+	<item title = "Numeric slider" ident = "PYSLET_FIBI_IR_01">
+		<presentation label = "PysletExample_FIBI_IR_01">
+			<flow>
+				<material>
+					<mattext texttype="text/html"><![CDATA[How much solar energy (in W/m<sup>2</sup>) does the Earth experience, on average?]]></mattext>
+				</material>
+				<flow>
+					<response_num ident = "NUM04" rcardinality = "Single" rtiming = "No">
+						<render_slider lowerbound = "0" upperbound = "1000" step = "10" startval = "100" steplabel = "No" orientation = "Horizontal">
+							<response_label ident = "A"/>
+						</render_slider>
+					</response_num>
+				</flow>
+			</flow>
+		</presentation>
+		<resprocessing>
+			<outcomes>
+				<decvar varname = "SCORE1" vartype = "Integer" defaultval = "1"/>
+			</outcomes>
+			<respcondition>
+				<qticomment>Scoring for the correct answer.</qticomment>
+				<conditionvar>
+					<varequal respident = "NUM04">340</varequal>
+				</conditionvar>
+				<setvar action = "Add" varname = "SCORE1">9</setvar>
+				<displayfeedback feedbacktype = "Response" linkrefid = "Correct"/>
+			</respcondition>
+		</resprocessing>
+		<itemfeedback ident = "Correct" view = "Candidate">
+			<flow_mat>
+				<material>
+					<mattext texttype="text/html"><![CDATA[Yes, approximately 340 W/m<sup>2</sup>.]]></mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>
+	</item>
+</questestinterop>

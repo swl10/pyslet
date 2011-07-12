@@ -18,10 +18,10 @@
     <responseProcessing>
         <responseCondition>
             <responseIf>
-                <match>
+                <stringMatch caseSensitive="true" substring="false">
                     <variable identifier="FIB01"/>
                     <baseValue baseType="string">S</baseValue>
-                </match>
+                </stringMatch>
                 <setOutcomeValue identifier="FIBSCORE">
                     <sum>
                         <variable identifier="FIBSCORE"/>
