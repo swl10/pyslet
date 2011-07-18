@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="PYSLET_FIBI_IR_02" title="Standard FIB Numeric Item" adaptive="false"
+    timeDependent="false">
+    <responseDeclaration identifier="NUM02" cardinality="single" baseType="integer"/>
+    <outcomeDeclaration identifier="FEEDBACK" cardinality="multiple" baseType="identifier"/>
+    <outcomeDeclaration identifier="INTSCORE" cardinality="single" baseType="integer">
+        <defaultValue>
+            <value>0</value>
+        </defaultValue>
+    </outcomeDeclaration>
+    <itemBody>
+        <div label="PysletExample_FIBI_IR_02">
+            <p>According to Arthur Dent's Brain in the Hitchhiker's
+                Guide to the Galaxy the ultimate question is "What do you get if you multiply six by
+                nine?"</p>
+            <p>What number did Deep Thought give as the answer to the ultimate
+                question?<textEntryInteraction responseIdentifier="NUM02" expectedLength="3"/></p>
+        </div>
+    </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <match>
+                    <variable identifier="NUM02"/>
+                    <baseValue baseType="integer">42</baseValue>
+                </match>
+                <setOutcomeValue identifier="INTSCORE">
+                    <sum>
+                        <variable identifier="INTSCORE"/>
+                        <baseValue baseType="integer">1</baseValue>
+                    </sum>
+                </setOutcomeValue>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">Correct</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseIf>
+            <responseElseIf>
+                <not>
+                    <match>
+                        <variable identifier="NUM02"/>
+                        <baseValue baseType="integer">42</baseValue>
+                    </match>
+                </not>
+                <setOutcomeValue identifier="INTSCORE">
+                    <subtract>
+                        <variable identifier="INTSCORE"/>
+                        <baseValue baseType="integer">1</baseValue>
+                    </subtract>
+                </setOutcomeValue>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">Incorrect</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseElseIf>
+        </responseCondition>
+    </responseProcessing>
+    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Correct">Yes, the answer
+        to the ultimate question, to "Life, the Universe and Everything" is 42.</modalFeedback>
+    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Incorrect">No. The
+        answer Deep Thought gave was 42.</modalFeedback>
+</assessmentItem>

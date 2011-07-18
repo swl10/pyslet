@@ -1,0 +1,68 @@
+<?xml version = "1.0" encoding = "UTF-8" standalone = "no"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
+
+<!-- Forty two? -->
+
+<questestinterop>
+	<qticomment>Numeric fill-in-the-blank example.</qticomment>
+	<item title="Standard FIB Numeric Item" ident="PYSLET_FIBI_IR_02">
+		<presentation label="PysletExample_FIBI_IR_02">
+			<flow>
+				<material>
+					<mattext charset="ascii/us">According to Arthur Dent's Brain in the Hitchhiker's
+						Guide to the Galaxy the ultimate question is "What do you get if you
+						multiply six by nine?"</mattext>
+				</material>
+			</flow>
+			<flow>
+				<response_num ident="NUM02" rcardinality="Single" rtiming="No">
+					<render_fib fibtype="Integer" prompt="Asterisk" maxchars="3">
+						<material>
+							<mattext charset="ascii/us">What number did Deep Thought give as the
+								answer to the ultimate question?</mattext>
+						</material>
+						<response_label ident="A"/>
+					</render_fib>
+				</response_num>
+			</flow>
+		</presentation>
+		<resprocessing>
+			<outcomes>
+				<decvar varname="INTSCORE" vartype="Integer" defaultval="0"/>
+			</outcomes>
+			<respcondition>
+				<qticomment>Scoring for the correct answer.</qticomment>
+				<conditionvar>
+					<varequal respident="NUM02">42</varequal>
+				</conditionvar>
+				<setvar action="Add" varname="INTSCORE">1</setvar>
+				<displayfeedback feedbacktype="Response" linkrefid="Correct"/>
+			</respcondition>
+			<respcondition>
+				<qticomment>Scoring for the incorrect answer.</qticomment>
+				<conditionvar>
+					<not>
+						<varequal respident="NUM02">42</varequal>
+					</not>
+				</conditionvar>
+				<setvar action="Subtract" varname="INTSCORE">1</setvar>
+				<displayfeedback feedbacktype="Response" linkrefid="Incorrect"/>
+			</respcondition>
+		</resprocessing>
+		<itemfeedback ident="Correct" view="Candidate">
+			<flow_mat>
+				<material>
+					<mattext>Yes, the answer to the ultimate question, to "Life, the Universe and
+						Everything" is 42.</mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>
+		<itemfeedback ident="Incorrect" view="Candidate">
+			<flow_mat>
+				<material>
+					<mattext>No. The answer Deep Thought gave was 42.</mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>
+	</item>
+</questestinterop>

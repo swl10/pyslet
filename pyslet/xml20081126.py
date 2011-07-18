@@ -407,7 +407,7 @@ class XMLEntity:
 						if respEncoding is not None:
 							self.encoding=respEncoding[1].lower()
 					self.dataSource=StringIO(req.resBody)
-					print "...reading %s stream with charset=%s"%(self.mimetype,self.encoding)
+					#print "...reading %s stream with charset=%s"%(self.mimetype,self.encoding)
 					self.charSource=codecs.getreader(self.encoding)(self.dataSource)
 				else:
 					raise XMLUnexpectedHTTPResponse(str(req.status))

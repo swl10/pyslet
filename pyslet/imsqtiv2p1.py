@@ -70,12 +70,12 @@ class BaseType:
 		'duration':3,
 		'file':4,
 		'float':5,
-		'identifier':5,
-		'integer':6,
-		'pair':7,
-		'point':8,
-		'string':9,
-		'uri':10
+		'identifier':6,
+		'integer':7,
+		'pair':8,
+		'point':9,
+		'string':10,
+		'uri':11
 		}
 xsi.MakeEnumeration(BaseType)
 
@@ -1256,12 +1256,12 @@ class QTIResponseIf(QTIElement):
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
-		self.QTIExpression=None
+		self.Expression=None
 		self.QTIResponseRule=[]
 	
 	def GetChildren(self):
 		children=[]
-		xml.OptionalAppend(children,self.QTIExpression)
+		xml.OptionalAppend(children,self.Expression)
 		return children+self.QTIResponseRule
 
 
@@ -1319,11 +1319,11 @@ class QTISetOutcomeValue(QTIResponseRule):
 	def __init__(self,parent):
 		QTIResponseRule.__init__(self,parent)
 		self.identifier=''
-		self.QTIExpression=None
+		self.Expression=None
 	
 	def GetChildren(self):
 		children=[]
-		xml.OptionalAppend(children,self.QTIExpression)
+		xml.OptionalAppend(children,self.Expression)
 		return children	
 
 	
@@ -1371,14 +1371,14 @@ class QTIModalFeedback(QTIFlowContainerMixin,QTIElement):
 #
 #	EXPRESSIONS
 #
-class QTIExpression(QTIElement):
+class Expression(QTIElement):
 	pass
 	
 
 #
 #		Built-in General Expressions
 #
-class QTIBaseValue(QTIExpression):
+class QTIBaseValue(Expression):
 	"""Represents the baseValue element.
 
 	<xsd:attributeGroup name="baseValue.AttrGroup">
@@ -1398,11 +1398,11 @@ class QTIBaseValue(QTIExpression):
 	XMLCONTENT=xmlns.XMLMixedContent
 
 	def __init__(self,parent):
-		QTIExpression.__init__(self,parent)
+		Expression.__init__(self,parent)
 		self.baseType=BaseType.string
 
 
-class QTIVariable(QTIExpression):
+class QTIVariable(Expression):
 	"""Represents a variable value look-up.
 
 	<xsd:attributeGroup name="variable.AttrGroup">
@@ -1420,12 +1420,12 @@ class QTIVariable(QTIExpression):
 	XMLCONTENT=xmlns.XMLEmpty
 	
 	def __init__(self,parent):
-		QTIExpression.__init__(self,parent)
+		Expression.__init__(self,parent)
 		self.identifier=''
 		self.weightIdentifier=None
 
 
-class QTINull(QTIExpression):
+class QTINull(Expression):
 	"""Represents the null value.
 	
 	<xsd:complexType name="null.Type"/>
@@ -1442,34 +1442,34 @@ class QTINull(QTIExpression):
 #
 #		Operators
 #
-class QTIExpressionList(QTIExpression):
+class ExpressionList(Expression):
 	"""An abstract class to help implement binary+ operators."""
 	XMLCONTENT=xmlns.XMLElementContent
 	
 	def __init__(self,parent):
-		QTIExpression.__init__(self,parent)
-		self.QTIExpression=[]
+		Expression.__init__(self,parent)
+		self.Expression=[]
 	
 	def GetChildren(self):
-		return self.QTIExpression
+		return self.Expression
 
 
-class QTIUnaryExpression(QTIExpression):
+class QTIUnaryExpression(Expression):
 	"""An abstract class to help implement unary operators."""
 	XMLCONTENT=xmlns.XMLElementContent
 	
 	def __init__(self,parent):
-		QTIExpression.__init__(self,parent)
-		self.QTIExpression=None
+		Expression.__init__(self,parent)
+		self.Expression=None
 	
 	def GetChildren(self):
-		if self.QTIExpression:
-			return [self.QTIExpression]
+		if self.Expression:
+			return [self.Expression]
 		else:
 			return []
 
 
-class QTIMultiple(QTIExpressionList):
+class QTIMultiple(ExpressionList):
 	"""Represents the multiple operator.
 
 	<xsd:group name="multiple.ContentGroup">
@@ -1481,7 +1481,7 @@ class QTIMultiple(QTIExpressionList):
 	XMLNAME=(IMSQTI_NAMESPACE,'multiple')
 
 		
-class QTIOrdered(QTIExpressionList):
+class QTIOrdered(ExpressionList):
 	"""Represents the ordered operator.
 
 	<xsd:group name="ordered.ContentGroup">
@@ -1571,7 +1571,7 @@ class QTIRandom(QTIUnaryExpression):
 	XMLNAME=(IMSQTI_NAMESPACE,'random')
 
 				
-class QTIMember(QTIExpressionList):
+class QTIMember(ExpressionList):
 	"""Represents the member operator.
 
 	<xsd:group name="member.ContentGroup">
@@ -1583,7 +1583,7 @@ class QTIMember(QTIExpressionList):
 	XMLNAME=(IMSQTI_NAMESPACE,'member')
 
 	
-class QTIDelete(QTIExpressionList):
+class QTIDelete(ExpressionList):
 	"""Represents the delete operator.
 
 	<xsd:group name="delete.ContentGroup">
@@ -1595,7 +1595,7 @@ class QTIDelete(QTIExpressionList):
 	XMLNAME=(IMSQTI_NAMESPACE,'delete')
 
 
-class QTIContains(QTIExpressionList):
+class QTIContains(ExpressionList):
 	"""Represents the contains operator.
 
 	<xsd:group name="contains.ContentGroup">
@@ -1607,7 +1607,7 @@ class QTIContains(QTIExpressionList):
 	XMLNAME=(IMSQTI_NAMESPACE,'contains')
 
 
-class QTISubstring(QTIExpressionList):
+class QTISubstring(ExpressionList):
 	"""Represents the substring operator.
 
 	<xsd:attributeGroup name="substring.AttrGroup">
@@ -1624,7 +1624,7 @@ class QTISubstring(QTIExpressionList):
 	XMLATTR_caseSensitive=('caseSensitive',xsi.DecodeBoolean,xsi.EncodeBoolean)
 
 	def __init__(self,parent):
-		QTIExpressionList.__init__(self,parent)
+		ExpressionList.__init__(self,parent)
 		self.caseSensitive=True
 
 
@@ -1640,7 +1640,7 @@ class QTINot(QTIUnaryExpression):
 	XMLNAME=(IMSQTI_NAMESPACE,'not')
 
 				
-class QTIAnd(QTIExpressionList):
+class QTIAnd(ExpressionList):
 	"""Represents the and operator.
 
 	<xsd:group name="and.ContentGroup">
@@ -1652,7 +1652,7 @@ class QTIAnd(QTIExpressionList):
 	XMLNAME=(IMSQTI_NAMESPACE,'and')
 
 
-class QTIOr(QTIExpressionList):
+class QTIOr(ExpressionList):
 	"""Represents the or operator.
 
 	<xsd:group name="or.ContentGroup">
@@ -1664,7 +1664,7 @@ class QTIOr(QTIExpressionList):
 	XMLNAME=(IMSQTI_NAMESPACE,'or')
 
 
-class QTIAnyN(QTIExpressionList):
+class QTIAnyN(ExpressionList):
 	"""Represents the anyN operator.
 
 	<xsd:attributeGroup name="anyN.AttrGroup">
@@ -1683,12 +1683,12 @@ class QTIAnyN(QTIExpressionList):
 	XMLATTR_max='max'
 
 	def __init__(self,parent):
-		QTIExpressionList.__init__(self,parent)
+		ExpressionList.__init__(self,parent)
 		self.min=''
 		self.max=''
 
 
-class QTIMatch(QTIExpressionList):
+class QTIMatch(ExpressionList):
 	"""Represents the match operator.
 
 	<xsd:group name="match.ContentGroup">
@@ -1700,7 +1700,7 @@ class QTIMatch(QTIExpressionList):
 	XMLNAME=(IMSQTI_NAMESPACE,'match')
 
 
-class QTIStringMatch(QTIExpressionList):
+class QTIStringMatch(ExpressionList):
 	"""Represents the stringMatch operator.
 	
 	<xsd:attributeGroup name="stringMatch.AttrGroup">
@@ -1719,7 +1719,7 @@ class QTIStringMatch(QTIExpressionList):
 	XMLATTR_substring=('substring',xsi.DecodeBoolean,xsi.EncodeBoolean)
 	
 	def __init__(self,parent):
-		QTIExpressionList.__init__(self,parent)
+		ExpressionList.__init__(self,parent)
 		self.caseSensitive=None
 		self.substring=False
 		
@@ -1742,7 +1742,55 @@ class QTIInside(QTIUnaryExpression):
 		self.coords=html.Coords()
 		
 
-class QTISum(QTIExpressionList):
+class LT(ExpressionList):
+	"""Represents the lt operator::
+
+	<xsd:group name="lt.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'lt')
+
+
+class GT(ExpressionList):
+	"""Represents the gt operator::
+
+	<xsd:group name="gt.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'gt')
+
+
+class LTE(ExpressionList):
+	"""Represents the lte operator::
+
+	<xsd:group name="lte.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'lte')
+
+
+class GTE(ExpressionList):
+	"""Represents the gte operator::
+
+	<xsd:group name="gte.ContentGroup">
+		<xsd:sequence>
+			<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+		</xsd:sequence>
+	</xsd:group>
+	"""
+	XMLNAME=(IMSQTI_NAMESPACE,'gte')
+
+
+class QTISum(ExpressionList):
 	"""Represents the sum operator::
 
 	<xsd:group name="sum.ContentGroup">
@@ -1754,7 +1802,7 @@ class QTISum(QTIExpressionList):
 	XMLNAME=(IMSQTI_NAMESPACE,'sum')
 	
 	
-class QTIProduct(QTIExpressionList):
+class QTIProduct(ExpressionList):
 	"""Represents the product operator::
 
 	<xsd:group name="product.ContentGroup">
@@ -1766,7 +1814,7 @@ class QTIProduct(QTIExpressionList):
 	XMLNAME=(IMSQTI_NAMESPACE,'product')
 	
 	
-class QTISubtract(QTIExpressionList):
+class QTISubtract(ExpressionList):
 	"""Represents the subtract operator::
 
 	<xsd:group name="subtract.ContentGroup">
@@ -1778,7 +1826,7 @@ class QTISubtract(QTIExpressionList):
 	XMLNAME=(IMSQTI_NAMESPACE,'subtract')
 	
 	
-class QTIDivide(QTIExpressionList):
+class QTIDivide(ExpressionList):
 	"""Represents the divide operator::
 
 	<xsd:group name="divide.ContentGroup">
@@ -1790,7 +1838,7 @@ class QTIDivide(QTIExpressionList):
 	XMLNAME=(IMSQTI_NAMESPACE,'divide')
 	
 	
-class QTIPower(QTIExpressionList):
+class QTIPower(ExpressionList):
 	"""Represents the power operator::
 
 	<xsd:group name="power.ContentGroup">
@@ -1802,7 +1850,7 @@ class QTIPower(QTIExpressionList):
 	XMLNAME=(IMSQTI_NAMESPACE,'power')
 	
 	
-class QTIIntegerDivide(QTIExpressionList):
+class QTIIntegerDivide(ExpressionList):
 	"""Represents the integerDivide operator::
 
 	<xsd:group name="integerDivide.ContentGroup">
@@ -1814,7 +1862,7 @@ class QTIIntegerDivide(QTIExpressionList):
 	XMLNAME=(IMSQTI_NAMESPACE,'integerDivide')
 	
 	
-class QTIIntegerModulus(QTIExpressionList):
+class QTIIntegerModulus(ExpressionList):
 	"""Represents the integerModulus operator::
 
 	<xsd:group name="integerModulus.ContentGroup">

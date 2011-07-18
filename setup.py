@@ -2,15 +2,15 @@
 
 import sys
 
-if sys.hexversion<0x02050000:
-	print "pyslet requires Python Version 2.5 (or greater)"
+if sys.hexversion<0x02060000:
+	print "pyslet requires Python Version 2.6 (or greater)"
 else:
 	from distutils.core import setup
 	from distutils.sysconfig import get_python_lib
 	pkgBase=get_python_lib()
 	
 	setup(name="pyslet",
-		version="0.2.20110704",
+		version="0.2.20110715",
 		description="pyslet: standards for learning education and training",
 		author="Steve Lay",
 		author_email="steve.w.lay@googlemail.com",

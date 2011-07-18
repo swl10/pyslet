@@ -822,12 +822,13 @@ class QTIContentMixin:
 			brBefore=brAfter=False
 			firstItem=True
 			for child in children:
-				if brAfter:
-					parent.ChildElement(html.Br,(qtiv2.IMSQTI_NAMESPACE,'br'))
-					brAfter=False
 				if isinstance(child,(QTIFlow,QTIFlowMat,QTIFlowLabel)):
 					brBefore=not firstItem
 					brAfter=True
+				elif brAfter:
+					# we only honour brAfter if flow is followed by something other than flow
+					parent.ChildElement(html.Br,(qtiv2.IMSQTI_NAMESPACE,'br'))
+					brAfter=False				
 				if brBefore:
 					parent.ChildElement(html.Br,(qtiv2.IMSQTI_NAMESPACE,'br'))
 					brBefore=False
@@ -1012,6 +1013,11 @@ class QTIMatText(QTIElement,QTIPositionMixin,QTIMatThingMixin):
 	XMLATTR_texttype='texttype'				
 	XMLCONTENT=xml.XMLMixedContent
 	
+	SymbolCharsets={
+		'greek':1,
+		'symbol':1
+		}
+		
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
 		QTIPositionMixin.__init__(self)
@@ -1094,6 +1100,11 @@ class QTIMatText(QTIElement,QTIPositionMixin,QTIMatThingMixin):
 
 	def MigrateV2Content(self,parent,childType,log):
 		if self.texttype=='text/plain':
+			data=self.GetValue(True)
+			if QTIMatText.SymbolCharsets.has_key(self.charset.lower()):
+				# this data is in the symbol font, translate it
+				# Note that the first page of unicode is the same as iso-8859-1
+				data=data.encode('iso-8859-1').decode('apple-symbol')				
 			lang=self.GetLang()
 			if lang or self.label:
 				if childType is html.BlockMixin:
@@ -1106,13 +1117,13 @@ class QTIMatText(QTIElement,QTIPositionMixin,QTIMatThingMixin):
 					#span.label=self.label
 					span.SetAttribute('label',self.label)
 				# force child elements to render as inline XML
-				span.AddData(self.GetValue(True))
+				span.AddData(data)
 			elif childType is html.BlockMixin:
 				p=parent.ChildElement(html.P,(qtiv2.IMSQTI_NAMESPACE,'p'))
-				p.AddData(self.GetValue(True))
+				p.AddData(data)
 			else:
 				# inline or flow, just add the text directly...
-				parent.AddData(self.GetValue(True))
+				parent.AddData(data)
 		elif self.texttype=='text/html':		
 			if childType is html.BlockMixin or (childType is html.FlowMixin and not self.IsInline()):
 				# Block or mixed-up flow, wrap all text and inline elements in p
@@ -1678,35 +1689,35 @@ class QTIConditionVar(QTIElement):
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
-		self.QTIExpressionMixin=[]
+		self.ExpressionMixin=[]
 	
 	def QTIVarExtension(self):
 		child=QTIVarExtension(self)
-		self.QTIExpressionMixin.append(child)
+		self.ExpressionMixin.append(child)
 		return child
 	
 	def GetChildren(self):
-		return self.QTIExpressionMixin
+		return self.ExpressionMixin
 
 	def MigrateV2Expression(self,parent,log):
-		if len(self.QTIExpressionMixin)>1:
+		if len(self.ExpressionMixin)>1:
 			# implicit and
 			eAnd=parent.ChildElement(qtiv2.QTIAnd)
-			for ie in self.QTIExpressionMixin:
+			for ie in self.ExpressionMixin:
 				ie.MigrateV2Expression(eAnd,log)
-		elif self.QTIExpressionMixin:
-			self.QTIExpressionMixin[0].MigrateV2Expression(parent,log)
+		elif self.ExpressionMixin:
+			self.ExpressionMixin[0].MigrateV2Expression(parent,log)
 		else:
 			log.append("Warning: empty condition replaced with null operator")
 			parent.ChildElement(qtiv2.QTINull)
 		
 
-class QTIExpressionMixin:
+class ExpressionMixin:
 	"""Abstract mixin class to indicate an expression"""
 	pass
 
 
-class QTINot(QTIElement,QTIExpressionMixin):
+class QTINot(QTIElement,ExpressionMixin):
 	"""Represents the not element.
 
 ::
@@ -1720,21 +1731,21 @@ class QTINot(QTIElement,QTIExpressionMixin):
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
-		self.QTIExpressionMixin=None
+		self.ExpressionMixin=None
 	
 	def GetChildren(self):
-		return self.QTIExpressionMixin
+		return self.ExpressionMixin
 
 	def MigrateV2Expression(self,parent,log):
-		if self.QTIExpressionMixin is None:
+		if self.ExpressionMixin is None:
 			log.append("Warning: empty not condition replaced with null operator")
 			parent.ChildElement(qtiv2.QTINull)
 		else:
 			eNot=parent.ChildElement(qtiv2.QTINot)
-			self.QTIExpressionMixin.MigrateV2Expression(eNot,log)
+			self.ExpressionMixin.MigrateV2Expression(eNot,log)
 
 
-class QTIAnd(QTIElement,QTIExpressionMixin):
+class QTIAnd(QTIElement,ExpressionMixin):
 	"""Represents the and element.
 
 ::
@@ -1748,22 +1759,22 @@ class QTIAnd(QTIElement,QTIExpressionMixin):
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
-		self.QTIExpressionMixin=[]
+		self.ExpressionMixin=[]
 	
 	def GetChildren(self):
-		return self.QTIExpressionMixin
+		return self.ExpressionMixin
 
 	def MigrateV2Expression(self,parent,log):
-		if len(self.QTIExpressionMixin):
+		if len(self.ExpressionMixin):
 			eAnd=parent.ChildElement(qtiv2.QTIAnd)
-			for e in self.QTIExpressionMixin:
+			for e in self.ExpressionMixin:
 				e.MigrateV2Expression(eAnd,log)
 		else:
 			log.append("Warning: empty and condition replaced with null operator")
 			parent.ChildElement(qtiv2.QTINull)
 
 
-class QTIOr(QTIElement,QTIExpressionMixin):
+class QTIOr(QTIElement,ExpressionMixin):
 	"""Represents the or element.
 
 ::
@@ -1777,22 +1788,22 @@ class QTIOr(QTIElement,QTIExpressionMixin):
 
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
-		self.QTIExpressionMixin=[]
+		self.ExpressionMixin=[]
 	
 	def GetChildren(self):
-		return self.QTIExpressionMixin
+		return self.ExpressionMixin
 
 	def MigrateV2Expression(self,parent,log):
-		if len(self.QTIExpressionMixin):
+		if len(self.ExpressionMixin):
 			eOr=parent.ChildElement(qtiv2.QTIOr)
-			for e in self.QTIExpressionMixin:
+			for e in self.ExpressionMixin:
 				e.MigrateV2Expression(eOr,log)
 		else:
 			log.append("Warning: empty or condition replaced with null operator")
 			parent.ChildElement(qtiv2.QTINull)
 		
 
-class QTIVarThing(QTIElement,QTIExpressionMixin):
+class QTIVarThing(QTIElement,ExpressionMixin):
 	"""Abstract class for var* elements."""
 	XMLATTR_respident='responseIdentifier'
 	XMLATTR_index=('index',ParseInteger,FormatInteger)
@@ -1888,11 +1899,34 @@ class QTIVarEqual(QTIVarThing):
 			self.MigrateV2Value(d,expression,log)
 			self.MigrateV2Variable(d,expression,log)
 
-		
-class QTIVarLT(QTIElement,QTIExpressionMixin):
-	"""Represents the varlt element.
 
-::
+class QTIVarInequality(QTIVarThing):
+	"""Abstract class for varlt, varlte, vargt and vargte."""
+
+	def MigrateV2Inequality(self):
+		"""Returns the class to use in qtiv2"""
+		raise QTIUnimplementedOperator(self.xmlname)
+		
+	def MigrateV2Expression(self,parent,log):
+		v2Item=parent.GetAssessmentItem()
+		identifier=qtiv2.ValidateIdentifier(self.responseIdentifier)
+		d=v2Item.declarations.get(identifier,None)
+		if d is None:
+			self.MigrateV2Missing(identifier,parent,log)
+		elif d.cardinality==qtiv2.QTICardinality.single:
+			# simple inequality
+			if d.baseType==qtiv2.BaseType.integer or d.baseType==qtiv2.BaseType.float:
+				expression=parent.ChildElement(self.MigrateV2Inequality())
+			else:
+				raise QTIUnimplementedOperator("%s(%s)"%(self.xmlname,qtiv2.BaseType.Encode(d.baseType)))
+			self.MigrateV2Variable(d,expression,log)
+			self.MigrateV2Value(d,expression,log)
+		else:
+			raise QTIUnimplementedOperator("%s(%s:%s)"%(self.xmlname,qtiv2.Cardinality.Encode(d.cardinality),qtiv2.BaseType.Encode(d.baseType)))
+
+	
+class QTIVarLT(QTIVarInequality):
+	"""Represents the varlt element::
 
 	<!ELEMENT varlt (#PCDATA)>
 	
@@ -1902,11 +1936,12 @@ class QTIVarLT(QTIElement,QTIExpressionMixin):
 	XMLNAME="varlt"
 	XMLCONTENT=xml.XMLMixedContent
 
+	def MigrateV2Inequality(self):
+		return qtiv2.LT
 
-class QTIVarLTE(QTIElement,QTIExpressionMixin):
-	"""Represents the varlte element.
 
-::
+class QTIVarLTE(QTIVarInequality):
+	"""Represents the varlte element::
 
 	<!ELEMENT varlte (#PCDATA)>
 	
@@ -1916,11 +1951,12 @@ class QTIVarLTE(QTIElement,QTIExpressionMixin):
 	XMLNAME="varlte"
 	XMLCONTENT=xml.XMLMixedContent
 
+	def MigrateV2Inequality(self):
+		return qtiv2.LTE
 
-class QTIVarGT(QTIElement,QTIExpressionMixin):
-	"""Represents the vargt element.
 
-::
+class QTIVarGT(QTIVarInequality):
+	"""Represents the vargt element::
 
 	<!ELEMENT vargt (#PCDATA)>
 	
@@ -1930,11 +1966,12 @@ class QTIVarGT(QTIElement,QTIExpressionMixin):
 	XMLNAME="vargt"
 	XMLCONTENT=xml.XMLMixedContent
 
+	def MigrateV2Inequality(self):
+		return qtiv2.GT
 
-class QTIVarGTE(QTIElement,QTIExpressionMixin):
-	"""Represents the vargte element.
 
-::
+class QTIVarGTE(QTIVarInequality):
+	"""Represents the vargte element::
 
 	<!ELEMENT vargte (#PCDATA)>
 	
@@ -1944,8 +1981,11 @@ class QTIVarGTE(QTIElement,QTIExpressionMixin):
 	XMLNAME="vargte"
 	XMLCONTENT=xml.XMLMixedContent
 
+	def MigrateV2Inequality(self):
+		return qtiv2.GTE
 
-class QTIVarSubset(QTIElement,QTIExpressionMixin):
+
+class QTIVarSubset(QTIElement,ExpressionMixin):
 	"""Represents the varsubset element.
 
 ::
@@ -1999,7 +2039,7 @@ class QTIVarInside(QTIVarThing):
 			raise QTIUnimplementedError("varinside with multiple/orderd variable")
 
 
-class QTIVarSubString(QTIElement,QTIExpressionMixin):
+class QTIVarSubString(QTIElement,ExpressionMixin):
 	"""Represents the varsubstring element.
 
 ::
@@ -2014,7 +2054,7 @@ class QTIVarSubString(QTIElement,QTIExpressionMixin):
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTIDurEqual(QTIElement,QTIExpressionMixin):
+class QTIDurEqual(QTIElement,ExpressionMixin):
 	"""Represents the durequal element.
 
 ::
@@ -2028,7 +2068,7 @@ class QTIDurEqual(QTIElement,QTIExpressionMixin):
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTIDurLT(QTIElement,QTIExpressionMixin):
+class QTIDurLT(QTIElement,ExpressionMixin):
 	"""Represents the durlt element.
 
 ::
@@ -2042,7 +2082,7 @@ class QTIDurLT(QTIElement,QTIExpressionMixin):
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTIDurLTE(QTIElement,QTIExpressionMixin):
+class QTIDurLTE(QTIElement,ExpressionMixin):
 	"""Represents the durlte element.
 
 ::
@@ -2056,7 +2096,7 @@ class QTIDurLTE(QTIElement,QTIExpressionMixin):
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTIDurGT(QTIElement,QTIExpressionMixin):
+class QTIDurGT(QTIElement,ExpressionMixin):
 	"""Represents the durgt element.
 
 ::
@@ -2070,7 +2110,7 @@ class QTIDurGT(QTIElement,QTIExpressionMixin):
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTIDurGTE(QTIElement,QTIExpressionMixin):
+class QTIDurGTE(QTIElement,ExpressionMixin):
 	"""Represents the durgte element.
 
 ::
@@ -2084,7 +2124,7 @@ class QTIDurGTE(QTIElement,QTIExpressionMixin):
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTIUnanswered(QTIElement,QTIExpressionMixin):
+class QTIUnanswered(QTIElement,ExpressionMixin):
 	"""Represents the unanswered element.
 	
 ::
@@ -2097,7 +2137,7 @@ class QTIUnanswered(QTIElement,QTIExpressionMixin):
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTIOther(QTIElement,QTIExpressionMixin):
+class QTIOther(QTIElement,ExpressionMixin):
 	"""Represents the other element::
 
 	<!ELEMENT other (#PCDATA)>	
@@ -4258,8 +4298,28 @@ class QTIRenderFIB(QTIRenderThing):
 		
 		A mixed model means that render_fib is treated as a mixture of
 		interaction and content elements.  In an unmixed model the render_fib is
-		treated as a single block interaction with an optional prompt (to do)."""
+		treated as a single block interaction with an optional prompt.
+		
+		If the render_fib contains content, followed by labels, then we treat
+		it as a prompt + fib and return False
+		
+		If the render_fib contains a mixture of content and labels, then we
 		return True
+		
+		If the render_fib contains no content at all we assume it needs to be
+		mixed into the surrounding content and return True."""
+		children=self.GetLabelContent()
+		foundLabel=False
+		foundContent=False
+		for child in children:
+			if isinstance(child,QTIResponseLabel):
+				foundLabel=True
+			elif foundLabel:
+				# any content after the first label means mixed mode.
+				return True
+			else:
+				foundContent=True
+		return not foundContent
 		
 	def IsInline(self):
 		if self.MixedModel():
@@ -5021,25 +5081,48 @@ class QTIDocument(xml.XMLDocument):
 			return []
 
 xml.MapClassElements(QTIDocument.classMap,globals())
-		
+
+
 try:
-	BIG5=codecs.lookup('big5')
+	CNBIG5=codecs.lookup('cn-big5')
+	pass
 except LookupError:
-	BIG5=None
+	CNBIG5=None
+	try:
+		BIG5=codecs.lookup('big5')
+		CNBIG5=codecs.CodecInfo(BIG5.encode, BIG5.decode, streamreader=BIG5.streamreader,
+			streamwriter=BIG5.streamwriter, incrementalencoder=BIG5.incrementalencoder,
+			incrementaldecoder=BIG5.incrementaldecoder, name='cn-big5')
+	except LookupError:
+		# we'll have to do without cn-big5
+		pass
 
-# Obscure code alert
-def CNBig5CodecSearch(name):
-	if name=="cn-big5":
-		return BIG5
-	else:
-		return None
+try:
+	APPLESYMBOL=codecs.lookup('apple-symbol')
+	pass
+except LookupError:
+	import pyslet.unicode_apple_symbol as symbol
+	APPLESYMBOL=symbol.getregentry()
 
-def FixupCNBig5():
+
+def QTICodecSearch(name):
+	if name.lower()=="cn-big5" and CNBIG5:
+		return CNBIG5
+	elif name.lower()=="apple-symbol":
+		return APPLESYMBOL
+	
+def RegisterCodecs():
 	"""The example files that are distributed with the QTI specification contain
 	a set of Chinese examples encoded using big5.  However, the xml declarations
 	on these files refer to the charset as "CN-BIG5" and this causes errors when
-	parsing them as this is a non-standard way of refering to big5.  This
-	function, which you should only call once (if at all) within your
-	application, declares a codec search function that fixes this issue."""
-	codecs.register(CNBig5CodecSearch)
+	parsing them as this is a non-standard way of refering to big5.
+	
+	QTI also requires use of the apple symbol font mapping for interpreting
+	symbol-encoded maths text in questions."""
+	codecs.register(QTICodecSearch)
 
+# Force registration of codecs on module load
+RegisterCodecs()
+
+# Legacy function no longer needed
+def FixupCNBig5(): pass

@@ -1,0 +1,71 @@
+<?xml version = "1.0" encoding = "UTF-8" standalone = "no"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
+
+<questestinterop>
+	<qticomment>Numeric (decimal) fill-in-the-blank example.</qticomment>
+	<item title="Standard FIB Decimal Item" ident="PYSLET_FIBN_IR_01">
+		<presentation label="PysletExample_FIBN_IR_01">
+			<flow>
+				<material>
+					<mattext texttype="text/html" charset="ascii/us"><![CDATA[What is the circumference of a circle of radius 2cm?<br>
+						Use the following approximation in your calculation: ]]></mattext>
+					<mattext charset="greek">p</mattext>
+					<mattext charset="ascii/us"> = 3.14</mattext>
+					<matbreak/>
+				</material>
+				<response_num ident="NUM01" rcardinality="Single" rtiming="No" numtype="Decimal">
+					<render_fib fibtype="Decimal" prompt="Box" maxchars="6">
+						<response_label ident="A"/>
+					</render_fib>
+				</response_num>
+				<material>
+					<mattext charset="ascii/us"> cm</mattext>
+				</material>
+			</flow>
+		</presentation>
+		<resprocessing>
+			<outcomes>
+				<decvar varname="REALSCORE" vartype="Integer" defaultval="0"/>
+			</outcomes>
+			<respcondition>
+				<qticomment>Scoring for the correct answer.</qticomment>
+				<conditionvar>
+					<vargte respident="NUM01">12.559</vargte>
+					<varlte respident="NUM01">12.561</varlte>
+				</conditionvar>
+				<setvar action="Add" varname="REALSCORE">1</setvar>
+				<displayfeedback feedbacktype="Response" linkrefid="Correct"/>
+			</respcondition>
+			<respcondition>
+				<qticomment>Scoring for the incorrect answer.</qticomment>
+				<conditionvar>
+					<not>
+						<and>
+							<vargte respident="NUM01">12.559</vargte>
+							<varlte respident="NUM01">12.561</varlte>
+						</and>
+					</not>
+				</conditionvar>
+				<setvar action="Subtract" varname="REALSCORE">1</setvar>
+				<displayfeedback feedbacktype="Response" linkrefid="Incorrect"/>
+			</respcondition>
+		</resprocessing>
+		<itemfeedback ident="Correct" view="Candidate">
+			<flow_mat>
+				<material>
+					<mattext>Yes, you are correct. Well done.</mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>
+		<itemfeedback ident="Incorrect" view="Candidate">
+			<flow_mat>
+				<material>
+					<mattext texttype="text/html"
+						><![CDATA[No.  The correct answer is 12.56.  The length of the circumference of a circle radius <i>r</i> is 2]]></mattext>
+					<mattext charset="greek">p</mattext>
+					<mattext texttype="text/html"><![CDATA[<i>r</i>.]]></mattext>
+				</material>
+			</flow_mat>
+		</itemfeedback>
+	</item>
+</questestinterop>

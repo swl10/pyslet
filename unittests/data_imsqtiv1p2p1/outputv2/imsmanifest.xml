@@ -48,6 +48,54 @@
 			</metadata>
 			<file href="fibi_ir_01/pyslet_fibi_ir_01.xml"/>
 		</resource>
+		<resource identifier="PYSLET_FIBI_IR_02" type="imsqti_item_xmlv2p1"
+			href="fibi_ir_02/pyslet_fibi_ir_02.xml">
+			<metadata>
+				<imsmd:lom>
+					<imsmd:general>
+						<imsmd:identifier>PYSLET_FIBI_IR_02</imsmd:identifier>
+						<imsmd:title>
+							<imsmd:langstring>Standard FIB Numeric Item</imsmd:langstring>
+						</imsmd:title>
+						<imsmd:description>
+							<imsmd:langstring>Numeric fill-in-the-blank example.</imsmd:langstring>
+						</imsmd:description>
+					</imsmd:general>
+					<imsmd:annotation>
+						<imsmd:description>
+							<imsmd:langstring>Warning: discarding view on feedback (Candidate)
+							</imsmd:langstring>
+						</imsmd:description>
+					</imsmd:annotation>
+				</imsmd:lom>
+				<imsqti:qtiMetadata/>
+			</metadata>
+			<file href="fibi_ir_02/pyslet_fibi_ir_02.xml"/>
+		</resource>
+		<resource identifier="PYSLET_FIBN_IR_01" type="imsqti_item_xmlv2p1"
+			href="fibn_ir_01/pyslet_fibn_ir_01.xml">
+			<metadata>
+				<imsmd:lom>
+					<imsmd:general>
+						<imsmd:identifier>PYSLET_FIBN_IR_01</imsmd:identifier>
+						<imsmd:title>
+							<imsmd:langstring>Standard FIB Decimal Item</imsmd:langstring>
+						</imsmd:title>
+						<imsmd:description>
+							<imsmd:langstring>Numeric (decimal) fill-in-the-blank example.</imsmd:langstring>
+						</imsmd:description>
+					</imsmd:general>
+					<imsmd:annotation>
+						<imsmd:description>
+							<imsmd:langstring>Warning: discarding view on feedback (Candidate)
+							</imsmd:langstring>
+						</imsmd:description>
+					</imsmd:annotation>
+				</imsmd:lom>
+				<imsqti:qtiMetadata/>
+			</metadata>
+			<file href="fibn_ir_01/pyslet_fibn_ir_01.xml"/>
+		</resource>
 		<resource identifier="PYSLET_FIBS_IR_01" type="imsqti_item_xmlv2p1"
 			href="fibs_ir_01/pyslet_fibs_ir_01.xml">
 			<metadata>

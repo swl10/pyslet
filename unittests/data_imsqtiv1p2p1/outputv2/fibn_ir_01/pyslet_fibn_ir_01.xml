@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="PYSLET_FIBN_IR_01" title="Standard FIB Decimal Item" adaptive="false"
+    timeDependent="false">
+    <responseDeclaration identifier="NUM01" cardinality="single" baseType="float"/>
+    <outcomeDeclaration identifier="FEEDBACK" cardinality="multiple" baseType="identifier"/>
+    <outcomeDeclaration identifier="REALSCORE" cardinality="single" baseType="integer">
+        <defaultValue>
+            <value>0</value>
+        </defaultValue>
+    </outcomeDeclaration>
+    <itemBody>
+        <p label="PysletExample_FIBN_IR_01">What is the circumference of a circle of radius
+            2cm?<br/> Use the following approximation in your calculation: &#x03c0; =
+                3.14<br/><textEntryInteraction responseIdentifier="NUM01" expectedLength="6"/>
+            cm</p>
+    </itemBody>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <and>
+                    <gte>
+                        <variable identifier="NUM01"/>
+                        <baseValue baseType="float">12.559</baseValue>
+                    </gte>
+                    <lte>
+                        <variable identifier="NUM01"/>
+                        <baseValue baseType="float">12.561</baseValue>
+                    </lte>
+                </and>
+                <setOutcomeValue identifier="REALSCORE">
+                    <sum>
+                        <variable identifier="REALSCORE"/>
+                        <baseValue baseType="integer">1</baseValue>
+                    </sum>
+                </setOutcomeValue>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">Correct</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseIf>
+            <responseElseIf>
+                <not>
+                    <and>
+                        <gte>
+                            <variable identifier="NUM01"/>
+                            <baseValue baseType="float">12.559</baseValue>
+                        </gte>
+                        <lte>
+                            <variable identifier="NUM01"/>
+                            <baseValue baseType="float">12.561</baseValue>
+                        </lte>
+                    </and>
+                </not>
+                <setOutcomeValue identifier="REALSCORE">
+                    <subtract>
+                        <variable identifier="REALSCORE"/>
+                        <baseValue baseType="integer">1</baseValue>
+                    </subtract>
+                </setOutcomeValue>
+                <setOutcomeValue identifier="FEEDBACK">
+                    <multiple>
+                        <variable identifier="FEEDBACK"/>
+                        <baseValue baseType="identifier">Incorrect</baseValue>
+                    </multiple>
+                </setOutcomeValue>
+            </responseElseIf>
+        </responseCondition>
+    </responseProcessing>
+    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Correct">Yes, you are
+        correct. Well done.</modalFeedback>
+    <modalFeedback outcomeIdentifier="FEEDBACK" showHide="show" identifier="Incorrect">No. The
+        correct answer is 12.56. The length of the circumference of a circle radius <i>r</i> is
+            2&#x03c0;<i>r</i>.</modalFeedback>
+</assessmentItem>
