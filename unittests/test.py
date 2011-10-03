@@ -11,6 +11,7 @@ import test_imsmdv1p2p1
 import test_imsqtiv1p2p1
 import test_imsqtiv2p1
 import test_iso8601
+import test_qml420
 import test_rfc2234
 import test_rfc2396
 import test_rfc2616
