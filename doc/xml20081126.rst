@@ -68,6 +68,8 @@ Common Syntactic Constructs
 Character Classes
 ~~~~~~~~~~~~~~~~~
 
+..	autofunction:: IsChar
+
 ..	autofunction:: IsLetter
 
 ..	autofunction:: IsBaseChar

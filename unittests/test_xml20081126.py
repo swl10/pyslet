@@ -392,6 +392,74 @@ class XMLParserTests(unittest.TestCase):
 		except XMLFatalError:
 			pass
 
+	def testIgnoreSectContents(self):
+		"""[64] ignoreSectContents ::= Ignore ('<![' ignoreSectContents ']]>' Ignore)* """
+		s="preamble<![ INCLUDE [ %x; <![IGNORE[ also ignored ]]>]]> also ignored]]>end"
+		e=XMLEntity(s)
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		p.doc.DeclareEntity(XMLParameterEntity('x','bad'))
+		p.ParseIgnoreSectContents()
+		p.ParseLiteral(']]>')
+		self.failUnless(p.ParseName()=='end',"Failed to parse ignore section contents")
+		
+	def testIgnore(self):
+		"""[65] Ignore ::= Char* - (Char* ('<![' | ']]>') Char*) """
+		s="<!FIRST%x;1st]]>second<![third]]3rd<!3rd<3rd]3rd"
+		e=XMLEntity(s)
+		# These tests are a bit odd because we follow the entity and not the parser
+		# so we expect the trailing markup to be consumed; we check theChar too to be sure.
+		m=[('<!FIRST%x;1st]]>',']'),('second<![','<'),('third]]3rd<!3rd<3rd]3rd',None)]
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		p.doc.DeclareEntity(XMLParameterEntity('x','bad'))
+		pos=0
+		for match,c in m:
+			p.ParseIgnore()
+			self.failUnless(p.theChar==c,"Parser position: %s (expected %s)"%(p.theChar,c))
+			self.failUnless(s[pos:e.linePos-1]==match,"Match failed: %s (expected %s)"%(s[pos:e.linePos-1],match))
+			p.NextChar()
+			pos=pos+len(match)
+		
+	def testCharRef(self):
+		"""[66] CharRef ::= '&#' [0-9]+ ';'  |  '&#x' [0-9a-fA-F]+ ';' """
+		for m in (XMLParser.RefModeInContent,XMLParser.RefModeInAttributeValue,XMLParser.RefModeInEntityValue):
+			e=XMLEntity("&#xe9;")
+			p=XMLParser(e)
+			p.refMode=m
+			data=p.ParseCharRef()
+			self.failUnless(data==u'\xe9',"ParseCharRef failed to interpret hex character reference: %s"%data)
+			self.failUnless(p.theChar is None,"Short parse on CharRef: %s"%p.theChar)
+		e=XMLEntity("&#xe9;")
+		p=XMLParser(e)
+		p.refMode=XMLParser.RefModeAsAttributeValue
+		data=p.ParseCharRef()
+		self.failUnless(data=="&#xe9;","ParseCharRef AsAttribute: %s"%data)
+		self.failUnless(p.theChar is None,"Short parse on CharRef: %s"%p.theChar)
+		e=XMLEntity("&#xe9;")
+		p=XMLParser(e)
+		p.refMode=XMLParser.RefModeInDTD
+		try:
+			data=p.ParseCharRef()
+			self.fail("ParseCharRef InDTD")
+		except XMLForbiddenEntityReference:
+			pass
+		e=XMLEntity("#233;")
+		p=XMLParser(e)
+		p.refMode=XMLParser.RefModeInContent
+		data=p.ParseCharRef(True)
+		self.failUnless(data==u'\xe9',"ParseCharRef failed to interpret decimal character reference: %s"%data)
+		self.failUnless(p.theChar is None,"Short parse on CharRef: %s"%p.theChar)
+		for s in [" &#xe9;","& #xe9;","&# xe9;","&#xe 9;","&#xe9 ;","&#e9;","&#xg9;","&#1;","&#;","&#x;"]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			p.refMode=XMLParser.RefModeInContent
+			try:
+				p.ParseCharRef()
+				self.fail("ParseCharRef negative test: %s"%s)
+			except XMLWellFormedError:
+				pass					
+		
 	def testReference(self):
 		"""[67] Reference ::= EntityRef | CharRef """
 		e=XMLEntity("&animal;")

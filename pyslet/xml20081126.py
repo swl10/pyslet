@@ -163,6 +163,9 @@ PubidCharClass=CharClass(u' ',u'\x0d',u'\x0a', (u'0',u'9'), (u'A',u'Z'),
 	(u'a',u'z'), "-'()+,./:=?;!*#@$_%")
 
 def IsChar(c):
+	"""Tests if the character *c* matches the production for [2] Char.
+	
+	If *c* is None IsChar returns False."""
 	return c and (ord(c)==0x9 or ord(c)==0xA or ord(c)==0xD or
 		(ord(c)>=0x20 and ord(c)<=0xD7FF) or
 		(ord(c)>=0xE000 and ord(c)<=0xFFFD) or
@@ -415,7 +418,7 @@ class XMLEntity:
 		None, then the entity is closed."""
 		self.theChar=None		#: the character at the current position in the entity
 		self.lineNum=None		#: the current line number within the entity (first line is line 1)
-		self.linePos=None		#: the current character position within the entity (first char is 0)
+		self.linePos=None		#: the current character position within the entity (first char is 1)
 		self.basePos=None
 		self.charSeek=None
 		self.chunk=None
@@ -846,6 +849,24 @@ class XMLParser:
 		if not digits:
 			self.WellFormednessError(production+": Expected [0-9]+")
 		return digits
+
+	def ParseHexDigits(self):
+		"""Parses a, possibly empty, string of hexadecimal digits matching [0-9a-fA-F]."""
+		data=[]
+		while self.theChar in "0123456789abcdefABCDEF":
+			data.append(self.theChar)
+			self.NextChar()
+		return string.join(data,'')
+
+	def ParseRequiredHexDigits(self,production="Hex Digits"):
+		"""Parses a required sring of hexadecimal digits matching [0-9a-fA-F].
+		
+		*production* is an optional string describing the context in which the
+		hexadecimal digits were expected."""
+		digits=self.ParseHexDigits()
+		if not digits:
+			self.WellFormednessError(production+": Expected [0-9a-fA-F]+")
+		return digits
 							
 	def ParseS(self):
 		"""[3] S: Parses white space from the stream matching the production for S.
@@ -913,6 +934,59 @@ class XMLParser:
 		self.ParseQuote(q)
 		return version
 
+	def ParseIgnoreSectContents(self):
+		"""[64] ignoreSectContents: parses the contents of an ignored section.
+		
+		The method returns no data."""
+		self.ParseIgnore()
+		if self.ParseLiteral('<!['):
+			self.ParseIgnoreSectContents()
+			self.ParseRequiredLiteral(']]>',"[64] ignoreSectContents")
+			self.ParseIgnore()
+		
+	def ParseIgnore(self):
+		"""[65] Ignore: parses a run of characters in an ignored section.
+		
+		This method returns no data."""
+		while IsChar(self.theChar):
+			if self.theChar=='<' and self.ParseLiteral('<!['):
+				self.BuffText(u'<![')
+				break
+			elif self.theChar==']' and self.ParseLiteral(']]>'):
+				self.BuffText(u']]>')
+				break
+			else:
+				self.NextChar()
+			
+	def ParseCharRef(self,gotLiteral=False):
+		"""[66] CharRef: parses a character reference.
+		
+		If *gotLiteral* is True the method assumes that the leading '&' literal
+		has already been parsed.
+
+		The method returns a unicode string containing the character referred
+		to."""
+		production="[66] CharRef"
+		if not gotLiteral:
+			self.ParseRequiredLiteral('&',production)
+		self.ParseRequiredLiteral('#',production)
+		if self.ParseLiteral('x'):
+			qualifier='x'
+			digits=self.ParseRequiredHexDigits(production)
+			data=unichr(int(digits,16))
+		else:
+			qualifier=''
+			digits=self.ParseRequiredDecimalDigits(production)
+			data=unichr(int(digits))
+		self.ParseRequiredLiteral(';',production)
+		if self.refMode==XMLParser.RefModeInDTD:
+			raise XMLForbiddenEntityReference("&#%s%s; forbidden by context"%(qualifier,digits))
+		elif self.refMode==XMLParser.RefModeAsAttributeValue:
+			data="&#%s%s;"%(qualifier,digits)
+		elif not IsChar(data):
+			raise XMLWellFormedError("[66] CharRef: illegal reference to non-Char &#%s%s;"%(qualifier,digits))
+		return data
+						
 	def ParseReference(self):
 		"""[67] Reference: parses a reference.
 		
@@ -922,36 +996,9 @@ class XMLParser:
 		more information see :py:meth:`ParseEntityRef`."""
 		self.ParseRequiredLiteral('&',"[67] Reference")
 		if self.theChar=='#':
-			# CharacterReference forbidden in DTD
-			if self.refMode==XMLParser.RefModeInDTD:
-				self.WellFormednessError("[] Reference: Character reference forbidden in DTD")
-			self.NextChar()
-			if self.theChar=='x':
-				self.NextChar()
-				data=unichr(int(self.ParseHexDigits(),16))
-			else:
-				data=unichr(int(self.ParseDecimalDigits()))
-			self.ParseRequiredLiteral(';',"[66] CharRef")
-			return data				
+			return self.ParseCharRef(True)
 		else:
 			return self.ParseEntityRef(True)
-# 				name=self.ParseName()
-# 				self.ParseLiteral(';')
-# 				if self.refMode==XMLParser.RefModeInEntityValue:
-# 					# reference is bypassed, return a reference instead
-# 					data="&%s;"%name
-# 				elif self.refMode==XMLParser.RefModeAsAttributeValue:
-# 					self.WellFormednessError("[] Reference: general entity reference forbidden as attribute value")
-# 				elif self.refMode==XMLParser.RefModeInDTD:
-# 					self.WellFormednessError("[] Reference: general entity reference forbidden in DTD")
-# 				else:
-# 					data=XMLParser.PredefinedEntities.get(name,None)
-# 					if data is None:
-# 						e=self.LookupEntity(name)
-# 						if e is not None:
-# 							e.Open()
-# 							self.PushEntity(e)
-#		return data
 		
 	def ParseEntityRef(self,gotLiteral=False):
 		"""[68] EntityRef: parses a general entity reference.
@@ -1993,13 +2040,6 @@ class XMLParser:
 		else:
 			e=None
 		return e
-
-	def ParseHexDigits(self):
-		data=[]
-		while self.theChar in "0123456789abcdefABCDEF":
-			data.append(self.theChar)
-			self.NextChar()
-		return string.join(data,'')
 
 	def ParseQuote(self,q=None):
 		"""Parses the quote character, q, or one of "'" or '"' if q is None.
