@@ -47,6 +47,7 @@ class XMLUnexpectedHTTPResponse(XMLError): pass
 class XMLUnsupportedSchemeError(XMLError): pass
 class XMLValidationError(XMLError): pass
 class XMLWellFormedError(XMLFatalError): pass
+class XMLForbiddenEntityReference(XMLError): pass
 
 class XMLUnknownChild(XMLError): pass
 
@@ -400,13 +401,18 @@ class XMLEntity:
 		unicode characters to the main :py:class:`XMLParser`.
 		
 		Optional *src*, *encoding* and *reqManager* parameters can be provided,
-		if not None the src and encoding is used to open the entity reader
-		immediately using one of the Open methods described below.
-		"""
+		if src is not None then these parameters are used to open the entity
+		reader immediately using one of the Open methods described below.
+		
+		*src* may be a unicode string, a byte string, an instance of
+		:py:class:`pyslet.rfc2396.URI` or any object that supports file-like
+		behaviour.  If using a file, the file must support seek behaviour."""
 		self.mimetype=None		#: the mime type of the entity, if known, or None
 		self.encoding=None		#: the encoding of the entity (text entities)
 		self.dataSource=None	#: a file like object from which the entity's data is read
-		self.charSource=None	#: a unicode data reader used to read characters from the entity
+		self.charSource=None
+		"""A unicode data reader used to read characters from the entity.  If
+		None, then the entity is closed."""
 		self.theChar=None		#: the character at the current position in the entity
 		self.lineNum=None		#: the current line number within the entity (first line is line 1)
 		self.linePos=None		#: the current character position within the entity (first char is 0)
@@ -438,11 +444,9 @@ class XMLEntity:
 	def Open(self):
 		"""Opens the entity for reading.
 		
-		The default implementation behaves as an empty stream, setting *theChar*
-		to None indicating that there are no more characters to read.  It is
-		designed to be overridden by classes derived from
-		:py:class:`XMLEntity`."""
-		self.Reset()
+		The default implementation raises UnimplementedError.  It is designed to
+		be overridden by classes derived from :py:class:`XMLEntity`."""
+		raise UnimplementedError
 	
 	def OpenUnicode(self,src):
 		"""Opens the entity from a unicode string."""
@@ -525,14 +529,18 @@ class XMLEntity:
 			raise XMLUnsupportedScheme			
 		
 	def Reset(self):
-		"""Resets an open entity back to the first character."""
-		self.charSource.seek(self.basePos)
+		"""Resets an open entity, causing it to return to the first character in the entity."""
+		if self.charSource is None:
+			self.theChar=None
+			self.basePos=None
+		else:
+			self.charSource.seek(self.basePos)
+			self.theChar=''
 		self.lineNum=1
 		self.linePos=0
 		self.chars=''
 		self.charSeek=self.basePos
 		self.charPos=-1
-		self.theChar=''
 		self.ignoreLF=False
 		self.NextChar()
 		# python handles the utf-16 BOM automatically but we have to skip it for utf-8
@@ -547,7 +555,7 @@ class XMLEntity:
 		return "Line %i.%i"%(self.lineNum,self.linePos)
 		
 	def NextChar(self):
-		"""Advances to the next character in the entity.
+		"""Advances to the next character in an open entity.
 		
 		This method takes care of the End-of-Line handling rules for XML which force
 		us to remove any CR characters and replace them with LF if they appear on their
@@ -582,12 +590,12 @@ class XMLEntity:
 		"""Changes the encoding used to interpret the entity's stream.
 		
 		In many cases we can only guess at the encoding used in a file or other
-		stream.  However, XML has a mechanism for declaring the encoding as part
-		of the XML or Text declaration.  This declaration can typically be
-		parsed even if the encoding has been guessed incorrectly initially. 
-		This method allows the XML parser to notify the entity that a new
-		encoding has been declared and that future characters should be
-		interpreted with this new encoding.""" 
+		byte stream.  However, XML has a mechanism for declaring the encoding as
+		part of the XML or Text declaration.  This declaration can typically be
+		parsed even if the encoding has been guessed incorrectly initially. This
+		method allows the XML parser to notify the entity that a new encoding
+		has been declared and that future characters should be interpreted with
+		this new encoding."""
 		if self.dataSource:
 			self.encoding=encoding
 			# Need to rewind and re-read the current buffer
@@ -607,30 +615,85 @@ class XMLEntity:
 		self.lineNum=self.lineNum+1
 		self.linePos=0
 		
-		
+	def Close(self):
+		"""Closes the entity."""
+		if self.charSource is not None:
+			self.charSource.close()
+			self.charSource=None
+		if self.dataSource is not None:
+			self.dataSource.close()
+			self.dataSource=None
+		self.theChar=None
+		self.lineNum=None
+		self.linePos=None
+
+			
 class XMLGeneralEntity(XMLEntity):
-	def	__init__(self):
-		"""An object for representing general entities."""
+	def	__init__(self,name=None,definition=None,notation=None):
+		"""An object for representing general entities.
+		
+		A general entity can be constructed with an optional *name*,
+		*definition* and *notation*, used to initialise the following fields."""
 		XMLEntity.__init__(self)
-		self.name=None			#: the name of the general entity
-		self.definition=None
+		self.name=name				#: the name of the general entity
+		self.definition=definition
 		"""The definition of the entity is either a string or an instance of
 		XMLExternalID, depending on whether the entity is an internal or
 		external entity respectively."""
-		self.notation=None		#: the notation name for external unparsed entities
+		self.notation=notation		#: the notation name for external unparsed entities
 	
+	def Open(self):
+		"""Opens the general entity for reading."""
+		if type(self.definition) is StringType:
+			self.OpenString(self.definition)
+		elif type(self.definition) is UnicodeType:
+			self.OpenUnicode(self.definition)
+		elif isinstance(self.definition,XMLExternalID):
+			raise UnimplementedError
+		else:
+			raise XMLError("Bad General Entity") 
+
 
 class XMLParameterEntity(XMLEntity):
-	def	__init__(self):
+	def	__init__(self,name=None,definition=None):
 		XMLEntity.__init__(self)
-		"""An object for representing parameter entities."""
-		self.name=None			#: the name of the parameter entity
-		self.definition=None
+		"""An object for representing parameter entities.
+		
+		A parameter entity can be constructed with an optional *name* and
+		*definition*, used to initialise the following two fields."""
+		self.name=name				#: the name of the parameter entity
+		self.definition=definition
 		"""The definition of the entity is either a string or an instance of
 		XMLExternalID, depending on whether the entity is an internal or
 		external entity respectively."""
 		
+	def Open(self):
+		"""Opens the parameter entity for reading."""
+		if type(self.definition) is StringType:
+			self.OpenString(self.definition)
+		elif type(self.definitino) is UnicodeType:
+			self.OpenUnicode(self.definition)
+		elif isinstance(self.definition,XMLExternalID):
+			raise UnimplementedError
+		else:
+			raise XMLError("Bad Parameter Entity") 
 
+	def OpenAsPE(self):
+		"""Opens the parameter entity for reading in the context of a DTD.
+		
+		This special method implements the rule that the replacement text of a parameter
+		entity, when included as a PE, must be enlarged by the attachment of a leading
+		and trailing space."""
+		if type(self.definition) is StringType:
+			self.OpenString(' %s '%self.definition)
+		elif type(self.definitino) is UnicodeType:
+			self.OpenUnicode(u" %s "%self.definition)
+		elif isinstance(self.definition,XMLExternalID):
+			raise UnimplementedError
+		else:
+			raise XMLError("Bad Parameter Entity") 
+
+			
 class XMLParser:
 	
 	RefModeNone=0				#: Default constant used for setting :py:attr:`refMode` 
@@ -849,6 +912,124 @@ class XMLParser:
 		version="1."+digits
 		self.ParseQuote(q)
 		return version
+
+	def ParseReference(self):
+		"""[67] Reference: parses a reference.
+		
+		This method returns any data parsed as a result of the reference.  For a
+		character reference this will be the character referred to.  For a
+		general entity the data returned will depend on the parsing context. For
+		more information see :py:meth:`ParseEntityRef`."""
+		self.ParseRequiredLiteral('&',"[67] Reference")
+		if self.theChar=='#':
+			# CharacterReference forbidden in DTD
+			if self.refMode==XMLParser.RefModeInDTD:
+				self.WellFormednessError("[] Reference: Character reference forbidden in DTD")
+			self.NextChar()
+			if self.theChar=='x':
+				self.NextChar()
+				data=unichr(int(self.ParseHexDigits(),16))
+			else:
+				data=unichr(int(self.ParseDecimalDigits()))
+			self.ParseRequiredLiteral(';',"[66] CharRef")
+			return data				
+		else:
+			return self.ParseEntityRef(True)
+# 				name=self.ParseName()
+# 				self.ParseLiteral(';')
+# 				if self.refMode==XMLParser.RefModeInEntityValue:
+# 					# reference is bypassed, return a reference instead
+# 					data="&%s;"%name
+# 				elif self.refMode==XMLParser.RefModeAsAttributeValue:
+# 					self.WellFormednessError("[] Reference: general entity reference forbidden as attribute value")
+# 				elif self.refMode==XMLParser.RefModeInDTD:
+# 					self.WellFormednessError("[] Reference: general entity reference forbidden in DTD")
+# 				else:
+# 					data=XMLParser.PredefinedEntities.get(name,None)
+# 					if data is None:
+# 						e=self.LookupEntity(name)
+# 						if e is not None:
+# 							e.Open()
+# 							self.PushEntity(e)
+#		return data
+		
+	def ParseEntityRef(self,gotLiteral=False):
+		"""[68] EntityRef: parses a general entity reference.
+		
+		If *gotLiteral* is True the method assumes that the leading '&' literal
+		has already been parsed.
+		
+		This method returns any data parsed as a result of the reference.  For
+		example, if this method is called in a context where entity references
+		are bypassed then the string returned will be the literal characters
+		parsed, e.g., "&ref;".
+
+		If the entity reference is parsed successfully in a context where Entity
+		references are recognized, the reference is looked up according to the
+		rules for validating and non-validating parsers and, if required by the
+		parsing mode, the entity is opened and pushed onto the parser so that
+		parsing continues with the first character of the entity's replacement
+		text.
+		
+		A special case is made for the predefined entities.  When parsed in a
+		context where entity references are recognized these entities are
+		expanded immediately and the resulting character returned.  For example,
+		the entity &amp; returns the '&' character instead of pushing an entity
+		with replacement text '&#38;'."""
+		production="[68] EntityRef"
+		if not gotLiteral:
+			self.ParseRequiredLiteral('&',production)
+		name=self.ParseRequiredName(production)
+		self.ParseRequiredLiteral(';',production)
+		if self.refMode==XMLParser.RefModeInEntityValue:
+			return "&%s;"%name
+		elif self.refMode in (XMLParser.RefModeAsAttributeValue,XMLParser.RefModeInDTD):
+			raise XMLForbiddenEntityReference("&%s; forbidden by context"%name)
+		else:
+			data=XMLParser.PredefinedEntities.get(name,None)
+			if data is not None:
+				return data
+			else:
+				e=self.LookupEntity(name)
+				if e is not None:
+					e.Open()
+					self.PushEntity(e)
+				return ''
+		
+	def ParsePEReference(self):
+		"""[69] PEReference: parses a parameter entity reference.
+		
+		This method returns any data parsed as a result of the reference.  Normally
+		this will be an empty string because the method is typically called in
+		contexts where PEReferences are recognized.  However, if this method is
+		called in a context where PEReferences are not recognized the returned
+		string will be the literal characters parsed, e.g., "%ref;"
+
+		If the parameter entity reference is parsed successfully in a context
+		where PEReferences are recognized, the reference is looked up according
+		to the rules for validating and non-validating parsers and, if required
+		by the parsing mode, the entity is opened and pushed onto the parser so
+		that parsing continues with the first character of the entity's
+		replacement text."""
+		production="[69] PEReference"
+		self.ParseRequiredLiteral('%',production)
+		name=self.ParseRequiredName(production)
+		self.ParseRequiredLiteral(';',production)
+		if self.refMode in (XMLParser.RefModeNone,XMLParser.RefModeInContent,
+			XMLParser.RefModeInAttributeValue,XMLParser.RefModeAsAttributeValue):
+			return "%%%s;"%name
+		else:
+			e=self.LookupParameterEntity(name)
+			if self.refMode==XMLParser.RefModeInEntityValue:
+				if e is not None:
+					# Parameter entities are fed back into the parser somehow
+					e.Open()
+					self.PushEntity(e)
+			elif self.refMode==XMLParser.RefModeInDTD:
+				if e is not None:
+					e.OpenAsPE()
+					self.PushEntity(e)
+			return ''
 	
 	def ParseEntityDecl(self,gotLiteral=False):
 		"""[70] EntityDecl: parses an entity declaration.
@@ -1154,6 +1335,7 @@ class XMLParser:
 	def ParseEntityValue(self):
 		"""[9] EntityValue ::= '"' ([^%&"] | PEReference | Reference)* '"' | "'" ([^%&'] | PEReference | Reference)* "'"	"""
 		saveMode=self.refMode
+		qEntity=self.entity
 		q=self.ParseQuote()
 		self.refMode=XMLParser.RefModeInEntityValue
 		value=[]
@@ -1163,8 +1345,13 @@ class XMLParser:
 			elif self.theChar=='%':
 				self.ParsePEReference()
 			elif self.theChar==q:
-				self.NextChar()
-				break
+				if self.entity is qEntity:
+					self.NextChar()
+					break
+				else:
+					# a quote but in a different entity is treated as data
+					value.append(self.theChar)
+					self.NextChar()
 			elif IsChar(self.theChar):
 				value.append(self.theChar)
 				self.NextChar()
@@ -1186,12 +1373,19 @@ class XMLParser:
 				raise
 			q=None
 			end='<"\'> \t\r\n'
+		qEntity=self.entity
 		while True:
 			try:
-				if self.theChar==q:
-					self.NextChar()
-					break
-				elif self.theChar in end:
+				if self.theChar is None:
+					self.WellFormednessError("EOF in AttValue")
+				elif self.theChar==q:
+					if self.entity is qEntity:
+						self.NextChar()
+						break
+					else:
+						value.append(self.theChar)
+						self.NextChar()
+				elif self.theChar in end and self.entity is qEntity:
 					# compatibility mode only
 					break
 				elif self.theChar=='&':
@@ -1202,8 +1396,6 @@ class XMLParser:
 					self.NextChar()
 				elif self.theChar=='<':
 					self.WellFormednessError("Unescaped < in AttValue")
-				elif self.theChar is None:
-					self.WellFormednessError("EOF in AttValue")
 				else:
 					value.append(self.theChar)
 					self.NextChar()
@@ -1774,16 +1966,6 @@ class XMLParser:
 			value=self.ParseAttValue()
 			return type,value
 			
-	def ParsePEReference(self):
-		"""[69] PEReference ::= '%' Name ';'  """
-		self.ParseRequiredLiteral('%')
-		name=self.ParseName()
-		self.ParseRequiredLiteral(';')
-		e=self.LookupParameterEntity(name)
-		if e is not None:
-			# Parameter entities are fed back into the parser somehow
-			self.PushEntity(e)
-	
 	def ParseAttribute(self):
 		"""Return name, value
 		
@@ -1798,38 +1980,12 @@ class XMLParser:
 			value=name
 		return name,value
 	
-	def ParseReference(self):
-		"""Returns any character data that results from the reference."""
-		if self.theChar=='&':
-			self.NextChar()
-			if self.theChar=='#':
-				# CharacterReference forbidden in DTD
-				if self.refMode==XMLParser.RefModeInDTD:
-					self.WellFormednessError("[] Reference: Character reference forbidden in DTD")
-				self.NextChar()
-				if self.theChar=='x':
-					self.NextChar()
-					data=unichr(int(self.ParseHexDigits(),16))
-				else:
-					data=unichr(int(self.ParseDecimalDigits()))
-			else:
-				name=self.ParseName()
-				if self.refMode==XMLParser.RefModeInEntityValue:
-					# reference is bypassed, return a reference instead
-					data="&%s;"%name
-				elif self.refMode==XMLParser.RefModeAsAttributeValue:
-					self.WellFormednessError("[] Reference: general entity reference forbidden as attribute value")
-				elif self.refMode==XMLParser.RefModeInDTD:
-					self.WellFormednessError("[] Reference: general entity reference forbidden in DTD")
-				else:
-					data=XMLParser.PredefinedEntities.get(name,None)
-					if data is None:
-						data=self.LookupEntity(name)	
-			self.ParseLiteral(';')
-		return data
-	
 	def LookupEntity(self,name):
-		return ''
+		if self.doc:
+			e=self.doc.GetEntity(name)
+		else:
+			e=None
+		return e
 	
 	def LookupParameterEntity(self,name):
 		if self.doc:
@@ -2785,6 +2941,9 @@ class XMLDocument(XMLElementContainerMixin):
 		"""The element currently being parsed by the parser."""
 		self.SetBase(baseURI)
 		self.parameterEntities={}
+		"""A dictionary of XMLParameterEntity instances keyed on entity name."""
+		self.generalEntities={}
+		"""A dictionary of XMLGeneralEntity instances keyed on entity name."""
 		self.idTable={}
 
 	def GetChildren(self):
@@ -2807,18 +2966,16 @@ class XMLDocument(XMLElementContainerMixin):
 	def DeclareEntity(self,entity):
 		if isinstance(entity,XMLGeneralEntity):
 			self.generalEntities[entity.name]=entity
-		elif isinstance(entity,XMLParaemterEntity):
+		elif isinstance(entity,XMLParameterEntity):
 			self.parameterEntities[entity.name]=entity
 		else:
 			raise ValueError
 
-	def DeclareParameterEntity(self,name,value):
-		self.parameterEntities[name]=value
-
 	def GetParameterEntity(self,name):
-		v=self.parameterEntities.get(name,None)
-		if v is not None:
-			return XMLEntity(v)
+		return self.parameterEntities.get(name,None)
+			
+	def GetEntity(self,name):
+		return self.generalEntities.get(name,None)
 			
 	def GetElementClass(self,name):
 		"""Returns a class object suitable for representing name

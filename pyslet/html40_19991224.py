@@ -1357,9 +1357,9 @@ class HTMLParser(xmlns.XMLNSParser):
 	def LookupEntity(self,name):
 		codepoint=htmlentitydefs.name2codepoint.get(name,None)
 		if codepoint is None:
-			return ''
+			return None
 		else:
-			return unichr(codepoint)
+			return xml.XMLGeneralEntity(name,u'&#%i;'%codepoint)
 
 	def ParseHTMLDocument(self,doc):
 		self.doc=doc

@@ -392,9 +392,139 @@ class XMLParserTests(unittest.TestCase):
 		except XMLFatalError:
 			pass
 
+	def testReference(self):
+		"""[67] Reference ::= EntityRef | CharRef """
+		e=XMLEntity("&animal;")
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		p.doc.DeclareEntity(XMLGeneralEntity('animal','dog'))
+		p.refMode=XMLParser.RefModeInContent
+		data=p.ParseReference()
+		self.failUnless(data=='',"ParseReference failed to interpret entity reference")
+		self.failUnless(p.ParseName()=='dog',"Failed to replace Entity in Content")
+		self.failUnless(p.theChar is None,"Short parse on EntityRef")
+		e=XMLEntity("&#xe9;")
+		p=XMLParser(e)
+		p.refMode=XMLParser.RefModeInContent
+		data=p.ParseReference()
+		self.failUnless(data==u'\xe9',"ParseReference failed to interpret character reference: %s"%data)
+		self.failUnless(p.theChar is None,"Short parse on EntityRef: %s"%p.theChar)
+		for s in [" &animal;","& animal;","&animal ;","animal","#xE9"]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				p.ParseReference()
+				self.fail("ParseReference negative test: %s"%s)
+			except XMLWellFormedError:
+				pass	
+		
+	def testEntityRef(self):
+		"""[68] EntityRef ::= '&' Name ';'	"""
+		e=XMLEntity("&amp;")
+		p=XMLParser(e)
+		p.refMode=XMLParser.RefModeInContent
+		self.failUnless(p.ParseEntityRef()=='&',"Predefined entity not recognized in Content")
+		self.failUnless(p.theChar is None,"Short parse on Entity replacement text")
+		e=XMLEntity("&animal;")
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		p.doc.DeclareEntity(XMLGeneralEntity('animal','dog'))
+		p.refMode=XMLParser.RefModeInContent
+		self.failUnless(p.ParseEntityRef()=='',"EntityRef not recognized in Content")
+		# This should result in the entity value being expanded into the stream
+		self.failUnless(p.ParseName()=='dog',"Failed to replace Entity in Content")
+		self.failUnless(p.theChar is None,"Short parse on Entity replacement text")
+		e=XMLEntity("animal;")
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		p.doc.DeclareEntity(XMLGeneralEntity('animal','dog'))
+		p.refMode=XMLParser.RefModeInAttributeValue
+		self.failUnless(p.ParseEntityRef(True)=='',"EntityRef not recognized in Attribute Value")
+		# This should result in the entity value being expanded into the stream
+		self.failUnless(p.ParseName()=='dog',"Failed to replace Entity in Attribute Vaue")
+		self.failUnless(p.theChar is None,"Short parse on Entity replacement text")
+		e=XMLEntity("&animal;")
+		p=XMLParser(e)
+		p.refMode=XMLParser.RefModeAsAttributeValue
+		try:
+			p.ParseEntityRef()
+			self.fail("EntityRef recognized as Attribute Value")
+		except XMLForbiddenEntityReference:
+			pass
+		e=XMLEntity("&animal;")
+		p=XMLParser(e)
+		p.refMode=XMLParser.RefModeInEntityValue
+		data=p.ParseEntityRef()
+		self.failUnless(data=='&animal;',"EntityRef recognized in EntityValue: %s"%data)
+		self.failUnless(p.theChar is None,"Short parse on EntityRef")
+		e=XMLEntity("&animal;")
+		p=XMLParser(e)
+		p.refMode=XMLParser.RefModeInDTD
+		try:
+			p.ParseEntityRef()
+			self.fail("EntityRef recognized in DTD")
+		except XMLForbiddenEntityReference:
+			pass
+		e=XMLEntity("<element attribute='a-&EndAttr;>")
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		p.doc.DeclareEntity(XMLParameterEntity('EndAttr',"27'"))
+		try:
+			p.ParseSTag()
+			self.fail("EntityRef quote test failed in attribute value")
+		except XMLWellFormedError:
+			pass
+		
 	def testPEReference(self):
 		"""[69] PEReference ::= '%' Name ';' """
-		pass
+		e=XMLEntity("%animal;")
+		p=XMLParser(e)
+		p.refMode=XMLParser.RefModeInContent
+		data=p.ParsePEReference()
+		self.failUnless(data=='%animal;',"PEReference recognized in content: %s"%data)
+		self.failUnless(p.theChar is None,"Short parse on PEReference")
+		e=XMLEntity("%animal;")
+		p=XMLParser(e)
+		p.refMode=XMLParser.RefModeInAttributeValue
+		self.failUnless(p.ParsePEReference()=='%animal;',"PEReference recognized in attribute value")
+		self.failUnless(p.theChar is None,"Short parse on PEReference")
+		e=XMLEntity("%animal;")
+		p=XMLParser(e)
+		p.refMode=XMLParser.RefModeAsAttributeValue
+		self.failUnless(p.ParsePEReference()=="%animal;","PEReference recognized as attribute value")
+		self.failUnless(p.theChar is None,"Short parse on PEReference")
+		e=XMLEntity("%animal;")
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		p.doc.DeclareEntity(XMLParameterEntity('animal','dog'))
+		p.refMode=XMLParser.RefModeInEntityValue
+		self.failUnless(p.ParsePEReference()=='',"PEReference not recognized in entity value")
+		# This should result in the entity value being expanded into the stream
+		self.failUnless(p.ParseName()=='dog',"Failed to replace PE in entity value")
+		self.failUnless(p.theChar is None,"Short parse on PEReference replacement text")
+		e=XMLEntity("%animal;")
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		p.doc.DeclareEntity(XMLParameterEntity('animal','dog'))
+		p.refMode=XMLParser.RefModeInDTD
+		self.failUnless(p.ParsePEReference()=='',"PEReference not recognized in DTD")
+		# This should result in the entity value being expanded into the stream with surrounding spaces
+		self.failUnless(p.ParseS()==' ',"Missing leading space on PE replacement text")
+		self.failUnless(p.ParseName()=='dog',"Failed to replace PE in DTD")
+		self.failUnless(p.ParseS()==' ',"Missing trailing space on PE replacement text")
+		self.failUnless(p.theChar is None,"Short parse on PEReference")
+		e=XMLEntity('<!ENTITY WhatHeSaid "He said %YN;" >')
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		p.doc.DeclareEntity(XMLParameterEntity('YN','"Yes"'))
+		try:
+			ge=p.ParseEntityDecl()
+			# This should result in the entity value being expanded into the stream with surrounding spaces
+			self.failUnless(ge.definition=='He said "Yes"',"PEReference quote test failed in entity value: %s"%ge.definition)
+			self.failUnless(p.theChar is None,"Short parse on PEReference in entity declaration")
+		except XMLWellFormedError:
+			self.fail("PEReference quote test failed in entity value")
+	
 		
 	def testEntityDecl(self):
 		"""[70] EntityDecl ::= GEDecl | PEDecl """
@@ -735,7 +865,7 @@ class XMLParserTests(unittest.TestCase):
 		m=['first','second','3&gt;2','2<3']
 		p=XMLParser(e)
 		p.doc=XMLDocument()
-		p.doc.DeclareParameterEntity('ltpe','<')
+		p.doc.DeclareEntity(XMLParameterEntity('ltpe','<'))
 		for match in m:
 			value=p.ParseEntityValue()
 			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
