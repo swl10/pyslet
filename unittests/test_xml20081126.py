@@ -19,6 +19,7 @@ def suite():
 		unittest.makeSuite(XMLDocumentTests,'test'),
 		unittest.makeSuite(XMLCharacterTests,'test'),
 		unittest.makeSuite(XMLEntityTests,'test'),
+		unittest.makeSuite(XMLParserTests,'test'),		
 		unittest.makeSuite(XMLElementTests,'test'),
 		unittest.makeSuite(XMLValidationTests,'test')
 		))
@@ -187,7 +188,19 @@ class XMLCharacterTests(unittest.TestCase):
 				self.failIf(IsNameStartChar(c),"NameStart not a name char: %s"%c)
 		self.failUnless(nNameChars==54129,"name char total %i"%nNameChars)
 		self.failUnless(nNameStartChars==54002,"name start char total %i"%nNameStartChars)
-				
+	
+	def testPubidChar(self):
+		"""[13] PubidChar ::= #x20 | #xD | #xA | [a-zA-Z0-9] | [-'()+,./:=?;!*#@$_%] """
+		matchSet=" \x0d\x0a-'()+,./:=?;!*#@$_%abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+		for code in xrange(0xFF):
+			c=unichr(code)
+			if IsPubidChar(c):
+				if not c in matchSet:
+					self.fail("PubidChar false positive: %s"%c)
+			else:
+				if c in matchSet:
+					self.fail("PubidChar not recognized: %s"%c)
+					
 	def testCharClasses(self):
 		"""[84] Letter ::= BaseChar | Ideographic
 		[85] BaseChar ::= [#x0041-#x005A] | ...
@@ -280,18 +293,6 @@ class XMLEntityTests(unittest.TestCase):
 		self.failUnless(e.lineNum==3)
 		self.failUnless(e.linePos==2)
 
-	def testLookahead(self):
-		e=XMLEntity("Hello")
-		e.StartLookahead()
-		e.NextChar()
-		e.StopLookahead()
-		self.failUnless(e.theChar=='e')
-		e.StartLookahead()
-		e.NextChar()
-		self.failUnless(e.theChar=='l')
-		e.RewindLookahead()
-		self.failUnless(e.theChar=='e')
-
 	def testCodecs(self):
 		m=u'Caf\xe9'
 		e=XMLEntity('Caf\xc3\xa9')
@@ -346,6 +347,348 @@ class XMLParserTests(unittest.TestCase):
 				p.BuffText(string.join(data,''))
 				self.failUnless(p.theChar==data2[i],"Failed at data[%i] after Rewind(%i)"%(i,j))
 			p.NextChar()
+	
+	def testCaseNamecaseGeneral(self):
+		data="Hello GoodBye"
+		e=XMLEntity(data)
+		p=XMLParser(e)
+		self.failIf(p.ParseLiteral("HELLO"),"Case insensitve literal in default parser")
+		p.sgmlNamecaseGeneral=True
+		self.failUnless(p.ParseLiteral("HELLO"),"Upper-case literals")
+		p.ParseS()
+		#self.failUnless(p.ParseName()=="GOODBYE","Upper-case general names")
+					
+	def testCaseS(self):
+		"""[3] S ::= (#x20 | #x9 | #xD | #xA)+ """
+		e=XMLEntity(" \t\r\n \r \nH ello")
+		p=XMLParser(e)
+		self.failUnless(p.ParseS()==" \t\n \n \n")
+		self.failUnless(p.theChar=='H')
+		p.NextChar()
+		try:
+			p.ParseRequiredS()
+		except XMLWellFormedError:
+			self.fail("ParseRequiredS failed to parse white space")
+		try:
+			p.ParseRequiredS()
+			self.fail("ParseRequiredS failed to throw exception")
+		except XMLWellFormedError:
+			pass
+
+	def testPubidLiteral(self):
+		"""
+		[12] PubidLiteral ::= '"' PubidChar* '"' | "'" (PubidChar - "'")* "'"
+		[13] PubidChar ::= #x20 | #xD | #xA | [a-zA-Z0-9] | [-'()+,./:=?;!*#@$_%]
+		"""
+		e=XMLEntity("'first'\"second\"'http://www.example.com/schema.dtd?strict''[bad]'")
+		m=['first','second','http://www.example.com/schema.dtd?strict']
+		p=XMLParser(e)
+		for match in m:
+			value=p.ParsePubidLiteral()
+			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
+		try:
+			value=p.ParsePubidLiteral()
+			self.fail("Parsed bad PubidLiterasl: %s"%value)
+		except XMLFatalError:
+			pass
+
+	def testPEReference(self):
+		"""[69] PEReference ::= '%' Name ';' """
+		pass
+		
+	def testEntityDecl(self):
+		"""[70] EntityDecl ::= GEDecl | PEDecl """
+		e=XMLEntity("<!ENTITY Steve 'SteveValue'>")
+		p=XMLParser(e)
+		ed=p.ParseEntityDecl()
+		self.failUnless(isinstance(ed,XMLGeneralEntity),"ParseEntityDecl failed to return GeneralEntity")		
+		self.failUnless(ed.name=='Steve',"Failed to parse general entity name")
+		self.failUnless(p.theChar is None,"Short parse on EntityDecl")
+		e=XMLEntity(" % Steve 'SteveValue'>")
+		p=XMLParser(e)
+		ed=p.ParseEntityDecl(True)
+		self.failUnless(isinstance(ed,XMLParameterEntity),"ParseEntityDecl failed to return ParameterEntity")		
+		self.failUnless(ed.name=='Steve',"Failed to parse parameter entity name")
+		self.failUnless(p.theChar is None,"Short parse on EntityDecl")
+		
+	def testGEDecl(self):
+		"""[71] GEDecl ::= '<!ENTITY' S Name S EntityDef S? '>' """
+		e=XMLEntity("<!ENTITY Steve 'SteveValue'>")
+		p=XMLParser(e)
+		ge=p.ParseGEDecl()
+		self.failUnless(isinstance(ge,XMLGeneralEntity),"ParseGEDecl failed to return GeneralEntity")		
+		self.failUnless(ge.name=='Steve',"Failed to parse general entity name")
+		self.failUnless(ge.definition=='SteveValue',"Failed to parse general entity value")
+		self.failUnless(p.theChar is None,"Short parse on GEDecl")
+		e=XMLEntity("Steve PUBLIC 'Steve' '/home/steve.txt' NDATA SteveN  >")
+		p=XMLParser(e)
+		ge=p.ParseGEDecl(True)
+		self.failUnless(ge.definition.public=='Steve',"ParseGEDecl failed to parse external public ID")
+		self.failUnless(ge.definition.system=='/home/steve.txt',"ParseGEDecl failed to parse external system ID")
+		self.failUnless(ge.notation=='SteveN',"ParseGEDecl failed to parse unparsed entity notation")
+		self.failUnless(p.theChar is None,"Short parse on GEDecl")
+		for s in ["<!entity Steve 'v'>","<!ENTITYSteve 'v'>",
+			"<!ENTITY Steve PUBLIC 'Steve' '/home/steve.txt'NDATA SteveN >",
+			"  Steve PUBLIC 'Steve' '/home/steve.txt' NDATA SteveN  >"]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				ge=p.ParseGEDecl(s[0]!='<')
+				self.fail("GEDecl negative test: %s"%s)
+			except XMLWellFormedError:
+				pass	
+	
+	def testPEDecl(self):
+		"""[72] PEDecl ::= '<!ENTITY' S '%' S Name S PEDef S? '>' """
+		e=XMLEntity("<!ENTITY % Steve 'SteveValue'>")
+		p=XMLParser(e)
+		pe=p.ParsePEDecl()
+		self.failUnless(isinstance(pe,XMLParameterEntity),"ParsePEDecl failed to return ParameterEntity")		
+		self.failUnless(pe.name=='Steve',"Failed to parse parameter entity name")
+		self.failUnless(pe.definition=='SteveValue',"Failed to parse parameter entity value")
+		self.failUnless(p.theChar is None,"Short parse on PEDecl")
+		e=XMLEntity("% Steve PUBLIC 'Steve' '/home/steve.txt'   >")
+		p=XMLParser(e)
+		pe=p.ParsePEDecl(True)
+		self.failUnless(pe.definition.public=='Steve',"ParsePEDecl failed to parse external public ID")
+		self.failUnless(pe.definition.system=='/home/steve.txt',"ParsePEDecl failed to parse external system ID")
+		self.failUnless(p.theChar is None,"Short parse on PEDecl")
+		for s in ["<!entity % Steve 'v'>","<!ENTITY% Steve 'v'>","<!ENTITY %Steve 'v'>","<!ENTITY % Steve'v'>",
+			"  % Steve PUBLIC 'Steve' '/home/steve.txt'   >"]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				pe=p.ParsePEDecl(s[0]!='<')
+				self.fail("PEDecl negative test: %s"%s)
+			except XMLWellFormedError:
+				pass	
+		
+	def testEntityDef(self):
+		"""[73] EntityDef ::= EntityValue | (ExternalID NDataDecl?) """
+		e=XMLEntity("'Steve'")
+		p=XMLParser(e)
+		ge=XMLGeneralEntity()
+		p.ParseEntityDef(ge)
+		self.failUnless(type(ge.definition) in StringTypes,"ParseEntityDef failed to for internal entity")		
+		self.failUnless(ge.definition=='Steve',"Failed to parse internal entity value")
+		self.failUnless(ge.notation is None,"Found notation for internal entity")
+		self.failUnless(p.theChar is None,"Short parse on EntityDef")
+		e=XMLEntity("PUBLIC 'Steve' '/home/steve.txt'")
+		p=XMLParser(e)
+		ge=XMLGeneralEntity()
+		p.ParseEntityDef(ge)
+		self.failUnless(isinstance(ge.definition,XMLExternalID),"ParseEntityDef failed for external entity")
+		self.failUnless(ge.definition.public=='Steve',"ParseEntityDef failed to parse external public ID")
+		self.failUnless(ge.definition.system=='/home/steve.txt',"ParseEntityDef failed to parse external system ID")
+		self.failUnless(ge.notation is None,"Found notation for internal entity")
+		self.failUnless(p.theChar is None,"Short parse on EntityDef")
+		e=XMLEntity("SYSTEM '/path' NDATA SteveN")
+		p=XMLParser(e)
+		ge=XMLGeneralEntity()
+		p.ParseEntityDef(ge)
+		self.failUnless(ge.definition.public is None,"ParseEntityDef found spurious public ID")
+		self.failUnless(ge.definition.system=='/path',"ParseEntityDef failed to parse external system ID")
+		self.failUnless(ge.notation=='SteveN',"Failed to find notation for unparsed external entity")
+		self.failUnless(p.theChar is None,"Short parse on EntityDef")
+		for s in ["NDATA 'SteveN'"," 'Steve'"," SYSTEM '/path'"]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			ge=XMLGeneralEntity()
+			try:
+				p.ParseEntityDef(ge)
+				self.fail("EntityDef negative test: %s"%s)
+			except XMLWellFormedError:
+				pass	
+		
+	def testPEDef(self):
+		"""[74] PEDef ::= EntityValue | ExternalID """
+		e=XMLEntity("PUBLIC 'Steve' '/home/steve.txt'")
+		p=XMLParser(e)
+		pe=XMLParameterEntity()
+		p.ParsePEDef(pe)
+		self.failUnless(isinstance(pe.definition,XMLExternalID),"ParsePEDef failed to return XMLExternalID instance")
+		self.failUnless(pe.definition.public=='Steve',"Failed to parse external public ID")
+		self.failUnless(pe.definition.system=='/home/steve.txt',"Failed to parse external system ID")
+		self.failUnless(p.theChar is None,"Short parse on PEDef")
+		e=XMLEntity("'Steve'")
+		p=XMLParser(e)
+		pe=XMLParameterEntity()
+		p.ParsePEDef(pe)
+		self.failUnless(type(pe.definition) in StringTypes,"ParsePEDef failed to return String value")
+		self.failUnless(pe.definition=='Steve',"Failed to parse simple entity value")
+		self.failUnless(p.theChar is None,"Short parse on PEDef")
+		e=XMLEntity('"Caf&#xE9;s &amp; Bars"')
+		p=XMLParser(e)
+		pe=XMLParameterEntity()
+		p.ParsePEDef(pe)
+		self.failUnless(type(pe.definition) in StringTypes,"ParsePEDef failed to return String value")
+		self.failUnless(pe.definition==u'Caf\xe9s &amp; Bars',"Failed to replace character entities: %s"%repr(pe.definition))
+		self.failUnless(p.theChar is None,"Short parse on PEDef")
+		for s in ["Steve","Caf&#xE9;s &amp; Bars","PUBLIC 'Steve'"]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			pe=XMLParameterEntity()
+			try:
+				p.ParsePEDef(pe)
+				self.fail("PEDef negative test: %s"%s)
+			except XMLWellFormedError:
+				pass
+		
+	def testExternalID(self):
+		"""[75] ExternalID ::= 'SYSTEM' S SystemLiteral | 'PUBLIC' S PubidLiteral S SystemLiteral """
+		e=XMLEntity("PUBLIC 'Steve' '/home/steve.txt'")
+		p=XMLParser(e)
+		xID=p.ParseExternalID()
+		self.failUnless(xID.public=='Steve',"Failed to parse external public ID")
+		self.failUnless(xID.system=='/home/steve.txt',"Failed to parse external system ID")
+		self.failUnless(p.theChar is None,"Short parse on ExternalID")
+		e=XMLEntity("SYSTEM  '/home/steve.txt'")
+		p=XMLParser(e)
+		xID=p.ParseExternalID()
+		self.failUnless(xID.public is None,"Failed to parse external empty public ID")
+		self.failUnless(xID.system=='/home/steve.txt',"Failed to parse external system ID")
+		self.failUnless(p.theChar is None,"Short parse on ExternalID")
+		for s in ["PUBLIC 'Steve'","'Steve'"," SYSTEM '/path'","SYSTEM'/path'","PUBLIC'Steve' '/path'",
+			"PUBLIC 'Steve''/path'"]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				xID=p.ParseExternalID()
+				self.fail("ExternalID negative test: %s"%s)
+			except XMLWellFormedError:
+				pass
+		
+	def testNDataDecl(self):
+		"""[76] NDataDecl ::= S 'NDATA' S Name """
+		e=XMLEntity("  NDATA Steve")
+		p=XMLParser(e)
+		self.failUnless(p.ParseNDataDecl()=="Steve","Failed to parse NData declaration")
+		self.failUnless(p.theChar is None,"Short parse on NData declaration")
+		e=XMLEntity(" Steve")
+		p=XMLParser(e)
+		self.failUnless(p.ParseNDataDecl(True)=="Steve","Failed to parse NData declaration (no literal)")
+		self.failUnless(p.theChar is None,"Short parse on NData declaration")
+		for s in ["NDATA Steve"," MDATA Steve","NDATASteve"]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				p.ParseNDataDecl()
+				self.fail("NDataDecl negative test: %s"%s)
+			except XMLWellFormedError:
+				pass
+		
+	def testTextDecl(self):
+		"""[77] TextDecl ::= '<?xml' VersionInfo? EncodingDecl S? '?>' """
+		e=XMLEntity("<?xml version='1.0' encoding='x-steve'  ?>")
+		p=XMLParser(e)
+		t=p.ParseTextDecl()
+		self.failUnless(t.version=="1.0")
+		self.failUnless(t.encoding=="x-steve","Failed to parse encoding in text declaration")
+		self.failUnless(p.theChar is None,"Short parse on TextDecl")
+		e=XMLEntity('<?xml encoding = "x-steve"?>')
+		p=XMLParser(e)
+		t=p.ParseTextDecl()
+		self.failUnless(t.version is None)
+		self.failUnless(t.encoding=="x-steve","Failed to parse encoding in text declaration")
+		self.failUnless(p.theChar is None,"Short parse on TextDecl")
+		for s in ["<?xml version='1.0' ?>"]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				p.ParseEncodingDecl()
+				self.fail("TextDecl negative test: %s"%s)
+			except XMLWellFormedError:
+				pass
+		
+	# There is no method for parsing production [78]
+	
+	# There is no production [79]
+	
+	def testEncodingDecl(self):
+		"""[80] EncodingDecl ::= S 'encoding' Eq ('"' EncName '"' | "'" EncName "'" ) """
+		e=XMLEntity("  encoding = 'x-steve'")
+		p=XMLParser(e)
+		self.failUnless(p.ParseEncodingDecl()=="x-steve","Failed to parse encoding declaration")
+		self.failUnless(p.theChar is None,"Short parse on EncodingDecl")
+		e=XMLEntity(" = 'x-steve'")
+		p=XMLParser(e)
+		self.failUnless(p.ParseEncodingDecl(True)=="x-steve","Failed to parse encoding declaration (no literal)")
+		self.failUnless(p.theChar is None,"Short parse on EncodingDecl")
+		e=XMLEntity(' encoding="x-steve"')
+		p=XMLParser(e)
+		self.failUnless(p.ParseEncodingDecl()=="x-steve","Failed to parse encoding declaration")
+		self.failUnless(p.theChar is None,"Short parse on EncodingDecl")
+		for s in ["encoding = 'x-steve'"," decoding='x-steve'"," encoding=x-steve"]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				p.ParseEncodingDecl()
+				self.fail("EncodingDecl negative test: %s"%s)
+			except XMLWellFormedError:
+				pass
+
+	def testEncName(self):
+		"""[81] EncName ::= [A-Za-z] ([A-Za-z0-9._] | '-')* """
+		e=XMLEntity("UTF-8 UTF-16 ISO-10646-UCS-2 ISO-10646-UCS-4 Shift_JIS -8 _JIS .Private x.Private")
+		result=["UTF-8","UTF-16","ISO-10646-UCS-2","ISO-10646-UCS-4","Shift_JIS","JIS","Private","x.Private"]
+		p=XMLParser(e)
+		i=0
+		while p.theChar!=None:
+			eName=p.ParseEncName()
+			if eName:
+				self.failUnless(eName==result[i],"%s parsed, expected %s"%(eName,result[i]))
+				p.ParseS()
+				i=i+1
+			else:
+				p.NextChar()		
+		
+	def testCaseNotationDecl(self):
+		"""[82] NotationDecl ::= '<!NOTATION' S Name S (ExternalID | PublicID) S? '>'"""
+		e=XMLEntity("<!NOTATION SteveN PUBLIC 'Steve' '/home/steve.txt'>")
+		p=XMLParser(e)
+		n=p.ParseNotationDecl()
+		self.failUnless(n.name=='SteveN',"Failed to parse notation name")
+		self.failUnless(n.xID.public=='Steve',"Failed to parse notation public ID")
+		self.failUnless(n.xID.system=='/home/steve.txt',"Failed to parse notation system ID")
+		self.failUnless(p.theChar is None,"Short parse on NotationDecl")
+		e=XMLEntity(" SteveN PUBLIC 'Steve' >")
+		p=XMLParser(e)
+		n=p.ParseNotationDecl(True)
+		self.failUnless(n.name=='SteveN',"Failed to parse notation name")
+		self.failUnless(n.xID.public=='Steve',"Failed to parse notation public ID")
+		self.failUnless(n.xID.system is None,"Failed to parse empty notation system ID")
+		self.failUnless(p.theChar is None,"Short parse on NotationDecl")
+		e=XMLEntity("<!NOTATION SteveN SYSTEM  '/home/steve.txt' >")
+		p=XMLParser(e)
+		n=p.ParseNotationDecl()
+		self.failUnless(n.name=='SteveN',"Failed to parse notation name")
+		self.failUnless(n.xID.public is None,"Failed to parse empty notation public ID")
+		self.failUnless(n.xID.system=='/home/steve.txt',"Failed to parse notation system ID")
+		self.failUnless(p.theChar is None,"Short parse on NotationDecl")
+		for s in ["SteveN PUBLIC 'Steve' >"," 'SteveN' PUBLIC 'Steve' >","SteveN 'Steve' >",
+			"SteveN PUBLIC >","SteveN SYSTEM>","SteveN SYSTEM 'Steve' '/path'>","SteveN PUBLIC 'Steve' "]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				p.ParseNotationDecl(True)
+				self.fail("NotationDecl negative test: %s"%s)
+			except XMLWellFormedError:
+				pass
+
+	def testCasePublicID(self):
+		"""[83] PublicID ::= 'PUBLIC' S PubidLiteral"""
+		e=XMLEntity("PUBLIC 'Steve'")
+		p=XMLParser(e)
+		self.failUnless(p.ParsePublicID()=='Steve',"Failed to parse Public ID")
+		self.failUnless(p.theChar is None,"Short parse on Public ID")
+		for s in [" PUBLIC 'Steve'","'Steve'","PUBLIC'Steve'","Public 'Steve'"]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				p.ParsePublicID()
+				self.fail("PublicID negative test: %s"%s)
+			except XMLWellFormedError:
+				pass
 		
 	def testDocument(self):
 		"""[1] document ::= prolog element Misc* """
@@ -367,12 +710,7 @@ class XMLParserTests(unittest.TestCase):
 			
 	#	[2] Char ::= #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
 
-	def testCaseS(self):
-		"""[3] S ::= (#x20 | #x9 | #xD | #xA)+ """
-		e=XMLEntity(" \t\r\n \r \nHello")
-		p=XMLParser(e)
-		self.failUnless(p.ParseS()==" \t\n \n \n")
-		self.failUnless(e.theChar=='H')
+		
 	
 	def testCaseNames(self):
 		"""
@@ -394,7 +732,7 @@ class XMLParserTests(unittest.TestCase):
 	def testCaseEntityValue(self):
 		"""[9] EntityValue ::= '"' ([^%&"] | PEReference | Reference)* '"' | "'" ([^%&'] | PEReference | Reference)* "'"	"""
 		e=XMLEntity("'first'\"second\"'3&gt;2''2%ltpe;3'")
-		m=['first','second','3>2','2<3']
+		m=['first','second','3&gt;2','2<3']
 		p=XMLParser(e)
 		p.doc=XMLDocument()
 		p.doc.DeclareParameterEntity('ltpe','<')
@@ -420,23 +758,6 @@ class XMLParserTests(unittest.TestCase):
 			value=p.ParseSystemLiteral()
 			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
 	
-	def testPubidLiteral(self):
-		"""
-		[12] PubidLiteral ::= '"' PubidChar* '"' | "'" (PubidChar - "'")* "'"
-		[13] PubidChar ::= #x20 | #xD | #xA | [a-zA-Z0-9] | [-'()+,./:=?;!*#@$_%]
-		"""
-		e=XMLEntity("'first'\"second\"'http://www.example.com/schema.dtd?strict''[bad]'")
-		m=['first','second','http://www.example.com/schema.dtd?strict']
-		p=XMLParser(e)
-		for match in m:
-			value=p.ParsePubidLiteral()
-			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
-		try:
-			value=p.ParsePubidLiteral()
-			self.fail("Parsed bad PubidLiterasl: %s"%value)
-		except XMLFatalError:
-			pass
-		
 	def testCaseCharData(self):
 		"""[14] CharData ::= [^<&]* - ([^<&]* ']]>' [^<&]*) """
 		e=XMLEntity("First<Second&Third]]&Fourth]]>")

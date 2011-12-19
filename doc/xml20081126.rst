@@ -29,8 +29,54 @@ a character matches the production for NameStartChar in the XML standard.
 	:show-inheritance:
 
 
+Physical Structures
+-------------------
+
+..	autoclass:: XMLEntity
+	:members:
+	:show-inheritance:
+
+..	autoclass:: XMLGeneralEntity
+	:members:
+	:show-inheritance:
+
+..	autoclass:: XMLParameterEntity
+	:members:
+	:show-inheritance:
+
+
 Parsing Functions
 -----------------
 
+..	autoclass:: XMLParser
+	:members:
+	:show-inheritance:
+
+
+
 ..	autofunction:: IsNameStartChar
+
+
+Common Syntactic Constructs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+..	autofunction:: IsS
+
+..	autofunction:: IsPubidChar
+
+
+Character Classes
+~~~~~~~~~~~~~~~~~
+
+..	autofunction:: IsLetter
+
+..	autofunction:: IsBaseChar
+
+..	autofunction:: IsIdeographic
+
+..	autofunction:: IsCombiningChar
+
+..	autofunction:: IsDigit
+
+..	autofunction:: IsExtender
 

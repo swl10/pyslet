@@ -237,6 +237,7 @@ def EscapeCharData7(src,quote=False):
 	
 
 def IsS(c):
+	"""Tests if a single character *c* matches production [3] S"""
 	return c and (ord(c)==0x9 or ord(c)==0xA or ord(c)==0xD or ord(c)==0x20)
 
 def CollapseSpace(data,sMode=True,sTest=IsS):
@@ -267,25 +268,32 @@ def CollapseSpace(data,sMode=True,sTest=IsS):
 		return ' '
 
 def IsLetter(c):
+	"""Tests if the character *c* matches production [84] Letter."""
 	return IsBaseChar(c) or IsIdeographic(c)
 
 def IsBaseChar(c):
+	"""Tests if the character *c* matches production [85] BaseChar."""
 	return BaseCharClass.Test(c)
 
 def IsIdeographic(c):
+	"""Tests if the character *c* matches production [86] Ideographic."""
 	return c and ((ord(c)>=0x4E00 and ord(c)<=0x9FA5) or ord(c)==0x3007 or
 		(ord(c)>=0x3021 and ord(c)<=0x3029))
 
 def IsCombiningChar(c):
+	"""Tests if the character *c* matches production [87] CombiningChar."""
 	return CombiningCharClass.Test(c)
 
 def IsDigit(c):
+	"""Tests if the character *c* matches production [88] Digit."""
 	return DigitClass.Test(c)
 
 def IsExtender(c):
+	"""Tests if the character *c* matches production [89] Extender."""
 	return ExtenderClass.Test(c)
 
 def IsNameStartChar(c):
+	"""Tests if the character *c* matches production for NameStartChar."""
 	return NameStartCharClass.Test(c)
 	
 def IsNameChar(c):
@@ -303,6 +311,7 @@ def IsValidName(name):
 		return False
 
 def IsPubidChar(c):
+	"""Tests if the character *c* matches production for [13] PubidChar."""
 	return PubidCharClass.Test(c)
 
 
@@ -373,56 +382,150 @@ def OptionalAppend(itemList,newItem):
 		itemList.append(newItem)
 
 
-class XMLEntity:
-	CHUNKSIZE=4096
+class XMLExternalID:
+	"""Used to represent external references to entities."""
 	
-	def __init__(self,src,encoding='utf-8',reqManager=None):
-		self.mimetype=None
-		self.encoding=encoding
-		self.chunk=1
+	def __init__(self,public=None,system=None):
+		"""Returns an instance of XMLExternalID.  One of *public* and *system* should be provided."""
+		self.public=public	#: the public identifier, may be None
+		self.system=system	#: the system identifier, may be None.  Should betreated as a URI
+
+
+class XMLEntity:
+	def __init__(self,src=None,encoding='utf-8',reqManager=None):
+		"""An object representing an entity.
+		
+		This object servers two purposes, it acts as both the object used to
+		store information about declared entities and also as a parser for feeding
+		unicode characters to the main :py:class:`XMLParser`.
+		
+		Optional *src*, *encoding* and *reqManager* parameters can be provided,
+		if not None the src and encoding is used to open the entity reader
+		immediately using one of the Open methods described below.
+		"""
+		self.mimetype=None		#: the mime type of the entity, if known, or None
+		self.encoding=None		#: the encoding of the entity (text entities)
+		self.dataSource=None	#: a file like object from which the entity's data is read
+		self.charSource=None	#: a unicode data reader used to read characters from the entity
+		self.theChar=None		#: the character at the current position in the entity
+		self.lineNum=None		#: the current line number within the entity (first line is line 1)
+		self.linePos=None		#: the current character position within the entity (first char is 0)
+		self.basePos=None
+		self.charSeek=None
+		self.chunk=None
+		self.chars=''
+		self.charPos=None
+		self.ignoreLF=None
 		if type(src) is UnicodeType:
-			self.dataSource=None
-			self.charSource=StringIO(src)
+			self.OpenUnicode(src)
 		elif isinstance(src,URI):
-			if isinstance(src,FileURL):
-				self.dataSource=open(src.GetPathname(),'rb')
-				self.charSource=codecs.getreader(self.encoding)(self.dataSource)
-			elif src.scheme.lower() in ['http','https']:
-				if reqManager is None:
-					reqManager=http.HTTPRequestManager()
-				req=http.HTTPRequest(str(src))
-				reqManager.ProcessRequest(req)
-				if req.status==200:
-					mtype=req.response.GetContentType()
-					if mtype is None:
-						# We'll attempt to do this with xml and utf8
-						charset='utf8'
-						raise UnimplementedError
-					else:
-						self.mimetype=mtype.type.lower()+'/'+mtype.subtype.lower()
-						respEncoding=mtype.parameters.get('charset',None)
-						if respEncoding is None and mtype.type.lower()=='text':
-							# Text types default to iso-8859-1
-							respEncoding=('text-default',"iso-8859-1")
-						if respEncoding is not None:
-							self.encoding=respEncoding[1].lower()
-					self.dataSource=StringIO(req.resBody)
-					#print "...reading %s stream with charset=%s"%(self.mimetype,self.encoding)
-					self.charSource=codecs.getreader(self.encoding)(self.dataSource)
-				else:
-					raise XMLUnexpectedHTTPResponse(str(req.status))
-			else:
-				raise XMLUnsupportedScheme			
-		else:
-			if type(src) is StringType:
-				self.dataSource=StringIO(src)
-			else:
-				self.dataSource=src
-			self.charSource=codecs.getreader(self.encoding)(self.dataSource)
+			self.OpenURI(src,encoding,reqManager)
+		elif type(src) is StringType:
+			self.OpenString(src,encoding)
+		elif not src is None:
+			self.OpenFile(src,encoding)
+	
+	ChunkSize=4096
+	"""Characters are read from the dataSource in chunks.  The default chunk size is 4KB.
+	
+	In fact, in some circumstances the entity reader starts more cautiously.  If
+	the entity reader expects to read an XML or Text declaration, which may have
+	an encoding declaration then it reads one character at a time until the
+	declaration is complete.  This allows the reader to change to the encoding
+	in the declaration without causing errors caused by reading too many
+	characters using the wrong codec."""
+	
+	def Open(self):
+		"""Opens the entity for reading.
+		
+		The default implementation behaves as an empty stream, setting *theChar*
+		to None indicating that there are no more characters to read.  It is
+		designed to be overridden by classes derived from
+		:py:class:`XMLEntity`."""
+		self.Reset()
+	
+	def OpenUnicode(self,src):
+		"""Opens the entity from a unicode string."""
+		self.encoding=None
+		self.dataSource=None
+		self.chunk=XMLEntity.ChunkSize
+		self.charSource=StringIO(src)
 		self.basePos=self.charSource.tell()
 		self.Reset()
+
+	def OpenString(self,src,encoding='utf-8'):
+		"""Opens the entity from a byte string.
+		
+		The optional *encoding* is used to convert the string to unicode and
+		defaults to UTF-8.
+		
+		The advantage of using this method instead of converting the string to
+		unicode and calling :py:meth:`OpenUnicode` is that this method creates
+		unicode reader object to parse the string instead of making a copy of it
+		in memory."""
+		self.encoding=encoding
+		self.dataSource=StringIO(src)
+		self.chunk=1
+		self.charSource=codecs.getreader(self.encoding)(self.dataSource)
+		self.basePos=self.charSource.tell()
+		self.Reset()
+	
+	def OpenFile(self,src,encoding='utf-8'):
+		"""Opens the entity from an existing (open) file.
+		
+		The optional *encoding* provides a hint as to the intended encoding of
+		the data and defaults to UTF-8."""
+		self.encoding=encoding
+		self.dataSource=src
+		self.chunk=1
+		self.charSource=codecs.getreader(self.encoding)(self.dataSource)
+		self.basePos=self.charSource.tell()
+		self.Reset()
+				
+	def OpenURI(self,src,encoding='utf-8',reqManager=None):
+		"""Opens the entity from a URI passed in *src*.
+		
+		The file, http and https schemes are the only ones supported.
+		
+		The optional *encoding* provides a hint as to the intended encoding of
+		the data and defaults to UTF-8.  For http(s) resources this parameter is
+		only used if the charset cannot be read successfully from the HTTP
+		headers.
+		
+		The optional *reqManager* allows you to pass an existing instance of
+		:py:class:`pyslet.rfc2616.HTTPRequestManager` for handling URI with
+		http or https schemes."""
+		self.encoding=encoding
+		if isinstance(src,FileURL):
+			self.OpenFile(open(src.GetPathname(),'rb'),self.encoding)
+		elif src.scheme.lower() in ['http','https']:
+			if reqManager is None:
+				reqManager=http.HTTPRequestManager()
+			req=http.HTTPRequest(str(src))
+			reqManager.ProcessRequest(req)
+			if req.status==200:
+				mtype=req.response.GetContentType()
+				if mtype is None:
+					# We'll attempt to do this with xml and utf8
+					charset='utf8'
+					raise UnimplementedError
+				else:
+					self.mimetype=mtype.type.lower()+'/'+mtype.subtype.lower()
+					respEncoding=mtype.parameters.get('charset',None)
+					if respEncoding is None and mtype.type.lower()=='text':
+						# Text types default to iso-8859-1
+						respEncoding=('text-default',"iso-8859-1")
+					if respEncoding is not None:
+						self.encoding=respEncoding[1].lower()
+				#print "...reading %s stream with charset=%s"%(self.mimetype,self.encoding)
+				self.OpenFile(StringIO(req.resBody),self.encoding)
+			else:
+				raise XMLUnexpectedHTTPResponse(str(req.status))
+		else:
+			raise XMLUnsupportedScheme			
 		
 	def Reset(self):
+		"""Resets an open entity back to the first character."""
 		self.charSource.seek(self.basePos)
 		self.lineNum=1
 		self.linePos=0
@@ -431,33 +534,32 @@ class XMLEntity:
 		self.charPos=-1
 		self.theChar=''
 		self.ignoreLF=False
-		self.lookahead=[]
 		self.NextChar()
 		# python handles the utf-16 BOM automatically but we have to skip it for utf-8
-		if self.encoding.lower()=='utf-8' and self.theChar==u'\ufeff':
+		if self.encoding is not None and self.encoding.lower()=='utf-8' and self.theChar==u'\ufeff':
 			self.NextChar()
 	
 	def GetPositionStr(self):
+		"""Returns a short string describing the current line number and character position.
+		
+		For example, if the current character is pointing to character 6 of line
+		4 then it will return the string 'Line 4.6'"""
 		return "Line %i.%i"%(self.lineNum,self.linePos)
 		
 	def NextChar(self):
-		"""Advance to the next character in the entity.
+		"""Advances to the next character in the entity.
 		
 		This method takes care of the End-of-Line handling rules for XML which force
 		us to remove any CR characters and replace them with LF if they appear on their
-		own or silenty drop them if they appear as part of a CR-LF combination."""
+		own or to silenty drop them if they appear as part of a CR-LF combination."""
 		if self.theChar is None:
 			return
 		self.charPos=self.charPos+1
 		self.linePos=self.linePos+1
 		if self.charPos>=len(self.chars):
-			# watch out for look ahead
-			if self.lookahead:
-				self.chars=self.chars+self.charSource.read(self.chunk)
-			else:
-				self.charSeek=self.charSource.tell()
-				self.chars=self.charSource.read(self.chunk)
-				self.charPos=0
+			self.charSeek=self.charSource.tell()
+			self.chars=self.charSource.read(self.chunk)
+			self.charPos=0
 		if self.charPos>=len(self.chars):
 			self.theChar=None
 		else:
@@ -477,6 +579,15 @@ class XMLEntity:
 				self.ignoreLF=False
 				
 	def ChangeEncoding(self,encoding):
+		"""Changes the encoding used to interpret the entity's stream.
+		
+		In many cases we can only guess at the encoding used in a file or other
+		stream.  However, XML has a mechanism for declaring the encoding as part
+		of the XML or Text declaration.  This declaration can typically be
+		parsed even if the encoding has been guessed incorrectly initially. 
+		This method allows the XML parser to notify the entity that a new
+		encoding has been declared and that future characters should be
+		interpreted with this new encoding.""" 
 		if self.dataSource:
 			self.encoding=encoding
 			# Need to rewind and re-read the current buffer
@@ -487,25 +598,93 @@ class XMLEntity:
 			self.theChar=self.chars[self.charPos]
 			
 	def NextLine(self):
+		"""Called when the entity reader detects a new line.
+		
+		This method increases the internal line count and resets the
+		character position to the beginning of the line.  You will not
+		normally need to call this directly as line handling is done
+		automatically by :py:meth:`NextChar`."""
 		self.lineNum=self.lineNum+1
 		self.linePos=0
+		
+		
+class XMLGeneralEntity(XMLEntity):
+	def	__init__(self):
+		"""An object for representing general entities."""
+		XMLEntity.__init__(self)
+		self.name=None			#: the name of the general entity
+		self.definition=None
+		"""The definition of the entity is either a string or an instance of
+		XMLExternalID, depending on whether the entity is an internal or
+		external entity respectively."""
+		self.notation=None		#: the notation name for external unparsed entities
+	
 
-	def StartLookahead(self):
-		self.lookahead.append([self.lineNum,self.linePos,self.charPos,self.theChar,self.ignoreLF])
-		
-	def StopLookahead(self):
-		self.lookahead.pop()
-		
-	def RewindLookahead(self):
-		self.lineNum,self.linePos,self.charPos,self.theChar,self.ignoreLF=self.lookahead.pop()
+class XMLParameterEntity(XMLEntity):
+	def	__init__(self):
+		XMLEntity.__init__(self)
+		"""An object for representing parameter entities."""
+		self.name=None			#: the name of the parameter entity
+		self.definition=None
+		"""The definition of the entity is either a string or an instance of
+		XMLExternalID, depending on whether the entity is an internal or
+		external entity respectively."""
 		
 
 class XMLParser:
+	
+	RefModeNone=0				#: Default constant used for setting :py:attr:`refMode` 
+	RefModeInContent=1			#: Treat references as per "in Content" rules
+	RefModeInAttributeValue=2	#: Treat references as per "in Attribute Value" rules
+	RefModeAsAttributeValue=3	#: Treat references as per "as Attribute Value" rules
+	RefModeInEntityValue=4		#: Treat references as per "in EntityValue" rules
+	RefModeInDTD=5				#: Treat references as per "in DTD" rules
+	
+	PredefinedEntities={
+		'lt':'<',
+		'gt':'>',
+		'apos':"'",
+		'quot':'"',
+		'amp':'&'}
+	"""A mapping from the names of the predefined entities (lt, gt, amp, apos, quot) to their
+	replacement characters."""
+
 	def __init__(self,entity=None):
-		self.entity=entity
+		"""Returns an XMLParser object constructed from an optional :py:class:`XMLEntity`.
+			
+		XMLParser objects are used to parse entities for the constructs defined
+		by the numbered productions in the XML specification.
+
+		If no *entity* is provided the parser will behave as if it is at the end
+		of the stream, in which case :py:meth:`PushEntity` must be called before
+		any characters can be parsed.
+
+		XMLParser has a number of optional attributes, all of which default to
+		False. If any option is set to True then the resulting parser will not
+		behave as a conforming XML processor."""
+		self.sgmlNamecaseGeneral=False		#: option that simulates SGML's NAMECASE GENERAL YES
+		self.sgmlNamecaseEntity=False		#: option that simulates SGML's NAMECASE ENTITY YES
+		self.refMode=XMLParser.RefModeNone
+		"""The current parser mode for interpreting references.
+
+		XML documents can contain five different types of reference: parameter
+		entity, internal general entity, external parsed entity, (external)
+		unparsed entity and character entity.
+
+		The rules for interpreting these references vary depending on the
+		current mode of the parser, for example, in content a reference to an
+		internal entity is replaced, but in the definition of an entity value it
+		is not.  This means that the behaviour of the :py:meth:`ParseReference`
+		method will differ depending on the mode.
+
+		The parser takes care of setting the mode automatically but if you wish
+		to use some of the parsing methods in isolation to parse fragments of
+		XML documents, then you will need to set the *refMode* directly using
+		one of the RefMode* family of constants defined above."""
+		self.entity=entity					#: The current entity being parsed
 		self.entityStack=[]
 		if self.entity:
-			self.theChar=self.entity.theChar
+			self.theChar=self.entity.theChar	#: the current character; None indicates end of stream
 		else:
 			self.theChar=None
 		self.buff=[]
@@ -513,7 +692,11 @@ class XMLParser:
 		self.compatibilityMode=False
 		
 	def NextChar(self):
-		"""Move to the next character in the stream."""
+		"""Moves to the next character in the stream.
+
+		The current character can always be read from :py:attr:`theChar`.  If
+		there are no characters left in the current entity then entities are
+		popped from an internal entity stack automatically."""
 		if self.buff:
 			self.buff=self.buff[1:]
 		if self.buff:
@@ -536,27 +719,76 @@ class XMLParser:
 			self.theChar=self.buff[0]
 	
 	def PushEntity(self,entity):
-		"""Pushes a new entity onto the stack and starts parsing it."""
+		"""Starts parsing *entity*
+
+		:py:attr:`theChar` is set to the current character in the entity's
+		stream.  The current entity is pushed onto an internal stack and will be
+		resumed when this entity has been parsed completely."""
 		self.entityStack.append(self.entity)
 		self.entity=entity
 		self.theChar=self.entity.theChar
 	
-	def WellFormednessViolation(self,msg="well-formedness violation"):
-		raise XMLWellFormedError("%s: %s"%(self.entity.GetPositionStr(),msg))
+	def WellFormednessError(self,msg="well-formedness error",errorClass=XMLWellFormedError):
+		"""Raises an XMLWellFormedError error.
+
+		Called by the parsing methods whenever a well-formedness constraint is
+		violated. The method takes an optional message string, *msg* and an
+		optional error class which must be a class object derived from
+		py:class:`XMLWellFormednessError`.
+
+		The method raises an instance of *errorClass* and does not return.  This
+		method can be overridden by derived parsers to implement more
+		sophisticated error logging."""
+		raise errorClass("%s: %s"%(self.entity.GetPositionStr(),msg))
+
+	def ParseLiteral(self,match):
+		"""Parses a literal string, passed in *match*.
 		
-	def ParseDocument(self,doc):
-		"""[1] document ::= prolog element Misc* """
-		self.doc=doc
-		self.ParseProlog()
-		self.ParseElement()
-		self.ParseMisc()
-		if self.theChar is not None:
-			self.WellFormednessViolation("Unparsed characters in entity after document")
+		Returns True if *match* is successfully parsed and False otherwise. 
+		There is no partial matching, if *match* is not found then the parser is
+		left in its original position."""
+		matchLen=0
+		for m in match:
+			if m!=self.theChar and (not self.sgmlNamecaseGeneral or
+				self.theChar is None or
+				m.lower()!=self.theChar.lower()):
+				self.BuffText(match[:matchLen])
+				break
+			matchLen+=1
+			self.NextChar()
+		return matchLen==len(match)
 
-	#	[2] Char ::= #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
+	def ParseRequiredLiteral(self,match,production="Literal String"):
+		"""Parses a required literal string raising a wellformed error if not matched.
+		
+		*production* is an optional string describing the context in which the
+		literal was expected."""
+		if not self.ParseLiteral(match):
+			self.WellFormednessError("%s: Expected %s"%(production,match))
 
+	def ParseDecimalDigits(self):
+		"""Parses a, possibly empty, string of decimal digits matching [0-9]."""
+		data=[]
+		while self.theChar in "0123456789":
+			data.append(self.theChar)
+			self.NextChar()
+		return string.join(data,'')
+
+	def ParseRequiredDecimalDigits(self,production="Digits"):
+		"""Parses a required sring of decimal digits matching [0-9].
+		
+		*production* is an optional string describing the context in which the
+		digits were expected."""
+		digits=self.ParseDecimalDigits()
+		if not digits:
+			self.WellFormednessError(production+": Expected [0-9]+")
+		return digits
+							
 	def ParseS(self):
-		""" [3] S ::= (#x20 | #x9 | #xD | #xA)+ """
+		"""[3] S: Parses white space from the stream matching the production for S.
+		
+		If there is no white space at the current position then an empty string
+		is returned."""
 		s=[]
 		sLen=0
 		while True:
@@ -567,6 +799,285 @@ class XMLParser:
 				break
 			sLen+=1
 		return string.join(s,'')
+
+	def ParseRequiredS(self,production="[3] S"):
+		"""[3] S: Parses required white space from the stream.
+		
+		If there is no white space then a well-formedness error is raised. 
+		*production* is an optional string describing the context in which the
+		space was expected."""
+		if not self.ParseS():
+			self.WellFormednessError(production+": Expected white space character")		
+		
+	def ParsePubidLiteral(self):
+		"""[12] PubidLiteral: Parses a literal value matching the production for PubidLiteral.
+
+		The value of the literal is returned as a string *without* the enclosing
+		quotes."""
+		q=self.ParseQuote()
+		value=[]
+		while True:
+			if self.theChar==q:
+				self.NextChar()
+				break
+			elif IsPubidChar(self.theChar):
+				value.append(self.theChar)
+				self.NextChar()
+			elif self.theChar is None:
+				self.WellFormednessError("[12] End of file in PubidLiteral")
+				# end of file: infer the closing quote
+				break
+			else:
+				self.WellFormednessError("[12] Illegal character in PubidLiteral")
+				self.NextChar()
+		return string.join(value,'')
+
+	def ParseVersionInfo(self,gotLiteral=False):
+		"""[24] VersionInfo: parses XML version number according.
+		
+		The version number is returned as a string.  If *gotLiteral* is True then
+		it is assumed that the preceding white space and 'versino' literal have
+		already been parsed."""
+		production="[24] VersionInfo"
+		if not gotLiteral:
+			self.ParseRequiredS(production)
+			self.ParseRequiredLiteral('version',production)
+		self.ParseEq()
+		q=self.ParseQuote()
+		self.ParseRequiredLiteral(u'1.')
+		digits=self.ParseRequiredDecimalDigits(production)
+		version="1."+digits
+		self.ParseQuote(q)
+		return version
+	
+	def ParseEntityDecl(self,gotLiteral=False):
+		"""[70] EntityDecl: parses an entity declaration.
+		
+		Returns an instance of either :py:class:`XMLGeneralEntity` or
+		:py:class:`XMLParameterEntity` depending on the type of entity parsed. 
+		If *gotLiteral* is True the method assumes that the leading '<!ENTITY'
+		literal has already been parsed."""
+		production="[70] EntityDecl"
+		if not gotLiteral:
+			self.ParseRequiredLiteral('<!ENTITY',production)
+		self.ParseRequiredS(production)
+		if self.theChar=='%':
+			return self.ParsePEDecl(True)
+		else:
+			return self.ParseGEDecl(True)
+		
+	def ParseGEDecl(self,gotLiteral=False):
+		"""[71] GEDecl: parses a general entity declaration.
+		
+		Returns an instance of :py:class:`XMLGeneralEntity`.  If *gotLiteral* is
+		True the method assumes that the leading '<!ENTITY' literal *and the
+		required S* have already been parsed."""
+		production="[71] GEDecl"
+		ge=XMLGeneralEntity()
+		if not gotLiteral:
+			self.ParseRequiredLiteral('<!ENTITY',production)
+			self.ParseRequiredS(production)
+		ge.name=self.ParseRequiredName(production)
+		self.ParseRequiredS(production)
+		self.ParseEntityDef(ge)
+		self.ParseS()
+		self.ParseRequiredLiteral('>',production)
+		return ge
+		
+	def ParsePEDecl(self,gotLiteral=False):
+		"""[72] PEDecl: parses a parameter entity declaration.
+		
+		Returns an instance of :py:class:`XMLParameterEntity`.  If *gotLiteral*
+		is True the method assumes that the leading '<!ENTITY' literal *and the
+		required S* have already been parsed."""
+		production="[72] PEDecl"
+		pe=XMLParameterEntity()
+		if not gotLiteral:
+			self.ParseRequiredLiteral('<!ENTITY',production)
+			self.ParseRequiredS(production)
+		self.ParseRequiredLiteral('%',production)
+		self.ParseRequiredS(production)
+		pe.name=self.ParseRequiredName(production)
+		self.ParseRequiredS(production)
+		self.ParsePEDef(pe)
+		self.ParseS()
+		self.ParseRequiredLiteral('>',production)
+		return pe
+			
+	def ParseEntityDef(self,ge):
+		"""[73] EntityDef: parses the definition of a general entity.
+		
+		The general entity being parsed must be passed in *ge*.  This method
+		sets the :py:attr:`XMLGeneralEntity.definition` and
+		:py:attr:`XMLGeneralEntity.notation` fields from the parsed entity
+		definition."""
+		ge.definition=None
+		ge.notation=None
+		if self.theChar=='"' or self.theChar=="'":
+			ge.definition=self.ParseEntityValue()
+		elif self.theChar=='S' or self.theChar=='P':
+			ge.definition=self.ParseExternalID()
+			s=self.ParseS()
+			if s:
+				if self.ParseLiteral('NDATA'):
+					ge.notation=self.ParseNDataDecl(True)
+				else:
+					self.BuffText(s)
+		else:
+			self.WellFormednessError("[73] EntityDef: Expected EntityValue or ExternalID")
+		
+	def ParsePEDef(self,pe):
+		"""[74] PEDef: parses a parameter entity definition.
+		
+		The parameter entity being parsed must be passed in *pe*.  This method
+		sets the :py:attr:`XMLParameterEntity.definition` field from the parsed
+		parameter entity definition."""
+		pe.definition=None
+		if self.theChar=='"' or self.theChar=="'":
+			pe.definition=self.ParseEntityValue()
+		elif self.theChar=='S' or self.theChar=='P':
+			pe.definition=self.ParseExternalID()
+		else:
+			self.WellFormednessError("[74] PEDef: Expected EntityValue or ExternalID")
+				
+	def ParseExternalID(self,allowPublicOnly=False):
+		"""[75] ExternalID: parses an external ID returning an XMLExternalID instance.
+		
+		An external ID must have a SYSTEM literal, and may have a PUBLIC identifier.
+		If *allowPublicOnly* is True then the method will also allow an external
+		identifier with a PUBLIC identifier but no SYSTEM literal.  In this mode
+		the parser behaves as it would when parsing the production::
+
+			(ExternalID | PublicID) S?"""
+		if allowPublicOnly:
+			production="[75] ExternalID | [83] PublicID"
+		else:
+			production="[75] ExternalID"
+		if self.ParseLiteral('SYSTEM'):
+			pubID=None
+			allowPublicOnly=False
+		elif self.ParseLiteral('PUBLIC'):
+			self.ParseRequiredS(production)
+			pubID=self.ParsePubidLiteral()
+		else:
+			self.WellFormednessError(production+": Expected 'PUBLIC' or 'SYSTEM'")
+		if (allowPublicOnly):
+			if self.ParseS():
+				if self.theChar=='"' or self.theChar=="'":
+					systemID=self.ParseSystemLiteral()
+				else:
+					# we've consumed the trailing S, not a big deal
+					systemID=None
+			else:
+				# just a PublicID
+				systemID=None
+		else:
+			self.ParseRequiredS(production)
+			systemID=self.ParseSystemLiteral()
+		# catch for compatibilityMode ??
+		return XMLExternalID(pubID,systemID)
+						
+	def ParseNDataDecl(self,gotLiteral=False):
+		"""[76] NDataDecl: parses an unparsed entity notation reference.
+		
+		Returns the name of the notation used by the unparsed entity as a string
+		without the preceding 'NDATA' literal."""
+		production="[76] NDataDecl"
+		if not gotLiteral:
+			self.ParseRequiredS(production)
+			self.ParseRequiredLiteral('NDATA',production)
+		self.ParseRequiredS(production)
+		return self.ParseRequiredName(production)
+
+	def ParseTextDecl(self):
+		"""[77] TextDecl: parses a text declataion.
+		
+		Returns an XMLTextDeclaration instance."""
+		production="[77] TextDecl"
+		self.ParseRequiredLiteral("<?xml",production)
+		self.ParseRequiredS(production)
+		if self.ParseLiteral('version'):
+			version=self.ParseVersionInfo(True)
+			encoding=self.ParseEncodingDecl()
+		elif self.ParseLiteral('encoding'):
+			version=None
+			encoding=self.ParseEncodingDecl(True)
+		else:
+			self.WellFormednessError(production+": Expected 'version' or 'encoding'")
+		self.ParseS()
+		self.ParseRequiredLiteral('?>',production)
+		return XMLTextDeclaration(version,encoding)
+		
+	def ParseEncodingDecl(self,gotLiteral=False):
+		"""[80] EncodingDecl: parses an encoding declaration
+		
+		Returns the declaration name without the enclosing quotes.  If *gotLiteral* is
+		True then the method assumes that the literal 'encoding' has already been parsed."""
+		production="[80] EncodingDecl"
+		if not gotLiteral:
+			self.ParseRequiredS(production)
+			self.ParseRequiredLiteral('encoding',production)
+		self.ParseEq()
+		q=self.ParseQuote()
+		encName=self.ParseEncName()
+		if not encName:
+			self.WellFormednessError("Expected EncName")
+		self.ParseQuote(q)
+		return encName
+
+	def ParseEncName(self):
+		"""[81] EncName: parses an encoding declaration name
+		
+		Returns the encoding name as a string or None if no valid encoding name
+		start character was found."""
+		name=[]
+		if EncNameStartCharClass.Test(self.theChar):
+			name.append(self.theChar)
+			self.NextChar()
+			while EncNameCharClass.Test(self.theChar):
+				name.append(self.theChar)
+				self.NextChar()
+		if name:
+			return string.join(name,'')
+		else:
+			return None
+			
+	def ParseNotationDecl(self,gotLiteral=False):
+		"""[82] NotationDecl: Parses a notation declaration matching production NotationDecl
+		
+		This method assumes that the literal '<!NOTATION' has already been parsed.  It
+		returns an XMLNotation instance."""
+		production="[82] NotationDecl"
+		if not gotLiteral:
+			self.ParseRequiredLiteral("<!NOTATION",production)
+		self.ParseRequiredS(production)
+		name=self.ParseRequiredName(production)
+		self.ParseRequiredS(production)
+		xID=self.ParseExternalID(True)
+		self.ParseS()
+		self.ParseRequiredLiteral('>')
+		return XMLNotation(name,xID)
+
+	def ParsePublicID(self):
+		"""[83] PublicID: Parses a literal matching the production for PublicID.
+		
+		The literal string is returned without the PUBLIC prefix or the
+		enclosing quotes."""
+		production="[83] PublicID"
+		self.ParseRequiredLiteral('PUBLIC',production)
+		self.ParseRequiredS(production)
+		return self.ParsePubidLiteral()
+		
+	def ParseDocument(self,doc):
+		"""[1] document ::= prolog element Misc* """
+		self.doc=doc
+		self.ParseProlog()
+		self.ParseElement()
+		self.ParseMisc()
+		if self.theChar is not None:
+			self.WellFormednessError("Unparsed characters in entity after document")
+
+	#	[2] Char ::= #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
 
 	def ParseName(self):
 		"""
@@ -585,10 +1096,10 @@ class XMLParser:
 		else:
 			return None
 
-	def ParseRequiredName(self):
+	def ParseRequiredName(self,production="Name"):
 		name=self.ParseName()
 		if name is None:
-			self.WellFormednessViolation("Expected Name")
+			self.WellFormednessError(production+": Expected NameStartChar")
 		return name
 		
 	def ParseNames(self):
@@ -642,7 +1153,9 @@ class XMLParser:
 	
 	def ParseEntityValue(self):
 		"""[9] EntityValue ::= '"' ([^%&"] | PEReference | Reference)* '"' | "'" ([^%&'] | PEReference | Reference)* "'"	"""
+		saveMode=self.refMode
 		q=self.ParseQuote()
+		self.refMode=XMLParser.RefModeInEntityValue
 		value=[]
 		while True:
 			if self.theChar=='&':
@@ -656,9 +1169,10 @@ class XMLParser:
 				value.append(self.theChar)
 				self.NextChar()
 			elif self.theChar is None:
-				self.WellFormednessViolation("Incomplete EntityValue")
+				self.WellFormednessError("Incomplete EntityValue")
 			else:
-				self.WellFormednessViolation("Unexpected data in EntityValue")
+				self.WellFormednessError("Unexpected data in EntityValue")
+		self.refMode=saveMode
 		return string.join(value,'')
 
 	def ParseAttValue(self):
@@ -687,9 +1201,9 @@ class XMLParser:
 					value.append(unichr(0x20))
 					self.NextChar()
 				elif self.theChar=='<':
-					self.WellFormednessViolation("Unescaped < in AttValue")
+					self.WellFormednessError("Unescaped < in AttValue")
 				elif self.theChar is None:
-					self.WellFormednessViolation("EOF in AttValue")
+					self.WellFormednessError("EOF in AttValue")
 				else:
 					value.append(self.theChar)
 					self.NextChar()
@@ -715,30 +1229,12 @@ class XMLParser:
 				value.append(self.theChar)
 				self.NextChar()
 			elif self.theChar is None:
-				self.WellFormednessViolation("Incomplete SystemLiteral")
+				self.WellFormednessError("Incomplete SystemLiteral")
 			else:
-				self.WellFormednessViolation("Unexpected data in SystemLiteral")
+				self.WellFormednessError("Unexpected data in SystemLiteral")
 		return string.join(value,'')
 		
-	def ParsePubidLiteral(self):
-		"""
-		[12] PubidLiteral ::= '"' PubidChar* '"' | "'" (PubidChar - "'")* "'"
-		[13] PubidChar ::= #x20 | #xD | #xA | [a-zA-Z0-9] | [-'()+,./:=?;!*#@$_%]
-		"""
-		q=self.ParseQuote()
-		value=[]
-		while True:
-			if self.theChar==q:
-				self.NextChar()
-				break
-			elif IsPubidChar(self.theChar):
-				value.append(self.theChar)
-				self.NextChar()
-			elif self.theChar is None:
-				self.WellFormednessViolation("Incomplete PubidLiteral")
-			else:
-				self.WellFormednessViolation("Unexpected data in PubidLiteral")
-		return string.join(value,'')
+
 
 	def ParseCharData(self):
 		"""[14] CharData ::= [^<&]* - ([^<&]* ']]>' [^<&]*) """
@@ -765,7 +1261,7 @@ class XMLParser:
 				self.NextChar()
 				nHyphens+=1
 				if nHyphens>2 and not self.compatibilityMode:
-					self.WellFormednessViolation("-- in Comment")
+					self.WellFormednessError("-- in Comment")
 			elif self.theChar=='>':
 				if nHyphens==2:
 					self.NextChar()
@@ -785,7 +1281,11 @@ class XMLParser:
 				# space does not change the hyphen count
 				self.NextChar()
 			else:
-				nHyphens=0
+				if nHyphens:
+					if nHyphens>=2 and not self.compatibilityMode:
+						self.WellFormednessError("-- in Comment")
+					data.append('-'*nHyphens)									
+					nHyphens=0
 				data.append(self.theChar)
 				self.NextChar()
 		return string.join(data,'')
@@ -800,7 +1300,7 @@ class XMLParser:
 # 						data.append('--')
 # 						continue
 # 					else:
-# 						self.WellFormednessViolation("-- in Comment")
+# 						self.WellFormednessError("-- in Comment")
 # 				else:
 # 					# just a single '-'
 # 					data.append('-')
@@ -817,8 +1317,8 @@ class XMLParser:
 		data=[]
 		target=self.ParseName()
 		if target is None:
-			self.WellFormednessViolation("Expected PI Target")
-		if self.ParseS() is None:
+			self.WellFormednessError("Expected PI Target")
+		if not self.ParseS():
 			return target,None
 		while self.theChar is not None:
 			if self.theChar=='?':
@@ -854,7 +1354,7 @@ class XMLParser:
 		match=self.ParseLiteral('<?xml')
 		if match:
 			self.ParseXMLDecl()
-		self.entity.chunk=XMLEntity.CHUNKSIZE
+		self.entity.chunk=XMLEntity.ChunkSize
 		self.ParseMisc()
 		match=self.ParseLiteral('<!DOCTYPE')
 		if match:
@@ -878,14 +1378,14 @@ class XMLParser:
 		self.ParseEq()
 		q=self.ParseQuote()
 		self.ParseRequiredLiteral(u'1.')
-		digits=self.ParseDecimalDigits(True)
+		digits=self.ParseRequiredDecimalDigits()
 		version="1."+digits
 		self.ParseQuote(q)
 		s=self.ParseS()
 		if s:
 			match=self.ParseLiteral('encoding')
 			if match:
-				encoding=self.ParseEncodingDecl()
+				encoding=self.ParseEncodingDecl(True)
 				s=self.ParseS()
 		if s:
 			match=self.ParseLiteral('standalone')
@@ -934,12 +1434,12 @@ class XMLParser:
 		[29]  markupdecl ::= elementdecl | AttlistDecl | EntityDecl | NotationDecl | PI | Comment
 		Assume the literal has already been parsed."""
 		if not self.ParseS():
-			self.WellFormednessViolation("Expected S")
+			self.WellFormednessError("Expected S")
 		dtdName=self.ParseRequiredName()
 		s=self.ParseS()
 		if s:
 			if self.theChar=='S' or self.theChar=='P':
-				pubID,systemID=self.ParseExternalID()
+				xID=self.ParseExternalID()
 				self.ParseS()
 		if self.theChar=='[':
 			#import pdb;pdb.set_trace()
@@ -966,13 +1466,13 @@ class XMLParser:
 						elif self.ParseLiteral('ATTLIST'):
 							self.ParseAttlistDecl()
 						elif self.ParseLiteral('ENTITY'):
-							self.PasreEntityDecl()
+							self.ParseEntityDecl()
 						elif self.ParseLiteral('NOTATION'):
 							self.ParseNotationDecl()
 					else:
-						self.WellFormednessViolation("Expected markupdecl")
+						self.WellFormednessError("Expected markupdecl")
 				elif not self.ParseS():
-					self.WellFormednessViolation("Expected markupdecl or DeclSep")
+					self.WellFormednessError("Expected markupdecl or DeclSep")
 			self.ParseS()
 		self.ParseRequiredLiteral('>')
 		return None
@@ -1008,7 +1508,7 @@ class XMLParser:
 			self.ParseContent()
 			endName=self.ParseETag()
 			if name!=endName:
-				self.WellFormednessViolation("Expected <%s/>"%name)
+				self.WellFormednessError("Expected <%s/>"%name)
 			self.doc.endElement(name)
 		return name
 	
@@ -1022,7 +1522,7 @@ class XMLParser:
 		self.ParseRequiredLiteral('<')
 		name=self.ParseName()
 		if name is None:
-			self.WellFormednessViolation("Expected Name")
+			self.WellFormednessError("Expected Name")
 		attrs={}
 		while True:
 			try:
@@ -1039,7 +1539,7 @@ class XMLParser:
 					attrs[aName]=aValue
 				else:
 					#import pdb;pdb.set_trace()
-					self.WellFormednessViolation("Expected S, '>' or '/>', found '%s'"%self.theChar)
+					self.WellFormednessError("Expected S, '>' or '/>', found '%s'"%self.theChar)
 			except XMLWellFormedError:
 				if not self.compatibilityMode:
 					raise
@@ -1054,7 +1554,7 @@ class XMLParser:
 		self.ParseRequiredLiteral('</')
 		name=self.ParseName()
 		if name is None:
-			self.WellFormednessViolation("Expected Name")
+			self.WellFormednessError("Expected Name")
 		try:
 			self.ParseS()
 			self.ParseRequiredLiteral('>')
@@ -1084,7 +1584,7 @@ class XMLParser:
 						if data:
 							self.doc.characters(data)
 					else:
-						self.WellFormednessViolation("Expected Comment or CDSect")
+						self.WellFormednessError("Expected Comment or CDSect")
 				elif self.theChar=='?':
 					self.NextChar()
 					self.ParsePI()
@@ -1099,22 +1599,22 @@ class XMLParser:
 				if data:
 					self.doc.characters(data)
 			elif self.theChar is None:
-				self.WellFormednessViolation("Unexpected end of content")
+				self.WellFormednessError("Unexpected end of content")
 			else:
 				data=self.ParseCharData()
 				if data:
 					self.doc.characters(data)
 				else:
-					self.WellFormednessViolation("Unrecognized character in content: %s"%self.theChar)
+					self.WellFormednessError("Unrecognized character in content: %s"%self.theChar)
 	
 	def ParseElementDecl(self):
 		"""[45] elementdecl ::= '<!ELEMENT' S Name S contentspec S? '>'
 		Assume that the literal has already been parsed."""
 		if not self.ParseS():
-			self.WellFormednessViolation("Expected S")
+			self.WellFormednessError("Expected S")
 		name=self.ParseName()
 		if not self.ParseS():
-			self.WellFormednessViolation("Expected S")
+			self.WellFormednessError("Expected S")
 		self.ParseContentSpec()
 		self.ParseS()
 		self.ParseRequiredLiteral('>')
@@ -1144,7 +1644,7 @@ class XMLParser:
 						self.ParseS()
 						self.ParseName()
 					else:
-						self.WellFormednessViolation("Expected Name, '|' or ')'")
+						self.WellFormednessError("Expected Name, '|' or ')'")
 				if self.theChar=='*':
 					self.NextChar()
 			else:
@@ -1186,7 +1686,7 @@ class XMLParser:
 				self.NextChar()
 				break
 			else:
-				self.WellFormednessViolation("Bad separator in content group %s"%self.theChar)
+				self.WellFormednessError("Bad separator in content group %s"%self.theChar)
 			self.ParseS()
 
 	def ParseAttlistDecl(self):
@@ -1195,17 +1695,17 @@ class XMLParser:
 		[53] AttDef			::= S Name S AttType S DefaultDecl
 		Assume that the literal has already been parsed."""
 		if not self.ParseS():
-			self.WellFormednessViolation("Expected S")
+			self.WellFormednessError("Expected S")
 		eName=self.ParseName()
 		while True:
 			if not self.ParseS() or self.theChar==">":
 				break
 			aName=self.ParseName()
 			if not self.ParseS():
-				self.WellFormednessViolation("Expected S")
+				self.WellFormednessError("Expected S")
 			aType=self.ParseAttType()
 			if not self.ParseS():
-				self.WellFormednessViolation("Expected S")
+				self.WellFormednessError("Expected S")
 			aDefaultType,aDefaultValue=self.ParseDefaultDecl()
 		self.ParseRequiredLiteral('>')
 	
@@ -1233,13 +1733,13 @@ class XMLParser:
 					self.NextChar()
 					break
 				else:
-					self.WellFormednessViolation("Expected '|' or ')' in Enumeration")
+					self.WellFormednessError("Expected '|' or ')' in Enumeration")
 			return ['']+enumeration
 		else:
 			type=self.ParseName()
 			if type=="NOTATION":
 				if not self.ParseS():
-					self.WellFormednessViolation("Expected S")
+					self.WellFormednessError("Expected S")
 				self.ParseRequiredLiteral('(')
 				notation=[]
 				while True:
@@ -1253,7 +1753,7 @@ class XMLParser:
 						self.NextChar()
 						break
 					else:
-						self.WellFormednessViolation("Expected '|' or ')' in NotationType")
+						self.WellFormednessError("Expected '|' or ')' in NotationType")
 				return [type]+notation
 			else:
 				return [type]
@@ -1268,7 +1768,7 @@ class XMLParser:
 			if self.ParseLiteral('#FIXED'):
 				type="#FIXED"
 				if not self.ParseS():
-					self.WellFormednessViolation("Expected S")
+					self.WellFormednessError("Expected S")
 			else:
 				type=''
 			value=self.ParseAttValue()
@@ -1284,82 +1784,6 @@ class XMLParser:
 			# Parameter entities are fed back into the parser somehow
 			self.PushEntity(e)
 	
-	def ParseExternalID(self):
-		"""[75] ExternalID ::= 'SYSTEM' S SystemLiteral | 'PUBLIC' S PubidLiteral S SystemLiteral """
-		if self.ParseLiteral('SYSTEM'):
-			pubID=None
-		elif self.ParseLiteral('PUBLIC'):
-			if not self.ParseS():
-				self.WellFormednessViolation("Expected S")
-			pubID=self.ParsePubidLiteral()
-		else:
-			self.WellFormednessViolation("Expected ExternalID")
-		try:
-			if not self.ParseS():
-				self.WellFormednessViolation("Expected S")
-			systemID=self.ParseSystemLiteral()
-		except XMLWellFormedError:
-			if not self.compatibilityMode:
-				raise
-			systemID=None
-		return pubID,systemID
-			
-	def ParseEncodingDecl(self):
-		"""[80] EncodingDecl ::= S 'encoding' Eq ('"' EncName '"' | "'" EncName "'" )
-		
-		We assume that the 'encoding' literal has already been parsed."""
-		self.ParseEq()
-		q=self.ParseQuote()
-		encName=self.ParseEncName()
-		if not encName:
-			self.WellFormednessViolation("Expected EncName")
-		self.ParseQuote(q)
-		return encName
-		
-	def ParseEncName(self):
-		"""[81] EncName ::= [A-Za-z] ([A-Za-z0-9._] | '-')* """
-		name=[]
-		if EncNameStartCharClass.Test(self.theChar):
-			name.append(self.theChar)
-			self.NextChar()
-			while EncNameCharClass.Test(self.theChar):
-				name.append(self.theChar)
-				self.NextChar()
-		if name:
-			return string.join(name,'')
-		else:
-			return None
-			
-	def ParseNotationDecl(self):
-		"""[82] NotationDecl ::= '<!NOTATION' S Name S (ExternalID | PublicID) S? '>'
-		
-		We assume that <!NOTATION has already been parsed."""
-		if not self.ParseS():
-			self.WellFormednessViolation("Expected S")
-		name=self.ParseName()
-		if name is None:
-			self.WellFormednessViolation("Expected NOTATION Name")
-		if not self.ParseS():
-			self.WellFormednessViolation("Expected S")
-		if self.theChar=='S':
-			# Must be a SYSTEM literal in an ExternalID
-			pubID,systemID=self.ParseExternalID()
-		elif self.ParseLiteral('PUBLIC'):
-			if not self.ParseS():
-				self.WellFormednessViolation("Expected S")
-			pubID=self.ParsePubidLiteral()
-			systemID=None
-			if self.ParseS():
-				# Could also have a SYSTEM ID
-				if self.ParseLiteral('SYSTEM'):
-					systemID=self.ParseSystemLiteral()
-				self.ParseS()
-		else:
-			self.WellFormednessViolation("Expected ExternalID or PublicID")
-		self.ParseRequiredLiteral('>')
-		return pubID,systemID
-			
-
 	def ParseAttribute(self):
 		"""Return name, value
 		
@@ -1374,17 +1798,14 @@ class XMLParser:
 			value=name
 		return name,value
 	
-	stdEntities={
-		'lt':'<',
-		'gt':'>',
-		'apos':"'",
-		'quot':'"',
-		'amp':'&'}
-		
 	def ParseReference(self):
+		"""Returns any character data that results from the reference."""
 		if self.theChar=='&':
 			self.NextChar()
 			if self.theChar=='#':
+				# CharacterReference forbidden in DTD
+				if self.refMode==XMLParser.RefModeInDTD:
+					self.WellFormednessError("[] Reference: Character reference forbidden in DTD")
 				self.NextChar()
 				if self.theChar=='x':
 					self.NextChar()
@@ -1393,9 +1814,17 @@ class XMLParser:
 					data=unichr(int(self.ParseDecimalDigits()))
 			else:
 				name=self.ParseName()
-				data=XMLParser.stdEntities.get(name,None)
-				if data is None:
-					data=self.LookupEntity(name)
+				if self.refMode==XMLParser.RefModeInEntityValue:
+					# reference is bypassed, return a reference instead
+					data="&%s;"%name
+				elif self.refMode==XMLParser.RefModeAsAttributeValue:
+					self.WellFormednessError("[] Reference: general entity reference forbidden as attribute value")
+				elif self.refMode==XMLParser.RefModeInDTD:
+					self.WellFormednessError("[] Reference: general entity reference forbidden in DTD")
+				else:
+					data=XMLParser.PredefinedEntities.get(name,None)
+					if data is None:
+						data=self.LookupEntity(name)	
 			self.ParseLiteral(';')
 		return data
 	
@@ -1408,15 +1837,6 @@ class XMLParser:
 		else:
 			e=None
 		return e
-
-	def ParseDecimalDigits(self,required=False):
-		data=[]
-		while self.theChar in "0123456789":
-			data.append(self.theChar)
-			self.NextChar()
-		if required and not data:
-			self.WellFormednessViolation("Expected [0-9]+")
-		return string.join(data,'')
 
 	def ParseHexDigits(self):
 		data=[]
@@ -1434,31 +1854,37 @@ class XMLParser:
 				self.NextChar()
 				return q
 			else:
-				self.WellFormednessViolation("Expected %s"%q)
+				self.WellFormednessError("Expected %s"%q)
 		elif self.theChar=='"' or self.theChar=="'":
 			q=self.theChar
 			self.NextChar()
 			return q
 		else:
-			self.WellFormednessViolation("Expected '\"' or \"'\"")
+			self.WellFormednessError("Expected '\"' or \"'\"")
 					
-	def ParseRequiredLiteral(self,match):
-		"""Parses a required literal string raising a wellformed error if not matched """
-		if not self.ParseLiteral(match):			
-			self.WellFormednessViolation("Expected %s"%match)
-			
-	def ParseLiteral(self,match):
-		"""Returns a Boolean if the literal was matched successfully"""
-		matchLen=0
-		for m in match:
-			if m!=self.theChar and (not self.compatibilityMode or
-				self.theChar is None or
-				m.lower()!=self.theChar.lower()):
-				self.BuffText(match[:matchLen])
-				break
-			matchLen+=1
-			self.NextChar()
-		return matchLen==len(match)
+
+class XMLNotation:
+	"""Represents an XML Notation"""
+
+	def __init__(self,name,xID):
+		"""Returns an XMLNotation instance.
+		
+		One of *public* or *system* must be provided."""
+		self.name=name		#: the notation name 
+		self.xID=xID		#: the external ID of the notation (an XMLExternalID instance)
+
+
+class XMLTextDeclaration:
+	"""Represents the text components of an XML declaration."""
+
+	def __init__(self,version="1.0",encoding="UTF-8"):
+		"""Returns an XMLTextDeclaration instance.
+		
+		Both *version* and *encoding* are optional, though one or other are
+		required depending on the context in which the declaration will be
+		used."""
+		self.version=version
+		self.encoding=encoding
 
 
 class XMLElementContainerMixin:
@@ -2377,7 +2803,15 @@ class XMLDocument(XMLElementContainerMixin):
 		s=StringIO()
 		self.WriteXML(s,EscapeCharData)
 		return unicode(s.getvalue())
-	
+
+	def DeclareEntity(self,entity):
+		if isinstance(entity,XMLGeneralEntity):
+			self.generalEntities[entity.name]=entity
+		elif isinstance(entity,XMLParaemterEntity):
+			self.parameterEntities[entity.name]=entity
+		else:
+			raise ValueError
+
 	def DeclareParameterEntity(self,name,value):
 		self.parameterEntities[name]=value
 

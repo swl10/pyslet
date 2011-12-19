@@ -1369,8 +1369,9 @@ class HTMLParser(xmlns.XMLNSParser):
 			self.ParseXMLDecl()
 			self.xmlFlag=True
 		else:
+			self.sgmNamecaseGeneral=True
 			self.compatibilityMode=True		
-		self.entity.chunk=xml.XMLEntity.CHUNKSIZE
+		self.entity.chunk=xml.XMLEntity.ChunkSize
 		s=self.ParseMisc()
 		match=self.ParseLiteral('<!DOCTYPE')
 		if match:
