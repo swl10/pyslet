@@ -60,6 +60,8 @@ Parsing Functions
 Common Syntactic Constructs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+..	autofunction:: IsChar
+
 ..	autofunction:: IsS
 
 ..	autofunction:: IsPubidChar
@@ -68,7 +70,6 @@ Common Syntactic Constructs
 Character Classes
 ~~~~~~~~~~~~~~~~~
 
-..	autofunction:: IsChar
 
 ..	autofunction:: IsLetter
 

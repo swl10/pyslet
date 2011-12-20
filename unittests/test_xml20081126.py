@@ -392,6 +392,117 @@ class XMLParserTests(unittest.TestCase):
 		except XMLFatalError:
 			pass
 
+	def testConditionalSect(self):
+		"""[61] conditionalSect ::= includeSect | ignoreSect"""
+		s="<![%include;[ <!ENTITY included 'yes'> <![ IGNORE [ <!ENTITY ignored 'no'> ]]> ]]>"
+		e=XMLEntity(s)
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		p.doc.DeclareEntity(XMLParameterEntity('include','INCLUDE'))
+		p.checkValidity=True
+		p.refMode=XMLParser.RefModeInDTD
+		try:
+			p.ParseConditionalSect()
+			self.failUnless(p.theChar is None,"Short parse on ConditionalSect: %s"%p.theChar)
+			self.failUnless(p.doc.GetEntity('included').definition=='yes',"included entity declaration")
+			self.failUnless(p.doc.GetEntity('ignored')==None,"ignored entity declaration")			
+		except XMLWellFormedError,e:
+			self.fail("ParseConditionalSect positive test: %s\n%s"%(s,str(e)))
+		
+	def testIncludeSect(self):
+		"""[62] includeSect ::= '<![' S? 'INCLUDE' S? '[' extSubsetDecl ']]>' """
+		for s in ["<![INCLUDE[]]>","<![ INCLUDE [ <?stuff?> ]]>","<![ INCLUDE [<![IGNORE[ included ]]> ]]>",
+			"<![%include;[]]>"]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			p.doc=XMLDocument()
+			p.doc.DeclareEntity(XMLParameterEntity('include','INCLUDE'))
+			p.checkValidity=True
+			p.refMode=XMLParser.RefModeInDTD
+			try:
+				p.ParseIncludeSect()
+				self.failUnless(p.theChar is None,"Short parse on IncludeSect: %s"%p.theChar)
+			except XMLWellFormedError,e:
+				self.fail("ParseIncludeSect positive test: %s\n%s"%(s,str(e)))
+		for s in [" <![INCLUDE[]>","<! [INCLUDE[]]>","<![INCLUDE[] ]>"]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			p.refMode=XMLParser.RefModeInDTD
+			try:
+				p.ParseIncludeSect()
+				self.fail("ParseIncludeSect negative well-formedness test: %s"%s)
+			except XMLWellFormedError:
+				pass
+		for s in ["<![ %include1; <?stuff?> ]]>","%include2; [ <!--stuff--> ]]>",
+			"<![ INCLUDE [ <?stuff?> %include3;"
+			]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			p.refMode=XMLParser.RefModeInContent
+			p.doc=XMLDocument()
+			p.doc.DeclareEntity(XMLParameterEntity('include1','INCLUDE ['))			
+			p.doc.DeclareEntity(XMLParameterEntity('include2','<![INCLUDE '))			
+			p.doc.DeclareEntity(XMLParameterEntity('include3','<?included?> ]]>'))		
+			p.checkValidity=True
+			p.raiseValidityErrors=True
+			p.refMode=XMLParser.RefModeInDTD
+			try:
+				p.ParseS()
+				p.ParseIncludeSect()
+				self.fail("ParseIncludeSect negative validity test: %s"%s)
+			except XMLWellFormedError,e:
+				print e
+				self.fail("ParseIncludeSect spurious well-formed error: %s"%s)
+			except XMLValidityError:
+				pass
+
+	def testIgnoreSect(self):
+		"""[63] ignoreSect ::= '<![' S? 'IGNORE' S? '[' ignoreSectContents* ']]>' """
+		for s in ["<![IGNORE[]]>","<![ IGNORE [ stuff ]]>","<![ IGNORE [<![INCLUDE[ ignored ]]> ]]>",
+			"<![%ignore;[]]>"]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			p.doc=XMLDocument()
+			p.doc.DeclareEntity(XMLParameterEntity('ignore','IGNORE'))
+			p.checkValidity=True
+			p.refMode=XMLParser.RefModeInDTD
+			try:
+				p.ParseIgnoreSect()
+				self.failUnless(p.theChar is None,"Short parse on IgnoreSect: %s"%p.theChar)
+			except XMLWellFormedError:
+				self.fail("ParseIgnoreSect positive test: %s"%s)
+		for s in [" <![IGNORE[]>","<! [IGNORE[]]>","<![IGNORE[] ]>"]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			p.refMode=XMLParser.RefModeInDTD
+			try:
+				p.ParseIgnoreSect()
+				self.fail("ParseIgnoreSect negative well-formedness test: %s"%s)
+			except XMLWellFormedError:
+				pass
+		for s in ["<![ %ignore1; stuff ]]>","%ignore2; [ stuff ]]>",
+			# "<![ IGNORE [ stuff %ignore3;" - this PE is ignored so we can't test this
+			]:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			p.refMode=XMLParser.RefModeInContent
+			p.doc=XMLDocument()
+			p.doc.DeclareEntity(XMLParameterEntity('ignore1','IGNORE ['))			
+			p.doc.DeclareEntity(XMLParameterEntity('ignore2','<![IGNORE '))			
+			p.doc.DeclareEntity(XMLParameterEntity('ignore3','ignored ]]>'))		
+			p.checkValidity=True
+			p.raiseValidityErrors=True
+			p.refMode=XMLParser.RefModeInDTD
+			try:
+				p.ParseS()
+				p.ParseIgnoreSect()
+				self.fail("ParseIgnoreSect negative validity test: %s"%s)
+			except XMLWellFormedError,e:
+				print e
+				self.fail("ParseIgnoreSect spurious well-formed error: %s"%s)
+			except XMLValidityError:
+				pass
+		
 	def testIgnoreSectContents(self):
 		"""[64] ignoreSectContents ::= Ignore ('<![' ignoreSectContents ']]>' Ignore)* """
 		s="preamble<![ INCLUDE [ %x; <![IGNORE[ also ignored ]]>]]> also ignored]]>end"

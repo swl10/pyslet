@@ -47,6 +47,7 @@ class XMLUnexpectedHTTPResponse(XMLError): pass
 class XMLUnsupportedSchemeError(XMLError): pass
 class XMLValidationError(XMLError): pass
 class XMLWellFormedError(XMLFatalError): pass
+class XMLValidityError(XMLError): pass
 class XMLForbiddenEntityReference(XMLError): pass
 
 class XMLUnknownChild(XMLError): pass
@@ -728,6 +729,14 @@ class XMLParser:
 		XMLParser has a number of optional attributes, all of which default to
 		False. If any option is set to True then the resulting parser will not
 		behave as a conforming XML processor."""
+		self.dontCheckWellFormedness=False	#: provides a loose parser for XML-like documents
+		self.checkValidity=False
+		"""checks XML validity constraints
+		
+		If both *checkValidity* and *dontCheckWellFormedness* are True, and all other options
+		are left at their default (False) setting then the parser will behave as a validating
+		XML parser."""
+		self.raiseValidityErrors=False		#: treats validity errors as fatal errors
 		self.sgmlNamecaseGeneral=False		#: option that simulates SGML's NAMECASE GENERAL YES
 		self.sgmlNamecaseEntity=False		#: option that simulates SGML's NAMECASE ENTITY YES
 		self.refMode=XMLParser.RefModeNone
@@ -807,6 +816,23 @@ class XMLParser:
 		sophisticated error logging."""
 		raise errorClass("%s: %s"%(self.entity.GetPositionStr(),msg))
 
+	def ValidityError(self,msg="validity error",errorClass=XMLValidityError):
+		"""Called when the parser encounters a validity error.
+		
+		The method takes an optional message string, *msg* and an optional error
+		class which must be a class object derived from
+		py:class:`XMLValidityError`.
+
+		The behaviour varies depending on the setting of the
+		:py:attr:`raiseValidityErrors` option The default (False) causes
+		validity errors to be ignored.  If True, an instance of *errorClass* is
+		raised.
+
+		This method can be overridden by derived parsers to implement more
+		sophisticated error logging."""
+		if self.raiseValidityErrors:
+			raise errorClass("%s: %s"%(self.entity.GetPositionStr(),msg))
+			
 	def ParseLiteral(self,match):
 		"""Parses a literal string, passed in *match*.
 		
@@ -872,13 +898,23 @@ class XMLParser:
 		"""[3] S: Parses white space from the stream matching the production for S.
 		
 		If there is no white space at the current position then an empty string
-		is returned."""
+		is returned.
+		
+		The productions in the specification do not make explicit mention of 
+		parameter entity references, they are covered by the general statement
+		that "Parameter entity references are recognized anwhere in the DTD..."
+		In practice, this means that while parsing the DTD, anywhere that an S
+		is permitted a parameter entity reference may also be recognized.  This
+		method implements this behaviour, recognizing parameter entity references
+		within S when :py:attr:`refMode` is :py:attr:`RefModeInDTD`."""
 		s=[]
 		sLen=0
 		while True:
 			if IsS(self.theChar):
 				s.append(self.theChar)
 				self.NextChar()
+			elif self.theChar=='%' and self.refMode==XMLParser.RefModeInDTD:
+				self.ParsePEReference()
 			else:
 				break
 			sLen+=1
@@ -934,6 +970,121 @@ class XMLParser:
 		self.ParseQuote(q)
 		return version
 
+	def ParseDeclSep(self):
+		"""[28a] DeclSep: parses a declaration separator."""
+		if self.theChar=='%':
+			self.ParsePEReference()
+		else:
+			self.ParseRequiredS("[28a] DeclSep")
+			
+	def ParseMarkupDecl(self):
+		"""[29] markupDecl: parses a markup declaration.
+		
+		Returns True if a markupDecl was found, False otherwise."""
+		production="[29] markupDecl"
+		if self.theChar=='<':
+			# markupdecl of some sort
+			self.NextChar()
+			if self.theChar=='?':
+				self.NextChar()
+				self.ParsePI()
+			elif self.theChar=='!':
+				self.NextChar()
+				if self.theChar=='-':
+					self.ParseRequiredLiteral('--',production)
+					self.ParseComment()
+				elif self.ParseLiteral('ELEMENT'):
+					self.ParseElementDecl()
+				elif self.ParseLiteral('ATTLIST'):
+					self.ParseAttlistDecl()
+				elif self.ParseLiteral('ENTITY'):
+					self.ParseEntityDecl(True)
+				elif self.ParseLiteral('NOTATION'):
+					self.ParseNotationDecl()
+				else:
+					return False
+			else:
+				self.BuffText('<')
+				return False
+		else:
+			return False
+		return True
+			
+	def ParseExtSubsetDecl(self):
+		"""[31] extSubsetDecl: parses declarations in the external subset."""
+		initialStack=len(self.entityStack)
+		while len(self.entityStack)>=initialStack:
+			literalEntity=self.entity
+			if self.theChar=='%' or IsS(self.theChar):
+				self.ParseDeclSep()
+			elif self.ParseLiteral("<!["):
+				self.ParseConditionalSect(literalEntity)
+			elif self.ParseMarkupDecl():
+				continue
+			else:
+				break
+	
+	def ParseConditionalSect(self,gotLiteralEntity=None):
+		"""[61] conditionalSect: parses a conditional section.
+		
+		If *gotLiteralEntity* is set to an :py:class:`XMLEntity` object the
+		method assumes that the initial literal '<![' has already been parsed
+		from that entity."""
+		production="[61] conditionalSect"
+		if gotLiteralEntity is None:
+			gotLiteralEntity=self.entity
+			self.ParseRequiredLiteral('<![',production)
+		self.ParseS()
+		if self.ParseLiteral('INCLUDE'):
+			self.ParseIncludeSect(gotLiteralEntity)
+		elif self.ParseLiteral('IGNORE'):
+			self.ParseIgnoreSect(gotLiteralEntity)
+		else:
+			self.WellFormednessError(production+": Expected INCLUDE or IGNORE")
+		
+	def ParseIncludeSect(self,gotLiteralEntity=None):
+		"""[62] includeSect: parses an included section.
+		
+		If *gotLiteralEntity* is set to an :py:class:`XMLEntity` object the
+		method assumes that the production, up to and including the keyword
+		'INCLUDE' has already been parsed and that the opening '<![' literal was
+		parsed from that entity."""
+		production="[62] includeSect"
+		if gotLiteralEntity is None:
+			gotLiteralEntity=self.entity
+			self.ParseRequiredLiteral('<![',production)
+			self.ParseS()
+			self.ParseRequiredLiteral('INCLUDE',production)
+		self.ParseS()
+		if self.checkValidity and not self.entity is gotLiteralEntity:
+			self.ValidityError(production+": Proper Conditional Section/PE Nesting")
+		self.ParseRequiredLiteral('[',production)
+		self.ParseExtSubsetDecl()
+		if self.checkValidity and not self.entity is gotLiteralEntity:
+			self.ValidityError(production+": Proper Conditional Section/PE Nesting")
+		self.ParseRequiredLiteral(']]>',production)
+		
+	def ParseIgnoreSect(self,gotLiteralEntity=None):
+		"""[63] ignoreSect: parses an ignored section.
+		
+		If *gotLiteralEntity* is set to an :py:class:`XMLEntity` object the method
+		assumes that the production, up to and including the keyword 'IGNORE' has already
+		been parsed and that the opening '<![' literal was parsed from that entity."""
+		production="[63] ignoreSect"
+		if gotLiteralEntity is None:
+			gotLiteralEntity=self.entity
+			self.ParseRequiredLiteral('<![',production)
+			self.ParseS()
+			self.ParseRequiredLiteral('IGNORE',production)
+		self.ParseS()
+		if self.checkValidity and not self.entity is gotLiteralEntity:
+			self.ValidityError(production+": Proper Conditional Section/PE Nesting")
+		self.ParseRequiredLiteral('[',production)
+		self.ParseIgnoreSectContents()
+		if self.checkValidity and not self.entity is gotLiteralEntity:
+			self.ValidityError(production+": Proper Conditional Section/PE Nesting")
+		self.ParseRequiredLiteral(']]>',production)		
+		
 	def ParseIgnoreSectContents(self):
 		"""[64] ignoreSectContents: parses the contents of an ignored section.
 		
@@ -1090,9 +1241,12 @@ class XMLParser:
 			self.ParseRequiredLiteral('<!ENTITY',production)
 		self.ParseRequiredS(production)
 		if self.theChar=='%':
-			return self.ParsePEDecl(True)
+			e=self.ParsePEDecl(True)
 		else:
-			return self.ParseGEDecl(True)
+			e=self.ParseGEDecl(True)
+		if self.doc:
+			self.doc.DeclareEntity(e)
+		return e
 		
 	def ParseGEDecl(self,gotLiteral=False):
 		"""[71] GEDecl: parses a general entity declaration.
@@ -1553,11 +1707,13 @@ class XMLParser:
 		
 		Assume the literal has already been parsed.
 		"""
+		production="[16] PI"
 		data=[]
 		target=self.ParseName()
 		if target is None:
 			self.WellFormednessError("Expected PI Target")
 		if not self.ParseS():
+			self.ParseRequiredLiteral('?>',production)
 			return target,None
 		while self.theChar is not None:
 			if self.theChar=='?':
@@ -1681,7 +1837,6 @@ class XMLParser:
 				xID=self.ParseExternalID()
 				self.ParseS()
 		if self.theChar=='[':
-			#import pdb;pdb.set_trace()
 			self.NextChar()
 			while True:
 				if self.theChar=='%':
@@ -1705,7 +1860,7 @@ class XMLParser:
 						elif self.ParseLiteral('ATTLIST'):
 							self.ParseAttlistDecl()
 						elif self.ParseLiteral('ENTITY'):
-							self.ParseEntityDecl()
+							self.ParseEntityDecl(True)
 						elif self.ParseLiteral('NOTATION'):
 							self.ParseNotationDecl()
 					else:
@@ -1777,7 +1932,6 @@ class XMLParser:
 					aName,aValue=self.ParseAttribute()
 					attrs[aName]=aValue
 				else:
-					#import pdb;pdb.set_trace()
 					self.WellFormednessError("Expected S, '>' or '/>', found '%s'"%self.theChar)
 			except XMLWellFormedError:
 				if not self.compatibilityMode:
