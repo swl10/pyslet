@@ -29,9 +29,22 @@ a character matches the production for NameStartChar in the XML standard.
 	:show-inheritance:
 
 
+Logical Structures
+------------------
+
+..	autoclass:: XMLAttributeDefinition
+	:members:
+	:show-inheritance:
+	
+
+
 Physical Structures
 -------------------
 
+..	autoclass:: XMLExternalID
+	:members:
+	:show-inheritance:
+	
 ..	autoclass:: XMLEntity
 	:members:
 	:show-inheritance:

@@ -400,7 +400,7 @@ class XMLEntity:
 	def __init__(self,src=None,encoding='utf-8',reqManager=None):
 		"""An object representing an entity.
 		
-		This object servers two purposes, it acts as both the object used to
+		This object serves two purposes, it acts as both the object used to
 		store information about declared entities and also as a parser for feeding
 		unicode characters to the main :py:class:`XMLParser`.
 		
@@ -697,7 +697,33 @@ class XMLParameterEntity(XMLEntity):
 		else:
 			raise XMLError("Bad Parameter Entity") 
 
-			
+
+class XMLAttributeDefinition:
+
+	CData=0			#: Type constant representing CDATA
+	ID=1			#: Type constant representing ID
+	IDRef=2			#: Type constant representing IDREF
+	IDRefs=3		#: Type constant representing IDREFS
+	Entity=4		#: Type constant representing ENTITY
+	Entities=5		#: Type constant representing ENTITIES
+	NmToken=6		#: Type constant representing NMTOKEN
+	NmTokens=7		#: Type constant representing NMTOKENS
+	Notation=8		#: Type constant representing NOTATION
+	Enumeration=9	#: Type constant representing an enumeration
+	
+	Implied=0		#: Presence constant representing #IMPLIED
+	Required=1		#: Presence constant representing #REQUIRED
+	Fixed=2			#: Presence constant representing #FIXED
+	Default=3		#: Presence constant representing a declared default value
+	
+	def __init__(self):
+		"""An object for representing attribute declarations."""
+		self.type=XMLAttributeDefinition.CData			#: One of the above type constants
+		self.values=None						#: An optional list of values
+		self.presence=XMLAttributeDefinition.Implied		#: One of the above presence constants
+		self.defaultValue=None					#: An optional default value
+
+		
 class XMLParser:
 	
 	RefModeNone=0				#: Default constant used for setting :py:attr:`refMode` 
@@ -854,7 +880,8 @@ class XMLParser:
 		"""Parses a required literal string raising a wellformed error if not matched.
 		
 		*production* is an optional string describing the context in which the
-		literal was expected."""
+		literal was expected.
+		"""
 		if not self.ParseLiteral(match):
 			self.WellFormednessError("%s: Expected %s"%(production,match))
 
@@ -1024,6 +1051,231 @@ class XMLParser:
 			else:
 				break
 	
+	def ParseMixed(self):
+		"""[51] Mixed: parses a mixed content type.
+		
+		Returns a tuple of element type names that appear in the declaration."""
+		production="[51] Mixed"
+		values=[]
+		self.ParseRequiredLiteral('(',production)
+		self.ParseS()
+		self.ParseRequiredLiteral('#PCDATA',production)
+		while True:
+			self.ParseS()
+			if self.theChar==')':
+				break
+			elif self.theChar=='|':
+				self.NextChar()
+				self.ParseS()
+				values.append(self.ParseRequiredName(production))
+				continue
+			else:
+				self.WellFormednessError(production+": Expected '|' or ')'")
+		if values:
+			self.ParseRequiredLiteral(')*')
+		else:
+			self.ParseRequiredLiteral(')')
+		return values
+		
+	def ParseAttlistDecl(self,gotLiteral=False):
+		"""[52] AttlistDecl: parses an attribute list definition.
+		
+		If *gotLiteral* is True the method assumes that the '<!ATTLIST' literal
+		has already been parsed.
+		"""
+		production="[52] AttlistDecl"
+		if not gotLiteral:
+			self.ParseRequiredLiteral("<!ATTLIST",production)
+		self.ParseRequiredS(production)
+		name=self.ParseRequiredName(production)
+		while True:
+			if self.ParseS():
+				if self.theChar=='>':
+					break
+				a=self.ParseAttDef(True)
+				if self.doc:
+					self.doc.DeclareAttribute(name,a)
+			else:
+				break
+		self.ParseRequiredLiteral('>',production)	
+	
+	def ParseAttDef(self,gotS=False):
+		"""[53] AttDef: parses an attribute definition.
+
+		If *gotS* is True the method assumes that the leading S has already been
+		parsed.
+		
+		Returns an instance of :py:class:`XMLAttributeDefinition`."""
+		production="[53] AttDef"
+		if not gotS:
+			self.ParseRequiredS(production)
+		a=XMLAttributeDefinition()
+		a.name=self.ParseRequiredName(production)
+		self.ParseRequiredS(production)
+		self.ParseAttType(a)
+		self.ParseRequiredS(production)
+		self.ParseDefaultDecl(a)
+		return a
+		
+	def ParseAttType(self,a):
+		"""[54] AttType: parses an attribute type.
+		
+		*a* must be an :py:class:`XMLAttributeDefinition` instance.  This method sets the
+		:py:attr:`XMLAttributeDefinition.type` and :py:attr:`XMLAttributeDefinition.values`
+		fields of *a*.
+		
+		Note that, to avoid unnecessary look ahead, this method does not call
+		:py:meth:`ParseStringType` or :py:meth:`ParseEnumeratedType`."""
+		production="[54] AttType"
+		if self.ParseLiteral('CDATA'):
+			a.type=XMLAttributeDefinition.CData
+			a.values=None
+		elif self.ParseLiteral('NOTATION'):
+			a.type=XMLAttributeDefinition.Notation
+			a.values=self.ParseNotationType(True)
+		elif self.theChar=='(':
+			a.type=XMLAttributeDefinition.Enumeration
+			a.values=self.ParseEnumeration()
+		else:
+			self.ParseTokenizedType(a)
+
+	def ParseStringType(self,a):
+		"""[55] StringType: parses an attribute's string type.
+		
+		This method is provided for completeness.  It is not called during normal
+		parsing operations.
+		
+		*a* must be an :py:class:`XMLAttributeDefinition` instance.  This method sets the
+		:py:attr:`XMLAttributeDefinition.type` and :py:attr:`XMLAttributeDefinition.values`
+		fields of *a*."""
+		production="[55] StringType"
+		self.ParseRequiredLiteral('CDATA',production)
+		a.type=XMLAttributeDefinition.CData
+		a.values=None
+
+	def ParseTokenizedType(self,a):
+		"""[56] TokenizedType: parses an attribute's tokenized type.
+		
+		*a* must be an :py:class:`XMLAttributeDefinition` instance.  This method sets the
+		:py:attr:`XMLAttributeDefinition.type` and :py:attr:`XMLAttributeDefinition.values`
+		fields of *a*."""
+		production="[56] TokenizedType"
+		if self.ParseLiteral('ID'):
+			if self.ParseLiteral('REF'):
+				if self.ParseLiteral('S'):
+					a.type=XMLAttributeDefinition.IDRefs
+				else:
+					a.type=XMLAttributeDefinition.IDRef
+			else:
+				a.type=XMLAttributeDefinition.ID
+		elif self.ParseLiteral('ENTIT'):
+			if self.ParseLiteral('Y'):
+				a.type=XMLAttributeDefinition.Entity
+			elif self.ParseLiteral('IES'):
+				a.type=XMLAttributeDefinition.Entities
+			else:
+				self.WellFormednessError(production+": Expected 'ENTITY' or 'ENTITIES'")
+		elif self.ParseLiteral('NMTOKEN'):
+			if self.ParseLiteral('S'):
+				a.type=XMLAttributeDefinition.NmTokens
+			else:
+				a.type=XMLAttributeDefinition.NmToken
+		else:
+			self.WellFormednessError(production+": Expected 'ID', 'IDREF', 'IDREFS', 'ENTITY', 'ENTITIES', 'NMTOKEN' or 'NMTOKENS'")
+		a.values=None
+		
+	def ParseEnumeratedType(self,a):
+		"""[57] EnumeratedType: parses an attribute's enumerated type.
+		
+		This method is provided for completeness.  It is not called during normal
+		parsing operations.
+		
+		*a* must be an :py:class:`XMLAttributeDefinition` instance.  This method sets the
+		:py:attr:`XMLAttributeDefinition.type` and :py:attr:`XMLAttributeDefinition.values`
+		fields of *a*."""
+		if self.ParseLiteral('NOTATION'):
+			a.type=XMLAttributeDefinition.Notation
+			a.values=self.ParseNotationType(True)
+		elif self.theChar=='(':
+			a.type=XMLAttributeDefinition.Enumeration
+			a.values=self.ParseEnumeration()
+		else:
+			self.WellFormednessError("[57] EnumeratedType: expected 'NOTATION' or Enumeration")
+			
+	def ParseNotationType(self,gotLiteral=False):
+		"""[58] NotationType: parses a notation type.
+		
+		If *gotLiteral* is True the method assumes that the leading 'NOTATION' literal
+		has already been parsed.
+
+		Returns a list of strings representing the names of the declared notations being
+		referred to."""
+		production="[58] NotationType"
+		value=[]
+		if not gotLiteral:
+			self.ParseRequiredLiteral('NOTATION',production)
+		self.ParseRequiredS(production)
+		self.ParseRequiredLiteral('(',production)
+		while True:
+			self.ParseS()
+			name=self.ParseRequiredName(production)
+			value.append(name)
+			self.ParseS()
+			if self.theChar=='|':
+				self.NextChar()
+				continue
+			elif self.theChar==')':
+				self.NextChar()
+				break
+			else:
+				self.WellFormednessError(production+": expected '|' or ')', found %s"%repr(self.theChar))
+		return value	
+		
+	def ParseEnumeration(self):
+		"""[59] Enumeration: parses an enumeration.
+		
+		Returns a list of strings representing the tokens in the enumeration."""
+		production="[59] Enumeration"
+		value=[]
+		self.ParseRequiredLiteral('(',production)
+		while True:
+			self.ParseS()
+			token=self.ParseNmtoken()
+			if token:
+				value.append(token)
+			else:
+				self.WellFormednessError(production+": expected Nmtoken")
+			self.ParseS()
+			if self.theChar=='|':
+				self.NextChar()
+				continue
+			elif self.theChar==')':
+				self.NextChar()
+				break
+			else:
+				self.WellFormednessError(production+": expected '|' or ')', found %s"%repr(self.theChar))
+		return value	
+		
+	def ParseDefaultDecl(self,a):
+		"""[60] DefaultDecl: parses an attribute's default declaration.
+		
+		*a* must be an :py:class:`XMLAttributeDefinition` instance.  This method sets the
+		:py:attr:`XMLAttributeDefinition.presence` and :py:attr:`XMLAttributeDefinition.defaultValue`
+		fields of *a*."""
+		if self.ParseLiteral('#REQUIRED'):
+			a.presence=XMLAttributeDefinition.Required
+			a.defaultValue=None
+		elif self.ParseLiteral('#IMPLIED'):
+			a.presence=XMLAttributeDefinition.Implied
+			a.defaultValue=None
+		else:
+			if self.ParseLiteral('#FIXED'):
+				a.presence=XMLAttributeDefinition.Fixed
+				self.ParseRequiredS("[60] DefaultDecl")
+			else:
+				a.presence=XMLAttributeDefinition.Default
+			a.defaultValue=self.ParseAttValue()
+			
 	def ParseConditionalSect(self,gotLiteralEntity=None):
 		"""[61] conditionalSect: parses a conditional section.
 		
@@ -2082,91 +2334,6 @@ class XMLParser:
 				self.WellFormednessError("Bad separator in content group %s"%self.theChar)
 			self.ParseS()
 
-	def ParseAttlistDecl(self):
-		"""
-		[52] AttlistDecl	::= '<!ATTLIST' S Name AttDef* S? '>'
-		[53] AttDef			::= S Name S AttType S DefaultDecl
-		Assume that the literal has already been parsed."""
-		if not self.ParseS():
-			self.WellFormednessError("Expected S")
-		eName=self.ParseName()
-		while True:
-			if not self.ParseS() or self.theChar==">":
-				break
-			aName=self.ParseName()
-			if not self.ParseS():
-				self.WellFormednessError("Expected S")
-			aType=self.ParseAttType()
-			if not self.ParseS():
-				self.WellFormednessError("Expected S")
-			aDefaultType,aDefaultValue=self.ParseDefaultDecl()
-		self.ParseRequiredLiteral('>')
-	
-	def ParseAttType(self):
-		"""
-		[54] AttType		::= StringType | TokenizedType | EnumeratedType
-		[55] StringType 	::= 'CDATA'
-		[56] TokenizedType	::= 'ID' | 'IDREF' | 'IDREFS' | 'ENTITY' | 'ENTITIES' | 'NMTOKEN' | 'NMTOKENS'
-		[57] EnumeratedType ::= NotationType | Enumeration
-		[58] NotationType	::= 'NOTATION' S '(' S? Name (S? '|' S? Name)* S? ')'
-		[59] Enumeration	::= '(' S? Nmtoken (S? '|' S? Nmtoken)* S? ')'
-		"""
-		if self.theChar=="(":
-			# An Enumeration
-			self.NextChar()
-			enumeration=[]
-			while True:
-				self.ParseS()
-				enumeration.append(self.ParseNmtoken())
-				self.ParseS()
-				if self.theChar=='|':
-					self.NextChar()
-					continue
-				elif self.theChar==')':
-					self.NextChar()
-					break
-				else:
-					self.WellFormednessError("Expected '|' or ')' in Enumeration")
-			return ['']+enumeration
-		else:
-			type=self.ParseName()
-			if type=="NOTATION":
-				if not self.ParseS():
-					self.WellFormednessError("Expected S")
-				self.ParseRequiredLiteral('(')
-				notation=[]
-				while True:
-					self.ParseS()
-					notation.append(self.ParseName())
-					self.ParseS()
-					if self.theChar=='|':
-						self.NextChar()
-						continue
-					elif self.theChar==')':
-						self.NextChar()
-						break
-					else:
-						self.WellFormednessError("Expected '|' or ')' in NotationType")
-				return [type]+notation
-			else:
-				return [type]
-	
-	def ParseDefaultDecl(self):
-		"""[60] DefaultDecl	::=	'#REQUIRED' | '#IMPLIED' | (('#FIXED' S)? AttValue)"""
-		if self.ParseLiteral('#REQUIRED'):
-			return '#REQUIRED',''
-		elif self.ParseLiteral('#IMPLIED'):
-			return '#IMPLIED',''
-		else:
-			if self.ParseLiteral('#FIXED'):
-				type="#FIXED"
-				if not self.ParseS():
-					self.WellFormednessError("Expected S")
-			else:
-				type=''
-			value=self.ParseAttValue()
-			return type,value
-			
 	def ParseAttribute(self):
 		"""Return name, value
 		
@@ -3138,6 +3305,10 @@ class XMLDocument(XMLElementContainerMixin):
 		"""A dictionary of XMLParameterEntity instances keyed on entity name."""
 		self.generalEntities={}
 		"""A dictionary of XMLGeneralEntity instances keyed on entity name."""
+		self.attributeLists={}
+		"""A dictionary of dictionaries, keyed on element name.  Each of the
+		resulting dictionaries is a dictionary of
+		:py:class:`XMLAttributeDefinition` keyed on attribute name."""
 		self.idTable={}
 
 	def GetChildren(self):
@@ -3158,6 +3329,11 @@ class XMLDocument(XMLElementContainerMixin):
 		return unicode(s.getvalue())
 
 	def DeclareEntity(self,entity):
+		"""Declares an entity in this document.
+		
+		The same method is used for both general and parameter entities.  The
+		value of *entity* can be either an :py:class:`XMLGeneralEntity` or an
+		:py:class:`XMLParameterEntity` instance."""
 		if isinstance(entity,XMLGeneralEntity):
 			self.generalEntities[entity.name]=entity
 		elif isinstance(entity,XMLParameterEntity):
@@ -3166,10 +3342,52 @@ class XMLDocument(XMLElementContainerMixin):
 			raise ValueError
 
 	def GetParameterEntity(self,name):
+		"""Returns the parameter entity definition matching *name*.
+		
+		Returns an instance of :py:class:`XMLParameterEntity`.  If no parameter
+		has been declared with *name* then None is returned."""
 		return self.parameterEntities.get(name,None)
 			
 	def GetEntity(self,name):
+		"""Returns the general entity definition matching *name*.
+		
+		Returns an instance of :py:class:`XMLGeneralEntity`.  If no general has
+		been declared with *name* then None is returned."""
 		return self.generalEntities.get(name,None)
+
+	def DeclareAttribute(self,elementName,attributeDef):
+		"""Declares an attribute.
+		
+		*elementName* is the name of the element type which should have this
+		attribute applied *attributeDef* is an
+		:py:class:`XMLAttributeDefinition` instance describing the attribute
+		being declared."""
+		aList=self.attributeLists.get(elementName,None)
+		if aList is None:
+			self.attributeLists[elementName]=aList={}
+		if not aList.has_key(attributeDef.name):
+			aList[attributeDef.name]=attributeDef
+		
+	def GetAttributeList(self,name):
+		"""Returns a dictionary of attribute definitions for the element type *name*.
+		
+		If there are no attributes declared for this element type, None is
+		returned."""		
+		return self.attributeLists.get(name,None)
+
+	def GetAttributeDefinition(self,elementName,attributeName):
+		"""Looks up an attribute definition.
+		
+		*elementName* is the name of the element type in which to search
+		*attributeName* is the name of the attribute to search for.
+		
+		The method returns an instance of :py:class:`XMLAttributeDefinition` or
+		None if no attribute matching this description has been declared."""		
+		aList=self.attributeLists.get(name,None)
+		if aList:
+			return aList.get(attributeName,None)
+		else:
+			return None
 			
 	def GetElementClass(self,name):
 		"""Returns a class object suitable for representing name

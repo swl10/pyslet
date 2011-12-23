@@ -392,6 +392,199 @@ class XMLParserTests(unittest.TestCase):
 		except XMLFatalError:
 			pass
 
+	def testMixed(self):
+		"""[51] Mixed ::= '(' S? '#PCDATA' (S? '|' S? Name)* S? ')*' | '(' S? '#PCDATA' S? ')' """
+		s="(#PCDATA)( #PCDATA | Steve1 | Steve2 )*( #PCDATA |Steve1|Steve2)*(#PCDATA|Steve1)(Steve1|#PCDATA)*"
+		e=XMLEntity(s)
+		m=[[],['Steve1','Steve2'],['Steve1','Steve2']]
+		p=XMLParser(e)
+		for match in m:
+			values=p.ParseMixed()
+			self.failUnless(values==match,"Mixed type match failed: %s (expected %s)"%(values,match))
+		try:
+			values=p.ParseMixed()
+			self.fail("Missed trailing *")
+		except XMLFatalError:
+			# fails to parse ')*'
+			p.ParseLiteral(')')
+		try:
+			values=p.ParseMixed()
+			self.fail("#PCDATA must come first")
+		except XMLFatalError:
+			# fails to parse '#PCDATA' 
+			p.ParseLiteral('Steve1|#PCDATA)*')
+		self.failUnless(p.theChar is None,"Incomplete parse in Mixed tests: %s"%repr(p.theChar))
+		
+	def testAttlistDecl(self):
+		"""[52] AttlistDecl ::= '<!ATTLIST' S Name AttDef* S? '>' """
+		s="""<!ATTLIST elem attr CDATA 'Steve' attr2 CDATA #IMPLIED>
+		<!ATTLIST elem attr3 (1|2|3) '1'>
+		 elem2 (1|2|3) >"""
+		e=XMLEntity(s)
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		try:
+			while True:
+				p.ParseAttlistDecl(p.theChar!='<')
+				p.ParseS()
+		except XMLWellFormedError:
+			pass
+		aList=p.doc.GetAttributeList('elem')
+		self.failUnless(aList['attr'].defaultValue=='Steve',"First attribute")
+		self.failUnless(aList['attr2'].presence==XMLAttributeDefinition.Implied,"Second attribute")
+		self.failUnless(aList['attr3'].type==XMLAttributeDefinition.Enumeration,"Third attribute")
+		aList=p.doc.GetAttributeList('elem2')
+		self.failUnless(aList is None,"Bad attribute")
+		
+	def testAttDef(self):
+		"""[53] AttDef ::= S Name S AttType S DefaultDecl"""
+		s=" attr CDATA 'Steve' attr2 CDATA #IMPLIED attr3 (1|2|3) '1' attr4 #REQUIRED"
+		e=XMLEntity(s)
+		m=[	('attr',XMLAttributeDefinition.CData,None,XMLAttributeDefinition.Default,'Steve'),
+			('attr2',XMLAttributeDefinition.CData,None,XMLAttributeDefinition.Implied,None),
+			('attr3',XMLAttributeDefinition.Enumeration,['1','2','3'],XMLAttributeDefinition.Default,'1')]
+		p=XMLParser(e)
+		for match in m:
+			a=p.ParseAttDef()
+			self.failUnless(a.name==match[0],"AttDef match failed: %s (expected %s)"%(a.name,match[0]))
+			self.failUnless(a.type==match[1],"AttDef match failed: %i (expected %i)"%(a.type,match[1]))
+			self.failUnless(a.values==match[2],"AttDef match failed: %s (expected %s)"%(a.values,match[2]))
+			self.failUnless(a.presence==match[3],"AttDef match failed: %i (expected %i)"%(a.presence,match[3]))
+			self.failUnless(a.defaultValue==match[4],"AttDef match failed: %s (expected %s)"%(a.defaultValue,match[4]))
+		try:
+			a=p.ParseAttDef()
+			self.fail("Parsed bad AttDef: %s"%a.name)
+		except XMLFatalError:
+			pass
+		
+	def testAttType(self):
+		"""[54] AttType ::= StringType | TokenizedType | EnumeratedType"""
+		s="CDATA ENTITIES NOTATION (Steve) (1 | 2 | 3) NAMES)"
+		e=XMLEntity(s)
+		m=[(XMLAttributeDefinition.CData,None),(XMLAttributeDefinition.Entities,None),(XMLAttributeDefinition.Notation,['Steve']),
+			(XMLAttributeDefinition.Enumeration,['1','2','3'])]
+		p=XMLParser(e)
+		for match in m:
+			a=XMLAttributeDefinition()
+			p.ParseAttType(a)
+			self.failUnless(a.type==match[0],"Attribute type match failed: %i (expected %i)"%(a.type,match[0]))
+			self.failUnless(a.values==match[1],"Attribute type match failed: %s (expected %s)"%(a.values,match[1]))
+			p.ParseS()
+		try:
+			a=XMLAttributeDefinition()
+			value=p.ParseAttType(a)
+			self.fail("Parsed bad AttType: %i; %s"%(a.type,a.values))
+		except XMLFatalError:
+			pass
+				
+	def testStringType(self):
+		"""[55] StringType ::= 'CDATA' """
+		s="CDATA ID"
+		e=XMLEntity(s)
+		m=[(XMLAttributeDefinition.CData,None)]
+		p=XMLParser(e)
+		for match in m:
+			a=XMLAttributeDefinition()
+			p.ParseStringType(a)
+			self.failUnless(a.type==match[0],"String type match failed: %i (expected %i)"%(a.type,match[0]))
+			self.failUnless(a.values==match[1],"String type match failed: %s (expected %s)"%(a.values,match[1]))
+			p.ParseS()
+		try:
+			a=XMLAttributeDefinition()
+			value=p.ParseStringType(a)
+			self.fail("Parsed bad StringType: %i; %s"%(a.type,a.values))
+		except XMLFatalError:
+			pass
+		
+	def testTokenizedType(self):
+		"""[56] TokenizedType ::= 'ID' | 'IDREF' | 'IDREFS' | 'ENTITY' | 'ENTITIES'	 | 'NMTOKEN' | 'NMTOKENS' """
+		s="ID IDREF IDREFS ENTITY ENTITIES NMTOKEN NMTOKENS NAME"
+		e=XMLEntity(s)
+		m=[(XMLAttributeDefinition.ID,None),(XMLAttributeDefinition.IDRef,None),(XMLAttributeDefinition.IDRefs,None),
+			(XMLAttributeDefinition.Entity,None),(XMLAttributeDefinition.Entities,None),(XMLAttributeDefinition.NmToken,None),
+			(XMLAttributeDefinition.NmTokens,None)]
+		p=XMLParser(e)
+		for match in m:
+			a=XMLAttributeDefinition()
+			p.ParseTokenizedType(a)
+			self.failUnless(a.type==match[0],"Tokenized type match failed: %i (expected %i)"%(a.type,match[0]))
+			self.failUnless(a.values==match[1],"Tokenized type match failed: %s (expected %s)"%(a.values,match[1]))
+			p.ParseS()
+		try:
+			a=XMLAttributeDefinition()
+			value=p.ParseTokenizedType(a)
+			self.fail("Parsed bad Tokenized: %i; %s"%(a.type,a.values))
+		except XMLFatalError:
+			pass
+		
+	def testEnumeratedType(self):
+		"""[57] EnumeratedType ::= NotationType | Enumeration """
+		s="NOTATION (Steve1)NOTATION (Steve1|Steve2)(1|2|3)NOTATION (1|2|3)"
+		e=XMLEntity(s)
+		m=[(XMLAttributeDefinition.Notation,['Steve1']),(XMLAttributeDefinition.Notation,['Steve1','Steve2']),(XMLAttributeDefinition.Enumeration,['1','2','3'])]
+		p=XMLParser(e)
+		for match in m:
+			a=XMLAttributeDefinition()
+			p.ParseEnumeratedType(a)
+			self.failUnless(a.type==match[0],"Enumerated type match failed: %i (expected %i)"%(a.type,match[0]))
+			self.failUnless(a.values==match[1],"Enumerated type match failed: %s (expected %s)"%(a.values,match[1]))
+		try:
+			a=XMLAttributeDefinition()
+			value=p.ParseEnumeratedType(a)
+			self.fail("Parsed bad EnumeratedType: %i; %s"%(a.type,a.values))
+		except XMLFatalError:
+			pass
+		
+	def testNotationType(self):
+		"""[58] NotationType ::= 'NOTATION' S '(' S? Name (S? '|' S? Name)* S? ')'"""
+		s="NOTATION (Steve1)NOTATION (Steve1|Steve2|Steve3)NOTATION ( Steve1 ) ( Steve1 | Steve2 | Steve3 )NOTATION(Steve1|Steve2)"
+		e=XMLEntity(s)
+		m=[['Steve1'],['Steve1','Steve2','Steve3'],['Steve1'],['Steve1','Steve2','Steve3']]
+		p=XMLParser(e)
+		for match in m:
+			value=p.ParseNotationType(p.theChar!='N')
+			self.failUnless(value==match,"NotationType match failed: %s (expected %s)"%(value,match))
+		try:
+			value=p.ParseNotationType()
+			self.fail("Parsed bad NotationType: %s"%value)
+		except XMLFatalError:
+			pass
+
+	def testEnumeration(self):
+		"""[59] Enumeration	   ::=   	'(' S? Nmtoken (S? '|' S? Nmtoken)* S? ')' """
+		s="(Steve1)(Steve1|Steve2|3Steve)( Steve1 )( Steve1 | Steve2 | 3Steve )(Steve1|Steve 2)"
+		e=XMLEntity(s)
+		m=[['Steve1'],['Steve1','Steve2','3Steve'],['Steve1'],['Steve1','Steve2','3Steve']]
+		p=XMLParser(e)
+		for match in m:
+			value=p.ParseEnumeration()
+			self.failUnless(value==match,"Enumeration match failed: %s (expected %s)"%(value,match))
+		try:
+			value=p.ParseEnumeration()
+			self.fail("Parsed bad Enumeration: %s"%value)
+		except XMLFatalError:
+			pass
+
+	def testDefaultDecl(self):
+		"""[60] DefaultDecl ::= '#REQUIRED' | '#IMPLIED' | (('#FIXED' S)? AttValue) """
+		s="#REQUIRED #IMPLIED #FIXED 'Steve' 'Steve'Steve"
+		e=XMLEntity(s)
+		m=[(XMLAttributeDefinition.Required,None),(XMLAttributeDefinition.Implied,None),(XMLAttributeDefinition.Fixed,'Steve'),
+			(XMLAttributeDefinition.Default,'Steve')]
+		p=XMLParser(e)
+		for match in m:
+			a=XMLAttributeDefinition()
+			p.ParseDefaultDecl(a)
+			self.failUnless(a.presence==match[0],"DefaultDecl declaration match failed: %i (expected %i)"%(a.presence,match[0]))
+			self.failUnless(a.defaultValue==match[1],"DefaultDecl value match failed: %s (expected %s)"%(a.defaultValue,match[1]))
+			p.ParseS()
+		try:
+			a=XMLAttributeDefinition()
+			p.ParseDefaultDecl(a)
+			self.fail("Parsed bad DefaultDecl: (%i,%s)"%(a.presence,a.defaultValue))
+		except XMLFatalError:
+			pass
+		
 	def testConditionalSect(self):
 		"""[61] conditionalSect ::= includeSect | ignoreSect"""
 		s="<![%include;[ <!ENTITY included 'yes'> <![ IGNORE [ <!ENTITY ignored 'no'> ]]> ]]>"
