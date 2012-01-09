@@ -351,6 +351,7 @@ class HTTP2616Tests(unittest.TestCase):
 		
 	def testCaseManager(self):
 		rm=FakeHTTPRequestManager()
+		rm.httpUserAgent=None
 		request1=HTTPRequest("http://www.domain1.com/")
 		self.failUnless(request1.method=="GET")
 		request2=HTTPRequest("http://www.domain2.com/","HEAD")
@@ -372,6 +373,7 @@ class HTTP2616Tests(unittest.TestCase):
 		
 	def testCaseContinue(self):
 		rm=FakeHTTPRequestManager()
+		rm.httpUserAgent=None
 		request1=HTTPRequest("http://www.domain1.com/file","PUT","123456\r\n\r\n")
 		self.failUnless(request1.method=="PUT")
 		request2=HTTPRequest("http://www.domain1.com/file2","PUT","123456\r\n\r\n")
@@ -394,6 +396,7 @@ class HTTP2616Tests(unittest.TestCase):
 
 	def testCaseStreamedPut(self):
 		rm=FakeHTTPRequestManager()
+		rm.httpUserAgent=None
 		request=HTTPRequest("http://www.domain1.com/file2","PUT",StringIO.StringIO("123456\r\n\r\n"))
 		request.SetExpectContinue()
 		rm.ProcessRequest(request)
@@ -411,6 +414,7 @@ class HTTP2616Tests(unittest.TestCase):
 		
 	def testCaseStreamedGet(self):
 		rm=FakeHTTPRequestManager()
+		rm.httpUserAgent=None
 		buff=StringIO.StringIO()
 		request=HTTPRequest("http://www.domain1.com/","GET",'',buff)
 		rm.ProcessRequest(request)

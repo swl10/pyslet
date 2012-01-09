@@ -613,6 +613,7 @@ class HTTPRequestManager:
 		self.logStream=None
 		self.logLineLen=80
 		self.logString=''
+		self.httpUserAgent="pyslet.rfc2616.HTTPRequestManager"
 		
 	def SetLog(self,level,logStream=None,lineLen=80):
 		self.logLevel=level
@@ -635,6 +636,8 @@ class HTTPRequestManager:
 		self.ManagerLoop(timeout)
 		
 	def QueueRequest(self,request):
+		if self.httpUserAgent:
+			request.SetHeader('User-Agent',self.httpUserAgent)
 		self.requestQueue.append(request)
 		request.SetManager(self)
 

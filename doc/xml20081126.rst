@@ -19,18 +19,95 @@ privately in XML parser implementations which make it easier to reuse concepts
 from XML in other modules. For example, the :func:`IsNameStartChar` tells you if
 a character matches the production for NameStartChar in the XML standard.
 
+Documents
+---------
+
+..	autoclass:: XMLElementParentMixin
+	:members:
+	:show-inheritance:
+	
 ..	autoclass:: XMLDocument
 	:members:
 	:show-inheritance:
 
+..	autofunction:: RegisterDocumentClass
 
-..	autoclass:: XMLElement
+Characters
+~~~~~~~~~~
+
+..	autofunction:: IsChar
+
+
+Common Syntactic Constructs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+..	autofunction:: IsS
+
+..	autofunction:: StripLeadingS
+
+..	autofunction:: CollapseSpace
+
+..	autofunction:: IsNameStartChar
+
+..	autofunction:: IsNameChar
+
+..	autofunction:: IsValidName
+
+..	autofunction:: IsPubidChar
+
+
+Character Data and Markup
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+..	autofunction:: EscapeCharData
+
+..	autofunction:: EscapeCharData7
+
+
+CDATA Sections
+~~~~~~~~~~~~~~
+
+..	autofunction:: EscapeCDSect
+
+
+Prolog and Document Type Declaration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+..	autoclass:: XMLDTD
+	:members:
+	:show-inheritance:
+
+..	autoclass:: XMLDeclaration
 	:members:
 	:show-inheritance:
 
 
 Logical Structures
 ------------------
+
+..	autoclass:: XMLElement
+	:members:
+	:show-inheritance:
+
+..	autoclass:: XMLElementType
+	:members:
+	:show-inheritance:
+
+..	autoclass:: XMLContentParticle
+	:members:
+	:show-inheritance:
+
+..	autoclass:: XMLNameParticle
+	:members:
+	:show-inheritance:
+
+..	autoclass:: XMLChoiceList
+	:members:
+	:show-inheritance:
+
+..	autoclass:: XMLSequenceList
+	:members:
+	:show-inheritance:
 
 ..	autoclass:: XMLAttributeDefinition
 	:members:
@@ -41,10 +118,6 @@ Logical Structures
 Physical Structures
 -------------------
 
-..	autoclass:: XMLExternalID
-	:members:
-	:show-inheritance:
-	
 ..	autoclass:: XMLEntity
 	:members:
 	:show-inheritance:
@@ -57,27 +130,17 @@ Physical Structures
 	:members:
 	:show-inheritance:
 
-
-Parsing Functions
------------------
-
-..	autoclass:: XMLParser
+..	autoclass:: XMLExternalID
 	:members:
 	:show-inheritance:
 
-
-
-..	autofunction:: IsNameStartChar
-
-
-Common Syntactic Constructs
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-..	autofunction:: IsChar
-
-..	autofunction:: IsS
-
-..	autofunction:: IsPubidChar
+..	autoclass:: XMLTextDeclaration
+	:members:
+	:show-inheritance:
+		
+..	autoclass:: XMLNotation
+	:members:
+	:show-inheritance:
 
 
 Character Classes
@@ -95,4 +158,14 @@ Character Classes
 ..	autofunction:: IsDigit
 
 ..	autofunction:: IsExtender
+
+
+Parsing Functions
+-----------------
+
+..	autoclass:: XMLParser
+	:members:
+	:show-inheritance:
+
+
 

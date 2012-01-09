@@ -25,9 +25,19 @@ def suite():
 		))
 
 TEST_DATA_DIR=os.path.join(os.path.split(os.path.abspath(__file__))[0],'data_xml20081126')
-DTD_DATA=os.path.join(os.path.split(os.path.abspath(__file__))[0],'data_imsqtiv1p2p1','input')
 
 from pyslet.xml20081126 import *
+
+
+class PIRecorderElement(XMLElement):
+	def __init__(self,parent):
+		XMLElement.__init__(self,parent)
+		self.target=None
+		self.instruction=None
+		
+	def ProcessingInstruction(self,target,instruction):
+		self.target=target
+		self.instruction=instruction
 
 	
 class NamedElement(XMLElement):
@@ -107,7 +117,7 @@ class ReflectiveElement(XMLElement):
 		self.generics.append(child)
 		return child
 		
-
+	
 class ReflectiveDocument(XMLDocument):
 	def GetElementClass(self,name):
 		if name in ["reflection","etest"]:
@@ -115,6 +125,7 @@ class ReflectiveDocument(XMLDocument):
 		else:
 			return XMLElement
 
+		
 class EmptyElement(XMLElement):
 	XMLNAME="empty"
 	XMLCONTENT=XMLEmpty
@@ -327,7 +338,6 @@ class XMLEntityTests(unittest.TestCase):
 		
 class XMLParserTests(unittest.TestCase):
 	def testCaseConstructor(self):
-		p=XMLParser()
 		e=XMLEntity("<hello>")
 		p=XMLParser(e)
 
@@ -357,7 +367,30 @@ class XMLParserTests(unittest.TestCase):
 		self.failUnless(p.ParseLiteral("HELLO"),"Upper-case literals")
 		p.ParseS()
 		#self.failUnless(p.ParseName()=="GOODBYE","Upper-case general names")
-					
+
+	def testDocument(self):
+		"""[1] document ::= prolog element Misc* """
+		os.chdir(TEST_DATA_DIR)
+		f=open('readFile.xml','rb')
+		e=XMLEntity(f)
+		d=XMLDocument()
+		d.Read(e)
+		root=d.root
+		self.failUnless(isinstance(root,XMLElement))
+		self.failUnless(root.xmlname=='tag' and root.GetValue()=='Hello World')
+		f.close()
+		f=open('readFile.xml','rb')
+		e=XMLEntity(f)
+		p=XMLParser(e)
+		p.ParseDocument()
+		root=p.doc.root
+		self.failUnless(isinstance(root,XMLElement))
+		self.failUnless(root.xmlname=='tag' and root.GetValue()=='Hello World')
+		f.close()
+	
+	# Following production is implemented as a character class:
+	# [2] Char ::= #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
+	
 	def testCaseS(self):
 		"""[3] S ::= (#x20 | #x9 | #xD | #xA)+ """
 		e=XMLEntity(" \t\r\n \r \nH ello")
@@ -374,12 +407,107 @@ class XMLParserTests(unittest.TestCase):
 			self.fail("ParseRequiredS failed to throw exception")
 		except XMLWellFormedError:
 			pass
+			
+	# Following two productions are implemented as character classes:
+	# [4] NameStartChar ::= ":" | [A-Z] | "_" | [a-z] | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
+	# [4a] NameChar ::= NameStartChar | "-" | "." | [0-9] | #xB7 | [#x0300-#x036F] | [#x203F-#x2040]
 
+	def testCaseName(self):
+		"""[5] Name ::= NameStartChar (NameChar)*"""
+		sGood=('hello',':ello',u'A\xb72','_')
+		for s in sGood:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			name=p.ParseName()
+			self.failUnless(name==s,u"Name: %s (expected %s)"%(name,s))
+		sBad=('-Atlantis','&hello','fish&chips','what?','.ello',u'\xb7RaisedDot','-')
+		for s in sBad:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				name=p.ParseName()
+				self.failIf(p.theChar is None,"ParseName negative test: %s"%s)
+			except XMLWellFormedError:
+				pass
+		e=XMLEntity('&noname')
+		p=XMLParser(e)
+		try:
+			p.ParseRequiredName()
+			self.fail("ParseRequiredName: failed to throw exception")
+		except XMLWellFormedError:
+			pass
+			
+	def testCaseNames(self):
+		"""[6] Names ::= Name (#x20 Name)*	"""
+		e=XMLEntity("Hello World -Atlantis!")
+		p=XMLParser(e)
+		self.failUnless(p.ParseNames()==['Hello','World'])
+			
+	def testCaseNmtoken(self):
+		"""[7] Nmtoken ::= (NameChar)+"""
+		sGood=('hello','h:ello','-Atlantis',':ello',u'\xb7RaisedDot',u'1\xb72','-')
+		for s in sGood:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			name=p.ParseNmtoken()
+			self.failUnless(name==s,u"Nmtoken: %s"%name)
+		sBad=('&hello','fish&chips','what?')
+		for s in sBad:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				name=p.ParseNmtoken()
+				self.failIf(p.theChar is None,"ParseNmtoken negative test: %s"%s)
+			except XMLWellFormedError:
+				pass		
+
+	def testCaseNmtokens(self):
+		"""[8] Nmtokens ::= Nmtoken (#x20 Nmtoken)*"""
+		e=XMLEntity("Hello World -Atlantis!")
+		p=XMLParser(e)
+		tokens=p.ParseNmtokens()
+		self.failUnless(tokens==['Hello','World','-Atlantis'],repr(tokens))
+
+	def testCaseEntityValue(self):
+		"""[9] EntityValue ::= '"' ([^%&"] | PEReference | Reference)* '"' | "'" ([^%&'] | PEReference | Reference)* "'"	"""
+		e=XMLEntity("'first'\"second\"'3&gt;2''2%ltpe;3'")
+		m=['first','second','3&gt;2','2<3']
+		p=XMLParser(e)
+		p.dtd=XMLDTD()
+		p.dtd.DeclareEntity(XMLParameterEntity('ltpe','<'))
+		for match in m:
+			value=p.ParseEntityValue()
+			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
+
+	def testAttValue(self):
+		"""[10] AttValue ::= '"' ([^<&"] | Reference)* '"' |  "'" ([^<&'] | Reference)* "'" """
+		e=XMLEntity("'first'\"second\"'3&gt;2''Caf&#xE9;'")
+		m=['first','second','3>2',u'Caf\xe9']
+		p=XMLParser(e)
+		for match in m:
+			value=p.ParseAttValue()
+			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
+		sBad=('"3<2"',"'Fish&Chips'")
+		for s in sBad:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				value=p.ParseAttValue()
+				self.fail("AttValue negative test: %s"%s)
+			except XMLWellFormedError:
+				pass		
+	
+	def testSystemLiteral(self):
+		"""[11] SystemLiteral ::= ('"' [^"]* '"') | ("'" [^']* "'") """
+		e=XMLEntity("'first'\"second\"'3&gt;2''2%ltpe;3''Caf&#xE9;'")
+		m=[u'first',u'second',u'3&gt;2',u'2%ltpe;3',u'Caf&#xE9;']
+		p=XMLParser(e)
+		for match in m:
+			value=p.ParseSystemLiteral()
+			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
+	
 	def testPubidLiteral(self):
-		"""
-		[12] PubidLiteral ::= '"' PubidChar* '"' | "'" (PubidChar - "'")* "'"
-		[13] PubidChar ::= #x20 | #xD | #xA | [a-zA-Z0-9] | [-'()+,./:=?;!*#@$_%]
-		"""
+		"""[12] PubidLiteral ::= '"' PubidChar* '"' | "'" (PubidChar - "'")* "'"	"""
 		e=XMLEntity("'first'\"second\"'http://www.example.com/schema.dtd?strict''[bad]'")
 		m=['first','second','http://www.example.com/schema.dtd?strict']
 		p=XMLParser(e)
@@ -392,15 +520,666 @@ class XMLParserTests(unittest.TestCase):
 		except XMLFatalError:
 			pass
 
-	def testMixed(self):
-		"""[51] Mixed ::= '(' S? '#PCDATA' (S? '|' S? Name)* S? ')*' | '(' S? '#PCDATA' S? ')' """
-		s="(#PCDATA)( #PCDATA | Steve1 | Steve2 )*( #PCDATA |Steve1|Steve2)*(#PCDATA|Steve1)(Steve1|#PCDATA)*"
-		e=XMLEntity(s)
-		m=[[],['Steve1','Steve2'],['Steve1','Steve2']]
+	# [13] PubidChar: tested as a character class
+	
+	def testCaseCharData(self):
+		"""[14] CharData ::= [^<&]* - ([^<&]* ']]>' [^<&]*) """
+		e=XMLEntity("First<Second&Third]]&Fourth]]>")
+		m=['First','Second','Third]]','Fourth']
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		for match in m:
+			p.element=XMLElement(p.doc)
+			p.ParseCharData()
+			p.NextChar()
+			self.failUnless(p.element.GetValue()==match,"Match failed: %s (expected %s)"%(p.element.GetValue(),match))
+
+	def testCaseComment(self):
+		"""[15] Comment ::= '<!--' ((Char - '-') | ('-' (Char - '-')))* '-->' """
+		e=XMLEntity("<!--First--><!--Secon-d--><!--Thi<&r]]>d--><!--Fourt<!-h--><!--Bad--Comment-->")
+		m=['First','Secon-d','Thi<&r]]>d','Fourt<!-h']
 		p=XMLParser(e)
 		for match in m:
-			values=p.ParseMixed()
-			self.failUnless(values==match,"Mixed type match failed: %s (expected %s)"%(values,match))
+			pStr=p.ParseComment()
+			self.failUnless(pStr==match,"Match failed: %s (expected %s)"%(pStr,match))
+		try:
+			if p.ParseLiteral('<!--'):
+				pStr=p.ParseComment()
+			self.fail("Parsed bad comment: %s"%pStr)
+		except XMLFatalError:
+			pass
+		
+	def testCasePI(self):
+		"""[16] PI ::= '<?' PITarget (S (Char* - (Char* '?>' Char*)))? '?>' """
+		e=XMLEntity("<?target instruction?><?xm_xml \n\r<!--no comment-->?><?markup \t]]>?&<?>")
+		m=[('target','instruction'),('xm_xml','<!--no comment-->'),('markup',']]>?&<')]
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		for matchTarget,matchStr in m:
+			p.element=PIRecorderElement(p.doc)
+			p.ParsePI()
+			self.failUnless(p.element.target==matchTarget,"Match failed for target: %s (expected %s)"%(p.element.target,matchTarget))
+			self.failUnless(p.element.instruction==matchStr,"Match failed for instruction: %s (expected %s)"%(p.element.instruction,matchStr))
+		sBad=('<?xml reserved?>')
+		for s in sBad:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			p.doc=XMLDocument()
+			try:
+				p.ParsePI()
+				self.fail("PI negative test: %s"%s)
+			except XMLWellFormedError:
+				pass		
+
+	def testPITarget(self):
+		"""[17] PITarget ::= Name - (('X' | 'x') ('M' | 'm') ('L' | 'l'))	"""
+		sGood=('hello','helloxml','xmlhello','xmhello','xm','ml','xl')
+		for s in sGood:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			name=p.ParsePITarget()
+			self.failUnless(name==s,"PITarget: %s"%name)
+		sBad=('xml','XML','xML','Xml')
+		for s in sBad:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				name=p.ParsePITarget()
+				self.fail("PITarget negative test: %s"%s)
+			except XMLWellFormedError:
+				pass		
+		
+	def testCDSect(self):
+		"""[18] CDSect ::= CDStart CData CDEnd	"""
+		sGood=('<![CDATA[hello]]>',
+			"<![CDATA[]]>",
+			"<![CDATA[a]b]]c]>d><![CDATAe]]>",
+			'hello]]>',
+			"<![CDATA[<hello>&world;]]>")
+		m=['hello','','a]b]]c]>d><![CDATAe','hello',"<hello>&world;"]
+		for s,match in zip(sGood,m):
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			p.doc=XMLDocument()
+			p.element=XMLElement(p.doc)
+			p.ParseCDSect(p.theChar!='<')
+			self.failUnless(p.element.GetValue()==match,"CDSect conent: %s"%p.element.GetValue())
+		sBad=('<!CDATA [hello]]>',
+			"<!CDATA[hello]]",
+			"hello")
+		for s in sBad:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			p.doc=XMLDocument()
+			p.element=XMLElement(p.doc)
+			try:
+				p.ParseCDSect(p.theChar!='<')
+				self.fail("CDSect negative test: %s"%s)
+			except XMLWellFormedError:
+				pass		
+		e=XMLEntity("&hello;<end")
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		p.element=XMLElement(p.doc)
+		p.ParseCDSect(True,'<end')
+		self.failUnless(p.element.GetValue()=='&hello;',"Custom CDSect: %s"%p.element.GetValue())
+		
+	def testCDStart(self):
+		"""[21] CDStart ::= '<!CDATA['	"""
+		e=XMLEntity("<![CDATA[")
+		p=XMLParser(e)
+		p.ParseCDStart()
+		self.failUnless(p.theChar is None,"Short parse on CDStart")
+		
+	def testCData(self):
+		"""[20] CData ::= (Char* - (Char* ']]>' Char*))	"""
+		sGood=('',' ','<!-- comment -->',
+			'&hello;]]>',
+			']',
+			']]',
+			']]h>')
+		for s in sGood:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			p.doc=XMLDocument()
+			p.element=XMLElement(p.doc)
+			p.ParseCData()
+			if p.theChar is None:
+				self.failUnless(p.element.GetValue()==s,"CData conent: %s"%p.element.GetValue())
+			else:
+				p.ParseCDEnd()
+				self.failUnless(p.element.GetValue()==s[:-3],"CData conent: %s"%p.element.GetValue())				
+		# no negative tests as prolog can be empty, but check the custom CDEnd case.
+		e=XMLEntity("hello<end")
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		p.element=XMLElement(p.doc)
+		p.ParseCData('<end')
+		self.failUnless(p.element.GetValue()=='hello',"Custom CDEnd: %s"%p.element.GetValue())
+		
+	def testCDEnd(self):
+		"""[21] CDEnd ::= ']]>'	"""
+		e=XMLEntity("]]>")
+		p=XMLParser(e)
+		p.ParseCDEnd()
+		self.failUnless(p.theChar is None,"Short parse on CDEnd")
+		
+	def testProlog(self):
+		"""[22] prolog ::= XMLDecl? Misc* (doctypedecl Misc*)?	"""
+		sGood=('',' ','<!-- comment -->',
+			'<?xml version="1.0"?>',
+			'<?xml version="1.0"?><!-- comment --> ',
+			'<?xml version="1.0"?><!-- comment --> <!DOCTYPE steve>',
+			'<?xml version="1.0"?><!-- comment --> <!DOCTYPE steve><?pi?> ')
+		for s in sGood:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			p.doc=XMLDocument()
+			p.ParseProlog()
+			self.failUnless(p.theChar is None,"Short parse on Prolog")
+		# no negative tests as prolog can be empty!
+		
+	def testXMLDecl(self):
+		"""[23] XMLDecl ::= '<?xml' VersionInfo EncodingDecl? SDDecl? S? '?>'	"""
+		sGood=('<?xml version="1.0" encoding="utf-8" standalone="no" ?>',
+			"<?xml version='1.0' standalone='yes'?>",
+			"<?xml version='1.0' encoding='utf-8'?>",
+			"<?xml version='1.1'?>",
+			" version='1.2'?>")
+		m=[('1.0','utf-8',False),
+			('1.0',None,True),
+			('1.0','utf-8',False),
+			('1.1',None,False),
+			('1.2',None,False)]
+		for s,match in zip(sGood,m):
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			d=p.ParseXMLDecl(not ('x' in s))
+			self.failUnless(isinstance(d,XMLDeclaration),"xml declaration type")
+			self.failUnless(d.version==match[0],"declared version mismatch: %s"%d.version)
+			self.failUnless(d.encoding==match[1],"declared encoding mismatch: %s"%d.encoding)
+			self.failUnless(d.standalone==match[2],"standalone declaration mismatch: %s"%d.standalone)
+			self.failUnless(p.theChar is None,"Short parse on XMLDecl")
+		sBad=('','version="1.0"'," ='1.0'"," version=1.0")
+		for s in sBad:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				p.ParseXMLDecl()
+				self.fail("XMLDecl negative test: %s"%s)
+			except XMLWellFormedError:
+				pass		
+		
+	def testVersionInfo(self):
+		"""[24] VersionInfo ::= S 'version' Eq ("'" VersionNum "'" | '"' VersionNum '"')	"""
+		sGood=(' version="1.0"',"  version  =  '1.1'"," = '1.0'")
+		for s in sGood:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			p.ParseVersionInfo(not ('v' in s))
+			self.failUnless(p.theChar is None,"Short parse on VersionInfo")
+		sBad=('','version="1.0"'," ='1.0'"," version=1.0")
+		for s in sBad:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				p.ParseVersionInfo()
+				self.fail("VersionInfo negative test: %s"%s)
+			except XMLWellFormedError:
+				pass		
+		
+	def testEq(self):
+		"""[25] Eq ::= S? '=' S?	"""
+		sGood=('=',' = ',' =','= ')
+		for s in sGood:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			p.ParseEq()
+			self.failUnless(p.theChar is None,"Short parse on Eq")
+		sBad=('','-')
+		for s in sBad:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				p.ParseEq()
+				self.fail("Eq negative test: %s"%s)
+			except XMLWellFormedError:
+				pass		
+		
+	def testVersionNum(self):
+		"""[26] VersionNum ::= '1.' [0-9]+ """
+		sGood=('1.0','1.10','1.1','1.0123456789')
+		for s in sGood:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			self.failUnless(p.ParseVersionNum()==s,"Failed to parse VersionNum: %s"%s)
+			self.failUnless(p.theChar is None,"Short parse on VersionNum")
+		sBad=('1. ','2.0','1','1,0')
+		for s in sBad:
+			e=XMLEntity(s)
+			p=XMLParser(e)
+			try:
+				p.ParseVersionNum()
+				self.fail("VersionNum negative test: %s"%s)
+			except XMLWellFormedError:
+				pass		
+		
+	def testMisc(self):
+		"""[27] Misc ::= Comment | PI | S """
+		s="<!-- comment --><?pi?> "
+		e=XMLEntity(s)
+		p=XMLParser(e)
+		for i in xrange(3):
+			p.ParseMisc()
+		self.failUnless(p.theChar is None,"Short parse of Misc")
+		
+	def testDoctypedecl(self):
+		"""[28] doctypedecl ::= '<!DOCTYPE' S Name (S ExternalID)? S? ('[' intSubset ']' S?)? '>'	"""
+		s=["<!DOCTYPE Steve SYSTEM 'SteveDoc.dtd'[ <!ENTITY name 'Steve'> ]>",
+			"<!DOCTYPE Steve SYSTEM 'SteveDoc.dtd' [] >",
+			"<!DOCTYPE Steve SYSTEM 'SteveDoc.dtd' >",
+			"<!DOCTYPE Steve [ ] >",
+			"<!DOCTYPE Steve>"]
+		m=[('Steve','SteveDoc.dtd','Steve'),
+			('Steve','SteveDoc.dtd',None),
+			('Steve','SteveDoc.dtd',None),
+			('Steve',None,None),
+			('Steve',None,None)]
+		for sEntity,match in zip(s,m):
+			e=XMLEntity(sEntity)
+			p=XMLParser(e)
+			p.ParseDoctypedecl()
+			self.failUnless(isinstance(p.dtd,XMLDTD),"No DTD created")
+			self.failUnless(p.dtd.name==match[0],"Name mismatch")
+			if match[1] is None:
+				self.failUnless(p.dtd.externalID is None,"External ID: expected None")
+			else:
+				self.failUnless(isinstance(p.dtd.externalID,XMLExternalID),"Type of ExternalID")
+				self.failUnless(p.dtd.externalID.system==match[1],"System ID mismatch")
+			if match[2] is not None:
+				self.failUnless(p.dtd.GetEntity('name').definition==match[2],"Expected general entity declared: %s"%repr(p.dtd.GetEntity('name').definition))
+			
+	def testDeclSep(self):
+		"""[28a] DeclSep ::= PEReference | S"""
+		s="%stuff; %stuff; x"
+		e=XMLEntity(s)
+		p=XMLParser(e)
+		p.dtd=XMLDTD()
+		p.dtd.DeclareEntity(XMLParameterEntity('stuff',' '))
+		p.checkValidity=True
+		p.refMode=XMLParser.RefModeInDTD
+		while p.theChar!='x':
+			p.ParseDeclSep()
+		
+	def testIntSubset(self):
+		"""[28b] intSubset ::= (markupdecl | DeclSep)* """
+		s="""<!ELEMENT elem1 ANY>
+		<!ATTLIST elem1 attr CDATA 'Steve'>
+		<!ENTITY name 'Steve'>
+		<!NOTATION SteveN PUBLIC 'Steve' '/home/steve.txt'> 
+		<?stuff?>
+		<!-- more stuff -->
+		x"""
+		e=XMLEntity(s)
+		p=XMLParser(e)
+		p.doc=XMLDocument()
+		p.ParseIntSubset()
+		self.failUnless(p.theChar=='x',"Short parse on internal subset: found %s"%repr(p.theChar))		
+		
+	def testMarkupDecl(self):
+		"""[29] markupdecl ::= elementdecl | AttlistDecl | EntityDecl | NotationDecl | PI | Comment	"""
+		s="""<!ELEMENT elem1 ANY>
+		<!ATTLIST elem1 attr CDATA 'Steve'>
+		<!ENTITY name 'Steve'>
+		<!NOTATION SteveN PUBLIC 'Steve' '/home/steve.txt'> 
+		<?stuff?>
+		<!-- more stuff -->
+		x"""
+		e=XMLEntity(s)
+		p=XMLParser(e)
+		p.dtd=XMLDTD()
+		while p.theChar=='<':
+			p.ParseMarkupDecl(False)
+			p.ParseS()
+		self.failUnless(p.theChar=='x',"Short parse on markup declarations: found %s"%repr(p.theChar))
+		eType=p.dtd.GetElementType('elem1')
+		self.failUnless(eType.contentType==XMLElementType.Any,"element content type")
+		aList=p.dtd.GetAttributeList('elem1')
+		self.failUnless(aList['attr'].defaultValue=='Steve',"attlist")
+		self.failUnless(p.dtd.GetEntity('name').definition=='Steve',"entity declaration")
+		self.failUnless(p.dtd.GetNotation('SteveN').externalID.system=='/home/steve.txt',"notation declaration")
+		
+	def testExtSubset(self):
+		"""[30] extSubset ::= TextDecl? extSubsetDecl """
+		s='<?xml encoding = "x-steve"?> <?stuff?> !'
+		e=XMLEntity(s)
+		p=XMLParser(e)
+		p.ParseExtSubset()
+		self.failUnless(p.theChar=='!',"Short parse on extSubset: %s"%p.theChar)		
+		s='<?stuff?> !'
+		e=XMLEntity(s)
+		p=XMLParser(e)
+		p.ParseExtSubset()
+		self.failUnless(p.theChar=='!',"Short parse on extSubset: %s"%p.theChar)		
+		
+	def testExtSubsetDecl(self):
+		"""[31] extSubsetDecl ::= ( markupdecl | conditionalSect | DeclSep)*	"""
+		s="<?stuff?><![INCLUDE[]]>%moreStuff; "
+		e=XMLEntity(s)
+		p=XMLParser(e)
+		p.dtd=XMLDTD()
+		p.dtd.DeclareEntity(XMLParameterEntity('moreStuff',' <?stuff?>'))
+		p.checkValidity=True
+		p.refMode=XMLParser.RefModeInDTD
+		p.ParseExtSubsetDecl()
+		self.failUnless(p.theChar is None,"Short parse on extSubsetDecl: %s"%p.theChar)		
+
+	def testSDDecl(self):
+		"""[32] SDDecl ::= S 'standalone' Eq (("'" ('yes' | 'no') "'") | ('"' ('yes' | 'no') '"')) """
+		e=XMLEntity(" standalone='yes' standalone = \"no\" standalone = 'bad'")
+		m=[True,False]
+		p=XMLParser(e)
+		for match in m:
+			value=p.ParseSDDecl()
+			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
+		try:
+			value=p.ParseSDDecl()
+			self.fail("Parsed bad SDDecl: %s"%value)
+		except XMLFatalError:
+			pass		
+		
+	# There are no productions [33]-[38]
+
+	def testElement(self):
+		"""[39] element ::= EmptyElemTag | STag content ETag """
+		s="""<elem1/><elem2>hello</elem2><elem3>goodbye</elem4>"""
+		e=XMLEntity(s)
+		p=XMLParser(e)
+		p.refMode=XMLParser.RefModeInContent
+		element=p.element=XMLElement("a")
+		p.ParseElement()
+		p.ParseElement()
+		try:
+			p.ParseElement()
+			self.fail("Parsed bad element.")
+		except XMLWellFormedError:
+			pass
+		children=element.GetChildren()
+		self.failUnless(isinstance(children[0],XMLElement),"First element: %s"%repr(children[0]))
+		self.failUnless(children[0].xmlname=='elem1',"First element name: %s"%repr(children[0].xmlname))
+		self.failUnless(children[0].GetValue()=='',"First element empty value: %s"%repr(children[0].GetValue()))
+		self.failUnless(isinstance(children[1],XMLElement),"Second element: %s"%repr(children[1]))
+		self.failUnless(children[1].xmlname=='elem2',"Second element name: %s"%repr(children[1].xmlname))
+		self.failUnless(children[1].GetValue()=='hello',"Second element value: %s"%repr(children[1].GetValue()))
+
+		
+	def testSTag(self):
+		"""[40] STag ::= '<' Name (S Attribute)* S? '>' """
+		e=XMLEntity("<tag hello='world' ciao=\"tutti\">")
+		p=XMLParser(e)
+		name,attrs,empty=p.ParseSTag()
+		self.failUnless(name=='tag' and attrs['hello']=='world' and attrs['ciao']=='tutti' and empty==False)
+		e=XMLEntity("<tag hello/>")
+		p=XMLParser(e)
+		p.sgmlShorttag=True
+		name,attrs,empty=p.ParseSTag()
+		self.failUnless(name=='tag' and attrs['@hello']=='hello' and empty is True)
+		e=XMLEntity("<tag width=20%>")
+		p=XMLParser(e)
+		p.dontCheckWellFormedness=True
+		name,attrs,empty=p.ParseSTag()
+		self.failUnless(name=='tag' and attrs['width']=='20%' and empty is False)
+		
+		
+	def testAttribute(self):
+		"""[41] Attribute ::= Name Eq AttValue """
+		s="a='b'c=\"d\"e=f i j g=h%"
+		e=XMLEntity(s)
+		m=[('a','b'),('c','d')]
+		p=XMLParser(e)
+		for match in m:
+			name,value=p.ParseAttribute()
+			self.failUnless(name==match[0],"Attribute name match failed: %s (expected %s)"%(name,match[0]))
+			self.failUnless(value==match[1],"Attribute value match failed: %s (expected %s)"%(value,match[1]))
+		try:
+			p.ParseS()
+			value=p.ParseAttribute()
+			self.fail("Parsed bad Attribute: %s"%value)
+		except XMLWellFormedError:
+			pass
+		e=XMLEntity(s)
+		m=[('a','b'),('c','d'),('e','f'),('@i','i'),('@j','j'),('g','h%')]
+		p=XMLParser(e)
+		p.dontCheckWellFormedness=True
+		p.sgmlShorttag=True
+		for match in m:
+			p.ParseS()
+			name,value=p.ParseAttribute()
+			self.failUnless(name==match[0],"Compatibility: Attribute name match failed: %s (expected %s)"%(name,match[0]))
+			self.failUnless(value==match[1],"Compatibility: Attribute value match failed: %s (expected %s)"%(value,match[1]))
+		self.failUnless(p.theChar is None,"Short parse of ETag tests")
+		
+	def testETag(self):
+		"""[42] ETag ::= '</' Name S? '>' """
+		s="</elem1>elem2></elem3/>"
+		e=XMLEntity(s)
+		m=['elem1','elem2']
+		p=XMLParser(e)
+		for match in m:
+			value=p.ParseETag(p.theChar!='<')
+			self.failUnless(value==match,"ETag name match failed: %s (expected %s)"%(value,match))
+		try:
+			value=p.ParseETag()
+			self.fail("Parsed bad ETag: %s"%value)
+		except XMLWellFormedError:
+			p.ParseLiteral('/>')
+			pass
+		self.failUnless(p.theChar is None,"Short parse of ETag tests")
+						
+	def testContent(self):
+		"""[43] content ::= CharData? ((element | Reference | CDSect | PI | Comment) CharData?)* """
+		s="""a<elem1/>b&amp;c<![CDATA[&amp;]]>d<?x?>e<!-- y -->f"""
+		e=XMLEntity(s)
+		p=XMLParser(e)
+		p.refMode=XMLParser.RefModeInContent
+		p.element=XMLElement("a")
+		p.ParseContent()
+		children=p.element.GetChildren()
+		self.failUnless(children[0]=='a',"First character: %s"%repr(children[0]))
+		self.failUnless(isinstance(children[1],XMLElement),"First element: %s"%repr(children[1]))
+		self.failUnless(children[1].xmlname=='elem1',"First element name: %s"%repr(children[1].xmlname))
+		self.failUnless(children[2]=='b&c&amp;def',"Remaining data: %s"%repr(children[2]))
+
+	def testEmptyElemTag(self):
+		"""[44] EmptyElemTag ::= '<' Name (S Attribute)* S? '/> """
+		s="""<elem1/> <elem2 /> <elem3 x="1"/>"""
+		e=XMLEntity(s)
+		p=XMLParser(e)
+		m=[('elem1',{}),('elem2',{}),('elem3',{'x':'1'})]
+		for match in m:
+			try:
+				p.ParseEmptyElemTag()
+				self.fail("Expected ParseEmptyElem to be unimplemented.")
+			except NotImplementedError:
+				pass
+			name,attrs,emptyFlag=p.ParseSTag()
+			self.failUnless(emptyFlag,"Expected empty element tag")
+			self.failUnless(name==match[0],"Element name mismatch: %s"%name)
+			self.failUnless(attrs==match[1],"Element attrs mismatch: %s"%repr(attrs))
+			p.ParseS()
+		self.failUnless(p.theChar is None,"Short parse of empty elements")
+	
+	def testElementDecl(self):
+		"""[45] elementdecl ::= '<!ELEMENT' S Name S contentspec S? '>'	"""
+		s="""<!ELEMENT elem1 ANY>
+		<!ELEMENT elem2 (#PCDATA)>
+		<!ELEMENT elem3 ( A | ( B,C )? | (D,E,F)* | (G,H)+ | (I | (J,K)+)* ) >"""
+		e=XMLEntity(s)
+		p=XMLParser(e)
+		p.dtd=XMLDTD()
+		try:
+			while True:
+				p.ParseElementDecl(p.theChar!='<')
+				p.ParseS()
+		except XMLWellFormedError:
+			pass
+		eType=p.dtd.GetElementType('elem1')
+		self.failUnless(eType.contentType==XMLElementType.Any,"First element")
+		eType=p.dtd.GetElementType('elem2')
+		self.failUnless(eType.contentType==XMLElementType.Mixed,"Second element")
+		eType=p.dtd.GetElementType('elem3')
+		self.failUnless(eType.contentType==XMLElementType.ElementContent,"Third element")
+		self.failUnless(eType.contentModel.children[4].children[1].children[1].name=="K","Third element model")
+		self.failUnless(p.theChar is None,"Short parse on element declarations")
+		
+	def testContentSpec(self):
+		"""[46] contentspec ::= 'EMPTY' | 'ANY' | Mixed | children """
+		s="""EMPTY
+			ANY
+			(#PCDATA)
+			(#PCDATA)*
+			( #PCDATA | Steve1 | Steve2 )*
+			(Particle2|Particle3)?
+			(Particle4,Particle5,Particle6)+"""
+		e=XMLEntity(s)
+		m=[	(XMLElementType.Empty,None,None,None),
+			(XMLElementType.Any,None,None,None),
+			(XMLElementType.Mixed,XMLChoiceList,XMLContentParticle.ZeroOrMore,0),
+			(XMLElementType.Mixed,XMLChoiceList,XMLContentParticle.ZeroOrMore,0),
+			(XMLElementType.Mixed,XMLChoiceList,XMLContentParticle.ZeroOrMore,2),
+			(XMLElementType.ElementContent,XMLChoiceList,XMLContentParticle.ZeroOrOne,2),
+			(XMLElementType.ElementContent,XMLSequenceList,XMLContentParticle.OneOrMore,3) ]
+		p=XMLParser(e)
+		for match in m:
+			eType=XMLElementType()
+			p.ParseContentSpec(eType)
+			self.failUnless(eType.contentType==match[0],"Content type mismatch")
+			if match[1] is None:
+				self.failUnless(eType.contentModel is None,"Content model type mismatch")
+			else:	
+				self.failUnless(isinstance(eType.contentModel,match[1]),"Content model type mismatch")
+				self.failUnless(eType.contentModel.occurrence==match[2],"Content model occurrence mismatch")
+				self.failUnless(len(eType.contentModel.children)==match[3],"Number of children in content model mismatch")
+			p.ParseS()
+		self.failUnless(p.theChar is None,"Incomplete parse in contentspec tests: %s"%repr(p.theChar))
+		
+	def testChildren(self):
+		"""[47] children ::= (choice | seq) ('?' | '*' | '+')? """
+		s="""(Particle2|Particle3)?
+			(Particle4,Particle5)*
+			(Particle6,(Particle7|Particle8),(Particle9,Particle10))+
+			Particle1"""
+		e=XMLEntity(s)
+		m=[	(XMLChoiceList,XMLContentParticle.ZeroOrOne),
+			(XMLSequenceList,XMLContentParticle.ZeroOrMore),
+			(XMLSequenceList,XMLContentParticle.OneOrMore) ]
+		p=XMLParser(e)
+		for match in m:
+			cp=p.ParseChildren()
+			self.failUnless(isinstance(cp,match[0]),"Particle type mismatch")
+			self.failUnless(cp.occurrence==match[1],"Particle occurrence mismatch, %i (expected %i)"%(cp.occurrence,match[1]))
+			p.ParseS()
+		try:
+			cp=p.ParseChildren()
+			self.fail("Name not allowed outside choice or sequence")
+		except XMLFatalError:
+			# fails to parse 'Particle1'
+			p.ParseLiteral('Particle1')
+		self.failUnless(p.theChar is None,"Incomplete parse in children tests: %s"%repr(p.theChar))
+		
+	def testCP(self):
+		"""[48] cp ::= (Name | choice | seq) ('?' | '*' | '+')? """
+		s="""Particle1
+			(Particle2|Particle3)?
+			(Particle4,Particle5)*
+			(Particle6,(Particle7|Particle8),(Particle9,Particle10))+"""
+		e=XMLEntity(s)
+		m=[	(XMLNameParticle,XMLContentParticle.ExactlyOnce),
+			(XMLChoiceList,XMLContentParticle.ZeroOrOne),
+			(XMLSequenceList,XMLContentParticle.ZeroOrMore),
+			(XMLSequenceList,XMLContentParticle.OneOrMore) ]
+		p=XMLParser(e)
+		for match in m:
+			cp=p.ParseCP()
+			self.failUnless(isinstance(cp,match[0]),"Particle type mismatch")
+			self.failUnless(cp.occurrence==match[1],"Particle occurrence mismatch, %i (expected %i)"%(cp.occurrence,match[1]))
+			p.ParseS()
+		self.failUnless(p.theChar is None,"Incomplete parse in CP tests: %s"%repr(p.theChar))
+
+	def testChoice(self):
+		"""[49] choice ::= '(' S? cp ( S? '|' S? cp )+ S? ')' """
+		s="(Particle1|Particle2?|Particle3*)( Particle4+ | Particle5 )(Particle6|Particle7+)+(Particle8*)()"
+		e=XMLEntity(s)
+		m=[[('Particle1',XMLContentParticle.ExactlyOnce),('Particle2',XMLContentParticle.ZeroOrOne),
+			('Particle3',XMLContentParticle.ZeroOrMore)],[('Particle4',XMLContentParticle.OneOrMore),
+			('Particle5',XMLContentParticle.ExactlyOnce)],[('Particle6',XMLContentParticle.ExactlyOnce),
+			('Particle7',XMLContentParticle.OneOrMore)]]
+		p=XMLParser(e)
+		for match in m:
+			cp=p.ParseChoice()
+			self.failUnless(isinstance(cp,XMLChoiceList),"Choice list match failed")
+			self.failUnless(len(cp.children)==len(match),"Choice list match length mismatch")
+			i=0
+			for cpi,mi in zip(cp.children,match):
+				self.failUnless(isinstance(cpi,XMLNameParticle),"Not a name particle")
+				self.failUnless(cpi.name==mi[0],"Particle name mismatch")
+				self.failUnless(cpi.occurrence==mi[1],"Particle occurrence mismatch")
+		self.failUnless(p.ParseLiteral('+'),"Final occurrence parsed in error")
+		try:
+			cp=p.ParseChoice()
+			self.fail("Singleton choice not allowed")
+		except XMLFatalError:
+			# fails to parse ')'
+			p.ParseLiteral(')')
+		try:
+			cp=p.ParseChoice()
+			self.fail("Empty choice not allowed")
+		except XMLFatalError:
+			# fails to parse ')'
+			p.ParseLiteral(')')
+		self.failUnless(p.theChar is None,"Incomplete parse in choice tests: %s"%repr(p.theChar))
+	
+	def testSeq(self):
+		"""[50] seq ::= '(' S? cp ( S? ',' S? cp )* S? ')' """
+		s="(Particle1,Particle2?,Particle3*)( Particle4+ , Particle5 )(Particle6+)+()"
+		e=XMLEntity(s)
+		m=[[('Particle1',XMLContentParticle.ExactlyOnce),('Particle2',XMLContentParticle.ZeroOrOne),
+			('Particle3',XMLContentParticle.ZeroOrMore)],[('Particle4',XMLContentParticle.OneOrMore),
+			('Particle5',XMLContentParticle.ExactlyOnce)],[('Particle6',XMLContentParticle.OneOrMore)]]
+		p=XMLParser(e)
+		for match in m:
+			cp=p.ParseSeq()
+			self.failUnless(isinstance(cp,XMLSequenceList),"Sequence match failed")
+			self.failUnless(len(cp.children)==len(match),"Sequence match length mismatch")
+			i=0
+			for cpi,mi in zip(cp.children,match):
+				self.failUnless(isinstance(cpi,XMLNameParticle),"Not a name particle")
+				self.failUnless(cpi.name==mi[0],"Particle name mismatch")
+				self.failUnless(cpi.occurrence==mi[1],"Particle occurrence mismatch")
+		self.failUnless(p.ParseLiteral('+'),"Final occurrence parsed in error")
+		try:
+			cp=p.ParseSeq()
+			self.fail("Empty sequence not allowed")
+		except XMLFatalError:
+			# fails to parse ')'
+			p.ParseLiteral(')')
+		self.failUnless(p.theChar is None,"Incomplete parse in sequence tests: %s"%repr(p.theChar))
+		
+	def testMixed(self):
+		"""[51] Mixed ::= '(' S? '#PCDATA' (S? '|' S? Name)* S? ')*' | '(' S? '#PCDATA' S? ')' """
+		s="(#PCDATA)(#PCDATA)*( #PCDATA | Steve1 | Steve2 )*( #PCDATA |Steve1|Steve2)*(#PCDATA|Steve1)(Steve1|#PCDATA)*"
+		e=XMLEntity(s)
+		m=[[],[],['Steve1','Steve2'],['Steve1','Steve2']]
+		p=XMLParser(e)
+		for match in m:
+			cp=p.ParseMixed()
+			self.failUnless(isinstance(cp,XMLChoiceList),"Mixed must be a choice")
+			self.failUnless(cp.occurrence==XMLContentParticle.ZeroOrMore,"Mixed must be '*'")
+			self.failUnless(len(cp.children)==len(match),"Particle count mismatch: %s"%str(match))
+			for cpi,mi in zip(cp.children,match):
+				self.failUnless(isinstance(cpi,XMLNameParticle),"Mixed particles must be names")
+				self.failUnless(cpi.occurrence==XMLContentParticle.ExactlyOnce,"Mixed occurrence")
+				self.failUnless(cpi.name==mi,"Mixed particle name")
 		try:
 			values=p.ParseMixed()
 			self.fail("Missed trailing *")
@@ -422,18 +1201,18 @@ class XMLParserTests(unittest.TestCase):
 		 elem2 (1|2|3) >"""
 		e=XMLEntity(s)
 		p=XMLParser(e)
-		p.doc=XMLDocument()
+		p.dtd=XMLDTD()
 		try:
 			while True:
 				p.ParseAttlistDecl(p.theChar!='<')
 				p.ParseS()
 		except XMLWellFormedError:
 			pass
-		aList=p.doc.GetAttributeList('elem')
+		aList=p.dtd.GetAttributeList('elem')
 		self.failUnless(aList['attr'].defaultValue=='Steve',"First attribute")
 		self.failUnless(aList['attr2'].presence==XMLAttributeDefinition.Implied,"Second attribute")
 		self.failUnless(aList['attr3'].type==XMLAttributeDefinition.Enumeration,"Third attribute")
-		aList=p.doc.GetAttributeList('elem2')
+		aList=p.dtd.GetAttributeList('elem2')
 		self.failUnless(aList is None,"Bad attribute")
 		
 	def testAttDef(self):
@@ -590,15 +1369,15 @@ class XMLParserTests(unittest.TestCase):
 		s="<![%include;[ <!ENTITY included 'yes'> <![ IGNORE [ <!ENTITY ignored 'no'> ]]> ]]>"
 		e=XMLEntity(s)
 		p=XMLParser(e)
-		p.doc=XMLDocument()
-		p.doc.DeclareEntity(XMLParameterEntity('include','INCLUDE'))
+		p.dtd=XMLDTD()
+		p.dtd.DeclareEntity(XMLParameterEntity('include','INCLUDE'))
 		p.checkValidity=True
 		p.refMode=XMLParser.RefModeInDTD
 		try:
 			p.ParseConditionalSect()
 			self.failUnless(p.theChar is None,"Short parse on ConditionalSect: %s"%p.theChar)
-			self.failUnless(p.doc.GetEntity('included').definition=='yes',"included entity declaration")
-			self.failUnless(p.doc.GetEntity('ignored')==None,"ignored entity declaration")			
+			self.failUnless(p.dtd.GetEntity('included').definition=='yes',"included entity declaration")
+			self.failUnless(p.dtd.GetEntity('ignored')==None,"ignored entity declaration")			
 		except XMLWellFormedError,e:
 			self.fail("ParseConditionalSect positive test: %s\n%s"%(s,str(e)))
 		
@@ -608,8 +1387,8 @@ class XMLParserTests(unittest.TestCase):
 			"<![%include;[]]>"]:
 			e=XMLEntity(s)
 			p=XMLParser(e)
-			p.doc=XMLDocument()
-			p.doc.DeclareEntity(XMLParameterEntity('include','INCLUDE'))
+			p.dtd=XMLDTD()
+			p.dtd.DeclareEntity(XMLParameterEntity('include','INCLUDE'))
 			p.checkValidity=True
 			p.refMode=XMLParser.RefModeInDTD
 			try:
@@ -632,10 +1411,10 @@ class XMLParserTests(unittest.TestCase):
 			e=XMLEntity(s)
 			p=XMLParser(e)
 			p.refMode=XMLParser.RefModeInContent
-			p.doc=XMLDocument()
-			p.doc.DeclareEntity(XMLParameterEntity('include1','INCLUDE ['))			
-			p.doc.DeclareEntity(XMLParameterEntity('include2','<![INCLUDE '))			
-			p.doc.DeclareEntity(XMLParameterEntity('include3','<?included?> ]]>'))		
+			p.dtd=XMLDTD()
+			p.dtd.DeclareEntity(XMLParameterEntity('include1','INCLUDE ['))			
+			p.dtd.DeclareEntity(XMLParameterEntity('include2','<![INCLUDE '))			
+			p.dtd.DeclareEntity(XMLParameterEntity('include3','<?included?> ]]>'))		
 			p.checkValidity=True
 			p.raiseValidityErrors=True
 			p.refMode=XMLParser.RefModeInDTD
@@ -655,8 +1434,8 @@ class XMLParserTests(unittest.TestCase):
 			"<![%ignore;[]]>"]:
 			e=XMLEntity(s)
 			p=XMLParser(e)
-			p.doc=XMLDocument()
-			p.doc.DeclareEntity(XMLParameterEntity('ignore','IGNORE'))
+			p.dtd=XMLDTD()
+			p.dtd.DeclareEntity(XMLParameterEntity('ignore','IGNORE'))
 			p.checkValidity=True
 			p.refMode=XMLParser.RefModeInDTD
 			try:
@@ -679,10 +1458,10 @@ class XMLParserTests(unittest.TestCase):
 			e=XMLEntity(s)
 			p=XMLParser(e)
 			p.refMode=XMLParser.RefModeInContent
-			p.doc=XMLDocument()
-			p.doc.DeclareEntity(XMLParameterEntity('ignore1','IGNORE ['))			
-			p.doc.DeclareEntity(XMLParameterEntity('ignore2','<![IGNORE '))			
-			p.doc.DeclareEntity(XMLParameterEntity('ignore3','ignored ]]>'))		
+			p.dtd=XMLDTD()
+			p.dtd.DeclareEntity(XMLParameterEntity('ignore1','IGNORE ['))			
+			p.dtd.DeclareEntity(XMLParameterEntity('ignore2','<![IGNORE '))			
+			p.dtd.DeclareEntity(XMLParameterEntity('ignore3','ignored ]]>'))		
 			p.checkValidity=True
 			p.raiseValidityErrors=True
 			p.refMode=XMLParser.RefModeInDTD
@@ -701,8 +1480,8 @@ class XMLParserTests(unittest.TestCase):
 		s="preamble<![ INCLUDE [ %x; <![IGNORE[ also ignored ]]>]]> also ignored]]>end"
 		e=XMLEntity(s)
 		p=XMLParser(e)
-		p.doc=XMLDocument()
-		p.doc.DeclareEntity(XMLParameterEntity('x','bad'))
+		p.dtd=XMLDTD()
+		p.dtd.DeclareEntity(XMLParameterEntity('x','bad'))
 		p.ParseIgnoreSectContents()
 		p.ParseLiteral(']]>')
 		self.failUnless(p.ParseName()=='end',"Failed to parse ignore section contents")
@@ -715,8 +1494,8 @@ class XMLParserTests(unittest.TestCase):
 		# so we expect the trailing markup to be consumed; we check theChar too to be sure.
 		m=[('<!FIRST%x;1st]]>',']'),('second<![','<'),('third]]3rd<!3rd<3rd]3rd',None)]
 		p=XMLParser(e)
-		p.doc=XMLDocument()
-		p.doc.DeclareEntity(XMLParameterEntity('x','bad'))
+		p.dtd=XMLDTD()
+		p.dtd.DeclareEntity(XMLParameterEntity('x','bad'))
 		pos=0
 		for match,c in m:
 			p.ParseIgnore()
@@ -768,8 +1547,8 @@ class XMLParserTests(unittest.TestCase):
 		"""[67] Reference ::= EntityRef | CharRef """
 		e=XMLEntity("&animal;")
 		p=XMLParser(e)
-		p.doc=XMLDocument()
-		p.doc.DeclareEntity(XMLGeneralEntity('animal','dog'))
+		p.dtd=XMLDTD()
+		p.dtd.DeclareEntity(XMLGeneralEntity('animal','dog'))
 		p.refMode=XMLParser.RefModeInContent
 		data=p.ParseReference()
 		self.failUnless(data=='',"ParseReference failed to interpret entity reference")
@@ -799,8 +1578,8 @@ class XMLParserTests(unittest.TestCase):
 		self.failUnless(p.theChar is None,"Short parse on Entity replacement text")
 		e=XMLEntity("&animal;")
 		p=XMLParser(e)
-		p.doc=XMLDocument()
-		p.doc.DeclareEntity(XMLGeneralEntity('animal','dog'))
+		p.dtd=XMLDTD()
+		p.dtd.DeclareEntity(XMLGeneralEntity('animal','dog'))
 		p.refMode=XMLParser.RefModeInContent
 		self.failUnless(p.ParseEntityRef()=='',"EntityRef not recognized in Content")
 		# This should result in the entity value being expanded into the stream
@@ -808,8 +1587,8 @@ class XMLParserTests(unittest.TestCase):
 		self.failUnless(p.theChar is None,"Short parse on Entity replacement text")
 		e=XMLEntity("animal;")
 		p=XMLParser(e)
-		p.doc=XMLDocument()
-		p.doc.DeclareEntity(XMLGeneralEntity('animal','dog'))
+		p.dtd=XMLDTD()
+		p.dtd.DeclareEntity(XMLGeneralEntity('animal','dog'))
 		p.refMode=XMLParser.RefModeInAttributeValue
 		self.failUnless(p.ParseEntityRef(True)=='',"EntityRef not recognized in Attribute Value")
 		# This should result in the entity value being expanded into the stream
@@ -839,8 +1618,8 @@ class XMLParserTests(unittest.TestCase):
 			pass
 		e=XMLEntity("<element attribute='a-&EndAttr;>")
 		p=XMLParser(e)
-		p.doc=XMLDocument()
-		p.doc.DeclareEntity(XMLParameterEntity('EndAttr',"27'"))
+		p.dtd=XMLDTD()
+		p.dtd.DeclareEntity(XMLParameterEntity('EndAttr',"27'"))
 		try:
 			p.ParseSTag()
 			self.fail("EntityRef quote test failed in attribute value")
@@ -867,8 +1646,8 @@ class XMLParserTests(unittest.TestCase):
 		self.failUnless(p.theChar is None,"Short parse on PEReference")
 		e=XMLEntity("%animal;")
 		p=XMLParser(e)
-		p.doc=XMLDocument()
-		p.doc.DeclareEntity(XMLParameterEntity('animal','dog'))
+		p.dtd=XMLDTD()
+		p.dtd.DeclareEntity(XMLParameterEntity('animal','dog'))
 		p.refMode=XMLParser.RefModeInEntityValue
 		self.failUnless(p.ParsePEReference()=='',"PEReference not recognized in entity value")
 		# This should result in the entity value being expanded into the stream
@@ -876,8 +1655,8 @@ class XMLParserTests(unittest.TestCase):
 		self.failUnless(p.theChar is None,"Short parse on PEReference replacement text")
 		e=XMLEntity("%animal;")
 		p=XMLParser(e)
-		p.doc=XMLDocument()
-		p.doc.DeclareEntity(XMLParameterEntity('animal','dog'))
+		p.dtd=XMLDTD()
+		p.dtd.DeclareEntity(XMLParameterEntity('animal','dog'))
 		p.refMode=XMLParser.RefModeInDTD
 		self.failUnless(p.ParsePEReference()=='',"PEReference not recognized in DTD")
 		# This should result in the entity value being expanded into the stream with surrounding spaces
@@ -887,8 +1666,8 @@ class XMLParserTests(unittest.TestCase):
 		self.failUnless(p.theChar is None,"Short parse on PEReference")
 		e=XMLEntity('<!ENTITY WhatHeSaid "He said %YN;" >')
 		p=XMLParser(e)
-		p.doc=XMLDocument()
-		p.doc.DeclareEntity(XMLParameterEntity('YN','"Yes"'))
+		p.dtd=XMLDTD()
+		p.dtd.DeclareEntity(XMLParameterEntity('YN','"Yes"'))
 		try:
 			ge=p.ParseEntityDecl()
 			# This should result in the entity value being expanded into the stream with surrounding spaces
@@ -1148,29 +1927,36 @@ class XMLParserTests(unittest.TestCase):
 		"""[82] NotationDecl ::= '<!NOTATION' S Name S (ExternalID | PublicID) S? '>'"""
 		e=XMLEntity("<!NOTATION SteveN PUBLIC 'Steve' '/home/steve.txt'>")
 		p=XMLParser(e)
-		n=p.ParseNotationDecl()
+		p.dtd=XMLDTD()
+		p.ParseNotationDecl()
+		n=p.dtd.GetNotation('SteveN')
 		self.failUnless(n.name=='SteveN',"Failed to parse notation name")
-		self.failUnless(n.xID.public=='Steve',"Failed to parse notation public ID")
-		self.failUnless(n.xID.system=='/home/steve.txt',"Failed to parse notation system ID")
+		self.failUnless(n.externalID.public=='Steve',"Failed to parse notation public ID")
+		self.failUnless(n.externalID.system=='/home/steve.txt',"Failed to parse notation system ID")
 		self.failUnless(p.theChar is None,"Short parse on NotationDecl")
 		e=XMLEntity(" SteveN PUBLIC 'Steve' >")
 		p=XMLParser(e)
-		n=p.ParseNotationDecl(True)
+		p.dtd=XMLDTD()
+		p.ParseNotationDecl(True)
+		n=p.dtd.GetNotation('SteveN')
 		self.failUnless(n.name=='SteveN',"Failed to parse notation name")
-		self.failUnless(n.xID.public=='Steve',"Failed to parse notation public ID")
-		self.failUnless(n.xID.system is None,"Failed to parse empty notation system ID")
+		self.failUnless(n.externalID.public=='Steve',"Failed to parse notation public ID")
+		self.failUnless(n.externalID.system is None,"Failed to parse empty notation system ID")
 		self.failUnless(p.theChar is None,"Short parse on NotationDecl")
 		e=XMLEntity("<!NOTATION SteveN SYSTEM  '/home/steve.txt' >")
 		p=XMLParser(e)
-		n=p.ParseNotationDecl()
+		p.dtd=XMLDTD()
+		p.ParseNotationDecl()
+		n=p.dtd.GetNotation('SteveN')
 		self.failUnless(n.name=='SteveN',"Failed to parse notation name")
-		self.failUnless(n.xID.public is None,"Failed to parse empty notation public ID")
-		self.failUnless(n.xID.system=='/home/steve.txt',"Failed to parse notation system ID")
+		self.failUnless(n.externalID.public is None,"Failed to parse empty notation public ID")
+		self.failUnless(n.externalID.system=='/home/steve.txt',"Failed to parse notation system ID")
 		self.failUnless(p.theChar is None,"Short parse on NotationDecl")
 		for s in ["SteveN PUBLIC 'Steve' >"," 'SteveN' PUBLIC 'Steve' >","SteveN 'Steve' >",
 			"SteveN PUBLIC >","SteveN SYSTEM>","SteveN SYSTEM 'Steve' '/path'>","SteveN PUBLIC 'Steve' "]:
 			e=XMLEntity(s)
 			p=XMLParser(e)
+			p.dtd=XMLDTD()
 			try:
 				p.ParseNotationDecl(True)
 				self.fail("NotationDecl negative test: %s"%s)
@@ -1192,150 +1978,6 @@ class XMLParserTests(unittest.TestCase):
 			except XMLWellFormedError:
 				pass
 		
-	def testDocument(self):
-		"""[1] document ::= prolog element Misc* """
-		os.chdir(TEST_DATA_DIR)
-		f=open('readFile.xml','rb')
-		e=XMLEntity(f)
-		d=XMLDocument()
-		d.Read(e)
-		root=d.root
-		self.failUnless(isinstance(root,XMLElement))
-		self.failUnless(root.xmlname=='tag' and root.GetValue()=='Hello World')
-		f.close()
-
-	def testCaseDTD(self):
-		f=open(os.path.join(DTD_DATA,'qmdextensions.xml'),'rb')
-		e=XMLEntity(f)
-		d=XMLDocument()
-		d.Read(e)
-			
-	#	[2] Char ::= #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
-
-		
-	
-	def testCaseNames(self):
-		"""
-		[4]		NameStartChar ::= ":" | [A-Z] | "_" | [a-z] | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
-		[4a]   	NameChar ::= NameStartChar | "-" | "." | [0-9] | #xB7 | [#x0300-#x036F] | [#x203F-#x2040]
-		[5]   	Name ::= NameStartChar (NameChar)*
-		[6]   	Names ::= Name (#x20 Name)*
-		[7]   	Nmtoken ::= (NameChar)+
-		[8]   	Nmtokens ::= Nmtoken (#x20 Nmtoken)*
-		"""
-		e=XMLEntity("Hello World -Atlantis!")
-		p=XMLParser(e)
-		self.failUnless(p.ParseNames()==['Hello','World'])
-		e.Reset()
-		p=XMLParser(e)
-		tokens=p.ParseNmtokens()
-		self.failUnless(tokens==['Hello','World','-Atlantis'],repr(tokens))
-		
-	def testCaseEntityValue(self):
-		"""[9] EntityValue ::= '"' ([^%&"] | PEReference | Reference)* '"' | "'" ([^%&'] | PEReference | Reference)* "'"	"""
-		e=XMLEntity("'first'\"second\"'3&gt;2''2%ltpe;3'")
-		m=['first','second','3&gt;2','2<3']
-		p=XMLParser(e)
-		p.doc=XMLDocument()
-		p.doc.DeclareEntity(XMLParameterEntity('ltpe','<'))
-		for match in m:
-			value=p.ParseEntityValue()
-			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
-	
-	def testAttValue(self):
-		"""[10] AttValue ::= '"' ([^<&"] | Reference)* '"' |  "'" ([^<&'] | Reference)* "'" """
-		e=XMLEntity("'first'\"second\"'3&gt;2''Caf&#xE9;'")
-		m=['first','second','3>2',u'Caf\xe9']
-		p=XMLParser(e)
-		for match in m:
-			value=p.ParseAttValue()
-			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
-	
-	def testSystemLiteral(self):
-		"""[11] SystemLiteral ::= ('"' [^"]* '"') | ("'" [^']* "'") """
-		e=XMLEntity("'first'\"second\"'3&gt;2''2%ltpe;3''Caf&#xE9;'")
-		m=[u'first',u'second',u'3&gt;2',u'2%ltpe;3',u'Caf&#xE9;']
-		p=XMLParser(e)
-		for match in m:
-			value=p.ParseSystemLiteral()
-			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
-	
-	def testCaseCharData(self):
-		"""[14] CharData ::= [^<&]* - ([^<&]* ']]>' [^<&]*) """
-		e=XMLEntity("First<Second&Third]]&Fourth]]>")
-		m=['First','Second','Third]]','Fourth']
-		p=XMLParser(e)
-		for match in m:
-			pStr=p.ParseCharData()
-			p.NextChar()
-			self.failUnless(pStr==match,"Match failed: %s (expected %s)"%(pStr,match))
-
-	def testCaseComment(self):
-		"""[15] Comment ::= '<!--' ((Char - '-') | ('-' (Char - '-')))* '-->' """
-		e=XMLEntity("<!--First--><!--Secon-d--><!--Thi<&r]]>d--><!--Fourt<!-h--><!--Bad--Comment-->")
-		m=['First','Secon-d','Thi<&r]]>d','Fourt<!-h']
-		p=XMLParser(e)
-		for match in m:
-			if p.ParseLiteral('<!--'):
-				pStr=p.ParseComment()
-				self.failUnless(pStr==match,"Match failed: %s (expected %s)"%(pStr,match))
-			else:
-				self.fail("Comment start")
-		try:
-			if p.ParseLiteral('<!--'):
-				pStr=p.ParseComment()
-			self.fail("Parsed bad comment: %s"%pStr)
-		except XMLFatalError:
-			pass
-
-	def testCasePI(self):
-		"""[16] PI ::= '<?' PITarget (S (Char* - (Char* '?>' Char*)))? '?>' """
-		e=XMLEntity("<?target instruction?><?xm_xml \n\r<!--no comment-->?><?markup \t]]>?&<?><?xml reserved?>")
-		m=[('target','instruction'),('xm_xml','<!--no comment-->'),('markup',']]>?&<'),('xml','reserved')]
-		p=XMLParser(e)
-		for matchTarget,matchStr in m:
-			if p.ParseLiteral('<?'):
-				target,pStr=p.ParsePI()
-			self.failUnless(target==matchTarget,"Match failed for target: %s (expected %s)"%(target,matchTarget))
-			self.failUnless(pStr==matchStr,"Match failed for instruction: %s (expected %s)"%(pStr,matchStr))
-			
-	def testCaseCDSect(self):
-		"""
-		[18] CDSect ::=  CDStart CData CDEnd
-		[19] CDStart ::= '<![CDATA['
-		[20] CData ::= (Char* - (Char* ']]>' Char*))
-		[21] CDEnd ::= ']]>'
-		"""
-		e=XMLEntity("<![CDATA[]]><![CDATA[<hello>&world;]]><![CDATA[hello]]world]]>")
-		m=['','<hello>&world;','hello]]world']
-		p=XMLParser(e)
-		for match in m:
-			if p.ParseLiteral('<![CDATA['):
-				pStr=p.ParseCDSect()
-			self.failUnless(pStr==match,"Match failed: %s (expected %s)"%(pStr,match))
-
-		# 	[22]   	prolog	   ::=   	 XMLDecl? Misc* (doctypedecl Misc*)?
-		# 	[23]   	XMLDecl	   ::=   	'<?xml' VersionInfo EncodingDecl? SDDecl? S? '?>'
-		# 	[24]   	VersionInfo	   ::=   	 S 'version' Eq ("'" VersionNum "'" | '"' VersionNum '"')
-		# 	[25]   	Eq	   ::=   	 S? '=' S?
-		# 	[26]   	VersionNum	   ::=   	'1.' [0-9]+
-		# 	[27]   	Misc	   ::=   	 Comment | PI | S
-
-	def testCaseTags(self):
-		e=XMLEntity("<tag hello='world' ciao=\"tutti\">")
-		p=XMLParser(e)
-		name,attrs,empty=p.ParseSTag()
-		self.failUnless(name=='tag' and attrs['hello']=='world' and attrs['ciao']=='tutti' and empty==False)
-		e=XMLEntity("<tag hello>")
-		p=XMLParser(e)
-		name,attrs,empty=p.ParseSTag()
-		self.failUnless(name=='tag' and attrs['hello']=='hello' and empty is False)
-		e=XMLEntity("<tag width=20%>")
-		p=XMLParser(e)
-		p.compatibilityMode=True
-		name,attrs,empty=p.ParseSTag()
-		self.failUnless(name=='tag' and attrs['width']=='20%' and empty is False)
-
 
 class XMLElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
@@ -1429,12 +2071,12 @@ class XMLElementTests(unittest.TestCase):
 		try:
 			e.AddData('Hello')
 			self.fail("Data in EmptyElement")
-		except XMLValidationError:
+		except XMLValidityError:
 			pass
 		try:
 			child=e.ChildElement(XMLElement)
 			self.fail("Elements allowed in EmptyElement")
-		except XMLValidationError:
+		except XMLValidityError:
 			pass		
 
 	def testElementContent(self):	
@@ -1444,7 +2086,7 @@ class XMLElementTests(unittest.TestCase):
 		try:
 			e.AddData('Hello')
 			self.fail("Data in ElementContent")
-		except XMLValidationError:
+		except XMLValidityError:
 			pass
 		# white space should silently be ignored.
 		e.AddData('  \n\r  \t')

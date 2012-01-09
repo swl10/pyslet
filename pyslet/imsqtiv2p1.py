@@ -601,7 +601,7 @@ class QTIResponseDeclaration(QTIVariableDeclaration):
 		xml.OptionalAppend(children,self.QTIAreaMapping)
 		return children
 		
-	def GotChildren(self):
+	def ContentChanged(self):
 		self.parent.RegisterDeclaration(self)
 
 
@@ -663,7 +663,7 @@ class QTIOutcomeDeclaration(QTIVariableDeclaration):
 		xml.OptionalAppend(children,self.lookupTable)
 		return children
 	
-	def GotChildren(self):
+	def ContentChanged(self):
 		self.parent.RegisterDeclaration(self)
 
 	

@@ -139,7 +139,7 @@ class AtomTextTests(unittest.TestCase):
 		self.failUnless(text.GetLang() is None,"xml:lang present on construction")
 		attrs=text.GetAttributes()
 		self.failUnless(len(attrs.keys())==1,"Attributes present on construction")
-		self.failUnless(text.GetValue() is None,"Content present on construction")
+		self.failUnless(text.GetValue()=='',"Content present on construction")
 
 	def testCaseStringValue(self):
 		text=AtomText(None)

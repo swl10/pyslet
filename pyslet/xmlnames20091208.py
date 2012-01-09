@@ -31,99 +31,6 @@ def AttributeNameKey(aname):
 		return aname
 
 
-class XMLNSParser(XMLParser):
-
-	def __init__(self,entity=None):
-		XMLParser.__init__(self,entity)
-	
-	def ExpandQName(self,qname,nsDefs,useDefault=True):
-		xname=qname.split(':')
-		if len(xname)==1:
-			if qname=='xmlns':
-				return (XMLNS_NAMESPACE,'')
-			elif useDefault:
-				nsURI=nsDefs.get('',None)
-				nsObject=self.doc.cObject
-				while nsURI is None:
-					if nsObject:
-						nsURI=nsObject.GetNS('')
-						nsObject=nsObject.parent
-					else:
-						break
-				return (nsURI,qname)
-			else:
-				return (None,qname)
-		elif len(xname)==2:
-			nsprefix,local=xname
-			if nsprefix=='xml':
-				return (XML_NAMESPACE,local)
-			elif nsprefix=='xmlns':
-				return (XMLNS_NAMESPACE,local)
-			else:
-				nsURI=nsDefs.get(nsprefix,None)
-				nsObject=self.doc.cObject
-				while nsURI is None:
-					if nsObject:
-						nsURI=nsObject.GetNS(nsprefix)
-						nsObject=nsObject.parent
-					else:
-						break
-				return (nsURI,local)		
-		else:
-			# something wrong with this element
-			raise XMLNSError("Illegal QName: %s"%qname)
-	
-	def ParseNSAttributes(self,attrs):
-		"""Takes a dictionary of attributes as returned by ParseSTag and finds
-		any namespace prefix mappings returning them as a dictionary of
-		prefix:namespace.  It also removes the namespace declarations from
-		attrs and expands the attribute names into (ns,name) pairs."""
-		ns={}
-		for aname in attrs.keys():
-			if aname.startswith('xmlns'):
-				if len(aname)==5:
-					# default ns declaration
-					ns['']=attrs[aname]
-				elif aname[5]==':':
-					# ns prefix declaration
-					ns[aname[6:]]=attrs[aname]
-				del attrs[aname]
-		for aname in attrs.keys():
-			expandedName=self.ExpandQName(aname,ns,False)
-			attrs[expandedName]=attrs[aname]
-			del attrs[aname]
-		return ns
-		
-	def ParseElement(self):
-		"""[39] element ::= EmptyElemTag | STag content ETag
-		
-		We override this one method to handle namespaces.  The method
-		used is a two-pass scan of the attributes, the first time
-		we identify any namespace declarations and add a new dictionary
-		to a stack of namespace dictionaries.  The second pass is used
-		to create a new dictionary for the attributes using expanded
-		names."""
-		qname,attrs,empty=self.ParseSTag()
-		# go through and find namespace declarations
-		ns=self.ParseNSAttributes(attrs)
-		expandedName=self.ExpandQName(qname,ns)
-		if empty:
-			self.doc.startElementNS(expandedName,qname,attrs)
-			self.doc.cObject.SetPrefixMap(ns)
-			self.doc.endElementNS(expandedName,qname)
-		else:
-			self.doc.startElementNS(expandedName,qname,attrs)
-			self.doc.cObject.SetPrefixMap(ns)
-			self.ParseContent()
-			endQName=self.ParseETag()
-			if qname!=endQName:
-				self.WellFormednessViolation("Expected <%s/>"%qname)
-			self.doc.endElementNS(expandedName,qname)
-#		if ns:
-#			self.nsStack=self.nsStack[1:]
-		return qname
-
-	
 class XMLNSElementContainerMixin:
 	"""Mixin class for shared attributes of elements and the document."""
 	
@@ -140,11 +47,6 @@ class XMLNSElementContainerMixin:
 			for child in self.GetChildren():
 				if type(child) not in StringTypes:
 					child.ResetPrefixMap(True)
-
-	def SetPrefixMap(self,nsMap):
-		"""Takes a new mapping from prefix to namespace and replaces the existing one."""
-		self.prefixToNS=nsMap
-		self.nsToPrefix=dict(zip(nsMap.values(),nsMap.keys()))
 
 	def GetPrefix(self,ns):
 		"""Returns the prefix to use for the given namespace in the current
@@ -168,7 +70,11 @@ class XMLNSElementContainerMixin:
 		return prefix	
 	
 	def GetNS(self,prefix=''):
-		"""Returns the ns associated with prefix in the current context."""
+		"""Returns the namespace associated with prefix in the current context.
+		
+		Thie element searches back through the hierarchy until it fund the
+		namespace in force or returns None if no definition for this prefix
+		can be found."""
 		if prefix=='xml':
 			return XML_NAMESPACE
 		ns=None
@@ -177,6 +83,10 @@ class XMLNSElementContainerMixin:
 			ns=ei.prefixToNS.get(prefix,None)
 			if ns:
 				break
+			if prefix=='':
+				ns=getattr(ei,'DefaultNS',None)
+				if ns:
+					break
 			ei=ei.parent
 		return ns
 
@@ -267,8 +177,10 @@ class XMLNSElement(XMLNSElementContainerMixin,XMLElement):
 	def SetAttribute(self,name,value):
 		"""Sets the value of an attribute.
 		
-		Overrides the default behaviour by accepting a (ns,name) tuple
-		in addition to a plain string/unicode string name.
+		Overrides the default behaviour by accepting a (ns,name) tuple in
+		addition to a plain string/unicode string name.  This method also
+		catches the new namespace prefix mapping for the element which is placed
+		in a special attribute by :py:meth:`XMLNSParser.ParseNSAttributes`.
 		
 		Custom setters are called using the inherited behaviour only for attributes
 		with no namespace.  Also, XML namespace generates custom setter calls of the
@@ -278,6 +190,10 @@ class XMLNSElement(XMLNSElementContainerMixin,XMLElement):
 		these are subjet to default processing defined by XMLElement's
 		SetAttribute implementation."""
 		if type(name) in types.StringTypes:
+			if name==".ns":
+				self.prefixToNS=nsMap=value
+				self.nsToPrefix=dict(zip(nsMap.values(),nsMap.keys()))
+				return
 			ns=None
 			aname=name
 		else:
@@ -329,47 +245,7 @@ class XMLNSElement(XMLNSElementContainerMixin,XMLElement):
 	def CheckOther(self,child,ns):
 		"""Checks child to ensure it satisfies ##other w.r.t. the given ns"""
 		return isinstance(child,XMLNSElement) and child.ns!=ns
-				
-# 	def GetNSPrefix(self,ns,nsList):
-# 		for i in xrange(len(nsList)):
-# 			if nsList[i][0]==ns:
-# 				# Now run backwards to check that prefix is not in use
-# 				used=False
-# 				j=i
-# 				while j:
-# 					j=j-1
-# 					if nsList[j][1]==nsList[i][1]:
-# 						used=True
-# 						break
-# 				if not used:
-# 					return nsList[i][1]
-# 		return None
-	
-# 	def SetNSPrefix(self,ns,prefix,attributes,nsList,escapeFunction):
-# 		if not prefix:
-# 			# None or empty string: so we don't make this the default if it has
-# 			# a preferred prefix defined in the document.
-# 			doc=self.GetDocument()
-# 			if doc:
-# 				newprefix=doc.SuggestPrefix(ns)
-# 				for nsi,prefixi in nsList:
-# 					if prefixi==newprefix:
-# 						newprefix=None
-# 						break
-# 				if newprefix:
-# 					prefix=newprefix
-# 		if prefix is None:
-# 			prefix=self.SuggestNewPrefix(nsList)
-# 		if prefix:
-# 			aname='xmlns:'+prefix
-# 			prefix=prefix+':'
-# 			nsList[0:0]=[(ns,prefix)]
-# 		else:
-# 			nsList[0:0]=[(ns,'')]
-# 			aname='xmlns'
-# 		attributes.append('%s=%s'%(aname,escapeFunction(ns,True)))
-# 		return prefix
-	
+					
 	def WriteXMLAttributes(self,attributes,escapeFunction=EscapeCharData,root=False):
 		"""Adds strings representing the element's attributes
 		
@@ -447,21 +323,21 @@ class XMLNSElement(XMLNSElementContainerMixin,XMLElement):
 
 
 class XMLNSDocument(XMLNSElementContainerMixin,XMLDocument):
-	def __init__(self, defaultNS=None, **args):
-		"""Initialises a new XMLDocument from optional keyword arguments.
-		
-		In addition to the named arguments supported by XMLElement, the
-		defaultNS used for elements without an associated namespace
-		can be specified on construction."""
-		self.defaultNS=defaultNS
-		XMLDocument.__init__(self,**args)
-		self.cObject=None
-		"""The current object being parsed (including the document itslef)."""
-		XMLNSElementContainerMixin.__init__(self)
-		
-	def SetDefaultNS(self,ns):
-		self.defaultNS=ns
+
+	DefaultNS=None
+	"""A special class attribute used to set the default namespace for elements
+	created within the document that are parsed without an effective namespace
+	declaration."""
 	
+	def __init__(self, **args):
+		"""Initialises a new XMLDocument from optional keyword arguments."""
+		XMLDocument.__init__(self,**args)
+		XMLNSElementContainerMixin.__init__(self)
+
+	def XMLParser(self,entity):
+		"""Namespace documents use the special :py:class:`XMLNSParser`."""
+		return XMLNSParser(entity)
+		
 	def GetElementClass(self,name):
 		"""Returns a class object suitable for representing <name>
 		
@@ -471,36 +347,177 @@ class XMLNSDocument(XMLNSElementContainerMixin,XMLDocument):
 		The default implementation returns XMLNSElement."""
 		return XMLNSElement
 				
-	def ReadFromEntity(self,e):
-		self.cObject=self
-		self.data=[]
-		parser=XMLNSParser(e)
-		parser.ParseDocument(self)
 
-	def startElementNS(self, name, qname, attrs):
-		parent=self.cObject
-		if self.data:
-			parent.AddData(string.join(self.data,''))
-			self.data=[]
-		if name[0] is None:
-			name=(self.defaultNS,name[1])
-		eClass=self.GetElementClass(name)
-		try:
-			self.cObject=parent.ChildElement(eClass,name)
-		except TypeError:
-			raise TypeError("Can't create %s in %s"%(eClass.__name__,parent.__class__.__name__))
-		if self.cObject is None:
-			raise ValueError("None when creating %s in %s"%(eClass.__name__,parent.__class__.__name__))
-		for attr in attrs.keys():
-			if attr[0] is None:
-				self.cObject.SetAttribute(attr[1],attrs[attr])
+class XMLNSParser(XMLParser):
+
+	def __init__(self,entity=None):
+		"""A special parser for parsing documents that may use namespaces."""
+		XMLParser.__init__(self,entity)
+		
+	def ExpandQName(self,qname,nsDefs,useDefault=True):
+		"""Expands a QName, returning a (namespace, name) tuple.
+		
+		- *qname* is the qualified name
+		- *nsDefs* is a mapping of prefix to namespace URIs used to expand the name
+		- *useDefault* will return the default namespace for an unqualified name
+		
+		If *nsDefs* does not contain a suitable namespace definition then the
+		context's existing prefix mapping is used, its parent's, and so on.
+
+		If *useDefault* is False an unqualified name is returned with an None as
+		the namespace (this is used when expanded attribute names)."""
+		context=self.GetContext()
+		xname=qname.split(':')
+		if len(xname)==1:
+			if qname=='xmlns':
+				return (XMLNS_NAMESPACE,'')
+			elif useDefault:
+				nsURI=nsDefs.get('',None)
+				if nsURI is None and context:
+					nsURI=context.GetNS('')
+				return (nsURI,qname)
 			else:
-				self.cObject.SetAttribute(attr,attrs[attr])
+				return (None,qname)
+		elif len(xname)==2:
+			nsprefix,local=xname
+			if nsprefix=='xml':
+				return (XML_NAMESPACE,local)
+			elif nsprefix=='xmlns':
+				return (XMLNS_NAMESPACE,local)
+			else:
+				nsURI=nsDefs.get(nsprefix,None)
+				if nsURI is None and context:
+					nsURI=context.GetNS(nsprefix)
+				return (nsURI,local)		
+		else:
+			# something wrong with this element
+			raise XMLNSError("Illegal QName: %s"%qname)
 
-	def endElementNS(self,name,qname):
-		parent=self.cObject.parent
-		if self.data:
-			self.cObject.AddData(string.join(self.data,''))
-			self.data=[]
-		self.cObject.GotChildren()
-		self.cObject=parent
+	def MatchXMLName(self,element,qname):
+		"""Tests if *qname* is a possible name for this element.
+		
+		This method is used by the parser to determine if an end tag is the end
+		tag of this element."""
+		return element.GetXMLName()==self.ExpandQName(qname,{},True)
+
+	def ParseNSAttributes(self,attrs):
+		"""Takes a dictionary of attributes as returned by ParseSTag and finds
+		any namespace prefix mappings returning them as a dictionary of
+		prefix:namespace suitable for passing to :py:meth:`ExpandQName`.
+
+		It also removes the namespace declarations from attrs and expands the
+		attribute names into (ns,name) pairs.
+
+		Finally, it declares a special attribute called '.ns' with the parsed
+		prefix mapping dictionary as its value enabling the prefix mapping to be
+		passed transparently to :py:meth:`XMLNSElement.SetAttribute` by
+		:py:class:`XMLParser`. """
+		ns={}
+		for aname in attrs.keys():
+			if aname.startswith('xmlns'):
+				if len(aname)==5:
+					# default ns declaration
+					ns['']=attrs[aname]
+				elif aname[5]==':':
+					# ns prefix declaration
+					ns[aname[6:]]=attrs[aname]
+				del attrs[aname]
+		for aname in attrs.keys():
+			expandedName=self.ExpandQName(aname,ns,False)
+			if expandedName[0]:
+				# leave attributes with no namespace as strings, not tuples
+				attrs[expandedName]=attrs[aname]
+				del attrs[aname]
+		# Finally, we hide the ns object in the list of attributes so we can retrieve it later
+		# Note that '.' is not a valid NameStartChar so we will never collide with a real attribute
+		attrs[".ns"]=ns
+		return ns
+		
+	def GetSTagClass(self,qname,attrs=None):
+		"""[40] STag: returns information suitable for starting element *name* in the current context
+		
+		Overridden to allow for namespace handling.
+		"""
+		if self.doc is None:
+			if self.dtd is None:
+				self.dtd=XMLDTD()
+			if self.dtd.name is None:
+				self.dtd.name=qname
+			elif qname is None:
+				# document starts with PCDATA, use name declared in DOCTYPE
+				qname=self.dtd.name
+		# go through attributes and process namespace declarations
+		if attrs:
+			ns=self.ParseNSAttributes(attrs)
+		else:
+			ns={}
+		if qname:
+			expandedName=self.ExpandQName(qname,ns)
+		else:
+			expandedName=None
+		if self.doc is None:
+			# we use the expanded name to find the document class, not the DTD
+			documentClass=self.GetNSDocumentClass(expandedName)
+			self.doc=documentClass()
+		else:
+			documentClass=self.doc.__class__
+		context=self.GetContext()
+		if qname and expandedName[0] is None:
+			expandedName=(documentClass.DefaultNS,expandedName[1])
+		if self.sgmlOmittag:
+			if qname:
+				stagClass=self.doc.GetElementClass(expandedName)
+			else:
+				stagClass=None
+			elementClass=context.GetChildClass(stagClass)
+			if elementClass is not stagClass:
+				return elementClass,None,True
+			else:
+				return elementClass,expandedName,False
+		else:
+			return self.doc.GetElementClass(expandedName),expandedName,False
+		
+	NSDocumentClassTable={}
+	"""A dictionary of class objects keyed on tuples of (namespace,element name).
+	
+	For more information see :py:meth:`GetNSDocumentClass` and
+	:py:func:`RegisterNSDocumentClass`"""
+
+	def GetNSDocumentClass(self,expandedName):
+		"""Returns a class object derived from :py:class:`XMLNSDocument` suitable
+		for representing a document with the given expanded name.
+
+		This default implementation uses the expanded name to locate a class
+		registered with :py:func:`RegisterNSDocumentClass`.  If an exact match
+		is not found then wildcard matches are tried matching *only* the
+		namespace and root element name in turn.
+
+		If no document class can be found, :py:class:`XMLNSDocument` is
+		returned."""
+		rootName=dtd.name
+		if expandedName[0] is None:
+			docClass=XMLParser.NSDocumentClassTable.get(expandedName,None)
+		else:
+			docClass=XMLParser.NSDocumentClassTable.get(expandedName,None)
+			if docClass is None:
+				docClass=XMLParser.DocumentClassTable.get((expandedName[0],None),None)
+			if docClass is None:
+				docClass=XMLParser.DocumentClassTable.get((None,expandedName[1]),None)
+		if docClass is None:
+			docClass=XMLNSDocument
+		return docClass
+	
+def RegisterNSDocumentClass(docClass,expandedName):
+	"""Registers a document class for use by :py:meth:`XMLNSParser.ParseElement`.
+	
+	This module maintains a single table of document classes which can be
+	used to identify the correct class to use to represent a document based
+	on the namespace and name of the root element (the expanded name).
+	
+	- *docClass* is the class object being registered, it must be derived from
+	:py:class:`XMLNSDocument`
+
+	- *expandedName* is a tuple of (namespace,name) representing the name of the
+	root element.  If either (or both) components are None a wildcard is
+	registered that will match any corresponding value.	"""
+	XMLNSParser.NSDocumentClassTable[expandedName]=docClass

@@ -42,6 +42,9 @@ class XMLNSElementTests(unittest.TestCase):
 		self.failUnless(e.ns==None,'ns set on construction')
 		self.failUnless(e.xmlname=='test','element name not set on construction')
 
+class XMLExampleDocument(XMLNSDocument):
+	DefaultNS="http://www.example.com"
+	
 class XMLNSDocumentTests(unittest.TestCase):
 	def testCaseReadString(self):
 		"""Test the reading of the XMLNSDocument from a supplied stream"""
@@ -65,8 +68,7 @@ class XMLNSDocumentTests(unittest.TestCase):
 		<tag2 xmlns="http://www.example.com">Hello World</tag2>
 	</createTag>
 </createTag>"""		
-		d=XMLNSDocument()
-		d.SetDefaultNS("http://www.example.com")
+		d=XMLExampleDocument()
 		d.Read(src=StringIO(CREATE_2_XML))
 		dst=StringIO()
 		d.ResetPrefixMap(True)

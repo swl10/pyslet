@@ -563,7 +563,7 @@ class QTIMetadataContainer(QTIElement):
 class QMDMetadataElement(QTIElement):
 	"""Abstract class to represent old-style qmd\_ tags"""
 	
-	def GotChildren(self):
+	def ContentChanged(self):
 		self.DeclareMetadata(self.GetXMLName(),self.GetValue(),self)
 
 class QMDAuthor(QMDMetadataElement):
@@ -738,7 +738,7 @@ class QTIMetadataField(QTIElement):
 	def GetChildren(self):
 		return [self.QTIFieldLabel,self.QTIFieldEntry]
 	
-	def GotChildren(self):
+	def ContentChanged(self):
 		label=self.QTIFieldLabel.GetValue()
 		label={'marks':'maximumscore',
 			'qmd_marks':'maximumscore',
@@ -861,8 +861,6 @@ class QTIContentMixin:
 						brBefore=brAfter=False
 						child.MigrateV2Content(parent,html.BlockMixin,log)
 				except AttributeError:
-					# import traceback;traceback.print_exc()
-					# import pdb;pdb.set_trace()
 					raise QTIError("Error: unsupported QTI v1 content element "+child.xmlname)
 
 # 	def MigrateV2ContentMixture(self,mixedupChildren,parent,log):
@@ -1028,7 +1026,7 @@ class QTIMatText(QTIElement,QTIPositionMixin,QTIMatThingMixin):
 		self.texttype='text/plain'
 		self.matChildren=[]
 				
-	def GotChildren(self):
+	def ContentChanged(self):
 		if self.label:
 			doc=self.GetDocument()
 			if doc:
@@ -1537,7 +1535,7 @@ class QTIDecVar(QTIElement):
 				d.masteryValue=float(self.cutValue)
 		v2Item.RegisterDeclaration(d)
 
-	def GotChildren(self):
+	def ContentChanged(self):
 		"""The decvar element is supposed to be empty but QTI v1 content is all over the place."""
 		try:
 			value=self.GetValue()
@@ -3464,7 +3462,7 @@ class QTIResponseThing(QTIElement,QTIContentMixin):
 			children.append(self.render)
 		return children+self.outro
 
-	def GotChildren(self):
+	def ContentChanged(self):
 		if isinstance(self.render,QTIRenderFIB) and self.render.MixedModel():
 			# use simplified prompt logic.
 			self.prompt=self.intro
@@ -4289,7 +4287,7 @@ class QTIRenderFIB(QTIRenderThing):
 		self.maxNumber=None
 		self.labels=[]
 		
-	def GotChildren(self):
+	def ContentChanged(self):
 		self.labels=[]
 		self.FindChildren(QTIResponseLabel,self.labels)
 

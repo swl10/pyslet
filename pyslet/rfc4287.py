@@ -105,8 +105,8 @@ class AtomDate(AtomElement):
 	def GetValue(self):
 		return self.date
 		
-	def GotChildren(self):
-		# called when all children have been parsed
+	def ContentChanged(self):
+		# called when content has been changed
 		self.date.SetFromString(AtomElement.GetValue(self))
 
 class AtomUpdated(AtomDate):
@@ -514,6 +514,8 @@ class AtomEntry(AtomEntity):
 
 class AtomDocument(xmlns.XMLNSDocument):
 	classMap={}
+	
+	DefaultNS=ATOM_NAMESPACE
 	
 	def __init__(self,**args):
 		""""""
