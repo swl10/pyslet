@@ -22,7 +22,7 @@ a character matches the production for NameStartChar in the XML standard.
 Documents
 ---------
 
-..	autoclass:: XMLElementParentMixin
+..	autoclass:: XMLContextMixin
 	:members:
 	:show-inheritance:
 	
@@ -37,13 +37,19 @@ Characters
 
 ..	autofunction:: IsChar
 
+..	autofunction:: IsDiscouraged
+
 
 Common Syntactic Constructs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ..	autofunction:: IsS
 
+..	autofunction:: ContainsS
+
 ..	autofunction:: StripLeadingS
+
+..	autofunction:: NormalizeSpace
 
 ..	autofunction:: CollapseSpace
 
@@ -52,6 +58,8 @@ Common Syntactic Constructs
 ..	autofunction:: IsNameChar
 
 ..	autofunction:: IsValidName
+
+..	autofunction:: IsReservedName
 
 ..	autofunction:: IsPubidChar
 

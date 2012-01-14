@@ -1,0 +1,10 @@
+<?xml version="1.0" standalone="yes"?>
+<!DOCTYPE greeting [
+
+<!ATTLIST greeting season CDATA 'allseasons'>
+
+<!ELEMENT greeting (#PCDATA) >
+<!ELEMENT greetings (#PCDATA|greeting)* >
+
+]>
+<greeting>Hello, world!</greeting>

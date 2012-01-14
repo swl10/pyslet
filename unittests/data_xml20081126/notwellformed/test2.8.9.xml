@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<!DOCTYPE greeting [
+
+<!ENTITY % badcomment '<!-- comment ' >
+
+%badcomment; -->
+
+<!ELEMENT greeting (#PCDATA) >
+]>
+<greeting>Hello, world!</greeting>

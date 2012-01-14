@@ -272,6 +272,75 @@ class XMLValidationTests(unittest.TestCase):
 		self.failIf(IsValidName("BadName+"))
 		self.failUnless(IsValidName(u"Caf\xe9"))
 
+	def testWellFormed(self):
+		dPath=os.path.join(TEST_DATA_DIR,'wellformed')
+		for fName in os.listdir(dPath):
+			if fName[-4:]!=".xml":
+				continue
+			f=URIFactory.URLFromPathname(os.path.join(dPath,fName))
+			e=XMLEntity(f)
+			d=XMLDocument()
+			p=XMLParser(e)
+			p.checkValidity=False
+			try:
+				p.ParseDocument(d)
+				self.failUnless(p.valid is None,"Well-Formed Example: %s marked valid but checkValidity was False"%fName)
+			except XMLWellFormedError,e:
+				self.fail("Well-Formed Example: %s raised XMLWellFormedError"%fName)
+		dPath=os.path.join(TEST_DATA_DIR,'notwellformed')
+		for fName in os.listdir(dPath):
+			if fName[-4:]!=".xml":
+				continue
+			f=URIFactory.URLFromPathname(os.path.join(dPath,fName))
+			e=XMLEntity(f)
+			d=XMLDocument()
+			try:
+				d.Read(e)
+				self.fail("%s is not Well-Formed but failed to raise XMLWellFormedError"%fName)
+			except XMLWellFormedError,e:
+				print "\n%s: Well-formed Errors:"%fName				
+				print str(e)
+				pass
+		
+	def testValid(self):
+		dPath=os.path.join(TEST_DATA_DIR,'valid')
+		for fName in os.listdir(dPath):
+			if fName[-4:]!=".xml":
+				continue
+			f=URIFactory.URLFromPathname(os.path.join(dPath,fName))
+			e=XMLEntity(f)
+			p=XMLParser(e)
+			p.checkValidity=True
+			p.checkValidity=True
+			p.raiseValidityErrors=True
+			try:
+				p.ParseDocument()
+				self.failUnless(p.valid,"Valid Example: %s not marked as valid in the parser"%fName)
+				self.failUnless(len(p.validityErrors)==0,"Valid Example: %s reported validity errors"%fName)
+			except XMLValidityError,e:
+				self.fail("Valid Example: %s raised XMLValidityError"%fName)
+			except XMLWellFormedError,e:
+				self.fail("Valid Example: %s raised XMLWellFormedError"%fName)
+		dPath=os.path.join(TEST_DATA_DIR,'wellformed')
+		for fName in os.listdir(dPath):
+			if fName[-4:]!=".xml":
+				continue
+			f=URIFactory.URLFromPathname(os.path.join(dPath,fName))
+			e=XMLEntity(f)
+			p=XMLParser(e)
+			p.checkValidity=True
+			# By default we don't raise validity errors...
+			try:
+				p.ParseDocument()
+				self.failIf(p.valid,"Invalid Example: %s marked as valid in the parser"%fName)
+				self.failIf(len(p.validityErrors)==0,"Invalid Example: %s reported no validity errors"%fName)
+				print "\n%s: Validity Errors:"%fName
+				for e in p.validityErrors:
+					print e				
+			except XMLValidityError,e:
+				self.fail("XMLValidityError raised by raiseVaidityErrors is False (%s)"%fName)
+			except XMLWellFormedError,e:
+				self.fail("Invalid but Well-Formed Example raised XMLWellFormedError (%s)"%fName)
 
 
 class XMLEntityTests(unittest.TestCase):
@@ -536,7 +605,7 @@ class XMLParserTests(unittest.TestCase):
 
 	def testCaseComment(self):
 		"""[15] Comment ::= '<!--' ((Char - '-') | ('-' (Char - '-')))* '-->' """
-		e=XMLEntity("<!--First--><!--Secon-d--><!--Thi<&r]]>d--><!--Fourt<!-h--><!--Bad--Comment-->")
+		e=XMLEntity("<!--First--><!--Secon-d--><!--Thi<&r]]>d--><!--Fourt<!-h--><!--Bad-Comment--->")
 		m=['First','Secon-d','Thi<&r]]>d','Fourt<!-h']
 		p=XMLParser(e)
 		for match in m:
@@ -785,8 +854,11 @@ class XMLParserTests(unittest.TestCase):
 			('Steve','SteveDoc.dtd',None),
 			('Steve',None,None),
 			('Steve',None,None)]
+		dtdPath=os.path.join(TEST_DATA_DIR,'SteveDoc.dtd')
+		f=URIFactory.URLFromPathname(dtdPath)
 		for sEntity,match in zip(s,m):
 			e=XMLEntity(sEntity)
+			e.location=f
 			p=XMLParser(e)
 			p.ParseDoctypedecl()
 			self.failUnless(isinstance(p.dtd,XMLDTD),"No DTD created")
@@ -837,6 +909,7 @@ class XMLParserTests(unittest.TestCase):
 		x"""
 		e=XMLEntity(s)
 		p=XMLParser(e)
+		p.checkValidity=True	# ensures that elements are declared in the DTD
 		p.dtd=XMLDTD()
 		while p.theChar=='<':
 			p.ParseMarkupDecl(False)
@@ -1016,6 +1089,7 @@ class XMLParserTests(unittest.TestCase):
 		<!ELEMENT elem3 ( A | ( B,C )? | (D,E,F)* | (G,H)+ | (I | (J,K)+)* ) >"""
 		e=XMLEntity(s)
 		p=XMLParser(e)
+		p.checkValidity=True	# ensures that elements are declared in the DTD
 		p.dtd=XMLDTD()
 		try:
 			while True:
@@ -1723,6 +1797,7 @@ class XMLParserTests(unittest.TestCase):
 		"""[72] PEDecl ::= '<!ENTITY' S '%' S Name S PEDef S? '>' """
 		e=XMLEntity("<!ENTITY % Steve 'SteveValue'>")
 		p=XMLParser(e)
+		p.refMode=XMLParser.RefModeInDTD
 		pe=p.ParsePEDecl()
 		self.failUnless(isinstance(pe,XMLParameterEntity),"ParsePEDecl failed to return ParameterEntity")		
 		self.failUnless(pe.name=='Steve',"Failed to parse parameter entity name")

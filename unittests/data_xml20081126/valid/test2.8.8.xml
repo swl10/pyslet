@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<!DOCTYPE greeting [
+<!ENTITY % good SYSTEM 'test2.8.8.good.txt' >
+
+%good;
+
+<!ELEMENT greeting (#PCDATA) >
+]>
+<greeting>Hello, world!</greeting>

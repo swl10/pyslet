@@ -172,9 +172,12 @@ class XMLContextMixin:
 	def ChildElement(self,childClass,name=None):
 		"""Returns a new child of the given class attached to this object.
 		
-		- childClass is a class (or callable) used to create a new instance of :py:class:`XMLElement`.
+		-	childClass is a class (or callable) used to create a new instance
+			of :py:class:`XMLElement`.
 		
-		- name is the name given to the element (by the caller).  If no name is given then the default name for the child should be used.  When the child returned is an existing instance, name is ignored."""
+		-	name is the name given to the element (by the caller).  If no name is 
+			given then the default name for the child should be used.  When the
+			child returned is an existing instance, name is ignored."""
 		raise NotImplementedError
 			
 	def ProcessingInstruction(self,target,instruction=''):
@@ -216,8 +219,6 @@ class XMLDocument(XMLContextMixin):
 			if not issubclass(root,XMLElement):
 				raise ValueError
 			self.root=root(self)
-		self.cObject=None
-		"""The element currently being parsed by the parser."""
 		self.SetBase(baseURI)
 		self.idTable={}
 
@@ -363,13 +364,11 @@ class XMLDocument(XMLContextMixin):
 			self.ReadFromEntity(e)
 	
 	def ReadFromStream(self,src):
-		self.cObject=self
 		self.data=[]
 		e=XMLEntity(src,reqManager=self.reqManager)
 		self.ReadFromEntity(e)
 		
 	def ReadFromEntity(self,e):
-		self.cObject=self
 		self.data=[]
 		parser=self.XMLParser(e)
 		parser.ParseDocument(self)
@@ -490,18 +489,21 @@ def RegisterDocumentClass(docClass,rootName,publicID=None,systemID=None):
 	used to identify the correct class to use to represent a document based
 	on the information obtained from the DTD.
 	
-	- *docClass* is the class object being registered, it must be derived from
-	:py:class:`XMLDocument`
+	-	*docClass*
+		is the class object being registered, it must be derived from
+		:py:class:`XMLDocument`
 	
-	- *rootName* is the name of the root element or None if this class can be
-	used with any root element.
+	-	*rootName*
+		is the name of the root element or None if this class can be used with
+		any root element.
 	
-	- *publicID* is the public ID of the doctype, or None if any doctype
-	can be used with this document class.
+	-	*publicID*
+		is the public ID of the doctype, or None if any doctype can be used with
+		this document class.
 	
-	- *systemID* is the system ID of the doctype, this will usually be None
-	indicating that the document class can match any system ID.
-	"""
+	-	*systemID*
+		is the system ID of the doctype, this will usually be None indicating
+		that the document class can match any system ID."""
 	XMLParser.DocumentClassTable[(rootName,publicID,systemID)]=docClass
 
 		
@@ -514,10 +516,35 @@ def IsChar(c):
 		(ord(c)>=0xE000 and ord(c)<=0xFFFD) or
 		(ord(c)>=0x10000 and ord(c)<=0x10FFFF))
 
+# DiscouragedCharClass=ParseXMLClass("""[#x7F-#x84] | [#x86-#x9F] | [#xFDD0-#xFDEF] |
+# 	[#x1FFFE-#x1FFFF] | [#x2FFFE-#x2FFFF] | [#x3FFFE-#x3FFFF] |
+# 	[#x4FFFE-#x4FFFF] | [#x5FFFE-#x5FFFF] | [#x6FFFE-#x6FFFF] |
+# 	[#x7FFFE-#x7FFFF] | [#x8FFFE-#x8FFFF] | [#x9FFFE-#x9FFFF] |
+# 	[#xAFFFE-#xAFFFF] | [#xBFFFE-#xBFFFF] | [#xCFFFE-#xCFFFF] |
+# 	[#xDFFFE-#xDFFFF] | [#xEFFFE-#xEFFFF] | [#xFFFFE-#xFFFFF] |
+# 	[#x10FFFE-#x10FFFF]""")
+
+DiscouragedCharClass=CharClass((u'\x7f',u'\x84'), (u'\x86',u'\x9f'), (u'\ufdd0',u'\ufdef'))
+
+def IsDiscouraged(c):
+	"""Tests if the character *c* is one of the characters discouraged in the specification.
+	
+	Note that this test is currently limited to the range of unicode characters
+	available in the narrow python build."""
+	return DiscouragedCharClass.Test(c)
+	
+	
 def IsS(c):
 	"""Tests if a single character *c* matches production [3] S"""
 	return c and (ord(c)==0x9 or ord(c)==0xA or ord(c)==0xD or ord(c)==0x20)
 
+def ContainsS(data):
+	"""Tests if data contains any characters matching production [3] S"""
+	for c in data:
+		if IsS(c):
+			return True
+	return False
+	
 def StripLeadingS(data):
 	"""Returns data with leading S removed."""
 	s=0
@@ -530,7 +557,26 @@ def StripLeadingS(data):
 		return data[s:]
 	else:
 		return data
+
+def NormalizeSpace(data):
+	"""Returns data normalized according to the further processing rules for attribute-value normalization:
 	
+	"...by discarding any leading and trailing space (#x20) characters, and by
+	replacing sequences of space (#x20) characters by a single space (#x20)
+	character"	"""
+	result=[]
+	sCount=2	# 0=no space; 1=add space; 2=don't add space 
+	for c in data:
+		if c==' ':
+			if sCount==0:
+				sCount=1
+		else:
+			if sCount==1:
+				result.append(' ')
+			result.append(c)
+			sCount=0
+	return string.join(result,'')			
+			
 def CollapseSpace(data,sMode=True,sTest=IsS):
 	"""Returns data with all spaces collapsed to a single space.
 	
@@ -566,16 +612,18 @@ NameStartCharClass=CharClass(u':', (u'A',u'Z'), u'_', (u'a',u'z'),
 	(u'\u3001',u'\ud7ff'), (u'\uf900',u'\ufdcf'), (u'\ufdf0',u'\ufffd'))
 
 def IsNameStartChar(c):
-	"""Tests if the character *c* matches production for NameStartChar."""
+	"""Tests if the character *c* matches production [4] NameStartChar."""
 	return NameStartCharClass.Test(c)
 	
 NameCharClass=CharClass(NameStartCharClass, u'-', u'.', (u'0',u'9'),
 	u'\xb7', (u'\u0300',u'\u036f'), (u'\u203f',u'\u2040'))
 
 def IsNameChar(c):
+	"""Tests if a single character *c* matches production [4a] NameChar"""
 	return NameCharClass.Test(c)
 
 def IsValidName(name):
+	"""Tests if name is a string matching production [5] Name"""
 	if name:
 		if not IsNameStartChar(name[0]):
 			return False
@@ -585,6 +633,14 @@ def IsValidName(name):
 		return True
 	else:
 		return False
+
+def IsReservedName(name):
+	"""Tests if name is reserved for future standardization, e.g., if it begins with 'xml'."""
+	if name:
+		return name[:3].lower()=='xml'
+	else:
+		return False
+
 
 PubidCharClass=CharClass(u' ',u'\x0d',u'\x0a', (u'0',u'9'), (u'A',u'Z'), 
 	(u'a',u'z'), "-'()+,./:=?;!*#@$_%")
@@ -696,10 +752,12 @@ class XMLDTD:
 	def DeclareAttribute(self,elementName,attributeDef):
 		"""Declares an attribute.
 		
-		*elementName* is the name of the element type which should have this
-		attribute applied *attributeDef* is an
-		:py:class:`XMLAttributeDefinition` instance describing the attribute
-		being declared."""
+		-	*elementName*
+			is the name of the element type which should have this attribute
+			applied
+		-	*attributeDef*
+			is an :py:class:`XMLAttributeDefinition` instance describing the
+			attribute being declared."""
 		aList=self.attributeLists.get(elementName,None)
 		if aList is None:
 			self.attributeLists[elementName]=aList={}
@@ -1614,6 +1672,7 @@ class XMLElementType:
 	
 	def __init__(self):
 		"""An object for representing element type definitions."""
+		self.entity=None	#: The entity in which this element was declared
 		self.name=None		#: The name of this element
 		self.contentType=XMLElementType.Empty
 		"""The content type of this element, one of the constants defined above."""
@@ -1639,7 +1698,7 @@ class XMLContentParticle:
 		"""An object for representing content particles."""
 		self.occurrence=XMLContentParticle.ExactlyOnce
 		"""One of the occurrence constants defined above."""
-	
+			
 
 class XMLNameParticle(XMLContentParticle):
 	def __init__(self):
@@ -1682,10 +1741,11 @@ class XMLAttributeDefinition:
 	
 	def __init__(self):
 		"""An object for representing attribute declarations."""
+		self.entity=None								#: the entity in which this attribute was declared
 		self.type=XMLAttributeDefinition.CData			#: One of the above type constants
-		self.values=None						#: An optional list of values
-		self.presence=XMLAttributeDefinition.Implied		#: One of the above presence constants
-		self.defaultValue=None					#: An optional default value
+		self.values=None								#: An optional list of values
+		self.presence=XMLAttributeDefinition.Implied	#: One of the above presence constants
+		self.defaultValue=None							#: An optional default value
 
 
 class XMLEntity:
@@ -1703,6 +1763,7 @@ class XMLEntity:
 		*src* may be a unicode string, a byte string, an instance of
 		:py:class:`pyslet.rfc2396.URI` or any object that supports file-like
 		behaviour.  If using a file, the file must support seek behaviour."""
+		self.location=None		#: the location of this entity (used as the base URI to resolve relative links)
 		self.mimetype=None		#: the mime type of the entity, if known, or None
 		self.encoding=None		#: the encoding of the entity (text entities)
 		self.dataSource=None	#: a file like object from which the entity's data is read
@@ -1712,12 +1773,14 @@ class XMLEntity:
 		self.theChar=None		#: the character at the current position in the entity
 		self.lineNum=None		#: the current line number within the entity (first line is line 1)
 		self.linePos=None		#: the current character position within the entity (first char is 1)
+		self.buffText=''		#: used by :py:meth:`XMLParser.PushEntity`
 		self.basePos=None
 		self.charSeek=None
 		self.chunk=None
 		self.chars=''
 		self.charPos=None
 		self.ignoreLF=None
+		self.flags={}
 		if type(src) is UnicodeType:
 			self.OpenUnicode(src)
 		elif isinstance(src,URI):
@@ -1738,12 +1801,26 @@ class XMLEntity:
 	characters using the wrong codec.  See :py:meth:`ChangeEncoding` and
 	:py:meth:`KeepEncoding` for more information."""
 	
+	def GetName(self):
+		"""Abstract method to return a name to represent this entity in logs and error messages."""
+		return repr(self)
+			
+	def IsExternal(self):
+		"""Returns True if this is an external entity.
+		
+		The default implementation returns True if *location* is not None, False otherwise."""
+		return self.location is not None
+
 	def Open(self):
 		"""Opens the entity for reading.
 		
-		The default implementation raises UnimplementedError.  It is designed to
-		be overridden by classes derived from :py:class:`XMLEntity`."""
-		raise UnimplementedError
+		The default implementation uses :py:meth:`OpenURI` to open the entity
+		from :py:attr:`location` if available, otherwise it raises
+		UnimplementedError."""
+		if self.location:
+			self.OpenURI(self.location)
+		else:
+			raise UnimplementedError
 	
 	def OpenUnicode(self,src):
 		"""Opens the entity from a unicode string."""
@@ -1797,6 +1874,7 @@ class XMLEntity:
 		:py:class:`pyslet.rfc2616.HTTPRequestManager` for handling URI with
 		http or https schemes."""
 		self.encoding=encoding
+		self.location=src
 		if isinstance(src,FileURL):
 			self.OpenFile(open(src.GetPathname(),'rb'),self.encoding)
 		elif src.scheme.lower() in ['http','https']:
@@ -1841,7 +1919,7 @@ class XMLEntity:
 		self.ignoreLF=False
 		self.NextChar()
 		# python handles the utf-16 BOM automatically but we have to skip it for utf-8
-		if self.encoding is not None and self.encoding.lower()=='utf-8' and self.theChar==u'\ufeff':
+		if self.theChar==u'\ufeff' and self.encoding is not None and self.encoding.lower()=='utf-8':
 			self.NextChar()
 	
 	def GetPositionStr(self):
@@ -1937,56 +2015,79 @@ class XMLEntity:
 		self.lineNum=None
 		self.linePos=None
 
-			
-class XMLGeneralEntity(XMLEntity):
-	def	__init__(self,name=None,definition=None,notation=None):
-		"""An object for representing general entities.
-		
-		A general entity can be constructed with an optional *name*,
-		*definition* and *notation*, used to initialise the following fields."""
+
+class XMLDeclaredEntity(XMLEntity):
+	def __init__(self,name=None,definition=None):
+		"""Abstract class for representing declared entities."""
 		XMLEntity.__init__(self)
-		self.name=name				#: the name of the general entity
+		self.entity=None	#: the entity in which this entity was declared
+		self.name=name		#: the name of the declared entity
 		self.definition=definition
 		"""The definition of the entity is either a string or an instance of
 		XMLExternalID, depending on whether the entity is an internal or
 		external entity respectively."""
-		self.notation=notation		#: the notation name for external unparsed entities
 	
+	def GetName(self):
+		"""Returns a representation of the entitiy's name suitable for logging/error reporting."""
+		return self.name
+
+	def IsExternal(self):
+		"""Returns True if this is an external entity."""
+		return isinstance(self.definition,XMLExternalID)
+
 	def Open(self):
-		"""Opens the general entity for reading."""
+		"""Opens the entity for reading.
+		
+		External entities must be parsed for text declarations before the
+		replacement text is encountered.  This requires a small amount of
+		look-ahead which may result in some characters needing to be re-parsed. 
+		We pass this to future parsers using :py:attr:`buffText`."""
 		if type(self.definition) is StringType:
 			self.OpenString(self.definition)
 		elif type(self.definition) is UnicodeType:
 			self.OpenUnicode(self.definition)
 		elif isinstance(self.definition,XMLExternalID):
-			raise UnimplementedError
+			XMLEntity.Open(self)	# open from location or raise UnimplementedError
+			# Now to handle the text declaration
+			p=XMLParser(self)
+			if p.ParseLiteral('<?xml'):
+				p.ParseTextDecl(True)
+			# at this point we may have some left over text in p's buffer
+			# we can't push it back down the pipe so need to handle here
+			self.buffText=p.GetBuff()
 		else:
-			raise XMLError("Bad General Entity") 
+			raise XMLError("Bad Entity Definition") 
+
+		
+class XMLGeneralEntity(XMLDeclaredEntity):
+	def	__init__(self,name=None,definition=None,notation=None):
+		"""An object for representing general entities.
+		
+		A general entity can be constructed with an optional *name*,
+		*definition* and *notation*, used to initialise the following fields."""
+		XMLDeclaredEntity.__init__(self,name,definition)
+		self.notation=notation		#: the notation name for external unparsed entities
+
+	def GetName(self):
+		"""Returns the name of the entity formatted as a general entity reference."""
+		return "&%s;"%self.name
 
 
-class XMLParameterEntity(XMLEntity):
+class XMLParameterEntity(XMLDeclaredEntity):
 	def	__init__(self,name=None,definition=None):
-		XMLEntity.__init__(self)
 		"""An object for representing parameter entities.
 		
 		A parameter entity can be constructed with an optional *name* and
 		*definition*, used to initialise the following two fields."""
-		self.name=name				#: the name of the parameter entity
-		self.definition=definition
-		"""The definition of the entity is either a string or an instance of
-		XMLExternalID, depending on whether the entity is an internal or
-		external entity respectively."""
-		
-	def Open(self):
-		"""Opens the parameter entity for reading."""
-		if type(self.definition) is StringType:
-			self.OpenString(self.definition)
-		elif type(self.definitino) is UnicodeType:
-			self.OpenUnicode(self.definition)
-		elif isinstance(self.definition,XMLExternalID):
-			raise UnimplementedError
-		else:
-			raise XMLError("Bad Parameter Entity") 
+		XMLDeclaredEntity.__init__(self,name,definition)
+		self.peEnd=None
+	
+	def NextChar(self):
+		"""Overrridden to provide trailing space during special parameter entity handling."""
+		XMLEntity.NextChar(self)
+		if self.theChar is None and self.peEnd:
+			self.theChar=self.peEnd
+			self.peEnd=None
 
 	def OpenAsPE(self):
 		"""Opens the parameter entity for reading in the context of a DTD.
@@ -1994,14 +2095,13 @@ class XMLParameterEntity(XMLEntity):
 		This special method implements the rule that the replacement text of a parameter
 		entity, when included as a PE, must be enlarged by the attachment of a leading
 		and trailing space."""
-		if type(self.definition) is StringType:
-			self.OpenString(' %s '%self.definition)
-		elif type(self.definitino) is UnicodeType:
-			self.OpenUnicode(u" %s "%self.definition)
-		elif isinstance(self.definition,XMLExternalID):
-			raise UnimplementedError
-		else:
-			raise XMLError("Bad Parameter Entity") 
+		self.Open()
+		self.buffText=u' '+self.buffText
+		self.peEnd=u" "		
+
+	def GetName(self):
+		"""Returns the name of the entity formatted as a parameter entity reference."""
+		return "%%%s;"%self.name
 
 
 class XMLExternalID:
@@ -2010,9 +2110,26 @@ class XMLExternalID:
 	def __init__(self,public=None,system=None):
 		"""Returns an instance of XMLExternalID.  One of *public* and *system* should be provided."""
 		self.public=public	#: the public identifier, may be None
-		self.system=system	#: the system identifier, may be None.  Should betreated as a URI
+		self.system=system	#: the system identifier, may be None.
 
+	def GetLocation(self,base=None):
+		"""Returns the absolute URI where the external entity can be found.
+		
+		Returns a :py:class:`pyslet.rfc2396.URI` resolved against :py:attr:`base` if
+		applicable.  If there is no system identifier then None is returned."""
+		if self.system:
+			if base:
+				location=URIFactory.Resolve(base,URIFactory.URI(self.system))
+			else:
+				location=URIFactory.URI(self.system)
+			if not location.IsAbsolute():
+				cwd=URIFactory.URLFromPathname(os.path.join(os.getcwd(),os.curdir))
+				location=location.Resolve(cwd)
+			if location.IsAbsolute():
+				return location
+		return None
 
+			
 class XMLNotation:
 	"""Represents an XML Notation"""
 
@@ -2173,7 +2290,7 @@ class XMLParser:
 	replacement characters."""
 
 	def __init__(self,entity):
-		"""Returns an XMLParser object constructed from an optional :py:class:`XMLEntity`.
+		"""Returns an XMLParser object constructed from the :py:class:`XMLEntity` to parse.
 			
 		XMLParser objects are used to parse entities for the constructs defined
 		by the numbered productions in the XML specification.
@@ -2181,14 +2298,18 @@ class XMLParser:
 		XMLParser has a number of optional attributes, all of which default to
 		False. If any option is set to True then the resulting parser will not
 		behave as a conforming XML processor."""
-		self.dontCheckWellFormedness=False	#: provides a loose parser for XML-like documents
 		self.checkValidity=False
 		"""checks XML validity constraints
 		
-		If both *checkValidity* and *dontCheckWellFormedness* are True, and all other options
-		are left at their default (False) setting then the parser will behave as a validating
-		XML parser."""
+		If *checkValidity* is True, and all other options are left at their
+		default (False) setting then the parser will behave as a validating XML
+		parser."""
+		self.valid=None
+		"""Flag indicating if the document is valid, only set if :py:attr:`checkValidity` is True."""
+		self.validityErrors=[]
+		"""A list of validity errors discovered during parsing, only populated if :py:attr:`checkValidity` is True."""
 		self.raiseValidityErrors=False		#: treats validity errors as fatal errors
+		self.dontCheckWellFormedness=False	#: provides a loose parser for XML-like documents
 		self.sgmlNamecaseGeneral=False		#: option that simulates SGML's NAMECASE GENERAL YES
 		self.sgmlNamecaseEntity=False		#: option that simulates SGML's NAMECASE ENTITY YES
 		self.sgmlOmittag=False				#: option that simulates SGML's OMITTAG YES
@@ -2237,9 +2358,14 @@ class XMLParser:
 		required to have an associated dtd."""
 		self.doc=None
 		"""The document being parsed."""
+		self.docEntity=entity
+		"""The document entity."""
 		self.element=None
 		"""The current element being parsed."""
+		self.elementType=None
+		"""The element type of the current element."""
 		self.dataCount=0
+		self.noPERefs=False
 		
 	def GetContext(self):
 		if self.element is None:
@@ -2261,6 +2387,7 @@ class XMLParser:
 			self.entity.NextChar()
 			self.theChar=self.entity.theChar
 			while self.theChar is None and self.entityStack:
+				self.entity.Close()
 				self.entity=self.entityStack.pop()
 				self.theChar=self.entity.theChar
 
@@ -2274,16 +2401,45 @@ class XMLParser:
 					self.buff.append(self.entity.theChar)
 			self.theChar=self.buff[0]
 	
+	def GetBuff(self):
+		if len(self.buff)>1:
+			return string.join(self.buff[1:],'')
+		else:
+			return ''
+
 	def PushEntity(self,entity):
 		"""Starts parsing *entity*
 
 		:py:attr:`theChar` is set to the current character in the entity's
 		stream.  The current entity is pushed onto an internal stack and will be
-		resumed when this entity has been parsed completely."""
-		self.entityStack.append(self.entity)
-		self.entity=entity
-		self.theChar=self.entity.theChar
-	
+		resumed when this entity has been parsed completely.
+		
+		Note that in the degenerate case where the entity being pushed is empty
+		(or is already positioned at the end of the file) then PushEntity does
+		nothing."""
+		if entity.theChar is not None:
+			self.entityStack.append(self.entity)
+			self.entity=entity
+			self.entity.flags={}
+			self.theChar=self.entity.theChar			
+		if entity.buffText:
+			self.BuffText(entity.buffText)
+			
+	def GetExternalEntity(self):
+		"""Returns the external entity currently being parsed.
+		
+		If no external entity is being parsed then None is returned."""
+		if self.entity.IsExternal():
+			return self.entity
+		else:
+			i=len(self.entityStack)
+			while i:
+				i=i-1
+				e=self.entityStack[i]
+				if e.IsExternal():
+					return e
+		return None
+				
 	def WellFormednessError(self,msg="well-formedness error",errorClass=XMLWellFormedError):
 		"""Raises an XMLWellFormedError error.
 
@@ -2297,22 +2453,36 @@ class XMLParser:
 		sophisticated error logging."""
 		raise errorClass("%s: %s"%(self.entity.GetPositionStr(),msg))
 
-	def ValidityError(self,msg="validity error",errorClass=XMLValidityError):
+	def ValidityError(self,msg="validity error",error=XMLValidityError):
 		"""Called when the parser encounters a validity error.
 		
 		The method takes an optional message string, *msg* and an optional error
-		class which must be a class object derived from
+		class or instance which must be a (class) object derived from
 		py:class:`XMLValidityError`.
 
 		The behaviour varies depending on the setting of the
-		:py:attr:`raiseValidityErrors` option The default (False) causes
-		validity errors to be ignored.  If True, an instance of *errorClass* is
-		raised.
+		:py:attr:`checkValidity` and :py:attr:`raiseValidityErrors` options. The
+		default (both False) causes validity errors to be ignored.  When
+		checking validity an error message is logged to
+		:py:attr:`validityErrors` and :py:attr:`valid` is set to False. 
+		Furthermore, if :py:attr:`raiseValidityErrors` is True *error* is raised
+		(or a new instance of *error* is raised) and parsing terminates.
 
 		This method can be overridden by derived parsers to implement more
 		sophisticated error logging."""
-		if self.raiseValidityErrors:
-			raise errorClass("%s: %s"%(self.entity.GetPositionStr(),msg))
+		if self.checkValidity:
+			self.valid=False
+			if isinstance(error,XMLValidityError):
+				self.validityErrors.append("%s: %s (%s)"%(self.entity.GetPositionStr(),msg,str(error)))
+				if self.raiseValidityErrors:
+					raise error
+			elif issubclass(error,XMLValidityError):
+				msg="%s: %s"%(self.entity.GetPositionStr(),msg)
+				self.validityErrors.append(msg)
+				if self.raiseValidityErrors:
+					raise error(msg)
+			else:
+				raise TypeError("ValidityError expected class or instance of XMLValidityError (found %s)"%repr(error))
 
 	def ParseLiteral(self,match):
 		"""Parses a literal string, passed in *match*.
@@ -2405,7 +2575,13 @@ class XMLParser:
 
 		This method returns the document that was parsed, an instance of
 		:py:class:`XMLDocument`."""
+		self.refMode==XMLParser.RefModeInContent
 		self.doc=doc
+		if self.checkValidity:
+			self.valid=True
+		else:
+			self.valid=None
+		self.validityErrors=[]
 		self.ParseProlog()
 		if self.doc is None:
 			if self.dtd.name is not None:
@@ -2485,7 +2661,13 @@ class XMLParser:
 				s.append(self.theChar)
 				self.NextChar()
 			elif self.theChar=='%' and self.refMode==XMLParser.RefModeInDTD:
-				self.ParsePEReference()
+				self.NextChar()
+				if IsNameStartChar(self.theChar):
+					self.ParsePEReference(True)
+				else:
+					# '%' followed by anything other than name start is not a reference.
+					self.BuffText('%')
+					break
 			else:
 				break
 			sLen+=1
@@ -2743,24 +2925,20 @@ class XMLParser:
 			self.NextChar()
 			if len(data)>=XMLEntity.ChunkSize:
 				data=string.join(data,'')
-				if self.element:
-					try:
-						self.element.AddData(data)
-						self.dataCount+=len(data)
-					except XMLValidityError:
-						if self.sgmlOmittag:
-							return StripLeadingS(data)
-						raise
+				try:
+					self.HandleData(data)
+				except XMLValidityError:
+					if self.sgmlOmittag:
+						return StripLeadingS(data)
+					raise
 				data=[]				
 		data=string.join(data,'')
-		if data and self.element:
-			try:
-				self.element.AddData(data)
-				self.dataCount+=len(data)
-			except XMLValidityError:
-				if self.sgmlOmittag:
-					return StripLeadingS(data)
-				raise
+		try:
+			self.HandleData(data)
+		except XMLValidityError:
+			if self.sgmlOmittag:
+				return StripLeadingS(data)
+			raise
 		return None
 		
 	def ParseComment(self,gotLiteral=False):
@@ -2773,6 +2951,7 @@ class XMLParser:
 		nHyphens=0
 		if not gotLiteral:
 			self.ParseRequiredLiteral('<!--',production)
+		cEntity=self.entity
 		while self.theChar is not None:
 			if self.theChar=='-':
 				self.NextChar()
@@ -2781,6 +2960,7 @@ class XMLParser:
 					self.WellFormednessError("-- in Comment")
 			elif self.theChar=='>':
 				if nHyphens==2:
+					self.CheckPEBetweenDeclarations(cEntity)
 					self.NextChar()
 					break
 				elif nHyphens<2:
@@ -2820,6 +3000,7 @@ class XMLParser:
 		data=[]
 		if not gotLiteral:
 			self.ParseRequiredLiteral('<?',production)
+		dEntity=self.entity
 		target=self.ParsePITarget()
 		if self.ParseS():
 			while self.theChar is not None:
@@ -2833,7 +3014,8 @@ class XMLParser:
 						data.append('?')
 				data.append(self.theChar)
 				self.NextChar()
-		else:	
+		else:
+			self.CheckPEBetweenDeclarations(dEntity)
 			self.ParseRequiredLiteral('?>',production)
 		if self.element:
 			self.element.ProcessingInstruction(target,string.join(data,''))
@@ -2881,14 +3063,10 @@ class XMLParser:
 			self.NextChar()
 			if len(data)>=XMLEntity.ChunkSize:
 				data=string.join(data,'')
-				if self.element:
-					self.element.AddData(data)
-					self.dataCount+=len(data)
+				self.HandleData(data)
 				data=[]				
 		data=string.join(data,'')
-		if data and self.element:
-			self.element.AddData(data)
-			self.dataCount+=len(data)
+		self.HandleData(data)
 		
 	def ParseCDEnd(self):
 		"""[21] CDEnd: parses the end of a CDATA section."""
@@ -2907,6 +3085,7 @@ class XMLParser:
 			self.ParseDoctypedecl(True)
 			self.ParseMisc()
 		else:
+			self.ValidityError(production+": missing document type declaration")
 			self.dtd=XMLDTD()
 		
 	def ParseXMLDecl(self,gotLiteral=False):
@@ -2914,7 +3093,7 @@ class XMLParser:
 		
 		This method returns an :py:class:`XMLDeclaration` instance.  Also, if an
 		encoding is given in the declaration then the method changes the
-		encoding of the current entity to match.  For more informatino see
+		encoding of the current entity to match.  For more information see
 		:py:meth:`XMLEntity.ChangeEncoding`.
 		
 		If *gotLiteral* is True the initial literal '<?xml' is assumed to have
@@ -2992,13 +3171,15 @@ class XMLParser:
 		"""[28] doctypedecl: parses a doctype declaration.
 		
 		This method creates a new instance of :py:class:`XMLDTD` and assigns it
-		:py:attr:`dtd`, it also returns this instance as the result.
+		to :py:attr:`dtd`, it also returns this instance as the result.
 		
 		If *gotLiteral* is True the method assumes that the initial literal
 		'<!DOCTYPE' has already been parsed."""
 		production="[28] doctypedecl"
 		if not gotLiteral:
 			self.ParseRequiredLiteral('<!DOCTYPE',production)
+		saveMode=self.refMode
+		self.refMode=XMLParser.RefModeInDTD
 		self.dtd=XMLDTD()
 		self.ParseRequiredS(production)
 		self.dtd.name=self.ParseRequiredName(production)
@@ -3011,21 +3192,44 @@ class XMLParser:
 			self.ParseIntSubset()
 			self.ParseRequiredLiteral(']',production)
 			self.ParseS()
+		if self.dtd.externalID:
+			# Before we parse the closing literal we load any external subset
+			src=self.ResolveExternalID(self.dtd.externalID)
+			if src:
+				externalDTDSubset=XMLEntity(src)
+				self.PushEntity(externalDTDSubset)
+				self.ParseExtSubset()
 		self.ParseRequiredLiteral('>',production)
+		self.refMode=saveMode
 		return self.dtd
 		
 	def ParseDeclSep(self):
 		"""[28a] DeclSep: parses a declaration separator."""
-		if self.theChar=='%':
-			self.ParsePEReference()
-		else:
-			self.ParseRequiredS("[28a] DeclSep")
+		gotSep=False
+		while True:
+			if self.theChar=='%':
+				refEntity=self.entity
+				self.ParsePEReference()
+				if self.entity is not refEntity:
+					# we have a new entity, flag it as being opened in DeclSep
+					self.entity.flags['DeclSep']=True
+				gotSep=True
+			elif IsS(self.theChar):
+				self.NextChar()
+				gotSep=True
+			else:
+				break
+		if not gotSep:
+			self.WellFormednessError("[28a] DeclSep: expected PEReference or S, found %s"%repr(self.theChar))
 	
 	def ParseIntSubset(self):
 		"""[28b] intSubset: parses an internal subset."""
+		subsetEntity=self.entity
 		while True:
 			if self.theChar=='<':
+				self.noPERefs=(self.GetExternalEntity() is subsetEntity)
 				self.ParseMarkupDecl()
+				self.noPERefs=False
 			elif self.theChar=='%' or IsS(self.theChar):
 				self.ParseDeclSep()
 			else:
@@ -3078,6 +3282,16 @@ class XMLParser:
 				self.ParseMarkupDecl()
 			else:
 				break
+
+	def CheckPEBetweenDeclarations(self,checkEntity):
+		"""[31] extSubsetDecl: checks the well-formedness constraint on use of PEs between declarations.
+		
+		*checkEntity* is the entity we should still be in!"""
+		if self.checkValidity and self.entity is not checkEntity:
+			self.ValidityError("Proper Declaration/PE Nesting: found '>' in entity %s"%self.entity.GetName())					
+		if not self.dontCheckWellFormedness and self.entity is not checkEntity and checkEntity.flags.get('DeclSep',False):
+			# a badly nested declaration in an entity opened within a DeclSep is a well-formedness error
+			self.WellFormednessError("[31] extSubsetDecl: failed for entity %s included in a DeclSep"%checkEntity.GetName())
 	
 	def ParseSDDecl(self,gotLiteral=False):
 		"""[32] SDDecl: parses a standalone declaration
@@ -3112,8 +3326,8 @@ class XMLParser:
 		
 		The method returns:
 		
-		- True: indicates that an element was parsed normally
-		- False: indicates that the element is not allowed in this context
+		-	True: indicates that an element was parsed normally
+		-	False: indicates that the element is not allowed in this context
 		
 		The second case only occurs when the :py:attr:`sgmlOmittag` option is in
 		use and it indicates that the content of the enclosing element has
@@ -3122,6 +3336,7 @@ class XMLParser:
 		unwound to the point where it is allowed by the context."""
 		production="[39] element"
 		saveElement=self.element
+		saveElementType=self.elementType
 		if self.sgmlOmittag and self.theChar!='<':
 			# Leading data means the start tag was omitted (perhaps at the start of the doc)
 			name=None
@@ -3129,6 +3344,35 @@ class XMLParser:
 			empty=False
 		else:
 			name,attrs,empty=self.ParseSTag()
+			if self.checkValidity:
+				if saveElement is None and self.dtd.name is not None and self.dtd.name!=name:
+					self.ValidityError("Root Element Type: expected element %s"%self.dtd.name)
+				aList=self.dtd.GetAttributeList(name)
+				self.elementType=self.dtd.GetElementType(name)
+				if aList:
+					for a in aList.keys():
+						aDef=aList[a]
+						checkStandalone=self.declaration and self.declaration.standalone and aDef.entity is not self.docEntity
+						value=attrs.get(a,None)
+						if value is None:
+							# check for default
+							if aDef.presence==XMLAttributeDefinition.Default:
+								attrs[a]=aDef.defaultValue
+								if checkStandalone:
+									self.ValidityError("Standalone Document Declaration: specification for attribute %s required (externally defined default)"%a)
+						else:
+							if aDef.type!=XMLAttributeDefinition.CData:
+								# ...then the XML processor must further process the normalized attribute value by
+								# discarding any leading and trailing space (#x20) characters, and by replacing
+								# sequences of space (#x20) characters by a single space (#x20) character.
+								newValue=NormalizeSpace(value)
+								if checkStandalone and newValue!=value:
+									self.ValidityError("Standalone Document Declaration: specification for attribute %s altered by normalization (externally defined tokenized type)"%a)
+								attrs[a]=newValue
+				if self.elementType:
+					pass
+				else:
+					self.ValidityError("Element Valid: element %s is not declared"%name) 
 			if self.stagBuffer:
 				name,attrs,empty=self.stagBuffer
 				self.stagBuffer=None
@@ -3207,7 +3451,7 @@ class XMLParser:
 							# ignore spurious end tags, we probably inferred them earlier
 							continue
 						else:
-							self.WellFormednessError("Unexpected tag <%s/>"%endName)
+							self.WellFormednessError("Element Type Mismatch: found </%s>, expected <%s/>"%(endName,name))
 					else:
 						break
 			if name is None and self.dataCount==saveDataCount:
@@ -3216,6 +3460,7 @@ class XMLParser:
 				raise XMLFatalError(production+": element implied by PCDATA had empty content %s"%self.element) 
 		self.element.ContentChanged()
 		self.element=saveElement
+		self.elementType=saveElementType
 		return True
 
 	def MatchXMLName(self,element,name):
@@ -3241,9 +3486,15 @@ class XMLParser:
 		
 		The result is a triple of:
 		
-		- elementClass: the element class that this STag must introduce or None if this STag does not belong (directly or indirectly) in the current context
-		- elementName: the name of the element (to pass to ChildElement) or None to use the default
-		- buffFlag: True indicates an omitted tag and that the triggering STag should be buffered.
+		-	elementClass:
+			the element class that this STag must introduce or None if this STag
+			does not belong (directly or indirectly) in the current context
+		-	elementName:
+			the name of the element (to pass to ChildElement) or None to use the
+			default
+		-	buffFlag:
+			True indicates an omitted tag and that the triggering STag (i.e.,
+			the STag with name *name*) should be buffered.
 		"""
 		if self.doc is None:
 			if self.dtd is None:
@@ -3273,9 +3524,13 @@ class XMLParser:
 		
 		This method returns a triple of name, attrs, emptyFlag where:
 		
-		- *name* is the name of the element parsed.
-		- *attrs* is a dictionary of attribute values keyed by attribute name
-		- *emptyFlag* is a boolean; True indicates that the tag was an empty element tag."""
+		-	*name* 
+			is the name of the element parsed.
+		-	*attrs*
+			is a dictionary of attribute values keyed by attribute name
+		-	*emptyFlag*
+			is a boolean; True indicates that the tag was an empty element
+			tag."""
 		production="[40] STag"
 		empty=False
 		self.ParseRequiredLiteral('<')
@@ -3310,9 +3565,10 @@ class XMLParser:
 		
 		Returns *name*, *value* where:
 		
-		- name is the name of the attribute or None if :py:attr:`sgmlShorttag` is True and
-		a short form attribute value was supplied.
-		- value is the attribute value.
+		-	name 
+			is the name of the attribute or None if :py:attr:`sgmlShorttag` is
+			True and a short form attribute value was supplied.
+		-	value is the attribute value.
 		
 		If :py:attr:`dontCheckWellFormedness` the parser uses a very generous
 		form of parsing attribute values to accomodate common syntax errors."""
@@ -3356,8 +3612,11 @@ class XMLParser:
 		
 		The method returns:
 		
-		- True: indicates that the content was parsed normally
-		- False: indicates that the content contained data or markup not allowed in this context
+		-	True:
+			indicates that the content was parsed normally
+		-	False:
+			indicates that the content contained data or markup not allowed in
+			this context
 		
 		The second case only occurs when the :py:attr:`sgmlOmittag` option is in
 		use and it indicates that the enclosing element has ended (i.e., the
@@ -3373,6 +3632,8 @@ class XMLParser:
 					if self.theChar=='-':
 						self.ParseRequiredLiteral('--')
 						self.ParseComment(True)
+						if self.checkValidity and self.elementType.contentType==XMLElementType.Empty:
+							self.ValidityError("Element Valid: comment not allowed in element declared EMPTY: %s"%self.elementType.name)
 					elif self.theChar=='[':
 						self.ParseRequiredLiteral('[CDATA[')
 						# can CDATA sections imply missing markup?
@@ -3388,6 +3649,8 @@ class XMLParser:
 					# PI
 					self.NextChar()
 					self.ParsePI(True)
+					if self.checkValidity and self.elementType.contentType==XMLElementType.Empty:
+						self.ValidityError("Element Valid: processing instruction not allowed in element declared EMPTY: %s"%self.elementType.name)
 				elif self.theChar!='/':
 					# element
 					self.BuffText('<')
@@ -3406,9 +3669,9 @@ class XMLParser:
 					self.UnhandledData('')
 				else:					
 					data=self.ParseReference()
-					if data and self.element:
-						self.element.AddData(data)
-						self.dataCount+=len(data)
+					if self.checkValidity and self.elementType.contentType==XMLElementType.Empty:
+						self.ValidityError("Element Valid: reference not allowed in element declared EMPTY: %s"%self.elementType.name)
+					self.HandleData(data)
 			elif self.theChar is None:
 				# end of entity
 				if self.sgmlOmittag:
@@ -3423,6 +3686,18 @@ class XMLParser:
 					return False
 		return True
 
+	def HandleData(self,data):
+		"""[43] content: handles character data in content."""
+		if data and self.element:
+			if self.checkValidity and self.elementType:
+				checkStandalone=self.declaration and self.declaration.standalone and self.elementType.entity is not self.docEntity
+				if checkStandalone and self.elementType.contentType==XMLElementType.ElementContent and ContainsS(data):
+					self.ValidityError("Standalone Document Declaration: white space not allowed in element %s (externally defined as element content)"%self.elementType.name)
+				if self.elementType.contentType==XMLElementType.Empty:
+					self.ValidityError("Element Valid: content not allowed in element declared EMPTY: %s"%self.elementType.name)
+			self.element.AddData(data)
+			self.dataCount+=len(data)
+		
 	def UnhandledData(self,data):
 		"""[43] content: manages unhandled data in content.
 		
@@ -3431,8 +3706,11 @@ class XMLParser:
 		
 		It returns a boolean result:
 		
-		- True: the data was consumed by a sub-element (with an omitted start tag)
-		- False: the data has been buffered and indicates the end of the current content (an omitted end tag)."""
+		-	True:
+			the data was consumed by a sub-element (with an omitted start tag)
+		-	False:
+			the data has been buffered and indicates the end of the current
+			content (an omitted end tag)."""
 		if data:
 			self.BuffText(EscapeCharData(data))
 		# Two choices: PCDATA starts a new element or ends this one
@@ -3459,13 +3737,15 @@ class XMLParser:
 		eType=XMLElementType()
 		if not gotLiteral:
 			self.ParseRequiredLiteral('<!ELEMENT',production)
+		eType.entity=self.entity
 		self.ParseRequiredS(production)
 		eType.name=self.ParseRequiredName(production)
 		self.ParseRequiredS(production)
 		self.ParseContentSpec(eType)
 		self.ParseS()
 		self.ParseRequiredLiteral('>',production)
-		if self.dtd:
+		self.CheckPEBetweenDeclarations(eType.entity)
+		if self.checkValidity and self.dtd:
 			self.dtd.DeclareElementType(eType)
 			
 	def ParseContentSpec(self,eType):
@@ -3649,6 +3929,7 @@ class XMLParser:
 		has already been parsed.
 		"""
 		production="[52] AttlistDecl"
+		dEntity=self.entity
 		if not gotLiteral:
 			self.ParseRequiredLiteral("<!ATTLIST",production)
 		self.ParseRequiredS(production)
@@ -3659,9 +3940,11 @@ class XMLParser:
 					break
 				a=self.ParseAttDef(True)
 				if self.dtd:
+					a.entity=dEntity
 					self.dtd.DeclareAttribute(name,a)
 			else:
 				break
+		self.CheckPEBetweenDeclarations(dEntity)
 		self.ParseRequiredLiteral('>',production)	
 	
 	def ParseAttDef(self,gotS=False):
@@ -4020,6 +4303,8 @@ class XMLParser:
 				e=None
 				if self.dtd:
 					e=self.dtd.GetEntity(name)
+					if self.declaration and self.declaration.standalone and e.entity is not self.docEntity:
+						self.ValidityError("Standalone Document Declaration: reference to entity %s not allowed (externally defined)"%e.GetName())
 				if e is not None:
 					e.Open()
 					self.PushEntity(e)
@@ -4034,8 +4319,11 @@ class XMLParser:
 		entity tables."""
 		return XMLParser.PredefinedEntities.get(name,None)
 		
-	def ParsePEReference(self):
+	def ParsePEReference(self,gotLiteral=False):
 		"""[69] PEReference: parses a parameter entity reference.
+		
+		If *gotLiteral* is True the method assumes that the initial '%' literal
+		has already been parsed.
 		
 		This method returns any data parsed as a result of the reference.  Normally
 		this will be an empty string because the method is typically called in
@@ -4050,15 +4338,20 @@ class XMLParser:
 		that parsing continues with the first character of the entity's
 		replacement text."""
 		production="[69] PEReference"
-		self.ParseRequiredLiteral('%',production)
+		if not gotLiteral:
+			self.ParseRequiredLiteral('%',production)
 		name=self.ParseRequiredName(production)
 		self.ParseRequiredLiteral(';',production)
 		if self.refMode in (XMLParser.RefModeNone,XMLParser.RefModeInContent,
 			XMLParser.RefModeInAttributeValue,XMLParser.RefModeAsAttributeValue):
 			return "%%%s;"%name
 		else:
+			if self.noPERefs:
+				self.WellFormednessError(production+": PE referenced in Internal Subset, %%%s;"%name)
 			if self.dtd:
 				e=self.dtd.GetParameterEntity(name)
+				if self.declaration and self.declaration.standalone and e.entity is not self.docEntity:
+					self.ValidityError("Standalone Document Declaration: reference to entity %s not allowed (externally defined)"%e.GetName())
 			else:
 				e=None
 			if e is None:
@@ -4082,12 +4375,18 @@ class XMLParser:
 		production="[70] EntityDecl"
 		if not gotLiteral:
 			self.ParseRequiredLiteral('<!ENTITY',production)
+		dEntity=self.entity
+		xEntity=self.GetExternalEntity()
 		self.ParseRequiredS(production)
 		if self.theChar=='%':
 			e=self.ParsePEDecl(True)
 		else:
 			e=self.ParseGEDecl(True)
+		if e.IsExternal():
+			# Resolve the external ID relative to xEntity
+			e.location=self.ResolveExternalID(e.definition,xEntity)
 		if self.dtd:
+			e.entity=dEntity
 			self.dtd.DeclareEntity(e)
 		return e
 		
@@ -4098,6 +4397,7 @@ class XMLParser:
 		True the method assumes that the leading '<!ENTITY' literal *and the
 		required S* have already been parsed."""
 		production="[71] GEDecl"
+		dEntity=self.entity
 		ge=XMLGeneralEntity()
 		if not gotLiteral:
 			self.ParseRequiredLiteral('<!ENTITY',production)
@@ -4106,6 +4406,7 @@ class XMLParser:
 		self.ParseRequiredS(production)
 		self.ParseEntityDef(ge)
 		self.ParseS()
+		self.CheckPEBetweenDeclarations(dEntity)
 		self.ParseRequiredLiteral('>',production)
 		return ge
 		
@@ -4116,6 +4417,7 @@ class XMLParser:
 		is True the method assumes that the leading '<!ENTITY' literal *and the
 		required S* have already been parsed."""
 		production="[72] PEDecl"
+		dEntity=self.entity
 		pe=XMLParameterEntity()
 		if not gotLiteral:
 			self.ParseRequiredLiteral('<!ENTITY',production)
@@ -4126,6 +4428,7 @@ class XMLParser:
 		self.ParseRequiredS(production)
 		self.ParsePEDef(pe)
 		self.ParseS()
+		self.CheckPEBetweenDeclarations(dEntity)
 		self.ParseRequiredLiteral('>',production)
 		return pe
 			
@@ -4201,7 +4504,28 @@ class XMLParser:
 			systemID=self.ParseSystemLiteral()
 		# catch for dontCheckWellFormedness ??
 		return XMLExternalID(pubID,systemID)
-						
+	
+	def ResolveExternalID(self,externalID,entity=None):
+		"""[75] ExternalID: resolves an external ID, returning a URI reference.
+		
+		Returns an instance of :py:class:`pyslet.rfc2396.URI` or None if the
+		external ID cannot be resolved.
+		
+		*entity* can be used to force the resolution of relative URI to be
+		relative to the base of the given entity.  If it is None then the
+		currently open external entity (where available) is used instead.
+		
+		The default implementation simply calls
+		:py:meth:`XMLExternalID.GetLocation` with the entities base URL and
+		ignores the public ID.  Derived parsers may recognize public identifiers
+		and resolve accordingly."""
+		base=None
+		if entity is None:
+			entity=self.GetExternalEntity()
+		if entity:
+			base=entity.location
+		return externalID.GetLocation(base)
+		
 	def ParseNDataDecl(self,gotLiteral=False):
 		"""[76] NDataDecl: parses an unparsed entity notation reference.
 		
@@ -4274,6 +4598,7 @@ class XMLParser:
 		This method assumes that the literal '<!NOTATION' has already been parsed.  It
 		declares the notation in the :py:attr:`dtd`."""
 		production="[82] NotationDecl"
+		dEntity=self.entity
 		if not gotLiteral:
 			self.ParseRequiredLiteral("<!NOTATION",production)
 		self.ParseRequiredS(production)
@@ -4281,6 +4606,7 @@ class XMLParser:
 		self.ParseRequiredS(production)
 		xID=self.ParseExternalID(True)
 		self.ParseS()
+		self.CheckPEBetweenDeclarations(dEntity)
 		self.ParseRequiredLiteral('>')
 		if self.dtd:
 			self.dtd.DeclareNotation(XMLNotation(name,xID))

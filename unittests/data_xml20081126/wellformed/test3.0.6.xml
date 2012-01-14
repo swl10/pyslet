@@ -1,0 +1,10 @@
+<?xml version="1.0" standalone="yes"?>
+<!DOCTYPE greetings [
+
+<!ELEMENT greetings (greeting)* >
+<!ELEMENT greeting (#PCDATA|pling)* >
+
+<!ELEMENT pling EMPTY >
+
+]>
+<greetings><greeting>Hello, world<pling> </pling></greeting></greetings>    

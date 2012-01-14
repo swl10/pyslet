@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<!DOCTYPE greeting [
+
+<!ELEMENT greetings (#PCDATA|greeting)* >
+<!ELEMENT greeting (#PCDATA) >
+
+    ]>
+<greeting>Hello, world!</greeting>

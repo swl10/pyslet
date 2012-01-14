@@ -1,0 +1,12 @@
+<?xml version="1.0" standalone="yes"?>
+<!DOCTYPE greeting [
+
+<!ENTITY % entities "<!ENTITY audience 'world'>">
+
+%entities;
+
+<!ELEMENT greeting (#PCDATA) >
+<!ELEMENT greetings (#PCDATA|greeting)* >
+
+]>
+<greeting>Hello, &audience;!</greeting>
