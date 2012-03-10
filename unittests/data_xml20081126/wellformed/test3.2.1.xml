@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!DOCTYPE greeting [
+
+<!ELEMENT greeting (#PCDATA) >
+<!ELEMENT greetings (#PCDATA|greeting)* >
+
+<!ELEMENT greeting (#PCDATA) >
+
+<!ATTLIST greeting season CDATA #IMPLIED>
+
+]>
+<greeting season='Easter'>Hello, world!</greeting>

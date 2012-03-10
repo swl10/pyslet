@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<!DOCTYPE message SYSTEM 'test3.2.1.1.dtd' >
+<message>
+    <greeting season='Easter'>Hello, world!</greeting>
+    <body>News</body>
+</message>

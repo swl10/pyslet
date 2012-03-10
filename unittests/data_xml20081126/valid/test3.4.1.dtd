@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!ENTITY % ignore 'IGNORE' >
+
+<!ENTITY % content 'body|note' >
+
+<!ELEMENT message ( greeting, ( body ) ) >
+
+<![ %ignore; [  
+<!ELEMENT message ( greeting, ( %content; ) ) >
+]]>
+
+<!ELEMENT greeting (#PCDATA) >
+
+<!ATTLIST greeting season CDATA #IMPLIED>
+
+<!ELEMENT body (#PCDATA) >
+
+<!ELEMENT note (#PCDATA) >

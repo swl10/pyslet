@@ -1,0 +1,13 @@
+<?xml version="1.0" standalone="yes"?>
+<!DOCTYPE doc [
+
+<!ELEMENT doc ANY >
+
+]>
+<doc>
+    Hello
+    <X>Friends</X>
+    <X>Romans</X>
+    <X>Countrymen</X>,
+    Lend me your ears
+</doc> 

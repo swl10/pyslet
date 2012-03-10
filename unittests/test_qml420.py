@@ -110,7 +110,7 @@ class QML420Tests(unittest.TestCase):
 class QMLDocumentTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		doc=QMLDocument()
-		self.failUnless(isinstance(doc,xml.XMLDocument))
+		self.failUnless(isinstance(doc,xml.Document))
 
 	def testCaseExample1(self):
 		doc=QMLDocument()

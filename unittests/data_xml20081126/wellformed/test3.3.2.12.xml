@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!DOCTYPE greetings [
+
+<!NOTATION Christmas PUBLIC '2-day holiday'>
+<!NOTATION Easter PUBLIC '4-day holiday'>
+
+<!ATTLIST dummy season NOTATION (Christmas | Easter) 'NewYear'>
+
+<!ELEMENT greeting (#PCDATA) >
+<!ELEMENT greetings (greeting,body)* >
+
+<!ELEMENT body (#PCDATA) >
+<!ELEMENT dummy (#PCDATA) >
+
+]>
+<greetings>
+    <greeting>Hello, friends</greeting>
+    <body></body>
+</greetings>

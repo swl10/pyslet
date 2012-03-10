@@ -62,7 +62,7 @@ def PathInPath(childPath, parentPath):
 class CPManifest(CPElement):
 	ID="identifier"
 	XMLNAME=(IMSCP_NAMESPACE,'manifest')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		CPElement.__init__(self,parent)
@@ -107,7 +107,7 @@ class CPSchemaVersion(CPElement):
 	
 class CPMetadata(CPElement):
 	XMLNAME=(IMSCP_NAMESPACE,'metadata')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		CPElement.__init__(self,parent)
@@ -136,7 +136,7 @@ class CPMetadata(CPElement):
 
 class CPOrganizations(CPElement):
 	XMLNAME=(IMSCP_NAMESPACE,'organizations')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		CPElement.__init__(self,parent)
@@ -157,7 +157,7 @@ class CPOrganization(CPElement):
 
 class CPResources(CPElement):
 	XMLNAME=(IMSCP_NAMESPACE,'resources')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):
 		CPElement.__init__(self,parent)
@@ -177,7 +177,7 @@ class CPResource(CPElement):
 	ID="identifier"
 	XMLATTR_href=('href',uri.URIFactory.URI,str)
 	XMLATTR_type='type'
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		CPElement.__init__(self,parent)

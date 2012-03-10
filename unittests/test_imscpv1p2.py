@@ -242,7 +242,7 @@ class ContentPackageTests(unittest.TestCase):
 		self.failUnless(len(r.fileList)==1)
 		f=r.fileList[0]
 		self.failUnless(isinstance(f,CPFile) and str(f.href)=="%E8%8B%B1%E5%9B%BD.xml","File path")
-		doc=xmlns.XMLDocument(baseURI=f.ResolveURI(f.href))
+		doc=xmlns.Document(baseURI=f.ResolveURI(f.href))
 		doc.Read()
 		self.failUnless(doc.root.xmlname=='tag' and
 			doc.root.GetValue()==u"Unicode Test: \u82f1\u56fd")
@@ -257,7 +257,7 @@ class ContentPackageTests(unittest.TestCase):
 		self.failUnless(cp.GetPackageName()=='package_1',"Zip extension not removed for name")
 		resources=cp.manifest.root.resources
 		f=resources.list[0].fileList[0]
-		doc=xmlns.XMLDocument(baseURI=f.ResolveURI(f.href))
+		doc=xmlns.Document(baseURI=f.ResolveURI(f.href))
 		doc.Read()
 		self.failUnless(doc.root.xmlname=='tag' and
 			doc.root.GetValue()==u"Unicode Test: \u82f1\u56fd")
@@ -270,7 +270,7 @@ class ContentPackageTests(unittest.TestCase):
 		self.dList.append(cp2.dPath)
 		resources=cp2.manifest.root.resources
 		f=resources.list[0].fileList[0]
-		doc=xmlns.XMLDocument(baseURI=f.ResolveURI(f.href))
+		doc=xmlns.Document(baseURI=f.ResolveURI(f.href))
 		doc.Read()
 		self.failUnless(doc.root.xmlname=='tag' and
 			doc.root.GetValue()==u"Unicode Test: \u82f1\u56fd")

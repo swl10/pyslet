@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!DOCTYPE greetings [
+
+<!ATTLIST greeting season CDATA #IMPLIED>
+
+<!NOTATION text PUBLIC 'Plain Text'>
+<!NOTATION html PUBLIC '-//W3C//DTD XHTML 1.0 Strict//EN'>
+
+<!ELEMENT greeting (#PCDATA) >
+<!ELEMENT greetings (greeting,body)* >
+
+<!ELEMENT body (#PCDATA) >
+<!ATTLIST body format NOTATION (text | html) #IMPLIED >
+
+]>
+<greetings>
+    <greeting season='Christmas'>Hello, friends</greeting>
+    <body format="rtf"></body>
+</greetings>

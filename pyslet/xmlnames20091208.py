@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
-from pyslet.xml20081126 import *
+from pyslet.xml20081126.structures import *
+from pyslet.xml20081126.parser import *
 
 XML_NAMESPACE=u"http://www.w3.org/XML/1998/namespace"
 XMLNS_NAMESPACE=u"http://www.w3.org/2000/xmlns/"
@@ -150,7 +151,7 @@ class XMLNSElementContainerMixin:
 		attributes[0:0]=nsAttributes
 				
 		
-class XMLNSElement(XMLNSElementContainerMixin,XMLElement):
+class XMLNSElement(XMLNSElementContainerMixin,Element):
 	def __init__(self,parent,name=None):
 		if type(name) in types.StringTypes:
 			self.ns=None
@@ -161,7 +162,7 @@ class XMLNSElement(XMLNSElementContainerMixin,XMLElement):
 				self.ns=self.name=None
 		else:
 			self.ns,name=name
-		XMLElement.__init__(self,parent,name)
+		Element.__init__(self,parent,name)
 		XMLNSElementContainerMixin.__init__(self)
 		
 	def SetXMLName(self,name):
@@ -187,7 +188,7 @@ class XMLNSElement(XMLNSElementContainerMixin,XMLElement):
 		form Set_xml_aname for compatibility with the default implementation.
 		
 		Custom setter cannot be defined for attriubtes from other namespaces,
-		these are subjet to default processing defined by XMLElement's
+		these are subjet to default processing defined by Element's
 		SetAttribute implementation."""
 		if type(name) in types.StringTypes:
 			if name==".ns":
@@ -200,10 +201,10 @@ class XMLNSElement(XMLNSElementContainerMixin,XMLElement):
 			ns,aname=name
 		if ns is None:
 			if getattr(self,"XMLATTR_"+aname,False) or getattr(self,"Set_"+aname,False):
-				return XMLElement.SetAttribute(self,aname,value)				
+				return Element.SetAttribute(self,aname,value)				
 		elif ns==XML_NAMESPACE:
 			if getattr(self,"Set_xml_"+aname,False):
-				return XMLElement.SetAttribute(self,'xml_'+aname,value)		
+				return Element.SetAttribute(self,'xml_'+aname,value)		
 		if hasattr(self.__class__,'ID') and name==self.__class__.ID:
 			self.SetID(value)
 		else:
@@ -322,7 +323,7 @@ class XMLNSElement(XMLNSElementContainerMixin,XMLElement):
 			writer.write(u'%s<%s%s%s/>'%(ws,prefix,self.xmlname,attributes))
 
 
-class XMLNSDocument(XMLNSElementContainerMixin,XMLDocument):
+class XMLNSDocument(XMLNSElementContainerMixin,Document):
 
 	DefaultNS=None
 	"""A special class attribute used to set the default namespace for elements
@@ -330,8 +331,8 @@ class XMLNSDocument(XMLNSElementContainerMixin,XMLDocument):
 	declaration."""
 	
 	def __init__(self, **args):
-		"""Initialises a new XMLDocument from optional keyword arguments."""
-		XMLDocument.__init__(self,**args)
+		"""Initialises a new Document from optional keyword arguments."""
+		Document.__init__(self,**args)
 		XMLNSElementContainerMixin.__init__(self)
 
 	def XMLParser(self,entity):
@@ -342,7 +343,7 @@ class XMLNSDocument(XMLNSElementContainerMixin,XMLDocument):
 		"""Returns a class object suitable for representing <name>
 		
 		name is a tuple of (namespace, name), this overrides the
-		behaviour of XMLDocument, in which name is a string.
+		behaviour of Document, in which name is a string.
 		
 		The default implementation returns XMLNSElement."""
 		return XMLNSElement

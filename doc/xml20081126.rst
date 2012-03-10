@@ -1,7 +1,7 @@
 XML: Basic Constructs
 =====================
 
-.. py:module:: pyslet.xml20081126
+.. py:module:: pyslet.xml20081126.structures
 
 This module defines classes for working with XML documents.  The version of the
 standard implemented is the Extensible Markup Language (Fifth Edition), for more
@@ -9,24 +9,20 @@ info see: http://www.w3.org/TR/xml/
 
 XML is an integral part of many standards for LET but Pyslet takes a slightly
 different approach from the pre-existing XML support in the Python language. XML
-elements are represented by instances of a basic :class:`XMLElement` class which
+elements are represented by instances of a basic :class:`Element` class which
 can be used as a base class to customize document processing for specific types
 of XML document.  It also allows these XML elements to 'come live' with
 additional methods and behaviours.
 
-This module also exposes a number of internal functions typically defined
-privately in XML parser implementations which make it easier to reuse concepts
-from XML in other modules. For example, the :func:`IsNameStartChar` tells you if
-a character matches the production for NameStartChar in the XML standard.
 
 Documents
 ---------
 
-..	autoclass:: XMLContextMixin
+..	autoclass:: Node
 	:members:
 	:show-inheritance:
 	
-..	autoclass:: XMLDocument
+..	autoclass:: Document
 	:members:
 	:show-inheritance:
 
@@ -44,6 +40,8 @@ Common Syntactic Constructs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ..	autofunction:: IsS
+
+..	autofunction:: IsWhiteSpace
 
 ..	autofunction:: ContainsS
 
@@ -93,11 +91,11 @@ Prolog and Document Type Declaration
 Logical Structures
 ------------------
 
-..	autoclass:: XMLElement
+..	autoclass:: Element
 	:members:
 	:show-inheritance:
 
-..	autoclass:: XMLElementType
+..	autoclass:: ElementType
 	:members:
 	:show-inheritance:
 
@@ -166,14 +164,6 @@ Character Classes
 ..	autofunction:: IsDigit
 
 ..	autofunction:: IsExtender
-
-
-Parsing Functions
------------------
-
-..	autoclass:: XMLParser
-	:members:
-	:show-inheritance:
 
 
 

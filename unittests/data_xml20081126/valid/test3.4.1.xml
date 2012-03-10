@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<!DOCTYPE message SYSTEM 'test3.4.1.dtd' []>
+<message>
+    <greeting season='Christmas'>Hello, friends</greeting>
+    <body>Goodbye</body>
+</message>

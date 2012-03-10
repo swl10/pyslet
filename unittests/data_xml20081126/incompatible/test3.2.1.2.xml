@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!DOCTYPE message [
+
+<!ELEMENT message ((greeting,body) | (greeting,note)) >
+<!ATTLIST greeting season CDATA #IMPLIED>
+
+<!ELEMENT greeting (#PCDATA) >
+<!ELEMENT body (#PCDATA) >
+<!ELEMENT note (#PCDATA) >
+]>
+<message>
+    <greeting season='Christmas'>Happy Christmas</greeting>
+    <body>Enjoy the holidays.</body>
+</message>

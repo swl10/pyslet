@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<message>
+    <greeting season='Christmas'>Hello, friends&#xFFFE;</greeting>
+    <body>Goodbye</body>
+</message>

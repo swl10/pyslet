@@ -5,7 +5,7 @@ References:
 
 """
 
-import pyslet.xml20081126 as xml
+import pyslet.xml20081126.structures as xml
 import pyslet.xsdatatypes20041028 as xsi
 import string
 
@@ -437,7 +437,7 @@ def FormatMargin(value):
 		return unicode(value)
 
 
-class QMLElement(xml.XMLElement):
+class QMLElement(xml.Element):
 	"""Basic element to represent all QML-defined elements"""
 
 
@@ -486,7 +486,7 @@ class QMLQuestion(QMLElement):
 	XMLATTR_FLOOR=('floor',ParseFloor,FormatFloor)
 	XMLATTR_VOICE_SERVER='voiceServer'
 	XMLATTR_VOICE_RID='voiceRId'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QMLElement.__init__(self,parent)
@@ -652,7 +652,7 @@ class QMLAnswer(QMLElement):
 	</xs:complexType>
 	"""
 	XMLNAME='ANSWER'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	XMLATTR_QTYPE=('qType',ParseNameString,FormatNameString)
 	XMLATTR_SHUFFLE=('shuffle',ParseShuffleEnum,FormatShuffleEnum)
 	XMLATTR_COMMENT=('comment',ParseYesNoEnum,FormatYesNoEnum)
@@ -696,7 +696,7 @@ class QMLChoice(QMLAnswerThing):
 	</xs:complexType>
 	"""
 	XMLNAME='CHOICE'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	XMLATTR_ID=('cid',ParseNameString,FormatNameString)
 	XMLATTR_MAXCHARS=('maxChars',ParsePositiveLength,FormatPositiveLength)
 	XMLATTR_SCROLL=('scroll',ParseDirectionEnum,FormatDirectionEnum)
@@ -749,7 +749,7 @@ class QMLOutcome(QMLElement):
 	</xs:complexType>
 	"""
 	XMLNAME='OUTCOME'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	XMLATTR_ID=('oid',ParseNameString,FormatNameString)
 	XMLATTR_SCORE=('length',ParseLength,FormatLength)
 	XMLATTR_ADD=('add',ParseLength,FormatLength)
@@ -774,12 +774,12 @@ class QMLCondition(QMLElement):
 	XMLCONTENT=xml.XMLMixedContent
 		
 	
-class QMLDocument(xml.XMLDocument):
+class QMLDocument(xml.Document):
 	"""Class for working with QML documents."""
 	
 	def __init__(self,**args):
 		""""""
-		xml.XMLDocument.__init__(self,**args)
+		xml.Document.__init__(self,**args)
 		
 	classMap={}
 	"""classMap is a mapping from element names to the class object that will be
@@ -790,8 +790,8 @@ class QMLDocument(xml.XMLDocument):
 		
 		This method is used by the XML parser.  The class object is looked up in
 		:py:attr:`classMap`, if no specialized class is found then the general
-		:py:class:`pyslet.xml20081126.XMLElement` class is returned."""
-		return QMLDocument.classMap.get(name,QMLDocument.classMap.get(None,xml.XMLElement))
+		:py:class:`pyslet.xml20081126.Element` class is returned."""
+		return QMLDocument.classMap.get(name,QMLDocument.classMap.get(None,xml.Element))
 
 
 xml.MapClassElements(QMLDocument.classMap,globals())

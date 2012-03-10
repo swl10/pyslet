@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!ENTITY % bra '(' >
+
+<!ENTITY % ket ')' >
+
+<!ENTITY % content 'body|note' >
+
+<!ELEMENT message ( greeting, %bra; %content; ) ) >
+
+<!ELEMENT greeting (#PCDATA %ket; >
+
+<!ATTLIST greeting season CDATA #IMPLIED>
+
+<!ELEMENT body (#PCDATA) >
+
+<!ELEMENT note (#PCDATA) >

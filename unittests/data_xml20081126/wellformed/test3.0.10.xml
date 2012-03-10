@@ -1,0 +1,19 @@
+<?xml version="1.0" standalone="yes"?>
+<!DOCTYPE doc [
+
+<!ELEMENT doc (X*,Y+,(A|B))* >
+<!ELEMENT X (#PCDATA) >
+<!ELEMENT Y (#PCDATA) >
+<!ELEMENT A (#PCDATA) >
+<!ELEMENT B (#PCDATA) >
+
+<!ENTITY whitespace '&#x26;#x20;&#x26;#x09;&#x26;#x0A;&#x26;#x0D;' >
+
+]>
+<doc>&whitespace;
+    <X>Hello</X>
+    <Y>Friends</Y>
+    <Y>Romans</Y>
+    <Y>Countrymen</Y>
+    <B>Lend me your ears</B>
+</doc> 

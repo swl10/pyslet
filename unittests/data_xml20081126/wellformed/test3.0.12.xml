@@ -1,0 +1,16 @@
+<?xml version="1.0" standalone="yes"?>
+<!DOCTYPE doc [
+
+<!ELEMENT doc (#PCDATA | X )* >
+
+<!ELEMENT X (#PCDATA) >
+<!ELEMENT Y (#PCDATA) >
+
+]>
+<doc>
+    Hello
+    <X>Friends</X>
+    <X>Romans</X>
+    <Y>Countrymen</Y>,
+    Lend me your ears
+</doc> 

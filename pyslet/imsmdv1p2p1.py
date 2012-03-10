@@ -112,7 +112,7 @@ class LRMSourceValue(LRMElement):
 		
 class LOM(LRMElement):
 	XMLNAME=(IMSLRM_NAMESPACE,'lom')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		LRMElement.__init__(self,parent)
@@ -184,7 +184,7 @@ class LOM(LRMElement):
 
 class LOMGeneral(LRMElement):
 	XMLNAME=(IMSLRM_NAMESPACE,'general')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):
 		LRMElement.__init__(self,parent)
@@ -271,7 +271,7 @@ class LOMLanguage(LRMElement):
 	
 class LOMDescription(LangStringList):
 	XMLNAME=(IMSLRM_NAMESPACE,'description')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 class LOMKeyword(LangStringList):
 	XMLNAME=(IMSLRM_NAMESPACE,'keyword')
@@ -295,7 +295,7 @@ class LOMLifecycle(LRMElement):
 	</xsd:sequence>
 	"""	
 	XMLNAME=(IMSLRM_NAMESPACE,'lifecycle')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		LRMElement.__init__(self,parent)
@@ -325,7 +325,7 @@ class LOMContribute(LRMElement):
 	</xsd:sequence>
 	"""
 	XMLNAME=(IMSLRM_NAMESPACE,'contribute')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		LRMElement.__init__(self,parent)
@@ -345,7 +345,7 @@ class LOMCEntity(LRMElement):
 	"""
 	"""
 	XMLNAME=(IMSLRM_NAMESPACE,'centity')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		LRMElement.__init__(self,parent)
@@ -411,7 +411,7 @@ class LOMEducational(LRMElement):
     </xsd:complexType>
 	"""	
 	XMLNAME=(IMSLRM_NAMESPACE,'educational')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		LRMElement.__init__(self,parent)
@@ -484,7 +484,7 @@ class LOMAnnotation(LRMElement):
 	</xsd:complexType>
 	"""
 	XMLNAME=(IMSLRM_NAMESPACE,'annotation')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		LRMElement.__init__(self,parent)

@@ -1,0 +1,14 @@
+XML: Parsing XML Documents
+==========================
+
+.. py:module:: pyslet.xml20081126.parser
+
+This module exposes a number of internal functions typically defined privately
+in XML parser implementations which make it easier to reuse concepts from XML in
+other modules. For example, the :func:`IsNameStartChar` tells you if a character
+matches the production for NameStartChar in the XML standard.
+
+..	autoclass:: XMLParser
+	:members:
+	:show-inheritance:
+

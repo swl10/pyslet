@@ -2,7 +2,7 @@
 """This module implements the QTI 1.2.1 specification defined by IMS GLC
 """
 
-import pyslet.xml20081126 as xml
+import pyslet.xml20081126.structures as xml
 import pyslet.imsqtiv2p1 as qtiv2
 import pyslet.imsmdv1p2p1 as imsmd
 import pyslet.html40_19991224 as html
@@ -245,7 +245,7 @@ def MigrateV2AreaCoords(area,value,log):
 	return shape,coords
 
 		
-class QTIElement(xml.XMLElement):
+class QTIElement(xml.Element):
 	"""Basic element to represent all QTI elements"""
 	
 	def DeclareMetadata(self,label,entry,definition=None):
@@ -684,7 +684,7 @@ class QTIMetadata(QTIElement):
 	<!ELEMENT qtimetadata (vocabulary? , qtimetadatafield+)>
 	"""
 	XMLNAME='qtimetadata'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -728,7 +728,7 @@ class QTIMetadataField(QTIElement):
 	<!ATTLIST qtimetadatafield  xml:lang CDATA  #IMPLIED >
 	"""
 	XMLNAME='qtimetadatafield'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -964,7 +964,7 @@ class QTIMaterial(QTICommentElement,QTIContentMixin):
 	"""
 	XMLNAME='material'
 	XMLATTR_label='label'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTICommentElement.__init__(self,parent)
@@ -1422,7 +1422,7 @@ class QTIAltMaterial(QTICommentElement):
 	<!ATTLIST altmaterial  xml:lang CDATA  #IMPLIED >
 	"""
 	XMLNAME="material_ref"
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 class QTIVarType:
 	"""vartype enumeration."""
@@ -1640,7 +1640,7 @@ class QTIInterpretVar(QTIElement,QTIContentMixin,QTIViewMixin):
 	XMLNAME="interpretvar"
 	XMLATTR_view='view'
 	XMLATTR_varname='varName'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -1683,7 +1683,7 @@ class QTIConditionVar(QTIElement):
 	
 	"""
 	XMLNAME="conditionvar"
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -1725,7 +1725,7 @@ class QTINot(QTIElement,ExpressionMixin):
 		durlte | durgt | durgte)>	
 	"""
 	XMLNAME="not"
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -1753,7 +1753,7 @@ class QTIAnd(QTIElement,ExpressionMixin):
 		durlte | durgt | durgte)+>	
 	"""
 	XMLNAME="and"
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -1782,7 +1782,7 @@ class QTIOr(QTIElement,ExpressionMixin):
 		durlte | durgt | durgte)+>
 	"""
 	XMLNAME="or"
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -2209,7 +2209,7 @@ class QTIObjectives(QTIFlowMatContainer,QTIViewMixin):
 
 	<!ATTLIST objectives  %I_View; >"""
 	XMLNAME='objectives'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 		
 	def __init__(self,parent):
 		QTIFlowMatContainer.__init__(self,parent)
@@ -2245,7 +2245,7 @@ class QTIRubric(QTIFlowMatContainer,QTIViewMixin):
 	
 	<!ATTLIST rubric  %I_View; >"""
 	XMLNAME='rubric'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIFlowMatContainer.__init__(self,parent)
@@ -2277,7 +2277,7 @@ class QTIFlowMat(QTIFlowMatContainer):
 	<!ATTLIST flow_mat  %I_Class; >"""
 	XMLNAME="flow_mat"
 	XMLATTR_class='flowClass'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIFlowMatContainer.__init__(self,parent)
@@ -2316,7 +2316,7 @@ class QTIPresentationMaterial(QTICommentElement):
 
 	<!ELEMENT presentation_material (qticomment? , flow_mat+)>"""
 	XMLNAME="presentation_material"
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 
 class QTIReference(QTICommentElement):
@@ -2327,7 +2327,7 @@ class QTIReference(QTICommentElement):
 	<!ELEMENT reference (qticomment? , (material | mattext | matemtext | matimage | mataudio |
 		matvideo | matapplet | matapplication | matbreak | mat_extension)+)>"""
 	XMLNAME="reference"
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 
 class QTISelectionOrdering(QTICommentElement):
@@ -2339,7 +2339,7 @@ class QTISelectionOrdering(QTICommentElement):
 	
 	<!ATTLIST selection_ordering  sequence_type CDATA  #IMPLIED >"""
 	XMLNAME="selection_ordering"
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 		
 
 class QTIOutcomesProcessing(QTICommentElement):
@@ -2352,7 +2352,7 @@ class QTIOutcomesProcessing(QTICommentElement):
 	
 	<!ATTLIST outcomes_processing  %I_ScoreModel; >"""
 	XMLNAME="outcomes_processing"
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 
 		
 #
@@ -2517,7 +2517,7 @@ class QTIObjectBank(QTICommentElement):
 	<!ATTLIST objectbank  %I_Ident; >
 	"""
 	XMLNAME="objectbank"
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 
 
 #
@@ -2550,7 +2550,7 @@ class QTIAssessment(QTICommentElement):
 	XMLNAME="assessment"
 	XMLATTR_ident='ident'		
 	XMLATTR_title='title'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTICommentElement.__init__(self,parent)
@@ -2611,7 +2611,7 @@ class QTIAssessmentControl(QTICommentElement):
                               %I_FeedbackSwitch; >
     """
 	XMLNAME='assessmentcontrol'
-	XMLCONTENT=xml.XMLElementContent	
+	XMLCONTENT=xml.ElementContent	
 
 
 class QTIAssessmentFeedback(QTICommentElement):
@@ -2626,7 +2626,7 @@ class QTIAssessmentFeedback(QTICommentElement):
 							   %I_Title; >
     """
 	XMLNAME='assessfeedback'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 
 
 class QTIAssessmentFeedback(QTIElement):
@@ -2673,7 +2673,7 @@ class QTISection(QTICommentElement):
 	XMLNAME="section"
 	XMLATTR_ident='ident'		
 	XMLATTR_title='title'	
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTICommentElement.__init__(self,parent)
@@ -2829,7 +2829,7 @@ class QTIItem(QTICommentElement):
 	XMLATTR_label='label'
 	XMLATTR_maxattempts='maxattempts'		
 	XMLATTR_title='title'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTICommentElement.__init__(self,parent)
@@ -2987,7 +2987,7 @@ class QTIItemMetadata(QTIMetadataContainer):
 		)>
 	"""
 	XMLNAME='itemmetadata'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIMetadataContainer.__init__(self,parent)
@@ -3213,7 +3213,7 @@ class QTIItemControl(QTICommentElement,QTIViewMixin):
 	XMLATTR_feedbackswitch=('feedbackSwitch',ParseYesNo,FormatYesNo)
 	XMLATTR_hintswitch=('hintSwitch',ParseYesNo,FormatYesNo)
 	XMLATTR_solutionswitch=('solutionSwitch',ParseYesNo,FormatYesNo)
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 
 	def __init__(self,parent):
 		QTICommentElement.__init__(self,parent)
@@ -3261,7 +3261,7 @@ class QTIItemRubric(QTIRubric):
 	deprecated in favour of <rubric> with QTI v1.2
 	"""
 	XMLNAME='itemrubric'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 
 
 class QTIPresentation(QTIFlowContainer,QTIPositionMixin):
@@ -3289,7 +3289,7 @@ class QTIPresentation(QTIFlowContainer,QTIPositionMixin):
 							 %I_Height; >"""
 	XMLNAME='presentation'
 	XMLATTR_label='label'	
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIFlowContainer.__init__(self,parent)
@@ -3367,7 +3367,7 @@ class QTIFlow(QTIFlowContainer):
 	"""
 	XMLNAME='flow'
 	XMLATTR_class='flowClass'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIFlowContainer.__init__(self,parent)
@@ -3414,7 +3414,7 @@ class QTIResponseThing(QTIElement,QTIContentMixin):
 	XMLATTR_ident='ident'
 	XMLATTR_rcardinality=('rCardinality',DecodeRCardinality,EncodeRCardinality)
 	XMLATTR_rtiming=('rTiming',ParseYesNo,FormatYesNo)	
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -3647,7 +3647,7 @@ class QTIResponseNum(QTIResponseThing):
 	"""
 	XMLNAME='response_num'
 	XMLATTR_numtype=('numType',DecodeNumType,EncodeNumType)	
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIResponseThing.__init__(self,parent)
@@ -3675,7 +3675,7 @@ class QTIResponseGrp(QTIElement,QTIContentMixin):
 							 %I_Rtiming; >
 	"""
 	XMLNAME='response_grp'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 
 
 class QTIResponseLabel(QTIElement,QTIContentMixin):
@@ -3846,7 +3846,7 @@ class QTIFlowLabel(QTICommentElement,QTIContentMixin):
 	<!ATTLIST flow_label  %I_Class; >
 	"""
 	XMLNAME='flow_label'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 
 	def __init__(self,parent):
 		QTICommentElement.__init__(self,parent)
@@ -3891,7 +3891,7 @@ class QTIRenderThing(QTIElement,QTIContentMixin):
 	
 	<!ELEMENT render_* ((material | material_ref | response_label | flow_label)* , response_na?)>	
 	"""
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -3961,7 +3961,7 @@ class QTIRenderChoice(QTIRenderThing):
 	XMLATTR_maxnumber=('maxNumber',ParseInteger,FormatInteger)
 	XMLATTR_minnumber=('minNumber',ParseInteger,FormatInteger)
 	XMLATTR_shuffle=('shuffle',ParseYesNo,FormatYesNo)
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIRenderThing.__init__(self,parent)
@@ -4015,7 +4015,7 @@ class QTIRenderHotspot(QTIRenderThing):
 	XMLATTR_maxnumber=('maxNumber',ParseInteger,FormatInteger)
 	XMLATTR_minnumber=('minNumber',ParseInteger,FormatInteger)
 	XMLATTR_showdraw=('showDraw',ParseYesNo,FormatYesNo)
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIRenderThing.__init__(self,parent)
@@ -4164,7 +4164,7 @@ class QTIRenderSlider(QTIRenderThing):
 	XMLATTR_steplabel=('stepLabel',ParseYesNo,FormatYesNo)
 	XMLATTR_maxnumber=('maxNumber',ParseInteger,FormatInteger)
 	XMLATTR_minnumber=('minNumber',ParseInteger,FormatInteger)
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 		
 	def __init__(self,parent):
 		QTIRenderThing.__init__(self,parent)
@@ -4272,7 +4272,7 @@ class QTIRenderFIB(QTIRenderThing):
 	XMLATTR_charset='charset'		
 	XMLATTR_maxnumber=('maxNumber',ParseInteger,FormatInteger)
 	XMLATTR_minnumber=('minNumber',ParseInteger,FormatInteger)
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 		
 	def __init__(self,parent):
 		QTIRenderThing.__init__(self,parent)
@@ -4380,7 +4380,7 @@ class QTIResProcessing(QTICommentElement):
 	"""
 	XMLNAME='resprocessing'
 	XMLATTR_scoremodel='scoreModel'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTICommentElement.__init__(self,parent)
@@ -4436,7 +4436,7 @@ class QTIOutcomes(QTICommentElement):
 	the interpretVars.
 	"""
 	XMLNAME='outcomes'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTICommentElement.__init__(self,parent)
@@ -4467,7 +4467,7 @@ class QTIRespCondition(QTICommentElement):
 	XMLNAME='respcondition'
 	XMLATTR_continue=('continueFlag',ParseYesNo,FormatYesNo)
 	XMLATTR_title='title'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTICommentElement.__init__(self,parent)
@@ -4561,7 +4561,7 @@ class QTIItemFeedback(QTIElement,QTIViewMixin,QTIContentMixin):
 	XMLATTR_title='title'
 	XMLATTR_ident='ident'		
 
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -4615,7 +4615,7 @@ class QTISolution(QTIContentMixin,QTICommentElement):
 	"""
 	XMLNAME='solution'
 	XMLATTR_feedbackstyle=('feedbackStyle',DecodeFeedbackStyle,EncodeFeedbackStyle)
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 
 	def __init__(self,parent):
 		QTICommentElement.__init__(self,parent)
@@ -4636,7 +4636,7 @@ class QTIFeedbackMaterial(QTIContentMixin,QTIElement):
 
 	<!ELEMENT * (material+ | flow_mat+)>
 	"""
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -4675,7 +4675,7 @@ class QTIHint(QTICommentElement):
 	"""
 	XMLNAME='hint'
 	XMLATTR_feedbackstyle=('feedbackStyle',DecodeFeedbackStyle,EncodeFeedbackStyle)
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 
 	def __init__(self,parent):
 		QTICommentElement.__init__(self,parent)
@@ -4711,7 +4711,7 @@ class QTISelection(QTIElement):
 		(and_selection | or_selection | not_selection | selection_extension)?)>
 	"""
 	XMLNAME='selection'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 
 class QTIOrder(QTIElement):
@@ -4724,7 +4724,7 @@ class QTIOrder(QTIElement):
 	<!ATTLIST order  order_type CDATA  #REQUIRED >
 	"""
 	XMLNAME='order'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 
 class QTISelectionNumber(QTIElement):
@@ -4784,7 +4784,7 @@ class QTIAndSelection(QTIElement):
 	<!ELEMENT and_selection (selection_metadata | and_selection | or_selection | not_selection)+>
 	"""
 	XMLNAME='and_selection'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 
 class QTIOrSelection(QTIElement):
@@ -4795,7 +4795,7 @@ class QTIOrSelection(QTIElement):
 	<!ELEMENT or_selection (selection_metadata | and_selection | or_selection | not_selection)+>
 	"""
 	XMLNAME='or_selection'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 
 class QTINotSelection(QTIElement):
@@ -4806,7 +4806,7 @@ class QTINotSelection(QTIElement):
 	<!ELEMENT not_selection (selection_metadata | and_selection | or_selection | not_selection)>
 	"""
 	XMLNAME='not_selection'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 
 #
@@ -4822,7 +4822,7 @@ class QTIObjectsCondition(QTICommentElement):
 		objects_parameter* , map_input* , objectscond_extension?)>
 	"""
 	XMLNAME='objects_condition'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 
 class QTIMapOutput(QTIElement):
@@ -4861,7 +4861,7 @@ class QTIOutcomesFeedbackTest(QTIElement):
 	<!ATTLIST outcomes_feedback_test  %I_Title; >
 	"""
 	XMLNAME='outcomes_feedback_test'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 
 class QTIOutcomesMetadata(QTIElement):
@@ -4875,7 +4875,7 @@ class QTIOutcomesMetadata(QTIElement):
 								  %I_Mdoperator; >
 	"""
 	XMLNAME='outcomes_metadata'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 
 	
 class QTIAndObjects(QTIElement):
@@ -4886,7 +4886,7 @@ class QTIAndObjects(QTIElement):
 	<!ELEMENT and_objects (outcomes_metadata | and_objects | or_objects | not_objects)+>
 	"""
 	XMLNAME='and_objects'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 
 class QTIOrObjects(QTIElement):
@@ -4897,7 +4897,7 @@ class QTIOrObjects(QTIElement):
 	<!ELEMENT or_objects (outcomes_metadata | and_objects | or_objects | not_objects)+>
 	"""
 	XMLNAME='or_objects'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	
 class QTINotObjects(QTIElement):
@@ -4908,7 +4908,7 @@ class QTINotObjects(QTIElement):
 	<!ELEMENT not_objects (outcomes_metadata | and_objects | or_objects | not_objects)>
 	"""
 	XMLNAME='not_objects'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 class QTITestVariable(QTIElement):
 	"""Represents the test_variable element.
@@ -4918,7 +4918,7 @@ class QTITestVariable(QTIElement):
 	<!ELEMENT test_variable (variable_test | and_test | or_test | not_test)>
 	"""
 	XMLNAME='test_variable'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 
 class QTIProcessingParameter(QTIElement):
 	"""Represents the processing_parameter element.
@@ -4941,7 +4941,7 @@ class QTIAndTest(QTIElement):
 	<!ELEMENT and_test (variable_test | and_test | or_test | not_test)+>
 	"""
 	XMLNAME='and_test'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 
 class QTIOrTest(QTIElement):
@@ -4952,7 +4952,7 @@ class QTIOrTest(QTIElement):
 	<!ELEMENT or_test (variable_test | and_test | or_test | not_test)+>
 	"""
 	XMLNAME='or_test'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 
 class QTINotTest(QTIElement):
@@ -4963,7 +4963,7 @@ class QTINotTest(QTIElement):
 	<!ELEMENT not_test (variable_test | and_test | or_test | not_test)>
 	"""
 	XMLNAME='not_test'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 
 
 class QTIVariableTest(QTIElement):
@@ -4977,7 +4977,7 @@ class QTIVariableTest(QTIElement):
                           %I_Testoperator; >
 	"""
 	XMLNAME='variable_test'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 
 
 
@@ -4998,7 +4998,7 @@ class QTIObjectsParameter(QTIElement):
 #	END OF SPECIFICATION ELEMENT DEFINITIONS
 #
 
-class QTIDocument(xml.XMLDocument):
+class QTIDocument(xml.Document):
 	"""Class for working with QTI documents."""
 	
 	def __init__(self,**args):
@@ -5009,7 +5009,7 @@ class QTIDocument(xml.XMLDocument):
 		If this causes problems then you can turn the setting back on again for
 		specific instances of the parser that will be used with that type of
 		data."""
-		xml.XMLDocument.__init__(self,**args)
+		xml.Document.__init__(self,**args)
 		self.material={}
 		self.matThings={}
 		
@@ -5021,8 +5021,8 @@ class QTIDocument(xml.XMLDocument):
 		
 		This method is used by the XML parser.  The class object is looked up in
 		:py:attr:`classMap`, if no specialized class is found then the general
-		:py:class:`pyslet.xml20081126.XMLElement` class is returned."""
-		return QTIDocument.classMap.get(name,QTIDocument.classMap.get(None,xml.XMLElement))
+		:py:class:`pyslet.xml20081126.Element` class is returned."""
+		return QTIDocument.classMap.get(name,QTIDocument.classMap.get(None,xml.Element))
 
 	def RegisterMatThing(self,matThing):
 		"""Registers a QTIMatThing instance in the dictionary of matThings."""

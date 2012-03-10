@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<!DOCTYPE greeting [
+
+<!ELEMENT greeting (#PCDATA) >
+<!ELEMENT greetings (#PCDATA|greeting)* >
+
+<!ATTLIST greeting season NMTOKENS #IMPLIED>
+
+]>
+<greeting season='Easter  !Christmas'>Hello, world!</greeting>

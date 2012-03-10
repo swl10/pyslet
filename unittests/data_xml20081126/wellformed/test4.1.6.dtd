@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!ELEMENT message ( greeting, ( body ) ) >
+
+%bad;
+
+<!ELEMENT greeting (#PCDATA) >
+
+<!ELEMENT body (#PCDATA) >
+
+<!ELEMENT note (#PCDATA) >

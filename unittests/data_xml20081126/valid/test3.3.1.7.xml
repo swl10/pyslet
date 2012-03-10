@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!DOCTYPE greetings [
+
+<!ATTLIST greeting season ENTITY #IMPLIED>
+
+<!NOTATION jpeg PUBLIC 'jpeg'>
+<!ENTITY Christmas SYSTEM 'snowscene.jpg' NDATA jpeg >
+<!ENTITY Easter SYSTEM 'egg.jpg' NDATA jpeg >
+
+<!ELEMENT greeting (#PCDATA) >
+<!ELEMENT greetings (greeting*) >
+
+]>
+<greetings>
+    <greeting season='Christmas'>Hello, friends</greeting>
+    <greeting season='Easter'>Hello, countrymen</greeting>
+</greetings>

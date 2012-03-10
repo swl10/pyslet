@@ -15,7 +15,7 @@ else:
 		author="Steve Lay",
 		author_email="steve.w.lay@googlemail.com",
 		url="http://code.google.com/p/qtimigration/",
-		packages=['pyslet'],
+		packages=['pyslet','pyslet.xml20081126'],
 		package_data={'pyslet': [ ] }
 		)
 	

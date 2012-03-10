@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<!DOCTYPE greetings [
+
+<!ATTLIST dummy season ENTITIES '-Easter Christmas'>
+
+<!ELEMENT greeting (#PCDATA) >
+<!ELEMENT greetings (greeting,body)* >
+
+<!ELEMENT body (#PCDATA) >
+<!ELEMENT dummy (#PCDATA) >
+
+]>
+<greetings>
+    <greeting>Hello, friends</greeting>
+    <body></body>
+</greetings>

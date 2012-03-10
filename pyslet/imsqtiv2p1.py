@@ -2,7 +2,7 @@
 """This module implements the QTI 2.1 specification defined by IMS GLC
 """
 
-import pyslet.xml20081126 as xml
+import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsdatatypes
 import pyslet.html40_19991224 as html
@@ -409,7 +409,7 @@ class QTIAssessmentItem(QTIElement):
 	XMLATTR_label='label'
 	XMLATTR_timeDependent=('timeDependent',xsi.DecodeBoolean,xsi.EncodeBoolean)
 	XMLATTR_title='title'	
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -474,7 +474,7 @@ class QTIAssessmentItem(QTIElement):
 		# This will be the path to the file in the package
 		fullPath=os.path.join(cp.dPath,fPath)
 		base=uri.URIFactory.URLFromPathname(fullPath)
-		if isinstance(self.parent,xml.XMLDocument):
+		if isinstance(self.parent,xml.Document):
 			# we are the root so we change the document base
 			self.parent.SetBase(base)
 		else:
@@ -563,7 +563,7 @@ class QTIDefaultValue(QTIElement):
 	"""
 	XMLNAME=(IMSQTI_NAMESPACE,'defaultValue')
 	XMLATTR_interpretation='interpretation'
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -586,7 +586,7 @@ class QTIResponseDeclaration(QTIVariableDeclaration):
 		</xsd:sequence>
 	</xsd:group>"""
 	XMLNAME=(IMSQTI_NAMESPACE,'responseDeclaration')
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		QTIVariableDeclaration.__init__(self,parent)
@@ -636,7 +636,7 @@ class QTIOutcomeDeclaration(QTIVariableDeclaration):
 	XMLATTR_normalMaximum=('normalMaximum',xsi.DecodeFloat,xsi.EncodeFloat)
 	XMLATTR_normalMinimum=('normalMinimum',xsi.DecodeFloat,xsi.EncodeFloat)
 	XMLATTR_masteryValue=('masteryValue',xsi.DecodeFloat,xsi.EncodeFloat)
-	XMLCONTENT=xml.XMLElementContent
+	XMLCONTENT=xml.ElementContent
 
 	def __init__(self,parent):
 		QTIVariableDeclaration.__init__(self,parent)
@@ -760,7 +760,7 @@ class QTIItemBody(BodyElement):
 	</xsd:group>
 	"""	
 	XMLNAME=(IMSQTI_NAMESPACE,'itemBody')
-	XMLCONTENT=xmlns.XMLElementContent	
+	XMLCONTENT=xmlns.ElementContent	
 
 
 class QTIRubricBlock(SimpleBlock):
@@ -783,7 +783,7 @@ class QTIRubricBlock(SimpleBlock):
 	"""
 	XMLNAME=(IMSQTI_NAMESPACE,'rubricBlock')
 	XMLATTR_view=('view',DecodeView,EncodeView,True)
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):
 		SimpleBlock.__init__(self,parent)
@@ -933,7 +933,7 @@ class QTIChoiceInteraction(BlockInteraction):
 	XMLATTR_maxChoices=('maxChoices',xsi.DecodeInteger,xsi.EncodeInteger)	
 	XMLATTR_minChoices=('minChoices',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLATTR_shuffle=('shuffle',xsi.DecodeBoolean,xsi.EncodeBoolean)
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):
 		BlockInteraction.__init__(self,parent)
@@ -997,7 +997,7 @@ class StringInteractionMixin:
 class TextEntryInteraction(StringInteractionMixin,InlineInteraction):
 	"""Represents the textEntryInteraction element"""
 	XMLNAME=(IMSQTI_NAMESPACE,'textEntryInteraction')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):
 		InlineInteraction.__init__(self,parent)
@@ -1021,7 +1021,7 @@ class ExtendedTextInteraction(StringInteractionMixin,BlockInteraction):
 	XMLATTR_minStrings=('minStrings',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLATTR_expectedLines=('expectedLines',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLATTR_format=('format',DecodeTextFormat,EncodeTextFormat)	
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		BlockInteraction.__init__(self,parent)
@@ -1077,7 +1077,7 @@ class QTIGraphicInteraction(BlockInteraction):
 		</xsd:sequence>
 	</xsd:group>
 	"""
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):
 		BlockInteraction.__init__(self,parent)
@@ -1198,7 +1198,7 @@ class QTIResponseProcessing(QTIElement):
 	XMLNAME=(IMSQTI_NAMESPACE,'responseProcessing')
 	XMLATTR_template='template'
 	XMLATTR_templateLocation='templateLocation'
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -1227,7 +1227,7 @@ class QTIResponseCondition(QTIResponseRule):
 	</xsd:group>
 	"""
 	XMLNAME=(IMSQTI_NAMESPACE,'responseCondition')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):
 		QTIResponseRule.__init__(self,parent)
@@ -1252,7 +1252,7 @@ class QTIResponseIf(QTIElement):
 	</xsd:group>
 	"""
 	XMLNAME=(IMSQTI_NAMESPACE,'responseIf')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -1275,7 +1275,7 @@ class QTIResponseElse(QTIElement):
 	</xsd:group>
 	"""
 	XMLNAME=(IMSQTI_NAMESPACE,'responseElse')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
@@ -1314,7 +1314,7 @@ class QTISetOutcomeValue(QTIResponseRule):
 	"""
 	XMLNAME=(IMSQTI_NAMESPACE,'setOutcomeValue')
 	XMLATTR_identifier='identifier'
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):
 		QTIResponseRule.__init__(self,parent)
@@ -1444,7 +1444,7 @@ class QTINull(Expression):
 #
 class ExpressionList(Expression):
 	"""An abstract class to help implement binary+ operators."""
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		Expression.__init__(self,parent)
@@ -1456,7 +1456,7 @@ class ExpressionList(Expression):
 
 class QTIUnaryExpression(Expression):
 	"""An abstract class to help implement unary operators."""
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		Expression.__init__(self,parent)
@@ -1895,7 +1895,7 @@ class QTIMetadata(QTIElement):
 	</xsd:group>
 	"""	
 	XMLNAME=(IMSQTI_NAMESPACE,'qtiMetadata')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)

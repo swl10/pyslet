@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import pyslet.xml20081126 as xml
+import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 from pyslet.rfc2396 import URIFactory, EncodeUnicodeURI, FileURL
 
@@ -417,7 +417,7 @@ class Address(BlockMixin,InlineContainer):
 class Blockquote(BlockMixin,XHTMLElement):
 	# <!ELEMENT BLOCKQUOTE - - (%block;|SCRIPT)+ -- long quotation -->
 	XMLNAME=(XHTML_NAMESPACE,'blockquote')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def GetChildClass(self,stagClass):
 		"""If we get raw data in this context we assume a P to move closer to strict DTD
@@ -551,7 +551,7 @@ class Var(Phrase):
 class DL(BlockMixin,XHTMLElement):
 	# <!ELEMENT DL - - (DT|DD)+              -- definition list -->
 	XMLNAME=(XHTML_NAMESPACE,'dl')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def GetChildClass(self,stagClass):
 		"""If we get raw data in this context we assume a DD"""
@@ -582,12 +582,12 @@ class DD(FlowContainer):
 class OL(List):
 	# <!ELEMENT OL - - (LI)+                 -- ordered list -->
 	XMLNAME=(XHTML_NAMESPACE,'ol')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 class UL(List):
 	# <!ELEMENT UL - - (LI)+                 -- ordered list -->
 	XMLNAME=(XHTML_NAMESPACE,'ul')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 class LI(FlowContainer):
 	# <!ELEMENT LI - O (%flow;)*             -- list item -->
@@ -614,7 +614,7 @@ class Form(BlockMixin,XHTMLElement):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'form')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def GetChildClass(self,stagClass):
 		"""If we get inline data in this context we force it wrap in DIV"""
@@ -700,7 +700,7 @@ class Select(FormCtrlMixin,XHTMLElement):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'select')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	  
 	def __init__(self,parent):
 		XHTMLElement.__init__(self,parent)
@@ -731,7 +731,7 @@ class OptGroup(XHTMLElement):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'optgroup')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):
 		XHTMLElement.__init__(self,parent)
@@ -790,7 +790,7 @@ class FieldSet(BlockMixin,FlowContainer):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'fieldset')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):
 		FlowContainer.__init__(self,parent)
@@ -975,7 +975,7 @@ class U(FontStyle):
 class Table(BlockMixin,XHTMLElement):
 	# <!ELEMENT TABLE - - (CAPTION?, (COL*|COLGROUP*), THEAD?, TFOOT?, TBODY+)>
 	XMLNAME=(XHTML_NAMESPACE,'table')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def GetChildClass(self,stagClass):
 		"""PCDATA triggers the TBody"""
@@ -1005,22 +1005,22 @@ class TRContainer(XHTMLElement):
 class THead(TRContainer):
 	# <!ELEMENT THEAD    - O (TR)+           -- table header -->
 	XMLNAME=(XHTML_NAMESPACE,'thead')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 class TFoot(TRContainer):
 	# <!ELEMENT TFOOT    - O (TR)+           -- table footer -->
 	XMLNAME=(XHTML_NAMESPACE,'tfoot')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 class TBody(TRContainer):
 	# <!ELEMENT TBODY    O O (TR)+           -- table body -->
 	XMLNAME=(XHTML_NAMESPACE,'tbody')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 class ColGroup(XHTMLElement):
 	# <!ELEMENT COLGROUP - O (COL)*          -- table column group -->
 	XMLNAME=(XHTML_NAMESPACE,'colgroup')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def GetChildClass(self,stagClass):
 		"""PCDATA in ColGroup ends the ColGroup"""
@@ -1040,7 +1040,7 @@ class Col(BlockMixin,XHTMLElement):
 class TR(XHTMLElement):
 	# <!ELEMENT TR       - O (TH|TD)+        -- table row -->
 	XMLNAME=(XHTML_NAMESPACE,'tr')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def GetChildClass(self,stagClass):
 		"""PCDATA in TR starts a TD"""
@@ -1211,7 +1211,7 @@ class Frameset(FrameElement):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'frameset')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):
 		FrameElement.__init__(self,parent)
@@ -1325,7 +1325,7 @@ class Head(XHTMLElement):
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'head')
 	XMLATTR_profile=('profile',DecodeURI,EncodeURI)
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		XHTMLElement.__init__(self,parent)
@@ -1455,7 +1455,7 @@ class Body(XHTMLElement):
 	  onunload        %Script;   #IMPLIED  -- the document has been removed --
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'body')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 
 	def GetChildClass(self,stagClass):
 		"""Handled omitted tags"""
@@ -1488,7 +1488,7 @@ class HTML(XHTMLElement):
 		  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'html')
-	XMLCONTENT=xmlns.XMLElementContent
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		XHTMLElement.__init__(self,parent)
@@ -1650,7 +1650,7 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 # 				# Handle omitted tags
 # 				saveCObject=self.cObject
 # 				self.cObject=None
-# 				while isinstance(parent,xml.XMLElement):
+# 				while isinstance(parent,xml.Element):
 # 					try:
 # 						self.cObject=parent.ChildElement(eClass)
 # 						break
@@ -1705,7 +1705,7 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 # 
 # 	def characters(self,ch):
 # 		parent=self.cObject
-# 		if isinstance(self.cObject,xmlns.XMLElement):
+# 		if isinstance(self.cObject,xmlns.Element):
 # 			try:
 # 				self.cObject.AddData(ch)
 # 			except xmlns.XMLValidityError:
@@ -1739,15 +1739,15 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 # # 			self.data=[]
 # 		# do we have a matching open element?
 # 		e=self.cObject
-# 		while isinstance(e,xml.XMLElement):
+# 		while isinstance(e,xml.Element):
 # 			if e.GetXMLName()==name:
 # 				break
 # 			else:
 # 				e=e.parent
-# 		if isinstance(e,xml.XMLElement):
+# 		if isinstance(e,xml.Element):
 # 			# Yes, repeat the process closing as we go.
 # 			e=self.cObject
-# 			while isinstance(e,xml.XMLElement):
+# 			while isinstance(e,xml.Element):
 # 				e.ContentChanged()
 # 				if e.GetXMLName()==name:
 # 					# close this tag

@@ -89,9 +89,17 @@ EXAMPLE_2="""<?xml version = "1.0" encoding = "UTF-8" standalone = "no"?>
 </questestinterop>"""
 
 class QTIDocumentTests(unittest.TestCase):
+	def setUp(self):
+		self.cwd=os.getcwd()
+		self.dataPath=os.path.join(os.path.split(__file__)[0],'data_imsqtiv1p2p1')
+		os.chdir(self.dataPath)
+		
+	def tearDown(self):
+		os.chdir(self.cwd)
+
 	def testCaseConstructor(self):
 		doc=QTIDocument()
-		self.failUnless(isinstance(doc,xml.XMLDocument))
+		self.failUnless(isinstance(doc,xml.Document))
 
 	def testCaseExample1(self):
 		doc=QTIDocument()
@@ -171,9 +179,9 @@ class QTIV2ConversionTests(unittest.TestCase):
 				baseURI2=str(uri.URIFactory.URLFromPathname(fAbsPath2))
 				if os.path.splitext(fAbsPath)[1].lower()=='.xml':
 					# Two xml files, compare with simple XMLElement
-					doc=xml.XMLDocument(baseURI=baseURI)
+					doc=xml.Document(baseURI=baseURI)
 					doc.Read()
-					doc2=xml.XMLDocument(baseURI=baseURI2)
+					doc2=xml.Document(baseURI=baseURI2)
 					doc2.Read()
 					output=doc.DiffString(doc2)
 					result=(doc.root==doc2.root)
