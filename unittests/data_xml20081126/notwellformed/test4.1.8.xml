@@ -1,0 +1,17 @@
+<?xml version="1.0" standalone="yes"?>
+<!DOCTYPE message [
+
+<!NOTATION text PUBLIC 'Plain Text'>
+
+<!ENTITY pling SYSTEM 'test4.1.8.txt' NDATA text > 
+
+<!ELEMENT message ( greeting, ( body ) ) >
+
+<!ELEMENT greeting (#PCDATA) >
+
+<!ELEMENT body (#PCDATA) >
+
+<!ATTLIST greeting season CDATA 'Christmas'>
+
+]>
+<message><greeting season='Christmas'>&lt;Hello, &quot;friends&quot;, romans &amp; &apos;countrymen&apos;&gt;</greeting><body>Goodbye&pling;</body></message>

@@ -2303,10 +2303,13 @@ class XMLParser:
 					if e and self.DeclaredStandalone() and e.entity is not self.docEntity:
 						self.ValidityError("Standalone Document Declaration: reference to entity %s not allowed (externally defined)"%e.GetName())						
 				if e is not None:
-					if not self.dontCheckWellFormedness and self.refMode==XMLParser.RefModeInAttributeValue and e.IsExternal():
-						self.WellFormednessError("No External Entity References: &%s; not allowed in attribute value"%name)
-					e.Open()
-					self.PushEntity(e)
+					if e.notation is not None:
+						self.WellFormednessError("Parsed Entity: &%s; reference to unparsed entity not allowed"%name)
+					else:
+						if not self.dontCheckWellFormedness and self.refMode==XMLParser.RefModeInAttributeValue and e.IsExternal():
+							self.WellFormednessError("No External Entity References: &%s; not allowed in attribute value"%name)
+						e.Open()
+						self.PushEntity(e)
 					return ''
 				elif self.Standalone():
 					self.WellFormednessError("Entity Declared: undeclared general entity %s in standalone document"%name)
