@@ -1,5 +1,5 @@
 <?xml version="1.0" standalone="yes"?>
-<!DOCTYPE message SYSTEM 'test4.1.6.dtd' [
+<!DOCTYPE message SYSTEM 'test4.1.7.dtd' [
 
 <!ENTITY % markup '<!ENTITY pepling "!">' >
 
@@ -12,4 +12,4 @@
 <!ATTLIST greeting season CDATA 'Christmas&pling;'>
 
 ]>
-<message><greeting season='Christmas'>&lt;Hello, &quot;friends&quot;, romans &amp; &apos;countrymen&apos;&gt;</greeting><body>Goodbye&pling;</body></message>
+<message><greeting season='Christmas'>&lt;Hello, &quot;friends&quot;, romans &amp; &apos;countrymen&apos;&gt;</greeting><body>Goodbye&epling;</body></message>

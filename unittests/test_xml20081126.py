@@ -287,7 +287,7 @@ class XMLValidationTests(unittest.TestCase):
 				p.ParseDocument(d)
 				self.failUnless(p.valid is None,"Well-Formed Example: %s marked valid but checkValidity was False"%fName)
 			except XMLWellFormedError,e:
-				self.fail("Well-Formed Example: %s raised XMLWellFormedError"%fName)
+				self.fail("Well-Formed Example: %s raised XMLWellFormedError\n%s"%(fName,str(e)))
 		dPath=os.path.join(TEST_DATA_DIR,'notwellformed')
 		for fName in os.listdir(dPath):
 			if fName[-4:]!=".xml":
@@ -318,7 +318,7 @@ class XMLValidationTests(unittest.TestCase):
 				self.failUnless(p.valid,"Valid Example: %s not marked as valid in the parser"%fName)
 				self.failUnless(len(p.nonFatalErrors)==0,"Valid Example: %s reported validity errors"%fName)
 			except XMLValidityError,e:
-				self.fail("Valid Example: %s raised XMLValidityError"%fName)
+				self.fail("Valid Example: %s raised XMLValidityError\n%s"%(fName,str(e)))
 			except XMLWellFormedError,e:
 				self.fail("Valid Example: %s raised XMLWellFormedError"%fName)
 		dPath=os.path.join(TEST_DATA_DIR,'wellformed')
@@ -586,6 +586,7 @@ class XMLParserTests(unittest.TestCase):
 		e=XMLEntity("'first'\"second\"'3&gt;2''2%ltpe;3'")
 		m=['first','second','3&gt;2','2<3']
 		p=XMLParser(e)
+		p.checkValidity=True
 		p.dtd=XMLDTD()
 		p.dtd.DeclareEntity(XMLParameterEntity('ltpe','<'))
 		for match in m:
@@ -1748,22 +1749,26 @@ class XMLParserTests(unittest.TestCase):
 		"""[69] PEReference ::= '%' Name ';' """
 		e=XMLEntity("%animal;")
 		p=XMLParser(e)
+		p.checkValidity=True
 		p.refMode=XMLParser.RefModeInContent
 		data=p.ParsePEReference()
 		self.failUnless(data=='%animal;',"PEReference recognized in content: %s"%data)
 		self.failUnless(p.theChar is None,"Short parse on PEReference")
 		e=XMLEntity("%animal;")
 		p=XMLParser(e)
+		p.checkValidity=True
 		p.refMode=XMLParser.RefModeInAttributeValue
 		self.failUnless(p.ParsePEReference()=='%animal;',"PEReference recognized in attribute value")
 		self.failUnless(p.theChar is None,"Short parse on PEReference")
 		e=XMLEntity("%animal;")
 		p=XMLParser(e)
+		p.checkValidity=True
 		p.refMode=XMLParser.RefModeAsAttributeValue
 		self.failUnless(p.ParsePEReference()=="%animal;","PEReference recognized as attribute value")
 		self.failUnless(p.theChar is None,"Short parse on PEReference")
 		e=XMLEntity("%animal;")
 		p=XMLParser(e)
+		p.checkValidity=True
 		p.dtd=XMLDTD()
 		p.dtd.DeclareEntity(XMLParameterEntity('animal','dog'))
 		p.refMode=XMLParser.RefModeInEntityValue
@@ -1773,6 +1778,7 @@ class XMLParserTests(unittest.TestCase):
 		self.failUnless(p.theChar is None,"Short parse on PEReference replacement text")
 		e=XMLEntity("%animal;")
 		p=XMLParser(e)
+		p.checkValidity=True
 		p.dtd=XMLDTD()
 		p.dtd.DeclareEntity(XMLParameterEntity('animal','dog'))
 		p.refMode=XMLParser.RefModeInDTD
@@ -1784,6 +1790,7 @@ class XMLParserTests(unittest.TestCase):
 		self.failUnless(p.theChar is None,"Short parse on PEReference")
 		e=XMLEntity('<!ENTITY WhatHeSaid "He said %YN;" >')
 		p=XMLParser(e)
+		p.checkValidity=True
 		p.dtd=XMLDTD()
 		p.dtd.DeclareEntity(XMLParameterEntity('YN','"Yes"'))
 		try:

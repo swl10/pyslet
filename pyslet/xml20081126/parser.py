@@ -120,6 +120,7 @@ class XMLParser:
 		self.cursor=None
 		self.dataCount=0
 		self.noPERefs=False
+		self.gotPERef=False
 		
 	def GetContext(self):
 		if self.element is None:
@@ -193,7 +194,23 @@ class XMLParser:
 				if e.IsExternal():
 					return e
 		return None
-				
+	
+	def Standalone(self):
+		"""True if the document being parsed should be treated as standalone.
+
+		A document may be declared standalone or it may effectively be standalone
+		due to the absence of a DTD, or the absence of an external DTD subset and
+		parameter entity references."""
+		if self.DeclaredStandalone():
+			return True
+		if self.dtd is None or self.dtd.externalID is None:
+			# no dtd or just an internal subset
+			return not self.gotPERef		
+	
+	def DeclaredStandalone(self):
+		"""True if the current document was declared standalone."""
+		return self.declaration and self.declaration.standalone
+		
 	def WellFormednessError(self,msg="well-formedness error",errorClass=XMLWellFormedError):
 		"""Raises an XMLWellFormedError error.
 
@@ -872,6 +889,7 @@ class XMLParser:
 			self.ParseDoctypedecl(True)
 			self.ParseMisc()
 		else:
+			# document has no DTD, treat as standalone
 			self.ValidityError(production+": missing document type declaration")
 			self.dtd=XMLDTD()
 		if self.checkValidity:
@@ -968,8 +986,9 @@ class XMLParser:
 	def ParseDoctypedecl(self,gotLiteral=False):
 		"""[28] doctypedecl: parses a doctype declaration.
 		
-		This method creates a new instance of :py:class:`~pyslet.xml20081126.structures.XMLDTD` and assigns it
-		to :py:attr:`dtd`, it also returns this instance as the result.
+		This method creates a new instance of
+		:py:class:`~pyslet.xml20081126.structures.XMLDTD` and assigns it to
+		:py:attr:`dtd`, it also returns this instance as the result.
 		
 		If *gotLiteral* is True the method assumes that the initial literal
 		'<!DOCTYPE' has already been parsed."""
@@ -987,6 +1006,7 @@ class XMLParser:
 				self.dtd.externalID=self.ParseExternalID()
 				self.ParseS()
 		if self.ParseLiteral('['):
+			# If there is no externalID we treat as standalone (until a PE ref)
 			self.ParseIntSubset()
 			self.ParseRequiredLiteral(']',production)
 			self.ParseS()
@@ -1264,7 +1284,7 @@ class XMLParser:
 		if aList:
 			for a in aList.keys():
 				aDef=aList[a]
-				checkStandalone=self.declaration and self.declaration.standalone and aDef.entity is not self.docEntity
+				checkStandalone=self.DeclaredStandalone() and aDef.entity is not self.docEntity
 				value=attrs.get(a,None)
 				if value is None:
 					# check for default
@@ -1589,7 +1609,7 @@ class XMLParser:
 		data (even if it matches the production for S)."""
 		if data and self.element:
 			if self.checkValidity and self.elementType:
-				checkStandalone=self.declaration and self.declaration.standalone and self.elementType.entity is not self.docEntity
+				checkStandalone=self.DeclaredStandalone() and self.elementType.entity is not self.docEntity
 				if checkStandalone and self.elementType.contentType==ElementType.ElementContent and ContainsS(data):
 					self.ValidityError("Standalone Document Declaration: white space not allowed in element %s (externally defined as element content)"%self.elementType.name)
 				if self.elementType.contentType==ElementType.Empty:
@@ -2280,7 +2300,7 @@ class XMLParser:
 				e=None
 				if self.dtd:
 					e=self.dtd.GetEntity(name)
-					if self.declaration and self.declaration.standalone and e.entity is not self.docEntity:
+					if e and self.DeclaredStandalone() and e.entity is not self.docEntity:
 						self.ValidityError("Standalone Document Declaration: reference to entity %s not allowed (externally defined)"%e.GetName())						
 				if e is not None:
 					if not self.dontCheckWellFormedness and self.refMode==XMLParser.RefModeInAttributeValue and e.IsExternal():
@@ -2288,8 +2308,10 @@ class XMLParser:
 					e.Open()
 					self.PushEntity(e)
 					return ''
+				elif self.Standalone():
+					self.WellFormednessError("Entity Declared: undeclared general entity %s in standalone document"%name)
 				else:
-					self.WellFormednessError("Entity Declared: Undeclared general entity %s"%name)
+					self.ValidityError("Entity Declared: undeclared general entity %s"%name)
 	
 	def LookupPredefinedEntity(self,name):
 		"""Utility function used to look up pre-defined entities, e.g., "lt"
@@ -2319,29 +2341,44 @@ class XMLParser:
 		production="[69] PEReference"
 		if not gotLiteral:
 			self.ParseRequiredLiteral('%',production)
+		entity=self.entity
 		name=self.ParseRequiredName(production)
 		self.ParseRequiredLiteral(';',production)
 		if self.refMode in (XMLParser.RefModeNone,XMLParser.RefModeInContent,
 			XMLParser.RefModeInAttributeValue,XMLParser.RefModeAsAttributeValue):
 			return "%%%s;"%name
 		else:
+			self.gotPERef=True
 			if self.noPERefs:
 				self.WellFormednessError(production+": PE referenced in Internal Subset, %%%s;"%name)
 			if self.dtd:
 				e=self.dtd.GetParameterEntity(name)
-				if e and self.declaration and self.declaration.standalone and e.entity is not self.docEntity:
-					self.ValidityError("Standalone Document Declaration: reference to entity %s not allowed (externally defined)"%e.GetName())
 			else:
 				e=None
-			if e is None:
-				self.WellFormednessError(production+": Undeclared parameter entity %s"%name)
-			if self.refMode==XMLParser.RefModeInEntityValue:
-				# Parameter entities are fed back into the parser somehow
-				e.Open()
-				self.PushEntity(e)
-			elif self.refMode==XMLParser.RefModeInDTD:
-				e.OpenAsPE()
-				self.PushEntity(e)
+			if e is None:		
+				if self.DeclaredStandalone() and entity is self.docEntity:
+					# in a standalone document, PERefs in the internal subset must be declared
+					self.WellFormednessError("Entity Declared: Undeclared parameter entity %s in standalone document"%name)
+				else:
+					self.ValidityError("Entity Declared: undeclared parameter entity %s"%name)
+			else:
+				if self.DeclaredStandalone() and e.entity is not self.docEntity:
+					if entity is self.docEntity:
+						self.WellFormednessError("Entity Declared: parameter entity %s declared externally but document is standalone"%name)
+					else:						
+						self.ValidityError("Standalone Document Declaration: reference to entity %s not allowed (externally defined)"%e.GetName())			
+				if self.checkValidity:
+					"""An external markup declaration is defined as a markup
+					declaration occurring in the external subset or in a parameter
+					entity (external or internal, the latter being included because
+					non-validating processors are not required to read them"""
+					if self.refMode==XMLParser.RefModeInEntityValue:
+						# Parameter entities are fed back into the parser somehow
+						e.Open()
+						self.PushEntity(e)
+					elif self.refMode==XMLParser.RefModeInDTD:
+						e.OpenAsPE()
+						self.PushEntity(e)
 			return ''
 	
 	def ParseEntityDecl(self,gotLiteral=False):
