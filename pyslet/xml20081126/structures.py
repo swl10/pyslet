@@ -2205,6 +2205,10 @@ class XMLEntity:
 		else:
 			raise UnimplementedError
 	
+	def IsOpen(self):
+		"""Returns True if the entity is open for reading."""
+		return not (self.charSource is None)
+		
 	def OpenUnicode(self,src):
 		"""Opens the entity from a unicode string."""
 		self.encoding=None

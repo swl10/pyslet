@@ -903,7 +903,10 @@ class XMLParser:
 							aDef=aDefs[aName]
 							if aDef.type==XMLAttributeDefinition.Notation:
 								self.ValidityError("No Notation on Empty Element: attribute %s on element %s cannot have NOTATION type"%(aName,eName))
-
+			for eName in self.dtd.generalEntities.keys():
+				eDef=self.dtd.generalEntities[eName]
+				if eDef.notation and not self.dtd.notations.has_key(eDef.notation):
+					self.ValidityError("Notation Declared: notation %s used in declaration of entity %s has not been declared"%(eDef.notation,eName))
 	def ParseXMLDecl(self,gotLiteral=False):
 		"""[23] XMLDecl: parses an XML declaration.
 		
@@ -2278,6 +2281,7 @@ class XMLParser:
 		production="[68] EntityRef"
 		if not gotLiteral:
 			self.ParseRequiredLiteral('&',production)
+		entity=self.entity
 		if self.dontCheckWellFormedness:
 			name=self.ParseName()
 			if not name:
@@ -2308,6 +2312,12 @@ class XMLParser:
 					else:
 						if not self.dontCheckWellFormedness and self.refMode==XMLParser.RefModeInAttributeValue and e.IsExternal():
 							self.WellFormednessError("No External Entity References: &%s; not allowed in attribute value"%name)
+						if e.IsOpen() or (e is entity):
+							# if the last char of the entity is a ';' closing a
+							# recursive entity reference then # the entity will
+							# have been closed so we must check the context of the
+							# reference # too, not just whether it is currently open
+							self.WellFormednessError("No Recursion: entity &%s; is already open"%name)
 						e.Open()
 						self.PushEntity(e)
 					return ''
@@ -2375,6 +2385,8 @@ class XMLParser:
 					declaration occurring in the external subset or in a parameter
 					entity (external or internal, the latter being included because
 					non-validating processors are not required to read them"""
+					if e.IsOpen() or (e is entity):
+						self.WellFormednessError("No Recursion: entity %%%s; is already open"%name)					
 					if self.refMode==XMLParser.RefModeInEntityValue:
 						# Parameter entities are fed back into the parser somehow
 						e.Open()
@@ -2630,6 +2642,8 @@ class XMLParser:
 		self.CheckPEBetweenDeclarations(dEntity)
 		self.ParseRequiredLiteral('>')
 		if self.dtd:
+			if self.checkValidity and not (self.dtd.GetNotation(name) is None):
+				self.ValidityError("Unique Notation Name: %s has already been declared"%name)
 			self.dtd.DeclareNotation(XMLNotation(name,xID))
 
 	def ParsePublicID(self):
