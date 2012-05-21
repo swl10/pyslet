@@ -16,13 +16,16 @@ QuestionBankContentType="imsqti_xmlv1p2/imscc_xmlv1p0/question-bank"
 		
 
 class CommonCartridge:
+	
+	ContentPackageClass=imscp.ContentPackage
+	
 	def __init__(self,src=None):
 		if type(src) in StringTypes:
-			self.cp=imscp.ContentPackage(src)
-		elif isinstance(src,imscp.ContentPackage):
+			self.cp=self.ContentPackageClass(src)
+		elif isinstance(src,self.ContentPackageClass):
 			self.cp=src
 		elif src is None:
-			self.cp=imscp.ContentPackage()
+			self.cp=self.ContentPackageClass()
 		else:
 			raise ValueError
 		self.ScanResources()
@@ -35,9 +38,9 @@ class CommonCartridge:
 		resources.  Any other resources are treated as passengers."""		
 		self.cwcList=[]
 		self.laoTable={}
-		resources=self.cp.manifest.root.resources
+		resources=self.cp.manifest.root.Resources
 		# First pass is a search for CWCs and LAOs
-		for r in resources.list:
+		for r in resources.Resource:
 			rType=r.type
 			if rType==AssociatedContentType:
 				# Associated content is linked from the LAO later
@@ -46,8 +49,8 @@ class CommonCartridge:
 				self.cwcList.append(r)
 				continue
 			# All other resoure types are treated as LAOs
-			if len(r.fileList)>=1:
-				laoDescriptor=r.fileList[0]
+			if len(r.File)>=1:
+				laoDescriptor=r.File[0]
 				fPath=laoDescriptor.PackagePath(self.cp)
 				head,tail=os.path.split(fPath)
 				if not head:
@@ -57,10 +60,10 @@ class CommonCartridge:
 				head=None
 			# Is there associated content?
 			acr=None
-			depList=r.dependencies
+			depList=r.Dependency
 			for dep in depList:
 				rDep=self.cp.manifest.GetElementByID(dep.identifierref)
-				if isinstance(rDep,imscp.CPResource) and rDep.type==AssociatedContentType:
+				if isinstance(rDep,imscp.Resource) and rDep.type==AssociatedContentType:
 					acr=rDep
 					break
 			self.laoTable[r.id]=[head,acr]
@@ -119,7 +122,7 @@ class CCTestCase(unittest.TestCase):
 			dPath,acr=self.cc.laoTable[lao]
 			if acr is None:
 				continue
-			for f in acr.fileList:
+			for f in acr.File:
 				fPath=f.PackagePath(self.cc.cp)
 				self.failUnless(imscp.PathInPath(fPath,dPath))
 	
@@ -130,7 +133,7 @@ class CCTestCase(unittest.TestCase):
 			dPath,acr=self.cc.laoTable[lao]
 			if acr is None:
 				continue
-			self.failIf(len(acr.dependencies)>0,acr.id)
+			self.failIf(len(acr.Dependency)>0,acr.id)
 
 	def test1_4_LAO_1(self):
 		"""A resource that represents a Learning Application Object has the
@@ -139,7 +142,7 @@ class CCTestCase(unittest.TestCase):
 		Application Object's descriptor file."""
 		for lao in self.cc.laoTable.keys():
 			laoResource=self.cc.cp.manifest.GetElementByID(lao)
-			self.failIf(len(laoResource.fileList)==0)
+			self.failIf(len(laoResource.File)==0)
 	
 	def test1_4_LAO_2(self):
 		"""A resource that represents a Learning Application Object has the
@@ -147,7 +150,7 @@ class CCTestCase(unittest.TestCase):
 		2. It must not contain any other file elements."""
 		for lao in self.cc.laoTable.keys():
 			laoResource=self.cc.cp.manifest.GetElementByID(lao)
-			self.failIf(len(laoResource.fileList)>1)
+			self.failIf(len(laoResource.File)>1)
 	
 	def GetACRListForDirectory(self,dPath):
 		"""Returns a list of associated content resources that have file's
@@ -182,7 +185,7 @@ class CCTestCase(unittest.TestCase):
 				continue			
 			acrList=self.GetACRListForDirectory(dPath)
 			# Now we must have a dependency for each element of acrList
-			for d in laoResource.dependencies:
+			for d in laoResource.Dependency:
 				acr=self.cc.cp.manifest.GetElementByID(d.identifierref)
 				if acr in acrList:
 					del acrList[acrList.index(acr)]
@@ -205,7 +208,7 @@ class CCTestCase(unittest.TestCase):
 			if len(acrList):
 				# And hence all associated content dependencies in lao must be to
 				# the single acr in this list.
-				for d in laoResource.dependencies:
+				for d in laoResource.Dependency:
 					acr=self.cc.cp.manifest.GetElementByID(d.identifierref)
 					if acr is None:
 						print d.identifierref
@@ -226,7 +229,7 @@ class CCTestCase(unittest.TestCase):
 			if dPath is not None:
 				dPathList.append(dPath)
 		for wc in self.cc.cwcList:
-			for f in wc.fileList:
+			for f in wc.File:
 				fPath=f.PackagePath(self.cc.cp)
 				for dPath in dPathList:
 					self.failIf(imscp.PathInPath(fPath,dPath))

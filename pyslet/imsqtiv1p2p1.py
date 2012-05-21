@@ -335,8 +335,9 @@ class QTIQuesTestInterop(QTICommentElement):
 				# Add this comment to this object's metdata description
 				doc,lom,log=output[0]
 				general=lom.LOMGeneral()
-				description=general.LOMDescription().LangString()
-				description.SetValue(self.QTIComment.GetValue())
+				description=general.ChildElement(general.DescriptionClass)
+				descriptionString=description.ChildElement(description.LangStringClass)
+				descriptionString.SetValue(self.QTIComment.GetValue())
 		return output
 
 
@@ -2232,7 +2233,7 @@ class QTIObjectives(QTIFlowMatContainer,QTIViewMixin):
 	def LRMMigrateObjectives(self,lom,log):
 		"""Adds educational description from these objectives."""
 		description,lang=self.ExtractText()
-		eduDescription=lom.ChildElement(imsmd.LOMEducational).ChildElement(imsmd.LOMDescription)
+		eduDescription=lom.ChildElement(imsmd.LOMEducational).ChildElement(imsmd.Description)
 		eduDescription.AddString(lang,description)
 
 
@@ -2905,7 +2906,9 @@ class QTIItem(QTICommentElement):
 		id=general.LOMIdentifier()
 		id.SetValue(self.ident)
 		if title:
-			lomTitle=general.ChildElement(imsmd.LOMTitle).LangString(title)
+			lomTitle=general.ChildElement(imsmd.LOMTitle)
+			lomTitle=lomTitle.ChildElement(lomTitle.LangStringClass)
+			lomTitle.SetValue(title)
 			if lang:
 				lomTitle.SetLang(lang)
 		if mdTitles:
@@ -2915,19 +2918,24 @@ class QTIItem(QTICommentElement):
 				# but qmd_title is an extension so the title attribute takes precedence
 				i=0
 			else:
-				lomTitle=general.ChildElement(imsmd.LOMTitle).LangString(mdTitles[0][0])
+				lomTitle=general.ChildElement(imsmd.LOMTitle)
+				lomTitle=lomTitle.ChildElement(lomTitle.LangStringClass)
+				lomTitle.SetValue(mdTitles[0][0])
 				lang=mdTitles[0][1].ResolveLang()
 				if lang:
 					lomTitle.SetLang(lang)
 				i=1
 			for mdTitle in mdTitles[i:]:
-				lomTitle=general.LOMDescription().LangString(mdTitle[0])
+				description=general.ChildElement(general.DescriptionClass)
+				lomTitle=description.ChildElement(description.LangStringClass)
+				lomTitle.SetValue(mdTitle[0])
 				mdLang=mdTitle[1].ResolveLang()
 				if mdLang:
 					lomTitle.SetLang(mdLang)
 		if self.QTIComment:
 			# A comment on an item is added as a description to the metadata
-			description=general.LOMDescription().LangString(self.QTIComment.GetValue())
+			description=general.ChildElement(general.DescriptionClass)
+			description.ChildElement(description.LangStringClass).SetValue(self.QTIComment.GetValue())
 		if self.QTIDuration:
 			log.append("Warning: duration is currently outside the scope of version 2: ignored "+self.QTIDuration.GetValue())
 		if self.QTIItemMetadata:
@@ -3089,7 +3097,7 @@ class QTIItemMetadata(QTIMetadataContainer):
 		for value,definition in topics:
 			lang=definition.ResolveLang()
 			value=value.strip()
-			description=lom.ChildElement(imsmd.LOMEducational).ChildElement(imsmd.LOMDescription)
+			description=lom.ChildElement(imsmd.LOMEducational).ChildElement(imsmd.Description)
 			description.AddString(lang,value)
 	
 	def LRMMigrateContributor(self,fieldName,lomRole,lom,log):
@@ -3121,7 +3129,9 @@ class QTIItemMetadata(QTIMetadataContainer):
 		descriptions=self.metadata.get('description',())
 		for value,definition in descriptions:
 			lang=definition.ResolveLang()
-			genDescription=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.LOMDescription).LangString(value)
+			genDescription=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.Description)
+			genDescription=genDescription.ChildElement(genDescription.LangStringClass)
+			genDescription.SetValue(value)
 			if lang:
 				genDescription.SetLang(lang)
 
@@ -3132,7 +3142,9 @@ class QTIItemMetadata(QTIMetadataContainer):
 			lang=definition.ResolveLang()
 			kwValue=value.strip()
 			if kwValue:
-				kwContainer=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.LOMKeyword).LangString(kwValue)
+				kwContainer=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.LOMKeyword)
+				kwContainer=kwContainer.ChildElement(kwContainer.LangStringClass)
+				kwContainer.SetValue(kwValue)
 				# set the language of the kw
 				if lang:
 					kwContainer.SetLang(lang)
@@ -3148,7 +3160,9 @@ class QTIItemMetadata(QTIMetadataContainer):
 			for kwValue in values:
 				v=kwValue.strip()
 				if v:
-					kwContainer=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.LOMKeyword).LangString(v)
+					kwContainer=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.LOMKeyword)
+					kwContainer=kwContainer.ChildElement(kwContainer.LangStringClass)
+					kwContainer.SetValue(v)
 					# set the language of the kw
 					if lang:
 						kwContainer.SetLang(lang)
@@ -5070,8 +5084,8 @@ class QTIDocument(xml.Document):
 								i=i+1
 						annotation=metadata.LOMAnnotation()
 						annotationMsg=string.join(log,';\n')
-						description=annotation.ChildElement(imsmd.LOMDescription)
-						description.LangString(annotationMsg)
+						description=annotation.ChildElement(imsmd.Description)
+						description.ChildElement(description.LangStringClass).SetValue(annotationMsg)
 					doc.AddToContentPackage(cp,metadata,dName)
 				cp.manifest.Update()
 			return results

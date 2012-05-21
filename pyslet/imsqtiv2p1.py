@@ -357,7 +357,7 @@ class QTIElement(xmlns.XMLNSElement):
 		"""We need to add any files with URL's in the local file system to the
 		content package.
 
-		beenThere is a dictionary we use for mapping URLs to CPFile objects so
+		beenThere is a dictionary we use for mapping URLs to File objects so
 		that we don't keep adding the same linked resource multiple times.
 
 		This implementation is a little more horrid, we avoid circular module
@@ -458,10 +458,10 @@ class QTIAssessmentItem(QTIElement):
 	def AddToContentPackage(self,cp,lom,dName=None):
 		"""Adds a resource and associated files to the content package."""
 		resourceID=cp.manifest.GetUniqueID(self.identifier)
-		resource=cp.manifest.root.resources.CPResource()
+		resource=cp.manifest.root.Resources.ChildElement(cp.manifest.root.Resources.ResourceClass)
 		resource.SetID(resourceID)
 		resource.type=IMSQTI_ITEM_RESOURCETYPE
-		resourceMetadata=resource.CPMetadata()
+		resourceMetadata=resource.ChildElement(resource.MetadataClass)
 		#resourceMetadata.AdoptChild(lom)
 		#resourceMetadata.AdoptChild(self.metadata.Copy())
 		lom.Copy(resourceMetadata)
@@ -481,7 +481,7 @@ class QTIAssessmentItem(QTIElement):
 			self.SetBase(base)
 		# Turn this file path into a relative URL in the context of the new resource
 		href=resource.RelativeURI(base)
-		f=cp.CPFile(resource,href)
+		f=cp.File(resource,href)
 		resource.SetEntryPoint(f)
 		for child in self.GetChildren():
 			if isinstance(child,QTIElement):

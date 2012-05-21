@@ -37,31 +37,27 @@ class LangString(LRMElement):
 			self.SetValue(value)
 		
 class LangStringList(LRMElement):	
-
+	LangStringClass=LangString
+	
 	def __init__(self,parent):
 		LRMElement.__init__(self,parent)
-		self.langStrings=[]
+		self.LangString=[]
 
 	def GetChildren(self):
-		return self.langStrings
+		return self.LangString
 	
-	def LangString(self,value=None):
-		s=LangString(self,value)
-		self.langStrings.append(s)
-		return s
-
 	def GetLangString(self,lang=None):
 		if lang is None:
-			for s in self.langStrings:
+			for s in self.LangString:
 				if s.GetLang() is None:
 					return s
 			return None
 		else:
-			for s in self.langStrings:
+			for s in self.LangString:
 				if s.GetLang()==lang:
 					return s
 			lang=lang.split('-')[0]
-			for s in self.langStrings:
+			for s in self.LangString:
 				sLang=s.GetLang().split('-')[0]
 				if sLang==lang:
 					return s
@@ -70,7 +66,8 @@ class LangStringList(LRMElement):
 	def AddString(self,lang,value):
 		s=self.GetLangString(lang)
 		if s is None:
-			s=self.LangString(value)
+			s=self.ChildElement(self.LangStringClass)
+			s.SetValue(value)
 			if lang:
 				s.SetLang(lang)
 		else:
@@ -81,9 +78,11 @@ class LangStringList(LRMElement):
 class LRMSource(LRMElement):
 	XMLNAME=(IMSLRM_NAMESPACE,'source')
 
+	LangStringClass=LangString
+	
 	def __init__(self,parent):
 		LRMElement.__init__(self,parent)
-		self.LangString=LangString(self)
+		self.LangString=self.ChildElement(self.LangStringClass)
 	
 	def GetChildren(self):
 		return [self.LangString]
@@ -91,6 +90,8 @@ class LRMSource(LRMElement):
 		
 class LRMValue(LRMElement):
 	XMLNAME=(IMSLRM_NAMESPACE,'value')
+
+	LangStringClass=LangString
 
 	def __init__(self,parent):
 		LRMElement.__init__(self,parent)
@@ -101,10 +102,13 @@ class LRMValue(LRMElement):
 
 	
 class LRMSourceValue(LRMElement):
+	LRMSourceClass=LRMSource
+	LRMValueClass=LRMValue
+	
 	def __init__(self,parent):
 		LRMElement.__init__(self,parent)
-		self.LRMSource=LRMSource(self)
-		self.LRMValue=LRMValue(self)
+		self.LRMSource=self.ChildElement(self.LRMSourceClass)
+		self.LRMValue=self.ChildElement(self.LRMValueClass)
 	
 	def GetChildren(self):
 		return [self.LRMSource,self.LRMValue]
@@ -182,17 +186,25 @@ class LOM(LRMElement):
 		self.classifications.append(c)
 		return c
 
+
+class Description(LangStringList):
+	XMLNAME=(IMSLRM_NAMESPACE,'description')
+	XMLCONTENT=xmlns.ElementContent
+
+
 class LOMGeneral(LRMElement):
 	XMLNAME=(IMSLRM_NAMESPACE,'general')
 	XMLCONTENT=xmlns.ElementContent
 
+	DescriptionClass=Description
+	
 	def __init__(self,parent):
 		LRMElement.__init__(self,parent)
 		self.identifier=None
 		self.title=None
 		self.catalogEntries=[]
 		self.languages=[]
-		self.description=[]
+		self.Description=[]
 		self.keywords=[]
 		self.coverage=[]
 		self.structure=None
@@ -204,7 +216,7 @@ class LOMGeneral(LRMElement):
 			children.append(self.identifier)
 		if self.title:
 			children.append(self.title)
-		children=children+self.catalogEntries+self.languages+self.description+self.keywords+self.coverage
+		children=children+self.catalogEntries+self.languages+self.Description+self.keywords+self.coverage
 		if self.structure:
 			children.append(self.structure)
 		if self.aggregationLevel:
@@ -231,11 +243,6 @@ class LOMGeneral(LRMElement):
 		self.languages.append(l)
 		return l
 
-	def LOMDescription(self):
-		d=LOMDescription(self)
-		self.description.append(d)
-		return d
-	
 	def LOMKeyword(self):
 		kw=LOMKeyword(self)
 		self.keywords.append(kw)
@@ -269,10 +276,6 @@ class LOMCatalogEntry(LRMElement):
 class LOMLanguage(LRMElement):
 	XMLNAME=(IMSLRM_NAMESPACE,'language')
 	
-class LOMDescription(LangStringList):
-	XMLNAME=(IMSLRM_NAMESPACE,'description')
-	XMLCONTENT=xmlns.ElementContent
-
 class LOMKeyword(LangStringList):
 	XMLNAME=(IMSLRM_NAMESPACE,'keyword')
 
@@ -424,7 +427,7 @@ class LOMEducational(LRMElement):
 		self.LOMTypicalAgeRange=[]
 		self.LOMDifficulty=None
 		self.LOMTypicalLearningTime=None
-		self.LOMDescription=None
+		self.Description=None
 		self.LOMLanguage=[]
 
 	def GetChildren(self):
@@ -436,7 +439,7 @@ class LOMEducational(LRMElement):
 		children=children+self.LOMIntendedEndUserRole+self.LOMContext+self.LOMTypicalAgeRange
 		xmlns.OptionalAppend(children,self.LOMDifficulty)
 		xmlns.OptionalAppend(children,self.LOMTypicalLearningTime)
-		xmlns.OptionalAppend(children,self.LOMDescription)
+		xmlns.OptionalAppend(children,self.Description)
 		children=children+self.LOMLanguage+LRMElement.GetChildren(self)
 		return children
 
@@ -490,13 +493,13 @@ class LOMAnnotation(LRMElement):
 		LRMElement.__init__(self,parent)
 		self.LOMPerson=None
 		self.LOMDate=None
-		self.LOMDescription=None
+		self.Description=None
 	
 	def GetChildren(self):
 		children=[]
 		xmlns.OptionalAppend(children,self.LOMPerson)
 		xmlns.OptionalAppend(children,self.LOMDate)
-		xmlns.OptionalAppend(children,self.LOMDescription)
+		xmlns.OptionalAppend(children,self.Description)
 		return children+LRMElement.GetChildren(self)
 
 	

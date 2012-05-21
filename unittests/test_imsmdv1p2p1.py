@@ -120,10 +120,12 @@ class LRMEducationalTests(unittest.TestCase):
 		That means that we need method in lists of LangStrings that allow us to add language-tagged
 		text to an existing list of langstrings."""
 		edu=LOMEducational(None)
-		description=edu.ChildElement(LOMDescription)
-		hello=description.LangString("Hello")
+		description=edu.ChildElement(Description)
+		hello=description.ChildElement(description.LangStringClass)
+		hello.SetValue("Hello")
 		hello.SetLang('en-GB')
-		ciao=description.LangString("Ciao")
+		ciao=description.ChildElement(description.LangStringClass)
+		ciao.SetValue("Ciao")
 		ciao.SetLang('it')
 		helloTest=description.GetLangString('en')
 		self.failUnless(helloTest.GetValue()=='Hello')
@@ -144,10 +146,10 @@ class LRMEducationalTests(unittest.TestCase):
 
 class LRMDocumentTests(unittest.TestCase):
 	def testCaseExample1(self):
-		doc=imscp.CPDocument()
+		doc=imscp.ManifestDocument()
 		doc.Read(src=StringIO(EXAMPLE_1))
 		r=doc.GetElementByID('choice')
-		self.failUnless(isinstance(r.metadata.GetChildren()[0],LOM),"LOM")
+		self.failUnless(isinstance(r.Metadata.GetChildren()[0],LOM),"LOM")
 		
 if __name__ == "__main__":
 	unittest.main()

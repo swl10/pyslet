@@ -601,11 +601,11 @@ class URI:
 		if not(self.absPath or self.relPath) and self.scheme is None and self.authority is None and self.query is None:
 			# current document reference, just change the fragment
 			if self.fragment is None:
-				return URI(current.octets)
+				return URIFactory.URI(current.octets)
 			else:
-				return URI(current.octets+'#'+self.fragment)
+				return URIFactory.URI(current.octets+'#'+self.fragment)
 		if self.scheme is not None:
-			return URI(str(self))
+			return URIFactory.URI(str(self))
 		scheme=base.scheme
 		authority=None
 		if self.authority is None:

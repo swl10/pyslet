@@ -10,6 +10,7 @@ Contents:
 .. toctree::
    :maxdepth: 2
    
+   imscpv1p2
    imsqtiv1p2p1
    imsqtiv2p1
    imsbltiv1p0

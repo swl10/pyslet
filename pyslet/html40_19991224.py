@@ -904,7 +904,7 @@ class Object(SpecialMixin,HeadMiscMixin,XHTMLElement):
 		if isinstance(self.data,FileURL):
 			f=beenThere.get(str(self.data),None)
 			if f is None:
-				f=cp.CPFileCopy(resource,self.data)
+				f=cp.FileCopy(resource,self.data)
 				beenThere[str(self.data)]=f
 			newData=f.ResolveURI(f.href)
 			self.data=self.RelativeURI(newData)		
@@ -1127,7 +1127,7 @@ class Img(SpecialMixin,XHTMLElement):
 		if isinstance(self.src,FileURL):
 			f=beenThere.get(str(self.src),None)
 			if f is None:
-				f=cp.CPFileCopy(resource,self.src)
+				f=cp.FileCopy(resource,self.src)
 				beenThere[str(self.src)]=f
 			newSrc=f.ResolveURI(f.href)
 			# Finally, we need change our src attribute

@@ -6,6 +6,7 @@ import unittest
 
 import test_imsbltiv1p0
 import test_imscc_profilev1p0
+import test_imscc_profilev1p1
 import test_imscpv1p2
 import test_imsmdv1p2p1
 import test_imsqtiv1p2p1

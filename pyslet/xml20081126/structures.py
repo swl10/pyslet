@@ -1533,7 +1533,7 @@ class Element(Node):
 		The URI is calculated using any xml:base values of the element or its
 		ancestors and ultimately relative to the baseURI.
 		
-		If the element is not contained by an Document, or the document does
+		If the element is not contained by a Document, or the document does
 		not have a fully specified baseURI then the return result may be a
 		relative path or even None, if no base information is available."""
 		baser=self
@@ -1796,7 +1796,7 @@ class XMLContentParticle:
 		"""Abstract method that adds all possible entry particles to pMap.
 
 		*pMap* is a mapping from element name to a list of
-		:py:class:`XMLNameParticle`s.
+		:py:class:`XMLNameParticles XMLNameParticle`.
 		
 		Returns True if a required particle was added, False if all particles
 		added are optional.
@@ -1811,8 +1811,8 @@ class XMLContentParticle:
 		"""A utility method that adds particles from srcMap to pMap.
 		
 		Both maps are mappings from element name to a list of
-		:py:class:`XMLNameParticle`s. All entries in *srcMap* not currently in
-		*pMap* are added."""
+		:py:class:`XMLNameParticles XMLNameParticle`. All entries in *srcMap*
+		not currently in *pMap* are added."""
 		for name in srcMap.keys():
 			if pMap.has_key(name):
 				# add items from srcMap[name] to pMap[name]
@@ -1864,7 +1864,7 @@ class XMLNameParticle(XMLContentParticle):
 		self.particleMap={}
 		"""Each :py:class:`XMLNameParticle` has a particle map that maps the
 		name of the 'next' element found in the content model to the list of
-		possible :py:class:`XMLNameParticle`s that represent it in the content
+		possible :py:class:`XMLNameParticles XMLNameParticle` that represent it in the content
 		model.
 
 		The content model can be traversed using :py:class:`ContentParticleCursor`."""

@@ -58,7 +58,7 @@ class CommonCartridgeTests(unittest.TestCase):
 		#r6=cp.manifest.GetElementByID('R0006')
 		head,acr=cc.laoTable['R0006']
 		self.failUnless(acr is cp.manifest.GetElementByID('R0007'))
-		self.failUnless(len(acr.fileList)==3)
+		self.failUnless(len(acr.File)==3)
 		
 # Running tests on the cartridges on hold...		
 class CCConformanceTests(unittest.TestCase):
@@ -93,20 +93,20 @@ class CCConformanceTests(unittest.TestCase):
 		f.write('Hello World!')
 		f.close()
 		r1=self.cc.cp.manifest.GetElementByID('R0004')
-		f=r1.CPFile()
+		f=r1.ChildElement(r1.FileClass)
 		f.SetAttribute('href','Extra.txt')
 		self.cc.cp.RebuildFileTable()
 		self.RunTests(['test1_4_AssociatedContent_2'])
 	
 	def testCase1p4AssociatedContent_3(self):
 		r1=self.cc.cp.manifest.GetElementByID('R0004')
-		dep=r1.CPDependency()
-		dep.Set_identifierref('R0001')
+		dep=r1.ChildElement(r1.DependencyClass)
+		dep.identifierref='R0001'
 		self.RunTests(['test1_4_AssociatedContent_3'])
 	
 	def testCase1p4LAO_1(self):
 		r3=self.cc.cp.manifest.GetElementByID('R0003')
-		f=r3.fileList[0]
+		f=r3.File[0]
 		self.cc.cp.DeleteFile('l0001/welcome.forum')
 		self.RunTests(['test1_4_LAO_1'])
 		
@@ -114,24 +114,24 @@ class CCConformanceTests(unittest.TestCase):
 		r3=self.cc.cp.manifest.GetElementByID('R0003')
 		# Tricky, to prevent other tests failing we add a reference to a file already referenced
 		# by the associated content for the resource.
-		f=r3.CPFile()
+		f=r3.ChildElement(r3.FileClass)
 		f.SetAttribute('href','l0001/welcome.gif')
 		self.RunTests(['test1_4_LAO_2'])
 
 	def testCase1p4LAO_3(self):
 		r3=self.cc.cp.manifest.GetElementByID('R0003')
-		r3.DeleteDependency(r3.dependencies[0])
+		r3.DeleteDependency(r3.Dependency[0])
 		self.RunTests(['test1_4_LAO_3'])
 
 	def testCase1p4LAO_4(self):
 		r3=self.cc.cp.manifest.GetElementByID('R0003')
-		d=r3.CPDependency()
-		d.Set_identifierref('R0007')
+		d=r3.ChildElement(r3.DependencyClass)
+		d.identifierref='R0007'
 		self.RunTests(['test1_4_LAO_4'])
 
 	def testCase1p4WebContent_1(self):
 		r1=self.cc.cp.manifest.GetElementByID('R0001')
-		f=r1.CPFile()
+		f=r1.ChildElement(r1.FileClass)
 		f.SetAttribute('href','l0001/welcome.gif')
 		self.RunTests(['test1_4_WebContent_1'])
 

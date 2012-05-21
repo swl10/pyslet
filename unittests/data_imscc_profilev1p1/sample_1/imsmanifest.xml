@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest xmlns="http://www.imsglobal.org/xsd/imsccv1p1/imscp_v1p1"
+    xmlns:lom="http://ltsc.ieee.org/xsd/imsccv1p1/LOM/resource"
+    xmlns:lomimscc="http://ltsc.ieee.org/xsd/imsccv1p1/LOM/manifest"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsccv1p1/imscp_v1p1 http://www.imsglobal.org/profile/cc/ccv1p1/ccv1p1_imscp_v1p2_v1p0.xsd
+    http://ltsc.ieee.org/xsd/imsccv1p1/LOM/manifest http://www.imsglobal.org/profile/cc/ccv1p1/LOM/ccv1p1_lommanifest_v1p0.xsd
+    http://ltsc.ieee.org/xsd/imsccv1p1/LOM/resource http://www.imsglobal.org/profile/cc/ccv1p1/LOM/ccv1p1_lomresource_v1p0.xsd"
+    identifier="Sample1">
+    <metadata>
+        <schema>IMS Common Cartridge</schema>
+        <schemaversion>1.1.0</schemaversion>
+        <lom xmlns="http://ltsc.ieee.org/xsd/imsccv1p1/LOM/manifest"/>
+    </metadata>
+
+    <organizations/>
+    <resources>
+        <resource identifier="R0001" type="webcontent">
+            <file href="page_001.htm"/>
+            <file href="images/image_0001.gif"/>
+        </resource>
+        <resource identifier="R0002" type="webcontent">
+            <file href="media/audio_001.mp3"/>
+        </resource>
+        <resource identifier="R0003" type="imsdt_xmlv1p1">
+            <file href="l0001/welcome.forum"/>
+            <dependency identifierref="R0004"/>
+        </resource>
+        <resource identifier="R0004"
+            type="associatedcontent/imscc_xmlv1p1/learning-application-resource">
+            <file href="l0001/welcome.gif"/>
+            <file href="l0001/attachments/getting_started.doc"/>
+        </resource>
+        <resource identifier="R0005" type="imsqti_xmlv1p2/imscc_xmlv1p1/assessment">
+            <file href="l0002/studymate.qti"/>
+        </resource>
+        <resource identifier="R0006" type="imsqti_xmlv1p2/imscc_xmlv1p1/assessment">
+            <file href="l0003/quiz_1.qti"/>
+            <dependency identifierref="R0007"/>
+        </resource>
+        <resource identifier="R0007"
+            type="associatedcontent/imscc_xmlv1p1/learning-application-resource">
+            <file href="l0003/sample.doc"/>
+            <file href="l0003/images/ques_001.gif"/>
+            <file href="l0003/images/ques_002.gif"/>
+        </resource>
+    </resources>
+</manifest>

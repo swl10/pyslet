@@ -152,7 +152,7 @@ class QTIV2ConversionTests(unittest.TestCase):
 		output=self.cp.manifest.DiffString(cp2.manifest)
 		self.failUnless(self.cp.manifest.root==cp2.manifest.root,"Manifests differ:\n%s"%output)
 		checkFiles={}
-		for r in cp2.manifest.root.resources.list:
+		for r in cp2.manifest.root.Resources.Resource:
 			# Check the entry-point of each resource
 			f=r.GetEntryPoint()
 			if f:
@@ -169,7 +169,7 @@ class QTIV2ConversionTests(unittest.TestCase):
 					# This should not happen
 					self.PrintPrettyWeird(qtiDoc.root,qtiDoc2.root)
 				self.failUnless(qtiDoc.root==qtiDoc2.root,"QTI Files differ at %s (actual output shown first)\n%s"%(fPath,output))	
-			for f in r.fileList:
+			for f in r.File:
 				if f.href is None or f.href.IsAbsolute():
 					continue
 				fPath=f.PackagePath(cp2)
