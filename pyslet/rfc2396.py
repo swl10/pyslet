@@ -770,6 +770,10 @@ class URI:
 		else:
 			return self.octets
 
+	def __cmp__(self,otherURI):
+		"""Compare this URI against another URI or a string."""
+		return cmp(str(self),str(otherURI))
+		
 	def Match(self,otherURI):
 		"""Compares this URI against otherURI returning True if they match.
 		

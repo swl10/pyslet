@@ -1,0 +1,139 @@
+The Atom Syndication Format (RFC4287)
+=====================================
+
+.. py:module:: pyslet.rfc4287
+
+This module defines functions and classes for working with the Atom Syndication
+Format as defined by RFC4287: http://www.ietf.org/rfc/rfc4287.txt
+
+Reference
+---------
+
+Elements
+~~~~~~~~
+
+..	autoclass:: Feed
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Source
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Entry
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Entity
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Author
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Category
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Content
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Contributor
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Generator
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Icon
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AtomId
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Link
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Logo
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Published
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Rights
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Subtitle
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Summary
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Title
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Updated
+	:members:
+	:show-inheritance:
+
+
+
+
+
+
+
+Base Classes
+~~~~~~~~~~~~
+
+..	autoclass:: Person
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Name
+	:members:
+	:show-inheritance:
+
+..	autoclass:: URI
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Email
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Text
+	:members:
+	:show-inheritance:
+
+..	autoclass:: TextType
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Date
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AtomElement
+	:members:
+	:show-inheritance:
+
+
+Constants
+~~~~~~~~~
+
+..	autodata:: ATOM_NAMESPACE
+
+..	autodata:: ATOM_MIMETYPE
+

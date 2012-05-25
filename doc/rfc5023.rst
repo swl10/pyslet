@@ -1,0 +1,56 @@
+The Atom Publishing Protocol (RFC5023)
+======================================
+
+.. py:module:: pyslet.rfc5023
+
+This module defines functions and classes for working with the Atom Publishing
+Protocl as defined by RFC5023: http://www.ietf.org/rfc/rfc5023.txt
+
+Reference
+---------
+
+Elements
+~~~~~~~~
+
+..	autoclass:: Service
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Workspace
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Collection
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Categories
+	:members:
+	:show-inheritance:
+
+
+Base Classes
+~~~~~~~~~~~~
+
+..	autoclass:: Accept
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Document
+	:members:
+	:show-inheritance:
+
+..	autoclass:: APPElement
+	:members:
+	:show-inheritance:
+
+
+
+Constants
+~~~~~~~~~
+
+..	autodata:: APP_NAMESPACE
+
+..	autodata:: ATOMSVC_MIMETYPE
+
+..	autodata:: ATOMCAT_MIMETYPE

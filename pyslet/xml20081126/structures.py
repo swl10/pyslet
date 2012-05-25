@@ -1306,7 +1306,7 @@ class Element(Node):
 	def DetachFromDocument(self,doc=None):
 		"""Called when an element is being detached from a document.
 		
-		The default implementation ensure that an ID attributes belonging
+		The default implementation ensure that any ID attributes belonging
 		to this element or its descendents are unregistered."""
 		if doc is None:
 			doc=self.GetDocument()
@@ -1390,18 +1390,23 @@ class Element(Node):
 	def SetValue(self,value):
 		"""Replaces the value of the element with the (unicode) value.
 		
-		If the element has mixed content then XMLMixedContentError is
-		raised."""
+		If the element has children other than those being managed by the
+		base class then UnimplementedError is raised.
+		
+		If *value* is None then the element becomes empty."""
 		if not self.IsMixed():
 			raise XMLMixedContentError
 		children=self.GetChildren()
 		if len(children)!=len(self._children):
-			raise XMLMixedContentError
+			raise UnimplementedError
 		for child in children:
 			if isinstance(child,Element):
 				child.DetachFromDocument()
 				child.parent=None
-		self._children=[unicode(value)]
+		if value is None:
+			self._children=[]
+		else:
+			self._children=[unicode(value)]
 
 	def ValidationError(self,msg,data=None,aname=None):
 		"""Indicates that a validation error occurred in this element.
@@ -1519,9 +1524,14 @@ class Element(Node):
 		return e
 		
 	def GetBase(self):
+		"""Returns the value of the xml:base attribute as a string."""
 		return self._attrs.get(xml_base,None)
 	
 	def SetBase(self,base):
+		"""Sets the value of the xml:base attribute from a string.
+		
+		Changing the base of an element effects the interpretation of all
+		relative URIs in this element and its children."""
 		if base is None:
 			self._attrs.pop(xml_base,None)
 		else:
@@ -1551,7 +1561,7 @@ class Element(Node):
 		return baseURI
 				
 	def ResolveURI(self,uri):
-		r"""Returns a fully specified URL, resolving uri in the current context.
+		"""Returns a fully specified URL, resolving uri in the current context.
 		
 		The uri is resolved relative to the xml:base values of the element's
 		ancestors and ultimately relative to the document's baseURI."""
@@ -1584,9 +1594,14 @@ class Element(Node):
 			return href
 
 	def GetLang(self):
+		"""Returns the value of the xml:lang attribute as a string."""
 		return self._attrs.get(xml_lang,None)
 	
 	def SetLang(self,lang):
+		"""Sets the value of the xml:lang attribute from a string.
+		
+		See :py:meth:`ResolveLang` for how to obtain the effective language of
+		an element."""
 		if lang is None:
 			self._attrs.pop(xml_lang,None)
 		else:

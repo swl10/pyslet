@@ -2,6 +2,7 @@
 
 
 import string
+import pyslet.iso8601 as iso8601
 
 XMLSCHEMA_NAMESPACE="http://www.w3.org/2001/XMLSchema-instance"
 
@@ -56,6 +57,49 @@ def EncodeFloat(value):
 	return unicode(value)
 
 
+def DecodeDateTime(src):
+	try:
+		return iso8601.TimePoint(src)
+	except:
+		return None
+
+def EncodeDateTime(value):
+	return value.GetCalendarString()
+
+
+class Enumeration:
+	@classmethod
+	def DecodeValue(cls,value):
+		"""Decodes a value using this enumeration"""
+		try:
+			value=value.strip()
+			return cls.decode[value]
+		except KeyError:
+			raise ValueError("Can't decode enumerated value from %s"%value)
+
+	@classmethod
+	def DecodeLowerValue(cls,value):
+		"""Decodes a value, converting to lower case, using this enumeration"""
+		try:
+			value=value.lower()
+			return cls.decode[value]
+		except KeyError:
+			raise ValueError("Can't decode enumerated value from %s"%value)
+	
+	@classmethod
+	def DecodeTitleValue(cls,value):
+		"""Decodes a value, converting to title case, using this enumeration"""
+		try:
+			value=value.strip()
+			value=value[0].upper()+value[1:].lower()
+			return cls.decode[value]
+		except KeyError:
+			raise ValueError("Can't decode enumerated value from %s"%value)
+	
+	@classmethod
+	def EncodeValue(cls,value):
+		return cls.encode.get(value,None)
+				
 def MakeEnumeration(e):
 	"""Adds convenience attributes to the class 'e'
 	

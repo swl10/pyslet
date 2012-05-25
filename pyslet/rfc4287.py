@@ -16,501 +16,447 @@ A Date construct is an element whose content MUST conform to the "date-time" pro
 """
 
 import string, types
-
+import pyslet.info
 import pyslet.iso8601 as iso8601
+import pyslet.html40_19991224 as html
+import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
+import pyslet.xsdatatypes20041028 as xsi
+import pyslet.rfc2396 as uri
 
-ATOM_NAMESPACE="http://www.w3.org/2005/Atom"
-
-ATOM_MIMETYPE="application/atom+xml"
+ATOM_NAMESPACE="http://www.w3.org/2005/Atom"		#: The namespace to use for Atom Document elements
+ATOM_MIMETYPE="application/atom+xml"				#: The mime type for Atom Document
 
 _ATOM_TEXT_TYPES={'text':1,'html':1,'xhtml':1}
 
 class AtomElement(xmlns.XMLNSElement):
-	"""Basic element to represent all Atom elements; not that xml:base and xml:lang are handled by
-	the XMLElement mix-in class.
+	"""Base class for all APP elements.
 	
-	atomCommonAttributes =
-		attribute xml:base { atomUri }?,
-		attribute xml:lang { atomLanguageTag }?,
-		undefinedAttribute*
-	"""  
+	All atom elements can have xml:base and xml:lang attributes, these are
+	handled by the :py:class:`~pyslet.xml20081126.structures.Element` base
+	class.
+	
+	See :py:meth:`~pyslet.xml20081126.structures.Element.GetLang` and
+	:py:meth:`~pyslet.xml20081126.structures.Element.SetLang`,
+	:py:meth:`~pyslet.xml20081126.structures.Element.GetBase` and
+	:py:meth:`~pyslet.xml20081126.structures.Element.SetBase`"""
 	pass
 	
 	
-class AtomId(AtomElement):
-	XMLNAME=(ATOM_NAMESPACE,'id')
+class TextType(xsi.Enumeration):
+	"""text type enumeration::
+		
+		 "text" | "html" | "xhtml"
+		 
+	This enumeration is used for setting the :py:attr:`Text.type` attribute.
+	
+	Usage: TextType.text, TextType.html, TextType.xhtml"""
+	decode={
+		'text':1,
+		'html':2,
+		'xhtml':3
+		}
+xsi.MakeEnumeration(TextType)
 
-class AtomName(AtomElement):
-	XMLNAME=(ATOM_NAMESPACE,'name')
 
-class AtomText(AtomElement):
-	"""
-	atomPlainTextConstruct =
-		atomCommonAttributes,
-		attribute type { "text" | "html" }?,
-		text
+class Text(AtomElement):
+	"""Base class for atomPlainTextConstruct and atomXHTMLTextConstruct."""
+	
+	XMLATTR_type=('type',TextType.DecodeLowerValue,TextType.EncodeValue)
 
-	atomXHTMLTextConstruct =
-		atomCommonAttributes,
-		attribute type { "xhtml" },
-		xhtmlDiv
-
-	atomTextConstruct = atomPlainTextConstruct | atomXHTMLTextConstruct
-	"""	
 	def __init__(self,parent):
 		AtomElement.__init__(self,parent)
-		self.type='text'
+		self.type=TextType.text
 
-	def SetValue(self,value,type='text'):
-		self.Set_type(type)
-		AtomElement.SetValue(self,value)
-	
-	def GetAttributes(self):
-		attrs=AtomElement.GetAttributes(self)
-		if self.type:
-			attrs['type']=self.type
-		return attrs
+	def SetValue(self,value,type=TextType.text):
+		"""Sets the value of the element.  *type* must be a value from the :py:class:`TextType` enumeration
 		
-	def Set_type(self,value):
-		if value is None:
-			self.type=None
-		elif _ATOM_TEXT_TYPES.get(value,None):
-			self.type=value
+		Overloads the basic
+		:py:meth:`~pyslet.xml20081126.structures.Element.SetValue`
+		implementation, adding an additional *type* attribute to enable the
+		value to be set to either a plain TextType.text, TextType.html or
+		TextType.xhtml value.  In the case of an xhtml type, *value* is parsed
+		for the required XHTML div element and this becomes the only child of
+		the element.  Given that the div itself is not considered to be part
+		of the content the value can be given without the enclosing div, in
+		which case it is generated automatically."""
+		if type==TextType.text or type==TextType.html:
+			AtomElement.SetValue(self,value)
+			self.type=type
+		elif type==TextType.xhtml:
+			e=xml.XMLEntity(value)
+			doc=html.XHTMLDocument(baseURI=self.ResolveBase())
+			doc.ReadFromEntity(e)
+			div=doc.root.Body.GetChildren()
+			if len(div)==1 and isinstance(div[0],html.Div):
+				div=div[0]
+				# We remove our existing content
+				self.SetValue(None)
+				# And do a deep copy of the div instead
+				div.Copy(self)
+				newDiv=self.GetChildren()[0]
+			else:
+				newDiv=self.ChildElement(html.Div)
+				for divChild in div:
+					if isinstance(divChild,xml.Element):
+						divChild.Copy(newDiv)
+					else:
+						newDiv.AddData(divChild)
+			newDiv.MakePrefix(html.XHTML_NAMESPACE,'')
+			self.type=type
 		else:
-			raise ValueError		
+			raise ValueError("Expected text or html identifiers, found %s"%str(type))
 
-class AtomTitle(AtomText):
+	def GetValue(self):
+		"""Gets a single unicode string representing the value of the element.
+		
+		Overloads the basic
+		:py:meth:`~pyslet.xml20081126.structures.Element.GetValue`
+		implementation to add support for text of type xhtml.
+		
+		When getting the value of TextType.xhtml text the child div element is
+		not returned as it is not considered to be part of the content."""
+		if self.type==TextType.text or self.type==TextType.html:
+			return AtomElement.GetValue(self)
+		elif self.type==TextType.xhtml:
+			# concatenate all children, but should be just a single div
+			result=[]
+			valueChildren=self.GetChildren()
+			if len(valueChildren) and isinstance(valueChildren[0],html.Div):
+				valueChildren=valueChildren[0].GetChildren()
+			for c in valueChildren:
+				result.append(unicode(c))
+			return string.join(result,'')
+		else:
+			raise ValueError("Unknown text type: %s"%str(self.type))
+
+	
+class AtomId(AtomElement):
+	"""A permanent, universally unique identifier for an entry or feed."""
+	XMLNAME=(ATOM_NAMESPACE,'id')
+
+
+class Name(AtomElement):
+	"""A human-readable name for a person."""
+	XMLNAME=(ATOM_NAMESPACE,'name')
+
+
+class Title(Text):
+	"""A :py:class:`Text` construct that conveys a human-readable title for an entry or feed."""
 	XMLNAME=(ATOM_NAMESPACE,'title')
 
-class AtomSubtitle(AtomText):
+
+class Subtitle(Text):
+	"""A :py:class:`Text` construct that conveys a human-readable description or subtitle for a feed."""
 	XMLNAME=(ATOM_NAMESPACE,'subtitle')
 
-class AtomSummary(AtomText):
+
+class Summary(Text):
+	"""A :py:class:`Text` construct that conveys a short summary, abstract, or excerpt of an entry."""
 	XMLNAME=(ATOM_NAMESPACE,'summary')
 
-class AtomRights(AtomText):
+
+class Rights(Text):
+	"""A Text construct that conveys information about rights held in and over an entry or feed."""
 	XMLNAME=(ATOM_NAMESPACE,'rights')
 
 	
-class AtomDate(AtomElement):
-	"""
-		atomDateConstruct =
-			atomCommonAttributes,
-			xsd:dateTime"""
+class Date(AtomElement):
+	"""An element conforming to the definition of date-time in RFC3339.
+	
+	This class is modeled using the iso8601 module."""
 	def __init__(self,parent):
 		AtomElement.__init__(self,parent)
-		self.date=iso8601.TimePoint()
+		self.date=iso8601.TimePoint()		#: a :py:class:`~pyslet.iso8601.TimePoint` instance representing this date
 	
 	def GetValue(self):
+		"""Overrides :py:meth:`~pyslet.xml20081126.structures.Element.GetValue`, returning a :py:class:`pyslet.iso8601.TimePoint` instance."""
 		return self.date
+	
+	def SetValue(self,value):
+		"""Overrides :py:meth:`~pyslet.xml20081126.structures.Element.SetValue`, enabling the value to be set from a :py:class:`pyslet.iso8601.TimePoint` instance.
+		
+		If *value* is a string the behaviour is unchanged, if *value* is a
+		TimePoint instance then it is formatted using the extended format of ISO
+		8601 in accordance with the requirements of the Atom specification."""
+		if isinstance(value,iso8601.TimePoint):
+			self.date=value
+			AtomElement.SetValue(value.GetCalendarString())
+		else:
+			AtomElement.SetValue(self,value)
+			self.ContentChanged()
 		
 	def ContentChanged(self):
-		# called when content has been changed
+		"""Re-reads the value of the element and sets :py:attr:`date` accordingly.""" 
 		self.date.SetFromString(AtomElement.GetValue(self))
 
-class AtomUpdated(AtomDate):
+
+class Updated(Date):
+	"""A Date construct indicating the most recent instant in time when an entry or feed was modified in a way the publisher considers significant."""
 	XMLNAME=(ATOM_NAMESPACE,'updated')
 
-		
-class AtomLink(AtomElement):
-	XMLNAME=(ATOM_NAMESPACE,'link')
-	
+
+class Published(Date):
+	"""A Date construct indicating an instant in time associated with an event early in the life cycle of the entry."""
+	XMLNAME=(ATOM_NAMESPACE,"published")
+
+			
+class Link(AtomElement):
+	"""A reference from an entry or feed to a Web resource."""
+	XMLNAME=(ATOM_NAMESPACE,'link')	
+	XMLATTR_href=('href',uri.URIFactory.URI,str)
+	XMLATTR_rel='rel'
+	XMLATTR_type='type'
+	XMLATTR_hreflang='hreflang'
+	XMLATTR_title='title'
+	XMLATTR_length=('length',xsi.DecodeInteger,xsi.EncodeInteger)
+
 	def __init__(self,parent):
 		AtomElement.__init__(self,parent)
-		self.href=None
-		self.hreflang=None
-		self.rel=None
-		self.type=None
-	
-	def GetAttributes(self):
-		attrs=AtomElement.GetAttributes(self)
-		if self.href:
-			attrs['href']=self.href
-		if self.hreflang:
-			attrs['hreflang']=self.hreflang
-		if self.rel:
-			attrs['rel']=self.rel
-		if self.type:
-			attrs['type']=self.type
-		return attrs
-		
-	def Set_href(self,value):
-		self.href=value
-		
-	def Set_hreflang(self,value):
-		self.hreflang=value
-		
-	def Set_rel(self,value):
-		self.rel=value
-		
-	def Set_type(self,value):
-		self.type=value
-		
+		self.href=None		#: a :py:class:`~pyslet.rfc2396.URI` instance, the link's IRI
+		self.rel=None		#: a string indicating the link relation type
+		self.type=None		#: an advisory media type
+		self.hreflang=None	#: the language of the resource pointed to by :py:attr:`href`
+		self.title=None		#: human-readable information about the link
+		self.length=None	#: an advisory length of the linked content in octets
+				
 
-class AtomIcon(AtomElement):
-	"""
-	atomIcon = element atom:icon {
-		atomCommonAttributes,
-		(atomUri)
-		}"""
+class Icon(AtomElement):
+	"""Identifies an image that provides iconic visual identification for a feed."""
 	XMLNAME=(ATOM_NAMESPACE,'icon')
    
 	def __init__(self,parent):
 		AtomElement.__init__(self,parent)
-		self.uri=None
+		self.uri=None		#: a :py:class:`~pyslet.rfc2396.URI` instance representing the URI of the icon
 
-	def GetAttributes(self):
-		attrs=AtomElement.GetAttributes(self)
-		if self.uri:
-			attrs['uri']=self.uri
-		return attrs
+	def GetValue(self):
+		"""Overrides :py:meth:`~pyslet.xml20081126.structures.Element.GetValue`, returning a :py:class:`pyslet.rfc2396.URI` instance."""
+		return self.uri
+	
+	def SetValue(self,value):
+		"""Overrides :py:meth:`~pyslet.xml20081126.structures.Element.SetValue`, enabling the value to be set from a :py:class:`pyslet.rfc2396.URI` instance.
+		
+		If *value* is a string it is used to set the element's content,
+		:py:meth:`ContentChanged` is then called to update the value of
+		:py:attr:`uri`.  If *value* is a URI instance then :py:attr:`uri` is set
+		directory and it is then converted to a string and used to set the
+		element's content."""
+		if isinstance(value,uri.URI):
+			self.uri=value
+			AtomElement.SetValue(self,str(value))
+		else:
+			AtomElement.SetValue(self,value)
+			self.ContentChanged()
+		
+	def ContentChanged(self):
+		"""Re-reads the value of the element and sets :py:attr:`uri` accordingly.""" 
+		self.uri=uri.URIFactory.URI(AtomElement.GetValue(self))
 
-	def Set_uri(self,value):
-		self.uri=value
 
-class AtomLogo(AtomIcon):
+class Logo(Icon):
+	"""An image that provides visual identification for a feed."""
 	XMLNAME=(ATOM_NAMESPACE,'logo')
 
 
-class AtomGenerator(AtomElement):
-	"""
-	atomGenerator = element atom:generator {
-		atomCommonAttributes,
-		attribute uri { atomUri }?,
-		attribute version { text }?,
-		text
-	}"""
+class Generator(AtomElement):
+	"""Identifies the agent used to generate a feed, for debugging and other purposes."""
 	XMLNAME=(ATOM_NAMESPACE,'generator')
+	XMLATTR_uri=('uri',uri.URIFactory.URI,str)
+	XMLATTR_version='version'
 	
 	def __init__(self,parent):
 		AtomElement.__init__(self,parent)
-		self.uri=None
-		self.version=None
+		self.uri=None			#: the uri of the tool used to generate the feed
+		self.version=None		#: the version of the tool used to generate the feed
 
-	def GetAttributes(self):
-		attrs=AtomElement.GetAttributes(self)
-		if self.uri:
-			attrs['uri']=self.uri
-		if self.version:
-			attrs['version']=self.version
-		return attrs
+	def SetPysletInfo(self):
+		"""Sets this generator to a default representation of this Pyslet module."""
+		self.uri=uri.URIFactory.URI(pyslet.info.home)
+		self.version=pyslet.info.version
+		self.SetValue(pyslet.info.title)
 
-	def Set_uri(self,value):
-		self.uri=value
+
+def DecodeContentType(src):
+	try:
+		return TextType.DecodeLowerValue(src)
+	except ValueError:
+		return src.strip()
+
+def EncodeContentType(value):
+	if type(value) in types.StringTypes:
+		return value
+	else:
+		return TextType.EncodeValue(value)
+		
+class Content(Text):
+	"""Contains or links to the content of the entry.
 	
-	def Set_version(self,value):
-		self.version=value
-			
-
-class AtomContent(AtomElement):
+	Although derived from :py:class:`Text` this class overloads the meaning of
+	the :py:attr:`Text.type` attribute allowing it to be a media type."""
 	XMLNAME=(ATOM_NAMESPACE,"content")
-	
+	XMLATTR_src=('src',uri.URIFactory.URI,str)
+	XMLATTR_type=('type',DecodeContentType,EncodeContentType)
 
-class AtomEntity(AtomElement):
-	"""Used to model feed, entry and source: more complex constructs which can have their own metadata."""
 	def __init__(self,parent):
-		AtomElement.__init__(self,parent)
-		self.metadata={}
+		Text.__init__(self,parent)
+		self.src=None			#: link to remote content
 
-	def GetAuthors(self):
-		return self.metadata.get('author',[])
-			
-	def GetCategories(self):
-		return self.metadata.get('category',[])
+	def GetValue(self):
+		"""Gets a single unicode string representing the value of the element.
 		
-	def GetContributors(self):
-		return self.metadata.get('contributor',[])
-
-	def GetId(self):
-		return self.metadata.get('id',None)
-		
-	def GetLinks(self):
-		return self.metadata.get('link',[])
-
-	def GetRights(self):
-		return self.metadata.get('rights',None)
-
-	def GetTitle(self):
-		return self.metadata.get('title',None)
-	
-	def GetUpdated(self):
-		return self.metadata.get('updated',None)
-		
-	def GetChildren(self):
-		children=[]
-		keys=self.metadata.keys()
-		keys.sort()
-		for key in keys:
-			value=self.metadata[key]
-			if type(value) is types.ListType:
-				children=children+value
-			else:
-				children.append(value)
-		return children+AtomElement.GetChildren(self)
-	
-	def SingleMetadata(self,childClass):
-		child=childClass(self)
-		oldChild=self.metadata.get(child.xmlname,None)
-		if oldChild:
-			oldChild.DetachFromDocument()
-		self.metadata[child.xmlname]=child
-		return child
-	
-	def MultipleMetadata(self,childClass):
-		child=childClass(self)
-		if self.metadata.has_key(child.xmlname):
-			self.metadata[child.xmlname].append(child)
+		Overloads the basic
+		:py:meth:`~Text.GetValue`, if :py:attr:`type` is a media type rather
+		than one of the text types then a ValueError is raised."""
+		if type(self.type) in types.StringTypes:
+			raise ValueError("Can't get value of non-text content")
 		else:
-			self.metadata[child.xmlname]=[child]
-		return child
-		
-	def AtomAuthor(self):
-		return self.MultipleMetadata(AtomAuthor)
-		
-	def AtomCategory(self):
-		return self.MultipleMetadata(AtomCategory)
-		
-	def AtomContributor(self):
-		return self.MultipleMetadata(AtomContributor)
-		
-	def AtomId(self):
-		return self.SingleMetadata(AtomId)
-	
-	def AtomLink(self):
-		return self.MultipleMetadata(AtomLink)
-	
-	def AtomRights(self):
-		return self.SingleMetadata(AtomRights)
-	
-	def AtomTitle(self):
-		return self.SingleMetadata(AtomTitle)
-	
-	def AtomUpdated(self):
-		return self.SingleMetadata(AtomUpdated)
-	
+			Text.GetValue(self)
 
-class AtomPerson(AtomElement):
-	"""atomPersonConstruct =
-		atomCommonAttributes,
-		(element atom:name { text }
-			& element atom:uri { atomUri }?
-			& element atom:email { atomEmailAddress }?
-			& extensionElement*)
-	"""
+
+class URI(AtomElement):
+	"""An IRI associated with a person"""
+	XMLNAME=(ATOM_NAMESPACE,'uri')
+
+
+class Email(AtomElement):
+	"""An e-mail address associated with a person"""
+	XMLNAME=(ATOM_NAMESPACE,'email')
+
+
+class Person(AtomElement):
+	"""An element that describes a person, corporation, or similar entity"""
+	NameClass=Name
+	URIClass=URI
+	
 	def __init__(self,parent):
 		AtomElement.__init__(self,parent)
-		self.name=None
-		self.uri=None
-		self.email=None
+		self.Name=self.NameClass(self)
+		self.URI=None
+		self.Email=None
 
 	def GetChildren(self):
 		children=[]
-		if self.name:
-			children.append(self.name)
-		if self.uri:
-			children.append(self.uri)
-		if self.email:
-			children.append(self.email)
+		xml.OptionalAppend(children,self.Name)
+		xml.OptionalAppend(children,self.URI)
+		xml.OptionalAppend(children,self.Email)
 		return children+AtomElement.GetChildren(self)
 		
-	def AtomName(self):
-		if self.name:
-			child=self.name
-		else:
-			child=AtomName(self)
-			self.name=child
-		return child
-
-	def AtomURI(self):
-		if self.uri:
-			child=self.uri
-		else:
-			child=AtomURI(self)
-			self.uri=child
-		return child
-		
-	def AtomEmail(self):
-		if self.email:
-			child=self.email
-		else:
-			child=AtomEmail(self)
-			self.email=child
-		return child
-
 	
-class AtomAuthor(AtomPerson):
+class Author(Person):
+	"""A Person construct that indicates the author of the entry or feed."""
 	XMLNAME=(ATOM_NAMESPACE,'author')
 
-class AtomContributor(AtomPerson):
+
+class Contributor(Person):
+	"""A Person construct that indicates a person or other entity who contributed to the entry or feed."""
 	XMLNAME=(ATOM_NAMESPACE,"contributor")
+
 	
-class AtomCategory(AtomElement):
+class Category(AtomElement):
+	"""Information about a category associated with an entry or feed."""
 	XMLNAME=(ATOM_NAMESPACE,"category")
+	XMLATTR_term='term'
+	XMLATTR_scheme='scheme'
+	XMLATTR_label='label'
 	
 	def __init__(self,parent):
 		AtomElement.__init__(self,parent)
+		self.term=None		#: a string that identifies the category to which the entry or feed belongs
 		self.scheme=None
-		self.term=None
+		"""an IRI that identifies a categorization scheme.
+		
+		This is not converted to a :py:class:`pyslet.rfc2396.URI` instance as it
+		is not normally resolved to a resource.  Instead it defines a type of
+		namespace."""		
+		self.label=None		#: a human-readable label for display in end-user applications
 	
-	def GetAttributes(self):
-		attrs=AtomElement.GetAttributes(self)
-		if self.scheme:
-			attrs['scheme']=self.scheme
-		if self.term:
-			attrs['term']=self.term
-		return attrs
-		
-	def Set_scheme(self,value):
-		self.scheme=value
+	
+class Entity(AtomElement):
+	"""Base class for feed, entry and source elements."""
 
-	def Set_term(self,value):
-		self.term=value
-
+	def __init__(self,parent):
+		AtomElement.__init__(self,parent)
+		self.AtomId=None
+		"""the atomId of the object
 		
-class AtomSource(AtomEntity):
-	"""
-	element atom:source {
-         atomCommonAttributes,
-         (atomAuthor*
-          & atomCategory*
-          & atomContributor*
-          & atomGenerator?
-          & atomIcon?
-          & atomId?
-          & atomLink*
-          & atomLogo?
-          & atomRights?
-          & atomSubtitle?
-          & atomTitle?
-          & atomUpdated?
-          & extensionElement*)
-      }
-	"""
+		Note that we qualify the class name used to represent the id to avoid
+		confusion with the existing 'id' attribute in
+		:py:class:`~pyslet.xml20081126.structures.Element`."""
+		self.Author=[]		#: atomAuthor
+		self.Category=[]	#: atomCategory
+		self.Contributor=[]	#: atomContributor
+		self.Link=[]		#: atomLink
+		self.Rights=None	#: atomRights
+		self.Title=None		#: atomTitle
+		self.Updated=None	#: atomUpdated
+
+	def GetChildren(self):
+		children=[]
+		xml.OptionalAppend(children,self.AtomId)
+		xml.OptionalAppend(children,self.Title)
+		xml.OptionalAppend(children,self.Rights)
+		xml.OptionalAppend(children,self.Updated)
+		children=children+self.Link+self.Author+self.Contributor+self.Category
+		return children+AtomElement.GetChildren(self)
+	
+		
+class Source(Entity):
+	"""Metadata from the original source feed of an entry.
+	
+	This class is also used a base class for :py:class:`Feed`."""
 	XMLNAME=(ATOM_NAMESPACE,'source')
 
-	def GetGenerator(self):
-		return self.metadata.get('generator',None)
+	def __init__(self,parent):
+		Entity.__init__(self,parent)
+		self.Generator=None		#: atomGenerator
+		self.Icon=None			#: atomIcon
+		self.Logo=None			#: atomLogo
+		self.Subtitle=None		#: atomSubtitle
 		
-	def GetIcon(self):
-		return self.metadata.get('icon',None)
+	def GetChildren(self):
+		children=Entity.GetChildren(self)
+		xml.OptionalAppend(children,self.Generator)
+		xml.OptionalAppend(children,self.Icon)
+		xml.OptionalAppend(children,self.Logo)
+		xml.OptionalAppend(children,self.Subtitle)
+		return children
 		
-	def GetLogo(self):
-		return self.metadata.get('logo',None)
-		
-	def GetSubtitle(self):
-		return self.metadata.get('subtitle',None)
-	
-	def AtomGenerator(self):
-		return self.SingleMetadata(AtomGenerator)
-
-	def AtomIcon(self):
-		return self.SingleMetadata(AtomIcon)
-		
-	def AtomLogo(self):
-		return self.SingleMetadata(AtomLogo)
-	
-	def AtomSubtitle(self):
-		return self.SingleMetadata(AtomSubtitle)
-	
-			
-class AtomFeed(AtomSource):
+							
+class Feed(Source):
 	"""Represents an Atom feed.
 	
-		element atom:feed {
-			atomCommonAttributes,
-			(atomAuthor*
-			& atomCategory*
-			& atomContributor*
-			& atomGenerator?
-			& atomIcon?
-			& atomId
-			& atomLink*
-			& atomLogo?
-			& atomRights?
-			& atomSubtitle?
-			& atomTitle
-			& atomUpdated
-			& extensionElement*),
-			atomEntry*
-		}
-	"""
+	This is the document (i.e., top-level) element of an Atom Feed Document,
+	acting as a container for metadata and data associated with the feed"""
 	XMLNAME=(ATOM_NAMESPACE,'feed')
 	
 	def __init__(self,parent):
-		AtomSource.__init__(self,parent)
-		self.entries=[]
+		Source.__init__(self,parent)
+		self.Entry=[]		#: atomEntry
 
 	def GetChildren(self):
-		children=AtomEntity.GetChildren(self)
-		return children+self.entries
-
-	def AtomEntry(self):
-		child=AtomEntry(self)
-		self.entries.append(child)
-		return child
+		children=Source.GetChildren(self)
+		return children+self.Entry
 
 		
-class AtomEntry(AtomEntity):
-	"""
-		element atom:entry {
-			atomCommonAttributes,
-			(atomAuthor*
-			& atomCategory*
-			& atomContent?
-			& atomContributor*
-			& atomId
-			& atomLink*
-			& atomPublished?
-			& atomRights?
-			& atomSource?
-			& atomSummary?
-			& atomTitle
-			& atomUpdated
-			& extensionElement*)
-		}
-	"""
+class Entry(Entity):
+	"""An individual entry, acting as a container for metadata and data associated with the entry."""
 	XMLNAME=(ATOM_NAMESPACE,'entry')
 
 	def __init__(self,parent):
-		AtomEntity.__init__(self,parent)
-		self.content=None
-		
-	def GetPublished(self):
-		return self.metadata.get('published',[])
-		
-	def GetSource(self):
-		return self.metadata.get('source',None)
-			
-	def GetSummary(self):
-		return self.metadata.get('summary',None)
-					
-	def GetContent(self):
-		return self.content
-
+		Entity.__init__(self,parent)
+		self.Content=None
+		self.Published=None
+		self.Source=None
+		self.Summary=None
+							
 	def GetChildren(self):
-		children=AtomEntity.GetChildren(self)
-		if self.content:
-			children.append(self.content)
+		children=Entity.GetChildren(self)
+		xml.OptionalAppend(children,self.Content)
+		xml.OptionalAppend(children,self.Published)
+		xml.OptionalAppend(children,self.Source)
+		xml.OptionalAppend(children,self.Summary)
 		return children
-	
-	def AtomPublished(self):
-		return self.SingleMetadata(AtomPublished)
-		
-	def AtomSource(self):
-		return self.SingleMetadata(AtomSource)
-		
-	def AtomSummary(self):
-		return self.SingleMetadata(AtomSummary)
-		
-	def AtomContent(self):
-		if self.content:
-			return self.content
-		else:
-			child=AtomContent(self)
-			self.content=child
-			return child
-				
+			
 
 class AtomDocument(xmlns.XMLNSDocument):
 	classMap={}

@@ -175,6 +175,13 @@ class XMLNSElement(XMLNSElementContainerMixin,Element):
 	def GetXMLName(self):
 		return (self.ns,self.xmlname)
 
+	def GetNSAttribute(self,name):
+		"""Returns the value of an attribute with a defined namespace.
+		
+		These attributes are always added to the internal dictionary of attributes
+		and so must be looked up using this method."""
+		return self._attrs.get(name,None)
+
 	def SetAttribute(self,name,value):
 		"""Sets the value of an attribute.
 		

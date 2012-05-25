@@ -9,6 +9,8 @@ Contents:
 .. toctree::
    :maxdepth: 2
    
+   rfc4287
+   rfc5023
    xml20081126
    xml20081126.parser
    html40_19991224
