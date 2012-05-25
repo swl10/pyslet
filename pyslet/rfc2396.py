@@ -575,7 +575,20 @@ class URI:
 			return fileName
 		else:
 			return None
+	
+	def GetCanonicalRoot(self):
+		"""Returns a new URI comprised of the scheme and authority only.
 		
+		Only valid for absolute URIs."""
+		if self.IsAbsolute():
+			result=[self.scheme,':']
+			if self.authority is not None:
+				result.append('//')
+				result.append(self.authority)
+			return URIFactory.URI(string.join(result,''))
+		else:
+			return None
+				
 	def Resolve(self,base,current=None):
 		"""Resolves the current (relative) URI relative to base
 		

@@ -17,6 +17,7 @@ import test_qml420
 import test_rfc2234
 import test_rfc2396
 import test_rfc2616
+import test_rfc2617
 import test_rfc4287
 import test_rfc5023
 import test_unicode5

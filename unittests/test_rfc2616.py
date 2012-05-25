@@ -43,26 +43,6 @@ TEST_SERVER={
 
 BAD_REQUEST="HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n"
 
-class FakeHTTPRequestManager(HTTPRequestManager):
-	def __init__(self):
-		HTTPRequestManager.__init__(self)
-		self.socketSelect=self.select
-		#self.SetLog(HTTP_LOG_ALL)
-		
-	def NewConnection(self,scheme,server,port):
-		if scheme=='http':
-			return FakeHTTPConnection(self,server,port)
-		else:
-			raise ValueError
-
-	def select(self,readers,writers,errors,timeout):
-		r=[]
-		for reader in readers:
-			if reader.CanRead():
-				r.append(reader)
-		return r,writers,errors
-			
-
 class FakeHTTPConnection(HTTPConnection):
 	def NewSocket(self):
 		# Socket implementation to follow
@@ -130,7 +110,30 @@ class FakeHTTPConnection(HTTPConnection):
 		self.socketSendBuffer=None
 		self.socketRecvBuffer=None
 		
+
+class FakeHTTPRequestManager(HTTPRequestManager):
+
+	FakeHTTPConnectionClass=FakeHTTPConnection
+
+	def __init__(self):
+		HTTPRequestManager.__init__(self)
+		self.socketSelect=self.select
+		#self.SetLog(HTTP_LOG_ALL)
 		
+	def NewConnection(self,scheme,server,port):
+		if scheme=='http':
+			return self.FakeHTTPConnectionClass(self,server,port)
+		else:
+			raise ValueError
+
+	def select(self,readers,writers,errors,timeout):
+		r=[]
+		for reader in readers:
+			if reader.CanRead():
+				r.append(reader)
+		return r,writers,errors
+			
+			
 class HTTP2616Tests(unittest.TestCase):
 	def setUp(self):
 		self.cwd=os.getcwd()
@@ -425,4 +428,4 @@ class HTTP2616Tests(unittest.TestCase):
 			
 
 if __name__ == '__main__':
-	main()
+	unittest.main()
