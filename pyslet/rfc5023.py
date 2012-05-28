@@ -11,6 +11,8 @@ xml:base attribute [W3C.REC-xmlbase-20010627]
 xml:lang attribute [W3C.REC-xml-20040204], Section 2.12
 """
 
+import string
+
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 from pyslet import rfc4287 as atom
@@ -159,4 +161,8 @@ xmlns.MapClassElements(Document.classMap,globals())
 class Client(http.HTTPRequestManager):
 	def __init__(self):
 		http.HTTPRequestManager.__init__(self)
-				
+
+	def QueueRequest(self,request):
+		request.SetHeader('Accept',string.join((atom.ATOM_MIMETYPE,ATOMSVC_MIMETYPE,ATOMCAT_MIMETYPE),','),True)
+		http.HTTPRequestManager.QueueRequest(self,request)
+		

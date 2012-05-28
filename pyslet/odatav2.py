@@ -14,29 +14,22 @@ import pyslet.xsdatatypes20041028 as xsi
 
 class InvalidServiceDocument(Exception): pass
 class InvalidFeedDocument(Exception): pass
+class InvalidEntryDocument(Exception): pass
 class InvalidFeedURL(Exception): pass
+class UnexpectedHTTPResponse(Exception): pass
 
 
 ODATA_METADATA_NAMESPACE="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"
 ODATA_DATASERVICES_NAMESPACE="http://schemas.microsoft.com/ado/2007/08/dataservices"
+
+ODATA_RELATED="http://schemas.microsoft.com/ado/2007/08/dataservices/related/"
+ODATA_RELATED_TYPE="application/atom+xml;type=entry"
 
 class ODataElement(xmlns.XMLNSElement):
 	"""Base class for all OData specific elements."""
 	pass
 
 
-class Properties(ODataElement):
-	"""Represents the properties element."""
-	XMLNAME=(ODATA_METADATA_NAMESPACE,'properties')
-
-	def __init__(self,parent):
-		ODataElement.__init__(self,parent)
-		self.Property=[]
-
-	def GetChildren(self):
-		return self.Property+ODataElement.GetChildren(self)
-		
-		
 class Property(ODataElement):
 	"""Represents each property.
 	
@@ -69,16 +62,46 @@ class Property(ODataElement):
 		return value
 
 	def SetValue(self,value):
-		type=p.GetNSAttribute((ODATA_METADATA_NAMESPACE,'type'))
+		type=self.GetNSAttribute((ODATA_METADATA_NAMESPACE,'type'))
 		if type:
 			convert=self.Conversions.get(type,None)
 			if convert:
 				value=convert[1](value)
-		ODataElement.SetValue(value)
+		ODataElement.SetValue(self,value)
 
 			
+class Properties(ODataElement):
+	"""Represents the properties element."""
+	XMLNAME=(ODATA_METADATA_NAMESPACE,'properties')
+	
+	PropertyClass=Property
+	
+	def __init__(self,parent):
+		ODataElement.__init__(self,parent)
+		self.Property=[]
+
+	def GetChildren(self):
+		return self.Property+ODataElement.GetChildren(self)
+		
+		
+class Content(atom.Content):
+	"""Overrides the default :py:class:`pyslet.rfc4287.Content` class to add OData handling."""
+		
+	def __init__(self,parent):
+		atom.Content.__init__(self,parent)
+		self.type='application/xml'
+		self.Properties=None		#: the optional properties element
+
+	def GetChildren(self):
+		children=atom.Content.GetChildren(self)
+		xml.OptionalAppend(children,self.Properties)
+		return children
+
+	
 class Entry(atom.Entry):
 	"""Overrides the default :py:class:`pyslet.rfc4287.Entry` class to add OData handling."""
+	
+	ContentClass=Content
 	
 	def __init__(self,parent):
 		atom.Entry.__init__(self,parent)
@@ -89,25 +112,28 @@ class Entry(atom.Entry):
 		self._properties={}
 		if self.Content and self.Content.Properties:
 			for p in self.Content.Properties.Property:
-				self._properties[p.xmlname]=p.GetValue()
+				self._properties[p.xmlname]=(p,p.GetValue())
 			
 	def __getitem__(self,key):
-		return self._properties[key]
+		return self._properties[key][1]
+
+	def __setitem__(self,key,value):
+		if self._properties.has_key(key):
+			p=self._properties[key][0]
+		else:
+			ps=self.ChildElement(self.ContentClass).ChildElement(Properties)
+			p=ps.ChildElement(ps.PropertyClass,(ODATA_DATASERVICES_NAMESPACE,key))
+		p.SetValue(value)
+		self._properties[key]=(p,value)
+
+	def AddLink(self,linkTitle,linkURI):
+		l=self.ChildElement(self.LinkClass)
+		l.href=linkURI
+		l.rel=ODATA_RELATED+linkTitle
+		l.title=linkTitle
+		l.type=ODATA_RELATED_TYPE
 
 
-class Content(atom.Content):
-	"""Overrides the default :py:class:`pyslet.rfc4287.Content` class to add OData handling."""
-	
-	def __init__(self,parent):
-		atom.Content.__init__(self,parent)
-		self.Properties=None		#: the optional properties element
-
-	def GetChildren(self):
-		children=atom.Content.GetChildren(self)
-		xml.OptionalAppend(children,self.Properties)
-		return children
-
-	
 class Client(app.Client):
 	"""An OData client.
 	
@@ -116,7 +142,7 @@ class Client(app.Client):
 	
 	def __init__(self,serviceRoot=None):
 		app.Client.__init__(self)
-		self.SetLog(http.HTTP_LOG_INFO,sys.stdout)
+		self.SetLog(http.HTTP_LOG_ERROR,sys.stdout)
 		self.feeds=[]		#: a list of feeds associated with this client
 		self.feedTitles={}	#: a dictionary of feed titles, mapped to collection URLs
 		self.pageSize=None
@@ -172,7 +198,49 @@ class Client(app.Client):
 					break
 			else:
 				raise InvalidFeedDocument(str(feedURL))
-			skip=skip+page
+			if page:
+				skip=skip+page
+			else:
+				# check for 'next' link
+				feedURL=None
+				for link in doc.root.Link:
+					if link.rel=="next":
+						feedURL=link.ResolveURI(link.href)
+						break
+				if feedURL is None:
+					break
+						
+			
+	def AddEntry(self,feedURL,entry):
+		"""Given a feed URL, adds a :py:class:`pyslet.rfc4287.Entry` to it
+		
+		Returns the new entry as returned by the OData service."""
+		doc=Document(root=entry,reqManager=self)
+		req=http.HTTPRequest(str(feedURL),"POST",unicode(doc).encode('utf-8'))
+		mtype=http.HTTPMediaType()
+		mtype.SetMimeType(atom.ATOM_MIMETYPE)
+		mtype.parameters['charset']=('Charset','utf-8')
+		req.SetHeader("Content-Type",mtype)
+		self.ProcessRequest(req)
+		if req.status==201:
+			newDoc=Document()
+			e=xml.XMLEntity(req.response)
+			newDoc.ReadFromEntity(e)
+			if isinstance(newDoc.root,atom.Entry):
+				return newDoc.root
+			else:
+				raise InvalidEntryDocument(str(entryURL))
+		else:
+			raise UnexpectedHTTPResponse("%i %s"%(req.status,req.response.reason))	
+			
+	def RetrieveEntry(self,entryURL):
+		"""Given an entryURL URL, returns the :py:class:`pyslet.rfc4287.Entry` instance"""
+		doc=Document(baseURI=entryURL,reqManager=self)
+		doc.Read()
+		if isinstance(doc.root,atom.Entry):
+			return doc.root
+		else:
+			raise InvalidEntryDocument(str(entryURL))
 			
 	def _AddParams(self,baseURL,odataQuery=None):
 		if baseURL.query is None:
@@ -191,6 +259,12 @@ class Client(app.Client):
 		else:
 			return baseURL
 
+	def QueueRequest(self,request):
+		request.SetHeader('Accept','application/xml')
+		request.SetHeader('DataServiceVersion','2.0')
+		request.SetHeader('MaxDataServiceVersion','2.0')
+		app.Client.QueueRequest(self,request)
+
 
 class Document(app.Document):
 	"""Class for working with OData documents."""
@@ -198,6 +272,8 @@ class Document(app.Document):
 	
 	def __init__(self,**args):
 		app.Document.__init__(self,**args)
+		self.MakePrefix(ODATA_METADATA_NAMESPACE,'m')
+		self.MakePrefix(ODATA_DATASERVICES_NAMESPACE,'d')
 	
 	def GetElementClass(self,name):
 		"""Returns the OData, APP or Atom class used to represent name.

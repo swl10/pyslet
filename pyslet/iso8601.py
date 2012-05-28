@@ -1195,7 +1195,10 @@ class TimePoint:
 			self.SetOrigin()
 		else:
 			raise TypeError
-				
+	
+	def __str__(self):
+		return self.GetCalendarString()
+		
 	def SetOrigin (self):
 		self.date=Date()
 		self.time=Time()

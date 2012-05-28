@@ -204,6 +204,10 @@ class Document(Node):
 		If root is a class object (descended from Element) it is used
 		to create the root element of the document.
 		
+		If root is an orphan instance of Element (i.e., it has no parent) is is
+		used as the root element of the document and its
+		:py:meth:`Element.AttachToDocument` method is called.
+		
 		baseURI can be set on construction (see SetBase) and a reqManager object
 		can optionally be passed for managing and http(s) connections.
 		"""
@@ -220,9 +224,17 @@ class Document(Node):
 		self.root=None
 		"""The root element or None if no root element has been created yet."""
 		if root:
-			if not issubclass(root,Element):
+			if isinstance(root,Element):
+				# created from an instance
+				if root.parent:
+					raise ValueError("Element must be an orphan in Document constructor")
+				self.root=root
+				root.parent=self
+				self.root.AttachToDocument(self)
+			elif not issubclass(root,Element):
 				raise ValueError
-			self.root=root(self)
+			else:
+				self.root=root(self)
 		self.SetBase(baseURI)
 		self.idTable={}
 
@@ -360,6 +372,9 @@ class Document(Node):
 			# Read from this stream, ignore baseURI
 			if isinstance(src,XMLEntity):
 				self.ReadFromEntity(src)
+				if src.location is not None and self.baseURI is None:
+					# take our baseURI from the entity
+					self.baseURI=self.SetBase(src.location)
 			else:
 				self.ReadFromStream(src)
 		elif self.baseURI is None:
@@ -882,6 +897,16 @@ class Element(Node):
 	def GetXMLName(self):
 		return self.xmlname
 	
+	def Reset(self,resetAttributes=False):
+		"""Clears all attributes and (optional) children."""
+		if resetAttributes:
+			self._attrs={}
+		for child in self._children:
+			if isinstance(child,Element):
+				child.DetachFromDocument()
+				child.parent=None
+		self._children=[]
+		
 	def GetDocument(self):
 		"""Returns the document that contains the element.
 		
@@ -1396,13 +1421,7 @@ class Element(Node):
 		If *value* is None then the element becomes empty."""
 		if not self.IsMixed():
 			raise XMLMixedContentError
-		children=self.GetChildren()
-		if len(children)!=len(self._children):
-			raise UnimplementedError
-		for child in children:
-			if isinstance(child,Element):
-				child.DetachFromDocument()
-				child.parent=None
+		self.Reset(False)
 		if value is None:
 			self._children=[]
 		else:
@@ -2180,6 +2199,8 @@ class XMLEntity:
 			self.OpenUnicode(src)
 		elif isinstance(src,URI):
 			self.OpenURI(src,encoding,reqManager)
+		elif isinstance(src,http.HTTPResponse):
+			self.OpenHTTPResponse(src,encoding)
 		elif type(src) is StringType:
 			self.OpenString(src,encoding)
 		elif not src is None:
@@ -2275,9 +2296,9 @@ class XMLEntity:
 		The optional *reqManager* allows you to pass an existing instance of
 		:py:class:`pyslet.rfc2616.HTTPRequestManager` for handling URI with
 		http or https schemes."""
-		self.encoding=encoding
 		self.location=src
 		if isinstance(src,FileURL):
+			self.encoding=encoding
 			self.OpenFile(open(src.GetPathname(),'rb'),self.encoding)
 		elif src.scheme.lower() in ['http','https']:
 			if reqManager is None:
@@ -2285,6 +2306,7 @@ class XMLEntity:
 			req=http.HTTPRequest(str(src))
 			reqManager.ProcessRequest(req)
 			if req.status==200:
+				self.OpenHTTPResponse(req.response,encoding)
 				mtype=req.response.GetContentType()
 				if mtype is None:
 					# We'll attempt to do this with xml and utf8
@@ -2301,10 +2323,36 @@ class XMLEntity:
 				#print "...reading %s stream with charset=%s"%(self.mimetype,self.encoding)
 				self.OpenFile(StringIO(req.resBody),self.encoding)
 			else:
-				raise XMLUnexpectedHTTPResponse(str(req.status))
+				raise XMLUnexpectedHTTPResponse(str(req.status)+" "+str(req.reason))
 		else:
 			raise XMLUnsupportedScheme			
 		
+	def OpenHTTPResponse(self,src,encoding='utf-8'):
+		"""Opens the entity from an HTTP response passed in *src*.
+		
+		The optional *encoding* provides a hint as to the intended encoding of
+		the data and defaults to UTF-8.  This parameter is only used if the
+		charset cannot be read successfully from the HTTP response headers."""
+		self.encoding=encoding
+		newLocation=src.GetHeader("Location")
+		if newLocation:
+			self.location=URIFactory.URI(newLocation.strip())
+		mtype=src.GetContentType()
+		if mtype is None:
+			# We'll attempt to do this with xml and utf8
+			charset='utf8'
+			raise UnimplementedError
+		else:
+			self.mimetype=mtype.type.lower()+'/'+mtype.subtype.lower()
+			respEncoding=mtype.parameters.get('charset',None)
+			if respEncoding is None and mtype.type.lower()=='text':
+				# Text types default to iso-8859-1
+				respEncoding=('text-default',"iso-8859-1")
+			if respEncoding is not None:
+				self.encoding=respEncoding[1].lower()
+		#print "...reading %s stream with charset=%s"%(self.mimetype,self.encoding)
+		self.OpenFile(StringIO(src.request.resBody),self.encoding)
+
 	def Reset(self):
 		"""Resets an open entity, causing it to return to the first character in the entity."""
 		if self.charSource is None:

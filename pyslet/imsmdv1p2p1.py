@@ -31,6 +31,7 @@ class LRMElement(xmlns.XMLNSElement):
 
 class LangString(LRMElement):
 	XMLNAME=(IMSLRM_NAMESPACE,'langstring')
+	
 	def __init__(self,parent,value=None):
 		LRMElement.__init__(self,parent)
 		if value is not None:
@@ -82,7 +83,7 @@ class LRMSource(LRMElement):
 	
 	def __init__(self,parent):
 		LRMElement.__init__(self,parent)
-		self.LangString=self.ChildElement(self.LangStringClass)
+		self.LangString=self.LangStringClass(self)
 	
 	def GetChildren(self):
 		return [self.LangString]
@@ -95,7 +96,7 @@ class LRMValue(LRMElement):
 
 	def __init__(self,parent):
 		LRMElement.__init__(self,parent)
-		self.LangString=LangString(self)
+		self.LangString=self.LangStringClass(self)
 	
 	def GetChildren(self):
 		return [self.LangString]
@@ -107,8 +108,8 @@ class LRMSourceValue(LRMElement):
 	
 	def __init__(self,parent):
 		LRMElement.__init__(self,parent)
-		self.LRMSource=self.ChildElement(self.LRMSourceClass)
-		self.LRMValue=self.ChildElement(self.LRMValueClass)
+		self.LRMSource=self.LRMSourceClass(self)
+		self.LRMValue=self.LRMValueClass(self)
 	
 	def GetChildren(self):
 		return [self.LRMSource,self.LRMValue]

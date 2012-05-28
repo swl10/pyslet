@@ -1206,6 +1206,7 @@ class XMLParser:
 			self.element=self.doc.ChildElement(elementClass,elementName)
 		else:
 			self.element=self.element.ChildElement(elementClass,elementName)
+		self.element.Reset()
 		if self.sgmlContent and getattr(elementClass,'XMLCONTENT',XMLMixedContent)==XMLEmpty:
 			empty=True
 		for attr in attrs.keys():

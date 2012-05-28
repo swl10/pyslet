@@ -181,13 +181,13 @@ class Date(AtomElement):
 		8601 in accordance with the requirements of the Atom specification."""
 		if isinstance(value,iso8601.TimePoint):
 			self.date=value
-			AtomElement.SetValue(value.GetCalendarString())
+			AtomElement.SetValue(self,value.GetCalendarString())
 		else:
 			AtomElement.SetValue(self,value)
 			self.ContentChanged()
 		
 	def ContentChanged(self):
-		"""Re-reads the value of the element and sets :py:attr:`date` accordingly.""" 
+		"""Re-reads the value of the element and sets :py:attr:`date` accordingly."""
 		self.date.SetFromString(AtomElement.GetValue(self))
 
 
@@ -428,9 +428,18 @@ class Feed(Source):
 	This is the document (i.e., top-level) element of an Atom Feed Document,
 	acting as a container for metadata and data associated with the feed"""
 	XMLNAME=(ATOM_NAMESPACE,'feed')
+	AtomIdClass=AtomId
+	TitleClass=Title
+	UpdatedClass=Updated
 	
 	def __init__(self,parent):
 		Source.__init__(self,parent)
+		self.AtomId=self.AtomIdClass(self)
+		self.Title=self.TitleClass(self)
+		self.Updated=self.UpdatedClass(self)
+		now=iso8601.TimePoint()
+		now.NowUTC()
+		self.Updated.SetValue(now)
 		self.Entry=[]		#: atomEntry
 
 	def GetChildren(self):
@@ -441,9 +450,19 @@ class Feed(Source):
 class Entry(Entity):
 	"""An individual entry, acting as a container for metadata and data associated with the entry."""
 	XMLNAME=(ATOM_NAMESPACE,'entry')
-
+	AtomIdClass=AtomId
+	TitleClass=Title
+	UpdatedClass=Updated
+	LinkClass=Link
+	
 	def __init__(self,parent):
 		Entity.__init__(self,parent)
+		self.AtomId=self.AtomIdClass(self)
+		self.Title=self.TitleClass(self)
+		self.Updated=self.UpdatedClass(self)
+		now=iso8601.TimePoint()
+		now.NowUTC()
+		self.Updated.SetValue(now)
 		self.Content=None
 		self.Published=None
 		self.Source=None

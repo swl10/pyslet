@@ -35,6 +35,13 @@ class HTTPMediaType:
 		self.type=self.subtype=None
 		self.parameters={}
 
+	def SetMimeType(self,mtype):
+		split=mtype.strip().split('/')
+		if len(split)!=2:
+			raise ValueError("Invalid mime type: "+mtype)
+		self.type=split[0].lower().strip()
+		self.subtype=split[1].lower().strip()
+		
 	def __str__(self):
 		format=[self.type,'/',self.subtype]
 		for p in self.parameters.keys():
@@ -329,6 +336,16 @@ class HTTPRequestManager:
 		self.ManagerLoop(timeout)
 		
 	def QueueRequest(self,request):
+		"""Commits a request to the queue for processing.
+		
+		The default implementation adds a User-Agent header from
+		:py:attr:`httpUserAgent` if not None.  You can override this method to
+		add other headers appropriate for a specific context prior to passing on
+		to this call.
+
+		The request is added to the internal request queue and the request is
+		notified that is being actively managed through a call to
+		:py:meth:`HTTPRequest.SetManager`."""
 		if self.httpUserAgent:
 			request.SetHeader('User-Agent',self.httpUserAgent)
 		self.requestQueue.append(request)

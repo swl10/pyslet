@@ -3,15 +3,23 @@
 import unittest
 
 def suite():
+	loader=unittest.TestLoader()
+	loader.testMethodPrefix='test'
 	return unittest.TestSuite((
-		unittest.makeSuite(ODataTests,'test'),
-		unittest.makeSuite(ClientTests,'test')
+		loader.loadTestsFromTestCase(ODataTests),
+		loader.loadTestsFromTestCase(ClientTests)
 		))
 
+def load_tests(loader, tests, pattern):
+	return suite()
+	
 from pyslet.odatav2 import *
 import pyslet.rfc5023 as app
+import pyslet.rfc4287 as atom
+import pyslet.iso8601 as iso
 
 ODATA_SAMPLE_SERVICEROOT="http://services.odata.org/OData/OData.svc"
+ODATA_SAMPLE_READWRITE="http://services.odata.org/(S(readwrite))/OData/OData.svc/"
 
 class ODataTests(unittest.TestCase):
 	def testCaseConstants(self):
@@ -80,6 +88,43 @@ class ClientTests(unittest.TestCase):
 		self.failUnless(e['Price']==2.5,"Price property")
 		self.failUnless(isinstance(e['ReleaseDate'],iso.TimePoint),"ReleaseDate type")
 		self.failUnless(e['ReleaseDate'].date.century==19 and e['ReleaseDate'].date.year==92,"ReleaseDate year")		
+		self.failUnless(e['DiscontinuedDate'] is None,"DiscontinuedDate NULL test")		
+		for link in e.Link:
+			if link.title=="Category":
+				eCat=c.RetrieveEntry(link.ResolveURI(link.href))
+				
+	def testCaseReadWrite(self):
+		c=Client(ODATA_SAMPLE_READWRITE)
+		fURL=c.feedTitles['Categories']
+		entries=c.RetrieveEntries(fURL)
+		catID=None
+		for e in entries:
+			if e.Title.GetValue()=='Electronics':
+				catID=e.AtomId.GetValue()		
+		fURL=c.feedTitles['Products']
+		e=Entry(None)
+		now=iso.TimePoint()
+		now.NowUTC()
+		e.Title.SetValue("Pyslet Python Package")
+		e.ChildElement(atom.Summary).SetValue("Python package for Standards in Learning, Education and Training")
+		e['ID']=100
+		e['ReleaseDate']=now.GetCalendarString()
+		e['Rating']=5
+		e['Price']=0.0
+		if catID is not None:
+			# Link this to Electronics
+			e.AddLink('Category',catID)
+		eResult=c.AddEntry(fURL,e)
+		self.failUnless(isinstance(eResult,Entry),"OData entry type POST result")
+		self.failUnless(eResult['Rating']==5,"Rating property on POST")
+		self.failUnless(eResult['Price']==0.0,"Price property on POST")
+		self.failUnless(isinstance(eResult['ReleaseDate'],iso.TimePoint),"ReleaseDate type on POST: %s"%repr(eResult['ReleaseDate']))
+		self.failUnless(eResult['ReleaseDate']==now,"ReleaseDate match on POST")		
+		self.failUnless(eResult['DiscontinuedDate'] is None,"DiscontinuedDate NULL test on POST")
+		for link in eResult.Link:
+			if link.title=="Category":
+				eCat=c.RetrieveEntry(link.ResolveURI(link.href))
+				self.failUnless(eCat['Name']=='Electronics')
 		
 		
 if __name__ == "__main__":
