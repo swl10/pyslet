@@ -2323,7 +2323,7 @@ class XMLEntity:
 				#print "...reading %s stream with charset=%s"%(self.mimetype,self.encoding)
 				self.OpenFile(StringIO(req.resBody),self.encoding)
 			else:
-				raise XMLUnexpectedHTTPResponse(str(req.status)+" "+str(req.reason))
+				raise XMLUnexpectedHTTPResponse(str(req.status)+" "+str(req.response.reason))
 		else:
 			raise XMLUnsupportedScheme			
 		
