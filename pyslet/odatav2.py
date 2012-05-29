@@ -19,8 +19,8 @@ class InvalidFeedURL(Exception): pass
 class UnexpectedHTTPResponse(Exception): pass
 
 
-ODATA_METADATA_NAMESPACE="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"
-ODATA_DATASERVICES_NAMESPACE="http://schemas.microsoft.com/ado/2007/08/dataservices"
+ODATA_METADATA_NAMESPACE="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"	#: namespace for metadata, e.g., the property type attribute
+ODATA_DATASERVICES_NAMESPACE="http://schemas.microsoft.com/ado/2007/08/dataservices"		#: namespace for auto-generated elements, e.g., :py:class:`Property`
 
 ODATA_RELATED="http://schemas.microsoft.com/ado/2007/08/dataservices/related/"
 ODATA_RELATED_TYPE="application/atom+xml;type=entry"
@@ -62,6 +62,12 @@ class Property(ODataElement):
 		return value
 
 	def SetValue(self,value):
+		"""Sets the value of the property using the conversion indicated by the type attribute, if present
+		
+		When creating new entries you won't necessarily know the require type,
+		in which case the value is simply converted to a string using the
+		default string conversion method defined by the python object in
+		question."""
 		type=self.GetNSAttribute((ODATA_METADATA_NAMESPACE,'type'))
 		if type:
 			convert=self.Conversions.get(type,None)
@@ -90,7 +96,7 @@ class Content(atom.Content):
 	def __init__(self,parent):
 		atom.Content.__init__(self,parent)
 		self.type='application/xml'
-		self.Properties=None		#: the optional properties element
+		self.Properties=None		#: the optional properties element containing the entry's property values
 
 	def GetChildren(self):
 		children=atom.Content.GetChildren(self)
@@ -115,9 +121,20 @@ class Entry(atom.Entry):
 				self._properties[p.xmlname]=(p,p.GetValue())
 			
 	def __getitem__(self,key):
+		"""Enables :py:class:`Entry` to be suffixed with, e.g., ['PropertyName'] to read property values.
+		
+		Returns the value of the property with *key*.  The type of the value
+		will be the type specified by the type attribute on the property."""
 		return self._properties[key][1]
 
 	def __setitem__(self,key,value):
+		"""Enables :py:class:`Entry` to be suffixed with, e.g., ['PropertyName'] to set property values.
+		
+		Sets the property *key* to *value*.  The type of value should be
+		compatible with the type expected by the :py:class:`Property` type (as
+		indicated by the type attribute).  When setting new properties *value*
+		the type is not specified and is treated as text - see
+		:py:meth:`Property.SetValue` for more information."""
 		if self._properties.has_key(key):
 			p=self._properties[key][0]
 		else:
@@ -127,6 +144,7 @@ class Entry(atom.Entry):
 		self._properties[key]=(p,value)
 
 	def AddLink(self,linkTitle,linkURI):
+		"""Adds a link with name *linkTitle* to the entry with *linkURI*."""
 		l=self.ChildElement(self.LinkClass)
 		l.href=linkURI
 		l.rel=ODATA_RELATED+linkTitle
@@ -145,7 +163,7 @@ class Client(app.Client):
 		self.SetLog(http.HTTP_LOG_ERROR,sys.stdout)
 		self.feeds=[]		#: a list of feeds associated with this client
 		self.feedTitles={}	#: a dictionary of feed titles, mapped to collection URLs
-		self.pageSize=None
+		self.pageSize=None	#: an optional integer restricting the numebr of entries to return in each OData call
 		"""the default number of entries to retrieve with each request
 		
 		None indicates no restriction, request all entries."""		
@@ -176,7 +194,15 @@ class Client(app.Client):
 			raise InvalidFeedDocument(str(feedURL))
 	
 	def RetrieveEntries(self,feedURL,odataQuery=None):
-		"""Given a feed URL, returns an iterable yielding :py:class:`pyslet.rfc4287.Entry` instances."""
+		"""Given a feed URL, returns an iterable yielding :py:class:`Entry` instances.
+		
+		This method uses the :py:attr:`pageSize` attribute to set the paging of
+		the data.  (The source may restrict the number of return values too). 
+		It hides the details required to iterate through the entire list of
+		entries with the caveat that there is no guarantee that the results will
+		be consistent.  If the data source is being updated or reconfigured it
+		is possible that the some entries may be skipped or duplicated as a result
+		of being returned by different HTTP requests."""
 		if self.pageSize:
 			skip=0
 			page=self.pageSize
@@ -212,9 +238,10 @@ class Client(app.Client):
 						
 			
 	def AddEntry(self,feedURL,entry):
-		"""Given a feed URL, adds a :py:class:`pyslet.rfc4287.Entry` to it
+		"""Given a feed URL, adds an :py:class:`Entry` to it
 		
-		Returns the new entry as returned by the OData service."""
+		Returns the new entry as returned by the OData service.  *entry* must be
+		an orphan element."""
 		doc=Document(root=entry,reqManager=self)
 		req=http.HTTPRequest(str(feedURL),"POST",unicode(doc).encode('utf-8'))
 		mtype=http.HTTPMediaType()
@@ -234,7 +261,7 @@ class Client(app.Client):
 			raise UnexpectedHTTPResponse("%i %s"%(req.status,req.response.reason))	
 			
 	def RetrieveEntry(self,entryURL):
-		"""Given an entryURL URL, returns the :py:class:`pyslet.rfc4287.Entry` instance"""
+		"""Given an entryURL URL, returns the :py:class:`Entry` instance"""
 		doc=Document(baseURI=entryURL,reqManager=self)
 		doc.Read()
 		if isinstance(doc.root,atom.Entry):

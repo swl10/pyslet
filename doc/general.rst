@@ -8,7 +8,8 @@ Contents:
 
 .. toctree::
    :maxdepth: 2
-   
+
+   odatav2
    rfc4287
    rfc5023
    xml20081126
