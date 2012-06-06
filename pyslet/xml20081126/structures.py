@@ -2163,7 +2163,7 @@ class XMLAttributeDefinition:
 
 
 class XMLEntity:
-	def __init__(self,src=None,encoding='utf-8',reqManager=None):
+	def __init__(self,src=None,encoding=None,reqManager=None):
 		"""An object representing an entity.
 		
 		This object serves two purposes, it acts as both the object used to
@@ -2265,6 +2265,8 @@ class XMLEntity:
 		unicode reader object to parse the string instead of making a copy of it
 		in memory."""
 		self.encoding=encoding
+		if self.encoding is None:
+			self.encoding='utf-8'
 		self.dataSource=StringIO(src)
 		self.chunk=1
 		self.charSource=codecs.getreader(self.encoding)(self.dataSource)
@@ -2277,13 +2279,15 @@ class XMLEntity:
 		The optional *encoding* provides a hint as to the intended encoding of
 		the data and defaults to UTF-8."""
 		self.encoding=encoding
+		if self.encoding is None:
+			self.encoding='utf-8'
 		self.dataSource=src
 		self.chunk=1
 		self.charSource=codecs.getreader(self.encoding)(self.dataSource)
 		self.basePos=self.charSource.tell()
 		self.Reset()
 				
-	def OpenURI(self,src,encoding='utf-8',reqManager=None):
+	def OpenURI(self,src,encoding=None,reqManager=None):
 		"""Opens the entity from a URI passed in *src*.
 		
 		The file, http and https schemes are the only ones supported.
@@ -2298,8 +2302,12 @@ class XMLEntity:
 		http or https schemes."""
 		self.location=src
 		if isinstance(src,FileURL):
-			self.encoding=encoding
-			self.OpenFile(open(src.GetPathname(),'rb'),self.encoding)
+			# Given that we know we have a file we can use some auto-detection
+			# logic to discover the correct encoding
+			srcFile=open(src.GetPathname(),'rb')
+			if self.encoding is None:
+				self.AutoDetectEncoding(srcFile)
+			self.OpenFile(srcFile,self.encoding)
 		elif src.scheme.lower() in ['http','https']:
 			if reqManager is None:
 				reqManager=http.HTTPRequestManager()
@@ -2321,7 +2329,10 @@ class XMLEntity:
 					if respEncoding is not None:
 						self.encoding=respEncoding[1].lower()
 				#print "...reading %s stream with charset=%s"%(self.mimetype,self.encoding)
-				self.OpenFile(StringIO(req.resBody),self.encoding)
+				srcFile=StringIO(req.resBody)
+				if self.encoding is None:
+					self.AutoDetectEncoding(srcFile)
+				self.OpenFile(srcFile,self.encoding)
 			else:
 				raise XMLUnexpectedHTTPResponse(str(req.status)+" "+str(req.response.reason))
 		else:
@@ -2410,7 +2421,41 @@ class XMLEntity:
 					self.NextLine()
 			else:
 				self.ignoreLF=False
-				
+
+	MagicTable={
+		'\x00\x00\xfe\xff':('utf_32_be',4),		# UCS-4, big-endian machine (1234 order)
+		'\xff\xfe\x00\x00':('utf_32_le',4),		# UCS-4, little-endian machine (4321 order)
+		'\x00\x00\xff\xfe':('utf_32',4),		# UCS-4, unusual octet order (2143)
+		'\xfe\xff\x00\x00':('utf_32',4),		# UCS-4, unusual octet order (3412)
+		'\xfe\xff':('utf_16_be',2),				# UTF-16, big-endian
+		'\xff\xfe':('utf_16_le',2),				# UTF-16, little-endian
+		'\xef\xbb\xbf':('utf-8',3),				# UTF-8 with byte order mark
+		'\x00\x00\x00\x3c':('utf_32_be',0),		# UCS-4 or other encoding with a big-endian 32-bit code unit
+		'\x3c\x00\x00\x00':('utf_32_le',0),		# UCS-4 or other encoding with a little-endian 32-bit code unit
+		'\x00\x00\x3c\x00':('utf_32_le',0),		# UCS-4 or other encoding with an unusual 32-bit code unit
+		'\x00\x3c\x00\x00':('utf_32_le',0),		# UCS-4 or other encoding with an unusual 32-bit code unit		
+		'\x00\x3c\x00\x3f':('utf_16_be',0),		# UTF-16BE or big-endian ISO-10646-UCS-2 or other encoding with a 16-bit code unit
+		'\x3c\x00\x3f\x00':('utf_16_le',0),		# UTF-16LE or little-endian ISO-10646-UCS-2 or other encoding with a 16-bit code unit
+		'\3c\x3f\x78\x6D':('utf_8',0),			# UTF-8, ISO 646, ASCII or similar
+		'\4c\x6f\xa7\x94':('cp500',0)			# EBCDIC (in some flavor)
+		}
+					
+	def AutoDetectEncoding(self,srcFile):
+		"""Auto-detects the character encoding in *srcFile*.
+		
+		Should only be called for seek-able streams opened in binary mode."""
+		srcFile.seek(0)
+		magic=srcFile.read(4)
+		while len(magic)<4:
+			magic=magic+'Q'
+		if magic[:2]=='\xff\xfe' or magic[:2]=='\xfe\xff':
+			if magic[2:]!='\x00\x00':
+				magic=magic[:2]
+		elif magic[:3]=='\xef\xbb\xbf':
+			magic=mage[:3]
+		self.encoding,seekPos=self.MagicTable.get(magic,('utf-8',0))
+		srcFile.seek(seekPos)
+						
 	def ChangeEncoding(self,encoding):
 		"""Changes the encoding used to interpret the entity's stream.
 		

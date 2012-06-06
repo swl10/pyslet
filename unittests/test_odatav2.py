@@ -4,10 +4,11 @@ import unittest
 
 def suite():
 	loader=unittest.TestLoader()
-	loader.testMethodPrefix='test'
+	loader.testMethodPrefix='new'
 	return unittest.TestSuite((
 		loader.loadTestsFromTestCase(ODataTests),
-		loader.loadTestsFromTestCase(ClientTests)
+		loader.loadTestsFromTestCase(ClientTests),
+		loader.loadTestsFromTestCase(ServerTests)		
 		))
 
 def load_tests(loader, tests, pattern):
@@ -125,7 +126,24 @@ class ClientTests(unittest.TestCase):
 			if link.title=="Category":
 				eCat=c.RetrieveEntry(link.ResolveURI(link.href))
 				self.failUnless(eCat['Name']=='Electronics')
+
+
+class ServerTests(unittest.TestCase):
+	def newCaseConstructor(self):
+		s=Server()
+		self.failUnless(s.basePath=='/',"Default constructor, base root")
+		svc=s.GetService()
+		self.failUnless(isinstance(svc,app.Service),"Service not an instance of app.Service")
+		self.failUnless(len(svc.Workspace)==1,"Service not returning a single Workspace child")
+		self.failUnless(svc.Workspace[0].Title.GetValue()=="Default","Service not returning a single Workspace child")		
+		self.failUnless(len(svc.Workspace[0].Collection)==0,"Workspace not empty.")
+		# feed=s.GetFeed('Test')
+		# self.failUnless(feed is None,"Missing feed")
 		
+	def newCaseWorkspace(self):
+		s=Server()
+		
+	
 		
 if __name__ == "__main__":
 	unittest.main()

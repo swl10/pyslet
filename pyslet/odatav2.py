@@ -163,7 +163,7 @@ class Client(app.Client):
 		self.SetLog(http.HTTP_LOG_ERROR,sys.stdout)
 		self.feeds=[]		#: a list of feeds associated with this client
 		self.feedTitles={}	#: a dictionary of feed titles, mapped to collection URLs
-		self.pageSize=None	#: an optional integer restricting the numebr of entries to return in each OData call
+		self.pageSize=None
 		"""the default number of entries to retrieve with each request
 		
 		None indicates no restriction, request all entries."""		
@@ -293,6 +293,17 @@ class Client(app.Client):
 		app.Client.QueueRequest(self,request)
 
 
+class Server:
+	def __init__(self):
+		self.basePath='/'
+
+	def GetService(self):
+		svc=app.Service(None)
+		ws=svc.ChildElement(app.Workspace)
+		ws.ChildElement(atom.Title).SetValue("Default")
+		return svc
+
+	
 class Document(app.Document):
 	"""Class for working with OData documents."""
 	classMap={}

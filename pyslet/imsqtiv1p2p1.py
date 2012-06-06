@@ -8,6 +8,7 @@ import pyslet.imsmdv1p2p1 as imsmd
 import pyslet.html40_19991224 as html
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.rfc2396 as uri
+import pyslet.rfc2616 as http
 
 import string, codecs
 import os.path
@@ -981,7 +982,14 @@ class QTIMaterial(QTICommentElement,QTIContentMixin):
 		self.contentChildren.append(child)
 		return child
 		
+	def ContentChanged(self):
+		if self.label:
+			doc=self.GetDocument()
+			if doc:
+				doc.RegisterMaterial(self)
+		QTICommentElement.ContentChanged(self)
 
+		
 class QTIMatThingMixin(QTIContentMixin):
 	"""An abstract class used to help identify the mat* elements."""
 	pass
@@ -1036,7 +1044,10 @@ class QTIMatText(QTIElement,QTIPositionMixin,QTIMatThingMixin):
 			if self.uri:
 				# The content is external, load it up
 				uri=self.ResolveURI(self.uri)
-				e=xml.XMLEntity(uri)
+				try:
+					e=xml.XMLEntity(uri)
+				except http.HTTP2616Exception,e:
+					e=xml.XMLEntity(unicode(e))
 			else:
 				uri=self.ResolveBase()
 				try:
@@ -1382,12 +1393,14 @@ class QTIMatRef(QTIMatThingMixin,QTIElement):
 		QTIMatThingMixin.__init__(self)
 
 	def FindMatThing(self):
+		matThing=None
 		doc=self.GetDocument()
 		if doc:
-			return doc.FindMatThing(self.linkRefID)
-		else:
+			matThing=doc.FindMatThing(self.linkRefID)
+		if matThing is None:
 			raise QTIError("Bad matref: %s"%str(self.linkRefID))
-
+		return matThing
+		
 	def IsInline(self):
 		return self.FindMatThing().IsInline()
 	
@@ -5048,8 +5061,43 @@ class QTIDocument(xml.Document):
 			del self.matThings[matThing.label]			
 	
 	def FindMatThing(self,linkRefID):
-		return self.matThings.get(linkRefID,None)
+		"""Returns the mat<thing> element with label matching the *linkRefID*.
+		
+		The specification says that material_ref should be used if you want to
+		refer a material object, not matref, however this rule is not
+		universally observed so if we don't find a basic mat<thing> we will
+		search the material objects too and return a :py:class:`QTIMaterial`
+		instance instead."""
+		matThing=self.matThings.get(linkRefID,None)
+		if matThing is None:
+			matThing=self.material.get(linkRefID,None)
+		return matThing
 	
+	def RegisterMaterial(self,material):
+		"""Registers a QTIMaterial instance in the dictionary of labelled material objects."""
+		if material.label is not None:
+			self.material[material.label]=material
+	
+	def UnregisterMaterial(self,material):
+		if material.label is not None and material is self.material.get(material.label,None):
+			del self.material[material.label]			
+	
+	def FindMaterial(self,linkRefID):
+		"""Returns the material element with label matching *linkRefID*.
+		
+		Like :py:meth:`FindMatThing` this method will search for instances of
+		:py:class:`QTIMatThingMixin` if it can't find a :py:class:`QTIMaterial`
+		element to match.  The specification is supposed to be strict about
+		matching the two types of reference but errors are common, even in the
+		official example set."""
+		material=self.material.get(linkRefID,None)
+		if material is None:
+			# We could this all in one line but in the future we might want
+			# break out a stricter parsing mode here to help validate the
+			# QTI v1 content.
+			material=self.matThings.get(linkRefID,None)
+		return material
+
 	def MigrateV2(self,cp):
 		"""Converts the contents of this document to QTI v2
 		

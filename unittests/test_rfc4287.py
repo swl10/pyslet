@@ -242,7 +242,7 @@ class FeedTests(unittest.TestCase):
 		link=feed.Link[0]
 		self.failUnless(isinstance(link,Link) and link.href=="http://example.org/","Example 1 link")
 		updated=feed.Updated
-		self.failUnless(isinstance(updated,Date) and updated.GetValue()=="2003-12-13T18:30:02Z","Example 1 updated: found %s"%updated.GetValue())
+		self.failUnless(isinstance(updated.GetValue(),iso8601.TimePoint) and updated.GetValue()=="2003-12-13T18:30:02Z","Example 1 updated: found %s"%updated.GetValue())
 		author=feed.Author[0]
 		self.failUnless(isinstance(author,Person) and author.Name.GetValue()=="John Doe","Example 1 author")
 		self.failUnless(isinstance(feed.AtomId,AtomId) and feed.AtomId.GetValue()=="urn:uuid:60a76c80-d399-11d9-b93C-0003939e0af6",

@@ -20,6 +20,7 @@ import test_rfc2616
 import test_rfc2617
 import test_rfc4287
 import test_rfc5023
+import test_rtf_1p6
 import test_unicode5
 import test_xml20081126
 import test_xmlnames20091208

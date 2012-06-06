@@ -722,17 +722,21 @@ class HTTPConnection:
 		self.socketFile=None
 		self.socketSelect=select.select
 		self.manager.Log(HTTP_LOG_DETAIL,"Looking up %s"%self.host)
-		for target in socket.getaddrinfo(self.host, self.port, 0, socket.SOCK_STREAM):
-			family, socktype, protocol, canonname, address = target
-			try:
-				self.socket=socket.socket(family, socktype, protocol)
-				self.socket.connect(address)
-			except socket.error, msg:
-				if self.socket:
-					self.socket.close()
-					self.socket=None
-				continue
-			break
+		try:
+			for target in socket.getaddrinfo(self.host, self.port, 0, socket.SOCK_STREAM):
+				family, socktype, protocol, canonname, address = target
+				try:
+					self.socket=socket.socket(family, socktype, protocol)
+					self.socket.connect(address)
+				except socket.error, msg:
+					if self.socket:
+						self.socket.close()
+						self.socket=None
+					continue
+				break
+		except socket.gaierror,e:
+			self.socket=None
+			raise HTTP2616Exception("failed to connect to %s (%s)"%(self.host,e[1]))
 		if not self.socket:
 			raise HTTP2616Exception("failed to connect to %s"%self.host)
 		else:

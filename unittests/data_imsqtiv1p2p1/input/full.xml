@@ -65,7 +65,13 @@
                             </response_label>
                             <response_label ident="R1B" rshuffle="No">
                                 <material>
-                                    <mattext texttype="text/plain">Plain text choice</mattext>                                    
+                                    <mattext texttype="text/plain" label="textChoice">Plain text choice</mattext>                                    
+                                </material>
+                            </response_label>
+                            <response_label ident="R1C" rshuffle="No">
+                                <material>
+                                    <mattext texttype="text/plain">Another... </mattext>
+                                    <matref linkrefid="textChoice"/>
                                 </material>
                             </response_label>
                         </flow_label>

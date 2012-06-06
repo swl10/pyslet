@@ -30,7 +30,8 @@
                 <simpleChoice identifier="R1A" fixed="false">
                     <p>Paragraph choice</p>
                 </simpleChoice>
-                <simpleChoice identifier="R1B" fixed="true">Plain text choice</simpleChoice>
+                <simpleChoice identifier="R1B" fixed="true"><span label="textChoice">Plain text choice</span></simpleChoice>
+                <simpleChoice identifier="R1C" fixed="true">Another... <span label="textChoice">Plain text choice</span></simpleChoice>
             </choiceInteraction>
         </div>
     </itemBody>
