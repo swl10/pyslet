@@ -657,7 +657,10 @@ class ContentPackage:
 		The file is copied to the same directory as the resource's entry point
 		or to the main package directory if the resource has no entry point.
 		
-		The :py:class:`File` object is actually created with the :py:meth:`File` method."""
+		The :py:class:`File` object is actually created with the :py:meth:`File` method.
+		
+		Note that if srcURL points to a missing file then no file is copied to the package but the
+		associated :py:class:`File` is still created.  It will point to a missing file."""
 		srcPath=srcURL.GetPathname()
 		# We need to create a new file object
 		fStart=resource.GetEntryPoint()
@@ -679,8 +682,9 @@ class ContentPackage:
 		f=self.File(resource,href)
 		dName,fName=os.path.split(newSrcPath)
 		if not os.path.isdir(dName):
-			os.makedirs(dName)		
-		shutil.copy(srcPath,newSrcPath)
+			os.makedirs(dName)
+		if os.path.isfile(srcPath):
+			shutil.copy(srcPath,newSrcPath)
 		return f
 
 	

@@ -45,8 +45,9 @@ class XMLParser:
 		by the numbered productions in the XML specification.
 
 		XMLParser has a number of optional attributes, all of which default to
-		False. If any option is set to True then the resulting parser will not
-		behave as a conforming XML processor."""
+		False. Attributes with names started 'check' increase the strictness of
+		the parser.  All other parser flags, if set to True, will not result in
+		a conforming XML processor."""
 		self.checkValidity=False
 		"""checks XML validity constraints
 		
@@ -59,8 +60,12 @@ class XMLParser:
 		"""A list of non-fatal errors discovered during parsing, only populated if :py:attr:`checkValidity` is True."""
 		self.checkCompatibility=False
 		"""checks XML compatibility constraints; will cause :py:attr:`checkValidity` to be set to True when parsing."""
+		self.checkAllErrors=False
+		"""checks all constraints; will cause :py:attr:`checkValidity` and
+		:py:attr:`checkCompatibility` to be set to True when parsing."""
 		self.raiseValidityErrors=False		#: treats validity errors as fatal errors
 		self.dontCheckWellFormedness=False	#: provides a loose parser for XML-like documents
+		self.unicodeCompatibility=False		#: See http://www.w3.org/TR/unicode-xml/
 		self.sgmlNamecaseGeneral=False		#: option that simulates SGML's NAMECASE GENERAL YES
 		self.sgmlNamecaseEntity=False		#: option that simulates SGML's NAMECASE ENTITY YES
 		self.sgmlOmittag=False				#: option that simulates SGML's OMITTAG YES
@@ -176,10 +181,37 @@ class XMLParser:
 			self.entityStack.append(self.entity)
 			self.entity=entity
 			self.entity.flags={}
-			self.theChar=self.entity.theChar			
+			self.theChar=self.entity.theChar
+		else:
+			# Harsh but fair, if we had reason to believe that this entity used UTF-16 but it
+			# was completely empty (not even a BOM) then that is an error.
+			self.CheckEncoding(entity,None)
 		if entity.buffText:
 			self.BuffText(entity.buffText)
-			
+	
+	BOMRequired={
+		'utf_16':True,'utf-16':True,'u16':True,'utf16':True,
+		'utf_16_be':True,'utf-16-be':True,'utf_16be':True,'utf-16be':True,
+		'utf_16_le':True,'utf-16-le':True,'utf_16le':True,'utf-16le':True
+		}
+		
+	EncodingNotRequired={
+		'utf_16':True,'utf-16':True,'u16':True,'utf16':True,
+		'utf_16_be':True,'utf-16-be':True,'utf_16be':True,'utf-16be':True,
+		'utf_16_le':True,'utf-16-le':True,'utf_16le':True,'utf-16le':True,
+		'utf_8':True,'utf-8':True,'u8':True,'utf':True,'utf8':True
+		}
+		
+	def CheckEncoding(self,entity,declaredEncoding):
+		"""Checks the entity against the declared encoding (if any) and the rules on entity encodings."""
+		if not self.EncodingNotRequired.get(entity.encoding.lower(),False):
+			# Encoding required!
+			if declaredEncoding is None:
+				self.ProcessingError("Encoding declaration required in %s (%s) but missing"%(entity.GetName(),entity.encoding))
+		if self.BOMRequired.get(entity.encoding.lower(),False):
+			if not (entity.bom or (declaredEncoding and declaredEncoding.lower()=='iso-10646-ucs-2')):
+				self.ProcessingError("Byte order mark required in %s (%s) was missing"%(entity.GetName(),entity.encoding))				
+				
 	def GetExternalEntity(self):
 		"""Returns the external entity currently being parsed.
 		
@@ -255,12 +287,10 @@ class XMLParser:
 			else:
 				raise TypeError("ValidityError expected class or instance of XMLValidityError (found %s)"%repr(error))
 
-	def CompatibilityError(self,msg="compatibility error",error=XMLCompatibilityError):
+	def CompatibilityError(self,msg="compatibility error"):
 		"""Called when the parser encounters a compatibility error.
-		
-		The method takes an optional message string, *msg* and an optional error
-		class or instance which must be a (class) object derived from
-		py:class:`XMLCompatibilityError`.
+
+		The method takes an optional message string, *msg*.
 
 		The behaviour varies depending on the setting of the
 		:py:attr:`checkCompatibility` flag.  The default (False) causes
@@ -270,13 +300,24 @@ class XMLParser:
 		This method can be overridden by derived parsers to implement more
 		sophisticated error logging."""
 		if self.checkCompatibility:
-			if isinstance(error,XMLCompatibilityError):
-				self.nonFatalErrors.append("%s: %s (%s)"%(self.entity.GetPositionStr(),msg,str(error)))
-			elif issubclass(error,XMLCompatibilityError):
-				msg="%s: %s"%(self.entity.GetPositionStr(),msg)
-				self.nonFatalErrors.append(msg)
-			else:
-				raise TypeError("CompatibilityError expected class or instance of XMLCompatibilityError (found %s)"%repr(error))
+			self.nonFatalErrors.append("%s: %s"%(self.entity.GetPositionStr(),msg))
+
+	def ProcessingError(self,msg="Processing error"):
+		"""Called when the parser encounters a general processing error.
+		
+		The method takes an optional message string, *msg* and an optional error
+		class or instance which must be a (class) object derived from
+		py:class:`XMLProcessingError`.
+
+		The behaviour varies depending on the setting of the
+		:py:attr:`checkAllErrors` flag.  The default (False) causes processing
+		errors to be ignored.  When checking all errors an error message is
+		logged to :py:attr:`nonFatalErrors`.
+
+		This method can be overridden by derived parsers to implement more
+		sophisticated error logging."""
+		if self.checkAllErrors:
+			self.nonFatalErrors.append("%s: %s"%(self.entity.GetPositionStr(),msg))
 
 	def ParseLiteral(self,match):
 		"""Parses a literal string, passed in *match*.
@@ -371,6 +412,8 @@ class XMLParser:
 		:py:class:`~pyslet.xml20081126.structures.Document`."""
 		self.refMode==XMLParser.RefModeInContent
 		self.doc=doc
+		if self.checkAllErrors:
+			self.checkCompatibility=True
 		if self.checkCompatibility:
 			self.checkValidity=True
 		if self.checkValidity:
@@ -442,6 +485,19 @@ class XMLParser:
 
 	#	Production [2] is implemented with the function IsChar
 
+	def IsS(self):
+		"""By default just calls the module level :py:func:`~pyslet.xml20081126.structures.IsS`
+		
+		In Unicode compatibility mode the function maps the unicode white space
+		characters at code points 2028 and 2029 to line feed and space
+		respectively."""
+		if self.unicodeCompatibility:
+			if self.theChar==u"\u2028":
+				self.theChar="\n"
+			elif self.theChar==u"\u2029":
+				self.theChar=' '
+		return IsS(self.theChar)
+
 	def ParseS(self):
 		"""[3] S: Parses white space from the stream matching the production for S.
 		
@@ -458,7 +514,7 @@ class XMLParser:
 		s=[]
 		sLen=0
 		while True:
-			if IsS(self.theChar):
+			if self.IsS():
 				s.append(self.theChar)
 				self.NextChar()
 			elif self.theChar=='%' and self.refMode==XMLParser.RefModeInDTD:
@@ -468,6 +524,13 @@ class XMLParser:
 				else:
 					# '%' followed by anything other than name start is not a reference.
 					self.BuffText('%')
+					break
+			elif self.unicodeCompatibility:
+				if self.theChar==u"\u2028":
+					s.append('\n')
+				elif self.theChar==u"\u2029":
+					s.append(' ')
+				else:
 					break
 			else:
 				break
@@ -644,7 +707,7 @@ class XMLParser:
 				elif self.theChar=='&':
 					refData=self.ParseReference()
 					value.append(refData)
-				elif IsS(self.theChar):
+				elif self.IsS():
 					value.append(unichr(0x20))
 					self.NextChar()
 				elif self.theChar=='<':
@@ -725,6 +788,7 @@ class XMLParser:
 				if self.ParseLiteral(']]>'):
 					self.BuffText(']]>')
 					break
+			self.IsS()		# force Unicode compatible white space handling
 			data.append(self.theChar)
 			self.NextChar()
 			if len(data)>=XMLEntity.ChunkSize:
@@ -775,7 +839,7 @@ class XMLParser:
 					data.append('-'*(nHyphens-2))
 					self.NextChar()
 					break
-			elif IsS(self.theChar):
+			elif self.IsS():
 				if nHyphens<2:
 					data.append('-'*nHyphens+self.theChar)
 					nHyphens=0
@@ -883,6 +947,7 @@ class XMLParser:
 			self.ParseXMLDecl(True)
 		else:
 			self.declaration=None
+			self.CheckEncoding(self.entity,None)
 		self.entity.KeepEncoding()
 		self.ParseMisc()
 		if self.ParseLiteral('<!DOCTYPE'):
@@ -907,6 +972,7 @@ class XMLParser:
 				eDef=self.dtd.generalEntities[eName]
 				if eDef.notation and not self.dtd.notations.has_key(eDef.notation):
 					self.ValidityError("Notation Declared: notation %s used in declaration of entity %s has not been declared"%(eDef.notation,eName))
+
 	def ParseXMLDecl(self,gotLiteral=False):
 		"""[23] XMLDecl: parses an XML declaration.
 		
@@ -932,9 +998,10 @@ class XMLParser:
 			elif self.ParseLiteral('standalone'):
 				standalone=self.ParseSDDecl(True)
 		self.ParseS()
-		self.ParseRequiredLiteral('?>',production)
+		self.CheckEncoding(self.entity,encoding)
 		if encoding is not None and self.entity.encoding.lower()!=encoding.lower():
 			self.entity.ChangeEncoding(encoding)
+		self.ParseRequiredLiteral('?>',production)
 		self.declaration=XMLDeclaration(version,encoding,standalone)
 		return self.declaration
 		
@@ -974,7 +1041,7 @@ class XMLParser:
 		This method parses everything that matches the production Misc*"""
 		production="[27] Misc"
 		while True:
-			if IsS(self.theChar):
+			if self.IsS():
 				self.NextChar()
 				continue
 			elif self.ParseLiteral('<!--'):
@@ -1036,7 +1103,7 @@ class XMLParser:
 					# we have a new entity, flag it as being opened in DeclSep
 					self.entity.flags['DeclSep']=True
 				gotSep=True
-			elif IsS(self.theChar):
+			elif self.IsS():
 				self.NextChar()
 				gotSep=True
 			else:
@@ -1052,7 +1119,7 @@ class XMLParser:
 				self.noPERefs=(self.GetExternalEntity() is subsetEntity)
 				self.ParseMarkupDecl()
 				self.noPERefs=False
-			elif self.theChar=='%' or IsS(self.theChar):
+			elif self.theChar=='%' or self.IsS():
 				self.ParseDeclSep()
 			else:
 				break
@@ -1089,6 +1156,8 @@ class XMLParser:
 		"""[30] extSubset: parses an external subset"""
 		if self.ParseLiteral('<?xml'):
 			self.ParseTextDecl(True)
+		else:
+			self.CheckEncoding(self.entity,None)
 		self.entity.KeepEncoding()
 		self.ParseExtSubsetDecl()
 			
@@ -1097,7 +1166,7 @@ class XMLParser:
 		initialStack=len(self.entityStack)
 		while len(self.entityStack)>=initialStack:
 			literalEntity=self.entity
-			if self.theChar=='%' or IsS(self.theChar):
+			if self.theChar=='%' or self.IsS():
 				self.ParseDeclSep()
 			elif self.ParseLiteral("<!["):
 				self.ParseConditionalSect(literalEntity)
@@ -2586,6 +2655,7 @@ class XMLParser:
 			encoding=self.ParseEncodingDecl(True)
 		else:
 			self.WellFormednessError(production+": Expected 'version' or 'encoding'")
+		self.CheckEncoding(self.entity,encoding)
 		if encoding is not None and self.entity.encoding.lower()!=encoding.lower():
 			self.entity.ChangeEncoding(encoding)
 		self.ParseS()

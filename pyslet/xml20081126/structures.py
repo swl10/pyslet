@@ -38,11 +38,7 @@ class XMLUnexpectedError(XMLError): pass
 class XMLUnexpectedHTTPResponse(XMLError): pass
 class XMLUnsupportedSchemeError(XMLError): pass
 
-class XMLCompatibilityError(XMLError): pass
-class XMLAmbiguousContentModelError(XMLCompatibilityError): pass
-
 class XMLFatalError(XMLError): pass
-class XMLCommentError(XMLFatalError): pass
 class XMLWellFormedError(XMLFatalError): pass
 
 class XMLValidityError(XMLError): pass
@@ -1344,15 +1340,9 @@ class Element(Node):
 		
 	def AddData(self,data):
 		"""Adds a string or unicode string to this element's children.
-		
-		This method should raise a ValidationError if the element cannot take
-		data children, however, if *suggestClass* is True then the method may
-		optionally return a class object (derived from :py:class:`Element`)
-		suggesting an element to create to contain the data.  This behaviour is
-		intended to be used in conjunction with the
-		:py:attr:`XMLParser.sgmlOmittag` parsing option.  For example,
-		attempting to add data to an HTML Body element would result in the
-		suggestion to create a P element."""
+
+		This method raises a ValidationError if the element cannot take data
+		children."""
 		assert(type(data) in StringTypes)
 		if self.IsMixed():
 			if self._children and type(self._children[-1]) in StringTypes:
@@ -2184,6 +2174,10 @@ class XMLEntity:
 		self.charSource=None
 		"""A unicode data reader used to read characters from the entity.  If
 		None, then the entity is closed."""
+		self.bom=False
+		"""flag to indicate whether or not the byte order mark was detected.  If
+		detected the flag is set to True.  An initial byte order mark is not
+		reported in :py:attr:`theChar` or by the :py:meth:`NextChar` method."""
 		self.theChar=None		#: the character at the current position in the entity
 		self.lineNum=None		#: the current line number within the entity (first line is line 1)
 		self.linePos=None		#: the current character position within the entity (first char is 1)
@@ -2247,41 +2241,45 @@ class XMLEntity:
 		
 	def OpenUnicode(self,src):
 		"""Opens the entity from a unicode string."""
-		self.encoding=None
+		self.encoding='utf-8'		#: a white lie to ensure that all entities have an encoding
 		self.dataSource=None
 		self.chunk=XMLEntity.ChunkSize
 		self.charSource=StringIO(src)
 		self.basePos=self.charSource.tell()
 		self.Reset()
 
-	def OpenString(self,src,encoding='utf-8'):
+	def OpenString(self,src,encoding=None):
 		"""Opens the entity from a byte string.
 		
 		The optional *encoding* is used to convert the string to unicode and
-		defaults to UTF-8.
+		defaults to None - meaning that the auto-detection method will be
+		applied.
 		
 		The advantage of using this method instead of converting the string to
-		unicode and calling :py:meth:`OpenUnicode` is that this method creates
+		unicode and calling :py:meth:`OpenUnicode` is that this method creates a
 		unicode reader object to parse the string instead of making a copy of it
 		in memory."""
 		self.encoding=encoding
-		if self.encoding is None:
-			self.encoding='utf-8'
 		self.dataSource=StringIO(src)
+		if self.encoding is None:
+			self.AutoDetectEncoding(self.dataSource)
 		self.chunk=1
 		self.charSource=codecs.getreader(self.encoding)(self.dataSource)
 		self.basePos=self.charSource.tell()
 		self.Reset()
 	
 	def OpenFile(self,src,encoding='utf-8'):
-		"""Opens the entity from an existing (open) file.
+		"""Opens the entity from an existing (open) binary file.
 		
 		The optional *encoding* provides a hint as to the intended encoding of
-		the data and defaults to UTF-8."""
+		the data and defaults to UTF-8.  Unlike other Open* methods we do not
+		assume that the file is seekable however, if you may set encoding to
+		None for a seekable file thus invoking auto-detection of the
+		encoding."""
 		self.encoding=encoding
-		if self.encoding is None:
-			self.encoding='utf-8'
 		self.dataSource=src
+		if self.encoding is None:
+			self.AutoDetectEncoding(self.dataSource)
 		self.chunk=1
 		self.charSource=codecs.getreader(self.encoding)(self.dataSource)
 		self.basePos=self.charSource.tell()
@@ -2302,10 +2300,11 @@ class XMLEntity:
 		http or https schemes."""
 		self.location=src
 		if isinstance(src,FileURL):
-			# Given that we know we have a file we can use some auto-detection
-			# logic to discover the correct encoding
 			srcFile=open(src.GetPathname(),'rb')
+			self.encoding=encoding
 			if self.encoding is None:
+				# Given that we know we have a file we can use some auto-detection
+				# logic to discover the correct encoding
 				self.AutoDetectEncoding(srcFile)
 			self.OpenFile(srcFile,self.encoding)
 		elif src.scheme.lower() in ['http','https']:
@@ -2423,21 +2422,21 @@ class XMLEntity:
 				self.ignoreLF=False
 
 	MagicTable={
-		'\x00\x00\xfe\xff':('utf_32_be',4),		# UCS-4, big-endian machine (1234 order)
-		'\xff\xfe\x00\x00':('utf_32_le',4),		# UCS-4, little-endian machine (4321 order)
-		'\x00\x00\xff\xfe':('utf_32',4),		# UCS-4, unusual octet order (2143)
-		'\xfe\xff\x00\x00':('utf_32',4),		# UCS-4, unusual octet order (3412)
-		'\xfe\xff':('utf_16_be',2),				# UTF-16, big-endian
-		'\xff\xfe':('utf_16_le',2),				# UTF-16, little-endian
-		'\xef\xbb\xbf':('utf-8',3),				# UTF-8 with byte order mark
-		'\x00\x00\x00\x3c':('utf_32_be',0),		# UCS-4 or other encoding with a big-endian 32-bit code unit
-		'\x3c\x00\x00\x00':('utf_32_le',0),		# UCS-4 or other encoding with a little-endian 32-bit code unit
-		'\x00\x00\x3c\x00':('utf_32_le',0),		# UCS-4 or other encoding with an unusual 32-bit code unit
-		'\x00\x3c\x00\x00':('utf_32_le',0),		# UCS-4 or other encoding with an unusual 32-bit code unit		
-		'\x00\x3c\x00\x3f':('utf_16_be',0),		# UTF-16BE or big-endian ISO-10646-UCS-2 or other encoding with a 16-bit code unit
-		'\x3c\x00\x3f\x00':('utf_16_le',0),		# UTF-16LE or little-endian ISO-10646-UCS-2 or other encoding with a 16-bit code unit
-		'\3c\x3f\x78\x6D':('utf_8',0),			# UTF-8, ISO 646, ASCII or similar
-		'\4c\x6f\xa7\x94':('cp500',0)			# EBCDIC (in some flavor)
+		'\x00\x00\xfe\xff':('utf_32_be',4,True),		# UCS-4, big-endian machine (1234 order)
+		'\xff\xfe\x00\x00':('utf_32_le',4,True),		# UCS-4, little-endian machine (4321 order)
+		'\x00\x00\xff\xfe':('utf_32',4,True),			# UCS-4, unusual octet order (2143)
+		'\xfe\xff\x00\x00':('utf_32',4,True),			# UCS-4, unusual octet order (3412)
+		'\xfe\xff':('utf_16_be',2,True),				# UTF-16, big-endian
+		'\xff\xfe':('utf_16_le',2,True),				# UTF-16, little-endian
+		'\xef\xbb\xbf':('utf-8',3,True),				# UTF-8 with byte order mark
+		'\x00\x00\x00\x3c':('utf_32_be',0,False),		# UCS-4 or other encoding with a big-endian 32-bit code unit
+		'\x3c\x00\x00\x00':('utf_32_le',0,False),		# UCS-4 or other encoding with a little-endian 32-bit code unit
+		'\x00\x00\x3c\x00':('utf_32_le',0,False),		# UCS-4 or other encoding with an unusual 32-bit code unit
+		'\x00\x3c\x00\x00':('utf_32_le',0,False),		# UCS-4 or other encoding with an unusual 32-bit code unit		
+		'\x00\x3c\x00\x3f':('utf_16_be',0,False),		# UTF-16BE or big-endian ISO-10646-UCS-2 or other encoding with a 16-bit code unit
+		'\x3c\x00\x3f\x00':('utf_16_le',0,False),		# UTF-16LE or little-endian ISO-10646-UCS-2 or other encoding with a 16-bit code unit
+		'\3c\x3f\x78\x6D':('utf_8',0,False),			# UTF-8, ISO 646, ASCII or similar
+		'\4c\x6f\xa7\x94':('cp500',0,False)				# EBCDIC (in some flavor)
 		}
 					
 	def AutoDetectEncoding(self,srcFile):
@@ -2453,9 +2452,16 @@ class XMLEntity:
 				magic=magic[:2]
 		elif magic[:3]=='\xef\xbb\xbf':
 			magic=mage[:3]
-		self.encoding,seekPos=self.MagicTable.get(magic,('utf-8',0))
+		self.encoding,seekPos,self.bom=self.MagicTable.get(magic,('utf-8',0,False))
 		srcFile.seek(seekPos)
-						
+	
+	EncodingAliases={
+		'iso-10646-ucs-2':('utf_16',True),	# not strictly true as UTF-16 includes surrogate processing
+		'iso-10646-ucs-4':('utf_32',True),
+		'cn-big5':('big5',False),			# for compatibility with some older XML documents
+		'cn-gb2312':('gb2312',False)		
+		}
+							
 	def ChangeEncoding(self,encoding):
 		"""Changes the encoding used to interpret the entity's stream.
 		
@@ -2470,13 +2476,25 @@ class XMLEntity:
 		You can only change the encoding once.  This method calls
 		:py:meth:`KeepEncoding` once the encoding has been changed."""
 		if self.dataSource:
-			self.encoding=encoding
-			# Need to rewind and re-read the current buffer
-			self.charSource.seek(self.charSeek)
-			self.charSource=codecs.getreader(self.encoding)(self.dataSource)
-			self.chars=self.charSource.read(len(self.chars))
-			# We assume that charPos will still point to the correct next character
-			self.theChar=self.chars[self.charPos]
+			lencoding=encoding.lower()
+			if self.EncodingAliases.has_key(lencoding):
+				encoding,keepExisting=self.EncodingAliases[lencoding]
+			else:
+				keepExisting=False
+			# Sometimes we'll change encoding but want to stick with what we have.
+			# for the ucs-2 and ucs-4 encodings it is impossible for us to have
+			# got to the point of parsing a declaration without knowing if we're
+			# using LE or BE in the stream.  Given that these encodings map to the
+			# python UTF-16 and UTF-32 we don't want to reset the stream because
+			# that will force BOM detection and we may not have a BOM to detect.
+			if not keepExisting:
+				self.encoding=encoding
+				# Need to rewind and re-read the current buffer
+				self.charSource.seek(self.charSeek)
+				self.charSource=codecs.getreader(self.encoding)(self.dataSource)
+				self.chars=self.charSource.read(len(self.chars))
+				# We assume that charPos will still point to the correct next character
+				self.theChar=self.chars[self.charPos]
 		self.KeepEncoding()
 	
 	def KeepEncoding(self):
@@ -2762,12 +2780,18 @@ EncNameCharClass=CharClass(u'-', u'.', (u'0',u'9'), (u'A',u'Z'), u'_',
 	(u'a',u'z'))
 	
 
-def MapClassElements(classMap,namespace):
+def MapClassElements(classMap,namespace,nsAliasTable=None):
 	"""Searches namespace and adds element name -> class mappings to classMap
 	
 	If namespace is none the current namespace is searched.  The search is
 	not recursive, to add class elements from imported modules you must call
-	MapClassElements for each module."""
+	MapClassElements for each module.
+	
+	*nsAliasTable* can be used to create multiple mappings for selected elements
+	based on namespace aliases.  When each element is declared its xml namespace
+	is looked up in the alias table.  If it finds a list of aliases for the
+	namespace then multiple mappings are added to *classMap*, one for the
+	declared xml namespace and one for each of the aliases."""
 	if type(namespace) is not DictType:
 		namespace=namespace.__dict__
 	names=namespace.keys()
@@ -2776,6 +2800,10 @@ def MapClassElements(classMap,namespace):
 		if type(obj) is ClassType and issubclass(obj,Element):
 			if hasattr(obj,'XMLNAME'):
 				classMap[obj.XMLNAME]=obj
+				if nsAliasTable:
+					aliases=nsAliasTable.get(obj.XMLNAME[0],[])
+					for alias in aliases:
+						classMap[(alias,obj.XMLNAME[1])]=obj
 
 
 def ParseXMLClass(classDefStr):

@@ -6,6 +6,7 @@ http://msdn.microsoft.com/en-us/library/dd541284(v=prot.10)"""
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.rfc2396 as uri
+import pyslet.mc_csdl as edm
 
 
 EDMX_NAMESPACE="http://schemas.microsoft.com/ado/2007/06/edmx"		#: Namespace to use for EDMX elements
@@ -60,5 +61,24 @@ class Edmx(EDMXElement):
 		children=self.Reference+self.AnnotationsReference
 		children.append(self.DataServices)
 		return children+EDMXElement.GetChildren(self)
+
+
+class Document(xmlns.XMLNSDocument):
+	"""Represents an Edmx document."""
+
+	classMap={}
+
+	def __init__(self,**args):
+		xmlns.XMLNSDocument.__init__(self,**args)
+		self.defaultNS=EDMX_NAMESPACE
+		self.MakePrefix(EDMX_NAMESPACE,'edmx')
+
+	def GetElementClass(self,name):
+		"""Overrides :py:meth:`pyslet.xmlnames20091208.XMLNSDocument.GetElementClass` to look up name."""
+		eClass=Document.classMap.get(name,Document.classMap.get((name[0],None),xmlns.XMLNSElement))
+		return eClass
+	
+xmlns.MapClassElements(Document.classMap,globals())
+xmlns.MapClassElements(Document.classMap,edm,edm.EDM_NAMESPACE_ALIASES)
 
 		

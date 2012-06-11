@@ -17,9 +17,12 @@ def load_tests(loader, tests, pattern):
 from pyslet.odatav2 import *
 import pyslet.rfc5023 as app
 import pyslet.rfc4287 as atom
+import pyslet.rfc2616 as http
 import pyslet.iso8601 as iso
+import pyslet.mc_csdl as edm
+import sys
 
-ODATA_SAMPLE_SERVICEROOT="http://services.odata.org/OData/OData.svc"
+ODATA_SAMPLE_SERVICEROOT="http://services.odata.org/OData/OData.svc/"
 ODATA_SAMPLE_READWRITE="http://services.odata.org/(S(readwrite))/OData/OData.svc/"
 
 class ODataTests(unittest.TestCase):
@@ -39,10 +42,10 @@ class ClientTests(unittest.TestCase):
 	def testCaseServiceRoot(self):
 		c=Client(ODATA_SAMPLE_SERVICEROOT)
 		self.failUnless(len(c.feeds)==3,"Sample feed, number of feeds")
-		self.failUnless(c.feedTitles["Products"]==ODATA_SAMPLE_SERVICEROOT+"/Products","Sample feed titles")
+		self.failUnless(c.feedTitles["Products"]==ODATA_SAMPLE_SERVICEROOT+"Products","Sample feed titles")
 		c=Client()
 		c.AddService(ODATA_SAMPLE_SERVICEROOT)
-		self.failUnless(len(c.feeds)==3 and c.feedTitles["Suppliers"]==ODATA_SAMPLE_SERVICEROOT+"/Suppliers","Addition of sample feed")
+		self.failUnless(len(c.feeds)==3 and c.feedTitles["Suppliers"]==ODATA_SAMPLE_SERVICEROOT+"Suppliers","Addition of sample feed")
 
 	def testCaseFeedEntries(self):
 		c=Client(ODATA_SAMPLE_SERVICEROOT)
@@ -127,6 +130,20 @@ class ClientTests(unittest.TestCase):
 				eCat=c.RetrieveEntry(link.ResolveURI(link.href))
 				self.failUnless(eCat['Name']=='Electronics')
 
+	def newCaseMetadata(self):
+		c=Client()
+		c.SetLog(http.HTTP_LOG_INFO,sys.stdout)
+		c.AddService(ODATA_SAMPLE_SERVICEROOT)
+		# By default this should load the metadata document, if present
+		self.failUnless(isinstance(c.schemas['ODataDemo'],edm.Schema),"Failed to load metadata document")
+		fURL=c.feedTitles['Products']
+		f=c.RetrieveFeed(fURL)
+		for e in f.Entry:
+			self.failUnless(e.entityType is c.schemas['ODataDemo']['Product'],"Entry not associated with EntityType")
+		e=c.Entry('ODataDemo.Product')
+		self.failUnless(isinstance(e,Entry),"Entry creation from client")
+		self.failUnless(e.entityType is c.schemas['ODataDemo']['Product'],"New entry not associated with EntityType")
+					
 
 class ServerTests(unittest.TestCase):
 	def newCaseConstructor(self):

@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 """This module implements the Open Data Protocol specification defined by Microsoft."""
 
-import sys, cgi, urllib
+import sys, cgi, urllib, string
 
 import pyslet.iso8601 as iso
 import pyslet.rfc4287 as atom
@@ -11,6 +11,7 @@ import pyslet.rfc2396 as uri
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
+import pyslet.mc_edmx as edmx
 
 class InvalidServiceDocument(Exception): pass
 class InvalidFeedDocument(Exception): pass
@@ -21,9 +22,11 @@ class UnexpectedHTTPResponse(Exception): pass
 
 ODATA_METADATA_NAMESPACE="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"	#: namespace for metadata, e.g., the property type attribute
 ODATA_DATASERVICES_NAMESPACE="http://schemas.microsoft.com/ado/2007/08/dataservices"		#: namespace for auto-generated elements, e.g., :py:class:`Property`
+ODATA_SCHEME="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme"					#: category scheme for type definition terms
+ODATA_RELATED="http://schemas.microsoft.com/ado/2007/08/dataservices/related/"				#: link type for related entries
 
-ODATA_RELATED="http://schemas.microsoft.com/ado/2007/08/dataservices/related/"
 ODATA_RELATED_TYPE="application/atom+xml;type=entry"
+
 
 class ODataElement(xmlns.XMLNSElement):
 	"""Base class for all OData specific elements."""
@@ -111,6 +114,7 @@ class Entry(atom.Entry):
 	
 	def __init__(self,parent):
 		atom.Entry.__init__(self,parent)
+		self.entityType=None		#: :py:class:`pyslet.mc_csdl.EntityType` instance describing the entry
 		self._properties={}
 	
 	def ContentChanged(self):
@@ -163,12 +167,16 @@ class Client(app.Client):
 		self.SetLog(http.HTTP_LOG_ERROR,sys.stdout)
 		self.feeds=[]		#: a list of feeds associated with this client
 		self.feedTitles={}	#: a dictionary of feed titles, mapped to collection URLs
+		self.schemas={}		#: a dictionary of namespaces mapped to Schema instances
 		self.pageSize=None
 		"""the default number of entries to retrieve with each request
 		
 		None indicates no restriction, request all entries."""		
 		if serviceRoot:
 			self.AddService(serviceRoot)
+		# Initialise a simple cache of type name -> EntityType definition
+		self._cacheTerm=None
+		self._cacheType=None
 		
 	def AddService(self,serviceRoot):
 		"""Adds the feeds defined by the URL *serviceRoot* to this client."""
@@ -183,12 +191,51 @@ class Client(app.Client):
 					self.feeds.append(url)
 		else:
 			raise InvalidServiceDocument(str(serviceRoot))
-	
+		metadata=uri.URIFactory.Resolve(serviceRoot,'$metadata')
+		doc=edmx.Document(baseURI=metadata,reqManager=self)
+		try:
+			doc.Read()
+			if isinstance(doc.root,edmx.Edmx):
+				for s in doc.root.DataServices.Schema:
+					self.schemas[s.namespace]=s
+		except xml.XMLError:
+			# Failed to read the metadata document, there may not be one of course
+			pass
+		# reset the cache
+		self._cacheTerm=None
+		self._cacheType=None
+
+	def LookupEntityType(self,entityTypeName):
+		"""Returns the :py:class:`EntityType` instance associated with the fully qualified *entityTypeName*"""
+		entityType=None
+		if entityTypeName==self._cacheTerm:
+			# time saver as most feeds are just lists of the same type
+			entityType=self._cacheType
+		else:
+			name=entityTypeName.split('.')
+			if self.schemas.has_key(name[0]):
+				try:
+					entityType=self.schemas[name[0]][string.join(name[1:],'.')]
+				except KeyError:
+					pass
+			# we cache both positive and negative results
+			self._cacheTerm=entityTypeName
+			self._cacheType=entityType
+		return entityType		
+
+	def AssociateEntityType(self,entry):
+		for c in entry.Category:
+			entry.entityType=None
+			if c.scheme==ODATA_SCHEME and c.term:
+				entry.entityType=self.LookupEntityType(c.term)
+			
 	def RetrieveFeed(self,feedURL,odataQuery=None):
 		"""Given a feed URL, returns a :py:class:`pyslet.rfc4287.Feed` object representing it."""
 		doc=Document(baseURI=self._AddParams(feedURL,odataQuery),reqManager=self)
 		doc.Read()
 		if isinstance(doc.root,atom.Feed):
+			for e in doc.root.Entry:
+				self.AssociateEntityType(e)
 			return doc.root
 		else:
 			raise InvalidFeedDocument(str(feedURL))
@@ -219,6 +266,7 @@ class Client(app.Client):
 			if isinstance(doc.root,atom.Feed):
 				if len(doc.root.Entry):
 					for e in doc.root.Entry:
+						self.AssociateEntityType(e)
 						yield e
 				else:
 					break
@@ -236,7 +284,28 @@ class Client(app.Client):
 				if feedURL is None:
 					break
 						
-			
+	
+	def Entry(self,entityTypeName=None):
+		"""Returns a new :py:class:`Entry` suitable for passing to :py:meth:`AddEntry`.
+		
+		The optional *entityTypeName* is the name of an EntityType to bind this
+		entry to.  The name must be the fully qualified name of a type in one of
+		the namespaces.  A Category instance is added to the Entry to represent this
+		binding."""
+		if entityTypeName:
+			entityType=self.LookupEntityType(entityTypeName)
+			if entityType is None:
+				raise KeyError("Undeclared Type: %s"%entityTypeName)
+		else:
+			entityType=None
+		e=Entry(None)
+		e.entityType=entityType
+		if entityType:
+			c=e.ChildElement(atom.Category)
+			c.scheme=ODATA_SCHEME
+			c.term=entityTypeName				
+		return e		
+				
 	def AddEntry(self,feedURL,entry):
 		"""Given a feed URL, adds an :py:class:`Entry` to it
 		
@@ -265,6 +334,7 @@ class Client(app.Client):
 		doc=Document(baseURI=entryURL,reqManager=self)
 		doc.Read()
 		if isinstance(doc.root,atom.Entry):
+			self.AssociateEntityType(doc.root)
 			return doc.root
 		else:
 			raise InvalidEntryDocument(str(entryURL))

@@ -1972,9 +1972,10 @@ class QTIDocument(xmlns.XMLNSDocument):
 			raise TypeError
 		# We call the elemement's AddToContentPackage method which returns the new resource
 		# The document's base is automatically set to the URI of the resource entry point
-		self.root.AddToContentPackage(cp,metadata,dName)
+		resource=self.root.AddToContentPackage(cp,metadata,dName)
 		# Finish by writing out the document to the new baseURI
 		self.Create()
+		return resource
 
 xmlns.MapClassElements(QTIDocument.classMap,globals())
 # also add in the profile of HTML but with the namespace rewritten to ours

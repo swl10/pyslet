@@ -377,14 +377,44 @@ class XMLValidationTests(unittest.TestCase):
 				print "\n%s: Compatibility Errors:"%fName
 				for e in p.nonFatalErrors:
 					print e
-			except XMLCompatibilityError,e:
-				self.fail("XMLCompatibilityError raised by parser (%s)"%fName)
 			except XMLValidityError,e:
 				self.fail("XMLValidityError raised when raiseVaidityErrors is False (%s)"%fName)
 			except XMLWellFormedError,e:
 				self.fail("Incompatible but Well-Formed Example raised XMLWellFormedError (%s)"%fName)
 			except XMLError,e:
 				self.fail("Other XMLError raised by incompatible but Well-Formed Example (%s)"%fName)
+
+
+	def testError(self):
+		dPath=os.path.join(TEST_DATA_DIR,'noerrors')
+		for fName in os.listdir(dPath):
+			if fName[-4:]!=".xml":
+				continue
+			f=URIFactory.URLFromPathname(os.path.join(dPath,fName))
+			e=XMLEntity(f,'latin-1' if "latin" in fName else None)
+			p=XMLParser(e)
+			p.checkAllErrors=True
+			try:
+				p.ParseDocument()
+				self.failUnless(len(p.nonFatalErrors)==0,"No errors example: %s reported errors"%fName)
+			except XMLError,e:
+				self.fail("No errors example: %s raised XMLError"%fName)
+		dPath=os.path.join(TEST_DATA_DIR,'errors')
+		for fName in os.listdir(dPath):
+			if fName[-4:]!=".xml":
+				continue
+			f=URIFactory.URLFromPathname(os.path.join(dPath,fName))
+			e=XMLEntity(f,'latin-1' if "latin" in fName else None)
+			p=XMLParser(e)
+			p.checkAllErrors=True
+			try:
+				p.ParseDocument()
+				self.failIf(len(p.nonFatalErrors)==0,"Error example: %s reported no non-fatal errors"%fName)
+				print "\n%s: Errors:"%fName
+				for e in p.nonFatalErrors:
+					print e
+			except XMLError,e:
+				self.fail("XMLError raised by (non-fatal) error example (%s)"%fName)
 
 
 class XMLEntityTests(unittest.TestCase):
@@ -420,23 +450,28 @@ class XMLEntityTests(unittest.TestCase):
 	def testCodecs(self):
 		m=u'Caf\xe9'
 		e=XMLEntity('Caf\xc3\xa9')
+		self.failUnless(e.bom is False,'defaulted utf-8 BOM detection')
 		for c in m:
 			self.failUnless(e.theChar==c,"Print: parsing utf-8 got %s instead of %s"%(repr(e.theChar),repr(c)))
 			e.NextChar()
 		e=XMLEntity('Caf\xe9','latin_1')
+		self.failUnless(e.bom is False,'latin_1 BOM detection')
 		for c in m:
 			self.failUnless(e.theChar==c,"Print: parsing latin-1 got %s instead of %s"%(repr(e.theChar),repr(c)))
 			e.NextChar()
 		# This string should be automatically detected
-		e=XMLEntity('\xff\xfeC\x00a\x00f\x00\xe9\x00','utf-16')
+		e=XMLEntity('\xff\xfeC\x00a\x00f\x00\xe9\x00')
+		self.failUnless(e.bom is True,'utf-16-le BOM detection')
 		for c in m:
 			self.failUnless(e.theChar==c,"Print: parsing utf-16LE got %s instead of %s"%(repr(e.theChar),repr(c)))
 			e.NextChar()		
-		e=XMLEntity('\xfe\xff\x00C\x00a\x00f\x00\xe9','utf-16')
+		e=XMLEntity('\xfe\xff\x00C\x00a\x00f\x00\xe9')
+		self.failUnless(e.bom is True,'utf-16-be BOM detection')
 		for c in m:
 			self.failUnless(e.theChar==c,"Print: parsing utf-16BE got %s instead of %s"%(repr(e.theChar),repr(c)))
 			e.NextChar()			
 		e=XMLEntity('\xef\xbb\xbfCaf\xc3\xa9','utf-8')
+		self.failUnless(e.bom is False,'utf-8 BOM detection')
 		for c in m:
 			self.failUnless(e.theChar==c,"Print: parsing utf-8 with BOM got %s instead of %s"%(repr(e.theChar),repr(c)))
 			e.NextChar()
@@ -447,7 +482,21 @@ class XMLEntityTests(unittest.TestCase):
 		self.failUnless(e.theChar=='f',"Bad encoding change")
 		e.NextChar()
 		self.failUnless(e.theChar==u'\xe9',"Print: change encoding got %s instead of %s"%(repr(e.theChar),repr(u'\xe9')))
-
+		e=XMLEntity('C\x00a\x00f\x00\xe9\x00','utf-16-le')
+		self.failUnless(e.bom is False,'utf-16-le no BOM detection error')
+		for c in m:
+			self.failUnless(e.theChar==c,"Print: parsing utf-16LE no BOM got %s instead of %s"%(repr(e.theChar),repr(c)))
+			e.NextChar()		
+		e=XMLEntity('\x00<\x00?\x00C\x00a\x00f\x00\xe9')		# add <? to trigger auto-detection
+		self.failUnless(e.bom is False,'utf-16-be no BOM detection error')
+		for c in u"<?"+m:
+			self.failUnless(e.theChar==c,"Print: parsing utf-16BE no BOM got %s instead of %s"%(repr(e.theChar),repr(c)))
+			e.NextChar()		
+		e=XMLEntity('\xfe\xff\xfe\xff\x00C\x00a\x00f\x00\xe9')
+		for c in u'\ufeff'+m:
+			self.failUnless(e.theChar==c,"Print: parsing double BOM got %s instead of %s"%(repr(e.theChar),repr(c)))
+			e.NextChar()			
+		
 		
 class XMLParserTests(unittest.TestCase):
 	def testCaseConstructor(self):
