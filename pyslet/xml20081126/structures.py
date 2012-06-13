@@ -21,7 +21,7 @@ XML_MIMETYPES={
 	}
 
 def ValidateXMLMimeType(mimetype):
-	return XML_MIMETYPES.has_key(mimetype)
+	return mimetype in XML_MIMETYPES
 	
 class XMLError(Exception):
 	"""Base class for all exceptions raised by this module."""
@@ -339,7 +339,7 @@ class Document(Node):
 		raise XMLValidityError("%s (in %s)"%(msg,element.xmlname))
 		
 	def RegisterElement(self,element):
-		if self.idTable.has_key(element.id):
+		if element.id in self.idTable:
 			raise XMLIDClashError
 		else:
 			self.idTable[element.id]=element
@@ -356,7 +356,7 @@ class Document(Node):
 			baseStr='%X'%random.randint(0,0xFFFF)
 		idStr=baseStr
 		idExtra=0
-		while self.idTable.has_key(idStr):
+		while idStr in self.idTable:
 			if not idExtra:
 				idExtra=random.randint(0,0xFFFF)
 			idStr='%s-%X'%(baseStr,idExtra)
@@ -820,7 +820,7 @@ class XMLDTD:
 		aList=self.attributeLists.get(elementName,None)
 		if aList is None:
 			self.attributeLists[elementName]=aList={}
-		if not aList.has_key(attributeDef.name):
+		if not attributeDef.name in aList:
 			aList[attributeDef.name]=attributeDef
 		
 	def GetAttributeList(self,name):
@@ -930,6 +930,21 @@ class Element(Node):
 		else:
 			self.id=id
 		
+	def MangleAttributeName(self,name):
+		"""Returns a mangled attribute name, used when setting attributes.
+		
+		If name cannot be mangled, None is returned."""
+		return "XMLATTR_"+name
+		
+	def UnmangleAttributeName(self,mName):
+		"""Returns an unmangled attribute name, used when getting attributes.
+
+		If mName is not a mangled name, None is returned."""
+		if mName.startswith('XMLATTR_'):
+			return mName[8:]
+		else:
+			return None
+				
 	def GetAttributes(self):
 		"""Returns a dictionary object that maps attribute names onto values.
 		
@@ -942,23 +957,24 @@ class Element(Node):
 		attrs=copy(self._attrs)
 		if self.id:
 			attrs[self.__class__.ID]=self.id
-		for a in dir(self.__class__):
-			if a.startswith('XMLATTR_'):
+		for mName in dir(self.__class__):
+			name=self.UnmangleAttributeName(mName)
+			if name:
 				required=False
-				setter=getattr(self.__class__,a)
+				setter=getattr(self.__class__,mName)
 				if type(setter) in StringTypes:
 					# use simple attribute assignment
-					name,encode=setter,lambda x:x
+					attrName,encode=setter,lambda x:x
 				elif type(setter) is TupleType:
 					if len(setter)==3:
-						name,decode,encode=setter
+						attrName,decode,encode=setter
 					elif len(setter)==4:
-						name,decode,encode,required=setter
+						attrName,decode,encode,required=setter
 					else:
 						raise XMLAttributeSetter("bad XMLATTR_ definition: %s attribute of %s"%(name,self.__class__.__name__))
 				else:
 					raise XMLAttributeSetter("setting %s attribute of %s"%(name,self.__class__.__name__))				
-				value=getattr(self,name,None)
+				value=getattr(self,attrName,None)
 				if type(value) is ListType:
 					value=string.join(map(encode,value),' ')
 					if not value and not required:
@@ -970,7 +986,7 @@ class Element(Node):
 				elif value is not None:
 					value=encode(value)
 				if value is not None:
-					attrs[a[8:]]=value
+					attrs[name]=value
 		return attrs
 
 	def SetAttribute(self,name,value):
@@ -1022,36 +1038,44 @@ class Element(Node):
 		attribute it is used as the name of the attribute that represents the
 		element's ID.  ID handling is performed automatically at document level
 		and the element's 'id' attribute is set accordingly."""
-		setter=getattr(self,"XMLATTR_"+name,None)
+		mName=self.MangleAttributeName(name)
+		if mName:
+			setter=getattr(self,mName,None)
+		else:
+			setter=None
 		if setter is None:
-			setter=getattr(self,"Set_"+name,None)
+			if mName:
+				mName="Set"+mName[7:]
+				setter=getattr(self,mName,None)
 			if setter is None:
 				if hasattr(self.__class__,'ID') and name==self.__class__.ID:
 					self.SetID(value)
 				else:
 					self._attrs[name]=value
 			else:
+				print "Deprecation warning: use of __class__.Set_<xml attribute> is deprecated, use __class__.XMLATTR_<xml attribute> instead"
+				print "%s.%s"%(self.__class__.__name__,mName)
 				setter(value)
 		else:
 			if type(setter) in StringTypes:
 				# use simple attribute assignment
-				name,decode=setter,lambda x:x
+				attrName,decode=setter,lambda x:x
 			elif type(setter) is TupleType:
 				if len(setter)==3:
-					name,decode,encode=setter
+					attrName,decode,encode=setter
 				else:
 					# we ignore required when setting
-					name,decode,encode,required=setter
+					attrName,decode,encode,required=setter
 			else:
 				raise XMLAttributeSetter("setting %s attribute of %s"%(name,self.__class__.__name__))
-			x=getattr(self,name,None)
+			x=getattr(self,attrName,None)
 			if type(x) is ListType:
-				setattr(self,name,map(decode,value.split()))
+				setattr(self,attrName,map(decode,value.split()))
 			elif type(x) is DictType:
 				value=value.split()
-				setattr(self,name,dict(zip(map(decode,value),value)))
+				setattr(self,attrName,dict(zip(map(decode,value),value)))
 			else:
-				setattr(self,name,decode(value))
+				setattr(self,attrName,decode(value))
 	
 	def IsValidName(self,value):
 		return IsValidName(value)
@@ -1838,7 +1862,7 @@ class XMLContentParticle:
 		:py:class:`XMLNameParticles XMLNameParticle`. All entries in *srcMap*
 		not currently in *pMap* are added."""
 		for name in srcMap.keys():
-			if pMap.has_key(name):
+			if name in pMap:
 				# add items from srcMap[name] to pMap[name]
 				targetList=pMap[name]
 			elif name:
@@ -1901,7 +1925,7 @@ class XMLNameParticle(XMLContentParticle):
 		self.AddParticles(exitParticles,self.particleMap)
 
 	def SeekParticles(self,pMap):
-		if pMap.has_key(self.name):
+		if self.name in pMap:
 			targetList=pMap[self.name]
 			dup=False
 			for p in targetList:
@@ -2036,7 +2060,7 @@ class ContentParticleCursor:
 		unchanged."""
 		if self.state==ContentParticleCursor.StartState:
 			if self.elementType.particleMap is not None:
-				if self.elementType.particleMap.has_key(name):
+				if name in self.elementType.particleMap:
 					self.pList=self.elementType.particleMap[name]
 					if self.pList is None:
 						self.state=ContentParticleCursor.EndState
@@ -2063,7 +2087,7 @@ class ContentParticleCursor:
 			newPList=[]
 			for p in self.pList:
 				# go through all possible particles
-				if p.particleMap.has_key(name):
+				if name in p.particleMap:
 					ps=p.particleMap[name]
 					if ps is None:
 						# short cut to end state
@@ -2477,7 +2501,7 @@ class XMLEntity:
 		:py:meth:`KeepEncoding` once the encoding has been changed."""
 		if self.dataSource:
 			lencoding=encoding.lower()
-			if self.EncodingAliases.has_key(lencoding):
+			if lencoding in self.EncodingAliases:
 				encoding,keepExisting=self.EncodingAliases[lencoding]
 			else:
 				keepExisting=False

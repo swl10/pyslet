@@ -516,6 +516,6 @@ xmlns.MapClassElements(classMap,globals())
 
 def GetElementClass(name):
 	ns,xmlname=name
-	if IMSLRM_NAMESPACE_ALIASES.has_key(ns):
+	if ns in IMSLRM_NAMESPACE_ALIASES:
 		ns=IMSLRM_NAMESPACE_ALIASES[ns]
 	return classMap.get((ns,xmlname),classMap.get((ns,None),xmlns.XMLNSElement))

@@ -1,6 +1,5 @@
 #! /usr/bin/env python
-"""This module implements the QTI 1.2.1 specification defined by IMS GLC
-"""
+"""This module implements the QTI 1.2.1 specification defined by IMS GLC"""
 
 import pyslet.xml20081126.structures as xml
 import pyslet.xml20081126.parser as xmlparser
@@ -15,13 +14,14 @@ import string, codecs
 import os.path
 from types import StringTypes
 
+from pyslet.qtiv1.core import *
+
 #IMSQTI_NAMESPACE="http://www.imsglobal.org/xsd/ims_qtiasiv1p2"
 QTI_SOURCE='QTIv1'
 
 
 class QTIError(Exception): pass
 class QTIUnimplementedError(QTIError): pass
-class QTIIndexInMultiple: pass
 
 def MakeValidName(name):
 	"""This function takes a string that is supposed to match the
@@ -235,12 +235,12 @@ def MigrateV2AreaCoords(area,value,log):
 				log.append("Error: only one radius given for ellipse, assuming circular")
 				coords.append(coords[-1])
 		if coords[2]==coords[3]:
-			r=coords[2]/2 # centre-pixel coordinate model again
+			r=coords[2]//2 # centre-pixel coordinate model again
 			coords=[coords[0],coords[1],r]
 			shape=qtiv2.QTIShape.circle
 		else:
 			log.warning("Warning: ellipse shape is deprecated in version 2")
-			coords=[coords[0],coords[1],coords[2]/2,coords[3]/2]
+			coords=[coords[0],coords[1],coords[2]//2,coords[3]//2]
 			shape=qtiv2.QTIShape.ellipse
 	else:
 		shape=qtiv2.QTIShape.poly
@@ -558,7 +558,7 @@ class QTIMetadataContainer(QTIElement):
 		label=label.lower()
 		if label[:4]=="qmd_":
 			label=label[4:]
-		if not self.metadata.has_key(label):
+		if not label in self.metadata:
 			self.metadata[label]=[]
 		self.metadata[label].append((entry,definition))
 
@@ -1112,7 +1112,7 @@ class QTIMatText(QTIElement,QTIPositionMixin,QTIMatThingMixin):
 	def MigrateV2Content(self,parent,childType,log):
 		if self.texttype=='text/plain':
 			data=self.GetValue(True)
-			if QTIMatText.SymbolCharsets.has_key(self.charset.lower()):
+			if self.charset.lower() in QTIMatText.SymbolCharsets:
 				# this data is in the symbol font, translate it
 				# Note that the first page of unicode is the same as iso-8859-1
 				data=data.encode('iso-8859-1').decode('apple-symbol')				
@@ -5128,7 +5128,7 @@ class QTIDocument(xml.Document):
 						logCleaner={}
 						i=0
 						while i<len(log):
-							if logCleaner.has_key(log[i]):
+							if log[i] in logCleaner:
 								del log[i]
 							else:
 								logCleaner[log[i]]=i

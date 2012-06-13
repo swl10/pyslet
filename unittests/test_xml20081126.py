@@ -13,6 +13,8 @@ if maxunicode<MAX_CHAR:
 	MAX_CHAR=maxunicode
 	print "xml tests truncated to unichr(0x%X) by narrow python build"%MAX_CHAR
 
+VERBOSE=False
+
 def suite():
 	return unittest.TestSuite((
 		unittest.makeSuite(XML20081126Tests,'test'),
@@ -90,15 +92,6 @@ class ReflectiveElement(Element):
 		self.generics=[]
 		self.GenericElementB=None
 		
-	def GetAttributes(self):
-		attrs=Element.GetAttributes(self)
-		if self.atest:
-			attrs['atest']=self.atest
-		return attrs
-		
-	def Set_atest(self,value):
-		self.atest=value
-	
 	def GetChildren(self):
 		children=Element.GetChildren(self)
 		if self.child:
@@ -299,9 +292,9 @@ class XMLValidationTests(unittest.TestCase):
 				d.Read(e)
 				self.fail("%s is not Well-Formed but failed to raise XMLWellFormedError"%fName)
 			except XMLWellFormedError,e:
-				print "\n%s: Well-formed Errors:"%fName				
-				print str(e)
-				pass
+				if VERBOSE:
+					print "\n%s: Well-formed Errors:"%fName				
+					print str(e)
 		
 	def testValid(self):
 		dPath=os.path.join(TEST_DATA_DIR,'valid')
@@ -334,9 +327,10 @@ class XMLValidationTests(unittest.TestCase):
 				p.ParseDocument()
 				self.failIf(p.valid,"Invalid Example: %s marked as valid in the parser"%fName)
 				self.failIf(len(p.nonFatalErrors)==0,"Invalid Example: %s reported no validity errors"%fName)
-				print "\n%s: Validity Errors:"%fName
-				for e in p.nonFatalErrors:
-					print e
+				if VERBOSE:
+					print "\n%s: Validity Errors:"%fName
+					for e in p.nonFatalErrors:
+						print e
 			except XMLValidityError,e:
 				self.fail("XMLValidityError raised when raiseVaidityErrors is False (%s)"%fName)
 			except XMLWellFormedError,e:
@@ -374,9 +368,10 @@ class XMLValidationTests(unittest.TestCase):
 			try:
 				p.ParseDocument()
 				self.failIf(len(p.nonFatalErrors)==0,"Incompatible Example: %s reported no non-fatal errors"%fName)
-				print "\n%s: Compatibility Errors:"%fName
-				for e in p.nonFatalErrors:
-					print e
+				if VERBOSE:
+					print "\n%s: Compatibility Errors:"%fName
+					for e in p.nonFatalErrors:
+						print e
 			except XMLValidityError,e:
 				self.fail("XMLValidityError raised when raiseVaidityErrors is False (%s)"%fName)
 			except XMLWellFormedError,e:
@@ -410,9 +405,10 @@ class XMLValidationTests(unittest.TestCase):
 			try:
 				p.ParseDocument()
 				self.failIf(len(p.nonFatalErrors)==0,"Error example: %s reported no non-fatal errors"%fName)
-				print "\n%s: Errors:"%fName
-				for e in p.nonFatalErrors:
-					print e
+				if VERBOSE:
+					print "\n%s: Errors:"%fName
+					for e in p.nonFatalErrors:
+						print e
 			except XMLError,e:
 				self.fail("XMLError raised by (non-fatal) error example (%s)"%fName)
 
@@ -1591,7 +1587,8 @@ class XMLParserTests(unittest.TestCase):
 				p.ParseIncludeSect()
 				self.fail("ParseIncludeSect negative validity test: %s"%s)
 			except XMLWellFormedError,e:
-				print e
+				if VERBOSE:
+					print e
 				self.fail("ParseIncludeSect spurious well-formed error: %s"%s)
 			except XMLValidityError:
 				pass
@@ -1638,7 +1635,8 @@ class XMLParserTests(unittest.TestCase):
 				p.ParseIgnoreSect()
 				self.fail("ParseIgnoreSect negative validity test: %s"%s)
 			except XMLWellFormedError,e:
-				print e
+				if VERBOSE:
+					print e
 				self.fail("ParseIgnoreSect spurious well-formed error: %s"%s)
 			except XMLValidityError:
 				pass
@@ -2182,7 +2180,7 @@ class ElementTests(unittest.TestCase):
 		self.failUnless(attrs['atest']=='value',"Attribute not set correctly")
 		e=ReflectiveElement(None)
 		e.SetAttribute('atest','value')
-		self.failUnless(e.atest=='value',"Attribute relfection")
+		# Deprecated: self.failUnless(e.atest=='value',"Attribute relfection")
 		attrs=e.GetAttributes()
 		self.failUnless(attrs['atest']=='value',"Attribute not set correctly")
 		e.SetAttribute('btest','Yes')
@@ -2193,13 +2191,13 @@ class ElementTests(unittest.TestCase):
 		self.failUnless(e.cTest==True,"Attribute relfection with decode/encode")
 		attrs=e.GetAttributes()
 		self.failUnless(attrs['ctest']=='Yes',"Attribute not set correctly")
-		self.failIf(attrs.has_key('dtest'),"Optional ordered list attribute") 
+		self.failIf('dtest' in attrs,"Optional ordered list attribute") 
 		self.failUnless(attrs['dtestR']=='',"Required ordered list attribute") 
 		e.SetAttribute('dtest','Yes No')
 		self.failUnless(e.dTest==[True,False],"Attribute relfection with list")
 		attrs=e.GetAttributes()
 		self.failUnless(attrs['dtest']=='Yes No',"Attribute not set correctly")
-		self.failIf(attrs.has_key('etest'),"Optional unordered list attribute") 
+		self.failIf('etest' in attrs,"Optional unordered list attribute") 
 		self.failUnless(attrs['etestR']=='',"Required unordered list attribute") 
 		e.SetAttribute('etest','Yes No')
 		self.failUnless(e.eTest=={True:'Yes',False:'No'},"Attribute relfection with list")
@@ -2471,15 +2469,17 @@ class DocumentTests(unittest.TestCase):
 	def testCaseReflection(self):
 		"""Test the built-in handling of reflective attributes and elements."""
 		REFLECTIVE_XML="""<?xml version="1.0" encoding="UTF-8"?>
-<reflection atest="Hello"><etest>Hello Again</etest></reflection>"""
+<reflection btest="Hello"><etest>Hello Again</etest></reflection>"""
 		f=StringIO(REFLECTIVE_XML)
 		d=ReflectiveDocument()
 		d.Read(src=f)
 		root=d.root
 		self.failUnless(isinstance(root,ReflectiveElement))
-		self.failUnless(root.atest,"Attribute relfection")
+		self.failUnless(root.bTest,"Attribute relfection")
 		self.failUnless(root.child,"Element relfection")
 		
 		
 if __name__ == "__main__":
+	# When we are run directly, turn on verbose output
+	VERBOSE=True
 	unittest.main()

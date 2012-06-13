@@ -2,6 +2,8 @@
 
 import unittest
 
+VERBOSE=False
+
 def suite():
 	loader=unittest.TestLoader()
 	loader.testMethodPrefix='new'
@@ -132,7 +134,8 @@ class ClientTests(unittest.TestCase):
 
 	def newCaseMetadata(self):
 		c=Client()
-		c.SetLog(http.HTTP_LOG_INFO,sys.stdout)
+		if VERBOSE:
+			c.SetLog(http.HTTP_LOG_INFO,sys.stdout)
 		c.AddService(ODATA_SAMPLE_SERVICEROOT)
 		# By default this should load the metadata document, if present
 		self.failUnless(isinstance(c.schemas['ODataDemo'],edm.Schema),"Failed to load metadata document")
@@ -163,4 +166,5 @@ class ServerTests(unittest.TestCase):
 	
 		
 if __name__ == "__main__":
+	VERBOSE=True
 	unittest.main()

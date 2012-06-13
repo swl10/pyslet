@@ -34,7 +34,7 @@ def FixHTMLNamespace(e):
 	"""Fixes e and all children to be in the QTINamespace"""
 	if e.ns==html.XHTML_NAMESPACE:
 		name=(IMSQTI_NAMESPACE,e.xmlname.lower())
-		if QTIDocument.classMap.has_key(name):
+		if name in QTIDocument.classMap:
 			e.SetXMLName(name)
 	children=e.GetChildren()
 	for e in children:
@@ -447,13 +447,13 @@ class QTIAssessmentItem(QTIElement):
 		return QTIOutcomeDeclaration(self)
 		
 	def RegisterDeclaration(self,declaration):
-		if self.declarations.has_key(declaration.identifier):
+		if declaration.identifier in self.declarations:
 			raise QTIDeclarationError
 		else:
 			self.declarations[declaration.identifier]=declaration
 	
 	def IsDeclared(self,identifier):
-		return self.declarations.has_key(identifier)
+		return identifier in self.declarations
 	
 	def AddToContentPackage(self,cp,lom,dName=None):
 		"""Adds a resource and associated files to the content package."""

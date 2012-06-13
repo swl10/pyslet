@@ -293,7 +293,7 @@ class ContentPackageTests(unittest.TestCase):
 		fPath=cp.GetUniqueFile('file_1.xml')
 		self.failIf(fPath=='file_1.xml',"file path must be unique")
 		self.failUnless(fPath[-4:]=='.xml',"Must preserve extension")
-		self.failIf(ft.has_key(fPath), "file path must not be in use")
+		self.failIf(fPath in ft, "file path must not be in use")
 
 	def testCaseDeleteFile(self):
 		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_3'))

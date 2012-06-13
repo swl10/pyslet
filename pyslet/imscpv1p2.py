@@ -147,7 +147,7 @@ class Dependency(CPElement):
 class Resource(CPElement):
 	"""Represents the resource element."""
 	XMLNAME=(IMSCP_NAMESPACE,'resource')
-	ID="identifier"
+	ID=(xmlns.NO_NAMESPACE,"identifier")
 	XMLATTR_href=('href',uri.URIFactory.URI,str)
 	XMLATTR_type='type'
 	XMLCONTENT=xmlns.ElementContent
@@ -224,7 +224,7 @@ class Resources(CPElement):
 
 class Manifest(CPElement):
 	"""Represents the manifest element, the root element of the imsmanifest file."""
-	ID="identifier"
+	ID=(xmlns.NO_NAMESPACE,"identifier")
 	XMLNAME=(IMSCP_NAMESPACE,'manifest')
 	XMLCONTENT=xmlns.ElementContent
 	
@@ -455,7 +455,7 @@ class ContentPackage:
 				fPath=f.PackagePath(self)
 				if fPath is None:
 					continue
-				if self.fileTable.has_key(fPath):
+				if fPath in self.fileTable:
 					self.fileTable[fPath].append(f)
 				else:
 					self.fileTable[fPath]=[f]
@@ -463,7 +463,7 @@ class ContentPackage:
 	def FileScanner(self,fPath,beenThere):
 		fullPath=os.path.join(self.dPath,fPath)
 		rFullPath=os.path.realpath(fullPath)
-		if beenThere.has_key(rFullPath):
+		if rFullPath in beenThere:
 			raise CPPackageBeenThereError(rFullPath)
 		beenThere[rFullPath]=True
 		if os.path.isdir(fullPath):
@@ -547,7 +547,7 @@ class ContentPackage:
 		
 	def AddToZip(self,fPath,zf,zbase,beenThere):
 		rfName=os.path.realpath(fPath)
-		if beenThere.has_key(rfName):
+		if rfName in beenThere:
 			raise CPZIPBeenThereError(fPath)
 		beenThere[rfName]=True
 		fName=os.path.split(fPath)[1]
@@ -600,7 +600,7 @@ class ContentPackage:
 		# Now we can try and make it unique
 		pathStr=fPath
 		pathExtra=0
-		while self.fileTable.has_key(pathStr):
+		while pathStr in self.fileTable:
 			if not pathExtra:
 				pathExtra=random.randint(0,0xFFFF)
 			fName,fExt=os.path.splitext(fPath)
@@ -644,7 +644,7 @@ class ContentPackage:
 			relPath=os.path.normcase(relPath)
 			f=resource.ChildElement(resource.FileClass)
 			f.href=href
-			if not self.fileTable.has_key(relPath):
+			if not relPath in self.fileTable:
 				self.fileTable[relPath]=[f]
 			else:
 				self.fileTable[relPath].append(f)
@@ -732,7 +732,7 @@ class ContentPackage:
 				r.DeleteFile(f)
 		# Now there are no more references, safe to remove the file itself
 		os.remove(fullPath)
-		if self.fileTable.has_key(relPath):
+		if relPath in self.fileTable:
 			del self.fileTable[relPath]
 		
 	def GetPackageName(self):

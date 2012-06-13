@@ -354,31 +354,36 @@ class FileURLTests(unittest.TestCase):
 		base=URIFactory.URLFromPathname(self.dataPath)
 		self.failUnless(base.GetPathname(force8Bit)==self.dataPath,
 			"Expected %s found %s"%(self.dataPath,base.GetPathname(force8Bit)))
-		os.path.walk(self.dataPath,self.VisitMethod,None)
+		for dirpath,dirnames,filenames in os.walk(self.dataPath):
+			self.VisitMethod(dirpath,filenames)
 
 	def testCaseUnicodePathnames(self):
 		if type(self.dataPath) is StringType:
 			c=sys.getfilesystemencoding()
 			dataPath=unicode(self.dataPath,c)
+		else:
+			dataPath=self.dataPath
 		base=URIFactory.URLFromPathname(dataPath)
 		if os.path.supports_unicode_filenames:
 			dataPath2=base.GetPathname()
 			self.failUnless(type(dataPath2) is UnicodeType,"Expected GetPathname to return unicode") 
 			self.failUnless(dataPath2==dataPath,
 				u"Expected %s found %s"%(dataPath,dataPath2))
-			os.path.walk(dataPath,self.VisitMethod,None)
+			# os.path.walk(dataPath,self.VisitMethod,None)
+			for dirpath,dirnames,filenames in os.walk(dataPath):
+				self.VisitMethod(dirpath,filenames)
 		else:
 			dataPath2=base.GetPathname()
 			self.failUnless(type(dataPath2) is StringType,"Expected GetPathname to return string")
 			print "\nWarning: os.path.supports_unicode_filenames is False (skipped unicode path tests)"
 			
-	def VisitMethod(self,arg,dirname,names):
+	def VisitMethod(self,dirname,names):
 		d=URIFactory.URLFromPathname(os.path.join(dirname,os.curdir))
 		c=sys.getfilesystemencoding()
 		for name in names:
-                        if name.startswith('??'):
-                                print "\nWarning: 8-bit path tests limited to ASCII file names by %s encoding"%c
-                                continue
+			if name.startswith('??'):
+					print "\nWarning: 8-bit path tests limited to ASCII file names by %s encoding"%c
+					continue
 			joinMatch=os.path.join(dirname,name)
 			if type(name) is UnicodeType:
 				segName=EscapeData(name.encode('utf-8'),IsPathSegmentReserved)

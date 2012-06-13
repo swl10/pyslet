@@ -835,10 +835,10 @@ class HTTPMessage:
 	def SetHeader(self,fieldName,fieldValue,appendMode=False):
 		fieldNameKey=fieldName.lower()
 		if fieldValue is None:
-			if self.headers.has_key(fieldNameKey):
+			if fieldNameKey in self.headers:
 				del self.headers[fieldNameKey]
 		else:
-			if self.headers.has_key(fieldNameKey) and appendMode:
+			if fieldNameKey in self.headers and appendMode:
 				fieldValue=self.headers[fieldNameKey][1]+", "+fieldValue
 			self.headers[fieldNameKey]=[fieldName,fieldValue]
 
@@ -970,7 +970,7 @@ class HTTPMessage:
 		don't know the size of the body or you have already set the
 		Content-Length."""
 		self.transferChunked=False
-		if isinstance(self,HTTPResponse) and (self.status/100==1 or
+		if isinstance(self,HTTPResponse) and (self.status//100==1 or
 			self.status==204 or self.status==304 or self.request.method=='HEAD'):
 			self.transferLength=0
 			return

@@ -314,7 +314,7 @@ class DateTests(unittest.TestCase):
 		absDay=1
 		for year in xrange(1,2050):
 			date.SetAbsoluteDay(absDay)
-			self.failUnless(date.GetCalendarDay()==(year/100,year%100,1,1),"%04i-01-01 check"%year)
+			self.failUnless(date.GetCalendarDay()==(year//100,year%100,1,1),"%04i-01-01 check"%year)
 			self.failUnless(date.GetAbsoluteDay()==absDay,"%04i-01-01 symmetry check"%year)
 			absDay+=365
 			if (year%4==0 and (not year%100==0 or year%400==0)):

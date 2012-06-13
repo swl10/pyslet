@@ -429,7 +429,7 @@ class XMLParser:
 		self.ParseElement()
 		if self.checkValidity:
 			for idref in self.idRefTable.keys():
-				if not self.idTable.has_key(idref):
+				if not idref in self.idTable:
 					self.ValidityError("IDREF: %s does not match any ID attribute value")
 		self.ParseMisc()
 		if self.theChar is not None and not self.dontCheckWellFormedness:
@@ -970,7 +970,7 @@ class XMLParser:
 								self.ValidityError("No Notation on Empty Element: attribute %s on element %s cannot have NOTATION type"%(aName,eName))
 			for eName in self.dtd.generalEntities.keys():
 				eDef=self.dtd.generalEntities[eName]
-				if eDef.notation and not self.dtd.notations.has_key(eDef.notation):
+				if eDef.notation and not eDef.notation in self.dtd.notations:
 					self.ValidityError("Notation Declared: notation %s used in declaration of entity %s has not been declared"%(eDef.notation,eName))
 
 	def ParseXMLDecl(self,gotLiteral=False):
@@ -1392,7 +1392,7 @@ class XMLParser:
 					if aDef.type==XMLAttributeDefinition.ID:
 						if not IsValidName(value):
 							self.ValidityError("ID: %s does not match the Name production"%value)					
-						if self.idTable.has_key(value):
+						if value in self.idTable:
 							self.ValidityError("ID: value %s already in use"%value)
 						else:
 							self.idTable[value]=True
@@ -1534,7 +1534,7 @@ class XMLParser:
 					break
 				if s:
 					aName,aValue=self.ParseAttribute()
-					if not self.dontCheckWellFormedness and attrs.has_key(aName):
+					if not self.dontCheckWellFormedness and aName in attrs:
 						self.WellFormednessError("Unique Att Spec: attribute %s appears more than once"%aName)
 					attrs[aName]=aValue
 				else:
@@ -1928,7 +1928,7 @@ class XMLParser:
 				cpChild=XMLNameParticle()
 				cpChild.name=self.ParseRequiredName(production)
 				if self.checkValidity:
-					if names.has_key(cpChild.name):
+					if cpChild.name in names:
 						self.ValidityError("No Duplicate Types: %s appears multiple times in mixed-content declaration"%cpChild.name)
 					else:
 						names[cpChild.name]=True
@@ -2104,7 +2104,7 @@ class XMLParser:
 		while True:
 			self.ParseS()
 			name=self.ParseRequiredName(production)
-			if self.checkValidity and value.has_key(name):
+			if self.checkValidity and name in value:
 				self.ValidityError("No Duplicate Tokens: %s already declared"%name)
 			value[name]=True
 			self.ParseS()
@@ -2129,7 +2129,7 @@ class XMLParser:
 			self.ParseS()
 			token=self.ParseNmtoken()
 			if token:
-				if self.checkValidity and value.has_key(token):
+				if self.checkValidity and token in value:
 					self.ValidityError("No Duplicate Tokens: %s already declared"%token)
 				value[token]=True
 			else:

@@ -16,7 +16,7 @@ else:
 		author="Steve Lay",
 		author_email="steve.w.lay@googlemail.com",
 		url=pyslet.info.home,
-		packages=['pyslet','pyslet.xml20081126'],
+		packages=['pyslet','pyslet.xml20081126','pyslet.qtiv1'],
 		package_data={'pyslet': [ ] }
 		)
 	

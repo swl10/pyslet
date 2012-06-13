@@ -5,6 +5,8 @@ from pyslet.xml20081126.parser import *
 
 XML_NAMESPACE=u"http://www.w3.org/XML/1998/namespace"
 XMLNS_NAMESPACE=u"http://www.w3.org/2000/xmlns/"
+NO_NAMESPACE="~"
+
 xmlns_base=(XML_NAMESPACE,'base')
 xmlns_lang=(XML_NAMESPACE,'lang')
 xmlns_space=(XML_NAMESPACE,'space')
@@ -27,7 +29,7 @@ def IsValidNCName(name):
 def AttributeNameKey(aname):
 	"""A nasty function to make sorting attribute names predictable."""
 	if type(aname) in StringTypes:
-		return (None,unicode(aname))
+		return (NO_NAMESPACE,unicode(aname))
 	else:
 		return aname
 
@@ -54,6 +56,13 @@ class XMLNSElementContainerMixin:
 		context or None if no prefix is currently in force."""
 		if ns==XML_NAMESPACE:
 			return 'xml'
+		elif ns is None:
+			# Attributes with no namespace
+			print "Deprecation warning: None for ns"
+			import traceback;traceback.print_stack()
+			return ''
+		elif ns==NO_NAMESPACE:
+			return ''
 		prefix=None
 		ei=self
 		while prefix is None and ei is not None:
@@ -114,9 +123,12 @@ class XMLNSElementContainerMixin:
 				
 	def MakePrefix(self,ns,prefix=None):
 		"""Creates a new mapping from ns to the given prefix."""
+# 		if ns is None:
+# 			print "Attempt to make a prefix for the empty namespace"
+# 			import traceback;traceback.print_stack()
 		if prefix is None:
 			prefix=self.NewPrefix()
-		if self.prefixToNS.has_key(prefix):
+		if prefix in self.prefixToNS:
 			raise ValueError
 		self.prefixToNS[prefix]=ns
 		self.nsToPrefix[ns]=prefix
@@ -129,7 +141,7 @@ class XMLNSElementContainerMixin:
 		while ei is not None:
 			prefixList=ei.prefixToNS.keys()
 			for prefix in prefixList:
-				if not prefixMap.has_key(prefix):
+				if not prefix in prefixMap:
 					prefixMap[prefix]=ei.prefixToNS[prefix]
 			ei=ei.parent
 		return prefixMap
@@ -182,40 +194,55 @@ class XMLNSElement(XMLNSElementContainerMixin,Element):
 		and so must be looked up using this method."""
 		return self._attrs.get(name,None)
 
+	def MangleAttributeName(self,name):
+		"""Returns a mangled attribute name, used when setting ns-aware attributes.
+		
+		Custom setters are enabled only for attributes with no namespace. For
+		attriubtes from other namespaces the default processing defined by the
+		Element's SetAttribute/GetAttribute(s) implementation is used."""
+		ns,aname=name
+		if ns is None:
+			print "Deprecation warning: None for ns"
+			import traceback;traceback.print_stack()
+			return "XMLATTR_"+aname
+		elif ns==NO_NAMESPACE:
+			return "XMLATTR_"+aname
+		else:
+			return None
+		
+	def UnmangleAttributeName(self,mName):
+		"""Returns an unmangled attribute name, used when getting attributes.
+
+		If mName is not a mangled name, None is returned."""
+		if mName.startswith('XMLATTR_'):
+			return (NO_NAMESPACE,mName[8:])
+		else:
+			return None
+				
 	def SetAttribute(self,name,value):
 		"""Sets the value of an attribute.
 		
-		Overrides the default behaviour by accepting a (ns,name) tuple in
-		addition to a plain string/unicode string name.  This method also
-		catches the new namespace prefix mapping for the element which is placed
-		in a special attribute by :py:meth:`XMLNSParser.ParseNSAttributes`.
-		
-		Custom setters are called using the inherited behaviour only for attributes
-		with no namespace.  Also, XML namespace generates custom setter calls of the
-		form Set_xml_aname for compatibility with the default implementation.
-		
-		Custom setter cannot be defined for attriubtes from other namespaces,
-		these are subjet to default processing defined by Element's
-		SetAttribute implementation."""
+		This method catches the new namespace prefix mapping for the element
+		which is placed in a special attribute by
+		:py:meth:`XMLNSParser.ParseNSAttributes`."""
+		if name==(NO_NAMESPACE,".ns"):
+			self.prefixToNS=nsMap=value
+			self.nsToPrefix=dict(zip(nsMap.values(),nsMap.keys()))
+			return
 		if type(name) in types.StringTypes:
-			if name==".ns":
-				self.prefixToNS=nsMap=value
-				self.nsToPrefix=dict(zip(nsMap.values(),nsMap.keys()))
-				return
-			ns=None
-			aname=name
+			return Element.SetAttribute(self,(NO_NAMESPACE,name),value)
 		else:
-			ns,aname=name
-		if ns is None:
-			if getattr(self,"XMLATTR_"+aname,False) or getattr(self,"Set_"+aname,False):
-				return Element.SetAttribute(self,aname,value)				
-		elif ns==XML_NAMESPACE:
-			if getattr(self,"Set_xml_"+aname,False):
-				return Element.SetAttribute(self,'xml_'+aname,value)		
-		if hasattr(self.__class__,'ID') and name==self.__class__.ID:
-			self.SetID(value)
-		else:
-			self._attrs[name]=value
+			return Element.SetAttribute(self,name,value)
+# 		if ns is None:
+# 			if getattr(self,"XMLATTR_"+aname,False) or getattr(self,"Set_"+aname,False):
+# 				return Element.SetAttribute(self,aname,value)				
+# 		elif ns==XML_NAMESPACE:
+# 			if getattr(self,"Set_xml_"+aname,False):
+# 				return Element.SetAttribute(self,'xml_'+aname,value)		
+# 		if hasattr(self.__class__,'ID') and name==self.__class__.ID:
+# 			self.SetID(value)
+# 		else:
+# 			self._attrs[name]=value
 
 	def IsValidName(self,value):
 		return IsValidNCName(value)
@@ -265,6 +292,7 @@ class XMLNSElement(XMLNSElementContainerMixin,Element):
 		keys.sort()
 		for a in keys:
 			if type(a) in types.StringTypes:
+				print "Deprecation warning: found attribute with no namespace in NSElement, %s(%s)"%(self.__class__.__name__,a)
 				aname=a
 				prefix=''
 			else:
@@ -372,8 +400,9 @@ class XMLNSParser(XMLParser):
 		If *nsDefs* does not contain a suitable namespace definition then the
 		context's existing prefix mapping is used, its parent's, and so on.
 
-		If *useDefault* is False an unqualified name is returned with an None as
-		the namespace (this is used when expanded attribute names)."""
+		If *useDefault* is False an unqualified name is returned with
+		:py:data:`NO_NAMESPACE` as the namespace (this is used when expanded
+		attribute names)."""
 		context=self.GetContext()
 		xname=qname.split(':')
 		if len(xname)==1:
@@ -385,7 +414,7 @@ class XMLNSParser(XMLParser):
 					nsURI=context.GetNS('')
 				return (nsURI,qname)
 			else:
-				return (None,qname)
+				return (NO_NAMESPACE,qname)
 		elif len(xname)==2:
 			nsprefix,local=xname
 			if nsprefix=='xml':
@@ -432,13 +461,11 @@ class XMLNSParser(XMLParser):
 				del attrs[aname]
 		for aname in attrs.keys():
 			expandedName=self.ExpandQName(aname,ns,False)
-			if expandedName[0]:
-				# leave attributes with no namespace as strings, not tuples
-				attrs[expandedName]=attrs[aname]
-				del attrs[aname]
+			attrs[expandedName]=attrs[aname]
+			del attrs[aname]
 		# Finally, we hide the ns object in the list of attributes so we can retrieve it later
 		# Note that '.' is not a valid NameStartChar so we will never collide with a real attribute
-		attrs[".ns"]=ns
+		attrs[(NO_NAMESPACE,".ns")]=ns
 		return ns
 		
 	def GetSTagClass(self,qname,attrs=None):

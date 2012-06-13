@@ -139,7 +139,7 @@ class Entry(atom.Entry):
 		indicated by the type attribute).  When setting new properties *value*
 		the type is not specified and is treated as text - see
 		:py:meth:`Property.SetValue` for more information."""
-		if self._properties.has_key(key):
+		if key in self._properties:
 			p=self._properties[key][0]
 		else:
 			ps=self.ChildElement(self.ContentClass).ChildElement(Properties)
@@ -213,7 +213,7 @@ class Client(app.Client):
 			entityType=self._cacheType
 		else:
 			name=entityTypeName.split('.')
-			if self.schemas.has_key(name[0]):
+			if name[0] in self.schemas:
 				try:
 					entityType=self.schemas[name[0]][string.join(name[1:],'.')]
 				except KeyError:

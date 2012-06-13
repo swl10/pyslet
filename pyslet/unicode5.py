@@ -130,8 +130,12 @@ class CharClass:
 			self.ranges[indexA:indexZ+1]=[[self.ranges[indexA][0],self.ranges[indexZ][1]]]
 		
 	def Test(self,c):
-		"""Test a unicode character, return True if the character is in the class"""
-		if self.ranges:
+		"""Test a unicode character, return True if the character is in the class.
+
+		If c is None False is returned."""
+		if c is None:
+			return False
+		elif self.ranges:
 			match,index=self.BisectionSearch(c,0,len(self.ranges)-1)
 			return match
 		else:
@@ -158,7 +162,7 @@ class CharClass:
 			else:
 				return (True,rmin)
 		else:
-			rtry=(rmin+rmax)/2
+			rtry=(rmin+rmax)//2
 			if c<=self.ranges[rtry][1]:
 				return self.BisectionSearch(c,rmin,rtry)
 			else:

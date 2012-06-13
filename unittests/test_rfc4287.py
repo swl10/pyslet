@@ -158,7 +158,7 @@ class AtomTextTests(unittest.TestCase):
 		present with a value of "text"."""
 		text=Text(None)
 		attrs=text.GetAttributes()
-		self.failUnless(text.type==TextType.text and attrs['type']=="text","Default text type not 'text' on construction")
+		self.failUnless(text.type==TextType.text and attrs[(xmlns.NO_NAMESPACE,'type')]=="text","Default text type not 'text' on construction")
 		text.SetValue('<p>Hello',TextType.html)
 		self.failUnless(text.type==TextType.html,"html text type failed")
 		text.SetValue('<p>Hello</p>',TextType.xhtml)

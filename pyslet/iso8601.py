@@ -66,9 +66,9 @@ def DayOfWeek(year,month,day):
 	"""DayOfWeek returns the day of week 1-7, 1 being Monday for the given year, month
 	and day"""
 	num=year*365
-	num=num+year/4+1
-	num=num-(year/100+1)
-	num=num+year/400+1
+	num=num+year//4+1
+	num=num-(year//100+1)
+	num=num+year//400+1
 	if month<3 and LeapYear(year):
 		num=num-1
 	return (num+MONTH_OFFSETS[month-1]+day+4)%7+1
@@ -103,7 +103,7 @@ def GetLocalZone():
 		zOffset=-1440
 	else:
 		zOffset=1440
-	zOffset+=int(localTime.GetSeconds()-utcTime.GetSeconds())/60
+	zOffset+=int(localTime.GetSeconds()-utcTime.GetSeconds())//60
 	return zOffset
 			
 class Date:
@@ -234,12 +234,12 @@ class Date:
 		"""Returns a 5-tuple of century, decade, year, week number, day-of-week (1==Monday, 7=Sunday)"""
 		if self.day is None:
 			if self.week:
-				return (self.century,self.year/10,self.year%10,self.week,None)
+				return (self.century,self.year//10,self.year%10,self.week,None)
 			elif self.month is None:
 				if self.year is None:
 					return (self.century,None,None,None,None)
 				else:
-					return (self.century,self.year/10,self.year%10,None,None)
+					return (self.century,self.year//10,self.year%10,None,None)
 			else:
 				raise DateTimeError("can't get week day with month precision")
 		else:
@@ -268,8 +268,8 @@ class Date:
 				# part of the first week of the year, so we calculate the ordinal
 				# value of the Monay that began that week 
 				yearBase=5-DayOfWeek(year,1,4)
-				week=(ordinalDay-yearBase)/7+1
-			return year/100,(year%100)/10,(year%10),week,dow
+				week=(ordinalDay-yearBase)//7+1
+			return year//100,(year%100)//10,(year%10),week,dow
 
 	def SetWeekDay (self,century,decade,year,week,day,baseDate=None):
 		if day is None:
@@ -367,7 +367,7 @@ class Date:
 					self.month=self.month+1
 				else:
 					break
-			self.century=year/100
+			self.century=year//100
 			self.year=year%100
 			self.week=None
 		self.CheckDate()
@@ -381,7 +381,7 @@ class Date:
 		timeTuple[2]=self.day
 		
 	def SetTimeTuple (self,timeTuple):
-		self.century=timeTuple[0]/100
+		self.century=timeTuple[0]//100
 		self.year=timeTuple[0]%100
 		self.month=timeTuple[1]
 		self.day=timeTuple[2]
@@ -392,7 +392,7 @@ class Date:
 		if not self.Complete():
 			raise DateTimeError("absolute day requires complete date")
 		absYear=self.century*100+self.year-1
-		return (absYear/4)-(absYear/100)+(absYear/400)+(absYear*365)+self.GetOrdinalDay()[2]
+		return (absYear//4)-(absYear//100)+(absYear//400)+(absYear*365)+self.GetOrdinalDay()[2]
 	
 	def SetAbsoluteDay (self,absDay):
 		quadCentury=146097	# 365*400+97 always holds
@@ -401,7 +401,7 @@ class Date:
 		# Shift the base so that day 0 is 1st Jan 0001, makes the year calculation easier
 		absDay=absDay-1
 		# All quad centuries are equal
-		absYear=400*(absDay/quadCentury)
+		absYear=400*(absDay//quadCentury)
 		absDay=absDay%quadCentury
 		# A quad century has one more day than 4 centuries because it ends in a leap year
 		# We must check for this case specially to stop abother 4 complete centuries be added!
@@ -409,21 +409,21 @@ class Date:
 			absYear=absYear+399
 			absDay=365
 		else:
-			absYear=absYear+100*(absDay/century)
+			absYear=absYear+100*(absDay//century)
 			absDay=absDay%century
 			# A century has one fewer days than 25 quad years so we are safe this time
-			absYear=absYear+4*(absDay/quadYear)
+			absYear=absYear+4*(absDay//quadYear)
 			absDay=absDay%quadYear
 			# However, a quad year has 1 more day than 4 years so we have a second special case
 			if absDay==(quadYear-1):
 				absYear=absYear+3
 				absDay=365
 			else:
-				absYear=absYear+(absDay/365)
+				absYear=absYear+(absDay//365)
 				absDay=absDay%365
 		absYear=absYear+1
 		# Finally, return the base so that 1 is the 1st of Jan for setting the ordinal
-		self.SetOrdinalDay(absYear/100,absYear%100,absDay+1)
+		self.SetOrdinalDay(absYear//100,absYear%100,absDay+1)
 
 	def SetJulianDay(self,year,month,day):
 		if year%4:
@@ -433,7 +433,7 @@ class Date:
 		year-=1	
 		for m in mSizes[:month-1]:
 			day+=m
-		self.SetAbsoluteDay((year/4)+(year*365)+day-2)
+		self.SetAbsoluteDay((year//4)+(year*365)+day-2)
 
 	def GetJulianDay(self):
 		quadYear=1461		# 365*4+1    includes leap
@@ -443,14 +443,14 @@ class Date:
 		# We would add 2 but we want to shift the base so that day 0 is 1st Jan 0001 (Julian)
 		# We add the second bit after the calculation is done
 		day+=1
-		year=4*(day/quadYear)
+		year=4*(day//quadYear)
 		day=day%quadYear
 		# A quad year has 1 more day than 4 years
 		if day==(quadYear-1):
 			year+=3
 			day=365
 		else:
-			year+=day/365
+			year+=day//365
 			day=day%365
 		# correct for base year being 1...
 		year+=1
@@ -918,7 +918,7 @@ class Time:
 				zStr="+"
 			else:
 				zStr="-"
-			hour=self.zOffset/60
+			hour=self.zOffset//60
 			minute=self.zOffset%60
 			if zonePrecision==Time.ZoneFullPrecision or minute>0:
 				if basic:
@@ -944,7 +944,7 @@ class Time:
 			raise DateTimeError("missing time")
 		if self.hour<0 or self.hour>24:
 			raise DateTimeError("hour out of range %i"%self.hour)
-		if self.hour==24 and (self.minute>0 or self.second>0):
+		if self.hour==24 and ((self.minute is not None and self.minute>0) or (self.second is not None and self.second>0)):
 			raise DateTimeError("time overflow")
 		if self.minute is None:
 			return
@@ -967,7 +967,7 @@ class Time:
 				if self.zOffset is None:
 					raise DateTimeError("missing zone offset")
 				elif self.zOffset>=1440:
-					raise DateTimeError("zone offset out of range %i:%02i"%(self.zOffset/60,self.zOffset%60))
+					raise DateTimeError("zone offset out of range %i:%02i"%(self.zOffset//60,self.zOffset%60))
 
 	def Complete(self):
 		return self.hour is not None and self.minute is not None and self.second is not None
@@ -1089,9 +1089,9 @@ class Time:
 		return result
 
 	def ChangeZone(self,zChange):
-		# even if / and % are defined differently from what you expect
+		# even if // and % are defined differently from what you expect
 		# we know that they are consistent so can proceed like this
-		zHours=zChange/60
+		zHours=zChange//60
 		zMinutes=zChange%60
 		if self.second is None:
 			if self.minute is None:
@@ -1153,10 +1153,10 @@ class Time:
 			sFraction=None
 		# python's div and mod make this calculation easy, s will always be +ve
 		# and overflow will always be floored
-		overflow=s/86400
+		overflow=s//86400
 		s=s%86400
-		self.hour=s/3600
-		self.minute=(s%3600)/60
+		self.hour=s//3600
+		self.minute=(s%3600)//60
 		if sFraction is None:
 			self.second=int(s%60)
 		else:
@@ -1667,10 +1667,10 @@ class ISO8601Parser(RFC2234CoreParser):
 						if self.theChar=="-":
 							self.NextChar()
 							v4=self.ParseDIGIT()
-							date.SetWeekDay(v1,v2/10,v2%10,v3,v4,baseDate)
+							date.SetWeekDay(v1,v2//10,v2%10,v3,v4,baseDate)
 							return "YYYY-Www-D"
 						else:
-							date.SetWeekDay(v1,v2/10,v2%10,v3,None,baseDate)
+							date.SetWeekDay(v1,v2//10,v2%10,v3,None,baseDate)
 							return "YYYY-Www"
 					else:
 						self.SyntaxError("expected digit or W in ISO date")
@@ -1680,10 +1680,10 @@ class ISO8601Parser(RFC2234CoreParser):
 					v3=v3*10+self.ParseDIGIT()
 					if IsDIGIT(self.theChar):
 						v4=self.ParseDIGIT()
-						date.SetWeekDay(v1,v2/10,v2%10,v3,v4,baseDate)
+						date.SetWeekDay(v1,v2//10,v2%10,v3,v4,baseDate)
 						return "YYYYWwwD"
 					else:
-						date.SetWeekDay(v1,v2/10,v2%10,v3,None,baseDate)
+						date.SetWeekDay(v1,v2//10,v2%10,v3,None,baseDate)
 						return "YYYYWww"""
 				else:
 					date.SetCalendarDay(v1,v2,None,None,baseDate)
@@ -1713,10 +1713,10 @@ class ISO8601Parser(RFC2234CoreParser):
 					if self.theChar=="-":
 						self.NextChar()
 						v3=self.ParseDIGIT()
-						date.SetWeekDay(None,v1/10,v1%10,v2,v3,baseDate)
+						date.SetWeekDay(None,v1//10,v1%10,v2,v3,baseDate)
 						return "YY-Www-D"
 					else:
-						date.SetWeekDay(None,v1/10,v1%10,v2,None,baseDate)
+						date.SetWeekDay(None,v1//10,v1%10,v2,None,baseDate)
 						return "YY-Www"
 				else:
 					self.SyntaxError("expected digit or W in ISO date")
@@ -1726,10 +1726,10 @@ class ISO8601Parser(RFC2234CoreParser):
 				v2=v2*10+self.ParseDIGIT()
 				if IsDIGIT(self.theChar):
 					v3=self.ParseDIGIT()
-					date.SetWeekDay(None,v1/10,v1%10,v2,v3,baseDate)
+					date.SetWeekDay(None,v1//10,v1%10,v2,v3,baseDate)
 					return "YYWwwD"
 				else:
-					date.SetWeekDay(None,v1/10,v1%10,v2,None,baseDate)
+					date.SetWeekDay(None,v1//10,v1%10,v2,None,baseDate)
 					return "YYWww"			
 			else:
 				date.SetCalendarDay(v1,None,None,None,baseDate)
