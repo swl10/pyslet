@@ -29,6 +29,10 @@ to a list passed in as the *log* parameter.
 QuesTestInterop Elements
 ------------------------
 
+..	autoclass:: QuesTestInterop
+	:members:
+	:show-inheritance:
+
 
 Common Elements
 ---------------

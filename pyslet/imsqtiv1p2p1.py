@@ -29,14 +29,18 @@ QTI_SOURCE='QTIv1'
 #	ROOT DEFINITION
 #
 class QuesTestInterop(CommentContainer):
-	"""<!ELEMENT questestinterop (qticomment? , (objectbank | assessment | (section | item)+))>"""
+	"""The <questestinterop> element is the outermost container for the QTI
+	contents i.e. the container of the Assessment(s), Section(s) and Item(s)::
+
+	<!ELEMENT questestinterop (qticomment? , (objectbank | assessment | (section | item)+))>"""
+
 	XMLNAME='questestinterop'
 
 	def __init__(self,parent):
 		CommentContainer.__init__(self,parent)
 		self.QTIObjectBank=None
 		self.QTIAssessment=None
-		self.objectList=[]
+		self.ObjectMixin=[]
 	
 	def GetChildren(self):
 		for child in CommentContainer.GetChildren(self): yield child
@@ -45,13 +49,8 @@ class QuesTestInterop(CommentContainer):
 		elif self.QTIAssessment:
 			yield self.QTIAssessment
 		else:
-			for child in self.objectList: yield child
+			for child in self.ObjectMixin: yield child
 
-	def QTIItem(self):
-		child=QTIItem(self)
-		self.objectList.append(child)
-		return child
-		
 	def MigrateV2(self):
 		"""Converts this element to QTI v2
 		
@@ -64,20 +63,21 @@ class QuesTestInterop(CommentContainer):
 		identifier to derive a file name."""
 		output=[]
 		# ignore QTIObjectBank for the moment
-		# ignore QTIAssessment for the moment
+		if self.QTIObjectBank:
+			self.QTIObjectBank.MigrateV2(output)
 		if self.QTIAssessment:
 			self.QTIAssessment.MigrateV2(output)
-		for object in self.objectList:
+		for object in self.ObjectMixin:
 			object.MigrateV2(output)
 		if self.QTIComment:
 			if self.QTIObjectBank:
 				# where to put the comment?
 				pass
 			elif self.QTIAssessment:
-				if len(self.objectList)==0:
+				if len(self.ObjectMixin)==0:
 					# Add this comment as a metadata description on the assessment
 					pass
-			elif len(self.objectList)==1:
+			elif len(self.ObjectMixin)==1:
 				# Add this comment to this object's metdata description
 				doc,lom,log=output[0]
 				general=lom.LOMGeneral()
@@ -2400,7 +2400,7 @@ class QTIAssessmentFeedback(QTIElement):
 #
 #	SECTION OBJECT DEFINITIONS
 #
-class QTISection(CommentContainer):
+class QTISection(CommentContainer,ObjectMixin):
 	"""Represents section element.
 ::
 
@@ -2562,7 +2562,7 @@ class QTISectionFeedback(CommentContainer):
 #
 #	ITEM OBJECT DEFINITIONS
 #
-class QTIItem(CommentContainer):
+class QTIItem(CommentContainer,ObjectMixin):
 	"""Represents the item element.
 	
 ::
