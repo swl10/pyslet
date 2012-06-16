@@ -54,9 +54,9 @@ class BLTIProviderTests(unittest.TestCase):
 		secrets={}
 		for i in xrange(100):
 			key,secret=tp.NewConsumer()
-			self.failIf(keys.has_key(key),"Repeated key from TP")
+			self.failIf(key in keys,"Repeated key from TP")
 			keys[key]=secret
-			self.failIf(secrets.has_key(secret),"Repeated secret from IP")
+			self.failIf(secret in secrets,"Repeated secret from IP")
 			secrets[secret]=key
 		key,secret=tp.NewConsumer("www.example.com")
 		try:

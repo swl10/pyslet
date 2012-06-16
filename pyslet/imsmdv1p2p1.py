@@ -9,6 +9,7 @@ try:
 except ImportError:
 	vobject=None
 
+import itertools
 	
 IMSLRM_NAMESPACE="http://www.imsglobal.org/xsd/imsmd_v1p2"
 IMSLRM_SCHEMALOCATION="http://www.imsglobal.org/xsd/imsmd_v1p2p4.xsd"
@@ -45,7 +46,7 @@ class LangStringList(LRMElement):
 		self.LangString=[]
 
 	def GetChildren(self):
-		return self.LangString
+		return iter(self.LangString)
 	
 	def GetLangString(self,lang=None):
 		if lang is None:
@@ -86,7 +87,7 @@ class LRMSource(LRMElement):
 		self.LangString=self.LangStringClass(self)
 	
 	def GetChildren(self):
-		return [self.LangString]
+		yield self.LangString
 
 		
 class LRMValue(LRMElement):
@@ -99,7 +100,7 @@ class LRMValue(LRMElement):
 		self.LangString=self.LangStringClass(self)
 	
 	def GetChildren(self):
-		return [self.LangString]
+		yield self.LangString
 
 	
 class LRMSourceValue(LRMElement):
@@ -112,7 +113,8 @@ class LRMSourceValue(LRMElement):
 		self.LRMValue=self.LRMValueClass(self)
 	
 	def GetChildren(self):
-		return [self.LRMSource,self.LRMValue]
+		yield self.LRMSource
+		yield self.LRMValue
 
 		
 class LOM(LRMElement):
@@ -132,20 +134,18 @@ class LOM(LRMElement):
 		self.classifications=[]
 	
 	def GetChildren(self):
-		children=[]
-		if self.general: 
-			children.append(self.general)
-		if self.lifecycle: 
-			children.append(self.lifecycle)
-		if self.metametadata: 
-			children.append(self.metametadata)
-		if self.technical: 
-			children.append(self.technical)
-		if self.educational: 
-			children.append(self.educational)
-		if self.rights: 
-			children.append(self.rights)
-		return children+self.relations+self.annotations+self.classifications+LRMElement.GetChildren(self)
+		if self.general: yield self.general
+		if self.lifecycle: yield self.lifecycle
+		if self.metametadata: yield self.metametadata
+		if self.technical: yield self.technical
+		if self.educational: yield self.educational
+		if self.rights: yield self.rights
+		for child in itertools.chain(
+			self.relations,
+			self.annotations,
+			self.classifications,
+			LRMElement.GetChildren(self)):
+			yield child
 		
 	def LOMGeneral(self):
 		if not self.general:
@@ -212,17 +212,18 @@ class LOMGeneral(LRMElement):
 		self.aggregationLevel=None
 	
 	def GetChildren(self):
-		children=[]
-		if self.identifier:
-			children.append(self.identifier)
-		if self.title:
-			children.append(self.title)
-		children=children+self.catalogEntries+self.languages+self.Description+self.keywords+self.coverage
-		if self.structure:
-			children.append(self.structure)
-		if self.aggregationLevel:
-			children.append(self.aggregationLevel)
-		return children+LRMElement.GetChildren(self)
+		if self.identifier: yield self.identifier
+		if self.title: yield self.title
+		for child in itertools.chain(
+			self.catalogEntries,
+			self.languages,
+			self.Description,
+			self.keywords,
+			self.coverage):
+			yield child
+		if self.structure: yield self.structure
+		if self.aggregationLevel: yield self.aggregationLevel
+		for child in LRMElement.GetChildren(self): yield child
 
 	def LOMIdentifier(self):
 		if not self.identifier:
@@ -308,10 +309,12 @@ class LOMLifecycle(LRMElement):
 		self.LOMContribute=[]
 	
 	def GetChildren(self):
-		children=[]
-		xmlns.OptionalAppend(children,self.LOMVersion)
-		xmlns.OptionalAppend(children,self.LOMStatus)
-		return children+self.LOMContribute+LRMElement.GetChildren(self)
+		if self.LOMVersion: yield self.LOMVersion
+		if self.LOMStatus: yield self.LOMStatus
+		for child in itertools.chain(
+			self.LOMContribute,
+			LRMElement.GetChildren(self)):
+			yield child
 
 class LOMVersion(LangStringList):
 	XMLNAME=(IMSLRM_NAMESPACE,'version')
@@ -338,9 +341,10 @@ class LOMContribute(LRMElement):
 		self.LOMDate=None
 	
 	def GetChildren(self):
-		children=[self.LOMRole]+self.LOMCEntity
-		xmlns.OptionalAppend(children,self.LOMDate)
-		return children+LRMElement.GetChildren(self)
+		yield self.LOMRole
+		for child in self.LOMCEntity: yield child
+		if self.LOMDate: yield self.LOMDate
+		for child in LRMElement.GetChildren(self): yield child
 
 class LOMRole(LRMSourceValue):
 	XMLNAME=(IMSLRM_NAMESPACE,'role')
@@ -356,7 +360,8 @@ class LOMCEntity(LRMElement):
 		self.LOMVCard=LOMVCard(self)
 	
 	def GetChildren(self):
-		return [self.LOMVCard]+LRMElement.GetChildren(self)
+		yield self.LOMVCard
+		for child in LRMElement.GetChildren(self): yield child
 
 class LOMVCard(LRMElement):
 	XMLNAME=(IMSLRM_NAMESPACE,'vcard')
@@ -432,17 +437,22 @@ class LOMEducational(LRMElement):
 		self.LOMLanguage=[]
 
 	def GetChildren(self):
-		children=[]
-		xmlns.OptionalAppend(children,self.LOMInteractivityType)
-		children=children+self.LOMLearningResourceType
-		xmlns.OptionalAppend(children,self.LOMInteractivityLevel)
-		xmlns.OptionalAppend(children,self.LOMSemanticDensity)
-		children=children+self.LOMIntendedEndUserRole+self.LOMContext+self.LOMTypicalAgeRange
-		xmlns.OptionalAppend(children,self.LOMDifficulty)
-		xmlns.OptionalAppend(children,self.LOMTypicalLearningTime)
-		xmlns.OptionalAppend(children,self.Description)
-		children=children+self.LOMLanguage+LRMElement.GetChildren(self)
-		return children
+		if self.LOMInteractivityType: yield self.LOMInteractivityType
+		for child in self.LOMLearningResourceType: yield child
+		if self.LOMInteractivityLevel: yield self.LOMInteractivityLevel
+		if self.LOMSemanticDensity: yield self.LOMSemanticDensity
+		for child in itertools.chain(
+			self.LOMIntendedEndUserRole,
+			self.LOMContext,
+			self.LOMTypicalAgeRange):
+			yield child
+		if self.LOMDifficulty: yield self.LOMDifficulty
+		if self.LOMTypicalLearningTime: yield self.LOMTypicalLearningTime
+		if self.Description: yield self.Description
+		for child in itertools.chain(
+			self.LOMLanguage,
+			LRMElement.GetChildren(self)):
+			yield child
 
 		
 class LOMInteractivityType(LRMSourceValue):
@@ -497,11 +507,10 @@ class LOMAnnotation(LRMElement):
 		self.Description=None
 	
 	def GetChildren(self):
-		children=[]
-		xmlns.OptionalAppend(children,self.LOMPerson)
-		xmlns.OptionalAppend(children,self.LOMDate)
-		xmlns.OptionalAppend(children,self.Description)
-		return children+LRMElement.GetChildren(self)
+		if self.LOMPerson: yield self.LOMPerson
+		if self.LOMDate: yield self.LOMDate
+		if self.Description: yield self.Description
+		for child in LRMElement.GetChildren(self): yield child
 
 	
 class LOMClassification(LRMElement):

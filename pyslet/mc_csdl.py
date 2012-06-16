@@ -8,6 +8,7 @@ import pyslet.xmlnames20091208 as xmlns
 import pyslet.rfc2396 as uri
 import pyslet.xsdatatypes20041028 as xsi
 
+import itertools
 
 EDM_NAMESPACE="http://schemas.microsoft.com/ado/2009/11/edm"		#: Namespace to use for CSDL elements
 
@@ -119,10 +120,13 @@ class Type(CSDLElement):
 		self.ValueAnnotation=[]
 		
 	def GetChildren(self):
-		children=[]
-		if self.Documentation: children.append(self.Documentation)
-		children=children+self.Property+self.TypeAnnotation+self.ValueAnnotation
-		return children+CSDLElement.GetChildren(self)
+		if self.Documentation: yield self.Documentation
+		for child in itertools.chain(
+			self.Property,
+			self.TypeAnnotation,
+			self.ValueAnnotation,
+			CSDLElement.GetChildren(self)):
+			yield child
 
 		
 class EntityType(Type):
@@ -134,11 +138,15 @@ class EntityType(Type):
 		self.NavigationProperty=[]
 		
 	def GetChildren(self):
-		children=[]
-		if self.Documentation: children.append(self.Documentation)
-		if self.Key: children.append(self.Key)
-		children=children+self.Property+self.NavigationProperty+self.TypeAnnotation+self.ValueAnnotation
-		return children+CSDLElement.GetChildren(self)
+		if self.Documentation: yield self.Documentation
+		if self.Key: yield self.Key
+		for child in itertools.chain(
+			self.Property,
+			self.NavigationProperty,
+			self.TypeAnnotation,
+			self.ValueAnnotation,
+			CSDLElement.GetChildren(self)):
+			yield child
 
 	
 class ComplexType(Type):
@@ -180,10 +188,9 @@ class End(CSDLElement):
 		self.OnDelete=None
 	
 	def GetChildren(self):
-		children=[]
-		if self.Documentation: children.append(self.Documentation)
-		if self.OnDelete: children.append(self.OnDelete)
-		return children+CSDLElement.GetChildren(self)
+		if self.Documentation: yield self.Documentation
+		if self.OnDelete: yield self.OnDelete
+		for child in CSDLElement.GetChildren(self): yield child
 
 
 class Association(CSDLElement):
@@ -201,11 +208,14 @@ class Association(CSDLElement):
 		self.ValueAnnotation=[]
 
 	def GetChildren(self):
-		children=[]
-		if self.Documentation: children.append(self.Documentation)
-		children=children+self.End
-		if self.ReferentialConstraint: children.append(self.ReferentialConstraint)
-		return children+self.TypeAnnotation+self.ValueAnnotation+CSDLElement.GetChildren(self)
+		if self.Documentation: yield self.Documentation
+		for child in self.End: yield child
+		if self.ReferentialConstraint: yield self.ReferentialConstraint
+		for child in itertools.chain(
+			self.TypeAnnotation,
+			self.ValueAnnotation,
+			CSDLElement.GetChildren(self)):
+			yield child
 
 
 class EntityContainer(CSDLElement):
@@ -246,9 +256,16 @@ class Schema(CSDLElement):
 		return self.nameTable[key]
 			
 	def GetChildren(self):
-		children=self.Using+self.Association+self.ComplexType+self.EntityType+self.EntityContainer+\
-			self.Function+self.Annotations+self.ValueTerm
-		return children+CSDLElement.GetChildren(self)
+		return itertools.chain(
+			self.Using,
+			self.Association,
+			self.ComplexType,
+			self.EntityType,
+			self.EntityContainer,
+			self.Function,
+			self.Annotations,
+			self.ValueTerm,
+			CSDLElement.GetChildren(self))
 
 	def ContentChanged(self):
 		for t in self.EntityType+self.ComplexType:

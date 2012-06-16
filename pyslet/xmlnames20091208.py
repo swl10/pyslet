@@ -333,8 +333,9 @@ class XMLNSElement(XMLNSElementContainerMixin,Element):
 		else:
 			attributes=''
 		children=self.GetCanonicalChildren()
-		if children:
-			if type(children[0]) in StringTypes and len(children[0]) and IsS(children[0][0]):
+		try:
+			child=children.next()
+			if type(child) in StringTypes and len(child) and IsS(child[0]):
 				# First character is WS, so assume pre-formatted.
 				indent=tab=''			
 			writer.write(u'%s<%s%s%s>'%(ws,prefix,self.xmlname,attributes))
@@ -342,19 +343,27 @@ class XMLNSElement(XMLNSElementContainerMixin,Element):
 				# When expressed in SGML this element would have type CDATA so put it in a CDSect
 				writer.write(EscapeCDSect(self.GetValue()))
 			else:
-				for child in children:
+				while True:
 					if type(child) in types.StringTypes:
 						# We force encoding of carriage return as these are subject to removal
 						writer.write(escapeFunction(child))
 						# if we have character data content skip closing ws
 						ws=''
 					else:
-						child.WriteXML(writer,escapeFunction,indent,tab)
+						try:
+							child.WriteXML(writer,escapeFunction,indent,tab)
+						except TypeError:
+							print "Problem with %s: child was %s"%(self.__class__.__name__,repr(child))
+							raise
+					try:
+						child=children.next()
+					except StopIteration:
+						break
 			if not tab:
 				# if we weren't tabbing children we need to skip closing white space
 				ws=''
 			writer.write(u'%s</%s%s>'%(ws,prefix,self.xmlname))
-		else:
+		except StopIteration:
 			writer.write(u'%s<%s%s%s/>'%(ws,prefix,self.xmlname,attributes))
 
 

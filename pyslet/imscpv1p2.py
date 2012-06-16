@@ -13,6 +13,7 @@ from tempfile import mkdtemp
 import os, os.path, shutil, sys
 import string,re, random
 import zipfile
+import itertools
 
 IMSCP_NAMESPACE="http://www.imsglobal.org/xsd/imscp_v1p1"				#:	String constant for the main namespace
 IMSCP_SCHEMALOCATION="http://www.imsglobal.org/xsd/imscp_v1p1.xsd"		#:	String constant for the official schema location
@@ -84,12 +85,9 @@ class Metadata(CPElement):
 		self.SchemaVersion=None			#: the optional schemaversion element
 
 	def GetChildren(self):
-		children=[]
-		if self.Schema:
-			children.append(self.Schema)
-		if self.SchemaVersion:
-			children.append(self.SchemaVersion)
-		return children+CPElement.GetChildren(self)
+		if self.Schema: yield self.Schema
+		if self.SchemaVersion: yield self.SchemaVersion
+		for child in CPElement.GetChildren(self): yield child
 	
 	
 class Organization(CPElement):
@@ -109,7 +107,7 @@ class Organizations(CPElement):
 		self.Organization=[]			#: a list of organization elements
 	
 	def GetChildren(self):
-		return self.Organization+CPElement.GetChildren(self)
+		return itertools.chain(self.Organization,CPElement.GetChildren(self))
 			
 
 class File(CPElement):
@@ -189,10 +187,12 @@ class Resource(CPElement):
 		self.href=href
 
 	def GetChildren(self):
-		children=[]
-		if self.Metadata:
-			children.append(self.Metadata)
-		return children+self.File+self.Dependency+CPElement.GetChildren(self)
+		if self.Metadata: yield self.Metadata
+		for child in itertools.chain(
+			self.File,
+			self.Dependency,
+			CPElement.GetChildren(self)):
+			yield child
 	
 	def DeleteFile(self,f):
 		index=self.File.index(f)
@@ -219,7 +219,7 @@ class Resources(CPElement):
 		self.Resource=[]				#: the list of resources in the manifest
 	
 	def GetChildren(self):
-		return self.Resource+CPElement.GetChildren(self)
+		return itertools.chain(self.Resource,CPElement.GetChildren(self))
 
 
 class Manifest(CPElement):
@@ -241,12 +241,13 @@ class Manifest(CPElement):
 		self.Manifest=[]									#: a list of child manifest elements
 	
 	def GetChildren(self):
-		children=[]
-		if self.Metadata:
-			children.append(self.Metadata)
-		children.append(self.Organizations)
-		children.append(self.Resources)
-		return children+self.Manifest+CPElement.GetChildren(self)
+		if self.Metadata: yield self.Metadata
+		if self.Organizations: yield self.Organizations
+		if self.Resources: yield self.Resources
+		for child in itertools.chain(
+			self.Manifest,
+			CPElement.GetChildren(self)):
+			yield child
 
 Manifest.ManifestClass=Manifest
 		

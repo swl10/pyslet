@@ -10,298 +10,42 @@ import pyslet.xsdatatypes20041028 as xsi
 import pyslet.rfc2396 as uri
 import pyslet.rfc2616 as http
 
-import string, codecs
+import string, codecs, itertools
 import os.path
 from types import StringTypes
 
 from pyslet.qtiv1.core import *
+from pyslet.qtiv1.common import *
+#from pyslet.qtiv1.item import *
+#from pyslet.qtiv1.section import *
+#from pyslet.qtiv1.assessment import *
+#from pyslet.qtiv1.objectbank import *
+#from pyslet.qtiv1.main import *
 
 #IMSQTI_NAMESPACE="http://www.imsglobal.org/xsd/ims_qtiasiv1p2"
 QTI_SOURCE='QTIv1'
 
-
-class QTIError(Exception): pass
-class QTIUnimplementedError(QTIError): pass
-
-def MakeValidName(name):
-	"""This function takes a string that is supposed to match the
-	production for Name in XML and forces to to comply by replacing
-	illegal characters with '_'.  If name starts with a valid name
-	character but not a valid name start character, it is prefixed
-	with '_' too."""
-	if name:
-		goodName=[]
-		if not xml.IsNameStartChar(name[0]):
-			goodName.append('_')
-		for c in name:
-			if xml.IsNameChar(c):
-				goodName.append(c)
-			else:
-				goodName.append('_')
-		return string.join(goodName,'')
-	else:
-		return '_'
-
-def ParseYesNo(src):
-	return src.strip().lower()=='yes'
-
-def FormatYesNo(value):
-	if value:
-		return 'Yes'
-	else:
-		return 'No'
-
-def ParseInteger(src):
-	try:
-		return int(src)
-	except:
-		return None
-
-def FormatInteger(value):
-	return "%i"%value
-
-
-class QTIArea:
-	"""Area enumeration::
-	
-	(Ellipse | Rectangle | Bounded )  'Ellipse'
-	"""
-	decode={
-		'Ellipse':1,
-		'Rectangle':2,
-		'Bounded':3
-		}
-xsi.MakeEnumeration(QTIArea)
-
-def DecodeArea(value):
-	"""Decodes an area value from a string."""
-	try:
-		value=value.strip()
-		value=value[0].upper()+value[1:].lower()
-		return QTIArea.decode[value]
-	except KeyError:
-		raise ValueError("Can't decode area from %s"%value)
-
-def EncodeArea(value):
-	return QTIArea.encode.get(value,None)
-
-
-class QTIFIBType:
-	"""fibtype enumeration::
-	
-	fibtype      (String | Integer | Decimal | Scientific )  'String'
-	"""
-	decode={
-		'String':1,
-		'Integer':2,
-		'Decimal':3,
-		'Scientific':4
-		}
-xsi.MakeEnumeration(QTIFIBType)
-
-def DecodeFIBType(value):
-	"""Decodes a fibtype value from a string."""
-	try:
-		value=value.strip()
-		value=value[0].upper()+value[1:].lower()
-		return QTIFIBType.decode[value]
-	except KeyError:
-		raise ValueError("Can't decode fibtype from %s"%value)
-
-def EncodeFIBType(value):
-	return QTIFIBType.encode.get(value,None)
-
-
-class NumType:
-	"""numtype enumeration::
-	
-	numtype      (Integer | Decimal | Scientific )  'Integer'
-	"""
-	decode={
-		'Integer':1,
-		'Decimal':2,
-		'Scientific':3
-		}
-xsi.MakeEnumeration(NumType)
-
-def DecodeNumType(value):
-	"""Decodes a fibtype value from a string."""
-	try:
-		value=value.strip()
-		value=value[0].upper()+value[1:].lower()
-		return NumType.decode[value]
-	except KeyError:
-		raise ValueError("Can't decode numtype from %s"%value)
-
-def EncodeNumType(value):
-	return NumType.encode.get(value,None)
-
-
-class QTIPromptType:
-	"""prompt enumeration::
-	
-	prompt       (Box | Dashline | Asterisk | Underline )"""
-	decode={
-		'Box':1,
-		'Dashline':2,
-		'Asterisk':3,
-		'Underline':4
-		}
-xsi.MakeEnumeration(QTIPromptType)
-
-def DecodePromptType(value):
-	"""Decodes a prompt value from a string."""
-	try:
-		value=value.strip()
-		value=value[0].upper()+value[1:].lower()
-		return QTIPromptType.decode[value]
-	except KeyError:
-		raise ValueError("Can't decode prompt from %s"%value)
-
-def EncodePromptType(value):
-	return QTIPromptType.encode.get(value,None)
-
-
-class QTIOrientation:
-	"""Orientation enumeration::
-	
-	(Horizontal | Vertical )  'Horizontal'
-	"""
-	decode={
-		'Horizontal':1,
-		'Vertical':2,
-		}
-xsi.MakeEnumeration(QTIOrientation)
-
-V2ORIENTATION_MAP={
-	QTIOrientation.Horizontal:qtiv2.Orientation.horizontal,
-	QTIOrientation.Vertical:qtiv2.Orientation.vertical
-	}
-
-def DecodeOrientation(value):
-	"""Decodes an orientation value from a string."""
-	try:
-		value=value.strip()
-		value=value[0].upper()+value[1:].lower()
-		return QTIOrientation.decode[value]
-	except KeyError:
-		raise ValueError("Can't decode orientation from %s"%value)
-
-def EncodeOrientation(value):
-	return QTIOrientation.encode.get(value,'Horizontal')
-
-
-def MigrateV2AreaCoords(area,value,log):
-	"""Given a v1 area returns a v2 shape,coords array.
-
-	This conversion is generous because the separators have never been well
-	defined and in some cases content use a mixture of space and ','.
-
-	Note also that the definition of rarea was updated in the 1.2.1 errata and
-	this affects this algorithm.  The clarification on the definition of ellipse
-	from radii to diameters might mean that some content ends up with hotspots
-	that are too small but this is safer than hotspots that are too large."""
-	coords=[]
-	vStr=[]
-	sep=0
-	for c in value:
-		if c in "0123456789.":
-			if sep and vStr:
-				coords.append(int(float(string.join(vStr,''))))
-				sep=0
-				vStr=[]
-			vStr.append(c)
-		else:
-			sep=1
-	if vStr:
-		coords.append(int(float(string.join(vStr,''))))
-	if area==QTIArea.Rectangle:
-		if len(coords)<4:
-			log.append("Error: not enough coordinates for rectangle, padding with zeros")
-			while len(coords)<4:
-				coords.append(0)
-		shape=qtiv2.QTIShape.rect
-		coords=[coords[0],coords[1],coords[0]+coords[3]-1,coords[1]+coords[2]-1]
-	elif area==QTIArea.Ellipse:
-		if len(coords)<4:
-			if len(corrds)<2:
-				log.append("Error: not enough coordinates to locate ellipse, padding with zero")
-				while len(coords)<2:
-					coords.append(0)
-			if len(coords)==2:
-				log.append("Error: ellipse has no radius, treating as circule radius 4")
-				coords=coords+[8,8]
-			elif len(coords)==3:
-				log.append("Error: only one radius given for ellipse, assuming circular")
-				coords.append(coords[-1])
-		if coords[2]==coords[3]:
-			r=coords[2]//2 # centre-pixel coordinate model again
-			coords=[coords[0],coords[1],r]
-			shape=qtiv2.QTIShape.circle
-		else:
-			log.warning("Warning: ellipse shape is deprecated in version 2")
-			coords=[coords[0],coords[1],coords[2]//2,coords[3]//2]
-			shape=qtiv2.QTIShape.ellipse
-	else:
-		shape=qtiv2.QTIShape.poly
-	return shape,coords
-
-		
-class QTIElement(xml.Element):
-	"""Basic element to represent all QTI elements"""
-	
-	def DeclareMetadata(self,label,entry,definition=None):
-		"""Declares a piece of metadata associated with the element.
-		
-		Most QTIElements will be contained by some type of metadata container
-		that collects metadata in a format suitable for easy lookup and export
-		to other metadata formats.  The default implementation simply passes the
-		call to the parent QTIElement or ignores the definition"""
-		if isinstance(self.parent,QTIElement):
-			self.parent.DeclareMetadata(label,entry,definition)
-		else:
-			pass
-
-
-class QTICommentElement(QTIElement):
-	"""Basic element to represent all QTI elements that contain a comment as first element.
-	
-::
-
-	<!ELEMENT XXXXXXXXXXXX (qticomment? , ....... )>"""
-	def __init__(self,parent):
-		QTIElement.__init__(self,parent)
-		self.QTIComment=None
-
-	def GetChildren(self):
-		if self.QTIComment:
-			return [self.QTIComment]
-		else:
-			return []
-
-
 #
 #	ROOT DEFINITION
 #
-class QTIQuesTestInterop(QTICommentElement):
+class QuesTestInterop(CommentContainer):
 	"""<!ELEMENT questestinterop (qticomment? , (objectbank | assessment | (section | item)+))>"""
 	XMLNAME='questestinterop'
 
 	def __init__(self,parent):
-		QTICommentElement.__init__(self,parent)
+		CommentContainer.__init__(self,parent)
 		self.QTIObjectBank=None
 		self.QTIAssessment=None
 		self.objectList=[]
 	
 	def GetChildren(self):
-		children=QTICommentElement.GetChildren(self)
+		for child in CommentContainer.GetChildren(self): yield child
 		if self.QTIObjectBank:
-			children.append(self.QTIObjectBank)
+			yield self.QTIObjectBank
 		elif self.QTIAssessment:
-			children.append(self.QTIAssessment)
+			yield self.QTIAssessment
 		else:
-			children=children+self.objectList
-		return children
+			for child in self.objectList: yield child
 
 	def QTIItem(self):
 		child=QTIItem(self)
@@ -462,10 +206,10 @@ class QTIPositionMixin:
 	
 	<!ENTITY % I_Width " width CDATA  #IMPLIED">
 	"""
-	XMLATTR_height=('height',ParseInteger,FormatInteger)
-	XMLATTR_width=('width',ParseInteger,FormatInteger)
-	XMLATTR_x0=('x0',ParseInteger,FormatInteger)
-	XMLATTR_y0=('y0',ParseInteger,FormatInteger)
+	XMLATTR_height=('height',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_width=('width',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_x0=('x0',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_y0=('y0',xsi.DecodeInteger,xsi.EncodeInteger)
 	
 	def __init__(self):
 		self.x0=None
@@ -695,9 +439,8 @@ class QTIMetadata(QTIElement):
 		self.QTIMetadataField=[]
 	
 	def GetChildren(self):
-		children=[]
-		xml.OptionalAppend(children,self.QTIVocabulary)
-		return children+self.QTIMetadataField
+		if self.QTIVocabulary: yield self.QTIVocabulary
+		for child in self.QTIMetadataField: yield child
 
 
 class QTIVocabulary(QTIElement):
@@ -739,7 +482,8 @@ class QTIMetadataField(QTIElement):
 		self.QTIFieldEntry=QTIFieldEntry(self)
 	
 	def GetChildren(self):
-		return [self.QTIFieldLabel,self.QTIFieldEntry]
+		yield self.QTIFieldLabel
+		yield self.QTIFieldEntry
 	
 	def ContentChanged(self):
 		label=self.QTIFieldLabel.GetValue()
@@ -898,7 +642,7 @@ class QTIContentMixin:
 # 				continue
 
 
-class QTIFlowMatContainer(QTICommentElement,QTIContentMixin):
+class QTIFlowMatContainer(CommentContainer,QTIContentMixin):
 	"""Abstract class used to represent objects that contain flow_mat
 	
 ::
@@ -906,12 +650,13 @@ class QTIFlowMatContainer(QTICommentElement,QTIContentMixin):
 	<!ELEMENT XXXXXXXXXX (qticomment? , (material+ | flow_mat+))>
 	"""
 	def __init__(self,parent):
-		QTICommentElement.__init__(self,parent)
+		CommentContainer.__init__(self,parent)
 		QTIContentMixin.__init__(self)
 
 	def GetChildren(self):
-		children=QTICommentElement.GetChildren(self)+self.contentChildren
-		return children
+		return itertools.chain(
+			CommentContainer.GetChildren(self),
+			self.contentChildren)
 
 	def QTIMaterial(self):
 		child=QTIMaterial(self)
@@ -924,7 +669,7 @@ class QTIFlowMatContainer(QTICommentElement,QTIContentMixin):
 		return child
 				
 
-class QTIFlowContainer(QTICommentElement,QTIContentMixin):
+class QTIFlowContainer(CommentContainer,QTIContentMixin):
 	"""Abstract class used to represent objects that contain flow and friends
 	
 ::
@@ -932,12 +677,13 @@ class QTIFlowContainer(QTICommentElement,QTIContentMixin):
 	<!ELEMENT XXXXXXXXXX (qticomment? , (material | flow | response_*)* )>
 	"""
 	def __init__(self,parent):
-		QTICommentElement.__init__(self,parent)
+		CommentContainer.__init__(self,parent)
 		QTIContentMixin.__init__(self)
 
 	def GetChildren(self):
-		children=QTICommentElement.GetChildren(self)+self.contentChildren
-		return children
+		return itertools.chain(
+			CommentContainer.GetChildren(self),
+			self.contentChildren)
 
 	def QTIMaterial(self):
 		child=QTIMaterial(self)
@@ -955,7 +701,7 @@ class QTIFlowContainer(QTICommentElement,QTIContentMixin):
 		return child
 
 
-class QTIMaterial(QTICommentElement,QTIContentMixin):
+class QTIMaterial(CommentContainer,QTIContentMixin):
 	"""Represents the material element
 	
 ::
@@ -970,13 +716,14 @@ class QTIMaterial(QTICommentElement,QTIContentMixin):
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
-		QTICommentElement.__init__(self,parent)
+		CommentContainer.__init__(self,parent)
 		QTIContentMixin.__init__(self)
 		self.label=None
 	
 	def GetChildren(self):
-		children=QTICommentElement.GetChildren(self)+self.contentChildren
-		return children
+		return itertools.chain(
+			CommentContainer.GetChildren(self),
+			self.contentChildren)
 	
 	def QTIMatThingMixin(self,childClass):
 		child=childClass(self)
@@ -988,7 +735,7 @@ class QTIMaterial(QTICommentElement,QTIContentMixin):
 			doc=self.GetDocument()
 			if doc:
 				doc.RegisterMaterial(self)
-		QTICommentElement.ContentChanged(self)
+		CommentContainer.ContentChanged(self)
 
 		
 class QTIMatThingMixin(QTIContentMixin):
@@ -1055,21 +802,20 @@ class QTIMatText(QTIElement,QTIPositionMixin,QTIMatThingMixin):
 					value=self.GetValue()
 				except xml.XMLMixedContentError:
 					# Assume that the element content was not protected by CDATA
-					children=self.GetChildren()
 					value=[]
-					for child in children:
+					for child in self.GetChildren():
 						value.append(unicode(child))
 					value=string.join(value,'')
 				if value:
 					e=xml.XMLEntity(value)
 			doc=html.XHTMLDocument(baseURI=uri)
 			doc.ReadFromEntity(e)
-			self.matChildren=doc.root.Body.GetChildren()
+			self.matChildren=list(doc.root.Body.GetChildren())
 			if len(self.matChildren)==1 and isinstance(self.matChildren[0],html.Div):
 				div=self.matChildren[0]
 				if div.styleClass is None:
 					# a single div with no style class is removed...
-					self.matChildren=div.GetChildren()
+					self.matChildren=list(div.GetChildren())
 		elif self.texttype=='text/rtf':
 			# parse the RTF content
 			raise QTIUnimplementedError
@@ -1425,7 +1171,7 @@ class QTIMaterialRef(QTIElement):
 	XMLCONTENT=xml.XMLEmpty
 
 
-class QTIAltMaterial(QTICommentElement):
+class QTIAltMaterial(CommentContainer):
 	"""Represents the altmaterial element.
 
 ::
@@ -1710,7 +1456,7 @@ class QTIConditionVar(QTIElement):
 		return child
 	
 	def GetChildren(self):
-		return self.ExpressionMixin
+		return iter(self.ExpressionMixin)
 
 	def MigrateV2Expression(self,parent,log):
 		if len(self.ExpressionMixin)>1:
@@ -1747,7 +1493,7 @@ class QTINot(QTIElement,ExpressionMixin):
 		self.ExpressionMixin=None
 	
 	def GetChildren(self):
-		return self.ExpressionMixin
+		if self.ExpressionMixin: yield self.ExpressionMixin
 
 	def MigrateV2Expression(self,parent,log):
 		if self.ExpressionMixin is None:
@@ -1775,7 +1521,7 @@ class QTIAnd(QTIElement,ExpressionMixin):
 		self.ExpressionMixin=[]
 	
 	def GetChildren(self):
-		return self.ExpressionMixin
+		return iter(self.ExpressionMixin)
 
 	def MigrateV2Expression(self,parent,log):
 		if len(self.ExpressionMixin):
@@ -1804,7 +1550,7 @@ class QTIOr(QTIElement,ExpressionMixin):
 		self.ExpressionMixin=[]
 	
 	def GetChildren(self):
-		return self.ExpressionMixin
+		return iter(self.ExpressionMixin)
 
 	def MigrateV2Expression(self,parent,log):
 		if len(self.ExpressionMixin):
@@ -1819,7 +1565,7 @@ class QTIOr(QTIElement,ExpressionMixin):
 class QTIVarThing(QTIElement,ExpressionMixin):
 	"""Abstract class for var* elements."""
 	XMLATTR_respident='responseIdentifier'
-	XMLATTR_index=('index',ParseInteger,FormatInteger)
+	XMLATTR_index=('index',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLCONTENT=xml.XMLMixedContent
 
 	def __init__(self,parent):
@@ -2025,7 +1771,7 @@ class QTIVarInside(QTIVarThing):
 						  %I_Index; >
 	"""
 	XMLNAME="varinside"
-	XMLATTR_areatype=('areaType',DecodeArea,EncodeArea)
+	XMLATTR_areatype=('areaType',Area.DecodeTitleValue,Area.EncodeValue)
 	XMLCONTENT=xml.XMLMixedContent
 
 	def __init__(self,parent):
@@ -2324,7 +2070,7 @@ class QTIFlowMat(QTIFlowMatContainer):
 			QTIFlowMatContainer.MigrateV2Content(self,parent,childType,log)
 
 
-class QTIPresentationMaterial(QTICommentElement):
+class QTIPresentationMaterial(CommentContainer):
 	"""Represent presentation_material element
 	
 ::
@@ -2334,7 +2080,7 @@ class QTIPresentationMaterial(QTICommentElement):
 	XMLCONTENT=xml.ElementContent
 	
 
-class QTIReference(QTICommentElement):
+class QTIReference(CommentContainer):
 	"""Represent presentation_material element
 	
 ::
@@ -2345,7 +2091,7 @@ class QTIReference(QTICommentElement):
 	XMLCONTENT=xml.ElementContent
 	
 
-class QTISelectionOrdering(QTICommentElement):
+class QTISelectionOrdering(CommentContainer):
 	"""Represent selection_ordering element.
 	
 ::
@@ -2357,7 +2103,7 @@ class QTISelectionOrdering(QTICommentElement):
 	XMLCONTENT=xml.ElementContent
 		
 
-class QTIOutcomesProcessing(QTICommentElement):
+class QTIOutcomesProcessing(CommentContainer):
 	"""Represent outcomes_processing element.
 	
 ::
@@ -2511,7 +2257,7 @@ class QTIOrderExtension(QTIElement):
 #
 #	OBJECT-BANK OBJECT DEFINITIONS
 #
-class QTIObjectBank(QTICommentElement):
+class QTIObjectBank(CommentContainer):
 	"""Represents the objectbank element.
 	
 ::
@@ -2527,7 +2273,7 @@ class QTIObjectBank(QTICommentElement):
 #
 #	ASSESSMENT OBJECT DEFINITIONS
 #
-class QTIAssessment(QTICommentElement):
+class QTIAssessment(CommentContainer):
 	"""Represents the assessment element.
 	
 ::
@@ -2557,7 +2303,7 @@ class QTIAssessment(QTICommentElement):
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
-		QTICommentElement.__init__(self,parent)
+		CommentContainer.__init__(self,parent)
 		self.ident=None
 		self.title=None
 		self.QTIDuration=None
@@ -2584,25 +2330,30 @@ class QTIAssessment(QTICommentElement):
 		return child
 		
 	def GetChildren(self):
-		children=QTIComment.GetChildren(self)
-		children=children+self.QTIMetadata+self.QTIObjectives+self.QTIAssessmentControl+self.QTIRubric
-		xml.OptionalAppend(children,self.QTIPresentationMaterial)
-		children=children+QTIOutcomesProcessing
-		xml.OptionalAppend(children,self.QTIAssessProcExtension)
-		children=children+self.QTIAssessFeedback
-		xml.OptionalAppend(children,self.QTISelectionOrdering)
-		xml.OptionalAppend(children,self.QTIReference)
-		return children+self.objectList
+		for child in itertools.chain(
+			QTIComment.GetChildren(self),
+			self.QTIMetadata,
+			self.QTIObjectives,
+			self.QTIAssessmentControl,
+			self.QTIRubric):
+			yield child
+		if self.QTIPresentationMaterial: yield self.QTIPresentationMaterial
+		for child in self.QTIOutcomesProcessing: yield child
+		if self.QTIAssessProcExtension: yield self.QTIAssessProcExtension
+		for child in self.QTIAssessFeedback: yield child
+		if self.QTISelectionOrdering: yield self.QTISelectionOrdering
+		if self.QTIReference: yield self.QTIReference
+		for child in self.objectList: yield child
 
 	def MigrateV2(self,output):
 		"""Converts this assessment to QTI v2
 		
-		For details, see QTIQuesTestInterop.MigrateV2."""
+		For details, see QuesTestInterop.MigrateV2."""
 		for object in self.objectList:
 			object.MigrateV2(output)
 
 
-class QTIAssessmentControl(QTICommentElement):
+class QTIAssessmentControl(CommentContainer):
 	"""Represents the assessmentcontrol element.
 	
 ::
@@ -2618,7 +2369,7 @@ class QTIAssessmentControl(QTICommentElement):
 	XMLCONTENT=xml.ElementContent	
 
 
-class QTIAssessmentFeedback(QTICommentElement):
+class QTIAssessmentFeedback(CommentContainer):
 	"""Represents the assessfeedback element.
 	
 ::
@@ -2649,7 +2400,7 @@ class QTIAssessmentFeedback(QTIElement):
 #
 #	SECTION OBJECT DEFINITIONS
 #
-class QTISection(QTICommentElement):
+class QTISection(CommentContainer):
 	"""Represents section element.
 ::
 
@@ -2680,7 +2431,7 @@ class QTISection(QTICommentElement):
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
-		QTICommentElement.__init__(self,parent)
+		CommentContainer.__init__(self,parent)
 		self.ident=None
 		self.title=None
 		self.QTIDuration=None
@@ -2719,20 +2470,27 @@ class QTISection(QTICommentElement):
 		return child
 		
 	def GetChildren(self):
-		children=QTIComment.GetChildren(self)
-		children=children+self.QTIMetadata+self.QTIObjectives+self.QTISectionControl+self.QTISectionPrecondition+self.QTISectionPostcondition+self.QTIRubric
-		xml.OptionalAppend(children,self.QTIPresentationMaterial)
-		children=children+QTIOutcomesProcessing
-		xml.OptionalAppend(children,self.QTISectionProcExtension)
-		children=children+self.QTISectionFeedback
-		xml.OptionalAppend(children,self.QTISelectionOrdering)
-		xml.OptionalAppend(children,self.QTIReference)
-		return children+self.objectList
+		for child in itertools.chain(
+			QTIComment.GetChildren(self),
+			self.QTIMetadata,
+			self.QTIObjectives,
+			self.QTISectionControl,
+			self.QTISectionPrecondition,
+			self.QTISectionPostcondition,
+			self.QTIRubric):
+			yield child
+		if self.QTIPresentationMaterial: yield self.QTIPresentationMaterial
+		for child in self.QTIOutcomesProcessing: yield child
+		if self.QTISectionProcExtension: yield self.QTISectionProcExtension
+		for child in self.QTISectionFeedback: yield child
+		if self.QTISelectionOrdering: yield self.QTISelectionOrdering
+		if self.QTIReference: yield self.QTIReference
+		for child in self.objectList: yield child
 
 	def MigrateV2(self,output):
 		"""Converts this section to QTI v2
 		
-		For details, see QTIQuesTestInterop.MigrateV2."""
+		For details, see QuesTestInterop.MigrateV2."""
 		for object in self.objectList:
 			object.MigrateV2(output)
 	
@@ -2757,7 +2515,7 @@ class QTISectionPostcondition(QTIElement):
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTISectionControl(QTICommentElement):
+class QTISectionControl(CommentContainer):
 	"""Represents the sectioncontrol element.
 	
 ::
@@ -2786,7 +2544,7 @@ class QTIItemRef(QTIElement):
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTISectionFeedback(QTICommentElement):
+class QTISectionFeedback(CommentContainer):
 	"""Represents the sectionfeedback element.
 	
 ::
@@ -2804,7 +2562,7 @@ class QTISectionFeedback(QTICommentElement):
 #
 #	ITEM OBJECT DEFINITIONS
 #
-class QTIItem(QTICommentElement):
+class QTIItem(CommentContainer):
 	"""Represents the item element.
 	
 ::
@@ -2836,7 +2594,7 @@ class QTIItem(QTICommentElement):
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
-		QTICommentElement.__init__(self,parent)
+		CommentContainer.__init__(self,parent)
 		self.maxattempts=None
 		self.label=None
 		self.ident=None
@@ -2861,21 +2619,26 @@ class QTIItem(QTICommentElement):
 		return child
 		
 	def GetChildren(self):
-		children=QTIComment.GetChildren(self)
-		xml.OptionalAppend(children,self.QTIDuration)
-		xml.OptionalAppend(children,self.QTIItemMetadata)
-		children=children+self.QITObjectives+self.QTIItemControl+self.QTIItemPrecondition+self.QTIPostCondition+self.QTIRubric
-		xml.OptionalAppend(children,self.QTIPresentation)
-		children=children+self.QTIResProcessing
-		xml.OptionalAppend(children,self.QTIItemProcExtension)
-		children=children+self.QTIItemFeedback
-		xml.OptionalAppend(children,self.QTIReference)
-		return children
+		for child in QTIComment.GetChildren(self): yield child
+		if self.QTIDuration: yield self.QTIDuration
+		if self.QTIItemMetadata: yield self.QTIItemMetadata
+		for child in itertools.chain(
+			self.QITObjectives,
+			self.QTIItemControl,
+			self.QTIItemPrecondition,
+			self.QTIPostCondition,
+			self.QTIRubric):
+			yield child
+		if self.QTIPresentation: yield self.QTIPresentation
+		for child in self.QTIResProcessing: yield child
+		if self.QTIItemProcExtension: yield self.QTIItemProcExtension
+		for child in self.QTIItemFeedback: yield child
+		if self.QTIReference: yield self.QTIReference
 	
 	def MigrateV2(self,output):
 		"""Converts this item to QTI v2
 		
-		For details, see QTIQuesTestInterop.MigrateV2."""
+		For details, see QuesTestInterop.MigrateV2."""
 		# First thing we do is initialize any fixups
 		for rp in self.QTIResProcessing:
 			rp._interactionFixup={}
@@ -3030,27 +2793,36 @@ class QTIItemMetadata(QTIMetadataContainer):
 		self.QMDTitle=None
 		
 	def GetChildren(self):
-		children=self.QTIMetadata[:]
-		xml.OptionalAppend(children,self.QMDComputerScored)
-		xml.OptionalAppend(children,self.QMDFeedbackPermitted)
-		xml.OptionalAppend(children,self.QMDHintsPermitted)
-		xml.OptionalAppend(children,self.QMDItemType)
-		xml.OptionalAppend(children,self.QMDLevelOfDifficulty)
-		xml.OptionalAppend(children,self.QMDMaximumScore)
-		children=children+self.QMDRenderingType+self.QMDResponseType
-		xml.OptionalAppend(children,self.QMDScoringPermitted)
-		xml.OptionalAppend(children,self.QMDSolutionsPermitted)
-		xml.OptionalAppend(children,self.QMDStatus)
-		xml.OptionalAppend(children,self.QMDTimeDependence)
-		xml.OptionalAppend(children,self.QMDTimeLimit)
-		xml.OptionalAppend(children,self.QMDToolVendor)
-		xml.OptionalAppend(children,self.QMDTopic)
-		xml.OptionalAppend(children,self.QMDWeighting)
-		children=children+self.QMDMaterial
-		xml.OptionalAppend(children,self.QMDTypeOfSolution)
-		children=children+self.QMDAuthor+self.QMDDescription+self.QMDDomain+self.QMDKeywords+self.QMDOrganization
-		xml.OptionalAppend(children,self.QMDTitle)
-		return children+QTIMetadataContainer.GetChildren(self)
+		for child in self.QTIMetadata: yield child
+		if self.QMDComputerScored: yield self.QMDComputerScored
+		if self.QMDFeedbackPermitted: yield self.QMDFeedbackPermitted
+		if self.QMDHintsPermitted: yield self.QMDHintsPermitted
+		if self.QMDItemType: yield self.QMDItemType
+		if self.QMDLevelOfDifficulty: yield self.QMDLevelOfDifficulty
+		if self.QMDMaximumScore: yield self.QMDMaximumScore
+		for child in itertools.chain(
+			self.QMDRenderingType,
+			self.QMDResponseType):
+			yield child
+		if self.QMDScoringPermitted: yield self.QMDScoringPermitted
+		if self.QMDSolutionsPermitted: yield self.QMDSolutionsPermitted
+		if self.QMDStatus: yield self.QMDStatus
+		if self.QMDTimeDependence: yield self.QMDTimeDependence
+		if self.QMDTimeLimit: yield self.QMDTimeLimit
+		if self.QMDToolVendor: yield self.QMDToolVendor
+		if self.QMDTopic: yield self.QMDTopic
+		if self.QMDWeighting: yield self.QMDWeighting
+		for child in self.QMDMaterial: yield child
+		if self.QMDTypeOfSolution: yield self.QMDTypeOfSolution
+		for child in itertools.chain(
+			self.QMDAuthor,
+			self.QMDDescription,
+			self.QMDDomain,
+			self.QMDKeywords,
+			self.QMDOrganization):
+			yield child
+		if self.QMDTitle: yield self.QMDTitle
+		for child in QTIMetadataContainer.GetChildren(self): yield child
 	
 	def LRMMigrateLevelOfDifficulty(self,lom,log):
 		difficulty=self.metadata.get('levelofdifficulty',())
@@ -3214,7 +2986,7 @@ class QTIItemMetadata(QTIMetadataContainer):
 		self.LRMMigrateOrganization(lom,log)
 
 	
-class QTIItemControl(QTICommentElement,QTIViewMixin):
+class QTIItemControl(CommentContainer,QTIViewMixin):
 	"""Represents the itemcontrol element
 	
 ::
@@ -3233,15 +3005,14 @@ class QTIItemControl(QTICommentElement,QTIViewMixin):
 	XMLCONTENT=xml.ElementContent
 
 	def __init__(self,parent):
-		QTICommentElement.__init__(self,parent)
+		CommentContainer.__init__(self,parent)
 		QTIViewMixin.__init__(self)
 		self.feedbackSwitch=True
 		self.hintSwitch=True
 		self.solutionSwitch=True	
 
 	def GetChildren(self):
-		children=QTICommentElement.GetChildren(self)
-		return children
+		return CommentContainer.GetChildren(self)
 				
 
 class QTIItemPreCondition(QTIElement):
@@ -3353,7 +3124,7 @@ class QTIPresentation(QTIFlowContainer,QTIPositionMixin):
 				if img.src and str(img.src)==str(hs.Object.data):
 					parent=img.parent
 					parent.DeleteChild(img)
-					if isinstance(parent,html.P) and len(parent.GetChildren())==0:
+					if isinstance(parent,html.P) and len(list(parent.GetChildren()))==0:
 						# It is always safe to remove a paragraph left empty by deleting an image
 						# The chance are the paragraphic was created by us to house a matimage
 						parent.parent.DeleteChild(parent)
@@ -3474,10 +3245,9 @@ class QTIResponseThing(QTIElement,QTIContentMixin):
 		return child
 	
 	def GetChildren(self):
-		children=self.intro[:]
-		if self.render:
-			children.append(self.render)
-		return children+self.outro
+		for child in self.intro: yield child
+		if self.render: yield self.render
+		for child in self.outro: yield child
 
 	def ContentChanged(self):
 		if isinstance(self.render,QTIRenderFIB) and self.render.MixedModel():
@@ -3663,7 +3433,7 @@ class QTIResponseNum(QTIResponseThing):
 							 %I_Rtiming; >
 	"""
 	XMLNAME='response_num'
-	XMLATTR_numtype=('numType',DecodeNumType,EncodeNumType)	
+	XMLATTR_numtype=('numType',NumType.DecodeTitleValue,NumType.EncodeValue)	
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
@@ -3713,7 +3483,7 @@ class QTIResponseLabel(QTIElement,QTIContentMixin):
 	XMLNAME='response_label'
 	XMLATTR_ident='ident'
 	XMLATTR_rshuffle=('rShuffle',ParseYesNo,FormatYesNo)
-	XMLATTR_rarea=('rArea',DecodeArea,EncodeArea)
+	XMLATTR_rarea=('rArea',Area.DecodeTitleValue,Area.EncodeValue)
 	XMLCONTENT=xml.XMLMixedContent
 
 	def __init__(self,parent):
@@ -3744,9 +3514,8 @@ class QTIResponseLabel(QTIElement,QTIContentMixin):
 		else:
 			return self.InlineChildren()
 		
-	def InlineChildren(self):
-		children=QTIElement.GetChildren(self)
-		for child in children:
+	def InlineChildren(self):		
+		for child in QTIElement.GetChildren(self):
 			if type(child) in StringTypes:
 				continue
 			elif issubclass(child.__class__,QTIContentMixin):
@@ -3772,8 +3541,7 @@ class QTIResponseLabel(QTIElement,QTIContentMixin):
 			choice.fixed=not self.rShuffle
 		data=[]
 		gotElements=False
-		children=QTIElement.GetChildren(self)
-		for child in children:
+		for child in QTIElement.GetChildren(self):
 			if type(child) in StringTypes:
 				if len(child.strip()):
 					data.append(child)
@@ -3788,7 +3556,7 @@ class QTIResponseLabel(QTIElement,QTIContentMixin):
 				choice.AddData(d)
 		else:
 			content=[]
-			for child in children:
+			for child in QTIElement.GetChildren(self):
 				if isinstance(child,QTIContentMixin):
 					content.append(child)
 			QTIContentMixin.MigrateV2Content(self,choice,html.FlowMixin,log,content)
@@ -3853,7 +3621,7 @@ class QTIResponseLabel(QTIElement,QTIContentMixin):
 		return lang,labelData,valueData
 	
 	
-class QTIFlowLabel(QTICommentElement,QTIContentMixin):
+class QTIFlowLabel(CommentContainer,QTIContentMixin):
 	"""Represents the flow_label element.
 	
 ::
@@ -3866,7 +3634,7 @@ class QTIFlowLabel(QTICommentElement,QTIContentMixin):
 	XMLCONTENT=xml.ElementContent
 
 	def __init__(self,parent):
-		QTICommentElement.__init__(self,parent)
+		CommentContainer.__init__(self,parent)
 		QTIContentMixin.__init__(self)
 	
 	def QTIFlowLabel(self):
@@ -3880,8 +3648,9 @@ class QTIFlowLabel(QTICommentElement,QTIContentMixin):
 		return child
 
 	def GetChildren(self):
-		children=QTICommentElement.GetChildren(self)+self.contentChildren
-		return children
+		return itertools.chain(
+			CommentContainer.GetChildren(self),
+			self.contentChildren)
 		
 	def GetLabelContent(self):
 		children=[]
@@ -3936,9 +3705,8 @@ class QTIRenderThing(QTIElement,QTIContentMixin):
 		return child
 		
 	def GetChildren(self):
-		children=self.contentChildren[:]
-		xml.OptionalAppend(children,self.QTIResponseNA)
-		return children
+		for child in self.contentChildren: yield child
+		if self.QTIResponseNA: yield self.QTIResponseNA
 	
 	def GetLabelContent(self):
 		children=[]
@@ -3975,8 +3743,8 @@ class QTIRenderChoice(QTIRenderThing):
 							  %I_MaxNumber; >
 	"""
 	XMLNAME='render_choice'
-	XMLATTR_maxnumber=('maxNumber',ParseInteger,FormatInteger)
-	XMLATTR_minnumber=('minNumber',ParseInteger,FormatInteger)
+	XMLATTR_maxnumber=('maxNumber',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_minnumber=('minNumber',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLATTR_shuffle=('shuffle',ParseYesNo,FormatYesNo)
 	XMLCONTENT=xml.ElementContent
 	
@@ -4029,8 +3797,8 @@ class QTIRenderHotspot(QTIRenderThing):
 							   showdraw     (Yes | No )  'No' >
 	"""
 	XMLNAME='render_hotspot'
-	XMLATTR_maxnumber=('maxNumber',ParseInteger,FormatInteger)
-	XMLATTR_minnumber=('minNumber',ParseInteger,FormatInteger)
+	XMLATTR_maxnumber=('maxNumber',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_minnumber=('minNumber',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLATTR_showdraw=('showDraw',ParseYesNo,FormatYesNo)
 	XMLCONTENT=xml.ElementContent
 	
@@ -4156,6 +3924,11 @@ class QTIRenderHotspot(QTIRenderThing):
 					return [interaction]
 
 
+V2ORIENTATION_MAP={
+	Orientation.Horizontal:qtiv2.Orientation.horizontal,
+	Orientation.Vertical:qtiv2.Orientation.vertical
+	}
+
 class QTIRenderSlider(QTIRenderThing):
 	"""Represents the render_slider element.
 	
@@ -4173,19 +3946,19 @@ class QTIRenderSlider(QTIRenderThing):
 							  %I_MinNumber; >
 	"""
 	XMLNAME='render_slider'
-	XMLATTR_orientation=('orientation',DecodeOrientation,EncodeOrientation)
-	XMLATTR_lowerbound=('lowerBound',ParseInteger,FormatInteger)
-	XMLATTR_upperbound=('upperBound',ParseInteger,FormatInteger)
-	XMLATTR_step=('step',ParseInteger,FormatInteger)
-	XMLATTR_startval=('startVal',ParseInteger,FormatInteger)
+	XMLATTR_orientation=('orientation',Orientation.DecodeTitleValue,Orientation.EncodeValue)
+	XMLATTR_lowerbound=('lowerBound',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_upperbound=('upperBound',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_step=('step',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_startval=('startVal',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLATTR_steplabel=('stepLabel',ParseYesNo,FormatYesNo)
-	XMLATTR_maxnumber=('maxNumber',ParseInteger,FormatInteger)
-	XMLATTR_minnumber=('minNumber',ParseInteger,FormatInteger)
+	XMLATTR_maxnumber=('maxNumber',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_minnumber=('minNumber',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLCONTENT=xml.ElementContent
 		
 	def __init__(self,parent):
 		QTIRenderThing.__init__(self,parent)
-		self.orientation=QTIOrientation.Horizontal
+		self.orientation=Orientation.Horizontal
 		self.lowerBound=None
 		self.upperBound=None
 		self.step=None
@@ -4281,20 +4054,20 @@ class QTIRenderFIB(QTIRenderThing):
 	"""
 	XMLNAME='render_fib'
 	XMLATTR_encoding='encoding'
-	XMLATTR_fibtype=('fibType',DecodeFIBType,EncodeFIBType)
-	XMLATTR_rows=('rows',ParseInteger,FormatInteger)
-	XMLATTR_maxchars=('maxChars',ParseInteger,FormatInteger)
-	XMLATTR_prompt=('prompt',DecodePromptType,EncodePromptType)
-	XMLATTR_columns=('columns',ParseInteger,FormatInteger)
+	XMLATTR_fibtype=('fibType',FIBType.DecodeTitleValue,FIBType.EncodeValue)
+	XMLATTR_rows=('rows',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_maxchars=('maxChars',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_prompt=('prompt',PromptType.DecodeTitleValue,PromptType.EncodeValue)
+	XMLATTR_columns=('columns',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLATTR_charset='charset'		
-	XMLATTR_maxnumber=('maxNumber',ParseInteger,FormatInteger)
-	XMLATTR_minnumber=('minNumber',ParseInteger,FormatInteger)
+	XMLATTR_maxnumber=('maxNumber',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_minnumber=('minNumber',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLCONTENT=xml.ElementContent
 		
 	def __init__(self,parent):
 		QTIRenderThing.__init__(self,parent)
 		self.encoding='UTF_8'
-		self.fibType=QTIFIBType.String
+		self.fibType=FIBType.String
 		self.rows=None
 		self.maxChars=None
 		self.prompt=None
@@ -4353,7 +4126,7 @@ class QTIRenderFIB(QTIRenderThing):
 			interaction=parent.ChildElement(qtiv2.TextEntryInteraction)
 		else:
 			interaction=parent.ChildElement(qtiv2.ExtendedTextInteraction)
-		if label.GetChildren():
+		if list(label.GetChildren()):
 			log.append("Warning: ignoring content in render_fib.response_label")
 
 	def MigrateV2Interaction(self,parent,childType,prompt,log):
@@ -4392,7 +4165,7 @@ class QTIRenderExtension(QTIRenderThing):
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTIResProcessing(QTICommentElement):
+class QTIResProcessing(CommentContainer):
 	"""Represents the resprocessing element.
 	
 ::
@@ -4406,7 +4179,7 @@ class QTIResProcessing(QTICommentElement):
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
-		QTICommentElement.__init__(self,parent)
+		CommentContainer.__init__(self,parent)
 		self.scoreModel=None
 		self.QTIOutcomes=QTIOutcomes(self)
 		self.conditions=[]
@@ -4422,9 +4195,9 @@ class QTIResProcessing(QTICommentElement):
 		return child
 	
 	def GetChildren(self):
-		children=QTICommentElement.GetChildren(self)
-		children.append(self.QTIOutcomes)
-		return children+self.conditions
+		for child in CommentContainer.GetChildren(self): yield child
+		yield self.QTIOutcomes
+		for child in self.conditions: yield child
 
 	def MigrateV2(self,v2Item,log):
 		"""Migrates v1 resprocessing to v2 ResponseProcessing."""
@@ -4442,7 +4215,7 @@ class QTIResProcessing(QTICommentElement):
 			cMode,ruleContainer=condition.MigrateV2Rule(cMode,ruleContainer,log)
 		
 		
-class QTIOutcomes(QTICommentElement):
+class QTIOutcomes(CommentContainer):
 	"""Represents the outcomes element.
 	
 ::
@@ -4462,13 +4235,15 @@ class QTIOutcomes(QTICommentElement):
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
-		QTICommentElement.__init__(self,parent)
+		CommentContainer.__init__(self,parent)
 		self.QTIDecVar=[]
 		self.QTIInterpretVar=[]
 	
 	def GetChildren(self):
-		children=QTICommentElement.GetChildren(self)
-		return children+self.QTIDecVar+self.QTIInterpretVar
+		return itertools.chain(
+			CommentContainer.GetChildren(self),
+			self.QTIDecVar,
+			self.QTIInterpretVar)
 
 	def MigrateV2(self,v2Item,log):
 		for d in self.QTIDecVar:
@@ -4477,7 +4252,7 @@ class QTIOutcomes(QTICommentElement):
 			i.MigrateV2(v2Item,log)
 
 		
-class QTIRespCondition(QTICommentElement):
+class QTIRespCondition(CommentContainer):
 	"""Represents the respcondition element.
 	
 ::
@@ -4493,7 +4268,7 @@ class QTIRespCondition(QTICommentElement):
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
-		QTICommentElement.__init__(self,parent)
+		CommentContainer.__init__(self,parent)
 		self.continueFlag=False
 		self.title=None
 		self.QTIConditionVar=QTIConditionVar(self)
@@ -4502,11 +4277,13 @@ class QTIRespCondition(QTICommentElement):
 		self.QTIRespCondExtension=None
 	
 	def GetChildren(self):
-		children=QTICommentElement.GetChildren(self)
-		children.append(self.QTIConditionVar)
-		children=children+self.QTISetVar+self.QTIDisplayFeedback
-		xml.OptionalAppend(children,self.QTIRespCondExtension)
-		return children
+		for child in CommentContainer.GetChildren(self): yield child
+		yield self.QTIConditionVar
+		for child in itertools.chain(
+			self.QTISetVar,
+			self.QTIDisplayFeedback):
+			yield child
+		if self.QTIRespCondExtension: yield self.QTIRespCondExtension
 	
 	def MigrateV2Rule(self,cMode,ruleContainer,log):
 		"""Converts a response condition into v2 response processing rules.
@@ -4594,8 +4371,9 @@ class QTIItemFeedback(QTIElement,QTIViewMixin,QTIContentMixin):
 		self.ident=None
 
 	def GetChildren(self):
-		children=QTIElement.GetChildren(self)+self.contentChildren
-		return children
+		return itertools.chain(
+			QTIElement.GetChildren(self),
+			self.contentChildren)
 
 	def QTIMaterial(self):
 		child=QTIMaterial(self)
@@ -4629,7 +4407,7 @@ class QTIItemFeedback(QTIElement,QTIViewMixin,QTIContentMixin):
 		QTIContentMixin.MigrateV2Content(self,feedback,html.FlowMixin,log)
 			
 		
-class QTISolution(QTIContentMixin,QTICommentElement):
+class QTISolution(QTIContentMixin,CommentContainer):
 	"""Represents the solution element::
 
 	<!ELEMENT solution (qticomment? , solutionmaterial+)>
@@ -4641,12 +4419,14 @@ class QTISolution(QTIContentMixin,QTICommentElement):
 	XMLCONTENT=xml.ElementContent
 
 	def __init__(self,parent):
-		QTICommentElement.__init__(self,parent)
+		CommentContainer.__init__(self,parent)
 		QTIContentMixin.__init__(self)
 		self.feedbackStyle=QTIFeedbackStyle.Complete
 	
 	def GetChildren(self):
-		return QTICommentElement.GetChildren()+self.contentChildren
+		return itertools.chain(
+			CommentContainer.GetChildren(),
+			self.contentChildren)
 
 	def QTISolutionMaterial(self):
 		child=QTISolutionMaterial(self)
@@ -4666,7 +4446,7 @@ class QTIFeedbackMaterial(QTIContentMixin,QTIElement):
 		QTIContentMixin.__init__(self)
 
 	def GetChildren(self):
-		return self.contentChildren[:]
+		return iter(self.contentChildren)
 
 	def QTIMaterial(self):
 		child=QTIMaterial(self)
@@ -4687,7 +4467,7 @@ class QTISolutionMaterial(QTIFeedbackMaterial):
 	XMLNAME='solutionmaterial'
 
 
-class QTIHint(QTICommentElement):
+class QTIHint(CommentContainer):
 	"""Represents the hint element.
 	
 ::
@@ -4701,12 +4481,14 @@ class QTIHint(QTICommentElement):
 	XMLCONTENT=xml.ElementContent
 
 	def __init__(self,parent):
-		QTICommentElement.__init__(self,parent)
+		CommentContainer.__init__(self,parent)
 		QTIContentMixin.__init__(self)
 		self.feedbackStyle=QTIFeedbackStyle.Complete
 	
 	def GetChildren(self):
-		return QTICommentElement.GetChildren()+self.contentChildren
+		return itertools.chain(
+			CommentContainer.GetChildren(),
+			self.contentChildren)
 	
 	def QTIHintMaterial(self):
 		child=QTIHintMaterial(self)
@@ -4835,7 +4617,7 @@ class QTINotSelection(QTIElement):
 #
 #	OUTCOMES PREOCESSING OBJECT DEFINITIONS
 #
-class QTIObjectsCondition(QTICommentElement):
+class QTIObjectsCondition(CommentContainer):
 	"""Represents the objects_condition element.
 	
 ::
@@ -5043,13 +4825,12 @@ class QTIDocument(xml.Document):
 		return p
 
 	classMap={}
-	"""classMap is a mapping from element names to the class object that will be used to represent them."""
 	
 	def GetElementClass(self,name):
 		"""Returns the class to use to represent an element with the given name.
 		
 		This method is used by the XML parser.  The class object is looked up in
-		:py:attr:`classMap`, if no specialized class is found then the general
+		the classMap, if no specialized class is found then the general
 		:py:class:`pyslet.xml20081126.Element` class is returned."""
 		return QTIDocument.classMap.get(name,QTIDocument.classMap.get(None,xml.Element))
 
@@ -5110,7 +4891,7 @@ class QTIDocument(xml.Document):
 		The function returns a list of 4-tuples, one for each object migrated.
 		
 		Each tuple comprises ( <QTI v2 Document>, <LOM Metadata>, <log>, <Resource> )"""
-		if isinstance(self.root,QTIQuesTestInterop):
+		if isinstance(self.root,QuesTestInterop):
 			results=self.root.MigrateV2()
 			# list of tuples ( <QTIv2 Document>, <Metadata>, <Log Messages> )
 			newResults=[]

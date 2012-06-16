@@ -149,7 +149,7 @@ class LRMDocumentTests(unittest.TestCase):
 		doc=imscp.ManifestDocument()
 		doc.Read(src=StringIO(EXAMPLE_1))
 		r=doc.GetElementByID('choice')
-		self.failUnless(isinstance(r.Metadata.GetChildren()[0],LOM),"LOM")
+		self.failUnless(isinstance(list(r.Metadata.GetChildren())[0],LOM),"LOM")
 		
 if __name__ == "__main__":
 	unittest.main()

@@ -83,7 +83,7 @@ try:
 			can be passed as an argument."""
 			if key is None:
 				key=self.GenerateKey()
-			elif self.consumers.has_key(key):
+			elif key in self.consumers:
 				raise BLTIDuplicateKeyError(key)
 			secret=self.GenerateKey()
 			self.consumers[key]=BLTIConsumer(key,secret)
@@ -111,7 +111,7 @@ try:
 					continue
 				fields=line.split()
 				if len(fields)>=2:
-					if self.consumers.has_key(fields[0]):
+					if fields[0] in self.consumers:
 						raise BLTIDuplicateKeyError(fields[0])
 					self.consumers[fields[0]]=BLTIConsumer(fields[0],fields[1])
 		

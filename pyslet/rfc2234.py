@@ -526,7 +526,7 @@ class RFC2234ABNFRuleBase:
 	def DeclareRule (self,ruleName):
 		# If rule name is already declared, returns the existing ruleID
 		lcRuleName=ruleName.lower()
-		if self.ruleID.has_key(lcRuleName):
+		if lcRuleName in self.ruleID:
 			return self.ruleID[lcRuleName]
 		else:
 			ruleID=self.nextRuleID
@@ -540,7 +540,7 @@ class RFC2234ABNFRuleBase:
 		rule=self.rules[ruleID]
 		if ruleType==kBasicRule:
 			# This is a basic rule definition
-			if self.ruleID.has_key(lcRuleName):
+			if lcRuleName in self.ruleID:
 				# Already defined
 				oldID=self.ruleID[lcRuleName]
 				oldRule=self.rules[oldID]
@@ -565,7 +565,7 @@ class RFC2234ABNFRuleBase:
 				rule[0]=ruleName
 		else:
 			# Incremental rule, combine old and new in a new rule
-			if not self.ruleID.has_key(lcRuleName):
+			if not lcRuleName in self.ruleID:
 				raise RFC2234RuleError(ruleName)
 			basicID=self.ruleID[ruleName]
 			basicRule=self.rules[basicID]
@@ -580,7 +580,7 @@ class RFC2234ABNFRuleBase:
 
 	def GetRuleID (self,ruleName):
 		lcRuleName=ruleName.lower()
-		if self.ruleID.has_key(lcRuleName):
+		if lcRuleName in self.ruleID:
 			return self.ruleID[lcRuleName]
 		else:
 			raise RFC2234RuleError(ruleName)

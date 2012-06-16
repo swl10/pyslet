@@ -74,8 +74,8 @@ class Categories(APPElement):
 		self.Category=[]	#: the list of categories, instances of :py:class:~pyslet.rfc4287.Category
 
 	def GetChildren(self):
-		children=self.Category+APPElement.GetChildren(self)
-		return children
+		for child in self.Category: yield child
+		for child in APPElement.GetChildren(self): yield child
 				
 		
 class Service(APPElement):
@@ -87,8 +87,10 @@ class Service(APPElement):
 		self.Workspace=[]		#: a list of :py:class:`Workspace` instances
 		
 	def GetChildren(self):
-		children=APPElement.GetChildren(self)+self.Workspace
-		return children
+		for child in APPElement.GetChildren(self):
+			yield child
+		for child in self.Workspace:
+			yield child
 		
 
 class Workspace(APPElement):
@@ -101,10 +103,9 @@ class Workspace(APPElement):
 		self.Collection=[]		#: a list of :py:class:`Collection`
 		
 	def GetChildren(self):
-		children=APPElement.GetChildren(self)
-		xml.OptionalAppend(children,self.Title)
-		children=children+self.Collection
-		return children
+		for child in APPElement.GetChildren(self): yield child
+		if self.Title: yield child
+		for child in self.Collection: yield child
 		
 
 class Collection(APPElement):
@@ -121,10 +122,10 @@ class Collection(APPElement):
 		self.Categories=[]	#: list of :py:class:`Categories` that can be applied to members of the collection
 	
 	def GetChildren(self):
-		children=APPElement.GetChildren(self)
-		xml.OptionalAppend(children,self.Title)
-		children=children+self.Accept+self.Categories
-		return children
+		for child in APPElement.GetChildren(self): yield child
+		if self.Title: yield child
+		for child in self.Accept: yield child
+		for child in self.Categories: yield child
 		
 	def GetFeedURL(self):
 		"""Returns a fully resolved URL for the collection (feed)."""
@@ -143,7 +144,7 @@ class Document(atom.AtomDocument):
 	
 	def ValidateMimeType(self,mimetype):
 		"""Checks *mimetype* against the mime types given in the APP or Atom specifications."""
-		return APP_MIMETYPES.has_key(mimetype) or atom.AtomDocument.ValidateMimeType(self,mimetype)
+		return mimetype in APP_MIMETYPES or atom.AtomDocument.ValidateMimeType(self,mimetype)
 		
 	def GetElementClass(self,name):
 		"""Returns the APP or Atom class used to represent name.

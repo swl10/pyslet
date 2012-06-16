@@ -93,10 +93,10 @@ class ReflectiveElement(Element):
 		self.GenericElementB=None
 		
 	def GetChildren(self):
-		children=Element.GetChildren(self)
+		for child in Element.GetChildren(self):
+			yield child
 		if self.child:
-			children.append(self.child)
-		return children
+			yield self.child
 		
 	def ReflectiveElement(self):
 		if self.child:
@@ -1067,7 +1067,7 @@ class XMLParserTests(unittest.TestCase):
 			self.fail("Parsed bad element.")
 		except XMLWellFormedError:
 			pass
-		children=element.GetChildren()
+		children=list(element.GetChildren())
 		self.failUnless(isinstance(children[0],Element),"First element: %s"%repr(children[0]))
 		self.failUnless(children[0].xmlname=='elem1',"First element name: %s"%repr(children[0].xmlname))
 		self.failUnless(children[0].GetValue()=='',"First element empty value: %s"%repr(children[0].GetValue()))
@@ -1147,7 +1147,7 @@ class XMLParserTests(unittest.TestCase):
 		p.refMode=XMLParser.RefModeInContent
 		p.element=Element("a")
 		p.ParseContent()
-		children=p.element.GetChildren()
+		children=list(p.element.GetChildren())
 		self.failUnless(children[0]=='a',"First character: %s"%repr(children[0]))
 		self.failUnless(isinstance(children[1],Element),"First element: %s"%repr(children[1]))
 		self.failUnless(children[1].xmlname=='elem1',"First element name: %s"%repr(children[1].xmlname))
@@ -2160,7 +2160,11 @@ class ElementTests(unittest.TestCase):
 		attrs=e.GetAttributes()
 		self.failUnless(len(attrs.keys())==0,"Attributes present on construction")
 		children=e.GetChildren()
-		self.failUnless(len(children)==0,"Children present on construction")
+		try:
+			children.next()
+			self.fail("Children present on construction")
+		except StopIteration:
+			pass
 		e=Element(None,'test')
 		self.failUnless(e.xmlname=='test','element named on construction')
 		
@@ -2208,7 +2212,7 @@ class ElementTests(unittest.TestCase):
 		"""Test child element behaviour"""
 		e=Element(None,'test')
 		child1=e.ChildElement(Element,'test1')
-		children=e.GetChildren()
+		children=list(e.GetChildren())
 		self.failUnless(len(children)==1,"ChildElement failed to add child element")
 	
 	def testChildElementReflection(self):
@@ -2216,7 +2220,7 @@ class ElementTests(unittest.TestCase):
 		e=ReflectiveElement(None)
 		child1=e.ChildElement(ReflectiveElement,'test1')
 		self.failUnless(e.child is child1,"Element not set by reflection")
-		children=e.GetChildren()
+		children=list(e.GetChildren())
 		self.failUnless(len(children)==1 and children[0] is child1,"ChildElement failed to add child element")
 		# Now create a second child, should return the same one due to model restriction
 		child2=e.ChildElement(ReflectiveElement,'test1')
@@ -2233,7 +2237,7 @@ class ElementTests(unittest.TestCase):
 		self.failUnless(e.IsMixed(),"Mixed default")
 		e.AddData('Hello')
 		self.failUnless(e.GetValue()=='Hello',"Data value")
-		children=e.GetChildren()
+		children=list(e.GetChildren())
 		self.failUnless(len(children)==1,"Data child not set")
 		self.failUnless(children[0]=="Hello","Data child not set correctly")
 	
@@ -2263,11 +2267,11 @@ class ElementTests(unittest.TestCase):
 			pass
 		# white space should silently be ignored.
 		e.AddData('  \n\r  \t')
-		children=e.GetChildren()
+		children=list(e.GetChildren())
 		self.failUnless(len(children)==0,"Unexpected children")
 		# elements can be added
 		child=e.ChildElement(Element)
-		children=e.GetChildren()
+		children=list(e.GetChildren())
 		self.failUnless(len(children)==1,"Expected one child")
 	
 	def testMixedContent(self):

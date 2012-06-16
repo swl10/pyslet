@@ -7,7 +7,7 @@ References:
 
 import pyslet.xml20081126.structures as xml
 import pyslet.xsdatatypes20041028 as xsi
-import string
+import string, itertools
 
 
 def ParseQuestionID(src):
@@ -506,9 +506,13 @@ class QMLQuestion(QMLElement):
 		self.QMLOutcome=[]
 	
 	def GetChildren(self):
-		children=self.QMLTag+self.QMLComment+self.QMLContent
-		xml.OptionalAppend(children,self.QMLAnswer)
-		return children+self.QMLOutcome
+		for child in itertools.chain(
+			self.QMLTag,
+			self.QMLComment,
+			self.QMLContent):
+			yield child
+		if self.QMLAnswer: yield self.QMLAnswer
+		for child in self.QMLOutcome: yield child
 
 
 class QMLTag(QMLElement):
@@ -679,7 +683,7 @@ class QMLAnswer(QMLElement):
 		self.QMLAnswerThing=[]
 	
 	def GetChildren(self):
-		return []+self.QMLAnswerThing
+		for child in self.QMLAnswerThing: yield child
 
 
 class QMLChoice(QMLAnswerThing):
@@ -710,8 +714,8 @@ class QMLChoice(QMLAnswerThing):
 		self.QMLContent=QMLContent(self)
 
 	def GetChildren(self):
-		children=self.QMLOption+[self.QMLContent]
-		return children
+		for child in self.QMLOption: yield child
+		yield self.QMLContent
 
 
 class QMLOption(QMLElement):
@@ -765,8 +769,8 @@ class QMLOutcome(QMLElement):
 		self.QMLContent=QMLContent(self)
 	
 	def GetChildren(self):
-		children=[self.QMLCondition,self.QMLContent]
-		return children
+		yield self.QMLCondition
+		yield self.QMLContent
 
 
 class QMLCondition(QMLElement):

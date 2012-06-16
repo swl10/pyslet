@@ -148,7 +148,7 @@ class Node:
 		None."""
 
 	def GetChildren(self):
-		"""Returns a list of this object's children."""
+		"""Returns an iterator over this object's children."""
 		raise NotImplementedError
 	
 	def GetChildClass(self,stagClass):
@@ -238,9 +238,7 @@ class Document(Node):
 		"""If the document has a root element it is returned in a single item list,
 		otherwise an empty list is returned."""
 		if self.root:
-			return [self.root]
-		else:
-			return []
+			yield self.root
 
 	def __str__(self):
 		"""Returns the XML document as a string"""
@@ -1106,73 +1104,88 @@ class Element(Node):
 			return True
 		
 	def GetChildren(self):
-		"""Returns a list of the element's children.
+		"""Returns an iterable of the element's children.
 		
-		This method returns a copy of local list of children and so may be
-		modified by the caller.  Derived classes with custom factory methods
+		This method iterates through the local list of children and so may be
+		modified by the caller.  Derived classes with custom factory elements
 		must override this method.
 
 		Each child is either a string type, unicode string type or instance of
 		Element (or a derived class thereof)"""
-		return copy(self._children)
+		return iter(self._children)
 
 	def GetCanonicalChildren(self):
-		"""Returns a list of the element's children canonicalized for white space.
+		"""Returns an iterable of the element's children canonicalized for white space.
 		
-		We check the current setting of xml:space, returning the same list
-		of children as GetChildren if 'preserve' is in force.  Otherwise we
-		remove any leading space and collapse all others to a single space character."""
+		We check the current setting of xml:space, returning the same list of
+		children as :py:meth:`GetChildren` if 'preserve' is in force.  Otherwise
+		we remove any leading space and collapse all others to a single space
+		character."""
 		children=self.GetChildren()
-		if len(children)==0:
-			return children
+		# If there are no children there is nothing to do, so we don't catch StopIteration.
+		firstChild=children.next()
 		e=self
 		while isinstance(e,Element):
 			spc=e.GetSpace()
 			if spc is not None:
 				if spc=='preserve':
-					return children
+					yield firstChild
+					while True: yield children.next()
 				else:
 					break
 			if hasattr(e.__class__,'SGMLCDATA'):
-				return children
+				yield firstChild
+				while True: yield children.next()
 			e=e.parent
-		if len(children)==1:
-			child=children[0]
-			if type(child) in StringTypes:
-				children[0]=CollapseSpace(child)
-				if len(children[0])>1 and children[0][-1]==' ':
-					# strip the trailing space form the only child
-					children[0]=children[0][:-1]				
+		try:
+			iChild=children.next()
+		except StopIteration:
+			# There was only one child
+			if type(firstChild) in StringTypes:
+				firstChild=CollapseSpace(firstChild)
+				if len(firstChild)>1 and firstChild[-1]==u' ':
+					# strip the trailing space from the only child
+					firstChild=firstChild[:-1]
+			yield firstChild
+			return
+		# Collapse strings to a single string entry and collapse spaces
+		data=[]
+		if type(firstChild) in StringTypes:
+			data.append(firstChild)
+			sMode=True
 		else:
-			# Collapse strings to a single string entry and collapse spaces
-			i=0
-			while i<len(children):
-				iChild=children[i]
-				j=i
-				while j<len(children):
-					jChild=children[j]
-					if type(jChild) in StringTypes:
-						j=j+1
-					else:
-						break
-				if j>i:
-					# We need to collapse these children
-					data=CollapseSpace(string.join(children[i:j],''),i==0)
-					if i==0 and data==' ':
-						# prune a leading space completely...
-						del children[i:j]
-					else:
-						children[i:j]=[data]
-				i=i+1
-		if len(children)>1:
-			if type(children[-1]) in StringTypes:
-				if children[-1]==' ':
-					# strip the whole last child
-					del children[-1]
-				elif children[-1][-1]==' ':
-					# strip the trailing space form the last child
-					children[-1]=children[-1][:-1]
-		return children
+			sMode=False
+			yield firstChild
+		while True:
+			if type(iChild) in StringTypes:
+				data.append(iChild)
+			else:
+				if data:
+					dataChild=CollapseSpace(string.join(data,''),sMode)
+					if not sMode or dataChild!=u' ':
+						# ignore a leading space completely
+						yield dataChild
+					data=[]
+				yield iChild
+				sMode=False
+			try:
+				iChild=children.next()
+				continue
+			except StopIteration:
+				if data:
+					dataChild=CollapseSpace(string.join(data,''),sMode)
+					if dataChild==u' ':
+						# just white space, return empty string if we're the only child for consistency
+						if sMode:
+							yield u''
+						else:
+							# strip the whole last child
+							return
+					elif dataChild[-1]==u' ':
+						# strip the trailing space form the last child
+						dataChild=dataChild[:-1]
+						yield dataChild
+				return
 		
 	def _FindFactory(self,childClass):
 		if hasattr(self,childClass.__name__):
@@ -1311,10 +1324,9 @@ class Element(Node):
 		recurse over the resulting list calling FindChildren again until the
 		list of matching children stops growing.		
 		"""
-		children=self.GetChildren()
 		if max is not None and len(childList)>=max:
 			return
-		for child in children:
+		for child in self.GetChildren():
 			if isinstance(child,childClass):
 				childList.append(child)
 			elif isinstance(child,Element):
@@ -1416,15 +1428,13 @@ class Element(Node):
 		then XMLMixedContentError is raised.
 		
 		If the element is empty an empty string is returned."""		
-		children=self.GetChildren()
-		if not ignoreElements:
-			for child in children:
-				if not type(child) in StringTypes:
-					raise XMLMixedContentError(str(self))
-		if children:
-			return string.join(map(unicode,children),'')
-		else:
-			return ''
+		data=[]
+		for child in self.GetChildren():
+			if type(child) in StringTypes:
+				data.append(unicode(child))
+			elif not ignoreElements:
+				raise XMLMixedContentError(str(self))
+		return string.join(data,u'')
 
 	def SetValue(self,value):
 		"""Replaces the value of the element with the (unicode) value.
@@ -1498,8 +1508,8 @@ class Element(Node):
 		if len(elementAttrNames)>len(selfAttrNames):
 			# They're bigger by virtue of having more attributes!
 			return -1
-		selfChildren=self.GetCanonicalChildren()
-		elementChildren=element.GetCanonicalChildren()
+		selfChildren=list(self.GetCanonicalChildren())
+		elementChildren=list(element.GetCanonicalChildren())
 		for i in xrange(len(selfChildren)):
 			if i>=len(elementChildren):
 				# We're bigger by virtue of having more children
@@ -1548,8 +1558,7 @@ class Element(Node):
 		attrs=self.GetAttributes()
 		for aname in attrs.keys():
 			e.SetAttribute(aname,attrs[aname])
-		children=self.GetChildren()
-		for child in children:
+		for child in self.GetChildren():
 			if type(child) in types.StringTypes:
 				e.AddData(child)
 			else:
@@ -1695,7 +1704,6 @@ class Element(Node):
 			# mixed content.
 			return self.__class__.XMLCONTENT!=XMLMixedContent
 		else:
-			children=self.GetChildren()
 			for child in self.GetChildren():
 				if type(child) in StringTypes:
 					for c in child:
@@ -1733,8 +1741,9 @@ class Element(Node):
 		else:
 			attributes=''
 		children=self.GetCanonicalChildren()
-		if children:
-			if type(children[0]) in StringTypes and len(children[0])>0 and IsS(children[0][0]):
+		try:
+			child=children.next()
+			if type(child) in StringTypes and len(child)>0 and IsS(child[0]):
 				# First character is WS, so assume pre-formatted
 				indent=tab=''
 			writer.write(u'%s<%s%s>'%(ws,self.xmlname,attributes))
@@ -1742,7 +1751,7 @@ class Element(Node):
 				# When expressed in SGML this element would have type CDATA so put it in a CDSect
 				writer.write(EscapeCDSect(self.GetValue()))
 			else:
-				for child in children:
+				while True:
 					if type(child) in types.StringTypes:
 						# We force encoding of carriage return as these are subject to removal
 						writer.write(escapeFunction(child))
@@ -1750,11 +1759,15 @@ class Element(Node):
 						ws=''
 					else:
 						child.WriteXML(writer,escapeFunction,indent,tab)
+					try:
+						child=children.next()
+					except StopIteration:
+						break
 			if not tab:
 				# if we weren't tabbing children we need to skip closing white space
 				ws=''
 			writer.write(u'%s</%s>'%(ws,self.xmlname))
-		else:
+		except StopIteration:
 			writer.write(u'%s<%s%s/>'%(ws,self.xmlname,attributes))
 
 

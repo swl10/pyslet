@@ -10,7 +10,7 @@ import pyslet.rfc2396 as uri
 
 xsi=xsdatatypes
 
-import string
+import string, itertools
 import os.path, sys
 from types import StringTypes
 
@@ -36,8 +36,7 @@ def FixHTMLNamespace(e):
 		name=(IMSQTI_NAMESPACE,e.xmlname.lower())
 		if name in QTIDocument.classMap:
 			e.SetXMLName(name)
-	children=e.GetChildren()
-	for e in children:
+	for e in e.GetChildren():
 		if type(e) in StringTypes:
 			continue
 		FixHTMLNamespace(e)
@@ -425,18 +424,17 @@ class QTIAssessmentItem(QTIElement):
 		self.QTIModalFeedback=[]
 		
 	def GetChildren(self):
-		children=[]
 		vars=self.declarations.keys()
 		vars.sort()
 		for v in vars:
 			if isinstance(self.declarations[v],QTIResponseDeclaration):
-				children.append(self.declarations[v])
+				yield self.declarations[v]
 		for v in vars:
 			if isinstance(self.declarations[v],QTIOutcomeDeclaration):
-				children.append(self.declarations[v])				
-		xmlns.OptionalAppend(children,self.QTIItemBody)
-		xmlns.OptionalAppend(children,self.QTIResponseProcessing)
-		return children+self.QTIModalFeedback
+				yield self.declarations[v]
+		if self.QTIItemBody: yield self.QTIItemBody
+		if self.QTIResponseProcessing: yield self.QTIResponseProcessing
+		for child in self.QTIModalFeedback: yield child
 	
 	def QTIResponseDeclaration(self):
 		# Not linked properly to us until it is finished.
@@ -516,9 +514,8 @@ class QTIVariableDeclaration(QTIElement):
 		self.QTIDefaultValue=None
 	
 	def GetChildren(self):
-		children=[]
-		xml.OptionalAppend(children,self.QTIDefaultValue)
-		return children+QTIElement.GetChildren(self)
+		if self.QTIDefaultValue: yield self.QTIDefaultValue
+		for child in QTIElement.GetChildren(self): yield child
 
 
 class QTIValue(QTIElement):
@@ -571,7 +568,9 @@ class QTIDefaultValue(QTIElement):
 		self.QTIValue=[]
 	
 	def GetChildren(self):
-		return self.QTIValue+QTIElement.GetChildren(self)
+		return itertools.chain(
+			self.QTIValue,
+			QTIElement.GetChildren(self))
 
 		
 class QTIResponseDeclaration(QTIVariableDeclaration):
@@ -595,11 +594,10 @@ class QTIResponseDeclaration(QTIVariableDeclaration):
 		self.QTIAreaMapping=None
 	
 	def GetChildren(self):
-		children=QTIVariableDeclaration.GetChildren(self)
-		xml.OptionalAppend(children,self.QTICorrectResponse)
-		xml.OptionalAppend(children,self.QTIMapping)
-		xml.OptionalAppend(children,self.QTIAreaMapping)
-		return children
+		for child in QTIVariableDeclaration.GetChildren(self): yield child
+		if self.QTICorrectResponse: yield self.QTICorrectResponse
+		if self.QTIMapping: yield self.QTIMapping
+		if self.QTIAreaMapping: yield self.QTIAreaMapping
 		
 	def ContentChanged(self):
 		self.parent.RegisterDeclaration(self)
@@ -659,9 +657,8 @@ class QTIOutcomeDeclaration(QTIVariableDeclaration):
 		return child
 	
 	def GetChildren(self):
-		children=QTIVariableDeclaration.GetChildren(self)
-		xml.OptionalAppend(children,self.lookupTable)
-		return children
+		for child in QTIVariableDeclaration.GetChildren(self): yield child
+		if self.lookupTable: yield self.lookupTable
 	
 	def ContentChanged(self):
 		self.parent.RegisterDeclaration(self)
@@ -735,8 +732,7 @@ class QTIFlowContainerMixin:
 		
 		This is the same algorithm we use in HTML flow containers, suppressing pretty
 		printing if we have inline elements (ignoring non-trivial data)."""
-		children=self.GetChildren()
-		for child in children:
+		for child in self.GetChildren():
 			if type(child) in StringTypes:
 				for c in child:
 					if not xml.IsS(c):
@@ -836,10 +832,7 @@ class BlockInteraction(html.BlockMixin,QTIInteraction):
 		self.QTIPrompt=None
 	
 	def GetChildren(self):
-		if self.QTIPrompt:
-			return [self.QTIPrompt]
-		else:
-			return []
+		if self.QTIPrompt: yield self.QTIPrompt
 
 
 class QTIPrompt(BodyElement):
@@ -943,8 +936,11 @@ class QTIChoiceInteraction(BlockInteraction):
 		self.QTISimpleChoice=[]
 		
 	def GetChildren(self):
-		return BlockInteraction.GetChildren(self)+self.QTISimpleChoice
-		
+		for child in itertools.chain(
+			BlockInteraction.GetChildren(self),
+			self.QTISimpleChoice):
+			yield child
+
 
 class QTISimpleChoice(QTIFlowContainerMixin,QTIChoice):
 	"""Represents the simpleChoice element.
@@ -1085,9 +1081,8 @@ class QTIGraphicInteraction(BlockInteraction):
 		FixHTMLNamespace(self.Object)
 	
 	def GetChildren(self):
-		children=BlockInteraction.GetChildren(self)
-		children.append(self.Object)
-		return children
+		for child in BlockInteraction.GetChildren(self): yield child
+		yield self.Object
 
 
 class QTIHotspotInteraction(QTIGraphicInteraction):
@@ -1117,8 +1112,9 @@ class QTIHotspotInteraction(QTIGraphicInteraction):
 		self.QTIHotspotChoice=[]
 	
 	def GetChildren(self):
-		children=QTIGraphicInteraction.GetChildren(self)
-		return children+self.QTIHotspotChoice
+		return itertools.chain(
+			QTIGraphicInteraction.GetChildren(self),
+			self.QTIHotspotChoice)
 
 
 class QTISelectPointInteraction(QTIGraphicInteraction):
@@ -1207,7 +1203,9 @@ class QTIResponseProcessing(QTIElement):
 		self.QTIResponseRule=[]
 		
 	def GetChildren(self):
-		return self.QTIResponseRule+QTIElement.GetChildren(self)
+		return itertools.chain(
+			self.QTIResponseRule,
+			QTIElement.GetChildren(self))
 
 
 class QTIResponseRule(QTIElement):
@@ -1236,9 +1234,9 @@ class QTIResponseCondition(QTIResponseRule):
 		self.QTIResponseElse=None
 	
 	def GetChildren(self):
-		children=[self.QTIResponseIf]+self.QTIResponseElseIf
-		xml.OptionalAppend(children,self.QTIResponseElse)
-		return children
+		if self.QTIResponseIf: yield self.QTIResponseIf
+		for child in self.QTIResponseElseIf: yield child
+		if self.QTIResponseElse: yield self.QTIResponseElse
 	
 
 class QTIResponseIf(QTIElement):
@@ -1260,9 +1258,8 @@ class QTIResponseIf(QTIElement):
 		self.QTIResponseRule=[]
 	
 	def GetChildren(self):
-		children=[]
-		xml.OptionalAppend(children,self.Expression)
-		return children+self.QTIResponseRule
+		if self.Expression: yield self.Expression
+		for child in self.QTIResponseRule: yield child
 
 
 class QTIResponseElse(QTIElement):
@@ -1282,7 +1279,7 @@ class QTIResponseElse(QTIElement):
 		self.QTIResponseRule=[]
 	
 	def GetChildren(self):
-		return self.QTIResponseRule
+		return iter(self.QTIResponseRule)
 
 
 class QTIResponseElseIf(QTIResponseIf):
@@ -1322,9 +1319,7 @@ class QTISetOutcomeValue(QTIResponseRule):
 		self.Expression=None
 	
 	def GetChildren(self):
-		children=[]
-		xml.OptionalAppend(children,self.Expression)
-		return children	
+		if self.Expression: yield self.Expression
 
 	
 #
@@ -1451,7 +1446,7 @@ class ExpressionList(Expression):
 		self.Expression=[]
 	
 	def GetChildren(self):
-		return self.Expression
+		return iter(self.Expression)
 
 
 class QTIUnaryExpression(Expression):
@@ -1463,10 +1458,7 @@ class QTIUnaryExpression(Expression):
 		self.Expression=None
 	
 	def GetChildren(self):
-		if self.Expression:
-			return [self.Expression]
-		else:
-			return []
+		if self.Expression: yield self.Expression
 
 
 class QTIMultiple(ExpressionList):
@@ -1910,17 +1902,16 @@ class QTIMetadata(QTIElement):
 		self.QMDToolVendor=None
 	
 	def GetChildren(self):
-		children=[]
-		xmlns.OptionalAppend(children,self.QMDItemTemplate)
-		xmlns.OptionalAppend(children,self.QMDTimeDependent)
-		xmlns.OptionalAppend(children,self.QMDComposite)
-		children=children+self.QMDInteractionType
-		xmlns.OptionalAppend(children,self.QMDFeedbackType)
-		xmlns.OptionalAppend(children,self.QMDSolutionAvailable)
-		xmlns.OptionalAppend(children,self.QMDToolName)
-		xmlns.OptionalAppend(children,self.QMDToolVersion)
-		xmlns.OptionalAppend(children,self.QMDToolVendor)
-		return children+QTIElement.GetChildren(self)
+		if self.QMDItemTemplate: yield self.QMDItemTemplate
+		if self.QMDTimeDependent: yield self.QMDTimeDependent
+		if self.QMDComposite: yield self.QMDComposite
+		for child in self.QMDInteractionType: yield child
+		if self.QMDFeedbackType: yield self.QMDFeedbackType
+		if self.QMDSolutionAvailable: yield self.QMDSolutionAvailable
+		if self.QMDToolName: yield self.QMDToolName
+		if self.QMDToolVersion: yield self.QMDToolVersion
+		if self.QMDToolVendor: yield self.QMDToolVendor
+		for child in QTIElement.GetChildren(self): yield child
 
 class QMDItemTemplate(QTIElement):
 	XMLNAME=(IMSQTI_NAMESPACE,'itemTemplate')

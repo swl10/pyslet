@@ -5,7 +5,7 @@ import pyslet.xmlnames20091208 as xmlns
 from pyslet.rfc2396 import URIFactory, EncodeUnicodeURI, FileURL
 
 import htmlentitydefs
-import string
+import string, itertools
 from types import *
 import os.path, shutil
 
@@ -259,8 +259,7 @@ class XHTMLElement(xmlns.XMLNSElement):
 	
 	def RenderText(self):
 		output=[]
-		children=self.GetChildren()
-		for child in children:
+		for child in self.GetChildren():
 			if type(child) in StringTypes:
 				output.append(child)
 			else:
@@ -329,8 +328,7 @@ class FlowContainer(XHTMLElement):
 		
 		We suppress pretty printing if we have any non-trivial data children or
 		if we have any inline child elements."""
-		children=self.GetChildren()
-		for child in children:
+		for child in self.GetChildren():
 			if type(child) in StringTypes:
 				for c in child:
 					if not xml.IsS(c):
@@ -717,7 +715,7 @@ class Select(FormCtrlMixin,XHTMLElement):
 		return child
 
 	def GetChildren(self):
-		return self.options
+		return iter(self.options)
 
 
 class OptGroup(XHTMLElement):
@@ -738,7 +736,7 @@ class OptGroup(XHTMLElement):
 		self.Option=[]
 	
 	def GetChildren(self):
-		return self.Option
+		return iter(self.Option)
 
 
 class Option(XHTMLElement):
@@ -797,8 +795,8 @@ class FieldSet(BlockMixin,FlowContainer):
 		self.Legend=Legend(self)
 	
 	def GetChildren(self):
-		children=[self.Legend]+FlowContainer.GetChildren(self)
-		return children
+		yield self.Legend
+		for child in FlowContainer.GetChildren(self): yield child
 
 	def GetChildClass(self,stagClass):
 		if stagClass is not None and issubclass(stagClass,Legend):
@@ -1219,9 +1217,8 @@ class Frameset(FrameElement):
 		self.NoFrames=None
 
 	def GetChildren(self):
-		children=self.FrameElement[:]
-		xml.OptionalAppend(children,self.NoFrames)
-		return children
+		for child in self.FrameElement: yield child
+		if self.NoFrames: yield self.NoFrames
 		
 
 class Frame(FrameElement):
@@ -1300,9 +1297,9 @@ class NoFrames(FlowContainer):
 
 	def GetChildren(self):
 		if self.Body:
-			return [self.Body]
+			yield Body
 		else:
-			return FlowContainer.GetChildren(self)
+			for child in FlowContainer.GetChildren(self): yield child
 			
 
 # Document Head
@@ -1346,9 +1343,12 @@ class Head(XHTMLElement):
 			return None
 		
 	def GetChildren(self):
-		children=[self.Title]
-		xml.OptionalAppend(children,self.Base)
-		return children+self.HeadMiscMixin+XHTMLElement.GetChildren(self)
+		yield self.Title
+		if self.Base: yield self.Base
+		for child in itertools.chain(
+			self.HeadMiscMixin,
+			XHTMLElement.GetChildren(self)):
+			yield child
 
 
 class Title(HeadContentMixin,XHTMLElement):
@@ -1505,7 +1505,8 @@ class HTML(XHTMLElement):
 			return Body
 		
 	def GetChildren(self):
-		return [self.Head,self.Body]
+		yield self.Head
+		yield self.Body
 	
 	
 class HTMLParser(xmlns.XMLNSParser):

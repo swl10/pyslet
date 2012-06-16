@@ -38,7 +38,7 @@ class QTIElementTests(unittest.TestCase):
 		e=QTIElement(None)
 
 	def testCaseQuesTestInterop(self):
-		e=QTIQuesTestInterop(None)
+		e=QuesTestInterop(None)
 		self.failUnless(e.QTIComment is None)
 		self.failUnless(e.QTIObjectBank is None)
 		self.failUnless(e.QTIAssessment is None)
@@ -105,7 +105,7 @@ class QTIDocumentTests(unittest.TestCase):
 		doc=QTIDocument()
 		doc.Read(src=StringIO(EXAMPLE_1))
 		root=doc.root
-		self.failUnless(isinstance(root,QTIQuesTestInterop))
+		self.failUnless(isinstance(root,QuesTestInterop))
 		self.failUnless(root.xmlname=='questestinterop')
 		
 	def testCaseExample2(self):

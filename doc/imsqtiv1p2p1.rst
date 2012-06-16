@@ -8,10 +8,93 @@ information about the history of the specification see
 http://en.wikipedia.org/wiki/QTI - official information about the specification
 is available from the IMS GLC: http://www.imsglobal.org/question/index.html
 
+The purpose of this module is to allow documents in QTI v1 format to be parsed
+and then transformed into objects representing the QTI v2 data model where more
+sophisticated processing can be performed.  Effectively, the native model of
+assessment items in Pyslet (and in the PyAssess package it supersedes) is QTI v2
+and this module simply provides an import capability for legacy data marked up
+as QTI v1 items.
+
+Class methods or functions with names beginning MigrateV2 use a common pattern
+for performing the conversion.  Errors and warnings are logged during conversion
+to a list passed in as the *log* parameter.
 
 .. py:module:: pyslet.imsqtiv1p2p1
 
 ..	autoclass:: QTIDocument
 	:members:
 	:show-inheritance:
+
+
+QuesTestInterop Elements
+------------------------
+
+
+Common Elements
+---------------
+
+
+Abstract Elements
+~~~~~~~~~~~~~~~~~
+
+..	autoclass:: CommentContainer
+	:members:
+	:show-inheritance:
+
+
+
+Core Types and Utilities
+------------------------
+
+
+Abstract Elements
+~~~~~~~~~~~~~~~~~
+
+..	autoclass:: QTIElement
+	:members:
+	:show-inheritance:
+
+
+Enumerations
+~~~~~~~~~~~~
+
+..	autoclass::	Area
+	:show-inheritance:
+
+..	autofunction:: MigrateV2AreaCoords
+
+..	autoclass::	FIBType
+	:show-inheritance:
+
+..	autoclass::	NumType
+	:show-inheritance:
+
+..	autoclass::	PromptType
+	:show-inheritance:
+
+..	autoclass::	Orientation
+	:show-inheritance:
+
+
+Utility Functions
+~~~~~~~~~~~~~~~~~
+
+..	autofunction:: MakeValidName
+
+..	autofunction:: ParseYesNo
+
+..	autofunction:: FormatYesNo
+
+
+
+Exceptions
+----------
+
+..	autoclass:: QTIError
+	:show-inheritance:
+
+..	autoclass:: QTIUnimplementedError
+	:show-inheritance:
+
+
 

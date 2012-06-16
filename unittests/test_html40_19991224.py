@@ -21,7 +21,7 @@ class ParserTests(unittest.TestCase):
 		self.failUnless(fragment[0]=='Preamble\n',"Preamble: %s"%repr(fragment[0]))
 		tag=fragment[1]
 		self.failUnless(isinstance(tag,XHTMLP),"P Tag: %s"%repr(tag))
-		children=tag.GetChildren()
+		children=list(tag.GetChildren())
 		self.failUnless(children[0]==u'Hello\xA0',"nbsp: %s"%repr(children[0]))
 		self.failUnless(isinstance(children[1],XHTMLB),"B Tag: %s"%repr(children[1]))
 		self.failUnless(children[1].GetValue()=="World!")

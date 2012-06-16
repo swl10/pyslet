@@ -69,46 +69,65 @@ def EncodeDateTime(value):
 
 class Enumeration:
 	@classmethod
-	def DecodeValue(cls,value):
-		"""Decodes a value using this enumeration"""
+	def DecodeValue(cls,src):
+		"""Decodes a string returning a value in this enumeration.
+		
+		If no legal value can be decoded then ValueError is raised."""
 		try:
-			value=value.strip()
-			return cls.decode[value]
+			src=src.strip()
+			return cls.decode[src]
 		except KeyError:
-			raise ValueError("Can't decode enumerated value from %s"%value)
+			raise ValueError("Can't decode %s from %s"%(cls.__name__,src))
 
 	@classmethod
-	def DecodeLowerValue(cls,value):
-		"""Decodes a value, converting to lower case, using this enumeration"""
+	def DecodeLowerValue(cls,src):
+		"""Decodes a string, converting it first to lower case first.
+
+		Returns a value in this enumeration.  If no legal value can be decoded
+		then ValueError is raised."""
 		try:
-			value=value.lower()
-			return cls.decode[value]
+			src=src.lower()
+			return cls.decode[src]
 		except KeyError:
-			raise ValueError("Can't decode enumerated value from %s"%value)
+			raise ValueError("Can't decode %s from %s"%(cls.__name__,src))
 	
 	@classmethod
-	def DecodeTitleValue(cls,value):
-		"""Decodes a value, converting to title case, using this enumeration"""
+	def DecodeTitleValue(cls,src):
+		"""Decodes a string, converting it to title case first.
+		
+		Returns a value in this enumeration.  If no legal value can be decoded
+		then ValueError is raised."""
 		try:
-			value=value.strip()
-			value=value[0].upper()+value[1:].lower()
-			return cls.decode[value]
+			src=src.strip()
+			src=src[0].upper()+src[1:].lower()
+			return cls.decode[src]
 		except KeyError:
-			raise ValueError("Can't decode enumerated value from %s"%value)
+			raise ValueError("Can't decode %s from %s"%(cls.__name__,src))
 	
 	@classmethod
 	def EncodeValue(cls,value):
-		return cls.encode.get(value,None)
-				
-def MakeEnumeration(e):
+		"""Encodes one of the enumeration constants returning a string.
+		
+		If value is None then the encoded default value is returned (if defined) or None."""
+		return cls.encode.get(value,cls.encode.get(cls.DEFAULT,None))
+	
+	DEFAULT=None	#: the default value of the enumeration or None if there is no default
+
+
+def MakeEnumeration(e,defaultValue=None):
 	"""Adds convenience attributes to the class 'e'
 	
 	This function assumes that e has an attribute 'decode' that is a dictionary
 	which maps strings onto enumeration values.  This function creates the reverse
 	mapping called 'encode' and also defines constant attribute values that are
-	equivalent to the keys of decode and can be used in code in the form e.key."""
+	equivalent to the keys of decode and can be used in code in the form e.key.
+	
+	If *defaultValue* is not None then it must be on of the strings in the
+	decode dictionary.  It is then used to set the *DEFAULT* value."""
 	setattr(e,'encode',dict(zip(e.decode.values(),e.decode.keys())))
 	map(lambda x:setattr(e,x,e.decode[x]),e.decode.keys())
+	if defaultValue:
+		setattr(e,'DEFAULT',e.decode[defaultValue])
 
 
 def WhiteSpaceReplace(value):

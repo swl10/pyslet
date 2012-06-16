@@ -90,7 +90,9 @@ class Properties(ODataElement):
 		self.Property=[]
 
 	def GetChildren(self):
-		return self.Property+ODataElement.GetChildren(self)
+		return itertools.chain(
+			self.Property,
+			ODataElement.GetChildren(self))
 		
 		
 class Content(atom.Content):
@@ -102,9 +104,8 @@ class Content(atom.Content):
 		self.Properties=None		#: the optional properties element containing the entry's property values
 
 	def GetChildren(self):
-		children=atom.Content.GetChildren(self)
-		xml.OptionalAppend(children,self.Properties)
-		return children
+		for child in atom.Content.GetChildren(self): yield child
+		if self.Properties: yield self.Properties
 
 	
 class Entry(atom.Entry):

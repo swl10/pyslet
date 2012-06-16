@@ -58,9 +58,13 @@ class Edmx(EDMXElement):
 		self.DataServices=self.DataServicesClass(self)
 	
 	def GetChildren(self):
-		children=self.Reference+self.AnnotationsReference
-		children.append(self.DataServices)
-		return children+EDMXElement.GetChildren(self)
+		for child in itertools.chain(
+			self.Reference,
+			self.AnnotationsReference):
+			yield child
+		yield self.DataServices
+		for child in EDMXElement.GetChildren(self):
+			yield child
 
 
 class Document(xmlns.XMLNSDocument):

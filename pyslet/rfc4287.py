@@ -15,7 +15,7 @@ xml:lang attribute [W3C.REC-xml-20040204], Section 2.12
 A Date construct is an element whose content MUST conform to the "date-time" production in [RFC3339]
 """
 
-import string, types
+import string, types, itertools
 import pyslet.info
 import pyslet.iso8601 as iso8601
 import pyslet.html40_19991224 as html
@@ -87,14 +87,13 @@ class Text(AtomElement):
 			e=xml.XMLEntity(value)
 			doc=html.XHTMLDocument(baseURI=self.ResolveBase())
 			doc.ReadFromEntity(e)
-			div=doc.root.Body.GetChildren()
+			div=list(doc.root.Body.GetChildren())
 			if len(div)==1 and isinstance(div[0],html.Div):
 				div=div[0]
 				# We remove our existing content
 				self.SetValue(None)
 				# And do a deep copy of the div instead
-				div.Copy(self)
-				newDiv=self.GetChildren()[0]
+				newDiv=div.Copy(self)
 			else:
 				newDiv=self.ChildElement(html.Div)
 				for divChild in div:
@@ -121,9 +120,9 @@ class Text(AtomElement):
 		elif self.type==TextType.xhtml:
 			# concatenate all children, but should be just a single div
 			result=[]
-			valueChildren=self.GetChildren()
+			valueChildren=list(self.GetChildren())
 			if len(valueChildren) and isinstance(valueChildren[0],html.Div):
-				valueChildren=valueChildren[0].GetChildren()
+				valueChildren=list(valueChildren[0].GetChildren())
 			for c in valueChildren:
 				result.append(unicode(c))
 			return string.join(result,'')
@@ -335,11 +334,10 @@ class Person(AtomElement):
 		self.Email=None
 
 	def GetChildren(self):
-		children=[]
-		xml.OptionalAppend(children,self.Name)
-		xml.OptionalAppend(children,self.URI)
-		xml.OptionalAppend(children,self.Email)
-		return children+AtomElement.GetChildren(self)
+		if self.Name: yield self.Name
+		if self.URI: yield self.URI
+		if self.Email: yield self.Email
+		for child in AtomElement.GetChildren(self): yield child
 		
 	
 class Author(Person):
@@ -391,13 +389,17 @@ class Entity(AtomElement):
 		self.Updated=None	#: atomUpdated
 
 	def GetChildren(self):
-		children=[]
-		xml.OptionalAppend(children,self.AtomId)
-		xml.OptionalAppend(children,self.Title)
-		xml.OptionalAppend(children,self.Rights)
-		xml.OptionalAppend(children,self.Updated)
-		children=children+self.Link+self.Author+self.Contributor+self.Category
-		return children+AtomElement.GetChildren(self)
+		if self.AtomId: yield self.AtomId
+		if self.Title: yield self.Title
+		if self.Rights: yield self.Rights
+		if self.Updated: yield self.Updated
+		for child in itertools.chain(
+			self.Link,
+			self.Author,
+			self.Contributor,
+			self.Category,
+			AtomElement.GetChildren(self)):
+			yield child
 	
 		
 class Source(Entity):
@@ -414,12 +416,11 @@ class Source(Entity):
 		self.Subtitle=None		#: atomSubtitle
 		
 	def GetChildren(self):
-		children=Entity.GetChildren(self)
-		xml.OptionalAppend(children,self.Generator)
-		xml.OptionalAppend(children,self.Icon)
-		xml.OptionalAppend(children,self.Logo)
-		xml.OptionalAppend(children,self.Subtitle)
-		return children
+		for child in Entity.GetChildren(self): yield child
+		if self.Generator: yield self.Generator
+		if self.Icon: yield self.Icon
+		if self.Logo: yield self.Logo
+		if self.Subtitle: yield self.Subtitle
 		
 							
 class Feed(Source):
@@ -443,8 +444,10 @@ class Feed(Source):
 		self.Entry=[]		#: atomEntry
 
 	def GetChildren(self):
-		children=Source.GetChildren(self)
-		return children+self.Entry
+		for child in itertools.chain(
+			Source.GetChildren(self),
+			self.Entry):
+			yield child
 
 		
 class Entry(Entity):
@@ -469,12 +472,11 @@ class Entry(Entity):
 		self.Summary=None
 							
 	def GetChildren(self):
-		children=Entity.GetChildren(self)
-		xml.OptionalAppend(children,self.Content)
-		xml.OptionalAppend(children,self.Published)
-		xml.OptionalAppend(children,self.Source)
-		xml.OptionalAppend(children,self.Summary)
-		return children
+		for child in Entity.GetChildren(self): yield child
+		if self.Content: yield self.Content
+		if self.Published: yield self.Published
+		if self.Source: yield self.Source
+		if self.Summary: yield self.Summary
 			
 
 class AtomDocument(xmlns.XMLNSDocument):
