@@ -34,14 +34,50 @@ QuesTestInterop Elements
 	:show-inheritance:
 
 
+Object Bank Elements
+--------------------
+
+..	autoclass:: ObjectBank
+	:members:
+	:show-inheritance:
+
+
+Assessment Elements
+-------------------
+
+..	autoclass:: Assessment
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AssessmentControl
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AssessProcExtension
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AssessFeedback
+	:members:
+	:show-inheritance:
+
+
 Common Elements
 ---------------
 
 
-Abstract Elements
-~~~~~~~~~~~~~~~~~
+Abstract & Mix-in Classes
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ..	autoclass:: CommentContainer
+	:members:
+	:show-inheritance:
+
+..	autoclass:: MetadataContainerMixin
+	:members:
+	:show-inheritance:
+
+..	autoclass:: ContentMixin
 	:members:
 	:show-inheritance:
 
@@ -78,6 +114,11 @@ Enumerations
 
 ..	autoclass::	Orientation
 	:show-inheritance:
+
+..	autoclass::	View
+	:show-inheritance:
+
+..	autofunction:: MigrateV2View
 
 
 Utility Functions

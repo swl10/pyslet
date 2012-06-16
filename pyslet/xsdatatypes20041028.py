@@ -129,6 +129,31 @@ def MakeEnumeration(e,defaultValue=None):
 	if defaultValue:
 		setattr(e,'DEFAULT',e.decode[defaultValue])
 
+def MakeEnumerationAliases(e,aliases):
+	"""Adds *aliases* from a dictionary, declaring additional convenience attributes.
+	
+	This function assumes that :py:func:`MakeEnumeration` has already been used
+	to complete the declaration of the enumeration.  The aliases are added to
+	the decode dictionary but, for obvious reasons, not to the encode
+	dictionary."""
+	for alias,key in aliases.items():
+		e.decode[alias]=e.decode[key]
+	map(lambda x:setattr(e,x,e.decode[x]),aliases.keys())
+
+def MakeLowerAliases(e):
+	"""Adds *aliases* by converting all keys to lower case.
+	
+	Assumes that :py:func:`MakeEnumeration` has already been used to complete
+	the declaration of the enumeration.  You must call this function to complete
+	the declaration before relying on calls to
+	:py:meth:`Enumeration.DecodeLowerValue`."""
+	for key in e.decode.keys():
+		alias=key.lower()
+		if not alias in e.decode:
+			# Declare this alias
+			e.decode[alias]=e.decode[key]
+			setattr(e,alias,e.decode[key])				  
+
 
 def WhiteSpaceReplace(value):
 	output=[]

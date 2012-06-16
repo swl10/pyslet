@@ -40,9 +40,9 @@ class QTIElementTests(unittest.TestCase):
 	def testCaseQuesTestInterop(self):
 		e=QuesTestInterop(None)
 		self.failUnless(e.QTIComment is None)
-		self.failUnless(e.QTIObjectBank is None)
-		self.failUnless(e.QTIAssessment is None)
-		self.failUnless(e.objectList==[])
+		self.failUnless(e.ObjectBank is None)
+		self.failUnless(e.Assessment is None)
+		self.failUnless(e.ObjectMixin==[])
 		
 
 EXAMPLE_1="""<?xml version="1.0" encoding="utf-8"?>
@@ -113,9 +113,9 @@ class QTIDocumentTests(unittest.TestCase):
 		doc.Read(src=StringIO(EXAMPLE_2))
 		root=doc.root
 		self.failUnless(root.QTIComment.GetValue()=='Example2')
-		objects=doc.root.objectList
+		objects=doc.root.ObjectMixin
 		self.failUnless(len(objects)==1 and isinstance(objects[0],QTIItem))
-		self.failUnless(len(root.objectList)==1)
+		self.failUnless(len(root.ObjectMixin)==1)
 	
 
 class QTIV2ConversionTests(unittest.TestCase):

@@ -1227,36 +1227,41 @@ class Element(Node):
 		the local list of children."""
 		if self.IsEmpty():
 			self.ValidationError("Unexpected child element",name)
+		child=None
 		factoryName=self._FindFactory(childClass)
-		if factoryName:
-			factory=getattr(self,factoryName)
-			if type(factory) is MethodType:
-				if factoryName!=childClass.__name__:
-					child=factory(childClass)
+		try:
+			if factoryName:
+				factory=getattr(self,factoryName)
+				if type(factory) is MethodType:
+					if factoryName!=childClass.__name__:
+						child=factory(childClass)
+					else:
+						child=factory()
+				elif type(factory) is NoneType:
+					child=childClass(self)
+					setattr(self,factoryName,child)
+				elif type(factory) is ListType:
+					child=childClass(self)
+					factory.append(child)
+				elif type(factory) is InstanceType and isinstance(factory,childClass):
+					child=factory
 				else:
-					child=factory()
-				if name:
-					child.SetXMLName(name)
-				return child
-			elif type(factory) is NoneType:
-				child=childClass(self)
-				setattr(self,factoryName,child)
-			elif type(factory) is ListType:
-				child=childClass(self)
-				factory.append(child)
-			elif type(factory) is InstanceType and isinstance(factory,childClass):
-				child=factory
-			else:
-				raise TypeError
-		else:
-			try:
-				child=childClass(self)
-			except TypeError:
-				raise TypeError("Can't create %s in %s"%(childClass.__name__,self.__class__.__name__))
+					raise TypeError
+				if child is not None:
+					if name:
+						child.SetXMLName(name)
+					return child
+			# else fall through to the default processing...
+			child=childClass(self)
 			self._children.append(child)
-		if name:
-			child.SetXMLName(name)
-		return child
+			if name:
+				child.SetXMLName(name)
+			return child
+		except TypeError:
+			import traceback;traceback.print_exc()
+			raise TypeError("Can't create %s in %s"%(childClass.__name__,self.__class__.__name__))
+# 		if child is None:
+# 			raise TypeError("ChildElement got None: %s in %s"%(childClass.__name__,self.__class__.__name__))
 	
 	def DeleteChild(self,child):
 		"""Deletes the given child from this element's children.

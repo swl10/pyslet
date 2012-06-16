@@ -157,6 +157,38 @@ def MigrateV2AreaCoords(area,value,log):
 	return shape,coords
 
 
+class RCardinality(xsi.Enumeration):
+	"""rcardinality enumeration::
+	
+	(Single | Multiple | Ordered )  'Single'
+
+	Defines constants for the above cardinality types.  Usage example::
+
+		RCardinality.Multiple
+	
+	Note that::
+		
+		RCardinality.DEFAULT == RCardinality.Single
+
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		'Single':1,
+		'Multiple':2,
+		'Ordered':3
+		}
+			
+xsi.MakeEnumeration(RCardinality)
+
+def MigrateV2Cardinality(rCardinality):
+	"""Maps a v1 cardinality onto the corresponding v2 constant."""
+	return {
+		RCardinality.Single:qtiv2.QTICardinality.single,
+		RCardinality.Multiple:qtiv2.QTICardinality.multiple,
+		RCardinality.Ordered:qtiv2.QTICardinality.ordered
+		}.get(rCardinality,None)
+
+
+
 class FIBType(xsi.Enumeration):
 	"""Fill-in-the-blank type enumeration::
 	
@@ -242,6 +274,70 @@ class Orientation(xsi.Enumeration):
 xsi.MakeEnumeration(Orientation,u'Horizontal')
 
 
+class View(xsi.Enumeration):
+	"""View enumeration::
+	
+	(All | Administrator | AdminAuthority | Assessor | Author | Candidate |
+	InvigilatorProctor | Psychometrician | Scorer | Tutor )  'All'
+
+	Defines constants for the above view types.  Usage example::
+	
+		View.Candidate
+	
+	Note that::
+	
+		View.DEFAULT == View.All
+
+	In addition to the constants defined in the specification we add two aliases
+	which are in common use::
+	
+		(Invigilator | Proctor)
+		
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		u'All':1,
+		u'Administrator':2,
+		u'AdminAuthority':3,
+		u'Assessor':4,
+		u'Author':5,
+		u'Candidate':6,
+		u'InvigilatorProctor':7,
+		u'Psychometrician':8,
+		u'Scorer':9,
+		u'Tutor':10
+		}
+xsi.MakeEnumeration(View,u'All')
+xsi.MakeEnumerationAliases(View,{
+	u'Proctor':u'InvigilatorProctor',
+	u'Invigilator':u'InvigilatorProctor'
+	})
+xsi.MakeLowerAliases(View)
+
+			
+def MigrateV2View(view,log):
+	"""Returns a list of v2 view values representing the v1 *view*."""
+	return {
+		View.Administrator:[qtiv2.QTIView.proctor],
+		View.AdminAuthority:[qtiv2.QTIView.proctor],
+		View.Assessor:[qtiv2.QTIView.scorer],
+		View.Author:[qtiv2.QTIView.author],
+		View.Candidate:[qtiv2.QTIView.candidate],
+		View.Invigilator:[qtiv2.QTIView.proctor],
+		View.Proctor:[qtiv2.QTIView.proctor],
+		View.InvigilatorProctor:[qtiv2.QTIView.proctor],
+		View.Psychometrician:[qtiv2.QTIView.testConstructor],
+		View.Scorer:[qtiv2.QTIView.scorer],
+		View.Tutor:[qtiv2.QTIView.tutor],
+		View.All:[
+			qtiv2.QTIView.author,
+			qtiv2.QTIView.candidate,
+			qtiv2.QTIView.proctor,
+			qtiv2.QTIView.scoror,
+			qtiv2.QTIView.testConstructor,
+			qtiv2.QTIView.tutor]			
+		}.get(view,[])
+
+		
 class QTIElement(xml.Element):
 	"""Base class for all elements defined by the QTI specification"""
 	
@@ -261,3 +357,44 @@ class QTIElement(xml.Element):
 			pass
 
 
+class ObjectMixin:
+	"""Mix-in class for elements that can be inside :py:class:`ObjectBank`."""
+	pass
+
+
+
+class QTIViewMixin:
+	"""Mixin class for handling view attribute.
+	
+	<!ENTITY % I_View " view  (All | 
+			  Administrator | 
+			  AdminAuthority | 
+			  Assessor | 
+			  Author | 
+			  Candidate | 
+			  InvigilatorProctor | 
+			  Psychometrician | 
+			  Scorer | 
+			  Tutor )  'All'">
+	
+	V2_VIEWMAP attribute maps lower-cased view names from v1.2 onto corresponding v2 view values.
+	"""
+	XMLATTR_view='view'
+
+	V2_VIEWMAP={
+		'administrator':'proctor',
+		'adminauthority':'proctor',
+		'assessor':'scorer',
+		'author':'author',
+		'candidate':'candidate',
+		'invigilator':'proctor',
+		'proctor':'proctor',
+		'invigilatorproctor':'proctor',
+		'psychometrician':'testConstructor',
+		'tutor':'tutor',
+		'scorer':'scorer'}
+		
+	V2_VIEWALL='author candidate proctor scorer testConstructor tutor'
+
+	def __init__(self):
+		self.view='All'
