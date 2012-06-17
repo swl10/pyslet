@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE questestinterop SYSTEM "ims_qtiasiv1p2p1.dtd">
+<questestinterop>
+    <qticomment>Object Bank Outer</qticomment>
+    <objectbank ident="bank">
+        <qticomment>Object Bank Inner</qticomment>
+        <item ident="bank1"> </item>
+        <section ident="bankSection" title="Bank Section" xml:lang="en-US">
+            <qticomment>Bank Section Comment</qticomment>
+            <sectioncontrol feedbackswitch="No" hintswitch="No" solutionswitch="No" view="Candidate"/>
+            <sectionprecondition>Pre-conditions not supported</sectionprecondition>
+            <sectionpostcondition>Post-conditions not supported</sectionpostcondition>
+            <sectionproc_extension>Section processing extensions not
+                supported</sectionproc_extension>
+            <sectionfeedback ident="bankSectionFeedback" title="Bank Section Feedback" view="All">
+                <material>
+                    <mattext texttype="text/plain">Feedback on Bank Section</mattext>
+                </material>
+            </sectionfeedback>
+            <item ident="bank2" title="Bank Item 2"/>
+            <sectionref linkrefid="bankSection2">Bank Section 2 Reference</sectionref>
+        </section>
+        <section ident="bankSection2" title="Bank Section 2">
+            
+        </section>
+    </objectbank>
+</questestinterop>

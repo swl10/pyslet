@@ -547,6 +547,31 @@ END:VCARD&#xD;
 			<file href="mrsp_ir_02/solar1.gif"/>
 			<file href="mrsp_ir_02/absorbed1.gif"/>
 		</resource>
+		<resource identifier="bank1" type="imsqti_item_xmlv2p1" href="objectbank/bank1.xml">
+			<metadata>
+				<imsmd:lom>
+					<imsmd:general>
+						<imsmd:identifier>bank1</imsmd:identifier>
+					</imsmd:general>
+				</imsmd:lom>
+				<imsqti:qtiMetadata/>
+			</metadata>
+			<file href="objectbank/bank1.xml"/>
+		</resource>
+		<resource identifier="bank2" type="imsqti_item_xmlv2p1" href="objectbank/bank2.xml">
+			<metadata>
+				<imsmd:lom>
+					<imsmd:general>
+						<imsmd:identifier>bank2</imsmd:identifier>
+						<imsmd:title>
+							<imsmd:langstring xml:lang="en-US">Bank Item 2</imsmd:langstring>
+						</imsmd:title>		
+					</imsmd:general>
+				</imsmd:lom>
+				<imsqti:qtiMetadata/>
+			</metadata>
+			<file href="objectbank/bank2.xml"/>
+		</resource>
 		<resource identifier="qmdextensions" type="imsqti_item_xmlv2p1"
 			href="qmdextensions/qmdextensions.xml">
 			<metadata>

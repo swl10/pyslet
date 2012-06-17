@@ -9,24 +9,19 @@ import core, common
 import string
 
 
-class ObjectMixin:
-	"""Mix-in class for elements that can be inside :py:class:`ObjectBank`."""
-	pass
-
-
-class ObjectBank(common.MetadataContainerMixin,common.CommentContainer):
+class ObjectBank(common.MetadataContainerMixin,common.QTICommentContainer):
 	"""This is the container for the Section(s) and/or Item(s) that are to be
 	grouped as an object-bank. The object-bank is assigned its own unique
 	identifier and can have the full set of QTI-specific meta-data::
 
 	<!ELEMENT objectbank (qticomment? , qtimetadata* , (section | item)+)>	
-	<!ATTLIST objectbank  %I_Ident; >"""
+	<!ATTLIST objectbank  ident CDATA  #REQUIRED >"""
 	XMLNAME="objectbank"
 	XMLATTR_ident='ident'
 	XMLCONTENT=xml.ElementContent
 
 	def __init__(self,parent):
-		CommentContainer.__init__(self,parent)
+		common.QTICommentContainer.__init__(self,parent)
 		self.ident=None
 		self.QTIMetadata=[]
 		self.ObjectMixin=[]

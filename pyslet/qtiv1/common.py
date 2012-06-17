@@ -4,13 +4,14 @@ import pyslet.xml20081126.structures as xml
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.html40_19991224 as html
 import pyslet.imsqtiv2p1 as qtiv2
+import pyslet.imsmdv1p2p1 as imsmd
 
 import core
 
 import string, itertools
 from types import StringTypes
 
-class CommentContainer(core.QTIElement):
+class QTICommentContainer(core.QTIElement):
 	"""Basic element to represent all elements that can contain a comment as their first child::
 
 	<!ELEMENT XXXXXXXXXXXX (qticomment? , ....... )>"""
@@ -23,34 +24,23 @@ class CommentContainer(core.QTIElement):
 
 
 class QTIComment(core.QTIElement):
-	"""Represents the qticomment element.
-	
-::
+	"""This element contains the comments that are relevant to the host element.
+	The comment is contained as a string::
 
-	<!ELEMENT qticomment (#PCDATA)>
-	
+	<!ELEMENT qticomment (#PCDATA)>	
 	<!ATTLIST qticomment  xml:lang CDATA  #IMPLIED >"""
 	XMLNAME='qticomment'
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class MetadataContainerMixin:
-	"""A mix-in class used to hold dictionaries of metadata.
-	
-	There is a single dictionary maintained to hold all metadata values, each
-	value is a list of tuples of the form (value string, defining element).
-	Values are keyed on the field label or tag name with any leading qmd\_ prefix
-	removed."""
-	def __init__(self):
-		self.metadata={}
+class Duration(core.QTIElement):
+	"""The duration permitted for the completion of a particular activity. The
+	duration is defined as per the ISO8601 standard. The information is entered
+	as a string::
 
-	def DeclareMetadata(self,label,entry,definition=None):
-		label=label.lower()
-		if label[:4]=="qmd_":
-			label=label[4:]
-		if not label in self.metadata:
-			self.metadata[label]=[]
-		self.metadata[label].append((entry,definition))
+	<!ELEMENT duration (#PCDATA)>"""
+	XMLNAME="duration"
+	XMLCONTENT=xml.XMLMixedContent
 
 
 class ContentMixin:
@@ -73,6 +63,10 @@ class ContentMixin:
 		child=childClass(self)
 		self.contentChildren.append(child)
 		return child
+
+	def GetContentChildren(self):
+		"""Returns an iterable of the content children."""
+		return iter(self.contentChildren)
 
 	def IsInline(self):
 		"""True if this element can be inlined, False if it is block level
@@ -132,7 +126,7 @@ class ContentMixin:
 			brBefore=brAfter=False
 			firstItem=True
 			for child in children:
-				if isinstance(child,(Flow,FlowMat,FlowLabel)):
+				if isinstance(child,FlowMixin):
 					brBefore=not firstItem
 					brAfter=True
 				elif brAfter:
@@ -156,7 +150,7 @@ class ContentMixin:
 						if brAfter:
 							p.ChildElement(html.Br,(qtiv2.IMSQTI_NAMESPACE,'br'))
 							brAfter=False
-						if isinstance(child,(Flow,FlowMat,FlowLabel)):
+						if isinstance(child,FlowMixin):
 							brBefore=brAfter=True
 						if p is None:
 							p=parent.ChildElement(html.P,(qtiv2.IMSQTI_NAMESPACE,'p'))
@@ -170,63 +164,93 @@ class ContentMixin:
 						p=None
 						brBefore=brAfter=False
 						child.MigrateV2Content(parent,html.BlockMixin,log)
-				except AttributeError:
-					raise QTIError("Error: unsupported QTI v1 content element "+child.xmlname)
+				except AttributeError,e:
+					print e
+					raise core.QTIError("Error: unsupported QTI v1 content element "+child.xmlname)
 
 
-class Material(CommentContainer,ContentMixin):
-	"""Represents the material element
-	
-::
+class Material(QTICommentContainer,ContentMixin):
+	"""This is the container for any content that is to be displayed by the
+	question-engine. The supported content types are text (emphasized or not),
+	images, audio, video, application and applet. The content can be internally
+	referenced to avoid the need for duplicate copies. Alternative information
+	can be defined - this is used if the primary content cannot be displayed::
 
-	<!ELEMENT material (qticomment? , (mattext | matemtext | matimage | mataudio | matvideo | matapplet | matapplication | matref | matbreak | mat_extension)+ , altmaterial*)>
-	
-	<!ATTLIST material  %I_Label;
-						xml:lang CDATA  #IMPLIED >
-	"""
+	<!ELEMENT material (qticomment? , (mattext | matemtext | matimage | mataudio | matvideo | matapplet | matapplication | matref | matbreak | mat_extension)+ , altmaterial*)>	
+	<!ATTLIST material
+		label CDATA  #IMPLIED
+		xml:lang CDATA  #IMPLIED >"""
 	XMLNAME='material'
 	XMLATTR_label='label'
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
-		CommentContainer.__init__(self,parent)
+		QTICommentContainer.__init__(self,parent)
 		ContentMixin.__init__(self)
+		self.AltMaterial=[]
 		self.label=None
 	
+	def ContentMixin(self,childClass):
+		if issubclass(childClass,MatThingMixin):
+			return ContentMixin.ContentMixin(self,childClass)
+		else:
+			raise TypeError
+
 	def GetChildren(self):
 		return itertools.chain(
-			CommentContainer.GetChildren(self),
-			self.contentChildren)
+			QTICommentContainer.GetChildren(self),
+			ContentMixin.GetContentChildren(self))
 	
-	def QTIMatThingMixin(self,childClass):
-		child=childClass(self)
-		self.contentChildren.append(child)
-		return child
-		
 	def ContentChanged(self):
 		if self.label:
 			doc=self.GetDocument()
 			if doc:
 				doc.RegisterMaterial(self)
-		CommentContainer.ContentChanged(self)
+		QTICommentContainer.ContentChanged(self)
 
 
-class QTIMatThingMixin(ContentMixin):
+class AltMaterial(QTICommentContainer,ContentMixin):
+	"""This is the container for alternative content. This content is to be
+	displayed if, for whatever reason, the primary content cannot be rendered.
+	Alternative language implementations of the host <material> element are also
+	supported using this structure::
+
+	<!ELEMENT altmaterial (qticomment? ,
+		(mattext | matemtext | matimage | mataudio | matvideo |
+		matapplet | matapplication | matref | matbreak | mat_extension)+)>
+	<!ATTLIST altmaterial  xml:lang CDATA  #IMPLIED >
+	"""
+	XMLNAME="material_ref"
+	XMLCONTENT=xml.ElementContent
+	
+	def __init__(self,parent):
+		QTICommentContainer.__init__(self,parent)
+		ContentMixin.__init__(self)
+	
+	def ContentMixin(self,childClass):
+		if issubclass(childClass,MatThingMixin):
+			return ContentMixin.ContentMixin(self,childClass)
+		else:
+			raise TypeError
+
+	def GetChildren(self):
+		return itertools.chain(
+			QTICommentContainer.GetChildren(self),
+			ContentMixin.GetContentChildren(self))
+
+
+class MatThingMixin(ContentMixin):
 	"""An abstract class used to help identify the mat* elements."""
 	pass
 
 
-class QTIPositionMixin:
-	"""Mixin to define the positional attributes.
+class PositionMixin:
+	"""Mixin to define the positional attributes::
 	
-	<!ENTITY % I_X0 " x0 CDATA  #IMPLIED">
-	
-	<!ENTITY % I_Y0 " y0 CDATA  #IMPLIED">
-	
-	<!ENTITY % I_Height " height CDATA  #IMPLIED">
-	
-	<!ENTITY % I_Width " width CDATA  #IMPLIED">
-	"""
+		width	CDATA  #IMPLIED
+		height	CDATA  #IMPLIED
+		y0		CDATA  #IMPLIED
+		x0		CDATA  #IMPLIED"""
 	XMLATTR_height=('height',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLATTR_width=('width',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLATTR_x0=('x0',xsi.DecodeInteger,xsi.EncodeInteger)
@@ -242,25 +266,22 @@ class QTIPositionMixin:
 		return self.x0 is not None or self.y0 is not None or self.width is not None or self.height is not None
 
 
-class QTIMatText(core.QTIElement,QTIPositionMixin,QTIMatThingMixin):
-	"""Represents the mattext element
+class MatText(core.QTIElement,PositionMixin,MatThingMixin):
+	"""The <mattext> element contains any text that is to be displayed to the users::
 
-::
-
-	<!ELEMENT mattext (#PCDATA)>
-	
-	<!ATTLIST mattext  texttype    CDATA  'text/plain'
-						%I_Label;
-						%I_CharSet;
-						%I_Uri;
-						xml:space    (preserve | default )  'default'
-						xml:lang    CDATA  #IMPLIED
-						%I_EntityRef;
-						%I_Width;
-						%I_Height;
-						%I_Y0;
-						%I_X0; >	
-	"""
+	<!ELEMENT mattext (#PCDATA)>	
+	<!ATTLIST mattext
+		texttype    CDATA  'text/plain'
+		label		CDATA  #IMPLIED
+		charset		CDATA  'ascii-us'
+		uri			CDATA  #IMPLIED
+		xml:space	(preserve | default )  'default'
+		xml:lang	CDATA  #IMPLIED
+		entityref	ENTITY  #IMPLIED
+		width		CDATA  #IMPLIED
+		height		CDATA  #IMPLIED
+		y0			CDATA  #IMPLIED
+		x0			CDATA  #IMPLIED >"""
 	XMLNAME='mattext'
 	XMLATTR_label='label'
 	XMLATTR_charset='charset'
@@ -275,12 +296,12 @@ class QTIMatText(core.QTIElement,QTIPositionMixin,QTIMatThingMixin):
 		
 	def __init__(self,parent):
 		core.QTIElement.__init__(self,parent)
-		QTIPositionMixin.__init__(self)
-		QTIMatThingMixin.__init__(self)
+		PositionMixin.__init__(self)
+		MatThingMixin.__init__(self)
+		self.texttype='text/plain'
 		self.label=None
 		self.charset='ascii-us'
 		self.uri=None
-		self.texttype='text/plain'
 		self.matChildren=[]
 				
 	def ContentChanged(self):
@@ -326,7 +347,7 @@ class QTIMatText(core.QTIElement,QTIPositionMixin,QTIMatThingMixin):
 		elif self.texttype=='text/html':
 			# we are inline if all elements in matChildren are inline
 			for child in self.matChildren:
-				if type(child) in StringTypes or issubclass(child.__class__,html.InlineMixin):
+				if type(child) in StringTypes or isinstance(child,html.InlineMixin):
 					continue
 				else:
 					return False
@@ -342,7 +363,7 @@ class QTIMatText(core.QTIElement,QTIPositionMixin,QTIMatThingMixin):
 			for child in self.matChildren:
 				if type(child) in StringTypes:
 					para.append(child)
-				elif issubclass(child.__class__,html.InlineMixin):
+				elif isinstance(child,html.InlineMixin):
 					para.append(child.RenderText())
 				else:
 					if para:
@@ -358,7 +379,7 @@ class QTIMatText(core.QTIElement,QTIPositionMixin,QTIMatThingMixin):
 	def MigrateV2Content(self,parent,childType,log):
 		if self.texttype=='text/plain':
 			data=self.GetValue(True)
-			if self.charset.lower() in QTIMatText.SymbolCharsets:
+			if self.charset.lower() in MatText.SymbolCharsets:
 				# this data is in the symbol font, translate it
 				# Note that the first page of unicode is the same as iso-8859-1
 				data=data.encode('iso-8859-1').decode('apple-symbol')				
@@ -386,7 +407,7 @@ class QTIMatText(core.QTIElement,QTIPositionMixin,QTIMatThingMixin):
 				# Block or mixed-up flow, wrap all text and inline elements in p
 				p=None
 				for child in self.matChildren:
-					if type(child) in StringTypes or issubclass(child.__class__,html.InlineMixin):
+					if type(child) in StringTypes or isinstance(child,html.InlineMixin):
 						if p is None:
 							p=parent.ChildElement(html.P,(qtiv2.IMSQTI_NAMESPACE,'p'))
 						if type(child) in StringTypes:
@@ -411,7 +432,31 @@ class QTIMatText(core.QTIElement,QTIPositionMixin,QTIMatThingMixin):
 			raise QTIUnimplementedError
 
 
-class QTIMatEmText(QTIMatText):
+
+
+
+class MetadataContainerMixin:
+	"""A mix-in class used to hold dictionaries of metadata.
+	
+	There is a single dictionary maintained to hold all metadata values, each
+	value is a list of tuples of the form (value string, defining element).
+	Values are keyed on the field label or tag name with any leading qmd\_ prefix
+	removed."""
+	def __init__(self):
+		self.metadata={}
+
+	def DeclareMetadata(self,label,entry,definition=None):
+		label=label.lower()
+		if label[:4]=="qmd_":
+			label=label[4:]
+		if not label in self.metadata:
+			self.metadata[label]=[]
+		self.metadata[label].append((entry,definition))
+
+
+
+
+class MatEmText(MatText):
 	"""Represents matemtext element.
 	
 ::
@@ -419,22 +464,22 @@ class QTIMatEmText(QTIMatText):
 	<!ELEMENT matemtext (#PCDATA)>
 	
 	<!ATTLIST matemtext  texttype    CDATA  'text/plain'
-						  %I_Label;
-						  %I_CharSet;
-						  %I_Uri;
+						  label CDATA  #IMPLIED
+						  charset CDATA  'ascii-us'
+						  uri CDATA  #IMPLIED
 						  xml:space    (preserve | default )  'default'
 						  xml:lang    CDATA  #IMPLIED
-						  %I_EntityRef;
-						  %I_Width;
-						  %I_Height;
-						  %I_Y0;
-						  %I_X0; >
+						  entityref ENTITY  #IMPLIED
+						  width CDATA  #IMPLIED
+						  height CDATA  #IMPLIED
+						  y0 CDATA  #IMPLIED
+						  x0 CDATA  #IMPLIED >
 	"""
 	XMLNAME="matemtext"
 	XMLCONTENT=xml.XMLMixedContent
 	
 
-class QTIMatImage(core.QTIElement,QTIPositionMixin,QTIMatThingMixin):
+class MatImage(core.QTIElement,PositionMixin,MatThingMixin):
 	"""Represents matimage element.
 	
 ::
@@ -442,14 +487,14 @@ class QTIMatImage(core.QTIElement,QTIPositionMixin,QTIMatThingMixin):
 	<!ELEMENT matimage (#PCDATA)>
 	
 	<!ATTLIST matimage  imagtype    CDATA  'image/jpeg'
-						 %I_Label;
-						 %I_Height;
-						 %I_Uri;
-						 %I_Embedded;
-						 %I_Width;
-						 %I_Y0;
-						 %I_X0;
-						 %I_EntityRef; >
+						 label CDATA  #IMPLIED
+						 height CDATA  #IMPLIED
+						 uri CDATA  #IMPLIED
+						 embedded CDATA  'base64'
+						 width CDATA  #IMPLIED
+						 y0 CDATA  #IMPLIED
+						 x0 CDATA  #IMPLIED
+						 entityref ENTITY  #IMPLIED >
 	"""
 	XMLNAME="matimage"
 	XMLATTR_imagtype='imageType'
@@ -460,8 +505,8 @@ class QTIMatImage(core.QTIElement,QTIPositionMixin,QTIMatThingMixin):
 	
 	def __init__(self,parent):
 		core.QTIElement.__init__(self,parent)
-		QTIPositionMixin.__init__(self)
-		QTIMatThingMixin.__init__(self)
+		PositionMixin.__init__(self)
+		MatThingMixin.__init__(self)
 		self.imageType='image/jpeg'
 		self.label=None
 		self.uri=None
@@ -489,7 +534,7 @@ class QTIMatImage(core.QTIElement,QTIPositionMixin,QTIMatThingMixin):
 			img.height=html.LengthType(self.height)
 	
 
-class QTIMatAudio(core.QTIElement,QTIMatThingMixin):
+class MatAudio(core.QTIElement,MatThingMixin):
 	"""Represents mataudio element.
 	
 ::
@@ -497,10 +542,10 @@ class QTIMatAudio(core.QTIElement,QTIMatThingMixin):
 	<!ELEMENT mataudio (#PCDATA)>
 	
 	<!ATTLIST mataudio  audiotype   CDATA  'audio/base'
-						 %I_Label;
-						 %I_Uri;
-						 %I_Embedded;
-						 %I_EntityRef; >
+						 label CDATA  #IMPLIED
+						 uri CDATA  #IMPLIED
+						 embedded CDATA  'base64'
+						 entityref ENTITY  #IMPLIED >
 	"""
 	XMLNAME="mataudio"
 	XMLCONTENT=xml.XMLMixedContent
@@ -512,7 +557,7 @@ class QTIMatAudio(core.QTIElement,QTIMatThingMixin):
 	
 	def __init__(self,parent):
 		core.QTIElement.__init__(self,parent)
-		QTIMatThingMixin.__init__(self)
+		MatThingMixin.__init__(self)
 		self.audioType='audio/base'
 		self.label=None
 		self.uri=None
@@ -537,7 +582,7 @@ class QTIMatAudio(core.QTIElement,QTIMatThingMixin):
 		obj.type=self.audioType
 
 
-class QTIMatVideo(core.QTIElement):
+class MatVideo(core.QTIElement):
 	"""Represents mataudio element.
 	
 ::
@@ -545,40 +590,40 @@ class QTIMatVideo(core.QTIElement):
 	<!ELEMENT matvideo (#PCDATA)>
 	
 	<!ATTLIST matvideo  videotype   CDATA  'video/avi'
-						 %I_Label;
-						 %I_Uri;
-						 %I_Width;
-						 %I_Height;
-						 %I_Y0;
-						 %I_X0;
-						 %I_Embedded;
-						 %I_EntityRef; >
+						 label CDATA  #IMPLIED
+						 uri CDATA  #IMPLIED
+						 width CDATA  #IMPLIED
+						 height CDATA  #IMPLIED
+						 y0 CDATA  #IMPLIED
+						 x0 CDATA  #IMPLIED
+						 embedded CDATA  'base64'
+						 entityref ENTITY  #IMPLIED >
 	"""
 	XMLNAME="matvideo"
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTIMatApplet(core.QTIElement):
+class MatApplet(core.QTIElement):
 	"""Represents matapplet element.
 	
 ::
 
 	<!ELEMENT matapplet (#PCDATA)>
 	
-	<!ATTLIST matapplet  %I_Label;
-						  %I_Uri;
-						  %I_Y0;
-						  %I_Height;
-						  %I_Width;
-						  %I_X0;
-						  %I_Embedded;
-						  %I_EntityRef; >
+	<!ATTLIST matapplet  label CDATA  #IMPLIED
+						  uri CDATA  #IMPLIED
+						  y0 CDATA  #IMPLIED
+						  height CDATA  #IMPLIED
+						  width CDATA  #IMPLIED
+						  x0 CDATA  #IMPLIED
+						  embedded CDATA  'base64'
+						  entityref ENTITY  #IMPLIED >
 	"""
 	XMLNAME="matapplet"
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTIMatApplication(core.QTIElement):
+class MatApplication(core.QTIElement):
 	"""Represents matapplication element.
 	
 ::
@@ -586,16 +631,16 @@ class QTIMatApplication(core.QTIElement):
 	<!ELEMENT matapplication (#PCDATA)>
 	
 	<!ATTLIST matapplication  apptype     CDATA  #IMPLIED
-							   %I_Label;
-							   %I_Uri;
-							   %I_Embedded;
-							   %I_EntityRef; >
+							   label CDATA  #IMPLIED
+							   uri CDATA  #IMPLIED
+							   embedded CDATA  'base64'
+							   entityref ENTITY  #IMPLIED >
 	"""
 	XMLNAME="matapplication"
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTIMatBreak(core.QTIElement,QTIMatThingMixin):
+class MatBreak(core.QTIElement,MatThingMixin):
 	"""Represents matbreak element.
 	
 ::
@@ -607,7 +652,7 @@ class QTIMatBreak(core.QTIElement,QTIMatThingMixin):
 	
 	def __init__(self,parent):
 		core.QTIElement.__init__(self,parent)
-		QTIMatThingMixin.__init__(self)
+		MatThingMixin.__init__(self)
 				
 	def IsInline(self):
 		return True
@@ -624,7 +669,7 @@ class QTIMatBreak(core.QTIElement,QTIMatThingMixin):
 			pass			
 	
 	
-class QTIMatRef(QTIMatThingMixin,core.QTIElement):
+class MatRef(MatThingMixin,core.QTIElement):
 	"""Represents matref element::
 
 	<!ELEMENT matref EMPTY>
@@ -637,7 +682,7 @@ class QTIMatRef(QTIMatThingMixin,core.QTIElement):
 
 	def __init__(self,parent):
 		core.QTIElement.__init__(self,parent)
-		QTIMatThingMixin.__init__(self)
+		MatThingMixin.__init__(self)
 
 	def FindMatThing(self):
 		matThing=None
@@ -645,7 +690,7 @@ class QTIMatRef(QTIMatThingMixin,core.QTIElement):
 		if doc:
 			matThing=doc.FindMatThing(self.linkRefID)
 		if matThing is None:
-			raise QTIError("Bad matref: %s"%str(self.linkRefID))
+			raise core.QTIError("Bad matref: %s"%str(self.linkRefID))
 		return matThing
 		
 	def IsInline(self):
@@ -658,18 +703,18 @@ class QTIMatRef(QTIMatThingMixin,core.QTIElement):
 		self.FindMatThing().MigrateV2Content(parent,childType,log)
 
 
-class FlowContainer(CommentContainer,ContentMixin):
+class FlowContainer(QTICommentContainer,ContentMixin):
 	"""Abstract class used to represent elements that contain flow and related
 	elements::
 
 	<!ELEMENT XXXXXXXXXX (qticomment? , (material | flow | response_*)* )>"""
 	def __init__(self,parent):
-		CommentContainer.__init__(self,parent)
+		QTICommentContainer.__init__(self,parent)
 		ContentMixin.__init__(self)
 
 	def GetChildren(self):
 		return itertools.chain(
-			CommentContainer.GetChildren(self),
+			QTICommentContainer.GetChildren(self),
 			self.contentChildren)
 
 	def ContentMixin(self,childClass):
@@ -679,10 +724,19 @@ class FlowContainer(CommentContainer,ContentMixin):
 			raise TypeError
 
 
-class Flow(FlowContainer):
-	"""Represents the flow element.
+class FlowMixin:
+	"""Mix-in class to identify all flow elements::
 	
-::
+	( flow | flow_mat | flow_label)"""
+	pass
+
+	
+class Flow(FlowContainer,FlowMixin):
+	"""This element contains all of the instructions for the presentation with
+	flow blocking of the question during a test. This information includes the
+	actual material to be presented. The labels for the possible responses are
+	also identified and these are used by the response processing element
+	defined elsewhere in the Item::
 
 	<!ELEMENT flow (qticomment? ,
 		(flow |
@@ -695,9 +749,7 @@ class Flow(FlowContainer):
 		response_grp |
 		response_extension)+
 		)>
-	
-	<!ATTLIST flow  %I_Class; >
-	"""
+	<!ATTLIST flow  class CDATA  'Block' >"""
 	XMLNAME='flow'
 	XMLATTR_class='flowClass'
 	XMLCONTENT=xml.ElementContent
@@ -733,7 +785,7 @@ class Flow(FlowContainer):
 			FlowContainer.MigrateV2Content(self,parent,childType,log)
 
 
-class FlowMatContainer(CommentContainer,ContentMixin):
+class FlowMatContainer(QTICommentContainer,ContentMixin):
 	"""Abstract class used to represent objects that contain flow_mat
 	
 ::
@@ -741,12 +793,12 @@ class FlowMatContainer(CommentContainer,ContentMixin):
 	<!ELEMENT XXXXXXXXXX (qticomment? , (material+ | flow_mat+))>
 	"""
 	def __init__(self,parent):
-		CommentContainer.__init__(self,parent)
+		QTICommentContainer.__init__(self,parent)
 		ContentMixin.__init__(self)
 
 	def GetChildren(self):
 		return itertools.chain(
-			CommentContainer.GetChildren(self),
+			QTICommentContainer.GetChildren(self),
 			self.contentChildren)
 
 	def Material(self):
@@ -760,14 +812,14 @@ class FlowMatContainer(CommentContainer,ContentMixin):
 		return child
 
 
-class FlowMat(FlowMatContainer):
+class FlowMat(FlowMatContainer,FlowMixin):
 	"""Represent flow_mat element
 	
 ::
 
 	<!ELEMENT flow_mat (qticomment? , (flow_mat | material | material_ref)+)>
 	
-	<!ATTLIST flow_mat  %I_Class; >"""
+	<!ATTLIST flow_mat  class CDATA  'Block' >"""
 	XMLNAME="flow_mat"
 	XMLATTR_class='flowClass'
 	XMLCONTENT=xml.ElementContent
@@ -802,45 +854,16 @@ class FlowMat(FlowMatContainer):
 			FlowMatContainer.MigrateV2Content(self,parent,childType,log)
 
 
-class FlowLabel(CommentContainer,ContentMixin):
-	"""Represents the flow_label element.
-	
-::
-
-	<!ELEMENT flow_label (qticomment? , (flow_label | response_label)+)>
-	
-	<!ATTLIST flow_label  %I_Class; >
-	"""
-	XMLNAME='flow_label'
-	XMLCONTENT=xml.ElementContent
-
-	def __init__(self,parent):
-		CommentContainer.__init__(self,parent)
-		ContentMixin.__init__(self)
-	
-	def ContentMixin(self,childClass):
-		if childClass is FlowLabel or issubclass(childClass,ResponseLabelCommon):
-			return ContentMixin.ContentMixin(self,childClass)
-		else:
-			raise TypeError
-
-	def GetChildren(self):
-		return itertools.chain(
-			CommentContainer.GetChildren(self),
-			self.contentChildren)
-		
-	def GetLabelContent(self):
-		children=[]
-		for child in self.contentChildren:
-			if isinstance(child,FlowLabel):
-				children=children+child.GetLabelContent()
-			else:
-				children.append(child)
-		return children
-
-
 class ResponseCommon(core.QTIElement,ContentMixin):
 	"""Abstract class to act as a parent for all response_* elements."""
+
+	def __init__(self,parent):
+		core.QTIElement.__init__(self,parent)
+		ContentMixin.__init__(self)
+
+
+class RenderCommon(core.QTIElement,ContentMixin):
+	"""Abstract class to act as a parent for all render_* elements."""
 
 	def __init__(self,parent):
 		core.QTIElement.__init__(self,parent)
@@ -855,7 +878,7 @@ class ResponseLabelCommon(core.QTIElement,ContentMixin):
 		ContentMixin.__init__(self)
 
 
-class QTIPresentationMaterial(CommentContainer):
+class PresentationMaterial(QTICommentContainer):
 	"""Represent presentation_material element
 	
 ::
@@ -866,9 +889,124 @@ class QTIPresentationMaterial(CommentContainer):
 	
 
 		
-
-
-
-
-
+class Rubric(FlowMatContainer,core.QTIViewMixin):
+	"""Represents the rubric element.
 	
+::
+
+	<!ELEMENT rubric (qticomment? , (material+ | flow_mat+))>
+	
+	<!ATTLIST rubric  view	(All | Administrator | AdminAuthority | Assessor | Author |
+				Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+				Tutor ) 'All' >"""
+	XMLNAME='rubric'
+	XMLCONTENT=xml.ElementContent
+	
+	def __init__(self,parent):
+		FlowMatContainer.__init__(self,parent)
+		core.QTIViewMixin.__init__(self)
+	
+	def MigrateV2(self,v2Item,log):
+		if self.view.lower()=='all':
+			log.append('Warning: rubric with view="All" replaced by <div> with class="rubric"')
+			rubric=v2Item.ChildElement(qtiv2.ItemBody).ChildElement(html.Div,(qtiv2.IMSQTI_NAMESPACE,'div'))
+			rubric.styleClass='rubric'
+		else:
+			rubric=v2Item.ChildElement(qtiv2.ItemBody).ChildElement(qtiv2.RubricBlock)
+			oldView=self.view.lower()
+			view=QTIObjectives.V2_VIEWMAP.get(oldView,'author')
+			if view!=oldView:
+				log.append("Warning: changing view %s to %s"%(self.view,view))
+			rubric.SetAttribute('view',view)
+		# rubric is not a flow-container so we force inlines to be p-wrapped
+		self.MigrateV2Content(rubric,html.BlockMixin,log)
+
+
+class QTIObjectives(FlowMatContainer,core.QTIViewMixin):
+	"""Represents the objectives element
+	
+::
+
+	<!ELEMENT objectives (qticomment? , (material+ | flow_mat+))>
+
+	<!ATTLIST objectives  view	(All | Administrator | AdminAuthority | Assessor | Author |
+				Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+				Tutor ) 'All' >"""
+	XMLNAME='objectives'
+	XMLCONTENT=xml.ElementContent
+		
+	def __init__(self,parent):
+		FlowMatContainer.__init__(self,parent)
+		core.QTIViewMixin.__init__(self)
+		
+	def MigrateV2(self,v2Item,log):
+		"""Adds rubric representing these objectives to the given item's body"""
+		rubric=v2Item.ChildElement(qtiv2.ItemBody).ChildElement(qtiv2.RubricBlock)
+		if self.view.lower()=='all':
+			rubric.SetAttribute('view',(QTIObjectives.V2_VIEWALL))
+		else:
+			oldView=self.view.lower()
+			view=QTIObjectives.V2_VIEWMAP.get(oldView,'author')
+			if view!=oldView:
+				log.append("Warning: changing view %s to %s"%(self.view,view))
+			rubric.SetAttribute('view',view)
+		# rubric is not a flow-container so we force inlines to be p-wrapped
+		self.MigrateV2Content(rubric,html.BlockMixin,log)
+				
+	def LRMMigrateObjectives(self,lom,log):
+		"""Adds educational description from these objectives."""
+		description,lang=self.ExtractText()
+		eduDescription=lom.ChildElement(imsmd.LOMEducational).ChildElement(imsmd.Description)
+		eduDescription.AddString(lang,description)
+
+
+class MaterialRef(core.QTIElement):
+	"""Represents material_ref element.
+	
+::
+
+	<!ELEMENT material_ref EMPTY>
+	
+	<!ATTLIST material_ref  %I_LinkRefId; >
+	"""
+	XMLNAME="material_ref"
+	XMLCONTENT=xml.XMLEmpty
+
+
+class ConditionVar(core.QTIElement):
+	"""Represents the interpretvar element.
+
+::
+
+	<!ELEMENT conditionvar (not | and | or | unanswered | other | varequal | varlt |
+		varlte | vargt | vargte | varsubset | varinside | varsubstring | durequal |
+		durlt | durlte | durgt | durgte | var_extension)+>
+	
+	"""
+	XMLNAME="conditionvar"
+	XMLCONTENT=xml.ElementContent
+	
+	def __init__(self,parent):
+		core.QTIElement.__init__(self,parent)
+		self.ExpressionMixin=[]
+	
+	def QTIVarExtension(self):
+		child=QTIVarExtension(self)
+		self.ExpressionMixin.append(child)
+		return child
+	
+	def GetChildren(self):
+		return iter(self.ExpressionMixin)
+
+	def MigrateV2Expression(self,parent,log):
+		if len(self.ExpressionMixin)>1:
+			# implicit and
+			eAnd=parent.ChildElement(qtiv2.QTIAnd)
+			for ie in self.ExpressionMixin:
+				ie.MigrateV2Expression(eAnd,log)
+		elif self.ExpressionMixin:
+			self.ExpressionMixin[0].MigrateV2Expression(parent,log)
+		else:
+			log.append("Warning: empty condition replaced with null operator")
+			parent.ChildElement(qtiv2.QTINull)
+

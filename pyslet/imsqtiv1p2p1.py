@@ -17,7 +17,7 @@ from types import StringTypes
 from pyslet.qtiv1.core import *
 from pyslet.qtiv1.common import *
 from pyslet.qtiv1.item import *
-#from pyslet.qtiv1.section import *
+from pyslet.qtiv1.section import *
 from pyslet.qtiv1.assessment import *
 from pyslet.qtiv1.objectbank import *
 #from pyslet.qtiv1.main import *
@@ -26,7 +26,7 @@ from pyslet.qtiv1.objectbank import *
 QTI_SOURCE='QTIv1'
 
 
-class QuesTestInterop(CommentContainer):
+class QuesTestInterop(QTICommentContainer):
 	"""The <questestinterop> element is the outermost container for the QTI
 	contents i.e. the container of the Assessment(s), Section(s) and Item(s)::
 
@@ -35,13 +35,13 @@ class QuesTestInterop(CommentContainer):
 	XMLNAME='questestinterop'
 
 	def __init__(self,parent):
-		CommentContainer.__init__(self,parent)
+		QTICommentContainer.__init__(self,parent)
 		self.ObjectBank=None
 		self.Assessment=None
 		self.ObjectMixin=[]
 	
 	def GetChildren(self):
-		for child in CommentContainer.GetChildren(self): yield child
+		for child in QTICommentContainer.GetChildren(self): yield child
 		if self.ObjectBank:
 			yield self.ObjectBank
 		elif self.Assessment:
@@ -149,35 +149,7 @@ class QTILinkRefIdMixin:
 <!ENTITY % I_MinNumber " minnumber CDATA  #IMPLIED">
 
 <!ENTITY % I_MaxNumber " maxnumber CDATA  #IMPLIED">
-"""
 
-class QTIFeedbackStyle:
-	"""feedbackstyle enumeration::
-	
-	<!ENTITY % I_FeedbackStyle " feedbackstyle  (Complete | Incremental | Multilevel | Proprietary )  'Complete'">
-	"""
-	decode={
-		'Complete':1,
-		'Incremental':2,
-		'Multilevel':3,
-		'Proprietary':4
-		}		
-xsi.MakeEnumeration(QTIFeedbackStyle)
-
-def DecodeFeedbackStyle(value):
-	"""Decodes a feedbackstyle value from a string."""
-	try:
-		value=value.strip()
-		value=value[0].upper()+value[1:].lower()
-		return QTIFeedbackStyle.decode[value]
-	except KeyError:
-		raise ValueError("Can't decode feedbackstyle from %s"%value)
-
-def EncodeFeedbackStyle(value):
-	return QTIFeedbackStyle.encode.get(value,'Complete')
-
-
-"""
 <!ENTITY % I_Case " case  (Yes | No )  'No'">
 
 <!ENTITY % I_EntityRef " entityref ENTITY  #IMPLIED">
@@ -185,122 +157,6 @@ def EncodeFeedbackStyle(value):
 <!ENTITY % I_Index " index CDATA  #IMPLIED">
 """
 
-class QMDMetadataElement(QTIElement):
-	"""Abstract class to represent old-style qmd\_ tags"""
-	
-	def ContentChanged(self):
-		self.DeclareMetadata(self.GetXMLName(),self.GetValue(),self)
-
-class QMDAuthor(QMDMetadataElement):
-	"""Not defined by QTI but seems to be in common use."""
-	XMLNAME='qmd_author'
-
-class QMDComputerScored(QMDMetadataElement):
-	XMLNAME='qmd_computerscored'
-	
-class QMDDescription(QMDMetadataElement):
-	"""Not defined by QTI but seems to be in common use."""
-	XMLNAME='qmd_description'
-	
-class QMDDomain(QMDMetadataElement):
-	"""Not defined by QTI but seems to be in common use."""
-	XMLNAME='qmd_domain'
-
-class QMDFeedbackPermitted(QMDMetadataElement):
-	XMLNAME='qmd_feedbackpermitted'
-	
-class QMDHintsPermitted(QMDMetadataElement):
-	XMLNAME='qmd_hintspermitted'
-
-class QMDItemType(QMDMetadataElement):
-	XMLNAME='qmd_itemtype'
-
-class QMDKeywords(QMDMetadataElement):
-	"""Not defined by QTI but seems to be in common use."""
-	XMLNAME='qmd_keywords'
-
-class QMDMaximumScore(QMDMetadataElement):
-	XMLNAME='qmd_maximumscore'
-
-class QMDOrganization(QMDMetadataElement):
-	"""Not defined by QTI but seems to be in common use."""
-	XMLNAME='qmd_organization'
-
-class QMDRenderingType(QMDMetadataElement):
-	XMLNAME='qmd_renderingtype'
-
-class QMDResponseType(QMDMetadataElement):
-	XMLNAME='qmd_responsetype'
-
-class QMDScoringPermitted(QMDMetadataElement):
-	XMLNAME='qmd_scoringpermitted'
-
-class QMDSolutionsPermitted(QMDMetadataElement):
-	XMLNAME='qmd_solutionspermitted'
-
-QMDStatusSourceMap={
-	'draft':imsmd.LOM_SOURCE,
-	'final':imsmd.LOM_SOURCE,
-	'revised':imsmd.LOM_SOURCE,
-	'unavailable':imsmd.LOM_SOURCE,
-	'experimental':QTI_SOURCE,
-	'normal':QTI_SOURCE,
-	'retired':QTI_SOURCE
-	}
-
-class QMDStatus(QMDMetadataElement):
-	XMLNAME='qmd_status'
-
-class QMDTimeDependence(QMDMetadataElement):
-	XMLNAME='qmd_timedependence'
-
-class QMDTimeLimit(QMDMetadataElement):
-	XMLNAME='qmd_timelimit'
-
-class QMDTitle(QMDMetadataElement):
-	"""Not defined by QTI but seems to be in common use."""
-	XMLNAME='qmd_title'
-
-class QMDToolVendor(QMDMetadataElement):
-	XMLNAME='qmd_toolvendor'
-		
-class QMDTopic(QMDMetadataElement):
-	XMLNAME='qmd_topic'
-
-class QMDMaterial(QMDMetadataElement):
-	XMLNAME='qmd_material'
-
-class QMDTypeOfSolution(QMDMetadataElement):
-	XMLNAME='qmd_typeofsolution'
-
-class QMDLevelOfDifficulty(QMDMetadataElement):
-	"""Represents the level of difficulty element.
-	
-::
-
-	<!ELEMENT qmd_levelofdifficulty (#PCDATA)>
-	"""	
-	XMLNAME='qmd_levelofdifficulty'
-
-	LOMDifficultyMap={
-		"very easy":1,
-		"easy":1,
-		"medium":1,
-		"difficult":1,
-		"very difficult":1
-		}
-	
-	LOMContextMap={
-		"pre-school":("pre-school",False), # value is outside LOM defined vocab
-		"school":("school",True),
-		"he/fe":("higher education",True),
-		"vocational":("vocational",False), # value is outside LOM defined vocab
-		"professional development":("training",True)
-		}
-
-
-class QMDWeighting(QMDMetadataElement):
-	XMLNAME='qmd_weighting'
 
 class QTIMetadata(QTIElement):
 	"""
@@ -327,8 +183,8 @@ class QTIVocabulary(QTIElement):
 
 	<!ELEMENT vocabulary (#PCDATA)>
 
-	<!ATTLIST vocabulary  %I_Uri;
-		%I_EntityRef;
+	<!ATTLIST vocabulary  uri CDATA  #IMPLIED
+		entityref ENTITY  #IMPLIED
 		vocab_type  CDATA  #IMPLIED >
 	"""
 	XMLNAME="vocabulary"
@@ -388,33 +244,6 @@ class QTIFieldEntry(QTIElement):
 		
 
 		
-class MaterialRef(QTIElement):
-	"""Represents material_ref element.
-	
-::
-
-	<!ELEMENT material_ref EMPTY>
-	
-	<!ATTLIST material_ref  %I_LinkRefId; >
-	"""
-	XMLNAME="material_ref"
-	XMLCONTENT=xml.XMLEmpty
-
-
-class QTIAltMaterial(CommentContainer):
-	"""Represents the altmaterial element.
-
-::
-
-	<!ELEMENT altmaterial (qticomment? ,
-		(mattext | matemtext | matimage | mataudio | matvideo |
-		matapplet | matapplication | matref | matbreak | mat_extension)+)>
-	
-	<!ATTLIST altmaterial  xml:lang CDATA  #IMPLIED >
-	"""
-	XMLNAME="material_ref"
-	XMLCONTENT=xml.ElementContent
-	
 class QTIVarType:
 	"""vartype enumeration."""
 	decode={
@@ -625,7 +454,8 @@ class QTIInterpretVar(QTIElement,ContentMixin,QTIViewMixin):
 
 	<!ELEMENT interpretvar (material | material_ref)>
 	
-	<!ATTLIST interpretvar  %I_View;
+	<!ATTLIST interpretvar  view (All | Administrator | AdminAuthority | Assessor | Author | Candidate |
+	InvigilatorProctor | Psychometrician | Scorer | Tutor )  'All'
 							 %I_VarName; >
 	"""
 	XMLNAME="interpretvar"
@@ -661,45 +491,7 @@ class QTIInterpretVar(QTIElement,ContentMixin,QTIViewMixin):
 		else:
 			d.interpretation=di
 		# we drop the lang as this isn't supported on declarations
-		
-		
-class QTIConditionVar(QTIElement):
-	"""Represents the interpretvar element.
-
-::
-
-	<!ELEMENT conditionvar (not | and | or | unanswered | other | varequal | varlt |
-		varlte | vargt | vargte | varsubset | varinside | varsubstring | durequal |
-		durlt | durlte | durgt | durgte | var_extension)+>
-	
-	"""
-	XMLNAME="conditionvar"
-	XMLCONTENT=xml.ElementContent
-	
-	def __init__(self,parent):
-		QTIElement.__init__(self,parent)
-		self.ExpressionMixin=[]
-	
-	def QTIVarExtension(self):
-		child=QTIVarExtension(self)
-		self.ExpressionMixin.append(child)
-		return child
-	
-	def GetChildren(self):
-		return iter(self.ExpressionMixin)
-
-	def MigrateV2Expression(self,parent,log):
-		if len(self.ExpressionMixin)>1:
-			# implicit and
-			eAnd=parent.ChildElement(qtiv2.QTIAnd)
-			for ie in self.ExpressionMixin:
-				ie.MigrateV2Expression(eAnd,log)
-		elif self.ExpressionMixin:
-			self.ExpressionMixin[0].MigrateV2Expression(parent,log)
-		else:
-			log.append("Warning: empty condition replaced with null operator")
-			parent.ChildElement(qtiv2.QTINull)
-		
+			
 
 class ExpressionMixin:
 	"""Abstract mixin class to indicate an expression"""
@@ -859,9 +651,9 @@ class QTIVarEqual(QTIVarThing):
 			if d.baseType==qtiv2.BaseType.identifier or d.baseType==qtiv2.BaseType.pair:
 				if not self.case:
 					log.append("Warning: case-insensitive comparison of identifiers not supported in version 2")
-				expression=parent.ChildElement(qtiv2.QTIMatch)
+				expression=parent.ChildElement(qtiv2.Match)
 			elif d.baseType==qtiv2.BaseType.integer:
-				expression=parent.ChildElement(qtiv2.QTIMatch)
+				expression=parent.ChildElement(qtiv2.Match)
 			elif d.baseType==qtiv2.BaseType.string:
 				expression=parent.ChildElement(qtiv2.QTIStringMatch)
 				expression.caseSensitive=self.case
@@ -1139,18 +931,7 @@ class QTIOther(QTIElement,ExpressionMixin):
 		bv=parent.ChildElement(qtiv2.QTIBaseValue)
 		bv.baseType=qtiv2.BaseType.boolean
 		bv.SetValue('true')
-
-
-class QTIDuration(QTIElement):
-	"""Represents the duration element.
-	
-::
-
-	<!ELEMENT duration (#PCDATA)>
-	"""
-	XMLNAME="duration"
-	XMLCONTENT=xml.XMLMixedContent
-
+		
 
 class QTIDisplayFeedback(QTIElement,QTILinkRefIdMixin):
 	"""Represents the displayfeedback element.
@@ -1193,7 +974,7 @@ class QTIDisplayFeedback(QTIElement,QTILinkRefIdMixin):
 
 
 
-class QTIReference(CommentContainer):
+class QTIReference(QTICommentContainer):
 	"""Represent presentation_material element
 	
 ::
@@ -1204,7 +985,7 @@ class QTIReference(CommentContainer):
 	XMLCONTENT=xml.ElementContent
 	
 
-class QTISelectionOrdering(CommentContainer):
+class QTISelectionOrdering(QTICommentContainer):
 	"""Represent selection_ordering element.
 	
 ::
@@ -1216,7 +997,7 @@ class QTISelectionOrdering(CommentContainer):
 	XMLCONTENT=xml.ElementContent
 		
 
-class QTIOutcomesProcessing(CommentContainer):
+class OutcomesProcessing(QTICommentContainer):
 	"""Represent outcomes_processing element.
 	
 ::
@@ -1224,7 +1005,7 @@ class QTIOutcomesProcessing(CommentContainer):
 	<!ELEMENT outcomes_processing (qticomment? , outcomes , objects_condition* ,
 		processing_parameter* , map_output* , outcomes_feedback_test*)>
 	
-	<!ATTLIST outcomes_processing  %I_ScoreModel; >"""
+	<!ATTLIST outcomes_processing  scoremodel CDATA  #IMPLIED >"""
 	XMLNAME="outcomes_processing"
 	XMLCONTENT=xml.ElementContent
 
@@ -1232,7 +1013,7 @@ class QTIOutcomesProcessing(CommentContainer):
 #
 #	EXTENSION DEFINITIONS
 #
-class QTIMatExtension(QTIElement):
+class MatExtension(QTIElement):
 	"""Represents the mat_extension element.
 	
 ::
@@ -1254,66 +1035,7 @@ class QTIVarExtension(QTIElement):
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTIResponseExtension(QTIElement):
-	"""Represents the response_extension element.
-	
-::
-
-	<!ELEMENT response_extension ANY>
-	"""
-	XMLNAME="response_extension"
-	XMLCONTENT=xml.XMLMixedContent
-
-
-
-class QTISectionProcExtension(QTIElement):
-	"""Represents the sectionproc_extension element.
-	
-::
-
-	<!ELEMENT sectionproc_extension ANY>
-	"""
-	XMLNAME="sectionproc_extension"
-	XMLCONTENT=xml.XMLMixedContent
-
-
-class QTIItemProcExtension(ContentMixin,QTIElement):
-	"""Represents the itemproc_extension element.
-	
-::
-
-	<!ELEMENT itemproc_extension ANY>
-	"""
-	XMLNAME="itemproc_extension"
-	XMLCONTENT=xml.XMLMixedContent
-
-	def __init__(self,parent):
-		QTIElement.__init__(self,parent)
-		ContentMixin.__init__(self)
-		
-	def MigrateV2Rule(self,cMode,ruleContainer,log):
-		"""Converts an itemProcExtension into v2 response processing rules.
-		
-		We only support one type of extension at the moment, the
-		humanrater element used as an illustration in the specification
-		examples.
-		"""
-		for child in self.GetChildren():
-			if type(child) in StringTypes:
-				# ignore data
-				continue
-			elif child.xmlname=='humanraterdata':
-				# humanraterdata extension, migrate content with appropriate view
-				v2Item=ruleContainer.FindParent(qtiv2.QTIAssessmentItem)
-				rubric=v2Item.ChildElement(qtiv2.QTIItemBody).ChildElement(qtiv2.QTIRubricBlock)
-				rubric.view=qtiv2.QTIView.scorer
-				material=[]
-				child.FindChildren(Material,material)
-				self.MigrateV2Content(rubric,html.BlockMixin,log,material)
-		return cMode,ruleContainer
-
-
-class QTIRespCondExtension(QTIElement):
+class RespCondExtension(QTIElement):
 	"""Represents the respcond_extension element.
 	
 ::
@@ -1358,841 +1080,14 @@ class QTIOrderExtension(QTIElement):
 
 
 
-class SectionMixin:
-	"""Mix-in class representing section-link objects."""
-	pass
-	
-class SectionRef(SectionMixin,QTIElement):
-	"""Represents the sectionref element::
-
-	<!ELEMENT sectionref (#PCDATA)>	
-	<!ATTLIST sectionref  %I_LinkRefId; >"""
-	XMLNAME='sectionref'
-	XMLCONTENT=xml.XMLMixedContent
-
-
-#
-#	SECTION OBJECT DEFINITIONS
-#
-class QTISection(ObjectMixin,SectionMixin,CommentContainer):
-	"""Represents section element.
-::
-
-	<!ELEMENT section (qticomment? ,
-		duration? ,
-		qtimetadata* ,
-		objectives* ,
-		sectioncontrol* ,
-		sectionprecondition* ,
-		sectionpostcondition* ,
-		rubric* ,
-		presentation_material? ,
-		outcomes_processing* ,
-		sectionproc_extension? ,
-		sectionfeedback* ,
-		selection_ordering? ,
-		reference? ,
-		(itemref | item | sectionref | section)*
-		)>
-	
-	<!ATTLIST section  %I_Ident;
-						%I_Title;
-						xml:lang CDATA  #IMPLIED >
-	"""
-	XMLNAME="section"
-	XMLATTR_ident='ident'		
-	XMLATTR_title='title'	
-	XMLCONTENT=xml.ElementContent
-	
-	def __init__(self,parent):
-		CommentContainer.__init__(self,parent)
-		self.ident=None
-		self.title=None
-		self.QTIDuration=None
-		self.QTIMetadata=[]
-		self.QTIObjectives=[]
-		self.QTISectionControl=[]
-		self.QTISectionPrecondition=[]
-		self.QTISectionPostcondition=[]
-		self.QTIRubric=[]
-		self.QTIPresentationMaterial=None
-		self.QTIOutcomesProcessing=[]
-		self.QTISectionProcExtension=None
-		self.QTISectionFeedback=[]
-		self.QTISelectionOrdering=None
-		self.QTIReference=None
-		self.objectList=[]
 		
-	def QTIItemRef(self):
-		child=QTIItemRef(self)
-		self.objectList.append(child)
-		return child
 		
-	def QTIItem(self):
-		child=QTIItem(self)
-		self.objectList.append(child)
-		return child
+
 		
-	def QTISectionRef(self):
-		child=QTISectionRef(self)
-		self.objectList.append(child)
-		return child
 		
-	def QTISection(self):
-		child=QTISection(self)
-		self.objectList.append(child)
-		return child
-		
-	def GetChildren(self):
-		for child in itertools.chain(
-			QTIComment.GetChildren(self),
-			self.QTIMetadata,
-			self.QTIObjectives,
-			self.QTISectionControl,
-			self.QTISectionPrecondition,
-			self.QTISectionPostcondition,
-			self.QTIRubric):
-			yield child
-		if self.QTIPresentationMaterial: yield self.QTIPresentationMaterial
-		for child in self.QTIOutcomesProcessing: yield child
-		if self.QTISectionProcExtension: yield self.QTISectionProcExtension
-		for child in self.QTISectionFeedback: yield child
-		if self.QTISelectionOrdering: yield self.QTISelectionOrdering
-		if self.QTIReference: yield self.QTIReference
-		for child in self.objectList: yield child
-
-	def MigrateV2(self,output):
-		"""Converts this section to QTI v2
-		
-		For details, see QuesTestInterop.MigrateV2."""
-		for obj in self.objectList:
-			obj.MigrateV2(output)
-	
-	
-class QTISectionPrecondition(QTIElement):
-	"""Represents the sectionprecondition element.
-	
-::
-
-	<!ELEMENT sectionprecondition (#PCDATA)>"""
-	XMLNAME='sectionprecondition'
-	XMLCONTENT=xml.XMLMixedContent
-
-
-class QTISectionPostcondition(QTIElement):
-	"""Represents the sectionpostcondition element.
-	
-::
-
-	<!ELEMENT sectionpostcondition (#PCDATA)>"""
-	XMLNAME='sectionpostcondition'
-	XMLCONTENT=xml.XMLMixedContent
-
-
-class QTISectionControl(CommentContainer):
-	"""Represents the sectioncontrol element.
-	
-::
-
-	<!ELEMENT sectioncontrol (qticomment?)>
-	
-	<!ATTLIST sectioncontrol  %I_FeedbackSwitch;
-							   %I_HintSwitch;
-							   %I_SolutionSwitch;
-							   %I_View; >
-	"""
-	XMLNAME='sectioncontrol'
-	XMLCONTENT=xml.XMLMixedContent
-
-
-class QTIItemRef(QTIElement):
-	"""Represents the itemref element.
-	
-::
-
-	<!ELEMENT itemref (#PCDATA)>
-	
-	<!ATTLIST itemref  %I_LinkRefId; >
-	"""
-	XMLNAME='itemref'
-	XMLCONTENT=xml.XMLMixedContent
-
-
-class QTISectionFeedback(CommentContainer):
-	"""Represents the sectionfeedback element.
-	
-::
-
-	<!ELEMENT sectionfeedback (qticomment? , (material+ | flow_mat+))>
-	
-	<!ATTLIST sectionfeedback  %I_View;
-								%I_Ident;
-								%I_Title; >
-	"""
-	XMLNAME='sectionfeedback'
-	XMLCONTENT=xml.XMLMixedContent
 
 		
 
-class QTIItemMetadata(MetadataContainerMixin,QTIElement):
-	"""Represents the QTIItemMetadata element.
-	
-	This element contains more structure than is in common use, at the moment we
-	represent this structure directly and automaticaly conform output to it,
-	adding extension elements at the end.  In the future we might be more
-	generous and allow input *and* output of elements in any sequence and
-	provide separate methods for conforming these elements.
-	
-::
-
-	<!ELEMENT itemmetadata (
-		qtimetadata*
-		qmd_computerscored?
-		qmd_feedbackpermitted?
-		qmd_hintspermitted?
-		qmd_itemtype?
-		qmd_levelofdifficulty?
-		qmd_maximumscore?
-		qmd_renderingtype*
-		qmd_responsetype*
-		qmd_scoringpermitted?
-		qmd_solutionspermitted?
-		qmd_status?
-		qmd_timedependence?
-		qmd_timelimit?
-		qmd_toolvendor?
-		qmd_topic?
-		qmd_weighting?
-		qmd_material*
-		qmd_typeofsolution?
-		)>
-	"""
-	XMLNAME='itemmetadata'
-	XMLCONTENT=xml.ElementContent
-	
-	def __init__(self,parent):
-		QTIElement.__init__(self,parent)
-		MetadataContainerMixin.__init__(self)
-		self.QTIMetadata=[]
-		self.QMDComputerScored=None
-		self.QMDFeedbackPermitted=None
-		self.QMDHintsPermitted=None
-		self.QMDItemType=None
-		self.QMDLevelOfDifficulty=None
-		self.QMDMaximumScore=None
-		self.QMDRenderingType=[]
-		self.QMDResponseType=[]
-		self.QMDScoringPermitted=None
-		self.QMDSolutionsPermitted=None
-		self.QMDStatus=None
-		self.QMDTimeDependence=None
-		self.QMDTimeLimit=None
-		self.QMDToolVendor=None
-		self.QMDTopic=None
-		self.QMDWeighting=None
-		self.QMDMaterial=[]
-		self.QMDTypeOfSolution=None
-		# Extensions in common use....
-		self.QMDAuthor=[]
-		self.QMDDescription=[]
-		self.QMDDomain=[]
-		self.QMDKeywords=[]
-		self.QMDOrganization=[]
-		self.QMDTitle=None
-		
-	def GetChildren(self):
-		for child in self.QTIMetadata: yield child
-		if self.QMDComputerScored: yield self.QMDComputerScored
-		if self.QMDFeedbackPermitted: yield self.QMDFeedbackPermitted
-		if self.QMDHintsPermitted: yield self.QMDHintsPermitted
-		if self.QMDItemType: yield self.QMDItemType
-		if self.QMDLevelOfDifficulty: yield self.QMDLevelOfDifficulty
-		if self.QMDMaximumScore: yield self.QMDMaximumScore
-		for child in itertools.chain(
-			self.QMDRenderingType,
-			self.QMDResponseType):
-			yield child
-		if self.QMDScoringPermitted: yield self.QMDScoringPermitted
-		if self.QMDSolutionsPermitted: yield self.QMDSolutionsPermitted
-		if self.QMDStatus: yield self.QMDStatus
-		if self.QMDTimeDependence: yield self.QMDTimeDependence
-		if self.QMDTimeLimit: yield self.QMDTimeLimit
-		if self.QMDToolVendor: yield self.QMDToolVendor
-		if self.QMDTopic: yield self.QMDTopic
-		if self.QMDWeighting: yield self.QMDWeighting
-		for child in self.QMDMaterial: yield child
-		if self.QMDTypeOfSolution: yield self.QMDTypeOfSolution
-		for child in itertools.chain(
-			self.QMDAuthor,
-			self.QMDDescription,
-			self.QMDDomain,
-			self.QMDKeywords,
-			self.QMDOrganization):
-			yield child
-		if self.QMDTitle: yield self.QMDTitle
-		for child in QTIElement.GetChildren(self): yield child
-	
-	def LRMMigrateLevelOfDifficulty(self,lom,log):
-		difficulty=self.metadata.get('levelofdifficulty',())
-		for value,definition in difficulty:
-			# IMS Definition says: The options are: "Pre-school", "School" or
-			# "HE/FE", # "Vocational" and "Professional Development" so we bind
-			# this value to the "Context" in LOM if one of the QTI or LOM
-			# defined terms have been used, otherwise, we bind to Difficulty, as
-			# this seems to be more common usage.
-			context,lomFlag=QMDLevelOfDifficulty.LOMContextMap.get(value.lower(),(None,False))
-			educational=lom.ChildElement(imsmd.LOMEducational)
-			if context is None:
-				# add value as difficulty
-				value,lomFlag=QMDLevelOfDifficulty.LOMDifficultyMap.get(value.lower(),(value,False))
-				d=educational.ChildElement(imsmd.LOMDifficulty)
-				if lomFlag:
-					d.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
-				else:
-					d.LRMSource.LangString.SetValue(imsmd.LOM_UNKNOWNSOURCE)					
-				d.LRMSource.LangString.SetLang("x-none")
-				d.LRMValue.LangString.SetValue(value)
-				d.LRMValue.LangString.SetLang("x-none")
-			else:
-				# add value as educational context
-				c=educational.ChildElement(imsmd.LOMContext)
-				if lomFlag:
-					c.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
-				else:
-					c.LRMSource.LangString.SetValue(imsmd.LOM_UNKNOWNSOURCE)					
-				c.LRMSource.LangString.SetLang("x-none")
-				c.LRMValue.LangString.SetValue(context)
-				c.LRMValue.LangString.SetLang("x-none")
-	
-	def LRMMigrateStatus(self,lom,log):
-		status=self.metadata.get('status',())
-		for value,definition in status:
-			s=lom.ChildElement(imsmd.LOMLifecycle).ChildElement(imsmd.LOMStatus)
-			value=value.lower()
-			source=QMDStatusSourceMap.get(value,imsmd.LOM_UNKNOWNSOURCE)
-			s.LRMSource.LangString.SetValue(source)
-			s.LRMSource.LangString.SetLang("x-none")
-			s.LRMValue.LangString.SetValue(value)
-			s.LRMValue.LangString.SetLang("x-none")
-	
-	def LRMMigrateTopic(self,lom,log):
-		topics=self.metadata.get('topic',())
-		for value,definition in topics:
-			lang=definition.ResolveLang()
-			value=value.strip()
-			description=lom.ChildElement(imsmd.LOMEducational).ChildElement(imsmd.Description)
-			description.AddString(lang,value)
-	
-	def LRMMigrateContributor(self,fieldName,lomRole,lom,log):
-		contributors=self.metadata.get(fieldName,())
-		if contributors:
-			if imsmd.vobject is None:
-				log.append('Warning: qmd_%s support disabled (vobject not installed)'%fieldName)
-			else:
-				for value,definition in contributors:
-					lifecycle=lom.ChildElement(imsmd.LOMLifecycle)
-					contributor=lifecycle.ChildElement(imsmd.LOMContribute)
-					role=contributor.LOMRole
-					role.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
-					role.LRMSource.LangString.SetLang("x-none")
-					role.LRMValue.LangString.SetValue(lomRole)
-					role.LRMValue.LangString.SetLang("x-none")
-					names=value.strip().split(',')
-					for name in names:
-						if not name.strip():
-							continue
-						vcard=imsmd.vobject.vCard()
-						vcard.add('n')
-						vcard.n.value=imsmd.vobject.vcard.Name(family=name,given='')
-						vcard.add('fn')
-						vcard.fn.value=name.strip()
-						contributor.ChildElement(imsmd.LOMCEntity).LOMVCard.SetValue(vcard)	
-	
-	def LRMMigrateDescription(self,lom,log):
-		descriptions=self.metadata.get('description',())
-		for value,definition in descriptions:
-			lang=definition.ResolveLang()
-			genDescription=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.Description)
-			genDescription=genDescription.ChildElement(genDescription.LangStringClass)
-			genDescription.SetValue(value)
-			if lang:
-				genDescription.SetLang(lang)
-
-	def LRMMigrateDomain(self,lom,log):
-		domains=self.metadata.get('domain',())
-		warn=False
-		for value,definition in domains:
-			lang=definition.ResolveLang()
-			kwValue=value.strip()
-			if kwValue:
-				kwContainer=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.LOMKeyword)
-				kwContainer=kwContainer.ChildElement(kwContainer.LangStringClass)
-				kwContainer.SetValue(kwValue)
-				# set the language of the kw
-				if lang:
-					kwContainer.SetLang(lang)
-				if not warn:
-					log.append("Warning: qmd_domain extension field will be added as LOM keyword")
-					warn=True
-	
-	def LRMMigrateKeywords(self,lom,log):
-		keywords=self.metadata.get('keywords',())
-		for value,definition in keywords:
-			lang=definition.ResolveLang()
-			values=string.split(value,',')
-			for kwValue in values:
-				v=kwValue.strip()
-				if v:
-					kwContainer=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.LOMKeyword)
-					kwContainer=kwContainer.ChildElement(kwContainer.LangStringClass)
-					kwContainer.SetValue(v)
-					# set the language of the kw
-					if lang:
-						kwContainer.SetLang(lang)
-	
-	def LRMMigrateOrganization(self,lom,log):
-		organizations=self.metadata.get('organization',())
-		if organizations:
-			if imsmd.vobject is None:
-				log.append('Warning: qmd_organization support disabled (vobject not installed)')
-			else:
-				for value,definition in organizations:
-					lifecycle=lom.ChildElement(imsmd.LOMLifecycle)
-					contributor=lifecycle.ChildElement(imsmd.LOMContribute)
-					role=contributor.LOMRole
-					role.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
-					role.LRMSource.LangString.SetLang("x-none")
-					role.LRMValue.LangString.SetValue("unknown")
-					role.LRMValue.LangString.SetLang("x-none")
-					name=value.strip()
-					vcard=imsmd.vobject.vCard()
-					vcard.add('n')
-					vcard.n.value=imsmd.vobject.vcard.Name(family=name,given='')
-					vcard.add('fn')
-					vcard.fn.value=name
-					vcard.add('org')
-					vcard.org.value=[name]
-					contributor.ChildElement(imsmd.LOMCEntity).LOMVCard.SetValue(vcard)	
-			
-	def MigrateV2(self,doc,lom,log):
-		item=doc.root
-		itemtypes=self.metadata.get('itemtype',())
-		for itemtype,itemtypeDef in itemtypes:
-			log.append("Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, ignoring %s"%itemtype)
-		self.LRMMigrateLevelOfDifficulty(lom,log)
-		self.LRMMigrateStatus(lom,log)
-		vendors=self.metadata.get('toolvendor',())
-		for value,definition in vendors:
-			item.metadata.ChildElement(qtiv2.QMDToolVendor).SetValue(value)
-		self.LRMMigrateTopic(lom,log)
-		self.LRMMigrateContributor('author','author',lom,log)
-		self.LRMMigrateContributor('creator','initiator',lom,log)
-		self.LRMMigrateContributor('owner','publisher',lom,log)
-		self.LRMMigrateDescription(lom,log)
-		self.LRMMigrateDomain(lom,log)
-		self.LRMMigrateKeywords(lom,log)
-		self.LRMMigrateOrganization(lom,log)
-
-	
-class QTIItemControl(CommentContainer,QTIViewMixin):
-	"""Represents the itemcontrol element
-	
-::
-
-	<!ELEMENT itemcontrol (qticomment?)>
-	
-	<!ATTLIST itemcontrol  %I_FeedbackSwitch;
-							%I_HintSwitch;
-							%I_SolutionSwitch;
-							%I_View; >
-	"""
-	XMLNAME='itemcontrol'
-	XMLATTR_feedbackswitch=('feedbackSwitch',ParseYesNo,FormatYesNo)
-	XMLATTR_hintswitch=('hintSwitch',ParseYesNo,FormatYesNo)
-	XMLATTR_solutionswitch=('solutionSwitch',ParseYesNo,FormatYesNo)
-	XMLCONTENT=xml.ElementContent
-
-	def __init__(self,parent):
-		CommentContainer.__init__(self,parent)
-		QTIViewMixin.__init__(self)
-		self.feedbackSwitch=True
-		self.hintSwitch=True
-		self.solutionSwitch=True	
-
-	def GetChildren(self):
-		return CommentContainer.GetChildren(self)
-				
-
-class QTIItemPreCondition(QTIElement):
-	"""Represents the itemprecondition element
-	
-::
-
-	<!ELEMENT itemprecondition (#PCDATA)>"""
-	XMLNAME='itemprecondition'
-	XMLCONTENT=xml.XMLMixedContent
-
-
-class QTIItemPostCondition(QTIElement):
-	"""Represents the itempostcondition element
-	
-::
-
-	<!ELEMENT itempostcondition (#PCDATA)>"""
-	XMLNAME='itempostcondition'
-	XMLCONTENT=xml.XMLMixedContent
-
-
-
-
-		
-
-	
-
-
-	
-	
-
-
-
-class QTIResProcessing(CommentContainer):
-	"""Represents the resprocessing element.
-	
-::
-
-	<!ELEMENT resprocessing (qticomment? , outcomes , (respcondition | itemproc_extension)+)>
-	
-	<!ATTLIST resprocessing  %I_ScoreModel; >
-	"""
-	XMLNAME='resprocessing'
-	XMLATTR_scoremodel='scoreModel'
-	XMLCONTENT=xml.ElementContent
-	
-	def __init__(self,parent):
-		CommentContainer.__init__(self,parent)
-		self.scoreModel=None
-		self.QTIOutcomes=QTIOutcomes(self)
-		self.conditions=[]
-		
-	def QTIRespCondition(self):
-		child=QTIRespCondition(self)
-		self.conditions.append(child)
-		return child
-	
-	def QTIItemProcExtension(self):
-		child=QTIItemProcExtension(self)
-		self.conditions.append(child)
-		return child
-	
-	def GetChildren(self):
-		for child in CommentContainer.GetChildren(self): yield child
-		yield self.QTIOutcomes
-		for child in self.conditions: yield child
-
-	def MigrateV2(self,v2Item,log):
-		"""Migrates v1 resprocessing to v2 ResponseProcessing."""
-		rp=v2Item.ChildElement(qtiv2.QTIResponseProcessing)
-		for outcomeFixup in sorted(self._interactionFixup.keys()):
-			setValue=rp.ChildElement(qtiv2.QTISetOutcomeValue)
-			setValue.identifier=outcomeFixup
-			multi=setValue.ChildElement(qtiv2.QTIMultiple)
-			for rID in self._interactionFixup[outcomeFixup]:
-				var=multi.ChildElement(qtiv2.QTIVariable)
-				var.identifier=rID
-		self.QTIOutcomes.MigrateV2(v2Item,log)
-		cMode=True;ruleContainer=rp
-		for condition in self.conditions:
-			cMode,ruleContainer=condition.MigrateV2Rule(cMode,ruleContainer,log)
-		
-		
-class QTIOutcomes(CommentContainer):
-	"""Represents the outcomes element.
-	
-::
-
-	<!ELEMENT outcomes (qticomment? , (decvar , interpretvar*)+)>
-	
-	The implementation of this element takes a liberty with the content model
-	because, despite the formulation above, the link between variables and
-	their interpretation is not related to the order of the elements within
-	the outcomes element.  (An interpretation without a variable reference
-	defaults to an interpretation of the default 'SCORE' outcome.)
-	
-	When we output this element we do the decvars first, followed by
-	the interpretVars.
-	"""
-	XMLNAME='outcomes'
-	XMLCONTENT=xml.ElementContent
-	
-	def __init__(self,parent):
-		CommentContainer.__init__(self,parent)
-		self.QTIDecVar=[]
-		self.QTIInterpretVar=[]
-	
-	def GetChildren(self):
-		return itertools.chain(
-			CommentContainer.GetChildren(self),
-			self.QTIDecVar,
-			self.QTIInterpretVar)
-
-	def MigrateV2(self,v2Item,log):
-		for d in self.QTIDecVar:
-			d.MigrateV2(v2Item,log)
-		for i in self.QTIInterpretVar:
-			i.MigrateV2(v2Item,log)
-
-		
-class QTIRespCondition(CommentContainer):
-	"""Represents the respcondition element.
-	
-::
-
-	<!ELEMENT respcondition (qticomment? , conditionvar , setvar* , displayfeedback* , respcond_extension?)>
-	
-	<!ATTLIST respcondition  %I_Continue;
-							  %I_Title; >
-	"""
-	XMLNAME='respcondition'
-	XMLATTR_continue=('continueFlag',ParseYesNo,FormatYesNo)
-	XMLATTR_title='title'
-	XMLCONTENT=xml.ElementContent
-	
-	def __init__(self,parent):
-		CommentContainer.__init__(self,parent)
-		self.continueFlag=False
-		self.title=None
-		self.QTIConditionVar=QTIConditionVar(self)
-		self.QTISetVar=[]
-		self.QTIDisplayFeedback=[]
-		self.QTIRespCondExtension=None
-	
-	def GetChildren(self):
-		for child in CommentContainer.GetChildren(self): yield child
-		yield self.QTIConditionVar
-		for child in itertools.chain(
-			self.QTISetVar,
-			self.QTIDisplayFeedback):
-			yield child
-		if self.QTIRespCondExtension: yield self.QTIRespCondExtension
-	
-	def MigrateV2Rule(self,cMode,ruleContainer,log):
-		"""Converts a response condition into v2 response processing rules.
-		
-		This method contains some tricky logic to help implement the confusing
-		'continue' attribute of response conditions.  The continue attribute
-		is interpreted in the following way:
-		
-		True: regardless of whether or not the condition matches, carry on to
-		evaluate the next expression.
-		
-		False: only evaluate the next expression if the condition fails.
-		
-		The incoming cMode tells us if the previous condition set continue mode
-		(the default is False on the attribute but the algorithm starts with
-		continue mode True as the first rule is always evaluated).
-		
-		The way the rules are implemented is best illustrated by example, where
-		X(True) represents condition X with continue='Yes' etc:
-		
-		R1(True),R2(True|False) becomes...
-		
-		if R1.test:
-			R1.rules
-		if R2.test:
-			R2.rules
-		
-		R1(False),R2(True) becomes...
-		
-		if R1.test:
-			R1.rules
-		else:
-			if R2.test:
-				R2.rules
-		
-		R1(False),R2(False) becomes...
-		
-		if R1.test:
-			R1.rules
-		elif R2.test:
-			R2.rules
-		"""
-		if self.continueFlag:
-			if not cMode:
-				ruleContainer=ruleContainer.ChildElement(qtiv2.QTIResponseElse)
-			rc=ruleContainer.ChildElement(qtiv2.QTIResponseCondition)
-			rcIf=rc.ChildElement(qtiv2.QTIResponseIf)
-		else:
-			if cMode:
-				rc=ruleContainer.ChildElement(qtiv2.QTIResponseCondition)
-				ruleContainer=rc
-				rcIf=rc.ChildElement(qtiv2.QTIResponseIf)
-			else:
-				rcIf=ruleContainer.ChildElement(qtiv2.QTIResponseElseIf)
-		self.QTIConditionVar.MigrateV2Expression(rcIf,log)
-		for rule in self.QTISetVar:
-			rule.MigrateV2Rule(rcIf,log)
-		for rule in self.QTIDisplayFeedback:
-			rule.MigrateV2Rule(rcIf,log)
-		return self.continueFlag,ruleContainer
-
-		
-class QTIItemFeedback(QTIElement,QTIViewMixin,ContentMixin):
-	"""Represents the itemfeedback element.
-	
-::
-
-	<!ELEMENT itemfeedback ((flow_mat | material) | solution | hint)+>
-	
-	<!ATTLIST itemfeedback  %I_View;
-							 %I_Ident;
-							 %I_Title; >
-	"""
-	XMLNAME='itemfeedback'
-	XMLATTR_title='title'
-	XMLATTR_ident='ident'		
-
-	XMLCONTENT=xml.ElementContent
-	
-	def __init__(self,parent):
-		QTIElement.__init__(self,parent)
-		QTIViewMixin.__init__(self)
-		ContentMixin.__init__(self)
-		self.title=None
-		self.ident=None
-
-	def GetChildren(self):
-		return itertools.chain(
-			QTIElement.GetChildren(self),
-			self.contentChildren)
-
-	def Material(self):
-		child=Material(self)
-		self.contentChildren.append(child)
-		return child
-	
-	def FlowMat(self):
-		child=FlowMat(self)
-		self.contentChildren.append(child)
-		return child
-
-	def QTISolution(self):
-		child=QTISolution(self)
-		self.contentChildren.append(child)
-		return child
-
-	def QTIHint(self):
-		child=QTIHint(self)
-		self.contentChildren.append(child)
-		return child
-		
-	def MigrateV2(self,v2Item,log):
-		feedback=v2Item.ChildElement(qtiv2.QTIModalFeedback)
-		if not (self.view.lower()=='all' and self.view.lower()=='candidate'):
-			log.append("Warning: discarding view on feedback (%s)"%self.view)
-		identifier=qtiv2.ValidateIdentifier(self.ident,'FEEDBACK_')
-		feedback.outcomeIdentifier='FEEDBACK'
-		feedback.showHide=qtiv2.QTIShowHide.show
-		feedback.identifier=identifier
-		feedback.title=self.title
-		ContentMixin.MigrateV2Content(self,feedback,html.FlowMixin,log)
-			
-		
-class QTISolution(ContentMixin,CommentContainer):
-	"""Represents the solution element::
-
-	<!ELEMENT solution (qticomment? , solutionmaterial+)>
-	
-	<!ATTLIST solution  %I_FeedbackStyle; >
-	"""
-	XMLNAME='solution'
-	XMLATTR_feedbackstyle=('feedbackStyle',DecodeFeedbackStyle,EncodeFeedbackStyle)
-	XMLCONTENT=xml.ElementContent
-
-	def __init__(self,parent):
-		CommentContainer.__init__(self,parent)
-		ContentMixin.__init__(self)
-		self.feedbackStyle=QTIFeedbackStyle.Complete
-	
-	def GetChildren(self):
-		return itertools.chain(
-			CommentContainer.GetChildren(),
-			self.contentChildren)
-
-	def QTISolutionMaterial(self):
-		child=QTISolutionMaterial(self)
-		self.contentChildren.append(child)
-		return child
-		
-
-class QTIFeedbackMaterial(ContentMixin,QTIElement):
-	"""Abstract class for solutionmaterial and hintmaterial::
-
-	<!ELEMENT * (material+ | flow_mat+)>
-	"""
-	XMLCONTENT=xml.ElementContent
-	
-	def __init__(self,parent):
-		QTIElement.__init__(self,parent)
-		ContentMixin.__init__(self)
-
-	def GetChildren(self):
-		return iter(self.contentChildren)
-
-	def Material(self):
-		child=Material(self)
-		self.contentChildren.append(child)
-		return child
-	
-	def FlowMat(self):
-		child=FlowMat(self)
-		self.contentChildren.append(child)
-		return child
-		
-	
-class QTISolutionMaterial(QTIFeedbackMaterial):
-	"""Represents the solutionmaterial element::
-
-	<!ELEMENT solutionmaterial (material+ | flow_mat+)>
-	"""
-	XMLNAME='solutionmaterial'
-
-
-class QTIHint(CommentContainer):
-	"""Represents the hint element.
-	
-::
-
-	<!ELEMENT hint (qticomment? , hintmaterial+)>
-	
-	<!ATTLIST hint  %I_FeedbackStyle; >
-	"""
-	XMLNAME='hint'
-	XMLATTR_feedbackstyle=('feedbackStyle',DecodeFeedbackStyle,EncodeFeedbackStyle)
-	XMLCONTENT=xml.ElementContent
-
-	def __init__(self,parent):
-		CommentContainer.__init__(self,parent)
-		ContentMixin.__init__(self)
-		self.feedbackStyle=QTIFeedbackStyle.Complete
-	
-	def GetChildren(self):
-		return itertools.chain(
-			CommentContainer.GetChildren(),
-			self.contentChildren)
-	
-	def QTIHintMaterial(self):
-		child=QTIHintMaterial(self)
-		self.contentChildren.append(child)
-		return child
-
-
-class QTIHintMaterial(QTIFeedbackMaterial):
-	"""Represents the hintmaterial element::
-
-	<!ELEMENT hintmaterial (material+ | flow_mat+)>
-	"""
-	XMLNAME='hintmaterial'
-	
 
 #
 #	SELECTION AND ORDERING OBJECT DEFINITIONS
@@ -2307,7 +1202,7 @@ class QTINotSelection(QTIElement):
 #
 #	OUTCOMES PREOCESSING OBJECT DEFINITIONS
 #
-class QTIObjectsCondition(CommentContainer):
+class QTIObjectsCondition(QTICommentContainer):
 	"""Represents the objects_condition element.
 	
 ::
@@ -2346,20 +1241,20 @@ class QTIMapInput(QTIElement):
 	XMLCONTENT=xml.XMLMixedContent
 	
 	
-class QTIOutcomesFeedbackTest(QTIElement):
+class OutcomesFeedbackTest(QTIElement):
 	"""Represents the outcomes_feedback_test element.
 	
 ::
 
 	<!ELEMENT outcomes_feedback_test (test_variable , displayfeedback+)>
 
-	<!ATTLIST outcomes_feedback_test  %I_Title; >
+	<!ATTLIST outcomes_feedback_test  title CDATA  #IMPLIED >
 	"""
 	XMLNAME='outcomes_feedback_test'
 	XMLCONTENT=xml.ElementContent
 	
 
-class QTIOutcomesMetadata(QTIElement):
+class OutcomesMetadata(QTIElement):
 	"""Represents the outcomes_metadata element.
 	
 ::
@@ -2525,7 +1420,7 @@ class QTIDocument(xml.Document):
 		return QTIDocument.classMap.get(name,QTIDocument.classMap.get(None,xml.Element))
 
 	def RegisterMatThing(self,matThing):
-		"""Registers a QTIMatThing instance in the dictionary of matThings."""
+		"""Registers a MatThing instance in the dictionary of matThings."""
 		if matThing.label is not None:
 			self.matThings[matThing.label]=matThing
 	
@@ -2559,7 +1454,7 @@ class QTIDocument(xml.Document):
 		"""Returns the material element with label matching *linkRefID*.
 		
 		Like :py:meth:`FindMatThing` this method will search for instances of
-		:py:class:`QTIMatThingMixin` if it can't find a :py:class:`Material`
+		:py:class:`MatThingMixin` if it can't find a :py:class:`Material`
 		element to match.  The specification is supposed to be strict about
 		matching the two types of reference but errors are common, even in the
 		official example set."""

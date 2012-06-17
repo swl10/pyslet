@@ -114,7 +114,7 @@ class QTIDocumentTests(unittest.TestCase):
 		root=doc.root
 		self.failUnless(root.QTIComment.GetValue()=='Example2')
 		objects=doc.root.ObjectMixin
-		self.failUnless(len(objects)==1 and isinstance(objects[0],QTIItem))
+		self.failUnless(len(objects)==1 and isinstance(objects[0],Item))
 		self.failUnless(len(root.ObjectMixin)==1)
 	
 
@@ -148,7 +148,15 @@ class QTIV2ConversionTests(unittest.TestCase):
 		fList1.sort()
 		fList2=cp2.fileTable.keys()
 		fList2.sort()
-		self.failUnless(fList1==fList2,"File lists: \n%s\n%s\n"%(str(fList1),str(fList2)))
+		if fList1!=fList2:
+			diagnosis=[]
+			for f in fList1:
+				if f not in fList2:
+					diagnosis.append("Extra file found: %s"%f)
+			for f in fList2:
+				if f not in fList1:
+					diagnosis.append("Missing file: %s"%f)
+			self.fail("File lists:\n  %s"%string.join(diagnosis,'\n  '))
 		output=self.cp.manifest.DiffString(cp2.manifest)
 		self.failUnless(self.cp.manifest.root==cp2.manifest.root,"Manifests differ:\n%s"%output)
 		checkFiles={}

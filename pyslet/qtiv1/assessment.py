@@ -8,7 +8,7 @@ import core, common
 
 import string
 
-class Assessment(common.CommentContainer):
+class Assessment(common.QTICommentContainer):
 	"""The Assessment data structure is used to contain the exchange of test
 	data structures. It will always contain at least one Section and may contain
 	meta-data, objectives, rubric control switches, assessment-level processing,
@@ -37,15 +37,15 @@ class Assessment(common.CommentContainer):
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
-		common.CommentContainer.__init__(self,parent)
+		common.QTICommentContainer.__init__(self,parent)
 		self.ident=None
 		self.title=None
-		self.QTIDuration=None
+		self.Duration=None
 		self.QTIMetadata=[]
 		self.QTIObjectives=[]
 		self.AssessmentControl=[]
-		self.QTIRubric=[]
-		self.QTIPresentationMaterial=None
+		self.Rubric=[]
+		self.PresentationMaterial=None
 		self.QTIOutcomesProcessing=[]
 		self.AssessProcExtension=None
 		self.AssessFeedback=[]
@@ -53,13 +53,13 @@ class Assessment(common.CommentContainer):
 		self.QTIReference=None
 		self.SectionMixin=[]
 		
-	def QTISectionRef(self):
-		child=QTISectionRef(self)
+	def SectionRef(self):
+		child=SectionRef(self)
 		self.SectionMixin.append(child)
 		return child
 		
-	def QTISection(self):
-		child=QTISection(self)
+	def Section(self):
+		child=Section(self)
 		self.SectionMixin.append(child)
 		return child
 		
@@ -69,9 +69,9 @@ class Assessment(common.CommentContainer):
 			self.QTIMetadata,
 			self.QTIObjectives,
 			self.AssessmentControl,
-			self.QTIRubric):
+			self.Rubric):
 			yield child
-		if self.QTIPresentationMaterial: yield self.QTIPresentationMaterial
+		if self.PresentationMaterial: yield self.PresentationMaterial
 		for child in self.QTIOutcomesProcessing: yield child
 		if self.QTIAssessProcExtension: yield self.QTIAssessProcExtension
 		for child in self.AssessFeedback: yield child
@@ -87,7 +87,7 @@ class Assessment(common.CommentContainer):
 			obj.MigrateV2(output)
 
 
-class AssessmentControl(common.CommentContainer):
+class AssessmentControl(common.QTICommentContainer):
 	"""The control switches that are used to enable or disable the display of
 	hints, solutions and feedback within the Assessment::
 
@@ -95,7 +95,9 @@ class AssessmentControl(common.CommentContainer):
 	<!ATTLIST assessmentcontrol
 		hintswitch  (Yes | No )  'Yes'
         solutionswitch  (Yes | No )  'Yes'
-        %I_View;
+        view	(All | Administrator | AdminAuthority | Assessor | Author |
+				Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+				Tutor ) 'All'
         feedbackswitch  (Yes | No )  'Yes' >"""
 	XMLNAME='assessmentcontrol'
 	XMLATTR_hintswitch=('hintSwitch',core.ParseYesNo,core.FormatYesNo)
@@ -105,7 +107,7 @@ class AssessmentControl(common.CommentContainer):
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
-		common.CommentContainer.__init__(self,parent)
+		common.QTICommentContainer.__init__(self,parent)
 		self.view=core.View.DEFAULT
 		self.hintSwitch=True
 		self.solutionSwitch=True
@@ -121,12 +123,15 @@ class AssessProcExtension(core.QTIElement):
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class AssessFeedback(common.CommentContainer,common.ContentMixin):
+class AssessFeedback(common.QTICommentContainer,common.ContentMixin):
 	"""The container for the Assessment-level feedback that is to be presented
 	as a result of Assessment-level processing of the user responses::
 	
 	<!ELEMENT assessfeedback (qticomment? , (material+ | flow_mat+))>
-	<!ATTLIST assessfeedback  %I_View;
+	<!ATTLIST assessfeedback  
+		view	(All | Administrator | AdminAuthority | Assessor | Author |
+				Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+				Tutor ) 'All'
 		ident CDATA  #REQUIRED
 		title CDATA  #IMPLIED >"""
 	XMLNAME='assessfeedback'
@@ -136,18 +141,19 @@ class AssessFeedback(common.CommentContainer,common.ContentMixin):
 	XMLCONTENT=xml.ElementContent
 
 	def __init__(self,parent):
-		common.CommentContainer.__init__(self,parent)
+		common.QTICommentContainer.__init__(self,parent)
+		common.ContentMixin.__init__(self)
 		self.view=core.View.DEFAULT
 		self.ident=None
 		self.title=None
 	
 	def GetChildren(self):
 		return itertools.chain(
-			CommentContainer.GetChildren(self),
-			self.contentChildren)
+			common.QTICommentContainer.GetChildren(self),
+			common.ContentMixin.GetContentChildren(self))
 
 	def ContentMixin(self,childClass):
-		if childClass in (common.QTIMaterial,common.QTIFlowMat):
+		if childClass in (common.Material,common.QTIFlowMat):
 			common.ContentMixin.ContentMixin(self,childClass)
 		else:
 			raise TypeError

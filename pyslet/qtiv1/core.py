@@ -16,6 +16,9 @@ class QTIUnimplementedError(QTIError):
 	pass
 
 
+QTI_SOURCE='QTIv1'	#: Constant used for setting the LOM source value
+
+
 def MakeValidName(name):
 	"""This function takes a string that is supposed to match the
 	production for Name in XML and forces it to comply by replacing
@@ -160,7 +163,7 @@ def MigrateV2AreaCoords(area,value,log):
 class RCardinality(xsi.Enumeration):
 	"""rcardinality enumeration::
 	
-	(Single | Multiple | Ordered )  'Single'
+	rcardinality	(Single | Multiple | Ordered )  'Single'
 
 	Defines constants for the above cardinality types.  Usage example::
 
@@ -186,6 +189,29 @@ def MigrateV2Cardinality(rCardinality):
 		RCardinality.Multiple:qtiv2.QTICardinality.multiple,
 		RCardinality.Ordered:qtiv2.QTICardinality.ordered
 		}.get(rCardinality,None)
+
+
+class FeedbackStyle(xsi.Enumeration):
+	"""feedbackstyle enumeration::
+	
+	feedbackstyle  (Complete | Incremental | Multilevel | Proprietary )  'Complete'
+	
+	Defines constants for the above feedback style.  Usage example::
+
+		FeedbackStyle.Decimal
+	
+	Note that::
+		
+		FeedbackStyle.DEFAULT == FeedbackStyle.Complete
+
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		'Complete':1,
+		'Incremental':2,
+		'Multilevel':3,
+		'Proprietary':4
+		}
+xsi.MakeEnumeration(FeedbackStyle)
 
 
 
@@ -273,6 +299,13 @@ class Orientation(xsi.Enumeration):
 		}
 xsi.MakeEnumeration(Orientation,u'Horizontal')
 
+def MigrateV2Orientation(orientation):
+	"""Maps a v1 orientation onto the corresponding v2 constant."""
+	return {
+		Orientation.Horizontal:qtiv2.Orientation.horizontal,
+		Orientation.Vertical:qtiv2.Orientation.vertical
+		}[orientation]
+
 
 class View(xsi.Enumeration):
 	"""View enumeration::
@@ -357,10 +390,25 @@ class QTIElement(xml.Element):
 			pass
 
 
-class ObjectMixin:
-	"""Mix-in class for elements that can be inside :py:class:`ObjectBank`."""
+class SectionItemMixin:
+	"""Mix-in class for objects that can be in section objects::
+	
+	(itemref | item | sectionref | section)*"""
 	pass
 
+
+class SectionMixin(SectionItemMixin):
+	"""Mix-in class for objects that can be in assessment objects::
+	
+	(sectionref | section)+"""
+	pass
+
+
+class ObjectMixin:
+	"""Mix-in class for elements that can be inside :py:class:`ObjectBank`::
+	
+	(section | item)+"""
+	pass
 
 
 class QTIViewMixin:

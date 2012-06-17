@@ -12,95 +12,657 @@ import string
 from types import StringTypes
 
 
+class Item(common.QTICommentContainer,core.SectionItemMixin,core.ObjectMixin):
+	"""The Item is the smallest unit data structure that can be exchanged using
+	the QTI specification. Each Item consists of five distinct parts, namely:
+	objectives - the materials used to describe the objectives with respect to
+	each view; rubric - the materials used to define the context of the
+	Item and available for each view; presentation - the instructions describing
+	the nature of the question to be asked; resprocessing - the
+	instructions to be followed when analyzing the responses to create a
+	corresponding score and feedback; itemfeedback - the materials to be
+	presented as feedback to the entered response::
 
-class QTIObjectives(common.FlowMatContainer,core.QTIViewMixin):
-	"""Represents the objectives element
-	
-::
-
-	<!ELEMENT objectives (qticomment? , (material+ | flow_mat+))>
-
-	<!ATTLIST objectives  %I_View; >"""
-	XMLNAME='objectives'
-	XMLCONTENT=xml.ElementContent
-		
-	def __init__(self,parent):
-		common.FlowMatContainer.__init__(self,parent)
-		core.QTIViewMixin.__init__(self)
-		
-	def MigrateV2(self,v2Item,log):
-		"""Adds rubric representing these objectives to the given item's body"""
-		rubric=v2Item.ChildElement(qtiv2.QTIItemBody).ChildElement(qtiv2.QTIRubricBlock)
-		if self.view.lower()=='all':
-			rubric.SetAttribute('view',(QTIObjectives.V2_VIEWALL))
-		else:
-			oldView=self.view.lower()
-			view=QTIObjectives.V2_VIEWMAP.get(oldView,'author')
-			if view!=oldView:
-				log.append("Warning: changing view %s to %s"%(self.view,view))
-			rubric.SetAttribute('view',view)
-		# rubric is not a flow-container so we force inlines to be p-wrapped
-		self.MigrateV2Content(rubric,html.BlockMixin,log)
-				
-	def LRMMigrateObjectives(self,lom,log):
-		"""Adds educational description from these objectives."""
-		description,lang=self.ExtractText()
-		eduDescription=lom.ChildElement(imsmd.LOMEducational).ChildElement(imsmd.Description)
-		eduDescription.AddString(lang,description)
-
-
-class QTIRubric(common.FlowMatContainer,core.QTIViewMixin):
-	"""Represents the rubric element.
-	
-::
-
-	<!ELEMENT rubric (qticomment? , (material+ | flow_mat+))>
-	
-	<!ATTLIST rubric  %I_View; >"""
-	XMLNAME='rubric'
+	<!ELEMENT item (qticomment?
+		duration?
+		itemmetadata?
+		objectives*
+		itemcontrol*
+		itemprecondition*
+		itempostcondition*
+		(itemrubric | rubric)*
+		presentation?
+		resprocessing*
+		itemproc_extension?
+		itemfeedback*
+		reference?)>
+	<!ATTLIST item  maxattempts CDATA  #IMPLIED
+		label CDATA  #IMPLIED
+		ident CDATA  #REQUIRED
+		title CDATA  #IMPLIED
+		xml:lang    CDATA  #IMPLIED >"""
+	XMLNAME='item'
+	XMLATTR_maxattempts='maxattempts'		
+	XMLATTR_label='label'
+	XMLATTR_ident='ident'
+	XMLATTR_title='title'
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
-		common.FlowMatContainer.__init__(self,parent)
-		core.QTIViewMixin.__init__(self)
+		common.QTICommentContainer.__init__(self,parent)
+		self.maxattempts=None
+		self.label=None
+		self.ident=None
+		self.title=None
+		self.Duration=None
+		self.ItemMetadata=None
+		self.QTIObjectives=[]
+		self.ItemControl=[]
+		self.ItemPrecondition=[]
+		self.ItemPostcondition=[]
+		self.Rubric=[]				#: includes ItemRubric
+		self.Presentation=None
+		self.ResProcessing=[]
+		self.ItemProcExtension=None
+		self.ItemFeedback=[]
+		self.QTIReference=None
+					
+	def GetChildren(self):
+		for child in common.QTIComment.GetChildren(self): yield child
+		if self.Duration: yield self.Duration
+		if self.ItemMetadata: yield self.ItemMetadata
+		for child in itertools.chain(
+			self.QTIObjectives,
+			self.ItemControl,
+			self.ItemPreCondition,
+			self.QTIPostCondition,
+			self.Rubric):
+			yield child
+		if self.Presentation: yield self.Presentation
+		for child in self.ResProcessing: yield child
+		if self.ItemProcExtension: yield self.ItemProcExtension
+		for child in self.ItemFeedback: yield child
+		if self.QTIReference: yield self.QTIReference
 	
-	def MigrateV2(self,v2Item,log):
-		if self.view.lower()=='all':
-			log.append('Warning: rubric with view="All" replaced by <div> with class="rubric"')
-			rubric=v2Item.ChildElement(qtiv2.QTIItemBody).ChildElement(html.Div,(qtiv2.IMSQTI_NAMESPACE,'div'))
-			rubric.styleClass='rubric'
+	def MigrateV2(self,output):
+		"""Converts this item to QTI v2
+		
+		For details, see :py:meth:`pyslet.qtiv1.QuesTestInterop.MigrateV2`."""
+		# First thing we do is initialize any fixups
+		for rp in self.ResProcessing:
+			rp._interactionFixup={}
+		doc=qtiv2.QTIDocument(root=qtiv2.QTIAssessmentItem)
+		item=doc.root
+		lom=imsmd.LOM(None)
+		log=[]
+		ident=qtiv2.MakeValidNCName(self.ident)
+		if self.ident!=ident:
+			log.append("Warning: illegal NCName for ident: %s, replaced with: %s"%(self.ident,ident))
+		item.identifier=ident
+		title=self.title
+		# may be specified in the metadata
+		if self.ItemMetadata:
+			mdTitles=self.ItemMetadata.metadata.get('title',())
 		else:
-			rubric=v2Item.ChildElement(qtiv2.QTIItemBody).ChildElement(qtiv2.QTIRubricBlock)
-			oldView=self.view.lower()
-			view=QTIObjectives.V2_VIEWMAP.get(oldView,'author')
-			if view!=oldView:
-				log.append("Warning: changing view %s to %s"%(self.view,view))
-			rubric.SetAttribute('view',view)
-		# rubric is not a flow-container so we force inlines to be p-wrapped
-		self.MigrateV2Content(rubric,html.BlockMixin,log)
+			mdTitles=()
+		if title:
+			item.title=title
+		elif mdTitles:
+			item.title=mdTitles[0][0]
+		else:
+			item.title=ident
+		if self.maxattempts is not None:
+			log.append("Warning: maxattempts can not be controlled at item level, ignored: maxattempts='"+self.maxattempts+"'")
+		if self.label:
+			item.label=self.label
+		lang=self.ResolveLang()
+		item.SetLang(lang)
+		general=lom.LOMGeneral()
+		id=general.LOMIdentifier()
+		id.SetValue(self.ident)
+		if title:
+			lomTitle=general.ChildElement(imsmd.LOMTitle)
+			lomTitle=lomTitle.ChildElement(lomTitle.LangStringClass)
+			lomTitle.SetValue(title)
+			if lang:
+				lomTitle.SetLang(lang)
+		if mdTitles:
+			if title:
+				# If we already have a title, then we have to add qmd_title as description metadata
+				# you may think qmd_title is a better choice than the title attribute
+				# but qmd_title is an extension so the title attribute takes precedence
+				i=0
+			else:
+				lomTitle=general.ChildElement(imsmd.LOMTitle)
+				lomTitle=lomTitle.ChildElement(lomTitle.LangStringClass)
+				lomTitle.SetValue(mdTitles[0][0])
+				lang=mdTitles[0][1].ResolveLang()
+				if lang:
+					lomTitle.SetLang(lang)
+				i=1
+			for mdTitle in mdTitles[i:]:
+				description=general.ChildElement(general.DescriptionClass)
+				lomTitle=description.ChildElement(description.LangStringClass)
+				lomTitle.SetValue(mdTitle[0])
+				mdLang=mdTitle[1].ResolveLang()
+				if mdLang:
+					lomTitle.SetLang(mdLang)
+		if self.QTIComment:
+			# A comment on an item is added as a description to the metadata
+			description=general.ChildElement(general.DescriptionClass)
+			description.ChildElement(description.LangStringClass).SetValue(self.QTIComment.GetValue())
+		if self.Duration:
+			log.append("Warning: duration is currently outside the scope of version 2: ignored "+self.Duration.GetValue())
+		if self.ItemMetadata:
+			self.ItemMetadata.MigrateV2(doc,lom,log)
+		for objective in self.QTIObjectives:
+			if objective.view.lower()!='all':
+				objective.MigrateV2(item,log)
+			else:
+				objective.LRMMigrateObjectives(lom,log)
+		if self.ItemControl:
+			log.append("Warning: itemcontrol is currently outside the scope of version 2")
+		for rubric in self.Rubric:
+			rubric.MigrateV2(item,log)
+		if self.Presentation:
+			self.Presentation.MigrateV2(item,log)
+		if self.ResProcessing:
+			if len(self.ResProcessing)>1:
+				log.append("Warning: multiople <resprocessing> not supported, ignoring all but the last")
+			self.ResProcessing[-1].MigrateV2(item,log)
+		for feedback in self.ItemFeedback:
+			feedback.MigrateV2(item,log)
+		output.append((doc, lom, log))
+		#print doc.root
 
-
-class QTIItemRubric(QTIRubric):
-	"""Represents the itemrubric element.
+class ItemMetadata(common.MetadataContainerMixin,core.QTIElement):
+	"""The itemmetadata element contains all of the QTI-specific meta-data to be
+	applied to the Item. This meta-data can consist of either entries defined
+	using an external vocabulary or the individually named entries::
 	
-::
+	<!ELEMENT itemmetadata (
+		qtimetadata*
+		qmd_computerscored?
+		qmd_feedbackpermitted?
+		qmd_hintspermitted?
+		qmd_itemtype?
+		qmd_levelofdifficulty?
+		qmd_maximumscore?
+		qmd_renderingtype*
+		qmd_responsetype*
+		qmd_scoringpermitted?
+		qmd_solutionspermitted?
+		qmd_status?
+		qmd_timedependence?
+		qmd_timelimit?
+		qmd_toolvendor?
+		qmd_topic?
+		qmd_weighting?
+		qmd_material*
+		qmd_typeofsolution?
+		)>
+
+	This element contains more structure than is in common use, at the moment we
+	represent this structure directly and automaticaly conform output to it,
+	adding extension elements at the end.  In the future we might be more
+	generous and allow input *and* output of elements in any sequence and
+	provide separate methods for conforming these elements."""
+	XMLNAME='itemmetadata'
+	XMLCONTENT=xml.ElementContent
+	
+	def __init__(self,parent):
+		core.QTIElement.__init__(self,parent)
+		common.MetadataContainerMixin.__init__(self)
+		self.QTIMetadata=[]
+		self.QMDComputerScored=None
+		self.QMDFeedbackPermitted=None
+		self.QMDHintsPermitted=None
+		self.QMDItemType=None
+		self.QMDLevelOfDifficulty=None
+		self.QMDMaximumScore=None
+		self.QMDRenderingType=[]
+		self.QMDResponseType=[]
+		self.QMDScoringPermitted=None
+		self.QMDSolutionsPermitted=None
+		self.QMDStatus=None
+		self.QMDTimeDependence=None
+		self.QMDTimeLimit=None
+		self.QMDToolVendor=None
+		self.QMDTopic=None
+		self.QMDWeighting=None
+		self.QMDMaterial=[]
+		self.QMDTypeOfSolution=None
+		# Extensions in common use....
+		self.QMDAuthor=[]
+		self.QMDDescription=[]
+		self.QMDDomain=[]
+		self.QMDKeywords=[]
+		self.QMDOrganization=[]
+		self.QMDTitle=None
+		
+	def GetChildren(self):
+		for child in self.QTIMetadata: yield child
+		if self.QMDComputerScored: yield self.QMDComputerScored
+		if self.QMDFeedbackPermitted: yield self.QMDFeedbackPermitted
+		if self.QMDHintsPermitted: yield self.QMDHintsPermitted
+		if self.QMDItemType: yield self.QMDItemType
+		if self.QMDLevelOfDifficulty: yield self.QMDLevelOfDifficulty
+		if self.QMDMaximumScore: yield self.QMDMaximumScore
+		for child in itertools.chain(
+			self.QMDRenderingType,
+			self.QMDResponseType):
+			yield child
+		if self.QMDScoringPermitted: yield self.QMDScoringPermitted
+		if self.QMDSolutionsPermitted: yield self.QMDSolutionsPermitted
+		if self.QMDStatus: yield self.QMDStatus
+		if self.QMDTimeDependence: yield self.QMDTimeDependence
+		if self.QMDTimeLimit: yield self.QMDTimeLimit
+		if self.QMDToolVendor: yield self.QMDToolVendor
+		if self.QMDTopic: yield self.QMDTopic
+		if self.QMDWeighting: yield self.QMDWeighting
+		for child in self.QMDMaterial: yield child
+		if self.QMDTypeOfSolution: yield self.QMDTypeOfSolution
+		for child in itertools.chain(
+			self.QMDAuthor,
+			self.QMDDescription,
+			self.QMDDomain,
+			self.QMDKeywords,
+			self.QMDOrganization):
+			yield child
+		if self.QMDTitle: yield self.QMDTitle
+		for child in core.QTIElement.GetChildren(self): yield child
+	
+	def LRMMigrateLevelOfDifficulty(self,lom,log):
+		difficulty=self.metadata.get('levelofdifficulty',())
+		for value,definition in difficulty:
+			# IMS Definition says: The options are: "Pre-school", "School" or
+			# "HE/FE", # "Vocational" and "Professional Development" so we bind
+			# this value to the "Context" in LOM if one of the QTI or LOM
+			# defined terms have been used, otherwise, we bind to Difficulty, as
+			# this seems to be more common usage.
+			context,lomFlag=QMDLevelOfDifficulty.LOMContextMap.get(value.lower(),(None,False))
+			educational=lom.ChildElement(imsmd.LOMEducational)
+			if context is None:
+				# add value as difficulty
+				lomFlag=value.lower() in QMDLevelOfDifficulty.LOMDifficultyMap
+				d=educational.ChildElement(imsmd.LOMDifficulty)
+				if lomFlag:
+					d.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
+				else:
+					d.LRMSource.LangString.SetValue(imsmd.LOM_UNKNOWNSOURCE)					
+				d.LRMSource.LangString.SetLang("x-none")
+				d.LRMValue.LangString.SetValue(value)
+				d.LRMValue.LangString.SetLang("x-none")
+			else:
+				# add value as educational context
+				c=educational.ChildElement(imsmd.LOMContext)
+				if lomFlag:
+					c.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
+				else:
+					c.LRMSource.LangString.SetValue(imsmd.LOM_UNKNOWNSOURCE)					
+				c.LRMSource.LangString.SetLang("x-none")
+				c.LRMValue.LangString.SetValue(context)
+				c.LRMValue.LangString.SetLang("x-none")
+	
+	def LRMMigrateStatus(self,lom,log):
+		status=self.metadata.get('status',())
+		for value,definition in status:
+			s=lom.ChildElement(imsmd.LOMLifecycle).ChildElement(imsmd.LOMStatus)
+			value=value.lower()
+			source=QMDStatus.SourceMap.get(value,imsmd.LOM_UNKNOWNSOURCE)
+			s.LRMSource.LangString.SetValue(source)
+			s.LRMSource.LangString.SetLang("x-none")
+			s.LRMValue.LangString.SetValue(value)
+			s.LRMValue.LangString.SetLang("x-none")
+	
+	def LRMMigrateTopic(self,lom,log):
+		topics=self.metadata.get('topic',())
+		for value,definition in topics:
+			lang=definition.ResolveLang()
+			value=value.strip()
+			description=lom.ChildElement(imsmd.LOMEducational).ChildElement(imsmd.Description)
+			description.AddString(lang,value)
+	
+	def LRMMigrateContributor(self,fieldName,lomRole,lom,log):
+		contributors=self.metadata.get(fieldName,())
+		if contributors:
+			if imsmd.vobject is None:
+				log.append('Warning: qmd_%s support disabled (vobject not installed)'%fieldName)
+			else:
+				for value,definition in contributors:
+					lifecycle=lom.ChildElement(imsmd.LOMLifecycle)
+					contributor=lifecycle.ChildElement(imsmd.LOMContribute)
+					role=contributor.LOMRole
+					role.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
+					role.LRMSource.LangString.SetLang("x-none")
+					role.LRMValue.LangString.SetValue(lomRole)
+					role.LRMValue.LangString.SetLang("x-none")
+					names=value.strip().split(',')
+					for name in names:
+						if not name.strip():
+							continue
+						vcard=imsmd.vobject.vCard()
+						vcard.add('n')
+						vcard.n.value=imsmd.vobject.vcard.Name(family=name,given='')
+						vcard.add('fn')
+						vcard.fn.value=name.strip()
+						contributor.ChildElement(imsmd.LOMCEntity).LOMVCard.SetValue(vcard)	
+	
+	def LRMMigrateDescription(self,lom,log):
+		descriptions=self.metadata.get('description',())
+		for value,definition in descriptions:
+			lang=definition.ResolveLang()
+			genDescription=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.Description)
+			genDescription=genDescription.ChildElement(genDescription.LangStringClass)
+			genDescription.SetValue(value)
+			if lang:
+				genDescription.SetLang(lang)
+
+	def LRMMigrateDomain(self,lom,log):
+		domains=self.metadata.get('domain',())
+		warn=False
+		for value,definition in domains:
+			lang=definition.ResolveLang()
+			kwValue=value.strip()
+			if kwValue:
+				kwContainer=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.LOMKeyword)
+				kwContainer=kwContainer.ChildElement(kwContainer.LangStringClass)
+				kwContainer.SetValue(kwValue)
+				# set the language of the kw
+				if lang:
+					kwContainer.SetLang(lang)
+				if not warn:
+					log.append("Warning: qmd_domain extension field will be added as LOM keyword")
+					warn=True
+	
+	def LRMMigrateKeywords(self,lom,log):
+		keywords=self.metadata.get('keywords',())
+		for value,definition in keywords:
+			lang=definition.ResolveLang()
+			values=string.split(value,',')
+			for kwValue in values:
+				v=kwValue.strip()
+				if v:
+					kwContainer=lom.ChildElement(imsmd.LOMGeneral).ChildElement(imsmd.LOMKeyword)
+					kwContainer=kwContainer.ChildElement(kwContainer.LangStringClass)
+					kwContainer.SetValue(v)
+					# set the language of the kw
+					if lang:
+						kwContainer.SetLang(lang)
+	
+	def LRMMigrateOrganization(self,lom,log):
+		organizations=self.metadata.get('organization',())
+		if organizations:
+			if imsmd.vobject is None:
+				log.append('Warning: qmd_organization support disabled (vobject not installed)')
+			else:
+				for value,definition in organizations:
+					lifecycle=lom.ChildElement(imsmd.LOMLifecycle)
+					contributor=lifecycle.ChildElement(imsmd.LOMContribute)
+					role=contributor.LOMRole
+					role.LRMSource.LangString.SetValue(imsmd.LOM_SOURCE)
+					role.LRMSource.LangString.SetLang("x-none")
+					role.LRMValue.LangString.SetValue("unknown")
+					role.LRMValue.LangString.SetLang("x-none")
+					name=value.strip()
+					vcard=imsmd.vobject.vCard()
+					vcard.add('n')
+					vcard.n.value=imsmd.vobject.vcard.Name(family=name,given='')
+					vcard.add('fn')
+					vcard.fn.value=name
+					vcard.add('org')
+					vcard.org.value=[name]
+					contributor.ChildElement(imsmd.LOMCEntity).LOMVCard.SetValue(vcard)	
+			
+	def MigrateV2(self,doc,lom,log):
+		item=doc.root
+		itemtypes=self.metadata.get('itemtype',())
+		for itemtype,itemtypeDef in itemtypes:
+			log.append("Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, ignoring %s"%itemtype)
+		self.LRMMigrateLevelOfDifficulty(lom,log)
+		self.LRMMigrateStatus(lom,log)
+		vendors=self.metadata.get('toolvendor',())
+		for value,definition in vendors:
+			item.metadata.ChildElement(qtiv2.QMDToolVendor).SetValue(value)
+		self.LRMMigrateTopic(lom,log)
+		self.LRMMigrateContributor('author','author',lom,log)
+		self.LRMMigrateContributor('creator','initiator',lom,log)
+		self.LRMMigrateContributor('owner','publisher',lom,log)
+		self.LRMMigrateDescription(lom,log)
+		self.LRMMigrateDomain(lom,log)
+		self.LRMMigrateKeywords(lom,log)
+		self.LRMMigrateOrganization(lom,log)
+
+	
+class QMDMetadataElement(core.QTIElement):
+	"""Abstract class to represent old-style qmd_ tags"""
+	
+	def ContentChanged(self):
+		self.DeclareMetadata(self.GetXMLName(),self.GetValue(),self)
+
+
+class QMDComputerScored(QMDMetadataElement):
+	"""Whether or not the Item can be computer scored."""
+	XMLNAME='qmd_computerscored'
+	
+
+class QMDFeedbackPermitted(QMDMetadataElement):
+	"""Indicates whether or not feedback is available within the Item."""
+	XMLNAME='qmd_feedbackpermitted'
+
+
+class QMDHintsPermitted(QMDMetadataElement):
+	"""Indicates whether or not hints are available within the Item."""
+	XMLNAME='qmd_hintspermitted'
+
+
+class QMDItemType(QMDMetadataElement):
+	"""The type of Item available."""
+	XMLNAME='qmd_itemtype'
+
+
+class QMDLevelOfDifficulty(QMDMetadataElement):
+	"""The educational level for which the Item is intended::
+
+	<!ELEMENT qmd_levelofdifficulty (#PCDATA)>"""	
+	XMLNAME='qmd_levelofdifficulty'
+
+	LOMDifficultyMap={
+		"very easy":True,
+		"easy":True,
+		"medium":True,
+		"difficult":True,
+		"very difficult":True
+		}
+	"""A mapping from difficulty values to the LOM difficulties.  This value is
+	supposed to be an educational level, e.g., "pre-school" but in practice it
+	is often used for values more akin to the LOM concept of difficulty."""
+	
+	LOMContextMap={
+		"pre-school":("pre-school",False), # value is outside LOM defined vocab
+		"school":("school",True),
+		"he/fe":("higher education",True),
+		"vocational":("vocational",False), # value is outside LOM defined vocab
+		"professional development":("training",True)
+		}
+	"""A mapping from difficulty values to the LOM contexts.  This mapping
+	returns a tuple of the context value and a boolean indicating whether or not
+	this is one from the LOM standard or not."""
+
+
+class QMDMaterial(QMDMetadataElement):
+	"""The type of material content used within the Item."""
+	XMLNAME='qmd_material'
+
+
+class QMDMaximumScore(QMDMetadataElement):
+	"""The maximum score possible from the Item."""
+	XMLNAME='qmd_maximumscore'
+
+
+class QMDRenderingType(QMDMetadataElement):
+	"""The type of rendering used within the Item."""
+	XMLNAME='qmd_renderingtype'
+
+
+
+class QMDResponseType(QMDMetadataElement):
+	"""The class of response expected for the Item."""
+	XMLNAME='qmd_responsetype'
+
+
+class QMDScoringPermitted(QMDMetadataElement):
+	"""Indicates whether or not scoring is available within the Item."""
+	XMLNAME='qmd_scoringpermitted'
+
+
+class QMDSolutionsPermitted(QMDMetadataElement):
+	"""Indicates whether or not solutions are available within the Item."""
+	XMLNAME='qmd_solutionspermitted'
+
+
+class QMDStatus(QMDMetadataElement):
+	"""The status of the Item."""
+	XMLNAME='qmd_status'
+
+	SourceMap={
+		'draft':imsmd.LOM_SOURCE,
+		'final':imsmd.LOM_SOURCE,
+		'revised':imsmd.LOM_SOURCE,
+		'unavailable':imsmd.LOM_SOURCE,
+		'experimental':core.QTI_SOURCE,
+		'normal':core.QTI_SOURCE,
+		'retired':core.QTI_SOURCE
+		}
+	"""A mapping from status values to a metadata source, one of the following
+	constants: :py:data:`~pyslet.imsmdv1p2p1.LOM_SOURCE`
+	:py:data:`~pyslet.qtiv1.core.QTI_SOURCE`"""
+
+
+class QMDTimeDependence(QMDMetadataElement):
+	"""Whether or not the responses are time dependent."""
+	XMLNAME='qmd_timedependence'
+
+
+class QMDTimeLimit(QMDMetadataElement):
+	"""The number of minutes to be permitted for the completion of the Item."""
+	XMLNAME='qmd_timelimit'
+
+
+class QMDToolVendor(QMDMetadataElement):
+	"""The name of the vendor of the tool creating the Item."""
+	XMLNAME='qmd_toolvendor'
+
+
+class QMDTopic(QMDMetadataElement):
+	"""The brief description of the topic covered by the Item."""
+	XMLNAME='qmd_topic'
+
+
+class QMDTypeOfSolution(QMDMetadataElement):
+	"""The type of solution available in the Item."""
+	XMLNAME='qmd_typeofsolution'
+
+
+class QMDWeighting(QMDMetadataElement):
+	"""The weighting to be applied to the scores allocated to this Item before
+	aggregations with other scores."""
+	XMLNAME='qmd_weighting'
+
+
+class QMDAuthor(QMDMetadataElement):
+	"""Not defined by QTI but seems to be in common use."""
+	XMLNAME='qmd_author'
+
+class QMDDescription(QMDMetadataElement):
+	"""Not defined by QTI but seems to be in common use."""
+	XMLNAME='qmd_description'
+	
+class QMDDomain(QMDMetadataElement):
+	"""Not defined by QTI but seems to be in common use."""
+	XMLNAME='qmd_domain'
+	
+class QMDKeywords(QMDMetadataElement):
+	"""Not defined by QTI but seems to be in common use."""
+	XMLNAME='qmd_keywords'
+
+class QMDOrganization(QMDMetadataElement):
+	"""Not defined by QTI but seems to be in common use."""
+	XMLNAME='qmd_organization'
+
+class QMDTitle(QMDMetadataElement):
+	"""Not defined by QTI but seems to be in common use."""
+	XMLNAME='qmd_title'
+
+
+class ItemPreCondition(core.QTIElement):
+	"""The preconditions that control whether or not the Item is activated::
+
+	<!ELEMENT itemprecondition (#PCDATA)>"""
+	XMLNAME='itemprecondition'
+	XMLCONTENT=xml.XMLMixedContent
+
+
+class ItemPostCondition(core.QTIElement):
+	"""The postconditions that control whether or not the next Item may be
+	activated::
+
+	<!ELEMENT itempostcondition (#PCDATA)>"""
+	XMLNAME='itempostcondition'
+	XMLCONTENT=xml.XMLMixedContent
+
+
+class ItemControl(common.QTICommentContainer):
+	"""The control switches that are used to enable or disable the display of
+	hints, solutions and feedback within the Item::
+
+	<!ELEMENT itemcontrol (qticomment?)>	
+	<!ATTLIST itemcontrol  feedbackswitch  (Yes | No )  'Yes'
+		hintswitch  (Yes | No )  'Yes'
+		solutionswitch  (Yes | No )  'Yes'
+		view	(All | Administrator | AdminAuthority | Assessor | Author |
+				Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+				Tutor ) 'All' >
+	"""
+	XMLNAME='itemcontrol'
+	XMLATTR_feedbackswitch=('feedbackSwitch',core.ParseYesNo,core.FormatYesNo)
+	XMLATTR_hintswitch=('hintSwitch',core.ParseYesNo,core.FormatYesNo)
+	XMLATTR_solutionswitch=('solutionSwitch',core.ParseYesNo,core.FormatYesNo)
+	XMLCONTENT=xml.ElementContent
+
+	def __init__(self,parent):
+		common.QTICommentContainer.__init__(self,parent)
+		self.feedbackSwitch=True
+		self.hintSwitch=True
+		self.solutionSwitch=True
+		self.view=core.View.DEFAULT
+
+
+class ItemRubric(common.Rubric):
+	"""The itemrubric element is used to contain contextual information that is
+	important to the element e.g. it could contain standard data values that
+	might or might not be useful for answering the question. Different sets of
+	rubric can be defined for each of the possible views::
 
 	<!ELEMENT itemrubric (material)>
-
-	<!ATTLIST itemrubric  %I_View; >
+	<!ATTLIST itemrubric  
+		view	(All | Administrator | AdminAuthority | Assessor | Author |
+				Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+				Tutor ) 'All' >
 	
 	We are generous with this element, extending the allowable content model
 	to make it equivalent to <rubric> which is a superset.  <itemrubric> was
-	deprecated in favour of <rubric> with QTI v1.2
-	"""
+	deprecated in favour of <rubric> with QTI v1.2"""
 	XMLNAME='itemrubric'
 	XMLCONTENT=xml.ElementContent
 
 
-class QTIPresentation(common.FlowContainer,common.QTIPositionMixin):
-	"""Represents the presentation element.
-	
-::
+class Presentation(common.FlowContainer,common.PositionMixin):
+	"""This element contains all of the instructions for the presentation of the
+	question during an evaluation. This information includes the actual material
+	to be presented. The labels for the possible responses are also identified
+	and these are used by the response processing element defined elsewhere in
+	the Item::
 
 	<!ELEMENT presentation (qticomment? ,
 		(flow |
@@ -112,26 +674,26 @@ class QTIPresentation(common.FlowContainer,common.QTIPositionMixin):
 			response_grp |
 			response_extension)+
 			)
-		)>
-	
-	<!ATTLIST presentation  %I_Label;
-							 xml:lang CDATA  #IMPLIED
-							 %I_Y0;
-							 %I_X0;
-							 %I_Width;
-							 %I_Height; >"""
+		)>	
+	<!ATTLIST presentation  label CDATA  #IMPLIED
+		xml:lang CDATA  #IMPLIED
+		y0 CDATA  #IMPLIED
+		x0 CDATA  #IMPLIED
+		width CDATA  #IMPLIED
+		height CDATA  #IMPLIED >"""
 	XMLNAME='presentation'
-	XMLATTR_label='label'	
+	XMLATTR_label='label'
+		
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
 		common.FlowContainer.__init__(self,parent)
-		common.QTIPositionMixin.__init__(self)
+		common.PositionMixin.__init__(self)
 		self.label=None
 		
 	def MigrateV2(self,v2Item,log):
 		"""Presentation maps to the main content in itemBody."""
-		itemBody=v2Item.ChildElement(qtiv2.QTIItemBody)
+		itemBody=v2Item.ChildElement(qtiv2.ItemBody)
 		if self.GotPosition():
 			log.append("Warning: discarding absolute positioning information on presentation")
 		if self.InlineChildren():
@@ -179,20 +741,32 @@ class QTIPresentation(common.FlowContainer,common.QTIPositionMixin):
 		return False
 
 
+class ResponseExtension(common.ResponseCommon):
+	"""This element supports proprietary alternatives to the current range of
+	'response' elements::
+
+	<!ELEMENT response_extension ANY>"""
+	XMLNAME="response_extension"
+	XMLCONTENT=xml.XMLMixedContent
+
+
+# class Flow: defined in common
+
+
 class ResponseThing(common.ResponseCommon):
 	"""Abstract class for the main response_* elements::
 	
 	<!ELEMENT response_* ((material | material_ref)? ,
 		(render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
 		(material | material_ref)?)>
-
-	<!ATTLIST response_*  %I_Rcardinality;
-                         %I_Rtiming;
-                         %I_Ident; >		
-	"""
+	<!ATTLIST response_*
+		rcardinality	(Single | Multiple | Ordered )  'Single'
+        rtiming  		(Yes | No )  'No'
+		ident 			CDATA  #REQUIRED >"""
 	XMLATTR_ident='ident'
 	XMLATTR_rcardinality=('rCardinality',core.RCardinality.DecodeTitleValue,core.RCardinality.EncodeValue)
-	XMLATTR_rtiming=('rTiming',core.ParseYesNo,core.FormatYesNo)	
+	XMLATTR_rtiming=('rTiming',core.ParseYesNo,core.FormatYesNo)
+	XMLATTR_ident='ident'
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
@@ -208,39 +782,28 @@ class ResponseThing(common.ResponseCommon):
 		self.footer=[]
 		self.inlineFooter=True
 
-	def Material(self):
-		child=common.Material(self)
-		if self.render:
-			self.outro.append(child)
+	def ContentMixin(self,childClass):
+		if childClass in (common.Material,common.MaterialRef):
+			child=childClass(self)
+			if self.render:
+				self.outro.append(child)
+			else:
+				self.intro.append(child)
+			return child			
+		elif issubclass(childClass,common.RenderCommon):
+			child=childClass(self)
+			self.render=child
+			return child			
 		else:
-			self.intro.append(child)
-		return child
-	
-	def MaterialRef(self):
-		child=common.MaterialRef(self)
-		if self.render:
-			self.outro.append(child)
-		else:
-			self.intro.append(child)
-		return child
-	
-	def QTIRenderThing(self,childClass):
-		child=childClass(self)
-		self.render=child
-		return child
-		
-	def QTIRenderExtension(self):
-		child=QTIRenderExtension(self)
-		self.render=child
-		return child
-	
+			raise TypeError
+
 	def GetChildren(self):
 		for child in self.intro: yield child
 		if self.render: yield self.render
 		for child in self.outro: yield child
 
 	def ContentChanged(self):
-		if isinstance(self.render,QTIRenderFIB) and self.render.MixedModel():
+		if isinstance(self.render,RenderFIB) and self.render.MixedModel():
 			# use simplified prompt logic.
 			self.prompt=self.intro
 			self.inlintPrompt=True
@@ -259,7 +822,7 @@ class ResponseThing(common.ResponseCommon):
 			renderChildren=self.render.GetLabelContent()
 			for child in self.intro+renderChildren:
 				#print child.__class__,child.xmlname
-				if isinstance(child,QTIResponseLabel):
+				if isinstance(child,ResponseLabel):
 					break
 				self.prompt.append(child)
 				if not child.IsInline():
@@ -268,7 +831,7 @@ class ResponseThing(common.ResponseCommon):
 			self.inlineFooter=True
 			foundLabel=False
 			for child in renderChildren+self.outro:
-				if isinstance(child,QTIResponseLabel):
+				if isinstance(child,ResponseLabel):
 					self.footer=[]
 					self.inlineFooter=True
 					foundLabel=True
@@ -292,7 +855,7 @@ class ResponseThing(common.ResponseCommon):
 			if childType is html.InlineMixin:
 				raise QTIError("Unexpected attempt to inline interaction")
 			interactionPrompt=None
-			if isinstance(self.render,QTIRenderHotspot):
+			if isinstance(self.render,RenderHotspot):
 				div=parent.ChildElement(html.Div,(qtiv2.IMSQTI_NAMESPACE,'div'))
 				common.ContentMixin.MigrateV2Content(self,div,html.FlowMixin,log,self.prompt)
 				# Now we need to find any images and pass them to render hotspot instead
@@ -328,7 +891,7 @@ class ResponseThing(common.ResponseCommon):
 					responseList=[interaction.responseIdentifier]
 			if item:
 				for i,r in zip(interactionList,responseList):
-					d=item.ChildElement(qtiv2.QTIResponseDeclaration)
+					d=item.ChildElement(qtiv2.ResponseDeclaration)
 					d.identifier=r
 					d.cardinality=core.MigrateV2Cardinality(self.rCardinality)
 					d.baseType=self.GetBaseType(interactionList[0])
@@ -341,25 +904,27 @@ class ResponseThing(common.ResponseCommon):
 					d.baseType=self.GetBaseType(interactionList[0])
 					item.RegisterDeclaration(d)
 					# now we need to fix this outcome up with a value in response processing
-					selfItem=self.FindParent(QTIItem)
+					selfItem=self.FindParent(Item)
 					if selfItem:
-						for rp in selfItem.QTIResProcessing:
+						for rp in selfItem.ResProcessing:
 							rp._interactionFixup[baseIdentifier]=responseList
 		# the footer is in no-man's land so we just back-fill
 		common.ContentMixin.MigrateV2Content(self,parent,childType,log,self.footer)
 
 
-class QTIResponseLId(ResponseThing):
-	"""Represents the response_lid element::
+class ResponseLId(ResponseThing):
+	"""The <response_lid> element contains the instructions for the presentation
+	of questions whose response will be the logical label of the selected
+	answer. The question can be rendered in a variety of ways depending on the
+	way in which the material is to be presented to the participant::
 
 	<!ELEMENT response_lid ((material | material_ref)? ,
 		(render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
 		(material | material_ref)?)>
-
-	<!ATTLIST response_lid  %I_Rcardinality;
-                         %I_Rtiming;
-                         %I_Ident; >
-	"""
+	<!ATTLIST response_lid  
+		rcardinality	(Single | Multiple | Ordered )  'Single'
+		rtiming  		(Yes | No )  'No'
+		ident 			CDATA  #REQUIRED >"""
 	XMLNAME='response_lid'
 	
 	def GetBaseType(self,interaction):
@@ -367,40 +932,44 @@ class QTIResponseLId(ResponseThing):
 		return qtiv2.BaseType.identifier
 
 		
-class QTIResponseXY(ResponseThing):
-	"""Represents the response_xy element::
+class ResponseXY(ResponseThing):
+	"""The <response_xy> element contains the instructions for the presentation
+	of questions whose response will be the 'x-y' co-ordinate of the selected
+	answer. The question can be rendered in a variety of ways depending on the
+	way in which the material is to be presented to the participant::
 
 	<!ELEMENT response_xy ((material | material_ref)? ,
 		(render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
 		(material | material_ref)?)>
-	
-	<!ATTLIST response_xy  %I_Rcardinality;
-							%I_Rtiming;
-							%I_Ident; >
+	<!ATTLIST response_xy
+		rcardinality	(Single | Multiple | Ordered )  'Single'
+		rtiming  		(Yes | No )  'No'
+		ident 			CDATA  #REQUIRED >
 	"""
 	XMLNAME='response_xy'
 
 	def GetBaseType(self,interaction):
-		"""We always return identifier for response_lid."""
+		"""For select point we return a point for response_xy."""
 		if isinstance(interaction,qtiv2.QTISelectPointInteraction):
 			return qtiv2.BaseType.point
 		else:
 			return ResponseThing.GetBaseType(self)
 
 
-class QTIResponseStr(ResponseThing):
-	"""Represents the response_str element.
-	
-::
+class ResponseStr(ResponseThing):
+	"""The <response_str> element contains the instructions for the presentation
+	of questions whose response will be the a string. The question can be
+	rendered in a variety of ways depending on the way in which the material is
+	to be presented to the participant::
 
 	<!ELEMENT response_str ((material | material_ref)? ,
 		(render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
 		(material | material_ref)?)>
 	
-	<!ATTLIST response_str  %I_Rcardinality;
-							 %I_Ident;
-							 %I_Rtiming; >
-	"""
+	<!ATTLIST response_str  
+		rcardinality	(Single | Multiple | Ordered )  'Single'
+		ident 			CDATA #REQUIRED
+		rtiming  		(Yes | No )  'No' >"""
 	XMLNAME='response_str'
 
 	def GetBaseType(self,interaction):
@@ -408,19 +977,20 @@ class QTIResponseStr(ResponseThing):
 		return qtiv2.BaseType.string
 
 
-class QTIResponseNum(ResponseThing):
-	"""Represents the response_num element.
-	
-::
+class ResponseNum(ResponseThing):
+	"""The <response_num> element contains the instructions for the presentation
+	of questions whose response will be a number. The question can be rendered
+	in a variety of ways depending on the way in which the material is to be
+	presented to the participant::
 
 	<!ELEMENT response_num ((material | material_ref)? ,
 		(render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
 		(material | material_ref)?)>
-	
-	<!ATTLIST response_num  numtype         (Integer | Decimal | Scientific )  'Integer'
-							 %I_Rcardinality;
-							 %I_Ident;
-							 %I_Rtiming; >
+	<!ATTLIST response_num
+		numtype			(Integer | Decimal | Scientific )  'Integer'
+		rcardinality	(Single | Multiple | Ordered )  'Single'
+		ident CDATA  	#REQUIRED
+		rtiming  		(Yes | No )  'No' >
 	"""
 	XMLNAME='response_num'
 	XMLATTR_numtype=('numType',core.NumType.DecodeTitleValue,core.NumType.EncodeValue)	
@@ -431,80 +1001,55 @@ class QTIResponseNum(ResponseThing):
 		self.numType=core.NumType.Integer
 
 	def GetBaseType(self,interaction):
-		"""We always return string for response_str."""
+		"""Returns integer for numtype of "Integer", float otherwise."""
 		if self.numType==core.NumType.Integer:
 			return qtiv2.BaseType.integer
 		else:
 			return qtiv2.BaseType.float
 
 
-class QTIResponseGrp(core.QTIElement,common.ContentMixin):
-	"""Represents the response_grp element.
-	
-::
+class ResponseGrp(core.QTIElement,common.ContentMixin):
+	"""The <response_grp> element contains the instructions for the presentation
+	of questions whose response will be a group of logical identifiers. The
+	question can be rendered in a variety of ways depending on the way in which
+	the material is to be presented to the participant::
 
 	<!ELEMENT response_grp ((material | material_ref)? ,
 		(render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
-		(material | material_ref)?)>
-	
-	<!ATTLIST response_grp  %I_Rcardinality;
-							 %I_Ident;
-							 %I_Rtiming; >
-	"""
+		(material | material_ref)?)>	
+	<!ATTLIST response_grp
+		rcardinality	(Single | Multiple | Ordered )  'Single'
+		ident			CDATA  #REQUIRED
+		rtiming			(Yes | No )  'No' >"""
 	XMLNAME='response_grp'
 	XMLCONTENT=xml.ElementContent
 
 
-class QTIResponseNA(core.QTIElement):
-	"""Represents the response_na element.
-	
-::
-
-	<!ELEMENT response_na ANY>"""
-	XMLNAME='response_na'
-	XMLCONTENT=xml.XMLMixedContent
-
-
-class QTIRenderThing(core.QTIElement,common.ContentMixin):
+class RenderThing(common.RenderCommon):
 	"""Abstract base class for all render_* objects::
 	
-	<!ELEMENT render_* ((material | material_ref | response_label | flow_label)* , response_na?)>	
-	"""
+	<!ELEMENT render_* ((material | material_ref | response_label | flow_label)* , response_na?)>"""
 	XMLCONTENT=xml.ElementContent
 
 	def __init__(self,parent):
-		core.QTIElement.__init__(self,parent)
-		common.ContentMixin.__init__(self)
-		self.QTIResponseNA=None
+		common.RenderCommon.__init__(self,parent)
+		self.ResponseNA=None
 
-	def Material(self):
-		child=common.Material(self)
-		self.contentChildren.append(child)
-		return child
-		
-	def MaterialRef(self):
-		child=common.MaterialRef(self)
-		self.contentChildren.append(child)
-		return child
-		
-	def QTIResponseLabel(self):
-		child=QTIResponseLabel(self)
-		self.contentChildren.append(child)
-		return child
-		
-	def FlowLabel(self):
-		child=common.FlowLabel(self)
-		self.contentChildren.append(child)
-		return child
+	def ContentMixin(self,childClass):
+		if childClass in (common.Material,common.MaterialRef,ResponseLabel,FlowLabel):
+			return common.ContentMixin.ContentMixin(self,childClass)
+		else:
+			raise TypeError
 		
 	def GetChildren(self):
-		for child in self.contentChildren: yield child
-		if self.QTIResponseNA: yield self.QTIResponseNA
+		for child in self.GetContentChildren(): yield child
+		if self.ResponseNA: yield self.ResponseNA
 	
 	def GetLabelContent(self):
+		"""Returns a flat list of content items, stripping away flow_labels.""" 
 		children=[]
-		for child in self.contentChildren:
-			if isinstance(child,common.FlowLabel):
+		for child in self.GetContentChildren():
+			if isinstance(child,FlowLabel):
 				children=children+child.GetLabelContent()
 			else:
 				children.append(child)
@@ -524,25 +1069,25 @@ class QTIRenderThing(core.QTIElement,common.ContentMixin):
 		pass
 
 		
-class QTIRenderChoice(QTIRenderThing):
-	"""Represents the render_choice element.
-	
-::
+class RenderChoice(RenderThing):
+	"""The <render_choice> element instructs the question-engine to render the
+	question using a classical multiple-choice format. The number of possible
+	responses is determined by the <response_label> elements contained. Both
+	flowed and non-flowed formats are supported::
 
 	<!ELEMENT render_choice ((material | material_ref | response_label | flow_label)* , response_na?)>
-	
-	<!ATTLIST render_choice  shuffle      (Yes | No )  'No'
-							  %I_MinNumber;
-							  %I_MaxNumber; >
-	"""
+	<!ATTLIST render_choice
+		shuffle     (Yes | No )  'No'
+		minnumber	CDATA  #IMPLIED
+		maxnumber	CDATA  #IMPLIED >"""
 	XMLNAME='render_choice'
-	XMLATTR_maxnumber=('maxNumber',xsi.DecodeInteger,xsi.EncodeInteger)
-	XMLATTR_minnumber=('minNumber',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLATTR_shuffle=('shuffle',core.ParseYesNo,core.FormatYesNo)
+	XMLATTR_minnumber=('minNumber',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_maxnumber=('maxNumber',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
-		QTIRenderThing.__init__(self,parent)
+		RenderThing.__init__(self,parent)
 		self.shuffle=False
 		self.minNumber=None
 		self.maxNumber=None
@@ -554,7 +1099,7 @@ class QTIRenderChoice(QTIRenderThing):
 	def MigrateV2Interaction(self,parent,childType,prompt,log):
 		"""Migrates this content to v2 adding it to the parent content node."""
 		interaction=None
-		if isinstance(self.parent,QTIResponseLId):
+		if isinstance(self.parent,ResponseLId):
 			if childType is html.InlineMixin:
 				raise QTIError("Unexpected attempt to put block interaction in inline context")
 			if self.parent.rCardinality==core.RCardinality.Ordered:
@@ -573,22 +1118,22 @@ class QTIRenderChoice(QTIRenderThing):
 			interaction.maxChoices=self.maxNumber
 		interaction.shuffle=self.shuffle
 		for child in self.GetLabelContent():
-			if isinstance(child,QTIResponseLabel):
+			if isinstance(child,ResponseLabel):
 				child.MigrateV2SimpleChoice(interaction,log)
 		return [interaction]
 
 		
-class QTIRenderHotspot(QTIRenderThing):
-	"""Represents the render_hotspot element.
-	
-::
+class RenderHotspot(RenderThing):
+	"""The <render_hotspot> element instructs the question-engine to render the
+	question using a classical image hot-spot format. The number of possible
+	responses is determined by the <response_label> elements contained. Both
+	flowed and non-flowed formats are supported::
 
-	<!ELEMENT render_hotspot ((material | material_ref | response_label | flow_label)* , response_na?)>
-	
-	<!ATTLIST render_hotspot  %I_MaxNumber;
-							   %I_MinNumber;
-							   showdraw     (Yes | No )  'No' >
-	"""
+	<!ELEMENT render_hotspot ((material | material_ref | response_label | flow_label)* , response_na?)>	
+	<!ATTLIST render_hotspot
+		maxnumber	CDATA  #IMPLIED
+		minnumber	CDATA  #IMPLIED
+		showdraw    (Yes | No )  'No' >"""
 	XMLNAME='render_hotspot'
 	XMLATTR_maxnumber=('maxNumber',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLATTR_minnumber=('minNumber',xsi.DecodeInteger,xsi.EncodeInteger)
@@ -596,9 +1141,9 @@ class QTIRenderHotspot(QTIRenderThing):
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
-		QTIRenderThing.__init__(self,parent)
-		self.minNumber=None
+		RenderThing.__init__(self,parent)
 		self.maxNumber=None
+		self.minNumber=None
 		self.showDraw=False
 	
 	def IsInline(self):
@@ -608,12 +1153,12 @@ class QTIRenderHotspot(QTIRenderThing):
 	def MigrateV2Interaction(self,parent,childType,prompt,log):
 		"""Migrates this content to v2 adding it to the parent content node."""
 		interaction=None
-		if isinstance(self.parent,QTIResponseLId):
+		if isinstance(self.parent,ResponseLId):
 			if self.parent.rCardinality==core.RCardinality.Ordered:
 				raise QTIUnimplementedError("GraphicOrderInteraction")
 			else:
 				interaction=parent.ChildElement(qtiv2.QTIHotspotInteraction)
-		elif isinstance(self.parent,QTIResponseXY):
+		elif isinstance(self.parent,ResponseXY):
 			if self.parent.rCardinality==core.RCardinality.Ordered:
 				raise QTIUnimplementedError('response_xy x render_hotspot')
 			else:
@@ -627,7 +1172,7 @@ class QTIRenderHotspot(QTIRenderThing):
 		if self.maxNumber is not None:
 			interaction.maxChoices=self.maxNumber
 		labels=[]
-		self.FindChildren(QTIResponseLabel,labels)
+		self.FindChildren(ResponseLabel,labels)
 		# prompt is either a single <img> tag we already migrated or.. a set of inline
 		# objects that are still to be migrated (and which should contain the hotspot image).
 		img=None
@@ -649,21 +1194,21 @@ class QTIRenderHotspot(QTIRenderThing):
 			if img.src:
 				# Annoyingly, Img throws away mime-type information from matimage
 				images=[]
-				self.parent.FindChildren(common.QTIMatImage,images,1)
+				self.parent.FindChildren(common.MatImage,images,1)
 				if images and images[0].uri:
-					# Check that this is the right image in case img was embedded in QTIMatText
+					# Check that this is the right image in case img was embedded in MatText
 					if str(images[0].ResolveURI(images[0].uri))==str(img.ResolveURI(img.src)):
 						hotspotImage.type=images[0].imageType
 			for child in labels:
-				if isinstance(child,QTIResponseLabel):
+				if isinstance(child,ResponseLabel):
 					child.MigrateV2HotspotChoice(interaction,log)
 			return [interaction]
 		else:
 			# tricky, let's start by getting all the matimage elements in the presentation
 			images=[]
-			presentation=self.FindParent(QTIPresentation)
+			presentation=self.FindParent(Presentation)
 			if presentation:
-				presentation.FindChildren(common.QTIMatImage,images)
+				presentation.FindChildren(common.MatImage,images)
 			hsi=[]
 			if len(images)==1:
 				# Single image that must have gone AWOL
@@ -717,134 +1262,23 @@ class QTIRenderHotspot(QTIRenderThing):
 					return [interaction]
 
 
-V2ORIENTATION_MAP={
-	core.Orientation.Horizontal:qtiv2.Orientation.horizontal,
-	core.Orientation.Vertical:qtiv2.Orientation.vertical
-	}
-
-class QTIRenderSlider(QTIRenderThing):
-	"""Represents the render_slider element.
-	
-::
-
-	<!ELEMENT render_slider ((material | material_ref | response_label | flow_label)* , response_na?)>
-	
-	<!ATTLIST render_slider  orientation  (Horizontal | Vertical )  'Horizontal'
-							  lowerbound  CDATA  #REQUIRED
-							  upperbound  CDATA  #REQUIRED
-							  step        CDATA  #IMPLIED
-							  startval    CDATA  #IMPLIED
-							  steplabel    (Yes | No )  'No'
-							  %I_MaxNumber;
-							  %I_MinNumber; >
-	"""
-	XMLNAME='render_slider'
-	XMLATTR_orientation=('orientation',core.Orientation.DecodeTitleValue,core.Orientation.EncodeValue)
-	XMLATTR_lowerbound=('lowerBound',xsi.DecodeInteger,xsi.EncodeInteger)
-	XMLATTR_upperbound=('upperBound',xsi.DecodeInteger,xsi.EncodeInteger)
-	XMLATTR_step=('step',xsi.DecodeInteger,xsi.EncodeInteger)
-	XMLATTR_startval=('startVal',xsi.DecodeInteger,xsi.EncodeInteger)
-	XMLATTR_steplabel=('stepLabel',core.ParseYesNo,core.FormatYesNo)
-	XMLATTR_maxnumber=('maxNumber',xsi.DecodeInteger,xsi.EncodeInteger)
-	XMLATTR_minnumber=('minNumber',xsi.DecodeInteger,xsi.EncodeInteger)
-	XMLCONTENT=xml.ElementContent
-		
-	def __init__(self,parent):
-		QTIRenderThing.__init__(self,parent)
-		self.orientation=core.Orientation.Horizontal
-		self.lowerBound=None
-		self.upperBound=None
-		self.step=None
-		self.startVal=None
-		self.stepLabel=False
-		self.minNumber=None
-		self.maxNumber=None
-
-	def IsInline(self):
-		"""This always results in a block-like interaction."""
-		return False
-
-	def MigrateV2Interaction(self,parent,childType,prompt,log):
-		"""Migrates this content to v2 adding it to the parent content node."""
-		interaction=None
-		labels=[]
-		self.FindChildren(QTIResponseLabel,labels)
-		if self.maxNumber is None:
-			maxChoices=len(labels)
-		else:
-			maxChoices=self.maxNumber
-		if isinstance(self.parent,QTIResponseLId):
-			if self.parent.rCardinality==core.RCardinality.Single:
-				log.append("Warning: choice-slider replaced with choiceInteraction.slider")
-				interaction=parent.ChildElement(qtiv2.QTIChoiceInteraction)
-				interaction.styleClass='slider'
-				interaction.minChoices=1
-				interaction.maxChoices=1
-			elif self.parent.rCardinality==core.RCardinality.Ordered:
-				log.append("Error: ordered-slider replaced with orderInteraction.slider")
-				raise QTIUnimplementedError("OrderInteraction")
-			else:
-				log.append("Error: multiple-slider replaced with choiceInteraction.slider")
-				interaction=parent.ChildElement(qtiv2.QTIChoiceInteraction)
-				interaction.styleClass='slider'
-				if self.minNumber is not None:
-					interaction.minChoices=self.minNumber
-				else:
-					interaction.minChoices=maxChoices
-				interaction.maxChoices=maxChoices
-			interaction.shuffle=False
-			for child in labels:
-				child.MigrateV2SimpleChoice(interaction,log)
-		elif isinstance(self.parent,QTIResponseNum):
-			if self.parent.rCardinality==core.RCardinality.Single:
-				interaction=parent.ChildElement(qtiv2.SliderInteraction)
-				interaction.lowerBound=float(self.lowerBound)
-				interaction.upperBound=float(self.upperBound)
-				if self.step is not None:
-					interaction.step=self.step
-				if self.orientation is not None:
-					interaction.orientation=V2ORIENTATION_MAP[self.orientation]
-				# startValues are handled below after the variable is declared
-			else:
-				raise QTIUnimplementedError("Multiple/Ordered SliderInteraction")
-		else:	
-			raise QTIUnimplementedError("%s x render_slider"%self.parent.__class__.__name__)
-		if prompt:
-			interactionPrompt=interaction.ChildElement(qtiv2.QTIPrompt)
-			for child in prompt:
-				child.MigrateV2Content(interactionPrompt,html.InlineMixin,log)			
-		return [interaction]
-		
-	def MigrateV2InteractionDefault(self,declaration,interaction):
-		# Most interactions do not need default values.
-		if isinstance(interaction,qtiv2.SliderInteraction) and self.startVal is not None:
-			value=declaration.ChildElement(qtiv2.QTIDefaultValue).ChildElement(qtiv2.QTIValue)
-			if declaration.baseType==qtiv2.BaseType.integer:
-				value.SetValue(xsi.EncodeInteger(self.startVal))
-			elif declaration.baseType==qtiv2.BaseType.float:
-				value.SetValue(xsi.EncodeFloat(self.startVal))
-			else:
-				# slider bound to something else?
-				raise QTIError("Unexpected slider type for default: %s"%qtiv2.EncodeBaseType(declaration.baseType))
-
-
-class QTIRenderFIB(QTIRenderThing):
-	"""Represents the render_fib element.
-	
-::
+class RenderFIB(RenderThing):
+	"""The <render_fib> element instructs the question-engine to render the
+	question using a classical fill-in-blank format. The number of possible
+	responses is determined by the <response_label> elements contained. Both
+	flowed and non-flowed formats are supported::
 
 	<!ELEMENT render_fib ((material | material_ref | response_label | flow_label)* , response_na?)>
-	
-	<!ATTLIST render_fib  encoding    CDATA  'UTF_8'
-						   fibtype      (String | Integer | Decimal | Scientific )  'String'
-						   rows        CDATA  #IMPLIED
-						   maxchars    CDATA  #IMPLIED
-						   prompt       (Box | Dashline | Asterisk | Underline )  #IMPLIED
-						   columns     CDATA  #IMPLIED
-						   %I_CharSet;
-						   %I_MaxNumber;
-						   %I_MinNumber; >
-	"""
+	<!ATTLIST render_fib
+		encoding	CDATA  'UTF_8'
+		fibtype		(String | Integer | Decimal | Scientific )  'String'
+		rows		CDATA  #IMPLIED
+		maxchars	CDATA  #IMPLIED
+		prompt		(Box | Dashline | Asterisk | Underline )  #IMPLIED
+		columns		CDATA  #IMPLIED
+		charset		CDATA  'ascii-us'
+		maxnumber	CDATA  #IMPLIED
+		minnumber	CDATA  #IMPLIED >"""
 	XMLNAME='render_fib'
 	XMLATTR_encoding='encoding'
 	XMLATTR_fibtype=('fibType',core.FIBType.DecodeTitleValue,core.FIBType.EncodeValue)
@@ -858,7 +1292,7 @@ class QTIRenderFIB(QTIRenderThing):
 	XMLCONTENT=xml.ElementContent
 		
 	def __init__(self,parent):
-		QTIRenderThing.__init__(self,parent)
+		RenderThing.__init__(self,parent)
 		self.encoding='UTF_8'
 		self.fibType=core.FIBType.String
 		self.rows=None
@@ -872,7 +1306,7 @@ class QTIRenderFIB(QTIRenderThing):
 		
 	def ContentChanged(self):
 		self.labels=[]
-		self.FindChildren(QTIResponseLabel,self.labels)
+		self.FindChildren(ResponseLabel,self.labels)
 
 	def MixedModel(self):
 		"""Indicates whether or not this FIB uses a mixed model or not.
@@ -893,7 +1327,7 @@ class QTIRenderFIB(QTIRenderThing):
 		foundLabel=False
 		foundContent=False
 		for child in children:
-			if isinstance(child,QTIResponseLabel):
+			if isinstance(child,ResponseLabel):
 				foundLabel=True
 			elif foundLabel:
 				# any content after the first label means mixed mode.
@@ -904,7 +1338,7 @@ class QTIRenderFIB(QTIRenderThing):
 		
 	def IsInline(self):
 		if self.MixedModel():
-			return QTIRenderThing.IsInline(self)
+			return RenderThing.IsInline(self)
 		else:
 			return False
 	
@@ -931,7 +1365,7 @@ class QTIRenderFIB(QTIRenderThing):
 		parent.FindChildren(interactionType,interactionList)
 		iCount=len(interactionList)
 		# now migrate this object
-		QTIRenderThing.MigrateV2Content(self,parent,childType,log)
+		RenderThing.MigrateV2Content(self,parent,childType,log)
 		interactionList=[]
 		parent.FindChildren(interactionType,interactionList)
 		# ignore any pre-existing interactions of this type
@@ -952,27 +1386,136 @@ class QTIRenderFIB(QTIRenderThing):
 		return interactionList
 
 
-class QTIRenderExtension(QTIRenderThing):
-	"""Represents the render_extension element."""
+class RenderSlider(RenderThing):
+	"""The <render_slider> element instructs the question-engine to render the
+	question using dynamic slider. The number of possible responses is
+	determined by the <response_label> elements contained. Both flowed and
+	non-flowed formats are supported::
+
+	<!ELEMENT render_slider ((material | material_ref | response_label | flow_label)* , response_na?)>	
+	<!ATTLIST render_slider
+		orientation		(Horizontal | Vertical )  'Horizontal'
+		lowerbound		CDATA  #REQUIRED
+		upperbound		CDATA  #REQUIRED
+		step			CDATA  #IMPLIED
+		startval		CDATA  #IMPLIED
+		steplabel		(Yes | No )  'No'
+		maxnumber		CDATA  #IMPLIED
+		minnumber		CDATA  #IMPLIED >"""
+	XMLNAME='render_slider'
+	XMLATTR_orientation=('orientation',core.Orientation.DecodeTitleValue,core.Orientation.EncodeValue)
+	XMLATTR_lowerbound=('lowerBound',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_upperbound=('upperBound',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_step=('step',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_startval=('startVal',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_steplabel=('stepLabel',core.ParseYesNo,core.FormatYesNo)
+	XMLATTR_maxnumber=('maxNumber',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_minnumber=('minNumber',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLCONTENT=xml.ElementContent
+		
+	def __init__(self,parent):
+		RenderThing.__init__(self,parent)
+		self.orientation=core.Orientation.Horizontal
+		self.lowerBound=None
+		self.upperBound=None
+		self.step=None
+		self.startVal=None
+		self.stepLabel=False
+		self.minNumber=None
+		self.maxNumber=None
+
+	def IsInline(self):
+		"""This always results in a block-like interaction."""
+		return False
+
+	def MigrateV2Interaction(self,parent,childType,prompt,log):
+		"""Migrates this content to v2 adding it to the parent content node."""
+		interaction=None
+		labels=[]
+		self.FindChildren(ResponseLabel,labels)
+		if self.maxNumber is None:
+			maxChoices=len(labels)
+		else:
+			maxChoices=self.maxNumber
+		if isinstance(self.parent,ResponseLId):
+			if self.parent.rCardinality==core.RCardinality.Single:
+				log.append("Warning: choice-slider replaced with choiceInteraction.slider")
+				interaction=parent.ChildElement(qtiv2.QTIChoiceInteraction)
+				interaction.styleClass='slider'
+				interaction.minChoices=1
+				interaction.maxChoices=1
+			elif self.parent.rCardinality==core.RCardinality.Ordered:
+				log.append("Error: ordered-slider replaced with orderInteraction.slider")
+				raise QTIUnimplementedError("OrderInteraction")
+			else:
+				log.append("Error: multiple-slider replaced with choiceInteraction.slider")
+				interaction=parent.ChildElement(qtiv2.QTIChoiceInteraction)
+				interaction.styleClass='slider'
+				if self.minNumber is not None:
+					interaction.minChoices=self.minNumber
+				else:
+					interaction.minChoices=maxChoices
+				interaction.maxChoices=maxChoices
+			interaction.shuffle=False
+			for child in labels:
+				child.MigrateV2SimpleChoice(interaction,log)
+		elif isinstance(self.parent,ResponseNum):
+			if self.parent.rCardinality==core.RCardinality.Single:
+				interaction=parent.ChildElement(qtiv2.SliderInteraction)
+				interaction.lowerBound=float(self.lowerBound)
+				interaction.upperBound=float(self.upperBound)
+				if self.step is not None:
+					interaction.step=self.step
+				if self.orientation is not None:
+					interaction.orientation=core.MigrateV2Orientation(self.orientation)
+				# startValues are handled below after the variable is declared
+			else:
+				raise QTIUnimplementedError("Multiple/Ordered SliderInteraction")
+		else:	
+			raise QTIUnimplementedError("%s x render_slider"%self.parent.__class__.__name__)
+		if prompt:
+			interactionPrompt=interaction.ChildElement(qtiv2.QTIPrompt)
+			for child in prompt:
+				child.MigrateV2Content(interactionPrompt,html.InlineMixin,log)			
+		return [interaction]
+		
+	def MigrateV2InteractionDefault(self,declaration,interaction):
+		# Most interactions do not need default values.
+		if isinstance(interaction,qtiv2.SliderInteraction) and self.startVal is not None:
+			value=declaration.ChildElement(qtiv2.QTIDefaultValue).ChildElement(qtiv2.QTIValue)
+			if declaration.baseType==qtiv2.BaseType.integer:
+				value.SetValue(xsi.EncodeInteger(self.startVal))
+			elif declaration.baseType==qtiv2.BaseType.float:
+				value.SetValue(xsi.EncodeFloat(self.startVal))
+			else:
+				# slider bound to something else?
+				raise QTIError("Unexpected slider type for default: %s"%qtiv2.EncodeBaseType(declaration.baseType))
+
+
+class RenderExtension(common.RenderCommon):
+	"""This element supports proprietary alternatives to the current range of
+	'render' elements::
+	
+	<!ELEMENT render_extension ANY>"""
 	XMLNAME="render_extension"
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class QTIResponseLabel(common.ResponseLabelCommon):
-	"""Represents the response_label element.
-	
-::
+class ResponseLabel(common.ResponseLabelCommon):
+	"""The <response_label> is used to define the possible response choices that
+	are presented to the user. This information includes the material to be
+	shown to the user and the logical label that is associated with that
+	response. The label is used in the response processing. Flow and non-flow
+	approaches are supported::
 
-	<!ELEMENT response_label (#PCDATA | qticomment | material | material_ref | flow_mat)*>
-	
+	<!ELEMENT response_label (#PCDATA | qticomment | material | material_ref | flow_mat)*>	
 	<!ATTLIST response_label  rshuffle     (Yes | No )  'Yes'
-							   rarea        (Ellipse | Rectangle | Bounded )  'Ellipse'
-							   rrange       (Exact | Range )  'Exact'
-							   labelrefid  CDATA  #IMPLIED
-							   %I_Ident;
-							   match_group CDATA  #IMPLIED
-							   match_max   CDATA  #IMPLIED >
-	"""
+	rarea			(Ellipse | Rectangle | Bounded )  'Ellipse'
+	rrange			(Exact | Range )  'Exact'
+	labelrefid		CDATA  #IMPLIED
+	ident CDATA		#REQUIRED
+	match_group		CDATA  #IMPLIED
+	match_max		CDATA  #IMPLIED >"""
 	XMLNAME='response_label'
 	XMLATTR_ident='ident'
 	XMLATTR_rshuffle=('rShuffle',core.ParseYesNo,core.FormatYesNo)
@@ -986,10 +1529,9 @@ class QTIResponseLabel(common.ResponseLabelCommon):
 		self.rArea=None
 	
 	def ContentMixin(self,childClass):
-		"""Although we inherit from the ContentMixin class we don't define
-		custom setters to capture child elements in the contentChildren list
-		because this element has mixed content - though in practice it really
-		should have either data or element content."""
+		"""Although we inherit from the ContentMixin class we don't allow it to
+		capture content-children because this element has mixed content - though
+		in practice it really should have either data or element content."""
 		return None
 
 	def IsInline(self):
@@ -999,12 +1541,12 @@ class QTIResponseLabel(common.ResponseLabelCommon):
 		render_hotspot: at most a label on the image so treated as inline
 		render_fib: always inline
 		"""
-		render=self.FindParent(QTIRenderThing)
-		if isinstance(render,QTIRenderChoice):
+		render=self.FindParent(RenderThing)
+		if isinstance(render,RenderChoice):
 			return False
-		elif isinstance(render,QTIRenderHotspot):
+		elif isinstance(render,RenderHotspot):
 			return True
-		elif isinstance(render,QTIRenderFIB):
+		elif isinstance(render,RenderFIB):
 			return render.InlineFIBLabel()
 		else:
 			return self.InlineChildren()
@@ -1024,8 +1566,8 @@ class QTIResponseLabel(common.ResponseLabelCommon):
 		
 	def MigrateV2Content(self,parent,childType,log):
 		"""Migrates this content to v2 adding it to the parent content node."""
-		render=self.FindParent(QTIRenderThing)
-		if isinstance(render,QTIRenderFIB):
+		render=self.FindParent(RenderThing)
+		if isinstance(render,RenderFIB):
 			render.MigrateV2FIBLabel(self,parent,childType,log)
 		
 	def MigrateV2SimpleChoice(self,interaction,log):
@@ -1116,166 +1658,401 @@ class QTIResponseLabel(common.ResponseLabelCommon):
 		return lang,labelData,valueData
 
 
-class QTIItem(common.CommentContainer,core.ObjectMixin):
-	"""Represents the item element.
+class FlowLabel(common.QTICommentContainer,common.ContentMixin,common.FlowMixin):
+	"""The <flow_label> element is the blocking/paragraph equivalent to the
+	<response_label> element::
+
+	<!ELEMENT flow_label	(qticomment? , (flow_label | response_label)+)>	
+	<!ATTLIST flow_label	class CDATA  'Block' >"""
+	XMLNAME='flow_label'
+	XMLCONTENT=xml.ElementContent
+
+	def __init__(self,parent):
+		common.QTICommentContainer.__init__(self,parent)
+		common.ContentMixin.__init__(self)
 	
-::
+	def ContentMixin(self,childClass):
+		if childClass is FlowLabel or issubclass(childClass,common.ResponseLabelCommon):
+			return common.ContentMixin.ContentMixin(self,childClass)
+		else:
+			raise TypeError
 
-	<!ELEMENT item (qticomment?
-		duration?
-		itemmetadata?
-		objectives*
-		itemcontrol*
-		itemprecondition*
-		itempostcondition*
-		(itemrubric | rubric)*
-		presentation?
-		resprocessing*
-		itemproc_extension?
-		itemfeedback*
-		reference?)>
+	def GetChildren(self):
+		return itertools.chain(
+			common.QTICommentContainer.GetChildren(self),
+			self.contentChildren)
+		
+	def GetLabelContent(self):
+		children=[]
+		for child in self.contentChildren:
+			if isinstance(child,FlowLabel):
+				children=children+child.GetLabelContent()
+			else:
+				children.append(child)
+		return children
 
-	<!ATTLIST item  maxattempts CDATA  #IMPLIED
-		%I_Label;
-		%I_Ident;
-		%I_Title;
-		xml:lang    CDATA  #IMPLIED >"""
-	XMLNAME='item'
-	XMLATTR_ident='ident'
-	XMLATTR_label='label'
-	XMLATTR_maxattempts='maxattempts'		
+
+class ResponseNA(core.QTIElement):
+	"""This element supports proprietary alternatives for defining the response
+	to be created when a participant makes no response to an Item::
+
+	<!ELEMENT response_na ANY>"""
+	XMLNAME='response_na'
+	XMLCONTENT=xml.XMLMixedContent
+
+
+class ResProcessing(common.QTICommentContainer):
+	"""This is the element within which all of the instructions for the response
+	processing are contained. This includes the scoring variables to contain the
+	associated scores and the set of response condition tests that are to be
+	applied to the received user response::
+
+	<!ELEMENT resprocessing (qticomment? , outcomes , (respcondition | itemproc_extension)+)>
+	<!ATTLIST resprocessing  scoremodel CDATA  #IMPLIED >"""
+	XMLNAME='resprocessing'
+	XMLATTR_scoremodel='scoreModel'
+	XMLCONTENT=xml.ElementContent
+	
+	def __init__(self,parent):
+		common.QTICommentContainer.__init__(self,parent)
+		self.scoreModel=None
+		self.Outcomes=Outcomes(self)
+		self.ConditionMixin=[]
+		
+	def GetChildren(self):
+		for child in QTICommentContainer.GetChildren(self): yield child
+		yield self.Outcomes
+		for child in self.ConditionMixin: yield child
+
+	def MigrateV2(self,v2Item,log):
+		"""Migrates v1 resprocessing to v2 ResponseProcessing."""
+		rp=v2Item.ChildElement(qtiv2.ResponseProcessing)
+		for outcomeFixup in sorted(self._interactionFixup.keys()):
+			setValue=rp.ChildElement(qtiv2.QTISetOutcomeValue)
+			setValue.identifier=outcomeFixup
+			multi=setValue.ChildElement(qtiv2.QTIMultiple)
+			for rID in self._interactionFixup[outcomeFixup]:
+				var=multi.ChildElement(qtiv2.QTIVariable)
+				var.identifier=rID
+		self.Outcomes.MigrateV2(v2Item,log)
+		cMode=True;ruleContainer=rp
+		for condition in self.ConditionMixin:
+			cMode,ruleContainer=condition.MigrateV2Rule(cMode,ruleContainer,log)
+
+
+class Outcomes(common.QTICommentContainer):
+	"""The <outcomes> element contains all of the variable declarations that are
+	to be made available to the scoring algorithm. Each variable is declared
+	using the <decvar> element apart from the default variable called 'SCORE'
+	that is an integer and has a default value of zero (0)::
+
+	<!ELEMENT outcomes (qticomment? , (decvar , interpretvar*)+)>
+	
+	The implementation of this element takes a liberty with the content model
+	because, despite the formulation above, the link between variables and
+	their interpretation is not related to the order of the elements within
+	the outcomes element.  (An interpretation without a variable reference
+	defaults to an interpretation of the default 'SCORE' outcome.)
+	
+	When we output this element we do the decvars first, followed by
+	the interpretVars."""
+	XMLNAME='outcomes'
+	XMLCONTENT=xml.ElementContent
+	
+	def __init__(self,parent):
+		common.QTICommentContainer.__init__(self,parent)
+		self.QTIDecVar=[]
+		self.QTIInterpretVar=[]
+	
+	def GetChildren(self):
+		return itertools.chain(
+			QTICommentContainer.GetChildren(self),
+			self.QTIDecVar,
+			self.QTIInterpretVar)
+
+	def MigrateV2(self,v2Item,log):
+		for d in self.QTIDecVar:
+			d.MigrateV2(v2Item,log)
+		for i in self.QTIInterpretVar:
+			i.MigrateV2(v2Item,log)
+
+
+class ConditionMixin:
+	"""Mixin class to identify condition elements::
+	
+	(respcondition | itemproc_extension)"""
+	pass
+
+			
+class RespCondition(common.QTICommentContainer,ConditionMixin):
+	"""This element contains the actual test to be applied to the user responses
+	to determine their correctness or otherwise. Each <respcondition> contains
+	an actual test, the assignment of a value to the associate scoring variables
+	and the identification of the feedback to be associated with the test::
+
+	<!ELEMENT respcondition (qticomment? , conditionvar , setvar* , displayfeedback* , respcond_extension?)>	
+	<!ATTLIST respcondition
+		continue  (Yes | No )  'No'
+		title CDATA  #IMPLIED >"""
+	XMLNAME='respcondition'
+	XMLATTR_continue=('continueFlag',core.ParseYesNo,core.FormatYesNo)
 	XMLATTR_title='title'
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
-		common.CommentContainer.__init__(self,parent)
-		self.maxattempts=None
-		self.label=None
-		self.ident=None
+		common.QTICommentContainer.__init__(self,parent)
+		self.continueFlag=False
 		self.title=None
-		self.QTIDuration=None
-		self.QTIItemMetadata=None
-		self.QTIObjectives=[]
-		self.QTIItemControl=[]
-		self.QTIItemPrecondition=[]
-		self.QTIItemPostcondition=[]
-		self.QTIRubric=[]
-		self.QTIPresentation=None
-		self.QTIResProcessing=[]
-		self.QTIItemProcExtension=None
-		self.QTIItemFeedback=[]
-		self.QTIReference=None
-					
-	def QTIItemRubric(self):
-		"""itemrubric is deprecated in favour of rubric."""
-		child=QTIItemRubric(self)
-		self.QTIRubric.append(child)
-		return child
-		
-	def GetChildren(self):
-		for child in QTIComment.GetChildren(self): yield child
-		if self.QTIDuration: yield self.QTIDuration
-		if self.QTIItemMetadata: yield self.QTIItemMetadata
-		for child in itertools.chain(
-			self.QTIObjectives,
-			self.QTIItemControl,
-			self.QTIItemPreCondition,
-			self.QTIPostCondition,
-			self.QTIRubric):
-			yield child
-		if self.QTIPresentation: yield self.QTIPresentation
-		for child in self.QTIResProcessing: yield child
-		if self.QTIItemProcExtension: yield self.QTIItemProcExtension
-		for child in self.QTIItemFeedback: yield child
-		if self.QTIReference: yield self.QTIReference
+		self.ConditionVar=common.ConditionVar(self)
+		self.QTISetVar=[]
+		self.QTIDisplayFeedback=[]
+		self.RespCondExtension=None
 	
-	def MigrateV2(self,output):
-		"""Converts this item to QTI v2
+	def GetChildren(self):
+		for child in QTICommentContainer.GetChildren(self): yield child
+		yield self.ConditionVar
+		for child in itertools.chain(
+			self.QTISetVar,
+			self.QTIDisplayFeedback):
+			yield child
+		if self.RespCondExtension: yield self.RespCondExtension
+	
+	def MigrateV2Rule(self,cMode,ruleContainer,log):
+		"""Converts a response condition into v2 response processing rules.
 		
-		For details, see QuesTestInterop.MigrateV2."""
-		# First thing we do is initialize any fixups
-		for rp in self.QTIResProcessing:
-			rp._interactionFixup={}
-		doc=qtiv2.QTIDocument(root=qtiv2.QTIAssessmentItem)
-		item=doc.root
-		lom=imsmd.LOM(None)
-		log=[]
-		ident=qtiv2.MakeValidNCName(self.ident)
-		if self.ident!=ident:
-			log.append("Warning: illegal NCName for ident: %s, replaced with: %s"%(self.ident,ident))
-		item.identifier=ident
-		title=self.title
-		# may be specified in the metadata
-		if self.QTIItemMetadata:
-			mdTitles=self.QTIItemMetadata.metadata.get('title',())
-		else:
-			mdTitles=()
-		if title:
-			item.title=title
-		elif mdTitles:
-			item.title=mdTitles[0][0]
-		else:
-			item.title=ident
-		if self.maxattempts is not None:
-			log.append("Warning: maxattempts can not be controlled at item level, ignored: maxattempts='"+self.maxattempts+"'")
-		if self.label:
-			item.label=self.label
-		lang=self.GetLang()
-		item.SetLang(lang)
-		general=lom.LOMGeneral()
-		id=general.LOMIdentifier()
-		id.SetValue(self.ident)
-		if title:
-			lomTitle=general.ChildElement(imsmd.LOMTitle)
-			lomTitle=lomTitle.ChildElement(lomTitle.LangStringClass)
-			lomTitle.SetValue(title)
-			if lang:
-				lomTitle.SetLang(lang)
-		if mdTitles:
-			if title:
-				# If we already have a title, then we have to add qmd_title as description metadata
-				# you may think qmd_title is a better choice than the title attribute
-				# but qmd_title is an extension so the title attribute takes precedence
-				i=0
+		This method contains some tricky logic to help implement the confusing
+		'continue' attribute of response conditions.  The continue attribute
+		is interpreted in the following way:
+		
+		True: regardless of whether or not the condition matches, carry on to
+		evaluate the next expression.
+		
+		False: only evaluate the next expression if the condition fails.
+		
+		The incoming cMode tells us if the previous condition set continue mode
+		(the default is False on the attribute but the algorithm starts with
+		continue mode True as the first rule is always evaluated).
+		
+		The way the rules are implemented is best illustrated by example, where
+		X(True) represents condition X with continue='Yes' etc::
+		
+			R1(True),R2(True|False) becomes...
+			
+			if R1.test:
+				R1.rules
+			if R2.test:
+				R2.rules
+			
+			R1(False),R2(True) becomes...
+			
+			if R1.test:
+				R1.rules
 			else:
-				lomTitle=general.ChildElement(imsmd.LOMTitle)
-				lomTitle=lomTitle.ChildElement(lomTitle.LangStringClass)
-				lomTitle.SetValue(mdTitles[0][0])
-				lang=mdTitles[0][1].ResolveLang()
-				if lang:
-					lomTitle.SetLang(lang)
-				i=1
-			for mdTitle in mdTitles[i:]:
-				description=general.ChildElement(general.DescriptionClass)
-				lomTitle=description.ChildElement(description.LangStringClass)
-				lomTitle.SetValue(mdTitle[0])
-				mdLang=mdTitle[1].ResolveLang()
-				if mdLang:
-					lomTitle.SetLang(mdLang)
-		if self.QTIComment:
-			# A comment on an item is added as a description to the metadata
-			description=general.ChildElement(general.DescriptionClass)
-			description.ChildElement(description.LangStringClass).SetValue(self.QTIComment.GetValue())
-		if self.QTIDuration:
-			log.append("Warning: duration is currently outside the scope of version 2: ignored "+self.QTIDuration.GetValue())
-		if self.QTIItemMetadata:
-			self.QTIItemMetadata.MigrateV2(doc,lom,log)
-		for objective in self.QTIObjectives:
-			if objective.view.lower()!='all':
-				objective.MigrateV2(item,log)
+				if R2.test:
+					R2.rules
+			
+			R1(False),R2(False) becomes...
+			
+			if R1.test:
+				R1.rules
+			elif R2.test:
+				R2.rules"""
+		if self.continueFlag:
+			if not cMode:
+				ruleContainer=ruleContainer.ChildElement(qtiv2.ResponseElse)
+			rc=ruleContainer.ChildElement(qtiv2.ResponseCondition)
+			rcIf=rc.ChildElement(qtiv2.ResponseIf)
+		else:
+			if cMode:
+				rc=ruleContainer.ChildElement(qtiv2.ResponseCondition)
+				ruleContainer=rc
+				rcIf=rc.ChildElement(qtiv2.ResponseIf)
 			else:
-				objective.LRMMigrateObjectives(lom,log)
-		if self.QTIItemControl:
-			log.append("Warning: itemcontrol is currently outside the scope of version 2")
-		for rubric in self.QTIRubric:
-			rubric.MigrateV2(item,log)
-		if self.QTIPresentation:
-			self.QTIPresentation.MigrateV2(item,log)
-		if self.QTIResProcessing:
-			if len(self.QTIResProcessing)>1:
-				log.append("Warning: multiople <resprocessing> not supported, ignoring all but the last")
-			self.QTIResProcessing[-1].MigrateV2(item,log)
-		for feedback in self.QTIItemFeedback:
-			feedback.MigrateV2(item,log)
-		output.append((doc, lom, log))
-		#print doc.root
+				rcIf=ruleContainer.ChildElement(qtiv2.ResponseElseIf)
+		self.ConditionVar.MigrateV2Expression(rcIf,log)
+		for rule in self.QTISetVar:
+			rule.MigrateV2Rule(rcIf,log)
+		for rule in self.QTIDisplayFeedback:
+			rule.MigrateV2Rule(rcIf,log)
+		return self.continueFlag,ruleContainer
+
+
+class ItemProcExtension(common.ContentMixin,core.QTIElement,ConditionMixin):
+	"""This element supports proprietary alternatives to the standard Item
+	response processing algorithms. element::
+
+	<!ELEMENT itemproc_extension ANY>"""
+	XMLNAME="itemproc_extension"
+	XMLCONTENT=xml.XMLMixedContent
+
+	def __init__(self,parent):
+		core.QTIElement.__init__(self,parent)
+		common.ContentMixin.__init__(self)
+		
+	def MigrateV2Rule(self,cMode,ruleContainer,log):
+		"""Converts an itemProcExtension into v2 response processing rules.
+		
+		We only support one type of extension at the moment, the
+		humanrater element used as an illustration in the specification
+		examples."""
+		for child in self.GetChildren():
+			if type(child) in StringTypes:
+				# ignore data
+				continue
+			elif child.xmlname=='humanraterdata':
+				# humanraterdata extension, migrate content with appropriate view
+				v2Item=ruleContainer.FindParent(qtiv2.QTIAssessmentItem)
+				rubric=v2Item.ChildElement(qtiv2.ItemBody).ChildElement(qtiv2.RubricBlock)
+				rubric.view=qtiv2.QTIView.scorer
+				material=[]
+				child.FindChildren(common.Material,material)
+				self.MigrateV2Content(rubric,html.BlockMixin,log,material)
+		return cMode,ruleContainer
+
+
+class ItemFeedback(core.QTIElement,core.QTIViewMixin,common.ContentMixin):
+	"""The container for the feedback that is to be presented as a result of the
+	user's responses. The feedback can include hints and solutions and both of
+	these can be revealed in a variety of different ways::
+
+	<!ELEMENT itemfeedback ((flow_mat | material) | solution | hint)+>	
+	<!ATTLIST itemfeedback
+		view	(All | Administrator | AdminAuthority | Assessor | Author |
+				Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+				Tutor ) 'All'
+		ident CDATA  #REQUIRED
+		title CDATA  #IMPLIED >"""
+	XMLNAME='itemfeedback'
+	XMLATTR_title='title'
+	XMLATTR_ident='ident'		
+
+	XMLCONTENT=xml.ElementContent
+	
+	def __init__(self,parent):
+		core.QTIElement.__init__(self,parent)
+		core.QTIViewMixin.__init__(self)
+		common.ContentMixin.__init__(self)
+		self.title=None
+		self.ident=None
+
+	def ContentMixin(self,childClass):
+		if childClass in (common.FlowMat,common.Material,Solution,Hint):
+			return common.ContentMixin.ContentMixin(self,childClass)
+		else:
+			raise TypeError
+
+	def GetChildren(self):
+		return itertools.chain(
+			QTIElement.GetChildren(self),
+			self.contentChildren)
+
+	def MigrateV2(self,v2Item,log):
+		feedback=v2Item.ChildElement(qtiv2.QTIModalFeedback)
+		if not (self.view.lower()=='all' and self.view.lower()=='candidate'):
+			log.append("Warning: discarding view on feedback (%s)"%self.view)
+		identifier=qtiv2.ValidateIdentifier(self.ident,'FEEDBACK_')
+		feedback.outcomeIdentifier='FEEDBACK'
+		feedback.showHide=qtiv2.QTIShowHide.show
+		feedback.identifier=identifier
+		feedback.title=self.title
+		common.ContentMixin.MigrateV2Content(self,feedback,html.FlowMixin,log)
+			
+		
+class Solution(common.ContentMixin,common.QTICommentContainer):
+	"""The <solution> element contains the solution(s) that are to be revealed
+	to the participant. When these solutions are revealed is outside the scope
+	of the specification::
+
+	<!ELEMENT solution (qticomment? , solutionmaterial+)>
+	<!ATTLIST solution  feedbackstyle  (Complete | Incremental | Multilevel | Proprietary )  'Complete' >"""
+	XMLNAME='solution'
+	XMLATTR_feedbackstyle=('feedbackStyle',core.FeedbackStyle.DecodeTitleValue,core.FeedbackStyle.EncodeValue)
+	XMLCONTENT=xml.ElementContent
+
+	def __init__(self,parent):
+		common.QTICommentContainer.__init__(self,parent)
+		common.ContentMixin.__init__(self)
+		self.feedbackStyle=core.FeedbackStyle.DEFAULT
+	
+	def ContentMixin(self,childClass):
+		if childClass is SolutionMaterial:
+			return common.ContentMixin.ContentMixin(self,childClass)
+		else:
+			raise TypeError
+
+	def GetChildren(self):
+		return itertools.chain(
+			common.QTICommentContainer.GetChildren(),
+			common.ContentMixin.GetContentChildren())
+
+
+class FeedbackMaterial(common.ContentMixin,core.QTIElement):
+	"""Abstract class for solutionmaterial and hintmaterial::
+
+	<!ELEMENT * (material+ | flow_mat+)>"""
+	XMLCONTENT=xml.ElementContent
+	
+	def __init__(self,parent):
+		core.QTIElement.__init__(self,parent)
+		common.ContentMixin.__init__(self)
+
+	def ContentMixin(self,childClass):
+		if childClass in (common.Material,common.FlowMat):
+			return common.ContentMixin.ContentMixin(self,childClass)
+		else:
+			raise TypeError
+
+	def GetChildren(self):
+		return common.ContentMixin.GetContentChildren()
+
+
+class SolutionMaterial(FeedbackMaterial):
+	"""This is the container for the materials to be presented to the
+	participant as the recommended solution. The solution can be revealed in a
+	variety of ways but this information is not contained within the material
+	being displayed::
+
+	<!ELEMENT solutionmaterial (material+ | flow_mat+)>"""
+	XMLNAME='solutionmaterial'
+
+
+class Hint(common.ContentMixin,common.QTICommentContainer):
+	"""The <hint> element contains the hint(s) that are to be revealed to the
+	participant. When these hints are revealed is outside the scope of the
+	specification::
+
+	<!ELEMENT hint (qticomment? , hintmaterial+)>
+	<!ATTLIST hint  feedbackstyle  (Complete | Incremental | Multilevel | Proprietary )  'Complete' >"""
+	XMLNAME='hint'
+	XMLATTR_feedbackstyle=('feedbackStyle',core.FeedbackStyle.DecodeTitleValue,core.FeedbackStyle.EncodeValue)
+	XMLCONTENT=xml.ElementContent
+
+	def __init__(self,parent):
+		common.QTICommentContainer.__init__(self,parent)
+		common.ContentMixin.__init__(self)
+		self.feedbackStyle=FeedbackStyle.DEFAULT
+	
+	def ContentMixin(self,childClass):
+		if childClass is HintMaterial:
+			return common.ContentMixin.ContentMixin(self,childClass)
+		else:
+			raise TypeError
+
+	def GetChildren(self):
+		return itertools.chain(
+			common.QTICommentContainer.GetChildren(),
+			common.ContentMixin.GetContentChildren())
+
+
+class HintMaterial(FeedbackMaterial):
+	"""This is the container for the materials to be presented to the
+	participant as a hint. The hint can be revealed in a variety of ways but
+	this information is not contained within the material being displayed::
+
+	<!ELEMENT hintmaterial (material+ | flow_mat+)>"""
+	XMLNAME='hintmaterial'
+	
+
+
+
+

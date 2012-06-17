@@ -419,26 +419,26 @@ class QTIAssessmentItem(QTIElement):
 		self.adaptive=False
 		self.timeDependent=False
 		self.declarations={}
-		self.QTIItemBody=None
-		self.QTIResponseProcessing=None
+		self.ItemBody=None
+		self.ResponseProcessing=None
 		self.QTIModalFeedback=[]
 		
 	def GetChildren(self):
 		vars=self.declarations.keys()
 		vars.sort()
 		for v in vars:
-			if isinstance(self.declarations[v],QTIResponseDeclaration):
+			if isinstance(self.declarations[v],ResponseDeclaration):
 				yield self.declarations[v]
 		for v in vars:
 			if isinstance(self.declarations[v],QTIOutcomeDeclaration):
 				yield self.declarations[v]
-		if self.QTIItemBody: yield self.QTIItemBody
-		if self.QTIResponseProcessing: yield self.QTIResponseProcessing
+		if self.ItemBody: yield self.ItemBody
+		if self.ResponseProcessing: yield self.ResponseProcessing
 		for child in self.QTIModalFeedback: yield child
 	
-	def QTIResponseDeclaration(self):
+	def ResponseDeclaration(self):
 		# Not linked properly to us until it is finished.
-		return QTIResponseDeclaration(self)
+		return ResponseDeclaration(self)
 	
 	def QTIOutcomeDeclaration(self):
 		# Not linked properly to us until it is finished.
@@ -573,7 +573,7 @@ class QTIDefaultValue(QTIElement):
 			QTIElement.GetChildren(self))
 
 		
-class QTIResponseDeclaration(QTIVariableDeclaration):
+class ResponseDeclaration(QTIVariableDeclaration):
 	"""Represents a responseDeclaration.
 	
 	<xsd:group name="responseDeclaration.ContentGroup">
@@ -646,8 +646,8 @@ class QTIOutcomeDeclaration(QTIVariableDeclaration):
 		self.masteryValue=None
 		self.lookupTable=None
 	
-	def QTIMatchTable(self):
-		child=QTIMatchTable(self)
+	def MatchTable(self):
+		child=MatchTable(self)
 		self.lookupTable=child
 		return child
 	
@@ -742,7 +742,7 @@ class QTIFlowContainerMixin:
 		return True
 
 	
-class QTIItemBody(BodyElement):
+class ItemBody(BodyElement):
 	"""Represents the itemBody element.
 	
 	<xsd:attributeGroup name="itemBody.AttrGroup">
@@ -759,7 +759,7 @@ class QTIItemBody(BodyElement):
 	XMLCONTENT=xmlns.ElementContent	
 
 
-class QTIRubricBlock(SimpleBlock):
+class RubricBlock(SimpleBlock):
 	"""Represent the rubricBlock element.
 
 	<xsd:attributeGroup name="rubricBlock.AttrGroup">
@@ -1177,7 +1177,7 @@ class SliderInteraction(BlockInteraction):
 #
 #		Generalized Response Processing
 #
-class QTIResponseProcessing(QTIElement):
+class ResponseProcessing(QTIElement):
 	"""Represents the responseProcessing element.
 
 	<xsd:attributeGroup name="responseProcessing.AttrGroup">
@@ -1200,20 +1200,20 @@ class QTIResponseProcessing(QTIElement):
 		QTIElement.__init__(self,parent)
 		self.template=None
 		self.templateLocation=None
-		self.QTIResponseRule=[]
+		self.ResponseRule=[]
 		
 	def GetChildren(self):
 		return itertools.chain(
-			self.QTIResponseRule,
+			self.ResponseRule,
 			QTIElement.GetChildren(self))
 
 
-class QTIResponseRule(QTIElement):
+class ResponseRule(QTIElement):
 	"""Abstract class to represent response rules."""
 	pass
 
 
-class QTIResponseCondition(QTIResponseRule):
+class ResponseCondition(ResponseRule):
 	"""Represents responseRule element.
 
 	<xsd:group name="responseCondition.ContentGroup">
@@ -1228,18 +1228,18 @@ class QTIResponseCondition(QTIResponseRule):
 	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):
-		QTIResponseRule.__init__(self,parent)
-		self.QTIResponseIf=QTIResponseIf(self)
-		self.QTIResponseElseIf=[]
-		self.QTIResponseElse=None
+		ResponseRule.__init__(self,parent)
+		self.ResponseIf=ResponseIf(self)
+		self.ResponseElseIf=[]
+		self.ResponseElse=None
 	
 	def GetChildren(self):
-		if self.QTIResponseIf: yield self.QTIResponseIf
-		for child in self.QTIResponseElseIf: yield child
-		if self.QTIResponseElse: yield self.QTIResponseElse
+		if self.ResponseIf: yield self.ResponseIf
+		for child in self.ResponseElseIf: yield child
+		if self.ResponseElse: yield self.ResponseElse
 	
 
-class QTIResponseIf(QTIElement):
+class ResponseIf(QTIElement):
 	"""Represents the responseIf element.
 
 	<xsd:group name="responseIf.ContentGroup">
@@ -1255,14 +1255,14 @@ class QTIResponseIf(QTIElement):
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
 		self.Expression=None
-		self.QTIResponseRule=[]
+		self.ResponseRule=[]
 	
 	def GetChildren(self):
 		if self.Expression: yield self.Expression
-		for child in self.QTIResponseRule: yield child
+		for child in self.ResponseRule: yield child
 
 
-class QTIResponseElse(QTIElement):
+class ResponseElse(QTIElement):
 	"""Represents the responseElse element.
 
 	<xsd:group name="responseElse.ContentGroup">
@@ -1276,13 +1276,13 @@ class QTIResponseElse(QTIElement):
 	
 	def __init__(self,parent):
 		QTIElement.__init__(self,parent)
-		self.QTIResponseRule=[]
+		self.ResponseRule=[]
 	
 	def GetChildren(self):
-		return iter(self.QTIResponseRule)
+		return iter(self.ResponseRule)
 
 
-class QTIResponseElseIf(QTIResponseIf):
+class ResponseElseIf(ResponseIf):
 	"""Represents the responseElseIf element.
 
 	<xsd:group name="responseElseIf.ContentGroup">
@@ -1296,7 +1296,7 @@ class QTIResponseElseIf(QTIResponseIf):
 
 
 
-class QTISetOutcomeValue(QTIResponseRule):
+class QTISetOutcomeValue(ResponseRule):
 	"""Represents the setOutcomeValue element.
 
 	<xsd:attributeGroup name="setOutcomeValue.AttrGroup">
@@ -1314,7 +1314,7 @@ class QTISetOutcomeValue(QTIResponseRule):
 	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):
-		QTIResponseRule.__init__(self,parent)
+		ResponseRule.__init__(self,parent)
 		self.identifier=''
 		self.Expression=None
 	
@@ -1680,7 +1680,7 @@ class QTIAnyN(ExpressionList):
 		self.max=''
 
 
-class QTIMatch(ExpressionList):
+class Match(ExpressionList):
 	"""Represents the match operator.
 
 	<xsd:group name="match.ContentGroup">

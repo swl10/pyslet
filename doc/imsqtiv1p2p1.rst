@@ -131,6 +131,11 @@ Utility Functions
 ..	autofunction:: FormatYesNo
 
 
+Constants
+~~~~~~~~~
+
+..	autodata:: QTI_SOURCE
+
 
 Exceptions
 ----------
