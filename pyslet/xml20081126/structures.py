@@ -1131,6 +1131,7 @@ class Element(Node):
 				if spc=='preserve':
 					yield firstChild
 					while True: yield children.next()
+					# will raise StopIteration and terminate method
 				else:
 					break
 			if hasattr(e.__class__,'SGMLCDATA'):
@@ -1143,9 +1144,9 @@ class Element(Node):
 			# There was only one child
 			if type(firstChild) in StringTypes:
 				firstChild=CollapseSpace(firstChild)
-				if len(firstChild)>1 and firstChild[-1]==u' ':
-					# strip the trailing space from the only child
-					firstChild=firstChild[:-1]
+# 				if len(firstChild)>1 and firstChild[-1]==u' ':
+# 					# strip the trailing space from the only child - why do we do this?
+# 					firstChild=firstChild[:-1]
 			yield firstChild
 			return
 		# Collapse strings to a single string entry and collapse spaces

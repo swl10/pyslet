@@ -45,7 +45,7 @@
                 <qticomment>Ignored</qticomment>
                 <material>
                     <mattext x0="0" y0="0" width="100" height="16" texttype="text/plain">Question text: </mattext>
-                    <mattext xml:lang="it" texttype="text/plain">Ciao, </mattext>
+                    <matemtext xml:lang="it" texttype="text/plain">Ciao, </matemtext>
                     <mattext label="French" texttype="text/plain">Bonjour</mattext>
                     <mattext texttype="text/html"><![CDATA[ hello from <em>html4</em>&nbsp;!]]></mattext>
                 </material>

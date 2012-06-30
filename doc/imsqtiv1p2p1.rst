@@ -19,6 +19,12 @@ Class methods or functions with names beginning MigrateV2 use a common pattern
 for performing the conversion.  Errors and warnings are logged during conversion
 to a list passed in as the *log* parameter.
 
+.. toctree::
+   :maxdepth: 2
+
+   qtiv1/core
+   qtiv1/common
+   
 .. py:module:: pyslet.imsqtiv1p2p1
 
 ..	autoclass:: QTIDocument
@@ -62,89 +68,6 @@ Assessment Elements
 	:show-inheritance:
 
 
-Common Elements
----------------
-
-
-Abstract & Mix-in Classes
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-..	autoclass:: CommentContainer
-	:members:
-	:show-inheritance:
-
-..	autoclass:: MetadataContainerMixin
-	:members:
-	:show-inheritance:
-
-..	autoclass:: ContentMixin
-	:members:
-	:show-inheritance:
-
-
-
-Core Types and Utilities
-------------------------
-
-
-Abstract Elements
-~~~~~~~~~~~~~~~~~
-
-..	autoclass:: QTIElement
-	:members:
-	:show-inheritance:
-
-
-Enumerations
-~~~~~~~~~~~~
-
-..	autoclass::	Area
-	:show-inheritance:
-
-..	autofunction:: MigrateV2AreaCoords
-
-..	autoclass::	FIBType
-	:show-inheritance:
-
-..	autoclass::	NumType
-	:show-inheritance:
-
-..	autoclass::	PromptType
-	:show-inheritance:
-
-..	autoclass::	Orientation
-	:show-inheritance:
-
-..	autoclass::	View
-	:show-inheritance:
-
-..	autofunction:: MigrateV2View
-
-
-Utility Functions
-~~~~~~~~~~~~~~~~~
-
-..	autofunction:: MakeValidName
-
-..	autofunction:: ParseYesNo
-
-..	autofunction:: FormatYesNo
-
-
-Constants
-~~~~~~~~~
-
-..	autodata:: QTI_SOURCE
-
-
-Exceptions
-----------
-
-..	autoclass:: QTIError
-	:show-inheritance:
-
-..	autoclass:: QTIUnimplementedError
-	:show-inheritance:
 
 
 

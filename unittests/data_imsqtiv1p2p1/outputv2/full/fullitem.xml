@@ -23,7 +23,7 @@
             <p>Rubric for All</p>
         </div>
         <div label="presentation_label">
-            <p>Question text: <span xml:lang="it">Ciao, </span><span label="French">Bonjour</span>
+            <p>Question text: <em xml:lang="it">Ciao, </em><span label="French">Bonjour</span>
                 hello from <em>html4</em>&#xA0;!</p>
             <choiceInteraction responseIdentifier="R1" shuffle="true" maxChoices="2" minChoices="1">
                 <prompt>Prompt: response_lid x <i>render_choice</i></prompt>

@@ -14,23 +14,23 @@ class Assessment(common.QTICommentContainer):
 	meta-data, objectives, rubric control switches, assessment-level processing,
 	feedback and selection and sequencing information for sections::
 	
-	<!ELEMENT assessment (qticomment? ,
-		duration? ,
-		qtimetadata* ,
-		objectives* ,
-		assessmentcontrol* ,
-		rubric* ,
-		presentation_material? ,
-		outcomes_processing* ,
-		assessproc_extension? ,
-		assessfeedback* ,
-		selection_ordering? ,
-		reference? ,
-		(sectionref | section)+
-		)>
-	<!ATTLIST assessment  ident CDATA  #REQUIRED
-						   %I_Title;
-						   xml:lang CDATA  #IMPLIED >"""
+		<!ELEMENT assessment (qticomment? ,
+			duration? ,
+			qtimetadata* ,
+			objectives* ,
+			assessmentcontrol* ,
+			rubric* ,
+			presentation_material? ,
+			outcomes_processing* ,
+			assessproc_extension? ,
+			assessfeedback* ,
+			selection_ordering? ,
+			reference? ,
+			(sectionref | section)+
+			)>
+		<!ATTLIST assessment  ident CDATA  #REQUIRED
+							   %I_Title;
+							   xml:lang CDATA  #IMPLIED >"""
 	XMLNAME="assessment"
 	XMLATTR_ident='ident'		
 	XMLATTR_title='title'
@@ -42,7 +42,7 @@ class Assessment(common.QTICommentContainer):
 		self.title=None
 		self.Duration=None
 		self.QTIMetadata=[]
-		self.QTIObjectives=[]
+		self.Objectives=[]
 		self.AssessmentControl=[]
 		self.Rubric=[]
 		self.PresentationMaterial=None
@@ -67,7 +67,7 @@ class Assessment(common.QTICommentContainer):
 		for child in itertools.chain(
 			QTIComment.GetChildren(self),
 			self.QTIMetadata,
-			self.QTIObjectives,
+			self.Objectives,
 			self.AssessmentControl,
 			self.Rubric):
 			yield child
@@ -91,14 +91,14 @@ class AssessmentControl(common.QTICommentContainer):
 	"""The control switches that are used to enable or disable the display of
 	hints, solutions and feedback within the Assessment::
 
-	<!ELEMENT assessmentcontrol (qticomment?)>
-	<!ATTLIST assessmentcontrol
-		hintswitch  (Yes | No )  'Yes'
-        solutionswitch  (Yes | No )  'Yes'
-        view	(All | Administrator | AdminAuthority | Assessor | Author |
-				Candidate | InvigilatorProctor | Psychometrician | Scorer | 
-				Tutor ) 'All'
-        feedbackswitch  (Yes | No )  'Yes' >"""
+		<!ELEMENT assessmentcontrol (qticomment?)>
+		<!ATTLIST assessmentcontrol
+			hintswitch  (Yes | No )  'Yes'
+			solutionswitch  (Yes | No )  'Yes'
+			view	(All | Administrator | AdminAuthority | Assessor | Author |
+					Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+					Tutor ) 'All'
+			feedbackswitch  (Yes | No )  'Yes' >"""
 	XMLNAME='assessmentcontrol'
 	XMLATTR_hintswitch=('hintSwitch',core.ParseYesNo,core.FormatYesNo)
 	XMLATTR_solutionswitch=('solutionSwitch',core.ParseYesNo,core.FormatYesNo)
@@ -127,13 +127,13 @@ class AssessFeedback(common.QTICommentContainer,common.ContentMixin):
 	"""The container for the Assessment-level feedback that is to be presented
 	as a result of Assessment-level processing of the user responses::
 	
-	<!ELEMENT assessfeedback (qticomment? , (material+ | flow_mat+))>
-	<!ATTLIST assessfeedback  
-		view	(All | Administrator | AdminAuthority | Assessor | Author |
-				Candidate | InvigilatorProctor | Psychometrician | Scorer | 
-				Tutor ) 'All'
-		ident CDATA  #REQUIRED
-		title CDATA  #IMPLIED >"""
+		<!ELEMENT assessfeedback (qticomment? , (material+ | flow_mat+))>
+		<!ATTLIST assessfeedback  
+			view	(All | Administrator | AdminAuthority | Assessor | Author |
+					Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+					Tutor ) 'All'
+			ident CDATA  #REQUIRED
+			title CDATA  #IMPLIED >"""
 	XMLNAME='assessfeedback'
 	XMLATTR_view=('view',core.View.DecodeLowerValue,core.View.EncodeValue)
 	XMLATTR_ident='ident'		

@@ -59,6 +59,30 @@ def FormatYesNo(value):
 		return u'No'
 
 
+class Action(xsi.Enumeration):
+	"""Action enumeration (for :py:class:`pyslet.qtiv1.common.SetVar`::
+	
+	(Set | Add | Subtract | Multiply | Divide )  'Set'	
+	
+	Defines constants for the above action types.  Usage example::
+
+		Action.Add
+	
+	Note that::
+		
+		Action.DEFAULT == Action.Set
+
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		'Set':1,
+		'Add':2,
+		'Subtract':3,
+		'Multiply':4,
+		'Divide':5
+		}
+xsi.MakeEnumeration(Action)
+
+
 class Area(xsi.Enumeration):
 	"""Area enumeration::
 	
@@ -133,7 +157,7 @@ def MigrateV2AreaCoords(area,value,log):
 			log.append("Error: not enough coordinates for rectangle, padding with zeros")
 			while len(coords)<4:
 				coords.append(0)
-		shape=qtiv2.QTIShape.rect
+		shape=qtiv2.core.Shape.rect
 		coords=[coords[0],coords[1],coords[0]+coords[3]-1,coords[1]+coords[2]-1]
 	elif area==Area.Ellipse:
 		if len(coords)<4:
@@ -150,51 +174,20 @@ def MigrateV2AreaCoords(area,value,log):
 		if coords[2]==coords[3]:
 			r=coords[2]//2 # centre-pixel coordinate model again
 			coords=[coords[0],coords[1],r]
-			shape=qtiv2.QTIShape.circle
+			shape=qtiv2.core.Shape.circle
 		else:
 			log.append("Warning: ellipse shape is deprecated in version 2")
 			coords=[coords[0],coords[1],coords[2]//2,coords[3]//2]
-			shape=qtiv2.QTIShape.ellipse
+			shape=qtiv2.core.Shape.ellipse
 	else:
-		shape=qtiv2.QTIShape.poly
+		shape=qtiv2.core.Shape.poly
 	return shape,coords
-
-
-class RCardinality(xsi.Enumeration):
-	"""rcardinality enumeration::
-	
-	rcardinality	(Single | Multiple | Ordered )  'Single'
-
-	Defines constants for the above cardinality types.  Usage example::
-
-		RCardinality.Multiple
-	
-	Note that::
-		
-		RCardinality.DEFAULT == RCardinality.Single
-
-	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
-	decode={
-		'Single':1,
-		'Multiple':2,
-		'Ordered':3
-		}
-			
-xsi.MakeEnumeration(RCardinality)
-
-def MigrateV2Cardinality(rCardinality):
-	"""Maps a v1 cardinality onto the corresponding v2 constant."""
-	return {
-		RCardinality.Single:qtiv2.QTICardinality.single,
-		RCardinality.Multiple:qtiv2.QTICardinality.multiple,
-		RCardinality.Ordered:qtiv2.QTICardinality.ordered
-		}.get(rCardinality,None)
 
 
 class FeedbackStyle(xsi.Enumeration):
 	"""feedbackstyle enumeration::
 	
-	feedbackstyle  (Complete | Incremental | Multilevel | Proprietary )  'Complete'
+	(Complete | Incremental | Multilevel | Proprietary )  'Complete'
 	
 	Defines constants for the above feedback style.  Usage example::
 
@@ -214,11 +207,32 @@ class FeedbackStyle(xsi.Enumeration):
 xsi.MakeEnumeration(FeedbackStyle)
 
 
+class FeedbackType(xsi.Enumeration):
+	"""feedbacktype enumeration::
+	
+	(Response | Solution | Hint )  'Response'
+	
+	Defines constants for the above types of feedback.  Usage example::
+
+		FeedbackType.Decimal
+	
+	Note that::
+		
+		FeedbackType.DEFAULT == FeedbackType.Response
+
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		'Response':1,
+		'Solution':2,
+		'Hint':3
+		}
+xsi.MakeEnumeration(FeedbackType)
+
 
 class FIBType(xsi.Enumeration):
 	"""Fill-in-the-blank type enumeration::
 	
-	fibtype      (String | Integer | Decimal | Scientific )  'String'
+	(String | Integer | Decimal | Scientific )  'String'
 
 	Defines constants for the above fill-in-the-blank types.  Usage example::
 
@@ -238,10 +252,34 @@ class FIBType(xsi.Enumeration):
 xsi.MakeEnumeration(FIBType,u'String')
 
 
+class MDOperator(xsi.Enumeration):
+	"""Metadata operator enumeration for :py:class:`pyslet.qtiv1.sao.SelectionMetadata`::
+	
+	(EQ | NEQ | LT | LTE | GT | GTE )
+
+	Defines constants for the above operators.  Usage example::
+
+		MDOperator.EQ
+	
+	Lower-case aliases of the constants are provided for compatibility.
+	
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		u'EQ':1,
+		u'NEQ':2,
+		u'LT':3,
+		u'LTE':4,
+		u'GT':5,
+		u'GTE':6
+		}
+xsi.MakeEnumeration(MDOperator)
+xsi.MakeLowerAliases(MDOperator)
+
+
 class NumType(xsi.Enumeration):
 	"""numtype enumeration::
 	
-	numtype      (Integer | Decimal | Scientific )  'Integer'
+	(Integer | Decimal | Scientific )  'Integer'
 	
 	Defines constants for the above numeric types.  Usage example::
 
@@ -258,25 +296,6 @@ class NumType(xsi.Enumeration):
 		u'Scientific':3
 		}
 xsi.MakeEnumeration(NumType,u'Integer')
-
-
-class PromptType(xsi.Enumeration):
-	"""Prompt type enumeration::
-	
-	prompt       (Box | Dashline | Asterisk | Underline )
-	
-	Defines constants for the above prompt types.  Usage example::
-
-		PromptType.Dashline
-	
-	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
-	decode={
-		u'Box':1,
-		u'Dashline':2,
-		u'Asterisk':3,
-		u'Underline':4
-		}
-xsi.MakeEnumeration(PromptType)
 
 
 class Orientation(xsi.Enumeration):
@@ -300,18 +319,134 @@ class Orientation(xsi.Enumeration):
 xsi.MakeEnumeration(Orientation,u'Horizontal')
 
 def MigrateV2Orientation(orientation):
-	"""Maps a v1 orientation onto the corresponding v2 constant."""
+	"""Maps a v1 orientation onto the corresponding v2 constant.
+	
+	Raises KeyError if *orientation* is not one of the :py:class:`Orientation`
+	constants."""
 	return {
 		Orientation.Horizontal:qtiv2.Orientation.horizontal,
 		Orientation.Vertical:qtiv2.Orientation.vertical
 		}[orientation]
 
 
+class PromptType(xsi.Enumeration):
+	"""Prompt type enumeration::
+	
+	(Box | Dashline | Asterisk | Underline )
+	
+	Defines constants for the above prompt types.  Usage example::
+
+		PromptType.Dashline
+	
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		u'Box':1,
+		u'Dashline':2,
+		u'Asterisk':3,
+		u'Underline':4
+		}
+xsi.MakeEnumeration(PromptType)
+
+
+class RCardinality(xsi.Enumeration):
+	"""rcardinality enumeration::
+	
+	(Single | Multiple | Ordered )  'Single'
+
+	Defines constants for the above cardinality types.  Usage example::
+
+		RCardinality.Multiple
+	
+	Note that::
+		
+		RCardinality.DEFAULT == RCardinality.Single
+
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		'Single':1,
+		'Multiple':2,
+		'Ordered':3
+		}
+			
+xsi.MakeEnumeration(RCardinality)
+
+def MigrateV2Cardinality(rCardinality):
+	"""Maps a v1 cardinality onto the corresponding v2 constant.
+	
+	Raises KeyError if *rCardinality* is not one of the :py:class:`RCardinality`
+	constants."""
+	return {
+		RCardinality.Single:qtiv2.variables.Cardinality.single,
+		RCardinality.Multiple:qtiv2.variables.Cardinality.multiple,
+		RCardinality.Ordered:qtiv2.variables.Cardinality.ordered
+		}[rCardinality]
+
+
+TestOperator=MDOperator
+"""A simple alias of :py:class:`MDOperator` defined for
+:py:class:`pyslet.qtiv1.outcomes.VariableTest`"""
+
+
+class VarType(xsi.Enumeration):
+	"""vartype enumeration::
+	
+	(Integer | String | Decimal | Scientific | Boolean | Enumerated | Set )  'Integer'
+
+	Defines constants for the above view types.  Usage example::
+	
+		VarType.String
+	
+	Note that::
+	
+		VarType.DEFAULT == VarType.Integer
+
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		'Integer':1,
+		'String':2,
+		'Decimal':3,
+		'Scientific':4,
+		'Boolean':5,
+		'Enumerated':5,
+		'Set':6
+		}
+xsi.MakeEnumeration(VarType)
+
+def MigrateV2VarType(vartype,log):
+	"""Returns the v2 BaseType representing the v1 *vartype*.
+	
+	Note that we reduce both Decimal and Scientific to the float types.  In
+	version 2 the BaseType values were chosen to map onto the typical types
+	available in most programming languages.  The representation of the number
+	in decimal or exponent form is considered to be part of the interaction or
+	the presentation rather than part of the underlying processing model. 
+	Although there clearly are use cases where retaining this distinction would
+	have been an advantage the quality of implementation was likely to be poor
+	and use cases that require a distinction are now implemented in more
+	cumbersome, but probably more interoperable ways.
+
+	Note also that the poorly defined Set type in version 1 maps to an
+	identifier in version 2 on the assumption that the cardinality will be
+	upgraded as necessary.
+	
+	Raises KeyError if *vartype* is not one of the :py:class:`VarType`
+	constants."""
+	return {
+		VarType.Integer:qtiv2.variables.BaseType.integer,
+		VarType.String:qtiv2.variables.BaseType.string,
+		VarType.Decimal:qtiv2.variables.BaseType.float,
+		VarType.Scientific:qtiv2.variables.BaseType.float,
+		VarType.Boolean:qtiv2.variables.BaseType.boolean,
+		VarType.Enumerated:qtiv2.variables.BaseType.identifier,
+		VarType.Set:qtiv2.variables.BaseType.identifier
+		}[vartype]
+
+
 class View(xsi.Enumeration):
 	"""View enumeration::
 	
-	(All | Administrator | AdminAuthority | Assessor | Author | Candidate |
-	InvigilatorProctor | Psychometrician | Scorer | Tutor )  'All'
+		(All | Administrator | AdminAuthority | Assessor | Author | Candidate |
+		InvigilatorProctor | Psychometrician | Scorer | Tutor )  'All'
 
 	Defines constants for the above view types.  Usage example::
 	
@@ -348,29 +483,40 @@ xsi.MakeLowerAliases(View)
 
 			
 def MigrateV2View(view,log):
-	"""Returns a list of v2 view values representing the v1 *view*."""
-	return {
-		View.Administrator:[qtiv2.QTIView.proctor],
-		View.AdminAuthority:[qtiv2.QTIView.proctor],
-		View.Assessor:[qtiv2.QTIView.scorer],
-		View.Author:[qtiv2.QTIView.author],
-		View.Candidate:[qtiv2.QTIView.candidate],
-		View.Invigilator:[qtiv2.QTIView.proctor],
-		View.Proctor:[qtiv2.QTIView.proctor],
-		View.InvigilatorProctor:[qtiv2.QTIView.proctor],
-		View.Psychometrician:[qtiv2.QTIView.testConstructor],
-		View.Scorer:[qtiv2.QTIView.scorer],
-		View.Tutor:[qtiv2.QTIView.tutor],
-		View.All:[
-			qtiv2.QTIView.author,
-			qtiv2.QTIView.candidate,
-			qtiv2.QTIView.proctor,
-			qtiv2.QTIView.scoror,
-			qtiv2.QTIView.testConstructor,
-			qtiv2.QTIView.tutor]			
-		}.get(view,[])
+	"""Returns a list of v2 view values representing the v1 *view*.
 
-		
+	The use of a list as the return type enables mapping of the special value
+	'All', which has no direct equivalent in version 2 other than providing all
+	the defined views.
+
+	Raises KeyError if *view* is not one of the :py:class:`View` constants.
+	
+	This function will log warnings when migrating the following v1 values:
+	Administrator, AdminAuthority, Assessor and Psychometrician"""
+	newView,warnFlag={
+		View.Administrator: ([qtiv2.core.View.proctor],True),
+		View.AdminAuthority: ([qtiv2.core.View.proctor],True),
+		View.Assessor: ([qtiv2.core.View.scorer],True),
+		View.Author: ([qtiv2.core.View.author],False),
+		View.Candidate: ([qtiv2.core.View.candidate],False),
+		View.Invigilator: ([qtiv2.core.View.proctor],False),
+		View.Proctor: ([qtiv2.core.View.proctor],False),
+		View.InvigilatorProctor: ([qtiv2.core.View.proctor],False),
+		View.Psychometrician: ([qtiv2.core.View.testConstructor],True),
+		View.Scorer: ([qtiv2.core.View.scorer],False),
+		View.Tutor: ([qtiv2.core.View.tutor],False),
+		View.All: ([
+			qtiv2.core.View.author,
+			qtiv2.core.View.candidate,
+			qtiv2.core.View.proctor,
+			qtiv2.core.View.scorer,
+			qtiv2.core.View.testConstructor,
+			qtiv2.core.View.tutor],False)
+		}[view]
+	if warnFlag:
+		log.append("Warning: changing view %s to %s"%(View.EncodeValue(view),qtiv2.core.View.EncodeValueList(newView)))
+	return newView
+				
 class QTIElement(xml.Element):
 	"""Base class for all elements defined by the QTI specification"""
 	
@@ -390,6 +536,13 @@ class QTIElement(xml.Element):
 			pass
 
 
+class ObjectMixin:
+	"""Mix-in class for elements that can be inside :py:class:`ObjectBank`::
+	
+	(section | item)+"""
+	pass
+
+
 class SectionItemMixin:
 	"""Mix-in class for objects that can be in section objects::
 	
@@ -402,47 +555,3 @@ class SectionMixin(SectionItemMixin):
 	
 	(sectionref | section)+"""
 	pass
-
-
-class ObjectMixin:
-	"""Mix-in class for elements that can be inside :py:class:`ObjectBank`::
-	
-	(section | item)+"""
-	pass
-
-
-class QTIViewMixin:
-	"""Mixin class for handling view attribute.
-	
-	<!ENTITY % I_View " view  (All | 
-			  Administrator | 
-			  AdminAuthority | 
-			  Assessor | 
-			  Author | 
-			  Candidate | 
-			  InvigilatorProctor | 
-			  Psychometrician | 
-			  Scorer | 
-			  Tutor )  'All'">
-	
-	V2_VIEWMAP attribute maps lower-cased view names from v1.2 onto corresponding v2 view values.
-	"""
-	XMLATTR_view='view'
-
-	V2_VIEWMAP={
-		'administrator':'proctor',
-		'adminauthority':'proctor',
-		'assessor':'scorer',
-		'author':'author',
-		'candidate':'candidate',
-		'invigilator':'proctor',
-		'proctor':'proctor',
-		'invigilatorproctor':'proctor',
-		'psychometrician':'testConstructor',
-		'tutor':'tutor',
-		'scorer':'scorer'}
-		
-	V2_VIEWALL='author candidate proctor scorer testConstructor tutor'
-
-	def __init__(self):
-		self.view='All'

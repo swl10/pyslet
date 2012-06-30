@@ -273,10 +273,10 @@ class ManifestDocument(xmlns.XMLNSDocument):
 		self.defaultNS=IMSCP_NAMESPACE						#: the default namespace is set to :py:const:`IMSCP_NAMESPACE`
 		self.MakePrefix(xsi.XMLSCHEMA_NAMESPACE,'xsi')
 		self.MakePrefix(imsmd.IMSLRM_NAMESPACE,'imsmd')
-		self.MakePrefix(imsqti.IMSQTI_NAMESPACE,'imsqti')
+		self.MakePrefix(imsqti.core.IMSQTI_NAMESPACE,'imsqti')
 		schemaLocation=[IMSCP_NAMESPACE,IMSCP_SCHEMALOCATION,
 			imsmd.IMSLRM_NAMESPACE,imsmd.IMSLRM_SCHEMALOCATION,
-			imsqti.IMSQTI_NAMESPACE,imsqti.IMSQTI_SCHEMALOCATION]
+			imsqti.core.IMSQTI_NAMESPACE,imsqti.core.IMSQTI_SCHEMALOCATION]
 		if isinstance(self.root,CPElement):
 			self.root.SetAttribute((xsi.XMLSCHEMA_NAMESPACE,'schemaLocation'),string.join(schemaLocation,' '))
 

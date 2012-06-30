@@ -37,12 +37,6 @@
 							<imsmd:langstring>Numeric slider question</imsmd:langstring>
 						</imsmd:description>
 					</imsmd:general>
-					<imsmd:annotation>
-						<imsmd:description>
-							<imsmd:langstring>Warning: discarding view on feedback (Candidate)
-							</imsmd:langstring>
-						</imsmd:description>
-					</imsmd:annotation>
 				</imsmd:lom>
 				<imsqti:qtiMetadata/>
 			</metadata>
@@ -61,12 +55,6 @@
 							<imsmd:langstring>Numeric fill-in-the-blank example.</imsmd:langstring>
 						</imsmd:description>
 					</imsmd:general>
-					<imsmd:annotation>
-						<imsmd:description>
-							<imsmd:langstring>Warning: discarding view on feedback (Candidate)
-							</imsmd:langstring>
-						</imsmd:description>
-					</imsmd:annotation>
 				</imsmd:lom>
 				<imsqti:qtiMetadata/>
 			</metadata>
@@ -82,15 +70,10 @@
 							<imsmd:langstring>Standard FIB Decimal Item</imsmd:langstring>
 						</imsmd:title>
 						<imsmd:description>
-							<imsmd:langstring>Numeric (decimal) fill-in-the-blank example.</imsmd:langstring>
+							<imsmd:langstring>Numeric (decimal) fill-in-the-blank
+								example.</imsmd:langstring>
 						</imsmd:description>
 					</imsmd:general>
-					<imsmd:annotation>
-						<imsmd:description>
-							<imsmd:langstring>Warning: discarding view on feedback (Candidate)
-							</imsmd:langstring>
-						</imsmd:description>
-					</imsmd:annotation>
 				</imsmd:lom>
 				<imsqti:qtiMetadata/>
 			</metadata>
@@ -109,12 +92,6 @@
 							<imsmd:langstring>Fill-in-the-blank text example.</imsmd:langstring>
 						</imsmd:description>
 					</imsmd:general>
-					<imsmd:annotation>
-						<imsmd:description>
-							<imsmd:langstring>Warning: discarding view on feedback (Candidate)
-							</imsmd:langstring>
-						</imsmd:description>
-					</imsmd:annotation>
 				</imsmd:lom>
 				<imsqti:qtiMetadata/>
 			</metadata>
@@ -130,15 +107,10 @@
 							<imsmd:langstring>Multiple FIB Item</imsmd:langstring>
 						</imsmd:title>
 						<imsmd:description>
-							<imsmd:langstring>Multiple fill-in-the-blank text example.</imsmd:langstring>
+							<imsmd:langstring>Multiple fill-in-the-blank text
+								example.</imsmd:langstring>
 						</imsmd:description>
 					</imsmd:general>
-					<imsmd:annotation>
-						<imsmd:description>
-							<imsmd:langstring>Warning: discarding view on feedback (Candidate)
-							</imsmd:langstring>
-						</imsmd:description>
-					</imsmd:annotation>
 				</imsmd:lom>
 				<imsqti:qtiMetadata/>
 			</metadata>
@@ -154,7 +126,8 @@
 							<imsmd:langstring>Extended Answer Item</imsmd:langstring>
 						</imsmd:title>
 						<imsmd:description>
-							<imsmd:langstring>Extended answer example with instructions to grader.</imsmd:langstring>
+							<imsmd:langstring>Extended answer example with instructions to
+								grader.</imsmd:langstring>
 						</imsmd:description>
 					</imsmd:general>
 				</imsmd:lom>
@@ -238,8 +211,7 @@
 					<imsmd:annotation>
 						<imsmd:description>
 							<imsmd:langstring>Warning: ignoring response_label in
-								selectPointInteraction (A); Warning: discarding view on feedback
-								(Candidate) </imsmd:langstring>
+								selectPointInteraction (A)</imsmd:langstring>
 						</imsmd:description>
 					</imsmd:annotation>
 				</imsmd:lom>
@@ -261,8 +233,7 @@
 					<imsmd:annotation>
 						<imsmd:description>
 							<imsmd:langstring>Warning: case-insensitive comparison of identifiers
-								not supported in version 2; Warning: discarding view on feedback
-								(Candidate) </imsmd:langstring>
+								not supported in version 2</imsmd:langstring>
 						</imsmd:description>
 					</imsmd:annotation>
 				</imsmd:lom>
@@ -287,8 +258,7 @@
 					<imsmd:annotation>
 						<imsmd:description>
 							<imsmd:langstring>Warning: case-insensitive comparison of identifiers
-								not supported in version 2; Warning: discarding view on feedback
-								(Candidate) </imsmd:langstring>
+								not supported in version 2</imsmd:langstring>
 						</imsmd:description>
 					</imsmd:annotation>
 				</imsmd:lom>
@@ -317,8 +287,7 @@
 					<imsmd:annotation>
 						<imsmd:description>
 							<imsmd:langstring>Warning: case-insensitive comparison of identifiers
-								not supported in version 2; Warning: discarding view on feedback
-								(Candidate) </imsmd:langstring>
+								not supported in version 2</imsmd:langstring>
 						</imsmd:description>
 					</imsmd:annotation>
 				</imsmd:lom>
@@ -348,8 +317,7 @@
 					<imsmd:annotation>
 						<imsmd:description>
 							<imsmd:langstring>Warning: case-insensitive comparison of identifiers
-								not supported in version 2; Warning: discarding view on feedback
-								(Candidate) </imsmd:langstring>
+								not supported in version 2</imsmd:langstring>
 						</imsmd:description>
 					</imsmd:annotation>
 				</imsmd:lom>
@@ -375,9 +343,8 @@
 						<imsmd:description>
 							<imsmd:langstring>Warning: choice-slider replaced with
 								choiceInteraction.slider; Warning: case-insensitive comparison of
-								identifiers not supported in version 2; Warning: discarding view on
-								feedback (Candidate); Warning: discarding view on feedback (Tutor)
-							</imsmd:langstring>
+								identifiers not supported in version 2; Warning: discarding view on feedback
+								(Tutor)</imsmd:langstring>
 						</imsmd:description>
 					</imsmd:annotation>
 				</imsmd:lom>
@@ -506,8 +473,7 @@ END:VCARD&#xD;
 					<imsmd:annotation>
 						<imsmd:description>
 							<imsmd:langstring>Warning: case-insensitive comparison of identifiers
-								not supported in version 2; Warning: discarding view on feedback
-								(Candidate) </imsmd:langstring>
+								not supported in version 2</imsmd:langstring>
 						</imsmd:description>
 					</imsmd:annotation>
 				</imsmd:lom>
@@ -534,8 +500,7 @@ END:VCARD&#xD;
 							<imsmd:langstring>Warning: multi-image hotspot maps to multiple
 								interactions, maxChoices can no longer be enforced; Warning:
 								case-insensitive comparison of identifiers not supported in version
-								2; Warning: discarding view on feedback (Candidate)
-							</imsmd:langstring>
+								2</imsmd:langstring>
 						</imsmd:description>
 					</imsmd:annotation>
 				</imsmd:lom>
@@ -565,7 +530,7 @@ END:VCARD&#xD;
 						<imsmd:identifier>bank2</imsmd:identifier>
 						<imsmd:title>
 							<imsmd:langstring xml:lang="en-US">Bank Item 2</imsmd:langstring>
-						</imsmd:title>		
+						</imsmd:title>
 					</imsmd:general>
 				</imsmd:lom>
 				<imsqti:qtiMetadata/>

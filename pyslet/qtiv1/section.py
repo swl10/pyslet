@@ -45,7 +45,7 @@ class Section(core.ObjectMixin,core.SectionMixin,common.QTICommentContainer):
 		self.title=None
 		self.Duration=None
 		self.QTIMetadata=[]
-		self.QTIObjectives=[]
+		self.Objectives=[]
 		self.SectionControl=[]
 		self.SectionPrecondition=[]
 		self.SectionPostcondition=[]
@@ -62,7 +62,7 @@ class Section(core.ObjectMixin,core.SectionMixin,common.QTICommentContainer):
 		for child in itertools.chain(
 			core.QTIComment.GetChildren(self),
 			self.QTIMetadata,
-			self.QTIObjectives,
+			self.Objectives,
 			self.SectionControl,
 			self.SectionPrecondition,
 			self.SectionPostcondition,

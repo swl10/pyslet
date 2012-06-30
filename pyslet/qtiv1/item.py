@@ -8,7 +8,7 @@ import pyslet.imsmdv1p2p1 as imsmd
 
 import core, common
 
-import string
+import string, itertools
 from types import StringTypes
 
 
@@ -56,10 +56,10 @@ class Item(common.QTICommentContainer,core.SectionItemMixin,core.ObjectMixin):
 		self.title=None
 		self.Duration=None
 		self.ItemMetadata=None
-		self.QTIObjectives=[]
+		self.Objectives=[]
 		self.ItemControl=[]
-		self.ItemPrecondition=[]
-		self.ItemPostcondition=[]
+		self.ItemPreCondition=[]
+		self.ItemPostCondition=[]
 		self.Rubric=[]				#: includes ItemRubric
 		self.Presentation=None
 		self.ResProcessing=[]
@@ -68,14 +68,14 @@ class Item(common.QTICommentContainer,core.SectionItemMixin,core.ObjectMixin):
 		self.QTIReference=None
 					
 	def GetChildren(self):
-		for child in common.QTIComment.GetChildren(self): yield child
+		for child in common.QTICommentContainer.GetChildren(self): yield child
 		if self.Duration: yield self.Duration
 		if self.ItemMetadata: yield self.ItemMetadata
 		for child in itertools.chain(
-			self.QTIObjectives,
+			self.Objectives,
 			self.ItemControl,
 			self.ItemPreCondition,
-			self.QTIPostCondition,
+			self.ItemPostCondition,
 			self.Rubric):
 			yield child
 		if self.Presentation: yield self.Presentation
@@ -155,8 +155,8 @@ class Item(common.QTICommentContainer,core.SectionItemMixin,core.ObjectMixin):
 			log.append("Warning: duration is currently outside the scope of version 2: ignored "+self.Duration.GetValue())
 		if self.ItemMetadata:
 			self.ItemMetadata.MigrateV2(doc,lom,log)
-		for objective in self.QTIObjectives:
-			if objective.view.lower()!='all':
+		for objective in self.Objectives:
+			if objective.view!=core.View.All:
 				objective.MigrateV2(item,log)
 			else:
 				objective.LRMMigrateObjectives(lom,log)
@@ -172,6 +172,7 @@ class Item(common.QTICommentContainer,core.SectionItemMixin,core.ObjectMixin):
 			self.ResProcessing[-1].MigrateV2(item,log)
 		for feedback in self.ItemFeedback:
 			feedback.MigrateV2(item,log)
+		item.SortDeclarations()
 		output.append((doc, lom, log))
 		#print doc.root
 
@@ -657,7 +658,28 @@ class ItemRubric(common.Rubric):
 	XMLCONTENT=xml.ElementContent
 
 
-class Presentation(common.FlowContainer,common.PositionMixin):
+class FlowContainer(common.QTICommentContainer,common.ContentMixin):
+	"""Abstract class used to represent elements that contain flow and related
+	elements::
+
+	<!ELEMENT XXXXXXXXXX (qticomment? , (material | flow | response_*)* )>"""
+	def __init__(self,parent):
+		common.QTICommentContainer.__init__(self,parent)
+		common.ContentMixin.__init__(self)
+
+	def GetChildren(self):
+		return itertools.chain(
+			common.QTICommentContainer.GetChildren(self),
+			common.ContentMixin.GetContentChildren(self))
+
+	def ContentMixin(self,childClass):
+		if childClass in (common.Material,Flow) or issubclass(childClass,Response):
+			return common.ContentMixin.ContentMixin(self,childClass)
+		else:
+			raise TypeError
+
+
+class Presentation(FlowContainer,common.PositionMixin):
 	"""This element contains all of the instructions for the presentation of the
 	question during an evaluation. This information includes the actual material
 	to be presented. The labels for the possible responses are also identified
@@ -687,7 +709,7 @@ class Presentation(common.FlowContainer,common.PositionMixin):
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
-		common.FlowContainer.__init__(self,parent)
+		FlowContainer.__init__(self,parent)
 		common.PositionMixin.__init__(self)
 		self.label=None
 		
@@ -697,14 +719,14 @@ class Presentation(common.FlowContainer,common.PositionMixin):
 		if self.GotPosition():
 			log.append("Warning: discarding absolute positioning information on presentation")
 		if self.InlineChildren():
-			p=itemBody.ChildElement(html.P,(qtiv2.IMSQTI_NAMESPACE,'p'))
+			p=itemBody.ChildElement(html.P,(qtiv2.core.IMSQTI_NAMESPACE,'p'))
 			if self.label is not None:
 				#p.label=self.label
 				p.SetAttribute('label',self.label)
 			self.MigrateV2Content(p,html.InlineMixin,log)
 		elif self.label is not None:
 			# We must generate a div to hold the label, we can't rely on owning the whole itemBody
-			div=itemBody.ChildElement(html.Div,(qtiv2.IMSQTI_NAMESPACE,'div'))
+			div=itemBody.ChildElement(html.Div,(qtiv2.core.IMSQTI_NAMESPACE,'div'))
 			div.SetAttribute('label',self.label)
 			# Although div will take an inline directly we force blocking at the top level
 			self.MigrateV2Content(div,html.BlockMixin,log)
@@ -741,7 +763,69 @@ class Presentation(common.FlowContainer,common.PositionMixin):
 		return False
 
 
-class ResponseExtension(common.ResponseCommon):
+class Flow(FlowContainer,common.FlowMixin):
+	"""This element contains all of the instructions for the presentation with
+	flow blocking of the question during a test. This information includes the
+	actual material to be presented. The labels for the possible responses are
+	also identified and these are used by the response processing element
+	defined elsewhere in the Item::
+
+	<!ELEMENT flow (qticomment? ,
+		(flow |
+		material |
+		material_ref |
+		response_lid |
+		response_xy |
+		response_str |
+		response_num |
+		response_grp |
+		response_extension)+
+		)>
+	<!ATTLIST flow  class CDATA  'Block' >"""
+	XMLNAME='flow'
+	XMLATTR_class='flowClass'
+	XMLCONTENT=xml.ElementContent
+	
+	def __init__(self,parent):
+		FlowContainer.__init__(self,parent)
+		self.flowClass=None
+		
+	def IsInline(self):
+		"""flow is always treated as a block if flowClass is specified, otherwise
+		it is treated as a block unless it is an only child."""
+		if self.flowClass is None:
+			return self.InlineChildren()
+		else:
+			return False
+
+	def MigrateV2Content(self,parent,childType,log):
+		"""flow typically maps to a div element.
+		
+		A flow with a specified class always becomes a div
+		A flow with inline children generates a paragraph to hold them
+		A flow with no class is ignored."""
+		if self.flowClass is not None:
+			if childType in (html.BlockMixin,html.FlowMixin):
+				div=parent.ChildElement(html.Div,(qtiv2.core.IMSQTI_NAMESPACE,'div'))
+				div.styleClass=self.flowClass
+				FlowContainer.MigrateV2Content(self,div,html.FlowMixin,log)
+			else:
+				span=parent.ChildElement(html.Span,(qtiv2.core.IMSQTI_NAMESPACE,'span'))
+				span.styleClass=self.flowClass
+				FlowContainer.MigrateV2Content(self,span,html.InlineMixin,log)
+		else:
+			FlowContainer.MigrateV2Content(self,parent,childType,log)
+
+
+class Response(core.QTIElement,common.ContentMixin):
+	"""Abstract class to act as a parent for all response_* elements."""
+
+	def __init__(self,parent):
+		core.QTIElement.__init__(self,parent)
+		common.ContentMixin.__init__(self)
+
+
+class ResponseExtension(Response):
 	"""This element supports proprietary alternatives to the current range of
 	'response' elements::
 
@@ -750,10 +834,7 @@ class ResponseExtension(common.ResponseCommon):
 	XMLCONTENT=xml.XMLMixedContent
 
 
-# class Flow: defined in common
-
-
-class ResponseThing(common.ResponseCommon):
+class ResponseThing(Response):
 	"""Abstract class for the main response_* elements::
 	
 	<!ELEMENT response_* ((material | material_ref)? ,
@@ -770,7 +851,7 @@ class ResponseThing(common.ResponseCommon):
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):
-		common.ResponseCommon.__init__(self,parent)
+		Response.__init__(self,parent)
 		self.ident=None
 		self.rCardinality=core.RCardinality.DEFAULT
 		self.rTiming=False
@@ -790,7 +871,7 @@ class ResponseThing(common.ResponseCommon):
 			else:
 				self.intro.append(child)
 			return child			
-		elif issubclass(childClass,common.RenderCommon):
+		elif issubclass(childClass,Render):
 			child=childClass(self)
 			self.render=child
 			return child			
@@ -856,7 +937,7 @@ class ResponseThing(common.ResponseCommon):
 				raise QTIError("Unexpected attempt to inline interaction")
 			interactionPrompt=None
 			if isinstance(self.render,RenderHotspot):
-				div=parent.ChildElement(html.Div,(qtiv2.IMSQTI_NAMESPACE,'div'))
+				div=parent.ChildElement(html.Div,(qtiv2.core.IMSQTI_NAMESPACE,'div'))
 				common.ContentMixin.MigrateV2Content(self,div,html.FlowMixin,log,self.prompt)
 				# Now we need to find any images and pass them to render hotspot instead
 				# which we do by reusing the interactionPrompt (currently we only find
@@ -873,7 +954,7 @@ class ResponseThing(common.ResponseCommon):
 				interactionList=[]
 				responseList=[]
 			else:
-				baseIdentifier=qtiv2.ValidateIdentifier(self.ident)
+				baseIdentifier=qtiv2.core.ValidateIdentifier(self.ident)
 				responseList=[]
 				if len(interactionList)>1:
 					i=0
@@ -891,14 +972,14 @@ class ResponseThing(common.ResponseCommon):
 					responseList=[interaction.responseIdentifier]
 			if item:
 				for i,r in zip(interactionList,responseList):
-					d=item.ChildElement(qtiv2.ResponseDeclaration)
+					d=item.ChildElement(qtiv2.variables.ResponseDeclaration)
 					d.identifier=r
 					d.cardinality=core.MigrateV2Cardinality(self.rCardinality)
 					d.baseType=self.GetBaseType(interactionList[0])
 					self.render.MigrateV2InteractionDefault(d,i)
 					item.RegisterDeclaration(d)
 				if len(responseList)>1:
-					d=item.ChildElement(qtiv2.QTIOutcomeDeclaration)
+					d=item.ChildElement(qtiv2.variables.OutcomeDeclaration)
 					d.identifier=baseIdentifier
 					d.cardinality=core.MigrateV2Cardinality(self.rCardinality)
 					d.baseType=self.GetBaseType(interactionList[0])
@@ -929,7 +1010,7 @@ class ResponseLId(ResponseThing):
 	
 	def GetBaseType(self,interaction):
 		"""We always return identifier for response_lid."""
-		return qtiv2.BaseType.identifier
+		return qtiv2.variables.BaseType.identifier
 
 		
 class ResponseXY(ResponseThing):
@@ -951,7 +1032,7 @@ class ResponseXY(ResponseThing):
 	def GetBaseType(self,interaction):
 		"""For select point we return a point for response_xy."""
 		if isinstance(interaction,qtiv2.QTISelectPointInteraction):
-			return qtiv2.BaseType.point
+			return qtiv2.variables.BaseType.point
 		else:
 			return ResponseThing.GetBaseType(self)
 
@@ -974,7 +1055,7 @@ class ResponseStr(ResponseThing):
 
 	def GetBaseType(self,interaction):
 		"""We always return string for response_str."""
-		return qtiv2.BaseType.string
+		return qtiv2.variables.BaseType.string
 
 
 class ResponseNum(ResponseThing):
@@ -1003,9 +1084,9 @@ class ResponseNum(ResponseThing):
 	def GetBaseType(self,interaction):
 		"""Returns integer for numtype of "Integer", float otherwise."""
 		if self.numType==core.NumType.Integer:
-			return qtiv2.BaseType.integer
+			return qtiv2.variables.BaseType.integer
 		else:
-			return qtiv2.BaseType.float
+			return qtiv2.variables.BaseType.float
 
 
 class ResponseGrp(core.QTIElement,common.ContentMixin):
@@ -1025,14 +1106,22 @@ class ResponseGrp(core.QTIElement,common.ContentMixin):
 	XMLCONTENT=xml.ElementContent
 
 
-class RenderThing(common.RenderCommon):
+class Render(core.QTIElement,common.ContentMixin):
+	"""Abstract class to act as a parent for all render_* elements."""
+
+	def __init__(self,parent):
+		core.QTIElement.__init__(self,parent)
+		common.ContentMixin.__init__(self)
+
+
+class RenderThing(Render):
 	"""Abstract base class for all render_* objects::
 	
 	<!ELEMENT render_* ((material | material_ref | response_label | flow_label)* , response_na?)>"""
 	XMLCONTENT=xml.ElementContent
 
 	def __init__(self,parent):
-		common.RenderCommon.__init__(self,parent)
+		Render.__init__(self,parent)
 		self.ResponseNA=None
 
 	def ContentMixin(self,childClass):
@@ -1177,7 +1266,7 @@ class RenderHotspot(RenderThing):
 		# objects that are still to be migrated (and which should contain the hotspot image).
 		img=None
 		interactionPrompt=None
-		hotspotImage=interaction.ChildElement(html.Object,(qtiv2.IMSQTI_NAMESPACE,'object'))
+		hotspotImage=interaction.ChildElement(html.Object,(qtiv2.core.IMSQTI_NAMESPACE,'object'))
 		if prompt:
 			if not isinstance(prompt[0],html.Img):					
 				interactionPrompt=interaction.ChildElement(qtiv2.QTIPrompt)
@@ -1246,7 +1335,7 @@ class RenderHotspot(RenderThing):
 						interaction=parent.ChildElement(qtiv2.QTIHotspotInteraction)
 						if self.maxNumber is not None:
 							interaction.maxChoices=self.maxNumber
-						hotspotImage=interaction.ChildElement(html.Object,(qtiv2.IMSQTI_NAMESPACE,'object'))
+						hotspotImage=interaction.ChildElement(html.Object,(qtiv2.core.IMSQTI_NAMESPACE,'object'))
 						hotspotImage.data=img.ResolveURI(img.uri)
 						hotspotImage.type=img.imageType
 						hotspotImage.height=html.LengthType(img.height)
@@ -1482,17 +1571,17 @@ class RenderSlider(RenderThing):
 	def MigrateV2InteractionDefault(self,declaration,interaction):
 		# Most interactions do not need default values.
 		if isinstance(interaction,qtiv2.SliderInteraction) and self.startVal is not None:
-			value=declaration.ChildElement(qtiv2.QTIDefaultValue).ChildElement(qtiv2.QTIValue)
-			if declaration.baseType==qtiv2.BaseType.integer:
+			value=declaration.ChildElement(qtiv2.variables.DefaultValue).ChildElement(qtiv2.variables.ValueElement)
+			if declaration.baseType==qtiv2.variables.BaseType.integer:
 				value.SetValue(xsi.EncodeInteger(self.startVal))
-			elif declaration.baseType==qtiv2.BaseType.float:
+			elif declaration.baseType==qtiv2.variables.BaseType.float:
 				value.SetValue(xsi.EncodeFloat(self.startVal))
 			else:
 				# slider bound to something else?
-				raise QTIError("Unexpected slider type for default: %s"%qtiv2.EncodeBaseType(declaration.baseType))
+				raise QTIError("Unexpected slider type for default: %s"%qtiv2.variables.BaseType.EncodeValue(declaration.baseType))
 
 
-class RenderExtension(common.RenderCommon):
+class RenderExtension(Render):
 	"""This element supports proprietary alternatives to the current range of
 	'render' elements::
 	
@@ -1501,7 +1590,7 @@ class RenderExtension(common.RenderCommon):
 	XMLCONTENT=xml.XMLMixedContent
 
 
-class ResponseLabel(common.ResponseLabelCommon):
+class ResponseLabel(core.QTIElement,common.ContentMixin):
 	"""The <response_label> is used to define the possible response choices that
 	are presented to the user. This information includes the material to be
 	shown to the user and the logical label that is associated with that
@@ -1523,7 +1612,8 @@ class ResponseLabel(common.ResponseLabelCommon):
 	XMLCONTENT=xml.XMLMixedContent
 
 	def __init__(self,parent):
-		common.ResponseLabelCommon.__init__(self,parent)
+		core.QTIElement.__init__(self,parent)
+		common.ContentMixin.__init__(self)
 		self.ident=''
 		self.rShuffle=True
 		self.rArea=None
@@ -1573,7 +1663,7 @@ class ResponseLabel(common.ResponseLabelCommon):
 	def MigrateV2SimpleChoice(self,interaction,log):
 		"""Migrate this label into a v2 simpleChoice in interaction."""
 		choice=interaction.ChildElement(qtiv2.QTISimpleChoice)
-		choice.identifier=qtiv2.ValidateIdentifier(self.ident)
+		choice.identifier=qtiv2.core.ValidateIdentifier(self.ident)
 		if isinstance(interaction,qtiv2.QTIChoiceInteraction) and interaction.shuffle:			
 			choice.fixed=not self.rShuffle
 		data=[]
@@ -1604,7 +1694,7 @@ class ResponseLabel(common.ResponseLabelCommon):
 			log.append("Warning: ignoring response_label in selectPointInteraction (%s)"%self.ident)
 			return
 		choice=interaction.ChildElement(qtiv2.QTIHotspotChoice)
-		choice.identifier=qtiv2.ValidateIdentifier(self.ident)
+		choice.identifier=qtiv2.core.ValidateIdentifier(self.ident)
 		# Hard to believe I know, but we sift the content of the response_label
 		# into string data (which is parsed for coordinates) and elements which
 		# have their text extracted for the hotspot label.
@@ -1672,7 +1762,7 @@ class FlowLabel(common.QTICommentContainer,common.ContentMixin,common.FlowMixin)
 		common.ContentMixin.__init__(self)
 	
 	def ContentMixin(self,childClass):
-		if childClass is FlowLabel or issubclass(childClass,common.ResponseLabelCommon):
+		if childClass is FlowLabel or issubclass(childClass,ResponseLabel):
 			return common.ContentMixin.ContentMixin(self,childClass)
 		else:
 			raise TypeError
@@ -1761,19 +1851,19 @@ class Outcomes(common.QTICommentContainer):
 	
 	def __init__(self,parent):
 		common.QTICommentContainer.__init__(self,parent)
-		self.QTIDecVar=[]
-		self.QTIInterpretVar=[]
+		self.DecVar=[]
+		self.InterpretVar=[]
 	
 	def GetChildren(self):
 		return itertools.chain(
 			QTICommentContainer.GetChildren(self),
-			self.QTIDecVar,
-			self.QTIInterpretVar)
+			self.DecVar,
+			self.InterpretVar)
 
 	def MigrateV2(self,v2Item,log):
-		for d in self.QTIDecVar:
+		for d in self.DecVar:
 			d.MigrateV2(v2Item,log)
-		for i in self.QTIInterpretVar:
+		for i in self.InterpretVar:
 			i.MigrateV2(v2Item,log)
 
 
@@ -1804,16 +1894,16 @@ class RespCondition(common.QTICommentContainer,ConditionMixin):
 		self.continueFlag=False
 		self.title=None
 		self.ConditionVar=common.ConditionVar(self)
-		self.QTISetVar=[]
-		self.QTIDisplayFeedback=[]
+		self.SetVar=[]
+		self.DisplayFeedback=[]
 		self.RespCondExtension=None
 	
 	def GetChildren(self):
 		for child in QTICommentContainer.GetChildren(self): yield child
 		yield self.ConditionVar
 		for child in itertools.chain(
-			self.QTISetVar,
-			self.QTIDisplayFeedback):
+			self.SetVar,
+			self.DisplayFeedback):
 			yield child
 		if self.RespCondExtension: yield self.RespCondExtension
 	
@@ -1870,11 +1960,19 @@ class RespCondition(common.QTICommentContainer,ConditionMixin):
 			else:
 				rcIf=ruleContainer.ChildElement(qtiv2.ResponseElseIf)
 		self.ConditionVar.MigrateV2Expression(rcIf,log)
-		for rule in self.QTISetVar:
+		for rule in self.SetVar:
 			rule.MigrateV2Rule(rcIf,log)
-		for rule in self.QTIDisplayFeedback:
+		for rule in self.DisplayFeedback:
 			rule.MigrateV2Rule(rcIf,log)
 		return self.continueFlag,ruleContainer
+
+
+class RespCondExtension(core.QTIElement):
+	"""This element supports proprietary alternatives to the <respcondition> element::
+
+	<!ELEMENT respcond_extension ANY>"""
+	XMLNAME="respcond_extension"
+	XMLCONTENT=xml.XMLMixedContent
 
 
 class ItemProcExtension(common.ContentMixin,core.QTIElement,ConditionMixin):
@@ -1903,14 +2001,14 @@ class ItemProcExtension(common.ContentMixin,core.QTIElement,ConditionMixin):
 				# humanraterdata extension, migrate content with appropriate view
 				v2Item=ruleContainer.FindParent(qtiv2.QTIAssessmentItem)
 				rubric=v2Item.ChildElement(qtiv2.ItemBody).ChildElement(qtiv2.RubricBlock)
-				rubric.view=qtiv2.QTIView.scorer
+				rubric.view=qtiv2.core.View.scorer
 				material=[]
 				child.FindChildren(common.Material,material)
 				self.MigrateV2Content(rubric,html.BlockMixin,log,material)
 		return cMode,ruleContainer
 
 
-class ItemFeedback(core.QTIElement,core.QTIViewMixin,common.ContentMixin):
+class ItemFeedback(core.QTIElement,common.ContentMixin):
 	"""The container for the feedback that is to be presented as a result of the
 	user's responses. The feedback can include hints and solutions and both of
 	these can be revealed in a variety of different ways::
@@ -1923,6 +2021,7 @@ class ItemFeedback(core.QTIElement,core.QTIViewMixin,common.ContentMixin):
 		ident CDATA  #REQUIRED
 		title CDATA  #IMPLIED >"""
 	XMLNAME='itemfeedback'
+	XMLATTR_view=('view',core.View.DecodeLowerValue,core.View.EncodeValue)
 	XMLATTR_title='title'
 	XMLATTR_ident='ident'		
 
@@ -1930,7 +2029,7 @@ class ItemFeedback(core.QTIElement,core.QTIViewMixin,common.ContentMixin):
 	
 	def __init__(self,parent):
 		core.QTIElement.__init__(self,parent)
-		core.QTIViewMixin.__init__(self)
+		self.view=core.View.DEFAULT
 		common.ContentMixin.__init__(self)
 		self.title=None
 		self.ident=None
@@ -1948,9 +2047,9 @@ class ItemFeedback(core.QTIElement,core.QTIViewMixin,common.ContentMixin):
 
 	def MigrateV2(self,v2Item,log):
 		feedback=v2Item.ChildElement(qtiv2.QTIModalFeedback)
-		if not (self.view.lower()=='all' and self.view.lower()=='candidate'):
-			log.append("Warning: discarding view on feedback (%s)"%self.view)
-		identifier=qtiv2.ValidateIdentifier(self.ident,'FEEDBACK_')
+		if not self.view in (core.View.All,core.View.Candidate):
+			log.append("Warning: discarding view on feedback (%s)"%core.View.EncodeValue(self.view))
+		identifier=qtiv2.core.ValidateIdentifier(self.ident,'FEEDBACK_')
 		feedback.outcomeIdentifier='FEEDBACK'
 		feedback.showHide=qtiv2.QTIShowHide.show
 		feedback.identifier=identifier

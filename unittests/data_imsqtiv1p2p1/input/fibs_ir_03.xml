@@ -32,8 +32,7 @@
 	        				3=	Most important tasks identified
 	        				2=	Missing some important tasks
 	        				1=	Little understanding of the tasks involved
-	        				0=	No understanding at all.
-						</mattext>  
+	        				0=	No understanding at all.</mattext>  
 					</material>
 				</interpretvar>
 				<interpretvar varname = "OrganizationScore" view = "All">  
@@ -44,8 +43,7 @@
 	        				3=	Tasks are mentioned in workable order but without much evidence of planning.
 	        				2=	Order in which tasks are carried out is unclear from answer.
 	        				1=	Some tasks are out of order.
-	        				0=	No organization of tasks.
-						</mattext>  
+	        				0=	No organization of tasks.</mattext>  
 					</material>
 				</interpretvar>      
 			</outcomes>      
