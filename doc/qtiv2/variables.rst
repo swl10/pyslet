@@ -49,9 +49,69 @@ base type.
 	:show-inheritance:
 
 
+Response Variables
+~~~~~~~~~~~~~~~~~~
+
+..	autoclass:: ResponseDeclaration
+	:members:
+	:show-inheritance:
+
+..	autoclass:: CorrectResponse
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AreaMapping
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AreaMapEntry
+	:members:
+	:show-inheritance:
+
+
+Outcome Variables
+~~~~~~~~~~~~~~~~~
+
+..	autoclass:: OutcomeDeclaration
+	:members:
+	:show-inheritance:
+
+..	autoclass:: LookupTable
+	:members:
+	:show-inheritance:
+
+..	autoclass:: MatchTable
+	:members:
+	:show-inheritance:
+
+..	autoclass:: MatchTableEntry
+	:members:
+	:show-inheritance:
+
+..	autoclass:: InterpolationTable
+	:members:
+	:show-inheritance:
+
+..	autoclass:: InterpolationTableEntry
+	:members:
+	:show-inheritance:
+
+
+Template Variables
+~~~~~~~~~~~~~~~~~~
+
+..	autoclass:: TemplateDeclaration
+	:members:
+	:show-inheritance:
+
 
 Runtime Object Model
 ~~~~~~~~~~~~~~~~~~~~
+
+..	autoclass:: ItemSessionState
+	:members:
+	:show-inheritance:
+	:special-members:
 
 ..	autoclass:: Value
 	:members:
@@ -116,10 +176,11 @@ Runtime Object Model
 ..	autoclass:: MultipleContainer
 	:members:
 	:show-inheritance:
-
+	
 ..	autoclass:: RecordContainer
 	:members:
 	:show-inheritance:
+	:special-members:
 
 
 

@@ -8,9 +8,10 @@ Version 2.1 is an extension of the pre-existing version 2.0 which was finalized 
 This module implements version 2.1 of the specification in anticipation of the finalization of the specification by the consortium.
 
 .. toctree::
-   :maxdepth: 2
+	:maxdepth: 2
 
-   qtiv2/core
-   qtiv2/variables
-   
+	qtiv2/variables
+	qtiv2/expressions
+	qtiv2/core
+  
 .. py:module:: pyslet.imsqtiv2p1

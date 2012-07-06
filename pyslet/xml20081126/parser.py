@@ -434,7 +434,8 @@ class XMLParser:
 		self.ParseMisc()
 		if self.theChar is not None and not self.dontCheckWellFormedness:
 			self.WellFormednessError("Unparsed characters in entity after document: %s"%repr(self.theChar))
-
+		return self.doc
+		
 	def GetDocumentClass(self,dtd):
 		"""Returns a class object derived from
 		:py:class:`~pyslet.xml20081126.structures.Document` suitable for

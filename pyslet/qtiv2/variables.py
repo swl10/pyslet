@@ -4,6 +4,7 @@ import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.rfc2616 as http
+import pyslet.html40_19991224 as html
 from pyslet.rfc2396  import URI, URIFactory
 import pyslet.qtiv2.core as core
 
@@ -20,21 +21,21 @@ class BaseType(xsi.Enumeration):
 	model, as opposed to the use of classes with similar names, is designed to
 	help distinguish between these two distinct levels of modelling::
 	
-	<xsd:simpleType name="baseType.Type">
-		<xsd:restriction base="xsd:NMTOKEN">
-			<xsd:enumeration value="boolean"/>
-			<xsd:enumeration value="directedPair"/>
-			<xsd:enumeration value="duration"/>
-			<xsd:enumeration value="file"/>
-			<xsd:enumeration value="float"/>
-			<xsd:enumeration value="identifier"/>
-			<xsd:enumeration value="integer"/>
-			<xsd:enumeration value="pair"/>
-			<xsd:enumeration value="point"/>
-			<xsd:enumeration value="string"/>
-			<xsd:enumeration value="uri"/>
-		</xsd:restriction>
-	</xsd:simpleType>
+		<xsd:simpleType name="baseType.Type">
+			<xsd:restriction base="xsd:NMTOKEN">
+				<xsd:enumeration value="boolean"/>
+				<xsd:enumeration value="directedPair"/>
+				<xsd:enumeration value="duration"/>
+				<xsd:enumeration value="file"/>
+				<xsd:enumeration value="float"/>
+				<xsd:enumeration value="identifier"/>
+				<xsd:enumeration value="integer"/>
+				<xsd:enumeration value="pair"/>
+				<xsd:enumeration value="point"/>
+				<xsd:enumeration value="string"/>
+				<xsd:enumeration value="uri"/>
+			</xsd:restriction>
+		</xsd:simpleType>
 	
 	Defines constants for the above base types.  Usage example::
 
@@ -69,14 +70,14 @@ class Cardinality(xsi.Enumeration):
 	it is treated as NULL. All the values in a multiple or ordered container are
 	drawn from the same value set::
 
-	<xsd:simpleType name="cardinality.Type">
-		<xsd:restriction base="xsd:NMTOKEN">
-			<xsd:enumeration value="multiple"/>
-			<xsd:enumeration value="ordered"/>
-			<xsd:enumeration value="record"/>
-			<xsd:enumeration value="single"/>
-		</xsd:restriction>
-	</xsd:simpleType>
+		<xsd:simpleType name="cardinality.Type">
+			<xsd:restriction base="xsd:NMTOKEN">
+				<xsd:enumeration value="multiple"/>
+				<xsd:enumeration value="ordered"/>
+				<xsd:enumeration value="record"/>
+				<xsd:enumeration value="single"/>
+			</xsd:restriction>
+		</xsd:simpleType>
 	
 	Defines constants for the above carinalities.  Usage example::
 
@@ -222,7 +223,18 @@ class Value(object):
 		return self.value is None
 	
 	def __nonzero__(self):
-		"""The python non-zero test is equivalent to the non-NULL test in QTI."""
+		"""The python non-zero test is equivalent to the non-NULL test in QTI.
+		
+		Care is therefore needed, for example::
+		
+			flag=BooleanValue(False)
+			if flag:
+				print "All non-NULL values are True"
+			if flag.value:
+				print "Test the value attribute to access the python native value"
+			
+			# prints the following...
+			All non-NULL values are True"""
 		return self.value is not None
 				
 	def __unicode__(self):
@@ -233,8 +245,29 @@ class Value(object):
 			raise NotImplementedError("Serialization of %s"%self.__class__.__name__)
 
 	@classmethod
+	def NewValue(cls,cardinality,baseType=None):
+		"""Creates a new value instance with *cardinality* and *baseType*."""
+		if cardinality==Cardinality.single:
+			return SingleValue.NewValue(baseType)
+		elif cardinality==Cardinality.ordered:
+			return OrderedContainer(baseType)
+		elif cardinality==Cardinality.multiple:
+			return MultipleContainer(baseType)
+		elif cardinality==Cardinality.record:
+			return RecordContainer()	 
+		else:
+			raise ValueError("Unknown cardinality")
+			
+
+class SingleValue(Value):
+	"""Represents all values with single cardinality."""
+	
+	def Cardinality(self):
+		return Cardinality.single
+
+	@classmethod
 	def NewValue(cls,baseType,value=None):
-		"""Creates a new instance with *baseType* and *value*"""
+		"""Creates a new instance of a single value with *baseType* and *value*"""
 		if baseType is None:
 			return Value()
 		elif baseType==BaseType.boolean:
@@ -261,27 +294,6 @@ class Value(object):
 			return URIValue(value)
 		else:
 			raise ValueError("Unknown base type: %s"%BaseType.EncodeValue(baseType))			
-
-	@classmethod
-	def NewContainer(cls,cardinality,baseType=None):
-		"""Creates a new container instance with *cardinality* and *baseType*."""
-		if cardinality==Cardinality.single:
-			raise ValueError("Error: use NewValue to create single values")
-		elif cardinality==Cardinality.ordered:
-			return OrderedContainer(baseType)
-		elif cardinality==Cardinality.multiple:
-			return MultipleContainer(baseType)
-		elif cardinality==Cardinality.record:
-			return RecordContainer()	 
-		else:
-			raise ValueError("Unknown cardinality")
-			
-
-class SingleValue(Value):
-	"""Represents all values with single cardinality."""
-	
-	def Cardinality(self):
-		return Cardinality.single
 
 
 class BooleanValue(SingleValue):
@@ -419,7 +431,8 @@ class FloatValue(SingleValue):
 
 	def SetValue(self,value):
 		"""This method will *not* convert integers to float values, you must do
-		this explicitly if you want automatic conversion, for example::
+		this explicitly if you want automatic conversion, for example
+		::
 		
 			# x is a numeric value that may be float or integer
 			v=FloatValue()
@@ -679,7 +692,7 @@ class OrderedContainer(Container):
 				if self.baseType is None:
 					# wild-card lists only work if they're empty!
 					raise ValueError("Can't create non-empty ordered container without a base type")
-				vAdd=Value.NewValue(self.baseType,v)
+				vAdd=SingleValue.NewValue(self.baseType,v)
 				self.value.append(vAdd.value)
 			if not self.value:
 				self.value=None
@@ -722,7 +735,7 @@ class MultipleContainer(Container):
 				if self.baseType is None:
 					# wild-card lists only work if they're empty!
 					raise ValueError("Can't create non-empty multiple container without a base type")
-				vAdd=Value.NewValue(self.baseType,v)
+				vAdd=SingleValue.NewValue(self.baseType,v)
 				self.value[vAdd.value]=self.value.get(vAdd.value,0)+1
 			if not self.value:
 				self.value=None
@@ -862,7 +875,7 @@ class VariableDeclaration(core.QTIElement):
 	def __init__(self,parent):
 		core.QTIElement.__init__(self,parent)
 		self.identifier=''
-		self.cardinality=0
+		self.cardinality=Cardinality.DEFAULT
 		self.baseType=None
 		self.DefaultValue=None
 	
@@ -876,44 +889,51 @@ class VariableDeclaration(core.QTIElement):
 		if self.DefaultValue: yield self.DefaultValue
 		for child in core.QTIElement.GetChildren(self): yield child
 
-	def GetDefaultValue(self):
-		"""Returns a :py:class:`Value` instance representing the default value
-		or None if there is no default value."""
-		if self.DefaultValue:
+	def ContentChanged(self):
+		if self.parent:
+			self.parent.RegisterDeclaration(self)
+
+	def GetDefinedValue(self,definedValue):
+		if definedValue:
 			if self.cardinality==Cardinality.single:
-				value=Value.NewValue(self.baseType,self.DefaultValue.ValueElement[0].GetValue())
+				value=SingleValue.NewValue(self.baseType,definedValue.ValueElement[0].GetValue())
 			else:
-				value=Value.NewContainer(self.cardinality,self.baseType)
+				value=Value.NewValue(self.cardinality,self.baseType)
 				if isinstance(value,RecordContainer):
 					# handle record processing
-					for v in self.DefaultValue.ValueElement:
-						value[v.fieldIdentifier]=Value.NewValue(v.baseType,v.GetValue())	
+					for v in definedValue.ValueElement:
+						value[v.fieldIdentifier]=SingleValue.NewValue(v.baseType,v.GetValue())	
 				else:
 					# handle multiple and ordered processing
-					value.SetValue(map(lambda v:v.GetValue(),self.DefaultValue.ValueElement))
+					value.SetValue(map(lambda v:v.GetValue(),definedValue.ValueElement))
 		else:
 			# generate NULL values with the correct cardinality and base type
 			if self.cardinality==Cardinality.single:
-				value=Value.NewValue(self.baseType)
+				value=SingleValue.NewValue(self.baseType)
 			else:
-				value=Value.NewContainer(self.cardinality,self.baseType)
+				value=Value.NewValue(self.cardinality,self.baseType)
 		return value
+
+	def GetDefaultValue(self):
+		"""Returns a :py:class:`Value` instance representing either the default
+		value or an appropriately typed NULL value if there is no default
+		defined."""
+		return self.GetDefinedValue(self.DefaultValue)
 			
 
-class DefaultValue(core.QTIElement):
-	"""Represents the defaultValue element.
+class DefinedValue(core.QTIElement):
+	"""An abstract class used to implement the common behaviour of
+	:py:class:`DefaultValue` and :py:class:`CorrectResponse` ::
+
+		<xsd:attributeGroup name="defaultValue.AttrGroup">
+			<xsd:attribute name="interpretation" type="string.Type" use="optional"/>
+		</xsd:attributeGroup>
 		
-	<xsd:attributeGroup name="defaultValue.AttrGroup">
-		<xsd:attribute name="interpretation" type="string.Type" use="optional"/>
-	</xsd:attributeGroup>
-	
-	<xsd:group name="defaultValue.ContentGroup">
-		<xsd:sequence>
-			<xsd:element ref="value" minOccurs="1" maxOccurs="unbounded"/>
-		</xsd:sequence>
-	</xsd:group>
-	"""
-	XMLNAME=(core.IMSQTI_NAMESPACE,'defaultValue')
+		<xsd:group name="defaultValue.ContentGroup">
+			<xsd:sequence>
+				<xsd:element ref="value" minOccurs="1" maxOccurs="unbounded"/>
+			</xsd:sequence>
+		</xsd:group>"""
 	XMLATTR_interpretation='interpretation'
 	XMLCONTENT=xml.ElementContent
 	
@@ -926,6 +946,13 @@ class DefaultValue(core.QTIElement):
 		return itertools.chain(
 			self.ValueElement,
 			core.QTIElement.GetChildren(self))
+
+
+class DefaultValue(DefinedValue):
+	"""An optional default value for a variable. The point at which a variable
+	is set to its default value varies depending on the type of item
+	variable."""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'defaultValue')
 
 
 class Mapping(core.QTIElement):
@@ -976,7 +1003,7 @@ class Mapping(core.QTIElement):
 			self.baseType=BaseType.string
 		self.map={}
 		for me in self.MapEntry:
-			v=Value.NewValue(self.baseType,me.mapKey)
+			v=SingleValue.NewValue(self.baseType,me.mapKey)
 			self.map[v.value]=me.mappedValue
 					
 	def MapValue(self,value):
@@ -1021,7 +1048,8 @@ class Mapping(core.QTIElement):
 
 
 class MapEntry(core.QTIElement):
-	"""An entry in a :py:class:`Mapping`::
+	"""An entry in a :py:class:`Mapping`
+	::
 		
 		<xsd:attributeGroup name="mapEntry.AttrGroup">
 			<xsd:attribute name="mapKey" type="valueType.Type" use="required"/>
@@ -1039,16 +1067,17 @@ class MapEntry(core.QTIElement):
 		
 
 class ResponseDeclaration(VariableDeclaration):
-	"""Represents a responseDeclaration.
+	"""Response variables are declared by response declarations and bound to
+	interactions in the itemBody::
 	
-	<xsd:group name="responseDeclaration.ContentGroup">
-		<xsd:sequence>
-			<xsd:group ref="variableDeclaration.ContentGroup"/>
-			<xsd:element ref="correctResponse" minOccurs="0" maxOccurs="1"/>
-			<xsd:element ref="mapping" minOccurs="0" maxOccurs="1"/>
-			<xsd:element ref="areaMapping" minOccurs="0" maxOccurs="1"/>
-		</xsd:sequence>
-	</xsd:group>"""
+		<xsd:group name="responseDeclaration.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="variableDeclaration.ContentGroup"/>
+				<xsd:element ref="correctResponse" minOccurs="0" maxOccurs="1"/>
+				<xsd:element ref="mapping" minOccurs="0" maxOccurs="1"/>
+				<xsd:element ref="areaMapping" minOccurs="0" maxOccurs="1"/>
+			</xsd:sequence>
+		</xsd:group>"""
 	XMLNAME=(core.IMSQTI_NAMESPACE,'responseDeclaration')
 	XMLCONTENT=xml.ElementContent
 	
@@ -1064,38 +1093,205 @@ class ResponseDeclaration(VariableDeclaration):
 		if self.Mapping: yield self.Mapping
 		if self.AreaMapping: yield self.AreaMapping
 		
-	def ContentChanged(self):
-		self.parent.RegisterDeclaration(self)
+	def GetCorrectValue(self):
+		"""Returns a :py:class:`Value` instance representing either the correct
+		response value or an appropriately typed NULL value if there is no
+		correct value."""
+		return self.GetDefinedValue(self.CorrectResponse)
+
+	def GetStageDimensions(self):
+		"""For response variables with point type, returns a pair of integer
+		values: width,height
+
+		In HTML, shapes (including those used in the AreaMapping) can use
+		relative coordinates. To interpret relative coordinates we need to know
+		the size of the stage used to interpret the point values.  For a
+		response variable that is typically the size of the image or object used
+		in the interaction.
+
+		This method searches for the interaction associated with the response
+		and obtains the width and height of the corresponding object.
+		
+		[TODO: currently returns 100,100]"""
+		return 100,100
+		
+class CorrectResponse(DefinedValue):
+	"""A response declaration may assign an optional correctResponse. This value
+	may indicate the only possible value of the response variable to be
+	considered correct or merely just a correct value."""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'correctResponse')
+
+
+class AreaMapping(core.QTIElement):
+	"""A special class used to create a mapping from a source set of point
+	values to a target set of float values::
+		
+		<xsd:attributeGroup name="areaMapping.AttrGroup">
+			<xsd:attribute name="lowerBound" type="float.Type" use="optional"/>
+			<xsd:attribute name="upperBound" type="float.Type" use="optional"/>
+			<xsd:attribute name="defaultValue" type="float.Type" use="required"/>
+		</xsd:attributeGroup>
+		
+		<xsd:group name="areaMapping.ContentGroup">
+			<xsd:sequence>
+				<xsd:element ref="areaMapEntry" minOccurs="1" maxOccurs="unbounded"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'areaMapping')
+	XMLATTR_lowerBound=('lowerBound',xsi.DecodeFloat,xsi.EncodeFloat)
+	XMLATTR_upperBound=('upperBound',xsi.DecodeFloat,xsi.EncodeFloat)
+	XMLATTR_defaultValue=('defaultValue',xsi.DecodeFloat,xsi.EncodeFloat)
+	XMLCONTENT=xml.ElementContent
+	
+	def __init__(self,parent):
+		core.QTIElement.__init__(self,parent)
+		self.lowerBound=None
+		self.upperBound=None
+		self.defaultValue=0.0
+		self.AreaMapEntry=[]
+	
+	def GetChildren(self):
+		return iter(self.AreaMapEntry)
+					
+	def MapValue(self,value,width,height):
+		"""Maps an instance of :py:class:`Value` with point base type to an
+		instance of :py:class:`Value` with base type float.
+		
+		*	value is a :py:class:`Value` of base type point
+		
+		*	width is the integer width of the object on which the area is defined
+		
+		*	height is the integer height of the object on which the area is defined
+		
+		The width and height of the object are required because HTML allows
+		relative values to be used when defining areas."""
+		nullFlag=False
+		if not value:
+			srcValues=[]
+			nullFlag=True
+		elif value.Cardinality()==Cardinality.single:
+			srcValues=[value.value]
+		elif value.Cardinality()==Cardinality.ordered:
+			srcValues=value.value
+		elif value.Cardinality()==Cardinality.multiple:
+			srcValues=value.value.keys()
+		else:
+			raise ValueError("Can't map %s"%repr(value))
+		result=0.0
+		beenThere=[False]*len(self.AreaMapEntry)
+		dstValue=FloatValue(0.0)
+		if value.baseType is None:
+			# a value of unknown type results in NULL
+			nullFlag=True
+		elif value.baseType!=BaseType.point:
+			raise ValueError("Can't map %s"%repr(value))
+		for v in srcValues:
+			hitPoint=False
+			for i in xrange(len(self.AreaMapEntry)):
+				if self.AreaMapEntry[i].TestPoint(v,width,height):
+					hitPoint=True
+					if not beenThere[i]:
+						# When mapping containers each area can be mapped once only
+						beenThere[i]=True
+						result=result+self.AreaMapEntry[i].mappedValue
+					break
+			if not hitPoint:
+				# This point is not in any of the areas
+				result=result+self.defaultValue
+		if nullFlag:
+			# We save the NULL return up to the end to ensure that we generate errors
+			# in the case where a container contains mixed or mismatching values.
+			return dstValue
+		else:
+			if self.lowerBound is not None and result<self.lowerBound:
+				result=self.lowerBound
+			elif self.upperBound is not None and result>self.upperBound:
+				result=self.upperBound
+			dstValue.SetValue(result)
+			return dstValue
+			
+
+class AreaMapEntry(core.QTIElement):
+	"""An :py:class:`AreaMapping` is defined by a set of areaMapEntries, each of
+	which maps an area of the coordinate space onto a single float::
+		
+		<xsd:attributeGroup name="areaMapEntry.AttrGroup">
+			<xsd:attribute name="shape" type="shape.Type" use="required"/>
+			<xsd:attribute name="coords" type="coords.Type" use="required"/>
+			<xsd:attribute name="mappedValue" type="float.Type" use="required"/>
+		</xsd:attributeGroup>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'areaMapEntry')
+	XMLATTR_shape=('shape',core.Shape.DecodeLowerValue,core.Shape.EncodeValue)
+	XMLATTR_coords=('coords',html.DecodeCoords,html.EncodeCoords)
+	XMLATTR_mappedValue=('mappedValue',xsi.DecodeFloat,xsi.EncodeFloat)
+	XMLCONTENT=xml.ElementType.Empty
+
+	def __init__(self,parent):
+		core.QTIElement.__init__(self,parent)
+		self.shape=core.Shape.DEFAULT	#: The shape
+		self.coords=None				#: A list of Length values
+		self.mappedValue=0.0			#: The mapped value
+		
+	def TestPoint(self,point,width,height):
+		"""Tests *point* to see if it is in this area."""
+		x,y=point
+		if self.shape==core.Shape.circle:
+			return self.coords.TestCircle(x,y,width,height)
+		elif self.shape==core.Shape.default:
+			# The entire region
+			return x>=0 and y>=0 and x<=width and y<=width
+		elif self.shape==core.Shape.ellipse:
+			# Ellipse is deprecated because there is no HTML equivalent test
+			return self.TestEllipse(x,y,width,height)
+		elif self.shape==core.Shape.poly:
+			return self.coords.TestPoly(x,y,width,height)		
+		elif self.shape==core.Shape.rect:
+			return self.coords.TestRect(x,y,width,height)
+		else:
+			raise ValueError("Unknown Shape type")
+
+	def TestEllipse(self,x,y,width,height):
+		"""Tests an x,y point against an ellipse with these coordinates.
+		
+		HTML does not define ellipse, we take our definition from the QTI
+		specification itself: center-x, center-y, x-radius, y-radius."""
+		if len(self.coords.values)<4:
+			raise ValueError("Ellipse test requires 4 coordinates: %s"%str(self.coords.values))
+		dx=x-self.coords.values[0].GetValue(width)
+		dy=y-self.coords.values[1].GetValue(height)
+		rx=self.coords.values[2].GetValue(width)
+		ry=self.coords.values[3].GetValue(height)
+		return dx*dx*ry*ry+dy*dy*rx*rx<=rx*rx*ry*ry
 
 		
 class OutcomeDeclaration(VariableDeclaration):
-	"""Represents an outcomeDeclaration.
+	"""Outcome variables are declared by outcome declarations
+	::
 
-	<xsd:attributeGroup name="outcomeDeclaration.AttrGroup">
-		<xsd:attributeGroup ref="variableDeclaration.AttrGroup"/>
-		<xsd:attribute name="view" use="optional">
-			<xsd:simpleType>
-				<xsd:list itemType="view.Type"/>
-			</xsd:simpleType>
-		</xsd:attribute>
-		<xsd:attribute name="interpretation" type="string.Type" use="optional"/>
-		<xsd:attribute name="longInterpretation" type="uri.Type" use="optional"/>
-		<xsd:attribute name="normalMaximum" type="float.Type" use="optional"/>
-		<xsd:attribute name="normalMinimum" type="float.Type" use="optional"/>
-		<xsd:attribute name="masteryValue" type="float.Type" use="optional"/>
-	</xsd:attributeGroup>
-	
-	<xsd:group name="outcomeDeclaration.ContentGroup">
-		<xsd:sequence>
-			<xsd:group ref="variableDeclaration.ContentGroup"/>
-			<xsd:group ref="lookupTable.ElementGroup" minOccurs="0" maxOccurs="1"/>
-		</xsd:sequence>
-	</xsd:group>
-	"""
+		<xsd:attributeGroup name="outcomeDeclaration.AttrGroup">
+			<xsd:attributeGroup ref="variableDeclaration.AttrGroup"/>
+			<xsd:attribute name="view" use="optional">
+				<xsd:simpleType>
+					<xsd:list itemType="view.Type"/>
+				</xsd:simpleType>
+			</xsd:attribute>
+			<xsd:attribute name="interpretation" type="string.Type" use="optional"/>
+			<xsd:attribute name="longInterpretation" type="uri.Type" use="optional"/>
+			<xsd:attribute name="normalMaximum" type="float.Type" use="optional"/>
+			<xsd:attribute name="normalMinimum" type="float.Type" use="optional"/>
+			<xsd:attribute name="masteryValue" type="float.Type" use="optional"/>
+		</xsd:attributeGroup>
+		
+		<xsd:group name="outcomeDeclaration.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="variableDeclaration.ContentGroup"/>
+				<xsd:group ref="lookupTable.ElementGroup" minOccurs="0" maxOccurs="1"/>
+			</xsd:sequence>
+		</xsd:group>"""
 	XMLNAME=(core.IMSQTI_NAMESPACE,'outcomeDeclaration')
 	XMLATTR_view=('view',core.View.DecodeLowerValue,core.View.EncodeValue)
 	XMLATTR_interpretation='interpretation'
-	XMLATTR_longInterpretation='longInterpretation'
+	XMLATTR_longInterpretation=('longInterpretation',html.DecodeURI,html.EncodeURI)
 	XMLATTR_normalMaximum=('normalMaximum',xsi.DecodeFloat,xsi.EncodeFloat)
 	XMLATTR_normalMinimum=('normalMinimum',xsi.DecodeFloat,xsi.EncodeFloat)
 	XMLATTR_masteryValue=('masteryValue',xsi.DecodeFloat,xsi.EncodeFloat)
@@ -1109,22 +1305,336 @@ class OutcomeDeclaration(VariableDeclaration):
 		self.normalMaximum=None
 		self.normalMinimum=None
 		self.masteryValue=None
-		self.lookupTable=None
-	
-	def MatchTable(self):
-		child=MatchTable(self)
-		self.lookupTable=child
-		return child
-	
-	def QTIInterpolationTable(self):
-		child=QTIInterpolationTable(self)
-		self.lookupTable=child
-		return child
+		self.LookupTable=None
 	
 	def GetChildren(self):
 		for child in VariableDeclaration.GetChildren(self): yield child
-		if self.lookupTable: yield self.lookupTable
+		if self.LookupTable: yield self.LookupTable
 	
-	def ContentChanged(self):
-		self.parent.RegisterDeclaration(self)
+
+class LookupTable(core.QTIElement):
+	"""An abstract class associated with an outcomeDeclaration used to create a
+	lookup table from a numeric source value to a single outcome value in the
+	declared value set::
+
+		<xsd:attributeGroup name="lookupTable.AttrGroup">
+			<xsd:attribute name="defaultValue" type="valueType.Type" use="optional"/>
+		</xsd:attributeGroup>"""
+	XMLATTR_defaultValue='defaultValue'
+	XMLATTR_interpretation='interpretation'
+	XMLATTR_longInterpretation=('longInterpretation',html.DecodeURI,html.EncodeURI)
+	XMLATTR_normalMaximum=('normalMaximum',xsi.DecodeFloat,xsi.EncodeFloat)
+	XMLATTR_normalMinimum=('normalMinimum',xsi.DecodeFloat,xsi.EncodeFloat)
+	XMLATTR_masteryValue=('masteryValue',xsi.DecodeFloat,xsi.EncodeFloat)
+	XMLCONTENT=xml.ElementContent
+
+	def __init__(self,parent):
+		core.QTIElement.__init__(self,parent)
+		self.defaultValue=None	#: a string from which the default is parsed when its base type is known
+		self.baseType=BaseType.string
+		self.default=None		#: a :py:class:`Value` instance representing the default
 		
+	def ContentChanged(self):
+		if isinstance(self.parent,OutcomeDeclaration):
+			self.baseType=self.parent.baseType
+		else:
+			self.baseType=BaseType.string
+		self.default=SingleValue.NewValue(self.baseType,self.defaultValue)
+
+
+class MatchTable(LookupTable):
+	"""A matchTable transforms a source integer by finding the first
+	matchTableEntry with an exact match to the source::
+
+		<xsd:group name="matchTable.ContentGroup">
+			<xsd:sequence>
+				<xsd:element ref="matchTableEntry" minOccurs="1" maxOccurs="unbounded"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'matchTable')
+	
+	def __init__(self,parent):
+		LookupTable.__init__(self,parent)
+		self.MatchTableEntry=[]
+		self.map={}
+		
+	def GetChildren(self):
+		return iter(self.MatchTableEntry)
+
+	def ContentChanged(self):
+		"""Builds an internal dictionary of the values being mapped."""
+		LookupTable.ContentChanged(self)
+		self.map={}
+		for mte in self.MatchTableEntry:
+			v=SingleValue.NewValue(self.baseType,mte.targetValue)
+			self.map[mte.sourceValue]=v.value
+					
+	def Lookup(self,value):
+		"""Maps an instance of :py:class:`Value` with integer base type to an
+		instance of :py:class:`Value` with the base type of the match table."""
+		nullFlag=False
+		if not value:
+			nullFlag=True
+			srcValue=None
+		elif value.Cardinality()!=Cardinality.single:
+			raise ValueError("Can't match container: %s"%repr(value))
+		elif value.baseType!=BaseType.integer:
+			raise ValueError("MatchTable requires integer, found %s"%BaseType.EncodeValue(value.baseType))
+		else:
+			srcValue=value.value
+		dstValue=SingleValue.NewValue(self.baseType)
+		if not nullFlag:
+			dstValue.SetValue(self.map.get(srcValue,self.default.value))
+		return dstValue
+
+
+class MatchTableEntry(core.QTIElement):
+	"""sourceValue
+		The source integer that must be matched exactly.
+	
+	targetValue
+		The target value that is used to set the outcome when a match is found
+	
+	::
+
+		<xsd:attributeGroup name="matchTableEntry.AttrGroup">
+			<xsd:attribute name="sourceValue" type="integer.Type" use="required"/>
+			<xsd:attribute name="targetValue" type="valueType.Type" use="required"/>
+		</xsd:attributeGroup>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'matchTableEntry')
+	XMLATTR_sourceValue=('sourceValue',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_targetValue='targetValue'
+	XMLCONTENT=xml.ElementContent
+	
+	def __init__(self,parent):
+		core.QTIElement.__init__(self,parent)
+		self.sourceValue=None
+		self.targetValue=None
+
+	
+class InterpolationTable(LookupTable):
+	"""An interpolationTable transforms a source float (or integer) by finding
+	the first interpolationTableEntry with a sourceValue that is less than or
+	equal to (subject to includeBoundary) the source value::
+
+		<xsd:group name="interpolationTable.ContentGroup">
+			<xsd:sequence>
+				<xsd:element ref="interpolationTableEntry" minOccurs="1" maxOccurs="unbounded"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'interpolationTable')
+	
+	def __init__(self,parent):
+		LookupTable.__init__(self,parent)
+		self.InterpolationTableEntry=[]
+		self.table=[]
+		
+	def GetChildren(self):
+		return iter(self.InterpolationTableEntry)
+
+	def ContentChanged(self):
+		"""Builds an internal table of the values being mapped."""
+		LookupTable.ContentChanged(self)
+		self.table=[]
+		for ite in self.InterpolationTableEntry:
+			v=SingleValue.NewValue(self.baseType,ite.targetValue)
+			self.table.append((ite.sourceValue,ite.includeBoundary,v.value))
+					
+	def Lookup(self,value):
+		"""Maps an instance of :py:class:`Value` with integer or float base type
+		to an instance of :py:class:`Value` with the base type of the
+		interpolation table."""
+		nullFlag=False
+		if not value:
+			nullFlag=True
+			srcValue=None
+		elif value.Cardinality()!=Cardinality.single:
+			raise ValueError("Can't match container: %s"%repr(value))
+		elif value.baseType==BaseType.integer:
+			srcValue=float(value.value)
+		elif value.baseType in (BaseType.float,BaseType.duration):
+			srcValue=value.value
+		else:
+			raise ValueError("Interpolation table requires integer or float, found %s"%BaseType.EncodeValue(value.baseType))
+		dstValue=SingleValue.NewValue(self.baseType)
+		if not nullFlag:
+			dstValue.SetValue(self.default.value)
+			for testValue,lte,targetValue in self.table:
+				if testValue<srcValue or (lte and testValue==srcValue):		
+					dstValue.SetValue(targetValue)
+					break
+		return dstValue
+
+
+class InterpolationTableEntry(core.QTIElement):
+	"""sourceValue
+		The lower bound for the source value to match this entry.
+	
+	includeBoundary
+		Determines if an exact match of sourceValue matches this entry. If true,
+		the default, then an exact match of the value is considered a match of
+		this entry.
+	
+	targetValue
+		The target value that is used to set the outcome when a match is found
+	
+	::
+	
+		<xsd:attributeGroup name="interpolationTableEntry.AttrGroup">
+			<xsd:attribute name="sourceValue" type="float.Type" use="required"/>
+			<xsd:attribute name="includeBoundary" type="boolean.Type" use="optional"/>
+			<xsd:attribute name="targetValue" type="valueType.Type" use="required"/>
+		</xsd:attributeGroup>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'interpolationTableEntry')
+	XMLATTR_sourceValue=('sourceValue',xsi.DecodeFloat,xsi.EncodeFloat)
+	XMLATTR_includeBoundary=('includeBoundary',xsi.DecodeBoolean,xsi.EncodeBoolean)
+	XMLATTR_targetValue='targetValue'
+	XMLCONTENT=xml.ElementContent
+	
+	def __init__(self,parent):
+		core.QTIElement.__init__(self,parent)
+		self.sourceValue=None
+		self.includeBoundary=True
+		self.targetValue=None
+	
+
+class TemplateDeclaration(VariableDeclaration):
+	"""Template declarations declare item variables that are to be used
+	specifically for the purposes of cloning items
+	::
+
+		<xsd:attributeGroup name="templateDeclaration.AttrGroup">
+			<xsd:attributeGroup ref="variableDeclaration.AttrGroup"/>
+			<xsd:attribute name="paramVariable" type="boolean.Type" use="optional"/>
+			<xsd:attribute name="mathVariable" type="boolean.Type" use="optional"/>
+		</xsd:attributeGroup>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'templateDeclaration')
+	XMLATTR_paramVariable=('paramVariable',xsi.DecodeBoolean,xsi.EncodeBoolean)
+	XMLATTR_mathVariable=('mathVariable',xsi.DecodeBoolean,xsi.EncodeBoolean)
+	XMLCONTENT=xml.ElementContent
+
+	def __init__(self,parent):
+		VariableDeclaration.__init__(self,parent)
+		self.paramVariable=None
+		self.mathVariable=None
+	
+
+class ItemSessionState(object):
+	"""Represents the state of an item session.  Instances can be used as if
+	they were dictionaries of :py:class:`Value`.  *item* is the item from which
+	the session should be created."""
+
+	def __init__(self,item):
+		self.item=item
+		self.map={}
+		# add the default response variables
+		self.map['numAttempts']=IntegerValue(0)
+		self.map['duration']=DurationValue(0.0)
+		self.map['completionStatus']=IdentifierValue('not_attempted')
+		# now loop through the declared variables...
+		for rd in self.item.ResponseDeclaration:
+			self.map[rd.identifier]=Value.NewValue(rd.cardinality,rd.baseType)
+			# Response variables do not get their default... yet!
+		for od in self.item.OutcomeDeclaration:
+			self.map[od.identifier]=v=od.GetDefaultValue()
+			if not v:
+				if v.Cardinality()==Cardinality.single:
+					if v.baseType==BaseType.integer:
+						v.SetValue(0)
+					elif v.baseType==BaseType.float:
+						v.SetValue(0.0)
+		for td in self.item.TemplateDeclaration:
+			self.map[td.identifier]=td.GetDefaultValue()
+	
+	def BeginAttempt(self):
+		"""Called at the start of an attempt.
+		
+		This method sets the default RESPONSE values and completionStatus if
+		this is the first attempt and increments numAttempts accordingly."""
+		numAttempts=self.map['numAttempts']
+		numAttempts.SetValue(numAttempts.value+1)
+		if numAttempts.value==1:
+			# first attempt, set default responses
+			for rd in self.item.ResponseDeclaration:
+				self.map[rd.identifier]=rd.GetDefaultValue()
+			# and set completionStatus
+			self.map['completionStatus']=IdentifierValue('unknown')
+	
+	def EndAttempt(self):
+		"""Called at the end of an attempt.  Invokes response processing if present."""
+		pass
+							
+	def IsResponse(self,varName):
+		"""Return True if *varName* is the name of a response variable."""
+		d=self.item.GetDeclaration(varName)
+		if d is None:
+			return varName in ('numAttempts','duration')
+		else:
+			return isinstance(d,ResponseDeclaration)
+			
+	def IsOutcome(self,varName):
+		"""Return True if *varName* is the name of an outcome variable."""
+		d=self.item.GetDeclaration(varName)
+		if d is None:
+			return varName=='completionStatus'
+		else:
+			return isinstance(d,OutcomeDeclaration)
+
+	def IsTemplate(self,varName):
+		"""Return True if *varName* is the name of a template variable."""
+		d=self.item.GetDeclaration(varName)
+		if d is None:
+			return False
+		else:
+			return isinstance(d,TemplateDeclaration)
+	
+	def GetDeclaration(self,varName):
+		"""Returns the declaration associated with *varName* or None if the
+		variable is one of the built-in variables.  If *varName* is not a
+		variable KeyError is raised.  To test for the existence of a variable
+		just use the object as you would a dictionary::
+		
+			# item is an AssessmentItem instance
+			state=ItemSessionState(item)
+			if 'RESPONSE' in state:
+				print "RESPONSE declared!" """
+		if varName in self.map:
+			d=self.item.GetDeclaration(varName)
+			return d
+		else:
+			raise KeyError(varName)
+			
+	def __len__(self):
+		return len(self.map)
+			
+	def __getitem__(self,varName):
+		"""Returns the :py:class:`Value` instance corresponding to *varName* or
+		raises KeyError if there is no variable with that name."""
+		return self.map[varName]
+			
+	def __setitem__(self,varName,value):
+		"""Sets the value of *varName* to the :py:class:`Value` instance *value*.
+		
+		The *baseType* and cardinality of *value* must match those expected for
+		the variable."""
+		if not isinstance(value,Value):
+			raise TypeError
+		v=self.map[varName]
+		if value.Cardinality()!=v.Cardinality():
+			raise ValueError("Expected %s value, found %s"%(Cardinality.EncodeValue(v.Cardinality()),
+				Cardinality.EncodeValue(value.Cardinality())))
+		if value.baseType!=v.baseType:
+			raise ValueError("Expected %s value, found %s"%(BaseType.EncodeValue(v.baseType),
+				BaseType.EncodeValue(value.baseType)))
+		v.SetValue(value.v)
+
+	def __delitem__(self,varName):
+		raise TypeError("Can't delete variables from ItemSessionState")
+	
+	def __iter__(self):
+		return iter(self.map)
+
+	def __contains__(self,varName):
+		return varName in self.map
+	
+	

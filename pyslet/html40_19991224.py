@@ -121,18 +121,21 @@ Missing end tags must be handled in the elements themselves:
 class LengthType:
 	"""Represents the HTML Length::
 	
-	<!ENTITY % Length "CDATA" -- nn for pixels or nn% for percentage length -->
-	"""
+		<!ENTITY % Length "CDATA" -- nn for pixels or nn% for percentage length -->
+
+	* value can be either an integer value or another LengthType instance.
+	
+	* if value is an integer then valueType can be used to select Pixel or Percentage
+	
+	By default values are assumed to be Pixel lengths."""
+
 	Pixel=0
 	"""data constant used to indicate pixel co-ordinates"""
+
 	Percentage=1
 	"""data constant used to indicate relative (percentage) co-ordinates"""
 
 	def __init__(self,value,valueType=None):
-		"""	* value can be either an integer value or another LengthType instance.
-	* if value is an integer then valueType can be used to select Pixel or Percentage
-	
-	By default values are assumed to be Pixel lengths."""
 		if isinstance(value,LengthType):
 			self.type=value.type
 			"""type is one of the the LengthType constants: Pixel or Percentage"""
@@ -156,7 +159,16 @@ class LengthType:
 		else:
 			return unicode(self.value)
 
-		
+	def GetValue(self,dim):
+		"""Returns the value of the Length, *dim* is the size of the dimension
+		used for interpreting percentage values.  I.e., 100% will return
+		*dim*."""
+		if self.type==self.Percentage:
+			return (self.value*dim+50)//100
+		else:
+			return self.value
+
+			
 def DecodeLength(strValue):
 	"""Parses a length from a string returning an instance of LengthType"""
 	valueType=None
@@ -209,10 +221,126 @@ class Coords:
 	def __str__(self):
 		"""Formats the Coords as a comma-separated string of Length values."""
 		return string.join(map(lambda x:str(x),self.values),',')
+	
+	def TestRect(self,x,y,width,height):
+		"""Tests an x,y point against a rect with these coordinates.
 		
+		HTML defines the rect co-ordinates as: left-x, top-y, right-x, bottom-y"""
+		if len(self.values)<4:
+			raise ValueError("Rect test requires 4 coordinates: %s"%str(self.values))
+		x0=self.values[0].GetValue(width)
+		y0=self.values[1].GetValue(height)
+		x1=self.values[2].GetValue(width)
+		y1=self.values[3].GetValue(height)
+		# swap the coordinates so that x0,y0 really is the top-left
+		if x0>x1:
+			xs=x0;x0=x1;x1=xs
+		if y0>y1:
+			ys=y0;y0=y1;y1=ys
+		if x<x0 or y<y0:
+			return False
+		if x>=x1 or y>=y1:
+			return False
+		return True
+		
+	def TestCircle(self,x,y,width,height):
+		"""Tests an x,y point against a circle with these coordinates.
+		
+		HTML defines a circle as: center-x, center-y, radius.
+		
+		The specification adds the following note:
+			
+			When the radius value is a percentage value, user agents should
+			calculate the final radius value based on the associated object's
+			width and height. The radius should be the smaller value of the two."""
+		if len(self.values)<3:
+			raise ValueError("Circle test requires 3 coordinates: %s"%str(self.values))
+		if width<height:
+			rMax=width
+		else:
+			rMax=height
+		dx=x-self.values[0].GetValue(width)
+		dy=y-self.values[1].GetValue(height)
+		r=self.values[2].GetValue(rMax)
+		return dx*dx+dy*dy<=r*r
+	
+	def TestPoly(self,x,y,width,height):
+		"""Tests an x,y point against a poly with these coordinates.
+		
+		HTML defines a poly as: x1, y1, x2, y2, ..., xN, yN.
+		
+		The specification adds the following note:
+		
+			The first x and y coordinate pair and the last should be the same to
+			close the polygon. When these coordinate values are not the same,
+			user agents should infer an additional coordinate pair to close the
+			polygon.
+		
+		The algorithm used is the "Ray Casting" algorithm described here:
+		http://en.wikipedia.org/wiki/Point_in_polygon"""
+		if len(self.values)<6:
+			# We need at least six coordinates - to make a triangle
+			raise ValueError("Poly test requires as least 3 coordinates: %s"%str(self.values))
+		if len(self.values)%2:
+			# We also need an even number of coordinates!
+			raise ValueError("Poly test requires an even number of coordinates: %s"%str(self.values))
+		# We build an array of y-values and clean up the missing end point problem
+		vertex=[]
+		i=0
+		for v in self.values:
+			if i%2:
+				# this is a y coordinate
+				vertex.append((lastX,v.GetValue(height)))
+			else:
+				# this is an x coordinate
+				lastX=v.GetValue(width)
+			i=i+1
+		if vertex[0][0]!=vertex[-1][0] or vertex[0][1]!=vertex[-1][1]:
+			# first point is not the same as the last point
+			vertex.append(vertex[0])
+		# We now have an array of vertex coordinates ready for the Ray Casting algorithm
+		# We start from negative infinity with a horizontal ray passing through x,y
+		nCrossings=0
+		for i in xrange(len(vertex)-1):
+			# we use a horizontal ray passing through the point x,y
+			x0,y0=vertex[i]
+			x1,y1=vertex[i+1]
+			i+=1
+			if y0==y1:
+				# ignore horizontal edges
+				continue
+			if y0>y1:
+				# swap the vertices so that x1,y1 has the higher y value
+				xs,ys=x0,y0
+				x0,y0=x1,y1
+				x1,y1=xs,ys
+			if y<y0 or y>=y1:
+				# A miss, or at most a touch on the lower (higher y value) vertex
+				continue
+			elif y==y0:
+				# The ray at most touches the upper vertex
+				if x>=x0:
+					# upper vertex intersection, or a miss
+					nCrossings+=1
+				continue
+			if x<x0 and x<x1:
+				# This edge is off to the right, a miss
+				continue
+			# Finally, we have to calculate an intersection
+			xHit=float(y-y0)*float(x1-x0)/float(y1-y0)+float(x0)
+			if xHit<=float(x):
+				nCrossings+=1
+		return nCrossings%2!=0
+			
+			 		
+					
 def DecodeCoords(value):
 	"""Decodes coords from an attribute value string into a Coords instance."""
-	return Coords(map(lambda x:DecodeLength(x.strip()),value.split(',')))
+	if ',' in value:
+		coords=value.split(',')
+	else:
+		coords=[]
+	return Coords(map(lambda x:DecodeLength(x.strip()),coords))
 
 def EncodeCoords(coords):
 	"""Encodes a Coords instance as an attribute value string."""
@@ -1618,150 +1746,11 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 		return HTML
 		
 	def GetElementClass(self,name):
-		return XHTMLDocument.classMap.get(name,xmlns.XMLNSElement)
+		eClass=XHTMLDocument.classMap.get(name,None)
+		if eClass is None:
+			lcName=(name[0],name[1].lower())
+			eClass=XHTMLDocument.classMap.get(lcName,xmlns.XMLNSElement)
+		return eClass
 		
-# 	def startElementNS(self, name, qname, attrs):
-# 		if self.p.xmlFlag:
-# 			xmlns.XMLNSDocument.startElementNS(self,name,qname,attrs)
-# 			return
-# 		parent=self.cObject
-# # 		if self.data:
-# # 			data=string.join(self.data,'')
-# # 			if isinstance(parent,xmlns.XMLNSElement):
-# # 				parent.AddData(data)
-# # 			elif xml.CollapseSpace(data)!=u" ":
-# # 				raise XHTMLValidityError("Unexpected document-level data: %s"%data)
-# # 			self.data=[]
-# 		if name[0] is None:
-# 			name=(self.DefaultNS,name[1].lower())
-# 		elif name[0]==XHTML_NAMESPACE:
-# 			# any element in the XHTML namespace is lower-cased before lookup
-# 			name=(XHTML_NAMESPACE,name[1].lower())		
-# 		eClass=self.GetElementClass(name)
-# 		try:
-# 			if isinstance(parent,xml.XMLDocument):
-# 				if eClass is HTML:
-# 					self.cObject=parent.ChildElement(HTML)
-# 				elif issubclass(eClass,XHTMLElement):
-# 					parent=parent.ChildElement(HTML)
-# 					self.cObject=parent.ChildElement(eClass)
-# 				else:
-# 					self.cObject=parent.ChildElement(eClass,name)
-# 			elif issubclass(eClass,XHTMLElement):
-# 				# Handle omitted tags
-# 				saveCObject=self.cObject
-# 				self.cObject=None
-# 				while isinstance(parent,xml.Element):
-# 					try:
-# 						self.cObject=parent.ChildElement(eClass)
-# 						break
-# 					except XHTMLValidityError:
-# 						# we can't go in here, close parent
-# 						parent.ContentChanged()
-# 						parent=parent.parent
-# 						continue
-# 				if self.cObject is None:
-# 					# so this is rubbish that we can't even add to an HTML node?
-# 					# import pdb;pdb.set_trace()
-# 					# raise XHTMLValidityError("Found spurious element <%s>"%str(qname))
-# 					print "Found spurious element <%s>"%str(qname)
-# 					self.cObject=saveCObject
-# 			else:
-# 				print "Unknown element in HTML: %s"%str(name)
-# 				self.cObject=parent.ChildElement(eClass,name)				
-# 		except TypeError:
-# 			raise TypeError("Can't create %s in %s"%(eClass.__name__,parent.__class__.__name__))
-# 		if self.cObject is None:
-# 			raise ValueError("None when creating %s in %s"%(eClass.__name__,parent.__class__.__name__))
-# 		for attr in attrs.keys():
-# 			try:
-# 				if attr[0] is None:
-# 					self.cObject.SetAttribute(attr[1],attrs[attr])
-# 				else:
-# 					self.cObject.SetAttribute(attr,attrs[attr])
-# 			except xml.XMLIDClashError:
-# 				# ignore ID clashes as they are common in HTML it seems
-# 				continue
-# 			except xml.XMLIDValueError:
-# 				# ignore mal-formed ID values
-# 				continue
-# 		if hasattr(eClass,'SGMLCDATA'):
-# 			# This is a CDATA section...
-# 			while self.p.theChar is not None:
-# 				data=self.p.ParseCDSect('</')
-# 				if data:
-# 					self.cObject.AddData(data)
-# 				eName=self.p.ParseName()
-# 				if eName and eName.lower()==qname.lower():
-# 					s=self.p.ParseS()
-# 					self.p.ParseRequiredLiteral('>')
-# 					break
-# 				else:
-# 					# This is an error, a CDATA element ends at the first ETAGO
-# 					# but it seems it is a common error so forgive and forget
-# 					if eName is None:
-# 						eName=''
-# 					self.cObject.AddData('</%s'%eName)
-# 			self.endElementNS(name,qname)
-# 
-# 	def characters(self,ch):
-# 		parent=self.cObject
-# 		if isinstance(self.cObject,xmlns.Element):
-# 			try:
-# 				self.cObject.AddData(ch)
-# 			except xmlns.XMLValidityError:
-# 				# character data can't go here, try adding a span
-# 				try:
-# 					self.cObject=parent.ChildElement(Span)
-# 					self.cObject.AddData(ch)
-# 				except xmlns.XMLValidityError:
-# 					self.cObject=parent.ChildElement(Div)
-# 					self.cObject.AddData(ch)
-# 		elif xmlns.CollapseSpace(ch)!=u" ":
-# 			parent=parent.ChildElemenet(HTML)
-# 			self.cObject=parent.ChildElement(Div)
-# 			self.cObject.AddData(ch)
-# 		else:
-# 			# ignorable white space
-# 			pass
-# 			
-# 	def endElementNS(self,name,qname):
-# 		if self.p.xmlFlag:
-# 			xmlns.XMLNSDocument.endElementNS(self,name,qname)
-# 			return
-# 		if name[0] is None:
-# 			name=(self.DefaultNS,name[1].lower())
-# # 		if self.data:
-# # 			data=string.join(self.data,'')
-# # 			if isinstance(self.cObject,xmlns.XMLNSElement):
-# # 				self.cObject.AddData(data)
-# # 			elif xml.CollapseSpace(data)!=u" ":
-# # 				raise XHTMLValidityError("Unexpected document-level data: %s"%data)
-# # 			self.data=[]
-# 		# do we have a matching open element?
-# 		e=self.cObject
-# 		while isinstance(e,xml.Element):
-# 			if e.GetXMLName()==name:
-# 				break
-# 			else:
-# 				e=e.parent
-# 		if isinstance(e,xml.Element):
-# 			# Yes, repeat the process closing as we go.
-# 			e=self.cObject
-# 			while isinstance(e,xml.Element):
-# 				e.ContentChanged()
-# 				if e.GetXMLName()==name:
-# 					# close this tag
-# 					self.cObject=e.parent
-# 					break
-# 				else:
-# 					e=e.parent
-# 		else:
-# 			# silently ignore mimatched closing tags, we'll get these anyway if someone
-# 			# has used <br /> style notation because we know br is empty so closed it
-# 			# during startElementNS ourselves - the parser follows this up with a second
-# 			# call which we safely ignore because empty elements can't have instances of
-# 			# themselves as parents (because they're empty!)
-# 			pass
 
 xmlns.MapClassElements(XHTMLDocument.classMap,globals())

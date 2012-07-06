@@ -25,6 +25,10 @@ class QTIDeclarationError(QTIError):
 	"""Error raised when a variable declaration is invalid."""
 	pass
 
+class ProcessingError(QTIError):
+	"""Error raised when an invalid processing element is encountered."""
+	pass
+
 class QTIValidityError(QTIError): pass
 
 
@@ -154,5 +158,13 @@ def ValidateIdentifier(value,prefix='_'):
 	else:
 		return prefix
 
-		
 
+def GetTemplateRef(value):
+	"""Given a string used to set an attribute of an *...orTemplateRef* type
+	this function returns the name of the variable being referred to or None if
+	the value does not look like a template variable reference."""
+	if value.startswith('{') and value.endswith('}'):
+		idValue=value[1:-1]
+		if xsi.IsValidNCName(idValue):
+			return idValue
+	return None

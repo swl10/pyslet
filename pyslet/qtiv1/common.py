@@ -1186,7 +1186,7 @@ class SetVar(core.QTIElement):
 		value=None
 		variable=None
 		if not self.action or self.action==core.Action.Set:
-			value=setValue.ChildElement(qtiv2.QTIBaseValue)
+			value=setValue.ChildElement(qtiv2.expressions.BaseValue)
 		else:
 			if self.action==core.Action.Add:
 				op=setValue.ChildElement(qtiv2.QTISum)
@@ -1196,9 +1196,9 @@ class SetVar(core.QTIElement):
 				op=setValue.ChildElement(qtiv2.QTIProduct)
 			elif self.action==core.Action.Divide:
 				op=setValue.ChildElement(qtiv2.QTIDivide)
-			variable=op.ChildElement(qtiv2.QTIVariable)
+			variable=op.ChildElement(qtiv2.expressions.Variable)
 			variable.identifier=identifier
-			value=op.ChildElement(qtiv2.QTIBaseValue)
+			value=op.ChildElement(qtiv2.expressions.BaseValue)
 		value.baseType=outcome.baseType
 		value.SetValue(self.GetValue().strip())
 
@@ -1235,9 +1235,9 @@ class DisplayFeedback(core.QTIElement):
 		setValue=parent.ChildElement(qtiv2.QTISetOutcomeValue)
 		setValue.identifier='FEEDBACK'
 		multiple=setValue.ChildElement(qtiv2.QTIMultiple)
-		variable=multiple.ChildElement(qtiv2.QTIVariable)
+		variable=multiple.ChildElement(qtiv2.expressions.Variable)
 		variable.identifier='FEEDBACK'
-		value=multiple.ChildElement(qtiv2.QTIBaseValue)
+		value=multiple.ChildElement(qtiv2.expressions.BaseValue)
 		value.baseType=qtiv2.variables.BaseType.identifier
 		value.SetValue(self.linkRefID)
 
@@ -1269,7 +1269,7 @@ class ConditionVar(core.QTIElement):
 			self.ExtendableExpressionMixin[0].MigrateV2Expression(parent,log)
 		else:
 			log.append("Warning: empty condition replaced with null operator")
-			parent.ChildElement(qtiv2.QTINull)
+			parent.ChildElement(qtiv2.expressions.Null)
 
 
 class ExtendableExpressionMixin:
@@ -1302,7 +1302,7 @@ class VarThing(core.QTIElement,ExpressionMixin):
 
 	def MigrateV2Missing(self,identifier,parent,log):
 		log.append("Warning: test of undeclared response (%s) replaced with Null operator"%identifier)
-		parent.ChildElement(qtiv2.QTINull)
+		parent.ChildElement(qtiv2.expressions.Null)
 	
 	def MigrateV2Variable(self,d,parent,log):
 		if self.index:
@@ -1313,7 +1313,7 @@ class VarThing(core.QTIElement,ExpressionMixin):
 			else:
 				parent=parent.ChildElement(qtiv2.QTIIndex)
 				parent.n=self.index
-		varExpression=parent.ChildElement(qtiv2.QTIVariable)
+		varExpression=parent.ChildElement(qtiv2.expressions.Variable)
 		varExpression.identifier=d.identifier
 	
 	def MigrateV2Value(self,d,parent,log):
@@ -1322,7 +1322,7 @@ class VarThing(core.QTIElement,ExpressionMixin):
 			value=value.replace(',',' ')
 		elif d.baseType==qtiv2.variables.BaseType.identifier:
 			value=qtiv2.core.ValidateIdentifier(value)
-		bv=parent.ChildElement(qtiv2.QTIBaseValue)
+		bv=parent.ChildElement(qtiv2.expressions.BaseValue)
 		bv.baseType=d.baseType
 		bv.SetValue(value)
 		
@@ -1620,7 +1620,7 @@ class Not(core.QTIElement,ExpressionMixin):
 	def MigrateV2Expression(self,parent,log):
 		if self.ExpressionMixin is None:
 			log.append("Warning: empty not condition replaced with null operator")
-			parent.ChildElement(qtiv2.QTINull)
+			parent.ChildElement(qtiv2.expressions.Null)
 		else:
 			eNot=parent.ChildElement(qtiv2.Not)
 			self.ExpressionMixin.MigrateV2Expression(eNot,log)
@@ -1651,7 +1651,7 @@ class And(core.QTIElement,ExpressionMixin):
 				e.MigrateV2Expression(eAnd,log)
 		else:
 			log.append("Warning: empty and condition replaced with null operator")
-			parent.ChildElement(qtiv2.QTINull)
+			parent.ChildElement(qtiv2.expressions.Null)
 
 
 class Or(core.QTIElement,ExpressionMixin):
@@ -1679,7 +1679,7 @@ class Or(core.QTIElement,ExpressionMixin):
 				e.MigrateV2Expression(eOr,log)
 		else:
 			log.append("Warning: empty or condition replaced with null operator")
-			parent.ChildElement(qtiv2.QTINull)
+			parent.ChildElement(qtiv2.expressions.Null)
 		
 
 class Unanswered(core.QTIElement,ExpressionMixin):
@@ -1702,7 +1702,7 @@ class Other(core.QTIElement,ExpressionMixin):
 
 	def MigrateV2Expression(self,parent,log):
 		log.append("Warning: replacing <other/> with the base value true - what did you want me to do??")
-		bv=parent.ChildElement(qtiv2.QTIBaseValue)
+		bv=parent.ChildElement(qtiv2.expressions.BaseValue)
 		bv.baseType=qtiv2.variables.BaseType.boolean
 		bv.SetValue('true')
 

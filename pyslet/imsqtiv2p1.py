@@ -249,6 +249,9 @@ class QTIAssessmentItem(core.QTIElement):
 	def IsDeclared(self,identifier):
 		return identifier in self.declarations
 	
+	def GetDeclaration(self,identifier):
+		return self.declarations.get(identifier,None)
+
 	def SortDeclarations(self):
 		"""Sort each of the variable declaration lists so that they are in
 		identifier order.  This is not essential but it does help ensure that
@@ -997,95 +1000,33 @@ class QTIModalFeedback(QTIFlowContainerMixin,core.QTIElement):
 #
 #	EXPRESSIONS
 #
-class Expression(core.QTIElement):
-	pass
-	
-
-#
-#		Built-in General Expressions
-#
-class QTIBaseValue(Expression):
-	"""Represents the baseValue element.
-
-	<xsd:attributeGroup name="baseValue.AttrGroup">
-		<xsd:attribute name="baseType" type="baseType.Type" use="required"/>
-	</xsd:attributeGroup>
-	
-	<xsd:complexType name="baseValue.Type">
-		<xsd:simpleContent>
-			<xsd:extension base="xsd:string">
-				<xsd:attributeGroup ref="baseValue.AttrGroup"/>
-			</xsd:extension>
-		</xsd:simpleContent>
-	</xsd:complexType>
-	"""
-	XMLNAME=(core.IMSQTI_NAMESPACE,'baseValue')
-	XMLATTR_baseType=('baseType',variables.BaseType.DecodeLowerValue,variables.BaseType.EncodeValue)
-	XMLCONTENT=xmlns.XMLMixedContent
-
-	def __init__(self,parent):
-		Expression.__init__(self,parent)
-		self.baseType=variables.BaseType.string
-
-
-class QTIVariable(Expression):
-	"""Represents a variable value look-up.
-
-	<xsd:attributeGroup name="variable.AttrGroup">
-		<xsd:attribute name="identifier" type="identifier.Type" use="required"/>
-		<xsd:attribute name="weightIdentifier" type="identifier.Type" use="optional"/>
-	</xsd:attributeGroup>
-	
-	<xsd:complexType name="variable.Type" mixed="false">
-		<xsd:attributeGroup ref="variable.AttrGroup"/>
-	</xsd:complexType>
-	"""
-	XMLNAME=(core.IMSQTI_NAMESPACE,'variable')
-	XMLATTR_identifier='identifier'
-	XMLATTR_weightIdentifier='weightIdentifier'
-	XMLCONTENT=xmlns.XMLEmpty
-	
-	def __init__(self,parent):
-		Expression.__init__(self,parent)
-		self.identifier=''
-		self.weightIdentifier=None
-
-
-class QTINull(Expression):
-	"""Represents the null value.
-	
-	<xsd:complexType name="null.Type"/>
-	"""
-	XMLNAME=(core.IMSQTI_NAMESPACE,'null')
-	XMLCONTENT=xmlns.XMLEmpty
-
 	
 #
-#		Expressions Used only in Outcomes Processing
+#		expressions.Expressions Used only in Outcomes Processing
 #
 
 
 #
 #		Operators
 #
-class ExpressionList(Expression):
+class ExpressionList(expressions.Expression):
 	"""An abstract class to help implement binary+ operators."""
 	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
-		Expression.__init__(self,parent)
+		expressions.Expression.__init__(self,parent)
 		self.Expression=[]
 	
 	def GetChildren(self):
 		return iter(self.Expression)
 
 
-class QTIUnaryExpression(Expression):
+class QTIUnaryExpression(expressions.Expression):
 	"""An abstract class to help implement unary operators."""
 	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
-		Expression.__init__(self,parent)
+		expressions.Expression.__init__(self,parent)
 		self.Expression=None
 	
 	def GetChildren(self):

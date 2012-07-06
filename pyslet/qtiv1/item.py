@@ -1822,7 +1822,7 @@ class ResProcessing(common.QTICommentContainer):
 			setValue.identifier=outcomeFixup
 			multi=setValue.ChildElement(qtiv2.QTIMultiple)
 			for rID in self._interactionFixup[outcomeFixup]:
-				var=multi.ChildElement(qtiv2.QTIVariable)
+				var=multi.ChildElement(qtiv2.expressions.Variable)
 				var.identifier=rID
 		self.Outcomes.MigrateV2(v2Item,log)
 		cMode=True;ruleContainer=rp
