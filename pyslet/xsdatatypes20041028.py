@@ -3,7 +3,12 @@
 
 import string
 import math
+from sys import maxunicode, float_info
+from re import compile
+
 import pyslet.iso8601 as iso8601
+from pyslet.xml20081126.structures import LetterCharClass, NameCharClass
+from pyslet.unicode5 import CharClass
 
 XMLSCHEMA_NAMESPACE="http://www.w3.org/2001/XMLSchema-instance"
 
@@ -95,9 +100,117 @@ def DecodeDecimal(src):
 	return float(src)	
 
 
-def EncodeDecimal(value):
-	"""Encodes a decimal value into a string."""
-	raise UnimplementedError		
+def _RoundDigits(digits):
+	"""Rounds a list of digits to the machine precision.  The function returns
+	True if the rounding operation overflowed, this indicates that *digits* is
+	one digit longer than it was when passed in."""
+	if len(digits)>float_info.dig:
+		# we need to add some rounding to remove spurious digits
+		pos=len(digits)-1
+		while pos>=0:
+			if pos>float_info.dig:
+				digits[pos]=u"0"
+			elif pos==float_info.dig:
+				rTest=ord(digits[pos])
+				digits[pos]=u"0"
+				if rTest<0x35:
+					# no rounding needed
+					break
+			elif digits[pos]==u"9":
+				digits[pos]=u"0"
+			else:
+				digits[pos]=unichr(ord(digits[pos])+1)
+				# rounding done
+				break
+			pos=pos-1
+		if pos<0:
+			# overflow
+			digits[0:0]=u"1"
+			return True
+	else:
+		return False
+
+
+def _StripZeros(digits):
+	"""Shortens a list of digits *digits* by stripping trailing zeros. *digits*
+	may contain a point in which case one zero is always left after the
+	point."""
+	pos=len(digits)-1
+	while digits[pos]==u'0':
+		pos=pos-1
+	if digits[pos]=='.':
+		# leave one zero after the point
+		del digits[pos+2:]
+	else:
+		del digits[pos+1:]
+
+
+def EncodeDecimal(value,digits=None,stripZeros=True):
+	"""Encodes a decimal value into a string.
+	
+	You can control the maximum number of digits after the decimal point using
+	*digits* which must be greater than 0 - None indicates no maximum.  This
+	function always returns the canonical representation which means that it
+	will strip trailing zeros in the fractional part.  To override this
+	behaviour and return exactly *digits* decimal places set *stripZeros" to
+	False."""
+	if value<0:
+		sign='-'
+		value=-value
+	else:
+		sign=''		
+	if digits is None:
+		# calculate the appropriate number of digits
+		try:
+			x=math.log10(value)
+			m,e=math.modf(x)
+			e=int(e)
+			# If e is 0 then we have a number in the open range [1.0,10.0)
+			# which means that we need 1 fewer digits than the maximum
+			# precision of float.  If e is 1 we need 2 fewer, and so on...
+			# We can therefore deduce the formula for digits:
+			digits=float_info.dig-(e+1)
+			if digits<1:
+				# by default we always display one digit
+				digits=1
+		except ValueError:
+			# not sure if this is possible, a number so small log10 fails
+			value=0.0
+			digits=1
+	elif digits<0:
+		# forced to display no digits, result won't be in canonical form
+		digits=0
+	if value==0:
+		# canonical representation of 0 is 0.0
+		if digits is None:
+			return "0.0"
+		elif digits==0:
+			return "0"
+		elif stripZeros:
+			return "0.0"
+		else:
+			return "0."+("0"*digits)
+	elif math.isnan(value) or math.isinf(value):
+		raise ValueError("Invalid value for decimal: %s"%EncodeDouble(value))
+	f,i=math.modf(value*math.pow(10,digits))
+	if f>=0.5:
+		i=i+1
+	dString=list(str(int(i)))
+	# assume all digits in dString are significant
+	_RoundDigits(dString)
+	if len(dString)<=digits:
+		# we need to zero pad on the left
+		dString[0:0]=["0"]*(digits+1-len(dString))
+		dLen=digits+1
+	else:
+		dLen=len(dString)
+	# now put the point in the right place
+	dString[dLen-digits:dLen-digits]=u"."
+	if sign:
+		dString[0:0]=sign
+	if stripZeros:
+		_StripZeros(dString)
+	return string.join(dString,'')
 
 
 def DecodeFloat(src):
@@ -126,12 +239,32 @@ def DecodeDouble(src):
 	else:
 		return DecodeDecimal(s)		
 		
-def EncodeDouble(value,digits=10):
-	if digits<1:
-		digits=1
+def EncodeDouble(value,digits=None,stripZeros=True):
+	"""Encodes a double value returning a unicode string.
+	
+	*digits* controls the number of digits after the decimal point in the
+	mantissa, None indicates no maximum and the precision of float is used to
+	determine the appropriate number.  You may pass the value 0 - in which case
+	no digits are given after the point and the point itself is omitted, but
+	such values are not in their canonical form.
+	
+	*stripZeros* determines whether or not trailing zeros are removed, if False
+	then exactly *digits* digits will be displayed after the point."""
+	if digits is None:
+		digits=float_info.dig-2
+		if digits<0:
+			# by default we show at least one digit
+			digits=1
+	elif digits<0:
+		digits=0
 	if value==0:
 		# canonical representation of 0 is 0.0E0
-		return "0.0E0"
+		if digits==0:
+			return "0E0"
+		elif stripZeros:
+			return "0.0E0"
+		else:
+			return "0."+("0"*digits)+"E0"
 	elif math.isnan(value):
 		return "NAN"
 	elif math.isinf(value):
@@ -151,16 +284,29 @@ def EncodeDouble(value,digits=10):
 	r,m=math.modf(math.pow(10,m+digits))
 	if r>=0.5:
 		m=m+1
-	dString=str(int(m))
+	dString=list(str(int(m)))
 	# m should originally have been in [1,10) but we need to check for over/underflow
 	if len(dString)>digits+1:
-		# overflow
+		# overflow, strip the trailing zero
 		e=e+1
+		del dString[-1]
 	elif len(dString)<=digits:
-		# underflow - unlikely
+		# underflow - probably impossible, e.g, pow(10,log10(1.000)+N)->999....9(.9)
 		e=e-1
+		dString.append(u"9")
+	# inevitably, after this len(dString)==digits+1
+	if _RoundDigits(dString):
+		del dString[-1]
 	assert dString[0]!=u'0'
-	return string.join((sign,dString[0],'.',dString[1],dString[2:].rstrip(u'0'),'E',str(e)),'')
+	if len(dString)>1:
+		dString[1:1]=u"."
+	if stripZeros:
+		_StripZeros(dString)
+	if sign:
+		dString[0:0]=sign
+	dString.append(u"E")
+	dString.append(str(e))
+	return string.join(dString,'')
 
 def DecodeDateTime(src):
 	try:
@@ -328,6 +474,7 @@ def MakeLowerAliases(e):
 
 
 def WhiteSpaceReplace(value):
+	"""Replaces tab, line feed and carriage return with space."""
 	output=[]
 	for c in value:
 		if c in u"\x09\x0A\x0D":
@@ -338,6 +485,8 @@ def WhiteSpaceReplace(value):
 
 
 def WhiteSpaceCollapse(value):
+	"""Replaces all runs of white space with a single space. Also removes
+	leading and trailing white space."""
 	output=[]
 	gotSpace=False
 	for c in value:
@@ -349,3 +498,858 @@ def WhiteSpaceCollapse(value):
 				gotSpace=False
 			output.append(c)
 	return string.join(output,'')
+
+
+class RegularExpression:
+	"""Models a regular expression as defined by XML schema.
+	
+	Regular expressions are constructed from unicode source strings. Internally
+	they are parsed and converted to Python regular expressions to speed up
+	matching.  Warning: because the XML schema expression language contains
+	concepts not supported by Python the python regular expression may not be
+	very readable."""
+
+	def __init__(self,src):
+		p=RegularExpressionParser(src)
+		pyre=p.ParseRegExp()
+		self.p=compile(pyre)	#: the compiled python regular expression
+		self.src=src			#: the original source string
+	
+	def __str__(self):
+		return self.src
+	
+	def __repr__(self):
+		return "RegularExpression(%s)"%repr(self.src)
+			
+	def Match(self,target):
+		"""A convenience function, returns True if the expression matches *target*.""" 
+		m=self.p.match(target)
+		if m is None or m.end(0)<len(target):
+			# print "No Match"
+			return 0
+		else:
+			# print "Match"
+			return 1
+
+class RegularExpressionError(Exception): pass
+
+
+sClass=CharClass(u'\x09',u'\x0A',u'\x0D',u' ')
+SClass=CharClass(sClass)
+SClass.Negate()
+iClass=CharClass(LetterCharClass,u'_',u':')
+IClass=CharClass(iClass)
+IClass.Negate()
+CClass=CharClass(NameCharClass)
+CClass.Negate()
+dClass=CharClass.UCDCategory('Nd')
+DClass=CharClass(dClass)
+DClass.Negate()
+WClass=CharClass(CharClass.UCDCategory('P'),CharClass.UCDCategory('Z'),CharClass.UCDCategory('C'))
+wClass=CharClass(WClass)
+wClass.Negate()
+
+	
+class RegularExpressionParser(object):
+	"""A custom parser for XML schema regular expressions.
+	
+	The parser is initialised from a source string, the string to be parsed."""
+	
+	def __init__(self,source):
+		self.src=source		#: the string being parsed
+		self.pos=-1			#: the position of the current character
+		self.theChar=None
+		"""The current character or None if the parser is positioned outside the
+		src string."""
+		self.NextChar()
+	
+	def SetPos(self,newPos):
+		"""Sets the position of the parser to *newPos*"""
+		self.pos=newPos-1
+		self.NextChar()
+			
+	def NextChar(self):
+		"""Points the parser at the next character, updating *pos* and *theChar*."""
+		self.pos+=1
+		if self.pos>=0 and self.pos<len(self.src):
+			self.theChar=self.src[self.pos]
+		else:
+			self.theChar=None
+
+	def Match(self,matchString):
+		"""Returns true if *matchString* is at the current position"""
+		if self.theChar is None:
+			return False
+		else:
+			return self.src[self.pos:self.pos+len(matchString)]==matchString
+			
+	def MatchOne(self,matchChars):
+		"""Returns true if one of *matchChars* is at the current position"""
+		if self.theChar is None:
+			return False
+		else:
+			return self.theChar in matchChars
+	
+	def _REEscape(self,c=None):
+		if c is None:
+			c==self.theChar
+		if c in u".^$*+?{}\\[]|()":
+			return "\\"+c
+		else:
+			return c
+		
+	def ParseRegularExpression(self):
+		return self.src
+
+	def ParseRegExp(self):
+		"""Returns a unicode string representing the regular expression."""
+		result=[]
+		while True:
+			# expression ends at the end of the string or at a closing bracket
+			result.append(self.ParseBranch())
+			if self.theChar==u"|":
+				self.NextChar()
+				result.append(u"|")
+				continue
+			else:
+				break
+		return string.join(result,'')
+		
+	def ParseBranch(self):
+		"""Returns a unicode string representing this piece as a python regular expression."""
+		result=[]
+		while self.IsChar() or self.MatchOne(u".\\[("):
+			result.append(self.ParsePiece())
+		return string.join(result,'')
+	
+	def ParsePiece(self):
+		result=self.ParseAtom()
+		if self.MatchOne("?*+{"):
+			n,m=self.ParseQuantifier()
+			if n==0:
+				if m is None:
+					return result+u"*"
+				elif m==0:
+					return u""
+				elif m==1:
+					return result+u"?"
+				else:
+					return "%s{,%i}"%(result,m)
+			elif n==1:
+				if m is None:
+					return result+u"+"
+				elif m==1:
+					return result
+				else:
+					return "%s{1,%i}"%(result,m)
+			elif m is None:
+				return "%s{%i,}"%(result,n)
+			elif n==m:
+				return "%s{%i}"%(result,n)
+			else:
+				return "%s{%i,%i}"%(result,n,m)
+		else:
+			return result
+	
+	def ParseQuantifier(self):
+		"""Returns a tuple of n,m.
+		
+		Symbolic values are expanded to the appropriate pair.  The second
+		value may be None indicating unbounded."""
+		if self.theChar==u"?":
+			self.NextChar()
+			return 0,1
+		elif self.theChar==u"*":
+			self.NextChar()
+			return 0,None
+		elif self.theChar==u"+":
+			self.NextChar()
+			return 1,None
+		elif self.theChar==u"{":
+			self.NextChar()
+			result=self.ParseQuantity()
+			if self.theChar==u"}":
+				self.NextChar()
+				return result
+			else:
+				raise RegularExpressionError("Expected } at [%i]"%self.pos)
+		else:
+			raise RegularExpressionError("Expected quantifier at [%i]"%self.pos)
+			
+	
+	def ParseQuantity(self):
+		"""Returns a tuple of n,m even if an exact quantity is given.
+		
+		In other words, the exact quantity 'n' returns n,n.  The second
+		value may be None indicated unbounded."""
+		n=self.ParseQuantExact()
+		m=None
+		if self.theChar==u",":
+			self.NextChar()
+			if self.MatchOne(u"0123456789"):
+				m=self.ParseQuantExact()
+				if n>m:
+					raise RegularExpressionError("Illegal quantity: {%i,%i}"%(n,m))
+		else:
+			m=n
+		return n,m
+	
+	def ParseQuantExact(self):
+		"""Returns an integer."""
+		result=0
+		nDigits=0
+		while self.MatchOne(u"0123456789"):
+			result=result*10+ord(self.theChar)-0x30
+			self.NextChar()
+			nDigits+=1
+		if nDigits==0:
+			raise RegularExpressionError("Expected digit at [%i]"%self.pos)
+		return result
+		
+	def ParseAtom(self):
+		"""Returns a unicode string representing this atom as a python regular expression."""
+		if self.IsChar():
+			result=self._REEscape(self.theChar)
+			self.NextChar()
+		elif self.theChar=="(":
+			# a regular expression
+			self.NextChar()
+			result="(%s)"%self.ParseRegExp()
+			if self.theChar!=")":
+				raise RegularExpressionError("Expected ) at [%i]"%self.pos)
+			self.NextChar()
+		else:
+			cClass=self.ParseCharClass()
+			result=unicode(cClass)
+		return result
+		
+	def IsChar(self,c=None):
+		"""The definition of this function is designed to be conservative with
+		respect to the specification, which is clearly in error around
+		production [10] as the prose and the BNF do not match.  It appears that
+		| was intended to be excluded in the prose but has been omitted, the
+		reverse being true for the curly-brackets."""
+		if c is None:
+			c=self.theChar
+		if c is None or c in ".\\?*+{}()[]|":
+			return False
+		else:
+			return True
+
+	def ParseCharClass(self):
+		"""Returns a CharClass instance representing this class."""
+		if self.theChar==u"[":
+			return self.ParseCharClassExpr()
+		elif self.theChar==u"\\":
+			return self.ParseCharClassEsc()
+		elif self.theChar==u".":
+			return self.ParseWildcardEsc()
+		else:
+			raise RegularExpressionError("Expected [, \\ or . at [%i]"%self.pos)
+
+	def ParseCharClassExpr(self):
+		"""Returns a CharClass instance representing this class expression."""
+		if self.theChar=="[":
+			self.NextChar()
+			cClass=self.ParseCharGroup()
+			if self.theChar=="]":
+				self.NextChar()
+				return cClass
+			else:
+				raise RegularExpressionError("Expected ] at [%i]"%self.pos)
+		else:
+			raise RegularExpressionError("Expected [ at [%i]"%self.pos)
+		
+	def ParseCharGroup(self):
+		"""Returns a CharClass representing this group.  This method also
+		handles the case of a class subtraction directly to reduce the need for
+		look-ahead.  If you specifically want to parse a subtraction you can do
+		this with :py:meth:`ParseCharClassSub`."""
+		if self.theChar==u"^":
+			cClass=self.ParseNegCharGroup()
+		else:
+			cClass=self.ParsePosCharGroup()
+		if self.theChar==u"-":
+			self.NextChar()
+			subClass=self.ParseCharClassExpr()
+			cClass.SubtractClass(subClass)
+		return cClass
+		
+	def ParsePosCharGroup(self):
+		"""Returns a CharClass representing a positive range"""
+		cClass=CharClass()
+		nRanges=0
+		while True:
+			savePos=self.pos
+			if self.theChar==u"-" and nRanges:
+				# This had better be the last hyphen in the posCharGroup
+				if self.Match(u"-["):
+					# a subtraction
+					break
+				elif self.Match(u"-]") or self.Match(u"--["):
+					cClass.AddChar(u"-")
+					self.NextChar()
+					break
+				else:
+					# this is all wrong
+					raise RegularExpressionError("hyphen must be first or last character in posCharGroup [%i]"%self.pos)
+			try:
+				cClass.AddClass(self.ParseCharRange())
+				nRanges+=1
+				continue
+			except RegularExpressionError:
+				self.SetPos(savePos)
+				pass
+			try:
+				cClass.AddClass(self.ParseCharClassEsc())
+				nRanges+=1
+				continue
+			except RegularExpressionError:
+				if nRanges:
+					self.SetPos(savePos)
+					break
+				else:
+					# We expected either a charRange or a charClassEsc
+					raise RegularExpressionError("Expected charRange or charClassEsc at [%i]"%self.pos)
+		return cClass
+	
+	def ParseNegCharGroup(self):
+		"""Returns a CharClass representing this range."""
+		if self.theChar==u"^":
+			# we have a negative range
+			self.NextChar()
+			cClass=self.ParsePosCharGroup()
+			cClass.Negate()
+			return cClass
+		else:
+			raise RegularExpressionError("Expected negCharGroup at [%i]"%self.pos)
+	
+	def ParseCharClassSub(self):
+		"""Returns a CharClass representing this range - this method is not
+		normally used by the parser as in present for completeness.  See
+		:py:meth:`ParseCharGroup`."""
+		if self.theChar==u"^":
+			cClass=self.ParseNegCharGroup()
+		else:
+			cClass=self.ParsePosCharGroup()
+		if self.theChar==u"-":
+			self.NextChar()
+			subClass=self.ParseCharClassExpr()
+			cClass.SubtractClass(subClass)
+			return cClass
+		else:
+			raise RegularExpressionError("Expected - at [%i]"%self.pos)
+			
+	def ParseCharRange(self):
+		"""Returns a CharClass representing this range."""
+		savePos=self.pos
+		try:
+			cClass=self.ParseSERange()
+		except RegularExpressionError:
+			self.SetPos(savePos)
+			if self.IsXmlCharIncDash():
+				cClass=CharClass(self.theChar)
+				self.NextChar()
+			else:
+				raise
+		return cClass
+		
+	def ParseSERange(self):
+		"""Returns a CharClass representing this range."""
+		s=self.ParseCharOrEsc()
+		if self.theChar==u"-":
+			self.NextChar()
+		else:
+			raise RegularExpressionError("Expected '-' in seRange [%i]"%self.pos)
+		e=self.ParseCharOrEsc()
+		if ord(s)>ord(e):
+			raise RegularExpressionError("Empty SERange: %s-%s"%(repr(s),repr(e)))
+		return CharClass((s,e))
+	
+	def ParseCharOrEsc(self):
+		"""Returns a single unicode character."""
+		if self.IsXmlChar():
+			result=self.theChar
+			self.NextChar()
+			return result
+		else:
+			return self.ParseSingleCharEsc()
+			 
+	def IsXmlChar(self,c=None):
+		if c is None:
+			c=self.theChar
+		return c is not None and c not in "\\-[]"
+
+	def IsXmlCharIncDash(self,c=None):
+		if c is None:
+			c=self.theChar
+		return c is not None and c not in "\\[]"
+	
+	def ParseCharClassEsc(self):
+		"""Returns a CharClass instance representing one of the escape sequences."""
+		if self.Match(u"\\p"):
+			cClass=self.ParseCatEsc()
+		elif self.Match(u"\\P"):
+			cClass=self.ParseComplEsc()
+		elif self.theChar==u"\\":	
+			try:
+				savePos=self.pos
+				cClass=self.ParseMultiCharEsc()
+			except RegularExpressionError:
+				self.SetPos(savePos)
+				cClass=CharClass(self.ParseSingleCharEsc())
+		else:
+			raise RegularExpressionError("Expected charClassEsc at [%i]"%self.pos)
+		return cClass
+				
+	SingleCharEscapes={
+		u'n':unichr(0x0A),
+		u'r':unichr(0x0D),
+		u't':unichr(0x09),
+		u'\\':u'\\',
+		u'|':u'|',
+		u'.':u'.',
+		u'-':u'-',
+		u'^':u'^',
+		u'?':u'?',
+		u'*':u'*',
+		u'+':u'+',
+		u'{':u'{',
+		u'}':u'}',
+		u'(':u'(',
+		u')':u')',
+		u'[':u'[',
+		u']':u']'
+		}
+
+	def ParseSingleCharEsc(self):
+		"""Returns a single unicode character parsed from a single char escape."""
+		if self.theChar==u"\\":
+			self.NextChar()
+			if self.theChar in self.SingleCharEscapes:
+				result=self.SingleCharEscapes[self.theChar]
+				self.NextChar()
+				return result
+		raise RegularExpressionError("Expected single character escape at [%i]"%self.pos)
+			
+	def ParseCatEsc(self):
+		"""Returns a CharClass, parsing a category escape."""
+		if self.Match("\\p{"):
+			self.SetPos(self.pos+3)
+			cClass=self.ParseCharProp()
+			if self.theChar=='}':
+				self.NextChar()
+				return cClass
+		raise RegularExpressionError("Expected \\p{...} at [%i]"%self.pos)
+		
+	def ParseComplEsc(self):
+		"""Returns a CharClass, parsing the complement of a category escape."""
+		if self.Match("\\P{"):
+			self.SetPos(self.pos+3)
+			cClass=CharClass(self.ParseCharProp())
+			if self.theChar=='}':
+				self.NextChar()
+				cClass.Negate()
+				return cClass
+		raise RegularExpressionError("Expected \\P{...} at [%i]"%self.pos)
+		
+	def ParseCharProp(self):
+		"""Returns a CharClass, parsing an IsCategory or IsBlock."""
+		savePos=self.pos
+		try:
+			cClass=self.ParseIsCategory()
+		except RegularExpressionError:
+			self.SetPos(savePos)
+			cClass=self.ParseIsBlock()
+		return cClass
+		
+	Categories={
+		u"L":True,
+		u"Lu":True,
+		u"Ll":True,
+		u"Lt":True,
+		u"Lm":True,
+		u"Lo":True,
+		u"M":True,
+		u"Mn":True,
+		u"Mc":True,
+		u"Me":True,
+		u"N":True,
+		u"Nd":True,
+		u"Nl":True,
+		u"No":True,
+		u"P":True,
+		u"Pc":True,
+		u"Pd":True,
+		u"Ps":True,
+		u"Pe":True,
+		u"Pi":True,
+		u"Pf":True,
+		u"Po":True,
+		u"Z":True,
+		u"Zs":True,
+		u"Zl":True,
+		u"Zp":True,
+		u"S":True,
+		u"Sm":True,
+		u"Sc":True,
+		u"Sk":True,
+		u"So":True,
+		u"C":True,
+		u"Cc":True,
+		u"Cf":True,
+		u"Co":True,
+		u"Cn":True
+		}
+	
+	def ParseIsCategory(self):
+		"""Returns a CharClass corresponding to one of the character categories
+		or raises an error."""
+		if self.theChar in self.Categories:
+			cat=self.theChar
+			self.NextChar()
+			if self.theChar is not None and (cat+self.theChar) in self.Categories:
+				cat=cat+self.theChar
+				self.NextChar()
+			return CharClass.UCDCategory(cat)
+		else:
+			raise RegularExpressionError("Expected category name [%i]"%self.pos)
+			
+	IsBlockClass=CharClass(
+		(u'a',u'z'),
+		(u'A',u'Z'),
+		(u'0',u'9'),
+		u'-')
+		
+	def ParseIsBlock(self):
+		"""Returns a CharClass corresponding to one of the Unicode blocks."""
+		block=[]
+		while self.IsBlockClass.Test(self.theChar):
+			block.append(self.theChar)
+			self.NextChar()
+		block=string.join(block,'')
+		if block.startswith("Is"):
+			try:
+				return CharClass.UCDBlock(block[2:])
+			except KeyError:
+				raise RegularExpressionError("Invalid IsBlock name: %s"%block[2:]) 
+		else:
+			raise RegularExpressionError("Expected IsBlock [%i]"%self.pos)
+		
+	MultiCharEscapes={
+		's':sClass,
+		'S':SClass,
+		'i':iClass,
+		'I':IClass,
+		'c':NameCharClass,
+		'C':CClass,
+		'd':dClass,
+		'D':DClass,
+		'w':wClass,
+		'W':WClass
+		}
+
+	def ParseMultiCharEsc(self):
+		"""Returns a CharClass corresponding to one of the multichar escapes, if parsed."""
+		if self.theChar==u"\\":
+			self.NextChar()
+			try:
+				result=self.MultiCharEscapes[self.theChar]
+				self.NextChar()
+				return result
+			except KeyError:
+				# unknown escape
+				raise RegularExpressionError("Unknown multichar escape at [%i], \\%s"%(self.pos,repr(self.theChar)))					
+		else:
+			raise RegularExpressionError("Expected '\\' at [%i]"%self.pos)
+
+	DotClass=CharClass(
+		(unichr(0),unichr(9)),
+		(unichr(11),unichr(12)),
+		(unichr(14),unichr(maxunicode)))
+	
+	def ParseWildcardEsc(self):
+		"""Returns a CharClass corresponding to the wildcard '.' character if parsed."""
+		if self.theChar==u".":
+			self.NextChar()
+			return self.DotClass
+		else:
+			raise RegularExpressionError("Expected '.' at [%i]"%self.pos)
+	
+# class RegularExpressionParser(RFC2234CoreParser):
+# 	def __init__(self,source=None):
+# 		RFC2234Parser.__init__(self,source)
+# 		self.re=[]
+# 		
+# 	def ParseRegularExpression(self,reset=1):
+# 		if reset:
+# 			self.re=[]
+# 		self.ParseBranch()
+# 		if self.theChar=='|':
+# 			self.NextChar()
+# 			self.re.append('|')
+# 			self.ParseBranch()
+# 		return join(self.re,'')
+# 		
+# 	def ParseBranch(self):
+# 		while self.theChar is not None:
+# 			try:
+# 				saveLen=len(self.re)
+# 				self.PushParser()
+# 				self.ParsePiece()
+# 				self.PopParser(0)
+# 			except RFCSyntaxError:
+# 				self.PopParser(1)
+# 				self.re=self.re[:saveLen]
+# 				break
+# 	
+# 	def ParsePiece(self):
+# 		self.ParseAtom()
+# 		if self.theChar is None:
+# 			return
+# 		elif self.theChar in "?*+":
+# 			self.re.append(self.theChar)
+# 			self.NextChar()
+# 		elif self.theChar=='{':	
+# 			try:
+# 				saveLen=len(self.re)
+# 				self.PushParser()
+# 				self.NextChar()
+# 				self.re.append('{')
+# 				self.ParseQuantity()
+# 				if self.theChar=='}':
+# 					self.re.append('}')
+# 					self.NextChar()
+# 				else:
+# 					self.SyntaxError("expected }")
+# 				self.PopParser(0)
+# 			except RFCSyntaxError:
+# 				self.PopParser(1)
+# 				self.re=self.re[:saveLen]
+# 	
+# 	def ParseQuantity(self):
+# 		n=self.ParseDIGITRepeat()
+# 		if n is None:
+# 			self.SyntaxError("expected integer in quantity")
+# 		if self.theChar==',':
+# 			self.NextChar()
+# 			if IsDIGIT(self.theChar):
+# 				m=self.ParseDIGITRepeat()
+# 				if n>m:
+# 					self.SyntaxError("illegal quantity: {%i,%i}"%(n,m))
+# 				self.re.append("%i,%i"%(n,m))
+# 			else:
+# 				self.re.append("%i,"%n)				
+# 		else:
+# 			self.re.append("%i"%n)				
+# 
+# 	def ParseAtom(self):
+# 		if IsRENormalChar(self.theChar):
+# 			if self.theChar in ".^$*+?{}\\[]|()":
+# 				self.re.append("\\"+self.theChar)
+# 			else:
+# 				self.re.append(self.theChar)
+# 			self.NextChar()
+# 		elif self.theChar=="\\" or self.theChar==".":
+# 			charClass=self.ParseCharClassEsc()
+# 			if len(charClass)==1 and charClass[0][0]==charClass[0][1]:
+# 				# a single character
+# 				if charClass[0][0] in ".^$*+?{}\\[]|()":
+# 					self.re.append("\\"+charClass[0][0])
+# 				else:
+# 					self.re.append(charClass[0][0])
+# 			else:
+# 				self.re.append("[%s]"%FormatPythonCharClass(charClass))
+# 		elif self.theChar=='[':
+# 			neg,charClass=self.ParseCharClassExpr()
+# 			# now format the charClass into python syntax
+# 			if neg:
+# 				self.re.append("[^%s]"%FormatPythonCharClass(charClass))
+# 			else:
+# 				self.re.append("[%s]"%FormatPythonCharClass(charClass))
+# 		elif self.theChar=='(':
+# 			self.re.append('(')
+# 			self.NextChar()
+# 			self.ParseRegularExpression(0)
+# 			if self.theChar==')':
+# 				self.re.append(')')
+# 				self.NextChar()
+# 			else:
+# 				self.SyntaxError("expected ')'")
+# 		else:
+# 			self.SyntaxError("expected atom")
+# 	
+# 	def ParseCharClassExpr(self):
+# 		if self.theChar!="[":
+# 			self.SyntaxError("expected '['")
+# 		self.NextChar()
+# 		neg,charClass=self.ParseCharGroup()
+# 		if self.theChar!="]":
+# 			self.SyntaxError("expected ']'")
+# 		self.NextChar()
+# 		return neg,charClass
+# 	
+# 	def ParseCharGroup(self):
+# 		cClass=CharClass()		
+# 		if self.theChar=="^":
+# 			neg=True
+# 			self.NextChar()
+# 		else:
+# 			neg=False
+# 		hyphenRange=False
+# 		while self.theChar is not None:
+# 			if self.theChar=="-":
+# 				# a single hyphen is a charRange consisting of one XmlCharIncDash
+# 				self.NextChar()
+# 				hyphenRange=True
+# 				cClass.AddChar(u"-")
+# 				continue
+# 			try:
+# 				self.PushParser()
+# 				cClass.AddClass(self.ParseCharRange())
+# 				hyphenRange=False
+# 				self.PopParser(0)
+# 				continue
+# 			except RFCSyntaxError:
+# 				self.PopParser(1)
+# 			try:
+# 				self.PushParser()
+# 				cClass.AddClass(self.ParseCharClassEsc())
+# 				hyphenRange=False
+# 				self.PopParser(0)
+# 				continue
+# 			except RFCSyntaxError:
+# 				self.PopParser(1)
+# 			break
+# 		if self.theChar=="[" and hyphenRange:
+# 			# Then we have a subtraction - tricky
+# 			cClass=cClass[:-1]
+# 			subNeg,subClass=self.ParseCharClassExpr()
+# 			# Python doesn't support subtractions, so we have to do the subtraction
+# 			# now, particularly icky if it turns out to be a negative subClass
+# 			subClass=MakeCharClass(subClass)
+# 			if subNeg:
+# 				subClass=NegateCharClass(subClass)
+# 			cClass=SubtractCharClass(MakeCharClass(cClass),subClass)
+# 		return neg,cClass
+# 	
+# 	def ParseCharRange(self):
+# 		self.PushParser()
+# 		try:
+# 			s=self.ParseCharOrEsc()
+# 			if self.theChar=="-":
+# 				self.NextChar()
+# 			else:
+# 				self.SyntaxError("expected '-'")
+# 			e=self.ParseCharOrEsc()
+# 			self.PopParser(0)
+# 		except RFCSyntaxError:
+# 			self.PopParser(1)
+# 			if IsREXmlCharIncDash(self.theChar):
+# 				s=e=self.theChar
+# 				self.NextChar()
+# 			else:
+# 				self.SyntaxError("expected char range")
+# 		if ord(e)<ord(s):
+# 			self.SyntaxError("invalid character range %s-%s"%(s,e))
+# 		return CharClass((s,e))
+# 
+# 	def ParseCharOrEsc(self):
+# 		if IsREXmlChar(self.theChar):
+# 			c=self.theChar
+# 			self.NextChar()
+# 			return c
+# 		else:
+# 			return self.ParseSingleCharEsc()
+# 	
+# 	def ParseCharClassEsc(self):
+# 		if self.theChar=="\\":
+# 			self.PushParser()
+# 			try:
+# 				cClass=CharClass(self.ParseSingleCharEsc())
+# 				self.PopParser(0)
+# 				return cClass
+# 			except RFCSyntaxError:
+# 				self.PopParser(1)
+# 			self.PushParser()
+# 			try:
+# 				cClass=self.ParseMultiCharEsc()
+# 				self.PopParser(0)
+# 				return cClass
+# 			except RFCSyntaxError:
+# 				self.PopParser(1)
+# 			# we parse Cat and Compl escapes together
+# 			return self.ParseCatEsc()
+# 		elif self.theChar==".":
+# 			return self.ParseMultiCharEsc()
+# 		else:
+# 			self.SyntaxError("expected \\ or .")
+# 						
+# 	def ParseSingleCharEsc(self):
+# 		if self.theChar=="\\":
+# 			self.NextChar()
+# 			if self.theChar in SingleCharEscapes:
+# 				c=SingleCharEscapes[self.theChar]
+# 			else:
+# 				self.SyntaxError("expected single character escape character")
+# 			self.NextChar()
+# 			return c
+# 		else:
+# 			self.SyntaxError("expected \\")
+# 	
+# 	def ParseCatEsc(self):
+# 		if self.theChar=="\\":
+# 			self.NextChar()
+# 			if self.theChar=="P":
+# 				compl=True
+# 			elif self.theChar=="p":
+# 				compl=False
+# 			else:
+# 				self.SyntaxError("expected category escape")
+# 			self.NextChar()
+# 			if not self.theChar=="{":
+# 				self.SyntaxError("expected {")
+# 			self.NextChar()
+# 			catName=[]
+# 			while IsALPHA(self.theChar) or IsDIGIT(self.theChar) or self.theChar=="-":
+# 				catName.append(self.theChar)
+# 				self.NextChar()
+# 			catName=join(catName,'')
+# 			if len(catName)==2:
+# 				# this is one of the general categories
+# 				try:
+# 					cClass=CharClass(CharClass.UCDCategory(catName))
+# 				except KeyError:
+# 					self.SyntaxError("Unknown general category in escape")
+# 			elif len(catName)>2 and catName[:2]=="Is":
+# 				# this is an IsBlock
+# 				try:
+# 					cClass=CharClass(CharClass.UCDBlock(catName[2:]))
+# 				except KeyError:
+# 					self.SyntaxError("Unrecognized IsBlock in category escape")
+# 			else:
+# 				self.SyntaxError("unrecognized category escape")
+# 			if not self.theChar=="}":
+# 				self.SyntaxError("expected }")
+# 			self.NextChar()
+# 			if compl:
+# 				cClass.Negate()
+# 			return cClass
+# 		else:
+# 			self.SyntaxError("expected \\")
+# 
+# 	def ParseMultiCharEsc(self):
+# 		if self.theChar=="\\":
+# 			self.NextChar()
+# 			if self.theChar not in MultiCharEscapes:
+# 				self.SyntaxError("unrecognized character escape")
+# 			cClass=CharClass(MultiCharEscapes[self.theChar])
+# 			self.NextChar()
+# 			return cClass
+# 		elif self.theChar==".":
+# 			self.NextChar()
+# 			return CharClass(DotClass)
+# 		else:
+# 			self.SyntaxError("expected \\ or .")
+	
+			

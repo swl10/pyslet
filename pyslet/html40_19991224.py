@@ -164,7 +164,10 @@ class LengthType:
 		used for interpreting percentage values.  I.e., 100% will return
 		*dim*."""
 		if self.type==self.Percentage:
-			return (self.value*dim+50)//100
+			if dim is None:
+				raise ValueError("Relative length without dimension")
+			else:
+				return (self.value*dim+50)//100
 		else:
 			return self.value
 

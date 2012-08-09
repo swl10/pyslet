@@ -63,6 +63,41 @@ xsi.MakeEnumeration(BaseType)
 xsi.MakeLowerAliases(BaseType)
 
 
+def CheckBaseTypes(*baseType):
+	"""Checks base types for compatibility.  None is treated as a wild card that
+	matches all base types.  It returns the resulting base type, or None if all
+	are wild cards.  If they don't match then a ProcessingError is raised."""
+	bReturn=None
+	for b in baseType:
+		if b is None:
+			continue
+		elif bReturn is None:
+			bReturn=b
+		elif b!=bReturn:
+			raise core.ProcessingError("Base type mismatch: %s and %s"%(
+				BaseType.EncodeValue(bReturn),
+				BaseType.EncodeValue(b)))
+	return bReturn
+
+
+def CheckNumericalTypes(*baseType):
+	"""Checks base types for numerical compatibility.  None is treated as a wild card that
+	matches all base types.  It returns the resulting base type, or None if all
+	are wild cards.  If they don't match then a ProcessingError is raised."""
+	bReturn=None
+	for b in baseType:
+		if b is None:
+			continue
+		elif b not in (BaseType.float,BaseType.integer):
+			raise core.ProcessingError("Numeric type required, found: %s"%BaseType.EncodeValue(b))
+		elif bReturn is None:
+			bReturn=b
+		elif b!=bReturn:
+			# we only return integer when all values are of type integer, so we must return float!
+			bReturn=BaseType.float
+	return bReturn
+
+
 class Cardinality(xsi.Enumeration):
 	"""An expression or itemVariable can either be single-valued or
 	multi-valued. A multi-valued expression (or variable) is called a container.
@@ -97,6 +132,24 @@ class Cardinality(xsi.Enumeration):
 xsi.MakeEnumeration(Cardinality)
 
 		
+def CheckCardinalities(*cardinality):
+	"""Checks cardinality values for compatibility.  None is treated as a wild
+	card that matches all cardinalities.  It returns the resulting cardinality,
+	or None if all are wild cards.  If they don't match then a ProcessingError
+	is raised."""
+	cReturn=None
+	for c in cardinality:
+		if c is None:
+			continue
+		elif cReturn is None:
+			cReturn=c
+		elif c!=cReturn:
+			raise core.ProcessingError("Cardinality mismatch: %s and %s"%(
+				Cardinality.EncodeValue(cReturn),
+				Cardinality.EncodeValue(c)))
+	return cReturn
+	
+	
 class ValueElement(core.QTIElement):
 	"""A class that can represent a single value of any baseType in variable
 	declarations and result reports::
@@ -114,6 +167,25 @@ class ValueElement(core.QTIElement):
 		core.QTIElement.__init__(self,parent)
 		self.fieldIdentifier=None
 		self.baseType=None
+
+
+class NullResult(core.QTIError):
+	"""Error raised when an operation on :py:class:`Value` instances results in
+	NULL. Null errors can be passed a custom :py:class:`Value` instance (which
+	must be a valid NULL representation) which it stores to enable code like
+	this::
+	
+		try:
+			# some operation that might result in NULL
+			# ...
+		except NullResult,e:
+			return e.value"""
+
+	def __init__(self,value=None):
+		core.QTIError.__init__(self,"NULL result error")
+		if value is None:
+			value=Value()
+		self.value=value
 
 
 class Value(object):
@@ -215,8 +287,11 @@ class Value(object):
 			BaseType.EncodeValue(self.baseType),repr(value)))
 		
 	def Cardinality(self):
-		"""Returns the cardinality of this value.  One of the :py:class:`Cardinality` constants."""
-		raise NotImplementedError
+		"""Returns the cardinality of this value.  One of the :py:class:`Cardinality` constants.
+		
+		By default we return None - indicating unknown cardinality.  This can
+		only be the case if the value is a NULL."""
+		return None
 		 
 	def IsNull(self):
 		"""Returns True is this value is NULL, as defined by the QTI specification."""
@@ -236,7 +311,22 @@ class Value(object):
 			# prints the following...
 			All non-NULL values are True"""
 		return self.value is not None
-				
+	
+	def __eq__(self,other):
+		"""The python equality test is treated like the match operator in QTI.
+		
+		We add the test that ensures the other value has matching cardinality
+		and matching baseType.  The test then proceeds to return True if the two
+		python values compare equal and False if they don't.  If either is Null
+		we raise NullResult."""
+		CheckCardinalities(self.Cardinality(),other.Cardinality())
+		if CheckBaseTypes(self.baseType,other.baseType)==BaseType.duration:
+			raise core.ProcessingError("Can't match duration values") 		
+		if self and other:
+			return self.value==other.value
+		else:
+			raise NullResult(BooleanValue())
+
 	def __unicode__(self):
 		"""Creates a string representation of the object.  The NULL value returns None."""
 		if self.value is None:
@@ -269,7 +359,7 @@ class SingleValue(Value):
 	def NewValue(cls,baseType,value=None):
 		"""Creates a new instance of a single value with *baseType* and *value*"""
 		if baseType is None:
-			return Value()
+			return SingleValue()
 		elif baseType==BaseType.boolean:
 			return BooleanValue(value)
 		elif baseType==BaseType.directedPair:
@@ -659,6 +749,20 @@ class Container(Value):
 		else:
 			return u"%s container of base type %s"%(Cardinality.EncodeValue(self.Cardinality),
 				BaseType.EncodeValue(self.baseType))
+
+	@classmethod
+	def NewValue(cls,cardinality,baseType=None):
+		"""Creates a new container with *cardinality* and *baseType*."""
+		if cardinality==Cardinality.single:
+			raise ValueError("Container with single cardinality")
+		elif cardinality==Cardinality.ordered:
+			return OrderedContainer(baseType)
+		elif cardinality==Cardinality.multiple:
+			return MultipleContainer(baseType)
+		elif cardinality==Cardinality.record:
+			return RecordContainer()	 
+		else:
+			return Container(baseType)
 			
 
 class OrderedContainer(Container):
@@ -1211,7 +1315,7 @@ class AreaMapping(core.QTIElement):
 			return dstValue
 			
 
-class AreaMapEntry(core.QTIElement):
+class AreaMapEntry(core.QTIElement,core.ShapeElementMixin):
 	"""An :py:class:`AreaMapping` is defined by a set of areaMapEntries, each of
 	which maps an area of the coordinate space onto a single float::
 		
@@ -1221,48 +1325,14 @@ class AreaMapEntry(core.QTIElement):
 			<xsd:attribute name="mappedValue" type="float.Type" use="required"/>
 		</xsd:attributeGroup>"""
 	XMLNAME=(core.IMSQTI_NAMESPACE,'areaMapEntry')
-	XMLATTR_shape=('shape',core.Shape.DecodeLowerValue,core.Shape.EncodeValue)
-	XMLATTR_coords=('coords',html.DecodeCoords,html.EncodeCoords)
 	XMLATTR_mappedValue=('mappedValue',xsi.DecodeFloat,xsi.EncodeFloat)
 	XMLCONTENT=xml.ElementType.Empty
 
 	def __init__(self,parent):
 		core.QTIElement.__init__(self,parent)
-		self.shape=core.Shape.DEFAULT	#: The shape
-		self.coords=None				#: A list of Length values
+		core.ShapeElementMixin.__init__(self)
 		self.mappedValue=0.0			#: The mapped value
 		
-	def TestPoint(self,point,width,height):
-		"""Tests *point* to see if it is in this area."""
-		x,y=point
-		if self.shape==core.Shape.circle:
-			return self.coords.TestCircle(x,y,width,height)
-		elif self.shape==core.Shape.default:
-			# The entire region
-			return x>=0 and y>=0 and x<=width and y<=width
-		elif self.shape==core.Shape.ellipse:
-			# Ellipse is deprecated because there is no HTML equivalent test
-			return self.TestEllipse(x,y,width,height)
-		elif self.shape==core.Shape.poly:
-			return self.coords.TestPoly(x,y,width,height)		
-		elif self.shape==core.Shape.rect:
-			return self.coords.TestRect(x,y,width,height)
-		else:
-			raise ValueError("Unknown Shape type")
-
-	def TestEllipse(self,x,y,width,height):
-		"""Tests an x,y point against an ellipse with these coordinates.
-		
-		HTML does not define ellipse, we take our definition from the QTI
-		specification itself: center-x, center-y, x-radius, y-radius."""
-		if len(self.coords.values)<4:
-			raise ValueError("Ellipse test requires 4 coordinates: %s"%str(self.coords.values))
-		dx=x-self.coords.values[0].GetValue(width)
-		dy=y-self.coords.values[1].GetValue(height)
-		rx=self.coords.values[2].GetValue(width)
-		ry=self.coords.values[3].GetValue(height)
-		return dx*dx*ry*ry+dy*dy*rx*rx<=rx*rx*ry*ry
-
 		
 class OutcomeDeclaration(VariableDeclaration):
 	"""Outcome variables are declared by outcome declarations

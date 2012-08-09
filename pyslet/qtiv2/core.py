@@ -3,6 +3,7 @@
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
+import pyslet.html40_19991224 as html
 
 import string
 
@@ -64,6 +65,46 @@ class Shape(xsi.Enumeration):
 		}
 xsi.MakeEnumeration(Shape,'default')
 
+
+class ShapeElementMixin:
+	XMLATTR_shape=('shape',Shape.DecodeLowerValue,Shape.EncodeValue)
+	XMLATTR_coords=('coords',html.DecodeCoords,html.EncodeCoords)
+	
+	def __init__(self):
+		self.shape=Shape.DEFAULT	#: The shape
+		self.coords=None			#: A list of Length values
+
+	def TestPoint(self,point,width,height):
+		"""Tests *point* to see if it is in this area."""
+		x,y=point
+		if self.shape==Shape.circle:
+			return self.coords.TestCircle(x,y,width,height)
+		elif self.shape==Shape.default:
+			# The entire region
+			return x>=0 and y>=0 and (width is None or x<=width) and (height is None or y<=height)
+		elif self.shape==Shape.ellipse:
+			# Ellipse is deprecated because there is no HTML equivalent test
+			return self.TestEllipse(x,y,width,height)
+		elif self.shape==Shape.poly:
+			return self.coords.TestPoly(x,y,width,height)		
+		elif self.shape==Shape.rect:
+			return self.coords.TestRect(x,y,width,height)
+		else:
+			raise ValueError("Unknown Shape type")
+
+	def TestEllipse(self,x,y,width,height):
+		"""Tests an x,y point against an ellipse with these coordinates.
+		
+		HTML does not define ellipse, we take our definition from the QTI
+		specification itself: center-x, center-y, x-radius, y-radius."""
+		if len(self.coords.values)<4:
+			raise ValueError("Ellipse test requires 4 coordinates: %s"%str(self.coords.values))
+		dx=x-self.coords.values[0].GetValue(width)
+		dy=y-self.coords.values[1].GetValue(height)
+		rx=self.coords.values[2].GetValue(width)
+		ry=self.coords.values[3].GetValue(height)
+		return dx*dx*ry*ry+dy*dy*rx*rx<=rx*rx*ry*ry
+		
 
 class View(xsi.Enumeration):
 	"""Used to represent roles when restricting view::

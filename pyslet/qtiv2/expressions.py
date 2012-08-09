@@ -6,7 +6,7 @@ import pyslet.xsdatatypes20041028 as xsi
 import pyslet.qtiv2.core as core
 import pyslet.qtiv2.variables as variables
 
-import string, random, itertools
+import string, random, itertools, math
 
 
 class Expression(core.QTIElement):
@@ -51,6 +51,32 @@ class Expression(core.QTIElement):
 				raise core.ProcessingError("Bad reference: %s is not a template variable"%ref)
 		else:
 			return xsi.DecodeDouble(value)
+			
+	def StringOrTemplateRef(self,state,value):
+		"""Given a value of type stringOrTemplateRef this method returns the
+		corresponding string by looking up the value, if necessary, in
+		*state*.  If value is a variable reference to a variable with NULL
+		value then None is returned.  Note that unlike the integer and float
+		expansions this expansion will not raise an error if *value* is a
+		syntactically valid reference to a non-existent template variable, as
+		per this condition in the specification.
+		
+			"if a string attribute appears to be a reference to a template
+			variable but there is no variable with the given name it should be
+			treated simply as string value"
+		"""
+		ref=core.GetTemplateRef(value)
+		if ref:
+			if state.IsTemplate(ref):
+				v=state[ref]
+				if isinstance(v,variables.StringValue):
+					return v.value
+				else:
+					raise core.ProcessingError("Bad reference: %s is not a string variable"%ref)
+			else:
+				return value
+		else:
+			return value
 			
 class BaseValue(Expression):
 	"""The simplest expression returns a single value from the set defined by
@@ -350,7 +376,7 @@ class Multiple(NOperator):
 			elif v.Cardinality()==variables.Cardinality.multiple:
 				# apologies for the obscure code, but this turns {'x':2,'y':3}
 				# into ['y', 'y', 'y', 'x', 'x']
-				vInput=vInput+list(itertools.chain(*map(lambda x:[x]*v.value[x],v.value)))
+				vInput=vInput+list(v.GetValues())
 			else:
 				raise core.ProcessingError("Ordered or Record values not allowed in Mutiple")
 		# finally we have a matching list of input values
@@ -519,4 +545,1046 @@ class FieldValue(UnaryOperator):
 			raise core.ProcessingError("fieldValue requires record value, found %s"%
 				variables.Cardinality.EncodeValue(value.Cardinality()))
 	
+
+class Random(UnaryOperator):
+	"""The random operator takes a sub-expression with a multiple or ordered
+	container value and any base-type. The result is a single value randomly
+	selected from the container::
 	
+		<xsd:group name="random.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'random')
+
+	def Evaluate(self,state):
+		value=self.Expression.Evaluate(state)
+		if value.Cardinality()==variables.Cardinality.ordered:
+			result=variables.SingleValue.NewValue(value.baseType)
+			if value:
+				# randomly pick one of these values
+				result.SetValue(random.choice(value.value))
+			return result
+		elif value.Cardinality()==variables.Cardinality.multiple:
+			result=variables.SingleValue.NewValue(value.baseType)
+			if value:
+				result.SetValue(random.choice(list(value.GetValues())))
+			return result
+		elif value.Cardinality() is None:
+			return variables.SingleValue()
+		else:
+			# wrong cardinality
+			raise core.ProcessingError("Random requires multiple or ordered value, found %s"%
+				variables.Cardinality.EncodeValue(value.Cardinality()))
+
+
+class Member(NOperator):
+	"""The member operator takes two sub-expressions which must both have the
+	same base-type. The first sub-expression must have single cardinality and
+	the second must be a multiple or ordered container. The result is a single
+	boolean with a value of true if the value given by the first sub-expression
+	is in the container defined by the second sub-expression::
+	
+		<xsd:group name="member.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'member')
+
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("Member requires two sub-expressions, found %i"%len(values))
+		singleValue,containerValue=values
+		if singleValue.baseType is None or containerValue.baseType is None:
+			return variables.BooleanValue()
+		if singleValue.baseType!=containerValue.baseType:
+			raise core.ProcessingError("Mismatched base types for member operator")
+		if singleValue.baseType==variables.BaseType.duration:
+			raise core.ProcessingError("Member operator must not be used on duration values")
+		if singleValue and containerValue:
+			if singleValue.Cardinality()!=variables.Cardinality.single:
+				raise core.ProcessingError("Expected single value, found %s"%
+					variables.Cardinality.EncodeValue(singleValue.Cardinality))
+			if containerValue.Cardinality()==variables.Cardinality.ordered:
+				return variables.BooleanValue(singleValue.value in containerValue.value)
+			elif containerValue.Cardinality()==variables.Cardinality.multiple:
+				return variables.BooleanValue(singleValue.value in containerValue.value.keys())
+			else:
+				raise core.ProcessingError("Expected ordered or multiple value, found %s"%
+					variables.Cardinality.EncodeValue(containerValue.Cardinality))							
+		else:
+			return variables.BooleanValue()
+
+
+class Delete(NOperator):
+	"""The delete operator takes two sub-expressions which must both have the
+	same base-type. The first sub-expression must have single cardinality and
+	the second must be a multiple or ordered container. The result is a new
+	container derived from the second sub-expression with all instances of the
+	first sub-expression removed::
+	
+		<xsd:group name="delete.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'delete')
+
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("Delete requires two sub-expressions, found %i"%len(values))
+		singleValue,containerValue=values
+		if containerValue.baseType is None:
+			return variables.Container.NewValue(containerValue.Cardinality(),singleValue.baseType)
+		elif singleValue.baseType is None:
+			return variables.Container.NewValue(containerValue.Cardinality(),containerValue.baseType)
+		elif singleValue.baseType!=containerValue.baseType:
+			raise core.ProcessingError("Mismatched base types for delete operator")
+		if singleValue.baseType==variables.BaseType.duration:
+			raise core.ProcessingError("Delete operator must not be used on duration values")
+		if singleValue.Cardinality() not in (variables.Cardinality.single,None):
+			raise core.ProcessingError("Expected single value, found %s"%
+				variables.Cardinality.EncodeValue(singleValue.Cardinality))
+		if containerValue.Cardinality() not in (variables.Cardinality.ordered,variables.Cardinality.multiple,None):				
+			raise core.ProcessingError("Expected ordered or multiple value, found %s"%
+				variables.Cardinality.EncodeValue(containerValue.Cardinality))
+		result=variables.Container.NewValue(containerValue.Cardinality(),containerValue.baseType)
+		if singleValue and containerValue:
+			# we treat multiple and ordered the same, less efficient as we enumerate all members
+			vResult=[]
+			for v in containerValue.GetValues():
+				if singleValue.value!=v:
+					vResult.append(v)
+			result.SetValue(vResult)
+			return result
+		else:
+			return result
+
+
+class Contains(NOperator):
+	"""The contains operator takes two sub-expressions which must both have the
+	same base-type and cardinality -- either multiple or ordered. The result is
+	a single boolean with a value of true if the container given by the first
+	sub-expression contains the value given by the second sub-expression and
+	false if it doesn't::
+	
+		<xsd:group name="contains.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'contains')
+
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("Contains requires two sub-expressions, found %i"%len(values))
+		v1,v2=values
+		baseType=variables.CheckBaseTypes(v1.baseType,v2.baseType)
+		cardinality=variables.CheckCardinalities(v1.Cardinality(),v2.Cardinality())
+		if baseType==variables.BaseType.duration:
+			raise core.ProcessingError("Contains operator must not be used on duration values")
+		if cardinality is None or baseType is None:
+			return variables.BooleanValue()
+		if v1 and v2:
+			if cardinality==variables.Cardinality.ordered:
+				# we use a naive implementation here as we don't expect large containers
+				matchPos=0
+				imax=len(v2.value)-len(v1.value)
+				for i in xrange(imax+1):
+					# try a match starting at i
+					match=True
+					for iv1,iv2 in zip(v1.value,v2.value[i:i+len(v1.value)]):
+						if iv1!=iv2:
+							match=False
+							break
+					if match:
+						return variables.BooleanValue(True)
+				return variables.BooleanValue(False)
+			elif cardinality==variables.Cardinality.multiple:
+				# this is much easier to do
+				match=True
+				for iv1 in v1.value.keys():
+					if v2.value.get(iv1,0)<v1.value[iv1]:
+						# no match
+						match=False
+						break
+				return variables.BooleanValue(match)
+			else:
+				raise core.ProcessingError("Expected ordered or multiple value, found %s"%
+					variables.Cardinality.EncodeValue(cardinality))							
+		else:
+			return variables.BooleanValue()
+
+
+class SubString(NOperator):
+	"""The substring operator takes two sub-expressions which must both have an
+	effective base-type of string and single cardinality. The result is a single
+	boolean with a value of true if the first expression is a substring of the
+	second expression and false if it isn't::
+	
+		<xsd:attributeGroup name="substring.AttrGroup">
+			<xsd:attribute name="caseSensitive" type="boolean.Type" use="required"/>
+		</xsd:attributeGroup>
+		
+		<xsd:group name="substring.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'substring')
+	XMLATTR_caseSensitive=('caseSensitive',xsi.DecodeBoolean,xsi.EncodeBoolean)
+	
+	def __init__(self,parent):
+		NOperator.__init__(self,parent)
+		self.caseSensitive=True
+
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("substring requires two sub-expressions, found %i"%len(values))
+		v1,v2=values
+		baseType=variables.CheckBaseTypes(v1.baseType,v2.baseType,variables.BaseType.string)
+		cardinality=variables.CheckCardinalities(v1.Cardinality(),v2.Cardinality(),variables.Cardinality.single)
+		if v1 and v2:
+			if self.caseSensitive:
+				return variables.BooleanValue(v1.value in v2.value)
+			else:
+				return variables.BooleanValue(v1.value.lower() in v2.value.lower())
+		else:
+			return variables.BooleanValue()
+
+
+class Not(UnaryOperator):
+	"""The not operator takes a single sub-expression with a base-type of
+	boolean and single cardinality. The result is a single boolean with a value
+	obtained by the logical negation of the sub-expression's value::
+	
+		<xsd:group name="not.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'not')
+		
+	def Evaluate(self,state):
+		value=self.Expression.Evaluate(state)
+		variables.CheckBaseTypes(value.baseType,variables.BaseType.boolean)
+		variables.CheckCardinalities(value.Cardinality(),variables.Cardinality.single)
+		if value:
+			return variables.BooleanValue(not value.value)
+		else:
+			return variables.BooleanValue()
+
+
+class And(NOperator):
+	"""The and operator takes one or more sub-expressions each with a base-type
+	of boolean and single cardinality. The result is a single boolean which is
+	true if all sub-expressions are true and false if any of them are false::
+
+		<xsd:group name="and.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'and')
+
+	def Evaluate(self,state):
+		# We are going to recurse through the sub-expressions evaluating as we go...
+		baseType=None
+		values=list(self.EvaluateChildren(state))
+		variables.CheckCardinalities(*map(lambda x:x.Cardinality(),values)+[variables.Cardinality.single])
+		variables.CheckBaseTypes(*map(lambda x:x.baseType,values)+[variables.BaseType.boolean])
+		result=True
+		for v in values:
+			if v.value==False:
+				return variables.BooleanValue(False)
+			elif v.value is None:
+				result=None
+		return variables.BooleanValue(result)
+
+
+class Or(NOperator):
+	"""The or operator takes one or more sub-expressions each with a base-type
+	of boolean and single cardinality. The result is a single boolean which is
+	true if any of the sub-expressions are true and false if all of them are
+	false::
+
+		<xsd:group name="or.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'or')
+
+	def Evaluate(self,state):
+		# We are going to recurse through the sub-expressions evaluating as we go...
+		baseType=None
+		values=list(self.EvaluateChildren(state))
+		variables.CheckCardinalities(*map(lambda x:x.Cardinality(),values)+[variables.Cardinality.single])
+		variables.CheckBaseTypes(*map(lambda x:x.baseType,values)+[variables.BaseType.boolean])
+		result=False
+		for v in values:
+			if v.value==True:
+				return variables.BooleanValue(True)
+			elif v.value is None:
+				result=None
+		return variables.BooleanValue(result)
+
+
+class AnyN(NOperator):
+	"""The anyN operator takes one or more sub-expressions each with a base-type
+	of boolean and single cardinality. The result is a single boolean which is
+	true if at least min of the sub-expressions are true and at most max of the
+	sub-expressions are true::
+
+		<xsd:attributeGroup name="anyN.AttrGroup">
+			<xsd:attribute name="min" type="integerOrTemplateRef.Type" use="required"/>
+			<xsd:attribute name="max" type="integerOrTemplateRef.Type" use="required"/>
+		</xsd:attributeGroup>
+		
+		<xsd:group name="anyN.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'anyN')
+	XMLATTR_min='min'
+	XMLATTR_max='max'
+	
+	def __init__(self,parent):
+		NOperator.__init__(self,parent)
+		self.min=None
+		self.max=None
+
+	def Evaluate(self,state):
+		# We are going to recurse through the sub-expressions evaluating as we go...
+		min=self.IntegerOrTemplateRef(state,self.min)
+		max=self.IntegerOrTemplateRef(state,self.max)
+		values=list(self.EvaluateChildren(state))
+		variables.CheckCardinalities(*map(lambda x:x.Cardinality(),values)+[variables.Cardinality.single])
+		variables.CheckBaseTypes(*map(lambda x:x.baseType,values)+[variables.BaseType.boolean])
+		nTrue=nNull=0
+		for v in values:			
+			if v.value==True:
+				nTrue+=1
+			elif v.value is None:
+				nNull+=1
+		# The hard part is figuring out what to return!
+		if nTrue>=min:
+			# could be True
+			if nTrue>max:
+				# we overshot
+				result=False
+			elif nTrue+nNull>max:
+				# we could still overshoot
+				result=None
+			else:
+				result=True
+		elif nTrue+nNull>=min:
+			# we could still be True
+			result=None
+		else:
+			result=False
+		return variables.BooleanValue(result)
+
+
+class Match(NOperator):
+	"""The match operator takes two sub-expressions which must both have the
+	same base-type and cardinality. The result is a single boolean with a value
+	of true if the two expressions represent the same value and false if they do
+	not::
+
+		<xsd:group name="match.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'match')
+
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("Match requires two sub-expressions, found %i"%len(values))
+		v1,v2=values		
+		try:
+			return variables.BooleanValue(v1==v2)
+		except variables.NullResult,null:
+			return null.value
+
+
+class StringMatch(NOperator):
+	"""The stringMatch operator takes two sub-expressions which must have single
+	and a base-type of string. The result is a single boolean with a value of
+	true if the two strings match::
+	
+		<xsd:attributeGroup name="stringMatch.AttrGroup">
+			<xsd:attribute name="caseSensitive" type="boolean.Type" use="required"/>
+			<xsd:attribute name="substring" type="boolean.Type" use="optional"/>
+		</xsd:attributeGroup>
+		
+		<xsd:group name="stringMatch.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'stringMatch')
+	XMLATTR_caseSensitive=('caseSensitive',xsi.DecodeBoolean,xsi.EncodeBoolean)
+	XMLATTR_caseSensitive=('substring',xsi.DecodeBoolean,xsi.EncodeBoolean)
+	
+	def __init__(self,parent):
+		NOperator.__init__(self,parent)
+		self.caseSensitive=True
+		self.substring=False
+
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("stringMatch requires two sub-expressions, found %i"%len(values))
+		v1,v2=values
+		baseType=variables.CheckBaseTypes(v1.baseType,v2.baseType,variables.BaseType.string)
+		cardinality=variables.CheckCardinalities(v1.Cardinality(),v2.Cardinality(),variables.Cardinality.single)
+		if v1 and v2:
+			if not self.caseSensitive:
+				v1v=v1.value.lower()
+				v2v=v2.value.lower()
+			else:
+				v1v=v1.value
+				v2v=v2.value
+			if self.substring:
+				return variables.BooleanValue(v1v in v2v)
+			else:
+				return variables.BooleanValue(v1v==v2v)
+		else:
+			return variables.BooleanValue()
+
+
+class PatternMatch(UnaryOperator):
+	"""The patternMatch operator takes a sub-expression which must have single
+	cardinality and a base-type of string. The result is a single boolean with a
+	value of true if the sub-expression matches the regular expression given by
+	pattern and false if it doesn't::
+	
+		<xsd:attributeGroup name="patternMatch.AttrGroup">
+			<xsd:attribute name="pattern" type="stringOrTemplateRef.Type" use="required"/>
+		</xsd:attributeGroup>
+		
+		<xsd:group name="patternMatch.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'patternMatch')		
+	XMLATTR_pattern='pattern'
+	
+	def __init__(self,parent):
+		UnaryOperator.__init__(self,parent)
+		self.pattern=u""
+
+	def Evaluate(self,state):
+		pattern=self.StringOrTemplateRef(state,self.pattern)
+		value=self.Expression.Evaluate(state)
+		variables.CheckBaseTypes(value.baseType,variables.BaseType.string)
+		variables.CheckCardinalities(value.Cardinality(),variables.Cardinality.single)
+		if value:
+			try:
+				re=xsi.RegularExpression(pattern)
+				return variables.BooleanValue(re.Match(value.value))
+			except xsi.RegularExpressionError:
+				# illegal regular expression results in NULL
+				return variables.BooleanValue()				
+		else:
+			return variables.BooleanValue()
+
+
+class ToleranceMode(xsi.Enumeration):
+	"""When comparing two floating point numbers for equality it is often
+	desirable to have a tolerance to ensure that spurious errors in scoring are
+	not introduced by rounding errors. The tolerance mode determines whether the
+	comparison is done exactly, using an absolute range or a relative range::
+
+		<xsd:simpleType name="toleranceMode.Type">
+			<xsd:restriction base="xsd:NMTOKEN">
+				<xsd:enumeration value="absolute"/>
+				<xsd:enumeration value="exact"/>
+				<xsd:enumeration value="relative"/>
+			</xsd:restriction>
+		</xsd:simpleType>
+	
+	Defines constants for the above modes.  Usage example::
+
+		ToleranceMode.exact
+	
+	The default value is exact::
+		
+		ToleranceMode.DEFAULT == ToleranceMode.exact
+
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		'absolute':1,
+		'exact':2,
+		'relative':3
+		}
+xsi.MakeEnumeration(ToleranceMode,'exact')
+
+
+class Equal(NOperator):
+	"""The equal operator takes two sub-expressions which must both have single
+	cardinality and have a numerical base-type. The result is a single boolean
+	with a value of true if the two expressions are numerically equal and false
+	if they are not::
+	
+		<xsd:attributeGroup name="equal.AttrGroup">
+			<xsd:attribute name="toleranceMode" type="toleranceMode.Type" use="required"/>
+			<xsd:attribute name="tolerance" use="optional">
+				<xsd:simpleType>
+					<xsd:list itemType="floatOrTemplateRef.Type"/>
+				</xsd:simpleType>
+			</xsd:attribute>
+			<xsd:attribute name="includeLowerBound" type="boolean.Type" use="optional"/>
+			<xsd:attribute name="includeUpperBound" type="boolean.Type" use="optional"/>
+		</xsd:attributeGroup>
+		
+		<xsd:group name="equal.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'equal')
+	XMLATTR_toleranceMode=('toleranceMode',ToleranceMode.DecodeLowerValue,ToleranceMode.EncodeValue)
+	XMLATTR_tolerance='tolerance'
+	XMLATTR_includeLowerBound=('includeLowerBound',xsi.DecodeBoolean,xsi.EncodeBoolean)
+	XMLATTR_includeUpperBound=('includeUpperBound',xsi.DecodeBoolean,xsi.EncodeBoolean)
+	
+	def __init__(self,parent):
+		NOperator.__init__(self,parent)
+		self.toleranceMode=ToleranceMode.exact
+		self.tolerance=[]
+		self.includeLowerBound=True
+		self.includeUpperBound=True
+
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("equal requires two sub-expressions, found %i"%len(values))
+		v1,v2=values
+		baseType=variables.CheckNumericalTypes(v1.baseType,v2.baseType)
+		cardinality=variables.CheckCardinalities(v1.Cardinality(),v2.Cardinality(),variables.Cardinality.single)
+		if v1 and v2:
+			# grab two floats
+			v1v=float(v1.value)
+			v2v=float(v2.value)
+			if self.toleranceMode==ToleranceMode.exact:
+				return variables.BooleanValue(v1v==v2v)
+			else:
+				if len(self.tolerance)==0:
+					raise core.ProcessingError("Inexact equal test requires specificed tolerance.")
+				t0=self.FloatOrTemplateRef(state,self.tolerance[0])
+				if len(self.tolerance)>1:
+					t1=self.FloatOrTemplateRef(state,self.tolerance[1])
+				else:
+					t1=t0
+				if self.toleranceMode==ToleranceMode.absolute:
+					lowerBound=v1v-t0
+					upperBound=v1v+t1
+				else:
+					# relative
+					lowerBound=v1v*(1-t0/100.0)
+					upperBound=v1v*(1+t1/100.0)
+				if self.includeUpperBound:
+					if self.includeLowerBound:
+						result=(v2v>=lowerBound and v2v<=upperBound)
+					else:
+						result=(v2v>lowerBound and v2v<=upperBound)
+				else:
+					if self.includeLowerBound:
+						result=(v2v>=lowerBound and v2v<upperBound)
+					else:
+						result=(v2v>lowerBound and v2v<upperBound)
+				return variables.BooleanValue(result)
+		else:
+			return variables.BooleanValue()
+
+class RoundingMode(xsi.Enumeration):
+	"""Numbers are rounded to a given number of significantFigures or decimalPlaces::
+
+		<xsd:simpleType name="roundingMode.Type">
+			<xsd:restriction base="xsd:NMTOKEN">
+				<xsd:enumeration value="decimalPlaces"/>
+				<xsd:enumeration value="significantFigures"/>
+			</xsd:restriction>
+		</xsd:simpleType>
+	
+	Defines constants for the above modes.  Usage example::
+
+		RoundingMode.decimalPlaces
+	
+	The default value is significantFigures::
+		
+		RoundingMode.DEFAULT == RoundingMode.significantFigures
+
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		'decimalPlaces':1,
+		'significantFigures':2
+		}
+xsi.MakeEnumeration(RoundingMode,'significantFigures')
+
+
+class EqualRounded(NOperator):
+	"""The equalRounded operator takes two sub-expressions which must both have
+	single cardinality and have a numerical base-type. The result is a single
+	boolean with a value of true if the two expressions are numerically equal
+	after rounding and false if they are not::
+	
+		<xsd:attributeGroup name="equalRounded.AttrGroup">
+			<xsd:attribute name="roundingMode" type="roundingMode.Type" use="required"/>
+			<xsd:attribute name="figures" type="integerOrTemplateRef.Type" use="required"/>
+		</xsd:attributeGroup>
+		
+		<xsd:group name="equalRounded.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'equalRounded')
+	XMLATTR_roundingMode=('roundingMode',RoundingMode.DecodeValue,RoundingMode.EncodeValue)
+	XMLATTR_figures='figures'
+	
+	def __init__(self,parent):
+		NOperator.__init__(self,parent)
+		self.roundingMode=RoundingMode.DEFAULT
+		self.figures=None
+
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("equalRounded requires two sub-expressions, found %i"%len(values))
+		v1,v2=values
+		baseType=variables.CheckNumericalTypes(v1.baseType,v2.baseType)
+		cardinality=variables.CheckCardinalities(v1.Cardinality(),v2.Cardinality(),variables.Cardinality.single)
+		if v1 and v2:
+			# grab two floats
+			v1v=float(v1.value)
+			v2v=float(v2.value)
+			figures=self.IntegerOrTemplateRef(state,self.figures)
+			if self.roundingMode==RoundingMode.decimalPlaces:
+				return variables.BooleanValue(xsi.EncodeDecimal(v1v,figures,False)==
+					xsi.EncodeDecimal(v2v,figures,False))
+			else:
+				# for sig fig, we need to use the double form
+				return variables.BooleanValue(xsi.EncodeDouble(v1v,figures-1)==
+					xsi.EncodeDouble(v2v,figures-1))
+		else:
+			return variables.BooleanValue()
+
+
+class Inside(UnaryOperator,core.ShapeElementMixin):
+	"""The inside operator takes a single sub-expression which must have a
+	baseType of point. The result is a single boolean with a value of true if
+	the given point is inside the area defined by shape and coords. If the
+	sub-expression is a container the result is true if any of the points are
+	inside the area::
+	
+		<xsd:attributeGroup name="inside.AttrGroup">
+			<xsd:attribute name="shape" type="shape.Type" use="required"/>
+			<xsd:attribute name="coords" type="coords.Type" use="required"/>
+		</xsd:attributeGroup>
+		
+		<xsd:group name="inside.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'inside')
+	
+	def __init__(self,parent):
+		UnaryOperator.__init__(self,parent)
+		core.ShapeElementMixin.__init__(self)
+
+	def Evaluate(self,state):
+		value=self.Expression.Evaluate(state)
+		variables.CheckBaseTypes(value.baseType,variables.BaseType.point)
+		if value.Cardinality()==variables.Cardinality.single:
+			if value:
+				return variables.BooleanValue(self.TestPoint(value.value,None,None))
+			else:
+				return variables.BooleanValue()
+		elif value.Cardinality() in (variables.Cardinality.ordered,variables.Cardinality.multiple):
+			if value:
+				if value.Cardinality()==variables.Cardinality.multiple:
+					vList=value.value.keys()
+				else:
+					vList=value.value
+				for value in vList:
+					if self.TestPoint(value,None,None):
+						return variables.BooleanValue(True)
+				return variables.BooleanValue(False)
+			else:
+				return variables.BooleanValue()	
+		elif value.Cardinality() is None:
+			return variables.BooleanValue()	
+		else:	
+			raise core.ProcessingError("Record values not allowed in Inside")
+
+
+class LT(NOperator):
+	"""The lt operator takes two sub-expressions which must both have single
+	cardinality and have a numerical base-type. The result is a single boolean
+	with a value of true if the first expression is numerically less than the
+	second and false if it is greater than or equal to the second::
+	
+		<xsd:group name="lt.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'lt')
+	
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("lt requires two sub-expressions, found %i"%len(values))
+		v1,v2=values
+		baseType=variables.CheckNumericalTypes(v1.baseType,v2.baseType)
+		cardinality=variables.CheckCardinalities(v1.Cardinality(),v2.Cardinality(),variables.Cardinality.single)
+		if v1 and v2:
+			# grab two floats
+			v1v=float(v1.value)
+			v2v=float(v2.value)
+			return variables.BooleanValue(v1v<v2v)
+		else:
+			return variables.BooleanValue()
+
+
+class GT(NOperator):
+	"""The gt operator takes two sub-expressions which must both have single
+	cardinality and have a numerical base-type. The result is a single boolean
+	with a value of true if the first expression is numerically greater than the
+	second and false if it is less than or equal to the second::
+	
+		<xsd:group name="gt.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'gt')
+	
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("gt requires two sub-expressions, found %i"%len(values))
+		v1,v2=values
+		baseType=variables.CheckNumericalTypes(v1.baseType,v2.baseType)
+		cardinality=variables.CheckCardinalities(v1.Cardinality(),v2.Cardinality(),variables.Cardinality.single)
+		if v1 and v2:
+			# grab two floats
+			v1v=float(v1.value)
+			v2v=float(v2.value)
+			return variables.BooleanValue(v1v>v2v)
+		else:
+			return variables.BooleanValue()
+
+
+class LTE(NOperator):
+	"""The lte operator takes two sub-expressions which must both have single
+	cardinality and have a numerical base-type. The result is a single boolean
+	with a value of true if the first expression is numerically less than or
+	equal to the second and false if it is greater than the second::
+	
+		<xsd:group name="lte.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'lte')
+	
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("lte requires two sub-expressions, found %i"%len(values))
+		v1,v2=values
+		baseType=variables.CheckNumericalTypes(v1.baseType,v2.baseType)
+		cardinality=variables.CheckCardinalities(v1.Cardinality(),v2.Cardinality(),variables.Cardinality.single)
+		if v1 and v2:
+			# grab two floats
+			v1v=float(v1.value)
+			v2v=float(v2.value)
+			return variables.BooleanValue(v1v<=v2v)
+		else:
+			return variables.BooleanValue()
+
+
+class GTE(NOperator):
+	"""The gte operator takes two sub-expressions which must both have single
+	cardinality and have a numerical base-type. The result is a single boolean
+	with a value of true if the first expression is numerically less than or
+	equal to the second and false if it is greater than the second::
+	
+		<xsd:group name="durationGTE.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'gte')
+	
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("gte requires two sub-expressions, found %i"%len(values))
+		v1,v2=values
+		baseType=variables.CheckNumericalTypes(v1.baseType,v2.baseType)
+		cardinality=variables.CheckCardinalities(v1.Cardinality(),v2.Cardinality(),variables.Cardinality.single)
+		if v1 and v2:
+			# grab two floats
+			v1v=float(v1.value)
+			v2v=float(v2.value)
+			return variables.BooleanValue(v1v>=v2v)
+		else:
+			return variables.BooleanValue()
+
+
+class DurationLT(NOperator):
+	"""The durationLT operator takes two sub-expressions which must both have
+	single cardinality and base-type duration. The result is a single boolean
+	with a value of true if the first duration is shorter than the second and
+	false if it is longer than (or equal) to the second::
+	
+		<xsd:group name="durationLT.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'durationLT')
+	
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("lt requires two sub-expressions, found %i"%len(values))
+		v1,v2=values
+		baseType=variables.CheckBaseTypes(v1.baseType,v2.baseType,variables.BaseType.duration)
+		cardinality=variables.CheckCardinalities(v1.Cardinality(),v2.Cardinality(),variables.Cardinality.single)
+		if v1 and v2:
+			# grab two floats
+			v1v=float(v1.value)
+			v2v=float(v2.value)
+			return variables.BooleanValue(v1v<v2v)
+		else:
+			return variables.BooleanValue()
+
+
+class DurationGTE(NOperator):
+	"""The durationGTE operator takes two sub-expressions which must both have
+	single cardinality and base-type duration. The result is a single boolean
+	with a value of true if the first duration is longer (or equal, within the
+	limits imposed by truncation) than the second and false if it is shorter
+	than the second::
+	
+		<xsd:group name="durationGTE.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'durationGTE')
+	
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("gte requires two sub-expressions, found %i"%len(values))
+		v1,v2=values
+		baseType=variables.CheckBaseTypes(v1.baseType,v2.baseType,variables.BaseType.duration)
+		cardinality=variables.CheckCardinalities(v1.Cardinality(),v2.Cardinality(),variables.Cardinality.single)
+		if v1 and v2:
+			# grab two floats
+			v1v=float(v1.value)
+			v2v=float(v2.value)
+			return variables.BooleanValue(v1v>=v2v)
+		else:
+			return variables.BooleanValue()
+
+
+class Sum(NOperator):
+	"""The sum operator takes 1 or more sub-expressions which all have single
+	cardinality and have numerical base-types. The result is a single float or,
+	if all sub-expressions are of integer type, a single integer that
+	corresponds to the sum of the numerical values of the sub-expressions::
+	
+		<xsd:group name="sum.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'sum')
+	
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)<1:
+			raise core.ProcessingError("sum requires at least one sub-expression, found %i"%len(values))
+		variables.CheckCardinalities(*map(lambda x:x.Cardinality(),values)+[variables.Cardinality.single])
+		baseType=variables.CheckNumericalTypes(*map(lambda x:x.baseType,values))
+		if baseType is None:
+			# there are no values to add up, we don't know what type we are
+			return variables.SingleValue()
+		sum=0
+		for v in values:
+			if v:
+				sum=sum+v.value
+			else:
+				if baseType==variables.BaseType.float:
+					return variables.FloatValue()
+				else:
+					return variables.IntegerValue()
+		if baseType==variables.BaseType.float:
+			return variables.FloatValue(float(sum))
+		else:
+			# sum will still be of type integer at this point
+			return variables.IntegerValue(sum)
+
+
+class Product(NOperator):
+	"""The product operator takes 1 or more sub-expressions which all have
+	single cardinality and have numerical base-types. The result is a single
+	float or, if all sub-expressions are of integer type, a single integer that
+	corresponds to the product of the numerical values of the sub-expressions::
+	
+		<xsd:group name="product.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'product')
+	
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)<1:
+			raise core.ProcessingError("product requires at least one sub-expression, found %i"%len(values))
+		variables.CheckCardinalities(*map(lambda x:x.Cardinality(),values)+[variables.Cardinality.single])
+		baseType=variables.CheckNumericalTypes(*map(lambda x:x.baseType,values))
+		if baseType is None:
+			# there are no values to multiply, we don't know what type we are
+			return variables.SingleValue()
+		product=1
+		for v in values:
+			if v:
+				product=product*v.value
+			else:
+				if baseType==variables.BaseType.float:
+					return variables.FloatValue()
+				else:
+					return variables.IntegerValue()
+		if baseType==variables.BaseType.float:
+			return variables.FloatValue(float(product))
+		else:
+			# sum will still be of type integer at this point
+			return variables.IntegerValue(product)
+
+
+class Subtract(NOperator):
+	"""The subtract operator takes 2 sub-expressions which all have single
+	cardinality and numerical base-types. The result is a single float or, if
+	both sub-expressions are of integer type, a single integer that corresponds
+	to the first value minus the second::
+	
+		<xsd:group name="subtract.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'subtract')
+	
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("subtract requires two sub-expressions, found %i"%len(values))
+		v1,v2=values
+		baseType=variables.CheckNumericalTypes(v1.baseType,v2.baseType)
+		cardinality=variables.CheckCardinalities(v1.Cardinality(),v2.Cardinality(),variables.Cardinality.single)
+		if baseType is None:
+			# there are no values to subtract, we don't know what type we are
+			return variables.SingleValue()
+		if v1 and v2:
+			# grab two floats
+			if baseType==variables.BaseType.float:
+				v1v=float(v1.value)
+				v2v=float(v2.value)
+				return variables.FloatValue(v1v-v2v)
+			else:
+				return variables.IntegerValue(v1.value-v2.value)
+		else:
+			if baseType==variables.BaseType.float:
+				return variables.FloatValue()
+			else:
+				return variables.IntegerValue()
+
+
+class Divide(NOperator):
+	"""The divide operator takes 2 sub-expressions which both have single
+	cardinality and numerical base-types. The result is a single float that
+	corresponds to the first expression divided by the second expression::
+	
+		<xsd:group name="divide.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'divide')
+	
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("divide requires two sub-expressions, found %i"%len(values))
+		v1,v2=values
+		variables.CheckNumericalTypes(v1.baseType,v2.baseType)
+		cardinality=variables.CheckCardinalities(v1.Cardinality(),v2.Cardinality(),variables.Cardinality.single)
+		if v1 and v2:
+			v1v=float(v1.value)
+			v2v=float(v2.value)
+			try:
+				return variables.FloatValue(v1v/v2v)
+			except ZeroDivisionError:
+				# if [the second value] is zero or the resulting value is
+				# outside the value set defined by float (not including positive
+				# and negative infinity) then the operator should result in NULL
+				return variables.FloatValue()
+		else:
+			return variables.FloatValue()
+
+
+class Power(NOperator):
+	"""The power operator takes 2 sub-expression which both have single
+	cardinality and numerical base-types. The result is a single float that
+	corresponds to the first expression raised to the power of the second::
+	
+		<xsd:group name="power.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'power')
+	
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("power requires two sub-expressions, found %i"%len(values))
+		v1,v2=values
+		variables.CheckNumericalTypes(v1.baseType,v2.baseType)
+		cardinality=variables.CheckCardinalities(v1.Cardinality(),v2.Cardinality(),variables.Cardinality.single)
+		if v1 and v2:
+			v1v=float(v1.value)
+			v2v=float(v2.value)
+			try:
+				return variables.FloatValue(math.pow(v1v,v2v))
+			except ValueError:
+				# If the resulting value is outside the value set defined by
+				# float (not including positive and negative infinity) then the
+				# operator shall result in NULL
+				return variables.FloatValue()
+		else:
+			return variables.FloatValue()
+
+
+

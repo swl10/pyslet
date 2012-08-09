@@ -2699,7 +2699,6 @@ class XMLNotation:
 		self.name=name					#: the notation name 
 		self.externalID=externalID		#: the external ID of the notation (an XMLExternalID instance)
 
-
 def IsLetter(c):
 	"""Tests if the character *c* matches production [84] Letter."""
 	return IsBaseChar(c) or IsIdeographic(c)
@@ -2767,6 +2766,9 @@ def IsIdeographic(c):
 	"""Tests if the character *c* matches production [86] Ideographic."""
 	return c and ((ord(c)>=0x4E00 and ord(c)<=0x9FA5) or ord(c)==0x3007 or
 		(ord(c)>=0x3021 and ord(c)<=0x3029))
+
+IdeographicCharClass=CharClass((u'\u4e00',u'\u9fa5'),u'\u3007',(u'\u3021',u'\u3029'))
+LetterCharClass=CharClass(BaseCharClass,IdeographicCharClass)
 
 CombiningCharClass=CharClass((u'\u0300',u'\u0345'), (u'\u0360',u'\u0361'),
 	(u'\u0483',u'\u0486'), (u'\u0591',u'\u05a1'), (u'\u05a3',u'\u05b9'),

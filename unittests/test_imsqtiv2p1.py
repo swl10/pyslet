@@ -12,6 +12,7 @@ def suite():
 		))
 
 from pyslet.imsqtiv2p1 import *
+import pyslet.html40_19991224 as html
 
 from StringIO import StringIO
 import types
@@ -848,7 +849,8 @@ class ExpressionTests(unittest.TestCase):
 		e=expressions.Multiple(None)
 		# check the null case
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.MultipleContainer),"Multiple cardinality")
+		self.failUnless(isinstance(value,variables.MultipleContainer),"Multiple type")
+		self.failUnless(value.Cardinality()==variables.Cardinality.multiple,"Multiple cardinality")
 		self.failUnless(value.baseType is None,"Multiple with unknown base type")		
 		# check that sub-expressions with NULL values are ignored
 		v1=e.ChildElement(expressions.BaseValue)
@@ -1046,8 +1048,1343 @@ class ExpressionTests(unittest.TestCase):
 			self.fail("fieldValue of single value")	
 		except core.ProcessingError:
 			pass	
-			
+	
+	def testCaseRandom(self):
+		e=expressions.Random(None)
+		em=e.ChildElement(expressions.Null)
+		# check the null case
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"Random(NULL) is NULL")
+		self.failUnless(value.baseType is None,"Random(NULL) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Random(NULL) base type")
+		e=expressions.Random(None)
+		em=e.ChildElement(expressions.Multiple)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"Random(empty multiple container) is NULL")
+		self.failUnless(value.baseType is None,"Random(NULL) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Random(NULL) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		for i in (2,5,8,11,8):
+			v=em.ChildElement(expressions.BaseValue)
+			v.baseType=variables.BaseType.integer
+			v.AddData(str(i))
+		gotValue={}
+		for i in xrange(100):
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(isinstance(value,variables.IntegerValue),"Random(Multiple) type")
+			self.failUnless(value.value in (2,5,8,11),"Random(Multiple) value: %s"%repr(value.value))
+			gotValue[value.value]=gotValue.get(value.value,0)+1
+		for i in (2,5,8,11):
+			self.failUnless(i in gotValue,"Random(Multiple) failed with p=0.000000001, really?")
+		for i in xrange(200):
+			# do another 200 iterations
+			value=e.Evaluate(self.sessionState)
+			gotValue[value.value]=gotValue.get(value.value,0)+1
+		# we can be pretty sure that f(8) > all the rest
+		for i in (2,5,11):
+			self.failUnless(gotValue[8]>gotValue[i],"Multiple element frequency test! %s"%repr(gotValue))
+		e=expressions.Random(None)
+		eo=e.ChildElement(expressions.Ordered)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"Random(empty ordered container) is NULL")
+		self.failUnless(value.baseType is None,"Random(NULL) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Random(NULL) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		for i in ("A","B","C","D","B"):
+			v=eo.ChildElement(expressions.BaseValue)
+			v.baseType=variables.BaseType.identifier
+			v.AddData(i)
+		gotValue={}
+		for i in xrange(100):
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(isinstance(value,variables.IdentifierValue),"Random(Ordered) type")
+			self.failUnless(value.value in ("A","B","C","D"),"Random(Ordered) value: %s"%repr(value.value))
+			gotValue[value.value]=gotValue.get(value.value,0)+1
+		for i in ("A","B","C","D"):
+			self.failUnless(i in gotValue,"Random(Ordered) failed with p=0.000000001, really?")
+		# we can be pretty sure that f("B") > all the rest
+		for i in ("A","C","D"):
+			self.failUnless(gotValue["B"]>gotValue[i],"Ordered element frequency test!")
+		try:
+			e=expressions.Random(None)
+			er=e.ChildElement(expressions.Variable)
+			er.identifier='RESPONSE4'
+			value=e.Evaluate(self.sessionState)
+			self.fail("Random(Record)")
+		except core.ProcessingError:
+			pass
+		try:
+			e=expressions.Random(None)
+			v=e.ChildElement(expressions.BaseValue)
+			v.baseType=variables.BaseType.identifier
+			v.AddData("FAIL")
+			value=e.Evaluate(self.sessionState)
+			self.fail("Random(single)")
+		except core.ProcessingError:
+			pass
 		
+	def testCaseMember(self):
+		e=expressions.Member(None)
+		v1=e.ChildElement(expressions.Null)
+		v2=e.ChildElement(expressions.Variable)
+		v2.identifier='RESPONSE3'
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"Member(Null,RESPONSE3) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"Member(Null,RESPONSE3) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Member(NULL) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.Member(None)
+		v1=e.ChildElement(expressions.BaseValue)
+		v1.baseType=variables.BaseType.identifier
+		v1.AddData("B")
+		v2=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"Member('B',NULL) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"Member('B',NULL) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Member('B',NULL) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.Member(None)
+		v1=e.ChildElement(expressions.Null)
+		v2=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"Member(NULL,NULL) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"Member(NULL,NULL) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Member(NULL,NULL) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		try:
+			e=expressions.Member(None)
+			v1=e.ChildElement(expressions.Variable)
+			v1.identifier='RESPONSE3'
+			v2=e.ChildElement(expressions.Variable)
+			v2.identifier='RESPONSE3'
+			value=e.Evaluate(self.sessionState)
+			self.fail("Member(RESPONSE3,RESPONSE3)")
+		except core.ProcessingError:
+			pass	
+		try:
+			e=expressions.Member(None)
+			v1=e.ChildElement(expressions.BaseValue)
+			v1.baseType=variables.BaseType.identifier
+			v1.AddData("B")
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.identifier
+			v2.AddData("B")
+			value=e.Evaluate(self.sessionState)
+			self.fail("Member('B','B')")
+		except core.ProcessingError:
+			pass	
+		try:
+			e=expressions.Member(None)
+			v1=e.ChildElement(expressions.BaseValue)
+			v1.baseType=variables.BaseType.duration
+			v1.AddData("3.14")
+			v2=e.ChildElement(expressions.Ordered)
+			v21=v2.ChildElement(expressions.BaseValue)
+			v21.baseType=variables.BaseType.duration
+			v21.AddData("3.14")
+			value=e.Evaluate(self.sessionState)
+			self.fail("Member(duration,Ordered(duration))")
+		except core.ProcessingError:
+			pass	
+		e=expressions.Member(None)		
+		v1=e.ChildElement(expressions.BaseValue)
+		v1.baseType=variables.BaseType.identifier
+		v1.AddData("B")
+		v2=e.ChildElement(expressions.Variable)
+		v2.identifier='RESPONSE3'
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"Member('B',RESPONSE3)")		
+		v1.SetValue("D")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"Member('D',RESPONSE3)")		
+
+
+	def testCaseDelete(self):
+		e=expressions.Delete(None)
+		v1=e.ChildElement(expressions.Null)
+		v2=e.ChildElement(expressions.Variable)
+		v2.identifier='RESPONSE3'
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"Delete(Null,RESPONSE3) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.identifier,"Delete(Null,RESPONSE3) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.ordered,
+			"Delete(NULL,RESPONSE3) cardinality, found %s"%variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.Delete(None)
+		v1=e.ChildElement(expressions.BaseValue)
+		v1.baseType=variables.BaseType.identifier
+		v1.AddData("B")
+		v2=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"Delete('B',NULL) is NULL")
+		self.failUnless(isinstance(value,variables.Container),"Delete('B',NULL) class")		
+		self.failUnless(value.baseType is variables.BaseType.identifier,"Delete('B',NULL) base type")		
+		self.failUnless(value.Cardinality()==None,"Delete('B',NULL) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))		
+		e=expressions.Delete(None)
+		v1=e.ChildElement(expressions.Null)
+		v2=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"Delete(NULL,NULL) is NULL")
+		self.failUnless(isinstance(value,variables.Container),"Delete(NULL,NULL) class")		
+		self.failUnless(value.baseType is None,"Delete(NULL,NULL) base type")
+		self.failUnless(value.Cardinality()==None,"Delete(NULL,NULL) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		try:
+			e=expressions.Delete(None)
+			v1=e.ChildElement(expressions.Variable)
+			v1.identifier='RESPONSE3'
+			v2=e.ChildElement(expressions.Variable)
+			v2.identifier='RESPONSE3'
+			value=e.Evaluate(self.sessionState)
+			self.fail("Delete(RESPONSE3,RESPONSE3)")
+		except core.ProcessingError:
+			pass	
+		try:
+			e=expressions.Delete(None)
+			v1=e.ChildElement(expressions.BaseValue)
+			v1.baseType=variables.BaseType.identifier
+			v1.AddData("B")
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.identifier
+			v2.AddData("B")
+			value=e.Evaluate(self.sessionState)
+			self.fail("Delete('B','B')")
+		except core.ProcessingError:
+			pass	
+		try:
+			e=expressions.Delete(None)
+			v1=e.ChildElement(expressions.BaseValue)
+			v1.baseType=variables.BaseType.duration
+			v1.AddData("3.14")
+			v2=e.ChildElement(expressions.Ordered)
+			v21=v2.ChildElement(expressions.BaseValue)
+			v21.baseType=variables.BaseType.duration
+			v21.AddData("3.14")
+			value=e.Evaluate(self.sessionState)
+			self.fail("Delete(duration,Ordered(duration))")
+		except core.ProcessingError:
+			pass	
+		e=expressions.Delete(None)		
+		v1=e.ChildElement(expressions.BaseValue)
+		v1.baseType=variables.BaseType.identifier
+		v1.AddData("B")
+		v2=e.ChildElement(expressions.Variable)
+		v2.identifier='RESPONSE3'
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.baseType is variables.BaseType.identifier,"Delete('B',RESPONSE3) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.ordered,
+			"Delete('B',RESPONSE3) cardinality, found %s"%variables.Cardinality.EncodeValue(value.Cardinality()))		
+		self.failUnless(value.value==["A","C"],"Delete('B',RESPONSE3)")		
+		v1.SetValue("D")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==["A","B","C"],"Delete('D',RESPONSE3)")		
+		e=expressions.Delete(None)		
+		v1=e.ChildElement(expressions.BaseValue)
+		v1.baseType=variables.BaseType.identifier
+		v1.AddData("B")
+		v2=e.ChildElement(expressions.Multiple)
+		for i in ("A","B","C","B","A"):
+			v21=v2.ChildElement(expressions.BaseValue)
+			v21.baseType=variables.BaseType.identifier
+			v21.AddData(i)
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.Cardinality()==variables.Cardinality.multiple,
+			"Delete('B',{'A','B','C','D'}) cardinality, found %s"%variables.Cardinality.EncodeValue(value.Cardinality()))		
+		self.failUnless(value.value=={"A":2,"C":1},"Delete('B',{'A','B','C','D'})")
+		
+		
+	def testCaseContains(self):
+		e=expressions.Contains(None)
+		v1=e.ChildElement(expressions.Null)
+		v2=e.ChildElement(expressions.Variable)
+		v2.identifier='RESPONSE3'
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"Contains(Null,RESPONSE3) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"Contains(Null,RESPONSE3) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Contains(NULL) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.Contains(None)
+		v1=e.ChildElement(expressions.Variable)
+		v1.identifier='RESPONSE3'
+		v2=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"Contains(RESPONSE3,NULL) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"Contains(RESPONSE3,NULL) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Contains(RESPONSE3,NULL) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.Contains(None)
+		v1=e.ChildElement(expressions.Null)
+		v2=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"Contains(NULL,NULL) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"Contains(NULL,NULL) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Contains(NULL,NULL) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.Contains(None)
+		v1=e.ChildElement(expressions.Variable)
+		v1.identifier='RESPONSE3'
+		v2=e.ChildElement(expressions.Variable)
+		v2.identifier='RESPONSE3'
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"Contains(RESPONSE3,RESPONSE3)")
+		try:
+			e=expressions.Contains(None)
+			v1=e.ChildElement(expressions.Multiple)
+			v2=e.ChildElement(expressions.Variable)
+			v2.identifier='RESPONSE3'
+			value=e.Evaluate(self.sessionState)
+			self.fail("Contains(Multiple,RESPONSE3)")
+		except core.ProcessingError:
+			pass
+		try:
+			e=expressions.Contains(None)
+			v1=e.ChildElement(expressions.Ordered)
+			v11=v1.ChildElement(expressions.BaseValue)
+			v11.baseType=variables.BaseType.duration
+			v11.AddData("3.14")
+			v2=e.ChildElement(expressions.Ordered)
+			v21=v2.ChildElement(expressions.BaseValue)
+			v21.baseType=variables.BaseType.duration
+			v21.AddData("3.14")
+			value=e.Evaluate(self.sessionState)
+			self.fail("Contains(Ordered(duration),Ordered(duration))")
+		except core.ProcessingError:
+			pass	
+		e=expressions.Contains(None)		
+		v1=e.ChildElement(expressions.Ordered)
+		v11=v1.ChildElement(expressions.BaseValue)
+		v11.baseType=variables.BaseType.identifier
+		v11.AddData("C")
+		v12=v1.ChildElement(expressions.BaseValue)
+		v12.baseType=variables.BaseType.identifier
+		v12.AddData("A")
+		v2=e.ChildElement(expressions.Variable)
+		v2.identifier='RESPONSE3'
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"Contains(('C','A'),RESPONSE3)")		
+		e=expressions.Contains(None)	
+		v1=e.ChildElement(expressions.Multiple)
+		v11=v1.ChildElement(expressions.BaseValue)
+		v11.baseType=variables.BaseType.identifier
+		v11.AddData("C")
+		v12=v1.ChildElement(expressions.BaseValue)
+		v12.baseType=variables.BaseType.identifier
+		v12.AddData("C")
+		v13=v1.ChildElement(expressions.BaseValue)
+		v13.baseType=variables.BaseType.identifier
+		v13.AddData("A")
+		v2=e.ChildElement(expressions.Multiple)
+		v21=v2.ChildElement(expressions.BaseValue)
+		v21.baseType=variables.BaseType.identifier
+		v21.AddData("A")
+		v22=v2.ChildElement(expressions.BaseValue)
+		v22.baseType=variables.BaseType.identifier
+		v22.AddData("B")
+		v23=v2.ChildElement(expressions.BaseValue)
+		v23.baseType=variables.BaseType.identifier
+		v23.AddData("C")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"Contains(('C','C','A'),('A','B','C')")		
+		v24=v2.ChildElement(expressions.BaseValue)
+		v24.baseType=variables.BaseType.identifier
+		v24.AddData("C")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"Contains(('C','C','A'),('A','B','C','C')")		
+
+
+	def testCaseSubstring(self):
+		e=expressions.SubString(None)
+		v1=e.ChildElement(expressions.Null)
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.string
+		v2.AddData("Shell")
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"substring(Null,'Shell') is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"substring(Null,'Shell') base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"substring(Null,'Shell') cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.SubString(None)
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.string
+		v2.AddData("Shell")
+		v1=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"substring('Shell',NULL) is NULL")
+		e=expressions.SubString(None)
+		v1=e.ChildElement(expressions.Null)
+		v2=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"substring(NULL,NULL) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"substring(NULL,NULL) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"substring(NULL,NULL) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.SubString(None)
+		v1=e.ChildElement(expressions.BaseValue)
+		v1.baseType=variables.BaseType.string
+		v1.AddData("Hell")
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.string
+		v2.AddData("Shell")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"substring('Hell','Shell')")
+		e.caseSensitive=False
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"substring('Hell','Shell')")		
+		try:
+			e=expressions.SubString(None)
+			v1=e.ChildElement(expressions.BaseValue)
+			v1.baseType=variables.BaseType.identifier
+			v1.AddData("hell")
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.identifier
+			v2.AddData("Shell")
+			value=e.Evaluate(self.sessionState)
+			self.fail("substring(identifier,identifier)")
+		except core.ProcessingError:
+			pass
+
+
+	def testCaseNot(self):
+		e=expressions.Not(None)
+		v=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"not(Null) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"not(Null) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"not(Null) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.Not(None)
+		v=e.ChildElement(expressions.BaseValue)
+		v.baseType=variables.BaseType.boolean
+		v.AddData("true")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value,"not(true) not null")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"not(true) base type")
+		self.failUnless(value.value==False,"not(true) value")
+		v.SetValue("false")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"not(false) value")
+		try:
+			e=expressions.Not(None)
+			v=e.ChildElement(expressions.BaseValue)
+			v.baseType=variables.BaseType.string
+			v.AddData("true")
+			value=e.Evaluate(self.sessionState)
+			self.fail("not(string)")
+		except core.ProcessingError:
+			pass
+
+	def testCaseAnd(self):
+		e=expressions.And(None)
+		v=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"and(Null) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"and(Null) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"and(Null) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.And(None)
+		v1=e.ChildElement(expressions.BaseValue)
+		v1.baseType=variables.BaseType.boolean
+		v1.AddData("true")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value,"and(true) not null")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"and(true) base type")
+		self.failUnless(value.value==True,"and(true) value")
+		v1.SetValue("false")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"and(false) value")
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.boolean
+		v2.AddData("true")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"and(false,true) value")
+		v2.SetValue("false")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"and(false,false) value")
+		v1.SetValue("true")
+		v2.SetValue("true")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"and(true,true) value")
+		v3=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"and(true,true,NULL) is NULL")
+		v2.SetValue("false")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"and(true,false,NULL) is False")
+		v4=e.ChildElement(expressions.BaseValue)
+		v4.baseType=variables.BaseType.string
+		v4.AddData("true")		
+		try:
+			value=e.Evaluate(self.sessionState)
+			self.fail("and(true,false,NULL,string)")
+		except core.ProcessingError:
+			pass
+		
+
+	def testCaseOr(self):
+		e=expressions.Or(None)
+		v=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"or(Null) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"or(Null) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"or(Null) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.Or(None)
+		v1=e.ChildElement(expressions.BaseValue)
+		v1.baseType=variables.BaseType.boolean
+		v1.AddData("true")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value,"or(true) not null")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"or(true) base type")
+		self.failUnless(value.value==True,"or(true) value")
+		v1.SetValue("false")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"or(false) value")
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.boolean
+		v2.AddData("true")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"or(false,true) value")
+		v2.SetValue("false")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"or(false,false) value")
+		v1.SetValue("true")
+		v2.SetValue("true")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"or(true,true) value")
+		v3=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"or(true,true,NULL) value")
+		v2.SetValue("false")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"or(true,false,NULL) value")
+		v1.SetValue("false")
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"or(false,false,NULL) is NULL")
+		v4=e.ChildElement(expressions.BaseValue)
+		v4.baseType=variables.BaseType.string
+		v4.AddData("true")		
+		try:
+			value=e.Evaluate(self.sessionState)
+			self.fail("and(false,false,NULL,string)")
+		except core.ProcessingError:
+			pass
+		
+
+	def testCaseAnyN(self):
+		e=expressions.AnyN(None)
+		e.min="1"
+		e.max="2"
+		v=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"anyN(Null) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"anyN(Null) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"anyN(Null) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.AnyN(None)
+		e.min="1"
+		e.max="2"
+		v1=e.ChildElement(expressions.BaseValue)
+		v1.baseType=variables.BaseType.boolean
+		v1.AddData("true")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value,"anyN(true) not null")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"anyN(true) base type")
+		self.failUnless(value.value==True,"anyN(true) value")
+		v1.SetValue("false")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"anyN(false) value")
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.boolean
+		v2.AddData("true")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"anyN(false,true) value")
+		v2.SetValue("false")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"anyN(false,false) value")
+		v1.SetValue("true")
+		v2.SetValue("true")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"anyN(true,true) value")
+		v3=e.ChildElement(expressions.BaseValue)
+		v3.baseType=variables.BaseType.boolean
+		v3.AddData("true")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"anyN(true,true,true) value")
+		v3.SetValue("false")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"anyN(true,true,false) value")
+		v4=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"or(true,true,false,NULL) value")
+		v2.SetValue("false")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"or(true,false,false,NULL) value")
+		v1.SetValue("false")
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"or(false,false,false,NULL) value")
+		v5=e.ChildElement(expressions.BaseValue)
+		v5.baseType=variables.BaseType.string
+		v5.AddData("true")		
+		try:
+			value=e.Evaluate(self.sessionState)
+			self.fail("anyN(false,false,false,NULL,string)")
+		except core.ProcessingError:
+			pass
+		
+
+	def testCaseMatch(self):
+		e=expressions.Match(None)
+		v1=e.ChildElement(expressions.Null)
+		v2=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"match(Null,Null) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"match(Null) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"match(Null) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.Match(None)
+		v1=e.ChildElement(expressions.BaseValue)
+		v1.baseType=variables.BaseType.identifier
+		v1.AddData("A")
+		v2=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"match(Null,Null) is NULL")
+		e=expressions.Match(None)
+		v1=e.ChildElement(expressions.BaseValue)
+		v1.baseType=variables.BaseType.identifier
+		v1.AddData("A")
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.identifier
+		v2.AddData("A")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"match(A,A)")
+		v2.SetValue("B")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"match(A,B)")
+		e=expressions.Match(None)
+		v1=e.ChildElement(expressions.Ordered)
+		v11=v1.ChildElement(expressions.BaseValue)
+		v11.baseType=variables.BaseType.identifier
+		v11.AddData("A")
+		v12=v1.ChildElement(expressions.BaseValue)
+		v12.baseType=variables.BaseType.identifier
+		v12.AddData("B")
+		v2=e.ChildElement(expressions.Ordered)
+		v21=v2.ChildElement(expressions.BaseValue)
+		v21.baseType=variables.BaseType.identifier
+		v21.AddData("A")
+		v22=v2.ChildElement(expressions.BaseValue)
+		v22.baseType=variables.BaseType.identifier
+		v22.AddData("A")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"match([A,B],[A,A])")
+		v22.SetValue("B")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"match([A,B],[A,B])")
+		e=expressions.Match(None)
+		v1=e.ChildElement(expressions.Multiple)
+		v11=v1.ChildElement(expressions.BaseValue)
+		v11.baseType=variables.BaseType.identifier
+		v11.AddData("A")
+		v12=v1.ChildElement(expressions.BaseValue)
+		v12.baseType=variables.BaseType.identifier
+		v12.AddData("B")
+		v2=e.ChildElement(expressions.Multiple)
+		v21=v2.ChildElement(expressions.BaseValue)
+		v21.baseType=variables.BaseType.identifier
+		v21.AddData("B")
+		v22=v2.ChildElement(expressions.BaseValue)
+		v22.baseType=variables.BaseType.identifier
+		v22.AddData("A")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"match({A,B},{B,A})")
+		v22.SetValue("B")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"match({A,B},{B,B})")
+		try:
+			e=expressions.Match(None)
+			v1=e.ChildElement(expressions.BaseValue)
+			v1.baseType=variables.BaseType.identifier
+			v1.AddData("A")
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.string
+			v2.AddData("A")
+			value=e.Evaluate(self.sessionState)
+			self.fail("match(string,identifier)")
+		except core.ProcessingError:
+			pass
+		try:
+			e=expressions.Match(None)
+			v1=e.ChildElement(expressions.Multiple)
+			v2=e.ChildElement(expressions.Ordered)
+			value=e.Evaluate(self.sessionState)			
+		except core.ProcessingError:
+			pass			
+		try:
+			e=expressions.Match(None)
+			v1=e.ChildElement(expressions.BaseValue)
+			v1.baseType=variables.BaseType.duration
+			v1.AddData("3.14159")
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.duration
+			v2.AddData("3.14159")
+			value=e.Evaluate(self.sessionState)
+			self.fail("match(duration,duration)")
+		except core.ProcessingError:
+			pass
+
+	def testCaseStringMatch(self):
+		e=expressions.StringMatch(None)
+		e.caseSensitive=True
+		v1=e.ChildElement(expressions.Null)
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.string
+		v2.AddData("Shell")
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"stringMatch(Null,'Shell') is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"stringMatch(Null,'Shell') base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"stringMatch(Null,'Shell') cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.StringMatch(None)
+		e.caseSensitive=True
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.string
+		v2.AddData("Shell")
+		v1=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"stringMatch('Shell',NULL) is NULL")
+		e=expressions.StringMatch(None)
+		e.caseSensitive=True
+		v1=e.ChildElement(expressions.Null)
+		v2=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"stringMatch(NULL,NULL) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"stringMatch(NULL,NULL) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"stringMatch(NULL,NULL) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.StringMatch(None)
+		e.caseSensitive=True
+		v1=e.ChildElement(expressions.BaseValue)
+		v1.baseType=variables.BaseType.string
+		v1.AddData("Hell")
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.string
+		v2.AddData("Shell")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"stringMatch('Hell','Shell')")
+		e.caseSensitive=False
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"stringMatch('Hell','Shell')")		
+		e.substring=True
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"stringMatch('Hell','Shell') - substring")
+		e.substring=False
+		v2.SetValue("hell")		
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"stringMatch('Hell','hell') - case insensitive")
+		e.caseSensitive=True
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"stringMatch('Hell','hell') - case sensitive")		
+		try:
+			e=expressions.StringMatch(None)
+			v1=e.ChildElement(expressions.BaseValue)
+			v1.baseType=variables.BaseType.identifier
+			v1.AddData("hell")
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.identifier
+			v2.AddData("Shell")
+			value=e.Evaluate(self.sessionState)
+			self.fail("stringMatch(identifier,identifier)")
+		except core.ProcessingError:
+			pass
+
+	def testCasePatternMatch(self):
+		e=expressions.PatternMatch(None)
+		e.pattern="\\s*[\\p{Lu}-[ABC]]+\\s*"
+		v=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"patternMatch(Null) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"patternMatch(Null) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"patternMatch(Null) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.PatternMatch(None)
+		e.pattern="\\s*[\\p{Lu}-[DEG]]+\\s*"
+		v=e.ChildElement(expressions.BaseValue)
+		v.baseType=variables.BaseType.string
+		v.AddData(u"  CAF\xc9\t")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value,"patternMatch(u'  CAF\xc9\t') is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"patternMatch(u'  CAF\xc9\t') base type")		
+		self.failUnless(value.value==True,"patternMatch(u'  CAF\xc9\t') is True")
+		e=expressions.PatternMatch(None)
+		e.pattern="\\s*[\\p{Lu}-[CDE]]+\\s*"
+		v=e.ChildElement(expressions.BaseValue)
+		v.baseType=variables.BaseType.string
+		v.AddData(u"  CAF\xc9\t")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value,"patternMatch(u'  CAF\xc9\t') is NULL")
+		self.failUnless(value.value==False,"patternMatch(u'  CAF\xc9\t') is False")
+		try:
+			e=expressions.PatternMatch(None)
+			e.pattern="\\s*[\\p{Lu}-[ABCD]]+\\s*"
+			v=e.ChildElement(expressions.BaseValue)
+			v.baseType=variables.BaseType.identifier
+			v.AddData(u"CAF\xc9")
+			value=e.Evaluate(self.sessionState)
+			self.fail("patternMatch(identifier)")
+		except core.ProcessingError:
+			pass
+
+	def testCaseEqual(self):
+		e=expressions.Equal(None)
+		e.toleranceMode=expressions.ToleranceMode.exact
+		v1=e.ChildElement(expressions.Null)
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.float
+		v2.AddData("3.14")
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"equal(Null,3.14) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"equal(Null,3.14) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"equal(Null,3.14) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		# --
+		e=expressions.Equal(None)
+		e.toleranceMode=expressions.ToleranceMode.exact
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.float
+		v2.AddData("3.14")
+		v1=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"equal(3.14, Null) is NULL")
+		# --
+		e=expressions.Equal(None)
+		e.toleranceMode=expressions.ToleranceMode.exact
+		v1=e.ChildElement(expressions.Null)
+		v2=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"equal(NULL,NULL) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"equal(NULL,NULL) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"equal(NULL,NULL) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		# --
+		e=expressions.Equal(None)
+		e.toleranceMode=expressions.ToleranceMode.exact
+		v1=e.ChildElement(expressions.BaseValue)
+		v1.baseType=variables.BaseType.integer
+		v1.AddData("3")
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.float
+		v2.AddData("3.0")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"equal(3,3.0)")
+		v2.SetValue("3.14")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"equal(3,3.14)")
+		e.toleranceMode=expressions.ToleranceMode.absolute
+		e.tolerance=['0.14']
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"equal(3,3.14) +-0.14")
+		e.tolerance=['0.0','0.14']
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"equal(3,3.14) -0.0,+0.14")
+		e.tolerance=['0.0','0.13']
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"equal(3,3.14) -0.0,+0.13")
+		e.includeUpperBound=False
+		e.tolerance=['0.14']
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"equal(3,3.14) +-0.14, no upper bound")
+		e.tolerance=['0.0','5.0']
+		e.toleranceMode=expressions.ToleranceMode.relative
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"equal(3,3.14) -0%,+5%, no upper bound")
+		e.tolerance=['0.0','3.0']
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"equal(3,3.14) -0%,+3%, no upper bound")
+		try:
+			e=expressions.Equal(None)
+			e.toleranceMode=expressions.ToleranceMode.exact
+			v1=e.ChildElement(expressions.BaseValue)
+			v1.baseType=variables.BaseType.identifier
+			v1.AddData("three")
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.identifier
+			v2.AddData("pi")
+			value=e.Evaluate(self.sessionState)
+			self.fail("equal(identifier,identifier)")
+		except core.ProcessingError:
+			pass
+
+	def testCaseEqualRounded(self):
+		e=expressions.EqualRounded(None)
+		e.roundingMode=expressions.RoundingMode.significantFigures
+		e.figures="1"
+		v1=e.ChildElement(expressions.Null)
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.float
+		v2.AddData("3.14")
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"equalRounded(Null,3.14) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"equalRounded(Null,3.14) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"equalRounded(Null,3.14) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		# --
+		e=expressions.EqualRounded(None)
+		e.roundingMode=expressions.RoundingMode.significantFigures
+		e.figures="1"
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.float
+		v2.AddData("3.14")
+		v1=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"equalRounded(3.14, Null) is NULL")
+		# --
+		e=expressions.EqualRounded(None)
+		e.roundingMode=expressions.RoundingMode.significantFigures
+		e.figures="1"
+		v1=e.ChildElement(expressions.Null)
+		v2=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"equalRounded(NULL,NULL) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"equalRounded(NULL,NULL) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"equalRounded(NULL,NULL) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		# --
+		e=expressions.EqualRounded(None)
+		e.roundingMode=expressions.RoundingMode.significantFigures
+		e.figures="2"
+		v1=e.ChildElement(expressions.BaseValue)
+		v1.baseType=variables.BaseType.integer
+		v1.AddData("3")
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.float
+		v2.AddData("3.14")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"equalRounded(3,3.14) to 2 sig fig")
+		e.figures="1"
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"equalRounded(3,3.14) to 1 sig fig")
+		e.roundingMode=expressions.RoundingMode.decimalPlaces
+		e.figures="2"
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"equalRounded(3,3.14) to 2 decimal places")
+		v2.SetValue("3.0001")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"equalRounded(3,3.0001) to 2 decimal places")
+		e.figures="4"
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"equalRounded(3,3.0001) to 4 decimal places")
+		# --
+		e=expressions.EqualRounded(None)
+		e.roundingMode=expressions.RoundingMode.decimalPlaces
+		e.figures="4"
+		v1=e.ChildElement(expressions.BaseValue)
+		v1.baseType=variables.BaseType.float
+		v1.AddData("3.14159")
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.float
+		v2.AddData("3.1416")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"equalRounded(3.1416,3.14159) to 4 decimal places")
+		e.figures="3"
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"equalRounded(3.1416,3.14159) to 3 decimal places")
+		e.figures="5"
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"equalRounded(3.1416,3.14159) to 3 decimal places")				
+		try:
+			e=expressions.EqualRounded(None)
+			e.roundingMode=expressions.RoundingMode.decimalPlaces
+			e.figures="2"
+			v1=e.ChildElement(expressions.BaseValue)
+			v1.baseType=variables.BaseType.identifier
+			v1.AddData("three")
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.identifier
+			v2.AddData("pi")
+			value=e.Evaluate(self.sessionState)
+			self.fail("equalRounded(identifier,identifier)")
+		except core.ProcessingError:
+			pass
+
+	def testCaseInside(self):
+		e=expressions.Inside(None)
+		e.shape=core.Shape.default
+		# by default coords is an empty list, which is OK for default test
+		v=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"inside(Null) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"inside(Null) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"inside(Null) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		e=expressions.Inside(None)
+		e.shape=core.Shape.default
+		v=e.ChildElement(expressions.BaseValue)
+		v.baseType=variables.BaseType.point
+		v.AddData(u"10 10")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value,"inside(u'10 10', default) is not NULL")
+		self.failUnless(value.baseType is variables.BaseType.boolean,"inside(u'10 10', default) base type")		
+		self.failUnless(value.value==True,"inside(u'10 10', default) is True")
+		e.shape=core.Shape.rect
+		e.coords=html.DecodeCoords(u"5,5,15,15")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"inside(u'10 10', rect(5,5,15,15)) is True")
+		e.coords=html.DecodeCoords(u"15,15,25,25")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"inside(u'10 10', rect(15,15,25,25)) is False")
+		e.shape=core.Shape.circle
+		e.coords=html.DecodeCoords(u"10,10,3")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"inside(u'10 10', circle(10,10,3)) is True")
+		e.coords=html.DecodeCoords(u"15,15,3")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"inside(u'10 10', circle(15,15,5)) is False")
+		e.shape=core.Shape.poly
+		e.coords=html.DecodeCoords(u"5,5,5,15,15,15,15,5,5,5")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"inside(u'10 10', poly(5,5,5,15,15,15,15,5,5,5)) is True")
+		e.coords=html.DecodeCoords(u"15,15,15,25,25,25,25,15,15,15")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"inside(u'10 10', poly(15,15,15,25,25,25,25,15,15,15)) is False")
+		e.shape=core.Shape.ellipse
+		e.coords=html.DecodeCoords(u"10,10,10,5")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"inside(u'10 10', ellipse(10,10,10,5)) is True")
+		e.coords=html.DecodeCoords(u"15,15,6,5")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"inside(u'10 10', ellipse(15,15,6,5)) is False")
+		# --
+		e=expressions.Inside(None)
+		e.shape=core.Shape.circle
+		e.coords=html.DecodeCoords(u"10,10,5")		
+		eo=e.ChildElement(expressions.Ordered)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"inside(Ordered()) is NULL")
+		v=eo.ChildElement(expressions.BaseValue)
+		v.baseType=variables.BaseType.point
+		v.SetValue("5 5")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"inside(ordered('5 5')), circle(10,10,5)) is False")
+		v=eo.ChildElement(expressions.BaseValue)
+		v.baseType=variables.BaseType.point
+		v.SetValue("10 10")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"inside(ordered('5 5','10 10')), circle(10,10,5)) is True")
+		# --
+		e=expressions.Inside(None)
+		e.shape=core.Shape.circle
+		e.coords=html.DecodeCoords(u"10,10,5")		
+		em=e.ChildElement(expressions.Multiple)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"inside(Multiple()) is NULL")
+		v=em.ChildElement(expressions.BaseValue)
+		v.baseType=variables.BaseType.point
+		v.SetValue("5 5")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==False,"inside(multiple('5 5')), circle(10,10,5)) is False")
+		v=em.ChildElement(expressions.BaseValue)
+		v.baseType=variables.BaseType.point
+		v.SetValue("10 10")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==True,"inside(multiple('5 5','10 10')), circle(10,10,5)) is True")
+		try:
+			e=expressions.Inside(None)
+			e.shape=core.Shape.circle
+			e.coords=html.DecodeCoords(u"10,10,5")		
+			v=e.ChildElement(expressions.BaseValue)
+			v.baseType=variables.BaseType.string
+			v.AddData(u"10 10")
+			value=e.Evaluate(self.sessionState)
+			self.fail("inside(identifier)")
+		except core.ProcessingError:
+			pass
+
+	def testCaseInequality(self):
+		tests={
+			# (3,3.0), (3,3.14), (4,3.14)
+			expressions.LT:(False,True,False),
+			expressions.GT:(False,False,True),
+			expressions.LTE:(True,True,False),
+			expressions.GTE:(True,False,True)
+			}
+		for eType in tests.keys():
+			expected=tests[eType]
+			e=eType(None)
+			v1=e.ChildElement(expressions.Null)
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.float
+			v2.AddData("3.14")
+			value=e.Evaluate(self.sessionState)
+			self.failIf(value,"<inequality>(Null,3.14) is NULL")
+			self.failUnless(value.baseType is variables.BaseType.boolean,"<inequality>(Null,3.14) base type")		
+			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<inequality>(Null,3.14) cardinality, found %s"%
+				variables.Cardinality.EncodeValue(value.Cardinality()))
+			# --
+			e=eType(None)
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.float
+			v2.AddData("3.14")
+			v1=e.ChildElement(expressions.Null)
+			value=e.Evaluate(self.sessionState)
+			self.failIf(value,"<inequality>(3.14, Null) is NULL")
+			# --
+			e=eType(None)
+			v1=e.ChildElement(expressions.Null)
+			v2=e.ChildElement(expressions.Null)
+			value=e.Evaluate(self.sessionState)
+			self.failIf(value,"<inequality>(NULL,NULL) is NULL")
+			self.failUnless(value.baseType is variables.BaseType.boolean,"<inequality>(NULL,NULL) base type")		
+			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<inequality>(NULL,NULL) cardinality, found %s"%
+				variables.Cardinality.EncodeValue(value.Cardinality()))
+			# --
+			e=eType(None)
+			v1=e.ChildElement(expressions.BaseValue)
+			v1.baseType=variables.BaseType.integer
+			v1.AddData("3")
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.float
+			v2.AddData("3.0")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[0],"<inequality>(3,3.0)")
+			v2.SetValue("3.14")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[1],"<inequality>(3,3.14)")
+			v1.SetValue("4")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[2],"<inequality>(4,3.14)")			
+			try:
+				e=eType(None)
+				v1=e.ChildElement(expressions.BaseValue)
+				v1.baseType=variables.BaseType.identifier
+				v1.AddData("three")
+				v2=e.ChildElement(expressions.BaseValue)
+				v2.baseType=variables.BaseType.identifier
+				v2.AddData("pi")
+				value=e.Evaluate(self.sessionState)
+				self.fail("<inequality>(identifier,identifier)")
+			except core.ProcessingError:
+				pass
+	
+	def testCaseDurInequality(self):
+		tests={
+			# (3,3.0), (3,3.14), (4,3.14)
+			expressions.DurationLT:(False,True,False),
+			expressions.DurationGTE:(True,False,True)
+			}
+		for eType in tests.keys():
+			expected=tests[eType]
+			e=eType(None)
+			v1=e.ChildElement(expressions.Null)
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.duration
+			v2.AddData("3.14")
+			value=e.Evaluate(self.sessionState)
+			self.failIf(value,"<durInequality>(Null,3.14) is NULL")
+			self.failUnless(value.baseType is variables.BaseType.boolean,"<durInequality>(Null,3.14) base type")		
+			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<durInequality>(Null,3.14) cardinality, found %s"%
+				variables.Cardinality.EncodeValue(value.Cardinality()))
+			# --
+			e=eType(None)
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.duration
+			v2.AddData("3.14")
+			v1=e.ChildElement(expressions.Null)
+			value=e.Evaluate(self.sessionState)
+			self.failIf(value,"<durInequality>(3.14, Null) is NULL")
+			# --
+			e=eType(None)
+			v1=e.ChildElement(expressions.Null)
+			v2=e.ChildElement(expressions.Null)
+			value=e.Evaluate(self.sessionState)
+			self.failIf(value,"<durInequality>(NULL,NULL) is NULL")
+			self.failUnless(value.baseType is variables.BaseType.boolean,"<durInequality>(NULL,NULL) base type")		
+			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<durInequality>(NULL,NULL) cardinality, found %s"%
+				variables.Cardinality.EncodeValue(value.Cardinality()))
+			# --
+			e=eType(None)
+			v1=e.ChildElement(expressions.BaseValue)
+			v1.baseType=variables.BaseType.duration
+			v1.AddData("3")
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.duration
+			v2.AddData("3.0")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[0],"<durInequality>(3,3.0)")
+			v2.SetValue("3.14")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[1],"<durInequality>(3,3.14)")
+			v1.SetValue("4")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[2],"<durInequality>(4,3.14)")			
+			try:
+				e=eType(None)
+				v1=e.ChildElement(expressions.BaseValue)
+				v1.baseType=variables.BaseType.float
+				v1.AddData("3")
+				v2=e.ChildElement(expressions.BaseValue)
+				v2.baseType=variables.BaseType.float
+				v2.AddData("3.14")
+				value=e.Evaluate(self.sessionState)
+				self.fail("<durInequality>(float,float)")
+			except core.ProcessingError:
+				pass
+
+	def testCaseMathMulti(self):
+		tests={
+			# (3,3.0), (3,3.14), (4,3.14), (4,3.14,-10.0), (3)
+			expressions.Sum:(6.0,6.14,7.14,-2.86,3),
+			expressions.Product:(9.0,9.42,12.56,-125.6,3)
+			}
+		for eType in tests.keys():
+			expected=tests[eType]
+			e=eType(None)
+			v1=e.ChildElement(expressions.Null)
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.float
+			v2.AddData("3.14")
+			value=e.Evaluate(self.sessionState)
+			self.failIf(value,"<mathMulti>(Null,3.14) is NULL")
+			self.failUnless(value.baseType is variables.BaseType.float,"<mathMulti>(Null,3.14) base type")		
+			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<mathMulti>(Null,3.14) cardinality, found %s"%
+				variables.Cardinality.EncodeValue(value.Cardinality()))
+			# --
+			e=eType(None)
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.float
+			v2.AddData("3.14")
+			v1=e.ChildElement(expressions.Null)
+			value=e.Evaluate(self.sessionState)
+			self.failIf(value,"<mathMulti>(3.14, Null) is NULL")
+			# --
+			e=eType(None)
+			v1=e.ChildElement(expressions.Null)
+			v2=e.ChildElement(expressions.Null)
+			value=e.Evaluate(self.sessionState)
+			self.failIf(value,"<mathMulti>(NULL,NULL) is NULL")
+			self.failUnless(value.baseType is None,"<mathMulti>(NULL,NULL) base type")		
+			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<mathMulti>(NULL,NULL) cardinality, found %s"%
+				variables.Cardinality.EncodeValue(value.Cardinality()))
+			# --
+			e=eType(None)
+			v1=e.ChildElement(expressions.BaseValue)
+			v1.baseType=variables.BaseType.integer
+			v1.AddData("3")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[4],"<mathMulti>(3)")
+			self.failUnless(value.baseType is variables.BaseType.integer,"<mathMulti>(3) base type")								
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.float
+			v2.AddData("3.0")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless("%.5f"%value.value=="%.5f"%expected[0],"<mathMulti>(3,3.0)")
+			self.failUnless(value.baseType is variables.BaseType.float,"<mathMulti>(3,3.0) base type")								
+			v2.SetValue("3.14")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless("%.5f"%value.value=="%.5f"%expected[1],"<mathMulti>(3,3.14)")
+			v1.SetValue("4")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless("%.5f"%value.value=="%.5f"%expected[2],"<mathMulti>(4,3.14)")			
+			v3=e.ChildElement(expressions.BaseValue)
+			v3.baseType=variables.BaseType.float
+			v3.AddData("-10")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless("%.5f"%value.value=="%.5f"%expected[3],"<mathMulti>(4,3.14,-10), expected %s, found %s"%
+				(repr(expected[3]),repr(value.value)))		
+			try:
+				e=eType(None)
+				v1=e.ChildElement(expressions.BaseValue)
+				v1.baseType=variables.BaseType.duration
+				v1.AddData("3")
+				v2=e.ChildElement(expressions.BaseValue)
+				v2.baseType=variables.BaseType.identifier
+				v2.AddData("pi")
+				value=e.Evaluate(self.sessionState)
+				self.fail("<mathMulti>(duration,identifier)")
+			except core.ProcessingError:
+				pass
+	
+	
+	def testCaseMathBinary(self):
+		tests={
+			# (3,3.0), (3,3.14), (4,3.14), (4,-3.14)
+			expressions.Subtract:(0.0,-0.14,0.86,7.14),
+			expressions.Divide:(1.0,0.9554,1.2739,-1.2739),
+			expressions.Power:(27.0,31.4891,77.7085,0.0129)
+			}
+		for eType in tests.keys():
+			expected=tests[eType]
+			e=eType(None)
+			v1=e.ChildElement(expressions.Null)
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.float
+			v2.AddData("3.14")
+			value=e.Evaluate(self.sessionState)
+			self.failIf(value,"<mathBinary>(Null,3.14) is NULL")
+			self.failUnless(value.baseType is variables.BaseType.float,"<mathBinary>(Null,3.14) base type")		
+			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<mathBinary>(Null,3.14) cardinality, found %s"%
+				variables.Cardinality.EncodeValue(value.Cardinality()))
+			# --
+			e=eType(None)
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.float
+			v2.AddData("3.14")
+			v1=e.ChildElement(expressions.Null)
+			value=e.Evaluate(self.sessionState)
+			self.failIf(value,"<mathBinary>(3.14, Null) is NULL")
+			# --
+			e=eType(None)
+			v1=e.ChildElement(expressions.Null)
+			v2=e.ChildElement(expressions.Null)
+			value=e.Evaluate(self.sessionState)
+			self.failIf(value,"<mathBinary>(NULL,NULL) is NULL")
+			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<mathBinary>(NULL,NULL) cardinality, found %s"%
+				variables.Cardinality.EncodeValue(value.Cardinality()))
+			# --
+			e=eType(None)
+			v1=e.ChildElement(expressions.BaseValue)
+			v1.baseType=variables.BaseType.integer
+			v1.AddData("3")
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.float
+			v2.AddData("3.0")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless("%.4f"%value.value=="%.4f"%expected[0],"<mathBinary>(3,3.0)")
+			self.failUnless(value.baseType is variables.BaseType.float,"<mathBinary>(3,3.0) base type")								
+			v2.SetValue("3.14")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless("%.4f"%value.value=="%.4f"%expected[1],"<mathBinary>(3,3.14), expected %s, found %s"%
+				(repr(expected[1]),repr(value.value)))
+			v1.SetValue("4")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless("%.4f"%value.value=="%.4f"%expected[2],"<mathBinary>(4,3.14)")			
+			v2.SetValue("-3.14")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless("%.4f"%value.value=="%.4f"%expected[3],"<mathBinary>(4,-3.14)")			
+			try:
+				e=eType(None)
+				v1=e.ChildElement(expressions.BaseValue)
+				v1.baseType=variables.BaseType.duration
+				v1.AddData("3")
+				v2=e.ChildElement(expressions.BaseValue)
+				v2.baseType=variables.BaseType.identifier
+				v2.AddData("pi")
+				value=e.Evaluate(self.sessionState)
+				self.fail("<mathBinary>(duration,identifier)")
+			except core.ProcessingError:
+				pass
+		# check the integer subtraction return base type case
+		e=expressions.Subtract(None)
+		v1=e.ChildElement(expressions.BaseValue)
+		v1.baseType=variables.BaseType.integer
+		v1.AddData("3")
+		v2=e.ChildElement(expressions.BaseValue)
+		v2.baseType=variables.BaseType.integer
+		v2.AddData("-1")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==4,"Subtrace(3,-1)")
+		self.failUnless(value.baseType is variables.BaseType.integer,"<mathBinary>(3,-1) base type")								
+		
+	
 EXAMPLE_1="""<?xml version="1.0" encoding="utf-8"?>
 <assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1" identifier="test"></assessmentItem>"""
 
