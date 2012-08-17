@@ -1189,13 +1189,13 @@ class SetVar(core.QTIElement):
 			value=setValue.ChildElement(qtiv2.expressions.BaseValue)
 		else:
 			if self.action==core.Action.Add:
-				op=setValue.ChildElement(qtiv2.QTISum)
+				op=setValue.ChildElement(qtiv2.expressions.Sum)
 			elif self.action==core.Action.Subtract:
-				op=setValue.ChildElement(qtiv2.QTISubtract)
+				op=setValue.ChildElement(qtiv2.expressions.Subtract)
 			elif self.action==core.Action.Multiply:
-				op=setValue.ChildElement(qtiv2.QTIProduct)
+				op=setValue.ChildElement(qtiv2.expressions.Product)
 			elif self.action==core.Action.Divide:
-				op=setValue.ChildElement(qtiv2.QTIDivide)
+				op=setValue.ChildElement(qtiv2.expressions.Divide)
 			variable=op.ChildElement(qtiv2.expressions.Variable)
 			variable.identifier=identifier
 			value=op.ChildElement(qtiv2.expressions.BaseValue)
@@ -1234,7 +1234,7 @@ class DisplayFeedback(core.QTIElement):
 			v2Item.RegisterDeclaration(d)
 		setValue=parent.ChildElement(qtiv2.QTISetOutcomeValue)
 		setValue.identifier='FEEDBACK'
-		multiple=setValue.ChildElement(qtiv2.QTIMultiple)
+		multiple=setValue.ChildElement(qtiv2.expressions.Multiple)
 		variable=multiple.ChildElement(qtiv2.expressions.Variable)
 		variable.identifier='FEEDBACK'
 		value=multiple.ChildElement(qtiv2.expressions.BaseValue)
@@ -1262,7 +1262,7 @@ class ConditionVar(core.QTIElement):
 	def MigrateV2Expression(self,parent,log):
 		if len(self.ExtendableExpressionMixin)>1:
 			# implicit and
-			eAnd=parent.ChildElement(qtiv2.And)
+			eAnd=parent.ChildElement(qtiv2.expressions.And)
 			for ie in self.ExtendableExpressionMixin:
 				ie.MigrateV2Expression(eAnd,log)
 		elif self.ExtendableExpressionMixin:
@@ -1311,7 +1311,7 @@ class VarThing(core.QTIElement,ExpressionMixin):
 			elif d.cardinality==qtiv2.variables.Cardinality.single:
 				log.append("Warning: index ignored for response variable of cardinality single")
 			else:
-				parent=parent.ChildElement(qtiv2.QTIIndex)
+				parent=parent.ChildElement(qtiv2.expressions.Index)
 				parent.n=self.index
 		varExpression=parent.ChildElement(qtiv2.expressions.Variable)
 		varExpression.identifier=d.identifier
@@ -1356,15 +1356,15 @@ class VarEqual(VarThing):
 			if d.baseType==qtiv2.variables.BaseType.identifier or d.baseType==qtiv2.variables.BaseType.pair:
 				if not self.case:
 					log.append("Warning: case-insensitive comparison of identifiers not supported in version 2")
-				expression=parent.ChildElement(qtiv2.Match)
+				expression=parent.ChildElement(qtiv2.expressions.Match)
 			elif d.baseType==qtiv2.variables.BaseType.integer:
-				expression=parent.ChildElement(qtiv2.Match)
+				expression=parent.ChildElement(qtiv2.expressions.Match)
 			elif d.baseType==qtiv2.variables.BaseType.string:
-				expression=parent.ChildElement(qtiv2.QTIStringMatch)
+				expression=parent.ChildElement(qtiv2.expressions.StringMatch)
 				expression.caseSensitive=self.case
 			elif d.baseType==qtiv2.variables.BaseType.float:
 				log.append("Warning: equality operator with float values is deprecated")
-				expression=parent.ChildElement(qtiv2.QTIEqual)
+				expression=parent.ChildElement(qtiv2.expressions.Equal)
 			else:
 				raise QTIUnimplementedOperator("varequal(%s)"%qtiv2.variables.BaseType.Encode(d.baseType))
 			self.MigrateV2Variable(d,expression,log)
@@ -1381,7 +1381,7 @@ class VarEqual(VarThing):
 				log.append("Warning: member operation is deprecated when baseType is float")
 			else:
 				raise QTIUnimplementedOperator("varequal(%s)"%qtiv2.variables.BaseType.Encode(d.baseType))
-			expression=parent.ChildElement(qtiv2.QTIMember)
+			expression=parent.ChildElement(qtiv2.expressions.Member)
 			self.MigrateV2Value(d,expression,log)
 			self.MigrateV2Variable(d,expression,log)
 
@@ -1424,7 +1424,7 @@ class VarLT(VarInequality):
 	XMLCONTENT=xml.XMLMixedContent
 
 	def MigrateV2Inequality(self):
-		return qtiv2.LT
+		return qtiv2.expressions.LT
 
 
 class VarLTE(VarInequality):
@@ -1440,7 +1440,7 @@ class VarLTE(VarInequality):
 	XMLCONTENT=xml.XMLMixedContent
 
 	def MigrateV2Inequality(self):
-		return qtiv2.LTE
+		return qtiv2.expressions.LTE
 
 
 class VarGT(VarInequality):
@@ -1456,7 +1456,7 @@ class VarGT(VarInequality):
 	XMLCONTENT=xml.XMLMixedContent
 
 	def MigrateV2Inequality(self):
-		return qtiv2.GT
+		return qtiv2.expressions.GT
 
 
 class VarGTE(VarInequality):
@@ -1472,7 +1472,7 @@ class VarGTE(VarInequality):
 	XMLCONTENT=xml.XMLMixedContent
 
 	def MigrateV2Inequality(self):
-		return qtiv2.GTE
+		return qtiv2.expressions.GTE
 
 
 class VarSubset(core.QTIElement,ExpressionMixin):
@@ -1529,10 +1529,8 @@ class VarInside(VarThing):
 		elif d.cardinality==qtiv2.variables.Cardinality.single:
 			# is the point in the area?
 			if d.baseType==qtiv2.variables.BaseType.point:
-				expression=parent.ChildElement(qtiv2.QTIInside)
-				expression.shape,coords=core.MigrateV2AreaCoords(self.areaType,self.GetValue(),log)
-				for c in coords:
-					expression.coords.values.append(html.LengthType(c))
+				expression=parent.ChildElement(qtiv2.expressions.Inside)
+				expression.shape,expression.coords=core.MigrateV2AreaCoords(self.areaType,self.GetValue(),log)
 				self.MigrateV2Variable(d,expression,log)			
 			else:
 				raise QTIUnimplementedError("varinside(%s)"%qtiv2.variables.BaseType.EncodeValue(d.baseType))
@@ -1622,7 +1620,7 @@ class Not(core.QTIElement,ExpressionMixin):
 			log.append("Warning: empty not condition replaced with null operator")
 			parent.ChildElement(qtiv2.expressions.Null)
 		else:
-			eNot=parent.ChildElement(qtiv2.Not)
+			eNot=parent.ChildElement(qtiv2.expressions.Not)
 			self.ExpressionMixin.MigrateV2Expression(eNot,log)
 
 
@@ -1646,7 +1644,7 @@ class And(core.QTIElement,ExpressionMixin):
 
 	def MigrateV2Expression(self,parent,log):
 		if len(self.ExpressionMixin):
-			eAnd=parent.ChildElement(qtiv2.And)
+			eAnd=parent.ChildElement(qtiv2.expressions.And)
 			for e in self.ExpressionMixin:
 				e.MigrateV2Expression(eAnd,log)
 		else:
@@ -1674,7 +1672,7 @@ class Or(core.QTIElement,ExpressionMixin):
 
 	def MigrateV2Expression(self,parent,log):
 		if len(self.ExpressionMixin):
-			eOr=parent.ChildElement(qtiv2.Or)
+			eOr=parent.ChildElement(qtiv2.expressions.Or)
 			for e in self.ExpressionMixin:
 				e.MigrateV2Expression(eOr,log)
 		else:

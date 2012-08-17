@@ -3,6 +3,7 @@
 import pyslet.xml20081126.structures as xml
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.imsqtiv2p1 as qtiv2
+import pyslet.html40_19991224 as html
 
 import string
 
@@ -106,7 +107,7 @@ xsi.MakeEnumeration(Area,u'Ellipse')
 
 
 def MigrateV2AreaCoords(area,value,log):
-	"""Returns a tuple of (shape,coords array) representing the area.
+	"""Returns a tuple of (shape,coords object) representing the area.
 
 	*	*area* is one of the :py:class:`Area` constants.
 
@@ -117,7 +118,7 @@ def MigrateV2AreaCoords(area,value,log):
 	defined and in some cases content uses a mixture of space and ','.
 
 	Note also that the definition of rarea was updated in the 1.2.1 errata and
-	this affects this algorithm.  The clarification on the definition of ellipse
+	that affects this algorithm.  The clarification on the definition of ellipse
 	from radii to diameters might mean that some content ends up with hotspots
 	that are too small but this is safer than hotspots that are too large.
 	
@@ -125,13 +126,15 @@ def MigrateV2AreaCoords(area,value,log):
 	
 		import pyslet.qtiv1.core as qticore1
 		import pyslet.qtiv2.core as qticore2
+		import pyslet.html40_1991224 as html
 		log=[]
 		shape,coords=qticore1.MigrateV2AreaCoords(qticore1.Area.Ellipse,"10,10,2,2",log)
-		# returns (qticore2.Shape.circle, [10, 10, 1])
+		# returns (qticore2.Shape.circle, html.Coords([10, 10, 1]) )
 		
 	Note that Ellipse was deprecated in QTI version 2::
 	
 		import pyslet.qtiv1.core as qticore1
+		import pyslet.html40_1991224 as html
 		log=[]
 		shape,coords=qticore1.MigrateV2AreaCoords(qticore1.Area.Ellipse,"10,10,2,4",log)
 		print log
@@ -181,7 +184,7 @@ def MigrateV2AreaCoords(area,value,log):
 			shape=qtiv2.core.Shape.ellipse
 	else:
 		shape=qtiv2.core.Shape.poly
-	return shape,coords
+	return shape,html.Coords(coords)
 
 
 class FeedbackStyle(xsi.Enumeration):
@@ -324,8 +327,8 @@ def MigrateV2Orientation(orientation):
 	Raises KeyError if *orientation* is not one of the :py:class:`Orientation`
 	constants."""
 	return {
-		Orientation.Horizontal:qtiv2.Orientation.horizontal,
-		Orientation.Vertical:qtiv2.Orientation.vertical
+		Orientation.Horizontal:qtiv2.core.Orientation.horizontal,
+		Orientation.Vertical:qtiv2.core.Orientation.vertical
 		}[orientation]
 
 

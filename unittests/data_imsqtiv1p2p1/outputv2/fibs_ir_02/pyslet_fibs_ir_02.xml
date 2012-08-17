@@ -24,15 +24,15 @@
         <responseCondition>
             <responseIf>
                 <and>
-                    <stringMatch caseSensitive="true" substring="false">
+                    <stringMatch caseSensitive="true">
                         <variable identifier="FIB01"/>
                         <baseValue baseType="string">stage</baseValue>
                     </stringMatch>
-                    <stringMatch caseSensitive="true" substring="false">
+                    <stringMatch caseSensitive="true">
                         <variable identifier="FIB02"/>
                         <baseValue baseType="string">players</baseValue>
                     </stringMatch>
-                        <stringMatch caseSensitive="true" substring="false">
+                        <stringMatch caseSensitive="true">
                         <variable identifier="FIB03"/>
                         <baseValue baseType="string">seven</baseValue>
                     </stringMatch>
@@ -52,7 +52,7 @@
             </responseIf>
             <responseElseIf>
                 <not>
-                    <stringMatch caseSensitive="true" substring="false">
+                    <stringMatch caseSensitive="true">
                         <variable identifier="FIB01"/>
                         <baseValue baseType="string">stage</baseValue>
                     </stringMatch>
@@ -66,7 +66,7 @@
             </responseElseIf>
             <responseElseIf>
                 <not>
-                    <stringMatch caseSensitive="true" substring="false">
+                    <stringMatch caseSensitive="true">
                         <variable identifier="FIB02"/>
                         <baseValue baseType="string">players</baseValue>
                     </stringMatch>
@@ -80,7 +80,7 @@
             </responseElseIf>
             <responseElseIf>
                 <not>
-                    <stringMatch caseSensitive="true" substring="false">
+                    <stringMatch caseSensitive="true">
                         <variable identifier="FIB03"/>
                         <baseValue baseType="string">seven</baseValue>
                     </stringMatch>

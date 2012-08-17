@@ -159,7 +159,7 @@ class LengthType:
 		else:
 			return unicode(self.value)
 
-	def GetValue(self,dim):
+	def GetValue(self,dim=None):
 		"""Returns the value of the Length, *dim* is the size of the dimension
 		used for interpreting percentage values.  I.e., 100% will return
 		*dim*."""
@@ -170,6 +170,23 @@ class LengthType:
 				return (self.value*dim+50)//100
 		else:
 			return self.value
+
+	def Add(self,value):
+		"""Adds *value* to the length.
+		
+		If value is another LengthType instance then its value is added to the
+		value of this instances' value only if the types match.  If value is an
+		integer it is assumed to be a value of pixel type - a mismatch raises
+		ValueError."""
+		if isinstance(value,LengthType):
+			if self.type==value.type:
+				self.value+=value.value
+			else:
+				raise ValueError("Can't add lengths of different types: %s+%s"%(str(self),str(value)))
+		elif self.type==LengthType.Pixel:
+			self.value+=value
+		else:
+			raise ValueError("Can't add integer to Percentage length value: %s+&i"%(str(self),value))
 
 			
 def DecodeLength(strValue):
@@ -208,11 +225,19 @@ class Coords:
 	"""Represents HTML Coords values::
 	
 	<!ENTITY % Coords "CDATA" -- comma-separated list of lengths -->
-	"""
+	
+	Instances can be initialized from an existing list of :py:class:`LengthType`.
+	
+	If *values* is a list of integers then it is converted to a list of
+	:py:class:`LengthType` instances."""
 	def __init__(self,values=None):
-		"""Instances can be initialized from an existing list of values."""
 		if values:
-			self.values=values
+			self.values=[]
+			for v in values:
+				if isinstance(v,LengthType):
+					self.values.append(v)
+				else:
+					self.values.append(LengthType(v))
 			"""A list of LengthType values."""
 		else:
 			self.values=[]
@@ -225,6 +250,21 @@ class Coords:
 		"""Formats the Coords as a comma-separated string of Length values."""
 		return string.join(map(lambda x:str(x),self.values),',')
 	
+	def __len__(self):
+		return len(self.values)
+
+	def __getitem__(self,index):
+		return self.values[index]
+	
+	def __setitem__(self,index,value):
+		if isinstance(value,LengthType):
+			self.values[index]=value
+		else:
+			self.values[index]=LengthType(value)
+		
+	def __iter__(self):
+		return iter(self.values)
+
 	def TestRect(self,x,y,width,height):
 		"""Tests an x,y point against a rect with these coordinates.
 		

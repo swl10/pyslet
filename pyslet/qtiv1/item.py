@@ -1699,11 +1699,9 @@ class ResponseLabel(core.QTIElement,common.ContentMixin):
 		# into string data (which is parsed for coordinates) and elements which
 		# have their text extracted for the hotspot label.
 		lang,labelData,valueData=self.ParseValue()
-		choice.shape,coords=core.MigrateV2AreaCoords(self.rArea,valueData,log)
+		choice.shape,choice.coords=core.MigrateV2AreaCoords(self.rArea,valueData,log)
 		if xOffset or yOffset:
-			qtiv2.OffsetShape(choice.shape,coords,xOffset,yOffset)
-		for c in coords:
-			choice.coords.values.append(html.LengthType(c))
+			qtiv2.core.OffsetShape(choice.shape,choice.coords,xOffset,yOffset)
 		if lang is not None:
 			choice.SetLang(lang)
 		if labelData:
@@ -1723,7 +1721,7 @@ class ResponseLabel(core.QTIElement,common.ContentMixin):
 			return False
 		lang,label,value=self.ParseValue()
 		shape,coords=core.MigrateV2AreaCoords(self.rArea,value,[])
-		bounds=qtiv2.CalculateShapeBounds(shape,coords)
+		bounds=qtiv2.core.CalculateShapeBounds(shape,coords)
 		if bounds[0]>matImage.x0+matImage.width or bounds[2]<matImage.x0:
 			return False
 		if bounds[1]>matImage.y0+matImage.height or bounds[3]<matImage.y0:
@@ -1820,7 +1818,7 @@ class ResProcessing(common.QTICommentContainer):
 		for outcomeFixup in sorted(self._interactionFixup.keys()):
 			setValue=rp.ChildElement(qtiv2.QTISetOutcomeValue)
 			setValue.identifier=outcomeFixup
-			multi=setValue.ChildElement(qtiv2.QTIMultiple)
+			multi=setValue.ChildElement(qtiv2.expressions.Multiple)
 			for rID in self._interactionFixup[outcomeFixup]:
 				var=multi.ChildElement(qtiv2.expressions.Variable)
 				var.identifier=rID

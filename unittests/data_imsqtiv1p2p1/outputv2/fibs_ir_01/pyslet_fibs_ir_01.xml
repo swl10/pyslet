@@ -18,7 +18,7 @@
     <responseProcessing>
         <responseCondition>
             <responseIf>
-                <stringMatch caseSensitive="true" substring="false">
+                <stringMatch caseSensitive="true">
                     <variable identifier="FIB01"/>
                     <baseValue baseType="string">S</baseValue>
                 </stringMatch>

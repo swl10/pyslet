@@ -33,6 +33,67 @@ class ProcessingError(QTIError):
 class QTIValidityError(QTIError): pass
 
 
+def ValidateIdentifier(value,prefix='_'):
+	"""Decodes an identifier from a string::
+
+		<xsd:simpleType name="identifier.Type">
+			<xsd:restriction base="xsd:NCName"/>
+		</xsd:simpleType>
+	
+	This function takes a string that is supposed to match the production for
+	NCName in XML and forces it to comply by replacing illegal characters with
+	'_', except the ':' which is replaced with a hyphen for compatibility with
+	previous versions of the QTI migraiton script.  If name starts with a valid
+	name character but not a valid name start character, it is prefixed with '_'
+	too, but the prefix string used can be overridden."""
+	if value:
+		goodName=[]
+		if not xmlns.IsNameStartChar(value[0]):
+			goodName.append(prefix)
+		elif value[0]==':':
+			# Previous versions of the migrate script didn't catch this problem
+			# as a result, we deviate from its broken behaviour of using '-'
+			# by using the prefix too.
+			goodName.append(prefix)			
+		for c in value:
+			if c==':':
+				goodName.append('-')
+			elif xmlns.IsNameChar(c):
+				goodName.append(c)
+			else:
+				goodName.append('_')
+		return string.join(goodName,'')
+	else:
+		return prefix
+
+
+class Orientation(xsi.Enumeration):
+	"""Orientation attribute values provide a hint to rendering systems that an
+	element has an inherent vertical or horizontal interpretation::
+	
+		<xsd:simpleType name="orientation.Type">
+			<xsd:restriction base="xsd:NMTOKEN">
+				<xsd:enumeration value="horizontal"/>
+				<xsd:enumeration value="vertical"/>
+			</xsd:restriction>
+		</xsd:simpleType>
+	
+	Defines constants for the above orientations.  Usage example::
+
+		Orientation.horizontal
+	
+	Note that::
+		
+		Orientation.DEFAULT == None
+
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		'horizontal':1,
+		'vertical':2
+		}
+xsi.MakeEnumeration(Orientation)
+		
+
 class Shape(xsi.Enumeration):
 	"""A value of a shape is always accompanied by coordinates and an associated
 	image which provides a context for interpreting them::
@@ -49,7 +110,7 @@ class Shape(xsi.Enumeration):
 	
 	Defines constants for the above types of Shape.  Usage example::
 
-		Shape.Circle
+		Shape.circle
 	
 	Note that::
 		
@@ -64,6 +125,70 @@ class Shape(xsi.Enumeration):
 		'rect':5
 		}
 xsi.MakeEnumeration(Shape,'default')
+
+
+def CalculateShapeBounds(shape,coords):
+	"""Calculates a bounding rectangle from a Shape value and a
+	:py:class:`pyslet.html40_19991224.Coords` instance."""
+	if shape==Shape.circle:
+		return	[coords[0].GetValue(1024)-coords[2].GetValue(768),
+			coords[1].GetValue(768)-coords[2].GetValue(768),
+			coords[0].GetValue(1024)+coords[2].GetValue(768),
+			coords[1].GetValue(768)+coords[2].GetValue(768)]
+	elif shape==Shape.default:
+		return [0,0,1024,768]
+	elif shape==Shape.ellipse:
+		return [coords[0].GetValue(1024)-coords[2].GetValue(1024),
+			coords[1].GetValue(768)-coords[3].GetValue(768),
+			coords[0].GetValue(1024)+coords[2].GetValue(1024),
+			coords[1].GetValue(768)+coords[3].GetValue(768)]
+	elif shape==Shape.poly:
+		output=[coords[0].GetValue(1024), coords[1].GetValue(768),
+			coords[0].GetValue(1024), coords[1].GetValue(768)]
+		i=1
+		while 2*i+1<len(coords):
+			x=coords[2*i].GetValue(1024)
+			y=coords[2*i+1].GetValue(768)
+			if x<output[0]:
+				output[0]=x
+			elif x>output[2]:
+				output[2]=x
+			if y<output[1]:
+				output[1]=y
+			elif y>output[3]:
+				output[3]=y
+		return output
+	elif shape==Shape.rect:
+		return [coords[0].GetValue(1024),coords[1].GetValue(768),
+			coords[2].GetValue(1024),coords[3].GetValue(768)]
+	else:
+		raise ValueError("Unknown value for shape: %s"%str(shape))
+
+
+def OffsetShape(shape,coords,xOffset,yOffset):
+	"""Interprets the shape and coords relative to the given offset and maps them back to the origin.
+	
+	In other words, xOffset and yOffset are subtracted from the coordinates."""
+	if shape==Shape.circle:
+		coords[0].Add(-xOffset)
+		coords[1].Add(-yOffset)
+	elif shape==Shape.default:
+		pass
+	elif shape==Shape.ellipse:
+		coords[0].Add(-xOffset)
+		coords[1].Add(-yOffset)
+	elif shape==Shape.poly:
+		i=0
+		while 2*i+1<len(coords):
+			coords[2*i].Add(-xOffset)
+			coords[2*i+1].Add(-yOffset)
+	elif shape==Shape.rect:
+		coords[0].Add(-xOffset)
+		coords[1].Add(-yOffset)
+		coords[2].Add(-xOffset)
+		coords[3].Add(-yOffset)
+	else:
+		raise ValueError("Unknown value for shape: %s"%str(shape))
 
 
 class ShapeElementMixin:
@@ -164,40 +289,6 @@ class QTIElement(xmlns.XMLNSElement):
 		for child in self.GetChildren():
 			if hasattr(child,'AddToCPResource'):
 				child.AddToCPResource(cp,resource,beenThere)
-
-
-def ValidateIdentifier(value,prefix='_'):
-	"""Decodes an identifier from a string::
-
-		<xsd:simpleType name="identifier.Type">
-			<xsd:restriction base="xsd:NCName"/>
-		</xsd:simpleType>
-	
-	This function takes a string that is supposed to match the production for
-	NCName in XML and forces it to comply by replacing illegal characters with
-	'_', except the ':' which is replaced with a hyphen for compatibility with
-	previous versions of the QTI migraiton script.  If name starts with a valid
-	name character but not a valid name start character, it is prefixed with '_'
-	too, but the prefix string used can be overridden."""
-	if value:
-		goodName=[]
-		if not xmlns.IsNameStartChar(value[0]):
-			goodName.append(prefix)
-		elif value[0]==':':
-			# Previous versions of the migrate script didn't catch this problem
-			# as a result, we deviate from its broken behaviour of using '-'
-			# by using the prefix too.
-			goodName.append(prefix)			
-		for c in value:
-			if c==':':
-				goodName.append('-')
-			elif xmlns.IsNameChar(c):
-				goodName.append(c)
-			else:
-				goodName.append('_')
-		return string.join(goodName,'')
-	else:
-		return prefix
 
 
 def GetTemplateRef(value):

@@ -934,12 +934,12 @@ class StringMatch(NOperator):
 		</xsd:group>"""
 	XMLNAME=(core.IMSQTI_NAMESPACE,'stringMatch')
 	XMLATTR_caseSensitive=('caseSensitive',xsi.DecodeBoolean,xsi.EncodeBoolean)
-	XMLATTR_caseSensitive=('substring',xsi.DecodeBoolean,xsi.EncodeBoolean)
+	XMLATTR_substring=('substring',xsi.DecodeBoolean,xsi.EncodeBoolean)
 	
 	def __init__(self,parent):
 		NOperator.__init__(self,parent)
 		self.caseSensitive=True
-		self.substring=False
+		self.substring=None
 
 	def Evaluate(self,state):
 		values=list(self.EvaluateChildren(state))
@@ -1585,6 +1585,161 @@ class Power(NOperator):
 				return variables.FloatValue()
 		else:
 			return variables.FloatValue()
+
+
+class IntegerDivide(NOperator):
+	"""The integer divide operator takes 2 sub-expressions which both have
+	single cardinality and base-type integer. The result is the single integer
+	that corresponds to the first expression (x) divided by the second
+	expression (y) rounded down to the greatest integer (i) such that i<=(x/y)::
+	
+		<xsd:group name="integerDivide.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'integerDivide')
+	
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("integerDivide requires two sub-expressions, found %i"%len(values))
+		v1,v2=values
+		variables.CheckBaseTypes(v1.baseType,v2.baseType,variables.BaseType.integer)
+		variables.CheckCardinalities(v1.Cardinality(),v2.Cardinality(),variables.Cardinality.single)
+		if v1 and v2:
+			try:
+				return variables.IntegerValue(v1.value//v2.value)
+			except ZeroDivisionError:
+				return variables.IntegerValue()
+		else:
+			return variables.IntegerValue()
+
+
+class IntegerModulus(NOperator):
+	"""The integer modulus operator takes 2 sub-expressions which both have
+	single cardinality and base-type integer. The result is the single integer
+	that corresponds to the remainder when the first expression (x) is divided
+	by the second expression (y). If z is the result of the corresponding
+	integerDivide operator then the result is x-z*y::
+	
+		<xsd:group name="integerModulus.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'integerModulus')
+	
+	def Evaluate(self,state):
+		values=list(self.EvaluateChildren(state))
+		if len(values)!=2:
+			raise core.ProcessingError("integerModulus requires two sub-expressions, found %i"%len(values))
+		v1,v2=values
+		variables.CheckBaseTypes(v1.baseType,v2.baseType,variables.BaseType.integer)
+		variables.CheckCardinalities(v1.Cardinality(),v2.Cardinality(),variables.Cardinality.single)
+		if v1 and v2:
+			try:
+				return variables.IntegerValue(v1.value%v2.value)
+			except ZeroDivisionError:
+				return variables.IntegerValue()
+		else:
+			return variables.IntegerValue()
+
+
+class Truncate(UnaryOperator):
+	"""The truncate operator takes a single sub-expression which must have
+	single cardinality and base-type float. The result is a value of base-type
+	integer formed by truncating the value of the sub-expression towards zero::
+	
+		<xsd:group name="truncate.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'truncate')
+		
+	def Evaluate(self,state):
+		value=self.Expression.Evaluate(state)
+		variables.CheckBaseTypes(value.baseType,variables.BaseType.float)
+		variables.CheckCardinalities(value.Cardinality(),variables.Cardinality.single)
+		if value:
+			return variables.IntegerValue(int(value.value))
+		else:
+			return variables.IntegerValue()
+
+
+class Round(UnaryOperator):
+	"""The round operator takes a single sub-expression which must have single
+	cardinality and base-type float. The result is a value of base-type integer
+	formed by rounding the value of the sub-expression. The result is the
+	integer n for all input values in the range [n-0.5,n+0.5)::
+	
+		<xsd:group name="round.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'round')
+		
+	def Evaluate(self,state):
+		value=self.Expression.Evaluate(state)
+		variables.CheckBaseTypes(value.baseType,variables.BaseType.float)
+		variables.CheckCardinalities(value.Cardinality(),variables.Cardinality.single)
+		if value:
+			return variables.IntegerValue(int(math.floor(value.value+0.5)))
+		else:
+			return variables.IntegerValue()
+
+
+class IntegerToFloat(UnaryOperator):
+	"""The integer to float conversion operator takes a single sub-expression
+	which must have single cardinality and base-type integer. The result is a
+	value of base type float with the same numeric value::
+	
+		<xsd:group name="integerToFloat.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'integerToFloat')
+		
+	def Evaluate(self,state):
+		value=self.Expression.Evaluate(state)
+		variables.CheckBaseTypes(value.baseType,variables.BaseType.integer)
+		variables.CheckCardinalities(value.Cardinality(),variables.Cardinality.single)
+		if value:
+			return variables.FloatValue(float(value.value))
+		else:
+			return variables.FloatValue()
+
+class CustomOperator(NOperator):
+	"""The custom operator provides an extension mechanism for defining
+	operations not currently supported by this specification::
+	
+		<xsd:attributeGroup name="customOperator.AttrGroup">
+			<xsd:attribute name="class" type="identifier.Type" use="optional"/>
+			<xsd:attribute name="definition" type="uri.Type" use="optional"/>
+			<xsd:anyAttribute namespace="##other"/>
+		</xsd:attributeGroup>
+		
+		<xsd:group name="customOperator.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'customOperator')
+	XMLATTR_class="customClass"
+	XMLATTR_definition='definition'
+	
+	def __init__(self,parent):
+		NOperator.__init__(self,parent)
+		self.customClass=None
+		self.definition=None
+
+	def Evaluate(self,state):
+		raise core.ProcessingError("customOperator.%s not supported"%
+			(self.customClass if self.customClass is not None else "<unknown>"))
+
 
 
 

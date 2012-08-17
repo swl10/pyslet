@@ -1095,16 +1095,15 @@ class ExpressionTests(unittest.TestCase):
 			v.baseType=variables.BaseType.identifier
 			v.AddData(i)
 		gotValue={}
-		for i in xrange(100):
+		for i in xrange(200):
 			value=e.Evaluate(self.sessionState)
 			self.failUnless(isinstance(value,variables.IdentifierValue),"Random(Ordered) type")
 			self.failUnless(value.value in ("A","B","C","D"),"Random(Ordered) value: %s"%repr(value.value))
 			gotValue[value.value]=gotValue.get(value.value,0)+1
 		for i in ("A","B","C","D"):
-			self.failUnless(i in gotValue,"Random(Ordered) failed with p=0.000000001, really?")
-		# we can be pretty sure that f("B") > all the rest
-		for i in ("A","C","D"):
-			self.failUnless(gotValue["B"]>gotValue[i],"Ordered element frequency test!")
+			self.failUnless(i in gotValue,"Random(Ordered) failed with p=4E-25, really?")
+		# we now test that f("B") is reasonable
+		self.failUnless(gotValue["B"]>51,"Ordered element frequency test, F(51; n,p) <= 0.0001; F('B')=%i"%gotValue["B"])
 		try:
 			e=expressions.Random(None)
 			er=e.ChildElement(expressions.Variable)
@@ -2302,8 +2301,7 @@ class ExpressionTests(unittest.TestCase):
 				self.fail("<mathMulti>(duration,identifier)")
 			except core.ProcessingError:
 				pass
-	
-	
+		
 	def testCaseMathBinary(self):
 		tests={
 			# (3,3.0), (3,3.14), (4,3.14), (4,-3.14)
@@ -2384,7 +2382,174 @@ class ExpressionTests(unittest.TestCase):
 		self.failUnless(value.value==4,"Subtrace(3,-1)")
 		self.failUnless(value.baseType is variables.BaseType.integer,"<mathBinary>(3,-1) base type")								
 		
+	def testCaseIntegerBinary(self):
+		tests={
+			# (3,2), (3,3), (2,3), (-2,-3), (-2,3)
+			expressions.IntegerDivide:(1,1,0,0,-1),
+			expressions.IntegerModulus:(1,0,2,-2,1),
+			}
+		for eType in tests.keys():
+			expected=tests[eType]
+			e=eType(None)
+			v1=e.ChildElement(expressions.Null)
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.integer
+			v2.AddData("3")
+			value=e.Evaluate(self.sessionState)
+			self.failIf(value,"<integerBinary>(Null,3) is NULL")
+			self.failUnless(value.baseType is variables.BaseType.integer,"<integerBinary>(Null,3) base type")		
+			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<integerBinary>(Null,3) cardinality, found %s"%
+				variables.Cardinality.EncodeValue(value.Cardinality()))
+			# --
+			e=eType(None)
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.integer
+			v2.AddData("3")
+			v1=e.ChildElement(expressions.Null)
+			value=e.Evaluate(self.sessionState)
+			self.failIf(value,"<integerBinary>(3, Null) is NULL")
+			self.failUnless(value.baseType is variables.BaseType.integer,"<integerBinary>(3,Null) base type")		
+			# --
+			e=eType(None)
+			v1=e.ChildElement(expressions.Null)
+			v2=e.ChildElement(expressions.Null)
+			value=e.Evaluate(self.sessionState)
+			self.failIf(value,"<integerBinary>(NULL,NULL) is NULL")
+			self.failUnless(value.baseType is variables.BaseType.integer,"<integerBinary>(Null,Null) base type")		
+			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<integerBinary>(NULL,NULL) cardinality, found %s"%
+				variables.Cardinality.EncodeValue(value.Cardinality()))
+			# --
+			e=eType(None)
+			v1=e.ChildElement(expressions.BaseValue)
+			v1.baseType=variables.BaseType.integer
+			v1.AddData("3")
+			v2=e.ChildElement(expressions.BaseValue)
+			v2.baseType=variables.BaseType.integer
+			v2.AddData("2")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[0],"<integerBinary>(3,2)")
+			v2.SetValue("3")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[1],"<integerBinary>(3,3)")
+			v1.SetValue("2")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[2],"<integerBinary>(2,3)")
+			v1.SetValue("-2")
+			v2.SetValue("-3")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[3],"<integerBinary>(-2,-3)")
+			v2.SetValue("3")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[4],"<integerBinary>(-2,3)")
+			try:
+				e=eType(None)
+				v1=e.ChildElement(expressions.BaseValue)
+				v1.baseType=variables.BaseType.float
+				v1.AddData("3.0")
+				v2=e.ChildElement(expressions.BaseValue)
+				v2.baseType=variables.BaseType.float
+				v2.AddData("3.14")
+				value=e.Evaluate(self.sessionState)
+				self.fail("<integerBinary>(float,float)")
+			except core.ProcessingError:
+				pass
 	
+	def testCaseFloatToInteger(self):
+		tests={
+			# 6.49, -6.49, 6.5, -6.5, 6.51, -6.51
+			expressions.Truncate:(6,-6,6,-6,6,-6),
+			expressions.Round:(6,-6,7,-6,7,-7),
+			}
+		for eType in tests.keys():
+			expected=tests[eType]
+			e=eType(None)
+			v=e.ChildElement(expressions.Null)
+			value=e.Evaluate(self.sessionState)
+			self.failIf(value,"<floatToInteger>(Null) is NULL")
+			self.failUnless(value.baseType is variables.BaseType.integer,"<floatToInteger>(Null) base type")		
+			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<floatToInteger>(Null) cardinality, found %s"%
+				variables.Cardinality.EncodeValue(value.Cardinality()))
+			# --
+			e=eType(None)
+			v=e.ChildElement(expressions.BaseValue)
+			v.baseType=variables.BaseType.float
+			v.AddData("6.49")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value,"<floatToInteger>(6.49)")
+			self.failUnless(value.baseType is variables.BaseType.integer,"<floatToInteger>(6.49) base type")		
+			self.failUnless(value.value==expected[0],"<floatToInteger>(6.49)")
+			v.SetValue("-6.49")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[1],"<floatToInteger>(-6.49)")
+			v.SetValue("6.5")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[2],"<floatToInteger>(6.5)")
+			v.SetValue("-6.5")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[3],"<floatToInteger>(-6.5)")
+			v.SetValue("6.51")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[4],"<floatToInteger>(6.51)")
+			v.SetValue("-6.51")
+			value=e.Evaluate(self.sessionState)
+			self.failUnless(value.value==expected[5],"<floatToInteger>(-6.51)")			
+			# --
+			try:
+				e=eType(None)
+				v=e.ChildElement(expressions.BaseValue)
+				v.baseType=variables.BaseType.integer
+				v.AddData("3")
+				value=e.Evaluate(self.sessionState)
+				self.fail("<floatToInteger>(integer)")
+			except core.ProcessingError:
+				pass
+	
+	def testCaseIntegerToFloat(self):
+		e=expressions.IntegerToFloat(None)
+		v=e.ChildElement(expressions.Null)
+		value=e.Evaluate(self.sessionState)
+		self.failIf(value,"<integerToFloat>(Null) is NULL")
+		self.failUnless(value.baseType is variables.BaseType.float,"<integerToFloat>(Null) base type")		
+		self.failUnless(value.Cardinality()==variables.Cardinality.single,"<integerToFloat>(Null) cardinality, found %s"%
+			variables.Cardinality.EncodeValue(value.Cardinality()))
+		# --
+		e=expressions.IntegerToFloat(None)
+		v=e.ChildElement(expressions.BaseValue)
+		v.baseType=variables.BaseType.integer
+		v.AddData("6")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value,"<integerToFloat>(6)")
+		self.failUnless(value.baseType is variables.BaseType.float,"<integerToFloat>(6) base type")		
+		self.failUnless(value.value==6.0,"<integerToFloat>(6)")
+		v.SetValue("0")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==0.0,"<integerToFloat>(0)")
+		v.SetValue("-6")
+		value=e.Evaluate(self.sessionState)
+		self.failUnless(value.value==-6.0,"<integerToFloat>(-6)")
+		# --
+		try:
+			e=expressions.IntegerToFloat(None)
+			v=e.ChildElement(expressions.BaseValue)
+			v.baseType=variables.BaseType.float
+			v.AddData("3.0")
+			value=e.Evaluate(self.sessionState)
+			self.fail("<integerToFloat>(float)")
+		except core.ProcessingError:
+			pass
+	
+	def testCaseCustomOperator(self):
+		e=expressions.CustomOperator(None)
+		e.SetAttribute(u"class",u"math")
+		e.customClass="math"
+		e.definition="http://www.example.com/math/sin"
+		v=e.ChildElement(expressions.Null)
+		try:
+			value=e.Evaluate(self.sessionState)
+		except core.ProcessingError:
+			pass
+	
+
 EXAMPLE_1="""<?xml version="1.0" encoding="utf-8"?>
 <assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1" identifier="test"></assessmentItem>"""
 
