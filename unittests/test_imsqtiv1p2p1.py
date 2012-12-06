@@ -165,10 +165,10 @@ class QTIV2ConversionTests(unittest.TestCase):
 			f=r.GetEntryPoint()
 			if f:
 				fPath=f.PackagePath(cp2)
-				qtiDoc=qtiv2.QTIDocument(baseURI=str(uri.URIFactory.URLFromPathname(os.path.join(self.cp.dPath,fPath))))
+				qtiDoc=qtiv2.QTIDocument(baseURI=str(uri.URIFactory.URLFromVirtualFilePath(self.cp.dPath.join(fPath))))
 				qtiDoc.Read()
 				#print str(qtiDoc)
-				qtiDoc2=qtiv2.QTIDocument(baseURI=str(uri.URIFactory.URLFromPathname(os.path.join(cp2.dPath,fPath))))
+				qtiDoc2=qtiv2.QTIDocument(baseURI=str(uri.URIFactory.URLFromVirtualFilePath(cp2.dPath.join(fPath))))
 				qtiDoc2.Read()
 				#print str(qtiDoc2)
 				output=qtiDoc.DiffString(qtiDoc2)
@@ -181,11 +181,11 @@ class QTIV2ConversionTests(unittest.TestCase):
 				if f.href is None or f.href.IsAbsolute():
 					continue
 				fPath=f.PackagePath(cp2)
-				fAbsPath=os.path.join(self.cp.dPath,fPath)
-				fAbsPath2=os.path.join(cp2.dPath,fPath)
-				baseURI=str(uri.URIFactory.URLFromPathname(fAbsPath))
-				baseURI2=str(uri.URIFactory.URLFromPathname(fAbsPath2))
-				if os.path.splitext(fAbsPath)[1].lower()=='.xml':
+				fAbsPath=self.cp.dPath.join(fPath)
+				fAbsPath2=cp2.dPath.join(fPath)
+				baseURI=str(uri.URIFactory.URLFromVirtualFilePath(fAbsPath))
+				baseURI2=str(uri.URIFactory.URLFromVirtualFilePath(fAbsPath2))
+				if fAbsPath.splitext()[1].lower()=='.xml':
 					# Two xml files, compare with simple XMLElement
 					doc=xml.Document(baseURI=baseURI)
 					doc.Read()
@@ -199,8 +199,8 @@ class QTIV2ConversionTests(unittest.TestCase):
 					self.failUnless(doc.root==doc2.root,"XML Files differ at %s (actual output shown first)\n%s"%(fPath,output))	
 				else:
 					# Binary compare the two files.
-					f=open(fAbsPath,'rb')
-					f2=open(fAbsPath2,'rb')
+					f=fAbsPath.open('rb')
+					f2=fAbsPath2.open('rb')
 					while True:
 						fData=f.read(1024)
 						fData2=f2.read(1024)

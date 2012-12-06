@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentTest xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="http://www.example.com/assessmentTest" title="Assessment Test Case"
+    toolName="Pyslet" toolVersion="0.3">
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer"/>
+    <outcomeDeclaration identifier="FEEDBACK" cardinality="multiple" baseType="identifier">
+        <defaultValue>
+            <value>bye</value>
+        </defaultValue>
+    </outcomeDeclaration>
+    <timeLimits minTime="10" maxTime="3600"/>
+    <testPart identifier="PartI" navigationMode="nonlinear" submissionMode="individual">
+        <preCondition>
+            <match>
+                <default identifier="SCORE"/>
+                <baseValue baseType="integer">0</baseValue>
+            </match>
+        </preCondition>
+        <branchRule target="EXIT_TEST">
+            <gte>
+                <variable identifier="SCORE"/>
+                <baseValue baseType="integer">10</baseValue>
+            </gte>
+        </branchRule>
+        <itemSessionControl maxAttempts="1" showFeedback="true" allowReview="true"
+            showSolution="true" allowComment="true" allowSkipping="false" validateResponses="false"/>
+        <timeLimits minTime="5" maxTime="1200"/>
+        <assessmentSection identifier="SectionA" required="true" fixed="true" title="Section A"
+            visible="true" keepTogether="true">
+            <preCondition>
+                <baseValue baseType="boolean">true</baseValue>
+            </preCondition>
+            <branchRule target="SectionC">
+                <match>
+                    <variable identifier="A1.RESPONSE"/>
+                    <baseValue baseType="identifier">NO</baseValue>
+                </match>
+            </branchRule>
+            <itemSessionControl allowComment="false" showSolution="false" allowSkipping="false"
+                allowReview="false" showFeedback="false"/>
+            <timeLimits maxTime="600"/>
+            <selection select="1" withReplacement="false"/>
+            <ordering shuffle="false"/>
+            <rubricBlock view="author">
+                <p>Test of a branch rule.</p>
+            </rubricBlock>
+            <assessmentItemRef identifier="A1" href="yesno.xml" fixed="true" required="true">
+                <variableMapping sourceIdentifier="ANSWER" targetIdentifier="RESPONSE"/>
+                <templateDefault templateIdentifier="likeableThing">
+                    <baseValue baseType="string">Apples</baseValue>
+                </templateDefault>
+            </assessmentItemRef>
+        </assessmentSection>
+        <assessmentSection identifier="SectionB" title="Section B" visible="true">
+            <assessmentItemRef identifier="B1" href="question.xml" required="true" fixed="false"
+                category="Q">
+                <weight identifier="ten" value="10.0"/>
+            </assessmentItemRef>
+        </assessmentSection>
+        <assessmentSection identifier="SectionC" title="Section C" visible="false">
+            <assessmentItemRef identifier="C1" href="thankyou.xml" fixed="true" required="true"/>
+        </assessmentSection>
+        <testFeedback access="atEnd" outcomeIdentifier="FEEDBACK" showHide="show" identifier="bye">
+            <p>Good bye!</p>
+        </testFeedback>
+    </testPart>
+    <outcomeProcessing>
+        <setOutcomeValue identifier="SCORE">
+            <testVariables variableIdentifier="SCORE" weightIdentifier="ten" sectionIdentifier="SectionB" includeCategory="Q"/>
+        </setOutcomeValue>
+    </outcomeProcessing>
+</assessmentTest>

@@ -22,7 +22,13 @@ Exceptions
 ..	autoclass:: QTIError
 	:show-inheritance:
 
-..	autoclass:: QTIDeclarationError
+..	autoclass:: DeclarationError
+	:show-inheritance:
+
+..	autoclass:: ProcessingError
+	:show-inheritance:
+
+..	autoclass:: SelectionError
 	:show-inheritance:
 
 

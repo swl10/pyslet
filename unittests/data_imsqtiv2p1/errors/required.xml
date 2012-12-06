@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentTest xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="http://www.example.com/brokenTest" title="Broken Assessment Test Case"
+    toolName="Pyslet" toolVersion="0.3">
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer"/>
+    <testPart identifier="PartI" navigationMode="nonlinear" submissionMode="individual">
+        <assessmentSection identifier="I" required="true" fixed="true" title="Section A"
+            visible="true" keepTogether="true">
+            <selection select="2" withReplacement="false"/>
+            <assessmentItemRef identifier="A1" href="yesno.xml" fixed="false" required="true"/>
+            <assessmentItemRef identifier="A2" href="yesno.xml" fixed="false" required="true"/>
+            <assessmentItemRef identifier="A3" href="yesno.xml" fixed="false" required="true"/>
+            <assessmentItemRef identifier="A4" href="yesno.xml" fixed="false" required="false"/>
+        </assessmentSection>
+    </testPart>
+</assessmentTest>

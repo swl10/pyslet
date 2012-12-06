@@ -362,6 +362,15 @@ class Document(Node):
 		return idStr
 
 	def Read(self,src=None,**args):
+		"""Reads this document, parsing it from a source stream.
+
+		With no arguments the document is read from the :py:attr:`baseURI` which
+		must have been specified on construction or with a call to the
+		:py:meth:`SetBase` method.
+
+		You can override the document's baseURI by passing a value for *src*
+		which may be an instance of :py:class:`XMLEntity` or an object than can
+		be passed as a valid source to its constructor."""
 		if src:
 			# Read from this stream, ignore baseURI
 			if isinstance(src,XMLEntity):

@@ -6,6 +6,8 @@ References:
 import string, os, os.path, sys
 from types import UnicodeType, StringType
 from pyslet.rfc1738 import *
+import pyslet.vfs as vfs
+
 
 class URIException(Exception): pass
 class URIRelativeError(URIException): pass
@@ -804,7 +806,7 @@ class URIFactoryClass:
 	
 	def __init__(self):
 		self.urlClass={}
-	
+		
 	def Register(self,scheme,uriClass):
 		self.urlClass[scheme.lower()]=uriClass
 		
@@ -859,6 +861,39 @@ class URIFactoryClass:
 				segments[i]=EscapeData(unicode(segments[i],c).encode('utf-8'),IsPathSegmentReserved)
 		return FileURL('file://%s/%s'%(host,string.join(segments,'/')))
 
+	def URLFromVirtualFilePath(self,path):
+		"""Converts a virtual file path into a :class:`URI` instance."""
+		host=path.fsName
+		segments=[]
+		if not path.isabs():
+			path=path.abspath()
+		drive,head=path.splitdrive()
+		uncFlag=path.IsUNC()
+		while head:
+			newHead,tail=head.split()
+			if newHead==head:
+				# We are unable to split any more from head
+				if uncFlag and segments:
+					# This is the unusual case of the UNC path, first segment is machine
+					if host:
+						raise ValueError("UNC hosts cannot be specified in named file systems.")
+					host=str(segments[0])
+					del segments[0]
+				break
+			else:
+				segments[0:0]=[tail]
+				head=newHead
+		if drive:
+			segments[0:0]=[drive]
+		# At this point we need to convert to octets
+		c=sys.getfilesystemencoding()
+		if host:
+			host=EscapeData(host,IsAuthorityReserved)
+		for i in xrange(len(segments)):
+            # we always use utf-8 in URL path segments to make URLs portable
+			segments[i]=EscapeData(unicode(segments[i]).encode('utf-8'),IsPathSegmentReserved)
+		return FileURL('file://%s/%s'%(host,string.join(segments,'/')))
+		
 	def Resolve(self,b,r):
 		"""Evaluates the resolve operator B [*] R, resolving R relative to B
 		
@@ -918,6 +953,36 @@ class FileURL(URI):
 			# Note that drive designations do not need a prefix
 			path=string.join(('',path),os.sep)
 		return path
+		
+	def GetVirtualFilePath(self):
+		"""Returns a virtual file path corresponding to this file URL."""
+		decode=lambda s:unicode(UnescapeData(s),'utf-8')
+		if self.host:
+			fs=vfs.GetFileSystemByName(self.host)
+			if fs is None:
+				if defaultFS.supports_unc:
+					fs=defaultNS
+					uncRoot=decode('\\\\%s'%self.host)
+				else:
+					raise ValueError("Unrecognized host in file URL: %s"%self.host)
+			else:
+				uncRoot=decode('')
+		else:
+			fs=vfs.defaultFS
+			uncRoot=decode('')
+		segments=SplitAbsPath(self.absPath)
+		# ignore parameters in file system
+		path=string.join(map(decode,segments),fs.sep)
+		if uncRoot:
+			# If we have a UNC root then we will have an absolute path
+			vpath=fs(string.join((uncRoot,path),fs.sep))
+		else:
+			vpath=fs(path)
+			if not vpath.isabs():
+				# Prepend the sep if we're not absolute (most likely UNIX) because
+				# it is only drive designations that do not need a prefix
+				vpath=fs(string.join(('',path),fs.sep))
+		return vpath
 		
 
 URIFactory=URIFactoryClass()

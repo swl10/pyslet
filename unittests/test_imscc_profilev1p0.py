@@ -80,16 +80,16 @@ class CCConformanceTests(unittest.TestCase):
 		self.RunTests([])
 
 	def testCase1p4AssociatedContent_1(self):
-		fPath=os.path.join(self.cc.cp.dPath,'l0001','attachments','extra.txt')
-		f=open(fPath,'wb')
+		fPath=self.cc.cp.dPath.join('l0001','attachments','extra.txt')
+		f=fPath.open('wb')
 		f.write('Hello World!')
 		f.close()
 		self.cc.cp.RebuildFileTable()
 		self.RunTests(['test1_4_AssociatedContent_1'])
 	
 	def testCase1p4AssociatedContent_2(self):
-		fPath=os.path.join(self.cc.cp.dPath,'Extra.txt')
-		f=open(fPath,'wb')
+		fPath=self.cc.cp.dPath.join('Extra.txt')
+		f=fPath.open('wb')
 		f.write('Hello World!')
 		f.close()
 		r1=self.cc.cp.manifest.GetElementByID('R0004')

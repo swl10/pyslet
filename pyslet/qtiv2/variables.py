@@ -7,6 +7,7 @@ import pyslet.rfc2616 as http
 import pyslet.html40_19991224 as html
 from pyslet.rfc2396  import URI, URIFactory
 import pyslet.qtiv2.core as core
+import pyslet.qtiv2.tests as tests
 
 import string, itertools
 from types import BooleanType,IntType,LongType,FloatType,StringTypes,DictType,TupleType,ListType
@@ -347,7 +348,14 @@ class Value(object):
 			return RecordContainer()	 
 		else:
 			raise ValueError("Unknown cardinality")
-			
+	
+	@classmethod
+	def CopyValue(cls,value):
+		"""Creates a new value instance copying *value*."""
+		v=cls.NewValue(value.Cardinality(),value.baseType)
+		v.SetValue(value.value)
+		return v
+
 
 class SingleValue(Value):
 	"""Represents all values with single cardinality."""
@@ -1592,30 +1600,72 @@ class TemplateDeclaration(VariableDeclaration):
 class ItemSessionState(object):
 	"""Represents the state of an item session.  Instances can be used as if
 	they were dictionaries of :py:class:`Value`.  *item* is the item from which
-	the session should be created."""
+	the session should be created.
+	
+	On construction, all declared variables (included built-in variables) are
+	added to the session with NULL values, except the template variables which
+	are set to their defaults.
+	
+	In addition to the variables defined by the specification we add meta
+	variables corresponding to response and outcome defaults, these have the
+	same name as the variable but with ".DEFAULT" appended.  Similarly, we
+	define names for the correct values of response variables using ".CORRECT". 
+	The values of these meta-variables are all initialised from the item
+	definition on construction."""
 
 	def __init__(self,item):
 		self.item=item
 		self.map={}
-		# add the default response variables
-		self.map['numAttempts']=IntegerValue(0)
-		self.map['duration']=DurationValue(0.0)
-		self.map['completionStatus']=IdentifierValue('not_attempted')
-		# now loop through the declared variables...
-		for rd in self.item.ResponseDeclaration:
-			self.map[rd.identifier]=Value.NewValue(rd.cardinality,rd.baseType)
-			# Response variables do not get their default... yet!
-		for od in self.item.OutcomeDeclaration:
-			self.map[od.identifier]=v=od.GetDefaultValue()
-			if not v:
-				if v.Cardinality()==Cardinality.single:
-					if v.baseType==BaseType.integer:
-						v.SetValue(0)
-					elif v.baseType==BaseType.float:
-						v.SetValue(0.0)
 		for td in self.item.TemplateDeclaration:
 			self.map[td.identifier]=td.GetDefaultValue()
+		# add the default response variables
+		self.map['numAttempts']=IntegerValue()
+		self.map['duration']=DurationValue()
+		self.map['completionStatus']=IdentifierValue()
+		# now loop through the declared variables...
+		for rd in self.item.ResponseDeclaration:
+			self.map[rd.identifier+".CORRECT"]=rd.GetCorrectValue()
+			self.map[rd.identifier+".DEFAULT"]=rd.GetDefaultValue()
+			# Response variables do not get their default... yet!
+			self.map[rd.identifier]=Value.NewValue(rd.cardinality,rd.baseType)
+		# outcomes do not get their default yet either
+		for od in self.item.OutcomeDeclaration:
+			self.map[od.identifier+".DEFAULT"]=od.GetDefaultValue()
+			self.map[od.identifier]=Value.NewValue(od.cardinality,od.baseType)
 	
+	def SelectClone(self):
+		"""Item templates describe a range of possible items referred to as
+		*clones*.
+
+		If the item used to create the session object is an item template then
+		you must call SelectClone before beginning the candidate's session with
+		:py:meth:`BeginSession`.
+
+		The main purpose of this method is to run the template processing rules.
+		These rules update the values of the template variables and may also
+		alter correct responses and default outcome (or response) values."""
+		if self.item.TemplateProcessing:
+			self.item.TemplateProcessing.Run(self)		
+
+	def BeginSession(self):
+		"""Called at the start of an item session. According to the specification:
+		
+			"The session starts when the associated item first becomes eligible
+			for delivery to the candidate"
+		
+		The main purpose of this method is to set the outcome values to their
+		defaults."""
+		# sets the default values of all outcome variables
+		self.map['completionStatus'].value=u'not_attempted'
+		self.SetOutcomeDefaults()
+		# The spec says that numAttempts is a response that has value 0 initially.
+		# That suggests that it behaves more like an outcome in this respect so we
+		# initialise the value here.
+		self.map['numAttempts'].value=0
+		# similar consideration applies to the built-in duration
+		self.map['duration'].value=0.0
+		# the rest of the response variables are initialised when the first attempt starts
+		
 	def BeginAttempt(self):
 		"""Called at the start of an attempt.
 		
@@ -1626,13 +1676,19 @@ class ItemSessionState(object):
 		if numAttempts.value==1:
 			# first attempt, set default responses
 			for rd in self.item.ResponseDeclaration:
-				self.map[rd.identifier]=rd.GetDefaultValue()
+				self.map[rd.identifier]=Value.CopyValue(self.map[rd.identifier+".DEFAULT"])
 			# and set completionStatus
 			self.map['completionStatus']=IdentifierValue('unknown')
 	
 	def EndAttempt(self):
 		"""Called at the end of an attempt.  Invokes response processing if present."""
-		pass
+		if not self.item.adaptive:
+			# For a Non-adaptive Item the values of the outcome variables are
+			# reset to their default values (or NULL if no default is given)
+			# before each invocation of response processing
+			self.SetOutcomeDefaults()
+		if self.item.ResponseProcessing:
+			self.item.ResponseProcessing.Run(self)
 							
 	def IsResponse(self,varName):
 		"""Return True if *varName* is the name of a response variable."""
@@ -1649,6 +1705,16 @@ class ItemSessionState(object):
 			return varName=='completionStatus'
 		else:
 			return isinstance(d,OutcomeDeclaration)
+	
+	def SetOutcomeDefaults(self):
+		for od in self.item.OutcomeDeclaration:
+			self.map[od.identifier]=v=Value.CopyValue(self.map[od.identifier+".DEFAULT"])
+			if not v:
+				if v.Cardinality()==Cardinality.single:
+					if v.baseType==BaseType.integer:
+						v.SetValue(0)
+					elif v.baseType==BaseType.float:
+						v.SetValue(0.0)
 
 	def IsTemplate(self,varName):
 		"""Return True if *varName* is the name of a template variable."""
@@ -1690,13 +1756,13 @@ class ItemSessionState(object):
 		if not isinstance(value,Value):
 			raise TypeError
 		v=self.map[varName]
-		if value.Cardinality()!=v.Cardinality():
+		if value.Cardinality() is not None and value.Cardinality()!=v.Cardinality():
 			raise ValueError("Expected %s value, found %s"%(Cardinality.EncodeValue(v.Cardinality()),
 				Cardinality.EncodeValue(value.Cardinality())))
-		if value.baseType!=v.baseType:
+		if value.baseType is not None and value.baseType!=v.baseType:
 			raise ValueError("Expected %s value, found %s"%(BaseType.EncodeValue(v.baseType),
 				BaseType.EncodeValue(value.baseType)))
-		v.SetValue(value.v)
+		v.SetValue(value.value)
 
 	def __delitem__(self,varName):
 		raise TypeError("Can't delete variables from ItemSessionState")
@@ -1707,4 +1773,114 @@ class ItemSessionState(object):
 	def __contains__(self,varName):
 		return varName in self.map
 	
+
+class TestSessionState(object):
+	"""Represents the state of a test session.  Instances can be used as if they
+	were dictionaries of :py:class:`Value`.  *form* is the test form from which
+	the session should be created.
 	
+	On construction, all declared variables (included built-in variables) are
+	added to the session with NULL values."""
+
+	def __init__(self,form):
+		self.form=form
+		self.test=form.test
+		self.map={}
+		# add the default response variables
+		self.map['duration']=DurationValue()
+		# now loop through all test parts and (visible) sections to define other durations
+		for p in form.parts:
+			self.map[p+".duration"]=DurationValue()
+			self.InitPart((p,0))
+		# now loop through the declared variables, outcomes do not get their default yet
+		for od in self.test.OutcomeDeclaration:
+			self.map[od.identifier]=Value.NewValue(od.cardinality,od.baseType)
+	
+	def InitPart(self,partSelector):
+		for pID,index in self.form[partSelector]:
+			p=self.test.GetPart(pID)
+			if isinstance(p,tests.AssessmentSection):
+				if index:
+					self.map["%s.duration.%i"%(pID,index)]=DurationValue()
+				else:
+					self.map["%s.duration"%pID]=DurationValue()			
+				self.InitPart((pID,index))
+
+	def BeginSession(self):
+		"""Called at the start of a test session.
+				
+		The main purpose of this method is to set the outcome values to their
+		defaults."""
+		# sets the default values of all outcome variables
+		self.SetOutcomeDefaults()
+		self.map['duration'].value=0.0
+
+	def IsResponse(self,varName):
+		"""Return True if *varName* is the name of a response variable."""
+		d=self.test.GetDeclaration(varName)
+		if d is None:
+			# all undeclared variables are durations and hence responses
+			return True
+		else:
+			return isinstance(d,ResponseDeclaration)
+			
+	def IsOutcome(self,varName):
+		"""Return True if *varName* is the name of an outcome variable."""
+		d=self.test.GetDeclaration(varName)
+		if d is None:
+			# all undeclared variables are durations and hence responses
+			return False
+		else:
+			return isinstance(d,OutcomeDeclaration)
+			
+	def SetOutcomeDefaults(self):
+		for od in self.test.OutcomeDeclaration:
+			self.map[od.identifier]=v=od.GetDefaultValue()
+			if not v:
+				if v.Cardinality()==Cardinality.single:
+					if v.baseType==BaseType.integer:
+						v.SetValue(0)
+					elif v.baseType==BaseType.float:
+						v.SetValue(0.0)
+
+	def IsTemplate(self,varName):
+		"""Return True if *varName* is the name of an template variable."""
+		d=self.test.GetDeclaration(varName)
+		if d is None:
+			# all undeclared variables are durations and hence responses
+			return False
+		else:
+			return isinstance(d,TemplateDeclaration)
+			
+	def __len__(self):
+		return len(self.map)
+			
+	def __getitem__(self,varName):
+		"""Returns the :py:class:`Value` instance corresponding to *varName* or
+		raises KeyError if there is no variable with that name."""
+		return self.map[varName]
+			
+	def __setitem__(self,varName,value):
+		"""Sets the value of *varName* to the :py:class:`Value` instance *value*.
+		
+		The *baseType* and cardinality of *value* must match those expected for
+		the variable."""
+		if not isinstance(value,Value):
+			raise TypeError
+		v=self.map[varName]
+		if value.Cardinality() is not None and value.Cardinality()!=v.Cardinality():
+			raise ValueError("Expected %s value, found %s"%(Cardinality.EncodeValue(v.Cardinality()),
+				Cardinality.EncodeValue(value.Cardinality())))
+		if value.baseType is not None and value.baseType!=v.baseType:
+			raise ValueError("Expected %s value, found %s"%(BaseType.EncodeValue(v.baseType),
+				BaseType.EncodeValue(value.baseType)))
+		v.SetValue(value.value)
+
+	def __delitem__(self,varName):
+		raise TypeError("Can't delete variables from TestSessionState")
+	
+	def __iter__(self):
+		return iter(self.map)
+
+	def __contains__(self,varName):
+		return varName in self.map

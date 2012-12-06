@@ -9,9 +9,11 @@ def suite():
 		unittest.makeSuite(RFC2396Tests,'test'),
 		unittest.makeSuite(URITests,'test'),
 		unittest.makeSuite(FileURLTests,'test'),
+		unittest.makeSuite(VirtualFileURLTests,'test')
 		))
 
 from pyslet.rfc2396 import *
+import pyslet.vfs as vfs
 
 SERVER_EXAMPLES={
 	# if there is no authority then it is safe to parse
@@ -396,6 +398,45 @@ class FileURLTests(unittest.TestCase):
 			if type(joinMatch) is StringType and type(joined) is UnicodeType:
 				# if we're walking in 8-bit mode we need to downgrade to compare
 				joined=joined.encode(c)
+			self.failUnless(joined==joinMatch,"Joined pathnames mismatch:\n%s\n%s"%(joined,joinMatch))
+
+
+class VirtualFileURLTests(unittest.TestCase):
+	def setUp(self):
+		self.vfs=vfs.defaultFS
+ 		self.cwd=self.vfs.getcwd()
+ 		self.dataPath=self.vfs(__file__).split()[0].join('data_rfc2396')
+ 		if not self.dataPath.isabs():
+ 			self.dataPath=self.vfs.getcwd().join(self.dataPath)
+
+	def testCaseConstructor(self):
+		u=URIFactory.URI(FILE_EXAMPLE)
+		self.failUnless(isinstance(u,URI),"FileURL is URI")
+		self.failUnless(isinstance(u,FileURL),"FileURI is FileURL")
+		self.failUnless(str(u)==FILE_EXAMPLE)
+		u=FileURL()
+		self.failUnless(str(u)=='file:///','Default file')
+		
+ 	def testCasePathnames(self):
+ 		base=URIFactory.URLFromVirtualFilePath(self.dataPath)
+ 		self.failUnless(base.GetVirtualFilePath()==self.dataPath,
+ 			"Expected %s found %s"%(self.dataPath,base.GetVirtualFilePath()))
+ 		for dirpath,dirnames,filenames in self.dataPath.walk():
+ 			self.VisitMethod(dirpath,filenames)
+
+	def VisitMethod(self,dirname,names):
+		# Make d a directory like path by adding an empty component at the end
+		d=URIFactory.URLFromVirtualFilePath(dirname.join(dirname.curdir))
+		for name in names:
+			if unicode(name).startswith('??'):
+				print "\nWarning: 8-bit path tests limited to ASCII file names"
+				continue
+			joinMatch=dirname.join(name)
+			segName=EscapeData(unicode(name).encode('utf-8'),IsPathSegmentReserved)
+			u=URI(segName)
+			u=u.Resolve(d)
+			self.failUnless(isinstance(u,FileURL))
+			joined=u.GetVirtualFilePath()
 			self.failUnless(joined==joinMatch,"Joined pathnames mismatch:\n%s\n%s"%(joined,joinMatch))
 		
 

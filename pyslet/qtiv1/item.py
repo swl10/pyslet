@@ -1814,9 +1814,9 @@ class ResProcessing(common.QTICommentContainer):
 
 	def MigrateV2(self,v2Item,log):
 		"""Migrates v1 resprocessing to v2 ResponseProcessing."""
-		rp=v2Item.ChildElement(qtiv2.ResponseProcessing)
+		rp=v2Item.ChildElement(qtiv2.processing.ResponseProcessing)
 		for outcomeFixup in sorted(self._interactionFixup.keys()):
-			setValue=rp.ChildElement(qtiv2.QTISetOutcomeValue)
+			setValue=rp.ChildElement(qtiv2.processing.SetOutcomeValue)
 			setValue.identifier=outcomeFixup
 			multi=setValue.ChildElement(qtiv2.expressions.Multiple)
 			for rID in self._interactionFixup[outcomeFixup]:
@@ -1947,16 +1947,16 @@ class RespCondition(common.QTICommentContainer,ConditionMixin):
 				R2.rules"""
 		if self.continueFlag:
 			if not cMode:
-				ruleContainer=ruleContainer.ChildElement(qtiv2.ResponseElse)
-			rc=ruleContainer.ChildElement(qtiv2.ResponseCondition)
-			rcIf=rc.ChildElement(qtiv2.ResponseIf)
+				ruleContainer=ruleContainer.ChildElement(qtiv2.processing.ResponseElse)
+			rc=ruleContainer.ChildElement(qtiv2.processing.ResponseCondition)
+			rcIf=rc.ChildElement(qtiv2.processing.ResponseIf)
 		else:
 			if cMode:
-				rc=ruleContainer.ChildElement(qtiv2.ResponseCondition)
+				rc=ruleContainer.ChildElement(qtiv2.processing.ResponseCondition)
 				ruleContainer=rc
-				rcIf=rc.ChildElement(qtiv2.ResponseIf)
+				rcIf=rc.ChildElement(qtiv2.processing.ResponseIf)
 			else:
-				rcIf=ruleContainer.ChildElement(qtiv2.ResponseElseIf)
+				rcIf=ruleContainer.ChildElement(qtiv2.processing.ResponseElseIf)
 		self.ConditionVar.MigrateV2Expression(rcIf,log)
 		for rule in self.SetVar:
 			rule.MigrateV2Rule(rcIf,log)

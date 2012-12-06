@@ -11,15 +11,14 @@ import pyslet.rfc2396 as uri
 xsi=xsdatatypes
 
 import string, itertools
-import os.path, sys
+import sys
 from types import StringTypes
 
 import pyslet.qtiv2.core as core
 import pyslet.qtiv2.variables as variables
 import pyslet.qtiv2.expressions as expressions
-
-
-
+import pyslet.qtiv2.processing as processing
+import pyslet.qtiv2.tests as tests
 
 
 QTI_HTMLProfile=[
@@ -100,7 +99,7 @@ def EncodeTextFormat(value):
 	return TextFormat.encode.get(value,None)
 		
 
-class QTIAssessmentItem(core.QTIElement):
+class QTIAssessmentItem(core.QTIElement,core.DeclarationContainer):
 	"""
 	<xsd:attributeGroup name="assessmentItem.AttrGroup">
 		<xsd:attribute name="identifier" type="string.Type" use="required"/>
@@ -136,6 +135,7 @@ class QTIAssessmentItem(core.QTIElement):
 	
 	def __init__(self,parent):
 		core.QTIElement.__init__(self,parent)
+		core.DeclarationContainer.__init__(self)
 		self.identifier=None
 		self.title=None
 		self.label=None
@@ -149,7 +149,6 @@ class QTIAssessmentItem(core.QTIElement):
 		self.ItemBody=None
 		self.ResponseProcessing=None
 		self.QTIModalFeedback=[]
-		self.declarations={}		#: a dictionary of variable declarations
 		self.metadata=QTIMetadata(None)
 		
 	def GetChildren(self):
@@ -163,18 +162,6 @@ class QTIAssessmentItem(core.QTIElement):
 	def ContentChanged(self):
 		self.SortDeclarations()
 		
-	def RegisterDeclaration(self,declaration):
-		if declaration.identifier in self.declarations:
-			raise core.QTIDeclarationError
-		else:
-			self.declarations[declaration.identifier]=declaration
-	
-	def IsDeclared(self,identifier):
-		return identifier in self.declarations
-	
-	def GetDeclaration(self,identifier):
-		return self.declarations.get(identifier,None)
-
 	def SortDeclarations(self):
 		"""Sort each of the variable declaration lists so that they are in
 		identifier order.  This is not essential but it does help ensure that
@@ -198,11 +185,11 @@ class QTIAssessmentItem(core.QTIElement):
 		# Security alert: we're leaning heavily on MakeValidNCName assuming it returns a good file name
 		fPath=(MakeValidNCName(resourceID)+'.xml').encode(sys.getfilesystemencoding())
 		if dName:
-			fPath=os.path.join(dName,fPath)
+			fPath=cp.FilePath(dName,fPath)
 		fPath=cp.GetUniqueFile(fPath)
 		# This will be the path to the file in the package
-		fullPath=os.path.join(cp.dPath,fPath)
-		base=uri.URIFactory.URLFromPathname(fullPath)
+		fullPath=cp.dPath.join(fPath)
+		base=uri.URIFactory.URLFromVirtualFilePath(fullPath)
 		if isinstance(self.parent,xml.Document):
 			# we are the root so we change the document base
 			self.parent.SetBase(base)
@@ -727,160 +714,9 @@ class SliderInteraction(BlockInteraction):
 		self.reverse=None
 
 		
-#
-#	RESPONSE PROCESSING
-#
-
-#
-#		Generalized Response Processing
-#
-class ResponseProcessing(core.QTIElement):
-	"""Represents the responseProcessing element.
-
-	<xsd:attributeGroup name="responseProcessing.AttrGroup">
-		<xsd:attribute name="template" type="uri.Type" use="optional"/>
-		<xsd:attribute name="templateLocation" type="uri.Type" use="optional"/>
-	</xsd:attributeGroup>
-	
-	<xsd:group name="responseProcessing.ContentGroup">
-		<xsd:sequence>
-			<xsd:group ref="responseRule.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
-		</xsd:sequence>
-	</xsd:group>
-	"""
-	XMLNAME=(core.IMSQTI_NAMESPACE,'responseProcessing')
-	XMLATTR_template='template'
-	XMLATTR_templateLocation='templateLocation'
-	XMLCONTENT=xmlns.ElementContent
-
-	def __init__(self,parent):
-		core.QTIElement.__init__(self,parent)
-		self.template=None
-		self.templateLocation=None
-		self.ResponseRule=[]
-		
-	def GetChildren(self):
-		return itertools.chain(
-			self.ResponseRule,
-			core.QTIElement.GetChildren(self))
-
-
-class ResponseRule(core.QTIElement):
-	"""Abstract class to represent response rules."""
-	pass
-
-
-class ResponseCondition(ResponseRule):
-	"""Represents responseRule element.
-
-	<xsd:group name="responseCondition.ContentGroup">
-		<xsd:sequence>
-			<xsd:element ref="responseIf" minOccurs="1" maxOccurs="1"/>
-			<xsd:element ref="responseElseIf" minOccurs="0" maxOccurs="unbounded"/>
-			<xsd:element ref="responseElse" minOccurs="0" maxOccurs="1"/>
-		</xsd:sequence>
-	</xsd:group>
-	"""
-	XMLNAME=(core.IMSQTI_NAMESPACE,'responseCondition')
-	XMLCONTENT=xmlns.ElementContent
-
-	def __init__(self,parent):
-		ResponseRule.__init__(self,parent)
-		self.ResponseIf=ResponseIf(self)
-		self.ResponseElseIf=[]
-		self.ResponseElse=None
-	
-	def GetChildren(self):
-		if self.ResponseIf: yield self.ResponseIf
-		for child in self.ResponseElseIf: yield child
-		if self.ResponseElse: yield self.ResponseElse
-	
-
-class ResponseIf(core.QTIElement):
-	"""Represents the responseIf element.
-
-	<xsd:group name="responseIf.ContentGroup">
-		<xsd:sequence>
-			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
-			<xsd:group ref="responseRule.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
-		</xsd:sequence>
-	</xsd:group>
-	"""
-	XMLNAME=(core.IMSQTI_NAMESPACE,'responseIf')
-	XMLCONTENT=xmlns.ElementContent
-	
-	def __init__(self,parent):
-		core.QTIElement.__init__(self,parent)
-		self.Expression=None
-		self.ResponseRule=[]
-	
-	def GetChildren(self):
-		if self.Expression: yield self.Expression
-		for child in self.ResponseRule: yield child
-
-
-class ResponseElse(core.QTIElement):
-	"""Represents the responseElse element.
-
-	<xsd:group name="responseElse.ContentGroup">
-		<xsd:sequence>
-			<xsd:group ref="responseRule.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
-		</xsd:sequence>
-	</xsd:group>
-	"""
-	XMLNAME=(core.IMSQTI_NAMESPACE,'responseElse')
-	XMLCONTENT=xmlns.ElementContent
-	
-	def __init__(self,parent):
-		core.QTIElement.__init__(self,parent)
-		self.ResponseRule=[]
-	
-	def GetChildren(self):
-		return iter(self.ResponseRule)
-
-
-class ResponseElseIf(ResponseIf):
-	"""Represents the responseElseIf element.
-
-	<xsd:group name="responseElseIf.ContentGroup">
-		<xsd:sequence>
-			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
-			<xsd:group ref="responseRule.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
-		</xsd:sequence>
-	</xsd:group>
-	"""
-	XMLNAME=(core.IMSQTI_NAMESPACE,'responseElseIf')
-
-
-
-class QTISetOutcomeValue(ResponseRule):
-	"""Represents the setOutcomeValue element.
-
-	<xsd:attributeGroup name="setOutcomeValue.AttrGroup">
-		<xsd:attribute name="identifier" type="identifier.Type" use="required"/>
-	</xsd:attributeGroup>
-	
-	<xsd:group name="setOutcomeValue.ContentGroup">
-		<xsd:sequence>
-			<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
-		</xsd:sequence>
-	</xsd:group>
-	"""
-	XMLNAME=(core.IMSQTI_NAMESPACE,'setOutcomeValue')
-	XMLATTR_identifier='identifier'
-	XMLCONTENT=xmlns.ElementContent
-
-	def __init__(self,parent):
-		ResponseRule.__init__(self,parent)
-		self.identifier=''
-		self.Expression=None
-	
-	def GetChildren(self):
-		if self.Expression: yield self.Expression
-
 	
 #
-#	RESPONSE PROCESSING
+#	Modal Feedback
 #
 class QTIModalFeedback(QTIFlowContainerMixin,core.QTIElement):
 	"""Represents the modalFeedback element.
@@ -1024,6 +860,9 @@ class QTIDocument(xmlns.XMLNSDocument):
 
 xmlns.MapClassElements(QTIDocument.classMap,globals())
 xmlns.MapClassElements(QTIDocument.classMap,variables)
+xmlns.MapClassElements(QTIDocument.classMap,processing)
+xmlns.MapClassElements(QTIDocument.classMap,tests)
+xmlns.MapClassElements(QTIDocument.classMap,expressions)
 # also add in the profile of HTML but with the namespace rewritten to ours
 for name in QTI_HTMLProfile:
 	eClass=html.XHTMLDocument.classMap.get((html.XHTML_NAMESPACE,name),None)

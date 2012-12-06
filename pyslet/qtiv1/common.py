@@ -1178,7 +1178,7 @@ class SetVar(core.QTIElement):
 		outcome=v2Item.declarations.get(identifier,None)
 		if outcome is None:
 			raise QTIUnimplementedError("Auto-declared outcomes")
-		setValue=parent.ChildElement(qtiv2.QTISetOutcomeValue)
+		setValue=parent.ChildElement(qtiv2.processing.SetOutcomeValue)
 		setValue.identifier=identifier
 		if outcome.cardinality!=qtiv2.variables.Cardinality.single:
 			raise QTIUnimplementedError("setvar for '%s' with cardinality %s"%(identifier,
@@ -1232,7 +1232,7 @@ class DisplayFeedback(core.QTIElement):
 			d.cardinality=qtiv2.variables.Cardinality.multiple
 			d.identifier='FEEDBACK'
 			v2Item.RegisterDeclaration(d)
-		setValue=parent.ChildElement(qtiv2.QTISetOutcomeValue)
+		setValue=parent.ChildElement(qtiv2.processing.SetOutcomeValue)
 		setValue.identifier='FEEDBACK'
 		multiple=setValue.ChildElement(qtiv2.expressions.Multiple)
 		variable=multiple.ChildElement(qtiv2.expressions.Variable)

@@ -22,7 +22,7 @@ class QTIError(Exception):
 	"""Abstract class used for all QTI v2 exceptions."""
 	pass
 
-class QTIDeclarationError(QTIError):
+class DeclarationError(QTIError):
 	"""Error raised when a variable declaration is invalid."""
 	pass
 
@@ -30,6 +30,10 @@ class ProcessingError(QTIError):
 	"""Error raised when an invalid processing element is encountered."""
 	pass
 
+class SelectionError(QTIError):
+	"""Error raised when there is a problem with creating test forms."""
+	pass
+	
 class QTIValidityError(QTIError): pass
 
 
@@ -289,6 +293,26 @@ class QTIElement(xmlns.XMLNSElement):
 		for child in self.GetChildren():
 			if hasattr(child,'AddToCPResource'):
 				child.AddToCPResource(cp,resource,beenThere)
+
+
+class DeclarationContainer:
+	"""An abstract mix-in class used to manage a dictionary of variable
+	declarations."""
+
+	def __init__(self):
+		self.declarations={}		#: a dictionary of outcome variable declarations
+
+	def RegisterDeclaration(self,declaration):
+		if declaration.identifier in self.declarations:
+			raise core.DeclarationError
+		else:
+			self.declarations[declaration.identifier]=declaration
+	
+	def IsDeclared(self,identifier):
+		return identifier in self.declarations
+	
+	def GetDeclaration(self,identifier):
+		return self.declarations.get(identifier,None)
 
 
 def GetTemplateRef(value):

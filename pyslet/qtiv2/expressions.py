@@ -149,7 +149,7 @@ class Default(Expression):
 	def Evaluate(self,state):
 		try:
 			d=state.GetDeclaration(self.identifier)
-			return d.GetDefaultValue()
+			return state[self.identifier+".DEFAULT"]
 		except KeyError:
 			raise core.ProcessingError("%s has not been declared"%self.identifier)
 
@@ -174,7 +174,7 @@ class Correct(Expression):
 		try:
 			d=state.GetDeclaration(self.identifier)
 			if isinstance(d,variables.ResponseDeclaration):
-				return d.GetCorrectValue()
+				return state[self.identifier+".CORRECT"]
 			elif state.IsResponse(self.identifier):
 				raise core.ProcessingError("Can't get the correct value of a built-in response %s"%self.identifier)
 			else:

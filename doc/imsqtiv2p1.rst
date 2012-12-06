@@ -10,7 +10,9 @@ This module implements version 2.1 of the specification in anticipation of the f
 .. toctree::
 	:maxdepth: 2
 
+	qtiv2/tests
 	qtiv2/variables
+	qtiv2/processing
 	qtiv2/expressions
 	qtiv2/core
   

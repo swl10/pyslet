@@ -52,7 +52,7 @@ class CommonCartridge:
 			if len(r.File)>=1:
 				laoDescriptor=r.File[0]
 				fPath=laoDescriptor.PackagePath(self.cp)
-				head,tail=os.path.split(fPath)
+				head,tail=fPath.split()
 				if not head:
 					# The LAO must be in a directory, not at the top-level of the CP
 					head=None

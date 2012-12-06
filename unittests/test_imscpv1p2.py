@@ -1,8 +1,6 @@
 #! /usr/bin/env python
 
 import unittest
-from tempfile import mkdtemp
-import os, os.path, shutil
 from StringIO import StringIO
 from codecs import encode
 
@@ -17,7 +15,9 @@ def suite():
 		unittest.makeSuite(ContentPackageTests,'test'),
 		))
 
-TEST_DATA_DIR=os.path.join(os.path.split(os.path.abspath(__file__))[0],'data_imscpv1p2')
+from pyslet.vfs import OSFilePath as FilePath
+
+TEST_DATA_DIR=FilePath(FilePath(__file__).abspath().split()[0],'data_imscpv1p2')
 
 from pyslet.imscpv1p2 import *
 
@@ -193,50 +193,50 @@ class CPResourceTests(unittest.TestCase):
 
 class ContentPackageTests(unittest.TestCase):
 	def setUp(self):
-		self.cwd=os.getcwd()
+		self.cwd=FilePath.getcwd()
 		self.dList=[]
-		self.d=mkdtemp('.d','pyslet-test_imscpv1p2-')
-		os.chdir(self.d)
-		os.mkdir('package')
-		os.mkdir('mpackage')
-		mpath=os.path.join('mpackage','imsmanifest.xml')
-		f=open(mpath,'wb')
+		self.d=FilePath.mkdtemp('.d','pyslet-test_imscpv1p2-')
+		self.d.chdir()
+		FilePath('package').mkdir()
+		FilePath('mpackage').mkdir()
+		mpath=FilePath('mpackage','imsmanifest.xml')
+		f=mpath.open('wb')
 		f.write(EXAMPLE_2)
 		f.close()
 		self.dList.append(self.d)
 		
 	def tearDown(self):
-		os.chdir(self.cwd)
+		self.cwd.chdir()
 		for d in self.dList:
-			shutil.rmtree(d,True)
+			d.rmtree(True)
 
 	def testCaseConstructor(self):
 		cp=ContentPackage()
-		self.failUnless(os.path.isdir(cp.dPath),"Default constructor must create a temp directory")
+		self.failUnless(cp.dPath.isdir(),"Default constructor must create a temp directory")
 		self.failUnless(cp.GetPackageName()=='imscp',"Default package name is not empty string")
 		# Ensure the temporary directory is cleaned up
 		self.dList.append(cp.dPath)
 		url=uri.URIFactory.URI(cp.manifest.GetBase())
 		self.failUnless(isinstance(cp.manifest,xmlns.XMLNSDocument) and isinstance(cp.manifest.root,Manifest),"Constructor must create manifest")
-		self.failUnless(os.path.split(url.GetPathname())[1]=='imsmanifest.xml',"Manifest file name")
+		self.failUnless(url.GetVirtualFilePath().split()[1]=='imsmanifest.xml',"Manifest file name")
 		self.failUnless(isinstance(cp.manifest.root,Manifest),"Constructor must create manifest element")
 		id=cp.manifest.root.id
 		self.failUnless(cp.manifest.GetElementByID(id) is cp.manifest.root,"Manifest identifief not declared")
-		self.failUnless(os.path.isfile(url.GetPathname()),"Constructor must create manifest file")
+		self.failUnless(url.GetVirtualFilePath().isfile(),"Constructor must create manifest file")
 		cp=ContentPackage('newpackage')
-		self.failUnless(os.path.isdir(cp.dPath) and os.path.abspath('newpackage')==cp.dPath,"Constructor creates specified directory")
+		self.failUnless(cp.dPath.isdir() and FilePath('newpackage').abspath()==cp.dPath,"Constructor creates specified directory")
 		self.failUnless(cp.GetPackageName()=='newpackage',"Package name not taken from directory")
 		cp=ContentPackage('package')
-		self.failUnless(os.path.abspath('package')==cp.dPath,"Constructor with existing directory, no manifest")
+		self.failUnless(FilePath('package').abspath()==cp.dPath,"Constructor with existing directory, no manifest")
 		cp=ContentPackage('mpackage')
 		self.failUnless(cp.manifest.root.id=="MANIFEST-QTI-1","Constructor with existing directory and manifest")
 		self.failUnless(cp.GetPackageName()=='mpackage',"Package name wrongly affected by manifest")
-		cp=ContentPackage(os.path.join('mpackage','imsmanifest.xml'))
-		self.failUnless(os.path.isdir(cp.dPath) and os.path.abspath('mpackage')==cp.dPath,"Constructor identifies pkg dir from manifest file")
+		cp=ContentPackage(FilePath('mpackage','imsmanifest.xml'))
+		self.failUnless(cp.dPath.isdir() and FilePath('mpackage').abspath()==cp.dPath,"Constructor identifies pkg dir from manifest file")
 		self.failUnless(cp.manifest.root.id=="MANIFEST-QTI-1","Constructor from manifest file")
 	
 	def testCaseUnicode(self):
-		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_1'))
+		cp=ContentPackage(TEST_DATA_DIR.join('package_1'))
 		resources=cp.manifest.root.Resources
 		r=resources.Resource[0]
 		self.failUnless(len(r.File)==1)
@@ -246,12 +246,12 @@ class ContentPackageTests(unittest.TestCase):
 		doc.Read()
 		self.failUnless(doc.root.xmlname=='tag' and
 			doc.root.GetValue()==u"Unicode Test: \u82f1\u56fd")
-		cp2=ContentPackage(os.path.join(TEST_DATA_DIR,encode(u'\u82f1\u56fd','utf-8')))
+		cp2=ContentPackage(TEST_DATA_DIR.join(encode(u'\u82f1\u56fd','utf-8')))
 		self.failUnless(cp2.GetPackageName()==u'\u82f1\u56fd',"Unicode package name test")
 
 	def testCaseZipRead(self):
-		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_1.zip'))
-		self.failUnless(os.path.isdir(cp.dPath),"Zip constructor must create a temp directory")
+		cp=ContentPackage(TEST_DATA_DIR.join('package_1.zip'))
+		self.failUnless(cp.dPath.isdir(),"Zip constructor must create a temp directory")
 		# Ensure the temporary directory is cleaned up
 		self.dList.append(cp.dPath)
 		self.failUnless(cp.GetPackageName()=='package_1',"Zip extension not removed for name")
@@ -263,7 +263,7 @@ class ContentPackageTests(unittest.TestCase):
 			doc.root.GetValue()==u"Unicode Test: \u82f1\u56fd")
 	
 	def testCaseZipWrite(self):
-		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_1.zip'))
+		cp=ContentPackage(TEST_DATA_DIR.join('package_1.zip'))
 		self.dList.append(cp.dPath)
 		cp.ExportToPIF('Package2.zip')
 		cp2=ContentPackage('Package2.zip')
@@ -276,27 +276,27 @@ class ContentPackageTests(unittest.TestCase):
 			doc.root.GetValue()==u"Unicode Test: \u82f1\u56fd")
 	
 	def testCaseFileTable(self):
-		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_3'))
+		cp=ContentPackage(TEST_DATA_DIR.join('package_3'))
 		ft=cp.fileTable
 		self.failUnless(len(ft.keys())==6)
-		self.failUnless(len(ft['file_1.xml'])==2 and isinstance(ft['file_1.xml'][0],File))
-		self.failUnless(len(ft['file_4.xml'])==0,File)
-		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_3'))
+		self.failUnless(len(ft[cp.FilePath('file_1.xml')])==2 and isinstance(ft[cp.FilePath('file_1.xml')][0],File))
+		self.failUnless(len(ft[cp.FilePath('file_4.xml')])==0,File)
+		cp=ContentPackage(TEST_DATA_DIR.join('package_3'))
 		cp.SetIgnoreFiles("\\..*|.*4.*")
 		cp.RebuildFileTable()
 		ft=cp.fileTable
 		self.failUnless(len(ft.keys())==5)
 
 	def testCaseUniqueFile(self):
-		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_3'))
+		cp=ContentPackage(TEST_DATA_DIR.join('package_3'))
 		ft=cp.fileTable
 		fPath=cp.GetUniqueFile('file_1.xml')
 		self.failIf(fPath=='file_1.xml',"file path must be unique")
-		self.failUnless(fPath[-4:]=='.xml',"Must preserve extension")
+		self.failUnless(str(fPath)[-4:]=='.xml',"Must preserve extension")
 		self.failIf(fPath in ft, "file path must not be in use")
 
 	def testCaseDeleteFile(self):
-		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_3'))
+		cp=ContentPackage(TEST_DATA_DIR.join('package_3'))
 		cp.ExportToPIF('package_3.zip')
 		cp2=ContentPackage('package_3.zip')
 		self.dList.append(cp2.dPath)
@@ -309,21 +309,21 @@ class ContentPackageTests(unittest.TestCase):
 		self.failUnless(len(r2.File)==r2Len-1)
 		
 	def testCasePathInPath(self):
-		goodPath=os.path.join(TEST_DATA_DIR,'hello','world')
-		self.failUnless(PathInPath(goodPath,TEST_DATA_DIR)==os.path.join('hello','world'))
-		self.failUnless(PathInPath(goodPath,os.path.join(TEST_DATA_DIR,'hello'))=='world')
-		badPath=os.path.join(TEST_DATA_DIR,'hello','worlds','bad')
+		goodPath=TEST_DATA_DIR.join('hello','world')
+		self.failUnless(PathInPath(goodPath,TEST_DATA_DIR)==FilePath('hello','world'))
+		self.failUnless(PathInPath(goodPath,TEST_DATA_DIR.join('hello'))=='world')
+		badPath=TEST_DATA_DIR.join('hello','worlds','bad')
 		self.failUnless(PathInPath(badPath,goodPath) is None,badPath)
 		self.failUnless(PathInPath(goodPath,goodPath)=='',"Match")
 		self.failUnless(PathInPath(TEST_DATA_DIR,goodPath) is None,"Path contains Path")
 
 	def testCasePackagePaths(self):
-		cp=ContentPackage(os.path.join(TEST_DATA_DIR,'package_3'))
-		goodPath=os.path.join(cp.dPath,'hello','world')
-		self.failUnless(cp.PackagePath(goodPath)==os.path.join('hello','world'))
-		badPath=os.path.join(TEST_DATA_DIR,'package_3x','hello','world')
+		cp=ContentPackage(TEST_DATA_DIR.join('package_3'))
+		goodPath=FilePath(cp.dPath,'hello','world')
+		self.failUnless(cp.PackagePath(goodPath)==FilePath('hello','world'))
+		badPath=TEST_DATA_DIR.join('package_3x','hello','world')
 		self.failUnless(cp.PackagePath(badPath) is None,badPath)
-		badPath=os.path.join(TEST_DATA_DIR,'package_x')
+		badPath=TEST_DATA_DIR.join('package_x')
 		self.failUnless(cp.PackagePath(badPath) is None,badPath)
 		badPath=TEST_DATA_DIR
 		self.failUnless(cp.PackagePath(badPath) is None,badPath)
@@ -331,16 +331,16 @@ class ContentPackageTests(unittest.TestCase):
 	def testCaseCleanUp(self):
 		cp=ContentPackage()
 		dPath=cp.dPath
-		self.failUnless(os.path.isdir(dPath))
+		self.failUnless(dPath.isdir())
 		cp.Close()
 		self.failUnless(cp.manifest is None,"Manifest not removed on close")
-		self.failIf(os.path.isdir(dPath),"Temp directory not deleted on close")
+		self.failIf(dPath.isdir(),"Temp directory not deleted on close")
 		cp=ContentPackage('package')
 		dPath=cp.dPath
-		self.failUnless(os.path.isdir(dPath))
+		self.failUnless(dPath.isdir())
 		cp.Close()
 		self.failUnless(cp.manifest is None,"Manifest not removed on close")
-		self.failUnless(os.path.isdir(dPath),"Non-temp directory removed on close")
+		self.failUnless(dPath.isdir(),"Non-temp directory removed on close")
 		
 		
 if __name__ == "__main__":

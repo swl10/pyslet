@@ -8,6 +8,12 @@ def suite():
 		unittest.makeSuite(ValueTests,'test'),
 		unittest.makeSuite(QTIElementTests,'test'),
 		unittest.makeSuite(VariableTests,'test'),
+		unittest.makeSuite(ResponseProcessingTests,'test'),
+		unittest.makeSuite(TemplateProcessingTests,'test'),
+		unittest.makeSuite(ExpressionTests,'test'),
+		unittest.makeSuite(BasicAssessmentTests,'test'),
+		unittest.makeSuite(MultiPartAssessmentTests,'test'),
+		unittest.makeSuite(ErrorAssessmentTests,'test'),
 		unittest.makeSuite(QTIDocumentTests,'test')
 		))
 
@@ -15,7 +21,7 @@ from pyslet.imsqtiv2p1 import *
 import pyslet.html40_19991224 as html
 
 from StringIO import StringIO
-import types
+import os, types
 
 class QTITests(unittest.TestCase):
 	def testCaseConstants(self):
@@ -549,23 +555,27 @@ class VariableTests(unittest.TestCase):
 		self.failUnless(sessionState.item==doc.root,"Session State item pointer")
 		value=sessionState['numAttempts']
 		self.failUnless(isinstance(value,variables.IntegerValue),"numAttempts must be of IntegerValue type")
-		self.failUnless(value.value==0,"numAttempts must initially be 0")
+		self.failUnless(value.value is None,"numAttempts non NULL")
 		self.failUnless(sessionState.IsResponse('numAttempts'),"numAttempts is a response variable")
 		self.failUnless(not sessionState.IsOutcome('numAttempts'),"numAttempts is not an outcome variable")
 		self.failUnless(not sessionState.IsTemplate('numAttempts'),"numAttempts is not a template variable")
 		value=sessionState['duration']
 		self.failUnless(isinstance(value,variables.DurationValue),"duration must be of DurationValue type")
-		self.failUnless(value.value==0.0,"duration must initially be 0")				
+		self.failUnless(value.value is None,"duration non NULL")				
 		self.failUnless(sessionState.IsResponse('duration'),"duration is a response variable")
 		self.failUnless(not sessionState.IsOutcome('duration'),"duration is not an outcome variable")
 		self.failUnless(not sessionState.IsTemplate('duration'),"duration is not a template variable")
 		value=sessionState['completionStatus']
 		self.failUnless(isinstance(value,variables.IdentifierValue),"completionStatus must be of IdentifierValue type")
-		self.failUnless(value.value=="not_attempted","completionStatus must initially be not_attempted")				
+		self.failUnless(value.value is None,"completionStatus non NULL")				
 		self.failUnless(not sessionState.IsResponse('completionStatus'),"completionStatus is not a response variable")
 		self.failUnless(sessionState.IsOutcome('completionStatus'),"completionStatus is an outcome variable")
 		self.failUnless(not sessionState.IsTemplate('completionStatus'),"completionStatus is not a template variable")
 		self.failUnless(len(sessionState)==3,"3 default variables")
+		sessionState.BeginSession()
+		self.failUnless(sessionState['numAttempts'].value==0,"numAttempts must initially be 0")
+		self.failUnless(sessionState['duration'].value==0.0,"duration must initially be 0")				
+		self.failUnless(sessionState['completionStatus'].value=="not_attempted","completionStatus must initially be not_attempted")						
 		SAMPLE="""<?xml version="1.0" encoding="UTF-8"?>
 <assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -593,34 +603,41 @@ class VariableTests(unittest.TestCase):
 		doc=QTIDocument()
 		doc.Read(src=StringIO(SAMPLE))
 		sessionState=variables.ItemSessionState(doc.root)
-		self.failUnless(len(sessionState)==9,"6 defined + 3 default variables")
+		self.failUnless(len(sessionState)==15,"6 defined + 3 built-in variables + 1 correct + 5 defaults")
 		value=sessionState['RESPONSE']
 		self.failUnless(isinstance(value,variables.IdentifierValue),"RESPONSE type")
-		self.failIf(value,"RESPONSE initial value must be NULL")
+		self.failIf(value,"RESPONSE non NULL")
 		self.failUnless(sessionState.IsResponse('RESPONSE'),"RESPONSE is a response variable")
 		self.failUnless(not sessionState.IsOutcome('RESPONSE'),"RESPONSE is not an outcome variable")
 		self.failUnless(not sessionState.IsTemplate('RESPONSE'),"RESPONSE is not a template variable")
 		value=sessionState['SCORE']
 		self.failUnless(isinstance(value,variables.IntegerValue),"SCORE type")
-		self.failUnless(value.value==-1,"SCORE initial value")				
+		self.failIf(value,"SCORE non NULL")
 		self.failUnless(not sessionState.IsResponse('SCORE'),"SCORE is not a response variable")
 		self.failUnless(sessionState.IsOutcome('SCORE'),"SCORE is an outcome variable")
 		self.failUnless(not sessionState.IsTemplate('SCORE'),"SCORE is not a template variable")
 		value=sessionState['SCORE1']
 		self.failUnless(isinstance(value,variables.IntegerValue),"SCORE1 type")
-		self.failUnless(value.value==0,"SCORE1 initial value")				
+		self.failIf(value,"SCORE1 non NULL")
 		value=sessionState['SCORE2']
 		self.failUnless(isinstance(value,variables.FloatValue),"SCORE2 type")
-		self.failUnless(value.value==0.0,"SCORE2 initial value")				
+		self.failIf(value,"SCORE2 non NULL")
 		value=sessionState['SCORE3']
 		self.failUnless(isinstance(value,variables.StringValue),"SCORE3 type")
-		self.failIf(value,"SCORE3 initial value must be NULL")
+		self.failIf(value,"SCORE3 non NULL")
 		value=sessionState['VARIABLE']
 		self.failUnless(isinstance(value,variables.FloatValue),"VARIABLE type")
-		self.failUnless(value.value==3.14159,"VARIABLE initial value")				
+		self.failUnless(value.value==3.14159,"VARIABLE initial value")
 		self.failUnless(not sessionState.IsResponse('VARIABLE'),"VARIABLE is not a response variable")
 		self.failUnless(not sessionState.IsOutcome('VARIABLE'),"VARIABLE is not an outcome variable")
 		self.failUnless(sessionState.IsTemplate('VARIABLE'),"VARIABLE is a template variable")
+		sessionState.BeginSession()
+		self.failIf(sessionState['RESPONSE'],"RESPONSE initial value must be NULL")
+		self.failUnless(sessionState['SCORE'].value==-1,"SCORE initial value")				
+		self.failUnless(sessionState['SCORE1'].value==0,"SCORE1 initial value")				
+		self.failUnless(sessionState['SCORE2'].value==0.0,"SCORE2 initial value")				
+		self.failIf(sessionState['SCORE3'],"SCORE3 initial value must be NULL")
+		self.failUnless(sessionState['VARIABLE'].value==3.14159,"VARIABLE initial value")
 		sessionState.BeginAttempt()
 		value=sessionState['numAttempts']
 		self.failUnless(value.value==1,"numAttempts set to 1 at start of attempt")
@@ -639,7 +656,357 @@ class VariableTests(unittest.TestCase):
 		value=sessionState['RESPONSE']
 		self.failUnless(value.value==u"B","RESPONSE keeps its value")
 				
+	def testCaseTestSession(self):
+		SAMPLE="""<?xml version="1.0" encoding="UTF-8"?>
+<assessmentTest xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+	identifier="http://www.example.com/assessmentTest" title="Assessment Test Case"
+	toolName="Pyslet" toolVersion="0.3">
+	<testPart identifier="PartI" navigationMode="nonlinear" submissionMode="individual">
+		<assessmentSection identifier="SectionA" title="Section A" visible="true"/>
+	</testPart>
+</assessmentTest>"""
+		doc=QTIDocument()
+		doc.Read(src=StringIO(SAMPLE))
+		form=tests.TestForm(doc.root)
+		sessionState=variables.TestSessionState(form)
+		self.failUnless(sessionState.test==doc.root,"Session State test pointer")
+		self.failUnless(sessionState.form==form,"Session State form pointer")
+		value=sessionState['duration']
+		self.failUnless(isinstance(value,variables.DurationValue),"duration must be of DurationValue type")
+		self.failUnless(value.value is None,"duration non NULL")				
+		self.failUnless(sessionState.IsResponse('duration'),"duration is a response variable")
+		self.failUnless(not sessionState.IsOutcome('duration'),"duration is not an outcome variable")
+		self.failUnless(not sessionState.IsTemplate('duration'),"duration is not a template variable")
+		value=sessionState['PartI.duration']
+		self.failUnless(isinstance(value,variables.DurationValue),"duration must be of DurationValue type")
+		self.failUnless(value.value is None,"duration non NULL")			
+		value=sessionState['SectionA.duration']
+		self.failUnless(isinstance(value,variables.DurationValue),"duration must be of DurationValue type")
+		self.failUnless(value.value is None,"duration non NULL")			
+		self.failUnless(len(sessionState)==3,"3 default variables")
+		sessionState.BeginSession()
+		self.failUnless(sessionState['duration'].value==0.0,"duration must initially be 0")						
+
+
+class ResponseProcessingTests(unittest.TestCase):
+
+	def setUp(self):
+		SAMPLE="""<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="TestCase" title="Test Case" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="TESTCASE" cardinality="single" baseType="identifier"/>
+    <responseDeclaration identifier="RESPONSE" cardinality="single" baseType="identifier">
+        <defaultValue>
+            <value>A</value>
+        </defaultValue>
+        <correctResponse>
+            <value>B</value>
+        </correctResponse>
+        <mapping defaultValue="-1.0">
+            <mapEntry mapKey="A" mappedValue="3.14"/>
+            <mapEntry mapKey="B" mappedValue="5"/>
+        </mapping>
+    </responseDeclaration>
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="float">
+        <defaultValue>
+            <value>0.5</value>
+        </defaultValue>
+    </outcomeDeclaration>
+    <outcomeDeclaration identifier="N" cardinality="single" baseType="integer">
+        <defaultValue>
+            <value>0</value>
+        </defaultValue>
+    </outcomeDeclaration>
+    <templateDeclaration identifier="T" cardinality="single" baseType="identifier"/>
+    <responseProcessing>
+        <responseCondition>
+            <responseIf>
+                <match>
+                    <variable identifier="TESTCASE"/>
+                    <baseValue baseType="identifier">CASE_1</baseValue>
+                </match>
+                <exitResponse/>
+            </responseIf>
+            <responseElseIf>
+                <match>
+                    <variable identifier="TESTCASE"/>
+                    <baseValue baseType="identifier">CASE_2</baseValue>
+                </match>
+                <setOutcomeValue identifier="SCORE">
+                    <mapResponse identifier="RESPONSE"/>
+                </setOutcomeValue>
+            </responseElseIf>
+            <responseElse>
+                <setOutcomeValue identifier="SCORE">
+                    <baseValue baseType="float">3</baseValue>
+                </setOutcomeValue>
+            </responseElse>
+        </responseCondition>
+        <setOutcomeValue identifier="N">
+            <sum>
+                <variable identifier="N"/>
+                <baseValue baseType="integer">1</baseValue>
+            </sum>
+        </setOutcomeValue>
+    </responseProcessing>
+</assessmentItem>"""
+		self.doc=QTIDocument()
+		self.doc.Read(src=StringIO(SAMPLE))
+		self.sessionState=variables.ItemSessionState(self.doc.root)
+		self.sessionState.BeginSession()		
+			
+	def tearDown(self):
+		pass
+
+	def testCaseNonAdaptive(self):
+		self.sessionState.BeginAttempt()
+		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_1")
+		self.failUnless(self.sessionState["SCORE"].value==0.5,"Initial score value")
+		self.failUnless(self.sessionState["N"].value==0,"Initial N value")
+		self.failUnless(self.sessionState["numAttempts"].value==1,"Initial numAttempts")
+		self.sessionState.EndAttempt()
+		self.failUnless(self.sessionState["SCORE"].value==0.5,"Initial score value")
+		self.failUnless(self.sessionState["N"].value==0,"CASE_1 N value: %s"%repr(self.sessionState["N"].value))
+		self.sessionState.BeginAttempt()
+		self.failUnless(self.sessionState["numAttempts"].value==2,"numAttempts=2")
+		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_2")
+		self.sessionState.EndAttempt()
+		self.failUnless(self.sessionState["SCORE"].value==3.14,"CASE_2 score")
+		self.failUnless(self.sessionState["N"].value==1,"CASE_2 N value")
+		self.sessionState.BeginAttempt()
+		self.failUnless(self.sessionState["numAttempts"].value==3,"numAttempts=3")
+		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_3")
+		self.sessionState.EndAttempt()
+		self.failUnless(self.sessionState["SCORE"].value==3.0,"CASE_3 score")
+		self.failUnless(self.sessionState["N"].value==1,"CASE_3 N value: %s"%repr(self.sessionState["N"].value))
+				
+	def testCaseAdaptive(self):
+		self.sessionState.BeginAttempt()
+		self.sessionState.item.adaptive=True
+		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_1")
+		self.failUnless(self.sessionState["N"].value==0,"Initial N value")
+		self.failUnless(self.sessionState["numAttempts"].value==1,"Initial numAttempts")
+		self.sessionState.EndAttempt()
+		self.failUnless(self.sessionState["N"].value==0,"CASE_1 N value: %s"%repr(self.sessionState["N"].value))
+		self.sessionState.BeginAttempt()
+		self.failUnless(self.sessionState["numAttempts"].value==2,"numAttempts=2")
+		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_2")
+		self.sessionState.EndAttempt()
+		self.failUnless(self.sessionState["N"].value==1,"CASE_2 N value")
+		self.sessionState.BeginAttempt()
+		self.failUnless(self.sessionState["numAttempts"].value==3,"numAttempts=3")
+		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_3")
+		self.sessionState.EndAttempt()
+		self.failUnless(self.sessionState["N"].value==2,"CASE_3 N value: %s"%repr(self.sessionState["N"].value))
+	
+	def testCaseError(self):
+		rule=processing.SetOutcomeValue(None)
+		rule.identifier="RESPONSE"
+		v=rule.ChildElement(expressions.BaseValue)
+		v.baseType=variables.BaseType.identifier
+		v.AddData("A")
+		try:
+			rule.Run(self.sessionState)
+			self.fail("<setOutcomeValue> sets RESPONSE")
+		except core.ProcessingError:
+			pass
+		rule.identifier="T"
+		try:
+			rule.Run(self.sessionState)
+			self.fail("<setOutcomeValue> sets T")
+		except core.ProcessingError:
+			pass
 		
+		
+class TemplateProcessingTests(unittest.TestCase):
+
+	def setUp(self):
+		SAMPLE="""<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="TestCase" title="Test Case" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="RESPONSE" cardinality="single" baseType="identifier">
+        <defaultValue>
+            <value>A</value>
+        </defaultValue>
+        <correctResponse>
+            <value>B</value>
+        </correctResponse>
+    </responseDeclaration>
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="float">
+        <defaultValue>
+            <value>0.5</value>
+        </defaultValue>
+    </outcomeDeclaration>
+    <outcomeDeclaration identifier="GRADE" cardinality="single" baseType="identifier"/>
+    <templateDeclaration identifier="TESTCASE" cardinality="single" baseType="identifier"/>
+    <templateDeclaration identifier="T" cardinality="single" baseType="boolean"/>
+    <templateProcessing>
+        <templateCondition>
+            <templateIf>
+                <match>
+                    <variable identifier="TESTCASE"/>
+                    <baseValue baseType="identifier">CASE_1</baseValue>
+                </match>
+                <exitTemplate/>
+            </templateIf>
+            <templateElseIf>
+                <match>
+                    <variable identifier="TESTCASE"/>
+                    <baseValue baseType="identifier">CASE_2</baseValue>
+                </match>
+                <setCorrectResponse identifier="RESPONSE">
+                    <baseValue baseType="identifier">A</baseValue>
+                </setCorrectResponse>
+            </templateElseIf>
+            <templateElseIf>
+                <match>
+                    <variable identifier="TESTCASE"/>
+                    <baseValue baseType="identifier">CASE_3</baseValue>
+                </match>
+                <setDefaultValue identifier="RESPONSE">
+                    <baseValue baseType="identifier">B</baseValue>
+                </setDefaultValue>
+            </templateElseIf>
+            <templateElse>
+                <setDefaultValue identifier="SCORE">
+                    <baseValue baseType="float">0.0</baseValue>
+                </setDefaultValue>
+            </templateElse>
+        </templateCondition>
+        <setTemplateValue identifier="T">
+            <match>
+                <correct identifier="RESPONSE"/>
+                <default identifier="RESPONSE"/>
+            </match>
+        </setTemplateValue>
+    </templateProcessing>
+</assessmentItem>"""
+		self.doc=QTIDocument()
+		self.doc.Read(src=StringIO(SAMPLE))
+		self.sessionState=variables.ItemSessionState(self.doc.root)
+			
+	def tearDown(self):
+		pass
+
+	def testCase1(self):
+		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_1")
+		self.sessionState.SelectClone()
+		v=self.sessionState['T']
+		self.failIf(v,"CASE_1 result: %s"%repr(v.value))
+		self.sessionState.BeginSession()
+		# outcomes have their defaults
+		v=self.sessionState['SCORE']
+		self.failUnless(v.value==0.5,"CASE_1 default SCORE: %s"%repr(v.value))
+		self.sessionState.BeginAttempt()
+		# responses have their defaults
+		v=self.sessionState['RESPONSE']
+		self.failUnless(v.value==u"A","CASE_1 default RESPONSE: %s"%repr(v.value))
+		
+	def testCase2(self):
+		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_2")
+		self.sessionState.SelectClone()
+		v=self.sessionState['T']
+		self.failUnless(v.value is True,"CASE_2 result: %s"%repr(v.value))
+		self.sessionState.BeginSession()
+		# outcomes have their defaults
+		v=self.sessionState['SCORE']
+		self.failUnless(v.value==0.5,"CASE_2 default SCORE: %s"%repr(v.value))
+		self.sessionState.BeginAttempt()
+		# responses have their defaults
+		v=self.sessionState['RESPONSE']
+		self.failUnless(v.value==u"A","CASE_2 default RESPONSE: %s"%repr(v.value))
+		
+	def testCase3(self):
+		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_3")
+		self.sessionState.SelectClone()
+		v=self.sessionState['T']
+		self.failUnless(v.value is True,"CASE_3 result: %s"%repr(v.value))
+		self.sessionState.BeginSession()
+		# outcomes have their defaults
+		v=self.sessionState['SCORE']
+		self.failUnless(v.value==0.5,"CASE_3 default SCORE: %s"%repr(v.value))
+		self.sessionState.BeginAttempt()
+		# responses have their defaults
+		v=self.sessionState['RESPONSE']
+		self.failUnless(v.value==u"B","CASE_3 default RESPONSE: %s"%repr(v.value))
+
+	def testCase4(self):
+		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_4")
+		self.sessionState.SelectClone()
+		v=self.sessionState['T']
+		self.failUnless(v.value is False,"CASE_4 result: %s"%repr(v.value))
+		self.sessionState.BeginSession()
+		# outcomes have their defaults
+		v=self.sessionState['SCORE']
+		self.failUnless(v.value==0.0,"CASE_4 default SCORE: %s"%repr(v.value))
+		self.sessionState.BeginAttempt()
+		# responses have their defaults
+		v=self.sessionState['RESPONSE']
+		self.failUnless(v.value==u"A","CASE_4 default RESPONSE: %s"%repr(v.value))
+		
+	def testCaseSetTemplateValue(self):
+		rule=processing.SetTemplateValue(None)
+		rule.identifier="RESPONSE"
+		v=rule.ChildElement(expressions.BaseValue)
+		v.baseType=variables.BaseType.identifier
+		v.AddData("A")
+		try:
+			rule.Run(self.sessionState)
+			self.fail("<setTemplateValue> sets RESPONSE")
+		except core.ProcessingError:
+			pass
+		rule.identifier="GRADE"
+		try:
+			rule.Run(self.sessionState)
+			self.fail("<setTemplateValue> sets SCORE")
+		except core.ProcessingError:
+			pass
+		rule.identifier="TESTCASE"
+		rule.Run(self.sessionState)
+		
+	def testCaseSetCorrectResponse(self):
+		rule=processing.SetCorrectResponse(None)
+		rule.identifier="GRADE"
+		v=rule.ChildElement(expressions.BaseValue)
+		v.baseType=variables.BaseType.identifier
+		v.AddData("A")
+		try:
+			rule.Run(self.sessionState)
+			self.fail("<setCorrectResponse> sets GRADE")
+		except core.ProcessingError:
+			pass
+		rule.identifier="TESTCASE"
+		try:
+			rule.Run(self.sessionState)
+			self.fail("<setCorrectResponse> sets TESTCASE")
+		except core.ProcessingError:
+			pass
+		rule.identifier="RESPONSE"
+		rule.Run(self.sessionState)
+		
+	def testCaseSetDefaultValue(self):
+		rule=processing.SetDefaultValue(None)
+		rule.identifier="TESTCASE"
+		v=rule.ChildElement(expressions.BaseValue)
+		v.baseType=variables.BaseType.identifier
+		v.AddData("A")
+		try:
+			rule.Run(self.sessionState)
+			self.fail("<setDefaultValue> sets TESTCASE")
+		except core.ProcessingError:
+			pass
+		rule.identifier="RESPONSE"
+		rule.Run(self.sessionState)
+		rule.identifier="GRADE"
+		rule.Run(self.sessionState)
+		
+
 class ExpressionTests(unittest.TestCase):
 
 	def setUp(self):
@@ -698,6 +1065,7 @@ class ExpressionTests(unittest.TestCase):
 		self.doc=QTIDocument()
 		self.doc.Read(src=StringIO(SAMPLE))
 		self.sessionState=variables.ItemSessionState(self.doc.root)
+		self.sessionState.BeginSession()		
 		self.sessionState.BeginAttempt()
 			
 	def tearDown(self):
@@ -2585,6 +2953,156 @@ EXAMPLE_2="""<?xml version="1.0" encoding="UTF-8"?>
 </assessmentItem>
 """
 
+class BasicAssessmentTests(unittest.TestCase):
+	def setUp(self):
+		self.cwd=os.getcwd()
+		self.dataPath=os.path.join(os.path.split(__file__)[0],'data_imsqtiv2p1')
+		os.chdir(self.dataPath)
+		self.doc=QTIDocument(baseURI="basic/assessment.xml")
+		self.doc.Read()
+		
+	def tearDown(self):
+		os.chdir(self.cwd)
+
+	def testCaseAssessmentTest(self):
+		self.failUnless(isinstance(self.doc.root,tests.AssessmentTest),"AssessmentTest")	
+		f=tests.TestForm(self.doc.root)
+		self.failUnless(f.test is self.doc.root,"TestForm test link")
+		# A test form is essentially a dictionary which maps the identifiers of all
+		# selected test components onto an ordered list of the *visible* objects
+		# contained by them.  This dictionary behaviour is augmented by a list of
+		# the principal test parts
+		self.failUnless(len(f.parts)==1,"One test part: %s"%repr(f.parts))
+		self.failUnless(f.parts[0]==u"PartI","Identifier of test part: %s"%repr(f.parts))
+		part1=f[(u"PartI",0)]
+		self.failUnless(len(part1)==3,"Length of part1: %i"%len(part1))
+		self.failUnless(part1[0]==(u"SectionA",0),"SectionA "+repr(part1))
+		self.failUnless(part1[1]==(u"SectionB",0),"SectionB "+repr(part1))
+		self.failUnless(part1[2]==(u"C1",0),"Invisible section "+repr(part1))
+		sA=f[(u"SectionA",0)]
+		self.failUnless(sA==[(u"A1",0)],"SectionA children")
+		sB=f[(u"SectionB",0)]
+		self.failUnless(sB==[(u"B1",0)],"SectionB children")
+		self.failIf((u"SectionC",0) in f,"Key for hidden section")
+		self.failIf((u"A1",0) in f,"Key for A1")
+		self.failIf((u"B1",0) in f,"Key for B1")
+		self.failIf((u"C1",0) in f,"Key for C1")
+
+
+class MultiPartAssessmentTests(unittest.TestCase):
+	def setUp(self):
+		self.cwd=os.getcwd()
+		self.dataPath=os.path.join(os.path.split(__file__)[0],'data_imsqtiv2p1')
+		os.chdir(self.dataPath)
+		self.doc=QTIDocument(baseURI="basic/multiPart.xml")
+		self.doc.Read()
+		
+	def tearDown(self):
+		os.chdir(self.cwd)
+
+	def testCasePartI(self):
+		# PartI tests
+		selections={
+			((u"A1",0),(u"A1",1),(u"A3",0)):0,
+			((u"A1",0),(u"A2",0),(u"A3",0)):0,
+			((u"A1",0),(u"A3",0),(u"A3",1)):0,
+			((u"A1",0),(u"A3",0),(u"A4",0)):0,
+			((u"A1",0),(u"A4",0),(u"A3",0)):0
+			}
+		self.CheckSelections((u"I",0),selections)
+		
+	def testCasePartII(self):
+		# PartII tests
+		selections={
+			((u"B1",0),(u"B2",0),(u"B1",1),(u"B2",1),(u"C3",0)):0,
+			((u"B1",0),(u"B2",0),(u"C2",0),(u"C3",0)):0,
+			((u"B1",0),(u"B2",0),(u"C3",0),(u"C3",1)):0,
+			((u"B1",0),(u"B2",0),(u"C3",0),(u"C4",0)):0,
+			((u"B1",0),(u"B2",0),(u"C4",0),(u"C3",0)):0
+			}
+		self.CheckSelections((u"II",0),selections)
+
+	def testCasePartIII(self):
+		# PartII tests
+		selections={
+            ((u"D1",0), (u"D1",1), (u"E1",0), (u"E2",0)):0,
+            ((u"D1",0), (u"D2",0), (u"E1",0), (u"E2",0)):0,
+            ((u"D1",0), (u"E1",0), (u"E2",0), (u"E1",1), (u"E2",1)):0,
+            ((u"D1",0), (u"E1",0), (u"E2",0), (u"D4",0)):0
+			}
+		self.CheckSelections((u"III",0),selections)                
+		
+	def testCasePartIV(self):
+		# PartIV tests
+		selections={
+            ((u"F1",0), (u"F1",1), (u"G1",0), (u"G2",0)):0,
+            ((u"F1",0), (u"F1",1), (u"G2",0), (u"G1",0)):0,               
+            ((u"F1",0), (u"F2",0), (u"G1",0), (u"G2",0)):0,
+            ((u"F1",0), (u"F2",0), (u"G2",0), (u"G1",0)):0,
+            ((u"F1",0), (u"G1",0), (u"F2",0), (u"G2",0)):0,
+            ((u"F1",0), (u"G1",0), (u"G2",0), (u"F2",0)):0,
+            ((u"F1",0), (u"G2",0), (u"F2",0), (u"G1",0)):0,
+            ((u"F1",0), (u"G2",0), (u"G1",0), (u"F2",0)):0,
+            ((u"F1",0), (u"G1",0), (u"G1",1), (u"G2",0), (u"G2",1)):0,
+            ((u"F1",0), (u"G1",0), (u"G2",0), (u"G1",1), (u"G2",1)):0,
+            ((u"F1",0), (u"G1",0), (u"G2",0), (u"G2",1), (u"G1",1)):0,
+            ((u"F1",0), (u"G2",0), (u"G2",1), (u"G1",0), (u"G1",1)):0,
+            ((u"F1",0), (u"G2",0), (u"G1",0), (u"G2",1), (u"G1",1)):0,
+            ((u"F1",0), (u"G2",0), (u"G1",0), (u"G1",1), (u"G2",1)):0,
+            ((u"F1",0), (u"G1",0), (u"G2",0), (u"F4",0)):0,
+            ((u"F1",0), (u"G2",0), (u"G1",0), (u"F4",0)):0,
+			}
+		self.CheckSelections((u"IV",0),selections)                
+		
+	def CheckSelections(self,sectionSelector,selections):
+		missing=len(selections)
+		for i in xrange(1000):
+			# We'll try to find all possibilities, give it 1000 goes...		
+			f=tests.TestForm(self.doc.root)
+			# grab first instance of SectionA
+			section=tuple(f[sectionSelector])
+			x=selections.get(section,None)
+			if x is None:
+				self.fail("Illegal selection found: %s"%repr(section))
+			if x==0:
+				missing=missing-1
+			if missing==0:
+				break
+			selections[section]=x+1
+		if missing:
+			for i in selections.keys():
+				print "%s: %i"%(repr(i),selections[i])
+			self.fail("Missing selection after 1000 trials: %s"%repr(selections))
+		
+
+class ErrorAssessmentTests(unittest.TestCase):
+	def setUp(self):
+		self.cwd=os.getcwd()
+		self.dataPath=os.path.join(os.path.split(__file__)[0],'data_imsqtiv2p1')
+		os.chdir(self.dataPath)
+		
+	def tearDown(self):
+		os.chdir(self.cwd)
+
+	def testCaseRequired(self):
+		self.SelectionErrorTest("errors/required.xml")
+
+	def testCaseSelect(self):
+		self.SelectionErrorTest("errors/select.xml")
+
+	def testCaseFixed(self):
+		self.SelectionErrorTest("errors/fixed.xml")
+
+	def SelectionErrorTest(self,fName):
+		self.doc=QTIDocument(baseURI=fName)
+		self.doc.Read()
+		try:
+			f=tests.TestForm(self.doc.root)
+			self.fail("%s failed to raise SelectionError"%fName)
+		except core.SelectionError, e:
+			pass				
+
+		
 class QTIDocumentTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		doc=QTIDocument()

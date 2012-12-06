@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentTest xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="http://www.example.com/multiPartTest" title="Multi-part Assessment Test Case"
+    toolName="Pyslet" toolVersion="0.3">
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer"/>
+    <testPart identifier="PartI" navigationMode="nonlinear" submissionMode="individual">
+        <assessmentSection identifier="I" required="true" fixed="true" title="Section A"
+            visible="true" keepTogether="true">
+            <selection select="3" withReplacement="true"/>
+            <ordering shuffle="true"/>
+            <assessmentItemRef identifier="A1" href="yesno.xml" fixed="true" required="true"/>
+            <assessmentItemRef identifier="A2" href="yesno.xml" fixed="true" required="false"/>
+            <assessmentItemRef identifier="A3" href="yesno.xml" fixed="false" required="true"/>
+            <assessmentItemRef identifier="A4" href="yesno.xml" fixed="false" required="false"/>
+        </assessmentSection>
+    </testPart>
+    <testPart identifier="PartII" navigationMode="nonlinear" submissionMode="individual">
+        <assessmentSection identifier="II" title="Part II" keepTogether="true" fixed="true"
+            required="true" visible="true">
+            <selection select="3" withReplacement="true"/>
+            <ordering shuffle="true"/>
+            <assessmentSection identifier="SectionB" title="Section B" visible="false" fixed="true"
+                keepTogether="true" required="true">
+                <assessmentItemRef identifier="B1" href="yesno.xml" fixed="false" required="true"/>
+                <assessmentItemRef identifier="B2" href="yesno.xml" fixed="false" required="true"/>
+            </assessmentSection>
+            <assessmentItemRef identifier="C2" href="yesno.xml" fixed="true" required="false"/>
+            <assessmentItemRef identifier="C3" href="yesno.xml" fixed="false" required="true"/>
+            <assessmentItemRef identifier="C4" href="yesno.xml" fixed="false" required="false"/>
+        </assessmentSection>
+    </testPart>
+    <testPart identifier="PartIII" navigationMode="nonlinear" submissionMode="individual">
+        <assessmentSection identifier="III" title="Part III" keepTogether="true" fixed="true"
+            required="true" visible="true">
+            <selection select="3" withReplacement="true"/>
+            <ordering shuffle="true"/>
+            <assessmentItemRef identifier="D1" href="yesno.xml" fixed="true" required="true"/>
+            <assessmentItemRef identifier="D2" href="yesno.xml" fixed="false" required="false"/>
+            <assessmentSection identifier="SectionE" title="Section C" visible="false" fixed="true"
+                keepTogether="false" required="true">
+                <assessmentItemRef identifier="E1" href="yesno.xml" fixed="false" required="true"/>
+                <assessmentItemRef identifier="E2" href="yesno.xml" fixed="false" required="true"/>
+            </assessmentSection>
+            <assessmentItemRef identifier="D4" href="yesno.xml" fixed="true" required="false"/>
+        </assessmentSection>
+    </testPart>
+    <testPart identifier="PartIV" navigationMode="nonlinear" submissionMode="individual">
+        <assessmentSection identifier="IV" title="Part IV" keepTogether="true" fixed="true"
+            required="true" visible="true">
+            <selection select="3" withReplacement="true"/>
+            <ordering shuffle="true"/>
+            <assessmentItemRef identifier="F1" href="yesno.xml" fixed="true" required="true"/>
+            <assessmentItemRef identifier="F2" href="yesno.xml" fixed="false" required="false"/>
+            <assessmentSection identifier="SectionG" title="Section G" visible="false" fixed="false"
+                keepTogether="false" required="true">
+                <assessmentItemRef identifier="G1" href="yesno.xml" fixed="false" required="true"/>
+                <assessmentItemRef identifier="G2" href="yesno.xml" fixed="false" required="true"/>
+            </assessmentSection>
+            <assessmentItemRef identifier="F4" href="yesno.xml" fixed="true" required="false"/>
+        </assessmentSection>
+    </testPart>
+</assessmentTest>
