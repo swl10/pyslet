@@ -1194,7 +1194,7 @@ class Element(Node):
 					elif dataChild[-1]==u' ':
 						# strip the trailing space form the last child
 						dataChild=dataChild[:-1]
-						yield dataChild
+					yield dataChild
 				return
 		
 	def _FindFactory(self,childClass):
@@ -1334,7 +1334,7 @@ class Element(Node):
 		elements of type childClass as children (directly or indirectly) then
 		only the top-level match is returned.
 		
-		Effectively this method provides a breadth-first list of children.  For
+		Effectively this method provides a depth-first list of children.  For
 		example, to get all <div> elements in an HTML <body> you would have to
 		recurse over the resulting list calling FindChildren again until the
 		list of matching children stops growing.		
@@ -1349,6 +1349,27 @@ class Element(Node):
 			if max is not None and len(childList)>=max:
 				break
 
+	def FindChildrenBreadthFirst(self,childClass):
+		"""Generates a sequence of children of class *childClass* using a
+		breadth first scan."""
+		for child in self.GetChildren():
+			if isinstance(child,childClass):
+				yield child
+		for child in self.GetChildren():
+			if isinstance(child,Element):
+				for c in child.FindChildrenBreadthFirst(childClass):
+					yield c
+
+	def FindChildrenDepthFirst(self,childClass):
+		"""Generates a sequence of children of class *childClass* using a
+		depth first scan."""
+		for child in self.GetChildren():
+			if isinstance(child,Element):
+				for c in child.FindChildrenDepthFirst(childClass):
+					yield c
+			if isinstance(child,childClass):
+				yield child
+				
 	def FindParent(self,parentClass):
 		"""Finds the first parent of class parentClass of this element.
 		

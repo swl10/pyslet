@@ -2,6 +2,8 @@
 
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
+import pyslet.xsdatatypes20041028 as xsi
+
 from pyslet.rfc2396 import URIFactory, EncodeUnicodeURI, FileURL
 
 import htmlentitydefs
@@ -23,6 +25,67 @@ HTML40_HTMLsymbol_SYSTEMID="http://www.w3.org/TR/1999/REC-html401-19991224/HTMLs
 HTML40_HTMLspecial_SYSTEMID="http://www.w3.org/TR/1999/REC-html401-19991224/HTMLspecial.ent"
 
 XHTML_NAMESPACE="http://www.w3.org/1999/xhtml"
+
+
+class NamedBoolean:
+	"""An abstract class designed to make generating SGML-like single-value enumeration
+	types easier, for example, attributes such as "checked" on <input>.
+	
+	The class is not designed to be instantiated but to act as a method of
+	defining functions for decoding and encoding attribute values.
+
+	The basic usage of this class is to derive a class from it with a single
+	class member called 'name' which is the canonical representation of the
+	name. You can then use it to call any of the following class methods to
+	convert values between python Booleans the appropriate string
+	representations (None for False and the defined name for True)."""
+		
+	@classmethod
+	def DecodeValue(cls,src):
+		"""Decodes a string returning True if it matches the name attribute
+		and raising a ValueError otherwise.  If src is None then False is
+		returned."""
+		if src is None:
+			return False
+		else:
+			src=src.strip()
+			if src==cls.name:
+				return True
+			else:
+				raise ValueError("Can't decode %s from %s"%(cls.__name__,src))
+
+	@classmethod
+	def DecodeLowerValue(cls,src):
+		"""Decodes a string, converting it to lower case first."""
+		if src is None:
+			return False
+		else:
+			src=src.strip().lower()
+			if src==cls.name:
+				return True
+			else:
+				raise ValueError("Can't decode %s from %s"%(cls.__name__,src))
+	
+	@classmethod
+	def DecodeUpperValue(cls,src):
+		"""Decodes a string, converting it to upper case first."""
+		if src is None:
+			return False
+		else:
+			src=src.strip().upper()
+			if src==cls.name:
+				return True
+			else:
+				raise ValueError("Can't decode %s from %s"%(cls.__name__,src))
+			 
+	@classmethod
+	def EncodeValue(cls,value):
+		"""Encodes a boolean value returning either the defined name or None."""
+		if value:
+			return cls.name
+		else:
+			return None
+
 
 XHTML_MIMETYPES={
 	None: False,
@@ -48,14 +111,43 @@ class XHTMLMimeTypeError(XHTMLError): pass
 
 	<!ENTITY % LanguageCode "NAME" -- a language code, as per [RFC1766] -->	"""
 
-"""TODO: Character::
+def DecodeCharacter(src):
+	"""Decodes a Character value::
+	
+		<!ENTITY % Character "CDATA" -- a single character from [ISO10646] -->
+	
+	Returns the first character or src or None, if src is empty."""
+	if len(src)>0:
+		return src[0]
+	else:
+		return None
 
-	<!ENTITY % Character "CDATA" -- a single character from [ISO10646] -->	"""
+def EncodeCharacter(src):
+	"""Encodes a Character value, a convenience function that returns src unchanged."""
+	return src
 
-"""TODO: URI::
+			
+def DecodeURI(src):
+	"""Decodes a URI from src::
+	
+	<!ENTITY % URI "CDATA"  -- a Uniform Resource Identifier -->
+	
+	Note that we adopt the algorithm recommended in Appendix B of the specification,
+	which involves replacing non-ASCII characters with percent-encoded UTF-sequences.
+	
+	For more information see :func:`psylet.rfc2396.EncodeUnicodeURI`
+	"""
+	return URIFactory.URI(EncodeUnicodeURI(src))
 
-	<!ENTITY % URI "CDATA" -- a Uniform Resource Identifier, see [URI] -->	"""
+def EncodeURI(uri):
+	"""Encoding a URI means just converting it into a string.
+	
+	By definition, a URI will only result in ASCII characters that can be freely converted
+	to Unicode by the default encoding.  However, it does mean that this function doesn't
+	adhere to the principal of using the ASCII encoding only at the latest possible time."""
+	return unicode(str(uri))
 
+	
 """TODO: Datetime::
 
 	<!ENTITY % Datetime "CDATA" -- date and time information. ISO date format -->	"""
@@ -68,17 +160,111 @@ class HeadMiscMixin:
 	pass
 
 
-"""TODO:	class CoreAttrsMixin:
-		Mixin class for handling core attributes::
+class CoreAttrsMixin:
+	"""Mixin class for core attributes::
 
 		<!ENTITY % coreattrs
 		 "id          ID             #IMPLIED  -- document-wide unique id --
 		  class       CDATA          #IMPLIED  -- space-separated list of classes --
 		  style       %StyleSheet;   #IMPLIED  -- associated style info --
 		  title       %Text;         #IMPLIED  -- advisory title --"
-		  >	"""
+		  >
 
+		<!ENTITY % StyleSheet "CDATA" -- style sheet data -->
+		<!ENTITY % Text "CDATA">"""
+	ID='id'
+	XMLATTR_class='styleClass'
+	XMLATTR_style='style'
+	XMLATTR_title='title'
+
+	def __init__(self):
+		self.styleClass=None
+		self.style=None
+		self.title=None
+
+
+class Dir(xsi.Enumeration):
+	"""Enumeration for weak/neutral text values."""
+	decode={
+		'ltr':1,
+		'rtl':2
+		}
+xsi.MakeEnumeration(Dir)
+
+
+class I18nMixin:
+	"""Mixin class for i18n attributes::
 	
+		<!ENTITY % i18n
+		 "lang        %LanguageCode; #IMPLIED  -- language code --
+		  dir         (ltr|rtl)      #IMPLIED  -- direction for weak/neutral text --"
+		  >
+
+		<!ENTITY % LanguageCode "NAME"
+			-- a language code, as per [RFC1766]
+			-->"""
+	XMLATTR_lang=('htmlLang',xsi.DecodeName,xsi.EncodeName)
+	XMLATTR_dir=('dir',Dir.DecodeLowerValue,Dir.EncodeValue)
+	
+	def __init__(self):
+		self.htmlLange=None
+		self.dir=Dir.DEFAULT
+
+
+class EventsMixin:
+	"""Mixin class for event attributes
+	::
+
+		<!ENTITY % Script "CDATA" -- script expression -->
+
+		<!ENTITY % events
+		 "onclick     %Script;       #IMPLIED  -- a pointer button was clicked --
+		  ondblclick  %Script;       #IMPLIED  -- a pointer button was double clicked--
+		  onmousedown %Script;       #IMPLIED  -- a pointer button was pressed down --
+		  onmouseup   %Script;       #IMPLIED  -- a pointer button was released --
+		  onmouseover %Script;       #IMPLIED  -- a pointer was moved onto --
+		  onmousemove %Script;       #IMPLIED  -- a pointer was moved within --
+		  onmouseout  %Script;       #IMPLIED  -- a pointer was moved away --
+		  onkeypress  %Script;       #IMPLIED  -- a key was pressed and released --
+		  onkeydown   %Script;       #IMPLIED  -- a key was pressed down --
+		  onkeyup     %Script;       #IMPLIED  -- a key was released --"
+		  >"""
+	XMLATTR_onClick='onClick'
+	XMLATTR_ondblclick='ondblclick'
+	XMLATTR_onmousedown='onmousedown'
+	XMLATTR_onmouseup='onmouseup'
+	XMLATTR_onmouseover='onmouseover'
+	XMLATTR_onmousemove='onmousemove'
+	XMLATTR_onmouseout='onmouseout'
+	XMLATTR_onkeypress='onkeypress'
+	XMLATTR_onkeydown='onkeydown'
+	XMLATTR_onkeyup='onkeyup'
+	
+	def __init__(self):
+		self.onClick=None
+		self.ondblclick=None
+		self.onmousedown=None
+		self.onmouseup=None
+		self.onmouseover=None
+		self.onmousemove=None
+		self.onmouseout=None
+		self.onkeypress=None
+		self.onkeydown=None
+		self.onkeyup=None
+		
+
+class AttrsMixin(CoreAttrsMixin,I18nMixin,EventsMixin):
+	"""Mixin class for common attributes
+	::
+
+		<!ENTITY % attrs "%coreattrs; %i18n; %events;">"""
+	
+	def __init__(self):
+		CoreAttrsMixin.__init__(self)
+		I18nMixin.__init__(self)
+		EventsMixin.__init__(self)
+
+		
 """sgmlOmittag Feature:
 
 Empty elements are handled by a simple XMLCONTENT attribute:
@@ -390,27 +576,6 @@ def EncodeCoords(coords):
 	return unicode(coords)
 			
 
-def DecodeURI(src):
-	"""Decodes a URI from src::
-	
-	<!ENTITY % URI "CDATA"  -- a Uniform Resource Identifier -->
-	
-	Note that we adopt the algorithm recommended in Appendix B of the specification,
-	which involves replacing non-ASCII characters with percent-encoded UTF-sequences.
-	
-	For more information see :func:`psylet.rfc2396.EncodeUnicodeURI`
-	"""
-	return URIFactory.URI(EncodeUnicodeURI(src))
-
-def EncodeURI(uri):
-	"""Encoding a URI means just converting it into a string.
-	
-	By definition, a URI will only result in ASCII characters that can be freely converted
-	to Unicode by the default encoding.  However, it does mean that this function doesn't
-	adhere to the principal of using the ASCII encoding only at the latest possible time."""
-	return unicode(str(uri))
-
-	
 class XHTMLElement(xmlns.XMLNSElement):
 	ID='id'
 	XMLATTR_class='styleClass'
@@ -427,6 +592,31 @@ class XHTMLElement(xmlns.XMLNSElement):
 		for child in self.GetChildren():
 			if hasattr(child,'AddToCPResource'):
 				child.AddToCPResource(cp,resource,beenThere)
+	
+	def RenderHTML(self,parent,profile,arg):
+		"""Renders this HTML element to an external document represented by the *parent* node.
+		
+		*profile* is a dictionary mapping the names of allowed HTML elements to
+		a list of allowed attributes.  This allows the caller to filter out
+		unwanted elements and attributes.
+		
+		*arg* allows an additional argument to be passed through the HTML tree to any non-HTML
+		nodes contained by it."""
+		# the default implementation creates a node under parent if our name is in the profile
+		if self.xmlname in profile:
+			newChild=parent.ChildElement(self.__class__)
+			aList=profile[self.xmlname]
+			attrs=self.GetAttributes()
+			for aName in attrs.keys():
+		 		ns,name=aName
+		 		if ns is None and name in aList:
+		 			# this one is included
+		 			newChild.SetAttribute(aName,attrs[aName])
+		 	for child in self.GetChildren():
+		 		if type(child) in StringTypes:
+		 			newChild.AddData(child)
+		 		else:
+		 			child.RenderHTML(newChild,profile,arg)
 	
 	def RenderText(self):
 		output=[]
@@ -463,7 +653,7 @@ class InlineMixin(FlowMixin):
 class InlineContainer(XHTMLElement):
 
 	def GetChildClass(self,stagClass):
-		"""If we get something other than PCDATA, an inlinen or unknown element, assume end"""
+		"""If we get something other than PCDATA, an inline or unknown element, assume end"""
 		if stagClass is None or issubclass(stagClass,InlineMixin) or not issubclass(stagClass,XHTMLElement):
 			return stagClass
 		else:
@@ -476,6 +666,26 @@ class InlineContainer(XHTMLElement):
 		else:
 			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
 
+
+class BlockContainer(XHTMLElement):
+	"""Abstract class for all HTML elements that contain %block;|SCRIPT"""
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+	def GetChildClass(self,stagClass):
+		"""If we get inline data in this context we force it to wrap in DIV"""
+		if stagClass is None or issubclass(stagClass,InlineMixin):
+			return Div
+		elif issubclass(stagClass,(BlockMixin,Script)) or not issubclass(stagClass,XHTMLElement):
+			return stagClass
+		else:
+			return None
+
+	def ChildElement(self,childClass,name=None):
+		if issubclass(childClass,(BlockMixin,Script)) or not issubclass(childClass,XHTMLElement):
+			return XHTMLElement.ChildElement(self,childClass,name)
+		else:
+			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
+	
 	
 class FlowContainer(XHTMLElement):
 	"""Abstract class for all HTML elements that contain %flow;"""
@@ -507,6 +717,7 @@ class FlowContainer(XHTMLElement):
 			#elif isinstance(child,InlineMixin):
 			#	return False
 		return True
+
 	
 class SpecialMixin(InlineMixin):
 	"""..	::
@@ -766,7 +977,24 @@ class LI(FlowContainer):
 
 # Form Elements
 
-class Form(BlockMixin,XHTMLElement):
+class Method(xsi.Enumeration):
+	"""HTTP method used to submit a form.  Usage example::
+
+		Method.POST
+	
+	Note that::
+		
+		Method.DEFAULT == GET
+
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		'GET':1,
+		'POST':2
+		}
+xsi.MakeEnumeration(Method,"GET")
+
+
+class Form(BlockMixin,BlockContainer):
 	"""Represents the form element::
 
 	<!ELEMENT FORM - - (%block;|SCRIPT)+ -(FORM) -- interactive form -->
@@ -783,17 +1011,21 @@ class Form(BlockMixin,XHTMLElement):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'form')
+	XMLATTR_action=('action',DecodeURI,EncodeURI)
+	XMLATTR_method=('method',Method.DecodeUpperValue,Method.EncodeValue)
+	XMLATTR_enctype='enctype'
+	XMLATTR_accept='accept'
+	XMLATTR_name='name'
 	XMLCONTENT=xmlns.ElementContent
 
-	def GetChildClass(self,stagClass):
-		"""If we get inline data in this context we force it wrap in DIV"""
-		if stagClass is None or issubclass(stagClass,FlowMixin):
-			return Div
-		elif issubclass(stagClass,(BlockMixin,Script)) or not issubclass(stagClass,XHTMLElement):
-			return stagClass
-		else:
-			return None
-
+	def __init__(self,parent):
+		BlockContainer.__init__(self,parent)
+		self.action=None
+		self.method=Method.DEFAULT
+		self.enctype="application/x-www-form-urlencoded"
+		self.accept=None
+		self.name=None
+		
 
 class Label(FormCtrlMixin,InlineContainer):
 	"""Label element::
@@ -810,15 +1042,50 @@ class Label(FormCtrlMixin,InlineContainer):
 	XMLNAME=(XHTML_NAMESPACE,'label')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-"""	
-<!ENTITY % InputType
-  "(TEXT | PASSWORD | CHECKBOX |
-    RADIO | SUBMIT | RESET |
-    FILE | HIDDEN | IMAGE | BUTTON)"
-   >
-"""
 
-class Input(FormCtrlMixin,XHTMLElement):
+class InputType(xsi.Enumeration):
+	"""The type of widget needed for an input element.  Usage example::
+
+		InputType.radio
+	
+	Note that::
+		
+		InputType.DEFAULT == InputType.text
+
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		'text':1,
+		'password':2,
+		'checkbox':3,
+		'radio':4,
+		'submit':5,
+		'reset':6,
+		'file':7,
+		'hidden':8,
+		'image':9,
+		'button':10
+		}
+xsi.MakeEnumeration(InputType,"text")
+
+
+class Checked(NamedBoolean):
+	"""Used for the checked attribute."""
+	name="checked"
+
+class Disabled(NamedBoolean):
+	"""Used for the disabled attribute."""
+	name="disabled"
+
+class ReadOnly(NamedBoolean):
+	"""Used for the readonly attribute."""
+	name="readonly"
+
+class IsMap(NamedBoolean):
+	"""Used for the ismap attribute."""
+	name="ismap"
+
+	
+class Input(FormCtrlMixin,AttrsMixin,XHTMLElement):
 	"""Represents the input element::
 
 	<!-- attribute name required for all but submit and reset -->
@@ -848,8 +1115,51 @@ class Input(FormCtrlMixin,XHTMLElement):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'input')
+	XMLATTR_type=('type',InputType.DecodeLowerValue,InputType.EncodeValue)
+	XMLATTR_name='name'
+	XMLATTR_value='value'
+	XMLATTR_checked=('checked',Checked.DecodeLowerValue,Checked.EncodeValue)
+	XMLATTR_disabled=('disabled',Disabled.DecodeLowerValue,Disabled.EncodeValue)
+	XMLATTR_readonly=('readonly',ReadOnly.DecodeLowerValue,ReadOnly.EncodeValue)
+	XMLATTR_size='size'
+	XMLATTR_maxLength=('maxLength',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_src=('src',DecodeURI,EncodeURI)
+	XMLATTR_alt='alt'
+	XMLATTR_usemap=('usemap',DecodeURI,EncodeURI)
+	XMLATTR_ismap=('ismap',IsMap.DecodeLowerValue,IsMap.EncodeValue)
+	XMLATTR_tabindex=('tabindex',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_accesskey=('accesskey',DecodeCharacter,EncodeCharacter)
+	XMLATTR_onfocus='onfocus'
+	XMLATTR_onblur='onblur'
+	XMLATTR_onselect='onselect'
+	XMLATTR_onchange='onchange'
+	XMLATTR_accept='accept'
+	
 	XMLCONTENT=xmlns.XMLEmpty
 
+	def __init__(self,parent):
+		XHTMLElement.__init__(self,parent)
+		AttrsMixin.__init__(self)
+		self.type=InputType.DEFAULT
+		self.name=None
+		self.value=None
+		self.checked=False
+		self.disabled=False
+		self.readonly=False
+		self.size=None
+		self.maxLength=None
+		self.src=None
+		self.alt=None
+		self.usemap=None
+		self.ismap=False
+		self.tabindex=None
+		self.accesskey=None
+		self.onfocus=None
+		self.onblur=None
+		self.onselect=None
+		self.onchange=None
+		self.accept=None
+		
 
 class Select(FormCtrlMixin,XHTMLElement):
 	"""Select element::
@@ -996,7 +1306,17 @@ class Legend(InlineContainer):
 	XMLCONTENT=xmlns.XMLMixedContent
 
 
-class Button(FormCtrlMixin,FlowContainer):
+class ButtonType(xsi.Enumeration):
+	"""The type action required for a form button."""
+	decode={
+		'button':1,
+		'submit':2,
+		'reset':3
+		}
+xsi.MakeEnumeration(ButtonType,"submit")
+
+
+class Button(AttrsMixin,FormCtrlMixin,FlowContainer):
 	"""button element::
 
 	<!ELEMENT BUTTON - - (%flow;)* -(A|%formctrl;|FORM|FIELDSET) -- push button -->
@@ -1014,8 +1334,27 @@ class Button(FormCtrlMixin,FlowContainer):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'button')
+	XMLATTR_name='name'
+	XMLATTR_value='value'
+	XMLATTR_type=('type',ButtonType.DecodeLowerValue,ButtonType.EncodeValue)
+	XMLATTR_disabled=('disabled',Disabled.DecodeLowerValue,Disabled.EncodeValue)
+	XMLATTR_tabindex=('tabindex',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_accesskey=('accesskey',DecodeCharacter,EncodeCharacter)
+	XMLATTR_onfocus='onfocus'
+	XMLATTR_onblur='onblur'
 	XMLCONTENT=xmlns.XMLMixedContent
 
+	def __init__(self,parent):
+		FlowContainer.__init__(self,parent)
+		AttrsMixin.__init__(self)
+		self.name=None
+		self.value=None
+		self.type=ButtonType.DEFAULT
+		self.disabled=False
+		self.tabindex=None
+		self.accesskey=None
+		self.onfocus=None
+		self.onblur=None
 
 # Object Elements
 
@@ -1579,7 +1918,6 @@ class Style(HeadMiscMixin,XHTMLElement):
 class Script(SpecialMixin,HeadMiscMixin,XHTMLElement):
 	"""Represents the script element::
 
-	<!ENTITY % Script "CDATA" -- script expression -->
 	<!ELEMENT SCRIPT - - %Script;          -- script statements -->
 	<!ATTLIST SCRIPT
 	  charset     %Charset;      #IMPLIED  -- char encoding of linked resource --

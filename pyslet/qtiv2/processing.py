@@ -515,3 +515,112 @@ class ExitTemplate(TemplateRule):
 
 	def Run(self,state):
 		raise StopProcessing
+
+
+class TestPartCondition(core.QTIElement):
+	def __init__(self,parent):
+		core.QTIElement.__init__(self,parent)
+		self.Expression=None
+
+	def GetChildren(self):
+		if self.Expression: yield self.Expression
+		for child in core.QTIElement.GetChildren(self): yield child
+
+	def Evaluate(self,state):
+		"""Evaluates the condition using the values in *state*.
+		
+		*	*state* is a :py:class:`~pyslet.qtiv2.variables.TestSessionState`
+			instance."""
+		if self.Expression is None:
+			raise core.ProcessingError("preCondition or branchRule with missing condition")
+		value=self.Expression.Evaluate(state)
+		variables.CheckBaseTypes(value.baseType,variables.BaseType.boolean)
+		variables.CheckCardinalities(value.Cardinality(),variables.Cardinality.single)
+		return value and value.value
+
+
+class PreCondition(TestPartCondition):
+	"""A preCondition is a simple expression attached to an assessmentSection or
+	assessmentItemRef that must evaluate to true if the item is to be
+	presented::
+
+		<xsd:group name="preCondition.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'preCondition')
+	XMLCONTENT=xmlns.ElementContent
+
+	def __init__(self,parent):
+		TestPartCondition.__init__(self,parent)
+
+
+class BranchRule(TestPartCondition):
+	"""A branch-rule is a simple expression attached to an assessmentItemRef,
+	assessmentSection or testPart that is evaluated after the item, section, or
+	part has been presented to the candidate::
+	
+		<xsd:attributeGroup name="branchRule.AttrGroup">
+			<xsd:attribute name="target" type="identifier.Type" use="required"/>
+		</xsd:attributeGroup>
+		
+		<xsd:group name="branchRule.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'branchRule')
+	XMLATTR_target='target'
+	XMLCONTENT=xmlns.ElementContent
+	
+	def __init__(self,parent):
+		TestPartCondition.__init__(self,parent)
+		self.target=None
+
+
+class TemplateDefault(core.QTIElement):
+	"""Overrides the default value of a template variable based on the test
+	context in which the template is instantiated::
+	
+		<xsd:attributeGroup name="templateDefault.AttrGroup">
+			<xsd:attribute name="templateIdentifier" type="identifier.Type" use="required"/>
+		</xsd:attributeGroup>
+		
+		<xsd:group name="templateDefault.ContentGroup">
+			<xsd:sequence>
+				<xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+			</xsd:sequence>
+		</xsd:group>"""
+	XMLNAME=(core.IMSQTI_NAMESPACE,'templateDefault')
+	XMLATTR_templateIdentifier='templateIdentifier'
+	XMLCONTENT=xmlns.ElementContent
+
+	def __init__(self,parent):
+		core.QTIElement.__init__(self,parent)
+		self.templateIdentifier=None
+		self.Expression=None
+
+	def GetChildren(self):
+		if self.Expression: yield self.Expression
+		for child in core.QTIElement.GetChildren(self): yield child
+
+	def Run(self,itemState,testState):
+		"""Updates the value of a template variable in *itemState* based on the
+		values in *testState*."""
+		if self.Expression is None:
+			raise core.ProcessingError("templateDefault with missing expression")
+		value=self.Expression.Evaluate(testState)
+		if self.templateIdentifier is None:
+			print self
+		try:
+			d=itemState.GetDeclaration(self.templateIdentifier)
+		except KeyError:
+			raise core.ProcessingError("%s is not a variable"%self.templateIdentifier)
+		if isinstance(d,variables.TemplateDeclaration):
+			# we don't actually use the .DEFAULT form for template variables as they have
+			# their values set directly.
+			itemState[self.templateIdentifier]=value
+		else:
+			raise core.ProcessingError("%s is not a template variable"%self.templateIdentifier)
+		

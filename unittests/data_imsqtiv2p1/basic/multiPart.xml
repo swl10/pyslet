@@ -38,7 +38,7 @@
             <ordering shuffle="true"/>
             <assessmentItemRef identifier="D1" href="yesno.xml" fixed="true" required="true"/>
             <assessmentItemRef identifier="D2" href="yesno.xml" fixed="false" required="false"/>
-            <assessmentSection identifier="SectionE" title="Section C" visible="false" fixed="true"
+            <assessmentSection identifier="SectionE" title="Section E" visible="false" fixed="true"
                 keepTogether="false" required="true">
                 <assessmentItemRef identifier="E1" href="yesno.xml" fixed="false" required="true"/>
                 <assessmentItemRef identifier="E2" href="yesno.xml" fixed="false" required="true"/>

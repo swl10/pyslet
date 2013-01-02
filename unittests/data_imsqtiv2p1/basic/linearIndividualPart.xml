@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentTest xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="http://www.example.com/assessmentTest" title="Linear, Individual Test Case"
+    toolName="Pyslet" toolVersion="0.3">
+    <outcomeDeclaration identifier="SCORE" cardinality="single" baseType="integer"/>
+    <testPart identifier="PartI" navigationMode="linear" submissionMode="individual">
+        <assessmentSection identifier="SectionA" title="Section A" visible="true">
+            <assessmentSection identifier="SectionA1" title="Section A1" visible="false">
+                <assessmentItemRef identifier="Q0" href="q0.xml">
+                    <preCondition>
+                        <!-- Q0 is always skipped -->
+                        <gt>
+                            <variable identifier="SCORE"/>
+                            <baseValue baseType="integer">0</baseValue>
+                        </gt>
+                    </preCondition>
+                    <templateDefault templateIdentifier="T">
+                        <baseValue baseType="integer">1</baseValue>
+                    </templateDefault>
+                </assessmentItemRef>
+                <assessmentItemRef identifier="Q1" href="q1.xml">
+                    <templateDefault templateIdentifier="T">
+                        <baseValue baseType="integer">1</baseValue>
+                    </templateDefault>
+                </assessmentItemRef>
+                <assessmentItemRef identifier="Q2" href="q2.xml"/>
+            </assessmentSection>
+            <assessmentItemRef identifier="Q3" href="q3.xml"/>
+        </assessmentSection>
+        <assessmentSection identifier="SectionB" title="Section B" visible="false">
+            <assessmentItemRef identifier="Q4" href="q4.xml"/>
+        </assessmentSection>
+    </testPart>
+</assessmentTest>

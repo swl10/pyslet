@@ -165,10 +165,10 @@ class QTIV2ConversionTests(unittest.TestCase):
 			f=r.GetEntryPoint()
 			if f:
 				fPath=f.PackagePath(cp2)
-				qtiDoc=qtiv2.QTIDocument(baseURI=str(uri.URIFactory.URLFromVirtualFilePath(self.cp.dPath.join(fPath))))
+				qtiDoc=qtiv2.core.QTIDocument(baseURI=str(uri.URIFactory.URLFromVirtualFilePath(self.cp.dPath.join(fPath))))
 				qtiDoc.Read()
 				#print str(qtiDoc)
-				qtiDoc2=qtiv2.QTIDocument(baseURI=str(uri.URIFactory.URLFromVirtualFilePath(cp2.dPath.join(fPath))))
+				qtiDoc2=qtiv2.core.QTIDocument(baseURI=str(uri.URIFactory.URLFromVirtualFilePath(cp2.dPath.join(fPath))))
 				qtiDoc2.Read()
 				#print str(qtiDoc2)
 				output=qtiDoc.DiffString(qtiDoc2)

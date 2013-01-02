@@ -103,3 +103,25 @@ Template Processing
 	:members:
 	:show-inheritance:
 
+
+Pre-conditions and Branching
+============================
+
+
+..	autoclass:: TestPartCondition
+	:members:
+	:show-inheritance:
+
+
+..	autoclass:: PreCondition
+	:members:
+	:show-inheritance:
+
+
+..	autoclass:: BranchRule
+	:members:
+	:show-inheritance:
+
+..	autoclass:: TemplateDefault
+	:members:
+	:show-inheritance:

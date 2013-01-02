@@ -6,7 +6,7 @@ name="pyslet"
 copyright=u"\xA92012, Steve Lay"
 
 major_version="0.3"
-version="%s.20120820"%major_version
+version="%s.20130102"%major_version
 
 title="Pyslet: python package for Standards in Learning, Education and Training"
 home="http://code.google.com/p/qtimigration/wiki/PysletHome"

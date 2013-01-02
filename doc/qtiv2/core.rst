@@ -16,6 +16,18 @@ Constants
 ..	autodata:: IMSQTI_ITEM_RESOURCETYPE
 
 
+XML Basics
+~~~~~~~~~~
+
+..	autoclass:: QTIElement
+	:members:
+	:show-inheritance:
+
+..	autoclass:: QTIDocument
+	:members:
+	:show-inheritance:
+
+
 Exceptions
 ~~~~~~~~~~
 
@@ -113,6 +125,9 @@ QTI-specific types:
 	:show-inheritance:
 	
 ..	autoclass:: Shape
+	:show-inheritance:
+
+..	autoclass:: ShowHide
 	:show-inheritance:
 
 ..	autoclass:: View

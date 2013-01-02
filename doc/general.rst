@@ -14,5 +14,6 @@ Contents:
    rfc5023
    xml20081126
    xml20081126.parser
+   xsdatatypes20041028
    html40_19991224
    rfc2396

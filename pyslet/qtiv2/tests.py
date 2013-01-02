@@ -6,6 +6,7 @@ import pyslet.xsdatatypes20041028 as xsi
 import pyslet.html40_19991224 as html
 
 import pyslet.qtiv2.core as core
+import pyslet.qtiv2.items as items
 
 import string, itertools, random
 
@@ -196,6 +197,33 @@ class TestPart(core.QTIElement):
 		if test:
 			test.RegisterPart(self)
 
+	def CheckPreConditions(self,state):
+		"""Returns True if this testPart's pre-conditions are satisfied or if
+		there are no pre-conditions in effect."""
+		for c in self.PreCondition:
+			if not c.Evaluate(state):
+				return False
+		return True
+		
+	def GetBranchTarget(self,state):
+		"""Returns the identifier of the testPart to branch to, or the
+		pre-defined EXIT_TEST identifier.  If there is no branch rule in effect
+		then None is returned.  *state* is a
+		:py:class:`variables.TestSessionState` instance used to evaluate the
+		branch rule expressions."""
+		test=self.FindParent(AssessmentTest)
+		for r in self.BranchRule:
+			if r.Evaluate(state):
+				try:
+					if r.target==u"EXIT_TEST":
+						return r.target
+					target=test.GetPart(r.target)
+					if not isinstance(target,TestPart):
+						# test parts can only point at other test parts
+						raise core.ProcessingError("Target of testPart branch rule is not a testPart: %s"%r.target)
+					return r.target
+				except KeyError:
+					raise core.ProcessingError("Target of testPart branch rule has not been declared: %s"%r.target)
 
 class Selection(core.QTIElement):
 	"""The selection class specifies the rules used to select the child elements
@@ -289,6 +317,43 @@ class SectionPart(core.QTIElement):
 		test=self.FindParent(AssessmentTest)
 		if test:
 			test.RegisterPart(self)
+
+	def CheckPreConditions(self,state):
+		"""Returns True if this item or section's pre-conditions are satisfied
+		or if there are no pre-conditions in effect."""
+		test=self.FindParent(AssessmentTest)
+		testPart=self.FindParent(TestPart)
+		if testPart.navigationMode!=NavigationMode.linear:
+			return None
+		for c in self.PreCondition:
+			if not c.Evaluate(state):
+				return False
+		return True
+		
+	def GetBranchTarget(self,state):
+		"""Returns the identifier of the next item or section to branch to, or
+		one of the pre-defined EXIT_* identifiers.  If there is no branch rule
+		in effect then None is returned.  *state* is a
+		:py:class:`variables.TestSessionState` instance used to evaluate the
+		branch rule expressions."""
+		test=self.FindParent(AssessmentTest)
+		testPart=self.FindParent(TestPart)
+		if testPart.navigationMode!=NavigationMode.linear:
+			return None
+		for r in self.BranchRule:
+			if r.Evaluate(state):
+				try:
+					if r.target in (u"EXIT_SECTION",u"EXIT_TESTPART",u"EXIT_TEST"):
+						return r.target
+					target=test.GetPart(r.target)
+					if not isinstance(target,SectionPart):
+						# section parts can only point at other section parts
+						raise core.ProcessingError("Target of section or item branch rule is not a section or item: %s"%r.target)
+					if target.FindParent(TestPart) is not testPart:
+						raise core.ProcessingError("Target or section or item branch rule is not in the same testPart: %s"%r.target)					
+					return r.target
+				except KeyError:
+					raise core.ProcessingError("Target of section or item branch rule has not been declared: %s"%r.target)
 			
 		
 class AssessmentSection(SectionPart):
@@ -365,6 +430,7 @@ class AssessmentItemRef(SectionPart):
 	def __init__(self,parent):
 		SectionPart.__init__(self,parent)
 		self.href=None
+		self.item=None
 		self.category=[]
 		self.VariableMapping=[]
 		self.Weight=[]
@@ -376,7 +442,22 @@ class AssessmentItemRef(SectionPart):
 		for c in self.Weight: yield c
 		for c in self.TemplateDefault: yield c
 
+	def GetItem(self):
+		"""Returns the AssessmentItem referred to by this reference."""
+		if self.item is None:
+			if self.href:
+				itemLocation=self.ResolveURI(self.href)
+				doc=core.QTIDocument(baseURI=itemLocation)
+				doc.Read()
+				if isinstance(doc.root,items.AssessmentItem):
+					self.item=doc.root
+		return self.item				
+	
+	def SetTemplateDefaults(self,itemState,testState):
+		for td in self.TemplateDefault:
+			td.Run(itemState,testState)
 
+		
 class TestForm(object):
 	"""A TestForm is a particular instance of a test, after selection and
 	ordering rules have been applied.
@@ -386,41 +467,46 @@ class TestForm(object):
 	is not the only source of variation but it provides the basic framework for
 	the test.
 
-	The TestForm acts like a (read-only) dictionary of compound identifiers of
-	form (identifier,number).  The identifier is the identifier of a test
-	component and the number is an instance number - 0 being the first instance
-	of the component in the test, 1 the second instance, etc.
+	The TestForm acts like a (read-only) sequence of component identifiers.  The
+	identifiers are the identifiers of the test components in the order they
+	have been selected.  Identifiers of test parts and sections are included as
+	they are legitimate targets of branch rules and may have their own
+	pre-conditions, however, the sequence also contains closing identifiers for
+	each section and test part.  A closing identifier is the identifier of the
+	section or test part preceded by "-".  For example, a simple test with a
+	single part and a single section might appear like this::
 	
-	Test components are either test parts or sections.  The values in the
-	dictionary are lists of the compound identifiers of the child components.
-	Invisible sections are not present in the dictionary, the children of a
-	hidden section are mixed in to their parent's list.  This extends to hidden
-	subsections and so on as forms are built depth-first."""
+		[ "", "PartI", "SectionA", "Q1", "Q2", "-SectionA", "-PartI" ]
+	
+	Notice that index 0 is always an empty string corresponding to the test itself."""
 	
 	def __init__(self,test):
 		self.test=test		#: the test from which this form was created
-		self.parts=[]		#: an ordered list of identifiers of each part 
-		self.map={}
+		self.components=[]	#: the ordered list of identifiers
+		self.map={}			#: a mapping from component identifiers to (lists of) indexes into the component list
+		# Index 0 represents the test itself!
+		self.components.append("")
 		for part in self.test.TestPart:
-			partList=[]
-			self.parts.append(part.identifier)
+			self.components.append(part.identifier)
 			# A part always contains all child sections
-			for s in part.AssessmentSection:				
-				if s.visible:
-					self.Select(s,0)
-					partList.append((s.identifier,0))
-				else:
-					# no shuffling in test parts, just add a hidden section as a block					
-					partList=partList+self.Select(s)
-			self.map[(part.identifier,0)]=partList
+			for s in part.AssessmentSection:
+				self.components.append(s.identifier)
+				# no shuffling in test parts, just add a hidden section as a block					
+				self.components.extend(self.Select(s))
+				self.components.append(u"-"+s.identifier)
+			self.components.append(u"-"+part.identifier)
+		for i in xrange(len(self.components)):
+			id=self.components[i]
+			if id in self.map:
+				self.map[id].append(i)
+			else:
+				self.map[id]=[i]
 			
-	def Select(self,section,instanceNumber=None):
+	def Select(self,section,expandChildren=True):
 		"""Runs the selection and ordering rules for *section*.
 		
-		It returns a list of 2-tuples consisting of the part identifier and an instance
-		number.  Instance numbers start at 0.
-		
-		If instanceNumber is provided then it also adds the list to the dictionary."""
+		It returns a list of identifiers, not including the identifier of the section
+		itself."""
 		children=section.SectionPart
 		if section.Ordering:
 			shuffle=section.Ordering.shuffle
@@ -453,7 +539,7 @@ class TestForm(object):
 			else:
 				raise core.SelectionError("Number of children to select in #%s exceeds the number of child elements, use withReplacement to resolve"%section.identifier)
 		shuffleList=[]
-		# Step 3: sort the list to ensure the position of fixed children is honoured  						
+		# Step 3: sort the list to ensure the position of fixed children is honoured					
 		selection.sort()
 		# Step 4: transform to a list of identifiers...
 		#			replace invisible sections with their contents if we need to split/shuffle them
@@ -468,8 +554,10 @@ class TestForm(object):
 				if invisibleSection and not child.keepTogether:
 					# the grand-children go into the shuffleList independently
 					# What does a fixed grand-child mean in this situation?
-					# we raise an error at the moment
-					for gChildID,gChildNum in self.Select(child):
+					# we raise an error at the moment.  Note that we don't expand
+					# the grand children (unless they are also mixed in from a nested
+					# invisible section)
+					for gChildID in self.Select(child,False):
 						gChild=self.test.GetPart(gChildID)
 						if gChild.fixed:
 							raise core.SelectionError("Fixed child of invisible section #%s is subject to parent shuffling, use keepTogether to resolve"%child.identifier)
@@ -478,13 +566,11 @@ class TestForm(object):
 					# invisible sections with keepTogether go in to the shuffle list just like items
 					shuffleList.append(child.identifier)
 			else:
-				# We're not shuffling or this child is fixed in position
-				if invisibleSection:
-					for gChildID,gChildNum in self.Select(child):
-						newSelection.append(gChildID)
-				else:
-					# regular item or sub-section
-					newSelection.append(child.identifier)
+				# We're not shuffling or this child is fixed in position (doesn't matter whether visible or not)
+				newSelection.append(child.identifier)
+				if isinstance(child,AssessmentSection) and expandChildren:
+					newSelection=newSelection+self.Select(child,True)
+					newSelection.append(u"-"+child.identifier)
 		selection=newSelection
 		if shuffleList:
 			# Step 5: shuffle!
@@ -505,51 +591,42 @@ class TestForm(object):
 			while i<len(shuffleList):
 				# choose a random bucket
 				random.choice(buckets).append(shuffleList[i])
-				i+=1
+				i+=1			
 			# Now splice the buckets into the selection
 			for b in buckets:
+				# We need to expand any sections that appear in the buckets
+				newBucket=[]
+				for childID in b:
+					newBucket.append(childID)
+					child=self.test.GetPart(childID)
+					if isinstance(child,AssessmentSection):
+						newBucket.extend(self.Select(childID,True))
+						newBucket.append(u"-"+childID)	
 				i=selection.index(None)
-				selection[i:i+1]=b
-			# Step 6: finally, we are ready to bring in the rest of the invisible sections
-			#			only required if we are shuffling of course
-			newSelection=[]
-			for childID in selection:
-				child=self.test.GetPart(childID)
-				if isinstance(child,AssessmentSection) and not child.visible:
-					for gChildID,gChildNum in self.Select(child):
-						newSelection.append(gChildID)
-				else:
-					newSelection.append(childID)
-			selection=newSelection
-		# Step 7: add instance numbers to the selection
-		idCount={}
-		for i in xrange(len(selection)):
-			childID=selection[i]
-			n=idCount.get(childID,0)
-			selection[i]=(childID,n)
-			idCount[childID]=n+1
-		if instanceNumber is not None:
-			# We are being asked to record this section in the map
-			self.map[(section.identifier,instanceNumber)]=selection
+				selection[i:i+1]=newBucket
 		return selection
-			
+	
+	def find(self,pName):
+		if pName in self.map:
+			return self.map[pName]
+		else:
+			return []
+
+	def index(self,pName):
+		return self.components.index(pName)
+		
 	def __len__(self):
-		return len(self.map)
+		return len(self.components)
 			
-	def __getitem__(self,identifier):
-		"""Returns the list of children of *identifier* or raises KeyError if
-		there is no test part or (selected) section with that identity."""
-		return self.map[identifier]
+	def __getitem__(self,index):
+		return self.components[index]
 			
-	def __setitem__(self,varName,value):
+	def __setitem__(self,index,value):
 		raise TypeError("TestForms are read-only")
 
-	def __delitem__(self,varName):
+	def __delitem__(self,index):
 		raise TypeError("TestForms are read-only")
 	
 	def __iter__(self):
-		return iter(self.map)
-
-	def __contains__(self,identifier):
-		return identifier in self.map
+		return iter(self.components)
 			

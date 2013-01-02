@@ -6,7 +6,7 @@
     timeDependent="false">
     <responseDeclaration identifier="FIB91" cardinality="ordered" baseType="string"/>
     <outcomeDeclaration identifier="OrganizationScore" cardinality="single" baseType="integer"
-        normalMinimum="0.0" normalMaximum="5.0"
+        normalMinimum="0.0E0" normalMaximum="5.0E0"
         interpretation="The extent to which the student has organized their answer as plan for completing the procedure:
 5= Tasks are in the correct order and organized optimally.
 4=	Tasks are in a workable order.
@@ -15,7 +15,7 @@
 1=	Some tasks are out of order.
 0=	No organization of tasks."/>
     <outcomeDeclaration identifier="TechnicalScore" cardinality="single" baseType="integer"
-        normalMaximum="5.0" normalMinimum="0.0"
+        normalMaximum="5.0E0" normalMinimum="0.0E0"
         interpretation="The extent to which the student understands the technical tasks involved:
 5=	All tasks clearly identified with details such as tools required.
 4=	All tasks clearly identified but lacking details.

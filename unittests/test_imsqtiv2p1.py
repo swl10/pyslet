@@ -21,7 +21,7 @@ from pyslet.imsqtiv2p1 import *
 import pyslet.html40_19991224 as html
 
 from StringIO import StringIO
-import os, types
+import os, types, time
 
 class QTITests(unittest.TestCase):
 	def testCaseConstants(self):
@@ -331,7 +331,7 @@ class VariableTests(unittest.TestCase):
     </responseDeclaration>
     <responseDeclaration identifier="RESPONSE_ENULL" cardinality="single" baseType="string"/>
 </assessmentItem>"""
-		doc=QTIDocument()
+		doc=core.QTIDocument()
 		doc.Read(src=StringIO(SAMPLE))
 		rd=doc.root.ResponseDeclaration[0].GetDefaultValue()
 		self.failUnless(isinstance(rd,variables.Value),"Default value not a Value")
@@ -376,7 +376,7 @@ class VariableTests(unittest.TestCase):
     </responseDeclaration>
     <responseDeclaration identifier="RESPONSE_C" cardinality="single" baseType="string"/>
 </assessmentItem>"""
-		doc=QTIDocument()
+		doc=core.QTIDocument()
 		doc.Read(src=StringIO(SAMPLE))
 		rc=doc.root.ResponseDeclaration[0].GetCorrectValue()
 		self.failUnless(isinstance(rc,variables.Value),"Correct value not a Value")
@@ -410,7 +410,7 @@ class VariableTests(unittest.TestCase):
         </mapping>
     </responseDeclaration>
 </assessmentItem>"""
-		doc=QTIDocument()
+		doc=core.QTIDocument()
 		doc.Read(src=StringIO(SAMPLE))
 		mapping=doc.root.ResponseDeclaration[0].Mapping
 		self.failUnless(mapping.baseType is variables.BaseType.identifier,"Base type of mapping auto-discovered")
@@ -449,7 +449,7 @@ class VariableTests(unittest.TestCase):
         </areaMapping>
     </responseDeclaration>
 </assessmentItem>"""
-		doc=QTIDocument()
+		doc=core.QTIDocument()
 		doc.Read(src=StringIO(SAMPLE))
 		mapping=doc.root.ResponseDeclaration[0].AreaMapping
 		for v,mv in {
@@ -504,7 +504,7 @@ class VariableTests(unittest.TestCase):
         </interpolationTable>
     </outcomeDeclaration>
 </assessmentItem>"""
-		doc=QTIDocument()
+		doc=core.QTIDocument()
 		doc.Read(src=StringIO(SAMPLE))
 		matchTable=doc.root.OutcomeDeclaration[0].LookupTable
 		interpolationTable=doc.root.OutcomeDeclaration[1].LookupTable
@@ -549,7 +549,7 @@ class VariableTests(unittest.TestCase):
     xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
     identifier="TestCase" title="Test Case" adaptive="false" timeDependent="false">
 </assessmentItem>"""
-		doc=QTIDocument()
+		doc=core.QTIDocument()
 		doc.Read(src=StringIO(SAMPLE))
 		sessionState=variables.ItemSessionState(doc.root)
 		self.failUnless(sessionState.item==doc.root,"Session State item pointer")
@@ -600,7 +600,7 @@ class VariableTests(unittest.TestCase):
         </defaultValue>
     </templateDeclaration>
 </assessmentItem>"""
-		doc=QTIDocument()
+		doc=core.QTIDocument()
 		doc.Read(src=StringIO(SAMPLE))
 		sessionState=variables.ItemSessionState(doc.root)
 		self.failUnless(len(sessionState)==15,"6 defined + 3 built-in variables + 1 correct + 5 defaults")
@@ -667,7 +667,7 @@ class VariableTests(unittest.TestCase):
 		<assessmentSection identifier="SectionA" title="Section A" visible="true"/>
 	</testPart>
 </assessmentTest>"""
-		doc=QTIDocument()
+		doc=core.QTIDocument()
 		doc.Read(src=StringIO(SAMPLE))
 		form=tests.TestForm(doc.root)
 		sessionState=variables.TestSessionState(form)
@@ -686,9 +686,12 @@ class VariableTests(unittest.TestCase):
 		self.failUnless(isinstance(value,variables.DurationValue),"duration must be of DurationValue type")
 		self.failUnless(value.value is None,"duration non NULL")			
 		self.failUnless(len(sessionState)==3,"3 default variables")
-		sessionState.BeginSession()
+		sessionState.BeginSession(sessionState.key)
 		self.failUnless(sessionState['duration'].value==0.0,"duration must initially be 0")						
-
+		self.failUnless(sessionState.t<=time.time() and sessionState.t>=time.time()-1.0,"test session took more than 1s to start: %f"%(time.time()-sessionState.t))
+		self.failUnless(type(sessionState.key)==types.UnicodeType,"key should be a string")
+		self.failUnless(len(sessionState.key)>=56,"key should be 56 bytes or more")
+		
 
 class ResponseProcessingTests(unittest.TestCase):
 
@@ -754,7 +757,7 @@ class ResponseProcessingTests(unittest.TestCase):
         </setOutcomeValue>
     </responseProcessing>
 </assessmentItem>"""
-		self.doc=QTIDocument()
+		self.doc=core.QTIDocument()
 		self.doc.Read(src=StringIO(SAMPLE))
 		self.sessionState=variables.ItemSessionState(self.doc.root)
 		self.sessionState.BeginSession()		
@@ -887,7 +890,7 @@ class TemplateProcessingTests(unittest.TestCase):
         </setTemplateValue>
     </templateProcessing>
 </assessmentItem>"""
-		self.doc=QTIDocument()
+		self.doc=core.QTIDocument()
 		self.doc.Read(src=StringIO(SAMPLE))
 		self.sessionState=variables.ItemSessionState(self.doc.root)
 			
@@ -1062,7 +1065,7 @@ class ExpressionTests(unittest.TestCase):
         </defaultValue>
     </templateDeclaration>
 </assessmentItem>"""
-		self.doc=QTIDocument()
+		self.doc=core.QTIDocument()
 		self.doc.Read(src=StringIO(SAMPLE))
 		self.sessionState=variables.ItemSessionState(self.doc.root)
 		self.sessionState.BeginSession()		
@@ -2958,7 +2961,7 @@ class BasicAssessmentTests(unittest.TestCase):
 		self.cwd=os.getcwd()
 		self.dataPath=os.path.join(os.path.split(__file__)[0],'data_imsqtiv2p1')
 		os.chdir(self.dataPath)
-		self.doc=QTIDocument(baseURI="basic/assessment.xml")
+		self.doc=core.QTIDocument(baseURI="basic/assessment.xml")
 		self.doc.Read()
 		
 	def tearDown(self):
@@ -2968,33 +2971,127 @@ class BasicAssessmentTests(unittest.TestCase):
 		self.failUnless(isinstance(self.doc.root,tests.AssessmentTest),"AssessmentTest")	
 		f=tests.TestForm(self.doc.root)
 		self.failUnless(f.test is self.doc.root,"TestForm test link")
-		# A test form is essentially a dictionary which maps the identifiers of all
-		# selected test components onto an ordered list of the *visible* objects
-		# contained by them.  This dictionary behaviour is augmented by a list of
-		# the principal test parts
-		self.failUnless(len(f.parts)==1,"One test part: %s"%repr(f.parts))
-		self.failUnless(f.parts[0]==u"PartI","Identifier of test part: %s"%repr(f.parts))
-		part1=f[(u"PartI",0)]
-		self.failUnless(len(part1)==3,"Length of part1: %i"%len(part1))
-		self.failUnless(part1[0]==(u"SectionA",0),"SectionA "+repr(part1))
-		self.failUnless(part1[1]==(u"SectionB",0),"SectionB "+repr(part1))
-		self.failUnless(part1[2]==(u"C1",0),"Invisible section "+repr(part1))
-		sA=f[(u"SectionA",0)]
-		self.failUnless(sA==[(u"A1",0)],"SectionA children")
-		sB=f[(u"SectionB",0)]
-		self.failUnless(sB==[(u"B1",0)],"SectionB children")
-		self.failIf((u"SectionC",0) in f,"Key for hidden section")
-		self.failIf((u"A1",0) in f,"Key for A1")
-		self.failIf((u"B1",0) in f,"Key for B1")
-		self.failIf((u"C1",0) in f,"Key for C1")
+		# A test form is essentially a sequence of identifiers of the components
+		# picked from the test for this form, augmented by a find method which maps
+		# the component identifiers on to a list of indexes into the form.
+		# in this case:
+		# '', PartI, SectionA, A1, SectionB, B1, SectionC, C1
+		self.failUnless(len(f)==12,"Form length: %s"%repr(len(f)))
+		self.failUnless(f[1]==u"PartI","Identifier of test part: %s"%repr(f[0]))
+		self.failUnless(f[2:5]==[u"SectionA",u"A1",u"-SectionA"],"SectionA "+repr(f[1:3]))
+		self.failUnless(f[5:8]==[u"SectionB",u"B1",u"-SectionB"],"SectionB "+repr(f[3:5]))
+		self.failUnless(f[8:11]==[u"SectionC",u"C1",u"-SectionC"],"Invisible section "+repr(f[5:]))
+		self.failUnless(f[11]==u"-PartI","Identifier of closing part: %s"%repr(f[11]))
+		self.failUnless(f.find("A1")==[3],"Index of A1")
+		self.failUnless(f.find("SectionB")==[5],"Index of SectionB")
+		self.failUnless(f.find("SectionC")==[8],"Index of SectionC")
 
-
+	def testCaseLinearIndividual(self):
+ 		doc=core.QTIDocument(baseURI="basic/linearIndividualPart.xml")
+ 		doc.Read()
+ 		form=tests.TestForm(doc.root)
+ 		state=variables.TestSessionState(form)
+ 		try:
+ 			state.BeginSession('wrongkey')
+ 			self.fail("TestSessionState.BeginSession: failed to match key")
+ 		except variables.SessionKeyMismatch:
+ 			pass
+ 		saveKey=state.key
+ 		htmlDiv=state.BeginSession(state.key)
+ 		self.failIf(saveKey==state.key,"No key change.")
+ 		print htmlDiv
+ 		# we should be able to read the the current test part
+ 		self.failUnless(state.GetCurrentTestPart().identifier=="PartI","Current test part")
+		self.failUnless(state.GetCurrentQuestion().identifier=="Q1","Current question (pre-condition skip check)")
+		# In linear mode (applicable to PartI) template defaults are evaluated after preConditions
+		self.failUnless(state["Q0.T"].value==0,"Template default invoked for item skipped by template rule")
+		self.failUnless(state["Q1.T"].value==1,"Template default invoked for item not skipped by template rule")
+		self.failIf(state["Q1.RESPONSE"],"RESPONSE not NULL initially")
+ 		# Now let's make some checks on the output
+ 		self.failUnless(isinstance(htmlDiv,html.Div),"output is an html <div>")
+ 		formList=list(htmlDiv.FindChildrenDepthFirst(html.Form))
+ 		self.failUnless(len(formList)==1,"only one form in the html <div>")
+ 		inputList=list(htmlDiv.FindChildrenDepthFirst(html.Input))
+ 		self.failUnless(len(inputList)==4,"<input> list length")
+ 		for i in inputList:
+ 			self.failUnless(i.type==html.InputType.radio,"<input> must be radio buttons")
+ 			self.failUnless(i.name=="Q1.RESPONSE","<input> must have the name of the response variable")
+ 			self.failUnless(i.value in ("A","B","C","D"),"<input> must have the value of a choice identifier")
+ 			self.failUnless(i.checked is False,"Button's initially unchecked")
+ 		buttonList=list(htmlDiv.FindChildrenDepthFirst(html.Button))
+ 		self.failUnless(len(buttonList)==2,"<button> list length")
+ 		for i in buttonList:
+ 			self.failUnless(i.type==html.ButtonType.submit,"<buttons> must be of submit type")
+ 			self.failUnless(i.name in ("SAVE","SUBMIT"),"unknown action name")
+ 			self.failUnless(i.value==state.key,"button actions should have key as their value") 			
+		# sleep for 1s to ensure we register a duration
+		time.sleep(1)
+		# Now construct a fake form response for save....
+		response={
+			"SAVE":saveKey,
+			"Q1.RESPONSE":"C"}
+ 		try:
+ 			state.HandleEvent(response)
+ 			self.fail("TestSessionState.HandleEvent: failed to match current key")
+ 		except variables.SessionKeyMismatch:
+ 			self.fail("TestSessionState.HandleEvent: failed to detect old key")
+ 		except variables.SessionKeyExpired:
+ 			pass
+		response['SAVE']=saveKey=state.key
+		htmlDiv=state.HandleEvent(response)
+		print htmlDiv
+		self.failIf(state["Q1.RESPONSE"],"RESPONSE not NULL after save (no submit)")
+		self.failUnless(state["Q1.RESPONSE.SAVED"].value=="C","Saved response not recorded")
+		self.failIf(saveKey==state.key,"Key change on save")
+ 		inputList=list(htmlDiv.FindChildrenDepthFirst(html.Input))
+ 		for i in inputList:
+ 			self.failUnless(i.checked is (i.value=="C"),"Saved value is checked")
+		# Now check durations
+		self.failUnless(state["Q1.duration"].value>1.0,"Duration of question")
+		self.failUnless(state["SectionA1.duration"].value>1.0,"Duration of section A1: %s"%repr(state["SectionA1.duration"].value))
+		self.failUnless(state["SectionA.duration"].value>1.0,"Duration of section A")
+		self.failUnless(state["SectionB.duration"].value is None,"Duration of section B")
+		self.failUnless(state["PartI.duration"].value>1.0,"Duration of test part")
+		self.failUnless(state["duration"].value>1.0,"Duration of test")
+		time.sleep(1)
+		response={
+			"SUBMIT":state.key,
+			"Q1.RESPONSE":"D"
+			}
+		htmlDiv=state.HandleEvent(response)
+		print htmlDiv
+		self.failIf("Q1.RESPONSE.SAVED" in state,"SAVED RESPONSE not NULL after submit")
+		self.failUnless(state["Q1.RESPONSE"].value=="D","Submitted response not recorded")
+		self.failUnless(state["Q1.duration"].value>2.0,"Duration of question 1 should now be 2s")
+		self.failUnless(state["PartI.duration"].value>2.0,"Duration of test part")		
+ 		inputList=list(htmlDiv.FindChildrenDepthFirst(html.Input))
+ 		self.failUnless(len(inputList)==5,"<input> list length")
+ 		for i in inputList:
+ 			self.failUnless(i.type==html.InputType.checkbox,"<input> must be checkboxes")
+ 			self.failUnless(i.name=="Q2.RESPONSE","<input> must have the name of the response variable")
+ 			self.failUnless(i.value in ("A","B","C","D","E"),"<input> must have the value of a choice identifier")
+ 			self.failUnless(i.checked is (i.value=="E"),"Default box initially checked")
+		time.sleep(1)
+		response={
+			"SUBMIT":state.key,
+			"Q2.RESPONSE":["B","C","D"]
+			}
+		htmlDiv=state.HandleEvent(response)
+		print htmlDiv
+		self.failUnless(state["Q2.RESPONSE"].value=={"B":1,"C":1,"D":1},"Submitted response for multi-response")
+		self.failUnless(state["Q1.duration"].value<3.0,"Duration of question 1 should now be 2s+")
+		self.failUnless(state["Q2.duration"].value>1.0,"Duration of question 2 should now be 1s+")
+		self.failUnless(state["PartI.duration"].value>3.0,"Duration of test part")				
+		for key in state:
+			print "%s: %s"%(key,repr(state[key].value))				
+									
+		
 class MultiPartAssessmentTests(unittest.TestCase):
 	def setUp(self):
 		self.cwd=os.getcwd()
 		self.dataPath=os.path.join(os.path.split(__file__)[0],'data_imsqtiv2p1')
 		os.chdir(self.dataPath)
-		self.doc=QTIDocument(baseURI="basic/multiPart.xml")
+		self.doc=core.QTIDocument(baseURI="basic/multiPart.xml")
 		self.doc.Read()
 		
 	def tearDown(self):
@@ -3003,64 +3100,66 @@ class MultiPartAssessmentTests(unittest.TestCase):
 	def testCasePartI(self):
 		# PartI tests
 		selections={
-			((u"A1",0),(u"A1",1),(u"A3",0)):0,
-			((u"A1",0),(u"A2",0),(u"A3",0)):0,
-			((u"A1",0),(u"A3",0),(u"A3",1)):0,
-			((u"A1",0),(u"A3",0),(u"A4",0)):0,
-			((u"A1",0),(u"A4",0),(u"A3",0)):0
+			(u"I",u"A1",u"A1",u"A3",u"-I"):0,
+			(u"I",u"A1",u"A2",u"A3",u"-I"):0,
+			(u"I",u"A1",u"A3",u"A3",u"-I"):0,
+			(u"I",u"A1",u"A3",u"A4",u"-I"):0,
+			(u"I",u"A1",u"A4",u"A3",u"-I"):0
 			}
-		self.CheckSelections((u"I",0),selections)
+		self.CheckSelections(u"PartI",selections)
 		
 	def testCasePartII(self):
 		# PartII tests
 		selections={
-			((u"B1",0),(u"B2",0),(u"B1",1),(u"B2",1),(u"C3",0)):0,
-			((u"B1",0),(u"B2",0),(u"C2",0),(u"C3",0)):0,
-			((u"B1",0),(u"B2",0),(u"C3",0),(u"C3",1)):0,
-			((u"B1",0),(u"B2",0),(u"C3",0),(u"C4",0)):0,
-			((u"B1",0),(u"B2",0),(u"C4",0),(u"C3",0)):0
+			(u"II",u"SectionB",u"B1",u"B2",u"-SectionB",u"SectionB",u"B1",u"B2",u"-SectionB",u"C3",u"-II"):0,
+			(u"II",u"SectionB",u"B1",u"B2",u"-SectionB",u"C2",u"C3",u"-II"):0,
+			(u"II",u"SectionB",u"B1",u"B2",u"-SectionB",u"C3",u"C3",u"-II"):0,
+			(u"II",u"SectionB",u"B1",u"B2",u"-SectionB",u"C3",u"C4",u"-II"):0,
+			(u"II",u"SectionB",u"B1",u"B2",u"-SectionB",u"C4",u"C3",u"-II"):0
 			}
-		self.CheckSelections((u"II",0),selections)
+		self.CheckSelections(u"PartII",selections)
 
 	def testCasePartIII(self):
 		# PartII tests
 		selections={
-            ((u"D1",0), (u"D1",1), (u"E1",0), (u"E2",0)):0,
-            ((u"D1",0), (u"D2",0), (u"E1",0), (u"E2",0)):0,
-            ((u"D1",0), (u"E1",0), (u"E2",0), (u"E1",1), (u"E2",1)):0,
-            ((u"D1",0), (u"E1",0), (u"E2",0), (u"D4",0)):0
+            (u"III",u"D1",u"D1",u"SectionE",u"E1",u"E2",u"-SectionE",u"-III"):0,
+            (u"III",u"D1",u"D2",u"SectionE",u"E1",u"E2",u"-SectionE",u"-III"):0,
+            (u"III",u"D1",u"SectionE",u"E1",u"E2",u"-SectionE",u"SectionE",u"E1",u"E2",u"-SectionE",u"-III"):0,
+            (u"III",u"D1",u"SectionE",u"E1",u"E2",u"-SectionE",u"D4",u"-III"):0
 			}
-		self.CheckSelections((u"III",0),selections)                
+		self.CheckSelections(u"PartIII",selections)                
 		
 	def testCasePartIV(self):
 		# PartIV tests
 		selections={
-            ((u"F1",0), (u"F1",1), (u"G1",0), (u"G2",0)):0,
-            ((u"F1",0), (u"F1",1), (u"G2",0), (u"G1",0)):0,               
-            ((u"F1",0), (u"F2",0), (u"G1",0), (u"G2",0)):0,
-            ((u"F1",0), (u"F2",0), (u"G2",0), (u"G1",0)):0,
-            ((u"F1",0), (u"G1",0), (u"F2",0), (u"G2",0)):0,
-            ((u"F1",0), (u"G1",0), (u"G2",0), (u"F2",0)):0,
-            ((u"F1",0), (u"G2",0), (u"F2",0), (u"G1",0)):0,
-            ((u"F1",0), (u"G2",0), (u"G1",0), (u"F2",0)):0,
-            ((u"F1",0), (u"G1",0), (u"G1",1), (u"G2",0), (u"G2",1)):0,
-            ((u"F1",0), (u"G1",0), (u"G2",0), (u"G1",1), (u"G2",1)):0,
-            ((u"F1",0), (u"G1",0), (u"G2",0), (u"G2",1), (u"G1",1)):0,
-            ((u"F1",0), (u"G2",0), (u"G2",1), (u"G1",0), (u"G1",1)):0,
-            ((u"F1",0), (u"G2",0), (u"G1",0), (u"G2",1), (u"G1",1)):0,
-            ((u"F1",0), (u"G2",0), (u"G1",0), (u"G1",1), (u"G2",1)):0,
-            ((u"F1",0), (u"G1",0), (u"G2",0), (u"F4",0)):0,
-            ((u"F1",0), (u"G2",0), (u"G1",0), (u"F4",0)):0,
+            (u"IV",u"F1",u"F1",u"G1",u"G2",u"-IV"):0,
+            (u"IV",u"F1",u"F1",u"G2",u"G1",u"-IV"):0,               
+            (u"IV",u"F1",u"F2",u"G1",u"G2",u"-IV"):0,
+            (u"IV",u"F1",u"F2",u"G2",u"G1",u"-IV"):0,
+            (u"IV",u"F1",u"G1",u"F2",u"G2",u"-IV"):0,
+            (u"IV",u"F1",u"G1",u"G2",u"F2",u"-IV"):0,
+            (u"IV",u"F1",u"G2",u"F2",u"G1",u"-IV"):0,
+            (u"IV",u"F1",u"G2",u"G1",u"F2",u"-IV"):0,
+            (u"IV",u"F1",u"G1",u"G1",u"G2",u"G2",u"-IV"):0,
+            (u"IV",u"F1",u"G1",u"G2",u"G1",u"G2",u"-IV"):0,
+            (u"IV",u"F1",u"G1",u"G2",u"G2",u"G1",u"-IV"):0,
+            (u"IV",u"F1",u"G2",u"G2",u"G1",u"G1",u"-IV"):0,
+            (u"IV",u"F1",u"G2",u"G1",u"G2",u"G1",u"-IV"):0,
+            (u"IV",u"F1",u"G2",u"G1",u"G1",u"G2",u"-IV"):0,
+            (u"IV",u"F1",u"G1",u"G2",u"F4",u"-IV"):0,
+            (u"IV",u"F1",u"G2",u"G1",u"F4",u"-IV"):0,
 			}
-		self.CheckSelections((u"IV",0),selections)                
+		self.CheckSelections(u"PartIV",selections)                
 		
-	def CheckSelections(self,sectionSelector,selections):
+	def CheckSelections(self,partId,selections):
 		missing=len(selections)
 		for i in xrange(1000):
 			# We'll try to find all possibilities, give it 1000 goes...		
 			f=tests.TestForm(self.doc.root)
-			# grab first instance of SectionA
-			section=tuple(f[sectionSelector])
+			# grab first instance of pardId
+			aIndex=f.index(partId)+1
+			bIndex=f.index(u"-"+partId)
+			section=tuple(f[aIndex:bIndex])
 			x=selections.get(section,None)
 			if x is None:
 				self.fail("Illegal selection found: %s"%repr(section))
@@ -3094,7 +3193,7 @@ class ErrorAssessmentTests(unittest.TestCase):
 		self.SelectionErrorTest("errors/fixed.xml")
 
 	def SelectionErrorTest(self,fName):
-		self.doc=QTIDocument(baseURI=fName)
+		self.doc=core.QTIDocument(baseURI=fName)
 		self.doc.Read()
 		try:
 			f=tests.TestForm(self.doc.root)
@@ -3105,18 +3204,18 @@ class ErrorAssessmentTests(unittest.TestCase):
 		
 class QTIDocumentTests(unittest.TestCase):
 	def testCaseConstructor(self):
-		doc=QTIDocument()
+		doc=core.QTIDocument()
 		self.failUnless(isinstance(doc,xmlns.XMLNSDocument))
 
 	def testCaseExample1(self):
-		doc=QTIDocument()
+		doc=core.QTIDocument()
 		doc.Read(src=StringIO(EXAMPLE_1))
 		root=doc.root
-		self.failUnless(isinstance(root,QTIAssessmentItem))
+		self.failUnless(isinstance(root,items.AssessmentItem))
 		self.failUnless(root.ns==core.IMSQTI_NAMESPACE and root.xmlname=='assessmentItem')
 
 	def testCaseExample2(self):
-		doc=QTIDocument()
+		doc=core.QTIDocument()
 		doc.Read(src=StringIO(EXAMPLE_2))
 		vardefs=doc.root.declarations
 		self.failUnless(len(vardefs.keys())==2)

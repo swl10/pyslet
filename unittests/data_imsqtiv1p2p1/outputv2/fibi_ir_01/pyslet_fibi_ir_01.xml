@@ -17,7 +17,7 @@
     <itemBody>
         <div label="PysletExample_FIBI_IR_01">
             <p>How much solar energy (in W/m<sup>2</sup>) does the Earth experience, on average?</p>
-            <sliderInteraction responseIdentifier="NUM04" lowerBound="0.0" upperBound="1000.0" step="10"
+            <sliderInteraction responseIdentifier="NUM04" lowerBound="0.0E0" upperBound="1.0E3" step="10"
                 stepLabel="false" orientation="horizontal"/>
         </div>
     </itemBody>

@@ -235,6 +235,25 @@ class ShapeElementMixin:
 		return dx*dx*ry*ry+dy*dy*rx*rx<=rx*rx*ry*ry
 		
 
+class ShowHide(xsi.Enumeration):
+	"""Used to control content visibility with variables
+	::
+
+		<xsd:simpleType name="showHide.Type">
+			<xsd:restriction base="xsd:NMTOKEN">
+				<xsd:enumeration value="hide"/>
+				<xsd:enumeration value="show"/>
+			</xsd:restriction>
+		</xsd:simpleType>
+	
+	Note that ShowHide.DEFAULT == ShowHide.show"""
+	decode={
+		'show':1,
+		'hide':2
+		}
+xsi.MakeEnumeration(ShowHide,'show')
+		
+
 class View(xsi.Enumeration):
 	"""Used to represent roles when restricting view::
 	
@@ -295,6 +314,33 @@ class QTIElement(xmlns.XMLNSElement):
 				child.AddToCPResource(cp,resource,beenThere)
 
 
+class QTIDocument(xmlns.XMLNSDocument):
+	"""Used to represent all documents representing information from the QTI v2
+	specification."""
+
+	classMap={}
+	
+	def __init__(self,**args):
+		xmlns.XMLNSDocument.__init__(self,defaultNS=IMSQTI_NAMESPACE,**args)
+		self.MakePrefix(xsi.XMLSCHEMA_NAMESPACE,'xsi')
+		if isinstance(self.root,QTIElement):
+			self.root.SetAttribute((xsi.XMLSCHEMA_NAMESPACE,'schemaLocation'),IMSQTI_NAMESPACE+' '+IMSQTI_SCHEMALOCATION)
+			
+	def GetElementClass(self,name):
+		return QTIDocument.classMap.get(name,QTIDocument.classMap.get((name[0],None),xmlns.XMLNSElement))
+
+	def AddToContentPackage(self,cp,metadata,dName=None):
+		"""Copies this QTI document into a content package and returns the resource ID used.
+		
+		An optional directory name can be specified in which to put the resource files."""
+		# We call the element's AddToContentPackage method which returns the new resource
+		# The document's base is automatically set to the URI of the resource entry point
+		resource=self.root.AddToContentPackage(cp,metadata,dName)
+		# Finish by writing out the document to the new baseURI
+		self.Create()
+		return resource
+
+
 class DeclarationContainer:
 	"""An abstract mix-in class used to manage a dictionary of variable
 	declarations."""
@@ -304,7 +350,7 @@ class DeclarationContainer:
 
 	def RegisterDeclaration(self,declaration):
 		if declaration.identifier in self.declarations:
-			raise core.DeclarationError
+			raise DeclarationError
 		else:
 			self.declarations[declaration.identifier]=declaration
 	

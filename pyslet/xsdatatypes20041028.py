@@ -7,7 +7,7 @@ from sys import maxunicode, float_info
 from re import compile
 
 import pyslet.iso8601 as iso8601
-from pyslet.xml20081126.structures import LetterCharClass, NameCharClass
+from pyslet.xml20081126.structures import IsValidName, LetterCharClass, NameCharClass
 from pyslet.unicode5 import CharClass
 
 XMLSCHEMA_NAMESPACE="http://www.w3.org/2001/XMLSchema-instance"
@@ -43,35 +43,10 @@ def EncodeBoolean(src):
 		return "false"
 
 
-def DecodeInteger(src):
-	"""Decodes an integer value from a string returning an Integer or Long
-	value.
-
-	If string is not a valid lexical representation of an integer then
-	ValueError is raised."""
-	sign=False
-	for c in src:
-		v=ord(c)
-		if v==0x2B or v==0x2D:
-			if sign:
-				raise ValueError("Invalid lexical representation of integer: %s"%src)
-			else: 
-				sign=True
-		elif v<0x30 or v>0x39:
-			raise ValueError("Invalid lexical representation of integer: %s"%src)
-		else:
-			# a digit means we've got an empty sign
-			sign=True
-	return int(src)
-
-def EncodeInteger(value):
-	return unicode(value)
-
-
 def DecodeDecimal(src):
-	"""Decodes a decimal value from a string returning a float value.
+	"""Decodes a decimal value from a string returning a python float value.
 	
-	If string is not a valid lexical representation of an integer then
+	If string is not a valid lexical representation of a decimal value then
 	ValueError is raised."""
 	sign=False
 	point=False
@@ -213,18 +188,69 @@ def EncodeDecimal(value,digits=None,stripZeros=True):
 	return string.join(dString,'')
 
 
+_MaxFloat=2.0**128
+_MinFloat=2.0**-149
+
 def DecodeFloat(src):
-	try:
-		return float(src)
-	except:
-		return None
+	"""Decodes a float value from a string returning a python float.
+	
+	The precision of the python float varies depending on the implementation. It
+	typically exceeds the precision of the XML schema *float*.  We make no
+	attempt to reduce the precision to that of schema's float except that we
+	return 0.0 or -0.0 for any value that is smaller than the smallest possible
+	float defined in the specification.  (Note that XML schema's float
+	canonicalizes the representation of zero to remove this subtle distinction
+	but it can be useful to preserve it for numerical operations.  Likewise, if
+	we are given a representation that is larger than any valid float we return
+	one of the special float values INF or -INF as appropriate."""
+	s=src.lower()
+	if 'e' in s:
+		s=s.split('e')
+		if len(s)!=2:
+			raise ValueError("Invalid lexical representation of double: %s"%src)
+		m,e=s
+		m=DecodeDecimal(m)
+		e=DecodeInteger(e)
+		result=m*math.pow(10,e)
+	elif s in ("inf","-inf","nan"):
+		return float(s)
+	else:
+		result=DecodeDecimal(s)
+	absResult=math.fabs(result)
+	if absResult>=_MaxFloat:
+		return float("-inf") if result<0.0 else float("inf")
+	elif absResult<=_MinFloat:
+		# this value is too small for a float, return 0
+		return -0.0 if result<0.0 else 0.0
+	else:
+		return result
+
 
 def EncodeFloat(value):
-	return unicode(value)
+	"""Encodes a python float value as a string.
+
+	To reduce the chances of our output being rejected by external applications
+	that are strictly bound to a 32-bit float representation we ensure that we
+	don't output values that exceed the bounds of float defined by XML schema.
+
+	Therefore, we convert values that are too large to INF and values that are
+	too small to 0.0E0."""
+	absValue=math.fabs(value)
+	if absValue>=_MaxFloat:
+		return u"-INF" if value<0.0 else u"INF"
+	elif absValue<=_MinFloat:
+		# this value is too small for a float, return 0
+		return "0.0E0"
+	else:
+		return EncodeDouble(value)
 
 
 def DecodeDouble(src):
-	"""Decodes a double value from a string returning a float."""
+	"""Decodes a double value from a string returning a python float.
+	
+	The precision of the python float varies depending on the implementation. It
+	may even exceed the precision of the XML schema *double*.  The current
+	implementation ignores this distinction."""
 	s=src.lower()
 	if 'e' in s:
 		s=s.split('e')
@@ -243,13 +269,15 @@ def EncodeDouble(value,digits=None,stripZeros=True):
 	"""Encodes a double value returning a unicode string.
 	
 	*digits* controls the number of digits after the decimal point in the
-	mantissa, None indicates no maximum and the precision of float is used to
-	determine the appropriate number.  You may pass the value 0 - in which case
-	no digits are given after the point and the point itself is omitted, but
-	such values are not in their canonical form.
+	mantissa, None indicates no maximum and the precision of python's float is
+	used to determine the appropriate number.  You may pass the value 0 - in
+	which case no digits are given after the point and the point itself is
+	omitted, but such values are *not* in their canonical form.
 	
 	*stripZeros* determines whether or not trailing zeros are removed, if False
-	then exactly *digits* digits will be displayed after the point."""
+	then exactly *digits* digits will be displayed after the point.  By default
+	zeros are stripped (except there is always one zero left after the decimal
+	point)."""
 	if digits is None:
 		digits=float_info.dig-2
 		if digits<0:
@@ -308,17 +336,73 @@ def EncodeDouble(value,digits=None,stripZeros=True):
 	dString.append(str(e))
 	return string.join(dString,'')
 
+
 def DecodeDateTime(src):
+	"""Returns an :py:class:`pyslet.iso8601.TimePoint` instance."""
 	try:
 		return iso8601.TimePoint(src)
 	except:
 		return None
 
 def EncodeDateTime(value):
+	"""Returns the canonical lexical representation of a
+	:py:class:`pyslet.iso8601.TimePoint` instance."""
 	return value.GetCalendarString()
 
 
+def DecodeName(src):
+	"""Decodes a name from a string.  Returns the same string or raised ValueError."""
+	if IsValidName(src):
+		return src
+	else:
+		raise ValueError("Invalid Name: %s"%src)
+
+def EncodeName(src):
+	"""A convenience function, returns src unchanged."""
+	return src
+			
+
+def DecodeInteger(src):
+	"""Decodes an integer value from a string returning an Integer or Long
+	value.
+
+	If string is not a valid lexical representation of an integer then
+	ValueError is raised."""
+	sign=False
+	for c in src:
+		v=ord(c)
+		if v==0x2B or v==0x2D:
+			if sign:
+				raise ValueError("Invalid lexical representation of integer: %s"%src)
+			else: 
+				sign=True
+		elif v<0x30 or v>0x39:
+			raise ValueError("Invalid lexical representation of integer: %s"%src)
+		else:
+			# a digit means we've got an empty sign
+			sign=True
+	return int(src)
+
+def EncodeInteger(value):
+	"""Encodes an integer value using the canonical lexical representation."""
+	return unicode(value)
+
+
 class Enumeration:
+	"""An abstract class designed to make generating enumeration types easier. 
+	The class is not designed to be instantiated but to act as a method of
+	defining constants to represent the values of an enumeration.
+
+	The basic usage of this class is to derive a class from it with a single
+	class member called 'decode' which is a mapping from canonical strings to
+	simple integers.  You then call the function :py:func:`MakeEnumeration` to
+	complete the declaration, after which, you can use the enumeration as if you
+	had defined the constants as class members and call any of the following
+	class methods to convert enumeration values to and from their string
+	representations."""
+		
+	DEFAULT=None	#: the default value of the enumeration or None if there is no default
+
 	@classmethod
 	def DecodeValue(cls,src):
 		"""Decodes a string returning a value in this enumeration.
@@ -332,12 +416,24 @@ class Enumeration:
 
 	@classmethod
 	def DecodeLowerValue(cls,src):
-		"""Decodes a string, converting it first to lower case first.
+		"""Decodes a string, converting it to lower case first.
 
 		Returns a value in this enumeration.  If no legal value can be decoded
 		then ValueError is raised."""
 		try:
-			src=src.lower()
+			src=src.strip().lower()
+			return cls.decode[src]
+		except KeyError:
+			raise ValueError("Can't decode %s from %s"%(cls.__name__,src))
+	
+	@classmethod
+	def DecodeUpperValue(cls,src):
+		"""Decodes a string, converting it to upper case first.
+
+		Returns a value in this enumeration.  If no legal value can be decoded
+		then ValueError is raised."""
+		try:
+			src=src.strip().upper()
 			return cls.decode[src]
 		except KeyError:
 			raise ValueError("Can't decode %s from %s"%(cls.__name__,src))
@@ -429,7 +525,6 @@ class Enumeration:
 			values.sort()
 		return cls.EncodeValueList(values)
 							
-	DEFAULT=None	#: the default value of the enumeration or None if there is no default
 
 
 def MakeEnumeration(e,defaultValue=None):
@@ -1075,281 +1170,5 @@ class RegularExpressionParser(object):
 			return self.DotClass
 		else:
 			raise RegularExpressionError("Expected '.' at [%i]"%self.pos)
-	
-# class RegularExpressionParser(RFC2234CoreParser):
-# 	def __init__(self,source=None):
-# 		RFC2234Parser.__init__(self,source)
-# 		self.re=[]
-# 		
-# 	def ParseRegularExpression(self,reset=1):
-# 		if reset:
-# 			self.re=[]
-# 		self.ParseBranch()
-# 		if self.theChar=='|':
-# 			self.NextChar()
-# 			self.re.append('|')
-# 			self.ParseBranch()
-# 		return join(self.re,'')
-# 		
-# 	def ParseBranch(self):
-# 		while self.theChar is not None:
-# 			try:
-# 				saveLen=len(self.re)
-# 				self.PushParser()
-# 				self.ParsePiece()
-# 				self.PopParser(0)
-# 			except RFCSyntaxError:
-# 				self.PopParser(1)
-# 				self.re=self.re[:saveLen]
-# 				break
-# 	
-# 	def ParsePiece(self):
-# 		self.ParseAtom()
-# 		if self.theChar is None:
-# 			return
-# 		elif self.theChar in "?*+":
-# 			self.re.append(self.theChar)
-# 			self.NextChar()
-# 		elif self.theChar=='{':	
-# 			try:
-# 				saveLen=len(self.re)
-# 				self.PushParser()
-# 				self.NextChar()
-# 				self.re.append('{')
-# 				self.ParseQuantity()
-# 				if self.theChar=='}':
-# 					self.re.append('}')
-# 					self.NextChar()
-# 				else:
-# 					self.SyntaxError("expected }")
-# 				self.PopParser(0)
-# 			except RFCSyntaxError:
-# 				self.PopParser(1)
-# 				self.re=self.re[:saveLen]
-# 	
-# 	def ParseQuantity(self):
-# 		n=self.ParseDIGITRepeat()
-# 		if n is None:
-# 			self.SyntaxError("expected integer in quantity")
-# 		if self.theChar==',':
-# 			self.NextChar()
-# 			if IsDIGIT(self.theChar):
-# 				m=self.ParseDIGITRepeat()
-# 				if n>m:
-# 					self.SyntaxError("illegal quantity: {%i,%i}"%(n,m))
-# 				self.re.append("%i,%i"%(n,m))
-# 			else:
-# 				self.re.append("%i,"%n)				
-# 		else:
-# 			self.re.append("%i"%n)				
-# 
-# 	def ParseAtom(self):
-# 		if IsRENormalChar(self.theChar):
-# 			if self.theChar in ".^$*+?{}\\[]|()":
-# 				self.re.append("\\"+self.theChar)
-# 			else:
-# 				self.re.append(self.theChar)
-# 			self.NextChar()
-# 		elif self.theChar=="\\" or self.theChar==".":
-# 			charClass=self.ParseCharClassEsc()
-# 			if len(charClass)==1 and charClass[0][0]==charClass[0][1]:
-# 				# a single character
-# 				if charClass[0][0] in ".^$*+?{}\\[]|()":
-# 					self.re.append("\\"+charClass[0][0])
-# 				else:
-# 					self.re.append(charClass[0][0])
-# 			else:
-# 				self.re.append("[%s]"%FormatPythonCharClass(charClass))
-# 		elif self.theChar=='[':
-# 			neg,charClass=self.ParseCharClassExpr()
-# 			# now format the charClass into python syntax
-# 			if neg:
-# 				self.re.append("[^%s]"%FormatPythonCharClass(charClass))
-# 			else:
-# 				self.re.append("[%s]"%FormatPythonCharClass(charClass))
-# 		elif self.theChar=='(':
-# 			self.re.append('(')
-# 			self.NextChar()
-# 			self.ParseRegularExpression(0)
-# 			if self.theChar==')':
-# 				self.re.append(')')
-# 				self.NextChar()
-# 			else:
-# 				self.SyntaxError("expected ')'")
-# 		else:
-# 			self.SyntaxError("expected atom")
-# 	
-# 	def ParseCharClassExpr(self):
-# 		if self.theChar!="[":
-# 			self.SyntaxError("expected '['")
-# 		self.NextChar()
-# 		neg,charClass=self.ParseCharGroup()
-# 		if self.theChar!="]":
-# 			self.SyntaxError("expected ']'")
-# 		self.NextChar()
-# 		return neg,charClass
-# 	
-# 	def ParseCharGroup(self):
-# 		cClass=CharClass()		
-# 		if self.theChar=="^":
-# 			neg=True
-# 			self.NextChar()
-# 		else:
-# 			neg=False
-# 		hyphenRange=False
-# 		while self.theChar is not None:
-# 			if self.theChar=="-":
-# 				# a single hyphen is a charRange consisting of one XmlCharIncDash
-# 				self.NextChar()
-# 				hyphenRange=True
-# 				cClass.AddChar(u"-")
-# 				continue
-# 			try:
-# 				self.PushParser()
-# 				cClass.AddClass(self.ParseCharRange())
-# 				hyphenRange=False
-# 				self.PopParser(0)
-# 				continue
-# 			except RFCSyntaxError:
-# 				self.PopParser(1)
-# 			try:
-# 				self.PushParser()
-# 				cClass.AddClass(self.ParseCharClassEsc())
-# 				hyphenRange=False
-# 				self.PopParser(0)
-# 				continue
-# 			except RFCSyntaxError:
-# 				self.PopParser(1)
-# 			break
-# 		if self.theChar=="[" and hyphenRange:
-# 			# Then we have a subtraction - tricky
-# 			cClass=cClass[:-1]
-# 			subNeg,subClass=self.ParseCharClassExpr()
-# 			# Python doesn't support subtractions, so we have to do the subtraction
-# 			# now, particularly icky if it turns out to be a negative subClass
-# 			subClass=MakeCharClass(subClass)
-# 			if subNeg:
-# 				subClass=NegateCharClass(subClass)
-# 			cClass=SubtractCharClass(MakeCharClass(cClass),subClass)
-# 		return neg,cClass
-# 	
-# 	def ParseCharRange(self):
-# 		self.PushParser()
-# 		try:
-# 			s=self.ParseCharOrEsc()
-# 			if self.theChar=="-":
-# 				self.NextChar()
-# 			else:
-# 				self.SyntaxError("expected '-'")
-# 			e=self.ParseCharOrEsc()
-# 			self.PopParser(0)
-# 		except RFCSyntaxError:
-# 			self.PopParser(1)
-# 			if IsREXmlCharIncDash(self.theChar):
-# 				s=e=self.theChar
-# 				self.NextChar()
-# 			else:
-# 				self.SyntaxError("expected char range")
-# 		if ord(e)<ord(s):
-# 			self.SyntaxError("invalid character range %s-%s"%(s,e))
-# 		return CharClass((s,e))
-# 
-# 	def ParseCharOrEsc(self):
-# 		if IsREXmlChar(self.theChar):
-# 			c=self.theChar
-# 			self.NextChar()
-# 			return c
-# 		else:
-# 			return self.ParseSingleCharEsc()
-# 	
-# 	def ParseCharClassEsc(self):
-# 		if self.theChar=="\\":
-# 			self.PushParser()
-# 			try:
-# 				cClass=CharClass(self.ParseSingleCharEsc())
-# 				self.PopParser(0)
-# 				return cClass
-# 			except RFCSyntaxError:
-# 				self.PopParser(1)
-# 			self.PushParser()
-# 			try:
-# 				cClass=self.ParseMultiCharEsc()
-# 				self.PopParser(0)
-# 				return cClass
-# 			except RFCSyntaxError:
-# 				self.PopParser(1)
-# 			# we parse Cat and Compl escapes together
-# 			return self.ParseCatEsc()
-# 		elif self.theChar==".":
-# 			return self.ParseMultiCharEsc()
-# 		else:
-# 			self.SyntaxError("expected \\ or .")
-# 						
-# 	def ParseSingleCharEsc(self):
-# 		if self.theChar=="\\":
-# 			self.NextChar()
-# 			if self.theChar in SingleCharEscapes:
-# 				c=SingleCharEscapes[self.theChar]
-# 			else:
-# 				self.SyntaxError("expected single character escape character")
-# 			self.NextChar()
-# 			return c
-# 		else:
-# 			self.SyntaxError("expected \\")
-# 	
-# 	def ParseCatEsc(self):
-# 		if self.theChar=="\\":
-# 			self.NextChar()
-# 			if self.theChar=="P":
-# 				compl=True
-# 			elif self.theChar=="p":
-# 				compl=False
-# 			else:
-# 				self.SyntaxError("expected category escape")
-# 			self.NextChar()
-# 			if not self.theChar=="{":
-# 				self.SyntaxError("expected {")
-# 			self.NextChar()
-# 			catName=[]
-# 			while IsALPHA(self.theChar) or IsDIGIT(self.theChar) or self.theChar=="-":
-# 				catName.append(self.theChar)
-# 				self.NextChar()
-# 			catName=join(catName,'')
-# 			if len(catName)==2:
-# 				# this is one of the general categories
-# 				try:
-# 					cClass=CharClass(CharClass.UCDCategory(catName))
-# 				except KeyError:
-# 					self.SyntaxError("Unknown general category in escape")
-# 			elif len(catName)>2 and catName[:2]=="Is":
-# 				# this is an IsBlock
-# 				try:
-# 					cClass=CharClass(CharClass.UCDBlock(catName[2:]))
-# 				except KeyError:
-# 					self.SyntaxError("Unrecognized IsBlock in category escape")
-# 			else:
-# 				self.SyntaxError("unrecognized category escape")
-# 			if not self.theChar=="}":
-# 				self.SyntaxError("expected }")
-# 			self.NextChar()
-# 			if compl:
-# 				cClass.Negate()
-# 			return cClass
-# 		else:
-# 			self.SyntaxError("expected \\")
-# 
-# 	def ParseMultiCharEsc(self):
-# 		if self.theChar=="\\":
-# 			self.NextChar()
-# 			if self.theChar not in MultiCharEscapes:
-# 				self.SyntaxError("unrecognized character escape")
-# 			cClass=CharClass(MultiCharEscapes[self.theChar])
-# 			self.NextChar()
-# 			return cClass
-# 		elif self.theChar==".":
-# 			self.NextChar()
-# 			return CharClass(DotClass)
-# 		else:
-# 			self.SyntaxError("expected \\ or .")
-	
+
 			

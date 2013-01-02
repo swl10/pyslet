@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="q0" title="Question 0" adaptive="false" timeDependent="false">
+    <templateDeclaration identifier="T" cardinality="single" baseType="integer">
+        <defaultValue>
+            <value>0</value>
+        </defaultValue>       
+    </templateDeclaration>
+    <itemBody>
+        <p>Question 0: <printedVariable identifier="T"/></p>
+    </itemBody>
+</assessmentItem>

@@ -430,14 +430,14 @@ class MatText(core.QTIElement,PositionMixin,MatThingMixin):
 							p.AddData(child)
 						else:
 							newChild=child.Copy(p)
-							qtiv2.FixHTMLNamespace(newChild)															
+							qtiv2.content.FixHTMLNamespace(newChild)															
 					else:
 						# stop collecting inlines
 						p=None
 						if self.inlineWrapper:
 							log.append('Warning: block level elements in text/html cannot be wrapped with <%s>'%self.inlineWrapper.XMLNAME[1])
 						newChild=child.Copy(parent)
-						qtiv2.FixHTMLNamespace(newChild)														
+						qtiv2.content.FixHTMLNamespace(newChild)														
 			else:
 				# Flow context (with only inline children) or inline context
 				if self.inlineWrapper:
@@ -449,7 +449,7 @@ class MatText(core.QTIElement,PositionMixin,MatThingMixin):
 						addNode.AddData(child)
 					else:
 						newChild=child.Copy(addNode)
-						qtiv2.FixHTMLNamespace(newChild)
+						qtiv2.content.FixHTMLNamespace(newChild)
 		else:
 			raise QTIUnimplementedError
 
@@ -997,7 +997,7 @@ class Objectives(FlowMatContainer):
 		
 	def MigrateV2(self,v2Item,log):
 		"""Adds rubric representing these objectives to the given item's body"""
-		rubric=v2Item.ChildElement(qtiv2.ItemBody).ChildElement(qtiv2.RubricBlock)
+		rubric=v2Item.ChildElement(qtiv2.content.ItemBody).ChildElement(qtiv2.RubricBlock)
 		rubric.SetAttribute('view',qtiv2.core.View.EncodeValueList(core.MigrateV2View(self.view,log)))
 		# rubric is not a flow-container so we force inlines to be p-wrapped
 		self.MigrateV2Content(rubric,html.BlockMixin,log)
@@ -1031,10 +1031,10 @@ class Rubric(FlowMatContainer):
 	def MigrateV2(self,v2Item,log):
 		if self.view==core.View.All:
 			log.append('Warning: rubric with view="All" replaced by <div> with class="rubric"')
-			rubric=v2Item.ChildElement(qtiv2.ItemBody).ChildElement(html.Div,(qtiv2.core.IMSQTI_NAMESPACE,'div'))
+			rubric=v2Item.ChildElement(qtiv2.content.ItemBody).ChildElement(html.Div,(qtiv2.core.IMSQTI_NAMESPACE,'div'))
 			rubric.styleClass='rubric'
 		else:
-			rubric=v2Item.ChildElement(qtiv2.ItemBody).ChildElement(qtiv2.RubricBlock)
+			rubric=v2Item.ChildElement(qtiv2.content.ItemBody).ChildElement(qtiv2.RubricBlock)
 			rubric.SetAttribute('view',qtiv2.core.View.EncodeValueList(core.MigrateV2View(self.view,log)))
 		# rubric is not a flow-container so we force inlines to be p-wrapped
 		self.MigrateV2Content(rubric,html.BlockMixin,log)
@@ -1173,7 +1173,7 @@ class SetVar(core.QTIElement):
 		self.action=core.Action.DEFAULT
 	
 	def MigrateV2Rule(self,parent,log):
-		v2Item=parent.FindParent(qtiv2.QTIAssessmentItem)
+		v2Item=parent.FindParent(qtiv2.items.AssessmentItem)
 		identifier=qtiv2.core.ValidateIdentifier(self.varName)
 		outcome=v2Item.declarations.get(identifier,None)
 		if outcome is None:
@@ -1223,7 +1223,7 @@ class DisplayFeedback(core.QTIElement):
 		self.linkRefID=None
 		
 	def MigrateV2Rule(self,parent,log):
-		v2Item=parent.FindParent(qtiv2.QTIAssessmentItem)
+		v2Item=parent.FindParent(qtiv2.items.AssessmentItem)
 		identifier=qtiv2.core.ValidateIdentifier(self.linkRefID,'FEEDBACK_')
 		outcome=v2Item.declarations.get('FEEDBACK',None)
 		if outcome is None:
@@ -1346,7 +1346,7 @@ class VarEqual(VarThing):
 		self.case=False
 	
 	def MigrateV2Expression(self,parent,log):
-		v2Item=parent.FindParent(qtiv2.QTIAssessmentItem)
+		v2Item=parent.FindParent(qtiv2.items.AssessmentItem)
 		identifier=qtiv2.core.ValidateIdentifier(self.responseIdentifier)
 		d=v2Item.declarations.get(identifier,None)
 		if d is None:
@@ -1394,7 +1394,7 @@ class VarInequality(VarThing):
 		raise QTIUnimplementedOperator(self.xmlname)
 		
 	def MigrateV2Expression(self,parent,log):
-		v2Item=parent.FindParent(qtiv2.QTIAssessmentItem)
+		v2Item=parent.FindParent(qtiv2.items.AssessmentItem)
 		identifier=qtiv2.core.ValidateIdentifier(self.responseIdentifier)
 		d=v2Item.declarations.get(identifier,None)
 		if d is None:
@@ -1521,7 +1521,7 @@ class VarInside(VarThing):
 		self.areaType=None
 	
 	def MigrateV2Expression(self,parent,log):
-		v2Item=parent.FindParent(qtiv2.QTIAssessmentItem)
+		v2Item=parent.FindParent(qtiv2.items.AssessmentItem)
 		identifier=qtiv2.core.ValidateIdentifier(self.responseIdentifier)
 		d=v2Item.declarations.get(identifier,None)
 		if d is None:

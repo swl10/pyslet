@@ -91,7 +91,7 @@ class Item(common.QTICommentContainer,core.SectionItemMixin,core.ObjectMixin):
 		# First thing we do is initialize any fixups
 		for rp in self.ResProcessing:
 			rp._interactionFixup={}
-		doc=qtiv2.QTIDocument(root=qtiv2.QTIAssessmentItem)
+		doc=qtiv2.core.QTIDocument(root=qtiv2.items.AssessmentItem)
 		item=doc.root
 		lom=imsmd.LOM(None)
 		log=[]
@@ -424,7 +424,7 @@ class ItemMetadata(common.MetadataContainerMixin,core.QTIElement):
 		self.LRMMigrateStatus(lom,log)
 		vendors=self.metadata.get('toolvendor',())
 		for value,definition in vendors:
-			item.metadata.ChildElement(qtiv2.QMDToolVendor).SetValue(value)
+			item.metadata.ChildElement(qtiv2.md.ToolVendor).SetValue(value)
 		self.LRMMigrateTopic(lom,log)
 		self.LRMMigrateContributor('author','author',lom,log)
 		self.LRMMigrateContributor('creator','initiator',lom,log)
@@ -715,7 +715,7 @@ class Presentation(FlowContainer,common.PositionMixin):
 		
 	def MigrateV2(self,v2Item,log):
 		"""Presentation maps to the main content in itemBody."""
-		itemBody=v2Item.ChildElement(qtiv2.ItemBody)
+		itemBody=v2Item.ChildElement(qtiv2.content.ItemBody)
 		if self.GotPosition():
 			log.append("Warning: discarding absolute positioning information on presentation")
 		if self.InlineChildren():
@@ -744,7 +744,7 @@ class Presentation(FlowContainer,common.PositionMixin):
 		in the hotspotInteractions.  When the itemBody is complete we do a grand tidy
 		up to remove spurious images."""
 		hotspots=[]
-		itemBody.FindChildren((qtiv2.QTIHotspotInteraction,qtiv2.QTISelectPointInteraction),hotspots)
+		itemBody.FindChildren((qtiv2.interactions.HotspotInteraction,qtiv2.interactions.SelectPointInteraction),hotspots)
 		images=[]
 		itemBody.FindChildren(html.Img,images)
 		for hs in hotspots:
@@ -948,7 +948,7 @@ class ResponseThing(Response):
 				common.ContentMixin.MigrateV2Content(self,parent,childType,log,self.prompt)
 		if self.render:
 			interactionList=self.render.MigrateV2Interaction(parent,childType,interactionPrompt,log)
-			item=parent.FindParent(qtiv2.QTIAssessmentItem)
+			item=parent.FindParent(qtiv2.items.AssessmentItem)
 			if len(interactionList)>1 and self.rCardinality==core.RCardinality.Single:
 				log.append("Error: unable to migrate a response with Single cardinality to a single interaction: %s"%self.ident) 
 				interactionList=[]
@@ -1031,7 +1031,7 @@ class ResponseXY(ResponseThing):
 
 	def GetBaseType(self,interaction):
 		"""For select point we return a point for response_xy."""
-		if isinstance(interaction,qtiv2.QTISelectPointInteraction):
+		if isinstance(interaction,qtiv2.interactions.SelectPointInteraction):
 			return qtiv2.variables.BaseType.point
 		else:
 			return ResponseThing.GetBaseType(self)
@@ -1194,11 +1194,11 @@ class RenderChoice(RenderThing):
 			if self.parent.rCardinality==core.RCardinality.Ordered:
 				raise QTIUnimplementedError("OrderInteraction")
 			else:
-				interaction=parent.ChildElement(qtiv2.QTIChoiceInteraction)
+				interaction=parent.ChildElement(qtiv2.interactions.ChoiceInteraction)
 		else:		
 			raise QTIUnimplementedError("%s x render_choice"%self.parent.__class__.__name__)
 		if prompt:
-			interactionPrompt=interaction.ChildElement(qtiv2.QTIPrompt)
+			interactionPrompt=interaction.ChildElement(qtiv2.interactions.Prompt)
 			for child in prompt:
 				child.MigrateV2Content(interactionPrompt,html.InlineMixin,log)			
 		if self.minNumber is not None:
@@ -1246,12 +1246,12 @@ class RenderHotspot(RenderThing):
 			if self.parent.rCardinality==core.RCardinality.Ordered:
 				raise QTIUnimplementedError("GraphicOrderInteraction")
 			else:
-				interaction=parent.ChildElement(qtiv2.QTIHotspotInteraction)
+				interaction=parent.ChildElement(qtiv2.interactions.HotspotInteraction)
 		elif isinstance(self.parent,ResponseXY):
 			if self.parent.rCardinality==core.RCardinality.Ordered:
 				raise QTIUnimplementedError('response_xy x render_hotspot')
 			else:
-				interaction=parent.ChildElement(qtiv2.QTISelectPointInteraction)
+				interaction=parent.ChildElement(qtiv2.interactions.SelectPointInteraction)
 		else:
 			raise QTIUnimplementedError("%s x render_hotspot"%self.parent.__class__.__name__)
 		if self.showDraw:
@@ -1269,7 +1269,7 @@ class RenderHotspot(RenderThing):
 		hotspotImage=interaction.ChildElement(html.Object,(qtiv2.core.IMSQTI_NAMESPACE,'object'))
 		if prompt:
 			if not isinstance(prompt[0],html.Img):					
-				interactionPrompt=interaction.ChildElement(qtiv2.QTIPrompt)
+				interactionPrompt=interaction.ChildElement(qtiv2.interactions.Prompt)
 				for child in prompt:
 					child.MigrateV2Content(interactionPrompt,html.InlineMixin,log)
 				prompt=[]
@@ -1332,7 +1332,7 @@ class RenderHotspot(RenderThing):
 						child.MigrateV2HotspotChoice(interaction,log,img.x0,img.y0)
 					interactionList=[interaction]
 					for img,hits in hsi[1:]:
-						interaction=parent.ChildElement(qtiv2.QTIHotspotInteraction)
+						interaction=parent.ChildElement(qtiv2.interactions.HotspotInteraction)
 						if self.maxNumber is not None:
 							interaction.maxChoices=self.maxNumber
 						hotspotImage=interaction.ChildElement(html.Object,(qtiv2.core.IMSQTI_NAMESPACE,'object'))
@@ -1439,17 +1439,17 @@ class RenderFIB(RenderThing):
 
 	def MigrateV2FIBLabel(self,label,parent,childType,log):
 		if self.InlineFIBLabel() or childType is html.InlineMixin:
-			interaction=parent.ChildElement(qtiv2.TextEntryInteraction)
+			interaction=parent.ChildElement(qtiv2.interactions.TextEntryInteraction)
 		else:
-			interaction=parent.ChildElement(qtiv2.ExtendedTextInteraction)
+			interaction=parent.ChildElement(qtiv2.interactions.ExtendedTextInteraction)
 		if list(label.GetChildren()):
 			log.append("Warning: ignoring content in render_fib.response_label")
 
 	def MigrateV2Interaction(self,parent,childType,prompt,log):
 		if self.InlineFIBLabel() or childType is html.InlineMixin:
-			interactionType=qtiv2.TextEntryInteraction
+			interactionType=qtiv2.interactions.TextEntryInteraction
 		else:
-			interactionType=qtiv2.ExtendedTextInteraction
+			interactionType=qtiv2.interactions.ExtendedTextInteraction
 		interactionList=[]
 		parent.FindChildren(interactionType,interactionList)
 		iCount=len(interactionList)
@@ -1469,7 +1469,7 @@ class RenderFIB(RenderThing):
 				interaction.expectedLength=self.maxChars
 			elif self.rows is not None and self.columns is not None:
 				interaction.expectedLength=self.rows*self.columns
-			if interactionType is qtiv2.ExtendedTextInteraction:
+			if interactionType is qtiv2.interactions.ExtendedTextInteraction:
 				if self.rows is not None:
 					interaction.expectedLines=self.rows
 		return interactionList
@@ -1529,7 +1529,7 @@ class RenderSlider(RenderThing):
 		if isinstance(self.parent,ResponseLId):
 			if self.parent.rCardinality==core.RCardinality.Single:
 				log.append("Warning: choice-slider replaced with choiceInteraction.slider")
-				interaction=parent.ChildElement(qtiv2.QTIChoiceInteraction)
+				interaction=parent.ChildElement(qtiv2.interactions.ChoiceInteraction)
 				interaction.styleClass='slider'
 				interaction.minChoices=1
 				interaction.maxChoices=1
@@ -1538,7 +1538,7 @@ class RenderSlider(RenderThing):
 				raise QTIUnimplementedError("OrderInteraction")
 			else:
 				log.append("Error: multiple-slider replaced with choiceInteraction.slider")
-				interaction=parent.ChildElement(qtiv2.QTIChoiceInteraction)
+				interaction=parent.ChildElement(qtiv2.interactions.ChoiceInteraction)
 				interaction.styleClass='slider'
 				if self.minNumber is not None:
 					interaction.minChoices=self.minNumber
@@ -1550,7 +1550,7 @@ class RenderSlider(RenderThing):
 				child.MigrateV2SimpleChoice(interaction,log)
 		elif isinstance(self.parent,ResponseNum):
 			if self.parent.rCardinality==core.RCardinality.Single:
-				interaction=parent.ChildElement(qtiv2.SliderInteraction)
+				interaction=parent.ChildElement(qtiv2.interactions.SliderInteraction)
 				interaction.lowerBound=float(self.lowerBound)
 				interaction.upperBound=float(self.upperBound)
 				if self.step is not None:
@@ -1563,14 +1563,14 @@ class RenderSlider(RenderThing):
 		else:	
 			raise QTIUnimplementedError("%s x render_slider"%self.parent.__class__.__name__)
 		if prompt:
-			interactionPrompt=interaction.ChildElement(qtiv2.QTIPrompt)
+			interactionPrompt=interaction.ChildElement(qtiv2.interactions.Prompt)
 			for child in prompt:
 				child.MigrateV2Content(interactionPrompt,html.InlineMixin,log)			
 		return [interaction]
 		
 	def MigrateV2InteractionDefault(self,declaration,interaction):
 		# Most interactions do not need default values.
-		if isinstance(interaction,qtiv2.SliderInteraction) and self.startVal is not None:
+		if isinstance(interaction,qtiv2.interactions.SliderInteraction) and self.startVal is not None:
 			value=declaration.ChildElement(qtiv2.variables.DefaultValue).ChildElement(qtiv2.variables.ValueElement)
 			if declaration.baseType==qtiv2.variables.BaseType.integer:
 				value.SetValue(xsi.EncodeInteger(self.startVal))
@@ -1662,9 +1662,9 @@ class ResponseLabel(core.QTIElement,common.ContentMixin):
 		
 	def MigrateV2SimpleChoice(self,interaction,log):
 		"""Migrate this label into a v2 simpleChoice in interaction."""
-		choice=interaction.ChildElement(qtiv2.QTISimpleChoice)
+		choice=interaction.ChildElement(qtiv2.interactions.SimpleChoice)
 		choice.identifier=qtiv2.core.ValidateIdentifier(self.ident)
-		if isinstance(interaction,qtiv2.QTIChoiceInteraction) and interaction.shuffle:			
+		if isinstance(interaction,qtiv2.interactions.ChoiceInteraction) and interaction.shuffle:			
 			choice.fixed=not self.rShuffle
 		data=[]
 		gotElements=False
@@ -1690,10 +1690,10 @@ class ResponseLabel(core.QTIElement,common.ContentMixin):
 
 	def MigrateV2HotspotChoice(self,interaction,log,xOffset=0,yOffset=0):
 		"""Migrate this label into a v2 hotspotChoice in interaction."""
-		if isinstance(interaction,qtiv2.QTISelectPointInteraction):
+		if isinstance(interaction,qtiv2.interactions.SelectPointInteraction):
 			log.append("Warning: ignoring response_label in selectPointInteraction (%s)"%self.ident)
 			return
-		choice=interaction.ChildElement(qtiv2.QTIHotspotChoice)
+		choice=interaction.ChildElement(qtiv2.interactions.HotspotChoice)
 		choice.identifier=qtiv2.core.ValidateIdentifier(self.ident)
 		# Hard to believe I know, but we sift the content of the response_label
 		# into string data (which is parsed for coordinates) and elements which
@@ -1997,8 +1997,8 @@ class ItemProcExtension(common.ContentMixin,core.QTIElement,ConditionMixin):
 				continue
 			elif child.xmlname=='humanraterdata':
 				# humanraterdata extension, migrate content with appropriate view
-				v2Item=ruleContainer.FindParent(qtiv2.QTIAssessmentItem)
-				rubric=v2Item.ChildElement(qtiv2.ItemBody).ChildElement(qtiv2.RubricBlock)
+				v2Item=ruleContainer.FindParent(qtiv2.items.AssessmentItem)
+				rubric=v2Item.ChildElement(qtiv2.content.ItemBody).ChildElement(qtiv2.RubricBlock)
 				rubric.view=qtiv2.core.View.scorer
 				material=[]
 				child.FindChildren(common.Material,material)
@@ -2049,7 +2049,7 @@ class ItemFeedback(core.QTIElement,common.ContentMixin):
 			log.append("Warning: discarding view on feedback (%s)"%core.View.EncodeValue(self.view))
 		identifier=qtiv2.core.ValidateIdentifier(self.ident,'FEEDBACK_')
 		feedback.outcomeIdentifier='FEEDBACK'
-		feedback.showHide=qtiv2.QTIShowHide.show
+		feedback.showHide=qtiv2.core.ShowHide.show
 		feedback.identifier=identifier
 		feedback.title=self.title
 		common.ContentMixin.MigrateV2Content(self,feedback,html.FlowMixin,log)

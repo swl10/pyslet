@@ -9,10 +9,22 @@ from pyslet.rfc2396  import URI, URIFactory
 import pyslet.qtiv2.core as core
 import pyslet.qtiv2.tests as tests
 
+import os, time, hashlib
 import string, itertools
 from types import BooleanType,IntType,LongType,FloatType,StringTypes,DictType,TupleType,ListType
 
 
+class SessionKeyMismatch(core.QTIError):
+	"""Exception raised when a session is invoked with the wrong key."""
+	pass
+	
+class SessionKeyExpired(core.QTIError):
+	"""Exception raised when a session is invoked with an expired key."""
+	pass
+
+class SessionActionMissing(core.QTIError):
+	"""Exception raised when an unrecognised action is handled by a test session."""
+	
 class BaseType(xsi.Enumeration):
 	"""A base-type is simply a description of a set of atomic values (atomic to
 	this specification). Note that several of the baseTypes used to define the
@@ -829,7 +841,7 @@ class MultipleContainer(Container):
 		items may be None indicating a NULL value in the list.  In accordance
 		with the specification's multiple operator NULL values are ignored.
 				
-		If the input list of values empty, or contains only NULL values then the
+		If the input list of values is empty, or contains only NULL values then the
 		resulting container is empty.
 
 		If *baseType* is None the base type specified when the container was
@@ -1597,9 +1609,89 @@ class TemplateDeclaration(VariableDeclaration):
 		self.mathVariable=None
 	
 
-class ItemSessionState(object):
-	"""Represents the state of an item session.  Instances can be used as if
-	they were dictionaries of :py:class:`Value`.  *item* is the item from which
+class SessionState(object):
+	"""Abstract class used as the base class for namespace-like objects used to
+	track the state of an item or test session.  Instances can be used as if
+	they were dictionaries of :py:class:`Value`."""
+
+	def GetDeclaration(self,varName):
+		"""Returns the declaration associated with *varName* or None if the
+		variable is one of the built-in variables.  If *varName* is not a
+		variable KeyError is raised.  To test for the existence of a variable
+		just use the object as you would a dictionary::
+		
+			# state is a SessionState instance
+			if 'RESPONSE' in state:
+				print "RESPONSE declared!" """
+		raise KeyError(varName)
+			
+	def IsResponse(self,varName):
+		"""Return True if *varName* is the name of a response variable."""
+		d=self.GetDeclaration(varName)
+		return isinstance(d,ResponseDeclaration)
+			
+	def IsOutcome(self,varName):
+		"""Return True if *varName* is the name of an outcome variable."""
+		d=self.GetDeclaration(varName)
+		return isinstance(d,OutcomeDeclaration)
+	
+	def SetOutcomeDefaults(self):
+		raise NotImplementedError
+
+	def IsTemplate(self,varName):
+		"""Return True if *varName* is the name of a template variable."""
+		d=self.GetDeclaration(varName)
+		return isinstance(d,TemplateDeclaration)
+	
+	def __len__(self):
+		return 0
+			
+	def __getitem__(self,varName):
+		"""Returns the :py:class:`Value` instance corresponding to *varName* or
+		raises KeyError if there is no variable with that name."""
+		raise KeyError(varName)
+			
+	def __setitem__(self,varName,value):
+		"""Sets the value of *varName* to the :py:class:`Value` instance *value*.
+		
+		The *baseType* and cardinality of *value* must match those expected for
+		the variable.
+		
+		This method does not actually update the dictionary with the *value*
+		instance but instead, it copies the value of *value* into the
+		:py:class:`Value` instance already stored in the session.  The
+		side-effect of this implementation is that a previous look-up will be
+		updated by a subsequent assignment::
+		
+			# state is a SessionState instance
+			state['RESPONSE']=IdentifierValue('Hello')
+			r1=state['RESPONSE']
+			state['RESPONSE']=IdentifierValue('Bye')
+			r2=state['RESPONSE']
+			r1==r2		# WARNING: r1 has been updated so still evaluates to True!"""
+		if not isinstance(value,Value):
+			raise TypeError
+		v=self[varName]
+		if value.Cardinality() is not None and value.Cardinality()!=v.Cardinality():
+			raise ValueError("Expected %s value, found %s"%(Cardinality.EncodeValue(v.Cardinality()),
+				Cardinality.EncodeValue(value.Cardinality())))
+		if value.baseType is not None and value.baseType!=v.baseType:
+			raise ValueError("Expected %s value, found %s"%(BaseType.EncodeValue(v.baseType),
+				BaseType.EncodeValue(value.baseType)))
+		v.SetValue(value.value)
+
+	def __delitem__(self,varName):
+		raise TypeError("Can't delete variables from SessionState")
+	
+	def __iter__(self):
+		raise NotImplementedError
+
+	def __contains__(self,varName):
+		raise KeyError(varName)
+	
+	
+class ItemSessionState(SessionState):
+	"""Represents the state of an item session.  *item* is the item from which
 	the session should be created.
 	
 	On construction, all declared variables (included built-in variables) are
@@ -1614,6 +1706,8 @@ class ItemSessionState(object):
 	definition on construction."""
 
 	def __init__(self,item):
+		super(ItemSessionState,self).__init__()
+		self.formPrefix=""	#: the required prefix for HTML form variable names
 		self.item=item
 		self.map={}
 		for td in self.item.TemplateDeclaration:
@@ -1666,7 +1760,7 @@ class ItemSessionState(object):
 		self.map['duration'].value=0.0
 		# the rest of the response variables are initialised when the first attempt starts
 		
-	def BeginAttempt(self):
+	def BeginAttempt(self,htmlParent=None):
 		"""Called at the start of an attempt.
 		
 		This method sets the default RESPONSE values and completionStatus if
@@ -1679,7 +1773,103 @@ class ItemSessionState(object):
 				self.map[rd.identifier]=Value.CopyValue(self.map[rd.identifier+".DEFAULT"])
 			# and set completionStatus
 			self.map['completionStatus']=IdentifierValue('unknown')
+		return self.item.RenderHTML(self,htmlParent)
 	
+	def SaveSession(self,params,htmlParent=None):
+		"""Called when we wish to save unsubmitted values."""
+		self._SaveParameters(params)
+		return self.item.RenderHTML(self,htmlParent)
+			
+	def SubmitSession(self,params,htmlParent=None):
+		"""Called when we wish to submit values (i.e., end an attempt)."""
+		self._SaveParameters(params)
+		# Now we go through all response variables and update their value from the
+		# saved value, removing the saved values as we go.
+		for rd in self.item.ResponseDeclaration:
+			sName=rd.identifier+".SAVED"
+			if sName in self.map:
+				self.map[rd.identifier].SetValue(self.map[sName].value)
+				del self.map[sName]
+		self.EndAttempt()
+		return self.item.RenderHTML(self,htmlParent)
+	
+	def _SaveParameters(self,params):
+		orderedParams={}
+		for p in params:
+			if self.formPrefix and not p.startswith(self.formPrefix):
+				# ignore values not intended for us
+				continue
+			rName=p[len(self.formPrefix):].split(".")
+			if not rName:
+				continue
+			# rName must be the name of a response variable
+			rd=self.GetDeclaration(rName[0])
+			if rd is None or not isinstance(rd,ResponseDeclaration):
+				# unexpected item in bagging area!
+				raise BadSessionParams("Unexpected item submitted wth form: %s"%p)
+			# so we have a new response value to save
+			saveName=rName[0]+".SAVED"
+			if saveName not in self:
+				 self.map[saveName]=v=Value.NewValue(rd.cardinality,rd.baseType)
+			else:
+				v=self.map[saveName]
+			# now we need to parse a value from the form to save
+			sValue=params[p]
+			if rd.cardinality==Cardinality.single:
+				# We are expecting a single value from the form
+				if type(sValue) in StringTypes:
+					v.SetValue(sValue)
+				else:
+					raise BadSessionParams("Unexpected multi-value submission: %s"%p)
+			elif rd.cardinality==Cardinality.multiple:
+				# we are expecting a simple list of values
+				if type(sValue) in StringTypes:
+					# single item list
+					v.SetValue([sValue])
+				else:
+					v.SetValue(sValue)
+			elif rd.cardinality==Cardinality.ordered:
+				# there are two ways of setting these values, either RESPONSE.rank=VALUE
+				# or RESPONSE.VALUE=rank.  The latter representation is only valid for
+				# identifiers, to ensure we don't mix them up with ranks.
+				if len(rName)!=2:
+					continue
+				try:
+					if rd.baseType==BaseType.Identifier and core.ValidateIdentifier(rName[1]):
+						if type(sValue) in StringTypes:
+							v.SetValue(sValue)
+						else:
+							raise ValueError
+						rank=xsi.DecodeInteger(sValue)
+						sValue=rName[1]
+					else:
+						rank=xsi.DecodeInteger(rName[1])
+					if saveName in orderedParams:
+						if rank in orderedParams[saveName]:
+							# duplicate entries, we don't allow these
+							raise ValueError
+						orderedParams[saveName][rank]=sValue
+					else:
+						orderedParams[saveName]={rank:sValue}
+				except ValueError:
+					raise BadSessionParams("Bad value in submission for: %s"%p)
+			else:
+				raise NotImplementedError
+		if orderedParams:
+			# we've gathered ordered parameters in a dictionary of dictionaries
+			# keyed first on response identifier and then on rank.  For each
+			# response we just sort them, so missing ranks are OK.
+			for response in orderedParams:
+				rParams=orderedParams[response]
+				ranks=rParams.keys()
+				ranks.sort()
+				sValue=[]
+				for r in ranks:
+					sValue.append(rParams[r])
+				saveName=response+".SAVED"
+				v=self.map[saveName]
+				v.SetValue(sValue)				
+				
 	def EndAttempt(self):
 		"""Called at the end of an attempt.  Invokes response processing if present."""
 		if not self.item.adaptive:
@@ -1690,17 +1880,27 @@ class ItemSessionState(object):
 		if self.item.ResponseProcessing:
 			self.item.ResponseProcessing.Run(self)
 							
+	def GetDeclaration(self,varName):
+		if varName in self.map:
+			return self.item.GetDeclaration(varName)
+		else:
+			raise KeyError(varName)
+			
 	def IsResponse(self,varName):
-		"""Return True if *varName* is the name of a response variable."""
-		d=self.item.GetDeclaration(varName)
+		"""Return True if *varName* is the name of a response variable.
+		
+		We add handling of the built-in response variables numAttempts and duration."""
+		d=self.GetDeclaration(varName)
 		if d is None:
 			return varName in ('numAttempts','duration')
 		else:
 			return isinstance(d,ResponseDeclaration)
 			
 	def IsOutcome(self,varName):
-		"""Return True if *varName* is the name of an outcome variable."""
-		d=self.item.GetDeclaration(varName)
+		"""Return True if *varName* is the name of an outcome variable.
+		
+		We add handling of the built-in outcome variable completionStatus."""
+		d=self.GetDeclaration(varName)
 		if d is None:
 			return varName=='completionStatus'
 		else:
@@ -1716,57 +1916,12 @@ class ItemSessionState(object):
 					elif v.baseType==BaseType.float:
 						v.SetValue(0.0)
 
-	def IsTemplate(self,varName):
-		"""Return True if *varName* is the name of a template variable."""
-		d=self.item.GetDeclaration(varName)
-		if d is None:
-			return False
-		else:
-			return isinstance(d,TemplateDeclaration)
-	
-	def GetDeclaration(self,varName):
-		"""Returns the declaration associated with *varName* or None if the
-		variable is one of the built-in variables.  If *varName* is not a
-		variable KeyError is raised.  To test for the existence of a variable
-		just use the object as you would a dictionary::
-		
-			# item is an AssessmentItem instance
-			state=ItemSessionState(item)
-			if 'RESPONSE' in state:
-				print "RESPONSE declared!" """
-		if varName in self.map:
-			d=self.item.GetDeclaration(varName)
-			return d
-		else:
-			raise KeyError(varName)
-			
 	def __len__(self):
 		return len(self.map)
 			
 	def __getitem__(self,varName):
-		"""Returns the :py:class:`Value` instance corresponding to *varName* or
-		raises KeyError if there is no variable with that name."""
 		return self.map[varName]
 			
-	def __setitem__(self,varName,value):
-		"""Sets the value of *varName* to the :py:class:`Value` instance *value*.
-		
-		The *baseType* and cardinality of *value* must match those expected for
-		the variable."""
-		if not isinstance(value,Value):
-			raise TypeError
-		v=self.map[varName]
-		if value.Cardinality() is not None and value.Cardinality()!=v.Cardinality():
-			raise ValueError("Expected %s value, found %s"%(Cardinality.EncodeValue(v.Cardinality()),
-				Cardinality.EncodeValue(value.Cardinality())))
-		if value.baseType is not None and value.baseType!=v.baseType:
-			raise ValueError("Expected %s value, found %s"%(BaseType.EncodeValue(v.baseType),
-				BaseType.EncodeValue(value.baseType)))
-		v.SetValue(value.value)
-
-	def __delitem__(self,varName):
-		raise TypeError("Can't delete variables from ItemSessionState")
-	
 	def __iter__(self):
 		return iter(self.map)
 
@@ -1774,113 +1929,443 @@ class ItemSessionState(object):
 		return varName in self.map
 	
 
-class TestSessionState(object):
-	"""Represents the state of a test session.  Instances can be used as if they
-	were dictionaries of :py:class:`Value`.  *form* is the test form from which
-	the session should be created.
+class TestSessionState(SessionState):
+	"""Represents the state of a test session.  The keys are the names of the
+	variables *including* qualified names that can be used to look up the value
+	of variables from the associated item session states.  *form* is the test
+	form from which the session should be created.
 	
 	On construction, all declared variables (included built-in variables) are
 	added to the session with NULL values."""
 
 	def __init__(self,form):
-		self.form=form
-		self.test=form.test
-		self.map={}
+		super(TestSessionState,self).__init__()
+		self.form=form	#: the :py:class:`tests.TestForm` used to initialise this session
+		self.test=form.test		#: the :py:class:`tests.AssessmentTest` that this session is an instance of
+		self.namespace=len(form)*[None]
+		self.namespace[0]={}
 		# add the default response variables
-		self.map['duration']=DurationValue()
+		self.namespace[0]['duration']=DurationValue()
 		# now loop through all test parts and (visible) sections to define other durations
-		for p in form.parts:
-			self.map[p+".duration"]=DurationValue()
-			self.InitPart((p,0))
+		for i in xrange(1,len(self.namespace)):
+			p=form[i]
+			if p[0]=="-":
+				continue
+			part=self.test.GetPart(p)
+			if isinstance(part,(tests.AssessmentSection,tests.TestPart)):
+				self.namespace[i]={'duration':DurationValue()}
+			elif isinstance(part,tests.AssessmentItemRef):
+				item=part.GetItem()
+				self.namespace[i]=ItemSessionState(item)
+				self.namespace[i].formPrefix=p+"."				
 		# now loop through the declared variables, outcomes do not get their default yet
 		for od in self.test.OutcomeDeclaration:
-			self.map[od.identifier]=Value.NewValue(od.cardinality,od.baseType)
+			self.namespace[0][od.identifier]=Value.NewValue(od.cardinality,od.baseType)
+		self.t=None			#: the time of the last event
+		try:
+			self.salt=os.urandom(8)		#: a random string of bytes used to add entropy to the session key 
+		except NotImplementedError:
+			self.salt=[]
+			for i in xrange(8):
+				self.salt.append(chr(random.randint(0,255)))
+			self.salt=string.join(self.salt,'')
+		self.key=''
+		"""A key representing this session in its current state, this key is
+		initialised to a random value and changes as each event is received. 
+		The key must be supplied when triggering subsequent events.  The key is
+		designed to be unguessable and unique so a caller presenting the correct
+		key when triggering an event can be securely assumed to be the owner of
+		the existing session."""
+		self.prevKey=''
+		"""The key representing the previous state.  This can be used to follow
+		session state transitions back through a chain of states back to the
+		beginning of the session (i.e., for auditing).""" 
+		self.keyMap={}
+		"""A mapping of keys previously used by this session.  A caller
+		presenting an expired key when triggering an event generates a
+		:py:class:`SessionKeyExpired` exception. This condition might indicate
+		that a session response was not received (e.g., due to a connection
+		failure) and that the session should be re-started with the previous
+		response."""
+		self.EventUpdate(self.key)		
+		self.cQuestion=0
+		
+	def EventUpdate(self,keyCheck):
+		if self.key!=keyCheck:
+			if keyCheck in self.keyMap:
+				raise SessionKeyExpired(keyCheck)
+			else:
+				raise SessionKeyMismatch(keyCheck)
+		if self.key:
+			self.keyMap[self.key]=True
+			self.prevKey=self.key
+			dt=self.t
+			self.t=time.time()
+			dt=self.t-dt
+		else:
+			self.t=time.time()
+			dt=0.0
+		hash=hashlib.sha224()
+		hash.update(self.salt+"%.6f"%self.t)
+		self.key=unicode(hash.hexdigest())
+		return dt
+		
+	def GetCurrentTestPart(self):
+		"""Returns the current test part or None if the test is finished."""
+		q=self.GetCurrentQuestion()
+		if q is None:
+			return None
+		else:
+			return q.FindParent(tests.TestPart)		
+					
+	def GetCurrentQuestion(self):
+		"""Returns the current question or None if the test is finished."""
+		if self.cQuestion is None:
+			return None
+		else:
+			return self.test.GetPart(self.form[self.cQuestion])
 	
-	def InitPart(self,partSelector):
-		for pID,index in self.form[partSelector]:
-			p=self.test.GetPart(pID)
-			if isinstance(p,tests.AssessmentSection):
-				if index:
-					self.map["%s.duration.%i"%(pID,index)]=DurationValue()
+	def _BranchTarget(self,qPos):
+		id=self.form[qPos]
+		if id[0]==u"-":
+			id=id[1:]
+		q=self.test.GetPart(id)
+		target=q.GetBranchTarget(self)
+		if target is None:
+			return qPos+1
+		elif target==u"EXIT_TEST":
+			return len(self.form)
+		else:
+			qPos=qPos+1
+			while True:
+				if qPos>=len(self.form):
+					return qPos
+				id=self.form[qPos]
+				if target==id:
+					return qPos
+				qPos=qPos+1
+				# handle the other special identifiers which move to the point just
+				# after the end of the part being exited
+				if id[0]==u"-":
+					if target==u"EXIT_SECTION":
+						return qPos
+					elif target==u"EXIT_TESTPART" and isinstance(self.test.GetPart(id[1:]),tests.TestPart):
+						return qPos
+		
+	def _NextQuestion(self):
+		if self.cQuestion is None:
+			# we've finished
+			return
+		elif self.cQuestion is 0:
+			# We need to find the first question
+			iQ=1
+		else:
+			# we're currently pointing at an assessmentItemRef
+			iQ=self._BranchTarget(self.cQuestion)			
+		while iQ is not None:
+			# What type of thing is iQ?
+			if iQ>=len(self.form):
+				# we've run out of stuff, that was the end of the test.
+				self.cQuestion=None
+				break
+			# check for preConditions
+			id=self.form[iQ]
+			if id[0]==u"-":
+				# end of a section or test part
+				iQ=self._BranchTarget(iQ)
+			else:
+				# check preconditions
+				part=self.test.GetPart(id)
+				if part.CheckPreConditions(self):
+					if isinstance(part,tests.TestPart):
+						# descend in to this testPart
+						iQ=iQ+1
+						if part.navigationMode==tests.NavigationMode.nonlinear:
+							# evaluate templateDefaults for all items in this part
+							endId=u"-"+part.identifier
+							jQ=iQ
+							while jQ<=len(self.form):
+								id=self.form[jQ]
+								if id==endId:
+									break
+								if id[0]!=u"-":
+									jPart=self.test.GetPart(id)
+									if isinstance(jPart,tests.AssessmentItemRef):
+										# Now evaluate the template defaults
+										itemState=self.namespace[jQ]
+										jPart.SetTemplateDefaults(itemState,self)
+										# and pick a clone
+										itemState.SelectClone()
+										itemState.BeginSession()
+								jQ=jQ+1
+					elif isinstance(part,tests.AssessmentSection):
+						# descend in to this section
+						iQ=iQ+1
+					elif isinstance(part,tests.AssessmentItemRef):
+						# we've found the next question
+						testPart=part.FindParent(tests.TestPart)
+						if testPart.navigationMode==tests.NavigationMode.linear:
+							itemState=self.namespace[iQ]
+							part.SetTemplateDefaults(itemState,self)
+							itemState.SelectClone()
+							itemState.BeginSession()
+						self.cQuestion=iQ
+						break
 				else:
-					self.map["%s.duration"%pID]=DurationValue()			
-				self.InitPart((pID,index))
+					# skip this item
+					iQ=iQ+1
 
-	def BeginSession(self):
-		"""Called at the start of a test session.
+			
+	def BeginSession(self,key,htmlParent=None):
+		"""Called at the start of a test session.  Represents a 'Start Test' event.
 				
 		The main purpose of this method is to set the outcome values to their
-		defaults."""
+		defaults and to select the first question."""
+		# ignore any time elapsed between construction and beginSession
+		self.EventUpdate(key)
 		# sets the default values of all outcome variables
 		self.SetOutcomeDefaults()
-		self.map['duration'].value=0.0
-
-	def IsResponse(self,varName):
-		"""Return True if *varName* is the name of a response variable."""
-		d=self.test.GetDeclaration(varName)
-		if d is None:
-			# all undeclared variables are durations and hence responses
-			return True
+		self.namespace[0]['duration'].value=0.0
+		self._NextQuestion()
+		div,form=self.CreateHTMLForm(htmlParent)
+		if self.cQuestion:
+			id=self.form[self.cQuestion]
+			itemState=self.namespace[self.cQuestion]
+			itemDiv=itemState.BeginAttempt(form)
 		else:
-			return isinstance(d,ResponseDeclaration)
+			# this test had no questions: end screen
+			id=None
+			pass
+		self.AddHTMLNavigation(form)
+		return div
+	
+	def HandleEvent(self,params,htmlParent=None):
+		# seek out the action
+		if "SAVE" in params:
+			return self.SaveSession(params["SAVE"],params,htmlParent)
+		elif "SUBMIT" in params:
+			return self.SubmitSession(params["SUBMIT"],params,htmlParent)
+		else:
+			raise SessionActionMissing
+	
+	def SaveSession(self,key,params,htmlParent=None):
+		dt=self.EventUpdate(key)
+		# Now add the accumulated time to the various durations
+		self.AddDuration(dt)
+		div,form=self.CreateHTMLForm(htmlParent)
+		# Now go through params and look for updated values
+		if self.cQuestion:
+			itemState=self.namespace[self.cQuestion]
+			itemState.SaveSession(params,form)
+		else:
+			pass
+		self.AddHTMLNavigation(form)
+		return div
 			
-	def IsOutcome(self,varName):
-		"""Return True if *varName* is the name of an outcome variable."""
-		d=self.test.GetDeclaration(varName)
-		if d is None:
-			# all undeclared variables are durations and hence responses
-			return False
+	def SubmitSession(self,key,params,htmlParent=None):
+		dt=self.EventUpdate(key)
+		# Now add the accumulated time to the various durations
+		self.AddDuration(dt)
+		div,form=self.CreateHTMLForm(htmlParent)
+		# Now go through params and look for updated values
+		if self.cQuestion:
+			id=self.form[self.cQuestion]
+			part=self.test.GetPart(id)
+			testPart=part.FindParent(tests.TestPart)
+			# so what type of testPart are we in?
+			if testPart.navigationMode==tests.NavigationMode.linear:
+				if testPart.submissionMode==tests.SubmissionMode.individual:
+					itemState=self.namespace[self.cQuestion]
+					itemState.SubmitSession(params)
+				else:
+					# simultaneous submission means we save the current values
+					# then run through all questions in this part submitting the saved
+					# values - it still happens at the end of the test part
+					itemState=self.namespace[self.cQuestion]
+					itemState.SaveSession(params)
+					raise NotImplementedError
+				# Now move on to the next question
+				self._NextQuestion()
+			else:
+				# nonlinear mode	
+				raise NotImplementedError					
 		else:
-			return isinstance(d,OutcomeDeclaration)
+			pass
+		if self.cQuestion:
+			id=self.form[self.cQuestion]
+			itemState=self.namespace[self.cQuestion]
+			itemDiv=itemState.BeginAttempt(form)
+		else:
+			# this test had no questions: end screen
+			id=None
+			pass	
+		self.AddHTMLNavigation(form)
+		return div
+
+	def CreateHTMLForm(self,htmlParent=None):
+		if htmlParent:
+			div=htmlParent.ChildElement(html.Div)
+		else:
+			div=html.Div(None)
+		form=div.ChildElement(html.Form)
+		form.method=html.Method.POST
+		return div,form
+	
+	def AddHTMLNavigation(self,form):
+		# Now add the navigation
+		nav=form.ChildElement(html.Div)
+		nav.styleClass="navigation"
+		save=nav.ChildElement(html.Button)
+		save.type=html.ButtonType.submit
+		save.name="SAVE"
+		save.value=self.key
+		save.AddData("_save")
+		# Now we need to add the buttons that apply...
+		if self.cQuestion:
+			id=self.form[self.cQuestion]
+			part=self.test.GetPart(id)
+			testPart=part.FindParent(tests.TestPart)
+			# so what type of testPart are we in?
+			if testPart.navigationMode==tests.NavigationMode.linear:
+				if testPart.submissionMode==tests.SubmissionMode.individual:
+					# going to the next question is a submit
+					submit=nav.ChildElement(html.Button)
+					submit.type=html.ButtonType.submit
+					submit.name="SUBMIT"
+					submit.value=self.key
+					submit.AddData("_next")
+				else:
+					raise NotImplementedError
+			else:
+				raise NotImplementedError
+		else:
+			save.disabled=True			
+		return nav
+		
+	def AddDuration(self,dt):
+		iQ=self.cQuestion
+		ignore=0
+		if iQ:
+			# we have a question, add to the duration
+			self.namespace[iQ]["duration"].value+=dt
+			iQ=iQ-1
+			ignore=0
+			while iQ>0:
+				id=self.form[iQ]
+				if id[0]=="-":
+					ignore+=1
+				else:
+					part=self.test.GetPart(id)
+					if isinstance(part,(tests.AssessmentSection,tests.TestPart)):
+						if ignore:
+							ignore=ignore-1
+						else:
+							# This must be an open section or test part
+							v=self.namespace[iQ]["duration"]
+							if v:
+								v.value+=dt
+							else:
+								v.SetValue(dt)
+				iQ=iQ-1
+			# Finally, add to the total test duration
+			self.namespace[0]["duration"].value+=dt
+		else:
+			# we've finished the test, don't count time
+			pass		
+		
+	def GetNamespace(self,varName):
+		"""Takes a variable name *varName* and returns a tuple of namespace/varName.
+		
+		The resulting namespace will be a dictionary or a dictionary-like object
+		from which the value of the returned varName object can be looked up."""
+		splitName=varName.split('.')
+		if len(splitName)==1:
+			return self.namespace[0],varName
+		elif len(splitName)>1:
+			nsIndexList=self.form.find(splitName[0])
+			if nsIndexList:
+				# we can only refer to the first instance when looking up variables
+				ns=self.namespace[nsIndexList[0]]
+				return ns,string.join(splitName[1:],'.')
+		print "Looking for: "+varName
+		print self.namespace
+		print self.form.components
+		raise KeyError(varName)
+			
+	def GetDeclaration(self,varName):
+		ns,name=self.GetNamespace(varName)
+		if isinstance(ns,ItemSessionState):
+			return ns.GetDeclaration(name)
+		elif ns:
+			if name in ns:
+				# a test level variable
+				return self.test.GetDeclaration(name)
+			else:
+				raise KeyError(varName)
+		else:
+			# attempt to look up an unsupported namespace
+			raise NotImplementedError
+			
+	def IsResponse(self,varName):
+		"""Return True if *varName* is the name of a response variable.  The
+		test-level duration values are treated as built-in responses and return
+		True."""
+		ns,name=self.GetNamespace(varName)
+		if isinstance(ns,ItemSessionState):
+			return ns.IsResponse(name)
+		elif ns:
+			# duration is the only test-level response variable
+			return name==u'duration'
+		else:
+			# attempt to look up an unsupported namespace
+			raise NotImplementedError
 			
 	def SetOutcomeDefaults(self):
 		for od in self.test.OutcomeDeclaration:
-			self.map[od.identifier]=v=od.GetDefaultValue()
+			self.namespace[0][od.identifier]=v=od.GetDefaultValue()
 			if not v:
 				if v.Cardinality()==Cardinality.single:
 					if v.baseType==BaseType.integer:
 						v.SetValue(0)
 					elif v.baseType==BaseType.float:
 						v.SetValue(0.0)
-
-	def IsTemplate(self,varName):
-		"""Return True if *varName* is the name of an template variable."""
-		d=self.test.GetDeclaration(varName)
-		if d is None:
-			# all undeclared variables are durations and hence responses
-			return False
-		else:
-			return isinstance(d,TemplateDeclaration)
 			
 	def __len__(self):
-		return len(self.map)
+		"""Returns the total length of all namespaces combined."""
+		total=0
+		for ns in self.namespace:
+			if ns is None:
+				continue
+			else:
+				total=total+len(ns)
+		return total
 			
 	def __getitem__(self,varName):
 		"""Returns the :py:class:`Value` instance corresponding to *varName* or
 		raises KeyError if there is no variable with that name."""
-		return self.map[varName]
-			
-	def __setitem__(self,varName,value):
-		"""Sets the value of *varName* to the :py:class:`Value` instance *value*.
-		
-		The *baseType* and cardinality of *value* must match those expected for
-		the variable."""
-		if not isinstance(value,Value):
-			raise TypeError
-		v=self.map[varName]
-		if value.Cardinality() is not None and value.Cardinality()!=v.Cardinality():
-			raise ValueError("Expected %s value, found %s"%(Cardinality.EncodeValue(v.Cardinality()),
-				Cardinality.EncodeValue(value.Cardinality())))
-		if value.baseType is not None and value.baseType!=v.baseType:
-			raise ValueError("Expected %s value, found %s"%(BaseType.EncodeValue(v.baseType),
-				BaseType.EncodeValue(value.baseType)))
-		v.SetValue(value.value)
+		ns,name=self.GetNamespace(varName)
+		if ns:
+			return ns[name]
+		print "Looking for: "+varName
+		print self.namespace
+		print self.form.components
+		raise KeyError(varName)
 
-	def __delitem__(self,varName):
-		raise TypeError("Can't delete variables from TestSessionState")
-	
 	def __iter__(self):
-		return iter(self.map)
+		for nsName,ns in zip(self.form,self.namespace):
+			if ns is None:
+				continue
+			else:
+				if nsName:
+					prefix=nsName+"."
+				else:
+					prefix=nsName
+				for key in ns:
+					yield prefix+key
 
 	def __contains__(self,varName):
-		return varName in self.map
+		try:
+			v=self[varName]
+			return True
+		except KeyError:
+			return False

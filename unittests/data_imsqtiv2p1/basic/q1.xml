@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="q1" title="Question 1" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="RESPONSE" cardinality="single" baseType="identifier">
+        <correctResponse>
+            <value>C</value>
+        </correctResponse>
+    </responseDeclaration>
+    <templateDeclaration identifier="T" cardinality="single" baseType="integer">
+        <defaultValue>
+            <value>0</value>
+        </defaultValue>       
+    </templateDeclaration>
+    <itemBody>
+        <choiceInteraction responseIdentifier="RESPONSE" shuffle="true" maxChoices="1">
+            <prompt>Who won the 2012 Tour de France?</prompt>
+            <simpleChoice identifier="A">Alberto Contador</simpleChoice>
+            <simpleChoice identifier="B">Vincenzo Nibali</simpleChoice>
+            <simpleChoice identifier="C">Bradley Wiggins</simpleChoice>
+            <simpleChoice identifier="D">Chris Froome</simpleChoice>
+        </choiceInteraction>
+    </itemBody>
+</assessmentItem>

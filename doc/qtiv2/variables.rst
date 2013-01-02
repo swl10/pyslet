@@ -108,7 +108,17 @@ Template Variables
 Runtime Object Model
 ~~~~~~~~~~~~~~~~~~~~
 
+..	autoclass:: SessionState
+	:members:
+	:show-inheritance:
+	:special-members:
+
 ..	autoclass:: ItemSessionState
+	:members:
+	:show-inheritance:
+	:special-members:
+
+..	autoclass:: TestSessionState
 	:members:
 	:show-inheritance:
 	:special-members:

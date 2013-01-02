@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
+    identifier="q2" title="Question 2" adaptive="false" timeDependent="false">
+    <responseDeclaration identifier="RESPONSE" cardinality="multiple" baseType="identifier">
+        <defaultValue>
+            <value>E</value>
+        </defaultValue>
+        <correctResponse>
+            <value>B</value>
+            <value>C</value>
+            <value>D</value>
+        </correctResponse>
+    </responseDeclaration>
+    <itemBody>
+        <choiceInteraction responseIdentifier="RESPONSE" shuffle="true" maxChoices="0">
+            <prompt>Which of the following riders competed in the 2012 Tour de France?</prompt>
+            <simpleChoice identifier="A">Alberto Contador</simpleChoice>
+            <simpleChoice identifier="B">Vincenzo Nibali</simpleChoice>
+            <simpleChoice identifier="C">Bradley Wiggins</simpleChoice>
+            <simpleChoice identifier="D">Chris Froome</simpleChoice>
+            <simpleChoice identifier="E" fixed="true">None of the above</simpleChoice>
+        </choiceInteraction>
+    </itemBody>
+</assessmentItem>
