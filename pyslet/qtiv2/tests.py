@@ -8,7 +8,7 @@ import pyslet.html40_19991224 as html
 import pyslet.qtiv2.core as core
 import pyslet.qtiv2.items as items
 
-import string, itertools, random
+import string, itertools, random, types
 
 		
 class AssessmentTest(core.QTIElement,core.DeclarationContainer):
@@ -424,7 +424,7 @@ class AssessmentItemRef(SectionPart):
 		</xsd:group>"""
 	XMLNAME=(core.IMSQTI_NAMESPACE,'assessmentItemRef')
 	XMLATTR_href=('href',html.DecodeURI,html.EncodeURI)
-	XMLATTR_category='category'
+	XMLATTR_category=('category',None,None,types.ListType)
 	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):

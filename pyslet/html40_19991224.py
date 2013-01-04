@@ -4,7 +4,7 @@ import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 
-from pyslet.rfc2396 import URIFactory, EncodeUnicodeURI, FileURL
+from pyslet.rfc2396 import URIFactory, EncodeUnicodeURI, FileURL, IsHex
 
 import htmlentitydefs
 import string, itertools
@@ -37,7 +37,7 @@ class NamedBoolean:
 	The basic usage of this class is to derive a class from it with a single
 	class member called 'name' which is the canonical representation of the
 	name. You can then use it to call any of the following class methods to
-	convert values between python Booleans the appropriate string
+	convert values between python Booleans and the appropriate string
 	representations (None for False and the defined name for True)."""
 		
 	@classmethod
@@ -102,29 +102,120 @@ class XHTMLMimeTypeError(XHTMLError): pass
 	<!ENTITY % ContentType "CDATA" -- media type, as per [RFC2045] --
 	<!ENTITY % ContentTypes "CDATA" -- comma-separated list of media types, as per [RFC2045]	-->	"""
 
+
 """TODO: Charset::
 
 	<!ENTITY % Charset "CDATA" -- a character encoding, as per [RFC2045] -->
 	<!ENTITY % Charsets "CDATA" -- a space-separated list of character encodings, as per [RFC2045] -->	"""
 
+
 """TODO: LanguageCode::
 
 	<!ENTITY % LanguageCode "NAME" -- a language code, as per [RFC1766] -->	"""
+
 
 def DecodeCharacter(src):
 	"""Decodes a Character value::
 	
 		<!ENTITY % Character "CDATA" -- a single character from [ISO10646] -->
 	
-	Returns the first character or src or None, if src is empty."""
+	Returns the first character of src or None, if src is empty."""
 	if len(src)>0:
 		return src[0]
 	else:
 		return None
 
-def EncodeCharacter(src):
-	"""Encodes a Character value, a convenience function that returns src unchanged."""
-	return src
+
+class XHTMLMixin(object):
+	"""An abstract class representing all elements with HTML-like properties.
+	
+	This class is used to determine if an element should be treated as if it is
+	HTML-like or if it is simply a foreign element from some unknown schema.
+	
+	HTML-like elements are subject to appropriate HTML content constraints, for
+	example, block elements are not allowed to appear where inline elements are
+	required.  Non-HTML-like elements are permitted more freely."""
+	pass
+	 
+
+class XHTMLElement(XHTMLMixin,xmlns.XMLNSElement):
+	"""A base class for XHTML elements."""
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+	def AddToCPResource(self,cp,resource,beenThere):
+		"""See :py:meth:`pyslet.imsqtiv2p1.QTIElement.AddToCPResource`  """
+		for child in self.GetChildren():
+			if hasattr(child,'AddToCPResource'):
+				child.AddToCPResource(cp,resource,beenThere)
+	
+	def RenderHTML(self,parent,profile,arg):
+		"""Renders this HTML element to an external document represented by the *parent* node.
+		
+		*profile* is a dictionary mapping the names of allowed HTML elements to
+		a list of allowed attributes.  This allows the caller to filter out
+		unwanted elements and attributes.
+		
+		*arg* allows an additional argument to be passed through the HTML tree to any non-HTML
+		nodes contained by it."""
+		# the default implementation creates a node under parent if our name is in the profile
+		if self.xmlname in profile:
+			newChild=parent.ChildElement(self.__class__)
+			aList=profile[self.xmlname]
+			attrs=self.GetAttributes()
+			for aName in attrs.keys():
+		 		ns,name=aName
+		 		if ns is None and name in aList:
+		 			# this one is included
+		 			newChild.SetAttribute(aName,attrs[aName])
+		 	for child in self.GetChildren():
+		 		if type(child) in StringTypes:
+		 			newChild.AddData(child)
+		 		else:
+		 			child.RenderHTML(newChild,profile,arg)
+	
+	def RenderText(self):
+		output=[]
+		for child in self.GetChildren():
+			if type(child) in StringTypes:
+				output.append(child)
+			else:
+				output.append(child.RenderText())
+		return string.join(output,'')
+
+
+class FlowMixin(XHTMLMixin):
+	"""Mixin class for flow elements::
+		
+		<!ENTITY % flow "%block; | %inline;">
+	"""
+	pass
+
+
+class BlockMixin(FlowMixin):
+	"""Mixin class for block elements::
+		
+		<!ENTITY % block "P | %heading; | %list; | %preformatted; | DL | DIV |
+			NOSCRIPT | BLOCKQUOTE | FORM | HR | TABLE | FIELDSET | ADDRESS">
+	"""
+	pass
+
+
+class InlineMixin(FlowMixin):
+	"""Mixin class for inline elements::
+		
+		<!ENTITY % inline "#PCDATA | %fontstyle; | %phrase; | %special; | %formctrl;">	"""
+	pass
+
+
+
+"""TODO:  LinkTypes::
+
+	<!ENTITY % LinkTypes "CDATA"	-- space-separated list of link types	-->"""
+
+
+"""TODO:  MediaDesc::
+
+	<!ENTITY % MediaDesc "CDATA"	-- single or comma-separated list of media descriptors	-->"""
 
 			
 def DecodeURI(src):
@@ -135,8 +226,7 @@ def DecodeURI(src):
 	Note that we adopt the algorithm recommended in Appendix B of the specification,
 	which involves replacing non-ASCII characters with percent-encoded UTF-sequences.
 	
-	For more information see :func:`psylet.rfc2396.EncodeUnicodeURI`
-	"""
+	For more information see :func:`psylet.rfc2396.EncodeUnicodeURI`"""
 	return URIFactory.URI(EncodeUnicodeURI(src))
 
 def EncodeURI(uri):
@@ -146,21 +236,116 @@ def EncodeURI(uri):
 	to Unicode by the default encoding.  However, it does mean that this function doesn't
 	adhere to the principal of using the ASCII encoding only at the latest possible time."""
 	return unicode(str(uri))
-
 	
-"""TODO: Datetime::
+"""No special action required::
 
-	<!ENTITY % Datetime "CDATA" -- date and time information. ISO date format -->	"""
+	<!ENTITY % Datetime "CDATA" -- date and time information. ISO date format -->
+	<!ENTITY % Script "CDATA" -- script expression -->
+	<!ENTITY % StyleSheet "CDATA" -- style sheet data -->
+	<!ENTITY % FrameTarget "CDATA" -- render in this frame -->
+	<!ENTITY % Text "CDATA">"""
+	
 
-
-class HeadMiscMixin:
+class HeadMiscMixin(object):
 	"""Mixin class for misc head.misc elements::
 	
 		<!ENTITY % head.misc "SCRIPT|STYLE|META|LINK|OBJECT" -- repeatable head elements -->	"""
 	pass
 
 
-class CoreAttrsMixin:
+"""Headings and list classes are defined later with proper base classes::
+
+		<!ENTITY % heading "H1|H2|H3|H4|H5|H6">
+		<!ENTITY % list "UL | OL |  DIR | MENU">
+		<!ENTITY % preformatted "PRE">"""
+
+
+class Color(object):
+	"""Class to represent a color value.
+	
+	Instances can be created from strings and so can be used as attribute decoders.
+	The unbound __unicode__ method can be used likewise::
+	
+		<!ENTITY % Color "CDATA" -- a color using sRGB: #RRGGBB as Hex values -->
+		
+		<!-- There are also 16 widely known color names with their sRGB values -->"""
+	
+	Black	= u"#000000"
+	Green	= u"#008000"
+	Silver	= u"#C0C0C0"
+	Lime	= u"#00FF00"
+	Gray	= u"#808080"
+	Olive	= u"#808000"
+	White	= u"#FFFFFF"
+	Yellow	= u"#FFFF00"
+	Maroon	= u"#800000"
+	Navy	= u"#000080"
+	Red		= u"#FF0000"
+	Blue	= u"#0000FF"
+	Purple	= u"#800080"
+	Teal	= u"#008080"
+	Fuchsia	= u"#FF00FF"
+	Aqua	= u"#00FFFF"
+	
+	def __init__(self,src):
+		cv=[]
+		base=0;len=0
+		for c in src:
+			if IsHex(c):
+				len=len+1
+			else:
+				base=base+len+1
+				len=0
+		if len>=6:
+			self.r=int(src[base:base+2],16)
+			self.g=int(src[base+2:base+4],16)
+			self.b=int(src[base+4:base+6],16)
+		else:
+			self.r=self.g=self.b=0
+	
+	def __str__(self):
+		return "#02X02X02X"%(self.r,self.g,self.b)
+
+	def __unicode__(self):
+		return u"#02X02X02X"%(self.r,self.g,self.b)
+
+
+class BodyColorsMixin(object):
+	"""Mixin class for bodycolors attributes::
+
+		<!ENTITY % bodycolors "
+		  bgcolor     %Color;        #IMPLIED  -- document background color --
+		  text        %Color;        #IMPLIED  -- document text color --
+		  link        %Color;        #IMPLIED  -- color of links --
+		  vlink       %Color;        #IMPLIED  -- color of visited links --
+		  alink       %Color;        #IMPLIED  -- color of selected links --
+		  ">"""
+	XMLATTR_bgcolor=('bgColor',Color,Color.__unicode__)
+	XMLATTR_text=('bgColor',Color,Color.__unicode__)
+	XMLATTR_link=('bgColor',Color,Color.__unicode__)
+	XMLATTR_vlink=('bgColor',Color,Color.__unicode__)
+	XMLATTR_alink=('bgColor',Color,Color.__unicode__)
+
+
+"""HTML Entities are implemented directly from native python libraries::
+
+		<!ENTITY % HTMLlat1 PUBLIC
+		   "-//W3C//ENTITIES Latin1//EN//HTML"
+		   "HTMLlat1.ent">
+		%HTMLlat1;
+		
+		<!ENTITY % HTMLsymbol PUBLIC
+		   "-//W3C//ENTITIES Symbols//EN//HTML"
+		   "HTMLsymbol.ent">
+		%HTMLsymbol;
+		
+		<!ENTITY % HTMLspecial PUBLIC
+		   "-//W3C//ENTITIES Special//EN//HTML"
+		   "HTMLspecial.ent">
+		%HTMLspecial;"""
+
+
+class CoreAttrsMixin(object):
 	"""Mixin class for core attributes::
 
 		<!ENTITY % coreattrs
@@ -168,54 +353,39 @@ class CoreAttrsMixin:
 		  class       CDATA          #IMPLIED  -- space-separated list of classes --
 		  style       %StyleSheet;   #IMPLIED  -- associated style info --
 		  title       %Text;         #IMPLIED  -- advisory title --"
-		  >
-
-		<!ENTITY % StyleSheet "CDATA" -- style sheet data -->
-		<!ENTITY % Text "CDATA">"""
+		  >"""
 	ID='id'
-	XMLATTR_class='styleClass'
+	XMLATTR_class='styleClass'		# re-mapped to avoid python reserved word
 	XMLATTR_style='style'
 	XMLATTR_title='title'
 
-	def __init__(self):
-		self.styleClass=None
-		self.style=None
-		self.title=None
 
-
-class Dir(xsi.Enumeration):
+class Direction(xsi.Enumeration):
 	"""Enumeration for weak/neutral text values."""
 	decode={
 		'ltr':1,
 		'rtl':2
 		}
-xsi.MakeEnumeration(Dir)
+xsi.MakeEnumeration(Direction)
 
 
-class I18nMixin:
-	"""Mixin class for i18n attributes::
+class I18nMixin(object):
+	"""Mixin class for i18n attributes
+	::
 	
 		<!ENTITY % i18n
 		 "lang        %LanguageCode; #IMPLIED  -- language code --
 		  dir         (ltr|rtl)      #IMPLIED  -- direction for weak/neutral text --"
 		  >
 
-		<!ENTITY % LanguageCode "NAME"
-			-- a language code, as per [RFC1766]
-			-->"""
+		<!ENTITY % LanguageCode "NAME"	-- a language code, as per [RFC1766]	-->"""
 	XMLATTR_lang=('htmlLang',xsi.DecodeName,xsi.EncodeName)
-	XMLATTR_dir=('dir',Dir.DecodeLowerValue,Dir.EncodeValue)
+	XMLATTR_dir=('dir',Direction.DecodeLowerValue,Direction.EncodeValue)
 	
-	def __init__(self):
-		self.htmlLange=None
-		self.dir=Dir.DEFAULT
 
-
-class EventsMixin:
+class EventsMixin(object):
 	"""Mixin class for event attributes
 	::
-
-		<!ENTITY % Script "CDATA" -- script expression -->
 
 		<!ENTITY % events
 		 "onclick     %Script;       #IMPLIED  -- a pointer button was clicked --
@@ -229,80 +399,410 @@ class EventsMixin:
 		  onkeydown   %Script;       #IMPLIED  -- a key was pressed down --
 		  onkeyup     %Script;       #IMPLIED  -- a key was released --"
 		  >"""
-	XMLATTR_onClick='onClick'
-	XMLATTR_ondblclick='ondblclick'
-	XMLATTR_onmousedown='onmousedown'
-	XMLATTR_onmouseup='onmouseup'
-	XMLATTR_onmouseover='onmouseover'
-	XMLATTR_onmousemove='onmousemove'
-	XMLATTR_onmouseout='onmouseout'
-	XMLATTR_onkeypress='onkeypress'
-	XMLATTR_onkeydown='onkeydown'
-	XMLATTR_onkeyup='onkeyup'
-	
-	def __init__(self):
-		self.onClick=None
-		self.ondblclick=None
-		self.onmousedown=None
-		self.onmouseup=None
-		self.onmouseover=None
-		self.onmousemove=None
-		self.onmouseout=None
-		self.onkeypress=None
-		self.onkeydown=None
-		self.onkeyup=None
-		
+	XMLATTR_onclick='onClick'
+	XMLATTR_ondblclick='onDblClick'
+	XMLATTR_onmousedown='onMouseDown'
+	XMLATTR_onmouseup='onMouseUp'
+	XMLATTR_onmouseover='onMouseOver'
+	XMLATTR_onmousemove='onMouseMove'
+	XMLATTR_onmouseout='onMouseOut'
+	XMLATTR_onkeypress='onKeyPress'
+	XMLATTR_onkeydown='onKeyDown'
+	XMLATTR_onkeyup='onKeyUp'
+			
 
 class AttrsMixin(CoreAttrsMixin,I18nMixin,EventsMixin):
 	"""Mixin class for common attributes
 	::
 
 		<!ENTITY % attrs "%coreattrs; %i18n; %events;">"""
+	pass
 	
-	def __init__(self):
-		CoreAttrsMixin.__init__(self)
-		I18nMixin.__init__(self)
-		EventsMixin.__init__(self)
-
 		
-"""sgmlOmittag Feature:
+class Align(xsi.Enumeration):
+	"""Values for text alignment
+	::
 
-Empty elements are handled by a simple XMLCONTENT attribute:
+		<!ENTITY % align "align (left|center|right|justify)  #IMPLIED"
+			-- default is left for ltr paragraphs, right for rtl --	"""
+	decode={
+		'left':1,
+		'center':2,
+		'right':3,
+		'justify':4
+		}
+xsi.MakeEnumeration(Align)
 
-<!ELEMENT BASEFONT - O EMPTY           -- base font size -->
-<!ELEMENT BR - O EMPTY                 -- forced line break -->
-<!ELEMENT IMG - O EMPTY                -- Embedded image -->
-<!ELEMENT HR - O EMPTY -- horizontal rule -->
-<!ELEMENT INPUT - O EMPTY              -- form control -->
-<!ELEMENT FRAME - O EMPTY              -- subwindow -->
-<!ELEMENT ISINDEX - O EMPTY            -- single line prompt -->
-<!ELEMENT BASE - O EMPTY               -- document base URI -->
-<!ELEMENT META - O EMPTY               -- generic metainformation -->
-<!ELEMENT AREA - O EMPTY               -- client-side image map area -->
-<!ELEMENT LINK - O EMPTY               -- a media-independent link -->
-<!ELEMENT PARAM - O EMPTY              -- named property value -->
-<!ELEMENT COL      - O EMPTY           -- table column -->
 
-Missing start tags must be handled in the context where these elements may occur:
+"""fontstyle and phrase become proper base classes later."""
 
-<!ELEMENT BODY O O (%flow;)* +(INS|DEL) -- document body -->
-<!ELEMENT TBODY    O O (TR)+           -- table body -->
-<!ELEMENT HEAD O O (%head.content;) +(%head.misc;) -- document head -->
-<!ELEMENT HTML O O (%html.content;)    -- document root element -->
 
-Missing end tags must be handled in the elements themselves:
+class SpecialMixin(InlineMixin):
+	"""Specials are just another type of inline element
+	::
+	
+		Strict:	<!ENTITY % special "A | IMG | OBJECT | BR | SCRIPT | MAP | Q | SUB | SUP | SPAN | BDO">
+		Loose:	<!ENTITY % special "A | IMG | APPLET | OBJECT | FONT | BASEFONT | BR | SCRIPT | MAP
+					| Q | SUB | SUP | SPAN | BDO | IFRAME">"""
+	pass
 
-<!ELEMENT P - O (%inline;)*            -- paragraph -->
-<!ELEMENT DT - O (%inline;)*           -- definition term -->
-<!ELEMENT DD - O (%flow;)*             -- definition description -->
-<!ELEMENT LI - O (%flow;)*             -- list item -->
-<!ELEMENT OPTION - O (#PCDATA)         -- selectable choice -->
-<!ELEMENT THEAD    - O (TR)+           -- table header -->
-<!ELEMENT TFOOT    - O (TR)+           -- table footer -->
-<!ELEMENT COLGROUP - O (COL)*          -- table column group -->
-<!ELEMENT TR       - O (TH|TD)+        -- table row -->
-<!ELEMENT (TH|TD)  - O (%flow;)*       -- table header cell, table data cell-->
-"""
+
+class FormCtrlMixin(InlineMixin):
+	"""Form controls are just another type of inline element
+	::
+	
+		<!ENTITY % formctrl "INPUT | SELECT | TEXTAREA | LABEL | BUTTON">"""
+	pass
+
+
+class InlineContainer(XHTMLElement):
+	"""Base class for elements with content models consisting of inline elements
+	::
+	<!ELEMENT XXXX - - (%inline;)*>"""
+	XMLCONTENT=xmlns.XMLMixedContent
+
+	def GetChildClass(self,stagClass):
+		"""Implements omittag by returning None if stagClass is anything other than None (PCDATA), inline."""
+		if stagClass is None or issubclass(stagClass,InlineMixin) or not issubclass(stagClass,XHTMLMixin):
+			return stagClass
+		else:
+			return None
+
+	def ChildElement(self,childClass,name=None):
+		if issubclass(childClass,InlineMixin) or not issubclass(childClass,XHTMLMixin):
+			return super(XHTMLElement,self).ChildElement(childClass,name)
+		else:
+			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
+
+
+class FontStyle(AttrsMixin,InlineMixin,InlineContainer):
+	"""Abstract class for font and style elements
+	::
+		<!ENTITY % fontstyle "TT | I | B | U | S | STRIKE | BIG | SMALL">
+		<!ELEMENT (%fontstyle;|%phrase;) - - (%inline;)*>
+		<!ATTLIST (%fontstyle;|%phrase;)
+		  %attrs;                              -- %coreattrs, %i18n, %events --
+		  >"""
+	pass
+
+
+class TT(FontStyle):
+	XMLNAME=(XHTML_NAMESPACE,'tt')
+
+class I(FontStyle):
+	XMLNAME=(XHTML_NAMESPACE,'i')
+
+class B(FontStyle):
+	XMLNAME=(XHTML_NAMESPACE,'b')
+
+class U(FontStyle):
+	XMLNAME=(XHTML_NAMESPACE,'u')
+
+class S(FontStyle):
+	XMLNAME=(XHTML_NAMESPACE,'s')
+
+class Strike(FontStyle):
+	XMLNAME=(XHTML_NAMESPACE,'strike')
+
+class Big(FontStyle):
+	XMLNAME=(XHTML_NAMESPACE,'big')
+
+class Small(FontStyle):
+	XMLNAME=(XHTML_NAMESPACE,'small')
+
+
+class Phrase(AttrsMixin,InlineMixin,InlineContainer):
+	"""Abstract class for phrase elements
+	::
+		<!ENTITY % phrase "EM | STRONG | DFN | CODE | SAMP | KBD | VAR | CITE | ABBR | ACRONYM" >
+		<!ELEMENT (%fontstyle;|%phrase;) - - (%inline;)*>
+		<!ATTLIST (%fontstyle;|%phrase;)
+		  %attrs;                              -- %coreattrs, %i18n, %events --
+		  >"""
+	pass
+
+
+class Em(Phrase):
+	XMLNAME=(XHTML_NAMESPACE,'em')
+
+class Strong(Phrase):
+	XMLNAME=(XHTML_NAMESPACE,'strong')
+
+class Dfn(Phrase):
+	XMLNAME=(XHTML_NAMESPACE,'dfn')
+
+class Code(Phrase):
+	XMLNAME=(XHTML_NAMESPACE,'code')
+
+class Samp(Phrase):
+	XMLNAME=(XHTML_NAMESPACE,'samp')
+
+class Kbd(Phrase):
+	XMLNAME=(XHTML_NAMESPACE,'kbd')
+
+class Var(Phrase):
+	XMLNAME=(XHTML_NAMESPACE,'var')
+
+class Cite(Phrase):
+	XMLNAME=(XHTML_NAMESPACE,'cite')
+
+class Abbr(Phrase):
+	XMLNAME=(XHTML_NAMESPACE,'abbr')
+
+class Acronym(Phrase):
+	XMLNAME=(XHTML_NAMESPACE,'acronym')
+
+
+class Sub(AttrsMixin,SpecialMixin,InlineContainer):
+	"""Subscript
+	::
+	
+		<!ELEMENT (SUB|SUP) - - (%inline;)*    -- subscript, superscript -->
+		<!ATTLIST (SUB|SUP)	%attrs;                              -- %coreattrs, %i18n, %events --
+		  >"""
+	XMLNAME=(XHTML_NAMESPACE,'sub')
+
+
+class Sup(AttrsMixin,SpecialMixin,InlineContainer):
+	"""Superscript
+	::
+	
+		<!ELEMENT (SUB|SUP) - - (%inline;)*    -- subscript, superscript --> 
+		<!ATTLIST (SUB|SUP)	%attrs;                              -- %coreattrs, %i18n, %events --
+		  >"""
+	XMLNAME=(XHTML_NAMESPACE,'sup')
+
+
+class Span(AttrsMixin,SpecialMixin,InlineContainer):
+	"""Span
+	::
+	
+		<!ELEMENT SPAN - - (%inline;)*         -- generic language/style container -->
+		<!ATTLIST SPAN
+		  %attrs;                              -- %coreattrs, %i18n, %events --
+		  %reserved;			       -- reserved for possible future use --
+		  >"""
+	XMLNAME=(XHTML_NAMESPACE,'span')
+
+
+class BDO(CoreAttrsMixin,SpecialMixin,InlineContainer):
+	"""BiDi over-ride element
+	::
+
+		<!ELEMENT BDO - - (%inline;)*          -- I18N BiDi over-ride -->
+		<!ATTLIST BDO
+		  %coreattrs;                          -- id, class, style, title --
+		  lang        %LanguageCode; #IMPLIED  -- language code --
+		  dir         (ltr|rtl)      #REQUIRED -- directionality --
+		  >"""
+	XMLNAME=(XHTML_NAMESPACE,'bdo')
+	XHTMLATTR_lang=('lang',xsi.DecodeName,xsi.EncodeName)
+	XMLATTR_dir=('dir',Direction.DecodeLowerValue,Direction.EncodeValue)
+	
+	def __init__(self,parent):
+		super(BDO,self).__init__(self,parent)
+		self.dir=Direction.DEFAULT
+
+
+class BaseFont(SpecialMixin,XHTMLElement):
+	"""Base font specification
+	::
+
+		<!ELEMENT BASEFONT - O EMPTY           -- base font size -->
+		<!ATTLIST BASEFONT
+		  id          ID             #IMPLIED  -- document-wide unique id --
+		  size        CDATA          #REQUIRED -- base font size for FONT elements --
+		  color       %Color;        #IMPLIED  -- text color --
+		  face        CDATA          #IMPLIED  -- comma-separated list of font names --
+		  >"""
+	XMLNAME=(XHTML_NAMESPACE,'basefont')
+	ID='id'
+	XMLATTR_size='size'
+	XMLATTR_color=('color',Color,Color.__unicode__)
+	XMLATTR_face='face'
+	XMLCONTENT=xmlns.ElementType.Empty
+	
+	def __init__(self,parent):
+		super(BaseFont,self).__init__(parent)
+		self.size=''
+
+
+class Font(I18nMixin,CoreAttrsMixin,SpecialMixin,InlineContainer):
+	"""Font element
+	::
+	
+		<!ELEMENT FONT - - (%inline;)*         -- local change to font -->
+		<!ATTLIST FONT
+		  %coreattrs;                          -- id, class, style, title --
+		  %i18n;		               -- lang, dir --
+		  size        CDATA          #IMPLIED  -- [+|-]nn e.g. size="+1", size="4" --
+		  color       %Color;        #IMPLIED  -- text color --
+		  face        CDATA          #IMPLIED  -- comma-separated list of font names --
+		  >"""
+	XMLNAME=(XHTML_NAMESPACE,'font')
+	XMLATTR_size='size'
+	XMLATTR_color=('color',Color,Color.__unicode__)
+	XMLATTR_face='face'
+
+
+class Clear(xsi.Enumeration):
+	"""For setting the clear attribute, e.g on Br"""
+	decode={
+		'left':1,
+		'all':2,
+		'right':3,
+		'none':4
+		}
+xsi.MakeEnumeration(Clear,"none")
+
+
+class Br(CoreAttrsMixin,SpecialMixin,XHTMLElement):
+	"""Line break
+	::
+
+		<!ELEMENT BR - O EMPTY                 -- forced line break -->
+		<!ATTLIST BR
+		  %coreattrs;                          -- id, class, style, title --
+		  clear       (left|all|right|none) none -- control of text flow --
+		  >"""
+	XMLNAME=(XHTML_NAMESPACE,'br')
+	XMLATTR_clear=('clear',Clear.DecodeLowerValue,Clear.EncodeValue)
+	XMLCONTENT=xmlns.ElementType.Empty
+
+
+class Body(AttrsMixin,BodyColorsMixin,XHTMLElement):
+	"""Represents the HTML BODY structure
+	::
+
+		<!ELEMENT BODY O O (%block;|SCRIPT)+ +(INS|DEL) -- document body -->
+		<!ATTLIST BODY
+			  %attrs;                              -- %coreattrs, %i18n, %events --
+			  onload          %Script;   #IMPLIED  -- the document has been loaded --
+			  onunload        %Script;   #IMPLIED  -- the document has been removed --
+			  background      %URI;      #IMPLIED  -- texture tile for document
+													  background --
+			  %bodycolors;                         -- bgcolor, text, link, vlink, alink --"""
+	XMLNAME=(XHTML_NAMESPACE,'body')
+	XMLATTR_onload='onLoad'
+	XMLATTR_onunload='onUnload'
+	XMLATTR_background=('background',DecodeURI,EncodeURI)
+	XMLCONTENT=xmlns.ElementContent
+
+	def GetChildClass(self,stagClass):
+		"""Handled omitted tags"""
+		if stagClass is None:
+			# data in Body implies DIV
+			return Div
+		elif issubclass(stagClass,(BlockMixin,Script,Ins,Del)) or not issubclass(stagClass,XHTMLMixin):
+			# non-HTML like elements can go in here too
+			return stagClass
+		elif issubclass(stagClass,FlowMixin):
+			# allowed by loose DTD but we encapsulate in Flow to satisfy strict
+			return Div
+		elif issubclass(stagClass,(Head,HeadMiscMixin,HeadContentMixin)):
+			# Catch HEAD content appearing in BODY and force HEAD, BODY, HEAD, BODY,... to catch all
+			# of it.  As we can only have one HEAD and one BODY we just put things in their right place.
+			return None
+		else:
+			raise XHTMLValidityError("%s in %s"%(stagClass.__name__,self.__class__.__name__))		
+
+	def ChildElement(self,childClass,name=None):
+		if issubclass(childClass,(BlockMixin,Script,Ins,Del)) or not issubclass(childClass,XHTMLMixin):
+			return super(XHTMLElement,self).ChildElement(childClass,name)
+		else:
+			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
+
+
+class Address(AttrsMixin,BlockMixin,InlineContainer):
+	"""Address (of author)
+	::
+		<!ELEMENT ADDRESS - - ((%inline;)|P)*  -- information on author -->
+		<!ATTLIST ADDRESS
+		  %attrs;                              -- %coreattrs, %i18n, %events --
+		  >"""	
+	XMLNAME=(XHTML_NAMESPACE,'address')
+	XMLCONTENT=xmlns.XMLMixedContent
+
+	def GetChildClass(self,stagClass):
+		"""We add P to our inline container."""
+		if stagClass is P:
+			return stagClass
+		else:
+			return super(Address,self).GetChildClass(stagClass)
+
+	def ChildElement(self,childClass,name=None):
+		if childClass is P:
+			return P(self,name)
+		else:
+			return super(XHTMLElement,self).ChildElement(childClass,name)
+
+
+class FlowContainer(XHTMLElement):
+	"""Abstract class for all HTML elements that contain %flow;"""
+	XMLCONTENT=xmlns.XMLMixedContent
+	
+	def GetChildClass(self,stagClass):
+		"""If we get something other than, PCDATA, a flow or unknown element, assume end"""
+		if stagClass is None or issubclass(stagClass,FlowMixin) or not issubclass(stagClass,XHTMLMixin):
+			return stagClass
+		else:
+			return None
+
+	def ChildElement(self,childClass,name=None):
+		if issubclass(childClass,FlowMixin) or not issubclass(childClass,XHTMLMixin):
+			return super(XHTMLElement,self).ChildElement(childClass,name)
+		else:
+			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
+
+	def PrettyPrint(self):
+		"""Deteremins if this flow-container should be pretty printed.
+		
+		We suppress pretty printing if we have any non-trivial data children or
+		if we have any inline child elements."""
+		for child in self.GetChildren():
+			if type(child) in StringTypes:
+				for c in child:
+					if not xml.IsS(c):
+						return False
+			#elif isinstance(child,InlineMixin):
+			#	return False
+		return True
+
+
+class Div(AttrsMixin,BlockMixin,FlowContainer):
+	"""A generic language/style container
+	::
+	
+		<!ELEMENT DIV - - (%flow;)*            --  -->
+		<!ATTLIST DIV
+		  %attrs;                              -- %coreattrs, %i18n, %events --
+		  %align;                              -- align, text alignment --
+		  %reserved;                           -- reserved for possible future use --
+		  >"""
+	XMLNAME=(XHTML_NAMESPACE,'div')
+	XMLATTR_align=('align',Align.DecodeLowerValue,Align.EncodeValue)
+	XMLCONTENT=xmlns.XMLMixedContent
+		
+	
+
+			
+#
+#		TODO....  remaining refactoring
+#
+
+
+class HR(BlockMixin,XHTMLElement):
+	# <!ELEMENT HR - O EMPTY -- horizontal rule -->
+	XMLNAME=(XHTML_NAMESPACE,'hr')
+	XMLCONTENT=xmlns.ElementType.Empty
+
+
+
+
+
+
+	
+
 
 class LengthType:
 	"""Represents the HTML Length::
@@ -574,98 +1074,10 @@ def DecodeCoords(value):
 def EncodeCoords(coords):
 	"""Encodes a Coords instance as an attribute value string."""
 	return unicode(coords)
-			
 
-class XHTMLElement(xmlns.XMLNSElement):
-	ID='id'
-	XMLATTR_class='styleClass'
-	XMLATTR_title='title'
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-	def __init__(self,parent):
-		xmlns.XMLNSElement.__init__(self,parent)
-		self.styleClass=None
-		self.title=None
-	
-	def AddToCPResource(self,cp,resource,beenThere):
-		"""See :py:meth:`pyslet.imsqtiv2p1.QTIElement.AddToCPResource`  """
-		for child in self.GetChildren():
-			if hasattr(child,'AddToCPResource'):
-				child.AddToCPResource(cp,resource,beenThere)
-	
-	def RenderHTML(self,parent,profile,arg):
-		"""Renders this HTML element to an external document represented by the *parent* node.
-		
-		*profile* is a dictionary mapping the names of allowed HTML elements to
-		a list of allowed attributes.  This allows the caller to filter out
-		unwanted elements and attributes.
-		
-		*arg* allows an additional argument to be passed through the HTML tree to any non-HTML
-		nodes contained by it."""
-		# the default implementation creates a node under parent if our name is in the profile
-		if self.xmlname in profile:
-			newChild=parent.ChildElement(self.__class__)
-			aList=profile[self.xmlname]
-			attrs=self.GetAttributes()
-			for aName in attrs.keys():
-		 		ns,name=aName
-		 		if ns is None and name in aList:
-		 			# this one is included
-		 			newChild.SetAttribute(aName,attrs[aName])
-		 	for child in self.GetChildren():
-		 		if type(child) in StringTypes:
-		 			newChild.AddData(child)
-		 		else:
-		 			child.RenderHTML(newChild,profile,arg)
-	
-	def RenderText(self):
-		output=[]
-		for child in self.GetChildren():
-			if type(child) in StringTypes:
-				output.append(child)
-			else:
-				output.append(child.RenderText())
-		return string.join(output,'')
-	
-
-class FlowMixin:
-	"""Mixin class for flow elements::
-		
-		<!ENTITY % flow "%block; | %inline;">
-	"""
-	pass
-
-class BlockMixin(FlowMixin):
-	"""Mixin class for block elements::
-		
-		<!ENTITY % block "P | %heading; | %list; | %preformatted; | DL | DIV |
-			NOSCRIPT | BLOCKQUOTE | FORM | HR | TABLE | FIELDSET | ADDRESS">
-	"""
-	pass
-
-class InlineMixin(FlowMixin):
-	"""Mixin class for inline elements::
-		
-		<!ENTITY % inline "#PCDATA | %fontstyle; | %phrase; | %special; | %formctrl;">	"""
-	pass
-
-
-class InlineContainer(XHTMLElement):
-
-	def GetChildClass(self,stagClass):
-		"""If we get something other than PCDATA, an inline or unknown element, assume end"""
-		if stagClass is None or issubclass(stagClass,InlineMixin) or not issubclass(stagClass,XHTMLElement):
-			return stagClass
-		else:
-			return None
-
-	def ChildElement(self,childClass,name=None):
-		""""""
-		if issubclass(childClass,InlineMixin) or not issubclass(childClass,XHTMLElement):
-			return XHTMLElement.ChildElement(self,childClass,name)
-		else:
-			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
-
+"""TODO::
+	<!ENTITY % Shape "(rect|circle|poly|default)">
+"""
 
 class BlockContainer(XHTMLElement):
 	"""Abstract class for all HTML elements that contain %block;|SCRIPT"""
@@ -682,57 +1094,12 @@ class BlockContainer(XHTMLElement):
 
 	def ChildElement(self,childClass,name=None):
 		if issubclass(childClass,(BlockMixin,Script)) or not issubclass(childClass,XHTMLElement):
-			return XHTMLElement.ChildElement(self,childClass,name)
+			return super(XHTMLElement,self).ChildElement(childClass,name)
 		else:
 			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
 	
-	
-class FlowContainer(XHTMLElement):
-	"""Abstract class for all HTML elements that contain %flow;"""
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-	def GetChildClass(self,stagClass):
-		"""If we get something other than, PCDATA, a flow or unknown element, assume end"""
-		if stagClass is None or issubclass(stagClass,FlowMixin) or not issubclass(stagClass,XHTMLElement):
-			return stagClass
-		else:
-			return None
 
-	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,FlowMixin) or not issubclass(childClass,XHTMLElement):
-			return XHTMLElement.ChildElement(self,childClass,name)
-		else:
-			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
-
-	def PrettyPrint(self):
-		"""Deteremins if this flow-container should be pretty printed.
-		
-		We suppress pretty printing if we have any non-trivial data children or
-		if we have any inline child elements."""
-		for child in self.GetChildren():
-			if type(child) in StringTypes:
-				for c in child:
-					if not xml.IsS(c):
-						return False
-			#elif isinstance(child,InlineMixin):
-			#	return False
-		return True
-
-	
-class SpecialMixin(InlineMixin):
-	"""..	::
-	
-	Strict:	<!ENTITY % special "A | IMG | OBJECT | BR | SCRIPT | MAP | Q | SUB | SUP | SPAN | BDO">
-	Loose:	<!ENTITY % special "A | IMG | APPLET | OBJECT | FONT | BASEFONT | BR | SCRIPT | MAP
-				| Q | SUB | SUP | SPAN | BDO | IFRAME">
-	"""
-	pass
-
-class FormCtrlMixin(InlineMixin):
-	# <!ENTITY % formctrl "INPUT | SELECT | TEXTAREA | LABEL | BUTTON">
-	pass
-
-class Ins(FlowContainer):
+class Ins(AttrsMixin,FlowContainer):
 	"""Represents the INS element::
 	
 	<!-- INS/DEL are handled by inclusion on BODY -->
@@ -744,6 +1111,8 @@ class Ins(FlowContainer):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'ins')
+	XMLATTR_cite=('cite',DecodeURI,EncodeURI)
+	XMLATTR_datetime=('dateTime',xsi.DecodeDateTime,xsi.EncodeDateTime)
 	XMLCONTENT=xmlns.XMLMixedContent
 
 
@@ -756,9 +1125,9 @@ class Del(FlowContainer):
 	  %attrs;                              -- %coreattrs, %i18n, %events --
 	  cite        %URI;          #IMPLIED  -- info on reason for change --
 	  datetime    %Datetime;     #IMPLIED  -- date and time of change --
-	  >
-	"""
+	  >"""
 	XMLNAME=(XHTML_NAMESPACE,'del')
+	XMLATTR_datetime=('dateTime',xsi.DecodeDateTime,xsi.EncodeDateTime)
 	XMLCONTENT=xmlns.XMLMixedContent
 	
 
@@ -777,23 +1146,6 @@ class List(BlockMixin,XHTMLElement):
 	
 # Text Elements
 
-class Phrase(InlineMixin,InlineContainer):
-	# <!ENTITY % phrase "EM | STRONG | DFN | CODE | SAMP | KBD | VAR | CITE | ABBR | ACRONYM" >
-	# <!ELEMENT (%fontstyle;|%phrase;) - - (%inline;)*>
-	pass
-
-class Abbr(Phrase):
-	XMLNAME=(XHTML_NAMESPACE,'abbr')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class Acronym(Phrase):
-	XMLNAME=(XHTML_NAMESPACE,'acronym')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class Address(BlockMixin,InlineContainer):
-	XMLNAME=(XHTML_NAMESPACE,'address')
-	XMLCONTENT=xmlns.XMLMixedContent
-
 class Blockquote(BlockMixin,XHTMLElement):
 	# <!ELEMENT BLOCKQUOTE - - (%block;|SCRIPT)+ -- long quotation -->
 	XMLNAME=(XHTML_NAMESPACE,'blockquote')
@@ -809,47 +1161,6 @@ class Blockquote(BlockMixin,XHTMLElement):
 		else:
 			return None
 
-
-class Font(SpecialMixin,InlineContainer):
-	"""Font element::
-	
-	<!ELEMENT FONT - - (%inline;)*         -- local change to font -->
-	<!ATTLIST FONT
-	  %coreattrs;                          -- id, class, style, title --
-	  %i18n;		               -- lang, dir --
-	  size        CDATA          #IMPLIED  -- [+|-]nn e.g. size="+1", size="4" --
-	  color       %Color;        #IMPLIED  -- text color --
-	  face        CDATA          #IMPLIED  -- comma-separated list of font names --
-	  >
-	"""
-	XMLNAME=(XHTML_NAMESPACE,'font')
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-class Br(SpecialMixin,XHTMLElement):
-	# <!ELEMENT BR - O EMPTY                 -- forced line break -->
-	XMLNAME=(XHTML_NAMESPACE,'br')
-	XMLCONTENT=xmlns.XMLEmpty
-
-class Cite(Phrase):
-	XMLNAME=(XHTML_NAMESPACE,'cite')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class Code(Phrase):
-	XMLNAME=(XHTML_NAMESPACE,'code')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class Dfn(Phrase):
-	XMLNAME=(XHTML_NAMESPACE,'dfn')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class Div(BlockMixin,FlowContainer):
-	# <!ELEMENT DIV - - (%flow;)*            -- generic language/style container -->
-	XMLNAME=(XHTML_NAMESPACE,'div')
-	XMLCONTENT=xmlns.XMLMixedContent
-		
-class Em(Phrase):
-	XMLNAME=(XHTML_NAMESPACE,'em')
-	XMLCONTENT=xmlns.XMLMixedContent
 
 class Heading(BlockMixin,InlineContainer):
 	# <!ENTITY % heading "H1|H2|H3|H4|H5|H6">
@@ -879,9 +1190,6 @@ class H6(Heading):
 	XMLNAME=(XHTML_NAMESPACE,'h6')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class Kbd(Phrase):
-	XMLNAME=(XHTML_NAMESPACE,'kbd')
-	XMLCONTENT=xmlns.XMLMixedContent
 	
 class P(BlockMixin,InlineContainer):
 	# <!ELEMENT P - O (%inline;)*            -- paragraph -->
@@ -909,22 +1217,6 @@ class Q(SpecialMixin,InlineContainer):
 	XMLNAME=(XHTML_NAMESPACE,'q')
 	XMLCONTENT=xmlns.XMLMixedContent
 
-class Samp(Phrase):
-	XMLNAME=(XHTML_NAMESPACE,'samp')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class Span(SpecialMixin,InlineContainer):
-	# <!ELEMENT SPAN - - (%inline;)*         -- generic language/style container -->
-	XMLNAME=(XHTML_NAMESPACE,'span')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class Strong(Phrase):
-	XMLNAME=(XHTML_NAMESPACE,'strong')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class Var(Phrase):
-	XMLNAME=(XHTML_NAMESPACE,'var')
-	XMLCONTENT=xmlns.XMLMixedContent
 
 # List Elements
 
@@ -994,7 +1286,7 @@ class Method(xsi.Enumeration):
 xsi.MakeEnumeration(Method,"GET")
 
 
-class Form(BlockMixin,BlockContainer):
+class Form(AttrsMixin,BlockMixin,BlockContainer):
 	"""Represents the form element::
 
 	<!ELEMENT FORM - - (%block;|SCRIPT)+ -(FORM) -- interactive form -->
@@ -1023,8 +1315,6 @@ class Form(BlockMixin,BlockContainer):
 		self.action=None
 		self.method=Method.DEFAULT
 		self.enctype="application/x-www-form-urlencoded"
-		self.accept=None
-		self.name=None
 		
 
 class Label(FormCtrlMixin,InlineContainer):
@@ -1128,40 +1418,21 @@ class Input(FormCtrlMixin,AttrsMixin,XHTMLElement):
 	XMLATTR_usemap=('usemap',DecodeURI,EncodeURI)
 	XMLATTR_ismap=('ismap',IsMap.DecodeLowerValue,IsMap.EncodeValue)
 	XMLATTR_tabindex=('tabindex',xsi.DecodeInteger,xsi.EncodeInteger)
-	XMLATTR_accesskey=('accesskey',DecodeCharacter,EncodeCharacter)
+	XMLATTR_accesskey=('accesskey',DecodeCharacter,None)
 	XMLATTR_onfocus='onfocus'
 	XMLATTR_onblur='onblur'
 	XMLATTR_onselect='onselect'
 	XMLATTR_onchange='onchange'
 	XMLATTR_accept='accept'
 	
-	XMLCONTENT=xmlns.XMLEmpty
+	XMLCONTENT=xmlns.ElementType.Empty
 
 	def __init__(self,parent):
 		XHTMLElement.__init__(self,parent)
-		AttrsMixin.__init__(self)
 		self.type=InputType.DEFAULT
-		self.name=None
-		self.value=None
-		self.checked=False
-		self.disabled=False
-		self.readonly=False
-		self.size=None
-		self.maxLength=None
-		self.src=None
-		self.alt=None
-		self.usemap=None
-		self.ismap=False
-		self.tabindex=None
-		self.accesskey=None
-		self.onfocus=None
-		self.onblur=None
-		self.onselect=None
-		self.onchange=None
-		self.accept=None
 		
 
-class Select(FormCtrlMixin,XHTMLElement):
+class Select(AttrsMixin,FormCtrlMixin,XHTMLElement):
 	"""Select element::
 
 	<!ELEMENT SELECT - - (OPTGROUP|OPTION)+ -- option selector -->
@@ -1199,7 +1470,7 @@ class Select(FormCtrlMixin,XHTMLElement):
 		return iter(self.options)
 
 
-class OptGroup(XHTMLElement):
+class OptGroup(AttrsMixin,XHTMLElement):
 	"""OptGroup element::
 	
 	<!ELEMENT OPTGROUP - - (OPTION)+ -- option group -->
@@ -1210,10 +1481,12 @@ class OptGroup(XHTMLElement):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'optgroup')
+	XMLATTR_label='label'
 	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):
 		XHTMLElement.__init__(self,parent)
+		self.label=''
 		self.Option=[]
 	
 	def GetChildren(self):
@@ -1260,7 +1533,7 @@ class TextArea(FormCtrlMixin,XHTMLElement):
 	XMLCONTENT=xmlns.XMLMixedContent
 
 
-class FieldSet(BlockMixin,FlowContainer):
+class FieldSet(AttrsMixin,BlockMixin,FlowContainer):
 	"""fieldset element::
 	
 	<!ELEMENT FIELDSET - - (#PCDATA,LEGEND,(%flow;)*) -- form control group -->
@@ -1287,7 +1560,7 @@ class FieldSet(BlockMixin,FlowContainer):
 
 	def ChildElement(self,childClass,name=None):
 		if issubclass(childClass,Legend):
-			return XHTMLElement.ChildElement(self,childClass,name)
+			return super(XHTMLElement,self).ChildElement(childClass,name)
 		else:
 			return FlowContainer.ChildElement(self,childClass,name)
 					
@@ -1339,26 +1612,22 @@ class Button(AttrsMixin,FormCtrlMixin,FlowContainer):
 	XMLATTR_type=('type',ButtonType.DecodeLowerValue,ButtonType.EncodeValue)
 	XMLATTR_disabled=('disabled',Disabled.DecodeLowerValue,Disabled.EncodeValue)
 	XMLATTR_tabindex=('tabindex',xsi.DecodeInteger,xsi.EncodeInteger)
-	XMLATTR_accesskey=('accesskey',DecodeCharacter,EncodeCharacter)
+	XMLATTR_accesskey=('accesskey',DecodeCharacter,None)
 	XMLATTR_onfocus='onfocus'
 	XMLATTR_onblur='onblur'
 	XMLCONTENT=xmlns.XMLMixedContent
 
 	def __init__(self,parent):
 		FlowContainer.__init__(self,parent)
-		AttrsMixin.__init__(self)
-		self.name=None
-		self.value=None
 		self.type=ButtonType.DEFAULT
-		self.disabled=False
-		self.tabindex=None
-		self.accesskey=None
-		self.onfocus=None
-		self.onblur=None
 
 # Object Elements
 
-class Object(SpecialMixin,HeadMiscMixin,XHTMLElement):
+class Declare(NamedBoolean):
+	"""Used for the declare attribute."""
+	name="declare"
+
+class Object(AttrsMixin,SpecialMixin,HeadMiscMixin,XHTMLElement):
 	"""Represents the object element::
 	
 	<!ELEMENT OBJECT - - (PARAM | %flow;)*
@@ -1382,23 +1651,21 @@ class Object(SpecialMixin,HeadMiscMixin,XHTMLElement):
 	  >
 	"""	
 	XMLNAME=(XHTML_NAMESPACE,'object')
+	XMLATTR_declare=('declare',Declare.DecodeLowerValue,Declare.EncodeValue)
+	XMLATTR_classid='classid'
+	XMLATTR_codebase='codebase'
 	XMLATTR_data=('data',DecodeURI,EncodeURI)
 	XMLATTR_type='type'
+	XMLATTR_codetype='codetype'
+	XMLATTR_archive='archive'
+	XMLATTR_archive='standby'
 	XMLATTR_height=('height',DecodeLength,EncodeLength)
 	XMLATTR_width=('width',DecodeLength,EncodeLength)
 	XMLATTR_usemap=('usemap',DecodeURI,EncodeURI)	
 	XMLATTR_name='name'
+	XMLATTR_tabindex=('tabindex',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLCONTENT=xmlns.XMLMixedContent
 	
-	def __init__(self,parent):
-		XHTMLElement.__init__(self,parent)
-		self.data=None
-		self.type=None
-		self.height=None
-		self.width=None
-		self.usemap=None
-		self.name=None
-
 	def GetChildClass(self,stagClass):
 		"""stagClass should not be None"""
 		if stagClass is None:
@@ -1421,63 +1688,8 @@ class Object(SpecialMixin,HeadMiscMixin,XHTMLElement):
 class Param(XHTMLElement):
 	# <!ELEMENT PARAM - O EMPTY              -- named property value -->
 	XMLNAME=(XHTML_NAMESPACE,'param')
-	XMLCONTENT=xmlns.XMLEmpty
+	XMLCONTENT=xmlns.ElementType.Empty
 	
-# Presentation Elements
-
-class FontStyle(InlineMixin,InlineContainer):
-	# strict:	<!ENTITY % fontstyle "TT | I | B | BIG | SMALL">
-	# loose:	<!ENTITY % fontstyle "TT | I | B | U | S | STRIKE | BIG | SMALL">
-	# <!ELEMENT (%fontstyle;|%phrase;) - - (%inline;)*>
-	pass
-
-class B(FontStyle):
-	XMLNAME=(XHTML_NAMESPACE,'b')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class Big(FontStyle):
-	XMLNAME=(XHTML_NAMESPACE,'big')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class HR(BlockMixin,XHTMLElement):
-	# <!ELEMENT HR - O EMPTY -- horizontal rule -->
-	XMLNAME=(XHTML_NAMESPACE,'hr')
-	XMLCONTENT=xmlns.XMLEmpty
-
-class I(FontStyle):
-	XMLNAME=(XHTML_NAMESPACE,'i')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class S(FontStyle):
-	XMLNAME=(XHTML_NAMESPACE,'s')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class Small(FontStyle):
-	XMLNAME=(XHTML_NAMESPACE,'small')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class Strike(FontStyle):
-	XMLNAME=(XHTML_NAMESPACE,'strike')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class Sub(SpecialMixin,InlineContainer):
-	# <!ELEMENT (SUB|SUP) - - (%inline;)*    -- subscript, superscript -->
-	XMLNAME=(XHTML_NAMESPACE,'sub')
-	XMLCONTENT=xmlns.XMLMixedContent
-	
-class Sup(SpecialMixin,InlineContainer):
-	# <!ELEMENT (SUB|SUP) - - (%inline;)*    -- subscript, superscript -->
-	XMLNAME=(XHTML_NAMESPACE,'sup')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class TT(FontStyle):
-	XMLNAME=(XHTML_NAMESPACE,'tt')
-	XMLCONTENT=xmlns.XMLMixedContent
-
-class U(FontStyle):
-	XMLNAME=(XHTML_NAMESPACE,'u')
-	XMLCONTENT=xmlns.XMLMixedContent
-
 # Table Elements
 
 class Table(BlockMixin,XHTMLElement):
@@ -1543,7 +1755,7 @@ class ColGroup(XHTMLElement):
 class Col(BlockMixin,XHTMLElement):
 	# <!ELEMENT COL      - O EMPTY           -- table column -->
 	XMLNAME=(XHTML_NAMESPACE,'col')
-	XMLCONTENT=xmlns.XMLEmpty
+	XMLCONTENT=xmlns.ElementType.Empty
 
 class TR(XHTMLElement):
 	# <!ELEMENT TR       - O (TH|TD)+        -- table row -->
@@ -1588,7 +1800,9 @@ class Link(HeadMiscMixin,XHTMLElement):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'link')
-	XMLCONTENT=xmlns.XMLEmpty
+	XMLATTR_hreflang=('hrefLang',xsi.DecodeName,xsi.EncodeName)
+	XMLATTR_type='type'
+	XMLCONTENT=xmlns.ElementType.Empty
 
 	
 # Image Element
@@ -1610,7 +1824,7 @@ class Img(SpecialMixin,XHTMLElement):
 	  ismap       (ismap)        #IMPLIED  -- use server-side image map --
 	  >"""
 	XMLNAME=(XHTML_NAMESPACE,'img')
-	XMLCONTENT=xmlns.XMLEmpty
+	XMLCONTENT=xmlns.ElementType.Empty
 	XMLATTR_src=('src',DecodeURI,EncodeURI)
 	XMLATTR_alt='alt'
 	XMLATTR_longdesc=('longdesc',DecodeURI,EncodeURI)
@@ -1618,18 +1832,12 @@ class Img(SpecialMixin,XHTMLElement):
 	XMLATTR_height=('height',DecodeLength,EncodeLength)
 	XMLATTR_width=('width',DecodeLength,EncodeLength)
 	XMLATTR_usemap=('usemap',DecodeURI,EncodeURI)
-	XMLATTR_ismap=('ismap',lambda x:x.strip().lower()=='ismap',lambda x:'ismap' if x else None)
+	XMLATTR_ismap=('ismap',IsMap.DecodeLowerValue,IsMap.EncodeValue)
 	
 	def __init__(self,parent):
 		XHTMLElement.__init__(self,parent)
 		self.src=None
 		self.alt=''
-		self.londesc=None
-		self.name=None
-		self.height=None
-		self.width=None
-		self.usemap=None
-		self.ismap=False
 
 	def AddToCPResource(self,cp,resource,beenThere):
 		if isinstance(self.src,FileURL):
@@ -1643,7 +1851,7 @@ class Img(SpecialMixin,XHTMLElement):
 		
 # Hypertext Element
 
-class A(SpecialMixin,InlineContainer):
+class A(AttrsMixin,SpecialMixin,InlineContainer):
 	"""The HTML anchor element::
 
 	<!ELEMENT A - - (%inline;)* -(A)       -- anchor -->
@@ -1670,7 +1878,7 @@ class A(SpecialMixin,InlineContainer):
 	XMLATTR_type='type'
 	XMLATTR_name='name'
 	XMLATTR_href=('href',DecodeURI,EncodeURI)
-	XMLATTR_hreflang='hrefLang'
+	XMLATTR_hreflang=('hrefLang',xsi.DecodeName,xsi.EncodeName)
 	XMLATTR_target='target'
 	XMLATTR_rel='rel'
 	XMLATTR_rev='rev'
@@ -1681,23 +1889,6 @@ class A(SpecialMixin,InlineContainer):
 	XMLATTR_onfocus='onFocus'
 	XMLATTR_onblur='onBlur'
 	XMLCONTENT=xmlns.XMLMixedContent
-
-	def __init__(self,parent):
-		InlineContainer.__init__(self,parent)
-		self.charset=None
-		self.type=None
-		self.name=None
-		self.href=None
-		self.hrefLang=None
-		self.target=None
-		self.rel=None
-		self.rev=None
-		self.accessKey=None
-		self.shape=None
-		self.coords=None
-		self.tabIndex=None
-		self.onFocus=None
-		self.onBlur=None
 
 # Frames
 
@@ -1749,7 +1940,7 @@ class Frame(FrameElement):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'frame')
-	XMLCONTENT=xmlns.XMLEmpty
+	XMLCONTENT=xmlns.ElementType.Empty
 
 	
 class IFrame(SpecialMixin,FlowContainer):
@@ -1821,7 +2012,7 @@ class HeadContentMixin:
 	"""
 	pass
 
-class Head(XHTMLElement):
+class Head(I18nMixin,XHTMLElement):
 	"""Represents the HTML head structure::
 
 		<!ELEMENT HEAD O O (%head.content;) +(%head.misc;) -- document head -->
@@ -1836,7 +2027,6 @@ class Head(XHTMLElement):
 	
 	def __init__(self,parent):
 		XHTMLElement.__init__(self,parent)
-		self.profile=None
 		self.Title=Title(self)
 		self.Base=None
 		self.HeadMiscMixin=[]
@@ -1861,7 +2051,7 @@ class Head(XHTMLElement):
 			yield child
 
 
-class Title(HeadContentMixin,XHTMLElement):
+class Title(I18nMixin,HeadContentMixin,XHTMLElement):
 	"""Represents the title element::
 
 	<!ELEMENT TITLE - - (#PCDATA) -(%head.misc;) -- document title -->
@@ -1871,7 +2061,7 @@ class Title(HeadContentMixin,XHTMLElement):
 	XMLCONTENT=xmlns.XMLMixedContent
 
 
-class Meta(HeadMiscMixin,XHTMLElement):
+class Meta(I18nMixin,HeadMiscMixin,XHTMLElement):
 	"""Represents the meta element::
 
 	<!ELEMENT META - O EMPTY               -- generic metainformation -->
@@ -1884,7 +2074,7 @@ class Meta(HeadMiscMixin,XHTMLElement):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'meta')
-	XMLCONTENT=xmlns.XMLEmpty
+	XMLCONTENT=xmlns.ElementType.Empty
 
 	
 class Base(HeadContentMixin,XHTMLElement):
@@ -1896,10 +2086,11 @@ class Base(HeadContentMixin,XHTMLElement):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'base')
-	XMLCONTENT=xmlns.XMLEmpty
+	XMLATTR_base=('base',DecodeURI,EncodeURI)
+	XMLCONTENT=xmlns.ElementType.Empty
 
 
-class Style(HeadMiscMixin,XHTMLElement):
+class Style(I18nMixin,HeadMiscMixin,XHTMLElement):
 	"""Represents the style element::
 
 	<!ELEMENT STYLE - - %StyleSheet        -- style info -->
@@ -1911,8 +2102,15 @@ class Style(HeadMiscMixin,XHTMLElement):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'style')
+	XMLATTR_type='type'
+	XMLATTR_media='media'
+	XMLATTR_title='title'
 	XMLCONTENT=xmlns.XMLMixedContent
 	SGMLCONTENT=xmlns.SGMLCDATA
+
+	def __init__(self,parent):
+		XHTMLElement.__init__(self,parent)
+		self.type='text/css'
 
 	
 class Script(SpecialMixin,HeadMiscMixin,XHTMLElement):
@@ -1947,46 +2145,18 @@ class NoScript(BlockMixin,FlowContainer):
 	def ChildElement(self,childClass,name=None):
 		if self.FindParent(Head) and issubclass(childClass,(Link,Style,Meta)):
 			# HTML5 compatibility, bypass normal FlowContainer handling.
-			return XHTMLElement.ChildElement(self,childClass,name)
+			return super(XHTMLElement,self).ChildElement(childClass,name)
 		else:
 			return FlowContainer.ChildElement(self,childClass,name)
 
 
 # Document Body
 
-class Body(XHTMLElement):
-	"""Represents the HTML BODY structure::
-
-	<!ELEMENT BODY O O (%block;|SCRIPT)+ +(INS|DEL) -- document body -->
-	<!ATTLIST BODY
-	  %attrs;                              -- %coreattrs, %i18n, %events --
-	  onload          %Script;   #IMPLIED  -- the document has been loaded --
-	  onunload        %Script;   #IMPLIED  -- the document has been removed --
-	"""
-	XMLNAME=(XHTML_NAMESPACE,'body')
-	XMLCONTENT=xmlns.ElementContent
-
-	def GetChildClass(self,stagClass):
-		"""Handled omitted tags"""
-		if stagClass is None:
-			# data in Body implies DIV
-			return Div
-		elif issubclass(stagClass,(BlockMixin,Script,Ins,Del)) or not issubclass(stagClass,XHTMLElement):
-			# children of another namespace can go in here too
-			return stagClass
-		elif issubclass(stagClass,FlowMixin):
-			# allowed by loose DTD but we encapsulate in Flow to satisfy strict
-			return Div
-		elif issubclass(stagClass,(Head,HeadMiscMixin,HeadContentMixin)):
-			# Catch HEAD content appearing in BODY and force HEAD, BODY, HEAD, BODY,... to catch all.
-			return None
-		else:
-			raise XHTMLValidityError("%s in %s"%(stagClass.__name__,self.__class__.__name__))		
 				
 	
 # Document Structures
 
-class HTML(XHTMLElement):
+class HTML(I18nMixin,XHTMLElement):
 	"""Represents the HTML document strucuture::
 
 		<!ENTITY % html.content "HEAD, BODY">
@@ -2133,5 +2303,44 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 			eClass=XHTMLDocument.classMap.get(lcName,xmlns.XMLNSElement)
 		return eClass
 		
-
 xmlns.MapClassElements(XHTMLDocument.classMap,globals())
+
+
+"""sgmlOmittag Feature:
+
+Empty elements are handled by a simple XMLCONTENT attribute:
+
+<!ELEMENT BASEFONT - O EMPTY           -- base font size -->
+<!ELEMENT BR - O EMPTY                 -- forced line break -->
+<!ELEMENT IMG - O EMPTY                -- Embedded image -->
+<!ELEMENT HR - O EMPTY -- horizontal rule -->
+<!ELEMENT INPUT - O EMPTY              -- form control -->
+<!ELEMENT FRAME - O EMPTY              -- subwindow -->
+<!ELEMENT ISINDEX - O EMPTY            -- single line prompt -->
+<!ELEMENT BASE - O EMPTY               -- document base URI -->
+<!ELEMENT META - O EMPTY               -- generic metainformation -->
+<!ELEMENT AREA - O EMPTY               -- client-side image map area -->
+<!ELEMENT LINK - O EMPTY               -- a media-independent link -->
+<!ELEMENT PARAM - O EMPTY              -- named property value -->
+<!ELEMENT COL      - O EMPTY           -- table column -->
+
+Missing start tags must be handled in the context where these elements may occur:
+
+<!ELEMENT BODY O O (%flow;)* +(INS|DEL) -- document body -->
+<!ELEMENT TBODY    O O (TR)+           -- table body -->
+<!ELEMENT HEAD O O (%head.content;) +(%head.misc;) -- document head -->
+<!ELEMENT HTML O O (%html.content;)    -- document root element -->
+
+Missing end tags must be handled in the elements themselves:
+
+<!ELEMENT P - O (%inline;)*            -- paragraph -->
+<!ELEMENT DT - O (%inline;)*           -- definition term -->
+<!ELEMENT DD - O (%flow;)*             -- definition description -->
+<!ELEMENT LI - O (%flow;)*             -- list item -->
+<!ELEMENT OPTION - O (#PCDATA)         -- selectable choice -->
+<!ELEMENT THEAD    - O (TR)+           -- table header -->
+<!ELEMENT TFOOT    - O (TR)+           -- table footer -->
+<!ELEMENT COLGROUP - O (COL)*          -- table column group -->
+<!ELEMENT TR       - O (TH|TD)+        -- table row -->
+<!ELEMENT (TH|TD)  - O (%flow;)*       -- table header cell, table data cell-->
+"""

@@ -10,7 +10,7 @@ import pyslet.rfc2396 as uri
 
 xsi=xsdatatypes
 
-import string, itertools
+import string, itertools, types
 import sys
 from types import StringTypes
 
@@ -53,7 +53,7 @@ class RubricBlock(html.BlockMixin,content.BodyElement):
 	</xsd:group>
 	"""
 	XMLNAME=(core.IMSQTI_NAMESPACE,'rubricBlock')
-	XMLATTR_view=('view',core.View.DecodeLowerValue,core.View.EncodeValue,True)
+	XMLATTR_view=('view',core.View.DecodeLowerValue,core.View.EncodeValue,types.DictType)
 	XMLCONTENT=xmlns.ElementContent
 
 	def __init__(self,parent):

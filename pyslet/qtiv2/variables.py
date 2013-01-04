@@ -9,7 +9,7 @@ from pyslet.rfc2396  import URI, URIFactory
 import pyslet.qtiv2.core as core
 import pyslet.qtiv2.tests as tests
 
-import os, time, hashlib
+import os, time, hashlib, types
 import string, itertools
 from types import BooleanType,IntType,LongType,FloatType,StringTypes,DictType,TupleType,ListType
 
@@ -1379,7 +1379,7 @@ class OutcomeDeclaration(VariableDeclaration):
 			</xsd:sequence>
 		</xsd:group>"""
 	XMLNAME=(core.IMSQTI_NAMESPACE,'outcomeDeclaration')
-	XMLATTR_view=('view',core.View.DecodeLowerValue,core.View.EncodeValue)
+	XMLATTR_view=('view',core.View.DecodeLowerValue,core.View.EncodeValue,types.DictType)
 	XMLATTR_interpretation='interpretation'
 	XMLATTR_longInterpretation=('longInterpretation',html.DecodeURI,html.EncodeURI)
 	XMLATTR_normalMaximum=('normalMaximum',xsi.DecodeFloat,xsi.EncodeFloat)
@@ -1389,7 +1389,7 @@ class OutcomeDeclaration(VariableDeclaration):
 
 	def __init__(self,parent):
 		VariableDeclaration.__init__(self,parent)
-		self.view={}
+		self.view=None
 		self.interpretation=None
 		self.longInterpretation=None
 		self.normalMaximum=None

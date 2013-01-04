@@ -136,7 +136,7 @@ def EscapeCharData7(src,quote=False):
 	return string.join(dst,'')
 	
 
-class Node:
+class Node(object):
 	def __init__(self,parent):
 		"""Base class for Element and Document shared attributes.
 		
@@ -158,7 +158,7 @@ class Node:
 		option is in effect.  It is called prior to :py:meth:`ChildElement`
 		below and gives the context (the parent element or document) a chance to
 		modify the child element that will be created (or reject it out-right,
-		byre returning None).
+		by returning None).
 		
 		For well-formed XML documents the default implementation is sufficient
 		as it simply returns *stagClass*.
@@ -175,8 +175,8 @@ class Node:
 		-	childClass is a class (or callable) used to create a new instance
 			of :py:class:`Element`.
 		
-		-	name is the name given to the element (by the caller).  If no name is 
-			given then the default name for the child should be used.  When the
+		-	name is the name given to the element (by the caller).  If no name
+			is given then the default name for the child is used.  When the
 			child returned is an existing instance, name is ignored."""
 		raise NotImplementedError
 			
@@ -734,7 +734,7 @@ def EscapeCDSect(src):
 		return u''
 		
 
-class XMLDTD:
+class XMLDTD(object):
 	def __init__(self):
 		"""An object that models a document type declaration.
 		
@@ -853,7 +853,7 @@ class XMLDTD:
 			return None
 		
 
-class XMLTextDeclaration:
+class XMLTextDeclaration(object):
 
 	def __init__(self,version="1.0",encoding="UTF-8"):
 		"""Represents the text components of an XML declaration.
@@ -879,6 +879,147 @@ class XMLDeclaration(XMLTextDeclaration):
 
 
 class Element(Node):
+	"""Basic class that represents all XML elements.
+	
+	Some aspects of the element's XML serialisation behaviour are controlled by
+	special class attributes that can be set on derived classes.
+	
+	XMLNAME
+		the default name of the element the class represents.
+	
+	XMLCONTENT
+		the default content model of the element; one of the
+		:py:class:`ElementType` constants.
+	
+	ID
+		the name of the ID attribute if the element has a unique ID. With this
+		class attribute set, ID handling is automatic (see :py:meth:`SetID` and
+		:py:attr:`id` below).
+
+	By default, attributes are simply stored as strings mapped in an internal
+	dictionary.  It is often more useful to map XML attributes on to python
+	attributes, parsing and validating their values to python objects.  This
+	mapping can be provided using class attributes of the form XMLATTR_aname
+	where aname is the name of the attribute as it would appear in the XML
+	element start or empty element tag.
+
+	XMLATTR_aname=<string>
+			
+		This form creates a simple mapping from the XML attribute 'aname' to a
+		python attribute with a defined name.  For example, you might want to
+		create a mapping like this to avoid a python reserved word::
+		
+			XMLATTR_class="styleClass"
+			
+		This allows XML elements like this::
+		
+			<element class="x"/>
+		
+		To be parsed into python objects that behave like this::
+		
+			element.styleClass=="x"		# True
+		
+		If an instance is missing a python attribute corresponding to a defined
+		XML attribute, or it's value has been set to None, then the XML
+		attribute is omitted from the element's tag when generating XML output.
+		 
+	XMLATTR_aname=(<string>, decodeFunction, encodeFunction)
+
+		More complex attributes can be handled by setting XMLATTR_aname to a
+		tuple.  The first item is the python attribute name (as above); the
+		*decodeFunction* is a simple function that takes a string argument and
+		returns the decoded value of the attribute and the *encodeFunction*
+		performs the reverse transformation.
+
+		The encode/decode functions can be None to indicate a no-operation.
+		
+		For example, you might want to create an integer attribute using
+		something like::
+		
+			# source XML
+			<element apples="5"/>
+			
+			# class attribute definition
+			XMLATTR_apples=('nApples',int,unicode)
+			
+			# resulting object behaves like this...
+			element.nApples==5		# True
+			
+	XMLATTR_aname=(<string>, decodeFunction, encodeFunction, type)
+	
+		When XML attribute values are parsed from tags the optional *type*
+		component of the descriptor can be used to indicate a multi-valued
+		attribute (for example, XML attributes defined using one of the plural
+		forms, IDREFS, ENTITIES and NMTOKENS).  If the *type* value is not None
+		then the XML attribute value is first split by white-space, as per the
+		XML specification, and then the decode function is applied to each
+		resulting component.  The instance attribute is then set depending on
+		the value of *type*:
+		
+		types.ListType
+		
+			The instance attribute becomes a list, for example::
+			
+				# source XML
+				<element primes="2 3 5 7"/>
+				
+				# class attribute definition
+				XMLATTR_primes=('primes',int,unicode)
+				
+				# resulting object behaves like this...
+				element.primes==[2,3,5,7]		# True
+
+		types.DictType
+		
+			The instance attribute becomes a dictionary mapping parsed values on
+			to their frequency, for example::
+		
+				# source XML
+				<element fruit="apple pear orange pear"/>
+				
+				# class attribute definition
+				XMLATTR_fruit=('fruit',None,None,types.DictType)
+				
+				# resulting object behaves like this...
+				element.fruit=={'apple':1, 'orange':1, 'pear':2}		# True
+		  
+			In this case, the decode function (if given) must return a hashable
+			object.
+	
+		When creating XML output the reverse transformations are per formed
+		using the encode functions and the type (plain, list or dict) of the
+		attribute's current value.  The declared multi-valued type is ignored. 
+		For dictionary values the order of the output values may not be the same
+		as the order originally read from the XML input.
+		
+		Warning:  Empty lists and dictionaries result in XML attribute values
+		which are present but with empty strings.  If you wish to omit these
+		attributes in the output XML you must set the attribute value to None in
+		the instance.
+
+	XMLAMAP
+	XMLARMAP
+	
+		Internally, the XMLATTR_* descriptors are parsed into two mappings.
+		The XMLAMAP maps XML attribute names onto a tuple of:
+		
+			(<python attribute name>, decodeFunction, type)
+		
+		The XMLARMAP maps python attribute names onto a tuple of: 
+
+			(<xml attribute name>, encodeFunction)
+
+		The mappings are created automatically as needed.
+		
+	For legacy reasons, the multi-valued rules can also be invoked by setting an
+	instance member to either a list or dictionary prior to parsing the instance
+	from XML (e.g., in a constructor).
+	
+	XML attribute names may contain many characters that are not legal in Python
+	method names and automated attribute processing is not supported for these
+	attributes.  In practice, the only significant limitation is the colon.  The
+	common xml-prefixed attributes such as xml:lang are handled using special
+	purposes methods."""
 	#XMLCONTENT=None
 	
 	def __init__(self,parent,name=None):
@@ -894,6 +1035,11 @@ class Element(Node):
 		self._attrs={}
 		self._children=[]
 
+	def __nonzero__(self):
+		# All elements are considered non-zero; we implement this to reduce spurious calls
+		# to __getattr__
+		return True
+		
 	def SetXMLName(self,name):
 		self.xmlname=name
 	
@@ -951,7 +1097,65 @@ class Element(Node):
 			return mName[8:]
 		else:
 			return None
-				
+	
+	def _ReMap(self):
+		aMap={}
+		arMap={}
+		nop=lambda x:x
+		for mName in dir(self.__class__):
+			name=self.UnmangleAttributeName(mName)
+			if name:
+				setter=getattr(self.__class__,mName)
+				if type(setter) in StringTypes:
+					# use simple attribute assignment
+					attrName,encode,decode,vtype=setter,None,None,None
+				elif type(setter) is TupleType:
+					if len(setter)==3:
+						attrName,decode,encode=setter
+						vtype=None
+					elif len(setter)==4:
+						attrName,decode,encode,vtype=setter
+					else:
+						raise XMLAttributeSetter("bad XMLATTR_ definition: %s attribute of %s"%(name,self.__class__.__name__))
+				else:
+					raise XMLAttributeSetter("setting %s attribute of %s"%(name,self.__class__.__name__))
+				if encode is None:
+					encode=nop
+				if decode is None:
+					decode=nop
+				if vtype not in (types.ListType,types.DictType,None):
+					raise XMLAttributeSetter("Legacy XMLATTR_ definition: %s attribute of %s"%(name,self.__class__.__name__))
+				aMap[name]=(attrName,decode,vtype)
+				arMap[attrName]=(name,encode)
+		setattr(self.__class__,"XMLAMAP",aMap)
+		setattr(self.__class__,"XMLARMAP",arMap)
+		
+	def _ARMap(self):
+		if "XMLARMAP" not in self.__class__.__dict__:
+			self._ReMap()
+		return self.__class__.XMLARMAP			 
+	
+	def _AMap(self):
+		if "XMLAMAP" not in self.__class__.__dict__:
+			self._ReMap()
+		return self.__class__.XMLAMAP			 
+			
+	def __getattr__(self,name):
+		"""Some element specifications define large numbers of optional
+		attributes and it is inconvenient to write constructors to initialise
+		these members in each instance and possibly wasteful of memory if a
+		document contains large numbers of such elements.
+		
+		To obviate the need for optional attributes to be present in every
+		instance this method will look up *name* in the reverse map and,
+		if present, it returns None."""
+		# print "Looking for %s in %s"%(name,self.__class__.__name__)
+		# import traceback;traceback.print_stack()
+		if name in self._ARMap():
+			return None
+		else:
+			raise AttributeError(name)
+	
 	def GetAttributes(self):
 		"""Returns a dictionary object that maps attribute names onto values.
 		
@@ -964,125 +1168,136 @@ class Element(Node):
 		attrs=copy(self._attrs)
 		if self.id:
 			attrs[self.__class__.ID]=self.id
-		for mName in dir(self.__class__):
-			name=self.UnmangleAttributeName(mName)
-			if name:
-				required=False
-				setter=getattr(self.__class__,mName)
-				if type(setter) in StringTypes:
-					# use simple attribute assignment
-					attrName,encode=setter,lambda x:x
-				elif type(setter) is TupleType:
-					if len(setter)==3:
-						attrName,decode,encode=setter
-					elif len(setter)==4:
-						attrName,decode,encode,required=setter
-					else:
-						raise XMLAttributeSetter("bad XMLATTR_ definition: %s attribute of %s"%(name,self.__class__.__name__))
-				else:
-					raise XMLAttributeSetter("setting %s attribute of %s"%(name,self.__class__.__name__))				
-				value=getattr(self,attrName,None)
-				if type(value) is ListType:
-					value=string.join(map(encode,value),' ')
-					if not value and not required:
-						value=None
-				elif type(value) is DictType:
-					value=string.join(sorted(map(encode,value.keys())),' ')
-					if not value and not required:
-						value=None
-				elif value is not None:
-					value=encode(value)
-				if value is not None:
-					attrs[name]=value
+		arMap=self._ARMap()
+		for attrName,desc in arMap.items():
+			name,encode=desc
+			value=getattr(self,attrName,None)
+			if type(value) is ListType:
+				value=string.join(map(encode,value),' ')
+			elif type(value) is DictType:
+				lValue=[]
+				for key,freq in value.items():
+					 v=encode(key)
+					 lValue=lValue+[encode(key)]*freq
+				value=string.join(sorted(lValue),' ')
+			elif value is not None:
+				value=encode(value)
+			if value is not None:
+				attrs[name]=value		
+# 		for mName in dir(self.__class__):
+# 			name=self.UnmangleAttributeName(mName)
+# 			if name:
+# 				required=False
+# 				setter=getattr(self.__class__,mName)
+# 				if type(setter) in StringTypes:
+# 					# use simple attribute assignment
+# 					attrName,encode=setter,lambda x:x
+# 				elif type(setter) is TupleType:
+# 					if len(setter)==3:
+# 						attrName,decode,encode=setter
+# 					elif len(setter)==4:
+# 						attrName,decode,encode,required=setter
+# 					else:
+# 						raise XMLAttributeSetter("bad XMLATTR_ definition: %s attribute of %s"%(name,self.__class__.__name__))
+# 				else:
+# 					raise XMLAttributeSetter("setting %s attribute of %s"%(name,self.__class__.__name__))				
+# 				value=getattr(self,attrName,None)
+# 				if type(value) is ListType:
+# 					value=string.join(map(encode,value),' ')
+# 					if not value and not required:
+# 						value=None
+# 				elif type(value) is DictType:
+# 					value=string.join(sorted(map(encode,value.keys())),' ')
+# 					if not value and not required:
+# 						value=None
+# 				elif value is not None:
+# 					value=encode(value)
+# 				if value is not None:
+# 					attrs[name]=value
 		return attrs
 
 	def SetAttribute(self,name,value):
-		"""Sets the value of an attribute.
-		
-		The attribute name is assumed to be a string or unicode string.
-		
-		The default implementation checks for a custom setter which can be defined
-		in one of three ways.
-		
-		(1) For simple assignement of the string value to an attribute of the
-		instance just add an attribute to the class of the form
-		XMLATTR_xmlname='member' where 'xmlname' is the attribute name used in
-		the XML tag and 'member' is the attribute name to use in the instance.
-
-		(2) More complex attributes can be handled by setting XMLATTR_xmlname to
-		a tuple of ('member',decodeFunction,encodeFunction) where the
-		decodeFunction is a simple function that take a string argument and
-		returns the decoded value of the attribute, the encodeFunction performs
-		the reverse transformation.
-		
-		In cases (1) and (2), once the member name has been determined the
-		existing value of the member is used to determine how to set the value:
-		
-		List: split the value by whitespace and assign list of decoded values
-
-		Dict: split the value by whitespace and create a mapping from decoded
-		values to the original text used to represent it in the attribute.		
-
-		Any other type: the member is set to the decoded value
-		
-		A values of None or a missing member is as treated as for 'any other type'.
-		
-		(3) Finally, if the *instance* has a method called Set_xmlname then that
-		is called with the value.
-		
-		In the first two cases, GetAttributes will handle the generation of the
-		attribute automatically, in the third case you must override the
-		GetAttributes method to set the attributes appropriately during
-		serialization back to XML.
-		
-		XML attribute names may contain many characters that are not legal in
-		Python method names but, in practice, the only significant limitation is
-		the colon.  This is replaced by '_' before searching for a custom setter.
-		
-		If no custom setter is defined then the default processing stores the
-		attribute in a local dictionary, a copy of which can be obtained with
-		the GetAttributes method.  Additionally, if the class has an ID
-		attribute it is used as the name of the attribute that represents the
-		element's ID.  ID handling is performed automatically at document level
-		and the element's 'id' attribute is set accordingly."""
-		mName=self.MangleAttributeName(name)
-		if mName:
-			setter=getattr(self,mName,None)
-		else:
-			setter=None
-		if setter is None:
-			if mName:
-				mName="Set"+mName[7:]
-				setter=getattr(self,mName,None)
-			if setter is None:
-				if hasattr(self.__class__,'ID') and name==self.__class__.ID:
-					self.SetID(value)
-				else:
-					self._attrs[name]=value
-			else:
-				print "Deprecation warning: use of __class__.Set_<xml attribute> is deprecated, use __class__.XMLATTR_<xml attribute> instead"
-				print "%s.%s"%(self.__class__.__name__,mName)
-				setter(value)
-		else:
-			if type(setter) in StringTypes:
-				# use simple attribute assignment
-				attrName,decode=setter,lambda x:x
-			elif type(setter) is TupleType:
-				if len(setter)==3:
-					attrName,decode,encode=setter
-				else:
-					# we ignore required when setting
-					attrName,decode,encode,required=setter
-			else:
-				raise XMLAttributeSetter("setting %s attribute of %s"%(name,self.__class__.__name__))
-			x=getattr(self,attrName,None)
-			if type(x) is ListType:
-				setattr(self,attrName,map(decode,value.split()))
-			elif type(x) is DictType:
+		"""Sets the value of an attribute."""
+		aMap=self._AMap()
+		if name in aMap:
+			attrName,decode,vType=aMap[name]
+			if vType is ListType:
 				value=value.split()
-				setattr(self,attrName,dict(zip(map(decode,value),value)))
+				setattr(self,attrName,map(decode,value))
+			elif vType is DictType:
+				value=value.split()
+				dValue={}
+				for iv in map(decode,value):
+					dValue[iv]=dValue.get(iv,0)+1
+				setattr(self,attrName,dValue)			
 			else:
+				x=getattr(self,attrName,None)
+				if type(x) in (ListType,DictType):
+					print "Problem setting %s in %s: single value will overwrite List or Dict"%(repr(name),repr(self.__class__.__name__))
+					# print self.GetDocument()
 				setattr(self,attrName,decode(value))
+# 			if type(setter) in StringTypes:
+# 				# use simple attribute assignment
+# 				attrName,decode=setter,lambda x:x
+# 			elif type(setter) is TupleType:
+# 				if len(setter)==3:
+# 					attrName,decode,encode=setter
+# 				else:
+# 					# we ignore required when setting
+# 					attrName,decode,encode,required=setter
+# 			else:
+# 				raise XMLAttributeSetter("setting %s attribute of %s"%(name,self.__class__.__name__))
+# 			x=getattr(self,attrName,None)
+# 			if type(x) is ListType:
+# 				setattr(self,attrName,map(decode,value.split()))
+# 			elif type(x) is DictType:
+# 				value=value.split()
+# 				setattr(self,attrName,dict(zip(map(decode,value),value)))
+# 			else:
+# 				setattr(self,attrName,decode(value))
+# 			
+		elif hasattr(self.__class__,'ID') and name==self.__class__.ID:
+			self.SetID(value)
+		else:
+			self._attrs[name]=value
+# 		mName=self.MangleAttributeName(name)
+# 		if mName:
+# 			setter=getattr(self,mName,None)
+# 		else:
+# 			setter=None
+# 		if setter is None:
+# 			if mName:
+# 				mName="Set"+mName[7:]
+# 				setter=getattr(self,mName,None)
+# 			if setter is None:
+# 				if hasattr(self.__class__,'ID') and name==self.__class__.ID:
+# 					self.SetID(value)
+# 				else:
+# 					self._attrs[name]=value
+# 			else:
+# 				print "Deprecation warning: use of __class__.Set_<xml attribute> is deprecated, use __class__.XMLATTR_<xml attribute> instead"
+# 				print "%s.%s"%(self.__class__.__name__,mName)
+# 				setter(value)
+# 		else:
+# 			if type(setter) in StringTypes:
+# 				# use simple attribute assignment
+# 				attrName,decode=setter,lambda x:x
+# 			elif type(setter) is TupleType:
+# 				if len(setter)==3:
+# 					attrName,decode,encode=setter
+# 				else:
+# 					# we ignore required when setting
+# 					attrName,decode,encode,required=setter
+# 			else:
+# 				raise XMLAttributeSetter("setting %s attribute of %s"%(name,self.__class__.__name__))
+# 			x=getattr(self,attrName,None)
+# 			if type(x) is ListType:
+# 				setattr(self,attrName,map(decode,value.split()))
+# 			elif type(x) is DictType:
+# 				value=value.split()
+# 				setattr(self,attrName,dict(zip(map(decode,value),value)))
+# 			else:
+# 				setattr(self,attrName,decode(value))
 	
 	def IsValidName(self,value):
 		return IsValidName(value)
@@ -1253,7 +1468,7 @@ class Element(Node):
 				elif type(factory) is ListType:
 					child=childClass(self)
 					factory.append(child)
-				elif type(factory) is InstanceType and isinstance(factory,childClass):
+				elif isinstance(factory,childClass):
 					child=factory
 				else:
 					raise TypeError
@@ -1807,7 +2022,7 @@ class Element(Node):
 			writer.write(u'%s<%s%s/>'%(ws,self.xmlname,attributes))
 
 
-class ElementType:
+class ElementType(object):
 
 	Empty=0				#: Content type constant for EMPTY
 	Any=1				#: Content type constant for ANY
@@ -1864,7 +2079,7 @@ ElementContent=ElementType.ElementContent
 SGMLCDATA=ElementType.SGMLCDATA
 		
 	
-class XMLContentParticle:
+class XMLContentParticle(object):
 	
 	ExactlyOnce=0	#: Occurrence constant for particles that must appear exactly once
 	ZeroOrOne=1		#: Occurrence constant for '?'
@@ -2077,7 +2292,7 @@ class XMLSequenceList(XMLContentParticle):
 		return True
 
 
-class ContentParticleCursor:
+class ContentParticleCursor(object):
 	
 	StartState=0	#: State constant representing the start state
 	ParticleState=1 #: State constant representing a particle
@@ -2185,7 +2400,7 @@ class ContentParticleCursor:
 		return result
 							
 
-class XMLAttributeDefinition:
+class XMLAttributeDefinition(object):
 
 	CData=0			#: Type constant representing CDATA
 	ID=1			#: Type constant representing ID
@@ -2225,7 +2440,7 @@ class XMLAttributeDefinition:
 		self.defaultValue=None							#: An optional default value
 
 
-class XMLEntity:
+class XMLEntity(object):
 	def __init__(self,src=None,encoding=None,reqManager=None):
 		"""An object representing an entity.
 		
@@ -2692,7 +2907,7 @@ class XMLParameterEntity(XMLDeclaredEntity):
 		return "%%%s;"%self.name
 
 
-class XMLExternalID:
+class XMLExternalID(object):
 	"""Used to represent external references to entities."""
 	
 	def __init__(self,public=None,system=None):
@@ -2718,7 +2933,7 @@ class XMLExternalID:
 		return None
 
 			
-class XMLNotation:
+class XMLNotation(object):
 	"""Represents an XML Notation"""
 
 	def __init__(self,name,externalID):
@@ -2872,7 +3087,7 @@ def MapClassElements(classMap,namespace,nsAliasTable=None):
 	names=namespace.keys()
 	for name in names:
 		obj=namespace[name]
-		if type(obj) is ClassType and issubclass(obj,Element):
+		if type(obj) in (ClassType,TypeType) and issubclass(obj,Element):
 			if hasattr(obj,'XMLNAME'):
 				classMap[obj.XMLNAME]=obj
 				if nsAliasTable:

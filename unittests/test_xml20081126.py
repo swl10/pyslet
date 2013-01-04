@@ -18,12 +18,12 @@ VERBOSE=False
 def suite():
 	return unittest.TestSuite((
 		unittest.makeSuite(XML20081126Tests,'test'),
-		unittest.makeSuite(DocumentTests,'test'),
 		unittest.makeSuite(XMLCharacterTests,'test'),
+		unittest.makeSuite(XMLValidationTests,'test'),
 		unittest.makeSuite(XMLEntityTests,'test'),
 		unittest.makeSuite(XMLParserTests,'test'),		
 		unittest.makeSuite(ElementTests,'test'),
-		unittest.makeSuite(XMLValidationTests,'test')
+		unittest.makeSuite(DocumentTests,'test')
 		))
 
 TEST_DATA_DIR=os.path.join(os.path.split(os.path.abspath(__file__))[0],'data_xml20081126')
@@ -74,19 +74,20 @@ class ReflectiveElement(Element):
 	
 	XMLATTR_btest='bTest'
 	XMLATTR_ctest=('cTest',DecodeYN,EncodeYN)
-	XMLATTR_dtest=('dTest',DecodeYN,EncodeYN)
-	XMLATTR_dtestR=('dTestR',DecodeYN,EncodeYN,True)
-	XMLATTR_etest=('eTest',DecodeYN,EncodeYN)
-	XMLATTR_etestR=('eTestR',DecodeYN,EncodeYN,True)
+	XMLATTR_dtest=('dTest',DecodeYN,EncodeYN,types.ListType)
+	XMLATTR_dtestR=('dTestR',DecodeYN,EncodeYN) # legacy test
+	XMLATTR_etest=('eTest',DecodeYN,EncodeYN,types.DictType)
+	XMLATTR_etestR=('eTestR',DecodeYN,EncodeYN) 	# legacy test
+	XMLATTR_ftest='fTest'		# missing attribute value
 	
 	def __init__(self,parent):
 		Element.__init__(self,parent)
 		self.atest=None
 		self.bTest=None
 		self.cTest=None
-		self.dTest=[]
+		self.dTest=None
 		self.dTestR=[]
-		self.eTest={}
+		self.eTest=None
 		self.eTestR={}
 		self.child=None
 		self.generics=[]
@@ -160,7 +161,7 @@ class XML20081126Tests(unittest.TestCase):
 	def testCaseDeclare(self):
 		classMap={}
 		MapClassElements(classMap,Elements)
-		self.failUnless(type(classMap['mixed']) is types.ClassType,"class type not declared")
+		self.failUnless(type(classMap['mixed']) is types.TypeType,"class type not declared")
 		self.failIf(hasattr(classMap,'bad'),"class type declared by mistake")
 
 		
@@ -2195,18 +2196,44 @@ class ElementTests(unittest.TestCase):
 		self.failUnless(e.cTest==True,"Attribute relfection with decode/encode")
 		attrs=e.GetAttributes()
 		self.failUnless(attrs['ctest']=='Yes',"Attribute not set correctly")
-		self.failIf('dtest' in attrs,"Optional ordered list attribute") 
+		self.failIf('dtest' in attrs,"Optional ordered list attribute")
 		self.failUnless(attrs['dtestR']=='',"Required ordered list attribute") 
 		e.SetAttribute('dtest','Yes No')
-		self.failUnless(e.dTest==[True,False],"Attribute relfection with list")
+		self.failUnless(e.dTest==[True,False],"Attribute relfection with list; %s"%repr(e.dTest))
 		attrs=e.GetAttributes()
 		self.failUnless(attrs['dtest']=='Yes No',"Attribute not set correctly")
 		self.failIf('etest' in attrs,"Optional unordered list attribute") 
 		self.failUnless(attrs['etestR']=='',"Required unordered list attribute") 
-		e.SetAttribute('etest','Yes No')
-		self.failUnless(e.eTest=={True:'Yes',False:'No'},"Attribute relfection with list")
+		e.SetAttribute('etest','Yes No Yes')
+		self.failUnless(e.eTest=={True:2,False:1},"Attribute relfection with list: %s"%repr(e.eTest))
 		attrs=e.GetAttributes()
-		self.failUnless(attrs['etest']=='No Yes',"Attribute not set correctly")
+		self.failUnless(attrs['etest']=='No Yes Yes',"Attribute not set correctly: %s"%repr(attrs['etest']))
+		try:
+			if e.ztest:
+				pass
+			self.fail("AttributeError required for undefined names")
+		except AttributeError:
+			pass
+		e.ztest=1
+		if e.ztest:
+			pass
+		del e.ztest
+		try:
+			if e.ztest:
+				pass
+			self.fail("AttributeError required for undefined names after del")
+		except AttributeError:
+			pass
+		try:
+			self.failUnless(e.fTest is None,"Missing attribute auto value not None")
+		except AttributeError:
+			self.fail("Missing attribute auto value: AttributeError")
+		e.fTest=1
+		del e.fTest
+		try:
+			self.failUnless(e.fTest is None,"Missing attribute auto value not None (after del)")
+		except AttributeError:
+			self.fail("Missing attribute auto value: AttributeError (after del)")
 	
 	def testChildElements(self):
 		"""Test child element behaviour"""
