@@ -207,15 +207,53 @@ class InlineMixin(FlowMixin):
 	pass
 
 
+def ValidateLinkType(self,value):
+	"""Link types may not contain white space characters
+	::
 
-"""TODO:  LinkTypes::
+		<!ENTITY % LinkTypes "CDATA"	-- space-separated list of link types handled directly -->"""
+	v=value.strip()
+	for c in v:
+		if xmlns.IsS(c):
+			raise ValueError("White space in link type: %s"%repr(value))
+	return v
+	
 
-	<!ENTITY % LinkTypes "CDATA"	-- space-separated list of link types	-->"""
+class MediaDesc(object):
+	"""A list of media for which a linked resource is tailored
+	::
+	
+		<!ENTITY % MediaDesc "CDATA"	-- single or comma-separated list of media descriptors	-->
+	
+	Behaves like a list of strings, but when initialised will split by comma."""
+	
+	def __init__(self,value):
+		self.values=[]
+		if value:
+			if "," in value:
+				self.values=map(lambda x: unicode(x).strip(),value.split(","))
+			else:
+				self.values=[unicode(value.strip())]
+	
+	def __str__(self):
+		return string.join(map(lambda x:str(x),self.values),',')
+	
+	def __unicode__(self):
+		return string.join(self.values,u",")
 
+	def __len__(self):
+		return len(self.values)
 
-"""TODO:  MediaDesc::
-
-	<!ENTITY % MediaDesc "CDATA"	-- single or comma-separated list of media descriptors	-->"""
+	def __getitem__(self,index):
+		return self.values[index]
+	
+	def __setitem__(self,index,value):
+		if "," in value:
+			raise ValueError("',' not allowed in media descriptor")
+		self.values[index]=unicode(value).strip()
+		
+	def __iter__(self):
+		return iter(self.values)
 
 			
 def DecodeURI(src):
@@ -686,7 +724,7 @@ class Body(AttrsMixin,BodyColorsMixin,XHTMLElement):
 	XMLATTR_onload='onLoad'
 	XMLATTR_onunload='onUnload'
 	XMLATTR_background=('background',DecodeURI,EncodeURI)
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 
 	def GetChildClass(self,stagClass):
 		"""Handled omitted tags"""
@@ -781,39 +819,48 @@ class Div(AttrsMixin,BlockMixin,FlowContainer):
 		  >"""
 	XMLNAME=(XHTML_NAMESPACE,'div')
 	XMLATTR_align=('align',Align.DecodeLowerValue,Align.EncodeValue)
-	XMLCONTENT=xmlns.XMLMixedContent
-		
+
+
+class Center(AttrsMixin,BlockMixin,FlowContainer):
+	"""Same as <div align="center"> </div>
+	::
+		<!ELEMENT CENTER - - (%flow;)*         -- shorthand for DIV align=center -->
+		<!ATTLIST CENTER
+		  %attrs;                              -- %coreattrs, %i18n, %events --
+		  >"""
+	XMLNAME=(XHTML_NAMESPACE,'center')
+
+
+class Shape(xsi.Enumeration):
+	"""Enumeration for the shape of clickable areas
+	::
 	
-
-			
-#
-#		TODO....  remaining refactoring
-#
-
-
-class HR(BlockMixin,XHTMLElement):
-	# <!ELEMENT HR - O EMPTY -- horizontal rule -->
-	XMLNAME=(XHTML_NAMESPACE,'hr')
-	XMLCONTENT=xmlns.ElementType.Empty
+		<!ENTITY % Shape "(rect|circle|poly|default)">"""
+	decode={
+		'rect':1,
+		'circle':2,
+		'poly':3,
+		'default':4
+		}
+xsi.MakeEnumeration(Shape)
 
 
-
-
-
-
-	
-
-
-class LengthType:
+class LengthType(object):
 	"""Represents the HTML Length::
 	
 		<!ENTITY % Length "CDATA" -- nn for pixels or nn% for percentage length -->
 
-	* value can be either an integer value or another LengthType instance.
+	*	value can be either an integer value, another LengthType instance or a
+		string.
 	
-	* if value is an integer then valueType can be used to select Pixel or Percentage
+	*	if value is an integer then valueType can be used to select Pixel or
+		Percentage
 	
-	By default values are assumed to be Pixel lengths."""
+	*	if value is a string then it is parsed for the length as per the format
+		defined for length attributes in HTML.		
+	
+	By default values are assumed to be Pixel lengths but valueType can be used
+	to force such a value to be a Percentage if desired."""
 
 	Pixel=0
 	"""data constant used to indicate pixel co-ordinates"""
@@ -827,10 +874,38 @@ class LengthType:
 			"""type is one of the the LengthType constants: Pixel or Percentage"""
 			self.value=value.value
 			"""value is the integer value of the length"""
+		elif type(value) in StringTypes:
+			try:
+				strValue=value.strip()
+				v=[]
+				for c in strValue:
+					if valueType is None and c.isdigit():
+						v.append(c)
+					elif c==u"%":
+						valueType=LengthType.Percentage
+						break
+					else:
+						valueType=LengthType.Pixel
+				if valueType is None:
+					valueType=LengthType.Pixel
+				v=int(string.join(v,''))
+				if v<0:
+					raise ValueError
+				self.type=valueType
+				self.value=v
+			except ValueError:
+				raise XHTMLValidityError("Failed to read length from %s"%strValue)
 		else:
 			self.type=LengthType.Pixel if valueType is None else valueType 
 			self.value=value
 
+	def __nonzero__(self):
+		"""Length values are non-zero if they have a non-zero value (pixel or percentage)."""
+		if self.value:
+			return True
+		else:
+			return False
+		
 	def __str__(self):
 		"""Formats the length as a string of form nn for pixels or nn% for percentage."""
 		if self.type==LengthType.Percentage:
@@ -872,61 +947,44 @@ class LengthType:
 		elif self.type==LengthType.Pixel:
 			self.value+=value
 		else:
-			raise ValueError("Can't add integer to Percentage length value: %s+&i"%(str(self),value))
-
-			
-def DecodeLength(strValue):
-	"""Parses a length from a string returning an instance of LengthType"""
-	valueType=None
-	value=None
-	try:
-		strValue=strValue.strip()
-		v=[]
-		for c in strValue:
-			if valueType is None and c.isdigit():
-				v.append(c)
-			elif c==u"%":
-				valueType=LengthType.Percentage
-				break
-			else:
-				valueType=LengthType.Pixel
-		if valueType is None:
-			valueType=LengthType.Pixel
-		value=int(string.join(v,''))
-		if value<0:
-			raise ValueError
-		return LengthType(value,valueType)
-	except ValueError:
-		raise XHTMLValidityError("Failed to read length from %s"%strValue)
-
-def EncodeLength(length):
-	"""Encodes a length value as a unicode string from an instance of LengthType."""
-	if length is None:
-		return None
-	else:
-		return unicode(length)
+			raise ValueError("Can't add integer to non-Pixel length value: %s+&i"%(str(self),value))
 
 
 class Coords:
-	"""Represents HTML Coords values::
+	"""Represents HTML Coords values
+	::
 	
-	<!ENTITY % Coords "CDATA" -- comma-separated list of lengths -->
+		<!ENTITY % Coords "CDATA" -- comma-separated list of lengths -->
 	
-	Instances can be initialized from an existing list of :py:class:`LengthType`.
+	Instances can be initialized from an existing list of
+	:py:class:`LengthType`, or a list of any object that can be used to
+	construct a LengthType.  It can also be constructed from a string formatted
+	as per the HTML attribute definition.
 	
-	If *values* is a list of integers then it is converted to a list of
-	:py:class:`LengthType` instances."""
+	The resulting object behaves like a list of LengthType instances, for example::
+	
+		x=Coords("10, 50, 60%,75%")
+		len(x)==4
+		x[0].value==10
+		x[2].type==LengthType.Percentage
+		str(x[3])=="75%"
+		# items are also assignable...
+		x[1]="40%"
+		x[1].type==LengthType.Percentage
+		x[1].value==40
+	"""
 	def __init__(self,values=None):
+		self.values=[]		#: a list of :py:class:`LengthType` values
 		if values:
-			self.values=[]
-			for v in values:
-				if isinstance(v,LengthType):
-					self.values.append(v)
-				else:
-					self.values.append(LengthType(v))
-			"""A list of LengthType values."""
-		else:
-			self.values=[]
+			if type(values) in StringTypes:
+				if ',' in values:
+					self.values=map(lambda x:LengthType(x.strip()),values.split(','))
+			else:
+				for v in values:
+					if isinstance(v,LengthType):
+						self.values.append(v)
+					else:
+						self.values.append(LengthType(v))
 
 	def __unicode__(self):
 		"""Formats the Coords as comma-separated unicode string of Length values."""
@@ -1062,42 +1120,359 @@ class Coords:
 		return nCrossings%2!=0
 			
 			 		
-					
-def DecodeCoords(value):
-	"""Decodes coords from an attribute value string into a Coords instance."""
-	if ',' in value:
-		coords=value.split(',')
-	else:
-		coords=[]
-	return Coords(map(lambda x:DecodeLength(x.strip()),coords))
+class A(AttrsMixin,SpecialMixin,InlineContainer):
+	"""The HTML anchor element::
 
-def EncodeCoords(coords):
-	"""Encodes a Coords instance as an attribute value string."""
-	return unicode(coords)
+	<!ELEMENT A - - (%inline;)* -(A)       -- anchor -->
+	<!ATTLIST A
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  charset     %Charset;      #IMPLIED  -- char encoding of linked resource --
+	  type        %ContentType;  #IMPLIED  -- advisory content type --
+	  name        CDATA          #IMPLIED  -- named link end --
+	  href        %URI;          #IMPLIED  -- URI for linked resource --
+	  hreflang    %LanguageCode; #IMPLIED  -- language code --
+	  target      %FrameTarget;  #IMPLIED  -- render in this frame --
+	  rel         %LinkTypes;    #IMPLIED  -- forward link types --
+	  rev         %LinkTypes;    #IMPLIED  -- reverse link types --
+	  accesskey   %Character;    #IMPLIED  -- accessibility key character --
+	  shape       %Shape;        rect      -- for use with client-side image maps --
+	  coords      %Coords;       #IMPLIED  -- for use with client-side image maps --
+	  tabindex    NUMBER         #IMPLIED  -- position in tabbing order --
+	  onfocus     %Script;       #IMPLIED  -- the element got the focus --
+	  onblur      %Script;       #IMPLIED  -- the element lost the focus --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'a')
+	XMLATTR_charset='charset'
+	XMLATTR_type='type'
+	XMLATTR_name='name'
+	XMLATTR_href=('href',DecodeURI,EncodeURI)
+	XMLATTR_hreflang=('hrefLang',xsi.DecodeName,xsi.EncodeName)
+	XMLATTR_target='target'
+	XMLATTR_rel=('rel',ValidateLinkType,None,ListType)
+	XMLATTR_rev=('rev',ValidateLinkType,None,ListType)
+	XMLATTR_accesskey='accessKey'
+	XMLATTR_shape=('shape',Shape.DecodeLowerValue,Shape.EncodeValue)
+	XMLATTR_coords=('coords',Coords,Coords.__unicode__)
+	XMLATTR_tabindex=('tabIndex',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_onfocus='onFocus'
+	XMLATTR_onblur='onBlur'
 
-"""TODO::
-	<!ENTITY % Shape "(rect|circle|poly|default)">
-"""
 
 class BlockContainer(XHTMLElement):
-	"""Abstract class for all HTML elements that contain %block;|SCRIPT"""
-	XMLCONTENT=xmlns.XMLMixedContent
+	"""Abstract class for all HTML elements that contain just %block;"""
+	XMLCONTENT=xmlns.ElementType.ElementContent
 	
 	def GetChildClass(self,stagClass):
 		"""If we get inline data in this context we force it to wrap in DIV"""
 		if stagClass is None or issubclass(stagClass,InlineMixin):
 			return Div
-		elif issubclass(stagClass,(BlockMixin,Script)) or not issubclass(stagClass,XHTMLElement):
+		elif issubclass(stagClass,(BlockMixin,Script)) or not issubclass(stagClass,XHTMLMixin):
 			return stagClass
 		else:
 			return None
 
 	def ChildElement(self,childClass,name=None):
-		if issubclass(childClass,(BlockMixin,Script)) or not issubclass(childClass,XHTMLElement):
+		if issubclass(childClass,BlockMixin) or not issubclass(childClass,XHTMLMixin):
 			return super(XHTMLElement,self).ChildElement(childClass,name)
 		else:
 			raise XHTMLValidityError("%s in %s"%(childClass.__name__,self.__class__.__name__))		
 	
+
+class Map(AttrsMixin,SpecialMixin,BlockContainer):
+	"""Client-side image maps
+	::
+
+		<!ELEMENT MAP - - ((%block;) | AREA)+ -- client-side image map -->
+		<!ATTLIST MAP
+		  %attrs;                              -- %coreattrs, %i18n, %events --
+		  name        CDATA          #REQUIRED -- for reference by usemap --
+		  >"""
+	XMLNAME=(XHTML_NAMESPACE,'map')
+	XMLATTR_name='name'
+
+	def __init__(self,parent):
+		super(Map,self).__init__(parent)
+		self.name=''
+
+	def GetChildClass(self,stagClass):
+		"""We add Area to our allowed content model."""
+		if stagClass is Area:
+			return Area
+		else:
+			return super(Map,self).GetChildClass(stagClass)
+
+	def ChildElement(self,childClass,name=None):
+		if childClass is Area:
+			return Area(self,name)
+		else:
+			return super(Map,self).ChildElement(childClass,name)
+
+
+class NoHRef(NamedBoolean):
+	"""For setting the nohref attribute."""
+	name="nohref"
+
+
+class Area(AttrsMixin,XHTMLElement):
+	"""Client-side image map area
+	::
+
+		<!ELEMENT AREA - O EMPTY               -- client-side image map area -->
+		<!ATTLIST AREA
+		  %attrs;                              -- %coreattrs, %i18n, %events --
+		  shape       %Shape;        rect      -- controls interpretation of coords --
+		  coords      %Coords;       #IMPLIED  -- comma-separated list of lengths --
+		  href        %URI;          #IMPLIED  -- URI for linked resource --
+		  target      %FrameTarget;  #IMPLIED  -- render in this frame --
+		  nohref      (nohref)       #IMPLIED  -- this region has no action --
+		  alt         %Text;         #REQUIRED -- short description --
+		  tabindex    NUMBER         #IMPLIED  -- position in tabbing order --
+		  accesskey   %Character;    #IMPLIED  -- accessibility key character --
+		  onfocus     %Script;       #IMPLIED  -- the element got the focus --
+		  onblur      %Script;       #IMPLIED  -- the element lost the focus --
+		  >"""
+	XMLNAME=(XHTML_NAMESPACE,'area')
+	XMLATTR_shape=('shape',Shape.DecodeLowerValue,Shape.EncodeValue)
+	XMLATTR_coords=('coords',Coords,Coords.__unicode__)
+	XMLATTR_href=('href',DecodeURI,EncodeURI)
+	XMLATTR_target='target'
+	XMLATTR_nohref=('noHRef',NoHRef.DecodeLowerValue,NoHRef.EncodeValue)
+	XMLATTR_alt='alt'
+	XMLATTR_tabindex=('tabIndex',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_accesskey='accessKey'
+	XMLATTR_onfocus='onFocus'
+	XMLATTR_onblur='onBlur'
+	XMLCONTENT=xmlns.ElementType.Empty
+	
+	def __init__(self,parent):
+		super(Area,self).__init__(parent)
+		self.alt=""
+
+
+class Link(AttrsMixin,HeadMiscMixin,XHTMLElement):
+	"""Media-independent link::
+	
+	<!ELEMENT LINK - O EMPTY               -- a media-independent link -->
+	<!ATTLIST LINK
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  charset     %Charset;      #IMPLIED  -- char encoding of linked resource --
+	  href        %URI;          #IMPLIED  -- URI for linked resource --
+	  hreflang    %LanguageCode; #IMPLIED  -- language code --
+	  type        %ContentType;  #IMPLIED  -- advisory content type --
+	  rel         %LinkTypes;    #IMPLIED  -- forward link types --
+	  rev         %LinkTypes;    #IMPLIED  -- reverse link types --
+	  media       %MediaDesc;    #IMPLIED  -- for rendering on these media --
+	  >
+	"""
+	XMLNAME=(XHTML_NAMESPACE,'link')	
+	XMLATTR_charset='charset'
+	XMLATTR_href=('href',DecodeURI,EncodeURI)
+	XMLATTR_hreflang=('hrefLang',xsi.DecodeName,xsi.EncodeName)
+	XMLATTR_type='type'
+	XMLATTR_rel=('rel',ValidateLinkType,None,ListType)
+	XMLATTR_rev=('rev',ValidateLinkType,None,ListType)
+	XMLATTR_media=('media',MediaDesc,MediaDesc.__unicode__)
+	XMLCONTENT=xmlns.ElementType.Empty
+
+
+class MultiLength(LengthType):
+	"""MultiLength type from HTML.
+
+	"A relative length has the form "i*", where "i" is an integer... ...The
+	value "*" is equivalent to "1*".
+
+	::
+		<!ENTITY % MultiLength "CDATA" -- pixel, percentage, or relative -->"""
+
+	Relative=2
+	"""data constant used to indicate relative (multilength) co-ordinates"""
+
+	def __init__(self,value,valueType=None):
+		if isinstance(value,LengthType):
+			super(MultiLength,self).__init__(value,valueType)
+		elif type(value) in StringTypes:
+			try:
+				strValue=value.strip()
+				if "*" in strValue:
+					valueType=MultiLength.Relative
+					strValue=strValue[0:strValue.index("*")]
+					if strValue:
+						self.value=int(strValue)
+						if v<0:
+							raise ValueError
+					else:
+						self.value=1
+					self.type=valueType
+			except ValueError:
+				raise XHTMLValidityError("Failed to read MultiLength from %s"%value)
+		else:
+			super(MultiLength,self).__init__(value,valueType)
+
+	def __str__(self):
+		"""Overridden to add "*" handling."""
+		if self.type==MultiLength.Relative:
+			return str(self.value)+'*'
+		else:
+			return super(MultiLength,self).__str__()
+	
+	def __unicode__(self):
+		"""Overridden to add "*" handling."""
+		if self.type==LengthType.Relative:
+			return unicode(self.value)+'*'
+		else:
+			return super(MultiLength,self).__unicode__()
+
+	def GetValue(self,dim=None,multiTotal=1):
+		"""Extends :py:meth:`LengthType.GetValue` to handle relative dimension
+		calculations.
+		
+		For relative lengths *dim* is the remaining space to be shared.
+		
+		*multiTotal* is the sum of all MultiLengths to share between.  It
+		defaults to 1.  If this MultiLength is relative and it's value exceeds
+		multiTotal all of the remaining dimension is returned."""
+		if self.type==self.Relative:
+			if dim is None:
+				raise ValueError("Relative length without dimension")
+			elif self.value>multiTotal:
+				return dim
+			else:
+				return (self.value*dim)//multiTotal
+		else:
+			return super(MultiLength,self).GetValue(dim)
+
+
+class MultiLengths(object):
+	"""Behaves like a lists of MultiLengths
+	::
+		<!ENTITY % MultiLengths "CDATA" -- comma-separated list of MultiLength -->"""
+	def __init__(self,values=None):
+		self.values=[]		#: a list of :py:class:`MultiLength` values
+		if values:
+			if type(values) in StringTypes:
+				if ',' in values:
+					self.values=map(lambda x:MultiLength(x.strip()),value.split(','))
+			else:
+				for v in values:
+					if isinstance(v,MultiLength):
+						self.values.append(v)
+					else:
+						self.values.append(MultiLength(v))
+
+	def __unicode__(self):
+		"""Formats the Coords as comma-separated unicode string of Length values."""
+		return string.join(map(lambda x:unicode(x),self.values),u',')
+	
+	def __str__(self):
+		"""Formats the Coords as a comma-separated string of Length values."""
+		return string.join(map(lambda x:str(x),self.values),',')
+	
+	def __len__(self):
+		return len(self.values)
+
+	def __getitem__(self,index):
+		return self.values[index]
+	
+	def __setitem__(self,index,value):
+		if isinstance(value,MultiLength):
+			self.values[index]=value
+		else:
+			self.values[index]=MultiLength(value)
+		
+	def __iter__(self):
+		return iter(self.values)
+	
+
+"""Pixels is just handled directly using xsi integer concept
+	::
+		<!ENTITY % Pixels "CDATA" -- integer representing length in pixels -->"""
+
+
+class IAlign(xsi.Enumeration):
+	"""Values for image alignment
+	::
+
+		<!ENTITY % IAlign "(top|middle|bottom|left|right)" -- center? -->	"""
+	decode={
+		'top':1,
+		'middle':2,
+		'bottom':3,
+		'left':4,
+		'right':5
+		}
+xsi.MakeEnumeration(IAlign)
+
+
+class IsMap(NamedBoolean):
+	"""Used for the ismap attribute."""
+	name="ismap"
+
+	
+class Img(AttrsMixin,SpecialMixin,XHTMLElement):
+	"""Represents the <img> element::
+	
+	<!ELEMENT IMG - O EMPTY                -- Embedded image -->
+	<!ATTLIST IMG
+	  %attrs;                              -- %coreattrs, %i18n, %events --
+	  src         %URI;          #REQUIRED -- URI of image to embed --
+	  alt         %Text;         #REQUIRED -- short description --
+	  longdesc    %URI;          #IMPLIED  -- link to long description
+											  (complements alt) --
+	  name        CDATA          #IMPLIED  -- name of image for scripting --
+	  height      %Length;       #IMPLIED  -- override height --
+	  width       %Length;       #IMPLIED  -- override width --
+	  usemap      %URI;          #IMPLIED  -- use client-side image map --
+	  ismap       (ismap)        #IMPLIED  -- use server-side image map --
+	  align       %IAlign;       #IMPLIED  -- vertical or horizontal alignment --
+	  border      %Pixels;       #IMPLIED  -- link border width --
+	  hspace      %Pixels;       #IMPLIED  -- horizontal gutter --
+	  vspace      %Pixels;       #IMPLIED  -- vertical gutter --
+	  >
+"""
+	XMLNAME=(XHTML_NAMESPACE,'img')
+	XMLATTR_src=('src',DecodeURI,EncodeURI)
+	XMLATTR_alt='alt'
+	XMLATTR_longdesc=('longdesc',DecodeURI,EncodeURI)
+	XMLATTR_name='name'
+	XMLATTR_height=('height',LengthType,LengthType.__unicode__)
+	XMLATTR_width=('width',LengthType,LengthType.__unicode__)
+	XMLATTR_usemap=('usemap',DecodeURI,EncodeURI)
+	XMLATTR_ismap=('ismap',IsMap.DecodeLowerValue,IsMap.EncodeValue)
+	XMLATTR_align=('align',Align.DecodeLowerValue,Align.EncodeValue)
+	XMLATTR_border=('border',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_border=('hspace',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_border=('vspace',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLCONTENT=xmlns.ElementType.Empty
+	
+	def __init__(self,parent):
+		XHTMLElement.__init__(self,parent)
+		self.src=None
+		self.alt=''
+
+	def AddToCPResource(self,cp,resource,beenThere):
+		if isinstance(self.src,FileURL):
+			f=beenThere.get(str(self.src),None)
+			if f is None:
+				f=cp.FileCopy(resource,self.src)
+				beenThere[str(self.src)]=f
+			newSrc=f.ResolveURI(f.href)
+			# Finally, we need change our src attribute
+			self.src=self.RelativeURI(newSrc)
+
+
+
+
+			
+#
+#		TODO....  remaining refactoring
+#
+
+
+class HR(BlockMixin,XHTMLElement):
+	# <!ELEMENT HR - O EMPTY -- horizontal rule -->
+	XMLNAME=(XHTML_NAMESPACE,'hr')
+	XMLCONTENT=xmlns.ElementType.Empty
 
 class Ins(AttrsMixin,FlowContainer):
 	"""Represents the INS element::
@@ -1149,7 +1524,7 @@ class List(BlockMixin,XHTMLElement):
 class Blockquote(BlockMixin,XHTMLElement):
 	# <!ELEMENT BLOCKQUOTE - - (%block;|SCRIPT)+ -- long quotation -->
 	XMLNAME=(XHTML_NAMESPACE,'blockquote')
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 
 	def GetChildClass(self,stagClass):
 		"""If we get raw data in this context we assume a P to move closer to strict DTD
@@ -1223,7 +1598,7 @@ class Q(SpecialMixin,InlineContainer):
 class DL(BlockMixin,XHTMLElement):
 	# <!ELEMENT DL - - (DT|DD)+              -- definition list -->
 	XMLNAME=(XHTML_NAMESPACE,'dl')
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 
 	def GetChildClass(self,stagClass):
 		"""If we get raw data in this context we assume a DD"""
@@ -1254,12 +1629,12 @@ class DD(FlowContainer):
 class OL(List):
 	# <!ELEMENT OL - - (LI)+                 -- ordered list -->
 	XMLNAME=(XHTML_NAMESPACE,'ol')
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 	
 class UL(List):
 	# <!ELEMENT UL - - (LI)+                 -- ordered list -->
 	XMLNAME=(XHTML_NAMESPACE,'ul')
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 	
 class LI(FlowContainer):
 	# <!ELEMENT LI - O (%flow;)*             -- list item -->
@@ -1308,7 +1683,7 @@ class Form(AttrsMixin,BlockMixin,BlockContainer):
 	XMLATTR_enctype='enctype'
 	XMLATTR_accept='accept'
 	XMLATTR_name='name'
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 
 	def __init__(self,parent):
 		BlockContainer.__init__(self,parent)
@@ -1370,11 +1745,6 @@ class ReadOnly(NamedBoolean):
 	"""Used for the readonly attribute."""
 	name="readonly"
 
-class IsMap(NamedBoolean):
-	"""Used for the ismap attribute."""
-	name="ismap"
-
-	
 class Input(FormCtrlMixin,AttrsMixin,XHTMLElement):
 	"""Represents the input element::
 
@@ -1450,7 +1820,7 @@ class Select(AttrsMixin,FormCtrlMixin,XHTMLElement):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'select')
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 	  
 	def __init__(self,parent):
 		XHTMLElement.__init__(self,parent)
@@ -1482,7 +1852,7 @@ class OptGroup(AttrsMixin,XHTMLElement):
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'optgroup')
 	XMLATTR_label='label'
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 
 	def __init__(self,parent):
 		XHTMLElement.__init__(self,parent)
@@ -1542,7 +1912,7 @@ class FieldSet(AttrsMixin,BlockMixin,FlowContainer):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'fieldset')
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 
 	def __init__(self,parent):
 		FlowContainer.__init__(self,parent)
@@ -1659,8 +2029,8 @@ class Object(AttrsMixin,SpecialMixin,HeadMiscMixin,XHTMLElement):
 	XMLATTR_codetype='codetype'
 	XMLATTR_archive='archive'
 	XMLATTR_archive='standby'
-	XMLATTR_height=('height',DecodeLength,EncodeLength)
-	XMLATTR_width=('width',DecodeLength,EncodeLength)
+	XMLATTR_height=('height',LengthType,LengthType.__unicode__)
+	XMLATTR_width=('width',LengthType,LengthType.__unicode__)
 	XMLATTR_usemap=('usemap',DecodeURI,EncodeURI)	
 	XMLATTR_name='name'
 	XMLATTR_tabindex=('tabindex',xsi.DecodeInteger,xsi.EncodeInteger)
@@ -1695,7 +2065,7 @@ class Param(XHTMLElement):
 class Table(BlockMixin,XHTMLElement):
 	# <!ELEMENT TABLE - - (CAPTION?, (COL*|COLGROUP*), THEAD?, TFOOT?, TBODY+)>
 	XMLNAME=(XHTML_NAMESPACE,'table')
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 
 	def GetChildClass(self,stagClass):
 		"""PCDATA triggers the TBody"""
@@ -1725,22 +2095,22 @@ class TRContainer(XHTMLElement):
 class THead(TRContainer):
 	# <!ELEMENT THEAD    - O (TR)+           -- table header -->
 	XMLNAME=(XHTML_NAMESPACE,'thead')
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 
 class TFoot(TRContainer):
 	# <!ELEMENT TFOOT    - O (TR)+           -- table footer -->
 	XMLNAME=(XHTML_NAMESPACE,'tfoot')
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 
 class TBody(TRContainer):
 	# <!ELEMENT TBODY    O O (TR)+           -- table body -->
 	XMLNAME=(XHTML_NAMESPACE,'tbody')
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 
 class ColGroup(XHTMLElement):
 	# <!ELEMENT COLGROUP - O (COL)*          -- table column group -->
 	XMLNAME=(XHTML_NAMESPACE,'colgroup')
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 
 	def GetChildClass(self,stagClass):
 		"""PCDATA in ColGroup ends the ColGroup"""
@@ -1760,7 +2130,7 @@ class Col(BlockMixin,XHTMLElement):
 class TR(XHTMLElement):
 	# <!ELEMENT TR       - O (TH|TD)+        -- table row -->
 	XMLNAME=(XHTML_NAMESPACE,'tr')
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 
 	def GetChildClass(self,stagClass):
 		"""PCDATA in TR starts a TD"""
@@ -1784,111 +2154,11 @@ class TD(FlowContainer):
 
 # Link Element
 
-class Link(HeadMiscMixin,XHTMLElement):
-	"""Represents the LINK element::
-	
-	<!ELEMENT LINK - O EMPTY               -- a media-independent link -->
-	<!ATTLIST LINK
-	  %attrs;                              -- %coreattrs, %i18n, %events --
-	  charset     %Charset;      #IMPLIED  -- char encoding of linked resource --
-	  href        %URI;          #IMPLIED  -- URI for linked resource --
-	  hreflang    %LanguageCode; #IMPLIED  -- language code --
-	  type        %ContentType;  #IMPLIED  -- advisory content type --
-	  rel         %LinkTypes;    #IMPLIED  -- forward link types --
-	  rev         %LinkTypes;    #IMPLIED  -- reverse link types --
-	  media       %MediaDesc;    #IMPLIED  -- for rendering on these media --
-	  >
-	"""
-	XMLNAME=(XHTML_NAMESPACE,'link')
-	XMLATTR_hreflang=('hrefLang',xsi.DecodeName,xsi.EncodeName)
-	XMLATTR_type='type'
-	XMLCONTENT=xmlns.ElementType.Empty
-
-	
 # Image Element
 
-class Img(SpecialMixin,XHTMLElement):
-	"""Represents the <img> element::
-	
-	<!ELEMENT IMG - O EMPTY                -- Embedded image -->
-	<!ATTLIST IMG
-	  %attrs;                              -- %coreattrs, %i18n, %events --
-	  src         %URI;          #REQUIRED -- URI of image to embed --
-	  alt         %Text;         #REQUIRED -- short description --
-	  longdesc    %URI;          #IMPLIED  -- link to long description
-											  (complements alt) --
-	  name        CDATA          #IMPLIED  -- name of image for scripting --
-	  height      %Length;       #IMPLIED  -- override height --
-	  width       %Length;       #IMPLIED  -- override width --
-	  usemap      %URI;          #IMPLIED  -- use client-side image map --
-	  ismap       (ismap)        #IMPLIED  -- use server-side image map --
-	  >"""
-	XMLNAME=(XHTML_NAMESPACE,'img')
-	XMLCONTENT=xmlns.ElementType.Empty
-	XMLATTR_src=('src',DecodeURI,EncodeURI)
-	XMLATTR_alt='alt'
-	XMLATTR_longdesc=('longdesc',DecodeURI,EncodeURI)
-	XMLATTR_name='name'
-	XMLATTR_height=('height',DecodeLength,EncodeLength)
-	XMLATTR_width=('width',DecodeLength,EncodeLength)
-	XMLATTR_usemap=('usemap',DecodeURI,EncodeURI)
-	XMLATTR_ismap=('ismap',IsMap.DecodeLowerValue,IsMap.EncodeValue)
-	
-	def __init__(self,parent):
-		XHTMLElement.__init__(self,parent)
-		self.src=None
-		self.alt=''
-
-	def AddToCPResource(self,cp,resource,beenThere):
-		if isinstance(self.src,FileURL):
-			f=beenThere.get(str(self.src),None)
-			if f is None:
-				f=cp.FileCopy(resource,self.src)
-				beenThere[str(self.src)]=f
-			newSrc=f.ResolveURI(f.href)
-			# Finally, we need change our src attribute
-			self.src=self.RelativeURI(newSrc)		
 		
 # Hypertext Element
 
-class A(AttrsMixin,SpecialMixin,InlineContainer):
-	"""The HTML anchor element::
-
-	<!ELEMENT A - - (%inline;)* -(A)       -- anchor -->
-	<!ATTLIST A
-	  %attrs;                              -- %coreattrs, %i18n, %events --
-	  charset     %Charset;      #IMPLIED  -- char encoding of linked resource --
-	  type        %ContentType;  #IMPLIED  -- advisory content type --
-	  name        CDATA          #IMPLIED  -- named link end --
-	  href        %URI;          #IMPLIED  -- URI for linked resource --
-	  hreflang    %LanguageCode; #IMPLIED  -- language code --
-	  target      %FrameTarget;  #IMPLIED  -- render in this frame --
-	  rel         %LinkTypes;    #IMPLIED  -- forward link types --
-	  rev         %LinkTypes;    #IMPLIED  -- reverse link types --
-	  accesskey   %Character;    #IMPLIED  -- accessibility key character --
-	  shape       %Shape;        rect      -- for use with client-side image maps --
-	  coords      %Coords;       #IMPLIED  -- for use with client-side image maps --
-	  tabindex    NUMBER         #IMPLIED  -- position in tabbing order --
-	  onfocus     %Script;       #IMPLIED  -- the element got the focus --
-	  onblur      %Script;       #IMPLIED  -- the element lost the focus --
-	  >
-	"""
-	XMLNAME=(XHTML_NAMESPACE,'a')
-	XMLATTR_charset='charset'
-	XMLATTR_type='type'
-	XMLATTR_name='name'
-	XMLATTR_href=('href',DecodeURI,EncodeURI)
-	XMLATTR_hreflang=('hrefLang',xsi.DecodeName,xsi.EncodeName)
-	XMLATTR_target='target'
-	XMLATTR_rel='rel'
-	XMLATTR_rev='rev'
-	XMLATTR_accesskey='accessKey'
-	XMLATTR_shape='shape'
-	XMLATTR_coords='coords'
-	XMLATTR_tabindex='tabIndex'
-	XMLATTR_onfocus='onFocus'
-	XMLATTR_onblur='onBlur'
-	XMLCONTENT=xmlns.XMLMixedContent
 
 # Frames
 
@@ -1910,7 +2180,7 @@ class Frameset(FrameElement):
 	  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'frameset')
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 
 	def __init__(self,parent):
 		FrameElement.__init__(self,parent)
@@ -2023,7 +2293,7 @@ class Head(I18nMixin,XHTMLElement):
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'head')
 	XMLATTR_profile=('profile',DecodeURI,EncodeURI)
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 	
 	def __init__(self,parent):
 		XHTMLElement.__init__(self,parent)
@@ -2167,7 +2437,7 @@ class HTML(I18nMixin,XHTMLElement):
 		  >
 	"""
 	XMLNAME=(XHTML_NAMESPACE,'html')
-	XMLCONTENT=xmlns.ElementContent
+	XMLCONTENT=xmlns.ElementType.ElementContent
 	
 	def __init__(self,parent):
 		XHTMLElement.__init__(self,parent)

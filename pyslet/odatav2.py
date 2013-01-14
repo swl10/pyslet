@@ -222,7 +222,7 @@ class Client(app.Client):
 			# we cache both positive and negative results
 			self._cacheTerm=entityTypeName
 			self._cacheType=entityType
-		return entityType		
+		return entityType
 
 	def AssociateEntityType(self,entry):
 		for c in entry.Category:

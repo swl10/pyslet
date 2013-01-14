@@ -2396,37 +2396,37 @@ class ExpressionTests(unittest.TestCase):
 		self.failUnless(value.baseType is variables.BaseType.boolean,"inside(u'10 10', default) base type")		
 		self.failUnless(value.value==True,"inside(u'10 10', default) is True")
 		e.shape=core.Shape.rect
-		e.coords=html.DecodeCoords(u"5,5,15,15")
+		e.coords=html.Coords(u"5,5,15,15")
 		value=e.Evaluate(self.sessionState)
 		self.failUnless(value.value==True,"inside(u'10 10', rect(5,5,15,15)) is True")
-		e.coords=html.DecodeCoords(u"15,15,25,25")
+		e.coords=html.Coords(u"15,15,25,25")
 		value=e.Evaluate(self.sessionState)
 		self.failUnless(value.value==False,"inside(u'10 10', rect(15,15,25,25)) is False")
 		e.shape=core.Shape.circle
-		e.coords=html.DecodeCoords(u"10,10,3")
+		e.coords=html.Coords(u"10,10,3")
 		value=e.Evaluate(self.sessionState)
 		self.failUnless(value.value==True,"inside(u'10 10', circle(10,10,3)) is True")
-		e.coords=html.DecodeCoords(u"15,15,3")
+		e.coords=html.Coords(u"15,15,3")
 		value=e.Evaluate(self.sessionState)
 		self.failUnless(value.value==False,"inside(u'10 10', circle(15,15,5)) is False")
 		e.shape=core.Shape.poly
-		e.coords=html.DecodeCoords(u"5,5,5,15,15,15,15,5,5,5")
+		e.coords=html.Coords(u"5,5,5,15,15,15,15,5,5,5")
 		value=e.Evaluate(self.sessionState)
 		self.failUnless(value.value==True,"inside(u'10 10', poly(5,5,5,15,15,15,15,5,5,5)) is True")
-		e.coords=html.DecodeCoords(u"15,15,15,25,25,25,25,15,15,15")
+		e.coords=html.Coords(u"15,15,15,25,25,25,25,15,15,15")
 		value=e.Evaluate(self.sessionState)
 		self.failUnless(value.value==False,"inside(u'10 10', poly(15,15,15,25,25,25,25,15,15,15)) is False")
 		e.shape=core.Shape.ellipse
-		e.coords=html.DecodeCoords(u"10,10,10,5")
+		e.coords=html.Coords(u"10,10,10,5")
 		value=e.Evaluate(self.sessionState)
 		self.failUnless(value.value==True,"inside(u'10 10', ellipse(10,10,10,5)) is True")
-		e.coords=html.DecodeCoords(u"15,15,6,5")
+		e.coords=html.Coords(u"15,15,6,5")
 		value=e.Evaluate(self.sessionState)
 		self.failUnless(value.value==False,"inside(u'10 10', ellipse(15,15,6,5)) is False")
 		# --
 		e=expressions.Inside(None)
 		e.shape=core.Shape.circle
-		e.coords=html.DecodeCoords(u"10,10,5")		
+		e.coords=html.Coords(u"10,10,5")		
 		eo=e.ChildElement(expressions.Ordered)
 		value=e.Evaluate(self.sessionState)
 		self.failIf(value,"inside(Ordered()) is NULL")
@@ -2443,7 +2443,7 @@ class ExpressionTests(unittest.TestCase):
 		# --
 		e=expressions.Inside(None)
 		e.shape=core.Shape.circle
-		e.coords=html.DecodeCoords(u"10,10,5")		
+		e.coords=html.Coords(u"10,10,5")		
 		em=e.ChildElement(expressions.Multiple)
 		value=e.Evaluate(self.sessionState)
 		self.failIf(value,"inside(Multiple()) is NULL")
@@ -2460,7 +2460,7 @@ class ExpressionTests(unittest.TestCase):
 		try:
 			e=expressions.Inside(None)
 			e.shape=core.Shape.circle
-			e.coords=html.DecodeCoords(u"10,10,5")		
+			e.coords=html.Coords(u"10,10,5")		
 			v=e.ChildElement(expressions.BaseValue)
 			v.baseType=variables.BaseType.string
 			v.AddData(u"10 10")

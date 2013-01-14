@@ -197,7 +197,7 @@ def OffsetShape(shape,coords,xOffset,yOffset):
 
 class ShapeElementMixin:
 	XMLATTR_shape=('shape',Shape.DecodeLowerValue,Shape.EncodeValue)
-	XMLATTR_coords=('coords',html.DecodeCoords,html.EncodeCoords)
+	XMLATTR_coords=('coords',html.Coords,html.Coords.__unicode__)
 	
 	def __init__(self):
 		self.shape=Shape.DEFAULT	#: The shape

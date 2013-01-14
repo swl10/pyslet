@@ -1154,7 +1154,7 @@ class Element(Node):
 		if name in self._ARMap():
 			return None
 		else:
-			raise AttributeError(name)
+			raise AttributeError("%s has no attribute %s"%(self.__class__.__name__,name))
 	
 	def GetAttributes(self):
 		"""Returns a dictionary object that maps attribute names onto values.

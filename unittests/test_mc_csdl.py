@@ -6,28 +6,50 @@ def suite():
 	loader=unittest.TestLoader()
 	loader.testMethodPrefix='test'
 	return unittest.TestSuite((
-		loader.loadTestsFromTestCase(CSDLTests)
+		loader.loadTestsFromTestCase(CSDLTests),
+		loader.loadTestsFromTestCase(ERStoreTests)
 		))
 
 def load_tests(loader, tests, pattern):
 	return suite()
 
-
 from pyslet.mc_csdl import *
+
 import pyslet.xml20081126.structures as xml
+import pyslet.mc_edmx as edmx
+from pyslet.vfs import OSFilePath as FilePath
+
+TEST_DATA_DIR=FilePath(FilePath(__file__).abspath().split()[0],'data_mc_csdl')
+
 
 class CSDLTests(unittest.TestCase):
 	def testCaseConstants(self):
 		self.failUnless(EDM_NAMESPACE=="http://schemas.microsoft.com/ado/2009/11/edm","Wrong CSDL namespace: %s"%EDM_NAMESPACE)
 
+	def testCaseSimpleIdentifier(self):
+		# basic tests here:
+		for iTest in ("45",
+			"M'",
+			"M;",
+			"M=",
+			"M\\",
+			"M.N",
+			"M+","M-","M*","M/","M<","M>","M=","M~","M!","M@","M#","M%","M^","M&","M|","M`","M?",
+			"M(","M)","M[","M]","M,","M;","M*","M."
+			):
+			try:
+				self.failIf(ValidateSimpleIdentifier(iTest),"%s: Fail"%repr(iTest))
+			except ValueError,e:
+				pass
+		
 	def testCaseSchema(self):
 		s=Schema(None)
 		self.failUnless(isinstance(s,xml.Element),"Schema not an XML element")
 		self.failUnless(s.ns==EDM_NAMESPACE,"CSDL namespace")
-		self.failUnless(s.namespace=='Default','Namespace default')
+		self.failUnless(s.name=='Default','Namespace default')
 		self.failUnless(s.alias==None,'Alias default')
 		self.failUnless(len(s.Using)==0,"No Using elements allowed on construction")
-		self.failUnless(len(s.Assocation)==0,"No Association elements allowed on construction")
+		self.failUnless(len(s.Association)==0,"No Association elements allowed on construction")
 		self.failUnless(len(s.ComplexType)==0,"No ComplexType elements allowed on construction")
 		self.failUnless(len(s.EntityType)==0,"No EntityType elements allowed on construction")
 		self.failUnless(len(s.EntityContainer)==0,"No EntityContainer elements allowed on construction")
@@ -43,13 +65,13 @@ class CSDLTests(unittest.TestCase):
 		et=EntityType(None)
 		self.failUnless(isinstance(et,CSDLElement),"EntityType not a CSDLelement")
 		self.failUnless(et.name=="Default","Default name")
-		et.SetAttribute((None,'Name'),"NewName")
+		et.SetAttribute('Name',"NewName")
 		self.failUnless(et.name=="NewName","Name attribute setter")
 		self.failUnless(et.baseType is None,"Default baseType")
-		et.SetAttribute((None,'BaseType'),"ParentClass")
+		et.SetAttribute('BaseType',"ParentClass")
 		self.failUnless(et.baseType=="ParentClass","BaseType attribute setter")
 		self.failUnless(et.abstract is False,"Default abstract")
-		et.SetAttribute((None,'Abstract'),"true")
+		et.SetAttribute('Abstract',"true")
 		self.failUnless(et.abstract is True,"Abstract attribute setter")
 		self.failUnless(et.Documentation is None,"No Documentation elements allowed on construction")
 		self.failUnless(et.Key is None,"No Key elements allowed on construction")
@@ -62,24 +84,24 @@ class CSDLTests(unittest.TestCase):
 		p=Property(None)
 		self.failUnless(isinstance(p,CSDLElement),"Property not a CSDLelement")
 		self.failUnless(p.name=="Default","Default name")
-		p.SetAttribute((None,'Name'),"NewName")
+		p.SetAttribute('Name',"NewName")
 		self.failUnless(p.name=="NewName","Name attribute setter")
 		self.failUnless(p.type=="Edm.String","Default type")
-		p.SetAttribute((None,'Type'),"Edm.Int")
+		p.SetAttribute('Type',"Edm.Int")
 		self.failUnless(p.type=="Edm.Int","Type attribute setter")
 		self.failUnless(p.TypeRef is None,"No TypeRef child on construction")
 		self.failUnless(p.nullable==True,"Default nullable value")
-		p.SetAttribute((None,'Nullable'),"false")
+		p.SetAttribute('Nullable',"false")
 		self.failUnless(p.nullable is False,"Nullable attribute setter")
 		self.failUnless(p.defaultValue is None,"DefaultValue on construction")
-		p.SetAttribute((None,'DefaultValue'),"5")
+		p.SetAttribute('DefaultValue',"5")
 		self.failUnless(p.defaultValue=="5","DefaultValue attribute setter")
 		self.failUnless(p.maxLength is None,"MaxLength on construction")
-		p.SetAttribute((None,'MaxLength'),"5")
+		p.SetAttribute('MaxLength',"5")
 		self.failUnless(p.maxLength==5,"MaxLength attribute setter")
 		self.failUnless(p.fixedLength is None,"FixedLength on construction")
-		p.SetAttribute((None,'FixedLength'),"5")
-		self.failUnless(p.fixedLength==5,"FixedLength attribute setter")
+		p.SetAttribute('FixedLength',"false")
+		self.failUnless(p.fixedLength is False,"FixedLength attribute setter")
 		self.failUnless(p.precision is None,"Precision on construction")
 		self.failUnless(p.scale is None,"Scale on construction")
 		self.failUnless(p.unicode is None,"Unicode on construction")
@@ -102,9 +124,9 @@ class CSDLTests(unittest.TestCase):
 		self.failUnless(len(np.TypeAnnotation)==0,"No TypeAnnotation elements allowed on construction")
 		self.failUnless(len(np.ValueAnnotation)==0,"No ValueAnnotation elements allowed on construction")
 	
-	def testCaseEntityKey(self):
-		k=EntityKey(None)
-		self.failUnless(isinstance(k,CSDLElement),"EntityKey not a CSDLElement")
+	def testCaseKey(self):
+		k=Key(None)
+		self.failUnless(isinstance(k,CSDLElement),"Key not a CSDLElement")
 		self.failUnless(len(k.PropertyRef)==0,"No PropertyRef elements allowed on construction")
 	
 	def testCasePropertyRef(self):
@@ -117,10 +139,10 @@ class CSDLTests(unittest.TestCase):
 		self.failUnless(isinstance(ct,CSDLElement),"ComplexType not a CSDLElement")
 		self.failUnless(ct.name=="Default","Default name")
 		self.failUnless(ct.baseType is None,"Default baseType")
-		ct.SetAttribute((None,'BaseType'),"ParentClass")
+		ct.SetAttribute('BaseType',"ParentClass")
 		self.failUnless(ct.baseType=="ParentClass","BaseType attribute setter")
 		self.failUnless(ct.abstract is False,"Default abstract")
-		ct.SetAttribute((None,'Abstract'),"true")
+		ct.SetAttribute('Abstract',"true")
 		self.failUnless(ct.abstract is True,"Abstract attribute setter")
 		self.failUnless(ct.Documentation is None,"No Documentation elements allowed on construction")
 		self.failUnless(len(ct.Property)==0,"No Property elements allowed on construction")
@@ -131,8 +153,8 @@ class CSDLTests(unittest.TestCase):
 		a=Association(None)
 		self.failUnless(isinstance(a,CSDLElement),"Association not a CSDLElement")
 		self.failUnless(a.name=="Default","Default name")
-		a.SetAttribute((None,'Name'),"NewName")
-		self.failUnless(a.name=="NewName","Name attribute setter")
+		a.SetAttribute('Name',"NewName")
+		self.failUnless(a.name=="NewName","Name attribute setter: %s"%repr(a.name))
 		self.failUnless(a.Documentation is None,"No Documentation elements allowed on construction")
 		self.failUnless(len(a.End)==0,"No Ends allowed on construction")
 		self.failUnless(a.ReferentialConstraint is None,"No ReferentialConstraint elements allowed on construction")
@@ -143,19 +165,141 @@ class CSDLTests(unittest.TestCase):
 		e=End(None)
 		self.failUnless(isinstance(e,CSDLElement),"End not a CSDLElement")
 		self.failUnless(e.type is None,"Default type")
-		e.SetAttribute((None,'Type'),"MySchema.Person")
+		e.SetAttribute('Type',"MySchema.Person")
 		self.failUnless(e.type=="MySchema.Person","Type attribute setter")
 		self.failUnless(e.role is None,"Default role")
-		e.SetAttribute((None,'Role'),"Source")
+		e.SetAttribute('Role',"Source")
 		self.failUnless(e.role=="Source","Role attribute setter")
 		self.failUnless(e.multiplicity==Multiplicity.One,"Default Multiplicity")
-		e.SetAttribute((None,'Multiplicity'),"0..1")
+		e.SetAttribute('Multiplicity',"0..1")
 		self.failUnless(e.multiplicity==Multiplicity.ZeroToOne,"Multiplicity attribute setter")
-		e.SetAttribute((None,'Multiplicity'),"*")
+		e.SetAttribute('Multiplicity',"*")
 		self.failUnless(e.multiplicity==Multiplicity.Many,"Multiplicity attribute setter")
 		self.failUnless(e.Documentation is None,"No Documentation elements allowed on construction")
 		self.failUnless(e.OnDelete is None,"No OnDelete elements allowed on construction")
+
+
+class ERStoreTests(unittest.TestCase):
+	def setUp(self):
+		self.cwd=FilePath.getcwd()
+		TEST_DATA_DIR.chdir()
+		# load the base schema document
+		self.doc=edmx.Document(baseURI="Schema-01.xml")
+		self.doc.Read()
+		# now create a temporary file ready for SQL database
+		self.d=FilePath.mkdtemp('.d','pyslet-test_mc_csdl-')
+		self.store=SQLiteDB(self.d.join('test.db'))
 		
+	def tearDown(self):
+		self.store.close()
+		self.cwd.chdir()
+		self.d.rmtree(True)
+		
+	def testCaseConstruction(self):
+		self.failUnless(isinstance(self.store,ERStore),"DB is a basic implementation of ERStore")
+		# This creates an empty datastore which behaves like a dictionary
+		self.failUnless(len(self.store)==0,"Initially empty")
+		
+	def testCaseAddSchema(self):
+		saveFingerprint=self.store.fingerprint
+		self.store.AddSchema(self.doc.root)
+		self.failUnless(self.store.fingerprint!=saveFingerprint,"Fingerprint unchanged")
+		sc=self.store["SchemaA"]
+		self.failUnless(isinstance(sc,Schema),"Schema")
+		self.failUnless(sc.name=="SchemaA","SchemaA name")
+		self.failUnless(isinstance(self.store["SchemaA.Database"],EntityContainer),"Database")
+		t1=self.store["SchemaA.Database.Table01"]
+		self.failUnless(isinstance(t1,EntitySet),"Table")
+		self.failUnless(t1.name=="Table01","Table")
+		self.failUnless(t1.entityType=="SchemaA.Type01","Table entity mapping")
+		self.failUnless(len(self.store)==6,"Expected 6 names: %s"%repr(self.store.keys()))
+		try:
+			self.store.AddSchema(self.doc.root)
+			self.fail("Attempt to add an existing schema")
+		except DuplicateName:
+			pass
+		doc=edmx.Document(baseURI="SchemaB.xml")
+		doc.Read()
+		saveFingerprint=self.store.fingerprint
+		self.store.AddSchema(doc.root)
+		self.failUnless(self.store.fingerprint!=saveFingerprint,"Fingerprint unchanged")
+		self.failUnless(len(self.store)==12,"SchemaB declared")
+		# open a second view on this database
+		saveFingerprint=self.store.fingerprint
+		self.store.close()
+		self.store=SQLiteDB(self.d.join('test.db'))
+		self.failUnless(self.store.fingerprint==saveFingerprint,"Fingerprint preserved after reload")
+		self.failUnless(len(self.store)==12,"SchemaA and SchemaB declared")
+		
+		
+	def testCaseCreateContainer(self):
+		self.store.AddSchema(self.doc.root)
+		try:
+			self.store.CreateContainer("SchemaA")
+			self.fail("CreateContainer: requires an entity container")
+		except ValueError:
+			pass
+		try:
+			for row in self.store.EntityReader("SchemaA.Database.Table01"):
+				self.fail("Table01 exists and is not empty!")
+		except KeyError:
+			pass
+		self.store.CreateContainer("SchemaA.Database")
+		try:
+			self.store.CreateContainer("SchemaA.Database")
+			self.fail("CreateContainer: container already exists")
+		except ContainerExists:
+			pass
+		try:
+			for row in self.store.EntityReader("SchemaA.Database.Table01"):
+				self.fail("Table01 is not empty!")
+		except KeyError:
+			self.fail("Table01 should now exist!")
+		saveFingerprint=self.store.fingerprint
+		self.store.close()
+		self.store=SQLiteDB(self.d.join('test.db'))
+		self.failUnless(self.store.fingerprint==saveFingerprint,"Fingerprint preserved after reload")
+	
+	def testCaseSelectUpdate(self):	
+		self.store.AddSchema(self.doc.root)
+		self.store.CreateContainer("SchemaA.Database")
+		newEntry={"ID":"A","Name":"Alfred"}
+		self.store.InsertEntity("SchemaA.Database.Table01",newEntry)
+		count=0
+		for row in self.store.EntityReader("SchemaA.Database.Table01"):
+			self.failIf(count>0,"Too many results")
+			self.failUnless(row["ID"]=="A","Inserted item ID")
+			self.failUnless(row["Name"]=="Alfred","Inserted item Name")
+			count+=1
+		newEntry={"Name":"Borace"}
+		try:
+			self.store.InsertEntity("SchemaA.Database.Table01",newEntry)
+			self.fail("ID not Nullable")
+		except StorageError:
+			pass
+		newEntry["ID"]="B"
+		self.store.InsertEntity("SchemaA.Database.Table01",newEntry)
+	
+	def testCaseUpgradeSchema(self):
+		self.store.AddSchema(self.doc.root)
+		self.store.CreateContainer("SchemaA.Database")
+		newEntry={"ID":"A","Name":"Alfred"}
+		self.store.InsertEntity("SchemaA.Database.Table01",newEntry)
+		doc=edmx.Document(baseURI="Schema-02.xml")
+		doc.Read()
+		self.store.UpgradeSchema(doc.root)
+		for row in self.store.EntityReader("SchemaA.Database.Table01"):
+			self.failUnless(row["Email"] is None,"Created column no default")
+			self.failUnless(row["Inactive"] is True,"Created column with default %s"%repr(row["Inactive"]))
+		newEntry={"ID":"B","Name":"Borace","Inactive":"false"}
+		self.store.InsertEntity("SchemaA.Database.Table01",newEntry)
+		foundB=False
+		for row in self.store.EntityReader("SchemaA.Database.Table01"):
+			if row["ID"]=="B":
+				foundB=True
+				self.failUnless(row["Email"] is None,"Created column no default")
+				self.failUnless(row["Inactive"] is False,"Created column with default %s"%repr(row["Inactive"]))		
+		self.failUnless(foundB,"Failed to find ID='B'")				
 				
 if __name__ == "__main__":
 	unittest.main()

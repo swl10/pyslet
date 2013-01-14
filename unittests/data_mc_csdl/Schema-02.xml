@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Schema xmlns="http://schemas.microsoft.com/ado/2008/09/edm" Namespace="SchemaA">
+    <EntityType Name="Type01">
+        <Key>
+            <PropertyRef Name="ID"/>
+        </Key>
+        <Property Name="ID" Type="Edm.String" Nullable="false"/>
+        <Property Name="Name" Type="Edm.String" Nullable="true" MaxLength="128" Unicode="true"
+        FixedLength="false"/>
+        <Property Name="Email" Type="Edm.String" Nullable="true" MaxLength="1024" Unicode="false"
+        FixedLength="false"/>
+        <Property Name="Inactive" Type="Edm.Boolean" Nullable="false" DefaultValue="true"/>
+    </EntityType>
+    <EntityContainer Name="Database">
+        <EntitySet Name="Table01" EntityType="SchemaA.Type01"/>
+    </EntityContainer>
+</Schema>

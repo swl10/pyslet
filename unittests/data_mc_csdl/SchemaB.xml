@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Schema xmlns="http://schemas.microsoft.com/ado/2008/09/edm" Namespace="SchemaB">
+    <EntityType Name="Type01">
+        <Key>
+            <PropertyRef Name="ID"/>
+        </Key>
+        <Property Name="ID" Type="Edm.String" Nullable="false"/>
+        <Property Name="Name" Type="Edm.String" Nullable="true" MaxLength="128" Unicode="true"
+            FixedLength="false"/>
+    </EntityType>
+    <EntityContainer Name="Database">
+        <EntitySet Name="Table01" EntityType="SchemaB.Type01"/>
+    </EntityContainer>
+</Schema>

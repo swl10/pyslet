@@ -735,7 +735,7 @@ class HotspotMixin:
 			<xsd:attribute name="hotspotLabel" type="string256.Type" use="optional"/>
 		</xsd:attributeGroup>"""
 	XMLATTR_shape=('shape',core.Shape.DecodeLowerValue,core.Shape.EncodeValue)
-	XMLATTR_coords=('coords',html.DecodeCoords,html.EncodeCoords)
+	XMLATTR_coords=('coords',html.Coords,html.Coords.__unicode__)
 	XMLATTR_hotspotLabel='hotspotLabel'
 	
 	def __init__(self):
