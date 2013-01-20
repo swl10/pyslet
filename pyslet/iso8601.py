@@ -1155,13 +1155,13 @@ class Time:
 		# and overflow will always be floored
 		overflow=s//86400
 		s=s%86400
-		self.hour=s//3600
-		self.minute=(s%3600)//60
+		self.hour=int(s//3600)
+		self.minute=int((s%3600)//60)
 		if sFraction is None:
 			self.second=int(s%60)
 		else:
 			self.second=(s%60)+sFraction
-		self.CheckTime()	
+		self.CheckTime()
 		return overflow
 	
 	def AddHour(self):

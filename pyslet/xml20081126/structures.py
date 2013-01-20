@@ -1184,36 +1184,6 @@ class Element(Node):
 				value=encode(value)
 			if value is not None:
 				attrs[name]=value		
-# 		for mName in dir(self.__class__):
-# 			name=self.UnmangleAttributeName(mName)
-# 			if name:
-# 				required=False
-# 				setter=getattr(self.__class__,mName)
-# 				if type(setter) in StringTypes:
-# 					# use simple attribute assignment
-# 					attrName,encode=setter,lambda x:x
-# 				elif type(setter) is TupleType:
-# 					if len(setter)==3:
-# 						attrName,decode,encode=setter
-# 					elif len(setter)==4:
-# 						attrName,decode,encode,required=setter
-# 					else:
-# 						raise XMLAttributeSetter("bad XMLATTR_ definition: %s attribute of %s"%(name,self.__class__.__name__))
-# 				else:
-# 					raise XMLAttributeSetter("setting %s attribute of %s"%(name,self.__class__.__name__))				
-# 				value=getattr(self,attrName,None)
-# 				if type(value) is ListType:
-# 					value=string.join(map(encode,value),' ')
-# 					if not value and not required:
-# 						value=None
-# 				elif type(value) is DictType:
-# 					value=string.join(sorted(map(encode,value.keys())),' ')
-# 					if not value and not required:
-# 						value=None
-# 				elif value is not None:
-# 					value=encode(value)
-# 				if value is not None:
-# 					attrs[name]=value
 		return attrs
 
 	def SetAttribute(self,name,value):
@@ -1236,69 +1206,40 @@ class Element(Node):
 					print "Problem setting %s in %s: single value will overwrite List or Dict"%(repr(name),repr(self.__class__.__name__))
 					# print self.GetDocument()
 				setattr(self,attrName,decode(value))
-# 			if type(setter) in StringTypes:
-# 				# use simple attribute assignment
-# 				attrName,decode=setter,lambda x:x
-# 			elif type(setter) is TupleType:
-# 				if len(setter)==3:
-# 					attrName,decode,encode=setter
-# 				else:
-# 					# we ignore required when setting
-# 					attrName,decode,encode,required=setter
-# 			else:
-# 				raise XMLAttributeSetter("setting %s attribute of %s"%(name,self.__class__.__name__))
-# 			x=getattr(self,attrName,None)
-# 			if type(x) is ListType:
-# 				setattr(self,attrName,map(decode,value.split()))
-# 			elif type(x) is DictType:
-# 				value=value.split()
-# 				setattr(self,attrName,dict(zip(map(decode,value),value)))
-# 			else:
-# 				setattr(self,attrName,decode(value))
-# 			
 		elif hasattr(self.__class__,'ID') and name==self.__class__.ID:
 			self.SetID(value)
 		else:
 			self._attrs[name]=value
-# 		mName=self.MangleAttributeName(name)
-# 		if mName:
-# 			setter=getattr(self,mName,None)
-# 		else:
-# 			setter=None
-# 		if setter is None:
-# 			if mName:
-# 				mName="Set"+mName[7:]
-# 				setter=getattr(self,mName,None)
-# 			if setter is None:
-# 				if hasattr(self.__class__,'ID') and name==self.__class__.ID:
-# 					self.SetID(value)
-# 				else:
-# 					self._attrs[name]=value
-# 			else:
-# 				print "Deprecation warning: use of __class__.Set_<xml attribute> is deprecated, use __class__.XMLATTR_<xml attribute> instead"
-# 				print "%s.%s"%(self.__class__.__name__,mName)
-# 				setter(value)
-# 		else:
-# 			if type(setter) in StringTypes:
-# 				# use simple attribute assignment
-# 				attrName,decode=setter,lambda x:x
-# 			elif type(setter) is TupleType:
-# 				if len(setter)==3:
-# 					attrName,decode,encode=setter
-# 				else:
-# 					# we ignore required when setting
-# 					attrName,decode,encode,required=setter
-# 			else:
-# 				raise XMLAttributeSetter("setting %s attribute of %s"%(name,self.__class__.__name__))
-# 			x=getattr(self,attrName,None)
-# 			if type(x) is ListType:
-# 				setattr(self,attrName,map(decode,value.split()))
-# 			elif type(x) is DictType:
-# 				value=value.split()
-# 				setattr(self,attrName,dict(zip(map(decode,value),value)))
-# 			else:
-# 				setattr(self,attrName,decode(value))
 	
+	def GetAttribute(self,name):
+		"""Gets the value of a single attribute as a string."""
+		if name in self._attrs:
+			return self._attrs[name]
+		elif hasattr(self.__class__,'ID') and name==self.__class__.ID:
+			return self.id
+		else:
+			aMap=self._AMap()
+			if name in aMap:
+				attrName,decode,vType=aMap[name]
+				value=getattr(self,attrName,None)
+			else:
+				value=None
+			if value is None:
+				raise KeyError("Attribute value undefined: %s"%repr(name))
+			arMap=self._ARMap()
+			unusedName,encode=arMap[attrName]
+			if type(value) is ListType:
+				value=string.join(map(encode,value),' ')
+			elif type(value) is DictType:
+				lValue=[]
+				for key,freq in value.items():
+					 v=encode(key)
+					 lValue=lValue+[encode(key)]*freq
+				value=string.join(sorted(lValue),' ')
+			else:
+				value=encode(value)
+			return value
+
 	def IsValidName(self,value):
 		return IsValidName(value)
 
@@ -2746,6 +2687,8 @@ class XMLEntity(object):
 	EncodingAliases={
 		'iso-10646-ucs-2':('utf_16',True),	# not strictly true as UTF-16 includes surrogate processing
 		'iso-10646-ucs-4':('utf_32',True),
+		'utf-16':('utf_16',True),
+		'utf-32':('utf_32',True),
 		'cn-big5':('big5',False),			# for compatibility with some older XML documents
 		'cn-gb2312':('gb2312',False)		
 		}

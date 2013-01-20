@@ -400,6 +400,16 @@ class URI:
 		"""The URI scheme, if present."""
 		self.schemeSpecificPart=None
 		"""The scheme specific part of the URI."""
+		self.opaquePart=None
+		"""None if the URI is hierarchical, otherwise the same as schemeSpecificPart."""
+		self.authority=None
+		"""The authority (e.g., host name) of a hierarchical URI"""
+		self.absPath=None
+		"""The absolute path of a hierarchical URI (None if the path is relative)"""
+		self.relPath=None
+		"""The relative path of a hierarchical URI (None if the path is absolute)"""
+		self.query=None
+		"""The optional query associated with a hierarchical URI.""" 
 		if self.scheme is not None:
 			self.schemeSpecificPart=self.octets[len(self.scheme)+1:]
 		if self.IsAbsolute():

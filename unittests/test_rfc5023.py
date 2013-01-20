@@ -51,8 +51,14 @@ def suite():
 		unittest.makeSuite(ServiceTests,'test'),
 		unittest.makeSuite(WorkspaceTests,'test'),
 		unittest.makeSuite(CollectionTests,'test'),
-		unittest.makeSuite(ClientTests,'test')
+		unittest.makeSuite(ClientTests,'test'),
+		unittest.makeSuite(ServerTests,'test')
 		))
+
+
+def load_tests(loader, tests, pattern):
+	"""Called when we execute this file directly."""
+	return suite()
 
 
 from pyslet.rfc5023 import *
@@ -268,6 +274,92 @@ class ClientTests(unittest.TestCase):
 				feedDoc.Read(reqManager=client)
 				feed=feedDoc.root
 				self.failUnless(isinstance(feed,atom.Feed),"Collection not a feed for %s"%c.Title)
+
+
+class MockRequest(object):
+
+	responses=BaseHTTPRequestHandler.responses
+
+	def __init__(self,path='/'):
+		self.client_address=("127.0.0.1","80")
+		self.command="GET"
+		self.path=path
+		self.request_version="HTTP/1.0"
+		self.headers={}
+		self.rfile=StringIO()
+		self.responseCode=None
+		self.responseMessage=None
+		self.responseHeaders={}
+		self.wfile=None
+		
+	def send_response(self, code, message=None):
+		assert self.responseCode is None
+		if message is None:
+			message,details=self.responses.get(code,('',''))
+		self.responseCode=code
+		self.responseMessage=message
+		
+	def send_header(self, keyword, value):
+		assert self.responseCode is not None
+		assert self.wfile is None
+		self.responseHeaders[keyword]=value
+	
+	def end_headers(self):
+		assert self.wfile is None
+		self.wfile=StringIO()
+
+			
+class ServerTests(unittest.TestCase):
+	def testCaseConstructor(self):
+		s=Server("http://localhost/service")
+		self.failUnless(isinstance(s.service,Service),"Service document")
+		request=MockRequest('/service')
+		s.HandleGET(request)
+		self.failUnless(request.responseCode==200)
+		cLen=int(request.responseHeaders['Content-Length'])
+		cData=request.wfile.getvalue()
+		self.failUnless(len(cData)==cLen,"Content-Length mismatch")
+		doc=Document(baseURI="http://localhost/service")
+		doc.Read(cData)
+		svc=doc.root
+		self.failUnless(isinstance(svc,Service),"Server: GET /service")
+		self.failUnless(len(svc.Workspace)==0,"Server: no workspaces")
+
+	def testCaseWorkspace(self):
+		s=Server("http://localhost/service")
+		ws=s.service.ChildElement(Workspace)
+		title=ws.ChildElement(atom.Title)
+		titleText="Some work space while others space work"
+		title.SetValue(titleText)
+		request=MockRequest('/service')
+		s.HandleGET(request)
+		doc=Document(baseURI="http://localhost/service")
+		doc.Read(request.wfile.getvalue())
+		svc=doc.root
+		self.failUnless(len(svc.Workspace)==1,"Server: one workspace")
+		self.failUnless(svc.Workspace[0].Title.GetValue()==titleText,"Server: one workspace title")
+
+	def testCaseCollection(self):
+		s=Server("http://localhost/service")
+		ws=s.service.ChildElement(Workspace)
+		title=ws.ChildElement(atom.Title)
+		titleText="Collections"
+		title.SetValue(titleText)
+		c1=ws.ChildElement(Collection)
+		c1.ChildElement(atom.Title).SetValue("Collection 1")
+		c1.href="c1"
+		c2=ws.ChildElement(Collection)
+		c2.ChildElement(atom.Title).SetValue("Collection 2")
+		c2.href="/etc/c2"
+		request=MockRequest('/service')
+		s.HandleGET(request)
+		doc=Document(baseURI="http://localhost/service")
+		doc.Read(request.wfile.getvalue())
+		svc=doc.root
+		self.failUnless(len(svc.Workspace[0].Collection)==2,"Server: two collections")
+		c2Result=svc.Workspace[0].Collection[1]
+		self.failUnless(c2Result.Title.GetValue()=="Collection 2","Server: two collections title")
+		self.failUnless(c2Result.ResolveURI(c2Result.href)=="http://localhost/etc/c2","Server: collection href")
 
 		
 if __name__ == "__main__":

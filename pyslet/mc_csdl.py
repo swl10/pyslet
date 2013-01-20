@@ -11,7 +11,7 @@ import pyslet.xsdatatypes20041028 as xsi
 from pyslet.vfs import OSFilePath
 
 import string, itertools, sqlite3, hashlib, StringIO, time, sys
-from types import StringTypes, IntType, LongType
+from types import StringTypes, StringType, UnicodeType, IntType, LongType
 
 
 EDM_NAMESPACE="http://schemas.microsoft.com/ado/2009/11/edm"		#: Namespace to use for CSDL elements
@@ -27,15 +27,38 @@ EDM_NAMESPACE_ALIASES={
 SimpleIdentifierRE=xsi.RegularExpression(r"[\p{L}\p{Nl}][\p{L}\p{Nl}\p{Nd}\p{Mn}\p{Mc}\p{Pc}\p{Cf}]{0,}")
 
 def ValidateSimpleIdentifier(identifier):
+	"""Validates a simple identifier, returning the identifier unchanged or
+	raising ValueError."""
 	if SimpleIdentifierRE.Match(identifier):
 		return identifier
 	else:
 		raise ValueError("Can't parse SimpleIdentifier from :%s"%repr(identifier))
 
-class DuplicateName(Exception): pass
-class IncompatibleNames(DuplicateName): pass
 
-class ContainerExists(Exception): pass
+class DuplicateName(Exception):
+	"""Raised by :py:class:`NameTableMixin` when attempting to declare a name in
+	a context where the name is already declared."""
+	pass
+
+
+class IncompatibleNames(DuplicateName):
+	"""A special type of :py:class:`DuplicateName` exception raised by
+	:py:class:`NameTableMixin` when attempting to declare a name which
+	might hide, or be hidden by, another name already declared.
+	
+	CSDL's definition of SimpleIdentifier allows '.' to be used in names but
+	also uses it for qualifying names.  As a result, it is possible to define a
+	scope with a name like "My.Scope" which precludes the later definition of a
+	scope called simply "My" (and vice versa)."""
+	pass
+
+
+class ContainerExists(Exception):
+	"""Raised by :py:meth:`ERStore.CreateContainer` when the container already
+	exists."""
+	pass
+
+
 class StorageError(Exception): pass
 
 
@@ -52,10 +75,12 @@ class NameTableMixin(object):
 	and "X.Y" are valid keys."""
 	
 	def __init__(self):
-		self.name=""
-		self.nameTable={}
+		self.name=""			#: the name of this name table (in the context of its parent)
+		self.nameTable={}		#: a dictionary mapping names to child objects
 	
 	def __len__(self):
+		"""Returns the total number of names in this scope, including the sum of
+		the lengths of all child scopes."""
 		count=len(self.nameTable)
 		for value in self.nameTable.itervalues():
 			if isinstance(value,NameTableMixin):
@@ -73,6 +98,11 @@ class NameTableMixin(object):
 		return None,key
 		
 	def __getitem__(self,key):
+		"""Looks up *key* in :py:attr:`nameTable` and, if not found, in each
+		child scope with a name that is a valid scope prefix of key.  For
+		example, if key is "My.Scope.Name" then a child scope with name
+		"My.Scope" would be searched for "Name" or a child scope with name "My"
+		would be searched for "Scope.Name"."""
 		result=self.nameTable.get(key,None)
 		if result is None:
 			scope,key=self.SplitKey(key)
@@ -83,18 +113,21 @@ class NameTableMixin(object):
 			return result
 			
 	def __setitem__(self,key,value):
-		"""To add items to the name table you must use the :py:meth:`Declare` method."""
+		"""Raises NotImplementedError.
+		
+		To add items to the name table you must use the :py:meth:`Declare` method."""
 		raise NotImplementedError
 
 	def Declare(self,value):
 		"""Declares a value in this name table.
 		
-		*value* must have a name attribute which is used to declare it in the name
-		table; duplicate keys are not allowed and will raise :py:class:`DuplicateKey`.
-		
-		Values are always declared in the top-level name table, even if they contain
-		the compounding character '.', however, you cannot declare "X" if you have
-		already declared "X.Y" and vice versa."""
+		*value* must have a name attribute which is used to declare it in the
+		name table; duplicate keys are not allowed and will raise
+		:py:class:`DuplicateKey`.
+
+		Values are always declared in the top-level name table, even if they
+		contain the compounding character '.', however, you cannot declare "X"
+		if you have already declared "X.Y" and vice versa."""
 		if value.name in self.nameTable:
 			raise DuplicateName("%s already declared in scope %s"%(value.name,self.name))
 		prefix=value.name+"."
@@ -113,6 +146,10 @@ class NameTableMixin(object):
 			raise KeyError("%s not declared in scope %s"%(value.name,self.name))
 		
 	def __delitem__(self,key):
+		"""Raises NotImplementedError.
+		
+		To remove a name from the name table you must use the
+		:py:meth:`Undeclare` method."""
 		raise NotImplementedError
 	
 	def __iter__(self):
@@ -188,23 +225,371 @@ class NameTableMixin(object):
 		raise NotImplementedError
 
 
+class SimpleType(xsi.Enumeration):
+	"""SimpleType defines constants for the core data types defined by CSDL
+	::
+		
+		SimpleType.boolean	
+		SimpleType.DEFAULT == None
+
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		'Edm.Binary':1,
+		'Edm.Boolean':2,
+		'Edm.Byte':3,
+		'Edm.DateTime':4,
+		'Edm.DateTimeOffset':5,
+		'Edm.Time':6,
+		'Edm.Decimal':7,
+		'Edm.Double':8,
+		'Edm.Single':9,
+		'Edm.Guid':10,
+		'Edm.Int16':11,
+		'Edm.Int32':12,
+		'Edm.Int64':13,
+		'Edm.String':14,
+		'Edm.SByte':15
+		}
+xsi.MakeEnumeration(SimpleType)
+xsi.MakeEnumerationAliases(SimpleType,{
+	'Binary':'Edm.Binary',
+	'Boolean':'Edm.Boolean',
+	'Byte':'Edm.Byte',
+	'DateTime':'Edm.DateTime',
+	'Decimal':'Edm.Decimal',
+	'Double':'Edm.Double',
+	'Single':'Edm.Single',
+	'Guid':'Edm.Guid',
+	'Int16':'Edm.Int16',
+	'Int32':'Edm.Int32',
+	'Int64':'Edm.Int64',
+	'SByte':'Edm.SByte',
+	'String':'Edm.String',
+	'Time':'Edm.Time',
+	'DateTimeOffset':'Edm.DateTimeOffset'})
+xsi.MakeLowerAliases(SimpleType)
+	
+"""
+String allows any sequence of UTF-8 characters.
+Int allows content in the following form: [-] [0-9]+.
+Decimal allows content in the following form: [0-9]+.[0-9]+M|m.
+"""
+
+def DecodeBinary(value):
+	"""Binary allows content in the following form: [A-Fa-f0-9][A-Fa-f0-9]*.
+
+	String types are parsed from hex strings as per the above format, everything
+	else is converted to a unicode string and is then encoded with utf-8.
+
+	The result is always a byte string."""
+	if type(value) in StringTypes:
+		input=StringIO.StringIO(value)
+		output=StringIO.StringIO()
+		while True:
+			hexString=''
+			while len(hexString)<2:			
+				hexByte=input.read(1)
+				if len(hexByte):
+					if uri.IsHex(hexByte):
+						hexString=hexString+hexByte
+					elif xmlns.IsS(hexByte):
+						# generous in ignoring spaces
+						continue
+					else:
+						raise ValueError("Illegal character in binary string: %s"%repr(hexByte))
+				elif len(hexString)==1:
+					raise ValueError("Odd hex-digit found in binary string")
+				else:
+					break
+			if hexString:
+				output.write(chr(int(hexString,16)))
+			else:
+				break
+			return output.getvalue()
+	else:
+		raise ValueError("String type required: %s"%repr(value))
+
+def EncodeBinary(value):
+	"""If value is a binary string, outputs a unicode string containing a hex representation.
+	
+	If value is a unicode string then it is assumed to be a hex string and is validated
+	as such."""
+	if type(value) is not StringType:
+		if type(value) is UnicodeType:
+			value=DecodeBinary(value)
+		else:
+			ValueError("String or Unicode type required: %s"%repr(value))
+	input=StringIO.StringIO(value)
+	output=StringIO.StringIO()
+	while True:
+		byte=input.read(1)
+		if len(byte):
+			output.write("%2X"%ord(byte))
+		else:
+			break
+	return unicode(output.getvalue())
+
+
+def DecodeBoolean(value):
+	"""Bool allows content in the following form: true | false.
+
+	The result is always one of True or False."""
+	if type(value) in StringTypes:
+		sValue=value.strip().lower()
+		if sValue=="true":
+			return True
+		elif sValue=="false":
+			return False
+		else:
+			raise ValueError("Illegal value for Edm.Boolean: %s"%value)
+	else:
+		raise ValueError("String type required: %s"%repr(value))
+		
+
+def EncodeBoolean(value):
+	"""Returns one of 'true' or 'false'.
+	
+	String types are decoded, other types are tested for non-zero."""
+	if type(value) in StringTypes:
+		value=DecodeBoolean(value)
+	if value:
+		return u"true"
+	else:
+		return u"false"
+
+
+def DecodeByte(value):
+	"""Special case of int; Int allows content in the following form: [-] [0-9]+.
+	
+	String types are parsed using XML schema's rules, everything else is
+	coerced to int using Python's built-in function.
+	
+	Values outside of the allowable range for byte [0-255] raise ValueError.
+	
+	The result is a python int."""
+	if type(value) in StringTypes:
+		byteValue=xsi.DecodeInteger(value)
+	else:
+		byteValue=int(value)
+	if byteValue<0 or byteValue>255:
+		raise ValueError("Illegal value for byte: %i"%byteValue)
+	return byteValue	 
+
+def EncodeByte(value):
+	"""Returns a unicode string representation of *value*"""
+	return xsi.EncodeInteger(value)
+
+
+def DecodeDateTime(value):
+	"""DateTime allows content in the following form: yyyy-mm-ddThh:mm[:ss[.fffffff]].
+	
+	The result is an :py:class:`iso8601.TimePoint` instance representing a time
+	with an unspecified zone.  If a zone is given then ValueError is raised.
+	
+	If value is numeric it is treated as a unix time."""
+	if type(value) in StringTypes:
+		dtValue=iso8601.TimePoint(value)
+		zDir,zOffset=dtValue.GetZone()
+		if zOffset is not None:
+			raise ValueError("Timezone offset not allowed in DateTime value: %s"%value)
+	else:
+		try:
+			uValue=float(value)
+			if uValue>0:
+				dtValue=iso8601()
+				dtValue.SetUnixTime(uValue)
+				dtValue.SetZone(None)
+			else:
+				raise ValueError("Can't parse DateTime from negative value: %f"%uValue)
+		except:
+			raise ValueError("Can't parse DateTime value from: %s"%repr(value))
+	return dtValue
+
+def EncodeDateTime(value):
+	"""Returns a unicode string representation of *value* which must be an
+	:py:class:`iso8601.TimePoint` instance."""
+	return unicode(value)
+
+
+def DecodeDateTimeOffset(value):
+	"""DateTimeOffset allows content in the following form: yyyy-mm-ddThh:mm[:ss[.fffffff]] zzzzzz.
+	
+	The result is an :py:class:`iso8601.TimePoint` instance representing a time
+	with a specified zone.
+	
+	If value is numeric it is treated as a unix time with zero offset."""
+	if type(value) in StringTypes:
+		# remove the extra space that appears in this format
+		dValue=string.join(string.split(value),'')
+		dtValue=iso8601.TimePoint(value)
+		zDir,zOffset=dtValue.GetZone()
+		if zOffset is None:
+			raise ValueError("Timezone offset required in DateTimeOffset value: %s"%value)
+	else:
+		try:
+			uValue=float(value)
+			if uValue>0:
+				dtValue=iso8601()
+				dtValue.SetUnixTime(uValue)
+			else:
+				raise ValueError("Can't parse DateTimeOffset from negative value: %f"%uValue)
+		except:
+			raise ValueError("Can't parse DateTimeOffset value from: %s"%repr(value))
+	return dtValue
+
+def EncodeDateTimeOffset(value):
+	"""Returns a unicode string representation of *value* which must be an
+	:py:class:`iso8601.TimePoint` instance."""
+	zStr=dtValue.time.GetZoneString()
+	if zStr=="Z":
+		# not clear if they support the Z form of the timezone offset, use numbers for safety
+		zStr="+00:00"
+	dtValue.SetZone(None)		
+	return string.join((unicode(value),zStr),' ')
+
+
+def DecodeGuid(value):
+	"""Guid allows content in the following form:
+	dddddddd-dddd-dddd-dddd-dddddddddddd where each d represents [A-Fa-f0-9].
+	
+	Returns a built-in python uuid.UUID instance, unicode strings are passed
+	directly to UUID's constructor.  Non-unicode strings with length<32 are
+	passed as binary bytes, otherwise they are passed has hex.  If value is
+	an integer it is passed as an int to the constructor."""
+	if type(value) is UnicodeType:
+		return uuid.UUID(value)
+	elif type(value) is StringType:
+		if len(value)<32:
+			return uuid.UUID(bytes=value)
+		else:
+			return uuid.UUID(value)
+	elif type(value) in (IntType,LongType):
+		return uuid.UUID(int=value)
+	else:
+		raise ValueError("Can't declde Guid from %s"%repr(value))
+
+def EncodeGuid(value):
+	"""Returns a unicode representation of *value* which must be a python UUID
+	instance or something that can be passed to DecodeGuid to create one."""
+	if isinstance(value,uuid.UUID):
+		return unicode(value)
+	else:
+		return unicode(DecodeGuid(value))
+
+		
+def DecodeInt16(value):
+	"""Special case of int; Int allows content in the following form: [-] [0-9]+.
+	
+	String types are parsed using XML schema's rules, everything else is
+	coerced to int using Python's built-in function.
+	
+	Values outside of the allowable range for int16 [-32768,32767] raise ValueError.
+	
+	The result is a python int."""
+	if type(value) in StringTypes:
+		int16Value=xsi.DecodeInteger(value)
+	else:
+		int16Value=int(value)
+	if int16Value<-32768 or int16Value>32767:
+		raise ValueError("Illegal value for int16: %i"%int16Value)
+	return int16Value	 
+
+def EncodeInt16(value):
+	"""Returns a unicode string representation of *value*"""
+	return xsi.EncodeInteger(value)
+
+
+def DecodeInt32(value):
+	"""Special case of int; Int allows content in the following form: [-] [0-9]+.
+	
+	String types are parsed using XML schema's rules, everything else is
+	coerced to int using Python's built-in function.
+	
+	Values outside of the allowable range for int32 [-2147483648,2147483647] raise ValueError.
+	
+	The result is a python int."""
+	if type(value) in StringTypes:
+		int32Value=xsi.DecodeInteger(value)
+	else:
+		int32Value=int(value)
+	if int32Value<-2147483648 or int32Value>2147483647:
+		raise ValueError("Illegal value for int32: %i"%int32Value)
+	return int32Value	 
+
+def EncodeInt32(value):
+	"""Returns a unicode string representation of *value*"""
+	return xsi.EncodeInteger(value)
+
+
+def DecodeInt64(value):
+	"""Special case of int; Int allows content in the following form: [-] [0-9]+.
+	
+	String types are parsed using XML schema's rules, everything else is
+	coerced to long using Python's built-in function.
+	
+	Values outside of the allowable range for int64 [-9223372036854775808,9223372036854775807] raise ValueError.
+	
+	The result is a python long."""
+	if type(value) in StringTypes:
+		int64Value=xsi.DecodeInteger(value)
+	else:
+		int64Value=long(value)
+	if int64Value<-9223372036854775808L or int64Value>9223372036854775807L:
+		raise ValueError("Illegal value for int64: %i"%int64Value)
+	return int64Value	 
+
+def EncodeInt64(value):
+	"""Returns a unicode string representation of *value*"""
+	return xsi.EncodeInteger(value)
+
+
+def DecodeSByte(value):
+	"""Special case of int; Int allows content in the following form: [-] [0-9]+.
+	
+	String types are parsed using XML schema's rules, everything else is
+	coerced to long using Python's built-in function.
+	
+	Values outside of the allowable range for SByte [-128,127] raise ValueError.
+	
+	The result is a python int."""
+	if type(value) in StringTypes:
+		sByteValue=xsi.DecodeInteger(value)
+	else:
+		sByteValue=int(value)
+	if sByteValue<-128 or sByteValue>127:
+		raise ValueError("Illegal value for SByte: %i"%sByteValue)
+	return sByteValue	 
+
+def EncodeSByte(value):
+	"""Returns a unicode string representation of *value*"""
+	return xsi.EncodeInteger(value)
+
+
+SimpleTypeCodec={
+	SimpleType.Binary:(DecodeBinary,EncodeBinary),
+	SimpleType.Boolean:(DecodeBoolean,EncodeBoolean),
+	SimpleType.Byte:(DecodeByte,EncodeByte),
+	SimpleType.DateTime:(DecodeDateTime,EncodeDateTime),
+	SimpleType.DateTimeOffset:(DecodeDateTimeOffset,EncodeDateTimeOffset),
+	SimpleType.Double:(xsi.DecodeDouble,xsi.EncodeDouble),
+	SimpleType.Single:(xsi.DecodeFloat,xsi.EncodeFloat),
+	SimpleType.Guid:(DecodeGuid,EncodeGuid),
+	SimpleType.Int16:(DecodeInt16,EncodeInt16),
+	SimpleType.Int32:(DecodeInt32,EncodeInt32),
+	SimpleType.Int64:(DecodeInt64,EncodeInt64),
+	SimpleType.String:(lambda x:x,lambda x:x),
+	SimpleType.SByte:(DecodeSByte,EncodeSByte)
+	}
+	
+
 class CSDLElement(xmlns.XMLNSElement):
 	pass
+
 
 class Using(CSDLElement):
 	XMLNAME=(EDM_NAMESPACE,'Using')
 
 
-class Association(CSDLElement):
-	XMLNAME=(EDM_NAMESPACE,'Association')
-
-	XMLATTR_Name='name'
-
-	def __init__(self,parent):
-		super(Association,self).__init__(parent)
-		self.name="Default"
-	
-		
 class Property(CSDLElement):
 	XMLNAME=(EDM_NAMESPACE,'Property')
 
@@ -226,6 +611,7 @@ class Property(CSDLElement):
 		CSDLElement.__init__(self,parent)
 		self.name="Default"
 		self.type="Edm.String"
+		self.typeCode=None
 		self.nullable=True
 		self.defaultValue=None
 		self.maxLength=None
@@ -250,6 +636,42 @@ class Property(CSDLElement):
 			CSDLElement.GetChildren(self)):
 			yield child
 
+	def ContentChanged(self):		
+		super(Property,self).ContentChanged()
+		try:
+			self.typeCode=SimpleType.DecodeLowerValue(self.type)
+		except ValueError:
+			# must be a complex type defined elsewhere
+			self.typeCode=None
+
+	def DecodeValue(self,value):
+		"""Decodes a value from a string used in a serialised form.
+		
+		The returned type depends on the property's :py:attr:`typeCode`."""
+		if value is None:
+			return None
+		decoder,encoder=SimpleTypeCodec.get(self.typeCode,(None,None))
+		if decoder is None:
+			# treat as per string
+			return value
+		else:
+			return decoder(value)
+
+
+	def EncodeValue(self,value):
+		"""Encodes a value as a string ready to use in a serialised form.
+		
+		The input type depends on the property's :py:attr:`typeCode`"""
+		if value is None:
+			return None
+		decoder,encoder=SimpleTypeCodec.get(self.typeCode,(None,None))
+		if encoder is None:
+			# treat as per string
+			return value
+		else:
+			return encoder(value)
+				
+			
 	def UpdateFingerprint(self,h):
 		h.update("Property:")
 		h.update(self.name)
@@ -287,6 +709,17 @@ class NavigationProperty(CSDLElement):
 			self.ValueAnnotation,
 			CSDLElement.GetChildren(self)):
 			yield child
+
+	def UpdateFingerprint(self,h):
+		h.update("NavigationProperty:")
+		h.update(self.name)
+		h.update(";")
+		h.update(self.relationship)
+		h.update(";")
+		h.update(self.toRole)
+		h.update(";")
+		h.update(self.fromRole)
+		h.update(";")
 
 
 class Key(CSDLElement):
@@ -414,6 +847,37 @@ def EncodeMultiplicity(value):
 	return Multiplicity.Encode.get(value,'')
 
 
+class Association(CSDLElement):
+	XMLNAME=(EDM_NAMESPACE,'Association')
+	XMLATTR_Name='name'
+
+	def __init__(self,parent):
+		super(Association,self).__init__(parent)
+		self.name="Default"
+		self.Documentation=None
+		self.End=[]
+		self.ReferentialConstraint=None
+		self.TypeAnnotation=[]
+		self.ValueAnnotation=[]
+		
+	def GetChildren(self):
+		if self.Documentation: yield self.Documentation
+		for child in self.End: yield child
+		if self.ReferentialConstraint: yield self.ReferentialConstraint
+		for child in itertools.chain(
+			self.TypeAnnotation,
+			self.ValueAnnotation,
+			CSDLElement.GetChildren(self)):
+			yield child
+
+	def UpdateFingerprint(self,h):
+		h.update("Association:")
+		h.update(self.name)
+		h.update(";")
+		for e in self.End:
+			e.UpdateFingerprint(h)
+
+			
 class End(CSDLElement):
 	XMLNAME=(EDM_NAMESPACE,'End')
 	
@@ -434,30 +898,11 @@ class End(CSDLElement):
 		if self.OnDelete: yield self.OnDelete
 		for child in CSDLElement.GetChildren(self): yield child
 
-
-class Association(CSDLElement):
-	XMLNAME=(EDM_NAMESPACE,'Association')
-
-	XMLATTR_Name='name'
-	
-	def __init__(self,parent):
-		CSDLElement.__init__(self,parent)
-		self.name="Default"
-		self.Documentation=None
-		self.End=[]
-		self.ReferentialConstraint=None
-		self.TypeAnnotation=[]
-		self.ValueAnnotation=[]
-
-	def GetChildren(self):
-		if self.Documentation: yield self.Documentation
-		for child in self.End: yield child
-		if self.ReferentialConstraint: yield self.ReferentialConstraint
-		for child in itertools.chain(
-			self.TypeAnnotation,
-			self.ValueAnnotation,
-			CSDLElement.GetChildren(self)):
-			yield child
+	def UpdateFingerprint(self,h):
+		h.update("End:")
+		h.update(self.type)
+		h.update(";")
+		h.update(EncodeMultiplicity(self.multiplicity))
 
 
 class EntityContainer(NameTableMixin,CSDLElement):
@@ -604,7 +1049,8 @@ xmlns.MapClassElements(Document.classMap,globals(),EDM_NAMESPACE_ALIASES)
 
 
 class ERStore(NameTableMixin):
-	"""Abstract class used to represent an entity-relation stores (e.g., collection of databases).
+	"""Abstract class used to represent entity-relation stores, i.e.,
+	(collections of) databases.
 	
 	This object inherits from the basic :py:class:`NameTableMixin`, each
 	declared schema represents a top-level name within the ERStore."""
@@ -612,8 +1058,9 @@ class ERStore(NameTableMixin):
 	def __init__(self):
 		NameTableMixin.__init__(self)
 		self.containers={}
-		"""A dictionary mapping container names to an implementation specific
-		value used to locate the data in the entity-relation store."""
+		"""A dictionary mapping :py:class:`EntityContainer` (database) names to
+		an implementation specific value used to locate the data in the
+		entity-relation store."""
 		self.fingerprint=''	#: the fingerprint of this store, used for version control
 	
 	def UpdateFingerprint(self):
@@ -634,13 +1081,36 @@ class ERStore(NameTableMixin):
 		"""Adds an additional schema to this store.
 		
 		Adds the definitions in s to this store.  This method is *not* thread-safe.
-		After calling this method the store's fingerprint will be different."""		
+		After calling this method the store's fingerprint will be different.
+		
+		This method call is not thread-safe."""		
 		if not isinstance(s,Schema):
 			raise TypeError("Schema required: %s"%repr(s))
 		self.Declare(s)
 		self.UpdateFingerprint()
 		
+	def UpgradeSchema(self,newS):
+		"""Upgrades an existing schema to reflect the new definitions in *newS*.
+		
+		A schema with the same name must have already been added to this store.
+		Any created containers are upgraded, within the limits of the underlying
+		storage system.  Adding/removing :py:class:`EntitySet` definitions or
+		adding, removing and in some cases modifying underlying
+		:py:class:`Property` definitions is also possible.
+		
+		This method call is not thread-safe."""
+		raise NotImplementedError
+
 	def CreateContainer(self,containerName):
+		"""Initialises the :py:class:`EntityContainer` with *containerName*.
+		
+		Before you can read or write entities from/to an :py:class:`EntitySet`
+		in the store you must initialise the :py:class:`EntityContainer` that
+		contains it.  For example, a SQL-backed data store would use this
+		opportunity to create tables to hold the entity sets in the
+		container.
+		
+		This method call is not thread-safe."""
 		c=self[containerName]
 		if not isinstance(c,EntityContainer):
 			raise ValueError("%s is not an EntityContainer"%containerName)
@@ -651,12 +1121,33 @@ class ERStore(NameTableMixin):
 		self.containers[containerName]=True
 
 	def EntityReader(self,entitySetName):
+		"""A generator function that iterates over all matching entities
+		in the given :py:class:`EntitySet`.
+		
+		Each entity is returned as a dictionary mapping property names to values
+		(None representing a null value).  Values are type-cast to appropriate
+		python types."""
 		while False:
 			yield None
+		raise NotImplementedError
 	
 	def InsertEntity(self,entitySetName,values):
+		"""Adds an entity to an :py:class:`EntitySet`.
+		
+		The entity's property values are represented in a dictionary or
+		dictionary-like object *values* keyed on property name."""
 		raise NotImplementedError
 
+	def DecodeLiteral(self,edmType,value):
+		if value is None:
+			return None
+		decoder,encoder=SimpleTypeCodec.get(edmType,(None,None))
+		if decoder is None:
+			# treat as per string
+			return value
+		else:
+			return decoder(value)
+			
 		
 class SQLiteDB(ERStore):
 	
@@ -981,20 +1472,6 @@ class SQLiteDB(ERStore):
 		else:
 			raise NotImplementedError("Literal of type %s"%sqlType)
 	
-	def DecodeLiteral(self,typeName,value):
-		if value is None:
-			return None
-		typeName=typeName.lower()
-		if typeName=="edm.boolean":
-			if type(value) in StringTypes:
-				return value.upper()=="TRUE"
-			elif type(value) in (IntType,LongType):
-				return value!=0
-			else:
-				raise ValueError("Can't read Edm.Boolean from %s"%repr(value))
-		else:
-			return value
-			
 	def CreateTable(self,tName,eType):
 		if '"' in tName:
 			raise ValueError("Illegal table name: %s"%repr(tName))
@@ -1099,7 +1576,7 @@ class SQLiteDB(ERStore):
 					result={}
 					i=0
 					for p in eType.Property:
-						result[p.name]=self.DecodeLiteral(p.type,row[i])
+						result[p.name]=self.DecodeLiteral(p.typeCode,row[i])
 						i=i+1
 					yield result
 		except:

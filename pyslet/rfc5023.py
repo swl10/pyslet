@@ -99,12 +99,12 @@ class Workspace(APPElement):
 	
 	def __init__(self,parent):
 		APPElement.__init__(self,parent)
-		self.Title=None			#: the title of workspace
+		self.Title=None			#: the title of this workspace
 		self.Collection=[]		#: a list of :py:class:`Collection`
 		
 	def GetChildren(self):
 		for child in APPElement.GetChildren(self): yield child
-		if self.Title: yield child
+		if self.Title: yield self.Title
 		for child in self.Collection: yield child
 		
 
@@ -123,7 +123,7 @@ class Collection(APPElement):
 	
 	def GetChildren(self):
 		for child in APPElement.GetChildren(self): yield child
-		if self.Title: yield child
+		if self.Title: yield self.Title
 		for child in self.Accept: yield child
 		for child in self.Categories: yield child
 		
@@ -166,4 +166,38 @@ class Client(http.HTTPRequestManager):
 	def QueueRequest(self,request):
 		request.SetHeader('Accept',string.join((atom.ATOM_MIMETYPE,ATOMSVC_MIMETYPE,ATOMCAT_MIMETYPE),','),True)
 		http.HTTPRequestManager.QueueRequest(self,request)
+
+
+class Server(object):
+
+	def __init__(self,serviceRoot='http://localhost/'):
+		if not isinstance(serviceRoot,uri.URI):
+			self.serviceRoot=uri.URIFactory.URI(serviceRoot)
+		else:
+			self.serviceRoot=serviceRoot			
+		self.serviceDoc=Document(root=Service,baseURI=self.serviceRoot)
+		self.service=self.serviceDoc.root
+		
+	def HandleGET(self,handler):
+		if handler.path==self.serviceRoot.absPath:
+			# Return the service root document
+			data=unicode(self.serviceDoc).encode('utf-8')
+			handler.send_response(200,"Ok")
+			handler.send_header("Content-Length",str(len(data)))
+			handler.send_header("Content-Type",ATOMSVC_MIMETYPE+'; charset="utf-8"')
+			handler.end_headers()
+			handler.wfile.write(data)
+		else:
+			self.HandleMissing()
+	
+	def HandlePOST(self,handler):
+		raise NotImplementedError
+		
+	def HandleMissing(self,handler):
+		handler.send_response(404,"Not found")
+		data="This server supports the Atom Publishing Protocol\r\nFor service information see: %s"%str(self.serviceRoot)
+		handler.send_header("Content-Length",str(len(data)))
+		handler.send_header("Content-Type",'text/plain')
+		handler.end_headers()
+		handler.wfile.write(data)
 		

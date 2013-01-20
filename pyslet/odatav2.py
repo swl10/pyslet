@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 """This module implements the Open Data Protocol specification defined by Microsoft."""
 
-import sys, cgi, urllib, string
+import sys, cgi, urllib, string, itertools
 
 import pyslet.iso8601 as iso
 import pyslet.rfc4287 as atom
@@ -12,8 +12,10 @@ import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.mc_edmx as edmx
+import pyslet.mc_csdl as edm
 
 class InvalidServiceDocument(Exception): pass
+class InvalidMetadataDocument(Exception): pass
 class InvalidFeedDocument(Exception): pass
 class InvalidEntryDocument(Exception): pass
 class InvalidFeedURL(Exception): pass
@@ -21,6 +23,8 @@ class UnexpectedHTTPResponse(Exception): pass
 
 
 ODATA_METADATA_NAMESPACE="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"	#: namespace for metadata, e.g., the property type attribute
+IsDefaultEntityContainer=(ODATA_METADATA_NAMESPACE,u"IsDefaultEntityContainer")
+
 ODATA_DATASERVICES_NAMESPACE="http://schemas.microsoft.com/ado/2007/08/dataservices"		#: namespace for auto-generated elements, e.g., :py:class:`Property`
 ODATA_SCHEME="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme"					#: category scheme for type definition terms
 ODATA_RELATED="http://schemas.microsoft.com/ado/2007/08/dataservices/related/"				#: link type for related entries
@@ -40,16 +44,19 @@ class Property(ODataElement):
 	the elements take their names from the properties themselves.  Therefore,
 	the xmlname of each Property instance is the property name."""
 	
-	Conversions={
-		"Edm.Boolean":(xsi.DecodeBoolean,xsi.EncodeBoolean),
-		"Edm.DateTime":(xsi.DecodeDateTime,xsi.EncodeDateTime),		
-		"Edm.Decimal":(xsi.DecodeFloat,xsi.EncodeFloat),
-		"Edm.Double":(xsi.DecodeFloat,xsi.EncodeFloat),
-		"Edm.Int16":(xsi.DecodeInteger,xsi.EncodeInteger),
-		"Edm.Int32":(xsi.DecodeInteger,xsi.EncodeInteger),
-		"Edm.Int64":(xsi.DecodeInteger,xsi.EncodeInteger),
-		}
-		
+	def __init__(self,parent):
+		ODataElement.__init__(self,parent)
+		self.typeCode=None		# a value from :py:class:`pyslet.mc_csdl.SimpleType`
+	
+	def ContentChanged(self):
+		ODataElement.ContentChanged(self)
+		type=self.GetNSAttribute((ODATA_METADATA_NAMESPACE,'type'))
+		if type:
+			try:
+				self.typeCode=edm.SimpleType.DecodeLowerValue(type.lower())
+			except ValueError:
+				pass
+			
 	def GetValue(self):
 		"""Gets an appropriately typed value for the property.
 		
@@ -57,25 +64,23 @@ class Property(ODataElement):
 		:py:meth:`~pyslet.xml20081126.structures.Element.GetValue`
 		implementation to add support for type attribute."""
 		value=ODataElement.GetValue(self)
-		type=self.GetNSAttribute((ODATA_METADATA_NAMESPACE,'type'))
-		if type:
-			convert=self.Conversions.get(type,None)
-			if convert:
-				return convert[0](value)
+		if self.typeCode is not None:
+			decoder,encoder=edm.SimpleTypeCodec.get(self.typeCode,(None,None))
+			if decoder:
+				return decoder(value)
 		return value
 
 	def SetValue(self,value):
 		"""Sets the value of the property using the conversion indicated by the type attribute, if present
 		
-		When creating new entries you won't necessarily know the require type,
+		When creating new entries you won't necessarily know the required type,
 		in which case the value is simply converted to a string using the
 		default string conversion method defined by the python object in
 		question."""
-		type=self.GetNSAttribute((ODATA_METADATA_NAMESPACE,'type'))
-		if type:
-			convert=self.Conversions.get(type,None)
-			if convert:
-				value=convert[1](value)
+		if self.typeCode is not None:
+			decoder,encoder=edm.SimpleTypeCodec.get(self.typeCode,(None,None))
+			if encoder:
+				value=encoder(value)
 		ODataElement.SetValue(self,value)
 
 			
@@ -174,13 +179,18 @@ class Client(app.Client):
 		
 		None indicates no restriction, request all entries."""		
 		if serviceRoot:
-			self.AddService(serviceRoot)
+			self.SetService(serviceRoot)
+		else:
+			self.serviceRoot=None	#: the URI of the service root
 		# Initialise a simple cache of type name -> EntityType definition
 		self._cacheTerm=None
 		self._cacheType=None
 		
-	def AddService(self,serviceRoot):
+	def SetService(self,serviceRoot):
 		"""Adds the feeds defined by the URL *serviceRoot* to this client."""
+		self.feeds=[]
+		self.feedTitles={}
+		self.schems={}
 		doc=Document(baseURI=serviceRoot,reqManager=self)
 		doc.Read()
 		if isinstance(doc.root,app.Service):
@@ -198,13 +208,14 @@ class Client(app.Client):
 			doc.Read()
 			if isinstance(doc.root,edmx.Edmx):
 				for s in doc.root.DataServices.Schema:
-					self.schemas[s.namespace]=s
+					self.schemas[s.name]=s
 		except xml.XMLError:
 			# Failed to read the metadata document, there may not be one of course
 			pass
 		# reset the cache
 		self._cacheTerm=None
 		self._cacheType=None
+		self.serviceRoot=uri.URIFactory.URI(serviceRoot)
 
 	def LookupEntityType(self,entityTypeName):
 		"""Returns the :py:class:`EntityType` instance associated with the fully qualified *entityTypeName*"""
@@ -364,16 +375,12 @@ class Client(app.Client):
 		app.Client.QueueRequest(self,request)
 
 
-class Server:
-	def __init__(self):
-		self.basePath='/'
-
-	def GetService(self):
-		svc=app.Service(None)
-		ws=svc.ChildElement(app.Workspace)
+class Server(app.Server):
+	def __init__(self,serviceRoot="http://localhost/"):
+		app.Server.__init__(self,serviceRoot)
+		ws=self.service.ChildElement(app.Workspace)
 		ws.ChildElement(atom.Title).SetValue("Default")
-		return svc
-
+		
 	
 class Document(app.Document):
 	"""Class for working with OData documents."""
@@ -396,9 +403,48 @@ class Document(app.Document):
 		if result is None:
 			result=app.Document.GetElementClass(self,name)
 		return result
-		
+
+
+class ODataStoreClient(edm.ERStore):
+	"""Provides an implementation of ERStore based on OData."""
+
+	def __init__(self,serviceRoot=None):
+		edm.ERStore.__init__(self)
+		self.client=Client(serviceRoot)
+		self.defaultContainer=None		#: the default entity container
+		for s in self.client.schemas:
+			# if the client has a $metadata document we'll use it
+			schema=self.client.schemas[s]
+			self.AddSchema(schema)
+			# search for the default entity container
+			for container in schema.EntityContainer:
+				try:
+					if container.GetAttribute(IsDefaultEntityContainer)=="true":
+						if self.defaultContainer is None:
+							self.defaultContainer=container
+						else:
+							raise InvalidMetadataDocument("Multiple default entity containers defined")
+				except KeyError:
+					pass									
+				
+	def EntityReader(self,entitySetName):
+		"""Iterates over the entities in the given entity set (feed)."""
+		feedURL=None
+		if self.defaultContainer:
+			if entitySetName in self.defaultContainer:
+				# use this as the name of the feed directly
+				# get the entity type from the entitySet definition
+				entitySet=self.defaultContainer[entitySetName]
+				entityType=self[entitySet.entityType]
+				feedURL=uri.URIFactory.Resolve(self.client.serviceRoot,entitySetName)
+		if feedURL is None:
+			raise NotImplementedError("Entity containers other than the default") 
+		for entry in self.client.RetrieveEntries(feedURL):
+			values={}
+			for p in entityType.Property:
+				v=entry[p.name]
+				values[p.name]=v
+			yield values
+
+			
 xmlns.MapClassElements(Document.classMap,globals())
-		
-		
-		
-		

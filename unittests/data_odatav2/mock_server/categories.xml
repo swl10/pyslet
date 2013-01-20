@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="iso-8859-1" standalone="yes"?>
+<feed xml:base="http://localhost:%(port)i/" xmlns:d="http://schemas.microsoft.com/ado/2007/08/dataservices" xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata" xmlns="http://www.w3.org/2005/Atom">
+  <title type="text">Categories</title>
+  <id>http://localhost:%(port)i/Categories</id>
+  <updated>2013-01-19T16:02:44Z</updated>
+  <link rel="self" title="Categories" href="Categories" />
+  <entry>
+    <id>http://localhost:%(port)i/Categories(0)</id>
+    <title type="text">Food</title>
+    <updated>2013-01-19T16:02:44Z</updated>
+    <author>
+      <name />
+    </author>
+    <link rel="edit" title="Category" href="Categories(0)" />
+    <link rel="http://schemas.microsoft.com/ado/2007/08/dataservices/related/Products" type="application/atom+xml;type=feed" title="Products" href="Categories(0)/Products" />
+    <category term="ODataDemo.Category" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+    <content type="application/xml">
+      <m:properties>
+        <d:ID m:type="Edm.Int32">0</d:ID>
+        <d:Name>Food</d:Name>
+      </m:properties>
+    </content>
+  </entry>
+  <entry>
+    <id>http://localhost:%(port)i/Categories(1)</id>
+    <title type="text">Beverages</title>
+    <updated>2013-01-19T16:02:44Z</updated>
+    <author>
+      <name />
+    </author>
+    <link rel="edit" title="Category" href="Categories(1)" />
+    <link rel="http://schemas.microsoft.com/ado/2007/08/dataservices/related/Products" type="application/atom+xml;type=feed" title="Products" href="Categories(1)/Products" />
+    <category term="ODataDemo.Category" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+    <content type="application/xml">
+      <m:properties>
+        <d:ID m:type="Edm.Int32">1</d:ID>
+        <d:Name>Beverages</d:Name>
+      </m:properties>
+    </content>
+  </entry>
+  <entry>
+    <id>http://localhost:%(port)i/Categories(2)</id>
+    <title type="text">Electronics</title>
+    <updated>2013-01-19T16:02:44Z</updated>
+    <author>
+      <name />
+    </author>
+    <link rel="edit" title="Category" href="Categories(2)" />
+    <link rel="http://schemas.microsoft.com/ado/2007/08/dataservices/related/Products" type="application/atom+xml;type=feed" title="Products" href="Categories(2)/Products" />
+    <category term="ODataDemo.Category" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+    <content type="application/xml">
+      <m:properties>
+        <d:ID m:type="Edm.Int32">2</d:ID>
+        <d:Name>Electronics</d:Name>
+      </m:properties>
+    </content>
+  </entry>
+</feed>

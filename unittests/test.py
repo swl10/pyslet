@@ -57,7 +57,11 @@ def suite():
 	s.addTest(test_xmlnames20091208.suite())
 	s.addTest(test_xsdatatypes20041028.suite())
 	return s
+
+def load_tests(loader, tests, pattern):
+	return suite()
 	
 if __name__ == "__main__":
-	runner=unittest.TextTestRunner()
-	runner.run(suite())
+# 	runner=unittest.TextTestRunner()
+# 	runner.run(suite())
+	unittest.main()

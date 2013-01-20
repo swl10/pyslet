@@ -53,14 +53,7 @@ the context (such as the width of the browser window).
 ..	autoclass:: LengthType
 	:members:
 	:show-inheritance:
-
-..	automethod:: LengthType.__unicode__
-
-..	automethod:: LengthType.__str__
-
-..	autofunction:: DecodeLength
-
-..	autofunction:: EncodeLength
+	:special-members:
 
 
 Coordinate Values
@@ -75,14 +68,7 @@ streams.
 ..	autoclass:: Coords
 	:members:
 	:show-inheritance:
-
-..	automethod:: Coords.__unicode__
-
-..	automethod:: Coords.__str__
-
-..	autofunction:: DecodeCoords
-
-..	autofunction:: EncodeCoords
+	:special-members:
 
 
 URIs
