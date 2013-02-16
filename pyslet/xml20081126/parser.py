@@ -1495,7 +1495,9 @@ class XMLParser:
 		context=self.GetContext()
 		if self.sgmlOmittag:
 			if name:
-				stagClass=self.doc.GetElementClass(name)
+				stagClass=context.GetElementClass(name)
+				if stagClass is None:
+					stagClass=self.doc.GetElementClass(name)
 			else:
 				stagClass=None
 			elementClass=context.GetChildClass(stagClass)
@@ -1504,7 +1506,10 @@ class XMLParser:
 			else:
 				return elementClass,name,False
 		else:
-			return self.doc.GetElementClass(name),name,False
+			stagClass=context.GetElementClass(name)
+			if stagClass is None:
+				stagClass=self.doc.GetElementClass(name)
+			return stagClass,name,False
 	
 	def ParseSTag(self):
 		"""[40] STag, [44] EmptyElemTag: parses a start tag or an empty element tag.

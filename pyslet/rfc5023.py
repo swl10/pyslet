@@ -11,7 +11,7 @@ xml:base attribute [W3C.REC-xmlbase-20010627]
 xml:lang attribute [W3C.REC-xml-20040204], Section 2.12
 """
 
-import string
+import string, StringIO, sys, traceback
 
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
@@ -176,28 +176,42 @@ class Server(object):
 		else:
 			self.serviceRoot=serviceRoot			
 		self.serviceDoc=Document(root=Service,baseURI=self.serviceRoot)
-		self.service=self.serviceDoc.root
+		self.service=self.serviceDoc.root	#: the :py:class:`Service` instance that describes this service.
+		self.service.SetBase(str(self.serviceRoot))		# make the base explicit in the document
+		self.debugMode=False				#:	set this to True to expose python tracebacks in 500 responses, defaults to False
+
+	def __call__(self,environ,start_response):
+		"""wsgi interface for calling instances of this Atom server object.
 		
-	def HandleGET(self,handler):
-		if handler.path==self.serviceRoot.absPath:
-			# Return the service root document
+		We add an additional optional parameter *responseHeaders*"""
+		responseHeaders=[]
+		if environ['SCRIPT_NAME']+environ['PATH_INFO']==self.serviceRoot.absPath:
 			data=unicode(self.serviceDoc).encode('utf-8')
-			handler.send_response(200,"Ok")
-			handler.send_header("Content-Length",str(len(data)))
-			handler.send_header("Content-Type",ATOMSVC_MIMETYPE+'; charset="utf-8"')
-			handler.end_headers()
-			handler.wfile.write(data)
+			responseHeaders.append(("Content-Type",ATOMSVC_MIMETYPE))
+			responseHeaders.append(("Content-Length",str(len(data))))
+			start_response("200 Ok",responseHeaders)
+			return [data]
 		else:
-			self.HandleMissing()
-	
-	def HandlePOST(self,handler):
-		raise NotImplementedError
-		
-	def HandleMissing(self,handler):
-		handler.send_response(404,"Not found")
+			return self.HandleMissing(environ,start_response)
+			
+	def HandleMissing(self,environ,start_response):
+		responseHeaders=[]
 		data="This server supports the Atom Publishing Protocol\r\nFor service information see: %s"%str(self.serviceRoot)
-		handler.send_header("Content-Length",str(len(data)))
-		handler.send_header("Content-Type",'text/plain')
-		handler.end_headers()
-		handler.wfile.write(data)
+		responseHeaders.append(("Content-Length",str(len(data))))
+		responseHeaders.append(("Content-Type",'text/plain'))
+		start_response("404 Not found",responseHeaders)
+		return [data]
+
+	def HandleError(self,environ,start_response,code=500):
+		"""Designed to be called by an otherwise uncaught exception.  Generates a 500 response by default."""
+		responseHeaders=[]
+		cData=StringIO.StringIO()
+		if self.debugMode:
+			traceback.print_exception(*sys.exc_info(),file=cData)
+		else:
+			cData.write("Sorry, there was an internal error while processing this request")
+		responseHeaders.append(("Content-Type",'text/plain'))
+		responseHeaders.append(("Content-Length",str(len(cData.getvalue()))))
+		start_response("%i Unexpected error"%code,responseHeaders)
+		return [cData.getvalue()]
 		

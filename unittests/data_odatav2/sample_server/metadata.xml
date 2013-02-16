@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<edmx:Edmx Version="1.0" xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx"
+    xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata">
+    <edmx:DataServices m:DataServiceVersion="2.0">
+        <Schema Namespace="SampleModel" xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
+            <EntityContainer Name="SampleEntities" m:IsDefaultEntityContainer="true">
+                <EntitySet Name="Customers" EntityType="SampleModel.Customer"/>
+                <EntitySet Name="Orders" EntityType="SampleModel.Order"/>
+                <EntitySet Name="OrderLines" EntityType="SampleModel.OrderLine"/>
+                <EntitySet Name="Employees" EntityType="SampleModel.Employee"/>
+                <EntitySet Name="Documents" EntityType="SampleModel.Document"/>
+                <AssociationSet Name="Orders_Customers" Association="SampleModel.Orders_Customers">
+                    <End Role="Customer" EntitySet="Customers"/>
+                    <End Role="Order" EntitySet="Orders"/>
+                </AssociationSet>
+                <AssociationSet Name="OrderLines_Orders" Association="SampleModel.OrderLines_Orders">
+                    <End Role="OrderLine" EntitySet="OrderLines"/>
+                    <End Role="Order" EntitySet="Orders"/>
+                </AssociationSet>
+                <FunctionImport Name="CustomersByCity" EntitySet="Customers"
+                    ReturnType="Collection(SampleModel.Customer)" m:HttpMethod="GET">
+                    <Parameter Name="city" Type="Edm.String" Mode="In"/>
+                </FunctionImport>
+            </EntityContainer>
+            <EntityContainer Name="ExtraEntities">
+                <EntitySet Name="Content" EntityType="SampleModel.Document"/>
+            </EntityContainer>
+            <EntityType Name="Order">
+                <Key>
+                    <PropertyRef Name="OrderID"/>
+                </Key>
+                <Property Name="OrderID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="ShippedDate" Type="Edm.DateTime" Nullable="true"
+                    DateTimeKind="Unspecified" PreserveSeconds="true"/>
+                <NavigationProperty Name="Customer" Relationship="SampleModel.Orders_Customers"
+                    FromRole="Order" ToRole="Customer"/>
+                <NavigationProperty Name="OrderLines" Relationship="SampleModel.OrderLines_Orders"
+                    FromRole="Order" ToRole="OrderLine"/>
+            </EntityType>
+            <EntityType Name="OrderLine">
+                <Key>
+                    <PropertyRef Name="OrderLineID"/>
+                </Key>
+                <Property Name="OrderLineID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Quantity" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="UnitPrice" Type="Edm.Decimal" Nullable="false"/>
+                <NavigationProperty Name="Order" Relationship="SampleModel.OrderLines_Orders"
+                    FromRole="OrderLine" ToRole="Order"/>
+            </EntityType>
+            <EntityType Name="Customer">
+                <Key>
+                    <PropertyRef Name="CustomerID"/>
+                </Key>
+                <Property Name="CustomerID" Type="Edm.String" Nullable="false" MaxLength="5"
+                    Unicode="true" FixedLength="true"/>
+                <Property Name="CompanyName" Type="Edm.String" Nullable="false" MaxLength="40"
+                    Unicode="true" FixedLength="false"/>
+                <Property Name="Address" Type="Sample.CAddress" Nullable="true"/>
+                <Property Name="Version" Type="Edm.Binary" Nullable="true" MaxLength="8"
+                    FixedLength="true" ConcurrencyMode="Fixed"/>
+                <NavigationProperty Name="Orders" Relationship="SampleModel.Orders_Customers"
+                    FromRole="Customer" ToRole="Order"/>
+            </EntityType>
+            <!--  The Employee EntityType has Web Customizable Feed property mappings that are supported only in version 2.0 of the protocol defined by this specification -->
+            <EntityType Name="Employee" m:FC_KeepInContent="true" m:FC_TargetPath="Location"
+                m:FC_SourcePath="Address/City" m:FC_NsUri="http://www.example.com"
+                m:FC_NsPrefix="emp">
+                <Key>
+                    <PropertyRef Name="EmployeeID"/>
+                </Key>
+                <Property Name="EmployeeID" Type="Edm.String" Nullable="false" MaxLength="5"
+                    Unicode="true" FixedLength="true"/>
+                <Property Name="EmployeeName" Type="Edm.String" Nullable="false" MaxLength="40"
+                    Unicode="true" FixedLength="false" m:FC_KeepInContent="false"
+                    m:FC_TargetPath="SyndicationTitle"/>
+                <Property Name="Address" Type="Sample.EAddress" Nullable="true"/>
+                <Property Name="Version" Type="Edm.Binary" Nullable="true" MaxLength="8"
+                    FixedLength="true" ConcurrencyMode="Fixed"/>
+            </EntityType>
+            <EntityType Name="Document" m:HasStream="true">
+                <Key>
+                    <PropertyRef Name="DocumentID"/>
+                </Key>
+                <Property Name="DocumentID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Title" Type="Edm.String" Unicode="true"/>
+                <Property Name="Author" Type="Edm.String" Unicode="true"/>
+            </EntityType>
+            <ComplexType Name="EAddress">
+                <Property Name="Street" Type="Edm.String" Unicode="true"/>
+                <Property Name="City" Type="Edm.String" Unicode="true"/>
+            </ComplexType>
+            <ComplexType Name="CAddress">
+                <Property Name="Street" Type="Edm.String" Unicode="true"/>
+                <Property Name="City" Type="Edm.String" Unicode="true"/>
+            </ComplexType>
+            <Association Name="Orders_Customers">
+                <End Role="Customer" Type="SampleModel.Customer" Multiplicity="0..1"/>
+                <End Role="Order" Type="SampleModel.Order" Multiplicity="*"/>
+            </Association>
+            <Association Name="OrderLines_Orders">
+                <End Role="Order" Type="SampleModel.OrderLine" Multiplicity="*"/>
+                <End Role="OrderLine" Type="SampleModel.Order" Multiplicity="0..1"/>
+            </Association>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

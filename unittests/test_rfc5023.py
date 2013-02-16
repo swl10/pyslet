@@ -3,7 +3,7 @@
 import unittest
 
 import os, random, time
-from StringIO import StringIO
+import StringIO
 from threading import Thread
 from SocketServer import ThreadingMixIn
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
@@ -227,7 +227,7 @@ class ServiceTests(unittest.TestCase):
 
 	def testCaseReadXML(self):
 		doc=Document()
-		doc.Read(src=StringIO(SVC_EXAMPLE_1))
+		doc.Read(src=StringIO.StringIO(SVC_EXAMPLE_1))
 		svc=doc.root
 		self.failUnless(isinstance(svc,Service),"Example 1 not a service")
 		wspace=svc.Workspace
@@ -281,40 +281,61 @@ class MockRequest(object):
 	responses=BaseHTTPRequestHandler.responses
 
 	def __init__(self,path='/'):
-		self.client_address=("127.0.0.1","80")
-		self.command="GET"
-		self.path=path
-		self.request_version="HTTP/1.0"
-		self.headers={}
-		self.rfile=StringIO()
+		self.rfile=StringIO.StringIO()
+		self.efile=StringIO.StringIO()
+		self.environ={
+			'REQUEST_METHOD':"GET",
+			'SCRIPT_NAME':"",
+			'PATH_INFO':path,
+			'QUERY_STRING':'',
+			'SERVER_NAME':"127.0.0.1",
+			'SERVER_PORT':"80",
+			'SERVER_PROTOCOL':"HTTP/1.0",
+			'wsgi.version':(1,0),
+			'wsgi.input':self.rfile,
+			'wsgi.errors':self.efile,
+			'wsgi.multithread':True,
+			'wsgi.multiprocess':True,
+			'wsgi.run_once':False
+			}
 		self.responseCode=None
 		self.responseMessage=None
 		self.responseHeaders={}
 		self.wfile=None
-		
-	def send_response(self, code, message=None):
-		assert self.responseCode is None
-		if message is None:
-			message,details=self.responses.get(code,('',''))
-		self.responseCode=code
-		self.responseMessage=message
-		
-	def send_header(self, keyword, value):
-		assert self.responseCode is not None
-		assert self.wfile is None
-		self.responseHeaders[keyword]=value
 	
-	def end_headers(self):
-		assert self.wfile is None
-		self.wfile=StringIO()
-
+	def start_response(self,status,response_headers,exc_info=None):
+		statusLine=http.WordParser(status,ignoreSpace=False)
+		statusLine.ParseSP()
+		if statusLine.IsInteger():
+			self.responseCode=statusLine.ParseInteger()
+		else:
+			self.responseCode=0
+		statusLine.ParseSP()
+		self.responseMessage=statusLine.ParseRemainder()
+		for r in response_headers:
+			if r[0] in self.responseHeaders:
+				self.responseHeaders[r[0]]=self.responseHeaders[r[0]]+", "+r[1]
+			else:
+				self.responseHeaders[r[0]]=r[1]
+		self.wfile=StringIO.StringIO()
+	
+	def SetHeader(self,header,value):
+		"""Convenience method for setting header values in the request."""
+		self.environ["HTTP_"+header]=value
+		
+	def Send(self,application):
+		responseData=application(self.environ,self.start_response)
+		if self.responseCode is not None:
+			for rData in responseData:
+				self.wfile.write(rData)
+		
 			
 class ServerTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		s=Server("http://localhost/service")
 		self.failUnless(isinstance(s.service,Service),"Service document")
 		request=MockRequest('/service')
-		s.HandleGET(request)
+		request.Send(s)
 		self.failUnless(request.responseCode==200)
 		cLen=int(request.responseHeaders['Content-Length'])
 		cData=request.wfile.getvalue()
@@ -332,7 +353,7 @@ class ServerTests(unittest.TestCase):
 		titleText="Some work space while others space work"
 		title.SetValue(titleText)
 		request=MockRequest('/service')
-		s.HandleGET(request)
+		request.Send(s)
 		doc=Document(baseURI="http://localhost/service")
 		doc.Read(request.wfile.getvalue())
 		svc=doc.root
@@ -352,7 +373,7 @@ class ServerTests(unittest.TestCase):
 		c2.ChildElement(atom.Title).SetValue("Collection 2")
 		c2.href="/etc/c2"
 		request=MockRequest('/service')
-		s.HandleGET(request)
+		request.Send(s)
 		doc=Document(baseURI="http://localhost/service")
 		doc.Read(request.wfile.getvalue())
 		svc=doc.root

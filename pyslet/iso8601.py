@@ -1992,74 +1992,112 @@ class ISO8601Parser(RFC2234CoreParser):
 				format="+hh"
 		return format
 	
+	def ParseDurationValue(self,allowFraction=True):
+		"""Returns a tuple of (value, formatString) or (None,None).
+		
+		formatString is one of "n", "n.n" or "n,n".
+		
+		If allowFraction is False then a fractional format raises an error."""
+		value=self.ParseDIGITRepeat()
+		if value is None:
+			return None,None
+		if self.theChar in ".,":
+			if not allowFraction:
+				raise DateTimeError("fractional component in duration must have lowest order")										
+			format="n"+self.theChar+"n"			
+			value=value+self.ParseFraction()
+		else:
+			format="n"
+		return value,format
+			
 	def ParseDuration(self,d):
 		if self.theChar!='P':
 			raise DateTimeError("expected duration")
-		format='P'
+		format=['P']
+		values=[]
 		self.NextChar()
-		needValue=1
-		value=None
-		weekFlag=0
-		if self.theChar=="T":
-			# straight into time components
+		allowFraction=True
+		value,vFormat=self.ParseDurationValue(allowFraction)
+		allowFraction=allowFraction and (value is None or vFormat=="n")
+		if value is not None and self.theChar=="W":
+			format.append(vFormat+"W")
 			self.NextChar()
-			values=[0,0,0]
-			fields="HMS"
-			format="PT"
+			d.SetWeekDuration(value)
+			return string.join(format,'')
+		if value is not None and self.theChar=='Y':
+			format.append(vFormat+"Y")
+			self.NextChar()
+			values.append(value)
+			value,vFormat=self.ParseDurationValue(allowFraction)
+			allowFraction=allowFraction and (value is None or vFormat=="n")
 		else:
-			values=[]
-			fields="YMDHMS"
-		for c in fields:
-			if value is None:
-				value=self.ParseDIGITRepeat()
-				if value is None:
-					# end of the duration
-					if needValue:
-						raise DateTimeError("expected number in duration")
-					else:
-						break
-				else:
-					needValue=0
-			if self.theChar in ".,":
-				fractionFormat=self.theChar+"n"
-				value=value+self.ParseFraction()
-			else:
-				fractionFormat=''
-			if self.theChar==c:
+			values.append(None)
+		if value is not None and self.theChar=='M':
+			format.append(vFormat+"M")
+			self.NextChar()
+			values.append(value)
+			value,vFormat=self.ParseDurationValue(allowFraction)
+			allowFraction=allowFraction and (value is None or vFormat=="n")
+		else:
+			values.append(None)
+		if value is not None and self.theChar=='D':
+			format.append(vFormat+"D")
+			self.NextChar()
+			values.append(value)
+			value,vFormat=None,None
+		else:
+			values.append(None)
+		if value is not None:
+			raise DateTimeError("expected 'T', found %s"%str(value))
+		if 	self.theChar=='T':
+			format.append("T")
+			self.NextChar()
+			value,vFormat=self.ParseDurationValue(allowFraction)
+			allowFraction=allowFraction and (value is None or vFormat=="n")
+			if value is not None and self.theChar=='H':
+				format.append(vFormat+"H")
 				self.NextChar()
 				values.append(value)
-				format+="n"+fractionFormat+c
-				value=None
-				if c=='D':
-					# the next value must be preceded by 'T'
-					if self.theChar=="T":
-						self.NextChar()
-						# 'T' must be followed by a value
-						needValue=1
-						format+='T'
-					else:
-						break
-			elif self.theChar=='W' and c=="Y":
-				# this is a week duration instead
-				values.append(value)
-				format+="n"+fractionFormat+c
-				weekFlag=1
-				break
+				value,vFormat=self.ParseDurationValue(allowFraction)
+				allowFraction=allowFraction and (value is None or vFormat=="n")
 			else:
-				values.append(0)
-				continue
-		if value is not None:
-			raise DateTimeError("unrecognized units in duration")
-		for i in range(len(values)-1):
-			if type(values[i]) is FloatType:
-				raise DateTimeError("decimal fraction must be least significant part of duration")
-		if weekFlag:
-			d.SetWeekDuration(values[0])
-		else:
-			while len(values)<6:
 				values.append(None)
-			years,months,days,hours,minutes,seconds=values
-			d.SetCalendarDuration(years,months,days,hours,minutes,seconds)
+			if value is not None and self.theChar=='M':
+				format.append(vFormat+"M")
+				self.NextChar()
+				values.append(value)
+				value,vFormat=self.ParseDurationValue(allowFraction)
+				allowFraction=allowFraction and (value is None or vFormat=="n")
+			else:
+				values.append(None)
+			if value is not None and self.theChar=='S':
+				format.append(vFormat+"S")
+				self.NextChar()
+				values.append(value)
+				value,vFormat=None,None
+			else:
+				values.append(None)
+		else:
+			values=values+[None,None,None]
+		if value is not None:
+			raise DateTimeError("expected end of duration, found %s"%str(value))
+		if len(format)==1:
+			# "P" not allowed
+			raise DateTimeError("duration must have at least one component")
+		elif format[-1]=="T":
+			# "P...T" not allowed either
+			raise DateTimeError("expected time component in duration")
+		# Now deal with partial precision, higher order components default to 0
+		defValue=None
+		for i in xrange(5,-1,-1):
+			# loop backwards through the values
+			if values[i] is None:
+				values[i]=defValue
+			else:
+				defValue=0
+		format=string.join(format,'')
+		years,months,days,hours,minutes,seconds=values
+		d.SetCalendarDuration(years,months,days,hours,minutes,seconds)
 		return format
 									
 	def ParseFraction(self):

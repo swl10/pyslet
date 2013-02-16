@@ -27,6 +27,10 @@ class XMLError(Exception):
 	"""Base class for all exceptions raised by this module."""
 	pass
 
+class DuplicateXMLNAME(XMLError):
+	"""Raised by :py:func:`MapClassElements` when attempting to declare two classes with the same XML name."""
+	pass
+	
 class XMLAttributeSetter(XMLError): pass
 class XMLForbiddenEntityReference(XMLError): pass
 class XMLMissingFileError(XMLError): pass
@@ -151,6 +155,27 @@ class Node(object):
 		"""Returns an iterator over this object's children."""
 		raise NotImplementedError
 	
+	def GetElementClass(self,name):
+		"""Returns a class object suitable for representing element *name*
+		
+		name is a unicode string representing the element name.
+		
+		The default implementation returns None - for elements this has the
+		effect of deferring the call to the parent document (where this method
+		is overridden to return :py:class:`Element`).
+
+		This method is called immediately prior to :py:meth:`ChildElement` and
+		(when applicable) :py:meth:`GetChildClass`.
+		
+		The real purpose of this method is to allow an element class to directly
+		control the way the name of a child element maps to a class to represent
+		it.  You would normally override this method in the :py:class:`Document`
+		to map element names to classes but in some cases you may want to tweek
+		the mapping at the individual element level.  For example, if the same
+		element name is used for two different purposes in the same XML
+		document, although confusing this is allowed in XML schema."""
+		return None
+
 	def GetChildClass(self,stagClass):
 		"""Returns the element class implied by the STag for stagClass in this context.
 		
@@ -166,7 +191,8 @@ class Node(object):
 		The XML parser may pass None for *stagClass* indicating that PCDATA has
 		been found in element content.  This method should return the first
 		child element that may contain (directly or indirectly) PCDATA or None
-		if no children may contain PCDATA"""
+		if no children may contain PCDATA (or SGML-style omittag is not
+		supported)"""
 		return stagClass
 
 	def ChildElement(self,childClass,name=None):
@@ -369,7 +395,7 @@ class Document(Node):
 		:py:meth:`SetBase` method.
 
 		You can override the document's baseURI by passing a value for *src*
-		which may be an instance of :py:class:`XMLEntity` or an object than can
+		which may be an instance of :py:class:`XMLEntity` or an object that can
 		be passed as a valid source to its constructor."""
 		if src:
 			# Read from this stream, ignore baseURI
@@ -1212,7 +1238,9 @@ class Element(Node):
 			self._attrs[name]=value
 	
 	def GetAttribute(self,name):
-		"""Gets the value of a single attribute as a string."""
+		"""Gets the value of a single attribute as a string.
+		
+		If the element has no attribute with *name* then KeyError is raised."""
 		if name in self._attrs:
 			return self._attrs[name]
 		elif hasattr(self.__class__,'ID') and name==self.__class__.ID:
@@ -1433,7 +1461,7 @@ class Element(Node):
 		"""Deletes the given child from this element's children.
 		
 		We follow the same factory conventions as for child creation except
-		that an attribute pointing to a single child (or this class) will be
+		that an attribute pointing to a single child (of this class) will be
 		replaced with None.  If a custom factory method is found then the
 		corresponding Delete_ClassName method must also be defined.
 		"""
@@ -3013,30 +3041,25 @@ EncNameCharClass=CharClass(u'-', u'.', (u'0',u'9'), (u'A',u'Z'), u'_',
 	(u'a',u'z'))
 	
 
-def MapClassElements(classMap,namespace,nsAliasTable=None):
-	"""Searches namespace and adds element name -> class mappings to classMap
+def MapClassElements(classMap,scope):
+	"""Searches scope and adds element name -> class mappings to classMap
 	
-	If namespace is none the current namespace is searched.  The search is
-	not recursive, to add class elements from imported modules you must call
-	MapClassElements for each module.
+	The search is not recursive, to add class elements from imported modules you
+	must call MapClassElements for each module.
 	
-	*nsAliasTable* can be used to create multiple mappings for selected elements
-	based on namespace aliases.  When each element is declared its xml namespace
-	is looked up in the alias table.  If it finds a list of aliases for the
-	namespace then multiple mappings are added to *classMap*, one for the
-	declared xml namespace and one for each of the aliases."""
-	if type(namespace) is not DictType:
-		namespace=namespace.__dict__
-	names=namespace.keys()
+	Mappings are added for each class that is derived from :py:class:`Element`
+	that has an XMLNAME attribute defined.  It is an error if a class is
+	found with an XMLNAME that has already been mapped."""
+	if type(scope) is not DictType:
+		scope=scope.__dict__
+	names=scope.keys()
 	for name in names:
-		obj=namespace[name]
+		obj=scope[name]
 		if type(obj) in (ClassType,TypeType) and issubclass(obj,Element):
 			if hasattr(obj,'XMLNAME'):
+				if obj.XMLNAME in classMap:
+					raise DuplicateXMLNAME("%s and %s have matching XMLNAMEs"%(obj.__name__,classMap[obj.XMLNAME].__name__))
 				classMap[obj.XMLNAME]=obj
-				if nsAliasTable:
-					aliases=nsAliasTable.get(obj.XMLNAME[0],[])
-					for alias in aliases:
-						classMap[(alias,obj.XMLNAME[1])]=obj
 
 
 def ParseXMLClass(classDefStr):

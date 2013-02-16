@@ -16,6 +16,8 @@ import select
 import types
 import base64
 from pyslet.rfc2616_core import *
+from pyslet.rfc2616_params import *
+from pyslet.rfc2616_headers import *
 from pyslet.rfc2617 import *
 import pyslet.rfc2396 as uri
 
@@ -26,91 +28,10 @@ HTTP_LOG_DETAIL=3
 HTTP_LOG_DEBUG=4
 HTTP_LOG_ALL=5
 
-class HTTP2616Exception(Exception): pass
-class HTTP2616ConnectionBusy(HTTP2616Exception): pass
-class HTTP2616ConnectionClosed(HTTP2616Exception): pass
-
-class HTTPMediaType:
-	def __init__(self):
-		self.type=self.subtype=None
-		self.parameters={}
-
-	def SetMimeType(self,mtype):
-		split=mtype.strip().split('/')
-		if len(split)!=2:
-			raise ValueError("Invalid mime type: "+mtype)
-		self.type=split[0].lower().strip()
-		self.subtype=split[1].lower().strip()
-		
-	def __str__(self):
-		format=[self.type,'/',self.subtype]
-		for p in self.parameters.keys():
-			format.append('; ')
-			pinfo=self.parameters[p]
-			format.append(pinfo[0])
-			format.append('=')
-			words=SplitWords(pinfo[1])
-			if len(words)==1 and ParseToken(words)==1:
-				# We have a token, no need to escape
-				format.append(pinfo[1])
-			else:
-				format.append(QuoteString(pinfo[1]))
-		return string.join(format,'')
-		
-def ParseMediaType(words,mtype,pos=0):
-	mode=None
-	nWords=0
-	mediatype=None
-	while pos<len(words):
-		word=words[pos]
-		pos+=1
-		if mode==None:
-			if word[0] in HTTP_SEPARATORS:
-				break
-			elif mediatype is None:
-				mediatype=word
-				mode='/'
-			else:
-				mtype.type=mediatype
-				mtype.subtype=word
-				nWords=3+ParseParameters(words,mtype.parameters,pos)
-				break
-		elif mode=='/':
-			if word=='/':
-				mode=None
-			else:
-				break
-	return nWords
+class HTTP2616ConnectionBusy(HTTPException): pass
+class HTTP2616ConnectionClosed(HTTPException): pass
 
 
-class HTTPProductToken:
-	def __init__(self):
-		self.token=self.version=None
-
-def ParseProductToken(words,ptoken,pos=0):
-	mode=None
-	nWords=0
-	token=None
-	while pos<len(words):
-		word=words[pos]
-		pos=pos+1
-		if mode==None:
-			if word[0] in HTTP_SEPARATORS:
-				break
-			elif token is None:
-				token=word
-				mode='/'
-			else:
-				ptoken.token=token
-				ptoken.version=word
-				nWords=3
-				break
-		elif mode=='/':
-			if word=='/':
-				mode=None
-			else:
-				break
-	return nWords
 
 class HTTPRelativeQualityToken:
 	def __init__(self,token="*",q=None):
@@ -222,18 +143,6 @@ def CheckToken(t):
 		elif IsCTL(c) or not IsCHAR(c):
 			raise ValueError("Non-ASCII or CTL found in token: %s"%t)
 
-def CanonicalVersion(versionStr):
-	result=string.split(versionStr,"/")
-	if len(result)!=2 or result[0].upper()!="HTTP":
-		raise HTTP2616Exception("Malformed version: %s"%versionStr)
-	result=string.split(result[1],".")
-	if len(result)!=2 or not result[0].isdigit() or not result[1].isdigit():
-		raise HTTP2616Exception("Malformed version: %s"%versionStr)
-	major=int(result[0])
-	minor=int(result[1])
-	return "HTTP/%i.%i"%(major,minor)
-
-HTTP_DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
 HTTP_DAY_NUM={
 	"monday":0, "mon":0,
 	"tuesday":1, "tue":1,
@@ -244,7 +153,6 @@ HTTP_DAY_NUM={
 	"sunday":6, "sun":6 }
 
 # Note that in Python time/datetime objects Jan has index 1!
-HTTP_MONTHS=["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 HTTP_MONTH_NUM={
 	"jan":1,"feb":2,"mar":3,"apr":4,"may":5,"jun":6,"jul":7,"aug":8,"sep":9,"oct":10,"nov":11,"dec":12
 	}
@@ -282,16 +190,21 @@ def ParseDate(dateStr):
 		raise ValueError("Weekday mismatch in: %s"%dateStr)
 	return result
 
+
+HTTP_DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+HTTP_MONTHS=["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+
 def FormatDate(date):
 	# E.g., "Sun, 06 Nov 1994 08:49:37 GMT"
 	return "%s, %02i %s %04i %02i:%02i:%02i GMT"%(
-		HTTP_DAYS[date.weekday()],
-		date.day,
-		HTTP_MONTHS[date.month],
-		date.year,
-		date.hour,
-		date.minute,
-		date.second)	
+			HTTP_DAYS[date.weekday()],
+			date.day,
+			HTTP_MONTHS[date.month],
+			date.year,
+			date.hour,
+			date.minute,
+			date.second)
+
 
 
 class HTTPRequestManager:
@@ -714,7 +627,7 @@ class HTTPConnection:
 				# We don't need any bytes at all, the response is done
 				return True
 			else:
-				raise HTTP2616Exception("Unexpected RecvNeeds response: %s"%repr(recvNeeds))
+				raise HTTPException("Unexpected RecvNeeds response: %s"%repr(recvNeeds))
 		return False
 		
 	def NewSocket(self):
@@ -736,9 +649,9 @@ class HTTPConnection:
 				break
 		except socket.gaierror,e:
 			self.socket=None
-			raise HTTP2616Exception("failed to connect to %s (%s)"%(self.host,e[1]))
+			raise HTTPException("failed to connect to %s (%s)"%(self.host,e[1]))
 		if not self.socket:
-			raise HTTP2616Exception("failed to connect to %s"%self.host)
+			raise HTTPException("failed to connect to %s"%self.host)
 		else:
 			self.socketFile=self.socket.fileno()
 	
@@ -786,7 +699,7 @@ class HTTPSConnection(HTTPConnection):
 			self.socketTransport=self.socket
 			self.socket=self
 		except socket.error,err:
-			raise HTTP2616Exception("failed to build secure connection to %s"%self.host)
+			raise HTTPException("failed to build secure connection to %s"%self.host)
 
 	def send(self,data):
 		# Prob need to think about SSL errors here
@@ -876,8 +789,7 @@ class HTTPMessage:
 	def GetContentType(self):
 		fieldValue=self.GetHeader("Content-Type")
 		if fieldValue is not None:
-			mtype=HTTPMediaType()
-			ParseMediaType(SplitWords(fieldValue),mtype)
+			mtype=MediaType(fieldValue)
 			return mtype
 		else:
 			return None
@@ -988,9 +900,9 @@ class HTTPMessage:
 			if body is not None:
 				# If we know the body then raise errors if these don't match our calculation
 				if len(body)<self.transferLength:
-					raise HTTP2616Exception("Too little data in message body")
+					raise HTTPException("Too little data in message body")
 				elif len(body)>self.transferLength:
-					raise HTTP2616Exception("Too much data in message body")
+					raise HTTPException("Too much data in message body")
 			return
 		# We don't yet support multipart/byteranges....so skip this
 		if isinstance(self,HTTPRequest):
@@ -1021,7 +933,7 @@ class HTTPRequest(HTTPMessage):
 		self.status=0
 		self.SetRequestURI(uri)
 		self.method=method
-		self.protocolVersion=CanonicalVersion(protocolVersion)
+		self.protocolVersion=HTTPVersion(protocolVersion)
 		if type(reqBody) is types.StringType:
 			self.reqBody=reqBody
 			self.reqBodyStream=None
@@ -1065,13 +977,13 @@ class HTTPRequest(HTTPMessage):
 		self.requestURI=uri
 		url=urlparse.urlsplit(uri)
 		if url.username:
-			raise HTTP2616Exception("Auth not yet supported")
+			raise HTTPException("Auth not yet supported")
 		# The Host request-header field (section 14.23) MUST accompany all
 		# HTTP/1.1 requests.
 		if url.hostname:
 			self.SetHost(url.hostname)
 		else:
-			raise HTTP2616Exception("No host in request URL")
+			raise HTTPException("No host in request URL")
 		if url.path:
 			self.uri=url.path
 		else:
@@ -1084,7 +996,7 @@ class HTTPRequest(HTTPMessage):
 		elif self.scheme=='https':
 			self.port=HTTPS_PORT
 		else:
-			raise HTTP2616Exception("Scheme not supported: %s"%self.scheme)
+			raise HTTPException("Scheme not supported: %s"%self.scheme)
 		if url.port:
 			# Custom port in the URL
 			self.port=url.port
@@ -1114,10 +1026,10 @@ class HTTPRequest(HTTPMessage):
 		"""Returns a data string ready to send to the server"""
 		buffer=[]
 		self.manager.Log(HTTP_LOG_INFO,"Sending request to %s"%self.GetHost())
-		self.manager.Log(HTTP_LOG_INFO,"%s %s %s"%(self.method,self.uri,self.protocolVersion))
+		self.manager.Log(HTTP_LOG_INFO,"%s %s %s"%(self.method,self.uri,str(self.protocolVersion)))
 		# Calculate the length of the message body for transfer
 		self.CalculateTransferLength(self.reqBody)
-		buffer.append("%s %s %s\r\n"%(self.method,self.uri,self.protocolVersion))
+		buffer.append("%s %s %s\r\n"%(self.method,self.uri,str(self.protocolVersion)))
 		hList=self.GetHeaderList()
 		for hKey in hList:
 			hName,hValue=self.headers[hKey]
@@ -1153,7 +1065,7 @@ class HTTPRequest(HTTPMessage):
 						self.transferPos+=len(data)
 						return data
 					else:
-						raise HTTP2616Exception('EOF in request stream') 
+						raise HTTPException('EOF in request stream') 
 				else:
 					self.transferDone=True
 					return ''
@@ -1185,7 +1097,7 @@ class HTTPRequest(HTTPMessage):
 		response data to a stream, then you can override this method to signal
 		the start of the response.  Override the Finished method to clean up
 		and process the data."""
-		self.manager.Log(HTTP_LOG_DEBUG,"Request: %s %s %s"%(self.method,self.uri,self.protocolVersion))
+		self.manager.Log(HTTP_LOG_DEBUG,"Request: %s %s %s"%(self.method,self.uri,str(self.protocolVersion)))
 		self.manager.Log(HTTP_LOG_DEBUG,"Got Response: %i %s"%(self.response.status,self.response.reason))
 		self.manager.Log(HTTP_LOG_DEBUG,"Response headers: %s"%repr(self.response.headers))
 		pass
@@ -1326,15 +1238,16 @@ class HTTPResponse(HTTPMessage):
 	def RecvLine(self,line):
 		if self.mode==self.RESP_STATUS:
 			# Read the status line
-			statusLine=SplitWords(line[:-2])
-			self.protocolVersion=CanonicalVersion(string.join(statusLine[0:3],''))
-			statusString=string.join(statusLine[3:4])
-			self.status=int(statusString)
-			reasonString=line[:-2]
-			self.reason=reasonString[reasonString.index(statusString)+len(statusString):]
-			if self.reason[0]==' ':
-				self.reason=self.reason[1:]
-			# self.reason=string.join(statusLine[4:],' ')
+			statusLine=WordParser(line[:-2],ignoreSpace=False)
+			self.protocolVersion=HTTPVersion()
+			self.protocolVersion.ParseWords(statusLine)
+			statusLine.ParseSP()
+			if statusLine.IsInteger():
+				self.status=statusLine.ParseInteger()
+			else:
+				self.status=0
+			statusLine.ParseSP()
+			self.reason=statusLine.ParseRemainder()
 			self.mode=self.RESP_HEADER
 		elif self.mode==self.RESP_HEADER:
 			self.ReadHeader(line)
@@ -1367,15 +1280,15 @@ class HTTPResponse(HTTPMessage):
 				self.mode=self.RESP_CHUNK_DATA
 		elif self.mode==self.RESP_CHUNK_DATA:
 			# should not get here!
-			raise HTTP2616Exception("RecvLine while reading chunk")
+			raise HTTPException("RecvLine while reading chunk")
 		elif self.mode==self.RESP_CHUNK_TRAILER:
 			self.ReadHeader(line)
 			if line==CRLF:
 				self.mode=self.RESP_DONE
 		elif self.mode==self.RESP_DATA:
-			raise HTTP2616Exception("RecvLine while reading data")
+			raise HTTPException("RecvLine while reading data")
 		else:
-			raise HTTP2616Exception("RecvLine when in unknown mode: %i"%self.mode)
+			raise HTTPException("RecvLine when in unknown mode: %i"%self.mode)
 		if self.mode==self.RESP_DONE:
 			self.Finished()
 	

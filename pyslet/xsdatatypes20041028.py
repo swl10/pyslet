@@ -5,6 +5,7 @@ import string
 import math
 from sys import maxunicode, float_info
 from re import compile
+from types import *
 
 import pyslet.iso8601 as iso8601
 from pyslet.xml20081126.structures import IsValidName, LetterCharClass, NameCharClass
@@ -337,6 +338,59 @@ def EncodeDouble(value,digits=None,stripZeros=True):
 	return string.join(dString,'')
 
 
+class Duration(iso8601.Duration):
+	"""Represents duration values.
+	
+	Extends the basic iso duration class to include negative durations."""
+	
+	def __init__(self,value=None):
+		self.sign=1		#: an integer with the sign of the duration
+		if type(value) in StringTypes:
+			self.SetFromString(value)
+		elif isinstance(value,iso8601.Duration):
+			self.SetFromDuration(value)
+		elif value is None:
+			self.SetZero()
+		else:
+			raise TypeError
+
+	def __str__(self):
+		return str(unicode(self))
+		
+	def __unicode__(self):
+		"""Formats this duration."""
+		result=unicode(self.GetString())
+		if self.sign<0:
+			return u"-"+result
+		else:
+			return result
+	
+	def SetFromString(self,durationStr):
+		if type(durationStr) in StringTypes:
+			if durationStr[0]=='-':
+				self.sign=-1
+				durationStr=durationStr[1:]
+			else:
+				self.sign=1
+			p=iso8601.ISO8601Parser(durationStr)
+			return p.ParseDuration(self)
+		else:
+			raise TypeError
+
+	def SetFromDuration(self,src):
+		if isinstance(src,Duration):
+			self.sign=src.sign
+		else:
+			self.sign=2
+		iso8601.Duration.SetFromDuration(self,src)
+	
+
+def EncodeDateTime(value):
+	"""Returns the canonical lexical representation of a
+	:py:class:`pyslet.iso8601.TimePoint` instance."""
+	return value.GetCalendarString()
+
+
 def DecodeDateTime(src):
 	"""Returns an :py:class:`pyslet.iso8601.TimePoint` instance."""
 	try:
@@ -644,13 +698,15 @@ WClass=CharClass(CharClass.UCDCategory('P'),CharClass.UCDCategory('Z'),CharClass
 wClass=CharClass(WClass)
 wClass.Negate()
 
-	
-class RegularExpressionParser(object):
-	"""A custom parser for XML schema regular expressions.
-	
-	The parser is initialised from a source string, the string to be parsed."""
-	
+
+class BasicParser(object):
+	"""An abstract class for parsing unicode strings."""
+
 	def __init__(self,source):
+		self.raw=type(source) is not UnicodeType
+		"""Indicates if source is being parsed raw (as OCTETS or plain ASCII
+		characters, or as Unicode characters.  This may affect the
+		interpretation of some productions."""
 		self.src=source		#: the string being parsed
 		self.pos=-1			#: the position of the current character
 		self.theChar=None
@@ -662,7 +718,7 @@ class RegularExpressionParser(object):
 		"""Sets the position of the parser to *newPos*"""
 		self.pos=newPos-1
 		self.NextChar()
-			
+
 	def NextChar(self):
 		"""Points the parser at the next character, updating *pos* and *theChar*."""
 		self.pos+=1
@@ -671,6 +727,32 @@ class RegularExpressionParser(object):
 		else:
 			self.theChar=None
 
+	def Peek(self,nChars):
+		"""Returns a string consisting of the next *nChars* characters.
+		
+		If there are less than nChars remaining then a shorter string is returned."""
+		return self.src[self.pos:self.pos+nChars]
+	
+	def RequireProduction(self,result,production=None):
+		"""Returns *result* if not None or raises ValueError.
+		
+		*	production can be used to customize the error message."""
+		if result is None:
+			if production is None:
+				raise ValueError("Error at ...%s"%self.Peek(10))
+			else:
+				raise ValueError("Expected %s at ...%s"%(production,self.Peek(10)))
+		else:
+			return result
+
+	def RequireProductionEnd(self,result,production=None):
+		"""Returns *result* if not None and parsing is complete or raises ValueError.
+		
+		*	production can be used to customize the error message."""
+		result=self.RequireProduction(result,production)
+		self.RequireEnd(production)
+		return result
+				
 	def Match(self,matchString):
 		"""Returns true if *matchString* is at the current position"""
 		if self.theChar is None:
@@ -678,12 +760,152 @@ class RegularExpressionParser(object):
 		else:
 			return self.src[self.pos:self.pos+len(matchString)]==matchString
 			
+	def Parse(self,matchString):
+		"""Returns *matchString* if *matchString* is at the current position.
+		
+		Advances the parser to the first character after matchString.  Returns
+		an *empty string* otherwise"""
+		if self.Match(matchString):
+			self.SetPos(self.pos+len(matchString))
+			return matchString
+		else:
+			return ''
+
+	def Require(self,matchString,production=None):
+		"""Parses *matchString* or raises ValueError.
+		
+		*	production can be used to customize the error message."""
+		if not self.Parse(matchString):
+			tail="%s, found %s"%(repr(matchString),repr(self.Peek(len(matchString))))
+			if production is None:
+				raise ValueError("Expected %s"%tail)
+			else:
+				raise ValueError("%s: expected %s"%(production,tail))
+			
 	def MatchOne(self,matchChars):
 		"""Returns true if one of *matchChars* is at the current position"""
 		if self.theChar is None:
 			return False
 		else:
 			return self.theChar in matchChars
+
+	def ParseOne(self,matchChars):
+		"""Parses one of *matchChars*.  Returns the character or None if no match is found."""
+		if self.MatchOne(matchChars):
+			result=self.theChar
+			self.NextChar()
+			return result
+		else:
+			return None
+
+	def MatchInsensitive(self,lowerString):
+		"""Returns true if *lowerString* is at the current position (ignoring case).
+		
+		*lowerString* must be a lower-cased string."""
+		if self.theChar is None:
+			return False
+		else:
+			return self.src[self.pos:self.pos+len(lowerString)].lower()==lowerString
+			
+	def ParseInsensitive(self,lowerString):
+		"""Returns *lowerString* if *lowerString* is at the current position (ignoring case).
+		
+		Advances the parser to the first character after matchString.  Returns
+		an *empty string* otherwise.  *lowerString& must be a lower-cased
+		string."""
+		if self.MatchInsensitive(lowerString):
+			self.SetPos(self.pos+len(lowerString))
+			return lowerString
+		else:
+			return ''
+
+	def MatchDigit(self):
+		"""Returns true if the current character is a digit"""
+		return self.MatchOne("0123456789")
+
+	def ParseDigit(self):
+		"""Parses a digit character.  Returns the digit, or None if no digit is found."""
+		return self.ParseOne("0123456789")
+
+	def ParseDigits(self,min,max=None):
+		"""Parses min digits, and up to max digits, returning the string of digits.
+		
+		If *max* is None then there is no maximum.
+		
+		If min digits can't be parsed then None is returned."""
+		savePos=self.pos
+		result=[]
+		while max is None or len(result)<max:
+			d=self.ParseDigit()
+			if d is None:
+				break
+			else:
+				result.append(d)
+		if len(result)<min:
+			self.SetPos(savePos)
+			return None
+		return string.join(result,'')
+
+	def ParseInteger(self,min,max,maxDigits=None):
+		"""Parses an integer with value between min and max, returning the integer.
+		
+		*	*maxDigits* sets a limit on the number of digits
+		
+		If a suitable integer can't be parsed then None is returned."""
+		savePos=self.pos
+		d=self.ParseDigits(1,maxDigits)
+		if d is None:
+			return None
+		else:
+			d=int(d)
+			if d<min or d>max:
+				self.SetPos(savePos)
+				return None
+			return d			
+				
+	def MatchHexDigit(self):
+		"""Returns true if the current character is a hex-digit"""
+		return self.MatchOne("0123456789ABCDEFabcdef")
+
+	def ParseHexDigit(self):
+		"""Parses a hex-digit character.  Returns the digit, or None if no digit is found."""
+		return self.ParseOne("0123456789ABCDEFabcdef")
+
+	def ParseHexDigits(self,min,max=None):
+		"""Parses min hex digits, and up to max hex digits, returning the string of hex digits.
+		
+		If *max* is None then there is no maximum.
+		
+		If min digits can't be parsed then None is returned."""
+		savePos=self.pos
+		result=[]
+		while max is None or len(result)<max:
+			d=self.ParseHexDigit()
+			if d is None:
+				break
+			else:
+				result.append(d)
+		if len(result)<min:
+			self.SetPos(savePos)
+			return None
+		return string.join(result,'')
+
+	def MatchEnd(self):
+		return self.theChar is None
+	
+	def RequireEnd(self,production=None):
+		if self.theChar is not None:
+			if production:
+				tail=" after %s"%production
+			else:
+				tail=""
+			raise ValueError("Spurious data%s, found %s"%(tail,repr(self.Peek(10))))
+
+			
+class RegularExpressionParser(BasicParser):
+	"""A custom parser for XML schema regular expressions.
+	
+	The parser is initialised from a source string, the string to be parsed."""
 	
 	def _REEscape(self,c=None):
 		if c is None:

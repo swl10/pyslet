@@ -221,7 +221,7 @@ class AltMaterial(QTICommentContainer,ContentMixin):
 			(mattext | matemtext | matimage | mataudio | matvideo |
 			matapplet | matapplication | matref | matbreak | mat_extension)+)>
 		<!ATTLIST altmaterial  xml:lang CDATA  #IMPLIED >"""
-	XMLNAME="material_ref"
+	XMLNAME="altmaterial"
 	XMLCONTENT=xml.ElementContent
 	
 	def __init__(self,parent):

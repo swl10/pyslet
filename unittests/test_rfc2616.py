@@ -222,15 +222,239 @@ class HTTP2616Tests(unittest.TestCase):
 		nWords=ParseParameters(SplitWords('token ;X=1 ;y=2;Zoo=";A=\\"Three\\""'),parameters,1)
 		self.failUnless(nWords==12,"ParseParameters result: %i"%nWords)
 		self.failUnless(parameters=={'x':['X','1'],'y':['y','2'],'zoo':['Zoo',';A="Three"']},"Paremters: %s"%repr(parameters))
+		parameters={}
+		try:
+			nWords=ParseParameters(SplitWords('token ;X =1',ignoreSpace=False),parameters,1,ignoreAllSpace=False)
+			self.fail("ParseParameters: ignoreSpace=False")
+		except HTTPParameterError:
+			pass
+		parameters={}
+		nWords=ParseParameters(SplitWords('token ;X=1 ;q=2;Zoo=";A=\\"Three\\""'),parameters,1,qMode="q")
+		self.failUnless(nWords==4,"ParseParameters qMode result: %i"%nWords)
+		self.failUnless(parameters=={'x':['X','1']},"Paremters: %s"%repr(parameters))
+		parameters={}
+		nWords=ParseParameters(SplitWords('token ;X=1 ;q=2;Zoo=";A=\\"Three\\""'),parameters,1+nWords)
+		self.failUnless(nWords==8,"ParseParameters qMode result 2: %i"%nWords)
+		self.failUnless(parameters=={'q':['q','2'],'zoo':['Zoo',';A="Three"']},"Paremters: %s"%repr(parameters))
+		parameters={}
+		nWords=ParseParameters(SplitWords('token ;X=1 ;y=2;Zoo=";A=\\"Three\\""'),parameters,1,caseSensitive=True)
+		self.failUnless(nWords==12,"ParseParameters caseSensitive result: %i"%nWords)
+		self.failUnless(parameters=={'X':['X','1'],'y':['y','2'],'Zoo':['Zoo',';A="Three"']},"Paremters: %s"%repr(parameters))
 	
 	def testCaseList(self):
 		words=SplitWords(',hello, "Hi"(Hello), goodbye,  ')
-		items=SplitItems(words)
+		items=SplitItems(words,ignoreNulls=False)
 		self.failUnless(items[0]==[],"Leading empty item")
 		self.failUnless(items[1]==["hello"],"Token item")
 		self.failUnless(items[2]==['"Hi"',"(Hello)"],"Complex item")
 		self.failUnless(items[3]==['goodbye'],"Leading space item")
 		self.failUnless(items[4]==[],"Trailing empty item")
+	
+	def testCaseVersion(self):
+		v=HTTPVersion()
+		self.failUnless(v.major==1 and v.minor==1,"1.1 on construction")
+		self.failUnless(str(v)=="HTTP/1.1","Formatting")
+		v=HTTPVersion(" HTTP / 1.0 ")
+		self.failUnless(str(v)=="HTTP/1.0","Parse of 1.0")
+		v1=HTTPVersion("HTTP/2.4")
+		self.failUnless(v1.major==2 and v1.minor==4,"2.4")		
+		v2=HTTPVersion("HTTP/2.13")
+		v3=HTTPVersion("HTTP/12.3")
+		self.failUnless(v1<v2,"2.4 < 2.13")
+		self.failUnless(v2<v3,"2.13 < 12.3")
+		self.failUnless(v1<v3,"2.4 < 12.3")
+		v4=HTTPVersion("HTTP/02.004")
+		self.failUnless(v4.major==2 and v4.minor==4,"2.4")		
+		self.failUnless(v1==v4,"2.4 == 02.004")
+					
+	def testCaseFullDate(self):		
+		timestamp822=FullDate()
+		# RFC 822, updated by RFC 1123
+		timestamp822.ParseWords(WordParser("Sun, 06 Nov 1994 08:49:37 GMT"))
+		# RFC 850, obsoleted by RFC 1036
+		timestamp850=FullDate("Sunday, 06-Nov-94 08:49:37 GMT")
+		# ANSI C's asctime() format
+		timestampC=FullDate()
+		timestampC.ParseWords(WordParser("Sun Nov  6 08:49:37 1994"))
+		self.failUnless(timestamp822==timestamp850,"RFC 850 timestamp parser")
+		self.failUnless(timestamp822==timestampC,"ANSI C timestamp parser")
+		self.failUnless(str(timestamp822)=="Sun, 06 Nov 1994 08:49:37 GMT")
+		self.failUnless(str(timestamp850)=="Sun, 06 Nov 1994 08:49:37 GMT")
+		self.failUnless(str(timestampC)=="Sun, 06 Nov 1994 08:49:37 GMT")
+		try:
+			# Weekday mismatch
+			timestamp822.ParseWords(WordParser("Mon, 06 Nov 1994 08:49:37 GMT"))
+			self.fail("Weekday mismatch passed")
+		except HTTPParameterError:
+			pass
+		timestamp822=FullDate("Sun, 06 Nov 1994 08:49:37 GMT")
+		self.failUnless(str(timestamp822)=="Sun, 06 Nov 1994 08:49:37 GMT","All-in-one parser")
+	
+	def testCaseTransferEncoding(self):
+		te=TransferEncoding()
+		self.failUnless(te.token=="chunked","Default not chunked")
+		self.failUnless(len(te.parameters)==0,"Default has extension parameters")
+		te.Parse("Extension ; x=1 ; y = 2")
+		self.failUnless(te.token=="extension","Token not case insensitive")
+		self.failUnless(len(te.parameters)==2,"No of extension parameters")
+		self.failUnless(te.parameters=={'x':['x','1'],'y':['y','2']},"Extension parameters: %s"%repr(te.parameters))			
+		self.failUnless(str(te)=="extension; x=1; y=2","te output")
+		te.ParseWords(WordParser("bob; a=4"))
+		self.failUnless(te.token=="bob","Token not case insensitive")
+		self.failUnless(len(te.parameters)==1,"No of extension parameters")
+		self.failUnless(te.parameters=={'a':['a','4']},"Single extension parameters: %s"%repr(te.parameters))			
+		try:
+			te.Parse("chunked ; x=1 ; y = 2")
+			self.fail("chunked with spurious parameters")
+		except HTTPParameterError:
+			pass
+		te.ParseWords(WordParser("chunked ; x=1 ; y = 2",ignoreSpace=False))
+		self.failUnless(len(te.parameters)==0,"Overparsing of chunked with parameters")
+		wp=WordParser("chunkie ; z = 3 ",ignoreSpace=False)
+		te.ParseWords(wp)
+		self.failUnless(wp.cWord==SP,"Wrong parsing of chunkie with parameters (trailing space)")		
+		self.failUnless(te.parameters=={'z':['z','3']},"chunkie parameters")
+		
+	def testCaseMediaType(self):
+		mtype=MediaType()
+		try:
+			mtype=MediaType(' application / octet-stream ')
+			self.fail("Space between type and sub-type")
+		except HTTPParameterError:
+			pass
+		try:
+			mtype=MediaType(' application/octet-stream ')
+		except HTTPParameterError:
+			self.fail("No space between type and sub-type")
+		try:
+			mtype=MediaType(' application/octet-stream ; Charset = "en-US"')
+			self.fail("Space between param and value")
+		except HTTPParameterError:
+			pass
+		try:
+			mtype=MediaType(' application/octet-stream ; Charset="en-US" ; x=1')
+		except HTTPParameterError:
+			self.fail("No space between param and value")
+		self.failUnless(mtype.type=='application',"Media type")
+		self.failUnless(mtype.subtype=='octet-stream',"Media sub-type")
+		self.failUnless(mtype.parameters=={'charset':['Charset','en-US'],'x':['x','1']},"Media type parameters: %s"%repr(mtype.parameters))
+		self.failUnless(str(mtype)=='application/octet-stream; Charset=en-US; x=1')
+		
+	def testCaseProductToken(self):
+		ptoken=ProductToken()
+		self.failUnless(ptoken.token is None)
+		self.failUnless(ptoken.version is None)
+		wp=WordParser('http/2616; x=1')
+		ptoken.ParseWords(wp)
+		self.failUnless(wp.cWord==";","ParseWords result: %s"%wp.cWord)
+		self.failUnless(ptoken.token=="http","Product token")
+		self.failUnless(ptoken.version=="2616","Product token version")
+		try:
+			ptoken=ProductToken('http/2616; x=1')
+			self.fail("Spurious data test")
+		except HTTPParameterError:
+			pass
+	
+	def testCaseQValue(self):
+		wp=WordParser('0.2 1.x x.1 1.001 0.14151')
+		self.failUnless(str(wp.ParseQualityValue())=='0.2',"0.2")
+		self.failUnless(wp.ParseQualityValue()==None,"1.x")
+		wp.ParseToken()
+		self.failUnless(wp.ParseQualityValue()==None,"x.1")
+		wp.ParseToken()
+		self.failUnless(wp.ParseQualityValue()==None,"1.001")
+		wp.ParseToken()
+		q=wp.ParseQualityValue()
+		self.failUnless(str(q)=='0.142',"0.14151: %s"%str(q))
+	
+	def testCaseMediaRange(self):
+		mr=MediaRange()
+		self.failUnless(isinstance(mr,MediaType),"Special type of media-type")
+		mr=MediaRange("*/*")
+		self.failUnless(mr.type=="*","Main type")
+		self.failUnless(mr.subtype=="*","subtype")
+		self.failUnless(len(mr.parameters)==0,"Parameters")
+		wp=WordParser("text/*;charset=utf-8; q=1.0")
+		mr=MediaRange()
+		mr.ParseWords(wp)
+		self.failUnless(len(mr.parameters)==1,"q-value skipped parameters: %s"%repr(mr.parameters))
+	
+	def testCaseAcceptList(self):
+		al=AcceptList()
+		al=AcceptList("audio/*; q=0.2, audio/basic")
+		self.failUnless(len(al)==2,"Length of AcceptList")
+		self.failUnless(isinstance(al[0],AcceptItem),"AcceptList item type")
+		self.failUnless(str(al[0].range)=="audio/basic",str(al[0].range))
+		self.failUnless(al[0].q==1.0)
+		self.failUnless(len(al[0].params)==0)
+		self.failUnless(str(al[0])=="audio/basic","don't add 1 for defaults: %s"%str(al[0]))
+		self.failUnless(str(al[1].range)=="audio/*")
+		self.failUnless(al[1].q==0.2)
+		self.failUnless(len(al[1].params)==0)
+		self.failUnless(str(al[1])=="audio/*; q=0.2","add the q value")
+		al=AcceptList("text/plain; q=0.5, text/html,  text/x-dvi; q=0.8, text/x-c")
+		self.failUnless(len(al)==4,"Length of AcceptList")
+		self.failUnless(str(al)=="text/html, text/plain; q=0.5, text/x-c, text/x-dvi; q=0.8",str(al))
+		al=AcceptList("text/*, text/html, text/html;level=1, */*")
+		self.failUnless(str(al)=="text/html; level=1, text/html, text/*, */*",str(al))
+		mediaTypeList=[ MediaType("text/html;level=1"), MediaType("text/html"), MediaType("text/html;level=2"), MediaType("text/xhtml") ]
+		bestType=al.SelectType(mediaTypeList)
+		#	Accept: text/html; level=1, text/html, text/*, */*
+		#	text/html;level=1	: q=1.0
+		#	text/html			: q=1.0
+		#	text/html;level=2	: q-1.0		partial match on text/html
+		#	text/xhtml			: q=1.0		partial match on text/*
+		self.failUnless(str(bestType)=="text/html; level=1",str(bestType)) # first in list
+		al=AcceptList("text/*; q=1.0, text/html; q=0.5, text/html;level=1; q=0, */*")
+		#	Accept: text/*; q=1.0, text/html; q=0.5, text/html;level=1; q=0, */*
+		#	text/html;level=1	: q=0.0
+		#	text/html			: q=0.5
+		#	text/html;level=2	: q-0.5		partial match on text/html
+		#	text/xhtml			: q=1.0		partial match on text/*
+		bestType=al.SelectType(mediaTypeList)
+		self.failUnless(str(bestType)=="text/xhtml","Specific match with confusing q value: %s"%str(bestType))
+		del mediaTypeList[3]
+		bestType=al.SelectType(mediaTypeList)
+		self.failUnless(str(bestType)=="text/html","beats level 2 only on order in list")
+		del mediaTypeList[1]
+		bestType=al.SelectType(mediaTypeList)
+		self.failUnless(str(bestType)=="text/html; level=2","Partial level match beats exact rule deprecation")
+		al=AcceptList("text/*;q=0.3, text/html;q=0.7, text/html;level=1,	text/html;level=2;q=0.4, */*;q=0.5 ")
+		mediaTypeList=[ MediaType("text/html;level=1"), MediaType("text/html"), 
+			MediaType("text/plain"), MediaType("image/jpeg"), MediaType("text/html;level=2"),
+			MediaType("text/html;level=3") ]
+		#	Accept: text/*;q=0.3, text/html;q=0.7, text/html;level=1, text/html;level=2;q=0.4, */*;q=0.5
+		#	text/html;level=1	: q=1.0
+		#	text/html			: q=0.7
+		#	text/plain			: q=0.3
+		#	image/jpeg			: q=0.5
+		#	text/html;level=2	: q=0.4
+		#	text/html;level=3	: q=0.7
+		bestType=al.SelectType(mediaTypeList)
+		self.failUnless(str(bestType)=="text/html; level=1","Only exact match with q=1")
+		del mediaTypeList[0]
+		bestType=al.SelectType(mediaTypeList)
+		self.failUnless(str(bestType)=="text/html","beats level=3 on order in list")
+		del mediaTypeList[0]
+		bestType=al.SelectType(mediaTypeList)
+		self.failUnless(str(bestType)=="text/html; level=3","matches text/html")
+		del mediaTypeList[-1]
+		bestType=al.SelectType(mediaTypeList)
+		self.failUnless(str(bestType)=="image/jpeg","matches */*, returned %s"%str(str(bestType)))
+		del mediaTypeList[1]
+		bestType=al.SelectType(mediaTypeList)
+		self.failUnless(str(bestType)=="text/html; level=2","exact match with q=0.4")
+		del mediaTypeList[1]
+		bestType=al.SelectType(mediaTypeList)
+		self.failUnless(str(bestType)=="text/plain","matches text/*")
+		al=AcceptList("text/*, text/html, text/html;level=1, image/*; q=0, image/png; q=0.05")
+		#	Accept: text/*, text/html, text/html;level=1, */*; q=0, image/*; q=0.05
+		#	video/mpeg	: q=0.0
+		#	image/png	: q=0.05		
+		bestType=al.SelectType([MediaType('video/mpeg')])
+		self.failUnless(bestType is None,"Unacceptable: %s"%str(bestType))
+		bestType=al.SelectType([MediaType('image/png')])
+		self.failUnless(str(bestType)=="image/png","Best partial match: %s"%str(bestType))
 		
 	def testCaseETag(self):
 		eTag=HTTPETag()
@@ -257,22 +481,6 @@ class HTTP2616Tests(unittest.TestCase):
 		self.failIf(eTag.weak,"Failed to parse strong tag")
 		self.failUnless(eTag.tag=="hello","Failed to parse ETag value")
 
-	def testCaseMediaType(self):
-		mtype=HTTPMediaType()
-		nWords=ParseMediaType(SplitWords('application / octet-stream; Charset="en-US"'),mtype)
-		self.failUnless(nWords==7,"ParseMediaType result: %s"%nWords)
-		self.failUnless(mtype.type=='application',"Media type")
-		self.failUnless(mtype.subtype=='octet-stream',"Media sub-type")
-		self.failUnless(mtype.parameters=={'charset':['Charset','en-US']},"Media type parameters")
-		self.failUnless(str(mtype)=='application/octet-stream; Charset=en-US')
-		
-	def testCaseProductToken(self):
-		ptoken=HTTPProductToken()
-		nWords=ParseProductToken(SplitWords('http/2616; x=1'),ptoken)
-		self.failUnless(nWords==3,"ParseProductToken result: %s"%nWords)
-		self.failUnless(ptoken.token=="http","Product token")
-		self.failUnless(ptoken.version=="2616","Product token version")
-	
 	def testCaseRelativeQualityToken(self):
 		rqTokens=[]
 		rqToken=HTTPRelativeQualityToken()
@@ -323,33 +531,15 @@ class HTTP2616Tests(unittest.TestCase):
 		except ValueError:
 			pass
 		self.failUnless(FormatDate(timestamp822)=="Sun, 06 Nov 1994 08:49:37 GMT")
-	
-	def testCaseVersion(self):
-		self.failUnless(CanonicalVersion("http/00004.00002")=="HTTP/4.2","Leading zeros in version")
-		try:
-			CanonicalVersion("https/1.0")
-			self.fail("HTTP protocol name") 
-		except HTTP2616Exception,e:
-			pass
-		try:
-			CanonicalVersion("http 1.1")
-			self.fail("HTTP protocol name/version separator") 
-		except HTTP2616Exception,e:
-			pass
-		try:
-			CanonicalVersion("http/1")
-			self.fail("HTTP protocol version form") 
-		except HTTP2616Exception,e:
-			pass
 			
 	def testCaseHeaders(self):
 		message=HTTPRequest("http://www.google.com/")
 		message.SetHeader("x-test","Hello")
 		message.SetContentLength(3)
-		mtype=HTTPMediaType()
+		mtype=MediaType()
 		mtype.type='application'
 		mtype.subtype='octet-stream'
-		mtype.parameters['charset']='utf8'
+		mtype.parameters['charset']=['charset','utf8']
 		message.SetContentType(mtype)
 		
 	def testCaseManager(self):

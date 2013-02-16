@@ -519,7 +519,11 @@ class XMLNSParser(XMLParser):
 			else:
 				return elementClass,expandedName,False
 		else:
-			return self.doc.GetElementClass(expandedName),expandedName,False
+			stagClass=context.GetElementClass(expandedName)
+			if stagClass is None:
+				stagClass=self.doc.GetElementClass(expandedName)
+			return stagClass,expandedName,False
+			# return self.doc.GetElementClass(expandedName),expandedName,False
 		
 	NSDocumentClassTable={}
 	"""A dictionary of class objects keyed on tuples of (namespace,element name).
@@ -550,7 +554,71 @@ class XMLNSParser(XMLParser):
 		if docClass is None:
 			docClass=XMLNSDocument
 		return docClass
+
+
+def MapClassElements(classMap,scope,nsAliasTable=None):
+	"""Searches a scope and adds element name -> class mappings to classMap
 	
+	The search is not recursive, to add class elements from imported modules you
+	must call MapClassElements passing each module individually for scope.
+	
+	Mappings are added for each class that is derived from :py:class:`NSElement`
+	that has an XMLNAME attribute defined.  It is an error if a class is
+	found with an XMLNAME that has already been mapped.
+	
+	*nsAliasTable* can be used to create multiple mappings for selected element
+	classes based on namespace aliases.  It is a dictionary mapping a canonical
+	namespace to a list of aliases.  For example::
+	
+		{ 'http://www.example.com/schema-v3': [
+			'http://www.example.com/schema-v2',
+			'http://www.example.com/schema-v1'
+			] }
+	
+	An element class with XMLNAME=('http://www.example.com/schema-v3','data') would then
+	be used by the parser to represent the <data> element in the v1, v2 and v3 schema
+	variants."""
+	if type(scope) is not DictType:
+		scope=scope.__dict__
+	names=scope.keys()
+	for name in names:
+		obj=scope[name]
+		if type(obj) in (ClassType,TypeType) and issubclass(obj,XMLNSElement):
+			if hasattr(obj,'XMLNAME'):
+				if obj.XMLNAME in classMap:
+					raise DuplicateXMLNAME("%s and %s have matching XMLNAMEs"%(obj.__name__,classMap[obj.XMLNAME].__name__))
+				classMap[obj.XMLNAME]=obj
+				if nsAliasTable:
+					aliases=nsAliasTable.get(obj.XMLNAME[0],[])
+					for alias in aliases:
+						aliasName=(alias,obj.XMLNAME[1])
+						if aliasName in classMap:
+							raise DuplicateXMLNAME("%s and %s have matching XMLNAME alias %s"%(obj.__name__,classMap[obj.XMLNAME].__name__,aliasName))
+						classMap[aliasName]=obj
+
+
+def NSEqualNames(baseName,name,nsAliases=None):
+	"""Returns True if *baseName* matches *name*.
+	
+	*nsAliases* can be used to match multiple names based on namespace
+	aliases.  It is a list of namespaces that should be treated as
+	equivalent to the namespace of baseName.  For example::
+	
+		NSEqualNames(('http://www.example.com/schema-v3','data'),
+			('http://www.example.com/schema-v1','data'),
+			['http://www.example.com/schema-v2','http://www.example.com/schema-v1'])
+	
+	would return True as *name* uses an allowed alias for the namespace of
+	*baseName*."""
+	if baseName==name:
+		return True
+	else:
+		for alias in nsAliases:
+			if (alias,baseName[1])==name:
+				return True
+	return False	
+	
+
 def RegisterNSDocumentClass(docClass,expandedName):
 	"""Registers a document class for use by :py:meth:`XMLNSParser.ParseElement`.
 	

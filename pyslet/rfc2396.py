@@ -601,10 +601,10 @@ class URI:
 		else:
 			return None
 				
-	def Resolve(self,base,current=None):
-		"""Resolves the current (relative) URI relative to base
+	def Resolve(self,base,currentDocRef=None):
+		"""Resolves a (relative) URI relative to base
 		
-		If the current URI is also relative then the result is a relative URI,
+		If the base URI is also relative then the result is a relative URI,
 		otherwise the result is an absolute URI.  The RFC does not actually go
 		into the procedure for combining relative URIs but if B is an absolute
 		URI and R1 and R2 are relative URIs then using the resolve operator::
@@ -620,15 +620,24 @@ class URI:
 		
 		For this to work it must be possible to use the resolve operator to
 		combine two relative URIs to make a third, which is what we allow
-		here."""
-		if current is None:
-			current=base
+		here.
+		
+		The optional *currentDocRef* allows you to handle the special case of
+		resolving the empty URI.  Strictly speaking, fragments are not part of
+		the URI itself so a relative URI consisting of the empty string, or a
+		relative URI consisting of just a fragment both refer to the current
+		document.  By default, *currentDocRef* is assumed to be the same as
+		*base* but there are cases where the base URI is not the same as the URI
+		used to originally retrieve the document and the optional parameter
+		allows you to cope with those cases."""
+		if currentDocRef is None:
+			currentDocRef=base
 		if not(self.absPath or self.relPath) and self.scheme is None and self.authority is None and self.query is None:
 			# current document reference, just change the fragment
 			if self.fragment is None:
-				return URIFactory.URI(current.octets)
+				return URIFactory.URI(currentDocRef.octets)
 			else:
-				return URIFactory.URI(current.octets+'#'+self.fragment)
+				return URIFactory.URI(currentDocRef.octets+'#'+self.fragment)
 		if self.scheme is not None:
 			return URIFactory.URI(str(self))
 		scheme=base.scheme
@@ -678,7 +687,7 @@ class URI:
 		return URIFactory.URI(string.join(result,''))
 	
 	def Relative(self,base):
-		"""Evaluates the Relative operator, returning the current URI expressed relative to base
+		"""Evaluates the Relative operator, returning the URI expressed relative to base.
 		
 		As we also allow the Resolve method for relative paths it makes sense
 		for the Relative operator to also be defined::

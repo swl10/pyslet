@@ -1,0 +1,130 @@
+Hypertext Transfer Protocol (RFC2616)
+=====================================
+
+.. py:module:: pyslet.rfc2616
+
+This module defines functions and classes for working with HTTP as defined by
+RFC2396: http://www.ietf.org/rfc/rfc2616.txt
+
+The purpose of this module is to expose some of the basic constructs (including
+the synax of protocol components) to allow them to be used normatively in other
+context.  The module does contain a functional HTTP client.
+
+
+HTTP Parameters
+---------------
+
+..	autoclass:: HTTPVersion
+	:members:
+	:show-inheritance:
+
+..	autoclass:: FullDate
+	:members:
+	:show-inheritance:
+	:special-members:
+
+..	autoclass:: TransferEncoding
+	:members:
+	:show-inheritance:
+	:special-members:
+
+
+
+
+Basic Grammar
+-------------
+
+This section defines functions for handling basic elements of the HTTP grammar.
+
+Formatting Functions
+~~~~~~~~~~~~~~~~~~~~
+
+..	autofunction:: QuoteString
+
+
+Parsing Functions
+~~~~~~~~~~~~~~~~~
+
+..	autofunction:: ParseLWS
+
+..	autofunction:: ParseTEXT
+
+..	autofunction:: UnfoldTEXT
+
+..	autofunction:: SplitWords
+
+..	autofunction:: SplitItems
+
+..	autofunction:: DecodeQuotedString
+
+..	autofunction:: ParseToken
+
+..	autofunction:: ParseSP
+
+..	autofunction:: ParseParameters
+
+
+
+Test Functions
+~~~~~~~~~~~~~~
+
+..	autofunction:: IsOCTET
+
+..	autofunction:: IsCHAR
+
+..	autofunction:: IsUPALPHA
+
+..	autofunction:: IsLOALPHA
+
+..	autofunction:: IsALPHA
+
+..	autofunction:: IsDIGIT
+
+..	autofunction:: IsDIGITS
+
+..	autofunction:: IsCTL
+
+..	autofunction:: IsHEX
+
+..	autofunction:: IsHEXDIGITS
+
+
+String Constants
+~~~~~~~~~~~~~~~~
+
+..	autodata::CR
+
+..	autodata::LF
+
+..	autodata::HT
+
+..	autodata::SP
+
+..	autodata::DQUOTE
+
+..	autodata::CRLF
+
+..	autodata::HTTP_SEPARATORS
+
+..	autodata::HTTP_wkday
+
+..	autodata::HTTP_weekday
+
+..	autodata::HTTP_wkdayTable
+
+..	autodata::HTTP_month
+
+..	autodata::HTTP_monthTable
+
+
+Exceptions
+----------
+
+..	autoclass:: HTTPException
+	:show-inheritance:
+
+..	autoclass:: HTTPParameterError
+	:show-inheritance:
+
+
+

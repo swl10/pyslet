@@ -9,6 +9,7 @@ except ImportError:
 
 
 from pyslet.imsbltiv1p0 import *
+from test_rfc5023 import MockRequest
 
 if oauth is None:
 	print "Basic LTI tests skipped"

@@ -8,6 +8,7 @@ import pyslet.xmlnames20091208 as xmlns
 import pyslet.rfc2396 as uri
 import pyslet.mc_csdl as edm
 
+import itertools
 
 EDMX_NAMESPACE="http://schemas.microsoft.com/ado/2007/06/edmx"		#: Namespace to use for EDMX elements
 
@@ -15,12 +16,25 @@ class EDMXElement(xmlns.XMLNSElement):
 	pass
 
 
-class DataServices(EDMXElement):
+class DataServices(edm.NameTableMixin,EDMXElement):
 	XMLNAME=(EDMX_NAMESPACE,'DataServices')
 
 	def __init__(self,parent):
 		EDMXElement.__init__(self,parent)
+		edm.NameTableMixin.__init__(self)
 		self.Schema=[]
+
+	def GetChildren(self):
+		for s in self.Schema: yield s
+		for child in super(DataServices,self).GetChildren(): yield child
+
+	def ContentChanged(self):
+		for s in self.Schema:
+			self.Declare(s)
+		for s in self.Schema:
+			s.UpdateTypeRefs(self)
+		for s in self.Schema:
+			s.UpdateSetRefs(self)
 
 
 class Reference(EDMXElement):
@@ -83,6 +97,6 @@ class Document(xmlns.XMLNSDocument):
 		return eClass
 	
 xmlns.MapClassElements(Document.classMap,globals())
-xmlns.MapClassElements(Document.classMap,edm,edm.EDM_NAMESPACE_ALIASES)
+xmlns.MapClassElements(Document.classMap,edm,edm.NAMESPACE_ALIASES)
 
 		

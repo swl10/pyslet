@@ -153,7 +153,7 @@ class XHTMLElement(XHTMLMixin,xmlns.XMLNSElement):
 		
 		*profile* is a dictionary mapping the names of allowed HTML elements to
 		a list of allowed attributes.  This allows the caller to filter out
-		unwanted elements and attributes.
+		unwanted elements and attributes on a whitelist basis.
 		
 		*arg* allows an additional argument to be passed through the HTML tree to any non-HTML
 		nodes contained by it."""
@@ -2320,6 +2320,10 @@ class Head(I18nMixin,XHTMLElement):
 			XHTMLElement.GetChildren(self)):
 			yield child
 
+	def RenderText(self):
+		return XHTMLElement.RenderText(self)+"\n\n"
+	
+		
 
 class Title(I18nMixin,HeadContentMixin,XHTMLElement):
 	"""Represents the title element::

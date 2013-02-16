@@ -1,8 +1,9 @@
 #! /usr/bin/env python
 """This module implements the Open Data Protocol specification defined by Microsoft."""
 
-import sys, cgi, urllib, string, itertools
+import sys, cgi, urllib, string, itertools, traceback, StringIO, json, decimal, uuid
 
+import pyslet.info as info
 import pyslet.iso8601 as iso
 import pyslet.rfc4287 as atom
 import pyslet.rfc5023 as app
@@ -11,9 +12,11 @@ import pyslet.rfc2396 as uri
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
+import pyslet.html40_19991224 as html
 import pyslet.mc_edmx as edmx
 import pyslet.mc_csdl as edm
 
+class InvalidLiteral(Exception): pass
 class InvalidServiceDocument(Exception): pass
 class InvalidMetadataDocument(Exception): pass
 class InvalidFeedDocument(Exception): pass
@@ -31,7 +34,383 @@ ODATA_RELATED="http://schemas.microsoft.com/ado/2007/08/dataservices/related/"		
 
 ODATA_RELATED_TYPE="application/atom+xml;type=entry"
 
+class Parser(edm.Parser):
+	
+	def ParseURILiteral(self):
+		if self.ParseInsensitive("null"):
+			return None,None
+		elif self.Parse("'"):
+			# string of utf-8 characters
+			value=[]
+			while True:
+				startPos=self.pos
+				while not self.Parse("'"):
+					if self.MatchEnd():
+						raise ValueError("Unterminated quote in literal string")
+					self.NextChar()					
+				value.append(self.src[startPos:self.pos-1])
+				if self.Parse("'"):
+					# a repeated SQUOTE, go around again
+					continue
+				break
+			value=string.join(value,"'")
+			if self.raw:
+				value=value.decode('utf-8')
+			return edm.SimpleType.String,value
+		elif self.MatchDigit():
+			return self.ParseNumericLiteral()
+		elif self.Parse('-'):
+			# one of the number forms
+			if self.ParseInsensitive("inf"):
+				if self.ParseOne("Dd"):
+					return edm.SimpleType.Double,float("-INF")
+				elif self.ParseOne("Ff"):
+					return edm.SimpleType.Single,float("-INF")
+				else:
+					raise ValueError("Expected double or single -inf: -INF%s"%repr(self.Peek(1)))							
+			else:
+				return self.ParseNumericLiteral('-')
+		elif self.ParseInsensitive("true"):
+			return edm.SimpleType.Boolean,True
+		elif self.ParseInsensitive("false"):
+			return edm.SimpleType.Boolean,False
+		elif self.ParseInsensitive("datetimeoffset"):
+			production="datetimeoffset literal"
+			self.Require("'",production)
+			startPos=self.pos
+			while not self.Parse("'"):
+				if self.MatchEnd():
+					raise ValueError("Unterminated quote in datetimeoffset string")
+				self.NextChar()					
+			try:
+				value=iso.TimePoint(self.src[startPos:self.pos-1])
+			except iso.DateTimeError,e:
+				raise ValueError(str(e))
+			zOffset,zDir=value.GetZone()
+			if zOffset is None:
+				raise ValueError("datetimeoffset requires zone specifier: %s"%str(value))
+			if not value.Complete():
+				raise ValueError("datetimeoffset requires a complete specification: %s"%str(value))				
+			return edm.SimpleType.DateTimeOffset,value			
+		elif self.ParseInsensitive("datetime"):
+			production="datetime literal"
+			self.Require("'",production)
+			year=int(self.RequireProduction(self.ParseDigits(4,4),production))
+			self.Require("-",)
+			month=self.RequireProduction(self.ParseInteger(1,12),"month")
+			self.Require("-",production)
+			day=self.RequireProduction(self.ParseInteger(1,31,2),"day")
+			self.Require("T",production)
+			hour=self.RequireProduction(self.ParseInteger(0,24),"hour")
+			self.Require(":",production)
+			minute=self.RequireProduction(self.ParseInteger(0,60,2),"minute")
+			if self.Parse(":"):
+				second=self.RequireProduction(self.ParseInteger(0,60,2),"second")
+				if self.Parse("."):
+					nano=self.ParseDigits(1,7)
+					second+=float("0."+nano)					
+			else:
+				second=None
+			self.Require("'",production)
+			value=iso.TimePoint()
+			try:
+				value.SetCalendarTimePoint(year/100,year%100,month,day,hour,minute,second)
+			except iso.DateTimeError,e:
+				raise ValueError(str(e))
+			return edm.SimpleType.DateTime,value
+		elif self.ParseInsensitive("time"):
+			self.Require("'","time")
+			startPos=self.pos
+			while not self.Parse("'"):
+				if self.MatchEnd():
+					raise ValueError("Unterminated quote in time string")
+				self.NextChar()					
+			try:
+				value=xsi.Duration(self.src[startPos:self.pos-1])
+			except iso.DateTimeError,e:
+				raise ValueError(str(e))			
+			return edm.SimpleType.Time,value
+		elif self.Parse("X") or self.ParseInsensitive("binary"):
+			if self.Parse("'"):
+				value=self.ParseBinaryLiteral()
+				self.Require("'","binary literal")
+				return edm.SimpleType.Binary,value
+		elif self.Match("."):
+			# One of the elided numeric forms, don't parse the point!
+			return self.ParseNumericLiteral()
+		elif self.ParseInsensitive("nan"):
+			if self.ParseOne("Dd"):
+				return edm.SimpleType.Double,float("Nan")
+			elif self.ParseOne("Ff"):
+				return edm.SimpleType.Single,float("Nan")
+			else:
+				raise ValueError("Expected double or single Nan: Nan%s"%repr(self.Peek(1)))			
+		elif self.ParseInsensitive("inf"):
+			if self.ParseOne("Dd"):
+				return edm.SimpleType.Double,float("INF")
+			elif self.ParseOne("Ff"):
+				return edm.SimpleType.Single,float("INF")
+			else:
+				raise ValueError("Expected double or single inf: INF%s"%repr(self.Peek(1)))
+		elif self.ParseInsensitive("guid"):
+			self.Require("'","guid")
+			hex=[]
+			hex.append(self.RequireProduction(self.ParseHexDigits(8,8),"guid"))
+			self.Require("-","guid")			
+			hex.append(self.RequireProduction(self.ParseHexDigits(4,4),"guid"))
+			self.Require("-","guid")			
+			hex.append(self.RequireProduction(self.ParseHexDigits(4,4),"guid"))
+			self.Require("-","guid")			
+			hex.append(self.RequireProduction(self.ParseHexDigits(4,4),"guid"))
+			if self.Parse('-'):
+				# this is a proper guid
+				hex.append(self.RequireProduction(self.ParseHexDigits(12,12),"guid"))
+			else:
+				# this a broken guid, add some magic to make it right
+				hex[3:3]=['FFFF']
+				hex.append(self.RequireProduction(self.ParseHexDigits(8,8),"guid"))
+			self.Require("'","guid")
+			return edm.SimpleType.Guid,uuid.UUID(hex=string.join(hex,''))
+		else:			
+			raise ValueError("Expected literal: %s"%repr(self.Peek(10)))
 
+	def ParseNumericLiteral(self,sign=''):
+		digits=self.ParseDigits(1)
+		if self.Parse("."):
+			# could be a decimal
+			decDigits=self.ParseDigits(1)
+			if self.ParseOne("Mm"):
+				# it was a decimal
+				if decDigits is None:
+					raise ValueError("Missing digis after '.' for decimal: %s.d"%(digits))		
+				if len(digits)>29 or len(decDigits)>29:
+					raise ValueError("Too many digits for decimal literal: %s.%s"%(digits,decDigits))
+				return edm.SimpleType.Decimal,decimal.Decimal("%s%s.%s"%(sign,digits,decDigits))
+			elif self.ParseOne("Dd"):
+				if digits is None:
+					digits='0'
+				if decDigits is None:
+					decDigits='0'
+				# it was a double, no length restrictions
+				return edm.SimpleType.Double,float("%s%s.%s"%(sign,digits,decDigits))
+			elif self.ParseOne("Ee"):
+				eSign=self.Parse("-")
+				eDigits=self.RequireProduction(self.ParseDigits(1,3),"exponent")
+				if self.ParseOne("Dd"):
+					if digits is None:
+						raise ValueError("Missing digis before '.' for expDecimal")
+					if decDigits is None:
+						decDigits='0'
+					elif len(decDigits)>16:
+						raise ValueError("Too many digits for double: %s.%s"%(digits,decDigits))					
+					return edm.SimpleType.Double,float("%s%s.%se%s%s"%(sign,digits,decDigits,eSign,eDigits))
+				elif self.ParseOne("Ff"):
+					if digits is None:
+						raise ValueError("Missing digis before '.' for expDecimal")
+					if decDigits is None:
+						decDigits='0'
+					elif len(decDigits)>8:
+						raise ValueError("Too many digits for single: %s.%s"%(digits,decDigits))					
+					elif len(eDigits)>2:
+						raise ValueError("Too many digits for single exponet: %s.%sE%s%s"%(digits,decDigits,eSign,eDigits))					
+					return edm.SimpleType.Single,float("%s%s.%se%s%s"%(sign,digits,decDigits,eSign,eDigits))
+				else:
+					raise ValueError("NotImplementedError")
+			elif self.ParseOne("Ff"):
+				if digits is None:
+					digits='0'
+				if decDigits is None:
+					decDigits='0'
+				# it was a single, no length restrictions
+				return edm.SimpleType.Single,float("%s%s.%s"%(sign,digits,decDigits))
+			else:
+				raise ValueError("NotImplementedError")
+		elif self.ParseOne("Mm"):
+			if len(digits)>29:
+				raise ValueError("Too many digits for decimal literal: %s"%digits)
+			return edm.SimpleType.Decimal,decimal.Decimal("%s%s"%(sign,digits))
+		elif self.ParseOne("Ll"):
+			if len(digits)>19:
+				raise ValueError("Too many digits for int64 literal: %s"%digits)
+			return edm.SimpleType.Int64,long("%s%s"%(sign,digits))
+		elif self.ParseOne("Dd"):
+			if len(digits)>17:
+				raise ValueError("Too many digits for double literal: %s"%digits)
+			return edm.SimpleType.Double,float(sign+digits)
+		elif self.ParseOne("Ff"):
+			if len(digits)>8:
+				raise ValueError("Too many digits for single literal: %s"%digits)
+			return edm.SimpleType.Single,float(sign+digits)				
+		else:
+			# just a bunch of digits followed by something else so return int32
+			if digits is None:
+				raise ValueError("Digits required for integer literal: %s"%digits)				
+			if len(digits)>10:
+				raise ValueError("Too many digits for integer literal: %s"%digits)
+			# watch out, largest negative number is larger than largest positive number!
+			value=int(sign+digits)
+			if value>2147483647 or value<-2147483648:
+				raise ValueError("Range of int32 exceeded: %s"%(sign+digits))
+			return edm.SimpleType.Int32,value
+
+	
+def ParseURILiteral(source):
+	"""Parses a literal value from a source string.
+	
+	Returns a tuple of a:
+	
+		*	a constant from :py:class:`pyslet.mc_csdl.SimpleType`
+		
+		*	the value, represented with the closest python built-in type
+	
+	The special string "null" returns None,None"""
+	p=Parser(source)
+	return p.RequireProductionEnd(p.ParseURILiteral(),"uri literal")
+
+	
+def ParseDataServiceVersion(src):
+	"""Parses DataServiceVersion from a header field value.
+	
+	Returns a triple of (integer) major version, (integer) minor version and a
+	user agent string.  See section 2.2.5.3 of the specification."""
+	mode="#"
+	versionStr=None
+	uaStr=[]
+	for w in http.SplitWords(src):
+		if mode=="#":
+			if w[0] in http.HTTP_SEPARATORS:
+				break
+			else:
+				# looking for the digit.digit
+				versionStr=w
+				mode=';'
+		elif mode==';':
+			if w[0]==mode:
+				mode='u'
+			else:
+				break
+		elif mode=='u':
+			if w[0] in http.HTTP_SEPARATORS:
+				uaStr=None
+				break
+			else:
+				uaStr.append(w)	
+	if versionStr is not None:
+		v=versionStr.split('.')
+		if len(v)==2 and http.IsDIGITS(v[0]) and http.IsDIGITS(v[1]):
+			major=int(v[0])
+			minor=int(v[1])
+		else:
+			versionStr=None
+	if versionStr is None:
+		raise ValueError("Can't read version number from DataServiceVersion: %s"%src)		
+	if uaStr is None:
+		raise ValueError("Can't read user agent string from DataServiceVersion: %s"%src)
+	return major,minor,string.join(uaStr,' ')	
+
+
+def ParseMaxDataServiceVersion(src):
+	"""Parses MaxDataServiceVersion from a header field value.
+	
+	Returns a triple of (integer) major version, (integer) minor version and a
+	user agent string.  See section 2.2.5.7 of the specification."""
+	src2=src.split(';')
+	versionStr=None
+	uaStr=None
+	if len(src2)>0:	
+		words=http.SplitWords(src2[0])
+		if len(words)==1:
+			versionStr=words[0]
+	if len(src2)>1:
+		uaStr=string.join(src2[1:],';')
+	if versionStr is not None:
+		v=versionStr.split('.')
+		if len(v)==2 and http.IsDIGITS(v[0]) and http.IsDIGITS(v[1]):
+			major=int(v[0])
+			minor=int(v[1])
+		else:
+			versionStr=None
+	if versionStr is None:
+		raise ValueError("Can't read version number from MaxDataServiceVersion: %s"%src)		
+	if uaStr is None:
+		raise ValueError("Can't read user agent string from MaxDataServiceVersion: %s"%src)
+	return major,minor,uaStr	
+
+
+class ODataURI:
+	"""Breaks down an OData URI into its component parts.
+	
+	You pass the URI (or a string) to construct the object.  You may also pass
+	an optional *pathPrefix* which is a string that represents the part of the
+	path that will be ignored.  In other words, *pathPrefix* is the path
+	component of the service root.
+
+	There's a little bit of confusion as to whether the service root can be
+	empty or not.  An empty service root will be automatically converted to '/'
+	by the HTTP protocol.  As a result, the service root often appears to
+	contain a trailing slash even when it is not empty.  The sample OData server
+	from Microsoft issues a temporary redirect from /OData/OData.svc to add the
+	trailing slash before returning the service document."""
+	
+	def __init__(self,dsURI,pathPrefix=''):
+		if not isinstance(dsURI,uri.URI):
+			dsURI=uri.URIFactory.URI(dsURI)
+		self.schema=dsURI.scheme
+		self.pathPrefix=pathPrefix		#: a string containing the path prefix without a trailing slash
+		self.resourcePath=None			#: a string containing the resource path (or None if this is not a resource path)
+		self.navPath=[]					#: a list of navigation path component strings
+		self.queryOptions=[]			#: a list of raw strings containing the query options
+		if dsURI.absPath is None:
+			#	relative paths are resolved relative to the pathPrefix with an added slash!
+			#	so ODataURI('Products','/OData/OData.svc') is treated as '/OData/OData.svc/Products'
+			dsURI=uri.URIFactory.Resolve(pathPrefix+'/',dsURI)
+		if dsURI.absPath is None:
+			#	both dsURI and pathPrefix are relative, this is an error
+			raise ValueError("pathPrefix cannot be relative: %s"%pathPrefix)
+		if pathPrefix and not dsURI.absPath.startswith(pathPrefix):
+			# this is not a URI we own
+			return
+		if dsURI.query is not None:
+			self.queryOptions=dsURI.query.split('&')
+		self.resourcePath=dsURI.absPath[len(pathPrefix):]
+		# grab the first component of the resourcePath
+		if self.resourcePath=='/':
+			self.navPath=[]
+		else:
+			components=self.resourcePath.split('/')
+			self.navPath=map(self.SplitComponent,components[1:])
+	
+	def SplitComponent(self,component):
+		"""Splits a string component into a unicode name and a keyPredicate dictionary."""
+		if component.startswith('$'):
+			# some type of control word
+			return component,{}
+		elif '(' in component and component[-1]==')':
+			name=uri.UnescapeData(component[:component.index('(')]).decode('utf-8')
+			keys=component[component.index('(')+1:-1]
+			if keys=='':
+				keys=[]
+			else:
+				keys=keys.split(',')
+			if len(keys)==0:
+				return name,{}
+			elif len(keys)==1 and '=' not in keys[0]:
+				return name,{u'':ParseURILiteral(keys[0])[1]}
+			else:
+				keyPredicate={}
+				for k in keys:
+					nv=k.split('=')
+					if len(nv)!=2:
+						raise ValueError("unrecognized key predicate: %s"%repr(keys))
+					kname,value=nv
+					kname=uri.UnescapeData(kname).decode('utf-8')
+					keyPredicate[kname]=ParseURILiteral(value)[1]
+				return name,keyPredicate
+		else:
+			return uri.UnescapeData(component).decode('utf-8'),{}
+		
+		
+			
 class ODataElement(xmlns.XMLNSElement):
 	"""Base class for all OData specific elements."""
 	pass
@@ -370,17 +749,395 @@ class Client(app.Client):
 
 	def QueueRequest(self,request):
 		request.SetHeader('Accept','application/xml')
-		request.SetHeader('DataServiceVersion','2.0')
-		request.SetHeader('MaxDataServiceVersion','2.0')
+		request.SetHeader('DataServiceVersion','2.0; pyslet %s'%info.version)
+		request.SetHeader('MaxDataServiceVersion','2.0; pyslet %s'%info.version)
 		app.Client.QueueRequest(self,request)
 
 
-class Server(app.Server):
-	def __init__(self,serviceRoot="http://localhost/"):
-		app.Server.__init__(self,serviceRoot)
-		ws=self.service.ChildElement(app.Workspace)
-		ws.ChildElement(atom.Title).SetValue("Default")
+class Error(ODataElement):
+	XMLNAME=(ODATA_METADATA_NAMESPACE,'error')
+	XMLCONTENT=xmlns.ElementContent
+	
+	def __init__(self,parent):
+		ODataElement.__init__(self,parent)
+		self.Code=Code(self)
+		self.Message=Message(self)
+		self.InnerError=None
+	
+	def GetChildren(self):
+		yield self.Code
+		yield self.Message
+		if self.InnerError: yield self.InnerError
+
+	def JSONDict(self):
+		"""Returns a dictionary representation of this object."""
+		d={}
+		d['code']=self.Code.GetValue()
+		d['message']=self.Message.GetValue()
+		if self.InnerError:
+			d['innererror']=self.InnerError.GetValue()
+		return {'error':d}
+
+
+class Code(ODataElement):
+	XMLNAME=(ODATA_METADATA_NAMESPACE,'code')
+	
+class Message(ODataElement):
+	XMLNAME=(ODATA_METADATA_NAMESPACE,'message')
+	
+class InnerError(ODataElement):
+	XMLNAME=(ODATA_METADATA_NAMESPACE,'innererror')
+
+
+class ODataJSONEncoder(json.JSONEncoder):
+	def default(self, obj):
+		if hasattr(obj,'JSONDict'):
+			return obj.JSONDict()
+		else:
+			return json.JSONEncoder.default(self, obj)	
+
+
+class WSGIWrapper(object):
+	def __init__(self,environ,start_response,responseHeaders):
+		"""A simple wrapper class for a wsgi application.
 		
+		Allows additional responseHeaders to be added to the wsgi response."""
+		self.environ=environ
+		self.start_response=start_response
+		self.responseHeaders=responseHeaders
+	
+	def call(self,application):
+		"""Calls wsgi *application*"""
+		return application(self.environ,self.start_response_wrapper)
+
+	def start_response_wrapper(self,status,response_headers,exc_info=None):
+		"""Traps the start_response callback and adds the additional headers."""
+		response_headers=response_headers+self.responseHeaders
+		return self.start_response(status,response_headers,exc_info)
+
+		
+class Server(app.Server):
+	"""Extends py:class:`pyselt.rfc5023.Server` to provide an OData server.
+	
+	We do some special processing of the serviceRoot before passing it to the
+	parent construtor as in OData it cannot end in a trailing slash.  If it
+	does, we strip the slash from the root and use that as our OData service
+	root.
+	
+	But... we always pass a URI with a trailing slash to the parent constructor
+	following the example set by http://services.odata.org/OData/OData.svc and
+	issue a temporary redirect when we receive requests for the OData service
+	root to the OData URI consisting of the service root + a resource path
+	consisting of a single '/'.
+	
+	This makes the links in the service document much clearer and easier to
+	generate but more importantly, it deals with the awkward case of a service
+	root consisting of just scheme and authority (e.g., http://odata.example.com
+	).  This type of servie root cannot be obtained with a simple HTTP request
+	as the trailing '/' is implied (and no redirection is necessary)."""
+	
+	DefaultAcceptList=http.AcceptList("application/atom+xml, application/xml; q=0.9, text/xml; q=0.8, text/plain; q=0.7")
+	ErrorTypes=[
+		http.MediaType('application/atom+xml'),
+		http.MediaType('application/xml'),
+		http.MediaType('application/json')]
+	
+	RedirectTypes=[
+		http.MediaType('text/html'),
+		http.MediaType('text/plain')]
+			
+	FeedTypes=[		# in order of preference if there is a tie
+		http.MediaType('application/atom+xml'),
+		http.MediaType('application/atom+xml;type=feed'),
+		http.MediaType('application/xml'),
+		http.MediaType('text/xml'),
+		http.MediaType('application/json'),
+		http.MediaType('text/plain')]
+	
+	EntryTypes=[	# in order of preference if there is a tie
+		http.MediaType('application/atom+xml'),
+		http.MediaType('application/atom+xml;type=entry'),
+		http.MediaType('application/xml'),
+		http.MediaType('text/xml'),
+		http.MediaType('application/json'),
+		http.MediaType('text/plain')]
+			
+	def __init__(self,serviceRoot="http://localhost"):
+		if serviceRoot[-1]!='/':
+			serviceRoot=serviceRoot+'/'
+		app.Server.__init__(self,serviceRoot)
+		if self.serviceRoot.relPath is not None:
+			# The service root must be absolute (or missing completely)!
+			raise ValueError("serviceRoot must not be relative")
+		if self.serviceRoot.absPath is None:
+			self.pathPrefix=''
+		else:
+			self.pathPrefix=self.serviceRoot.absPath
+		# pathPrefix must not have a tailing slash, even if this makes it an empty string
+		if self.pathPrefix[-1]=='/':
+			self.pathPrefix=self.pathPrefix[:-1]		
+		self.ws=self.service.ChildElement(app.Workspace)	#: a single workspace that contains all collections
+		self.ws.ChildElement(atom.Title).SetValue("Default")
+		self.model=None					#: a :py:class:`pyslet.mc_edmx.Edmx` instance containing the model for the service
+		self.defaultContainer=None		#: the default entity container
+		
+	def SetModel(self,model):
+		"""Sets the model for the server from a :py:class:`pyslet.mc_edmx.Edmx` instance."""
+		if self.model:
+			# get rid of the old model
+			for c in self.ws.Collection:
+				c.DetachFromDocument()
+				c.parent=None
+			self.ws.Collection=[]
+			self.defaultContainer=None
+		for s in model.DataServices.Schema:
+			for container in s.EntityContainer:
+				# is this the default entity container?
+				prefix=container.name="."
+				try:
+					if container.GetAttribute(IsDefaultEntityContainer)=="true":
+						prefix=""
+						self.defaultContainer=container
+				except KeyError:
+					pass
+				# define one feed for each entity set, prefixed with the name of the entity set
+				for es in container.EntitySet:
+					feed=self.ws.ChildElement(app.Collection)
+					feed.href=prefix+es.name
+					feed.ChildElement(atom.Title).SetValue(prefix+es.name)
+		self.model=model
+		
+	def __call__(self,environ, start_response):
+		"""wsgi interface for the server."""
+		responseHeaders=[]
+		try:
+			result=self.CheckCapabilityNegotiation(environ,start_response,responseHeaders)
+			if result is None:
+				request=ODataURI(environ['PATH_INFO'],self.pathPrefix)
+				if request.resourcePath is None:
+					# this is not a URI for us, pass to our superclass
+					wrapper=WSGIWrapper(environ,start_response,responseHeaders)
+					# super essentially allows us to pass a bound method of our parent
+					# that we ourselves are hiding.
+					return wrapper.call(super(Server,self).__call__)
+				elif request.resourcePath=='':
+					# An empty resource path means they hit the service root, redirect
+					location=str(self.serviceRoot)
+					r=html.HTML(None)
+					r.Head.Title.SetValue('Redirect')
+					div=r.Body.ChildElement(html.Div)
+					div.AddData(u"Moved to: ")
+					anchor=div.ChildElement(html.A)
+					anchor.href=self.serviceRoot
+					anchor.SetValue(location)
+					responseType=self.ContentNegotiation(environ,self.RedirectTypes)
+					if responseType is None:
+						# this is a redirect response, default to text/plain anyway
+						responseType=http.MediaType('text/plain')
+					if responseType=="text/plain":
+						data=r.RenderText()
+					else:
+						data=str(r)
+					responseHeaders.append(("Content-Type",str(responseType)))
+					responseHeaders.append(("Content-Length",len(data)))
+					responseHeaders.append(("Location",location))
+					start_response("%i %s"%(307,"Temporary Redirect"),responseHeaders)
+					return [data]
+				else:
+					return self.HandleRequest(request,environ,start_response,responseHeaders)
+			else:
+				return result
+		except ValueError,e:
+			traceback.print_exception(*sys.exc_info())
+			# This is a bad request
+			return HandleODataError(environ,start_response,"ValueError",str(e))
+		except:
+			traceback.print_exception(*sys.exc_info())
+			return self.HandleError(environ,start_response)
+
+	def ODataError(self,environ,start_response,subCode,message='',code=400):
+		"""Generates and ODataError, typically as the result of a bad request."""
+		responseHeaders=[]
+		e=Error(None)
+		e.ChildElement(Code).SetValue(subCode)
+		e.ChildElement(Message).SetValue(message)
+		responseType=self.ContentNegotiation(environ,self.ErrorTypes)
+		if responseType is None:
+			# this is an error response, default to text/plain anyway
+			responseType=http.MediaType('text/plain')
+		elif responseType=="application/atom+xml":
+			# even if you didn't ask for it, you get application/xml in this case
+			responseType="application/xml"
+		if responseType=="application/json":
+			data=json.dumps(e,cls=ODataJSONEncoder)
+		else:
+			data=str(e)
+		responseHeaders.append(("Content-Type",str(responseType)))
+		responseHeaders.append(("Content-Length",len(data)))
+		start_response("%i %s"%(code,subCode),responseHeaders)
+		return [data]
+		
+	def HandleRequest(self,requestURI,environ,start_response,responseHeaders):
+		"""Handles a request that has been identified as being an OData request.
+		
+		*	*requestURI* is an :py:class:`ODataURI` instance with a non-empty resourcePath."""
+		focus=None
+		path=[]
+		for component in requestURI.navPath:
+			name,keyPredicate=component
+			if focus==None:
+				es=None
+				if name in self.defaultContainer:
+					es=self.defaultContainer[name]
+				else:
+					for s in self.model.DataServices.Schema:
+						if name in s:
+							es=s[name]
+							container=es.FindParent(edm.EntityContainer)
+							if container is self.defaultContainer:
+								es=None
+							break
+				if isinstance(es,edm.EntitySet):
+					if keyPredicate:
+						# the keyPredicate can be passed directly as the key
+						try:
+							focus=es[keyPredicate]
+							path=["%s(%s)"%(es.name,repr(focus.Key()))]
+						except KeyError,e:
+							return self.ODataError(environ,start_response,"KeyError",str(e),400)
+					else:
+						# return this entity set
+						focus=es.itervalues()
+						path.append(es.name)
+				else:
+					# Attempt to use the name of some other object type, bad request
+					return self.ODataError(environ,start_response,"Not found","Resource not found for component %s"%repr(name),404)
+			elif isinstance(focus,edm.EntityCollection):
+				# bad request, because the collection must be the last thing in the path
+				return self.ODataError(environ,start_response,"Bad Request","Resource not found for component %s since the object's parent is a collection"%repr(name),400)				
+			elif isinstance(focus,edm.Entity):
+				if name in focus:
+					# This is just a regular property name
+					raise NotImplementedError("property")
+				elif name=="$links":
+					raise NotImplementedError("$links")
+				elif name=="$value":
+					raise NotImplementedError("$value")
+				else:
+					# should be a navigation property
+					focus=focus.Navigate(name,keyPredicate if keyPredicate else None)
+					if isinstance(focus,edm.Entity):
+						# reset the path
+						path=["%s(%s)"%(es.name,repr(focus.Key()))]
+					else:
+						path.append(name)
+		path=string.join(path,'/')
+		if isinstance(focus,edm.EntityCollection):
+			return self.ReturnCollection(path,focus,environ,start_response,responseHeaders)
+		elif isinstance(focus,edm.Entity):
+			return self.ReturnEntity(path,focus,environ,start_response,responseHeaders)
+		elif focus is not None:
+			raise NotImplementedError("property value or media resource")
+		else:
+			# an empty navPath means we are trying to get the service root
+			wrapper=WSGIWrapper(environ,start_response,responseHeaders)
+			# super essentially allows us to pass a bound method of our parent
+			# that we ourselves are hiding.
+			return wrapper.call(super(Server,self).__call__)
+				
+	def ReturnCollection(self,path,entities,environ,start_response,responseHeaders):
+		"""Returns an EntityCollection, an iterable of Entity instances."""
+		f=atom.Feed(None)
+		f.MakePrefix(ODATA_DATASERVICES_NAMESPACE,u'd')
+		f.MakePrefix(ODATA_METADATA_NAMESPACE,u'm')
+		f.SetBase(str(self.serviceRoot))
+		f.ChildElement(atom.Title).SetValue(entities.GetTitle())
+		f.ChildElement(atom.AtomId).SetValue(str(self.serviceRoot)+path)
+		f.ChildElement(atom.Updated).SetValue(entities.GetUpdated())
+		for e in entities:
+			entry=f.ChildElement(atom.Entry)
+			entry.ChildElement(atom.AtomId).SetValue(str(self.serviceRoot)+path)		
+		# do stuff with the entries themselves, add link elements etc
+		responseType=self.ContentNegotiation(environ,self.FeedTypes)
+		if responseType is None:
+			return self.ODataError(environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
+		if responseType=="application/json":
+			data=json.dumps(f,cls=ODataJSONEncoder)
+		else:
+			# Here's a challenge, we want to pull data through the feed by yielding strings
+			# just load in to memory at the moment
+			data=str(f)
+		responseHeaders.append(("Content-Type",str(responseType)))
+		responseHeaders.append(("Content-Length",len(data)))
+		start_response("%i %s"%(200,"Success"),responseHeaders)
+		return [data]
+				
+	def ReturnEntity(self,path,entity,environ,start_response,responseHeaders):
+		"""Returns a single Entity."""
+		e=atom.Entry(None)
+		e.MakePrefix(ODATA_DATASERVICES_NAMESPACE,u'd')
+		e.MakePrefix(ODATA_METADATA_NAMESPACE,u'm')
+		e.SetBase(str(self.serviceRoot))
+		e.ChildElement(atom.AtomId).SetValue(str(self.serviceRoot)+path)		
+		# do stuff with the entries themselves, add link elements etc
+		responseType=self.ContentNegotiation(environ,self.EntryTypes)
+		if responseType is None:
+			return self.ODataError(environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
+		if responseType=="application/json":
+			data=json.dumps(e,cls=ODataJSONEncoder)
+		else:
+			# Here's a challenge, we want to pull data through the feed by yielding strings
+			# just load in to memory at the moment
+			data=str(e)
+		responseHeaders.append(("Content-Type",str(responseType)))
+		responseHeaders.append(("Content-Length",len(data)))
+		start_response("%i %s"%(200,"Success"),responseHeaders)
+		return [data]
+				
+	def ContentNegotiation(self,environ,mTypeList):
+		"""Given a list of media types, examines the Accept header and returns the best match.
+		
+		If there is no match then None is returned."""
+		if "HTTP_Accept" in environ:
+			try:
+				aList=http.AcceptList(environ["HTTP_Accept"])
+			except http.HTTPParameterError:
+				# we'll treat this as a missing Accept header
+				aList=self.DefaultAcceptList
+		else:
+			aList=self.DefaultAcceptList
+		return aList.SelectType(mTypeList)
+			
+	def CheckCapabilityNegotiation(self,environ,start_response,responseHeaders):
+		"""Sets the protocol version in *responseHeaders* if we can handle this request.
+		
+		Returns None if the application should continue to handle the request, otherwise
+		it returns an iterable object suitable for the wsgi return value.
+		
+		*	responseHeaders is a list which contains the proposed response headers.
+
+		In the event of a protocol version mismatch a "400 DataServiceVersion
+		mismatch" error response is generated."""
+		ua=sa=None
+		if "HTTP_DataServiceVersion" in environ:
+			major,minor,ua=ParseDataServiceVersion(environ["HTTP_DataServiceVersion"])
+		else:
+			major=2
+			minor=0
+		if "HTTP_MaxDataServiceVersion" in environ:
+			maxMajor,maxMinor,sa=ParseMaxDataServiceVersion(environ["HTTP_MaxDataServiceVersion"])
+		else:
+			maxMajor=major
+			maxMinor=minor
+		if major>2 or (major==2 and minor>0):
+			# we can't cope with this request
+			return self.ODataError(environ,start_response,"DataServiceVersionMismatch","Maximum supported protocol version: 2.0")
+		if maxMajor>=2:
+			responseHeaders.append(('DataServiceVersion','2.0; pyslet %s'%info.version))
+		else:
+			responseHeaders.append(('DataServiceVersion','1.0; pyslet %s'%info.version))
+		return None
+			
 	
 class Document(app.Document):
 	"""Class for working with OData documents."""
@@ -435,7 +1192,7 @@ class ODataStoreClient(edm.ERStore):
 				# use this as the name of the feed directly
 				# get the entity type from the entitySet definition
 				entitySet=self.defaultContainer[entitySetName]
-				entityType=self[entitySet.entityType]
+				entityType=self[entitySet.entityTypeName]
 				feedURL=uri.URIFactory.Resolve(self.client.serviceRoot,entitySetName)
 		if feedURL is None:
 			raise NotImplementedError("Entity containers other than the default") 

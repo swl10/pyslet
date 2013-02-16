@@ -9,18 +9,20 @@ import pyslet.xmlnames20091208 as xmlns
 import pyslet.rfc2396 as uri
 import pyslet.xsdatatypes20041028 as xsi
 from pyslet.vfs import OSFilePath
+import pyslet.iso8601 as iso8601
 
 import string, itertools, sqlite3, hashlib, StringIO, time, sys
-from types import StringTypes, StringType, UnicodeType, IntType, LongType
+from types import StringTypes, StringType, UnicodeType, IntType, LongType, TupleType, DictType
 
 
 EDM_NAMESPACE="http://schemas.microsoft.com/ado/2009/11/edm"		#: Namespace to use for CSDL elements
+EDM_NAMESPACE_ALIASES=[
+	"http://schemas.microsoft.com/ado/2006/04/edm",		#: CSDL Schema 1.0
+	"http://schemas.microsoft.com/ado/2007/05/edm",		#: CSDL Schema 1.1
+	"http://schemas.microsoft.com/ado/2008/09/edm"]		#: CSDL Schema 2.0
 
-EDM_NAMESPACE_ALIASES={
-	EDM_NAMESPACE: [
-		"http://schemas.microsoft.com/ado/2006/04/edm",		#: CSDL Schema 1.0
-		"http://schemas.microsoft.com/ado/2007/05/edm",		#: CSDL Schema 1.1
-		"http://schemas.microsoft.com/ado/2008/09/edm"]		#: CSDL Schema 2.0
+NAMESPACE_ALIASES={
+	EDM_NAMESPACE:EDM_NAMESPACE_ALIASES
 	}
 
 
@@ -33,6 +35,11 @@ def ValidateSimpleIdentifier(identifier):
 		return identifier
 	else:
 		raise ValueError("Can't parse SimpleIdentifier from :%s"%repr(identifier))
+
+
+class EDMError(Exception):
+	"""General exception for all CSDL model errors."""
+	pass
 
 
 class DuplicateName(Exception):
@@ -52,7 +59,19 @@ class IncompatibleNames(DuplicateName):
 	scope called simply "My" (and vice versa)."""
 	pass
 
+class ModelIncomplete(EDMError):
+	"""Raised when attempting to use model element with a missing reference.
+	
+	For example, attempting to create an :py:class:`Entity` in an
+	:py:class:`EntitySet` that is bound to an undeclared :py:class:`EntityType`.
+	
+	References are checked using :py:meth:`CSDLElement.UpdateTypeRefs` and
+	:py:meth:`CSDLElement.UpdateSetRefs` which, to increase tolerance of badly
+	defined schemas, ignore errors by default. Should an area of the model that
+	was incomplete be encountered later then ModelIncomplete will be raised."""
+	pass
 
+	
 class ContainerExists(Exception):
 	"""Raised by :py:meth:`ERStore.CreateContainer` when the container already
 	exists."""
@@ -61,13 +80,191 @@ class ContainerExists(Exception):
 
 class StorageError(Exception): pass
 
+class DictionaryLike(object):
+	"""A new-style class for behaving like a dictionary.
+	
+	Derived classes must override :py:meth:`__iter__` and :py:meth:`__getitem__`
+	and if the dictionary is writable :py:meth:`__setitem__` and probably
+	:py:meth:`__delitem__` too.  These methods all raise NotImplementedError by
+	default.
+	
+	They should also override :py:meth:`__len__` and :py:meth:`clear` as the
+	default implementations are inefficient."""
+	
+	def __getitem__(self,key):
+		"""Implements self[key]"""
+		raise NotImplementedError
+	
+	def __setitem__(self,key,value):
+		"""Implements assignment to self[key]"""
+		raise NotImplementedError
+		
+	def __delitem__(self,key):
+		"""Implements del self[key]"""
+		raise NotImplementedError
+	
+	def __iter__(self):
+		"""Returns an object that implements the iterable protocol on the keys"""
+		raise NotImplementedError
+				
+	def __len__(self):
+		"""Implements len(self)
+		
+		The default implementation simply counts the keys returned by __iter__
+		and should be overridden with a more efficient implementation if
+		available."""
+		count=0
+		for k in self:
+			count+=1
+		return count
+	
+	def __contains__(self,key):
+		"""Implements: key in self
+		
+		The default implementation uses __getitem__ and returns False if it
+		raises a KeyError."""
+		try:
+			e=self[key]
+			return True
+		except KeyError:
+			return False
+	
+	def iterkeys(self):
+		"""Returns an iterable of keys, simple calls __iter__"""
+		return self.__iter__()
 
-class NameTableMixin(object):
+	def itervalues(self):
+		"""Returns an iterable of values.
+		
+		The default implementation is a generator function that iterates over
+		the keys and uses __getitem__ to return the value."""
+		for k in self:
+			yield self[k] 
+		
+	def keys(self):
+		"""Returns a list of keys.
+		
+		This is a copy of the keys in no specific order.  Modifications to this
+		list do not affect the object.  The default implementation uses
+		:py:meth:`iterkeys`"""
+		return list(self.iterkeys())
+	
+	def values(self):
+		"""Returns a list of values.
+		
+		This is a copy of the values in no specific order.  Modifications to
+		this list do not affect the object.  The default implementation uses
+		:py:meth:`itervalues`."""
+		return list(self.itervalues())
+
+	def iteritems(self):
+		"""Returns an iterable of key,value pairs.
+		
+		The default implementation is a generator function that uses
+		:py:meth:`__iter__` and __getitem__"""
+		for k in self:
+			yield k,self[k]
+
+	def items(self):
+		"""Returns a list of key,value pair tuples.
+
+		This is a copy of the items in no specific order.  Modifications to this
+		list do not affect the object.  The default implementation users
+		:py:class:`iteritems`."""
+		return list(self.iteritems())
+	
+	def has_key(self,key):
+		"""Equivalent to: key in self"""
+		return key in self
+	
+	def get(self,key,default=None):
+		"""Equivalent to: self[key] if key in self else default.
+		
+		Implemented using __getitem__"""
+		try:
+			return self[key]
+		except KeyError:
+			return default
+	
+	def setdefault(self,key,value=None):
+		"""Equivalent to: self[key] if key in self else value; ensuring
+		self[key]=value
+
+		Implemented using __getitem__ and __setitem__."""
+		try:
+			e=self[key]
+			return e
+		except KeyError:
+			self[key]=value
+			return value
+	
+	def pop(self,key,value=None):
+		"""Equivalent to: self[key] if key in self else value; ensuring key not
+		in self.
+
+		Implemented using __getite__ and __delitem__."""
+		try:
+			e=self[key]
+			del self[key]
+			return e
+		except KeyError:
+			return value
+
+	def clear(self):
+		"""Removes all items from the object.
+		
+		The default implementation uses :py:meth:`keys` and deletes the items
+		one-by-one with __delitem__.  It does this to avoid deleting objects
+		while iterating as the results are generally undefined.  A more
+		efficient implementation is recommended."""
+		for k in self.keys():
+			del self[k]
+
+	def popitem(self):
+		"""Equivalent to: self[key] for some random key; removing key.
+		
+		This is a rather odd implementation but to avoid iterating over the
+		whole object we create an iterator with __iter__, use __getitem__ and
+		__delitem__ to pop the first item and then discard the iterator."""
+		for k in self:
+			value=self[k]
+			del self[k]
+			return k,value
+		raise KeyError
+				
+	def bigclear(self):
+		"""Removes all the items from the object (alternative for large
+		dictionary-like objects).
+		
+		This is an alternative implementation more suited to objects with very
+		large numbers of keys.  It uses :py:meth:`popitem` repeatedly until
+		KeyError is raised.  The downside is that popitem creates (and discards)
+		one iterator object for each item it removes.  The upside is that we
+		never load the list of keys into memory."""
+		try:
+			while True:
+				self.popitem()
+		except KeyError:
+			pass
+		
+	def copy(self):
+		"""Makes a shallow copy of this object: raises NotImplementedError."""
+		raise NotImplementedError
+
+	def update(self,items):
+		"""Calls clear to remove items and then iterates through *items* using
+		__setitem__ to add them to the set."""
+		self.clear()
+		for key,value in items:
+			self[key]=value
+
+	
+class NameTableMixin(DictionaryLike):
 	"""A mix-in class to help other objects become named scopes.
 	
-	Using this mix-in the class behaves like a named dictionary with string keys
-	and object value.  If the dictionary contains a value that is itself a
-	NameTableMixin then keys can be compounded to look-up items in
+	Using this mix-in the class behaves like a read-only named dictionary with
+	string keys and object value.  If the dictionary contains a value that is
+	itself a NameTableMixin then keys can be compounded to look-up items in
 	sub-scopes.
 	
 	For example, if the name table contains a value with key "X"
@@ -78,25 +275,6 @@ class NameTableMixin(object):
 		self.name=""			#: the name of this name table (in the context of its parent)
 		self.nameTable={}		#: a dictionary mapping names to child objects
 	
-	def __len__(self):
-		"""Returns the total number of names in this scope, including the sum of
-		the lengths of all child scopes."""
-		count=len(self.nameTable)
-		for value in self.nameTable.itervalues():
-			if isinstance(value,NameTableMixin):
-				count=count+len(value)
-		return count
-	
-	def SplitKey(self,key):
-		sKey=key.split(".")
-		pathLen=1
-		while pathLen<len(sKey):
-			scope=self.nameTable.get(string.join(sKey[:pathLen],"."),None)
-			if isinstance(scope,NameTableMixin):
-				return scope,string.join(sKey[pathLen:],".")
-			pathLen+=1
-		return None,key
-		
 	def __getitem__(self,key):
 		"""Looks up *key* in :py:attr:`nameTable` and, if not found, in each
 		child scope with a name that is a valid scope prefix of key.  For
@@ -112,12 +290,24 @@ class NameTableMixin(object):
 		else:
 			return result
 			
-	def __setitem__(self,key,value):
-		"""Raises NotImplementedError.
+	def __iter__(self):
+		for key in self.nameTable:
+			yield key
+		for value in self.nameTable.itervalues():
+			if isinstance(value,NameTableMixin):
+				for key in value:
+					yield value.name+"."+key
+				
+	def SplitKey(self,key):
+		sKey=key.split(".")
+		pathLen=1
+		while pathLen<len(sKey):
+			scope=self.nameTable.get(string.join(sKey[:pathLen],"."),None)
+			if isinstance(scope,NameTableMixin):
+				return scope,string.join(sKey[pathLen:],".")
+			pathLen+=1
+		return None,key
 		
-		To add items to the name table you must use the :py:meth:`Declare` method."""
-		raise NotImplementedError
-
 	def Declare(self,value):
 		"""Declares a value in this name table.
 		
@@ -144,86 +334,7 @@ class NameTableMixin(object):
 			del self.nameTable[value.name]
 		else:
 			raise KeyError("%s not declared in scope %s"%(value.name,self.name))
-		
-	def __delitem__(self,key):
-		"""Raises NotImplementedError.
-		
-		To remove a name from the name table you must use the
-		:py:meth:`Undeclare` method."""
-		raise NotImplementedError
-	
-	def __iter__(self):
-		for key in self.nameTable:
-			yield key
-		for value in self.nameTable.itervalues():
-			if isinstance(value,NameTableMixin):
-				for key in value:
-					yield value.name+"."+key
-				
-	def __contains__(self,key):
-		result=self.nameTable.get(key,None)
-		if result is None:
-			scope,key=self.SplitKey(key)
-			if scope is not None:
-				return key in scope
-			return False					
-		else:
-			return True
-	
-	iterkeys=__iter__
-
-	def keys(self):
-		return list(self.iterkeys())
-
-	def itervalues(self):
-		for value in self.nameTable.itervalues():
-			yield value
-		for value in self.nameTable.itervalues():
-			if isinstance(value,NameTableMixin):
-				for v in value:
-					yield v
-	
-	def values(self):
-		return list(self.itervalues())
-
-	def iteritems(self):
-		for item in self.nameTable.iteritems():
-			yield item
-		for value in self.nameTable.itervalues():
-			if isinstance(value,NameTableMixin):
-				for item in value.iteritems():
-					yield value.name+"."+item[0],item[1]
-
-	def items(self):
-		return list(self.iteritems())
-	
-	def has_key(self,key):
-		return key in self
-	
-	def get(self,key,default=None):
-		try:
-			return self[key]
-		except KeyError:
-			return default
-	
-	def clear(self):
-		raise NotImplementedError
-
-	def setdefault(self,k,x=None):
-		raise NotImplementedError
-	
-	def pop(self,k,x=None):
-		raise NotImplementedError
-
-	def popitem(self):
-		raise NotImplementedError
-		
-	def copy(self):	
-		raise NotImplementedError
-
-	def update(self):
-		raise NotImplementedError
-
+			
 
 class SimpleType(xsi.Enumeration):
 	"""SimpleType defines constants for the core data types defined by CSDL
@@ -232,7 +343,16 @@ class SimpleType(xsi.Enumeration):
 		SimpleType.boolean	
 		SimpleType.DEFAULT == None
 
-	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`
+	
+	[Aside: I'm not that happy with this definition.  In order to ensure that
+	the encode function produces the "Edm.X" form of the name the deocde
+	dictionary is initialised with these forms.  As a result, the class has
+	attributes of the form "SimpleType.Edm.Binary" which are inaccessible to
+	python unless getattr is used.  To workaround this problem (and because the
+	Edm. prefix seems to be optional) we also define aliases without the Edm.
+	prefix. As a result, you can use SimpleType.Binary as the symbolic (integer)
+	representation of the enumeration value.]"""
 	decode={
 		'Edm.Binary':1,
 		'Edm.Boolean':2,
@@ -268,7 +388,50 @@ xsi.MakeEnumerationAliases(SimpleType,{
 	'Time':'Edm.Time',
 	'DateTimeOffset':'Edm.DateTimeOffset'})
 xsi.MakeLowerAliases(SimpleType)
+
+
+class Parser(xsi.BasicParser):
+	"""A CSDL-specific parser, mainly for decoding literal values of simple types.
 	
+	These productions are documented using the ABNF from the OData
+	specification. Clearly they should match the requirements of the CSDL
+	document itself."""
+	
+	def ParseBinaryLiteral(self):
+		"""Parses a binary literal, returning a raw binary string::
+		
+		binaryLiteral = hexDigPair
+		hexDigPair = 2*HEXDIG [hexDigPair]"""		
+		output=[]
+		hexStr=self.ParseHexDigits(0)
+		if hexStr is None:
+			return ''
+		if len(hexStr)%2:
+			raise ValueError("Trailing nibble in binary literal: '%s'"%hexStr[-1])
+		i=0
+		while i<len(hexStr):
+			output.append(chr(int(hexStr[i:i+2],16)))
+			i=i+2
+		return string.join(output,'')
+	
+	def ParseBooleanLiteral(self):
+		"""Parses a boolean literal returning True, False or None if no boolean
+		literal was found."""
+		if self.ParseInsensitive("true"):
+			return True
+		elif self.ParseInsensitive("false"):
+			return False
+		else:
+			return None
+
+	def ParseByteLiteral(self):
+		"""Parses a byteLiteral, returning a python integer.
+		
+		We are generous in what we accept, ignoring leading zeros.  Values
+		outside the range for byte return None."""
+		return self.ParseInteger(0,255)
+
+				
 """
 String allows any sequence of UTF-8 characters.
 Int allows content in the following form: [-] [0-9]+.
@@ -278,47 +441,15 @@ Decimal allows content in the following form: [0-9]+.[0-9]+M|m.
 def DecodeBinary(value):
 	"""Binary allows content in the following form: [A-Fa-f0-9][A-Fa-f0-9]*.
 
-	String types are parsed from hex strings as per the above format, everything
-	else is converted to a unicode string and is then encoded with utf-8.
-
-	The result is always a byte string."""
-	if type(value) in StringTypes:
-		input=StringIO.StringIO(value)
-		output=StringIO.StringIO()
-		while True:
-			hexString=''
-			while len(hexString)<2:			
-				hexByte=input.read(1)
-				if len(hexByte):
-					if uri.IsHex(hexByte):
-						hexString=hexString+hexByte
-					elif xmlns.IsS(hexByte):
-						# generous in ignoring spaces
-						continue
-					else:
-						raise ValueError("Illegal character in binary string: %s"%repr(hexByte))
-				elif len(hexString)==1:
-					raise ValueError("Odd hex-digit found in binary string")
-				else:
-					break
-			if hexString:
-				output.write(chr(int(hexString,16)))
-			else:
-				break
-			return output.getvalue()
-	else:
-		raise ValueError("String type required: %s"%repr(value))
+	Input must be a string (either unicode or raw, both are treated as
+	hex-strings. The result is always a byte string."""
+	p=Parser(value)
+	return p.RequireProductionEnd(p.ParseBinaryLiteral(),"binaryLiteral")
 
 def EncodeBinary(value):
-	"""If value is a binary string, outputs a unicode string containing a hex representation.
-	
-	If value is a unicode string then it is assumed to be a hex string and is validated
-	as such."""
+	"""If value is a byte string, outputs a unicode string containing a hex representation."""
 	if type(value) is not StringType:
-		if type(value) is UnicodeType:
-			value=DecodeBinary(value)
-		else:
-			ValueError("String or Unicode type required: %s"%repr(value))
+		ValueError("String type required: %s"%repr(value))
 	input=StringIO.StringIO(value)
 	output=StringIO.StringIO()
 	while True:
@@ -331,27 +462,14 @@ def EncodeBinary(value):
 
 
 def DecodeBoolean(value):
-	"""Bool allows content in the following form: true | false.
-
-	The result is always one of True or False."""
-	if type(value) in StringTypes:
-		sValue=value.strip().lower()
-		if sValue=="true":
-			return True
-		elif sValue=="false":
-			return False
-		else:
-			raise ValueError("Illegal value for Edm.Boolean: %s"%value)
-	else:
-		raise ValueError("String type required: %s"%repr(value))
-		
+	"""Bool allows content in the following form: true | false."""
+	p=Parser(value)
+	return p.RequireProductionEnd(p.ParseBooleanLiteral(),"booleanLiteral")
 
 def EncodeBoolean(value):
 	"""Returns one of 'true' or 'false'.
 	
-	String types are decoded, other types are tested for non-zero."""
-	if type(value) in StringTypes:
-		value=DecodeBoolean(value)
+	The result is "true" if value tests non-zero."""
 	if value:
 		return u"true"
 	else:
@@ -359,21 +477,12 @@ def EncodeBoolean(value):
 
 
 def DecodeByte(value):
-	"""Special case of int; Int allows content in the following form: [-] [0-9]+.
+	"""Special case of int: Int allows content in the following form: [-] [0-9]+.
 	
-	String types are parsed using XML schema's rules, everything else is
-	coerced to int using Python's built-in function.
-	
-	Values outside of the allowable range for byte [0-255] raise ValueError.
-	
-	The result is a python int."""
-	if type(value) in StringTypes:
-		byteValue=xsi.DecodeInteger(value)
-	else:
-		byteValue=int(value)
-	if byteValue<0 or byteValue>255:
-		raise ValueError("Illegal value for byte: %i"%byteValue)
-	return byteValue	 
+	The result is a python int.  Values outside of the allowable range for byte
+	[0-255] raise ValueError."""
+	p=Parser(value)
+	return p.RequireProductionEnd(p.ParseByteLiteral(),"byteLiteral")
 
 def EncodeByte(value):
 	"""Returns a unicode string representation of *value*"""
@@ -384,9 +493,7 @@ def DecodeDateTime(value):
 	"""DateTime allows content in the following form: yyyy-mm-ddThh:mm[:ss[.fffffff]].
 	
 	The result is an :py:class:`iso8601.TimePoint` instance representing a time
-	with an unspecified zone.  If a zone is given then ValueError is raised.
-	
-	If value is numeric it is treated as a unix time."""
+	with an unspecified zone.  If a zone is given then ValueError is raised."""
 	if type(value) in StringTypes:
 		dtValue=iso8601.TimePoint(value)
 		zDir,zOffset=dtValue.GetZone()
@@ -396,7 +503,7 @@ def DecodeDateTime(value):
 		try:
 			uValue=float(value)
 			if uValue>0:
-				dtValue=iso8601()
+				dtValue=iso8601.TimePoint()
 				dtValue.SetUnixTime(uValue)
 				dtValue.SetZone(None)
 			else:
@@ -583,7 +690,34 @@ SimpleTypeCodec={
 	
 
 class CSDLElement(xmlns.XMLNSElement):
-	pass
+	
+	def UpdateTypeRefs(self,scope,stopOnErrors=False):
+		"""Called on a type definition, or type containing object to update all
+		its inter-type references.
+		
+		*	scope is the :py:class:`NameTableMixin` object *containing* the
+			top-level :py:class:`Schema` object(s).
+
+		*	stopOnErrors determines the handling of missing keys.  If
+			stopOnErrors is False missing keys are ignored (internal object
+			references are set to None).  If stopOnErrors is True KeyError is
+			raised.
+			 
+		The CSDL model makes heavy use of named references between objects. The
+		purpose of this method is to use the *scope* object to look up
+		inter-type references and to set or update any corresponding internal
+		object references."""
+		pass
+
+	def UpdateSetRefs(self,scope,stopOnErrors=False):
+		"""Called on a set declaration, or set containing object to update all
+		its inter-object references.
+		
+		This method works in a very similar way to :py:meth:`UpdateTypeRefs` but
+		it is called afterwards.  This two-pass approach ensures that set
+		declarations are linked after *all* type definitions have been updated
+		in all schemas that are in scope."""
+		pass
 
 
 class Using(CSDLElement):
@@ -591,6 +725,8 @@ class Using(CSDLElement):
 
 
 class Property(CSDLElement):
+	"""Models a property of an :py:class:`EntityType` or :py:class:`ComplexType`."""
+
 	XMLNAME=(EDM_NAMESPACE,'Property')
 
 	XMLATTR_Name='name'
@@ -609,13 +745,14 @@ class Property(CSDLElement):
 
 	def __init__(self,parent):
 		CSDLElement.__init__(self,parent)
-		self.name="Default"
-		self.type="Edm.String"
-		self.typeCode=None
-		self.nullable=True
-		self.defaultValue=None
-		self.maxLength=None
-		self.fixedLength=None
+		self.name="Default"			#: the declared name of the property
+		self.type="Edm.String"		#: the name of the property's type
+		self.simpleTypeCode=None	#: one of the :py:class:`SimpleType` constants if the property has a simple type
+		self.complexType=None		#: the associated :py:class:`ComplexType` if the property has a complex type
+		self.nullable=True			#: if the property may have a null value
+		self.defaultValue=None		#: a string containing the default value for the property or None if no default is defined
+		self.maxLength=None			#: the maximum length permitted for property values 
+		self.fixedLength=None		#: a boolean indicating that the property must be of length :py:attr:`maxLength`
 		self.precision=None
 		self.scale=None
 		self.unicode=None
@@ -636,42 +773,49 @@ class Property(CSDLElement):
 			CSDLElement.GetChildren(self)):
 			yield child
 
-	def ContentChanged(self):		
-		super(Property,self).ContentChanged()
+	def UpdateTypeRefs(self,scope,stopOnErrors=False):
+		"""Sets :py:attr:`simpleTypeCode` and :py:attr:`complexType`."""
 		try:
-			self.typeCode=SimpleType.DecodeLowerValue(self.type)
+			self.simpleTypeCode=SimpleType.DecodeLowerValue(self.type)
+			self.complexType=None
 		except ValueError:
 			# must be a complex type defined elsewhere
-			self.typeCode=None
-
+			self.simpleTypeCode=None
+			try:
+				self.complexType=scope[self.type]
+				if not isinstance(self.complexType,ComplexType):
+					raise KeyError("%s is not a simple or ComplexType"%self.type)
+			except KeyError:
+				self.complexType=None		
+				if stopOnErrors:
+					raise
+		
 	def DecodeValue(self,value):
 		"""Decodes a value from a string used in a serialised form.
 		
-		The returned type depends on the property's :py:attr:`typeCode`."""
+		The returned type depends on the property's :py:attr:`simpleTypeCode`."""
 		if value is None:
 			return None
-		decoder,encoder=SimpleTypeCodec.get(self.typeCode,(None,None))
+		decoder,encoder=SimpleTypeCodec.get(self.simpleTypeCode,(None,None))
 		if decoder is None:
 			# treat as per string
 			return value
 		else:
 			return decoder(value)
 
-
 	def EncodeValue(self,value):
 		"""Encodes a value as a string ready to use in a serialised form.
 		
-		The input type depends on the property's :py:attr:`typeCode`"""
+		The input type depends on the property's :py:attr:`simpleTypeCode`"""
 		if value is None:
 			return None
-		decoder,encoder=SimpleTypeCodec.get(self.typeCode,(None,None))
+		decoder,encoder=SimpleTypeCodec.get(self.simpleTypeCode,(None,None))
 		if encoder is None:
 			# treat as per string
 			return value
 		else:
 			return encoder(value)
 				
-			
 	def UpdateFingerprint(self,h):
 		h.update("Property:")
 		h.update(self.name)
@@ -694,10 +838,13 @@ class NavigationProperty(CSDLElement):
 	
 	def __init__(self,parent):
 		CSDLElement.__init__(self,parent)
-		self.name="Default"
-		self.relationship=None
-		self.toRole=None
-		self.fromRole=None
+		self.name="Default"		#: the declared name of the navigation property
+		self.relationship=None	#: the name of the association described by this link
+		self.association=None	#: the :py:class:`Association` described by this link 
+		self.fromRole=None		#: the name of this link's source role
+		self.toRole=None		#: the name of this link's target role
+		self.fromEnd=None		#: the :py:class:`AssociationEnd` instance representing this link's source
+		self.toEnd=None			#: the :py:class:`AssociationEnd` instance representing this link's target
 		self.Documentation=None
 		self.TypeAnnotation=[]
 		self.ValueAnnotation=[]
@@ -710,6 +857,25 @@ class NavigationProperty(CSDLElement):
 			CSDLElement.GetChildren(self)):
 			yield child
 
+	def UpdateTypeRefs(self,scope,stopOnErrors=False):
+		"""Sets :py:attr:`association`, :py:attr:`fromEnd` and :py:attr:`toEnd`."""
+		# must be a complex type defined elsewhere
+		self.association=self.fromEnd=self.toEnd=None
+		try:
+			self.association=scope[self.relationship]
+			if not isinstance(self.association,Association):
+				raise KeyError("%s is not an association"%self.relationship)
+			self.fromEnd=self.association[self.fromRole]
+			if self.fromEnd is None or not isinstance(self.fromEnd,AssociationEnd):
+				raise KeyError("%s is not a valid end-point for %s"%(self.fromRole,self.relationship))
+			self.toEnd=self.association[self.toRole]
+			if self.toEnd is None or not isinstance(self.toEnd,AssociationEnd):
+				raise KeyError("%s is not a valid end-point for %s"%(self.fromRole,self.relationship))
+		except KeyError:
+			self.association=self.fromEnd=self.toEnd=None
+			if stopOnErrors:
+				raise
+		
 	def UpdateFingerprint(self,h):
 		h.update("NavigationProperty:")
 		h.update(self.name)
@@ -727,7 +893,14 @@ class Key(CSDLElement):
 
 	def __init__(self,parent):
 		CSDLElement.__init__(self,parent)
-		self.PropertyRef=[]	
+		self.PropertyRef=[]
+
+	def GetChildren(self):
+		for child in self.PropertyRef: yield child
+
+	def UpdateTypeRefs(self,scope,stopOnErrors=False):
+		for pr in self.PropertyRef:
+			pr.UpdateTypeRefs(scope,stopOnErrors)
 
 	def UpdateFingerprint(self,h):
 		h.update("Key:")
@@ -735,8 +908,6 @@ class Key(CSDLElement):
 			pr.UpdateFingerprint(h)
 		h.update(";")
 
-	def GetChildren(self):
-		for child in self.PropertyRef: yield child
 
 
 class PropertyRef(CSDLElement):
@@ -746,7 +917,23 @@ class PropertyRef(CSDLElement):
 
 	def __init__(self,parent):
 		CSDLElement.__init__(self,parent)
-		self.name='Default'
+		self.name='Default'		#: the name of this (key) property
+		self.property=None		#: the :py:class:`Property` instance of this (key) property
+
+	def UpdateTypeRefs(self,scope,stopOnErrors=False):
+		"""Sets :py:attr:`property`"""
+		self.property=None
+		try:
+			typeDef=self.FindParent(EntityType)
+			if typeDef is None:
+				raise KeyError("PropertyRef %s has no parent EntityType"%self.name)
+			self.property=typeDef[self.name]
+			if not isinstance(self.property,Property):
+				raise KeyError("%s is not a Property"%self.name)
+		except KeyError:
+			self.property=None
+			if stopOnErrors:
+				raise
 
 	def UpdateFingerprint(self,h):
 		h.update(self.name)
@@ -761,8 +948,8 @@ class Type(NameTableMixin,CSDLElement):
 	def __init__(self,parent):
 		CSDLElement.__init__(self,parent)
 		NameTableMixin.__init__(self)
-		self.name="Default"
-		self.baseType=None
+		self.name="Default"		#: the declared name of this type
+		self.baseType=None		#: the name of the base-type for this type
 		self.abstract=False
 		self.Documentation=None
 		self.Property=[]
@@ -782,6 +969,10 @@ class Type(NameTableMixin,CSDLElement):
 		for p in self.Property:
 			self.Declare(p)
 
+	def UpdateTypeRefs(self,scope,stopOnErrors=False):
+		for p in self.Property:
+			p.UpdateTypeRefs(scope,stopOnErrors)
+		
 		
 class EntityType(Type):
 	XMLNAME=(EDM_NAMESPACE,'EntityType')
@@ -816,6 +1007,13 @@ class EntityType(Type):
 		h.update(";")
 		for p in self.Property+self.NavigationProperty:
 			p.UpdateFingerprint(h)
+
+	def UpdateTypeRefs(self,scope,stopOnErrors=False):
+		super(Type,self).UpdateTypeRefs(scope,stopOnErrors)
+		for p in self.NavigationProperty:
+			p.UpdateTypeRefs(scope,stopOnErrors)
+		self.Key.UpdateTypeRefs(scope,stopOnErrors)
+
 	
 class ComplexType(Type):
 	XMLNAME=(EDM_NAMESPACE,'ComplexType')
@@ -847,22 +1045,34 @@ def EncodeMultiplicity(value):
 	return Multiplicity.Encode.get(value,'')
 
 
-class Association(CSDLElement):
+class Association(NameTableMixin,CSDLElement):
+	"""Models an association; behaves as dictionary of AssociationEnd keyed on role name."""
 	XMLNAME=(EDM_NAMESPACE,'Association')
 	XMLATTR_Name='name'
 
 	def __init__(self,parent):
-		super(Association,self).__init__(parent)
-		self.name="Default"
+		NameTableMixin.__init__(self)
+		CSDLElement.__init__(self,parent)
+		self.name="Default"			#: the name declared for this association
 		self.Documentation=None
-		self.End=[]
+		self.AssociationEnd=[]
 		self.ReferentialConstraint=None
 		self.TypeAnnotation=[]
 		self.ValueAnnotation=[]
+	
+	def GetElementClass(self,name):
+		if xmlns.NSEqualNames((EDM_NAMESPACE,'End'),name,EDM_NAMESPACE_ALIASES):
+			return AssociationEnd
+		else:
+			return None
+		
+	def ContentChanged(self):
+		for ae in self.AssociationEnd:
+			self.Declare(ae)
 		
 	def GetChildren(self):
 		if self.Documentation: yield self.Documentation
-		for child in self.End: yield child
+		for child in self.AssociationEnd: yield child
 		if self.ReferentialConstraint: yield self.ReferentialConstraint
 		for child in itertools.chain(
 			self.TypeAnnotation,
@@ -874,22 +1084,28 @@ class Association(CSDLElement):
 		h.update("Association:")
 		h.update(self.name)
 		h.update(";")
-		for e in self.End:
+		for e in self.AssociationEnd:
 			e.UpdateFingerprint(h)
 
+	def UpdateTypeRefs(self,scope,stopOnErrors=False):
+		for iEnd in self.AssociationEnd:
+			iEnd.UpdateTypeRefs(scope,stopOnErrors)
+
 			
-class End(CSDLElement):
-	XMLNAME=(EDM_NAMESPACE,'End')
+class AssociationEnd(CSDLElement):
+	# XMLNAME=(EDM_NAMESPACE,'End')
 	
+	XMLATTR_Role='name'
 	XMLATTR_Type='type'
-	XMLATTR_Role='role'
 	XMLATTR_Multiplicity=('multiplicity',DecodeMultiplicity,EncodeMultiplicity)
 	
 	def __init__(self,parent):
 		CSDLElement.__init__(self,parent)
-		self.type=None
-		self.role=None
-		self.multiplicity=1
+		self.name=None			#: the role-name given to this end of the link
+		self.type=None			#: name of the entity type this end links to
+		self.entityType=None	#: :py:class:`EntityType` this end links to
+		self.multiplicity=1		#: a :py:class:`Multiplicity` constant
+		self.otherEnd=None		#: the other :py:class:`AssociationEnd` of this link
 		self.Documentation=None
 		self.OnDelete=None
 	
@@ -904,6 +1120,25 @@ class End(CSDLElement):
 		h.update(";")
 		h.update(EncodeMultiplicity(self.multiplicity))
 
+	def UpdateTypeRefs(self,scope,stopOnErrors=False):
+		"""Sets :py:attr:`entityType` and :py:attr:`otherEnd`."""
+		try:
+			self.entityType=self.otherEnd=None
+			self.entityType=scope[self.type]
+			if not isinstance(self.entityType,EntityType):
+				raise "AssociationEnd not bound to EntityType (%s)"%self.type
+			if not isinstance(self.parent,Association) or not len(self.parent.AssociationEnd)==2:
+				raise ModelIncomplete("AssociationEnd has missing or incomplete parent (Role=%s)"%self.name)
+			for iEnd in self.parent.AssociationEnd:
+				if iEnd is self:
+					continue
+				else:
+					self.otherEnd=iEnd
+		except KeyError:
+			self.entityType=self.otherEnd=None
+			if stopOnErrors:
+				raise
+
 
 class EntityContainer(NameTableMixin,CSDLElement):
 	XMLNAME=(EDM_NAMESPACE,'EntityContainer')
@@ -914,7 +1149,7 @@ class EntityContainer(NameTableMixin,CSDLElement):
 	def __init__(self,parent):
 		CSDLElement.__init__(self,parent)
 		NameTableMixin.__init__(self)
-		self.name="Default"
+		self.name="Default"			#: the declared name of the container
 		self.Documentation=None
 		self.FunctionImport=[]
 		self.EntitySet=[]
@@ -925,9 +1160,9 @@ class EntityContainer(NameTableMixin,CSDLElement):
 	def GetChildren(self):
 		if self.Documentation: yield self.Documentation
 		for child in itertools.chain(
-			self.FunctionImport,
 			self.EntitySet,
 			self.AssociationSet,
+			self.FunctionImport,
 			self.TypeAnnotation,
 			self.ValueAnnotation,
 			CSDLElement.GetChildren(self)):
@@ -944,17 +1179,143 @@ class EntityContainer(NameTableMixin,CSDLElement):
 		for t in self.EntitySet+self.AssociationSet:
 			t.UpdateFingerprint(h)
 
+	def UpdateSetRefs(self,scope,stopOnErrors=False):
+		for child in self.FunctionImport+self.EntitySet+self.AssociationSet:
+			child.UpdateSetRefs(scope,stopOnErrors)
+		for child in self.EntitySet:
+			child.UpdateNavigation()
+			
 
-class EntitySet(CSDLElement):
+class Entity(DictionaryLike):
+	"""Represents a single instance of an :py:class:`EntityType`.
+	
+	*	eSet is the entity set this entity belongs to
+	
+	Behaves like a dictionary mapping property names onto values."""
+	def __init__(self,entitySet):
+		self.entitySet=entitySet
+		self.entityType=entitySet.entityType
+		if self.entityType is None:
+			raise ModelIncomplete("Unbound EntitySet: %s (%s)"%(self.entitySet.name,self.entitySet.entityTypeName))
+		self.data={}
+		for p in self.entityType.Property:
+			self.data[p.name]=None
+		
+	def Key(self):
+		"""Returns the entity key as a single value or a tuple of values for
+		compound keys.
+		
+		The order of the values is the order of the PropertyRef definitions
+		in the associated EntityType's :py:class:`Key`."""
+		if len(self.entityType.Key.PropertyRef)==1:
+			return self[self.entityType.Key.PropertyRef[0].name]
+		else:
+			k=[]
+			for pRef in self.entityType.Key.PropertyRef:
+				k.append(self[pRef.name])
+			return tuple(k)
+	
+	def Navigate(self,name,key):
+		"""Returns an Entity or an EntityCollection by following the named navigation property."""
+		try:
+			linkEnd=self.entitySet.GetLinkEnd(name)
+			return linkEnd.Navigate(self.Key(),key)
+		except KeyError:
+			if name in self.entityType:
+				np=self.entityType[name]
+				if isinstance(np,NavigationProperty):
+					# This should have worked but the link must be incomplete
+					raise ModelIncomplete("Unbound NavigationProperty: %s (%s)"%(np.name,np.relationship))
+			raise
+				
+	def __getitem__(self,name):
+		"""Returns the value corresponding to property *name*."""
+		return self.data[name]
+	
+	def __setitem__(self,name,value):
+		"""Sets the value of the property *name*.
+		
+		If name is not the name of a recognized property KeyError is raised."""
+		if name in self.data:
+			self.data[name]=value
+		else:
+			raise KeyError("%s is not a property of %s"%(name,self.entityType.name))
+			
+	def __iter__(self):
+		"""Iterates over the property names in the order they are declared in the EntityType."""
+		for p in self.entityType.Property:
+			yield p.name
+				
+	def __len__(self):
+		"""Returns the number of properties in the entity."""
+		return len(self.entityType.Property)
+
+	def update(self,items):
+		"""Overridden to remove the call to clear"""
+		for key,value in items:
+			self[key]=value
+		
+	
+class EntityCollection(object):
+	"""An iterable of :py:class:`Entity` instances.
+	
+	Initialised with an entity set to iterate over, parent provides a contextual
+	filter for the entity set."""
+	def __init__(self,es):
+		self.parent=None
+		self.es=es		
+	
+	def __iter__(self):
+		return self
+		
+	def GetTitle(self):
+		"""Returns the title of the entity set."""
+		return self.es.name
+	
+	def GetUpdated(self):
+		"""Returns a TimePoint indicating when this collection was last updated (defaults to now)."""
+		updated=iso8601.TimePoint()
+		updated.Now()
+		return updated			
+
+	def next(self):
+		raise NotImplementedError
+		
+		
+class EntitySet(DictionaryLike,CSDLElement):
+	"""Behaves like a python dictionary of :py:class:`Entity` instances.
+	
+	The dictionary keys are either single values of the key property or tuples
+	in the case of compound keys.  The order of the values in the tuple is taken
+	from the order of the PropertyRef definitions in the Key.
+	
+	A tuple containing a single value used as a key is treated as of just the
+	value had been used.
+	
+	A dictionary containing mappings from property names to values can also be
+	used as a key in which case the key is calculated from it by extracting the
+	key properties.  As a special case, a value mapped with the empty string is
+	assumed to be the value of the key property for entity types with a
+	single-valued key.
+	
+	Derived classes must override :py:meth:`__getitem__`, :py:meth:`__setitem__`,
+	:py:meth:`__delitem__`.
+	
+	The should also override :py:meth:`__len__` and :py:meth:`clear` as the
+	default implementations are inefficient."""
 	XMLNAME=(EDM_NAMESPACE,'EntitySet')	
 	XMLATTR_Name=('name',ValidateSimpleIdentifier,None)
-	XMLATTR_EntityType='entityType'
+	XMLATTR_EntityType='entityTypeName'
 	XMLCONTENT=xmlns.ElementType.ElementContent
 
+	EntityCollectionClass=EntityCollection	#: the class to use for representing entity collections
+	
 	def __init__(self,parent):
 		super(EntitySet,self).__init__(parent)
-		self.name="Default"
-		self.entityType=""
+		self.name="Default"			#: the declared name of the entity set
+		self.entityTypeName=""		#: the name of the entity type of this set's elements 
+		self.entityType=None		#: the :py:class:`EntityType` of this set's elements
+		self.navigation={}			#: a mapping from navigation property names to AssociationSetEnd instances
 		self.Documentation=None
 		self.TypeAnnotation=[]
 		self.ValueAnnotation=[]
@@ -967,14 +1328,226 @@ class EntitySet(CSDLElement):
 			CSDLElement.GetChildren(self)):
 			yield child		
 		
+	def UpdateSetRefs(self,scope,stopOnErrors=False):
+		"""Sets :py:attr:`entityType`"""
+		try:
+			self.entityType=scope[self.entityTypeName]
+			if not isinstance(self.entityType,EntityType):
+				raise KeyError("%s is not an EntityType"%self.entityTypeName)
+		except KeyError:
+			self.entityType=None
+			if stopOnErrors:
+				raise
+	
+	def UpdateNavigation(self):
+		"""Called after UpdateTypeRefs once references have been updated for all
+		association sets in this container."""
+		container=self.FindParent(EntityContainer)
+		if container:
+			for np in self.entityType.NavigationProperty:
+				# now look for an AssociationSet in our container that references the same association
+				if np.association is None:
+					continue
+				for associationSet in container.AssociationSet:
+					if np.association is associationSet.association:
+						for iEnd in associationSet.AssociationSetEnd:
+							if iEnd.associationEnd is np.fromEnd:
+								self.navigation[np.name]=iEnd
+								break
+			
 	def UpdateFingerprint(self,h):
 		h.update("EntitySet:")
 		h.update(self.name)
 		h.update(";")
-		h.update(self.entityType)
+		h.update(self.entityTypeName)
 		h.update(";")
-
+				
+	def KeyValue(self,key):
+		"""Extracts the key value from key, raises KeyError if a valid key cannot be found."""
+		if type(key) is TupleType:
+			if len(self.entityType.Key.PropertyRef)==1:
+				if len(key)==1:
+					key=key[0]
+				else:
+					raise KeyError("Unexpected compound key: %s"%repr(key))
+		elif type(key) is DictType or isinstance(key,Entity):
+			k=[]
+			if len(self.entityType.Key.PropertyRef)==1:
+				# a single key, look up the empty string first
+				if '' in key:
+					key=key['']
+				else:
+					key=key[self.entityType.Key.PropertyRef[0].name]
+			else:
+				for kp in self.entityType.Key.PropertyRef:
+					k.append(key[kp.name])
+				key=tuple(k)
+		return key
+			
+	def __getitem__(self,key):
+		"""Returns an py:class:`Entity` instance corresponding to *key*."""
+		raise NotImplementedError
+	
+	def __setitem__(self,key,value):
+		"""Updates or inserts an entity with *key*."""
+		raise NotImplementedError
 		
+	def __delitem__(self,key):
+		"""Deletes the entity with *key*."""
+		raise NotImplementedError
+	
+	def itervalues(self):
+		"""Returns an :py:class:`EntityCollection` instance."""
+		return self.EntityCollectionClass(self)
+		
+	def __iter__(self):
+		"""The default implementation uses :py:meth:`itervalues` and :py:meth:`Entity.Key`"""
+		for e in self.itervalues():
+			yield e.Key()
+	
+	def GetLinkEnd(self,name):
+		"""Returns an AssociationSetEnd from a navigation property name."""
+		return self.navigation[name]
+
+
+class AssociationSet(CSDLElement):
+	XMLNAME=(EDM_NAMESPACE,'AssociationSet')
+	XMLATTR_Name=('name',ValidateSimpleIdentifier,None)
+	XMLATTR_Association='associationName'
+	XMLCONTENT=xmlns.ElementType.ElementContent
+	
+	def __init__(self,parent):
+		CSDLElement.__init__(self,parent)
+		self.name="Default"			#: the declared name of this association set
+		self.associationName=""		#: the name of the association definition
+		self.association=None		#: the :py:class:`Association` definition
+		self.Documentation=None
+		self.AssociationSetEnd=[]
+		self.TypeAnnotation=[]
+		self.ValueAnnotation=[]
+	
+	def GetElementClass(self,name):
+		if xmlns.NSEqualNames((EDM_NAMESPACE,'End'),name,EDM_NAMESPACE_ALIASES):
+			return AssociationSetEnd
+		else:
+			return None
+		
+	def GetChilren(self):
+		if self.Documentation: yield self.Documentation
+		for child in itertools.chain(
+			self.AssociationSetEnd,
+			self.TypeAnnotation,
+			self.ValueAnnotation,
+			CSDLElement.GetChildren(self)):
+			yield child		
+
+	def UpdateSetRefs(self,scope,stopOnErrors=False):
+		"""Sets :py:attr:`association`"""
+		try:
+			self.association=scope[self.associationName]
+			if not isinstance(self.association,Association):
+				raise KeyError("%s is not an Association"%self.associationName)
+			for iEnd in self.AssociationSetEnd:
+				iEnd.UpdateSetRefs(scope,stopOnErrors)
+		except KeyError:
+			self.association=None
+			if stopOnErrors:
+				raise
+		
+	def UpdateFingerprint(self,h):
+		h.update("AssociationSet:")
+		h.update(self.name)
+		h.update(";")
+		h.update(self.associationName)
+		h.update(";")
+				
+
+class AssociationSetEnd(CSDLElement):
+	# XMLNAME=(EDM_NAMESPACE,'End')
+	
+	XMLATTR_Role='name'
+	XMLATTR_EntitySet='entitySetName'
+	
+	def __init__(self,parent):
+		CSDLElement.__init__(self,parent)
+		self.name=None				#: the role-name given to this end of the link
+		self.entitySetName=None		#: name of the entity set this end links to
+		self.entitySet=None			#: :py:class:`EntitySet` this end links to
+		self.associationEnd=None	#: :py:class:`AssociationEnd` that defines this end of the link
+		self.otherEnd=None			#: the other :py:class:`AssociationSetEnd` of this link
+		self.Documentation=None
+	
+	def GetChildren(self):
+		if self.Documentation: yield self.Documentation
+		for child in CSDLElement.GetChildren(self): yield child
+
+	def Navigate(self,fromKey,toKey=None):
+		"""Returns either a :py:class:`EntityCollection` of entities, or a
+		single :py:class:`Entity` instance drawn from the target entity set.
+		
+		The entities returned are those linked, by this association, with the
+		entity with key *fromKey* in the source entity set.
+		
+		For example, if this association end-point links from a set of Customer
+		entities to a set of Order entities and we have a Customer entity with
+		key=1 linked to Order entities with keys 6, 9 and 14 then
+
+		Navigate(fromKey=1,toKey=None) would return Order(6), Order(9) and Order(14)
+		Navigate(fromKey=1,toKey=9) would return just Order(9)
+		Navigate(fromKey=1,toKey=13) would raise KeyError."""
+		raise NotImplementedError		 
+		   
+	def UpdateSetRefs(self,scope,stopOnErrors=False):
+		"""Sets :py:attr:`entitySet`, :py:attr:`otherEnd` and :py:attr:`associationEnd`.
+		
+		Role names on AssociationSetName are marked as optional but it can make
+		it a challenge to work out which end of the association is which if one
+		or both are missing.  In fact, it would be possible to have two
+		identical Ends!  The algorithm we use is to use Role names if either are
+		given, otherwise we match the entity types (if these are also identical
+		then the choice is arbitrary). When we're done, we copy any missing Role
+		names across to reduce confusion."""
+		try:
+			self.entitySet=self.otherEnd=self.associationEnd=None
+			container=self.FindParent(EntityContainer)
+			if container:
+				self.entitySet=container[self.entitySetName]
+			if not isinstance(self.entitySet,EntitySet):
+				raise ModelIncomplete("AssociationSetEnd not bound to EntitySet (%s)"%self.entitySetName)
+			if not isinstance(self.parent,AssociationSet) or not len(self.parent.AssociationSetEnd)==2:
+				raise ModelIncomplete("AssociationSetEnd has missing or incomplete parent (Role=%s)"%self.name)
+			for iEnd in self.parent.AssociationSetEnd:
+				if iEnd is self:
+					continue
+				else:
+					self.otherEnd=iEnd
+			for iEnd in self.parent.association.AssociationEnd:
+				if self.name:
+					if self.name==iEnd.name:
+						# easy case, names match
+						self.associationEnd=iEnd
+						break
+				elif self.otherEnd.name:
+					if self.otherEnd.name==iEnd.name:
+						# so we match the end of iEnd!
+						self.associationEnd=iEnd.otherEnd
+						# Fix up the role name while we're at it
+						self.name=self.associationEnd.name
+						break
+				else:
+					# hard case, two blank associations
+					if iEnd.entityType is self.entitySet.entityType:
+						self.associationEnd=iEnd
+						self.name=self.associationEnd.name
+						break
+			if self.associationEnd is None:
+				raise ModelIncomplete("Failed to match AssociationSetEnds to their definitions: %s"%self.parent.name)
+		except KeyError:
+			self.entitySet=self.otherEnd=self.associationEnd=None
+			if stopOnErrors:
+				raise
+
+
 class Function(CSDLElement):
 	XMLNAME=(EDM_NAMESPACE,'Function')
 
@@ -986,16 +1559,19 @@ class ValueTerm(CSDLElement):
 
 
 class Schema(NameTableMixin,CSDLElement):
-	"""Represents the Edmx root element."""
+	"""Represents the Edm root element.
+	
+	Schema instances are based on :py:class:`NameTableMixin` allowing you to
+	look up the names of declared Associations, ComplexTypes, EntityTypes,
+	EntityContainers and Functions using dictionary-like methods."""
 	XMLNAME=(EDM_NAMESPACE,'Schema')
-
 	XMLATTR_Namespace='name'
 	XMLATTR_Alias='alias'
 	
 	def __init__(self,parent):
 		CSDLElement.__init__(self,parent)
 		NameTableMixin.__init__(self)
-		self.name="Default"
+		self.name="Default"		#: the declared name of this schema
 		self.alias=None
 		self.Using=[]
 		self.Association=[]
@@ -1008,20 +1584,28 @@ class Schema(NameTableMixin,CSDLElement):
 	
 	def GetChildren(self):
 		return itertools.chain(
-			self.Using,
-			self.Association,
-			self.ComplexType,
 			self.EntityType,
-			self.EntityContainer,
+			self.ComplexType,
+			self.Association,
 			self.Function,
+			self.EntityContainer,
+			self.Using,
 			self.Annotations,
 			self.ValueTerm,
 			CSDLElement.GetChildren(self))
 
 	def ContentChanged(self):
-		for t in self.EntityType+self.ComplexType+self.Association+self.EntityContainer:
+		for t in self.EntityType+self.ComplexType+self.Association+self.Function+self.EntityContainer:
 			self.Declare(t)
 
+	def UpdateTypeRefs(self,scope,stopOnErrors=False):
+		for t in self.EntityType+self.ComplexType+self.Association+self.Function:
+			t.UpdateTypeRefs(scope,stopOnErrors)
+		
+	def UpdateSetRefs(self,scope,stopOnErrors=False):
+		for t in self.EntityContainer:
+			t.UpdateSetRefs(scope,stopOnErrors)
+		
 	def UpdateFingerprint(self,h):
 		h.update("Schema:")
 		h.update(self.name)
@@ -1045,7 +1629,7 @@ class Document(xmlns.XMLNSDocument):
 		eClass=Document.classMap.get(name,Document.classMap.get((name[0],None),xmlns.XMLNSElement))
 		return eClass
 	
-xmlns.MapClassElements(Document.classMap,globals(),EDM_NAMESPACE_ALIASES)
+xmlns.MapClassElements(Document.classMap,globals(),NAMESPACE_ALIASES)
 
 
 class ERStore(NameTableMixin):
@@ -1266,7 +1850,6 @@ class SQLiteDB(ERStore):
 		c.execute(query)
 		fp,latest=self.ReadFingerprint(c)
 		if fp!=self.fingerprint:
-			import pdb;pdb.set_trace()
 			raise StorageError("Fingerprint mismatch: found %s expected %s"%(repr(fp),repr(self.fingerprint)))
 
 	def ReadFingerprint(self,c):
@@ -1332,10 +1915,10 @@ class SQLiteDB(ERStore):
 			if not containerName.startswith(scopePrefix):
 				# the EntityContainer is not in this scope, but definitions might be
 				for oldT in oldContainer.EntitySet:
-					if oldT.entityType.startswith(scopePrefix):
+					if oldT.entityTypeName.startswith(scopePrefix):
 						# the entity type is in the new scope, may have changed
-						newType=newS[oldT.entityType[len(scopePrefix):]]
-						oldType=self[oldT.entityType]
+						newType=newS[oldT.entityTypeName[len(scopePrefix):]]
+						oldType=self[oldT.entityTypeName]
 						transaction=transaction+self.UpdateTable(tablePrefix+oldT.name,oldType,newType)					
 			else:
 				# the EntityContainer is in this scope, it may have changed
@@ -1344,10 +1927,10 @@ class SQLiteDB(ERStore):
 					if oldT.name in newContainer:
 						# This table is in the new scope too
 						newT=newContainer[oldT.name]
-						if newT.entityType.startswith(scopePrefix):
+						if newT.entityTypeName.startswith(scopePrefix):
 							# the entity type is in the new scope too
-							newType=newS[newT.entityType[len(scopePrefix):]]
-							oldType=self[oldT.entityType]
+							newType=newS[newT.entityTypeName[len(scopePrefix):]]
+							oldType=self[oldT.entityTypeName]
 							transaction=transaction+self.UpdateTable(tablePrefix+oldT.name,oldType,newType)
 					else:
 						# Drop this one
@@ -1357,10 +1940,10 @@ class SQLiteDB(ERStore):
 						continue
 					else:
 						# new table not in old container
-						if newT.entityType.startswith(scopePrefix):
-							newType=newS[newT.entityType[len(scopePrefix):]]
+						if newT.entityTypeName.startswith(scopePrefix):
+							newType=newS[newT.entityTypeName[len(scopePrefix):]]
 						else:
-							newType=self[newT.entityType]
+							newType=self[newT.entityTypeName]
 						transaction=transaction+self.CreateTable(tablePrefix+newT.name,newType)
 		# transaction.append(("COMMIT",()))
 		for t,tParams in transaction:
@@ -1433,7 +2016,7 @@ class SQLiteDB(ERStore):
 		transaction=[]
 		query="""INSERT INTO csdl_containers (name, prefix) VALUES ( ?, ?)"""
 		for t in container.EntitySet:
-			eType=self[t.entityType]
+			eType=self[t.entityTypeName]
 			transaction=transaction+self.CreateTable(prefix+t.name,eType)
 			# self.CreateTable(c,t,prefix)
 		# transaction.append(("COMMIT",()))
@@ -1555,7 +2138,7 @@ class SQLiteDB(ERStore):
 			raise ValueError("%s must be an EntitySet"%entitySetName)
 		# Look up the TABLE name in the databse
 		tName=self.tableNames[entitySetName]
-		eType=self[t.entityType]
+		eType=self[t.entityTypeName]
 		if not isinstance(eType,EntityType):
 			raise ValueError("%s is not an EntityType"%t.entityType)
 		transaction=[]
@@ -1576,7 +2159,7 @@ class SQLiteDB(ERStore):
 					result={}
 					i=0
 					for p in eType.Property:
-						result[p.name]=self.DecodeLiteral(p.typeCode,row[i])
+						result[p.name]=self.DecodeLiteral(p.simpleTypeCode,row[i])
 						i=i+1
 					yield result
 		except:
@@ -1588,7 +2171,7 @@ class SQLiteDB(ERStore):
 			raise ValueError("%s must be an EntitySet"%entitySetName)
 		# Look up the TABLE name in the databse
 		tName=self.tableNames[entitySetName]
-		eType=self[t.entityType]
+		eType=self[t.entityTypeName]
 		if not isinstance(eType,EntityType):
 			raise ValueError("%s is not an EntityType"%t.entityType)
 		transaction=[]

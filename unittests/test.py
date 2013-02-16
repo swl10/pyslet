@@ -16,6 +16,7 @@ import test_iso8601
 import test_mc_csdl
 import test_mc_edmx
 import test_odatav2
+import test_pyds
 import test_qml420
 import test_rfc2234
 import test_rfc2396
@@ -44,6 +45,7 @@ def suite():
 	s.addTest(test_mc_csdl.suite())
 	s.addTest(test_mc_edmx.suite())	
 	s.addTest(test_odatav2.suite())
+	s.addTest(test_pyds.suite())
 	s.addTest(test_rfc2234.suite())
 	s.addTest(test_rfc2396.suite())
 	s.addTest(test_rfc2616.suite())
