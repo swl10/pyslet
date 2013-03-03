@@ -8,73 +8,105 @@ import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.iso8601 as iso8601
 
-class EntityCollection(edm.EntityCollection):
-	"""An iterable of :py:class:`Entity` instances.
-	
-	Initialised with an entity set to iterate over.  If keys is not None then it
-	is an iterable list of the keys describing the sub-set."""
-	def __init__(self,es,keys=None):
-		edm.EntityCollection.__init__(self,es)
-		# return all the values at the moment
-		if keys is None:
-			self.values=es.data.itervalues()
-		else:
-			self.values=self.SubsetValues(keys)
-	
-	def SubsetValues(self,keys):
-		for k in keys:
-			yield self.es.data[k]
-			
-	def __iter__(self):
-		return self
-		
-	def GetTitle(self):
-		"""Returns the title of this list of entities."""
-		return self.es.name
-	
-	def GetUpdated(self):
-		"""Returns a TimePoint indicating when the collection was updated."""
-		updated=iso8601.TimePoint()
-		updated.Now()
-		return updated			
-
-	def next(self):
-		"""Returns the next Entity in the collection."""
-		e=edm.Entity(self.es)
-		value=self.values.next()
-		i=0
-		for name in e:
-			e[name]=value[i]
-			i=i+1
-		return e
+# class EntityCollection(edm.EntityCollection):
+# 	"""An iterable of :py:class:`Entity` instances.
+# 	
+# 	Initialised with an entity set to iterate over.  If keys is not None then it
+# 	is an iterable list of the keys describing the sub-set."""
+# 	def __init__(self,es,keys=None):
+# 		edm.EntityCollection.__init__(self,es)
+# 		# return all the values at the moment
+# 		if keys is None:
+# 			self.values=list(es.data.iterkeys()).__iter__()
+# 		else:
+# 			self.values=keys.__iter__()
+# 	
+# 	def SubsetValues(self,keys):
+# 		for k in keys:
+# 			yield self.es.data[k]
+# 			
+# 	def __iter__(self):
+# 		return self
+# 		
+# 	def GetTitle(self):
+# 		"""Returns the title of this list of entities."""
+# 		return self.es.name
+# 	
+# 	def GetUpdated(self):
+# 		"""Returns a TimePoint indicating when the collection was updated."""
+# 		updated=iso8601.TimePoint()
+# 		updated.Now()
+# 		return updated			
+# 
+# 	def next(self):
+# 		"""Returns the next Entity in the collection."""
+# 		key=self.values.next()
+# 		return self.es[key]
 
 
 class EntitySet(edm.EntitySet):
-	"""Implements an in-memory entity set using a python dictionary"""
+	"""Implements an in-memory entity set using a python dictionary.
 	
-	EntityCollectionClass=EntityCollection
+	Each entity is stored as a tuple of values in the order in which the
+	properties of that entity type are declared.  Complex values are stored as
+	nested tuples."""	
 	
 	def __init__(self,parent):
 		super(EntitySet,self).__init__(parent)
 		self.data={}		#: simple dictionary of the values
 		self.delHooks=[]	#: list of functions to call during deletion
 	
+	def __len__(self):
+		return len(self.data)
+
+	def itervalues(self):
+		for k in self.data:
+			yield self[k]
+		
 	def __getitem__(self,key):
 		e=edm.Entity(self)
-		e.update(zip(e.iterkeys(),self.data[self.KeyValue(key)]))
+		for pName,pValue in zip(e.iterkeys(),self.data[self.KeyValue(key)]):
+			p=e[pName]
+			if isinstance(p,edm.Complex):
+				self.SetComplexFromTuple(p,pValue)
+			else:
+				p.SetSimpleValue(pValue)
 		return e
-			
+	
+	def SetComplexFromTuple(self,complexValue,t):
+		for pName,pValue in zip(complexValue.iterkeys(),t):
+			p=complexValue[pName]
+			if isinstance(p,edm.Complex):
+				self.SetComplexFromTuple(p,pValue)
+			else:
+				p.SetSimpleValue(pValue)
+	
 	def __setitem__(self,key,e):
-		self.data[self.KeyValue(key)]=tuple(e.values())
+		# e is an EntityTypeInstance, we need to convert it to a tuple
+		value=[]
+		for pName in e.iterkeys():
+			p=e[pName]
+			if isinstance(p,edm.Complex):
+				value.append(self.GetTupleFromComplex(p))
+			else:
+				value.append(p.GetSimpleValue())
+		self.data[self.KeyValue(key)]=tuple(value)
 
+	def GetTupleFromComplex(self,complexValue):
+		value=[]
+		for pName in complexValue.iterkeys():
+			p=complexValue[pName]
+			if isinstance(p,edm.Complex):
+				value.append(self.GetTupleFromComplex(p))
+			else:
+				value.append(p.GetSimpleValue())
+		return tuple(value)
+	
 	def __delitem__(self,key):
 		for hook in self.delHooks:
 			hook(key)
 		del self.data[self.KeyValue(key)]
 	
-	def __len__(self):
-		return len(self.data)
-
 	def UpdateSetRefs(self,scope,stopOnErrors=False):
 		"""We use this method to clear the delete hook lists."""
 		edm.EntitySet.UpdateSetRefs(self,scope,stopOnErrors)
@@ -112,15 +144,16 @@ class AssociationSetEnd(edm.AssociationSetEnd):
 		if self.otherEnd.associationEnd.multiplicity==edm.Multiplicity.Many:
 			# result may have many values
 			if toKey is None:
-				return EntityCollection(self.otherEnd.entitySet,list(result.iterkeys()))
+				for k in result:
+					yield self.otherEnd.entitySet[k]
 			elif toKey in result:
-				return self.otherEnd.entitySet[toKey]
+				yield self.otherEnd.entitySet[toKey]
 			else:
 				raise KeyError
 		else:
 			result=result[0]	# result is a single value dictionary
 			if toKey is None or toKey==result:
-				return self.otherEnd.entitySet[result]
+				yield self.otherEnd.entitySet[result]
 			else:
 				raise KeyError
 

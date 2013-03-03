@@ -687,7 +687,134 @@ SimpleTypeCodec={
 	SimpleType.String:(lambda x:x,lambda x:x),
 	SimpleType.SByte:(DecodeSByte,EncodeSByte)
 	}
+
+
+class EDMValue(object):
+	"""Represents a value in the EDMModel.
 	
+	This class is not part of the declared metadata model but is used to wrap
+	or 'box' instances of a value in a context where that value can have either
+	a simple or complex type.
+	
+	The optional name attribute may be used when serialising the value out of
+	context."""
+	def __init__(self,name=None):
+		self.name=name		#: the name of the value (e.g., a property name)
+
+	def __nonzero__(self):
+		"""EDMValue instances are treated as being non-zero if :py:meth:`IsNull`
+		returns False."""
+		return not self.IsNull()
+		
+	def IsNull(self):
+		"""Returns True if this object is Null."""
+		return True
+		
+
+class SimpleValue(EDMValue):
+	"""Represents a value of a simple type in the EDMModel.
+	
+	*	typeCode is one of the :py:class:`SimpleType` constants
+	
+	*	name is the (optional) name of the property"""
+	
+	def __init__(self,typeCode,name=None):
+		EDMValue.__init__(self,name)
+		self.typeCode=typeCode		#: the :py:class:`SimpleType` code
+		self.simpleValue=None		#: the value, as represented using the closest python type
+		
+	def __unicode__(self):
+		"""Formats this value into its literal form.
+		
+		Note that Null values cannot be represented in literal form and will
+		raise ValueError."""
+		if self.simpleValue is None:
+			raise ValueError("%s is Null"%self.name) 
+		decoder,encoder=SimpleTypeCodec.get(self.typeCode,(unicode,unicode))
+		return encoder(self.simpleValue)
+
+	def SetFromLiteral(self,value):
+		"""Decodes a value from the value's literal form.
+		
+		You can get the literal form of a value using the unicode function."""
+		decoder,encoder=SimpleTypeCodec.get(self.typeCode,(unicode,unicode))
+		self.simpleValue=decoder(value)		
+
+	def GetSimpleValue(self):
+		"""Returns the value using the closest python type."""
+		return self.simpleValue
+	
+	def SetSimpleValue(self,value):
+		"""Sets the value from *value* which must be a value of the correct python type."""
+		self.simpleValue=value
+
+
+class TypeInstance(DictionaryLike):
+	"""Abstract class to represents a single instance of a
+	:py:class:`ComplexType` or :py:class:`EntityType`.
+	
+	Behaves like a read-only dictionary mapping property names onto
+	:py:class:`EDMValue` instances.  (You can change the value of a property
+	using the methods of :py:class:`EDMValue` and its descendants.)
+	
+	TODO: In the future, open types will allow items to be set or deleted."""
+	def __init__(self,typeDef):
+		self.typeDef=typeDef		#: the definition of this type
+		self.data={}				#: a dictionary to hold this instances' property values
+		for p in self.typeDef.Property:
+			self.data[p.name]=p()
+
+	def __getitem__(self,name):
+		"""Returns the value corresponding to property *name*."""
+		return self.data[name]
+	
+# 	def __setitem__(self,name,value):
+# 		"""Sets the value of the property *name*. TODO: dynamic properties only
+# 		
+# 		If name is not the name of a recognized property KeyError is raised.
+# 		
+# 		*value* must be a :py:class:`EDMValue` instance of a type that
+# 		matches the declaration of the proerty.  The value's name attribute is
+# 		set to *name* on success."""
+# 		if name in self.data:
+# 			oldValue=self.data[name]
+# 			if value.__class__ is not oldValue.__class__:
+# 				raise TypeError("%s required for property %s"%
+# 				self.data[name]
+# 			self.data[name]=value
+# 		else:
+# 			raise KeyError("%s is not a property of %s"%(name,self.typeDef.name))
+			
+	def __iter__(self):
+		"""Iterates over the property names in the order they are declared in the type definition."""
+		for p in self.typeDef.Property:
+			yield p.name
+				
+	def __len__(self):
+		"""Returns the number of properties in the type."""
+		return len(self.typeDef.Property)
+
+# 	def update(self,items):
+# 		"""Overridden to remove the call to clear"""
+# 		for key,value in items:
+# 			self[key]=value
+
+
+class Complex(EDMValue,TypeInstance):
+	"""Represents a single instance of a :py:class:`ComplexType`.
+	
+	*	name is the (optional) name of the value
+	
+	*	complexType is the type of object this is an instance of"""
+
+	def __init__(self,complexType,name=None):
+		EDMValue.__init__(self,name)
+		TypeInstance.__init__(self,complexType)
+	
+	def IsNull(self):
+		"""Complex values are never Null"""
+		return False
+
 
 class CSDLElement(xmlns.XMLNSElement):
 	
@@ -789,7 +916,21 @@ class Property(CSDLElement):
 				self.complexType=None		
 				if stopOnErrors:
 					raise
+	
+	def __call__(self,literal=None):
+		"""Returns a new :py:class:`EDMValue` instance (from a literal).
 		
+		Complex values can't be created from a simple literal form."""
+		if self.simpleTypeCode is not None:
+			result=SimpleValue(self.simpleTypeCode,self.name)
+			if literal is not None:
+				result.SetFromLiteral(literal)
+		elif self.complexType is not None:
+			result=Complex(self.complexType,self.name)
+		else:
+			raise ModelIncomplete("Property %s not bound to a type"%self.name)
+		return result
+			
 	def DecodeValue(self,value):
 		"""Decodes a value from a string used in a serialised form.
 		
@@ -1009,7 +1150,7 @@ class EntityType(Type):
 			p.UpdateFingerprint(h)
 
 	def UpdateTypeRefs(self,scope,stopOnErrors=False):
-		super(Type,self).UpdateTypeRefs(scope,stopOnErrors)
+		super(EntityType,self).UpdateTypeRefs(scope,stopOnErrors)
 		for p in self.NavigationProperty:
 			p.UpdateTypeRefs(scope,stopOnErrors)
 		self.Key.UpdateTypeRefs(scope,stopOnErrors)
@@ -1169,7 +1310,7 @@ class EntityContainer(NameTableMixin,CSDLElement):
 			yield child		
 
 	def ContentChanged(self):
-		for t in self.EntitySet+self.AssociationSet:
+		for t in self.EntitySet+self.AssociationSet+self.FunctionImport:
 			self.Declare(t)
 
 	def UpdateFingerprint(self,h):
@@ -1180,26 +1321,23 @@ class EntityContainer(NameTableMixin,CSDLElement):
 			t.UpdateFingerprint(h)
 
 	def UpdateSetRefs(self,scope,stopOnErrors=False):
-		for child in self.FunctionImport+self.EntitySet+self.AssociationSet:
+		for child in self.EntitySet+self.AssociationSet+self.FunctionImport:
 			child.UpdateSetRefs(scope,stopOnErrors)
 		for child in self.EntitySet:
 			child.UpdateNavigation()
-			
-
-class Entity(DictionaryLike):
+					
+	
+class Entity(TypeInstance):
 	"""Represents a single instance of an :py:class:`EntityType`.
 	
-	*	eSet is the entity set this entity belongs to
+	*	entitySet is the entity set this entity belongs to
 	
 	Behaves like a dictionary mapping property names onto values."""
 	def __init__(self,entitySet):
 		self.entitySet=entitySet
-		self.entityType=entitySet.entityType
-		if self.entityType is None:
+		TypeInstance.__init__(self,entitySet.entityType)
+		if self.typeDef is None:
 			raise ModelIncomplete("Unbound EntitySet: %s (%s)"%(self.entitySet.name,self.entitySet.entityTypeName))
-		self.data={}
-		for p in self.entityType.Property:
-			self.data[p.name]=None
 		
 	def Key(self):
 		"""Returns the entity key as a single value or a tuple of values for
@@ -1207,79 +1345,51 @@ class Entity(DictionaryLike):
 		
 		The order of the values is the order of the PropertyRef definitions
 		in the associated EntityType's :py:class:`Key`."""
-		if len(self.entityType.Key.PropertyRef)==1:
-			return self[self.entityType.Key.PropertyRef[0].name]
+		if len(self.typeDef.Key.PropertyRef)==1:
+			return self[self.typeDef.Key.PropertyRef[0].name].simpleValue
 		else:
 			k=[]
-			for pRef in self.entityType.Key.PropertyRef:
-				k.append(self[pRef.name])
+			for pRef in self.typeDef.Key.PropertyRef:
+				k.append(self[pRef.name].simpleValue)
 			return tuple(k)
 	
 	def Navigate(self,name,key):
-		"""Returns an Entity or an EntityCollection by following the named navigation property."""
+		"""Returns an Entity or an iterable of Entities by following the named navigation property."""
 		try:
 			linkEnd=self.entitySet.GetLinkEnd(name)
 			return linkEnd.Navigate(self.Key(),key)
 		except KeyError:
-			if name in self.entityType:
-				np=self.entityType[name]
+			if name in self.typeDef:
+				np=self.typeDef[name]
 				if isinstance(np,NavigationProperty):
 					# This should have worked but the link must be incomplete
 					raise ModelIncomplete("Unbound NavigationProperty: %s (%s)"%(np.name,np.relationship))
 			raise
-				
-	def __getitem__(self,name):
-		"""Returns the value corresponding to property *name*."""
-		return self.data[name]
+						
 	
-	def __setitem__(self,name,value):
-		"""Sets the value of the property *name*.
-		
-		If name is not the name of a recognized property KeyError is raised."""
-		if name in self.data:
-			self.data[name]=value
-		else:
-			raise KeyError("%s is not a property of %s"%(name,self.entityType.name))
-			
-	def __iter__(self):
-		"""Iterates over the property names in the order they are declared in the EntityType."""
-		for p in self.entityType.Property:
-			yield p.name
-				
-	def __len__(self):
-		"""Returns the number of properties in the entity."""
-		return len(self.entityType.Property)
-
-	def update(self,items):
-		"""Overridden to remove the call to clear"""
-		for key,value in items:
-			self[key]=value
-		
-	
-class EntityCollection(object):
-	"""An iterable of :py:class:`Entity` instances.
-	
-	Initialised with an entity set to iterate over, parent provides a contextual
-	filter for the entity set."""
-	def __init__(self,es):
-		self.parent=None
-		self.es=es		
-	
-	def __iter__(self):
-		return self
-		
-	def GetTitle(self):
-		"""Returns the title of the entity set."""
-		return self.es.name
-	
-	def GetUpdated(self):
-		"""Returns a TimePoint indicating when this collection was last updated (defaults to now)."""
-		updated=iso8601.TimePoint()
-		updated.Now()
-		return updated			
-
-	def next(self):
-		raise NotImplementedError
+# class EntityCollection(object):
+# 	"""An iterable of :py:class:`Entity` instances.
+# 	
+# 	Initialised with an entity set to iterate over, parent provides a contextual
+# 	filter for the entity set."""
+# 	def __init__(self,es):
+# 		self.es=es		
+# 	
+# 	def __iter__(self):
+# 		return self
+# 		
+# 	def GetTitle(self):
+# 		"""Returns the title of the entity set."""
+# 		return self.es.name
+# 	
+# 	def GetUpdated(self):
+# 		"""Returns a TimePoint indicating when this collection was last updated (defaults to now)."""
+# 		updated=iso8601.TimePoint()
+# 		updated.Now()
+# 		return updated			
+# 
+# 	def next(self):
+# 		raise NotImplementedError
 		
 		
 class EntitySet(DictionaryLike,CSDLElement):
@@ -1298,17 +1408,18 @@ class EntitySet(DictionaryLike,CSDLElement):
 	assumed to be the value of the key property for entity types with a
 	single-valued key.
 	
-	Derived classes must override :py:meth:`__getitem__`, :py:meth:`__setitem__`,
+	Derived classes must override :py:meth:`__getitem__`, :py:meth:`itervalues`
+	and for writeable data sources: :py:meth:`__setitem__` and
 	:py:meth:`__delitem__`.
 	
-	The should also override :py:meth:`__len__` and :py:meth:`clear` as the
+	They should also override :py:meth:`__len__` and :py:meth:`clear` as the
 	default implementations are inefficient."""
 	XMLNAME=(EDM_NAMESPACE,'EntitySet')	
 	XMLATTR_Name=('name',ValidateSimpleIdentifier,None)
 	XMLATTR_EntityType='entityTypeName'
 	XMLCONTENT=xmlns.ElementType.ElementContent
 
-	EntityCollectionClass=EntityCollection	#: the class to use for representing entity collections
+#	EntityCollectionClass=EntityCollection	#: the class to use for representing entity collections
 	
 	def __init__(self,parent):
 		super(EntitySet,self).__init__(parent)
@@ -1397,8 +1508,9 @@ class EntitySet(DictionaryLike,CSDLElement):
 		raise NotImplementedError
 	
 	def itervalues(self):
-		"""Returns an :py:class:`EntityCollection` instance."""
-		return self.EntityCollectionClass(self)
+		"""Returns an iterable of :py:class:`Entity` instances."""
+		raise NotImplementedError
+#		return self.EntityCollectionClass(self)
 		
 	def __iter__(self):
 		"""The default implementation uses :py:meth:`itervalues` and :py:meth:`Entity.Key`"""
@@ -1482,8 +1594,8 @@ class AssociationSetEnd(CSDLElement):
 		for child in CSDLElement.GetChildren(self): yield child
 
 	def Navigate(self,fromKey,toKey=None):
-		"""Returns either a :py:class:`EntityCollection` of entities, or a
-		single :py:class:`Entity` instance drawn from the target entity set.
+		"""Returns either an iterable of entities, or a single
+		:py:class:`Entity` instance drawn from the target entity set.
 		
 		The entities returned are those linked, by this association, with the
 		entity with key *fromKey* in the source entity set.
@@ -1547,6 +1659,163 @@ class AssociationSetEnd(CSDLElement):
 			if stopOnErrors:
 				raise
 
+
+class FunctionImport(DictionaryLike,CSDLElement):
+	"""Represents a FunctionImport in an entity collection.
+	
+	We inherit from :py:class:`DictionaryLike` so that we can emulate the
+	behaviour of :py:class:`EntitySet` when the return type is an entity
+	collection."""
+	XMLNAME=(EDM_NAMESPACE,'FunctionImport')
+
+	XMLATTR_Name=('name',ValidateSimpleIdentifier,None)
+	XMLATTR_ReturnType='returnType'
+	XMLATTR_EntitySet='entitySetName'
+	
+	XMLCONTENT=xmlns.ElementType.ElementContent
+	
+	def __init__(self,parent):
+		CSDLElement.__init__(self,parent)
+		self.name="Default"			#: the declared name of this function import
+		self.returnType=""			#: the return type of the function
+		self.collection=False		#: True if this function returns a collection of values
+		self.simpleTypeCode=None	#: one of the :py:class:`SimpleType` constants if the return type is a simple type
+		self.returnTypeDef=None		#: :py:class:`ComplexType` or :py:class:`EntityType` if the return type is not simple
+		self.entitySetName=''		#: the name of the entity set from which the return values are taken
+		self.entitySet=None			#: the :py:class:`EntitySet` corresponding to :py:attr:`entitySetName`
+		self.callable=None			#: a callable to use when executing this function (see :py:meth:`Bind`)
+		self.Documentation=None
+		self.ReturnType=[]
+		self.Parameter=[]
+		self.TypeAnnotation=[]
+		self.ValueAnnotation=[]
+	
+	def GetChilren(self):
+		if self.Documentation: yield self.Documentation
+		for child in itertools.chain(
+			self.ReturnType,
+			self.Parameter,
+			self.TypeAnnotation,
+			self.ValueAnnotation,
+			CSDLElement.GetChildren(self)):
+			yield child
+
+	def UpdateSetRefs(self,scope,stopOnErrors=False):
+		"""Sets :py:attr:`entitySet` if applicable"""
+		try:
+			self.simpleTypeCode=self.returnTypeDef=self.entitySet=None
+			self.collection=False
+			if "(" in self.returnType and self.returnType[-1]==')':
+				if self.returnType[:self.returnType.index('(')].lower()!=u"collection":
+					raise KeyError("%s is not a valid return type"%self.returnType)
+				self.collection=True
+				typeName=self.returnType[self.returnType.index('(')+1:-1]
+			else:
+				typeName=self.returnType
+			try:
+				self.simpleTypeCode=SimpleType.DecodeLowerValue(typeName)
+			except ValueError:
+				# must be a complex or entity type defined elsewhere
+				self.simpleTypeCode=None
+				self.returnTypeDef=scope[typeName]
+				if not isinstance(self.returnTypeDef,(ComplexType,EntityType)):
+					raise KeyError("%s is not a valid return type"%typeName)				
+			if self.entitySetName:
+				container=self.FindParent(EntityContainer)
+				if container:
+					self.entitySet=container[self.entitySetName]
+				if not isinstance(self.entitySet,EntitySet):
+					raise KeyError("%s is not an EntitySet"%self.entitySetName)
+			else:
+				if isinstance(self.returnTypeDef,EntityType) and self.collection:
+					raise KeyError("Return type %s requires an EntitySet"%self.returnType) 				
+		except KeyError:
+			self.collection=False
+			self.simpleTypeCode=self.returnTypeDef=self.entitySet=None
+			if stopOnErrors:
+				raise
+	
+	def IsEntityCollection(self):
+		"""Returns True if this FunctionImport returns a collection of entities."""
+		return self.entitySet is not None and self.collection
+
+	def Bind(self,callable):
+		"""Binds this instance of FunctionImport to a callable with the
+		following signature and the same return types as the :py:meth:`Execute`
+		method:
+		
+		callable(:py:class:`FunctionImport` instance, params dictionary, [optional key])"""
+		self.callable=callable
+		
+	def Execute(self,params,key=None):
+		"""Executes this function (with optional params), returning one of the
+		following:
+		
+		*	An instance of :py:class:`EDMValue`
+		
+		*	An iterable object that generates :py:class:`EDMValue` instances
+		
+		*	An instance of :py:class:`Entity`
+		
+		*	An iterable object that generates :py:class:`Entity` instances
+				
+		The return type must be one of the iterable forms if
+		:py:attr:`collection` is True and key is None, it must be one of the
+		instance forms if it is False or a key is provided.
+
+		The instances returned must match the :py:attr:`simpleTypeCode` or
+		:py:attr:`typeDef`.
+		
+		If key is not valid then KeyError is raised."""
+		if self.callable is not None:
+			return self.callable(self,params,key)
+		else:
+			raise NotImplementedError("Unbound FunctionImport: %s"%self.name)
+		 		
+	def __getitem__(self,key):
+		"""Returns the py:class:`Entity` instance corresponding to *key*
+		
+		Only valid if this is an entity collection (otherwise, raises
+		NotImplementedError).  The default implementation is fairly basic.  We
+		execute the function and then iterate through the result looking for the
+		entity with matching key.
+
+		Due to limitations of the call signature of this method the parameters
+		of the function are passed as a special $param entry in the key
+		dictionary."""		
+		if self.IsEntityCollection():
+			if "$params" in key:
+				params=key['$params']
+				del key['$params']
+			else:
+				params={}
+			key=self.entitySet.KeyValue(key)
+			return self.Execute(params,key)
+		else:
+			raise NotImplementedError
+				
+	def __setitem__(self,key,value):
+		"""Not implemented"""
+		raise NotImplementedError
+		
+	def __delitem__(self,key):
+		"""Not implemented"""
+		raise NotImplementedError
+	
+	def itervalues(self):
+		"""Alias for :py:meth:`Execute` if this function returns an entity collection.
+		
+		Otherwise raises NotImplementedError"""
+		if self.IsEntityCollection():
+			return self.Execute({},None)
+		else:
+			raise NotImplementedError
+		
+	def __iter__(self):
+		"""The default implementation uses :py:meth:`itervalues` and :py:meth:`Entity.Key`"""
+		for e in self.itervalues():
+			yield e.Key()
+	
 
 class Function(CSDLElement):
 	XMLNAME=(EDM_NAMESPACE,'Function')

@@ -24,6 +24,10 @@ class InvalidEntryDocument(Exception): pass
 class InvalidFeedURL(Exception): pass
 class UnexpectedHTTPResponse(Exception): pass
 
+class ServerError(Exception): pass
+class BadURISegment(ServerError): pass
+class MissingURISegment(ServerError): pass
+
 
 ODATA_METADATA_NAMESPACE="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"	#: namespace for metadata, e.g., the property type attribute
 IsDefaultEntityContainer=(ODATA_METADATA_NAMESPACE,u"IsDefaultEntityContainer")
@@ -862,6 +866,12 @@ class Server(app.Server):
 		http.MediaType('application/json'),
 		http.MediaType('text/plain')]
 			
+	ValueTypes=[	# in order of preference if there is a tie
+		http.MediaType('application/xml'),
+		http.MediaType('text/xml'),
+		http.MediaType('application/json'),
+		http.MediaType('text/plain')]
+			
 	def __init__(self,serviceRoot="http://localhost"):
 		if serviceRoot[-1]!='/':
 			serviceRoot=serviceRoot+'/'
@@ -982,81 +992,169 @@ class Server(app.Server):
 		
 		*	*requestURI* is an :py:class:`ODataURI` instance with a non-empty resourcePath."""
 		focus=None
+		collection=None
+		links=False
 		path=[]
-		for component in requestURI.navPath:
-			name,keyPredicate=component
-			if focus==None:
-				es=None
-				if name in self.defaultContainer:
-					es=self.defaultContainer[name]
-				else:
-					for s in self.model.DataServices.Schema:
-						if name in s:
-							es=s[name]
-							container=es.FindParent(edm.EntityContainer)
-							if container is self.defaultContainer:
-								es=None
-							break
-				if isinstance(es,edm.EntitySet):
-					if keyPredicate:
-						# the keyPredicate can be passed directly as the key
-						try:
-							focus=es[keyPredicate]
-							path=["%s(%s)"%(es.name,repr(focus.Key()))]
-						except KeyError,e:
-							return self.ODataError(environ,start_response,"KeyError",str(e),400)
+		try:
+			for component in requestURI.navPath:
+				name,keyPredicate=component
+				if focus==None:
+					if collection is not None:
+						# bad request, because the collection must be the last thing in the path
+						raise BadURISegment("%s since the object's parent is a collection"%name)								
+					es=None
+					if name in self.defaultContainer:
+						es=self.defaultContainer[name]
 					else:
-						# return this entity set
-						focus=es.itervalues()
-						path.append(es.name)
-				else:
-					# Attempt to use the name of some other object type, bad request
-					return self.ODataError(environ,start_response,"Not found","Resource not found for component %s"%repr(name),404)
-			elif isinstance(focus,edm.EntityCollection):
-				# bad request, because the collection must be the last thing in the path
-				return self.ODataError(environ,start_response,"Bad Request","Resource not found for component %s since the object's parent is a collection"%repr(name),400)				
-			elif isinstance(focus,edm.Entity):
-				if name in focus:
-					# This is just a regular property name
-					raise NotImplementedError("property")
-				elif name=="$links":
-					raise NotImplementedError("$links")
-				elif name=="$value":
-					raise NotImplementedError("$value")
-				else:
-					# should be a navigation property
-					focus=focus.Navigate(name,keyPredicate if keyPredicate else None)
-					if isinstance(focus,edm.Entity):
-						# reset the path
-						path=["%s(%s)"%(es.name,repr(focus.Key()))]
+						for s in self.model.DataServices.Schema:
+							if name in s:
+								es=s[name]
+								container=es.FindParent(edm.EntityContainer)
+								if container is self.defaultContainer:
+									es=None
+								break
+					if isinstance(es,edm.EntitySet) or (isinstance(es,edm.FunctionImport) and es.IsEntityCollection()):
+						if isinstance(es,edm.FunctionImport):
+							# TODO: grab the params from the query string
+							params={}
+						else:
+							params=None
+						if keyPredicate:
+							# the keyPredicate can be passed directly as the key
+							try:
+								if params:
+									keyPredicate['$params']=params
+								focus=es[keyPredicate]
+								path=["%s(%s)"%(es.name,repr(focus.Key()))]
+							except KeyError,e:
+								raise MissingURISegment(name)
+						else:
+							# return this entity set
+							focus=None
+							if params:
+								collection=es.Execute(params)
+							else:
+								collection=es.itervalues()
+							path.append(es.name)
 					else:
+						# Attempt to use the name of some other object type, bad request
+						raise MissingURISegment(name)
+				elif isinstance(focus,edm.Entity):
+					if name in focus:
+						if links:
+							raise MissingURISegment(name)
+						# This is just a regular or dynamic property name
+						focus=focus[name]
 						path.append(name)
-		path=string.join(path,'/')
-		if isinstance(focus,edm.EntityCollection):
-			return self.ReturnCollection(path,focus,environ,start_response,responseHeaders)
+					elif name=="$links":
+						if links:
+							raise BadURISegment(name)
+						links=True
+					elif name=="$value":
+						if links:
+							raise BadURISegment(name)
+						raise NotImplementedError("$value")
+					else:
+						# should be a navigation property
+						try:
+							focus=focus.Navigate(name,keyPredicate if keyPredicate else None)
+							if isinstance(focus,edm.Entity):
+								# reset the path
+								path=["%s(%s)"%(es.name,repr(focus.Key()))]
+							else:
+								# assume iterable of Entity, hence a collection
+								collection=focus
+								focus=None
+								path.append(name)
+						except KeyError:
+							raise MissingURISegment(name)
+				elif isinstance(focus,edm.Complex):
+					if name in focus:
+						# This is a regular property of the ComplexType
+						focus=focus[name]
+						path.append(name)
+					elif name=="$value":
+						raise NotImplementedError("$value")
+					else:
+						raise MissingURISegment(name)
+				else:
+					# Any other type is just a property or simple-type
+					if name=="$value":
+						raise NotImplementedError("$value")
+					else:
+						raise BadURISegment(name)									
+			path=string.join(path,'/')
+		except MissingURISegment,e:
+			return self.ODataError(environ,start_response,"Bad Request","Resource not found for component %s"%str(e),404)
+		except BadURISegment,e:
+			return self.ODataError(environ,start_response,"Bad Request","Resource not found for component %s"%str(e),400)
+		if links:
+			if focus is None:
+				return self.ReturnLinks(path,collection,environ,start_response,responseHeaders)
+			else:
+				return self.ReturnLink(path,focus,environ,start_response,responseHeaders)				
 		elif isinstance(focus,edm.Entity):
 			return self.ReturnEntity(path,focus,environ,start_response,responseHeaders)
+		elif isinstance(focus,edm.EDMValue):
+			return self.ReturnValue(path,focus,environ,start_response,responseHeaders)
 		elif focus is not None:
 			raise NotImplementedError("property value or media resource")
-		else:
+		elif collection is not None:
+			return self.ReturnCollection(path,collection,environ,start_response,responseHeaders)			
+		else:	
 			# an empty navPath means we are trying to get the service root
 			wrapper=WSGIWrapper(environ,start_response,responseHeaders)
 			# super essentially allows us to pass a bound method of our parent
 			# that we ourselves are hiding.
 			return wrapper.call(super(Server,self).__call__)
-				
+	
+	def ReturnLinks(self,path,entities,environ,start_response,responseHeaders):
+		links=xmlns.XMLNSElement(None)
+		links.SetXMLName((ODATA_METADATA_NAMESPACE,"links"))
+		for e in entities:
+			child=links.ChildElement(xmlns.XMLNSElement)
+			child.SetXMLName((ODATA_METADATA_NAMESPACE,"uri"))
+			child.SetValue(str(self.serviceRoot)+"%s(%s)"%(e.entitySet.name,repr(e.Key())))
+		responseType=self.ContentNegotiation(environ,self.ValueTypes)
+		if responseType is None:
+			return self.ODataError(environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
+		if responseType=="application/json":
+			data=json.dumps(links,cls=ODataJSONEncoder)
+		else:
+			data=str(links)
+		responseHeaders.append(("Content-Type",str(responseType)))
+		responseHeaders.append(("Content-Length",len(data)))
+		start_response("%i %s"%(200,"Success"),responseHeaders)
+		return [data]
+		
+	def ReturnLink(self,path,entity,environ,start_response,responseHeaders):
+		link=xmlns.XMLNSElement(None)
+		link.SetXMLName((ODATA_METADATA_NAMESPACE,"uri"))
+		link.SetValue(str(self.serviceRoot)+"%s(%s)"%(entity.entitySet.name,repr(entity.Key())))
+		responseType=self.ContentNegotiation(environ,self.ValueTypes)
+		if responseType is None:
+			return self.ODataError(environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
+		if responseType=="application/json":
+			data=json.dumps(links,cls=ODataJSONEncoder)
+		else:
+			data=str(links)
+		responseHeaders.append(("Content-Type",str(responseType)))
+		responseHeaders.append(("Content-Length",len(data)))
+		start_response("%i %s"%(200,"Success"),responseHeaders)
+		return [data]
+			
 	def ReturnCollection(self,path,entities,environ,start_response,responseHeaders):
-		"""Returns an EntityCollection, an iterable of Entity instances."""
+		"""Returns an iterable of Entities."""
 		f=atom.Feed(None)
 		f.MakePrefix(ODATA_DATASERVICES_NAMESPACE,u'd')
 		f.MakePrefix(ODATA_METADATA_NAMESPACE,u'm')
 		f.SetBase(str(self.serviceRoot))
-		f.ChildElement(atom.Title).SetValue(entities.GetTitle())
+		# f.ChildElement(atom.Title).SetValue(entities.GetTitle())
 		f.ChildElement(atom.AtomId).SetValue(str(self.serviceRoot)+path)
-		f.ChildElement(atom.Updated).SetValue(entities.GetUpdated())
+		# f.ChildElement(atom.Updated).SetValue(entities.GetUpdated())
 		for e in entities:
 			entry=f.ChildElement(atom.Entry)
-			entry.ChildElement(atom.AtomId).SetValue(str(self.serviceRoot)+path)		
+			entry.ChildElement(atom.AtomId).SetValue(str(self.serviceRoot)+"%s(%s)"%(e.entitySet.name,repr(e.Key())))		
 		# do stuff with the entries themselves, add link elements etc
 		responseType=self.ContentNegotiation(environ,self.FeedTypes)
 		if responseType is None:
@@ -1088,6 +1186,36 @@ class Server(app.Server):
 		else:
 			# Here's a challenge, we want to pull data through the feed by yielding strings
 			# just load in to memory at the moment
+			data=str(e)
+		responseHeaders.append(("Content-Type",str(responseType)))
+		responseHeaders.append(("Content-Length",len(data)))
+		start_response("%i %s"%(200,"Success"),responseHeaders)
+		return [data]
+
+	def AddComplexChildren(self,e,complexValue):
+		for pName in complexValue.iterkeys():
+			value=complexValue[pName]
+			child=e.ChildElement(xmlns.XMLNSElement)
+			child.SetXMLName((ODATA_METADATA_NAMESPACE,value.name))
+			if isinstance(value,edm.SimpleValue):
+				child.SetValue(unicode(value))
+			else:
+				self.AddComplexChildren(child,value)
+
+	def ReturnValue(self,path,value,environ,start_response,responseHeaders):
+		"""Returns a single Entity."""
+		e=xmlns.XMLNSElement(None)
+		e.SetXMLName((ODATA_METADATA_NAMESPACE,value.name))
+		if isinstance(value,edm.SimpleValue):
+			e.SetValue(unicode(value))
+		else:
+			self.AddComplexChildren(e,value)
+		responseType=self.ContentNegotiation(environ,self.ValueTypes)
+		if responseType is None:
+			return self.ODataError(environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
+		if responseType=="application/json":
+			data=json.dumps(e,cls=ODataJSONEncoder)
+		else:
 			data=str(e)
 		responseHeaders.append(("Content-Type",str(responseType)))
 		responseHeaders.append(("Content-Length",len(data)))

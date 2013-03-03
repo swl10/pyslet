@@ -987,9 +987,9 @@ class SampleServerTests(unittest.TestCase):
 		self.ds=doc.root.DataServices
 		self.svc.SetModel(doc.root)
 		customers=self.ds['SampleModel.SampleEntities.Customers']
-		customers.data['ALFKI']=('ALFKI','Example Inc',None,None)
+		customers.data['ALFKI']=('ALFKI','Example Inc',("Mill Road","Chunton"),None)
 		for i in xrange(90):
-			customers.data['XXX%02X'%i]=('XXX%02X'%i,'Example-%i Ltd'%i,None,None)
+			customers.data['XXX%02X'%i]=('XXX%02X'%i,'Example-%i Ltd'%i,(None,None),None)
 		orders=self.ds['SampleModel.SampleEntities.Orders']
 		now=iso8601.TimePoint()
 		now.Now()
@@ -998,7 +998,26 @@ class SampleServerTests(unittest.TestCase):
 		association=self.ds['SampleModel.SampleEntities.Orders_Customers']
 		association.Associate('ALFKI',1)
 		association.Associate('ALFKI',2)
-		
+		customersByCity=self.ds['SampleModel.SampleEntities.CustomersByCity']
+		customersByCity.Bind(self.CustomersByCity)
+	
+	def CustomersByCity(self,f,params,key=None):
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		city=params.get('city','Chunton')
+		if key is None:
+			return self.CustomersByCityGen(customers,city)
+		else:
+			e=customers[key]
+			if e['Address']['City']==city:
+				return e
+			else:
+				raise KeyError(key)
+	
+	def CustomersByCityGen(self,customers,city):
+		for customer in customers.data.itervalues():
+			if customer[2][1]==city:
+				yield customers[customer[0]]
+				
 	def tearDown(self):
 		pass
 		
@@ -1017,7 +1036,7 @@ class SampleServerTests(unittest.TestCase):
 		self.failUnless(len(doc.root.Workspace)==1,"Sample server has 1 workspace")
 		self.failUnless(len(doc.root.Workspace[0].Collection)==6,"Sample service has 5 entity sets")
 	
-	def testCaseEntitySet(self):
+	def testCaseEntitySet1(self):
 		"""EntitySet names MAY be directly followed by open and close parenthesis."""		
 		request1=MockRequest('/service.svc/Customers')
 		request2=MockRequest('/service.svc/Customers()')
@@ -1025,21 +1044,14 @@ class SampleServerTests(unittest.TestCase):
 		request2.Send(self.svc)
 		self.failUnless(request1.responseCode==200)		
 		self.failUnless(request2.responseCode==200)
-		self.failUnless(request1.wfile.getvalue()==request2.wfile.getvalue(),"Mismatched responses with ()")
+		doc1=app.Document()
+		doc1.Read(request1.wfile.getvalue())		
+		doc2=app.Document()
+		doc2.Read(request2.wfile.getvalue())		
+		output=doc1.DiffString(doc2)
+		self.failUnless(request1.wfile.getvalue()==request2.wfile.getvalue(),"Mismatched responses with (): \n%s"%(output))
 
 	def testCaseEntitySet2(self):
-		"""... serviceRoot "/" entitySet MUST identify all instances of the base
-		EntityType or any of the EntityType's subtypes within the specified
-		EntitySet specified in the last URI segment."""
-		request=MockRequest('/service.svc/Customers')
-		request.Send(self.svc)
-		doc=app.Document()
-		# print request.wfile.getvalue()
-		doc.Read(request.wfile.getvalue())
-		self.failUnless(isinstance(doc.root,atom.Feed),"Expected atom.Feed from /Customers")
-		self.failUnless(len(doc.root.Entry)==91,"Sample server has 91 Customers")
-
-	def testCaseEntitySet3(self):
 		"""If an EntitySet is not in the default EntityContainer, then the URI
 		MUST qualify the EntitySet name with the EntityContainer name.
 		
@@ -1057,7 +1069,61 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.failUnless(request.responseCode==404,"Qualified entity set from default container")
 	
-	def testCaseEntitySet4(self):
+	def testCaseEntitProperty(self):
+		"""If the prior URI path segment identifies an EntityType instance in
+		EntitySet ES1, this value MUST be the name of a declared property or
+		dynamic property, of type EDMSimpleType, on the base EntityType of set
+		ES1
+		
+		If the prior URI path segment represents an instance of ComplexType CT1,
+		this value MUST be the name of a declared property defined on
+		ComplexType CT1."""
+		request=MockRequest("/service.svc/Customers('ALFKI')/CompanyName")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		# Add test case of a property on a sub-type perhaps?
+		request=MockRequest("/service.svc/Customers('ALFKI')/Title")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==404)		
+		request=MockRequest("/service.svc/Customers('ALFKI')/Address/Street")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)		
+		request=MockRequest("/service.svc/Customers('ALFKI')/Address/ZipCode")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==404)		
+	
+	def testCaseComplexProperty(self):
+		"""If the prior URI path segment identifies an instance of an EntityType
+		ET1, this value MUST be the name of a declared property or dynamic
+		property on type ET1 which represents a ComplexType instance.
+		
+		If the prior URI path segment identifies an instance of a ComplexType
+		CT1, this value MUST be the name of a declared property on CT1 which
+		represents a ComplexType instance."""
+		request=MockRequest("/service.svc/Customers('ALFKI')/Address")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		# TODO: sample data doesn't have any nested Complex properties
+	
+	def testCaseNavProperty(self):
+		"""If the prior URI path segment identifies an instance of an EntityType
+		ET1, this value MUST be the name of a NavigationProperty on type ET1.
+		
+		If the URI path segment preceding an entityNavProperty segment is
+		"$links", then there MUST NOT be any subsequent path segments in the URI
+		after the entityNavProperty. If additional segments exist, the URI MUST
+		be treated as invalid"""
+		request=MockRequest("/service.svc/Customers('ALFKI')/Orders")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		request=MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		request=MockRequest("/service.svc/Customers('ALFKI')/$links/Orders/dummy")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==400)
+		
+	def testCaseKeyPredicateSingle(self):
 		"""An EntityKey consisting of a single EntityType property MAY be
 		represented using the "<Entity Type property name> = <Entity Type
 		property value>" syntax"""
@@ -1068,6 +1134,30 @@ class SampleServerTests(unittest.TestCase):
 		self.failUnless(request1.responseCode==200)		
 		self.failUnless(request2.responseCode==200)
 		self.failUnless(request1.wfile.getvalue()==request2.wfile.getvalue(),"Mismatched responses with ()")
+
+	def testCaseKeyPredicateComplex(self):
+		"""The order in which the properties of a compound EntityKey appear in
+		the URI MUST NOT be significant"""
+		# TODO, sample data has no compound keys
+		pass
+
+	def testCaseAllInstances(self):
+		"""... serviceRoot "/" entitySet MUST identify all instances of the base
+		EntityType or any of the EntityType's subtypes within the specified
+		EntitySet specified in the last URI segment."""
+		request=MockRequest('/service.svc/Customers')
+		request.Send(self.svc)
+		doc=app.Document()
+		doc.Read(request.wfile.getvalue())
+		self.failUnless(isinstance(doc.root,atom.Feed),"Expected atom.Feed from /Customers")
+		self.failUnless(len(doc.root.Entry)==91,"Sample server has 91 Customers")
+		request=MockRequest("/service.svc/CustomersByCity?city='Chunton'")
+		# import pdb;pdb.set_trace()
+		request.Send(self.svc)
+		doc=app.Document()
+		doc.Read(request.wfile.getvalue())
+		self.failUnless(isinstance(doc.root,atom.Feed),"Expected atom.Feed from /CustomersByCity")
+		self.failUnless(len(doc.root.Entry)==1,"Sample server has 1 Customer in Chunton")
 				
 	def testCaseMiscURI(self):
 		"""Example URIs not tested elsewhere:"""

@@ -40,9 +40,6 @@ class PyDSTests(unittest.TestCase):
 		es=EntitySet(None)
 		es.entityType=et
 		self.failUnless(isinstance(es,edm.EntitySet))
-		ec=EntityCollection(es)
-		self.failUnless(isinstance(ec,edm.EntityCollection))
-		self.failUnless(len(list(ec))==0,"Empty collection")
 		
 	def testCaseLength(self):
 		es=self.schema['SampleEntities.Employees']
@@ -55,7 +52,7 @@ class PyDSTests(unittest.TestCase):
 		del es[u"ABCDE"]
 		self.failUnless(len(es)==1,"Length after delete")
 	
-	def testCaseEntityCollection(self):
+	def testCaseEntitySetData(self):
 		es=self.schema['SampleEntities.Employees']
 		es.data[u"ABCDE"]=(u"ABCDE",u"John Smith",None,None)
 		es.data[u"FGHIJ"]=(u"FGHIJ",u"Jane Smith",None,None)

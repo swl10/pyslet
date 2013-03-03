@@ -55,7 +55,7 @@
                     Unicode="true" FixedLength="true"/>
                 <Property Name="CompanyName" Type="Edm.String" Nullable="false" MaxLength="40"
                     Unicode="true" FixedLength="false"/>
-                <Property Name="Address" Type="Sample.CAddress" Nullable="true"/>
+                <Property Name="Address" Type="SampleModel.CAddress" Nullable="false"/>
                 <Property Name="Version" Type="Edm.Binary" Nullable="true" MaxLength="8"
                     FixedLength="true" ConcurrencyMode="Fixed"/>
                 <NavigationProperty Name="Orders" Relationship="SampleModel.Orders_Customers"
@@ -73,7 +73,7 @@
                 <Property Name="EmployeeName" Type="Edm.String" Nullable="false" MaxLength="40"
                     Unicode="true" FixedLength="false" m:FC_KeepInContent="false"
                     m:FC_TargetPath="SyndicationTitle"/>
-                <Property Name="Address" Type="Sample.EAddress" Nullable="true"/>
+                <Property Name="Address" Type="SampleModel.EAddress" Nullable="false"/>
                 <Property Name="Version" Type="Edm.Binary" Nullable="true" MaxLength="8"
                     FixedLength="true" ConcurrencyMode="Fixed"/>
             </EntityType>
