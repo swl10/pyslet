@@ -41,6 +41,30 @@ class CSDLTests(unittest.TestCase):
 				self.failIf(ValidateSimpleIdentifier(iTest),"%s: Fail"%repr(iTest))
 			except ValueError,e:
 				pass
+	
+	def testCaseSimpleType(self):
+		"""Test the SimpleType enumeration."""
+		self.failUnless(SimpleType.Binary==getattr(SimpleType,'Edm.Binary'),"Dual declaration form.")
+		# Given a python type value (as returned by the type() function) we find the SimpleType
+		self.failUnless(SimpleType.FromPythonType(type(3.14))==SimpleType.Double,"Bad float type") 
+		self.failUnless(SimpleType.FromPythonType(type(3))==SimpleType.Int64,"Bad int type") 
+		self.failUnless(SimpleType.FromPythonType(type("Hello"))==SimpleType.String,"Bad string type") 			
+		self.failUnless(SimpleType.FromPythonType(type(u"Hello"))==SimpleType.String,"Bad unicode type") 
+		# Given a python value we coerce to the correct type
+		self.failUnless(SimpleType.CoerceValue(SimpleType.Boolean,3.14) is True,"Boolean coercion True")
+		self.failUnless(SimpleType.CoerceValue(SimpleType.Boolean,0.0) is False,"Boolean coercion False")
+		self.failUnless(SimpleType.CoerceValue(SimpleType.Int32,3.14) is 3,"Int32 coercion")
+		self.failUnless(SimpleType.CoerceValue(SimpleType.Int32,"3") is 3,"Int32 coercion")
+		self.failUnless(SimpleType.CoerceValue(SimpleType.Double,"3.14")==3.14,"Double coercion")
+		
+	def testSimpleValue(self):
+		"""Test the SimpleValue class."""
+		v=SimpleValue(SimpleType.Boolean)
+		self.failUnless(isinstance(v,EDMValue),"SimpleValue inherits from EDMValue")
+		self.failUnless(v.GetSimpleValue() is None,"Null value on construction")
+		v=SimpleValue(SimpleType.Boolean,"flag")
+		self.failUnless(v.name=="flag","SimpleValue name set on constructor")
+		self.failUnless(v.GetSimpleValue() is None,"Null value on construction")
 		
 	def testCaseSchema(self):
 		s=Schema(None)

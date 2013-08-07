@@ -4,9 +4,11 @@
 
 import pyslet.mc_csdl as edm
 import pyslet.mc_edmx as edmx
+import pyslet.odatav2 as odata
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.iso8601 as iso8601
+import pyslet.rfc2616 as http
 
 # class EntityCollection(edm.EntityCollection):
 # 	"""An iterable of :py:class:`Entity` instances.
@@ -44,16 +46,21 @@ import pyslet.iso8601 as iso8601
 # 		return self.es[key]
 
 
-class EntitySet(edm.EntitySet):
+class EntitySet(odata.EntitySet):
 	"""Implements an in-memory entity set using a python dictionary.
 	
 	Each entity is stored as a tuple of values in the order in which the
 	properties of that entity type are declared.  Complex values are stored as
-	nested tuples."""	
+	nested tuples.
+	
+	We use OData's EntitySet class to indicate that we support the media-streaming
+	methods.  Media streams are simply strings stored in a parallel dictionary
+	mapping keys on to a tuple of media-type and string."""	
 	
 	def __init__(self,parent):
 		super(EntitySet,self).__init__(parent)
 		self.data={}		#: simple dictionary of the values
+		self.streams={}		#: simple dictionary of streams
 		self.delHooks=[]	#: list of functions to call during deletion
 	
 	def __len__(self):
@@ -92,6 +99,9 @@ class EntitySet(edm.EntitySet):
 				value.append(p.GetSimpleValue())
 		self.data[self.KeyValue(key)]=tuple(value)
 
+	def SetItemStream(self,key,streamType,stream):
+		self.streams[self.KeyValue(key)]=(streamType,stream)
+
 	def GetTupleFromComplex(self,complexValue):
 		value=[]
 		for pName in complexValue.iterkeys():
@@ -116,6 +126,36 @@ class EntitySet(edm.EntitySet):
 		"""Adds a function to call during entity deletion."""
 		self.delHooks.append(delHook)
 
+	def GetStreamType(self,entity):
+		"""Returns the content type of the entity's media stream.
+		
+		Must return a :py:class:`pyslet.rfc2616.MediaType` instance."""
+		key=entity.Key()
+		if key in self.streams:
+			type,stream=self.streams[key]
+			return type
+		else:
+			return http.MediaType('application/octet-stream')
+			
+	def GetStreamSize(self,entity):
+		"""Returns the size of the entity's media stream in bytes."""
+		key=entity.Key()
+		if key in self.streams:
+			type,stream=self.streams[key]
+			return len(stream)
+		else:
+			return 0
+		
+	def GetStreamGenerator(self,entity):
+		"""A generator function that yields blocks (strings) of data from the entity's media stream."""
+		key=entity.Key()
+		if key in self.streams:
+			type,stream=self.streams[key]
+			yield stream
+		else:
+			yield ''
+
+		
 
 class AssociationSet(edm.AssociationSet):
 	
@@ -129,6 +169,14 @@ class AssociationSet(edm.AssociationSet):
 		self.AssociationSetEnd[0].AddLink(fromKey,toKey)
 
 
+class NavigationEntitySet(edm.NavigationEntitySet):
+	
+	def itervalues(self):
+		result=self.sourceEnd.index[self.sourceKey]
+		for k in result:
+			yield self.sourceEnd.otherEnd.entitySet[k]
+		
+
 class AssociationSetEnd(edm.AssociationSetEnd):
 	# XMLNAME=(EDM_NAMESPACE,'End')
 	
@@ -136,26 +184,21 @@ class AssociationSetEnd(edm.AssociationSetEnd):
 		edm.AssociationSetEnd.__init__(self,parent)
 		self.index={}		#: a dictionary mapping source keys on to target keys	
 		
-	def Navigate(self,fromKey,toKey=None):
+	def Navigate(self,fromKey):
 		"""We keep a simple index dictionary mapping source keys to target keys.
 		
-		We use dictionaries of target keys for simplicity."""
-		result=self.index[fromKey]
-		if self.otherEnd.associationEnd.multiplicity==edm.Multiplicity.Many:
-			# result may have many values
-			if toKey is None:
-				for k in result:
-					yield self.otherEnd.entitySet[k]
-			elif toKey in result:
-				yield self.otherEnd.entitySet[toKey]
-			else:
-				raise KeyError
+		We use dictionaries of target keys as the values in the index for simplicity."""
+		if self.IsEntityCollection():
+			return NavigationEntitySet(self,fromKey)
 		else:
-			result=result[0]	# result is a single value dictionary
-			if toKey is None or toKey==result:
-				yield self.otherEnd.entitySet[result]
+			result=self.index.get(fromKey,None)
+			if result is None:
+				return None
+			elif len(result)==1:
+				k=result.keys()[0]
+				return self.otherEnd.entitySet[k]
 			else:
-				raise KeyError
+				raise KeyError("Navigation error, found multiple entities")
 
 	def UpdateSetRefs(self,scope,stopOnErrors=False):
 		"""We use this method to add a delete hook to the entity set."""

@@ -214,6 +214,7 @@ class HTTPRequestManager:
 		self.nextConnection=None
 		self.credentials=[]
 		self.socketSelect=select.select
+		self.dnsCache={}
 		self.logLevel=HTTP_LOG_NONE
 		self.logStream=None
 		self.logLineLen=80
@@ -243,6 +244,12 @@ class HTTPRequestManager:
 		for c in self.credentials:
 			if c.Match(challenge):
 				return c
+	
+	def DNSLookup(self,host,port):
+		if (host,port) not in self.dnsCache:
+			self.Log(HTTP_LOG_DETAIL,"Looking up %s"%host)
+			self.dnsCache[(host,port)]=socket.getaddrinfo(host,port, 0, socket.SOCK_STREAM)
+		return self.dnsCache[(host,port)]
 		
 	def ProcessRequest(self,request,timeout=60):
 		self.QueueRequest(request)
@@ -272,9 +279,12 @@ class HTTPRequestManager:
 				# that the queue has been re-filled (e.g., by redirects)
 				# We must only break if we really are done!
 				break
+		self.Close()
+
+	def Close(self):
 		for connection in self.connections.values():
 			connection.Close()
-
+		
 	def ProcessQueue(self):
 		while self.requestQueue:
 			request=self.requestQueue[0]
@@ -286,8 +296,8 @@ class HTTPRequestManager:
 					# Connection is not ready for us
 					break
 			else:
-				# Find or create a conneciton for the next request
-				key=(request.scheme,request.GetHost(),request.port)
+				# Find or create a connection for the next request
+				key=(request.scheme,request.hostname,request.port)
 				self.nextConnection=self.connections.get(key,None)
 				if self.nextConnection is None:
 					self.nextConnection=self.NewConnection(key[0],key[1],key[2])
@@ -634,9 +644,8 @@ class HTTPConnection:
 		self.socket=None
 		self.socketFile=None
 		self.socketSelect=select.select
-		self.manager.Log(HTTP_LOG_DETAIL,"Looking up %s"%self.host)
 		try:
-			for target in socket.getaddrinfo(self.host, self.port, 0, socket.SOCK_STREAM):
+			for target in self.manager.DNSLookup(self.host,self.port):
 				family, socktype, protocol, canonname, address = target
 				try:
 					self.socket=socket.socket(family, socktype, protocol)
@@ -952,8 +961,10 @@ class HTTPRequest(HTTPMessage):
 		else:
 			self.resBodyStream=None
 		self.autoRedirect=True
-			
+		self.done=False
+		
 	def Resend(self,uri=None):
+		self.done=False
 		self.manager.Log(HTTP_LOG_INFO,"Resending request to: %s"%str(uri))
 		self.Reset()
 		self.status=0
@@ -978,12 +989,6 @@ class HTTPRequest(HTTPMessage):
 		url=urlparse.urlsplit(uri)
 		if url.username:
 			raise HTTPException("Auth not yet supported")
-		# The Host request-header field (section 14.23) MUST accompany all
-		# HTTP/1.1 requests.
-		if url.hostname:
-			self.SetHost(url.hostname)
-		else:
-			raise HTTPException("No host in request URL")
 		if url.path:
 			self.uri=url.path
 		else:
@@ -991,6 +996,7 @@ class HTTPRequest(HTTPMessage):
 		if url.query:
 			self.uri=self.uri+'?'+url.query
 		self.scheme=url.scheme.lower()
+		self.hostname=url.hostname
 		if self.scheme=='http':
 			self.port=HTTP_PORT
 		elif self.scheme=='https':
@@ -1000,6 +1006,18 @@ class HTTPRequest(HTTPMessage):
 		if url.port:
 			# Custom port in the URL
 			self.port=url.port
+			customPort=self.port
+		else:
+			customPort=None
+		# The Host request-header field (section 14.23) MUST accompany all
+		# HTTP/1.1 requests.
+		if url.hostname:
+			if customPort is None:
+				self.SetHost(url.hostname)
+			else:
+				self.SetHost("%s:%i"%(url.hostname,customPort))				
+		else:
+			raise HTTPException("No host in request URL")
 
 	def SetManager(self,manager):
 		"""Called when we are queued in an HTTPRequestManager"""
@@ -1157,7 +1175,11 @@ class HTTPRequest(HTTPMessage):
 		it already had what it needed, maybe it thinks a 2xx response is more likely to make
 		us go away.  Whatever.  The point is that you can't be sure that all the data
 		was transmitted just because you got here and the server says everything is OK"""
-		if self.autoRedirect and self.status>=300 and self.status<=399:
+		self.done=True
+		if self.autoRedirect and self.status>=300 and self.status<=399 and (self.status!=302 or self.method.upper() in ("GET","HEAD")):
+			# If the 302 status code is received in response to a request other
+			# than GET or HEAD, the user agent MUST NOT automatically redirect the
+			# request unless it can be confirmed by the user
 			location=self.response.GetHeader("Location").strip()
 			if location:
 				url=urlparse.urlsplit(location)
@@ -1176,7 +1198,7 @@ class HTTPRequest(HTTPMessage):
 						# need to avoid uselessly sending the same credentials
 						self.SetHeader('Authorization',str(credentials))
 						self.Resend()
-			
+	
 
 class HTTPResponse(HTTPMessage):
 	

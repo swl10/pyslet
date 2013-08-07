@@ -173,7 +173,7 @@ class Node(object):
 		to map element names to classes but in some cases you may want to tweek
 		the mapping at the individual element level.  For example, if the same
 		element name is used for two different purposes in the same XML
-		document, although confusing this is allowed in XML schema."""
+		document, although confusing, this is allowed in XML schema."""
 		return None
 
 	def GetChildClass(self,stagClass):
@@ -1213,15 +1213,25 @@ class Element(Node):
 		return attrs
 
 	def SetAttribute(self,name,value):
-		"""Sets the value of an attribute."""
+		"""Sets the value of an attribute.
+		
+		If *value* is None then the attribute is removed or, if an
+		XMLATTR_ mapping is in place its value is set to an empty list,
+		dictionary or None as appropriate."""
 		aMap=self._AMap()
 		if name in aMap:
 			attrName,decode,vType=aMap[name]
 			if vType is ListType:
-				value=value.split()
+				if value is None:
+					value=[]
+				else:
+					value=value.split()
 				setattr(self,attrName,map(decode,value))
 			elif vType is DictType:
-				value=value.split()
+				if value is None:
+					value=[]
+				else:
+					value=value.split()
 				dValue={}
 				for iv in map(decode,value):
 					dValue[iv]=dValue.get(iv,0)+1
@@ -1231,11 +1241,18 @@ class Element(Node):
 				if type(x) in (ListType,DictType):
 					print "Problem setting %s in %s: single value will overwrite List or Dict"%(repr(name),repr(self.__class__.__name__))
 					# print self.GetDocument()
-				setattr(self,attrName,decode(value))
+				if value is None:
+					setattr(self,attrName,None)
+				else:
+					setattr(self,attrName,decode(value))
 		elif hasattr(self.__class__,'ID') and name==self.__class__.ID:
 			self.SetID(value)
 		else:
-			self._attrs[name]=value
+			if value is None:
+				if name in self._attrs:
+					del self._attrs[name]
+			else:
+				self._attrs[name]=value
 	
 	def GetAttribute(self,name):
 		"""Gets the value of a single attribute as a string.
@@ -1487,9 +1504,10 @@ class Element(Node):
 				if not match:
 					raise XMLUnknownChild(child.xmlname)
 			elif factory is child:
+				# Single allowable child is replaced with None
 				child.DetachFromDocument()
 				child.parent=None
-				factory=None
+				setattr(self,factoryName,None)
 			else:
 				raise TypeError
 		else:
@@ -1642,12 +1660,16 @@ class Element(Node):
 		self._children=newChildren				
 
 	def GetValue(self,ignoreElements=False):
-		"""Returns a single unicode string representing the element's data.
+		"""By default, returns a single unicode string representing the element's data.
 		
 		If the element contains child elements and ignoreElements is False
 		then XMLMixedContentError is raised.
 		
-		If the element is empty an empty string is returned."""		
+		If the element is empty an empty string is returned.
+		
+		Derived classes may return more complex objects, such as values
+		of basic python types or class instances, performing validation
+		based on application-defined rules."""		
 		data=[]
 		for child in self.GetChildren():
 			if type(child) in StringTypes:
@@ -1662,7 +1684,11 @@ class Element(Node):
 		If the element has children other than those being managed by the
 		base class then UnimplementedError is raised.
 		
-		If *value* is None then the element becomes empty."""
+		If *value* is None then the element becomes empty.
+		
+		Derived classes may allow more complex values to be set, such as
+		values of basic python types or class instances depending on the
+		element type being represented in the application."""
 		if not self.IsMixed():
 			raise XMLMixedContentError
 		self.Reset(False)

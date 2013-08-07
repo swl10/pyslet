@@ -41,10 +41,12 @@ ODATA_RELATED_TYPE="application/atom+xml;type=entry"
 class Parser(edm.Parser):
 	
 	def ParseURILiteral(self):
+		"""Returns a :py:class:`pyslet.mc_csdl.SimpleType` instance."""
 		if self.ParseInsensitive("null"):
-			return None,None
+			return edm.SimpleValue(None)
 		elif self.Parse("'"):
 			# string of utf-8 characters
+			result=edm.SimpleValue(edm.SimpleType.String)
 			value=[]
 			while True:
 				startPos=self.pos
@@ -60,25 +62,35 @@ class Parser(edm.Parser):
 			value=string.join(value,"'")
 			if self.raw:
 				value=value.decode('utf-8')
-			return edm.SimpleType.String,value
+			result.simpleValue=value
+			return result
 		elif self.MatchDigit():
 			return self.ParseNumericLiteral()
 		elif self.Parse('-'):
 			# one of the number forms
 			if self.ParseInsensitive("inf"):
 				if self.ParseOne("Dd"):
-					return edm.SimpleType.Double,float("-INF")
+					result=edm.SimpleValue(edm.SimpleType.Double)
+					result.simpleValue=float("-INF")
+					return result
 				elif self.ParseOne("Ff"):
-					return edm.SimpleType.Single,float("-INF")
+					result=edm.SimpleValue(edm.SimpleType.Single)
+					result.simpleValue=float("-INF")
+					return result
 				else:
 					raise ValueError("Expected double or single -inf: -INF%s"%repr(self.Peek(1)))							
 			else:
 				return self.ParseNumericLiteral('-')
 		elif self.ParseInsensitive("true"):
-			return edm.SimpleType.Boolean,True
+			result=edm.SimpleValue(edm.SimpleType.Boolean)
+			result.simpleValue=True
+			return result
 		elif self.ParseInsensitive("false"):
-			return edm.SimpleType.Boolean,False
+			result=edm.SimpleValue(edm.SimpleType.Boolean)
+			result.simpleValue=False
+			return result
 		elif self.ParseInsensitive("datetimeoffset"):
+			result=edm.SimpleValue(edm.SimpleType.DateTimeOffset)
 			production="datetimeoffset literal"
 			self.Require("'",production)
 			startPos=self.pos
@@ -94,9 +106,11 @@ class Parser(edm.Parser):
 			if zOffset is None:
 				raise ValueError("datetimeoffset requires zone specifier: %s"%str(value))
 			if not value.Complete():
-				raise ValueError("datetimeoffset requires a complete specification: %s"%str(value))				
-			return edm.SimpleType.DateTimeOffset,value			
+				raise ValueError("datetimeoffset requires a complete specification: %s"%str(value))
+			result.simpleValue=value
+			return result
 		elif self.ParseInsensitive("datetime"):
+			result=edm.SimpleValue(edm.SimpleType.DateTime)
 			production="datetime literal"
 			self.Require("'",production)
 			year=int(self.RequireProduction(self.ParseDigits(4,4),production))
@@ -121,8 +135,10 @@ class Parser(edm.Parser):
 				value.SetCalendarTimePoint(year/100,year%100,month,day,hour,minute,second)
 			except iso.DateTimeError,e:
 				raise ValueError(str(e))
-			return edm.SimpleType.DateTime,value
+			result.simpleValue=value
+			return result
 		elif self.ParseInsensitive("time"):
+			result=edm.SimpleValue(edm.SimpleType.Time)
 			self.Require("'","time")
 			startPos=self.pos
 			while not self.Parse("'"):
@@ -133,30 +149,42 @@ class Parser(edm.Parser):
 				value=xsi.Duration(self.src[startPos:self.pos-1])
 			except iso.DateTimeError,e:
 				raise ValueError(str(e))			
-			return edm.SimpleType.Time,value
+			result.simpleValue=value
+			return result
 		elif self.Parse("X") or self.ParseInsensitive("binary"):
-			if self.Parse("'"):
-				value=self.ParseBinaryLiteral()
-				self.Require("'","binary literal")
-				return edm.SimpleType.Binary,value
+			self.Require("'","binary")
+			result=edm.SimpleValue(edm.SimpleType.Binary)
+			value=self.ParseBinaryLiteral()
+			self.Require("'","binary literal")
+			result.simpleValue=value
+			return result
 		elif self.Match("."):
 			# One of the elided numeric forms, don't parse the point!
 			return self.ParseNumericLiteral()
 		elif self.ParseInsensitive("nan"):
 			if self.ParseOne("Dd"):
-				return edm.SimpleType.Double,float("Nan")
+				result=edm.SimpleValue(edm.SimpleType.Double)
+				result.simpleValue=float("Nan")
+				return result
 			elif self.ParseOne("Ff"):
-				return edm.SimpleType.Single,float("Nan")
+				result=edm.SimpleValue(edm.SimpleType.Single)
+				result.simpleValue=float("Nan")
+				return result
 			else:
 				raise ValueError("Expected double or single Nan: Nan%s"%repr(self.Peek(1)))			
 		elif self.ParseInsensitive("inf"):
 			if self.ParseOne("Dd"):
-				return edm.SimpleType.Double,float("INF")
+				result=edm.SimpleValue(edm.SimpleType.Double)
+				result.simpleValue=float("INF")
+				return result
 			elif self.ParseOne("Ff"):
-				return edm.SimpleType.Single,float("INF")
+				result=edm.SimpleValue(edm.SimpleType.Single)
+				result.simpleValue=float("INF")
+				return result
 			else:
 				raise ValueError("Expected double or single inf: INF%s"%repr(self.Peek(1)))
 		elif self.ParseInsensitive("guid"):
+			result=edm.SimpleValue(edm.SimpleType.Guid)
 			self.Require("'","guid")
 			hex=[]
 			hex.append(self.RequireProduction(self.ParseHexDigits(8,8),"guid"))
@@ -174,7 +202,8 @@ class Parser(edm.Parser):
 				hex[3:3]=['FFFF']
 				hex.append(self.RequireProduction(self.ParseHexDigits(8,8),"guid"))
 			self.Require("'","guid")
-			return edm.SimpleType.Guid,uuid.UUID(hex=string.join(hex,''))
+			result.simpleValue=uuid.UUID(hex=string.join(hex,''))
+			return result
 		else:			
 			raise ValueError("Expected literal: %s"%repr(self.Peek(10)))
 
@@ -184,31 +213,38 @@ class Parser(edm.Parser):
 			# could be a decimal
 			decDigits=self.ParseDigits(1)
 			if self.ParseOne("Mm"):
+				result=edm.SimpleValue(edm.SimpleType.Decimal)
 				# it was a decimal
 				if decDigits is None:
 					raise ValueError("Missing digis after '.' for decimal: %s.d"%(digits))		
 				if len(digits)>29 or len(decDigits)>29:
 					raise ValueError("Too many digits for decimal literal: %s.%s"%(digits,decDigits))
-				return edm.SimpleType.Decimal,decimal.Decimal("%s%s.%s"%(sign,digits,decDigits))
+				result.simpleValue=decimal.Decimal("%s%s.%s"%(sign,digits,decDigits))
+				return result
 			elif self.ParseOne("Dd"):
+				result=edm.SimpleValue(edm.SimpleType.Double)
 				if digits is None:
 					digits='0'
 				if decDigits is None:
 					decDigits='0'
 				# it was a double, no length restrictions
-				return edm.SimpleType.Double,float("%s%s.%s"%(sign,digits,decDigits))
+				result.simpleValue=float("%s%s.%s"%(sign,digits,decDigits))
+				return result
 			elif self.ParseOne("Ee"):
 				eSign=self.Parse("-")
 				eDigits=self.RequireProduction(self.ParseDigits(1,3),"exponent")
 				if self.ParseOne("Dd"):
+					result=edm.SimpleValue(edm.SimpleType.Double)
 					if digits is None:
 						raise ValueError("Missing digis before '.' for expDecimal")
 					if decDigits is None:
 						decDigits='0'
 					elif len(decDigits)>16:
-						raise ValueError("Too many digits for double: %s.%s"%(digits,decDigits))					
-					return edm.SimpleType.Double,float("%s%s.%se%s%s"%(sign,digits,decDigits,eSign,eDigits))
+						raise ValueError("Too many digits for double: %s.%s"%(digits,decDigits))
+					result.simpleValue=float("%s%s.%se%s%s"%(sign,digits,decDigits,eSign,eDigits))
+					return result
 				elif self.ParseOne("Ff"):
+					result=edm.SimpleValue(edm.SimpleType.Single)
 					if digits is None:
 						raise ValueError("Missing digis before '.' for expDecimal")
 					if decDigits is None:
@@ -217,35 +253,47 @@ class Parser(edm.Parser):
 						raise ValueError("Too many digits for single: %s.%s"%(digits,decDigits))					
 					elif len(eDigits)>2:
 						raise ValueError("Too many digits for single exponet: %s.%sE%s%s"%(digits,decDigits,eSign,eDigits))					
-					return edm.SimpleType.Single,float("%s%s.%se%s%s"%(sign,digits,decDigits,eSign,eDigits))
+					result.simpleValue=float("%s%s.%se%s%s"%(sign,digits,decDigits,eSign,eDigits))
+					return result
 				else:
 					raise ValueError("NotImplementedError")
 			elif self.ParseOne("Ff"):
+				result=edm.SimpleValue(edm.SimpleType.Single)
 				if digits is None:
 					digits='0'
 				if decDigits is None:
 					decDigits='0'
 				# it was a single, no length restrictions
-				return edm.SimpleType.Single,float("%s%s.%s"%(sign,digits,decDigits))
+				result.simpleValue=float("%s%s.%s"%(sign,digits,decDigits))
+				return result
 			else:
 				raise ValueError("NotImplementedError")
 		elif self.ParseOne("Mm"):
+			result=edm.SimpleValue(edm.SimpleType.Decimal)
 			if len(digits)>29:
 				raise ValueError("Too many digits for decimal literal: %s"%digits)
-			return edm.SimpleType.Decimal,decimal.Decimal("%s%s"%(sign,digits))
+			result.simpleValue=decimal.Decimal("%s%s"%(sign,digits))
+			return result
 		elif self.ParseOne("Ll"):
+			result=edm.SimpleValue(edm.SimpleType.Int64)
 			if len(digits)>19:
 				raise ValueError("Too many digits for int64 literal: %s"%digits)
-			return edm.SimpleType.Int64,long("%s%s"%(sign,digits))
+			result.simpleValue=long("%s%s"%(sign,digits))
+			return result
 		elif self.ParseOne("Dd"):
+			result=edm.SimpleValue(edm.SimpleType.Double)
 			if len(digits)>17:
 				raise ValueError("Too many digits for double literal: %s"%digits)
-			return edm.SimpleType.Double,float(sign+digits)
+			result.simpleValue=float(sign+digits)
+			return result
 		elif self.ParseOne("Ff"):
+			result=edm.SimpleValue(edm.SimpleType.Single)
 			if len(digits)>8:
 				raise ValueError("Too many digits for single literal: %s"%digits)
-			return edm.SimpleType.Single,float(sign+digits)				
+			result.simpleValue=float(sign+digits)
+			return result
 		else:
+			result=edm.SimpleValue(edm.SimpleType.Int32)
 			# just a bunch of digits followed by something else so return int32
 			if digits is None:
 				raise ValueError("Digits required for integer literal: %s"%digits)				
@@ -255,7 +303,8 @@ class Parser(edm.Parser):
 			value=int(sign+digits)
 			if value>2147483647 or value<-2147483648:
 				raise ValueError("Range of int32 exceeded: %s"%(sign+digits))
-			return edm.SimpleType.Int32,value
+			result.simpleValue=value
+			return result
 
 	
 def ParseURILiteral(source):
@@ -363,7 +412,9 @@ class ODataURI:
 		self.pathPrefix=pathPrefix		#: a string containing the path prefix without a trailing slash
 		self.resourcePath=None			#: a string containing the resource path (or None if this is not a resource path)
 		self.navPath=[]					#: a list of navigation path component strings
-		self.queryOptions=[]			#: a list of raw strings containing the query options
+		self.queryOptions=[]			#: a list of raw strings containing custom query options and service op params
+		self.sysQueryOptions={}			#: a dictionary of system query options
+		self.paramTable={}
 		if dsURI.absPath is None:
 			#	relative paths are resolved relative to the pathPrefix with an added slash!
 			#	so ODataURI('Products','/OData/OData.svc') is treated as '/OData/OData.svc/Products'
@@ -375,7 +426,16 @@ class ODataURI:
 			# this is not a URI we own
 			return
 		if dsURI.query is not None:
-			self.queryOptions=dsURI.query.split('&')
+			rawOptions=dsURI.query.split('&')
+			for paramDef in rawOptions:
+				if paramDef and paramDef[0]=='$':
+					paramName=uri.UnescapeData(paramDef[:paramDef.index('=')]).decode('utf-8')
+					self.sysQueryOptions[paramName]=paramDef[paramDef.index('=')+1:]
+				else:
+					if '=' in paramDef:
+						paramName=uri.UnescapeData(paramDef[:paramDef.index('=')]).decode('utf-8')
+						self.paramTable[paramName]=len(self.queryOptions)
+					self.queryOptions.append(paramDef)
 		self.resourcePath=dsURI.absPath[len(pathPrefix):]
 		# grab the first component of the resourcePath
 		if self.resourcePath=='/':
@@ -399,7 +459,7 @@ class ODataURI:
 			if len(keys)==0:
 				return name,{}
 			elif len(keys)==1 and '=' not in keys[0]:
-				return name,{u'':ParseURILiteral(keys[0])[1]}
+				return name,{u'':ParseURILiteral(keys[0]).simpleValue}
 			else:
 				keyPredicate={}
 				for k in keys:
@@ -408,11 +468,19 @@ class ODataURI:
 						raise ValueError("unrecognized key predicate: %s"%repr(keys))
 					kname,value=nv
 					kname=uri.UnescapeData(kname).decode('utf-8')
-					keyPredicate[kname]=ParseURILiteral(value)[1]
+					kvalue=ParseURILiteral(value).simpleValue
+					keyPredicate[kname]=kvalue
 				return name,keyPredicate
 		else:
 			return uri.UnescapeData(component).decode('utf-8'),{}
-		
+	
+	def GetParamValue(self,paramName):
+		if paramName in self.paramTable:
+			paramDef=self.queryOptions[self.paramTable[paramName]]
+			# must be a primitive type
+			return ParseURILiteral(paramDef[paramDef.index('=')+1:])
+		else:
+			raise KeyError("Missing service operation, or custom parameter: %s"%paramName)
 		
 			
 class ODataElement(xmlns.XMLNSElement):
@@ -421,7 +489,7 @@ class ODataElement(xmlns.XMLNSElement):
 
 
 class Property(ODataElement):
-	"""Represents each property.
+	"""Represents each property value.
 	
 	The OData namesapce does not define elements in the dataservices space as
 	the elements take their names from the properties themselves.  Therefore,
@@ -429,42 +497,134 @@ class Property(ODataElement):
 	
 	def __init__(self,parent):
 		ODataElement.__init__(self,parent)
-		self.typeCode=None		# a value from :py:class:`pyslet.mc_csdl.SimpleType`
+		self.edmValue=None		# an :py:class:`pyslet.mc_csdl.EDMValue` instance
 	
-	def ContentChanged(self):
-		ODataElement.ContentChanged(self)
+	def GetSimpleType(self):
 		type=self.GetNSAttribute((ODATA_METADATA_NAMESPACE,'type'))
-		if type:
+		if type:			
 			try:
-				self.typeCode=edm.SimpleType.DecodeLowerValue(type.lower())
+				type=edm.SimpleType.DecodeLowerValue(type.lower())
 			except ValueError:
-				pass
-			
-	def GetValue(self):
+				# assume unknown, probably complex 			
+				type=None
+			return type
+		else:
+			return None
+						
+	def GetValue(self,value=None):
 		"""Gets an appropriately typed value for the property.
 		
 		Overloads the basic
 		:py:meth:`~pyslet.xml20081126.structures.Element.GetValue`
-		implementation to add support for type attribute."""
-		value=ODataElement.GetValue(self)
-		if self.typeCode is not None:
-			decoder,encoder=edm.SimpleTypeCodec.get(self.typeCode,(None,None))
-			if decoder:
-				return decoder(value)
+		implementation to transform the value into an
+		:py:class:`pyslet.mc_csdl.EDMValue` instance.
+		
+		An optional :py:class:`pyslet.mc_csdl.EDMValue` can be passed,
+		if present the instance's value is updated with the value of
+		this Property element."""
+		null=self.GetNSAttribute((ODATA_METADATA_NAMESPACE,'null'))
+		null=(null and null.lower()=="true")
+		if value is None:
+			entry=self.FindParent(Entry)
+			if entry and entry.entityType:
+				propertyDef=entry.entityType.get(self.xmlname,None)
+			else:
+				propertyDef=None
+			if propertyDef:
+				value=propertyDef()
+			else:
+				pList=[]
+				# picks up top-level properties only! 
+				self.FindChildren(Property,pList)
+				if pList:
+					# we have a complex type with no definition
+					value=edm.Complex()
+				else:
+					type=self.GetSimpleType()
+					if type is None:
+						# unknown simple types treated as string
+						type=edm.SimpleType.String
+					value=edm.SimpleValue(type,self.xmlname)
+		if isinstance(value,edm.SimpleValue):
+			if null:
+				value.SetSimpleValue(None)
+			else:
+				value.SetFromLiteral(ODataElement.GetValue(self))
+		else:
+			# you can't have a null complex value BTW
+			for child in self.GetChildren():
+				if isinstance(child,Property):
+					if child.xmlname in value:
+						child.GetValue(value[child.xmlname])
+					else:
+						value.AddProperty(child.xmlname,child.GetValue())
 		return value
 
 	def SetValue(self,value):
-		"""Sets the value of the property using the conversion indicated by the type attribute, if present
+		"""Sets the value of the property
 		
-		When creating new entries you won't necessarily know the required type,
-		in which case the value is simply converted to a string using the
-		default string conversion method defined by the python object in
-		question."""
-		if self.typeCode is not None:
-			decoder,encoder=edm.SimpleTypeCodec.get(self.typeCode,(None,None))
-			if encoder:
-				value=encoder(value)
-		ODataElement.SetValue(self,value)
+		The null property is updated as appropriate.
+		
+		When changing the value of an existing property we must match
+		the existing type.  For new property values we use the value
+		type to set the type property."""
+		declaredType=self.GetSimpleType()
+		if isinstance(value,edm.SimpleValue):
+			type=self.GetNSAttribute((ODATA_METADATA_NAMESPACE,'type'))
+			if declaredType is None:
+				if type is None:
+					self.SetAttribute((ODATA_METADATA_NAMESPACE,'type'),edm.SimpleType.EncodeValue(value.typeCode))
+				else:
+					# an unknown type can only be set from string, to match GetValue
+					if value.tyepCode!=edm.SimpleType.String:
+						raise TypeError("Incompatible property types: %s and %s"%(type,edm.SimpleType.EncodeValue(value.typeCode)))
+			else:
+				if declaredType!=value.typeCode:
+					raise TypeError("Incompatible property types: %s and %s"%(type,edm.SimpleType.EncodeValue(value.typeCode)))
+			if value:
+				self.SetAttribute((ODATA_METADATA_NAMESPACE,'null'),None)
+				ODataElement.SetValue(self,unicode(value))
+			else:
+				self.SetAttribute((ODATA_METADATA_NAMESPACE,'null'),"true")
+				ODataElement.SetValue(self,"")
+		elif isinstance(value,edm.Complex):
+			type=self.GetNSAttribute((ODATA_METADATA_NAMESPACE,'type'))
+			if type:
+				if value.typeDef and value.typeDef.name!=type:
+					raise TypeError("Incompatible complex types: %s and %s"%(type,value.typeDef.name))
+			elif value.typeDef:
+				self.SetAttribute((ODATA_METADATA_NAMESPACE,'type'),value.typeDef.name)
+			self.SetAttribute((ODATA_METADATA_NAMESPACE,'null'),None)
+			# loop through our children and set them from this value
+			keys={}
+			for key in value:
+				keys[key]=value[key]				
+			for child in self.GetChildren():
+				if isinstance(child,Property):
+					if child.xmlname in keys:
+						child.SetValue(keys[child.xmlname])
+						del keys[child.xmlname]
+					# otherwise leave the value alone
+			for key in keys:
+				# add any missing children
+				p=self.ChildElement(self.__class__,(ODATA_DATASERVICES_NAMESPACE,key))
+				p.SetValue(keys[key])
+		elif value is None:
+			self.SetAttribute((ODATA_METADATA_NAMESPACE,'null'),"true")
+			ODataElement.SetValue(self,"")
+		else:
+			edmValue=edm.SimpleValue(edm.SimpleType.FromPythonType(type(value)))
+			if declaredType is None:
+				type=self.GetNSAttribute((ODATA_METADATA_NAMESPACE,'type'))
+				# can only set from a string (literal form)
+				if edmValue.typeCode!=edm.SimpleType.String:
+					raise TypeError("Incompatible property types: %s and %s"%(type,edm.SimpleType.EncodeValue(edmValue.typeCode)))
+			elif edmValue.typeCode!=declaredType:
+				newValue=edm.SimpleValue(declaredType)
+				newValue.SetSimpleValue(edm.SimpleType.CoerceValue(declaredType,edmValue.GetSimpleValue()))
+				edmValue=newValue
+			self.SetAttribute((ODATA_METADATA_NAMESPACE,'null'),None)
+			ODataElement.SetValue(self,unicode(edmValue))
 
 			
 class Properties(ODataElement):
@@ -497,44 +657,55 @@ class Content(atom.Content):
 
 	
 class Entry(atom.Entry):
-	"""Overrides the default :py:class:`pyslet.rfc4287.Entry` class to add OData handling."""
+	"""Overrides the default :py:class:`pyslet.rfc4287.Entry` class to add OData handling.
+	
+	In addition to the default *parent* element an Entry can be passed
+	an optional `pyslet.mc_csdl.Entity` instance.  If present, it is
+	used to construct the Entry representation of the entity."""
 	
 	ContentClass=Content
 	
-	def __init__(self,parent):
+	def __init__(self,parent,entity=None):
 		atom.Entry.__init__(self,parent)
 		self.entityType=None		#: :py:class:`pyslet.mc_csdl.EntityType` instance describing the entry
 		self._properties={}
+		if entity is not None:
+			self.entityType=entity.typeDef
+			for k in entity:
+				self[k]=entity[k]
 	
 	def ContentChanged(self):
 		atom.Entry.ContentChanged(self)
 		self._properties={}
 		if self.Content and self.Content.Properties:
 			for p in self.Content.Properties.Property:
-				self._properties[p.xmlname]=(p,p.GetValue())
+				self._properties[p.xmlname]=p
 			
 	def __getitem__(self,key):
 		"""Enables :py:class:`Entry` to be suffixed with, e.g., ['PropertyName'] to read property values.
 		
-		Returns the value of the property with *key*.  The type of the value
-		will be the type specified by the type attribute on the property."""
-		return self._properties[key][1]
+		Returns the value of the property with *key* as a
+		`pyslet.mc_csdl.EDMValue` instance."""
+		return self._properties[key].GetValue()
 
 	def __setitem__(self,key,value):
 		"""Enables :py:class:`Entry` to be suffixed with, e.g., ['PropertyName'] to set property values.
 		
-		Sets the property *key* to *value*.  The type of value should be
-		compatible with the type expected by the :py:class:`Property` type (as
-		indicated by the type attribute).  When setting new properties *value*
-		the type is not specified and is treated as text - see
+		Sets the property *key* to *value*.  If *value* is not an
+		:py:class:`pyslet.mc_csdl.EDMValue` instance it will be coerced
+		to an appropriate value on a best-effort basis.
+		
+		For existing properties, the *value* must be a compatible type
+		and will be coerced to match the property's defined type if
+		necessary.  See
 		:py:meth:`Property.SetValue` for more information."""
 		if key in self._properties:
-			p=self._properties[key][0]
+			p=self._properties[key].SetValue(value)
 		else:
 			ps=self.ChildElement(self.ContentClass).ChildElement(Properties)
 			p=ps.ChildElement(ps.PropertyClass,(ODATA_DATASERVICES_NAMESPACE,key))
-		p.SetValue(value)
-		self._properties[key]=(p,value)
+			p.SetValue(value)
+			self._properties[key]=p
 
 	def AddLink(self,linkTitle,linkURI):
 		"""Adds a link with name *linkTitle* to the entry with *linkURI*."""
@@ -544,7 +715,55 @@ class Entry(atom.Entry):
 		l.title=linkTitle
 		l.type=ODATA_RELATED_TYPE
 
+	def SetValue(self,entity):
+		"""Sets the value of this Entry to represent *entity*, a :py:class:`pyslet.mc_csdl.TypeInstance` instance."""
+		# start by removing the existing properties
+		if self.Content and self.Content.Properties:
+			self.Content.DeleteChild(self.Content.Properties)
+		self.entityType=entity.typeDef
+		for key in entity:
+			self[key]=entity[key]
+		self.ContentChanged()
 
+
+class URI(ODataElement):
+	"""Represents a single URI in the XML-response to $links requests"""
+	XMLNAME=(ODATA_DATASERVICES_NAMESPACE,'uri')
+	
+
+class Links(ODataElement):
+	"""Represents a list of links in the XML-response to $links requests"""
+	XMLNAME=(ODATA_DATASERVICES_NAMESPACE,'links')
+	
+	def __init__(self,parent):
+		ODataElement.__init__(self,parent)
+		self.URI=[]
+
+	def GetChildren(self):
+		return itertools.chain(
+			self.URI,
+			ODataElement.GetChildren(self))
+
+
+class EntitySet(edm.EntitySet):
+	"""We override EntitySet inorder to provide some documented signatures for
+	sets of media-stream entities."""
+	
+	def GetStreamType(self,entity):
+		"""Returns the content type of the entity's media stream.
+		
+		Must return a :py:class:`pyslet.rfc2616.MediaType` instance."""
+		raise NotImplementedError
+	
+	def GetStreamSize(self,entity):
+		"""Returns the size of the entity's media stream in bytes."""
+		raise NotImplementedError
+		
+	def GetStreamGenerator(self,entity):
+		"""A generator function that yields blocks (strings) of data from the entity's media stream."""
+		raise NotImplementedError
+
+		
 class Client(app.Client):
 	"""An OData client.
 	
@@ -840,7 +1059,7 @@ class Server(app.Server):
 	).  This type of servie root cannot be obtained with a simple HTTP request
 	as the trailing '/' is implied (and no redirection is necessary)."""
 	
-	DefaultAcceptList=http.AcceptList("application/atom+xml, application/xml; q=0.9, text/xml; q=0.8, text/plain; q=0.7")
+	DefaultAcceptList=http.AcceptList("application/atom+xml, application/xml; q=0.9, text/xml; q=0.8, text/plain; q=0.7, application/octet-stream; q=0.6")
 	ErrorTypes=[
 		http.MediaType('application/atom+xml'),
 		http.MediaType('application/xml'),
@@ -871,7 +1090,21 @@ class Server(app.Server):
 		http.MediaType('text/xml'),
 		http.MediaType('application/json'),
 		http.MediaType('text/plain')]
-			
+	
+	MetadataTypes=[	# in order of preference if there is a tie
+		http.MediaType('application/xml'),
+		http.MediaType('text/xml'),
+		http.MediaType('text/plain')]
+	
+	DereferenceTypes=[	# in order of preference
+		http.MediaType('text/plain;charset=utf-8'),
+		http.MediaType('application/octet-stream'),
+		http.MediaType('octet/stream')]		# we allow this one in case someone read the spec literally!
+		
+	StreamTypes=[
+		http.MediaType('application/octet-stream'),
+		http.MediaType('octet/stream')]		# we allow this one in case someone read the spec literally!
+
 	def __init__(self,serviceRoot="http://localhost"):
 		if serviceRoot[-1]!='/':
 			serviceRoot=serviceRoot+'/'
@@ -892,7 +1125,16 @@ class Server(app.Server):
 		self.defaultContainer=None		#: the default entity container
 		
 	def SetModel(self,model):
-		"""Sets the model for the server from a :py:class:`pyslet.mc_edmx.Edmx` instance."""
+		"""Sets the model for the server from a parentless
+		:py:class:`pyslet.mc_edmx.Edmx` instance or an Edmx
+		:py:class:`pyslet.mc_edmx.Document` instance."""
+		if isinstance(model,edmx.Document):
+			model=model.root
+		elif isinstance(model,edmx.Edmx):
+			# create a document to hold the model
+			doc=edmx.Document(root=model)
+		else:
+			raise TypeError("Edmx document or instance required for model")
 		if self.model:
 			# get rid of the old model
 			for c in self.ws.Collection:
@@ -903,7 +1145,7 @@ class Server(app.Server):
 		for s in model.DataServices.Schema:
 			for container in s.EntityContainer:
 				# is this the default entity container?
-				prefix=container.name="."
+				prefix=container.name+"."
 				try:
 					if container.GetAttribute(IsDefaultEntityContainer)=="true":
 						prefix=""
@@ -992,18 +1234,37 @@ class Server(app.Server):
 		
 		*	*requestURI* is an :py:class:`ODataURI` instance with a non-empty resourcePath."""
 		focus=None
-		collection=None
-		links=False
+		METADATA=1
+		LINKS=2
+		VALUE=3
+		BATCH=4
+		COUNT=5
+		control=None
 		path=[]
 		try:
 			for component in requestURI.navPath:
 				name,keyPredicate=component
-				if focus==None:
-					if collection is not None:
-						# bad request, because the collection must be the last thing in the path
-						raise BadURISegment("%s since the object's parent is a collection"%name)								
+				if control==VALUE:
+					# bad request, because $value must be the last thing in the path
+					raise BadURISegment("%s since the object's parent is a dereferenced value"%name)							
+				elif control==METADATA:
+					# bad request, because $metadata must be the only thing in the path
+					raise BadURISegment("%s since $metadata must be the only path component"%name)													
+				elif control==BATCH:
+					# bad request, because $batch must be the only thing in the path
+					raise BadURISegment("%s since $batch must be the only path component"%name)
+				elif control==COUNT:
+					# bad request, because $count must be the only thing in the path
+					raise BadURISegment("%s since $count must be the last path component"%name)																		
+				if focus is None:
 					es=None
-					if name in self.defaultContainer:
+					if name=='$metadata':
+						control=METADATA
+						continue
+					elif name=='$batch':
+						control=BATCH
+						continue
+					elif name in self.defaultContainer:
 						es=self.defaultContainer[name]
 					else:
 						for s in self.model.DataServices.Schema:
@@ -1013,59 +1274,86 @@ class Server(app.Server):
 								if container is self.defaultContainer:
 									es=None
 								break
-					if isinstance(es,edm.EntitySet) or (isinstance(es,edm.FunctionImport) and es.IsEntityCollection()):
-						if isinstance(es,edm.FunctionImport):
-							# TODO: grab the params from the query string
-							params={}
-						else:
-							params=None
+					if isinstance(es,edm.FunctionImport) and es.IsEntityCollection():
+						# TODO: grab the params from the query string
+						params={}
+						es=es.Execute(params)	
+					if isinstance(es,edm.EntitySet) or isinstance(es,edm.FunctionEntitySet):
 						if keyPredicate:
 							# the keyPredicate can be passed directly as the key
 							try:
-								if params:
-									keyPredicate['$params']=params
 								focus=es[keyPredicate]
 								path=["%s(%s)"%(es.name,repr(focus.Key()))]
 							except KeyError,e:
 								raise MissingURISegment(name)
 						else:
 							# return this entity set
-							focus=None
-							if params:
-								collection=es.Execute(params)
-							else:
-								collection=es.itervalues()
+							focus=es
 							path.append(es.name)
 					else:
 						# Attempt to use the name of some other object type, bad request
 						raise MissingURISegment(name)
+				elif isinstance(focus,edm.EntitySet) or isinstance(focus,edm.DynamicEntitySet):
+					if name=="$count":
+						control=COUNT
+						continue
+					else:
+						# bad request, because the collection must be the last thing in the path
+						raise BadURISegment("%s since the object's parent is a collection"%name)
 				elif isinstance(focus,edm.Entity):
 					if name in focus:
-						if links:
-							raise MissingURISegment(name)
+						if control:
+							raise BadURISegment(name)
 						# This is just a regular or dynamic property name
 						focus=focus[name]
 						path.append(name)
-					elif name=="$links":
-						if links:
+					elif name.startswith("$"):
+						if control:
 							raise BadURISegment(name)
-						links=True
-					elif name=="$value":
-						if links:
-							raise BadURISegment(name)
-						raise NotImplementedError("$value")
-					else:
-						# should be a navigation property
-						try:
-							focus=focus.Navigate(name,keyPredicate if keyPredicate else None)
-							if isinstance(focus,edm.Entity):
-								# reset the path
-								path=["%s(%s)"%(es.name,repr(focus.Key()))]
+						if name=="$links":
+							control=LINKS
+						elif name=="$count":
+							control=COUNT
+						elif name=="$value":
+							hasStream=focus.typeDef.GetNSAttribute((ODATA_METADATA_NAMESPACE,'HasStream'))
+							hasStream=(hasStream and hasStream.lower()=="true")
+							if hasStream:
+								control=VALUE
 							else:
-								# assume iterable of Entity, hence a collection
-								collection=focus
-								focus=None
-								path.append(name)
+								raise BadURISegment("%s since the entity is not a media stream"%name)
+						else:
+							raise BadURISegment(name)
+					else:
+						if control and control!=LINKS:
+							raise BadURISegment("unexpected segment %s after system path component"%name)							
+						try:
+							# should be a navigation property
+							if focus.IsEntityCollection(name):
+								es=focus.Navigate(name)
+								if keyPredicate:
+									if control==LINKS:
+										raise BadURISegment(name)
+									try:
+										focus=es[keyPredicate]
+										path=["%s(%s)"%(es.name,repr(focus.Key()))]
+									except KeyError,e:
+										raise MissingURISegment(name)
+								else:
+									# return this entity set
+									focus=es
+									path.append(es.name)
+							else:
+								focus=focus.Navigate(name)
+								# should be None or a specific entity this time
+								if focus is None:
+									raise MissingURISegment(name)
+								elif keyPredicate:
+									if control==LINKS:
+										raise BadURISegment(name)
+									# the key must match that of the entity
+									if focus.Key()!=keyPredicate:
+										raise MissingURISegment(name)
+								path=["%s(%s)"%(focus.entitySet.name,repr(focus.Key()))]
 						except KeyError:
 							raise MissingURISegment(name)
 				elif isinstance(focus,edm.Complex):
@@ -1080,27 +1368,41 @@ class Server(app.Server):
 				else:
 					# Any other type is just a property or simple-type
 					if name=="$value":
-						raise NotImplementedError("$value")
+						control=VALUE
 					else:
-						raise BadURISegment(name)									
+						raise BadURISegment(name)
 			path=string.join(path,'/')
 		except MissingURISegment,e:
 			return self.ODataError(environ,start_response,"Bad Request","Resource not found for component %s"%str(e),404)
 		except BadURISegment,e:
 			return self.ODataError(environ,start_response,"Bad Request","Resource not found for component %s"%str(e),400)
-		if links:
-			if focus is None:
-				return self.ReturnLinks(path,collection,environ,start_response,responseHeaders)
-			else:
-				return self.ReturnLink(path,focus,environ,start_response,responseHeaders)				
+		if control==METADATA:
+			return self.ReturnMetadata(environ,start_response,responseHeaders)
+		elif control==BATCH:
+			return self.ODataError(environ,start_response,"Bad Request","Batch requests not supported",404)
 		elif isinstance(focus,edm.Entity):
-			return self.ReturnEntity(path,focus,environ,start_response,responseHeaders)
+			if control==COUNT:
+				return self.ReturnCount(1,environ,start_response,responseHeaders)
+			elif control==LINKS:
+				return self.ReturnLink(focus,environ,start_response,responseHeaders)				
+			elif control==VALUE:
+				return self.ReturnStream(focus,environ,start_response,responseHeaders)								
+			else:
+				return self.ReturnEntity(path,focus,environ,start_response,responseHeaders)
 		elif isinstance(focus,edm.EDMValue):
-			return self.ReturnValue(path,focus,environ,start_response,responseHeaders)
+			if control==VALUE:
+				return self.ReturnDereferencedValue(focus,environ,start_response,responseHeaders)
+			else:
+				return self.ReturnValue(focus,environ,start_response,responseHeaders)
+		elif isinstance(focus,edm.EntitySet) or isinstance(focus,edm.DynamicEntitySet):
+			if control==COUNT:
+				return self.ReturnCount(len(focus),environ,start_response,responseHeaders)
+			elif control==LINKS:
+				return self.ReturnLinks(focus,environ,start_response,responseHeaders)				
+			else:
+				return self.ReturnCollection(path,focus,environ,start_response,responseHeaders)
 		elif focus is not None:
 			raise NotImplementedError("property value or media resource")
-		elif collection is not None:
-			return self.ReturnCollection(path,collection,environ,start_response,responseHeaders)			
 		else:	
 			# an empty navPath means we are trying to get the service root
 			wrapper=WSGIWrapper(environ,start_response,responseHeaders)
@@ -1108,12 +1410,21 @@ class Server(app.Server):
 			# that we ourselves are hiding.
 			return wrapper.call(super(Server,self).__call__)
 	
-	def ReturnLinks(self,path,entities,environ,start_response,responseHeaders):
-		links=xmlns.XMLNSElement(None)
-		links.SetXMLName((ODATA_METADATA_NAMESPACE,"links"))
-		for e in entities:
-			child=links.ChildElement(xmlns.XMLNSElement)
-			child.SetXMLName((ODATA_METADATA_NAMESPACE,"uri"))
+	def ReturnMetadata(self,environ,start_response,responseHeaders):
+		doc=self.model.GetDocument()
+		responseType=self.ContentNegotiation(environ,self.MetadataTypes)
+		if responseType is None:
+			return self.ODataError(environ,start_response,"Not Acceptable",'xml or plain text formats supported',406)
+		data=str(doc)
+		responseHeaders.append(("Content-Type",str(responseType)))
+		responseHeaders.append(("Content-Length",len(data)))
+		start_response("%i %s"%(200,"Success"),responseHeaders)
+		return [data]
+			
+	def ReturnLinks(self,entities,environ,start_response,responseHeaders):
+		doc=Document(root=Links)
+		for e in entities.itervalues():
+			child=doc.root.ChildElement(URI)
 			child.SetValue(str(self.serviceRoot)+"%s(%s)"%(e.entitySet.name,repr(e.Key())))
 		responseType=self.ContentNegotiation(environ,self.ValueTypes)
 		if responseType is None:
@@ -1121,23 +1432,22 @@ class Server(app.Server):
 		if responseType=="application/json":
 			data=json.dumps(links,cls=ODataJSONEncoder)
 		else:
-			data=str(links)
+			data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
 		responseHeaders.append(("Content-Length",len(data)))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 		
-	def ReturnLink(self,path,entity,environ,start_response,responseHeaders):
-		link=xmlns.XMLNSElement(None)
-		link.SetXMLName((ODATA_METADATA_NAMESPACE,"uri"))
-		link.SetValue(str(self.serviceRoot)+"%s(%s)"%(entity.entitySet.name,repr(entity.Key())))
+	def ReturnLink(self,entity,environ,start_response,responseHeaders):
+		doc=Document(root=URI)
+		doc.root.SetValue(str(self.serviceRoot)+"%s(%s)"%(entity.entitySet.name,repr(entity.Key())))
 		responseType=self.ContentNegotiation(environ,self.ValueTypes)
 		if responseType is None:
 			return self.ODataError(environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
 		if responseType=="application/json":
-			data=json.dumps(links,cls=ODataJSONEncoder)
+			data=json.dumps(doc.root,cls=ODataJSONEncoder)
 		else:
-			data=str(links)
+			data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
 		responseHeaders.append(("Content-Length",len(data)))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
@@ -1152,7 +1462,7 @@ class Server(app.Server):
 		# f.ChildElement(atom.Title).SetValue(entities.GetTitle())
 		f.ChildElement(atom.AtomId).SetValue(str(self.serviceRoot)+path)
 		# f.ChildElement(atom.Updated).SetValue(entities.GetUpdated())
-		for e in entities:
+		for e in entities.itervalues():
 			entry=f.ChildElement(atom.Entry)
 			entry.ChildElement(atom.AtomId).SetValue(str(self.serviceRoot)+"%s(%s)"%(e.entitySet.name,repr(e.Key())))		
 		# do stuff with the entries themselves, add link elements etc
@@ -1172,12 +1482,12 @@ class Server(app.Server):
 				
 	def ReturnEntity(self,path,entity,environ,start_response,responseHeaders):
 		"""Returns a single Entity."""
-		e=atom.Entry(None)
-		e.MakePrefix(ODATA_DATASERVICES_NAMESPACE,u'd')
-		e.MakePrefix(ODATA_METADATA_NAMESPACE,u'm')
+		doc=Document(root=Entry)
+		e=doc.root
 		e.SetBase(str(self.serviceRoot))
-		e.ChildElement(atom.AtomId).SetValue(str(self.serviceRoot)+path)		
-		# do stuff with the entries themselves, add link elements etc
+		e.ChildElement(atom.AtomId).SetValue(str(self.serviceRoot)+path)
+		e.SetValue(entity)
+		# TODO: do stuff with the entries themselves, add link elements etc
 		responseType=self.ContentNegotiation(environ,self.EntryTypes)
 		if responseType is None:
 			return self.ODataError(environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
@@ -1186,37 +1496,58 @@ class Server(app.Server):
 		else:
 			# Here's a challenge, we want to pull data through the feed by yielding strings
 			# just load in to memory at the moment
-			data=str(e)
+			data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
 		responseHeaders.append(("Content-Length",len(data)))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 
-	def AddComplexChildren(self,e,complexValue):
-		for pName in complexValue.iterkeys():
-			value=complexValue[pName]
-			child=e.ChildElement(xmlns.XMLNSElement)
-			child.SetXMLName((ODATA_METADATA_NAMESPACE,value.name))
-			if isinstance(value,edm.SimpleValue):
-				child.SetValue(unicode(value))
-			else:
-				self.AddComplexChildren(child,value)
+	def ReturnStream(self,entity,environ,start_response,responseHeaders):
+		"""Returns a media stream."""
+		types=[entity.entitySet.GetStreamType(entity)]+self.StreamTypes
+		responseType=self.ContentNegotiation(environ,types)
+		if responseType is None:
+			return self.ODataError(environ,start_response,"Not Acceptable",'media stream type refused, try application/octet-stream',406)
+		responseHeaders.append(("Content-Type",str(responseType)))
+		responseHeaders.append(("Content-Length",entity.entitySet.GetStreamSize(entity)))
+		start_response("%i %s"%(200,"Success"),responseHeaders)
+		return entity.entitySet.GetStreamGenerator(entity)
 
-	def ReturnValue(self,path,value,environ,start_response,responseHeaders):
-		"""Returns a single Entity."""
-		e=xmlns.XMLNSElement(None)
-		e.SetXMLName((ODATA_METADATA_NAMESPACE,value.name))
-		if isinstance(value,edm.SimpleValue):
-			e.SetValue(unicode(value))
-		else:
-			self.AddComplexChildren(e,value)
+	def ReturnValue(self,value,environ,start_response,responseHeaders):
+		"""Returns a single property value."""
+		e=Property(None)
+		e.SetXMLName((ODATA_DATASERVICES_NAMESPACE,value.name))
+		doc=Document(root=e)
+		e.SetValue(value)
 		responseType=self.ContentNegotiation(environ,self.ValueTypes)
 		if responseType is None:
 			return self.ODataError(environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
 		if responseType=="application/json":
 			data=json.dumps(e,cls=ODataJSONEncoder)
 		else:
-			data=str(e)
+			data=str(doc)
+		responseHeaders.append(("Content-Type",str(responseType)))
+		responseHeaders.append(("Content-Length",len(data)))
+		start_response("%i %s"%(200,"Success"),responseHeaders)
+		return [data]
+				
+	def ReturnDereferencedValue(self,value,environ,start_response,responseHeaders):
+		"""Returns a dereferenced property value."""
+		responseType=self.ContentNegotiation(environ,self.DereferenceTypes)
+		if responseType is None:
+			return self.ODataError(environ,start_response,"Not Acceptable",'$value requires plain text or octet-stream formats',406)
+		data=unicode(value).encode('utf-8')
+		responseHeaders.append(("Content-Type",str(responseType)))
+		responseHeaders.append(("Content-Length",len(data)))
+		start_response("%i %s"%(200,"Success"),responseHeaders)
+		return [data]
+				
+	def ReturnCount(self,number,environ,start_response,responseHeaders):
+		"""Returns the single value number."""
+		responseType=self.ContentNegotiation(environ,self.DereferenceTypes)
+		if responseType is None:
+			return self.ODataError(environ,start_response,"Not Acceptable",'$count requires plain text or octet-stream formats',406)
+		data=str(number)
 		responseHeaders.append(("Content-Type",str(responseType)))
 		responseHeaders.append(("Content-Length",len(data)))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
@@ -1282,11 +1613,12 @@ class Document(app.Document):
 		Overrides :py:meth:`~pyslet.rfc5023.Document.GetElementClass` to allow
 		custom implementations of the Atom or APP classes to be created and
 		to cater for OData-specific elements."""
-		if name[0]==ODATA_DATASERVICES_NAMESPACE:
-			return Property
 		result=Document.classMap.get(name,None)
 		if result is None:
-			result=app.Document.GetElementClass(self,name)
+			if name[0]==ODATA_DATASERVICES_NAMESPACE:
+				result=Property
+			else:
+				result=app.Document.GetElementClass(self,name)
 		return result
 
 

@@ -1282,6 +1282,9 @@ class XMLParser:
 		for attr in attrs.keys():
 			try:
 				self.element.SetAttribute(attr,attrs[attr])
+			except ValueError,e:
+				if self.raiseValidityErrors:
+					raise XMLValidityError(str(e))
 			except XMLValidityError:
 				if self.raiseValidityErrors:
 					raise

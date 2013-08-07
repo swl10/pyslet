@@ -491,7 +491,16 @@ class XMLNSParser(XMLParser):
 				# document starts with PCDATA, use name declared in DOCTYPE
 				qname=self.dtd.name
 		# go through attributes and process namespace declarations
-		if attrs:
+		if attrs and not ((NO_NAMESPACE,".ns") in attrs):
+			# This deserves an explanation.  It is possible that GetSTagClass will infer
+			# an element in sgmlOmittag mode forcing the parser to buffer this qname
+			# and its associated attributes after we've done namespace expansion of them.
+			# There is a real question over whether or not it is safe to buffer expanded
+			# attribute names.  It is conceivable that the omitted tag could have FIXED
+			# attributes which alter the namespace prefix map.  In theory, we should go
+			# back to the original attribute names but smglOmittag mode is a fix up for
+			# conforming SGML-style documents into XML (i.e., HTML).  As such, ignoring
+			# this subtle namespacing issue seems reasonable.
 			ns=self.ParseNSAttributes(attrs)
 		else:
 			ns={}

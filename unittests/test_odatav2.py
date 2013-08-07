@@ -12,6 +12,7 @@ from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 from pyslet.vfs import OSFilePath as FilePath
 from test_rfc5023 import MockRequest
 import pyslet.rfc2396 as uri
+import pyslet.rfc4287 as atom
 import pyslet.rfc5023 as app
 import pyslet.mc_edmx as edmx
 import pyslet.pyds as pyds
@@ -184,9 +185,10 @@ class ODataTests(unittest.TestCase):
 class ODataURILiteralTests(unittest.TestCase):
 	def testCaseNullLiteral(self):
 		"""	nullLiteral = "null" """
-		vType,value=ParseURILiteral("null")
-		self.failUnless(vType is None,"null type: %s"%repr(vType))
-		self.failUnless(value is None,"null value: %s"%repr(value))
+		v=ParseURILiteral("null")
+		self.failUnless(v.IsNull(),"null type IsNull")
+		self.failUnless(v.typeCode is None,"null type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue is None,"null value: %s"%repr(v.simpleValue))
 
 	def testCaseBinaryLiteral(self):
 		"""	binaryUriLiteral = caseSensitiveToken SQUOTE binaryLiteral SQUOTE
@@ -194,27 +196,27 @@ class ODataURILiteralTests(unittest.TestCase):
 			caseSensitiveToken = "X" / "binary"
 			; X is case sensitive binary is not
 			hexDigPair = 2*HEXDIG [hexDigPair] """
-		vType,value=ParseURILiteral("X'0A'")
-		self.failUnless(vType==edm.SimpleType.Binary,"binary type: %s"%repr(vType))
-		self.failUnless(value=='\x0a',"binary type: %s"%repr(value))
-		vType,value=ParseURILiteral("X'0a'")
-		self.failUnless(value=="\x0a","binary type: %s"%repr(value))
+		v=ParseURILiteral("X'0A'")
+		self.failUnless(v.typeCode==edm.SimpleType.Binary,"binary type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue=='\x0a',"binary type: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("X'0a'")
+		self.failUnless(v.simpleValue=="\x0a","binary type: %s"%repr(v.simpleValue))
 		try:
-			vType,value=ParseURILiteral("x'0a'")
+			v=ParseURILiteral("x'0a'")
 			self.fail("Syntax error")
 		except ValueError:
 			pass
-		vType,value=ParseURILiteral("binary'0A'")
-		self.failUnless(vType==edm.SimpleType.Binary,"binary type: %s"%repr(vType))
-		self.failUnless(value=='\x0a',"binary type: %s"%repr(value))
-		vType,value=ParseURILiteral("BINARY'0A'")
-		self.failUnless(vType==edm.SimpleType.Binary,"binary type: %s"%repr(vType))
-		self.failUnless(value=='\x0a',"binary type: %s"%repr(value))
+		v=ParseURILiteral("binary'0A'")
+		self.failUnless(v.typeCode==edm.SimpleType.Binary,"binary type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue=='\x0a',"binary type: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("BINARY'0A'")
+		self.failUnless(v.typeCode==edm.SimpleType.Binary,"binary type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue=='\x0a',"binary type: %s"%repr(v.simpleValue))
 		# gotta love those recursive rules
-		vType,value=ParseURILiteral("X'deadBEEF'")
-		self.failUnless(value=="\xde\xad\xbe\xef","binary type: %s"%repr(value))
+		v=ParseURILiteral("X'deadBEEF'")
+		self.failUnless(v.simpleValue=="\xde\xad\xbe\xef","binary type: %s"%repr(v.simpleValue))
 		try:
-			vType,value=ParseURILiteral("X'de'ad")
+			v=ParseURILiteral("X'de'ad")
 			self.fail("Spurious data")
 		except ValueError:
 			pass
@@ -226,12 +228,12 @@ class ODataURILiteralTests(unittest.TestCase):
 		
 		The spec is ambiguous here because 0 and 1 are valid literals for
 		integer types."""
-		vType,value=ParseURILiteral("true")
-		self.failUnless(vType==edm.SimpleType.Boolean,"boolean type: %s"%repr(vType))
-		self.failUnless(value is True,"boolean value: %s"%repr(value))
-		vType,value=ParseURILiteral("false")
-		self.failUnless(vType==edm.SimpleType.Boolean,"boolean type: %s"%repr(vType))
-		self.failUnless(value is False,"boolean value: %s"%repr(value))
+		v=ParseURILiteral("true")
+		self.failUnless(v.typeCode==edm.SimpleType.Boolean,"boolean type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue is True,"boolean value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("false")
+		self.failUnless(v.typeCode==edm.SimpleType.Boolean,"boolean type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue is False,"boolean value: %s"%repr(v.simpleValue))
 
 	def testCaseIntLiteral(self):
 		"""byteLiteral = 1*3DIGIT;
@@ -239,24 +241,24 @@ class ODataURILiteralTests(unittest.TestCase):
 		int32Literal= sign 1*10DIGIT
 		sbyteliteral= sign 1*3DIGIT	
 		All returned as an int32 with python int value."""
-		vType,value=ParseURILiteral("0")
-		self.failUnless(vType==edm.SimpleType.Int32,"0 type: %s"%repr(vType))
-		self.failUnless(value==0,"0 value: %s"%repr(value))
-		vType,value=ParseURILiteral("1")
-		self.failUnless(vType==edm.SimpleType.Int32,"1 type: %s"%repr(vType))
-		self.failUnless(value==1,"1 value: %s"%repr(value))
-		vType,value=ParseURILiteral("2147483647")
-		self.failUnless(vType==edm.SimpleType.Int32,"2147483647 type: %s"%repr(vType))
-		self.failUnless(value==2147483647,"2147483647 value: %s"%repr(value))
-		vType,value=ParseURILiteral("0000000000")
-		self.failUnless(vType==edm.SimpleType.Int32,"0000000000 type: %s"%repr(vType))
-		self.failUnless(value==0,"0000000000 value: %s"%repr(value))
-		vType,value=ParseURILiteral("-2147483648")
-		self.failUnless(vType==edm.SimpleType.Int32,"-2147483648 type: %s"%repr(vType))
-		self.failUnless(value==-2147483648,"-2147483648 value: %s"%repr(value))
+		v=ParseURILiteral("0")
+		self.failUnless(v.typeCode==edm.SimpleType.Int32,"0 type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue==0,"0 value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("1")
+		self.failUnless(v.typeCode==edm.SimpleType.Int32,"1 type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue==1,"1 value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("2147483647")
+		self.failUnless(v.typeCode==edm.SimpleType.Int32,"2147483647 type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue==2147483647,"2147483647 value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("0000000000")
+		self.failUnless(v.typeCode==edm.SimpleType.Int32,"0000000000 type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue==0,"0000000000 value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("-2147483648")
+		self.failUnless(v.typeCode==edm.SimpleType.Int32,"-2147483648 type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue==-2147483648,"-2147483648 value: %s"%repr(v.simpleValue))
 		for bad in [ "00000000000", "2147483648", "-2147483649","+1" ]:
 			try:
-				vType,value=ParseURILiteral(bad)
+				v=ParseURILiteral(bad)
 				self.fail("Bad parse: %s"%bad)
 			except ValueError:
 				pass
@@ -279,31 +281,31 @@ class ODataURILiteralTests(unittest.TestCase):
 		Strangely annoying but this is very close to iso, except the relaxed attitude
 		to single-digits variants.
 		"""
-		vType,value=ParseURILiteral("datetime'2012-06-30T23:59'")
-		self.failUnless(vType==edm.SimpleType.DateTime,"date time type: %s"%repr(vType))
-		self.failUnless(isinstance(value,iso.TimePoint),"value type: %s"%repr(value))
-		self.failUnless(str(value)=="2012-06-30T23:59","value: %s"%str(value))
-		vType,value=ParseURILiteral("datetime'2012-06-30T23:59:59'")
-		self.failUnless(vType==edm.SimpleType.DateTime,"date time type: %s"%repr(vType))
-		self.failUnless(str(value)=="2012-06-30T23:59:59","value: %s"%str(value))
-		vType,value=ParseURILiteral("datetime'2012-06-30T23:59:59.9999999'")
-		self.failUnless(vType==edm.SimpleType.DateTime,"date time type: %s"%repr(vType))
-		self.failUnless(value.GetCalendarString(ndp=-7)=="2012-06-30T23:59:59.9999999")
+		v=ParseURILiteral("datetime'2012-06-30T23:59'")
+		self.failUnless(v.typeCode==edm.SimpleType.DateTime,"date time type: %s"%repr(v.typeCode))
+		self.failUnless(isinstance(v.simpleValue,iso.TimePoint),"value type: %s"%repr(v.simpleValue))
+		self.failUnless(str(v.simpleValue)=="2012-06-30T23:59","value: %s"%str(v.simpleValue))
+		v=ParseURILiteral("datetime'2012-06-30T23:59:59'")
+		self.failUnless(v.typeCode==edm.SimpleType.DateTime,"date time type: %s"%repr(v.typeCode))
+		self.failUnless(str(v.simpleValue)=="2012-06-30T23:59:59","value: %s"%str(v.simpleValue))
+		v=ParseURILiteral("datetime'2012-06-30T23:59:59.9999999'")
+		self.failUnless(v.typeCode==edm.SimpleType.DateTime,"date time type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue.GetCalendarString(ndp=-7)=="2012-06-30T23:59:59.9999999")
 		# Now for the big one!
-		vType,value=ParseURILiteral("datetime'2012-06-30T23:59:60'")
-		self.failUnless(vType==edm.SimpleType.DateTime,"date time type for leap second: %s"%repr(vType))
-		self.failUnless(str(value)=="2012-06-30T23:59:60","value for leap second: %s"%str(value))
-		vType,value=ParseURILiteral("datetime'2012-06-30T24:00:00'")
-		self.failUnless(vType==edm.SimpleType.DateTime,"date time extreme: %s"%repr(vType))
-		self.failUnless(str(value)=="2012-06-30T24:00:00","date time extreme: %s"%str(value))
+		v=ParseURILiteral("datetime'2012-06-30T23:59:60'")
+		self.failUnless(v.typeCode==edm.SimpleType.DateTime,"date time type for leap second: %s"%repr(v.typeCode))
+		self.failUnless(str(v.simpleValue)=="2012-06-30T23:59:60","value for leap second: %s"%str(v.simpleValue))
+		v=ParseURILiteral("datetime'2012-06-30T24:00:00'")
+		self.failUnless(v.typeCode==edm.SimpleType.DateTime,"date time extreme: %s"%repr(v.typeCode))
+		self.failUnless(str(v.simpleValue)=="2012-06-30T24:00:00","date time extreme: %s"%str(v.simpleValue))
 		# and now the crappy ones
 		for crappy in [
 			"datetime'2012-6-30T23:59:59'",
 			"datetime'2012-06-1T23:59:59'",
 			"datetime'2012-06-30T3:59:59'"
 			]:
-			vType,value=ParseURILiteral(crappy)
-			self.failUnless(vType==edm.SimpleType.DateTime,"date time type: %s"%repr(vType))
+			v=ParseURILiteral(crappy)
+			self.failUnless(v.typeCode==edm.SimpleType.DateTime,"date time type: %s"%repr(v.typeCode))
 		for bad in [
 			"datetime'2012-02-30T23:59:59'",
 			"datetime'12012-06-30T23:59:59'",
@@ -320,8 +322,8 @@ class ODataURILiteralTests(unittest.TestCase):
 			"2012-06-30T23:59"
 			 ]:
 			try:
-				vType,value=ParseURILiteral(bad)
-				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,repr(value),edm.SimpleType.EncodeValue(vType)))
+				v=ParseURILiteral(bad)
+				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,repr(v.simpleValue),edm.SimpleType.EncodeValue(v.typeCode)))
 			except ValueError:
 				pass
 
@@ -331,25 +333,25 @@ class ODataURILiteralTests(unittest.TestCase):
 			decimalLiteral = sign 1*29DIGIT
 			["." 1*29DIGIT]
 		All returned as a python Decimal instance."""
-		vType,value=ParseURILiteral("0M")
-		self.failUnless(vType==edm.SimpleType.Decimal,"0M type: %s"%repr(vType))
-		self.failUnless(isinstance(value,decimal.Decimal),"0M value type: %s"%repr(value))
-		self.failUnless(value==0,"0M value: %s"%repr(value))
-		vType,value=ParseURILiteral("1.1m")
-		self.failUnless(vType==edm.SimpleType.Decimal,"1.1m type: %s"%repr(vType))
-		self.failUnless(isinstance(value,decimal.Decimal),"1.1m value type: %s"%repr(value))
-		self.failUnless(value*10==11,"1.1m value: %s"%repr(value))
-		vType,value=ParseURILiteral("12345678901234567890123456789m")
-		self.failUnless(vType==edm.SimpleType.Decimal,"29-digit type: %s"%repr(vType))
-		self.failUnless(int(value.log10())==28,"29-digit log10 value: %s"%repr(value))
-		vType,value2=ParseURILiteral("12345678901234567890123456789.12345678901234567890123456789m")
-		self.failUnless(value2-value<0.13 and value2-value>0.12,"29digit.29digit value: %s"%repr(value2-value))
-		vType,value=ParseURILiteral("-2147483648M")
-		self.failUnless(vType==edm.SimpleType.Decimal,"-2147483648 type: %s"%repr(vType))
-		self.failUnless(value==-2147483648,"-2147483648 value: %s"%repr(value))
+		v=ParseURILiteral("0M")
+		self.failUnless(v.typeCode==edm.SimpleType.Decimal,"0M type: %s"%repr(v.typeCode))
+		self.failUnless(isinstance(v.simpleValue,decimal.Decimal),"0M value type: %s"%repr(v.simpleValue))
+		self.failUnless(v.simpleValue==0,"0M value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("1.1m")
+		self.failUnless(v.typeCode==edm.SimpleType.Decimal,"1.1m type: %s"%repr(v.typeCode))
+		self.failUnless(isinstance(v.simpleValue,decimal.Decimal),"1.1m value type: %s"%repr(v.simpleValue))
+		self.failUnless(v.simpleValue*10==11,"1.1m value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("12345678901234567890123456789m")
+		self.failUnless(v.typeCode==edm.SimpleType.Decimal,"29-digit type: %s"%repr(v.typeCode))
+		self.failUnless(int(v.simpleValue.log10())==28,"29-digit log10 value: %s"%repr(v.simpleValue))
+		v2=ParseURILiteral("12345678901234567890123456789.12345678901234567890123456789m")
+		self.failUnless(v2.simpleValue-v.simpleValue<0.13 and v2.simpleValue-v.simpleValue>0.12,"29digit.29digit value: %s"%repr(v2.simpleValue-v.simpleValue))
+		v=ParseURILiteral("-2147483648M")
+		self.failUnless(v.typeCode==edm.SimpleType.Decimal,"-2147483648 type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue==-2147483648,"-2147483648 value: %s"%repr(v.simpleValue))
 		for bad in [ "123456789012345678901234567890m", "1.m", "1.123456789012345678901234567890m", "+1M" ]:
 			try:
-				vType,value=ParseURILiteral(bad)
+				v=ParseURILiteral(bad)
 				self.fail("Bad parse: %s"%bad)
 			except ValueError:
 				pass
@@ -364,52 +366,52 @@ class ODataURILiteralTests(unittest.TestCase):
 		We decide to be generous here and accept *16DIGIT
 		
 		Also, the production allows .D and -.D as, presumably, valid forms of 0"""
-		vType,value=ParseURILiteral("0D")
-		self.failUnless(vType==edm.SimpleType.Double,"0D type: %s"%repr(vType))
-		self.failUnless(type(value) is FloatType,"0D value type: %s"%repr(value))
-		self.failUnless(value==0,"0D value: %s"%repr(value))
-		vType,value=ParseURILiteral("1.1d")
-		self.failUnless(vType==edm.SimpleType.Double,"1.1d type: %s"%repr(vType))
-		self.failUnless(type(value) is FloatType,"1.1d value type: %s"%repr(value))
-		self.failUnless(value*10==11,"1.1d value: %s"%repr(value))
-		vType,value=ParseURILiteral("12345678901234567D")
-		self.failUnless(vType==edm.SimpleType.Double,"17-digit type: %s"%repr(vType))
-		self.failUnless(round(math.log10(value),3)==16.092,"29-digit log10 value: %s"%repr(value))
-		vType,value=ParseURILiteral("-12345678901234567D")
-		self.failUnless(vType==edm.SimpleType.Double,"17-digit negative type: %s"%repr(vType))
-		self.failUnless(round(math.log10(-value),3)==16.092,"29-digit log10 value: %s"%repr(value))
-		vType,value=ParseURILiteral("123456789012345678901234567890.123456789012345678901234567890D")
-		self.failUnless(vType==edm.SimpleType.Double,"30digit.30digit type: %s"%repr(vType))
-		self.failUnless(round(math.log10(value),3)==29.092,"30digit.30digit value: %s"%repr(value))
-		vType,value=ParseURILiteral("-123456789012345678901234567890.123456789012345678901234567890D")
-		self.failUnless(round(math.log10(-value),3)==29.092,"30digit.30digit negative value: %s"%repr(value))
-		vType,value=ParseURILiteral(".142D")
-		self.failUnless(value==0.142,"Empty left value: %s"%repr(value))
-		vType,value=ParseURILiteral("-.142D")
-		self.failUnless(value==-0.142,"Empty left neg value: %s"%repr(value))
-		vType,value=ParseURILiteral("3.D")
-		self.failUnless(value==3,"Empty right value: %s"%repr(value))
-		vType,value=ParseURILiteral("-3.D")
-		self.failUnless(value==-3,"Empty right neg value: %s"%repr(value))
-		vType,value=ParseURILiteral(".D")
-		self.failUnless(value==0,"Empty left+right value: %s"%repr(value))
-		vType,value=ParseURILiteral("-.D")
-		self.failUnless(value==0,"Empty left+right neg value: %s"%repr(value))
-		vType,value=ParseURILiteral("3.14159e000d")
-		self.failUnless(round(value,3)==3.142,"zero exp: %s"%repr(value))
-		vType,value=ParseURILiteral("-123456789012345678901234567890.1234567890123456E1d")
-		self.failUnless(round(math.log10(-value),3)==30.092,"30.16 digits: %s"%repr(math.log10(-value)))
-		vType,value=ParseURILiteral("NanD")
-		self.failUnless(math.isnan(value),"Nan double: %s"%repr(value))
-		vType,value=ParseURILiteral("INFD")
-		self.failUnless(value>0 and math.isinf(value),"Inf double: %s"%repr(value))
-		vType,value=ParseURILiteral("-INFD")
-		self.failUnless(value<0 and math.isinf(value),"Negative Inf double: %s"%repr(value))		
+		v=ParseURILiteral("0D")
+		self.failUnless(v.typeCode==edm.SimpleType.Double,"0D type: %s"%repr(v.typeCode))
+		self.failUnless(type(v.simpleValue) is FloatType,"0D value type: %s"%repr(v.simpleValue))
+		self.failUnless(v.simpleValue==0,"0D value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("1.1d")
+		self.failUnless(v.typeCode==edm.SimpleType.Double,"1.1d type: %s"%repr(v.typeCode))
+		self.failUnless(type(v.simpleValue) is FloatType,"1.1d value type: %s"%repr(v.simpleValue))
+		self.failUnless(v.simpleValue*10==11,"1.1d value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("12345678901234567D")
+		self.failUnless(v.typeCode==edm.SimpleType.Double,"17-digit type: %s"%repr(v.typeCode))
+		self.failUnless(round(math.log10(v.simpleValue),3)==16.092,"29-digit log10 value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("-12345678901234567D")
+		self.failUnless(v.typeCode==edm.SimpleType.Double,"17-digit negative type: %s"%repr(v.typeCode))
+		self.failUnless(round(math.log10(-v.simpleValue),3)==16.092,"29-digit log10 value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("123456789012345678901234567890.123456789012345678901234567890D")
+		self.failUnless(v.typeCode==edm.SimpleType.Double,"30digit.30digit type: %s"%repr(v.typeCode))
+		self.failUnless(round(math.log10(v.simpleValue),3)==29.092,"30digit.30digit value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("-123456789012345678901234567890.123456789012345678901234567890D")
+		self.failUnless(round(math.log10(-v.simpleValue),3)==29.092,"30digit.30digit negative value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral(".142D")
+		self.failUnless(v.simpleValue==0.142,"Empty left value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("-.142D")
+		self.failUnless(v.simpleValue==-0.142,"Empty left neg value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("3.D")
+		self.failUnless(v.simpleValue==3,"Empty right value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("-3.D")
+		self.failUnless(v.simpleValue==-3,"Empty right neg value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral(".D")
+		self.failUnless(v.simpleValue==0,"Empty left+right value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("-.D")
+		self.failUnless(v.simpleValue==0,"Empty left+right neg value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("3.14159e000d")
+		self.failUnless(round(v.simpleValue,3)==3.142,"zero exp: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("-123456789012345678901234567890.1234567890123456E1d")
+		self.failUnless(round(math.log10(-v.simpleValue),3)==30.092,"30.16 digits: %s"%repr(math.log10(-v.simpleValue)))
+		v=ParseURILiteral("NanD")
+		self.failUnless(math.isnan(v.simpleValue),"Nan double: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("INFD")
+		self.failUnless(v.simpleValue>0 and math.isinf(v.simpleValue),"Inf double: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("-INFD")
+		self.failUnless(v.simpleValue<0 and math.isinf(v.simpleValue),"Negative Inf double: %s"%repr(v.simpleValue))		
 		for bad in [ "123456789012345678D", "+1D", ".1e1d","+1.0E1d",
 			"1.12345678901234567E10d","3.141Ed","3.141E1234d","3.141E+10d",".123E1D",
 			"+NanD","-NanD","+INFD" ]:
 			try:
-				vType,value=ParseURILiteral(bad)
+				v=ParseURILiteral(bad)
 				self.fail("Bad parse: %s"%bad)
 			except ValueError:
 				pass
@@ -426,54 +428,54 @@ class ODataURILiteralTests(unittest.TestCase):
 		decide to be generous here and accept *8DIGIT
 		
 		The production allows .F and -.f as, presumably, valid forms of 0"""
-		vType,value=ParseURILiteral("0F")
-		self.failUnless(vType==edm.SimpleType.Single,"0f type: %s"%repr(vType))
-		self.failUnless(type(value) is FloatType,"0f value type: %s"%repr(value))
-		self.failUnless(value==0,"0f value: %s"%repr(value))
-		vType,value=ParseURILiteral("1.1f")
-		self.failUnless(vType==edm.SimpleType.Single,"1.1f type: %s"%repr(vType))
-		self.failUnless(type(value) is FloatType,"1.1f value type: %s"%repr(value))
-		self.failUnless(value*10==11,"1.1f value: %s"%repr(value))
-		vType,value=ParseURILiteral("12345678F")
-		self.failUnless(vType==edm.SimpleType.Single,"8-digit type: %s"%repr(vType))
-		self.failUnless(value==12345678,"8-digit: %s"%repr(value))
-		vType,value=ParseURILiteral("-12345678F")
-		self.failUnless(vType==edm.SimpleType.Single,"8-digit negative type: %s"%repr(vType))
-		self.failUnless(value==-12345678,"8-digit neg value: %s"%repr(value))
-		vType,value=ParseURILiteral("123456789012345678901234567890.123456789012345678901234567890f")
-		self.failUnless(vType==edm.SimpleType.Single,"30digit.30digit type: %s"%repr(vType))
-		self.failUnless(round(math.log10(value),3)==29.092,"30digit.30digit value: %s"%repr(value))
-		vType,value=ParseURILiteral("-123456789012345678901234567890.123456789012345678901234567890F")
-		self.failUnless(round(math.log10(-value),3)==29.092,"30digit.30digit negative value: %s"%repr(value))
-		vType,value=ParseURILiteral(".142f")
-		self.failUnless(value==0.142,"Empty left value: %s"%repr(value))
-		vType,value=ParseURILiteral("-.142F")
-		self.failUnless(value==-0.142,"Empty left neg value: %s"%repr(value))
-		vType,value=ParseURILiteral("3.F")
-		self.failUnless(value==3,"Empty right value: %s"%repr(value))
-		vType,value=ParseURILiteral("-3.F")
-		self.failUnless(value==-3,"Empty right neg value: %s"%repr(value))
-		vType,value=ParseURILiteral(".f")
-		self.failUnless(value==0,"Empty left+right value: %s"%repr(value))
-		vType,value=ParseURILiteral("-.F")
-		self.failUnless(value==0,"Empty left+right neg value: %s"%repr(value))
-		vType,value=ParseURILiteral("3.14159e00F")
-		self.failUnless(round(value,3)==3.142,"zero exp: %s"%repr(value))
-		vType,value=ParseURILiteral("-123456789012345678901234567890.12345678E1F")
-		self.failUnless(round(math.log10(-value),3)==30.092,"30.8 digits: %s"%repr(math.log10(-value)))
-		vType,value=ParseURILiteral("3.E1F")
-		self.failUnless(value==30,"Empty right exp value: %s"%repr(value))
-		vType,value=ParseURILiteral("NanF")
-		self.failUnless(math.isnan(value),"Nan single: %s"%repr(value))
-		vType,value=ParseURILiteral("InfF")
-		self.failUnless(value>0 and math.isinf(value),"Inf single: %s"%repr(value))
-		vType,value=ParseURILiteral("-INFF")
-		self.failUnless(value<0 and math.isinf(value),"Negative Inf single: %s"%repr(value))		
+		v=ParseURILiteral("0F")
+		self.failUnless(v.typeCode==edm.SimpleType.Single,"0f type: %s"%repr(v.typeCode))
+		self.failUnless(type(v.simpleValue) is FloatType,"0f value type: %s"%repr(v.simpleValue))
+		self.failUnless(v.simpleValue==0,"0f value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("1.1f")
+		self.failUnless(v.typeCode==edm.SimpleType.Single,"1.1f type: %s"%repr(v.typeCode))
+		self.failUnless(type(v.simpleValue) is FloatType,"1.1f value type: %s"%repr(v.simpleValue))
+		self.failUnless(v.simpleValue*10==11,"1.1f value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("12345678F")
+		self.failUnless(v.typeCode==edm.SimpleType.Single,"8-digit type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue==12345678,"8-digit: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("-12345678F")
+		self.failUnless(v.typeCode==edm.SimpleType.Single,"8-digit negative type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue==-12345678,"8-digit neg value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("123456789012345678901234567890.123456789012345678901234567890f")
+		self.failUnless(v.typeCode==edm.SimpleType.Single,"30digit.30digit type: %s"%repr(v.typeCode))
+		self.failUnless(round(math.log10(v.simpleValue),3)==29.092,"30digit.30digit value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("-123456789012345678901234567890.123456789012345678901234567890F")
+		self.failUnless(round(math.log10(-v.simpleValue),3)==29.092,"30digit.30digit negative value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral(".142f")
+		self.failUnless(v.simpleValue==0.142,"Empty left value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("-.142F")
+		self.failUnless(v.simpleValue==-0.142,"Empty left neg value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("3.F")
+		self.failUnless(v.simpleValue==3,"Empty right value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("-3.F")
+		self.failUnless(v.simpleValue==-3,"Empty right neg value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral(".f")
+		self.failUnless(v.simpleValue==0,"Empty left+right value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("-.F")
+		self.failUnless(v.simpleValue==0,"Empty left+right neg value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("3.14159e00F")
+		self.failUnless(round(v.simpleValue,3)==3.142,"zero exp: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("-123456789012345678901234567890.12345678E1F")
+		self.failUnless(round(math.log10(-v.simpleValue),3)==30.092,"30.8 digits: %s"%repr(math.log10(-v.simpleValue)))
+		v=ParseURILiteral("3.E1F")
+		self.failUnless(v.simpleValue==30,"Empty right exp value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("NanF")
+		self.failUnless(math.isnan(v.simpleValue),"Nan single: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("InfF")
+		self.failUnless(v.simpleValue>0 and math.isinf(v.simpleValue),"Inf single: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("-INFF")
+		self.failUnless(v.simpleValue<0 and math.isinf(v.simpleValue),"Negative Inf single: %s"%repr(v.simpleValue))		
 		for bad in [ "123456789F", "+1F", ".1e1F","+1.0E1F",
 			"1.123456789E10F","3.141EF","3.141E023F","3.141E+10F",".123E1F",
 			"+NanF","-NanF","+INFF" ]:
 			try:
-				vType,value=ParseURILiteral(bad)
+				v=ParseURILiteral(bad)
 				self.fail("Bad parse: %s"%bad)
 			except ValueError:
 				pass
@@ -492,14 +494,14 @@ class ODataURILiteralTests(unittest.TestCase):
 			To be honest, I don't think the person who wrote this rule was having
 			a good day because 8*HEXDIG means at least 8 hex-digits and not exactly
 			8 hex digits as the author clearly intended."""
-		vType,value=ParseURILiteral("guid'C0DEC0DE-C0DE-C0DE-C0DEC0DEC0DE'")
-		self.failUnless(vType==edm.SimpleType.Guid,"guide type: %s"%repr(vType))
-		self.failUnless(isinstance(value,uuid.UUID),"guide type: %s"%repr(value))
-		self.failUnless(value.hex.lower()=='c0dec0dec0dec0deffffc0dec0dec0de',"guid value (missing bytes): %s"%repr(value))
-		vType,value=ParseURILiteral("guid'cd04f705-390c-4736-98dc-a3baa6b3a283'")
-		self.failUnless(vType==edm.SimpleType.Guid,"guide type: %s"%repr(vType))
-		self.failUnless(isinstance(value,uuid.UUID),"guide type: %s"%repr(value))
-		self.failUnless(value.hex.lower()=='cd04f705390c473698dca3baa6b3a283',"guid value (random): %s"%repr(value))
+		v=ParseURILiteral("guid'C0DEC0DE-C0DE-C0DE-C0DEC0DEC0DE'")
+		self.failUnless(v.typeCode==edm.SimpleType.Guid,"guide type: %s"%repr(v.typeCode))
+		self.failUnless(isinstance(v.simpleValue,uuid.UUID),"guide type: %s"%repr(v.simpleValue))
+		self.failUnless(v.simpleValue.hex.lower()=='c0dec0dec0dec0deffffc0dec0dec0de',"guid value (missing bytes): %s"%repr(v.simpleValue))
+		v=ParseURILiteral("guid'cd04f705-390c-4736-98dc-a3baa6b3a283'")
+		self.failUnless(v.typeCode==edm.SimpleType.Guid,"guide type: %s"%repr(v.typeCode))
+		self.failUnless(isinstance(v.simpleValue,uuid.UUID),"guide type: %s"%repr(v.simpleValue))
+		self.failUnless(v.simpleValue.hex.lower()=='cd04f705390c473698dca3baa6b3a283',"guid value (random): %s"%repr(v.simpleValue))
 		for bad in [ 
 			"guid'cd04g705-390c-4736-98dc-a3baa6b3a283'",
 			"guid'cd04g705-390c-4736-98dc-a3baa6b3a283'",
@@ -515,7 +517,7 @@ class ODataURILiteralTests(unittest.TestCase):
 			"guid'cd04f705-390c-4736-98dc-a3baa6b3a283FF'",
 			"guid\"cd04f705-390c-4736-98dc-a3baa6b3a283\""]:
 			try:
-				vType,value=ParseURILiteral(bad)
+				v=ParseURILiteral(bad)
 				self.fail("Bad parse: %s"%bad)
 			except ValueError:
 				pass
@@ -525,20 +527,20 @@ class ODataURILiteralTests(unittest.TestCase):
 			int64Literal = sign 1*19DIGIT
 			
 			Return as a python long integer"""
-		vType,value=ParseURILiteral("0L")
-		self.failUnless(vType==edm.SimpleType.Int64,"0L type: %s"%repr(vType))
-		self.failUnless(type(value)==LongType,"0L value type: %s"%repr(value))
-		self.failUnless(value==0,"0L value: %s"%repr(value))
-		vType,value=ParseURILiteral("1234567890123456789l")
-		self.failUnless(vType==edm.SimpleType.Int64,"19-digit type: %s"%repr(vType))
-		self.failUnless(value==1234567890123456789L,"19-digit value: %s"%repr(value))
-		vType,value=ParseURILiteral("-1234567890123456789l")
-		self.failUnless(vType==edm.SimpleType.Int64,"19-digit neg type: %s"%repr(vType))
-		self.failUnless(value==-1234567890123456789L,"19-digit neg value: %s"%repr(value))
+		v=ParseURILiteral("0L")
+		self.failUnless(v.typeCode==edm.SimpleType.Int64,"0L type: %s"%repr(v.typeCode))
+		self.failUnless(type(v.simpleValue)==LongType,"0L value type: %s"%repr(v.simpleValue))
+		self.failUnless(v.simpleValue==0,"0L value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("1234567890123456789l")
+		self.failUnless(v.typeCode==edm.SimpleType.Int64,"19-digit type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue==1234567890123456789L,"19-digit value: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("-1234567890123456789l")
+		self.failUnless(v.typeCode==edm.SimpleType.Int64,"19-digit neg type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue==-1234567890123456789L,"19-digit neg value: %s"%repr(v.simpleValue))
 		for bad in [ "12345678901234567890L", "01234567890123456789l",
 			 "+1l", "+0L" ]:
 			try:
-				vType,value=ParseURILiteral(bad)
+				v=ParseURILiteral(bad)
 				self.fail("Bad parse: %s"%bad)
 			except ValueError:
 				pass
@@ -546,26 +548,26 @@ class ODataURILiteralTests(unittest.TestCase):
 	def testCaseStringLiteral(self):
 		"""stringUriLiteral = SQUOTE [*characters] SQUOTE
 			characters = UTF8-char """
-		vType,value=ParseURILiteral("'0A'")
-		self.failUnless(vType==edm.SimpleType.String,"string type: %s"%repr(vType))
-		self.failUnless(value=='0A',"string type: %s"%repr(value))
-		vType,value=ParseURILiteral("'0a'")
-		self.failUnless(value=="0a","string type: %s"%repr(value))
-		vType,value=ParseURILiteral("'Caf\xc3\xa9'")
+		v=ParseURILiteral("'0A'")
+		self.failUnless(v.typeCode==edm.SimpleType.String,"string type: %s"%repr(v.typeCode))
+		self.failUnless(v.simpleValue=='0A',"string type: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("'0a'")
+		self.failUnless(v.simpleValue=="0a","string type: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("'Caf\xc3\xa9'")
 		# When parsed from a URL we assume that %-encoding is removed
 		# when the parameters are split leaving octet-strings that
 		# are parsed.  So utf-8 encoding of strings must be removed
 		# at the literal parsing stage
-		self.failUnless(value==u"Caf\xe9","unicode string type: %s"%repr(value))
+		self.failUnless(v.simpleValue==u"Caf\xe9","unicode string type: %s"%repr(v.simpleValue))
 		# This next case is a shocker, the specification provides no way to escape SQUOTE
 		# We support the undocumented doubling of the SQUOTE character.
-		vType,value=ParseURILiteral("'Peter O''Toole'")
-		self.failUnless(value==u"Peter O'Toole","double SQUOTE: %s"%repr(value))
-		vType,value=ParseURILiteral("'Peter O%27Toole'")
-		self.failUnless(value==u"Peter O%27Toole","%%-encoding ignored: %s"%repr(value))		
+		v=ParseURILiteral("'Peter O''Toole'")
+		self.failUnless(v.simpleValue==u"Peter O'Toole","double SQUOTE: %s"%repr(v.simpleValue))
+		v=ParseURILiteral("'Peter O%27Toole'")
+		self.failUnless(v.simpleValue==u"Peter O%27Toole","%%-encoding ignored: %s"%repr(v.simpleValue))		
 		for bad in [ "0A", "'0a","'Caf\xc3 Curtains'","'Peter O'Toole'"]:
 			try:
-				vType,value=ParseURILiteral(bad)
+				v=ParseURILiteral(bad)
 				self.fail("Bad parse: %s"%bad)
 			except UnicodeDecodeError:
 				pass
@@ -578,14 +580,14 @@ class ODataURILiteralTests(unittest.TestCase):
 		timeLiteral = <Defined by the lexical representation for duration in [XMLSCHEMA2/2]>
 		
 		We test by using the examples from XMLSchema"""
-		vType,value=ParseURILiteral("time'P1Y2M3DT10H30M'")
-		self.failUnless(vType==edm.SimpleType.Time,"date time type: %s"%repr(vType))
-		self.failUnless(isinstance(value,xsi.Duration),"value type: %s"%repr(value))
-		self.failUnless(str(value)=="P1Y2M3DT10H30M","value: %s"%str(value))		
-		vType,value=ParseURILiteral("time'-P120D'")
-		self.failUnless(vType==edm.SimpleType.Time,"date time type: %s"%repr(vType))
+		v=ParseURILiteral("time'P1Y2M3DT10H30M'")
+		self.failUnless(v.typeCode==edm.SimpleType.Time,"date time type: %s"%repr(v.typeCode))
+		self.failUnless(isinstance(v.simpleValue,xsi.Duration),"value type: %s"%repr(v.simpleValue))
+		self.failUnless(str(v.simpleValue)=="P1Y2M3DT10H30M","value: %s"%str(v.simpleValue))		
+		v=ParseURILiteral("time'-P120D'")
+		self.failUnless(v.typeCode==edm.SimpleType.Time,"date time type: %s"%repr(v.typeCode))
 		# There is no canonical representation so this is a weak test
-		self.failUnless(str(value)=="-P0Y0M120D","value: %s"%str(value))
+		self.failUnless(str(v.simpleValue)=="-P0Y0M120D","value: %s"%str(v.simpleValue))
 		for good in [
 			"time'P1347Y'",
 			"time'P1347M'",
@@ -593,9 +595,9 @@ class ODataURILiteralTests(unittest.TestCase):
 			"time'P0Y1347M'",
 			"time'P0Y1347M0D'",
 			"time'-P1347M'"]:
-			vType,value=ParseURILiteral(good)
-			self.failUnless(vType==edm.SimpleType.Time,"date time type: %s"%repr(vType))
-			self.failUnless(isinstance(value,xsi.Duration),"value type: %s"%repr(value))
+			v=ParseURILiteral(good)
+			self.failUnless(v.typeCode==edm.SimpleType.Time,"date time type: %s"%repr(v.typeCode))
+			self.failUnless(isinstance(v.simpleValue,xsi.Duration),"value type: %s"%repr(v.simpleValue))
 		for bad in [
 			"time'P-1347M'",
 			"time'P1Y2MT'",
@@ -604,8 +606,8 @@ class ODataURILiteralTests(unittest.TestCase):
 			"P1Y2M3DT10H30M"
 			]:
 			try:
-				vType,value=ParseURILiteral(bad)
-				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,str(value),edm.SimpleType.EncodeValue(vType)))
+				v=ParseURILiteral(bad)
+				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,str(v.simpleValue),edm.SimpleType.EncodeValue(v.typeCode)))
 			except ValueError:
 				pass
 
@@ -615,10 +617,10 @@ class ODataURILiteralTests(unittest.TestCase):
 		dateTimeOffsetLiteral = <Defined by the lexical representation for datetime (including timezone offset) in [XMLSCHEMA2/2]>
 		
 		We test by using the examples from XMLSchema"""
-		vType,value=ParseURILiteral("datetimeoffset'2002-10-10T12:00:00-05:00'")
-		self.failUnless(vType==edm.SimpleType.DateTimeOffset,"date time offset type: %s"%repr(vType))
-		self.failUnless(isinstance(value,iso.TimePoint),"value type: %s"%repr(value))
-		self.failUnless(isinstance(value,iso.TimePoint),"value type: %s"%repr(value))
+		v=ParseURILiteral("datetimeoffset'2002-10-10T12:00:00-05:00'")
+		self.failUnless(v.typeCode==edm.SimpleType.DateTimeOffset,"date time offset type: %s"%repr(v.typeCode))
+		self.failUnless(isinstance(v.simpleValue,iso.TimePoint),"value type: %s"%repr(v.simpleValue))
+		self.failUnless(isinstance(v.simpleValue,iso.TimePoint),"value type: %s"%repr(v.simpleValue))
 		for good in [
 			"datetimeoffset'2002-10-10T17:00:00Z'",
 			"datetimeoffset'2002-10-10T12:00:00Z'",
@@ -627,20 +629,68 @@ class ODataURILiteralTests(unittest.TestCase):
 			"datetimeoffset'2002-10-10T00:00:00+05:00'",
 			"datetimeoffset'2002-10-09T19:00:00Z'"
 			]:
-			vType,value=ParseURILiteral(good)
-			self.failUnless(vType==edm.SimpleType.DateTimeOffset,"date time offset type: %s"%repr(vType))
-			self.failUnless(isinstance(value,iso.TimePoint),"value type: %s"%repr(value))
+			v=ParseURILiteral(good)
+			self.failUnless(v.typeCode==edm.SimpleType.DateTimeOffset,"date time offset type: %s"%repr(v.typeCode))
+			self.failUnless(isinstance(v.simpleValue,iso.TimePoint),"value type: %s"%repr(v.simpleValue))
 		for bad in [
 			"datetimeoffset'2002-10-10T17:00:00'",	# missing time zone
 			"datetimeoffset'2002-10-10T17:00Z'",	# incomplete precision
 			"datetimeoffset2002-10-10T17:00:00Z",	# missing quotes
 			]:
 			try:
-				vType,value=ParseURILiteral(bad)
-				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,str(value),edm.SimpleType.EncodeValue(vType)))
+				v=ParseURILiteral(bad)
+				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,str(v.simpleValue),edm.SimpleType.EncodeValue(v.typeCode)))
 			except ValueError:
 				pass
 	
+			
+class ODataURITests(unittest.TestCase):
+
+	def testCaseConstructor(self):
+		dsURI=ODataURI('/')
+		self.failUnless(dsURI.pathPrefix=='',"empty path prefix")
+		self.failUnless(dsURI.resourcePath=='/',"resource path")
+		self.failUnless(dsURI.queryOptions==[],'query options')
+		self.failUnless(dsURI.navPath==[],"navPath: %s"%repr(dsURI.navPath))
+		dsURI=ODataURI('/','/x')
+		self.failUnless(dsURI.pathPrefix=='/x',"non-empty path prefix")
+		self.failUnless(dsURI.resourcePath==None,"resource path")
+		dsURI=ODataURI('/x','/x')
+		self.failUnless(dsURI.pathPrefix=='/x',"non-empty path prefix")
+		self.failUnless(dsURI.resourcePath=='',"empty resource path, special case")
+		self.failUnless(dsURI.navPath==[],"empty navPath, special case: %s"%repr(dsURI.navPath))		
+		dsURI=ODataURI('/x.svc/Products','/x.svc')
+		self.failUnless(dsURI.pathPrefix=='/x.svc',"svc path prefix")
+		self.failUnless(dsURI.resourcePath=='/Products',"resource path")
+		self.failUnless(len(dsURI.navPath)==1,"navPath: %s"%repr(dsURI.navPath))
+		self.failUnless(type(dsURI.navPath[0][0]) is UnicodeType,"entitySet name type")
+		self.failUnless(dsURI.navPath[0][0]=='Products',"entitySet name: Products")
+		self.failUnless(dsURI.navPath[0][1]=={},"entitySet no key-predicate")		
+		dsURI=ODataURI('Products','/x.svc')
+		self.failUnless(dsURI.pathPrefix=='/x.svc',"svc path prefix")
+		self.failUnless(dsURI.resourcePath=='/Products',"resource path")
+		try:
+			dsURI=ODataURI('Products','x.svc')
+			self.fail("x.svc/Products  - illegal path")
+		except ValueError:
+			pass
+	
+	def testCaseEntitySet(self):
+		dsURI=ODataURI("Products()?$format=json&$top=20&$skip=10&space='%20'",'/x.svc')
+		self.failUnless(dsURI.resourcePath=='/Products()',"resource path")
+		self.failUnless(dsURI.sysQueryOptions=={'$format':'json','$top':'20','$skip':'10'},repr(dsURI.sysQueryOptions))
+		self.failUnless(dsURI.queryOptions==["space='%20'"],'query options')
+		self.failUnless(dsURI.navPath==[(u'Products',{})],"entitySet: Products, found %s"%repr(dsURI.navPath))
+		dsURI=ODataURI('Products()/$count','/x.svc')
+		self.failUnless(dsURI.resourcePath=='/Products()/$count',"resource path")
+		self.failUnless(dsURI.sysQueryOptions=={},'sysQueryOptions')
+		self.failUnless(dsURI.queryOptions==[],'query options')		
+		self.failUnless(dsURI.navPath==[(u'Products',{}),(u"$count",{})],"path: %s"%repr(dsURI.navPath))
+		dsURI=ODataURI('Products(1)/$value','/x.svc')
+		self.failUnless(dsURI.navPath==[(u'Products',{'':1}),(u"$value",{})],"path: %s"%repr(dsURI.navPath))
+		dsURI=ODataURI('Products(x=1,y=2)','/x.svc')
+		self.failUnless(dsURI.navPath==[(u'Products',{u'x':1,u'y':2})],"path: %s"%repr(dsURI.navPath))
+		
 			
 class ClientTests(unittest.TestCase):
 	def testCaseConstructor(self):
@@ -775,55 +825,9 @@ class ODataStoreClientTests(unittest.TestCase):
 		sClient=ODataStoreClient('http://localhost:%i/'%HTTP_PORT)
 		for c in sClient.EntityReader("Categories"):
 			self.failUnless("ID" in c,"No key field in category")
-			self.failUnless(self.Categories[c["ID"]]==c["Name"],"Category Name")
+			self.failUnless(self.Categories[c["ID"].GetSimpleValue()]==c["Name"].GetSimpleValue(),"Category Name")
 
 
-class ODataURITests(unittest.TestCase):
-
-	def testCaseConstructor(self):
-		dsURI=ODataURI('/')
-		self.failUnless(dsURI.pathPrefix=='',"empty path prefix")
-		self.failUnless(dsURI.resourcePath=='/',"resource path")
-		self.failUnless(dsURI.queryOptions==[],'query options')
-		self.failUnless(dsURI.navPath==[],"navPath: %s"%repr(dsURI.navPath))
-		dsURI=ODataURI('/','/x')
-		self.failUnless(dsURI.pathPrefix=='/x',"non-empty path prefix")
-		self.failUnless(dsURI.resourcePath==None,"resource path")
-		dsURI=ODataURI('/x','/x')
-		self.failUnless(dsURI.pathPrefix=='/x',"non-empty path prefix")
-		self.failUnless(dsURI.resourcePath=='',"empty resource path, special case")
-		self.failUnless(dsURI.navPath==[],"empty navPath, special case: %s"%repr(dsURI.navPath))		
-		dsURI=ODataURI('/x.svc/Products','/x.svc')
-		self.failUnless(dsURI.pathPrefix=='/x.svc',"svc path prefix")
-		self.failUnless(dsURI.resourcePath=='/Products',"resource path")
-		self.failUnless(len(dsURI.navPath)==1,"navPath: %s"%repr(dsURI.navPath))
-		self.failUnless(type(dsURI.navPath[0][0]) is UnicodeType,"entitySet name type")
-		self.failUnless(dsURI.navPath[0][0]=='Products',"entitySet name: Products")
-		self.failUnless(dsURI.navPath[0][1]=={},"entitySet no key-predicate")		
-		dsURI=ODataURI('Products','/x.svc')
-		self.failUnless(dsURI.pathPrefix=='/x.svc',"svc path prefix")
-		self.failUnless(dsURI.resourcePath=='/Products',"resource path")
-		try:
-			dsURI=ODataURI('Products','x.svc')
-			self.fail("x.svc/Products  - illegal path")
-		except ValueError:
-			pass
-	
-	def testCaseEntitySet(self):
-		dsURI=ODataURI("Products()?$format=json&$top=20&$skip=10&space='%20'",'/x.svc')
-		self.failUnless(dsURI.resourcePath=='/Products()',"resource path")
-		self.failUnless(dsURI.queryOptions==['$format=json','$top=20','$skip=10',"space='%20'"],'query options')
-		self.failUnless(dsURI.navPath==[(u'Products',{})],"entitySet: Products, found %s"%repr(dsURI.navPath))
-		dsURI=ODataURI('Products()/$count','/x.svc')
-		self.failUnless(dsURI.resourcePath=='/Products()/$count',"resource path")
-		self.failUnless(dsURI.queryOptions==[],'query options')		
-		self.failUnless(dsURI.navPath==[(u'Products',{}),(u"$count",{})],"path: %s"%repr(dsURI.navPath))
-		dsURI=ODataURI('Products(1)/$value','/x.svc')
-		self.failUnless(dsURI.navPath==[(u'Products',{'':1}),(u"$value",{})],"path: %s"%repr(dsURI.navPath))
-		dsURI=ODataURI('Products(x=1,y=2)','/x.svc')
-		self.failUnless(dsURI.navPath==[(u'Products',{u'x':1,u'y':2})],"path: %s"%repr(dsURI.navPath))
-		
-			
 class ServerTests(unittest.TestCase):
 	
 	def setUp(self):
@@ -950,10 +954,22 @@ class ServerTests(unittest.TestCase):
 		mdPath=self.sampleServerData.join('metadata.xml')
 		with mdPath.open('rb') as f:
 			doc.Read(f)
-		s.SetModel(doc.root)
+		s.SetModel(doc)
 		# at this point, the server's model root is available as model
 		self.failUnless(s.model is doc.root,"model attribute")		
 		
+
+class CustomersByCityEntitySet(edm.FunctionEntitySet):
+	
+	def __init__(self,function,params):
+		edm.FunctionEntitySet.__init__(self,function,params)
+		self.city=params.get('city','Chunton')
+		
+	def itervalues(self):
+		for customer in self.entitySet.data.itervalues():
+			if customer[2][1]==self.city:
+				yield self.entitySet[customer[0]]
+
 
 class SampleServerTests(unittest.TestCase):
 	
@@ -985,11 +1001,13 @@ class SampleServerTests(unittest.TestCase):
 		with mdPath.open('rb') as f:
 			doc.Read(f)
 		self.ds=doc.root.DataServices
-		self.svc.SetModel(doc.root)
+		self.svc.SetModel(doc)
 		customers=self.ds['SampleModel.SampleEntities.Customers']
 		customers.data['ALFKI']=('ALFKI','Example Inc',("Mill Road","Chunton"),None)
 		for i in xrange(90):
 			customers.data['XXX%02X'%i]=('XXX%02X'%i,'Example-%i Ltd'%i,(None,None),None)
+		employees=self.ds['SampleModel.SampleEntities.Employees']
+		employees.data['1']=('1','Joe Bloggs',("The Elms","Chunton"),'DEADBEEF')
 		orders=self.ds['SampleModel.SampleEntities.Orders']
 		now=iso8601.TimePoint()
 		now.Now()
@@ -998,26 +1016,18 @@ class SampleServerTests(unittest.TestCase):
 		association=self.ds['SampleModel.SampleEntities.Orders_Customers']
 		association.Associate('ALFKI',1)
 		association.Associate('ALFKI',2)
+		orderLines=self.ds['SampleModel.SampleEntities.OrderLines']
+		orderLines.data[100]=(100,12,0.45)
+		orderLines.data[200]=(200,144,2.50)
+		association=self.ds['SampleModel.SampleEntities.OrderLines_Orders']
+		association.Associate(100,1)
+		association.Associate(200,2)
+		documents=self.ds['SampleModel.SampleEntities.Documents']
+		documents.data[300]=(300,'The Book','The Author')
+		documents.data[301]=(301,'A Book','An Author')
 		customersByCity=self.ds['SampleModel.SampleEntities.CustomersByCity']
-		customersByCity.Bind(self.CustomersByCity)
-	
-	def CustomersByCity(self,f,params,key=None):
-		customers=self.ds['SampleModel.SampleEntities.Customers']
-		city=params.get('city','Chunton')
-		if key is None:
-			return self.CustomersByCityGen(customers,city)
-		else:
-			e=customers[key]
-			if e['Address']['City']==city:
-				return e
-			else:
-				raise KeyError(key)
-	
-	def CustomersByCityGen(self,customers,city):
-		for customer in customers.data.itervalues():
-			if customer[2][1]==city:
-				yield customers[customer[0]]
-				
+		customersByCity.Bind(CustomersByCityEntitySet)
+									
 	def tearDown(self):
 		pass
 		
@@ -1055,7 +1065,7 @@ class SampleServerTests(unittest.TestCase):
 		"""If an EntitySet is not in the default EntityContainer, then the URI
 		MUST qualify the EntitySet name with the EntityContainer name.
 		
-		Although not explicitly stated, it seems that an entity set MAY NOT be
+		Although not explicitly stated, it seems that an entity set MUST NOT be
 		prefixed with the container name if it is in the default
 		EntityContainer.  Witness the error from
 		http://services.odata.org/OData/OData.svc/DemoService.Products"""
@@ -1141,16 +1151,20 @@ class SampleServerTests(unittest.TestCase):
 		# TODO, sample data has no compound keys
 		pass
 
-	def testCaseAllInstances(self):
-		"""... serviceRoot "/" entitySet MUST identify all instances of the base
-		EntityType or any of the EntityType's subtypes within the specified
-		EntitySet specified in the last URI segment."""
+	def testCaseURI1(self):
+		"""URI1 = scheme serviceRoot "/" entitySet
+		
+		[URI1] MUST identify all instances of the base EntityType or any
+		of the EntityType's subtypes within the specified EntitySet
+		specified in the last URI segment."""
 		request=MockRequest('/service.svc/Customers')
 		request.Send(self.svc)
 		doc=app.Document()
 		doc.Read(request.wfile.getvalue())
 		self.failUnless(isinstance(doc.root,atom.Feed),"Expected atom.Feed from /Customers")
 		self.failUnless(len(doc.root.Entry)==91,"Sample server has 91 Customers")
+		#	the serviceOperation-collEt rule can be substituted for the
+		#	first occurrence of an entitySet rule in the Resource Path
 		request=MockRequest("/service.svc/CustomersByCity?city='Chunton'")
 		# import pdb;pdb.set_trace()
 		request.Send(self.svc)
@@ -1158,7 +1172,274 @@ class SampleServerTests(unittest.TestCase):
 		doc.Read(request.wfile.getvalue())
 		self.failUnless(isinstance(doc.root,atom.Feed),"Expected atom.Feed from /CustomersByCity")
 		self.failUnless(len(doc.root.Entry)==1,"Sample server has 1 Customer in Chunton")
-				
+		#	If the Entity Data Model... ...does not include an EntitySet with the name
+		#	specified, the this URI (and any URI created by appending additional path segments)
+		#	MUST be treated as identifying a non-existent resource.
+		request=MockRequest("/service.svc/Prospects")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==404)		
+		request=MockRequest("/service.svc/Prospects/$count")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==404)
+
+	def testCaseURI2(self):
+		"""URI2 = scheme serviceRoot "/" entitySet "(" keyPredicate ")"
+		
+		MUST identify a single EntityType instance, which is within the
+		EntitySet specified in the URI, where key EntityKey is equal to
+		the value of the keyPredicate specified.
+		
+		If no entity identified by the keyPredicate exists in the
+		EntitySet specified, then this URI (and any URI created by
+		appending additional path segments) MUST represent a resource
+		that does not exist in the data model"""
+		request=MockRequest("/service.svc/Customers('ALFKI')")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		doc=Document()
+		doc.Read(request.wfile.getvalue())
+		self.failUnless(isinstance(doc.root,Entry),"Expected a single Entry, found %s"%doc.root.__class__.__name__)
+		self.failUnless(doc.root['CustomerID']=='ALFKI',"Bad CustomerID")
+		request=MockRequest("/service.svc/Customers('ALFKJ')")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==404)
+		request=MockRequest("/service.svc/Customers('ALFKJ')/Address")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==404)
+	
+	def testCaseURI3(self):
+		"""URI3 = scheme serviceRoot "/" entitySet "(" keyPredicate ")/" entityComplexProperty
+		
+		MUST identify an instance of a ComplexType on the specified
+		EntityType instance."""
+		request=MockRequest("/service.svc/Customers('ALFKI')/Address")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		doc=Document()
+		doc.Read(request.wfile.getvalue())
+		self.failUnless(isinstance(doc.root,Property),"Expected a single Property, found %s"%doc.root.__class__.__name__)
+		value=doc.root.GetValue()
+		self.failUnless(value['Street']=='Mill Road',"Bad street in address")		
+	
+	def testCaseURI4(self):
+		"""URI4 = scheme serviceRoot "/" entitySet "(" keyPredicate ")/" entityComplexProperty "/" entityProperty
+		
+		MUST identify a property of a ComplexType defined on the
+		EntityType of the entity whose EntityKey value is specified by
+		the keyPredicate and is within the specified EntitySet."""
+		request=MockRequest("/service.svc/Customers('ALFKI')/Address/Street")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		doc=Document()
+		doc.Read(request.wfile.getvalue())
+		self.failUnless(isinstance(doc.root,Property),"Expected a single Property, found %s"%doc.root.__class__.__name__)
+		value=doc.root.GetValue()
+		self.failUnless(value.GetSimpleValue()=='Mill Road',"Bad street")
+		request=MockRequest("/service.svc/Customers('ALFKI')/Address/Street/$value")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		self.failUnless(request.wfile.getvalue()=='Mill Road',"Bad street $vaue")
+	
+	def testCaseURI5(self):
+		"""URI5 = scheme serviceRoot "/" entitySet "(" keyPredicate ")/" entityProperty
+
+		MUST identify a property whose type is an EDMSimpleType on the
+		EntityType instance (identified with EntityKey equal to the
+		specified key predicate) within the specified EntitySet"""
+		request=MockRequest("/service.svc/Customers('ALFKI')/CompanyName")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		doc=Document()
+		doc.Read(request.wfile.getvalue())
+		self.failUnless(isinstance(doc.root,Property),"Expected a single Property, found %s"%doc.root.__class__.__name__)
+		value=doc.root.GetValue()
+		self.failUnless(value.GetSimpleValue()=='Example Inc',"Bad company")
+		request=MockRequest("/service.svc/Customers('ALFKI')/CompanyName/$value")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		self.failUnless(request.wfile.getvalue()=='Example Inc',"Bad company $vaue")
+	
+	def testCaseURI6(self):
+		"""URI6 = scheme serviceRoot "/" entitySet "(" keyPredicate ")/" entityNavProperty
+
+		MUST identify a set of entities or an EntityType instance that
+		is reached via the specified NavigationProperty on the entity
+		identified by the EntitySet name and key predicate specified."""
+		request=MockRequest("/service.svc/Customers('ALFKI')/Orders")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		doc=Document()
+		doc.Read(request.wfile.getvalue())
+		self.failUnless(isinstance(doc.root,atom.Feed),"Expected atom.Feed from navigation property Orders")
+		self.failUnless(len(doc.root.Entry)==2,"Sample customer has 2 orders")		
+	
+	def testCaseURI7(self):
+		"""URI7 = scheme serviceRoot "/" entitySet "(" keyPredicate ")/$links/" entityNavProperty
+
+		MUST identify the collection of all Links from the specified
+		EntityType instance (identified by the EntitySet name and key
+		predicate specified) to all other entities that can be reached
+		via the Navigation Property"""
+		request=MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		doc=Document()
+		doc.Read(request.wfile.getvalue())
+		self.failUnless(isinstance(doc.root,Links),"Expected Links from $links request, found %s"%doc.root.__class__.__name__)
+		self.failUnless(len(doc.root.URI)==2,"Sample customer has 2 orders")		
+ 		request=MockRequest("/service.svc/Orders(1)/$links/Customer")
+ 		request.Send(self.svc)
+ 		self.failUnless(request.responseCode==200)
+ 		doc=Document()
+ 		doc.Read(request.wfile.getvalue())
+ 		self.failUnless(isinstance(doc.root,URI),"Expected URI from $links request")
+ 		self.failUnless(doc.root.GetValue()=="http://host/service.svc/Customers('ALFKI')","Bad Customer link")			
+	
+	def testCaseURI8(self):
+		"""URI8 = scheme serviceRoot "/$metadata"
+		
+		MUST identify the Entity Data Model Extensions (EDMX) document,
+		as specified in [MC-EDMX], which includes the Entity Data Model
+		represented using a conceptual schema definition language
+		(CSDL), as specified in [MC-CSDL], for the data service."""
+		request=MockRequest("/service.svc/$metadata")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		doc=edmx.Document()
+		doc.Read(request.wfile.getvalue())
+		self.failUnless(isinstance(doc.root,edmx.Edmx),"Expected Edmx from $metadata request, found %s"%doc.root.__class__.__name__)
+		
+	def testCaseURI9(self):
+		"""URI9 = scheme serviceRoot "/$batch"
+
+		MUST identify the endpoint of a data service which accepts Batch Requests.
+		
+		...If a data service does not implement support for a Batch
+		Request, it must return a 4xx response code in the response to
+		any Batch Request sent to it."""
+		request=MockRequest("/service.svc/$batch")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==404)
+	
+	def testCaseURI10(self):
+		"""URI10 = scheme serviceRoot "/" serviceOperation-et
+
+		MUST identify a FunctionImport that returns a single EntityType instance.
+		
+		If no FunctionImport exists in the Entity Data Model associated
+		with the data service which has the same name as specified by
+		the serviceOperation-et rule, then this URI MUST represent a
+		resource that does not exist in the data model"""
+		# TODO, an actual function that does something that returns a single entity
+		request=MockRequest("/service.svc/LastCustomerByLine?line=1")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==404)
+
+	def testCaseURI11(self):
+		"""URI11 = scheme serviceRoot "/" serviceOperation-collCt
+
+		MUST identify a FunctionImport which returns a collection of
+		ComplexType instances.
+
+		If no FunctionImport exists in the Entity Data Model associated
+		with the data service that has the same name as specified by the
+		serviceOperation-collCt rule, then this URI MUST represent a
+		resource that does not exist in the data model."""
+		# TODO, an actual function that does something that returns a single entity
+		request=MockRequest("/service.svc/ShippedAddressByDate?date=datetime'2013-08-02'")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==404)
+		
+	def testCaseURI12(self):
+		"""URI12 = scheme serviceRoot "/" serviceOperation-ct
+
+		MUST identify a FunctionImport which returns a ComplexType
+		instance.
+
+		If no FunctionImport exists in the Entity Data Model associated
+		with the data service that has the same name as specified by the
+		serviceOperation-ct rule, then this URI MUST represent a
+		resource that does not exist in the data model."""
+		# TODO, an actual function that does something that returns a single entity
+		request=MockRequest("/service.svc/LastShippedByLine?line=1")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==404)
+	
+	def testCaseURI13(self):
+		"""URI13 = scheme serviceRoot "/" serviceOperation-collPrim
+
+		MUST identify a FunctionImport which returns a collection of
+		Primitive type values
+
+		If no FunctionImport exists in the Entity Data Model associated
+		with the data service that has the same name as specified by the
+		serviceOperation-collPrim rule, then this URI MUST represent a
+		resource that does not exist in the data model."""
+		# TODO, an actual function that does something that returns a single entity
+		request=MockRequest("/service.svc/ShippedCustomerNamesByDate?date=datetime'2013-08-02'")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==404)		
+	
+	def testCaseURI14(self):
+		"""URI14 = scheme serviceRoot "/" serviceOperation-prim
+
+		MUST identify a FunctionImport which returns a single Primitive
+		type value.
+		
+		If no FunctionImport exists in the Entity Data Model associated
+		with the data service that has the same name as specified by the
+		serviceOperation-collPrim rule, then this URI MUST represent a
+		resource that does not exist in the data model.
+
+		A path segment containing only the rule serviceOperation-prim
+		may append a "/$value" segment. A $value MUST be interpreted as
+		a dereference operator"""
+		# TODO, an actual function that does something that returns a single entity
+		request=MockRequest("/service.svc/LastCustomerNameByLine?line=1")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==404)		
+		request=MockRequest("/service.svc/LastCustomerNameByLine/$value?line=1")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==404)		
+
+	def testCaseURI15(self):
+		"""URI15 = scheme serviceRoot "/" entitySet count
+
+		MUST identify the count of all instances of the base EntityType
+		or any of the EntityType's subtypes within the specified
+		EntitySet specified in the last URI segment"""
+		request=MockRequest('/service.svc/Customers/$count')
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		self.failUnless(request.wfile.getvalue()=="91","Sample server has 91 Customers")
+	
+	def testCaseURI16(self):
+		"""URI16 = scheme serviceRoot "/" entitySet "(" keyPredicate ")" count
+
+		MAY identify the count of a single EntityType instance (the
+		count value SHOULD always equal one), which is within the
+		EntitySet specified in the URI, where key EntityKey is equal to
+		the value of the keyPredicate specified."""
+		request=MockRequest("/service.svc/Customers('ALFKI')/$count")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		self.failUnless(request.wfile.getvalue()=="1","the count value SHOULD always equal one")
+		request=MockRequest("/service.svc/Customers('ALFKJ')/$count")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==404)
+	
+	def testCaseURI17(self):
+		"""URI17 = scheme serviceRoot "/" entitySet "(" keyPredicate ")" value
+
+		MUST identify the Media Resource [RFC5023] associated with the
+		identified EntityType instance. The EntityType that defines the
+		entity identified MUST be annotated with the "HasStream"
+		attribute."""
+		request=MockRequest("/service.svc/Documents(301)/$value")
+		request.Send(self.svc)
+		print request.wfile.getvalue()
+		self.failUnless(request.responseCode==200)
+		
 	def testCaseMiscURI(self):
 		"""Example URIs not tested elsewhere:"""
 		for u in [
