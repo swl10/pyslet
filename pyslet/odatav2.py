@@ -1191,7 +1191,7 @@ class Server(app.Server):
 					else:
 						data=str(r)
 					responseHeaders.append(("Content-Type",str(responseType)))
-					responseHeaders.append(("Content-Length",len(data)))
+					responseHeaders.append(("Content-Length",str(len(data))))
 					responseHeaders.append(("Location",location))
 					start_response("%i %s"%(307,"Temporary Redirect"),responseHeaders)
 					return [data]
@@ -1225,7 +1225,7 @@ class Server(app.Server):
 		else:
 			data=str(e)
 		responseHeaders.append(("Content-Type",str(responseType)))
-		responseHeaders.append(("Content-Length",len(data)))
+		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(code,subCode),responseHeaders)
 		return [data]
 		
@@ -1417,7 +1417,7 @@ class Server(app.Server):
 			return self.ODataError(environ,start_response,"Not Acceptable",'xml or plain text formats supported',406)
 		data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
-		responseHeaders.append(("Content-Length",len(data)))
+		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 			
@@ -1434,7 +1434,7 @@ class Server(app.Server):
 		else:
 			data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
-		responseHeaders.append(("Content-Length",len(data)))
+		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 		
@@ -1449,15 +1449,16 @@ class Server(app.Server):
 		else:
 			data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
-		responseHeaders.append(("Content-Length",len(data)))
+		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 			
 	def ReturnCollection(self,path,entities,environ,start_response,responseHeaders):
 		"""Returns an iterable of Entities."""
-		f=atom.Feed(None)
-		f.MakePrefix(ODATA_DATASERVICES_NAMESPACE,u'd')
-		f.MakePrefix(ODATA_METADATA_NAMESPACE,u'm')
+		doc=Document(root=atom.Feed)
+		f=doc.root
+		#f.MakePrefix(ODATA_DATASERVICES_NAMESPACE,u'd')
+		#f.MakePrefix(ODATA_METADATA_NAMESPACE,u'm')
 		f.SetBase(str(self.serviceRoot))
 		# f.ChildElement(atom.Title).SetValue(entities.GetTitle())
 		f.ChildElement(atom.AtomId).SetValue(str(self.serviceRoot)+path)
@@ -1474,9 +1475,9 @@ class Server(app.Server):
 		else:
 			# Here's a challenge, we want to pull data through the feed by yielding strings
 			# just load in to memory at the moment
-			data=str(f)
+			data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
-		responseHeaders.append(("Content-Length",len(data)))
+		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 				
@@ -1498,7 +1499,7 @@ class Server(app.Server):
 			# just load in to memory at the moment
 			data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
-		responseHeaders.append(("Content-Length",len(data)))
+		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 
@@ -1527,7 +1528,7 @@ class Server(app.Server):
 		else:
 			data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
-		responseHeaders.append(("Content-Length",len(data)))
+		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 				
@@ -1538,7 +1539,7 @@ class Server(app.Server):
 			return self.ODataError(environ,start_response,"Not Acceptable",'$value requires plain text or octet-stream formats',406)
 		data=unicode(value).encode('utf-8')
 		responseHeaders.append(("Content-Type",str(responseType)))
-		responseHeaders.append(("Content-Length",len(data)))
+		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 				
@@ -1549,7 +1550,7 @@ class Server(app.Server):
 			return self.ODataError(environ,start_response,"Not Acceptable",'$count requires plain text or octet-stream formats',406)
 		data=str(number)
 		responseHeaders.append(("Content-Type",str(responseType)))
-		responseHeaders.append(("Content-Length",len(data)))
+		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 				

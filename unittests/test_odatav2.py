@@ -675,6 +675,22 @@ class ODataURITests(unittest.TestCase):
 		except ValueError:
 			pass
 	
+	def testCaseQueryOptions(self):
+		"""QueryOptions:
+		
+		Any number of the query options MAY<5> be specified in a data service URI.
+		The order of Query Options within a URI MUST be insignificant.
+		Query option names and values MUST be treated as case sensitive.
+		System Query Option names MUST begin with a "$", as seen in System Query Option (section 2.2.3.6.1).
+		Custom Query Options (section 2.2.3.6.2) MUST NOT begin with a "$".
+		"""
+		dsURI=ODataURI("Products()?$format=json&$top=20&$skip=10&space='%20'",'/x.svc')
+		self.failUnless(dsURI.sysQueryOptions=={'$format':'json','$top':'20','$skip':'10'},repr(dsURI.sysQueryOptions))
+		self.failUnless(dsURI.queryOptions==["space='%20'"],'query options')
+		dsURI=ODataURI("Products()?$top=20&space='%20'&$format=json&$skip=10",'/x.svc')
+		self.failUnless(dsURI.sysQueryOptions=={'$format':'json','$top':'20','$skip':'10'},repr(dsURI.sysQueryOptions))
+		self.failUnless(dsURI.queryOptions==["space='%20'"],'query options')		
+
 	def testCaseEntitySet(self):
 		dsURI=ODataURI("Products()?$format=json&$top=20&$skip=10&space='%20'",'/x.svc')
 		self.failUnless(dsURI.resourcePath=='/Products()',"resource path")
@@ -1275,7 +1291,7 @@ class SampleServerTests(unittest.TestCase):
 	
 	def testCaseURI7(self):
 		"""URI7 = scheme serviceRoot "/" entitySet "(" keyPredicate ")/$links/" entityNavProperty
-
+		
 		MUST identify the collection of all Links from the specified
 		EntityType instance (identified by the EntitySet name and key
 		predicate specified) to all other entities that can be reached
@@ -1287,13 +1303,13 @@ class SampleServerTests(unittest.TestCase):
 		doc.Read(request.wfile.getvalue())
 		self.failUnless(isinstance(doc.root,Links),"Expected Links from $links request, found %s"%doc.root.__class__.__name__)
 		self.failUnless(len(doc.root.URI)==2,"Sample customer has 2 orders")		
- 		request=MockRequest("/service.svc/Orders(1)/$links/Customer")
- 		request.Send(self.svc)
- 		self.failUnless(request.responseCode==200)
- 		doc=Document()
- 		doc.Read(request.wfile.getvalue())
- 		self.failUnless(isinstance(doc.root,URI),"Expected URI from $links request")
- 		self.failUnless(doc.root.GetValue()=="http://host/service.svc/Customers('ALFKI')","Bad Customer link")			
+		request=MockRequest("/service.svc/Orders(1)/$links/Customer")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		doc=Document()
+		doc.Read(request.wfile.getvalue())
+		self.failUnless(isinstance(doc.root,URI),"Expected URI from $links request")
+		self.failUnless(doc.root.GetValue()=="http://host/service.svc/Customers('ALFKI')","Bad Customer link")			
 	
 	def testCaseURI8(self):
 		"""URI8 = scheme serviceRoot "/$metadata"
