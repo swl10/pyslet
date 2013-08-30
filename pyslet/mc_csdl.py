@@ -11,8 +11,8 @@ import pyslet.xsdatatypes20041028 as xsi
 from pyslet.vfs import OSFilePath
 import pyslet.iso8601 as iso8601
 
-import string, itertools, sqlite3, hashlib, StringIO, time, sys
-from types import BooleanType, FloatType, StringTypes, StringType, UnicodeType, IntType, LongType, TupleType, DictType
+import string, itertools, sqlite3, hashlib, StringIO, time, sys, copy, decimal
+from types import BooleanType, FloatType, StringTypes, StringType, UnicodeType, BooleanType, IntType, LongType, TupleType, DictType
 
 
 EDM_NAMESPACE="http://schemas.microsoft.com/ado/2009/11/edm"		#: Namespace to use for CSDL elements
@@ -340,7 +340,7 @@ class SimpleType(xsi.Enumeration):
 	"""SimpleType defines constants for the core data types defined by CSDL
 	::
 		
-		SimpleType.boolean	
+		SimpleType.Boolean	
 		SimpleType.DEFAULT == None
 
 	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`
@@ -762,24 +762,92 @@ class EDMValue(object):
 class SimpleValue(EDMValue):
 	"""Represents a value of a simple type in the EDMModel.
 	
-	*	typeCode is one of the :py:class:`SimpleType` constants
+	This class is not designed to be instantiated directly, instead use
+	the class method :py:meth:`NewValue` (with the same signature) to
+	construct one of the specific child classes.
+		
+	The pyValue attribute is the python value or None if this value is NULL
 	
-	*	name is the (optional) name of the property"""
+	The python type used for pyValue depends on typeCode as follows:
 	
+	* Edm.Boolean: one of the Python constants True or False
+	
+	* Edm.Byte, Edm.SByte, Edm.Int16, Edm.Int32: int
+
+	* Edm.Int64: long
+
+	* Edm.Double, Edm.Single: python float
+
+	* Edm.Decimal: python Decimal instance (from decimal module)
+
+	* Edm.DateTime, Edm.DateTimeOffset: py:class:`pyslet.iso8601.TimePoint` instance
+	
+	* Edm.Time:	py:class:`pyslet.iso*601.Time` instance (TBC)
+
+	* Edm.Binary: raw string
+
+	* Edm.String: unicode string
+
+	* Edm.Guid: python UUID instance (from uuid module)
+	
+	The value of *pyValue* can be assigned directly to alter the value
+	of instance but if you violate the above type rules then you are
+	likely to generate unexpected exceptions elsewhere."""
+	
+	_TypeClass={
+		}
+	
+	@classmethod
+	def NewValue(cls,typeCode,name=None):
+		"""Constructs an instance of the correct child class of
+		:py:class:`SimpleValue` to represent the type with *typeCode*.
+
+		*	typeCode is one of the :py:class:`SimpleType` constants
+	
+		*	name is the (optional) name of the property this value represents
+		
+		We support a special case for creating a type-less NULL.  If you
+		pass None for the typeCode then a type-less
+		:py:class:`SipmleValue` is instantiated."""		
+		if typeCode is None:
+			return SimpleValue(None,name)
+		else:
+			return cls._TypeClass[typeCode](name)
+		
 	def __init__(self,typeCode,name=None):
 		EDMValue.__init__(self,name)
 		self.typeCode=typeCode		#: the :py:class:`SimpleType` code
-		self.simpleValue=None		#: the value, as represented using the closest python type
+		self.pyValue=None			#: the value, as represented using the closest python type
 
 	def IsNull(self):
-		return self.simpleValue is None
+		return self.pyValue is None
+	
+	def Cast(self,newTypeCode):
+		"""Returns a new :py:class:`SimpleValue` of type *newTypeCode* casting the value accordingly.
 		
+		If the types are incompatible a TypeError is raised, if the
+		values are incompatible then ValueError is raised.
+		
+		Special case: if the value is already of the specified type then
+		no new instance is created and the return value is the object
+		itself.
+		
+		Also, NULL values can be cast to any value type.  The result is
+		a typed NULL."""
+		if self.typeCode==newTypeCode:
+			return self
+		else:
+			newValue=SimpleValue.NewValue(newTypeCode,self.name)
+			if self.typeCode is not None:
+				newValue.SetFromPyValue(copy.deepcopy(self.pyValue))
+			return newValue
+			
 	def __eq__(self,other):
 		if isinstance(other,SimpleValue):
 			# are the types compatible? lazy comparison to start with
-			return self.typeCode==other.typeCode and self.simpleValue==other.simpleValue			
+			return self.typeCode==other.typeCode and self.pyValue==other.pyValue			
 		else:
-			return self.simpleValue==other
+			return self.pyValue==other
 	
 	def __ne__(self,other):
 		return not self==other
@@ -789,27 +857,270 @@ class SimpleValue(EDMValue):
 		
 		Note that Null values cannot be represented in literal form and will
 		raise ValueError."""
-		if self.simpleValue is None:
+		if self.pyValue is None:
 			raise ValueError("%s is Null"%self.name) 
 		decoder,encoder=SimpleTypeCodec.get(self.typeCode,(unicode,unicode))
-		return encoder(self.simpleValue)
+		return encoder(self.pyValue)
 
 	def SetFromLiteral(self,value):
 		"""Decodes a value from the value's literal form.
 		
 		You can get the literal form of a value using the unicode function."""
 		decoder,encoder=SimpleTypeCodec.get(self.typeCode,(unicode,unicode))
-		self.simpleValue=decoder(value)		
+		self.pyValue=decoder(value)		
 
-	def GetSimpleValue(self):
-		"""Returns the value using the closest python type."""
-		return self.simpleValue
+	def SetFromPyValue(self,newValue):
+		"""Sets the value from a python variable coercing *newValue* if
+		necessary to ensure it is of the correct type for the value's
+		:py:attr:`typeCode`."""
+		raise NotImplementedError
+
+
+class BinaryValue(SimpleValue):
+	"""Represents a simple value of type Edm.Binary"""
+
+	def __init__(self,name=None):
+		SimpleValue.__init__(self,SimpleType.Binary,name)
+
+		
+class BooleanValue(SimpleValue):
+	"""Represents a simple value of type Edm.Boolean"""
+
+	def __init__(self,name=None):
+		SimpleValue.__init__(self,SimpleType.Boolean,name)
+
+	def SetFromPyValue(self,newValue):
+		"""*newValue* must be of type int, long, float or Decimal."""
+		if newValue is None:
+			self.pyValue=None
+		elif isinstance(newValue,decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
+			self.pyValue=(newValue!=0)
+		elif type(newValue)==BooleanType:
+			self.pyValue=newValue
+		else:
+			raise TypeError("Can't set Boolean from %s"%str(newValue))	
+
+		
+class ByteValue(SimpleValue):
+	"""Represents a simple value of type Edm.Byte"""
+
+	def __init__(self,name=None):
+		SimpleValue.__init__(self,SimpleType.Byte,name)
+
+		
+class DateTimeValue(SimpleValue):
+	"""Represents a simple value of type Edm.DateTime"""
+
+	def __init__(self,name=None):
+		SimpleValue.__init__(self,SimpleType.DateTime,name)
+
+		
+class DateTimeOffsetValue(SimpleValue):
+	"""Represents a simple value of type Edm.DateTimeOffset"""
+
+	def __init__(self,name=None):
+		SimpleValue.__init__(self,SimpleType.DateTimeOffset,name)
+
+		
+class TimeValue(SimpleValue):
+	"""Represents a simple value of type Edm.Time"""
+
+	def __init__(self,name=None):
+		SimpleValue.__init__(self,SimpleType.Time,name)
+
+		
+class DecimalValue(SimpleValue):
+	"""Represents a simple value of type Edm.Decimal"""
+
+	def __init__(self,name=None):
+		SimpleValue.__init__(self,SimpleType.Decimal,name)
+
+	def SetFromPyValue(self,newValue):
+		"""*newValue* must be of type int, long, float or Decimal."""
+		if newValue is None:
+			self.pyValue=None
+		elif isinstance(newValue,decimal.Decimal):
+			self.pyValue=newValue
+		elif type(newValue) in (IntType, LongType, FloatType):
+			self.pyValue=decimal.Decimal(newValue)
+		else:
+			raise TypeError("Can't set Decimal from %s"%str(newValue))	
+
+		
+class DoubleValue(SimpleValue):
+	"""Represents a simple value of type Edm.Double"""
+
+	Max=None		#: the largest positive double value
+	Min=2**-1074	#: the smallest positive double value
 	
-	def SetSimpleValue(self,value):
-		"""Sets the value from *value* which must be a value of the correct python type."""
-		self.simpleValue=value
+	def __init__(self,name=None):
+		SimpleValue.__init__(self,SimpleType.Double,name)
+
+	def SetFromPyValue(self,newValue):
+		"""*newValue* must be of type int, long, float or Decimal.
+		
+		There is no hard-and-fast rule about the representation of float
+		in Python and we may refuse to accept values that fall within
+		the accepted range defined by the CSDL if float cannot hold
+		them.  That said, you won't have this problem in practice."""
+		if newValue is None:
+			self.pyValue=None
+		elif isinstance(newValue,decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
+			if newValue<-self.Max or newValue>self.Max:
+				raise ValueError("Illegal value for Double: %s"%str(newValue))
+			self.pyValue=float(newValue)
+		else:
+			raise TypeError("Can't set Double from %s"%str(newValue))	
 
 
+for i in xrange(1023,0,-1):
+	try:
+		DoubleValue.Max=(2-2**-52)*2**i
+		break
+	except OverflowError:
+		# worrying this probably means float is too small for this application
+		if i==1023:
+			print "Warning: float may be less than double precision"
+		elif i==127:
+			print "Warning: float may be less than singe precision!"
+		continue
+
+		
+class SingleValue(SimpleValue):
+	"""Represents a simple value of type Edm.Single"""
+	
+	Max=None					#: the largest positive single value
+	Min=2.0**-149				#: the smallest positive single value
+
+	def __init__(self,name=None):
+		SimpleValue.__init__(self,SimpleType.Single,name)
+
+	def SetFromPyValue(self,newValue):
+		"""*newValue* must be of type int, long, float or Decimal."""
+		if newValue is None:
+			self.pyValue=None
+		elif isinstance(newValue,decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
+			if newValue<-self.Max or newValue>self.Max:
+				raise ValueError("Illegal value for Single: %s"%str(newValue))
+			self.pyValue=float(newValue)
+		else:
+			raise TypeError("Can't set Single from %s"%str(newValue))	
+
+
+for i in xrange(127,0,-1):
+	try:
+		SingleValue.Max=(2-2**-23)*2**i
+		break
+	except OverflowError:
+		# worrying this probably means float is too small for this application
+		if i==127:
+			print "Warning: float may be less than singe precision!"
+		continue
+
+		
+class GuidValue(SimpleValue):
+	"""Represents a simple value of type Edm.Guid"""
+
+	def __init__(self,name=None):
+		SimpleValue.__init__(self,SimpleType.Guid,name)
+
+		
+class Int16Value(SimpleValue):
+	"""Represents a simple value of type Edm.Int16"""
+
+	def __init__(self,name=None):
+		SimpleValue.__init__(self,SimpleType.Int16,name)
+
+	def SetFromPyValue(self,newValue):
+		"""*newValue* must be of type int, long, float or Decimal.
+		
+		If the value is a float or fractional Decimal then it is rounded
+		towards zero using the python *int* function."""
+		if newValue is None:
+			self.pyValue=None
+		elif isinstance(newValue,decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
+			if newValue<-32768 or newValue>32767:
+				raise ValueError("Illegal value for Int16: %s"%str(newValue))
+			self.pyValue=int(newValue)
+		else:
+			raise TypeError("Can't set Int16 from %s"%str(newValue))	
+
+		
+class Int32Value(SimpleValue):
+	"""Represents a simple value of type Edm.Int32"""
+
+	def __init__(self,name=None):
+		SimpleValue.__init__(self,SimpleType.Int32,name)
+
+	def SetFromPyValue(self,newValue):
+		"""*newValue* must be of type int, long, float or Decimal.
+		
+		If the value is a float or fractional Decimal then it is rounded
+		towards zero using the python *int* function."""
+		if newValue is None:
+			self.pyValue=None
+		elif isinstance(newValue,decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
+			if newValue<-2147483648 or newValue>2147483647:
+				raise ValueError("Illegal value for Int32: %s"%str(newValue))
+			self.pyValue=int(newValue)
+		else:
+			raise TypeError("Can't set Int32 from %s"%str(newValue))	
+
+		
+class Int64Value(SimpleValue):
+	"""Represents a simple value of type Edm.Int64"""
+
+	def __init__(self,name=None):
+		SimpleValue.__init__(self,SimpleType.Int64,name)
+
+	def SetFromPyValue(self,newValue):
+		"""*newValue* must be of type int, long, float or Decimal.
+		
+		If the value is a float or fractional Decimal then it is rounded
+		towards zero using the python *long* function."""
+		if newValue is None:
+			self.pyValue=None
+		elif isinstance(newValue,decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
+			if newValue<-9223372036854775808L or newValue>9223372036854775807L:
+				raise ValueError("Illegal value for Int64: %s"%str(newValue))
+			self.pyValue=long(newValue)
+		else:
+			raise TypeError("Can't set Int64 from %s"%str(newValue))	
+
+		
+class StringValue(SimpleValue):
+	"""Represents a simple value of type Edm.String"""
+
+	def __init__(self,name=None):
+		SimpleValue.__init__(self,SimpleType.String,name)
+
+		
+class SByteValue(SimpleValue):
+	"""Represents a simple value of type Edm.SByte"""
+
+	def __init__(self,name=None):
+		SimpleValue.__init__(self,SimpleType.SByte,name)
+
+
+SimpleValue._TypeClass={
+	SimpleType.Binary:BinaryValue,
+	SimpleType.Boolean:BooleanValue,
+	SimpleType.Byte:ByteValue,
+	SimpleType.DateTime:DateTimeValue,
+	SimpleType.DateTimeOffset:DateTimeOffsetValue,
+	SimpleType.Time:TimeValue,
+	SimpleType.Decimal:DecimalValue,
+	SimpleType.Double:DoubleValue,
+	SimpleType.Single:SingleValue,
+	SimpleType.Guid:GuidValue,
+	SimpleType.Int16:Int16Value,
+	SimpleType.Int32:Int32Value,
+	SimpleType.Int64:Int64Value,
+	SimpleType.String:StringValue,
+	SimpleType.SByte:SByteValue
+	}
+
+	
 class TypeInstance(DictionaryLike):
 	"""Abstract class to represents a single instance of a
 	:py:class:`ComplexType` or :py:class:`EntityType`.
@@ -1041,7 +1352,7 @@ class Property(CSDLElement):
 		
 		Complex values can't be created from a simple literal form."""
 		if self.simpleTypeCode is not None:
-			result=SimpleValue(self.simpleTypeCode,self.name)
+			result=SimpleValue.NewValue(self.simpleTypeCode,self.name)
 			if literal is not None:
 				result.SetFromLiteral(literal)
 		elif self.complexType is not None:
@@ -1465,11 +1776,11 @@ class Entity(TypeInstance):
 		The order of the values is the order of the PropertyRef definitions
 		in the associated EntityType's :py:class:`Key`."""
 		if len(self.typeDef.Key.PropertyRef)==1:
-			return self[self.typeDef.Key.PropertyRef[0].name].simpleValue
+			return self[self.typeDef.Key.PropertyRef[0].name].pyValue
 		else:
 			k=[]
 			for pRef in self.typeDef.Key.PropertyRef:
-				k.append(self[pRef.name].simpleValue)
+				k.append(self[pRef.name].pyValue)
 			return tuple(k)
 	
 	def IsEntityCollection(self,name):
@@ -1478,7 +1789,7 @@ class Entity(TypeInstance):
 		return linkEnd.IsEntityCollection()
 	
 	def Navigate(self,name):
-		"""See :py:metho:`AssociationSetEnd.Navigate` for more information."""
+		"""See :py:meth:`AssociationSetEnd.Navigate` for more information."""
 		linkEnd=self._getLinkEnd(name)
 		return linkEnd.Navigate(self.Key())
 	
@@ -1520,7 +1831,7 @@ class Entity(TypeInstance):
 # 	def next(self):
 # 		raise NotImplementedError
 		
-		
+
 class EntitySet(DictionaryLike,CSDLElement):
 	"""Behaves like a python dictionary of :py:class:`Entity` instances.
 	
@@ -1917,6 +2228,10 @@ class FunctionImport(CSDLElement):
 			if stopOnErrors:
 				raise
 	
+	def IsCollection(self):
+		"""Returns True if this FunctionImport returns a collection."""
+		return self.returnTypeRef.collection
+		
 	def IsEntityCollection(self):
 		"""Returns True if this FunctionImport returns a collection of entities."""
 		return self.entitySet is not None and self.returnTypeRef.collection
@@ -1947,7 +2262,7 @@ class FunctionImport(CSDLElement):
 		
 		*	An instance of :py:class:`Entity`
 		
-		*	An iterable object that generates :py:class:`EDMValue` instances
+		*	An instance of :py:class:`FunctionCollection`
 		
 		*	An instance of :py:class:`FunctionEntitySet`  """
 		if self.callable is not None:
@@ -1966,6 +2281,27 @@ class FunctionEntitySet(DynamicEntitySet):
 			DynamicEntitySet.__init__(self,self.function.entitySet)
 		else:
 			raise TypeError("Function call does not return a collection of entities") 
+
+
+class FunctionCollection(object):
+	"""Represents a collection of :py:class:`EDMValue`.
+	
+	These objects are iterable, but are not list or dictionary-like, in
+	other words, you can iterate over the collection but you can't
+	address an individual item using an index or a slice."""
+
+	def __init__(self,function,params):
+		if function.IsCollection():
+			if function.IsEntityCollection():
+				raise TypeError("FunctionCollection must not return a collection of entities")
+			self.function=function
+			self.params=params
+			self.name=function.name
+		else:
+			raise TypeError("Function call does not return a collection of entities") 
+
+	def __iter__(self):
+		raise NotImplementedError("Unbound FunctionCollection: %s"%self.function.name)
 
 	
 class ParameterMode(xsi.Enumeration):

@@ -21,6 +21,26 @@
                     ReturnType="Collection(SampleModel.Customer)" m:HttpMethod="GET">
                     <Parameter Name="city" Type="Edm.String" Mode="In"/>
                 </FunctionImport>
+                <FunctionImport Name="LastCustomerByLine" EntitySet="Customers"
+                    ReturnType="SampleModel.Customer" m:HttpMethod="GET">
+                    <Parameter Name="line" Type="Edm.Int32" Mode="In"/>
+                </FunctionImport>
+                <FunctionImport Name="ShippedAddressByDate"
+                    ReturnType="Collection(SampleModel.CAddress)" m:HttpMethod="GET">
+                    <Parameter Name="date" Type="Edm.DateTime" Mode="In"/>
+                </FunctionImport>
+                <FunctionImport Name="LastShippedByLine"
+                    ReturnType="SampleModel.CAddress" m:HttpMethod="GET">
+                    <Parameter Name="line" Type="Edm.Int32" Mode="In"/>
+                </FunctionImport>
+                <FunctionImport Name="ShippedCustomerNamesByDate"
+                    ReturnType="Collection(Edm.String)" m:HttpMethod="GET">
+                    <Parameter Name="date" Type="Edm.DateTime" Mode="In"/>
+                </FunctionImport>
+                <FunctionImport Name="LastCustomerNameByLine"
+                    ReturnType="Edm.String" m:HttpMethod="GET">
+                    <Parameter Name="line" Type="Edm.Int32" Mode="In"/>
+                </FunctionImport>
             </EntityContainer>
             <EntityContainer Name="ExtraEntities">
                 <EntitySet Name="Content" EntityType="SampleModel.Document"/>

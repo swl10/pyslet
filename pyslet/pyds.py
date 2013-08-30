@@ -77,7 +77,7 @@ class EntitySet(odata.EntitySet):
 			if isinstance(p,edm.Complex):
 				self.SetComplexFromTuple(p,pValue)
 			else:
-				p.SetSimpleValue(pValue)
+				p.pyValue=pValue
 		return e
 	
 	def SetComplexFromTuple(self,complexValue,t):
@@ -86,7 +86,7 @@ class EntitySet(odata.EntitySet):
 			if isinstance(p,edm.Complex):
 				self.SetComplexFromTuple(p,pValue)
 			else:
-				p.SetSimpleValue(pValue)
+				p.pyValue=pValue
 	
 	def __setitem__(self,key,e):
 		# e is an EntityTypeInstance, we need to convert it to a tuple

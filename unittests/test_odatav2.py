@@ -182,13 +182,56 @@ class ODataTests(unittest.TestCase):
 		# self.failUnless(IMSCPX_NAMESPACE=="http://www.imsglobal.org/xsd/imscp_extensionv1p2","Wrong extension namespace: %s"%IMSCPX_NAMESPACE)
 		pass
 
+	def testCaseTypePromotion(self):
+		"""If supported, binary numeric promotion SHOULD consist of the
+		application of the following rules in the order specified:
+
+		If either operand is of type Edm.Decimal, the other operand is converted to Edm.Decimal unless it is of type Edm.Single or Edm.Double."""
+		self.failUnless(PromoteTypes(edm.SimpleType.Decimal,edm.SimpleType.Int64)==edm.SimpleType.Decimal,"Decimal promotion of Int64")
+		self.failUnless(PromoteTypes(edm.SimpleType.Decimal,edm.SimpleType.Int32)==edm.SimpleType.Decimal,"Decimal promotion of Int32")
+		self.failUnless(PromoteTypes(edm.SimpleType.Decimal,edm.SimpleType.Int16)==edm.SimpleType.Decimal,"Decimal promotion of Int16")
+		self.failUnless(PromoteTypes(edm.SimpleType.Decimal,edm.SimpleType.Byte)==edm.SimpleType.Decimal,"Decimal promotion of Byte")
+		#	Otherwise, if either operand is Edm.Double, the other operand is converted to type Edm.Double.
+		self.failUnless(PromoteTypes(edm.SimpleType.Decimal,edm.SimpleType.Double)==edm.SimpleType.Double,"Double promotion of Decimal")
+		self.failUnless(PromoteTypes(edm.SimpleType.Single,edm.SimpleType.Double)==edm.SimpleType.Double,"Double promotion of Single")
+		self.failUnless(PromoteTypes(edm.SimpleType.Double,edm.SimpleType.Int64)==edm.SimpleType.Double,"Double promotion of Int64")
+		self.failUnless(PromoteTypes(edm.SimpleType.Double,edm.SimpleType.Int32)==edm.SimpleType.Double,"Double promotion of Int32")
+		self.failUnless(PromoteTypes(edm.SimpleType.Double,edm.SimpleType.Int16)==edm.SimpleType.Double,"Double promotion of Int16")
+		self.failUnless(PromoteTypes(edm.SimpleType.Double,edm.SimpleType.Byte)==edm.SimpleType.Double,"Double promotion of Byte")
+		#	Otherwise, if either operand is Edm.Single, the other operand is converted to type Edm.Single.
+		self.failUnless(PromoteTypes(edm.SimpleType.Decimal,edm.SimpleType.Single)==edm.SimpleType.Single,"Single promotion of Decimal")
+		self.failUnless(PromoteTypes(edm.SimpleType.Single,edm.SimpleType.Int64)==edm.SimpleType.Single,"Single promotion of Int64")
+		self.failUnless(PromoteTypes(edm.SimpleType.Single,edm.SimpleType.Int32)==edm.SimpleType.Single,"Single promotion of Int32")
+		self.failUnless(PromoteTypes(edm.SimpleType.Single,edm.SimpleType.Int16)==edm.SimpleType.Single,"Single promotion of Int16")
+		self.failUnless(PromoteTypes(edm.SimpleType.Single,edm.SimpleType.Byte)==edm.SimpleType.Single,"Single promotion of Byte")		
+		#	Otherwise, if either operand is Edm.Int64, the other operand is converted to type Edm.Int64.
+		self.failUnless(PromoteTypes(edm.SimpleType.Int64,edm.SimpleType.Int32)==edm.SimpleType.Int64,"Int64 promotion of Int32")
+		self.failUnless(PromoteTypes(edm.SimpleType.Int64,edm.SimpleType.Int16)==edm.SimpleType.Int64,"Int64 promotion of Int16")
+		self.failUnless(PromoteTypes(edm.SimpleType.Int64,edm.SimpleType.Byte)==edm.SimpleType.Int64,"Int64 promotion of Byte")				
+		#	Otherwise, if either operand is Edm.Int32, the other operand is converted to type Edm.Int32
+		self.failUnless(PromoteTypes(edm.SimpleType.Int32,edm.SimpleType.Int16)==edm.SimpleType.Int32,"Int32 promotion of Int16")
+		self.failUnless(PromoteTypes(edm.SimpleType.Int32,edm.SimpleType.Byte)==edm.SimpleType.Int32,"Int32 promotion of Byte")						
+		#	Otherwise, if either operand is Edm.Int16, the other operand is converted to type Edm.Int16.
+		self.failUnless(PromoteTypes(edm.SimpleType.Int16,edm.SimpleType.Byte)==edm.SimpleType.Int16,"Int16 promotion of Byte")						
+		#	Special case, if either operand is null we return the type of the other operand
+		self.failUnless(PromoteTypes(edm.SimpleType.Int16,None)==edm.SimpleType.Int16,"Int16 promotion of NULL")						
+		self.failUnless(PromoteTypes(edm.SimpleType.Int32,None)==edm.SimpleType.Int32,"Int32 promotion of NULL")						
+		self.failUnless(PromoteTypes(None,edm.SimpleType.Int64)==edm.SimpleType.Int64,"Int64 promotion of NULL")						
+		self.failUnless(PromoteTypes(None,edm.SimpleType.Single)==edm.SimpleType.Single,"Single promotion of NULL")						
+		try:
+			PromoteTypes(edm.SimpleType.String,edm.SimpleType.Single)
+			self.fail("Type promotion of String and Single")
+		except EvaluationError:
+			pass
+		
+
 class ODataURILiteralTests(unittest.TestCase):
 	def testCaseNullLiteral(self):
 		"""	nullLiteral = "null" """
 		v=ParseURILiteral("null")
 		self.failUnless(v.IsNull(),"null type IsNull")
 		self.failUnless(v.typeCode is None,"null type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue is None,"null value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue is None,"null value: %s"%repr(v.pyValue))
 
 	def testCaseBinaryLiteral(self):
 		"""	binaryUriLiteral = caseSensitiveToken SQUOTE binaryLiteral SQUOTE
@@ -198,9 +241,9 @@ class ODataURILiteralTests(unittest.TestCase):
 			hexDigPair = 2*HEXDIG [hexDigPair] """
 		v=ParseURILiteral("X'0A'")
 		self.failUnless(v.typeCode==edm.SimpleType.Binary,"binary type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue=='\x0a',"binary type: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue=='\x0a',"binary type: %s"%repr(v.pyValue))
 		v=ParseURILiteral("X'0a'")
-		self.failUnless(v.simpleValue=="\x0a","binary type: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue=="\x0a","binary type: %s"%repr(v.pyValue))
 		try:
 			v=ParseURILiteral("x'0a'")
 			self.fail("Syntax error")
@@ -208,13 +251,13 @@ class ODataURILiteralTests(unittest.TestCase):
 			pass
 		v=ParseURILiteral("binary'0A'")
 		self.failUnless(v.typeCode==edm.SimpleType.Binary,"binary type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue=='\x0a',"binary type: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue=='\x0a',"binary type: %s"%repr(v.pyValue))
 		v=ParseURILiteral("BINARY'0A'")
 		self.failUnless(v.typeCode==edm.SimpleType.Binary,"binary type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue=='\x0a',"binary type: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue=='\x0a',"binary type: %s"%repr(v.pyValue))
 		# gotta love those recursive rules
 		v=ParseURILiteral("X'deadBEEF'")
-		self.failUnless(v.simpleValue=="\xde\xad\xbe\xef","binary type: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue=="\xde\xad\xbe\xef","binary type: %s"%repr(v.pyValue))
 		try:
 			v=ParseURILiteral("X'de'ad")
 			self.fail("Spurious data")
@@ -230,10 +273,10 @@ class ODataURILiteralTests(unittest.TestCase):
 		integer types."""
 		v=ParseURILiteral("true")
 		self.failUnless(v.typeCode==edm.SimpleType.Boolean,"boolean type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue is True,"boolean value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue is True,"boolean value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("false")
 		self.failUnless(v.typeCode==edm.SimpleType.Boolean,"boolean type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue is False,"boolean value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue is False,"boolean value: %s"%repr(v.pyValue))
 
 	def testCaseIntLiteral(self):
 		"""byteLiteral = 1*3DIGIT;
@@ -243,19 +286,19 @@ class ODataURILiteralTests(unittest.TestCase):
 		All returned as an int32 with python int value."""
 		v=ParseURILiteral("0")
 		self.failUnless(v.typeCode==edm.SimpleType.Int32,"0 type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue==0,"0 value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==0,"0 value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("1")
 		self.failUnless(v.typeCode==edm.SimpleType.Int32,"1 type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue==1,"1 value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==1,"1 value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("2147483647")
 		self.failUnless(v.typeCode==edm.SimpleType.Int32,"2147483647 type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue==2147483647,"2147483647 value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==2147483647,"2147483647 value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("0000000000")
 		self.failUnless(v.typeCode==edm.SimpleType.Int32,"0000000000 type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue==0,"0000000000 value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==0,"0000000000 value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("-2147483648")
 		self.failUnless(v.typeCode==edm.SimpleType.Int32,"-2147483648 type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue==-2147483648,"-2147483648 value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==-2147483648,"-2147483648 value: %s"%repr(v.pyValue))
 		for bad in [ "00000000000", "2147483648", "-2147483649","+1" ]:
 			try:
 				v=ParseURILiteral(bad)
@@ -283,21 +326,21 @@ class ODataURILiteralTests(unittest.TestCase):
 		"""
 		v=ParseURILiteral("datetime'2012-06-30T23:59'")
 		self.failUnless(v.typeCode==edm.SimpleType.DateTime,"date time type: %s"%repr(v.typeCode))
-		self.failUnless(isinstance(v.simpleValue,iso.TimePoint),"value type: %s"%repr(v.simpleValue))
-		self.failUnless(str(v.simpleValue)=="2012-06-30T23:59","value: %s"%str(v.simpleValue))
+		self.failUnless(isinstance(v.pyValue,iso.TimePoint),"value type: %s"%repr(v.pyValue))
+		self.failUnless(str(v.pyValue)=="2012-06-30T23:59:00","value: %s"%str(v.pyValue))
 		v=ParseURILiteral("datetime'2012-06-30T23:59:59'")
 		self.failUnless(v.typeCode==edm.SimpleType.DateTime,"date time type: %s"%repr(v.typeCode))
-		self.failUnless(str(v.simpleValue)=="2012-06-30T23:59:59","value: %s"%str(v.simpleValue))
+		self.failUnless(str(v.pyValue)=="2012-06-30T23:59:59","value: %s"%str(v.pyValue))
 		v=ParseURILiteral("datetime'2012-06-30T23:59:59.9999999'")
 		self.failUnless(v.typeCode==edm.SimpleType.DateTime,"date time type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue.GetCalendarString(ndp=-7)=="2012-06-30T23:59:59.9999999")
+		self.failUnless(v.pyValue.GetCalendarString(ndp=-7)=="2012-06-30T23:59:59.9999999")
 		# Now for the big one!
 		v=ParseURILiteral("datetime'2012-06-30T23:59:60'")
 		self.failUnless(v.typeCode==edm.SimpleType.DateTime,"date time type for leap second: %s"%repr(v.typeCode))
-		self.failUnless(str(v.simpleValue)=="2012-06-30T23:59:60","value for leap second: %s"%str(v.simpleValue))
+		self.failUnless(str(v.pyValue)=="2012-06-30T23:59:60","value for leap second: %s"%str(v.pyValue))
 		v=ParseURILiteral("datetime'2012-06-30T24:00:00'")
 		self.failUnless(v.typeCode==edm.SimpleType.DateTime,"date time extreme: %s"%repr(v.typeCode))
-		self.failUnless(str(v.simpleValue)=="2012-06-30T24:00:00","date time extreme: %s"%str(v.simpleValue))
+		self.failUnless(str(v.pyValue)=="2012-06-30T24:00:00","date time extreme: %s"%str(v.pyValue))
 		# and now the crappy ones
 		for crappy in [
 			"datetime'2012-6-30T23:59:59'",
@@ -323,7 +366,7 @@ class ODataURILiteralTests(unittest.TestCase):
 			 ]:
 			try:
 				v=ParseURILiteral(bad)
-				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,repr(v.simpleValue),edm.SimpleType.EncodeValue(v.typeCode)))
+				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,repr(v.pyValue),edm.SimpleType.EncodeValue(v.typeCode)))
 			except ValueError:
 				pass
 
@@ -335,20 +378,20 @@ class ODataURILiteralTests(unittest.TestCase):
 		All returned as a python Decimal instance."""
 		v=ParseURILiteral("0M")
 		self.failUnless(v.typeCode==edm.SimpleType.Decimal,"0M type: %s"%repr(v.typeCode))
-		self.failUnless(isinstance(v.simpleValue,decimal.Decimal),"0M value type: %s"%repr(v.simpleValue))
-		self.failUnless(v.simpleValue==0,"0M value: %s"%repr(v.simpleValue))
+		self.failUnless(isinstance(v.pyValue,decimal.Decimal),"0M value type: %s"%repr(v.pyValue))
+		self.failUnless(v.pyValue==0,"0M value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("1.1m")
 		self.failUnless(v.typeCode==edm.SimpleType.Decimal,"1.1m type: %s"%repr(v.typeCode))
-		self.failUnless(isinstance(v.simpleValue,decimal.Decimal),"1.1m value type: %s"%repr(v.simpleValue))
-		self.failUnless(v.simpleValue*10==11,"1.1m value: %s"%repr(v.simpleValue))
+		self.failUnless(isinstance(v.pyValue,decimal.Decimal),"1.1m value type: %s"%repr(v.pyValue))
+		self.failUnless(v.pyValue*10==11,"1.1m value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("12345678901234567890123456789m")
 		self.failUnless(v.typeCode==edm.SimpleType.Decimal,"29-digit type: %s"%repr(v.typeCode))
-		self.failUnless(int(v.simpleValue.log10())==28,"29-digit log10 value: %s"%repr(v.simpleValue))
+		self.failUnless(int(v.pyValue.log10())==28,"29-digit log10 value: %s"%repr(v.pyValue))
 		v2=ParseURILiteral("12345678901234567890123456789.12345678901234567890123456789m")
-		self.failUnless(v2.simpleValue-v.simpleValue<0.13 and v2.simpleValue-v.simpleValue>0.12,"29digit.29digit value: %s"%repr(v2.simpleValue-v.simpleValue))
+		self.failUnless(v2.pyValue-v.pyValue<0.13 and v2.pyValue-v.pyValue>0.12,"29digit.29digit value: %s"%repr(v2.pyValue-v.pyValue))
 		v=ParseURILiteral("-2147483648M")
 		self.failUnless(v.typeCode==edm.SimpleType.Decimal,"-2147483648 type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue==-2147483648,"-2147483648 value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==-2147483648,"-2147483648 value: %s"%repr(v.pyValue))
 		for bad in [ "123456789012345678901234567890m", "1.m", "1.123456789012345678901234567890m", "+1M" ]:
 			try:
 				v=ParseURILiteral(bad)
@@ -368,45 +411,45 @@ class ODataURILiteralTests(unittest.TestCase):
 		Also, the production allows .D and -.D as, presumably, valid forms of 0"""
 		v=ParseURILiteral("0D")
 		self.failUnless(v.typeCode==edm.SimpleType.Double,"0D type: %s"%repr(v.typeCode))
-		self.failUnless(type(v.simpleValue) is FloatType,"0D value type: %s"%repr(v.simpleValue))
-		self.failUnless(v.simpleValue==0,"0D value: %s"%repr(v.simpleValue))
+		self.failUnless(type(v.pyValue) is FloatType,"0D value type: %s"%repr(v.pyValue))
+		self.failUnless(v.pyValue==0,"0D value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("1.1d")
 		self.failUnless(v.typeCode==edm.SimpleType.Double,"1.1d type: %s"%repr(v.typeCode))
-		self.failUnless(type(v.simpleValue) is FloatType,"1.1d value type: %s"%repr(v.simpleValue))
-		self.failUnless(v.simpleValue*10==11,"1.1d value: %s"%repr(v.simpleValue))
+		self.failUnless(type(v.pyValue) is FloatType,"1.1d value type: %s"%repr(v.pyValue))
+		self.failUnless(v.pyValue*10==11,"1.1d value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("12345678901234567D")
 		self.failUnless(v.typeCode==edm.SimpleType.Double,"17-digit type: %s"%repr(v.typeCode))
-		self.failUnless(round(math.log10(v.simpleValue),3)==16.092,"29-digit log10 value: %s"%repr(v.simpleValue))
+		self.failUnless(round(math.log10(v.pyValue),3)==16.092,"29-digit log10 value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("-12345678901234567D")
 		self.failUnless(v.typeCode==edm.SimpleType.Double,"17-digit negative type: %s"%repr(v.typeCode))
-		self.failUnless(round(math.log10(-v.simpleValue),3)==16.092,"29-digit log10 value: %s"%repr(v.simpleValue))
+		self.failUnless(round(math.log10(-v.pyValue),3)==16.092,"29-digit log10 value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("123456789012345678901234567890.123456789012345678901234567890D")
 		self.failUnless(v.typeCode==edm.SimpleType.Double,"30digit.30digit type: %s"%repr(v.typeCode))
-		self.failUnless(round(math.log10(v.simpleValue),3)==29.092,"30digit.30digit value: %s"%repr(v.simpleValue))
+		self.failUnless(round(math.log10(v.pyValue),3)==29.092,"30digit.30digit value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("-123456789012345678901234567890.123456789012345678901234567890D")
-		self.failUnless(round(math.log10(-v.simpleValue),3)==29.092,"30digit.30digit negative value: %s"%repr(v.simpleValue))
+		self.failUnless(round(math.log10(-v.pyValue),3)==29.092,"30digit.30digit negative value: %s"%repr(v.pyValue))
 		v=ParseURILiteral(".142D")
-		self.failUnless(v.simpleValue==0.142,"Empty left value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==0.142,"Empty left value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("-.142D")
-		self.failUnless(v.simpleValue==-0.142,"Empty left neg value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==-0.142,"Empty left neg value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("3.D")
-		self.failUnless(v.simpleValue==3,"Empty right value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==3,"Empty right value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("-3.D")
-		self.failUnless(v.simpleValue==-3,"Empty right neg value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==-3,"Empty right neg value: %s"%repr(v.pyValue))
 		v=ParseURILiteral(".D")
-		self.failUnless(v.simpleValue==0,"Empty left+right value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==0,"Empty left+right value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("-.D")
-		self.failUnless(v.simpleValue==0,"Empty left+right neg value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==0,"Empty left+right neg value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("3.14159e000d")
-		self.failUnless(round(v.simpleValue,3)==3.142,"zero exp: %s"%repr(v.simpleValue))
+		self.failUnless(round(v.pyValue,3)==3.142,"zero exp: %s"%repr(v.pyValue))
 		v=ParseURILiteral("-123456789012345678901234567890.1234567890123456E1d")
-		self.failUnless(round(math.log10(-v.simpleValue),3)==30.092,"30.16 digits: %s"%repr(math.log10(-v.simpleValue)))
+		self.failUnless(round(math.log10(-v.pyValue),3)==30.092,"30.16 digits: %s"%repr(math.log10(-v.pyValue)))
 		v=ParseURILiteral("NanD")
-		self.failUnless(math.isnan(v.simpleValue),"Nan double: %s"%repr(v.simpleValue))
+		self.failUnless(math.isnan(v.pyValue),"Nan double: %s"%repr(v.pyValue))
 		v=ParseURILiteral("INFD")
-		self.failUnless(v.simpleValue>0 and math.isinf(v.simpleValue),"Inf double: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue>0 and math.isinf(v.pyValue),"Inf double: %s"%repr(v.pyValue))
 		v=ParseURILiteral("-INFD")
-		self.failUnless(v.simpleValue<0 and math.isinf(v.simpleValue),"Negative Inf double: %s"%repr(v.simpleValue))		
+		self.failUnless(v.pyValue<0 and math.isinf(v.pyValue),"Negative Inf double: %s"%repr(v.pyValue))		
 		for bad in [ "123456789012345678D", "+1D", ".1e1d","+1.0E1d",
 			"1.12345678901234567E10d","3.141Ed","3.141E1234d","3.141E+10d",".123E1D",
 			"+NanD","-NanD","+INFD" ]:
@@ -430,47 +473,47 @@ class ODataURILiteralTests(unittest.TestCase):
 		The production allows .F and -.f as, presumably, valid forms of 0"""
 		v=ParseURILiteral("0F")
 		self.failUnless(v.typeCode==edm.SimpleType.Single,"0f type: %s"%repr(v.typeCode))
-		self.failUnless(type(v.simpleValue) is FloatType,"0f value type: %s"%repr(v.simpleValue))
-		self.failUnless(v.simpleValue==0,"0f value: %s"%repr(v.simpleValue))
+		self.failUnless(type(v.pyValue) is FloatType,"0f value type: %s"%repr(v.pyValue))
+		self.failUnless(v.pyValue==0,"0f value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("1.1f")
 		self.failUnless(v.typeCode==edm.SimpleType.Single,"1.1f type: %s"%repr(v.typeCode))
-		self.failUnless(type(v.simpleValue) is FloatType,"1.1f value type: %s"%repr(v.simpleValue))
-		self.failUnless(v.simpleValue*10==11,"1.1f value: %s"%repr(v.simpleValue))
+		self.failUnless(type(v.pyValue) is FloatType,"1.1f value type: %s"%repr(v.pyValue))
+		self.failUnless(v.pyValue*10==11,"1.1f value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("12345678F")
 		self.failUnless(v.typeCode==edm.SimpleType.Single,"8-digit type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue==12345678,"8-digit: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==12345678,"8-digit: %s"%repr(v.pyValue))
 		v=ParseURILiteral("-12345678F")
 		self.failUnless(v.typeCode==edm.SimpleType.Single,"8-digit negative type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue==-12345678,"8-digit neg value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==-12345678,"8-digit neg value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("123456789012345678901234567890.123456789012345678901234567890f")
 		self.failUnless(v.typeCode==edm.SimpleType.Single,"30digit.30digit type: %s"%repr(v.typeCode))
-		self.failUnless(round(math.log10(v.simpleValue),3)==29.092,"30digit.30digit value: %s"%repr(v.simpleValue))
+		self.failUnless(round(math.log10(v.pyValue),3)==29.092,"30digit.30digit value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("-123456789012345678901234567890.123456789012345678901234567890F")
-		self.failUnless(round(math.log10(-v.simpleValue),3)==29.092,"30digit.30digit negative value: %s"%repr(v.simpleValue))
+		self.failUnless(round(math.log10(-v.pyValue),3)==29.092,"30digit.30digit negative value: %s"%repr(v.pyValue))
 		v=ParseURILiteral(".142f")
-		self.failUnless(v.simpleValue==0.142,"Empty left value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==0.142,"Empty left value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("-.142F")
-		self.failUnless(v.simpleValue==-0.142,"Empty left neg value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==-0.142,"Empty left neg value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("3.F")
-		self.failUnless(v.simpleValue==3,"Empty right value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==3,"Empty right value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("-3.F")
-		self.failUnless(v.simpleValue==-3,"Empty right neg value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==-3,"Empty right neg value: %s"%repr(v.pyValue))
 		v=ParseURILiteral(".f")
-		self.failUnless(v.simpleValue==0,"Empty left+right value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==0,"Empty left+right value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("-.F")
-		self.failUnless(v.simpleValue==0,"Empty left+right neg value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==0,"Empty left+right neg value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("3.14159e00F")
-		self.failUnless(round(v.simpleValue,3)==3.142,"zero exp: %s"%repr(v.simpleValue))
+		self.failUnless(round(v.pyValue,3)==3.142,"zero exp: %s"%repr(v.pyValue))
 		v=ParseURILiteral("-123456789012345678901234567890.12345678E1F")
-		self.failUnless(round(math.log10(-v.simpleValue),3)==30.092,"30.8 digits: %s"%repr(math.log10(-v.simpleValue)))
+		self.failUnless(round(math.log10(-v.pyValue),3)==30.092,"30.8 digits: %s"%repr(math.log10(-v.pyValue)))
 		v=ParseURILiteral("3.E1F")
-		self.failUnless(v.simpleValue==30,"Empty right exp value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==30,"Empty right exp value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("NanF")
-		self.failUnless(math.isnan(v.simpleValue),"Nan single: %s"%repr(v.simpleValue))
+		self.failUnless(math.isnan(v.pyValue),"Nan single: %s"%repr(v.pyValue))
 		v=ParseURILiteral("InfF")
-		self.failUnless(v.simpleValue>0 and math.isinf(v.simpleValue),"Inf single: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue>0 and math.isinf(v.pyValue),"Inf single: %s"%repr(v.pyValue))
 		v=ParseURILiteral("-INFF")
-		self.failUnless(v.simpleValue<0 and math.isinf(v.simpleValue),"Negative Inf single: %s"%repr(v.simpleValue))		
+		self.failUnless(v.pyValue<0 and math.isinf(v.pyValue),"Negative Inf single: %s"%repr(v.pyValue))		
 		for bad in [ "123456789F", "+1F", ".1e1F","+1.0E1F",
 			"1.123456789E10F","3.141EF","3.141E023F","3.141E+10F",".123E1F",
 			"+NanF","-NanF","+INFF" ]:
@@ -496,12 +539,12 @@ class ODataURILiteralTests(unittest.TestCase):
 			8 hex digits as the author clearly intended."""
 		v=ParseURILiteral("guid'C0DEC0DE-C0DE-C0DE-C0DEC0DEC0DE'")
 		self.failUnless(v.typeCode==edm.SimpleType.Guid,"guide type: %s"%repr(v.typeCode))
-		self.failUnless(isinstance(v.simpleValue,uuid.UUID),"guide type: %s"%repr(v.simpleValue))
-		self.failUnless(v.simpleValue.hex.lower()=='c0dec0dec0dec0deffffc0dec0dec0de',"guid value (missing bytes): %s"%repr(v.simpleValue))
+		self.failUnless(isinstance(v.pyValue,uuid.UUID),"guide type: %s"%repr(v.pyValue))
+		self.failUnless(v.pyValue.hex.lower()=='c0dec0dec0dec0deffffc0dec0dec0de',"guid value (missing bytes): %s"%repr(v.pyValue))
 		v=ParseURILiteral("guid'cd04f705-390c-4736-98dc-a3baa6b3a283'")
 		self.failUnless(v.typeCode==edm.SimpleType.Guid,"guide type: %s"%repr(v.typeCode))
-		self.failUnless(isinstance(v.simpleValue,uuid.UUID),"guide type: %s"%repr(v.simpleValue))
-		self.failUnless(v.simpleValue.hex.lower()=='cd04f705390c473698dca3baa6b3a283',"guid value (random): %s"%repr(v.simpleValue))
+		self.failUnless(isinstance(v.pyValue,uuid.UUID),"guide type: %s"%repr(v.pyValue))
+		self.failUnless(v.pyValue.hex.lower()=='cd04f705390c473698dca3baa6b3a283',"guid value (random): %s"%repr(v.pyValue))
 		for bad in [ 
 			"guid'cd04g705-390c-4736-98dc-a3baa6b3a283'",
 			"guid'cd04g705-390c-4736-98dc-a3baa6b3a283'",
@@ -529,14 +572,14 @@ class ODataURILiteralTests(unittest.TestCase):
 			Return as a python long integer"""
 		v=ParseURILiteral("0L")
 		self.failUnless(v.typeCode==edm.SimpleType.Int64,"0L type: %s"%repr(v.typeCode))
-		self.failUnless(type(v.simpleValue)==LongType,"0L value type: %s"%repr(v.simpleValue))
-		self.failUnless(v.simpleValue==0,"0L value: %s"%repr(v.simpleValue))
+		self.failUnless(type(v.pyValue)==LongType,"0L value type: %s"%repr(v.pyValue))
+		self.failUnless(v.pyValue==0,"0L value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("1234567890123456789l")
 		self.failUnless(v.typeCode==edm.SimpleType.Int64,"19-digit type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue==1234567890123456789L,"19-digit value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==1234567890123456789L,"19-digit value: %s"%repr(v.pyValue))
 		v=ParseURILiteral("-1234567890123456789l")
 		self.failUnless(v.typeCode==edm.SimpleType.Int64,"19-digit neg type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue==-1234567890123456789L,"19-digit neg value: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==-1234567890123456789L,"19-digit neg value: %s"%repr(v.pyValue))
 		for bad in [ "12345678901234567890L", "01234567890123456789l",
 			 "+1l", "+0L" ]:
 			try:
@@ -550,21 +593,21 @@ class ODataURILiteralTests(unittest.TestCase):
 			characters = UTF8-char """
 		v=ParseURILiteral("'0A'")
 		self.failUnless(v.typeCode==edm.SimpleType.String,"string type: %s"%repr(v.typeCode))
-		self.failUnless(v.simpleValue=='0A',"string type: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue=='0A',"string type: %s"%repr(v.pyValue))
 		v=ParseURILiteral("'0a'")
-		self.failUnless(v.simpleValue=="0a","string type: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue=="0a","string type: %s"%repr(v.pyValue))
 		v=ParseURILiteral("'Caf\xc3\xa9'")
 		# When parsed from a URL we assume that %-encoding is removed
 		# when the parameters are split leaving octet-strings that
 		# are parsed.  So utf-8 encoding of strings must be removed
 		# at the literal parsing stage
-		self.failUnless(v.simpleValue==u"Caf\xe9","unicode string type: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==u"Caf\xe9","unicode string type: %s"%repr(v.pyValue))
 		# This next case is a shocker, the specification provides no way to escape SQUOTE
 		# We support the undocumented doubling of the SQUOTE character.
 		v=ParseURILiteral("'Peter O''Toole'")
-		self.failUnless(v.simpleValue==u"Peter O'Toole","double SQUOTE: %s"%repr(v.simpleValue))
+		self.failUnless(v.pyValue==u"Peter O'Toole","double SQUOTE: %s"%repr(v.pyValue))
 		v=ParseURILiteral("'Peter O%27Toole'")
-		self.failUnless(v.simpleValue==u"Peter O%27Toole","%%-encoding ignored: %s"%repr(v.simpleValue))		
+		self.failUnless(v.pyValue==u"Peter O%27Toole","%%-encoding ignored: %s"%repr(v.pyValue))		
 		for bad in [ "0A", "'0a","'Caf\xc3 Curtains'","'Peter O'Toole'"]:
 			try:
 				v=ParseURILiteral(bad)
@@ -582,12 +625,12 @@ class ODataURILiteralTests(unittest.TestCase):
 		We test by using the examples from XMLSchema"""
 		v=ParseURILiteral("time'P1Y2M3DT10H30M'")
 		self.failUnless(v.typeCode==edm.SimpleType.Time,"date time type: %s"%repr(v.typeCode))
-		self.failUnless(isinstance(v.simpleValue,xsi.Duration),"value type: %s"%repr(v.simpleValue))
-		self.failUnless(str(v.simpleValue)=="P1Y2M3DT10H30M","value: %s"%str(v.simpleValue))		
+		self.failUnless(isinstance(v.pyValue,xsi.Duration),"value type: %s"%repr(v.pyValue))
+		self.failUnless(str(v.pyValue)=="P1Y2M3DT10H30M","value: %s"%str(v.pyValue))		
 		v=ParseURILiteral("time'-P120D'")
 		self.failUnless(v.typeCode==edm.SimpleType.Time,"date time type: %s"%repr(v.typeCode))
 		# There is no canonical representation so this is a weak test
-		self.failUnless(str(v.simpleValue)=="-P0Y0M120D","value: %s"%str(v.simpleValue))
+		self.failUnless(str(v.pyValue)=="-P0Y0M120D","value: %s"%str(v.pyValue))
 		for good in [
 			"time'P1347Y'",
 			"time'P1347M'",
@@ -597,7 +640,7 @@ class ODataURILiteralTests(unittest.TestCase):
 			"time'-P1347M'"]:
 			v=ParseURILiteral(good)
 			self.failUnless(v.typeCode==edm.SimpleType.Time,"date time type: %s"%repr(v.typeCode))
-			self.failUnless(isinstance(v.simpleValue,xsi.Duration),"value type: %s"%repr(v.simpleValue))
+			self.failUnless(isinstance(v.pyValue,xsi.Duration),"value type: %s"%repr(v.pyValue))
 		for bad in [
 			"time'P-1347M'",
 			"time'P1Y2MT'",
@@ -607,7 +650,7 @@ class ODataURILiteralTests(unittest.TestCase):
 			]:
 			try:
 				v=ParseURILiteral(bad)
-				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,str(v.simpleValue),edm.SimpleType.EncodeValue(v.typeCode)))
+				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,str(v.pyValue),edm.SimpleType.EncodeValue(v.typeCode)))
 			except ValueError:
 				pass
 
@@ -619,8 +662,8 @@ class ODataURILiteralTests(unittest.TestCase):
 		We test by using the examples from XMLSchema"""
 		v=ParseURILiteral("datetimeoffset'2002-10-10T12:00:00-05:00'")
 		self.failUnless(v.typeCode==edm.SimpleType.DateTimeOffset,"date time offset type: %s"%repr(v.typeCode))
-		self.failUnless(isinstance(v.simpleValue,iso.TimePoint),"value type: %s"%repr(v.simpleValue))
-		self.failUnless(isinstance(v.simpleValue,iso.TimePoint),"value type: %s"%repr(v.simpleValue))
+		self.failUnless(isinstance(v.pyValue,iso.TimePoint),"value type: %s"%repr(v.pyValue))
+		self.failUnless(isinstance(v.pyValue,iso.TimePoint),"value type: %s"%repr(v.pyValue))
 		for good in [
 			"datetimeoffset'2002-10-10T17:00:00Z'",
 			"datetimeoffset'2002-10-10T12:00:00Z'",
@@ -631,7 +674,7 @@ class ODataURILiteralTests(unittest.TestCase):
 			]:
 			v=ParseURILiteral(good)
 			self.failUnless(v.typeCode==edm.SimpleType.DateTimeOffset,"date time offset type: %s"%repr(v.typeCode))
-			self.failUnless(isinstance(v.simpleValue,iso.TimePoint),"value type: %s"%repr(v.simpleValue))
+			self.failUnless(isinstance(v.pyValue,iso.TimePoint),"value type: %s"%repr(v.pyValue))
 		for bad in [
 			"datetimeoffset'2002-10-10T17:00:00'",	# missing time zone
 			"datetimeoffset'2002-10-10T17:00Z'",	# incomplete precision
@@ -639,7 +682,7 @@ class ODataURILiteralTests(unittest.TestCase):
 			]:
 			try:
 				v=ParseURILiteral(bad)
-				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,str(v.simpleValue),edm.SimpleType.EncodeValue(v.typeCode)))
+				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,str(v.pyValue),edm.SimpleType.EncodeValue(v.typeCode)))
 			except ValueError:
 				pass
 	
@@ -685,16 +728,615 @@ class ODataURITests(unittest.TestCase):
 		Custom Query Options (section 2.2.3.6.2) MUST NOT begin with a "$".
 		"""
 		dsURI=ODataURI("Products()?$format=json&$top=20&$skip=10&space='%20'",'/x.svc')
-		self.failUnless(dsURI.sysQueryOptions=={'$format':'json','$top':'20','$skip':'10'},repr(dsURI.sysQueryOptions))
+		self.failUnless(dsURI.sysQueryOptions=={SystemQueryOption.format:'json',SystemQueryOption.top:'20',SystemQueryOption.skip:'10'},repr(dsURI.sysQueryOptions))
 		self.failUnless(dsURI.queryOptions==["space='%20'"],'query options')
 		dsURI=ODataURI("Products()?$top=20&space='%20'&$format=json&$skip=10",'/x.svc')
-		self.failUnless(dsURI.sysQueryOptions=={'$format':'json','$top':'20','$skip':'10'},repr(dsURI.sysQueryOptions))
+		self.failUnless(dsURI.sysQueryOptions=={SystemQueryOption.format:'json',SystemQueryOption.top:'20',SystemQueryOption.skip:'10'},repr(dsURI.sysQueryOptions))
 		self.failUnless(dsURI.queryOptions==["space='%20'"],'query options')		
+		try:
+			dsURI=ODataURI("Products()?$unsupported=10",'/x.svc')
+			self.fail("$unsupported system query option")
+		except InvalidSystemQueryOption:
+			pass
+
+	def testCaseCommonExpressions(self):
+		dsURI=ODataURI("Products()?$filter=substringof(CompanyName,%20'bikes')",'/x.svc')
+		self.failUnless(isinstance(dsURI.sysQueryOptions[SystemQueryOption.filter],CommonExpression),"Expected common expression")
+		# import pdb;pdb.set_trace()
+		dsURI=ODataURI("Products()?$filter=true%20and%20false",'/x.svc')
+		f=dsURI.sysQueryOptions[SystemQueryOption.filter]
+		self.failUnless(isinstance(f,CommonExpression),"Expected common expression")
+		self.failUnless(isinstance(f,BinaryExpression),"Expected binary expression, %s"%repr(f))
+		self.failUnless(f.operator==Operator.boolAnd,"Expected and: %s"%repr(f.operator))		
+		try:
+			dsURI=ODataURI("Products()?$filter=true%20nand%20false",'/x.svc')
+			self.fail("Expected exception for nand")
+		except InvalidSystemQueryOption:
+			pass
+	
+	def testCaseEvaluateCommonExpression(self):
+		# cursory check:
+		# a commonExpression must represent any and all supported common expression types
+		p=Parser("true and false")
+		e=p.ParseCommonExpression()
+		self.failUnless(isinstance(e,CommonExpression),"Expected common expression")
+		value=e.Evaluate(None)
+		self.failUnless(isinstance(value,edm.SimpleValue),"Expected EDM value; found %s"%repr(value))
+		self.failUnless(value.pyValue is False,"Expected false")
+				
+	def testCaseEvaluateBooleanExpression(self):
+		# cursory check:
+		# a boolCommonExpression MUST be a common expression that evaluates to the EDM Primitive type Edm.Boolean
+		p=Parser("true and false")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is False,"Expected false")
+				
+	def testCaseEvaluateParenExpression(self):
+		"""a parenExpression MUST be evaluated by evaluating the
+		expression with the parentheses, starting with the innermost
+		parenthesized expressions and proceeding outwards...
+
+		...the result of the parenExpression MUST be the result of the
+		evaluation of the contained expression."""
+		p=Parser("(false and false or true)")		# note that or is the weakest operator
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is True,"Expected True")
+		p=Parser("(false and (false or true))")		# should change the result
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("(((((((false) and (((false)) or true)))))))")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False - multibrackets")
+				
+	def testCaseEvaluateBooleanParenExpression(self):
+		"""Cursory check: a boolParenExpression MUST be evaluated by
+		evaluating the expression with the parentheses. The result of
+		the boolParenExpression MUST ... be of the EDM Primitive type
+		Edm.Boolean"""
+		p=Parser("(false and (false or true))")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is False,"Expected false")
+	
+	def testCaseEvaluateAddExpression(self):
+		"""...operand expressions MUST evaluate to a value of one of the
+		following EDM Primitive types:
+			Edm.Decimal
+			Edm.Double
+			Edm.Single
+			Edm.Int32
+			Edm.Int64
+
+		The addExpression SHOULD NOT be supported for any other EDM
+		Primitive types.
+		
+		..data service SHOULD follow the binary numeric promotion
+		rules... The EDM Primitive type of the result of evaluating the
+		addExpression MUST be the same type as the operands after binary
+		numeric promotion.
+		
+		data service can support evaluating operands with null values
+		following the rules defined in Lifted operators"""
+		p=Parser("2M add 2M")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
+		self.failUnless(value.pyValue == 4,"Expected 4")
+		p=Parser("2D add 2M")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
+		self.failUnless(value.pyValue == 4.0,"Expected 4")
+		p=Parser("2F add 2D")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
+		self.failUnless(value.pyValue == 4.0,"Expected 4")
+		p=Parser("2 add 2L")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
+		self.failUnless(value.pyValue == 4L,"Expected 4")
+		p=Parser("2 add '2'")
+		e=p.ParseCommonExpression()
+		try:
+			value=e.Evaluate(None)
+			self.fail("String promotion to int")
+		except EvaluationError:
+			pass
+		p=Parser("2 add null")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
+		self.failUnless(value.pyValue is None,"Expected None")
+
+	def testCaseEvaluateSubExpression(self):
+		"""See testCaseEvaluateAddExpression"""
+		p=Parser("4M sub 2M")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
+		self.failUnless(value.pyValue == 2,"Expected 2.0")
+		p=Parser("4D sub 2M")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
+		self.failUnless(value.pyValue == 2.0,"Expected 2.0")
+		p=Parser("4F sub 2D")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
+		self.failUnless(value.pyValue == 2.0,"Expected 2.0")
+		p=Parser("4 sub 2L")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
+		self.failUnless(value.pyValue == 2L,"Expected 2L")
+		p=Parser("4 sub '2'")
+		e=p.ParseCommonExpression()
+		try:
+			value=e.Evaluate(None)
+			self.fail("String promotion to int")
+		except EvaluationError:
+			pass
+		p=Parser("4 sub null")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
+		self.failUnless(value.pyValue is None,"Expected None")
+
+	def testCaseEvaluateMulExpression(self):
+		"""See testCaseEvaluateAddExpression"""
+		p=Parser("4M mul 2M")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
+		self.failUnless(value.pyValue == 8,"Expected 8.0")
+		p=Parser("4D mul 2M")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
+		self.failUnless(value.pyValue == 8.0,"Expected 8.0")
+		p=Parser("4F mul 2D")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
+		self.failUnless(value.pyValue == 8.0,"Expected 8.0")
+		p=Parser("4 mul 2L")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
+		self.failUnless(value.pyValue == 8L,"Expected 8L")
+		p=Parser("4 mul '2'")
+		e=p.ParseCommonExpression()
+		try:
+			value=e.Evaluate(None)
+			self.fail("String promotion to int")
+		except EvaluationError:
+			pass
+		p=Parser("4 mul null")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
+		self.failUnless(value.pyValue is None,"Expected None")
+
+	def testCaseEvaluateDivExpression(self):
+		"""See testCaseEvaluateAddExpression
+		
+		OData is ambiguous in the way it defines division as it makes reference only
+		to the IEEE floating point operations.  For compatibility with SQL though we
+		assume that integer division simple truncates fractional parts."""
+		p=Parser("4M div 2M")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
+		self.failUnless(value.pyValue == 2,"Expected 2")
+		p=Parser("4D div 2M")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
+		self.failUnless(value.pyValue == 2.0,"Expected 2.0")
+		p=Parser("4D div 0")
+		e=p.ParseCommonExpression()
+		try:
+			value=e.Evaluate(None)
+			self.fail("Division by zero")
+		except EvaluationError:
+			pass
+		p=Parser("4F div 2D")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
+		self.failUnless(value.pyValue == 2.0,"Expected 2.0")
+		p=Parser("5 div 2L")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
+		self.failUnless(value.pyValue == 2L,"Expected 2L")
+		p=Parser("-5 div 2L")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
+		self.failUnless(value.pyValue == -2L,"Expected -2L")
+		p=Parser("4 div '2'")
+		e=p.ParseCommonExpression()
+		try:
+			value=e.Evaluate(None)
+			self.fail("String promotion to int")
+		except EvaluationError:
+			pass
+		p=Parser("4 div null")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
+		self.failUnless(value.pyValue is None,"Expected None")
+
+	def testCaseEvaluateModExpression(self):
+		"""See testCaseEvaluateAddExpression
+		
+		The data service SHOULD evaluate the operation represented by
+		the modExpression, according to the rules of [IEEE754-2008]
+
+		For integer division we just truncate fractional parts towards zero."""
+		p=Parser("5.5M mod 2M")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
+		self.failUnless(value.pyValue == 1.5,"Expected 1.5")
+		p=Parser("5.5D mod 2M")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
+		self.failUnless(value.pyValue == 1.5,"Expected 1.5")
+		p=Parser("5.5D mod 0")
+		e=p.ParseCommonExpression()
+		try:
+			value=e.Evaluate(None)
+			self.fail("Division by zero")
+		except EvaluationError:
+			pass
+		p=Parser("5.5F mod 2D")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
+		self.failUnless(value.pyValue == 1.5,"Expected 1.5")
+		p=Parser("5 mod 2L")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
+		self.failUnless(value.pyValue == 1L,"Expected 1L")
+		p=Parser("-5 mod 2L")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
+		self.failUnless(value.pyValue == -1L,"Expected -1L")
+		p=Parser("5 mod '2'")
+		e=p.ParseCommonExpression()
+		try:
+			value=e.Evaluate(None)
+			self.fail("String promotion to int")
+		except EvaluationError:
+			pass
+		p=Parser("5 mod null")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
+		self.failUnless(value.pyValue is None,"Expected None")
+
+
+	def testCaseEvaluateNegateExpression(self):
+		"""See testCaseEvaluateAddExpression for list of simple types.
+		
+		..data service SHOULD follow the unary numeric promotion rules
+		... to implicitly convert the operand to a supported EDM
+		Primitive type
+
+		the result of evaluating the negateExpression SHOULD always be
+		equal to the result of evaluating the subExpression where one
+		operand is the value zero and the other is the value of the
+		operand.  [comment applies to null processing too]"""
+		p=Parser("-(2M)")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
+		self.failUnless(value.pyValue == -2,"Expected -2.0")
+		p=Parser("-(2D)")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
+		self.failUnless(value.pyValue == -2.0,"Expected -2.0")
+		p=Parser("-(-2F)")	# unary numeric promotion to Double - a bit weird 
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
+		self.failUnless(value.pyValue == 2.0,"Expected 2.0")
+		p=Parser("-(2L)")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
+		self.failUnless(value.pyValue == -2L,"Expected -2L")
+		p=Parser("-'2'")
+		e=p.ParseCommonExpression()
+		try:
+			value=e.Evaluate(None)
+			self.fail("String promotion to numeric")
+		except EvaluationError:
+			pass
+		p=Parser("-null")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
+		self.failUnless(value.pyValue is None,"Expected None")
+
+
+	def testCaseEvaluateAndExpression(self):
+		"""...operand expressions MUST evaluate to the EDM Primitive
+		types of Edm.Boolean. The andExpression SHOULD NOT be supported
+		for operands of any other EDM Primitive types.
+
+		The EDM Primitive type of the result of evaluating the andExpression MUST be Edm.Boolean.
+
+		...service MUST evaluate the expression to the value of true if
+		the values of the operands are both true after being evaluated.
+		If either operand is false after being evaluated, the expression
+		MUST evaluate to the value of false.
+		
+		The data service can support evaluating operands with null
+		values following the rules defined in Binary Numeric
+		Promotions.... [for Boolean expressions evaluated to the value
+		of null, a data service MUST return the value of false]"""
+		p=Parser("false and false")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("false and 0")
+		e=p.ParseCommonExpression()
+		try:
+			value=e.Evaluate(None)
+			self.fail("Integer promotion to Boolean")
+		except EvaluationError:
+			pass
+		p=Parser("false and true")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("true and false")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("true and true")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is True,"Expected True")
+		p=Parser("true and null")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("false and null")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("false and false")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")
+
+
+	def testCaseEvaluateOrExpression(self):
+		"""See testCaseEvaluateAndExpression for more details.
+		
+		...data service MUST evaluate the expression to the value of
+		true if at least one of the operands is true after being
+		evaluated. If both operands are false after being evaluated, the
+		expression MUST evaluate to the value of false"""
+		p=Parser("false or false")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("false or 0")
+		e=p.ParseCommonExpression()
+		try:
+			value=e.Evaluate(None)
+			self.fail("Integer promotion to Boolean")
+		except EvaluationError:
+			pass
+		p=Parser("false or true")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is True,"Expected True")
+		p=Parser("true or false")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is True,"Expected True")
+		p=Parser("true or true")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is True,"Expected True")
+		p=Parser("true or null")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("false or null")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("null or null")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")
+
+	def testCaseEvaluateEqExpression(self):
+		"""...operand expressions MUST evaluate to a value of a known
+		EntityType or one of the following EDM Primitive types:
+			Edm.Decimal
+			Edm.Double
+			Edm.Single
+			Edm.Int32
+			Edm.Int64
+			Edm.String
+			Edm.DateTime
+			Edm.Guid
+			Edm.Binary
+			
+		The eqExpression SHOULD NOT be supported for any other EDM
+		Primitive types.
+
+		...a data service SHOULD follow the binary numeric promotion
+		rules defined in Unary [sic] Numeric Promotions...
+		
+		...The EDM Primitive type of the result of evaluating the
+		eqExpression MUST be Edm.Boolean.
+
+		...a data service MUST return a value of true if the values of
+		the operands are equal and false if they are not equal. If the
+		type of the operands is a known EntityType, then a value of true
+		MUST be returned if the operand expressions, once evaluated,
+		represent the same entity instance.
+		
+		...for equality operators, a data service MUST consider two null
+		values equal and a null value unequal to any non-null value."""
+		p=Parser("2M eq 3M")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("2D eq 2M")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is True,"Expected True")
+		p=Parser("2F eq 2D")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is True,"Expected True")
+		p=Parser("2 eq 2L")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is True,"Expected True")
+		p=Parser("2 eq '2'")
+		e=p.ParseCommonExpression()
+		try:
+			value=e.Evaluate(None)
+			self.fail("String promotion to int")
+		except EvaluationError:
+			pass
+		p=Parser("'2' eq '2'")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is True,"Expected True")
+		p=Parser("datetime'2013-08-30T18:49' eq datetime'2013-08-30T18:49'")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is True,"Expected True")
+		p=Parser("datetime'2013-08-30T18:49' eq datetime'2013-08-30T18:49:01'")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' eq guid'b3afeebc-9658-4699-9d9c-1df551fd6814'")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is True,"Expected True")
+		p=Parser("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' eq guid'3fa6109e-f09c-4c5e-a5f3-6cf38d35c9b5'")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("X'DEADBEEF' eq binary'deadbeef'")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is True,"Expected True")			
+		p=Parser("X'DEAD' eq binary'BEEF'")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")			
+		p=Parser("2 eq null")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")			
+		p=Parser("null eq null")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is True,"Expected True")			
+
+
+	def testCaseEvaluateNeExpression(self):
+		"""See testCaseEvaluateEqExpression for details."""
+		p=Parser("2M ne 3M")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is True,"Expected True")
+		p=Parser("2D ne 2M")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("2F ne 2D")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("2 ne 2L")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("2 ne '2'")
+		e=p.ParseCommonExpression()
+		try:
+			value=e.Evaluate(None)
+			self.fail("String promotion to int")
+		except EvaluationError:
+			pass
+		p=Parser("'2' ne '2'")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("datetime'2013-08-30T18:49' ne datetime'2013-08-30T18:49'")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("datetime'2013-08-30T18:49' ne datetime'2013-08-30T18:49:01'")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is True,"Expected True")
+		p=Parser("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' ne guid'b3afeebc-9658-4699-9d9c-1df551fd6814'")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")
+		p=Parser("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' ne guid'3fa6109e-f09c-4c5e-a5f3-6cf38d35c9b5'")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is True,"Expected True")
+		p=Parser("X'DEADBEEF' ne binary'deadbeef'")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")			
+		p=Parser("X'DEAD' ne binary'BEEF'")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is True,"Expected True")			
+		p=Parser("2 ne null")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is True,"Expected True")			
+		p=Parser("null ne null")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(None)
+		self.failUnless(value.pyValue is False,"Expected False")			
+
 
 	def testCaseEntitySet(self):
 		dsURI=ODataURI("Products()?$format=json&$top=20&$skip=10&space='%20'",'/x.svc')
 		self.failUnless(dsURI.resourcePath=='/Products()',"resource path")
-		self.failUnless(dsURI.sysQueryOptions=={'$format':'json','$top':'20','$skip':'10'},repr(dsURI.sysQueryOptions))
+		self.failUnless(dsURI.sysQueryOptions=={SystemQueryOption.format:'json',SystemQueryOption.top:'20',SystemQueryOption.skip:'10'},repr(dsURI.sysQueryOptions))
 		self.failUnless(dsURI.queryOptions==["space='%20'"],'query options')
 		self.failUnless(dsURI.navPath==[(u'Products',{})],"entitySet: Products, found %s"%repr(dsURI.navPath))
 		dsURI=ODataURI('Products()/$count','/x.svc')
@@ -841,7 +1483,7 @@ class ODataStoreClientTests(unittest.TestCase):
 		sClient=ODataStoreClient('http://localhost:%i/'%HTTP_PORT)
 		for c in sClient.EntityReader("Categories"):
 			self.failUnless("ID" in c,"No key field in category")
-			self.failUnless(self.Categories[c["ID"].GetSimpleValue()]==c["Name"].GetSimpleValue(),"Category Name")
+			self.failUnless(self.Categories[c["ID"].pyValue]==c["Name"].pyValue,"Category Name")
 
 
 class ServerTests(unittest.TestCase):
@@ -987,6 +1629,36 @@ class CustomersByCityEntitySet(edm.FunctionEntitySet):
 				yield self.entitySet[customer[0]]
 
 
+class ShippedAddressByDateCollection(edm.FunctionCollection):
+	
+	def __init__(self,function,params):
+		edm.FunctionCollection.__init__(self,function,params)
+		self.date=params.get('date',None)
+		if self.date is None:
+			self.date=iso8601.TimePoint()
+			self.date.Now()
+		self.customers=function.FindParent(edmx.DataServices)['SampleModel.SampleEntities.Customers']
+		
+	def __iter__(self):
+		for customer in self.customers.itervalues():
+			yield customer['Address']
+
+
+class ShippedCustomerNamesByDateCollection(edm.FunctionCollection):
+	
+	def __init__(self,function,params):
+		edm.FunctionCollection.__init__(self,function,params)
+		self.date=params.get('date',None)
+		if self.date is None:
+			self.date=iso8601.TimePoint()
+			self.date.Now()
+		self.customers=function.FindParent(edmx.DataServices)['SampleModel.SampleEntities.Customers']
+		
+	def __iter__(self):
+		for customer in self.customers.itervalues():
+			yield customer['CompanyName']	
+
+
 class SampleServerTests(unittest.TestCase):
 	
 	def setUp(self):
@@ -1029,6 +1701,7 @@ class SampleServerTests(unittest.TestCase):
 		now.Now()
 		orders.data[1]=(1,now)
 		orders.data[2]=(2,now)
+		orders.data[3]=(3,now)
 		association=self.ds['SampleModel.SampleEntities.Orders_Customers']
 		association.Associate('ALFKI',1)
 		association.Associate('ALFKI',2)
@@ -1043,10 +1716,135 @@ class SampleServerTests(unittest.TestCase):
 		documents.data[301]=(301,'A Book','An Author')
 		customersByCity=self.ds['SampleModel.SampleEntities.CustomersByCity']
 		customersByCity.Bind(CustomersByCityEntitySet)
-									
+		lastCustomerByLine=self.ds['SampleModel.SampleEntities.LastCustomerByLine']
+		lastCustomerByLine.Bind(self.LastCustomerByLine)
+		shippedAddressByDate=self.ds['SampleModel.SampleEntities.ShippedAddressByDate']
+		shippedAddressByDate.Bind(ShippedAddressByDateCollection)
+		lastShippedByLine=self.ds['SampleModel.SampleEntities.LastShippedByLine']
+		lastShippedByLine.Bind(self.LastShippedByLine)
+		shippedCustomerNamesByDate=self.ds['SampleModel.SampleEntities.ShippedCustomerNamesByDate']
+		shippedCustomerNamesByDate.Bind(ShippedCustomerNamesByDateCollection)
+		lastCustomerNameByLine=self.ds['SampleModel.SampleEntities.LastCustomerNameByLine']
+		lastCustomerNameByLine.Bind(self.LastCustomerNameByLine)
+		
+	def LastCustomerByLine(self,function,params):
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		return customers['ALFKI']
+				
+	def LastShippedByLine(self,function,params):
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		return customers['ALFKI']['Address']
+				
+	def LastCustomerNameByLine(self,function,params):
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		return customers['ALFKI']['CompanyName']
+				
 	def tearDown(self):
 		pass
+	
+	def testCaseEvaluateFirstMemberExpression(self):
+		"""Back-track a bit to test some basic stuff using the sample data set.
 		
+		...the memberExpression can reference an Entity Navigation
+		property, or an Entity Complex type property, or an Entity
+		Simple Property, the target relationship end must have a
+		cardinality of 1 or 0..1.
+		
+		The type of the result of evaluating the memberExpression MUST
+		be the same type as the property reference in the
+		memberExpression.
+		
+		...a data service MUST return null if any of the
+		NavigationProperties are null."""
+		orders=self.ds['SampleModel.SampleEntities.Orders']
+		order=orders[1]
+		# Simple Property
+		p=Parser("OrderID")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(order)
+		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
+		self.failUnless(value.pyValue==1,"Expected 1")		
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		# customers.data['ALFKI']=('ALFKI','Example Inc',("Mill Road","Chunton"),None)
+		customer=customers['ALFKI']
+		# Complex Property
+		p=Parser("Address")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(customer)
+		self.failUnless(isinstance(value,edm.Complex),"Expected Complex value")
+		self.failUnless(value['City'].pyValue=='Chunton',"Expected Chunton")		
+		# Simple Property (NULL)
+		p=Parser("Version")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(customer)
+		self.failUnless(value.typeCode==edm.SimpleType.Binary,"Expected Binary")
+		self.failUnless(value.pyValue is None,"Expected NULL")		
+		# Navigation property
+		p=Parser("Customer")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(order)
+		self.failUnless(isinstance(value,edm.Entity),"Expected Entity")
+		self.failUnless(value['CustomerID'].pyValue=='ALFKI',"Expected Customer('ALFKI')")
+		# Navigation property with Null
+		value=e.Evaluate(orders[3])
+		self.failUnless(isinstance(value,edm.SimpleValue),"Expected SimpleValue (for NULL)")
+		self.failIf(value,"Expected NULL")		
+		# Navigation property with multiple cardinality
+		p=Parser("Orders")
+		e=p.ParseCommonExpression()
+		try:
+			value=e.Evaluate(customer)
+			self.fail("Navigation property cardinality")
+		except EvaluationError:
+			pass
+	
+	def testCaseEvaluateMemberExpression(self):
+		"""the target of the memberExpression MUST be a known Edm Entity or ComplexType.
+		
+		the memberExpression can reference an entity NavigationProperty,
+		or an Entity Complex type property, or an Entity Simple Property.
+		
+		For entity NavigationProperties, the target relationship end
+		must have a cardinality of 1 or 0..1.
+
+		The type of the result of evaluating the memberExpression MUST
+		be the same type as the property reference in the
+		memberExpression.
+		
+		...a data service MUST return null if any of the
+		NavigationProperties are null."""
+		orders=self.ds['SampleModel.SampleEntities.Orders']
+		order=orders[1]
+		# Known Entity: SimpleProperty
+		p=Parser("Customer/CustomerID")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(order)
+		self.failUnless(value.typeCode==edm.SimpleType.String,"Expected string")
+		self.failUnless(value.pyValue=='ALFKI',"Expected 'ALKFI'")		
+		# Known ComplexType: SimpleProperty
+		p=Parser("Customer/Address/City")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(order)
+		self.failUnless(value.typeCode==edm.SimpleType.String,"Expected string")
+		self.failUnless(value.pyValue=='Chunton',"Expected 'Chunton'")		
+		# TODO: a two step navigation, sample data doesn't have one yet
+		# 	navigation / navigation 
+		# Simple Property (NULL)
+		p=Parser("Customer/Version")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(order)
+		self.failUnless(value.typeCode==edm.SimpleType.Binary,"Expected Binary")
+		self.failUnless(value.pyValue is None,"Expected NULL")		
+		# Navigation property with multiple cardinality
+		p=Parser("Customer/Orders")
+		e=p.ParseCommonExpression()
+		try:
+			value=e.Evaluate(order)
+			self.fail("Navigation property cardinality")
+		except EvaluationError:
+			pass
+	
+			
 	def testCaseServiceRoot(self):
 		"""The resource identified by [the service root] ... MUST be an AtomPub Service Document"""
 		request=MockRequest('/service.svc')
@@ -1197,7 +1995,11 @@ class SampleServerTests(unittest.TestCase):
 		request=MockRequest("/service.svc/Prospects/$count")
 		request.Send(self.svc)
 		self.failUnless(request.responseCode==404)
-
+		# all system query options are valid
+		request=MockRequest("/service.svc/Customers?$expand=Orders&$filter=substringof(CompanyName,%20'bikes')&$orderby=CompanyName%20asc&$top=2&$skip=3&$skiptoken='Contoso','AKFNU'&$inlinecount=allpages&$select=CustomerID,CustomerName,Orders$format=xml")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+	
 	def testCaseURI2(self):
 		"""URI2 = scheme serviceRoot "/" entitySet "(" keyPredicate ")"
 		
@@ -1222,6 +2024,15 @@ class SampleServerTests(unittest.TestCase):
 		request=MockRequest("/service.svc/Customers('ALFKJ')/Address")
 		request.Send(self.svc)
 		self.failUnless(request.responseCode==404)
+		# $orderby, $skip, $top, $skiptoken, $inlinecount all banned
+		baseURI="/service.svc/Customers('ALFKI')?$expand=Orders&$filter=substringof(CompanyName,%20'bikes')&$select=CustomerID,CustomerName,Orders&$format=xml"
+		request=MockRequest(baseURI)
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)		
+		for x in ["$orderby=CompanyName%20asc","$skip=3","$top=2","$skiptoken='Contoso','AKFNU'","$inlinecount=allpages"]:
+			request=MockRequest(baseURI+"&"+x)
+			request.Send(self.svc)
+			self.failUnless(request.responseCode==400,"URI2 with %s"%x)
 	
 	def testCaseURI3(self):
 		"""URI3 = scheme serviceRoot "/" entitySet "(" keyPredicate ")/" entityComplexProperty
@@ -1236,6 +2047,15 @@ class SampleServerTests(unittest.TestCase):
 		self.failUnless(isinstance(doc.root,Property),"Expected a single Property, found %s"%doc.root.__class__.__name__)
 		value=doc.root.GetValue()
 		self.failUnless(value['Street']=='Mill Road',"Bad street in address")		
+		# $expand, $orderby, $skip, $top, $skiptoken, $inlinecount and $select all banned
+		baseURI="/service.svc/Customers('ALFKI')/Address?$filter=substringof(CompanyName,%20'bikes')&$format=xml"
+		request=MockRequest(baseURI)
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		for x in ["$expand=Orders","$orderby=CompanyName%20asc","$skip=3","$top=2","$skiptoken='Contoso','AKFNU'","$inlinecount=allpages","$select=CustomerID,CustomerName,Orders"]:
+			request=MockRequest(baseURI+"&"+x)
+			request.Send(self.svc)
+			self.failUnless(request.responseCode==400,"URI3 with %s"%x)
 	
 	def testCaseURI4(self):
 		"""URI4 = scheme serviceRoot "/" entitySet "(" keyPredicate ")/" entityComplexProperty "/" entityProperty
@@ -1250,11 +2070,21 @@ class SampleServerTests(unittest.TestCase):
 		doc.Read(request.wfile.getvalue())
 		self.failUnless(isinstance(doc.root,Property),"Expected a single Property, found %s"%doc.root.__class__.__name__)
 		value=doc.root.GetValue()
-		self.failUnless(value.GetSimpleValue()=='Mill Road',"Bad street")
+		self.failUnless(value.pyValue=='Mill Road',"Bad street")
 		request=MockRequest("/service.svc/Customers('ALFKI')/Address/Street/$value")
 		request.Send(self.svc)
 		self.failUnless(request.responseCode==200)
 		self.failUnless(request.wfile.getvalue()=='Mill Road',"Bad street $vaue")
+		baseURI="/service.svc/Customers('ALFKI')/Address/Street?$format=xml"
+		request=MockRequest(baseURI)
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		for x in ["$expand=Orders","$orderby=CompanyName%20asc","$filter=substringof(CompanyName,%20'bikes')",
+			"$skip=3","$top=2","$skiptoken='Contoso','AKFNU'","$inlinecount=allpages",
+			"$select=CustomerID,CustomerName,Orders"]:
+			request=MockRequest(baseURI+"&"+x)
+			request.Send(self.svc)
+			self.failUnless(request.responseCode==400,"URI4 with %s"%x)
 	
 	def testCaseURI5(self):
 		"""URI5 = scheme serviceRoot "/" entitySet "(" keyPredicate ")/" entityProperty
@@ -1269,11 +2099,21 @@ class SampleServerTests(unittest.TestCase):
 		doc.Read(request.wfile.getvalue())
 		self.failUnless(isinstance(doc.root,Property),"Expected a single Property, found %s"%doc.root.__class__.__name__)
 		value=doc.root.GetValue()
-		self.failUnless(value.GetSimpleValue()=='Example Inc',"Bad company")
+		self.failUnless(value.pyValue=='Example Inc',"Bad company")
 		request=MockRequest("/service.svc/Customers('ALFKI')/CompanyName/$value")
 		request.Send(self.svc)
 		self.failUnless(request.responseCode==200)
 		self.failUnless(request.wfile.getvalue()=='Example Inc',"Bad company $vaue")
+		baseURI="/service.svc/Customers('ALFKI')/CompanyName?$format=xml"
+		request=MockRequest(baseURI)
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		for x in ["$expand=Orders","$orderby=CompanyName%20asc","$filter=substringof(CompanyName,%20'bikes')",
+			"$skip=3","$top=2","$skiptoken='Contoso','AKFNU'","$inlinecount=allpages",
+			"$select=CustomerID,CustomerName,Orders"]:
+			request=MockRequest(baseURI+"&"+x)
+			request.Send(self.svc)
+			self.failUnless(request.responseCode==400,"URI5 with %s"%x)
 	
 	def testCaseURI6(self):
 		"""URI6 = scheme serviceRoot "/" entitySet "(" keyPredicate ")/" entityNavProperty
@@ -1287,7 +2127,21 @@ class SampleServerTests(unittest.TestCase):
 		doc=Document()
 		doc.Read(request.wfile.getvalue())
 		self.failUnless(isinstance(doc.root,atom.Feed),"Expected atom.Feed from navigation property Orders")
-		self.failUnless(len(doc.root.Entry)==2,"Sample customer has 2 orders")		
+		self.failUnless(len(doc.root.Entry)==2,"Sample customer has 2 orders")
+		# TODO: navigation property pointing to a single Entity (Note 1)
+# 		baseURI="/service.svc/Customers('ALFKI')/Orders?$expand=Orders&$filter=substringof(CompanyName,%20'bikes')&$format=xml&$select=CustomerID,CustomerName,Orders"
+# 		request=MockRequest(baseURI)
+# 		request.Send(self.svc)
+# 		self.failUnless(request.responseCode==200)
+# 		for x in ["$orderby=CompanyName%20asc",
+# 			"$skip=3","$top=2","$skiptoken='Contoso','AKFNU'","$inlinecount=allpages"]:
+# 			request=MockRequest(baseURI+"&"+x)
+# 			request.Send(self.svc)
+# 			self.failUnless(request.responseCode==400,"UR6 with %s"%x)
+		# all system query options are valid when the navigation property identifies a set of entities (Note 2)
+		request=MockRequest("/service.svc/Customers?$expand=Orders&$filter=substringof(CompanyName,%20'bikes')&$orderby=CompanyName%20asc&$top=2&$skip=3&$skiptoken='Contoso','AKFNU'&$inlinecount=allpages&$select=CustomerID,CustomerName,Orders$format=xml")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
 	
 	def testCaseURI7(self):
 		"""URI7 = scheme serviceRoot "/" entitySet "(" keyPredicate ")/$links/" entityNavProperty
@@ -1310,6 +2164,17 @@ class SampleServerTests(unittest.TestCase):
 		doc.Read(request.wfile.getvalue())
 		self.failUnless(isinstance(doc.root,URI),"Expected URI from $links request")
 		self.failUnless(doc.root.GetValue()=="http://host/service.svc/Customers('ALFKI')","Bad Customer link")			
+		baseURI="/service.svc/Customers('ALFKI')/$links/Orders?$format=xml&$skip=3&$top=2&$skiptoken='Contoso','AKFNU'&$inlinecount=allpages"
+		request=MockRequest(baseURI)
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		for x in ["$expand=Orders",
+			"$filter=substringof(CompanyName,%20'bikes')",
+			"$orderby=CompanyName%20asc",
+			"$select=CustomerID,CustomerName,Orders"]:
+			request=MockRequest(baseURI+"&"+x)
+			request.Send(self.svc)
+			self.failUnless(request.responseCode==400,"URI7 with %s"%x)
 	
 	def testCaseURI8(self):
 		"""URI8 = scheme serviceRoot "/$metadata"
@@ -1324,6 +2189,22 @@ class SampleServerTests(unittest.TestCase):
 		doc=edmx.Document()
 		doc.Read(request.wfile.getvalue())
 		self.failUnless(isinstance(doc.root,edmx.Edmx),"Expected Edmx from $metadata request, found %s"%doc.root.__class__.__name__)
+		baseURI="/service.svc/$metadata?"
+		request=MockRequest(baseURI)
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		for x in ["$expand=Orders",
+			"$filter=substringof(CompanyName,%20'bikes')",
+			"$format=xml",
+			"$orderby=CompanyName%20asc",
+			"$skip=3",
+			"$top=2",
+			"$skiptoken='Contoso','AKFNU'",
+			"$inlinecount=allpages",
+			"$select=CustomerID,CustomerName,Orders"]:
+			request=MockRequest(baseURI+x)
+			request.Send(self.svc)
+			self.failUnless(request.responseCode==400,"URI8 with %s"%x)
 		
 	def testCaseURI9(self):
 		"""URI9 = scheme serviceRoot "/$batch"
@@ -1336,6 +2217,22 @@ class SampleServerTests(unittest.TestCase):
 		request=MockRequest("/service.svc/$batch")
 		request.Send(self.svc)
 		self.failUnless(request.responseCode==404)
+		baseURI="/service.svc/$batch?"
+		request=MockRequest(baseURI)
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==404)
+		for x in ["$expand=Orders",
+			"$filter=substringof(CompanyName,%20'bikes')",
+			"$format=xml",
+			"$orderby=CompanyName%20asc",
+			"$skip=3",
+			"$top=2",
+			"$skiptoken='Contoso','AKFNU'",
+			"$inlinecount=allpages",
+			"$select=CustomerID,CustomerName,Orders"]:
+			request=MockRequest(baseURI+x)
+			request.Send(self.svc)
+			self.failUnless(request.responseCode==400,"URI9 with %s"%x)
 	
 	def testCaseURI10(self):
 		"""URI10 = scheme serviceRoot "/" serviceOperation-et
@@ -1349,7 +2246,25 @@ class SampleServerTests(unittest.TestCase):
 		# TODO, an actual function that does something that returns a single entity
 		request=MockRequest("/service.svc/LastCustomerByLine?line=1")
 		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		request=MockRequest("/service.svc/FirstCustomerByLine?line=1")
+		request.Send(self.svc)
 		self.failUnless(request.responseCode==404)
+		baseURI="/service.svc/LastCustomerByLine?line=1&$format=xml"
+		request=MockRequest(baseURI)
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		for x in ["$expand=Orders",
+			"$filter=substringof(CompanyName,%20'bikes')",
+			"$orderby=CompanyName%20asc",
+			"$skip=3",
+			"$top=2",
+			"$skiptoken='Contoso','AKFNU'",
+			"$inlinecount=allpages",
+			"$select=CustomerID,CustomerName,Orders"]:
+			request=MockRequest(baseURI+"&"+x)
+			request.Send(self.svc)
+			self.failUnless(request.responseCode==400,"URI10 with %s"%x)
 
 	def testCaseURI11(self):
 		"""URI11 = scheme serviceRoot "/" serviceOperation-collCt
@@ -1361,10 +2276,28 @@ class SampleServerTests(unittest.TestCase):
 		with the data service that has the same name as specified by the
 		serviceOperation-collCt rule, then this URI MUST represent a
 		resource that does not exist in the data model."""
-		# TODO, an actual function that does something that returns a single entity
+		# TODO, an actual function that does something that returns a collection of addresses
 		request=MockRequest("/service.svc/ShippedAddressByDate?date=datetime'2013-08-02'")
 		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		request=MockRequest("/service.svc/PendingAddressByDate?date=datetime'2013-08-02'")
+		request.Send(self.svc)
 		self.failUnless(request.responseCode==404)
+		baseURI="/service.svc/ShippedAddressByDate?date=datetime'2013-08-02'&$format=xml"
+		request=MockRequest(baseURI)
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		for x in ["$expand=Orders",
+			"$filter=substringof(CompanyName,%20'bikes')",
+			"$orderby=CompanyName%20asc",
+			"$skip=3",
+			"$top=2",
+			"$skiptoken='Contoso','AKFNU'",
+			"$inlinecount=allpages",
+			"$select=CustomerID,CustomerName,Orders"]:
+			request=MockRequest(baseURI+"&"+x)
+			request.Send(self.svc)
+			self.failUnless(request.responseCode==400,"URI11 with %s"%x)
 		
 	def testCaseURI12(self):
 		"""URI12 = scheme serviceRoot "/" serviceOperation-ct
@@ -1379,7 +2312,25 @@ class SampleServerTests(unittest.TestCase):
 		# TODO, an actual function that does something that returns a single entity
 		request=MockRequest("/service.svc/LastShippedByLine?line=1")
 		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		request=MockRequest("/service.svc/FirstShippedByLine?line=1")
+		request.Send(self.svc)
 		self.failUnless(request.responseCode==404)
+		baseURI="/service.svc/LastShippedByLine?line=1&$format=xml"
+		request=MockRequest(baseURI)
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		for x in ["$expand=Orders",
+			"$filter=substringof(CompanyName,%20'bikes')",
+			"$orderby=CompanyName%20asc",
+			"$skip=3",
+			"$top=2",
+			"$skiptoken='Contoso','AKFNU'",
+			"$inlinecount=allpages",
+			"$select=CustomerID,CustomerName,Orders"]:
+			request=MockRequest(baseURI+"&"+x)
+			request.Send(self.svc)
+			self.failUnless(request.responseCode==400,"URI12 with %s"%x)
 	
 	def testCaseURI13(self):
 		"""URI13 = scheme serviceRoot "/" serviceOperation-collPrim
@@ -1394,7 +2345,25 @@ class SampleServerTests(unittest.TestCase):
 		# TODO, an actual function that does something that returns a single entity
 		request=MockRequest("/service.svc/ShippedCustomerNamesByDate?date=datetime'2013-08-02'")
 		request.Send(self.svc)
-		self.failUnless(request.responseCode==404)		
+		self.failUnless(request.responseCode==200)
+		request=MockRequest("/service.svc/PendingCustomerNamesByDate?date=datetime'2013-08-02'")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==404)
+		baseURI="/service.svc/ShippedCustomerNamesByDate?date=datetime'2013-08-02'&$format=xml"
+		request=MockRequest(baseURI)
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		for x in ["$expand=Orders",
+			"$filter=substringof(CompanyName,%20'bikes')",
+			"$orderby=CompanyName%20asc",
+			"$skip=3",
+			"$top=2",
+			"$skiptoken='Contoso','AKFNU'",
+			"$inlinecount=allpages",
+			"$select=CustomerID,CustomerName,Orders"]:
+			request=MockRequest(baseURI+"&"+x)
+			request.Send(self.svc)
+			self.failUnless(request.responseCode==400,"URI13 with %s"%x)
 	
 	def testCaseURI14(self):
 		"""URI14 = scheme serviceRoot "/" serviceOperation-prim
@@ -1413,10 +2382,29 @@ class SampleServerTests(unittest.TestCase):
 		# TODO, an actual function that does something that returns a single entity
 		request=MockRequest("/service.svc/LastCustomerNameByLine?line=1")
 		request.Send(self.svc)
-		self.failUnless(request.responseCode==404)		
+		self.failUnless(request.responseCode==200)		
 		request=MockRequest("/service.svc/LastCustomerNameByLine/$value?line=1")
 		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		request=MockRequest("/service.svc/FirstCustomerNameByLine?line=1")
+		request.Send(self.svc)
 		self.failUnless(request.responseCode==404)		
+		baseURI="/service.svc/LastCustomerNameByLine?line=1&$format=xml"
+		request=MockRequest(baseURI)
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		for x in ["$expand=Orders",
+			"$filter=substringof(CompanyName,%20'bikes')",
+			"$orderby=CompanyName%20asc",
+			"$skip=3",
+			"$top=2",
+			"$skiptoken='Contoso','AKFNU'",
+			"$inlinecount=allpages",
+			"$select=CustomerID,CustomerName,Orders"]:
+			request=MockRequest(baseURI+"&"+x)
+			request.Send(self.svc)
+			self.failUnless(request.responseCode==400,"URI14 with %s"%x)
+
 
 	def testCaseURI15(self):
 		"""URI15 = scheme serviceRoot "/" entitySet count
@@ -1428,6 +2416,17 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.failUnless(request.responseCode==200)
 		self.failUnless(request.wfile.getvalue()=="91","Sample server has 91 Customers")
+		baseURI="/service.svc/Customers/$count?$expand=Orders&$filter=substringof(CompanyName,%20'bikes')&$orderby=CompanyName%20asc&$skip=3&$top=2"
+		request=MockRequest(baseURI)
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		for x in ["$format=xml",
+			"$skiptoken='Contoso','AKFNU'",
+			"$inlinecount=allpages",
+			"$select=CustomerID,CustomerName,Orders"]:
+			request=MockRequest(baseURI+"&"+x)
+			request.Send(self.svc)
+			self.failUnless(request.responseCode==400,"URI15 with %s"%x)
 	
 	def testCaseURI16(self):
 		"""URI16 = scheme serviceRoot "/" entitySet "(" keyPredicate ")" count
@@ -1443,6 +2442,20 @@ class SampleServerTests(unittest.TestCase):
 		request=MockRequest("/service.svc/Customers('ALFKJ')/$count")
 		request.Send(self.svc)
 		self.failUnless(request.responseCode==404)
+		baseURI="/service.svc/Customers('ALFKI')/$count?$expand=Orders&$filter=substringof(CompanyName,%20'bikes')"
+		request=MockRequest(baseURI)
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		for x in ["$format=xml",
+			"$orderby=CompanyName%20asc",
+			"$skip=3",
+			"$top=2",
+			"$skiptoken='Contoso','AKFNU'",
+			"$inlinecount=allpages",
+			"$select=CustomerID,CustomerName,Orders"]:
+			request=MockRequest(baseURI+"&"+x)
+			request.Send(self.svc)
+			self.failUnless(request.responseCode==400,"URI16 with %s"%x)
 	
 	def testCaseURI17(self):
 		"""URI17 = scheme serviceRoot "/" entitySet "(" keyPredicate ")" value
@@ -1453,8 +2466,32 @@ class SampleServerTests(unittest.TestCase):
 		attribute."""
 		request=MockRequest("/service.svc/Documents(301)/$value")
 		request.Send(self.svc)
-		print request.wfile.getvalue()
 		self.failUnless(request.responseCode==200)
+		baseURI="/service.svc/Documents(301)/$value?$format=xml"
+		request=MockRequest(baseURI)
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==200)
+		for x in ["$expand=Orders",
+			"$filter=substringof(CompanyName,%20'bikes')",
+			"$orderby=CompanyName%20asc",
+			"$skip=3",
+			"$top=2",
+			"$skiptoken='Contoso','AKFNU'",
+			"$inlinecount=allpages",
+			"$select=CustomerID,CustomerName,Orders"]:
+			request=MockRequest(baseURI+"&"+x)
+			request.Send(self.svc)
+			self.failUnless(request.responseCode==400,"URI17 with %s"%x)
+	
+	def testCaseQueryOptions(self):
+		"""If a data service does not support a System Query Option, it
+		MUST reject any requests which contain the unsupported option"""			
+		request=MockRequest("/service.svc/Documents(301)?$unsupported=1")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==400)
+		request=MockRequest("/service.svc/Documents(301)?$filter=true%20nand%20false")
+		request.Send(self.svc)
+		self.failUnless(request.responseCode==400)
 		
 	def testCaseMiscURI(self):
 		"""Example URIs not tested elsewhere:"""

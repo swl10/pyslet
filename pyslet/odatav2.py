@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 """This module implements the Open Data Protocol specification defined by Microsoft."""
 
-import sys, cgi, urllib, string, itertools, traceback, StringIO, json, decimal, uuid
+import sys, cgi, urllib, string, itertools, traceback, StringIO, json, decimal, uuid, math
 
 import pyslet.info as info
 import pyslet.iso8601 as iso
@@ -15,6 +15,7 @@ import pyslet.xsdatatypes20041028 as xsi
 import pyslet.html40_19991224 as html
 import pyslet.mc_edmx as edmx
 import pyslet.mc_csdl as edm
+from pyslet.unicode5 import CharClass
 
 class InvalidLiteral(Exception): pass
 class InvalidServiceDocument(Exception): pass
@@ -27,6 +28,8 @@ class UnexpectedHTTPResponse(Exception): pass
 class ServerError(Exception): pass
 class BadURISegment(ServerError): pass
 class MissingURISegment(ServerError): pass
+class InvalidSystemQueryOption(ServerError): pass
+class EvaluationError(Exception): pass
 
 
 ODATA_METADATA_NAMESPACE="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"	#: namespace for metadata, e.g., the property type attribute
@@ -38,15 +41,712 @@ ODATA_RELATED="http://schemas.microsoft.com/ado/2007/08/dataservices/related/"		
 
 ODATA_RELATED_TYPE="application/atom+xml;type=entry"
 
+NUMERIC_TYPES=(
+	edm.SimpleType.Double,
+	edm.SimpleType.Single,
+	edm.SimpleType.Decimal,
+	edm.SimpleType.Int64,
+	edm.SimpleType.Int32,
+	edm.SimpleType.Int16,
+	edm.SimpleType.Byte)
+	
+def PromoteTypes(typeA,typeB):
+	"""Given two values from :py:class:`pyslet.mc_csdl.SimpleType` returns the common promoted type.
+	
+	If typeA and typeB are the same this is always returns that type code.
+	
+	Otherwise it follows numeric type promotion rules laid down in the
+	specification. If the types are incompatible then an EvaluationError is raised."""
+	if typeA==typeB:
+		return typeA
+	elif typeA is None:
+		return typeB
+	elif typeB is None:
+		return typeA
+	elif typeA not in NUMERIC_TYPES or typeB not in NUMERIC_TYPES:
+		raise EvaluationError("Incompatible types: %s and %s"%(edm.SimpleType.EncodeValue(typeA),
+			edm.SimpleType.EncodeValue(typeB)))
+	elif edm.SimpleType.Double in (typeA,typeB):
+		return edm.SimpleType.Double
+	elif edm.SimpleType.Single in (typeA,typeB):
+		return edm.SimpleType.Single
+	elif edm.SimpleType.Decimal in (typeA,typeB):
+		return edm.SimpleType.Decimal
+	elif edm.SimpleType.Int64 in (typeA,typeB):
+		return edm.SimpleType.Int64
+	elif edm.SimpleType.Int32 in (typeA,typeB):
+		return edm.SimpleType.Int32
+	elif edm.SimpleType.Int16 in (typeA,typeB):
+		return edm.SimpleType.Int16
+	# else must be both Byte - already got this case above	
+
+	
+class OperatorCategory(xsi.Enumeration):
+	"""An enumeration used to represent operator categories (for precedence).
+	::
+		
+		OperatorCategory.Unary	
+		SimpleType.DEFAULT == None
+
+	Note that OperatorCategory.X > OperatorCategory.Y if and only if operator X
+	has higher precedence that operator Y.
+	
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	
+	decode={
+		"Grouping":10,
+		"Primary":9,
+		"Unary":8,
+		"Multiplicative":7,
+		"Additive":6,
+		"Relational":5,
+		"Equality":4,
+		"ConditionalAnd":3,
+		"ConditionalOr":2
+		}
+xsi.MakeEnumeration(OperatorCategory)
+
+		
+class Operator(xsi.Enumeration):
+	"""An enumeration used to represent operators.
+	
+	Note that the expressions not, and and or have aliases "boolNot",
+	"boolAnd" and "boolOr" to make it easier to use Python attribute
+	notation::
+	
+		Operator.mul
+		Operator.DEFAULT == None
+		Operator.boolNot == getattr(Operator,"not")
+	
+	"""
+	
+	decode={
+		'paren':20,
+		'member':19,
+		'methodCall':18,
+		'negate':17,
+		'not':16,
+		'cast':15,
+		'mul':14,
+		'div':13,
+		'mod':12,
+		'add':11,
+		'sub':10,
+		'lt':9,
+		'gt':8,
+		'le':7,
+		'ge':6,
+		'isof':5,
+		'eq':4,
+		'ne':3,
+		'and':2,
+		'or':1,
+		}
+
+	Category={
+		}
+	"""A mapping from an operator to an operator category identifier
+	which can be compared for precedence testing::
+	
+		Operator.Category.[opA] > Operator.Category.[opB]
+	
+	if and only if opA has higher precedence than opB."""
+
+xsi.MakeEnumeration(Operator)
+xsi.MakeEnumerationAliases(Operator,{
+	'boolParen':'paren',
+	'boolMethodCall':'methodCall',
+	'boolNot':'not',
+	'boolAnd':'and',
+	'boolOr':'or'})
+
+Operator.Category={
+	Operator.paren:OperatorCategory.Grouping,
+	Operator.member:OperatorCategory.Primary,
+	Operator.methodCall:OperatorCategory.Primary,
+	Operator.negate:OperatorCategory.Unary,
+	Operator.boolNot:OperatorCategory.Unary,
+	Operator.cast:OperatorCategory.Unary,
+	Operator.mul:OperatorCategory.Multiplicative,
+	Operator.div:OperatorCategory.Multiplicative,
+	Operator.mod:OperatorCategory.Multiplicative,
+	Operator.add:OperatorCategory.Additive,
+	Operator.sub:OperatorCategory.Additive,
+	Operator.lt:OperatorCategory.Relational,
+	Operator.gt:OperatorCategory.Relational,
+	Operator.le:OperatorCategory.Relational,
+	Operator.ge:OperatorCategory.Relational,
+	Operator.isof:OperatorCategory.Relational,
+	Operator.eq:OperatorCategory.Equality,
+	Operator.ne:OperatorCategory.Equality,
+	Operator.boolAnd:OperatorCategory.ConditionalAnd,
+	Operator.boolOr:OperatorCategory.ConditionalOr }
+
+
+	
+class Method(xsi.Enumeration):
+	"""An enumeration used to represent method calls.
+	::
+	
+		Method.endswith
+		Method.DEFAULT == None
+	"""
+	
+	decode={
+		'endswith':1,
+		'indexof':2,
+		'replace':3,
+		'startswith':4,
+		'tolower':5,
+		'toupper':6,
+		'trim':7,
+		'substring':8,
+		'substringof':9,
+		'concat':10,
+		'length':11,
+		'year':12,
+		'month':13,
+		'day':14,
+		'hour':15,
+		'minute':16,
+		'second':17,
+		'round':18,
+		'floor':19,
+		'celing':20
+		}
+xsi.MakeEnumeration(Method)
+
+	
+class CommonExpression(object):
+	"""Represents a common expression, used by $filter and $orderby system query options."""
+	
+	def __init__(self,operator=None):
+		self.parent=None
+		self.operator=operator
+		self.operands=[]
+
+	def AddOperand(self,operand):
+		self.operands.append(operand)
+	
+	def Evaluate(self,contextEntity):
+		raise NotImplementedError
+
+	def __cmp__(self,other):
+		"""We implement __cmp__ based on operator precedence."""
+		if other.operator is None or self.operator is None:
+			raise ValueError("Expression without operator cannot be compared")
+		return cmp(Operator.Category[self.operator],Operator.Category[other.operator])
+				
+
+class UnaryExpression(CommonExpression):
+	
+	EvalMethod={
+		}
+	"""A mapping from unary operators to bound class methods that
+	evaluate the operator."""
+
+	def __init__(self,operator):
+		super(UnaryExpression,self).__init__(operator)
+
+	def Evaluate(self,contextEntity):
+		rValue=self.operands[0].Evaluate(contextEntity)
+		return self.EvalMethod[self.operator](rValue)
+
+	@classmethod
+	def EvaluateNegate(cls,rValue):
+		typeCode=rValue.typeCode
+		if typeCode in (edm.SimpleType.Byte, edm.SimpleType.Int16):
+			rValue=rValue.Cast(edm.SimpleType.Int32)
+		elif typeCode == edm.SimpleType.Single:
+			rValue=rValue.Cast(edm.SimpleType.Double)
+		typeCode=rValue.typeCode
+		if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Double, edm.SimpleType.Decimal):
+			result=edm.SimpleValue.NewValue(typeCode)
+			if rValue:
+				result.SetFromPyValue(0-rValue.pyValue)
+			return result
+		elif typeCode is None:	# -null
+			return edm.SimpleValue.NewValue(edm.SimpleType.Int32)
+		else:
+			raise EvaluationError("Illegal operand for negate")  
+
+	@classmethod
+	def EvaluateNot(cls,rValue):
+		raise NotImplementedError
+
+
+UnaryExpression.EvalMethod={
+	Operator.negate:UnaryExpression.EvaluateNegate,
+	Operator.boolNot:UnaryExpression.EvaluateNot }
+
+
+class BinaryExpression(CommonExpression):
+	
+	EvalMethod={
+		}
+	"""A mapping from binary operators to bound class methods that
+	evaluate the operator."""
+	  
+	def __init__(self,operator):
+		super(BinaryExpression,self).__init__(operator)
+		
+	def Evaluate(self,contextEntity):
+		lValue=self.operands[0].Evaluate(contextEntity)
+		if self.operator==Operator.member:
+			# Special handling for the member operator, as the left-hand
+			# side of the expression returns the context for evaluating
+			# the right-hand side
+			return self.operands[1].Evaluate(lValue)
+		else:
+			rValue=self.operands[1].Evaluate(contextEntity)	
+			return self.EvalMethod[self.operator](lValue,rValue)
+		
+	@classmethod
+	def EvaluateCast(cls,lValue,rValue):
+		raise NotImplementedError
+	
+	@classmethod
+	def EvaluateMul(cls,lValue,rValue):
+		typeCode=PromoteTypes(lValue.typeCode,rValue.typeCode)
+		if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
+			edm.SimpleType.Double, edm.SimpleType.Decimal):
+			lValue=lValue.Cast(typeCode)
+			rValue=rValue.Cast(typeCode)
+			result=edm.SimpleValue.NewValue(typeCode)
+			if lValue and rValue:
+				result.SetFromPyValue(lValue.pyValue*rValue.pyValue)
+			return result
+		elif typeCode is None:	# null mul null
+			return edm.SimpleValue.NewValue(edm.SimpleType.Int32)
+		else:
+			raise EvaluationError("Illegal operands for mul")  
+	
+	@classmethod
+	def EvaluateDiv(cls,lValue,rValue):
+		try:
+			typeCode=PromoteTypes(lValue.typeCode,rValue.typeCode)
+			if typeCode in (edm.SimpleType.Single, edm.SimpleType.Double, edm.SimpleType.Decimal):
+				lValue=lValue.Cast(typeCode)
+				rValue=rValue.Cast(typeCode)
+				result=edm.SimpleValue.NewValue(typeCode)
+				if lValue and rValue:
+					result.SetFromPyValue(lValue.pyValue/rValue.pyValue)
+				return result
+			elif typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64):
+				lValue=lValue.Cast(typeCode)
+				rValue=rValue.Cast(typeCode)
+				result=edm.SimpleValue.NewValue(typeCode)
+				if lValue and rValue:
+					# OData doesn't really specify integer division rules so
+					# we use floating point division and truncate towards zero
+					result.SetFromPyValue(int(float(lValue.pyValue)/float(rValue.pyValue)))
+				return result
+			elif typeCode is None:	# null div null
+				return edm.SimpleValue.NewValue(edm.SimpleType.Int32)
+			else:
+				raise EvaluationError("Illegal operands for div")  
+		except ZeroDivisionError as e:
+			raise EvaluationError(str(e))
+	
+	@classmethod
+	def EvaluateMod(cls,lValue,rValue):
+		try:
+			typeCode=PromoteTypes(lValue.typeCode,rValue.typeCode)
+			if typeCode in (edm.SimpleType.Single, edm.SimpleType.Double, edm.SimpleType.Decimal):
+				lValue=lValue.Cast(typeCode)
+				rValue=rValue.Cast(typeCode)
+				result=edm.SimpleValue.NewValue(typeCode)
+				if lValue and rValue:
+					result.SetFromPyValue(math.fmod(lValue.pyValue,rValue.pyValue))
+				return result
+			elif typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64):
+				lValue=lValue.Cast(typeCode)
+				rValue=rValue.Cast(typeCode)
+				result=edm.SimpleValue.NewValue(typeCode)
+				if lValue and rValue:
+					# OData doesn't really specify integer division rules so
+					# we use floating point division and truncate towards zero
+					result.SetFromPyValue(int(math.fmod(float(lValue.pyValue),float(rValue.pyValue))))
+				return result
+			elif typeCode is None:	# null div null
+				return edm.SimpleValue.NewValue(edm.SimpleType.Int32)
+			else:
+				raise EvaluationError("Illegal operands for div")  
+		except (ZeroDivisionError,ValueError) as e:
+			raise EvaluationError(str(e))
+				
+	@classmethod
+	def EvaluateAdd(cls,lValue,rValue):
+		typeCode=PromoteTypes(lValue.typeCode,rValue.typeCode)
+		if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
+			edm.SimpleType.Double, edm.SimpleType.Decimal):
+			lValue=lValue.Cast(typeCode)
+			rValue=rValue.Cast(typeCode)
+			result=edm.SimpleValue.NewValue(typeCode)
+			if lValue and rValue:
+				result.SetFromPyValue(lValue.pyValue+rValue.pyValue)
+			return result
+		elif typeCode is None:	# null add null
+			return edm.SimpleValue.NewValue(edm.SimpleType.Int32)
+		else:
+			raise EvaluationError("Illegal operands for add")  
+	
+	@classmethod
+	def EvaluateSub(cls,lValue,rValue):
+		typeCode=PromoteTypes(lValue.typeCode,rValue.typeCode)
+		if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
+			edm.SimpleType.Double, edm.SimpleType.Decimal):
+			lValue=lValue.Cast(typeCode)
+			rValue=rValue.Cast(typeCode)
+			result=edm.SimpleValue.NewValue(typeCode)
+			if lValue and rValue:
+				result.SetFromPyValue(lValue.pyValue-rValue.pyValue)
+			return result
+		elif typeCode is None:	# null sub null
+			return edm.SimpleValue.NewValue(edm.SimpleType.Int32)
+		else:
+			raise EvaluationError("Illegal operands for sub")  
+	
+	@classmethod
+	def EvaluateLt(cls,lValue,rValue):
+		raise NotImplementedError
+	
+	@classmethod
+	def EvaluateGt(cls,lValue,rValue):
+		raise NotImplementedError
+	
+	@classmethod
+	def EvaluateLe(cls,lValue,rValue):
+		raise NotImplementedError
+	
+	@classmethod
+	def EvaluateGe(cls,lValue,rValue):
+		raise NotImplementedError
+	
+	@classmethod
+	def EvaluateIsOf(cls,lValue,rValue):
+		raise NotImplementedError
+	
+	@classmethod
+	def EvaluateEq(cls,lValue,rValue):
+		typeCode=PromoteTypes(lValue.typeCode,rValue.typeCode)
+		if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
+			edm.SimpleType.Double, edm.SimpleType.Decimal):
+			lValue=lValue.Cast(typeCode)
+			rValue=rValue.Cast(typeCode)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+			result.SetFromPyValue(lValue.pyValue==rValue.pyValue)
+			return result
+		elif typeCode in (edm.SimpleType.String, edm.SimpleType.DateTime, edm.SimpleType.Guid, edm.SimpleType.Binary):
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+			result.SetFromPyValue(lValue.pyValue==rValue.pyValue)
+			return result
+		elif typeCode is None:	# null eq null
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+			result.SetFromPyValue(True)
+			return result
+		else:
+			raise EvaluationError("Illegal operands for add")  
+	
+	@classmethod
+	def EvaluateNe(cls,lValue,rValue):
+		result=cls.EvaluateEq(lValue,rValue)
+		result.pyValue=not result.pyValue
+		return result
+	
+	@classmethod
+	def EvaluateAnd(cls,lValue,rValue):
+		"""Watch out for the differences between OData 2-value logic and
+		the usual SQL 3-value approach."""
+		typeCode=PromoteTypes(lValue.typeCode,rValue.typeCode)
+		if typeCode==edm.SimpleType.Boolean:
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+			if lValue and rValue:
+				result.pyValue=lValue.pyValue and rValue.pyValue
+			else:
+				result.pyValue=False
+			return result
+		elif typeCode is None:
+			# null or null
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+			result.pyValue=False
+			return result
+		else:			
+			raise EvaluationError("Illegal operands for boolean and")
+				
+	@classmethod
+	def EvaluateOr(cls,lValue,rValue):
+		"""Watch out for the differences between OData 2-value logic and
+		the usual SQL 3-value approach."""
+		typeCode=PromoteTypes(lValue.typeCode,rValue.typeCode)
+		if typeCode==edm.SimpleType.Boolean:
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+			if lValue and rValue:
+				result.pyValue=lValue.pyValue or rValue.pyValue
+			else:
+				result.pyValue=False
+			return result
+		elif typeCode is None:
+			# null or null
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+			result.pyValue=False
+			return result
+		else:			
+			raise EvaluationError("Illegal operands for boolean and")
+						
+BinaryExpression.EvalMethod={
+	Operator.cast:BinaryExpression.EvaluateCast,
+	Operator.mul:BinaryExpression.EvaluateMul,
+	Operator.div:BinaryExpression.EvaluateDiv,
+	Operator.mod:BinaryExpression.EvaluateMod,
+	Operator.add:BinaryExpression.EvaluateAdd,
+	Operator.sub:BinaryExpression.EvaluateSub,
+	Operator.lt:BinaryExpression.EvaluateLt,
+	Operator.gt:BinaryExpression.EvaluateGt,
+	Operator.le:BinaryExpression.EvaluateLe,
+	Operator.ge:BinaryExpression.EvaluateGe,
+	Operator.isof:BinaryExpression.EvaluateIsOf,
+	Operator.eq:BinaryExpression.EvaluateEq,
+	Operator.ne:BinaryExpression.EvaluateNe,
+	Operator.boolAnd:BinaryExpression.EvaluateAnd,
+	Operator.boolOr:BinaryExpression.EvaluateOr }
+	
+			
+class LiteralExpression(CommonExpression):
+	
+	def __init__(self,value):
+		super(LiteralExpression,self).__init__()
+		self.value=value
+
+	def Evaluate(self,contextEntity):
+		"""A literal evaluates to itself."""
+		return self.value
+
+
+class PropertyExpression(CommonExpression):
+	
+	def __init__(self,name):
+		super(PropertyExpression,self).__init__()
+		self.name=name
+		
+	def Evaluate(self,contextEntity):
+		if contextEntity:
+			if self.name in contextEntity:
+				# This is a simple or complex property
+				return contextEntity[self.name]
+			elif isinstance(contextEntity,edm.Entity):
+				if contextEntity.IsEntityCollection(self.name):
+					raise EvaluationError("%s navigation property must have cardinality of 1 or 0..1"%self.name)
+				else:
+					result=contextEntity.Navigate(self.name)
+					if result is None:
+						# The navigation property does not point to anything, return a generic null
+						result=edm.SimpleValue(None,self.name)
+					return result
+			else:
+				raise EvaluationError("Undefined property: %s"%self.name)
+		else:
+			raise EvaluationError("Evaluation of %s member: no entity in context"%self.name) 		
+
+
+class CallExpression(CommonExpression):
+	
+	def __init__(self,methodCall):
+		super(CallExpression,self).__init__(Operator.methodCall)
+		self.method=methodCall
+
+	
 class Parser(edm.Parser):
 	
-	def ParseURILiteral(self):
-		"""Returns a :py:class:`pyslet.mc_csdl.SimpleType` instance."""
-		if self.ParseInsensitive("null"):
-			return edm.SimpleValue(None)
-		elif self.Parse("'"):
+	def ParseCommonExpression(self):
+		"""Returns a :py:class:`CommonExpression` instance."""
+		leftOp=None
+		rightOp=None
+		opStack=[]
+		while True:
+			self.ParseWSP()
+			value=self.ParseURILiteral()
+			if value is not None:
+				rightOp=LiteralExpression(value)
+			else:
+				name=self.ParseSimpleIdentifier()
+				self.ParseWSP()
+				if name=="not":
+					self.RequireProduction(self.ParseWSP(),"WSP after not")
+					rightOp=UnaryExpression(Operator.notBool)
+				elif name=="isof":
+					rightOp=self.RequireProduction(self.ParseCastLike(Operator.isof,"isof"),"isofExpression")
+				elif name=="cast":
+					rightOp=self.RequireProduction(self.ParseCastLike(Operator.cast,"cast"),"caseExpression")
+				elif name is not None:
+					if self.Match("("):
+						methodCall=Method.DecodeValue(name)
+						rightOp=self.ParseMethodCallExpression(methodCall)
+					else:
+						rightOp=PropertyExpression(name)
+			if rightOp is None:
+				if self.Parse("("):
+					rightOp=self.RequireProduction(self.ParseCommonExpression(),"commonExpression inside parenExpression")
+					self.RequireProduction(self.Parse(")"),"closing bracket in parenExpression")
+				elif self.Parse("-"):
+					rightOp=UnaryExpression(Operator.negate)
+				elif leftOp:
+					# an operator waiting for an operand is an error
+					raise ValueError("Expected expression after %s in ...%s"%(Operator.EncodeValue(leftOp.operator),self.Peek(10)))
+				else:
+					# no common expression found at all
+					return None
+			# if we already have a (unary) operator, skip the search for a binary operator
+			if not isinstance(rightOp,UnaryExpression):
+				operand=rightOp
+				self.ParseWSP()
+				if self.Parse("/"):
+					# Member operator is a special case as it isn't a name
+					rightOp=BinaryExpression(Operator.member)
+				else:
+					name=self.ParseSimpleIdentifier()
+					if name is not None:
+						rightOp=BinaryExpression(Operator.DecodeValue(name))
+					elif self.MatchOne(",)") or self.MatchEnd():
+						# indicates the end of this common expression
+						while leftOp is not None:
+							leftOp.AddOperand(operand)
+							operand=leftOp
+							if opStack:
+								leftOp=opStack.pop()
+							else:
+								leftOp=None
+						return operand
+			else:
+				operand=None
+			# we now have:
+			# leftOp (may be None)
+			# operand (None only if rightOp is unary)
+			# rightOp (an operator expression, never None)
+			# next job, determine who binds more tightly, left or right?
+			while True:
+				if leftOp is None or leftOp<rightOp:
+					# bind the operand to the right, in cases of equal precedence we left associate 1+2-3 = (1+2)-3
+					if operand is not None:
+						rightOp.AddOperand(operand)
+					if leftOp is not None:
+						opStack.append(leftOp)
+					leftOp=rightOp
+					rightOp=None
+					operand=None
+					break
+				else:
+					# bind the operand to the left
+					leftOp.AddOperand(operand)
+					operand=leftOp
+					if opStack:
+						leftOp=opStack.pop()
+					else:
+						leftOp=None
+			
+	def ParseMethodCallExpression(self,methodCall):
+		method=CallExpression(methodCall)
+		self.RequireProduction(self.Parse("("),"opening bracket in methodCallExpression")
+		while True:
+			self.ParseWSP()
+			param=self.RequireProduction(self.ParseCommonExpression(),"methodCall argument")
+			method.AddOperand(param)
+			self.ParseWSP()
+			if self.Parse(","):
+				continue
+			elif self.Parse(")"):
+				break
+			else:
+				raise ValueError("closing bracket in methodCallExpression")
+		return method
+		
+	def ParseCastLike(self,op,name):
+		"""Parses a cast-like expression, including 'isof'.
+		
+		Note that the OData 2 ABNF is in error here, it makes reference
+		to a stringLiteral but clearly a simple identifier is implied!"""
+		self.ParseWSP()
+		if self.Parse("("):
+			e=BinaryExpression(op)
+			e.left=self.ParseCommonExpression(None)
+			self.ParseWSP()
+			self.RequireProduction(self.Parse(","),"',' in %s"%name)
+			self.ParseWSP()
+			e.right=self.RequireProduction(self.ParseSimpleIdentifier(),"simpleIdentifier in %s"%name)
+			self.ParseWSP()
+			self.RequireProduction(self.Parse(")"),"')' after %s"%name)
+			return e
+		else:
+			return None
+			
+	def ParseWSP(self):
+		"""Parses WSP characters, returning the string of WSP parsed or None."""
+		result=[]
+		while True:
+			c=self.ParseOne(" \t")
+			if c:
+				result.append(c)
+			else:
+				break
+		if result:
+			return string.join(result,'')
+		else:
+			return None
+	
+	SimpleIdentifierStartClass=None
+	SimpleIdentifierClass=None
+	
+	def ParseSimpleIdentifier(self):
+		"""Parses a SimpleIdentifier
+		
+		Although the OData specification simply says that these
+		identifiers are *pchar the ABNF is confusing because it relies
+		on WSP which can only exist after percent encoding has been
+		removed.  There is also the implicit assumption that characters
+		that might be confused with operators will be percent-encoded if
+		they appear in identifiers, again problematic if percent
+		encoding has already been removed.
+
+		Later versions of the specification have clarified this and it
+		is clear that identifiers must be parsable after
+		percent-decoding.  It's a bit of a moot point though because, in
+		reality, the identifiers refer to named objects in the entity
+		model and this defines the uncode pattern for identifiers as
+		follows::
+		
+			[\p{L}\p{Nl}][\p{L}\p{Nl}\p{Nd}\p{Mn}\p{Mc}\p{Pc}\p{Cf}]{0,}(\.[\p{L}\p{Nl}][\p{L}\p{Nl}\p{Nd}\p{Mn}\p{Mc}\p{Pc}\p{Cf}]{0,}){0,}
+
+		Although this expression appears complex this is basically a '.'
+		separated list of name components, each of which must start with
+		a letter and continue with a letter, number or underscore."""
+		if self.SimpleIdentifierStartClass is None:
+			self.SimpleIdentifierStartClass=CharClass(CharClass.UCDCategory(u"L"))
+			self.SimpleIdentifierStartClass.AddClass(CharClass.UCDCategory(u"Nl"))
+		if self.SimpleIdentifierClass is None:
+			self.SimpleIdentifierClass=CharClass(self.SimpleIdentifierStartClass)
+			for c in ['Nd','Mn','Mc','Pc','Cf']:
+				self.SimpleIdentifierClass.AddClass(CharClass.UCDCategory(c))
+		savePos=self.pos
+		result=[]
+		while True:
+			# each segment must start with a start character
+			if self.theChar is None or not self.SimpleIdentifierStartClass.Test(self.theChar):
+				self.SetPos(savePos)
+				return None
+			result.append(self.theChar)
+			self.NextChar()
+			while self.theChar is not None and self.SimpleIdentifierClass.Test(self.theChar):
+				result.append(self.theChar)
+				self.NextChar()
+			if not self.Parse('.'):
+				break
+			result.append('.')
+		return string.join(result,'')
+	
+	def ParseStringURILiteral(self):
+		if self.Parse("'"):
 			# string of utf-8 characters
-			result=edm.SimpleValue(edm.SimpleType.String)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.String)
 			value=[]
 			while True:
 				startPos=self.pos
@@ -62,35 +762,58 @@ class Parser(edm.Parser):
 			value=string.join(value,"'")
 			if self.raw:
 				value=value.decode('utf-8')
-			result.simpleValue=value
+			result.pyValue=value
 			return result
+		else:
+			return None
+							
+	def ParseURILiteral(self):
+		"""Returns a :py:class:`pyslet.mc_csdl.SimpleType` instance of None if no value can parsed.
+		
+		Important: do not confuse a return value of (the Python object)
+		None with a
+		:py:class:`pyslet.mc_csdl.SimpleValue` instance that tests
+		:False.  The latter is
+		returned when the URI-literal string 'null' is parsed.
+		
+		If a URI literal value is partially parsed but is badly formed,
+		a ValueError is raised."""
+		savePos=self.pos
+		if self.ParseInsensitive("null"):
+			return edm.SimpleValue.NewValue(None)
+		elif self.Match("'"):
+			return self.ParseStringURILiteral()
 		elif self.MatchDigit():
 			return self.ParseNumericLiteral()
 		elif self.Parse('-'):
 			# one of the number forms
 			if self.ParseInsensitive("inf"):
 				if self.ParseOne("Dd"):
-					result=edm.SimpleValue(edm.SimpleType.Double)
-					result.simpleValue=float("-INF")
+					result=edm.SimpleValue.NewValue(edm.SimpleType.Double)
+					result.pyValue=float("-INF")
 					return result
 				elif self.ParseOne("Ff"):
-					result=edm.SimpleValue(edm.SimpleType.Single)
-					result.simpleValue=float("-INF")
+					result=edm.SimpleValue.NewValue(edm.SimpleType.Single)
+					result.pyValue=float("-INF")
 					return result
 				else:
 					raise ValueError("Expected double or single -inf: -INF%s"%repr(self.Peek(1)))							
 			else:
-				return self.ParseNumericLiteral('-')
+				result=self.ParseNumericLiteral('-')
+				if result is None:
+					# return the minus sign to the parser as this isn't a number
+					self.SetPos(savePos)
+				return result
 		elif self.ParseInsensitive("true"):
-			result=edm.SimpleValue(edm.SimpleType.Boolean)
-			result.simpleValue=True
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+			result.pyValue=True
 			return result
 		elif self.ParseInsensitive("false"):
-			result=edm.SimpleValue(edm.SimpleType.Boolean)
-			result.simpleValue=False
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+			result.pyValue=False
 			return result
 		elif self.ParseInsensitive("datetimeoffset"):
-			result=edm.SimpleValue(edm.SimpleType.DateTimeOffset)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.DateTimeOffset)
 			production="datetimeoffset literal"
 			self.Require("'",production)
 			startPos=self.pos
@@ -107,10 +830,10 @@ class Parser(edm.Parser):
 				raise ValueError("datetimeoffset requires zone specifier: %s"%str(value))
 			if not value.Complete():
 				raise ValueError("datetimeoffset requires a complete specification: %s"%str(value))
-			result.simpleValue=value
+			result.pyValue=value
 			return result
 		elif self.ParseInsensitive("datetime"):
-			result=edm.SimpleValue(edm.SimpleType.DateTime)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.DateTime)
 			production="datetime literal"
 			self.Require("'",production)
 			year=int(self.RequireProduction(self.ParseDigits(4,4),production))
@@ -128,17 +851,17 @@ class Parser(edm.Parser):
 					nano=self.ParseDigits(1,7)
 					second+=float("0."+nano)					
 			else:
-				second=None
+				second=0
 			self.Require("'",production)
 			value=iso.TimePoint()
 			try:
 				value.SetCalendarTimePoint(year/100,year%100,month,day,hour,minute,second)
 			except iso.DateTimeError,e:
 				raise ValueError(str(e))
-			result.simpleValue=value
+			result.pyValue=value
 			return result
 		elif self.ParseInsensitive("time"):
-			result=edm.SimpleValue(edm.SimpleType.Time)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Time)
 			self.Require("'","time")
 			startPos=self.pos
 			while not self.Parse("'"):
@@ -149,42 +872,42 @@ class Parser(edm.Parser):
 				value=xsi.Duration(self.src[startPos:self.pos-1])
 			except iso.DateTimeError,e:
 				raise ValueError(str(e))			
-			result.simpleValue=value
+			result.pyValue=value
 			return result
 		elif self.Parse("X") or self.ParseInsensitive("binary"):
 			self.Require("'","binary")
-			result=edm.SimpleValue(edm.SimpleType.Binary)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Binary)
 			value=self.ParseBinaryLiteral()
 			self.Require("'","binary literal")
-			result.simpleValue=value
+			result.pyValue=value
 			return result
 		elif self.Match("."):
 			# One of the elided numeric forms, don't parse the point!
 			return self.ParseNumericLiteral()
 		elif self.ParseInsensitive("nan"):
 			if self.ParseOne("Dd"):
-				result=edm.SimpleValue(edm.SimpleType.Double)
-				result.simpleValue=float("Nan")
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Double)
+				result.pyValue=float("Nan")
 				return result
 			elif self.ParseOne("Ff"):
-				result=edm.SimpleValue(edm.SimpleType.Single)
-				result.simpleValue=float("Nan")
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Single)
+				result.pyValue=float("Nan")
 				return result
 			else:
 				raise ValueError("Expected double or single Nan: Nan%s"%repr(self.Peek(1)))			
 		elif self.ParseInsensitive("inf"):
 			if self.ParseOne("Dd"):
-				result=edm.SimpleValue(edm.SimpleType.Double)
-				result.simpleValue=float("INF")
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Double)
+				result.pyValue=float("INF")
 				return result
 			elif self.ParseOne("Ff"):
-				result=edm.SimpleValue(edm.SimpleType.Single)
-				result.simpleValue=float("INF")
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Single)
+				result.pyValue=float("INF")
 				return result
 			else:
 				raise ValueError("Expected double or single inf: INF%s"%repr(self.Peek(1)))
 		elif self.ParseInsensitive("guid"):
-			result=edm.SimpleValue(edm.SimpleType.Guid)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Guid)
 			self.Require("'","guid")
 			hex=[]
 			hex.append(self.RequireProduction(self.ParseHexDigits(8,8),"guid"))
@@ -202,49 +925,58 @@ class Parser(edm.Parser):
 				hex[3:3]=['FFFF']
 				hex.append(self.RequireProduction(self.ParseHexDigits(8,8),"guid"))
 			self.Require("'","guid")
-			result.simpleValue=uuid.UUID(hex=string.join(hex,''))
+			result.pyValue=uuid.UUID(hex=string.join(hex,''))
 			return result
-		else:			
-			raise ValueError("Expected literal: %s"%repr(self.Peek(10)))
+		else:
+			return None			
+			# raise ValueError("Expected literal: %s"%repr(self.Peek(10)))
 
 	def ParseNumericLiteral(self,sign=''):
+		"""Parses one of the number forms, returns a :py:class:`pyslet.mc_csdl.SimpleValue` instance.
+		
+		This method can return a value of type Decimal, Double, Single, Int64 or Int32.
+		
+		If no number if found then None is returned, if a number is partially parsed but is
+		badly formed a ValueError exception is raised.
+		
+		*sign* is one of '+', '', or '-' indicating the sign parsed prior to the number."""
 		digits=self.ParseDigits(1)
 		if self.Parse("."):
 			# could be a decimal
 			decDigits=self.ParseDigits(1)
 			if self.ParseOne("Mm"):
-				result=edm.SimpleValue(edm.SimpleType.Decimal)
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Decimal)
 				# it was a decimal
 				if decDigits is None:
 					raise ValueError("Missing digis after '.' for decimal: %s.d"%(digits))		
 				if len(digits)>29 or len(decDigits)>29:
 					raise ValueError("Too many digits for decimal literal: %s.%s"%(digits,decDigits))
-				result.simpleValue=decimal.Decimal("%s%s.%s"%(sign,digits,decDigits))
+				result.pyValue=decimal.Decimal("%s%s.%s"%(sign,digits,decDigits))
 				return result
 			elif self.ParseOne("Dd"):
-				result=edm.SimpleValue(edm.SimpleType.Double)
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Double)
 				if digits is None:
 					digits='0'
 				if decDigits is None:
 					decDigits='0'
 				# it was a double, no length restrictions
-				result.simpleValue=float("%s%s.%s"%(sign,digits,decDigits))
+				result.pyValue=float("%s%s.%s"%(sign,digits,decDigits))
 				return result
 			elif self.ParseOne("Ee"):
 				eSign=self.Parse("-")
 				eDigits=self.RequireProduction(self.ParseDigits(1,3),"exponent")
 				if self.ParseOne("Dd"):
-					result=edm.SimpleValue(edm.SimpleType.Double)
+					result=edm.SimpleValue.NewValue(edm.SimpleType.Double)
 					if digits is None:
 						raise ValueError("Missing digis before '.' for expDecimal")
 					if decDigits is None:
 						decDigits='0'
 					elif len(decDigits)>16:
 						raise ValueError("Too many digits for double: %s.%s"%(digits,decDigits))
-					result.simpleValue=float("%s%s.%se%s%s"%(sign,digits,decDigits,eSign,eDigits))
+					result.pyValue=float("%s%s.%se%s%s"%(sign,digits,decDigits,eSign,eDigits))
 					return result
 				elif self.ParseOne("Ff"):
-					result=edm.SimpleValue(edm.SimpleType.Single)
+					result=edm.SimpleValue.NewValue(edm.SimpleType.Single)
 					if digits is None:
 						raise ValueError("Missing digis before '.' for expDecimal")
 					if decDigits is None:
@@ -253,47 +985,50 @@ class Parser(edm.Parser):
 						raise ValueError("Too many digits for single: %s.%s"%(digits,decDigits))					
 					elif len(eDigits)>2:
 						raise ValueError("Too many digits for single exponet: %s.%sE%s%s"%(digits,decDigits,eSign,eDigits))					
-					result.simpleValue=float("%s%s.%se%s%s"%(sign,digits,decDigits,eSign,eDigits))
+					result.pyValue=float("%s%s.%se%s%s"%(sign,digits,decDigits,eSign,eDigits))
 					return result
 				else:
 					raise ValueError("NotImplementedError")
 			elif self.ParseOne("Ff"):
-				result=edm.SimpleValue(edm.SimpleType.Single)
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Single)
 				if digits is None:
 					digits='0'
 				if decDigits is None:
 					decDigits='0'
 				# it was a single, no length restrictions
-				result.simpleValue=float("%s%s.%s"%(sign,digits,decDigits))
+				result.pyValue=float("%s%s.%s"%(sign,digits,decDigits))
 				return result
 			else:
 				raise ValueError("NotImplementedError")
+		elif digits is None:
+			# no digits and no decimal point => this isn't a number
+			return None
 		elif self.ParseOne("Mm"):
-			result=edm.SimpleValue(edm.SimpleType.Decimal)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Decimal)
 			if len(digits)>29:
 				raise ValueError("Too many digits for decimal literal: %s"%digits)
-			result.simpleValue=decimal.Decimal("%s%s"%(sign,digits))
+			result.pyValue=decimal.Decimal("%s%s"%(sign,digits))
 			return result
 		elif self.ParseOne("Ll"):
-			result=edm.SimpleValue(edm.SimpleType.Int64)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Int64)
 			if len(digits)>19:
 				raise ValueError("Too many digits for int64 literal: %s"%digits)
-			result.simpleValue=long("%s%s"%(sign,digits))
+			result.pyValue=long("%s%s"%(sign,digits))
 			return result
 		elif self.ParseOne("Dd"):
-			result=edm.SimpleValue(edm.SimpleType.Double)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Double)
 			if len(digits)>17:
 				raise ValueError("Too many digits for double literal: %s"%digits)
-			result.simpleValue=float(sign+digits)
+			result.pyValue=float(sign+digits)
 			return result
 		elif self.ParseOne("Ff"):
-			result=edm.SimpleValue(edm.SimpleType.Single)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Single)
 			if len(digits)>8:
 				raise ValueError("Too many digits for single literal: %s"%digits)
-			result.simpleValue=float(sign+digits)
+			result.pyValue=float(sign+digits)
 			return result
 		else:
-			result=edm.SimpleValue(edm.SimpleType.Int32)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Int32)
 			# just a bunch of digits followed by something else so return int32
 			if digits is None:
 				raise ValueError("Digits required for integer literal: %s"%digits)				
@@ -303,7 +1038,7 @@ class Parser(edm.Parser):
 			value=int(sign+digits)
 			if value>2147483647 or value<-2147483648:
 				raise ValueError("Range of int32 exceeded: %s"%(sign+digits))
-			result.simpleValue=value
+			result.pyValue=value
 			return result
 
 	
@@ -390,8 +1125,35 @@ def ParseMaxDataServiceVersion(src):
 	return major,minor,uaStr	
 
 
+class SystemQueryOption(xsi.Enumeration):
+	"""SystemQueryOption defines constants for the OData-defined system query options
+	
+	Note that these options are enumerated without their '$' prefix::
+		
+		SystemQueryOption.filter	
+		SystemQueryOption.DEFAULT == None
+
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		'expand':1,
+		'filter':2,
+		'orderby':3,
+		'format':4,
+		'skip':5,
+		'top':6,
+		'skiptoken':7,
+		'inlinecount':8,
+		'select':9
+		}
+
+xsi.MakeEnumeration(SystemQueryOption)
+
+
 class ODataURI:
 	"""Breaks down an OData URI into its component parts.
+	
+	If the URI passed in is not a valid ODataURI then a
+	:py:class:`ServerError` (or a derived exception class) is raised.
 	
 	You pass the URI (or a string) to construct the object.  You may also pass
 	an optional *pathPrefix* which is a string that represents the part of the
@@ -413,7 +1175,7 @@ class ODataURI:
 		self.resourcePath=None			#: a string containing the resource path (or None if this is not a resource path)
 		self.navPath=[]					#: a list of navigation path component strings
 		self.queryOptions=[]			#: a list of raw strings containing custom query options and service op params
-		self.sysQueryOptions={}			#: a dictionary of system query options
+		self.sysQueryOptions={}			#: a dictionary mapping :py:class:`SystemQueryOption` constants to their values
 		self.paramTable={}
 		if dsURI.absPath is None:
 			#	relative paths are resolved relative to the pathPrefix with an added slash!
@@ -428,9 +1190,19 @@ class ODataURI:
 		if dsURI.query is not None:
 			rawOptions=dsURI.query.split('&')
 			for paramDef in rawOptions:
-				if paramDef and paramDef[0]=='$':
-					paramName=uri.UnescapeData(paramDef[:paramDef.index('=')]).decode('utf-8')
-					self.sysQueryOptions[paramName]=paramDef[paramDef.index('=')+1:]
+				if paramDef.startswith('$'):
+					paramName=uri.UnescapeData(paramDef[1:paramDef.index('=')]).decode('utf-8')
+					try:
+						param=SystemQueryOption.DecodeValue(paramName)
+						# Now parse the parameter value
+						paramParser=Parser(uri.UnescapeData(paramDef[paramDef.index('=')+1:]).decode('utf-8'))
+						if param==SystemQueryOption.filter:
+							paramValue=paramParser.RequireProduction(paramParser.ParseCommonExpression(),"boolCommonExpression")
+						else:
+							paramValue=paramDef[paramDef.index('=')+1:]
+					except ValueError, e:
+						raise InvalidSystemQueryOption("$%s : %s"%(paramName,str(e)))
+					self.sysQueryOptions[param]=paramValue
 				else:
 					if '=' in paramDef:
 						paramName=uri.UnescapeData(paramDef[:paramDef.index('=')]).decode('utf-8')
@@ -459,7 +1231,7 @@ class ODataURI:
 			if len(keys)==0:
 				return name,{}
 			elif len(keys)==1 and '=' not in keys[0]:
-				return name,{u'':ParseURILiteral(keys[0]).simpleValue}
+				return name,{u'':ParseURILiteral(keys[0]).pyValue}
 			else:
 				keyPredicate={}
 				for k in keys:
@@ -468,7 +1240,7 @@ class ODataURI:
 						raise ValueError("unrecognized key predicate: %s"%repr(keys))
 					kname,value=nv
 					kname=uri.UnescapeData(kname).decode('utf-8')
-					kvalue=ParseURILiteral(value).simpleValue
+					kvalue=ParseURILiteral(value).pyValue
 					keyPredicate[kname]=kvalue
 				return name,keyPredicate
 		else:
@@ -544,10 +1316,10 @@ class Property(ODataElement):
 					if type is None:
 						# unknown simple types treated as string
 						type=edm.SimpleType.String
-					value=edm.SimpleValue(type,self.xmlname)
+					value=edm.SimpleValue.NewValue(type,self.xmlname)
 		if isinstance(value,edm.SimpleValue):
 			if null:
-				value.SetSimpleValue(None)
+				value.pyValue=None
 			else:
 				value.SetFromLiteral(ODataElement.GetValue(self))
 		else:
@@ -613,15 +1385,15 @@ class Property(ODataElement):
 			self.SetAttribute((ODATA_METADATA_NAMESPACE,'null'),"true")
 			ODataElement.SetValue(self,"")
 		else:
-			edmValue=edm.SimpleValue(edm.SimpleType.FromPythonType(type(value)))
+			edmValue=edm.SimpleValue.NewValue(edm.SimpleType.FromPythonType(type(value)))
 			if declaredType is None:
 				type=self.GetNSAttribute((ODATA_METADATA_NAMESPACE,'type'))
 				# can only set from a string (literal form)
 				if edmValue.typeCode!=edm.SimpleType.String:
 					raise TypeError("Incompatible property types: %s and %s"%(type,edm.SimpleType.EncodeValue(edmValue.typeCode)))
 			elif edmValue.typeCode!=declaredType:
-				newValue=edm.SimpleValue(declaredType)
-				newValue.SetSimpleValue(edm.SimpleType.CoerceValue(declaredType,edmValue.GetSimpleValue()))
+				newValue=edm.SimpleValue.NewValue(declaredType)
+				newValue.pyValue=edm.SimpleType.CoerceValue(declaredType,edmValue.pyValue)
 				edmValue=newValue
 			self.SetAttribute((ODATA_METADATA_NAMESPACE,'null'),None)
 			ODataElement.SetValue(self,unicode(edmValue))
@@ -641,7 +1413,21 @@ class Properties(ODataElement):
 		return itertools.chain(
 			self.Property,
 			ODataElement.GetChildren(self))
-		
+
+
+class Collection(ODataElement):
+	"""Represents the result of a service operation that returns a collection of values."""
+	XMLNAME=(ODATA_METADATA_NAMESPACE,'collection')
+			
+	def __init__(self,parent):
+		ODataElement.__init__(self,parent)
+		self.Property=[]
+
+	def GetChildren(self):
+		return itertools.chain(
+			self.Property,
+			ODataElement.GetChildren(self))
+
 		
 class Content(atom.Content):
 	"""Overrides the default :py:class:`pyslet.rfc4287.Content` class to add OData handling."""
@@ -1199,10 +1985,12 @@ class Server(app.Server):
 					return self.HandleRequest(request,environ,start_response,responseHeaders)
 			else:
 				return result
+		except InvalidSystemQueryOption,e:
+			return self.ODataError(environ,start_response,"InvalidSystemQueryOption","Invalid System Query Option: %s"%str(e))
 		except ValueError,e:
 			traceback.print_exception(*sys.exc_info())
 			# This is a bad request
-			return HandleODataError(environ,start_response,"ValueError",str(e))
+			return self.ODataError(environ,start_response,"ValueError",str(e))
 		except:
 			traceback.print_exception(*sys.exc_info())
 			return self.HandleError(environ,start_response)
@@ -1257,7 +2045,6 @@ class Server(app.Server):
 					# bad request, because $count must be the only thing in the path
 					raise BadURISegment("%s since $count must be the last path component"%name)																		
 				if focus is None:
-					es=None
 					if name=='$metadata':
 						control=METADATA
 						continue
@@ -1265,41 +2052,55 @@ class Server(app.Server):
 						control=BATCH
 						continue
 					elif name in self.defaultContainer:
-						es=self.defaultContainer[name]
+						focus=self.defaultContainer[name]
 					else:
 						for s in self.model.DataServices.Schema:
 							if name in s:
-								es=s[name]
-								container=es.FindParent(edm.EntityContainer)
+								focus=s[name]
+								container=focus.FindParent(edm.EntityContainer)
 								if container is self.defaultContainer:
-									es=None
+									focus=None
 								break
-					if isinstance(es,edm.FunctionImport) and es.IsEntityCollection():
+					if isinstance(focus,edm.FunctionImport):
 						# TODO: grab the params from the query string
 						params={}
-						es=es.Execute(params)	
-					if isinstance(es,edm.EntitySet) or isinstance(es,edm.FunctionEntitySet):
+						focus=focus.Execute(params)
+						if not isinstance(focus,edm.FunctionEntitySet):
+							# a function that returns anything other than an entity set
+							for option in requestURI.sysQueryOptions:
+								if option!=SystemQueryOption.format:
+									raise InvalidSystemQueryOption('$'+SystemQueryOption.EncodeValue(option))
+					if isinstance(focus,edm.EntitySet) or isinstance(focus,edm.FunctionEntitySet):
 						if keyPredicate:
 							# the keyPredicate can be passed directly as the key
 							try:
+								es=focus
 								focus=es[keyPredicate]
 								path=["%s(%s)"%(es.name,repr(focus.Key()))]
 							except KeyError,e:
 								raise MissingURISegment(name)
 						else:
 							# return this entity set
-							focus=es
-							path.append(es.name)
-					else:
-						# Attempt to use the name of some other object type, bad request
-						raise MissingURISegment(name)
-				elif isinstance(focus,edm.EntitySet) or isinstance(focus,edm.DynamicEntitySet):
+							path.append(focus.name)
+# 					else:
+# 						# Attempt to use the name of some other object type, bad request
+# 						raise MissingURISegment(name)
+				elif isinstance(focus,(edm.EntitySet,edm.DynamicEntitySet)):
 					if name=="$count":
 						control=COUNT
+						for option in [
+							SystemQueryOption.format,
+							SystemQueryOption.skiptoken,
+							SystemQueryOption.inlinecount,
+							SystemQueryOption.select ]:
+							if option in requestURI.sysQueryOptions:
+								raise InvalidSystemQueryOption('$%s cannot be used with $count'%SystemQueryOption.EncodeValue(option))
 						continue
 					else:
 						# bad request, because the collection must be the last thing in the path
 						raise BadURISegment("%s since the object's parent is a collection"%name)
+				elif isinstance(focus,edm.FunctionCollection):
+					raise BadURISegment("%s since the object's parent is a collection"%name)					
 				elif isinstance(focus,edm.Entity):
 					if name in focus:
 						if control:
@@ -1314,11 +2115,17 @@ class Server(app.Server):
 							control=LINKS
 						elif name=="$count":
 							control=COUNT
+							for option in requestURI.sysQueryOptions:
+								if option not in [SystemQueryOption.expand, SystemQueryOption.filter]:
+									raise InvalidSystemQueryOption('$%s cannot be used with $count'%SystemQueryOption.EncodeValue(option))							
 						elif name=="$value":
 							hasStream=focus.typeDef.GetNSAttribute((ODATA_METADATA_NAMESPACE,'HasStream'))
 							hasStream=(hasStream and hasStream.lower()=="true")
 							if hasStream:
 								control=VALUE
+								for option in requestURI.sysQueryOptions:
+									if option!=SystemQueryOption.format:
+										raise InvalidSystemQueryOption('$%s cannot be used with media resource links'%SystemQueryOption.EncodeValue(option))							
 							else:
 								raise BadURISegment("%s since the entity is not a media stream"%name)
 						else:
@@ -1372,43 +2179,83 @@ class Server(app.Server):
 					else:
 						raise BadURISegment(name)
 			path=string.join(path,'/')
+			if control==METADATA:
+				if requestURI.sysQueryOptions:
+					raise InvalidSystemQueryOption('$metadata document must not have sytem query options')				
+				return self.ReturnMetadata(environ,start_response,responseHeaders)
+			elif control==BATCH:
+				if requestURI.sysQueryOptions:
+					raise InvalidSystemQueryOption('$batch must not have sytem query options')				
+				return self.ODataError(environ,start_response,"Bad Request","Batch requests not supported",404)
+			elif isinstance(focus,edm.Entity):
+				if control==COUNT:
+					return self.ReturnCount(1,environ,start_response,responseHeaders)
+				elif control==LINKS:
+					for option in [
+						SystemQueryOption.expand,
+						SystemQueryOption.filter,
+						SystemQueryOption.orderby,
+						SystemQueryOption.select ]:
+						if option in requestURI.sysQueryOptions:
+							raise InvalidSystemQueryOption('$'+SystemQueryOption.EncodeValue(option))
+					return self.ReturnLink(focus,environ,start_response,responseHeaders)				
+				elif control==VALUE:
+					return self.ReturnStream(focus,environ,start_response,responseHeaders)								
+				else:
+					for option in [
+						SystemQueryOption.orderby,
+						SystemQueryOption.skip,
+						SystemQueryOption.top,
+						SystemQueryOption.skiptoken,
+						SystemQueryOption.inlinecount ]:
+						if option in requestURI.sysQueryOptions:
+							raise InvalidSystemQueryOption('$'+SystemQueryOption.EncodeValue(option))
+					return self.ReturnEntity(path,focus,environ,start_response,responseHeaders)
+			elif isinstance(focus,edm.EDMValue):
+				for option in [
+					SystemQueryOption.expand,
+					SystemQueryOption.orderby,
+					SystemQueryOption.skip,
+					SystemQueryOption.top,
+					SystemQueryOption.skiptoken,
+					SystemQueryOption.inlinecount,
+					SystemQueryOption.select ]:
+					if option in requestURI.sysQueryOptions:
+						raise InvalidSystemQueryOption('$'+SystemQueryOption.EncodeValue(option))
+				if isinstance(focus,edm.SimpleValue) and SystemQueryOption.filter in requestURI.sysQueryOptions:
+					raise InvalidSystemQueryOption("$filter")					
+				if control==VALUE:
+					return self.ReturnDereferencedValue(focus,environ,start_response,responseHeaders)
+				else:
+					return self.ReturnValue(focus,environ,start_response,responseHeaders)
+			elif isinstance(focus,edm.EntitySet) or isinstance(focus,edm.DynamicEntitySet):
+				if control==COUNT:
+					return self.ReturnCount(len(focus),environ,start_response,responseHeaders)
+				elif control==LINKS:
+					for option in [
+						SystemQueryOption.expand,
+						SystemQueryOption.filter,
+						SystemQueryOption.orderby,
+						SystemQueryOption.select ]:
+						if option in requestURI.sysQueryOptions:
+							raise InvalidSystemQueryOption('$'+SystemQueryOption.EncodeValue(option))
+					return self.ReturnLinks(focus,environ,start_response,responseHeaders)				
+				else:
+					return self.ReturnEntityCollection(path,focus,environ,start_response,responseHeaders)
+			elif isinstance(focus,edm.FunctionCollection):
+				return self.ReturnCollection(focus,environ,start_response,responseHeaders)
+			else:	
+				# an empty navPath means we are trying to get the service root
+				wrapper=WSGIWrapper(environ,start_response,responseHeaders)
+				# super essentially allows us to pass a bound method of our parent
+				# that we ourselves are hiding.
+				return wrapper.call(super(Server,self).__call__)
+		except InvalidSystemQueryOption,e:
+			return self.ODataError(environ,start_response,"Bad Request","System query option is cannot be used with this form of URI: %s"%str(e),400)
 		except MissingURISegment,e:
 			return self.ODataError(environ,start_response,"Bad Request","Resource not found for component %s"%str(e),404)
 		except BadURISegment,e:
 			return self.ODataError(environ,start_response,"Bad Request","Resource not found for component %s"%str(e),400)
-		if control==METADATA:
-			return self.ReturnMetadata(environ,start_response,responseHeaders)
-		elif control==BATCH:
-			return self.ODataError(environ,start_response,"Bad Request","Batch requests not supported",404)
-		elif isinstance(focus,edm.Entity):
-			if control==COUNT:
-				return self.ReturnCount(1,environ,start_response,responseHeaders)
-			elif control==LINKS:
-				return self.ReturnLink(focus,environ,start_response,responseHeaders)				
-			elif control==VALUE:
-				return self.ReturnStream(focus,environ,start_response,responseHeaders)								
-			else:
-				return self.ReturnEntity(path,focus,environ,start_response,responseHeaders)
-		elif isinstance(focus,edm.EDMValue):
-			if control==VALUE:
-				return self.ReturnDereferencedValue(focus,environ,start_response,responseHeaders)
-			else:
-				return self.ReturnValue(focus,environ,start_response,responseHeaders)
-		elif isinstance(focus,edm.EntitySet) or isinstance(focus,edm.DynamicEntitySet):
-			if control==COUNT:
-				return self.ReturnCount(len(focus),environ,start_response,responseHeaders)
-			elif control==LINKS:
-				return self.ReturnLinks(focus,environ,start_response,responseHeaders)				
-			else:
-				return self.ReturnCollection(path,focus,environ,start_response,responseHeaders)
-		elif focus is not None:
-			raise NotImplementedError("property value or media resource")
-		else:	
-			# an empty navPath means we are trying to get the service root
-			wrapper=WSGIWrapper(environ,start_response,responseHeaders)
-			# super essentially allows us to pass a bound method of our parent
-			# that we ourselves are hiding.
-			return wrapper.call(super(Server,self).__call__)
 	
 	def ReturnMetadata(self,environ,start_response,responseHeaders):
 		doc=self.model.GetDocument()
@@ -1453,7 +2300,7 @@ class Server(app.Server):
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 			
-	def ReturnCollection(self,path,entities,environ,start_response,responseHeaders):
+	def ReturnEntityCollection(self,path,entities,environ,start_response,responseHeaders):
 		"""Returns an iterable of Entities."""
 		doc=Document(root=atom.Feed)
 		f=doc.root
@@ -1543,6 +2390,27 @@ class Server(app.Server):
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 				
+	def ReturnCollection(self,collection,environ,start_response,responseHeaders):
+		"""Returns a collection of values."""
+		e=Collection(None)
+		e.SetXMLName((ODATA_METADATA_NAMESPACE,collection.name))
+		doc=Document(root=e)
+		for value in collection:
+			p=e.ChildElement(Property)
+			p.SetXMLName((ODATA_DATASERVICES_NAMESPACE,value.name))
+			p.SetValue(value)
+		responseType=self.ContentNegotiation(environ,self.ValueTypes)
+		if responseType is None:
+			return self.ODataError(environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
+		if responseType=="application/json":
+			data=json.dumps(e,cls=ODataJSONEncoder)
+		else:
+			data=str(doc)
+		responseHeaders.append(("Content-Type",str(responseType)))
+		responseHeaders.append(("Content-Length",str(len(data))))
+		start_response("%i %s"%(200,"Success"),responseHeaders)
+		return [data]
+
 	def ReturnCount(self,number,environ,start_response,responseHeaders):
 		"""Returns the single value number."""
 		responseType=self.ContentNegotiation(environ,self.DereferenceTypes)

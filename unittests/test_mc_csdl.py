@@ -19,6 +19,8 @@ import pyslet.xml20081126.structures as xml
 import pyslet.mc_edmx as edmx
 from pyslet.vfs import OSFilePath as FilePath
 
+import decimal
+
 TEST_DATA_DIR=FilePath(FilePath(__file__).abspath().split()[0],'data_mc_csdl')
 
 
@@ -59,12 +61,38 @@ class CSDLTests(unittest.TestCase):
 		
 	def testSimpleValue(self):
 		"""Test the SimpleValue class."""
-		v=SimpleValue(SimpleType.Boolean)
+		v=SimpleValue.NewValue(SimpleType.Boolean)
 		self.failUnless(isinstance(v,EDMValue),"SimpleValue inherits from EDMValue")
-		self.failUnless(v.GetSimpleValue() is None,"Null value on construction")
-		v=SimpleValue(SimpleType.Boolean,"flag")
+		self.failUnless(v.pyValue is None,"Null value on construction")
+		v=SimpleValue.NewValue(SimpleType.Boolean,"flag")
 		self.failUnless(v.name=="flag","SimpleValue name set on constructor")
-		self.failUnless(v.GetSimpleValue() is None,"Null value on construction")
+		self.failUnless(v.pyValue is None,"Null value on construction")
+	
+	def testSimpleValueCasts(self):
+		v=SimpleValue.NewValue(SimpleType.Byte)
+		v.pyValue=13
+		v2=v.Cast(SimpleType.Int16)
+		self.failUnless(isinstance(v2,SimpleValue),"Cast gives a SimpleValue")
+		self.failUnless(v2.typeCode==SimpleType.Int16,"Cast uses passed type")
+		self.failUnless(v2.pyValue == 13,"Cast to Int16")
+		v2=v2.Cast(SimpleType.Int32)
+		self.failUnless(v2.typeCode==SimpleType.Int32,"Cast uses passed type")
+		self.failUnless(v2.pyValue == 13,"Cast to Int32")
+		v2=v2.Cast(SimpleType.Int64)
+		self.failUnless(v2.typeCode==SimpleType.Int64,"Cast uses passed type")
+		self.failUnless(type(v2.pyValue) is LongType,"Cast to Int64")
+		self.failUnless(v2.pyValue == 13L,"Cast to Int64")
+		v3=v2.Cast(SimpleType.Single)
+		self.failUnless(v3.typeCode==SimpleType.Single,"Cast uses passed type")
+		self.failUnless(type(v3.pyValue) is FloatType,"Cast to Single")
+		v3=v3.Cast(SimpleType.Double)
+		self.failUnless(v3.typeCode==SimpleType.Double,"Cast uses passed type")
+		self.failUnless(type(v3.pyValue) is FloatType,"Cast to Double")
+		self.failUnless(v3.pyValue==13.0,"Cast to Double")
+		v3=v2.Cast(SimpleType.Decimal)
+		self.failUnless(v3.typeCode==SimpleType.Decimal,"Cast uses passed type")
+		self.failUnless(isinstance(v3.pyValue,decimal.Decimal),"Cast to Decimal")
+		self.failUnless(v3==13,"Cast to Double")
 		
 	def testCaseSchema(self):
 		s=Schema(None)
