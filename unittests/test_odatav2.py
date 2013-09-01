@@ -754,6 +754,11 @@ class ODataURITests(unittest.TestCase):
 		except InvalidSystemQueryOption:
 			pass
 	
+	def EvaluateCommon(self,expressionString):
+		p=Parser(expressionString)
+		e=p.ParseCommonExpression()
+		return e.Evaluate(None)
+		
 	def testCaseEvaluateCommonExpression(self):
 		# cursory check:
 		# a commonExpression must represent any and all supported common expression types
@@ -767,9 +772,7 @@ class ODataURITests(unittest.TestCase):
 	def testCaseEvaluateBooleanExpression(self):
 		# cursory check:
 		# a boolCommonExpression MUST be a common expression that evaluates to the EDM Primitive type Edm.Boolean
-		p=Parser("true and false")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("true and false")
 		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
 		self.failUnless(value.pyValue is False,"Expected false")
 				
@@ -788,9 +791,7 @@ class ODataURITests(unittest.TestCase):
 		e=p.ParseCommonExpression()
 		value=e.Evaluate(None)
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("(((((((false) and (((false)) or true)))))))")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("(((((((false) and (((false)) or true)))))))")
 		self.failUnless(value.pyValue is False,"Expected False - multibrackets")
 				
 	def testCaseEvaluateBooleanParenExpression(self):
@@ -798,9 +799,7 @@ class ODataURITests(unittest.TestCase):
 		evaluating the expression with the parentheses. The result of
 		the boolParenExpression MUST ... be of the EDM Primitive type
 		Edm.Boolean"""
-		p=Parser("(false and (false or true))")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("(false and (false or true))")
 		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
 		self.failUnless(value.pyValue is False,"Expected false")
 	
@@ -823,106 +822,70 @@ class ODataURITests(unittest.TestCase):
 		
 		data service can support evaluating operands with null values
 		following the rules defined in Lifted operators"""
-		p=Parser("2M add 2M")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("2M add 2M")
 		self.failUnless(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
 		self.failUnless(value.pyValue == 4,"Expected 4")
-		p=Parser("2D add 2M")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("2D add 2M")
 		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
 		self.failUnless(value.pyValue == 4.0,"Expected 4")
-		p=Parser("2F add 2D")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("2F add 2D")
 		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
 		self.failUnless(value.pyValue == 4.0,"Expected 4")
-		p=Parser("2 add 2L")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("2 add 2L")
 		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
 		self.failUnless(value.pyValue == 4L,"Expected 4")
-		p=Parser("2 add '2'")
-		e=p.ParseCommonExpression()
 		try:
-			value=e.Evaluate(None)
+			value=self.EvaluateCommon("2 add '2'")
 			self.fail("String promotion to int")
 		except EvaluationError:
 			pass
-		p=Parser("2 add null")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("2 add null")
 		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
 		self.failUnless(value.pyValue is None,"Expected None")
 
 	def testCaseEvaluateSubExpression(self):
 		"""See testCaseEvaluateAddExpression"""
-		p=Parser("4M sub 2M")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("4M sub 2M")
 		self.failUnless(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
 		self.failUnless(value.pyValue == 2,"Expected 2.0")
-		p=Parser("4D sub 2M")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("4D sub 2M")
 		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
 		self.failUnless(value.pyValue == 2.0,"Expected 2.0")
-		p=Parser("4F sub 2D")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("4F sub 2D")
 		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
 		self.failUnless(value.pyValue == 2.0,"Expected 2.0")
-		p=Parser("4 sub 2L")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("4 sub 2L")
 		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
 		self.failUnless(value.pyValue == 2L,"Expected 2L")
-		p=Parser("4 sub '2'")
-		e=p.ParseCommonExpression()
 		try:
-			value=e.Evaluate(None)
+			value=self.EvaluateCommon("4 sub '2'")
 			self.fail("String promotion to int")
 		except EvaluationError:
 			pass
-		p=Parser("4 sub null")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("4 sub null")
 		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
 		self.failUnless(value.pyValue is None,"Expected None")
 
 	def testCaseEvaluateMulExpression(self):
 		"""See testCaseEvaluateAddExpression"""
-		p=Parser("4M mul 2M")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("4M mul 2M")
 		self.failUnless(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
 		self.failUnless(value.pyValue == 8,"Expected 8.0")
-		p=Parser("4D mul 2M")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("4D mul 2M")
 		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
 		self.failUnless(value.pyValue == 8.0,"Expected 8.0")
-		p=Parser("4F mul 2D")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("4F mul 2D")
 		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
 		self.failUnless(value.pyValue == 8.0,"Expected 8.0")
-		p=Parser("4 mul 2L")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("4 mul 2L")
 		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
 		self.failUnless(value.pyValue == 8L,"Expected 8L")
-		p=Parser("4 mul '2'")
-		e=p.ParseCommonExpression()
 		try:
-			value=e.Evaluate(None)
+			value=self.EvaluateCommon("4 mul '2'")
 			self.fail("String promotion to int")
 		except EvaluationError:
 			pass
-		p=Parser("4 mul null")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("4 mul null")
 		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
 		self.failUnless(value.pyValue is None,"Expected None")
 
@@ -932,48 +895,32 @@ class ODataURITests(unittest.TestCase):
 		OData is ambiguous in the way it defines division as it makes reference only
 		to the IEEE floating point operations.  For compatibility with SQL though we
 		assume that integer division simple truncates fractional parts."""
-		p=Parser("4M div 2M")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("4M div 2M")
 		self.failUnless(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
 		self.failUnless(value.pyValue == 2,"Expected 2")
-		p=Parser("4D div 2M")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("4D div 2M")
 		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
 		self.failUnless(value.pyValue == 2.0,"Expected 2.0")
-		p=Parser("4D div 0")
-		e=p.ParseCommonExpression()
 		try:
-			value=e.Evaluate(None)
+			value=self.EvaluateCommon("4D div 0")
 			self.fail("Division by zero")
 		except EvaluationError:
 			pass
-		p=Parser("4F div 2D")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("4F div 2D")
 		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
 		self.failUnless(value.pyValue == 2.0,"Expected 2.0")
-		p=Parser("5 div 2L")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("5 div 2L")
 		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
 		self.failUnless(value.pyValue == 2L,"Expected 2L")
-		p=Parser("-5 div 2L")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("-5 div 2L")
 		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
 		self.failUnless(value.pyValue == -2L,"Expected -2L")
-		p=Parser("4 div '2'")
-		e=p.ParseCommonExpression()
 		try:
-			value=e.Evaluate(None)
+			value=self.EvaluateCommon("4 div '2'")
 			self.fail("String promotion to int")
 		except EvaluationError:
 			pass
-		p=Parser("4 div null")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("4 div null")
 		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
 		self.failUnless(value.pyValue is None,"Expected None")
 
@@ -984,48 +931,32 @@ class ODataURITests(unittest.TestCase):
 		the modExpression, according to the rules of [IEEE754-2008]
 
 		For integer division we just truncate fractional parts towards zero."""
-		p=Parser("5.5M mod 2M")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("5.5M mod 2M")
 		self.failUnless(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
 		self.failUnless(value.pyValue == 1.5,"Expected 1.5")
-		p=Parser("5.5D mod 2M")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("5.5D mod 2M")
 		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
 		self.failUnless(value.pyValue == 1.5,"Expected 1.5")
-		p=Parser("5.5D mod 0")
-		e=p.ParseCommonExpression()
 		try:
-			value=e.Evaluate(None)
+			value=self.EvaluateCommon("5.5D mod 0")
 			self.fail("Division by zero")
 		except EvaluationError:
 			pass
-		p=Parser("5.5F mod 2D")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("5.5F mod 2D")
 		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
 		self.failUnless(value.pyValue == 1.5,"Expected 1.5")
-		p=Parser("5 mod 2L")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("5 mod 2L")
 		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
 		self.failUnless(value.pyValue == 1L,"Expected 1L")
-		p=Parser("-5 mod 2L")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("-5 mod 2L")
 		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
 		self.failUnless(value.pyValue == -1L,"Expected -1L")
-		p=Parser("5 mod '2'")
-		e=p.ParseCommonExpression()
 		try:
-			value=e.Evaluate(None)
+			value=self.EvaluateCommon("5 mod '2'")
 			self.fail("String promotion to int")
 		except EvaluationError:
 			pass
-		p=Parser("5 mod null")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("5 mod null")
 		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
 		self.failUnless(value.pyValue is None,"Expected None")
 
@@ -1041,14 +972,10 @@ class ODataURITests(unittest.TestCase):
 		equal to the result of evaluating the subExpression where one
 		operand is the value zero and the other is the value of the
 		operand.  [comment applies to null processing too]"""
-		p=Parser("-(2M)")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("-(2M)")
 		self.failUnless(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
 		self.failUnless(value.pyValue == -2,"Expected -2.0")
-		p=Parser("-(2D)")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("-(2D)")
 		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
 		self.failUnless(value.pyValue == -2.0,"Expected -2.0")
 		p=Parser("-(-2F)")	# unary numeric promotion to Double - a bit weird 
@@ -1056,21 +983,15 @@ class ODataURITests(unittest.TestCase):
 		value=e.Evaluate(None)
 		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
 		self.failUnless(value.pyValue == 2.0,"Expected 2.0")
-		p=Parser("-(2L)")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("-(2L)")
 		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
 		self.failUnless(value.pyValue == -2L,"Expected -2L")
-		p=Parser("-'2'")
-		e=p.ParseCommonExpression()
 		try:
-			value=e.Evaluate(None)
+			value=self.EvaluateCommon("-'2'")
 			self.fail("String promotion to numeric")
 		except EvaluationError:
 			pass
-		p=Parser("-null")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("-null")
 		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
 		self.failUnless(value.pyValue is None,"Expected None")
 
@@ -1091,42 +1012,26 @@ class ODataURITests(unittest.TestCase):
 		values following the rules defined in Binary Numeric
 		Promotions.... [for Boolean expressions evaluated to the value
 		of null, a data service MUST return the value of false]"""
-		p=Parser("false and false")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("false and false")
 		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("false and 0")
-		e=p.ParseCommonExpression()
 		try:
-			value=e.Evaluate(None)
+			value=self.EvaluateCommon("false and 0")
 			self.fail("Integer promotion to Boolean")
 		except EvaluationError:
 			pass
-		p=Parser("false and true")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("false and true")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("true and false")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("true and false")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("true and true")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("true and true")
 		self.failUnless(value.pyValue is True,"Expected True")
-		p=Parser("true and null")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("true and null")
 		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("false and null")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("false and null")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("false and false")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("false and false")
 		self.failUnless(value.pyValue is False,"Expected False")
 
 
@@ -1137,42 +1042,26 @@ class ODataURITests(unittest.TestCase):
 		true if at least one of the operands is true after being
 		evaluated. If both operands are false after being evaluated, the
 		expression MUST evaluate to the value of false"""
-		p=Parser("false or false")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("false or false")
 		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("false or 0")
-		e=p.ParseCommonExpression()
 		try:
-			value=e.Evaluate(None)
+			value=self.EvaluateCommon("false or 0")
 			self.fail("Integer promotion to Boolean")
 		except EvaluationError:
 			pass
-		p=Parser("false or true")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("false or true")
 		self.failUnless(value.pyValue is True,"Expected True")
-		p=Parser("true or false")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("true or false")
 		self.failUnless(value.pyValue is True,"Expected True")
-		p=Parser("true or true")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("true or true")
 		self.failUnless(value.pyValue is True,"Expected True")
-		p=Parser("true or null")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("true or null")
 		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("false or null")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("false or null")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("null or null")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("null or null")
 		self.failUnless(value.pyValue is False,"Expected False")
 
 	def testCaseEvaluateEqExpression(self):
@@ -1187,6 +1076,9 @@ class ODataURITests(unittest.TestCase):
 			Edm.DateTime
 			Edm.Guid
 			Edm.Binary
+		
+		(For tests on EntityType instances see the same method in the
+		sample data set later)
 			
 		The eqExpression SHOULD NOT be supported for any other EDM
 		Primitive types.
@@ -1205,134 +1097,858 @@ class ODataURITests(unittest.TestCase):
 		
 		...for equality operators, a data service MUST consider two null
 		values equal and a null value unequal to any non-null value."""
-		p=Parser("2M eq 3M")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("2M eq 3M")
 		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("2D eq 2M")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("2D eq 2M")
 		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
 		self.failUnless(value.pyValue is True,"Expected True")
-		p=Parser("2F eq 2D")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("2F eq 2D")
 		self.failUnless(value.pyValue is True,"Expected True")
-		p=Parser("2 eq 2L")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("2 eq 2L")
 		self.failUnless(value.pyValue is True,"Expected True")
-		p=Parser("2 eq '2'")
-		e=p.ParseCommonExpression()
 		try:
-			value=e.Evaluate(None)
+			value=self.EvaluateCommon("2 eq '2'")
 			self.fail("String promotion to int")
 		except EvaluationError:
 			pass
-		p=Parser("'2' eq '2'")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("'2' eq '2'")
 		self.failUnless(value.pyValue is True,"Expected True")
-		p=Parser("datetime'2013-08-30T18:49' eq datetime'2013-08-30T18:49'")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("datetime'2013-08-30T18:49' eq datetime'2013-08-30T18:49'")
 		self.failUnless(value.pyValue is True,"Expected True")
-		p=Parser("datetime'2013-08-30T18:49' eq datetime'2013-08-30T18:49:01'")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("datetime'2013-08-30T18:49' eq datetime'2013-08-30T18:49:01'")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' eq guid'b3afeebc-9658-4699-9d9c-1df551fd6814'")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' eq guid'b3afeebc-9658-4699-9d9c-1df551fd6814'")
 		self.failUnless(value.pyValue is True,"Expected True")
-		p=Parser("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' eq guid'3fa6109e-f09c-4c5e-a5f3-6cf38d35c9b5'")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' eq guid'3fa6109e-f09c-4c5e-a5f3-6cf38d35c9b5'")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("X'DEADBEEF' eq binary'deadbeef'")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("X'DEADBEEF' eq binary'deadbeef'")
 		self.failUnless(value.pyValue is True,"Expected True")			
-		p=Parser("X'DEAD' eq binary'BEEF'")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("X'DEAD' eq binary'BEEF'")
 		self.failUnless(value.pyValue is False,"Expected False")			
-		p=Parser("2 eq null")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("2 eq null")
 		self.failUnless(value.pyValue is False,"Expected False")			
-		p=Parser("null eq null")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("null eq null")
 		self.failUnless(value.pyValue is True,"Expected True")			
-
 
 	def testCaseEvaluateNeExpression(self):
 		"""See testCaseEvaluateEqExpression for details."""
-		p=Parser("2M ne 3M")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("2M ne 3M")
 		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
 		self.failUnless(value.pyValue is True,"Expected True")
-		p=Parser("2D ne 2M")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("2D ne 2M")
 		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("2F ne 2D")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("2F ne 2D")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("2 ne 2L")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("2 ne 2L")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("2 ne '2'")
-		e=p.ParseCommonExpression()
 		try:
-			value=e.Evaluate(None)
+			value=self.EvaluateCommon("2 ne '2'")
 			self.fail("String promotion to int")
 		except EvaluationError:
 			pass
-		p=Parser("'2' ne '2'")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("'2' ne '2'")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("datetime'2013-08-30T18:49' ne datetime'2013-08-30T18:49'")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("datetime'2013-08-30T18:49' ne datetime'2013-08-30T18:49'")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("datetime'2013-08-30T18:49' ne datetime'2013-08-30T18:49:01'")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("datetime'2013-08-30T18:49' ne datetime'2013-08-30T18:49:01'")
 		self.failUnless(value.pyValue is True,"Expected True")
-		p=Parser("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' ne guid'b3afeebc-9658-4699-9d9c-1df551fd6814'")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' ne guid'b3afeebc-9658-4699-9d9c-1df551fd6814'")
 		self.failUnless(value.pyValue is False,"Expected False")
-		p=Parser("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' ne guid'3fa6109e-f09c-4c5e-a5f3-6cf38d35c9b5'")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' ne guid'3fa6109e-f09c-4c5e-a5f3-6cf38d35c9b5'")
 		self.failUnless(value.pyValue is True,"Expected True")
-		p=Parser("X'DEADBEEF' ne binary'deadbeef'")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("X'DEADBEEF' ne binary'deadbeef'")
 		self.failUnless(value.pyValue is False,"Expected False")			
-		p=Parser("X'DEAD' ne binary'BEEF'")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("X'DEAD' ne binary'BEEF'")
 		self.failUnless(value.pyValue is True,"Expected True")			
-		p=Parser("2 ne null")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("2 ne null")
 		self.failUnless(value.pyValue is True,"Expected True")			
-		p=Parser("null ne null")
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
+		value=self.EvaluateCommon("null ne null")
 		self.failUnless(value.pyValue is False,"Expected False")			
 
 
+	def testCaseEvaluateLtExpression(self):
+		"""...operand expressions MUST evaluate to a value of one of the
+		following EDM Primitive types:
+			Edm.Decimal
+			Edm.Double
+			Edm.Single
+			Edm.Int32
+			Edm.Int64
+			Edm.String
+			Edm.DateTime
+			Edm.Guid
+
+		...data service SHOULD follow the binary numeric promotion
+		
+		...The EDM Primitive type of the result of evaluating the
+		ltExpression MUST be Edm.Boolean.
+
+		...a data service MUST return a value of true if the value of
+		the first operand is less than the value of the second operand,
+		false if not.
+		
+		...for relational operators, a data service MUST return the
+		value false if one or both of the operands is null."""
+		value=self.EvaluateCommon("2M lt 3M")
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is True,"Expected True")
+		value=self.EvaluateCommon("2D lt 2M")
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is False,"Expected False")
+		value=self.EvaluateCommon("2.1F lt 2D")
+		self.failUnless(value.pyValue is False,"Expected False")
+		value=self.EvaluateCommon("2 lt 3L")
+		self.failUnless(value.pyValue is True,"Expected True")
+		try:
+			value=self.EvaluateCommon("2 lt '3'")
+			self.fail("String promotion to int")
+		except EvaluationError:
+			pass
+		value=self.EvaluateCommon("'20' lt '3'")
+		self.failUnless(value.pyValue is True,"Expected True")
+		value=self.EvaluateCommon("datetime'2013-08-30T18:49' lt datetime'2013-08-30T18:49'")
+		self.failUnless(value.pyValue is False,"Expected False")
+		value=self.EvaluateCommon("datetime'2013-08-30T18:49' lt datetime'2013-08-30T18:49:01'")
+		self.failUnless(value.pyValue is True,"Expected True")
+		value=self.EvaluateCommon("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' lt guid'b3afeebc-9658-4699-9d9c-1df551fd6814'")
+		self.failUnless(value.pyValue is False,"Expected False")
+		value=self.EvaluateCommon("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' lt guid'3fa6109e-f09c-4c5e-a5f3-6cf38d35c9b5'")
+		self.failUnless(value.pyValue is False,"Expected False")
+		try:
+			p=Parser("X'DEADBEEF' lt binary'deadbeef'")
+			e=p.ParseCommonExpression()
+			value=e.Evaluate(None)
+			self.fail("Relational operation on binary data")
+		except EvaluationError:
+			pass
+		value=self.EvaluateCommon("2 lt null")
+		self.failUnless(value.pyValue is False,"Expected False")			
+		value=self.EvaluateCommon("null lt null")
+		self.failUnless(value.pyValue is False,"Expected False")			
+
+	def testCaseEvaluateLeExpression(self):
+		"""See testCaseEvaluateLtExpression for more information - abbreviated tests"""
+		value=self.EvaluateCommon("2D le 2M")
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is True,"Expected True")
+		value=self.EvaluateCommon("datetime'2013-08-30T18:49' le datetime'2013-08-30T18:49:00'")
+		self.failUnless(value.pyValue is True,"Expected True")
+		value=self.EvaluateCommon("2 le null")
+		self.failUnless(value.pyValue is False,"Expected False")			
+		value=self.EvaluateCommon("null le null")
+		self.failUnless(value.pyValue is False,"Expected False")			
+		
+	def testCaseEvaluateGtExpression(self):
+		"""See testCaseEvaluateLtExpression for more information - abbreviated tests"""
+		value=self.EvaluateCommon("2D gt 2M")
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is False,"Expected False")
+		value=self.EvaluateCommon("datetime'2013-08-30T18:49' gt datetime'2013-08-30T18:49:00'")
+		self.failUnless(value.pyValue is False,"Expected False")
+		value=self.EvaluateCommon("2 gt null")
+		self.failUnless(value.pyValue is False,"Expected False")			
+		value=self.EvaluateCommon("null gt null")
+		self.failUnless(value.pyValue is False,"Expected False")			
+		
+	def testCaseEvaluateGeExpression(self):
+		"""See testCaseEvaluateLtExpression for more information - abbreviated tests"""
+		value=self.EvaluateCommon("2D ge 2M")
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is True,"Expected True")
+		value=self.EvaluateCommon("datetime'2013-08-30T18:49' ge datetime'2013-08-30T18:49:00'")
+		self.failUnless(value.pyValue is True,"Expected True")
+		value=self.EvaluateCommon("2 ge null")
+		self.failUnless(value.pyValue is False,"Expected False")			
+		value=self.EvaluateCommon("null ge null")
+		self.failUnless(value.pyValue is False,"Expected False")			
+
+	def testCaseEvaluateNotExpression(self):
+		"""...operation is supported ... as long as the operand
+		expression evaluates to a value of the EDM Primitive type
+		Edm.Boolean. The data service SHOULD NOT support operand
+		expressions of any other EDM Primitive type
+
+		The EDM Primitive type of the result of evaluating the
+		notExpression MUST be Edm.Boolean.
+
+		the data service MUST evaluate the logical negation operation by
+		returning false if the operand value is true and returning true
+		if the operand value is false.
+		
+		...for unary operators, a data service MUST return the value
+		null if the operand value is null."""
+		value=self.EvaluateCommon("not false")
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is True,"Expected True")
+		value=self.EvaluateCommon("not true")
+		self.failUnless(value.pyValue is False,"Expected False")
+		try:
+			value=self.EvaluateCommon("not 1")
+			self.fail("Integer promotion to Boolean")
+		except EvaluationError:
+			pass
+		value=self.EvaluateCommon("not null")
+		self.failUnless(value.pyValue is None,"Expected NULL")
+	
+	def testCaseEvaluateIsOfExpression(self):
+		"""...the data service MAY<24> support some or all of the common
+		expressions as the first operand value... the data service can
+		support the first operand as being optional... interpreted to
+		apply to the entity instance specified by the navigation portion
+		of the request URI.
+		
+		The second operand MUST be a stringLiteral that represents the
+		name of a known entity or EDM Primitive type.
+
+		The EDM Primitive type of the result of evaluating the
+		isofExpression MUST be Edm.Boolean.
+
+		...the data service MUST evaluate the isofExpression to return a
+		value of true if the targeted instance can be converted to the
+		specified type. If the conversion is not allowed, then the
+		expression MUST be evaluated to false.
+		
+		data service can support evaluating an operand with a null value
+		following the rules defined in Binary Numeric Promotions. [It
+		isn't clear what this means at all, clearly there is a typo.  We
+		add our own rule... isof(NULL,'type') always returns False, in
+		keeping with other boolean operators]
+		
+		It is also not clear which 'explicit conversions' are allowed in
+		the Edm model and which aren't.  The approach taken is to allow
+		only the numeric promotions supported for binary operations,
+		which is a bit tight but perhaps safer than allowing forms which
+		may not be portable."""
+		value=self.EvaluateCommon("isof(2D,'Edm.Double')")
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is True,"Expected True")
+		value=self.EvaluateCommon("isof(2M,'Edm.Double')")
+		self.failUnless(value.pyValue is True,"Expected True")
+		value=self.EvaluateCommon("isof(2,'Edm.Double')")
+		self.failUnless(value.pyValue is True,"Expected True")
+		value=self.EvaluateCommon("isof(2.0D,'Edm.Single')")
+		self.failUnless(value.pyValue is False,"Expected False")
+		value=self.EvaluateCommon("isof('x','Edm.String')")
+		self.failUnless(value.pyValue is True,"Expected True")
+		value=self.EvaluateCommon("isof(X'DEAD','Edm.String')")
+		self.failUnless(value.pyValue is False,"Expected False")
+		value=self.EvaluateCommon("isof(false or true,'Edm.Boolean')")
+		self.failUnless(value.pyValue is True,"Expected True")
+		value=self.EvaluateCommon("isof(null,'Edm.String')")
+		self.failUnless(value.pyValue is False,"Expected False")
+		value=self.EvaluateCommon("isof('Edm.String')")
+		self.failUnless(value.pyValue is False,"Expected False")
+	
+	def testCaseEvaluateCastExpression(self):
+		"""...see testCaseEvaluateIsOfExpression for more information.
+		
+		The type of the result of evaluating the castExpression MUST be
+		the same type as represented by the string literal value from
+		the second operand.
+		
+		A data service MAY support any cast operations where there
+		exists an explicit conversion from the targeted instance (first
+		operand) to the type represented by second operand. In all other
+		cases, the data service SHOULD NOT support the specified cast
+		operation.
+
+		The data service MAY support evaluating an operand with a null
+		value following the rules defined in Lifted Operators. [again,
+		not 100% clear what these are.]"""
+		value=self.EvaluateCommon("cast(2D,'Edm.Double')")
+		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
+		self.failUnless(value.pyValue==2.0,"Expected 2.0")
+		value=self.EvaluateCommon("cast(2L,'Edm.Single')")
+		self.failUnless(value.typeCode==edm.SimpleType.Single,"Expected Single")
+		self.failUnless(value.pyValue==2.0,"Expected 2.0")
+		value=self.EvaluateCommon("cast(2,'Edm.Int64')")
+		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
+		self.failUnless(value.pyValue==2L,"Expected 2")
+		try:
+			value=self.EvaluateCommon("cast(2.0D,'Edm.Single')")
+			self.fail("Double cast to Single")
+		except:
+			pass
+		value=self.EvaluateCommon("cast('x','Edm.String')")
+		self.failUnless(value.pyValue=='x',"Expected 'x'")
+		try:
+			value=self.EvaluateCommon("cast(X'DEAD','Edm.String')")
+			self.fail("Binary cast to String")
+		except:
+			pass
+		try:
+			value=self.EvaluateCommon("cast(1,'Edm.Boolean')")
+			self.fail("1 cast to Boolean")
+		except:
+			pass
+		value=self.EvaluateCommon("cast(null,'Edm.String')")
+		self.failUnless(value.typeCode==edm.SimpleType.String,"Expected String")
+		self.failUnless(value.pyValue is None,"Expected None")
+		value=self.EvaluateCommon("cast('Edm.Int16')")
+		self.failUnless(value.typeCode==edm.SimpleType.Int16,"Expected Int16")
+		self.failUnless(value.pyValue is None,"Expected None")		
+	
+	def testCaseEvaluateBooleanCastExpression(self):
+		# cursory check:
+		value=self.EvaluateCommon("cast(true,'Edm.Boolean')")
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is True,"Expected True")
+
+	def testCaseEvaluateBooleanLiteralExpression(self):
+		"""the type of the boolLiteralExpression MUST always be the EDM
+		primitive type Edm.Boolean."""
+		value=self.EvaluateCommon("true")
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is True,"Expected True")
+		value=self.EvaluateCommon("false")
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue is False,"Expected False")
+
+	def testCaseEvaluateLiteralExpression(self):
+		"""the type of the literalExpression MUST be the EDM Primitive
+		type for the lexical representation of the literal:
+		
+			null
+			Edm.Binary
+			Edm.Boolean
+			Edm.Byte		
+			Edm.DateTime
+			Edm.Decimal
+			Edm.Double
+			Edm.Single
+			Edm.Guid
+			Edm.Int16
+			Edm.Int32
+			Edm.Int64
+			Edm.SByte,
+			Edm.String,
+			Edm.Time,
+			Edm.DateTimeOffset"""
+		value=self.EvaluateCommon("null")
+		self.failUnless(value.typeCode==None,"Expected None")
+		self.failUnless(value.pyValue==None,"Expected None")
+		value=self.EvaluateCommon("X'DEAD'")
+		self.failUnless(value.typeCode==edm.SimpleType.Binary,"Expected Binary")
+		self.failUnless(value.pyValue=='\xde\xad')
+		value=self.EvaluateCommon("true")
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Booelan")
+		self.failUnless(value.pyValue==True)
+		value=self.EvaluateCommon("123")
+		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
+		self.failUnless(value.pyValue==123)
+		value=self.EvaluateCommon("datetime'2013-08-31T15:28'")
+		self.failUnless(value.typeCode==edm.SimpleType.DateTime,"Expected DateTime")
+		self.failUnless(value.pyValue.date.year==13)
+		value=self.EvaluateCommon("123.5M")
+		self.failUnless(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
+		self.failUnless(value.pyValue==123.5)
+		value=self.EvaluateCommon("123.5D")
+		self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
+		self.failUnless(value.pyValue==123.5)
+		value=self.EvaluateCommon("123.5F")
+		self.failUnless(value.typeCode==edm.SimpleType.Single,"Expected Single")
+		self.failUnless(value.pyValue==123.5)
+		value=self.EvaluateCommon("guid'b3afeebc-9658-4699-9d9c-1df551fd6814'")
+		self.failUnless(value.typeCode==edm.SimpleType.Guid,"Expected Guid")
+		self.failUnless(value.pyValue==uuid.UUID('b3afeebc-9658-4699-9d9c-1df551fd6814'))
+		value=self.EvaluateCommon("123456")
+		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
+		self.failUnless(value.pyValue==123456)
+		value=self.EvaluateCommon("123456L")
+		self.failUnless(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
+		self.failUnless(value.pyValue==123456L)
+		value=self.EvaluateCommon("-123")
+		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
+		self.failUnless(value.pyValue==-123)
+		value=self.EvaluateCommon("'123'")
+		self.failUnless(value.typeCode==edm.SimpleType.String,"Expected String")
+		self.failUnless(value.pyValue=='123')
+		value=self.EvaluateCommon("time'P123D'")
+		self.failUnless(value.typeCode==edm.SimpleType.Time,"Expected Time")
+		self.failUnless(value.pyValue.days==123)
+		value=self.EvaluateCommon("datetimeoffset'2002-10-10T12:00:00-05:00'")
+		self.failUnless(value.typeCode==edm.SimpleType.DateTimeOffset,"Expected DateTimeOffset")
+		self.failUnless(value.pyValue==iso.TimePoint('2002-10-10T12:00:00-05:00'))
+
+	def testCaseEvaluateMethodCallExpression(self):
+		"""Cursory check only."""
+		value=self.EvaluateCommon("length('x')")
+		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
+		self.failUnless(value.pyValue==1)
+
+	def testCaseEvaluateBooleanMethodCallExpress(self):
+		"""Cursory check only."""
+		value=self.EvaluateCommon("startswith('xyz','x')")
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue==True)
+
+	def testCaseEvaluateEndsWithExpression(self):
+		"""The parameter expressions MUST evaluate to a value of the EDM
+		Primitive type Edm.String.
+
+		The endsWithMethodCallExpression SHOULD NOT be supported for
+		parameters of any other EDM Primitive types.
+		
+		...the result of evaluating the endsWithMethodCallExpression
+		SHOULD be a value of the EDM Primitive type Edm.Boolean.
+
+		...the data service SHOULD evaluate ... by returning a Boolean
+		value indicating whether the end of the first parameter
+		values matches the second parameter value."""
+		value=self.EvaluateCommon("endswith('startswith','with')")
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue==True)
+		value=self.EvaluateCommon("endswith('startswith','start')")
+		self.failUnless(value.pyValue==False)
+		value=self.EvaluateCommon("endswith('startswith','WITH')")
+		# not case insensitive
+		self.failUnless(value.pyValue==False)
+		try:
+			value=self.EvaluateCommon("endswith('3.14',4)")
+			self.fail("integer as suffix")
+		except EvaluationError:
+			pass
+		try:
+			value=self.EvaluateCommon("endswith('3.14')")
+			self.fail("1 parameter")
+		except EvaluationError:
+			pass
+
+	def testCaseEvaluateIndexOfExpression(self):
+		"""The parameter expressions MUST evaluate to a value of the EDM
+		Primitive type Edm.String.
+
+		The indexOfMethodCallExpression SHOULD NOT be supported for
+		parameters of any other EDM Primitive types.
+		
+		...the EDM Primitive type of the result of evaluating the
+		indexOfMethodCallExpression SHOULD be a value of the EDM
+		Primitive type Edm.Int32.
+		
+		the data service SHOULD evaluate ... by returning an integer
+		value indicating the index of the first occurrence of the second
+		parameter value in the first parameter value. If no index is
+		found, a value of -1 SHOULD be returned."""
+		value=self.EvaluateCommon("indexof('startswith','tart')")
+		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
+		self.failUnless(value.pyValue==1)
+		value=self.EvaluateCommon("indexof('startswith','start')")
+		self.failUnless(value.pyValue==0)
+		value=self.EvaluateCommon("indexof('startswith','t')")
+		self.failUnless(value.pyValue==1)
+		# not case insensitive
+		value=self.EvaluateCommon("indexof('startswith','W')")
+		self.failUnless(value.pyValue==-1)
+		try:
+			value=self.EvaluateCommon("indexof('3.14',1)")
+			self.fail("integer as parameter")
+		except EvaluationError:
+			pass
+		try:
+			value=self.EvaluateCommon("indexof('3.14')")
+			self.fail("1 parameter")
+		except EvaluationError:
+			pass
+
+	def testCaseEvaluateReplaceExpression(self):
+		"""The parameter expressions MUST evaluate to a value of the EDM
+		Primitive type Edm.String.
+
+		The replaceMethodCallExpression SHOULD NOT be supported for
+		parameters of any other EDM Primitive types.
+		
+		the EDM Primitive type of the result of evaluating the
+		replaceMethodCallExpression SHOULD be a value of the EDM
+		Primitive type Edm.String.
+
+		the data service SHOULD evaluate ... by returning a string value
+		with all occurrences of the second parameter value replaced by
+		the third parameter value in the first parameter value."""
+		value=self.EvaluateCommon("replace('startswith','tart','cake')")
+		self.failUnless(value.typeCode==edm.SimpleType.String,"Expected String")
+		self.failUnless(value.pyValue==u"scakeswith")
+		value=self.EvaluateCommon("replace('startswith','t','x')")
+		self.failUnless(value.pyValue==u"sxarxswixh")
+		# not case insensitive
+		value=self.EvaluateCommon("replace('sTartswith','t','x')")
+		self.failUnless(value.pyValue==u"sTarxswixh")
+		value=self.EvaluateCommon("replace('startswith','t','tx')")
+		self.failUnless(value.pyValue==u"stxartxswitxh")
+		try:
+			value=self.EvaluateCommon("replace('3.14','1',2)")
+			self.fail("integer as parameter")
+		except EvaluationError:
+			pass
+		try:
+			value=self.EvaluateCommon("replace('3.14','1')")
+			self.fail("2 parameter")
+		except EvaluationError:
+			pass
+
+	def testCaseEvaluateStartsWithExpression(self):
+		"""The parameter expressions MUST evaluate to a value of the EDM
+		Primitive type Edm.String.
+
+		The startsWithMethodCallExpression SHOULD NOT be supported for
+		parameters of any other EDM Primitive types.
+		
+		...the result of evaluating the startsWithMethodCallExpression
+		SHOULD be a value of the EDM Primitive type Edm.Boolean.
+
+		...the data service SHOULD evaluate ... by returning a Boolean
+		value indicating whether the beginning of the first parameter
+		values matches the second parameter value."""
+		value=self.EvaluateCommon("startswith('startswith','start')")
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue==True)
+		value=self.EvaluateCommon("startswith('startswith','end')")
+		self.failUnless(value.pyValue==False)
+		value=self.EvaluateCommon("startswith('startswith','Start')")
+		# not case insensitive
+		self.failUnless(value.pyValue==False)
+		try:
+			value=self.EvaluateCommon("startswith('3.14',3)")
+			self.fail("integer as prefix")
+		except EvaluationError:
+			pass
+		try:
+			value=self.EvaluateCommon("startswith('3.14')")
+			self.fail("1 parameter")
+		except EvaluationError:
+			pass
+
+	def testCaseEvaluateToLowerExpression(self):
+		"""The parameter expressions MUST evaluate to a value of the EDM
+		Primitive type Edm.String.
+
+		The toLowerMethodCallExpression SHOULD NOT be supported for
+		parameters of any other EDM Primitive types.
+		
+		...the EDM Primitive type of the result ... SHOULD be a value of
+		the EDM Primitive type Edm.String.
+
+		...the data service SHOULD evaluate ... by returning a string
+		value with the contents of the parameter value converted to
+		lower case."""
+		value=self.EvaluateCommon("tolower('Steve')")
+		self.failUnless(value.typeCode==edm.SimpleType.String,"Expected String")
+		self.failUnless(value.pyValue==u"steve")
+		value=self.EvaluateCommon(u"tolower('CAF\xc9')")
+		self.failUnless(value.pyValue==u'caf\xe9')
+		value=self.EvaluateCommon(u"tolower('caf\xe9')")
+		self.failUnless(value.pyValue==u'caf\xe9')
+		try:
+			value=self.EvaluateCommon("tolower(3.14F)")
+			self.fail("floating lower")
+		except EvaluationError:
+			pass
+		try:
+			value=self.EvaluateCommon("tolower('Steve','John')")
+			self.fail("2 parameters")
+		except EvaluationError:
+			pass
+
+	def testCaseEvaluateToUpperExpression(self):
+		"""The parameter expressions MUST evaluate to a value of the EDM
+		Primitive type Edm.String.
+
+		The toUpperMethodCallExpression SHOULD NOT be supported for
+		parameters of any other EDM Primitive types.
+		
+		...the EDM Primitive type of the result ... SHOULD be a value of
+		the EDM Primitive type Edm.String.
+
+		...the data service SHOULD evaluate ... by returning a string
+		value with the contents of the parameter value converted to
+		upper case."""
+		value=self.EvaluateCommon("toupper('Steve')")
+		self.failUnless(value.typeCode==edm.SimpleType.String,"Expected String")
+		self.failUnless(value.pyValue==u"STEVE")
+		value=self.EvaluateCommon(u"toupper('CAF\xc9')")
+		self.failUnless(value.pyValue==u'CAF\xc9')
+		value=self.EvaluateCommon(u"toupper('caf\xe9')")
+		self.failUnless(value.pyValue==u'CAF\xc9')
+		try:
+			value=self.EvaluateCommon("toupper(3.14F)")
+			self.fail("floating upper")
+		except EvaluationError:
+			pass
+		try:
+			value=self.EvaluateCommon("toupper('Steve','John')")
+			self.fail("2 parameters")
+		except EvaluationError:
+			pass
+
+	def testCaseEvaluateTrimExpression(self):
+		"""The parameter expressions MUST evaluate to a value of the EDM
+		Primitive type Edm.String.
+
+		The trimMethodCallExpression SHOULD NOT be supported for
+		parameters of any other EDM Primitive types.
+		
+		the EDM Primitive type of the result of evaluating the
+		trimMethodCallExpression SHOULD be a value of the EDM Primitive
+		type Edm.String.
+
+		the data service SHOULD evaluate ... by returning a string value
+		with the contents of the parameter value with all leading and
+		trailing white-space characters removed."""
+		value=self.EvaluateCommon("trim('  Steve\t\n\r \r\n')")
+		self.failUnless(value.typeCode==edm.SimpleType.String,"Expected String")
+		self.failUnless(value.pyValue==u"Steve")
+		value=self.EvaluateCommon(u"trim(' C  a  f \xe9 ')")
+		self.failUnless(value.pyValue==u'C  a  f \xe9')
+		try:
+			value=self.EvaluateCommon("trim(3.14F)")
+			self.fail("floating trim")
+		except EvaluationError:
+			pass
+		try:
+			value=self.EvaluateCommon("trim('Steve','John')")
+			self.fail("2 parameters")
+		except EvaluationError:
+			pass
+
+	def testCaseEvaluateSubstringExpression(self):
+		"""The first parameter expression MUST evaluate to a value of
+		the EDM Primitive type Edm.String. The second and third
+		parameter expressions MUST evaluate to a value of the EDM
+		Primitive type Edm.Int32.
+
+		The substringMethodCallExpression SHOULD NOT be supported for
+		parameters of any other EDM Primitive types.
+		
+		the EDM Primitive type of the result of evaluating the
+		substringMethodCallExpression SHOULD be a value of the EDM
+		Primitive type Edm.String.
+
+		the data service SHOULD evaluate ... by returning the string
+		value starting at the character index specified by the second
+		parameter value in the first parameter string value. If the
+		optional third parameter is specified, the resulting string
+		SHOULD be the length (in characters) of the third parameter
+		value. Otherwise, the entire string from the specified starting
+		index is returned."""
+		value=self.EvaluateCommon("substring('startswith',1,4)")
+		self.failUnless(value.typeCode==edm.SimpleType.String,"Expected String")
+		self.failUnless(value.pyValue==u"tart")
+		value=self.EvaluateCommon("substring('startswith',1)")
+		self.failUnless(value.pyValue==u"tartswith")
+		try:
+			value=self.EvaluateCommon("substring('startswith',1.0D,4)")
+			self.fail("double as parameter")
+		except EvaluationError:
+			pass
+		try:
+			value=self.EvaluateCommon("substring('3.14')")
+			self.fail("1 parameter")
+		except EvaluationError:
+			pass
+	
+	def testCaseEvaluateSubstringOfExpression(self):
+		"""The parameter expressions MUST evaluate to a value of the EDM
+		Primitive type Edm.String.
+
+		The substringOfMethodCallExpression SHOULD NOT be supported for
+		parameters of any other EDM Primitive types.
+		
+		the EDM Primitive type of the result of evaluating the
+		substringOfMethodCallExpression SHOULD be a value of the EDM
+		Primitive type Edm.Boolean.
+
+		...the data service SHOULD evaluate ... by returning a Boolean
+		value indicating whether the second parameter string value
+		occurs in the first parameter string value."""
+		value=self.EvaluateCommon("substringof('startswith','tart')")
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
+		self.failUnless(value.pyValue==True)
+		value=self.EvaluateCommon("substringof('startswith','start')")
+		self.failUnless(value.pyValue==True)
+		value=self.EvaluateCommon("substringof('startswith','t')")
+		self.failUnless(value.pyValue==True)
+		# not case insensitive
+		value=self.EvaluateCommon("substringof('startswith','W')")
+		self.failUnless(value.pyValue==False)
+		try:
+			value=self.EvaluateCommon("substringof('3.14',1)")
+			self.fail("integer as parameter")
+		except EvaluationError:
+			pass
+		try:
+			value=self.EvaluateCommon("substringof('3.14')")
+			self.fail("1 parameter")
+		except EvaluationError:
+			pass
+		
+	def testCaseEvaluateConcatExpression(self):
+		"""The parameter expressions MUST evaluate to a value of the EDM
+		Primitive type Edm.String.
+
+		The concatMethodCallExpression SHOULD NOT be supported for
+		parameters of any other EDM Primitive types.
+		
+		the EDM Primitive type of the result of evaluating the
+		concatMethodCallExpression SHOULD be a value of the EDM
+		Primitive type Edm.String.
+
+		the data service SHOULD evaluate ... by returning a string value
+		which is the first and second parameter values merged together
+		with the first parameter value coming first in the result."""
+		value=self.EvaluateCommon("concat('starts','with')")
+		self.failUnless(value.typeCode==edm.SimpleType.String,"Expected String")
+		self.failUnless(value.pyValue==u"startswith")
+		value=self.EvaluateCommon("concat('3.1',concat('4','159'))")
+		self.failUnless(value.pyValue==u"3.14159")
+		try:
+			value=self.EvaluateCommon("concat('3.14',1)")
+			self.fail("integer as parameter")
+		except EvaluationError:
+			pass
+		try:
+			value=self.EvaluateCommon("concat('3.14')")
+			self.fail("1 parameter")
+		except EvaluationError:
+			pass
+		try:
+			value=self.EvaluateCommon("concat('3.1','4','159')")
+			self.fail("3 parameters")
+		except EvaluationError:
+			pass
+	
+	def testCaseEvaluateLengthExpression(self):
+		"""The parameter expressions MUST evaluate to a value of the EDM
+		Primitive type Edm.String.
+
+		The lengthMethodCallExpression SHOULD NOT be supported for
+		parameters of any other EDM Primitive types.
+		
+		the EDM Primitive type of the result of evaluating the
+		lengthMethodCallExpression SHOULD be a value of the EDM
+		Primitive type Edm.Int32.
+
+		the data service SHOULD evaluate ... by returning the number of
+		characters in the specified parameter value."""
+		value=self.EvaluateCommon("length('Steve')")
+		self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
+		self.failUnless(value.pyValue==5)
+		value=self.EvaluateCommon(u"length('CAF\xc9')")
+		self.failUnless(value.pyValue==4)
+		value=self.EvaluateCommon(u"length('')")
+		self.failUnless(value.pyValue==0)
+		try:
+			value=self.EvaluateCommon("length(3.14F)")
+			self.fail("floating length")
+		except EvaluationError:
+			pass
+		try:
+			value=self.EvaluateCommon("length('Steve','John')")
+			self.fail("2 parameters")
+		except EvaluationError:
+			pass		
+
+	def testCaseEvaluateYearExpression(self):
+		"""The parameter expression MUST evaluate to a value of the EDM
+		Primitive type Edm.DateTime.
+
+		The yearMethodCallExpression SHOULD NOT be supported for
+		parameters of any other EDM Primitive types.
+
+		the EDM Primitive type of the result of evaluating the
+		yearMethodCallExpression SHOULD be the EDM Primitive type
+		Edm.Int32.
+
+		the data service SHOULD evaluate ... by returning the year
+		component value of the parameter value.
+		
+		We implement very similar tests for month, day, hour, minute and second"""
+		for f,r in (
+			("year",2013),
+			("month",9),
+			("day",1),
+			("hour",10),
+			("minute",56),
+			("second",0)):
+			value=self.EvaluateCommon("%s(datetime'2013-09-01T10:56')"%f)
+			self.failUnless(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
+			self.failUnless(value.pyValue==r)
+			try:
+				value=self.EvaluateCommon("%s(datetimeoffset'2013-09-01T10:56:12-05:00')"%f)
+				self.fail("datetimeoffset %s"%f)
+			except EvaluationError:
+				pass
+			try:
+				value=self.EvaluateCommon("%s(datetime'2013-09-01T10:56',datetime'2013-09-01T10:57')"%f)
+				self.fail("2 parameters")
+			except EvaluationError:
+				pass
+
+	def testCaseEvaluateRoundExpression(self):
+		"""The parameter expression MUST evaluate to a value of one of
+		the following EDM Primitive types:
+			Edm.Decimal
+			Edm.Double
+
+		The roundMethodCallExpression SHOULD NOT be supported for
+		parameters of any other EDM Primitive types.
+
+		data service SHOULD follow the numeric promotion rules for
+		method call parameters defined in Binary numeric promotions to
+		implicitly convert the parameters to a supported EDM Primitive
+		type.
+		
+		The EDM Primitive type of the result of evaluating the
+		roundMethodCallExpression MUST be the same type as the parameter.
+		
+		the data service SHOULD evaluate ... by returning the nearest
+		integral value to the parameter value, following the rules
+		defined in [IEEE754-2008] for the rounding operation.
+		
+		We cover floor and ceil using similar routines..."""
+		for f,r in (
+			("round",(2,2,-2,2,3,-3,2,3)),
+			("floor",(1,2,-3,1,2,-3,2,3)),
+			("ceiling",(2,3,-2,2,3,-2,3,3))):
+			value=self.EvaluateCommon("%s(1.5D)"%f)
+			self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
+			self.failUnless(value.pyValue==r[0])
+			# check rounding to even for binary floating point
+			value=self.EvaluateCommon("%s(2.5D)"%f)
+			self.failUnless(value.pyValue==r[1])
+			value=self.EvaluateCommon("%s(-2.5D)"%f)
+			self.failUnless(value.pyValue==r[2])
+			value=self.EvaluateCommon("%s(1.5M)"%f)
+			self.failUnless(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
+			self.failUnless(value.pyValue==r[3])
+			# check rounding away from zero for decimals
+			value=self.EvaluateCommon("%s(2.5M)"%f)
+			self.failUnless(value.pyValue==r[4])
+			value=self.EvaluateCommon("%s(-2.5M)"%f)
+			self.failUnless(value.pyValue==r[5])
+			# single promotes to double
+			value=self.EvaluateCommon("%s(2.5F)"%f)
+			self.failUnless(value.typeCode==edm.SimpleType.Double,"Expected Double")
+			self.failUnless(value.pyValue==r[6])
+			# integers promote to decimal - seems a bit strange but there you go
+			value=self.EvaluateCommon("%s(3)"%f)
+			self.failUnless(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
+			self.failUnless(value.pyValue==r[7])
+			try:
+				value=self.EvaluateCommon("%s('3')"%f)
+				self.fail("round string parameter")
+			except EvaluationError:
+				pass
+			try:
+				value=self.EvaluateCommon("%s(3.1D,3.2D)"%f)
+				self.fail("two parameters")
+			except EvaluationError:
+				pass		
+
+	def testCaseOperatorPrecedence(self):
+		value=self.EvaluateCommon("--2 mul 3 div 1 mul 2 mod 2 add 2 div 2 sub 1 eq 2 and false or true")
+		self.failUnless(value.pyValue is True)
+			
 	def testCaseEntitySet(self):
 		dsURI=ODataURI("Products()?$format=json&$top=20&$skip=10&space='%20'",'/x.svc')
 		self.failUnless(dsURI.resourcePath=='/Products()',"resource path")
@@ -1349,7 +1965,34 @@ class ODataURITests(unittest.TestCase):
 		dsURI=ODataURI('Products(x=1,y=2)','/x.svc')
 		self.failUnless(dsURI.navPath==[(u'Products',{u'x':1,u'y':2})],"path: %s"%repr(dsURI.navPath))
 		
-			
+	def testCaseExpand(self):
+		"""The left most entityNavProperty in an expandClause MUST
+		represent a NavigationProperty defined in the EntityType, or a
+		sub type thereof
+		
+		A subsequent NavigationProperty in the same expandClause must
+		represent a NavigationProperty defined on the EntityType, or a
+		sub type thereof, represented by the prior NavigationProperty in
+		the expandClause.
+
+		Redundant expandClause rules on the same data service URI can be
+		considered valid, but MUST NOT alter the meaning of the URI."""
+		dsURI=ODataURI("Customers?$expand=Orders",'/x.svc')
+		expand=dsURI.sysQueryOptions[SystemQueryOption.expand]
+		self.failUnless(len(expand)==1,"One path")
+		self.failUnless(len(expand[0])==1,"One navigation path component")
+		self.failUnless(expand[0][0]=='Orders')
+		dsURI=ODataURI("Customers?$expand=Orders,Orders",'/x.svc')
+		expand=dsURI.sysQueryOptions[SystemQueryOption.expand]
+		self.failUnless(len(expand)==1,"One path")
+		self.failUnless(len(expand[0])==1,"One navigation path component")
+		self.failUnless(expand[0][0]=='Orders')
+		dsURI=ODataURI("Orders?$expand=OrderLines/Product,Customer",'/x.svc')
+		expand=dsURI.sysQueryOptions[SystemQueryOption.expand]
+		self.failUnless(len(expand)==2)
+		self.failUnless(len(expand[0])==2)
+		self.failUnless(expand[0][1]=='Product')
+				
 class ClientTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		c=Client()
@@ -1843,7 +2486,23 @@ class SampleServerTests(unittest.TestCase):
 			self.fail("Navigation property cardinality")
 		except EvaluationError:
 			pass
-	
+
+	def testCaseEvaluateEqExpression(self):
+		"""Equality of EntityType instances is harder to test than you think,
+		the only way to get an expression to evaluate to an entity instance
+		is through a navigation property."""
+		orders=self.ds['SampleModel.SampleEntities.Orders']
+		order=orders[1]
+		# Known Entity: SimpleProperty
+		p=Parser("Customer eq Customer")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(order)
+		self.failUnless(value.typeCode==edm.SimpleType.Boolean,"Expected boolean")
+		self.failUnless(value.pyValue==True,"Expected True")		
+		p=Parser("Customer eq OrderLine")
+		e=p.ParseCommonExpression()
+		value=e.Evaluate(order)
+		self.failUnless(value.pyValue==False,"Expected False")		
 			
 	def testCaseServiceRoot(self):
 		"""The resource identified by [the service root] ... MUST be an AtomPub Service Document"""

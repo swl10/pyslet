@@ -1094,6 +1094,15 @@ class StringValue(SimpleValue):
 	def __init__(self,name=None):
 		SimpleValue.__init__(self,SimpleType.String,name)
 
+	def SetFromPyValue(self,newValue):
+		"""*newValue* must be a string, or have a suitable unicode conversion method."""
+		if newValue is None:
+			self.pyValue=None
+		elif type(newValue)==UnicodeType:
+			self.pyValue=newValue
+		else:
+			self.pyValue=unicode(newValue)
+
 		
 class SByteValue(SimpleValue):
 	"""Represents a simple value of type Edm.SByte"""
@@ -1543,6 +1552,14 @@ class Type(NameTableMixin,CSDLElement):
 	def UpdateTypeRefs(self,scope,stopOnErrors=False):
 		for p in self.Property:
 			p.UpdateTypeRefs(scope,stopOnErrors)
+	
+	def GetFQName(self):
+		"""Returns the full name of this type, including the schema namespace prefix."""
+		schema=self.FindParent(Schema)
+		if schema is None:
+			return name
+		else:
+			return string.join((schema.name,'.',self.name),'')
 		
 		
 class EntityType(Type):

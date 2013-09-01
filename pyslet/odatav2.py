@@ -80,7 +80,35 @@ def PromoteTypes(typeA,typeB):
 		return edm.SimpleType.Int16
 	# else must be both Byte - already got this case above	
 
+
+def CanCastMethodArgument(typeA,typeB):
+	"""Given two values from :py:class:`pyslet.mc_csdl.SimpleType` returns True if *typeA* can be cast to *typeB*.
 	
+	If typeA and typeB are the same this is always True.
+	
+	If typeA is NULL then we return True"""
+	if typeA==typeB:
+		return True
+	elif typeA is None:
+		return True
+	elif typeB==edm.SimpleType.Double:
+		return typeA in NUMERIC_TYPES
+	elif typeB==edm.SimpleType.Single:
+		return typeA in NUMERIC_TYPES
+	elif typeB==edm.SimpleType.Decimal:
+		return typeA in (edm.SimpleType.Decimal,edm.SimpleType.Int64,edm.SimpleType.Int32,edm.SimpleType.Int16)
+	elif typeB==edm.SimpleType.Int64:
+		return typeA in NUMERIC_TYPES
+	elif typeB==edm.SimpleType.Int32:
+		return typeA in NUMERIC_TYPES
+	elif typeB==edm.SimpleType.Int16:
+		return typeA in NUMERIC_TYPES
+	elif typeB==edm.SimpleType.Byte:
+		return typeA in NUMERIC_TYPES
+	else:
+		return False
+
+			
 class OperatorCategory(xsi.Enumeration):
 	"""An enumeration used to represent operator categories (for precedence).
 	::
@@ -212,7 +240,7 @@ class Method(xsi.Enumeration):
 		'second':17,
 		'round':18,
 		'floor':19,
-		'celing':20
+		'ceiling':20
 		}
 xsi.MakeEnumeration(Method)
 
@@ -236,24 +264,23 @@ class CommonExpression(object):
 		if other.operator is None or self.operator is None:
 			raise ValueError("Expression without operator cannot be compared")
 		return cmp(Operator.Category[self.operator],Operator.Category[other.operator])
-				
+
 
 class UnaryExpression(CommonExpression):
 	
 	EvalMethod={
 		}
-	"""A mapping from unary operators to bound class methods that
-	evaluate the operator."""
+	"""A mapping from unary operators to unbound methods that evaluate
+	the operator."""
 
 	def __init__(self,operator):
 		super(UnaryExpression,self).__init__(operator)
 
 	def Evaluate(self,contextEntity):
 		rValue=self.operands[0].Evaluate(contextEntity)
-		return self.EvalMethod[self.operator](rValue)
+		return self.EvalMethod[self.operator](self,rValue)
 
-	@classmethod
-	def EvaluateNegate(cls,rValue):
+	def EvaluateNegate(self,rValue):
 		typeCode=rValue.typeCode
 		if typeCode in (edm.SimpleType.Byte, edm.SimpleType.Int16):
 			rValue=rValue.Cast(edm.SimpleType.Int32)
@@ -270,9 +297,21 @@ class UnaryExpression(CommonExpression):
 		else:
 			raise EvaluationError("Illegal operand for negate")  
 
-	@classmethod
-	def EvaluateNot(cls,rValue):
-		raise NotImplementedError
+	def EvaluateNot(self,rValue):
+		if isinstance(rValue,edm.SimpleValue):
+			if rValue:
+				typeCode=rValue.typeCode
+				if typeCode==edm.SimpleType.Boolean:
+					result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+					result.SetFromPyValue(not rValue.pyValue)
+					return result
+				else:
+					raise EvaluationError("Illegal operand for not")  
+			else:
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+				return result
+		else:
+			raise EvaluationError("Illegal operand for not")  
 
 
 UnaryExpression.EvalMethod={
@@ -284,8 +323,8 @@ class BinaryExpression(CommonExpression):
 	
 	EvalMethod={
 		}
-	"""A mapping from binary operators to bound class methods that
-	evaluate the operator."""
+	"""A mapping from binary operators to unbound methods that evaluate
+	the operator."""
 	  
 	def __init__(self,operator):
 		super(BinaryExpression,self).__init__(operator)
@@ -297,17 +336,62 @@ class BinaryExpression(CommonExpression):
 			# side of the expression returns the context for evaluating
 			# the right-hand side
 			return self.operands[1].Evaluate(lValue)
+		elif self.operator in (Operator.isof, Operator.cast):
+			# Special handling due to optional first parameter to
+			# signify the context entity 
+			if len(self.operands)==1:
+				rValue=lValue
+				lValue=contextEntity
+			else:
+				rValue=self.operands[1].Evaluate(contextEntity)	
+			return self.EvalMethod[self.operator](self,lValue,rValue)
 		else:
 			rValue=self.operands[1].Evaluate(contextEntity)	
-			return self.EvalMethod[self.operator](lValue,rValue)
+			return self.EvalMethod[self.operator](self,lValue,rValue)
 		
-	@classmethod
-	def EvaluateCast(cls,lValue,rValue):
-		raise NotImplementedError
+	def PromoteOperands(self,lValue,rValue):
+		if isinstance(lValue,edm.SimpleValue) and isinstance(rValue,edm.SimpleValue):
+			return PromoteTypes(lValue.typeCode,rValue.typeCode)
+		else:
+			raise EvaluationError("Expected primitive value for %s"%Operator.EncodeValue(self.operator)) 
+
+	def EvaluateCast(self,lValue,rValue):
+		# rValue is always a string literal name of the type to look up
+		if not lValue:
+			# cast(NULL, <any type>) results in NULL
+			try:
+				typeCode=edm.SimpleType.DecodeValue(rValue.pyValue)
+				result=edm.SimpleValue.NewValue(typeCode)
+			except ValueError:
+				result=edm.SimpleValue.NewValue(None)
+			return result		
+		elif isinstance(lValue,edm.Entity):
+			# in the future we should deal with entity type inheritance
+			# right now, the only thing we can cast an entity instance
+			# to is itself
+			name=lValue.typeDev.GetFQName()
+			if name==rValue.pyValue:
+				return lValue
+			else:
+				raise EvaluationError("Can't cast %s to %s"%(name,str(rValue.pyValue)))
+		elif isinstance(lValue,edm.SimpleValue):
+			# look up the name of the primitive type
+			try:
+				typeCode=edm.SimpleType.DecodeValue(rValue.pyValue)
+			except ValueError:
+				raise EvaluationError("Unrecognized type: %s"%str(rValue.pyValue))
+			newCode=PromoteTypes(typeCode,lValue.typeCode)
+			if typeCode!=newCode:
+				raise EvaluationError("Can't cast %s to %s"%(edm.SimpleType.EncodeValue(lValue.typeCode),
+					edm.SimpleType.EncodeValue(typeCode)))
+			result=edm.SimpleValue.NewValue(typeCode)
+			result.SetFromPyValue(lValue.pyValue)
+			return result
+		else:
+			raise EvaluationError("Illegal operands for isof")  			
 	
-	@classmethod
-	def EvaluateMul(cls,lValue,rValue):
-		typeCode=PromoteTypes(lValue.typeCode,rValue.typeCode)
+	def EvaluateMul(self,lValue,rValue):
+		typeCode=self.PromoteOperands(lValue,rValue)
 		if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
 			edm.SimpleType.Double, edm.SimpleType.Decimal):
 			lValue=lValue.Cast(typeCode)
@@ -321,10 +405,9 @@ class BinaryExpression(CommonExpression):
 		else:
 			raise EvaluationError("Illegal operands for mul")  
 	
-	@classmethod
-	def EvaluateDiv(cls,lValue,rValue):
+	def EvaluateDiv(self,lValue,rValue):
 		try:
-			typeCode=PromoteTypes(lValue.typeCode,rValue.typeCode)
+			typeCode=self.PromoteOperands(lValue,rValue)
 			if typeCode in (edm.SimpleType.Single, edm.SimpleType.Double, edm.SimpleType.Decimal):
 				lValue=lValue.Cast(typeCode)
 				rValue=rValue.Cast(typeCode)
@@ -348,10 +431,9 @@ class BinaryExpression(CommonExpression):
 		except ZeroDivisionError as e:
 			raise EvaluationError(str(e))
 	
-	@classmethod
-	def EvaluateMod(cls,lValue,rValue):
+	def EvaluateMod(self,lValue,rValue):
 		try:
-			typeCode=PromoteTypes(lValue.typeCode,rValue.typeCode)
+			typeCode=self.PromoteOperands(lValue,rValue)
 			if typeCode in (edm.SimpleType.Single, edm.SimpleType.Double, edm.SimpleType.Decimal):
 				lValue=lValue.Cast(typeCode)
 				rValue=rValue.Cast(typeCode)
@@ -375,9 +457,8 @@ class BinaryExpression(CommonExpression):
 		except (ZeroDivisionError,ValueError) as e:
 			raise EvaluationError(str(e))
 				
-	@classmethod
-	def EvaluateAdd(cls,lValue,rValue):
-		typeCode=PromoteTypes(lValue.typeCode,rValue.typeCode)
+	def EvaluateAdd(self,lValue,rValue):
+		typeCode=self.PromoteOperands(lValue,rValue)
 		if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
 			edm.SimpleType.Double, edm.SimpleType.Decimal):
 			lValue=lValue.Cast(typeCode)
@@ -391,9 +472,8 @@ class BinaryExpression(CommonExpression):
 		else:
 			raise EvaluationError("Illegal operands for add")  
 	
-	@classmethod
-	def EvaluateSub(cls,lValue,rValue):
-		typeCode=PromoteTypes(lValue.typeCode,rValue.typeCode)
+	def EvaluateSub(self,lValue,rValue):
+		typeCode=self.PromoteOperands(lValue,rValue)
 		if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
 			edm.SimpleType.Double, edm.SimpleType.Decimal):
 			lValue=lValue.Cast(typeCode)
@@ -407,58 +487,113 @@ class BinaryExpression(CommonExpression):
 		else:
 			raise EvaluationError("Illegal operands for sub")  
 	
-	@classmethod
-	def EvaluateLt(cls,lValue,rValue):
-		raise NotImplementedError
+	def EvaluateLt(self,lValue,rValue):
+		return self.EvaluateRelation(lValue,rValue,lambda x,y:x<y)
 	
-	@classmethod
-	def EvaluateGt(cls,lValue,rValue):
-		raise NotImplementedError
+	def EvaluateGt(self,lValue,rValue):
+		return self.EvaluateRelation(lValue,rValue,lambda x,y:x>y)
 	
-	@classmethod
-	def EvaluateLe(cls,lValue,rValue):
-		raise NotImplementedError
+	def EvaluateLe(self,lValue,rValue):
+		return self.EvaluateRelation(lValue,rValue,lambda x,y:x<=y)
 	
-	@classmethod
-	def EvaluateGe(cls,lValue,rValue):
-		raise NotImplementedError
+	def EvaluateGe(self,lValue,rValue):
+		return self.EvaluateRelation(lValue,rValue,lambda x,y:x>=y)
 	
-	@classmethod
-	def EvaluateIsOf(cls,lValue,rValue):
-		raise NotImplementedError
-	
-	@classmethod
-	def EvaluateEq(cls,lValue,rValue):
-		typeCode=PromoteTypes(lValue.typeCode,rValue.typeCode)
+	def EvaluateRelation(self,lValue,rValue,relation):
+		typeCode=self.PromoteOperands(lValue,rValue)
 		if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
 			edm.SimpleType.Double, edm.SimpleType.Decimal):
 			lValue=lValue.Cast(typeCode)
 			rValue=rValue.Cast(typeCode)
 			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
-			result.SetFromPyValue(lValue.pyValue==rValue.pyValue)
+			if lValue and rValue:
+				result.SetFromPyValue(relation(lValue.pyValue,rValue.pyValue))
+			else:
+				# one of the operands is null => False
+				result.SetFromPyValue(False)
 			return result
-		elif typeCode in (edm.SimpleType.String, edm.SimpleType.DateTime, edm.SimpleType.Guid, edm.SimpleType.Binary):
+		elif typeCode in (edm.SimpleType.String, edm.SimpleType.DateTime, edm.SimpleType.Guid):
 			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
-			result.SetFromPyValue(lValue.pyValue==rValue.pyValue)
+			result.SetFromPyValue(relation(lValue.pyValue,rValue.pyValue))
 			return result
-		elif typeCode is None:	# null eq null
+		elif typeCode is None:	# e.g., null lt null
 			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
-			result.SetFromPyValue(True)
+			result.SetFromPyValue(False)
 			return result
 		else:
-			raise EvaluationError("Illegal operands for add")  
+			raise EvaluationError("Illegal operands for %s"%Operator.EncodeValue(self.operator))  
+		
+	def EvaluateIsOf(self,lValue,rValue):
+		# rValue is always a string literal name of the type to look up
+		if not lValue:
+			# isof(NULL, <any type> ) is False
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+			result.SetFromPyValue(False)
+			return result
+		elif isinstance(lValue,edm.Entity):
+			# in the future we should test the entity for inheritance
+			name=lValue.typeDev.GetFQName()
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+			result.SetFromPyValue(name==rValue.pyValue)
+			return result
+		elif isinstance(lValue,edm.SimpleValue):
+			# look up the name of the primitive type
+			try:
+				typeCode=edm.SimpleType.DecodeValue(rValue.pyValue)
+			except ValueError:
+				raise EvaluationError("Unrecognized type: %s"%str(rValue.pyValue))
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+			# we return True if the type of the target, when promoted with type
+			# being tested results in the type being tested
+			try:
+				rValue=(typeCode==PromoteTypes(typeCode,lValue.typeCode))
+			except EvaluationError:
+				# incompatible types means False
+				rValue=False
+			result.SetFromPyValue(rValue)
+			return result
+		else:
+			raise EvaluationError("Illegal operands for isof")  			
 	
-	@classmethod
-	def EvaluateNe(cls,lValue,rValue):
-		result=cls.EvaluateEq(lValue,rValue)
+	def EvaluateEq(self,lValue,rValue):
+		if isinstance(lValue,edm.Entity) and isinstance(rValue,edm.Entity):
+			# we can do comparison of entities, but must be the same entity!
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+			if lValue.entitySet is rValue.entitySet:
+				# now test that the keys are the same
+				result.pyValue=(lValue.Key()==rValue.Key())
+			else:
+				result.pyValue=False
+			return result
+		else:
+			typeCode=self.PromoteOperands(lValue,rValue)
+			if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
+				edm.SimpleType.Double, edm.SimpleType.Decimal):
+				lValue=lValue.Cast(typeCode)
+				rValue=rValue.Cast(typeCode)
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+				result.SetFromPyValue(lValue.pyValue==rValue.pyValue)
+				return result
+			elif typeCode in (edm.SimpleType.String, edm.SimpleType.DateTime, edm.SimpleType.Guid, edm.SimpleType.Binary):
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+				result.SetFromPyValue(lValue.pyValue==rValue.pyValue)
+				return result
+			elif typeCode is None:	# null eq null
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+				result.SetFromPyValue(True)
+				return result
+			else:
+				raise EvaluationError("Illegal operands for add")  
+	
+	def EvaluateNe(self,lValue,rValue):
+		result=self.EvaluateEq(lValue,rValue)
 		result.pyValue=not result.pyValue
 		return result
 	
-	@classmethod
-	def EvaluateAnd(cls,lValue,rValue):
+	def EvaluateAnd(self,lValue,rValue):
 		"""Watch out for the differences between OData 2-value logic and
 		the usual SQL 3-value approach."""
-		typeCode=PromoteTypes(lValue.typeCode,rValue.typeCode)
+		typeCode=self.PromoteOperands(lValue,rValue)
 		if typeCode==edm.SimpleType.Boolean:
 			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
 			if lValue and rValue:
@@ -474,11 +609,10 @@ class BinaryExpression(CommonExpression):
 		else:			
 			raise EvaluationError("Illegal operands for boolean and")
 				
-	@classmethod
-	def EvaluateOr(cls,lValue,rValue):
+	def EvaluateOr(self,lValue,rValue):
 		"""Watch out for the differences between OData 2-value logic and
 		the usual SQL 3-value approach."""
-		typeCode=PromoteTypes(lValue.typeCode,rValue.typeCode)
+		typeCode=self.PromoteOperands(lValue,rValue)
 		if typeCode==edm.SimpleType.Boolean:
 			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
 			if lValue and rValue:
@@ -551,9 +685,293 @@ class PropertyExpression(CommonExpression):
 
 class CallExpression(CommonExpression):
 	
+	EvalMethod={
+		}
+	"""A mapping from method calls to unbound methods that evaluate
+	the method."""
+
 	def __init__(self,methodCall):
 		super(CallExpression,self).__init__(Operator.methodCall)
 		self.method=methodCall
+
+	def Evaluate(self,contextEntity):
+		return self.EvalMethod[self.method](self,
+			map(lambda x:x.Evaluate(contextEntity),self.operands))
+
+	def PromoteParameter(self,arg,typeCode):
+		if isinstance(arg,edm.SimpleValue):
+			if CanCastMethodArgument(arg.typeCode,typeCode):
+				return arg.Cast(typeCode)
+		raise EvaluationError("Expected %s value in %s()"%(
+			edm.SimpleType.EncodeValue(typeCode),Method.EncodeValue(self.method))) 
+
+	def CheckStrictParameter(self,arg,typeCode):
+		if isinstance(arg,edm.SimpleValue):
+			if arg.typeCode==typeCode:
+				return arg
+		raise EvaluationError("Expected %s value in %s()"%(
+			edm.SimpleType.EncodeValue(typeCode),Method.EncodeValue(self.method))) 
+		
+	def EvaluateEndswith(self,args):
+		if (len(args)==2):
+			target=self.PromoteParameter(args[0],edm.SimpleType.String)
+			prefix=self.PromoteParameter(args[1],edm.SimpleType.String)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+			if target and prefix:
+				result.SetFromPyValue(target.pyValue.endswith(prefix.pyValue))
+			return result
+		else:
+			raise EvaluationError("endswith() takes 2 arguments, %i given"%len(args))
+
+	def EvaluateIndexof(self,args):
+		if (len(args)==2):
+			target=self.PromoteParameter(args[0],edm.SimpleType.String)
+			searchString=self.PromoteParameter(args[1],edm.SimpleType.String)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Int32)
+			if target and searchString:
+				result.SetFromPyValue(target.pyValue.find(searchString.pyValue))
+			return result
+		else:
+			raise EvaluationError("indexof() takes 2 arguments, %i given"%len(args))
+
+	def EvaluateReplace(self,args):
+		if (len(args)==3):
+			target=self.PromoteParameter(args[0],edm.SimpleType.String)
+			searchString=self.PromoteParameter(args[1],edm.SimpleType.String)
+			replaceString=self.PromoteParameter(args[2],edm.SimpleType.String)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.String)
+			if target and searchString and replaceString:
+				result.SetFromPyValue(target.pyValue.replace(searchString.pyValue,replaceString.pyValue))
+			return result
+		else:
+			raise EvaluationError("replace() takes 3 arguments, %i given"%len(args))
+
+	def EvaluateStartswith(self,args):
+		if (len(args)==2):
+			target=self.PromoteParameter(args[0],edm.SimpleType.String)
+			prefix=self.PromoteParameter(args[1],edm.SimpleType.String)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+			if target and prefix:
+				result.SetFromPyValue(target.pyValue.startswith(prefix.pyValue))
+			return result
+		else:
+			raise EvaluationError("startswith() takes 2 arguments, %i given"%len(args))
+
+	def EvaluateTolower(self,args):
+		if (len(args)==1):
+			target=self.PromoteParameter(args[0],edm.SimpleType.String)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.String)
+			if target:
+				result.SetFromPyValue(target.pyValue.lower())
+			return result
+		else:
+			raise EvaluationError("tolower() takes 1 argument, %i given"%len(args))
+
+	def EvaluateToupper(self,args):
+		if (len(args)==1):
+			target=self.PromoteParameter(args[0],edm.SimpleType.String)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.String)
+			if target:
+				result.SetFromPyValue(target.pyValue.upper())
+			return result
+		else:
+			raise EvaluationError("toupper() takes 1 argument, %i given"%len(args))
+
+	def EvaluateTrim(self,args):
+		if (len(args)==1):
+			target=self.PromoteParameter(args[0],edm.SimpleType.String)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.String)
+			if target:
+				result.SetFromPyValue(target.pyValue.strip())
+			return result
+		else:
+			raise EvaluationError("trim() takes 1 argument, %i given"%len(args))
+
+	def EvaluateSubstring(self,args):
+		if (len(args)==2 or len(args)==3):
+			target=self.CheckStrictParameter(args[0],edm.SimpleType.String)
+			start=self.CheckStrictParameter(args[1],edm.SimpleType.Int32)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.String)
+			if len(args)==3:
+				length=self.CheckStrictParameter(args[2],edm.SimpleType.Int32)
+			else:
+				length=None
+			if target and start:
+				if length:
+					result.SetFromPyValue(target.pyValue[start.pyValue:start.pyValue+length.pyValue])
+				else:
+					result.SetFromPyValue(target.pyValue[start.pyValue:])
+			return result
+		else:
+			raise EvaluationError("substring() takes 2 or 3 arguments, %i given"%len(args))
+
+	def EvaluateSubstringof(self,args):
+		if (len(args)==2):
+			target=self.PromoteParameter(args[0],edm.SimpleType.String)
+			searchString=self.PromoteParameter(args[1],edm.SimpleType.String)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
+			if target and searchString:
+				result.SetFromPyValue(target.pyValue.find(searchString.pyValue)>=0)
+			return result
+		else:
+			raise EvaluationError("substringof() takes 2 arguments, %i given"%len(args))
+
+	def EvaluateConcat(self,args):
+		if (len(args)==2):
+			leftString=self.CheckStrictParameter(args[0],edm.SimpleType.String)
+			rightString=self.CheckStrictParameter(args[1],edm.SimpleType.String)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.String)
+			if leftString and rightString:
+				result.SetFromPyValue(leftString.pyValue+rightString.pyValue)
+			return result
+		else:
+			raise EvaluationError("concat() takes 2 arguments, %i given"%len(args))
+
+	def EvaluateLength(self,args):
+		if (len(args)==1):
+			target=self.CheckStrictParameter(args[0],edm.SimpleType.String)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Int32)
+			if target:
+				result.SetFromPyValue(len(target.pyValue))
+			return result
+		else:
+			raise EvaluationError("length() takes 1 argument, %i given"%len(args))
+
+	def EvaluateYear(self,args):
+		if (len(args)==1):
+			target=self.CheckStrictParameter(args[0],edm.SimpleType.DateTime)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Int32)
+			if target:
+				result.SetFromPyValue(target.pyValue.date.century*100+target.pyValue.date.year)
+			return result
+		else:
+			raise EvaluationError("year() takes 1 argument, %i given"%len(args))
+
+	def EvaluateMonth(self,args):
+		if (len(args)==1):
+			target=self.CheckStrictParameter(args[0],edm.SimpleType.DateTime)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Int32)
+			if target:
+				result.SetFromPyValue(target.pyValue.date.month)
+			return result
+		else:
+			raise EvaluationError("month() takes 1 argument, %i given"%len(args))
+
+	def EvaluateDay(self,args):
+		if (len(args)==1):
+			target=self.CheckStrictParameter(args[0],edm.SimpleType.DateTime)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Int32)
+			if target:
+				result.SetFromPyValue(target.pyValue.date.day)
+			return result
+		else:
+			raise EvaluationError("day() takes 1 argument, %i given"%len(args))
+
+	def EvaluateHour(self,args):
+		if (len(args)==1):
+			target=self.CheckStrictParameter(args[0],edm.SimpleType.DateTime)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Int32)
+			if target:
+				result.SetFromPyValue(target.pyValue.time.hour)
+			return result
+		else:
+			raise EvaluationError("hour() takes 1 argument, %i given"%len(args))
+
+	def EvaluateMinute(self,args):
+		if (len(args)==1):
+			target=self.CheckStrictParameter(args[0],edm.SimpleType.DateTime)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Int32)
+			if target:
+				result.SetFromPyValue(target.pyValue.time.minute)
+			return result
+		else:
+			raise EvaluationError("minute() takes 1 argument, %i given"%len(args))
+
+	def EvaluateSecond(self,args):
+		if (len(args)==1):
+			target=self.CheckStrictParameter(args[0],edm.SimpleType.DateTime)
+			result=edm.SimpleValue.NewValue(edm.SimpleType.Int32)
+			if target:
+				result.SetFromPyValue(target.pyValue.time.second)
+			return result
+		else:
+			raise EvaluationError("second() takes 1 argument, %i given"%len(args))
+
+	def EvaluateRound(self,args):
+		"""This is a bit inefficient, but we convert to and from Decimal
+		if necessary to ensure we stick to the rounding rules (even for
+		binary, up for decimals)."""
+		if (len(args)==1):
+			try:
+				target=self.PromoteParameter(args[0],edm.SimpleType.Decimal)
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Decimal)
+				if target:
+					result.SetFromPyValue(target.pyValue.to_integral(decimal.ROUND_HALF_UP))
+			except EvaluationError:
+				target=self.PromoteParameter(args[0],edm.SimpleType.Double)				
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Double)
+				if target:
+					v=decimal.Decimal(target.pyValue)
+					result.SetFromPyValue(float(v.to_integral(decimal.ROUND_HALF_EVEN)))
+			return result
+		else:
+			raise EvaluationError("round() takes 1 argument, %i given"%len(args))
+
+	def EvaluateFloor(self,args):
+		if (len(args)==1):
+			try:
+				target=self.PromoteParameter(args[0],edm.SimpleType.Decimal)
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Decimal)
+				if target:
+					result.SetFromPyValue(target.pyValue.to_integral(decimal.ROUND_FLOOR))
+			except EvaluationError:
+				target=self.PromoteParameter(args[0],edm.SimpleType.Double)				
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Double)
+				if target:
+					result.SetFromPyValue(math.floor(target.pyValue))
+			return result
+		else:
+			raise EvaluationError("floor() takes 1 argument, %i given"%len(args))
+
+	def EvaluateCeiling(self,args):
+		if (len(args)==1):
+			try:
+				target=self.PromoteParameter(args[0],edm.SimpleType.Decimal)
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Decimal)
+				if target:
+					result.SetFromPyValue(target.pyValue.to_integral(decimal.ROUND_CEILING))
+			except EvaluationError:
+				target=self.PromoteParameter(args[0],edm.SimpleType.Double)				
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Double)
+				if target:
+					result.SetFromPyValue(math.ceil(target.pyValue))
+			return result
+		else:
+			raise EvaluationError("ceiling() takes 1 argument, %i given"%len(args))
+
+
+CallExpression.EvalMethod={
+	Method.endswith:CallExpression.EvaluateEndswith,
+	Method.indexof:CallExpression.EvaluateIndexof,
+	Method.replace:CallExpression.EvaluateReplace,
+	Method.startswith:CallExpression.EvaluateStartswith,
+	Method.tolower:CallExpression.EvaluateTolower,
+	Method.toupper:CallExpression.EvaluateToupper,
+	Method.trim:CallExpression.EvaluateTrim,
+	Method.substring:CallExpression.EvaluateSubstring,
+	Method.substringof:CallExpression.EvaluateSubstringof,
+	Method.concat:CallExpression.EvaluateConcat,
+	Method.length:CallExpression.EvaluateLength,
+	Method.year:CallExpression.EvaluateYear,
+	Method.month:CallExpression.EvaluateMonth,
+	Method.day:CallExpression.EvaluateDay,
+	Method.hour:CallExpression.EvaluateHour,
+	Method.minute:CallExpression.EvaluateMinute,
+	Method.second:CallExpression.EvaluateSecond,
+	Method.round:CallExpression.EvaluateRound,
+	Method.floor:CallExpression.EvaluateFloor,
+	Method.ceiling:CallExpression.EvaluateCeiling
+	}
 
 	
 class Parser(edm.Parser):
@@ -570,15 +988,17 @@ class Parser(edm.Parser):
 				rightOp=LiteralExpression(value)
 			else:
 				name=self.ParseSimpleIdentifier()
-				self.ParseWSP()
 				if name=="not":
 					self.RequireProduction(self.ParseWSP(),"WSP after not")
-					rightOp=UnaryExpression(Operator.notBool)
+					rightOp=UnaryExpression(Operator.boolNot)
 				elif name=="isof":
+					self.ParseWSP()
 					rightOp=self.RequireProduction(self.ParseCastLike(Operator.isof,"isof"),"isofExpression")
 				elif name=="cast":
+					self.ParseWSP()
 					rightOp=self.RequireProduction(self.ParseCastLike(Operator.cast,"cast"),"caseExpression")
 				elif name is not None:
+					self.ParseWSP()
 					if self.Match("("):
 						methodCall=Method.DecodeValue(name)
 						rightOp=self.ParseMethodCallExpression(methodCall)
@@ -661,20 +1081,26 @@ class Parser(edm.Parser):
 		return method
 		
 	def ParseCastLike(self,op,name):
-		"""Parses a cast-like expression, including 'isof'.
-		
-		Note that the OData 2 ABNF is in error here, it makes reference
-		to a stringLiteral but clearly a simple identifier is implied!"""
+		"""Parses a cast-like expression, including 'isof'."""
 		self.ParseWSP()
 		if self.Parse("("):
 			e=BinaryExpression(op)
-			e.left=self.ParseCommonExpression(None)
+			firstParam=self.RequireProduction(self.ParseCommonExpression(),"%s argument"%name)
+			e.AddOperand(firstParam)
 			self.ParseWSP()
-			self.RequireProduction(self.Parse(","),"',' in %s"%name)
-			self.ParseWSP()
-			e.right=self.RequireProduction(self.ParseSimpleIdentifier(),"simpleIdentifier in %s"%name)
-			self.ParseWSP()
-			self.RequireProduction(self.Parse(")"),"')' after %s"%name)
+			if self.ParseOne(")"):
+				# first parameter omitted
+				stringParam=firstParam
+			else:
+				self.RequireProduction(self.Parse(","),"',' in %s"%name)
+				self.ParseWSP()
+				stringParam=self.RequireProduction(self.ParseCommonExpression(),"%s argument"%name)
+				e.AddOperand(stringParam)
+				self.ParseWSP()
+				self.RequireProduction(self.Parse(")"),"')' after %s"%name)
+			# Final check, the string parameter must be a string literal!
+			if not isinstance(stringParam,LiteralExpression) or stringParam.value.typeCode!=edm.SimpleType.String:
+				raise ValueError("%s requires string literal")
 			return e
 		else:
 			return None
@@ -693,6 +1119,26 @@ class Parser(edm.Parser):
 		else:
 			return None
 	
+	def ParseExpandOption(self):
+		"""Parses an expand system query option, returning a list of tuples.
+		
+		E.g., "A/B,C" returns [("A","B"),("C")]"""
+		result=[]
+		match={}
+		while True:
+			navPath=[]
+			navPath.append(self.RequireProduction(self.ParseSimpleIdentifier(),"entityNavProperty"))
+			while self.Parse("/"):
+				navPath.append(self.RequireProduction(self.ParseSimpleIdentifier(),"entityNavProperty"))
+			navPath=tuple(navPath)
+			if navPath not in match:
+				result.append(navPath)
+				match[navPath]=True
+			if not self.Parse(","):
+				break
+		self.RequireEnd("expandQueryOp")
+		return result
+			
 	SimpleIdentifierStartClass=None
 	SimpleIdentifierClass=None
 	
@@ -1198,6 +1644,8 @@ class ODataURI:
 						paramParser=Parser(uri.UnescapeData(paramDef[paramDef.index('=')+1:]).decode('utf-8'))
 						if param==SystemQueryOption.filter:
 							paramValue=paramParser.RequireProduction(paramParser.ParseCommonExpression(),"boolCommonExpression")
+						elif param==SystemQueryOption.expand:
+							paramValue=paramParser.RequireProduction(paramParser.ParseExpandOption(),"expand query option")
 						else:
 							paramValue=paramDef[paramDef.index('=')+1:]
 					except ValueError, e:

@@ -54,7 +54,7 @@
                     DateTimeKind="Unspecified" PreserveSeconds="true"/>
                 <NavigationProperty Name="Customer" Relationship="SampleModel.Orders_Customers"
                     FromRole="Order" ToRole="Customer"/>
-                <NavigationProperty Name="OrderLines" Relationship="SampleModel.OrderLines_Orders"
+                <NavigationProperty Name="OrderLine" Relationship="SampleModel.OrderLines_Orders"
                     FromRole="Order" ToRole="OrderLine"/>
             </EntityType>
             <EntityType Name="OrderLine">
