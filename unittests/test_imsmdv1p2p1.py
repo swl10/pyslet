@@ -37,24 +37,24 @@ else:
 	
 class LRMTests(unittest.TestCase):
 	def testCaseConstants(self):
-		self.failUnless(IMSLRM_NAMESPACE=="http://www.imsglobal.org/xsd/imsmd_v1p2","Wrong LRM namespace: %s"%IMSLRM_NAMESPACE)
-		self.failUnless(len(IMSLRM_NAMESPACE_ALIASES)==2)
+		self.assertTrue(IMSLRM_NAMESPACE=="http://www.imsglobal.org/xsd/imsmd_v1p2","Wrong LRM namespace: %s"%IMSLRM_NAMESPACE)
+		self.assertTrue(len(IMSLRM_NAMESPACE_ALIASES)==2)
 		for alias in IMSLRM_NAMESPACE_ALIASES:
-			self.failIf(alias==IMSLRM_NAMESPACE)
-		self.failUnless(IMSLRM_SCHEMALOCATION=="http://www.imsglobal.org/xsd/imsmd_v1p2p4.xsd","LRM schemaLocation: %s"%IMSLRM_SCHEMALOCATION)
-		self.failUnless(LOM_SOURCE=="LOMv1.0","LOM_SOURCE")
+			self.assertFalse(alias==IMSLRM_NAMESPACE)
+		self.assertTrue(IMSLRM_SCHEMALOCATION=="http://www.imsglobal.org/xsd/imsmd_v1p2p4.xsd","LRM schemaLocation: %s"%IMSLRM_SCHEMALOCATION)
+		self.assertTrue(LOM_SOURCE=="LOMv1.0","LOM_SOURCE")
 		
 	def testCaseClassMap(self):
-		self.failUnless(GetElementClass((IMSLRM_NAMESPACE,'lom')) is LOM)
+		self.assertTrue(GetElementClass((IMSLRM_NAMESPACE,'lom')) is LOM)
 		for alias in IMSLRM_NAMESPACE_ALIASES:
-			self.failUnless(GetElementClass((alias,'lom')) is LOM)
-		self.failIf(GetElementClass(('http://www.example.com/','lom')) is LOM)
-		self.failUnless(GetElementClass((IMSLRM_NAMESPACE,'x-undefined')) is LRMElement)
+			self.assertTrue(GetElementClass((alias,'lom')) is LOM)
+		self.assertFalse(GetElementClass(('http://www.example.com/','lom')) is LOM)
+		self.assertTrue(GetElementClass((IMSLRM_NAMESPACE,'x-undefined')) is LRMElement)
 		
 class LRMElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		e=LRMElement(None)
-		#self.failUnless(e.ns==IMSLRM_NAMESPACE,'ns on construction')
+		#self.assertTrue(e.ns==IMSLRM_NAMESPACE,'ns on construction')
 		
 EXAMPLE_1="""<manifest xmlns="http://www.imsglobal.org/xsd/imscp_v1p1" xmlns:imsmd="http://www.imsglobal.org/xsd/imsmd_v1p2" 
 xmlns:imsqti="http://www.imsglobal.org/xsd/imsqti_v2p1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="MANIFEST-QTI-1" 
@@ -128,20 +128,20 @@ class LRMEducationalTests(unittest.TestCase):
 		ciao.SetValue("Ciao")
 		ciao.SetLang('it')
 		helloTest=description.GetLangString('en')
-		self.failUnless(helloTest.GetValue()=='Hello')
+		self.assertTrue(helloTest.GetValue()=='Hello')
 		ciaoTest=description.GetLangString('it')
-		self.failUnless(ciaoTest.GetValue()=='Ciao')
+		self.assertTrue(ciaoTest.GetValue()=='Ciao')
 		ciaoTest=description.GetLangString('it-IT')
-		self.failUnless(ciaoTest.GetValue()=='Ciao')
+		self.assertTrue(ciaoTest.GetValue()=='Ciao')
 		description.AddString('en','World')
 		helloTest=description.GetLangString('en')
-		self.failUnless(helloTest.GetValue()=='Hello; World')
+		self.assertTrue(helloTest.GetValue()=='Hello; World')
 		bonjour=description.AddString('fr','Bonjour')
 		bonjourTest=description.GetLangString('fr')
-		self.failUnless(bonjourTest.GetValue()=='Bonjour')
+		self.assertTrue(bonjourTest.GetValue()=='Bonjour')
 		unknown=description.AddString(None,'Hi')
 		unknownTest=description.GetLangString(None)
-		self.failUnless(unknownTest.GetValue()=='Hi')
+		self.assertTrue(unknownTest.GetValue()=='Hi')
 		
 
 class LRMDocumentTests(unittest.TestCase):
@@ -149,7 +149,7 @@ class LRMDocumentTests(unittest.TestCase):
 		doc=imscp.ManifestDocument()
 		doc.Read(src=StringIO(EXAMPLE_1))
 		r=doc.GetElementByID('choice')
-		self.failUnless(isinstance(list(r.Metadata.GetChildren())[0],LOM),"LOM")
+		self.assertTrue(isinstance(list(r.Metadata.GetChildren())[0],LOM),"LOM")
 		
 if __name__ == "__main__":
 	unittest.main()

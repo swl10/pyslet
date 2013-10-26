@@ -25,37 +25,36 @@ import pyslet.mc_edmx as edmx
 class PyDSTests(unittest.TestCase):
 
 	def setUp(self):
-		self.doc=Document()
+		self.doc=edmx.Document()
 		mdPath=TEST_DATA_DIR.join('metadata.xml')
 		with mdPath.open('rb') as f:
 			self.doc.Read(f)
 		self.schema=self.doc.root.DataServices['SampleModel']
 		self.container=self.doc.root.DataServices["SampleModel.SampleEntities"]
-		
+		self.employees=InMemoryEntityStore(self.container['Employees'])
+
 	def tearDown(self):
 		pass
 
 	def testCaseConstructors(self):
-		et=self.schema["Employee"]
-		es=EntitySet(None)
-		es.entityType=et
-		self.failUnless(isinstance(es,edm.EntitySet))
+		es=self.schema['SampleEntities.Employees']
+		self.assertTrue(isinstance(es.GetCollection(),EntityCollection))
 		
 	def testCaseLength(self):
 		es=self.schema['SampleEntities.Employees']
-		self.failUnless(isinstance(es,edm.EntitySet))
-		self.failUnless(len(es)==0,"Length on load")
-		es.data[u"ABCDE"]=(u"ABCDE",u"John Smith",None,None)
-		self.failUnless(len(es)==1,"Length after insert")
-		es.data[u"FGHIJ"]=(u"FGHIJ",u"Jane Smith",None,None)
-		self.failUnless(len(es)==2,"Length after 2xinsert")
-		del es[u"ABCDE"]
-		self.failUnless(len(es)==1,"Length after delete")
+		self.assertTrue(isinstance(es,edm.EntitySet))
+		self.assertTrue(len(es.GetCollection())==0,"Length on load")
+		self.employees.data[u"ABCDE"]=(u"ABCDE",u"John Smith",None,None)
+		self.assertTrue(len(es.GetCollection())==1,"Length after insert")
+		self.employees.data[u"FGHIJ"]=(u"FGHIJ",u"Jane Smith",None,None)
+		self.assertTrue(len(es.GetCollection())==2,"Length after 2xinsert")
+		del es.GetCollection()[u"ABCDE"]
+		self.assertTrue(len(es.GetCollection())==1,"Length after delete")
 	
 	def testCaseEntitySetData(self):
 		es=self.schema['SampleEntities.Employees']
-		es.data[u"ABCDE"]=(u"ABCDE",u"John Smith",None,None)
-		es.data[u"FGHIJ"]=(u"FGHIJ",u"Jane Smith",None,None)
+		self.employees.data[u"ABCDE"]=(u"ABCDE",u"John Smith",None,None)
+		self.employees.data[u"FGHIJ"]=(u"FGHIJ",u"Jane Smith",None,None)
 		
 		
 

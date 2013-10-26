@@ -17,6 +17,47 @@ CATEGORY_FILE="unicode5_catogories.pck"
 BLOCK_FILE="unicode5_blocks.pck"
 
 
+MagicTable={
+	'\x00\x00\xfe\xff':'utf_32_be',			# UCS-4, big-endian machine (1234 order)
+	'\xff\xfe\x00\x00':'utf_32_le',			# UCS-4, little-endian machine (4321 order)
+	'\x00\x00\xff\xfe':'utf_32',			# UCS-4, unusual octet order (2143)
+	'\xfe\xff\x00\x00':'utf_32',			# UCS-4, unusual octet order (3412)
+	'\xfe\xff\x2a\x2a':'utf_16_be',			# UTF-16, big-endian
+	'\xff\xfe\x2a\x2a':'utf_16_le',			# UTF-16, little-endian
+	'\x00\x00\x00\x2a':'utf_32_be',			# UCS-4 or other encoding with a big-endian 32-bit code unit
+	'\x2a\x00\x00\x00':'utf_32_le',			# UCS-4 or other encoding with a little-endian 32-bit code unit
+	'\x00\x00\x2a\x00':'utf_32_le',			# UCS-4 or other encoding with an unusual 32-bit code unit
+	'\x00\x2a\x00\x00':'utf_32_le',			# UCS-4 or other encoding with an unusual 32-bit code unit		
+	'\x00\x2a\x00\x2a':'utf_16_be',			# UTF-16BE or big-endian ISO-10646-UCS-2 or other encoding with a 16-bit code unit
+	'\x2a\x00\x2a\x00':'utf_16_le',			# UTF-16LE or little-endian ISO-10646-UCS-2 or other encoding with a 16-bit code unit
+	'\x2a\x2a\x2a\x2a':'utf_8'				# UTF-8, ISO 646, ASCII or similar
+	}
+	
+def DetectEncoding(magic):
+	"""Given a raw string of bytes this function looks at (up to) four
+	bytes and returns a best guess at the unicode encoding being used
+	for the data."""
+	if magic[0:3]=='\xef\xbb\xbf':
+		# catch this odd one first
+		return 'utf_8_sig'
+	# now we're only interested in a handful of values
+	keepers="\x00\xfe\xff"
+	key=[]
+	for i in xrange(4):
+		# star - as good as any
+		if i>=len(magic):
+			key.append('\x2a')
+		elif magic[i] in keepers:
+			key.append(magic[i])
+		else:
+			key.append('\x2A')
+	key=string.join(key,'')
+	if key in MagicTable:
+		return MagicTable[key]
+	else:
+		return None
+
+
 class CharClass:
 	"""Represents a class of unicode characters.
 	

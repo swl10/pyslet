@@ -17,9 +17,9 @@ import pyslet.imscpv1p2 as imscp
 
 class CCMiscTests(unittest.TestCase):
 	def testCaseConstants(self):
-		self.failUnless(IMSCC_CP_NAMESPACE=="http://www.imsglobal.org/xsd/imsccv1p1/imscp_v1p1","Wrong CP namespace: %s"%IMSCC_CP_NAMESPACE)
-		self.failUnless(IMSCC_LOMMANIFEST_NAMESPACE=="http://ltsc.ieee.org/xsd/imsccv1p2/LOM/manifest","Wrong LOM Manifest namespace: %s"%IMSCC_LOMMANIFEST_NAMESPACE)
-		self.failUnless(IMSCC_LOMRESOURCE_NAMESPACE=="http://ltsc.ieee.org/xsd/imsccv1p2/LOM/resource","Wrong LOM Resource namespace: %s"%IMSCC_LOMRESOURCE_NAMESPACE)
+		self.assertTrue(IMSCC_CP_NAMESPACE=="http://www.imsglobal.org/xsd/imsccv1p1/imscp_v1p1","Wrong CP namespace: %s"%IMSCC_CP_NAMESPACE)
+		self.assertTrue(IMSCC_LOMMANIFEST_NAMESPACE=="http://ltsc.ieee.org/xsd/imsccv1p2/LOM/manifest","Wrong LOM Manifest namespace: %s"%IMSCC_LOMMANIFEST_NAMESPACE)
+		self.assertTrue(IMSCC_LOMRESOURCE_NAMESPACE=="http://ltsc.ieee.org/xsd/imsccv1p2/LOM/resource","Wrong LOM Resource namespace: %s"%IMSCC_LOMRESOURCE_NAMESPACE)
 
 class CommonCartridgeTests(unittest.TestCase):
 	def setUp(self):
@@ -38,13 +38,13 @@ class CommonCartridgeTests(unittest.TestCase):
 		
 	def testCaseConstructor(self):
 		cc=CommonCartridge()
-		self.failUnless(isinstance(cc.cp,imscp.ContentPackage))
-		self.failUnless(isinstance(cc.cp,ContentPackage))
+		self.assertTrue(isinstance(cc.cp,imscp.ContentPackage))
+		self.assertTrue(isinstance(cc.cp,ContentPackage))
 		self.cpList.append(cc.cp)
-		self.failUnless(len(cc.laoTable.keys())==0)
+		self.assertTrue(len(cc.laoTable.keys())==0)
 		cc=CommonCartridge(os.path.join(self.dataPath,'sample_1'))
 		# import pdb;pdb.set_trace()
-		# self.failUnless(len(cc.laoTable.keys())==3)
+		# self.assertTrue(len(cc.laoTable.keys())==3)
 		
 if __name__ == "__main__":
 	#unittest.main()

@@ -44,6 +44,7 @@
             </EntityContainer>
             <EntityContainer Name="ExtraEntities">
                 <EntitySet Name="Content" EntityType="SampleModel.Document"/>
+                <EntitySet Name="BitsAndPieces" EntityType="SampleModel.BitsAndPieces"/>
             </EntityContainer>
             <EntityType Name="Order">
                 <Key>
@@ -64,7 +65,7 @@
                 <Property Name="OrderLineID" Type="Edm.Int32" Nullable="false"/>
                 <Property Name="Quantity" Type="Edm.Int32" Nullable="false"/>
                 <Property Name="UnitPrice" Type="Edm.Decimal" Nullable="false"/>
-                <NavigationProperty Name="Order" Relationship="SampleModel.OrderLines_Orders"
+                <NavigationProperty Name="Orders" Relationship="SampleModel.OrderLines_Orders"
                     FromRole="OrderLine" ToRole="Order"/>
             </EntityType>
             <EntityType Name="Customer">
@@ -103,7 +104,15 @@
                 </Key>
                 <Property Name="DocumentID" Type="Edm.Int32" Nullable="false"/>
                 <Property Name="Title" Type="Edm.String" Unicode="true"/>
-                <Property Name="Author" Type="Edm.String" Unicode="true"/>
+                <Property Name="Author" Type="Edm.String" Unicode="true" m:FC_TargetPath="SyndicationAuthorName" m:FC_KeepInContent="false"/>
+                <Property Name="Version" Type="Edm.Binary" Nullable="true" MaxLength="32" FixedLength="true" ConcurrencyMode="Fixed"/>
+            </EntityType>
+            <EntityType Name="BitsAndPieces">
+            	<Key>
+            		<PropertyRef Name="ID"/>
+            	</Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Details" Type="Edm.String" Unicode="true" m:MimeType="application/x-details"/>            	
             </EntityType>
             <ComplexType Name="EAddress">
                 <Property Name="Street" Type="Edm.String" Unicode="true"/>

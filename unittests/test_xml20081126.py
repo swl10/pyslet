@@ -45,6 +45,7 @@ class PIRecorderElement(Element):
 	
 class NamedElement(Element):
 	XMLNAME="test"
+	XMLCONTENT=ElementType.ElementContent
 
 def DecodeYN(value):
 	return value=='Yes'
@@ -114,7 +115,9 @@ class ReflectiveElement(Element):
 		
 	
 class ReflectiveDocument(Document):
-	def GetElementClass(self,name):
+	
+	@classmethod
+	def GetElementClass(cls,name):
 		if name in ["reflection","etest"]:
 			return ReflectiveElement
 		else:
@@ -153,16 +156,16 @@ class Elements:
 	
 class XML20081126Tests(unittest.TestCase):		
 	def testCaseConstants(self):
-		#self.failUnless(APP_NAMESPACE=="http://www.w3.org/2007/app","Wrong APP namespace: %s"%APP_NAMESPACE)
-		#self.failUnless(ATOMSVC_MIMETYPE=="application/atomsvc+xml","Wrong APP service mime type: %s"%ATOMSVC_MIMETYPE)
-		#self.failUnless(ATOMCAT_MIMETYPE=="application/atomcat+xml","Wrong APP category mime type: %s"%ATOMCAT_MIMETYPE)
+		#self.assertTrue(APP_NAMESPACE=="http://www.w3.org/2007/app","Wrong APP namespace: %s"%APP_NAMESPACE)
+		#self.assertTrue(ATOMSVC_MIMETYPE=="application/atomsvc+xml","Wrong APP service mime type: %s"%ATOMSVC_MIMETYPE)
+		#self.assertTrue(ATOMCAT_MIMETYPE=="application/atomcat+xml","Wrong APP category mime type: %s"%ATOMCAT_MIMETYPE)
 		pass
 
 	def testCaseDeclare(self):
 		classMap={}
 		MapClassElements(classMap,Elements)
-		self.failUnless(type(classMap['mixed']) is types.TypeType,"class type not declared")
-		self.failIf(hasattr(classMap,'bad'),"class type declared by mistake")
+		self.assertTrue(type(classMap['mixed']) is types.TypeType,"class type not declared")
+		self.assertFalse(hasattr(classMap,'bad'),"class type declared by mistake")
 
 		
 class XMLCharacterTests(unittest.TestCase):
@@ -172,12 +175,12 @@ class XMLCharacterTests(unittest.TestCase):
 		expectedEdges=[0x9,0xB,0xD,0xE,0x20,0xD800,0xE000,0xFFFE,0x10000,0x110000]
 		if MAX_CHAR<0x10FFFF:
 			expectedEdges=expectedEdges[0:8]
-		self.failUnless(self.FindEdges(IsChar,MAX_CHAR)==expectedEdges,"IsChar")
+		self.assertTrue(self.FindEdges(IsChar,MAX_CHAR)==expectedEdges,"IsChar")
 
 	def testSpace(self):
 		"""[3] S ::= (#x20 | #x9 | #xD | #xA)+"""
 		expectedEdges=[0x9,0xB,0xD,0xE,0x20,0x21]
-		self.failUnless(self.FindEdges(IsS,256)==expectedEdges,"IsS")
+		self.assertTrue(self.FindEdges(IsS,256)==expectedEdges,"IsS")
 	
 	def testNameStart(self):
 		"""[4] NameStartChar ::= ":" | [A-Z] | "_" | [a-z] | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
@@ -191,9 +194,9 @@ class XMLCharacterTests(unittest.TestCase):
 				if IsNameStartChar(c):
 					nNameStartChars+=1
 			else:
-				self.failIf(IsNameStartChar(c),"NameStart not a name char: %s"%c)
-		self.failUnless(nNameChars==54129,"name char total %i"%nNameChars)
-		self.failUnless(nNameStartChars==54002,"name start char total %i"%nNameStartChars)
+				self.assertFalse(IsNameStartChar(c),"NameStart not a name char: %s"%c)
+		self.assertTrue(nNameChars==54129,"name char total %i"%nNameChars)
+		self.assertTrue(nNameStartChars==54002,"name start char total %i"%nNameStartChars)
 	
 	def testPubidChar(self):
 		"""[13] PubidChar ::= #x20 | #xD | #xA | [a-zA-Z0-9] | [-'()+,./:=?;!*#@$_%] """
@@ -229,7 +232,7 @@ class XMLCharacterTests(unittest.TestCase):
 				else:
 					self.fail("unichr(%#x) is a letter but not an ideographic or base character"%code)
 			else:
-				self.failIf(IsIdeographic(c) or IsBaseChar(c),
+				self.assertFalse(IsIdeographic(c) or IsBaseChar(c),
 					"unichr(%#x) is an ideographic or base character but not a letter")
 			if IsCombiningChar(c):
 				nCombiningChars+=1
@@ -237,11 +240,11 @@ class XMLCharacterTests(unittest.TestCase):
 				nDigits+=1
 			if IsExtender(c):
 				nExtenders+=1
-		self.failUnless(nBaseChars==13602,"base char total %i"%nBaseChars)
-		self.failUnless(nIdeographics==20912,"ideographic char total %i"%nIdeographics)
-		self.failUnless(nCombiningChars==437,"combing char total %i"%nCombiningChars)
-		self.failUnless(nDigits==149,"digit total %i"%nDigits)
-		self.failUnless(nExtenders==18,"extender total %i"%nExtenders)
+		self.assertTrue(nBaseChars==13602,"base char total %i"%nBaseChars)
+		self.assertTrue(nIdeographics==20912,"ideographic char total %i"%nIdeographics)
+		self.assertTrue(nCombiningChars==437,"combing char total %i"%nCombiningChars)
+		self.assertTrue(nDigits==149,"digit total %i"%nDigits)
+		self.assertTrue(nExtenders==18,"extender total %i"%nExtenders)
 
 	def FindEdges(self,testFunc,max):
 		edges=[]
@@ -255,17 +258,17 @@ class XMLCharacterTests(unittest.TestCase):
 
 class XMLValidationTests(unittest.TestCase):
 	def testCaseName(self):
-		self.failUnless(IsValidName("Simple"))
-		self.failUnless(IsValidName(":BadNCName"))
-		self.failUnless(IsValidName("prefix:BadNCName"))
-		self.failUnless(IsValidName("_GoodNCName"))
-		self.failIf(IsValidName("-BadName"))
-		self.failIf(IsValidName(".BadName"))
-		self.failIf(IsValidName("0BadName"))
-		self.failUnless(IsValidName("GoodName-0.12"))
-		self.failIf(IsValidName("BadName$"))
-		self.failIf(IsValidName("BadName+"))
-		self.failUnless(IsValidName(u"Caf\xe9"))
+		self.assertTrue(IsValidName("Simple"))
+		self.assertTrue(IsValidName(":BadNCName"))
+		self.assertTrue(IsValidName("prefix:BadNCName"))
+		self.assertTrue(IsValidName("_GoodNCName"))
+		self.assertFalse(IsValidName("-BadName"))
+		self.assertFalse(IsValidName(".BadName"))
+		self.assertFalse(IsValidName("0BadName"))
+		self.assertTrue(IsValidName("GoodName-0.12"))
+		self.assertFalse(IsValidName("BadName$"))
+		self.assertFalse(IsValidName("BadName+"))
+		self.assertTrue(IsValidName(u"Caf\xe9"))
 
 	def testWellFormed(self):
 		dPath=os.path.join(TEST_DATA_DIR,'wellformed')
@@ -279,7 +282,7 @@ class XMLValidationTests(unittest.TestCase):
 			p.checkValidity=False
 			try:
 				p.ParseDocument(d)
-				self.failUnless(p.valid is None,"Well-Formed Example: %s marked valid but checkValidity was False"%fName)
+				self.assertTrue(p.valid is None,"Well-Formed Example: %s marked valid but checkValidity was False"%fName)
 			except XMLWellFormedError,e:
 				self.fail("Well-Formed Example: %s raised XMLWellFormedError\n%s"%(fName,str(e)))
 		dPath=os.path.join(TEST_DATA_DIR,'notwellformed')
@@ -309,8 +312,8 @@ class XMLValidationTests(unittest.TestCase):
 			p.raiseValidityErrors=True
 			try:
 				p.ParseDocument()
-				self.failUnless(p.valid,"Valid Example: %s not marked as valid in the parser"%fName)
-				self.failUnless(len(p.nonFatalErrors)==0,"Valid Example: %s reported validity errors"%fName)
+				self.assertTrue(p.valid,"Valid Example: %s not marked as valid in the parser"%fName)
+				self.assertTrue(len(p.nonFatalErrors)==0,"Valid Example: %s reported validity errors"%fName)
 			except XMLValidityError,e:
 				self.fail("Valid Example: %s raised XMLValidityError\n%s"%(fName,str(e)))
 			except XMLWellFormedError,e:
@@ -326,8 +329,8 @@ class XMLValidationTests(unittest.TestCase):
 			# By default we don't raise validity errors...
 			try:
 				p.ParseDocument()
-				self.failIf(p.valid,"Invalid Example: %s marked as valid in the parser"%fName)
-				self.failIf(len(p.nonFatalErrors)==0,"Invalid Example: %s reported no validity errors"%fName)
+				self.assertFalse(p.valid,"Invalid Example: %s marked as valid in the parser"%fName)
+				self.assertFalse(len(p.nonFatalErrors)==0,"Invalid Example: %s reported no validity errors"%fName)
 				if VERBOSE:
 					print "\n%s: Validity Errors:"%fName
 					for e in p.nonFatalErrors:
@@ -351,7 +354,7 @@ class XMLValidationTests(unittest.TestCase):
 			p.checkCompatibility=True
 			try:
 				p.ParseDocument()
-				self.failUnless(len(p.nonFatalErrors)==0,"Compatible Example: %s reported compatibility errors"%fName)
+				self.assertTrue(len(p.nonFatalErrors)==0,"Compatible Example: %s reported compatibility errors"%fName)
 			except XMLValidityError,e:
 				self.fail("Compatible Example: %s raised XMLValidityError"%fName)
 			except XMLWellFormedError,e:
@@ -368,7 +371,7 @@ class XMLValidationTests(unittest.TestCase):
 			p.checkCompatibility=True
 			try:
 				p.ParseDocument()
-				self.failIf(len(p.nonFatalErrors)==0,"Incompatible Example: %s reported no non-fatal errors"%fName)
+				self.assertFalse(len(p.nonFatalErrors)==0,"Incompatible Example: %s reported no non-fatal errors"%fName)
 				if VERBOSE:
 					print "\n%s: Compatibility Errors:"%fName
 					for e in p.nonFatalErrors:
@@ -392,7 +395,7 @@ class XMLValidationTests(unittest.TestCase):
 			p.checkAllErrors=True
 			try:
 				p.ParseDocument()
-				self.failUnless(len(p.nonFatalErrors)==0,"No errors example: %s reported errors"%fName)
+				self.assertTrue(len(p.nonFatalErrors)==0,"No errors example: %s reported errors"%fName)
 			except XMLError,e:
 				self.fail("No errors example: %s raised XMLError"%fName)
 		dPath=os.path.join(TEST_DATA_DIR,'errors')
@@ -405,7 +408,7 @@ class XMLValidationTests(unittest.TestCase):
 			p.checkAllErrors=True
 			try:
 				p.ParseDocument()
-				self.failIf(len(p.nonFatalErrors)==0,"Error example: %s reported no non-fatal errors"%fName)
+				self.assertFalse(len(p.nonFatalErrors)==0,"Error example: %s reported no non-fatal errors"%fName)
 				if VERBOSE:
 					print "\n%s: Errors:"%fName
 					for e in p.nonFatalErrors:
@@ -417,81 +420,81 @@ class XMLValidationTests(unittest.TestCase):
 class XMLEntityTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		e=XMLEntity("<hello>")
-		self.failUnless(e.lineNum==1)
-		self.failUnless(e.linePos==1)
-		self.failUnless(type(e.theChar) is UnicodeType and e.theChar==u'<')
+		self.assertTrue(e.lineNum==1)
+		self.assertTrue(e.linePos==1)
+		self.assertTrue(type(e.theChar) is UnicodeType and e.theChar==u'<')
 		e=XMLEntity(u"<hello>")
-		self.failUnless(type(e.theChar) is UnicodeType and e.theChar==u'<')
+		self.assertTrue(type(e.theChar) is UnicodeType and e.theChar==u'<')
 		e=XMLEntity(StringIO("<hello>"))
-		self.failUnless(e.lineNum==1)
-		self.failUnless(e.linePos==1)
-		self.failUnless(type(e.theChar) is UnicodeType and e.theChar==u'<')
+		self.assertTrue(e.lineNum==1)
+		self.assertTrue(e.linePos==1)
+		self.assertTrue(type(e.theChar) is UnicodeType and e.theChar==u'<')
 
 	def testCaseChars(self):
 		e=XMLEntity("<hello>")
 		for c in "<hello>":
-			self.failUnless(e.theChar==c)
+			self.assertTrue(e.theChar==c)
 			e.NextChar()
-		self.failUnless(e.theChar is None)
+		self.assertTrue(e.theChar is None)
 		e.Reset()
-		self.failUnless(e.theChar=='<')
+		self.assertTrue(e.theChar=='<')
 
 	def testLines(self):
 		e=XMLEntity("Hello\nWorld\n!")
 		while e.theChar is not None:
 			c=e.theChar
 			e.NextChar()
-		self.failUnless(e.lineNum==3)
-		self.failUnless(e.linePos==2)
+		self.assertTrue(e.lineNum==3)
+		self.assertTrue(e.linePos==2)
 
 	def testCodecs(self):
 		m=u'Caf\xe9'
 		e=XMLEntity('Caf\xc3\xa9')
-		self.failUnless(e.bom is False,'defaulted utf-8 BOM detection')
+		self.assertTrue(e.bom is False,'defaulted utf-8 BOM detection')
 		for c in m:
-			self.failUnless(e.theChar==c,"Print: parsing utf-8 got %s instead of %s"%(repr(e.theChar),repr(c)))
+			self.assertTrue(e.theChar==c,"Print: parsing utf-8 got %s instead of %s"%(repr(e.theChar),repr(c)))
 			e.NextChar()
 		e=XMLEntity('Caf\xe9','latin_1')
-		self.failUnless(e.bom is False,'latin_1 BOM detection')
+		self.assertTrue(e.bom is False,'latin_1 BOM detection')
 		for c in m:
-			self.failUnless(e.theChar==c,"Print: parsing latin-1 got %s instead of %s"%(repr(e.theChar),repr(c)))
+			self.assertTrue(e.theChar==c,"Print: parsing latin-1 got %s instead of %s"%(repr(e.theChar),repr(c)))
 			e.NextChar()
 		# This string should be automatically detected
 		e=XMLEntity('\xff\xfeC\x00a\x00f\x00\xe9\x00')
-		self.failUnless(e.bom is True,'utf-16-le BOM detection')
+		self.assertTrue(e.bom is True,'utf-16-le BOM detection')
 		for c in m:
-			self.failUnless(e.theChar==c,"Print: parsing utf-16LE got %s instead of %s"%(repr(e.theChar),repr(c)))
+			self.assertTrue(e.theChar==c,"Print: parsing utf-16LE got %s instead of %s"%(repr(e.theChar),repr(c)))
 			e.NextChar()		
 		e=XMLEntity('\xfe\xff\x00C\x00a\x00f\x00\xe9')
-		self.failUnless(e.bom is True,'utf-16-be BOM detection')
+		self.assertTrue(e.bom is True,'utf-16-be BOM detection')
 		for c in m:
-			self.failUnless(e.theChar==c,"Print: parsing utf-16BE got %s instead of %s"%(repr(e.theChar),repr(c)))
+			self.assertTrue(e.theChar==c,"Print: parsing utf-16BE got %s instead of %s"%(repr(e.theChar),repr(c)))
 			e.NextChar()			
 		e=XMLEntity('\xef\xbb\xbfCaf\xc3\xa9','utf-8')
-		self.failUnless(e.bom is False,'utf-8 BOM detection')
+		self.assertTrue(e.bom is False,'utf-8 BOM detection')
 		for c in m:
-			self.failUnless(e.theChar==c,"Print: parsing utf-8 with BOM got %s instead of %s"%(repr(e.theChar),repr(c)))
+			self.assertTrue(e.theChar==c,"Print: parsing utf-8 with BOM got %s instead of %s"%(repr(e.theChar),repr(c)))
 			e.NextChar()
 		e=XMLEntity('Caf\xe9')
 		for c in 'Ca':
 			e.NextChar()
 		e.ChangeEncoding('ISO-8859-1')
-		self.failUnless(e.theChar=='f',"Bad encoding change")
+		self.assertTrue(e.theChar=='f',"Bad encoding change")
 		e.NextChar()
-		self.failUnless(e.theChar==u'\xe9',"Print: change encoding got %s instead of %s"%(repr(e.theChar),repr(u'\xe9')))
+		self.assertTrue(e.theChar==u'\xe9',"Print: change encoding got %s instead of %s"%(repr(e.theChar),repr(u'\xe9')))
 		e=XMLEntity('C\x00a\x00f\x00\xe9\x00','utf-16-le')
-		self.failUnless(e.bom is False,'utf-16-le no BOM detection error')
+		self.assertTrue(e.bom is False,'utf-16-le no BOM detection error')
 		for c in m:
-			self.failUnless(e.theChar==c,"Print: parsing utf-16LE no BOM got %s instead of %s"%(repr(e.theChar),repr(c)))
+			self.assertTrue(e.theChar==c,"Print: parsing utf-16LE no BOM got %s instead of %s"%(repr(e.theChar),repr(c)))
 			e.NextChar()		
 		e=XMLEntity('\x00<\x00?\x00C\x00a\x00f\x00\xe9')		# add <? to trigger auto-detection
-		self.failUnless(e.bom is False,'utf-16-be no BOM detection error')
+		self.assertTrue(e.bom is False,'utf-16-be no BOM detection error')
 		for c in u"<?"+m:
-			self.failUnless(e.theChar==c,"Print: parsing utf-16BE no BOM got %s instead of %s"%(repr(e.theChar),repr(c)))
+			self.assertTrue(e.theChar==c,"Print: parsing utf-16BE no BOM got %s instead of %s"%(repr(e.theChar),repr(c)))
 			e.NextChar()		
 		e=XMLEntity('\xfe\xff\xfe\xff\x00C\x00a\x00f\x00\xe9')
 		for c in u'\ufeff'+m:
-			self.failUnless(e.theChar==c,"Print: parsing double BOM got %s instead of %s"%(repr(e.theChar),repr(c)))
+			self.assertTrue(e.theChar==c,"Print: parsing double BOM got %s instead of %s"%(repr(e.theChar),repr(c)))
 			e.NextChar()			
 		
 		
@@ -506,7 +509,7 @@ class XMLParserTests(unittest.TestCase):
 		e=XMLEntity(data)
 		p=XMLParser(e)
 		for i in xrange(len(data2)):
-			self.failUnless(p.theChar==data2[i],"Failed at data[%i] before look ahead"%i)
+			self.assertTrue(p.theChar==data2[i],"Failed at data[%i] before look ahead"%i)
 			for j in xrange(5):
 				data=[]
 				for k in xrange(j):
@@ -514,18 +517,18 @@ class XMLParserTests(unittest.TestCase):
 						data.append(p.theChar)
 					p.NextChar()
 				p.BuffText(string.join(data,''))
-				self.failUnless(p.theChar==data2[i],"Failed at data[%i] after Rewind(%i)"%(i,j))
+				self.assertTrue(p.theChar==data2[i],"Failed at data[%i] after Rewind(%i)"%(i,j))
 			p.NextChar()
 	
 	def testCaseNamecaseGeneral(self):
 		data="Hello GoodBye"
 		e=XMLEntity(data)
 		p=XMLParser(e)
-		self.failIf(p.ParseLiteral("HELLO"),"Case insensitve literal in default parser")
+		self.assertFalse(p.ParseLiteral("HELLO"),"Case insensitve literal in default parser")
 		p.sgmlNamecaseGeneral=True
-		self.failUnless(p.ParseLiteral("HELLO"),"Upper-case literals")
+		self.assertTrue(p.ParseLiteral("HELLO"),"Upper-case literals")
 		p.ParseS()
-		#self.failUnless(p.ParseName()=="GOODBYE","Upper-case general names")
+		#self.assertTrue(p.ParseName()=="GOODBYE","Upper-case general names")
 
 	def testDocument(self):
 		"""[1] document ::= prolog element Misc* """
@@ -535,16 +538,16 @@ class XMLParserTests(unittest.TestCase):
 		d=Document()
 		d.Read(e)
 		root=d.root
-		self.failUnless(isinstance(root,Element))
-		self.failUnless(root.xmlname=='tag' and root.GetValue()=='Hello World')
+		self.assertTrue(isinstance(root,Element))
+		self.assertTrue(root.xmlname=='tag' and root.GetValue()=='Hello World')
 		f.close()
 		f=open('readFile.xml','rb')
 		e=XMLEntity(f)
 		p=XMLParser(e)
 		p.ParseDocument()
 		root=p.doc.root
-		self.failUnless(isinstance(root,Element))
-		self.failUnless(root.xmlname=='tag' and root.GetValue()=='Hello World')
+		self.assertTrue(isinstance(root,Element))
+		self.assertTrue(root.xmlname=='tag' and root.GetValue()=='Hello World')
 		f.close()
 	
 	# Following production is implemented as a character class:
@@ -554,8 +557,8 @@ class XMLParserTests(unittest.TestCase):
 		"""[3] S ::= (#x20 | #x9 | #xD | #xA)+ """
 		e=XMLEntity(" \t\r\n \r \nH ello")
 		p=XMLParser(e)
-		self.failUnless(p.ParseS()==" \t\n \n \n")
-		self.failUnless(p.theChar=='H')
+		self.assertTrue(p.ParseS()==" \t\n \n \n")
+		self.assertTrue(p.theChar=='H')
 		p.NextChar()
 		try:
 			p.ParseRequiredS()
@@ -578,14 +581,14 @@ class XMLParserTests(unittest.TestCase):
 			e=XMLEntity(s)
 			p=XMLParser(e)
 			name=p.ParseName()
-			self.failUnless(name==s,u"Name: %s (expected %s)"%(name,s))
+			self.assertTrue(name==s,u"Name: %s (expected %s)"%(name,s))
 		sBad=('-Atlantis','&hello','fish&chips','what?','.ello',u'\xb7RaisedDot','-')
 		for s in sBad:
 			e=XMLEntity(s)
 			p=XMLParser(e)
 			try:
 				name=p.ParseName()
-				self.failIf(p.theChar is None,"ParseName negative test: %s"%s)
+				self.assertFalse(p.theChar is None,"ParseName negative test: %s"%s)
 			except XMLWellFormedError:
 				pass
 		e=XMLEntity('&noname')
@@ -600,7 +603,7 @@ class XMLParserTests(unittest.TestCase):
 		"""[6] Names ::= Name (#x20 Name)*	"""
 		e=XMLEntity("Hello World -Atlantis!")
 		p=XMLParser(e)
-		self.failUnless(p.ParseNames()==['Hello','World'])
+		self.assertTrue(p.ParseNames()==['Hello','World'])
 			
 	def testCaseNmtoken(self):
 		"""[7] Nmtoken ::= (NameChar)+"""
@@ -609,14 +612,14 @@ class XMLParserTests(unittest.TestCase):
 			e=XMLEntity(s)
 			p=XMLParser(e)
 			name=p.ParseNmtoken()
-			self.failUnless(name==s,u"Nmtoken: %s"%name)
+			self.assertTrue(name==s,u"Nmtoken: %s"%name)
 		sBad=('&hello','fish&chips','what?')
 		for s in sBad:
 			e=XMLEntity(s)
 			p=XMLParser(e)
 			try:
 				name=p.ParseNmtoken()
-				self.failIf(p.theChar is None,"ParseNmtoken negative test: %s"%s)
+				self.assertFalse(p.theChar is None,"ParseNmtoken negative test: %s"%s)
 			except XMLWellFormedError:
 				pass		
 
@@ -625,7 +628,7 @@ class XMLParserTests(unittest.TestCase):
 		e=XMLEntity("Hello World -Atlantis!")
 		p=XMLParser(e)
 		tokens=p.ParseNmtokens()
-		self.failUnless(tokens==['Hello','World','-Atlantis'],repr(tokens))
+		self.assertTrue(tokens==['Hello','World','-Atlantis'],repr(tokens))
 
 	def testCaseEntityValue(self):
 		"""[9] EntityValue ::= '"' ([^%&"] | PEReference | Reference)* '"' | "'" ([^%&'] | PEReference | Reference)* "'"	"""
@@ -637,7 +640,7 @@ class XMLParserTests(unittest.TestCase):
 		p.dtd.DeclareEntity(XMLParameterEntity('ltpe','<'))
 		for match in m:
 			value=p.ParseEntityValue()
-			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
+			self.assertTrue(value==match,"Match failed: %s (expected %s)"%(value,match))
 
 	def testAttValue(self):
 		"""[10] AttValue ::= '"' ([^<&"] | Reference)* '"' |  "'" ([^<&'] | Reference)* "'" """
@@ -646,7 +649,7 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		for match in m:
 			value=p.ParseAttValue()
-			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
+			self.assertTrue(value==match,"Match failed: %s (expected %s)"%(value,match))
 		sBad=('"3<2"',"'Fish&Chips'")
 		for s in sBad:
 			e=XMLEntity(s)
@@ -664,7 +667,7 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		for match in m:
 			value=p.ParseSystemLiteral()
-			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
+			self.assertTrue(value==match,"Match failed: %s (expected %s)"%(value,match))
 	
 	def testPubidLiteral(self):
 		"""[12] PubidLiteral ::= '"' PubidChar* '"' | "'" (PubidChar - "'")* "'"	"""
@@ -673,7 +676,7 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		for match in m:
 			value=p.ParsePubidLiteral()
-			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
+			self.assertTrue(value==match,"Match failed: %s (expected %s)"%(value,match))
 		try:
 			value=p.ParsePubidLiteral()
 			self.fail("Parsed bad PubidLiterasl: %s"%value)
@@ -692,7 +695,7 @@ class XMLParserTests(unittest.TestCase):
 			p.element=Element(p.doc)
 			p.ParseCharData()
 			p.NextChar()
-			self.failUnless(p.element.GetValue()==match,"Match failed: %s (expected %s)"%(p.element.GetValue(),match))
+			self.assertTrue(p.element.GetValue()==match,"Match failed: %s (expected %s)"%(p.element.GetValue(),match))
 
 	def testCaseComment(self):
 		"""[15] Comment ::= '<!--' ((Char - '-') | ('-' (Char - '-')))* '-->' """
@@ -701,7 +704,7 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		for match in m:
 			pStr=p.ParseComment()
-			self.failUnless(pStr==match,"Match failed: %s (expected %s)"%(pStr,match))
+			self.assertTrue(pStr==match,"Match failed: %s (expected %s)"%(pStr,match))
 		try:
 			if p.ParseLiteral('<!--'):
 				pStr=p.ParseComment()
@@ -718,8 +721,8 @@ class XMLParserTests(unittest.TestCase):
 		for matchTarget,matchStr in m:
 			p.element=PIRecorderElement(p.doc)
 			p.ParsePI()
-			self.failUnless(p.element.target==matchTarget,"Match failed for target: %s (expected %s)"%(p.element.target,matchTarget))
-			self.failUnless(p.element.instruction==matchStr,"Match failed for instruction: %s (expected %s)"%(p.element.instruction,matchStr))
+			self.assertTrue(p.element.target==matchTarget,"Match failed for target: %s (expected %s)"%(p.element.target,matchTarget))
+			self.assertTrue(p.element.instruction==matchStr,"Match failed for instruction: %s (expected %s)"%(p.element.instruction,matchStr))
 		sBad=('<?xml reserved?>')
 		for s in sBad:
 			e=XMLEntity(s)
@@ -738,7 +741,7 @@ class XMLParserTests(unittest.TestCase):
 			e=XMLEntity(s)
 			p=XMLParser(e)
 			name=p.ParsePITarget()
-			self.failUnless(name==s,"PITarget: %s"%name)
+			self.assertTrue(name==s,"PITarget: %s"%name)
 		sBad=('xml','XML','xML','Xml')
 		for s in sBad:
 			e=XMLEntity(s)
@@ -763,7 +766,7 @@ class XMLParserTests(unittest.TestCase):
 			p.doc=Document()
 			p.element=Element(p.doc)
 			p.ParseCDSect(p.theChar!='<')
-			self.failUnless(p.element.GetValue()==match,"CDSect conent: %s"%p.element.GetValue())
+			self.assertTrue(p.element.GetValue()==match,"CDSect conent: %s"%p.element.GetValue())
 		sBad=('<!CDATA [hello]]>',
 			"<!CDATA[hello]]",
 			"hello")
@@ -782,14 +785,14 @@ class XMLParserTests(unittest.TestCase):
 		p.doc=Document()
 		p.element=Element(p.doc)
 		p.ParseCDSect(True,'<end')
-		self.failUnless(p.element.GetValue()=='&hello;',"Custom CDSect: %s"%p.element.GetValue())
+		self.assertTrue(p.element.GetValue()=='&hello;',"Custom CDSect: %s"%p.element.GetValue())
 		
 	def testCDStart(self):
 		"""[21] CDStart ::= '<!CDATA['	"""
 		e=XMLEntity("<![CDATA[")
 		p=XMLParser(e)
 		p.ParseCDStart()
-		self.failUnless(p.theChar is None,"Short parse on CDStart")
+		self.assertTrue(p.theChar is None,"Short parse on CDStart")
 		
 	def testCData(self):
 		"""[20] CData ::= (Char* - (Char* ']]>' Char*))	"""
@@ -805,24 +808,24 @@ class XMLParserTests(unittest.TestCase):
 			p.element=Element(p.doc)
 			p.ParseCData()
 			if p.theChar is None:
-				self.failUnless(p.element.GetValue()==s,"CData conent: %s"%p.element.GetValue())
+				self.assertTrue(p.element.GetValue()==s,"CData conent: %s"%p.element.GetValue())
 			else:
 				p.ParseCDEnd()
-				self.failUnless(p.element.GetValue()==s[:-3],"CData conent: %s"%p.element.GetValue())				
+				self.assertTrue(p.element.GetValue()==s[:-3],"CData conent: %s"%p.element.GetValue())				
 		# no negative tests as prolog can be empty, but check the custom CDEnd case.
 		e=XMLEntity("hello<end")
 		p=XMLParser(e)
 		p.doc=Document()
 		p.element=Element(p.doc)
 		p.ParseCData('<end')
-		self.failUnless(p.element.GetValue()=='hello',"Custom CDEnd: %s"%p.element.GetValue())
+		self.assertTrue(p.element.GetValue()=='hello',"Custom CDEnd: %s"%p.element.GetValue())
 		
 	def testCDEnd(self):
 		"""[21] CDEnd ::= ']]>'	"""
 		e=XMLEntity("]]>")
 		p=XMLParser(e)
 		p.ParseCDEnd()
-		self.failUnless(p.theChar is None,"Short parse on CDEnd")
+		self.assertTrue(p.theChar is None,"Short parse on CDEnd")
 		
 	def testProlog(self):
 		"""[22] prolog ::= XMLDecl? Misc* (doctypedecl Misc*)?	"""
@@ -836,7 +839,7 @@ class XMLParserTests(unittest.TestCase):
 			p=XMLParser(e)
 			p.doc=Document()
 			p.ParseProlog()
-			self.failUnless(p.theChar is None,"Short parse on Prolog")
+			self.assertTrue(p.theChar is None,"Short parse on Prolog")
 		# no negative tests as prolog can be empty!
 		
 	def testXMLDecl(self):
@@ -855,11 +858,11 @@ class XMLParserTests(unittest.TestCase):
 			e=XMLEntity(s)
 			p=XMLParser(e)
 			d=p.ParseXMLDecl(not ('x' in s))
-			self.failUnless(isinstance(d,XMLDeclaration),"xml declaration type")
-			self.failUnless(d.version==match[0],"declared version mismatch: %s"%d.version)
-			self.failUnless(d.encoding==match[1],"declared encoding mismatch: %s"%d.encoding)
-			self.failUnless(d.standalone==match[2],"standalone declaration mismatch: %s"%d.standalone)
-			self.failUnless(p.theChar is None,"Short parse on XMLDecl")
+			self.assertTrue(isinstance(d,XMLDeclaration),"xml declaration type")
+			self.assertTrue(d.version==match[0],"declared version mismatch: %s"%d.version)
+			self.assertTrue(d.encoding==match[1],"declared encoding mismatch: %s"%d.encoding)
+			self.assertTrue(d.standalone==match[2],"standalone declaration mismatch: %s"%d.standalone)
+			self.assertTrue(p.theChar is None,"Short parse on XMLDecl")
 		sBad=('','version="1.0"'," ='1.0'"," version=1.0")
 		for s in sBad:
 			e=XMLEntity(s)
@@ -877,7 +880,7 @@ class XMLParserTests(unittest.TestCase):
 			e=XMLEntity(s)
 			p=XMLParser(e)
 			p.ParseVersionInfo(not ('v' in s))
-			self.failUnless(p.theChar is None,"Short parse on VersionInfo")
+			self.assertTrue(p.theChar is None,"Short parse on VersionInfo")
 		sBad=('','version="1.0"'," ='1.0'"," version=1.0")
 		for s in sBad:
 			e=XMLEntity(s)
@@ -895,7 +898,7 @@ class XMLParserTests(unittest.TestCase):
 			e=XMLEntity(s)
 			p=XMLParser(e)
 			p.ParseEq()
-			self.failUnless(p.theChar is None,"Short parse on Eq")
+			self.assertTrue(p.theChar is None,"Short parse on Eq")
 		sBad=('','-')
 		for s in sBad:
 			e=XMLEntity(s)
@@ -912,8 +915,8 @@ class XMLParserTests(unittest.TestCase):
 		for s in sGood:
 			e=XMLEntity(s)
 			p=XMLParser(e)
-			self.failUnless(p.ParseVersionNum()==s,"Failed to parse VersionNum: %s"%s)
-			self.failUnless(p.theChar is None,"Short parse on VersionNum")
+			self.assertTrue(p.ParseVersionNum()==s,"Failed to parse VersionNum: %s"%s)
+			self.assertTrue(p.theChar is None,"Short parse on VersionNum")
 		sBad=('1. ','2.0','1','1,0')
 		for s in sBad:
 			e=XMLEntity(s)
@@ -931,7 +934,7 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		for i in xrange(3):
 			p.ParseMisc()
-		self.failUnless(p.theChar is None,"Short parse of Misc")
+		self.assertTrue(p.theChar is None,"Short parse of Misc")
 		
 	def testDoctypedecl(self):
 		"""[28] doctypedecl ::= '<!DOCTYPE' S Name (S ExternalID)? S? ('[' intSubset ']' S?)? '>'	"""
@@ -952,15 +955,15 @@ class XMLParserTests(unittest.TestCase):
 			e.location=f
 			p=XMLParser(e)
 			p.ParseDoctypedecl()
-			self.failUnless(isinstance(p.dtd,XMLDTD),"No DTD created")
-			self.failUnless(p.dtd.name==match[0],"Name mismatch")
+			self.assertTrue(isinstance(p.dtd,XMLDTD),"No DTD created")
+			self.assertTrue(p.dtd.name==match[0],"Name mismatch")
 			if match[1] is None:
-				self.failUnless(p.dtd.externalID is None,"External ID: expected None")
+				self.assertTrue(p.dtd.externalID is None,"External ID: expected None")
 			else:
-				self.failUnless(isinstance(p.dtd.externalID,XMLExternalID),"Type of ExternalID")
-				self.failUnless(p.dtd.externalID.system==match[1],"System ID mismatch")
+				self.assertTrue(isinstance(p.dtd.externalID,XMLExternalID),"Type of ExternalID")
+				self.assertTrue(p.dtd.externalID.system==match[1],"System ID mismatch")
 			if match[2] is not None:
-				self.failUnless(p.dtd.GetEntity('name').definition==match[2],"Expected general entity declared: %s"%repr(p.dtd.GetEntity('name').definition))
+				self.assertTrue(p.dtd.GetEntity('name').definition==match[2],"Expected general entity declared: %s"%repr(p.dtd.GetEntity('name').definition))
 			
 	def testDeclSep(self):
 		"""[28a] DeclSep ::= PEReference | S"""
@@ -987,7 +990,7 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		p.doc=Document()
 		p.ParseIntSubset()
-		self.failUnless(p.theChar=='x',"Short parse on internal subset: found %s"%repr(p.theChar))		
+		self.assertTrue(p.theChar=='x',"Short parse on internal subset: found %s"%repr(p.theChar))		
 		
 	def testMarkupDecl(self):
 		"""[29] markupdecl ::= elementdecl | AttlistDecl | EntityDecl | NotationDecl | PI | Comment	"""
@@ -1005,13 +1008,13 @@ class XMLParserTests(unittest.TestCase):
 		while p.theChar=='<':
 			p.ParseMarkupDecl(False)
 			p.ParseS()
-		self.failUnless(p.theChar=='x',"Short parse on markup declarations: found %s"%repr(p.theChar))
+		self.assertTrue(p.theChar=='x',"Short parse on markup declarations: found %s"%repr(p.theChar))
 		eType=p.dtd.GetElementType('elem1')
-		self.failUnless(eType.contentType==ElementType.Any,"element content type")
+		self.assertTrue(eType.contentType==ElementType.Any,"element content type")
 		aList=p.dtd.GetAttributeList('elem1')
-		self.failUnless(aList['attr'].defaultValue=='Steve',"attlist")
-		self.failUnless(p.dtd.GetEntity('name').definition=='Steve',"entity declaration")
-		self.failUnless(p.dtd.GetNotation('SteveN').externalID.system=='/home/steve.txt',"notation declaration")
+		self.assertTrue(aList['attr'].defaultValue=='Steve',"attlist")
+		self.assertTrue(p.dtd.GetEntity('name').definition=='Steve',"entity declaration")
+		self.assertTrue(p.dtd.GetNotation('SteveN').externalID.system=='/home/steve.txt',"notation declaration")
 		
 	def testExtSubset(self):
 		"""[30] extSubset ::= TextDecl? extSubsetDecl """
@@ -1019,12 +1022,12 @@ class XMLParserTests(unittest.TestCase):
 		e=XMLEntity(s)
 		p=XMLParser(e)
 		p.ParseExtSubset()
-		self.failUnless(p.theChar=='!',"Short parse on extSubset: %s"%p.theChar)		
+		self.assertTrue(p.theChar=='!',"Short parse on extSubset: %s"%p.theChar)		
 		s='<?stuff?> !'
 		e=XMLEntity(s)
 		p=XMLParser(e)
 		p.ParseExtSubset()
-		self.failUnless(p.theChar=='!',"Short parse on extSubset: %s"%p.theChar)		
+		self.assertTrue(p.theChar=='!',"Short parse on extSubset: %s"%p.theChar)		
 		
 	def testExtSubsetDecl(self):
 		"""[31] extSubsetDecl ::= ( markupdecl | conditionalSect | DeclSep)*	"""
@@ -1036,7 +1039,7 @@ class XMLParserTests(unittest.TestCase):
 		p.checkValidity=True
 		p.refMode=XMLParser.RefModeInDTD
 		p.ParseExtSubsetDecl()
-		self.failUnless(p.theChar is None,"Short parse on extSubsetDecl: %s"%p.theChar)		
+		self.assertTrue(p.theChar is None,"Short parse on extSubsetDecl: %s"%p.theChar)		
 
 	def testSDDecl(self):
 		"""[32] SDDecl ::= S 'standalone' Eq (("'" ('yes' | 'no') "'") | ('"' ('yes' | 'no') '"')) """
@@ -1045,7 +1048,7 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		for match in m:
 			value=p.ParseSDDecl()
-			self.failUnless(value==match,"Match failed: %s (expected %s)"%(value,match))
+			self.assertTrue(value==match,"Match failed: %s (expected %s)"%(value,match))
 		try:
 			value=p.ParseSDDecl()
 			self.fail("Parsed bad SDDecl: %s"%value)
@@ -1069,12 +1072,12 @@ class XMLParserTests(unittest.TestCase):
 		except XMLWellFormedError:
 			pass
 		children=list(element.GetChildren())
-		self.failUnless(isinstance(children[0],Element),"First element: %s"%repr(children[0]))
-		self.failUnless(children[0].xmlname=='elem1',"First element name: %s"%repr(children[0].xmlname))
-		self.failUnless(children[0].GetValue()=='',"First element empty value: %s"%repr(children[0].GetValue()))
-		self.failUnless(isinstance(children[1],Element),"Second element: %s"%repr(children[1]))
-		self.failUnless(children[1].xmlname=='elem2',"Second element name: %s"%repr(children[1].xmlname))
-		self.failUnless(children[1].GetValue()=='hello',"Second element value: %s"%repr(children[1].GetValue()))
+		self.assertTrue(isinstance(children[0],Element),"First element: %s"%repr(children[0]))
+		self.assertTrue(children[0].xmlname=='elem1',"First element name: %s"%repr(children[0].xmlname))
+		self.assertTrue(children[0].GetValue()=='',"First element empty value: %s"%repr(children[0].GetValue()))
+		self.assertTrue(isinstance(children[1],Element),"Second element: %s"%repr(children[1]))
+		self.assertTrue(children[1].xmlname=='elem2',"Second element name: %s"%repr(children[1].xmlname))
+		self.assertTrue(children[1].GetValue()=='hello',"Second element value: %s"%repr(children[1].GetValue()))
 
 		
 	def testSTag(self):
@@ -1082,17 +1085,17 @@ class XMLParserTests(unittest.TestCase):
 		e=XMLEntity("<tag hello='world' ciao=\"tutti\">")
 		p=XMLParser(e)
 		name,attrs,empty=p.ParseSTag()
-		self.failUnless(name=='tag' and attrs['hello']=='world' and attrs['ciao']=='tutti' and empty==False)
+		self.assertTrue(name=='tag' and attrs['hello']=='world' and attrs['ciao']=='tutti' and empty==False)
 		e=XMLEntity("<tag hello/>")
 		p=XMLParser(e)
 		p.sgmlShorttag=True
 		name,attrs,empty=p.ParseSTag()
-		self.failUnless(name=='tag' and attrs['@hello']=='hello' and empty is True)
+		self.assertTrue(name=='tag' and attrs['@hello']=='hello' and empty is True)
 		e=XMLEntity("<tag width=20%>")
 		p=XMLParser(e)
 		p.dontCheckWellFormedness=True
 		name,attrs,empty=p.ParseSTag()
-		self.failUnless(name=='tag' and attrs['width']=='20%' and empty is False)
+		self.assertTrue(name=='tag' and attrs['width']=='20%' and empty is False)
 		
 		
 	def testAttribute(self):
@@ -1103,8 +1106,8 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		for match in m:
 			name,value=p.ParseAttribute()
-			self.failUnless(name==match[0],"Attribute name match failed: %s (expected %s)"%(name,match[0]))
-			self.failUnless(value==match[1],"Attribute value match failed: %s (expected %s)"%(value,match[1]))
+			self.assertTrue(name==match[0],"Attribute name match failed: %s (expected %s)"%(name,match[0]))
+			self.assertTrue(value==match[1],"Attribute value match failed: %s (expected %s)"%(value,match[1]))
 		try:
 			p.ParseS()
 			value=p.ParseAttribute()
@@ -1119,9 +1122,9 @@ class XMLParserTests(unittest.TestCase):
 		for match in m:
 			p.ParseS()
 			name,value=p.ParseAttribute()
-			self.failUnless(name==match[0],"Compatibility: Attribute name match failed: %s (expected %s)"%(name,match[0]))
-			self.failUnless(value==match[1],"Compatibility: Attribute value match failed: %s (expected %s)"%(value,match[1]))
-		self.failUnless(p.theChar is None,"Short parse of ETag tests")
+			self.assertTrue(name==match[0],"Compatibility: Attribute name match failed: %s (expected %s)"%(name,match[0]))
+			self.assertTrue(value==match[1],"Compatibility: Attribute value match failed: %s (expected %s)"%(value,match[1]))
+		self.assertTrue(p.theChar is None,"Short parse of ETag tests")
 		
 	def testETag(self):
 		"""[42] ETag ::= '</' Name S? '>' """
@@ -1131,14 +1134,14 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		for match in m:
 			value=p.ParseETag(p.theChar!='<')
-			self.failUnless(value==match,"ETag name match failed: %s (expected %s)"%(value,match))
+			self.assertTrue(value==match,"ETag name match failed: %s (expected %s)"%(value,match))
 		try:
 			value=p.ParseETag()
 			self.fail("Parsed bad ETag: %s"%value)
 		except XMLWellFormedError:
 			p.ParseLiteral('/>')
 			pass
-		self.failUnless(p.theChar is None,"Short parse of ETag tests")
+		self.assertTrue(p.theChar is None,"Short parse of ETag tests")
 						
 	def testContent(self):
 		"""[43] content ::= CharData? ((element | Reference | CDSect | PI | Comment) CharData?)* """
@@ -1149,10 +1152,10 @@ class XMLParserTests(unittest.TestCase):
 		p.element=Element("a")
 		p.ParseContent()
 		children=list(p.element.GetChildren())
-		self.failUnless(children[0]=='a',"First character: %s"%repr(children[0]))
-		self.failUnless(isinstance(children[1],Element),"First element: %s"%repr(children[1]))
-		self.failUnless(children[1].xmlname=='elem1',"First element name: %s"%repr(children[1].xmlname))
-		self.failUnless(children[2]=='b&c&amp;def',"Remaining data: %s"%repr(children[2]))
+		self.assertTrue(children[0]=='a',"First character: %s"%repr(children[0]))
+		self.assertTrue(isinstance(children[1],Element),"First element: %s"%repr(children[1]))
+		self.assertTrue(children[1].xmlname=='elem1',"First element name: %s"%repr(children[1].xmlname))
+		self.assertTrue(children[2]=='b&c&amp;def',"Remaining data: %s"%repr(children[2]))
 
 	def testEmptyElemTag(self):
 		"""[44] EmptyElemTag ::= '<' Name (S Attribute)* S? '/> """
@@ -1167,11 +1170,11 @@ class XMLParserTests(unittest.TestCase):
 			except NotImplementedError:
 				pass
 			name,attrs,emptyFlag=p.ParseSTag()
-			self.failUnless(emptyFlag,"Expected empty element tag")
-			self.failUnless(name==match[0],"Element name mismatch: %s"%name)
-			self.failUnless(attrs==match[1],"Element attrs mismatch: %s"%repr(attrs))
+			self.assertTrue(emptyFlag,"Expected empty element tag")
+			self.assertTrue(name==match[0],"Element name mismatch: %s"%name)
+			self.assertTrue(attrs==match[1],"Element attrs mismatch: %s"%repr(attrs))
 			p.ParseS()
-		self.failUnless(p.theChar is None,"Short parse of empty elements")
+		self.assertTrue(p.theChar is None,"Short parse of empty elements")
 	
 	def testElementDecl(self):
 		"""[45] elementdecl ::= '<!ELEMENT' S Name S contentspec S? '>'	"""
@@ -1189,13 +1192,13 @@ class XMLParserTests(unittest.TestCase):
 		except XMLWellFormedError:
 			pass
 		eType=p.dtd.GetElementType('elem1')
-		self.failUnless(eType.contentType==ElementType.Any,"First element")
+		self.assertTrue(eType.contentType==ElementType.Any,"First element")
 		eType=p.dtd.GetElementType('elem2')
-		self.failUnless(eType.contentType==ElementType.Mixed,"Second element")
+		self.assertTrue(eType.contentType==ElementType.Mixed,"Second element")
 		eType=p.dtd.GetElementType('elem3')
-		self.failUnless(eType.contentType==ElementType.ElementContent,"Third element")
-		self.failUnless(eType.contentModel.children[4].children[1].children[1].name=="K","Third element model")
-		self.failUnless(p.theChar is None,"Short parse on element declarations")
+		self.assertTrue(eType.contentType==ElementType.ElementContent,"Third element")
+		self.assertTrue(eType.contentModel.children[4].children[1].children[1].name=="K","Third element model")
+		self.assertTrue(p.theChar is None,"Short parse on element declarations")
 		
 	def testContentSpec(self):
 		"""[46] contentspec ::= 'EMPTY' | 'ANY' | Mixed | children """
@@ -1218,15 +1221,15 @@ class XMLParserTests(unittest.TestCase):
 		for match in m:
 			eType=ElementType()
 			p.ParseContentSpec(eType)
-			self.failUnless(eType.contentType==match[0],"Content type mismatch")
+			self.assertTrue(eType.contentType==match[0],"Content type mismatch")
 			if match[1] is None:
-				self.failUnless(eType.contentModel is None,"Content model type mismatch")
+				self.assertTrue(eType.contentModel is None,"Content model type mismatch")
 			else:	
-				self.failUnless(isinstance(eType.contentModel,match[1]),"Content model type mismatch")
-				self.failUnless(eType.contentModel.occurrence==match[2],"Content model occurrence mismatch")
-				self.failUnless(len(eType.contentModel.children)==match[3],"Number of children in content model mismatch")
+				self.assertTrue(isinstance(eType.contentModel,match[1]),"Content model type mismatch")
+				self.assertTrue(eType.contentModel.occurrence==match[2],"Content model occurrence mismatch")
+				self.assertTrue(len(eType.contentModel.children)==match[3],"Number of children in content model mismatch")
 			p.ParseS()
-		self.failUnless(p.theChar is None,"Incomplete parse in contentspec tests: %s"%repr(p.theChar))
+		self.assertTrue(p.theChar is None,"Incomplete parse in contentspec tests: %s"%repr(p.theChar))
 		
 	def testChildren(self):
 		"""[47] children ::= (choice | seq) ('?' | '*' | '+')? """
@@ -1241,8 +1244,8 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		for match in m:
 			cp=p.ParseChildren()
-			self.failUnless(isinstance(cp,match[0]),"Particle type mismatch")
-			self.failUnless(cp.occurrence==match[1],"Particle occurrence mismatch, %i (expected %i)"%(cp.occurrence,match[1]))
+			self.assertTrue(isinstance(cp,match[0]),"Particle type mismatch")
+			self.assertTrue(cp.occurrence==match[1],"Particle occurrence mismatch, %i (expected %i)"%(cp.occurrence,match[1]))
 			p.ParseS()
 		try:
 			cp=p.ParseChildren()
@@ -1250,7 +1253,7 @@ class XMLParserTests(unittest.TestCase):
 		except XMLFatalError:
 			# fails to parse 'Particle1'
 			p.ParseLiteral('Particle1')
-		self.failUnless(p.theChar is None,"Incomplete parse in children tests: %s"%repr(p.theChar))
+		self.assertTrue(p.theChar is None,"Incomplete parse in children tests: %s"%repr(p.theChar))
 		
 	def testCP(self):
 		"""[48] cp ::= (Name | choice | seq) ('?' | '*' | '+')? """
@@ -1266,10 +1269,10 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		for match in m:
 			cp=p.ParseCP()
-			self.failUnless(isinstance(cp,match[0]),"Particle type mismatch")
-			self.failUnless(cp.occurrence==match[1],"Particle occurrence mismatch, %i (expected %i)"%(cp.occurrence,match[1]))
+			self.assertTrue(isinstance(cp,match[0]),"Particle type mismatch")
+			self.assertTrue(cp.occurrence==match[1],"Particle occurrence mismatch, %i (expected %i)"%(cp.occurrence,match[1]))
 			p.ParseS()
-		self.failUnless(p.theChar is None,"Incomplete parse in CP tests: %s"%repr(p.theChar))
+		self.assertTrue(p.theChar is None,"Incomplete parse in CP tests: %s"%repr(p.theChar))
 
 	def testChoice(self):
 		"""[49] choice ::= '(' S? cp ( S? '|' S? cp )+ S? ')' """
@@ -1282,14 +1285,14 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		for match in m:
 			cp=p.ParseChoice()
-			self.failUnless(isinstance(cp,XMLChoiceList),"Choice list match failed")
-			self.failUnless(len(cp.children)==len(match),"Choice list match length mismatch")
+			self.assertTrue(isinstance(cp,XMLChoiceList),"Choice list match failed")
+			self.assertTrue(len(cp.children)==len(match),"Choice list match length mismatch")
 			i=0
 			for cpi,mi in zip(cp.children,match):
-				self.failUnless(isinstance(cpi,XMLNameParticle),"Not a name particle")
-				self.failUnless(cpi.name==mi[0],"Particle name mismatch")
-				self.failUnless(cpi.occurrence==mi[1],"Particle occurrence mismatch")
-		self.failUnless(p.ParseLiteral('+'),"Final occurrence parsed in error")
+				self.assertTrue(isinstance(cpi,XMLNameParticle),"Not a name particle")
+				self.assertTrue(cpi.name==mi[0],"Particle name mismatch")
+				self.assertTrue(cpi.occurrence==mi[1],"Particle occurrence mismatch")
+		self.assertTrue(p.ParseLiteral('+'),"Final occurrence parsed in error")
 		try:
 			cp=p.ParseChoice()
 			self.fail("Singleton choice not allowed")
@@ -1302,7 +1305,7 @@ class XMLParserTests(unittest.TestCase):
 		except XMLFatalError:
 			# fails to parse ')'
 			p.ParseLiteral(')')
-		self.failUnless(p.theChar is None,"Incomplete parse in choice tests: %s"%repr(p.theChar))
+		self.assertTrue(p.theChar is None,"Incomplete parse in choice tests: %s"%repr(p.theChar))
 	
 	def testSeq(self):
 		"""[50] seq ::= '(' S? cp ( S? ',' S? cp )* S? ')' """
@@ -1314,21 +1317,21 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		for match in m:
 			cp=p.ParseSeq()
-			self.failUnless(isinstance(cp,XMLSequenceList),"Sequence match failed")
-			self.failUnless(len(cp.children)==len(match),"Sequence match length mismatch")
+			self.assertTrue(isinstance(cp,XMLSequenceList),"Sequence match failed")
+			self.assertTrue(len(cp.children)==len(match),"Sequence match length mismatch")
 			i=0
 			for cpi,mi in zip(cp.children,match):
-				self.failUnless(isinstance(cpi,XMLNameParticle),"Not a name particle")
-				self.failUnless(cpi.name==mi[0],"Particle name mismatch")
-				self.failUnless(cpi.occurrence==mi[1],"Particle occurrence mismatch")
-		self.failUnless(p.ParseLiteral('+'),"Final occurrence parsed in error")
+				self.assertTrue(isinstance(cpi,XMLNameParticle),"Not a name particle")
+				self.assertTrue(cpi.name==mi[0],"Particle name mismatch")
+				self.assertTrue(cpi.occurrence==mi[1],"Particle occurrence mismatch")
+		self.assertTrue(p.ParseLiteral('+'),"Final occurrence parsed in error")
 		try:
 			cp=p.ParseSeq()
 			self.fail("Empty sequence not allowed")
 		except XMLFatalError:
 			# fails to parse ')'
 			p.ParseLiteral(')')
-		self.failUnless(p.theChar is None,"Incomplete parse in sequence tests: %s"%repr(p.theChar))
+		self.assertTrue(p.theChar is None,"Incomplete parse in sequence tests: %s"%repr(p.theChar))
 		
 	def testMixed(self):
 		"""[51] Mixed ::= '(' S? '#PCDATA' (S? '|' S? Name)* S? ')*' | '(' S? '#PCDATA' S? ')' """
@@ -1338,13 +1341,13 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		for match in m:
 			cp=p.ParseMixed()
-			self.failUnless(isinstance(cp,XMLChoiceList),"Mixed must be a choice")
-			self.failUnless(cp.occurrence==XMLContentParticle.ZeroOrMore,"Mixed must be '*'")
-			self.failUnless(len(cp.children)==len(match),"Particle count mismatch: %s"%str(match))
+			self.assertTrue(isinstance(cp,XMLChoiceList),"Mixed must be a choice")
+			self.assertTrue(cp.occurrence==XMLContentParticle.ZeroOrMore,"Mixed must be '*'")
+			self.assertTrue(len(cp.children)==len(match),"Particle count mismatch: %s"%str(match))
 			for cpi,mi in zip(cp.children,match):
-				self.failUnless(isinstance(cpi,XMLNameParticle),"Mixed particles must be names")
-				self.failUnless(cpi.occurrence==XMLContentParticle.ExactlyOnce,"Mixed occurrence")
-				self.failUnless(cpi.name==mi,"Mixed particle name")
+				self.assertTrue(isinstance(cpi,XMLNameParticle),"Mixed particles must be names")
+				self.assertTrue(cpi.occurrence==XMLContentParticle.ExactlyOnce,"Mixed occurrence")
+				self.assertTrue(cpi.name==mi,"Mixed particle name")
 		try:
 			values=p.ParseMixed()
 			self.fail("Missed trailing *")
@@ -1357,7 +1360,7 @@ class XMLParserTests(unittest.TestCase):
 		except XMLFatalError:
 			# fails to parse '#PCDATA' 
 			p.ParseLiteral('Steve1|#PCDATA)*')
-		self.failUnless(p.theChar is None,"Incomplete parse in Mixed tests: %s"%repr(p.theChar))
+		self.assertTrue(p.theChar is None,"Incomplete parse in Mixed tests: %s"%repr(p.theChar))
 		
 	def testAttlistDecl(self):
 		"""[52] AttlistDecl ::= '<!ATTLIST' S Name AttDef* S? '>' """
@@ -1374,11 +1377,11 @@ class XMLParserTests(unittest.TestCase):
 		except XMLWellFormedError:
 			pass
 		aList=p.dtd.GetAttributeList('elem')
-		self.failUnless(aList['attr'].defaultValue=='Steve',"First attribute")
-		self.failUnless(aList['attr2'].presence==XMLAttributeDefinition.Implied,"Second attribute")
-		self.failUnless(aList['attr3'].type==XMLAttributeDefinition.Enumeration,"Third attribute")
+		self.assertTrue(aList['attr'].defaultValue=='Steve',"First attribute")
+		self.assertTrue(aList['attr2'].presence==XMLAttributeDefinition.Implied,"Second attribute")
+		self.assertTrue(aList['attr3'].type==XMLAttributeDefinition.Enumeration,"Third attribute")
 		aList=p.dtd.GetAttributeList('elem2')
-		self.failUnless(aList is None,"Bad attribute")
+		self.assertTrue(aList is None,"Bad attribute")
 		
 	def testAttDef(self):
 		"""[53] AttDef ::= S Name S AttType S DefaultDecl"""
@@ -1390,11 +1393,11 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		for match in m:
 			a=p.ParseAttDef()
-			self.failUnless(a.name==match[0],"AttDef match failed: %s (expected %s)"%(a.name,match[0]))
-			self.failUnless(a.type==match[1],"AttDef match failed: %i (expected %i)"%(a.type,match[1]))
-			self.failUnless(a.values==match[2],"AttDef match failed: %s (expected %s)"%(a.values,match[2]))
-			self.failUnless(a.presence==match[3],"AttDef match failed: %i (expected %i)"%(a.presence,match[3]))
-			self.failUnless(a.defaultValue==match[4],"AttDef match failed: %s (expected %s)"%(a.defaultValue,match[4]))
+			self.assertTrue(a.name==match[0],"AttDef match failed: %s (expected %s)"%(a.name,match[0]))
+			self.assertTrue(a.type==match[1],"AttDef match failed: %i (expected %i)"%(a.type,match[1]))
+			self.assertTrue(a.values==match[2],"AttDef match failed: %s (expected %s)"%(a.values,match[2]))
+			self.assertTrue(a.presence==match[3],"AttDef match failed: %i (expected %i)"%(a.presence,match[3]))
+			self.assertTrue(a.defaultValue==match[4],"AttDef match failed: %s (expected %s)"%(a.defaultValue,match[4]))
 		try:
 			a=p.ParseAttDef()
 			self.fail("Parsed bad AttDef: %s"%a.name)
@@ -1411,8 +1414,8 @@ class XMLParserTests(unittest.TestCase):
 		for match in m:
 			a=XMLAttributeDefinition()
 			p.ParseAttType(a)
-			self.failUnless(a.type==match[0],"Attribute type match failed: %i (expected %i)"%(a.type,match[0]))
-			self.failUnless(a.values==match[1],"Attribute type match failed: %s (expected %s)"%(a.values,match[1]))
+			self.assertTrue(a.type==match[0],"Attribute type match failed: %i (expected %i)"%(a.type,match[0]))
+			self.assertTrue(a.values==match[1],"Attribute type match failed: %s (expected %s)"%(a.values,match[1]))
 			p.ParseS()
 		try:
 			a=XMLAttributeDefinition()
@@ -1430,8 +1433,8 @@ class XMLParserTests(unittest.TestCase):
 		for match in m:
 			a=XMLAttributeDefinition()
 			p.ParseStringType(a)
-			self.failUnless(a.type==match[0],"String type match failed: %i (expected %i)"%(a.type,match[0]))
-			self.failUnless(a.values==match[1],"String type match failed: %s (expected %s)"%(a.values,match[1]))
+			self.assertTrue(a.type==match[0],"String type match failed: %i (expected %i)"%(a.type,match[0]))
+			self.assertTrue(a.values==match[1],"String type match failed: %s (expected %s)"%(a.values,match[1]))
 			p.ParseS()
 		try:
 			a=XMLAttributeDefinition()
@@ -1451,8 +1454,8 @@ class XMLParserTests(unittest.TestCase):
 		for match in m:
 			a=XMLAttributeDefinition()
 			p.ParseTokenizedType(a)
-			self.failUnless(a.type==match[0],"Tokenized type match failed: %i (expected %i)"%(a.type,match[0]))
-			self.failUnless(a.values==match[1],"Tokenized type match failed: %s (expected %s)"%(a.values,match[1]))
+			self.assertTrue(a.type==match[0],"Tokenized type match failed: %i (expected %i)"%(a.type,match[0]))
+			self.assertTrue(a.values==match[1],"Tokenized type match failed: %s (expected %s)"%(a.values,match[1]))
 			p.ParseS()
 		try:
 			a=XMLAttributeDefinition()
@@ -1470,8 +1473,8 @@ class XMLParserTests(unittest.TestCase):
 		for match in m:
 			a=XMLAttributeDefinition()
 			p.ParseEnumeratedType(a)
-			self.failUnless(a.type==match[0],"Enumerated type match failed: %i (expected %i)"%(a.type,match[0]))
-			self.failUnless(a.values==match[1],"Enumerated type match failed: %s (expected %s)"%(a.values,match[1]))
+			self.assertTrue(a.type==match[0],"Enumerated type match failed: %i (expected %i)"%(a.type,match[0]))
+			self.assertTrue(a.values==match[1],"Enumerated type match failed: %s (expected %s)"%(a.values,match[1]))
 		try:
 			a=XMLAttributeDefinition()
 			value=p.ParseEnumeratedType(a)
@@ -1487,7 +1490,7 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		for match in m:
 			value=p.ParseNotationType(p.theChar!='N')
-			self.failUnless(value==match,"NotationType match failed: %s (expected %s)"%(value,match))
+			self.assertTrue(value==match,"NotationType match failed: %s (expected %s)"%(value,match))
 		try:
 			value=p.ParseNotationType()
 			self.fail("Parsed bad NotationType: %s"%value)
@@ -1502,7 +1505,7 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		for match in m:
 			value=p.ParseEnumeration()
-			self.failUnless(value==match,"Enumeration match failed: %s (expected %s)"%(value,match))
+			self.assertTrue(value==match,"Enumeration match failed: %s (expected %s)"%(value,match))
 		try:
 			value=p.ParseEnumeration()
 			self.fail("Parsed bad Enumeration: %s"%value)
@@ -1519,8 +1522,8 @@ class XMLParserTests(unittest.TestCase):
 		for match in m:
 			a=XMLAttributeDefinition()
 			p.ParseDefaultDecl(a)
-			self.failUnless(a.presence==match[0],"DefaultDecl declaration match failed: %i (expected %i)"%(a.presence,match[0]))
-			self.failUnless(a.defaultValue==match[1],"DefaultDecl value match failed: %s (expected %s)"%(a.defaultValue,match[1]))
+			self.assertTrue(a.presence==match[0],"DefaultDecl declaration match failed: %i (expected %i)"%(a.presence,match[0]))
+			self.assertTrue(a.defaultValue==match[1],"DefaultDecl value match failed: %s (expected %s)"%(a.defaultValue,match[1]))
 			p.ParseS()
 		try:
 			a=XMLAttributeDefinition()
@@ -1540,9 +1543,9 @@ class XMLParserTests(unittest.TestCase):
 		p.refMode=XMLParser.RefModeInDTD
 		try:
 			p.ParseConditionalSect()
-			self.failUnless(p.theChar is None,"Short parse on ConditionalSect: %s"%p.theChar)
-			self.failUnless(p.dtd.GetEntity('included').definition=='yes',"included entity declaration")
-			self.failUnless(p.dtd.GetEntity('ignored')==None,"ignored entity declaration")			
+			self.assertTrue(p.theChar is None,"Short parse on ConditionalSect: %s"%p.theChar)
+			self.assertTrue(p.dtd.GetEntity('included').definition=='yes',"included entity declaration")
+			self.assertTrue(p.dtd.GetEntity('ignored')==None,"ignored entity declaration")			
 		except XMLWellFormedError,e:
 			self.fail("ParseConditionalSect positive test: %s\n%s"%(s,str(e)))
 		
@@ -1558,7 +1561,7 @@ class XMLParserTests(unittest.TestCase):
 			p.refMode=XMLParser.RefModeInDTD
 			try:
 				p.ParseIncludeSect()
-				self.failUnless(p.theChar is None,"Short parse on IncludeSect: %s"%p.theChar)
+				self.assertTrue(p.theChar is None,"Short parse on IncludeSect: %s"%p.theChar)
 			except XMLWellFormedError,e:
 				self.fail("ParseIncludeSect positive test: %s\n%s"%(s,str(e)))
 		for s in [" <![INCLUDE[]>","<! [INCLUDE[]]>","<![INCLUDE[] ]>"]:
@@ -1606,7 +1609,7 @@ class XMLParserTests(unittest.TestCase):
 			p.refMode=XMLParser.RefModeInDTD
 			try:
 				p.ParseIgnoreSect()
-				self.failUnless(p.theChar is None,"Short parse on IgnoreSect: %s"%p.theChar)
+				self.assertTrue(p.theChar is None,"Short parse on IgnoreSect: %s"%p.theChar)
 			except XMLWellFormedError:
 				self.fail("ParseIgnoreSect positive test: %s"%s)
 		for s in [" <![IGNORE[]>","<! [IGNORE[]]>","<![IGNORE[] ]>"]:
@@ -1651,7 +1654,7 @@ class XMLParserTests(unittest.TestCase):
 		p.dtd.DeclareEntity(XMLParameterEntity('x','bad'))
 		p.ParseIgnoreSectContents()
 		p.ParseLiteral(']]>')
-		self.failUnless(p.ParseName()=='end',"Failed to parse ignore section contents")
+		self.assertTrue(p.ParseName()=='end',"Failed to parse ignore section contents")
 		
 	def testIgnore(self):
 		"""[65] Ignore ::= Char* - (Char* ('<![' | ']]>') Char*) """
@@ -1666,8 +1669,8 @@ class XMLParserTests(unittest.TestCase):
 		pos=0
 		for match,c in m:
 			p.ParseIgnore()
-			self.failUnless(p.theChar==c,"Parser position: %s (expected %s)"%(p.theChar,c))
-			self.failUnless(s[pos:e.linePos-1]==match,"Match failed: %s (expected %s)"%(s[pos:e.linePos-1],match))
+			self.assertTrue(p.theChar==c,"Parser position: %s (expected %s)"%(p.theChar,c))
+			self.assertTrue(s[pos:e.linePos-1]==match,"Match failed: %s (expected %s)"%(s[pos:e.linePos-1],match))
 			p.NextChar()
 			pos=pos+len(match)
 		
@@ -1678,14 +1681,14 @@ class XMLParserTests(unittest.TestCase):
 			p=XMLParser(e)
 			p.refMode=m
 			data=p.ParseCharRef()
-			self.failUnless(data==u'\xe9',"ParseCharRef failed to interpret hex character reference: %s"%data)
-			self.failUnless(p.theChar is None,"Short parse on CharRef: %s"%p.theChar)
+			self.assertTrue(data==u'\xe9',"ParseCharRef failed to interpret hex character reference: %s"%data)
+			self.assertTrue(p.theChar is None,"Short parse on CharRef: %s"%p.theChar)
 		e=XMLEntity("&#xe9;")
 		p=XMLParser(e)
 		p.refMode=XMLParser.RefModeAsAttributeValue
 		data=p.ParseCharRef()
-		self.failUnless(data=="&#xe9;","ParseCharRef AsAttribute: %s"%data)
-		self.failUnless(p.theChar is None,"Short parse on CharRef: %s"%p.theChar)
+		self.assertTrue(data=="&#xe9;","ParseCharRef AsAttribute: %s"%data)
+		self.assertTrue(p.theChar is None,"Short parse on CharRef: %s"%p.theChar)
 		e=XMLEntity("&#xe9;")
 		p=XMLParser(e)
 		p.refMode=XMLParser.RefModeInDTD
@@ -1698,8 +1701,8 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		p.refMode=XMLParser.RefModeInContent
 		data=p.ParseCharRef(True)
-		self.failUnless(data==u'\xe9',"ParseCharRef failed to interpret decimal character reference: %s"%data)
-		self.failUnless(p.theChar is None,"Short parse on CharRef: %s"%p.theChar)
+		self.assertTrue(data==u'\xe9',"ParseCharRef failed to interpret decimal character reference: %s"%data)
+		self.assertTrue(p.theChar is None,"Short parse on CharRef: %s"%p.theChar)
 		for s in [" &#xe9;","& #xe9;","&# xe9;","&#xe 9;","&#xe9 ;","&#e9;","&#xg9;","&#1;","&#;","&#x;"]:
 			e=XMLEntity(s)
 			p=XMLParser(e)
@@ -1718,15 +1721,15 @@ class XMLParserTests(unittest.TestCase):
 		p.dtd.DeclareEntity(XMLGeneralEntity('animal','dog'))
 		p.refMode=XMLParser.RefModeInContent
 		data=p.ParseReference()
-		self.failUnless(data=='',"ParseReference failed to interpret entity reference")
-		self.failUnless(p.ParseName()=='dog',"Failed to replace Entity in Content")
-		self.failUnless(p.theChar is None,"Short parse on EntityRef")
+		self.assertTrue(data=='',"ParseReference failed to interpret entity reference")
+		self.assertTrue(p.ParseName()=='dog',"Failed to replace Entity in Content")
+		self.assertTrue(p.theChar is None,"Short parse on EntityRef")
 		e=XMLEntity("&#xe9;")
 		p=XMLParser(e)
 		p.refMode=XMLParser.RefModeInContent
 		data=p.ParseReference()
-		self.failUnless(data==u'\xe9',"ParseReference failed to interpret character reference: %s"%data)
-		self.failUnless(p.theChar is None,"Short parse on EntityRef: %s"%p.theChar)
+		self.assertTrue(data==u'\xe9',"ParseReference failed to interpret character reference: %s"%data)
+		self.assertTrue(p.theChar is None,"Short parse on EntityRef: %s"%p.theChar)
 		for s in [" &animal;","& animal;","&animal ;","animal","#xE9"]:
 			e=XMLEntity(s)
 			p=XMLParser(e)
@@ -1741,26 +1744,26 @@ class XMLParserTests(unittest.TestCase):
 		e=XMLEntity("&amp;")
 		p=XMLParser(e)
 		p.refMode=XMLParser.RefModeInContent
-		self.failUnless(p.ParseEntityRef()=='&',"Predefined entity not recognized in Content")
-		self.failUnless(p.theChar is None,"Short parse on Entity replacement text")
+		self.assertTrue(p.ParseEntityRef()=='&',"Predefined entity not recognized in Content")
+		self.assertTrue(p.theChar is None,"Short parse on Entity replacement text")
 		e=XMLEntity("&animal;")
 		p=XMLParser(e)
 		p.dtd=XMLDTD()
 		p.dtd.DeclareEntity(XMLGeneralEntity('animal','dog'))
 		p.refMode=XMLParser.RefModeInContent
-		self.failUnless(p.ParseEntityRef()=='',"EntityRef not recognized in Content")
+		self.assertTrue(p.ParseEntityRef()=='',"EntityRef not recognized in Content")
 		# This should result in the entity value being expanded into the stream
-		self.failUnless(p.ParseName()=='dog',"Failed to replace Entity in Content")
-		self.failUnless(p.theChar is None,"Short parse on Entity replacement text")
+		self.assertTrue(p.ParseName()=='dog',"Failed to replace Entity in Content")
+		self.assertTrue(p.theChar is None,"Short parse on Entity replacement text")
 		e=XMLEntity("animal;")
 		p=XMLParser(e)
 		p.dtd=XMLDTD()
 		p.dtd.DeclareEntity(XMLGeneralEntity('animal','dog'))
 		p.refMode=XMLParser.RefModeInAttributeValue
-		self.failUnless(p.ParseEntityRef(True)=='',"EntityRef not recognized in Attribute Value")
+		self.assertTrue(p.ParseEntityRef(True)=='',"EntityRef not recognized in Attribute Value")
 		# This should result in the entity value being expanded into the stream
-		self.failUnless(p.ParseName()=='dog',"Failed to replace Entity in Attribute Vaue")
-		self.failUnless(p.theChar is None,"Short parse on Entity replacement text")
+		self.assertTrue(p.ParseName()=='dog',"Failed to replace Entity in Attribute Vaue")
+		self.assertTrue(p.theChar is None,"Short parse on Entity replacement text")
 		e=XMLEntity("&animal;")
 		p=XMLParser(e)
 		p.refMode=XMLParser.RefModeAsAttributeValue
@@ -1773,8 +1776,8 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		p.refMode=XMLParser.RefModeInEntityValue
 		data=p.ParseEntityRef()
-		self.failUnless(data=='&animal;',"EntityRef recognized in EntityValue: %s"%data)
-		self.failUnless(p.theChar is None,"Short parse on EntityRef")
+		self.assertTrue(data=='&animal;',"EntityRef recognized in EntityValue: %s"%data)
+		self.assertTrue(p.theChar is None,"Short parse on EntityRef")
 		e=XMLEntity("&animal;")
 		p=XMLParser(e)
 		p.refMode=XMLParser.RefModeInDTD
@@ -1800,42 +1803,42 @@ class XMLParserTests(unittest.TestCase):
 		p.checkValidity=True
 		p.refMode=XMLParser.RefModeInContent
 		data=p.ParsePEReference()
-		self.failUnless(data=='%animal;',"PEReference recognized in content: %s"%data)
-		self.failUnless(p.theChar is None,"Short parse on PEReference")
+		self.assertTrue(data=='%animal;',"PEReference recognized in content: %s"%data)
+		self.assertTrue(p.theChar is None,"Short parse on PEReference")
 		e=XMLEntity("%animal;")
 		p=XMLParser(e)
 		p.checkValidity=True
 		p.refMode=XMLParser.RefModeInAttributeValue
-		self.failUnless(p.ParsePEReference()=='%animal;',"PEReference recognized in attribute value")
-		self.failUnless(p.theChar is None,"Short parse on PEReference")
+		self.assertTrue(p.ParsePEReference()=='%animal;',"PEReference recognized in attribute value")
+		self.assertTrue(p.theChar is None,"Short parse on PEReference")
 		e=XMLEntity("%animal;")
 		p=XMLParser(e)
 		p.checkValidity=True
 		p.refMode=XMLParser.RefModeAsAttributeValue
-		self.failUnless(p.ParsePEReference()=="%animal;","PEReference recognized as attribute value")
-		self.failUnless(p.theChar is None,"Short parse on PEReference")
+		self.assertTrue(p.ParsePEReference()=="%animal;","PEReference recognized as attribute value")
+		self.assertTrue(p.theChar is None,"Short parse on PEReference")
 		e=XMLEntity("%animal;")
 		p=XMLParser(e)
 		p.checkValidity=True
 		p.dtd=XMLDTD()
 		p.dtd.DeclareEntity(XMLParameterEntity('animal','dog'))
 		p.refMode=XMLParser.RefModeInEntityValue
-		self.failUnless(p.ParsePEReference()=='',"PEReference not recognized in entity value")
+		self.assertTrue(p.ParsePEReference()=='',"PEReference not recognized in entity value")
 		# This should result in the entity value being expanded into the stream
-		self.failUnless(p.ParseName()=='dog',"Failed to replace PE in entity value")
-		self.failUnless(p.theChar is None,"Short parse on PEReference replacement text")
+		self.assertTrue(p.ParseName()=='dog',"Failed to replace PE in entity value")
+		self.assertTrue(p.theChar is None,"Short parse on PEReference replacement text")
 		e=XMLEntity("%animal;")
 		p=XMLParser(e)
 		p.checkValidity=True
 		p.dtd=XMLDTD()
 		p.dtd.DeclareEntity(XMLParameterEntity('animal','dog'))
 		p.refMode=XMLParser.RefModeInDTD
-		self.failUnless(p.ParsePEReference()=='',"PEReference not recognized in DTD")
+		self.assertTrue(p.ParsePEReference()=='',"PEReference not recognized in DTD")
 		# This should result in the entity value being expanded into the stream with surrounding spaces
-		self.failUnless(p.ParseS()==' ',"Missing leading space on PE replacement text")
-		self.failUnless(p.ParseName()=='dog',"Failed to replace PE in DTD")
-		self.failUnless(p.ParseS()==' ',"Missing trailing space on PE replacement text")
-		self.failUnless(p.theChar is None,"Short parse on PEReference")
+		self.assertTrue(p.ParseS()==' ',"Missing leading space on PE replacement text")
+		self.assertTrue(p.ParseName()=='dog',"Failed to replace PE in DTD")
+		self.assertTrue(p.ParseS()==' ',"Missing trailing space on PE replacement text")
+		self.assertTrue(p.theChar is None,"Short parse on PEReference")
 		e=XMLEntity('<!ENTITY WhatHeSaid "He said %YN;" >')
 		p=XMLParser(e)
 		p.checkValidity=True
@@ -1844,8 +1847,8 @@ class XMLParserTests(unittest.TestCase):
 		try:
 			ge=p.ParseEntityDecl()
 			# This should result in the entity value being expanded into the stream with surrounding spaces
-			self.failUnless(ge.definition=='He said "Yes"',"PEReference quote test failed in entity value: %s"%ge.definition)
-			self.failUnless(p.theChar is None,"Short parse on PEReference in entity declaration")
+			self.assertTrue(ge.definition=='He said "Yes"',"PEReference quote test failed in entity value: %s"%ge.definition)
+			self.assertTrue(p.theChar is None,"Short parse on PEReference in entity declaration")
 		except XMLWellFormedError:
 			self.fail("PEReference quote test failed in entity value")
 	
@@ -1855,32 +1858,32 @@ class XMLParserTests(unittest.TestCase):
 		e=XMLEntity("<!ENTITY Steve 'SteveValue'>")
 		p=XMLParser(e)
 		ed=p.ParseEntityDecl()
-		self.failUnless(isinstance(ed,XMLGeneralEntity),"ParseEntityDecl failed to return GeneralEntity")		
-		self.failUnless(ed.name=='Steve',"Failed to parse general entity name")
-		self.failUnless(p.theChar is None,"Short parse on EntityDecl")
+		self.assertTrue(isinstance(ed,XMLGeneralEntity),"ParseEntityDecl failed to return GeneralEntity")		
+		self.assertTrue(ed.name=='Steve',"Failed to parse general entity name")
+		self.assertTrue(p.theChar is None,"Short parse on EntityDecl")
 		e=XMLEntity(" % Steve 'SteveValue'>")
 		p=XMLParser(e)
 		ed=p.ParseEntityDecl(True)
-		self.failUnless(isinstance(ed,XMLParameterEntity),"ParseEntityDecl failed to return ParameterEntity")		
-		self.failUnless(ed.name=='Steve',"Failed to parse parameter entity name")
-		self.failUnless(p.theChar is None,"Short parse on EntityDecl")
+		self.assertTrue(isinstance(ed,XMLParameterEntity),"ParseEntityDecl failed to return ParameterEntity")		
+		self.assertTrue(ed.name=='Steve',"Failed to parse parameter entity name")
+		self.assertTrue(p.theChar is None,"Short parse on EntityDecl")
 		
 	def testGEDecl(self):
 		"""[71] GEDecl ::= '<!ENTITY' S Name S EntityDef S? '>' """
 		e=XMLEntity("<!ENTITY Steve 'SteveValue'>")
 		p=XMLParser(e)
 		ge=p.ParseGEDecl()
-		self.failUnless(isinstance(ge,XMLGeneralEntity),"ParseGEDecl failed to return GeneralEntity")		
-		self.failUnless(ge.name=='Steve',"Failed to parse general entity name")
-		self.failUnless(ge.definition=='SteveValue',"Failed to parse general entity value")
-		self.failUnless(p.theChar is None,"Short parse on GEDecl")
+		self.assertTrue(isinstance(ge,XMLGeneralEntity),"ParseGEDecl failed to return GeneralEntity")		
+		self.assertTrue(ge.name=='Steve',"Failed to parse general entity name")
+		self.assertTrue(ge.definition=='SteveValue',"Failed to parse general entity value")
+		self.assertTrue(p.theChar is None,"Short parse on GEDecl")
 		e=XMLEntity("Steve PUBLIC 'Steve' '/home/steve.txt' NDATA SteveN  >")
 		p=XMLParser(e)
 		ge=p.ParseGEDecl(True)
-		self.failUnless(ge.definition.public=='Steve',"ParseGEDecl failed to parse external public ID")
-		self.failUnless(ge.definition.system=='/home/steve.txt',"ParseGEDecl failed to parse external system ID")
-		self.failUnless(ge.notation=='SteveN',"ParseGEDecl failed to parse unparsed entity notation")
-		self.failUnless(p.theChar is None,"Short parse on GEDecl")
+		self.assertTrue(ge.definition.public=='Steve',"ParseGEDecl failed to parse external public ID")
+		self.assertTrue(ge.definition.system=='/home/steve.txt',"ParseGEDecl failed to parse external system ID")
+		self.assertTrue(ge.notation=='SteveN',"ParseGEDecl failed to parse unparsed entity notation")
+		self.assertTrue(p.theChar is None,"Short parse on GEDecl")
 		for s in ["<!entity Steve 'v'>","<!ENTITYSteve 'v'>",
 			"<!ENTITY Steve PUBLIC 'Steve' '/home/steve.txt'NDATA SteveN >",
 			"  Steve PUBLIC 'Steve' '/home/steve.txt' NDATA SteveN  >"]:
@@ -1898,16 +1901,16 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		p.refMode=XMLParser.RefModeInDTD
 		pe=p.ParsePEDecl()
-		self.failUnless(isinstance(pe,XMLParameterEntity),"ParsePEDecl failed to return ParameterEntity")		
-		self.failUnless(pe.name=='Steve',"Failed to parse parameter entity name")
-		self.failUnless(pe.definition=='SteveValue',"Failed to parse parameter entity value")
-		self.failUnless(p.theChar is None,"Short parse on PEDecl")
+		self.assertTrue(isinstance(pe,XMLParameterEntity),"ParsePEDecl failed to return ParameterEntity")		
+		self.assertTrue(pe.name=='Steve',"Failed to parse parameter entity name")
+		self.assertTrue(pe.definition=='SteveValue',"Failed to parse parameter entity value")
+		self.assertTrue(p.theChar is None,"Short parse on PEDecl")
 		e=XMLEntity("% Steve PUBLIC 'Steve' '/home/steve.txt'   >")
 		p=XMLParser(e)
 		pe=p.ParsePEDecl(True)
-		self.failUnless(pe.definition.public=='Steve',"ParsePEDecl failed to parse external public ID")
-		self.failUnless(pe.definition.system=='/home/steve.txt',"ParsePEDecl failed to parse external system ID")
-		self.failUnless(p.theChar is None,"Short parse on PEDecl")
+		self.assertTrue(pe.definition.public=='Steve',"ParsePEDecl failed to parse external public ID")
+		self.assertTrue(pe.definition.system=='/home/steve.txt',"ParsePEDecl failed to parse external system ID")
+		self.assertTrue(p.theChar is None,"Short parse on PEDecl")
 		for s in ["<!entity % Steve 'v'>","<!ENTITY% Steve 'v'>","<!ENTITY %Steve 'v'>","<!ENTITY % Steve'v'>",
 			"  % Steve PUBLIC 'Steve' '/home/steve.txt'   >"]:
 			e=XMLEntity(s)
@@ -1924,27 +1927,27 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		ge=XMLGeneralEntity()
 		p.ParseEntityDef(ge)
-		self.failUnless(type(ge.definition) in StringTypes,"ParseEntityDef failed to for internal entity")		
-		self.failUnless(ge.definition=='Steve',"Failed to parse internal entity value")
-		self.failUnless(ge.notation is None,"Found notation for internal entity")
-		self.failUnless(p.theChar is None,"Short parse on EntityDef")
+		self.assertTrue(type(ge.definition) in StringTypes,"ParseEntityDef failed to for internal entity")		
+		self.assertTrue(ge.definition=='Steve',"Failed to parse internal entity value")
+		self.assertTrue(ge.notation is None,"Found notation for internal entity")
+		self.assertTrue(p.theChar is None,"Short parse on EntityDef")
 		e=XMLEntity("PUBLIC 'Steve' '/home/steve.txt'")
 		p=XMLParser(e)
 		ge=XMLGeneralEntity()
 		p.ParseEntityDef(ge)
-		self.failUnless(isinstance(ge.definition,XMLExternalID),"ParseEntityDef failed for external entity")
-		self.failUnless(ge.definition.public=='Steve',"ParseEntityDef failed to parse external public ID")
-		self.failUnless(ge.definition.system=='/home/steve.txt',"ParseEntityDef failed to parse external system ID")
-		self.failUnless(ge.notation is None,"Found notation for internal entity")
-		self.failUnless(p.theChar is None,"Short parse on EntityDef")
+		self.assertTrue(isinstance(ge.definition,XMLExternalID),"ParseEntityDef failed for external entity")
+		self.assertTrue(ge.definition.public=='Steve',"ParseEntityDef failed to parse external public ID")
+		self.assertTrue(ge.definition.system=='/home/steve.txt',"ParseEntityDef failed to parse external system ID")
+		self.assertTrue(ge.notation is None,"Found notation for internal entity")
+		self.assertTrue(p.theChar is None,"Short parse on EntityDef")
 		e=XMLEntity("SYSTEM '/path' NDATA SteveN")
 		p=XMLParser(e)
 		ge=XMLGeneralEntity()
 		p.ParseEntityDef(ge)
-		self.failUnless(ge.definition.public is None,"ParseEntityDef found spurious public ID")
-		self.failUnless(ge.definition.system=='/path',"ParseEntityDef failed to parse external system ID")
-		self.failUnless(ge.notation=='SteveN',"Failed to find notation for unparsed external entity")
-		self.failUnless(p.theChar is None,"Short parse on EntityDef")
+		self.assertTrue(ge.definition.public is None,"ParseEntityDef found spurious public ID")
+		self.assertTrue(ge.definition.system=='/path',"ParseEntityDef failed to parse external system ID")
+		self.assertTrue(ge.notation=='SteveN',"Failed to find notation for unparsed external entity")
+		self.assertTrue(p.theChar is None,"Short parse on EntityDef")
 		for s in ["NDATA 'SteveN'"," 'Steve'"," SYSTEM '/path'"]:
 			e=XMLEntity(s)
 			p=XMLParser(e)
@@ -1961,24 +1964,24 @@ class XMLParserTests(unittest.TestCase):
 		p=XMLParser(e)
 		pe=XMLParameterEntity()
 		p.ParsePEDef(pe)
-		self.failUnless(isinstance(pe.definition,XMLExternalID),"ParsePEDef failed to return XMLExternalID instance")
-		self.failUnless(pe.definition.public=='Steve',"Failed to parse external public ID")
-		self.failUnless(pe.definition.system=='/home/steve.txt',"Failed to parse external system ID")
-		self.failUnless(p.theChar is None,"Short parse on PEDef")
+		self.assertTrue(isinstance(pe.definition,XMLExternalID),"ParsePEDef failed to return XMLExternalID instance")
+		self.assertTrue(pe.definition.public=='Steve',"Failed to parse external public ID")
+		self.assertTrue(pe.definition.system=='/home/steve.txt',"Failed to parse external system ID")
+		self.assertTrue(p.theChar is None,"Short parse on PEDef")
 		e=XMLEntity("'Steve'")
 		p=XMLParser(e)
 		pe=XMLParameterEntity()
 		p.ParsePEDef(pe)
-		self.failUnless(type(pe.definition) in StringTypes,"ParsePEDef failed to return String value")
-		self.failUnless(pe.definition=='Steve',"Failed to parse simple entity value")
-		self.failUnless(p.theChar is None,"Short parse on PEDef")
+		self.assertTrue(type(pe.definition) in StringTypes,"ParsePEDef failed to return String value")
+		self.assertTrue(pe.definition=='Steve',"Failed to parse simple entity value")
+		self.assertTrue(p.theChar is None,"Short parse on PEDef")
 		e=XMLEntity('"Caf&#xE9;s &amp; Bars"')
 		p=XMLParser(e)
 		pe=XMLParameterEntity()
 		p.ParsePEDef(pe)
-		self.failUnless(type(pe.definition) in StringTypes,"ParsePEDef failed to return String value")
-		self.failUnless(pe.definition==u'Caf\xe9s &amp; Bars',"Failed to replace character entities: %s"%repr(pe.definition))
-		self.failUnless(p.theChar is None,"Short parse on PEDef")
+		self.assertTrue(type(pe.definition) in StringTypes,"ParsePEDef failed to return String value")
+		self.assertTrue(pe.definition==u'Caf\xe9s &amp; Bars',"Failed to replace character entities: %s"%repr(pe.definition))
+		self.assertTrue(p.theChar is None,"Short parse on PEDef")
 		for s in ["Steve","Caf&#xE9;s &amp; Bars","PUBLIC 'Steve'"]:
 			e=XMLEntity(s)
 			p=XMLParser(e)
@@ -1994,15 +1997,15 @@ class XMLParserTests(unittest.TestCase):
 		e=XMLEntity("PUBLIC 'Steve' '/home/steve.txt'")
 		p=XMLParser(e)
 		xID=p.ParseExternalID()
-		self.failUnless(xID.public=='Steve',"Failed to parse external public ID")
-		self.failUnless(xID.system=='/home/steve.txt',"Failed to parse external system ID")
-		self.failUnless(p.theChar is None,"Short parse on ExternalID")
+		self.assertTrue(xID.public=='Steve',"Failed to parse external public ID")
+		self.assertTrue(xID.system=='/home/steve.txt',"Failed to parse external system ID")
+		self.assertTrue(p.theChar is None,"Short parse on ExternalID")
 		e=XMLEntity("SYSTEM  '/home/steve.txt'")
 		p=XMLParser(e)
 		xID=p.ParseExternalID()
-		self.failUnless(xID.public is None,"Failed to parse external empty public ID")
-		self.failUnless(xID.system=='/home/steve.txt',"Failed to parse external system ID")
-		self.failUnless(p.theChar is None,"Short parse on ExternalID")
+		self.assertTrue(xID.public is None,"Failed to parse external empty public ID")
+		self.assertTrue(xID.system=='/home/steve.txt',"Failed to parse external system ID")
+		self.assertTrue(p.theChar is None,"Short parse on ExternalID")
 		for s in ["PUBLIC 'Steve'","'Steve'"," SYSTEM '/path'","SYSTEM'/path'","PUBLIC'Steve' '/path'",
 			"PUBLIC 'Steve''/path'"]:
 			e=XMLEntity(s)
@@ -2017,12 +2020,12 @@ class XMLParserTests(unittest.TestCase):
 		"""[76] NDataDecl ::= S 'NDATA' S Name """
 		e=XMLEntity("  NDATA Steve")
 		p=XMLParser(e)
-		self.failUnless(p.ParseNDataDecl()=="Steve","Failed to parse NData declaration")
-		self.failUnless(p.theChar is None,"Short parse on NData declaration")
+		self.assertTrue(p.ParseNDataDecl()=="Steve","Failed to parse NData declaration")
+		self.assertTrue(p.theChar is None,"Short parse on NData declaration")
 		e=XMLEntity(" Steve")
 		p=XMLParser(e)
-		self.failUnless(p.ParseNDataDecl(True)=="Steve","Failed to parse NData declaration (no literal)")
-		self.failUnless(p.theChar is None,"Short parse on NData declaration")
+		self.assertTrue(p.ParseNDataDecl(True)=="Steve","Failed to parse NData declaration (no literal)")
+		self.assertTrue(p.theChar is None,"Short parse on NData declaration")
 		for s in ["NDATA Steve"," MDATA Steve","NDATASteve"]:
 			e=XMLEntity(s)
 			p=XMLParser(e)
@@ -2037,15 +2040,15 @@ class XMLParserTests(unittest.TestCase):
 		e=XMLEntity("<?xml version='1.0' encoding='latin-1'  ?>")
 		p=XMLParser(e)
 		t=p.ParseTextDecl()
-		self.failUnless(t.version=="1.0")
-		self.failUnless(t.encoding=="latin-1","Failed to parse encoding in text declaration")
-		self.failUnless(p.theChar is None,"Short parse on TextDecl")
+		self.assertTrue(t.version=="1.0")
+		self.assertTrue(t.encoding=="latin-1","Failed to parse encoding in text declaration")
+		self.assertTrue(p.theChar is None,"Short parse on TextDecl")
 		e=XMLEntity('<?xml encoding = "latin-1"?>')
 		p=XMLParser(e)
 		t=p.ParseTextDecl()
-		self.failUnless(t.version is None)
-		self.failUnless(t.encoding=="latin-1","Failed to parse encoding in text declaration")
-		self.failUnless(p.theChar is None,"Short parse on TextDecl")
+		self.assertTrue(t.version is None)
+		self.assertTrue(t.encoding=="latin-1","Failed to parse encoding in text declaration")
+		self.assertTrue(p.theChar is None,"Short parse on TextDecl")
 		for s in ["<?xml version='1.0' ?>"]:
 			e=XMLEntity(s)
 			p=XMLParser(e)
@@ -2063,16 +2066,16 @@ class XMLParserTests(unittest.TestCase):
 		"""[80] EncodingDecl ::= S 'encoding' Eq ('"' EncName '"' | "'" EncName "'" ) """
 		e=XMLEntity("  encoding = 'latin-1'")
 		p=XMLParser(e)
-		self.failUnless(p.ParseEncodingDecl()=="latin-1","Failed to parse encoding declaration")
-		self.failUnless(p.theChar is None,"Short parse on EncodingDecl")
+		self.assertTrue(p.ParseEncodingDecl()=="latin-1","Failed to parse encoding declaration")
+		self.assertTrue(p.theChar is None,"Short parse on EncodingDecl")
 		e=XMLEntity(" = 'latin-1'")
 		p=XMLParser(e)
-		self.failUnless(p.ParseEncodingDecl(True)=="latin-1","Failed to parse encoding declaration (no literal)")
-		self.failUnless(p.theChar is None,"Short parse on EncodingDecl")
+		self.assertTrue(p.ParseEncodingDecl(True)=="latin-1","Failed to parse encoding declaration (no literal)")
+		self.assertTrue(p.theChar is None,"Short parse on EncodingDecl")
 		e=XMLEntity(' encoding="latin-1"')
 		p=XMLParser(e)
-		self.failUnless(p.ParseEncodingDecl()=="latin-1","Failed to parse encoding declaration")
-		self.failUnless(p.theChar is None,"Short parse on EncodingDecl")
+		self.assertTrue(p.ParseEncodingDecl()=="latin-1","Failed to parse encoding declaration")
+		self.assertTrue(p.theChar is None,"Short parse on EncodingDecl")
 		for s in ["encoding = 'latin-1'"," decoding='latin-1'"," encoding=latin-1"]:
 			e=XMLEntity(s)
 			p=XMLParser(e)
@@ -2091,7 +2094,7 @@ class XMLParserTests(unittest.TestCase):
 		while p.theChar!=None:
 			eName=p.ParseEncName()
 			if eName:
-				self.failUnless(eName==result[i],"%s parsed, expected %s"%(eName,result[i]))
+				self.assertTrue(eName==result[i],"%s parsed, expected %s"%(eName,result[i]))
 				p.ParseS()
 				i=i+1
 			else:
@@ -2104,28 +2107,28 @@ class XMLParserTests(unittest.TestCase):
 		p.dtd=XMLDTD()
 		p.ParseNotationDecl()
 		n=p.dtd.GetNotation('SteveN')
-		self.failUnless(n.name=='SteveN',"Failed to parse notation name")
-		self.failUnless(n.externalID.public=='Steve',"Failed to parse notation public ID")
-		self.failUnless(n.externalID.system=='/home/steve.txt',"Failed to parse notation system ID")
-		self.failUnless(p.theChar is None,"Short parse on NotationDecl")
+		self.assertTrue(n.name=='SteveN',"Failed to parse notation name")
+		self.assertTrue(n.externalID.public=='Steve',"Failed to parse notation public ID")
+		self.assertTrue(n.externalID.system=='/home/steve.txt',"Failed to parse notation system ID")
+		self.assertTrue(p.theChar is None,"Short parse on NotationDecl")
 		e=XMLEntity(" SteveN PUBLIC 'Steve' >")
 		p=XMLParser(e)
 		p.dtd=XMLDTD()
 		p.ParseNotationDecl(True)
 		n=p.dtd.GetNotation('SteveN')
-		self.failUnless(n.name=='SteveN',"Failed to parse notation name")
-		self.failUnless(n.externalID.public=='Steve',"Failed to parse notation public ID")
-		self.failUnless(n.externalID.system is None,"Failed to parse empty notation system ID")
-		self.failUnless(p.theChar is None,"Short parse on NotationDecl")
+		self.assertTrue(n.name=='SteveN',"Failed to parse notation name")
+		self.assertTrue(n.externalID.public=='Steve',"Failed to parse notation public ID")
+		self.assertTrue(n.externalID.system is None,"Failed to parse empty notation system ID")
+		self.assertTrue(p.theChar is None,"Short parse on NotationDecl")
 		e=XMLEntity("<!NOTATION SteveN SYSTEM  '/home/steve.txt' >")
 		p=XMLParser(e)
 		p.dtd=XMLDTD()
 		p.ParseNotationDecl()
 		n=p.dtd.GetNotation('SteveN')
-		self.failUnless(n.name=='SteveN',"Failed to parse notation name")
-		self.failUnless(n.externalID.public is None,"Failed to parse empty notation public ID")
-		self.failUnless(n.externalID.system=='/home/steve.txt',"Failed to parse notation system ID")
-		self.failUnless(p.theChar is None,"Short parse on NotationDecl")
+		self.assertTrue(n.name=='SteveN',"Failed to parse notation name")
+		self.assertTrue(n.externalID.public is None,"Failed to parse empty notation public ID")
+		self.assertTrue(n.externalID.system=='/home/steve.txt',"Failed to parse notation system ID")
+		self.assertTrue(p.theChar is None,"Short parse on NotationDecl")
 		for s in ["SteveN PUBLIC 'Steve' >"," 'SteveN' PUBLIC 'Steve' >","SteveN 'Steve' >",
 			"SteveN PUBLIC >","SteveN SYSTEM>","SteveN SYSTEM 'Steve' '/path'>","SteveN PUBLIC 'Steve' "]:
 			e=XMLEntity(s)
@@ -2141,8 +2144,8 @@ class XMLParserTests(unittest.TestCase):
 		"""[83] PublicID ::= 'PUBLIC' S PubidLiteral"""
 		e=XMLEntity("PUBLIC 'Steve'")
 		p=XMLParser(e)
-		self.failUnless(p.ParsePublicID()=='Steve',"Failed to parse Public ID")
-		self.failUnless(p.theChar is None,"Short parse on Public ID")
+		self.assertTrue(p.ParsePublicID()=='Steve',"Failed to parse Public ID")
+		self.assertTrue(p.theChar is None,"Short parse on Public ID")
 		for s in [" PUBLIC 'Steve'","'Steve'","PUBLIC'Steve'","Public 'Steve'"]:
 			e=XMLEntity(s)
 			p=XMLParser(e)
@@ -2156,10 +2159,10 @@ class XMLParserTests(unittest.TestCase):
 class ElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		e=Element(None)
-		self.failUnless(e.xmlname==None,'element name on construction')
-		self.failUnless(e.GetDocument() is None,'document set on construction')
+		self.assertTrue(e.xmlname==None,'element name on construction')
+		self.assertTrue(e.GetDocument() is None,'document set on construction')
 		attrs=e.GetAttributes()
-		self.failUnless(len(attrs.keys())==0,"Attributes present on construction")
+		self.assertTrue(len(attrs.keys())==0,"Attributes present on construction")
 		children=e.GetChildren()
 		try:
 			children.next()
@@ -2167,47 +2170,47 @@ class ElementTests(unittest.TestCase):
 		except StopIteration:
 			pass
 		e=Element(None,'test')
-		self.failUnless(e.xmlname=='test','element named on construction')
+		self.assertTrue(e.xmlname=='test','element named on construction')
 		
 	def testCaseDefaultName(self):
 		e=NamedElement(None)
-		self.failUnless(e.xmlname=='test','element default name on construction')
+		self.assertTrue(e.xmlname=='test','element default name on construction')
 	
 	def testSetXMLName(self):
 		e=NamedElement(None,'test2')
-		self.failUnless(e.xmlname=='test2','element named explicitly in construction')
+		self.assertTrue(e.xmlname=='test2','element named explicitly in construction')
 
 	def testAttributes(self):
 		e=Element(None,'test')
 		e.SetAttribute('atest','value')
 		attrs=e.GetAttributes()
-		self.failUnless(len(attrs.keys())==1,"Attribute not set")
-		self.failUnless(attrs['atest']=='value',"Attribute not set correctly")
+		self.assertTrue(len(attrs.keys())==1,"Attribute not set")
+		self.assertTrue(attrs['atest']=='value',"Attribute not set correctly")
 		e=ReflectiveElement(None)
 		e.SetAttribute('atest','value')
-		# Deprecated: self.failUnless(e.atest=='value',"Attribute relfection")
+		# Deprecated: self.assertTrue(e.atest=='value',"Attribute relfection")
 		attrs=e.GetAttributes()
-		self.failUnless(attrs['atest']=='value',"Attribute not set correctly")
+		self.assertTrue(attrs['atest']=='value',"Attribute not set correctly")
 		e.SetAttribute('btest','Yes')
-		self.failUnless(e.bTest=='Yes',"Attribute relfection with simple assignment")
+		self.assertTrue(e.bTest=='Yes',"Attribute relfection with simple assignment")
 		attrs=e.GetAttributes()
-		self.failUnless(attrs['btest']=='Yes',"Attribute not set correctly")
+		self.assertTrue(attrs['btest']=='Yes',"Attribute not set correctly")
 		e.SetAttribute('ctest','Yes')
-		self.failUnless(e.cTest==True,"Attribute relfection with decode/encode")
+		self.assertTrue(e.cTest==True,"Attribute relfection with decode/encode")
 		attrs=e.GetAttributes()
-		self.failUnless(attrs['ctest']=='Yes',"Attribute not set correctly")
-		self.failIf('dtest' in attrs,"Optional ordered list attribute")
-		self.failUnless(attrs['dtestR']=='',"Required ordered list attribute") 
+		self.assertTrue(attrs['ctest']=='Yes',"Attribute not set correctly")
+		self.assertFalse('dtest' in attrs,"Optional ordered list attribute")
+		self.assertTrue(attrs['dtestR']=='',"Required ordered list attribute") 
 		e.SetAttribute('dtest','Yes No')
-		self.failUnless(e.dTest==[True,False],"Attribute relfection with list; %s"%repr(e.dTest))
+		self.assertTrue(e.dTest==[True,False],"Attribute relfection with list; %s"%repr(e.dTest))
 		attrs=e.GetAttributes()
-		self.failUnless(attrs['dtest']=='Yes No',"Attribute not set correctly")
-		self.failIf('etest' in attrs,"Optional unordered list attribute") 
-		self.failUnless(attrs['etestR']=='',"Required unordered list attribute") 
+		self.assertTrue(attrs['dtest']=='Yes No',"Attribute not set correctly")
+		self.assertFalse('etest' in attrs,"Optional unordered list attribute") 
+		self.assertTrue(attrs['etestR']=='',"Required unordered list attribute") 
 		e.SetAttribute('etest','Yes No Yes')
-		self.failUnless(e.eTest=={True:2,False:1},"Attribute relfection with list: %s"%repr(e.eTest))
+		self.assertTrue(e.eTest=={True:2,False:1},"Attribute relfection with list: %s"%repr(e.eTest))
 		attrs=e.GetAttributes()
-		self.failUnless(attrs['etest']=='No Yes Yes',"Attribute not set correctly: %s"%repr(attrs['etest']))
+		self.assertTrue(attrs['etest']=='No Yes Yes',"Attribute not set correctly: %s"%repr(attrs['etest']))
 		try:
 			if e.ztest:
 				pass
@@ -2225,13 +2228,13 @@ class ElementTests(unittest.TestCase):
 		except AttributeError:
 			pass
 		try:
-			self.failUnless(e.fTest is None,"Missing attribute auto value not None")
+			self.assertTrue(e.fTest is None,"Missing attribute auto value not None")
 		except AttributeError:
 			self.fail("Missing attribute auto value: AttributeError")
 		e.fTest=1
 		del e.fTest
 		try:
-			self.failUnless(e.fTest is None,"Missing attribute auto value not None (after del)")
+			self.assertTrue(e.fTest is None,"Missing attribute auto value not None (after del)")
 		except AttributeError:
 			self.fail("Missing attribute auto value: AttributeError (after del)")
 	
@@ -2240,38 +2243,38 @@ class ElementTests(unittest.TestCase):
 		e=Element(None,'test')
 		child1=e.ChildElement(Element,'test1')
 		children=list(e.GetChildren())
-		self.failUnless(len(children)==1,"ChildElement failed to add child element")
+		self.assertTrue(len(children)==1,"ChildElement failed to add child element")
 	
 	def testChildElementReflection(self):
 		"""Test child element cases using reflection"""
 		e=ReflectiveElement(None)
 		child1=e.ChildElement(ReflectiveElement,'test1')
-		self.failUnless(e.child is child1,"Element not set by reflection")
+		self.assertTrue(e.child is child1,"Element not set by reflection")
 		children=list(e.GetChildren())
-		self.failUnless(len(children)==1 and children[0] is child1,"ChildElement failed to add child element")
+		self.assertTrue(len(children)==1 and children[0] is child1,"ChildElement failed to add child element")
 		# Now create a second child, should return the same one due to model restriction
 		child2=e.ChildElement(ReflectiveElement,'test1')
-		self.failUnless(e.child is child1 and child2 is child1,"Element model violated")
+		self.assertTrue(e.child is child1 and child2 is child1,"Element model violated")
 		child3=e.ChildElement(GenericElementA,'test3')
-		self.failUnless(e.generics[0] is child3,"Generic element")
+		self.assertTrue(e.generics[0] is child3,"Generic element")
 		child4=e.ChildElement(GenericSubclassA,'test4')
-		self.failUnless(e.generics[1] is child4,"Generic sub-class element via method")
+		self.assertTrue(e.generics[1] is child4,"Generic sub-class element via method")
 		child5=e.ChildElement(GenericSubclassB,'test5')
-		self.failUnless(e.GenericElementB is child5,"Generic sub-class element via member")
+		self.assertTrue(e.GenericElementB is child5,"Generic sub-class element via member")
 		
 	def testData(self):
 		e=Element(None)
-		self.failUnless(e.IsMixed(),"Mixed default")
+		self.assertTrue(e.IsMixed(),"Mixed default")
 		e.AddData('Hello')
-		self.failUnless(e.GetValue()=='Hello',"Data value")
+		self.assertTrue(e.GetValue()=='Hello',"Data value")
 		children=list(e.GetChildren())
-		self.failUnless(len(children)==1,"Data child not set")
-		self.failUnless(children[0]=="Hello","Data child not set correctly")
+		self.assertTrue(len(children)==1,"Data child not set")
+		self.assertTrue(children[0]=="Hello","Data child not set correctly")
 	
 	def testEmpty(self):
 		e=EmptyElement(None)
-		self.failIf(e.IsMixed(),"EmptyElement is mixed")
-		self.failUnless(e.IsEmpty(),"EmptyElement not empty")
+		self.assertFalse(e.IsMixed(),"EmptyElement is mixed")
+		self.assertTrue(e.IsEmpty(),"EmptyElement not empty")
 		try:
 			e.AddData('Hello')
 			self.fail("Data in EmptyElement")
@@ -2285,8 +2288,8 @@ class ElementTests(unittest.TestCase):
 
 	def testElementContent(self):	
 		e=ElementContent(None)
-		self.failIf(e.IsMixed(),"ElementContent appears mixed")
-		self.failIf(e.IsEmpty(),"ElementContent appears empty")
+		self.assertFalse(e.IsMixed(),"ElementContent appears mixed")
+		self.assertFalse(e.IsEmpty(),"ElementContent appears empty")
 		try:
 			e.AddData('Hello')
 			self.fail("Data in ElementContent")
@@ -2295,18 +2298,18 @@ class ElementTests(unittest.TestCase):
 		# white space should silently be ignored.
 		e.AddData('  \n\r  \t')
 		children=list(e.GetChildren())
-		self.failUnless(len(children)==0,"Unexpected children")
+		self.assertTrue(len(children)==0,"Unexpected children")
 		# elements can be added
 		child=e.ChildElement(Element)
 		children=list(e.GetChildren())
-		self.failUnless(len(children)==1,"Expected one child")
+		self.assertTrue(len(children)==1,"Expected one child")
 	
 	def testMixedContent(self):
 		e=MixedElement(None)
-		self.failUnless(e.IsMixed(),"MixedElement not mixed")
-		self.failIf(e.IsEmpty(),"MixedElement appears empty")
+		self.assertTrue(e.IsMixed(),"MixedElement not mixed")
+		self.assertFalse(e.IsEmpty(),"MixedElement appears empty")
 		e.AddData('Hello')
-		self.failUnless(e.GetValue()=='Hello','Mixed content with a single value')
+		self.assertTrue(e.GetValue()=='Hello','Mixed content with a single value')
 		child=e.ChildElement(Element)
 		try:
 			e.GetValue()
@@ -2316,8 +2319,8 @@ class ElementTests(unittest.TestCase):
 	def testCopy(self):
 		e1=Element(None)
 		e2=e1.Copy()
-		self.failUnless(isinstance(e2,Element),"Copy didn't make Element")
-		self.failUnless(e1==e2 and e1 is not e2)
+		self.assertTrue(isinstance(e2,Element),"Copy didn't make Element")
+		self.assertTrue(e1==e2 and e1 is not e2)
 		
 
 class DocumentTests(unittest.TestCase):
@@ -2332,25 +2335,25 @@ class DocumentTests(unittest.TestCase):
 
 	def testCaseConstructor(self):
 		d=Document()
-		self.failUnless(d.root is None,'root on construction')
-		self.failUnless(d.GetBase() is None,'base set on construction')
+		self.assertTrue(d.root is None,'root on construction')
+		self.assertTrue(d.GetBase() is None,'base set on construction')
 		d=Document(root=Element)
-		self.failUnless(isinstance(d.root,Element),'root not created on construction')
-		self.failUnless(d.root.GetDocument() is d,'root not linked to document')
+		self.assertTrue(isinstance(d.root,Element),'root not created on construction')
+		self.assertTrue(d.root.GetDocument() is d,'root not linked to document')
 	
 	def testCaseBase(self):
 		"""Test the use of a file path on construction"""
 		fpath=os.path.abspath('fpath.xml')
 		furl=str(URIFactory.URLFromPathname(fpath))
 		d=Document(baseURI=furl)
-		self.failUnless(d.GetBase()==furl,"Base not set in constructor")
-		self.failUnless(d.root is None,'root on construction')
+		self.assertTrue(d.GetBase()==furl,"Base not set in constructor")
+		self.assertTrue(d.root is None,'root on construction')
 		d=Document(baseURI='fpath.xml',root=Element)
-		self.failUnless(d.GetBase()==furl,"Base not made absolute from relative URL:\n\t%s\n\t%s"%(furl,d.GetBase()))
-		self.failUnless(isinstance(d.root,Element),'root not created on construction')
+		self.assertTrue(d.GetBase()==furl,"Base not made absolute from relative URL:\n\t%s\n\t%s"%(furl,d.GetBase()))
+		self.assertTrue(isinstance(d.root,Element),'root not created on construction')
 		d=Document()
 		d.SetBase(furl)
-		self.failUnless(d.GetBase()==furl,"Base not set by SetBase")
+		self.assertTrue(d.GetBase()==furl,"Base not set by SetBase")
 
 	def testCaseReadFile(self):
 		"""Test the reading of the Document from the file system"""
@@ -2358,8 +2361,8 @@ class DocumentTests(unittest.TestCase):
 		d=Document(baseURI='readFile.xml')
 		d.Read()
 		root=d.root
-		self.failUnless(isinstance(root,Element))
-		self.failUnless(root.xmlname=='tag' and root.GetValue()=='Hello World')
+		self.assertTrue(isinstance(root,Element))
+		self.assertTrue(root.xmlname=='tag' and root.GetValue()=='Hello World')
 		
 	def testCaseReadString(self):
 		"""Test the reading of the Document from a supplied stream"""
@@ -2369,8 +2372,8 @@ class DocumentTests(unittest.TestCase):
 		d.Read(src=f)
 		f.close()
 		root=d.root
-		self.failUnless(isinstance(root,Element))
-		self.failUnless(root.xmlname=='tag' and root.GetValue()=='Hello World')
+		self.assertTrue(isinstance(root,Element))
+		self.assertTrue(root.xmlname=='tag' and root.GetValue()=='Hello World')
 	
 	def testCaseString(self):
 		os.chdir(TEST_DATA_DIR)
@@ -2379,23 +2382,23 @@ class DocumentTests(unittest.TestCase):
 		f=open('readFile.xml')
 		fData=f.read()
 		f.close()
-		self.failUnless(str(d)==fData,"XML output: %s"%str(d))
+		self.assertTrue(str(d)==fData,"XML output: %s"%str(d))
 		d=Document(baseURI='ascii.xml')
 		d.Read()
 		f=open('ascii.xml')
 		fData=f.read()
 		f.close()
-		self.failUnless(str(d)==fData,"XML output: %s"%str(d))
+		self.assertTrue(str(d)==fData,"XML output: %s"%str(d))
 		
 	def testCaseResolveBase(self):
 		"""Test the use of ResolveURI and ResolveBase"""
 		os.chdir(TEST_DATA_DIR)
 		parent=Element(None)
-		self.failUnless(parent.ResolveBase() is None,"No default base")
+		self.assertTrue(parent.ResolveBase() is None,"No default base")
 		child=Element(parent)
-		self.failUnless(child.ResolveBase() is None,"No xml:base by default")
+		self.assertTrue(child.ResolveBase() is None,"No xml:base by default")
 		parent.SetBase('file:///index.xml')
-		self.failUnless(child.ResolveBase()=='file:///index.xml',"No xml:base inheritance")
+		self.assertTrue(child.ResolveBase()=='file:///index.xml',"No xml:base inheritance")
 		# Tests with a document follow....
 		furl=str(URIFactory.URLFromPathname(os.path.abspath('base.xml')))
 		href=URIFactory.URLFromPathname(os.path.abspath('link.xml'))
@@ -2403,42 +2406,42 @@ class DocumentTests(unittest.TestCase):
 		href=str(href)
 		altRef='file:///hello/link.xml'
 		d=Document(baseURI='base.xml')
-		self.failUnless(d.GetBase()==furl,"Base not resolved relative to w.d. by constructor")
+		self.assertTrue(d.GetBase()==furl,"Base not resolved relative to w.d. by constructor")
 		d.Read()
 		tag=d.root
-		self.failUnless(tag.ResolveBase()==furl,"Root element resolves from document")
-		self.failUnless(str(tag.ResolveURI("link.xml"))==href,"Root element HREF")
-		self.failUnless(str(tag.RelativeURI(href))=='link.xml',"Root element relative")
-		#self.failUnless(tag.RelativeURI(altRef)=='/hello/link.xml','Root element full path relative: %s'%tag.RelativeURI(altRef))
+		self.assertTrue(tag.ResolveBase()==furl,"Root element resolves from document")
+		self.assertTrue(str(tag.ResolveURI("link.xml"))==href,"Root element HREF")
+		self.assertTrue(str(tag.RelativeURI(href))=='link.xml',"Root element relative")
+		#self.assertTrue(tag.RelativeURI(altRef)=='/hello/link.xml','Root element full path relative: %s'%tag.RelativeURI(altRef))
 		childTag=tag._children[0]
-		self.failUnless(childTag.ResolveBase()=="file:///hello/base.xml","xml:base overrides in childTag (%s)"%childTag.ResolveBase())
-		self.failUnless(str(childTag.ResolveURI("link.xml"))==altRef,"child element HREF")
-		self.failUnless(str(childTag.RelativeURI(href))=='..'+hrefPath,"child element relative resulting in full path: %s"%childTag.RelativeURI(href))
-		self.failUnless(str(childTag.RelativeURI(altRef))=='link.xml','child element relative')
+		self.assertTrue(childTag.ResolveBase()=="file:///hello/base.xml","xml:base overrides in childTag (%s)"%childTag.ResolveBase())
+		self.assertTrue(str(childTag.ResolveURI("link.xml"))==altRef,"child element HREF")
+		self.assertTrue(str(childTag.RelativeURI(href))=='..'+hrefPath,"child element relative resulting in full path: %s"%childTag.RelativeURI(href))
+		self.assertTrue(str(childTag.RelativeURI(altRef))=='link.xml','child element relative')
 		# We require this next test to ensure that an href to the current document comes up blank
 		# Although this was a major source of bugs in browsers (<img src=''> causing infinite loading loops)
 		# these are largely fixed now and obfuscating by using a non-empty relative link to ourselves is
 		# likely to start the whole thing going again.
-		self.failUnless(str(childTag.RelativeURI(childTag.ResolveBase()))=='','child element relative avoiding empty URI(%s)'%childTag.RelativeURI(childTag.ResolveBase()))
+		self.assertTrue(str(childTag.RelativeURI(childTag.ResolveBase()))=='','child element relative avoiding empty URI(%s)'%childTag.RelativeURI(childTag.ResolveBase()))
 		grandChildTag=childTag._children[0]
-		self.failUnless(grandChildTag.ResolveBase()=="file:///hello/base.xml","xml:base inherited")
-		self.failUnless(str(grandChildTag.ResolveURI("link.xml"))==altRef,"grandChild element HREF inherited")
-		self.failUnless(str(grandChildTag.RelativeURI(href))=='..'+hrefPath,"grandChild element relative inherited: %s"%grandChildTag.RelativeURI(href))
-		self.failUnless(str(grandChildTag.RelativeURI(altRef))=='link.xml','grandChild element relative inherited')
+		self.assertTrue(grandChildTag.ResolveBase()=="file:///hello/base.xml","xml:base inherited")
+		self.assertTrue(str(grandChildTag.ResolveURI("link.xml"))==altRef,"grandChild element HREF inherited")
+		self.assertTrue(str(grandChildTag.RelativeURI(href))=='..'+hrefPath,"grandChild element relative inherited: %s"%grandChildTag.RelativeURI(href))
+		self.assertTrue(str(grandChildTag.RelativeURI(altRef))=='link.xml','grandChild element relative inherited')
 	
 	def testCaseResolveLang(self):
 		"""Test the use of ResolveLang"""
 		parent=Element(None)
-		self.failUnless(parent.ResolveLang() is None,"No default language")
+		self.assertTrue(parent.ResolveLang() is None,"No default language")
 		parent.SetLang('en-GB')
-		self.failUnless(parent.GetLang()=='en-GB',"Lang Get/Set")
+		self.assertTrue(parent.GetLang()=='en-GB',"Lang Get/Set")
 		child=Element(parent)
-		self.failUnless(child.GetLang() is None,"No xml:lang by default")
-		self.failUnless(child.ResolveLang()=='en-GB',"Lang inheritence")
+		self.assertTrue(child.GetLang() is None,"No xml:lang by default")
+		self.assertTrue(child.ResolveLang()=='en-GB',"Lang inheritence")
 		# repeat tests with a parent document
 		d=Document()
 		parent=Element(d)
-		self.failUnless(parent.ResolveLang() is None,"No default language")
+		self.assertTrue(parent.ResolveLang() is None,"No default language")
 		
 	def testCaseCreate(self):
 		"""Test the creating of the Document on the file system"""		
@@ -2451,7 +2454,7 @@ class DocumentTests(unittest.TestCase):
 			f=open("create1.xml")
 			data=f.read()
 			f.close()
-			self.failUnless(data==CREATE_1_XML,"Create Test")
+			self.assertTrue(data==CREATE_1_XML,"Create Test")
 		except IOError:
 			self.fail("Create Test failed to create file")
 	
@@ -2475,7 +2478,7 @@ class DocumentTests(unittest.TestCase):
 			f=open("update1.xml")
 			data=f.read()
 			f.close()
-			self.failUnless(data==UPDATE_1_XML,"Update Test")
+			self.assertTrue(data==UPDATE_1_XML,"Update Test")
 		except IOError:
 			self.fail("Update Test failed to update file")			
 		
@@ -2493,9 +2496,9 @@ class DocumentTests(unittest.TestCase):
 			pass
 		e2.id='test2'
 		doc.RegisterElement(e2)
-		self.failUnless(doc.GetElementByID('test') is e1,"Element look-up failed")
+		self.assertTrue(doc.GetElementByID('test') is e1,"Element look-up failed")
 		newID=doc.GetUniqueID('test')
-		self.failIf(newID=='test' or newID=='test2')
+		self.assertFalse(newID=='test' or newID=='test2')
 	
 	def testCaseReflection(self):
 		"""Test the built-in handling of reflective attributes and elements."""
@@ -2505,9 +2508,9 @@ class DocumentTests(unittest.TestCase):
 		d=ReflectiveDocument()
 		d.Read(src=f)
 		root=d.root
-		self.failUnless(isinstance(root,ReflectiveElement))
-		self.failUnless(root.bTest,"Attribute relfection")
-		self.failUnless(root.child,"Element relfection")
+		self.assertTrue(isinstance(root,ReflectiveElement))
+		self.assertTrue(root.bTest,"Attribute relfection")
+		self.assertTrue(root.child,"Element relfection")
 		
 		
 if __name__ == "__main__":

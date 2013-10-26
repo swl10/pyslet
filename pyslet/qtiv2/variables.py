@@ -325,6 +325,8 @@ class Value(object):
 			All non-NULL values are True"""
 		return self.value is not None
 	
+	__hash__=None		#: Value instances are mutable so cannot be used as dictionary keys
+	
 	def __eq__(self,other):
 		"""The python equality test is treated like the match operator in QTI.
 		

@@ -18,13 +18,13 @@ import pyslet.imscpv1p2 as imscp
 
 class CCMiscTests(unittest.TestCase):
 	def testCaseConstants(self):
-		self.failUnless(CCOrganizationStructure=="rooted-hierarchy")
-		self.failUnless(CartridgeWebContentType=="webcontent")
-		self.failUnless(AssociatedContentType=="associatedcontent/imscc_xmlv1p0/learning-application-resource")
-		self.failUnless(DiscussionTopicContentType=="imsdt_xmlv1p0")
-		self.failUnless(WebLinkContentType=="imswl_xmlv1p0")
-		self.failUnless(AssessmentContentType=="imsqti_xmlv1p2/imscc_xmlv1p0/assessment")
-		self.failUnless(QuestionBankContentType=="imsqti_xmlv1p2/imscc_xmlv1p0/question-bank")
+		self.assertTrue(CCOrganizationStructure=="rooted-hierarchy")
+		self.assertTrue(CartridgeWebContentType=="webcontent")
+		self.assertTrue(AssociatedContentType=="associatedcontent/imscc_xmlv1p0/learning-application-resource")
+		self.assertTrue(DiscussionTopicContentType=="imsdt_xmlv1p0")
+		self.assertTrue(WebLinkContentType=="imswl_xmlv1p0")
+		self.assertTrue(AssessmentContentType=="imsqti_xmlv1p2/imscc_xmlv1p0/assessment")
+		self.assertTrue(QuestionBankContentType=="imsqti_xmlv1p2/imscc_xmlv1p0/question-bank")
 
 class CommonCartridgeTests(unittest.TestCase):
 	def setUp(self):
@@ -43,22 +43,22 @@ class CommonCartridgeTests(unittest.TestCase):
 		
 	def testCaseConstructor(self):
 		cc=CommonCartridge()
-		self.failUnless(isinstance(cc.cp,imscp.ContentPackage))
+		self.assertTrue(isinstance(cc.cp,imscp.ContentPackage))
 		self.cpList.append(cc.cp)
-		self.failUnless(len(cc.laoTable.keys())==0)
+		self.assertTrue(len(cc.laoTable.keys())==0)
 		cc=CommonCartridge(os.path.join(self.dataPath,'sample_1'))
-		self.failUnless(len(cc.laoTable.keys())==3)
+		self.assertTrue(len(cc.laoTable.keys())==3)
 		cp=imscp.ContentPackage(os.path.join(self.dataPath,'sample_1'))
 		self.cpList.append(cp)
 		cc=CommonCartridge(cp)
-		self.failUnless(len(cc.laoTable.keys())==3)
+		self.assertTrue(len(cc.laoTable.keys())==3)
 		dList=map(lambda x:cc.laoTable[x][0],cc.laoTable.keys())
 		dList.sort()
-		self.failUnless(dList==['l0001','l0002','l0003'])
+		self.assertTrue(dList==['l0001','l0002','l0003'])
 		#r6=cp.manifest.GetElementByID('R0006')
 		head,acr=cc.laoTable['R0006']
-		self.failUnless(acr is cp.manifest.GetElementByID('R0007'))
-		self.failUnless(len(acr.File)==3)
+		self.assertTrue(acr is cp.manifest.GetElementByID('R0007'))
+		self.assertTrue(len(acr.File)==3)
 		
 # Running tests on the cartridges on hold...		
 class CCConformanceTests(unittest.TestCase):

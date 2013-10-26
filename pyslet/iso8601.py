@@ -1231,7 +1231,7 @@ class TimePoint:
 		return self.time.GetZone()
 	
 	def SetZone(self,zDirection,hourOffset=None,minuteOffset=None):
-		self.time.SetZone()
+		self.time.SetZone(zDirection,hourOffset,minuteOffset)
 		
 	def SetFromTimePoint(self,src):
 		self.date=Date(src.date)

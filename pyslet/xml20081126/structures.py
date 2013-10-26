@@ -7,6 +7,7 @@ from sys import maxunicode
 import codecs, random
 from types import *
 from copy import copy
+import warnings
 
 from pyslet.rfc2396 import URIFactory, URI, FileURL
 
@@ -155,7 +156,8 @@ class Node(object):
 		"""Returns an iterator over this object's children."""
 		raise NotImplementedError
 	
-	def GetElementClass(self,name):
+	@classmethod
+	def GetElementClass(cls,name):
 		"""Returns a class object suitable for representing element *name*
 		
 		name is a unicode string representing the element name.
@@ -291,8 +293,9 @@ class Document(Node):
 		is automatically created when parsing an unidentified XML stream."""
 		from pyslet.xml20081126.parser import XMLParser
 		return XMLParser(entity)
-					
-	def GetElementClass(self,name):
+	
+	@classmethod				
+	def GetElementClass(cls,name):
 		"""Returns a class object suitable for representing name
 		
 		name is a unicode string representing the element name.
@@ -450,13 +453,18 @@ class Document(Node):
 		else:
 			raise XMLUnsupportedSchemeError(self.baseURI.scheme)
 	
-	def WriteXML(self,writer,escapeFunction=EscapeCharData,tab='\t'):
+	def GenerateXML(self,escapeFunction=EscapeCharData,tab='\t'):
 		if tab:
-			writer.write(u'<?xml version="1.0" encoding="UTF-8"?>')
+			 yield u'<?xml version="1.0" encoding="UTF-8"?>'
 		else:
-			writer.write(u'<?xml version="1.0" encoding="UTF-8"?>\n')
+			yield u'<?xml version="1.0" encoding="UTF-8"?>\n'
 		if self.root:
-			self.root.WriteXML(writer,escapeFunction,'',tab,root=True)
+			for s in self.root.GenerateXML(escapeFunction,'',tab,root=True):
+				yield s
+	
+	def WriteXML(self,writer,escapeFunction=EscapeCharData,tab='\t'):
+		for s in self.GenerateXML(escapeFunction,tab):
+			writer.write(s)
 	
 	def Update(self,**args):
 		"""Updates the Document.
@@ -904,6 +912,63 @@ class XMLDeclaration(XMLTextDeclaration):
 		"""Whether an XML document is standalone."""
 
 
+class ElementType(object):
+
+	Empty=0				#: Content type constant for EMPTY
+	Any=1				#: Content type constant for ANY
+	Mixed=2				#: Content type constant for mixed content
+	ElementContent=3	#: Content type constant for element content
+	SGMLCDATA=4			#: Additional content type constant for SGML CDATA
+	
+	def __init__(self):
+		"""An object for representing element type definitions."""
+		self.entity=None	#: The entity in which this element was declared
+		self.name=None		#: The name of this element
+		self.contentType=ElementType.Empty
+		"""The content type of this element, one of the constants defined above."""
+		self.contentModel=None
+		"""A :py:class:`XMLContentParticle` instance which contains the element's
+		content model or None in the case of EMPTY or ANY declarations."""
+		self.particleMap=None
+		"""A mapping used to validate the content model during parsing.  It maps
+		the name of the first child element found to a list of
+		:py:class:`XMLNameParticle` instances that can represent it in the
+		content model.  For more information see
+		:py:attr:`XMLNameParticle.particleMap`."""
+
+	def BuildModel(self):
+		"""Builds internal strutures to support model validation."""
+		if self.contentType==self.ElementContent:
+			self.particleMap={}
+			if not self.contentModel.SeekParticles(self.particleMap):
+				# the entire content model is optional so add ETag mapping
+				self.particleMap['']=None
+			exitParticles={'':None}
+			self.contentModel.BuildParticleMaps(exitParticles)
+		elif self.contentType==self.Mixed:
+			self.particleMap={}
+			self.contentModel.SeekParticles(self.particleMap)
+			self.particleMap['']=None
+			# always optional repeatable
+			self.contentModel.BuildParticleMaps(self.particleMap)
+	
+	def IsDeterministic(self):
+		"""Tests if the content model is deterministic.
+		
+		For degenerates cases (elements declared with ANY or EMPTY) the method
+		always returns True."""
+		if self.contentType==self.ElementContent or self.contentType==self.Mixed:
+			return self.contentModel.IsDeterministic(self.particleMap)
+		else:
+			return True
+
+# Constants for backwards compatibility
+XMLEmpty=ElementType.Empty
+XMLMixedContent=ElementType.Mixed
+ElementContent=ElementType.ElementContent
+SGMLCDATA=ElementType.SGMLCDATA
+
+
 class Element(Node):
 	"""Basic class that represents all XML elements.
 	
@@ -953,7 +1018,7 @@ class Element(Node):
 
 		More complex attributes can be handled by setting XMLATTR_aname to a
 		tuple.  The first item is the python attribute name (as above); the
-		*decodeFunction* is a simple function that takes a string argument and
+		*decodeFunction* is a simple callable that takes a string argument and
 		returns the decoded value of the attribute and the *encodeFunction*
 		performs the reverse transformation.
 
@@ -962,7 +1027,7 @@ class Element(Node):
 		For example, you might want to create an integer attribute using
 		something like::
 		
-			# source XML
+			<!-- source XML -->
 			<element apples="5"/>
 			
 			# class attribute definition
@@ -973,20 +1038,21 @@ class Element(Node):
 			
 	XMLATTR_aname=(<string>, decodeFunction, encodeFunction, type)
 	
-		When XML attribute values are parsed from tags the optional *type*
-		component of the descriptor can be used to indicate a multi-valued
-		attribute (for example, XML attributes defined using one of the plural
-		forms, IDREFS, ENTITIES and NMTOKENS).  If the *type* value is not None
-		then the XML attribute value is first split by white-space, as per the
-		XML specification, and then the decode function is applied to each
-		resulting component.  The instance attribute is then set depending on
-		the value of *type*:
+		When XML attribute values are parsed from tags the optional
+		*type* component of the tuple descriptor can be used to indicate
+		a multi-valued attribute (for example, XML attributes defined
+		using one of the plural forms, IDREFS, ENTITIES and NMTOKENS). 
+		If the *type* value is not None then the XML attribute value is
+		first split by white-space, as per the XML specification, and
+		then the decode function is applied to each resulting component.
+		 The instance attribute is then set depending on the value of
+		*type*:
 		
 		types.ListType
 		
 			The instance attribute becomes a list, for example::
 			
-				# source XML
+				<!-- source XML -->
 				<element primes="2 3 5 7"/>
 				
 				# class attribute definition
@@ -1000,7 +1066,7 @@ class Element(Node):
 			The instance attribute becomes a dictionary mapping parsed values on
 			to their frequency, for example::
 		
-				# source XML
+				<!-- source XML -->
 				<element fruit="apple pear orange pear"/>
 				
 				# class attribute definition
@@ -1012,11 +1078,12 @@ class Element(Node):
 			In this case, the decode function (if given) must return a hashable
 			object.
 	
-		When creating XML output the reverse transformations are per formed
-		using the encode functions and the type (plain, list or dict) of the
-		attribute's current value.  The declared multi-valued type is ignored. 
-		For dictionary values the order of the output values may not be the same
-		as the order originally read from the XML input.
+		When creating XML output the reverse transformations are
+		performed using the encode functions and the type (plain, list
+		or dict) of the attribute's current value.  The declared
+		multi-valued type is ignored. For dictionary values the order of
+		the output values may not be the same as the order originally
+		read from the XML input.
 		
 		Warning:  Empty lists and dictionaries result in XML attribute values
 		which are present but with empty strings.  If you wish to omit these
@@ -1046,7 +1113,8 @@ class Element(Node):
 	attributes.  In practice, the only significant limitation is the colon.  The
 	common xml-prefixed attributes such as xml:lang are handled using special
 	purposes methods."""
-	#XMLCONTENT=None
+
+	XMLCONTENT=ElementType.Mixed		#: for consistency with the behaviour of the default methods we claim to be mixed content
 	
 	def __init__(self,parent,name=None):
 		Node.__init__(self,parent)
@@ -1316,16 +1384,19 @@ class Element(Node):
 	def GetChildren(self):
 		"""Returns an iterable of the element's children.
 		
-		This method iterates through the local list of children and so may be
-		modified by the caller.  Derived classes with custom factory elements
-		must override this method.
+		This method iterates through the internal list of children.
+		Derived classes with custom factory elements MUST override this
+		method.
 
-		Each child is either a string type, unicode string type or instance of
-		Element (or a derived class thereof)"""
+		Each child is either a string type, unicode string type or
+		instance of Element (or a derived class thereof).  We do not
+		represent comments, processing instructions or other
+		meta-markup."""
 		return iter(self._children)
 
 	def GetCanonicalChildren(self):
-		"""Returns an iterable of the element's children canonicalized for white space.
+		"""A wrapper for :py:meth:`GetChildren` that returns an iterable
+		of the element's children canonicalized for white space.
 		
 		We check the current setting of xml:space, returning the same list of
 		children as :py:meth:`GetChildren` if 'preserve' is in force.  Otherwise
@@ -1417,9 +1488,9 @@ class Element(Node):
 		
 		childClass is a class (or callable) used to create a new instance.
 		
-		name is the name given to the element (by the caller).  If no name is
-		given then the default name for the child should be used.  When the
-		child returned is an existing instance, name is ignored.
+		name is the name given to the element (by the caller).  If no
+		name is given then the default name for the child is used.  When
+		the child returned is an existing instance, name is ignored.
 		
 		The default implementation checks for a custom factory method and calls
 		it if defined and does no further processing.  A custom factory method
@@ -1430,12 +1501,13 @@ class Element(Node):
 		childClass (required/existing child, no new child is created, existing
 		instance returned).
 		
-		When no custom factory method is found the class hierarchy is also searched
-		enabling generic members/methods to be used to hold similar objects.
+		When no custom factory method is found the class hierarchy of
+		*childClass* is enumerated and the search continues for factory methods
+		corresponding to these parent classes.
 		
-		If no custom factory method is defined then the default processing
-		simply creates an instance of child (if necessary) and attaches it to
-		the local list of children."""
+		If no custom factory method is defined then the default
+		processing simply creates an instance of child (if necessary)
+		and attaches it to the internal list of children."""
 		if self.IsEmpty():
 			self.ValidationError("Unexpected child element",name)
 		child=None
@@ -1457,7 +1529,7 @@ class Element(Node):
 				elif isinstance(factory,childClass):
 					child=factory
 				else:
-					raise TypeError
+					raise TypeError(factoryName,repr(factory),repr(childClass))
 				if child is not None:
 					if name:
 						child.SetXMLName(name)
@@ -1480,8 +1552,7 @@ class Element(Node):
 		We follow the same factory conventions as for child creation except
 		that an attribute pointing to a single child (of this class) will be
 		replaced with None.  If a custom factory method is found then the
-		corresponding Delete_ClassName method must also be defined.
-		"""
+		corresponding Delete_ClassName method must also be defined."""
 		if self.IsEmpty():
 			raise XMLUnknownChild(child.xmlname)
 		factoryName=self._FindFactory(child.__class__)
@@ -1526,6 +1597,8 @@ class Element(Node):
 		"""Finds up to max children of class childClass from the element and
 		its children.
 
+		**Deprecated in favour of list(FindChildrenDepthFirst(childClass,False))**
+		
 		All matching children are added to childList.  If specifing a max number
 		of matches then the incoming list must originally be empty to prevent
 		early termination.
@@ -1541,6 +1614,7 @@ class Element(Node):
 		recurse over the resulting list calling FindChildren again until the
 		list of matching children stops growing.		
 		"""
+		warnings.warn("Element.FindChildren is deprecated, use FindChildrenDepthFirst instead", DeprecationWarning, stacklevel=3)
 		if max is not None and len(childList)>=max:
 			return
 		for child in self.GetChildren():
@@ -1551,26 +1625,61 @@ class Element(Node):
 			if max is not None and len(childList)>=max:
 				break
 
-	def FindChildrenBreadthFirst(self,childClass):
-		"""Generates a sequence of children of class *childClass* using a
-		breadth first scan."""
-		for child in self.GetChildren():
-			if isinstance(child,childClass):
-				yield child
-		for child in self.GetChildren():
-			if isinstance(child,Element):
-				for c in child.FindChildrenBreadthFirst(childClass):
-					yield c
+	def FindChildrenBreadthFirst(self,childClass,subMatch=True,maxDepth=1000):
+		"""A generator method that iterates over children of class
+		*childClass* using a breadth first scan.
+		
+		*childClass* may also be a tuple as per the definition of the
+		builtin isinstance function in python.
+		
+		If *subMatch* is True (the default) then matching elements are
+		also scanned for nested matches.  If False, only the outer-most
+		matching element is returned.
+		
+		*maxDepth* controls the depth of the scan with level 1
+		indicating direct children only.  It must be a positive integer
+		and defaults to 1000.
 
-	def FindChildrenDepthFirst(self,childClass):
-		"""Generates a sequence of children of class *childClass* using a
-		depth first scan."""
+		Warning: to reduce memory requirements when searching large
+		documents this method performs a two-pass scan of the element's
+		children, i.e., :py:meth:`GetChildren` will be called twice.
+		
+		Given that XML documents tend to be broader than they are deep
+		:py:meth:`FindChildrenDepthFirst` is a better method to use for
+		general purposes."""
+		maxDepth=maxDepth-1
 		for child in self.GetChildren():
-			if isinstance(child,Element):
-				for c in child.FindChildrenDepthFirst(childClass):
-					yield c
 			if isinstance(child,childClass):
 				yield child
+		if maxDepth:
+			for child in self.GetChildren():
+				if isinstance(child,Element) and (subMatch or not isinstance(child,childClass)):
+					for c in child.FindChildrenBreadthFirst(childClass,maxDepth):
+						yield c
+
+	def FindChildrenDepthFirst(self,childClass,subMatch=True,maxDepth=1000):
+		"""A generator method that iterates over children of class
+		*childClass* using a depth first scan.
+		
+		*childClass* may also be a tuple as per the definition of the
+		builtin isinstance function in python.
+
+		If *subMatch* is True (the default) then matching elements are
+		also scanned for nested matches.  If False, only the outer-most
+		matching element is returned.
+		
+		*maxDepth* controls the depth of the scan with level 1
+		indicating direct children only.  It must be a positive integer
+		and defaults to 1000."""
+		maxDepth=maxDepth-1
+		for child in self.GetChildren():
+			if isinstance(child,childClass):
+				yield child
+				if not subMatch:
+					continue
+			if isinstance(child,Element) and maxDepth>0:
+				for c in child.FindChildrenDepthFirst(childClass,maxDepth):
+					yield c
 				
 	def FindParent(self,parentClass):
 		"""Finds the first parent of class parentClass of this element.
@@ -1583,7 +1692,21 @@ class Element(Node):
 			else:
 				parent=None
 		return parent
-					
+	
+	def AttachToParent(self,parent):
+		"""Called to attach an orphan element to a parent.
+		
+		This method does not do any special handling of child elements,
+		the caller takes responsibility for ensuring that this element
+		will be returned by future calls to parent.GetChildren(). 
+		However,
+		:py:meth:`AttachToDocument` is called to ensure id registrations
+		are made."""
+		if self.parent:
+			raise XMLParentError("Expected orphan")
+		self.parent=parent
+		self.AttachToDocument()
+		
 	def AttachToDocument(self,doc=None):
 		"""Called when the element is first attached to a document.
 		
@@ -1598,10 +1721,21 @@ class Element(Node):
 				if isinstance(child,Element):
 					child.AttachToDocument(doc)
 	
+	def DetachFromParent(self):
+		"""Called to detach an element from its parent, making it an orphan
+		
+		This method does not do any special handling of child elements,
+		the caller takes responsibility for ensuring that this element
+		will no longer be returned by future calls to
+		parent.GetChildren().  However, :py:math:`DetachFromDocument` is
+		called to ensure id registrations are removed."""
+		self.DetachFromDocument()
+		self.parent=None
+		
 	def DetachFromDocument(self,doc=None):
 		"""Called when an element is being detached from a document.
 		
-		The default implementation ensure that any ID attributes belonging
+		The default implementation ensures that any ID attributes belonging
 		to this element or its descendents are unregistered."""
 		if doc is None:
 			doc=self.GetDocument()
@@ -1659,30 +1793,52 @@ class Element(Node):
 			newChildren.append(string.join(dataChildren,''))
 		self._children=newChildren				
 
+	def GenerateValue(self,ignoreElements=False):
+		"""A generator function that returns the strings that compromise
+		this element's value (useful when handling elements that contain
+		a large amount of data).  For more information see
+		:py:meth:`GetValue`.  Note that::
+		
+		string.join(e.GenerateValue(),u'')==e.GetValue()"""
+		if not self.IsMixed():
+			raise XMLMixedContentError(self.__class__.__name__)
+		for child in self.GetChildren():
+			if type(child) in StringTypes:
+				yield unicode(child)
+			elif not ignoreElements:
+				raise XMLMixedContentError(str(self))
+		  
 	def GetValue(self,ignoreElements=False):
 		"""By default, returns a single unicode string representing the element's data.
 		
-		If the element contains child elements and ignoreElements is False
-		then XMLMixedContentError is raised.
+		The default implementation is only supported for elements where
+		mixed content is permitted (:py:meth:`IsMixed`).  It uses
+		:py:meth:`GetChildren` to iterate through the children.
 		
 		If the element is empty an empty string is returned.
 		
 		Derived classes may return more complex objects, such as values
 		of basic python types or class instances, performing validation
-		based on application-defined rules."""		
-		data=[]
-		for child in self.GetChildren():
-			if type(child) in StringTypes:
-				data.append(unicode(child))
-			elif not ignoreElements:
-				raise XMLMixedContentError(str(self))
-		return string.join(data,u'')
+		based on application-defined rules.
+
+		If the element contains child elements then XMLMixedContentError is raised.
+		You can pass *ignoreElements* as True to override this behaviour in the unlikely
+		event that you want::
+		
+			<!-- elements like this... -->
+			<data>This is <em>the</em> value</data>
+		
+			# to behave like this:
+			data.GetValue(True)==u"This is  value" """
+		return string.join(self.GenerateValue(),u'')
 
 	def SetValue(self,value):
 		"""Replaces the value of the element with the (unicode) value.
 		
-		If the element has children other than those being managed by the
-		base class then UnimplementedError is raised.
+		The default implementation is only supported for elements where
+		mixed content is permitted (:py:meth:`IsMixed`) and only affects
+		the internally maintained list of children.  Elements with more
+		complex mixed models MUST override this method.
 		
 		If *value* is None then the element becomes empty.
 		
@@ -1796,7 +1952,15 @@ class Element(Node):
 		return unicode(s.getvalue())
 		
 	def Copy(self,parent=None):
-		"""Creates a new instance of this element which is a deep copy of this one."""
+		"""Creates a new instance of this element which is a deep copy of this one.
+		
+		*parent* is the parent node to attach the new element to.  If it
+		is None then a new orphan element is created.
+		
+		This method mimics the process of serialisation and
+		deserialisation (without the need to generate markup).  As a
+		result, element attributes are serialised and deserialised to
+		strings during the copy process."""
 		if parent:
 			e=parent.ChildElement(self.__class__,self.GetXMLName())
 		else:
@@ -1934,7 +2098,7 @@ class Element(Node):
 		Otherwise we return False if we know the element is (or should be) mixed
 		content, True otherwise.
 		
-		Note: an element on undetermined content model that contains only elements
+		Note: an element of undetermined content model that contains only elements
 		and white space *is* pretty printed."""
 		spc=self.GetSpace()
 		if spc is not None and spc=='preserve':
@@ -1945,11 +2109,12 @@ class Element(Node):
 			spc=self.parent.PrettyPrint()
 			if spc is False:
 				return False
-		if hasattr(self.__class__,'XMLCONTENT'):
+		if hasattr(self,'XMLCONTENT'):
 			# if we have a defined content model then we return False for
 			# mixed content.
 			return self.__class__.XMLCONTENT!=XMLMixedContent
 		else:
+			warnings.warn("class %s: Element.PrettyPrint with undefined content models is deprecated"%self.__class__.__name__, DeprecationWarning, stacklevel=3)
 			for child in self.GetChildren():
 				if type(child) in StringTypes:
 					for c in child:
@@ -1968,8 +2133,13 @@ class Element(Node):
 		self.SortNames(keys)
 		for a in keys:
 			attributes.append(u'%s=%s'%(a,escapeFunction(attrs[a],True)))
-				
-	def WriteXML(self,writer,escapeFunction=EscapeCharData,indent='',tab='\t',root=False):
+	
+	def GenerateXML(self,escapeFunction=EscapeCharData,indent='',tab='\t',root=False):
+		"""A generator function that returns strings representing the
+		serialised version of this element::
+		
+			# the element's serialised output can be obtained as a single string
+			string.join(e.GenerateXML(),'')"""
 		if tab:
 			ws='\n'+indent
 			indent=indent+tab
@@ -1992,19 +2162,20 @@ class Element(Node):
 			if type(child) in StringTypes and len(child)>0 and IsS(child[0]):
 				# First character is WS, so assume pre-formatted
 				indent=tab=''
-			writer.write(u'%s<%s%s>'%(ws,self.xmlname,attributes))
+			yield u'%s<%s%s>'%(ws,self.xmlname,attributes)
 			if hasattr(self.__class__,'SGMLCDATA'):
 				# When expressed in SGML this element would have type CDATA so put it in a CDSect
-				writer.write(EscapeCDSect(self.GetValue()))
+				yield EscapeCDSect(self.GetValue())
 			else:
 				while True:
 					if type(child) in types.StringTypes:
 						# We force encoding of carriage return as these are subject to removal
-						writer.write(escapeFunction(child))
+						yield escapeFunction(child)
 						# if we have character data content skip closing ws
 						ws=''
 					else:
-						child.WriteXML(writer,escapeFunction,indent,tab)
+						for s in child.GenerateXML(escapeFunction,indent,tab):
+							yield s
 					try:
 						child=children.next()
 					except StopIteration:
@@ -2012,67 +2183,14 @@ class Element(Node):
 			if not tab:
 				# if we weren't tabbing children we need to skip closing white space
 				ws=''
-			writer.write(u'%s</%s>'%(ws,self.xmlname))
+			yield u'%s</%s>'%(ws,self.xmlname)
 		except StopIteration:
-			writer.write(u'%s<%s%s/>'%(ws,self.xmlname,attributes))
+			yield u'%s<%s%s/>'%(ws,self.xmlname,attributes)
 
+	def WriteXML(self,writer,escapeFunction=EscapeCharData,indent='',tab='\t',root=False):
+		for s in self.GenerateXML(escapeFunction,indent,tab,root):
+			writer.write(s)		
 
-class ElementType(object):
-
-	Empty=0				#: Content type constant for EMPTY
-	Any=1				#: Content type constant for ANY
-	Mixed=2				#: Content type constant for mixed content
-	ElementContent=3	#: Content type constant for element content
-	SGMLCDATA=4			#: Additional content type constant for SGML CDATA
-	
-	def __init__(self):
-		"""An object for representing element type definitions."""
-		self.entity=None	#: The entity in which this element was declared
-		self.name=None		#: The name of this element
-		self.contentType=ElementType.Empty
-		"""The content type of this element, one of the constants defined above."""
-		self.contentModel=None
-		"""A :py:class:`XMLContentParticle` instance which contains the element's
-		content model or None in the case of EMPTY or ANY declarations."""
-		self.particleMap=None
-		"""A mapping used to validate the content model during parsing.  It maps
-		the name of the first child element found to a list of
-		:py:class:`XMLNameParticle` instances that can represent it in the
-		content model.  For more information see
-		:py:attr:`XMLNameParticle.particleMap`."""
-
-	def BuildModel(self):
-		"""Builds internal strutures to support model validation."""
-		if self.contentType==self.ElementContent:
-			self.particleMap={}
-			if not self.contentModel.SeekParticles(self.particleMap):
-				# the entire content model is optional so add ETag mapping
-				self.particleMap['']=None
-			exitParticles={'':None}
-			self.contentModel.BuildParticleMaps(exitParticles)
-		elif self.contentType==self.Mixed:
-			self.particleMap={}
-			self.contentModel.SeekParticles(self.particleMap)
-			self.particleMap['']=None
-			# always optional repeatable
-			self.contentModel.BuildParticleMaps(self.particleMap)
-	
-	def IsDeterministic(self):
-		"""Tests if the content model is deterministic.
-		
-		For degenerates cases (elements declared with ANY or EMPTY) the method
-		always returns True."""
-		if self.contentType==self.ElementContent or self.contentType==self.Mixed:
-			return self.contentModel.IsDeterministic(self.particleMap)
-		else:
-			return True
-
-# Constants for backwards compatibility
-XMLEmpty=ElementType.Empty
-XMLMixedContent=ElementType.Mixed
-ElementContent=ElementType.ElementContent
-SGMLCDATA=ElementType.SGMLCDATA
-		
 	
 class XMLContentParticle(object):
 	
@@ -2554,11 +2672,11 @@ class XMLEntity(object):
 	def OpenFile(self,src,encoding='utf-8'):
 		"""Opens the entity from an existing (open) binary file.
 		
-		The optional *encoding* provides a hint as to the intended encoding of
-		the data and defaults to UTF-8.  Unlike other Open* methods we do not
-		assume that the file is seekable however, if you may set encoding to
-		None for a seekable file thus invoking auto-detection of the
-		encoding."""
+		The optional *encoding* provides a hint as to the intended
+		encoding of the data and defaults to UTF-8.  Unlike other Open*
+		methods we do not assume that the file is seekable however, you
+		may set encoding to None for a seekable file thus invoking
+		auto-detection of the encoding."""
 		self.encoding=encoding
 		self.dataSource=src
 		if self.encoding is None:

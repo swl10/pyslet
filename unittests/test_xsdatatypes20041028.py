@@ -17,15 +17,15 @@ from pyslet.xsdatatypes20041028 import *
 
 class XSDatatypes20041028Tests(unittest.TestCase):		
 	def testCaseConstants(self):
-		self.failUnless(XMLSCHEMA_NAMESPACE=="http://www.w3.org/2001/XMLSchema-instance","XSI namespace: %s"%XMLSCHEMA_NAMESPACE)
+		self.assertTrue(XMLSCHEMA_NAMESPACE=="http://www.w3.org/2001/XMLSchema-instance","XSI namespace: %s"%XMLSCHEMA_NAMESPACE)
 
 class XSDatatypesBooleanTests(unittest.TestCase):		
 	def testCaseDencode(self):
-		self.failUnless(DecodeBoolean('true') is True,'true')
-		self.failUnless(DecodeBoolean('1') is True,'1')
-		self.failUnless(DecodeBoolean('false') is False,'false')
-		self.failUnless(DecodeBoolean('0') is False,'0')
-		self.failUnless(DecodeBoolean(None) is None,'None')
+		self.assertTrue(DecodeBoolean('true') is True,'true')
+		self.assertTrue(DecodeBoolean('1') is True,'1')
+		self.assertTrue(DecodeBoolean('false') is False,'false')
+		self.assertTrue(DecodeBoolean('0') is False,'0')
+		self.assertTrue(DecodeBoolean(None) is None,'None')
 		try:
 			DecodeBoolean('False'); self.fail('False')
 		except ValueError:
@@ -40,12 +40,12 @@ class XSDatatypesBooleanTests(unittest.TestCase):
 			pass
 
 	def testCaseEncode(self):
-		self.failUnless(EncodeBoolean(True)=="true",'True')
-		self.failUnless(EncodeBoolean(False)=="false",'False')
-		self.failUnless(EncodeBoolean(1)=="true",'1')
-		self.failUnless(EncodeBoolean(0)=="false",'0')
-		self.failUnless(EncodeBoolean(['a'])=="true",'Non-empty list')
-		self.failUnless(EncodeBoolean([])=="false",'Empty list')
+		self.assertTrue(EncodeBoolean(True)=="true",'True')
+		self.assertTrue(EncodeBoolean(False)=="false",'False')
+		self.assertTrue(EncodeBoolean(1)=="true",'1')
+		self.assertTrue(EncodeBoolean(0)=="false",'0')
+		self.assertTrue(EncodeBoolean(['a'])=="true",'Non-empty list')
+		self.assertTrue(EncodeBoolean([])=="false",'Empty list')
 		try:
 			EncodeBoolean(None); self.fail('None')
 		except ValueError:
@@ -77,7 +77,7 @@ class XSDatatypesDecimalTests(unittest.TestCase):
 			t=tests[src]
 			try:
 				result=DecodeDecimal(src)
-				self.failUnless(result==t,"Mismatched decimal: %s expected %s"%(repr(result),repr(t)))
+				self.assertTrue(result==t,"Mismatched decimal: %s expected %s"%(repr(result),repr(t)))
 			except ValueError:
 				if t is ValueError:
 					pass
@@ -119,7 +119,7 @@ class XSDatatypesDecimalTests(unittest.TestCase):
 			try:
 				result=EncodeDecimal(src)
 				t=tests[src]
-				self.failUnless(result==t,"Mismatched decimal: %s expected %s"%(repr(result),repr(t)))
+				self.assertTrue(result==t,"Mismatched decimal: %s expected %s"%(repr(result),repr(t)))
 			except ValueError:
 				print "Failed to encode %s"%repr(src)
 				raise
@@ -150,7 +150,7 @@ class XSDatatypesDoubleTests(unittest.TestCase):
 			t=tests[src]
 			try:
 				result=DecodeDouble(src)
-				self.failUnless(result==t,"Mismatched decimal: %s expected %s"%(repr(result),repr(t)))
+				self.assertTrue(result==t,"Mismatched decimal: %s expected %s"%(repr(result),repr(t)))
 			except ValueError:
 				if t is ValueError:
 					pass
@@ -189,7 +189,7 @@ class XSDatatypesDoubleTests(unittest.TestCase):
 			try:
 				result=EncodeDouble(src)
 				t=tests[src]
-				self.failUnless(result==t,"Mismatched decimal: %s expected %s"%(repr(result),repr(t)))
+				self.assertTrue(result==t,"Mismatched decimal: %s expected %s"%(repr(result),repr(t)))
 			except ValueError:
 				print "Failed to encode %s"%repr(src)
 				raise
@@ -198,23 +198,23 @@ class XSDatatypesDoubleTests(unittest.TestCase):
 class XSRegularExpressionTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		r=RegularExpression(".*")
-		self.failUnless(r.src==".*","Source still available")
+		self.assertTrue(r.src==".*","Source still available")
 
 	
 class XSRegularExpressionParserTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		p=RegularExpressionParser(u".*")
-		self.failUnless(p.theChar==u".")
-		self.failUnless(p.pos==0)
+		self.assertTrue(p.theChar==u".")
+		self.assertTrue(p.pos==0)
 		p.SetPos(1)
-		self.failUnless(p.pos==1)
-		self.failUnless(p.theChar==u"*")
+		self.assertTrue(p.pos==1)
+		self.assertTrue(p.theChar==u"*")
 		p.SetPos(0)
-		self.failUnless(p.pos==0)
-		self.failUnless(p.theChar==u".")
+		self.assertTrue(p.pos==0)
+		self.assertTrue(p.theChar==u".")
 		p.NextChar()
-		self.failUnless(p.theChar==u"*")
-		self.failUnless(p.pos==1)
+		self.assertTrue(p.theChar==u"*")
+		self.assertTrue(p.pos==1)
 
 	def testRegExp(self):
 		"""::
@@ -228,8 +228,8 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 			t=tests[b]
 			try:
 				result=p.ParseRegExp()
-				self.failUnless(result==t,"Mismatched regExp: %s expected %s"%(repr(result),repr(t)))
-				self.failUnless(p.theChar is None)
+				self.assertTrue(result==t,"Mismatched regExp: %s expected %s"%(repr(result),repr(t)))
+				self.assertTrue(p.theChar is None)
 			except RegularExpressionError:
 				if t is RegularExpressionError:
 					pass
@@ -241,8 +241,8 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 		"""::
 		branch	::=	piece*	"""
 		p=RegularExpressionParser(u"A[A-z-[\[-\]]](Hello(Mum)|(Dad))A{0,0}[A-Z]{0,1}(Hello){0,}B{1,}[@-\xA9]?)")
-		self.failUnless(p.ParseBranch()==u"A[A-Z_-z^](Hello(Mum)|(Dad))[A-Z]?(Hello)*B+[@-\xA9]?","Branch")
-		self.failUnless(p.theChar==u")")
+		self.assertTrue(p.ParseBranch()==u"A[A-Z_-z^](Hello(Mum)|(Dad))[A-Z]?(Hello)*B+[@-\xA9]?","Branch")
+		self.assertTrue(p.theChar==u")")
 		
 	def testCasePiece(self):
 		"""::
@@ -276,8 +276,8 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 			t=tests[b]
 			try:
 				result=p.ParsePiece()
-				self.failUnless(result==t,"Mismatched piece: %s expected %s"%(repr(result),repr(t)))
-				self.failUnless(p.theChar is None)
+				self.assertTrue(result==t,"Mismatched piece: %s expected %s"%(repr(result),repr(t)))
+				self.assertTrue(p.theChar is None)
 			except RegularExpressionError:
 				if t is RegularExpressionError:
 					pass
@@ -311,8 +311,8 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 			t=tests[b]
 			try:
 				x,y=p.ParseQuantifier()
-				self.failUnless(x==t[0] and y==t[1],"Mismatched quantity: %s expected %s"%(repr((x,y)),repr(t)))
-				self.failUnless(p.theChar is None)
+				self.assertTrue(x==t[0] and y==t[1],"Mismatched quantity: %s expected %s"%(repr((x,y)),repr(t)))
+				self.assertTrue(p.theChar is None)
 			except RegularExpressionError:
 				if t is RegularExpressionError:
 					pass
@@ -344,8 +344,8 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 			t=tests[b]
 			try:
 				x,y=p.ParseQuantity()
-				self.failUnless(x==t[0] and y==t[1],"Mismatched quantity: %s expected %s"%(repr((x,y)),repr(t)))
-				self.failUnless(p.theChar is None)
+				self.assertTrue(x==t[0] and y==t[1],"Mismatched quantity: %s expected %s"%(repr((x,y)),repr(t)))
+				self.assertTrue(p.theChar is None)
 			except RegularExpressionError:
 				if t is RegularExpressionError:
 					pass
@@ -370,11 +370,11 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 			p=RegularExpressionParser(b)
 			try:
 				result=p.ParseQuantExact()
-				self.failUnless(result==tests[b],"Mismatched number: %s expected %s"%(repr(result),repr(tests[b])))
+				self.assertTrue(result==tests[b],"Mismatched number: %s expected %s"%(repr(result),repr(tests[b])))
 			except RegularExpressionError:
 				print "Failed to parse %s"%repr(b)
 				raise
-			self.failUnless(p.theChar is None)
+			self.assertTrue(p.theChar is None)
 		p=RegularExpressionParser("x")
 		try:
 			cClass=p.ParseQuantExact()
@@ -394,11 +394,11 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 			p=RegularExpressionParser(b)
 			try:
 				result=p.ParseAtom()
-				self.failUnless(result==tests[b],"Mismatched atom: %s expected %s"%(repr(result),repr(b)))
+				self.assertTrue(result==tests[b],"Mismatched atom: %s expected %s"%(repr(result),repr(b)))
 			except RegularExpressionError:
 				print "Failed to parse %s"%repr(b)
 				raise
-			self.failUnless(p.theChar is None)
+			self.assertTrue(p.theChar is None)
 		
 	def testCaseIsChar(self):
 		"""::
@@ -409,11 +409,11 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 		p=RegularExpressionParser(u"ABC.ABC\\ABC?123* !\"+#$%(&\',)-/:|;<={>@^}_`~[\xa3\xa0\xf7]")
 		while p.theChar is not None:
 			for c in "ABC":
-				self.failUnless(p.IsChar(),"Defaulted character +ve test")
-				self.failIf(p.IsChar("."),"Specified character -ve test")
+				self.assertTrue(p.IsChar(),"Defaulted character +ve test")
+				self.assertFalse(p.IsChar("."),"Specified character -ve test")
 				p.NextChar()
-			self.failIf(p.IsChar(),"Defaulted character -ve test")
-			self.failUnless(p.IsChar("A"),"Specified character +ve test")
+			self.assertFalse(p.IsChar(),"Defaulted character -ve test")
+			self.assertTrue(p.IsChar("A"),"Specified character +ve test")
 			p.NextChar()
 
 	def testCharClass(self):
@@ -431,12 +431,12 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 			except RegularExpressionError:
 				print "Failed to parse %s"%repr(b)
 				raise
-			self.failUnless(p.theChar is None)
+			self.assertTrue(p.theChar is None)
 			t1,t2=tests[b]
 			for c in t1:
-				self.failUnless(cClass.Test(c),"%s not in %s"%(repr(c),b))
+				self.assertTrue(cClass.Test(c),"%s not in %s"%(repr(c),b))
 			for c in t2:
-				self.failIf(cClass.Test(c),"%s in %s"%(repr(c),b))
+				self.assertFalse(cClass.Test(c),"%s in %s"%(repr(c),b))
 
 	def testCharClassExpr(self):
 		"""::
@@ -453,12 +453,12 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 			except RegularExpressionError:
 				print "Failed to parse %s"%repr(b)
 				raise
-			self.failUnless(p.theChar is None)
+			self.assertTrue(p.theChar is None)
 			t1,t2=tests[b]
 			for c in t1:
-				self.failUnless(cClass.Test(c),"%s not in %s"%(repr(c),b))
+				self.assertTrue(cClass.Test(c),"%s not in %s"%(repr(c),b))
 			for c in t2:
-				self.failIf(cClass.Test(c),"%s in %s"%(repr(c),b))
+				self.assertFalse(cClass.Test(c),"%s in %s"%(repr(c),b))
 	
 	def testCharGroup(self):
 		"""::
@@ -475,12 +475,12 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 			except RegularExpressionError:
 				print "Failed to parse %s"%repr(b)
 				raise
-			self.failUnless(p.theChar is None)
+			self.assertTrue(p.theChar is None)
 			t1,t2=tests[b]
 			for c in t1:
-				self.failUnless(cClass.Test(c),"%s not in %s"%(repr(c),b))
+				self.assertTrue(cClass.Test(c),"%s not in %s"%(repr(c),b))
 			for c in t2:
-				self.failIf(cClass.Test(c),"%s in %s"%(repr(c),b))
+				self.assertFalse(cClass.Test(c),"%s in %s"%(repr(c),b))
 
 	def testPosCharGroup(self):
 		"""::
@@ -490,7 +490,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 		cClass=p.ParsePosCharGroup()
 		for i in xrange(256):
 			c=unichr(i)
-			self.failUnless(cClass.Test(c)==(c in test),"Bad test on character: %s"%repr(c))
+			self.assertTrue(cClass.Test(c)==(c in test),"Bad test on character: %s"%repr(c))
 		# The - character is a valid character range only at the beginning or end of a positive character group
 		p=RegularExpressionParser(u"-a-c")
 		cClass=p.ParsePosCharGroup()
@@ -511,7 +511,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 		cClass=p.ParseNegCharGroup()
 		for i in xrange(256):
 			c=unichr(i)
-			self.failUnless(cClass.Test(c)!=(c in test),"Bad test on character: %s"%repr(c))
+			self.assertTrue(cClass.Test(c)!=(c in test),"Bad test on character: %s"%repr(c))
 		p=RegularExpressionParser(u"^-a-c")
 		cClass=p.ParseNegCharGroup()
 		p=RegularExpressionParser(u"^a-c-]")
@@ -541,12 +541,12 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 			except RegularExpressionError:
 				print "Failed to parse %s"%repr(b)
 				raise
-			self.failUnless(p.theChar is None)
+			self.assertTrue(p.theChar is None)
 			t1,t2=tests[b]
 			for c in t1:
-				self.failUnless(cClass.Test(c),"%s not in %s"%(repr(c),b))
+				self.assertTrue(cClass.Test(c),"%s not in %s"%(repr(c),b))
 			for c in t2:
-				self.failIf(cClass.Test(c),"%s in %s"%(repr(c),b))
+				self.assertFalse(cClass.Test(c),"%s in %s"%(repr(c),b))
 			
 	def testCharRange(self):
 		"""::
@@ -555,7 +555,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 		for match in [u"\\^",u"[_-b^]",u"x",u"[a-c]",u"-",u"[?-A]"]:
 			savePos=p.pos
 			cClass=p.ParseCharRange()
-			self.failUnless(unicode(cClass)==match,"Expected %s, found %s"%(match,unicode(cClass)))
+			self.assertTrue(unicode(cClass)==match,"Expected %s, found %s"%(match,unicode(cClass)))
 		p=RegularExpressionParser("[")
 		try:
 			cClass=p.ParseCharRange()
@@ -577,12 +577,12 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 			except RegularExpressionError:
 				print "Failed to parse %s"%repr(b)
 				raise
-			self.failUnless(p.theChar is None)
+			self.assertTrue(p.theChar is None)
 			t1,t2=tests[b]
 			for c in t1:
-				self.failUnless(cClass.Test(c),"%s not in %s"%(repr(c),b))
+				self.assertTrue(cClass.Test(c),"%s not in %s"%(repr(c),b))
 			for c in t2:
-				self.failIf(cClass.Test(c),"%s in %s"%(repr(c),b))
+				self.assertFalse(cClass.Test(c),"%s in %s"%(repr(c),b))
 		p=RegularExpressionParser("c-a")
 		try:
 			cClass=p.ParseSERange()
@@ -598,22 +598,22 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 			while p.theChar is not None:
 				savePos=p.pos
 				result.append(p.ParseCharOrEsc())
-				self.failIf(p.pos==savePos,"Failed to parse character")				
+				self.assertFalse(p.pos==savePos,"Failed to parse character")				
 		except RegularExpressionError:
 			pass
-		self.failUnless(p.theChar==u"-","Incomplete parse of CharOrEsc")
-		self.failUnless(string.join(result,"")=="ABC-ABC[ABC]ABC\\","Parse result")
+		self.assertTrue(p.theChar==u"-","Incomplete parse of CharOrEsc")
+		self.assertTrue(string.join(result,"")=="ABC-ABC[ABC]ABC\\","Parse result")
 		
 	def testCaseIsXmlChar(self):
 		"""XmlChar	::=	[^\#x2D#x5B#x5D]	"""
 		p=RegularExpressionParser(u"ABC-ABC[ABC]ABC\\")
 		while p.theChar is not None:
 			for c in "ABC":
-				self.failUnless(p.IsXmlChar(),"Defaulted character +ve test")
-				self.failIf(p.IsXmlChar("\\"),"Specified character -ve test")
+				self.assertTrue(p.IsXmlChar(),"Defaulted character +ve test")
+				self.assertFalse(p.IsXmlChar("\\"),"Specified character -ve test")
 				p.NextChar()
-			self.failIf(p.IsXmlChar(),"Defaulted character -ve test")
-			self.failUnless(p.IsXmlChar("A"),"Specified character +ve test")
+			self.assertFalse(p.IsXmlChar(),"Defaulted character -ve test")
+			self.assertTrue(p.IsXmlChar("A"),"Specified character +ve test")
 			p.NextChar()
 
 	def testCaseIsXmlCharIncDash(self):
@@ -621,11 +621,11 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 		p=RegularExpressionParser(u"ABC[ABC]ABC\\")
 		while p.theChar is not None:
 			for c in "ABC":
-				self.failUnless(p.IsXmlCharIncDash(),"Defaulted character +ve test")
-				self.failIf(p.IsXmlCharIncDash("\\"),"Specified character -ve test")
+				self.assertTrue(p.IsXmlCharIncDash(),"Defaulted character +ve test")
+				self.assertFalse(p.IsXmlCharIncDash("\\"),"Specified character -ve test")
 				p.NextChar()
-			self.failIf(p.IsXmlCharIncDash(),"Defaulted character -ve test")
-			self.failUnless(p.IsXmlCharIncDash("A"),"Specified character +ve test")
+			self.assertFalse(p.IsXmlCharIncDash(),"Defaulted character -ve test")
+			self.assertTrue(p.IsXmlCharIncDash("A"),"Specified character +ve test")
 			p.NextChar()
 
 	def testCharClassEsc(self):
@@ -640,12 +640,12 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 		for b in tests.keys():
 			p=RegularExpressionParser(b)
 			cClass=p.ParseCharClassEsc()
-			self.failUnless(p.theChar is None)
+			self.assertTrue(p.theChar is None)
 			t1,t2=tests[b]
 			for c in t1:
-				self.failUnless(cClass.Test(c),"%s not in %s"%(repr(c),b))
+				self.assertTrue(cClass.Test(c),"%s not in %s"%(repr(c),b))
 			for c in t2:
-				self.failIf(cClass.Test(c),"%s in %s"%(repr(c),b))
+				self.assertFalse(cClass.Test(c),"%s in %s"%(repr(c),b))
 
 	def testCaseSingleCharEsc(self):
 		"""::
@@ -672,13 +672,13 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 		for b in tests.keys():
 			p=RegularExpressionParser(b)
 			c=p.ParseSingleCharEsc()
-			self.failUnless(p.theChar is None)
+			self.assertTrue(p.theChar is None)
 			t=tests[b]
-			self.failUnless(c==t,"%s single char found %s"%(repr(t),repr(c)))
+			self.assertTrue(c==t,"%s single char found %s"%(repr(t),repr(c)))
 		try:
 			p=RegularExpressionParser("\\b")
 			c=p.ParseSingleCharEsc()
-			self.failIf(p.theChar is None,"Undetected bad single character escape: %s"%repr(c))
+			self.assertFalse(p.theChar is None,"Undetected bad single character escape: %s"%repr(c))
 		except RegularExpressionError:
 			pass
 		
@@ -694,12 +694,12 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 		for b in tests.keys():
 			p=RegularExpressionParser(b)
 			cClass=p.ParseCatEsc()
-			self.failUnless(p.theChar is None)
+			self.assertTrue(p.theChar is None)
 			t1,t2=tests[b]
 			for c in t1:
-				self.failUnless(cClass.Test(c),"%s not in %s"%(repr(c),b))
+				self.assertTrue(cClass.Test(c),"%s not in %s"%(repr(c),b))
 			for c in t2:
-				self.failIf(cClass.Test(c),"%s in %s"%(repr(c),b))
+				self.assertFalse(cClass.Test(c),"%s in %s"%(repr(c),b))
 		
 	def testCaseComplEsc(self):
 		"""::
@@ -713,12 +713,12 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 		for b in tests.keys():
 			p=RegularExpressionParser(b)
 			cClass=p.ParseComplEsc()
-			self.failUnless(p.theChar is None)
+			self.assertTrue(p.theChar is None)
 			t1,t2=tests[b]
 			for c in t1:
-				self.failUnless(cClass.Test(c),"%s not in %s"%(repr(c),b))
+				self.assertTrue(cClass.Test(c),"%s not in %s"%(repr(c),b))
 			for c in t2:
-				self.failIf(cClass.Test(c),"%s in %s"%(repr(c),b))
+				self.assertFalse(cClass.Test(c),"%s in %s"%(repr(c),b))
 		
 	def testCaseCharProp(self):
 		"""::
@@ -735,12 +735,12 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 		for b in tests.keys():
 			p=RegularExpressionParser(b)
 			cClass=p.ParseCharProp()
-			self.failUnless(p.theChar is None)
+			self.assertTrue(p.theChar is None)
 			t1,t2=tests[b]
 			for c in t1:
-				self.failUnless(cClass.Test(c),"%s not in %s"%(repr(c),b))
+				self.assertTrue(cClass.Test(c),"%s not in %s"%(repr(c),b))
 			for c in t2:
-				self.failIf(cClass.Test(c),"%s in %s"%(repr(c),b))
+				self.assertFalse(cClass.Test(c),"%s in %s"%(repr(c),b))
 
 	def testCaseIsCategory(self):
 		"""::
@@ -758,13 +758,13 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 		bad=["A","Za"]
 		for s in tests:
 			p=RegularExpressionParser(s)
-			self.failUnless(isinstance(p.ParseIsCategory(),CharClass),"Missing category: %s"%s)
-			self.failUnless(p.theChar is None,"Incomplete parse of category: %s"%s)
+			self.assertTrue(isinstance(p.ParseIsCategory(),CharClass),"Missing category: %s"%s)
+			self.assertTrue(p.theChar is None,"Incomplete parse of category: %s"%s)
 		for s in bad:
 			p=RegularExpressionParser(s)
 			try:
 				p.ParseIsCategory()
-				self.failIf(p.theChar is None,"Undetected bad category: %s"%s)
+				self.assertFalse(p.theChar is None,"Undetected bad category: %s"%s)
 			except RegularExpressionError:
 				pass
 		tests={
@@ -775,12 +775,12 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 		for b in tests.keys():
 			p=RegularExpressionParser(b)
 			cClass=p.ParseIsCategory()
-			self.failUnless(p.theChar is None)
+			self.assertTrue(p.theChar is None)
 			t1,t2=tests[b]
 			for c in t1:
-				self.failUnless(cClass.Test(c),"%s not in %s"%(repr(c),b))
+				self.assertTrue(cClass.Test(c),"%s not in %s"%(repr(c),b))
 			for c in t2:
-				self.failIf(cClass.Test(c),"%s in %s"%(repr(c),b))
+				self.assertFalse(cClass.Test(c),"%s in %s"%(repr(c),b))
 		
 	def testCaseIsBlock(self):
 		"""::
@@ -795,12 +795,12 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 		for b in tests.keys():
 			p=RegularExpressionParser(u"Is"+b)
 			cClass=p.ParseIsBlock()
-			self.failUnless(p.theChar is None)
+			self.assertTrue(p.theChar is None)
 			t1,t2=tests[b]
 			for c in t1:
-				self.failUnless(cClass.Test(c),"%s not in %s"%(repr(c),b))
+				self.assertTrue(cClass.Test(c),"%s not in %s"%(repr(c),b))
 			for c in t2:
-				self.failIf(cClass.Test(c),"%s in Is%s"%(repr(c),b))
+				self.assertFalse(cClass.Test(c),"%s in Is%s"%(repr(c),b))
 		p=RegularExpressionParser(u"IsNumberFoams")			
 		try:
 			cClass=p.ParseIsBlock()
@@ -822,17 +822,17 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 		for c in tests.keys():
 			p1=RegularExpressionParser(u"\\"+c)			
 			cClass1=p1.ParseMultiCharEsc()
-			self.failUnless(p1.pos==2)
+			self.assertTrue(p1.pos==2)
 			p2=RegularExpressionParser(u"\\"+c.upper())			
 			cClass2=p2.ParseMultiCharEsc()
-			self.failUnless(p2.pos==2)
+			self.assertTrue(p2.pos==2)
 			t1,t2=tests[c]
 			for c1 in t1:
-				self.failUnless(cClass1.Test(c1),"%s not in \\%s"%(repr(c1),c))
-				self.failIf(cClass2.Test(c1),"%s in \\%s"%(repr(c1),c.upper()))
+				self.assertTrue(cClass1.Test(c1),"%s not in \\%s"%(repr(c1),c))
+				self.assertFalse(cClass2.Test(c1),"%s in \\%s"%(repr(c1),c.upper()))
 			for c2 in t2:
-				self.failIf(cClass1.Test(c2),"%s in \\%s"%(repr(c2),c))
-				self.failUnless(cClass2.Test(c2),"%s in \\%s"%(repr(c2),c.upper()))
+				self.assertFalse(cClass1.Test(c2),"%s in \\%s"%(repr(c2),c))
+				self.assertTrue(cClass2.Test(c2),"%s in \\%s"%(repr(c2),c.upper()))
 		p=RegularExpressionParser(u"\\x")			
 		try:
 			cClass=p.ParseMultiCharEsc()
@@ -845,15 +845,15 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 		[37a] WildcardEsc ::= '.'"""
 		p=RegularExpressionParser(u".*")
 		cClass=p.ParseWildcardEsc()
-		self.failUnless(p.pos==1)
-		self.failIf(cClass.Test(u"\x0A"),"Line feed in .")
-		self.failIf(cClass.Test(u"\x0D"),"Carriage return in .")
+		self.assertTrue(p.pos==1)
+		self.assertFalse(cClass.Test(u"\x0A"),"Line feed in .")
+		self.assertFalse(cClass.Test(u"\x0D"),"Carriage return in .")
 		for i in xrange(100):
 			# do a few random tests
 			j=random.randint(0,maxunicode)
 			if j in (10,13):
 				continue
-			self.failUnless(cClass.Test(unichr(j)),"Random char not in . unichr(%04X)"%j)
+			self.assertTrue(cClass.Test(unichr(j)),"Random char not in . unichr(%04X)"%j)
 		p=RegularExpressionParser(u"x")			
 		try:
 			cClass=p.ParseWildcardEsc()

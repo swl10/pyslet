@@ -51,58 +51,58 @@ class RFC2396Tests(unittest.TestCase):
 		# UPALPHA = <any US-ASCII uppercase letter "A".."Z">
 		upalpha="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 		for i in xrange(0,256):
-			c=chr(i);self.failUnless(IsUpAlpha(c)==(c in upalpha),"IsUpAlpha(chr(%i))"%i)
+			c=chr(i);self.assertTrue(IsUpAlpha(c)==(c in upalpha),"IsUpAlpha(chr(%i))"%i)
 		lowalpha="abcdefghijklmnopqrstuvwxyz"
 		for i in xrange(0,256):
-			c=chr(i);self.failUnless(IsLowAlpha(c)==(c in lowalpha),"IsLowAlpha(chr(%i))"%i)
+			c=chr(i);self.assertTrue(IsLowAlpha(c)==(c in lowalpha),"IsLowAlpha(chr(%i))"%i)
 		alpha=upalpha+lowalpha
 		for i in xrange(0,256):
-			c=chr(i);self.failUnless(IsAlpha(c)==(c in alpha),"IsAlpha(chr(%i))"%i)
+			c=chr(i);self.assertTrue(IsAlpha(c)==(c in alpha),"IsAlpha(chr(%i))"%i)
 		digit="0123456789"
 		for i in xrange(0,256):
-			c=chr(i);self.failUnless(IsDigit(c)==(c in digit),"IsDigit(chr(%i))"%i)
+			c=chr(i);self.assertTrue(IsDigit(c)==(c in digit),"IsDigit(chr(%i))"%i)
 		alphanum=alpha+digit
 		for i in xrange(0,256):
-			c=chr(i);self.failUnless(IsAlphaNum(c)==(c in alphanum),"IsAlphaNum(chr(%i))"%i)
+			c=chr(i);self.assertTrue(IsAlphaNum(c)==(c in alphanum),"IsAlphaNum(chr(%i))"%i)
 		reserved=";/?:@&=+$,"
 		for i in xrange(0,256):
-			c=chr(i);self.failUnless(IsReserved(c)==(c in reserved),"IsReserved(chr(%i))"%i)
+			c=chr(i);self.assertTrue(IsReserved(c)==(c in reserved),"IsReserved(chr(%i))"%i)
 		mark="-_.!~*'()"
 		for i in xrange(0,256):
-			c=chr(i);self.failUnless(IsMark(c)==(c in mark),"IsMark(chr(%i))"%i)
+			c=chr(i);self.assertTrue(IsMark(c)==(c in mark),"IsMark(chr(%i))"%i)
 		unreserved=alphanum+mark
 		for i in xrange(0,256):
-			c=chr(i);self.failUnless(IsUnreserved(c)==(c in unreserved),"IsUnreserved(chr(%i))"%i)
+			c=chr(i);self.assertTrue(IsUnreserved(c)==(c in unreserved),"IsUnreserved(chr(%i))"%i)
 		control="\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1A\x1B\x1C\x1D\x1E\x1F\x7F"
 		for i in xrange(0,256):
-			c=chr(i);self.failUnless(IsControl(c)==(c in control),"IsControl(chr(%i))"%i)
+			c=chr(i);self.assertTrue(IsControl(c)==(c in control),"IsControl(chr(%i))"%i)
 		space=" "
 		for i in xrange(0,256):
-			c=chr(i);self.failUnless(IsSpace(c)==(c in space),"IsSpace(chr(%i))"%i)
+			c=chr(i);self.assertTrue(IsSpace(c)==(c in space),"IsSpace(chr(%i))"%i)
 		delims="<>#%\""
 		for i in xrange(0,256):
-			c=chr(i);self.failUnless(IsDelims(c)==(c in delims),"IsDelims(chr(%i))"%i)
+			c=chr(i);self.assertTrue(IsDelims(c)==(c in delims),"IsDelims(chr(%i))"%i)
 		unwise="{}|\\^[]`"
 		for i in xrange(0,256):
-			c=chr(i);self.failUnless(IsUnwise(c)==(c in unwise),"IsUnwise(chr(%i))"%i)
+			c=chr(i);self.assertTrue(IsUnwise(c)==(c in unwise),"IsUnwise(chr(%i))"%i)
 		authorityReserved=";:@?/"
 		for i in xrange(0,256):
-			c=chr(i);self.failUnless(IsAuthorityReserved(c)==(c in authorityReserved),"IsAuthorityReserved(chr(%i))"%i)
+			c=chr(i);self.assertTrue(IsAuthorityReserved(c)==(c in authorityReserved),"IsAuthorityReserved(chr(%i))"%i)
 		pathSegmentReserved="/;=?"
 		for i in xrange(0,256):
-			c=chr(i);self.failUnless(IsPathSegmentReserved(c)==(c in pathSegmentReserved),"IsPathSegmentReserved(chr(%i))"%i)
+			c=chr(i);self.assertTrue(IsPathSegmentReserved(c)==(c in pathSegmentReserved),"IsPathSegmentReserved(chr(%i))"%i)
 		queryReserved=";/?:@&=+,$"
 		for i in xrange(0,256):
-			c=chr(i);self.failUnless(IsQueryReserved(c)==(c in queryReserved),"IsQueryReserved(chr(%i))"%i)
+			c=chr(i);self.assertTrue(IsQueryReserved(c)==(c in queryReserved),"IsQueryReserved(chr(%i))"%i)
 		
 	def testURIC(self):
 		"""uric = reserved | unreserved | escaped"""
-		self.failUnless(ParseURIC("w ")==1,"space in URI")
-		self.failUnless(ParseURIC("'w'>")==3,"single-quote in URI")
-		self.failUnless(ParseURIC('"w">')==0,"double-quote in URI")
-		self.failUnless(ParseURIC('Caf%E9 ')==6,"uc hex")
-		self.failUnless(ParseURIC('Caf%e9 ')==6,"lc hex")
-		self.failUnless(ParseURIC('index#frag')==5,"fragment in URI")
+		self.assertTrue(ParseURIC("w ")==1,"space in URI")
+		self.assertTrue(ParseURIC("'w'>")==3,"single-quote in URI")
+		self.assertTrue(ParseURIC('"w">')==0,"double-quote in URI")
+		self.assertTrue(ParseURIC('Caf%E9 ')==6,"uc hex")
+		self.assertTrue(ParseURIC('Caf%e9 ')==6,"lc hex")
+		self.assertTrue(ParseURIC('index#frag')==5,"fragment in URI")
 		
 	def testEscape(self):
 		DATA="\t\n\r !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
@@ -120,48 +120,48 @@ class RFC2396Tests(unittest.TestCase):
 				self.fail("%s truncation failure:\n%s... expected %s"%(label,found[0:i],expected[i]))
 			if expected[i]==found[i]:
 				continue
-			self.fail("%s mismatch:\n%s... expected %s ; found %s"%(label,found[0:i+1],expected[i],found[i]))
+			self.fail("%s mismatch:\n%s... expected %s ; found %s"%(label,repr(found[0:i+1]),repr(expected[i]),repr(found[i])))
 	
 	def testPathSegments(self):
 		# if there is no absPath in a URI then absPath will be None, should be safe to split
 		segments=SplitAbsPath(None)
-		self.failUnless(segments==[])
+		self.assertTrue(segments==[])
 		# an absPath cannot be an empty string so treat this the same as None
 		segments=SplitAbsPath('')
-		self.failUnless(segments==[])
+		self.assertTrue(segments==[])
 		# if there is an absPath there is always at least one segment, so '/' is a single empty segment
 		segments=SplitAbsPath('/')
-		self.failUnless(segments==[''])
+		self.assertTrue(segments==[''])
 		# we don't decode when splitting, segments can contain params
 		segments=SplitAbsPath('/Caf%e9/Nero;LHR.T2/Table4/')
-		self.failUnless(segments==['Caf%e9','Nero;LHR.T2','Table4',''])
+		self.assertTrue(segments==['Caf%e9','Nero;LHR.T2','Table4',''])
 		# A segment may be empty
 		pchar,params=SplitPathSegment('')
-		self.failUnless(pchar=='' and params==[])
+		self.assertTrue(pchar=='' and params==[])
 		# A segment may have no params (and should not remove escaping)
 		pchar,params=SplitPathSegment('Caf%e9')
-		self.failUnless(pchar=='Caf%e9' and params==[])
+		self.assertTrue(pchar=='Caf%e9' and params==[])
 		# A segment param may be empty
 		pchar,params=SplitPathSegment('Nero;')
-		self.failUnless(pchar=='Nero' and params==[''],"Got: %s %s"%(pchar,str(params)))
+		self.assertTrue(pchar=='Nero' and params==[''],"Got: %s %s"%(pchar,str(params)))
 		# A segment may consist only of params
 		pchar,params=SplitPathSegment(';Nero')
-		self.failUnless(pchar=='' and params==['Nero'])
+		self.assertTrue(pchar=='' and params==['Nero'])
 		# Degenerate params
 		pchar,params=SplitPathSegment(';')
-		self.failUnless(pchar=='' and params==[''])
+		self.assertTrue(pchar=='' and params==[''])
 		# A segment param does not remove escaping
 		pchar,params=SplitPathSegment('Nero;LHR.T2;curr=%a3')
-		self.failUnless(pchar=='Nero' and params==['LHR.T2','curr=%a3'])
+		self.assertTrue(pchar=='Nero' and params==['LHR.T2','curr=%a3'])
 		
 	def testServer(self):
 		keys=SERVER_EXAMPLES.keys()
 		for k in keys:
 			userinfo,host,port=SplitServer(k)
 			userinfo2,host2,port2=SERVER_EXAMPLES[k]
-			self.failUnless(userinfo==userinfo2,"%s found userinfo %s"%(k,userinfo2))
-			self.failUnless(host==host2,"%s found host %s"%(k,host2))
-			self.failUnless(port==port2,"%s found port %s"%(k,port2))
+			self.assertTrue(userinfo==userinfo2,"%s found userinfo %s"%(k,userinfo2))
+			self.assertTrue(host==host2,"%s found host %s"%(k,host2))
+			self.assertTrue(port==port2,"%s found port %s"%(k,port2))
 		
 SIMPLE_EXAMPLE='http://www.example.com/'
 RELATIVE_EXAMPLE="index.html"
@@ -222,49 +222,49 @@ REL_EXAMPLES={
 class URITests(unittest.TestCase):
 	def testCaseConstructor(self):
 		u=URI(SIMPLE_EXAMPLE)
-		self.failUnless(isinstance(u,URI))
-		self.failUnless(str(u)==SIMPLE_EXAMPLE)
+		self.assertTrue(isinstance(u,URI))
+		self.assertTrue(str(u)==SIMPLE_EXAMPLE)
 		u=URI(LIST_EXAMPLE)
-		self.failUnless(str(u)==SIMPLE_EXAMPLE,"Simple from list")
+		self.assertTrue(str(u)==SIMPLE_EXAMPLE,"Simple from list")
 		u=URI(u'\u82f1\u56fd.xml')
-		self.failUnless(str(u)=='%E8%8B%B1%E5%9B%BD.xml',"Unicode example: %s"%str(u))
-		self.failUnless(type(u.octets) is StringType,"octest must be string")
+		self.assertTrue(str(u)=='%E8%8B%B1%E5%9B%BD.xml',"Unicode example: %s"%str(u))
+		self.assertTrue(type(u.octets) is StringType,"octest must be string")
 	
 	def testCaseCompare(self):
 		u1=URI(SIMPLE_EXAMPLE)
 		u2=URI(SIMPLE_EXAMPLE)
-		self.failUnless(u1.Match(u2) and u2.Match(u1),"Equal URIs fail to match")
+		self.assertTrue(u1.Match(u2) and u2.Match(u1),"Equal URIs fail to match")
 		u2=URI('hello.xml')
-		self.failIf(u1.Match(u2) or u2.Match(u1),"Mismatched URIs do match")		
+		self.assertFalse(u1.Match(u2) or u2.Match(u1),"Mismatched URIs do match")		
 	
 	def testCaseScheme(self):
 		u=URI(SIMPLE_EXAMPLE)
-		self.failUnless(u.IsAbsolute(),"Absolute test")
-		self.failUnless(u.scheme=='http',"Scheme")
-		self.failUnless(u.schemeSpecificPart=='//www.example.com/')
+		self.assertTrue(u.IsAbsolute(),"Absolute test")
+		self.assertTrue(u.scheme=='http',"Scheme")
+		self.assertTrue(u.schemeSpecificPart=='//www.example.com/')
 		u=URI(RELATIVE_EXAMPLE)
-		self.failIf(u.IsAbsolute(),"Relative test")
-		self.failUnless(u.scheme is None,"relative scheme")
-		self.failUnless(u.schemeSpecificPart is None)
+		self.assertFalse(u.IsAbsolute(),"Relative test")
+		self.assertTrue(u.scheme is None,"relative scheme")
+		self.assertTrue(u.schemeSpecificPart is None)
 
 	def testCaseFragment(self):
 		u=URI(SIMPLE_EXAMPLE)
-		self.failUnless(u.fragment is None,"no fragment")
+		self.assertTrue(u.fragment is None,"no fragment")
 		u=URI('http://www.ics.uci.edu/pub/ietf/uri/#Related')
-		self.failUnless(u.schemeSpecificPart=='//www.ics.uci.edu/pub/ietf/uri/','URI with fragment')
-		self.failUnless(u.fragment=='Related','fragment')
+		self.assertTrue(u.schemeSpecificPart=='//www.ics.uci.edu/pub/ietf/uri/','URI with fragment')
+		self.assertTrue(u.fragment=='Related','fragment')
 		
 	def testCaseAbsoluteExamples(self):
 		keys=ABS_EXAMPLES.keys()
 		for k in keys:
 			u=URI(k)
 			scheme,opaquePart,authority,absPath,query,fName=ABS_EXAMPLES[k]
-			self.failUnless(scheme==u.scheme,"%s found scheme %s"%(k,u.scheme))
-			self.failUnless(opaquePart==u.opaquePart,"%s found opaquePart %s"%(k,u.opaquePart))
-			self.failUnless(authority==u.authority,"%s found authority %s"%(k,u.authority))
-			self.failUnless(absPath==u.absPath,"%s found absPath %s"%(k,u.absPath))
-			self.failUnless(query==u.query,"%s found query %s"%(k,u.query))
-			self.failUnless(fName==u.GetFileName(),"%s found file name %s"%(k,u.GetFileName()))
+			self.assertTrue(scheme==u.scheme,"%s found scheme %s"%(k,u.scheme))
+			self.assertTrue(opaquePart==u.opaquePart,"%s found opaquePart %s"%(k,u.opaquePart))
+			self.assertTrue(authority==u.authority,"%s found authority %s"%(k,u.authority))
+			self.assertTrue(absPath==u.absPath,"%s found absPath %s"%(k,u.absPath))
+			self.assertTrue(query==u.query,"%s found query %s"%(k,u.query))
+			self.assertTrue(fName==u.GetFileName(),"%s found file name %s"%(k,u.GetFileName()))
 		
 	def testCaseRelativeExamples(self):
 		keys=REL_EXAMPLES.keys()
@@ -276,13 +276,13 @@ class URITests(unittest.TestCase):
 			resolved,scheme,authority,absPath,relPath,query,fragment=REL_EXAMPLES[k]
 			relatives[resolved]=relatives.get(resolved,[])+[k]
 			resolution=str(u.Resolve(base,current))
-			self.failUnless(scheme==u.scheme,"%s found scheme %s"%(k,u.scheme))
-			self.failUnless(authority==u.authority,"%s found authority %s"%(k,u.authority))
-			self.failUnless(absPath==u.absPath,"%s found absPath %s"%(k,u.absPath))
-			self.failUnless(relPath==u.relPath,"%s found relPath %s"%(k,u.relPath))
-			self.failUnless(query==u.query,"%s found query %s"%(k,u.query))
-			self.failUnless(fragment==u.fragment,"%s found fragment %s"%(k,u.fragment))
-			self.failUnless(resolved==resolution,"%s [*] %s = %s ; found %s"%(str(base),k,resolved,resolution))
+			self.assertTrue(scheme==u.scheme,"%s found scheme %s"%(k,u.scheme))
+			self.assertTrue(authority==u.authority,"%s found authority %s"%(k,u.authority))
+			self.assertTrue(absPath==u.absPath,"%s found absPath %s"%(k,u.absPath))
+			self.assertTrue(relPath==u.relPath,"%s found relPath %s"%(k,u.relPath))
+			self.assertTrue(query==u.query,"%s found query %s"%(k,u.query))
+			self.assertTrue(fragment==u.fragment,"%s found fragment %s"%(k,u.fragment))
+			self.assertTrue(resolved==resolution,"%s [*] %s = %s ; found %s"%(str(base),k,resolved,resolution))
 		for r in relatives.keys():
 			# print "Testing %s [/] %s = ( %s )"%(r,str(base),string.join(relatives[r],' | '))
 			u=URI(r)
@@ -295,7 +295,7 @@ class URITests(unittest.TestCase):
 				if k==relative:
 					noMatch=False
 					break
-			self.failIf(noMatch,"%s [/] %s = ( %s ) ; found %s"%(r,str(base),string.join(relatives[r],' | '),relative))
+			self.assertFalse(noMatch,"%s [/] %s = ( %s ) ; found %s"%(r,str(base),string.join(relatives[r],' | '),relative))
 
 	def testCaseRelativeJoinExamples(self):
 		keys=REL_EXAMPLES.keys()
@@ -313,13 +313,13 @@ class URITests(unittest.TestCase):
 			resolution1=u.Resolve(base2,current)
 			relatives[str(resolution1)]=relatives.get(str(resolution1),[])+[k]
 			resolution2=str(resolution1.Resolve(base1,current))
-			self.failUnless(scheme==u.scheme,"%s found scheme %s"%(k,u.scheme))
-			self.failUnless(authority==u.authority,"%s found authority %s"%(k,u.authority))
-			self.failUnless(absPath==u.absPath,"%s found absPath %s"%(k,u.absPath))
-			self.failUnless(relPath==u.relPath,"%s found relPath %s"%(k,u.relPath))
-			self.failUnless(query==u.query,"%s found query %s"%(k,u.query))
-			self.failUnless(fragment==u.fragment,"%s found fragment %s"%(k,u.fragment))
-			self.failUnless(resolved==resolution2,"%s [*] ( %s [*] %s ) = %s ; found %s"%(str(base1),str(base2),k,resolved,resolution2))
+			self.assertTrue(scheme==u.scheme,"%s found scheme %s"%(k,u.scheme))
+			self.assertTrue(authority==u.authority,"%s found authority %s"%(k,u.authority))
+			self.assertTrue(absPath==u.absPath,"%s found absPath %s"%(k,u.absPath))
+			self.assertTrue(relPath==u.relPath,"%s found relPath %s"%(k,u.relPath))
+			self.assertTrue(query==u.query,"%s found query %s"%(k,u.query))
+			self.assertTrue(fragment==u.fragment,"%s found fragment %s"%(k,u.fragment))
+			self.assertTrue(resolved==resolution2,"%s [*] ( %s [*] %s ) = %s ; found %s"%(str(base1),str(base2),k,resolved,resolution2))
 		for r in relatives.keys():
 			#print "Testing: %s [/] %s = ( %s )"%(r,str(base2),string.join(relatives[r],' | '))
 			u=URI(r)
@@ -332,7 +332,7 @@ class URITests(unittest.TestCase):
 				if k==relative:
 					noMatch=False
 					break
-			self.failIf(noMatch,"%s [/] %s = ( %s ); found %s"%(r,str(base2),repr(relatives[r]),relative))
+			self.assertFalse(noMatch,"%s [/] %s = ( %s ); found %s"%(r,str(base2),repr(relatives[r]),relative))
 
 FILE_EXAMPLE="file://vms.host.edu/disk$user/my/notes/note12345.txt"
 
@@ -345,16 +345,16 @@ class FileURLTests(unittest.TestCase):
 			
 	def testCaseConstructor(self):
 		u=URIFactory.URI(FILE_EXAMPLE)
-		self.failUnless(isinstance(u,URI),"FileURL is URI")
-		self.failUnless(isinstance(u,FileURL),"FileURI is FileURL")
-		self.failUnless(str(u)==FILE_EXAMPLE)
+		self.assertTrue(isinstance(u,URI),"FileURL is URI")
+		self.assertTrue(isinstance(u,FileURL),"FileURI is FileURL")
+		self.assertTrue(str(u)==FILE_EXAMPLE)
 		u=FileURL()
-		self.failUnless(str(u)=='file:///','Default file')
+		self.assertTrue(str(u)=='file:///','Default file')
 		
 	def testCasePathnames(self):
 		force8Bit=type(self.dataPath) is StringType
 		base=URIFactory.URLFromPathname(self.dataPath)
-		self.failUnless(base.GetPathname(force8Bit)==self.dataPath,
+		self.assertTrue(base.GetPathname(force8Bit)==self.dataPath,
 			"Expected %s found %s"%(self.dataPath,base.GetPathname(force8Bit)))
 		for dirpath,dirnames,filenames in os.walk(self.dataPath):
 			self.VisitMethod(dirpath,filenames)
@@ -368,15 +368,15 @@ class FileURLTests(unittest.TestCase):
 		base=URIFactory.URLFromPathname(dataPath)
 		if os.path.supports_unicode_filenames:
 			dataPath2=base.GetPathname()
-			self.failUnless(type(dataPath2) is UnicodeType,"Expected GetPathname to return unicode") 
-			self.failUnless(dataPath2==dataPath,
+			self.assertTrue(type(dataPath2) is UnicodeType,"Expected GetPathname to return unicode") 
+			self.assertTrue(dataPath2==dataPath,
 				u"Expected %s found %s"%(dataPath,dataPath2))
 			# os.path.walk(dataPath,self.VisitMethod,None)
 			for dirpath,dirnames,filenames in os.walk(dataPath):
 				self.VisitMethod(dirpath,filenames)
 		else:
 			dataPath2=base.GetPathname()
-			self.failUnless(type(dataPath2) is StringType,"Expected GetPathname to return string")
+			self.assertTrue(type(dataPath2) is StringType,"Expected GetPathname to return string")
 			print "\nWarning: os.path.supports_unicode_filenames is False (skipped unicode path tests)"
 			
 	def VisitMethod(self,dirname,names):
@@ -393,12 +393,12 @@ class FileURLTests(unittest.TestCase):
 				segName=EscapeData(name,IsPathSegmentReserved)
 			u=URI(segName)
 			u=u.Resolve(d)
-			self.failUnless(isinstance(u,FileURL))
+			self.assertTrue(isinstance(u,FileURL))
 			joined=u.GetPathname()
 			if type(joinMatch) is StringType and type(joined) is UnicodeType:
 				# if we're walking in 8-bit mode we need to downgrade to compare
 				joined=joined.encode(c)
-			self.failUnless(joined==joinMatch,"Joined pathnames mismatch:\n%s\n%s"%(joined,joinMatch))
+			self.assertTrue(joined==joinMatch,"Joined pathnames mismatch:\n%s\n%s"%(joined,joinMatch))
 
 
 class VirtualFileURLTests(unittest.TestCase):
@@ -411,15 +411,15 @@ class VirtualFileURLTests(unittest.TestCase):
 
 	def testCaseConstructor(self):
 		u=URIFactory.URI(FILE_EXAMPLE)
-		self.failUnless(isinstance(u,URI),"FileURL is URI")
-		self.failUnless(isinstance(u,FileURL),"FileURI is FileURL")
-		self.failUnless(str(u)==FILE_EXAMPLE)
+		self.assertTrue(isinstance(u,URI),"FileURL is URI")
+		self.assertTrue(isinstance(u,FileURL),"FileURI is FileURL")
+		self.assertTrue(str(u)==FILE_EXAMPLE)
 		u=FileURL()
-		self.failUnless(str(u)=='file:///','Default file')
+		self.assertTrue(str(u)=='file:///','Default file')
 		
  	def testCasePathnames(self):
  		base=URIFactory.URLFromVirtualFilePath(self.dataPath)
- 		self.failUnless(base.GetVirtualFilePath()==self.dataPath,
+ 		self.assertTrue(base.GetVirtualFilePath()==self.dataPath,
  			"Expected %s found %s"%(self.dataPath,base.GetVirtualFilePath()))
  		for dirpath,dirnames,filenames in self.dataPath.walk():
  			self.VisitMethod(dirpath,filenames)
@@ -435,9 +435,9 @@ class VirtualFileURLTests(unittest.TestCase):
 			segName=EscapeData(unicode(name).encode('utf-8'),IsPathSegmentReserved)
 			u=URI(segName)
 			u=u.Resolve(d)
-			self.failUnless(isinstance(u,FileURL))
+			self.assertTrue(isinstance(u,FileURL))
 			joined=u.GetVirtualFilePath()
-			self.failUnless(joined==joinMatch,"Joined pathnames mismatch:\n%s\n%s"%(joined,joinMatch))
+			self.assertTrue(joined==joinMatch,"Joined pathnames mismatch:\n%s\n%s"%(joined,joinMatch))
 		
 
 if __name__ == "__main__":

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<edmx:Edmx Version="1.0" xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx"
+    xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata">
+    <edmx:DataServices m:DataServiceVersion="1.0">
+        <Schema Namespace="TestModel" xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
+            <EntityContainer Name="TestEntities">
+                <EntitySet Name="ES1" EntityType="TestModel.TestEntity"/>
+                <FunctionImport Name="fPOST" EntitySet="ES1" ReturnType="Edm.String" m:HttpMethod="POST"/>
+                <FunctionImport Name="fPUT" EntitySet="ES1" ReturnType="Edm.String" m:HttpMethod="PUT"/>
+                <FunctionImport Name="fGET" EntitySet="ES1" ReturnType="Edm.String" m:HttpMethod="GET"/>
+                <FunctionImport Name="fMERGE" EntitySet="ES1" ReturnType="Edm.String" m:HttpMethod="MERGE"/>
+                <FunctionImport Name="fDELETE" EntitySet="ES1" ReturnType="Edm.String" m:HttpMethod="DELETE"/>
+            </EntityContainer>
+            <EntityContainer Name="ExtraEntities">
+            </EntityContainer>
+            <EntityType Name="TestEntity">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="testDate" Type="Edm.DateTime" Nullable="true" DateTimeKind="Unspecified"/>
+                <Property Name="testData" Type="Edm.Binary" Nullable="true" m:MimeType="application/x-test"/>
+            </EntityType>
+            <EntityType Name="Document" m:HasStream="true">
+                <Key>
+                    <PropertyRef Name="path"/>
+                </Key>
+                <Property Name="path" Type="Edm.String" Nullable="false"/>
+            </EntityType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

@@ -11,7 +11,7 @@ xml:base attribute [W3C.REC-xmlbase-20010627]
 xml:lang attribute [W3C.REC-xml-20040204], Section 2.12
 """
 
-import string, StringIO, sys, traceback
+import string, StringIO, sys, io, traceback
 
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
@@ -81,7 +81,8 @@ class Categories(APPElement):
 class Service(APPElement):
 	"""The container for service information associated with one or more Workspaces."""
 	XMLNAME=(APP_NAMESPACE,'service')
-	
+	XMLCONTENT=xmlns.ElementContent
+
 	def __init__(self,parent):
 		APPElement.__init__(self,parent)
 		self.Workspace=[]		#: a list of :py:class:`Workspace` instances
@@ -96,6 +97,7 @@ class Service(APPElement):
 class Workspace(APPElement):
 	"""Workspaces are server-defined groups of Collections."""
 	XMLNAME=(APP_NAMESPACE,'workspace')
+	XMLCONTENT=xmlns.ElementContent
 	
 	def __init__(self,parent):
 		APPElement.__init__(self,parent)
@@ -111,6 +113,7 @@ class Workspace(APPElement):
 class Collection(APPElement):
 	"""Describes a collection (feed)."""
 	XMLNAME=(APP_NAMESPACE,'collection')
+	XMLCONTENT=xmlns.ElementContent
 
 	XMLATTR_href=('href',uri.URIFactory.URI,str)
 	
@@ -145,16 +148,17 @@ class Document(atom.AtomDocument):
 	def ValidateMimeType(self,mimetype):
 		"""Checks *mimetype* against the mime types given in the APP or Atom specifications."""
 		return mimetype in APP_MIMETYPES or atom.AtomDocument.ValidateMimeType(self,mimetype)
-		
-	def GetElementClass(self,name):
+	
+	@classmethod	
+	def GetElementClass(cls,name):
 		"""Returns the APP or Atom class used to represent name.
 		
 		Overrides :py:meth:`~pyslet.rfc4287.AtomDocument.GetElementClass` when
 		the namespace is :py:data:`APP_NAMESPACE`."""
 		if name[0]==APP_NAMESPACE:
-			return Document.classMap.get(name,atom.AtomDocument.classMap.get((name[0],None),APPElement))
+			return cls.classMap.get(name,atom.AtomDocument.classMap.get((name[0],None),APPElement))
 		else:
-			return atom.AtomDocument.GetElementClass(self,name)
+			return atom.AtomDocument.GetElementClass(name)
 
 xmlns.MapClassElements(Document.classMap,globals())
 				
@@ -166,6 +170,198 @@ class Client(http.HTTPRequestManager):
 	def QueueRequest(self,request):
 		request.SetHeader('Accept',string.join((atom.ATOM_MIMETYPE,ATOMSVC_MIMETYPE,ATOMCAT_MIMETYPE),','),True)
 		http.HTTPRequestManager.QueueRequest(self,request)
+
+
+class InputWrapper(io.RawIOBase):
+	"""A class suitable for wrapping the input object.
+	
+	The purpose of the class is to behave in a more file like way, so
+	that applications can ignore the fact they are dealing with
+	a wsgi input stream.
+	
+	The object will buffer the input stream and claim to be seekable for
+	the first *seekSize* bytes.  Once the stream has been advanced
+	beyond *seekSize* bytes the stream will raise IOError if seek is
+	called.
+	
+	*environ* is the environment dictionary
+	
+	*seekSize* specifies the size of the seekable buffer, it defaults
+	to io.DEFAULT_BUFFER_SIZE"""
+	def __init__(self,environ,seekSize=io.DEFAULT_BUFFER_SIZE):
+		super(InputWrapper,self).__init__()
+		self.inputStream=environ['wsgi.input']
+		self.inputLength=None
+		if "CONTENT_LENGTH" in environ:
+			self.inputLength=int(environ['CONTENT_LENGTH'])
+			if self.inputLength<seekSize:
+				# we can buffer the entire stream
+				seekSize=self.inputLength
+		self.pos=0
+		self.buffer=None
+		self.buffSize=0
+		if seekSize>0:
+			self.buffer=StringIO.StringIO()
+			# now fill the buffer
+			while self.buffSize<seekSize:
+				data=self.inputStream.read(seekSize-self.buffSize)
+				if len(data)==0:
+					# we ran out of data
+					self.inputStream=None
+					break
+				self.buffer.write(data)
+			self.buffSize=self.buffer.tell()
+			# now reset the buffer ready for reading
+			self.buffer.seek(0)
+						
+	def read(self,n=-1):
+		"""This is the heart of our wrapper.
+		
+		We read bytes first from the buffer and, when exhausted, from
+		the inputStream itself."""
+		if self.closed:
+			raise IOError("InputWrapper was closed") 
+		if n==-1:
+			return self.readall()
+		data=''
+		if n and self.pos<self.buffSize:
+			data=self.buffer.read(n)
+			self.pos+=len(data)
+			n=n-len(data)
+		if n and self.inputStream is not None:
+			if self.inputLength is not None and self.pos+n>self.inputLength:
+				# application should not attempt to read past the CONTENT_LENGTH
+				n=self.inputLength-self.pos
+			iData=self.inputStream.read(n)
+			if len(iData)==0:
+				self.inputStream=None
+			else:
+				self.pos+=len(iData)
+				if data:
+					data=data+iData
+				else:
+					data=iData
+		return data
+
+	def seek(self,offset,whence=io.SEEK_SET):
+		if self.pos>self.buffSize:
+			raise IOError("InputWrapper seek buffer exceeded")
+		if whence==io.SEEK_SET:
+			newPos=offset
+		elif whence==io.SEEK_CUR:
+			newPos=self.pos+offset
+		elif whence==io.SEEK_END:
+			if self.inputLength is None:
+				raise IOError("InputWrapper can't seek from end of stream (CONTENT_LENGTH unknown)""")
+			newPos=self.inputLength+offset
+		else:
+			raise IOError("Unknown seek mode (%i)"%whence)
+		if newPos<0:
+			raise IOError("InputWrapper: attempt to set the stream position to a negative value")
+		if newPos==self.pos:
+			return
+		if newPos<=self.buffSize:
+			self.buffer.seek(newPos)
+		else:
+			# we need to read and discard some bytes
+			while newPos>self.pos:
+				n=newPos-self.pos
+				if n>io.DEFAULT_BUFFER_SIZE:
+					n=io.DEFAULT_BUFFER_SIZE
+				data=self.read(n)
+				if len(data)==0:
+					break
+				else:
+					self.pos+=len(data)
+		# newPos may be beyond the end of the input stream, that's OK
+		self.pos=newPos
+
+	def seekable(self):
+		"""A bit cheeky here, we are initially seekable."""
+		if self.pos>self.buffSize:
+			return False
+		else:
+			return True
+	
+	def fileno(self):
+		raise IOError("InputWrapper has no fileno")
+
+	def flush(self):
+		pass
+	
+	def isatty(self):
+		return False
+	
+	def readable(self):
+		return True
+	
+	def readall(self):
+		result=[]
+		while True:
+			data=self.read(io.DEFAULT_BUFFER_SIZE)
+			if data:
+				result.append(data)
+			else:
+				break
+		return string.join(result,'')
+	
+	def readinto(self,b):
+		n=len(b)
+		data=self.read(n)
+		i=0
+		for d in data:
+			b[i]=ord(d)
+			i=i+1
+		return len(data)	
+
+	def readline(self,limit=-1):
+		"""Read and return one line from the stream.
+		
+		If limit is specified, at most limit bytes will be read.  The
+		line terminator is always b'\n' for binary files."""
+		line=[]
+		while limit<0 or len(line)<limit:
+			b=self.read(1)
+			if len(b)==0:
+				break
+			line.append(b)
+			if b=='\n':
+				break
+		return string.join(line,'')
+	
+	def readlines(self,hint=-1):
+		"""Read and return a list of lines from the stream.
+		
+		No more lines will be read if the total size (in bytes/characters) of all lines so far exceeds hint."""
+		total=0
+		lines=[]
+		for line in self:
+			total=total+len(line)
+			lines.append(line)
+			if hint>=0 and total>hint:
+				break
+		return lines
+
+	def tell(self):
+		return self.pos
+	
+	def truncate(self,size=None):
+		raise IOError("InputWrapper cannot be truncated")	
+
+	def writable(self):
+		return False
+	
+	def write(self,b):
+		raise IOError("InputWrapper is not writeable")
+					 			
+	def writelines(self):
+		raise IOError("InputWrapper is not writable")
+				
+	def __iter__(self):
+		while True:
+			line=self.readline()
+			if line:
+				yield line
 
 
 class Server(object):

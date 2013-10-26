@@ -91,7 +91,8 @@ class Document(xmlns.XMLNSDocument):
 		self.defaultNS=EDMX_NAMESPACE
 		self.MakePrefix(EDMX_NAMESPACE,'edmx')
 
-	def GetElementClass(self,name):
+	@classmethod
+	def GetElementClass(cls,name):
 		"""Overrides :py:meth:`pyslet.xmlnames20091208.XMLNSDocument.GetElementClass` to look up name."""
 		eClass=Document.classMap.get(name,Document.classMap.get((name[0],None),xmlns.XMLNSElement))
 		return eClass

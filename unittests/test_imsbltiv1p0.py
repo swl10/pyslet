@@ -37,8 +37,8 @@ else:
 
 class BLTITests(unittest.TestCase):
 	def testCaseConstants(self):
-		self.failUnless(BLTI_VERSION=="LTI-1p0")
-		self.failUnless(BLTI_LAUNCH_REQUEST=="basic-lti-launch-request")
+		self.assertTrue(BLTI_VERSION=="LTI-1p0")
+		self.assertTrue(BLTI_LAUNCH_REQUEST=="basic-lti-launch-request")
 
 
 EXAMPLE_CONSUMERS="""www.example.com Secret
@@ -55,9 +55,9 @@ class BLTIProviderTests(unittest.TestCase):
 		secrets={}
 		for i in xrange(100):
 			key,secret=tp.NewConsumer()
-			self.failIf(key in keys,"Repeated key from TP")
+			self.assertFalse(key in keys,"Repeated key from TP")
 			keys[key]=secret
-			self.failIf(secret in secrets,"Repeated secret from IP")
+			self.assertFalse(secret in secrets,"Repeated secret from IP")
 			secrets[secret]=key
 		key,secret=tp.NewConsumer("www.example.com")
 		try:
@@ -70,14 +70,14 @@ class BLTIProviderTests(unittest.TestCase):
 		tp=BLTIToolProvider()
 		key,secret=tp.NewConsumer('hello')
 		consumer=tp.lookup_consumer('hello')
-		self.failUnless(consumer.key=='hello')
-		self.failUnless(consumer.secret==secret)
+		self.assertTrue(consumer.key=='hello')
+		self.assertTrue(consumer.secret==secret)
 
 	def testCaseLoadSave(self):
 		tp=BLTIToolProvider()
 		tp.LoadFromFile(StringIO.StringIO(EXAMPLE_CONSUMERS))
 		consumer=tp.lookup_consumer('www.example.com')
-		self.failUnless(consumer.secret=="Secret")
+		self.assertTrue(consumer.secret=="Secret")
 		try:
 			tp.LoadFromFile(StringIO.StringIO(EXAMPLE_CONSUMERS))
 			self.fail("Faiure to spot duplicate key on reload")
@@ -85,7 +85,7 @@ class BLTIProviderTests(unittest.TestCase):
 			pass
 		f=StringIO.StringIO()
 		tp.SaveToFile(f)
-		self.failUnless(f.getvalue()==EXAMPLE_CONSUMERS)
+		self.assertTrue(f.getvalue()==EXAMPLE_CONSUMERS)
 
 	def testCaseLaunch(self):
 		tp=BLTIToolProvider()

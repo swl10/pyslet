@@ -61,7 +61,7 @@ class AcceptItem(object):
 		return string.join(result,'')
 
 	def __cmp__(self,other):
-		"""If we have to identical ranges, ultimately we sort by the q-value
+		"""If we have two identical ranges, ultimately we sort by the q-value
 		itself."""
 		if not isinstance(other,AcceptItem):
 			raise TypeError

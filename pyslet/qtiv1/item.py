@@ -743,10 +743,8 @@ class Presentation(FlowContainer,common.PositionMixin):
 		fiddle around at the time we simply migrate the lot, duplicating the images
 		in the hotspotInteractions.  When the itemBody is complete we do a grand tidy
 		up to remove spurious images."""
-		hotspots=[]
-		itemBody.FindChildren((qtiv2.interactions.HotspotInteraction,qtiv2.interactions.SelectPointInteraction),hotspots)
-		images=[]
-		itemBody.FindChildren(html.Img,images)
+		hotspots=list(itemBody.FindChildrenDepthFirst((qtiv2.interactions.HotspotInteraction,qtiv2.interactions.SelectPointInteraction),False))
+		images=list(itemBody.FindChildrenDepthFirst(html.Img,False))
 		for hs in hotspots:
 			for img in images:
 				# migrated images/hotspots will always have absolute URIs
@@ -755,7 +753,7 @@ class Presentation(FlowContainer,common.PositionMixin):
 					parent.DeleteChild(img)
 					if isinstance(parent,html.P) and len(list(parent.GetChildren()))==0:
 						# It is always safe to remove a paragraph left empty by deleting an image
-						# The chance are the paragraphic was created by us to house a matimage
+						# The chances are the paragraph was created by us to house a matimage
 						parent.parent.DeleteChild(parent)
 					
 		
@@ -942,8 +940,7 @@ class ResponseThing(Response):
 				# Now we need to find any images and pass them to render hotspot instead
 				# which we do by reusing the interactionPrompt (currently we only find
 				# the first image).
-				interactionPrompt=[]
-				div.FindChildren(html.Img,interactionPrompt,1)
+				interactionPrompt=list(div.FindChildrenDepthFirst(html.Img,False))[0:1]
 			else:
 				common.ContentMixin.MigrateV2Content(self,parent,childType,log,self.prompt)
 		if self.render:
@@ -1260,8 +1257,7 @@ class RenderHotspot(RenderThing):
 			interaction.minChoices=self.minNumber
 		if self.maxNumber is not None:
 			interaction.maxChoices=self.maxNumber
-		labels=[]
-		self.FindChildren(ResponseLabel,labels)
+		labels=list(self.FindChildrenDepthFirst(ResponseLabel,False))
 		# prompt is either a single <img> tag we already migrated or.. a set of inline
 		# objects that are still to be migrated (and which should contain the hotspot image).
 		img=None
@@ -1272,8 +1268,7 @@ class RenderHotspot(RenderThing):
 				interactionPrompt=interaction.ChildElement(qtiv2.interactions.Prompt)
 				for child in prompt:
 					child.MigrateV2Content(interactionPrompt,html.InlineMixin,log)
-				prompt=[]
-				interactionPrompt.FindChildren(html.Img,prompt,1)				
+				prompt=list(interactionPrompt.FindChildrenDepthFirst(html.Img,False))[0:1]								
 		if prompt:
 			# now the prompt should be a list containing a single image to use as the hotspot
 			img=prompt[0]
@@ -1282,8 +1277,7 @@ class RenderHotspot(RenderThing):
 			hotspotImage.width=img.width
 			if img.src:
 				# Annoyingly, Img throws away mime-type information from matimage
-				images=[]
-				self.parent.FindChildren(common.MatImage,images,1)
+				images=list(self.parent.FindChildrenDepthFirst(common.MatImage,False))[0:1]				
 				if images and images[0].uri:
 					# Check that this is the right image in case img was embedded in MatText
 					if str(images[0].ResolveURI(images[0].uri))==str(img.ResolveURI(img.src)):
@@ -1297,7 +1291,7 @@ class RenderHotspot(RenderThing):
 			images=[]
 			presentation=self.FindParent(Presentation)
 			if presentation:
-				presentation.FindChildren(common.MatImage,images)
+				images=list(presentation.FindChildrenDepthFirst(common.MatImage,False))
 			hsi=[]
 			if len(images)==1:
 				# Single image that must have gone AWOL
@@ -1394,8 +1388,7 @@ class RenderFIB(RenderThing):
 		self.labels=[]
 		
 	def ContentChanged(self):
-		self.labels=[]
-		self.FindChildren(ResponseLabel,self.labels)
+		self.labels=list(self.FindChildrenDepthFirst(ResponseLabel,False))
 
 	def MixedModel(self):
 		"""Indicates whether or not this FIB uses a mixed model or not.
@@ -1450,13 +1443,11 @@ class RenderFIB(RenderThing):
 			interactionType=qtiv2.interactions.TextEntryInteraction
 		else:
 			interactionType=qtiv2.interactions.ExtendedTextInteraction
-		interactionList=[]
-		parent.FindChildren(interactionType,interactionList)
+		interactionList=list(parent.FindChildrenDepthFirst(interactionType,False))
 		iCount=len(interactionList)
 		# now migrate this object
 		RenderThing.MigrateV2Content(self,parent,childType,log)
-		interactionList=[]
-		parent.FindChildren(interactionType,interactionList)
+		interactionList=list(parent.FindChildrenDepthFirst(interactionType,False))
 		# ignore any pre-existing interactions of this type
 		interactionList=interactionList[iCount:]
 		if self.parent.rCardinality==core.RCardinality.Single and len(interactionList)>1:
@@ -1520,8 +1511,7 @@ class RenderSlider(RenderThing):
 	def MigrateV2Interaction(self,parent,childType,prompt,log):
 		"""Migrates this content to v2 adding it to the parent content node."""
 		interaction=None
-		labels=[]
-		self.FindChildren(ResponseLabel,labels)
+		labels=list(self.FindChildrenDepthFirst(ResponseLabel,False))
 		if self.maxNumber is None:
 			maxChoices=len(labels)
 		else:
@@ -2000,8 +1990,7 @@ class ItemProcExtension(common.ContentMixin,core.QTIElement,ConditionMixin):
 				v2Item=ruleContainer.FindParent(qtiv2.items.AssessmentItem)
 				rubric=v2Item.ChildElement(qtiv2.content.ItemBody).ChildElement(qtiv2.RubricBlock)
 				rubric.view=qtiv2.core.View.scorer
-				material=[]
-				child.FindChildren(common.Material,material)
+				material=list(child.FindChildrenDepthFirst(common.Material,False))
 				self.MigrateV2Content(rubric,html.BlockMixin,log,material)
 		return cMode,ruleContainer
 

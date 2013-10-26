@@ -110,29 +110,29 @@ class QML420Tests(unittest.TestCase):
 class QMLDocumentTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		doc=QMLDocument()
-		self.failUnless(isinstance(doc,xml.Document))
+		self.assertTrue(isinstance(doc,xml.Document))
 
 	def testCaseExample1(self):
 		doc=QMLDocument()
 		doc.Read(src=StringIO(EXAMPLE_1))
 		root=doc.root
-		self.failUnless(isinstance(root,QMLQuestion))
-		self.failUnless(root.xmlname=='QUESTION')
-		self.failUnless(root.qid=='4123762784159489',"QuestionID parsing");
-		self.failUnless(root.description=='Yes / No','DescriptionString parsing');
-		self.failUnless(root.topic=="All Q Types\All questions","Topic parsing");
-		self.failUnless(len(root.QMLTag)==6,"TAG parsing")
+		self.assertTrue(isinstance(root,QMLQuestion))
+		self.assertTrue(root.xmlname=='QUESTION')
+		self.assertTrue(root.qid=='4123762784159489',"QuestionID parsing");
+		self.assertTrue(root.description=='Yes / No','DescriptionString parsing');
+		self.assertTrue(root.topic=="All Q Types\All questions","Topic parsing");
+		self.assertTrue(len(root.QMLTag)==6,"TAG parsing")
 		
 	def testCaseExample2(self):
 		doc=QMLDocument()
 		doc.Read(src=StringIO(EXAMPLE_2))
 		root=doc.root
-		self.failUnless(isinstance(root,QML))
-		self.failUnless(root.xmlname=='QML')
-		#self.failUnless(root.QTIComment.GetValue()=='Example2')
+		self.assertTrue(isinstance(root,QML))
+		self.assertTrue(root.xmlname=='QML')
+		#self.assertTrue(root.QTIComment.GetValue()=='Example2')
 		#objects=doc.root.objectList
-		#self.failUnless(len(objects)==1 and isinstance(objects[0],QTIItem))
-		#self.failUnless(len(root.objectList)==1)
+		#self.assertTrue(len(objects)==1 and isinstance(objects[0],QTIItem))
+		#self.assertTrue(len(root.objectList)==1)
 
 
 if __name__ == "__main__":

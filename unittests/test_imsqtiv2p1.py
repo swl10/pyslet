@@ -25,38 +25,38 @@ import os, types, time
 
 class QTITests(unittest.TestCase):
 	def testCaseConstants(self):
-		self.failUnless(core.IMSQTI_NAMESPACE=="http://www.imsglobal.org/xsd/imsqti_v2p1","Wrong QTI namespace: %s"%core.IMSQTI_NAMESPACE)
-		self.failUnless(core.IMSQTI_ITEM_RESOURCETYPE=="imsqti_item_xmlv2p1","Wrong QTI resource type: %s"%core.IMSQTI_ITEM_RESOURCETYPE)
+		self.assertTrue(core.IMSQTI_NAMESPACE=="http://www.imsglobal.org/xsd/imsqti_v2p1","Wrong QTI namespace: %s"%core.IMSQTI_NAMESPACE)
+		self.assertTrue(core.IMSQTI_ITEM_RESOURCETYPE=="imsqti_item_xmlv2p1","Wrong QTI resource type: %s"%core.IMSQTI_ITEM_RESOURCETYPE)
 
 class ValueTests(unittest.TestCase):
 	def testCaseNULL(self):
 		v=variables.Value()
-		self.failUnless(v.IsNull(),"Null test on creation.")
-		self.failIf(v,"Null zero/false test on creation.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is None,"BaseType should be unknown on default constructor.")
+		self.assertTrue(v.IsNull(),"Null test on creation.")
+		self.assertFalse(v,"Null zero/false test on creation.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is None,"BaseType should be unknown on default constructor.")
 		v=variables.StringValue()
-		self.failUnless(v.IsNull(),"Null test on creation.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is variables.BaseType.string,"NULL value with known type.")
+		self.assertTrue(v.IsNull(),"Null test on creation.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is variables.BaseType.string,"NULL value with known type.")
 		v.SetValue("x")
-		self.failUnless(not v.IsNull(),"Null test with value")
-		self.failUnless(v,"Null zero/false test on creation.")
+		self.assertTrue(not v.IsNull(),"Null test with value")
+		self.assertTrue(v,"Null zero/false test on creation.")
 		v.SetValue(None)
-		self.failUnless(v.IsNull(),"Null test with Non value")
-		self.failIf(v,"Null zero/false test with Non value.")
-		self.failUnless(v.baseType is variables.BaseType.string,"NULL value retains known type.")
+		self.assertTrue(v.IsNull(),"Null test with Non value")
+		self.assertFalse(v,"Null zero/false test with Non value.")
+		self.assertTrue(v.baseType is variables.BaseType.string,"NULL value retains known type.")
 		
 	def testCaseIdentifier(self):
 		v=variables.IdentifierValue()
-		self.failUnless(v.IsNull(),"Null test on creation.")
-		self.failIf(v,"Null zero/false test on creation.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is variables.BaseType.identifier,"baseType on creation")
+		self.assertTrue(v.IsNull(),"Null test on creation.")
+		self.assertFalse(v,"Null zero/false test on creation.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is variables.BaseType.identifier,"baseType on creation")
 		for vIn in ('name','goodName'):
 			v.SetValue(vIn)
-			self.failUnless(type(v.value) is types.UnicodeType,"Value type on set")
-			self.failUnless(v.value==vIn,"Good strings")
+			self.assertTrue(type(v.value) is types.UnicodeType,"Value type on set")
+			self.assertTrue(v.value==vIn,"Good strings")
 		for vIn in ('1','.Name'):
 			try:
 				v.SetValue(vIn)
@@ -70,15 +70,15 @@ class ValueTests(unittest.TestCase):
 			
 	def testCaseBoolean(self):
 		v=variables.BooleanValue()
-		self.failUnless(v.IsNull(),"Null test on creation.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is variables.BaseType.boolean,"baseType on creation")
+		self.assertTrue(v.IsNull(),"Null test on creation.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is variables.BaseType.boolean,"baseType on creation")
 		for vIn in ('true','1',True,1,2L):
 			v.SetValue(vIn)
-			self.failUnless(v.value is True,"True values")
+			self.assertTrue(v.value is True,"True values")
 		for vIn in ('false','0',False,0,0L):
 			v.SetValue(vIn)
-			self.failUnless(v.value is False,"False values")
+			self.assertTrue(v.value is False,"False values")
 		for vIn in ('True','Yes',"FALSE","2",3.14):
 			try:
 				v.SetValue(vIn)
@@ -88,13 +88,13 @@ class ValueTests(unittest.TestCase):
 
 	def testCaseInteger(self):
 		v=variables.IntegerValue()
-		self.failUnless(v.IsNull(),"Null test on creation.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is variables.BaseType.integer,"baseType on creation")
+		self.assertTrue(v.IsNull(),"Null test on creation.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is variables.BaseType.integer,"baseType on creation")
 		for vIn in ('1','-2',3,4L,'+0'):
 			v.SetValue(vIn)
-			self.failUnless(type(v.value) is types.IntType,"Value type on set: %s"%repr(type(v.value)))
-			self.failUnless(v.value==int(vIn),"Good strings")
+			self.assertTrue(type(v.value) is types.IntType,"Value type on set: %s"%repr(type(v.value)))
+			self.assertTrue(v.value==int(vIn),"Good strings")
 		for vIn in ('1.3','pi',3.14,'2+2'):
 			try:
 				v.SetValue(vIn)
@@ -105,13 +105,13 @@ class ValueTests(unittest.TestCase):
 	def testCaseFloat(self):
 		for t in (variables.BaseType.float,variables.BaseType.duration):
 			v=variables.FloatValue() if t is variables.BaseType.float else variables.DurationValue()
-			self.failUnless(v.IsNull(),"Null test on creation.")
-			self.failUnless(v.value is None,"Value should be None")
-			self.failUnless(v.baseType is t,"baseType on creation")
+			self.assertTrue(v.IsNull(),"Null test on creation.")
+			self.assertTrue(v.value is None,"Value should be None")
+			self.assertTrue(v.baseType is t,"baseType on creation")
 			for vIn in ('1','-2',3.141,4.0,'2.','+2','1E4'):
 				v.SetValue(vIn)
-				self.failUnless(type(v.value) is types.FloatType,"Value type on set: %s"%repr(type(v.value)))
-				self.failUnless(v.value==float(vIn),"Good strings")
+				self.assertTrue(type(v.value) is types.FloatType,"Value type on set: %s"%repr(type(v.value)))
+				self.assertTrue(v.value==float(vIn),"Good strings")
 			for vIn in (' 1.3','pi','.','1E','1.3 ','2+2'):
 				try:
 					v.SetValue(vIn)
@@ -121,16 +121,16 @@ class ValueTests(unittest.TestCase):
 
 	def testCaseString(self):
 		v=variables.StringValue()
-		self.failUnless(v.IsNull(),"Null test on creation.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is variables.BaseType.string,"baseType on creation")
+		self.assertTrue(v.IsNull(),"Null test on creation.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is variables.BaseType.string,"baseType on creation")
 		# Empty containers and empty strings are always treated as NULL values.
 		v.SetValue('')
-		self.failUnless(v.IsNull(),"Null test with empty string.")		
+		self.assertTrue(v.IsNull(),"Null test with empty string.")		
 		for vIn in ('1','-2','2.','+2',u'Hello',"Bye"):
 			v.SetValue(vIn)
-			self.failUnless(type(v.value) is types.UnicodeType,"Value type on set: %s"%repr(type(v.value)))
-			self.failUnless(v.value==vIn,"Good strings")
+			self.assertTrue(type(v.value) is types.UnicodeType,"Value type on set: %s"%repr(type(v.value)))
+			self.assertTrue(v.value==vIn,"Good strings")
 		for vIn in (3.141,4.0,1):
 			try:
 				v.SetValue(vIn)
@@ -140,14 +140,14 @@ class ValueTests(unittest.TestCase):
 		
 	def testCasePoint(self):
 		v=variables.PointValue()
-		self.failUnless(v.IsNull(),"Null test on creation.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is variables.BaseType.point,"baseType on creation")
+		self.assertTrue(v.IsNull(),"Null test on creation.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is variables.BaseType.point,"baseType on creation")
 		for vIn in ('1 2','4 -2',(3,4),[-1,4L],'+0 -0'):
 			v.SetValue(vIn)
-			self.failUnless(type(v.value) is types.TupleType,"Value type on set: %s"%repr(type(v.value)))
-			self.failUnless(len(v.value)==2,"Good strings")
-			self.failUnless(type(v.value[0])==type(v.value[1]) and type(v.value[0])==types.IntType,"Good point! %s"%repr(v.value))
+			self.assertTrue(type(v.value) is types.TupleType,"Value type on set: %s"%repr(type(v.value)))
+			self.assertTrue(len(v.value)==2,"Good strings")
+			self.assertTrue(type(v.value[0])==type(v.value[1]) and type(v.value[0])==types.IntType,"Good point! %s"%repr(v.value))
 		for vIn in ('1.3 1','pi',3,'2+2',(1,2,3),{1:True,2:True}):
 			try:
 				v.SetValue(vIn)
@@ -159,17 +159,17 @@ class ValueTests(unittest.TestCase):
 		dpPass=False
 		for t in (variables.BaseType.pair,variables.BaseType.directedPair):
 			v=variables.PairValue() if t is variables.BaseType.pair else variables.DirectedPairValue()
-			self.failUnless(v.IsNull(),"Null test on creation.")
-			self.failUnless(v.value is None,"Value should be None")
-			self.failUnless(v.baseType is t,"baseType on creation")
+			self.assertTrue(v.IsNull(),"Null test on creation.")
+			self.assertTrue(v.value is None,"Value should be None")
+			self.assertTrue(v.baseType is t,"baseType on creation")
 			for vIn in (('nameB','nameA'),"goodName badName",["A","B"]):
 				v.SetValue(vIn)
-				self.failUnless(type(v.value) is types.TupleType,"Value type on set")
-				self.failUnless(len(v.value)==2,"Good identifiers")
-				self.failUnless(type(v.value[0])==type(v.value[1]) and type(v.value[0])==types.UnicodeType,
+				self.assertTrue(type(v.value) is types.TupleType,"Value type on set")
+				self.assertTrue(len(v.value)==2,"Good identifiers")
+				self.assertTrue(type(v.value[0])==type(v.value[1]) and type(v.value[0])==types.UnicodeType,
 					"Good identifiers! %s"%repr(v.value))
 				if t==variables.BaseType.pair:
-					self.failUnless(v.value[0]<v.value[1],"Pair ordering: %s"%repr(v.value))
+					self.assertTrue(v.value[0]<v.value[1],"Pair ordering: %s"%repr(v.value))
 				elif v.value[0]>v.value[1]:
 					dpPass=True
 			for vIn in ('1 2','.NameA .NameB',(1,"A"),["a","b","c"]):
@@ -187,34 +187,34 @@ class ValueTests(unittest.TestCase):
 				self.fail("nameCheck=False parsing from string")
 			except ValueError:
 				pass		
-		self.failUnless(dpPass,"directedPair ordering!")
+		self.assertTrue(dpPass,"directedPair ordering!")
 
 
 	def testCaseOrdred(self):
 		v=variables.OrderedContainer()
-		self.failUnless(v.IsNull(),"Null test on creation.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is None,"baseType is unknown on creation")
+		self.assertTrue(v.IsNull(),"Null test on creation.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is None,"baseType is unknown on creation")
 		v=variables.OrderedContainer(variables.BaseType.identifier)
-		self.failUnless(v.IsNull(),"Null test on creation.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is variables.BaseType.identifier,"baseType forced on creation")
+		self.assertTrue(v.IsNull(),"Null test on creation.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is variables.BaseType.identifier,"baseType forced on creation")
 		v.SetValue([],variables.BaseType.string)
-		self.failUnless(v.IsNull(),"Null test on empty list.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType==variables.BaseType.string,"baseType is unknown on empty list")
+		self.assertTrue(v.IsNull(),"Null test on empty list.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType==variables.BaseType.string,"baseType is unknown on empty list")
 		v.SetValue([None],None)
-		self.failUnless(v.IsNull(),"Null test on list with a single NULL value.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is variables.BaseType.string,"baseType inherited when unspecified")
+		self.assertTrue(v.IsNull(),"Null test on list with a single NULL value.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is variables.BaseType.string,"baseType inherited when unspecified")
 		v.SetValue(["A","B",None],variables.BaseType.identifier)
-		self.failIf(v.IsNull(),"Null test on non-empty list.")
-		self.failUnless(type(v.value)==types.ListType,"Value should be a list")
-		self.failUnless(v.baseType is variables.BaseType.identifier,"baseType from list")
-		self.failUnless(len(v.value)==2,"NULL value should be ignored by SetValue")
-		self.failUnless(v.value[1]==u"B","value on set")
+		self.assertFalse(v.IsNull(),"Null test on non-empty list.")
+		self.assertTrue(type(v.value)==types.ListType,"Value should be a list")
+		self.assertTrue(v.baseType is variables.BaseType.identifier,"baseType from list")
+		self.assertTrue(len(v.value)==2,"NULL value should be ignored by SetValue")
+		self.assertTrue(v.value[1]==u"B","value on set")
 		v.SetValue((u"C",u"D"),variables.BaseType.string)
-		self.failUnless(v.value[1]==u"D","set from tuple")		
+		self.assertTrue(v.value[1]==u"D","set from tuple")		
 		try:
 			v.SetValue(["A",3],variables.BaseType.string)
 			self.fail("No error on mixed type values")
@@ -224,29 +224,29 @@ class ValueTests(unittest.TestCase):
 
 	def testCaseMultiple(self):
 		v=variables.MultipleContainer()
-		self.failUnless(v.IsNull(),"Null test on creation.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is None,"baseType is unknown on creation")
+		self.assertTrue(v.IsNull(),"Null test on creation.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is None,"baseType is unknown on creation")
 		v=variables.MultipleContainer(variables.BaseType.identifier)
-		self.failUnless(v.IsNull(),"Null test on creation.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is variables.BaseType.identifier,"baseType forced on creation")
+		self.assertTrue(v.IsNull(),"Null test on creation.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is variables.BaseType.identifier,"baseType forced on creation")
 		v.SetValue([])
-		self.failUnless(v.IsNull(),"Null test on empty list.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is variables.BaseType.identifier,"baseType inherited when unspecified")
+		self.assertTrue(v.IsNull(),"Null test on empty list.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is variables.BaseType.identifier,"baseType inherited when unspecified")
 		v.SetValue([None],variables.BaseType.string)
-		self.failUnless(v.IsNull(),"Null test on list with a single NULL value.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is variables.BaseType.string,"baseType is known, NULL value in list")
+		self.assertTrue(v.IsNull(),"Null test on list with a single NULL value.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is variables.BaseType.string,"baseType is known, NULL value in list")
 		v.SetValue(["A","A",None,"B"],variables.BaseType.identifier)
-		self.failIf(v.IsNull(),"Null test on non-empty list.")
-		self.failUnless(type(v.value)==types.DictType,"Value should be a dictionary")
-		self.failUnless(v.baseType is variables.BaseType.identifier,"baseType from list")
-		self.failUnless(len(v.value.keys())==2,"NULL value should be ignored by SetValue: %s"%repr(v.value))
-		self.failUnless(v.value[u'A']==2,"frequency of value on set")
+		self.assertFalse(v.IsNull(),"Null test on non-empty list.")
+		self.assertTrue(type(v.value)==types.DictType,"Value should be a dictionary")
+		self.assertTrue(v.baseType is variables.BaseType.identifier,"baseType from list")
+		self.assertTrue(len(v.value.keys())==2,"NULL value should be ignored by SetValue: %s"%repr(v.value))
+		self.assertTrue(v.value[u'A']==2,"frequency of value on set")
 		v.SetValue((u"C",u"D"),variables.BaseType.string)
-		self.failUnless(v.value[u"D"]==1,"set from tuple")		
+		self.assertTrue(v.value[u"D"]==1,"set from tuple")		
 		try:
 			v.SetValue(["A",3.14,"B"],variables.BaseType.string)
 			self.fail("No error on mixed type values")
@@ -256,36 +256,36 @@ class ValueTests(unittest.TestCase):
 
 	def testCaseRecord(self):
 		v=variables.RecordContainer()
-		self.failUnless(v.IsNull(),"Null test on creation.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is None,"baseType is unknown for record containers")
+		self.assertTrue(v.IsNull(),"Null test on creation.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is None,"baseType is unknown for record containers")
 		v.SetValue({})
-		self.failUnless(v.IsNull(),"Null test on empty list.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is None,"baseType is unknown for record containers")
+		self.assertTrue(v.IsNull(),"Null test on empty list.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is None,"baseType is unknown for record containers")
 		v.SetValue({'x':None})
-		self.failUnless(v.IsNull(),"Null test on list with a single NULL value.")
-		self.failUnless(v.value is None,"Value should be None")
-		self.failUnless(v.baseType is None,"baseType is unknown for record containers")
+		self.assertTrue(v.IsNull(),"Null test on list with a single NULL value.")
+		self.assertTrue(v.value is None,"Value should be None")
+		self.assertTrue(v.baseType is None,"baseType is unknown for record containers")
 		v.SetValue({
 			u'x':variables.IdentifierValue(u"Hello"),
 			u'y':None,
 			u'pi':variables.FloatValue(3.14159)
 			})
-		self.failIf(v.IsNull(),"Null test on non-empty list.")
-		self.failUnless(type(v.value)==types.DictType,"Value should be a dictionary")
-		self.failUnless(v.baseType is None,"baseType is unknown for record containers")
-		self.failUnless(len(v.value.keys())==2,"NULL value should be ignored by SetValue: %s"%repr(v.value))
-		self.failUnless(isinstance(v.value[u'pi'],variables.FloatValue),"type of pi value")
-		self.failUnless(v.value[u'pi'].value==3.14159,"value of pi")
+		self.assertFalse(v.IsNull(),"Null test on non-empty list.")
+		self.assertTrue(type(v.value)==types.DictType,"Value should be a dictionary")
+		self.assertTrue(v.baseType is None,"baseType is unknown for record containers")
+		self.assertTrue(len(v.value.keys())==2,"NULL value should be ignored by SetValue: %s"%repr(v.value))
+		self.assertTrue(isinstance(v.value[u'pi'],variables.FloatValue),"type of pi value")
+		self.assertTrue(v.value[u'pi'].value==3.14159,"value of pi")
 		# We also support direct look up of the values
-		self.failUnless(isinstance(v[u'pi'],variables.FloatValue),"type of pi value - direct lookup")
-		self.failUnless(v[u'pi'].value==3.14159,"value of pi - direct lookup")
+		self.assertTrue(isinstance(v[u'pi'],variables.FloatValue),"type of pi value - direct lookup")
+		self.assertTrue(v[u'pi'].value==3.14159,"value of pi - direct lookup")
 		# And direct assignment...
 		v[u"e"]=variables.FloatValue(2.718)
-		self.failUnless(len(v.value.keys())==3,"New field added: %s"%repr(v.value))
-		self.failUnless(isinstance(v.value[u'e'],variables.FloatValue),"type of e value")
-		self.failUnless(v.value[u'e'].value==2.718,"value of e")
+		self.assertTrue(len(v.value.keys())==3,"New field added: %s"%repr(v.value))
+		self.assertTrue(isinstance(v.value[u'e'],variables.FloatValue),"type of e value")
+		self.assertTrue(v.value[u'e'].value==2.718,"value of e")
 			
 
 class QTIElementTests(unittest.TestCase):
@@ -334,26 +334,26 @@ class VariableTests(unittest.TestCase):
 		doc=core.QTIDocument()
 		doc.Read(src=StringIO(SAMPLE))
 		rd=doc.root.ResponseDeclaration[0].GetDefaultValue()
-		self.failUnless(isinstance(rd,variables.Value),"Default value not a Value")
-		self.failUnless(rd.Cardinality()==variables.Cardinality.single,"Single value was a container")
-		self.failUnless(rd.baseType==variables.BaseType.identifier,"Single default base type")
-		self.failUnless(rd.value==u"A","Singe default value")
+		self.assertTrue(isinstance(rd,variables.Value),"Default value not a Value")
+		self.assertTrue(rd.Cardinality()==variables.Cardinality.single,"Single value was a container")
+		self.assertTrue(rd.baseType==variables.BaseType.identifier,"Single default base type")
+		self.assertTrue(rd.value==u"A","Singe default value")
 		rd=doc.root.ResponseDeclaration[1].GetDefaultValue()
-		self.failUnless(rd.Cardinality()==variables.Cardinality.ordered,"Ordered value not a container")
-		self.failUnless(rd.baseType==variables.BaseType.integer,"Ordered default base type")
-		self.failUnless(rd.value==[3,2,1],"Ordered default value")
+		self.assertTrue(rd.Cardinality()==variables.Cardinality.ordered,"Ordered value not a container")
+		self.assertTrue(rd.baseType==variables.BaseType.integer,"Ordered default base type")
+		self.assertTrue(rd.value==[3,2,1],"Ordered default value")
 		rd=doc.root.ResponseDeclaration[2].GetDefaultValue()
-		self.failUnless(rd.Cardinality()==variables.Cardinality.multiple,"Multiple value not a container")
-		self.failUnless(rd.baseType==variables.BaseType.float,"Multiple default base type")
-		self.failUnless(rd.value=={3.0:1,0.1:1,0.04:1,0.001:1,0.0006:1},"Multiple default value")
+		self.assertTrue(rd.Cardinality()==variables.Cardinality.multiple,"Multiple value not a container")
+		self.assertTrue(rd.baseType==variables.BaseType.float,"Multiple default base type")
+		self.assertTrue(rd.value=={3.0:1,0.1:1,0.04:1,0.001:1,0.0006:1},"Multiple default value")
 		rd=doc.root.ResponseDeclaration[3].GetDefaultValue()
-		self.failUnless(rd.Cardinality()==variables.Cardinality.record,"Record value not a container")
-		self.failUnless(rd.baseType==None,"Record default base type")
-		self.failUnless(rd[u'value'].value==3.14159,"Record default value: %s"%repr(rd[u'value']))
+		self.assertTrue(rd.Cardinality()==variables.Cardinality.record,"Record value not a container")
+		self.assertTrue(rd.baseType==None,"Record default base type")
+		self.assertTrue(rd[u'value'].value==3.14159,"Record default value: %s"%repr(rd[u'value']))
 		rd=doc.root.ResponseDeclaration[4].GetDefaultValue()
-		self.failUnless(rd.Cardinality()==variables.Cardinality.single,"Single NULL value cardinality")
-		self.failUnless(rd.baseType==variables.BaseType.string,"Single NULL base type")
-		self.failUnless(rd.value is None,"Single NULL value: %s"%repr(rd.value))
+		self.assertTrue(rd.Cardinality()==variables.Cardinality.single,"Single NULL value cardinality")
+		self.assertTrue(rd.baseType==variables.BaseType.string,"Single NULL base type")
+		self.assertTrue(rd.value is None,"Single NULL value: %s"%repr(rd.value))
 
 		
 	def testCaseCorrect(self):
@@ -379,20 +379,20 @@ class VariableTests(unittest.TestCase):
 		doc=core.QTIDocument()
 		doc.Read(src=StringIO(SAMPLE))
 		rc=doc.root.ResponseDeclaration[0].GetCorrectValue()
-		self.failUnless(isinstance(rc,variables.Value),"Correct value not a Value")
-		self.failUnless(rc.Cardinality()==variables.Cardinality.single,"Single value was a container")
-		self.failUnless(rc.baseType==variables.BaseType.identifier,"Single default base type")
-		self.failUnless(rc.value==u"A","Singe default value: %s"%repr(rc.value))
-		self.failUnless(doc.root.ResponseDeclaration[0].CorrectResponse.interpretation=="single","Correct interpretation")
+		self.assertTrue(isinstance(rc,variables.Value),"Correct value not a Value")
+		self.assertTrue(rc.Cardinality()==variables.Cardinality.single,"Single value was a container")
+		self.assertTrue(rc.baseType==variables.BaseType.identifier,"Single default base type")
+		self.assertTrue(rc.value==u"A","Singe default value: %s"%repr(rc.value))
+		self.assertTrue(doc.root.ResponseDeclaration[0].CorrectResponse.interpretation=="single","Correct interpretation")
 		rc=doc.root.ResponseDeclaration[1].GetCorrectValue()
-		self.failUnless(rc.Cardinality()==variables.Cardinality.ordered,"Ordered value not a container")
-		self.failUnless(rc.baseType==variables.BaseType.integer,"Ordered default base type")
-		self.failUnless(rc.value==[3,2,1],"Ordered default value")
-		self.failUnless(doc.root.ResponseDeclaration[1].CorrectResponse.interpretation is None,"Emptyy correct interpretation")
+		self.assertTrue(rc.Cardinality()==variables.Cardinality.ordered,"Ordered value not a container")
+		self.assertTrue(rc.baseType==variables.BaseType.integer,"Ordered default base type")
+		self.assertTrue(rc.value==[3,2,1],"Ordered default value")
+		self.assertTrue(doc.root.ResponseDeclaration[1].CorrectResponse.interpretation is None,"Emptyy correct interpretation")
 		rc=doc.root.ResponseDeclaration[2].GetCorrectValue()
-		self.failUnless(rc.Cardinality()==variables.Cardinality.single,"Single NULL value cardinality")
-		self.failUnless(rc.baseType==variables.BaseType.string,"Single NULL base type")
-		self.failUnless(rc.value is None,"Single NULL value: %s"%repr(rc.value))
+		self.assertTrue(rc.Cardinality()==variables.Cardinality.single,"Single NULL value cardinality")
+		self.assertTrue(rc.baseType==variables.BaseType.string,"Single NULL base type")
+		self.assertTrue(rc.value is None,"Single NULL value: %s"%repr(rc.value))
 
 
 	def testCaseMapping(self):
@@ -413,7 +413,7 @@ class VariableTests(unittest.TestCase):
 		doc=core.QTIDocument()
 		doc.Read(src=StringIO(SAMPLE))
 		mapping=doc.root.ResponseDeclaration[0].Mapping
-		self.failUnless(mapping.baseType is variables.BaseType.identifier,"Base type of mapping auto-discovered")
+		self.assertTrue(mapping.baseType is variables.BaseType.identifier,"Base type of mapping auto-discovered")
 		for v,mv in {
 			"A":8.0,
 			"B":2.0,
@@ -426,12 +426,12 @@ class VariableTests(unittest.TestCase):
 			value=variables.MultipleContainer(mapping.baseType)
 			value.SetValue(iter(v))
 			mValue=mapping.MapValue(value)
-			self.failUnless(isinstance(mValue,variables.FloatValue),"MapValue response type")
-			self.failUnless(mValue.value==mv,"Mapping failed for multiple %s, returned %.1f"%(v,mValue.value))						
+			self.assertTrue(isinstance(mValue,variables.FloatValue),"MapValue response type")
+			self.assertTrue(mValue.value==mv,"Mapping failed for multiple %s, returned %.1f"%(v,mValue.value))						
 			value=variables.OrderedContainer(mapping.baseType)
 			value.SetValue(iter(v))
 			mValue=mapping.MapValue(value)
-			self.failUnless(mValue.value==mv,"Mapping failed for ordered %s, returned %.1f"%(v,mValue.value))						
+			self.assertTrue(mValue.value==mv,"Mapping failed for ordered %s, returned %.1f"%(v,mValue.value))						
 	
 	def testCaseAreaMapping(self):
 		SAMPLE="""<?xml version="1.0" encoding="UTF-8"?>
@@ -466,12 +466,12 @@ class VariableTests(unittest.TestCase):
 			value=variables.MultipleContainer(variables.BaseType.point)
 			value.SetValue(iter(v))
 			mValue=mapping.MapValue(value,50,50)
-			self.failUnless(isinstance(mValue,variables.FloatValue),"MapValue response type")
-			self.failUnless(mValue.value==mv,"AreaMapping failed for multiple %s, returned %.1f"%(v,mValue.value))						
+			self.assertTrue(isinstance(mValue,variables.FloatValue),"MapValue response type")
+			self.assertTrue(mValue.value==mv,"AreaMapping failed for multiple %s, returned %.1f"%(v,mValue.value))						
 			value=variables.OrderedContainer(variables.BaseType.point)
 			value.SetValue(iter(v))
 			mValue=mapping.MapValue(value,50,50)
-			self.failUnless(mValue.value==mv,"Mapping failed for ordered %s, returned %.1f"%(v,mValue.value))						
+			self.assertTrue(mValue.value==mv,"Mapping failed for ordered %s, returned %.1f"%(v,mValue.value))						
 	
 	def testCaseLookupTable(self):
 		SAMPLE="""<?xml version="1.0" encoding="UTF-8"?>
@@ -508,8 +508,8 @@ class VariableTests(unittest.TestCase):
 		doc.Read(src=StringIO(SAMPLE))
 		matchTable=doc.root.OutcomeDeclaration[0].LookupTable
 		interpolationTable=doc.root.OutcomeDeclaration[1].LookupTable
-		self.failUnless(matchTable.baseType is variables.BaseType.identifier,"Base type of matchTable auto-discovered")
-		self.failUnless(interpolationTable.baseType is variables.BaseType.identifier,"Base type of interpolationTable auto-discovered")
+		self.assertTrue(matchTable.baseType is variables.BaseType.identifier,"Base type of matchTable auto-discovered")
+		self.assertTrue(interpolationTable.baseType is variables.BaseType.identifier,"Base type of interpolationTable auto-discovered")
 		for rawScore,grade in {
 			0:"U",
 			1:"E",
@@ -525,8 +525,8 @@ class VariableTests(unittest.TestCase):
 			-1:"U"}.items():
 			value=variables.IntegerValue(rawScore)
 			mapGrade=matchTable.Lookup(value)
-			self.failUnless(isinstance(mapGrade,variables.IdentifierValue),"Lookup response type")
-			self.failUnless(mapGrade.value==grade,"MatchTable failed for %i, returned %s"%(rawScore,mapGrade.value))						
+			self.assertTrue(isinstance(mapGrade,variables.IdentifierValue),"Lookup response type")
+			self.assertTrue(mapGrade.value==grade,"MatchTable failed for %i, returned %s"%(rawScore,mapGrade.value))						
 			try:
 				value=variables.FloatValue(float(rawScore))
 				mapGrade=matchTable.Lookup(value)
@@ -535,12 +535,12 @@ class VariableTests(unittest.TestCase):
 				pass
 			value=variables.IntegerValue(rawScore)
 			mapGrade=interpolationTable.Lookup(value)
-			self.failUnless(isinstance(mapGrade,variables.IdentifierValue),"Lookup response type")
-			self.failUnless(mapGrade.value==grade,"InterpolationTable failed for %i, returned %s"%(rawScore,mapGrade.value))						
+			self.assertTrue(isinstance(mapGrade,variables.IdentifierValue),"Lookup response type")
+			self.assertTrue(mapGrade.value==grade,"InterpolationTable failed for %i, returned %s"%(rawScore,mapGrade.value))						
 			value=variables.FloatValue(float(rawScore))
 			mapGrade=interpolationTable.Lookup(value)
-			self.failUnless(isinstance(mapGrade,variables.IdentifierValue),"Lookup response type")
-			self.failUnless(mapGrade.value==grade,"InterpolationTable failed for %i, returned %s"%(rawScore,mapGrade.value))						
+			self.assertTrue(isinstance(mapGrade,variables.IdentifierValue),"Lookup response type")
+			self.assertTrue(mapGrade.value==grade,"InterpolationTable failed for %i, returned %s"%(rawScore,mapGrade.value))						
 	
 	def testCaseItemSession(self):
 		SAMPLE="""<?xml version="1.0" encoding="UTF-8"?>
@@ -552,30 +552,30 @@ class VariableTests(unittest.TestCase):
 		doc=core.QTIDocument()
 		doc.Read(src=StringIO(SAMPLE))
 		sessionState=variables.ItemSessionState(doc.root)
-		self.failUnless(sessionState.item==doc.root,"Session State item pointer")
+		self.assertTrue(sessionState.item==doc.root,"Session State item pointer")
 		value=sessionState['numAttempts']
-		self.failUnless(isinstance(value,variables.IntegerValue),"numAttempts must be of IntegerValue type")
-		self.failUnless(value.value is None,"numAttempts non NULL")
-		self.failUnless(sessionState.IsResponse('numAttempts'),"numAttempts is a response variable")
-		self.failUnless(not sessionState.IsOutcome('numAttempts'),"numAttempts is not an outcome variable")
-		self.failUnless(not sessionState.IsTemplate('numAttempts'),"numAttempts is not a template variable")
+		self.assertTrue(isinstance(value,variables.IntegerValue),"numAttempts must be of IntegerValue type")
+		self.assertTrue(value.value is None,"numAttempts non NULL")
+		self.assertTrue(sessionState.IsResponse('numAttempts'),"numAttempts is a response variable")
+		self.assertTrue(not sessionState.IsOutcome('numAttempts'),"numAttempts is not an outcome variable")
+		self.assertTrue(not sessionState.IsTemplate('numAttempts'),"numAttempts is not a template variable")
 		value=sessionState['duration']
-		self.failUnless(isinstance(value,variables.DurationValue),"duration must be of DurationValue type")
-		self.failUnless(value.value is None,"duration non NULL")				
-		self.failUnless(sessionState.IsResponse('duration'),"duration is a response variable")
-		self.failUnless(not sessionState.IsOutcome('duration'),"duration is not an outcome variable")
-		self.failUnless(not sessionState.IsTemplate('duration'),"duration is not a template variable")
+		self.assertTrue(isinstance(value,variables.DurationValue),"duration must be of DurationValue type")
+		self.assertTrue(value.value is None,"duration non NULL")				
+		self.assertTrue(sessionState.IsResponse('duration'),"duration is a response variable")
+		self.assertTrue(not sessionState.IsOutcome('duration'),"duration is not an outcome variable")
+		self.assertTrue(not sessionState.IsTemplate('duration'),"duration is not a template variable")
 		value=sessionState['completionStatus']
-		self.failUnless(isinstance(value,variables.IdentifierValue),"completionStatus must be of IdentifierValue type")
-		self.failUnless(value.value is None,"completionStatus non NULL")				
-		self.failUnless(not sessionState.IsResponse('completionStatus'),"completionStatus is not a response variable")
-		self.failUnless(sessionState.IsOutcome('completionStatus'),"completionStatus is an outcome variable")
-		self.failUnless(not sessionState.IsTemplate('completionStatus'),"completionStatus is not a template variable")
-		self.failUnless(len(sessionState)==3,"3 default variables")
+		self.assertTrue(isinstance(value,variables.IdentifierValue),"completionStatus must be of IdentifierValue type")
+		self.assertTrue(value.value is None,"completionStatus non NULL")				
+		self.assertTrue(not sessionState.IsResponse('completionStatus'),"completionStatus is not a response variable")
+		self.assertTrue(sessionState.IsOutcome('completionStatus'),"completionStatus is an outcome variable")
+		self.assertTrue(not sessionState.IsTemplate('completionStatus'),"completionStatus is not a template variable")
+		self.assertTrue(len(sessionState)==3,"3 default variables")
 		sessionState.BeginSession()
-		self.failUnless(sessionState['numAttempts'].value==0,"numAttempts must initially be 0")
-		self.failUnless(sessionState['duration'].value==0.0,"duration must initially be 0")				
-		self.failUnless(sessionState['completionStatus'].value=="not_attempted","completionStatus must initially be not_attempted")						
+		self.assertTrue(sessionState['numAttempts'].value==0,"numAttempts must initially be 0")
+		self.assertTrue(sessionState['duration'].value==0.0,"duration must initially be 0")				
+		self.assertTrue(sessionState['completionStatus'].value=="not_attempted","completionStatus must initially be not_attempted")						
 		SAMPLE="""<?xml version="1.0" encoding="UTF-8"?>
 <assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -603,58 +603,58 @@ class VariableTests(unittest.TestCase):
 		doc=core.QTIDocument()
 		doc.Read(src=StringIO(SAMPLE))
 		sessionState=variables.ItemSessionState(doc.root)
-		self.failUnless(len(sessionState)==15,"6 defined + 3 built-in variables + 1 correct + 5 defaults")
+		self.assertTrue(len(sessionState)==15,"6 defined + 3 built-in variables + 1 correct + 5 defaults")
 		value=sessionState['RESPONSE']
-		self.failUnless(isinstance(value,variables.IdentifierValue),"RESPONSE type")
-		self.failIf(value,"RESPONSE non NULL")
-		self.failUnless(sessionState.IsResponse('RESPONSE'),"RESPONSE is a response variable")
-		self.failUnless(not sessionState.IsOutcome('RESPONSE'),"RESPONSE is not an outcome variable")
-		self.failUnless(not sessionState.IsTemplate('RESPONSE'),"RESPONSE is not a template variable")
+		self.assertTrue(isinstance(value,variables.IdentifierValue),"RESPONSE type")
+		self.assertFalse(value,"RESPONSE non NULL")
+		self.assertTrue(sessionState.IsResponse('RESPONSE'),"RESPONSE is a response variable")
+		self.assertTrue(not sessionState.IsOutcome('RESPONSE'),"RESPONSE is not an outcome variable")
+		self.assertTrue(not sessionState.IsTemplate('RESPONSE'),"RESPONSE is not a template variable")
 		value=sessionState['SCORE']
-		self.failUnless(isinstance(value,variables.IntegerValue),"SCORE type")
-		self.failIf(value,"SCORE non NULL")
-		self.failUnless(not sessionState.IsResponse('SCORE'),"SCORE is not a response variable")
-		self.failUnless(sessionState.IsOutcome('SCORE'),"SCORE is an outcome variable")
-		self.failUnless(not sessionState.IsTemplate('SCORE'),"SCORE is not a template variable")
+		self.assertTrue(isinstance(value,variables.IntegerValue),"SCORE type")
+		self.assertFalse(value,"SCORE non NULL")
+		self.assertTrue(not sessionState.IsResponse('SCORE'),"SCORE is not a response variable")
+		self.assertTrue(sessionState.IsOutcome('SCORE'),"SCORE is an outcome variable")
+		self.assertTrue(not sessionState.IsTemplate('SCORE'),"SCORE is not a template variable")
 		value=sessionState['SCORE1']
-		self.failUnless(isinstance(value,variables.IntegerValue),"SCORE1 type")
-		self.failIf(value,"SCORE1 non NULL")
+		self.assertTrue(isinstance(value,variables.IntegerValue),"SCORE1 type")
+		self.assertFalse(value,"SCORE1 non NULL")
 		value=sessionState['SCORE2']
-		self.failUnless(isinstance(value,variables.FloatValue),"SCORE2 type")
-		self.failIf(value,"SCORE2 non NULL")
+		self.assertTrue(isinstance(value,variables.FloatValue),"SCORE2 type")
+		self.assertFalse(value,"SCORE2 non NULL")
 		value=sessionState['SCORE3']
-		self.failUnless(isinstance(value,variables.StringValue),"SCORE3 type")
-		self.failIf(value,"SCORE3 non NULL")
+		self.assertTrue(isinstance(value,variables.StringValue),"SCORE3 type")
+		self.assertFalse(value,"SCORE3 non NULL")
 		value=sessionState['VARIABLE']
-		self.failUnless(isinstance(value,variables.FloatValue),"VARIABLE type")
-		self.failUnless(value.value==3.14159,"VARIABLE initial value")
-		self.failUnless(not sessionState.IsResponse('VARIABLE'),"VARIABLE is not a response variable")
-		self.failUnless(not sessionState.IsOutcome('VARIABLE'),"VARIABLE is not an outcome variable")
-		self.failUnless(sessionState.IsTemplate('VARIABLE'),"VARIABLE is a template variable")
+		self.assertTrue(isinstance(value,variables.FloatValue),"VARIABLE type")
+		self.assertTrue(value.value==3.14159,"VARIABLE initial value")
+		self.assertTrue(not sessionState.IsResponse('VARIABLE'),"VARIABLE is not a response variable")
+		self.assertTrue(not sessionState.IsOutcome('VARIABLE'),"VARIABLE is not an outcome variable")
+		self.assertTrue(sessionState.IsTemplate('VARIABLE'),"VARIABLE is a template variable")
 		sessionState.BeginSession()
-		self.failIf(sessionState['RESPONSE'],"RESPONSE initial value must be NULL")
-		self.failUnless(sessionState['SCORE'].value==-1,"SCORE initial value")				
-		self.failUnless(sessionState['SCORE1'].value==0,"SCORE1 initial value")				
-		self.failUnless(sessionState['SCORE2'].value==0.0,"SCORE2 initial value")				
-		self.failIf(sessionState['SCORE3'],"SCORE3 initial value must be NULL")
-		self.failUnless(sessionState['VARIABLE'].value==3.14159,"VARIABLE initial value")
+		self.assertFalse(sessionState['RESPONSE'],"RESPONSE initial value must be NULL")
+		self.assertTrue(sessionState['SCORE'].value==-1,"SCORE initial value")				
+		self.assertTrue(sessionState['SCORE1'].value==0,"SCORE1 initial value")				
+		self.assertTrue(sessionState['SCORE2'].value==0.0,"SCORE2 initial value")				
+		self.assertFalse(sessionState['SCORE3'],"SCORE3 initial value must be NULL")
+		self.assertTrue(sessionState['VARIABLE'].value==3.14159,"VARIABLE initial value")
 		sessionState.BeginAttempt()
 		value=sessionState['numAttempts']
-		self.failUnless(value.value==1,"numAttempts set to 1 at start of attempt")
+		self.assertTrue(value.value==1,"numAttempts set to 1 at start of attempt")
 		value=sessionState['RESPONSE']
-		self.failUnless(value.value==u"A","RESPONSE set to default at start of first attempt")
+		self.assertTrue(value.value==u"A","RESPONSE set to default at start of first attempt")
 		value.SetValue(u"B")
 		value=sessionState['completionStatus']
-		self.failUnless(value.value==u"unknown","completionStatus set to unknown at start of first attempt: %s"%value.value)
+		self.assertTrue(value.value==u"unknown","completionStatus set to unknown at start of first attempt: %s"%value.value)
 		value.SetValue("completed")
 		sessionState.EndAttempt()
 		sessionState.BeginAttempt()
 		value=sessionState['numAttempts']
-		self.failUnless(value.value==2,"numAttempts incremented")
+		self.assertTrue(value.value==2,"numAttempts incremented")
 		value=sessionState['completionStatus']
-		self.failUnless(value.value==u"completed","completionStatus keeps its value")
+		self.assertTrue(value.value==u"completed","completionStatus keeps its value")
 		value=sessionState['RESPONSE']
-		self.failUnless(value.value==u"B","RESPONSE keeps its value")
+		self.assertTrue(value.value==u"B","RESPONSE keeps its value")
 				
 	def testCaseTestSession(self):
 		SAMPLE="""<?xml version="1.0" encoding="UTF-8"?>
@@ -671,26 +671,26 @@ class VariableTests(unittest.TestCase):
 		doc.Read(src=StringIO(SAMPLE))
 		form=tests.TestForm(doc.root)
 		sessionState=variables.TestSessionState(form)
-		self.failUnless(sessionState.test==doc.root,"Session State test pointer")
-		self.failUnless(sessionState.form==form,"Session State form pointer")
+		self.assertTrue(sessionState.test==doc.root,"Session State test pointer")
+		self.assertTrue(sessionState.form==form,"Session State form pointer")
 		value=sessionState['duration']
-		self.failUnless(isinstance(value,variables.DurationValue),"duration must be of DurationValue type")
-		self.failUnless(value.value is None,"duration non NULL")				
-		self.failUnless(sessionState.IsResponse('duration'),"duration is a response variable")
-		self.failUnless(not sessionState.IsOutcome('duration'),"duration is not an outcome variable")
-		self.failUnless(not sessionState.IsTemplate('duration'),"duration is not a template variable")
+		self.assertTrue(isinstance(value,variables.DurationValue),"duration must be of DurationValue type")
+		self.assertTrue(value.value is None,"duration non NULL")				
+		self.assertTrue(sessionState.IsResponse('duration'),"duration is a response variable")
+		self.assertTrue(not sessionState.IsOutcome('duration'),"duration is not an outcome variable")
+		self.assertTrue(not sessionState.IsTemplate('duration'),"duration is not a template variable")
 		value=sessionState['PartI.duration']
-		self.failUnless(isinstance(value,variables.DurationValue),"duration must be of DurationValue type")
-		self.failUnless(value.value is None,"duration non NULL")			
+		self.assertTrue(isinstance(value,variables.DurationValue),"duration must be of DurationValue type")
+		self.assertTrue(value.value is None,"duration non NULL")			
 		value=sessionState['SectionA.duration']
-		self.failUnless(isinstance(value,variables.DurationValue),"duration must be of DurationValue type")
-		self.failUnless(value.value is None,"duration non NULL")			
-		self.failUnless(len(sessionState)==3,"3 default variables")
+		self.assertTrue(isinstance(value,variables.DurationValue),"duration must be of DurationValue type")
+		self.assertTrue(value.value is None,"duration non NULL")			
+		self.assertTrue(len(sessionState)==3,"3 default variables")
 		sessionState.BeginSession(sessionState.key)
-		self.failUnless(sessionState['duration'].value==0.0,"duration must initially be 0")						
-		self.failUnless(sessionState.t<=time.time() and sessionState.t>=time.time()-1.0,"test session took more than 1s to start: %f"%(time.time()-sessionState.t))
-		self.failUnless(type(sessionState.key)==types.UnicodeType,"key should be a string")
-		self.failUnless(len(sessionState.key)>=56,"key should be 56 bytes or more")
+		self.assertTrue(sessionState['duration'].value==0.0,"duration must initially be 0")						
+		self.assertTrue(sessionState.t<=time.time() and sessionState.t>=time.time()-1.0,"test session took more than 1s to start: %f"%(time.time()-sessionState.t))
+		self.assertTrue(type(sessionState.key)==types.UnicodeType,"key should be a string")
+		self.assertTrue(len(sessionState.key)>=56,"key should be 56 bytes or more")
 		
 
 class ResponseProcessingTests(unittest.TestCase):
@@ -768,43 +768,43 @@ class ResponseProcessingTests(unittest.TestCase):
 	def testCaseNonAdaptive(self):
 		self.sessionState.BeginAttempt()
 		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_1")
-		self.failUnless(self.sessionState["SCORE"].value==0.5,"Initial score value")
-		self.failUnless(self.sessionState["N"].value==0,"Initial N value")
-		self.failUnless(self.sessionState["numAttempts"].value==1,"Initial numAttempts")
+		self.assertTrue(self.sessionState["SCORE"].value==0.5,"Initial score value")
+		self.assertTrue(self.sessionState["N"].value==0,"Initial N value")
+		self.assertTrue(self.sessionState["numAttempts"].value==1,"Initial numAttempts")
 		self.sessionState.EndAttempt()
-		self.failUnless(self.sessionState["SCORE"].value==0.5,"Initial score value")
-		self.failUnless(self.sessionState["N"].value==0,"CASE_1 N value: %s"%repr(self.sessionState["N"].value))
+		self.assertTrue(self.sessionState["SCORE"].value==0.5,"Initial score value")
+		self.assertTrue(self.sessionState["N"].value==0,"CASE_1 N value: %s"%repr(self.sessionState["N"].value))
 		self.sessionState.BeginAttempt()
-		self.failUnless(self.sessionState["numAttempts"].value==2,"numAttempts=2")
+		self.assertTrue(self.sessionState["numAttempts"].value==2,"numAttempts=2")
 		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_2")
 		self.sessionState.EndAttempt()
-		self.failUnless(self.sessionState["SCORE"].value==3.14,"CASE_2 score")
-		self.failUnless(self.sessionState["N"].value==1,"CASE_2 N value")
+		self.assertTrue(self.sessionState["SCORE"].value==3.14,"CASE_2 score")
+		self.assertTrue(self.sessionState["N"].value==1,"CASE_2 N value")
 		self.sessionState.BeginAttempt()
-		self.failUnless(self.sessionState["numAttempts"].value==3,"numAttempts=3")
+		self.assertTrue(self.sessionState["numAttempts"].value==3,"numAttempts=3")
 		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_3")
 		self.sessionState.EndAttempt()
-		self.failUnless(self.sessionState["SCORE"].value==3.0,"CASE_3 score")
-		self.failUnless(self.sessionState["N"].value==1,"CASE_3 N value: %s"%repr(self.sessionState["N"].value))
+		self.assertTrue(self.sessionState["SCORE"].value==3.0,"CASE_3 score")
+		self.assertTrue(self.sessionState["N"].value==1,"CASE_3 N value: %s"%repr(self.sessionState["N"].value))
 				
 	def testCaseAdaptive(self):
 		self.sessionState.BeginAttempt()
 		self.sessionState.item.adaptive=True
 		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_1")
-		self.failUnless(self.sessionState["N"].value==0,"Initial N value")
-		self.failUnless(self.sessionState["numAttempts"].value==1,"Initial numAttempts")
+		self.assertTrue(self.sessionState["N"].value==0,"Initial N value")
+		self.assertTrue(self.sessionState["numAttempts"].value==1,"Initial numAttempts")
 		self.sessionState.EndAttempt()
-		self.failUnless(self.sessionState["N"].value==0,"CASE_1 N value: %s"%repr(self.sessionState["N"].value))
+		self.assertTrue(self.sessionState["N"].value==0,"CASE_1 N value: %s"%repr(self.sessionState["N"].value))
 		self.sessionState.BeginAttempt()
-		self.failUnless(self.sessionState["numAttempts"].value==2,"numAttempts=2")
+		self.assertTrue(self.sessionState["numAttempts"].value==2,"numAttempts=2")
 		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_2")
 		self.sessionState.EndAttempt()
-		self.failUnless(self.sessionState["N"].value==1,"CASE_2 N value")
+		self.assertTrue(self.sessionState["N"].value==1,"CASE_2 N value")
 		self.sessionState.BeginAttempt()
-		self.failUnless(self.sessionState["numAttempts"].value==3,"numAttempts=3")
+		self.assertTrue(self.sessionState["numAttempts"].value==3,"numAttempts=3")
 		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_3")
 		self.sessionState.EndAttempt()
-		self.failUnless(self.sessionState["N"].value==2,"CASE_3 N value: %s"%repr(self.sessionState["N"].value))
+		self.assertTrue(self.sessionState["N"].value==2,"CASE_3 N value: %s"%repr(self.sessionState["N"].value))
 	
 	def testCaseError(self):
 		rule=processing.SetOutcomeValue(None)
@@ -901,57 +901,57 @@ class TemplateProcessingTests(unittest.TestCase):
 		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_1")
 		self.sessionState.SelectClone()
 		v=self.sessionState['T']
-		self.failIf(v,"CASE_1 result: %s"%repr(v.value))
+		self.assertFalse(v,"CASE_1 result: %s"%repr(v.value))
 		self.sessionState.BeginSession()
 		# outcomes have their defaults
 		v=self.sessionState['SCORE']
-		self.failUnless(v.value==0.5,"CASE_1 default SCORE: %s"%repr(v.value))
+		self.assertTrue(v.value==0.5,"CASE_1 default SCORE: %s"%repr(v.value))
 		self.sessionState.BeginAttempt()
 		# responses have their defaults
 		v=self.sessionState['RESPONSE']
-		self.failUnless(v.value==u"A","CASE_1 default RESPONSE: %s"%repr(v.value))
+		self.assertTrue(v.value==u"A","CASE_1 default RESPONSE: %s"%repr(v.value))
 		
 	def testCase2(self):
 		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_2")
 		self.sessionState.SelectClone()
 		v=self.sessionState['T']
-		self.failUnless(v.value is True,"CASE_2 result: %s"%repr(v.value))
+		self.assertTrue(v.value is True,"CASE_2 result: %s"%repr(v.value))
 		self.sessionState.BeginSession()
 		# outcomes have their defaults
 		v=self.sessionState['SCORE']
-		self.failUnless(v.value==0.5,"CASE_2 default SCORE: %s"%repr(v.value))
+		self.assertTrue(v.value==0.5,"CASE_2 default SCORE: %s"%repr(v.value))
 		self.sessionState.BeginAttempt()
 		# responses have their defaults
 		v=self.sessionState['RESPONSE']
-		self.failUnless(v.value==u"A","CASE_2 default RESPONSE: %s"%repr(v.value))
+		self.assertTrue(v.value==u"A","CASE_2 default RESPONSE: %s"%repr(v.value))
 		
 	def testCase3(self):
 		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_3")
 		self.sessionState.SelectClone()
 		v=self.sessionState['T']
-		self.failUnless(v.value is True,"CASE_3 result: %s"%repr(v.value))
+		self.assertTrue(v.value is True,"CASE_3 result: %s"%repr(v.value))
 		self.sessionState.BeginSession()
 		# outcomes have their defaults
 		v=self.sessionState['SCORE']
-		self.failUnless(v.value==0.5,"CASE_3 default SCORE: %s"%repr(v.value))
+		self.assertTrue(v.value==0.5,"CASE_3 default SCORE: %s"%repr(v.value))
 		self.sessionState.BeginAttempt()
 		# responses have their defaults
 		v=self.sessionState['RESPONSE']
-		self.failUnless(v.value==u"B","CASE_3 default RESPONSE: %s"%repr(v.value))
+		self.assertTrue(v.value==u"B","CASE_3 default RESPONSE: %s"%repr(v.value))
 
 	def testCase4(self):
 		self.sessionState["TESTCASE"]=variables.IdentifierValue("CASE_4")
 		self.sessionState.SelectClone()
 		v=self.sessionState['T']
-		self.failUnless(v.value is False,"CASE_4 result: %s"%repr(v.value))
+		self.assertTrue(v.value is False,"CASE_4 result: %s"%repr(v.value))
 		self.sessionState.BeginSession()
 		# outcomes have their defaults
 		v=self.sessionState['SCORE']
-		self.failUnless(v.value==0.0,"CASE_4 default SCORE: %s"%repr(v.value))
+		self.assertTrue(v.value==0.0,"CASE_4 default SCORE: %s"%repr(v.value))
 		self.sessionState.BeginAttempt()
 		# responses have their defaults
 		v=self.sessionState['RESPONSE']
-		self.failUnless(v.value==u"A","CASE_4 default RESPONSE: %s"%repr(v.value))
+		self.assertTrue(v.value==u"A","CASE_4 default RESPONSE: %s"%repr(v.value))
 		
 	def testCaseSetTemplateValue(self):
 		rule=processing.SetTemplateValue(None)
@@ -1080,15 +1080,15 @@ class ExpressionTests(unittest.TestCase):
 		e.AddData("3 1")
 		e.ContentChanged()
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.PointValue),"BaseValue type")
-		self.failUnless(value.value==(3,1),"BaseValue value: %s"%repr(value.value))				
+		self.assertTrue(isinstance(value,variables.PointValue),"BaseValue type")
+		self.assertTrue(value.value==(3,1),"BaseValue value: %s"%repr(value.value))				
 	
 	def testCaseVariable(self):
 		e=expressions.Variable(None)
 		e.identifier='RESPONSE'
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.IdentifierValue),"Variable type")
-		self.failUnless(value.value==u"A","Variable value: %s"%repr(value.value))
+		self.assertTrue(isinstance(value,variables.IdentifierValue),"Variable type")
+		self.assertTrue(value.value==u"A","Variable value: %s"%repr(value.value))
 		try:
 			e.identifier='UNDECLARED'
 			value=e.Evaluate(self.sessionState)
@@ -1101,12 +1101,12 @@ class ExpressionTests(unittest.TestCase):
 		e=expressions.Default(None)
 		e.identifier='RESPONSE'
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.IdentifierValue),"Variable type")
-		self.failUnless(value.value==u"A","Variable value: %s"%repr(value.value))
+		self.assertTrue(isinstance(value,variables.IdentifierValue),"Variable type")
+		self.assertTrue(value.value==u"A","Variable value: %s"%repr(value.value))
 		e.identifier='SCORE1'
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.StringValue),"Variable type")
-		self.failIf(value,"NULL default value: %s"%repr(value.value))
+		self.assertTrue(isinstance(value,variables.StringValue),"Variable type")
+		self.assertFalse(value,"NULL default value: %s"%repr(value.value))
 		try:
 			e.identifier='UNDECLARED'
 			value=e.Evaluate(self.sessionState)
@@ -1118,8 +1118,8 @@ class ExpressionTests(unittest.TestCase):
 		e=expressions.Correct(None)
 		e.identifier='RESPONSE'
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.IdentifierValue),"Correct type")
-		self.failUnless(value.value==u"B","Correct value: %s"%repr(value.value))
+		self.assertTrue(isinstance(value,variables.IdentifierValue),"Correct type")
+		self.assertTrue(value.value==u"B","Correct value: %s"%repr(value.value))
 		try:
 			e.identifier='UNDECLARED'
 			value=e.Evaluate(self.sessionState)
@@ -1137,8 +1137,8 @@ class ExpressionTests(unittest.TestCase):
 		e=expressions.MapResponse(None)
 		e.identifier='RESPONSE'
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.FloatValue),"MapResponse type")
-		self.failUnless(value.value==3.14,"Mapped value: %s"%repr(value.value))
+		self.assertTrue(isinstance(value,variables.FloatValue),"MapResponse type")
+		self.assertTrue(value.value==3.14,"Mapped value: %s"%repr(value.value))
 		try:
 			e.identifier='RESPONSE1'
 			value=e.Evaluate(self.sessionState)
@@ -1156,8 +1156,8 @@ class ExpressionTests(unittest.TestCase):
 		e=expressions.MapResponsePoint(None)
 		e.identifier='RESPONSE1'
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.FloatValue),"MapResponsePoint type")
-		self.failUnless(value.value==3.14,"Mapped value: %s"%repr(value.value))
+		self.assertTrue(isinstance(value,variables.FloatValue),"MapResponsePoint type")
+		self.assertTrue(value.value==3.14,"Mapped value: %s"%repr(value.value))
 		try:
 			e.identifier='RESPONSE'
 			value=e.Evaluate(self.sessionState)
@@ -1180,10 +1180,10 @@ class ExpressionTests(unittest.TestCase):
 	def testCaseNull(self):
 		e=expressions.Null(None)
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.Value),"Null type")
-		self.failUnless(value.baseType is None,"Null base type: %s"%variables.BaseType.EncodeValue(value.baseType))				
-		self.failUnless(value.value is None,"Null value: %s"%repr(value.value))				
-		self.failIf(value,"Null is null")
+		self.assertTrue(isinstance(value,variables.Value),"Null type")
+		self.assertTrue(value.baseType is None,"Null base type: %s"%variables.BaseType.EncodeValue(value.baseType))				
+		self.assertTrue(value.value is None,"Null value: %s"%repr(value.value))				
+		self.assertFalse(value,"Null is null")
 
 	def testCaseRandomInteger(self):
 		e=expressions.RandomInteger(None)
@@ -1193,11 +1193,11 @@ class ExpressionTests(unittest.TestCase):
 		gotValue={}
 		for i in xrange(100):
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(isinstance(value,variables.IntegerValue),"RandomInteger type")
-			self.failUnless(value.value in (2,5,8,11),"RandomInteger value: %s"%repr(value.value))
+			self.assertTrue(isinstance(value,variables.IntegerValue),"RandomInteger type")
+			self.assertTrue(value.value in (2,5,8,11),"RandomInteger value: %s"%repr(value.value))
 			gotValue[value.value]=True
 		for i in (2,5,8,11):
-			self.failUnless(i in gotValue,"RandomInteger failed with p=0.000000000001, really?")
+			self.assertTrue(i in gotValue,"RandomInteger failed with p=0.000000000001, really?")
 		# TODO: also supports template references
 		
 	def testCaseRandomFloat(self):
@@ -1207,22 +1207,22 @@ class ExpressionTests(unittest.TestCase):
 		gotValue={}
 		for i in xrange(200):
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(isinstance(value,variables.FloatValue),"RandomFloat type")
-			self.failUnless(value.value>=5.0 and value.value<=5.5,"RandomFloat value: %s"%repr(value.value))
+			self.assertTrue(isinstance(value,variables.FloatValue),"RandomFloat type")
+			self.assertTrue(value.value>=5.0 and value.value<=5.5,"RandomFloat value: %s"%repr(value.value))
 			v="%.1f"%value.value
-			self.failUnless(v in ("5.0","5.1","5.2","5.3","5.4","5.5"),"RandomFloat value: %s"%v)
+			self.assertTrue(v in ("5.0","5.1","5.2","5.3","5.4","5.5"),"RandomFloat value: %s"%v)
 			gotValue[v]=True
 		for i in ("5.0","5.1","5.2","5.3","5.4","5.5"):
-			self.failUnless(i in gotValue,"RandomFloat failed with p=0.0000000014, really?")
+			self.assertTrue(i in gotValue,"RandomFloat failed with p=0.0000000014, really?")
 		# TODO: also supports template references
 	
 	def testCaseMultiple(self):
 		e=expressions.Multiple(None)
 		# check the null case
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.MultipleContainer),"Multiple type")
-		self.failUnless(value.Cardinality()==variables.Cardinality.multiple,"Multiple cardinality")
-		self.failUnless(value.baseType is None,"Multiple with unknown base type")		
+		self.assertTrue(isinstance(value,variables.MultipleContainer),"Multiple type")
+		self.assertTrue(value.Cardinality()==variables.Cardinality.multiple,"Multiple cardinality")
+		self.assertTrue(value.baseType is None,"Multiple with unknown base type")		
 		# check that sub-expressions with NULL values are ignored
 		v1=e.ChildElement(expressions.BaseValue)
 		v1.baseType=variables.BaseType.integer
@@ -1234,16 +1234,16 @@ class ExpressionTests(unittest.TestCase):
 		v3.AddData("3")
 		v3.ContentChanged()
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.MultipleContainer),"Multiple type")
-		self.failUnless(value.baseType==variables.BaseType.integer,"Multiple base type")		
-		self.failUnless(value.value=={1:1,3:1},"Multiple value: %s"%repr(value.value))
+		self.assertTrue(isinstance(value,variables.MultipleContainer),"Multiple type")
+		self.assertTrue(value.baseType==variables.BaseType.integer,"Multiple base type")		
+		self.assertTrue(value.value=={1:1,3:1},"Multiple value: %s"%repr(value.value))
 		v4=e.ChildElement(expressions.Multiple)
 		v4_1=v4.ChildElement(expressions.BaseValue)
 		v4_1.baseType=variables.BaseType.integer
 		v4_1.AddData("3")
 		v4_1.ContentChanged()
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value=={1:1,3:2},"Multiple in Multiple value: %s"%repr(value.value))
+		self.assertTrue(value.value=={1:1,3:2},"Multiple in Multiple value: %s"%repr(value.value))
 		# check that mixed base types raise an error
 		v5=e.ChildElement(expressions.BaseValue)
 		v5.baseType=variables.BaseType.float
@@ -1260,8 +1260,8 @@ class ExpressionTests(unittest.TestCase):
 		e=expressions.Ordered(None)
 		# check the null case
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.OrderedContainer),"Ordered cardinality")
-		self.failUnless(value.baseType is None,"Ordered with unknown base type")		
+		self.assertTrue(isinstance(value,variables.OrderedContainer),"Ordered cardinality")
+		self.assertTrue(value.baseType is None,"Ordered with unknown base type")		
 		# check that sub-expressions with NULL values are ignored
 		v1=e.ChildElement(expressions.BaseValue)
 		v1.baseType=variables.BaseType.integer
@@ -1273,16 +1273,16 @@ class ExpressionTests(unittest.TestCase):
 		v3.AddData("3")
 		v3.ContentChanged()
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.OrderedContainer),"Ordered type")
-		self.failUnless(value.baseType==variables.BaseType.integer,"Ordered base type")		
-		self.failUnless(value.value==[1,3],"Ordered value: %s"%repr(value.value))
+		self.assertTrue(isinstance(value,variables.OrderedContainer),"Ordered type")
+		self.assertTrue(value.baseType==variables.BaseType.integer,"Ordered base type")		
+		self.assertTrue(value.value==[1,3],"Ordered value: %s"%repr(value.value))
 		v4=e.ChildElement(expressions.Ordered)
 		v4_1=v4.ChildElement(expressions.BaseValue)
 		v4_1.baseType=variables.BaseType.integer
 		v4_1.AddData("3")
 		v4_1.ContentChanged()
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==[1,3,3],"Ordered in Ordered value: %s"%repr(value.value))
+		self.assertTrue(value.value==[1,3,3],"Ordered in Ordered value: %s"%repr(value.value))
 		# check that mixed base types raise an error
 		v5=e.ChildElement(expressions.BaseValue)
 		v5.baseType=variables.BaseType.float
@@ -1299,24 +1299,24 @@ class ExpressionTests(unittest.TestCase):
 		# check the null case
 		eo=e.ChildElement(expressions.Ordered)
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.IntegerValue),"ContainerSize type")
-		self.failUnless(value.value==0,"ContainerSize of NULL value")
+		self.assertTrue(isinstance(value,variables.IntegerValue),"ContainerSize type")
+		self.assertTrue(value.value==0,"ContainerSize of NULL value")
 		for i in xrange(5):
 			v=eo.ChildElement(expressions.BaseValue)
 			v.baseType=variables.BaseType.integer
 			v.AddData("1")
 			v.ContentChanged()
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==5,"ContainerSize of ordered value")
+		self.assertTrue(value.value==5,"ContainerSize of ordered value")
 		e=expressions.ContainerSize(None)
 		em=e.ChildElement(expressions.Multiple)
 		for i in xrange(6):
 			v=em.ChildElement(expressions.BaseValue)
 			v.baseType=variables.BaseType.integer
-			v.AddData(str(i/2))
+			v.AddData(str(i//2))
 			v.ContentChanged()
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==6,"ContainerSize of multiple value")
+		self.assertTrue(value.value==6,"ContainerSize of multiple value")
 		# check that single values raise an error
 		e=expressions.ContainerSize(None)
 		es=e.ChildElement(expressions.BaseValue)
@@ -1333,18 +1333,18 @@ class ExpressionTests(unittest.TestCase):
 		e=expressions.IsNull(None)
 		e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.BooleanValue),"IsNull type")
-		self.failUnless(value.value==True,"IsNull value (on Null): %s"%repr(value.value))				
-		self.failUnless(value,"IsNull evaluates to True")
+		self.assertTrue(isinstance(value,variables.BooleanValue),"IsNull type")
+		self.assertTrue(value.value==True,"IsNull value (on Null): %s"%repr(value.value))				
+		self.assertTrue(value,"IsNull evaluates to True")
 		e=expressions.IsNull(None)
 		b=e.ChildElement(expressions.BaseValue)
 		b.baseType=variables.BaseType.boolean
 		b.AddData("true")
 		b.ContentChanged()				
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.BooleanValue),"IsNull type")
-		self.failUnless(value.value==False,"IsNull value (on non-Null): %s"%repr(value.value))				
-		self.failUnless(value,"IsNull value always evaluates to True")
+		self.assertTrue(isinstance(value,variables.BooleanValue),"IsNull type")
+		self.assertTrue(value.value==False,"IsNull value (on non-Null): %s"%repr(value.value))				
+		self.assertTrue(value,"IsNull value always evaluates to True")
 		# Note that empty containers and empty strings are both treated as NULL.
 		e=expressions.IsNull(None)
 		b=e.ChildElement(expressions.BaseValue)
@@ -1352,11 +1352,11 @@ class ExpressionTests(unittest.TestCase):
 		b.AddData("")
 		b.ContentChanged()
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"IsNull value (empty string): %s"%repr(value.value))				
+		self.assertTrue(value.value==True,"IsNull value (empty string): %s"%repr(value.value))				
 		e=expressions.IsNull(None)
 		b=e.ChildElement(expressions.Multiple)
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"IsNull value (empty container): %s"%repr(value.value))				
+		self.assertTrue(value.value==True,"IsNull value (empty container): %s"%repr(value.value))				
 
 	def testCaseIndex(self):
 		e=expressions.Index(None)
@@ -1364,13 +1364,13 @@ class ExpressionTests(unittest.TestCase):
 		v=e.ChildElement(expressions.Variable)
 		v.identifier='RESPONSE3'
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.IdentifierValue),"Index type")
-		self.failUnless(value.value==u"B","Index value: %s"%repr(value.value))
+		self.assertTrue(isinstance(value,variables.IdentifierValue),"Index type")
+		self.assertTrue(value.value==u"B","Index value: %s"%repr(value.value))
 		e.n=4
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.IdentifierValue),"Index type")
-		self.failIf(value,"Index out of bounds is False")
-		self.failUnless(value.value==None,"Index out of bounds: %s"%repr(value.value))
+		self.assertTrue(isinstance(value,variables.IdentifierValue),"Index type")
+		self.assertFalse(value,"Index out of bounds is False")
+		self.assertTrue(value.value==None,"Index out of bounds: %s"%repr(value.value))
 		# n must be a positive integer		
 		try:
 			e.n=0
@@ -1400,16 +1400,16 @@ class ExpressionTests(unittest.TestCase):
 		v=e.ChildElement(expressions.Variable)
 		v.identifier='RESPONSE4'
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.baseType is None,"fieldValue type on unknown")
-		self.failIf(value,"fieldValue out of bounds is False")
+		self.assertTrue(value.baseType is None,"fieldValue type on unknown")
+		self.assertFalse(value,"fieldValue out of bounds is False")
 		e.fieldIdentifier="fieldA"
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.IdentifierValue),"fieldValue type")
-		self.failUnless(value.value==u"A","fieldValue identifier: %s"%repr(value.value))
+		self.assertTrue(isinstance(value,variables.IdentifierValue),"fieldValue type")
+		self.assertTrue(value.value==u"A","fieldValue identifier: %s"%repr(value.value))
 		e.fieldIdentifier="pi"
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(isinstance(value,variables.FloatValue),"fieldValue type: float")
-		self.failUnless(value.value==3.14159,"fieldValue float: %s"%repr(value.value))
+		self.assertTrue(isinstance(value,variables.FloatValue),"fieldValue type: float")
+		self.assertTrue(value.value==3.14159,"fieldValue float: %s"%repr(value.value))
 		try:
 			e=expressions.FieldValue(None)
 			e.fieldIdentifier="fieldA"
@@ -1425,15 +1425,15 @@ class ExpressionTests(unittest.TestCase):
 		em=e.ChildElement(expressions.Null)
 		# check the null case
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"Random(NULL) is NULL")
-		self.failUnless(value.baseType is None,"Random(NULL) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Random(NULL) base type")
+		self.assertFalse(value,"Random(NULL) is NULL")
+		self.assertTrue(value.baseType is None,"Random(NULL) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"Random(NULL) base type")
 		e=expressions.Random(None)
 		em=e.ChildElement(expressions.Multiple)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"Random(empty multiple container) is NULL")
-		self.failUnless(value.baseType is None,"Random(NULL) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Random(NULL) cardinality, found %s"%
+		self.assertFalse(value,"Random(empty multiple container) is NULL")
+		self.assertTrue(value.baseType is None,"Random(NULL) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"Random(NULL) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		for i in (2,5,8,11,8):
 			v=em.ChildElement(expressions.BaseValue)
@@ -1442,24 +1442,24 @@ class ExpressionTests(unittest.TestCase):
 		gotValue={}
 		for i in xrange(100):
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(isinstance(value,variables.IntegerValue),"Random(Multiple) type")
-			self.failUnless(value.value in (2,5,8,11),"Random(Multiple) value: %s"%repr(value.value))
+			self.assertTrue(isinstance(value,variables.IntegerValue),"Random(Multiple) type")
+			self.assertTrue(value.value in (2,5,8,11),"Random(Multiple) value: %s"%repr(value.value))
 			gotValue[value.value]=gotValue.get(value.value,0)+1
 		for i in (2,5,8,11):
-			self.failUnless(i in gotValue,"Random(Multiple) failed with p=0.000000001, really?")
+			self.assertTrue(i in gotValue,"Random(Multiple) failed with p=0.000000001, really?")
 		for i in xrange(200):
 			# do another 200 iterations
 			value=e.Evaluate(self.sessionState)
 			gotValue[value.value]=gotValue.get(value.value,0)+1
 		# we can be pretty sure that f(8) > all the rest
 		for i in (2,5,11):
-			self.failUnless(gotValue[8]>gotValue[i],"Multiple element frequency test! %s"%repr(gotValue))
+			self.assertTrue(gotValue[8]>gotValue[i],"Multiple element frequency test! %s"%repr(gotValue))
 		e=expressions.Random(None)
 		eo=e.ChildElement(expressions.Ordered)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"Random(empty ordered container) is NULL")
-		self.failUnless(value.baseType is None,"Random(NULL) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Random(NULL) cardinality, found %s"%
+		self.assertFalse(value,"Random(empty ordered container) is NULL")
+		self.assertTrue(value.baseType is None,"Random(NULL) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"Random(NULL) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		for i in ("A","B","C","D","B"):
 			v=eo.ChildElement(expressions.BaseValue)
@@ -1468,13 +1468,13 @@ class ExpressionTests(unittest.TestCase):
 		gotValue={}
 		for i in xrange(200):
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(isinstance(value,variables.IdentifierValue),"Random(Ordered) type")
-			self.failUnless(value.value in ("A","B","C","D"),"Random(Ordered) value: %s"%repr(value.value))
+			self.assertTrue(isinstance(value,variables.IdentifierValue),"Random(Ordered) type")
+			self.assertTrue(value.value in ("A","B","C","D"),"Random(Ordered) value: %s"%repr(value.value))
 			gotValue[value.value]=gotValue.get(value.value,0)+1
 		for i in ("A","B","C","D"):
-			self.failUnless(i in gotValue,"Random(Ordered) failed with p=4E-25, really?")
+			self.assertTrue(i in gotValue,"Random(Ordered) failed with p=4E-25, really?")
 		# we now test that f("B") is reasonable
-		self.failUnless(gotValue["B"]>51,"Ordered element frequency test, F(51; n,p) <= 0.0001; F('B')=%i"%gotValue["B"])
+		self.assertTrue(gotValue["B"]>51,"Ordered element frequency test, F(51; n,p) <= 0.0001; F('B')=%i"%gotValue["B"])
 		try:
 			e=expressions.Random(None)
 			er=e.ChildElement(expressions.Variable)
@@ -1499,9 +1499,9 @@ class ExpressionTests(unittest.TestCase):
 		v2=e.ChildElement(expressions.Variable)
 		v2.identifier='RESPONSE3'
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"Member(Null,RESPONSE3) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"Member(Null,RESPONSE3) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Member(NULL) cardinality, found %s"%
+		self.assertFalse(value,"Member(Null,RESPONSE3) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"Member(Null,RESPONSE3) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"Member(NULL) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.Member(None)
 		v1=e.ChildElement(expressions.BaseValue)
@@ -1509,17 +1509,17 @@ class ExpressionTests(unittest.TestCase):
 		v1.AddData("B")
 		v2=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"Member('B',NULL) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"Member('B',NULL) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Member('B',NULL) cardinality, found %s"%
+		self.assertFalse(value,"Member('B',NULL) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"Member('B',NULL) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"Member('B',NULL) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.Member(None)
 		v1=e.ChildElement(expressions.Null)
 		v2=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"Member(NULL,NULL) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"Member(NULL,NULL) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Member(NULL,NULL) cardinality, found %s"%
+		self.assertFalse(value,"Member(NULL,NULL) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"Member(NULL,NULL) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"Member(NULL,NULL) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		try:
 			e=expressions.Member(None)
@@ -1563,10 +1563,10 @@ class ExpressionTests(unittest.TestCase):
 		v2=e.ChildElement(expressions.Variable)
 		v2.identifier='RESPONSE3'
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"Member('B',RESPONSE3)")		
+		self.assertTrue(value.value==True,"Member('B',RESPONSE3)")		
 		v1.SetValue("D")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"Member('D',RESPONSE3)")		
+		self.assertTrue(value.value==False,"Member('D',RESPONSE3)")		
 
 
 	def testCaseDelete(self):
@@ -1575,9 +1575,9 @@ class ExpressionTests(unittest.TestCase):
 		v2=e.ChildElement(expressions.Variable)
 		v2.identifier='RESPONSE3'
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"Delete(Null,RESPONSE3) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.identifier,"Delete(Null,RESPONSE3) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.ordered,
+		self.assertFalse(value,"Delete(Null,RESPONSE3) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.identifier,"Delete(Null,RESPONSE3) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.ordered,
 			"Delete(NULL,RESPONSE3) cardinality, found %s"%variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.Delete(None)
 		v1=e.ChildElement(expressions.BaseValue)
@@ -1585,19 +1585,19 @@ class ExpressionTests(unittest.TestCase):
 		v1.AddData("B")
 		v2=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"Delete('B',NULL) is NULL")
-		self.failUnless(isinstance(value,variables.Container),"Delete('B',NULL) class")		
-		self.failUnless(value.baseType is variables.BaseType.identifier,"Delete('B',NULL) base type")		
-		self.failUnless(value.Cardinality()==None,"Delete('B',NULL) cardinality, found %s"%
+		self.assertFalse(value,"Delete('B',NULL) is NULL")
+		self.assertTrue(isinstance(value,variables.Container),"Delete('B',NULL) class")		
+		self.assertTrue(value.baseType is variables.BaseType.identifier,"Delete('B',NULL) base type")		
+		self.assertTrue(value.Cardinality()==None,"Delete('B',NULL) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))		
 		e=expressions.Delete(None)
 		v1=e.ChildElement(expressions.Null)
 		v2=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"Delete(NULL,NULL) is NULL")
-		self.failUnless(isinstance(value,variables.Container),"Delete(NULL,NULL) class")		
-		self.failUnless(value.baseType is None,"Delete(NULL,NULL) base type")
-		self.failUnless(value.Cardinality()==None,"Delete(NULL,NULL) cardinality, found %s"%
+		self.assertFalse(value,"Delete(NULL,NULL) is NULL")
+		self.assertTrue(isinstance(value,variables.Container),"Delete(NULL,NULL) class")		
+		self.assertTrue(value.baseType is None,"Delete(NULL,NULL) base type")
+		self.assertTrue(value.Cardinality()==None,"Delete(NULL,NULL) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		try:
 			e=expressions.Delete(None)
@@ -1641,13 +1641,13 @@ class ExpressionTests(unittest.TestCase):
 		v2=e.ChildElement(expressions.Variable)
 		v2.identifier='RESPONSE3'
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.baseType is variables.BaseType.identifier,"Delete('B',RESPONSE3) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.ordered,
+		self.assertTrue(value.baseType is variables.BaseType.identifier,"Delete('B',RESPONSE3) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.ordered,
 			"Delete('B',RESPONSE3) cardinality, found %s"%variables.Cardinality.EncodeValue(value.Cardinality()))		
-		self.failUnless(value.value==["A","C"],"Delete('B',RESPONSE3)")		
+		self.assertTrue(value.value==["A","C"],"Delete('B',RESPONSE3)")		
 		v1.SetValue("D")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==["A","B","C"],"Delete('D',RESPONSE3)")		
+		self.assertTrue(value.value==["A","B","C"],"Delete('D',RESPONSE3)")		
 		e=expressions.Delete(None)		
 		v1=e.ChildElement(expressions.BaseValue)
 		v1.baseType=variables.BaseType.identifier
@@ -1658,9 +1658,9 @@ class ExpressionTests(unittest.TestCase):
 			v21.baseType=variables.BaseType.identifier
 			v21.AddData(i)
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.Cardinality()==variables.Cardinality.multiple,
+		self.assertTrue(value.Cardinality()==variables.Cardinality.multiple,
 			"Delete('B',{'A','B','C','D'}) cardinality, found %s"%variables.Cardinality.EncodeValue(value.Cardinality()))		
-		self.failUnless(value.value=={"A":2,"C":1},"Delete('B',{'A','B','C','D'})")
+		self.assertTrue(value.value=={"A":2,"C":1},"Delete('B',{'A','B','C','D'})")
 		
 		
 	def testCaseContains(self):
@@ -1669,26 +1669,26 @@ class ExpressionTests(unittest.TestCase):
 		v2=e.ChildElement(expressions.Variable)
 		v2.identifier='RESPONSE3'
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"Contains(Null,RESPONSE3) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"Contains(Null,RESPONSE3) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Contains(NULL) cardinality, found %s"%
+		self.assertFalse(value,"Contains(Null,RESPONSE3) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"Contains(Null,RESPONSE3) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"Contains(NULL) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.Contains(None)
 		v1=e.ChildElement(expressions.Variable)
 		v1.identifier='RESPONSE3'
 		v2=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"Contains(RESPONSE3,NULL) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"Contains(RESPONSE3,NULL) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Contains(RESPONSE3,NULL) cardinality, found %s"%
+		self.assertFalse(value,"Contains(RESPONSE3,NULL) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"Contains(RESPONSE3,NULL) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"Contains(RESPONSE3,NULL) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.Contains(None)
 		v1=e.ChildElement(expressions.Null)
 		v2=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"Contains(NULL,NULL) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"Contains(NULL,NULL) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"Contains(NULL,NULL) cardinality, found %s"%
+		self.assertFalse(value,"Contains(NULL,NULL) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"Contains(NULL,NULL) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"Contains(NULL,NULL) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.Contains(None)
 		v1=e.ChildElement(expressions.Variable)
@@ -1696,7 +1696,7 @@ class ExpressionTests(unittest.TestCase):
 		v2=e.ChildElement(expressions.Variable)
 		v2.identifier='RESPONSE3'
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"Contains(RESPONSE3,RESPONSE3)")
+		self.assertTrue(value.value==True,"Contains(RESPONSE3,RESPONSE3)")
 		try:
 			e=expressions.Contains(None)
 			v1=e.ChildElement(expressions.Multiple)
@@ -1731,7 +1731,7 @@ class ExpressionTests(unittest.TestCase):
 		v2=e.ChildElement(expressions.Variable)
 		v2.identifier='RESPONSE3'
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"Contains(('C','A'),RESPONSE3)")		
+		self.assertTrue(value.value==False,"Contains(('C','A'),RESPONSE3)")		
 		e=expressions.Contains(None)	
 		v1=e.ChildElement(expressions.Multiple)
 		v11=v1.ChildElement(expressions.BaseValue)
@@ -1754,12 +1754,12 @@ class ExpressionTests(unittest.TestCase):
 		v23.baseType=variables.BaseType.identifier
 		v23.AddData("C")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"Contains(('C','C','A'),('A','B','C')")		
+		self.assertTrue(value.value==False,"Contains(('C','C','A'),('A','B','C')")		
 		v24=v2.ChildElement(expressions.BaseValue)
 		v24.baseType=variables.BaseType.identifier
 		v24.AddData("C")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"Contains(('C','C','A'),('A','B','C','C')")		
+		self.assertTrue(value.value==True,"Contains(('C','C','A'),('A','B','C','C')")		
 
 
 	def testCaseSubstring(self):
@@ -1769,9 +1769,9 @@ class ExpressionTests(unittest.TestCase):
 		v2.baseType=variables.BaseType.string
 		v2.AddData("Shell")
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"substring(Null,'Shell') is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"substring(Null,'Shell') base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"substring(Null,'Shell') cardinality, found %s"%
+		self.assertFalse(value,"substring(Null,'Shell') is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"substring(Null,'Shell') base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"substring(Null,'Shell') cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.SubString(None)
 		v2=e.ChildElement(expressions.BaseValue)
@@ -1779,14 +1779,14 @@ class ExpressionTests(unittest.TestCase):
 		v2.AddData("Shell")
 		v1=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"substring('Shell',NULL) is NULL")
+		self.assertFalse(value,"substring('Shell',NULL) is NULL")
 		e=expressions.SubString(None)
 		v1=e.ChildElement(expressions.Null)
 		v2=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"substring(NULL,NULL) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"substring(NULL,NULL) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"substring(NULL,NULL) cardinality, found %s"%
+		self.assertFalse(value,"substring(NULL,NULL) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"substring(NULL,NULL) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"substring(NULL,NULL) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.SubString(None)
 		v1=e.ChildElement(expressions.BaseValue)
@@ -1796,10 +1796,10 @@ class ExpressionTests(unittest.TestCase):
 		v2.baseType=variables.BaseType.string
 		v2.AddData("Shell")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"substring('Hell','Shell')")
+		self.assertTrue(value.value==False,"substring('Hell','Shell')")
 		e.caseSensitive=False
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"substring('Hell','Shell')")		
+		self.assertTrue(value.value==True,"substring('Hell','Shell')")		
 		try:
 			e=expressions.SubString(None)
 			v1=e.ChildElement(expressions.BaseValue)
@@ -1818,21 +1818,21 @@ class ExpressionTests(unittest.TestCase):
 		e=expressions.Not(None)
 		v=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"not(Null) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"not(Null) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"not(Null) cardinality, found %s"%
+		self.assertFalse(value,"not(Null) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"not(Null) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"not(Null) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.Not(None)
 		v=e.ChildElement(expressions.BaseValue)
 		v.baseType=variables.BaseType.boolean
 		v.AddData("true")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value,"not(true) not null")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"not(true) base type")
-		self.failUnless(value.value==False,"not(true) value")
+		self.assertTrue(value,"not(true) not null")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"not(true) base type")
+		self.assertTrue(value.value==False,"not(true) value")
 		v.SetValue("false")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"not(false) value")
+		self.assertTrue(value.value==True,"not(false) value")
 		try:
 			e=expressions.Not(None)
 			v=e.ChildElement(expressions.BaseValue)
@@ -1847,39 +1847,39 @@ class ExpressionTests(unittest.TestCase):
 		e=expressions.And(None)
 		v=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"and(Null) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"and(Null) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"and(Null) cardinality, found %s"%
+		self.assertFalse(value,"and(Null) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"and(Null) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"and(Null) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.And(None)
 		v1=e.ChildElement(expressions.BaseValue)
 		v1.baseType=variables.BaseType.boolean
 		v1.AddData("true")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value,"and(true) not null")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"and(true) base type")
-		self.failUnless(value.value==True,"and(true) value")
+		self.assertTrue(value,"and(true) not null")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"and(true) base type")
+		self.assertTrue(value.value==True,"and(true) value")
 		v1.SetValue("false")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"and(false) value")
+		self.assertTrue(value.value==False,"and(false) value")
 		v2=e.ChildElement(expressions.BaseValue)
 		v2.baseType=variables.BaseType.boolean
 		v2.AddData("true")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"and(false,true) value")
+		self.assertTrue(value.value==False,"and(false,true) value")
 		v2.SetValue("false")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"and(false,false) value")
+		self.assertTrue(value.value==False,"and(false,false) value")
 		v1.SetValue("true")
 		v2.SetValue("true")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"and(true,true) value")
+		self.assertTrue(value.value==True,"and(true,true) value")
 		v3=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"and(true,true,NULL) is NULL")
+		self.assertFalse(value,"and(true,true,NULL) is NULL")
 		v2.SetValue("false")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"and(true,false,NULL) is False")
+		self.assertTrue(value.value==False,"and(true,false,NULL) is False")
 		v4=e.ChildElement(expressions.BaseValue)
 		v4.baseType=variables.BaseType.string
 		v4.AddData("true")		
@@ -1894,42 +1894,42 @@ class ExpressionTests(unittest.TestCase):
 		e=expressions.Or(None)
 		v=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"or(Null) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"or(Null) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"or(Null) cardinality, found %s"%
+		self.assertFalse(value,"or(Null) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"or(Null) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"or(Null) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.Or(None)
 		v1=e.ChildElement(expressions.BaseValue)
 		v1.baseType=variables.BaseType.boolean
 		v1.AddData("true")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value,"or(true) not null")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"or(true) base type")
-		self.failUnless(value.value==True,"or(true) value")
+		self.assertTrue(value,"or(true) not null")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"or(true) base type")
+		self.assertTrue(value.value==True,"or(true) value")
 		v1.SetValue("false")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"or(false) value")
+		self.assertTrue(value.value==False,"or(false) value")
 		v2=e.ChildElement(expressions.BaseValue)
 		v2.baseType=variables.BaseType.boolean
 		v2.AddData("true")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"or(false,true) value")
+		self.assertTrue(value.value==True,"or(false,true) value")
 		v2.SetValue("false")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"or(false,false) value")
+		self.assertTrue(value.value==False,"or(false,false) value")
 		v1.SetValue("true")
 		v2.SetValue("true")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"or(true,true) value")
+		self.assertTrue(value.value==True,"or(true,true) value")
 		v3=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"or(true,true,NULL) value")
+		self.assertTrue(value.value==True,"or(true,true,NULL) value")
 		v2.SetValue("false")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"or(true,false,NULL) value")
+		self.assertTrue(value.value==True,"or(true,false,NULL) value")
 		v1.SetValue("false")
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"or(false,false,NULL) is NULL")
+		self.assertFalse(value,"or(false,false,NULL) is NULL")
 		v4=e.ChildElement(expressions.BaseValue)
 		v4.baseType=variables.BaseType.string
 		v4.AddData("true")		
@@ -1946,9 +1946,9 @@ class ExpressionTests(unittest.TestCase):
 		e.max="2"
 		v=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"anyN(Null) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"anyN(Null) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"anyN(Null) cardinality, found %s"%
+		self.assertFalse(value,"anyN(Null) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"anyN(Null) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"anyN(Null) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.AnyN(None)
 		e.min="1"
@@ -1957,41 +1957,41 @@ class ExpressionTests(unittest.TestCase):
 		v1.baseType=variables.BaseType.boolean
 		v1.AddData("true")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value,"anyN(true) not null")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"anyN(true) base type")
-		self.failUnless(value.value==True,"anyN(true) value")
+		self.assertTrue(value,"anyN(true) not null")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"anyN(true) base type")
+		self.assertTrue(value.value==True,"anyN(true) value")
 		v1.SetValue("false")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"anyN(false) value")
+		self.assertTrue(value.value==False,"anyN(false) value")
 		v2=e.ChildElement(expressions.BaseValue)
 		v2.baseType=variables.BaseType.boolean
 		v2.AddData("true")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"anyN(false,true) value")
+		self.assertTrue(value.value==True,"anyN(false,true) value")
 		v2.SetValue("false")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"anyN(false,false) value")
+		self.assertTrue(value.value==False,"anyN(false,false) value")
 		v1.SetValue("true")
 		v2.SetValue("true")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"anyN(true,true) value")
+		self.assertTrue(value.value==True,"anyN(true,true) value")
 		v3=e.ChildElement(expressions.BaseValue)
 		v3.baseType=variables.BaseType.boolean
 		v3.AddData("true")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"anyN(true,true,true) value")
+		self.assertTrue(value.value==False,"anyN(true,true,true) value")
 		v3.SetValue("false")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"anyN(true,true,false) value")
+		self.assertTrue(value.value==True,"anyN(true,true,false) value")
 		v4=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"or(true,true,false,NULL) value")
+		self.assertFalse(value,"or(true,true,false,NULL) value")
 		v2.SetValue("false")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"or(true,false,false,NULL) value")
+		self.assertTrue(value.value==True,"or(true,false,false,NULL) value")
 		v1.SetValue("false")
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"or(false,false,false,NULL) value")
+		self.assertFalse(value,"or(false,false,false,NULL) value")
 		v5=e.ChildElement(expressions.BaseValue)
 		v5.baseType=variables.BaseType.string
 		v5.AddData("true")		
@@ -2007,9 +2007,9 @@ class ExpressionTests(unittest.TestCase):
 		v1=e.ChildElement(expressions.Null)
 		v2=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"match(Null,Null) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"match(Null) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"match(Null) cardinality, found %s"%
+		self.assertFalse(value,"match(Null,Null) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"match(Null) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"match(Null) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.Match(None)
 		v1=e.ChildElement(expressions.BaseValue)
@@ -2017,7 +2017,7 @@ class ExpressionTests(unittest.TestCase):
 		v1.AddData("A")
 		v2=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"match(Null,Null) is NULL")
+		self.assertFalse(value,"match(Null,Null) is NULL")
 		e=expressions.Match(None)
 		v1=e.ChildElement(expressions.BaseValue)
 		v1.baseType=variables.BaseType.identifier
@@ -2026,10 +2026,10 @@ class ExpressionTests(unittest.TestCase):
 		v2.baseType=variables.BaseType.identifier
 		v2.AddData("A")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"match(A,A)")
+		self.assertTrue(value.value==True,"match(A,A)")
 		v2.SetValue("B")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"match(A,B)")
+		self.assertTrue(value.value==False,"match(A,B)")
 		e=expressions.Match(None)
 		v1=e.ChildElement(expressions.Ordered)
 		v11=v1.ChildElement(expressions.BaseValue)
@@ -2046,10 +2046,10 @@ class ExpressionTests(unittest.TestCase):
 		v22.baseType=variables.BaseType.identifier
 		v22.AddData("A")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"match([A,B],[A,A])")
+		self.assertTrue(value.value==False,"match([A,B],[A,A])")
 		v22.SetValue("B")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"match([A,B],[A,B])")
+		self.assertTrue(value.value==True,"match([A,B],[A,B])")
 		e=expressions.Match(None)
 		v1=e.ChildElement(expressions.Multiple)
 		v11=v1.ChildElement(expressions.BaseValue)
@@ -2066,10 +2066,10 @@ class ExpressionTests(unittest.TestCase):
 		v22.baseType=variables.BaseType.identifier
 		v22.AddData("A")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"match({A,B},{B,A})")
+		self.assertTrue(value.value==True,"match({A,B},{B,A})")
 		v22.SetValue("B")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"match({A,B},{B,B})")
+		self.assertTrue(value.value==False,"match({A,B},{B,B})")
 		try:
 			e=expressions.Match(None)
 			v1=e.ChildElement(expressions.BaseValue)
@@ -2110,9 +2110,9 @@ class ExpressionTests(unittest.TestCase):
 		v2.baseType=variables.BaseType.string
 		v2.AddData("Shell")
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"stringMatch(Null,'Shell') is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"stringMatch(Null,'Shell') base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"stringMatch(Null,'Shell') cardinality, found %s"%
+		self.assertFalse(value,"stringMatch(Null,'Shell') is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"stringMatch(Null,'Shell') base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"stringMatch(Null,'Shell') cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.StringMatch(None)
 		e.caseSensitive=True
@@ -2121,15 +2121,15 @@ class ExpressionTests(unittest.TestCase):
 		v2.AddData("Shell")
 		v1=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"stringMatch('Shell',NULL) is NULL")
+		self.assertFalse(value,"stringMatch('Shell',NULL) is NULL")
 		e=expressions.StringMatch(None)
 		e.caseSensitive=True
 		v1=e.ChildElement(expressions.Null)
 		v2=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"stringMatch(NULL,NULL) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"stringMatch(NULL,NULL) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"stringMatch(NULL,NULL) cardinality, found %s"%
+		self.assertFalse(value,"stringMatch(NULL,NULL) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"stringMatch(NULL,NULL) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"stringMatch(NULL,NULL) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.StringMatch(None)
 		e.caseSensitive=True
@@ -2140,20 +2140,20 @@ class ExpressionTests(unittest.TestCase):
 		v2.baseType=variables.BaseType.string
 		v2.AddData("Shell")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"stringMatch('Hell','Shell')")
+		self.assertTrue(value.value==False,"stringMatch('Hell','Shell')")
 		e.caseSensitive=False
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"stringMatch('Hell','Shell')")		
+		self.assertTrue(value.value==False,"stringMatch('Hell','Shell')")		
 		e.substring=True
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"stringMatch('Hell','Shell') - substring")
+		self.assertTrue(value.value==True,"stringMatch('Hell','Shell') - substring")
 		e.substring=False
 		v2.SetValue("hell")		
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"stringMatch('Hell','hell') - case insensitive")
+		self.assertTrue(value.value==True,"stringMatch('Hell','hell') - case insensitive")
 		e.caseSensitive=True
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"stringMatch('Hell','hell') - case sensitive")		
+		self.assertTrue(value.value==False,"stringMatch('Hell','hell') - case sensitive")		
 		try:
 			e=expressions.StringMatch(None)
 			v1=e.ChildElement(expressions.BaseValue)
@@ -2172,9 +2172,9 @@ class ExpressionTests(unittest.TestCase):
 		e.pattern="\\s*[\\p{Lu}-[ABC]]+\\s*"
 		v=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"patternMatch(Null) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"patternMatch(Null) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"patternMatch(Null) cardinality, found %s"%
+		self.assertFalse(value,"patternMatch(Null) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"patternMatch(Null) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"patternMatch(Null) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.PatternMatch(None)
 		e.pattern="\\s*[\\p{Lu}-[DEG]]+\\s*"
@@ -2182,17 +2182,17 @@ class ExpressionTests(unittest.TestCase):
 		v.baseType=variables.BaseType.string
 		v.AddData(u"  CAF\xc9\t")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value,"patternMatch(u'  CAF\xc9\t') is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"patternMatch(u'  CAF\xc9\t') base type")		
-		self.failUnless(value.value==True,"patternMatch(u'  CAF\xc9\t') is True")
+		self.assertTrue(value,"patternMatch(u'  CAF\xc9\t') is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"patternMatch(u'  CAF\xc9\t') base type")		
+		self.assertTrue(value.value==True,"patternMatch(u'  CAF\xc9\t') is True")
 		e=expressions.PatternMatch(None)
 		e.pattern="\\s*[\\p{Lu}-[CDE]]+\\s*"
 		v=e.ChildElement(expressions.BaseValue)
 		v.baseType=variables.BaseType.string
 		v.AddData(u"  CAF\xc9\t")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value,"patternMatch(u'  CAF\xc9\t') is NULL")
-		self.failUnless(value.value==False,"patternMatch(u'  CAF\xc9\t') is False")
+		self.assertTrue(value,"patternMatch(u'  CAF\xc9\t') is NULL")
+		self.assertTrue(value.value==False,"patternMatch(u'  CAF\xc9\t') is False")
 		try:
 			e=expressions.PatternMatch(None)
 			e.pattern="\\s*[\\p{Lu}-[ABCD]]+\\s*"
@@ -2212,9 +2212,9 @@ class ExpressionTests(unittest.TestCase):
 		v2.baseType=variables.BaseType.float
 		v2.AddData("3.14")
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"equal(Null,3.14) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"equal(Null,3.14) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"equal(Null,3.14) cardinality, found %s"%
+		self.assertFalse(value,"equal(Null,3.14) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"equal(Null,3.14) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"equal(Null,3.14) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		# --
 		e=expressions.Equal(None)
@@ -2224,16 +2224,16 @@ class ExpressionTests(unittest.TestCase):
 		v2.AddData("3.14")
 		v1=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"equal(3.14, Null) is NULL")
+		self.assertFalse(value,"equal(3.14, Null) is NULL")
 		# --
 		e=expressions.Equal(None)
 		e.toleranceMode=expressions.ToleranceMode.exact
 		v1=e.ChildElement(expressions.Null)
 		v2=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"equal(NULL,NULL) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"equal(NULL,NULL) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"equal(NULL,NULL) cardinality, found %s"%
+		self.assertFalse(value,"equal(NULL,NULL) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"equal(NULL,NULL) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"equal(NULL,NULL) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		# --
 		e=expressions.Equal(None)
@@ -2245,31 +2245,31 @@ class ExpressionTests(unittest.TestCase):
 		v2.baseType=variables.BaseType.float
 		v2.AddData("3.0")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"equal(3,3.0)")
+		self.assertTrue(value.value==True,"equal(3,3.0)")
 		v2.SetValue("3.14")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"equal(3,3.14)")
+		self.assertTrue(value.value==False,"equal(3,3.14)")
 		e.toleranceMode=expressions.ToleranceMode.absolute
 		e.tolerance=['0.14']
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"equal(3,3.14) +-0.14")
+		self.assertTrue(value.value==True,"equal(3,3.14) +-0.14")
 		e.tolerance=['0.0','0.14']
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"equal(3,3.14) -0.0,+0.14")
+		self.assertTrue(value.value==True,"equal(3,3.14) -0.0,+0.14")
 		e.tolerance=['0.0','0.13']
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"equal(3,3.14) -0.0,+0.13")
+		self.assertTrue(value.value==False,"equal(3,3.14) -0.0,+0.13")
 		e.includeUpperBound=False
 		e.tolerance=['0.14']
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"equal(3,3.14) +-0.14, no upper bound")
+		self.assertTrue(value.value==False,"equal(3,3.14) +-0.14, no upper bound")
 		e.tolerance=['0.0','5.0']
 		e.toleranceMode=expressions.ToleranceMode.relative
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"equal(3,3.14) -0%,+5%, no upper bound")
+		self.assertTrue(value.value==True,"equal(3,3.14) -0%,+5%, no upper bound")
 		e.tolerance=['0.0','3.0']
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"equal(3,3.14) -0%,+3%, no upper bound")
+		self.assertTrue(value.value==False,"equal(3,3.14) -0%,+3%, no upper bound")
 		try:
 			e=expressions.Equal(None)
 			e.toleranceMode=expressions.ToleranceMode.exact
@@ -2293,9 +2293,9 @@ class ExpressionTests(unittest.TestCase):
 		v2.baseType=variables.BaseType.float
 		v2.AddData("3.14")
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"equalRounded(Null,3.14) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"equalRounded(Null,3.14) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"equalRounded(Null,3.14) cardinality, found %s"%
+		self.assertFalse(value,"equalRounded(Null,3.14) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"equalRounded(Null,3.14) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"equalRounded(Null,3.14) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		# --
 		e=expressions.EqualRounded(None)
@@ -2306,7 +2306,7 @@ class ExpressionTests(unittest.TestCase):
 		v2.AddData("3.14")
 		v1=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"equalRounded(3.14, Null) is NULL")
+		self.assertFalse(value,"equalRounded(3.14, Null) is NULL")
 		# --
 		e=expressions.EqualRounded(None)
 		e.roundingMode=expressions.RoundingMode.significantFigures
@@ -2314,9 +2314,9 @@ class ExpressionTests(unittest.TestCase):
 		v1=e.ChildElement(expressions.Null)
 		v2=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"equalRounded(NULL,NULL) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"equalRounded(NULL,NULL) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"equalRounded(NULL,NULL) cardinality, found %s"%
+		self.assertFalse(value,"equalRounded(NULL,NULL) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"equalRounded(NULL,NULL) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"equalRounded(NULL,NULL) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		# --
 		e=expressions.EqualRounded(None)
@@ -2329,20 +2329,20 @@ class ExpressionTests(unittest.TestCase):
 		v2.baseType=variables.BaseType.float
 		v2.AddData("3.14")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"equalRounded(3,3.14) to 2 sig fig")
+		self.assertTrue(value.value==False,"equalRounded(3,3.14) to 2 sig fig")
 		e.figures="1"
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"equalRounded(3,3.14) to 1 sig fig")
+		self.assertTrue(value.value==True,"equalRounded(3,3.14) to 1 sig fig")
 		e.roundingMode=expressions.RoundingMode.decimalPlaces
 		e.figures="2"
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"equalRounded(3,3.14) to 2 decimal places")
+		self.assertTrue(value.value==False,"equalRounded(3,3.14) to 2 decimal places")
 		v2.SetValue("3.0001")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"equalRounded(3,3.0001) to 2 decimal places")
+		self.assertTrue(value.value==True,"equalRounded(3,3.0001) to 2 decimal places")
 		e.figures="4"
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"equalRounded(3,3.0001) to 4 decimal places")
+		self.assertTrue(value.value==False,"equalRounded(3,3.0001) to 4 decimal places")
 		# --
 		e=expressions.EqualRounded(None)
 		e.roundingMode=expressions.RoundingMode.decimalPlaces
@@ -2354,13 +2354,13 @@ class ExpressionTests(unittest.TestCase):
 		v2.baseType=variables.BaseType.float
 		v2.AddData("3.1416")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"equalRounded(3.1416,3.14159) to 4 decimal places")
+		self.assertTrue(value.value==True,"equalRounded(3.1416,3.14159) to 4 decimal places")
 		e.figures="3"
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"equalRounded(3.1416,3.14159) to 3 decimal places")
+		self.assertTrue(value.value==True,"equalRounded(3.1416,3.14159) to 3 decimal places")
 		e.figures="5"
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"equalRounded(3.1416,3.14159) to 3 decimal places")				
+		self.assertTrue(value.value==False,"equalRounded(3.1416,3.14159) to 3 decimal places")				
 		try:
 			e=expressions.EqualRounded(None)
 			e.roundingMode=expressions.RoundingMode.decimalPlaces
@@ -2382,9 +2382,9 @@ class ExpressionTests(unittest.TestCase):
 		# by default coords is an empty list, which is OK for default test
 		v=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"inside(Null) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"inside(Null) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"inside(Null) cardinality, found %s"%
+		self.assertFalse(value,"inside(Null) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"inside(Null) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"inside(Null) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		e=expressions.Inside(None)
 		e.shape=core.Shape.default
@@ -2392,71 +2392,71 @@ class ExpressionTests(unittest.TestCase):
 		v.baseType=variables.BaseType.point
 		v.AddData(u"10 10")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value,"inside(u'10 10', default) is not NULL")
-		self.failUnless(value.baseType is variables.BaseType.boolean,"inside(u'10 10', default) base type")		
-		self.failUnless(value.value==True,"inside(u'10 10', default) is True")
+		self.assertTrue(value,"inside(u'10 10', default) is not NULL")
+		self.assertTrue(value.baseType is variables.BaseType.boolean,"inside(u'10 10', default) base type")		
+		self.assertTrue(value.value==True,"inside(u'10 10', default) is True")
 		e.shape=core.Shape.rect
 		e.coords=html.Coords(u"5,5,15,15")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"inside(u'10 10', rect(5,5,15,15)) is True")
+		self.assertTrue(value.value==True,"inside(u'10 10', rect(5,5,15,15)) is True")
 		e.coords=html.Coords(u"15,15,25,25")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"inside(u'10 10', rect(15,15,25,25)) is False")
+		self.assertTrue(value.value==False,"inside(u'10 10', rect(15,15,25,25)) is False")
 		e.shape=core.Shape.circle
 		e.coords=html.Coords(u"10,10,3")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"inside(u'10 10', circle(10,10,3)) is True")
+		self.assertTrue(value.value==True,"inside(u'10 10', circle(10,10,3)) is True")
 		e.coords=html.Coords(u"15,15,3")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"inside(u'10 10', circle(15,15,5)) is False")
+		self.assertTrue(value.value==False,"inside(u'10 10', circle(15,15,5)) is False")
 		e.shape=core.Shape.poly
 		e.coords=html.Coords(u"5,5,5,15,15,15,15,5,5,5")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"inside(u'10 10', poly(5,5,5,15,15,15,15,5,5,5)) is True")
+		self.assertTrue(value.value==True,"inside(u'10 10', poly(5,5,5,15,15,15,15,5,5,5)) is True")
 		e.coords=html.Coords(u"15,15,15,25,25,25,25,15,15,15")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"inside(u'10 10', poly(15,15,15,25,25,25,25,15,15,15)) is False")
+		self.assertTrue(value.value==False,"inside(u'10 10', poly(15,15,15,25,25,25,25,15,15,15)) is False")
 		e.shape=core.Shape.ellipse
 		e.coords=html.Coords(u"10,10,10,5")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"inside(u'10 10', ellipse(10,10,10,5)) is True")
+		self.assertTrue(value.value==True,"inside(u'10 10', ellipse(10,10,10,5)) is True")
 		e.coords=html.Coords(u"15,15,6,5")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"inside(u'10 10', ellipse(15,15,6,5)) is False")
+		self.assertTrue(value.value==False,"inside(u'10 10', ellipse(15,15,6,5)) is False")
 		# --
 		e=expressions.Inside(None)
 		e.shape=core.Shape.circle
 		e.coords=html.Coords(u"10,10,5")		
 		eo=e.ChildElement(expressions.Ordered)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"inside(Ordered()) is NULL")
+		self.assertFalse(value,"inside(Ordered()) is NULL")
 		v=eo.ChildElement(expressions.BaseValue)
 		v.baseType=variables.BaseType.point
 		v.SetValue("5 5")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"inside(ordered('5 5')), circle(10,10,5)) is False")
+		self.assertTrue(value.value==False,"inside(ordered('5 5')), circle(10,10,5)) is False")
 		v=eo.ChildElement(expressions.BaseValue)
 		v.baseType=variables.BaseType.point
 		v.SetValue("10 10")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"inside(ordered('5 5','10 10')), circle(10,10,5)) is True")
+		self.assertTrue(value.value==True,"inside(ordered('5 5','10 10')), circle(10,10,5)) is True")
 		# --
 		e=expressions.Inside(None)
 		e.shape=core.Shape.circle
 		e.coords=html.Coords(u"10,10,5")		
 		em=e.ChildElement(expressions.Multiple)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"inside(Multiple()) is NULL")
+		self.assertFalse(value,"inside(Multiple()) is NULL")
 		v=em.ChildElement(expressions.BaseValue)
 		v.baseType=variables.BaseType.point
 		v.SetValue("5 5")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==False,"inside(multiple('5 5')), circle(10,10,5)) is False")
+		self.assertTrue(value.value==False,"inside(multiple('5 5')), circle(10,10,5)) is False")
 		v=em.ChildElement(expressions.BaseValue)
 		v.baseType=variables.BaseType.point
 		v.SetValue("10 10")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==True,"inside(multiple('5 5','10 10')), circle(10,10,5)) is True")
+		self.assertTrue(value.value==True,"inside(multiple('5 5','10 10')), circle(10,10,5)) is True")
 		try:
 			e=expressions.Inside(None)
 			e.shape=core.Shape.circle
@@ -2485,9 +2485,9 @@ class ExpressionTests(unittest.TestCase):
 			v2.baseType=variables.BaseType.float
 			v2.AddData("3.14")
 			value=e.Evaluate(self.sessionState)
-			self.failIf(value,"<inequality>(Null,3.14) is NULL")
-			self.failUnless(value.baseType is variables.BaseType.boolean,"<inequality>(Null,3.14) base type")		
-			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<inequality>(Null,3.14) cardinality, found %s"%
+			self.assertFalse(value,"<inequality>(Null,3.14) is NULL")
+			self.assertTrue(value.baseType is variables.BaseType.boolean,"<inequality>(Null,3.14) base type")		
+			self.assertTrue(value.Cardinality()==variables.Cardinality.single,"<inequality>(Null,3.14) cardinality, found %s"%
 				variables.Cardinality.EncodeValue(value.Cardinality()))
 			# --
 			e=eType(None)
@@ -2496,15 +2496,15 @@ class ExpressionTests(unittest.TestCase):
 			v2.AddData("3.14")
 			v1=e.ChildElement(expressions.Null)
 			value=e.Evaluate(self.sessionState)
-			self.failIf(value,"<inequality>(3.14, Null) is NULL")
+			self.assertFalse(value,"<inequality>(3.14, Null) is NULL")
 			# --
 			e=eType(None)
 			v1=e.ChildElement(expressions.Null)
 			v2=e.ChildElement(expressions.Null)
 			value=e.Evaluate(self.sessionState)
-			self.failIf(value,"<inequality>(NULL,NULL) is NULL")
-			self.failUnless(value.baseType is variables.BaseType.boolean,"<inequality>(NULL,NULL) base type")		
-			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<inequality>(NULL,NULL) cardinality, found %s"%
+			self.assertFalse(value,"<inequality>(NULL,NULL) is NULL")
+			self.assertTrue(value.baseType is variables.BaseType.boolean,"<inequality>(NULL,NULL) base type")		
+			self.assertTrue(value.Cardinality()==variables.Cardinality.single,"<inequality>(NULL,NULL) cardinality, found %s"%
 				variables.Cardinality.EncodeValue(value.Cardinality()))
 			# --
 			e=eType(None)
@@ -2515,13 +2515,13 @@ class ExpressionTests(unittest.TestCase):
 			v2.baseType=variables.BaseType.float
 			v2.AddData("3.0")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[0],"<inequality>(3,3.0)")
+			self.assertTrue(value.value==expected[0],"<inequality>(3,3.0)")
 			v2.SetValue("3.14")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[1],"<inequality>(3,3.14)")
+			self.assertTrue(value.value==expected[1],"<inequality>(3,3.14)")
 			v1.SetValue("4")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[2],"<inequality>(4,3.14)")			
+			self.assertTrue(value.value==expected[2],"<inequality>(4,3.14)")			
 			try:
 				e=eType(None)
 				v1=e.ChildElement(expressions.BaseValue)
@@ -2549,9 +2549,9 @@ class ExpressionTests(unittest.TestCase):
 			v2.baseType=variables.BaseType.duration
 			v2.AddData("3.14")
 			value=e.Evaluate(self.sessionState)
-			self.failIf(value,"<durInequality>(Null,3.14) is NULL")
-			self.failUnless(value.baseType is variables.BaseType.boolean,"<durInequality>(Null,3.14) base type")		
-			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<durInequality>(Null,3.14) cardinality, found %s"%
+			self.assertFalse(value,"<durInequality>(Null,3.14) is NULL")
+			self.assertTrue(value.baseType is variables.BaseType.boolean,"<durInequality>(Null,3.14) base type")		
+			self.assertTrue(value.Cardinality()==variables.Cardinality.single,"<durInequality>(Null,3.14) cardinality, found %s"%
 				variables.Cardinality.EncodeValue(value.Cardinality()))
 			# --
 			e=eType(None)
@@ -2560,15 +2560,15 @@ class ExpressionTests(unittest.TestCase):
 			v2.AddData("3.14")
 			v1=e.ChildElement(expressions.Null)
 			value=e.Evaluate(self.sessionState)
-			self.failIf(value,"<durInequality>(3.14, Null) is NULL")
+			self.assertFalse(value,"<durInequality>(3.14, Null) is NULL")
 			# --
 			e=eType(None)
 			v1=e.ChildElement(expressions.Null)
 			v2=e.ChildElement(expressions.Null)
 			value=e.Evaluate(self.sessionState)
-			self.failIf(value,"<durInequality>(NULL,NULL) is NULL")
-			self.failUnless(value.baseType is variables.BaseType.boolean,"<durInequality>(NULL,NULL) base type")		
-			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<durInequality>(NULL,NULL) cardinality, found %s"%
+			self.assertFalse(value,"<durInequality>(NULL,NULL) is NULL")
+			self.assertTrue(value.baseType is variables.BaseType.boolean,"<durInequality>(NULL,NULL) base type")		
+			self.assertTrue(value.Cardinality()==variables.Cardinality.single,"<durInequality>(NULL,NULL) cardinality, found %s"%
 				variables.Cardinality.EncodeValue(value.Cardinality()))
 			# --
 			e=eType(None)
@@ -2579,13 +2579,13 @@ class ExpressionTests(unittest.TestCase):
 			v2.baseType=variables.BaseType.duration
 			v2.AddData("3.0")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[0],"<durInequality>(3,3.0)")
+			self.assertTrue(value.value==expected[0],"<durInequality>(3,3.0)")
 			v2.SetValue("3.14")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[1],"<durInequality>(3,3.14)")
+			self.assertTrue(value.value==expected[1],"<durInequality>(3,3.14)")
 			v1.SetValue("4")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[2],"<durInequality>(4,3.14)")			
+			self.assertTrue(value.value==expected[2],"<durInequality>(4,3.14)")			
 			try:
 				e=eType(None)
 				v1=e.ChildElement(expressions.BaseValue)
@@ -2613,9 +2613,9 @@ class ExpressionTests(unittest.TestCase):
 			v2.baseType=variables.BaseType.float
 			v2.AddData("3.14")
 			value=e.Evaluate(self.sessionState)
-			self.failIf(value,"<mathMulti>(Null,3.14) is NULL")
-			self.failUnless(value.baseType is variables.BaseType.float,"<mathMulti>(Null,3.14) base type")		
-			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<mathMulti>(Null,3.14) cardinality, found %s"%
+			self.assertFalse(value,"<mathMulti>(Null,3.14) is NULL")
+			self.assertTrue(value.baseType is variables.BaseType.float,"<mathMulti>(Null,3.14) base type")		
+			self.assertTrue(value.Cardinality()==variables.Cardinality.single,"<mathMulti>(Null,3.14) cardinality, found %s"%
 				variables.Cardinality.EncodeValue(value.Cardinality()))
 			# --
 			e=eType(None)
@@ -2624,15 +2624,15 @@ class ExpressionTests(unittest.TestCase):
 			v2.AddData("3.14")
 			v1=e.ChildElement(expressions.Null)
 			value=e.Evaluate(self.sessionState)
-			self.failIf(value,"<mathMulti>(3.14, Null) is NULL")
+			self.assertFalse(value,"<mathMulti>(3.14, Null) is NULL")
 			# --
 			e=eType(None)
 			v1=e.ChildElement(expressions.Null)
 			v2=e.ChildElement(expressions.Null)
 			value=e.Evaluate(self.sessionState)
-			self.failIf(value,"<mathMulti>(NULL,NULL) is NULL")
-			self.failUnless(value.baseType is None,"<mathMulti>(NULL,NULL) base type")		
-			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<mathMulti>(NULL,NULL) cardinality, found %s"%
+			self.assertFalse(value,"<mathMulti>(NULL,NULL) is NULL")
+			self.assertTrue(value.baseType is None,"<mathMulti>(NULL,NULL) base type")		
+			self.assertTrue(value.Cardinality()==variables.Cardinality.single,"<mathMulti>(NULL,NULL) cardinality, found %s"%
 				variables.Cardinality.EncodeValue(value.Cardinality()))
 			# --
 			e=eType(None)
@@ -2640,25 +2640,25 @@ class ExpressionTests(unittest.TestCase):
 			v1.baseType=variables.BaseType.integer
 			v1.AddData("3")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[4],"<mathMulti>(3)")
-			self.failUnless(value.baseType is variables.BaseType.integer,"<mathMulti>(3) base type")								
+			self.assertTrue(value.value==expected[4],"<mathMulti>(3)")
+			self.assertTrue(value.baseType is variables.BaseType.integer,"<mathMulti>(3) base type")								
 			v2=e.ChildElement(expressions.BaseValue)
 			v2.baseType=variables.BaseType.float
 			v2.AddData("3.0")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless("%.5f"%value.value=="%.5f"%expected[0],"<mathMulti>(3,3.0)")
-			self.failUnless(value.baseType is variables.BaseType.float,"<mathMulti>(3,3.0) base type")								
+			self.assertTrue("%.5f"%value.value=="%.5f"%expected[0],"<mathMulti>(3,3.0)")
+			self.assertTrue(value.baseType is variables.BaseType.float,"<mathMulti>(3,3.0) base type")								
 			v2.SetValue("3.14")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless("%.5f"%value.value=="%.5f"%expected[1],"<mathMulti>(3,3.14)")
+			self.assertTrue("%.5f"%value.value=="%.5f"%expected[1],"<mathMulti>(3,3.14)")
 			v1.SetValue("4")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless("%.5f"%value.value=="%.5f"%expected[2],"<mathMulti>(4,3.14)")			
+			self.assertTrue("%.5f"%value.value=="%.5f"%expected[2],"<mathMulti>(4,3.14)")			
 			v3=e.ChildElement(expressions.BaseValue)
 			v3.baseType=variables.BaseType.float
 			v3.AddData("-10")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless("%.5f"%value.value=="%.5f"%expected[3],"<mathMulti>(4,3.14,-10), expected %s, found %s"%
+			self.assertTrue("%.5f"%value.value=="%.5f"%expected[3],"<mathMulti>(4,3.14,-10), expected %s, found %s"%
 				(repr(expected[3]),repr(value.value)))		
 			try:
 				e=eType(None)
@@ -2688,9 +2688,9 @@ class ExpressionTests(unittest.TestCase):
 			v2.baseType=variables.BaseType.float
 			v2.AddData("3.14")
 			value=e.Evaluate(self.sessionState)
-			self.failIf(value,"<mathBinary>(Null,3.14) is NULL")
-			self.failUnless(value.baseType is variables.BaseType.float,"<mathBinary>(Null,3.14) base type")		
-			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<mathBinary>(Null,3.14) cardinality, found %s"%
+			self.assertFalse(value,"<mathBinary>(Null,3.14) is NULL")
+			self.assertTrue(value.baseType is variables.BaseType.float,"<mathBinary>(Null,3.14) base type")		
+			self.assertTrue(value.Cardinality()==variables.Cardinality.single,"<mathBinary>(Null,3.14) cardinality, found %s"%
 				variables.Cardinality.EncodeValue(value.Cardinality()))
 			# --
 			e=eType(None)
@@ -2699,14 +2699,14 @@ class ExpressionTests(unittest.TestCase):
 			v2.AddData("3.14")
 			v1=e.ChildElement(expressions.Null)
 			value=e.Evaluate(self.sessionState)
-			self.failIf(value,"<mathBinary>(3.14, Null) is NULL")
+			self.assertFalse(value,"<mathBinary>(3.14, Null) is NULL")
 			# --
 			e=eType(None)
 			v1=e.ChildElement(expressions.Null)
 			v2=e.ChildElement(expressions.Null)
 			value=e.Evaluate(self.sessionState)
-			self.failIf(value,"<mathBinary>(NULL,NULL) is NULL")
-			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<mathBinary>(NULL,NULL) cardinality, found %s"%
+			self.assertFalse(value,"<mathBinary>(NULL,NULL) is NULL")
+			self.assertTrue(value.Cardinality()==variables.Cardinality.single,"<mathBinary>(NULL,NULL) cardinality, found %s"%
 				variables.Cardinality.EncodeValue(value.Cardinality()))
 			# --
 			e=eType(None)
@@ -2717,18 +2717,18 @@ class ExpressionTests(unittest.TestCase):
 			v2.baseType=variables.BaseType.float
 			v2.AddData("3.0")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless("%.4f"%value.value=="%.4f"%expected[0],"<mathBinary>(3,3.0)")
-			self.failUnless(value.baseType is variables.BaseType.float,"<mathBinary>(3,3.0) base type")								
+			self.assertTrue("%.4f"%value.value=="%.4f"%expected[0],"<mathBinary>(3,3.0)")
+			self.assertTrue(value.baseType is variables.BaseType.float,"<mathBinary>(3,3.0) base type")								
 			v2.SetValue("3.14")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless("%.4f"%value.value=="%.4f"%expected[1],"<mathBinary>(3,3.14), expected %s, found %s"%
+			self.assertTrue("%.4f"%value.value=="%.4f"%expected[1],"<mathBinary>(3,3.14), expected %s, found %s"%
 				(repr(expected[1]),repr(value.value)))
 			v1.SetValue("4")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless("%.4f"%value.value=="%.4f"%expected[2],"<mathBinary>(4,3.14)")			
+			self.assertTrue("%.4f"%value.value=="%.4f"%expected[2],"<mathBinary>(4,3.14)")			
 			v2.SetValue("-3.14")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless("%.4f"%value.value=="%.4f"%expected[3],"<mathBinary>(4,-3.14)")			
+			self.assertTrue("%.4f"%value.value=="%.4f"%expected[3],"<mathBinary>(4,-3.14)")			
 			try:
 				e=eType(None)
 				v1=e.ChildElement(expressions.BaseValue)
@@ -2750,8 +2750,8 @@ class ExpressionTests(unittest.TestCase):
 		v2.baseType=variables.BaseType.integer
 		v2.AddData("-1")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==4,"Subtrace(3,-1)")
-		self.failUnless(value.baseType is variables.BaseType.integer,"<mathBinary>(3,-1) base type")								
+		self.assertTrue(value.value==4,"Subtrace(3,-1)")
+		self.assertTrue(value.baseType is variables.BaseType.integer,"<mathBinary>(3,-1) base type")								
 		
 	def testCaseIntegerBinary(self):
 		tests={
@@ -2767,9 +2767,9 @@ class ExpressionTests(unittest.TestCase):
 			v2.baseType=variables.BaseType.integer
 			v2.AddData("3")
 			value=e.Evaluate(self.sessionState)
-			self.failIf(value,"<integerBinary>(Null,3) is NULL")
-			self.failUnless(value.baseType is variables.BaseType.integer,"<integerBinary>(Null,3) base type")		
-			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<integerBinary>(Null,3) cardinality, found %s"%
+			self.assertFalse(value,"<integerBinary>(Null,3) is NULL")
+			self.assertTrue(value.baseType is variables.BaseType.integer,"<integerBinary>(Null,3) base type")		
+			self.assertTrue(value.Cardinality()==variables.Cardinality.single,"<integerBinary>(Null,3) cardinality, found %s"%
 				variables.Cardinality.EncodeValue(value.Cardinality()))
 			# --
 			e=eType(None)
@@ -2778,16 +2778,16 @@ class ExpressionTests(unittest.TestCase):
 			v2.AddData("3")
 			v1=e.ChildElement(expressions.Null)
 			value=e.Evaluate(self.sessionState)
-			self.failIf(value,"<integerBinary>(3, Null) is NULL")
-			self.failUnless(value.baseType is variables.BaseType.integer,"<integerBinary>(3,Null) base type")		
+			self.assertFalse(value,"<integerBinary>(3, Null) is NULL")
+			self.assertTrue(value.baseType is variables.BaseType.integer,"<integerBinary>(3,Null) base type")		
 			# --
 			e=eType(None)
 			v1=e.ChildElement(expressions.Null)
 			v2=e.ChildElement(expressions.Null)
 			value=e.Evaluate(self.sessionState)
-			self.failIf(value,"<integerBinary>(NULL,NULL) is NULL")
-			self.failUnless(value.baseType is variables.BaseType.integer,"<integerBinary>(Null,Null) base type")		
-			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<integerBinary>(NULL,NULL) cardinality, found %s"%
+			self.assertFalse(value,"<integerBinary>(NULL,NULL) is NULL")
+			self.assertTrue(value.baseType is variables.BaseType.integer,"<integerBinary>(Null,Null) base type")		
+			self.assertTrue(value.Cardinality()==variables.Cardinality.single,"<integerBinary>(NULL,NULL) cardinality, found %s"%
 				variables.Cardinality.EncodeValue(value.Cardinality()))
 			# --
 			e=eType(None)
@@ -2798,20 +2798,20 @@ class ExpressionTests(unittest.TestCase):
 			v2.baseType=variables.BaseType.integer
 			v2.AddData("2")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[0],"<integerBinary>(3,2)")
+			self.assertTrue(value.value==expected[0],"<integerBinary>(3,2)")
 			v2.SetValue("3")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[1],"<integerBinary>(3,3)")
+			self.assertTrue(value.value==expected[1],"<integerBinary>(3,3)")
 			v1.SetValue("2")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[2],"<integerBinary>(2,3)")
+			self.assertTrue(value.value==expected[2],"<integerBinary>(2,3)")
 			v1.SetValue("-2")
 			v2.SetValue("-3")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[3],"<integerBinary>(-2,-3)")
+			self.assertTrue(value.value==expected[3],"<integerBinary>(-2,-3)")
 			v2.SetValue("3")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[4],"<integerBinary>(-2,3)")
+			self.assertTrue(value.value==expected[4],"<integerBinary>(-2,3)")
 			try:
 				e=eType(None)
 				v1=e.ChildElement(expressions.BaseValue)
@@ -2836,9 +2836,9 @@ class ExpressionTests(unittest.TestCase):
 			e=eType(None)
 			v=e.ChildElement(expressions.Null)
 			value=e.Evaluate(self.sessionState)
-			self.failIf(value,"<floatToInteger>(Null) is NULL")
-			self.failUnless(value.baseType is variables.BaseType.integer,"<floatToInteger>(Null) base type")		
-			self.failUnless(value.Cardinality()==variables.Cardinality.single,"<floatToInteger>(Null) cardinality, found %s"%
+			self.assertFalse(value,"<floatToInteger>(Null) is NULL")
+			self.assertTrue(value.baseType is variables.BaseType.integer,"<floatToInteger>(Null) base type")		
+			self.assertTrue(value.Cardinality()==variables.Cardinality.single,"<floatToInteger>(Null) cardinality, found %s"%
 				variables.Cardinality.EncodeValue(value.Cardinality()))
 			# --
 			e=eType(None)
@@ -2846,24 +2846,24 @@ class ExpressionTests(unittest.TestCase):
 			v.baseType=variables.BaseType.float
 			v.AddData("6.49")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value,"<floatToInteger>(6.49)")
-			self.failUnless(value.baseType is variables.BaseType.integer,"<floatToInteger>(6.49) base type")		
-			self.failUnless(value.value==expected[0],"<floatToInteger>(6.49)")
+			self.assertTrue(value,"<floatToInteger>(6.49)")
+			self.assertTrue(value.baseType is variables.BaseType.integer,"<floatToInteger>(6.49) base type")		
+			self.assertTrue(value.value==expected[0],"<floatToInteger>(6.49)")
 			v.SetValue("-6.49")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[1],"<floatToInteger>(-6.49)")
+			self.assertTrue(value.value==expected[1],"<floatToInteger>(-6.49)")
 			v.SetValue("6.5")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[2],"<floatToInteger>(6.5)")
+			self.assertTrue(value.value==expected[2],"<floatToInteger>(6.5)")
 			v.SetValue("-6.5")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[3],"<floatToInteger>(-6.5)")
+			self.assertTrue(value.value==expected[3],"<floatToInteger>(-6.5)")
 			v.SetValue("6.51")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[4],"<floatToInteger>(6.51)")
+			self.assertTrue(value.value==expected[4],"<floatToInteger>(6.51)")
 			v.SetValue("-6.51")
 			value=e.Evaluate(self.sessionState)
-			self.failUnless(value.value==expected[5],"<floatToInteger>(-6.51)")			
+			self.assertTrue(value.value==expected[5],"<floatToInteger>(-6.51)")			
 			# --
 			try:
 				e=eType(None)
@@ -2879,9 +2879,9 @@ class ExpressionTests(unittest.TestCase):
 		e=expressions.IntegerToFloat(None)
 		v=e.ChildElement(expressions.Null)
 		value=e.Evaluate(self.sessionState)
-		self.failIf(value,"<integerToFloat>(Null) is NULL")
-		self.failUnless(value.baseType is variables.BaseType.float,"<integerToFloat>(Null) base type")		
-		self.failUnless(value.Cardinality()==variables.Cardinality.single,"<integerToFloat>(Null) cardinality, found %s"%
+		self.assertFalse(value,"<integerToFloat>(Null) is NULL")
+		self.assertTrue(value.baseType is variables.BaseType.float,"<integerToFloat>(Null) base type")		
+		self.assertTrue(value.Cardinality()==variables.Cardinality.single,"<integerToFloat>(Null) cardinality, found %s"%
 			variables.Cardinality.EncodeValue(value.Cardinality()))
 		# --
 		e=expressions.IntegerToFloat(None)
@@ -2889,15 +2889,15 @@ class ExpressionTests(unittest.TestCase):
 		v.baseType=variables.BaseType.integer
 		v.AddData("6")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value,"<integerToFloat>(6)")
-		self.failUnless(value.baseType is variables.BaseType.float,"<integerToFloat>(6) base type")		
-		self.failUnless(value.value==6.0,"<integerToFloat>(6)")
+		self.assertTrue(value,"<integerToFloat>(6)")
+		self.assertTrue(value.baseType is variables.BaseType.float,"<integerToFloat>(6) base type")		
+		self.assertTrue(value.value==6.0,"<integerToFloat>(6)")
 		v.SetValue("0")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==0.0,"<integerToFloat>(0)")
+		self.assertTrue(value.value==0.0,"<integerToFloat>(0)")
 		v.SetValue("-6")
 		value=e.Evaluate(self.sessionState)
-		self.failUnless(value.value==-6.0,"<integerToFloat>(-6)")
+		self.assertTrue(value.value==-6.0,"<integerToFloat>(-6)")
 		# --
 		try:
 			e=expressions.IntegerToFloat(None)
@@ -2968,23 +2968,23 @@ class BasicAssessmentTests(unittest.TestCase):
 		os.chdir(self.cwd)
 
 	def testCaseAssessmentTest(self):
-		self.failUnless(isinstance(self.doc.root,tests.AssessmentTest),"AssessmentTest")	
+		self.assertTrue(isinstance(self.doc.root,tests.AssessmentTest),"AssessmentTest")	
 		f=tests.TestForm(self.doc.root)
-		self.failUnless(f.test is self.doc.root,"TestForm test link")
+		self.assertTrue(f.test is self.doc.root,"TestForm test link")
 		# A test form is essentially a sequence of identifiers of the components
 		# picked from the test for this form, augmented by a find method which maps
 		# the component identifiers on to a list of indexes into the form.
 		# in this case:
 		# '', PartI, SectionA, A1, SectionB, B1, SectionC, C1
-		self.failUnless(len(f)==12,"Form length: %s"%repr(len(f)))
-		self.failUnless(f[1]==u"PartI","Identifier of test part: %s"%repr(f[0]))
-		self.failUnless(f[2:5]==[u"SectionA",u"A1",u"-SectionA"],"SectionA "+repr(f[1:3]))
-		self.failUnless(f[5:8]==[u"SectionB",u"B1",u"-SectionB"],"SectionB "+repr(f[3:5]))
-		self.failUnless(f[8:11]==[u"SectionC",u"C1",u"-SectionC"],"Invisible section "+repr(f[5:]))
-		self.failUnless(f[11]==u"-PartI","Identifier of closing part: %s"%repr(f[11]))
-		self.failUnless(f.find("A1")==[3],"Index of A1")
-		self.failUnless(f.find("SectionB")==[5],"Index of SectionB")
-		self.failUnless(f.find("SectionC")==[8],"Index of SectionC")
+		self.assertTrue(len(f)==12,"Form length: %s"%repr(len(f)))
+		self.assertTrue(f[1]==u"PartI","Identifier of test part: %s"%repr(f[0]))
+		self.assertTrue(f[2:5]==[u"SectionA",u"A1",u"-SectionA"],"SectionA "+repr(f[1:3]))
+		self.assertTrue(f[5:8]==[u"SectionB",u"B1",u"-SectionB"],"SectionB "+repr(f[3:5]))
+		self.assertTrue(f[8:11]==[u"SectionC",u"C1",u"-SectionC"],"Invisible section "+repr(f[5:]))
+		self.assertTrue(f[11]==u"-PartI","Identifier of closing part: %s"%repr(f[11]))
+		self.assertTrue(f.find("A1")==[3],"Index of A1")
+		self.assertTrue(f.find("SectionB")==[5],"Index of SectionB")
+		self.assertTrue(f.find("SectionC")==[8],"Index of SectionC")
 
 	def testCaseLinearIndividual(self):
  		doc=core.QTIDocument(baseURI="basic/linearIndividualPart.xml")
@@ -2998,32 +2998,32 @@ class BasicAssessmentTests(unittest.TestCase):
  			pass
  		saveKey=state.key
  		htmlDiv=state.BeginSession(state.key)
- 		self.failIf(saveKey==state.key,"No key change.")
+ 		self.assertFalse(saveKey==state.key,"No key change.")
  		print htmlDiv
  		# we should be able to read the the current test part
- 		self.failUnless(state.GetCurrentTestPart().identifier=="PartI","Current test part")
-		self.failUnless(state.GetCurrentQuestion().identifier=="Q1","Current question (pre-condition skip check)")
+ 		self.assertTrue(state.GetCurrentTestPart().identifier=="PartI","Current test part")
+		self.assertTrue(state.GetCurrentQuestion().identifier=="Q1","Current question (pre-condition skip check)")
 		# In linear mode (applicable to PartI) template defaults are evaluated after preConditions
-		self.failUnless(state["Q0.T"].value==0,"Template default invoked for item skipped by template rule")
-		self.failUnless(state["Q1.T"].value==1,"Template default invoked for item not skipped by template rule")
-		self.failIf(state["Q1.RESPONSE"],"RESPONSE not NULL initially")
+		self.assertTrue(state["Q0.T"].value==0,"Template default invoked for item skipped by template rule")
+		self.assertTrue(state["Q1.T"].value==1,"Template default invoked for item not skipped by template rule")
+		self.assertFalse(state["Q1.RESPONSE"],"RESPONSE not NULL initially")
  		# Now let's make some checks on the output
- 		self.failUnless(isinstance(htmlDiv,html.Div),"output is an html <div>")
+ 		self.assertTrue(isinstance(htmlDiv,html.Div),"output is an html <div>")
  		formList=list(htmlDiv.FindChildrenDepthFirst(html.Form))
- 		self.failUnless(len(formList)==1,"only one form in the html <div>")
+ 		self.assertTrue(len(formList)==1,"only one form in the html <div>")
  		inputList=list(htmlDiv.FindChildrenDepthFirst(html.Input))
- 		self.failUnless(len(inputList)==4,"<input> list length")
+ 		self.assertTrue(len(inputList)==4,"<input> list length")
  		for i in inputList:
- 			self.failUnless(i.type==html.InputType.radio,"<input> must be radio buttons")
- 			self.failUnless(i.name=="Q1.RESPONSE","<input> must have the name of the response variable")
- 			self.failUnless(i.value in ("A","B","C","D"),"<input> must have the value of a choice identifier")
- 			self.failUnless(i.checked is False,"Button's initially unchecked")
+ 			self.assertTrue(i.type==html.InputType.radio,"<input> must be radio buttons")
+ 			self.assertTrue(i.name=="Q1.RESPONSE","<input> must have the name of the response variable")
+ 			self.assertTrue(i.value in ("A","B","C","D"),"<input> must have the value of a choice identifier")
+ 			self.assertTrue(i.checked is False,"Button's initially unchecked")
  		buttonList=list(htmlDiv.FindChildrenDepthFirst(html.Button))
- 		self.failUnless(len(buttonList)==2,"<button> list length")
+ 		self.assertTrue(len(buttonList)==2,"<button> list length")
  		for i in buttonList:
- 			self.failUnless(i.type==html.ButtonType.submit,"<buttons> must be of submit type")
- 			self.failUnless(i.name in ("SAVE","SUBMIT"),"unknown action name")
- 			self.failUnless(i.value==state.key,"button actions should have key as their value") 			
+ 			self.assertTrue(i.type==html.ButtonType.submit,"<buttons> must be of submit type")
+ 			self.assertTrue(i.name in ("SAVE","SUBMIT"),"unknown action name")
+ 			self.assertTrue(i.value==state.key,"button actions should have key as their value") 			
 		# sleep for 1s to ensure we register a duration
 		time.sleep(1)
 		# Now construct a fake form response for save....
@@ -3040,19 +3040,19 @@ class BasicAssessmentTests(unittest.TestCase):
 		response['SAVE']=saveKey=state.key
 		htmlDiv=state.HandleEvent(response)
 		print htmlDiv
-		self.failIf(state["Q1.RESPONSE"],"RESPONSE not NULL after save (no submit)")
-		self.failUnless(state["Q1.RESPONSE.SAVED"].value=="C","Saved response not recorded")
-		self.failIf(saveKey==state.key,"Key change on save")
+		self.assertFalse(state["Q1.RESPONSE"],"RESPONSE not NULL after save (no submit)")
+		self.assertTrue(state["Q1.RESPONSE.SAVED"].value=="C","Saved response not recorded")
+		self.assertFalse(saveKey==state.key,"Key change on save")
  		inputList=list(htmlDiv.FindChildrenDepthFirst(html.Input))
  		for i in inputList:
- 			self.failUnless(i.checked is (i.value=="C"),"Saved value is checked")
+ 			self.assertTrue(i.checked is (i.value=="C"),"Saved value is checked")
 		# Now check durations
-		self.failUnless(state["Q1.duration"].value>1.0,"Duration of question")
-		self.failUnless(state["SectionA1.duration"].value>1.0,"Duration of section A1: %s"%repr(state["SectionA1.duration"].value))
-		self.failUnless(state["SectionA.duration"].value>1.0,"Duration of section A")
-		self.failUnless(state["SectionB.duration"].value is None,"Duration of section B")
-		self.failUnless(state["PartI.duration"].value>1.0,"Duration of test part")
-		self.failUnless(state["duration"].value>1.0,"Duration of test")
+		self.assertTrue(state["Q1.duration"].value>1.0,"Duration of question")
+		self.assertTrue(state["SectionA1.duration"].value>1.0,"Duration of section A1: %s"%repr(state["SectionA1.duration"].value))
+		self.assertTrue(state["SectionA.duration"].value>1.0,"Duration of section A")
+		self.assertTrue(state["SectionB.duration"].value is None,"Duration of section B")
+		self.assertTrue(state["PartI.duration"].value>1.0,"Duration of test part")
+		self.assertTrue(state["duration"].value>1.0,"Duration of test")
 		time.sleep(1)
 		response={
 			"SUBMIT":state.key,
@@ -3060,17 +3060,17 @@ class BasicAssessmentTests(unittest.TestCase):
 			}
 		htmlDiv=state.HandleEvent(response)
 		print htmlDiv
-		self.failIf("Q1.RESPONSE.SAVED" in state,"SAVED RESPONSE not NULL after submit")
-		self.failUnless(state["Q1.RESPONSE"].value=="D","Submitted response not recorded")
-		self.failUnless(state["Q1.duration"].value>2.0,"Duration of question 1 should now be 2s")
-		self.failUnless(state["PartI.duration"].value>2.0,"Duration of test part")		
+		self.assertFalse("Q1.RESPONSE.SAVED" in state,"SAVED RESPONSE not NULL after submit")
+		self.assertTrue(state["Q1.RESPONSE"].value=="D","Submitted response not recorded")
+		self.assertTrue(state["Q1.duration"].value>2.0,"Duration of question 1 should now be 2s")
+		self.assertTrue(state["PartI.duration"].value>2.0,"Duration of test part")		
  		inputList=list(htmlDiv.FindChildrenDepthFirst(html.Input))
- 		self.failUnless(len(inputList)==5,"<input> list length")
+ 		self.assertTrue(len(inputList)==5,"<input> list length")
  		for i in inputList:
- 			self.failUnless(i.type==html.InputType.checkbox,"<input> must be checkboxes")
- 			self.failUnless(i.name=="Q2.RESPONSE","<input> must have the name of the response variable")
- 			self.failUnless(i.value in ("A","B","C","D","E"),"<input> must have the value of a choice identifier")
- 			self.failUnless(i.checked is (i.value=="E"),"Default box initially checked")
+ 			self.assertTrue(i.type==html.InputType.checkbox,"<input> must be checkboxes")
+ 			self.assertTrue(i.name=="Q2.RESPONSE","<input> must have the name of the response variable")
+ 			self.assertTrue(i.value in ("A","B","C","D","E"),"<input> must have the value of a choice identifier")
+ 			self.assertTrue(i.checked is (i.value=="E"),"Default box initially checked")
 		time.sleep(1)
 		response={
 			"SUBMIT":state.key,
@@ -3078,10 +3078,10 @@ class BasicAssessmentTests(unittest.TestCase):
 			}
 		htmlDiv=state.HandleEvent(response)
 		print htmlDiv
-		self.failUnless(state["Q2.RESPONSE"].value=={"B":1,"C":1,"D":1},"Submitted response for multi-response")
-		self.failUnless(state["Q1.duration"].value<3.0,"Duration of question 1 should now be 2s+")
-		self.failUnless(state["Q2.duration"].value>1.0,"Duration of question 2 should now be 1s+")
-		self.failUnless(state["PartI.duration"].value>3.0,"Duration of test part")				
+		self.assertTrue(state["Q2.RESPONSE"].value=={"B":1,"C":1,"D":1},"Submitted response for multi-response")
+		self.assertTrue(state["Q1.duration"].value<3.0,"Duration of question 1 should now be 2s+")
+		self.assertTrue(state["Q2.duration"].value>1.0,"Duration of question 2 should now be 1s+")
+		self.assertTrue(state["PartI.duration"].value>3.0,"Duration of test part")				
 		for key in state:
 			print "%s: %s"%(key,repr(state[key].value))				
 									
@@ -3205,22 +3205,22 @@ class ErrorAssessmentTests(unittest.TestCase):
 class QTIDocumentTests(unittest.TestCase):
 	def testCaseConstructor(self):
 		doc=core.QTIDocument()
-		self.failUnless(isinstance(doc,xmlns.XMLNSDocument))
+		self.assertTrue(isinstance(doc,xmlns.XMLNSDocument))
 
 	def testCaseExample1(self):
 		doc=core.QTIDocument()
 		doc.Read(src=StringIO(EXAMPLE_1))
 		root=doc.root
-		self.failUnless(isinstance(root,items.AssessmentItem))
-		self.failUnless(root.ns==core.IMSQTI_NAMESPACE and root.xmlname=='assessmentItem')
+		self.assertTrue(isinstance(root,items.AssessmentItem))
+		self.assertTrue(root.ns==core.IMSQTI_NAMESPACE and root.xmlname=='assessmentItem')
 
 	def testCaseExample2(self):
 		doc=core.QTIDocument()
 		doc.Read(src=StringIO(EXAMPLE_2))
 		vardefs=doc.root.declarations
-		self.failUnless(len(vardefs.keys())==2)
-		self.failUnless(isinstance(vardefs['RESPONSE'],variables.ResponseDeclaration))
-		self.failUnless(isinstance(vardefs['SCORE'],variables.OutcomeDeclaration))
+		self.assertTrue(len(vardefs.keys())==2)
+		self.assertTrue(isinstance(vardefs['RESPONSE'],variables.ResponseDeclaration))
+		self.assertTrue(isinstance(vardefs['SCORE'],variables.OutcomeDeclaration))
 	
 
 if __name__ == "__main__":

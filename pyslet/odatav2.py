@@ -1,7 +1,8 @@
 #! /usr/bin/env python
 """This module implements the Open Data Protocol specification defined by Microsoft."""
 
-import sys, cgi, urllib, string, itertools, traceback, StringIO, json, decimal, uuid, math
+from types import *
+import sys, cgi, urllib, string, itertools, traceback, StringIO, json, base64, decimal, uuid, math
 
 import pyslet.info as info
 import pyslet.iso8601 as iso
@@ -13,34 +14,13 @@ import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.html40_19991224 as html
-import pyslet.mc_edmx as edmx
 import pyslet.mc_csdl as edm
-from pyslet.unicode5 import CharClass
+from pyslet.unicode5 import CharClass, DetectEncoding
 
-class InvalidLiteral(Exception): pass
-class InvalidServiceDocument(Exception): pass
-class InvalidMetadataDocument(Exception): pass
-class InvalidFeedDocument(Exception): pass
-class InvalidEntryDocument(Exception): pass
-class InvalidFeedURL(Exception): pass
-class UnexpectedHTTPResponse(Exception): pass
+from odatav2_core import *
+import odatav2_metadata as edmx
 
-class ServerError(Exception): pass
-class BadURISegment(ServerError): pass
-class MissingURISegment(ServerError): pass
-class InvalidSystemQueryOption(ServerError): pass
-class EvaluationError(Exception): pass
-
-
-ODATA_METADATA_NAMESPACE="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"	#: namespace for metadata, e.g., the property type attribute
-IsDefaultEntityContainer=(ODATA_METADATA_NAMESPACE,u"IsDefaultEntityContainer")
-
-ODATA_DATASERVICES_NAMESPACE="http://schemas.microsoft.com/ado/2007/08/dataservices"		#: namespace for auto-generated elements, e.g., :py:class:`Property`
-ODATA_SCHEME="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme"					#: category scheme for type definition terms
-ODATA_RELATED="http://schemas.microsoft.com/ado/2007/08/dataservices/related/"				#: link type for related entries
-
-ODATA_RELATED_TYPE="application/atom+xml;type=entry"
-
+	
 NUMERIC_TYPES=(
 	edm.SimpleType.Double,
 	edm.SimpleType.Single,
@@ -369,7 +349,7 @@ class BinaryExpression(CommonExpression):
 			# in the future we should deal with entity type inheritance
 			# right now, the only thing we can cast an entity instance
 			# to is itself
-			name=lValue.typeDev.GetFQName()
+			name=lValue.typeDef.GetFQName()
 			if name==rValue.pyValue:
 				return lValue
 			else:
@@ -532,7 +512,7 @@ class BinaryExpression(CommonExpression):
 			return result
 		elif isinstance(lValue,edm.Entity):
 			# in the future we should test the entity for inheritance
-			name=lValue.typeDev.GetFQName()
+			name=lValue.typeDef.GetFQName()
 			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
 			result.SetFromPyValue(name==rValue.pyValue)
 			return result
@@ -1024,11 +1004,19 @@ class Parser(edm.Parser):
 					# Member operator is a special case as it isn't a name
 					rightOp=BinaryExpression(Operator.member)
 				else:
+					savePos=self.pos
 					name=self.ParseSimpleIdentifier()
 					if name is not None:
-						rightOp=BinaryExpression(Operator.DecodeValue(name))
-					elif self.MatchOne(",)") or self.MatchEnd():
-						# indicates the end of this common expression
+						try:
+							rightOp=BinaryExpression(Operator.DecodeValue(name))
+						except ValueError:
+							# this is not an operator we recognise
+							name=None
+							self.SetPos(savePos)
+							pass
+					# if name is None and (self.MatchOne(",)") or self.MatchEnd()):
+					# indicates the end of this common expression
+					if name is None:
 						while leftOp is not None:
 							leftOp.AddOperand(operand)
 							operand=leftOp
@@ -1122,23 +1110,90 @@ class Parser(edm.Parser):
 	def ParseExpandOption(self):
 		"""Parses an expand system query option, returning a list of tuples.
 		
-		E.g., "A/B,C" returns [("A","B"),("C")]"""
-		result=[]
-		match={}
+		E.g., "A/B,C" returns {'A': {'B'}, 'C': None }"""
+		result={}
 		while True:
-			navPath=[]
-			navPath.append(self.RequireProduction(self.ParseSimpleIdentifier(),"entityNavProperty"))
+			parent=result
+			navPath=self.RequireProduction(self.ParseSimpleIdentifier(),"entityNavProperty")
+			if navPath not in parent:
+				parent[navPath]=None
 			while self.Parse("/"):
-				navPath.append(self.RequireProduction(self.ParseSimpleIdentifier(),"entityNavProperty"))
-			navPath=tuple(navPath)
-			if navPath not in match:
-				result.append(navPath)
-				match[navPath]=True
+				if parent[navPath] is None:
+					parent[navPath]={}
+				parent=parent[navPath]
+				navPath=self.RequireProduction(self.ParseSimpleIdentifier(),"entityNavProperty")
+				if navPath not in parent:
+					parent[navPath]=None			
 			if not self.Parse(","):
 				break
 		self.RequireEnd("expandQueryOp")
 		return result
-			
+				
+	def ParseOrderbyOption(self):
+		"""Parses an orderby system query option, returning a list of 2-tuples.
+		
+		Each tuple is ( <py:class:`CommonExpression` instance>, 1 | -1 )
+		
+		The value 1 represents the default ascending order, -1 indicated descending."""
+		result=[]
+		while True:
+			self.ParseWSP()
+			e=self.RequireProduction(self.ParseCommonExpression(),"commonExpression")
+			self.ParseWSP()
+			if self.ParseInsensitive("asc"):
+				dir=1
+			elif self.ParseInsensitive("desc"):
+				dir=-1
+			else:
+				dir=1
+			result.append((e,dir))
+			self.ParseWSP()
+			if not self.Parse(","):
+				break
+		self.RequireEnd("orderbyQueryOp")
+		return result
+				
+	def ParseSelectOption(self):
+		"""Parses a select system query option, returning a list of tuples.
+		
+		E.g., "A/*,C" returns [("A","*"),("C")]
+		
+		This is almost identical to the expand option except that '*"
+		and WSP is allowed.
+		
+		selectQueryOp = "$select=" selectClause
+		selectClause = [WSP] selectItem [[WSP] "," selectClause] [WSP]
+		selectItem = star / selectedProperty / (selectedNavProperty ["/" selectItem])
+		selectedProperty = entityProperty / entityComplexProperty
+		selectedNavProperty = entityNavProperty-es / entityNavProperty-et
+		star = "*"	"""
+		result={}
+		while True:
+			parent=result
+			self.ParseWSP()
+			navPath=self.RequireProduction(self.ParseStarOrIdentifier(),"selectItem")
+			if navPath not in parent:
+				parent[navPath]=None
+			while navPath!="*" and self.Parse("/"):
+				if parent[navPath] is None:
+					parent[navPath]={}
+				parent=parent[navPath]
+				navPath=self.RequireProduction(self.ParseStarOrIdentifier(),"selectItem")
+				if navPath not in parent:
+					parent[navPath]=None			
+			self.ParseWSP()
+			if not self.Parse(","):
+				break
+		self.RequireEnd("selectQueryOp")
+		return result
+	
+	def ParseStarOrIdentifier(self):
+		self.ParseWSP()
+		if self.Parse("*"):
+			return '*'
+		else:
+			return self.RequireProduction(self.ParseSimpleIdentifier(),"selectItem")
+
 	SimpleIdentifierStartClass=None
 	SimpleIdentifierClass=None
 	
@@ -1229,26 +1284,31 @@ class Parser(edm.Parser):
 			return edm.SimpleValue.NewValue(None)
 		elif self.Match("'"):
 			return self.ParseStringURILiteral()
-		elif self.MatchDigit():
-			return self.ParseNumericLiteral()
-		elif self.Parse('-'):
-			# one of the number forms
-			if self.ParseInsensitive("inf"):
-				if self.ParseOne("Dd"):
-					result=edm.SimpleValue.NewValue(edm.SimpleType.Double)
-					result.pyValue=float("-INF")
-					return result
-				elif self.ParseOne("Ff"):
-					result=edm.SimpleValue.NewValue(edm.SimpleType.Single)
-					result.pyValue=float("-INF")
-					return result
-				else:
-					raise ValueError("Expected double or single -inf: -INF%s"%repr(self.Peek(1)))							
+		elif self.MatchOne('-.0123456789'):
+			# one of the number forms (perhaps)
+			num=self.ParseNumericLiteral()
+			if num is None:
+				# must be something like "." or "-" on its own, not a literal
+				return None
+			if self.ParseOne("Dd"):
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Double)
+				result.SetFromNumericLiteral(num)
+				return result
+			elif self.ParseOne("Ff"):
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Single)
+				result.SetFromNumericLiteral(num)
+				return result
+			elif self.ParseOne("Mm"):
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Decimal)
+				result.SetFromNumericLiteral(num)
+				return result
+			elif self.ParseOne("Ll"):
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Int64)
+				result.SetFromNumericLiteral(num)
+				return result
 			else:
-				result=self.ParseNumericLiteral('-')
-				if result is None:
-					# return the minus sign to the parser as this isn't a number
-					self.SetPos(savePos)
+				result=edm.SimpleValue.NewValue(edm.SimpleType.Int32)
+				result.SetFromNumericLiteral(num)
 				return result
 		elif self.ParseInsensitive("true"):
 			result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
@@ -1262,48 +1322,16 @@ class Parser(edm.Parser):
 			result=edm.SimpleValue.NewValue(edm.SimpleType.DateTimeOffset)
 			production="datetimeoffset literal"
 			self.Require("'",production)
-			startPos=self.pos
-			while not self.Parse("'"):
-				if self.MatchEnd():
-					raise ValueError("Unterminated quote in datetimeoffset string")
-				self.NextChar()					
-			try:
-				value=iso.TimePoint(self.src[startPos:self.pos-1])
-			except iso.DateTimeError,e:
-				raise ValueError(str(e))
-			zOffset,zDir=value.GetZone()
-			if zOffset is None:
-				raise ValueError("datetimeoffset requires zone specifier: %s"%str(value))
-			if not value.Complete():
-				raise ValueError("datetimeoffset requires a complete specification: %s"%str(value))
-			result.pyValue=value
+			dtoString=self.ParseUntil("'")
+			self.Require("'",production)
+			result.SetFromLiteral(dtoString)
 			return result
 		elif self.ParseInsensitive("datetime"):
-			result=edm.SimpleValue.NewValue(edm.SimpleType.DateTime)
 			production="datetime literal"
 			self.Require("'",production)
-			year=int(self.RequireProduction(self.ParseDigits(4,4),production))
-			self.Require("-",)
-			month=self.RequireProduction(self.ParseInteger(1,12),"month")
-			self.Require("-",production)
-			day=self.RequireProduction(self.ParseInteger(1,31,2),"day")
-			self.Require("T",production)
-			hour=self.RequireProduction(self.ParseInteger(0,24),"hour")
-			self.Require(":",production)
-			minute=self.RequireProduction(self.ParseInteger(0,60,2),"minute")
-			if self.Parse(":"):
-				second=self.RequireProduction(self.ParseInteger(0,60,2),"second")
-				if self.Parse("."):
-					nano=self.ParseDigits(1,7)
-					second+=float("0."+nano)					
-			else:
-				second=0
+			result=edm.SimpleValue.NewValue(edm.SimpleType.DateTime)
+			value=self.RequireProduction(self.ParseDateTimeLiteral(),production)
 			self.Require("'",production)
-			value=iso.TimePoint()
-			try:
-				value.SetCalendarTimePoint(year/100,year%100,month,day,hour,minute,second)
-			except iso.DateTimeError,e:
-				raise ValueError(str(e))
 			result.pyValue=value
 			return result
 		elif self.ParseInsensitive("time"):
@@ -1327,17 +1355,14 @@ class Parser(edm.Parser):
 			self.Require("'","binary literal")
 			result.pyValue=value
 			return result
-		elif self.Match("."):
-			# One of the elided numeric forms, don't parse the point!
-			return self.ParseNumericLiteral()
 		elif self.ParseInsensitive("nan"):
 			if self.ParseOne("Dd"):
 				result=edm.SimpleValue.NewValue(edm.SimpleType.Double)
-				result.pyValue=float("Nan")
+				result.SetFromNumericLiteral(edm.Numeric('',"nan",None,'',None))
 				return result
 			elif self.ParseOne("Ff"):
 				result=edm.SimpleValue.NewValue(edm.SimpleType.Single)
-				result.pyValue=float("Nan")
+				result.SetFromNumericLiteral(edm.Numeric('',"nan",None,'',None))
 				return result
 			else:
 				raise ValueError("Expected double or single Nan: Nan%s"%repr(self.Peek(1)))			
@@ -1376,116 +1401,6 @@ class Parser(edm.Parser):
 		else:
 			return None			
 			# raise ValueError("Expected literal: %s"%repr(self.Peek(10)))
-
-	def ParseNumericLiteral(self,sign=''):
-		"""Parses one of the number forms, returns a :py:class:`pyslet.mc_csdl.SimpleValue` instance.
-		
-		This method can return a value of type Decimal, Double, Single, Int64 or Int32.
-		
-		If no number if found then None is returned, if a number is partially parsed but is
-		badly formed a ValueError exception is raised.
-		
-		*sign* is one of '+', '', or '-' indicating the sign parsed prior to the number."""
-		digits=self.ParseDigits(1)
-		if self.Parse("."):
-			# could be a decimal
-			decDigits=self.ParseDigits(1)
-			if self.ParseOne("Mm"):
-				result=edm.SimpleValue.NewValue(edm.SimpleType.Decimal)
-				# it was a decimal
-				if decDigits is None:
-					raise ValueError("Missing digis after '.' for decimal: %s.d"%(digits))		
-				if len(digits)>29 or len(decDigits)>29:
-					raise ValueError("Too many digits for decimal literal: %s.%s"%(digits,decDigits))
-				result.pyValue=decimal.Decimal("%s%s.%s"%(sign,digits,decDigits))
-				return result
-			elif self.ParseOne("Dd"):
-				result=edm.SimpleValue.NewValue(edm.SimpleType.Double)
-				if digits is None:
-					digits='0'
-				if decDigits is None:
-					decDigits='0'
-				# it was a double, no length restrictions
-				result.pyValue=float("%s%s.%s"%(sign,digits,decDigits))
-				return result
-			elif self.ParseOne("Ee"):
-				eSign=self.Parse("-")
-				eDigits=self.RequireProduction(self.ParseDigits(1,3),"exponent")
-				if self.ParseOne("Dd"):
-					result=edm.SimpleValue.NewValue(edm.SimpleType.Double)
-					if digits is None:
-						raise ValueError("Missing digis before '.' for expDecimal")
-					if decDigits is None:
-						decDigits='0'
-					elif len(decDigits)>16:
-						raise ValueError("Too many digits for double: %s.%s"%(digits,decDigits))
-					result.pyValue=float("%s%s.%se%s%s"%(sign,digits,decDigits,eSign,eDigits))
-					return result
-				elif self.ParseOne("Ff"):
-					result=edm.SimpleValue.NewValue(edm.SimpleType.Single)
-					if digits is None:
-						raise ValueError("Missing digis before '.' for expDecimal")
-					if decDigits is None:
-						decDigits='0'
-					elif len(decDigits)>8:
-						raise ValueError("Too many digits for single: %s.%s"%(digits,decDigits))					
-					elif len(eDigits)>2:
-						raise ValueError("Too many digits for single exponet: %s.%sE%s%s"%(digits,decDigits,eSign,eDigits))					
-					result.pyValue=float("%s%s.%se%s%s"%(sign,digits,decDigits,eSign,eDigits))
-					return result
-				else:
-					raise ValueError("NotImplementedError")
-			elif self.ParseOne("Ff"):
-				result=edm.SimpleValue.NewValue(edm.SimpleType.Single)
-				if digits is None:
-					digits='0'
-				if decDigits is None:
-					decDigits='0'
-				# it was a single, no length restrictions
-				result.pyValue=float("%s%s.%s"%(sign,digits,decDigits))
-				return result
-			else:
-				raise ValueError("NotImplementedError")
-		elif digits is None:
-			# no digits and no decimal point => this isn't a number
-			return None
-		elif self.ParseOne("Mm"):
-			result=edm.SimpleValue.NewValue(edm.SimpleType.Decimal)
-			if len(digits)>29:
-				raise ValueError("Too many digits for decimal literal: %s"%digits)
-			result.pyValue=decimal.Decimal("%s%s"%(sign,digits))
-			return result
-		elif self.ParseOne("Ll"):
-			result=edm.SimpleValue.NewValue(edm.SimpleType.Int64)
-			if len(digits)>19:
-				raise ValueError("Too many digits for int64 literal: %s"%digits)
-			result.pyValue=long("%s%s"%(sign,digits))
-			return result
-		elif self.ParseOne("Dd"):
-			result=edm.SimpleValue.NewValue(edm.SimpleType.Double)
-			if len(digits)>17:
-				raise ValueError("Too many digits for double literal: %s"%digits)
-			result.pyValue=float(sign+digits)
-			return result
-		elif self.ParseOne("Ff"):
-			result=edm.SimpleValue.NewValue(edm.SimpleType.Single)
-			if len(digits)>8:
-				raise ValueError("Too many digits for single literal: %s"%digits)
-			result.pyValue=float(sign+digits)
-			return result
-		else:
-			result=edm.SimpleValue.NewValue(edm.SimpleType.Int32)
-			# just a bunch of digits followed by something else so return int32
-			if digits is None:
-				raise ValueError("Digits required for integer literal: %s"%digits)				
-			if len(digits)>10:
-				raise ValueError("Too many digits for integer literal: %s"%digits)
-			# watch out, largest negative number is larger than largest positive number!
-			value=int(sign+digits)
-			if value>2147483647 or value<-2147483648:
-				raise ValueError("Range of int32 exceeded: %s"%(sign+digits))
-			result.pyValue=value
-			return result
 
 	
 def ParseURILiteral(source):
@@ -1595,6 +1510,41 @@ class SystemQueryOption(xsi.Enumeration):
 xsi.MakeEnumeration(SystemQueryOption)
 
 
+class InlineCount(xsi.Enumeration):
+	"""inlineCount defines constants for the $inlinecount system query option::
+	
+		InlineCount.allpages
+		InlineCount.none
+		InlineCount.DEFAULT == None
+
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		'allpages':1,
+		'none':2
+		}
+xsi.MakeEnumeration(InlineCount)
+
+
+class PathOption(xsi.Enumeration):
+	"""PathOption defines constants for the $-special values that might
+	be found in the resource path, for example::
+	
+		PathOption.links
+		PathOption.DEFAULT == None
+
+	Note that these options are mutually exclusive!
+	
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		'metadata':1,
+		'batch':2,
+		'count':3,
+		'value':4,
+		'links':5
+		}
+xsi.MakeEnumeration(PathOption)
+				
+
 class ODataURI:
 	"""Breaks down an OData URI into its component parts.
 	
@@ -1613,13 +1563,16 @@ class ODataURI:
 	from Microsoft issues a temporary redirect from /OData/OData.svc to add the
 	trailing slash before returning the service document."""
 	
-	def __init__(self,dsURI,pathPrefix=''):
+	def __init__(self,dsURI,pathPrefix='',version=2):
 		if not isinstance(dsURI,uri.URI):
 			dsURI=uri.URIFactory.URI(dsURI)
-		self.schema=dsURI.scheme
+		self.uri=dsURI					#: a :py:class:`pyslet.rfc2396.URI` instance representing the whole URI
+		self.version=version			#: the OData version of this request
+		# self.schema=dsURI.scheme
 		self.pathPrefix=pathPrefix		#: a string containing the path prefix without a trailing slash
 		self.resourcePath=None			#: a string containing the resource path (or None if this is not a resource path)
-		self.navPath=[]					#: a list of navigation path component strings
+		self.navPath=[]					#: a list of navigation path segment strings
+		self.pathOption=None			#: the path option in effect or None if no path option was given
 		self.queryOptions=[]			#: a list of raw strings containing custom query options and service op params
 		self.sysQueryOptions={}			#: a dictionary mapping :py:class:`SystemQueryOption` constants to their values
 		self.paramTable={}
@@ -1633,45 +1586,117 @@ class ODataURI:
 		if pathPrefix and not dsURI.absPath.startswith(pathPrefix):
 			# this is not a URI we own
 			return
+		#
+		#	Unpack the query
 		if dsURI.query is not None:
 			rawOptions=dsURI.query.split('&')
 			for paramDef in rawOptions:
 				if paramDef.startswith('$'):
 					paramName=uri.UnescapeData(paramDef[1:paramDef.index('=')]).decode('utf-8')
-					try:
-						param=SystemQueryOption.DecodeValue(paramName)
-						# Now parse the parameter value
-						paramParser=Parser(uri.UnescapeData(paramDef[paramDef.index('=')+1:]).decode('utf-8'))
-						if param==SystemQueryOption.filter:
-							paramValue=paramParser.RequireProduction(paramParser.ParseCommonExpression(),"boolCommonExpression")
-						elif param==SystemQueryOption.expand:
-							paramValue=paramParser.RequireProduction(paramParser.ParseExpandOption(),"expand query option")
-						else:
-							paramValue=paramDef[paramDef.index('=')+1:]
-					except ValueError, e:
-						raise InvalidSystemQueryOption("$%s : %s"%(paramName,str(e)))
+					param,paramValue=self.ParseSystemQueryOption(paramName,
+						uri.UnescapeData(paramDef[paramDef.index('=')+1:]).decode('utf-8'))
 					self.sysQueryOptions[param]=paramValue
 				else:
 					if '=' in paramDef:
 						paramName=uri.UnescapeData(paramDef[:paramDef.index('=')]).decode('utf-8')
 						self.paramTable[paramName]=len(self.queryOptions)
 					self.queryOptions.append(paramDef)
+		#
+		#	Unpack the resource path
 		self.resourcePath=dsURI.absPath[len(pathPrefix):]
-		# grab the first component of the resourcePath
 		if self.resourcePath=='/':
 			self.navPath=[]
 		else:
-			components=self.resourcePath.split('/')
-			self.navPath=map(self.SplitComponent,components[1:])
-	
-	def SplitComponent(self,component):
-		"""Splits a string component into a unicode name and a keyPredicate dictionary."""
-		if component.startswith('$'):
+			segments=self.resourcePath.split('/')
+			self.navPath=[]
+			linkLenConstraint=None
+			for segment in segments[1:]:
+				if segment.startswith("$"):
+					try:
+						pathOption=PathOption.DecodeLowerValue(segment[1:])
+					except KeyError:
+						raise InvalidPathOption(segment)
+					if self.pathOption is not None:
+						raise InvalidPathOption("%s must not be used with $%s"%(segment,PathOption.EncodeValue(self.pathOption)))
+					if self.navPath and self.pathOption in (PathOption.batch,PathOption.metadata):
+						raise InvalidPathOption("$%s must be the only path segment"%PathOption.EncodeValue(self.pathOption))						
+					elif self.pathOption==PathOption.links:
+						if not self.navPath:
+							raise InvalidPathOption("resource path must not start with $links")
+						linkLenConstraint=len(self.navPath)+1
+					self.pathOption=pathOption
+				else:
+					# count, value, batch and metadata must be the last segment
+					if self.pathOption in (PathOption.count,PathOption.value,PathOption.batch,PathOption.metadata):
+						raise InvalidPathOption("$%s must be the last path segment"%PathOption.EncodeValue(self.pathOption))
+					self.navPath.append(self.SplitSegment(segment))
+			if linkLenConstraint is not None:
+				if len(self.navPath)<linkLenConstraint:
+					raise InvalidPathOption("$links must not be the last path segment")
+				elif len(self.navPath)>linkLenConstraint:
+					raise InvalidPathOption("A navigation property preceded by $links must be the last path segment")
+			
+				
+	def ParseSystemQueryOption(self,paramName,paramValue):
+		"""Returns a tuple of :py:class:`SystemQueryOption` constant and
+		an appropriate representation of the value:
+		
+		*	filter: an instance of :py:class:`CommonExpression`
+		
+		*	expand: a list of expand options, see py:meth:`pyslet.mc_csdl.Entity.Expand`
+		
+		*	format: a list of :py:meth:`pyslet:rfc2616.MediaType` instances (of length 1)
+		
+		*	other options return a the paramValue unchanged at the moment"""
+		try:
+			param=SystemQueryOption.DecodeValue(paramName)
+			# Now parse the parameter value
+			paramParser=Parser(paramValue)
+			if param==SystemQueryOption.filter:
+				value=paramParser.RequireProductionEnd(paramParser.ParseCommonExpression(),"boolCommonExpression")
+			elif param==SystemQueryOption.expand:
+				value=paramParser.RequireProductionEnd(paramParser.ParseExpandOption(),"expand query option")
+			elif param==SystemQueryOption.format:
+				# ("json" / "atom" / "xml" / 
+				# <a data service specific value indicating a format specific to the specific data service> / 
+				# <An IANA-defined [IANA-MMT] content type>)
+				# first up, let's see if this is a valid MediaType
+				try:
+					value=http.AcceptList(paramValue)
+				except http.HTTPParameterError:
+					pLower=paramValue.lower()
+					if pLower=="atom":
+						value=http.AcceptList('application/atom+xml')
+					elif pLower=="json":
+						value=http.AcceptList('application/json')
+					elif pLower=="xml":
+						value=http.AcceptList('application/xml')
+					else:
+						raise InvalidSystemQueryOption("Unsupported $format : %s"%paramValue)
+			elif param==SystemQueryOption.orderby:
+				value=paramParser.RequireProductionEnd(paramParser.ParseOrderbyOption(),"orderby query option")
+			elif param==SystemQueryOption.skip:
+				value=paramParser.RequireProductionEnd(paramParser.ParseInteger(),"skip query option")
+			elif param==SystemQueryOption.top:
+				value=paramParser.RequireProductionEnd(paramParser.ParseInteger(),"top query option")
+			elif param==SystemQueryOption.inlinecount:
+				value=InlineCount.DecodeLowerValue(paramValue)
+			elif param==SystemQueryOption.select:
+				value=paramParser.RequireProductionEnd(paramParser.ParseSelectOption(),"selection query option")
+			else:
+				value=paramValue
+		except ValueError, e:
+			raise InvalidSystemQueryOption("$%s : %s"%(paramName,str(e)))
+		return param,value	
+		
+	def SplitSegment(self,segment):
+		"""Splits a string segment into a unicode name and a keyPredicate dictionary."""
+		if segment.startswith('$'):
 			# some type of control word
-			return component,{}
-		elif '(' in component and component[-1]==')':
-			name=uri.UnescapeData(component[:component.index('(')]).decode('utf-8')
-			keys=component[component.index('(')+1:-1]
+			return segment,{}
+		elif '(' in segment and segment[-1]==')':
+			name=uri.UnescapeData(segment[:segment.index('(')]).decode('utf-8')
+			keys=segment[segment.index('(')+1:-1]
 			if keys=='':
 				keys=[]
 			else:
@@ -1692,7 +1717,7 @@ class ODataURI:
 					keyPredicate[kname]=kvalue
 				return name,keyPredicate
 		else:
-			return uri.UnescapeData(component).decode('utf-8'),{}
+			return uri.UnescapeData(segment).decode('utf-8'),None
 	
 	def GetParamValue(self,paramName):
 		if paramName in self.paramTable:
@@ -1701,7 +1726,53 @@ class ODataURI:
 			return ParseURILiteral(paramDef[paramDef.index('=')+1:])
 		else:
 			raise KeyError("Missing service operation, or custom parameter: %s"%paramName)
-		
+	
+	@classmethod
+	def FormatKey(cls,d):
+		"""Returns a URI-formatted entity key.  For example, (42L), or ('ALFKI')."""
+		if len(d)==1:
+			keyStr="(%s)"%cls.FormatLiteral(d.values()[0])
+		else:
+			keyStr=[]
+			for k,v in d:
+				keyStr.append("%s=%s"%(k,cls.FormatLiteral(v)))
+			keyStr="(%s)"%string.join(keyStr,",")
+		return keyStr
+	
+	@classmethod
+	def FormatEntityKey(cls,entity):
+		return cls.FormatKey(entity.KeyDict())
+			
+	@classmethod
+	def FormatLiteral(cls,value):
+		"""Returns a URI-formatted value.  For example, 42L or 'Paddy%20O''brian'	"""
+		if not value:
+			return "null"
+		else:
+			result=unicode(value)
+			if value.typeCode==edm.SimpleType.Binary:
+				result="X'%s'"%result
+			elif value.typeCode==edm.SimpleType.DateTime:
+				result="datetime'%s'"%result
+			elif value.typeCode==edm.SimpleType.Decimal:
+				restul=result+"M"
+			elif value.typeCode==edm.SimpleType.Double:
+				restul=result+"D"
+			elif value.typeCode==edm.SimpleType.Single:
+				restul=result+"SF"
+			elif value.typeCode==edm.SimpleType.Guid:
+				result="guid'%s'"%result
+			elif value.typeCode==edm.SimpleType.Int64:
+				restul=result+"L"
+			elif value.typeCode==edm.SimpleType.Time:
+				result="time'%s'"%result
+			elif value.typeCode==edm.SimpleType.DateTimeOffset:
+				result="datetimeoffset'%s'"%result
+			elif value.typeCode==edm.SimpleType.String:
+				# double up on single quotes
+				result="'%s'"%string.join(result.split("'"),"''")
+			return uri.EscapeData(result.encode('utf-8'))
+			
 			
 class ODataElement(xmlns.XMLNSElement):
 	"""Base class for all OData specific elements."""
@@ -1718,7 +1789,7 @@ class Property(ODataElement):
 	def __init__(self,parent):
 		ODataElement.__init__(self,parent)
 		self.edmValue=None		# an :py:class:`pyslet.mc_csdl.EDMValue` instance
-	
+
 	def GetSimpleType(self):
 		type=self.GetNSAttribute((ODATA_METADATA_NAMESPACE,'type'))
 		if type:			
@@ -1753,9 +1824,8 @@ class Property(ODataElement):
 			if propertyDef:
 				value=propertyDef()
 			else:
-				pList=[]
 				# picks up top-level properties only! 
-				self.FindChildren(Property,pList)
+				pList=list(self.FindChildrenBreadthFirst(Property,False))
 				if pList:
 					# we have a complex type with no definition
 					value=edm.Complex()
@@ -1788,68 +1858,37 @@ class Property(ODataElement):
 		When changing the value of an existing property we must match
 		the existing type.  For new property values we use the value
 		type to set the type property."""
-		declaredType=self.GetSimpleType()
+		# start with a clean slate, remove attributes too
+		self.Reset(True)
 		if isinstance(value,edm.SimpleValue):
-			type=self.GetNSAttribute((ODATA_METADATA_NAMESPACE,'type'))
-			if declaredType is None:
-				if type is None:
-					self.SetAttribute((ODATA_METADATA_NAMESPACE,'type'),edm.SimpleType.EncodeValue(value.typeCode))
-				else:
-					# an unknown type can only be set from string, to match GetValue
-					if value.tyepCode!=edm.SimpleType.String:
-						raise TypeError("Incompatible property types: %s and %s"%(type,edm.SimpleType.EncodeValue(value.typeCode)))
-			else:
-				if declaredType!=value.typeCode:
-					raise TypeError("Incompatible property types: %s and %s"%(type,edm.SimpleType.EncodeValue(value.typeCode)))
+			if self.parent is None:
+				# If we have no parent then we set the type attribute
+				self.SetAttribute((ODATA_METADATA_NAMESPACE,'type'),edm.SimpleType.EncodeValue(value.typeCode))				
 			if value:
-				self.SetAttribute((ODATA_METADATA_NAMESPACE,'null'),None)
 				ODataElement.SetValue(self,unicode(value))
 			else:
 				self.SetAttribute((ODATA_METADATA_NAMESPACE,'null'),"true")
-				ODataElement.SetValue(self,"")
 		elif isinstance(value,edm.Complex):
 			type=self.GetNSAttribute((ODATA_METADATA_NAMESPACE,'type'))
-			if type:
-				if value.typeDef and value.typeDef.name!=type:
-					raise TypeError("Incompatible complex types: %s and %s"%(type,value.typeDef.name))
-			elif value.typeDef:
+			if value.typeDef:
 				self.SetAttribute((ODATA_METADATA_NAMESPACE,'type'),value.typeDef.name)
-			self.SetAttribute((ODATA_METADATA_NAMESPACE,'null'),None)
+			else:
+				raise ValueError("Complex-valued properties must have a defined type") 
 			# loop through our children and set them from this value
-			keys={}
-			for key in value:
-				keys[key]=value[key]				
-			for child in self.GetChildren():
-				if isinstance(child,Property):
-					if child.xmlname in keys:
-						child.SetValue(keys[child.xmlname])
-						del keys[child.xmlname]
-					# otherwise leave the value alone
-			for key in keys:
-				# add any missing children
-				p=self.ChildElement(self.__class__,(ODATA_DATASERVICES_NAMESPACE,key))
-				p.SetValue(keys[key])
+			for key,v in value.iteritems():
+				child=self.ChildElement(self.__class__,(ODATA_DATASERVICES_NAMESPACE,key))
+				child.SetValue(v)
 		elif value is None:
+			# this is a special case, meaning Null
 			self.SetAttribute((ODATA_METADATA_NAMESPACE,'null'),"true")
-			ODataElement.SetValue(self,"")
 		else:
-			edmValue=edm.SimpleValue.NewValue(edm.SimpleType.FromPythonType(type(value)))
-			if declaredType is None:
-				type=self.GetNSAttribute((ODATA_METADATA_NAMESPACE,'type'))
-				# can only set from a string (literal form)
-				if edmValue.typeCode!=edm.SimpleType.String:
-					raise TypeError("Incompatible property types: %s and %s"%(type,edm.SimpleType.EncodeValue(edmValue.typeCode)))
-			elif edmValue.typeCode!=declaredType:
-				newValue=edm.SimpleValue.NewValue(declaredType)
-				newValue.pyValue=edm.SimpleType.CoerceValue(declaredType,edmValue.pyValue)
-				edmValue=newValue
-			self.SetAttribute((ODATA_METADATA_NAMESPACE,'null'),None)
-			ODataElement.SetValue(self,unicode(edmValue))
+			raise TypeError("Expected EDMValue instance")
 
 			
 class Properties(ODataElement):
 	"""Represents the properties element."""
 	XMLNAME=(ODATA_METADATA_NAMESPACE,'properties')
+	XMLCONTENT=xml.ElementType.ElementContent
 	
 	PropertyClass=Property
 	
@@ -1889,31 +1928,156 @@ class Content(atom.Content):
 		for child in atom.Content.GetChildren(self): yield child
 		if self.Properties: yield self.Properties
 
+
+class Feed(atom.Feed):
+	"""Overrides the default :py:class:`pyslet.rfc4287.Feed` class to add OData handling."""
+		
+	def __init__(self,parent,collection=None):
+		super(Feed,self).__init__(parent)
+		self.collection=collection			#: the collection this feed represents
+		if self.collection is not None:
+			location=str(self.collection.GetLocation())
+			self.AtomId.SetValue(location)
+			self.Title.SetValue(self.collection.GetTitle())
+			link=self.ChildElement(self.LinkClass)
+			link.href=location
+			link.rel="self"			
+		self.Count=None
 	
+	def GetChildren(self):
+		"""Overridden to add generation of entries dynamically from :py:attr:`collection`.
+		
+		The collection's
+		:py:meth:`pyslet.mc_csdl.EntityCollection.iterpage` method is
+		used to iterate over the entities."""
+		for child in super(Feed,self).GetChildren(): yield child
+		if self.Count:
+			yield self.Count
+		elif self.collection.inlineCount:
+			count=Count(self)
+			count.SetValue(len(self.collection))
+			yield count
+		if self.collection is not None:
+			for entity in self.collection.iterpage():
+				yield Entry(self,entity)
+		# add a next link if necessary
+		skiptoken=self.collection.NextSkipToken()
+		if skiptoken is not None:
+			link=Link(self)
+			link.rel="next"
+			link.href=str(self.collection.GetLocation())+"?$skiptoken=%s"%uri.EscapeData(skiptoken,uri.IsQueryReserved)
+			yield link
+				
+
+class Inline(ODataElement):
+	"""Implements inline handling of expanded links."""
+	XMLNAME=(ODATA_METADATA_NAMESPACE,'inline')
+	XMLCONTENT=xml.ElementType.ElementContent
+
+	def __init__(self,parent):
+		super(Inline,self).__init__(parent)
+		self.Feed=None
+		self.Entry=None
+	
+	def GetChildren(self):
+		if self.Feed: yield self.Feed
+		if self.Entry: yield self.Entry
+		for child in super(Inline,self).GetChildren():
+			yield child
+
+
+class Count(ODataElement):
+	"""Implements inlinecount handling."""
+	XMLNAME=(ODATA_METADATA_NAMESPACE,'count')
+
+	def SetValue(self,newValue):
+		super(Count,self).SetValue(str(newValue))
+	
+	def GetValue(self):
+		return int(super(Count,self).GetValue())
+
+				
+class Link(atom.Link):
+	"""Overrides the default :py:class:`pyslet.rfc4287.Link` class to add OData handling."""	
+	XMLCONTENT=xml.ElementType.ElementContent
+
+	def __init__(self,parent):
+		super(Link,self).__init__(parent)
+		self.Inline=None
+		
+	def GetChildren(self):
+		if self.Inline: yield self.Inline
+		for child in super(Link,self).GetChildren(): yield child
+	
+	def Expand(self,expansion):
+		"""Expands this element based on expansion."""
+		inline=self.ChildElement(Inline)
+		if isinstance(expansion,Entity):
+			# it is hard to calculate the id
+			entry=inline.ChildElement(Entry)
+			entry.SetValue(expansion)
+		elif isinstance(expansion,edm.EntityCollection) and expansion:
+			# we only add the feed if it is non-empty
+			feed=inline.ChildElement(Feed)
+			feed.collection=expansion
+			feed.ChildElement(atom.AtomId).SetValue(self.href)
+
+
+		
 class Entry(atom.Entry):
 	"""Overrides the default :py:class:`pyslet.rfc4287.Entry` class to add OData handling.
 	
 	In addition to the default *parent* element an Entry can be passed
 	an optional `pyslet.mc_csdl.Entity` instance.  If present, it is
-	used to construct the Entry representation of the entity."""
+	used to construct the content of the entity.
 	
+	Finally, if *id* is also passed it is treated as the base URI of the entry and
+	used to create the <id> and associated links."""	
 	ContentClass=Content
+	LinkClass=Link
 	
 	def __init__(self,parent,entity=None):
 		atom.Entry.__init__(self,parent)
 		self.entityType=None		#: :py:class:`pyslet.mc_csdl.EntityType` instance describing the entry
+		self.Properties=None		#: properties element will be a direct child for media link entries
+		self.etag=None				#: the etag associated with this entry or None if optimistic concurrency is not supported
 		self._properties={}
 		if entity is not None:
-			self.entityType=entity.typeDef
-			for k in entity:
-				self[k]=entity[k]
+			self.SetValue(entity)
 	
+	def Reset(self):
+		if self.Properties:
+			self.Properties.DetachFromParent()
+			self.Properties=None
+		self.etag=None
+		self._properties={}
+		super(Entry,self).Reset()
+		
+	def GetChildren(self):
+		"""Replaces the implementation in atom.Entry completed so that
+		we can put the content last.  You never know, it is possible
+		that someone will parse the metadata and properties and decide
+		they don't want the content element and close the connection.
+		The other way around might be annoying for large media
+		resources."""
+		for child in atom.Entity.GetChildren(self): yield child
+		if self.Published: yield self.Published
+		if self.Source: yield self.Source
+		if self.Summary: yield self.Summary
+		if self.Properties: yield self.Properties
+		if self.Content: yield self.Content
+		
 	def ContentChanged(self):
 		atom.Entry.ContentChanged(self)
 		self._properties={}
 		if self.Content and self.Content.Properties:
-			for p in self.Content.Properties.Property:
+			pList=self.Content.Properties
+		else:
+			pList=self.Properties
+		if pList:
+			for p in pList.Property:
 				self._properties[p.xmlname]=p
+			
 			
 	def __getitem__(self,key):
 		"""Enables :py:class:`Entry` to be suffixed with, e.g., ['PropertyName'] to read property values.
@@ -1925,38 +2089,165 @@ class Entry(atom.Entry):
 	def __setitem__(self,key,value):
 		"""Enables :py:class:`Entry` to be suffixed with, e.g., ['PropertyName'] to set property values.
 		
-		Sets the property *key* to *value*.  If *value* is not an
-		:py:class:`pyslet.mc_csdl.EDMValue` instance it will be coerced
-		to an appropriate value on a best-effort basis.
-		
-		For existing properties, the *value* must be a compatible type
-		and will be coerced to match the property's defined type if
-		necessary.  See
+		Sets the property *key* to *value*.  See
 		:py:meth:`Property.SetValue` for more information."""
 		if key in self._properties:
 			p=self._properties[key].SetValue(value)
 		else:
-			ps=self.ChildElement(self.ContentClass).ChildElement(Properties)
+			if self.Properties is None:
+				ps=self.ChildElement(self.ContentClass).ChildElement(Properties)
+			else:
+				ps=self.Properties
 			p=ps.ChildElement(ps.PropertyClass,(ODATA_DATASERVICES_NAMESPACE,key))
 			p.SetValue(value)
 			self._properties[key]=p
 
-	def AddLink(self,linkTitle,linkURI):
-		"""Adds a link with name *linkTitle* to the entry with *linkURI*."""
-		l=self.ChildElement(self.LinkClass)
-		l.href=linkURI
-		l.rel=ODATA_RELATED+linkTitle
-		l.title=linkTitle
-		l.type=ODATA_RELATED_TYPE
-
+	def GetLink(self,linkTitle):
+		"""Returns a tuple of (linkURI,inline)
+		
+		*	linkURI is the URI of the link
+		
+		*	inline is the inline representation of the link (or None)
+		
+		*inline* is either a Feed or Entry instance."""
+		for l in self.Link:
+			if l.title==linkTitle:
+				# This is the link we are interested in
+				if l.Inline:
+					# we have an inline representation
+					if l.Inline.Feed:
+						return l.href,l.Inline.Feed
+					elif l.Inline.Entry:
+						return l.href,l.Inline.Entry
+					else:				
+						return l.href,None
+				else:
+					raise KeyError("Unexpanded link: %s"%linkTitle)	
+		raise KeyError("Missing link: %s"%linkTitle)
+	
+	def ResolveTargetPath(self,targetPath,prefix,ns):
+		doc=self.GetDocument()
+		targetElement=self
+		for eName in targetPath:
+			newTargetElement=None
+			for eTest in targetElement.GetChildren():
+				if eTest.GetXMLName()==eName:
+					newTargetElement=eTest
+					break
+			if newTargetElement is None:
+				# we need to create a new element
+				eClass=targetElement.GetElementClass(eName)
+				if eClass is None and doc:
+					eClass=doc.GetElementClass(eName)
+				if eClass is None:
+					eClass=Document.GetElementClass(eName)
+				newTargetElement=targetElement.ChildElement(eClass,eName)
+				if eName[0]==ns and newTargetElement.GetPrefix(eName[0]) is None:
+					# No prefix exists for this namespace, make one
+					newTargetElement.MakePrefix(ns,prefix)
+			targetElement=newTargetElement
+		return targetElement
+	
+	def GetValue(self,entity):
+		"""Update *entity* to reflect the value of this Entry.
+		
+		*entity* must be an existing :py:class:`pyslet.mc_csdl.Entity`
+		instance.  It is required but is also returned for consistency
+		with the behaviour of the overridden method."""
+		for k,v in entity.iteritems():
+			# catch property-level feed customisation here
+			propertyDef=entity.typeDef[k]
+			targetPath=propertyDef.GetTargetPath()
+			if targetPath and not propertyDef.KeepInContent():
+				# This value needs to be read from somewhere special
+				prefix,ns=propertyDef.GetFCNsPrefix()
+				targetElement=self.ResolveTargetPath(targetPath,prefix,ns)
+				# now we need to grab the actual value, only interested in data
+				data=[]
+				for child in targetElement.GetChildren():
+					if type(child) in StringTypes:
+						data.append(child)
+				v.SetFromLiteral(string.join(data,''))
+			else:
+				# and watch out for unselected properties
+				if k in self._properties:
+					self._properties[k].GetValue(v)
+				else:
+					v.SetFromPyValue(None)
+		return entity
+				
 	def SetValue(self,entity):
-		"""Sets the value of this Entry to represent *entity*, a :py:class:`pyslet.mc_csdl.TypeInstance` instance."""
-		# start by removing the existing properties
-		if self.Content and self.Content.Properties:
-			self.Content.DeleteChild(self.Content.Properties)
-		self.entityType=entity.typeDef
-		for key in entity:
-			self[key]=entity[key]
+		"""Sets the value of this Entry to represent *entity*, a :py:class:`pyslet.mc_csdl.Entity` instance."""
+		# start with a reset
+		self.Reset()
+		mediaLinkResource=entity.typeDef.HasStream()
+		self.etag=entity.ETag()
+		# Now set the new property values, starting with entity-type level feed customisation
+		# seems odd that there can only be one of these but, hey...
+		cat=self.ChildElement(atom.Category)
+		cat.term=entity.typeDef.GetFQName()
+		cat.scheme=ODATA_SCHEME
+		targetPath=entity.typeDef.GetTargetPath()
+		if targetPath:
+			prefix,ns=entity.typeDef.GetFCNsPrefix()
+			targetElement=self.ResolveTargetPath(targetPath,prefix,ns)
+			sourcePath=entity.typeDef.GetSourcePath()
+			if sourcePath:
+				v=entity
+				for p in sourcePath:
+					if isinstance(v,(edm.Entity,edm.Complex)):
+						v=v[p]
+					else:
+						v=None
+						break
+				if isinstance(v,edm.SimpleValue) and v:
+					targetElement.AddData(unicode(v))
+		# now do the links
+		location=str(entity.GetLocation())
+		self.ChildElement(atom.AtomId).SetValue(location)
+		# we have no way of knowing if we are read or read/write at this stage
+		link=self.ChildElement(self.LinkClass)
+		link.href=location
+		link.rel="edit"
+		if mediaLinkResource:
+			link=self.ChildElement(self.LinkClass)
+			link.href=location+"/$value"
+			link.rel="edit-media"
+			if self.etag:
+				s="" if entity.ETagIsStrong() else "W/"
+				link.SetAttribute((ODATA_METADATA_NAMESPACE,'etag'),s+http.QuoteString(ODataURI.FormatLiteral(self.etag)))
+		for navProperty in entity.Navigation():
+			link=self.ChildElement(self.LinkClass)
+			link.href=location+'/'+navProperty
+			link.rel=ODATA_RELATED+navProperty
+			link.title=navProperty
+			if entity.IsEntityCollection(navProperty):
+				link.type=ODATA_RELATED_FEED_TYPE
+			else:
+				link.type=ODATA_RELATED_ENTRY_TYPE
+			if entity.Expanded(navProperty):
+				# This property has been expanded
+				link.Expand(entity.Navigate(navProperty))
+		# Now set the new property values in the properties element
+		if mediaLinkResource:
+			self.ChildElement(Properties)
+		else:
+			self.ChildElement(Content).ChildElement(Properties)
+		for k,v in entity.iteritems():
+			# catch property-level feed customisation here
+			propertyDef=entity.typeDef[k]
+			targetPath=propertyDef.GetTargetPath()
+			if targetPath:
+				# This value needs to go somewhere special
+				prefix,ns=propertyDef.GetFCNsPrefix()
+				targetElement=self.ResolveTargetPath(targetPath,prefix,ns)
+				if v:
+					targetElement.AddData(unicode(v))
+				if not propertyDef.KeepInContent():
+					continue
+			# and watch out for unselected properties
+			if entity.Selected(k):
+				self[k]=v
 		self.ContentChanged()
 
 
@@ -1979,11 +2270,24 @@ class Links(ODataElement):
 			ODataElement.GetChildren(self))
 
 
-class EntitySet(edm.EntitySet):
-	"""We override EntitySet inorder to provide some documented signatures for
-	sets of media-stream entities."""
+class Entity(edm.Entity):
+	"""We override Entity in order to provide some documented signatures
+	for sets of media-stream entities."""
 	
-	def GetStreamType(self,entity):
+	def CreateProperty(self,p):
+		"""Overridden to add handling of media type annotations on simple values"""
+		value=p()
+		try:
+			if isinstance(value,edm.SimpleValue):
+				value.mType=http.MediaType(p.GetAttribute(MimeType))
+		except KeyError:
+			pass
+		self.data[p.name]=value
+
+	def GetLocation(self):
+		return str(self.entitySet.location)+uri.EscapeData(ODataURI.FormatEntityKey(self))
+		
+	def GetStreamType(self):
 		"""Returns the content type of the entity's media stream.
 		
 		Must return a :py:class:`pyslet.rfc2616.MediaType` instance."""
@@ -1996,8 +2300,326 @@ class EntitySet(edm.EntitySet):
 	def GetStreamGenerator(self,entity):
 		"""A generator function that yields blocks (strings) of data from the entity's media stream."""
 		raise NotImplementedError
+	
+	def SetFromJSONObject(self,obj):
+		"""Sets the value of this entity from a dictionary parsed from a
+		JSON representation."""
+		for k,v in self.iteritems():
+			if k in obj:
+				if isinstance(v,edm.SimpleValue):
+					JSONToSimpleValue(v,obj.get(k,None))
+				else:
+					# assume a complex value then
+					JSONToComplex(v,obj.get(k,None))
+			else:
+				v.SetFromPyValue(None)
+		
+	def GenerateEntityTypeInJSON(self,version=2):
+		location=self.GetLocation()
+		mediaLinkResource=self.typeDef.HasStream()
+		yield '{"__metadata":{'
+		yield '"uri":%s'%json.dumps(location)
+		yield ',"type":%s'%json.dumps(self.entitySet.entityType.GetFQName())
+		etag=self.ETag()
+		if etag is not None:
+			s="" if self.ETagIsStrong() else "W/"
+			yield ',"etag":%s'%json.dumps(s+http.QuoteString(ODataURI.FormatLiteral(etag)))
+		if mediaLinkResource:
+			yield ',"media_src":%s'%json.dumps(location+"/$value")
+			yield ',"content_type":%s'%json.dumps(str(self.GetStreamType()))
+			yield ',"edit_media":%s'%json.dumps(location+"/$value")
+			if etag is not None:
+				s="" if self.ETagIsStrong() else "W/"
+				yield ',"media_etag":%s'%json.dumps(s+http.QuoteString(ODataURI.FormatLiteral(etag)))			
+		yield '}'
+		for k,v in self.iteritems():
+			# watch out for unselected properties
+			if self.Selected(k):
+				yield ','
+				yield json.dumps(k)
+				yield ':'
+				if isinstance(v,edm.SimpleValue):
+					yield SimpleValueToJSON(v)
+				else:
+					yield EntityCTBodyToJSON(v)
+		for navProperty in self.Navigation():
+			if self.Selected(navProperty):
+				yield ','
+				yield json.dumps(navProperty)
+				if self.Expanded(navProperty):
+					yield ':'
+					if self.IsEntityCollection(navProperty):
+						collection=self.Navigate(navProperty)
+						for y in collection.GenerateEntitySetInJSON(version):
+							yield y
+					else:
+						entity=self.Navigate(navProperty)
+						if entity:
+							for y in entity.GenerateEntityTypeInJSON(version):
+								yield y
+						else:
+							yield json.dumps(None)
+				else:
+					yield ':{"__deferred":{"uri":%s}}'%json.dumps(location+'/'+navProperty)
+		yield '}'
+					
+
+def EntityCTInJSON2(complexValue):
+	"""Return a version 2 JSON complex entity."""
+	return '{"results":%s}'%EntityCTBodyToJSON(complexValue)
+	
+
+def EntityCTBodyToJSON(complexValue):
+	result=[]
+	for k,v in complexValue.iteritems():
+		if isinstance(v,edm.SimpleValue):
+			value=SimpleValueToJSON(v)
+		else:
+			value=ComplexValueBodyToJSON(v)
+		result.append("%s:%s"%(json.dumps(k),value))
+	return string.join(('{',string.join(result,','),'}'),'')
+
+def JSONToComplex(complexValue,obj):
+	if obj is None:
+		# do nothing - essentially means a merge
+		return
+	if "results" in obj and type(obj["results"])==DictType:
+		obj=obj["results"]
+	for k,v in complexValue.iteritems():
+		if k in obj:
+			if isinstance(v,edm.SimpleValue):
+				JSONToSimpleValue(v,obj.get(k,None))
+			else:
+				# assume a complex value then
+				JSONToComplex(v,obj.get(k,None))
+		else:
+			v.SetFromPyValue(None)
+	
+
+TICKS_PER_DAY=86400000
+BASE_DAY=iso.Date('1970-01-01').GetAbsoluteDay()
+		
+def SimpleValueToJSON(v):
+	if not v:
+		return 'null'
+	elif isinstance(v,edm.BinaryValue):
+		# unusual representation as we use base64 encoding
+		return json.dumps(base64.b64encode(v.pyValue))
+	elif isinstance(v,(edm.BooleanValue,edm.ByteValue,edm.Int16Value,edm.Int32Value,edm.SByteValue)):
+		# naked representation
+		return unicode(v)
+	elif isinstance(v,edm.DateTimeValue):
+		# a strange format based on ticks, by definition, DateTime has no offset
+		ticks=(v.pyValue.date.GetAbsoluteDay()-BASE_DAY)*TICKS_PER_DAY+int(v.pyValue.time.GetSeconds()*1000)
+		return json.dumps("/Date(%i)/"%ticks)
+	elif isinstance(v,(edm.DecimalValue,edm.DoubleValue,edm.GuidValue,edm.Int64Value,edm.SingleValue,edm.StringValue,edm.TimeValue)):
+		# just use the literal form as a json string
+		return json.dumps(unicode(v))
+	elif isinstance(v,(edm.DateTimeOffsetValue)):
+		# a strange format based on ticks, by definition, DateTime has no offset
+		ticks=(v.pyValue.date.GetAbsoluteDay()-BASE_DAY)*TICKS_PER_DAY+int(v.pyValue.time.GetSeconds()*1000)
+		dir,offset=v.GetZone()
+		if dir>0:
+			s=u"+"
+		else:
+			s=u"-"
+		return json.dumps("/Date(%i%s%04i)/"%(ticks,s,offset))
+	else:
+		raise ValueError("SimpleValue: %s"%repr(v))
+
+def JSONToSimpleValue(v,jsonValue):
+	"""Given a simple property value parsed from a json representation,
+	*jsonValue* and a :py:class:`SimpleValue` instance, *v*, update *v*
+	to reflect the parsed value."""
+	if jsonValue is None:
+		v.SetFromPyValue(None)
+	elif isinstance(v,edm.BinaryValue):
+		v.SetFromPyValue(base64.b64decode(jsonValue))
+	elif isinstance(v,(edm.BooleanValue,edm.ByteValue,edm.Int16Value,edm.Int32Value,edm.SByteValue)):
+		v.SetFromPyValue(jsonValue)
+	elif isinstance(v,edm.DateTimeValue):
+		if jsonValue.startswith("/Date(") and jsonValue.endsWith(")/"):
+			ticks=int(jsonValue[6:-2])
+			absoluteDay=BASE_DAY+v.pyValue.time.SetSeconds(ticks/1000.0)
+			v.pyValue.date.SetAbsoluteDate(absoluteDay)
+		else:
+			raise ValueError("Illegal value for DateTime: %s"%jsonValue)		
+	elif isinstance(v,(edm.DecimalValue,edm.DoubleValue,edm.GuidValue,edm.Int64Value,edm.SingleValue,edm.StringValue,edm.TimeValue)):
+		# just use the literal form as a json string
+		v.SetFromLiteral(jsonValue)
+	elif isinstance(v,(edm.DateTimeOffsetValue)):
+		if jsonValue.startswith("/Date(") and jsonValue.endsWith(")/"):
+			ticks=int(jsonValue[6:-2])
+			if '+' in ticks:
+				# split by +
+				ticks=ticks.split('+')
+				zDir=1
+			elif '-' in ticks:
+				# split by -
+				ticks=ticks.split('-')
+				zDir=-1
+			else:
+				zDir=0
+			if zDir:
+				if len(ticks)!=2:
+					raise ValueError("Illegal value for DateTimeOffset: %s"%jsonValue)
+				zOffset=int(ticks[1])
+			else:
+				zOffset=0	
+			absoluteDay=BASE_DAY+v.pyValue.time.SetSeconds(int(ticks[0])/1000.0)
+			v.pyValue.date.SetAbsoluteDate(absoluteDay)
+			v.pyValue.SetZone(zDir,zOffset//60,zOffset%60)
+		else:
+			raise ValueError("Illegal value for DateTimeOffset: %s"%jsonValue)			
+	else:
+		raise ValueError("Expected SimpleValue: %s"%repr(v))
+			
+		
+class EntityCollectionMixin(object):
+	"""A mix-in for EntityCollections to provide OData-specific options."""
+
+	def NewEntity(self):
+		"""Returns an OData aware instance"""
+		return Entity(self.entitySet)	
+		
+	def CheckFilter(self,entity):
+		"""Checks *entity* against any filter and returns True if it passes.
+		
+		The *filter* object must be an instance of
+		py:class:`CommonExpression` that returns a Boolean value.
+
+		*boolExpression* is a :py:class:`CommonExpression`.  """
+		if self.filter is None:
+			return True
+		else:
+			result=self.filter.Evaluate(entity)
+			if isinstance(result,edm.BooleanValue):
+				return result.pyValue==True			#: NULL treated as False
+			else:
+				raise ValueError("Boolean required for filter expression") 
+	
+	def CalculateOrderKey(self,entity,orderObject):
+		"""Evaluates orderObject as an instance of py:class:`CommonExpression`."""
+		return orderObject.Evaluate(entity).pyValue		
+
+	def GenerateEntitySetInJSON(self,version=2):
+		"""Generates JSON serialised form of this collection."""
+		if version<2:
+			yield "["
+		else:
+			yield "{"
+			if self.inlineCount:
+				yield '"__count":%s,'%json.dumps(len(self))
+			yield '"results":['
+		sep=False
+		for entity in self.iterpage():
+			if not sep:
+				sep=True
+			else:
+				yield ','
+			for s in entity.GenerateEntityTypeInJSON(version):
+				yield s
+		if version<2:
+			yield "]"
+		else:
+			# add a next link if necessary
+			skiptoken=self.NextSkipToken()
+			if skiptoken is not None:
+				yield '],"__next":{"uri":%s}}'%json.dumps(str(self.GetLocation())+
+					"?$skiptoken=%s"%uri.EscapeData(skiptoken,uri.IsQueryReserved))
+			else:
+				yield ']}'		
+
+	def GenerateLinkCollJSON(self,version=2):
+		"""Generates JSON serialised collection of links"""
+		if version<2:
+			yield "["
+		else:
+			yield "{"
+			if self.inlineCount:
+				yield '"__count":%s,'%json.dumps(len(self))
+			yield '"results":['
+		sep=False
+		for entity in self.iterpage():
+			if not sep:
+				sep=True
+			else:
+				yield ','
+			yield '{"uri":%s}'%json.dumps(entity.GetLocation())
+		if version<2:
+			yield "]"
+		else:
+			# add a next link if necessary
+			skiptoken=self.NextSkipToken()
+			if skiptoken is not None:
+				yield '],"__next":{"uri":%s}}'%json.dumps(str(self.GetLocation())+
+					"?$skiptoken=%s"%uri.EscapeData(skiptoken,uri.IsQueryReserved))
+			else:
+				yield ']}'		
+		 		
+class EntityCollection(EntityCollectionMixin,edm.EntityCollection):
+	"""We override EntityCollection in order to provide OData-specific options."""
+
+	def __init__(self,entitySet):
+		edm.EntityCollection.__init__(self,entitySet)
+		EntityCollectionMixin.__init__(self)
+
+
+class NavigationEntityCollection(EntityCollectionMixin,edm.NavigationEntityCollection):
+	"""We override NavigationEntityCollection in order to provide OData-specific options."""
+
+	def __init__(self,name,fromEntity,toEnd):
+		edm.NavigationEntityCollection.__init__(self,name,fromEntity,toEnd)
+		EntityCollectionMixin.__init__(self)
+		
+	def GetLocation(self):
+		"""Returns the location of this collection as a
+		:py:class:`rfc2396.URI` instance.
+		
+		We override the location based on the source entity set + the fromKey."""
+		return uri.URIFactory.URI(string.join([
+			str(self.fromEntity.GetLocation()),
+			'/',
+			uri.EscapeData(self.name)],''))
+
+	def GetTitle(self):
+		return self.name
 
 		
+class FunctionEntityCollection(EntityCollectionMixin,edm.FunctionEntityCollection):
+	"""We override FunctionEntityCollection in order to provide OData-specific options."""
+
+	def __init__(self,function,params):
+		edm.FunctionEntityCollection.__init__(self,function,params)
+		EntityCollectionMixin.__init__(self)
+
+
+class FunctionCollection(edm.FunctionCollection):
+	"""We override FunctionCollection in order to provide OData-specific options."""
+
+	def GenerateCollectionInJSON(self,version=2):
+		"""Generates JSON serialised form of this collection."""
+		if version<2:
+			yield "["
+		else:
+			yield "{"
+			yield '"results":['
+		sep=False
+		for value in self:
+			if not sep:
+				sep=True
+			else:
+				yield ','
+			if isinstance(value,edm.SimpleValue):
+				yield SimpleValueToJSON(value)
+			else:
+				yield EntityCTBodyToJSON(value)
+		if version<2:
+			yield "]"
+		else:
+			yield ']}'		
+	
+					
 class Client(app.Client):
 	"""An OData client.
 	
@@ -2132,7 +2754,6 @@ class Client(app.Client):
 				if feedURL is None:
 					break
 						
-	
 	def Entry(self,entityTypeName=None):
 		"""Returns a new :py:class:`Entry` suitable for passing to :py:meth:`AddEntry`.
 		
@@ -2226,15 +2847,14 @@ class Error(ODataElement):
 		yield self.Message
 		if self.InnerError: yield self.InnerError
 
-	def JSONDict(self):
-		"""Returns a dictionary representation of this object."""
-		d={}
-		d['code']=self.Code.GetValue()
-		d['message']=self.Message.GetValue()
+	def GenerateStdErrorJSON(self):
+		yield '{"error":{"code":%s,"message":%s'%(
+			json.dumps(self.Code.GetValue()),
+			json.dumps(self.Message.GetValue()))
 		if self.InnerError:
-			d['innererror']=self.InnerError.GetValue()
-		return {'error':d}
-
+			yield ',"innererror":%s'%json.dumps(self.InnerError.GetValue())
+		yield '}}'
+		
 
 class Code(ODataElement):
 	XMLNAME=(ODATA_METADATA_NAMESPACE,'code')
@@ -2244,14 +2864,6 @@ class Message(ODataElement):
 	
 class InnerError(ODataElement):
 	XMLNAME=(ODATA_METADATA_NAMESPACE,'innererror')
-
-
-class ODataJSONEncoder(json.JSONEncoder):
-	def default(self, obj):
-		if hasattr(obj,'JSONDict'):
-			return obj.JSONDict()
-		else:
-			return json.JSONEncoder.default(self, obj)	
 
 
 class WSGIWrapper(object):
@@ -2292,8 +2904,17 @@ class Server(app.Server):
 	root consisting of just scheme and authority (e.g., http://odata.example.com
 	).  This type of servie root cannot be obtained with a simple HTTP request
 	as the trailing '/' is implied (and no redirection is necessary)."""
-	
-	DefaultAcceptList=http.AcceptList("application/atom+xml, application/xml; q=0.9, text/xml; q=0.8, text/plain; q=0.7, application/octet-stream; q=0.6")
+
+	AtomRanges=[
+		http.MediaRange('application/atom+xml'),
+		http.MediaRange('application/xml'),
+		http.MediaRange('text/xml') ]
+
+	JSONRanges=[
+		http.MediaRange('application/json')
+		]
+							
+	DefaultAcceptList=http.AcceptList("application/atom+xml, application/xml; q=0.9, text/xml; q=0.8, text/plain; q=0.7, */*; q=0.6")
 	ErrorTypes=[
 		http.MediaType('application/atom+xml'),
 		http.MediaType('application/xml'),
@@ -2312,16 +2933,21 @@ class Server(app.Server):
 		http.MediaType('text/plain')]
 	
 	EntryTypes=[	# in order of preference if there is a tie
-		http.MediaType('application/atom+xml'),
 		http.MediaType('application/atom+xml;type=entry'),
+		http.MediaType('application/atom+xml'),
 		http.MediaType('application/xml'),
 		http.MediaType('text/xml'),
 		http.MediaType('application/json'),
 		http.MediaType('text/plain')]
-			
+	
 	ValueTypes=[	# in order of preference if there is a tie
 		http.MediaType('application/xml'),
 		http.MediaType('text/xml'),
+		http.MediaType('application/json'),
+		http.MediaType('text/plain')]
+	
+	ServiceRootTypes=[	# in order of preference if there is a tie
+		http.MediaType('application/atomsvc+xml'),
 		http.MediaType('application/json'),
 		http.MediaType('text/plain')]
 	
@@ -2355,13 +2981,12 @@ class Server(app.Server):
 			self.pathPrefix=self.pathPrefix[:-1]		
 		self.ws=self.service.ChildElement(app.Workspace)	#: a single workspace that contains all collections
 		self.ws.ChildElement(atom.Title).SetValue("Default")
-		self.model=None					#: a :py:class:`pyslet.mc_edmx.Edmx` instance containing the model for the service
-		self.defaultContainer=None		#: the default entity container
+		self.model=None					#: a :py:class:`pyslet.odatav2_metadata.Edmx` instance containing the model for the service
 		
 	def SetModel(self,model):
 		"""Sets the model for the server from a parentless
-		:py:class:`pyslet.mc_edmx.Edmx` instance or an Edmx
-		:py:class:`pyslet.mc_edmx.Document` instance."""
+		:py:class:`pyslet.odatav2_metadata.Edmx` instance or an Edmx
+		:py:class:`pyslet.odatav2_metadata.Document` instance."""
 		if isinstance(model,edmx.Document):
 			model=model.root
 		elif isinstance(model,edmx.Edmx):
@@ -2375,81 +3000,80 @@ class Server(app.Server):
 				c.DetachFromDocument()
 				c.parent=None
 			self.ws.Collection=[]
-			self.defaultContainer=None
 		for s in model.DataServices.Schema:
 			for container in s.EntityContainer:
 				# is this the default entity container?
-				prefix=container.name+"."
-				try:
-					if container.GetAttribute(IsDefaultEntityContainer)=="true":
-						prefix=""
-						self.defaultContainer=container
-				except KeyError:
-					pass
+				if container is model.DataServices.defaultContainer:
+					prefix=""
+				else:
+					prefix=container.name+"."
 				# define one feed for each entity set, prefixed with the name of the entity set
 				for es in container.EntitySet:
 					feed=self.ws.ChildElement(app.Collection)
 					feed.href=prefix+es.name
 					feed.ChildElement(atom.Title).SetValue(prefix+es.name)
+					# update the location to reflect this binding
+					es.location=uri.URIFactory.Resolve(self.serviceRoot,prefix+es.name)
 		self.model=model
 		
 	def __call__(self,environ, start_response):
 		"""wsgi interface for the server."""
 		responseHeaders=[]
 		try:
-			result=self.CheckCapabilityNegotiation(environ,start_response,responseHeaders)
-			if result is None:
-				request=ODataURI(environ['PATH_INFO'],self.pathPrefix)
-				if request.resourcePath is None:
-					# this is not a URI for us, pass to our superclass
-					wrapper=WSGIWrapper(environ,start_response,responseHeaders)
-					# super essentially allows us to pass a bound method of our parent
-					# that we ourselves are hiding.
-					return wrapper.call(super(Server,self).__call__)
-				elif request.resourcePath=='':
-					# An empty resource path means they hit the service root, redirect
-					location=str(self.serviceRoot)
-					r=html.HTML(None)
-					r.Head.Title.SetValue('Redirect')
-					div=r.Body.ChildElement(html.Div)
-					div.AddData(u"Moved to: ")
-					anchor=div.ChildElement(html.A)
-					anchor.href=self.serviceRoot
-					anchor.SetValue(location)
-					responseType=self.ContentNegotiation(environ,self.RedirectTypes)
-					if responseType is None:
-						# this is a redirect response, default to text/plain anyway
-						responseType=http.MediaType('text/plain')
-					if responseType=="text/plain":
-						data=r.RenderText()
-					else:
-						data=str(r)
-					responseHeaders.append(("Content-Type",str(responseType)))
-					responseHeaders.append(("Content-Length",str(len(data))))
-					responseHeaders.append(("Location",location))
-					start_response("%i %s"%(307,"Temporary Redirect"),responseHeaders)
-					return [data]
+			version=self.CheckCapabilityNegotiation(environ,start_response,responseHeaders)
+			if version is None:
+				return self.ODataError(ODataURI('error'),environ,start_response,"DataServiceVersionMismatch","Maximum supported protocol version: 2.0")
+			request=ODataURI(environ['PATH_INFO'],self.pathPrefix,version)
+			if request.resourcePath is None:
+				# this is not a URI for us, pass to our superclass
+				wrapper=WSGIWrapper(environ,start_response,responseHeaders)
+				# super essentially allows us to pass a bound method of our parent
+				# that we ourselves are hiding.
+				return wrapper.call(super(Server,self).__call__)
+			elif request.resourcePath=='':
+				# An empty resource path means they hit the service root, redirect
+				location=str(self.serviceRoot)
+				r=html.HTML(None)
+				r.Head.Title.SetValue('Redirect')
+				div=r.Body.ChildElement(html.Div)
+				div.AddData(u"Moved to: ")
+				anchor=div.ChildElement(html.A)
+				anchor.href=self.serviceRoot
+				anchor.SetValue(location)
+				responseType=self.ContentNegotiation(request,environ,self.RedirectTypes)
+				if responseType is None:
+					# this is a redirect response, default to text/plain anyway
+					responseType=http.MediaType('text/plain')
+				if responseType=="text/plain":
+					data=r.RenderText()
 				else:
-					return self.HandleRequest(request,environ,start_response,responseHeaders)
+					data=str(r)
+				responseHeaders.append(("Content-Type",str(responseType)))
+				responseHeaders.append(("Content-Length",str(len(data))))
+				responseHeaders.append(("Location",location))
+				start_response("%i %s"%(307,"Temporary Redirect"),responseHeaders)
+				return [data]
 			else:
-				return result
+				return self.HandleRequest(request,environ,start_response,responseHeaders)
 		except InvalidSystemQueryOption,e:
-			return self.ODataError(environ,start_response,"InvalidSystemQueryOption","Invalid System Query Option: %s"%str(e))
+			return self.ODataError(ODataURI('error'),environ,start_response,"InvalidSystemQueryOption","Invalid System Query Option: %s"%str(e))
 		except ValueError,e:
 			traceback.print_exception(*sys.exc_info())
 			# This is a bad request
-			return self.ODataError(environ,start_response,"ValueError",str(e))
+			return self.ODataError(ODataURI('error'),environ,start_response,"ValueError",str(e))
 		except:
-			traceback.print_exception(*sys.exc_info())
-			return self.HandleError(environ,start_response)
+			eInfo=sys.exc_info()
+			traceback.print_exception(*eInfo)
+			# return self.HandleError(ODataURI('error'),environ,start_response)
+			return self.ODataError(ODataURI('error'),environ,start_response,"UnexpectedError","%s: %s"%(eInfo[0],eInfo[1]),500)
 
-	def ODataError(self,environ,start_response,subCode,message='',code=400):
+	def ODataError(self,request,environ,start_response,subCode,message='',code=400):
 		"""Generates and ODataError, typically as the result of a bad request."""
 		responseHeaders=[]
 		e=Error(None)
 		e.ChildElement(Code).SetValue(subCode)
 		e.ChildElement(Message).SetValue(message)
-		responseType=self.ContentNegotiation(environ,self.ErrorTypes)
+		responseType=self.ContentNegotiation(request,environ,self.ErrorTypes)
 		if responseType is None:
 			# this is an error response, default to text/plain anyway
 			responseType=http.MediaType('text/plain')
@@ -2457,198 +3081,149 @@ class Server(app.Server):
 			# even if you didn't ask for it, you get application/xml in this case
 			responseType="application/xml"
 		if responseType=="application/json":
-			data=json.dumps(e,cls=ODataJSONEncoder)
+			data=string.join(e.GenerateStdErrorJSON(),'')
 		else:
 			data=str(e)
 		responseHeaders.append(("Content-Type",str(responseType)))
 		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(code,subCode),responseHeaders)
 		return [data]
-		
-	def HandleRequest(self,requestURI,environ,start_response,responseHeaders):
+	
+	def HandleRequest(self,request,environ,start_response,responseHeaders):
 		"""Handles a request that has been identified as being an OData request.
 		
-		*	*requestURI* is an :py:class:`ODataURI` instance with a non-empty resourcePath."""
-		focus=None
-		METADATA=1
-		LINKS=2
-		VALUE=3
-		BATCH=4
-		COUNT=5
-		control=None
-		path=[]
+		*	*request* is an :py:class:`ODataURI` instance with a non-empty resourcePath."""
+		method=environ["REQUEST_METHOD"]
+		if self.model:
+			resource=self.model.DataServices
+		else:
+			resource=None
 		try:
-			for component in requestURI.navPath:
-				name,keyPredicate=component
-				if control==VALUE:
-					# bad request, because $value must be the last thing in the path
-					raise BadURISegment("%s since the object's parent is a dereferenced value"%name)							
-				elif control==METADATA:
-					# bad request, because $metadata must be the only thing in the path
-					raise BadURISegment("%s since $metadata must be the only path component"%name)													
-				elif control==BATCH:
-					# bad request, because $batch must be the only thing in the path
-					raise BadURISegment("%s since $batch must be the only path component"%name)
-				elif control==COUNT:
-					# bad request, because $count must be the only thing in the path
-					raise BadURISegment("%s since $count must be the last path component"%name)																		
-				if focus is None:
-					if name=='$metadata':
-						control=METADATA
-						continue
-					elif name=='$batch':
-						control=BATCH
-						continue
-					elif name in self.defaultContainer:
-						focus=self.defaultContainer[name]
-					else:
-						for s in self.model.DataServices.Schema:
-							if name in s:
-								focus=s[name]
-								container=focus.FindParent(edm.EntityContainer)
-								if container is self.defaultContainer:
-									focus=None
-								break
-					if isinstance(focus,edm.FunctionImport):
+			for segment in request.navPath:
+				name,keyPredicate=segment
+				if isinstance(resource,edmx.DataServices):
+					try:
+						resource=resource.SearchContainers(name)
+					except KeyError,e:
+						raise MissingURISegment(str(e))						
+					if isinstance(resource,edm.FunctionImport):
+						# format is the only supported system query option
+						for option in request.sysQueryOptions:
+							if option!=SystemQueryOption.format:
+								raise InvalidSystemQueryOption('$%s cannot be used with service operations'%SystemQueryOption.EncodeValue(option))
 						# TODO: grab the params from the query string
-						params={}
-						focus=focus.Execute(params)
-						if not isinstance(focus,edm.FunctionEntitySet):
-							# a function that returns anything other than an entity set
-							for option in requestURI.sysQueryOptions:
-								if option!=SystemQueryOption.format:
-									raise InvalidSystemQueryOption('$'+SystemQueryOption.EncodeValue(option))
-					if isinstance(focus,edm.EntitySet) or isinstance(focus,edm.FunctionEntitySet):
+						resource=resource.Execute({})
+					elif isinstance(resource,edm.EntitySet):
+						resource=resource.GetCollection()		
+					else:
+						# not the right sort of thing
+						raise MissingURISegment(name)					
+					if isinstance(resource,edm.EntityCollection):						
 						if keyPredicate:
 							# the keyPredicate can be passed directly as the key
 							try:
-								es=focus
-								focus=es[keyPredicate]
-								path=["%s(%s)"%(es.name,repr(focus.Key()))]
+								es=resource
+								resource=es[keyPredicate]
 							except KeyError,e:
 								raise MissingURISegment(name)
-						else:
-							# return this entity set
-							path.append(focus.name)
-# 					else:
-# 						# Attempt to use the name of some other object type, bad request
-# 						raise MissingURISegment(name)
-				elif isinstance(focus,(edm.EntitySet,edm.DynamicEntitySet)):
-					if name=="$count":
-						control=COUNT
-						for option in [
-							SystemQueryOption.format,
-							SystemQueryOption.skiptoken,
-							SystemQueryOption.inlinecount,
-							SystemQueryOption.select ]:
-							if option in requestURI.sysQueryOptions:
-								raise InvalidSystemQueryOption('$%s cannot be used with $count'%SystemQueryOption.EncodeValue(option))
-						continue
-					else:
-						# bad request, because the collection must be the last thing in the path
-						raise BadURISegment("%s since the object's parent is a collection"%name)
-				elif isinstance(focus,edm.FunctionCollection):
-					raise BadURISegment("%s since the object's parent is a collection"%name)					
-				elif isinstance(focus,edm.Entity):
-					if name in focus:
-						if control:
-							raise BadURISegment(name)
+					elif resource is None:
+						raise MissingURISegment(name)
+				elif isinstance(resource,(edm.EntityCollection,edm.FunctionCollection)):
+					# bad request, because the collection must be the last thing in the path
+					raise BadURISegment("%s since the object's parent is a collection"%name)
+				elif isinstance(resource,edm.Entity):
+					if name in resource:
 						# This is just a regular or dynamic property name
-						focus=focus[name]
-						path.append(name)
-					elif name.startswith("$"):
-						if control:
-							raise BadURISegment(name)
-						if name=="$links":
-							control=LINKS
-						elif name=="$count":
-							control=COUNT
-							for option in requestURI.sysQueryOptions:
-								if option not in [SystemQueryOption.expand, SystemQueryOption.filter]:
-									raise InvalidSystemQueryOption('$%s cannot be used with $count'%SystemQueryOption.EncodeValue(option))							
-						elif name=="$value":
-							hasStream=focus.typeDef.GetNSAttribute((ODATA_METADATA_NAMESPACE,'HasStream'))
-							hasStream=(hasStream and hasStream.lower()=="true")
-							if hasStream:
-								control=VALUE
-								for option in requestURI.sysQueryOptions:
-									if option!=SystemQueryOption.format:
-										raise InvalidSystemQueryOption('$%s cannot be used with media resource links'%SystemQueryOption.EncodeValue(option))							
-							else:
-								raise BadURISegment("%s since the entity is not a media stream"%name)
-						else:
-							raise BadURISegment(name)
+						resource=resource[name]
 					else:
-						if control and control!=LINKS:
-							raise BadURISegment("unexpected segment %s after system path component"%name)							
 						try:
 							# should be a navigation property
-							if focus.IsEntityCollection(name):
-								es=focus.Navigate(name)
+							if resource.IsEntityCollection(name):
+								es=resource.Navigate(name)
 								if keyPredicate:
-									if control==LINKS:
-										raise BadURISegment(name)
 									try:
-										focus=es[keyPredicate]
-										path=["%s(%s)"%(es.name,repr(focus.Key()))]
+										resource=es[keyPredicate]
 									except KeyError,e:
 										raise MissingURISegment(name)
 								else:
 									# return this entity set
-									focus=es
-									path.append(es.name)
+									resource=es
 							else:
-								focus=focus.Navigate(name)
+								resource=resource.Navigate(name)
 								# should be None or a specific entity this time
-								if focus is None:
+								if resource is None:
 									raise MissingURISegment(name)
 								elif keyPredicate:
-									if control==LINKS:
-										raise BadURISegment(name)
 									# the key must match that of the entity
-									if focus.Key()!=keyPredicate:
+									if resource.Key()!=keyPredicate:
 										raise MissingURISegment(name)
-								path=["%s(%s)"%(focus.entitySet.name,repr(focus.Key()))]
 						except KeyError:
 							raise MissingURISegment(name)
-				elif isinstance(focus,edm.Complex):
-					if name in focus:
+				elif isinstance(resource,edm.Complex):
+					if name in resource:
 						# This is a regular property of the ComplexType
-						focus=focus[name]
-						path.append(name)
-					elif name=="$value":
-						raise NotImplementedError("$value")
+						resource=resource[name]
 					else:
 						raise MissingURISegment(name)
 				else:
 					# Any other type is just a property or simple-type
-					if name=="$value":
-						control=VALUE
-					else:
-						raise BadURISegment(name)
-			path=string.join(path,'/')
-			if control==METADATA:
-				if requestURI.sysQueryOptions:
+					raise BadURISegment(name)
+			if request.pathOption==PathOption.metadata:
+				if request.sysQueryOptions:
 					raise InvalidSystemQueryOption('$metadata document must not have sytem query options')				
-				return self.ReturnMetadata(environ,start_response,responseHeaders)
-			elif control==BATCH:
-				if requestURI.sysQueryOptions:
-					raise InvalidSystemQueryOption('$batch must not have sytem query options')				
-				return self.ODataError(environ,start_response,"Bad Request","Batch requests not supported",404)
-			elif isinstance(focus,edm.Entity):
-				if control==COUNT:
-					return self.ReturnCount(1,environ,start_response,responseHeaders)
-				elif control==LINKS:
+				return self.ReturnMetadata(request,environ,start_response,responseHeaders)
+			elif request.pathOption==PathOption.batch:
+				if request.sysQueryOptions:
+					raise InvalidSystemQueryOption('$batch must not have sytem query options')
+				return self.ODataError(request,environ,start_response,"Bad Request","Batch requests not supported",404)
+			elif request.pathOption==PathOption.count:
+				for option in [
+					SystemQueryOption.format,
+					SystemQueryOption.skiptoken,
+					SystemQueryOption.inlinecount,
+					SystemQueryOption.select ]:
+					if option in request.sysQueryOptions:
+						raise InvalidSystemQueryOption('$%s cannot be used with $count'%SystemQueryOption.EncodeValue(option))
+				if isinstance(resource,edm.Entity):
 					for option in [
-						SystemQueryOption.expand,
-						SystemQueryOption.filter,
 						SystemQueryOption.orderby,
-						SystemQueryOption.select ]:
-						if option in requestURI.sysQueryOptions:
-							raise InvalidSystemQueryOption('$'+SystemQueryOption.EncodeValue(option))
-					return self.ReturnLink(focus,environ,start_response,responseHeaders)				
-				elif control==VALUE:
-					return self.ReturnStream(focus,environ,start_response,responseHeaders)								
+						SystemQueryOption.skip,
+						SystemQueryOption.top ]:
+						if option in request.sysQueryOptions:
+							raise InvalidSystemQueryOption('$%s cannot be used with $count of single Entity'%SystemQueryOption.EncodeValue(option))
+					return self.ReturnCount(1,request,environ,start_response,responseHeaders)
+				elif isinstance(resource,edm.EntityCollection):
+					return self.ReturnCount(len(resource),request,environ,start_response,responseHeaders)
+				else:
+					raise BadURISegment("$count must be applied to an EntitySet or single EntityType instance")
+			elif request.pathOption==PathOption.links:
+				for option in [
+					SystemQueryOption.expand,
+					SystemQueryOption.filter,
+					SystemQueryOption.orderby,
+					SystemQueryOption.select ]:
+					if option in request.sysQueryOptions:
+						raise InvalidSystemQueryOption('$%s not allowed with $links'%SystemQueryOption.EncodeValue(option))
+				if isinstance(resource,edm.Entity):
+					return self.ReturnLink(resource,request,environ,start_response,responseHeaders)
+				elif isinstance(resource,edm.EntityCollection):
+					resource.Skip(request.sysQueryOptions.get(SystemQueryOption.skip,None))
+					resource.Top(request.sysQueryOptions.get(SystemQueryOption.top,None))
+					resource.SkipToken(request.sysQueryOptions.get(SystemQueryOption.skiptoken,None))
+					inlineCount=request.sysQueryOptions.get(SystemQueryOption.inlinecount,None)
+					resource.SetInlineCount(inlineCount==InlineCount.allpages)
+					return self.ReturnLinks(resource,request,environ,start_response,responseHeaders)
+				else:
+					raise BadURISegment("$links requires a collection or a single EntityType instance")																	
+			elif isinstance(resource,edm.Entity):
+				if request.pathOption==PathOption.value:
+					if resource.typeDef.HasStream():
+						for option in request.sysQueryOptions:
+							if option!=SystemQueryOption.format:
+								raise InvalidSystemQueryOption('$%s cannot be used with media resource links'%SystemQueryOption.EncodeValue(option))							
+						return self.ReturnStream(resource,request,environ,start_response,responseHeaders)								
+					else:
+						raise BadURISegment("$value cannot be used since the entity is not a media stream")				
 				else:
 					for option in [
 						SystemQueryOption.orderby,
@@ -2656,89 +3231,123 @@ class Server(app.Server):
 						SystemQueryOption.top,
 						SystemQueryOption.skiptoken,
 						SystemQueryOption.inlinecount ]:
-						if option in requestURI.sysQueryOptions:
-							raise InvalidSystemQueryOption('$'+SystemQueryOption.EncodeValue(option))
-					return self.ReturnEntity(path,focus,environ,start_response,responseHeaders)
-			elif isinstance(focus,edm.EDMValue):
+						if option in request.sysQueryOptions:
+							raise InvalidSystemQueryOption('$'+SystemQueryOption.EncodeValue(option))					
+					self.ExpandResource(resource,request.sysQueryOptions)
+					return self.ReturnEntity(resource,request,environ,start_response,responseHeaders)
+			elif isinstance(resource,edm.EntityCollection):
+				if method=="GET":
+					self.ExpandResource(resource,request.sysQueryOptions)
+					resource.Filter(request.sysQueryOptions.get(SystemQueryOption.filter,None))
+					resource.OrderBy(request.sysQueryOptions.get(SystemQueryOption.orderby,[]))
+					resource.Skip(request.sysQueryOptions.get(SystemQueryOption.skip,None))
+					resource.Top(request.sysQueryOptions.get(SystemQueryOption.top,None))
+					resource.SkipToken(request.sysQueryOptions.get(SystemQueryOption.skiptoken,None))
+					inlineCount=request.sysQueryOptions.get(SystemQueryOption.inlinecount,None)
+					resource.SetInlineCount(inlineCount==InlineCount.allpages)
+					return self.ReturnEntityCollection(resource,request,environ,start_response,responseHeaders)
+				elif method=="POST":
+					# POST to an entity collection
+					entity=resource.NewEntity()
+					# read the entity from the request
+					self.ReadEntity(entity,environ)
+					resource.InsertEntity(entity)
+					responseHeaders.append(('Location',str(entity.GetLocation())))
+					return self.ReturnEntity(entity,request,environ,start_response,responseHeaders,201,"Created")
+				else:
+					raise InvalidMethod("%s not supported here"%method)					
+			elif isinstance(resource,edm.EDMValue):
 				for option in [
 					SystemQueryOption.expand,
+					SystemQueryOption.select,
 					SystemQueryOption.orderby,
 					SystemQueryOption.skip,
 					SystemQueryOption.top,
 					SystemQueryOption.skiptoken,
-					SystemQueryOption.inlinecount,
-					SystemQueryOption.select ]:
-					if option in requestURI.sysQueryOptions:
+					SystemQueryOption.inlinecount ]:
+					if option in request.sysQueryOptions:
 						raise InvalidSystemQueryOption('$'+SystemQueryOption.EncodeValue(option))
-				if isinstance(focus,edm.SimpleValue) and SystemQueryOption.filter in requestURI.sysQueryOptions:
-					raise InvalidSystemQueryOption("$filter")					
-				if control==VALUE:
-					return self.ReturnDereferencedValue(focus,environ,start_response,responseHeaders)
+				if isinstance(resource,edm.SimpleValue) and SystemQueryOption.filter in request.sysQueryOptions:
+					raise InvalidSystemQueryOption("$filter")		
+				if request.pathOption==PathOption.value:
+					return self.ReturnDereferencedValue(resource,request,environ,start_response,responseHeaders)
 				else:
-					return self.ReturnValue(focus,environ,start_response,responseHeaders)
-			elif isinstance(focus,edm.EntitySet) or isinstance(focus,edm.DynamicEntitySet):
-				if control==COUNT:
-					return self.ReturnCount(len(focus),environ,start_response,responseHeaders)
-				elif control==LINKS:
-					for option in [
-						SystemQueryOption.expand,
-						SystemQueryOption.filter,
-						SystemQueryOption.orderby,
-						SystemQueryOption.select ]:
-						if option in requestURI.sysQueryOptions:
-							raise InvalidSystemQueryOption('$'+SystemQueryOption.EncodeValue(option))
-					return self.ReturnLinks(focus,environ,start_response,responseHeaders)				
-				else:
-					return self.ReturnEntityCollection(path,focus,environ,start_response,responseHeaders)
-			elif isinstance(focus,edm.FunctionCollection):
-				return self.ReturnCollection(focus,environ,start_response,responseHeaders)
+					return self.ReturnValue(resource,request,environ,start_response,responseHeaders)
+			elif isinstance(resource,edm.FunctionCollection):
+				return self.ReturnCollection(resource,request,environ,start_response,responseHeaders)
 			else:	
-				# an empty navPath means we are trying to get the service root
-				wrapper=WSGIWrapper(environ,start_response,responseHeaders)
-				# super essentially allows us to pass a bound method of our parent
-				# that we ourselves are hiding.
-				return wrapper.call(super(Server,self).__call__)
+				# None or the DataService object: means we are trying to get the service root
+				responseType=self.ContentNegotiation(request,environ,self.ServiceRootTypes)
+				if responseType is None:
+					return self.ODataError(request,environ,start_response,"Not Acceptable",'atomsvc+xml or json formats supported',406)
+				elif responseType=="application/json":
+					return self.ReturnJSONRoot(request,environ,start_response,responseHeaders)
+				else:
+					wrapper=WSGIWrapper(environ,start_response,responseHeaders)
+					# super essentially allows us to pass a bound method of our parent
+					# that we ourselves are hiding.
+					return wrapper.call(super(Server,self).__call__)
 		except InvalidSystemQueryOption,e:
-			return self.ODataError(environ,start_response,"Bad Request","System query option is cannot be used with this form of URI: %s"%str(e),400)
+			return self.ODataError(request,environ,start_response,"Bad Request","System query option is invalid or incompatible with this form of URI: %s"%str(e),400)
 		except MissingURISegment,e:
-			return self.ODataError(environ,start_response,"Bad Request","Resource not found for component %s"%str(e),404)
+			return self.ODataError(request,environ,start_response,"Bad Request","Resource not found for segment %s"%str(e),404)
 		except BadURISegment,e:
-			return self.ODataError(environ,start_response,"Bad Request","Resource not found for component %s"%str(e),400)
+			return self.ODataError(request,environ,start_response,"Bad Request","Resource not found for segment %s"%str(e),400)
 	
-	def ReturnMetadata(self,environ,start_response,responseHeaders):
+	def ExpandResource(self,resource,sysQueryOptions):
+		try:
+			expand=sysQueryOptions.get(SystemQueryOption.expand,None)
+			select=sysQueryOptions.get(SystemQueryOption.select,None)
+			if expand is None and select is None:
+				return
+			if not isinstance(resource,(EntityCollection,Entity)):
+				raise InvalidSystemQueryOption("$select/$expand not allowed")					
+			resource.entitySet.entityType.ValidateExpansion(expand,select)
+			resource.Expand(expand,select)
+		except ValueError as e:
+			raise InvalidSystemQueryOption("$select/$expand error: %s"%str(e))					
+		
+	def ReturnJSONRoot(self,request,environ,start_response,responseHeaders):
+		data=json.dumps({'EntitySets':map(lambda x:x.href,self.ws.Collection)})
+		responseHeaders.append(("Content-Type","application/json"))
+		responseHeaders.append(("Content-Length",str(len(data))))
+		start_response("%i %s"%(200,"Success"),responseHeaders)
+		return [data]
+		
+	def ReturnMetadata(self,request,environ,start_response,responseHeaders):
 		doc=self.model.GetDocument()
-		responseType=self.ContentNegotiation(environ,self.MetadataTypes)
+		responseType=self.ContentNegotiation(request,environ,self.MetadataTypes)
 		if responseType is None:
-			return self.ODataError(environ,start_response,"Not Acceptable",'xml or plain text formats supported',406)
+			return self.ODataError(request,environ,start_response,"Not Acceptable",'xml or plain text formats supported',406)
 		data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
 		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 			
-	def ReturnLinks(self,entities,environ,start_response,responseHeaders):
-		doc=Document(root=Links)
-		for e in entities.itervalues():
-			child=doc.root.ChildElement(URI)
-			child.SetValue(str(self.serviceRoot)+"%s(%s)"%(e.entitySet.name,repr(e.Key())))
-		responseType=self.ContentNegotiation(environ,self.ValueTypes)
+	def ReturnLinks(self,entities,request,environ,start_response,responseHeaders):
+		responseType=self.ContentNegotiation(request,environ,self.ValueTypes)
 		if responseType is None:
-			return self.ODataError(environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
+			return self.ODataError(request,environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
 		if responseType=="application/json":
-			data=json.dumps(links,cls=ODataJSONEncoder)
+			data=string.join(entities.GenerateLinkCollJSON(request.version),'')
 		else:
+			doc=Document(root=Links)
+			for e in entities.itervalues():
+				child=doc.root.ChildElement(URI)
+				child.SetValue(str(self.serviceRoot)+"%s(%s)"%(e.entitySet.name,repr(e.Key())))
 			data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
 		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 		
-	def ReturnLink(self,entity,environ,start_response,responseHeaders):
+	def ReturnLink(self,entity,request,environ,start_response,responseHeaders):
 		doc=Document(root=URI)
 		doc.root.SetValue(str(self.serviceRoot)+"%s(%s)"%(entity.entitySet.name,repr(entity.Key())))
-		responseType=self.ContentNegotiation(environ,self.ValueTypes)
+		responseType=self.ContentNegotiation(request,environ,self.ValueTypes)
 		if responseType is None:
-			return self.ODataError(environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
+			return self.ODataError(request,environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
 		if responseType=="application/json":
 			data=json.dumps(doc.root,cls=ODataJSONEncoder)
 		else:
@@ -2748,76 +3357,134 @@ class Server(app.Server):
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 			
-	def ReturnEntityCollection(self,path,entities,environ,start_response,responseHeaders):
+	def ReturnEntityCollection(self,entities,request,environ,start_response,responseHeaders):
 		"""Returns an iterable of Entities."""
-		doc=Document(root=atom.Feed)
-		f=doc.root
-		#f.MakePrefix(ODATA_DATASERVICES_NAMESPACE,u'd')
-		#f.MakePrefix(ODATA_METADATA_NAMESPACE,u'm')
-		f.SetBase(str(self.serviceRoot))
-		# f.ChildElement(atom.Title).SetValue(entities.GetTitle())
-		f.ChildElement(atom.AtomId).SetValue(str(self.serviceRoot)+path)
-		# f.ChildElement(atom.Updated).SetValue(entities.GetUpdated())
-		for e in entities.itervalues():
-			entry=f.ChildElement(atom.Entry)
-			entry.ChildElement(atom.AtomId).SetValue(str(self.serviceRoot)+"%s(%s)"%(e.entitySet.name,repr(e.Key())))		
-		# do stuff with the entries themselves, add link elements etc
-		responseType=self.ContentNegotiation(environ,self.FeedTypes)
+		responseType=self.ContentNegotiation(request,environ,self.FeedTypes)
 		if responseType is None:
-			return self.ODataError(environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
+			return self.ODataError(request,environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
 		if responseType=="application/json":
-			data=json.dumps(f,cls=ODataJSONEncoder)
+			data=string.join(entities.GenerateEntitySetInJSON(request.version),'')
 		else:
 			# Here's a challenge, we want to pull data through the feed by yielding strings
 			# just load in to memory at the moment
+			f=Feed(None,entities)
+			doc=Document(root=f)
+			f.collection=entities
+			f.SetBase(str(self.serviceRoot))
 			data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
 		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 				
-	def ReturnEntity(self,path,entity,environ,start_response,responseHeaders):
-		"""Returns a single Entity."""
-		doc=Document(root=Entry)
-		e=doc.root
-		e.SetBase(str(self.serviceRoot))
-		e.ChildElement(atom.AtomId).SetValue(str(self.serviceRoot)+path)
-		e.SetValue(entity)
-		# TODO: do stuff with the entries themselves, add link elements etc
-		responseType=self.ContentNegotiation(environ,self.EntryTypes)
-		if responseType is None:
-			return self.ODataError(environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
-		if responseType=="application/json":
-			data=json.dumps(e,cls=ODataJSONEncoder)
+	def ReadXMLOrJSON(self,environ):
+		"""Reads either an XML document or a JSON object from environ."""
+		atomFlag=None
+		encoding=None
+		if "CONTENT_TYPE" in environ:
+			requestType=http.MediaType(environ["CONTENT_TYPE"])
+			for r in self.AtomRanges:
+				if r.MatchMediaType(requestType):
+					atomFlag=True
+					break
+			if atomFlag is None:
+				for r in self.JSONRanges:
+					if r.MatchMediaTypes(requestType):
+						atomFlag=False
+						break
+			encoding=requestType.parameters.get('charset',(None,None))[0]
+		input=app.InputWrapper(environ)
+		unicodeInput=None
+		if encoding is None:
+			# read a line, at most 4 bytes
+			encoding=DetectEncoding(input.readline(4))
+			if encoding is None:
+				encoding='utf_8'
+			input.seek(0)
+		if atomFlag is None:
+			# we need to figure out what we have here
+			if encoding.lower() in ("utf_8","utf-8"):
+				unicodeInput=input
+			else:
+				unicodeInput=codecs.getreader(encoding)(input)
+			b='\x00'
+			while ord(b)<0x20:
+				b=unicodeInput.read(1)
+				if len(b)==0:
+					# empty file
+					break
+			if b==u'<':
+				atomFlag=True
+			elif b in u'{[':
+				atomFlag=False
+			else:
+				raise InvalidData("Unable to parse request body")
+			unicodeInput.seek(0)			
+		if atomFlag==True:
+			# read atom file
+			doc=Document()
+			doc.Read(src=xml.XMLEntity(src=input,encoding=encoding))
+			return doc
 		else:
-			# Here's a challenge, we want to pull data through the feed by yielding strings
-			# just load in to memory at the moment
+			if unicodeInput is None:
+				if encoding.lower() in ("utf_8","utf-8"):
+					unicodeInput=input
+				else:
+					unicodeInput=codecs.getreader(encoding)(input)
+			return json.load(unicodeInput)
+			
+	def ReadEntity(self,entity,environ):
+		input=self.ReadXMLOrJSON(environ)
+		if isinstance(input,Document):
+			if isinstance(input.root,Entry):
+				# we have an entry, which is a relief!
+				input.root.GetValue(entity)
+			else:
+				raise InvalidData("Unable to parse atom Entry from request body (found <%s>)"%doc.root.xmlname)
+		else:
+			# must be a json object
+			entity.SetFromJSONObject(input)
+		
+	def ReturnEntity(self,entity,request,environ,start_response,responseHeaders,status=200,statusMsg="Success"):
+		"""Returns a single Entity."""
+		responseType=self.ContentNegotiation(request,environ,self.EntryTypes)
+		if responseType is None:
+			return self.ODataError(request,environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
+		# Here's a challenge, we want to pull data through the feed by yielding strings
+		# just load in to memory at the moment
+		if responseType=="application/json":
+			data=string.join(entity.GenerateEntityTypeInJSON(),'')
+		else:
+			doc=Document(root=Entry)
+			e=doc.root
+			e.SetBase(str(self.serviceRoot))
+			e.SetValue(entity)
 			data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
 		responseHeaders.append(("Content-Length",str(len(data))))
-		start_response("%i %s"%(200,"Success"),responseHeaders)
+		start_response("%i %s"%(status,statusMsg),responseHeaders)
 		return [data]
 
-	def ReturnStream(self,entity,environ,start_response,responseHeaders):
+	def ReturnStream(self,entity,request,environ,start_response,responseHeaders):
 		"""Returns a media stream."""
-		types=[entity.entitySet.GetStreamType(entity)]+self.StreamTypes
-		responseType=self.ContentNegotiation(environ,types)
+		types=[entity.GetStreamType()]+self.StreamTypes
+		responseType=self.ContentNegotiation(request,environ,types)
 		if responseType is None:
-			return self.ODataError(environ,start_response,"Not Acceptable",'media stream type refused, try application/octet-stream',406)
+			return self.ODataError(request,environ,start_response,"Not Acceptable",'media stream type refused, try application/octet-stream',406)
 		responseHeaders.append(("Content-Type",str(responseType)))
-		responseHeaders.append(("Content-Length",entity.entitySet.GetStreamSize(entity)))
+		responseHeaders.append(("Content-Length",entity.GetStreamSize()))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
-		return entity.entitySet.GetStreamGenerator(entity)
+		return entity.GetStreamGenerator()
 
-	def ReturnValue(self,value,environ,start_response,responseHeaders):
+	def ReturnValue(self,value,request,environ,start_response,responseHeaders):
 		"""Returns a single property value."""
 		e=Property(None)
 		e.SetXMLName((ODATA_DATASERVICES_NAMESPACE,value.name))
 		doc=Document(root=e)
 		e.SetValue(value)
-		responseType=self.ContentNegotiation(environ,self.ValueTypes)
+		responseType=self.ContentNegotiation(request,environ,self.ValueTypes)
 		if responseType is None:
-			return self.ODataError(environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
+			return self.ODataError(request,environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
 		if responseType=="application/json":
 			data=json.dumps(e,cls=ODataJSONEncoder)
 		else:
@@ -2827,61 +3494,66 @@ class Server(app.Server):
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 				
-	def ReturnDereferencedValue(self,value,environ,start_response,responseHeaders):
+	def ReturnDereferencedValue(self,value,request,environ,start_response,responseHeaders):
 		"""Returns a dereferenced property value."""
-		responseType=self.ContentNegotiation(environ,self.DereferenceTypes)
+		mTypes=self.DereferenceTypes if value.mType is None else [value.mType]
+		responseType=self.ContentNegotiation(request,environ,mTypes)
 		if responseType is None:
-			return self.ODataError(environ,start_response,"Not Acceptable",'$value requires plain text or octet-stream formats',406)
+			return self.ODataError(request,environ,start_response,"Not Acceptable",'$value requires plain text or octet-stream formats',406)
 		data=unicode(value).encode('utf-8')
 		responseHeaders.append(("Content-Type",str(responseType)))
 		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 				
-	def ReturnCollection(self,collection,environ,start_response,responseHeaders):
+	def ReturnCollection(self,collection,request,environ,start_response,responseHeaders):
 		"""Returns a collection of values."""
-		e=Collection(None)
-		e.SetXMLName((ODATA_METADATA_NAMESPACE,collection.name))
-		doc=Document(root=e)
-		for value in collection:
-			p=e.ChildElement(Property)
-			p.SetXMLName((ODATA_DATASERVICES_NAMESPACE,value.name))
-			p.SetValue(value)
-		responseType=self.ContentNegotiation(environ,self.ValueTypes)
+		responseType=self.ContentNegotiation(request,environ,self.ValueTypes)
 		if responseType is None:
-			return self.ODataError(environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
+			return self.ODataError(request,environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
 		if responseType=="application/json":
-			data=json.dumps(e,cls=ODataJSONEncoder)
+			data=string.join(collection.GenerateCollectionInJSON(request.version))
 		else:
+			e=Collection(None)
+			e.SetXMLName((ODATA_METADATA_NAMESPACE,collection.name))
+			doc=Document(root=e)
+			for value in collection:
+				p=e.ChildElement(Property)
+				p.SetXMLName((ODATA_DATASERVICES_NAMESPACE,value.name))
+				p.SetValue(value)
 			data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
 		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 
-	def ReturnCount(self,number,environ,start_response,responseHeaders):
+	def ReturnCount(self,number,request,environ,start_response,responseHeaders):
 		"""Returns the single value number."""
-		responseType=self.ContentNegotiation(environ,self.DereferenceTypes)
+		responseType=self.ContentNegotiation(request,environ,self.DereferenceTypes)
 		if responseType is None:
-			return self.ODataError(environ,start_response,"Not Acceptable",'$count requires plain text or octet-stream formats',406)
+			return self.ODataError(request,environ,start_response,"Not Acceptable",'$count requires plain text or octet-stream formats',406)
 		data=str(number)
 		responseHeaders.append(("Content-Type",str(responseType)))
 		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 				
-	def ContentNegotiation(self,environ,mTypeList):
+	def ContentNegotiation(self,request,environ,mTypeList):
 		"""Given a list of media types, examines the Accept header and returns the best match.
 		
-		If there is no match then None is returned."""
-		if "HTTP_Accept" in environ:
-			try:
-				aList=http.AcceptList(environ["HTTP_Accept"])
-			except http.HTTPParameterError:
-				# we'll treat this as a missing Accept header
+		If there is no match then None is returned.  We also handle an
+		accept list override in the form of acceptList, e.g., parsed
+		from the $format parameter."""
+		aList=request.sysQueryOptions.get(SystemQueryOption.format,None)
+		if aList is None:
+			if "HTTP_Accept" in environ:
+				try:
+					aList=http.AcceptList(environ["HTTP_Accept"])
+				except http.HTTPParameterError:
+					# we'll treat this as a missing Accept header
+					aList=self.DefaultAcceptList
+			else:
 				aList=self.DefaultAcceptList
-		else:
-			aList=self.DefaultAcceptList
 		return aList.SelectType(mTypeList)
 			
 	def CheckCapabilityNegotiation(self,environ,start_response,responseHeaders):
@@ -2907,12 +3579,13 @@ class Server(app.Server):
 			maxMinor=minor
 		if major>2 or (major==2 and minor>0):
 			# we can't cope with this request
-			return self.ODataError(environ,start_response,"DataServiceVersionMismatch","Maximum supported protocol version: 2.0")
-		if maxMajor>=2:
+			return None
+		elif maxMajor>=2:
 			responseHeaders.append(('DataServiceVersion','2.0; pyslet %s'%info.version))
+			return 2
 		else:
 			responseHeaders.append(('DataServiceVersion','1.0; pyslet %s'%info.version))
-		return None
+			return 1
 			
 	
 class Document(app.Document):
@@ -2924,7 +3597,8 @@ class Document(app.Document):
 		self.MakePrefix(ODATA_METADATA_NAMESPACE,'m')
 		self.MakePrefix(ODATA_DATASERVICES_NAMESPACE,'d')
 	
-	def GetElementClass(self,name):
+	@classmethod
+	def GetElementClass(cls,name):
 		"""Returns the OData, APP or Atom class used to represent name.
 		
 		Overrides :py:meth:`~pyslet.rfc5023.Document.GetElementClass` to allow
@@ -2935,8 +3609,10 @@ class Document(app.Document):
 			if name[0]==ODATA_DATASERVICES_NAMESPACE:
 				result=Property
 			else:
-				result=app.Document.GetElementClass(self,name)
+				result=app.Document.GetElementClass(name)
 		return result
+
+xmlns.MapClassElements(Document.classMap,globals())
 
 
 class ODataStoreClient(edm.ERStore):
@@ -2953,7 +3629,7 @@ class ODataStoreClient(edm.ERStore):
 			# search for the default entity container
 			for container in schema.EntityContainer:
 				try:
-					if container.GetAttribute(IsDefaultEntityContainer)=="true":
+					if container.IsDefaultEntityContainer():
 						if self.defaultContainer is None:
 							self.defaultContainer=container
 						else:
@@ -2981,4 +3657,3 @@ class ODataStoreClient(edm.ERStore):
 			yield values
 
 			
-xmlns.MapClassElements(Document.classMap,globals())

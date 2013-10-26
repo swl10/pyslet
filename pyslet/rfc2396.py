@@ -602,7 +602,8 @@ class URI:
 			return None
 				
 	def Resolve(self,base,currentDocRef=None):
-		"""Resolves a (relative) URI relative to base
+		"""Resolves a (relative) URI relative to base returning a new
+		:py:class:`URI` instance
 		
 		If the base URI is also relative then the result is a relative URI,
 		otherwise the result is an absolute URI.  The RFC does not actually go

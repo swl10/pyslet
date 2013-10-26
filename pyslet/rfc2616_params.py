@@ -133,7 +133,7 @@ class FullDate(iso.TimePoint):
 					raise HTTPParameterError("Unrecognized month: %s"%repr(token))
 				wp.ParseSP()
 				year=wp.RequireInteger("year")
-				century=year/100
+				century=year//100
 				year=year%100
 			else:
 				# Alternative 1: "Sunday, 06-Nov-94 08:49:37 GMT"
@@ -163,7 +163,7 @@ class FullDate(iso.TimePoint):
 		wp.ParseSP()
 		if year is None:
 			year=wp.RequireInteger("year")
-			century=year/100
+			century=year//100
 			year=year%100
 		else:
 			token=wp.RequireToken("GMT").upper()
@@ -273,6 +273,12 @@ class MediaType:
 	def __str__(self):
 		return string.join([self.type,'/',self.subtype],'')+FormatParameters(self.parameters)
 
+	def __unicode__(self):
+		return unicode(self.__str__())
+	
+	def __repr__(self):
+		return "MediaType('%s')"%self.__str__()
+			
 	def __cmp__(self,other):
 		"""Media-types are compared by type, subtype and ultimately parameters."""
 		if not isinstance(other,MediaType):
@@ -318,7 +324,7 @@ class ProductToken:
 class MediaRange(MediaType):
 
 	def MatchMediaType(self,mType):
-		"""Tests whether this media type matches this range."""
+		"""Tests whether the media type *mtype* matches this range."""
 		if self.type=='*':
 			return True
 		elif self.type!=mType.type:

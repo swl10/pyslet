@@ -607,14 +607,14 @@ class Member(NOperator):
 		if singleValue and containerValue:
 			if singleValue.Cardinality()!=variables.Cardinality.single:
 				raise core.ProcessingError("Expected single value, found %s"%
-					variables.Cardinality.EncodeValue(singleValue.Cardinality))
+					variables.Cardinality.EncodeValue(singleValue.Cardinality()))
 			if containerValue.Cardinality()==variables.Cardinality.ordered:
 				return variables.BooleanValue(singleValue.value in containerValue.value)
 			elif containerValue.Cardinality()==variables.Cardinality.multiple:
 				return variables.BooleanValue(singleValue.value in containerValue.value.keys())
 			else:
 				raise core.ProcessingError("Expected ordered or multiple value, found %s"%
-					variables.Cardinality.EncodeValue(containerValue.Cardinality))							
+					variables.Cardinality.EncodeValue(containerValue.Cardinality()))							
 		else:
 			return variables.BooleanValue()
 
@@ -648,10 +648,10 @@ class Delete(NOperator):
 			raise core.ProcessingError("Delete operator must not be used on duration values")
 		if singleValue.Cardinality() not in (variables.Cardinality.single,None):
 			raise core.ProcessingError("Expected single value, found %s"%
-				variables.Cardinality.EncodeValue(singleValue.Cardinality))
+				variables.Cardinality.EncodeValue(singleValue.Cardinality()))
 		if containerValue.Cardinality() not in (variables.Cardinality.ordered,variables.Cardinality.multiple,None):				
 			raise core.ProcessingError("Expected ordered or multiple value, found %s"%
-				variables.Cardinality.EncodeValue(containerValue.Cardinality))
+				variables.Cardinality.EncodeValue(containerValue.Cardinality()))
 		result=variables.Container.NewValue(containerValue.Cardinality(),containerValue.baseType)
 		if singleValue and containerValue:
 			# we treat multiple and ordered the same, less efficient as we enumerate all members

@@ -62,7 +62,7 @@ try:
 			separated by '.' to make them easier to read and transcribe into
 			other systems."""
 			key=[]
-			nFours=(keyLength+1)/16
+			nFours=(keyLength+1)//16
 			try:
 				rBytes=os.urandom(nFours*2)
 				for i in xrange(nFours):

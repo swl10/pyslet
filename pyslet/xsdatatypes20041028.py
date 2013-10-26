@@ -771,6 +771,21 @@ class BasicParser(object):
 		else:
 			return ''
 
+	def ParseUntil(self,matchString):
+		"""Returns all characters up until the first instance of *matchString*.
+		
+		Advances the parser to the first character *of* matchString.  If
+		matchString is not found then all the remaining characters in
+		the source are parsed."""
+		matchPos=self.src.find(matchString,self.pos)
+		if matchPos==-1:
+			result=self.src[self.pos:]
+			self.SetPos(len(self.src))
+		else:
+			result=self.src[self.pos:matchPos]
+			self.SetPos(matchPos)
+		return result
+			
 	def Require(self,matchString,production=None):
 		"""Parses *matchString* or raises ValueError.
 		
@@ -846,8 +861,12 @@ class BasicParser(object):
 			return None
 		return string.join(result,'')
 
-	def ParseInteger(self,min,max,maxDigits=None):
-		"""Parses an integer with value between min and max, returning the integer.
+	def ParseInteger(self,min=None,max=None,maxDigits=None):
+		"""Parses an integer (or long) with value between min and max, returning the integer.
+		
+		*	*min* can be None to indicate no lower limit
+		
+		*	*max* can be None to indicate no upper limit
 		
 		*	*maxDigits* sets a limit on the number of digits
 		
@@ -858,7 +877,7 @@ class BasicParser(object):
 			return None
 		else:
 			d=int(d)
-			if d<min or d>max:
+			if (min is not None and d<min) or (max is not None and d>max):
 				self.SetPos(savePos)
 				return None
 			return d			

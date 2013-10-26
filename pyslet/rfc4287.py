@@ -372,6 +372,8 @@ class Category(AtomElement):
 class Entity(AtomElement):
 	"""Base class for feed, entry and source elements."""
 
+	LinkClass=Link
+
 	def __init__(self,parent):
 		AtomElement.__init__(self,parent)
 		self.AtomId=None
@@ -388,6 +390,24 @@ class Entity(AtomElement):
 		self.Title=None		#: atomTitle
 		self.Updated=None	#: atomUpdated
 
+	def Reset(self):
+		for child in itertools.chain(self.Author,self.Category,self.Contributor,self.Link):
+			child.DetachFromParent
+		self.Author=[]
+		self.Category=[]
+		self.Contributor=[]
+		self.Link=[]
+		if self.Rights:
+			self.Rights.DetachFromParent()
+			self.Rights=None
+		if self.Title:
+			self.Title.DetachFromParent()
+			self.Title=None
+		if self.Updated:
+			self.Updated.DetachFromParent()
+			self.Update=None
+		super(Entity,self).Reset()
+		
 	def GetChildren(self):
 		if self.AtomId: yield self.AtomId
 		if self.Title: yield self.Title
@@ -407,6 +427,7 @@ class Source(Entity):
 	
 	This class is also used a base class for :py:class:`Feed`."""
 	XMLNAME=(ATOM_NAMESPACE,'source')
+	XMLCONTENT=xml.ElementType.ElementContent
 
 	def __init__(self,parent):
 		Entity.__init__(self,parent)
@@ -453,6 +474,7 @@ class Feed(Source):
 class Entry(Entity):
 	"""An individual entry, acting as a container for metadata and data associated with the entry."""
 	XMLNAME=(ATOM_NAMESPACE,'entry')
+	XMLCONTENT=xml.ElementType.ElementContent
 	AtomIdClass=AtomId
 	TitleClass=Title
 	UpdatedClass=Updated
@@ -470,7 +492,29 @@ class Entry(Entity):
 		self.Published=None
 		self.Source=None
 		self.Summary=None
-							
+	
+	def Reset(self):
+		self.AtomId.Reset()
+		if self.Content:
+			self.Content.DetatchFromParent()
+			self.Content=None
+		if self.Published:
+			self.Published.DetachFromParent()
+			self.Published=None
+		if self.Source:
+			self.Source.DetachFromParent()
+			self.Source=None
+		if self.Summary:
+			self.Summary.DetachFromParent()
+			self.Summary=None
+		super(Entry,self).Reset()
+		# Parent Reset removes 'optional' Title and Update elements
+		self.Title=self.TitleClass(self)
+		self.Updated=self.UpdatedClass(self)
+		now=iso8601.TimePoint()
+		now.NowUTC()
+		self.Updated.SetValue(now)
+								
 	def GetChildren(self):
 		for child in Entity.GetChildren(self): yield child
 		if self.Content: yield self.Content
@@ -488,7 +532,8 @@ class AtomDocument(xmlns.XMLNSDocument):
 		""""""
 		xmlns.XMLNSDocument.__init__(self,defaultNS=ATOM_NAMESPACE,**args)
 
-	def GetElementClass(self,name):
+	@classmethod
+	def GetElementClass(cls,name):
 		return AtomDocument.classMap.get(name,AtomDocument.classMap.get((name[0],None),xmlns.XMLNSElement))
 
 xmlns.MapClassElements(AtomDocument.classMap,globals())

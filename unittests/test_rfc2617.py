@@ -53,23 +53,23 @@ class HTTP2617Tests(unittest.TestCase):
 				
 	def testCaseBasicChallenge(self):
 		c=BasicChallenge()
-		self.failUnless(c.scheme=="Basic","Challenge scheme: %s"%c.scheme)
-		self.failUnless(c.protectionSpace is None,"Challenge protection space: %s"%c.protectionSpace)
-		self.failUnless(c.realm is None,"Initial challenge realm: %s"%c.realm)
+		self.assertTrue(c.scheme=="Basic","Challenge scheme: %s"%c.scheme)
+		self.assertTrue(c.protectionSpace is None,"Challenge protection space: %s"%c.protectionSpace)
+		self.assertTrue(c.realm is None,"Initial challenge realm: %s"%c.realm)
 		nWords=ParseAuthParams(http.SplitWords('realm="Firewall"'),c)
-		self.failUnless(nWords==3,"ParseAuthParams result: %s"%int(nWords))
-		self.failUnless(c.realm=="Firewall","Parsed realm: %s"%c.realm)
-		self.failUnless(str(c)=='Basic realm="Firewall"',"Format challenge")
+		self.assertTrue(nWords==3,"ParseAuthParams result: %s"%int(nWords))
+		self.assertTrue(c.realm=="Firewall","Parsed realm: %s"%c.realm)
+		self.assertTrue(str(c)=='Basic realm="Firewall"',"Format challenge")
 		
 	def testCaseBasicCredentials(self):
 		c=BasicCredentials()
-		self.failUnless(c.scheme=="Basic","Credential scheme: %s"%c.scheme)
-		self.failUnless(c.protectionSpace is None,"Initial credential protected space: %s"%c.protectionSpace)
-		self.failUnless(c.realm is None,"Initial credential realm: %s"%c.realm)
+		self.assertTrue(c.scheme=="Basic","Credential scheme: %s"%c.scheme)
+		self.assertTrue(c.protectionSpace is None,"Initial credential protected space: %s"%c.protectionSpace)
+		self.assertTrue(c.realm is None,"Initial credential realm: %s"%c.realm)
 		c.SetBasicCredentials('dXNlcjpQYXNzd29yZA==')		
-		self.failUnless(c.userid=="user","User name: %s"%c.userid)
-		self.failUnless(c.password=="Password","Password: %s"%c.userid)
-		self.failUnless(str(c)=='Basic dXNlcjpQYXNzd29yZA==',"Format credentials")
+		self.assertTrue(c.userid=="user","User name: %s"%c.userid)
+		self.assertTrue(c.password=="Password","Password: %s"%c.userid)
+		self.assertTrue(str(c)=='Basic dXNlcjpQYXNzd29yZA==',"Format credentials")
 
 	def testCase401(self):
 		rm=FakeHTTPRequestManager()
@@ -81,11 +81,11 @@ class HTTP2617Tests(unittest.TestCase):
 		# ManagerLoop will process the queue until it blocks for more than the timeout (default, 60s)
 		rm.ManagerLoop()
 		response1=request1.response
-		self.failUnless(response1.status==401,"Status in response1: %i"%response1.status)
-		self.failUnless(response1.reason=="Who are you?","Reason in response1: %s"%response1.reason)
-		self.failUnless(request1.resBody==TEST_STRING,"Data in response1: %s"%request1.resBody)
+		self.assertTrue(response1.status==401,"Status in response1: %i"%response1.status)
+		self.assertTrue(response1.reason=="Who are you?","Reason in response1: %s"%response1.reason)
+		self.assertTrue(request1.resBody==TEST_STRING,"Data in response1: %s"%request1.resBody)
 		challenges=response1.GetWWWAuthenticateChallenges()
-		self.failUnless(len(challenges)==1 and isinstance(challenges[0],BasicChallenge),"Challenge")
+		self.assertTrue(len(challenges)==1 and isinstance(challenges[0],BasicChallenge),"Challenge")
 		c=BasicCredentials()
 		c.protectionSpace="http://www.domain1.com"
 		c.realm=None		# should match all realms!
@@ -96,10 +96,10 @@ class HTTP2617Tests(unittest.TestCase):
 		rm.QueueRequest(request2)
 		rm.ManagerLoop()
 		response2=request2.response
-		self.failUnless(response2.protocolVersion=="HTTP/1.1","Protocol in response1: %s"%response1.protocolVersion)
-		self.failUnless(response2.status==200,"Status in response1: %i"%response1.status)
-		self.failUnless(response2.reason=="You got it!","Reason in response1: %s"%response1.reason)
-		self.failUnless(request2.resBody==TEST_STRING,"Data in response1: %s"%request1.resBody)		
+		self.assertTrue(response2.protocolVersion=="HTTP/1.1","Protocol in response1: %s"%response1.protocolVersion)
+		self.assertTrue(response2.status==200,"Status in response1: %i"%response1.status)
+		self.assertTrue(response2.reason=="You got it!","Reason in response1: %s"%response1.reason)
+		self.assertTrue(request2.resBody==TEST_STRING,"Data in response1: %s"%request1.resBody)		
 		
 					
 

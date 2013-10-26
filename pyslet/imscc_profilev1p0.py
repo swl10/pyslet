@@ -124,7 +124,7 @@ class CCTestCase(unittest.TestCase):
 				continue
 			for f in acr.File:
 				fPath=f.PackagePath(self.cc.cp)
-				self.failUnless(imscp.PathInPath(fPath,dPath))
+				self.assertTrue(imscp.PathInPath(fPath,dPath))
 	
 	def test1_4_AssociatedContent_3(self):
 		"""A resource of the type associatedcontent must ...
@@ -133,7 +133,7 @@ class CCTestCase(unittest.TestCase):
 			dPath,acr=self.cc.laoTable[lao]
 			if acr is None:
 				continue
-			self.failIf(len(acr.Dependency)>0,acr.id)
+			self.assertFalse(len(acr.Dependency)>0,acr.id)
 
 	def test1_4_LAO_1(self):
 		"""A resource that represents a Learning Application Object has the
@@ -142,7 +142,7 @@ class CCTestCase(unittest.TestCase):
 		Application Object's descriptor file."""
 		for lao in self.cc.laoTable.keys():
 			laoResource=self.cc.cp.manifest.GetElementByID(lao)
-			self.failIf(len(laoResource.File)==0)
+			self.assertFalse(len(laoResource.File)==0)
 	
 	def test1_4_LAO_2(self):
 		"""A resource that represents a Learning Application Object has the
@@ -150,7 +150,7 @@ class CCTestCase(unittest.TestCase):
 		2. It must not contain any other file elements."""
 		for lao in self.cc.laoTable.keys():
 			laoResource=self.cc.cp.manifest.GetElementByID(lao)
-			self.failIf(len(laoResource.File)>1)
+			self.assertFalse(len(laoResource.File)>1)
 	
 	def GetACRListForDirectory(self,dPath):
 		"""Returns a list of associated content resources that have file's
@@ -189,7 +189,7 @@ class CCTestCase(unittest.TestCase):
 				acr=self.cc.cp.manifest.GetElementByID(d.identifierref)
 				if acr in acrList:
 					del acrList[acrList.index(acr)]
-			self.failIf(len(acrList))
+			self.assertFalse(len(acrList))
 
 
 	def test1_4_LAO_4(self):
@@ -204,7 +204,7 @@ class CCTestCase(unittest.TestCase):
 				continue			
 			acrList=self.GetACRListForDirectory(dPath)
 			# The use of 'the' suggests that there must be only one such acr
-			self.failIf(len(acrList)>1)
+			self.assertFalse(len(acrList)>1)
 			if len(acrList):
 				# And hence all associated content dependencies in lao must be to
 				# the single acr in this list.
@@ -215,7 +215,7 @@ class CCTestCase(unittest.TestCase):
 						print self.cc.cp.manifest.root
 					if acr.type!=AssociatedContentType:
 						continue
-					self.failUnless(acr is acrList[0])
+					self.assertTrue(acr is acrList[0])
 	
 	def test1_4_WebContent_1(self):
 		"""A resource of the type "webcontent" must comply with the following
@@ -232,5 +232,5 @@ class CCTestCase(unittest.TestCase):
 			for f in wc.File:
 				fPath=f.PackagePath(self.cc.cp)
 				for dPath in dPathList:
-					self.failIf(imscp.PathInPath(fPath,dPath))
+					self.assertFalse(imscp.PathInPath(fPath,dPath))
 	

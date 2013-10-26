@@ -164,6 +164,7 @@ class XMLNSElementContainerMixin:
 				
 		
 class XMLNSElement(XMLNSElementContainerMixin,Element):
+
 	def __init__(self,parent,name=None):
 		if type(name) in types.StringTypes:
 			self.ns=None
@@ -304,8 +305,8 @@ class XMLNSElement(XMLNSElementContainerMixin,Element):
 				prefix=prefix+':'
 			attributes.append(u'%s%s=%s'%(prefix,aname,escapeFunction(attrs[a],True)))
 		self.WriteNSAttributes(attributes,escapeFunction=EscapeCharData,root=root)
-		
-	def WriteXML(self,writer,escapeFunction=EscapeCharData,indent='',tab='\t',root=False):
+	
+	def GenerateXML(self,escapeFunction=EscapeCharData,indent='',tab='\t',root=False):
 		if tab:
 			ws='\n'+indent
 			indent=indent+tab
@@ -338,20 +339,21 @@ class XMLNSElement(XMLNSElementContainerMixin,Element):
 			if type(child) in StringTypes and len(child) and IsS(child[0]):
 				# First character is WS, so assume pre-formatted.
 				indent=tab=''			
-			writer.write(u'%s<%s%s%s>'%(ws,prefix,self.xmlname,attributes))
+			yield u'%s<%s%s%s>'%(ws,prefix,self.xmlname,attributes)
 			if hasattr(self.__class__,'SGMLCDATA'):
 				# When expressed in SGML this element would have type CDATA so put it in a CDSect
-				writer.write(EscapeCDSect(self.GetValue()))
+				yield EscapeCDSect(self.GetValue())
 			else:
 				while True:
 					if type(child) in types.StringTypes:
 						# We force encoding of carriage return as these are subject to removal
-						writer.write(escapeFunction(child))
+						yield escapeFunction(child)
 						# if we have character data content skip closing ws
 						ws=''
 					else:
 						try:
-							child.WriteXML(writer,escapeFunction,indent,tab)
+							for s in child.GenerateXML(escapeFunction,indent,tab):
+								yield s
 						except TypeError:
 							print "Problem with %s: child was %s"%(self.__class__.__name__,repr(child))
 							raise
@@ -362,10 +364,10 @@ class XMLNSElement(XMLNSElementContainerMixin,Element):
 			if not tab:
 				# if we weren't tabbing children we need to skip closing white space
 				ws=''
-			writer.write(u'%s</%s%s>'%(ws,prefix,self.xmlname))
+			yield u'%s</%s%s>'%(ws,prefix,self.xmlname)
 		except StopIteration:
-			writer.write(u'%s<%s%s%s/>'%(ws,prefix,self.xmlname,attributes))
-
+			yield u'%s<%s%s%s/>'%(ws,prefix,self.xmlname,attributes)
+			
 
 class XMLNSDocument(XMLNSElementContainerMixin,Document):
 
@@ -382,8 +384,9 @@ class XMLNSDocument(XMLNSElementContainerMixin,Document):
 	def XMLParser(self,entity):
 		"""Namespace documents use the special :py:class:`XMLNSParser`."""
 		return XMLNSParser(entity)
-		
-	def GetElementClass(self,name):
+	
+	@classmethod	
+	def GetElementClass(cls,name):
 		"""Returns a class object suitable for representing <name>
 		
 		name is a tuple of (namespace, name), this overrides the

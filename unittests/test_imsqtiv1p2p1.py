@@ -18,20 +18,20 @@ import codecs, os, os.path
 
 class QTITests(unittest.TestCase):
 	def testCaseConstants(self):
-		#self.failUnless(IMSQTI_NAMESPACE=="http://www.imsglobal.org/xsd/ims_qtiasiv1p2","Wrong QTI namespace: %s"%IMSQTI_NAMESPACE)
+		#self.assertTrue(IMSQTI_NAMESPACE=="http://www.imsglobal.org/xsd/ims_qtiasiv1p2","Wrong QTI namespace: %s"%IMSQTI_NAMESPACE)
 		pass
 
 	def testCaseNCNameFixup(self):
-		self.failUnless(MakeValidName("Simple")=="Simple")
-		self.failUnless(MakeValidName(":BadNCName")==":BadNCName")
-		self.failUnless(MakeValidName("prefix:BadNCName")=="prefix:BadNCName")
-		self.failUnless(MakeValidName("_GoodNCName")=="_GoodNCName")
-		self.failUnless(MakeValidName("-BadName")=="_-BadName")
-		self.failUnless(MakeValidName(".BadName")=="_.BadName")
-		self.failUnless(MakeValidName("0BadName")=="_0BadName")
-		self.failUnless(MakeValidName("GoodName-0.12")=="GoodName-0.12")
-		self.failUnless(MakeValidName("BadName$")=="BadName_")
-		self.failUnless(MakeValidName("BadName+")=="BadName_")
+		self.assertTrue(MakeValidName("Simple")=="Simple")
+		self.assertTrue(MakeValidName(":BadNCName")==":BadNCName")
+		self.assertTrue(MakeValidName("prefix:BadNCName")=="prefix:BadNCName")
+		self.assertTrue(MakeValidName("_GoodNCName")=="_GoodNCName")
+		self.assertTrue(MakeValidName("-BadName")=="_-BadName")
+		self.assertTrue(MakeValidName(".BadName")=="_.BadName")
+		self.assertTrue(MakeValidName("0BadName")=="_0BadName")
+		self.assertTrue(MakeValidName("GoodName-0.12")=="GoodName-0.12")
+		self.assertTrue(MakeValidName("BadName$")=="BadName_")
+		self.assertTrue(MakeValidName("BadName+")=="BadName_")
 		
 class QTIElementTests(unittest.TestCase):
 	def testCaseConstructor(self):
@@ -39,10 +39,10 @@ class QTIElementTests(unittest.TestCase):
 
 	def testCaseQuesTestInterop(self):
 		e=QuesTestInterop(None)
-		self.failUnless(e.QTIComment is None)
-		self.failUnless(e.ObjectBank is None)
-		self.failUnless(e.Assessment is None)
-		self.failUnless(e.ObjectMixin==[])
+		self.assertTrue(e.QTIComment is None)
+		self.assertTrue(e.ObjectBank is None)
+		self.assertTrue(e.Assessment is None)
+		self.assertTrue(e.ObjectMixin==[])
 		
 
 EXAMPLE_1="""<?xml version="1.0" encoding="utf-8"?>
@@ -99,23 +99,23 @@ class QTIDocumentTests(unittest.TestCase):
 
 	def testCaseConstructor(self):
 		doc=QTIDocument()
-		self.failUnless(isinstance(doc,xml.Document))
+		self.assertTrue(isinstance(doc,xml.Document))
 
 	def testCaseExample1(self):
 		doc=QTIDocument()
 		doc.Read(src=StringIO(EXAMPLE_1))
 		root=doc.root
-		self.failUnless(isinstance(root,QuesTestInterop))
-		self.failUnless(root.xmlname=='questestinterop')
+		self.assertTrue(isinstance(root,QuesTestInterop))
+		self.assertTrue(root.xmlname=='questestinterop')
 		
 	def testCaseExample2(self):
 		doc=QTIDocument()
 		doc.Read(src=StringIO(EXAMPLE_2))
 		root=doc.root
-		self.failUnless(root.QTIComment.GetValue()=='Example2')
+		self.assertTrue(root.QTIComment.GetValue()=='Example2')
 		objects=doc.root.ObjectMixin
-		self.failUnless(len(objects)==1 and isinstance(objects[0],Item))
-		self.failUnless(len(root.ObjectMixin)==1)
+		self.assertTrue(len(objects)==1 and isinstance(objects[0],Item))
+		self.assertTrue(len(root.ObjectMixin)==1)
 	
 
 class QTIV2ConversionTests(unittest.TestCase):
@@ -158,7 +158,7 @@ class QTIV2ConversionTests(unittest.TestCase):
 					diagnosis.append("Missing file: %s"%f)
 			self.fail("File lists:\n  %s"%string.join(diagnosis,'\n  '))
 		output=self.cp.manifest.DiffString(cp2.manifest)
-		self.failUnless(self.cp.manifest.root==cp2.manifest.root,"Manifests differ:\n%s"%output)
+		self.assertTrue(self.cp.manifest.root==cp2.manifest.root,"Manifests differ:\n%s"%output)
 		checkFiles={}
 		for r in cp2.manifest.root.Resources.Resource:
 			# Check the entry-point of each resource
@@ -176,7 +176,7 @@ class QTIV2ConversionTests(unittest.TestCase):
 				if not result and output is None:
 					# This should not happen
 					self.PrintPrettyWeird(qtiDoc.root,qtiDoc2.root)
-				self.failUnless(qtiDoc.root==qtiDoc2.root,"QTI Files differ at %s (actual output shown first)\n%s"%(fPath,output))	
+				self.assertTrue(qtiDoc.root==qtiDoc2.root,"QTI Files differ at %s (actual output shown first)\n%s"%(fPath,output))	
 			for f in r.File:
 				if f.href is None or f.href.IsAbsolute():
 					continue
@@ -196,7 +196,7 @@ class QTIV2ConversionTests(unittest.TestCase):
 					if not result and output is None:
 						# This should not happen
 						self.PrintPrettyWeird(doc.root,doc2.root)
-					self.failUnless(doc.root==doc2.root,"XML Files differ at %s (actual output shown first)\n%s"%(fPath,output))	
+					self.assertTrue(doc.root==doc2.root,"XML Files differ at %s (actual output shown first)\n%s"%(fPath,output))	
 				else:
 					# Binary compare the two files.
 					f=fAbsPath.open('rb')
@@ -204,7 +204,7 @@ class QTIV2ConversionTests(unittest.TestCase):
 					while True:
 						fData=f.read(1024)
 						fData2=f2.read(1024)
-						self.failUnless(fData==fData2,"Binary files don't match: %s"%fPath)
+						self.assertTrue(fData==fData2,"Binary files don't match: %s"%fPath)
 						if not fData:
 							break							
 				
