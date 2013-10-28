@@ -4416,7 +4416,15 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(newCustomer['CompanyName'].pyValue==u"Steve's Inc")
 		self.assertTrue(newCustomer['Address']['City'].pyValue==u"Cambridge")
 		self.assertFalse(newCustomer['Address']['Street'])	
-						
+		# insert entity with binding
+		customer=customers.NewEntity()
+		customer['CustomerID'].SetFromPyValue(u'ASDFG')
+		customer['CompanyName'].SetFromPyValue("Contoso Widgets")
+		customer['Address']['Street'].SetFromPyValue('58 Contoso St')
+		customer['Address']['City'].SetFromPyValue('Seattle')
+		customer.BindEntity("Orders",3)
+		customer.BindEntity("Orders",4)
+		request=MockRequest("/service.svc/Customers","POST")
 		
 if __name__ == "__main__":
 	VERBOSE=True

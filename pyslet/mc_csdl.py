@@ -12,7 +12,7 @@ import pyslet.xsdatatypes20041028 as xsi
 from pyslet.vfs import OSFilePath
 import pyslet.iso8601 as iso8601
 
-import string, itertools, sqlite3, hashlib, StringIO, time, sys, copy, decimal, math, collections
+import string, itertools, sqlite3, hashlib, StringIO, time, sys, copy, decimal, math, collections, warnings
 from types import BooleanType, FloatType, StringTypes, StringType, UnicodeType, BooleanType, IntType, LongType, TupleType, DictType
 
 
@@ -203,7 +203,7 @@ class DictionaryLike(object):
 		"""Equivalent to: self[key] if key in self else value; ensuring key not
 		in self.
 
-		Implemented using __getite__ and __delitem__."""
+		Implemented using __getitem__ and __delitem__."""
 		try:
 			e=self[key]
 			del self[key]
@@ -2075,17 +2075,35 @@ class Entity(TypeInstance):
 	Behaves like a read-only dictionary mapping property names onto
 	values.
 	
-	On construction, an entity contains keys (and values) for its simple
-	and complex properties, inheriting this behaviour from
-	:py:class:`TypeInstance`.  The dictionary itself does not
-	support assignment, to update values use an appropriate method of
-	the :py:class:`EDMValue` object.  For example::
+	On construction, an entity contains keys for *all* its properties,
+	including its navigation properties.  Although simple and complex
+	values are created on construction accessing navigation properties
+	is likely to be more costly as the entity must return to the entity
+	set to :py:meth:`EntitySet.Navigate` to the associated entity or
+	entities.
+	
+	The dictionary itself does not support assignment, to update simple
+	values use an appropriate method of the :py:class:`SimpleValue`
+	object.  For example::
 	
 		e['Name'].SetFromPyValue("Steve")
 
-	You can expand the entity's dictionary to include keys for
-	navigation properties or remove keys for unused properties using
-	:py:meth:`Expand`"""
+	The value of a navigation properties is one of:
+		
+		*	None (single-valued property that is not bound)
+				
+		*	An instance of :py:class:`Entity`
+				
+		*	An instance of :py:class:`EntityCollection`
+
+	Note that a simple valued property that is NULL is still a
+	:py:class:`SimpleValue` instance whereas a single-valued navigation
+	property that is not bound is represented with None.
+
+	You can use :py:meth:`IsEntityCollection` to determine if a property
+	will return an :py:class:`EntityCollection` without the cost of
+	accessing the data source itself."""
+
 	def __init__(self,entitySet):
 		self.entitySet=entitySet
 		TypeInstance.__init__(self,entitySet.entityType)
@@ -2095,6 +2113,69 @@ class Entity(TypeInstance):
 		if self.typeDef is None:
 			raise ModelIncomplete("Unbound EntitySet: %s (%s)"%(self.entitySet.name,self.entitySet.entityTypeName))
 		
+	def __iter__(self):
+		"""Iterates over the property names, including the navigation
+		properties.
+
+		The regular property names are yielded first, followed by the
+		navigation properties."""
+		for p in self.typeDef.Property:
+			yield p.name
+		for p in self.typeDef.NavigationProperty:
+			yield p.name
+				
+	def Navigation(self):
+		"""Iterates through the names of this entity's navigation properties only."""
+		for np in self.typeDef.NavigationProperty:
+			yield np.name
+			
+	def __len__(self):
+		"""Returns the number of properties, including navigation properties, in the type."""
+		return len(self.typeDef.Property)+len(self.typeDef.NavigationProperty)
+
+	def __contains__(self,key):
+		"""Implements: key in self
+		
+		We override this method to prevent this test from forcing navigation."""
+		try:
+			pDef=self.typeDef[key]
+			return isinstance(pDef,(Property,NavigationProperty))
+		except KeyError:
+			return False
+
+	def IsNavigationProperty(self,name):
+		"""Returns true is name is the name of a navigation property"""
+		try:
+			pDef=self.typeDef[key]
+			return isinstance(pDef,NavigationProperty)
+		except KeyError:
+			return False
+		
+	def IsEntityCollection(self,name):
+		"""Returns True if more than one entity is possible when accessing the named property."""
+		return self.entitySet.IsEntityCollection(name)
+			
+	def __getitem__(self,name):
+		"""Returns the value corresponding to property *name*.
+		
+		This method always ret"""
+		if name in self.data:
+			# simple or complex valued property
+			return self.data[name]
+		else:
+			result=self.entitySet.Navigate(name,self)
+			if result is not None:
+				if self.expand and name in self.expand:
+					expand=self.expand[name]
+				else:
+					expand=None
+				if self.select and name in self.select:
+					select=self.select[name]
+				else:
+					select=None
+				result.Expand(expand,select)
+			return result			
+
 	def Key(self):
 		"""Returns the entity key as a single python value or a tuple of
 		python values for compound keys.
@@ -2117,15 +2198,6 @@ class Entity(TypeInstance):
 			k[pRef.name]=self[pRef.name]
 		return k
 				
-	def Navigation(self):
-		"""Iterates through the names of this entity's navigation properties."""
-		for np in self.typeDef.NavigationProperty:
-			yield np.name
-			
-	def IsEntityCollection(self,name):
-		"""Returns True if more than one entity is possible when navigating the named property."""
-		return self.entitySet.IsEntityCollection(name)
-			
 	def Navigate(self,name):
 		"""Returns one of:
 		
@@ -2143,6 +2215,7 @@ class Entity(TypeInstance):
 
 		This method is a simple wrapper for
 		:py:meth:`EntitySet.Navigate`."""
+		warnings.warn("Entity.Navigate is deprecated, use Entity[<prop name>] instead", DeprecationWarning, stacklevel=3)
 		result=self.entitySet.Navigate(name,self)
 		if result is not None:
 			if self.expand and name in self.expand:
@@ -2169,7 +2242,7 @@ class Entity(TypeInstance):
 			# expand the Customer property and then the Orders property within Customer
 			{ 'Customer': {'Orders':None} }
 		
-		The expansion rule in effect are saved in the :py:attr:`expand`
+		The expansion rules in effect are saved in the :py:attr:`expand`
 		member and are tested using :py:meth:`Expanded`.
 		
 		The *select* option is a similar dictionary structure that can
