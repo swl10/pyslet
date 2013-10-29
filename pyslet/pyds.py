@@ -190,12 +190,13 @@ class EntityCollection(odata.EntityCollection):
 	def entityGenerator(self):
 		for value in self.entityStore.data.itervalues():
 			e=Entity(self.entitySet,self.entityStore)
-			for pName,pValue in zip(e.iterkeys(),value):
+			for pName,pValue in zip(e.DataKeys(),value):
 				p=e[pName]
 				if isinstance(p,edm.Complex):
 					self.SetComplexFromTuple(p,pValue)
 				else:
 					p.SetFromPyValue(pValue)
+			e.exists=True
 			yield e
 		
 	def itervalues(self):
@@ -206,12 +207,13 @@ class EntityCollection(odata.EntityCollection):
 		
 	def __getitem__(self,key):
 		e=Entity(self.entitySet,self.entityStore)
-		for pName,pValue in zip(e.iterkeys(),self.entityStore.data[self.entitySet.GetKey(key)]):
+		for pName,pValue in zip(e.DataKeys(),self.entityStore.data[key]):
 			p=e[pName]
 			if isinstance(p,edm.Complex):
 				self.SetComplexFromTuple(p,pValue)
 			else:
 				p.pyValue=pValue
+		e.exists=True
 		if self.CheckFilter(e):
 			e.Expand(self.expand,self.select)
 			return e
@@ -228,18 +230,21 @@ class EntityCollection(odata.EntityCollection):
 
 	def InsertEntity(self,entity):
 		# no auto-generation of keys, just assign it
-		self[entity.Key()]=entity
+		key=entity.Key()
+		if key in self:
+			raise KeyError("%s already exists"%ODataURI.FormatEntityKey(entity))
+		self[key]=entity
 		
 	def __setitem__(self,key,e):
 		# e is an EntityTypeInstance, we need to convert it to a tuple
 		value=[]
-		for pName in e.iterkeys():
+		for pName in e.DataKeys():
 			p=e[pName]
 			if isinstance(p,edm.Complex):
 				value.append(self.GetTupleFromComplex(p))
 			elif isinstance(p,edm.SimpleValue):
 				value.append(p.pyValue)
-		self.entityStore.data[self.entitySet.GetKey(key)]=tuple(value)
+		self.entityStore.data[key]=tuple(value)
 
 	def GetTupleFromComplex(self,complexValue):
 		value=[]

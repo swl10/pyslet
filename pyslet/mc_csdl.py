@@ -72,7 +72,12 @@ class ModelIncomplete(EDMError):
 	was incomplete be encountered later then ModelIncomplete will be raised."""
 	pass
 
-	
+class NonExistentEntity(EDMError):
+	"""Raised when attempting to perform a restricted operation on an
+	entity that doesn't exist yet.  For example, getting the value of a
+	navigation property."""
+	pass
+		
 class ContainerExists(Exception):
 	"""Raised by :py:meth:`ERStore.CreateContainer` when the container already
 	exists."""
@@ -2072,23 +2077,32 @@ class Entity(TypeInstance):
 	
 	*	entitySet is the entity set this entity belongs to
 	
-	Behaves like a read-only dictionary mapping property names onto
-	values.
-	
-	On construction, an entity contains keys for *all* its properties,
-	including its navigation properties.  Although simple and complex
-	values are created on construction accessing navigation properties
-	is likely to be more costly as the entity must return to the entity
-	set to :py:meth:`EntitySet.Navigate` to the associated entity or
-	entities.
-	
-	The dictionary itself does not support assignment, to update simple
-	values use an appropriate method of the :py:class:`SimpleValue`
-	object.  For example::
+	Entity instances behave like a read-only dictionary mapping property
+	names onto values.  To update simple values use an appropriate
+	method of the :py:class:`SimpleValue` object.  For example::
 	
 		e['Name'].SetFromPyValue("Steve")
 
-	The value of a navigation properties is one of:
+	In the EDM one or more properties can be marked as forming the entity's
+	key.  The entity key is unique within the entity set.  On construction,
+	an Entity instance is marked as being 'non-existent', :py:attr:`exists`
+	is set to False.  This is consistent with the fact that the data
+	properties of an entity are initialised to their default values, or
+	NULL if there is no default specified in the model.
+
+	On construction, an entity contains keys for *all* its properties,
+	including its navigation properties.  Although simple and complex
+	values are created on construction as described above, accessing
+	navigation properties is only possible for an entity that
+	:py:attr:`exists`.  Attempting to get the value of a navigation
+	property for a non-existent entity raises
+	:py:class:`NonExistentEntity`. Accessing navigation properties is
+	also more costly than accessing simple and complex properties as the
+	entity must return to the parent entity set to
+	:py:meth:`EntitySet.Navigate` to the associated entity or entity
+	collection.
+				 	
+	The value of a navigation property is one of:
 		
 		*	None (single-valued property that is not bound)
 				
@@ -2107,6 +2121,8 @@ class Entity(TypeInstance):
 	def __init__(self,entitySet):
 		self.entitySet=entitySet
 		TypeInstance.__init__(self,entitySet.entityType)
+		self.exists=False		#: whether or not the instance exists in the entity set
+		self.bindings={}		#: a dictionary mapping navigation property names to binding requests
 		self.expand=None		#: the expand rules in effect for this entity
 		self.select=None		#: the select rules in effect for this entity
 		self._selectAll=True
@@ -2123,8 +2139,21 @@ class Entity(TypeInstance):
 			yield p.name
 		for p in self.typeDef.NavigationProperty:
 			yield p.name
-				
-	def Navigation(self):
+
+	def DataKeys(self):
+		"""Iterates through the names of this entity's data properties only
+		
+		The order of the names is always the order they are defined in
+		the model."""
+		for p in self.typeDef.Property:
+			yield p.name
+
+	def DataItems(self):
+		"""Iterator that yields tuples of (key,value) for this entity's data properties only."""
+		for p in self.typeDef.Property:
+			yield p.name,self[p.name]
+			
+	def NavigationKeys(self):
 		"""Iterates through the names of this entity's navigation properties only."""
 		for np in self.typeDef.NavigationProperty:
 			yield np.name
@@ -2146,14 +2175,14 @@ class Entity(TypeInstance):
 	def IsNavigationProperty(self,name):
 		"""Returns true is name is the name of a navigation property"""
 		try:
-			pDef=self.typeDef[key]
+			pDef=self.typeDef[name]
 			return isinstance(pDef,NavigationProperty)
 		except KeyError:
 			return False
 		
 	def IsEntityCollection(self,name):
 		"""Returns True if more than one entity is possible when accessing the named property."""
-		return self.entitySet.IsEntityCollection(name)
+		return self.IsNavigationProperty(name) and self.entitySet.IsEntityCollection(name)
 			
 	def __getitem__(self,name):
 		"""Returns the value corresponding to property *name*.
@@ -2162,20 +2191,51 @@ class Entity(TypeInstance):
 		if name in self.data:
 			# simple or complex valued property
 			return self.data[name]
+		elif self.IsNavigationProperty(name):
+			if self.exists:
+				result=self.entitySet.Navigate(name,self)
+				if result is not None:
+					if self.expand and name in self.expand:
+						expand=self.expand[name]
+					else:
+						expand=None
+					if self.select and name in self.select:
+						select=self.select[name]
+					else:
+						select=None
+					result.Expand(expand,select)
+				return result
+			else:
+				raise NonExistentEntity("Attempt to navigate a non-existent entity: %s.%s"%(self.typeDef.name,name))
 		else:
-			result=self.entitySet.Navigate(name,self)
-			if result is not None:
-				if self.expand and name in self.expand:
-					expand=self.expand[name]
-				else:
-					expand=None
-				if self.select and name in self.select:
-					select=self.select[name]
-				else:
-					select=None
-				result.Expand(expand,select)
-			return result			
+			raise KeyError(name)
 
+	def BindEntity(self,name,target):
+		"""Binds this entity through navigation property *name*
+		
+		*target* is either the entity you're binding to or its key in
+		the target entity set. For example, assuming that "Orders" is a
+		navigation property that links customers to Order entities::
+		
+			customer.Bind("Orders",1)
+			
+		binds the entity represented by 'customer' to the Order entity
+		with key 1.
+		
+		If the entity doesn't exist (yet) then the binding information is
+		saved and acted upon when the entity is inserted into the entity
+		set.
+		
+		If you attempt to bind to a target entity that doesn't exist the
+		target entity will be created automatically.  If both the source
+		and target entities are non-existent then the target will be
+		created and bound when the source entity is inserted."""
+		if self.exists:
+			raise NotImplementedError
+		else:
+			# save this information for later
+			self.bindings.get(name,[]).append(target)
+		
 	def Key(self):
 		"""Returns the entity key as a single python value or a tuple of
 		python values for compound keys.
@@ -2199,35 +2259,8 @@ class Entity(TypeInstance):
 		return k
 				
 	def Navigate(self,name):
-		"""Returns one of:
-		
-		*	None
-				
-		*	An instance of :py:class:`Entity`
-				
-		*	An instance of :py:class:`EntityCollection`
-
-		The entities returned are those linked to this entity by the
-		named navigation property.
-
-		You can use :py:meth:`IsEntityCollection` to determine which
-		form of response is expected.
-
-		This method is a simple wrapper for
-		:py:meth:`EntitySet.Navigate`."""
 		warnings.warn("Entity.Navigate is deprecated, use Entity[<prop name>] instead", DeprecationWarning, stacklevel=3)
-		result=self.entitySet.Navigate(name,self)
-		if result is not None:
-			if self.expand and name in self.expand:
-				expand=self.expand[name]
-			else:
-				expand=None
-			if self.select and name in self.select:
-				select=self.select[name]
-			else:
-				select=None
-			result.Expand(expand,select)
-		return result
+		return self[name]
 	
 	def Expand(self,expand, select=None):
 		"""Expands *entity* according to the given expand rules (if any).

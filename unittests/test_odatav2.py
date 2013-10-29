@@ -2446,7 +2446,7 @@ class ServerTests(unittest.TestCase):
 		self.assertTrue(isinstance(children[0],Properties),"child is properties element")
 		children=list(entry.FindChildrenDepthFirst(atom.Link))
 		links={}
-		navigation=list(customer.Navigation())
+		navigation=list(customer.NavigationKeys())
 		for child in children:
 			#	Each <atom:link> element MUST contain an atom:rel attribute
 			#	with the value defined by the relNavigationlLinkURI rule
@@ -2478,7 +2478,7 @@ class ServerTests(unittest.TestCase):
 		entry=Entry(None,order)
 		children=list(entry.FindChildrenDepthFirst(atom.Link))
 		links={}
-		navigation=list(order.Navigation())
+		navigation=list(order.NavigationKeys())
 		for child in children:
 			if child.rel.startswith(ODATA_RELATED):
 				pName=child.rel[len(ODATA_RELATED):]
@@ -2848,7 +2848,7 @@ class ServerTests(unittest.TestCase):
 				self.assertTrue("$skiptoken" in child.href,"skiptoken")
 		self.assertTrue("next" in links,"Missing next link")
 		customer=customersSet.GetCollection()['ALFKI']
-		feed=Feed(None,customer.Navigate('Orders'))
+		feed=Feed(None,customer['Orders'])
 		#	If the URI in the sibling <atom:id> element is of the same
 		#	form as URI 6 and the NavigationProperty identifies an
 		#	EntitySet, then the <atom:title> element can contain the
@@ -2908,7 +2908,7 @@ class ServerTests(unittest.TestCase):
 		self.assertTrue(jsonData.index("__count")<jsonData.index("results"),"first __count before results")
 		#	An empty EntitySet or collection of entities MUST be
 		#	represented as an empty JSON array.
-		emptyCollection=collection['ALFKI'].Navigate("Orders")
+		emptyCollection=collection['ALFKI']["Orders"]
 		jsonData=string.join(emptyCollection.GenerateEntitySetInJSON(),'')
 		obj=json.loads(jsonData)
 		self.assertTrue(type(obj["results"])==ListType,"Empty EntitySet represented as JSON array")
@@ -3090,7 +3090,7 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(value['CustomerID'].pyValue=='ALFKI',"Expected Customer('ALFKI')")
 		# Navigation property with Null
 		value=e.Evaluate(orders.GetCollection()[3])
-		self.assertTrue(isinstance(value,edm.SimpleValue),"Expected SimpleValue (for NULL)")
+		self.assertTrue(isinstance(value,edm.SimpleValue),"Expected SimpleValue (for NULL) found %s"%repr(value))
 		self.assertFalse(value,"Expected NULL")		
 		# Navigation property with multiple cardinality
 		p=Parser("Orders")

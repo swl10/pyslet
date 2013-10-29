@@ -645,18 +645,18 @@ class PropertyExpression(CommonExpression):
 		
 	def Evaluate(self,contextEntity):
 		if contextEntity:
-			if self.name in contextEntity:
-				# This is a simple or complex property
-				return contextEntity[self.name]
-			elif isinstance(contextEntity,edm.Entity):
+			if isinstance(contextEntity,edm.Entity):
 				if contextEntity.IsEntityCollection(self.name):
 					raise EvaluationError("%s navigation property must have cardinality of 1 or 0..1"%self.name)
 				else:
-					result=contextEntity.Navigate(self.name)
+					result=contextEntity[self.name]
 					if result is None:
 						# The navigation property does not point to anything, return a generic null
 						result=edm.SimpleValue(None,self.name)
 					return result
+			elif self.name in contextEntity:
+				# contextEntity must be a complex value
+				return contextEntity[self.name]
 			else:
 				raise EvaluationError("Undefined property: %s"%self.name)
 		else:
@@ -1728,8 +1728,10 @@ class ODataURI:
 			raise KeyError("Missing service operation, or custom parameter: %s"%paramName)
 	
 	@classmethod
-	def FormatKey(cls,d):
-		"""Returns a URI-formatted entity key.  For example, (42L), or ('ALFKI')."""
+	def FormatKeyDict(cls,d):
+		"""Returns a URI formatted, but *not* URI escaped, entity key.
+
+		For example, (42L), or ('Salt & Pepper')."""
 		if len(d)==1:
 			keyStr="(%s)"%cls.FormatLiteral(d.values()[0])
 		else:
@@ -1741,7 +1743,7 @@ class ODataURI:
 	
 	@classmethod
 	def FormatEntityKey(cls,entity):
-		return cls.FormatKey(entity.KeyDict())
+		return cls.FormatKeyDict(entity.KeyDict())
 			
 	@classmethod
 	def FormatLiteral(cls,value):
@@ -2154,7 +2156,7 @@ class Entry(atom.Entry):
 		*entity* must be an existing :py:class:`pyslet.mc_csdl.Entity`
 		instance.  It is required but is also returned for consistency
 		with the behaviour of the overridden method."""
-		for k,v in entity.iteritems():
+		for k,v in entity.DataItems():
 			# catch property-level feed customisation here
 			propertyDef=entity.typeDef[k]
 			targetPath=propertyDef.GetTargetPath()
@@ -2216,7 +2218,7 @@ class Entry(atom.Entry):
 			if self.etag:
 				s="" if entity.ETagIsStrong() else "W/"
 				link.SetAttribute((ODATA_METADATA_NAMESPACE,'etag'),s+http.QuoteString(ODataURI.FormatLiteral(self.etag)))
-		for navProperty in entity.Navigation():
+		for navProperty in entity.NavigationKeys():
 			link=self.ChildElement(self.LinkClass)
 			link.href=location+'/'+navProperty
 			link.rel=ODATA_RELATED+navProperty
@@ -2227,13 +2229,13 @@ class Entry(atom.Entry):
 				link.type=ODATA_RELATED_ENTRY_TYPE
 			if entity.Expanded(navProperty):
 				# This property has been expanded
-				link.Expand(entity.Navigate(navProperty))
+				link.Expand(entity[navProperty])
 		# Now set the new property values in the properties element
 		if mediaLinkResource:
 			self.ChildElement(Properties)
 		else:
 			self.ChildElement(Content).ChildElement(Properties)
-		for k,v in entity.iteritems():
+		for k,v in entity.DataItems():
 			# catch property-level feed customisation here
 			propertyDef=entity.typeDef[k]
 			targetPath=propertyDef.GetTargetPath()
@@ -2304,7 +2306,7 @@ class Entity(edm.Entity):
 	def SetFromJSONObject(self,obj):
 		"""Sets the value of this entity from a dictionary parsed from a
 		JSON representation."""
-		for k,v in self.iteritems():
+		for k,v in self.DataItems():
 			if k in obj:
 				if isinstance(v,edm.SimpleValue):
 					JSONToSimpleValue(v,obj.get(k,None))
@@ -2332,7 +2334,7 @@ class Entity(edm.Entity):
 				s="" if self.ETagIsStrong() else "W/"
 				yield ',"media_etag":%s'%json.dumps(s+http.QuoteString(ODataURI.FormatLiteral(etag)))			
 		yield '}'
-		for k,v in self.iteritems():
+		for k,v in self.DataItems():
 			# watch out for unselected properties
 			if self.Selected(k):
 				yield ','
@@ -2342,18 +2344,18 @@ class Entity(edm.Entity):
 					yield SimpleValueToJSON(v)
 				else:
 					yield EntityCTBodyToJSON(v)
-		for navProperty in self.Navigation():
+		for navProperty in self.NavigationKeys():
 			if self.Selected(navProperty):
 				yield ','
 				yield json.dumps(navProperty)
 				if self.Expanded(navProperty):
 					yield ':'
 					if self.IsEntityCollection(navProperty):
-						collection=self.Navigate(navProperty)
+						collection=self[navProperty]
 						for y in collection.GenerateEntitySetInJSON(version):
 							yield y
 					else:
-						entity=self.Navigate(navProperty)
+						entity=self[navProperty]
 						if entity:
 							for y in entity.GenerateEntityTypeInJSON(version):
 								yield y
@@ -3123,7 +3125,7 @@ class Server(app.Server):
 							# the keyPredicate can be passed directly as the key
 							try:
 								es=resource
-								resource=es[keyPredicate]
+								resource=es[es.entitySet.GetKey(keyPredicate)]
 							except KeyError,e:
 								raise MissingURISegment(name)
 					elif resource is None:
@@ -3132,33 +3134,20 @@ class Server(app.Server):
 					# bad request, because the collection must be the last thing in the path
 					raise BadURISegment("%s since the object's parent is a collection"%name)
 				elif isinstance(resource,edm.Entity):
-					if name in resource:
-						# This is just a regular or dynamic property name
-						resource=resource[name]
-					else:
-						try:
-							# should be a navigation property
-							if resource.IsEntityCollection(name):
-								es=resource.Navigate(name)
-								if keyPredicate:
-									try:
-										resource=es[keyPredicate]
-									except KeyError,e:
-										raise MissingURISegment(name)
-								else:
-									# return this entity set
-									resource=es
-							else:
-								resource=resource.Navigate(name)
-								# should be None or a specific entity this time
-								if resource is None:
-									raise MissingURISegment(name)
-								elif keyPredicate:
-									# the key must match that of the entity
-									if resource.Key()!=keyPredicate:
-										raise MissingURISegment(name)
-						except KeyError:
-							raise MissingURISegment(name)
+					if name not in resource:
+						raise MissingURISegment(name)
+					resource=resource[name]
+					if isinstance(resource,EntityCollection):
+						if keyPredicate:
+							try:
+								resource=resource[resource.entitySet.GetKey(keyPredicate)]
+							except KeyError,e:
+								raise MissingURISegment(name)
+					elif isinstance(resource,Entity):
+						if keyPredicate:
+							# the key must match that of the entity
+							if resource.Key()!=keyPredicate:
+								raise MissingURISegment("%s%s"%(name,ODataURI.FormatKeyDict(keyPredicate)))					
 				elif isinstance(resource,edm.Complex):
 					if name in resource:
 						# This is a regular property of the ComplexType

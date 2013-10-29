@@ -139,8 +139,8 @@ class CSDLTests(unittest.TestCase):
 		p.SetAttribute('Name',"NewName")
 		self.assertTrue(p.name=="NewName","Name attribute setter")
 		self.assertTrue(p.type=="Edm.String","Default type")
-		p.SetAttribute('Type',"Edm.Int")
-		self.assertTrue(p.type=="Edm.Int","Type attribute setter")
+		p.SetAttribute('Type',"Edm.Int32")
+		self.assertTrue(p.type=="Edm.Int32","Type attribute setter")
 		self.assertTrue(p.TypeRef is None,"No TypeRef child on construction")
 		self.assertTrue(p.nullable==True,"Default nullable value")
 		p.SetAttribute('Nullable',"false")
@@ -233,8 +233,24 @@ class CSDLTests(unittest.TestCase):
 	def testCaseEntity(self):
 		es=EntitySet(None)
 		es.entityType=EntityType(None)
+		p=es.entityType.ChildElement(Property)
+		p.SetAttribute('Name',"dataTest")
+		p.SetAttribute('Type',"Edm.Int32")
+		p.UpdateTypeRefs(None)
+		np=es.entityType.ChildElement(NavigationProperty)
+		np.SetAttribute('Name','navTest')
+		es.entityType.ContentChanged()
 		e=Entity(es)
-		
+		# initially the entity is marked as a new entity
+		self.assertFalse(e.exists)
+		# you can't use navigation properties
+		self.assertFalse(e['dataTest'])
+		try:
+			nav=e['navTest']
+			self.fail("Expected exception")
+		except NonExistentEntity,e:
+			pass
+
 
 class ERStoreTests(unittest.TestCase):
 	def setUp(self):
