@@ -2,7 +2,7 @@
 """This module implements the Open Data Protocol specification defined by Microsoft."""
 
 from types import *
-import sys, cgi, urllib, string, itertools, traceback, StringIO, json, base64, decimal, uuid, math
+import sys, cgi, urllib, string, itertools, traceback, StringIO, json, base64, decimal, uuid, math, warnings
 
 import pyslet.info as info
 import pyslet.iso8601 as iso
@@ -650,6 +650,8 @@ class PropertyExpression(CommonExpression):
 					raise EvaluationError("%s navigation property must have cardinality of 1 or 0..1"%self.name)
 				else:
 					result=contextEntity[self.name]
+					if isinstance(result,edm.DeferredValue):
+						result=result.GetEntity()
 					if result is None:
 						# The navigation property does not point to anything, return a generic null
 						result=edm.SimpleValue(None,self.name)
@@ -1636,7 +1638,6 @@ class ODataURI:
 				elif len(self.navPath)>linkLenConstraint:
 					raise InvalidPathOption("A navigation property preceded by $links must be the last path segment")
 			
-				
 	def ParseSystemQueryOption(self,paramName,paramValue):
 		"""Returns a tuple of :py:class:`SystemQueryOption` constant and
 		an appropriate representation of the value:
@@ -1704,7 +1705,7 @@ class ODataURI:
 			if len(keys)==0:
 				return name,{}
 			elif len(keys)==1 and '=' not in keys[0]:
-				return name,{u'':ParseURILiteral(keys[0]).pyValue}
+				return name,{u'':ParseURILiteral(keys[0])}
 			else:
 				keyPredicate={}
 				for k in keys:
@@ -1713,7 +1714,7 @@ class ODataURI:
 						raise ValueError("unrecognized key predicate: %s"%repr(keys))
 					kname,value=nv
 					kname=uri.UnescapeData(kname).decode('utf-8')
-					kvalue=ParseURILiteral(value).pyValue
+					kvalue=ParseURILiteral(value)
 					keyPredicate[kname]=kvalue
 				return name,keyPredicate
 		else:
@@ -1726,6 +1727,77 @@ class ODataURI:
 			return ParseURILiteral(paramDef[paramDef.index('=')+1:])
 		else:
 			raise KeyError("Missing service operation, or custom parameter: %s"%paramName)
+
+	def GetResource(self,ds=None):
+		resource=ds
+		for segment in self.navPath:
+			name,keyPredicate=segment
+			if isinstance(resource,edmx.DataServices):
+				try:
+					resource=resource.SearchContainers(name)
+				except KeyError,e:
+					raise MissingURISegment(str(e))						
+				if isinstance(resource,edm.FunctionImport):
+					# format is the only supported system query option
+					for option in self.sysQueryOptions:
+						if option!=SystemQueryOption.format:
+							raise InvalidSystemQueryOption('$%s cannot be used with service operations'%SystemQueryOption.EncodeValue(option))
+					# TODO: grab the params from the query string
+					resource=resource.Execute({})
+				elif isinstance(resource,edm.EntitySet):
+					resource=resource.OpenCollection()		
+				else:
+					# not the right sort of thing
+					raise MissingURISegment(name)					
+				if isinstance(resource,edm.EntityCollection):						
+					if keyPredicate:
+						# the keyPredicate can be passed directly as the key
+						try:
+							es=resource
+							resource=es[es.entitySet.GetKey(keyPredicate)]
+						except KeyError,e:
+							raise MissingURISegment("%s%s"%(name,ODataURI.FormatKeyDict(keyPredicate)))					
+				elif resource is None:
+					raise MissingURISegment(name)
+			elif isinstance(resource,(edm.EntityCollection,edm.FunctionCollection)):
+				# bad request, because the collection must be the last thing in the path
+				raise BadURISegment("%s since the object's parent is a collection"%name)
+			elif isinstance(resource,edm.Entity):
+				if name not in resource:
+					raise MissingURISegment(name)
+				resource=resource[name]
+				if isinstance(resource,edm.DeferredValue):
+					if keyPredicate:
+						try:
+							with resource.OpenCollection() as collection:
+								resource=collection[resource.entitySet.GetKey(keyPredicate)]
+						except KeyError,e:
+							raise MissingURISegment(name)
+					elif resource.isCollection:
+						resource=resource.OpenCollection()
+					else:
+						resource=resource.GetEntity()
+				elif isinstance(resource,EntityCollection):
+					if keyPredicate:
+						try:
+							resource=resource[resource.entitySet.GetKey(keyPredicate)]
+						except KeyError,e:
+							raise MissingURISegment(name)
+				elif isinstance(resource,Entity):
+					if keyPredicate:
+						# the key must match that of the entity
+						if resource.Key()!=keyPredicate:
+							raise MissingURISegment("%s%s"%(name,ODataURI.FormatKeyDict(keyPredicate)))					
+			elif isinstance(resource,edm.Complex):
+				if name in resource:
+					# This is a regular property of the ComplexType
+					resource=resource[name]
+				else:
+					raise MissingURISegment(name)
+			else:
+				# Any other type is just a property or simple-type
+				raise BadURISegment(name)
+		return resource
 	
 	@classmethod
 	def FormatKeyDict(cls,d):
@@ -1955,20 +2027,20 @@ class Feed(atom.Feed):
 		for child in super(Feed,self).GetChildren(): yield child
 		if self.Count:
 			yield self.Count
-		elif self.collection.inlineCount:
-			count=Count(self)
-			count.SetValue(len(self.collection))
-			yield count
 		if self.collection is not None:
+			if self.collection.inlineCount:
+				count=Count(self)
+				count.SetValue(len(self.collection))
+				yield count
 			for entity in self.collection.iterpage():
 				yield Entry(self,entity)
-		# add a next link if necessary
-		skiptoken=self.collection.NextSkipToken()
-		if skiptoken is not None:
-			link=Link(self)
-			link.rel="next"
-			link.href=str(self.collection.GetLocation())+"?$skiptoken=%s"%uri.EscapeData(skiptoken,uri.IsQueryReserved)
-			yield link
+			# add a next link if necessary
+			skiptoken=self.collection.NextSkipToken()
+			if skiptoken is not None:
+				link=Link(self)
+				link.rel="next"
+				link.href=str(self.collection.GetLocation())+"?$skiptoken=%s"%uri.EscapeData(skiptoken,uri.IsQueryReserved)
+				yield link
 				
 
 class Inline(ODataElement):
@@ -2018,7 +2090,7 @@ class Link(atom.Link):
 			# it is hard to calculate the id
 			entry=inline.ChildElement(Entry)
 			entry.SetValue(expansion)
-		elif isinstance(expansion,edm.EntityCollection) and expansion:
+		elif expansion:
 			# we only add the feed if it is non-empty
 			feed=inline.ChildElement(Feed)
 			feed.collection=expansion
@@ -2104,28 +2176,29 @@ class Entry(atom.Entry):
 			p.SetValue(value)
 			self._properties[key]=p
 
-	def GetLink(self,linkTitle):
-		"""Returns a tuple of (linkURI,inline)
-		
-		*	linkURI is the URI of the link
-		
-		*	inline is the inline representation of the link (or None)
-		
-		*inline* is either a Feed or Entry instance."""
-		for l in self.Link:
-			if l.title==linkTitle:
-				# This is the link we are interested in
-				if l.Inline:
-					# we have an inline representation
-					if l.Inline.Feed:
-						return l.href,l.Inline.Feed
-					elif l.Inline.Entry:
-						return l.href,l.Inline.Entry
-					else:				
-						return l.href,None
-				else:
-					raise KeyError("Unexpanded link: %s"%linkTitle)	
-		raise KeyError("Missing link: %s"%linkTitle)
+# 	def GetLink(self,linkTitle):
+# 		"""Returns a tuple of (linkURI,inline)
+# 		
+# 		*	linkURI is the URI of the link
+# 		
+# 		*	inline is the inline representation of the link (or None)
+# 		
+# 		*inline* is either a Feed or Entry instance."""
+# 		warnings.warn("Entry.GetLink is deprecated due to lack of uniqueness", DeprecationWarning, stacklevel=3)
+# 		for l in self.Link:
+# 			if l.title==linkTitle:
+# 				# This is the link we are interested in
+# 				if l.Inline:
+# 					# we have an inline representation
+# 					if l.Inline.Feed:
+# 						return l.href,l.Inline.Feed
+# 					elif l.Inline.Entry:
+# 						return l.href,l.Inline.Entry
+# 					else:				
+# 						return l.href,None
+# 				else:
+# 					raise KeyError("Unexpanded link: %s"%linkTitle)	
+# 		raise KeyError("Missing link: %s"%linkTitle)
 	
 	def ResolveTargetPath(self,targetPath,prefix,ns):
 		doc=self.GetDocument()
@@ -2150,12 +2223,16 @@ class Entry(atom.Entry):
 			targetElement=newTargetElement
 		return targetElement
 	
-	def GetValue(self,entity):
+	def GetValue(self,entity,entityResolver=None):
 		"""Update *entity* to reflect the value of this Entry.
 		
 		*entity* must be an existing :py:class:`pyslet.mc_csdl.Entity`
 		instance.  It is required but is also returned for consistency
-		with the behaviour of the overridden method."""
+		with the behaviour of the overridden method.
+		
+		The optional entityResolver is a callable that accepts a single
+		parameter of type :py:class:`pyslet.rfc2396.URI` and returns a
+		an object representing the resource it points to."""
 		for k,v in entity.DataItems():
 			# catch property-level feed customisation here
 			propertyDef=entity.typeDef[k]
@@ -2176,6 +2253,45 @@ class Entry(atom.Entry):
 					self._properties[k].GetValue(v)
 				else:
 					v.SetFromPyValue(None)
+		if entity.exists==False:
+			# we need to look for any link bindings
+			for link in self.Link:
+				if not link.rel.startswith(ODATA_RELATED):
+					continue
+				navProperty=link.rel[len(ODATA_RELATED):]
+				if not entity.IsNavigationProperty(navProperty):
+					continue
+				targetSet=entity.entitySet.NavigationTarget(navProperty)
+				# we have a navigation property we understand
+				if link.Inline is not None:
+					with targetSet.OpenCollection() as collection:
+						if entity.IsEntityCollection(navProperty):
+							for entry in link.Inline.Feed.FindChildrenDepthFirst(Entry,subMatch=False):
+								# create a new entity from the target entity set
+								targetEntity=collection.NewEntity()
+								entry.GetValue(targetEntity,entityResolver)
+								entity.BindEntity(navProperty,targetEntity)
+						elif link.Inline.Entry is not None:
+							targetEntity=collection.NewEntity()
+							link.Inline.Entry.GetValue(targetEntity,entityResolver)								
+							entity.BindEntity(navProperty,targetEntity)
+				elif entityResolver is not None:
+					#	this is the tricky bit, we need to resolve
+					#	the URI to an entity key
+					href=link.ResolveURI(link.href)
+					if not href.IsAbsolute():
+						#	we'll assume that the base URI is the
+						#	location of this entity once it is
+						#	created.  Witness this thread:
+						#	http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
+						href=uri.URIFactory.Resolve(entity.GetLocation(),href)
+					targetEntity=entityResolver(href)
+					if isinstance(targetEntity,Entity) and targetEntity.entitySet is targetSet:
+						entity.BindEntity(navProperty,targetEntity)
+					else:
+						raise InvalidData("Resource is not a valid target for %s: %s"%(navProperty,str(href))) 
+				else:
+					raise InvalidData("No context to resolve entity URI: %s"%str(link.href)) 
 		return entity
 				
 	def SetValue(self,entity):
@@ -2207,29 +2323,59 @@ class Entry(atom.Entry):
 		# now do the links
 		location=str(entity.GetLocation())
 		self.ChildElement(atom.AtomId).SetValue(location)
-		# we have no way of knowing if we are read or read/write at this stage
-		link=self.ChildElement(self.LinkClass)
-		link.href=location
-		link.rel="edit"
-		if mediaLinkResource:
+		if entity.exists:
+			# we have no way of knowing if we are read or read/write at this stage
 			link=self.ChildElement(self.LinkClass)
-			link.href=location+"/$value"
-			link.rel="edit-media"
-			if self.etag:
-				s="" if entity.ETagIsStrong() else "W/"
-				link.SetAttribute((ODATA_METADATA_NAMESPACE,'etag'),s+http.QuoteString(ODataURI.FormatLiteral(self.etag)))
-		for navProperty in entity.NavigationKeys():
-			link=self.ChildElement(self.LinkClass)
-			link.href=location+'/'+navProperty
-			link.rel=ODATA_RELATED+navProperty
-			link.title=navProperty
-			if entity.IsEntityCollection(navProperty):
-				link.type=ODATA_RELATED_FEED_TYPE
-			else:
-				link.type=ODATA_RELATED_ENTRY_TYPE
-			if entity.Expanded(navProperty):
-				# This property has been expanded
-				link.Expand(entity[navProperty])
+			link.href=location
+			link.rel="edit"
+			if mediaLinkResource:
+				link=self.ChildElement(self.LinkClass)
+				link.href=location+"/$value"
+				link.rel="edit-media"
+				if self.etag:
+					s="" if entity.ETagIsStrong() else "W/"
+					link.SetAttribute((ODATA_METADATA_NAMESPACE,'etag'),s+http.QuoteString(ODataURI.FormatLiteral(self.etag)))
+			for navProperty in entity.NavigationKeys():
+				link=self.ChildElement(self.LinkClass)
+				link.href=location+'/'+navProperty
+				link.rel=ODATA_RELATED+navProperty
+				link.title=navProperty
+				if entity.IsEntityCollection(navProperty):
+					link.type=ODATA_RELATED_FEED_TYPE
+				else:
+					link.type=ODATA_RELATED_ENTRY_TYPE
+				if entity.Expanded(navProperty):
+					# This property has been expanded
+					if entity.IsEntityCollection(navProperty):
+						link.Expand(entity[navProperty].OpenCollection())
+					else:
+						link.Expand(entity[navProperty].GetEntity())
+		else:
+			for navProperty,bindings in entity.bindings.items():
+				# we need to know the location of the target entity set
+				targetSet=entity.entitySet.NavigationTarget(navProperty)
+				feed=[]
+				for binding in bindings:
+					if isinstance(binding,Entity):
+						if binding.exists:
+							href=str(targetSet.GetLocation())+uri.EscapeData(ODataURI.FormatEntityKey(binding))
+						else:
+							# add to the feed
+							feed.append(binding)
+							continue
+					else:
+						href=str(targetSet.GetLocation())+uri.EscapeData(ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding)))
+					link=self.ChildElement(self.LinkClass)
+					link.rel=ODATA_RELATED+navProperty
+					link.title=navProperty
+					link.href=href
+				if feed:
+					feed=DeepInsertCollection(navProperty,entity.entitySet,targetSet,feed)
+					link=self.ChildElement(self.LinkClass)
+					link.rel=ODATA_RELATED+navProperty
+					link.title=navProperty
+					link.href=location+'/'+navProperty
+					link.Expand(feed)
 		# Now set the new property values in the properties element
 		if mediaLinkResource:
 			self.ChildElement(Properties)
@@ -2276,18 +2422,18 @@ class Entity(edm.Entity):
 	"""We override Entity in order to provide some documented signatures
 	for sets of media-stream entities."""
 	
-	def CreateProperty(self,p):
-		"""Overridden to add handling of media type annotations on simple values"""
-		value=p()
-		try:
-			if isinstance(value,edm.SimpleValue):
-				value.mType=http.MediaType(p.GetAttribute(MimeType))
-		except KeyError:
-			pass
-		self.data[p.name]=value
+# 	def CreateProperty(self,p):
+# 		"""Overridden to add handling of media type annotations on simple values"""
+# 		value=p()
+# 		try:
+# 			if isinstance(value,edm.SimpleValue):
+# 				value.mType=http.MediaType(p.GetAttribute(MimeType))
+# 		except KeyError:
+# 			pass
+# 		self.data[p.name]=value
 
 	def GetLocation(self):
-		return str(self.entitySet.location)+uri.EscapeData(ODataURI.FormatEntityKey(self))
+		return str(self.entitySet.GetLocation())+uri.EscapeData(ODataURI.FormatEntityKey(self))
 		
 	def GetStreamType(self):
 		"""Returns the content type of the entity's media stream.
@@ -2303,7 +2449,7 @@ class Entity(edm.Entity):
 		"""A generator function that yields blocks (strings) of data from the entity's media stream."""
 		raise NotImplementedError
 	
-	def SetFromJSONObject(self,obj):
+	def SetFromJSONObject(self,obj,entityResolver=None):
 		"""Sets the value of this entity from a dictionary parsed from a
 		JSON representation."""
 		for k,v in self.DataItems():
@@ -2315,6 +2461,40 @@ class Entity(edm.Entity):
 					JSONToComplex(v,obj.get(k,None))
 			else:
 				v.SetFromPyValue(None)
+		if self.exists==False:
+			# we need to look for any link bindings
+			for navProperty in self.NavigationKeys():
+				if navProperty not in obj:
+					continue
+				links=obj[navProperty]
+				if not self.IsEntityCollection(navProperty):
+					# wrap singletons for convenience
+					links=(links,)
+				targetSet=self.entitySet.NavigationTarget(navProperty)
+				with targetSet.OpenCollection() as collection:
+					for link in links:
+						if len(link)==1 and '__metadata' in link:
+							# bind to an existing entity
+							href=uri.URIFactory.URI(link['__metadata']['uri'])
+							if entityResolver is not None:
+								if not href.IsAbsolute():
+									#	we'll assume that the base URI is the
+									#	location of this entity once it is
+									#	created.  Witness this thread:
+									#	http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
+									href=uri.URIFactory.Resolve(self.GetLocation(),href)
+								targetEntity=entityResolver(href)
+								if isinstance(targetEntity,Entity) and targetEntity.entitySet is targetSet:
+									self.BindEntity(navProperty,targetEntity)
+								else:
+									raise InvalidData("Resource is not a valid target for %s: %s"%(navProperty,str(href))) 
+							else:
+								raise InvalidData("No context to resolve entity URI: %s"%str(link)) 							
+						else:
+							# full inline representation is expected for deep insert
+							targetEntity=collection.NewEntity()
+							targetEntity.SetFromJSONObject(link,entityResolver)
+							self.BindEntity(navProperty,targetEntity)
 		
 	def GenerateEntityTypeInJSON(self,version=2):
 		location=self.GetLocation()
@@ -2344,25 +2524,42 @@ class Entity(edm.Entity):
 					yield SimpleValueToJSON(v)
 				else:
 					yield EntityCTBodyToJSON(v)
-		for navProperty in self.NavigationKeys():
-			if self.Selected(navProperty):
-				yield ','
-				yield json.dumps(navProperty)
-				if self.Expanded(navProperty):
-					yield ':'
-					if self.IsEntityCollection(navProperty):
-						collection=self[navProperty]
-						for y in collection.GenerateEntitySetInJSON(version):
-							yield y
-					else:
-						entity=self[navProperty]
-						if entity:
-							for y in entity.GenerateEntityTypeInJSON(version):
-								yield y
+		if self.exists:
+			for navProperty in self.NavigationKeys():
+				if self.Selected(navProperty):
+					yield ', %s'%json.dumps(navProperty)
+					if self.Expanded(navProperty):
+						yield ':'
+						if self.IsEntityCollection(navProperty):
+							with self[navProperty].OpenCollection() as collection:
+								for y in collection.GenerateEntitySetInJSON(version):
+									yield y
 						else:
-							yield json.dumps(None)
-				else:
-					yield ':{"__deferred":{"uri":%s}}'%json.dumps(location+'/'+navProperty)
+							entity=self[navProperty].GetEntity()
+							if entity:
+								for y in entity.GenerateEntityTypeInJSON(version):
+									yield y
+							else:
+								yield json.dumps(None)
+					else:
+						yield ':{"__deferred":{"uri":%s}}'%json.dumps(location+'/'+navProperty)
+		else:
+			for navProperty,bindings in self.bindings.items():
+				# we need to know the location of the target entity set
+				targetSet=self.entitySet.NavigationTarget(navProperty)
+				yield ', %s :['%json.dumps(navProperty)
+				sep=False
+				for binding in bindings:
+					if sep:
+						yield ', '
+					else:
+						sep=True
+					if isinstance(binding,Entity):
+						href=str(targetSet.GetLocation())+uri.EscapeData(ODataURI.FormatEntityKey(binding))
+					else:
+						href=str(targetSet.GetLocation())+uri.EscapeData(ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding)))
+					yield '{ "__metadata":{"uri":%s}}'%json.dumps(href)
+				yield ']'
 		yield '}'
 					
 
@@ -2440,17 +2637,20 @@ def JSONToSimpleValue(v,jsonValue):
 	elif isinstance(v,(edm.BooleanValue,edm.ByteValue,edm.Int16Value,edm.Int32Value,edm.SByteValue)):
 		v.SetFromPyValue(jsonValue)
 	elif isinstance(v,edm.DateTimeValue):
-		if jsonValue.startswith("/Date(") and jsonValue.endsWith(")/"):
+		tp=iso.TimePoint()
+		if jsonValue.startswith("/Date(") and jsonValue.endswith(")/"):
 			ticks=int(jsonValue[6:-2])
-			absoluteDay=BASE_DAY+v.pyValue.time.SetSeconds(ticks/1000.0)
-			v.pyValue.date.SetAbsoluteDate(absoluteDay)
+			absoluteDay=BASE_DAY+tp.time.SetSeconds(ticks/1000.0)
+			tp.date.SetAbsoluteDay(absoluteDay)
+			v.SetFromPyValue(tp)
 		else:
 			raise ValueError("Illegal value for DateTime: %s"%jsonValue)		
 	elif isinstance(v,(edm.DecimalValue,edm.DoubleValue,edm.GuidValue,edm.Int64Value,edm.SingleValue,edm.StringValue,edm.TimeValue)):
 		# just use the literal form as a json string
 		v.SetFromLiteral(jsonValue)
 	elif isinstance(v,(edm.DateTimeOffsetValue)):
-		if jsonValue.startswith("/Date(") and jsonValue.endsWith(")/"):
+		tp=iso.TimePoint()
+		if jsonValue.startswith("/Date(") and jsonValue.endswith(")/"):
 			ticks=int(jsonValue[6:-2])
 			if '+' in ticks:
 				# split by +
@@ -2468,9 +2668,10 @@ def JSONToSimpleValue(v,jsonValue):
 				zOffset=int(ticks[1])
 			else:
 				zOffset=0	
-			absoluteDay=BASE_DAY+v.pyValue.time.SetSeconds(int(ticks[0])/1000.0)
-			v.pyValue.date.SetAbsoluteDate(absoluteDay)
-			v.pyValue.SetZone(zDir,zOffset//60,zOffset%60)
+			absoluteDay=BASE_DAY+tp.time.SetSeconds(int(ticks[0])/1000.0)
+			tp.date.SetAbsoluteDay(absoluteDay)
+			tp.SetZone(zDir,zOffset//60,zOffset%60)
+			v.SetFromPyValue(tp)			
 		else:
 			raise ValueError("Illegal value for DateTimeOffset: %s"%jsonValue)			
 	else:
@@ -2587,6 +2788,17 @@ class NavigationEntityCollection(EntityCollectionMixin,edm.NavigationEntityColle
 	def GetTitle(self):
 		return self.name
 
+
+class DeepInsertCollection(NavigationEntityCollection):
+	
+	def __init__(self,name,fromEntity,toEnd,insertList):
+		super(DeepInsertCollection,self).__init__(name,fromEntity,toEnd)
+		self.insertList=insertList
+	
+	def itervalues(self):
+		for entity in self.insertList:
+			yield entity
+	
 		
 class FunctionEntityCollection(EntityCollectionMixin,edm.FunctionEntityCollection):
 	"""We override FunctionEntityCollection in order to provide OData-specific options."""
@@ -2990,12 +3202,15 @@ class Server(app.Server):
 		:py:class:`pyslet.odatav2_metadata.Edmx` instance or an Edmx
 		:py:class:`pyslet.odatav2_metadata.Document` instance."""
 		if isinstance(model,edmx.Document):
+			doc=model
 			model=model.root
 		elif isinstance(model,edmx.Edmx):
 			# create a document to hold the model
 			doc=edmx.Document(root=model)
 		else:
 			raise TypeError("Edmx document or instance required for model")
+		# update the base URI of the metadata document to identify this service
+		doc.SetBase(self.serviceRoot)
 		if self.model:
 			# get rid of the old model
 			for c in self.ws.Collection:
@@ -3004,8 +3219,7 @@ class Server(app.Server):
 			self.ws.Collection=[]
 		for s in model.DataServices.Schema:
 			for container in s.EntityContainer:
-				# is this the default entity container?
-				if container is model.DataServices.defaultContainer:
+				if container.IsDefaultEntityContainer():
 					prefix=""
 				else:
 					prefix=container.name+"."
@@ -3014,8 +3228,8 @@ class Server(app.Server):
 					feed=self.ws.ChildElement(app.Collection)
 					feed.href=prefix+es.name
 					feed.ChildElement(atom.Title).SetValue(prefix+es.name)
-					# update the location to reflect this binding
-					es.location=uri.URIFactory.Resolve(self.serviceRoot,prefix+es.name)
+					#	update the locations following SetBase above
+					es.SetLocation()
 		self.model=model
 		
 	def __call__(self,environ, start_response):
@@ -3091,6 +3305,25 @@ class Server(app.Server):
 		start_response("%i %s"%(code,subCode),responseHeaders)
 		return [data]
 	
+	def GetResourceFromURI(self,href):
+		"""Returns the resource object represented by the :py:class:`pyslet.rfc2396.URI`
+		
+		The URI must not use path, or system query options but must
+		identify an enity set, entity, complex or simple value."""
+		if not href.IsAbsolute():
+			# resolve relative to the service root
+			href=URIFactory.Resolve(self.serviceRoot,href)
+		# check the canonical roots
+		if not self.serviceRoot.GetCanonicalRoot().Match(href.GetCanonicalRoot()):
+			# This isn't even for us
+			return None
+		request=ODataURI(href,self.pathPrefix)
+		if self.model:
+			ds=self.model.DataServices
+		else:
+			ds=None
+		return request.GetResource(ds)
+		 
 	def HandleRequest(self,request,environ,start_response,responseHeaders):
 		"""Handles a request that has been identified as being an OData request.
 		
@@ -3101,62 +3334,7 @@ class Server(app.Server):
 		else:
 			resource=None
 		try:
-			for segment in request.navPath:
-				name,keyPredicate=segment
-				if isinstance(resource,edmx.DataServices):
-					try:
-						resource=resource.SearchContainers(name)
-					except KeyError,e:
-						raise MissingURISegment(str(e))						
-					if isinstance(resource,edm.FunctionImport):
-						# format is the only supported system query option
-						for option in request.sysQueryOptions:
-							if option!=SystemQueryOption.format:
-								raise InvalidSystemQueryOption('$%s cannot be used with service operations'%SystemQueryOption.EncodeValue(option))
-						# TODO: grab the params from the query string
-						resource=resource.Execute({})
-					elif isinstance(resource,edm.EntitySet):
-						resource=resource.GetCollection()		
-					else:
-						# not the right sort of thing
-						raise MissingURISegment(name)					
-					if isinstance(resource,edm.EntityCollection):						
-						if keyPredicate:
-							# the keyPredicate can be passed directly as the key
-							try:
-								es=resource
-								resource=es[es.entitySet.GetKey(keyPredicate)]
-							except KeyError,e:
-								raise MissingURISegment(name)
-					elif resource is None:
-						raise MissingURISegment(name)
-				elif isinstance(resource,(edm.EntityCollection,edm.FunctionCollection)):
-					# bad request, because the collection must be the last thing in the path
-					raise BadURISegment("%s since the object's parent is a collection"%name)
-				elif isinstance(resource,edm.Entity):
-					if name not in resource:
-						raise MissingURISegment(name)
-					resource=resource[name]
-					if isinstance(resource,EntityCollection):
-						if keyPredicate:
-							try:
-								resource=resource[resource.entitySet.GetKey(keyPredicate)]
-							except KeyError,e:
-								raise MissingURISegment(name)
-					elif isinstance(resource,Entity):
-						if keyPredicate:
-							# the key must match that of the entity
-							if resource.Key()!=keyPredicate:
-								raise MissingURISegment("%s%s"%(name,ODataURI.FormatKeyDict(keyPredicate)))					
-				elif isinstance(resource,edm.Complex):
-					if name in resource:
-						# This is a regular property of the ComplexType
-						resource=resource[name]
-					else:
-						raise MissingURISegment(name)
-				else:
-					# Any other type is just a property or simple-type
-					raise BadURISegment(name)
+			resource=request.GetResource(resource)
 			if request.pathOption==PathOption.metadata:
 				if request.sysQueryOptions:
 					raise InvalidSystemQueryOption('$metadata document must not have sytem query options')				
@@ -3391,7 +3569,7 @@ class Server(app.Server):
 				encoding='utf_8'
 			input.seek(0)
 		if atomFlag is None:
-			# we need to figure out what we have here
+			# we still need to figure out what we have here
 			if encoding.lower() in ("utf_8","utf-8"):
 				unicodeInput=input
 			else:
@@ -3427,12 +3605,12 @@ class Server(app.Server):
 		if isinstance(input,Document):
 			if isinstance(input.root,Entry):
 				# we have an entry, which is a relief!
-				input.root.GetValue(entity)
+				input.root.GetValue(entity,self.GetResourceFromURI)
 			else:
 				raise InvalidData("Unable to parse atom Entry from request body (found <%s>)"%doc.root.xmlname)
 		else:
 			# must be a json object
-			entity.SetFromJSONObject(input)
+			entity.SetFromJSONObject(input,self.GetResourceFromURI)
 		
 	def ReturnEntity(self,entity,request,environ,start_response,responseHeaders,status=200,statusMsg="Success"):
 		"""Returns a single Entity."""

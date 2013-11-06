@@ -382,7 +382,7 @@ def EncodeUnicodeURI(uSrc):
 	return string.join(octets,'')
 
 	
-class URI:
+class URI(object):
 	"""Class to represent URI Reference."""
 			
 	def __init__(self,octets):
@@ -396,6 +396,8 @@ class URI:
 		if uriLen<len(octets):
 			if ord(octets[uriLen])==0x23:
 				self.fragment=octets[uriLen+1:]
+			else:
+				raise URIException("URI incompletely parsed from octets: %s"%octets)
 		self.scheme=ParseScheme(self.octets)
 		"""The URI scheme, if present."""
 		self.schemeSpecificPart=None
@@ -593,10 +595,11 @@ class URI:
 		
 		Only valid for absolute URIs."""
 		if self.IsAbsolute():
-			result=[self.scheme,':']
-			if self.authority is not None:
+			canonicalURI=self.Canonicalize()
+			result=[canonicalURI.scheme,':']
+			if canonicalURI.authority is not None:
 				result.append('//')
-				result.append(self.authority)
+				result.append(canonicalURI.authority)
 			return URIFactory.URI(string.join(result,''))
 		else:
 			return None
@@ -808,13 +811,29 @@ class URI:
 	def __cmp__(self,otherURI):
 		"""Compare this URI against another URI or a string."""
 		return cmp(str(self),str(otherURI))
-		
+
+	def Canonicalize(self):
+		"""Returns a canonical form of this URI"""
+		newURI=[]
+		if self.scheme is not None:
+			newURI.append(self.scheme.lower())
+			newURI.append(':')
+			newURI.append(self.schemeSpecificPart)
+		else:
+			# we don't need to look inside the URI
+			newURI.append(self.octets)
+		if self.fragment:
+			newURI.append('#')
+			newURI.append(self.fragment)
+		return URIFactory.URI(string.join(newURI,''))
+ 			
 	def Match(self,otherURI):
 		"""Compares this URI against otherURI returning True if they match.
 		
 		At the moment this is a very simple algorithm: just compare the octet
 		strings.  In the future we should canonicalize before comparing."""
-		return str(self)==str(otherURI)
+		
+		return str(self.Canonicalize())==str(otherURI.Canonicalize())
 		
 	def IsAbsolute(self):
 		"""Returns True if this URI is absolute, i.e., fully specified with a scheme name."""
@@ -934,12 +953,50 @@ class URIFactoryClass:
 			b=self.URI(b)
 		return u.Relative(b)
 		
-		
-class FileURL(URI):
-	"""Represents the FileURL defined by RFC1738"""
-	def __init__(self,octets='file:///'):
-		URI.__init__(self,octets)
+
+class ServerBasedURL(URI):
+
+	DEFAULT_PORT=None	#: the default port for this type of URL
+	
+	def __init__(self,octets):
+		super(ServerBasedURL,self).__init__(octets)
 		self.userinfo,self.host,self.port=SplitServer(self.authority)
+		
+	def Canonicalize(self):
+		"""Returns a canonical form of this URI"""
+		newURI=[]
+		if self.scheme is not None:
+			newURI.append(self.scheme.lower())
+			newURI.append(':')
+		if self.authority is not None:
+			newURI.append('//')
+			if self.userinfo is not None:
+				newURI.append(self.userinfo)
+				newURI.append('@')
+			newURI.append(self.host.lower())
+			if self.port:	# port could be an empty string
+				port=int(self.port)
+				if port!=self.DEFAULT_PORT:
+					newURI.append(':')
+					newURI.append("%i"%int(self.port))
+		if self.absPath is not None:
+			newURI.append(self.absPath)
+		else:
+			newURI.append(self.relPath)
+		if self.query is not None:
+			newURI.append('?')
+			newURI.append(self.query)
+		if self.fragment is not None:
+			newURI.append('#')
+			newURI.append(self.fragment)
+		return URIFactory.URI(string.join(newURI,''))
+
+
+class FileURL(ServerBasedURL):
+	"""Represents the FileURL defined by RFC1738"""
+	
+	def __init__(self,octets='file:///'):
+		super(FileURL,self).__init__(octets)
 			
 	def GetPathname(self,force8Bit=False):
 		"""Returns the system path name corresponding to this file URL

@@ -96,7 +96,7 @@ class InMemoryAssociationIndex(object):
 # 				return None
 # 			elif len(result)==1:
 # 				k=result.keys()[0]
-# 				entity=self.otherEnd.entitySet.GetCollection()[k]
+# 				entity=self.otherEnd.entitySet.OpenCollection()[k]
 # 				return entity
 # 			else:
 # 				raise KeyError("Navigation error, found multiple entities")
@@ -106,6 +106,11 @@ class InMemoryAssociationIndex(object):
 		self.index.setdefault(fromKey,set()).add(toKey)
 		self.reverseIndex.setdefault(toKey,set()).add(fromKey)
 
+	def RemoveLink(self,fromKey,toKey):
+		"""Removes a link from *fromKey* to *toKey*"""
+		self.index.get(fromKey,set()).pop(toKey)
+		self.reverseIndex.get(toKey,set()).pop(fromKey)
+		
 	def DeleteHook(self,fromKey):
 		"""Called when a key from the source entity set is being deleted."""
 		try:
@@ -234,6 +239,8 @@ class EntityCollection(odata.EntityCollection):
 		if key in self:
 			raise KeyError("%s already exists"%ODataURI.FormatEntityKey(entity))
 		self[key]=entity
+		# now process any bindings
+		self.UpdateBindings(entity)
 		
 	def __setitem__(self,key,e):
 		# e is an EntityTypeInstance, we need to convert it to a tuple
@@ -245,6 +252,8 @@ class EntityCollection(odata.EntityCollection):
 			elif isinstance(p,edm.SimpleValue):
 				value.append(p.pyValue)
 		self.entityStore.data[key]=tuple(value)
+		# At this point the entity exists
+		e.exists=True
 
 	def GetTupleFromComplex(self,complexValue):
 		value=[]
@@ -270,17 +279,46 @@ class NavigationEntityCollection(odata.NavigationEntityCollection):
 		else:
 			self.index=self.associationIndex.index
 		super(NavigationEntityCollection,self).__init__(name,fromEntity,toEntitySet)
-		self.collection=self.entitySet.GetCollection()
-		self.resultSet=self.index.get(self.fromEntity.Key(),set())
-		
+		self.collection=self.entitySet.OpenCollection()
+		self.key=self.fromEntity.Key()
+	
+	def close(self):
+		if self.collection is not None:
+			self.collection.close()
+			self.collection=None
+						
 	def __len__(self):
-		return len(self.resultSet)
+		resultSet=self.index.get(self.key,set())
+		return len(resultSet)
 
-	def itervalues(self):
+	def entityGenerator(self):
 		# we create a collection from the appropriate entity set first
-		for k in self.resultSet:
+		resultSet=self.index.get(self.key,set())
+		for k in resultSet:
 			yield self.collection[k]
-
-
 		
+	def itervalues(self):
+		return self.OrderEntities(
+			self.ExpandEntities(
+			self.FilterEntities(
+			self.entityGenerator())))
 
+	def __setitem__(self,key,value):
+		resultSet=self.index.get(self.key,set())
+		if key in resultSet:
+			# no operation
+			return
+		# forces a check of value to ensure it is good
+		self.collection[key]=value
+		if not self.fromEntity.IsEntityCollection(self.name):
+			# replace whatever we have - harder to do
+			for k in resultSet:
+				if self.reverse:
+					self.associationIndex.RemoveLink(key,self.key)
+				else:
+					self.associationIndex.RemoveLink(self.key,key)
+		# just add this one to the index
+		if self.reverse:
+			self.associationIndex.AddLink(key,self.key)
+		else:
+			self.associationIndex.AddLink(self.key,key)

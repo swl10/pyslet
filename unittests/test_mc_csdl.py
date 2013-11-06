@@ -231,25 +231,47 @@ class CSDLTests(unittest.TestCase):
 		self.assertTrue(e.OnDelete is None,"No OnDelete elements allowed on construction")
 
 	def testCaseEntity(self):
-		es=EntitySet(None)
-		es.entityType=EntityType(None)
-		p=es.entityType.ChildElement(Property)
-		p.SetAttribute('Name',"dataTest")
-		p.SetAttribute('Type',"Edm.Int32")
-		p.UpdateTypeRefs(None)
-		np=es.entityType.ChildElement(NavigationProperty)
-		np.SetAttribute('Name','navTest')
-		es.entityType.ContentChanged()
+		minimalNavSchema="""<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<Schema Namespace="SampleModel" xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
+	<EntityContainer Name="SampleEntities" m:IsDefaultEntityContainer="true">
+    	<EntitySet Name="Customers" EntityType="SampleModel.Customer"/>
+        <EntitySet Name="Orders" EntityType="SampleModel.Order"/>
+		<AssociationSet Name="Orders_Customers" Association="SampleModel.Orders_Customers">
+			<End Role="Customer" EntitySet="Customers"/>
+			<End Role="Order" EntitySet="Orders"/>
+		</AssociationSet>
+    </EntityContainer>
+	<EntityType Name="Order">
+		<Key>
+			<PropertyRef Name="OrderID"/>
+		</Key>
+		<Property Name="OrderID" Type="Edm.Int32" Nullable="false"/>
+	</EntityType>
+	<EntityType Name="Customer">
+		<Key>
+			<PropertyRef Name="CustomerID"/>
+		</Key>
+		<Property Name="CustomerID" Type="Edm.String"/>
+		<NavigationProperty Name="Orders" Relationship="SampleModel.Orders_Customers"
+			FromRole="Customer" ToRole="Order"/>
+	</EntityType>
+	<Association Name="Orders_Customers">
+		<End Role="Customer" Type="SampleModel.Customer" Multiplicity="0..1"/>
+		<End Role="Order" Type="SampleModel.Order" Multiplicity="*"/>
+	</Association>
+</Schema>"""
+		doc=Document()
+		doc.Read(src=minimalNavSchema)
+		scope=NameTableMixin()
+		scope.Declare(doc.root)
+		doc.root.UpdateTypeRefs(scope)
+		doc.root.UpdateSetRefs(scope)
+		es=doc.root["SampleEntities.Customers"]
 		e=Entity(es)
 		# initially the entity is marked as a new entity
 		self.assertFalse(e.exists)
-		# you can't use navigation properties
-		self.assertFalse(e['dataTest'])
-		try:
-			nav=e['navTest']
-			self.fail("Expected exception")
-		except NonExistentEntity,e:
-			pass
+		self.assertTrue(isinstance(e['CustomerID'],StringValue),"Type of simple property")
+		self.assertTrue(isinstance(e['Orders'],DeferredValue),"Type of navigation property")
 
 
 class ERStoreTests(unittest.TestCase):

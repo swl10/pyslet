@@ -1999,10 +1999,21 @@ class ODataURITests(unittest.TestCase):
 		self.assertTrue(dsURI.navPath==[(u'Products',{})],"path: %s"%repr(dsURI.navPath))
 		self.assertTrue(dsURI.pathOption==PathOption.count,"$count recognised")
 		dsURI=ODataURI('Products(1)/$value','/x.svc')
-		self.assertTrue(dsURI.navPath==[(u'Products',{'':1})],"path: %s"%repr(dsURI.navPath))
+		self.assertTrue(len(dsURI.navPath)==1)
+		self.assertTrue(dsURI.navPath[0][0]==u'Products')
+		self.assertTrue(len(dsURI.navPath[0][1]))
+		self.assertTrue(isinstance(dsURI.navPath[0][1][u''],edm.Int32Value),"Key value type")
+		self.assertTrue(dsURI.navPath[0][1][u''].pyValue==1,"Key value")
+		# self.assertTrue(dsURI.navPath==[(u'Products',{'':1})],"path: %s"%repr(dsURI.navPath))
 		self.assertTrue(dsURI.pathOption==PathOption.value,"$value recognised")
 		dsURI=ODataURI('Products(x=1,y=2)','/x.svc')
-		self.assertTrue(dsURI.navPath==[(u'Products',{u'x':1,u'y':2})],"path: %s"%repr(dsURI.navPath))
+		self.assertTrue(len(dsURI.navPath)==1)
+		self.assertTrue(dsURI.navPath[0][0]==u'Products')
+		self.assertTrue(isinstance(dsURI.navPath[0][1][u'x'],edm.Int32Value),"Key value type")
+		self.assertTrue(dsURI.navPath[0][1][u'x'].pyValue==1,"x Key value")
+		self.assertTrue(isinstance(dsURI.navPath[0][1][u'y'],edm.Int32Value),"Key value type")
+		self.assertTrue(dsURI.navPath[0][1][u'y'].pyValue==2,"y Key value")		
+		# self.assertTrue(dsURI.navPath==[(u'Products',{u'x':1,u'y':2})],"path: %s"%repr(dsURI.navPath))
 		
 	def testCaseExpand(self):
 		"""Redundant expandClause rules on the same data service URI can
@@ -2423,7 +2434,6 @@ class ServerTests(unittest.TestCase):
 		s=Server()
 		self.assertTrue(s.model is None,"no model initially")
 		# Load the model document
-		# import pdb;pdb.set_trace()
 		doc=self.LoadMetadata()
 		s.SetModel(doc)
 		# at this point, the server's model root is available as model
@@ -2435,7 +2445,9 @@ class ServerTests(unittest.TestCase):
 		customers=ds['SampleModel.SampleEntities.Customers']
 		customer=Entity(customers)
 		customer['CustomerID'].SetFromPyValue('X')
-		customer['CompanyName'].SetFromPyValue('Megacorp')		
+		customer['CompanyName'].SetFromPyValue('Megacorp')
+		# fake existence
+		customer.exists=True
 		#	If the entity represents an AtomPub Entry Resource...
 		#		the <atom:content> element MUST contain a "type" attribute with the value "application/xml"
 		entry=Entry(None,customer)
@@ -2464,17 +2476,55 @@ class ServerTests(unittest.TestCase):
 				#	the URI which identifies the NavigationProperty on the
 				#	EntityType.
 				links[pName]=(child.href,child.type)
-		self.assertTrue(links['Orders'][0]=="SampleEntities.Customers('X')/Orders","Orders link")
+		self.assertTrue(links['Orders'][0]=="Customers('X')/Orders","Orders link")
 		#	[the atom:type attribute] should have a value of ...
 		#	"application/atom+xml;type=feed" when the property
 		#	identifies an EntitySet.
 		self.assertTrue(links['Orders'][1]=="application/atom+xml;type=feed","Orders link type")
+		#	Entity binding tests...
+		customer.exists=False
+		customer.BindEntity('Orders',1)
+		customer.BindEntity('Orders',2)
+		#	it isn't clear if the spec intends to support mixed cases
+		#	of deep insert and binding to existing entities on the same
+		#	request, but in theory there is no reason why we shouldn't
+		order=Entity(ds['SampleModel.SampleEntities.Orders'])
+		order['OrderID'].SetFromPyValue(3)
+		customer.BindEntity('Orders',order)
+		#	To bind the new entity to an existing entity the "href"
+		#	attribute of the <atom:link> element must represent the URI
+		#	of the entity to be linked to.
+		entry=Entry(None,customer)
+		children=list(entry.FindChildrenDepthFirst(atom.Link))
+		self.assertTrue(len(children)==3,"Three links present links")
+		links={}
+		deepLinks={}
+		for child in children:
+			if child.rel.startswith(ODATA_RELATED):
+				self.assertTrue(child.parent is entry,"Link must be a child of the entry element")
+				self.assertTrue(child.title==pName,"Title should be name of navigation property")
+				self.assertTrue(child.type is None,"We don't need the child type")
+				pName=child.rel[len(ODATA_RELATED):]
+				self.assertTrue(pName=='Orders',"Only Orders link is bound")
+				if child.href=="Customers('X')/Orders":
+					self.assertTrue(child.Inline is not None,"deep link has child")
+					self.assertTrue(child.Inline.Feed is not None,"deep link child has Feed")
+					# test the collection in the feed
+					self.assertTrue(len(child.Inline.Feed.collection)==1,"one deep-linked child")
+					e=list(child.Inline.Feed.collection.itervalues())[0]
+					self.assertTrue(e['OrderID'].pyValue==3,"Order number 3")
+				else:	
+					links[child.href]=True
+		self.assertTrue(len(links)==2,"Two entities bound")
+		self.assertTrue("Orders(1)" in links,"Orders(1)")
+		self.assertTrue("Orders(2)" in links,"Orders(2)")		
 		#
 		#	End of customer tests
 		#
 		orders=ds['SampleModel.SampleEntities.Orders']
 		order=Entity(orders)
 		order['OrderID'].SetFromPyValue(1)
+		order.exists=True
 		entry=Entry(None,order)
 		children=list(entry.FindChildrenDepthFirst(atom.Link))
 		links={}
@@ -2483,12 +2533,12 @@ class ServerTests(unittest.TestCase):
 			if child.rel.startswith(ODATA_RELATED):
 				pName=child.rel[len(ODATA_RELATED):]
 				links[pName]=(child.href,child.type)
-		self.assertTrue(links['Customer'][0]=="SampleEntities.Orders(1)/Customer","Customer link")
+		self.assertTrue(links['Customer'][0]=="Orders(1)/Customer","Customer link")
 		#	[the atom:type attribute] should have a value of
 		#	"application/atom+xml;type=entry" when the
 		#	NavigationProperty identifies a single entity instance
 		self.assertTrue(links['Customer'][1]=="application/atom+xml;type=entry","Customer link type")
-		self.assertTrue(links['OrderLine'][0]=="SampleEntities.Orders(1)/OrderLine","OrderLine link")
+		self.assertTrue(links['OrderLine'][0]=="Orders(1)/OrderLine","OrderLine link")
 		self.assertTrue(links['OrderLine'][1]=="application/atom+xml;type=entry","OrderLine link type")
 		#
 		#	End of order tests
@@ -2498,6 +2548,7 @@ class ServerTests(unittest.TestCase):
 		employee['EmployeeID'].SetFromPyValue('12345')
 		employee['EmployeeName'].SetFromPyValue('Joe Bloggs')
 		employee['Address']['City'].SetFromPyValue('Chunton')
+		employee.exists=True
 		entry=Entry(None,employee)
 		properties=list(entry.Content.GetChildren())[0]
 		pList=list(properties.GetChildren())
@@ -2554,6 +2605,7 @@ class ServerTests(unittest.TestCase):
 		h=hashlib.sha256()
 		h.update("Well, Prince, so Genoa and Lucca are now just family estates of the Buonapartes")
 		document['Version'].SetFromPyValue(h.digest())
+		document.exists=True
 		entry=Entry(None,document)
 		#	If the entity represents an AtomPub Media Link Entry...
 		#		the <m:properties> element... the <m:properties>
@@ -2567,12 +2619,12 @@ class ServerTests(unittest.TestCase):
 		for child in children:
 			links.add(child.rel)
 			if child.rel=="edit-media":
-				self.assertTrue(child.href=="SampleEntities.Documents(1801)/$value","edit-media link")
+				self.assertTrue(child.href=="Documents(1801)/$value","edit-media link")
 				self.assertTrue(child.GetAttribute((ODATA_METADATA_NAMESPACE,"etag"))=="W/\"X'%s'\""%h.hexdigest().upper())
 			if child.rel=="edit":
 				#	[the edit link] MUST have an atom:href attribute
 				#	whose value is a URI that identifies the entity
-				self.assertTrue(child.href=="SampleEntities.Documents(1801)","edit link")
+				self.assertTrue(child.href=="Documents(1801)","edit link")
 		#		[for AtomPub Media Link Entries] an <atom:link> element
 		#		SHOULD be included, which contains an
 		#		atom:rel="edit-media" attribute
@@ -2599,50 +2651,6 @@ class ServerTests(unittest.TestCase):
 		#	then the <atom:category> element can be included
 		self.assertTrue(gotType,"Expected category term")
 		
-	def testCaseEntityTypeFromAtomEntry(self):
-		doc=self.LoadMetadata()
-		ds=doc.root.DataServices
-		customers=ds['SampleModel.SampleEntities.Customers']
-		customer=Entity(customers)
-		customer['CustomerID'].SetFromPyValue('X')
-		customer['CompanyName'].SetFromPyValue('Megacorp')		
-		entry=Entry(None,customer)
-		self.assertTrue(entry.entityType==None,"Ensure there is no relation to the model here")
-		newCustomer=entry.GetValue(Entity(customers))
-		self.assertTrue(newCustomer['CustomerID'].pyValue=="X","Check customer ID")
-		self.assertTrue(newCustomer['CompanyName'].pyValue=="Megacorp","Check customer name")
-		self.assertFalse(newCustomer['Address']['Street'],"No street")
-		self.assertFalse(newCustomer['Address']['City'],"No city")
-		self.assertFalse(newCustomer['Version'],"No version")
-		employees=ds['SampleModel.SampleEntities.Employees']
-		employee=Entity(employees)
-		employee['EmployeeID'].SetFromPyValue('12345')
-		employee['EmployeeName'].SetFromPyValue('Joe Bloggs')
-		employee['Address']['City'].SetFromPyValue('Chunton')
-		entry=Entry(None,employee)
-		self.assertTrue(entry.entityType==None,"Ensure there is no relation to the model here")
-		newEmployee=entry.GetValue(Entity(employees))
-		self.assertTrue(newEmployee['EmployeeID'].pyValue=="12345","Check employee ID")
-		self.assertTrue(newEmployee['EmployeeName'].pyValue=="Joe Bloggs","Check employee name")
-		self.assertFalse(newEmployee['Address']['Street'],"No street")
-		self.assertTrue(newEmployee['Address']['City']=="Chunton","Check employee city")
-		self.assertFalse(newEmployee['Version'],"No version")
-		documents=ds['SampleModel.SampleEntities.Documents']
-		document=Entity(documents)
-		document['DocumentID'].SetFromPyValue(1801)
-		document['Title'].SetFromPyValue('War and Peace')
-		document['Author'].SetFromPyValue('Tolstoy')
-		h=hashlib.sha256()
-		h.update("Well, Prince, so Genoa and Lucca are now just family estates of the Buonapartes")
-		document['Version'].SetFromPyValue(h.digest())
-		entry=Entry(None,document)
-		self.assertTrue(entry.entityType==None,"Ensure there is no relation to the model here")
-		newDocument=entry.GetValue(Entity(documents))
-		self.assertTrue(newDocument['DocumentID'].pyValue==1801,"Check document ID")
-		self.assertTrue(newDocument['Title'].pyValue=="War and Peace","Check document name")
-		self.assertTrue(newDocument['Author']=="Tolstoy","Check author name")
-		self.assertTrue(newDocument['Version'].pyValue==h.digest(),"Mismatched version")
-
 	def testCaseEntityTypeAsJSON(self):
 		doc=self.LoadMetadata()
 		ds=doc.root.DataServices
@@ -2651,6 +2659,7 @@ class ServerTests(unittest.TestCase):
 		customer['CustomerID'].SetFromPyValue('X')
 		customer['CompanyName'].SetFromPyValue('Megacorp')
 		customer['Address']['City'].SetFromPyValue('Chunton')
+		customer.exists=True
 		jsonData=string.join(customer.GenerateEntityTypeInJSON())
 		obj=json.loads(jsonData)
 		#	Each property on the EntityType MUST be represented as a name/value pair
@@ -2665,7 +2674,7 @@ class ServerTests(unittest.TestCase):
 		#	name/value pair with the name equal to "uri"
 		self.assertTrue("Orders" in obj)
 		self.assertTrue("__deferred" in obj["Orders"])
-		self.assertTrue(obj["Orders"]["__deferred"]["uri"]=="SampleEntities.Customers('X')/Orders")
+		self.assertTrue(obj["Orders"]["__deferred"]["uri"]=="Customers('X')/Orders")
 		#	Each declared property defined on the ComplexType MUST be
 		#	represented as a name/value pair within the JSON object.
 		self.assertTrue("City" in obj["Address"],"City in Address")
@@ -2683,7 +2692,7 @@ class ServerTests(unittest.TestCase):
 		#	The value of the "uri" name/value pair MUST be the
 		#	canonical URI identifying the EntityType instance
 		meta=obj["__metadata"]
-		self.assertTrue(meta["uri"]=="SampleEntities.Customers('X')","uri in metadata")
+		self.assertTrue(meta["uri"]=="Customers('X')","uri in metadata")
 		#	The value of the "type" name/value pair MUST be the
 		#	namespace qualified name... of the EntityType of the
 		#	instance
@@ -2695,7 +2704,22 @@ class ServerTests(unittest.TestCase):
 		self.assertFalse("media_src" in meta)
 		self.assertFalse("content_type" in meta)
 		self.assertFalse("edit_media" in meta)
-		self.assertFalse("media_etag" in meta)		
+		self.assertFalse("media_etag" in meta)
+		# Fake lack of existence
+		customer.exists=False
+		customer.BindEntity('Orders',1)
+		customer.BindEntity('Orders',2)
+		jsonData=string.join(customer.GenerateEntityTypeInJSON())
+		obj=json.loads(jsonData)
+		self.assertTrue(type(obj['Orders'])==ListType,"JSON array")
+		self.assertTrue(len(obj['Orders'])==2,"Two bindings")
+		links=set()
+		for link in obj['Orders']:
+			self.assertTrue(type(link)==DictType,"Each link is an object")
+			links.add(link['__metadata']['uri'])
+		self.assertTrue("Orders(1)" in links,"Orders(1)")
+		self.assertTrue("Orders(2)" in links,"Orders(2)")
+		customer.exists=True
 		customer.Expand({},{'CustomerID':None,'CompanyName':None})
 		#	[if using the] Select System Query Option then only the
 		#	properties identified by the $select query option MUST be
@@ -2715,7 +2739,7 @@ class ServerTests(unittest.TestCase):
 		h.update(docText)
 		etag="W/\"X'%s'\""%h.hexdigest().upper()
 		documents.data[1801]=(1801,'War and Peace','Tolstoy',h.digest())
-		document=documentSet.GetCollection()[1801]
+		document=documentSet.OpenCollection()[1801]
 		document.SetItemStream('text/plain',docText)
 		jsonData=string.join(document.GenerateEntityTypeInJSON())
 		obj=json.loads(jsonData)
@@ -2725,9 +2749,9 @@ class ServerTests(unittest.TestCase):
 		#	included and the "edit_media" and "media_etag" name/value
 		#	pairs can be included if the entity being represented is a
 		#	Media Link Entry
-		self.assertTrue(meta["media_src"]=="SampleEntities.Documents(1801)/$value","media src link")
+		self.assertTrue(meta["media_src"]=="Documents(1801)/$value","media src link")
 		self.assertTrue(meta["content_type"]=="text/plain","document content type")
-		self.assertTrue(meta["edit_media"]=="SampleEntities.Documents(1801)/$value","edit-media link")
+		self.assertTrue(meta["edit_media"]=="Documents(1801)/$value","edit-media link")
 		self.assertTrue(meta["media_etag"]==etag,"document etag")
 		
 	def testCaseEntityTypeFromJSON(self):
@@ -2766,7 +2790,7 @@ class ServerTests(unittest.TestCase):
 		h=hashlib.sha256()
 		h.update(docText)
 		documents.data[1801]=(1801,'War and Peace','Tolstoy',h.digest())
-		document=documentSet.GetCollection()[1801]
+		document=documentSet.OpenCollection()[1801]
 		document.SetItemStream('text/plain',docText)
 		jsonData=string.join(document.GenerateEntityTypeInJSON())
 		obj=json.loads(jsonData)
@@ -2787,9 +2811,9 @@ class ServerTests(unittest.TestCase):
 		customers.data['ALFKI']=('ALFKI','Example Inc',("Mill Road","Chunton"),None)
 		for i in xrange(3):
 			customers.data['XXX%02X'%i]=('XXX%02X'%i,'Example-%i Ltd'%i,(None,None),None)
-		feed=Feed(None,customersSet.GetCollection())
+		feed=Feed(None,customersSet.OpenCollection())
 		#	The <atom:id> element MUST contain the URI that identifies the EntitySet
-		self.assertTrue(feed.AtomId.GetValue()=="SampleEntities.Customers")
+		self.assertTrue(feed.AtomId.GetValue()=="Customers")
 		#	The <atom:title> element can contain the name of the
 		#	EntitySet represented by the parent <atom:feed> element...
 		#	The set name can be qualified with the name of the EDM
@@ -2804,7 +2828,7 @@ class ServerTests(unittest.TestCase):
 				#	contain an href attribute with a value equal to the URI
 				#	used to identify the set that the parent <atom:feed>
 				#	element represents
-				self.assertTrue(child.href=="SampleEntities.Customers","self link")
+				self.assertTrue(child.href=="Customers","self link")
 		self.assertTrue("self" in links,"Missing self link")
 		self.assertTrue(len(feed.Entry)==0,"Feed uses generator instead of static array of entries")
 		nEntries=0
@@ -2812,7 +2836,7 @@ class ServerTests(unittest.TestCase):
 			if isinstance(child,atom.Entry):
 				nEntries+=1
 		self.assertTrue(nEntries==4,"4 entries generated by the feed")		
-		page=customersSet.GetCollection()
+		page=customersSet.OpenCollection()
 		page.TopMax(2)
 		page.SetInlineCount(True)
 		feed=Feed(None,page)
@@ -2847,14 +2871,14 @@ class ServerTests(unittest.TestCase):
 				# Such a URI SHOULD include a Skip Token System Query Option
 				self.assertTrue("$skiptoken" in child.href,"skiptoken")
 		self.assertTrue("next" in links,"Missing next link")
-		customer=customersSet.GetCollection()['ALFKI']
-		feed=Feed(None,customer['Orders'])
+		customer=customersSet.OpenCollection()['ALFKI']
+		feed=Feed(None,customer['Orders'].OpenCollection())
 		#	If the URI in the sibling <atom:id> element is of the same
 		#	form as URI 6 and the NavigationProperty identifies an
 		#	EntitySet, then the <atom:title> element can contain the
 		#	name of the NavigationProperty instead of the name of the
 		#	EntitySet identified by the property
-		self.assertTrue(feed.AtomId.GetValue()=="SampleEntities.Customers('ALFKI')/Orders")
+		self.assertTrue(feed.AtomId.GetValue()=="Customers('ALFKI')/Orders")
 		self.assertTrue(feed.Title.GetValue()=="Orders")
 
 	def testCaseEntitySetAsJSON(self):
@@ -2867,7 +2891,7 @@ class ServerTests(unittest.TestCase):
 		customers.data['ALFKI']=('ALFKI','Example Inc',("Mill Road","Chunton"),None)
 		for i in xrange(3):
 			customers.data['XXX%02X'%i]=('XXX%02X'%i,'Example-%i Ltd'%i,(None,None),None)
-		collection=customersSet.GetCollection()
+		collection=customersSet.OpenCollection()
 		jsonData=string.join(collection.GenerateEntitySetInJSON(),'')
 		#	Version 2 object by default
 		obj=json.loads(jsonData)
@@ -2908,7 +2932,7 @@ class ServerTests(unittest.TestCase):
 		self.assertTrue(jsonData.index("__count")<jsonData.index("results"),"first __count before results")
 		#	An empty EntitySet or collection of entities MUST be
 		#	represented as an empty JSON array.
-		emptyCollection=collection['ALFKI']["Orders"]
+		emptyCollection=collection['ALFKI']["Orders"].OpenCollection()
 		jsonData=string.join(emptyCollection.GenerateEntitySetInJSON(),'')
 		obj=json.loads(jsonData)
 		self.assertTrue(type(obj["results"])==ListType,"Empty EntitySet represented as JSON array")
@@ -2920,7 +2944,7 @@ class CustomersByCityEntityCollection(FunctionEntityCollection):
 	def __init__(self,function,params,customers):
 		FunctionEntityCollection.__init__(self,function,params)
 		self.customers=customers
-		self.collection=self.entitySet.GetCollection()
+		self.collection=self.entitySet.OpenCollection()
 		self.city=params.get('city','Chunton')
 		
 	def itervalues(self):
@@ -2937,7 +2961,7 @@ class ShippedAddressByDateCollection(FunctionCollection):
 		if self.date is None:
 			self.date=iso8601.TimePoint()
 			self.date.Now()
-		self.collection=customersEntitySet.GetCollection()
+		self.collection=customersEntitySet.OpenCollection()
 		
 	def __iter__(self):
 		for customer in self.collection.itervalues():
@@ -2952,7 +2976,7 @@ class ShippedCustomerNamesByDateCollection(FunctionCollection):
 		if self.date is None:
 			self.date=iso8601.TimePoint()
 			self.date.Now()
-		self.collection=customersEntitySet.GetCollection()
+		self.collection=customersEntitySet.OpenCollection()
 		
 	def __iter__(self):
 		for customer in self.collection.itervalues():
@@ -3007,8 +3031,8 @@ class SampleServerTests(unittest.TestCase):
 		association.AddLink(1,'ALFKI')
 		association.AddLink(2,'ALFKI')
 		orderLines=pyds.InMemoryEntityStore(self.ds['SampleModel.SampleEntities.OrderLines'])
-		orderLines.data[100]=(100,12,0.45)
-		orderLines.data[200]=(200,144,2.50)
+		orderLines.data[100]=(100,12,decimal.Decimal('0.45'))
+		orderLines.data[200]=(200,144,decimal.Decimal('2.50'))
 		association=pyds.InMemoryAssociationIndex(orders,orderLines,"OrderLine","Orders")
 		association.AddLink(1,100)
 		association.AddLink(2,200)
@@ -3031,20 +3055,95 @@ class SampleServerTests(unittest.TestCase):
 		lastCustomerNameByLine.Bind(self.LastCustomerNameByLine)
 		
 	def LastCustomerByLine(self,function,params):
-		customers=self.ds['SampleModel.SampleEntities.Customers'].GetCollection()
-		return customers['ALFKI']
+		with self.ds['SampleModel.SampleEntities.Customers'].OpenCollection() as customers:
+			return customers['ALFKI']
 				
 	def LastShippedByLine(self,function,params):
-		customers=self.ds['SampleModel.SampleEntities.Customers'].GetCollection()
-		return customers['ALFKI']['Address']
+		with self.ds['SampleModel.SampleEntities.Customers'].OpenCollection() as customers:
+			return customers['ALFKI']['Address']
 				
 	def LastCustomerNameByLine(self,function,params):
-		customers=self.ds['SampleModel.SampleEntities.Customers'].GetCollection()
-		return customers['ALFKI']['CompanyName']
+		with self.ds['SampleModel.SampleEntities.Customers'].OpenCollection() as customers:
+			return customers['ALFKI']['CompanyName']
 				
 	def tearDown(self):
 		pass
 	
+	def testCaseEntityTypeFromAtomEntry(self):
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		customer=Entity(customers)
+		customer['CustomerID'].SetFromPyValue('X')
+		customer['CompanyName'].SetFromPyValue('Megacorp')
+		customer.exists=True
+		entry=Entry(None,customer)
+		self.assertTrue(entry.entityType==None,"Ensure there is no relation to the model here")
+		newCustomer=Entity(customers)
+		newCustomer.exists=True
+		entry.GetValue(newCustomer)
+		self.assertTrue(newCustomer['CustomerID'].pyValue=="X","Check customer ID")
+		self.assertTrue(newCustomer['CompanyName'].pyValue=="Megacorp","Check customer name")
+		self.assertFalse(newCustomer['Address']['Street'],"No street")
+		self.assertFalse(newCustomer['Address']['City'],"No city")
+		self.assertFalse(newCustomer['Version'],"No version")
+		self.assertTrue(len(newCustomer.bindings)==0,"new customer not bound")
+		customer.exists=False
+		customer.BindEntity('Orders',1)
+		customer.BindEntity('Orders',2)
+		order=Entity(self.ds['SampleModel.SampleEntities.Orders'])
+		order['OrderID'].SetFromPyValue(3)
+		customer.BindEntity('Orders',order)
+		entry=Entry(None,customer)
+		newCustomer=Entity(customers)
+		newCustomer.exists=False
+		entry.GetValue(newCustomer,lambda x:ODataURI(x,self.svc.pathPrefix).GetResource(self.ds))
+		# now we need to check the bindings, which is a little hard to do without looking inside the box
+		self.assertTrue(len(newCustomer.bindings)==1,"new customer has a single nav property bound")
+		idLinks=set()
+		entityLink=None
+		for binding in newCustomer.bindings["Orders"]:
+			if isinstance(binding,Entity):
+				if binding.exists:
+					idLinks.add(binding.Key())
+				else:
+					entityLink=binding
+			else:
+				idLinks.add(binding)
+		self.assertTrue(1 in idLinks,"OrderID=1 is bound")
+		self.assertTrue(2 in idLinks,"OrderID=2 is bound")
+		self.assertTrue(entityLink['OrderID']==3,"OrderID 3 loaded")
+		self.assertFalse(entityLink.exists,"OrderID 3 does not exist")
+		#
+		# End of customer tests
+		#
+		employees=self.ds['SampleModel.SampleEntities.Employees']
+		employee=Entity(employees)
+		employee['EmployeeID'].SetFromPyValue('12345')
+		employee['EmployeeName'].SetFromPyValue('Joe Bloggs')
+		employee['Address']['City'].SetFromPyValue('Chunton')
+		entry=Entry(None,employee)
+		self.assertTrue(entry.entityType==None,"Ensure there is no relation to the model here")
+		newEmployee=entry.GetValue(Entity(employees))
+		self.assertTrue(newEmployee['EmployeeID'].pyValue=="12345","Check employee ID")
+		self.assertTrue(newEmployee['EmployeeName'].pyValue=="Joe Bloggs","Check employee name")
+		self.assertFalse(newEmployee['Address']['Street'],"No street")
+		self.assertTrue(newEmployee['Address']['City']=="Chunton","Check employee city")
+		self.assertFalse(newEmployee['Version'],"No version")
+		documents=self.ds['SampleModel.SampleEntities.Documents']
+		document=Entity(documents)
+		document['DocumentID'].SetFromPyValue(1801)
+		document['Title'].SetFromPyValue('War and Peace')
+		document['Author'].SetFromPyValue('Tolstoy')
+		h=hashlib.sha256()
+		h.update("Well, Prince, so Genoa and Lucca are now just family estates of the Buonapartes")
+		document['Version'].SetFromPyValue(h.digest())
+		entry=Entry(None,document)
+		self.assertTrue(entry.entityType==None,"Ensure there is no relation to the model here")
+		newDocument=entry.GetValue(Entity(documents))
+		self.assertTrue(newDocument['DocumentID'].pyValue==1801,"Check document ID")
+		self.assertTrue(newDocument['Title'].pyValue=="War and Peace","Check document name")
+		self.assertTrue(newDocument['Author']=="Tolstoy","Check author name")
+		self.assertTrue(newDocument['Version'].pyValue==h.digest(),"Mismatched version")
+
 	def testCaseEvaluateFirstMemberExpression(self):
 		"""Back-track a bit to test some basic stuff using the sample data set.
 		
@@ -3060,7 +3159,7 @@ class SampleServerTests(unittest.TestCase):
 		...a data service MUST return null if any of the
 		NavigationProperties are null."""
 		orders=self.ds['SampleModel.SampleEntities.Orders']
-		order=orders.GetCollection()[1]
+		order=orders.OpenCollection()[1]
 		# Simple Property
 		p=Parser("OrderID")
 		e=p.ParseCommonExpression()
@@ -3069,7 +3168,7 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(value.pyValue==1,"Expected 1")		
 		customers=self.ds['SampleModel.SampleEntities.Customers']
 		# customers.data['ALFKI']=('ALFKI','Example Inc',("Mill Road","Chunton"),None)
-		customer=customers.GetCollection()['ALFKI']
+		customer=customers.OpenCollection()['ALFKI']
 		# Complex Property
 		p=Parser("Address")
 		e=p.ParseCommonExpression()
@@ -3089,7 +3188,7 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(isinstance(value,edm.Entity),"Expected Entity")
 		self.assertTrue(value['CustomerID'].pyValue=='ALFKI',"Expected Customer('ALFKI')")
 		# Navigation property with Null
-		value=e.Evaluate(orders.GetCollection()[3])
+		value=e.Evaluate(orders.OpenCollection()[3])
 		self.assertTrue(isinstance(value,edm.SimpleValue),"Expected SimpleValue (for NULL) found %s"%repr(value))
 		self.assertFalse(value,"Expected NULL")		
 		# Navigation property with multiple cardinality
@@ -3117,7 +3216,7 @@ class SampleServerTests(unittest.TestCase):
 		...a data service MUST return null if any of the
 		NavigationProperties are null."""
 		orders=self.ds['SampleModel.SampleEntities.Orders']
-		order=orders.GetCollection()[1]
+		order=orders.OpenCollection()[1]
 		# Known Entity: SimpleProperty
 		p=Parser("Customer/CustomerID")
 		e=p.ParseCommonExpression()
@@ -3152,7 +3251,7 @@ class SampleServerTests(unittest.TestCase):
 		the only way to get an expression to evaluate to an entity instance
 		is through a navigation property."""
 		orders=self.ds['SampleModel.SampleEntities.Orders']
-		order=orders.GetCollection()[1]
+		order=orders.OpenCollection()[1]
 		# Known Entity: SimpleProperty
 		p=Parser("Customer eq Customer")
 		e=p.ParseCommonExpression()
@@ -3966,7 +4065,13 @@ class SampleServerTests(unittest.TestCase):
 		doc.Read(request.wfile.getvalue())
 		self.assertTrue(isinstance(doc.root,atom.Feed),"Expected atom.Feed from /Customers?$expand=Orders")
 		for e in doc.root.Entry:
-			linkURI,linkInline=e.GetLink('Orders')
+			linkURI,linkInline=None,None
+			for link in e.FindChildrenDepthFirst(Link):
+				if link.title=="Orders":
+					linkURI=link.href
+					linkInline=link.Inline
+					if linkInline is not None:
+						linkInline=linkInline.Entry if linkInline.Feed is None else linkInline.Feed
 			if e['CustomerID'].pyValue=='ALFKI':
 				#	A NavigationProperty that represents an EntityType
 				#	instance or a group of entities and that is
@@ -4000,7 +4105,13 @@ class SampleServerTests(unittest.TestCase):
 		doc=Document()
 		doc.Read(request.wfile.getvalue())
 		self.assertTrue(isinstance(doc.root,atom.Entry),"Expected atom.Entry from /Orders(1)?$expand=Customer")
-		linkURI,linkInline=doc.root.GetLink('Customer')
+		linkURI,linkInline=None,None
+		for link in doc.root.FindChildrenDepthFirst(Link):
+			if link.title=="Customer":
+				linkURI=link.href
+				linkInline=link.Inline
+				if linkInline is not None:
+					linkInline=linkInline.Entry if linkInline.Feed is None else linkInline.Feed
 		self.assertTrue(isinstance(linkInline,atom.Entry),"Expected atom.Entry in Customer link")
 		#	Test json format
 		request=MockRequest("/service.svc/Orders(1)?$expand=Customer")
@@ -4020,7 +4131,13 @@ class SampleServerTests(unittest.TestCase):
 		doc=Document()
 		doc.Read(request.wfile.getvalue())
 		self.assertTrue(isinstance(doc.root,atom.Entry),"Expected atom.Entry from /Orders(3)?$expand=Customer")
-		linkURI,linkInline=doc.root.GetLink('Customer')
+		linkURI,linkInline=None,None
+		for link in doc.root.FindChildrenDepthFirst(Link):
+			if link.title=="Customer":
+				linkURI=link.href
+				linkInline=link.Inline
+				if linkInline is not None:
+					linkInline=linkInline.Entry if linkInline.Feed is None else linkInline.Feed
 		#	If the value of a NavigationProperty is null, then an empty
 		#	<m:inline> element MUST appear under the <atom:link>
 		#	element which represents the NavigationProperty
@@ -4390,7 +4507,7 @@ class SampleServerTests(unittest.TestCase):
 			self.assertTrue(request.responseCode==200,"misc URI failed (path): %s"%u)
 
 	def testCaseInsertEntity(self):
-		customers=self.ds['SampleModel.SampleEntities.Customers'].GetCollection()
+		customers=self.ds['SampleModel.SampleEntities.Customers'].OpenCollection()
 		customer=customers.NewEntity()
 		customer['CustomerID'].SetFromPyValue(u'STEVE')
 		customer['CompanyName'].SetFromPyValue("Steve's Inc")
@@ -4400,9 +4517,8 @@ class SampleServerTests(unittest.TestCase):
 		doc=Document(root=Entry(None,customer))
 		data=str(doc)
 		request.SetHeader('Content-Type',ODATA_RELATED_ENTRY_TYPE)
-		request.SetHeader('Content-Type',str(len(data)))
+		request.SetHeader('Content-Length',str(len(data)))
 		request.rfile.write(data)
-		# print request.rfile.getvalue()		
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==201)
 		# We expect a location header
@@ -4412,7 +4528,9 @@ class SampleServerTests(unittest.TestCase):
 		doc.Read(request.wfile.getvalue())
 		self.assertTrue(isinstance(doc.root,Entry),"Expected a single Entry, found %s"%doc.root.__class__.__name__)
 		newCustomer=Entity(self.ds['SampleModel.SampleEntities.Customers'])
+		newCustomer.exists=True
 		doc.root.GetValue(newCustomer)
+		self.assertTrue(newCustomer['CustomerID'].pyValue==u"STEVE")
 		self.assertTrue(newCustomer['CompanyName'].pyValue==u"Steve's Inc")
 		self.assertTrue(newCustomer['Address']['City'].pyValue==u"Cambridge")
 		self.assertFalse(newCustomer['Address']['Street'])	
@@ -4425,6 +4543,101 @@ class SampleServerTests(unittest.TestCase):
 		customer.BindEntity("Orders",3)
 		customer.BindEntity("Orders",4)
 		request=MockRequest("/service.svc/Customers","POST")
+		doc=Document(root=Entry(None,customer))
+		data=str(doc)
+		request.SetHeader('Content-Type',ODATA_RELATED_ENTRY_TYPE)
+		request.SetHeader('Content-Length',str(len(data)))
+		request.rfile.write(data)
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==201)
+		doc=Document()
+		doc.Read(request.wfile.getvalue())
+		newCustomer=Entity(self.ds['SampleModel.SampleEntities.Customers'])
+		newCustomer.exists=True
+		doc.root.GetValue(newCustomer)
+		self.assertTrue(newCustomer['CustomerID'].pyValue==u"ASDFG")
+		self.assertTrue(newCustomer['Address']['Street'].pyValue==u"58 Contoso St")
+		request=MockRequest("/service.svc/Customers('ASDFG')/Orders")
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		doc=Document()
+		doc.Read(request.wfile.getvalue())
+		self.assertTrue(isinstance(doc.root,atom.Feed),"Expected atom.Feed from navigation property Orders")
+		self.assertTrue(len(doc.root.Entry)==2,"Inserted customer has 2 orders")
+		orderKeys=set()
+		for entry in doc.root.Entry:
+			order=Entity(self.ds['SampleModel.SampleEntities.Orders'])
+			order.exists=True
+			entry.GetValue(order)
+			orderKeys.add(order['OrderID'].pyValue)
+		self.assertTrue(3 in orderKeys,"New entity bound to order 3")
+		self.assertTrue(4 in orderKeys,"New entity bound to order 4")
+		
+	def testCaseInsertEntityJSON(self):
+		customers=self.ds['SampleModel.SampleEntities.Customers'].OpenCollection()
+		customer=customers.NewEntity()
+		customer['CustomerID'].SetFromPyValue(u'STEVE')
+		customer['CompanyName'].SetFromPyValue("Steve's Inc")
+		customer['Address']['City'].SetFromPyValue('Cambridge')
+		#	street left blank
+		request=MockRequest("/service.svc/Customers","POST")
+		data=string.join(customer.GenerateEntityTypeInJSON(1))
+		request.SetHeader('Content-Type','application/json')
+		request.SetHeader('Content-Length',str(len(data)))
+		request.SetHeader('Accept',"application/json")		
+		request.rfile.write(data)
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==201)
+		# We expect a location header
+		self.assertTrue(request.responseHeaders['Location']=="http://host/service.svc/Customers('STEVE')")
+		self.assertTrue(request.responseHeaders['Content-Type']==http.MediaType('application/json'))
+		obj=json.loads(request.wfile.getvalue())		
+		self.assertTrue(type(obj)==DictType,"Expected a single JSON object, found %s"%repr(type(obj)))
+		newCustomer=Entity(self.ds['SampleModel.SampleEntities.Customers'])
+		newCustomer.exists=True
+		newCustomer.SetFromJSONObject(obj)
+		self.assertTrue(newCustomer['CustomerID'].pyValue==u"STEVE")
+		self.assertTrue(newCustomer['CompanyName'].pyValue==u"Steve's Inc")
+		self.assertTrue(newCustomer['Address']['City'].pyValue==u"Cambridge")
+		self.assertFalse(newCustomer['Address']['Street'])	
+		# insert entity with binding
+		customer=customers.NewEntity()
+		customer['CustomerID'].SetFromPyValue(u'ASDFG')
+		customer['CompanyName'].SetFromPyValue("Contoso Widgets")
+		customer['Address']['Street'].SetFromPyValue('58 Contoso St')
+		customer['Address']['City'].SetFromPyValue('Seattle')
+		customer.BindEntity("Orders",3)
+		customer.BindEntity("Orders",4)
+		request=MockRequest("/service.svc/Customers","POST")
+		data=string.join(customer.GenerateEntityTypeInJSON(1))
+		request.SetHeader('Content-Type','application/json')
+		request.SetHeader('Content-Length',str(len(data)))
+		request.SetHeader('Accept',"application/json")		
+		request.rfile.write(data)
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==201)
+		obj=json.loads(request.wfile.getvalue())
+		newCustomer=Entity(self.ds['SampleModel.SampleEntities.Customers'])
+		newCustomer.exists=True
+		newCustomer.SetFromJSONObject(obj)
+		self.assertTrue(newCustomer['CustomerID'].pyValue==u"ASDFG")
+		self.assertTrue(newCustomer['Address']['Street'].pyValue==u"58 Contoso St")
+		request=MockRequest("/service.svc/Customers('ASDFG')/Orders")
+		request.SetHeader('Accept',"application/json")		
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		obj=json.loads(request.wfile.getvalue())
+		self.assertTrue(type(obj['results'])==ListType,"Expected JSON array from navigation property Orders")
+		self.assertTrue(len(obj['results'])==2,"Inserted customer has 2 orders")
+		orderKeys=set()
+		for entry in obj['results']:
+			order=Entity(self.ds['SampleModel.SampleEntities.Orders'])
+			order.exists=True
+			order.SetFromJSONObject(entry)
+			orderKeys.add(order['OrderID'].pyValue)
+		self.assertTrue(3 in orderKeys,"New entity bound to order 3")
+		self.assertTrue(4 in orderKeys,"New entity bound to order 4")
+
 		
 if __name__ == "__main__":
 	VERBOSE=True

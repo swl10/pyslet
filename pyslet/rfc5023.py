@@ -368,9 +368,10 @@ class Server(object):
 
 	def __init__(self,serviceRoot='http://localhost/'):
 		if not isinstance(serviceRoot,uri.URI):
-			self.serviceRoot=uri.URIFactory.URI(serviceRoot)
+			self.serviceRoot=uri.URIFactory.URI(serviceRoot).Canonicalize()
+			#: the canonical URL of the service root
 		else:
-			self.serviceRoot=serviceRoot			
+			self.serviceRoot=serviceRoot.Canonicalize()
 		self.serviceDoc=Document(root=Service,baseURI=self.serviceRoot)
 		self.service=self.serviceDoc.root	#: the :py:class:`Service` instance that describes this service.
 		self.service.SetBase(str(self.serviceRoot))		# make the base explicit in the document

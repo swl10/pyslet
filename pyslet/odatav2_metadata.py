@@ -84,7 +84,18 @@ class EntityType(edm.EntityType,FeedCustomisationMixin):
 
 		
 class Property(edm.Property,FeedCustomisationMixin):
-	pass
+	
+	def GetMimeType(self):
+		try:
+			return http.MediaType(self.GetAttribute(MimeType))
+		except KeyError:
+			return None
+
+	def __call__(self,literal=None):
+		"""Overridden to add mime type handling"""
+		value=super(Property,self).__call__(literal)
+		value.mType=self.GetMimeType()
+		return value
 	
 				
 class EntityContainer(edm.EntityContainer):
@@ -101,7 +112,19 @@ class EntityContainer(edm.EntityContainer):
 			ds=self.FindParent(DataServices)
 			if ds is not None:
 				ds.defaultContainer=self
-				
+
+
+class EntitySet(edm.EntitySet):
+
+	def SetLocation(self):
+		"""Overridden to add support for the default entity container."""
+		container=self.FindParent(EntityContainer)
+		if container and not container.IsDefaultEntityContainer():
+			path=container.name+'.'+self.name
+		else:
+			path=self.name
+		self.location=self.ResolveURI(path)
+					
 
 class DataServices(edmx.DataServices):
 	

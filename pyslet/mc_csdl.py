@@ -77,12 +77,17 @@ class NonExistentEntity(EDMError):
 	entity that doesn't exist yet.  For example, getting the value of a
 	navigation property."""
 	pass
-		
+
+class NavigationError(EDMError):
+	"""Raised when a navigation property is treated as pointing to a single
+	value when it actually points to a collection."""
+	pass
+	
+	 		
 class ContainerExists(Exception):
 	"""Raised by :py:meth:`ERStore.CreateContainer` when the container already
 	exists."""
 	pass
-
 
 class StorageError(Exception): pass
 
@@ -1047,12 +1052,12 @@ class DecimalValue(NumericValue):
 		the right of it."""
 		dStr=self.JoinNumericLiteral(numericValue)
 		if ((numericValue.lDigits and 
-			 (numericValue.lDigits.isalpha() or					# inf and nan not allowed
-			 	len(numericValue.lDigits)>29)) or				# limit left digits
-			 (numericValue.rDigits and 
-			 	len(numericValue.rDigits)>29) or				# limit right digits
-			 numericValue.rDigits=="" or						# ensure decimals if '.' is present
-			 numericValue.eDigits is not None):					# do not allow exponent
+			(numericValue.lDigits.isalpha() or					# inf and nan not allowed
+				len(numericValue.lDigits)>29)) or				# limit left digits
+			(numericValue.rDigits and 
+				len(numericValue.rDigits)>29) or				# limit right digits
+			numericValue.rDigits=="" or						# ensure decimals if '.' is present
+			numericValue.eDigits is not None):					# do not allow exponent
 			raise ValueError("Illegal literal for Decimal: %s"%dStr)
 		self.SetFromPyValue(decimal.Decimal(dStr))		
 		
@@ -1395,12 +1400,8 @@ class TypeInstance(DictionaryLike):
 		self.data={}				#: a dictionary to hold this instances' property values
 		if typeDef is not None:
 			for p in self.typeDef.Property:
-				self.CreateProperty(p)
+				self.data[p.name]=p()
 
-	def CreateProperty(self,p):
-		"""Given a :py:class:`Property` instance creates a new value in the value dictionary"""
-		self.data[p.name]=p()
-		
 	def AddProperty(self,pName,pValue):
 		"""Adds a property with name *pName* and value *pValue* to this instance."""
 		self.data[pName]=pValue
@@ -1457,6 +1458,839 @@ class Complex(EDMValue,TypeInstance):
 		return False
 
 
+class DeferredValue(object):
+	"""Represents the value of a navigation property."""
+
+	def __init__(self,name,fromEntity):
+		self.name=name				#: the name of the associated navigation property
+		self.fromEntity=fromEntity	#: the entity that contains this value
+		self.isCollection=self.fromEntity.IsEntityCollection(self.name)
+		
+	def GetEntity(self):
+		"""Returns a single entity instance or None.
+		
+		If this deferred value represents an entity collection then
+		NavigationError is raised."""
+		if self.isCollection:
+			raise NavigationError("%s.%s is a collection"%(self.fromEntity.entitySet.name,name))			
+		with self.OpenCollection() as collection:
+			if len(collection)==1:
+				return list(collection.itervalues())[0]
+			elif len(collection)==0:
+				return None
+			else:
+				raise NavigationError("%s.%s is not a collection but it yielded multiple entities"%(self.fromEntity.entitySet.name,name))
+					 
+	def OpenCollection(self):
+		"""Opens the collection associated with this navigation property"""
+		if self.fromEntity.exists:
+			collection=self.fromEntity.entitySet.OpenNavigation(self.name,self.fromEntity)
+			expand=self.fromEntity.expand
+			if expand and self.name in expand:
+				expand=expand[self.name]
+			else:
+				expand=None
+			select=self.fromEntity.select
+			if select and self.name in select:
+				select=select[self.name]
+			else:
+				select=None
+			collection.Expand(expand,select)
+			return collection
+		else:
+			raise NonExistentEntity("Attempt to navigate a non-existent entity: %s.%s"%(self.fromEntity.typeDef.name,name))
+
+
+class Entity(TypeInstance):
+	"""Represents a single instance of an :py:class:`EntityType`.
+	
+	*	entitySet is the entity set this entity belongs to
+	
+	Entity instances behave like a dictionary mapping property names
+	onto values.  The values are either :py:class:`SimpleValue`,
+	:py:class:`Complex` or py:class:`DeferredValue`
+	instances.
+	
+	Property values are created on construction and cannot be assigned. 
+	To update a simple value use the
+	:py:meth:`SimpleValue.SetFromPyVaue` method::
+	
+		e['Name'].SetFromPyValue("Steve")
+			# update simple property Name
+		e['Address']['City'].SetFromPyValue("Cambridge")
+			# update City in complex property Address
+	
+	Note that a simple valued property that is NULL is still a
+	:py:class:`SimpleValue` instance, though it will behave as
+	0 in tests:
+	
+		e['Name'].SetFromPyValue(None)	# set to NULL
+		if e['Name']:
+			print "Will not print!"
+		
+	Navigation properties are represented as :py:class:`DeferredValue`
+	instances.  A deferred value can be opened in a similar way to an
+	entity set::
+	
+		# open the collection obtained from navigation property Friends
+		with e['Friends'].OpenCollection() as friends:
+			# iterate through all the friends of entity e 
+			for friend in friends:
+				print friend['Name']
+
+	A convenience method is provided when the navigation property points
+	to a single entity (or None) by definition::
+	
+		mum=e['Mother'].GetEntity()		# may return None
+		 
+	In the EDM one or more properties are marked as forming the entity's
+	key.  The entity key is unique within the entity set.  On
+	construction, an Entity instance is marked as being 'non-existent',
+	:py:attr:`exists` is set to False.  This is consistent with the fact
+	that the data properties of an entity are initialised to their
+	default values, or NULL if there is no default specified in the
+	model. Entity instances returned as values in collection objects
+	have exists set to True.
+
+	If an entity does not exist, OpenCollection will fail if called on
+	one of its navigation properties with :py:class:`NonExistentEntity`.
+		
+
+	You can use :py:meth:`IsEntityCollection` to determine if a property
+	will return an :py:class:`EntityCollection` without the cost of
+	accessing the data source itself."""
+
+	def __init__(self,entitySet):
+		self.entitySet=entitySet
+		TypeInstance.__init__(self,entitySet.entityType)
+		self.exists=False		#: whether or not the instance exists in the entity set
+		self.bindings={}		#: a dictionary mapping navigation property names to binding requests
+		self.expand=None		#: the expand rules in effect for this entity
+		self.select=None		#: the select rules in effect for this entity
+		self._selectAll=True
+		if self.typeDef is None:
+			raise ModelIncomplete("Unbound EntitySet: %s (%s)"%(self.entitySet.name,self.entitySet.entityTypeName))
+		for np in self.typeDef.NavigationProperty:
+			self.data[np.name]=DeferredValue(np.name,self)
+		
+	def __iter__(self):
+		"""Iterates over the property names, including the navigation
+		properties.
+
+		The regular property names are yielded first, followed by the
+		navigation properties."""
+		for p in self.typeDef.Property:
+			yield p.name
+		for p in self.typeDef.NavigationProperty:
+			yield p.name
+
+	def DataKeys(self):
+		"""Iterates through the names of this entity's data properties only
+		
+		The order of the names is always the order they are defined in
+		the model."""
+		for p in self.typeDef.Property:
+			yield p.name
+
+	def DataItems(self):
+		"""Iterator that yields tuples of (key,value) for this entity's data properties only."""
+		for p in self.typeDef.Property:
+			yield p.name,self[p.name]
+			
+	def NavigationKeys(self):
+		"""Iterates through the names of this entity's navigation properties only."""
+		for np in self.typeDef.NavigationProperty:
+			yield np.name
+			
+	def __len__(self):
+		"""Returns the number of properties, including navigation properties, in the type."""
+		return len(self.typeDef.Property)+len(self.typeDef.NavigationProperty)
+
+	def IsNavigationProperty(self,name):
+		"""Returns true is name is the name of a navigation property"""
+		try:
+			pDef=self.typeDef[name]
+			return isinstance(pDef,NavigationProperty)
+		except KeyError:
+			return False
+		
+	def IsEntityCollection(self,name):
+		"""Returns True if more than one entity is possible when accessing the named property."""
+		return self.IsNavigationProperty(name) and self.entitySet.IsEntityCollection(name)
+			
+	def __getitem__(self,name):
+		"""Returns the value corresponding to property *name*.
+		
+		This method always ret"""
+		if name in self.data:
+			return self.data[name]
+		else:
+			raise KeyError(name)
+
+	def BindEntity(self,name,target):
+		"""Binds this entity through navigation property *name*
+		
+		*target* is either the entity you're binding to or its key in
+		the target entity set. For example, assuming that "Orders" is a
+		navigation property that links customers to Order entities::
+		
+			customer.Bind("Orders",1)
+			
+		binds the entity represented by 'customer' to the Order entity
+		with key 1.
+		
+		As for updates to data property values, the binding information
+		is saved and acted upon when the entity is next updated or, for
+		non-existent entities, inserted into the entity set.
+		
+		If you attempt to bind to a target entity that doesn't exist the
+		target entity will be created automatically when source entity
+		is updated or inserted."""
+		# save this information for later
+		self.bindings.setdefault(name,[]).append(target)
+		
+	def Key(self):
+		"""Returns the entity key as a single python value or a tuple of
+		python values for compound keys.
+		
+		The order of the values is the order of the PropertyRef definitions
+		in the associated EntityType's :py:class:`Key`."""
+		if len(self.typeDef.Key.PropertyRef)==1:
+			return self[self.typeDef.Key.PropertyRef[0].name].pyValue
+		else:
+			k=[]
+			for pRef in self.typeDef.Key.PropertyRef:
+				k.append(self[pRef.name].pyValue)
+			return tuple(k)
+	
+	def KeyDict(self):
+		"""Returns the entity key as a dictionary mapping key property
+		names onto :py:class:`SimpleValue` instances."""
+		k={}
+		for pRef in self.typeDef.Key.PropertyRef:
+			k[pRef.name]=self[pRef.name]
+		return k
+				
+# 	def Navigate(self,name):
+# 		warnings.warn("Entity.Navigate is deprecated, use Entity[<prop name>] instead", DeprecationWarning, stacklevel=3)
+# 		return self[name]
+	
+	def Expand(self,expand, select=None):
+		"""Expands *entity* according to the given expand rules (if any).
+
+		*expand* is a dictionary of expand rules.  Expansions can be chained,
+		represented by the dictionary entry also being a dictionary::
+				
+			# expand the Customer navigation property...
+			{ 'Customer': None }
+			# expand the Customer and Invoice navigation properties
+			{ 'Customer':None, 'Invoice':None }
+			# expand the Customer property and then the Orders property within Customer
+			{ 'Customer': {'Orders':None} }
+		
+		The expansion rules in effect are saved in the :py:attr:`expand`
+		member and are tested using :py:meth:`Expanded`.
+		
+		The *select* option is a similar dictionary structure that can
+		be used to filter the properties in the entity.  If a property
+		that is being expanded is also subject to one or more selection
+		rules these are passed along with the chained Expand call.
+		
+		The selection rules in effect are saved in the :py:attr:`select`
+		member and can be tested using :py:meth:`Selected`."""
+		self.select=select
+		self.expand=expand
+		if self.select is None:
+			self._selectAll=True
+		else:
+			self._selectAll=u"*" in select
+	
+	def Expanded(self,name):
+		"""Returns true if the property *name* should be expanded by
+		the expansion rules in this entity."""
+		return self.expand and name in self.expand
+		
+	def Selected(self,name):
+		"""Returns true if the property *name* is selected by the
+		selection rules in this entity.
+		
+		The entity always has keys for its simple and complex properties
+		but whether or not the dictionary values represent the true value
+		of the property *may* depend on whether the property is selected.
+		In particular, a property value that is Null may indicate that the
+		named property has a Null value or simply that it hasn't been
+		selected::
+		
+			if e['Name']:
+				print "Name is not NULL"
+			elif e.Selected('Name'):
+				print "Name is NULL"
+				# we know because it has been selected
+			else:
+				print "NULL status of Name is unknown"
+				# we don't know because it hasn't been selected
+		"""
+		if self._selectAll:
+			return True
+		else:
+			return self.select and name in self.select
+	
+	def ETag(self):
+		"""Returns an EDMValue instance to use as in optimistic
+		concurrency control or None if the entity does not support it."""
+		for pDef in self.typeDef.Property:
+			if pDef.concurrencyMode and pDef.concurrencyMode.lower()=="fixed":
+				etag=self[pDef.name]
+				if etag:
+					return etag
+		return None
+
+	def ETagIsStrong(self):
+		"""Returns True if this entity's etag is a strong entity tag as defined
+		by RFC2616::
+		
+		A "strong entity tag" MAY be shared by two entities of a
+		resource only if they are equivalent by octet equality.
+		
+		The default implementation returns False."""
+		return False
+
+
+class EntityCollection(DictionaryLike):
+	"""Represents a collection of entities from an :py:class:`EntitySet`.
+
+	To use a database analogy, EntitySet's are like tables whereas
+	EntityCollections are somewhat like database cursors you use to read
+	data from those tables.  An entity collection may consume physical
+	resources (like a database connection) and so should be closed
+	with the :py:meth:`close` method when you're done.
+	
+	Entity collections support the context manager protocol in python so
+	you can use them in with statements to make clean-up easier::
+	
+		with entitySet.OpenCollection() as collection:
+			if 42 in collection:
+				print "Found it!"
+
+	The close method is called automatically when the with statement
+	exits.
+					
+	Entity collections also behave like a python dictionary of
+	:py:class:`Entity` instances keyed on a value representing the
+	Entity's key property or properties.  The keys are either single
+	values (as in the above code example) or tuples in the case of
+	compound keys. The order of the values in the tuple is taken from
+	the order of the PropertyRef definitions in the Entity's Key.
+
+	You can obtain a canonical representation of the key from an
+	:py:class:`Entity` instance or other dictionary-like object using
+	the :py:meth:`EntitySet.GetKey` method.
+	
+	Derived classes MUST override :py:meth:`itervalues`.  The
+	implementation of itervalues must return an iterable object that
+	honours the value of the expand query option and any filtering
+	or orderby rules.
+
+	Derived classes SHOULD also override :py:meth:`__getitem__`,
+	:py:meth:`__len__` as the default implementations are very
+	inefficient, particularly for non-trivial entity sets.
+	
+	When an EntityCollection represents an entity set, the following
+	rules apply::
+	
+		etColl[key]=entity	# entity.Key() MUST equal key or ValueError is raised
+							# entity must be the right type for the entity set or TypeError is raised
+							# WARNING: entity must already be in the entity set of KeyError is raised
+							# otherwise does nothing, for consistency with python dictionary behaviour
+		del etColl[key]		# deletes the entity with *key* from the entity set
+
+	The fact that you can't add an entity to the entity set using
+	assignment is, unfortunately, inconsistent with python dictionaries.
+	You must use :py:meth:`InsertEntity` instead where the reasons for
+	this restriction are expanded on.
+
+	When an EntityCollection represents a collection of entities such as
+	those obtained by navigation then these rules are updated as
+	follows:: 		
+
+		etColl[key]=entity	# adds the entity with key to this collection
+		del etColl[key]		# removes the entity with *key* from this collection
+		
+	If the collection obtained from a navigation property has
+	multiplicity 0..1 then assignment will replace any existing value in
+	the collection.
+
+	Note that in the first case del removes the entity completely from
+	the data service whereas in the second case the entity still exists
+	in the parent entity set after being removed from the subset
+	represented by the collection.
+
+	Writeable data sources must therefore override py:meth:`__delitem__`
+	for all collections and :py:meth:`__setitem__` for collections that
+	represent sub-sets of the parent entity set.  If a particular
+	operation is not allowed for some data-service specific reason then
+	UnsupportedOperation should be raised.
+
+	Note that writeable entity collections SHOULD override
+	:py:meth:`clear` as the default implementation is very
+	:inefficient."""
+	def __init__(self,entitySet):
+		self.entitySet=entitySet		#: the entity set from which the entities are drawn
+		self.name=self.entitySet.name	#: the name of :py:attr:`entitySet`
+		self.expand=None				#: the expand query option in effect
+		self.select=None				#: the select query option in effect
+		self.filter=None				#: a filter or None for no filter (see :py:meth:`CheckFilter`)
+		self.orderby=None				#: a list of orderby rules
+		self.skip=None					#: the skip query option in effect
+		self.top=None					#: the top query option in effect
+		self.topmax=None				#: the forced maximum page size in effect
+		self.skiptoken=None				#: the skiptoken option in effect
+		self.nextSkiptoken=None
+		self.count=None
+		"""the size of this collection, initially None
+		
+		As there may be a penalty for calculating the overall size of
+		the collection this attribute is initialised to None and updated by __len__
+		the first time it is called and then used to prevent unnecessary
+		recalculation.
+
+		If any options affecting the size of the collection are altered
+		then count should be reset to None to force __len__ to
+		recalculate the size of the collection."""
+		self.inlineCount=False
+		"""True if inlineCount option is in effect 
+		
+		The inlineCount option is used to alter the representation of
+		the collection and, if set, indicates that the __len__ method
+		will be called before iterating through the collection itself."""
+		self.lastYielded=None
+		self.lastGot=None
+	
+	def __enter__(self):
+		return self
+	
+	def __exit__(self, type, value, tb):
+		self.close()
+
+	def close(self):
+		pass
+		
+	def GetLocation(self):
+		"""Returns the location of this collection as a
+		:py:class:`rfc2396.URI` instance.
+		
+		By default, the location is given as the location of the
+		:py:attr:`entitySet` from which the entities are drawn."""
+		return self.entitySet.GetLocation()
+	
+	def GetTitle(self):
+		"""Returns a user recognisable title for the collection.
+		
+		By default this is the fully qualified name of the entity set."""
+		return self.entitySet.GetFQName()
+			
+	def Expand(self,expand,select=None):
+		"""Sets the expand and select query options for this collection.
+		
+		The expand query option causes the named navigation properties
+		to be expanded and the associated entities to be loaded in to
+		the entity instances returned by this collection.
+		
+		The select query option restricts the properties that are set in
+		returned entities.
+		
+		For more details, see :py:meth:`Entity.Expand`"""
+		self.expand=expand
+		self.select=select
+
+	def ExpandEntities(self,entityIterable):
+		"""Given an object that iterates over all entities in the
+		collection, returns a generator function that returns those
+		entities expanded and selected according to :py:attr:`expand`
+		and :py:attr:`select` rules."""
+		for e in entityIterable:
+			if self.expand:
+				e.Expand(self.expand,self.select)
+			yield e
+			
+	def Filter(self,filter):
+		"""Sets the filter object for this collection, see :py:meth:`CheckFilter`."""
+		self.filter=filter
+		self.count=None
+		
+	def FilterEntities(self,entityIterable):
+		"""Given an object that iterates over all entities in the
+		collection, returns a generator function that returns only those
+		entities that pass through the current :py:attr:`filter` object."""
+		for e in entityIterable:
+			if self.CheckFilter(e):
+				yield e
+		
+	def CheckFilter(self,entity):
+		"""Checks *entity* against the current filter object and returns
+		True if it passes.
+		
+		The default implementation does not actually support any filters
+		so if a filter object has been defined, NotImplementedError is
+		raised."""
+		if self.filter is None:
+			return True
+		else:
+			raise NotImplementedError("Collection does not support filtering")
+
+	def OrderBy(self,orderby):
+		"""Sets the orderby rules for this collection.
+		
+		*orderby* is a list of tuples, each consisting of::
+		
+			( an order object as used by :py:meth:`CalculateOrderKey` , 1 | -1 )"""
+		self.orderby=orderby
+
+	def CalculateOrderKey(self,entity,orderObject):
+		"""Given an entity and an order object returns the key used to sort the entity.
+		
+		The default implementation does not actually support any custom
+		orderings so if an orderby rule is defined, NotImplementedError
+		is raised."""
+		raise NotImplementedError("Collection does not support ordering")
+		
+	def OrderEntities(self,entityIterable):
+		"""Given an object that iterates over the entities in random
+		order, returns a generator function that returns the same
+		entities in sorted order (according to :py:attr:`orderby` object
+		or the entity keys if there is no custom ordering and top or
+		skip has been specified).
+		
+		This implementation simply creates a list and then sorts it so
+		is not suitable for use with long lists of entities.  However, if
+		no ordering is required then no list is created."""
+		if self.orderby:
+			eList=list(entityIterable)
+			# we avoid Py3 warnings by doing multiple sorts with a key function 
+			for rule,ruleDir in reversed(self.orderby):
+				eList.sort(key=lambda x:self.CalculateOrderKey(x,rule),reverse=True if ruleDir<0 else False)
+			for e in eList:
+				yield e		
+		elif self.skip is not None or self.top is not None:
+			# a skip or top option forces ordering by the key
+			eList=list(entityIterable)
+			eList.sort(key=lambda x:x.Key()) 
+			for e in eList:
+				yield e			
+		else:
+			for e in entityIterable:
+				yield e
+
+	def Skip(self,skip):
+		"""Sets the skip option for this collection.
+		
+		The skip query option is an integer (or None to remove the
+		option) which seeks in to the entity collection.  The
+		implementation of
+		:py:meth:`itervalues` must honour the skip value."""
+		self.skip=skip		
+	
+	def Top(self,top):
+		"""Sets the top option for this collection.
+		
+		The top query option is an integer (or None to remove the
+		option) which limits the number of entities in the entity
+		collection.  The implementation of
+		:py:meth:`itervalues` must honour the top value."""
+		self.top=top		
+	
+	def TopMax(self,topmax):
+		"""Sets the maximum page size for this collection.
+		
+		This forces the collection to limit the size of a page to at
+		most topmax entities.  When topmax is in force
+		:py:meth:`NextSkipToken` will return a suitable value for
+		identifying the next page in the collection immediately after a
+		complete iteration of :py:meth:`iterpage`."""
+		self.topmax=topmax
+		
+	def SkipToken(self,skiptoken):
+		"""Sets the skip token for this collection.
+		
+		By default, we treat the skip token exactly the same as the skip
+		value itself except that we obscure it slightly by treating it
+		as a hex value."""
+		if skiptoken is None:
+			self.skiptoken=None
+		else:
+			try:
+				self.skiptoken=int(skiptoken,16)
+			except ValueError:
+				# not a skip token we recognise, do nothing
+				self.skiptoken=None
+		
+	def SetInlineCount(self,inlineCount):
+		"""Sets the inline count flag for this collection."""
+		self.inlineCount=inlineCount
+	
+	def NewEntity(self):
+		"""Returns a new py:class:`Entity` instance suitable for adding
+		to this collection.
+		
+		The properties of the entity are set to their defaults, or to
+		null if no default is defined (even if the property is marked
+		as not nullable).
+		
+		The entity is not considered to exist until it is actually added
+		to the collection.  At this point we deviate from
+		dictionary-like behaviour::
+		
+			e=collection.NewEntity()
+			e["ID"]=1000
+			e["Name"]="Fred"
+			assert 1000 not in collection
+			collection[1000]=e		# raises KeyError
+			
+		The above code is prone to problems as the key 1000 may violate
+		the collection's key allocation policy so we raise KeyError when
+		assignment is used to insert a new entity to the collection.
+		
+		Instead, you should call :py:meth:`InsertEntity`."""
+		return Entity(self.entitySet)	
+	
+	def InsertEntity(self,entity):
+		"""Inserts *entity* into this entity set.
+		
+		*entity* must be updated with any auto-generated values such as
+		the correct key."""
+		raise NotImplementedError
+	
+	def UpdateBindings(self,entity):
+		"""Parses :py:attr:`Entity.bindings` and generates appropriate calls to
+		create/update the associated navigation properties."""
+		for navProperty,bindings in entity.bindings.items():
+			if not bindings:
+				pass
+			if not entity.IsEntityCollection(navProperty):
+				# if you call bind multiple times for a link with single
+				# cardinality then only the last value will take effect
+				bindings=bindings[-1]
+			# get an entity collection for this navigation property
+			with entity[navProperty].OpenCollection() as navCollection:
+				for binding in bindings:
+					if isinstance(binding,Entity):
+						if binding.exists:
+							# use __setitem__ to add this entity to the entity collection
+							navCollection[binding.Key()]=binding
+						else:
+							# we need to insert this entity, which will automatically link to us
+							navCollection.InsertEntity()
+					else:
+						# just a key, we'll grab the entity first
+						# which will generate KeyError if it doesn't
+						# exist
+						with navCollection.entitySet.OpenCollection() as baseCollection:
+							targetEntity=baseCollection[binding]
+						navCollection[binding]=targetEntity
+	
+	def __getitem__(self,key):
+		"""Returns the py:class:`Entity` instance corresponding to *key*
+		
+		Raises KeyError if the entity with *key* is not in this
+		collection.
+		
+		Derived classes SHOULD override this behaviour.  The default
+		implementation is very basic.  We iterate through the entire
+		collection looking for the entity with the matching key.
+		
+		This implementation favours a smaller memory-footprint over
+		execution speed.  We do implement a couple of minor
+		optimizations to prevent itervalues being called unnecessarily,
+		we cache the last entity returned and also the last entity
+		yielded by iterkeys."""
+		# key=self.entitySet.GetKey(key)
+		if self.lastYielded and self.lastYielded.Key()==key:
+			self.lastGot=self.lastYielded
+			return self.lastYielded
+		elif self.lastGot and self.lastGot.Key()==key:
+			return self.lastGot
+		else:
+			for e in self.itervalues():
+				if e.Key()==key:
+					self.lastGot=e
+					return e
+		raise KeyError(unicode(key))
+						
+	def __setitem__(self,key,value):
+		if not isinstance(value,Entity) or value.entitySet is not self.entitySet:
+			raise TypeError
+		if key!=value.Key():
+			raise ValueError
+		if key not in self:
+			raise KeyError(unicode(key))
+
+	def __delitem__(self,key):
+		"""Not implemented"""
+		raise NotImplementedError
+	
+	def GetPageStart(self):
+		"""Returns the index of the start of the collection's current page.
+		
+		Takes in to consideration both the requested skip value and any
+		skiptoken that may be in force."""
+		skip=self.skiptoken
+		if skip is None:
+			skip=0
+		if self.skip is None:
+			return skip
+		else:
+			return self.skip+skip
+	
+	def iterpage(self):
+		"""Returns an iterable subset of the values returned by :py:meth:`itervalues`
+		
+		The subset is defined by the top, skip (and skiptoken) attributes.
+		
+		Iterpage should be overridden by derived classes for a more
+		efficient implementation.  The default implementation simply
+		wraps :py:meth:`itervalues`."""
+		i=0
+		possibleSkiptoken=None
+		eMin=self.GetPageStart()
+		if self.topmax:
+			if self.top is None or self.top>self.topmax:
+				# may be truncated
+				eMax=eMin+self.topmax
+				possibleSkiptoken=eMin+self.topmax
+			else:
+				# top not None and <= topmax
+				eMax=eMin+self.top
+		else:
+			# no forced paging
+			if self.top is None:
+				eMax=None
+			else:
+				eMax=eMin+self.top
+		if eMax is None:
+			for e in self.itervalues():
+				if i>=eMin:
+					yield e
+				i=i+1
+		else:
+			for e in self.itervalues():
+				if i<eMin:
+					i=i+1
+				elif i<eMax:
+					yield e
+					i=i+1
+				else:
+					# stop the iteration now, set the nextSkiptoken
+					self.nextSkiptoken=possibleSkiptoken
+					return
+		
+	def NextSkipToken(self):
+		"""Following a complete iteration of the generator returned by
+		:py:meth:`iterpage` returns the skiptoken which will generate
+		the next page or None if all requested entities have been
+		returned."""
+		if self.nextSkiptoken is None:
+			return None
+		else:
+			return "%X"%self.nextSkiptoken
+
+	def __len__(self):
+		"""Implements len(self) using :py:attr:`count` as a cache."""
+		if self.count is None:
+			self.count=super(EntityCollection,self).__len__()
+		return self.count
+
+	def itervalues(self):
+		"""Must be overridden to execute an appropriate query to return
+		the collection of entities.
+		
+		The default implementation returns an empty list."""
+		return []
+		
+	def __iter__(self):
+		"""The default implementation uses :py:meth:`itervalues` and :py:meth:`Entity.Key`"""
+		for e in self.itervalues():
+			self.lastYielded=e
+			yield e.Key()
+		self.lastYielded=None
+
+
+class NavigationEntityCollection(EntityCollection):
+	"""Represents the collection of entities returned by a navigation property.
+	
+	*fromKey* is the key in from source entity set and *toEntitySet* is
+	the target entity set.  We inherit basic behaviour from
+	:py:class:`EntityCollection` acting, in effect, as a special subset
+	of *toEntitySet*.
+	
+	This class is used even when the navigation property is declared to
+	return a single entity, rather than a collection.  In which case
+	anything after the first entity in the resulting collection is
+	ignored."""
+	def __init__(self,name,fromEntity,toEntitySet):
+		super(NavigationEntityCollection,self).__init__(toEntitySet)
+		self.name=name					#: the name of this collection
+		self.fromEntity=fromEntity		#: the source entity 
+		
+	def InsertEntity(self,entity):
+		"""Inserts *entity* into this collection.
+		
+		The default implementation calls InsertEntity on the parent
+		entity set and then attempts to add the new entity to this
+		collection using __setitem__."""
+		with self.entitySet.OpenCollection() as baseCollection:
+			baseCollection.InsertEntity(entity)
+			self[entity.Key()]=entity		
+	
+	def __setitem__(self,key,value):
+		raise UnsupportedOperation("Entity collection %s[%s] is read-only"%(self.entitySet.name,self.name)) 
+
+	def __delitem__(self,key):
+		raise UnsupportedOperation("Entity collection %s[%s] is read-only"%(self.entitySet.name,self.name)) 
+
+
+class FunctionEntityCollection(EntityCollection):
+	"""Represents the collection of entities returned by a specific execution of a :py:class:`FunctionImport`"""
+
+	def __init__(self,function,params):
+		if function.IsEntityCollection():
+			self.function=function
+			self.params=params
+			EntityCollection.__init__(self,self.function.entitySet)
+		else:
+			raise TypeError("Function call does not return a collection of entities") 
+
+	def Expand(self,expand,select=None):
+		"""This option is not supported on function results"""
+		raise NotImplmentedError("Expand/Select option on Function result")
+
+	def __setitem__(self,key,value):
+		raise UnsupportedOperation("Function %s is read-only"%self.function.name) 
+
+	def __delitem__(self,key):
+		raise UnsupportedOperation("Function %s is read-only"%self.function.name) 
+
+
+class FunctionCollection(object):
+	"""Represents a collection of :py:class:`EDMValue`.
+	
+	These objects are iterable, but are not list or dictionary-like, in
+	other words, you can iterate over the collection but you can't
+	address an individual item using an index or a slice."""
+
+	def __init__(self,function,params):
+		if function.IsCollection():
+			if function.IsEntityCollection():
+				raise TypeError("FunctionCollection must not return a collection of entities")
+			self.function=function
+			self.params=params
+			self.name=function.name
+		else:
+			raise TypeError("Function call does not return a collection of entities") 
+
+	def __iter__(self):
+		raise NotImplementedError("Unbound FunctionCollection: %s"%self.function.name)
+
+
 class CSDLElement(xmlns.XMLNSElement):
 	
 	def UpdateTypeRefs(self,scope,stopOnErrors=False):
@@ -1470,7 +2304,7 @@ class CSDLElement(xmlns.XMLNSElement):
 			stopOnErrors is False missing keys are ignored (internal object
 			references are set to None).  If stopOnErrors is True KeyError is
 			raised.
-			 
+		
 		The CSDL model makes heavy use of named references between objects. The
 		purpose of this method is to use the *scope* object to look up
 		inter-type references and to set or update any corresponding internal
@@ -1488,7 +2322,7 @@ class CSDLElement(xmlns.XMLNSElement):
 		pass
 
 
-class TypeRef:
+class TypeRef(object):
 	"""Represents a type reference.
 	
 	Created from a formatted string type definition and a scope (in which
@@ -2070,279 +2904,8 @@ class EntityContainer(NameTableMixin,CSDLElement):
 			child.UpdateSetRefs(scope,stopOnErrors)
 		for child in self.EntitySet:
 			child.UpdateNavigation()
-					
-	
-class Entity(TypeInstance):
-	"""Represents a single instance of an :py:class:`EntityType`.
-	
-	*	entitySet is the entity set this entity belongs to
-	
-	Entity instances behave like a read-only dictionary mapping property
-	names onto values.  To update simple values use an appropriate
-	method of the :py:class:`SimpleValue` object.  For example::
-	
-		e['Name'].SetFromPyValue("Steve")
-
-	In the EDM one or more properties can be marked as forming the entity's
-	key.  The entity key is unique within the entity set.  On construction,
-	an Entity instance is marked as being 'non-existent', :py:attr:`exists`
-	is set to False.  This is consistent with the fact that the data
-	properties of an entity are initialised to their default values, or
-	NULL if there is no default specified in the model.
-
-	On construction, an entity contains keys for *all* its properties,
-	including its navigation properties.  Although simple and complex
-	values are created on construction as described above, accessing
-	navigation properties is only possible for an entity that
-	:py:attr:`exists`.  Attempting to get the value of a navigation
-	property for a non-existent entity raises
-	:py:class:`NonExistentEntity`. Accessing navigation properties is
-	also more costly than accessing simple and complex properties as the
-	entity must return to the parent entity set to
-	:py:meth:`EntitySet.Navigate` to the associated entity or entity
-	collection.
-				 	
-	The value of a navigation property is one of:
+						
 		
-		*	None (single-valued property that is not bound)
-				
-		*	An instance of :py:class:`Entity`
-				
-		*	An instance of :py:class:`EntityCollection`
-
-	Note that a simple valued property that is NULL is still a
-	:py:class:`SimpleValue` instance whereas a single-valued navigation
-	property that is not bound is represented with None.
-
-	You can use :py:meth:`IsEntityCollection` to determine if a property
-	will return an :py:class:`EntityCollection` without the cost of
-	accessing the data source itself."""
-
-	def __init__(self,entitySet):
-		self.entitySet=entitySet
-		TypeInstance.__init__(self,entitySet.entityType)
-		self.exists=False		#: whether or not the instance exists in the entity set
-		self.bindings={}		#: a dictionary mapping navigation property names to binding requests
-		self.expand=None		#: the expand rules in effect for this entity
-		self.select=None		#: the select rules in effect for this entity
-		self._selectAll=True
-		if self.typeDef is None:
-			raise ModelIncomplete("Unbound EntitySet: %s (%s)"%(self.entitySet.name,self.entitySet.entityTypeName))
-		
-	def __iter__(self):
-		"""Iterates over the property names, including the navigation
-		properties.
-
-		The regular property names are yielded first, followed by the
-		navigation properties."""
-		for p in self.typeDef.Property:
-			yield p.name
-		for p in self.typeDef.NavigationProperty:
-			yield p.name
-
-	def DataKeys(self):
-		"""Iterates through the names of this entity's data properties only
-		
-		The order of the names is always the order they are defined in
-		the model."""
-		for p in self.typeDef.Property:
-			yield p.name
-
-	def DataItems(self):
-		"""Iterator that yields tuples of (key,value) for this entity's data properties only."""
-		for p in self.typeDef.Property:
-			yield p.name,self[p.name]
-			
-	def NavigationKeys(self):
-		"""Iterates through the names of this entity's navigation properties only."""
-		for np in self.typeDef.NavigationProperty:
-			yield np.name
-			
-	def __len__(self):
-		"""Returns the number of properties, including navigation properties, in the type."""
-		return len(self.typeDef.Property)+len(self.typeDef.NavigationProperty)
-
-	def __contains__(self,key):
-		"""Implements: key in self
-		
-		We override this method to prevent this test from forcing navigation."""
-		try:
-			pDef=self.typeDef[key]
-			return isinstance(pDef,(Property,NavigationProperty))
-		except KeyError:
-			return False
-
-	def IsNavigationProperty(self,name):
-		"""Returns true is name is the name of a navigation property"""
-		try:
-			pDef=self.typeDef[name]
-			return isinstance(pDef,NavigationProperty)
-		except KeyError:
-			return False
-		
-	def IsEntityCollection(self,name):
-		"""Returns True if more than one entity is possible when accessing the named property."""
-		return self.IsNavigationProperty(name) and self.entitySet.IsEntityCollection(name)
-			
-	def __getitem__(self,name):
-		"""Returns the value corresponding to property *name*.
-		
-		This method always ret"""
-		if name in self.data:
-			# simple or complex valued property
-			return self.data[name]
-		elif self.IsNavigationProperty(name):
-			if self.exists:
-				result=self.entitySet.Navigate(name,self)
-				if result is not None:
-					if self.expand and name in self.expand:
-						expand=self.expand[name]
-					else:
-						expand=None
-					if self.select and name in self.select:
-						select=self.select[name]
-					else:
-						select=None
-					result.Expand(expand,select)
-				return result
-			else:
-				raise NonExistentEntity("Attempt to navigate a non-existent entity: %s.%s"%(self.typeDef.name,name))
-		else:
-			raise KeyError(name)
-
-	def BindEntity(self,name,target):
-		"""Binds this entity through navigation property *name*
-		
-		*target* is either the entity you're binding to or its key in
-		the target entity set. For example, assuming that "Orders" is a
-		navigation property that links customers to Order entities::
-		
-			customer.Bind("Orders",1)
-			
-		binds the entity represented by 'customer' to the Order entity
-		with key 1.
-		
-		If the entity doesn't exist (yet) then the binding information is
-		saved and acted upon when the entity is inserted into the entity
-		set.
-		
-		If you attempt to bind to a target entity that doesn't exist the
-		target entity will be created automatically.  If both the source
-		and target entities are non-existent then the target will be
-		created and bound when the source entity is inserted."""
-		if self.exists:
-			raise NotImplementedError
-		else:
-			# save this information for later
-			self.bindings.get(name,[]).append(target)
-		
-	def Key(self):
-		"""Returns the entity key as a single python value or a tuple of
-		python values for compound keys.
-		
-		The order of the values is the order of the PropertyRef definitions
-		in the associated EntityType's :py:class:`Key`."""
-		if len(self.typeDef.Key.PropertyRef)==1:
-			return self[self.typeDef.Key.PropertyRef[0].name].pyValue
-		else:
-			k=[]
-			for pRef in self.typeDef.Key.PropertyRef:
-				k.append(self[pRef.name].pyValue)
-			return tuple(k)
-	
-	def KeyDict(self):
-		"""Returns the entity key as a dictionary mapping key property
-		names onto :py:class:`SimpleValue` instances."""
-		k={}
-		for pRef in self.typeDef.Key.PropertyRef:
-			k[pRef.name]=self[pRef.name]
-		return k
-				
-	def Navigate(self,name):
-		warnings.warn("Entity.Navigate is deprecated, use Entity[<prop name>] instead", DeprecationWarning, stacklevel=3)
-		return self[name]
-	
-	def Expand(self,expand, select=None):
-		"""Expands *entity* according to the given expand rules (if any).
-
-		*expand* is a dictionary of expand rules.  Expansions can be chained,
-		represented by the dictionary entry also being a dictionary::
-				
-			# expand the Customer navigation property...
-			{ 'Customer': None }
-			# expand the Customer and Invoice navigation properties
-			{ 'Customer':None, 'Invoice':None }
-			# expand the Customer property and then the Orders property within Customer
-			{ 'Customer': {'Orders':None} }
-		
-		The expansion rules in effect are saved in the :py:attr:`expand`
-		member and are tested using :py:meth:`Expanded`.
-		
-		The *select* option is a similar dictionary structure that can
-		be used to filter the properties in the entity.  If a property
-		that is being expanded is also subject to one or more selection
-		rules these are passed along with the chained Expand call.
-		
-		The selection rules in effect are saved in the :py:attr:`select`
-		member and can be tested using :py:meth:`Selected`."""
-		self.select=select
-		self.expand=expand
-		if self.select is None:
-			self._selectAll=True
-		else:
-			self._selectAll=u"*" in select
-	
-	def Expanded(self,name):
-		"""Returns true if the property *name* should be expanded by
-		the expansion rules in this entity."""
-		return self.expand and name in self.expand
-		
-	def Selected(self,name):
-		"""Returns true if the property *name* is selected by the
-		selection rules in this entity.
-		
-		The entity always has keys for its simple and complex properties
-		but whether or not the dictionary values represent the true value
-		of the property *may* depend on whether the property is selected.
-		In particular, a property value that is Null may indicate that the
-		named property has a Null value or simply that it hasn't been
-		selected::
-		
-			if e['Name']:
-				print "Name is not NULL"
-			elif e.Selected('Name'):
-				print "Name is NULL"
-				# we know because it has been selected
-			else:
-				print "NULL status of Name is unknown"
-				# we don't know because it hasn't been selected
-		"""
-		if self._selectAll:
-			return True
-		else:
-			return self.select and name in self.select
-	
-	def ETag(self):
-		"""Returns an EDMValue instance to use as in optimistic
-		concurrency control or None if the entity does not support it."""
-		for pDef in self.typeDef.Property:
-			if pDef.concurrencyMode and pDef.concurrencyMode.lower()=="fixed":
-				etag=self[pDef.name]
-				if etag:
-					return etag
-		return None
-
-	def ETagIsStrong(self):
-		"""Returns True if this entity's etag is a strong entity tag as defined
-		by RFC2616::
-		
-		A "strong entity tag" MAY be shared by two entities of a
-		resource only if they are equivalent by octet equality.
-		
-		The default implementation returns False."""
-		return False
-		
-
 class EntitySet(CSDLElement):
 	"""Represents an EntitySet in the CSDL model."""
 	XMLNAME=(EDM_NAMESPACE,'EntitySet')	
@@ -2376,7 +2939,7 @@ class EntitySet(CSDLElement):
 		self.Documentation=None
 		self.TypeAnnotation=[]
 		self.ValueAnnotation=[]
-		self.location=""			#: see :py:meth:`SetLocation`
+		self.location=None			#: see :py:meth:`SetLocation`
 
 	def GetFQName(self):
 		"""Returns the fully qualified name of this entity set."""
@@ -2387,7 +2950,12 @@ class EntitySet(CSDLElement):
 			name.append(self.parent.name)
 		name.append(self.name)
 		return string.join(name,'.')
-		
+	
+	def GetLocation(self):
+		"""Returns a :py:class:`pyslet.rfc2396.URI` location for this
+		entity set or None if the location is unknown."""
+		return self.location
+			
 	def SetLocation(self):
 		"""Sets :py:attr:`location` to a URI derived by resolving a relative path consisting
 		of::
@@ -2503,16 +3071,46 @@ class EntitySet(CSDLElement):
 				return tuple(k)
 		else:
 			return keylike
-				
+	
+	def GetKeyDict(self,key):
+		"""Given a key from this entity set, returns a key dictionary.
+		
+		The result is a mapping from named properties to
+		:py:class:`SimpleValue` instances.  As a special case, if a
+		single property defines the entity key it is represented using
+		the empty string, not the property name."""
+		keyDict={}
+		if type(key)!=TupleType:
+			noName=True
+			key=(key,)
+		else:
+			noName=False
+		ki=iter(key)
+		for kp in self.entityType.Key.PropertyRef:
+			k=ki.next()
+			#	create a new simple value to hold k
+			kv=kp.property()
+			kv.SetFromPyValue(k)
+			if noName:
+				keyDict['']=kv
+			else:
+				keyDict[kp.property.name]=kv
+		return keyDict
+		
 	def GetLinkEnd(self,name):
 		"""Returns an AssociationSetEnd from a navigation property name."""
 		return self.navigation[name]
 
 	def Bind(self,entityCollectionBinding,**extraArgs):
-		"""Binds this entity set to a specific class or callable used by :py:meth:`GetCollection`""" 
+		"""Binds this entity set to a specific class or callable used by :py:meth:`OpenCollection`""" 
 		self.binding=entityCollectionBinding,extraArgs
 		
-	def GetCollection(self):
+# 	def GetCollection(self):
+# 		warnings.warn("EntitySet.GetCollection is deprecated, use OpenCollection instead", DeprecationWarning, stacklevel=3)
+# 		cls,extraArgs=self.binding
+# 		return cls(self,**extraArgs)
+# 
+	def OpenCollection(self):
 		"""Returns an :py:class:`EntityCollection` instance suitable for
 		accessing the entities themselves.
 		
@@ -2522,7 +3120,7 @@ class EntitySet(CSDLElement):
 		EntityCollection."""
 		cls,extraArgs=self.binding
 		return cls(self,**extraArgs)
-	
+			
 	def BindNavigation(self,name,entityCollectionBinding,**extraArgs):
 		"""Binds the navigation property *name* to a class or callable
 		used by :py:meth:`Navigate`"""
@@ -2532,28 +3130,40 @@ class EntitySet(CSDLElement):
 		"""Returns True if more than one entity is possible when navigating the named property."""
 		linkEnd=self._getLinkEnd(name)
 		return linkEnd.otherEnd.associationEnd.multiplicity==Multiplicity.Many
-			
-	def Navigate(self,name,sourceEntity,expand=None):
-		"""See :py:meth:`Entity.Navigate` for more information.
-		
-		The entities returned are those linked, by this navigation property, from the
-		entity with *key*.
-		
-		You can use :py:meth:`IsEntityCollection` to determine which
-		form of response is expected."""
+	
+	def NavigationTarget(self,name):
+		"""Returns the target entity set of navigation property *name*"""
+		linkEnd=self._getLinkEnd(name)
+		return linkEnd.otherEnd.entitySet
+	
+	def OpenNavigation(self,name,sourceEntity):
 		cls,extraArgs=self.navigationBindings[name]
 		linkEnd=self._getLinkEnd(name)
 		toEntitySet=linkEnd.otherEnd.entitySet
-		if linkEnd.otherEnd.associationEnd.multiplicity==Multiplicity.Many:
-			return cls(name,sourceEntity,toEntitySet,**extraArgs)
-		else:
-			collection=list(cls(name,sourceEntity,toEntitySet,**extraArgs).itervalues())
-			if len(collection)==1:
-				return collection[0]
-			elif len(collection)==0:
-				return None
-			else:
-				raise KeyError("Navigation error: %s yielded multiple entities"%name)
+		return cls(name,sourceEntity,toEntitySet,**extraArgs)
+			
+# 	def Navigate(self,name,sourceEntity,expand=None):
+# 		"""See :py:meth:`Entity.Navigate` for more information.
+# 		
+# 		The entities returned are those linked, by this navigation property, from the
+# 		entity with *key*.
+# 		
+# 		You can use :py:meth:`IsEntityCollection` to determine which
+# 		form of response is expected."""
+# 		warnings.warn("EntitySet.Navigate is deprecated, use OpenNavigation instead", DeprecationWarning, stacklevel=3)
+# 		cls,extraArgs=self.navigationBindings[name]
+# 		linkEnd=self._getLinkEnd(name)
+# 		toEntitySet=linkEnd.otherEnd.entitySet
+# 		if linkEnd.otherEnd.associationEnd.multiplicity==Multiplicity.Many:
+# 			return cls(name,sourceEntity,toEntitySet,**extraArgs)
+# 		else:
+# 			collection=list(cls(name,sourceEntity,toEntitySet,**extraArgs).itervalues())
+# 			if len(collection)==1:
+# 				return collection[0]
+# 			elif len(collection)==0:
+# 				return None
+# 			else:
+# 				raise KeyError("Navigation error: %s yielded multiple entities"%name)
 	
 	def _getLinkEnd(self,name):
 		try:
@@ -2651,7 +3261,7 @@ class AssociationSetEnd(CSDLElement):
 # 	def IsEntityCollection(self):
 # 		"""Returns True if navigating via this association set can yield multiple entities."""
 # 		return self.otherEnd.associationEnd.multiplicity==Multiplicity.Many
-# 				   
+#  
 	def UpdateSetRefs(self,scope,stopOnErrors=False):
 		"""Sets :py:attr:`entitySet`, :py:attr:`otherEnd` and :py:attr:`associationEnd`.
 		
@@ -2702,394 +3312,6 @@ class AssociationSetEnd(CSDLElement):
 			if stopOnErrors:
 				raise
 
-
-class EntityCollection(DictionaryLike):
-	"""Represents a collection of entities from an :py:class:`EntitySet`.
-
-	To use a database analogy, EntitySet's are like tables whereas
-	EntityCollections are somewhat like database cursors you use to read
-	data from those tables.
-	
-	Entity collections behave like a python dictionary of
-	:py:class:`Entity` instances keyed on a value representing the
-	Entity's key property or properties.  The keys are either single
-	values of the key property or tuples in the case of compound keys.
-	The order of the values in the tuple is taken from the order of the
-	PropertyRef definitions in the Entity's Key.
-
-	You can obtain a canonical representation of the key from an
-	:py:class:`Entity` instance or other dictionary like object using
-	the :py:meth:`EntitySet.GetKey` method.
-	
-	Derived classes MUST override :py:meth:`itervalues` and for
-	writeable data sources,	:py:meth:`__setitem__` and
-	py:meth:`__delitem__`.
-	
-	The implementation of itervalues must return an iterable object that
-	honours the value of the expand query option.
-
-	Derived classes SHOULD also override :py:meth:`__getitem__`,
-	:py:meth:`__len__` and :py:meth:`clear` as the default
-	implementations are very inefficient.
-		
-	Helper methods are provided if no native optimisations for query
-	options are available though."""
-	def __init__(self,entitySet):
-		self.entitySet=entitySet		#: the entity set from which the entities are drawn
-		self.name=self.entitySet.name	#: the name of :py:attr:`entitySet`
-		self.expand=None				#: the expand query option in effect
-		self.select=None				#: the select query option in effect
-		self.filter=None				#: a filter or None for no filter (see :py:meth:`CheckFilter`)
-		self.orderby=None				#: a list of orderby rules
-		self.skip=None					#: the skip query option in effect
-		self.top=None					#: the top query option in effect
-		self.topmax=None				#: the forced maximum page size in effect
-		self.skiptoken=None				#: the skiptoken option in effect
-		self.nextSkiptoken=None
-		self.count=None
-		"""the size of this collection, initially None
-		
-		As there may be a penalty for calculating the overall size of
-		the collection this attribute is initialised to None and updated by __len__
-		the first time it is called and then used to prevent unnecessary
-		recalculation.
-
-		If any options affecting the size of the collection are altered
-		then count should be reset to None to force __len__ to
-		recalculate the size of the collection."""
-		self.inlineCount=False
-		"""True if inlineCount option is in effect 
-		
-		The inlineCount option is used to alter the representation of
-		the collection and, if set, indicates that the __len__ method
-		will be called before iterating through the collection itself."""
-		self.lastYielded=None
-		self.lastGot=None
-	
-	def GetLocation(self):
-		"""Returns the location of this collection as a
-		:py:class:`rfc2396.URI` instance.
-		
-		By default, the location is given as the location of the
-		:py:attr:`entitySet` from which the entities are drawn."""
-		return self.entitySet.location
-	
-	def GetTitle(self):
-		"""Returns a user recognisable title for the collection.
-		
-		By default this is the fully qualified name of the entity set."""
-		return self.entitySet.GetFQName()
-			
-	def Expand(self,expand,select=None):
-		"""Sets the expand and select query options for this collection.
-		
-		The expand query option causes the named navigation properties
-		to be expanded and the associated entities to be loaded in to
-		the entity instances returned by this collection.
-		
-		The select query option restricts the properties that are set in
-		returned entities.
-		
-		For more details, see :py:meth:`Entity.Expand`"""
-		self.expand=expand
-		self.select=select
-
-	def ExpandEntities(self,entityIterable):
-		"""Given an object that iterates over all entities in the
-		collection, returns a generator function that returns those
-		entities expanded and selected according to :py:attr:`expand`
-		and :py:attr:`select` rules."""
-		for e in entityIterable:
-			if self.expand:
-				e.Expand(self.expand,self.select)
-			yield e
-			
-	def Filter(self,filter):
-		"""Sets the filter object for this collection, see :py:meth:`CheckFilter`."""
-		self.filter=filter
-		self.count=None
-		
-	def FilterEntities(self,entityIterable):
-		"""Given an object that iterates over all entities in the
-		collection, returns a generator function that returns only those
-		entities that pass through the current :py:attr:`filter` object."""
-		for e in entityIterable:
-			if self.CheckFilter(e):
-				yield e
-		
-	def CheckFilter(self,entity):
-		"""Checks *entity* against the current filter object and returns
-		True if it passes.
-		
-		The default implementation does not actually support any filters
-		so if a filter object has been defined, NotImplementedError is
-		raised."""
-		if self.filter is None:
-			return True
-		else:
-			raise NotImplementedError("Collection does not support filtering")
-
-	def OrderBy(self,orderby):
-		"""Sets the orderby rules for this collection.
-		
-		*orderby* is a list of tuples, each consisting of::
-		
-			 ( an order object as used by :py:meth:`CalculateOrderKey` , 1 | -1 )"""
-		self.orderby=orderby
-
-	def CalculateOrderKey(self,entity,orderObject):
-		"""Given an entity and an order object returns the key used to sort the entity.
-		
-		The default implementation does not actually support any custom
-		orderings so if an orderby rule is defined, NotImplementedError
-		is raised."""
-		raise NotImplementedError("Collection does not support ordering")
-		
-	def OrderEntities(self,entityIterable):
-		"""Given an object that iterates over the entities in random
-		order, returns a generator function that returns the same
-		entities in sorted order (according to :py:attr:`orderby` object
-		or the entity keys if there is no custom ordering and top or
-		skip has been specified).
-		
-		This implementation simply creates a list and then sorts it so
-		is not suitable for use with long lists of entities.  However, if
-		no ordering is required then no list is created."""
-		if self.orderby:
-			eList=list(entityIterable)
-			# we avoid Py3 warnings by doing multiple sorts with a key function 
-			for rule,ruleDir in reversed(self.orderby):
-				eList.sort(key=lambda x:self.CalculateOrderKey(x,rule),reverse=True if ruleDir<0 else False)
-			for e in eList:
-				yield e		
-		elif self.skip is not None or self.top is not None:
-			# a skip or top option forces ordering by the key
-			eList=list(entityIterable)
-			eList.sort(key=lambda x:x.Key()) 
-			for e in eList:
-				yield e			
-		else:
-			for e in entityIterable:
-				yield e
-
-	def Skip(self,skip):
-		"""Sets the skip option for this collection.
-		
-		The skip query option is an integer (or None to remove the
-		option) which seeks in to the entity collection.  The
-		implementation of
-		:py:meth:`itervalues` must honour the skip value."""
-		self.skip=skip		
-	
-	def Top(self,top):
-		"""Sets the top option for this collection.
-		
-		The top query option is an integer (or None to remove the
-		option) which limits the number of entities in the entity
-		collection.  The implementation of
-		:py:meth:`itervalues` must honour the top value."""
-		self.top=top		
-	
-	def TopMax(self,topmax):
-		"""Sets the maximum page size for this collection.
-		
-		This forces the collection to limit the size of a page to at
-		most topmax entities.  When topmax is in force
-		:py:meth:`NextSkipToken` will return a suitable value for
-		identifying the next page in the collection immediately after a
-		complete iteration of :py:meth:`iterpage`."""
-		self.topmax=topmax
-		
-	def SkipToken(self,skiptoken):
-		"""Sets the skip token for this collection.
-		
-		By default, we treat the skip token exactly the same as the skip
-		value itself except that we obscure it slightly by treating it
-		as a hex value."""
-		if skiptoken is None:
-			self.skiptoken=None
-		else:
-			try:
-				self.skiptoken=int(skiptoken,16)
-			except ValueError:
-				# not a skip token we recognise, do nothing
-				self.skiptoken=None
-		
-	def SetInlineCount(self,inlineCount):
-		"""Sets the inline count flag for this collection."""
-		self.inlineCount=inlineCount
-	
-	def NewEntity(self):
-		"""Returns a new py:class:`Entity` instance suitable for adding
-		to this collection.
-		
-		The properties of the entity are set to their defaults, or to
-		null if no default is defined (even if the property is marked
-		as not nullable).
-		
-		The entity is not considered to exist until it is actually added
-		to the collection.  At this point we deviate from
-		dictionary-like behaviour::
-		
-			e=collection.NewEntity()
-			e["ID"]=1000
-			e["Name"]="Fred"
-			assert 1000 not in collection
-			collection[1000]=e		# raises KeyError
-			
-		The above code is prone to problems as the key 1000 may violate
-		the collection's key allocation policy so we raise KeyError when
-		assignment is used to insert a new entity to the collection.
-		
-		Instead, you should call :py:meth:`InsertEntity`."""
-		return Entity(self.entitySet)	
-	
-	def InsertEntity(self,entity):
-		"""Inserts *entity* into this entity set.
-		
-		*entity* must be updated with any auto-generated values such as
-		the correct key."""
-		raise NotImplementedError
-		
-	def __getitem__(self,key):
-		"""Returns the py:class:`Entity` instance corresponding to *key*
-		
-		Raises KeyError if the entity with *key* is not in this
-		collection.
-		
-		Derived classes SHOULD override this behaviour.  The default
-		implementation is very basic.  We iterate through the entire
-		collection looking for the entity with the matching key.
-		
-		This implementation favours a smaller memory-footprint over
-		execution speed.  We do implement a couple of minor
-		optimizations to prevent itervalues being called unnecessarily,
-		we cache the last entity returned and also the last entity
-		yielded by iterkeys."""
-		key=self.entitySet.GetKey(key)
-		if self.lastYielded and self.lastYielded.Key()==key:
-			self.lastGot=self.lastYielded
-			return self.lastYielded
-		elif self.lastGot and self.lastGot.Key()==key:
-			return self.lastGot
-		else:
-			for e in self.itervalues():
-				if e.Key()==key:
-					self.lastGot=e
-					return e
-		raise KeyError(unicode(key))
-						
-	def __setitem__(self,key,value):
-		"""Not implemented"""
-		raise NotImplementedError
-		
-	def __delitem__(self,key):
-		"""Not implemented"""
-		raise NotImplementedError
-	
-	def GetPageStart(self):
-		"""Returns the index of the start of the collection's current page.
-		
-		Takes in to consideration both the requested skip value and any
-		skiptoken that may be in force."""
-		skip=self.skiptoken
-		if skip is None:
-			skip=0
-		if self.skip is None:
-			return skip
-		else:
-			return self.skip+skip
-	
-	def iterpage(self):
-		"""Returns an iterable subset of the values returned by :py:meth:`itervalues`
-		
-		The subset is defined by the top, skip (and skiptoken) attributes.
-		
-		Iterpage should be overridden by derived classes for a more
-		efficient implementation.  The default implementation simply
-		wraps :py:meth:`itervalues`."""
-		i=0
-		possibleSkiptoken=None
-		eMin=self.GetPageStart()
-		if self.topmax:
-			if self.top is None or self.top>self.topmax:
-				# may be truncated
-				eMax=eMin+self.topmax
-				possibleSkiptoken=eMin+self.topmax
-			else:
-				# top not None and <= topmax
-				eMax=eMin+self.top
-		else:
-			# no forced paging
-			if self.top is None:
-				eMax=None
-			else:
-				eMax=eMin+self.top
-		if eMax is None:
-			for e in self.itervalues():
-				if i>=eMin:
-					yield e
-				i=i+1
-		else:
-			for e in self.itervalues():
-				if i<eMin:
-					i=i+1
-				elif i<eMax:
-					yield e
-					i=i+1
-				else:
-					# stop the iteration now, set the nextSkiptoken
-					self.nextSkiptoken=possibleSkiptoken
-					return
-		
-	def NextSkipToken(self):
-		"""Following a complete iteration of the generator returned by
-		:py:meth:`iterpage` returns the skiptoken which will generate
-		the next page or None if all requested entities have been
-		returned."""
-		if self.nextSkiptoken is None:
-			return None
-		else:
-			return "%X"%self.nextSkiptoken
-
-	def __len__(self):
-		"""Implements len(self) using :py:attr:`count` as a cache."""
-		if self.count is None:
-			self.count=super(EntityCollection,self).__len__()
-		return self.count
-
-	def itervalues(self):
-		"""Must be overridden to execute an appropriate query to return
-		the collection of entities.
-		
-		The default implementation returns an empty list."""
-		return []
-		
-	def __iter__(self):
-		"""The default implementation uses :py:meth:`itervalues` and :py:meth:`Entity.Key`"""
-		for e in self.itervalues():
-			self.lastYielded=e
-			yield e.Key()
-		self.lastYielded=None
-
-
-class NavigationEntityCollection(EntityCollection):
-	"""Represents the collection of entities returned by a navigation property.
-	
-	*fromKey* is the key in from source entity set and *toEntitySet* is
-	the target entity set.  We inherit basic behaviour from
-	:py:class:`EntityCollection` acting, in effect, as a special subset
-	of *toEntitySet*.
-	
-	This class is used even when the navigation property is declared to
-	return a single entity, rather than a collection.  In which case
-	anything after the first entity in the resulting collection is
-	ignored."""
-	def __init__(self,name,fromEntity,toEntitySet):
-		super(NavigationEntityCollection,self).__init__(toEntitySet)
-		self.name=name					#: the name of this collection
-		self.fromEntity=fromEntity		#: the source entity 
-		
 
 class FunctionImport(CSDLElement):
 	"""Represents a FunctionImport in an entity collection."""
@@ -3181,44 +3403,7 @@ class FunctionImport(CSDLElement):
 			return f(self,params,**extraArgs)
 		else:
 			raise NotImplementedError("Unbound FunctionImport: %s"%self.name)
-		 		
-
-class FunctionEntityCollection(EntityCollection):
-	"""Represents the collection of entities returned by a specific execution of a :py:class:`FunctionImport`"""
-
-	def __init__(self,function,params):
-		if function.IsEntityCollection():
-			self.function=function
-			self.params=params
-			EntityCollection.__init__(self,self.function.entitySet)
-		else:
-			raise TypeError("Function call does not return a collection of entities") 
-
-	def Expand(self,expand,select=None):
-		"""This option is not supported on function results"""
-		raise NotImplmentedError("Expand/Select option on Function result")
-
-
-class FunctionCollection(object):
-	"""Represents a collection of :py:class:`EDMValue`.
-	
-	These objects are iterable, but are not list or dictionary-like, in
-	other words, you can iterate over the collection but you can't
-	address an individual item using an index or a slice."""
-
-	def __init__(self,function,params):
-		if function.IsCollection():
-			if function.IsEntityCollection():
-				raise TypeError("FunctionCollection must not return a collection of entities")
-			self.function=function
-			self.params=params
-			self.name=function.name
-		else:
-			raise TypeError("Function call does not return a collection of entities") 
-
-	def __iter__(self):
-		raise NotImplementedError("Unbound FunctionCollection: %s"%self.function.name)
-
+			
 	
 class ParameterMode(xsi.Enumeration):
 	"""ParameterMode defines constants for the parameter modes defined by CSDL

@@ -224,8 +224,12 @@ class URITests(unittest.TestCase):
 		u=URI(SIMPLE_EXAMPLE)
 		self.assertTrue(isinstance(u,URI))
 		self.assertTrue(str(u)==SIMPLE_EXAMPLE)
-		u=URI(LIST_EXAMPLE)
-		self.assertTrue(str(u)==SIMPLE_EXAMPLE,"Simple from list")
+		try:
+			u=URI(LIST_EXAMPLE)
+			# we don't support this type of thing any more
+			# self.assertTrue(str(u)==SIMPLE_EXAMPLE,"Simple from list")
+		except URIException:
+			pass
 		u=URI(u'\u82f1\u56fd.xml')
 		self.assertTrue(str(u)=='%E8%8B%B1%E5%9B%BD.xml',"Unicode example: %s"%str(u))
 		self.assertTrue(type(u.octets) is StringType,"octest must be string")
@@ -236,7 +240,10 @@ class URITests(unittest.TestCase):
 		self.assertTrue(u1.Match(u2) and u2.Match(u1),"Equal URIs fail to match")
 		u2=URI('hello.xml')
 		self.assertFalse(u1.Match(u2) or u2.Match(u1),"Mismatched URIs do match")		
-	
+		u1=URI("HTTP://www.example.com/")
+		u2=URI("http://www.example.com/")
+		self.assertTrue(u1.Match(u2) and u2.Match(u1),"Equal URIs fail to match")
+		
 	def testCaseScheme(self):
 		u=URI(SIMPLE_EXAMPLE)
 		self.assertTrue(u.IsAbsolute(),"Absolute test")
@@ -404,10 +411,10 @@ class FileURLTests(unittest.TestCase):
 class VirtualFileURLTests(unittest.TestCase):
 	def setUp(self):
 		self.vfs=vfs.defaultFS
- 		self.cwd=self.vfs.getcwd()
- 		self.dataPath=self.vfs(__file__).split()[0].join('data_rfc2396')
- 		if not self.dataPath.isabs():
- 			self.dataPath=self.vfs.getcwd().join(self.dataPath)
+		self.cwd=self.vfs.getcwd()
+		self.dataPath=self.vfs(__file__).split()[0].join('data_rfc2396')
+		if not self.dataPath.isabs():
+			self.dataPath=self.vfs.getcwd().join(self.dataPath)
 
 	def testCaseConstructor(self):
 		u=URIFactory.URI(FILE_EXAMPLE)
@@ -417,12 +424,12 @@ class VirtualFileURLTests(unittest.TestCase):
 		u=FileURL()
 		self.assertTrue(str(u)=='file:///','Default file')
 		
- 	def testCasePathnames(self):
- 		base=URIFactory.URLFromVirtualFilePath(self.dataPath)
- 		self.assertTrue(base.GetVirtualFilePath()==self.dataPath,
- 			"Expected %s found %s"%(self.dataPath,base.GetVirtualFilePath()))
- 		for dirpath,dirnames,filenames in self.dataPath.walk():
- 			self.VisitMethod(dirpath,filenames)
+	def testCasePathnames(self):
+		base=URIFactory.URLFromVirtualFilePath(self.dataPath)
+		self.assertTrue(base.GetVirtualFilePath()==self.dataPath,
+			"Expected %s found %s"%(self.dataPath,base.GetVirtualFilePath()))
+		for dirpath,dirnames,filenames in self.dataPath.walk():
+			self.VisitMethod(dirpath,filenames)
 
 	def VisitMethod(self,dirname,names):
 		# Make d a directory like path by adding an empty component at the end
