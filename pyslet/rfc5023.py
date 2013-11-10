@@ -341,7 +341,16 @@ class InputWrapper(io.RawIOBase):
 			if hint>=0 and total>hint:
 				break
 		return lines
-
+	
+	def iterblocks(self,maxSize=io.DEFAULT_BUFFER_SIZE):
+		"""Returns an iterable of blocks of maximum size *maxSize*"""
+		while True:
+			data=self.read(io.DEFAULT_BUFFER_SIZE)
+			if data:
+				yield data
+			else:
+				break
+				
 	def tell(self):
 		return self.pos
 	

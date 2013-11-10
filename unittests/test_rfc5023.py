@@ -321,7 +321,14 @@ class MockRequest(object):
 	
 	def SetHeader(self,header,value):
 		"""Convenience method for setting header values in the request."""
-		self.environ["HTTP_"+header]=value
+		if header.lower()=="content-type":
+			self.environ["CONTENT_TYPE"]=value
+		elif header.lower()=="content-length":
+			self.environ["CONTENT_LENGTH"]=value
+		else:
+			header=header.upper()
+			header=header.replace('-','_')
+			self.environ["HTTP_"+header]=value
 		
 	def Send(self,application):
 		self.rfile.seek(0)

@@ -847,6 +847,10 @@ class BooleanValue(SimpleValue):
 class NumericValue(SimpleValue):
 	"""An abstract class for Numeric values."""
 	
+	def SetToZero(self):
+		"""Set this value to the default representation of zero"""
+		self.SetFromPyValue(0)
+		
 	def SetFromLiteral(self,value):
 		"""Decodes a value from the value's literal form.
 		
@@ -1479,7 +1483,7 @@ class DeferredValue(object):
 			elif len(collection)==0:
 				return None
 			else:
-				raise NavigationError("%s.%s is not a collection but it yielded multiple entities"%(self.fromEntity.entitySet.name,name))
+				raise NavigationError("Navigation property %s of %s[%s] is not a collection but it yielded multiple entities"%(name,self.fromEntity.entitySet.name,str(self.fromEntity.Key())))
 					 
 	def OpenCollection(self):
 		"""Opens the collection associated with this navigation property"""
@@ -1648,7 +1652,19 @@ class Entity(TypeInstance):
 		is updated or inserted."""
 		# save this information for later
 		self.bindings.setdefault(name,[]).append(target)
+	
+	def Update(self):
+		"""Updates this entity following modification.
 		
+		You can use select rules to provide a hint about which fields
+		have been updated.  By the same logic, you cannot update a
+		property that is not selected!
+		
+		The default implementation opens a collection object from the
+		parent entity set."""
+		with self.entitySet.OpenCollection() as collection:
+			collection.UpdateEntity(self)
+			
 	def Key(self):
 		"""Returns the entity key as a single python value or a tuple of
 		python values for compound keys.
@@ -1656,13 +1672,35 @@ class Entity(TypeInstance):
 		The order of the values is the order of the PropertyRef definitions
 		in the associated EntityType's :py:class:`Key`."""
 		if len(self.typeDef.Key.PropertyRef)==1:
-			return self[self.typeDef.Key.PropertyRef[0].name].pyValue
+			result=self[self.typeDef.Key.PropertyRef[0].name].pyValue
+			if result is None:
+				raise KeyError("Entity with NULL key not allowed")
+			return result
 		else:
 			k=[]
+			nullFlag=True
 			for pRef in self.typeDef.Key.PropertyRef:
-				k.append(self[pRef.name].pyValue)
+				result=self[pRef.name].pyValue
+				k.append(result)
+				if result is not None:
+					nullFlag=False
+			if nullFlag:
+				raise KeyError("Entity with NULL key not allowed")
 			return tuple(k)
 	
+	def SetKey(self,key):
+		"""Sets this entity's key from a single python value or tuple.
+		
+		The entity must be non-existent or ValueError is raised."""
+		if self.exists:
+			raise ValueError("SetKey not allowed; %s[%s] already exists"%(self.entitySet.name,str(self.Key())))
+		if len(self.typeDef.Key.PropertyRef)==1:
+			self[self.typeDef.Key.PropertyRef[0].name].SetFromPyValue(key)
+		else:
+			k=iter(key)
+			for pRef in self.typeDef.Key.PropertyRef:
+				self[pRef.name].SetFromPyValue(k.next())
+			
 	def KeyDict(self):
 		"""Returns the entity key as a dictionary mapping key property
 		names onto :py:class:`SimpleValue` instances."""
@@ -1736,13 +1774,12 @@ class Entity(TypeInstance):
 			return self.select and name in self.select
 	
 	def ETag(self):
-		"""Returns an EDMValue instance to use as in optimistic
+		"""Returns an EDMValue instance to use as for optimistic
 		concurrency control or None if the entity does not support it."""
 		for pDef in self.typeDef.Property:
 			if pDef.concurrencyMode and pDef.concurrencyMode.lower()=="fixed":
 				etag=self[pDef.name]
-				if etag:
-					return etag
+				return etag
 		return None
 
 	def ETagIsStrong(self):
@@ -1800,7 +1837,7 @@ class EntityCollection(DictionaryLike):
 	
 		etColl[key]=entity	# entity.Key() MUST equal key or ValueError is raised
 							# entity must be the right type for the entity set or TypeError is raised
-							# WARNING: entity must already be in the entity set of KeyError is raised
+							# WARNING: entity must already be in the entity set or KeyError is raised
 							# otherwise does nothing, for consistency with python dictionary behaviour
 		del etColl[key]		# deletes the entity with *key* from the entity set
 
@@ -1823,7 +1860,7 @@ class EntityCollection(DictionaryLike):
 	Note that in the first case del removes the entity completely from
 	the data service whereas in the second case the entity still exists
 	in the parent entity set after being removed from the subset
-	represented by the collection.
+	represented by the (navigation) collection.
 
 	Writeable data sources must therefore override py:meth:`__delitem__`
 	for all collections and :py:meth:`__setitem__` for collections that
@@ -1903,6 +1940,20 @@ class EntityCollection(DictionaryLike):
 		self.expand=expand
 		self.select=select
 
+	def SelectKeys(self):
+		"""Sets the select rule to select the key property/properties only.
+		
+		Any expand rule is removed.
+		 
+		This is especially useful when navigating.  For example, for a
+		SQL based store the navigation property may be represented as a
+		foreign key so selecting it alone would not require a join to
+		the target table."""
+		select={}
+		for k in self.entitySet.KeyKeys():
+			select[k]=None
+		self.Expand(None,select)
+		
 	def ExpandEntities(self,entityIterable):
 		"""Given an object that iterates over all entities in the
 		collection, returns a generator function that returns those
@@ -2028,7 +2079,7 @@ class EntityCollection(DictionaryLike):
 		"""Sets the inline count flag for this collection."""
 		self.inlineCount=inlineCount
 	
-	def NewEntity(self):
+	def NewEntity(self,autoKey=False):
 		"""Returns a new py:class:`Entity` instance suitable for adding
 		to this collection.
 		
@@ -2051,6 +2102,8 @@ class EntityCollection(DictionaryLike):
 		assignment is used to insert a new entity to the collection.
 		
 		Instead, you should call :py:meth:`InsertEntity`."""
+		if autoKey:
+			raise NotImplementedError("Auto-key not supported")
 		return Entity(self.entitySet)	
 	
 	def InsertEntity(self,entity):
@@ -2060,6 +2113,10 @@ class EntityCollection(DictionaryLike):
 		the correct key."""
 		raise NotImplementedError
 	
+	def UpdateEntity(self,entity):
+		"""Updates *entity* which must already be in the entity set."""
+		raise NotImplementedError
+		
 	def UpdateBindings(self,entity):
 		"""Parses :py:attr:`Entity.bindings` and generates appropriate calls to
 		create/update the associated navigation properties."""
@@ -2069,7 +2126,7 @@ class EntityCollection(DictionaryLike):
 			if not entity.IsEntityCollection(navProperty):
 				# if you call bind multiple times for a link with single
 				# cardinality then only the last value will take effect
-				bindings=bindings[-1]
+				bindings=bindings[-1:]
 			# get an entity collection for this navigation property
 			with entity[navProperty].OpenCollection() as navCollection:
 				for binding in bindings:
@@ -2085,6 +2142,7 @@ class EntityCollection(DictionaryLike):
 						# which will generate KeyError if it doesn't
 						# exist
 						with navCollection.entitySet.OpenCollection() as baseCollection:
+							baseCollection.SelectKeys()
 							targetEntity=baseCollection[binding]
 						navCollection[binding]=targetEntity
 	
@@ -2240,6 +2298,12 @@ class NavigationEntityCollection(EntityCollection):
 		with self.entitySet.OpenCollection() as baseCollection:
 			baseCollection.InsertEntity(entity)
 			self[entity.Key()]=entity		
+	
+	def UpdateEntity(self,entity):
+		"""The default implementation redirects this call to the parent
+		entity set."""
+		with self.entitySet.OpenCollection() as baseCollection:
+			baseCollection.UpdateEntity(entity)
 	
 	def __setitem__(self,key,value):
 		raise UnsupportedOperation("Entity collection %s[%s] is read-only"%(self.entitySet.name,self.name)) 
@@ -3014,6 +3078,14 @@ class EntitySet(CSDLElement):
 		h.update(self.entityTypeName)
 		h.update(";")
 	
+	def KeyKeys(self):
+		"""Returns a list of the names of this entity set's key
+		properties."""
+		keys=[]
+		for kp in self.entityType.Key.PropertyRef:
+			keys.append(kp.name)
+		return keys
+		
 	def GetKey(self,keylike):
 		"""Extracts a key value suitable for using as a key in an
 		:py:class:`EntityCollection` based on this entity set.
@@ -3096,7 +3168,7 @@ class EntitySet(CSDLElement):
 			else:
 				keyDict[kp.property.name]=kv
 		return keyDict
-		
+	
 	def GetLinkEnd(self,name):
 		"""Returns an AssociationSetEnd from a navigation property name."""
 		return self.navigation[name]

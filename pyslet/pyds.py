@@ -10,6 +10,8 @@ import pyslet.xmlnames20091208 as xmlns
 import pyslet.iso8601 as iso8601
 import pyslet.rfc2616 as http
 
+import string, hashlib
+
 
 class InMemoryEntityStore(object):
 	"""Implements an in-memory entity set using a python dictionary.
@@ -23,6 +25,7 @@ class InMemoryEntityStore(object):
 	
 	def __init__(self,entitySet=None):
 		self.data={}				#: simple dictionary of the values
+		self.nextKey=None
 		self.streams={}				#: simple dictionary of streams
 		self.delHooks=[]			#: list of functions to call during deletion
 		self.entitySet=entitySet	#: the entity set we're bound to
@@ -34,6 +37,46 @@ class InMemoryEntityStore(object):
 		entitySet.Bind(EntityCollection,entityStore=self)
 		self.entitySet=entitySet
 		
+	def AddEntity(self,e):
+		key=e.Key()
+		value=[]
+		for pName in e.DataKeys():
+			if not e.Selected(pName):
+				continue
+			p=e[pName]
+			if isinstance(p,edm.Complex):
+				value.append(self.GetTupleFromComplex(p))
+			elif isinstance(p,edm.SimpleValue):
+				value.append(p.pyValue)
+		self.data[key]=tuple(value)
+		# At this point the entity exists
+		e.exists=True
+
+	def UpdateEntity(self,e):
+		# e is an EntityTypeInstance, we need to convert it to a tuple
+		key=e.Key()
+		value=list(self.data[key])
+		i=0
+		for pName in e.DataKeys():
+			if e.Selected(pName):
+				p=e[pName]
+				if isinstance(p,edm.Complex):
+					value[i]=self.GetTupleFromComplex(p)
+				elif isinstance(p,edm.SimpleValue):
+					value[i]=p.pyValue
+			i=i+1
+		self.data[key]=tuple(value)
+
+	def GetTupleFromComplex(self,complexValue):
+		value=[]
+		for pName in complexValue.iterkeys():
+			p=complexValue[pName]
+			if isinstance(p,edm.Complex):
+				value.append(self.GetTupleFromComplex(p))
+			else:
+				value.append(p.pyValue)
+		return tuple(value)
+
 	def DeleteEntity(self,key):
 		key=self.entitySet.GetKey(key)
 		for hook in self.delHooks:
@@ -49,6 +92,25 @@ class InMemoryEntityStore(object):
 	def ResetDeleteHooks(self):
 		"""We use this method to clear the delete hook lists."""
 		self.delHooks=[]
+
+	def NextKey(self):
+		"""In the special case where the key is an integer, return the next free integer"""
+		if self.nextKey is None:
+			kps=list(self.entitySet.KeyKeys())
+			if len(kps)!=1:
+				raise KeyError("Can't get next value of compound key")
+			key=self.entitySet.entityType[kps[0]]()
+			if not isinstance(key,edm.NumericValue):
+				raise KeyError("Can't get next value non-integer key")
+			keys=self.data.keys()
+			if keys:
+				keys.sort()
+				self.nextKey=keys[-1]
+			else:
+				self.nextKey=key.SetToZero()
+		while self.nextKey in self.data:
+			self.nextKey+=1
+		return self.nextKey
 
 
 class InMemoryAssociationIndex(object):
@@ -175,6 +237,26 @@ class Entity(odata.Entity):
 		else:
 			yield ''
 
+	def SetStreamFromGenerator(self,streamType,src):
+		"""Replaces the contents of this stream with the strings output by iterating over src.
+		
+		If the entity has a concurrency token and it is a binary value,
+		updates the token to be a hash of the stream."""
+		etag=self.ETag()
+		if isinstance(etag,edm.BinaryValue):
+			h=hashlib.sha256()
+		else:
+			h=None
+		value=[]
+		for data in src:
+			value.append(data)
+		data=string.join(data,'')
+		self.SetItemStream(streamType,data)
+		if h is not None:
+			h.update(data)
+			etag.SetFromPyValue(h.digest())
+			self.Update()
+				
 	def SetItemStream(self,streamType,stream):
 		key=self.Key()
 		self.entityStore.streams[key]=(streamType,stream)
@@ -189,6 +271,13 @@ class EntityCollection(odata.EntityCollection):
 		super(EntityCollection,self).__init__(entitySet)
 		self.entityStore=entityStore
 		
+	def NewEntity(self,autoKey=False):
+		"""Returns an OData aware instance"""
+		e=Entity(self.entitySet,self.entityStore)	
+		if autoKey:
+			e.SetKey(self.entityStore.NextKey())
+		return e 
+	
 	def __len__(self):
 		return len(self.entityStore.data)
 
@@ -234,37 +323,24 @@ class EntityCollection(odata.EntityCollection):
 				p.SetFromPyValue(pValue)
 
 	def InsertEntity(self,entity):
-		# no auto-generation of keys, just assign it
-		key=entity.Key()
+		try:
+			key=entity.Key()
+		except KeyError:
+			# if the entity doesn't have a key, autogenerate one
+			key=self.entityStore.NextKey()
+			entity.SetKey(key)
 		if key in self:
-			raise KeyError("%s already exists"%ODataURI.FormatEntityKey(entity))
-		self[key]=entity
+			raise KeyError("%s already exists"%odata.ODataURI.FormatEntityKey(entity))
+		# now process any bindings
+		self.entityStore.AddEntity(entity)
+		self.UpdateBindings(entity)
+		
+	def UpdateEntity(self,entity):
+		key=entity.Key()
+		self.entityStore.UpdateEntity(entity)
 		# now process any bindings
 		self.UpdateBindings(entity)
 		
-	def __setitem__(self,key,e):
-		# e is an EntityTypeInstance, we need to convert it to a tuple
-		value=[]
-		for pName in e.DataKeys():
-			p=e[pName]
-			if isinstance(p,edm.Complex):
-				value.append(self.GetTupleFromComplex(p))
-			elif isinstance(p,edm.SimpleValue):
-				value.append(p.pyValue)
-		self.entityStore.data[key]=tuple(value)
-		# At this point the entity exists
-		e.exists=True
-
-	def GetTupleFromComplex(self,complexValue):
-		value=[]
-		for pName in complexValue.iterkeys():
-			p=complexValue[pName]
-			if isinstance(p,edm.Complex):
-				value.append(self.GetTupleFromComplex(p))
-			else:
-				value.append(p.pyValue)
-		return tuple(value)
-
 	def __delitem__(self,key):
 		self.entityStore.DeleteEntity(key)
 	
@@ -281,6 +357,10 @@ class NavigationEntityCollection(odata.NavigationEntityCollection):
 		super(NavigationEntityCollection,self).__init__(name,fromEntity,toEntitySet)
 		self.collection=self.entitySet.OpenCollection()
 		self.key=self.fromEntity.Key()
+	
+	def NewEntity(self,autoKey=False):
+		"""Returns an OData aware instance"""
+		return self.collection.NewEntity(autoKey)	
 	
 	def close(self):
 		if self.collection is not None:

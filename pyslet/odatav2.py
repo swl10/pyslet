@@ -275,7 +275,7 @@ class UnaryExpression(CommonExpression):
 		elif typeCode is None:	# -null
 			return edm.SimpleValue.NewValue(edm.SimpleType.Int32)
 		else:
-			raise EvaluationError("Illegal operand for negate")  
+			raise EvaluationError("Illegal operand for negate")
 
 	def EvaluateNot(self,rValue):
 		if isinstance(rValue,edm.SimpleValue):
@@ -286,12 +286,12 @@ class UnaryExpression(CommonExpression):
 					result.SetFromPyValue(not rValue.pyValue)
 					return result
 				else:
-					raise EvaluationError("Illegal operand for not")  
+					raise EvaluationError("Illegal operand for not")
 			else:
 				result=edm.SimpleValue.NewValue(edm.SimpleType.Boolean)
 				return result
 		else:
-			raise EvaluationError("Illegal operand for not")  
+			raise EvaluationError("Illegal operand for not")
 
 
 UnaryExpression.EvalMethod={
@@ -305,7 +305,7 @@ class BinaryExpression(CommonExpression):
 		}
 	"""A mapping from binary operators to unbound methods that evaluate
 	the operator."""
-	  
+ 
 	def __init__(self,operator):
 		super(BinaryExpression,self).__init__(operator)
 		
@@ -368,7 +368,7 @@ class BinaryExpression(CommonExpression):
 			result.SetFromPyValue(lValue.pyValue)
 			return result
 		else:
-			raise EvaluationError("Illegal operands for isof")  			
+			raise EvaluationError("Illegal operands for isof")		
 	
 	def EvaluateMul(self,lValue,rValue):
 		typeCode=self.PromoteOperands(lValue,rValue)
@@ -383,7 +383,7 @@ class BinaryExpression(CommonExpression):
 		elif typeCode is None:	# null mul null
 			return edm.SimpleValue.NewValue(edm.SimpleType.Int32)
 		else:
-			raise EvaluationError("Illegal operands for mul")  
+			raise EvaluationError("Illegal operands for mul")
 	
 	def EvaluateDiv(self,lValue,rValue):
 		try:
@@ -407,7 +407,7 @@ class BinaryExpression(CommonExpression):
 			elif typeCode is None:	# null div null
 				return edm.SimpleValue.NewValue(edm.SimpleType.Int32)
 			else:
-				raise EvaluationError("Illegal operands for div")  
+				raise EvaluationError("Illegal operands for div")
 		except ZeroDivisionError as e:
 			raise EvaluationError(str(e))
 	
@@ -433,7 +433,7 @@ class BinaryExpression(CommonExpression):
 			elif typeCode is None:	# null div null
 				return edm.SimpleValue.NewValue(edm.SimpleType.Int32)
 			else:
-				raise EvaluationError("Illegal operands for div")  
+				raise EvaluationError("Illegal operands for div")
 		except (ZeroDivisionError,ValueError) as e:
 			raise EvaluationError(str(e))
 				
@@ -450,7 +450,7 @@ class BinaryExpression(CommonExpression):
 		elif typeCode is None:	# null add null
 			return edm.SimpleValue.NewValue(edm.SimpleType.Int32)
 		else:
-			raise EvaluationError("Illegal operands for add")  
+			raise EvaluationError("Illegal operands for add")
 	
 	def EvaluateSub(self,lValue,rValue):
 		typeCode=self.PromoteOperands(lValue,rValue)
@@ -465,7 +465,7 @@ class BinaryExpression(CommonExpression):
 		elif typeCode is None:	# null sub null
 			return edm.SimpleValue.NewValue(edm.SimpleType.Int32)
 		else:
-			raise EvaluationError("Illegal operands for sub")  
+			raise EvaluationError("Illegal operands for sub")
 	
 	def EvaluateLt(self,lValue,rValue):
 		return self.EvaluateRelation(lValue,rValue,lambda x,y:x<y)
@@ -501,7 +501,7 @@ class BinaryExpression(CommonExpression):
 			result.SetFromPyValue(False)
 			return result
 		else:
-			raise EvaluationError("Illegal operands for %s"%Operator.EncodeValue(self.operator))  
+			raise EvaluationError("Illegal operands for %s"%Operator.EncodeValue(self.operator))
 		
 	def EvaluateIsOf(self,lValue,rValue):
 		# rValue is always a string literal name of the type to look up
@@ -533,7 +533,7 @@ class BinaryExpression(CommonExpression):
 			result.SetFromPyValue(rValue)
 			return result
 		else:
-			raise EvaluationError("Illegal operands for isof")  			
+			raise EvaluationError("Illegal operands for isof")		
 	
 	def EvaluateEq(self,lValue,rValue):
 		if isinstance(lValue,edm.Entity) and isinstance(rValue,edm.Entity):
@@ -563,7 +563,7 @@ class BinaryExpression(CommonExpression):
 				result.SetFromPyValue(True)
 				return result
 			else:
-				raise EvaluationError("Illegal operands for add")  
+				raise EvaluationError("Illegal operands for add")
 	
 	def EvaluateNe(self,lValue,rValue):
 		result=self.EvaluateEq(lValue,rValue)
@@ -662,7 +662,7 @@ class PropertyExpression(CommonExpression):
 			else:
 				raise EvaluationError("Undefined property: %s"%self.name)
 		else:
-			raise EvaluationError("Evaluation of %s member: no entity in context"%self.name) 		
+			raise EvaluationError("Evaluation of %s member: no entity in context"%self.name)	
 
 
 class CallExpression(CommonExpression):
@@ -1545,7 +1545,99 @@ class PathOption(xsi.Enumeration):
 		'links':5
 		}
 xsi.MakeEnumeration(PathOption)
-				
+
+#	URI1: http://host/service.svc/Customers	:	Entity Set
+#	URI2: http://host/service.svc/Customers('ALFKI')	:	Entity
+#	URI3: http://host/service.svc/Customers('ALFKI')/Address	:	Complex Property
+#	URI4: http://host/service.svc/Customers('ALFKI')/Address/Name	:	Complex+Simple Property
+#			http://host/service.svc/Customers('ALFKI')/Address/Name/$value
+#	URI5: http://host/service.svc/Customers('ALFKI')/CompanyName	:	Simple Property
+#			http://host/service.svc/Customers('ALFKI')/CompanyName/$value
+#	URI6: http://host/service.svc/Customers('ALFKI')/Orders	:	Navigation property
+#	URI7: http://host/service.svc/Customers('ALFKI')/$links/Orders	: links
+#	URI8: http://host/service.svc/$metadata	:	metadata
+#	URI9: http://host/service.svc/$batch	:	batch
+#	URI10: http://host/service.svc/EtFunction	: function returning entity
+#	URI11: http://host/service.svc/CollCtFunction	: function returning collection of complex
+#	URI12: http://host/service.svc/CtFunction	: function returning complex
+#	URI13: http://host/service.svc/CollPrimFunction	: function returning collection of simple values
+#	URI14: http://host/service.svc/PrimFunction	: function returning simple value
+#	URI15: http://host/service.svc/Customers/$count	: count
+#	URI16: http://host/service.svc/Customers('ALFKI')/$count	: count=1
+#	URI17: http://host/service.svc/Documents(1)/$value	: media resource
+
+SupportedSystemQueryOptions={
+	1:set((
+		SystemQueryOption.expand,
+		SystemQueryOption.filter,
+		SystemQueryOption.format,
+		SystemQueryOption.orderby,
+		SystemQueryOption.skip,
+		SystemQueryOption.top,
+		SystemQueryOption.skiptoken,
+		SystemQueryOption.inlinecount,
+		SystemQueryOption.select)),
+	2:set((
+		SystemQueryOption.expand,
+		SystemQueryOption.filter,
+		SystemQueryOption.format,
+		SystemQueryOption.select)),
+	3:set((
+		SystemQueryOption.filter,
+		SystemQueryOption.format)),
+	4:set((
+		SystemQueryOption.format,)),
+	5:set((
+		SystemQueryOption.format,)),
+	61:set((
+		SystemQueryOption.expand,
+		SystemQueryOption.filter,
+		SystemQueryOption.format,
+		SystemQueryOption.select)),
+	62:set((
+		SystemQueryOption.expand,
+		SystemQueryOption.filter,
+		SystemQueryOption.format,
+		SystemQueryOption.orderby,
+		SystemQueryOption.skip,
+		SystemQueryOption.top,
+		SystemQueryOption.skiptoken,
+		SystemQueryOption.inlinecount,
+		SystemQueryOption.select)),
+	7:set((
+		SystemQueryOption.format,
+		SystemQueryOption.skip,
+		SystemQueryOption.top,
+		SystemQueryOption.skiptoken,
+		SystemQueryOption.inlinecount)),
+	8:set(),
+	9:set(),
+	10:set((
+		SystemQueryOption.format,)),
+	11:set((
+		SystemQueryOption.format,)),
+	12:set((
+		SystemQueryOption.format,)),
+	13:set((
+		SystemQueryOption.format,)),
+	14:set((
+		SystemQueryOption.format,)),
+	15:set((
+		SystemQueryOption.expand,
+		SystemQueryOption.filter,	
+		SystemQueryOption.orderby,
+		SystemQueryOption.skip,
+		SystemQueryOption.top)),
+	16:set((
+		SystemQueryOption.expand,
+		SystemQueryOption.filter)),
+	17:set((
+		SystemQueryOption.format,))
+	}
+"""A mapping from URI format number to a set of supported system query options.
+
+Note that URI6 is split into 61 and 62 based on the notes in the specification"""
+
 
 class ODataURI:
 	"""Breaks down an OData URI into its component parts.
@@ -1575,6 +1667,7 @@ class ODataURI:
 		self.resourcePath=None			#: a string containing the resource path (or None if this is not a resource path)
 		self.navPath=[]					#: a list of navigation path segment strings
 		self.pathOption=None			#: the path option in effect or None if no path option was given
+		self.linksProperty=None			#: the name of the navigation property following $links (no None)
 		self.queryOptions=[]			#: a list of raw strings containing custom query options and service op params
 		self.sysQueryOptions={}			#: a dictionary mapping :py:class:`SystemQueryOption` constants to their values
 		self.paramTable={}
@@ -1611,9 +1704,12 @@ class ODataURI:
 		else:
 			segments=self.resourcePath.split('/')
 			self.navPath=[]
-			linkLenConstraint=None
 			for segment in segments[1:]:
-				if segment.startswith("$"):
+				if self.pathOption==PathOption.links:
+					if self.linksProperty is not None:
+						raise InvalidPathOption("A navigation property preceded by $links must be the last path segment, found %s"%segment)
+					self.linksProperty=segment					
+				elif segment.startswith("$"):
 					try:
 						pathOption=PathOption.DecodeLowerValue(segment[1:])
 					except KeyError:
@@ -1625,19 +1721,27 @@ class ODataURI:
 					elif self.pathOption==PathOption.links:
 						if not self.navPath:
 							raise InvalidPathOption("resource path must not start with $links")
-						linkLenConstraint=len(self.navPath)+1
 					self.pathOption=pathOption
 				else:
 					# count, value, batch and metadata must be the last segment
 					if self.pathOption in (PathOption.count,PathOption.value,PathOption.batch,PathOption.metadata):
 						raise InvalidPathOption("$%s must be the last path segment"%PathOption.EncodeValue(self.pathOption))
 					self.navPath.append(self.SplitSegment(segment))
-			if linkLenConstraint is not None:
-				if len(self.navPath)<linkLenConstraint:
-					raise InvalidPathOption("$links must not be the last path segment")
-				elif len(self.navPath)>linkLenConstraint:
-					raise InvalidPathOption("A navigation property preceded by $links must be the last path segment")
-			
+			if self.pathOption==PathOption.links and self.linksProperty is None:
+				raise InvalidPathOption("$links must not be the last path segment")
+		if self.pathOption:
+			if self.pathOption==PathOption.links:
+				self.ValidateSystemQueryOptions(7)
+			elif self.pathOption==PathOption.metadata:
+				self.ValidateSystemQueryOptions(8)
+			elif self.pathOption==PathOption.batch:
+				self.ValidateSystemQueryOptions(9)
+			elif self.pathOption==PathOption.count:
+				if self.navPath and self.navPath[-1][1]:
+					self.ValidateSystemQueryOptions(16)
+				else:	
+					self.ValidateSystemQueryOptions(15)
+
 	def ParseSystemQueryOption(self,paramName,paramValue):
 		"""Returns a tuple of :py:class:`SystemQueryOption` constant and
 		an appropriate representation of the value:
@@ -1689,12 +1793,18 @@ class ODataURI:
 		except ValueError, e:
 			raise InvalidSystemQueryOption("$%s : %s"%(paramName,str(e)))
 		return param,value	
+	
+	def ValidateSystemQueryOptions(self,uriNum):
+		rules=SupportedSystemQueryOptions[uriNum]
+		for p in self.sysQueryOptions:
+			if p not in rules:
+				raise InvalidSystemQueryOption('$%s cannot be used with this form of URI'%SystemQueryOption.EncodeValue(p))
 		
 	def SplitSegment(self,segment):
 		"""Splits a string segment into a unicode name and a keyPredicate dictionary."""
 		if segment.startswith('$'):
 			# some type of control word
-			return segment,{}
+			return segment,None
 		elif '(' in segment and segment[-1]==')':
 			name=uri.UnescapeData(segment[:segment.index('(')]).decode('utf-8')
 			keys=segment[segment.index('(')+1:-1]
@@ -1729,21 +1839,25 @@ class ODataURI:
 			raise KeyError("Missing service operation, or custom parameter: %s"%paramName)
 
 	def GetResource(self,ds=None):
+		noNavPath=False
 		resource=ds
 		for segment in self.navPath:
 			name,keyPredicate=segment
+			if noNavPath:
+				raise BadURISegment(name)
 			if isinstance(resource,edmx.DataServices):
 				try:
 					resource=resource.SearchContainers(name)
 				except KeyError,e:
 					raise MissingURISegment(str(e))						
 				if isinstance(resource,edm.FunctionImport):
-					# format is the only supported system query option
-					for option in self.sysQueryOptions:
-						if option!=SystemQueryOption.format:
-							raise InvalidSystemQueryOption('$%s cannot be used with service operations'%SystemQueryOption.EncodeValue(option))
 					# TODO: grab the params from the query string
 					resource=resource.Execute({})
+					#	If this does not identify a collection of entities it must be the last path segment
+					if not isinstance(resource,edm.EntityCollection):
+						noNavPath=True
+						# 10-14 have identical constraints, treat them the same
+						self.ValidateSystemQueryOptions(10)
 				elif isinstance(resource,edm.EntitySet):
 					resource=resource.OpenCollection()		
 				else:
@@ -1777,6 +1891,9 @@ class ODataURI:
 						resource=resource.OpenCollection()
 					else:
 						resource=resource.GetEntity()
+						if resource is None:
+							# See the resolution: https://tools.oasis-open.org/issues/browse/ODATA-412
+							raise MissingURISegment("%s, no entity is related"%name)					
 				elif isinstance(resource,EntityCollection):
 					if keyPredicate:
 						try:
@@ -1797,6 +1914,18 @@ class ODataURI:
 			else:
 				# Any other type is just a property or simple-type
 				raise BadURISegment(name)
+		if isinstance(resource,edm.EntityCollection):
+			self.ValidateSystemQueryOptions(1)	# includes 6 Note 2
+		elif isinstance(resource,edm.Entity):
+			if self.pathOption==PathOption.value:
+				self.ValidateSystemQueryOptions(17)	# media resource value
+			elif self.pathOption!=PathOption.links:	
+				self.ValidateSystemQueryOptions(2)	# includes 6 Note 1
+		elif isinstance(resource,edm.Complex):
+			self.ValidateSystemQueryOptions(3)
+		elif isinstance(resource,edm.SimpleValue):
+			# 4 & 5 are identical
+			self.ValidateSystemQueryOptions(4)		
 		return resource
 	
 	@classmethod
@@ -1870,7 +1999,7 @@ class Property(ODataElement):
 			try:
 				type=edm.SimpleType.DecodeLowerValue(type.lower())
 			except ValueError:
-				# assume unknown, probably complex 			
+				# assume unknown, probably complex		
 				type=None
 			return type
 		else:
@@ -2176,29 +2305,29 @@ class Entry(atom.Entry):
 			p.SetValue(value)
 			self._properties[key]=p
 
-# 	def GetLink(self,linkTitle):
-# 		"""Returns a tuple of (linkURI,inline)
-# 		
-# 		*	linkURI is the URI of the link
-# 		
-# 		*	inline is the inline representation of the link (or None)
-# 		
-# 		*inline* is either a Feed or Entry instance."""
-# 		warnings.warn("Entry.GetLink is deprecated due to lack of uniqueness", DeprecationWarning, stacklevel=3)
-# 		for l in self.Link:
-# 			if l.title==linkTitle:
-# 				# This is the link we are interested in
-# 				if l.Inline:
-# 					# we have an inline representation
-# 					if l.Inline.Feed:
-# 						return l.href,l.Inline.Feed
-# 					elif l.Inline.Entry:
-# 						return l.href,l.Inline.Entry
-# 					else:				
-# 						return l.href,None
-# 				else:
-# 					raise KeyError("Unexpanded link: %s"%linkTitle)	
-# 		raise KeyError("Missing link: %s"%linkTitle)
+#	def GetLink(self,linkTitle):
+#		"""Returns a tuple of (linkURI,inline)
+#		
+#		*	linkURI is the URI of the link
+#		
+#		*	inline is the inline representation of the link (or None)
+#		
+#		*inline* is either a Feed or Entry instance."""
+#		warnings.warn("Entry.GetLink is deprecated due to lack of uniqueness", DeprecationWarning, stacklevel=3)
+#		for l in self.Link:
+#			if l.title==linkTitle:
+#				# This is the link we are interested in
+#				if l.Inline:
+#					# we have an inline representation
+#					if l.Inline.Feed:
+#						return l.href,l.Inline.Feed
+#					elif l.Inline.Entry:
+#						return l.href,l.Inline.Entry
+#					else:				
+#						return l.href,None
+#				else:
+#					raise KeyError("Unexpanded link: %s"%linkTitle)	
+#		raise KeyError("Missing link: %s"%linkTitle)
 	
 	def ResolveTargetPath(self,targetPath,prefix,ns):
 		doc=self.GetDocument()
@@ -2422,15 +2551,15 @@ class Entity(edm.Entity):
 	"""We override Entity in order to provide some documented signatures
 	for sets of media-stream entities."""
 	
-# 	def CreateProperty(self,p):
-# 		"""Overridden to add handling of media type annotations on simple values"""
-# 		value=p()
-# 		try:
-# 			if isinstance(value,edm.SimpleValue):
-# 				value.mType=http.MediaType(p.GetAttribute(MimeType))
-# 		except KeyError:
-# 			pass
-# 		self.data[p.name]=value
+#	def CreateProperty(self,p):
+#		"""Overridden to add handling of media type annotations on simple values"""
+#		value=p()
+#		try:
+#			if isinstance(value,edm.SimpleValue):
+#				value.mType=http.MediaType(p.GetAttribute(MimeType))
+#		except KeyError:
+#			pass
+#		self.data[p.name]=value
 
 	def GetLocation(self):
 		return str(self.entitySet.GetLocation())+uri.EscapeData(ODataURI.FormatEntityKey(self))
@@ -2440,15 +2569,23 @@ class Entity(edm.Entity):
 		
 		Must return a :py:class:`pyslet.rfc2616.MediaType` instance."""
 		raise NotImplementedError
-	
-	def GetStreamSize(self,entity):
+			
+	def GetStreamSize(self):
 		"""Returns the size of the entity's media stream in bytes."""
 		raise NotImplementedError
 		
-	def GetStreamGenerator(self,entity):
+	def GetStreamGenerator(self):
 		"""A generator function that yields blocks (strings) of data from the entity's media stream."""
 		raise NotImplementedError
-	
+
+	def SetStreamFromGenerator(self,streamType,src):
+		"""Replaces the contents of this stream with the strings output
+		by iterating over src.
+
+		*streamType* must be a :py:class:`pyslet.rfc2616.MediaType`
+		instance."""
+		raise NotImplementedError
+				
 	def SetFromJSONObject(self,obj,entityResolver=None):
 		"""Sets the value of this entity from a dictionary parsed from a
 		JSON representation."""
@@ -2489,7 +2626,7 @@ class Entity(edm.Entity):
 								else:
 									raise InvalidData("Resource is not a valid target for %s: %s"%(navProperty,str(href))) 
 							else:
-								raise InvalidData("No context to resolve entity URI: %s"%str(link)) 							
+								raise InvalidData("No context to resolve entity URI: %s"%str(link))						
 						else:
 							# full inline representation is expected for deep insert
 							targetEntity=collection.NewEntity()
@@ -2503,14 +2640,14 @@ class Entity(edm.Entity):
 		yield '"uri":%s'%json.dumps(location)
 		yield ',"type":%s'%json.dumps(self.entitySet.entityType.GetFQName())
 		etag=self.ETag()
-		if etag is not None:
+		if etag:
 			s="" if self.ETagIsStrong() else "W/"
 			yield ',"etag":%s'%json.dumps(s+http.QuoteString(ODataURI.FormatLiteral(etag)))
 		if mediaLinkResource:
 			yield ',"media_src":%s'%json.dumps(location+"/$value")
 			yield ',"content_type":%s'%json.dumps(str(self.GetStreamType()))
 			yield ',"edit_media":%s'%json.dumps(location+"/$value")
-			if etag is not None:
+			if etag:
 				s="" if self.ETagIsStrong() else "W/"
 				yield ',"media_etag":%s'%json.dumps(s+http.QuoteString(ODataURI.FormatLiteral(etag)))			
 		yield '}'
@@ -2681,9 +2818,13 @@ def JSONToSimpleValue(v,jsonValue):
 class EntityCollectionMixin(object):
 	"""A mix-in for EntityCollections to provide OData-specific options."""
 
-	def NewEntity(self):
+	def NewEntity(self,autoKey=False):
 		"""Returns an OData aware instance"""
 		return Entity(self.entitySet)	
+	
+	def IsMediaLinkEntryCollection(self):
+		"""Returns True if this is a collection of Media-Link Entries"""
+		return self.entitySet.entityType.HasStream()
 		
 	def CheckFilter(self,entity):
 		"""Checks *entity* against any filter and returns True if it passes.
@@ -2759,7 +2900,7 @@ class EntityCollectionMixin(object):
 					"?$skiptoken=%s"%uri.EscapeData(skiptoken,uri.IsQueryReserved))
 			else:
 				yield ']}'		
-		 		
+			
 class EntityCollection(EntityCollectionMixin,edm.EntityCollection):
 	"""We override EntityCollection in order to provide OData-specific options."""
 
@@ -3273,6 +3414,8 @@ class Server(app.Server):
 				return self.HandleRequest(request,environ,start_response,responseHeaders)
 		except InvalidSystemQueryOption,e:
 			return self.ODataError(ODataURI('error'),environ,start_response,"InvalidSystemQueryOption","Invalid System Query Option: %s"%str(e))
+		except InvalidPathOption,e:
+			return self.ODataError(ODataURI('error'),environ,start_response,"Bad Request","Path option is invalid or incompatible with this form of URI: %s"%str(e),400)			
 		except ValueError,e:
 			traceback.print_exception(*sys.exc_info())
 			# This is a bad request
@@ -3323,7 +3466,7 @@ class Server(app.Server):
 		else:
 			ds=None
 		return request.GetResource(ds)
-		 
+	
 	def HandleRequest(self,request,environ,start_response,responseHeaders):
 		"""Handles a request that has been identified as being an OData request.
 		
@@ -3336,70 +3479,54 @@ class Server(app.Server):
 		try:
 			resource=request.GetResource(resource)
 			if request.pathOption==PathOption.metadata:
-				if request.sysQueryOptions:
-					raise InvalidSystemQueryOption('$metadata document must not have sytem query options')				
 				return self.ReturnMetadata(request,environ,start_response,responseHeaders)
 			elif request.pathOption==PathOption.batch:
-				if request.sysQueryOptions:
-					raise InvalidSystemQueryOption('$batch must not have sytem query options')
 				return self.ODataError(request,environ,start_response,"Bad Request","Batch requests not supported",404)
 			elif request.pathOption==PathOption.count:
-				for option in [
-					SystemQueryOption.format,
-					SystemQueryOption.skiptoken,
-					SystemQueryOption.inlinecount,
-					SystemQueryOption.select ]:
-					if option in request.sysQueryOptions:
-						raise InvalidSystemQueryOption('$%s cannot be used with $count'%SystemQueryOption.EncodeValue(option))
 				if isinstance(resource,edm.Entity):
-					for option in [
-						SystemQueryOption.orderby,
-						SystemQueryOption.skip,
-						SystemQueryOption.top ]:
-						if option in request.sysQueryOptions:
-							raise InvalidSystemQueryOption('$%s cannot be used with $count of single Entity'%SystemQueryOption.EncodeValue(option))
 					return self.ReturnCount(1,request,environ,start_response,responseHeaders)
 				elif isinstance(resource,edm.EntityCollection):
 					return self.ReturnCount(len(resource),request,environ,start_response,responseHeaders)
 				else:
 					raise BadURISegment("$count must be applied to an EntitySet or single EntityType instance")
 			elif request.pathOption==PathOption.links:
-				for option in [
-					SystemQueryOption.expand,
-					SystemQueryOption.filter,
-					SystemQueryOption.orderby,
-					SystemQueryOption.select ]:
-					if option in request.sysQueryOptions:
-						raise InvalidSystemQueryOption('$%s not allowed with $links'%SystemQueryOption.EncodeValue(option))
-				if isinstance(resource,edm.Entity):
-					return self.ReturnLink(resource,request,environ,start_response,responseHeaders)
-				elif isinstance(resource,edm.EntityCollection):
-					resource.Skip(request.sysQueryOptions.get(SystemQueryOption.skip,None))
-					resource.Top(request.sysQueryOptions.get(SystemQueryOption.top,None))
-					resource.SkipToken(request.sysQueryOptions.get(SystemQueryOption.skiptoken,None))
-					inlineCount=request.sysQueryOptions.get(SystemQueryOption.inlinecount,None)
-					resource.SetInlineCount(inlineCount==InlineCount.allpages)
-					return self.ReturnLinks(resource,request,environ,start_response,responseHeaders)
+				# resource will be the source entity, request.linksProperty is the navigation property
+				if not isinstance(resource,Entity):
+					raise BadURISegment("$links must be preceded by a single EntityType instance")
+				if method=="GET":
+					# open the collection and select the key properties only
+					with resource[request.linksProperty].OpenCollection() as collection:
+						collection.SelectKeys()
+						if resource.IsEntityCollection(request.linksProperty):
+							collection.Skip(request.sysQueryOptions.get(SystemQueryOption.skip,None))
+							collection.Top(request.sysQueryOptions.get(SystemQueryOption.top,None))
+							collection.SkipToken(request.sysQueryOptions.get(SystemQueryOption.skiptoken,None))
+							inlineCount=request.sysQueryOptions.get(SystemQueryOption.inlinecount,None)
+							collection.SetInlineCount(inlineCount==InlineCount.allpages)
+							return self.ReturnLinks(collection,request,environ,start_response,responseHeaders)
+						else:
+							# should have just a single link
+							entities=collection.values()
+							if len(entities)==0:
+								raise MissingURISegment("%s, no entity is related"%request.linksProperty)
+							elif len(entities)==1:
+								return self.ReturnLink(entities[0],request,environ,start_response,responseHeaders)						
+							else:
+								raise NavigationError("Navigation property %s of %s is not a collection but it yielded multiple entities"%(name,self.fromEntity.entitySet.GetLocation()))
+				elif method=="POST":
+					targetEntity=self.ReadEntityFromLink(environ)
+					with resource[request.linksProperty].OpenCollection() as collection:
+						collection[targetEntity.Key()]=targetEntity
+					return self.ReturnEmpty(start_response,responseHeaders)
 				else:
-					raise BadURISegment("$links requires a collection or a single EntityType instance")																	
+					raise InvalidMethod("%s not supported here"%method)
 			elif isinstance(resource,edm.Entity):
 				if request.pathOption==PathOption.value:
 					if resource.typeDef.HasStream():
-						for option in request.sysQueryOptions:
-							if option!=SystemQueryOption.format:
-								raise InvalidSystemQueryOption('$%s cannot be used with media resource links'%SystemQueryOption.EncodeValue(option))							
 						return self.ReturnStream(resource,request,environ,start_response,responseHeaders)								
 					else:
 						raise BadURISegment("$value cannot be used since the entity is not a media stream")				
 				else:
-					for option in [
-						SystemQueryOption.orderby,
-						SystemQueryOption.skip,
-						SystemQueryOption.top,
-						SystemQueryOption.skiptoken,
-						SystemQueryOption.inlinecount ]:
-						if option in request.sysQueryOptions:
-							raise InvalidSystemQueryOption('$'+SystemQueryOption.EncodeValue(option))					
 					self.ExpandResource(resource,request.sysQueryOptions)
 					return self.ReturnEntity(resource,request,environ,start_response,responseHeaders)
 			elif isinstance(resource,edm.EntityCollection):
@@ -3413,8 +3540,32 @@ class Server(app.Server):
 					inlineCount=request.sysQueryOptions.get(SystemQueryOption.inlinecount,None)
 					resource.SetInlineCount(inlineCount==InlineCount.allpages)
 					return self.ReturnEntityCollection(resource,request,environ,start_response,responseHeaders)
+				elif method=="POST" and resource.IsMediaLinkEntryCollection():
+					# POST of a media resource
+					entity=resource.NewEntity()
+					if "HTTP_SLUG" in environ:
+						slug=environ["HTTP_SLUG"]
+						for k,v in entity.DataItems():
+							# catch property-level feed customisation here
+							propertyDef=entity.typeDef[k]
+							if propertyDef.GetTargetPath()==[(atom.ATOM_NAMESPACE,"title")]:
+								entity[k].SetFromPyValue(slug)
+								break					
+					resource.InsertEntity(entity)
+					if "CONTENT_TYPE" in environ:
+						resourceType=http.MediaType(environ["CONTENT_TYPE"])
+					else:
+						resourceType=http.MediaType('application/octet-stream')
+					input=app.InputWrapper(environ)
+					entity.SetStreamFromGenerator(resourceType,input.iterblocks())
+					responseHeaders.append(('Location',str(entity.GetLocation())))
+					etag=entity.ETag()
+					if etag:
+						s="" if entity.ETagIsStrong() else "W/"
+						responseHeaders.append(('ETag',s+http.QuoteString(ODataURI.FormatLiteral(etag))))
+					return self.ReturnEntity(entity,request,environ,start_response,responseHeaders,201,"Created")
 				elif method=="POST":
-					# POST to an entity collection
+					# POST to an ordinary entity collection
 					entity=resource.NewEntity()
 					# read the entity from the request
 					self.ReadEntity(entity,environ)
@@ -3424,18 +3575,6 @@ class Server(app.Server):
 				else:
 					raise InvalidMethod("%s not supported here"%method)					
 			elif isinstance(resource,edm.EDMValue):
-				for option in [
-					SystemQueryOption.expand,
-					SystemQueryOption.select,
-					SystemQueryOption.orderby,
-					SystemQueryOption.skip,
-					SystemQueryOption.top,
-					SystemQueryOption.skiptoken,
-					SystemQueryOption.inlinecount ]:
-					if option in request.sysQueryOptions:
-						raise InvalidSystemQueryOption('$'+SystemQueryOption.EncodeValue(option))
-				if isinstance(resource,edm.SimpleValue) and SystemQueryOption.filter in request.sysQueryOptions:
-					raise InvalidSystemQueryOption("$filter")		
 				if request.pathOption==PathOption.value:
 					return self.ReturnDereferencedValue(resource,request,environ,start_response,responseHeaders)
 				else:
@@ -3454,10 +3593,8 @@ class Server(app.Server):
 					# super essentially allows us to pass a bound method of our parent
 					# that we ourselves are hiding.
 					return wrapper.call(super(Server,self).__call__)
-		except InvalidSystemQueryOption,e:
-			return self.ODataError(request,environ,start_response,"Bad Request","System query option is invalid or incompatible with this form of URI: %s"%str(e),400)
 		except MissingURISegment,e:
-			return self.ODataError(request,environ,start_response,"Bad Request","Resource not found for segment %s"%str(e),404)
+			return self.ODataError(request,environ,start_response,"Resource not found","Resource not found for segment %s"%str(e),404)
 		except BadURISegment,e:
 			return self.ODataError(request,environ,start_response,"Bad Request","Resource not found for segment %s"%str(e),400)
 	
@@ -3475,7 +3612,7 @@ class Server(app.Server):
 			raise InvalidSystemQueryOption("$select/$expand error: %s"%str(e))					
 		
 	def ReturnJSONRoot(self,request,environ,start_response,responseHeaders):
-		data=json.dumps({'EntitySets':map(lambda x:x.href,self.ws.Collection)})
+		data='{"d":%s}'%json.dumps({'EntitySets':map(lambda x:x.href,self.ws.Collection)})
 		responseHeaders.append(("Content-Type","application/json"))
 		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
@@ -3497,7 +3634,7 @@ class Server(app.Server):
 		if responseType is None:
 			return self.ODataError(request,environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
 		if responseType=="application/json":
-			data=string.join(entities.GenerateLinkCollJSON(request.version),'')
+			data='{"d":%s}'%string.join(entities.GenerateLinkCollJSON(request.version),'')
 		else:
 			doc=Document(root=Links)
 			for e in entities.itervalues():
@@ -3509,14 +3646,29 @@ class Server(app.Server):
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 		
+	def ReadEntityFromLink(self,environ):
+		input=self.ReadXMLOrJSON(environ)
+		if isinstance(input,Document):
+			if isinstance(input.root,URI):
+				return self.GetResourceFromURI(uri.URIFactory.URI(input.root.GetValue()))
+			else:
+				raise InvalidData("Unable to parse link from request body (found <%s>)"%doc.root.xmlname)
+		else:
+			# must be a json object
+			try:
+				return self.GetResourceFromURI(uri.URIFactory.URI(input['uri']))
+			except KeyError:
+				raise InvalidData("Unable to parse link from JSON request body (found %s )"%str(input)[:256])
+		
 	def ReturnLink(self,entity,request,environ,start_response,responseHeaders):
 		doc=Document(root=URI)
-		doc.root.SetValue(str(self.serviceRoot)+"%s(%s)"%(entity.entitySet.name,repr(entity.Key())))
+		# doc.root.SetValue(str(self.serviceRoot)+"%s(%s)"%(entity.entitySet.name,repr(entity.Key())))
+		doc.root.SetValue(str(entity.GetLocation()))
 		responseType=self.ContentNegotiation(request,environ,self.ValueTypes)
 		if responseType is None:
 			return self.ODataError(request,environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
 		if responseType=="application/json":
-			data=json.dumps(doc.root,cls=ODataJSONEncoder)
+			data='{"d":%s}'%json.dumps(doc.root,cls=ODataJSONEncoder)
 		else:
 			data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
@@ -3530,7 +3682,7 @@ class Server(app.Server):
 		if responseType is None:
 			return self.ODataError(request,environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
 		if responseType=="application/json":
-			data=string.join(entities.GenerateEntitySetInJSON(request.version),'')
+			data='{"d":%s}'%string.join(entities.GenerateEntitySetInJSON(request.version),'')
 		else:
 			# Here's a challenge, we want to pull data through the feed by yielding strings
 			# just load in to memory at the moment
@@ -3556,7 +3708,7 @@ class Server(app.Server):
 					break
 			if atomFlag is None:
 				for r in self.JSONRanges:
-					if r.MatchMediaTypes(requestType):
+					if r.MatchMediaType(requestType):
 						atomFlag=False
 						break
 			encoding=requestType.parameters.get('charset',(None,None))[0]
@@ -3620,7 +3772,7 @@ class Server(app.Server):
 		# Here's a challenge, we want to pull data through the feed by yielding strings
 		# just load in to memory at the moment
 		if responseType=="application/json":
-			data=string.join(entity.GenerateEntityTypeInJSON(),'')
+			data='{"d":%s}'%string.join(entity.GenerateEntityTypeInJSON(),'')
 		else:
 			doc=Document(root=Entry)
 			e=doc.root
@@ -3653,7 +3805,7 @@ class Server(app.Server):
 		if responseType is None:
 			return self.ODataError(request,environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
 		if responseType=="application/json":
-			data=json.dumps(e,cls=ODataJSONEncoder)
+			data='{"d":%s}'%json.dumps(e,cls=ODataJSONEncoder)
 		else:
 			data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
@@ -3679,7 +3831,7 @@ class Server(app.Server):
 		if responseType is None:
 			return self.ODataError(request,environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
 		if responseType=="application/json":
-			data=string.join(collection.GenerateCollectionInJSON(request.version))
+			data='{"d":%s}'%string.join(collection.GenerateCollectionInJSON(request.version))
 		else:
 			e=Collection(None)
 			e.SetXMLName((ODATA_METADATA_NAMESPACE,collection.name))
@@ -3705,6 +3857,12 @@ class Server(app.Server):
 		start_response("%i %s"%(200,"Success"),responseHeaders)
 		return [data]
 				
+	def ReturnEmpty(self,start_response,responseHeaders,status=204,statusMsg="No content"):
+		"""Returns no content."""
+		responseHeaders.append(("Content-Length","0"))
+		start_response("%i %s"%(status,statusMsg),responseHeaders)
+		return []
+				
 	def ContentNegotiation(self,request,environ,mTypeList):
 		"""Given a list of media types, examines the Accept header and returns the best match.
 		
@@ -3713,9 +3871,9 @@ class Server(app.Server):
 		from the $format parameter."""
 		aList=request.sysQueryOptions.get(SystemQueryOption.format,None)
 		if aList is None:
-			if "HTTP_Accept" in environ:
+			if "HTTP_ACCEPT" in environ:
 				try:
-					aList=http.AcceptList(environ["HTTP_Accept"])
+					aList=http.AcceptList(environ["HTTP_ACCEPT"])
 				except http.HTTPParameterError:
 					# we'll treat this as a missing Accept header
 					aList=self.DefaultAcceptList
@@ -3734,13 +3892,13 @@ class Server(app.Server):
 		In the event of a protocol version mismatch a "400 DataServiceVersion
 		mismatch" error response is generated."""
 		ua=sa=None
-		if "HTTP_DataServiceVersion" in environ:
-			major,minor,ua=ParseDataServiceVersion(environ["HTTP_DataServiceVersion"])
+		if "HTTP_DATASERVICEVERSION" in environ:
+			major,minor,ua=ParseDataServiceVersion(environ["HTTP_DATASERVICEVERSION"])
 		else:
 			major=2
 			minor=0
-		if "HTTP_MaxDataServiceVersion" in environ:
-			maxMajor,maxMinor,sa=ParseMaxDataServiceVersion(environ["HTTP_MaxDataServiceVersion"])
+		if "HTTP_MAXDATASERVICEVERSION" in environ:
+			maxMajor,maxMinor,sa=ParseMaxDataServiceVersion(environ["HTTP_MAXDATASERVICEVERSION"])
 		else:
 			maxMajor=major
 			maxMinor=minor

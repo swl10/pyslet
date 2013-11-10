@@ -410,7 +410,7 @@ class ODataURILiteralTests(unittest.TestCase):
 			"datetime'2012-06-30T23:59",
 			"datetime2012-06-30T23:59'",
 			"2012-06-30T23:59"
-			 ]:
+			]:
 			try:
 				v=ParseURILiteral(bad)
 				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,repr(v.pyValue),edm.SimpleType.EncodeValue(v.typeCode)))
@@ -616,7 +616,7 @@ class ODataURILiteralTests(unittest.TestCase):
 		self.assertTrue(v.typeCode==edm.SimpleType.Int64,"19-digit neg type: %s"%repr(v.typeCode))
 		self.assertTrue(v.pyValue==-1234567890123456789L,"19-digit neg value: %s"%repr(v.pyValue))
 		for bad in [ "12345678901234567890L", "01234567890123456789l",
-			 "+1l", "+0L" ]:
+			"+1l", "+0L" ]:
 			try:
 				v=ParseURILiteral(bad)
 				self.fail("Bad parse: %s"%bad)
@@ -2387,12 +2387,12 @@ class ServerTests(unittest.TestCase):
 		request.Send(s)
 		self.assertTrue(request.responseCode==400,"Version mismatch error response")
 		self.assertTrue(request.responseHeaders['Content-Type']=="application/json","Expected JSON response")
-		doc=json.loads(request.wfile.getvalue())
-		self.assertTrue(len(doc)==1,"Expected a single error object")
-		self.assertTrue(len(doc['error'])==2,"Expected two children")
-		self.assertTrue(doc['error']['code']=="DataServiceVersionMismatch","Error code")
-		self.assertTrue(doc['error']['message']=="Maximum supported protocol version: 2.0","Error message")
-		self.assertFalse('innererror' in doc['error'],"No inner error")				
+		errorDoc=json.loads(request.wfile.getvalue())
+		self.assertTrue(len(errorDoc)==1,"Expected a single error object")
+		self.assertTrue(len(errorDoc['error'])==2,"Expected two children")
+		self.assertTrue(errorDoc['error']['code']=="DataServiceVersionMismatch","Error code")
+		self.assertTrue(errorDoc['error']['message']=="Maximum supported protocol version: 2.0","Error message")
+		self.assertFalse('innererror' in errorDoc['error'],"No inner error")				
 		request=MockRequest('/')
 		request.SetHeader('DataServiceVersion',"1.0; old request")
 		request.SetHeader('MaxDataServiceVersion',"1.0; old max")
@@ -3230,7 +3230,7 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(value.typeCode==edm.SimpleType.String,"Expected string")
 		self.assertTrue(value.pyValue=='Chunton',"Expected 'Chunton'")		
 		# TODO: a two step navigation, sample data doesn't have one yet
-		# 	navigation / navigation 
+		#	navigation / navigation 
 		# Simple Property (NULL)
 		p=Parser("Customer/Version")
 		e=p.ParseCommonExpression()
@@ -3306,6 +3306,8 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(request.responseCode==200,"Service root response: %i"%request.responseCode)		
 		self.assertTrue(request.responseHeaders['Content-Type']=='application/json',"Expected application/json")
 		obj=json.loads(request.wfile.getvalue())
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]		
 		self.assertTrue("EntitySets" in obj)
 		self.assertTrue(type(obj["EntitySets"])==ListType)
 		self.assertTrue(len(obj["EntitySets"])==7)
@@ -3590,15 +3592,15 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(isinstance(doc.root,atom.Feed),"Expected atom.Feed from navigation property Orders")
 		self.assertTrue(len(doc.root.Entry)==2,"Sample customer has 2 orders")
 		# TODO: navigation property pointing to a single Entity (Note 1)
-# 		baseURI="/service.svc/Customers('ALFKI')/Orders?$expand=Orders&$filter=substringof(CompanyName,%20'bikes')&$format=xml&$select=CustomerID,CompanyName,Orders"
-# 		request=MockRequest(baseURI)
-# 		request.Send(self.svc)
-# 		self.assertTrue(request.responseCode==200)
-# 		for x in ["$orderby=CompanyName%20asc",
-# 			"$skip=3","$top=2","$skiptoken='Contoso','AKFNU'","$inlinecount=allpages"]:
-# 			request=MockRequest(baseURI+"&"+x)
-# 			request.Send(self.svc)
-# 			self.assertTrue(request.responseCode==400,"UR6 with %s"%x)
+#		baseURI="/service.svc/Customers('ALFKI')/Orders?$expand=Orders&$filter=substringof(CompanyName,%20'bikes')&$format=xml&$select=CustomerID,CompanyName,Orders"
+#		request=MockRequest(baseURI)
+#		request.Send(self.svc)
+#		self.assertTrue(request.responseCode==200)
+#		for x in ["$orderby=CompanyName%20asc",
+#			"$skip=3","$top=2","$skiptoken='Contoso','AKFNU'","$inlinecount=allpages"]:
+#			request=MockRequest(baseURI+"&"+x)
+#			request.Send(self.svc)
+#			self.assertTrue(request.responseCode==400,"UR6 with %s"%x)
 		# all system query options are valid when the navigation property identifies a set of entities (Note 2)
 		request=MockRequest("/service.svc/Customers?$expand=Orders&$filter=substringof(CompanyName,%20'bikes')&$orderby=CompanyName%20asc&$top=2&$skip=3&$skiptoken='Contoso','AKFNU'&$inlinecount=allpages&$select=CustomerID,CompanyName,Orders&$format=xml")
 		request.Send(self.svc)
@@ -3624,6 +3626,8 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseHeaders['Content-Type']=="application/json")
 		obj=json.loads(request.wfile.getvalue())
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]		
 		self.assertTrue(type(obj)==DictType,"Version 2 JSON response is object")
 		self.assertTrue("__count" in obj and obj["__count"]==2,"Version 2 JSON supports $inlinecount")
 		self.assertTrue("results" in obj,"Version 2 JSON response has 'results'")
@@ -3638,6 +3642,8 @@ class SampleServerTests(unittest.TestCase):
 		request.SetHeader('MaxDataServiceVersion',"1.0; old max")
 		request.Send(self.svc)
 		obj=json.loads(request.wfile.getvalue())
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]		
 		self.assertTrue(type(obj)==ListType,"Version 1 JSON response is array")
 		self.assertTrue(len(obj)==2,"2 links in response")
 		# end of json tests
@@ -3784,6 +3790,8 @@ class SampleServerTests(unittest.TestCase):
 		#	check json output
 		self.assertTrue(request.responseHeaders['Content-Type']=="application/json")
 		obj=json.loads(request.wfile.getvalue())
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]		
 		#	should be version 2 output
 		self.assertTrue("results" in obj,"Expected version 2 JSON output")
 		i=0
@@ -3805,6 +3813,8 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['Content-Type']=="application/json")
 		obj=json.loads(request.wfile.getvalue())
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]		
 		self.assertTrue(type(obj)==ListType,"Expected version 1 JSON output")
 		self.assertTrue(len(obj)==i,"Expected same number of results")
 		#	End of JSON tests
@@ -3877,6 +3887,8 @@ class SampleServerTests(unittest.TestCase):
 		#	check json version 2 ouptput
 		self.assertTrue(request.responseHeaders['Content-Type']=="application/json")
 		obj=json.loads(request.wfile.getvalue())
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]		
 		#	should be version 2 output
 		self.assertTrue("results" in obj,"Expected version 2 JSON output")
 		i=0
@@ -3893,6 +3905,8 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['Content-Type']=="application/json")
 		obj=json.loads(request.wfile.getvalue())
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]		
 		self.assertTrue(type(obj)==ListType,"Expected version 1 JSON output")
 		self.assertTrue(len(obj)==i,"Expected same number of results")
 		#	End of JSON tests
@@ -4087,6 +4101,8 @@ class SampleServerTests(unittest.TestCase):
 		request.SetHeader('Accept',"application/json")
 		request.Send(self.svc)
 		obj=json.loads(request.wfile.getvalue())
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]		
 		#	A NavigationProperty which is serialized inline MUST be
 		#	represented as a name/value pair ...with the name equal to
 		#	the NavigationProperty name.... If the NavigationProperty
@@ -4118,6 +4134,8 @@ class SampleServerTests(unittest.TestCase):
 		request.SetHeader('Accept',"application/json")
 		request.Send(self.svc)
 		obj=json.loads(request.wfile.getvalue())
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]		
 		#	If the NavigationProperty identifies a single EntityType
 		#	instance, the value MUST be a JSON object representation of
 		#	that EntityType instance, as specified in Entity Type (as a
@@ -4147,6 +4165,8 @@ class SampleServerTests(unittest.TestCase):
 		request.SetHeader('Accept',"application/json")
 		request.Send(self.svc)
 		obj=json.loads(request.wfile.getvalue())
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]		
 		customer=obj["Customer"]
 		self.assertTrue(customer is None,"null json response")
 		# test a property we can't expand!
@@ -4194,8 +4214,10 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['Content-Type']=="application/json")
-		doc=json.loads(request.wfile.getvalue())
-		self.assertTrue("OrderID" in doc,"Expected a single entry object")
+		obj=json.loads(request.wfile.getvalue())
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]		
+		self.assertTrue("OrderID" in obj,"Expected a single entry object")
 		# self.assertTrue(len(doc['error'])==2,"Expected two children")
 		# self.assertTrue(doc['error']['code']=="DataServiceVersionMismatch","Error code")
 		# self.assertTrue(doc['error']['message']=="Maximum supported protocol version: 2.0","Error message")		
@@ -4592,6 +4614,8 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(request.responseHeaders['Location']=="http://host/service.svc/Customers('STEVE')")
 		self.assertTrue(request.responseHeaders['Content-Type']==http.MediaType('application/json'))
 		obj=json.loads(request.wfile.getvalue())		
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]		
 		self.assertTrue(type(obj)==DictType,"Expected a single JSON object, found %s"%repr(type(obj)))
 		newCustomer=Entity(self.ds['SampleModel.SampleEntities.Customers'])
 		newCustomer.exists=True
@@ -4617,6 +4641,8 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==201)
 		obj=json.loads(request.wfile.getvalue())
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]		
 		newCustomer=Entity(self.ds['SampleModel.SampleEntities.Customers'])
 		newCustomer.exists=True
 		newCustomer.SetFromJSONObject(obj)
@@ -4627,6 +4653,8 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		obj=json.loads(request.wfile.getvalue())
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]		
 		self.assertTrue(type(obj['results'])==ListType,"Expected JSON array from navigation property Orders")
 		self.assertTrue(len(obj['results'])==2,"Inserted customer has 2 orders")
 		orderKeys=set()
@@ -4638,6 +4666,95 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(3 in orderKeys,"New entity bound to order 3")
 		self.assertTrue(4 in orderKeys,"New entity bound to order 4")
 
+	def testCaseInsertLink(self):
+		request=MockRequest("/service.svc/Customers('ALFKI')/$links/Orders","POST")
+		doc=Document(root=URI)
+		orders=self.ds['SampleModel.SampleEntities.Orders'].OpenCollection()
+		order=orders[3]
+		doc.root.SetValue(str(order.GetLocation()))
+		data=str(doc)
+		request.SetHeader('Content-Type','application/xml')
+		request.SetHeader('Content-Length',str(len(data)))
+		request.rfile.write(data)
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(len(request.wfile.getvalue())==0,"empty response body expected")
+		request=MockRequest("/service.svc/Customers('ALFKI')/Orders")
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		doc=Document()
+		doc.Read(request.wfile.getvalue())
+		self.assertTrue(len(doc.root.Entry)==3,"Customer now has 3 orders")
+		orderKeys=set()
+		for entry in doc.root.Entry:
+			order=Entity(self.ds['SampleModel.SampleEntities.Orders'])
+			order.exists=True
+			entry.GetValue(order)
+			orderKeys.add(order['OrderID'].pyValue)
+		self.assertTrue(3 in orderKeys,"Customer now bound to order 3")
+
+	def testCaseInsertLinkJSON(self):
+		request=MockRequest("/service.svc/Customers('ALFKI')/$links/Orders","POST")
+		orders=self.ds['SampleModel.SampleEntities.Orders'].OpenCollection()
+		order=orders[3]
+		obj={'uri':str(order.GetLocation())}
+		data=json.dumps(obj)
+		request.SetHeader('Content-Type','application/json')
+		request.SetHeader('Content-Length',str(len(data)))
+		request.rfile.write(data)
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(len(request.wfile.getvalue())==0,"empty response body expected")
+		# let's just test the links themselves
+		request=MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
+		request.SetHeader('Accept','application/json')
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		obj=json.loads(request.wfile.getvalue())
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]
+		self.assertTrue(len(obj['results'])==3,"Customer now has 3 orders")
+		orderKeys=set()
+		for entry in obj['results']:
+			orderKeys.add(entry['uri'])
+		self.assertTrue('http://host/service.svc/Orders(3)' in orderKeys,"Customer now bound to order 3")
+		
+	def testCaseInsertMediaResource(self):
+		data="Well, Prince, so Genoa and Lucca are now just family estates of the Buonapartes"
+		h=hashlib.sha256()
+		h.update(data)
+		request=MockRequest("/service.svc/Documents","POST")
+		request.SetHeader('Content-Type',"text/x-tolstoy")
+		request.SetHeader('Content-Length',str(len(data)))
+		request.SetHeader('Slug','War and Peace')
+		request.rfile.write(data)
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==201)
+		# We expect a location header
+		location=request.responseHeaders['Location']
+		self.assertTrue(location.startswith(u"http://host/service.svc/Documents("))
+		self.assertTrue(location[len(u"http://host/service.svc/Documents("):-1].isdigit(),"document Id is an integer")
+		self.assertTrue(request.responseHeaders['Content-Type']==http.MediaType(ODATA_RELATED_ENTRY_TYPE))
+		# Document has a concurrency token so we expect an ETag too
+		self.assertTrue("ETag" in request.responseHeaders)
+		self.assertTrue(request.responseHeaders['ETag']=="W/\"X'%s'\""%h.hexdigest().upper(),"ETag value")
+		doc=Document()
+		doc.Read(request.wfile.getvalue())
+		self.assertTrue(isinstance(doc.root,Entry),"Expected a single Entry, found %s"%doc.root.__class__.__name__)
+		newDocument=Entity(self.ds['SampleModel.SampleEntities.Documents'])
+		newDocument.exists=True
+		doc.root.GetValue(newDocument)
+		# version should match the etag
+		self.assertTrue(newDocument['Version'].pyValue==h.digest(),'Version calculation')
+		self.assertTrue(newDocument['Title'].pyValue==u"War and Peace","Slug mapped to syndication title") 
+		self.assertFalse(newDocument['Author'].pyValue,"Empty string is a pass - we are reading from Atom")
+		docID=newDocument['DocumentID'].pyValue
+		request=MockRequest("/service.svc/Documents(%i)/$value"%docID)
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		self.assertTrue(request.responseHeaders['Content-Type']=="text/x-tolstoy")
+		self.assertTrue(request.wfile.getvalue()==data)
+		
 		
 if __name__ == "__main__":
 	VERBOSE=True

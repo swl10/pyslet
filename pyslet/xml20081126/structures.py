@@ -104,11 +104,11 @@ def EscapeCharData7(src,quote=False):
 	dst=[]
 	if quote:
 		if "'" in src:
-			q='"';qStr='&#x22'
+			q='"';qStr='&#x22;'
 		elif '"' in src:
-			q="'";qStr='&#x27'
+			q="'";qStr='&#x27;'
 		else:
-			q='"';qStr='&#x22'
+			q='"';qStr='&#x22;'
 		dst.append(q)
 	else:
 		q=None;qStr=''
