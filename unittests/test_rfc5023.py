@@ -312,11 +312,13 @@ class MockRequest(object):
 			self.responseCode=0
 		statusLine.ParseSP()
 		self.responseMessage=statusLine.ParseRemainder()
+		self.responseHeaders={}
 		for r in response_headers:
-			if r[0] in self.responseHeaders:
-				self.responseHeaders[r[0]]=self.responseHeaders[r[0]]+", "+r[1]
+			hName=r[0].upper()
+			if hName in self.responseHeaders:
+				self.responseHeaders[hName]=self.responseHeaders[hName]+", "+r[1]
 			else:
-				self.responseHeaders[r[0]]=r[1]
+				self.responseHeaders[hName]=r[1]
 		self.wfile=StringIO.StringIO()
 	
 	def SetHeader(self,header,value):
@@ -345,7 +347,7 @@ class ServerTests(unittest.TestCase):
 		request=MockRequest('/service')
 		request.Send(s)
 		self.assertTrue(request.responseCode==200)
-		cLen=int(request.responseHeaders['Content-Length'])
+		cLen=int(request.responseHeaders['CONTENT-LENGTH'])
 		cData=request.wfile.getvalue()
 		self.assertTrue(len(cData)==cLen,"Content-Length mismatch")
 		doc=Document(baseURI="http://localhost/service")

@@ -2655,12 +2655,10 @@ class Entity(edm.Entity):
 			# watch out for unselected properties
 			if self.Selected(k):
 				yield ','
-				yield json.dumps(k)
-				yield ':'
 				if isinstance(v,edm.SimpleValue):
-					yield SimpleValueToJSON(v)
+					yield EntityPropertyInJSON(v)
 				else:
-					yield EntityCTBodyToJSON(v)
+					yield EntityCTBody(v)
 		if self.exists:
 			for navProperty in self.NavigationKeys():
 				if self.Selected(navProperty):
@@ -2702,18 +2700,26 @@ class Entity(edm.Entity):
 
 def EntityCTInJSON2(complexValue):
 	"""Return a version 2 JSON complex entity."""
-	return '{"results":%s}'%EntityCTBodyToJSON(complexValue)
+	return '{"results":%s}'%EntityCTInJSON(complexValue)
 	
+def EntityCTInJSON(complexValue):
+	"""Return a version 1 JSON complex entity - specification seems to be incorrect here."""
+	return '{%s}'%EntityCTBody(complexValue)
 
-def EntityCTBodyToJSON(complexValue):
+def EntityCTBody(complexValue):
+	return "%s:%s"%(json.dumps(complexValue.name),EntityCTValueToJSON(complexValue))
+
+
+def EntityCTValueToJSON(complexValue):
 	result=[]
 	for k,v in complexValue.iteritems():
 		if isinstance(v,edm.SimpleValue):
-			value=SimpleValueToJSON(v)
+			value=EntityPropertyInJSON(v)
 		else:
-			value=ComplexValueBodyToJSON(v)
-		result.append("%s:%s"%(json.dumps(k),value))
-	return string.join(('{',string.join(result,','),'}'),'')
+			value=EntityCTBody(v)
+		result.append(value)
+	return "{%s}"%string.join(result,',')
+	
 
 def JSONToComplex(complexValue,obj):
 	if obj is None:
@@ -2734,8 +2740,15 @@ def JSONToComplex(complexValue,obj):
 
 TICKS_PER_DAY=86400000
 BASE_DAY=iso.Date('1970-01-01').GetAbsoluteDay()
-		
-def SimpleValueToJSON(v):
+
+def EntityPropertyInJSON2(simpleValue):			
+	"""Return a version 2 JSON simple value."""
+	return '{"results":{%s}}'%EntityPropertyInJSON(simpleValue)
+
+def EntityPropertyInJSON(simpleValue):
+	return "%s:%s"%(json.dumps(simpleValue.name),EntityPropertyValueInJSON(simpleValue))
+
+def EntityPropertyValueInJSON(v):
 	if not v:
 		return 'null'
 	elif isinstance(v,edm.BinaryValue):
@@ -2762,7 +2775,7 @@ def SimpleValueToJSON(v):
 		return json.dumps("/Date(%i%s%04i)/"%(ticks,s,offset))
 	else:
 		raise ValueError("SimpleValue: %s"%repr(v))
-
+	
 def JSONToSimpleValue(v,jsonValue):
 	"""Given a simple property value parsed from a json representation,
 	*jsonValue* and a :py:class:`SimpleValue` instance, *v*, update *v*
@@ -2966,9 +2979,9 @@ class FunctionCollection(edm.FunctionCollection):
 			else:
 				yield ','
 			if isinstance(value,edm.SimpleValue):
-				yield SimpleValueToJSON(value)
+				yield EntityPropertyValueInJSON(value)
 			else:
-				yield EntityCTBodyToJSON(value)
+				yield EntityCTValueToJSON(value)
 		if version<2:
 			yield "]"
 		else:
@@ -3288,8 +3301,8 @@ class Server(app.Server):
 		http.MediaType('text/plain')]
 	
 	EntryTypes=[	# in order of preference if there is a tie
-		http.MediaType('application/atom+xml;type=entry'),
 		http.MediaType('application/atom+xml'),
+		http.MediaType('application/atom+xml;type=entry'),
 		http.MediaType('application/xml'),
 		http.MediaType('text/xml'),
 		http.MediaType('application/json'),
@@ -3461,23 +3474,110 @@ class Server(app.Server):
 			# This isn't even for us
 			return None
 		request=ODataURI(href,self.pathPrefix)
-		if self.model:
-			ds=self.model.DataServices
-		else:
-			ds=None
-		return request.GetResource(ds)
+		return self.GetResource(request)
 	
+	def GetResource(self,odataURI,responseHeaders=None):
+		resource=self.model
+		noNavPath=(resource is None)
+		entity=None
+		for segment in odataURI.navPath:
+			name,keyPredicate=segment
+			if noNavPath:
+				raise BadURISegment(name)
+			if isinstance(resource,edmx.Edmx):
+				try:
+					resource=resource.DataServices.SearchContainers(name)
+				except KeyError,e:
+					raise MissingURISegment(str(e))						
+				if isinstance(resource,edm.FunctionImport):
+					# TODO: grab the params from the query string
+					resource=resource.Execute({})
+					#	If this does not identify a collection of entities it must be the last path segment
+					if not isinstance(resource,edm.EntityCollection):
+						noNavPath=True
+						# 10-14 have identical constraints, treat them the same
+						odataURI.ValidateSystemQueryOptions(10)
+				elif isinstance(resource,edm.EntitySet):
+					resource=resource.OpenCollection()
+				else:
+					# not the right sort of thing
+					raise MissingURISegment(name)					
+				if isinstance(resource,edm.EntityCollection):						
+					if keyPredicate:
+						# the keyPredicate can be passed directly as the key
+						try:
+							collection=resource
+							resource=collection[collection.entitySet.GetKey(keyPredicate)]
+							entity=resource
+							collection.close()
+						except KeyError,e:
+							raise MissingURISegment("%s%s"%(name,ODataURI.FormatKeyDict(keyPredicate)))					
+				elif resource is None:
+					raise MissingURISegment(name)
+			elif isinstance(resource,(edm.EntityCollection,edm.FunctionCollection)):
+				# bad request, because the collection must be the last thing in the path
+				raise BadURISegment("%s since the object's parent is a collection"%name)
+			elif isinstance(resource,edm.Entity):
+				if name not in resource:
+					raise MissingURISegment(name)
+				resource=resource[name]
+				if isinstance(resource,edm.DeferredValue):
+					entity=None
+					if keyPredicate:
+						try:
+							with resource.OpenCollection() as collection:
+								resource=collection[resource.entitySet.GetKey(keyPredicate)]
+								entity=resource
+						except KeyError,e:
+							raise MissingURISegment(name)
+					elif resource.isCollection:
+						resource=resource.OpenCollection()
+					else:
+						resource=resource.GetEntity()
+						if resource is None:
+							# See the resolution: https://tools.oasis-open.org/issues/browse/ODATA-412
+							raise MissingURISegment("%s, no entity is related"%name)
+						entity=resource
+			elif isinstance(resource,edm.Complex):
+				if name in resource:
+					# This is a regular property of the ComplexType
+					resource=resource[name]
+				else:
+					raise MissingURISegment(name)
+			else:
+				# Any other type is just a property or simple-type
+				raise BadURISegment(name)
+		if isinstance(resource,edm.EntityCollection):
+			odataURI.ValidateSystemQueryOptions(1)	# includes 6 Note 2
+		elif isinstance(resource,edm.Entity):
+			if odataURI.pathOption==PathOption.value:
+				odataURI.ValidateSystemQueryOptions(17)	# media resource value
+			elif odataURI.pathOption!=PathOption.links:	
+				odataURI.ValidateSystemQueryOptions(2)	# includes 6 Note 1
+		elif isinstance(resource,edm.Complex):
+			odataURI.ValidateSystemQueryOptions(3)
+		elif isinstance(resource,edm.SimpleValue):
+			# 4 & 5 are identical
+			odataURI.ValidateSystemQueryOptions(4)
+		if responseHeaders is not None and entity is not None:
+			# add an etag to the responseHeaders for the corresponding
+			# entity we catch this here because we may be returning just
+			# a property of the entity and you can't trace back to the
+			# parent entity later
+			etag=entity.ETag()
+			if etag is not None:
+				s="%s" if entity.ETagIsStrong() else "W/%s"
+				etag=s%http.QuoteString(ODataURI.FormatLiteral(etag))
+				responseHeaders.append(("ETag",etag))			
+		return resource
+
 	def HandleRequest(self,request,environ,start_response,responseHeaders):
 		"""Handles a request that has been identified as being an OData request.
 		
 		*	*request* is an :py:class:`ODataURI` instance with a non-empty resourcePath."""
-		method=environ["REQUEST_METHOD"]
-		if self.model:
-			resource=self.model.DataServices
-		else:
-			resource=None
+		method=environ["REQUEST_METHOD"].upper()
 		try:
-			resource=request.GetResource(resource)
+			resource=self.GetResource(request,responseHeaders if method=="GET" else None)
 			if request.pathOption==PathOption.metadata:
 				return self.ReturnMetadata(request,environ,start_response,responseHeaders)
 			elif request.pathOption==PathOption.batch:
@@ -3559,10 +3659,6 @@ class Server(app.Server):
 					input=app.InputWrapper(environ)
 					entity.SetStreamFromGenerator(resourceType,input.iterblocks())
 					responseHeaders.append(('Location',str(entity.GetLocation())))
-					etag=entity.ETag()
-					if etag:
-						s="" if entity.ETagIsStrong() else "W/"
-						responseHeaders.append(('ETag',s+http.QuoteString(ODataURI.FormatLiteral(etag))))
 					return self.ReturnEntity(entity,request,environ,start_response,responseHeaders,201,"Created")
 				elif method=="POST":
 					# POST to an ordinary entity collection
@@ -3781,6 +3877,11 @@ class Server(app.Server):
 			data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
 		responseHeaders.append(("Content-Length",str(len(data))))
+		etag=entity.ETag()
+		if etag is not None:
+			s="%s" if entity.ETagIsStrong() else "W/%s"
+			etag=s%http.QuoteString(ODataURI.FormatLiteral(etag))
+			responseHeaders.append(("ETag",etag))
 		start_response("%i %s"%(status,statusMsg),responseHeaders)
 		return [data]
 
@@ -3797,16 +3898,26 @@ class Server(app.Server):
 
 	def ReturnValue(self,value,request,environ,start_response,responseHeaders):
 		"""Returns a single property value."""
-		e=Property(None)
-		e.SetXMLName((ODATA_DATASERVICES_NAMESPACE,value.name))
-		doc=Document(root=e)
-		e.SetValue(value)
 		responseType=self.ContentNegotiation(request,environ,self.ValueTypes)
 		if responseType is None:
 			return self.ODataError(request,environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
 		if responseType=="application/json":
-			data='{"d":%s}'%json.dumps(e,cls=ODataJSONEncoder)
+			if isinstance(value,edm.Complex):
+				if request.version==2:
+					data='{"d":%s}'%EntityCTInJSON2(value)
+				else:
+					data='{"d":%s}'%EntityCTInJSON(value)
+			else:
+				if request.version==2:
+					# the spec goes a bit weird here, tripping up over brackets!
+					data='{"d":%s}'%EntityPropertyInJSON2(value)
+				else:
+					data='{"d":{%s}}'%EntityPropertyInJSON(value)					
 		else:
+			e=Property(None)
+			e.SetXMLName((ODATA_DATASERVICES_NAMESPACE,value.name))
+			doc=Document(root=e)
+			e.SetValue(value)
 			data=str(doc)
 		responseHeaders.append(("Content-Type",str(responseType)))
 		responseHeaders.append(("Content-Length",str(len(data))))
