@@ -12,7 +12,7 @@ import pyslet.xsdatatypes20041028 as xsi
 from pyslet.vfs import OSFilePath
 import pyslet.iso8601 as iso8601
 
-import string, itertools, sqlite3, hashlib, StringIO, time, sys, copy, decimal, math, collections, warnings
+import string, itertools, sqlite3, hashlib, StringIO, time, sys, copy, decimal, uuid, math, collections, warnings
 from types import BooleanType, FloatType, StringTypes, StringType, UnicodeType, BooleanType, IntType, LongType, TupleType, DictType
 
 
@@ -619,16 +619,16 @@ class EDMValue(object):
 	
 	This class is not part of the declared metadata model but is used to wrap or
 	'box' instances of a value.  In particular, it can be used in a context
-	where that value can have either a simple or complex type.
-	
-	The optional name attribute may be used when serialising the value out of
-	context."""
-	def __init__(self,name=None):
-		self.name=name		#: the name of the value (e.g., a property name)
+	where that value can have either a simple or complex type."""
+	def __init__(self,pDef=None):
+		self.pDef=pDef	#: a :py:class:`Property` instance defining this value's type
 
 	__hash__=None
 	#: EDM values are mutable so may not be used as dictionary keys, enforced by setting __hash__ to None
 
+	_TypeClass={
+		}
+			
 	def __nonzero__(self):
 		"""EDMValue instances are treated as being non-zero if :py:meth:`IsNull`
 		returns False."""
@@ -637,7 +637,39 @@ class EDMValue(object):
 	def IsNull(self):
 		"""Returns True if this object is Null."""
 		return True
-		
+
+	@classmethod
+	def NewValue(cls,pDef):
+		"""Constructs an instance of the correct child class of
+		:py:class:`EDMValue` to represent a value defined by
+		::py:class:`Property`
+		instance *pDef*.
+
+		We support a special case for creating a type-less NULL.  If you
+		pass None for pDef then a type-less
+		:py:class:`SipmleValue` is instantiated."""		
+		if pDef is None:
+			return SimpleValue(None)
+		elif pDef.simpleTypeCode is not None:
+			return cls._TypeClass[pDef.simpleTypeCode](pDef)
+		elif pDef.complexType:
+			return Complex(pDef)
+		else:
+			raise ModelIncomplete("Property %s not bound to a type"%pDef.name)
+
+	@classmethod
+	def NewSimpleValue(cls,typeCode):
+		"""Constructs an instance of the correct child class of
+		:py:class:`EDMValue` to represent an undeclared simple
+		value of :py:class:`SimpleType` *typeCode*."""
+		if typeCode is None:
+			result=SimpleValue(None)
+		else:
+			result=cls._TypeClass[typeCode](None)
+		# hack the type code after construction to save on overhead of another constructor
+		result.typeCode=typeCode
+		return result
+
 
 class SimpleValue(EDMValue):
 	"""Represents a value of a simple type in the EDMModel.
@@ -674,54 +706,42 @@ class SimpleValue(EDMValue):
 	of instance but if you violate the above type rules then you are
 	likely to generate unexpected exceptions elsewhere."""
 	
-	_TypeClass={
-		}
-	
-	@classmethod
-	def NewValue(cls,typeCode,name=None):
-		"""Constructs an instance of the correct child class of
-		:py:class:`SimpleValue` to represent the type with *typeCode*.
-
-		*	typeCode is one of the :py:class:`SimpleType` constants
-	
-		*	name is the (optional) name of the property this value represents
-		
-		We support a special case for creating a type-less NULL.  If you
-		pass None for the typeCode then a type-less
-		:py:class:`SipmleValue` is instantiated."""		
-		if typeCode is None:
-			return SimpleValue(None,name)
+	def __init__(self,pDef=None):
+		EDMValue.__init__(self,pDef)
+		if pDef:
+			self.typeCode=pDef.simpleTypeCode		#: the :py:class:`SimpleType` code
 		else:
-			return cls._TypeClass[typeCode](name)
-		
-	def __init__(self,typeCode,name=None):
-		EDMValue.__init__(self,name)
-		self.typeCode=typeCode		#: the :py:class:`SimpleType` code
+			self.typeCode=None
 		self.mType=None				#: a :py:class:`pyslet.rfc2616.MediaType` representing this value
 		self.pyValue=None			#: the value, as represented using the closest python type
 
 	def IsNull(self):
 		return self.pyValue is None
 	
-	def Cast(self,newTypeCode):
-		"""Returns a new :py:class:`SimpleValue` of type *newTypeCode* casting the value accordingly.
+	def SimpleCast(self,typeCode):
+		"""Returns a new :py:class:`SimpleValue` instance created from *typeCode*
+		
+		The value of the new instance is set us :py:meth:`Cast`"""
+		targetValue=EDMValue.NewSimpleValue(typeCode)
+		return self.Cast(targetValue)
+		
+	def Cast(self,targetValue):
+		"""Updates and returns *targetValue* a :py:class:`SimpleValue` instance.
+		
+		The value of targetValue is replaced, casting this instances
+		value accordingly.
 		
 		If the types are incompatible a TypeError is raised, if the
 		values are incompatible then ValueError is raised.
-		
-		Special case: if the value is already of the specified type then
-		no new instance is created and the return value is the object
-		itself.
-		
-		Also, NULL values can be cast to any value type.  The result is
-		a typed NULL."""
-		if self.typeCode==newTypeCode:
+				
+		NULL values can be cast to any value type."""
+		if self.typeCode==targetValue.typeCode:
 			return self
 		else:
-			newValue=SimpleValue.NewValue(newTypeCode,self.name)
+			# newValue=EDMValue.NewValue(newTypeCode,self.name)
 			if self.typeCode is not None:
-				newValue.SetFromPyValue(copy.deepcopy(self.pyValue))
-			return newValue
+				targetValue.SetFromPyValue(copy.deepcopy(self.pyValue))
+			return targetValue
 					
 	def __eq__(self,other):
 		if isinstance(other,SimpleValue):
@@ -762,9 +782,6 @@ class SimpleValue(EDMValue):
 
 class BinaryValue(SimpleValue):
 	"""Represents a simple value of type Edm.Binary"""
-
-	def __init__(self,name=None):
-		SimpleValue.__init__(self,SimpleType.Binary,name)
 
 	def __unicode__(self):
 		"""Formats this value into its literal form, the hex-string representation."""
@@ -808,9 +825,6 @@ class BinaryValue(SimpleValue):
 		
 class BooleanValue(SimpleValue):
 	"""Represents a simple value of type Edm.Boolean"""
-
-	def __init__(self,name=None):
-		SimpleValue.__init__(self,SimpleType.Boolean,name)
 
 	def __unicode__(self):
 		"""Formats this value into its literal form, the unicode strings true or false."""
@@ -881,9 +895,6 @@ class NumericValue(SimpleValue):
 class ByteValue(NumericValue):
 	"""Represents a simple value of type Edm.Byte"""
 
-	def __init__(self,name=None):
-		SimpleValue.__init__(self,SimpleType.Byte,name)
-
 	def __unicode__(self):
 		"""Formats this value into its literal form."""
 		if self.pyValue is None:
@@ -914,9 +925,6 @@ class ByteValue(NumericValue):
 		
 class DateTimeValue(SimpleValue):
 	"""Represents a simple value of type Edm.DateTime"""
-
-	def __init__(self,name=None):
-		SimpleValue.__init__(self,SimpleType.DateTime,name)
 
 	def __unicode__(self):
 		"""Formats this value into its literal form."""
@@ -958,9 +966,6 @@ class DateTimeValue(SimpleValue):
 		
 class DateTimeOffsetValue(SimpleValue):
 	"""Represents a simple value of type Edm.DateTimeOffset"""
-
-	def __init__(self,name=None):
-		SimpleValue.__init__(self,SimpleType.DateTimeOffset,name)
 
 	def __unicode__(self):
 		"""Formats this value into its literal form."""
@@ -1010,9 +1015,7 @@ class DateTimeOffsetValue(SimpleValue):
 		
 class TimeValue(SimpleValue):
 	"""Represents a simple value of type Edm.Time"""
-
-	def __init__(self,name=None):
-		SimpleValue.__init__(self,SimpleType.Time,name)
+	pass
 
 		
 class DecimalValue(NumericValue):
@@ -1028,9 +1031,6 @@ class DecimalValue(NumericValue):
 		else:
 			return d
 			
-	def __init__(self,name=None):
-		SimpleValue.__init__(self,SimpleType.Decimal,name)
-
 	def __unicode__(self):
 		"""Formats this value into its literal form."""
 		if self.pyValue is None:
@@ -1121,9 +1121,6 @@ class DoubleValue(FloatValue):
 	Max=None		#: the largest positive double value
 	Min=2**-1074	#: the smallest positive double value
 	
-	def __init__(self,name=None):
-		SimpleValue.__init__(self,SimpleType.Double,name)
-
 	def SetFromNumericLiteral(self,numericValue):
 		"""Decodes a Double value from a :py:class:`Numeric` literal."""
 		dStr=self.JoinNumericLiteral(numericValue)
@@ -1171,9 +1168,6 @@ class SingleValue(FloatValue):
 	Max=None					#: the largest positive single value
 	Min=2.0**-149				#: the smallest positive single value
 
-	def __init__(self,name=None):
-		SimpleValue.__init__(self,SimpleType.Single,name)
-
 	def SetFromNumericLiteral(self,numericValue):
 		"""Decodes a Single value from a :py:class:`Numeric` literal."""
 		dStr=self.JoinNumericLiteral(numericValue)
@@ -1218,16 +1212,11 @@ for i in xrange(127,0,-1):
 		
 class GuidValue(SimpleValue):
 	"""Represents a simple value of type Edm.Guid"""
-
-	def __init__(self,name=None):
-		SimpleValue.__init__(self,SimpleType.Guid,name)
+	pass
 
 		
 class Int16Value(NumericValue):
 	"""Represents a simple value of type Edm.Int16"""
-
-	def __init__(self,name=None):
-		SimpleValue.__init__(self,SimpleType.Int16,name)
 
 	def SetFromNumericLiteral(self,numericValue):
 		"""Decodes an Int16 value from a :py:class:`Numeric` literal."""
@@ -1255,9 +1244,6 @@ class Int16Value(NumericValue):
 		
 class Int32Value(NumericValue):
 	"""Represents a simple value of type Edm.Int32"""
-
-	def __init__(self,name=None):
-		SimpleValue.__init__(self,SimpleType.Int32,name)
 
 	def SetFromNumericLiteral(self,numericValue):
 		"""Decodes an Int32 value from a :py:class:`Numeric` literal."""
@@ -1287,9 +1273,6 @@ class Int32Value(NumericValue):
 class Int64Value(NumericValue):
 	"""Represents a simple value of type Edm.Int64"""
 
-	def __init__(self,name=None):
-		SimpleValue.__init__(self,SimpleType.Int64,name)
-
 	def SetFromNumericLiteral(self,numericValue):
 		"""Decodes an Int64 value from a :py:class:`Numeric` literal."""
 		if (not numericValue.lDigits or 			# must be left digits
@@ -1318,9 +1301,6 @@ class Int64Value(NumericValue):
 class StringValue(SimpleValue):
 	"""Represents a simple value of type Edm.String"""
 
-	def __init__(self,name=None):
-		SimpleValue.__init__(self,SimpleType.String,name)
-
 	def __unicode__(self):
 		"""Formats this value into its literal form."""
 		if self.pyValue is None:
@@ -1343,9 +1323,6 @@ class StringValue(SimpleValue):
 		
 class SByteValue(NumericValue):
 	"""Represents a simple value of type Edm.SByte"""
-
-	def __init__(self,name=None):
-		SimpleValue.__init__(self,SimpleType.SByte,name)
 
 	def SetFromNumericLiteral(self,numericValue):
 		"""Decodes an SByte value from a :py:class:`Numeric` literal."""
@@ -1371,7 +1348,7 @@ class SByteValue(NumericValue):
 			raise TypeError("Can't set SByte from %s"%str(newValue))	
 
 
-SimpleValue._TypeClass={
+EDMValue._TypeClass={
 	SimpleType.Binary:BinaryValue,
 	SimpleType.Boolean:BooleanValue,
 	SimpleType.Byte:ByteValue,
@@ -1449,13 +1426,11 @@ class TypeInstance(DictionaryLike):
 class Complex(EDMValue,TypeInstance):
 	"""Represents a single instance of a :py:class:`ComplexType`.
 	
-	*	name is the (optional) name of the value
-	
-	*	complexType is the type of object this is an instance of"""
+	*	pDef is the (optional) :py:class:`Property` instance that defines the value"""
 
-	def __init__(self,complexType=None,name=None):
-		EDMValue.__init__(self,name)
-		TypeInstance.__init__(self,complexType)
+	def __init__(self,pDef=None):
+		EDMValue.__init__(self,pDef)
+		TypeInstance.__init__(self,None if pDef is None else pDef.complexType)
 	
 	def IsNull(self):
 		"""Complex values are never Null"""
@@ -1483,7 +1458,7 @@ class DeferredValue(object):
 			elif len(collection)==0:
 				return None
 			else:
-				raise NavigationError("Navigation property %s of %s[%s] is not a collection but it yielded multiple entities"%(name,self.fromEntity.entitySet.name,str(self.fromEntity.Key())))
+				raise NavigationError("Navigation property %s of %s[%s] is not a collection but it yielded multiple entities"%(self.name,self.fromEntity.entitySet.name,str(self.fromEntity.Key())))
 					 
 	def OpenCollection(self):
 		"""Opens the collection associated with this navigation property"""
@@ -1559,7 +1534,6 @@ class Entity(TypeInstance):
 	If an entity does not exist, OpenCollection will fail if called on
 	one of its navigation properties with :py:class:`NonExistentEntity`.
 		
-
 	You can use :py:meth:`IsEntityCollection` to determine if a property
 	will return an :py:class:`EntityCollection` without the cost of
 	accessing the data source itself."""
@@ -1664,6 +1638,14 @@ class Entity(TypeInstance):
 		parent entity set."""
 		with self.entitySet.OpenCollection() as collection:
 			collection.UpdateEntity(self)
+			
+	def Delete(self):
+		"""Deletes this entity from the parent entity set.
+		
+		The default implementation opens a collection object from the
+		parent entity set and uses del."""
+		with self.entitySet.OpenCollection() as collection:
+			del collection[self.Key()]
 			
 	def Key(self):
 		"""Returns the entity key as a single python value or a tuple of
@@ -1774,14 +1756,36 @@ class Entity(TypeInstance):
 			return self.select and name in self.select
 	
 	def ETag(self):
-		"""Returns an EDMValue instance to use as for optimistic
-		concurrency control or None if the entity does not support it."""
+		"""Returns a list of EDMValue instance values to use for optimistic
+		concurrency control or None if the entity does not support it (or if
+		all concurrency tokens are NULL)."""
+		etag=[]
 		for pDef in self.typeDef.Property:
 			if pDef.concurrencyMode and pDef.concurrencyMode.lower()=="fixed":
-				etag=self[pDef.name]
-				return etag
-		return None
+				token=self[pDef.name]
+				if token:
+					# only append non-null values
+					etag.append(token)
+		if etag:
+			return etag
+		else:
+			return None
 
+	def ETagValues(self):
+		"""Returns a list of EDMValue instance values that may be used
+		for optimistic concurrency control.  The difference between this
+		method and :py:meth:`ETag` is that this method returns all
+		values even if they are NULL."""
+		etag=[]
+		for pDef in self.typeDef.Property:
+			if pDef.concurrencyMode and pDef.concurrencyMode.lower()=="fixed":
+				token=self[pDef.name]
+				etag.append(token)
+		if etag:
+			return etag
+		else:
+			return None		
+		
 	def ETagIsStrong(self):
 		"""Returns True if this entity's etag is a strong entity tag as defined
 		by RFC2616::
@@ -1866,7 +1870,7 @@ class EntityCollection(DictionaryLike):
 	for all collections and :py:meth:`__setitem__` for collections that
 	represent sub-sets of the parent entity set.  If a particular
 	operation is not allowed for some data-service specific reason then
-	UnsupportedOperation should be raised.
+	NotImplementedError should be raised.
 
 	Note that writeable entity collections SHOULD override
 	:py:meth:`clear` as the default implementation is very
@@ -2306,10 +2310,10 @@ class NavigationEntityCollection(EntityCollection):
 			baseCollection.UpdateEntity(entity)
 	
 	def __setitem__(self,key,value):
-		raise UnsupportedOperation("Entity collection %s[%s] is read-only"%(self.entitySet.name,self.name)) 
+		raise NotImplementedError("Entity collection %s[%s] is read-only"%(self.entitySet.name,self.name)) 
 
 	def __delitem__(self,key):
-		raise UnsupportedOperation("Entity collection %s[%s] is read-only"%(self.entitySet.name,self.name)) 
+		raise NotImplementedError("Entity collection %s[%s] is read-only"%(self.entitySet.name,self.name)) 
 
 
 class FunctionEntityCollection(EntityCollection):
@@ -2328,10 +2332,10 @@ class FunctionEntityCollection(EntityCollection):
 		raise NotImplmentedError("Expand/Select option on Function result")
 
 	def __setitem__(self,key,value):
-		raise UnsupportedOperation("Function %s is read-only"%self.function.name) 
+		raise NotImplementedError("Function %s is read-only"%self.function.name) 
 
 	def __delitem__(self,key):
-		raise UnsupportedOperation("Function %s is read-only"%self.function.name) 
+		raise NotImplementedError("Function %s is read-only"%self.function.name) 
 
 
 class FunctionCollection(object):
@@ -2513,14 +2517,9 @@ class Property(CSDLElement):
 		"""Returns a new :py:class:`EDMValue` instance (from a literal).
 		
 		Complex values can't be created from a simple literal form."""
-		if self.simpleTypeCode is not None:
-			result=SimpleValue.NewValue(self.simpleTypeCode,self.name)
-			if literal is not None:
-				result.SetFromLiteral(literal)
-		elif self.complexType is not None:
-			result=Complex(self.complexType,self.name)
-		else:
-			raise ModelIncomplete("Property %s not bound to a type"%self.name)
+		result=EDMValue.NewValue(self)
+		if isinstance(result,SimpleValue) and literal is not None:
+			result.SetFromLiteral(literal)
 		return result
 			
 	def DecodeValue(self,value):
@@ -3177,11 +3176,6 @@ class EntitySet(CSDLElement):
 		"""Binds this entity set to a specific class or callable used by :py:meth:`OpenCollection`""" 
 		self.binding=entityCollectionBinding,extraArgs
 		
-# 	def GetCollection(self):
-# 		warnings.warn("EntitySet.GetCollection is deprecated, use OpenCollection instead", DeprecationWarning, stacklevel=3)
-# 		cls,extraArgs=self.binding
-# 		return cls(self,**extraArgs)
-# 
 	def OpenCollection(self):
 		"""Returns an :py:class:`EntityCollection` instance suitable for
 		accessing the entities themselves.

@@ -751,6 +751,9 @@ class HTTPMessage:
 		hList.sort()
 		return hList
 	
+	def HasHeader(self,fieldName):
+		return fieldName.lower() in self.headers
+		
 	def GetHeader(self,fieldName):
 		return self.headers.get(fieldName.lower(),[None,None])[1]
 

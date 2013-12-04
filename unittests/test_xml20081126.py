@@ -2469,7 +2469,7 @@ class DocumentTests(unittest.TestCase):
 		try:
 			d.Update()
 			self.fail("Update Document failed to spot missing file")
-		except XMLMissingFileError:
+		except XMLMissingResourceError:
 			pass
 		d.Create()
 		d.root.ChildElement(NamedElement)

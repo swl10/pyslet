@@ -13,7 +13,7 @@ def load_tests(loader, tests, pattern):
 	return suite()
 
 
-from pyslet.mc_edmx import *
+from pyslet.odata2.edmx import *
 import pyslet.xml20081126.structures as xml
 
 class EDMXTests(unittest.TestCase):

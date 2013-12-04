@@ -2,9 +2,9 @@
 """This module provides a simple implementation of an EntitySet using a python list object."""
 
 
-import pyslet.mc_csdl as edm
-import pyslet.mc_edmx as edmx
-import pyslet.odatav2 as odata
+import pyslet.odata2.csdl as edm
+import pyslet.odata2.edmx as edmx
+import pyslet.odata2.core as odata
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.iso8601 as iso8601
@@ -55,7 +55,7 @@ class InMemoryEntityStore(object):
 	def UpdateEntity(self,e):
 		# e is an EntityTypeInstance, we need to convert it to a tuple
 		key=e.Key()
-		value=list(self.data[key])
+		value=list(self.data[key])		
 		i=0
 		for pName in e.DataKeys():
 			if e.Selected(pName):
@@ -170,8 +170,8 @@ class InMemoryAssociationIndex(object):
 
 	def RemoveLink(self,fromKey,toKey):
 		"""Removes a link from *fromKey* to *toKey*"""
-		self.index.get(fromKey,set()).pop(toKey)
-		self.reverseIndex.get(toKey,set()).pop(fromKey)
+		self.index.get(fromKey,set()).discard(toKey)
+		self.reverseIndex.get(toKey,set()).discard(fromKey)
 		
 	def DeleteHook(self,fromKey):
 		"""Called when a key from the source entity set is being deleted."""
@@ -242,15 +242,16 @@ class Entity(odata.Entity):
 		
 		If the entity has a concurrency token and it is a binary value,
 		updates the token to be a hash of the stream."""
-		etag=self.ETag()
-		if isinstance(etag,edm.BinaryValue):
+		etag=self.ETagValues()
+		if len(etag)==1 and isinstance(etag[0],edm.BinaryValue):
 			h=hashlib.sha256()
+			etag=etag[0]
 		else:
 			h=None
 		value=[]
 		for data in src:
 			value.append(data)
-		data=string.join(data,'')
+		data=string.join(value,'')
 		self.SetItemStream(streamType,data)
 		if h is not None:
 			h.update(data)
@@ -392,13 +393,23 @@ class NavigationEntityCollection(odata.NavigationEntityCollection):
 		self.collection[key]=value
 		if not self.fromEntity.IsEntityCollection(self.name):
 			# replace whatever we have - harder to do
-			for k in resultSet:
+			for k in list(resultSet):
 				if self.reverse:
-					self.associationIndex.RemoveLink(key,self.key)
+					self.associationIndex.RemoveLink(k,self.key)
 				else:
-					self.associationIndex.RemoveLink(self.key,key)
+					self.associationIndex.RemoveLink(self.key,k)
 		# just add this one to the index
 		if self.reverse:
 			self.associationIndex.AddLink(key,self.key)
 		else:
 			self.associationIndex.AddLink(self.key,key)
+	
+	def __delitem__(self,key):
+		resultSet=self.index.get(self.key,set())
+		if key not in resultSet:
+			raise KeyError
+		if self.reverse:
+			self.associationIndex.RemoveLink(key,self.key)
+		else:
+			self.associationIndex.RemoveLink(self.key,key)
+			

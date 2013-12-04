@@ -13,10 +13,12 @@ import test_imsmdv1p2p1
 import test_imsqtiv1p2p1
 import test_imsqtiv2p1
 import test_iso8601
-import test_mc_csdl
-import test_mc_edmx
-import test_odatav2
-import test_pyds
+import test_odata2_core
+import test_odata2_client
+import test_odata2_csdl
+import test_odata2_edmx
+import test_odata2_memds
+import test_odata2_server
 import test_qml420
 import test_rfc2234
 import test_rfc2396
@@ -42,10 +44,12 @@ def suite():
 	s.addTest(test_imsqtiv1p2p1.suite())
 	s.addTest(test_imsqtiv2p1.suite())
 	s.addTest(test_iso8601.suite())
-	s.addTest(test_mc_csdl.suite())
-	s.addTest(test_mc_edmx.suite())	
-	s.addTest(test_odatav2.suite())
-	s.addTest(test_pyds.suite())
+	s.addTest(test_odata2_core.suite())
+	s.addTest(test_odata2_client.suite())
+	s.addTest(test_odata2_csdl.suite())
+	s.addTest(test_odata2_edmx.suite())
+	s.addTest(test_odata2_memds.suite())
+	s.addTest(test_odata2_server.suite())
 	s.addTest(test_rfc2234.suite())
 	s.addTest(test_rfc2396.suite())
 	s.addTest(test_rfc2616.suite())

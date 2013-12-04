@@ -382,9 +382,9 @@ class Server(object):
 		else:
 			self.serviceRoot=serviceRoot.Canonicalize()
 		self.serviceDoc=Document(root=Service,baseURI=self.serviceRoot)
-		self.service=self.serviceDoc.root	#: the :py:class:`Service` instance that describes this service.
+		self.service=self.serviceDoc.root				#: the :py:class:`Service` instance that describes this service.
 		self.service.SetBase(str(self.serviceRoot))		# make the base explicit in the document
-		self.debugMode=False				#:	set this to True to expose python tracebacks in 500 responses, defaults to False
+		self.debugMode=False							#:	set this to True to expose python tracebacks in 500 responses, defaults to False
 
 	def __call__(self,environ,start_response):
 		"""wsgi interface for calling instances of this Atom server object.

@@ -14,7 +14,7 @@ from test_rfc5023 import MockRequest
 import pyslet.rfc2396 as uri
 import pyslet.rfc4287 as atom
 import pyslet.rfc5023 as app
-import pyslet.pyds as pyds
+import pyslet.odata2.memds as memds
 import pyslet.iso8601 as iso8601
 
 import traceback
@@ -144,11 +144,9 @@ def suite(prefix='test'):
 	return unittest.TestSuite((
 		loader.loadTestsFromTestCase(ODataTests),
 		loader.loadTestsFromTestCase(ODataURILiteralTests),
-		loader.loadTestsFromTestCase(ClientTests),
 		loader.loadTestsFromTestCase(ODataURITests),
 		loader.loadTestsFromTestCase(ServerTests),
-		loader.loadTestsFromTestCase(SampleServerTests),
-		loader.loadTestsFromTestCase(ODataStoreClientTests)		
+		loader.loadTestsFromTestCase(SampleServerTests)
 		))
 		
 
@@ -161,13 +159,12 @@ def load_tests(loader, tests, pattern):
 	#return suite('tes')
 
 	
-from pyslet.odatav2 import *
+from pyslet.odata2.server import *
 import pyslet.rfc5023 as app
 import pyslet.rfc4287 as atom
 import pyslet.rfc2616 as http
 import pyslet.iso8601 as iso
-import pyslet.mc_csdl as edm
-
+import pyslet.odata2.csdl as edm
 import sys, os, time
 
 class MockTime:
@@ -189,8 +186,6 @@ iso.pytime=MockTime
 		
 
 
-ODATA_SAMPLE_SERVICEROOT="http://services.odata.org/OData/OData.svc/"
-ODATA_SAMPLE_READWRITE="http://services.odata.org/(S(readwrite))/OData/OData.svc/"
 
 TEST_DATA_DIR=os.path.join(os.path.split(os.path.abspath(__file__))[0],'data_odatav2')
 
@@ -789,1202 +784,7 @@ class ODataURITests(unittest.TestCase):
 			self.fail("Expected exception for nand")
 		except InvalidSystemQueryOption:
 			pass
-	
-	def EvaluateCommon(self,expressionString):
-		p=Parser(expressionString)
-		e=p.ParseCommonExpression()
-		return e.Evaluate(None)
-		
-	def testCaseEvaluateCommonExpression(self):
-		# cursory check:
-		# a commonExpression must represent any and all supported common expression types
-		p=Parser("true and false")
-		e=p.ParseCommonExpression()
-		self.assertTrue(isinstance(e,CommonExpression),"Expected common expression")
-		value=e.Evaluate(None)
-		self.assertTrue(isinstance(value,edm.SimpleValue),"Expected EDM value; found %s"%repr(value))
-		self.assertTrue(value.pyValue is False,"Expected false")
 				
-	def testCaseEvaluateBooleanExpression(self):
-		# cursory check:
-		# a boolCommonExpression MUST be a common expression that evaluates to the EDM Primitive type Edm.Boolean
-		value=self.EvaluateCommon("true and false")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is False,"Expected false")
-				
-	def testCaseEvaluateParenExpression(self):
-		"""a parenExpression MUST be evaluated by evaluating the
-		expression with the parentheses, starting with the innermost
-		parenthesized expressions and proceeding outwards...
-
-		...the result of the parenExpression MUST be the result of the
-		evaluation of the contained expression."""
-		p=Parser("(false and false or true)")		# note that or is the weakest operator
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
-		self.assertTrue(value.pyValue is True,"Expected True")
-		p=Parser("(false and (false or true))")		# should change the result
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("(((((((false) and (((false)) or true)))))))")
-		self.assertTrue(value.pyValue is False,"Expected False - multibrackets")
-				
-	def testCaseEvaluateBooleanParenExpression(self):
-		"""Cursory check: a boolParenExpression MUST be evaluated by
-		evaluating the expression with the parentheses. The result of
-		the boolParenExpression MUST ... be of the EDM Primitive type
-		Edm.Boolean"""
-		value=self.EvaluateCommon("(false and (false or true))")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is False,"Expected false")
-	
-	def testCaseEvaluateAddExpression(self):
-		"""...operand expressions MUST evaluate to a value of one of the
-		following EDM Primitive types:
-			Edm.Decimal
-			Edm.Double
-			Edm.Single
-			Edm.Int32
-			Edm.Int64
-
-		The addExpression SHOULD NOT be supported for any other EDM
-		Primitive types.
-		
-		..data service SHOULD follow the binary numeric promotion
-		rules... The EDM Primitive type of the result of evaluating the
-		addExpression MUST be the same type as the operands after binary
-		numeric promotion.
-		
-		data service can support evaluating operands with null values
-		following the rules defined in Lifted operators"""
-		value=self.EvaluateCommon("2M add 2M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
-		self.assertTrue(value.pyValue == 4,"Expected 4")
-		value=self.EvaluateCommon("2D add 2M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Double,"Expected Double")
-		self.assertTrue(value.pyValue == 4.0,"Expected 4")
-		value=self.EvaluateCommon("2F add 2D")
-		self.assertTrue(value.typeCode==edm.SimpleType.Double,"Expected Double")
-		self.assertTrue(value.pyValue == 4.0,"Expected 4")
-		value=self.EvaluateCommon("2 add 2L")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
-		self.assertTrue(value.pyValue == 4L,"Expected 4")
-		try:
-			value=self.EvaluateCommon("2 add '2'")
-			self.fail("String promotion to int")
-		except EvaluationError:
-			pass
-		value=self.EvaluateCommon("2 add null")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
-		self.assertTrue(value.pyValue is None,"Expected None")
-
-	def testCaseEvaluateSubExpression(self):
-		"""See testCaseEvaluateAddExpression"""
-		value=self.EvaluateCommon("4M sub 2M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
-		self.assertTrue(value.pyValue == 2,"Expected 2.0")
-		value=self.EvaluateCommon("4D sub 2M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Double,"Expected Double")
-		self.assertTrue(value.pyValue == 2.0,"Expected 2.0")
-		value=self.EvaluateCommon("4F sub 2D")
-		self.assertTrue(value.typeCode==edm.SimpleType.Double,"Expected Double")
-		self.assertTrue(value.pyValue == 2.0,"Expected 2.0")
-		value=self.EvaluateCommon("4 sub 2L")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
-		self.assertTrue(value.pyValue == 2L,"Expected 2L")
-		try:
-			value=self.EvaluateCommon("4 sub '2'")
-			self.fail("String promotion to int")
-		except EvaluationError:
-			pass
-		value=self.EvaluateCommon("4 sub null")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
-		self.assertTrue(value.pyValue is None,"Expected None")
-
-	def testCaseEvaluateMulExpression(self):
-		"""See testCaseEvaluateAddExpression"""
-		value=self.EvaluateCommon("4M mul 2M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
-		self.assertTrue(value.pyValue == 8,"Expected 8.0")
-		value=self.EvaluateCommon("4D mul 2M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Double,"Expected Double")
-		self.assertTrue(value.pyValue == 8.0,"Expected 8.0")
-		value=self.EvaluateCommon("4F mul 2D")
-		self.assertTrue(value.typeCode==edm.SimpleType.Double,"Expected Double")
-		self.assertTrue(value.pyValue == 8.0,"Expected 8.0")
-		value=self.EvaluateCommon("4 mul 2L")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
-		self.assertTrue(value.pyValue == 8L,"Expected 8L")
-		try:
-			value=self.EvaluateCommon("4 mul '2'")
-			self.fail("String promotion to int")
-		except EvaluationError:
-			pass
-		value=self.EvaluateCommon("4 mul null")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
-		self.assertTrue(value.pyValue is None,"Expected None")
-
-	def testCaseEvaluateDivExpression(self):
-		"""See testCaseEvaluateAddExpression
-		
-		OData is ambiguous in the way it defines division as it makes reference only
-		to the IEEE floating point operations.  For compatibility with SQL though we
-		assume that integer division simple truncates fractional parts."""
-		value=self.EvaluateCommon("4M div 2M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
-		self.assertTrue(value.pyValue == 2,"Expected 2")
-		value=self.EvaluateCommon("4D div 2M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Double,"Expected Double")
-		self.assertTrue(value.pyValue == 2.0,"Expected 2.0")
-		try:
-			value=self.EvaluateCommon("4D div 0")
-			self.fail("Division by zero")
-		except EvaluationError:
-			pass
-		value=self.EvaluateCommon("4F div 2D")
-		self.assertTrue(value.typeCode==edm.SimpleType.Double,"Expected Double")
-		self.assertTrue(value.pyValue == 2.0,"Expected 2.0")
-		value=self.EvaluateCommon("5 div 2L")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
-		self.assertTrue(value.pyValue == 2L,"Expected 2L")
-		value=self.EvaluateCommon("-5 div 2L")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
-		self.assertTrue(value.pyValue == -2L,"Expected -2L")
-		try:
-			value=self.EvaluateCommon("4 div '2'")
-			self.fail("String promotion to int")
-		except EvaluationError:
-			pass
-		value=self.EvaluateCommon("4 div null")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
-		self.assertTrue(value.pyValue is None,"Expected None")
-
-	def testCaseEvaluateModExpression(self):
-		"""See testCaseEvaluateAddExpression
-		
-		The data service SHOULD evaluate the operation represented by
-		the modExpression, according to the rules of [IEEE754-2008]
-
-		For integer division we just truncate fractional parts towards zero."""
-		value=self.EvaluateCommon("5.5M mod 2M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
-		self.assertTrue(value.pyValue == 1.5,"Expected 1.5")
-		value=self.EvaluateCommon("5.5D mod 2M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Double,"Expected Double")
-		self.assertTrue(value.pyValue == 1.5,"Expected 1.5")
-		try:
-			value=self.EvaluateCommon("5.5D mod 0")
-			self.fail("Division by zero")
-		except EvaluationError:
-			pass
-		value=self.EvaluateCommon("5.5F mod 2D")
-		self.assertTrue(value.typeCode==edm.SimpleType.Double,"Expected Double")
-		self.assertTrue(value.pyValue == 1.5,"Expected 1.5")
-		value=self.EvaluateCommon("5 mod 2L")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
-		self.assertTrue(value.pyValue == 1L,"Expected 1L")
-		value=self.EvaluateCommon("-5 mod 2L")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
-		self.assertTrue(value.pyValue == -1L,"Expected -1L")
-		try:
-			value=self.EvaluateCommon("5 mod '2'")
-			self.fail("String promotion to int")
-		except EvaluationError:
-			pass
-		value=self.EvaluateCommon("5 mod null")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
-		self.assertTrue(value.pyValue is None,"Expected None")
-
-
-	def testCaseEvaluateNegateExpression(self):
-		"""See testCaseEvaluateAddExpression for list of simple types.
-		
-		..data service SHOULD follow the unary numeric promotion rules
-		... to implicitly convert the operand to a supported EDM
-		Primitive type
-
-		the result of evaluating the negateExpression SHOULD always be
-		equal to the result of evaluating the subExpression where one
-		operand is the value zero and the other is the value of the
-		operand.  [comment applies to null processing too]"""
-		value=self.EvaluateCommon("-(2M)")
-		self.assertTrue(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
-		self.assertTrue(value.pyValue == -2,"Expected -2.0")
-		value=self.EvaluateCommon("-(2D)")
-		self.assertTrue(value.typeCode==edm.SimpleType.Double,"Expected Double")
-		self.assertTrue(value.pyValue == -2.0,"Expected -2.0")
-		p=Parser("-(-2F)")	# unary numeric promotion to Double - a bit weird 
-		e=p.ParseCommonExpression()
-		value=e.Evaluate(None)
-		self.assertTrue(value.typeCode==edm.SimpleType.Double,"Expected Double")
-		self.assertTrue(value.pyValue == 2.0,"Expected 2.0")
-		value=self.EvaluateCommon("-(2L)")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
-		self.assertTrue(value.pyValue == -2L,"Expected -2L")
-		try:
-			value=self.EvaluateCommon("-'2'")
-			self.fail("String promotion to numeric")
-		except EvaluationError:
-			pass
-		value=self.EvaluateCommon("-null")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
-		self.assertTrue(value.pyValue is None,"Expected None")
-
-
-	def testCaseEvaluateAndExpression(self):
-		"""...operand expressions MUST evaluate to the EDM Primitive
-		types of Edm.Boolean. The andExpression SHOULD NOT be supported
-		for operands of any other EDM Primitive types.
-
-		The EDM Primitive type of the result of evaluating the andExpression MUST be Edm.Boolean.
-
-		...service MUST evaluate the expression to the value of true if
-		the values of the operands are both true after being evaluated.
-		If either operand is false after being evaluated, the expression
-		MUST evaluate to the value of false.
-		
-		The data service can support evaluating operands with null
-		values following the rules defined in Binary Numeric
-		Promotions.... [for Boolean expressions evaluated to the value
-		of null, a data service MUST return the value of false]"""
-		value=self.EvaluateCommon("false and false")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		try:
-			value=self.EvaluateCommon("false and 0")
-			self.fail("Integer promotion to Boolean")
-		except EvaluationError:
-			pass
-		value=self.EvaluateCommon("false and true")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("true and false")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("true and true")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("true and null")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("false and null")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("false and false")
-		self.assertTrue(value.pyValue is False,"Expected False")
-
-
-	def testCaseEvaluateOrExpression(self):
-		"""See testCaseEvaluateAndExpression for more details.
-		
-		...data service MUST evaluate the expression to the value of
-		true if at least one of the operands is true after being
-		evaluated. If both operands are false after being evaluated, the
-		expression MUST evaluate to the value of false"""
-		value=self.EvaluateCommon("false or false")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		try:
-			value=self.EvaluateCommon("false or 0")
-			self.fail("Integer promotion to Boolean")
-		except EvaluationError:
-			pass
-		value=self.EvaluateCommon("false or true")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("true or false")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("true or true")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("true or null")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("false or null")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("null or null")
-		self.assertTrue(value.pyValue is False,"Expected False")
-
-	def testCaseEvaluateEqExpression(self):
-		"""...operand expressions MUST evaluate to a value of a known
-		EntityType or one of the following EDM Primitive types:
-			Edm.Decimal
-			Edm.Double
-			Edm.Single
-			Edm.Int32
-			Edm.Int64
-			Edm.String
-			Edm.DateTime
-			Edm.Guid
-			Edm.Binary
-		
-		(For tests on EntityType instances see the same method in the
-		sample data set later)
-			
-		The eqExpression SHOULD NOT be supported for any other EDM
-		Primitive types.
-
-		...a data service SHOULD follow the binary numeric promotion
-		rules defined in Unary [sic] Numeric Promotions...
-		
-		...The EDM Primitive type of the result of evaluating the
-		eqExpression MUST be Edm.Boolean.
-
-		...a data service MUST return a value of true if the values of
-		the operands are equal and false if they are not equal. If the
-		type of the operands is a known EntityType, then a value of true
-		MUST be returned if the operand expressions, once evaluated,
-		represent the same entity instance.
-		
-		...for equality operators, a data service MUST consider two null
-		values equal and a null value unequal to any non-null value."""
-		value=self.EvaluateCommon("2M eq 3M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("2D eq 2M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("2F eq 2D")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("2 eq 2L")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		try:
-			value=self.EvaluateCommon("2 eq '2'")
-			self.fail("String promotion to int")
-		except EvaluationError:
-			pass
-		value=self.EvaluateCommon("'2' eq '2'")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("datetime'2013-08-30T18:49' eq datetime'2013-08-30T18:49'")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("datetime'2013-08-30T18:49' eq datetime'2013-08-30T18:49:01'")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' eq guid'b3afeebc-9658-4699-9d9c-1df551fd6814'")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' eq guid'3fa6109e-f09c-4c5e-a5f3-6cf38d35c9b5'")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("X'DEADBEEF' eq binary'deadbeef'")
-		self.assertTrue(value.pyValue is True,"Expected True")			
-		value=self.EvaluateCommon("X'DEAD' eq binary'BEEF'")
-		self.assertTrue(value.pyValue is False,"Expected False")			
-		value=self.EvaluateCommon("2 eq null")
-		self.assertTrue(value.pyValue is False,"Expected False")			
-		value=self.EvaluateCommon("null eq null")
-		self.assertTrue(value.pyValue is True,"Expected True")			
-
-	def testCaseEvaluateNeExpression(self):
-		"""See testCaseEvaluateEqExpression for details."""
-		value=self.EvaluateCommon("2M ne 3M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("2D ne 2M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("2F ne 2D")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("2 ne 2L")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		try:
-			value=self.EvaluateCommon("2 ne '2'")
-			self.fail("String promotion to int")
-		except EvaluationError:
-			pass
-		value=self.EvaluateCommon("'2' ne '2'")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("datetime'2013-08-30T18:49' ne datetime'2013-08-30T18:49'")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("datetime'2013-08-30T18:49' ne datetime'2013-08-30T18:49:01'")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' ne guid'b3afeebc-9658-4699-9d9c-1df551fd6814'")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' ne guid'3fa6109e-f09c-4c5e-a5f3-6cf38d35c9b5'")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("X'DEADBEEF' ne binary'deadbeef'")
-		self.assertTrue(value.pyValue is False,"Expected False")			
-		value=self.EvaluateCommon("X'DEAD' ne binary'BEEF'")
-		self.assertTrue(value.pyValue is True,"Expected True")			
-		value=self.EvaluateCommon("2 ne null")
-		self.assertTrue(value.pyValue is True,"Expected True")			
-		value=self.EvaluateCommon("null ne null")
-		self.assertTrue(value.pyValue is False,"Expected False")			
-
-
-	def testCaseEvaluateLtExpression(self):
-		"""...operand expressions MUST evaluate to a value of one of the
-		following EDM Primitive types:
-			Edm.Decimal
-			Edm.Double
-			Edm.Single
-			Edm.Int32
-			Edm.Int64
-			Edm.String
-			Edm.DateTime
-			Edm.Guid
-
-		...data service SHOULD follow the binary numeric promotion
-		
-		...The EDM Primitive type of the result of evaluating the
-		ltExpression MUST be Edm.Boolean.
-
-		...a data service MUST return a value of true if the value of
-		the first operand is less than the value of the second operand,
-		false if not.
-		
-		...for relational operators, a data service MUST return the
-		value false if one or both of the operands is null."""
-		value=self.EvaluateCommon("2M lt 3M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("2D lt 2M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("2.1F lt 2D")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("2 lt 3L")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		try:
-			value=self.EvaluateCommon("2 lt '3'")
-			self.fail("String promotion to int")
-		except EvaluationError:
-			pass
-		value=self.EvaluateCommon("'20' lt '3'")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("datetime'2013-08-30T18:49' lt datetime'2013-08-30T18:49'")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("datetime'2013-08-30T18:49' lt datetime'2013-08-30T18:49:01'")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' lt guid'b3afeebc-9658-4699-9d9c-1df551fd6814'")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("guid'b3afeebc-9658-4699-9d9c-1df551fd6814' lt guid'3fa6109e-f09c-4c5e-a5f3-6cf38d35c9b5'")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		try:
-			p=Parser("X'DEADBEEF' lt binary'deadbeef'")
-			e=p.ParseCommonExpression()
-			value=e.Evaluate(None)
-			self.fail("Relational operation on binary data")
-		except EvaluationError:
-			pass
-		value=self.EvaluateCommon("2 lt null")
-		self.assertTrue(value.pyValue is False,"Expected False")			
-		value=self.EvaluateCommon("null lt null")
-		self.assertTrue(value.pyValue is False,"Expected False")			
-
-	def testCaseEvaluateLeExpression(self):
-		"""See testCaseEvaluateLtExpression for more information - abbreviated tests"""
-		value=self.EvaluateCommon("2D le 2M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("datetime'2013-08-30T18:49' le datetime'2013-08-30T18:49:00'")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("2 le null")
-		self.assertTrue(value.pyValue is False,"Expected False")			
-		value=self.EvaluateCommon("null le null")
-		self.assertTrue(value.pyValue is False,"Expected False")			
-		
-	def testCaseEvaluateGtExpression(self):
-		"""See testCaseEvaluateLtExpression for more information - abbreviated tests"""
-		value=self.EvaluateCommon("2D gt 2M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("datetime'2013-08-30T18:49' gt datetime'2013-08-30T18:49:00'")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("2 gt null")
-		self.assertTrue(value.pyValue is False,"Expected False")			
-		value=self.EvaluateCommon("null gt null")
-		self.assertTrue(value.pyValue is False,"Expected False")			
-		
-	def testCaseEvaluateGeExpression(self):
-		"""See testCaseEvaluateLtExpression for more information - abbreviated tests"""
-		value=self.EvaluateCommon("2D ge 2M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("datetime'2013-08-30T18:49' ge datetime'2013-08-30T18:49:00'")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("2 ge null")
-		self.assertTrue(value.pyValue is False,"Expected False")			
-		value=self.EvaluateCommon("null ge null")
-		self.assertTrue(value.pyValue is False,"Expected False")			
-
-	def testCaseEvaluateNotExpression(self):
-		"""...operation is supported ... as long as the operand
-		expression evaluates to a value of the EDM Primitive type
-		Edm.Boolean. The data service SHOULD NOT support operand
-		expressions of any other EDM Primitive type
-
-		The EDM Primitive type of the result of evaluating the
-		notExpression MUST be Edm.Boolean.
-
-		the data service MUST evaluate the logical negation operation by
-		returning false if the operand value is true and returning true
-		if the operand value is false.
-		
-		...for unary operators, a data service MUST return the value
-		null if the operand value is null."""
-		value=self.EvaluateCommon("not false")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("not true")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		try:
-			value=self.EvaluateCommon("not 1")
-			self.fail("Integer promotion to Boolean")
-		except EvaluationError:
-			pass
-		value=self.EvaluateCommon("not null")
-		self.assertTrue(value.pyValue is None,"Expected NULL")
-	
-	def testCaseEvaluateIsOfExpression(self):
-		"""...the data service MAY<24> support some or all of the common
-		expressions as the first operand value... the data service can
-		support the first operand as being optional... interpreted to
-		apply to the entity instance specified by the navigation portion
-		of the request URI.
-		
-		The second operand MUST be a stringLiteral that represents the
-		name of a known entity or EDM Primitive type.
-
-		The EDM Primitive type of the result of evaluating the
-		isofExpression MUST be Edm.Boolean.
-
-		...the data service MUST evaluate the isofExpression to return a
-		value of true if the targeted instance can be converted to the
-		specified type. If the conversion is not allowed, then the
-		expression MUST be evaluated to false.
-		
-		data service can support evaluating an operand with a null value
-		following the rules defined in Binary Numeric Promotions. [It
-		isn't clear what this means at all, clearly there is a typo.  We
-		add our own rule... isof(NULL,'type') always returns False, in
-		keeping with other boolean operators]
-		
-		It is also not clear which 'explicit conversions' are allowed in
-		the Edm model and which aren't.  The approach taken is to allow
-		only the numeric promotions supported for binary operations,
-		which is a bit tight but perhaps safer than allowing forms which
-		may not be portable."""
-		value=self.EvaluateCommon("isof(2D,'Edm.Double')")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("isof(2M,'Edm.Double')")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("isof(2,'Edm.Double')")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("isof(2.0D,'Edm.Single')")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("isof('x','Edm.String')")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("isof(X'DEAD','Edm.String')")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("isof(false or true,'Edm.Boolean')")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("isof(null,'Edm.String')")
-		self.assertTrue(value.pyValue is False,"Expected False")
-		value=self.EvaluateCommon("isof('Edm.String')")
-		self.assertTrue(value.pyValue is False,"Expected False")
-	
-	def testCaseEvaluateCastExpression(self):
-		"""...see testCaseEvaluateIsOfExpression for more information.
-		
-		The type of the result of evaluating the castExpression MUST be
-		the same type as represented by the string literal value from
-		the second operand.
-		
-		A data service MAY support any cast operations where there
-		exists an explicit conversion from the targeted instance (first
-		operand) to the type represented by second operand. In all other
-		cases, the data service SHOULD NOT support the specified cast
-		operation.
-
-		The data service MAY support evaluating an operand with a null
-		value following the rules defined in Lifted Operators. [again,
-		not 100% clear what these are.]"""
-		value=self.EvaluateCommon("cast(2D,'Edm.Double')")
-		self.assertTrue(value.typeCode==edm.SimpleType.Double,"Expected Double")
-		self.assertTrue(value.pyValue==2.0,"Expected 2.0")
-		value=self.EvaluateCommon("cast(2L,'Edm.Single')")
-		self.assertTrue(value.typeCode==edm.SimpleType.Single,"Expected Single")
-		self.assertTrue(value.pyValue==2.0,"Expected 2.0")
-		value=self.EvaluateCommon("cast(2,'Edm.Int64')")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
-		self.assertTrue(value.pyValue==2L,"Expected 2")
-		try:
-			value=self.EvaluateCommon("cast(2.0D,'Edm.Single')")
-			self.fail("Double cast to Single")
-		except:
-			pass
-		value=self.EvaluateCommon("cast('x','Edm.String')")
-		self.assertTrue(value.pyValue=='x',"Expected 'x'")
-		try:
-			value=self.EvaluateCommon("cast(X'DEAD','Edm.String')")
-			self.fail("Binary cast to String")
-		except:
-			pass
-		try:
-			value=self.EvaluateCommon("cast(1,'Edm.Boolean')")
-			self.fail("1 cast to Boolean")
-		except:
-			pass
-		value=self.EvaluateCommon("cast(null,'Edm.String')")
-		self.assertTrue(value.typeCode==edm.SimpleType.String,"Expected String")
-		self.assertTrue(value.pyValue is None,"Expected None")
-		value=self.EvaluateCommon("cast('Edm.Int16')")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int16,"Expected Int16")
-		self.assertTrue(value.pyValue is None,"Expected None")		
-	
-	def testCaseEvaluateBooleanCastExpression(self):
-		# cursory check:
-		value=self.EvaluateCommon("cast(true,'Edm.Boolean')")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is True,"Expected True")
-
-	def testCaseEvaluateBooleanLiteralExpression(self):
-		"""the type of the boolLiteralExpression MUST always be the EDM
-		primitive type Edm.Boolean."""
-		value=self.EvaluateCommon("true")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is True,"Expected True")
-		value=self.EvaluateCommon("false")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue is False,"Expected False")
-
-	def testCaseEvaluateLiteralExpression(self):
-		"""the type of the literalExpression MUST be the EDM Primitive
-		type for the lexical representation of the literal:
-		
-			null
-			Edm.Binary
-			Edm.Boolean
-			Edm.Byte		
-			Edm.DateTime
-			Edm.Decimal
-			Edm.Double
-			Edm.Single
-			Edm.Guid
-			Edm.Int16
-			Edm.Int32
-			Edm.Int64
-			Edm.SByte,
-			Edm.String,
-			Edm.Time,
-			Edm.DateTimeOffset"""
-		value=self.EvaluateCommon("null")
-		self.assertTrue(value.typeCode==None,"Expected None")
-		self.assertTrue(value.pyValue==None,"Expected None")
-		value=self.EvaluateCommon("X'DEAD'")
-		self.assertTrue(value.typeCode==edm.SimpleType.Binary,"Expected Binary")
-		self.assertTrue(value.pyValue=='\xde\xad')
-		value=self.EvaluateCommon("true")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Booelan")
-		self.assertTrue(value.pyValue==True)
-		value=self.EvaluateCommon("123")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
-		self.assertTrue(value.pyValue==123)
-		value=self.EvaluateCommon("datetime'2013-08-31T15:28'")
-		self.assertTrue(value.typeCode==edm.SimpleType.DateTime,"Expected DateTime")
-		self.assertTrue(value.pyValue.date.year==13)
-		value=self.EvaluateCommon("123.5M")
-		self.assertTrue(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
-		self.assertTrue(value.pyValue==123.5)
-		value=self.EvaluateCommon("123.5D")
-		self.assertTrue(value.typeCode==edm.SimpleType.Double,"Expected Double")
-		self.assertTrue(value.pyValue==123.5)
-		value=self.EvaluateCommon("123.5F")
-		self.assertTrue(value.typeCode==edm.SimpleType.Single,"Expected Single")
-		self.assertTrue(value.pyValue==123.5)
-		value=self.EvaluateCommon("guid'b3afeebc-9658-4699-9d9c-1df551fd6814'")
-		self.assertTrue(value.typeCode==edm.SimpleType.Guid,"Expected Guid")
-		self.assertTrue(value.pyValue==uuid.UUID('b3afeebc-9658-4699-9d9c-1df551fd6814'))
-		value=self.EvaluateCommon("123456")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
-		self.assertTrue(value.pyValue==123456)
-		value=self.EvaluateCommon("123456L")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int64,"Expected Int64")
-		self.assertTrue(value.pyValue==123456L)
-		value=self.EvaluateCommon("-123")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
-		self.assertTrue(value.pyValue==-123)
-		value=self.EvaluateCommon("'123'")
-		self.assertTrue(value.typeCode==edm.SimpleType.String,"Expected String")
-		self.assertTrue(value.pyValue=='123')
-		value=self.EvaluateCommon("time'P123D'")
-		self.assertTrue(value.typeCode==edm.SimpleType.Time,"Expected Time")
-		self.assertTrue(value.pyValue.days==123)
-		value=self.EvaluateCommon("datetimeoffset'2002-10-10T12:00:00-05:00'")
-		self.assertTrue(value.typeCode==edm.SimpleType.DateTimeOffset,"Expected DateTimeOffset")
-		self.assertTrue(value.pyValue==iso.TimePoint('2002-10-10T12:00:00-05:00'))
-
-	def testCaseEvaluateMethodCallExpression(self):
-		"""Cursory check only."""
-		value=self.EvaluateCommon("length('x')")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
-		self.assertTrue(value.pyValue==1)
-
-	def testCaseEvaluateBooleanMethodCallExpress(self):
-		"""Cursory check only."""
-		value=self.EvaluateCommon("startswith('xyz','x')")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue==True)
-
-	def testCaseEvaluateEndsWithExpression(self):
-		"""The parameter expressions MUST evaluate to a value of the EDM
-		Primitive type Edm.String.
-
-		The endsWithMethodCallExpression SHOULD NOT be supported for
-		parameters of any other EDM Primitive types.
-		
-		...the result of evaluating the endsWithMethodCallExpression
-		SHOULD be a value of the EDM Primitive type Edm.Boolean.
-
-		...the data service SHOULD evaluate ... by returning a Boolean
-		value indicating whether the end of the first parameter
-		values matches the second parameter value."""
-		value=self.EvaluateCommon("endswith('startswith','with')")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue==True)
-		value=self.EvaluateCommon("endswith('startswith','start')")
-		self.assertTrue(value.pyValue==False)
-		value=self.EvaluateCommon("endswith('startswith','WITH')")
-		# not case insensitive
-		self.assertTrue(value.pyValue==False)
-		try:
-			value=self.EvaluateCommon("endswith('3.14',4)")
-			self.fail("integer as suffix")
-		except EvaluationError:
-			pass
-		try:
-			value=self.EvaluateCommon("endswith('3.14')")
-			self.fail("1 parameter")
-		except EvaluationError:
-			pass
-
-	def testCaseEvaluateIndexOfExpression(self):
-		"""The parameter expressions MUST evaluate to a value of the EDM
-		Primitive type Edm.String.
-
-		The indexOfMethodCallExpression SHOULD NOT be supported for
-		parameters of any other EDM Primitive types.
-		
-		...the EDM Primitive type of the result of evaluating the
-		indexOfMethodCallExpression SHOULD be a value of the EDM
-		Primitive type Edm.Int32.
-		
-		the data service SHOULD evaluate ... by returning an integer
-		value indicating the index of the first occurrence of the second
-		parameter value in the first parameter value. If no index is
-		found, a value of -1 SHOULD be returned."""
-		value=self.EvaluateCommon("indexof('startswith','tart')")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
-		self.assertTrue(value.pyValue==1)
-		value=self.EvaluateCommon("indexof('startswith','start')")
-		self.assertTrue(value.pyValue==0)
-		value=self.EvaluateCommon("indexof('startswith','t')")
-		self.assertTrue(value.pyValue==1)
-		# not case insensitive
-		value=self.EvaluateCommon("indexof('startswith','W')")
-		self.assertTrue(value.pyValue==-1)
-		try:
-			value=self.EvaluateCommon("indexof('3.14',1)")
-			self.fail("integer as parameter")
-		except EvaluationError:
-			pass
-		try:
-			value=self.EvaluateCommon("indexof('3.14')")
-			self.fail("1 parameter")
-		except EvaluationError:
-			pass
-
-	def testCaseEvaluateReplaceExpression(self):
-		"""The parameter expressions MUST evaluate to a value of the EDM
-		Primitive type Edm.String.
-
-		The replaceMethodCallExpression SHOULD NOT be supported for
-		parameters of any other EDM Primitive types.
-		
-		the EDM Primitive type of the result of evaluating the
-		replaceMethodCallExpression SHOULD be a value of the EDM
-		Primitive type Edm.String.
-
-		the data service SHOULD evaluate ... by returning a string value
-		with all occurrences of the second parameter value replaced by
-		the third parameter value in the first parameter value."""
-		value=self.EvaluateCommon("replace('startswith','tart','cake')")
-		self.assertTrue(value.typeCode==edm.SimpleType.String,"Expected String")
-		self.assertTrue(value.pyValue==u"scakeswith")
-		value=self.EvaluateCommon("replace('startswith','t','x')")
-		self.assertTrue(value.pyValue==u"sxarxswixh")
-		# not case insensitive
-		value=self.EvaluateCommon("replace('sTartswith','t','x')")
-		self.assertTrue(value.pyValue==u"sTarxswixh")
-		value=self.EvaluateCommon("replace('startswith','t','tx')")
-		self.assertTrue(value.pyValue==u"stxartxswitxh")
-		try:
-			value=self.EvaluateCommon("replace('3.14','1',2)")
-			self.fail("integer as parameter")
-		except EvaluationError:
-			pass
-		try:
-			value=self.EvaluateCommon("replace('3.14','1')")
-			self.fail("2 parameter")
-		except EvaluationError:
-			pass
-
-	def testCaseEvaluateStartsWithExpression(self):
-		"""The parameter expressions MUST evaluate to a value of the EDM
-		Primitive type Edm.String.
-
-		The startsWithMethodCallExpression SHOULD NOT be supported for
-		parameters of any other EDM Primitive types.
-		
-		...the result of evaluating the startsWithMethodCallExpression
-		SHOULD be a value of the EDM Primitive type Edm.Boolean.
-
-		...the data service SHOULD evaluate ... by returning a Boolean
-		value indicating whether the beginning of the first parameter
-		values matches the second parameter value."""
-		value=self.EvaluateCommon("startswith('startswith','start')")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue==True)
-		value=self.EvaluateCommon("startswith('startswith','end')")
-		self.assertTrue(value.pyValue==False)
-		value=self.EvaluateCommon("startswith('startswith','Start')")
-		# not case insensitive
-		self.assertTrue(value.pyValue==False)
-		try:
-			value=self.EvaluateCommon("startswith('3.14',3)")
-			self.fail("integer as prefix")
-		except EvaluationError:
-			pass
-		try:
-			value=self.EvaluateCommon("startswith('3.14')")
-			self.fail("1 parameter")
-		except EvaluationError:
-			pass
-
-	def testCaseEvaluateToLowerExpression(self):
-		"""The parameter expressions MUST evaluate to a value of the EDM
-		Primitive type Edm.String.
-
-		The toLowerMethodCallExpression SHOULD NOT be supported for
-		parameters of any other EDM Primitive types.
-		
-		...the EDM Primitive type of the result ... SHOULD be a value of
-		the EDM Primitive type Edm.String.
-
-		...the data service SHOULD evaluate ... by returning a string
-		value with the contents of the parameter value converted to
-		lower case."""
-		value=self.EvaluateCommon("tolower('Steve')")
-		self.assertTrue(value.typeCode==edm.SimpleType.String,"Expected String")
-		self.assertTrue(value.pyValue==u"steve")
-		value=self.EvaluateCommon(u"tolower('CAF\xc9')")
-		self.assertTrue(value.pyValue==u'caf\xe9')
-		value=self.EvaluateCommon(u"tolower('caf\xe9')")
-		self.assertTrue(value.pyValue==u'caf\xe9')
-		try:
-			value=self.EvaluateCommon("tolower(3.14F)")
-			self.fail("floating lower")
-		except EvaluationError:
-			pass
-		try:
-			value=self.EvaluateCommon("tolower('Steve','John')")
-			self.fail("2 parameters")
-		except EvaluationError:
-			pass
-
-	def testCaseEvaluateToUpperExpression(self):
-		"""The parameter expressions MUST evaluate to a value of the EDM
-		Primitive type Edm.String.
-
-		The toUpperMethodCallExpression SHOULD NOT be supported for
-		parameters of any other EDM Primitive types.
-		
-		...the EDM Primitive type of the result ... SHOULD be a value of
-		the EDM Primitive type Edm.String.
-
-		...the data service SHOULD evaluate ... by returning a string
-		value with the contents of the parameter value converted to
-		upper case."""
-		value=self.EvaluateCommon("toupper('Steve')")
-		self.assertTrue(value.typeCode==edm.SimpleType.String,"Expected String")
-		self.assertTrue(value.pyValue==u"STEVE")
-		value=self.EvaluateCommon(u"toupper('CAF\xc9')")
-		self.assertTrue(value.pyValue==u'CAF\xc9')
-		value=self.EvaluateCommon(u"toupper('caf\xe9')")
-		self.assertTrue(value.pyValue==u'CAF\xc9')
-		try:
-			value=self.EvaluateCommon("toupper(3.14F)")
-			self.fail("floating upper")
-		except EvaluationError:
-			pass
-		try:
-			value=self.EvaluateCommon("toupper('Steve','John')")
-			self.fail("2 parameters")
-		except EvaluationError:
-			pass
-
-	def testCaseEvaluateTrimExpression(self):
-		"""The parameter expressions MUST evaluate to a value of the EDM
-		Primitive type Edm.String.
-
-		The trimMethodCallExpression SHOULD NOT be supported for
-		parameters of any other EDM Primitive types.
-		
-		the EDM Primitive type of the result of evaluating the
-		trimMethodCallExpression SHOULD be a value of the EDM Primitive
-		type Edm.String.
-
-		the data service SHOULD evaluate ... by returning a string value
-		with the contents of the parameter value with all leading and
-		trailing white-space characters removed."""
-		value=self.EvaluateCommon("trim('  Steve\t\n\r \r\n')")
-		self.assertTrue(value.typeCode==edm.SimpleType.String,"Expected String")
-		self.assertTrue(value.pyValue==u"Steve")
-		value=self.EvaluateCommon(u"trim(' C  a  f \xe9 ')")
-		self.assertTrue(value.pyValue==u'C  a  f \xe9')
-		try:
-			value=self.EvaluateCommon("trim(3.14F)")
-			self.fail("floating trim")
-		except EvaluationError:
-			pass
-		try:
-			value=self.EvaluateCommon("trim('Steve','John')")
-			self.fail("2 parameters")
-		except EvaluationError:
-			pass
-
-	def testCaseEvaluateSubstringExpression(self):
-		"""The first parameter expression MUST evaluate to a value of
-		the EDM Primitive type Edm.String. The second and third
-		parameter expressions MUST evaluate to a value of the EDM
-		Primitive type Edm.Int32.
-
-		The substringMethodCallExpression SHOULD NOT be supported for
-		parameters of any other EDM Primitive types.
-		
-		the EDM Primitive type of the result of evaluating the
-		substringMethodCallExpression SHOULD be a value of the EDM
-		Primitive type Edm.String.
-
-		the data service SHOULD evaluate ... by returning the string
-		value starting at the character index specified by the second
-		parameter value in the first parameter string value. If the
-		optional third parameter is specified, the resulting string
-		SHOULD be the length (in characters) of the third parameter
-		value. Otherwise, the entire string from the specified starting
-		index is returned."""
-		value=self.EvaluateCommon("substring('startswith',1,4)")
-		self.assertTrue(value.typeCode==edm.SimpleType.String,"Expected String")
-		self.assertTrue(value.pyValue==u"tart")
-		value=self.EvaluateCommon("substring('startswith',1)")
-		self.assertTrue(value.pyValue==u"tartswith")
-		try:
-			value=self.EvaluateCommon("substring('startswith',1.0D,4)")
-			self.fail("double as parameter")
-		except EvaluationError:
-			pass
-		try:
-			value=self.EvaluateCommon("substring('3.14')")
-			self.fail("1 parameter")
-		except EvaluationError:
-			pass
-	
-	def testCaseEvaluateSubstringOfExpression(self):
-		"""The parameter expressions MUST evaluate to a value of the EDM
-		Primitive type Edm.String.
-
-		The substringOfMethodCallExpression SHOULD NOT be supported for
-		parameters of any other EDM Primitive types.
-		
-		the EDM Primitive type of the result of evaluating the
-		substringOfMethodCallExpression SHOULD be a value of the EDM
-		Primitive type Edm.Boolean.
-
-		...the data service SHOULD evaluate ... by returning a Boolean
-		value indicating whether the second parameter string value
-		occurs in the first parameter string value."""
-		value=self.EvaluateCommon("substringof('startswith','tart')")
-		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
-		self.assertTrue(value.pyValue==True)
-		value=self.EvaluateCommon("substringof('startswith','start')")
-		self.assertTrue(value.pyValue==True)
-		value=self.EvaluateCommon("substringof('startswith','t')")
-		self.assertTrue(value.pyValue==True)
-		# not case insensitive
-		value=self.EvaluateCommon("substringof('startswith','W')")
-		self.assertTrue(value.pyValue==False)
-		try:
-			value=self.EvaluateCommon("substringof('3.14',1)")
-			self.fail("integer as parameter")
-		except EvaluationError:
-			pass
-		try:
-			value=self.EvaluateCommon("substringof('3.14')")
-			self.fail("1 parameter")
-		except EvaluationError:
-			pass
-		
-	def testCaseEvaluateConcatExpression(self):
-		"""The parameter expressions MUST evaluate to a value of the EDM
-		Primitive type Edm.String.
-
-		The concatMethodCallExpression SHOULD NOT be supported for
-		parameters of any other EDM Primitive types.
-		
-		the EDM Primitive type of the result of evaluating the
-		concatMethodCallExpression SHOULD be a value of the EDM
-		Primitive type Edm.String.
-
-		the data service SHOULD evaluate ... by returning a string value
-		which is the first and second parameter values merged together
-		with the first parameter value coming first in the result."""
-		value=self.EvaluateCommon("concat('starts','with')")
-		self.assertTrue(value.typeCode==edm.SimpleType.String,"Expected String")
-		self.assertTrue(value.pyValue==u"startswith")
-		value=self.EvaluateCommon("concat('3.1',concat('4','159'))")
-		self.assertTrue(value.pyValue==u"3.14159")
-		try:
-			value=self.EvaluateCommon("concat('3.14',1)")
-			self.fail("integer as parameter")
-		except EvaluationError:
-			pass
-		try:
-			value=self.EvaluateCommon("concat('3.14')")
-			self.fail("1 parameter")
-		except EvaluationError:
-			pass
-		try:
-			value=self.EvaluateCommon("concat('3.1','4','159')")
-			self.fail("3 parameters")
-		except EvaluationError:
-			pass
-	
-	def testCaseEvaluateLengthExpression(self):
-		"""The parameter expressions MUST evaluate to a value of the EDM
-		Primitive type Edm.String.
-
-		The lengthMethodCallExpression SHOULD NOT be supported for
-		parameters of any other EDM Primitive types.
-		
-		the EDM Primitive type of the result of evaluating the
-		lengthMethodCallExpression SHOULD be a value of the EDM
-		Primitive type Edm.Int32.
-
-		the data service SHOULD evaluate ... by returning the number of
-		characters in the specified parameter value."""
-		value=self.EvaluateCommon("length('Steve')")
-		self.assertTrue(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
-		self.assertTrue(value.pyValue==5)
-		value=self.EvaluateCommon(u"length('CAF\xc9')")
-		self.assertTrue(value.pyValue==4)
-		value=self.EvaluateCommon(u"length('')")
-		self.assertTrue(value.pyValue==0)
-		try:
-			value=self.EvaluateCommon("length(3.14F)")
-			self.fail("floating length")
-		except EvaluationError:
-			pass
-		try:
-			value=self.EvaluateCommon("length('Steve','John')")
-			self.fail("2 parameters")
-		except EvaluationError:
-			pass		
-
-	def testCaseEvaluateYearExpression(self):
-		"""The parameter expression MUST evaluate to a value of the EDM
-		Primitive type Edm.DateTime.
-
-		The yearMethodCallExpression SHOULD NOT be supported for
-		parameters of any other EDM Primitive types.
-
-		the EDM Primitive type of the result of evaluating the
-		yearMethodCallExpression SHOULD be the EDM Primitive type
-		Edm.Int32.
-
-		the data service SHOULD evaluate ... by returning the year
-		component value of the parameter value.
-		
-		We implement very similar tests for month, day, hour, minute and second"""
-		for f,r in (
-			("year",2013),
-			("month",9),
-			("day",1),
-			("hour",10),
-			("minute",56),
-			("second",0)):
-			value=self.EvaluateCommon("%s(datetime'2013-09-01T10:56')"%f)
-			self.assertTrue(value.typeCode==edm.SimpleType.Int32,"Expected Int32")
-			self.assertTrue(value.pyValue==r)
-			try:
-				value=self.EvaluateCommon("%s(datetimeoffset'2013-09-01T10:56:12-05:00')"%f)
-				self.fail("datetimeoffset %s"%f)
-			except EvaluationError:
-				pass
-			try:
-				value=self.EvaluateCommon("%s(datetime'2013-09-01T10:56',datetime'2013-09-01T10:57')"%f)
-				self.fail("2 parameters")
-			except EvaluationError:
-				pass
-
-	def testCaseEvaluateRoundExpression(self):
-		"""The parameter expression MUST evaluate to a value of one of
-		the following EDM Primitive types:
-			Edm.Decimal
-			Edm.Double
-
-		The roundMethodCallExpression SHOULD NOT be supported for
-		parameters of any other EDM Primitive types.
-
-		data service SHOULD follow the numeric promotion rules for
-		method call parameters defined in Binary numeric promotions to
-		implicitly convert the parameters to a supported EDM Primitive
-		type.
-		
-		The EDM Primitive type of the result of evaluating the
-		roundMethodCallExpression MUST be the same type as the parameter.
-		
-		the data service SHOULD evaluate ... by returning the nearest
-		integral value to the parameter value, following the rules
-		defined in [IEEE754-2008] for the rounding operation.
-		
-		We cover floor and ceil using similar routines..."""
-		for f,r in (
-			("round",(2,2,-2,2,3,-3,2,3)),
-			("floor",(1,2,-3,1,2,-3,2,3)),
-			("ceiling",(2,3,-2,2,3,-2,3,3))):
-			value=self.EvaluateCommon("%s(1.5D)"%f)
-			self.assertTrue(value.typeCode==edm.SimpleType.Double,"Expected Double")
-			self.assertTrue(value.pyValue==r[0])
-			# check rounding to even for binary floating point
-			value=self.EvaluateCommon("%s(2.5D)"%f)
-			self.assertTrue(value.pyValue==r[1])
-			value=self.EvaluateCommon("%s(-2.5D)"%f)
-			self.assertTrue(value.pyValue==r[2])
-			value=self.EvaluateCommon("%s(1.5M)"%f)
-			self.assertTrue(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
-			self.assertTrue(value.pyValue==r[3])
-			# check rounding away from zero for decimals
-			value=self.EvaluateCommon("%s(2.5M)"%f)
-			self.assertTrue(value.pyValue==r[4])
-			value=self.EvaluateCommon("%s(-2.5M)"%f)
-			self.assertTrue(value.pyValue==r[5])
-			# single promotes to double
-			value=self.EvaluateCommon("%s(2.5F)"%f)
-			self.assertTrue(value.typeCode==edm.SimpleType.Double,"Expected Double")
-			self.assertTrue(value.pyValue==r[6])
-			# integers promote to decimal - seems a bit strange but there you go
-			value=self.EvaluateCommon("%s(3)"%f)
-			self.assertTrue(value.typeCode==edm.SimpleType.Decimal,"Expected Decimal")
-			self.assertTrue(value.pyValue==r[7])
-			try:
-				value=self.EvaluateCommon("%s('3')"%f)
-				self.fail("round string parameter")
-			except EvaluationError:
-				pass
-			try:
-				value=self.EvaluateCommon("%s(3.1D,3.2D)"%f)
-				self.fail("two parameters")
-			except EvaluationError:
-				pass		
-
-	def testCaseOperatorPrecedence(self):
-		value=self.EvaluateCommon("--2 mul 3 div 1 mul 2 mod 2 add 2 div 2 sub 1 eq 2 and false or true")
-		self.assertTrue(value.pyValue is True)
-			
 	def testCaseEntitySet(self):
 		dsURI=ODataURI("Products()?$format=json&$top=20&$skip=10&space='%20'",'/x.svc')
 		self.assertTrue(dsURI.resourcePath=='/Products()',"resource path")
@@ -2167,142 +967,27 @@ class ODataURITests(unittest.TestCase):
 			self.fail("* must be last item in a select clause")
 		except InvalidSystemQueryOption:
 			pass
-
-				
-class ClientTests(unittest.TestCase):
-	def testCaseConstructor(self):
-		c=Client()
-		self.assertTrue(len(c.feeds)==0,"Default constructor, no feeds")
-		self.assertTrue(len(c.feedTitles)==0,"Default constructor, no feed titles")
-		self.assertTrue(isinstance(c,app.Client),"OData client not an APP client")
-		self.assertTrue(c.pageSize is None,"Default constructor page size")
-		
-	def tesxCaseServiceRoot(self):
-		c=Client(ODATA_SAMPLE_SERVICEROOT)
-		self.assertTrue(len(c.feeds)==3,"Sample feed, number of feeds")
-		self.assertTrue(c.feedTitles["Products"]==ODATA_SAMPLE_SERVICEROOT+"Products","Sample feed titles")
-		c=Client()
-		c.SetService(ODATA_SAMPLE_SERVICEROOT)
-		self.assertTrue(len(c.feeds)==3 and c.feedTitles["Suppliers"]==ODATA_SAMPLE_SERVICEROOT+"Suppliers","Addition of sample feed")
-
-	def tesxCaseFeedEntries(self):
-		c=Client(ODATA_SAMPLE_SERVICEROOT)
-		fURL=c.feedTitles['Products']
-		f=c.RetrieveFeed(fURL)
-		self.assertTrue(isinstance(f,atom.Feed),"Feed instance")
-		self.assertTrue(len(f.Entry)==9,"Number of entries returned")
-		c.pageSize=2
-		f=c.RetrieveFeed(fURL)
-		self.assertTrue(len(f.Entry)==2,"Number of entries returned, restricted pageSize")
-		entries=c.RetrieveEntries(fURL)
-		count=0
-		while True:
-			try:
-				e=entries.next()
-				count=count+1
-			except StopIteration:
-				break
-		self.assertTrue(count==9,"Number of entries returned by generator")
-
-	def tesxCaseOrderBy(self):
-		c=Client(ODATA_SAMPLE_SERVICEROOT)
-		c.pageSize=1
-		fURL=c.feedTitles['Products']
-		query={'$orderby':'ID asc'}
-		entries=c.RetrieveEntries(fURL,query)
-		self.assertTrue(entries.next().Title.GetValue()=="Bread","Order by ID asc")
-		query={'$orderby':'ID desc'}
-		entries=c.RetrieveEntries(fURL,query)
-		self.assertTrue(entries.next().Title.GetValue()=="LCD HDTV","Order by ID desc")
-		query={'$orderby':'Rating asc,Price desc'}
-		entries=c.RetrieveEntries(fURL,query)
-		entries.next() # skip the LCD HDTV again
-		self.assertTrue(entries.next().Title.GetValue()=="DVD Player","Order by ID low rating, high price")
-		
-	def tesxCaseProperties(self):
-		c=Client(ODATA_SAMPLE_SERVICEROOT)
-		c.pageSize=1
-		fURL=c.feedTitles['Products']
-		entries=c.RetrieveEntries(fURL)
-		e=entries.next()
-		self.assertTrue(isinstance(e,Entry),"OData entry type override")
-		self.assertTrue(e['Rating']==4,"Rating property")
-		self.assertTrue(e['Price']==2.5,"Price property")
-		self.assertTrue(isinstance(e['ReleaseDate'],iso.TimePoint),"ReleaseDate type")
-		self.assertTrue(e['ReleaseDate'].date.century==19 and e['ReleaseDate'].date.year==92,"ReleaseDate year")		
-		self.assertTrue(e['DiscontinuedDate'] is None,"DiscontinuedDate NULL test")		
-		for link in e.Link:
-			if link.title=="Category":
-				eCat=c.RetrieveEntry(link.ResolveURI(link.href))
-				
-	def tesxCaseReadWrite(self):
-		c=Client(ODATA_SAMPLE_READWRITE)
-		fURL=c.feedTitles['Categories']
-		entries=c.RetrieveEntries(fURL)
-		catID=None
-		for e in entries:
-			if e.Title.GetValue()=='Electronics':
-				catID=e.AtomId.GetValue()		
-		fURL=c.feedTitles['Products']
-		e=Entry(None)
-		now=iso.TimePoint()
-		now.NowUTC()
-		e.Title.SetValue("Pyslet Python Package")
-		e.ChildElement(atom.Summary).SetValue("Python package for Standards in Learning, Education and Training")
-		e['ID']=100
-		e['ReleaseDate']=now.GetCalendarString()
-		e['Rating']=5
-		e['Price']=0.0
-		if catID is not None:
-			# Link this to Electronics
-			e.AddLink('Category',catID)
-		eResult=c.AddEntry(fURL,e)
-		self.assertTrue(isinstance(eResult,Entry),"OData entry type POST result")
-		self.assertTrue(eResult['Rating']==5,"Rating property on POST")
-		self.assertTrue(eResult['Price']==0.0,"Price property on POST")
-		self.assertTrue(isinstance(eResult['ReleaseDate'],iso.TimePoint),"ReleaseDate type on POST: %s"%repr(eResult['ReleaseDate']))
-		self.assertTrue(eResult['ReleaseDate']==now,"ReleaseDate match on POST")		
-		self.assertTrue(eResult['DiscontinuedDate'] is None,"DiscontinuedDate NULL test on POST")
-		for link in eResult.Link:
-			if link.title=="Category":
-				eCat=c.RetrieveEntry(link.ResolveURI(link.href))
-				self.assertTrue(eCat['Name']=='Electronics')
-
-	def tesxCaseMetadata(self):
-		c=Client()
-		if VERBOSE:
-			c.SetLog(http.HTTP_LOG_INFO,sys.stdout)
-		c.SetService(ODATA_SAMPLE_SERVICEROOT)
-		# By default this should load the metadata document, if present
-		self.assertTrue(isinstance(c.schemas['ODataDemo'],edm.Schema),"Failed to load metadata document")
-		fURL=c.feedTitles['Products']
-		f=c.RetrieveFeed(fURL)
-		for e in f.Entry:
-			self.assertTrue(e.entityType is c.schemas['ODataDemo']['Product'],"Entry not associated with EntityType")
-		e=c.Entry('ODataDemo.Product')
-		self.assertTrue(isinstance(e,Entry),"Entry creation from client")
-		self.assertTrue(e.entityType is c.schemas['ODataDemo']['Product'],"New entry not associated with EntityType")
 					
 
-class ODataStoreClientTests(unittest.TestCase):
-
-	Categories={
-		0:"Food",
-		1:"Beverages",
-		2:"Electronics"
-		}
-		
-	def testCaseConstructor(self):
-		sClient=ODataStoreClient('http://localhost:%i/'%HTTP_PORT)
-		self.assertTrue(isinstance(sClient,edm.ERStore),"ODataStore not an ERStore")
-		s=sClient['ODataDemo']
-		self.assertTrue(isinstance(s,edm.Schema),"ODataStore schema")
-	
-	def testCaseEntityReader(self):
-		sClient=ODataStoreClient('http://localhost:%i/'%HTTP_PORT)
-		for c in sClient.EntityReader("Categories"):
-			self.assertTrue("ID" in c,"No key field in category")
-			self.assertTrue(self.Categories[c["ID"].pyValue]==c["Name"].pyValue,"Category Name")
+# class ODataStoreClientTests(unittest.TestCase):
+# 
+# 	Categories={
+# 		0:"Food",
+# 		1:"Beverages",
+# 		2:"Electronics"
+# 		}
+# 		
+# 	def testCaseConstructor(self):
+# 		sClient=ODataStoreClient('http://localhost:%i/'%HTTP_PORT)
+# 		self.assertTrue(isinstance(sClient,edm.ERStore),"ODataStore not an ERStore")
+# 		s=sClient['ODataDemo']
+# 		self.assertTrue(isinstance(s,edm.Schema),"ODataStore schema")
+# 	
+# 	def testCaseEntityReader(self):
+# 		sClient=ODataStoreClient('http://localhost:%i/'%HTTP_PORT)
+# 		for c in sClient.EntityReader("Categories"):
+# 			self.assertTrue("ID" in c,"No key field in category")
+# 			self.assertTrue(self.Categories[c["ID"].pyValue]==c["Name"].pyValue,"Category Name")
 
 
 class ServerTests(unittest.TestCase):
@@ -2733,7 +1418,7 @@ class ServerTests(unittest.TestCase):
 			nProps=nProps+1
 		self.assertTrue(nProps==2,"Two properties selected in Customer: %i"%nProps)
 		documentSet=ds['SampleModel.SampleEntities.Documents']
-		documents=pyds.InMemoryEntityStore(documentSet)
+		documents=memds.InMemoryEntityStore(documentSet)
 		docText="Well, Prince, so Genoa and Lucca are now just family estates of the Buonapartes"
 		h=hashlib.sha256()
 		h.update(docText)
@@ -2785,7 +1470,7 @@ class ServerTests(unittest.TestCase):
 		self.assertTrue(newEmployee['Address']['City']=="Chunton","Check employee city")
 		self.assertFalse(newEmployee['Version'],"No version")
 		documentSet=ds['SampleModel.SampleEntities.Documents']
-		documents=pyds.InMemoryEntityStore(documentSet)
+		documents=memds.InMemoryEntityStore(documentSet)
 		docText="Well, Prince, so Genoa and Lucca are now just family estates of the Buonapartes"
 		h=hashlib.sha256()
 		h.update(docText)
@@ -2805,9 +1490,9 @@ class ServerTests(unittest.TestCase):
 		doc=self.LoadMetadata()
 		ds=doc.root.DataServices
 		customersSet=ds['SampleModel.SampleEntities.Customers']
-		customers=pyds.InMemoryEntityStore(customersSet)
-		orders=pyds.InMemoryEntityStore(ds['SampleModel.SampleEntities.Orders'])
-		association=pyds.InMemoryAssociationIndex(orders,customers,"Customer","Orders")
+		customers=memds.InMemoryEntityStore(customersSet)
+		orders=memds.InMemoryEntityStore(ds['SampleModel.SampleEntities.Orders'])
+		association=memds.InMemoryAssociationIndex(orders,customers,"Customer","Orders")
 		customers.data['ALFKI']=('ALFKI','Example Inc',("Mill Road","Chunton"),None)
 		for i in xrange(3):
 			customers.data['XXX%02X'%i]=('XXX%02X'%i,'Example-%i Ltd'%i,(None,None),None)
@@ -2885,9 +1570,9 @@ class ServerTests(unittest.TestCase):
 		doc=self.LoadMetadata()
 		ds=doc.root.DataServices
 		customersSet=ds['SampleModel.SampleEntities.Customers']
-		customers=pyds.InMemoryEntityStore(customersSet)
-		orders=pyds.InMemoryEntityStore(ds['SampleModel.SampleEntities.Orders'])
-		association=pyds.InMemoryAssociationIndex(orders,customers,"Customer","Orders")
+		customers=memds.InMemoryEntityStore(customersSet)
+		orders=memds.InMemoryEntityStore(ds['SampleModel.SampleEntities.Orders'])
+		association=memds.InMemoryAssociationIndex(orders,customers,"Customer","Orders")
 		customers.data['ALFKI']=('ALFKI','Example Inc',("Mill Road","Chunton"),None)
 		for i in xrange(3):
 			customers.data['XXX%02X'%i]=('XXX%02X'%i,'Example-%i Ltd'%i,(None,None),None)
@@ -3014,32 +1699,36 @@ class SampleServerTests(unittest.TestCase):
 			doc.Read(f)
 		self.ds=doc.root.DataServices
 		self.svc.SetModel(doc)
-		customers=pyds.InMemoryEntityStore(self.ds['SampleModel.SampleEntities.Customers'])
-		customers.data['ALFKI']=('ALFKI','Example Inc',("Mill Road","Chunton"),None)
+		customers=memds.InMemoryEntityStore(self.ds['SampleModel.SampleEntities.Customers'])
+		customers.data['ALFKI']=('ALFKI','Example Inc',("Mill Road","Chunton"),'\x00\x00\x00\x00\x00\x00\xfa\x01')
 		for i in xrange(90):
 			customers.data['XXX%02X'%i]=('XXX%02X'%i,'Example-%i Ltd'%i,(None,None),None)
-		employees=pyds.InMemoryEntityStore(self.ds['SampleModel.SampleEntities.Employees'])
+		employees=memds.InMemoryEntityStore(self.ds['SampleModel.SampleEntities.Employees'])
 		employees.data['1']=('1','Joe Bloggs',("The Elms","Chunton"),'DEADBEEF')
-		orders=pyds.InMemoryEntityStore(self.ds['SampleModel.SampleEntities.Orders'])
+		orders=memds.InMemoryEntityStore(self.ds['SampleModel.SampleEntities.Orders'])
 		now=iso8601.TimePoint('2013-08-01T11:05:00')
 		now.Now()
 		orders.data[1]=(1,iso8601.TimePoint('2013-08-01T11:05:00'))
 		orders.data[2]=(2,iso8601.TimePoint('2013-08-13T10:26:00'))
 		orders.data[3]=(3,iso8601.TimePoint('2012-05-29T18:13:00'))
 		orders.data[4]=(4,iso8601.TimePoint('2012-05-29T18:13:00'))
-		association=pyds.InMemoryAssociationIndex(orders,customers,"Customer","Orders")
+		association=memds.InMemoryAssociationIndex(orders,customers,"Customer","Orders")
 		association.AddLink(1,'ALFKI')
 		association.AddLink(2,'ALFKI')
-		orderLines=pyds.InMemoryEntityStore(self.ds['SampleModel.SampleEntities.OrderLines'])
+		association.AddLink(3,'XXX00')
+		orderLines=memds.InMemoryEntityStore(self.ds['SampleModel.SampleEntities.OrderLines'])
 		orderLines.data[100]=(100,12,decimal.Decimal('0.45'))
 		orderLines.data[200]=(200,144,decimal.Decimal('2.50'))
-		association=pyds.InMemoryAssociationIndex(orders,orderLines,"OrderLine","Orders")
+		association=memds.InMemoryAssociationIndex(orders,orderLines,"OrderLine","Orders")
 		association.AddLink(1,100)
 		association.AddLink(2,200)
-		documents=pyds.InMemoryEntityStore(self.ds['SampleModel.SampleEntities.Documents'])
-		documents.data[300]=(300,'The Book','The Author')
-		documents.data[301]=(301,'A Book','An Author')
-		bitsAndPieces=pyds.InMemoryEntityStore(self.ds['SampleModel.ExtraEntities.BitsAndPieces'])
+		documents=memds.InMemoryEntityStore(self.ds['SampleModel.SampleEntities.Documents'])
+		documents.data[300]=(300,'The Book','The Author',None)
+		documents.data[301]=(301,'A Book','An Author',None)
+		with memds.EntityCollection(documents.entitySet,documents) as collection:
+			doc=collection[301]
+			doc.SetStreamFromGenerator(http.MediaType("text/plain; charset=iso-8859-1"),["An opening line written in a Caf\xe9"])
+		bitsAndPieces=memds.InMemoryEntityStore(self.ds['SampleModel.ExtraEntities.BitsAndPieces'])
 		bitsAndPieces.data[1]=(1,'blahblah')
 		customersByCity=self.ds['SampleModel.SampleEntities.CustomersByCity']
 		customersByCity.Bind(CustomersByCityEntityCollection,customers=customers)
@@ -3095,7 +1784,7 @@ class SampleServerTests(unittest.TestCase):
 		entry=Entry(None,customer)
 		newCustomer=Entity(customers)
 		newCustomer.exists=False
-		entry.GetValue(newCustomer,lambda x:ODataURI(x,self.svc.pathPrefix).GetResource(self.ds))
+		entry.GetValue(newCustomer,lambda x:self.svc.GetResourceFromURI(x))
 		# now we need to check the bindings, which is a little hard to do without looking inside the box
 		self.assertTrue(len(newCustomer.bindings)==1,"new customer has a single nav property bound")
 		idLinks=set()
@@ -3176,9 +1865,10 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(isinstance(value,edm.Complex),"Expected Complex value")
 		self.assertTrue(value['City'].pyValue=='Chunton',"Expected Chunton")		
 		# Simple Property (NULL)
+		customer00=customers.OpenCollection()['XXX00']
 		p=Parser("Version")
 		e=p.ParseCommonExpression()
-		value=e.Evaluate(customer)
+		value=e.Evaluate(customer00)
 		self.assertTrue(value.typeCode==edm.SimpleType.Binary,"Expected Binary")
 		self.assertTrue(value.pyValue is None,"Expected NULL")		
 		# Navigation property
@@ -3188,7 +1878,7 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(isinstance(value,edm.Entity),"Expected Entity")
 		self.assertTrue(value['CustomerID'].pyValue=='ALFKI',"Expected Customer('ALFKI')")
 		# Navigation property with Null
-		value=e.Evaluate(orders.OpenCollection()[3])
+		value=e.Evaluate(orders.OpenCollection()[4])
 		self.assertTrue(isinstance(value,edm.SimpleValue),"Expected SimpleValue (for NULL) found %s"%repr(value))
 		self.assertFalse(value,"Expected NULL")		
 		# Navigation property with multiple cardinality
@@ -3217,6 +1907,7 @@ class SampleServerTests(unittest.TestCase):
 		NavigationProperties are null."""
 		orders=self.ds['SampleModel.SampleEntities.Orders']
 		order=orders.OpenCollection()[1]
+		order3=orders.OpenCollection()[3]
 		# Known Entity: SimpleProperty
 		p=Parser("Customer/CustomerID")
 		e=p.ParseCommonExpression()
@@ -3234,7 +1925,7 @@ class SampleServerTests(unittest.TestCase):
 		# Simple Property (NULL)
 		p=Parser("Customer/Version")
 		e=p.ParseCommonExpression()
-		value=e.Evaluate(order)
+		value=e.Evaluate(order3)
 		self.assertTrue(value.typeCode==edm.SimpleType.Binary,"Expected Binary")
 		self.assertTrue(value.pyValue is None,"Expected NULL")		
 		# Navigation property with multiple cardinality
@@ -3347,7 +2038,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==404,"Qualified entity set from default container")
 	
-	def testCaseEntitProperty(self):
+	def testCaseEntityProperty(self):
 		"""If the prior URI path segment identifies an EntityType instance in
 		EntitySet ES1, this value MUST be the name of a declared property or
 		dynamic property, of type EDMSimpleType, on the base EntityType of set
@@ -3795,10 +2486,12 @@ class SampleServerTests(unittest.TestCase):
 		#	should be version 2 output
 		self.assertTrue("results" in obj,"Expected version 2 JSON output")
 		i=0
+		fakeP=edm.Property(None)
+		fakeP.complexType=self.ds['SampleModel.CAddress']
 		for ct in obj["results"]:
 			#	should be a complex type
-			c=edm.Complex(self.ds['SampleModel.CAddress'])
-			JSONToComplex(c,obj)
+			c=edm.Complex(fakeP)
+			ReadEntityCTInJSON(c,obj)
 			if c['Street']=="Mill Road":
 				self.assertTrue(c['City']=="Chunton")
 				iChunton=i
@@ -3895,7 +2588,7 @@ class SampleServerTests(unittest.TestCase):
 		for prim in obj["results"]:
 			#	should be a simple type
 			v=edm.StringValue()
-			JSONToSimpleValue(v,prim)
+			ReadEntityPropertyValueInJSON(v,prim)
 			i=i+1
 		#	check version 1 json output
 		request=MockRequest("/service.svc/ShippedCustomerNamesByDate?date=datetime'2013-08-02'")
@@ -4094,7 +2787,7 @@ class SampleServerTests(unittest.TestCase):
 				#	<atom:link> element.
 				self.assertTrue(isinstance(linkInline,atom.Feed),"Expected atom.Feed in Orders link")
 				self.assertTrue(len(linkInline.Entry)==2,"Expected 2 Orders in expand")
-			else:
+			elif e['CustomerID'].pyValue!='XXX00':
 				self.assertTrue(linkInline is None,"Expected no inline content for Orders link")
 		#	Test json format
 		request=MockRequest("/service.svc/Customers?$expand=Orders")
@@ -4113,7 +2806,7 @@ class SampleServerTests(unittest.TestCase):
 			if objItem["CustomerID"]=='ALFKI':
 				self.assertTrue("results" in orders,"Version 2 expanded entity set as array")
 				self.assertTrue(len(orders["results"])==2,"Expected 2 Orders in expand")
-			else:
+			elif objItem["CustomerID"]!='XXX00':
 				self.assertTrue(len(orders["results"])==0,"Expected no inline content for Orders link")							
 		request=MockRequest("/service.svc/Orders(1)?$expand=Customer")
 		request.Send(self.svc)
@@ -4143,12 +2836,12 @@ class SampleServerTests(unittest.TestCase):
 		customer=obj["Customer"]
 		self.assertTrue(type(customer)==DictType,"Single object result")
 		self.assertTrue(customer["CustomerID"]=='ALFKI',"Matching customer")
-		request=MockRequest("/service.svc/Orders(3)?$expand=Customer")
+		request=MockRequest("/service.svc/Orders(4)?$expand=Customer")
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		doc=Document()
 		doc.Read(request.wfile.getvalue())
-		self.assertTrue(isinstance(doc.root,atom.Entry),"Expected atom.Entry from /Orders(3)?$expand=Customer")
+		self.assertTrue(isinstance(doc.root,atom.Entry),"Expected atom.Entry from /Orders(4)?$expand=Customer")
 		linkURI,linkInline=None,None
 		for link in doc.root.FindChildrenDepthFirst(Link):
 			if link.title=="Customer":
@@ -4161,7 +2854,7 @@ class SampleServerTests(unittest.TestCase):
 		#	element which represents the NavigationProperty
 		self.assertTrue(linkInline is None,"Expected empty inline in Customer link")
 		#	Test json format
-		request=MockRequest("/service.svc/Orders(3)?$expand=Customer")
+		request=MockRequest("/service.svc/Orders(4)?$expand=Customer")
 		request.SetHeader('Accept',"application/json")
 		request.Send(self.svc)
 		obj=json.loads(request.wfile.getvalue())
@@ -4603,7 +3296,7 @@ class SampleServerTests(unittest.TestCase):
 		customer['Address']['City'].SetFromPyValue('Cambridge')
 		#	street left blank
 		request=MockRequest("/service.svc/Customers","POST")
-		data=string.join(customer.GenerateEntityTypeInJSON(1))
+		data=string.join(customer.GenerateEntityTypeInJSON(False,1))
 		request.SetHeader('Content-Type','application/json')
 		request.SetHeader('Content-Length',str(len(data)))
 		request.SetHeader('Accept',"application/json")		
@@ -4633,7 +3326,7 @@ class SampleServerTests(unittest.TestCase):
 		customer.BindEntity("Orders",3)
 		customer.BindEntity("Orders",4)
 		request=MockRequest("/service.svc/Customers","POST")
-		data=string.join(customer.GenerateEntityTypeInJSON(1))
+		data=string.join(customer.GenerateEntityTypeInJSON(False,1))
 		request.SetHeader('Content-Type','application/json')
 		request.SetHeader('Content-Length',str(len(data)))
 		request.SetHeader('Accept',"application/json")		
@@ -4942,7 +3635,528 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue("CompanyName" in obj,"Expected named object 'CompanyName' in response")
 		self.assertTrue(obj["CompanyName"]=='Example Inc',"Bad company")
 
-					
+	def testCaseRetrieveValue(self):
+		request=MockRequest("/service.svc/Customers('ALFKI')/CompanyName/$value")
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue(http.MediaRange("text/plain").MatchMediaType(http.MediaType(request.responseHeaders['CONTENT-TYPE'])))
+		# Customer does have a version field for optimistic concurrency control
+		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag")
+		self.assertTrue(request.wfile.getvalue()=='Example Inc',"Bad company")
+		# check media type customisation
+		request=MockRequest("/service.svc/ExtraEntities.BitsAndPieces(1)/Details/$value")
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue(request.responseHeaders['CONTENT-TYPE']=="application/x-details")
+		self.assertTrue(request.wfile.getvalue()=='blahblah',"Bad details $value")
+		# check that binary values are received as raw values
+		request=MockRequest("/service.svc/Customers('ALFKI')/Version/$value")
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/octet-stream")
+		# Customer does have a version field for optimistic concurrency control
+		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag")
+		self.assertTrue(request.wfile.getvalue()=='\x00\x00\x00\x00\x00\x00\xfa\x01',"Bad version")
+		# check behaviour of null values, this was clarified in the v3 specification
+		# A $value request for a property that is NULL SHOULD result in a 404 Not Found. response.
+		request=MockRequest("/service.svc/Customers('XXX00')/Version/$value")
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==404)
+		
+	def testCaseRetrieveMetadata(self):
+		request=MockRequest("/service.svc/$metadata")
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/xml")
+		doc=edmx.Document()
+		doc.Read(request.wfile.getvalue())
+		self.assertTrue(isinstance(doc.root,edmx.Edmx),"Expected Edmx from $metadata request, found %s"%doc.root.__class__.__name__)
+		version=doc.Validate()
+		#	The version number returned as the value of the
+		#	DataServiceVersion response header MUST match the value of
+		#	the DataServiceVersion attribute
+		ds=doc.root.DataServices
+		self.assertTrue(ds.DataServiceVersion()=="2.0","Expected matching data service version")
+	
+	def testCaseRetrieveServiceDocument(self):
+		request=MockRequest("/service.svc/")
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/atomsvc+xml")
+		doc=app.Document()
+		doc.Read(request.wfile.getvalue())
+		self.assertTrue(isinstance(doc.root,app.Service),"Expected atom service document, found %s"%doc.root.__class__.__name__)
+	
+	def testCaseRetrieveServiceDocumentJSON(self):
+		request=MockRequest("/service.svc/")
+		request.SetHeader('Accept','application/json')
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/json")
+		obj=json.loads(request.wfile.getvalue())		
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]		
+		self.assertTrue(type(obj)==DictType,"Expected a single JSON object, found %s"%repr(type(obj)))
+		self.assertTrue("EntitySets" in obj,"EntitySets in service document response")
+		self.assertTrue(type(obj['EntitySets'])==ListType,"EntitySets is an array")
+
+	def testCaseRetrieveLink(self):
+		request=MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/xml")
+		self.assertFalse("ETAG" in request.responseHeaders,"Entity set ETag")
+		doc=Document()
+		doc.Read(request.wfile.getvalue())
+		self.assertTrue(isinstance(doc.root,Links),"Expected Links from $links request, found %s"%doc.root.__class__.__name__)
+		self.assertTrue(len(doc.root.URI)==2,"Sample customer has 2 orders")
+		request=MockRequest("/service.svc/Orders(1)/$links/Customer")
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/xml")
+		self.assertFalse("ETAG" in request.responseHeaders,"Entity set ETag")
+		doc=Document()
+		doc.Read(request.wfile.getvalue())
+		self.assertTrue(isinstance(doc.root,URI),"Expected URI from $links request, found %s"%doc.root.__class__.__name__)
+		self.assertTrue(doc.root.GetValue()=="http://host/service.svc/Customers('ALFKI')","Bad customer link")
+
+	def testCaseRetrieveLinkJSON(self):
+		request=MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
+		request.SetHeader('Accept','application/json')
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/json")
+		self.assertFalse("ETAG" in request.responseHeaders,"Entity set ETag")
+		obj=json.loads(request.wfile.getvalue())		
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]
+		self.assertTrue("results" in obj,"results in response")
+		obj=obj["results"]
+		self.assertTrue(type(obj)==ListType,"Expected json array of links")
+		self.assertTrue(len(obj)==2,"Sample customer has 2 orders")
+		# version 1 format
+		request=MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
+		request.SetHeader('DataServiceVersion',"1.0; old request")
+		request.SetHeader('Accept','application/json')
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("1.0;"),"DataServiceVersion 1.0 expected")
+		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/json")
+		self.assertFalse("ETAG" in request.responseHeaders,"Entity set ETag")
+		obj=json.loads(request.wfile.getvalue())		
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]
+		self.assertTrue(type(obj)==ListType,"Expected json array of links")
+		self.assertTrue(len(obj)==2,"Sample customer has 2 orders")
+		# Now the single link use case: one format for both versions
+		request=MockRequest("/service.svc/Orders(1)/$links/Customer")
+		request.SetHeader('Accept','application/json')
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/json")
+		self.assertFalse("ETAG" in request.responseHeaders,"Entity set ETag")
+		obj=json.loads(request.wfile.getvalue())		
+		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
+		obj=obj["d"]	
+		self.assertTrue("uri" in obj,"uri in response")
+		self.assertTrue(obj["uri"]=="http://host/service.svc/Customers('ALFKI')","Bad customer link")
+			
+	def testCaseRetrieveCount(self):
+		request=MockRequest('/service.svc/Customers/$count')
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==200)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue(http.MediaRange("text/plain").MatchMediaType(http.MediaType(request.responseHeaders['CONTENT-TYPE'])))
+		self.assertFalse("ETAG" in request.responseHeaders,"Count ETag")
+		self.assertTrue(request.wfile.getvalue()=="91","Sample server has 91 Customers")
+
+	def testCaseRetrieveMediaResource(self):
+		request=MockRequest("/service.svc/Documents(301)/$value")
+		request.Send(self.svc)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue(http.MediaRange("text/plain ; charset=iso-8859-1").MatchMediaType(http.MediaType(request.responseHeaders['CONTENT-TYPE'])))
+		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag")		
+		self.assertTrue(request.responseCode==200)
+		self.assertTrue(unicode(request.wfile.getvalue(),"iso-8859-1")==unicode('An opening line written in a Caf\xc3\xa9','utf-8'),"media resource characters")
+
+	def testCaseUpdateEntity(self):
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+		customer['CompanyName'].SetFromPyValue("Example Inc Updated")
+		request=MockRequest("/service.svc/Customers('ALFKI')","PUT")
+		doc=Document(root=Entry)
+		doc.root.SetValue(customer,True)
+		data=str(doc)
+		request.SetHeader('Content-Type',ODATA_RELATED_ENTRY_TYPE)
+		request.SetHeader('Content-Length',str(len(data)))
+		request.rfile.write(data)
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag")		
+		self.assertTrue(len(request.wfile.getvalue())==0,"Update must return 0 bytes")
+		# now go behind the scenes to check the update really worked!
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+			self.assertTrue(customer['CompanyName']=="Example Inc Updated")
+		# Now do a case with an updated link
+		orders=self.ds['SampleModel.SampleEntities.Orders']
+		with orders.OpenCollection() as collection:
+			order=collection[3]
+		oldCustomer=order['Customer'].GetEntity()
+		self.assertTrue(oldCustomer.Key()=='XXX00',"Previous customer")
+		order.BindEntity('Customer',customer)
+		request=MockRequest("/service.svc/Orders(3)","PUT")
+		doc=Document(root=Entry)
+		doc.root.SetValue(order,True)
+		data=str(doc)
+		request.SetHeader('Content-Type',ODATA_RELATED_ENTRY_TYPE)
+		request.SetHeader('Content-Length',str(len(data)))
+		request.rfile.write(data)
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertFalse("ETAG" in request.responseHeaders,"Entity set Orders has no ETag")		
+		self.assertTrue(len(request.wfile.getvalue())==0,"Update must return 0 bytes")
+		# now go behind the scenes to check the update really worked!
+		orders=self.ds['SampleModel.SampleEntities.Orders']
+		with orders.OpenCollection() as collection:
+			order=collection[3]
+		newCustomer=order['Customer'].GetEntity()
+		self.assertTrue(newCustomer.Key()=='ALFKI',"Customer updated")
+
+	def testCaseUpdateEntityJSON(self):
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+		customer['CompanyName'].SetFromPyValue("Example Inc Updated")
+		request=MockRequest("/service.svc/Customers('ALFKI')","PUT")
+		jsonData=string.join(customer.GenerateEntityTypeInJSON(True))
+		request.SetHeader('Accept',"application/json")
+		request.SetHeader('Content-Type',"application/json")
+		request.SetHeader('Content-Length',str(len(jsonData)))
+		request.rfile.write(jsonData)
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag")		
+		self.assertTrue(len(request.wfile.getvalue())==0,"Update must return 0 bytes")
+		# now go behind the scenes to check the update really worked!
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+			self.assertTrue(customer['CompanyName']=="Example Inc Updated")
+		# Now do a case with an updated link
+		orders=self.ds['SampleModel.SampleEntities.Orders']
+		with orders.OpenCollection() as collection:
+			order=collection[3]
+		oldCustomer=order['Customer'].GetEntity()
+		self.assertTrue(oldCustomer.Key()=='XXX00',"Previous customer")
+		order.BindEntity('Customer',customer)
+		request=MockRequest("/service.svc/Orders(3)","PUT")
+		jsonData=string.join(order.GenerateEntityTypeInJSON(True))
+		request.SetHeader('Accept',"application/json")
+		request.SetHeader('Content-Type',"application/json")
+		request.SetHeader('Content-Length',str(len(jsonData)))
+		request.rfile.write(jsonData.encode('utf-8'))
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertFalse("ETAG" in request.responseHeaders,"Entity set Orders has no ETag")		
+		self.assertTrue(len(request.wfile.getvalue())==0,"Update must return 0 bytes")
+		# now go behind the scenes to check the update really worked!
+		orders=self.ds['SampleModel.SampleEntities.Orders']
+		with orders.OpenCollection() as collection:
+			order=collection[3]
+		newCustomer=order['Customer'].GetEntity()
+		self.assertTrue(newCustomer.Key()=='ALFKI',"Customer updated")
+		
+	def testCaseUpdateComplexType(self):
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+		customer['Address']['Street'].SetFromPyValue("High Street")
+		request=MockRequest("/service.svc/Customers('ALFKI')/Address","PUT")
+		doc=Document(root=Property)
+		doc.root.SetXMLName((ODATA_DATASERVICES_NAMESPACE,'Address'))
+		doc.root.SetValue(customer['Address'])
+		data=str(doc)
+		request.SetHeader('Content-Type',"application/xml")
+		request.SetHeader('Content-Length',str(len(data)))
+		request.rfile.write(data)
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag")		
+		self.assertTrue(len(request.wfile.getvalue())==0,"Update must return 0 bytes")
+		# now go behind the scenes to check the update really worked!
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+			self.assertTrue(customer['Address']['Street'].pyValue=="High Street")
+
+	def testCaseUpdateComplexTypeJSON(self):
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+		customer['Address']['Street'].SetFromPyValue("High Street")
+		request=MockRequest("/service.svc/Customers('ALFKI')/Address","PUT")
+		request.SetHeader('Accept',"application/json")
+		data=EntityCTInJSON(customer['Address'])
+		request.SetHeader('Content-Type',"application/json")
+		request.SetHeader('Content-Length',str(len(data)))
+		request.rfile.write(str(data))
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag")		
+		self.assertTrue(len(request.wfile.getvalue())==0,"Update must return 0 bytes")
+		# now go behind the scenes to check the update really worked!
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+			self.assertTrue(customer['Address']['Street'].pyValue=="High Street")
+
+	def testCaseUpdatePrimitiveProperty(self):
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+		customer['CompanyName'].SetFromPyValue("Example Inc Updated")
+		request=MockRequest("/service.svc/Customers('ALFKI')/CompanyName","PUT")
+		doc=Document(root=Property)
+		doc.root.SetXMLName((ODATA_DATASERVICES_NAMESPACE,'CompanyName'))
+		doc.root.SetValue(customer['CompanyName'])
+		data=str(doc)
+		request.SetHeader('Content-Type',"application/xml")
+		request.SetHeader('Content-Length',str(len(data)))
+		request.rfile.write(data)
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag")		
+		self.assertTrue(len(request.wfile.getvalue())==0,"Update must return 0 bytes")
+		# now go behind the scenes to check the update really worked!
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+			self.assertTrue(customer['CompanyName'].pyValue=="Example Inc Updated")
+
+	def testCaseUpdatePrimitivePropertyJSON(self):
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+		customer['CompanyName'].SetFromPyValue("Example Inc Updated")
+		request=MockRequest("/service.svc/Customers('ALFKI')/CompanyName","PUT")
+		request.SetHeader('Accept',"application/json")
+		data=EntityPropertyInJSON1(customer['CompanyName'])
+		request.SetHeader('Content-Type',"application/json")
+		request.SetHeader('Content-Length',str(len(data)))
+		request.rfile.write(str(data))
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag")		
+		self.assertTrue(len(request.wfile.getvalue())==0,"Update must return 0 bytes")
+		# now go behind the scenes to check the update really worked!
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+			self.assertTrue(customer['CompanyName'].pyValue=="Example Inc Updated")
+
+	def testCaseUpdateValue(self):
+		request=MockRequest("/service.svc/Customers('ALFKI')/CompanyName/$value","PUT")
+		data=u"Caf\xe9 Inc".encode("ISO-8859-1")
+		request.SetHeader('Content-Type',"text/plain")	# by default we use ISO-8859-1
+		request.SetHeader('Content-Length',str(len(data)))
+		request.rfile.write(data)
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag")		
+		self.assertTrue(len(request.wfile.getvalue())==0,"Update must return 0 bytes")
+		# now go behind the scenes to check the update really worked!
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+			self.assertTrue(customer['CompanyName'].pyValue==u"Caf\xe9 Inc")
+		# Now use utf-8
+		request=MockRequest("/service.svc/Customers('ALFKI')/CompanyName/$value","PUT")
+		data=u"Caf\xe9 Incorporated".encode("utf-8")
+		request.SetHeader('Content-Type',"text/plain; charset=utf-8")
+		request.SetHeader('Content-Length',str(len(data)))
+		request.rfile.write(data)
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+			self.assertTrue(customer['CompanyName'].pyValue==u"Caf\xe9 Incorporated")
+	
+	def testCaseUpdateLink(self):
+		orders=self.ds['SampleModel.SampleEntities.Orders']
+		with orders.OpenCollection() as collection:
+			order=collection[3]
+		oldCustomer=order['Customer'].GetEntity()
+		self.assertTrue(oldCustomer.Key()=='XXX00',"Previous customer")
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+		request=MockRequest("/service.svc/Orders(3)/$links/Customer","PUT")
+		doc=Document(root=URI)
+		doc.root.SetValue(str(customer.GetLocation()))
+		data=str(doc)
+		request.SetHeader('Content-Type',"application/xml")
+		request.SetHeader('Content-Length',str(len(data)))
+		request.rfile.write(data)
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertFalse("ETAG" in request.responseHeaders,"ETag not allowed in response")		
+		self.assertTrue(len(request.wfile.getvalue())==0,"Update must return 0 bytes")
+		# now go behind the scenes to check the update really worked!
+		orders=self.ds['SampleModel.SampleEntities.Orders']
+		with orders.OpenCollection() as collection:
+			order=collection[3]
+		newCustomer=order['Customer'].GetEntity()
+		self.assertTrue(newCustomer.Key()=='ALFKI',"Customer updated")
+
+	def testCaseUpdateLinkJSON(self):
+		orders=self.ds['SampleModel.SampleEntities.Orders']
+		with orders.OpenCollection() as collection:
+			order=collection[3]
+		oldCustomer=order['Customer'].GetEntity()
+		self.assertTrue(oldCustomer.Key()=='XXX00',"Previous customer")
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+		request=MockRequest("/service.svc/Orders(3)/$links/Customer","PUT")
+		data=str(customer.LinkJSON())
+		request.SetHeader('Content-Type',"application/json")
+		request.SetHeader('Content-Length',str(len(data)))
+		request.rfile.write(data)
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertFalse("ETAG" in request.responseHeaders,"ETag not allowed in response")		
+		self.assertTrue(len(request.wfile.getvalue())==0,"Update must return 0 bytes")
+		# now go behind the scenes to check the update really worked!
+		orders=self.ds['SampleModel.SampleEntities.Orders']
+		with orders.OpenCollection() as collection:
+			order=collection[3]
+		newCustomer=order['Customer'].GetEntity()
+		self.assertTrue(newCustomer.Key()=='ALFKI',"Customer updated")
+		
+	def testCaseUpdateMediaResource(self):
+		data="Well, Prince, so Genoa and Lucca are now just family estates of the Buonapartes"
+		h=hashlib.sha256()
+		h.update(data)
+		request=MockRequest("/service.svc/Documents(301)/$value","PUT")
+		request.SetHeader('Content-Type',"text/x-tolstoy")
+		request.SetHeader('Content-Length',str(len(data)))
+		request.rfile.write(data)	
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag")		
+		self.assertTrue(request.responseHeaders['ETAG']=="W/\"X'%s'\""%h.hexdigest().upper(),"ETag value")
+		self.assertTrue(len(request.wfile.getvalue())==0,"Update must return 0 bytes")
+		documents=self.ds['SampleModel.SampleEntities.Documents']
+		with documents.OpenCollection() as collection:
+			document=collection[301]
+		# version should match the etag
+		self.assertTrue(document['Version'].pyValue==h.digest(),'Version calculation')
+		self.assertTrue(document.GetStreamType()=="text/x-tolstoy")
+		self.assertTrue(document.GetStreamSize()==len(data))
+		self.assertTrue(string.join(document.GetStreamGenerator(),'')==data)
+
+	def testCaseDeleteEntity(self):
+		request=MockRequest("/service.svc/Customers('ALFKI')","DELETE")
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertFalse("ETAG" in request.responseHeaders,"ETag not allowed in response")		
+		self.assertTrue(len(request.wfile.getvalue())==0,"Update must return 0 bytes")
+		# now go behind the scenes to check the delete really worked!
+		orders=self.ds['SampleModel.SampleEntities.Orders']
+		with orders.OpenCollection() as collection:
+			order=collection[1]
+			self.assertTrue(order['Customer'].GetEntity() is None,"order no longer linked to customer")
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			for customer in collection.itervalues():
+				self.assertFalse(customer['CustomerID'].pyValue=='ALFKI',"Customer no longer exists")
+	
+	def testCaseDeleteLink1(self):
+		request=MockRequest("/service.svc/Customers('ALFKI')/$links/Orders(1)","DELETE")
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertFalse("ETAG" in request.responseHeaders,"ETag not allowed in response")		
+		self.assertTrue(len(request.wfile.getvalue())==0,"Update must return 0 bytes")
+		# now go behind the scenes to check the delete really worked!
+		orders=self.ds['SampleModel.SampleEntities.Orders']
+		with orders.OpenCollection() as collection:
+			order=collection[1]
+			self.assertTrue(order['Customer'].GetEntity() is None,"order no longer linked to customer")
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+			with customer['Orders'].OpenCollection() as orders:
+				self.assertTrue(len(orders)==1)
+				for order in orders.itervalues():
+					self.assertFalse(order['OrderID'].pyValue==1,"Order(1) not linked")
+		
+	def testCaseDeleteLink2(self):
+		request=MockRequest("/service.svc/Orders(1)/$links/Customer","DELETE")
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertFalse("ETAG" in request.responseHeaders,"ETag not allowed in response")		
+		self.assertTrue(len(request.wfile.getvalue())==0,"Update must return 0 bytes")
+		# now go behind the scenes to check the delete really worked!
+		orders=self.ds['SampleModel.SampleEntities.Orders']
+		with orders.OpenCollection() as collection:
+			order=collection[1]
+			self.assertTrue(order['Customer'].GetEntity() is None,"order no longer linked to customer")
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+			with customer['Orders'].OpenCollection() as orders:
+				self.assertTrue(len(orders)==1)
+				for order in orders.itervalues():
+					self.assertFalse(order['OrderID'].pyValue==1,"Order(1) not linked")
+		
+	def testCaseDeleteValue(self):
+		request=MockRequest("/service.svc/Customers('ALFKI')/Address/Street","DELETE")
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==204)
+		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
+		self.assertTrue(len(request.wfile.getvalue())==0,"Update must return 0 bytes")
+		# now go behind the scenes to check the delete really worked!
+		customers=self.ds['SampleModel.SampleEntities.Customers']
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+			self.assertFalse(customer['Address']['Street'])
+		# now try and delete a non-nullable value
+		request=MockRequest("/service.svc/Customers('ALFKI')/CompanyName","DELETE")
+		request.Send(self.svc)
+		self.assertTrue(request.responseCode==400)
+		with customers.OpenCollection() as collection:
+			customer=collection['ALFKI']
+			self.assertTrue(customer['CompanyName'].pyValue==u"Example Inc")
+
+			
 if __name__ == "__main__":
 	VERBOSE=True
 	unittest.main()

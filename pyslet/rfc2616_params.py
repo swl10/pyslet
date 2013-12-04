@@ -241,8 +241,12 @@ class MediaType:
 	def __init__(self,source=None):
 		self.type=self.subtype=None
 		self.parameters={}
-		if source is not None:
+		if type(source) in StringTypes:
 			self.Parse(source)
+		elif isinstance(source,MediaType):
+			self.type=source.type
+			self.subtype=source.subtype
+			self.parameters=source.parameters.copy()
 	
 	def ParseWords(self,wp):
 		"""Parses a media type from a :py:class:`WordParser` instance.

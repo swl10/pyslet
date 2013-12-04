@@ -20,7 +20,8 @@ else:
 			'pyslet',
 			'pyslet.xml20081126',
 			'pyslet.qtiv1',
-			'pyslet.qtiv2'],
+			'pyslet.qtiv2',
+			'pyslet.odata2'],
 		package_data={
 			'pyslet':[
 				'unicode5_blocks.pck',

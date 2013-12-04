@@ -13,10 +13,10 @@ def suite():
 def load_tests(loader, tests, pattern):
 	return suite()
 
-from pyslet.mc_csdl import *
+from pyslet.odata2.csdl import *
 
 import pyslet.xml20081126.structures as xml
-import pyslet.mc_edmx as edmx
+import pyslet.odata2.edmx as edmx
 from pyslet.vfs import OSFilePath as FilePath
 
 import decimal
@@ -61,35 +61,52 @@ class CSDLTests(unittest.TestCase):
 		
 	def testSimpleValue(self):
 		"""Test the SimpleValue class."""
-		v=SimpleValue.NewValue(SimpleType.Boolean)
+		p=Property(None)
+		p.simpleTypeCode=SimpleType.Boolean
+		v=SimpleValue.NewValue(p)
 		self.assertTrue(isinstance(v,EDMValue),"SimpleValue inherits from EDMValue")
 		self.assertTrue(v.pyValue is None,"Null value on construction")
-		v=SimpleValue.NewValue(SimpleType.Boolean,"flag")
-		self.assertTrue(v.name=="flag","SimpleValue name set on constructor")
+		p.name="flag"
+		v=SimpleValue.NewValue(p)
+		self.assertTrue(v.pDef.name=="flag","SimpleValue property definition set on constructor")
 		self.assertTrue(v.pyValue is None,"Null value on construction")
 	
 	def testSimpleValueCasts(self):
-		v=SimpleValue.NewValue(SimpleType.Byte)
+		p=Property(None)
+		p.simpleTypeCode=SimpleType.Byte
+		v=SimpleValue.NewValue(p)
 		v.pyValue=13
-		v2=v.Cast(SimpleType.Int16)
+		cast=Property(None)
+		cast.simpleTypeCode=SimpleType.Int16
+		v2=v.Cast(EDMValue.NewValue(cast))
 		self.assertTrue(isinstance(v2,SimpleValue),"Cast gives a SimpleValue")
 		self.assertTrue(v2.typeCode==SimpleType.Int16,"Cast uses passed type")
 		self.assertTrue(v2.pyValue == 13,"Cast to Int16")
-		v2=v2.Cast(SimpleType.Int32)
+		cast=Property(None)
+		cast.simpleTypeCode=SimpleType.Int32
+		v2=v2.Cast(EDMValue.NewValue(cast))
 		self.assertTrue(v2.typeCode==SimpleType.Int32,"Cast uses passed type")
 		self.assertTrue(v2.pyValue == 13,"Cast to Int32")
-		v2=v2.Cast(SimpleType.Int64)
+		cast=Property(None)
+		cast.simpleTypeCode=SimpleType.Int64
+		v2=v2.Cast(EDMValue.NewValue(cast))
 		self.assertTrue(v2.typeCode==SimpleType.Int64,"Cast uses passed type")
 		self.assertTrue(type(v2.pyValue) is LongType,"Cast to Int64")
 		self.assertTrue(v2.pyValue == 13L,"Cast to Int64")
-		v3=v2.Cast(SimpleType.Single)
+		cast=Property(None)
+		cast.simpleTypeCode=SimpleType.Single
+		v3=v2.Cast(EDMValue.NewValue(cast))
 		self.assertTrue(v3.typeCode==SimpleType.Single,"Cast uses passed type")
 		self.assertTrue(type(v3.pyValue) is FloatType,"Cast to Single")
-		v3=v3.Cast(SimpleType.Double)
+		cast=Property(None)
+		cast.simpleTypeCode=SimpleType.Double
+		v3=v3.Cast(EDMValue.NewValue(cast))
 		self.assertTrue(v3.typeCode==SimpleType.Double,"Cast uses passed type")
 		self.assertTrue(type(v3.pyValue) is FloatType,"Cast to Double")
 		self.assertTrue(v3.pyValue==13.0,"Cast to Double")
-		v3=v2.Cast(SimpleType.Decimal)
+		cast=Property(None)
+		cast.simpleTypeCode=SimpleType.Decimal
+		v3=v2.Cast(EDMValue.NewValue(cast))
 		self.assertTrue(v3.typeCode==SimpleType.Decimal,"Cast uses passed type")
 		self.assertTrue(isinstance(v3.pyValue,decimal.Decimal),"Cast to Decimal")
 		self.assertTrue(v3==13,"Cast to Double")

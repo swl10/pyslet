@@ -34,7 +34,7 @@ class DuplicateXMLNAME(XMLError):
 	
 class XMLAttributeSetter(XMLError): pass
 class XMLForbiddenEntityReference(XMLError): pass
-class XMLMissingFileError(XMLError): pass
+class XMLMissingResourceError(XMLError): pass
 class XMLMissingLocationError(XMLError): pass
 class XMLMixedContentError(XMLError): pass
 class XMLParentError(XMLError): pass
@@ -477,7 +477,7 @@ class Document(Node):
 		elif isinstance(self.baseURI,FileURL):
 			fPath=self.baseURI.GetPathname()
 			if not os.path.isfile(fPath):
-				raise XMLMissingFileError(fPath)
+				raise XMLMissingResourceError(fPath)
 			f=codecs.open(fPath,'wb','utf-8')
 			try:
 				self.WriteXML(f)
@@ -2733,7 +2733,9 @@ class XMLEntity(object):
 				if self.encoding is None:
 					self.AutoDetectEncoding(srcFile)
 				self.OpenFile(srcFile,self.encoding)
-			else:
+			elif req.status==404:
+				raise XMLMissingResourceError(str(req.status)+" "+str(req.response.reason))
+			else:	
 				raise XMLUnexpectedHTTPResponse(str(req.status)+" "+str(req.response.reason))
 		else:
 			raise XMLUnsupportedScheme			

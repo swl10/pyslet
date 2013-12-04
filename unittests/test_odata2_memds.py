@@ -12,14 +12,14 @@ def suite():
 def load_tests(loader, tests, pattern):
 	return suite()
 
-from pyslet.pyds import *
+from pyslet.odata2.memds import *
 
 from pyslet.vfs import OSFilePath as FilePath
 TEST_DATA_DIR=FilePath(FilePath(__file__).abspath().split()[0],'data_pyds')
 
 
-import pyslet.mc_csdl as edm
-import pyslet.mc_edmx as edmx
+import pyslet.odata2.csdl as edm
+import pyslet.odata2.edmx as edmx
 
 
 class PyDSTests(unittest.TestCase):

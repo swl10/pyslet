@@ -1,15 +1,15 @@
 #! /usr/bin/env python
 """OData core elements"""
 
-import pyslet.mc_csdl as edm
-import pyslet.mc_edmx as edmx
+import csdl as edm
+import edmx as edmx
 import pyslet.rfc2616 as http
 import pyslet.rfc4287 as atom
 import pyslet.rfc5023 as app
 import pyslet.xmlnames20091208 as xmlns
 import warnings
 
-from odatav2_core import *
+from core import *
 
 
 class FeedCustomisationMixin:
@@ -259,7 +259,7 @@ class Document(edmx.Document):
 		# to false is present... In this case, the attribute value MUST be
 		# 2.0.
 		try:
-			version=self.root.DataServices.GetAttribute(DataServicesVersion)
+			version=self.root.DataServices.GetAttribute(DataServiceVersion)
 			match="1.0"
 			for e in self.root.FindChildrenDepthFirst(edm.CSDLElement):
 				try:
