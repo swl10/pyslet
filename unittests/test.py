@@ -19,6 +19,7 @@ import test_odata2_csdl
 import test_odata2_edmx
 import test_odata2_memds
 import test_odata2_server
+import test_odata2_sqlds
 import test_qml420
 import test_rfc2234
 import test_rfc2396
@@ -50,6 +51,7 @@ def suite():
 	s.addTest(test_odata2_edmx.suite())
 	s.addTest(test_odata2_memds.suite())
 	s.addTest(test_odata2_server.suite())
+	s.addTest(test_odata2_sqlds.suite())
 	s.addTest(test_rfc2234.suite())
 	s.addTest(test_rfc2396.suite())
 	s.addTest(test_rfc2616.suite())

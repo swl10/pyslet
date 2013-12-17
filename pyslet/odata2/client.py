@@ -13,17 +13,14 @@ import core
 import metadata as edmx
 
 
-class EntityCollection(core.EntityCollection):
-	"""An entity collection that provides access to entities stored
-	remotely and accessed through *client*."""
+class ODataCollectionMixin(object):
 	
-	def __init__(self,entitySet,client):
-		super(EntityCollection,self).__init__(entitySet)
-		self.client=client
-		
+	def __init__(self,baseURI):
+		self.baseURI=baseURI
+	
 	def __len__(self):
 		# use $count
-		feedURL=self.entitySet.GetLocation()
+		feedURL=self.baseURI
 		sysQueryOptions={}
 		if self.filter is not None:
 			sysQueryOptions[core.SystemQueryOption.filter]=unicode(self.filter)
@@ -39,6 +36,40 @@ class EntityCollection(core.EntityCollection):
 		else:
 			raise UnexpectedHTTPResponse("%i %s"%(req.status,req.response.reason))	
 
+	def __getitem__(self,key):
+		entityURL=str(self.baseURI)+core.ODataURI.FormatKeyDict(self.entitySet.GetKeyDict(key))
+		sysQueryOptions={}
+		if self.filter is not None:
+			sysQueryOptions[core.SystemQueryOption.filter]=unicode(self.filter)
+		if self.expand is not None:
+			sysQueryOptions[core.SystemQueryOption.expand]=core.FormatExpand(self.expand)
+		if sysQueryOptions:
+			entityURL=uri.URIFactory.URI(entityURL+"?"+core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+		doc=core.Document(baseURI=entityURL,reqManager=self.client)
+		try:
+			doc.Read()
+			if isinstance(doc.root,atom.Entry):
+				entity=core.Entity(self.entitySet)
+				entity.exists=True
+				doc.root.GetValue(entity)
+				return entity
+			elif isinstance(doc.root,core.Error):
+				raise KeyError(key)
+			else:
+				raise core.InvalidEntryDocument(str(entityURL))
+		except xml.XMLMissingResourceError:
+			raise KeyError(key)
+
+		
+class EntityCollection(ODataCollectionMixin,core.EntityCollection):
+	"""An entity collection that provides access to entities stored
+	remotely and accessed through *client*."""
+	
+	def __init__(self,entitySet,client):
+		core.EntityCollection.__init__(self,entitySet)
+		self.client=client
+		ODataCollectionMixin.__init__(self,self.entitySet.GetLocation())
+		
 	def entityGenerator(self):
 		feedURL=self.entitySet.GetLocation()
 		sysQueryOptions={}
@@ -74,27 +105,45 @@ class EntityCollection(core.EntityCollection):
 		return self.ExpandEntities(
 			self.entityGenerator())
 	
+
+class NavigationEntityCollection(ODataCollectionMixin,core.NavigationEntityCollection):
+
+	def __init__(self,name,fromEntity,toEntitySet,client):
+		core.NavigationEntityCollection.__init__(self,name,fromEntity,toEntitySet)
+		self.client=client
+		self.isCollection=self.fromEntity[name].isCollection
+		ODataCollectionMixin.__init__(self,
+			uri.URIFactory.URI(str(self.fromEntity.GetLocation())+"/"+uri.EscapeData(self.name.encode('utf-8'))))
+
 	def __getitem__(self,key):
-		entityURL=str(self.entitySet.GetLocation())+core.ODataURI.FormatKeyDict(self.entitySet.GetKeyDict(key))
-		sysQueryOptions={}
-		if self.filter is not None:
-			sysQueryOptions[core.SystemQueryOption.filter]=unicode(self.filter)
-		if sysQueryOptions:
-			entityURL=uri.URIFactory.URI(entityURL+"?"+core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
-		doc=core.Document(baseURI=entityURL,reqManager=self.client)
-		try:
-			doc.Read()
-			if isinstance(doc.root,atom.Entry):
-				entity=core.Entity(self.entitySet)
-				entity.exists=True
-				doc.root.GetValue(entity)
-				return entity
-			elif isinstance(doc.root,core.Error):
+		if self.isCollection:
+			return ODataCollectionMixin.__getitem__(self,key)
+		else:
+			# The baseURI points to a single entity already, we must not add the key
+			entityURL=str(self.baseURI)
+			sysQueryOptions={}
+			if self.filter is not None:
+				sysQueryOptions[core.SystemQueryOption.filter]=unicode(self.filter)
+			if sysQueryOptions:
+				entityURL=uri.URIFactory.URI(entityURL+"?"+core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+			doc=core.Document(baseURI=entityURL,reqManager=self.client)
+			try:
+				doc.Read()
+				if isinstance(doc.root,atom.Entry):
+					entity=core.Entity(self.entitySet)
+					entity.exists=True
+					doc.root.GetValue(entity)
+					if entity.Key()==key:
+						return entity
+					else:
+						raise KeyError(key)
+				elif isinstance(doc.root,core.Error):
+					raise KeyError(key)
+				else:
+					raise core.InvalidEntryDocument(str(entityURL))
+			except xml.XMLMissingResourceError:
 				raise KeyError(key)
-			else:
-				raise core.InvalidEntryDocument(str(entityURL))
-		except xml.XMLMissingResourceError:
-			raise KeyError(key)
+
 
 class Client(app.Client):
 	"""An OData client.
@@ -165,7 +214,10 @@ class Client(app.Client):
 				del self.feeds[f]
 			else:
 				# Bind our EntityCollection class
-				self.feeds[f].Bind(EntityCollection,client=self)
+				entitySet=self.feeds[f]
+				entitySet.Bind(EntityCollection,client=self)
+				for np in entitySet.entityType.NavigationProperty:
+					entitySet.BindNavigation(np.name,NavigationEntityCollection,client=self)
 				self.Log(http.HTTP_LOG_DETAIL,"Registering feed: %s"%str(self.feeds[f].GetLocation()))
 				
 	def LookupEntityType(self,entityTypeName):

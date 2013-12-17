@@ -577,8 +577,7 @@ class Server(app.Server):
 				return
 			if not isinstance(resource,(EntityCollection,Entity)):
 				raise InvalidSystemQueryOption("$select/$expand not allowed")					
-			resource.entitySet.entityType.ValidateExpansion(expand,select)
-			resource.Expand(expand,select)
+			resource.Expand(expand,select)				
 		except ValueError as e:
 			raise InvalidSystemQueryOption("$select/$expand error: %s"%str(e))					
 		

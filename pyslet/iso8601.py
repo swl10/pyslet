@@ -1607,14 +1607,15 @@ class ISO8601Parser(RFC2234CoreParser):
 		dateFormat=self.ParseDate(timePoint.date,baseDate)
 		if not timePoint.date.Complete():
 			raise DateTimeError("incomplete date in time point %s"%str(timePoint.date))
-		if self.theChar!="T":
-			raise DateTimeError("time-point requires time %s..."%str(timePoint.date))	
+		if self.theChar not in ("T"," "):
+			raise DateTimeError("time-point requires time %s..."%str(timePoint.date))
+		sep=self.theChar
 		timeFormat=self.ParseTime(timePoint.time)
 		# check that dateFormat and timeFormat are compatible, i.e., both either basic or extended
 		if not ((ExtendedTimeFormats.get(timeFormat) and ExtendedDateFormats.get(dateFormat)) or
 			(BasicTimeFormats.get(timeFormat) and BasicDateFormats.get(dateFormat))):
 			raise DateTimeError("inconsistent use of basic/extended form in time point %s%s%s"%(dateFormat,'T',timeFormat))
-		return dateFormat+'T'+timeFormat
+		return dateFormat+sep+timeFormat
 				
 	def ParseDate(self,date,baseDate=None):
 		if IsDIGIT(self.theChar):
@@ -1839,7 +1840,7 @@ class ISO8601Parser(RFC2234CoreParser):
 			self.SyntaxError("expected digit or hyphen in ISO date")
 	
 	def ParseTime(self,t,tBase=None):
-		if self.theChar=="T":
+		if self.theChar in ("T"," "):
 			self.NextChar()
 			tDesignator=1
 		else:

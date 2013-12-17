@@ -6,8 +6,7 @@ def suite():
 	loader=unittest.TestLoader()
 	loader.testMethodPrefix='test'
 	return unittest.TestSuite((
-		loader.loadTestsFromTestCase(CSDLTests),
-		loader.loadTestsFromTestCase(ERStoreTests)
+		loader.loadTestsFromTestCase(CSDLTests)
 		))
 
 def load_tests(loader, tests, pattern):
@@ -290,128 +289,6 @@ class CSDLTests(unittest.TestCase):
 		self.assertTrue(isinstance(e['CustomerID'],StringValue),"Type of simple property")
 		self.assertTrue(isinstance(e['Orders'],DeferredValue),"Type of navigation property")
 
-
-class ERStoreTests(unittest.TestCase):
-	def setUp(self):
-		self.cwd=FilePath.getcwd()
-		TEST_DATA_DIR.chdir()
-		# load the base schema document
-		self.doc=edmx.Document(baseURI="Schema-01.xml")
-		self.doc.Read()
-		# now create a temporary file ready for SQL database
-		self.d=FilePath.mkdtemp('.d','pyslet-test_mc_csdl-')
-		self.store=SQLiteDB(self.d.join('test.db'))
-		
-	def tearDown(self):
-		self.store.close()
-		self.cwd.chdir()
-		self.d.rmtree(True)
-		
-	def testCaseConstruction(self):
-		self.assertTrue(isinstance(self.store,ERStore),"DB is a basic implementation of ERStore")
-		# This creates an empty datastore which behaves like a dictionary
-		self.assertTrue(len(self.store)==0,"Initially empty")
-		
-	def testCaseAddSchema(self):
-		saveFingerprint=self.store.fingerprint
-		self.store.AddSchema(self.doc.root)
-		self.assertTrue(self.store.fingerprint!=saveFingerprint,"Fingerprint unchanged")
-		sc=self.store["SchemaA"]
-		self.assertTrue(isinstance(sc,Schema),"Schema")
-		self.assertTrue(sc.name=="SchemaA","SchemaA name")
-		self.assertTrue(isinstance(self.store["SchemaA.Database"],EntityContainer),"Database")
-		t1=self.store["SchemaA.Database.Table01"]
-		self.assertTrue(isinstance(t1,EntitySet),"Table")
-		self.assertTrue(t1.name=="Table01","Table")
-		self.assertTrue(t1.entityTypeName=="SchemaA.Type01","Table entity mapping")
-		self.assertTrue(len(self.store)==6,"Expected 6 names: %s"%repr(self.store.keys()))
-		try:
-			self.store.AddSchema(self.doc.root)
-			self.fail("Attempt to add an existing schema")
-		except DuplicateName:
-			pass
-		doc=edmx.Document(baseURI="SchemaB.xml")
-		doc.Read()
-		saveFingerprint=self.store.fingerprint
-		self.store.AddSchema(doc.root)
-		self.assertTrue(self.store.fingerprint!=saveFingerprint,"Fingerprint unchanged")
-		self.assertTrue(len(self.store)==12,"SchemaB declared")
-		# open a second view on this database
-		saveFingerprint=self.store.fingerprint
-		self.store.close()
-		self.store=SQLiteDB(self.d.join('test.db'))
-		self.assertTrue(self.store.fingerprint==saveFingerprint,"Fingerprint preserved after reload")
-		self.assertTrue(len(self.store)==12,"SchemaA and SchemaB declared")
-		
-		
-	def testCaseCreateContainer(self):
-		self.store.AddSchema(self.doc.root)
-		try:
-			self.store.CreateContainer("SchemaA")
-			self.fail("CreateContainer: requires an entity container")
-		except ValueError:
-			pass
-		try:
-			for row in self.store.EntityReader("SchemaA.Database.Table01"):
-				self.fail("Table01 exists and is not empty!")
-		except KeyError:
-			pass
-		self.store.CreateContainer("SchemaA.Database")
-		try:
-			self.store.CreateContainer("SchemaA.Database")
-			self.fail("CreateContainer: container already exists")
-		except ContainerExists:
-			pass
-		try:
-			for row in self.store.EntityReader("SchemaA.Database.Table01"):
-				self.fail("Table01 is not empty!")
-		except KeyError:
-			self.fail("Table01 should now exist!")
-		saveFingerprint=self.store.fingerprint
-		self.store.close()
-		self.store=SQLiteDB(self.d.join('test.db'))
-		self.assertTrue(self.store.fingerprint==saveFingerprint,"Fingerprint preserved after reload")
-	
-	def testCaseSelectUpdate(self):	
-		self.store.AddSchema(self.doc.root)
-		self.store.CreateContainer("SchemaA.Database")
-		newEntry={"ID":"A","Name":"Alfred"}
-		self.store.InsertEntity("SchemaA.Database.Table01",newEntry)
-		count=0
-		for row in self.store.EntityReader("SchemaA.Database.Table01"):
-			self.assertFalse(count>0,"Too many results")
-			self.assertTrue(row["ID"]=="A","Inserted item ID")
-			self.assertTrue(row["Name"]=="Alfred","Inserted item Name")
-			count+=1
-		newEntry={"Name":"Borace"}
-		try:
-			self.store.InsertEntity("SchemaA.Database.Table01",newEntry)
-			self.fail("ID not Nullable")
-		except StorageError:
-			pass
-		newEntry["ID"]="B"
-		self.store.InsertEntity("SchemaA.Database.Table01",newEntry)
-	
-	def noTestCaseUpgradeSchema(self):
-		self.store.AddSchema(self.doc.root)
-		self.store.CreateContainer("SchemaA.Database")
-		newEntry={"ID":"A","Name":"Alfred"}
-		self.store.InsertEntity("SchemaA.Database.Table01",newEntry)
-		doc=edmx.Document(baseURI="Schema-02.xml")
-		doc.Read()
-		self.store.UpgradeSchema(doc.root)
-		for row in self.store.EntityReader("SchemaA.Database.Table01"):
-			self.assertTrue(row["Email"] is None,"Created column no default")
-			self.assertTrue(row["Inactive"] is True,"Created column with default %s"%repr(row["Inactive"]))
-		newEntry={"ID":"B","Name":"Borace","Inactive":"false"}
-		self.store.InsertEntity("SchemaA.Database.Table01",newEntry)
-		foundB=False
-		for row in self.store.EntityReader("SchemaA.Database.Table01"):
-			if row["ID"]=="B":
-				foundB=True
-				self.assertTrue(row["Email"] is None,"Created column no default")
-				self.assertTrue(row["Inactive"] is False,"Created column with default %s"%repr(row["Inactive"]))		
-		self.assertTrue(foundB,"Failed to find ID='B'")				
 				
 if __name__ == "__main__":
 	unittest.main()

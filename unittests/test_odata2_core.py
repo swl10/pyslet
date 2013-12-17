@@ -10,11 +10,10 @@ def suite(prefix='test'):
 	return unittest.TestSuite((
 		loader.loadTestsFromTestCase(ODataTests),
  		loader.loadTestsFromTestCase(CommonExpressionTests),
+ 		loader.loadTestsFromTestCase(ODataURITests)
 # 		loader.loadTestsFromTestCase(ClientTests),
-# 		loader.loadTestsFromTestCase(ODataURITests),
 # 		loader.loadTestsFromTestCase(ServerTests),
-# 		loader.loadTestsFromTestCase(SampleServerTests),
-# 		loader.loadTestsFromTestCase(ODataStoreClientTests)		
+# 		loader.loadTestsFromTestCase(SampleServerTests)
 		))
 		
 
@@ -1288,6 +1287,260 @@ class CommonExpressionTests(unittest.TestCase):
 			self.assertTrue(e1.Evaluate(None)==e2.Evaluate(None),"Mismatch evaluating: %s"%example)
 			self.assertTrue(unicode(e1)==unicode(e2),"Unstable expression: %s, %s!=%s"%(example,unicode(e1),unicode(e2)))
 			
+
+class ODataURITests(unittest.TestCase):
+
+	def testCaseConstructor(self):
+		dsURI=ODataURI('/')
+		self.assertTrue(dsURI.pathPrefix=='',"empty path prefix")
+		self.assertTrue(dsURI.resourcePath=='/',"resource path")
+		self.assertTrue(dsURI.queryOptions==[],'query options')
+		self.assertTrue(dsURI.navPath==[],"navPath: %s"%repr(dsURI.navPath))
+		dsURI=ODataURI('/','/x')
+		self.assertTrue(dsURI.pathPrefix=='/x',"non-empty path prefix")
+		self.assertTrue(dsURI.resourcePath==None,"resource path")
+		dsURI=ODataURI('/x','/x')
+		self.assertTrue(dsURI.pathPrefix=='/x',"non-empty path prefix")
+		self.assertTrue(dsURI.resourcePath=='',"empty resource path, special case")
+		self.assertTrue(dsURI.navPath==[],"empty navPath, special case: %s"%repr(dsURI.navPath))		
+		dsURI=ODataURI('/x.svc/Products','/x.svc')
+		self.assertTrue(dsURI.pathPrefix=='/x.svc',"svc path prefix")
+		self.assertTrue(dsURI.resourcePath=='/Products',"resource path")
+		self.assertTrue(len(dsURI.navPath)==1,"navPath: %s"%repr(dsURI.navPath))
+		self.assertTrue(type(dsURI.navPath[0][0]) is UnicodeType,"entitySet name type")
+		self.assertTrue(dsURI.navPath[0][0]=='Products',"entitySet name: Products")
+		self.assertTrue(dsURI.navPath[0][1]==None,"entitySet no key-predicate")		
+		dsURI=ODataURI('Products','/x.svc')
+		self.assertTrue(dsURI.pathPrefix=='/x.svc',"svc path prefix")
+		self.assertTrue(dsURI.resourcePath=='/Products',"resource path")
+		try:
+			dsURI=ODataURI('Products','x.svc')
+			self.fail("x.svc/Products  - illegal path")
+		except ValueError:
+			pass
+	
+	def testCaseQueryOptions(self):
+		"""QueryOptions:
+		
+		Any number of the query options MAY<5> be specified in a data service URI.
+		The order of Query Options within a URI MUST be insignificant.
+		Query option names and values MUST be treated as case sensitive.
+		System Query Option names MUST begin with a "$", as seen in System Query Option (section 2.2.3.6.1).
+		Custom Query Options (section 2.2.3.6.2) MUST NOT begin with a "$".
+		"""
+		dsURI=ODataURI("Products()?$format=json&$top=20&$skip=10&space='%20'",'/x.svc')
+		self.assertTrue(set(dsURI.sysQueryOptions.keys())==set([SystemQueryOption.format,
+			SystemQueryOption.top,SystemQueryOption.skip]),repr(dsURI.sysQueryOptions))
+		self.assertTrue(dsURI.queryOptions==["space='%20'"],'query options')
+		dsURI=ODataURI("Products()?$top=20&space='%20'&$format=json&$skip=10",'/x.svc')
+		self.assertTrue(set(dsURI.sysQueryOptions.keys())==set([SystemQueryOption.format,
+			SystemQueryOption.top,SystemQueryOption.skip]),repr(dsURI.sysQueryOptions))
+		self.assertTrue(dsURI.queryOptions==["space='%20'"],'query options')		
+		try:
+			dsURI=ODataURI("Products()?$unsupported=10",'/x.svc')
+			self.fail("$unsupported system query option")
+		except InvalidSystemQueryOption:
+			pass
+
+	def testCaseCommonExpressions(self):
+		dsURI=ODataURI("Products()?$filter=substringof(CompanyName,%20'bikes')",'/x.svc')
+		self.assertTrue(isinstance(dsURI.sysQueryOptions[SystemQueryOption.filter],CommonExpression),"Expected common expression")
+		dsURI=ODataURI("Products()?$filter=true%20and%20false",'/x.svc')
+		f=dsURI.sysQueryOptions[SystemQueryOption.filter]
+		self.assertTrue(isinstance(f,CommonExpression),"Expected common expression")
+		self.assertTrue(isinstance(f,BinaryExpression),"Expected binary expression, %s"%repr(f))
+		self.assertTrue(f.operator==Operator.boolAnd,"Expected and: %s"%repr(f.operator))		
+		try:
+			dsURI=ODataURI("Products()?$filter=true%20nand%20false",'/x.svc')
+			self.fail("Expected exception for nand")
+		except InvalidSystemQueryOption:
+			pass
+				
+	def testCaseEntitySet(self):
+		dsURI=ODataURI("Products()?$format=json&$top=20&$skip=10&space='%20'",'/x.svc')
+		self.assertTrue(dsURI.resourcePath=='/Products()',"resource path")
+		self.assertTrue(set(dsURI.sysQueryOptions.keys())==set([SystemQueryOption.format,
+			SystemQueryOption.top,SystemQueryOption.skip]),repr(dsURI.sysQueryOptions))
+		self.assertTrue(dsURI.queryOptions==["space='%20'"],'query options')
+		self.assertTrue(dsURI.navPath==[(u'Products',{})],"entitySet: Products, found %s"%repr(dsURI.navPath))
+		dsURI=ODataURI('Products()/$count','/x.svc')
+		self.assertTrue(dsURI.resourcePath=='/Products()/$count',"resource path")
+		self.assertTrue(dsURI.sysQueryOptions=={},'sysQueryOptions')
+		self.assertTrue(dsURI.queryOptions==[],'query options')
+		self.assertTrue(dsURI.navPath==[(u'Products',{})],"path: %s"%repr(dsURI.navPath))
+		self.assertTrue(dsURI.pathOption==PathOption.count,"$count recognised")
+		dsURI=ODataURI('Products(1)/$value','/x.svc')
+		self.assertTrue(len(dsURI.navPath)==1)
+		self.assertTrue(dsURI.navPath[0][0]==u'Products')
+		self.assertTrue(len(dsURI.navPath[0][1]))
+		self.assertTrue(isinstance(dsURI.navPath[0][1][u''],edm.Int32Value),"Key value type")
+		self.assertTrue(dsURI.navPath[0][1][u''].pyValue==1,"Key value")
+		# self.assertTrue(dsURI.navPath==[(u'Products',{'':1})],"path: %s"%repr(dsURI.navPath))
+		self.assertTrue(dsURI.pathOption==PathOption.value,"$value recognised")
+		dsURI=ODataURI('Products(x=1,y=2)','/x.svc')
+		self.assertTrue(len(dsURI.navPath)==1)
+		self.assertTrue(dsURI.navPath[0][0]==u'Products')
+		self.assertTrue(isinstance(dsURI.navPath[0][1][u'x'],edm.Int32Value),"Key value type")
+		self.assertTrue(dsURI.navPath[0][1][u'x'].pyValue==1,"x Key value")
+		self.assertTrue(isinstance(dsURI.navPath[0][1][u'y'],edm.Int32Value),"Key value type")
+		self.assertTrue(dsURI.navPath[0][1][u'y'].pyValue==2,"y Key value")		
+		# self.assertTrue(dsURI.navPath==[(u'Products',{u'x':1,u'y':2})],"path: %s"%repr(dsURI.navPath))
+		
+	def testCaseExpand(self):
+		"""Redundant expandClause rules on the same data service URI can
+		be considered valid, but MUST NOT alter the meaning of the
+		URI."""
+		dsURI=ODataURI("Customers?$expand=Orders",'/x.svc')
+		expand=dsURI.sysQueryOptions[SystemQueryOption.expand]
+		self.assertTrue(len(expand)==1,"One path")
+		self.assertTrue(expand['Orders'] is None,"Orders nav path")
+		self.assertTrue(FormatExpand(expand)=="Orders",FormatExpand(expand))
+		dsURI=ODataURI("Customers?$expand=Orders,Orders",'/x.svc')
+		expand=dsURI.sysQueryOptions[SystemQueryOption.expand]
+		self.assertTrue(len(expand)==1,"One path")
+		self.assertTrue(expand['Orders'] is None,"redundant Orders nav path")
+		self.assertTrue(FormatExpand(expand)=="Orders",FormatExpand(expand))
+		dsURI=ODataURI("Orders?$expand=OrderLines/Product,Customer",'/x.svc')
+		expand=dsURI.sysQueryOptions[SystemQueryOption.expand]
+		self.assertTrue(expand['OrderLines']=={'Product':None},"OrderLines expansion: %s"%str(expand))
+		self.assertTrue(expand['Customer'] is None,"Customer expansion")
+		self.assertTrue(FormatExpand(expand)=="Customer,OrderLines/Product")
+	
+	def testCaseFilter(self):
+		dsURI=ODataURI("Orders?$filter=ShipCountry%20eq%20'France'",'/x.svc')
+		filter=dsURI.sysQueryOptions[SystemQueryOption.filter]
+		self.assertTrue(isinstance(filter,BinaryExpression),"Binary expression component")
+		self.assertTrue(isinstance(filter.operands[0],PropertyExpression))
+		self.assertTrue(filter.operands[0].name=="ShipCountry")
+		dsURI=ODataURI("Orders?$filter%20=%20Customers/ContactName%20ne%20'Fred'",'/x.svc')
+		filter=dsURI.sysQueryOptions[SystemQueryOption.filter]
+		self.assertTrue(filter.operands[0].operands[1].name=="ContactName")
+	
+	def testCaseFormat(self):
+		dsURI=ODataURI("Orders?$format=json",'/x.svc')
+		format=dsURI.sysQueryOptions[SystemQueryOption.format]
+		self.assertTrue(isinstance(format,http.AcceptList),"Format is an HTTP AcceptList instance")
+		self.assertTrue(str(format)=='application/json',str(format[0]))
+
+	def testCaseOrderby(self):
+		dsURI=ODataURI("Orders?$orderby=ShipCountry",'/x.svc')
+		orderBy=dsURI.sysQueryOptions[SystemQueryOption.orderby]
+		self.assertTrue(len(orderBy)==1,"Single orderBy clause")
+		orderBy=orderBy[0]
+		self.assertTrue(orderBy[1]==1,"default is asc")
+		self.assertTrue(isinstance(orderBy[0],PropertyExpression),"OrderBy is a property expression")
+		self.assertTrue(orderBy[0].name=='ShipCountry',str(orderBy[0]))
+		dsURI=ODataURI("Orders?$orderby%20=%20ShipCountry%20ne%20'France'%20desc",'/x.svc')
+		orderBy=dsURI.sysQueryOptions[SystemQueryOption.orderby]
+		orderBy=orderBy[0]
+		self.assertTrue(orderBy[1]==-1,"desc")
+		self.assertTrue(isinstance(orderBy[0],BinaryExpression),"OrderBy is a binary expression")
+		self.assertTrue(orderBy[0].operands[0].name=='ShipCountry',str(orderBy[0].operands[0]))
+		self.assertTrue(orderBy[0].operands[0].name=='ShipCountry',str(orderBy[0].operands[0]))
+		dsURI=ODataURI("Orders?$orderby%20=%20ShipCountry%20ne%20'France'%20desc,OrderID%20asc",'/x.svc')
+		orderBy=dsURI.sysQueryOptions[SystemQueryOption.orderby]
+		self.assertTrue(len(orderBy)==2,"Two orderBy clauses")
+					
+	def testCaseSkip(self):
+		"""The value of this query option ... MUST be an integer greater
+		than or equal to zero. If a value less than 0 is specified, the
+		URI should be considered malformed."""
+		dsURI=ODataURI("Orders?$orderby=OrderDate%20desc&$skip=10",'/x.svc')
+		skip=dsURI.sysQueryOptions[SystemQueryOption.skip]
+		self.assertTrue(type(skip) is IntType,"skip type")
+		self.assertTrue(skip==10,"skip 10")
+		dsURI=ODataURI("Customers('ALFKI')/Orders?$skip=10",'/x.svc')
+		skip=dsURI.sysQueryOptions[SystemQueryOption.skip]
+		self.assertTrue(skip==10,"skip 10")
+		dsURI=ODataURI("Orders?$orderby=OrderDate%20desc&$skip=0",'/x.svc')
+		skip=dsURI.sysQueryOptions[SystemQueryOption.skip]
+		self.assertTrue(skip==0,"skip 0")
+		try:
+			dsURI=ODataURI("Orders?$orderby=OrderDate%20desc&$skip=-1",'/x.svc')
+			self.fail("skip=-1")
+		except InvalidSystemQueryOption:
+			pass
+
+	def testCaseTop(self):
+		"""The value of this query option ... MUST be an integer greater
+		than or equal to zero. If a value less than 0 is specified, the
+		URI should be considered malformed."""
+		dsURI=ODataURI("Orders?$orderby=OrderDate%20desc&$top=10",'/x.svc')
+		top=dsURI.sysQueryOptions[SystemQueryOption.top]
+		self.assertTrue(type(top) is IntType,"top type")
+		self.assertTrue(top==10,"top 10")
+		dsURI=ODataURI("Customers('ALFKI')/Orders?$top=10",'/x.svc')
+		top=dsURI.sysQueryOptions[SystemQueryOption.top]
+		self.assertTrue(top==10,"top 10")
+		dsURI=ODataURI("Orders?$orderby=OrderDate%20desc&$top=0",'/x.svc')
+		top=dsURI.sysQueryOptions[SystemQueryOption.top]
+		self.assertTrue(top==0,"top 0")
+		try:
+			dsURI=ODataURI("Orders?$orderby=OrderDate%20desc&$top=-1",'/x.svc')
+			self.fail("top=-1")
+		except InvalidSystemQueryOption:
+			pass
+
+	def testCaseSkipToken(self):
+		"""The value of this query option ... MUST be an integer greater
+		than or equal to zero. If a value less than 0 is specified, the
+		URI should be considered malformed."""
+		dsURI=ODataURI("Orders?$orderby=OrderDate%20desc&$skiptoken=AEF134ad",'/x.svc')
+		skiptoken=dsURI.sysQueryOptions[SystemQueryOption.skiptoken]
+		self.assertTrue(type(skiptoken) is UnicodeType,"skiptoken type")
+		self.assertTrue(skiptoken==u"AEF134ad","skiptoken opqque string")
+		dsURI=ODataURI("Customers('ALFKI')/Orders?$skiptoken=0%2010",'/x.svc')
+		skiptoken=dsURI.sysQueryOptions[SystemQueryOption.skiptoken]
+		self.assertTrue(skiptoken==u"0 10","skiptoken 010")
+
+	def testCaseInlineCount(self):
+		"""inlinecountQueryOp = "$inlinecount=" ("allpages" / "none") """
+		dsURI=ODataURI("Orders?$inlinecount=allpages",'/x.svc')
+		inlineCount=dsURI.sysQueryOptions[SystemQueryOption.inlinecount]
+		self.assertTrue(inlineCount==InlineCount.allpages,"allpages constant")
+		dsURI=ODataURI("Orders?$inlinecount=allpages&$top=10",'/x.svc')
+		inlineCount=dsURI.sysQueryOptions[SystemQueryOption.inlinecount]
+		self.assertTrue(inlineCount==InlineCount.allpages,"allpages constant")
+		dsURI=ODataURI("Orders?$inlinecount=none&$top=10",'/x.svc')
+		inlineCount=dsURI.sysQueryOptions[SystemQueryOption.inlinecount]
+		self.assertTrue(inlineCount==InlineCount.none,"none constant")
+		dsURI=ODataURI("Orders?$inlinecount=allpages&$filter=ShipCountry%20eq%20'France'",'/x.svc')
+		inlineCount=dsURI.sysQueryOptions[SystemQueryOption.inlinecount]
+		self.assertTrue(inlineCount==InlineCount.allpages,"allpages constant")
+	
+	def testCaseSelect(self):
+		"""Syntax::
+		
+		selectQueryOp = "$select=" selectClause
+		selectClause = [WSP] selectItem [[WSP] "," selectClause] [WSP]
+		selectItem = star / selectedProperty / (selectedNavProperty ["/" selectItem])
+		selectedProperty = entityProperty / entityComplexProperty
+		selectedNavProperty = entityNavProperty-es / entityNavProperty-et
+		star = "*"	"""
+		dsURI=ODataURI("Customers?$select=CustomerID,CompanyName,Address",'/x.svc')
+		select=dsURI.sysQueryOptions[SystemQueryOption.select]
+		self.assertTrue(len(select)==3,"Three paths")
+		self.assertTrue(select=={'CompanyName':None,'CustomerID':None,'Address':None})		
+		dsURI=ODataURI("Customers?$select=CustomerID,Orders",'/x.svc')
+		select=dsURI.sysQueryOptions[SystemQueryOption.select]
+		self.assertTrue(select=={'CustomerID':None,'Orders':None})		
+		dsURI=ODataURI("Customers?$select=CustomerID,Orders&$expand=Orders/OrderDetails",'/x.svc')
+		select=dsURI.sysQueryOptions[SystemQueryOption.select]
+		self.assertTrue(select=={'CustomerID':None,'Orders':None})		
+		dsURI=ODataURI("Customers?$select=*",'/x.svc')
+		select=dsURI.sysQueryOptions[SystemQueryOption.select]
+		self.assertTrue(select=={'*':None})		
+		dsURI=ODataURI("Customers?$select=CustomerID,Orders/*&$expand=Orders/OrderDetails",'/x.svc')
+		select=dsURI.sysQueryOptions[SystemQueryOption.select]
+		self.assertTrue(select=={'CustomerID':None,'Orders':{'*':None}})		
+		dsURI=ODataURI("/service.svc/Customers?$expand=Orders&$filter=substringof(CompanyName,%20'bikes')&$orderby=CompanyName%20asc&$top=2&$skip=3&$skiptoken='Contoso','AKFNU'&$inlinecount=allpages&$select=CustomerID,CompanyName,Orders&$format=xml")
+		select=dsURI.sysQueryOptions[SystemQueryOption.select]
+		self.assertTrue(len(select)==3,"Three paths")
+		try:
+			dsURI=ODataURI("Customers?$select=CustomerID,*/Orders")
+			self.fail("* must be last item in a select clause")
+		except InvalidSystemQueryOption:
+			pass
 
 if __name__ == "__main__":
 	unittest.main()

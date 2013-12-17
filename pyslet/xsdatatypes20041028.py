@@ -619,8 +619,7 @@ def MakeLowerAliases(e):
 		if not alias in e.decode:
 			# Declare this alias
 			e.decode[alias]=e.decode[key]
-			setattr(e,alias,e.decode[key])				  
-
+			setattr(e,alias,e.decode[key])  
 
 def WhiteSpaceReplace(value):
 	"""Replaces tab, line feed and carriage return with space."""

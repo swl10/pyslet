@@ -12,7 +12,7 @@ import pyslet.xsdatatypes20041028 as xsi
 from pyslet.vfs import OSFilePath
 import pyslet.iso8601 as iso8601
 
-import string, itertools, sqlite3, hashlib, StringIO, time, sys, copy, decimal, uuid, math, collections, warnings
+import string, itertools, StringIO, sys, copy, decimal, hashlib, uuid, math, collections, warnings, pickle, datetime
 from types import BooleanType, FloatType, StringTypes, StringType, UnicodeType, BooleanType, IntType, LongType, TupleType, DictType
 
 
@@ -78,19 +78,23 @@ class NonExistentEntity(EDMError):
 	navigation property."""
 	pass
 
+class EntityExists(EDMError):
+	"""Raised when attempting to perform a restricted operation on an
+	entity that already exists.  For example, inserting it into the base
+	collection."""
+	pass
+	
+class ConcurrencyError(EDMError):
+	"""Raised when attempting to perform an update on an entity and a violation
+	of a concurrency control constraint is encountered."""
+	pass
+
 class NavigationError(EDMError):
 	"""Raised when a navigation property is treated as pointing to a single
 	value when it actually points to a collection."""
 	pass
 	
 	 		
-class ContainerExists(Exception):
-	"""Raised by :py:meth:`ERStore.CreateContainer` when the container already
-	exists."""
-	pass
-
-class StorageError(Exception): pass
-
 class DictionaryLike(object):
 	"""A new-style class for behaving like a dictionary.
 	
@@ -960,8 +964,14 @@ class DateTimeValue(SimpleValue):
 			dtValue.SetUnixTime(float(newValue))
 			dtValue.SetZone(None)
 			self.pyValue=dtValue
+		elif isinstance(newValue,datetime.datetime):
+			dtValue=iso8601.TimePoint()
+			dtValue.SetCalendarTimePoint(newValue.year//100,newValue.year%100,newValue.month,
+				newValue.day,newValue.hour,newValue.minute,newValue.second)
+			dtValue.SetZone(None)
+			self.pyValue=dtValue
 		else:
-			raise TypeError("Can't set DateTime from %s"%str(newValue))
+			raise TypeError("Can't set DateTime from %s"%repr(newValue))
 
 		
 class DateTimeOffsetValue(SimpleValue):
@@ -1443,7 +1453,19 @@ class DeferredValue(object):
 	def __init__(self,name,fromEntity):
 		self.name=name				#: the name of the associated navigation property
 		self.fromEntity=fromEntity	#: the entity that contains this value
-		self.isCollection=self.fromEntity.IsEntityCollection(self.name)
+		self.isCollection=self.fromEntity.IsEntityCollection(self.name)		#: True if this deferred value represents a collection
+		self.isExpanded=False
+		"""True if this deferred value has been expanded.
+		
+		An expanded navigation property will return a read-only
+		:py:class:`ExpandedEntityCollection` when
+		:py:meth:`OpenCollection` is called."""
+		self.expandedCollection=None	#: an instance of :py:class:`ExpandedEntityCollection` or None if not expanded 
+		self.bindings=[]				#: a list of entity instances or keys to bind to this property on next update 
+	
+	def Target(self):
+		"""Returns the target entity set of this navigation (without opening the collection)."""
+		return self.fromEntity.entitySet.NavigationTarget(self.name)
 		
 	def GetEntity(self):
 		"""Returns a single entity instance or None.
@@ -1463,22 +1485,85 @@ class DeferredValue(object):
 	def OpenCollection(self):
 		"""Opens the collection associated with this navigation property"""
 		if self.fromEntity.exists:
-			collection=self.fromEntity.entitySet.OpenNavigation(self.name,self.fromEntity)
-			expand=self.fromEntity.expand
-			if expand and self.name in expand:
-				expand=expand[self.name]
+			if self.isExpanded:
+				return self.expandedCollection
 			else:
-				expand=None
-			select=self.fromEntity.select
-			if select and self.name in select:
-				select=select[self.name]
-			else:
-				select=None
-			collection.Expand(expand,select)
-			return collection
+				collection=self.fromEntity.entitySet.OpenNavigation(self.name,self.fromEntity)
+				return collection
 		else:
 			raise NonExistentEntity("Attempt to navigate a non-existent entity: %s.%s"%(self.fromEntity.typeDef.name,name))
 
+	def SetExpansion(self,expandedCollection):
+		"""Sets the expansion for this deferred value to the :py:class:`ExpandedEntityCollection` given.
+		
+		If *expandedCollection* is None then the expansion is removed and
+		future calls to
+		:py:meth:`OpenColection` will yield a (dynamic) entity
+		:collection."""
+		if expandedCollection is None:
+			self.isExpanded=False
+			self.expandedCollection=None
+		else:
+			if not isinstance(expandedCollection,ExpandedEntityCollection):
+				raise TypeError
+			self.isExpanded=True
+			self.expandedCollection=expandedCollection
+		
+	def ExpandCollection(self,expand,select):
+		with self.fromEntity.entitySet.OpenNavigation(self.name,self.fromEntity) as collection:
+			collection.Expand(expand,select)
+			self.SetExpansion(collection.ExpandCollection())
+
+	def BindEntity(self,target):
+		"""Binds a *target* entity to this navigation property.
+		
+		*target* is either the entity you're binding or its key in the
+		target entity set. For example, assuming that "Orders" is a
+		navigation property that links customers to Order entities::
+		
+			customer['Orders'].Bind(1)
+			
+		binds the entity represented by 'customer' to the Order entity
+		with key 1.
+		
+		As for updates to data property values, the binding information
+		is saved and acted upon when the entity is next updated or, for
+		non-existent entities, inserted into the entity set.
+		
+		If you attempt to bind to a target entity that doesn't exist the
+		target entity will be created automatically when the source
+		entity is updated or inserted."""
+		if self.isCollection:
+			self.bindings.append(target)
+		else:
+			self.bindings=[target]
+
+	def UpdateBindings(self):
+		"""Iterates through :py:attr:`bindings` and generates appropriate calls
+		to update the collection."""
+		if self.bindings:
+			# get an entity collection for this navigation property
+			with self.OpenCollection() as collection:
+				while self.bindings:
+					binding=self.bindings[0]
+					if isinstance(binding,Entity):
+						if binding.exists:
+							# use __setitem__ to add this entity to the entity collection
+							collection[binding.Key()]=binding
+						else:
+							# we need to insert this entity, which will automatically link to us
+							collection.InsertEntity()
+					else:
+						# just a key, we'll grab the entity first
+						# which will generate KeyError if it doesn't
+						# exist
+						with collecction.entitySet.OpenCollection() as baseCollection:
+							baseCollection.SelectKeys()
+							targetEntity=baseCollection[binding]
+						collection[binding]=targetEntity
+					# success, trim bindings now in case we get an error
+					self.bindings=self.bindings[1:]
+		
 
 class Entity(TypeInstance):
 	"""Represents a single instance of an :py:class:`EntityType`.
@@ -1542,10 +1627,7 @@ class Entity(TypeInstance):
 		self.entitySet=entitySet
 		TypeInstance.__init__(self,entitySet.entityType)
 		self.exists=False		#: whether or not the instance exists in the entity set
-		self.bindings={}		#: a dictionary mapping navigation property names to binding requests
-		self.expand=None		#: the expand rules in effect for this entity
-		self.select=None		#: the select rules in effect for this entity
-		self._selectAll=True
+		self.selected=None		#: the set of selected property names or None if all properties are selected
 		if self.typeDef is None:
 			raise ModelIncomplete("Unbound EntitySet: %s (%s)"%(self.entitySet.name,self.entitySet.entityTypeName))
 		for np in self.typeDef.NavigationProperty:
@@ -1579,7 +1661,12 @@ class Entity(TypeInstance):
 		"""Iterates through the names of this entity's navigation properties only."""
 		for np in self.typeDef.NavigationProperty:
 			yield np.name
-			
+	
+	def NavigationItems(self):
+		"""Iterator that yields tuples of (key,deferred value) for this entity's navigation properties only."""
+		for np in self.typeDef.NavigationProperty:
+			yield np.name,self[np.name]
+				
 	def __len__(self):
 		"""Returns the number of properties, including navigation properties, in the type."""
 		return len(self.typeDef.Property)+len(self.typeDef.NavigationProperty)
@@ -1605,28 +1692,28 @@ class Entity(TypeInstance):
 		else:
 			raise KeyError(name)
 
-	def BindEntity(self,name,target):
-		"""Binds this entity through navigation property *name*
-		
-		*target* is either the entity you're binding to or its key in
-		the target entity set. For example, assuming that "Orders" is a
-		navigation property that links customers to Order entities::
-		
-			customer.Bind("Orders",1)
-			
-		binds the entity represented by 'customer' to the Order entity
-		with key 1.
-		
-		As for updates to data property values, the binding information
-		is saved and acted upon when the entity is next updated or, for
-		non-existent entities, inserted into the entity set.
-		
-		If you attempt to bind to a target entity that doesn't exist the
-		target entity will be created automatically when source entity
-		is updated or inserted."""
-		# save this information for later
-		self.bindings.setdefault(name,[]).append(target)
-	
+# 	def BindEntity(self,name,target):
+# 		"""Binds this entity through navigation property *name*
+# 		
+# 		*target* is either the entity you're binding to or its key in
+# 		the target entity set. For example, assuming that "Orders" is a
+# 		navigation property that links customers to Order entities::
+# 		
+# 			customer.Bind("Orders",1)
+# 			
+# 		binds the entity represented by 'customer' to the Order entity
+# 		with key 1.
+# 		
+# 		As for updates to data property values, the binding information
+# 		is saved and acted upon when the entity is next updated or, for
+# 		non-existent entities, inserted into the entity set.
+# 		
+# 		If you attempt to bind to a target entity that doesn't exist the
+# 		target entity will be created automatically when the source
+# 		entity is updated or inserted."""
+# 		# save this information for later
+# 		self.bindings.setdefault(name,[]).append(target)
+# 	
 	def Update(self):
 		"""Updates this entity following modification.
 		
@@ -1690,11 +1777,7 @@ class Entity(TypeInstance):
 		for pRef in self.typeDef.Key.PropertyRef:
 			k[pRef.name]=self[pRef.name]
 		return k
-				
-# 	def Navigate(self,name):
-# 		warnings.warn("Entity.Navigate is deprecated, use Entity[<prop name>] instead", DeprecationWarning, stacklevel=3)
-# 		return self[name]
-	
+					
 	def Expand(self,expand, select=None):
 		"""Expands *entity* according to the given expand rules (if any).
 
@@ -1714,30 +1797,48 @@ class Entity(TypeInstance):
 		The *select* option is a similar dictionary structure that can
 		be used to filter the properties in the entity.  If a property
 		that is being expanded is also subject to one or more selection
-		rules these are passed along with the chained Expand call.
+		rules these are passed along with any chained Expand call.
 		
 		The selection rules in effect are saved in the :py:attr:`select`
 		member and can be tested using :py:meth:`Selected`."""
-		self.select=select
-		self.expand=expand
-		if self.select is None:
-			self._selectAll=True
+		if select is None:
+			self.selected=None
+			select={}	# use during expansion
 		else:
-			self._selectAll=u"*" in select
+			self.selected=set()
+			for k in self:
+				if k in select:
+					self.selected.add(k)
+			if "*" in select:
+				# add all non-navigation items
+				for k in self.DataKeys():
+					self.selected.add(k)
+		# Now expand this entity's navigation properties
+		if expand:
+			for k,v in self.NavigationItems():
+				if k in expand:
+					if k in select:
+						subSelect=select[k]
+						if subSelect is None:
+							# $select=Orders&$expand=Orders/OrderLines => $select=Orders/*
+							subSelect={'*':None}
+					else:
+						subSelect=None
+					v.ExpandCollection(expand[k],subSelect)
 	
 	def Expanded(self,name):
 		"""Returns true if the property *name* should be expanded by
 		the expansion rules in this entity."""
-		return self.expand and name in self.expand
+		warnings.warn("Entity.Expanded is deprecated, use, e.g., customer['Orders'].isExpanded instead", DeprecationWarning, stacklevel=3)
+		return self[name].isExpanded
 		
 	def Selected(self,name):
-		"""Returns true if the property *name* is selected by the
-		selection rules in this entity.
+		"""Returns true if the property *name* is selected in this entity.
 		
-		The entity always has keys for its simple and complex properties
-		but whether or not the dictionary values represent the true value
-		of the property *may* depend on whether the property is selected.
-		In particular, a property value that is Null may indicate that the
+		The entity always has values for its properties but whether or
+		not the dictionary values represent the true value of the
+		property *may* depend on whether the property is selected. In
+		particular, a property value that is Null may indicate that the
 		named property has a Null value or simply that it hasn't been
 		selected::
 		
@@ -1750,10 +1851,7 @@ class Entity(TypeInstance):
 				print "NULL status of Name is unknown"
 				# we don't know because it hasn't been selected
 		"""
-		if self._selectAll:
-			return True
-		else:
-			return self.select and name in self.select
+		return self.selected is None or name in self.selected
 	
 	def ETag(self):
 		"""Returns a list of EDMValue instance values to use for optimistic
@@ -1761,7 +1859,7 @@ class Entity(TypeInstance):
 		all concurrency tokens are NULL)."""
 		etag=[]
 		for pDef in self.typeDef.Property:
-			if pDef.concurrencyMode and pDef.concurrencyMode.lower()=="fixed":
+			if pDef.concurrencyMode==ConcurrencyMode.Fixed:
 				token=self[pDef.name]
 				if token:
 					# only append non-null values
@@ -1775,17 +1873,78 @@ class Entity(TypeInstance):
 		"""Returns a list of EDMValue instance values that may be used
 		for optimistic concurrency control.  The difference between this
 		method and :py:meth:`ETag` is that this method returns all
-		values even if they are NULL."""
+		values even if they are NULL.  If there are no concurrency
+		tokens then an empty list is returned."""
 		etag=[]
 		for pDef in self.typeDef.Property:
-			if pDef.concurrencyMode and pDef.concurrencyMode.lower()=="fixed":
+			if pDef.concurrencyMode==ConcurrencyMode.Fixed:
 				token=self[pDef.name]
 				etag.append(token)
-		if etag:
-			return etag
-		else:
-			return None		
+		return etag
+	
+	def GenerateConcurrencyHash(self):
+		"""Returns a hash object representing this entity's value.
 		
+		The keys and any concurrency tokens are excluded from the hash"""
+		h=hashlib.sha256()
+		key=self.KeyDict()
+		for pDef in self.typeDef.Property:
+			if pDef.concurrencyMode==ConcurrencyMode.Fixed:
+				continue
+			elif pDef.name in key:
+				continue
+			v=self[pDef.name]
+			if isinstance(v,Complex):
+				self.UpdateComplexHash(h,v)
+			elif not v:
+				continue
+			else:
+				h.update(unicode(v).encode('utf-8'))
+		return h
+	
+	def UpdateComplexHash(self,h,ct):
+		for pDef in ct.typeDef.Property:
+			# complex types can't have properties used as concurrency tokens or keys
+			v=ct[pDef.name]
+			if isinstance(v,Complex):
+				self.UpdateComplexHash(h,v)
+			elif not v:
+				continue
+			else:
+				h.update(unicode(v).encode('utf-8'))
+			
+	def SetConcurrencyTokens(self):
+		for t in self.ETagValues():
+			if isinstance(t,BinaryValue):
+				h=self.GenerateConcurrencyHash().digest()
+				if t.pDef.maxLength is not None and t.pDef.maxLength<len(h):
+					# take the right-most bytes
+					h=h[len(h)-t.pDef.maxLength:]
+				if t.pDef.fixedLength:
+					if t.pDef.maxLength>len(h):
+						# we need to zero-pad our binary string
+						h=h.ljust(t.pDef.maxLength,'\x00')
+				t.SetFromPyValue(h)
+			elif isinstance(t,StringValue):
+				h=self.GenerateConcurrencyHash().hexdigest()
+				if t.pDef.maxLength is not None and t.pDef.maxLength<len(h):
+					# take the right-most bytes
+					h=h[len(h)-t.pDef.maxLength:]
+				if t.pDef.fixedLength:
+					if t.pDef.maxLength>len(h):
+						# we need to zero-pad our binary string
+						h=h.ljust(t.pDef.maxLength,'0')
+				t.SetFromPyValue(h)
+			elif isinstance(t,(Int16Value,Int32Value,Int64Value)):
+				if t:
+					t.SetFromPyValue(t.pyValue+1)
+				else:
+					t.SetFromPyValue(1)
+			else:
+				raise ValueError("Can't auto generate concurrency token for %s"%t.pDef.type)
+			# TODO: if a date time is being used generate a 'now' value
+			# TODO: if a uuid is being used generate a new one
+					
 	def ETagIsStrong(self):
 		"""Returns True if this entity's etag is a strong entity tag as defined
 		by RFC2616::
@@ -1916,6 +2075,9 @@ class EntityCollection(DictionaryLike):
 	def close(self):
 		pass
 		
+	def __del__(self):
+		self.close()
+
 	def GetLocation(self):
 		"""Returns the location of this collection as a
 		:py:class:`rfc2396.URI` instance.
@@ -1941,6 +2103,7 @@ class EntityCollection(DictionaryLike):
 		returned entities.
 		
 		For more details, see :py:meth:`Entity.Expand`"""
+		self.entitySet.entityType.ValidateExpansion(expand,select)
 		self.expand=expand
 		self.select=select
 
@@ -2122,33 +2285,10 @@ class EntityCollection(DictionaryLike):
 		raise NotImplementedError
 		
 	def UpdateBindings(self,entity):
-		"""Parses :py:attr:`Entity.bindings` and generates appropriate calls to
-		create/update the associated navigation properties."""
-		for navProperty,bindings in entity.bindings.items():
-			if not bindings:
-				pass
-			if not entity.IsEntityCollection(navProperty):
-				# if you call bind multiple times for a link with single
-				# cardinality then only the last value will take effect
-				bindings=bindings[-1:]
-			# get an entity collection for this navigation property
-			with entity[navProperty].OpenCollection() as navCollection:
-				for binding in bindings:
-					if isinstance(binding,Entity):
-						if binding.exists:
-							# use __setitem__ to add this entity to the entity collection
-							navCollection[binding.Key()]=binding
-						else:
-							# we need to insert this entity, which will automatically link to us
-							navCollection.InsertEntity()
-					else:
-						# just a key, we'll grab the entity first
-						# which will generate KeyError if it doesn't
-						# exist
-						with navCollection.entitySet.OpenCollection() as baseCollection:
-							baseCollection.SelectKeys()
-							targetEntity=baseCollection[binding]
-						navCollection[binding]=targetEntity
+		"""Iterates through the :py:meth:`Entity.NavigationItems` and generates appropriate calls to
+		create/update any pending bindings."""
+		for k,dv in entity.NavigationItems():
+			dv.UpdateBindings()
 	
 	def __getitem__(self,key):
 		"""Returns the py:class:`Entity` instance corresponding to *key*
@@ -2292,7 +2432,11 @@ class NavigationEntityCollection(EntityCollection):
 		super(NavigationEntityCollection,self).__init__(toEntitySet)
 		self.name=name					#: the name of this collection
 		self.fromEntity=fromEntity		#: the source entity 
-		
+	
+	def ExpandCollection(self):
+		"""Return an expanded version of this collection"""
+		return ExpandedEntityCollection(self.name,self.fromEntity,self.entitySet,self.values())						
+
 	def InsertEntity(self,entity):
 		"""Inserts *entity* into this collection.
 		
@@ -2314,6 +2458,24 @@ class NavigationEntityCollection(EntityCollection):
 
 	def __delitem__(self,key):
 		raise NotImplementedError("Entity collection %s[%s] is read-only"%(self.entitySet.name,self.name)) 
+
+
+class ExpandedEntityCollection(NavigationEntityCollection):
+	
+	def __init__(self,name,fromEntity,toEntitySet,entityList):
+		super(ExpandedEntityCollection,self).__init__(name,fromEntity,toEntitySet)
+		self.entityList=entityList
+		self.entityDict={}
+		for e in self.entityList:
+			# Build a dictionary
+			self.entityDict[e.Key()]=e
+			
+	def itervalues(self):
+		for entity in self.entityList:
+			yield entity
+	
+	def __getitem__(self,key):
+		return self.entityDict[key]
 
 
 class FunctionEntityCollection(EntityCollection):
@@ -2446,6 +2608,30 @@ def EncodeMaxLength(value):
 	else:
 		return xsi.EncodeInteger(value)
 
+
+class ConcurrencyMode(xsi.Enumeration):
+	"""ConcurrencyMode defines constants for the concurrency modes defined by CSDL
+	::
+		
+		ConcurrencyMode.Fixed	
+		ConcurrencyMode.DEFAULT == ConcurrencyMode.none
+
+	Note that although 'Fixed' and 'None' are the correct values
+	lower-case aliases are also defined to allow the value 'none' to be
+	accessible through normal attribute access.  In most cases you won't
+	need to worry as a test such as the following is sufficient:
+	
+		if property.concurrencyMode==ConcurrencyMode.Fixed:
+			# do something with concurrency tokens
+			
+	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+	decode={
+		'None':1,
+		'Fixed':2
+		}
+xsi.MakeEnumeration(ConcurrencyMode)
+xsi.MakeLowerAliases(ConcurrencyMode)
+
 	
 class Property(CSDLElement):
 	"""Models a property of an :py:class:`EntityType` or :py:class:`ComplexType`."""
@@ -2458,13 +2644,13 @@ class Property(CSDLElement):
 	XMLATTR_DefaultValue='defaultValue'
 	XMLATTR_MaxLength=('maxLength',DecodeMaxLength,EncodeMaxLength)
 	XMLATTR_FixedLength=('fixedLength',xsi.DecodeBoolean,xsi.EncodeBoolean)
-	XMLATTR_Precision='precision'
-	XMLATTR_Scale='scale'
+	XMLATTR_Precision=('precision',xsi.DecodeInteger,xsi.EncodeInteger)
+	XMLATTR_Scale=('scale',xsi.DecodeInteger,xsi.EncodeInteger)
 	XMLATTR_Unicode='unicode'
 	XMLATTR_Collation='collation'
 	XMLATTR_SRID='SRID'
 	XMLATTR_CollectionKind='collectionKind'
-	XMLATTR_ConcurrencyMode='concurrencyMode'
+	XMLATTR_ConcurrencyMode=('concurrencyMode',ConcurrencyMode.DecodeLowerValue,ConcurrencyMode.EncodeValue)
 
 	def __init__(self,parent):
 		CSDLElement.__init__(self,parent)
@@ -2476,8 +2662,8 @@ class Property(CSDLElement):
 		self.defaultValue=None		#: a string containing the default value for the property or None if no default is defined
 		self.maxLength=None			#: the maximum length permitted for property values 
 		self.fixedLength=None		#: a boolean indicating that the property must be of length :py:attr:`maxLength`
-		self.precision=None
-		self.scale=None
+		self.precision=None			#: a positive integer indicating the maximum number of decimal digits (decimal values)
+		self.scale=None				#: a non-negative integer indicating the maximum number of decimal digits to the right of the point 
 		self.unicode=None
 		self.collation=None
 		self.SRID=None
@@ -2547,17 +2733,6 @@ class Property(CSDLElement):
 			return value
 		else:
 			return encoder(value)
-				
-	def UpdateFingerprint(self,h):
-		h.update("Property:")
-		h.update(self.name)
-		h.update(";")
-		h.update(self.type)
-		h.update(";")
-		h.update("True" if self.nullable else "False")
-		h.update(";")
-		h.update("NULL" if self.defaultValue is None else self.defaultValue)
-		h.update(";")
 
 		
 class NavigationProperty(CSDLElement):
@@ -2607,17 +2782,6 @@ class NavigationProperty(CSDLElement):
 			self.association=self.fromEnd=self.toEnd=None
 			if stopOnErrors:
 				raise
-		
-	def UpdateFingerprint(self,h):
-		h.update("NavigationProperty:")
-		h.update(self.name)
-		h.update(";")
-		h.update(self.relationship)
-		h.update(";")
-		h.update(self.toRole)
-		h.update(";")
-		h.update(self.fromRole)
-		h.update(";")
 
 
 class Key(CSDLElement):
@@ -2633,13 +2797,6 @@ class Key(CSDLElement):
 	def UpdateTypeRefs(self,scope,stopOnErrors=False):
 		for pr in self.PropertyRef:
 			pr.UpdateTypeRefs(scope,stopOnErrors)
-
-	def UpdateFingerprint(self,h):
-		h.update("Key:")
-		for pr in self.PropertyRef:
-			pr.UpdateFingerprint(h)
-		h.update(";")
-
 
 
 class PropertyRef(CSDLElement):
@@ -2666,10 +2823,6 @@ class PropertyRef(CSDLElement):
 			self.property=None
 			if stopOnErrors:
 				raise
-
-	def UpdateFingerprint(self,h):
-		h.update(self.name)
-		h.update(";")
 
 
 class Type(NameTableMixin,CSDLElement):
@@ -2781,15 +2934,6 @@ class EntityType(Type):
 			except KeyError:
 				raise ValueError("%s is not a navigation property of %s"%(name,self.name))
 					
-	def UpdateFingerprint(self,h):
-		if self.Key:
-			self.Key.UpdateFingerprint(h)
-		h.update("EntityType:")
-		h.update(self.name)
-		h.update(";")
-		for p in self.Property+self.NavigationProperty:
-			p.UpdateFingerprint(h)
-
 	def UpdateTypeRefs(self,scope,stopOnErrors=False):
 		super(EntityType,self).UpdateTypeRefs(scope,stopOnErrors)
 		for p in self.NavigationProperty:
@@ -2799,13 +2943,6 @@ class EntityType(Type):
 	
 class ComplexType(Type):
 	XMLNAME=(EDM_NAMESPACE,'ComplexType')
-
-	def UpdateFingerprint(self,h):
-		h.update("ComplexType:")
-		h.update(self.name)
-		h.update(";")
-		for p in self.Property:
-			p.UpdateFingerprint(h)
 
 
 class Multiplicity:
@@ -2863,13 +3000,6 @@ class Association(NameTableMixin,CSDLElement):
 			CSDLElement.GetChildren(self)):
 			yield child
 
-	def UpdateFingerprint(self,h):
-		h.update("Association:")
-		h.update(self.name)
-		h.update(";")
-		for e in self.AssociationEnd:
-			e.UpdateFingerprint(h)
-
 	def UpdateTypeRefs(self,scope,stopOnErrors=False):
 		for iEnd in self.AssociationEnd:
 			iEnd.UpdateTypeRefs(scope,stopOnErrors)
@@ -2896,12 +3026,6 @@ class AssociationEnd(CSDLElement):
 		if self.Documentation: yield self.Documentation
 		if self.OnDelete: yield self.OnDelete
 		for child in CSDLElement.GetChildren(self): yield child
-
-	def UpdateFingerprint(self,h):
-		h.update("End:")
-		h.update(self.type)
-		h.update(";")
-		h.update(EncodeMultiplicity(self.multiplicity))
 
 	def UpdateTypeRefs(self,scope,stopOnErrors=False):
 		"""Sets :py:attr:`entityType` and :py:attr:`otherEnd`."""
@@ -2954,13 +3078,6 @@ class EntityContainer(NameTableMixin,CSDLElement):
 	def ContentChanged(self):
 		for t in self.EntitySet+self.AssociationSet+self.FunctionImport:
 			self.Declare(t)
-
-	def UpdateFingerprint(self,h):
-		h.update("EntityContainer:")
-		h.update(self.name)
-		h.update(";")
-		for t in self.EntitySet+self.AssociationSet:
-			t.UpdateFingerprint(h)
 
 	def UpdateSetRefs(self,scope,stopOnErrors=False):
 		for child in self.EntitySet+self.AssociationSet+self.FunctionImport:
@@ -3070,13 +3187,6 @@ class EntitySet(CSDLElement):
 								self.navigation[np.name]=iEnd
 								break
 			
-	def UpdateFingerprint(self,h):
-		h.update("EntitySet:")
-		h.update(self.name)
-		h.update(";")
-		h.update(self.entityTypeName)
-		h.update(";")
-	
 	def KeyKeys(self):
 		"""Returns a list of the names of this entity set's key
 		properties."""
@@ -3207,30 +3317,7 @@ class EntitySet(CSDLElement):
 		linkEnd=self._getLinkEnd(name)
 		toEntitySet=linkEnd.otherEnd.entitySet
 		return cls(name,sourceEntity,toEntitySet,**extraArgs)
-			
-# 	def Navigate(self,name,sourceEntity,expand=None):
-# 		"""See :py:meth:`Entity.Navigate` for more information.
-# 		
-# 		The entities returned are those linked, by this navigation property, from the
-# 		entity with *key*.
-# 		
-# 		You can use :py:meth:`IsEntityCollection` to determine which
-# 		form of response is expected."""
-# 		warnings.warn("EntitySet.Navigate is deprecated, use OpenNavigation instead", DeprecationWarning, stacklevel=3)
-# 		cls,extraArgs=self.navigationBindings[name]
-# 		linkEnd=self._getLinkEnd(name)
-# 		toEntitySet=linkEnd.otherEnd.entitySet
-# 		if linkEnd.otherEnd.associationEnd.multiplicity==Multiplicity.Many:
-# 			return cls(name,sourceEntity,toEntitySet,**extraArgs)
-# 		else:
-# 			collection=list(cls(name,sourceEntity,toEntitySet,**extraArgs).itervalues())
-# 			if len(collection)==1:
-# 				return collection[0]
-# 			elif len(collection)==0:
-# 				return None
-# 			else:
-# 				raise KeyError("Navigation error: %s yielded multiple entities"%name)
-	
+		
 	def _getLinkEnd(self,name):
 		try:
 			linkEnd=self.navigation[name]
@@ -3288,13 +3375,6 @@ class AssociationSet(CSDLElement):
 			self.association=None
 			if stopOnErrors:
 				raise
-		
-	def UpdateFingerprint(self,h):
-		h.update("AssociationSet:")
-		h.update(self.name)
-		h.update(";")
-		h.update(self.associationName)
-		h.update(";")
 				
 
 class AssociationSetEnd(CSDLElement):
@@ -3586,14 +3666,7 @@ class Schema(NameTableMixin,CSDLElement):
 		
 	def UpdateSetRefs(self,scope,stopOnErrors=False):
 		for t in self.EntityContainer:
-			t.UpdateSetRefs(scope,stopOnErrors)
-		
-	def UpdateFingerprint(self,h):
-		h.update("Schema:")
-		h.update(self.name)
-		h.update(";")
-		for t in self.EntityType+self.ComplexType+self.Association+self.EntityContainer:
-			t.UpdateFingerprint(h)
+			t.UpdateSetRefs(scope,stopOnErrors)		
 		
 
 class Document(xmlns.XMLNSDocument):
@@ -3613,574 +3686,3 @@ class Document(xmlns.XMLNSDocument):
 		return eClass
 	
 xmlns.MapClassElements(Document.classMap,globals(),NAMESPACE_ALIASES)
-
-
-class ERStore(NameTableMixin):
-	"""Abstract class used to represent entity-relation stores, i.e.,
-	(collections of) databases.
-	
-	This object inherits from the basic :py:class:`NameTableMixin`, each
-	declared schema represents a top-level name within the ERStore."""
-	
-	def __init__(self):
-		NameTableMixin.__init__(self)
-		self.containers={}
-		"""A dictionary mapping :py:class:`EntityContainer` (database) names to
-		an implementation specific value used to locate the data in the
-		entity-relation store."""
-		self.fingerprint=''	#: the fingerprint of this store, used for version control
-	
-	def UpdateFingerprint(self):
-		schemas=self.nameTable.keys()
-		schemas.sort()
-		h=hashlib.sha256()
-		for sName in schemas:
-			self.nameTable[sName].UpdateFingerprint(h)
-		containers=self.containers.keys()
-		for cName in containers:
-			# hide implementation specific details from the fingerprint
-			h.update("EntityContainer:")
-			h.update(cName)
-			h.update(";")
-		self.fingerprint=h.hexdigest()
-			
-	def AddSchema(self,s):
-		"""Adds an additional schema to this store.
-		
-		Adds the definitions in s to this store.  This method is *not* thread-safe.
-		After calling this method the store's fingerprint will be different.
-		
-		This method call is not thread-safe."""		
-		if not isinstance(s,Schema):
-			raise TypeError("Schema required: %s"%repr(s))
-		self.Declare(s)
-		self.UpdateFingerprint()
-		
-	def UpgradeSchema(self,newS):
-		"""Upgrades an existing schema to reflect the new definitions in *newS*.
-		
-		A schema with the same name must have already been added to this store.
-		Any created containers are upgraded, within the limits of the underlying
-		storage system.  Adding/removing :py:class:`EntitySet` definitions or
-		adding, removing and in some cases modifying underlying
-		:py:class:`Property` definitions is also possible.
-		
-		This method call is not thread-safe."""
-		raise NotImplementedError
-
-	def CreateContainer(self,containerName):
-		"""Initialises the :py:class:`EntityContainer` with *containerName*.
-		
-		Before you can read or write entities from/to an :py:class:`EntitySet`
-		in the store you must initialise the :py:class:`EntityContainer` that
-		contains it.  For example, a SQL-backed data store would use this
-		opportunity to create tables to hold the entity sets in the
-		container.
-		
-		This method call is not thread-safe."""
-		c=self[containerName]
-		if not isinstance(c,EntityContainer):
-			raise ValueError("%s is not an EntityContainer"%containerName)
-		# Now have we already created this container?
-		if containerName in self.containers:
-			raise ContainerExists("Container %s has already been created")
-		# default implementation just uses "True"
-		self.containers[containerName]=True
-
-	def EntityReader(self,entitySetName):
-		"""A generator function that iterates over all matching entities
-		in the given :py:class:`EntitySet`.
-		
-		Each entity is returned as a dictionary mapping property names to values
-		(None representing a null value).  Values are type-cast to appropriate
-		python types."""
-		while False:
-			yield None
-		raise NotImplementedError
-	
-	def InsertEntity(self,entitySetName,values):
-		"""Adds an entity to an :py:class:`EntitySet`.
-		
-		The entity's property values are represented in a dictionary or
-		dictionary-like object *values* keyed on property name."""
-		raise NotImplementedError
-
-	def DecodeLiteral(self,edmType,value):
-		if value is None:
-			return None
-		decoder,encoder=SimpleTypeCodec.get(edmType,(None,None))
-		if decoder is None:
-			# treat as per string
-			return value
-		else:
-			return decoder(value)
-			
-		
-class SQLiteDB(ERStore):
-	
-	SQLType={
-		"edm.boolean":"BOOLEAN",
-		"edm.datetime":"DATETIME",
-		"edm.single":"REAK",
-		"edm.double":"DOUBLE",
-		"edm.guid":"VARCHAR(36)",
-		"edm.sbyte":"INTEGER",
-		"edm.int16":"INTEGER",
-		"edm.int32":"INTEGER",
-		"edm.int64":"INTEGER",
-		"edm.byte":"TINYINT",
-		"edm.string":"TEXT",
-		"edm.stream":"BLOB"
-		}
-		
-	def __init__(self,fPath):
-		super(SQLiteDB,self).__init__()
-		if not isinstance(fPath,OSFilePath):
-			raise TypeError("SQLiteDB requires an os file path")
-		self.db=sqlite3.connect(str(fPath))
-		self.LoadInternalTables()
-		self.tableNames={}
-
-	def BuildTableNames(self):
-		self.tableNames={}
-		for cName,cPrefix in self.containers.items():
-			# for each container, add the table names
-			c=self[cName]
-			for es in c.EntitySet:
-				self.tableNames[cName+"."+es.name]=cPrefix+es.name
-	
-	def DumpTables(self):
-		c=self.db.cursor()
-		query="""SELECT name FROM sqlite_master WHERE type='table'"""
-		c.execute(query)
-		for row in c:
-			print row[0]
-							
-	def LoadInternalTables(self):
-		"""Loads the internal data definitions from the database."""
-		query="""SELECT name FROM sqlite_master WHERE type='table'"""
-		c=self.db.cursor()
-		done=commit=False
-		while not done:
-			done=True
-			csdl_tables={}
-			c.execute(query)
-			for row in c:
-				csdl_tables[row[0].lower()]=True
-			if "csdl_schemas" not in csdl_tables:
-				c.execute("""CREATE TABLE csdl_schemas (
-					name TEXT,
-					src TEXT)""")
-				done=False
-			if "csdl_containers" not in csdl_tables:
-				c.execute("""CREATE TABLE csdl_containers (
-					name TEXT,
-					prefix NVARCHAR(8))""")
-				done=False
-			if "csdl_fingerprint" not in csdl_tables:
-				c.execute("""CREATE TABLE csdl_fingerprint (
-					fingerprint TEXT,
-					timestamp INTEGER)""")
-				c.execute("""INSERT INTO csdl_fingerprint (fingerprint,timestamp) VALUES ( '', 0 )""")
-				done=False
-			if not done:
-				if not commit:
-					self.db.commit()
-					commit=True
-				else:
-					raise StorageError("Can't create internal database tables")
-		self.LoadSchemas(c)
-		self.LoadContainers(c)
-		self.CheckFingerprint(c)		
-	
-	def LoadSchemas(self,c):
-		query="""SELECT name, src FROM csdl_schemas"""
-		c.execute(query)
-		try:
-			for row in c:
-				doc=Document()
-				doc.Read(src=row[1])
-				if not isinstance(doc.root,Schema):
-					raise StorageError("Failure to read XML object for Schema(name=%s)"%repr(row[0]))
-				if doc.root.name!=row[0]:
-					raise StorageError("Namespace mismatch for Schema(name=%s)"%repr(row[0]))
-				self.Declare(doc.root)
-		finally:
-			if self.nameTable:
-				self.UpdateFingerprint()
-			
-	def LoadContainers(self,c):
-		query="""SELECT name, prefix FROM csdl_containers"""
-		c.execute(query)
-		try:
-			for row in c:
-				name=row[0]
-				prefix=row[1]
-				try:
-					container=self[name]
-					if not isinstance(container,EntityContainer):
-						raise StorageError("Object type mismatch for EntityContainer(name=%s)"%repr(name))
-					self.containers[name]=prefix
-				except KeyError:
-					raise StorageError("No definition for container %s"%name)
-		finally:
-			if self.containers:
-				self.BuildTableNames()
-				self.UpdateFingerprint()
-
-	def CheckFingerprint(self,c):
-		query="""SELECT fingerprint, timestamp FROM csdl_fingerprint"""
-		c.execute(query)
-		fp,latest=self.ReadFingerprint(c)
-		if fp!=self.fingerprint:
-			raise StorageError("Fingerprint mismatch: found %s expected %s"%(repr(fp),repr(self.fingerprint)))
-
-	def ReadFingerprint(self,c):
-		query="""SELECT fingerprint, timestamp FROM csdl_fingerprint"""
-		c.execute(query)
-		fp=''
-		latest=0
-		for row in c:
-			if row[1]>latest:
-				fp=row[0]
-				latest=row[1]
-		return fp,latest
-	
-	def WriteFingerprint(self,c):
-		fp,latest=self.ReadFingerprint(c)
-		query="""UPDATE csdl_fingerprint SET fingerprint=?, timestamp=?"""
-		now=int(time.time())
-		if latest>=now:
-			# step in to the future
-			now=latest+1
-		c.execute(query,(self.fingerprint,now))
-			
-	def AddSchema(self,s):
-		"""Adds an additional schema to this store.
-		
-		Updates the internal tables to save the schema source and store the new fingerprint"""		
-		if not isinstance(s,Schema):
-			raise TypeError("Schema required: %s"%repr(s))
-		self.Declare(s)
-		self.UpdateFingerprint()
-		try:
-			output=StringIO.StringIO()
-			output.write(str(s))
-			src=output.getvalue()
-			query="""INSERT INTO csdl_schemas (name, src) VALUES ( ?, ?)"""
-			c=self.db.cursor()
-			c.execute(query,(s.name,src))
-			self.WriteFingerprint(c)
-			self.db.commit()
-		except:
-			# remove s from the list of schemas in the event of an error
-			self.Undeclare(s)
-			self.UpdateFingerprint()
-			raise
-
-	def UpgradeSchema(self,newS):
-		"""Upgrades an existing schema to reflect the new definitions in *newS*."""
-		if not isinstance(newS,Schema):
-			raise TypeError("Schema required: %s"%repr(newS))
-		oldS=self[newS.name]
-		if not isinstance(oldS,Schema):
-			raise TypeError("Schema required: %s"%repr(oldS))
-		output=StringIO.StringIO()
-		output.write(str(newS))
-		src=output.getvalue()
-		scopePrefix=newS.name+"."
-		c=self.db.cursor()
-		# transaction=[("BEGIN TRANSACTION",())]
-		transaction=[]
-		for containerName in self.containers:
-			oldContainer=self[containerName]
-			tablePrefix=self.containers[containerName]
-			if not containerName.startswith(scopePrefix):
-				# the EntityContainer is not in this scope, but definitions might be
-				for oldT in oldContainer.EntitySet:
-					if oldT.entityTypeName.startswith(scopePrefix):
-						# the entity type is in the new scope, may have changed
-						newType=newS[oldT.entityTypeName[len(scopePrefix):]]
-						oldType=self[oldT.entityTypeName]
-						transaction=transaction+self.UpdateTable(tablePrefix+oldT.name,oldType,newType)					
-			else:
-				# the EntityContainer is in this scope, it may have changed
-				newContainer=newS[containerName[len(scopePrefix):]]
-				for oldT in oldContainer.EntitySet:
-					if oldT.name in newContainer:
-						# This table is in the new scope too
-						newT=newContainer[oldT.name]
-						if newT.entityTypeName.startswith(scopePrefix):
-							# the entity type is in the new scope too
-							newType=newS[newT.entityTypeName[len(scopePrefix):]]
-							oldType=self[oldT.entityTypeName]
-							transaction=transaction+self.UpdateTable(tablePrefix+oldT.name,oldType,newType)
-					else:
-						# Drop this one
-						transaction=transaction+self.DropTable(tablePrefix+oldT.name)
-				for newT in newContainer.EntitySet:
-					if newT.name in oldContainer:
-						continue
-					else:
-						# new table not in old container
-						if newT.entityTypeName.startswith(scopePrefix):
-							newType=newS[newT.entityTypeName[len(scopePrefix):]]
-						else:
-							newType=self[newT.entityTypeName]
-						transaction=transaction+self.CreateTable(tablePrefix+newT.name,newType)
-		# transaction.append(("COMMIT",()))
-		for t,tParams in transaction:
-			print "%s %s"%(t,repr(tParams))
-			c.execute(t,tParams)
-		self.Undeclare(oldS)
-		self.Declare(newS)
-		self.UpdateFingerprint()
-		query="""UPDATE csdl_schemas SET src=? WHERE name=?"""
-		c.execute(query,(src,newS.name))
-		self.WriteFingerprint(c)
-		self.db.commit()		
-			
-	def MangleContainerName(self,containerName):	
-		prefix=[]
-		if containerName.lower()!=containerName:
-			# mixed case, pick out first letter and next two upper case letters
-			prefix.append(containerName[0])
-			for c in containerName[1:]:
-				if c.isupper():
-					prefix.append(c)
-					if len(prefix)>=3:
-						break
-		if len(prefix)<3 and "_" in containerName:
-			# grab the first letter and each letter after an underscore
-			if containerName[0]!="_":
-				prefix=[containerName[0]]
-				grab=False
-			else:
-				prefix=[]
-				grab=True
-			for c in containerName[1:]:
-				if c=="_":
-					grab=True
-				elif grab:
-					prefix.append(c)
-					if len(prefix)>=3:
-						break
-					grab=False
-		if len(prefix)<3:
-			# grab the first three significant characters
-			gotLetter=False
-			prefix=[]
-			for c in containerName:
-				if c.isalpha():
-					prefix.append(c.lower())
-					if len(prefix)>=3:
-						break
-		# Now scan the containers for a match
-		i=0
-		basePrefix=string.join(prefix,'')
-		prefix=basePrefix+"_"
-		while prefix in self.containers.values():
-			i=i+1
-			prefix="%s%i_"%(basePrefix,i)
-		return prefix
-		
-	def CreateContainer(self,containerName):
-		container=self[containerName]
-		if not isinstance(container,EntityContainer):
-			raise ValueError("%s is not an EntityContainer"%containerName)
-		# Now have we already created this container?
-		if containerName in self.containers:
-			raise ContainerExists("Container %s has already been created")
-		# Mangle the containerName to get the table prefix
-		prefix=self.MangleContainerName(containerName)
-		# At this point we'll try and create each table
-		c=self.db.cursor()
-		# transaction=[("BEGIN TRANSACTION",())]  CREATE TABLE can't be transacted
-		transaction=[]
-		query="""INSERT INTO csdl_containers (name, prefix) VALUES ( ?, ?)"""
-		for t in container.EntitySet:
-			eType=self[t.entityTypeName]
-			transaction=transaction+self.CreateTable(prefix+t.name,eType)
-			# self.CreateTable(c,t,prefix)
-		# transaction.append(("COMMIT",()))
-		for t,tParams in transaction:
-			print "%s %s"%(t,repr(tParams))
-			c.execute(t,tParams)
-		self.containers[containerName]=prefix
-		self.UpdateFingerprint()
-		c.execute(query,(containerName,prefix))
-		self.WriteFingerprint(c)
-		self.db.commit()
-		self.BuildTableNames()
-		
-	def MapType(self,typeName):
-		return self.SQLType[typeName.lower()]
-	
-	def EncodeLiteral(self,sqlType,value):
-		"""
-		"edm.datetime":"DATETIME",
-		"edm.single":"REAK",
-		"edm.double":"DOUBLE",
-		"edm.guid":"VARCHAR(36)",
-		"edm.byte":"TINYINT",
-		"edm.string":"TEXT",
-		"edm.stream":"BLOB"
-		"""
-		if value is None:
-			return "NULL"
-		elif sqlType=="BOOLEAN":
-			if value:
-				return "TRUE"
-			else:
-				return "FALSE"
-		elif sqlType=="INTEGER":
-			return int(value)
-		else:
-			raise NotImplementedError("Literal of type %s"%sqlType)
-	
-	def CreateTable(self,tName,eType):
-		if '"' in tName:
-			raise ValueError("Illegal table name: %s"%repr(tName))
-		if not isinstance(eType,EntityType):
-			# we can't create a table from something other than an EntityType
-			raise ValueError("%s is not an EntityType"%eType)
-		query=['CREATE TABLE "%s" ('%tName]
-		qParams=[]
-		columns=[]
-		for p in eType.Property:
-			sqlType=self.MapType(p.type)
-			column=[]
-			column.append('"%s" %s'%(p.name,sqlType))
-			if not p.nullable:
-				column.append(' NOT NULL')
-			if p.defaultValue is not None:
-				column.append(' DEFAULT %s'%self.EncodeLiteral(sqlType,p.defaultValue))
-			columns.append(string.join(column,''))
-# 		if eType.Key:
-#			column=[]
-# 			column.append('PRINARY KEY (')
-#			pk=[]
-# 			for pr in eType.Key.PropertyRef:
-# 				pk.append('"%s"'%pr.name)
-#			columns.append(string.join(pk,', '))
-#			column.append(')')
-#			columns.append(string.join(column,''))
-		query.append(string.join(columns,', '))
-		query.append(')')
-		query=string.join(query,'')
-		return [(string.join(query,''),qParams)]
-		
-	def UpdateTable(self,name,oldType,newType):
-		"""Returns a list of queries/param tuples that will transform the table
-		*name* from *oldType* to *newType*"""
-		result=[]
-		if '"' in name:
-			raise ValueError("Illegal table name: %s"%repr(name))
-		if not isinstance(oldType,EntityType):
-			raise ValueError("%s is not an EntityType"%repr(oldType))
-		if not isinstance(newType,EntityType):
-			raise ValueError("%s is not an EntityType"%repr(newType))
-		for oldP in oldType.Property:
-			if oldP.name in newType:
-				newP=newType[oldP.name]
-				# this one is in the new type
-				oldSQLType=self.MapType(oldP.type)
-				newSQLType=self.MapType(newP.type)
-				if newP.nullable != oldP.nullable or newP.defaultValue != oldP.defaultValue:
-					raise StorageError("Can't alter column constraints for %s.%s"%(oldType.name,oldP.name))
-				if newSQLType!=oldSQLType:
-					result.append(('ALTER TABLE "%s" ALTER COLUMN "%s" %s'%(name,oldP.name,newSQLType),()))
-			else:
-				# drop this column
-				result.append(('ALTER TABLE "%s" DROP COLUMN "%s"'%(name,oldP.name),()))
-		for newP in newType.Property:
-			if newP.name in oldType:
-				continue
-			else:
-				# add this column
-				newSQLType=self.MapType(newP.type)
-				query=['ALTER TABLE "%s" ADD COLUMN "%s" %s'%(name,newP.name,newSQLType)]
-				qParams=[]
-				if not newP.nullable:
-					query.append(' NOT NULL')
-				if newP.defaultValue is not None:
-					query.append(' DEFAULT %s'%self.EncodeLiteral(newSQLType,newP.defaultValue))
-				result.append((string.join(query,''),qParams))
-		return result
-
-				
-	def DropTable(self,name):
-		if '"' in name:
-			raise ValueError("Illegal table name: %s"%repr(name))
-		return ('DROP TABLE "%s"'%name,())
-
-		
-	def EntityReader(self,entitySetName):
-		t=self[entitySetName]
-		if not isinstance(t,EntitySet):
-			raise ValueError("%s must be an EntitySet"%entitySetName)
-		# Look up the TABLE name in the databse
-		tName=self.tableNames[entitySetName]
-		eType=self[t.entityTypeName]
-		if not isinstance(eType,EntityType):
-			raise ValueError("%s is not an EntityType"%t.entityType)
-		transaction=[]
-		query=['SELECT ']
-		valueNames=[]
-		qParams=[]
-		for p in eType.Property:
-			valueNames.append('"%s"'%p.name)
-		query.append(string.join(valueNames,", "))
-		query.append(' FROM "%s"'%tName)
-		transaction.append((string.join(query,''),qParams))
-		try:
-			c=self.db.cursor()
-			for t,tParams in transaction:
-				print "%s %s"%(t,repr(tParams))
-				c.execute(t,tParams)
-				for row in c:
-					result={}
-					i=0
-					for p in eType.Property:
-						result[p.name]=self.DecodeLiteral(p.simpleTypeCode,row[i])
-						i=i+1
-					yield result
-		except:
-			raise StorageError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
-	
-	def InsertEntity(self,entitySetName,values):
-		t=self[entitySetName]
-		if not isinstance(t,EntitySet):
-			raise ValueError("%s must be an EntitySet"%entitySetName)
-		# Look up the TABLE name in the databse
-		tName=self.tableNames[entitySetName]
-		eType=self[t.entityTypeName]
-		if not isinstance(eType,EntityType):
-			raise ValueError("%s is not an EntityType"%t.entityType)
-		transaction=[]
-		query=['INSERT INTO "%s" ('%tName]
-		valueNames=[]
-		qParams=[]
-		for p in eType.Property:
-			if p.name in values:
-				valueNames.append('"%s"'%p.name)
-				qParams.append(values[p.name])
-		query.append(string.join(valueNames,", "))
-		query.append(') VALUES (')
-		query.append(string.join(['?']*len(valueNames),", "))
-		query.append(')')
-		transaction.append((string.join(query,''),qParams))
-		try:
-			c=self.db.cursor()
-			for t,tParams in transaction:
-				print "%s %s"%(t,repr(tParams))
-				c.execute(t,tParams)
-			self.db.commit()
-		except:
-			raise StorageError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
-
-	def close(self):
-		if self.db is not None:
-			self.db.close()
-			self.db=None
-		

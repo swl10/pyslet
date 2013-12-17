@@ -116,7 +116,7 @@ class ClientTests(unittest.TestCase):
 		c=Client(ODATA_SAMPLE_SERVICEROOT)
 		if VERBOSE:
 			c.SetLog(http.HTTP_LOG_INFO,sys.stdout,256)
-		names=set()
+		names=set()		
 		with c.feeds['Products'].OpenCollection() as collection:
 			collection.Filter(core.CommonExpression.FromString("substringof('bread',ProductName)"))
 			self.assertTrue(len(collection)==1)
@@ -129,7 +129,26 @@ class ClientTests(unittest.TestCase):
 				self.fail("Alice Mutton wasn't filtered")
 			except KeyError:
 				pass
-		
+	
+	def tesxCaseNavigation(self):
+		c=Client(ODATA_SAMPLE_SERVICEROOT)
+		if VERBOSE:
+			c.SetLog(http.HTTP_LOG_INFO,sys.stdout,256)
+		with c.feeds['Customers'].OpenCollection() as collection:
+			customer=collection['ALFKI']
+			self.assertFalse(customer['Orders'].isExpanded)
+			with customer['Orders'].OpenCollection() as orders:
+				self.assertTrue(len(orders)==6,"Number of orders")
+				self.assertFalse(isinstance(orders,edm.ExpandedEntityCollection))
+			# now test expansion
+			collection.Expand({"Orders":None})
+			customer=collection['ALFKI']
+			self.assertTrue(customer['Orders'].isExpanded)
+			with customer['Orders'].OpenCollection() as orders:
+				self.assertTrue(len(orders)==6,"Number of orders")
+				self.assertTrue(isinstance(orders,core.ExpandedEntityCollection))
+									
+				
 # 	def tesxCaseProperties(self):
 # 		c=Client(ODATA_SAMPLE_SERVICEROOT)
 # 		c.pageSize=1
