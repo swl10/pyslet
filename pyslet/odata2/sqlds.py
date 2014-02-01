@@ -2,7 +2,7 @@
 """This module implements the Open Data Protocol specification defined by Microsoft."""
 
 
-import sqlite3, hashlib, StringIO, time, string, sys, threading
+import sqlite3, hashlib, StringIO, time, string, sys, threading, decimal, uuid, math, logging
 from types import *
 
 from pyslet.vfs import OSFilePath
@@ -52,7 +52,7 @@ class SQLCollectionMixin(object):
 	
 	def __init__(self,container):
 		self.container=container		#: the parent container (database) for this collection
-		self.tableName=self.container.tableNames[self.entitySet.name]	#: the quoted table name containing this collection
+		self.tableName=self.container.mangledNames[(self.entitySet.name,)]	#: the quoted table name containing this collection
 		self.qualifyNames=False			#: if True, field names in expressions are qualified with :py:attr:`tableName`
 		self.dbc=self.container.AcquireConnection(SQL_TIMEOUT)		#: a connection to the database
 		if self.dbc is None:
@@ -76,10 +76,10 @@ class SQLCollectionMixin(object):
 		for k,v in entity.DataItems():
 			if entity.Selected(k) and (not forUpdate or k not in keys):
 				if isinstance(v,edm.SimpleValue):
-					yield self.container.fieldNames[(self.tableName,(k,))],v
+					yield self.container.mangledNames[(self.entitySet.name,k)],v
 				else:
 					for sourcePath,fv in self.ComplexFieldGenerator(v):
-						yield self.container.fieldNames[(self.tableName,tuple([k]+sourcePath))],fv
+						yield self.container.mangledNames[tuple([self.entitySet.name,k]+sourcePath)],fv
 	
 	def ComplexFieldGenerator(self,ct):
 		"""Generates tuples of source path (as list) and simple value instances."""
@@ -112,7 +112,7 @@ class SQLCollectionMixin(object):
 				p=self.entitySet.entityType[expression.name]
 				if isinstance(p,edm.Property):
 					if p.complexType is None:
-						fieldName=self.container.fieldNames[(self.tableName,(expression.name,))]
+						fieldName=self.container.mangledNames[(self.entitySet.name,expression.name)]
 						if self.qualifyNames:
 							return "%s.%s"%(self.tableName,fieldName)
 						else:
@@ -147,8 +147,8 @@ class SQLCollectionMixin(object):
 				raise NotImplementedError("Use of navigation properties in expressions not supported")
 		# the result must be a simple property, so contextDef must not be None
 		if contextDef is not None:
-			raise core.EvaluationError("Property %s does not reference a primite type"%string.join(nameList,'/'))
-		fieldName=self.container.fieldNames[(self.tableName,tuple(nameList))]
+			raise core.EvaluationError("Property %s does not reference a primitive type"%string.join(nameList,'/'))
+		fieldName=self.container.mangledNames[tuple([self.entitySet.name]+nameList)]
 		if self.qualifyNames:
 			return "%s.%s"%(self.tableName,fieldName)
 		else:
@@ -223,7 +223,7 @@ class SQLCollectionMixin(object):
 		To do this we need to invoke the concatenation operator as per
 		Concat"""
 		percent=edm.SimpleValue.NewSimpleValue(edm.SimpleType.String)
-		percent.SetFromPyValue(u"'%'")
+		percent.SetFromValue(u"'%'")
 		percent=UnparameterizedLiteral(percent)
 		concat=core.CallExpression(core.Method.concat)
 		concat.operands.append(percent)
@@ -246,7 +246,7 @@ class SQLCollectionMixin(object):
 		To do this we need to invoke the concatenation operator as per
 		Concat"""
 		percent=edm.SimpleValue.NewSimpleValue(edm.SimpleType.String)
-		percent.SetFromPyValue(u"'%'")
+		percent.SetFromValue(u"'%'")
 		percent=UnparameterizedLiteral(percent)
 		concat=core.CallExpression(core.Method.concat)
 		concat.operands.append(expression.operands[1])
@@ -276,7 +276,7 @@ class SQLCollectionMixin(object):
 		which is a bit clumsy but more robust than just assuming
 		that + or ||, or perhaps CONCAT( ).... will actually work."""
 		percent=edm.SimpleValue.NewSimpleValue(edm.SimpleType.String)
-		percent.SetFromPyValue(u"'%'")
+		percent.SetFromValue(u"'%'")
 		percent=UnparameterizedLiteral(percent)
 		rconcat=core.CallExpression(core.Method.concat)
 		rconcat.operands.append(expression.operands[1])
@@ -373,12 +373,79 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 		core.EntityCollection.__init__(self,entitySet)
 		SQLCollectionMixin.__init__(self,container)
 
-	def InsertEntity(self,entity):
+	def WhereClause(self,entity,params,useFilter=True,nullCols=()):
+		where=[]
+		kd=entity.KeyDict()
+		for k,v in kd.items():
+			where.append('%s=%s'%(self.container.mangledNames[(self.entitySet.name,k)],params.AddParam(self.container.PrepareSQLValue(v))))
+		if self.filter is not None and useFilter:
+			where.append('('+self.SQLExpression(self.filter,params)+')')
+		for nullCol in nullCols:
+			where.append('%s IS NULL'%nullCol)
+		return ' WHERE '+string.join(where,' AND ')
+		
+	def InsertEntity(self,entity,fromEnd=None,fkValues=None):
 		if entity.exists:
 			raise edm.EntityExists(str(entity.GetLocation()))
+		# This is harder than it looks, fkValues is a list of column
+		# name and value tuples to match those returned by the
+		# FieldGenerator we use for the regular properties.  This value
+		# augments *fromEnd* when we are being inserted into a reverse
+		# key collection (i.e., we're the target and we store the
+		# foreign key).
+		#
+		# We must also go through each bound navigation property of our
+		# own and add in the foreign keys for forward links.
+		if fkValues is None:
+			fkValues=[]
+		fkMapping=self.container.fkTable[self.entitySet.name]
+		navigationDone=set()
+		for linkEnd,navName in self.entitySet.linkEnds.iteritems():
+			if navName:
+				dv=entity[navName]			
+			if linkEnd.otherEnd.associationEnd.multiplicity==edm.Multiplicity.One:
+				# a required association
+				if linkEnd==fromEnd:
+					continue
+				if navName is None:
+					# unbound principal; can only be created from this association
+					raise edm.NavigationConstraintError("Entities in %s can only be created from their principal"%self.entitySet.name)
+				if not dv.bindings:
+					raise edm.NavigationConstraintError("Required navigation property %s of %s is not bound"%(navName,self.entitySet.name))
+			associationSetName=linkEnd.parent.name
+			# if linkEnd is in fkMapping it means we are keeping a
+			# foreign key for this property, it may even be required but
+			# either way, let's deal with it now.  We're only interested
+			# in associations that are bound to navigation properties.
+			if linkEnd not in fkMapping or navName is None:
+				continue
+			nullable,unique=fkMapping[linkEnd]
+			targetSet=linkEnd.otherEnd.entitySet
+			if len(dv.bindings)==0:
+				#	we've already checked the case where nullable is False above
+				continue
+			elif len(dv.bindings)>1:
+				raise edm.NavigationConstraintError("Unexpected error: found multiple bindings for foreign key constraint %s"%navName)
+			binding=dv.bindings[0]
+			if not isinstance(binding,edm.Entity):
+				# just a key, grab the entity
+				with targetSet.OpenCollection() as targetCollection:
+					targetCollection.SelectKeys()
+					targetEntity=targetCollection[binding]
+				dv.bindings[0]=targetEntity
+			else:
+				targetEntity=binding
+				if not targetEntity.exists:
+					# add this entity to it's base collection
+					with targetSet.OpenCollection() as targetCollection:
+						targetCollection.InsertEntity(targetEntity,linkEnd.otherEnd)
+			# Finally, we have a target entity, add the foreign key to fkValues
+			for keyName in targetSet.KeyKeys():
+				fkValues.append((self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)],targetEntity[keyName]))
+			navigationDone.add(navName)
 		entity.SetConcurrencyTokens()
 		query=['INSERT INTO ',self.tableName,' (']
-		columnNames,values=zip(*list(self.FieldGenerator(entity)))
+		columnNames,values=zip(*(list(self.FieldGenerator(entity))+fkValues))
 		query.append(string.join(columnNames,", "))
 		query.append(') VALUES (')
 		params=self.container.ParamsClass()
@@ -386,15 +453,75 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 		query.append(');')
 		query=string.join(query,'')
 		try:
-			#	print query, params.params
+			logging.info(query+unicode(params.params))
 			self.cursor.execute(query,params.params)
 			self.dbc.commit()
 			entity.exists=True
 		except self.container.dbapi.IntegrityError:
+			# we might need to distinguish between a failure due to fkValues or a missing key
 			raise KeyError(str(entity.GetLocation()))
 		except self.container.dbapi.Error,e:
 			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
-	
+		# Rather than calling the deferred value's UpdateBindings method
+		# we take some short cuts to improve efficiency and to take care
+		# of the awkward cases. If the target entity already exists we
+		# can just insert a link but if we are doing a deep insert we
+		# need to work harder.  We've already taken care of cases where
+		# we own the foreign key so now we only have two cases left, (i)
+		# the target table has the key or (ii) it is in an auxiliary
+		# table.  Case (i) is the tricky one as it involves passing the
+		# foreign keys to be inserted as the new entity is created (they
+		# may be required) with a call to this method on the target
+		# entity set.  Case (ii) is simpler, though if the relationship
+		# is 1-1 we'll briefly be in violation of the model (but not the
+		# database schema) and should really insert the entity and the
+		# link in a single transaction (TODO)
+		for k,dv in entity.NavigationItems():
+			linkEnd=self.entitySet.navigation[k]
+			if not dv.bindings:
+				continue
+			elif k in navigationDone:
+				dv.bindings=[]
+				continue
+			associationSetName=linkEnd.parent.name
+			targetSet=dv.Target()
+			targetFKMapping=self.container.fkTable[targetSet.name]
+			with dv.OpenCollection() as navCollection, targetSet.OpenCollection() as targetCollection:
+				while dv.bindings:
+					binding=dv.bindings[0]
+					if not isinstance(binding,edm.Entity):
+						targetCollection.SelectKeys()
+						binding=targetCollection[binding]
+					if binding.exists:
+						navCollection.InsertLink(binding)
+					else:
+						if linkEnd.otherEnd in targetFKMapping:
+							# target table has a foreign key
+							targetFKValues=[]
+							for keyName in self.entitySet.KeyKeys():
+								targetFKValues.append((self.container.mangledNames[(targetSet.name,associationSetName,keyName)],entity[keyName]))
+							targetCollection.InsertEntity(binding,linkEnd.otherEnd,targetFKValues)
+						else:
+							# foreign keys are in an auxiliary table
+							targetCollection.InsertEntity(binding,linkEnd.otherEnd)
+							navCollection.InsertLink(binding)
+					dv.bindings=dv.bindings[1:]
+		
+	def __len__(self):
+		query=["SELECT COUNT(*) FROM %s"%self.tableName]
+		params=self.container.ParamsClass()
+		if self.filter is not None:
+			query.append(' WHERE ')
+			query.append(self.SQLExpression(self.filter,params))
+		query=string.join(query,'')
+		try:
+			logging.info(query+unicode(params.params))
+			self.cursor.execute(query,params.params)
+			# get the result
+			return self.cursor.fetchone()[0]
+		except self.container.dbapi.Error,e:
+			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
+							
 	def entityGenerator(self):
 		entity=self.NewEntity()
 		query=["SELECT "]
@@ -414,7 +541,7 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 			query.append(string.join(orderby,u", "))
 		query=string.join(query,'')
 		try:
-			#	print query, params.params
+			logging.info(query+unicode(params.params))
 			self.cursor.execute(query,params.params)
 			while True:
 				row=self.cursor.fetchone()
@@ -435,15 +562,6 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 		return self.ExpandEntities(
 			self.entityGenerator())
 		
-	def WhereClause(self,entity,params,useFilter=True):
-		where=[]
-		kd=entity.KeyDict()
-		for k,v in kd.items():
-			where.append('%s=%s'%(self.container.fieldNames[(self.tableName,(k,))],params.AddParam(self.container.PrepareSQLValue(v))))
-		if self.filter is not None and useFilter:
-			where.append('('+self.SQLExpression(self.filter,params)+')')		
-		return ' WHERE '+string.join(where,' AND ')
-		
 	def __getitem__(self,key):
 		entity=self.NewEntity()
 		entity.SetKey(key)
@@ -457,7 +575,7 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 		query.append(self.WhereClause(entity,params))
 		query=string.join(query,'')
 		try:
-			#	print query, params.params
+			logging.info(query+unicode(params.params))
 			self.cursor.execute(query,params.params)
 			rowcount=self.cursor.rowcount
 			row=self.cursor.fetchone()
@@ -476,11 +594,48 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 	def UpdateEntity(self,entity):
 		if not entity.exists:
 			raise edm.NonExistentEntity("Attempt to update non existent entity: "+str(entity.GetLocation()))
+			fkValues=[]
+		fkValues=[]
+		fkMapping=self.container.fkTable[self.entitySet.name]
+		navigationDone=set()
+		for k,dv in entity.NavigationItems():
+			linkEnd=self.entitySet.navigation[k]
+			if not dv.bindings:
+				continue
+			associationSetName=linkEnd.parent.name
+			# if linkEnd is in fkMapping it means we are keeping a
+			# foreign key for this property, it may even be required but
+			# either way, let's deal with it now.  This will insert or
+			# update the link automatically, this navigation property
+			# can never be a collection
+			if linkEnd not in fkMapping:
+				continue
+			targetSet=linkEnd.otherEnd.entitySet
+			nullable,unique=fkMapping[linkEnd]
+			if len(dv.bindings)>1:
+				raise NavigationConstraintError("Unexpected error: found multiple bindings for foreign key constraint %s"%k)
+			binding=dv.bindings[0]
+			if not isinstance(binding,edm.Entity):
+				# just a key, grab the entity
+				with targetSet.OpenCollection() as targetCollection:
+					targetCollection.SelectKeys()
+					targetEntity=targetCollection[binding]
+				dv.bindings[0]=targetEntity
+			else:
+				targetEntity=binding
+				if not targetEntity.exists:
+					# add this entity to it's base collection
+					with targetSet.OpenCollection() as targetCollection:
+						targetCollection.InsertEntity(targetEntity,linkEnd.otherEnd)
+			# Finally, we have a target entity, add the foreign key to fkValues
+			for keyName in targetSet.KeyKeys():
+				fkValues.append((self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)],targetEntity[keyName]))
+			navigationDone.add(k)
 		# grab a list of sql-name,sql-value pairs representing the key constraint
 		concurrencyCheck=False
 		constraints=[]
 		for k,v in entity.KeyDict().items():
-			constraints.append((self.container.fieldNames[(self.tableName,(k,))],
+			constraints.append((self.container.mangledNames[(self.entitySet.name,k)],
 				self.container.PrepareSQLValue(v)))
 		cvList=list(self.FieldGenerator(entity,True))
 		for cName,v in cvList:
@@ -493,7 +648,7 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 		query=['UPDATE ',self.tableName,' SET ']
 		params=self.container.ParamsClass()
 		updates=[]
-		for cName,v in cvList:
+		for cName,v in cvList+fkValues:
 			updates.append('%s=%s'%(cName,params.AddParam(self.container.PrepareSQLValue(v))))
 		query.append(string.join(updates,', '))
 		query.append(' WHERE ')
@@ -503,7 +658,7 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 		query.append(string.join(where,' AND '))
 		query=string.join(query,'')
 		try:
-			#	print query, params.params
+			logging.info(query+unicode(params.params))
 			self.cursor.execute(query,params.params)
 			if self.cursor.rowcount==0:
 				# no rows matched this constraint, probably a concurrency failure
@@ -512,31 +667,92 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 				else:
 					raise KeyError("Entity %s does not exist"%str(entity.GetLocation()))					
 			self.dbc.commit()
+		except self.container.dbapi.IntegrityError:
+			# we might need to distinguish between a failure due to fkValues or a missing key
+			raise KeyError(str(entity.GetLocation()))
 		except self.container.dbapi.Error,e:
 			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
+		#	We finish off the bindings in a similar way to InsertEntity
+		#	but this time we need to handle the case where there is an
+		#	existing link and the navigation property is not a
+		#	collection. 
+		for k,dv in entity.NavigationItems():
+			linkEnd=self.entitySet.navigation[k]
+			if not dv.bindings:
+				continue
+			elif k in navigationDone:
+				dv.bindings=[]
+				continue
+			associationSetName=linkEnd.parent.name
+			targetSet=dv.Target()
+			targetFKMapping=self.container.fkTable[targetSet.name]
+			with dv.OpenCollection() as navCollection, targetSet.OpenCollection() as targetCollection:
+				while dv.bindings:
+					binding=dv.bindings[0]
+					if not isinstance(binding,edm.Entity):
+						targetCollection.SelectKeys()
+						binding=targetCollection[binding]
+					if binding.exists:
+						if dv.isCollection:
+							navCollection.InsertLink(binding)
+						else:
+							navCollection.Replace(binding)
+					else:
+						if linkEnd.otherEnd in targetFKMapping:
+							# target table has a foreign key
+							targetFKValues=[]
+							for keyName in self.entitySet.KeyKeys():
+								targetFKValues.append((self.container.mangledNames[(targetSet.name,associationSetName,keyName)],entity[keyName]))
+							if not dv.isCollection:
+								navCollection.clear()
+							targetCollection.InsertEntity(binding,linkEnd.otherEnd,targetFKValues)
+						else:
+							# foreign keys are in an auxiliary table
+							targetCollection.InsertEntity(binding,linkEnd.otherEnd)
+							if dv.isCollection:
+								navCollection.InsertLink(binding)
+							else:
+								navCollection.Replace(binding)
+					dv.bindings=dv.bindings[1:]
 	
-	def UpdateLink(self,entity,associationName,targetEntity):
+	def UpdateLink(self,entity,linkEnd,targetEntity,noReplace=False):
 		if not entity.exists:
 			raise edm.NonExistentEntity("Attempt to update non-existent entity: "+str(entity.GetLocation()))
 		query=['UPDATE ',self.tableName,' SET ']
 		params=self.container.ParamsClass()
 		updates=[]
-		targetSet,nullable,unique=self.container.fkTable[self.entitySet.name][associationName]
-		fkNames=[]
-		for keyName in targetSet.KeyKeys():
-			v=targetEntity[keyName]
-			cName=self.container.fieldNames[(self.tableName,(associationName,keyName))]
-			updates.append('%s=%s'%(cName,params.AddParam(self.container.PrepareSQLValue(v))))
+		nullCols=[]
+		targetSet=linkEnd.otherEnd.entitySet
+		associationSetName=linkEnd.parent.name
+		nullable,unique=self.container.fkTable[self.entitySet.name][linkEnd]
+		if not nullable and targetEntity is None:
+			raise edm.NavigationConstraintError("Can't remove a required link")			
+		if targetEntity:
+			for keyName in targetSet.KeyKeys():
+				v=targetEntity[keyName]
+				cName=self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)]
+				updates.append('%s=%s'%(cName,params.AddParam(self.container.PrepareSQLValue(v))))
+				if noReplace:
+					nullCols.append(cName)
+		else:
+			for keyName in targetSet.KeyKeys():
+				cName=self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)]
+				updates.append('%s=NULL'%cName)
 		query.append(string.join(updates,', '))
 		# we don't do concurrency checks on links, and we suppress the filter check too
-		query.append(self.WhereClause(entity,params,False))
+		query.append(self.WhereClause(entity,params,False,nullCols))
 		query=string.join(query,'')
 		try:
-			#	print query, params.params
+			logging.info(query+unicode(params.params))
 			self.cursor.execute(query,params.params)
 			if self.cursor.rowcount==0:
-				# no rows matched this constraint must be a key failure
-				raise KeyError("Entity %s does not exist"%str(entity.GetLocation()))					
+				if nullCols:
+					# this could be a constraint failure, rather than a key failure
+					if entity.Key() in self:
+						raise edm.NavigationConstraintError("Entity %s is already linked through association %s"%(entity.GetLocation(),associationSetName))
+					else:
+						# no rows matched this constraint must be a key failure
+						raise KeyError("Entity %s does not exist"%str(entity.GetLocation()))
 			self.dbc.commit()			
 		except self.container.dbapi.IntegrityError:
 			raise KeyError("Linked entity %s does not exist"%str(targetEntity.GetLocation()))
@@ -544,8 +760,48 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
 		
 	def __delitem__(self,key):
-		entity=self.NewEntity()
-		entity.SetKey(key)
+		with self.entitySet.OpenCollection() as base:
+			base.SelectKeys()
+			entity=base[key]
+		self.DeleteEntity(entity)
+	
+	def DeleteEntity(self,entity,fromEnd=None):	
+		fkMapping=self.container.fkTable[self.entitySet.name]
+		for linkEnd,navName in self.entitySet.linkEnds.iteritems():
+			if linkEnd==fromEnd:
+				continue
+			associationSetName=linkEnd.parent.name
+			if linkEnd in fkMapping:
+				# if we are holding a foreign key then deleting us will delete
+				# the link too, so nothing to do here.
+				continue
+			else:
+				if linkEnd.associationEnd.multiplicity==edm.Multiplicity.One:
+					# we are required, so it must be a 1-? relationship
+					if navName is not None:
+						# and it is bound to a navigation property so we can cascade delete
+						targetEntitySet=linkEnd.otherEnd.entitySet
+						with entity[navName].OpenCollection() as links, targetEntitySet.OpenCollection() as cascade:
+							links.SelectKeys()
+							for targetEntity in links.values():
+								links.DeleteLink(targetEntity)
+								cascade.DeleteEntity(targetEntity,linkEnd.otherEnd)
+					else:
+						raise edm.NavigationConstraintError("Can't cascade delete from an entity in %s as the association set %s is not bound to a navigation property"%(self.entitySet.name,associationSetName))
+				else:
+					# we are not required, so just drop the links
+					if navName is not None:
+						with entity[navName].OpenCollection() as links:
+							links.clear()
+					# otherwise annoying, we need to do something special
+					elif associationSetName in self.container.auxTable:
+						# foreign keys are in an association table, hardest case as navigation may be unbound
+						SQLAssociationCollection.ClearLinks(self.container,linkEnd,entity,self.cursor)
+					else:
+						# foreign keys are at the other end of the link, we have a method for that...
+						targetEntitySet=linkEnd.otherEnd.entitySet
+						with targetEntitySet.OpenCollection() as keyCollection:
+							keyCollection.ClearLinks(linkEnd.otherEnd,entity)
 		params=self.container.ParamsClass()
 		query=["DELETE FROM "]
 		params=self.container.ParamsClass()
@@ -554,7 +810,7 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 		query.append(self.WhereClause(entity,params,False))
 		query=string.join(query,'')
 		try:
-			#	print query, params.params
+			logging.info(query+unicode(params.params))
 			self.cursor.execute(query,params.params)
 			rowcount=self.cursor.rowcount
 			if rowcount==0:
@@ -566,22 +822,74 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 		except self.container.dbapi.Error,e:
 			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
 
-	def __len__(self):
-		query=["SELECT COUNT(*) FROM %s"%self.tableName]
+	def DeleteLink(self,entity,linkEnd,targetEntity):
+		if not entity.exists:
+			raise edm.NonExistentEntity("Attempt to update non-existent entity: "+str(entity.GetLocation()))
+		query=['UPDATE ',self.tableName,' SET ']
 		params=self.container.ParamsClass()
-		if self.filter is not None:
-			query.append(' WHERE ')
-			query.append(self.SQLExpression(self.filter,params))
+		updates=[]
+		associationSetName=linkEnd.parent.name
+		targetSet=linkEnd.otherEnd.entitySet
+		nullable,unique=self.container.fkTable[self.entitySet.name][linkEnd]
+		if not nullable:
+			raise edm.NavigationConstraintError("Can't remove a required link from association set %s"%associationSetName)			
+		for keyName in targetSet.KeyKeys():
+			cName=self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)]
+			updates.append('%s=NULL'%cName)	
+		query.append(string.join(updates,', '))
+		# custom where clause to ensure that the link really existed before we delete it
+		query.append(' WHERE ')
+		where=[]
+		kd=entity.KeyDict()
+		for k,v in kd.items():
+			where.append('%s=%s'%(self.container.mangledNames[(self.entitySet.name,k)],params.AddParam(self.container.PrepareSQLValue(v))))
+		for keyName in targetSet.KeyKeys():
+			v=targetEntity[keyName]
+			cName=self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)]
+			where.append('%s=%s'%(cName,params.AddParam(self.container.PrepareSQLValue(v))))
+		query.append(string.join(where,' AND '))
 		query=string.join(query,'')
 		try:
-			#	print query, params.params
+			logging.info(query+unicode(params.params))
 			self.cursor.execute(query,params.params)
-			# get the result
-			return self.cursor.fetchone()[0]
+			if self.cursor.rowcount==0:
+				# no rows matched this constraint, entity either doesn't exist or wasn't linked to the target
+				raise KeyError("Entity %s does not exist or is not linked to %s"%str(entity.GetLocation(),targetEntity.GetLocation))					
+			self.dbc.commit()
 		except self.container.dbapi.Error,e:
 			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
-							
-	def CreateTableQuery(self,keyDefs=True):
+		
+	def ClearLinks(self,linkEnd,targetEntity):
+		query=['UPDATE ',self.tableName,' SET ']
+		params=self.container.ParamsClass()
+		updates=[]
+		associationSetName=linkEnd.parent.name
+		targetSet=linkEnd.otherEnd.entitySet
+		nullable,unique=self.container.fkTable[self.entitySet.name][linkEnd]
+		for keyName in targetSet.KeyKeys():
+			cName=self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)]
+			updates.append('%s=NULL'%cName)	
+		# custom where clause
+		query.append(string.join(updates,', '))
+		query.append(' WHERE ')
+		where=[]
+		for keyName in targetSet.KeyKeys():
+			v=targetEntity[keyName]
+			cName=self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)]
+			where.append('%s=%s'%(cName,params.AddParam(self.container.PrepareSQLValue(v))))
+		query.append(string.join(where,' AND '))
+		query=string.join(query,'')
+		try:
+			logging.info(query+unicode(params.params))
+			self.cursor.execute(query,params.params)
+			self.dbc.commit()			
+		except self.container.dbapi.IntegrityError:
+			# catch the nullable violation here, makes it benign to clear links to an unlinked target
+			raise edm.NavigationConstraintError("Can't remove required link from assocation set %s"%associationSetName)
+		except self.container.dbapi.Error,e:
+			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
+		
+	def CreateTableQuery(self):
 		"""Returns a SQL statement and params object suitable for creating the table."""
 		entity=self.NewEntity()
 		query=['CREATE TABLE ',self.tableName,' (']
@@ -589,38 +897,39 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 		cols=[]
 		for c,v in self.FieldGenerator(entity):
 			cols.append("%s %s"%(c,self.container.PrepareSQLType(v,params)))
-		if keyDefs:
-			keys=entity.KeyDict()
-			constraints=[]
-			constraints.append(u'PRIMARY KEY (%s)'%string.join(map(lambda x:self.container.fieldNames[(self.tableName,(x,))],keys.keys()),u', '))
-			# Now generate the foreign keys
-			fkMapping=self.container.fkTable[self.entitySet.name]
-			for associationName in fkMapping:
-				targetSet,nullable,unique=fkMapping[associationName]
-				targetTable=self.container.tableNames[targetSet.name]
-				fkNames=[]
-				kNames=[]
-				for keyName in targetSet.KeyKeys():
-					# create a dummy value to catch the unusual case where there is a default
-					v=targetSet.entityType[keyName]()
-					cName=self.container.fieldNames[(self.tableName,(associationName,keyName))]
-					fkNames.append(cName)
-					kNames.append(self.container.fieldNames[(targetTable,(keyName,))])
-					cols.append("%s %s"%(cName,self.container.PrepareSQLType(v,params,nullable)))
-				constraints.append("CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s(%s)"%(
-					self.container.QuoteIdentifier(associationName),
-					string.join(fkNames,', '),
-					self.container.tableNames[targetSet.name],
-					string.join(kNames,', ')))
-			cols=cols+constraints
+		keys=entity.KeyDict()
+		constraints=[]
+		constraints.append(u'PRIMARY KEY (%s)'%string.join(map(lambda x:self.container.mangledNames[(self.entitySet.name,x)],keys.keys()),u', '))
+		# Now generate the foreign keys
+		fkMapping=self.container.fkTable[self.entitySet.name]
+		for linkEnd in fkMapping:
+			associationSetName=linkEnd.parent.name
+			targetSet=linkEnd.otherEnd.entitySet
+			nullable,unique=fkMapping[linkEnd]
+			targetTable=self.container.mangledNames[(targetSet.name,)]
+			fkNames=[]
+			kNames=[]
+			for keyName in targetSet.KeyKeys():
+				# create a dummy value to catch the unusual case where there is a default
+				v=targetSet.entityType[keyName]()
+				cName=self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)]
+				fkNames.append(cName)
+				kNames.append(self.container.mangledNames[(targetSet.name,keyName)])
+				cols.append("%s %s"%(cName,self.container.PrepareSQLType(v,params,nullable)))
+			constraints.append("CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s(%s)"%(
+				self.container.QuoteIdentifier(associationSetName),
+				string.join(fkNames,', '),
+				self.container.mangledNames[(targetSet.name,)],
+				string.join(kNames,', ')))
+		cols=cols+constraints
 		query.append(string.join(cols,u", "))
 		query.append(u')')
 		return string.join(query,''),params
 
-	def CreateTable(self,keyDefs=True):
-		query,params=self.CreateTableQuery(keyDefs)
+	def CreateTable(self):
+		query,params=self.CreateTableQuery()
 		try:
-			#	print query, params.params
+			logging.info(query+unicode(params.params))
 			self.cursor.execute(query,params.params)
 			self.dbc.commit()
 		except self.container.dbapi.Error,e:
@@ -629,14 +938,15 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 
 class SQLForeignKeyCollection(SQLCollectionMixin,core.NavigationEntityCollection):
 	
-	def __init__(self,name,fromEntity,toEntitySet,container,associationName):
+	def __init__(self,name,fromEntity,toEntitySet,container,associationSetName):
 		core.NavigationEntityCollection.__init__(self,name,fromEntity,toEntitySet)
 		SQLCollectionMixin.__init__(self,container)
 		self.qualifyNames=True
 		# The relation is actually stored in the source entity set
 		# which is the entity set of the *fromEntity*, not the base entity set
 		self.keyCollection=self.fromEntity.entitySet.OpenCollection()
-		self.associationName=associationName
+		self.sourceName=self.container.mangledNames[(self.fromEntity.entitySet.name,self.name)]
+		self.associationSetName=associationSetName
 	
 	def JoinClause(self):
 		join=[]
@@ -644,16 +954,16 @@ class SQLForeignKeyCollection(SQLCollectionMixin,core.NavigationEntityCollection
 		for keyName in self.entitySet.KeyKeys():
 			join.append('%s.%s=%s.%s'%(
 				self.tableName,
-				self.container.fieldNames[(self.tableName,(keyName,))],
-				self.keyCollection.tableName,
-				self.container.fieldNames[(self.keyCollection.tableName,(self.associationName,keyName))]))
-		return ' INNER JOIN %s ON '%self.keyCollection.tableName+string.join(join,', ')
+				self.container.mangledNames[(self.entitySet.name,keyName)],
+				self.sourceName,
+				self.container.mangledNames[(self.fromEntity.entitySet.name,self.associationSetName,keyName)]))
+		return ' INNER JOIN %s AS %s ON '%(self.fromEntity.entitySet.name,self.sourceName)+string.join(join,', ')
 	
 	def WhereClause(self,params):
 		where=[]
 		for k,v in self.fromEntity.KeyDict().items():
-			where.append(u"%s.%s=%s"%(self.keyCollection.tableName,
-				self.container.fieldNames[(self.keyCollection.tableName,(k,))],
+			where.append(u"%s.%s=%s"%(self.sourceName,
+				self.container.mangledNames[(self.fromEntity.entitySet.name,k)],
 				params.AddParam(self.container.PrepareSQLValue(v))))
 		if self.filter is not None:
 			where.append("(%s)"%self.SQLExpression(self.filter,params))		
@@ -672,7 +982,7 @@ class SQLForeignKeyCollection(SQLCollectionMixin,core.NavigationEntityCollection
 		query.append(self.WhereClause(params))
 		query=string.join(query,'')
 		try:
-			#	print query, params.params
+			logging.info(query+unicode(params.params))
 			self.cursor.execute(query,params.params)
 			# get the result
 			return self.cursor.fetchone()[0]
@@ -694,7 +1004,7 @@ class SQLForeignKeyCollection(SQLCollectionMixin,core.NavigationEntityCollection
 			query.append(self.OrderByClause(params))
 		query=string.join(query,'')
 		try:
-			#	print query, params.params
+			logging.info(query+unicode(params.params))
 			self.cursor.execute(query,params.params)
 			while True:
 				row=self.cursor.fetchone()
@@ -722,8 +1032,23 @@ class SQLForeignKeyCollection(SQLCollectionMixin,core.NavigationEntityCollection
 		if key!=entity.Key():
 			raise ValueError
 		# we open the base collection and call the update link method
-		self.keyCollection.UpdateLink(self.fromEntity,self.associationName,entity)
+		self.keyCollection.UpdateLink(self.fromEntity,self.fromEnd,entity)
 		
+	def Replace(self,entity):
+		# Target multiplicity must be 0..1 or 1; treat it the same as setitem
+		if not isinstance(entity,edm.Entity) or entity.entitySet is not self.entitySet:
+			raise TypeError
+		self.keyCollection.UpdateLink(self.fromEntity,self.fromEnd,entity)
+	
+	def __delitem__(self,key):
+		#	Before we remove a link we need to know if this is ?-1
+		#	relationship, if so, this deletion will result in a
+		#	constraint violation.
+		if self.toMultiplicity==edm.Multiplicity.One:
+			raise edm.NavigationConstraintError("Can't remove a required link")
+		# we open the base collection and call the update link method
+		self.keyCollection.UpdateLink(self.fromEntity,self.fromEnd,None)
+
 	def close(self):
 		self.keyCollection.close()
 		super(SQLForeignKeyCollection,self).close()
@@ -731,19 +1056,20 @@ class SQLForeignKeyCollection(SQLCollectionMixin,core.NavigationEntityCollection
 
 class SQLReverseKeyCollection(SQLCollectionMixin,core.NavigationEntityCollection):
 	
-	def __init__(self,name,fromEntity,toEntitySet,container,associationName):
+	def __init__(self,name,fromEntity,toEntitySet,container,associationSetName):
 		core.NavigationEntityCollection.__init__(self,name,fromEntity,toEntitySet)
 		SQLCollectionMixin.__init__(self,container)
 		# The relation is actually stored in the *toEntitySet*
 		# which is the same entity set that our results will be drawn
 		# from, which makes it easier as we don't need a join
-		self.associationName=associationName
+		self.keyCollection=self.entitySet.OpenCollection()
+		self.associationSetName=associationSetName
 
 	def WhereClause(self,params):
 		where=[]
 		for k,v in self.fromEntity.KeyDict().items():
 			where.append(u"%s=%s"%(
-				self.container.fieldNames[(self.tableName,(self.associationName,k))],
+				self.container.mangledNames[(self.entitySet.name,self.associationSetName,k)],
 				params.AddParam(self.container.PrepareSQLValue(v))))
 		if self.filter is not None:
 			where.append("(%s)"%self.SQLExpression(self.filter,params))		
@@ -755,13 +1081,38 @@ class SQLReverseKeyCollection(SQLCollectionMixin,core.NavigationEntityCollection
 			orderby.append("%s %s"%(self.SQLExpression(expression,params),"DESC" if direction <0 else "ASC"))
 		return ' ORDER BY '+string.join(orderby,u", ")
 			
+	def InsertEntity(self,entity):
+		"""Inserts *entity* into this collection.
+		
+		We need to calculate the values for the foreign keys fields
+		and pass them to the baseCollection."""
+		fkValues=[]
+		for k,v in self.fromEntity.KeyDict().items():
+			fkValues.append((self.container.mangledNames[(self.entitySet.name,self.associationSetName,k)],v))
+		self.keyCollection.InsertEntity(entity,self.fromEnd.otherEnd,fkValues)
+
+	def __setitem__(self,key,entity):
+		# sanity check entity to check it can be inserted here
+		if not isinstance(entity,edm.Entity) or entity.entitySet is not self.entitySet:
+			raise TypeError
+		if key!=entity.Key():
+			raise ValueError
+		self.InsertLink(entity)
+		
+	def InsertLink(self,entity):
+		# the fromMultiplicity must be 1 or 0..1 for this type of
+		# collection.  If *entity* is already linked to a different
+		# fromEntity it's an error, we don't just blithely update the
+		# foreign key as that would implicitly break that link
+		self.keyCollection.UpdateLink(entity,self.fromEnd.otherEnd,self.fromEntity,noReplace=True)
+		
 	def __len__(self):
 		query=["SELECT COUNT(*) FROM %s"%self.tableName]
 		params=self.container.ParamsClass()
 		query.append(self.WhereClause(params))
 		query=string.join(query,'')
 		try:
-			#	print query, params.params
+			logging.info(query+unicode(params.params))
 			self.cursor.execute(query,params.params)
 			# get the result
 			return self.cursor.fetchone()[0]
@@ -782,7 +1133,7 @@ class SQLReverseKeyCollection(SQLCollectionMixin,core.NavigationEntityCollection
 			query.append(self.OrderByClause(params))
 		query=string.join(query,'')
 		try:
-			#	print query, params.params
+			logging.info(query+unicode(params.params))
 			self.cursor.execute(query,params.params)
 			while True:
 				row=self.cursor.fetchone()
@@ -803,8 +1154,315 @@ class SQLReverseKeyCollection(SQLCollectionMixin,core.NavigationEntityCollection
 		return self.ExpandEntities(
 			self.entityGenerator())
 
+	def __delitem__(self,key):
+		entity=self.keyCollection[key]
+		if self.fromMultiplicity==edm.Multiplicity.One:
+			# we are required, this must be an error
+			raise edm.NavigationConstraintError("Can't delete required link from association set %s"%self.associationSetName)
+		# fromMultiplicity is 0..1
+		self.keyCollection.DeleteLink(entity,self.fromEnd.otherEnd,self.fromEntity)
+		
+	def DeleteLink(self,entity):
+		"""Called during cascaded deletes to force-remove a link prior
+		to the deletion of the entity itself.  As the foreign key for
+		this association is in the entity's record itself we don't have
+		to do anything."""
+		pass
+		
+	def clear(self):
+		self.keyCollection.ClearLinks(self.fromEnd.otherEnd,self.fromEntity)
+		
 	def close(self):
+		self.keyCollection.close()
 		super(SQLReverseKeyCollection,self).close()
+
+
+class SQLAssociationCollection(SQLCollectionMixin,core.NavigationEntityCollection):
+	"""The implementation is similar to SQLForeignKeyCollection except
+	that we use the association set's name as the table name that
+	contains the keys and combine the name of the entity set with the
+	navigation property to use as a prefix for the field path.
+	
+	The code to update links is different because we need to distinguish
+	an insert from an update."""
+	
+	def __init__(self,name,fromEntity,toEntitySet,container,associationSetName):
+		core.NavigationEntityCollection.__init__(self,name,fromEntity,toEntitySet)
+		SQLCollectionMixin.__init__(self,container)
+		# The relation is actually stored in an extra table so we will
+		# need a join for all operations.
+		self.qualifyNames=True
+		#	self.associationSetName=associationSetName
+		self.associationSetName=self.fromEnd.parent.name
+		self.associationTableName=self.container.mangledNames[(self.associationSetName,)]
+		entitySetA,nameA,entitySetB,nameB,self.uniqueKeys=container.auxTable[self.associationSetName]
+		if fromEntity.entitySet is entitySetA and name==nameA:
+			self.fromNavName=nameA
+			self.toNavName=nameB
+		else:
+			self.fromNavName=nameB
+			self.toNavName=nameA
+	
+	def JoinClause(self):
+		join=[]
+		# we don't need to look up the details of the join again, as self.entitySet must be the target
+		for keyName in self.entitySet.KeyKeys():
+			join.append('%s.%s=%s.%s'%(
+				self.tableName,
+				self.container.mangledNames[(self.entitySet.name,keyName)],
+				self.associationTableName,
+				self.container.mangledNames[(self.associationSetName,self.entitySet.name,self.toNavName,keyName)]))
+		return ' INNER JOIN %s ON '%self.associationTableName+string.join(join,', ')
+	
+	def WhereClause(self,params,useFilter=True,targetEntity=None):
+		where=[]
+		for k,v in self.fromEntity.KeyDict().items():
+			where.append(u"%s.%s=%s"%(self.associationTableName,
+				self.container.mangledNames[(self.associationSetName,self.fromEntity.entitySet.name,self.fromNavName,k)],
+				params.AddParam(self.container.PrepareSQLValue(v))))
+		if targetEntity is not None:
+			for k,v in targetEntity.KeyDict().items():
+				where.append(u"%s.%s=%s"%(self.associationTableName,
+					self.container.mangledNames[(self.associationSetName,targetEntity.entitySet.name,self.toNavName,k)],
+					params.AddParam(self.container.PrepareSQLValue(v))))
+		if useFilter and self.filter is not None:
+			where.append("(%s)"%self.SQLExpression(self.filter,params))		
+		return ' WHERE '+string.join(where,' AND ')
+	
+	def OrderByClause(self,params):
+		orderby=[]
+		for expression,direction in self.orderby:
+			orderby.append("%s %s"%(self.SQLExpression(expression,params),"DESC" if direction <0 else "ASC"))
+		return ' ORDER BY '+string.join(orderby,u", ")
+			
+	def InsertEntity(self,entity):
+		"""Inserts *entity* into the base collection and then adds a
+		link to this auxiliary table."""
+		with self.entitySet.OpenCollection() as baseCollection:
+			# if this is a 1-1 relationship InsertEntity will fail (with
+			# an unbound navigation property) so we need to suppress the
+			# back-link.
+			baseCollection.InsertEntity(entity,linkEnd.otherEnd)
+			self.InsertLink(entity)
+
+	def __setitem__(self,key,entity):
+		# sanity check entity to check it can be inserted here
+		if not isinstance(entity,edm.Entity) or entity.entitySet is not self.entitySet:
+			raise TypeError
+		if key!=entity.Key():
+			raise ValueError
+		if not entity.exists:
+			raise edm.NonExistentEntity("Attempt to update non-existent entity: "+str(entity.GetLocation()))
+		self.InsertLink(entity)
+	
+	def InsertLink(self,entity):
+		query=['INSERT INTO ',self.associationTableName,' (']
+		params=self.container.ParamsClass()
+		valueNames=[]
+		values=[]
+		for k,v in self.fromEntity.KeyDict().items():
+			valueNames.append(self.container.mangledNames[(self.associationSetName,self.fromEntity.entitySet.name,self.fromNavName,k)])
+			values.append(params.AddParam(self.container.PrepareSQLValue(v)))
+		for k,v in entity.KeyDict().items():
+			valueNames.append(self.container.mangledNames[(self.associationSetName,self.entitySet.name,self.toNavName,k)])
+			values.append(params.AddParam(self.container.PrepareSQLValue(v)))
+		query.append(string.join(valueNames,', '))
+		query.append(') VALUES (')
+		query.append(string.join(values,', '))
+		query.append(')')
+		query=string.join(query,'')
+		query=string.join(query,'')
+		try:
+			logging.info(query+unicode(params.params))
+			self.cursor.execute(query,params.params)
+			self.dbc.commit()
+		except self.container.dbapi.IntegrityError:
+			raise edm.NavigationConstraintError("Model integrity error when linking %s and %s"%(str(self.fromEntity.GetLocation()),str(entity.GetLocation())))
+		except self.container.dbapi.Error,e:
+			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
+	
+	def __len__(self):
+		query=["SELECT COUNT(*) FROM %s"%self.tableName]
+		params=self.container.ParamsClass()
+		query.append(self.JoinClause())
+		query.append(self.WhereClause(params))
+		query=string.join(query,'')
+		try:
+			logging.info(query+unicode(params.params))
+			self.cursor.execute(query,params.params)
+			# get the result
+			return self.cursor.fetchone()[0]
+		except self.container.dbapi.Error,e:
+			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
+		
+	def entityGenerator(self):
+		entity=self.NewEntity()
+		query=["SELECT "]
+		params=self.container.ParamsClass()
+		columnNames,values=zip(*list(self.FieldGenerator(entity)))
+		# qualify with the table name
+		query.append(string.join(map(lambda x:self.tableName+"."+x,columnNames),", "))
+		query.append(' FROM ')
+		query.append(self.tableName)
+		query.append(self.JoinClause())
+		query.append(self.WhereClause(params))
+		if self.orderby is not None:
+			query.append(self.OrderByClause(params))
+		query=string.join(query,'')
+		try:
+			logging.info(query+unicode(params.params))
+			self.cursor.execute(query,params.params)
+			while True:
+				row=self.cursor.fetchone()
+				if row is None:
+					break
+				if entity is None:
+					entity=self.NewEntity()
+					values=zip(*list(self.FieldGenerator(entity)))[1]
+				for value,newValue in zip(values,row):
+					self.container.ReadSQLValue(value,newValue)
+				entity.exists=True
+				yield entity
+				entity=None
+		except self.container.dbapi.Error,e:
+			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
+
+	def itervalues(self):
+		return self.ExpandEntities(
+			self.entityGenerator())
+		
+	def Replace(self,entity):
+		if self.fromEntity[self.fromNavName].isCollection:
+			# No special handling
+			super(SQLAssociationCollection,self).Replace(entity)
+		else:
+			# We don't support symmetric associations of the 0..1 - 0..1
+			# variety so this must be a 1..1 relationship.
+			raise edm.NavigationConstraintError("Replace not allowed for 1-1 relationship (implicit delete not supported)")
+	
+	def __delitem__(self,key):
+		#	Before we remove a link we need to know if this is 1-1
+		#	relationship, if so, this deletion will result in a
+		#	constraint violation.
+		if self.uniqueKeys:
+			raise edm.NavigationConstraintError("Can't remove a required link")
+		with self.entitySet.OpenCollection() as targetCollection:
+			targetCollection.SelectKeys()
+			entity=targetCollection[key]
+		self.DeleteLink(entity)
+
+	def DeleteLink(self,entity):
+		"""Called during cascaded deletes to force-remove a link prior
+		to the deletion of the entity itself"""
+		query=['DELETE FROM ',self.associationTableName]
+		params=self.container.ParamsClass()
+		# we suppress the filter check on the where clause
+		query.append(self.WhereClause(params,False,entity))
+		query=string.join(query,'')
+		try:
+			logging.info(query+unicode(params.params))
+			self.cursor.execute(query,params.params)
+			if self.cursor.rowcount==0:
+				# no rows matched this constraint must be a key failure at one of the two ends
+				raise KeyError("One of the entities %s or %s no longer exists"%(str(self.fromEntity.GetLocation()),str(entity.GetLocation())))
+			self.dbc.commit()
+		except self.container.dbapi.Error,e:
+			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
+
+	@classmethod
+	def ClearLinks(cls,container,fromEnd,fromEntity,cursor):
+		"""Special class method for deleting all the links from the
+		entity *fromEntity* where it represents *fromEnd* in a symmetric
+		association.
+		
+		This is a class method because it has to work even if there is
+		no navigation property bound to this end of the association."""
+		associationSetName=fromEnd.parent.name
+		associationTableName=container.mangledNames[(associationSetName,)]
+		navName=fromEntity.entitySet.linkEnds[fromEnd]
+		if navName is None:
+			# this is most likely the case, we're being called this way
+			# because we can't instantiate a collection on an unbound
+			# navigation property
+			navName=u""
+		entitySetA,nameA,entitySetB,nameB,uniqueKeys=container.auxTable[associationSetName]
+		if fromEntity.entitySet is entitySetA and navName==nameA:
+			fromNavName=nameA
+		else:
+			fromNavName=nameB
+		query=['DELETE FROM ',associationTableName]
+		params=container.ParamsClass()
+		query.append(' WHERE ')
+		where=[]
+		for k,v in fromEntity.KeyDict().items():
+			where.append(u"%s.%s=%s"%(associationTableName,
+				container.mangledNames[(associationSetName,fromEntity.entitySet.name,fromNavName,k)],
+				params.AddParam(container.PrepareSQLValue(v))))
+		query.append(string.join(where,' AND '))
+		query=string.join(query,'')
+		try:
+			logging.info(query+unicode(params.params))
+			cursor.execute(query,params.params)
+		except container.dbapi.Error,e:
+			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))		
+	
+	@classmethod
+	def CreateTable(cls,container,associationSetName):
+		dbc=container.AcquireConnection(SQL_TIMEOUT)		#: a connection to the database
+		if dbc is None:
+			raise DatabaseBusy("Failed to acquire connection after %is"%SQL_TIMEOUT)
+		try:
+			cursor=dbc.cursor()
+			query,params=cls.CreateTableQuery(container,associationSetName)
+			logging.info(query+unicode(params.params))
+			cursor.execute(query,params.params)
+			dbc.commit()
+		except container.dbapi.Error,e:
+			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
+		finally:
+			if dbc is not None:
+				if cursor is not None:
+					cursor.close()
+				container.ReleaseConnection(dbc)
+	
+	@classmethod
+	def CreateTableQuery(cls,container,associationSetName):
+		tableName=container.mangledNames[(associationSetName,)]
+		entitySetA,nameA,entitySetB,nameB,uniqueKeys=container.auxTable[associationSetName]
+		query=['CREATE TABLE ',container.mangledNames[(associationSetName,)],' (']
+		params=container.ParamsClass()
+		cols=[]
+		constraints=[]
+		pkNames=[]
+		for es,prefix,ab in ((entitySetA,nameA,'A'),(entitySetB,nameB,'B')):
+			targetTable=container.mangledNames[(es.name,)]
+			fkNames=[]
+			kNames=[]
+			for keyName in es.KeyKeys():
+				# create a dummy value to catch the unusual case where there is a default
+				v=es.entityType[keyName]()
+				cName=container.mangledNames[(associationSetName,es.name,prefix,keyName)]
+				fkNames.append(cName)
+				pkNames.append(cName)
+				kNames.append(container.mangledNames[(es.name,keyName)])
+				cols.append("%s %s"%(cName,container.PrepareSQLType(v,params)))
+			constraints.append("CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s(%s)"%(
+				container.QuoteIdentifier(u"fk"+ab),
+				string.join(fkNames,', '),
+				targetTable,
+				string.join(kNames,', ')))
+			if uniqueKeys:
+				constraints.append("CONSTRAINT %s UNIQUE (%s)"%(
+					container.QuoteIdentifier(u"u"+ab),
+					string.join(fkNames,', ')))
+		# Finally, add a unique constraint spanning all columns as we don't want duplicate relations
+		constraints.append("CONSTRAINT %s UNIQUE (%s)"%(
+			container.QuoteIdentifier(u"pk"),
+			string.join(pkNames,', ')))
+		cols=cols+constraints
+		query.append(string.join(cols,u", "))
+		query.append(u')')
+		return string.join(query,''),params
 
 
 class DummyLock(object):
@@ -916,36 +1574,46 @@ class SQLEntityContainer(object):
 			# will fail later when we try and add parameters
 			self.ParamsClass=SQLParams
 		self.fkTable={}
-		"""A mapping from an entity set name to a foreign key mapping of the form::
+		"""A mapping from an entity set end to a foreign key mapping of the form::
 		
-			{<association set name>: (<target entity set>, <nullable flag>, <unique keys flag>),...}
+			{<association set end>: (<nullable flag>, <unique keys flag>),...}
 		
 		The outer mapping has one entry for each entity set (even if the
-		foreign key mapping is empty.
-		
+		corresponding foreign key mapping is empty).
+
 		Each foreign key mapping has one entry for each foreign key
-		reference that must appear in that entity set's
-		table."""
-		self.tableNames={}		#: A mapping from entity/association set names to quoted table identifiers
-		self.fieldNames={}
-		"""A mapping from tuples of (table name,(source path tuple)) to
-		the quoted field name to use in SQL queries.  For example::
+		reference that must appear in that entity set's table.  The key
+		is an :py:class:`AssociationSetEnd` that is bound to the entity
+		set (the other end will be bound to the target entity set). 
+		This allows us to distinguish between the two ends of a
+		recursive association."""
+		self.auxTable={}
+		"""A mapping from the names of symmetric association sets to a tuple of::
 		
-			(u'"Customer"',(u'Address',u'City')) : u"Address_City"
+			( <entity set A>, <name prefix A>, <entity set B>, <name prefix B>, <unique keys> )"""
+		self.mangledNames={}
+		"""A mapping from source path tuples to mangled and quoted names
+		to use in SQL queries.  For example::
 		
-		Note that the key consists of the quoted table name, which can
-		be looked up from the entity set name using
-		:py:attr:`tableNames`"""
+			(u'Customer'):u'"Customer"'
+			(u'Customer', u'Address', u'City') : u"Address_City"
+			(u'Customer', u'Orders') : u"Customer_Orders"
+		
+		Note that the first element of the tuple is the entity set name
+		but the default implementation does not use this in the mangled
+		name for primitive fields as they are qualified in contexts
+		where a name clash is possible.  However, mangled navigation
+		property names do include the table name prefix as they used as
+		pseudo-table names."""
 		self.fieldNameJoiner=fieldNameJoiner
 		"""Default string used to join complex field names in SQL
 		queries, e.g. Address_City"""
 		# for each entity set in this container, bind a SQLEntityCollection object
 		for es in self.containerDef.EntitySet:
 			self.fkTable[es.name]={}
-			tableName=self.TableName(es)
-			self.tableNames[es.name]=tableName
-			for sourcePath in self.FieldNameGenerator(es):
-				self.fieldNames[(tableName,sourcePath)]=self.FieldName(es.name,sourcePath)
+			tableName=self.TableName(es.name)
+			for sourcePath in self.SourcePathGenerator(es):
+				self.mangledNames[sourcePath]=self.MangleName(sourcePath,False)
 			self.BindEntitySet(es)
 		for es in self.containerDef.EntitySet:
 			for np in es.entityType.NavigationProperty:
@@ -954,20 +1622,49 @@ class SQLEntityContainer(object):
 		# have been populated with any foreign keys we need to add field
 		# name mappings for
 		for esName,fkMapping in self.fkTable.iteritems():
-			for associationName,details in fkMapping.iteritems():
-				targetSet,nullable,unique=details
-				tableName=self.tableNames[esName]
+			for linkEnd,details in fkMapping.iteritems():
+				associationSetName=linkEnd.parent.name
+				targetSet=linkEnd.otherEnd.entitySet
+				tableName=self.mangledNames[(esName,)]
 				for keyName in targetSet.KeyKeys():
 					"""Foreign keys are given fake source paths starting with the association set name::
 					
 						( u"Orders_Customers", u"CustomerID" )"""
-					sourcePath=(associationName,keyName)
-					self.fieldNames[(tableName,sourcePath)]=self.FieldName(esName,sourcePath)
+					sourcePath=(esName,associationSetName,keyName)
+					self.mangledNames[sourcePath]=self.MangleName(sourcePath)
+		# and auxTable will have been populated with additional tables to
+		# hold symmetric associations...
+		for aSet in self.containerDef.AssociationSet:
+			if aSet.name not in self.auxTable:
+				continue
+			tableName=self.mangledNames[(aSet.name,)]=self.MangleName((aSet.name,),False)
+			"""Foreign keys in Tables that model association sets are
+			given fake source paths that combine the entity set name and
+			the name of the navigation property endpoint.
 
-	def TableName(self,entitySet):
+			This ensures the special case where the two entity sets are
+			the same is taken care of (as the navigation property
+			endpoints must still be unique). For one-way associations,
+			prefixB will be an empty string."""
+			esA,prefixA,esB,prefixB,unique=self.auxTable[aSet.name]
+			for keyName in esA.KeyKeys():
+				sourcePath=(aSet.name,esA.name,prefixA,keyName)
+				self.mangledNames[sourcePath]=self.MangleName(sourcePath)
+			for keyName in esB.KeyKeys():
+				sourcePath=(aSet.name,esB.name,prefixB,keyName)
+				self.mangledNames[sourcePath]=self.MangleName(sourcePath)
+
+	def TableName(self,setName,navName=None):
 		"""Returns the quoted identifier to use as the table name for
-		*entitySet* in SQL queries."""
-		return self.QuoteIdentifier(entitySet.name)
+		entity or association set named *setName* in SQL queries.
+		
+		If navName is not None then the name returned should be an alias
+		for the table to use in JOINed statements.  A combination of the
+		two is usually sufficient."""
+		if navName:
+			return self.QuoteIdentifier(string.join((setName,navName),self.fieldNameJoiner))
+		else:
+			return self.QuoteIdentifier(setName)
 	
 	def FieldName(self,entitySetName,sourcePath):
 		"""Returns the quoted identifier to use as the name for the
@@ -976,6 +1673,19 @@ class SQLEntityContainer(object):
 		By default we join the sourcePath using :py:attr:`fieldNameJoiner`."""
 		return self.QuoteIdentifier(string.join(sourcePath,self.fieldNameJoiner))
 
+	def MangleName(self,sourcePath,navHint=False):
+		if not navHint and len(sourcePath)>1:
+			sourcePath=list(sourcePath)[1:]
+		return self.QuoteIdentifier(string.join(sourcePath,self.fieldNameJoiner))
+			
+	def SourcePathGenerator(self,entitySet):
+		"""Generates source path *tuples* for *entitySet*"""
+		yield (entitySet.name,)
+		for sourcePath in self.TypeNameGenerator(entitySet.entityType):
+			yield tuple([entitySet.name]+sourcePath)
+		for np in entitySet.entityType.NavigationProperty:
+			yield (entitySet.name,np.name)
+			
 	def FieldNameGenerator(self,entitySet):
 		"""Generates source path *tuples* for the fields in *entitySet*"""
 		for sourcePath in self.TypeNameGenerator(entitySet.entityType):
@@ -995,41 +1705,50 @@ class SQLEntityContainer(object):
 
 	def BindNavigationProperty(self,entitySet,name):
 		# Start by making a tuple of the end multiplicities.
-		fromASEnd=entitySet.GetLinkEnd(name)
+		fromASEnd=entitySet.navigation[name]
 		toASEnd=fromASEnd.otherEnd
 		# extract the name of the association set
-		associationName=fromASEnd.parent.name
+		associationSetName=fromASEnd.parent.name
 		targetSet=toASEnd.entitySet
 		multiplicity=(fromASEnd.associationEnd.multiplicity,toASEnd.associationEnd.multiplicity)
-		# now we can work on a case-by-case basis, not that fkTable may be
+		# now we can work on a case-by-case basis, note that fkTable may be
 		# filled in twice for the same association (if navigation properties are
 		# defined in both directions) but this is benign because the definition
 		# should be identical.
 		if multiplicity in (
 			(edm.Multiplicity.One,edm.Multiplicity.One),
 			(edm.Multiplicity.ZeroToOne,edm.Multiplicity.ZeroToOne)):
-			entitySet.BindNavigation(name,self.GetSymmetricNavigationCollectionClass(),container=self,associationName=associationName)
+			entitySet.BindNavigation(name,self.GetSymmetricNavigationCollectionClass(),container=self,associationSetName=associationSetName)
+			if associationSetName in self.auxTable:
+				# This is the navigation property going back the other way, set the navigation name only
+				self.auxTable[associationSetName][3]=name
+			else:
+				self.auxTable[associationSetName]=[entitySet,name,targetSet,"",True]
 		elif multiplicity==(edm.Multiplicity.Many,edm.Multiplicity.Many):
-			entitySet.BindNavigation(name,self.GetSymmetricNavigationCollectionClass(),container=self,associationName=associationName)
+			entitySet.BindNavigation(name,self.GetSymmetricNavigationCollectionClass(),container=self,associationSetName=associationSetName)
+			if associationSetName in self.auxTable:
+				self.auxTable[associationSetName][3]=name
+			else:
+				self.auxTable[associationSetName]=[entitySet,name,targetSet,"",False]
 		elif multiplicity==(edm.Multiplicity.One,edm.Multiplicity.ZeroToOne):
-			entitySet.BindNavigation(name,self.GetReverseKeyCollectionClass(),container=self,associationName=associationName)
-			self.fkTable[targetSet.name][associationName]=(entitySet,False,True)
+			entitySet.BindNavigation(name,self.GetReverseKeyCollectionClass(),container=self,associationSetName=associationSetName)
+			self.fkTable[targetSet.name][toASEnd]=(False,True)
 		elif multiplicity==(edm.Multiplicity.One,edm.Multiplicity.Many):
-			entitySet.BindNavigation(name,self.GetReverseKeyCollectionClass(),container=self,associationName=associationName)
-			self.fkTable[targetSet.name][associationName]=(entitySet,False,False)
+			entitySet.BindNavigation(name,self.GetReverseKeyCollectionClass(),container=self,associationSetName=associationSetName)
+			self.fkTable[targetSet.name][toASEnd]=(False,False)
 		elif multiplicity==(edm.Multiplicity.ZeroToOne,edm.Multiplicity.Many):
-			entitySet.BindNavigation(name,self.GetReverseKeyCollectionClass(),container=self,associationName=associationName)
-			self.fkTable[targetSet.name][associationName]=(entitySet,True,False)
+			entitySet.BindNavigation(name,self.GetReverseKeyCollectionClass(),container=self,associationSetName=associationSetName)
+			self.fkTable[targetSet.name][toASEnd]=(True,False)
 		elif multiplicity==(edm.Multiplicity.ZeroToOne,edm.Multiplicity.One):
-			entitySet.BindNavigation(name,self.GetForeignKeyCollectionClass(),container=self,associationName=associationName)
-			self.fkTable[entitySet.name][associationName]=(targetSet,False,True)
+			entitySet.BindNavigation(name,self.GetForeignKeyCollectionClass(),container=self,associationSetName=associationSetName)
+			self.fkTable[entitySet.name][fromASEnd]=(False,True)
 		elif multiplicity==(edm.Multiplicity.Many,edm.Multiplicity.One):
-			entitySet.BindNavigation(name,self.GetForeignKeyCollectionClass(),container=self,associationName=associationName)
-			self.fkTable[entitySet.name][associationName]=(targetSet,False,False)
+			entitySet.BindNavigation(name,self.GetForeignKeyCollectionClass(),container=self,associationSetName=associationSetName)
+			self.fkTable[entitySet.name][fromASEnd]=(False,False)
 		else:
 # 			(edm.Multiplicity.Many,edm.Multiplicity.ZeroToOne)
-			entitySet.BindNavigation(name,self.GetForeignKeyCollectionClass(),container=self,associationName=associationName)
-			self.fkTable[entitySet.name][associationName]=(targetSet,True,False)
+			entitySet.BindNavigation(name,self.GetForeignKeyCollectionClass(),container=self,associationSetName=associationSetName)
+			self.fkTable[entitySet.name][fromASEnd]=(True,False)
 
 	def GetCollectionClass(self):
 		"""Called during construction, returns the collection class used
@@ -1039,7 +1758,7 @@ class SQLEntityContainer(object):
 	def GetSymmetricNavigationCollectionClass(self):
 		"""Called during construction, returns the collection class used
 		to represent a symmetric relation stored in a separate table."""
-		return SQLRelationCollection
+		return SQLAssociationCollection
 			
 	def GetForeignKeyCollectionClass(self):
 		"""Called during construction, returns the collection class used
@@ -1058,13 +1777,16 @@ class SQLEntityContainer(object):
 		for es in self.containerDef.EntitySet:
 			if es.name not in visited:
 				self.CreateTable(es,visited)
-				
+		# we now need to go through the auxTable and create them
+		for associationSetName in self.auxTable:
+			self.GetSymmetricNavigationCollectionClass().CreateTable(self,associationSetName)
+		
 	def CreateTable(self,es,visited):
 		# before we create this table, we need to check to see if it references another table
 		visited.add(es.name)
 		fkMapping=self.fkTable[es.name]
-		for associationName,details in fkMapping.iteritems():
-			targetSet,nullable,unique=details
+		for linkEnd,details in fkMapping.iteritems():
+			targetSet=linkEnd.otherEnd.entitySet
 			if targetSet.name in visited:
 				# prevent recursion
 				continue
@@ -1100,7 +1822,7 @@ class SQLEntityContainer(object):
 					# adaptively grow the max size of the hint table
 					if len(self.cPoolHints)>self.cMaxHints:
 						self.cMaxHints=len(self.cPoolHints)+self.cMaxHints
-						#	print "Growing the hint table to size: %i"%self.cMaxHints
+						logging.debug("Growing the hint table to size: %i",self.cMaxHints)
 				# start looking from the next position on the list
 				tryPos=self.cPoolPos%self.cPoolMax
 			i=0
@@ -1125,9 +1847,9 @@ class SQLEntityContainer(object):
 					i=i+1
 					if i==self.cPoolMax:
 						# we've tried every connection, wait
-						#	print "Thread [%i] has been forced to wait"%threadId
+						logging.debug("Thread [%i] has been forced to wait",threadId)
 						self.cPoolLock.wait(timeout)
-						#	print "Thread [%i] is waking up"%threadId
+						logging.debug("Thread [%i] is waking up",threadId)
 						# someone released a lock, go round the loop again
 		# we are defeated, no database connection for the caller
 		# release lock on the module as there is no connection to release
@@ -1211,32 +1933,6 @@ class SQLEntityContainer(object):
 		string u'"Employee_Name"' is returned."""
 		return u'"%s"'%identifier.replace('"','')
 
-	def PrepareSQLValue(self,simpleValue):
-		"""Given a simple value, returns a value suitable for passing as a parameter."""
-		if not simpleValue:
-			return None
-		elif isinstance(simpleValue,(edm.StringValue,
-			edm.BinaryValue,
-			edm.Int16Value,
-			edm.Int32Value,
-			edm.Int64Value)):
-			# critical for security, do proper SQL escaping of quote
-			return simpleValue.pyValue
-		elif isinstance(simpleValue,edm.DateTimeValue):
-			return self.dbapi.Timestamp(
-				simpleValue.pyValue.date.century*100+simpleValue.pyValue.date.year,
-				simpleValue.pyValue.date.month,
-				simpleValue.pyValue.date.day,
-				simpleValue.pyValue.time.hour,
-				simpleValue.pyValue.time.minute,
-				simpleValue.pyValue.time.second)
-		else:
-			raise NotImplementedError("SQL type for "+simpleValue.__class__.__name__)
-
-	def ReadSQLValue(self,simpleValue,newValue):
-		"""Given a simple value and a newValue returned by the database, updates *simpleValue*."""
-		simpleValue.SetFromPyValue(newValue)
-		
 	def PrepareSQLType(self,simpleValue,params,nullable=None):
 		"""Given a simple value, returns a SQL-formatted name of its type.
 
@@ -1244,10 +1940,25 @@ class SQLEntityContainer(object):
 		string u'INTEGER'"""
 		p=simpleValue.pDef
 		columnDef=[]
-		if isinstance(simpleValue,edm.Int32Value):
-			columnDef.append(u"INTEGER")
+		if isinstance(simpleValue,edm.BinaryValue):
+			if p.fixedLength:
+				if p.maxLength:
+					columnDef.append(u"BINARY(%i)"%p.maxLength)
+				else:
+					raise SQLModelError("Edm.Binary of fixed length missing max: %s"%p.name)
+			elif p.maxLength:
+				columnDef.append(u"VARBINARY(%i)"%p.maxLength)
+			else:
+				raise NotImplementedError("SQL binding for Edm.Binary of unbounded length: %s"%p.name)
+		elif isinstance(simpleValue,edm.BooleanValue):
+			columnDef.append(u"BOOLEAN")		
+		elif isinstance(simpleValue,edm.ByteValue):
+			columnDef.append(u"SMALLINT")
 		elif isinstance(simpleValue,edm.DateTimeValue):
 			columnDef.append("TIMESTAMP")
+		elif isinstance(simpleValue,edm.DateTimeOffsetValue):
+			# stored as string and parsed e.g. 20131209T100159+0100
+			columnDef.append("CHARACTER(20)")
 		elif isinstance(simpleValue,edm.DecimalValue):
 			if p.precision is None:
 				precision=10	# chosen to allow 32-bit integer precision
@@ -1258,16 +1969,36 @@ class SQLEntityContainer(object):
 			else:
 				scale=p.scale
 			columnDef.append(u"DECIMAL(%i,%i)"%(precision,scale))
+		elif isinstance(simpleValue,edm.DoubleValue):
+			columnDef.append("FLOAT")
+		elif isinstance(simpleValue,edm.GuidValue):
+			columnDef.append("BINARY(16)")
+		elif isinstance(simpleValue,edm.Int16Value):
+			columnDef.append(u"SMALLINT")
+		elif isinstance(simpleValue,edm.Int32Value):
+			columnDef.append(u"INTEGER")
+		elif isinstance(simpleValue,edm.Int64Value):
+			columnDef.append(u"BIGINT")
+		elif isinstance(simpleValue,edm.SByteValue):
+			columnDef.append(u"SMALLINT")
+		elif isinstance(simpleValue,edm.SingleValue):
+			columnDef.append(u"REAL")
 		elif isinstance(simpleValue,edm.StringValue):
+			if p.unicode is None or p.unicode:
+				n="N"
+			else:
+				n=""
 			if p.fixedLength:
 				if p.maxLength:
-					columnDef.append(u"CHARACTER(%i)"%p.maxLength)
+					columnDef.append(u"%sCHAR(%i)"%(n,p.maxLength))
 				else:
 					raise SQLModelError("Edm.String of fixed length missing max: %s"%p.name)
 			elif p.maxLength:
-				columnDef.append(u"VARCHAR(%i)"%p.maxLength)
+				columnDef.append(u"%sVARCHAR(%i)"%(n,p.maxLength))
 			else:
 				raise NotImplementedError("SQL binding for Edm.String of unbounded length: %s"%p.name)
+		elif isinstance(simpleValue,edm.TimeValue):
+			columnDef.append(u"TIME")
 		else:
 			raise NotImplementedError("SQL type for %s"%p.type)
 		if (nullable is not None and not nullable) or (nullable is None and not p.nullable):
@@ -1277,18 +2008,51 @@ class SQLEntityContainer(object):
 			columnDef.append(u' DEFAULT ')
 			columnDef.append(params.AddParam(self.PrepareSQLValue(simpleValue)))
 		return string.join(columnDef,'')		
-# 		'Edm.Binary':	BINARY(n) or VARBINARY(n) 
-# 		'Edm.Boolean':	BOOLEAN
-# 		'Edm.Byte':		SMALLINT
-# 		'Edm.DateTimeOffset':	CHARACTER(20), e.g. 20131209T100159+0100
-# 		'Edm.Time':		TIME
-# 		'Edm.Double':	FLOAT
-# 		'Edm.Single':	REAL
-# 		'Edm.Guid':		BINARY(16)
-# 		'Edm.Int16':	SMALLINT
-# 		'Edm.Int64':	BIGINT
-# 		'Edm.String':	VARCHAR(n) or CHARACTER(n) assuming bounded
-# 		'Edm.SByte':	SMALLINT
+
+	def PrepareSQLValue(self,simpleValue):
+		"""Given a simple value, returns a value suitable for passing as a parameter."""
+		if not simpleValue:
+			return None
+		elif isinstance(simpleValue,(
+			edm.BooleanValue,
+			edm.BinaryValue,
+			edm.ByteValue,
+			edm.DecimalValue,
+			edm.DoubleValue,
+			edm.Int16Value,
+			edm.Int32Value,
+			edm.Int64Value,
+			edm.SByteValue,
+			edm.SingleValue,
+			edm.StringValue
+			)):
+			# critical for security, do proper SQL escaping of quote
+			return simpleValue.value
+		elif isinstance(simpleValue,edm.DateTimeValue):
+			microseconds,seconds=math.modf(simpleValue.value.time.second)
+			return self.dbapi.Timestamp(
+				simpleValue.value.date.century*100+simpleValue.value.date.year,
+				simpleValue.value.date.month,
+				simpleValue.value.date.day,
+				simpleValue.value.time.hour,
+				simpleValue.value.time.minute,
+				int(seconds),int(1000000.0*microseconds+0.5))
+		elif isinstance(simpleValue,edm.DateTimeOffsetValue):
+			return simpleValue.value.GetCalendarString(basic=True,ndp=6,dp=".").ljust(27,' ')			
+		elif isinstance(simpleValue,edm.GuidValue):
+			return simpleValue.value.bytes
+		elif isinstance(simpleValue,edm.TimeValue):
+			return self.dbapi.Time(
+				simpleValue.value.hour,
+				simpleValue.value.minute,
+				simpleValue.value.second)
+		else:
+			raise NotImplementedError("SQL type for "+simpleValue.__class__.__name__)
+
+	def ReadSQLValue(self,simpleValue,newValue):
+		"""Given a simple value and a newValue returned by the database, updates *simpleValue*."""
+		simpleValue.SetFromValue(newValue)
+		
 			
 class SQLiteEntityContainer(SQLEntityContainer):
 	
@@ -1307,34 +2071,16 @@ class SQLiteEntityContainer(SQLEntityContainer):
 	def BreakConnection(self,connection):
 		connection.interrupt()
 
-	def PrepareSQLValue(self,simpleValue):
-		"""Given a simple value, returns a value suitable for passing as a parameter."""
-		if not simpleValue:
-			return None
-		elif isinstance(simpleValue,edm.BinaryValue):
-			return buffer(simpleValue.pyValue)
-		else:
-			return super(SQLiteEntityContainer,self).PrepareSQLValue(simpleValue)
-
-	def ReadSQLValue(self,simpleValue,newValue):
-		"""Handle buffer types specially."""
-		if type(newValue)==BufferType:
-			newValue=str(newValue)
-			simpleValue.SetFromPyValue(newValue)
-		elif isinstance(simpleValue,edm.DateTimeValue):
-			# SQLite stores these as strings!
-			simpleValue.SetFromPyValue(iso.TimePoint(newValue))
-		else:
-			simpleValue.SetFromPyValue(newValue)
-
 	def PrepareSQLType(self,simpleValue,params,nullable=None):
 		"""SQLite custom mappings"""
 		p=simpleValue.pDef
 		columnDef=[]
-		if isinstance(simpleValue,edm.StringValue):
+		if isinstance(simpleValue,(edm.StringValue,edm.DecimalValue)):
 			columnDef.append(u"TEXT")
-		elif isinstance(simpleValue,edm.BinaryValue):
+		elif isinstance(simpleValue,(edm.BinaryValue,edm.GuidValue)):
 			columnDef.append(u"BLOB")
+		elif isinstance(simpleValue,edm.TimeValue):
+			columnDef.append(u"REAL")
 		else:
 			return super(SQLiteEntityContainer,self).PrepareSQLType(simpleValue,params,nullable)
 		if (nullable is not None and not nullable) or (nullable is None and not p.nullable):
@@ -1344,6 +2090,36 @@ class SQLiteEntityContainer(SQLEntityContainer):
 			columnDef.append(u' DEFAULT ')
 			columnDef.append(params.AddParam(self.PrepareSQLValue(simpleValue)))
 		return string.join(columnDef,'')
+
+	def PrepareSQLValue(self,simpleValue):
+		"""Given a simple value, returns a value suitable for passing as a parameter."""
+		if not simpleValue:
+			return None
+		elif isinstance(simpleValue,edm.BinaryValue):
+			return buffer(simpleValue.value)
+		elif isinstance(simpleValue,edm.DecimalValue):
+			return str(simpleValue.value)
+		elif isinstance(simpleValue,edm.GuidValue):
+			return buffer(simpleValue.value.bytes)
+		elif isinstance(simpleValue,edm.TimeValue):
+			return simpleValue.value.GetTotalSeconds()
+		else:
+			return super(SQLiteEntityContainer,self).PrepareSQLValue(simpleValue)
+
+	def ReadSQLValue(self,simpleValue,newValue):
+		"""Handle buffer types specially."""
+		if type(newValue)==BufferType:
+			newValue=str(newValue)
+			simpleValue.SetFromValue(newValue)
+		elif isinstance(simpleValue,(edm.DateTimeValue,edm.DateTimeOffsetValue)):
+			# SQLite stores these as strings!
+			simpleValue.SetFromValue(iso.TimePoint.FromString(newValue,tDesignators="T "))
+		elif isinstance(simpleValue,edm.TimeValue):
+			simpleValue.value=iso.Time(totalSeconds=newValue)
+		elif isinstance(simpleValue,edm.DecimalValue):
+			simpleValue.value=decimal.Decimal(newValue)
+		else:
+			simpleValue.SetFromValue(newValue)
 		
 
 class SQLiteEntityCollection(SQLEntityCollection):

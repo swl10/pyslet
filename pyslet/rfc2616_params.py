@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import string
+import string, warnings
 from types import *
 
 from pyslet.rfc2616_core import *
@@ -89,13 +89,16 @@ class FullDate(iso.TimePoint):
 	
 		*	source is an optional string to parse the date from"""
 
-	def __init__(self,source=None):
-		iso.TimePoint.__init__(self)
-		if source is not None:
-			self.Parse(source)
+# 	def __init__(self,source=None):
+# 		iso.TimePoint.__init__(self)
+# 		if source is not None:
+# 			self.Parse(source)
 	
-	def ParseWords(self,wp):
-		"""Parses a :py:class:`pyslet.iso8601.TimePoint` instance from a :py:class:`WordParser` instance.
+	@classmethod
+	def FromWords(cls,wp):
+		"""Constructs a :py:class:`pyslet.iso8601.TimePoint` instance
+		from a :py:class:`WordParser` instance, parsing an HTTP-style
+		date.
 		
 		There are three supported formats as described in the specification::
 	
@@ -105,8 +108,11 @@ class FullDate(iso.TimePoint):
 		
 		The first of these is the preferred format.
 		
-		The function returns the number of words parsed. Fatal parsing errors raise
-		HTTPParameterError."""
+		The function returns a tuple of::
+		
+			(<TimePoint instance>, integer number of words parsed)
+		
+		Fatal parsing errors raise HTTPParameterError."""
 		century=None
 		year=None	
 		month=None
@@ -174,19 +180,22 @@ class FullDate(iso.TimePoint):
 				century=20
 			else:
 				century=19
-		self.SetCalendarTimePoint(century,year,month+1,day,hour,minute,second)
-		d1,d2,d3,d4,dow=self.date.GetWeekDay()
+		tp=cls(date=iso.Date(century=century,year=year,month=month+1,day=day),time=iso.Time(hour=hour,minute=minute,second=second,zDirection=0))
+		d1,d2,d3,d4,dow=tp.date.GetWeekDay()
 		if dow!=dayOfWeek+1:
 			raise HTTPParameterError("Day-of-week mismatch, expected %s but found %s"%(HTTP_wkday[dow-1],HTTP_wkday[dayOfWeek]))
+		return tp
 						
-	def Parse(self,source):
+	@classmethod					
+	def FromHTTPString(cls,source):
 		"""Parses a :py:class:`pyslet.iso8601.TimePoint` instance from an HTTP
 		formatted string."""
 		wp=WordParser(source)
-		self.ParseWords(wp)
+		tp=cls.FromWords(wp)
 		wp.ParseSP()
 		wp.RequireEnd("full date")
-	
+		return tp
+		
 	def __str__(self):
 		"""Formats a :py:class:`pyslet.iso8601.TimePoint` instance in the
 		following format::
@@ -203,6 +212,10 @@ class FullDate(iso.TimePoint):
 			HTTP_month[month-1],
 			century*100+year,
 			hour,minute,second)
+
+	def __unicode(self):
+		"""See __str__"""
+		return unicode(str(self))
 
 
 class TransferEncoding:

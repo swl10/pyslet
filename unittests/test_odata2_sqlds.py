@@ -1,20 +1,21 @@
 #! /usr/bin/env python
 
-import unittest
+import unittest, logging
+from test_odata2_core import DataServiceRegressionTests
 
 def suite():
 	loader=unittest.TestLoader()
 	loader.testMethodPrefix='test'
 	return unittest.TestSuite((
 		loader.loadTestsFromTestCase(ThreadTests),
-		loader.loadTestsFromTestCase(SQLDSTests)
+		loader.loadTestsFromTestCase(SQLDSTests),
+		loader.loadTestsFromTestCase(RegressionTests),
 		))
 
 def load_tests(loader, tests, pattern):
 	return suite()
 
 from pyslet.odata2.sqlds import *
-
 from pyslet.vfs import OSFilePath as FilePath
 TEST_DATA_DIR=FilePath(FilePath(__file__).abspath().split()[0],'data_odatav2')
 
@@ -266,9 +267,9 @@ class SQLDSTests(unittest.TestCase):
 			self.assertTrue(isinstance(newHire,core.Entity))
 			self.assertTrue(list(newHire.DataKeys())==["EmployeeID","EmployeeName","Address","Version"])
 			newHire.SetKey('00001')
-			newHire["EmployeeName"].SetFromPyValue('Joe Bloggs')
-			newHire["Address"]["City"].SetFromPyValue('Chunton')
-			newHire["Address"]["Street"].SetFromPyValue('Mill Road')
+			newHire["EmployeeName"].SetFromValue('Joe Bloggs')
+			newHire["Address"]["City"].SetFromValue('Chunton')
+			newHire["Address"]["Street"].SetFromValue('Mill Road')
 			# we leave the version concurrency token as NULL and assume it will be autofilled
 			collection.InsertEntity(newHire)
 			self.assertTrue(newHire.exists)
@@ -277,7 +278,7 @@ class SQLDSTests(unittest.TestCase):
 			self.assertTrue(len(collection)==1,"Length after insert")
 			newHire=collection.NewEntity()
 			newHire.SetKey('00001')
-			newHire["EmployeeName"].SetFromPyValue('Jane Doe')
+			newHire["EmployeeName"].SetFromValue('Jane Doe')
 			try:
 				collection.InsertEntity(newHire)
 				self.fail("Double insert")
@@ -292,21 +293,21 @@ class SQLDSTests(unittest.TestCase):
 			self.assertTrue(isinstance(newHire,core.Entity))
 			self.assertTrue(list(newHire.DataKeys())==["EmployeeID","EmployeeName","Address","Version"])
 			newHire.SetKey('00001')
-			newHire["EmployeeName"].SetFromPyValue('Joe Bloggs')
-			newHire["Address"]["City"].SetFromPyValue('Chunton')
-			newHire["Address"]["Street"].SetFromPyValue('Mill Road')
+			newHire["EmployeeName"].SetFromValue('Joe Bloggs')
+			newHire["Address"]["City"].SetFromValue('Chunton')
+			newHire["Address"]["Street"].SetFromValue('Mill Road')
 			# we leave the version concurrency token as NULL and assume it will be autofilled
 			collection.InsertEntity(newHire)
 			self.assertTrue(newHire['Version'])
 			# employee moves house some time later...
 			talent=collection['00001']
-			talent["Address"]["City"].SetFromPyValue('Chunton')
-			talent["Address"]["Street"].SetFromPyValue('Main Street')
+			talent["Address"]["City"].SetFromValue('Chunton')
+			talent["Address"]["Street"].SetFromValue('Main Street')
 			collection.UpdateEntity(talent)
 			self.assertTrue(talent['Version'])
-			self.assertFalse(talent['Version'].pyValue==newHire['Version'],"Concurrency token updated")
+			self.assertFalse(talent['Version'].value==newHire['Version'],"Concurrency token updated")
 			# now let's try and change the name of the original entity too
-			newHire["Address"]["Street"].SetFromPyValue('Main Street')
+			newHire["Address"]["Street"].SetFromValue('Main Street')
 			try:
 				collection.UpdateEntity(newHire)
 				self.fail("Concurrency failure")
@@ -321,13 +322,13 @@ class SQLDSTests(unittest.TestCase):
 			self.assertTrue(isinstance(newHire,core.Entity))
 			self.assertTrue(list(newHire.DataKeys())==["EmployeeID","EmployeeName","Address","Version"])
 			newHire.SetKey('00001')
-			newHire["EmployeeName"].SetFromPyValue('Joe Bloggs')
-			newHire["Address"]["City"].SetFromPyValue('Chunton')
-			newHire["Address"]["Street"].SetFromPyValue('Mill Road')
+			newHire["EmployeeName"].SetFromValue('Joe Bloggs')
+			newHire["Address"]["City"].SetFromValue('Chunton')
+			newHire["Address"]["Street"].SetFromValue('Mill Road')
 			# we leave the version concurrency token as NULL and assume it will be autofilled
 			collection.InsertEntity(newHire)
 			talent=collection['00001']			
-			self.assertTrue(talent['EmployeeName'].pyValue=="Joe Bloggs")
+			self.assertTrue(talent['EmployeeName'].value=="Joe Bloggs")
 			self.assertTrue(len(collection)==1)
 			try:
 				del collection['00002']
@@ -350,15 +351,15 @@ class SQLDSTests(unittest.TestCase):
 			for i in xrange(10):
 				newHire=collection.NewEntity()
 				newHire.SetKey('%05X'%i)
-				newHire["EmployeeName"].SetFromPyValue('Talent #%i'%i)
-				newHire["Address"]["City"].SetFromPyValue('Chunton')
-				newHire["Address"]["Street"].SetFromPyValue(random.choice(('Mill Road','Main Street','Privet Drive')))
+				newHire["EmployeeName"].SetFromValue('Talent #%i'%i)
+				newHire["Address"]["City"].SetFromValue('Chunton')
+				newHire["Address"]["Street"].SetFromValue(random.choice(('Mill Road','Main Street','Privet Drive')))
 				collection.InsertEntity(newHire)
 			self.assertTrue(len(collection)==10)
 			keys=set()
 			for talent in collection.values():
-				self.assertTrue(talent['EmployeeName'].pyValue.startswith('Talent '))
-				keys.add(talent['EmployeeID'].pyValue)
+				self.assertTrue(talent['EmployeeName'].value.startswith('Talent '))
+				keys.add(talent['EmployeeID'].value)
 			self.assertTrue(len(keys)==10)
 
 	def testCaseFilter(self):
@@ -368,9 +369,9 @@ class SQLDSTests(unittest.TestCase):
 			for i in xrange(20):
 				newHire=collection.NewEntity()
 				newHire.SetKey('%05X'%i)
-				newHire["EmployeeName"].SetFromPyValue('Talent #%i'%i)
-				newHire["Address"]["City"].SetFromPyValue('Chunton')
-				newHire["Address"]["Street"].SetFromPyValue(random.choice(('Mill Road','Main Street','Privet Drive')))
+				newHire["EmployeeName"].SetFromValue('Talent #%i'%i)
+				newHire["Address"]["City"].SetFromValue('Chunton')
+				newHire["Address"]["Street"].SetFromValue(random.choice(('Mill Road','Main Street','Privet Drive')))
 				collection.InsertEntity(newHire)
 			self.assertTrue(len(collection)==20)
 			collection.Filter(core.CommonExpression.FromString("substringof(Address/Street,'Road')"))
@@ -383,7 +384,7 @@ class SQLDSTests(unittest.TestCase):
 			collection.Filter(core.CommonExpression.FromString("EmployeeName eq 'Talent #13'"))
 			self.assertTrue(len(collection)==1,"Just one matching employee")
 			talent=collection.values()[0]
-			self.assertTrue(talent['EmployeeID'].pyValue=='0000D')
+			self.assertTrue(talent['EmployeeID'].value=='0000D')
 
 	def testCaseOrderBy(self):
 		es=self.schema['SampleEntities.Employees']
@@ -392,24 +393,24 @@ class SQLDSTests(unittest.TestCase):
 			for i in xrange(20):
 				newHire=collection.NewEntity()
 				newHire.SetKey('%05X'%i)
-				newHire["EmployeeName"].SetFromPyValue('Talent #%02i'%random.randint(1,99))	# Force alphabetic sorting
-				newHire["Address"]["City"].SetFromPyValue('Chunton')
-				newHire["Address"]["Street"].SetFromPyValue(random.choice(('Mill Road','Main Street','Privet Drive')))
+				newHire["EmployeeName"].SetFromValue('Talent #%02i'%random.randint(1,99))	# Force alphabetic sorting
+				newHire["Address"]["City"].SetFromValue('Chunton')
+				newHire["Address"]["Street"].SetFromValue(random.choice(('Mill Road','Main Street','Privet Drive')))
 				collection.InsertEntity(newHire)
 			self.assertTrue(len(collection)==20)
 			collection.OrderBy(core.CommonExpression.OrderByFromString("EmployeeName asc,Address/City desc"))
 			lastTalent=None
 			for talent in collection.values():
 				if lastTalent is not None:
-					self.assertTrue(talent['EmployeeName'].pyValue>=lastTalent['EmployeeName'].pyValue)
+					self.assertTrue(talent['EmployeeName'].value>=lastTalent['EmployeeName'].value)
 				lastTalent=talent
 			# add a filter and check again
 			collection.Filter(core.CommonExpression.FromString("endswith(Address/Street,'Drive')"))
 			lastTalent=None
 			for talent in collection.values():
-				self.assertTrue(talent["Address"]["Street"].pyValue==u'Privet Drive')
+				self.assertTrue(talent["Address"]["Street"].value==u'Privet Drive')
 				if lastTalent is not None:
-					self.assertTrue(talent['EmployeeName'].pyValue>=lastTalent['EmployeeName'].pyValue)
+					self.assertTrue(talent['EmployeeName'].value>=lastTalent['EmployeeName'].value)
 				lastTalent=talent			
 
 	def testCaseNavigation(self):
@@ -428,9 +429,9 @@ class SQLDSTests(unittest.TestCase):
 			collection.CreateTable()
 			customer=collection.NewEntity()
 			customer.SetKey('ALFKI')
-			customer["CompanyName"].SetFromPyValue('Widget Inc')
-			customer["Address"]["City"].SetFromPyValue('Chunton')
-			customer["Address"]["Street"].SetFromPyValue('Factory Lane')
+			customer["CompanyName"].SetFromValue('Widget Inc')
+			customer["Address"]["City"].SetFromValue('Chunton')
+			customer["Address"]["Street"].SetFromValue('Factory Lane')
 			# we leave the version concurrency token as NULL and assume it will be autofilled
 			collection.InsertEntity(customer)
 		es=self.schema['SampleEntities.Orders']
@@ -476,11 +477,11 @@ class SQLDSTests(unittest.TestCase):
 			collection.OrderBy(core.CommonExpression.OrderByFromString("ShippedDate desc"))
 			self.assertTrue(len(collection)==2)
 			orders=collection.values()
-			self.assertTrue(orders[0]['ShippedDate'].pyValue>orders[1]['ShippedDate'].pyValue)
+			self.assertTrue(orders[0]['ShippedDate'].value>orders[1]['ShippedDate'].value)
 			collection.OrderBy(core.CommonExpression.OrderByFromString("ShippedDate asc"))
 			self.assertTrue(len(collection)==2)
 			orders=collection.values()
-			self.assertTrue(orders[1]['ShippedDate'].pyValue>orders[0]['ShippedDate'].pyValue)
+			self.assertTrue(orders[1]['ShippedDate'].value>orders[0]['ShippedDate'].value)
 			collection.Filter(core.CommonExpression.FromString("ShippedDate ge datetime'2013-11-01T00:00:00'"))
 			self.assertTrue(len(collection)==1)
 			self.assertTrue(order.Key() in collection)
@@ -493,6 +494,26 @@ class SQLDSTests(unittest.TestCase):
 			with es.OpenCollection() as collection:
 				self.assertTrue(len(collection)==0,"No data in %s"%es.name)
 
+
+class RegressionTests(DataServiceRegressionTests):
+	
+	def setUp(self):
+		DataServiceRegressionTests.setUp(self)
+		self.container=self.ds['RegressionModel.RegressionContainer']
+		self.d=FilePath.mkdtemp('.d','pyslet-test_odata2_sqlds-')
+		self.db=SQLiteEntityContainer(self.d.join('test.db'),self.container)
+		self.db.CreateAllTables()
+		
+	def tearDown(self):
+		if self.db is not None:
+			self.db.close()
+		self.d.rmtree(True)
+		DataServiceRegressionTests.tearDown(self)
+		
+	def testCaseAllTests(self):
+		self.RunAllCombined()		
+
 			
 if __name__ == "__main__":
+	logging.basicConfig(level=logging.INFO)
 	unittest.main()

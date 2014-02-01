@@ -2712,6 +2712,7 @@ class XMLEntity(object):
 			if reqManager is None:
 				reqManager=http.HTTPRequestManager()
 			req=http.HTTPRequest(str(src))
+			req.SetHeader('Accept',"application/xml, text/*, */*")
 			reqManager.ProcessRequest(req)
 			if req.status==200:
 				self.OpenHTTPResponse(req.response,encoding)

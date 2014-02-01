@@ -981,7 +981,7 @@ class ServerBasedURL(URI):
 					newURI.append("%i"%int(self.port))
 		if self.absPath is not None:
 			newURI.append(self.absPath)
-		else:
+		elif self.relPath is not None:
 			newURI.append(self.relPath)
 		if self.query is not None:
 			newURI.append('?')
@@ -1037,7 +1037,7 @@ class FileURL(ServerBasedURL):
 		if self.host:
 			fs=vfs.GetFileSystemByName(self.host)
 			if fs is None:
-				if defaultFS.supports_unc:
+				if vfs.defaultFS.supports_unc:
 					fs=defaultNS
 					uncRoot=decode('\\\\%s'%self.host)
 				else:

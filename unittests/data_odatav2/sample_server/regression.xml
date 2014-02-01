@@ -1,0 +1,548 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<edmx:Edmx Version="1.0" xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx"
+    xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata">
+    <edmx:DataServices m:DataServiceVersion="2.0">
+        <Schema Namespace="RegressionModel" xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
+            <EntityContainer Name="RegressionContainer" m:IsDefaultEntityContainer="true">
+                <EntitySet Name="AllTypes" EntityType="RegressionModel.AllTypes"/>
+                <EntitySet Name="ComplexTypes" EntityType="RegressionModel.ComplexTypes"/>
+                <EntitySet Name="CompoundKeys" EntityType="RegressionModel.CompoundKey"/>
+                <EntitySet Name="O2Os" EntityType="RegressionModel.O2O"/>
+                <EntitySet Name="O2OXs" EntityType="RegressionModel.O2OX"/>
+                <AssociationSet Name="O_O" Association="RegressionModel.O_O">
+                    <End Role="O" EntitySet="O2Os"/>
+                    <End Role="OX" EntitySet="O2OXs"/>
+                </AssociationSet>
+                <EntitySet Name="O2O1s" EntityType="RegressionModel.O2O1"/>
+                <EntitySet Name="O2OX1s" EntityType="RegressionModel.O2OX1"/>
+                <AssociationSet Name="O_O1" Association="RegressionModel.O_O1">
+                    <End Role="O" EntitySet="O2O1s"/>
+                    <End Role="OX" EntitySet="O2OX1s"/>
+                </AssociationSet>
+                <EntitySet Name="ZO2Os" EntityType="RegressionModel.ZO2O"/>
+                <EntitySet Name="ZO2OXs" EntityType="RegressionModel.ZO2OX"/>
+                <AssociationSet Name="ZO_O" Association="RegressionModel.ZO_O">
+                    <End Role="ZO" EntitySet="ZO2Os"/>
+                    <End Role="O" EntitySet="ZO2OXs"/>
+                </AssociationSet>
+                <EntitySet Name="ZO2OFs" EntityType="RegressionModel.ZO2OF"/>
+                <EntitySet Name="ZO2OXFs" EntityType="RegressionModel.ZO2OXF"/>
+                <AssociationSet Name="ZO_O_F" Association="RegressionModel.ZO_O_F">
+                    <End Role="ZO" EntitySet="ZO2OFs"/>
+                    <End Role="O" EntitySet="ZO2OXFs"/>
+                </AssociationSet>
+                <EntitySet Name="ZO2ORs" EntityType="RegressionModel.ZO2OR"/>
+                <EntitySet Name="ZO2OXRs" EntityType="RegressionModel.ZO2OXR"/>
+                <AssociationSet Name="ZO_O_R" Association="RegressionModel.ZO_O_R">
+                    <End Role="ZO" EntitySet="ZO2ORs"/>
+                    <End Role="O" EntitySet="ZO2OXRs"/>
+                </AssociationSet>
+                <EntitySet Name="Many2Os" EntityType="RegressionModel.Many2O"/>
+                <EntitySet Name="Many2OXs" EntityType="RegressionModel.Many2OX"/>
+                <AssociationSet Name="Many_O" Association="RegressionModel.Many_O">
+                    <End Role="Many" EntitySet="Many2Os"/>
+                    <End Role="O" EntitySet="Many2OXs"/>
+                </AssociationSet>
+                <EntitySet Name="Many2OFs" EntityType="RegressionModel.Many2OF"/>
+                <EntitySet Name="Many2OXFs" EntityType="RegressionModel.Many2OXF"/>
+                <AssociationSet Name="Many_O_F" Association="RegressionModel.Many_O_F">
+                    <End Role="Many" EntitySet="Many2OFs"/>
+                    <End Role="O" EntitySet="Many2OXFs"/>
+                </AssociationSet>
+                <EntitySet Name="Many2ORs" EntityType="RegressionModel.Many2OR"/>
+                <EntitySet Name="Many2OXRs" EntityType="RegressionModel.Many2OXR"/>
+                <AssociationSet Name="Many_O_R" Association="RegressionModel.Many_O_R">
+                    <End Role="Many" EntitySet="Many2ORs"/>
+                    <End Role="O" EntitySet="Many2OXRs"/>
+                </AssociationSet>
+                <EntitySet Name="Many2ZOs" EntityType="RegressionModel.Many2ZO"/>
+                <EntitySet Name="Many2ZOXs" EntityType="RegressionModel.Many2ZOX"/>
+                <AssociationSet Name="Many_ZO" Association="RegressionModel.Many_ZO">
+                    <End Role="Many" EntitySet="Many2ZOs"/>
+                    <End Role="ZO" EntitySet="Many2ZOXs"/>
+                </AssociationSet>
+                <EntitySet Name="Many2ZOFs" EntityType="RegressionModel.Many2ZOF"/>
+                <EntitySet Name="Many2ZOXFs" EntityType="RegressionModel.Many2ZOXF"/>
+                <AssociationSet Name="Many_ZO_F" Association="RegressionModel.Many_ZO_F">
+                    <End Role="Many" EntitySet="Many2ZOFs"/>
+                    <End Role="ZO" EntitySet="Many2ZOXFs"/>
+                </AssociationSet>
+                <EntitySet Name="Many2ZORs" EntityType="RegressionModel.Many2ZOR"/>
+                <EntitySet Name="Many2ZOXRs" EntityType="RegressionModel.Many2ZOXR"/>
+                <AssociationSet Name="Many_ZO_R" Association="RegressionModel.Many_ZO_R">
+                    <End Role="Many" EntitySet="Many2ZORs"/>
+                    <End Role="ZO" EntitySet="Many2ZOXRs"/>
+                </AssociationSet>
+                <EntitySet Name="Many2ZORvs" EntityType="RegressionModel.Many2ZORv"/>
+                <AssociationSet Name="Many_ZO_Rv" Association="RegressionModel.Many_ZO_Rv">
+                    <End Role="Many" EntitySet="Many2ZORvs"/>
+                    <End Role="ZO" EntitySet="Many2ZORvs"/>
+                </AssociationSet>
+                <EntitySet Name="Many2ZORvFs" EntityType="RegressionModel.Many2ZORvF"/>
+                <AssociationSet Name="Many_ZO_Rv_F" Association="RegressionModel.Many_ZO_Rv_F">
+                    <End Role="Many" EntitySet="Many2ZORvFs"/>
+                    <End Role="ZO" EntitySet="Many2ZORvFs"/>
+                </AssociationSet>
+                <EntitySet Name="Many2ZORvRs" EntityType="RegressionModel.Many2ZORvR"/>
+                <AssociationSet Name="Many_ZO_Rv_R" Association="RegressionModel.Many_ZO_Rv_R">
+                    <End Role="Many" EntitySet="Many2ZORvRs"/>
+                    <End Role="ZO" EntitySet="Many2ZORvRs"/>
+                </AssociationSet>
+                <EntitySet Name="Many2Manys" EntityType="RegressionModel.Many2Many"/>
+                <EntitySet Name="Many2ManyXs" EntityType="RegressionModel.Many2ManyX"/>
+                <AssociationSet Name="Many_Many" Association="RegressionModel.Many_Many">
+                    <End Role="Many" EntitySet="Many2Manys"/>
+                    <End Role="ManyX" EntitySet="Many2ManyXs"/>
+                </AssociationSet>
+                <EntitySet Name="Many2Many1s" EntityType="RegressionModel.Many2Many1"/>
+                <EntitySet Name="Many2ManyX1s" EntityType="RegressionModel.Many2ManyX1"/>
+                <AssociationSet Name="Many_Many_1" Association="RegressionModel.Many_Many_1">
+                    <End Role="Many" EntitySet="Many2Many1s"/>
+                    <End Role="ManyX" EntitySet="Many2ManyX1s"/>
+                </AssociationSet>
+                <EntitySet Name="Many2ManyRvs" EntityType="RegressionModel.Many2ManyRv"/>
+                <AssociationSet Name="Many_Many_Rv" Association="RegressionModel.Many_Many_Rv">
+                    <End Role="Many" EntitySet="Many2ManyRvs"/>
+                    <End Role="ManyX" EntitySet="Many2ManyRvs"/>
+                </AssociationSet>
+                <EntitySet Name="Many2ManyRv1s" EntityType="RegressionModel.Many2ManyRv1"/>
+                <AssociationSet Name="Many_Many_Rv_1" Association="RegressionModel.Many_Many_Rv_1">
+                    <End Role="Many" EntitySet="Many2ManyRv1s"/>
+                    <End Role="ManyX" EntitySet="Many2ManyRv1s"/>
+                </AssociationSet>
+            </EntityContainer>
+            <EntityType Name="AllTypes">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="BinaryFixed" Type="Edm.Binary" MaxLength="10" FixedLength="true"/>
+                <Property Name="BinaryVariable" Type="Edm.Binary" MaxLength="10" FixedLength="false"/>
+                <Property Name="BooleanProperty" Type="Edm.Boolean"/>
+                <Property Name="DateTimeProperty" Type="Edm.DateTime" Precision="3"/>
+                <Property Name="TimeProperty" Type="Edm.Time" Precision="3"/>
+                <Property Name="DateTimeOffsetProperty" Type="Edm.DateTimeOffset" Precision="3"/>
+                <Property Name="DecimalProperty" Type="Edm.Decimal" Precision="10" Scale="2"/>
+                <Property Name="SingleValue" Type="Edm.Single"/>
+                <Property Name="DoubleValue" Type="Edm.Double"/>
+                <Property Name="GuidValue" Type="Edm.Guid"/>
+                <Property Name="SByteValue" Type="Edm.SByte"/>
+                <Property Name="Int16Value" Type="Edm.Int16"/>
+                <Property Name="Int64Value" Type="Edm.Int64"/>
+                <Property Name="ByteValue" Type="Edm.Byte"/>
+                <Property Name="UnicodeString" Type="Edm.String" Unicode="true" FixedLength="false"
+                    MaxLength="10"/>
+                <Property Name="ASCIIString" Type="Edm.String" Unicode="false" FixedLength="false"
+                    MaxLength="10"/>
+                <Property Name="FixedString" Type="Edm.String" FixedLength="true" MaxLength="5"/>
+            </EntityType>
+            <EntityType Name="ComplexTypes">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Complex" Type="RegressionModel.Complex"/>
+            </EntityType>
+            <ComplexType Name="Complex">
+                <Property Name="Data" Type="Edm.String" MaxLength="32" FixedLength="false"/>
+                <Property Name="Complex" Type="RegressionModel.SubComplex"/>
+            </ComplexType>
+            <ComplexType Name="SubComplex">
+                <Property Name="Data" Type="Edm.String" MaxLength="32" FixedLength="false"/>
+                <Property Name="Index" Type="Edm.Int32"/>
+            </ComplexType>
+            <EntityType Name="CompoundKey">
+                <Key>
+                    <PropertyRef Name="K1"/>
+                    <PropertyRef Name="K2"/>
+                    <PropertyRef Name="K3"/>
+                    <PropertyRef Name="K4"/>
+                </Key>
+                <Property Name="K1" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="K2" Type="Edm.String" Nullable="false" FixedLength="true"
+                    MaxLength="5"/>
+                <Property Name="K3" Type="Edm.DateTime" Nullable="false"  Precision="3"/>
+                <Property Name="K4" Type="Edm.Binary" Nullable="false" FixedLength="true"
+                    MaxLength="4"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="255"/>
+            </EntityType>
+            <EntityType Name="O2O">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="OX" FromRole="O" ToRole="OX"
+                    Relationship="RegressionModel.O_O"/>
+            </EntityType>
+            <EntityType Name="O2OX">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="O" FromRole="OX" ToRole="O"
+                    Relationship="RegressionModel.O_O"/>
+            </EntityType>
+            <Association Name="O_O">
+                <End Role="O" Type="RegressionModel.O2O" Multiplicity="1"/>
+                <End Role="OX" Type="RegressionModel.O2OX" Multiplicity="1"/>
+            </Association>
+            <EntityType Name="O2O1">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="OX" FromRole="O" ToRole="OX"
+                    Relationship="RegressionModel.O_O1"/>
+            </EntityType>
+            <EntityType Name="O2OX1">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+            </EntityType>
+            <Association Name="O_O1">
+                <End Role="O" Type="RegressionModel.O2O1" Multiplicity="1"/>
+                <End Role="OX" Type="RegressionModel.O2OX1" Multiplicity="1"/>
+            </Association>
+            <EntityType Name="ZO2O">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="O" FromRole="ZO" ToRole="O"
+                    Relationship="RegressionModel.ZO_O"/>
+            </EntityType>
+            <EntityType Name="ZO2OX">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="ZO" FromRole="O" ToRole="ZO"
+                    Relationship="RegressionModel.ZO_O"/>
+            </EntityType>
+            <Association Name="ZO_O">
+                <End Role="ZO" Type="RegressionModel.ZO2O" Multiplicity="0..1"/>
+                <End Role="O" Type="RegressionModel.ZO2OX" Multiplicity="1"/>
+            </Association>
+            <EntityType Name="ZO2OF">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="O" FromRole="ZO" ToRole="O"
+                    Relationship="RegressionModel.ZO_O_F"/>
+            </EntityType>
+            <EntityType Name="ZO2OXF">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <!-- No navigation property bound in reverse direction -->
+            </EntityType>
+            <Association Name="ZO_O_F">
+                <End Role="ZO" Type="RegressionModel.ZO2OF" Multiplicity="0..1"/>
+                <End Role="O" Type="RegressionModel.ZO2OXF" Multiplicity="1"/>
+            </Association>
+            <EntityType Name="ZO2OR">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <!-- No navigation property bound in forward direction -->
+            </EntityType>
+            <EntityType Name="ZO2OXR">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="ZO" FromRole="O" ToRole="ZO"
+                    Relationship="RegressionModel.ZO_O_R"/>
+            </EntityType>
+            <Association Name="ZO_O_R">
+                <End Role="ZO" Type="RegressionModel.ZO2OR" Multiplicity="0..1"/>
+                <End Role="O" Type="RegressionModel.ZO2OXR" Multiplicity="1"/>
+            </Association>
+            <EntityType Name="Many2O">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="O" FromRole="Many" ToRole="O"
+                    Relationship="RegressionModel.Many_O"/>
+            </EntityType>
+            <EntityType Name="Many2OX">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="Many" FromRole="O" ToRole="Many"
+                    Relationship="RegressionModel.Many_O"/>
+            </EntityType>
+            <Association Name="Many_O">
+                <End Role="Many" Type="RegressionModel.Many2O" Multiplicity="*"/>
+                <End Role="O" Type="RegressionModel.Many2OX" Multiplicity="1"/>
+            </Association>
+            <EntityType Name="Many2OF">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="O" FromRole="Many" ToRole="O"
+                    Relationship="RegressionModel.Many_O_F"/>
+            </EntityType>
+            <EntityType Name="Many2OXF">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <!-- No navigation property bound in reverse direction -->
+            </EntityType>
+            <Association Name="Many_O_F">
+                <End Role="Many" Type="RegressionModel.Many2OF" Multiplicity="*"/>
+                <End Role="O" Type="RegressionModel.Many2OXF" Multiplicity="1"/>
+            </Association>
+            <EntityType Name="Many2OR">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <!-- No navigation property bound in forward direction -->
+            </EntityType>
+            <EntityType Name="Many2OXR">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="Many" FromRole="O" ToRole="Many"
+                    Relationship="RegressionModel.Many_O_R"/>
+            </EntityType>
+            <Association Name="Many_O_R">
+                <End Role="Many" Type="RegressionModel.Many2OR" Multiplicity="*"/>
+                <End Role="O" Type="RegressionModel.Many2OXR" Multiplicity="1"/>
+            </Association>
+            <EntityType Name="Many2ZO">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="ZO" FromRole="Many" ToRole="ZO"
+                    Relationship="RegressionModel.Many_ZO"/>
+            </EntityType>
+            <EntityType Name="Many2ZOX">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="Many" FromRole="ZO" ToRole="Many"
+                    Relationship="RegressionModel.Many_ZO"/>
+            </EntityType>
+            <Association Name="Many_ZO">
+                <End Role="Many" Type="RegressionModel.Many2ZO" Multiplicity="*"/>
+                <End Role="ZO" Type="RegressionModel.Many2ZOX" Multiplicity="0..1"/>
+            </Association>
+            <EntityType Name="Many2ZOF">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="ZO" FromRole="Many" ToRole="ZO"
+                    Relationship="RegressionModel.Many_ZO_F"/>
+            </EntityType>
+            <EntityType Name="Many2ZOXF">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <!-- No navigation property bound in reverse direction -->
+            </EntityType>
+            <Association Name="Many_ZO_F">
+                <End Role="Many" Type="RegressionModel.Many2ZOF" Multiplicity="*"/>
+                <End Role="ZO" Type="RegressionModel.Many2ZOXF" Multiplicity="0..1"/>
+            </Association>
+            <EntityType Name="Many2ZOR">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <!-- No navigation property bound in forward direction -->
+            </EntityType>
+            <EntityType Name="Many2ZOXR">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="Many" FromRole="ZO" ToRole="Many"
+                    Relationship="RegressionModel.Many_ZO_R"/>
+            </EntityType>
+            <Association Name="Many_ZO_R">
+                <End Role="Many" Type="RegressionModel.Many2ZOR" Multiplicity="*"/>
+                <End Role="ZO" Type="RegressionModel.Many2ZOXR" Multiplicity="0..1"/>
+            </Association>            
+            <EntityType Name="Many2ZORv">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="ZO" FromRole="Many" ToRole="ZO"
+                    Relationship="RegressionModel.Many_ZO_Rv"/>
+                <NavigationProperty Name="Many" FromRole="ZO" ToRole="Many"
+                    Relationship="RegressionModel.Many_ZO_Rv"/>
+            </EntityType>
+            <Association Name="Many_ZO_Rv">
+                <End Role="Many" Type="RegressionModel.Many2ZORv" Multiplicity="*"/>
+                <End Role="ZO" Type="RegressionModel.Many2ZORv" Multiplicity="0..1"/>
+            </Association>
+            <EntityType Name="Many2ZORvF">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="ZO" FromRole="Many" ToRole="ZO"
+                    Relationship="RegressionModel.Many_ZO_Rv_F"/>
+            </EntityType>
+            <Association Name="Many_ZO_Rv_F">
+                <End Role="Many" Type="RegressionModel.Many2ZORvF" Multiplicity="*"/>
+                <End Role="ZO" Type="RegressionModel.Many2ZORvF" Multiplicity="0..1"/>
+            </Association>
+            <EntityType Name="Many2ZORvR">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="Many" FromRole="ZO" ToRole="Many"
+                    Relationship="RegressionModel.Many_ZO_Rv_R"/>
+            </EntityType>
+            <Association Name="Many_ZO_Rv_R">
+                <End Role="Many" Type="RegressionModel.Many2ZORvR" Multiplicity="*"/>
+                <End Role="ZO" Type="RegressionModel.Many2ZORvR" Multiplicity="0..1"/>
+            </Association>
+            <EntityType Name="Many2Many">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="ManyX" FromRole="Many" ToRole="ManyX"
+                    Relationship="RegressionModel.Many_Many"/>
+            </EntityType>
+            <EntityType Name="Many2ManyX">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="Many" FromRole="ManyX" ToRole="Many"
+                    Relationship="RegressionModel.Many_Many"/>
+            </EntityType>
+            <Association Name="Many_Many">
+                <End Role="Many" Type="RegressionModel.Many2Many" Multiplicity="*"/>
+                <End Role="ManyX" Type="RegressionModel.Many2ManyX" Multiplicity="*"/>
+            </Association>
+            <EntityType Name="Many2Many1">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="ManyX" FromRole="Many" ToRole="ManyX"
+                    Relationship="RegressionModel.Many_Many_1"/>
+            </EntityType>
+            <EntityType Name="Many2ManyX1">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+            </EntityType>
+            <Association Name="Many_Many_1">
+                <End Role="Many" Type="RegressionModel.Many2Many1" Multiplicity="*"/>
+                <End Role="ManyX" Type="RegressionModel.Many2ManyX1" Multiplicity="*"/>
+            </Association>
+            <EntityType Name="Many2ManyRv">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="ManyX" FromRole="Many" ToRole="ManyX"
+                    Relationship="RegressionModel.Many_Many_Rv"/>
+                <NavigationProperty Name="Many" FromRole="ManyX" ToRole="Many"
+                    Relationship="RegressionModel.Many_Many_Rv"/>
+            </EntityType>
+            <Association Name="Many_Many_Rv">
+                <End Role="Many" Type="RegressionModel.Many2ManyRv" Multiplicity="*"/>
+                <End Role="ManyX" Type="RegressionModel.Many2ManyRv" Multiplicity="*"/>
+            </Association>
+            <EntityType Name="Many2ManyRv1">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
+                    MaxLength="32"/>
+                <NavigationProperty Name="ManyX" FromRole="Many" ToRole="ManyX"
+                    Relationship="RegressionModel.Many_Many_Rv_1"/>
+            </EntityType>
+            <Association Name="Many_Many_Rv_1">
+                <End Role="Many" Type="RegressionModel.Many2ManyRv1" Multiplicity="*"/>
+                <End Role="ManyX" Type="RegressionModel.Many2ManyRv1" Multiplicity="*"/>
+            </Association>
+         </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

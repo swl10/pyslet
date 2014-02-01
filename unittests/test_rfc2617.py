@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import unittest
+import unittest, logging
 import StringIO
 import socket
 
@@ -71,9 +71,36 @@ class HTTP2617Tests(unittest.TestCase):
 		self.assertTrue(c.password=="Password","Password: %s"%c.userid)
 		self.assertTrue(str(c)=='Basic dXNlcjpQYXNzd29yZA==',"Format credentials")
 
+	def testCaseBasicPaths(self):
+		c=BasicCredentials()
+		self.assertTrue(len(c.pathPrefixes)==0,"No prefixes initially")
+		c.AddSuccessPath("/website/private/document")
+		self.assertTrue(len(c.pathPrefixes)==1,"One path")
+		self.assertTrue(c.TestPath("/website/private/document"),"Simple match")
+		self.assertFalse(c.TestPath("/website/private/document.doc"),"No match with segment extension")
+		self.assertFalse(c.TestPath("/website/private/"),"Simple match doesn't apply to parent")
+		c.AddSuccessPath("/website/private/document2")
+		self.assertTrue(len(c.pathPrefixes)==2,"Two paths, no common root")
+		self.assertTrue(c.TestPath("/website/private/document"),"Simple match")
+		self.assertTrue(c.TestPath("/website/private/document2"),"Simple match")
+		self.assertFalse(c.TestPath("/website/private/"),"Simple match doesn't apply to parent")
+		c.AddSuccessPath("/website/~user/secrets")
+		self.assertTrue(len(c.pathPrefixes)==3,"Three paths, no common root")
+		c.AddSuccessPath("/website/private/")
+		self.assertTrue(len(c.pathPrefixes)==2,"Reduced to two paths with common root")
+		self.assertTrue(c.TestPath("/website/private/document"),"Simple match")
+		self.assertTrue(c.TestPath("/website/private/document2"),"Simple match")
+		self.assertFalse(c.TestPath("/website/private"),"Simple match doesn't apply to parent (without redirect)")
+		c.AddSuccessPath("/website")
+		self.assertTrue(len(c.pathPrefixes)==1,"Reduced to one paths with common root (no slash)")
+		self.assertTrue(c.TestPath("/website/private/document"),"Simple match")
+		self.assertTrue(c.TestPath("/website/private/document2"),"Simple match")
+		self.assertTrue(c.TestPath("/website/"),"Simple match with slash")
+		self.assertTrue(c.TestPath("/website"),"Simple match without slash")
+		self.assertFalse(c.TestPath("/websites"),"No match with segment extension")
+		
 	def testCase401(self):
 		rm=FakeHTTPRequestManager()
-		# rm.SetLog(http.HTTP_LOG_DETAIL,sys.stdout)
 		rm.httpUserAgent=None
 		import pdb;pdb.set_trace
 		request1=http.HTTPRequest("http://www.domain1.com/")
@@ -104,4 +131,5 @@ class HTTP2617Tests(unittest.TestCase):
 					
 
 if __name__ == '__main__':
+	logging.basicConfig(level=logging.INFO)
 	unittest.main()

@@ -128,7 +128,7 @@ def EncodeDecimal(value,digits=None,stripZeros=True):
 	*digits* which must be greater than 0 - None indicates no maximum.  This
 	function always returns the canonical representation which means that it
 	will strip trailing zeros in the fractional part.  To override this
-	behaviour and return exactly *digits* decimal places set *stripZeros" to
+	behaviour and return exactly *digits* decimal places set *stripZeros* to
 	False."""
 	if value<0:
 		sign='-'
@@ -381,7 +381,7 @@ class Duration(iso8601.Duration):
 		if isinstance(src,Duration):
 			self.sign=src.sign
 		else:
-			self.sign=2
+			self.sign=1
 		iso8601.Duration.SetFromDuration(self,src)
 	
 
@@ -394,7 +394,7 @@ def EncodeDateTime(value):
 def DecodeDateTime(src):
 	"""Returns an :py:class:`pyslet.iso8601.TimePoint` instance."""
 	try:
-		return iso8601.TimePoint(src)
+		return iso8601.TimePoint.FromString(src)
 	except:
 		return None
 

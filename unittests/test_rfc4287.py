@@ -242,7 +242,7 @@ class FeedTests(unittest.TestCase):
 		link=feed.Link[0]
 		self.assertTrue(isinstance(link,Link) and link.href=="http://example.org/","Example 1 link")
 		updated=feed.Updated
-		self.assertTrue(isinstance(updated.GetValue(),iso8601.TimePoint) and updated.GetValue()=="2003-12-13T18:30:02Z","Example 1 updated: found %s"%updated.GetValue())
+		self.assertTrue(isinstance(updated.GetValue(),iso8601.TimePoint) and updated.GetValue()==iso8601.TimePoint.FromString("2003-12-13T18:30:02Z"),"Example 1 updated: found %s"%updated.GetValue())
 		author=feed.Author[0]
 		self.assertTrue(isinstance(author,Person) and author.Name.GetValue()=="John Doe","Example 1 author")
 		self.assertTrue(isinstance(feed.AtomId,AtomId) and feed.AtomId.GetValue()=="urn:uuid:60a76c80-d399-11d9-b93C-0003939e0af6",
@@ -257,7 +257,7 @@ class FeedTests(unittest.TestCase):
 		self.assertTrue(isinstance(entry.AtomId,AtomId) and entry.AtomId.GetValue()=="urn:uuid:1225c695-cfb8-4ebb-aaaa-80da344efa6a",
 			"Example 1 entry id")
 		updated=entry.Updated
-		self.assertTrue(isinstance(updated,Date) and updated.GetValue()=="2003-12-13T18:30:02Z","Example 1 entry updated")
+		self.assertTrue(isinstance(updated,Date) and updated.GetValue()==iso8601.TimePoint.FromString("2003-12-13T18:30:02Z"),"Example 1 entry updated")
 		summary=entry.Summary
 		self.assertTrue(isinstance(summary,Text) and summary.GetValue()=="Some text.","Example 1 entry summary")
 		doc.Read(src=StringIO(EXAMPLE_2))

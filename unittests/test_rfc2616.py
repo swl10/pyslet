@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import unittest
+import unittest, logging
 import StringIO
 import socket
 
@@ -46,7 +46,7 @@ BAD_REQUEST="HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n"
 class FakeHTTPConnection(HTTPConnection):
 	def NewSocket(self):
 		# Socket implementation to follow
-		self.manager.Log(HTTP_LOG_DETAIL,"Opening connection to %s..."%self.host)
+		logging.info("Opening connection to %s...",self.host)
 		self.socket=self
 		self.socketFile=self
 		self.socketSelect=self.select
@@ -67,7 +67,7 @@ class FakeHTTPConnection(HTTPConnection):
 	def send(self,data):
 		if data:
 			nBytes=random.randint(1,len(data))
-			self.manager.Log(HTTP_LOG_DEBUG,"sending: %s"%repr(data[:nBytes]))
+			logging.debug("sending: %s",repr(data[:nBytes]))
 			self.socketSendBuffer.write(data[:nBytes])
 			# check to see if this request matches any we know about...
 			data=self.socketSendBuffer.getvalue()
@@ -79,11 +79,11 @@ class FakeHTTPConnection(HTTPConnection):
 				self.socketSendBuffer=StringIO.StringIO(newData)
 				self.socketSendBuffer.seek(len(newData))
 				data=data[:endpos]
-				self.manager.Log(HTTP_LOG_DEBUG,"%s handling request: \n%s"%(self.host,data))
+				logging.debug("%s handling request: \n%s",self.host,data)
 				response=self.responseTable.get(data,BAD_REQUEST)
 				# add this response to the recv buffer
 				if response==BAD_REQUEST:
-					self.manager.Log(HTTP_LOG_DEBUG,"** Bad Request")
+					logging.debug("** Bad Request")
 				pos=self.socketRecvBuffer.tell()
 				data=self.socketRecvBuffer.getvalue()
 				self.socketRecvBuffer=StringIO.StringIO(data[pos:]+response)
@@ -95,10 +95,10 @@ class FakeHTTPConnection(HTTPConnection):
 			if nBytes>5:
 				nBytes=5
 			data=self.socketRecvBuffer.read(nBytes)
-			self.manager.Log(HTTP_LOG_DEBUG,"receiving %i bytes: %s"%(nBytes,repr(data)))
+			logging.debug("receiving %i bytes: %s",nBytes,repr(data))
 			return data
 		else:
-			self.manager.Log(HTTP_LOG_DEBUG,"receiving: empty string")
+			logging.debug("receiving: empty string")
 			return ''
 
 	def shutdown(self,mode):
@@ -106,7 +106,7 @@ class FakeHTTPConnection(HTTPConnection):
 		pass
 	
 	def close(self):
-		self.manager.Log(HTTP_LOG_DETAIL,"Closing connection to %s..."%self.host)
+		logging.info("Closing connection to %s...",self.host)
 		self.socketSendBuffer=None
 		self.socketRecvBuffer=None
 		
@@ -118,7 +118,6 @@ class FakeHTTPRequestManager(HTTPRequestManager):
 	def __init__(self):
 		HTTPRequestManager.__init__(self)
 		self.socketSelect=self.select
-		#self.SetLog(HTTP_LOG_ALL)
 		
 	def NewConnection(self,scheme,server,port):
 		if scheme=='http':
@@ -268,14 +267,12 @@ class HTTP2616Tests(unittest.TestCase):
 		self.assertTrue(v1==v4,"2.4 == 02.004")
 					
 	def testCaseFullDate(self):		
-		timestamp822=FullDate()
 		# RFC 822, updated by RFC 1123
-		timestamp822.ParseWords(WordParser("Sun, 06 Nov 1994 08:49:37 GMT"))
+		timestamp822=FullDate.FromWords(WordParser("Sun, 06 Nov 1994 08:49:37 GMT"))
 		# RFC 850, obsoleted by RFC 1036
-		timestamp850=FullDate("Sunday, 06-Nov-94 08:49:37 GMT")
+		timestamp850=FullDate.FromHTTPString("Sunday, 06-Nov-94 08:49:37 GMT")
 		# ANSI C's asctime() format
-		timestampC=FullDate()
-		timestampC.ParseWords(WordParser("Sun Nov  6 08:49:37 1994"))
+		timestampC=FullDate.FromWords(WordParser("Sun Nov  6 08:49:37 1994"))
 		self.assertTrue(timestamp822==timestamp850,"RFC 850 timestamp parser")
 		self.assertTrue(timestamp822==timestampC,"ANSI C timestamp parser")
 		self.assertTrue(str(timestamp822)=="Sun, 06 Nov 1994 08:49:37 GMT")
@@ -283,11 +280,11 @@ class HTTP2616Tests(unittest.TestCase):
 		self.assertTrue(str(timestampC)=="Sun, 06 Nov 1994 08:49:37 GMT")
 		try:
 			# Weekday mismatch
-			timestamp822.ParseWords(WordParser("Mon, 06 Nov 1994 08:49:37 GMT"))
+			timestamp822=FullDate.FromWords(WordParser("Mon, 06 Nov 1994 08:49:37 GMT"))
 			self.fail("Weekday mismatch passed")
 		except HTTPParameterError:
 			pass
-		timestamp822=FullDate("Sun, 06 Nov 1994 08:49:37 GMT")
+		timestamp822=FullDate.FromHTTPString("Sun, 06 Nov 1994 08:49:37 GMT")
 		self.assertTrue(str(timestamp822)=="Sun, 06 Nov 1994 08:49:37 GMT","All-in-one parser")
 	
 	def testCaseTransferEncoding(self):
@@ -639,4 +636,5 @@ class ChunkedTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
+	logging.basicConfig(level=logging.INFO)
 	unittest.main()

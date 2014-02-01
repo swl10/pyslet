@@ -6,7 +6,8 @@ def suite():
 	loader=unittest.TestLoader()
 	loader.testMethodPrefix='test'
 	return unittest.TestSuite((
-		loader.loadTestsFromTestCase(PyDSTests)
+		loader.loadTestsFromTestCase(MemDSTests),
+		loader.loadTestsFromTestCase(RegressionTests)		
 		))
 
 def load_tests(loader, tests, pattern):
@@ -15,23 +16,25 @@ def load_tests(loader, tests, pattern):
 from pyslet.odata2.memds import *
 
 from pyslet.vfs import OSFilePath as FilePath
-TEST_DATA_DIR=FilePath(FilePath(__file__).abspath().split()[0],'data_pyds')
+TEST_DATA_DIR=FilePath(FilePath(__file__).abspath().split()[0],'data_odatav2')
 
 
 import pyslet.odata2.csdl as edm
 import pyslet.odata2.edmx as edmx
+from test_odata2_core import DataServiceRegressionTests
 
 
-class PyDSTests(unittest.TestCase):
+class MemDSTests(unittest.TestCase):
 
 	def setUp(self):
 		self.doc=edmx.Document()
-		mdPath=TEST_DATA_DIR.join('metadata.xml')
+		mdPath=TEST_DATA_DIR.join('sample_server','metadata.xml')
 		with mdPath.open('rb') as f:
 			self.doc.Read(f)
 		self.schema=self.doc.root.DataServices['SampleModel']
-		self.container=self.doc.root.DataServices["SampleModel.SampleEntities"]
-		self.employees=InMemoryEntityStore(self.container['Employees'])
+		self.containerDef=self.doc.root.DataServices["SampleModel.SampleEntities"]
+		self.container=InMemoryEntityContainer(self.containerDef)
+		self.employees=self.container.entityStorage['Employees']
 
 	def tearDown(self):
 		pass
@@ -56,8 +59,16 @@ class PyDSTests(unittest.TestCase):
 		es=self.schema['SampleEntities.Employees']
 		self.employees.data[u"ABCDE"]=(u"ABCDE",u"John Smith",None,None)
 		self.employees.data[u"FGHIJ"]=(u"FGHIJ",u"Jane Smith",None,None)
+
+
+class RegressionTests(DataServiceRegressionTests):
+	
+	def setUp(self):
+		DataServiceRegressionTests.setUp(self)
+		self.container=InMemoryEntityContainer(self.ds['RegressionModel.RegressionContainer'])
 		
-		
+	def testCaseAllTests(self):
+		self.RunAllCombined()		
 
 
 if __name__ == "__main__":

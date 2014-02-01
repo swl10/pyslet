@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import unittest
+import unittest, logging
 
 def suite():
 	return unittest.TestSuite((
@@ -2999,7 +2999,7 @@ class BasicAssessmentTests(unittest.TestCase):
  		saveKey=state.key
  		htmlDiv=state.BeginSession(state.key)
  		self.assertFalse(saveKey==state.key,"No key change.")
- 		print htmlDiv
+ 		logging.debug(htmlDiv)
  		# we should be able to read the the current test part
  		self.assertTrue(state.GetCurrentTestPart().identifier=="PartI","Current test part")
 		self.assertTrue(state.GetCurrentQuestion().identifier=="Q1","Current question (pre-condition skip check)")
@@ -3039,7 +3039,7 @@ class BasicAssessmentTests(unittest.TestCase):
  			pass
 		response['SAVE']=saveKey=state.key
 		htmlDiv=state.HandleEvent(response)
-		print htmlDiv
+		logging.debug(htmlDiv)
 		self.assertFalse(state["Q1.RESPONSE"],"RESPONSE not NULL after save (no submit)")
 		self.assertTrue(state["Q1.RESPONSE.SAVED"].value=="C","Saved response not recorded")
 		self.assertFalse(saveKey==state.key,"Key change on save")
@@ -3059,7 +3059,7 @@ class BasicAssessmentTests(unittest.TestCase):
 			"Q1.RESPONSE":"D"
 			}
 		htmlDiv=state.HandleEvent(response)
-		print htmlDiv
+		logging.debug(htmlDiv)
 		self.assertFalse("Q1.RESPONSE.SAVED" in state,"SAVED RESPONSE not NULL after submit")
 		self.assertTrue(state["Q1.RESPONSE"].value=="D","Submitted response not recorded")
 		self.assertTrue(state["Q1.duration"].value>2.0,"Duration of question 1 should now be 2s")
@@ -3077,13 +3077,13 @@ class BasicAssessmentTests(unittest.TestCase):
 			"Q2.RESPONSE":["B","C","D"]
 			}
 		htmlDiv=state.HandleEvent(response)
-		print htmlDiv
+		logging.debug(htmlDiv)
 		self.assertTrue(state["Q2.RESPONSE"].value=={"B":1,"C":1,"D":1},"Submitted response for multi-response")
 		self.assertTrue(state["Q1.duration"].value<3.0,"Duration of question 1 should now be 2s+")
 		self.assertTrue(state["Q2.duration"].value>1.0,"Duration of question 2 should now be 1s+")
 		self.assertTrue(state["PartI.duration"].value>3.0,"Duration of test part")				
 		for key in state:
-			print "%s: %s"%(key,repr(state[key].value))				
+			logging.debug("%s: %s",key,repr(state[key].value))
 									
 		
 class MultiPartAssessmentTests(unittest.TestCase):
@@ -3170,7 +3170,7 @@ class MultiPartAssessmentTests(unittest.TestCase):
 			selections[section]=x+1
 		if missing:
 			for i in selections.keys():
-				print "%s: %i"%(repr(i),selections[i])
+				logging.debug("%s: %i",repr(i),selections[i])
 			self.fail("Missing selection after 1000 trials: %s"%repr(selections))
 		
 
@@ -3224,5 +3224,6 @@ class QTIDocumentTests(unittest.TestCase):
 	
 
 if __name__ == "__main__":
+	logging.basicConfig(level=logging.DEBUG,format="%(levelname)s %(message)s")
 	unittest.main()
 

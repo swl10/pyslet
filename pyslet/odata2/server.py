@@ -429,7 +429,7 @@ class Server(app.Server):
 						raise BadURISegment("%s: can't update a link with multiplicity *"%request.linksProperty)
 					with parentEntity[request.linksProperty].OpenCollection() as collection:
 						targetEntity=self.ReadEntityFromLink(environ)
-						collection[targetEntity.Key()]=targetEntity
+						collection.Replace(targetEntity)
 					return self.ReturnEmpty(start_response,responseHeaders)
 				elif method=="DELETE":
 					if isinstance(resource,edm.EntityCollection):
@@ -498,7 +498,7 @@ class Server(app.Server):
 							# catch property-level feed customisation here
 							propertyDef=entity.typeDef[k]
 							if propertyDef.GetTargetPath()==[(atom.ATOM_NAMESPACE,"title")]:
-								entity[k].SetFromPyValue(slug)
+								entity[k].SetFromValue(slug)
 								break					
 					resource.InsertEntity(entity)
 					if "CONTENT_TYPE" in environ:
@@ -545,7 +545,7 @@ class Server(app.Server):
 					# make this one NULL, only if it is nullable
 					if resource.pDef and not resource.pDef.nullable:
 						raise InvalidMethod("DELETE failed, %s property is not nullable"%resource.pDef.name)
-					resource.pyValue=None
+					resource.value=None
 					parentEntity.Update()
 					return self.ReturnEmpty(start_response,responseHeaders)						
 				else:
@@ -568,7 +568,13 @@ class Server(app.Server):
 			return self.ODataError(request,environ,start_response,"Resource not found","Resource not found for segment %s"%str(e),404)
 		except BadURISegment,e:
 			return self.ODataError(request,environ,start_response,"Bad Request","Resource not found for segment %s"%str(e),400)
-	
+		except edm.NavigationError,e:
+			return self.ODataError(request,environ,start_response,"NavigationError",str(e),403)
+		except edm.ConstraintError,e:
+			return self.ODataError(request,environ,start_response,"ConstraintError",str(e),403)
+		except NotImplementedError,e:
+			return self.ODataError(request,environ,start_response,"NotImplementedError",str(e),405)
+			
 	def ExpandResource(self,resource,sysQueryOptions):
 		try:
 			expand=sysQueryOptions.get(SystemQueryOption.expand,None)
@@ -844,7 +850,7 @@ class Server(app.Server):
 				encoding="iso-8859-1"
 			data=data.decode(encoding)
 		if isinstance(value,edm.BinaryValue):
-			value.pyValue=data
+			value.value=data
 		else:
 			value.SetFromLiteral(data)
 		
@@ -853,7 +859,7 @@ class Server(app.Server):
 		if value.mType is None:
 			if isinstance(value,edm.BinaryValue):
 				mTypes=self.StreamTypes
-				data=value.pyValue
+				data=value.value
 			else:
 				mTypes=self.DereferenceTypes
 				data=unicode(value).encode('utf-8')

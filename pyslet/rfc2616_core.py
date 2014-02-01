@@ -218,7 +218,7 @@ class WordParser(object):
 		
 			*	'(' means the word is a comment, surrounded by '(' and ')'
 			
-			*	a double quote means the word is an unencoded quoted string (use
+			*	a double quote means the word is an encoded quoted string (use
 				py:func:`DecodeQuotedString` for how to decode it)
 		
 			*	other separator chars are just themselves and only appear as single

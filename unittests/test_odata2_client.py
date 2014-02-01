@@ -1,25 +1,24 @@
 #! /usr/bin/env python
 
-import unittest
+import unittest, logging, threading
 
 import pyslet.odata2.core as core
 import pyslet.odata2.csdl as edm
-import decimal
+import decimal, random
 from pyslet.odata2.client import *
+from pyslet.odata2.server import Server
+from pyslet.odata2.memds import InMemoryEntityContainer
+from test_odata2_core import DataServiceRegressionTests
 
-VERBOSE=True
+HTTP_PORT=random.randint(1111,9999)
 
 def suite(prefix='test'):
 	loader=unittest.TestLoader()
 	loader.testMethodPrefix=prefix
 	return unittest.TestSuite((
 		loader.loadTestsFromTestCase(ODataTests),
-# 		loader.loadTestsFromTestCase(ODataURILiteralTests),
  		loader.loadTestsFromTestCase(ClientTests),
-# 		loader.loadTestsFromTestCase(ODataURITests),
-# 		loader.loadTestsFromTestCase(ServerTests),
-# 		loader.loadTestsFromTestCase(SampleServerTests),
-# 		loader.loadTestsFromTestCase(ODataStoreClientTests)		
+ 		loader.loadTestsFromTestCase(RegressionTests)		
 		))
 		
 def load_tests(loader, tests, pattern):
@@ -34,7 +33,7 @@ def load_tests(loader, tests, pattern):
 #ODATA_SAMPLE_SERVICEROOT="http://services.odata.org/OData/OData.svc/"
 #ODATA_SAMPLE_READWRITE="http://services.odata.org/(S(readwrite))/OData/OData.svc/"
 
-ODATA_SAMPLE_SERVICEROOT="http://services.odata.org/Northwind/Northwind.svc/"
+ODATA_SAMPLE_SERVICEROOT="http://services.odata.org/V2/Northwind/Northwind.svc/"
 ODATA_SAMPLE_READWRITE="http://services.odata.org/(S(readwrite))/OData/OData.svc/"
 
 
@@ -49,8 +48,6 @@ class ODataTests(unittest.TestCase):
 class ClientTests(unittest.TestCase):
 	def tesxCaseConstructor(self):
 		c=Client(ODATA_SAMPLE_SERVICEROOT)
-		if VERBOSE:
-			c.SetLog(http.HTTP_LOG_INFO,sys.stdout,256)
 		self.assertTrue(isinstance(c,app.Client),"OData client not an APP client")
 		self.assertTrue(isinstance(c.service,app.Service),"Service document is present")
 		self.assertTrue(len(c.service.Workspace)==1,"Service not returning a single Workspace child")
@@ -59,54 +56,49 @@ class ClientTests(unittest.TestCase):
 		self.assertTrue(len(c.feeds)>0,"At least one feed loaded from service")
 		self.assertTrue("Products" in c.feeds,"One feed called Products required")
 		self.assertTrue(isinstance(c.feeds["Products"],edm.EntitySet),"Feeds map to entity sets")
-		self.assertTrue(c.pageSize is None,"Default constructor page size")
 		
 	def tesxCaseFeedEntries(self):
 		c=Client(ODATA_SAMPLE_SERVICEROOT)
-		if VERBOSE:
-			c.SetLog(http.HTTP_LOG_INFO,sys.stdout,256)
 		# now open a collection and iterate through it
 		names=set()
 		with c.feeds['Products'].OpenCollection() as collection:
 			n=len(collection)
 			self.assertTrue(n>10,"Sample has more than 10 products (found %i)"%n)
 			for product in collection.itervalues():
-				names.add(product['ProductName'].pyValue)	
+				names.add(product['ProductName'].value)	
 			self.assertTrue(n==len(names))
 			scottishLongBreads=collection[68]
 			self.assertTrue(isinstance(scottishLongBreads['ProductID'],edm.Int32Value))
-			self.assertTrue(scottishLongBreads['ProductID'].pyValue==68)
+			self.assertTrue(scottishLongBreads['ProductID'].value==68)
 			self.assertTrue(isinstance(scottishLongBreads['ProductName'],edm.StringValue))
-			self.assertTrue(scottishLongBreads['ProductName'].pyValue==u"Scottish Longbreads")
+			self.assertTrue(scottishLongBreads['ProductName'].value==u"Scottish Longbreads")
 			self.assertTrue(isinstance(scottishLongBreads['SupplierID'],edm.Int32Value))
-			self.assertTrue(scottishLongBreads['SupplierID'].pyValue==8)
+			self.assertTrue(scottishLongBreads['SupplierID'].value==8)
 			self.assertTrue(isinstance(scottishLongBreads['CategoryID'],edm.Int32Value))
-			self.assertTrue(scottishLongBreads['CategoryID'].pyValue==3)
+			self.assertTrue(scottishLongBreads['CategoryID'].value==3)
 			self.assertTrue(isinstance(scottishLongBreads['QuantityPerUnit'],edm.StringValue))
-			self.assertTrue(scottishLongBreads['QuantityPerUnit'].pyValue==u"10 boxes x 8 pieces")
+			self.assertTrue(scottishLongBreads['QuantityPerUnit'].value==u"10 boxes x 8 pieces")
 			self.assertTrue(isinstance(scottishLongBreads['UnitPrice'],edm.DecimalValue))
-			self.assertTrue(scottishLongBreads['UnitPrice'].pyValue.as_tuple()==decimal.Decimal("12.5000").as_tuple())
+			self.assertTrue(scottishLongBreads['UnitPrice'].value.as_tuple()==decimal.Decimal("12.5000").as_tuple())
 			self.assertTrue(isinstance(scottishLongBreads['UnitsInStock'],edm.Int16Value))
-			self.assertTrue(scottishLongBreads['UnitsInStock'].pyValue==6)
+			self.assertTrue(scottishLongBreads['UnitsInStock'].value==6)
 			self.assertTrue(isinstance(scottishLongBreads['UnitsOnOrder'],edm.Int16Value))
-			self.assertTrue(scottishLongBreads['UnitsOnOrder'].pyValue==10)
+			self.assertTrue(scottishLongBreads['UnitsOnOrder'].value==10)
 			self.assertTrue(isinstance(scottishLongBreads['ReorderLevel'],edm.Int16Value))
-			self.assertTrue(scottishLongBreads['ReorderLevel'].pyValue==15)
+			self.assertTrue(scottishLongBreads['ReorderLevel'].value==15)
 			self.assertTrue(isinstance(scottishLongBreads['Discontinued'],edm.BooleanValue))
-			self.assertTrue(scottishLongBreads['Discontinued'].pyValue==False)
+			self.assertTrue(scottishLongBreads['Discontinued'].value==False)
 			
 		
 	def tesxCaseOrderBy(self):
 		c=Client(ODATA_SAMPLE_SERVICEROOT)
-		if VERBOSE:
-			c.SetLog(http.HTTP_LOG_INFO,sys.stdout,256)
 		names=set()
 		with c.feeds['Products'].OpenCollection() as collection:
 			collection.OrderBy(core.CommonExpression.OrderByFromString("ProductName asc"))
 			firstValue=None
 			lastValue=None
 			for product in collection.itervalues():
-				lastValue=product['ProductName'].pyValue
+				lastValue=product['ProductName'].value
 				if firstValue is None:
 					firstValue=lastValue
 		self.assertTrue(firstValue=="Alice Mutton","Bad first value: %s"%firstValue)
@@ -114,8 +106,6 @@ class ClientTests(unittest.TestCase):
 	
 	def tesxCaseFilter(self):
 		c=Client(ODATA_SAMPLE_SERVICEROOT)
-		if VERBOSE:
-			c.SetLog(http.HTTP_LOG_INFO,sys.stdout,256)
 		names=set()		
 		with c.feeds['Products'].OpenCollection() as collection:
 			collection.Filter(core.CommonExpression.FromString("substringof('bread',ProductName)"))
@@ -123,7 +113,7 @@ class ClientTests(unittest.TestCase):
 			product=collection.values()[0]
 			self.assertTrue(product['ProductName']=="Scottish Longbreads")
 			scottishLongBreads=collection[68]
-			self.assertTrue(scottishLongBreads['ProductID'].pyValue==68)
+			self.assertTrue(scottishLongBreads['ProductID'].value==68)
 			try:
 				aliceMutton=collection[17]
 				self.fail("Alice Mutton wasn't filtered")
@@ -132,8 +122,6 @@ class ClientTests(unittest.TestCase):
 	
 	def tesxCaseNavigation(self):
 		c=Client(ODATA_SAMPLE_SERVICEROOT)
-		if VERBOSE:
-			c.SetLog(http.HTTP_LOG_INFO,sys.stdout,256)
 		with c.feeds['Customers'].OpenCollection() as collection:
 			customer=collection['ALFKI']
 			self.assertFalse(customer['Orders'].isExpanded)
@@ -200,8 +188,6 @@ class ClientTests(unittest.TestCase):
 # 
 # 	def tesxCaseMetadata(self):
 # 		c=Client()
-# 		if VERBOSE:
-# 			c.SetLog(http.HTTP_LOG_INFO,sys.stdout,80)
 # 		c.SetService(ODATA_SAMPLE_SERVICEROOT)
 # 		# By default this should load the metadata document, if present
 # 		self.assertTrue(isinstance(c.schemas['ODataDemo'],edm.Schema),"Failed to load metadata document")
@@ -213,6 +199,41 @@ class ClientTests(unittest.TestCase):
 # 		self.assertTrue(isinstance(e,Entry),"Entry creation from client")
 # 		self.assertTrue(e.entityType is c.schemas['ODataDemo']['Product'],"New entry not associated with EntityType")
 
+
+from wsgiref.simple_server import make_server
+
+regressionServerApp=None
+
+def runRegressionServer():
+	server=make_server('',HTTP_PORT,regressionServerApp)
+	logging.info("Serving HTTP on port %i..."%HTTP_PORT)
+	# Respond to requests until process is killed
+	server.serve_forever()
+
+
+class RegressionTests(DataServiceRegressionTests):
+	
+	def setUp(self):
+		global regressionServerApp
+		DataServiceRegressionTests.setUp(self)
+		self.container=InMemoryEntityContainer(self.ds['RegressionModel.RegressionContainer'])
+		regressionServerApp=Server("http://localhost:%i/"%HTTP_PORT)
+		regressionServerApp.SetModel(self.ds.GetDocument())
+		t=threading.Thread(target=runRegressionServer)
+		t.setDaemon(True)
+		t.start()
+		logging.info("OData Client/Server combined tests starting HTTP server on localhost, port %i"%HTTP_PORT)
+		self.svcDS=self.ds
+		self.client=Client("http://localhost:%i/"%HTTP_PORT)
+		self.ds=self.client.model.DataServices
+		
+	def tearDown(self):
+		DataServiceRegressionTests.tearDown(self)
+		
+	def testCaseAllTests(self):
+		self.RunAllCombined()		
+
+
 if __name__ == "__main__":
-	VERBOSE=True
+	logging.basicConfig(level=logging.INFO,format="[%(thread)d] %(levelname)s %(message)s")
 	unittest.main()

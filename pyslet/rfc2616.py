@@ -7,11 +7,11 @@ HTTP_VERSION="HTTP/1.1"
 SOCKET_TIMEOUT=120
 SOCKET_CHUNK=8192
 
+import logging
 import string
 import time
 import datetime
 import socket
-import urlparse
 import select
 import types
 import base64
@@ -207,7 +207,7 @@ def FormatDate(date):
 
 
 
-class HTTPRequestManager:
+class HTTPRequestManager(object):
 	def __init__(self):
 		self.requestQueue=[]
 		self.connections={}
@@ -222,6 +222,7 @@ class HTTPRequestManager:
 		self.httpUserAgent="pyslet.rfc2616.HTTPRequestManager"
 		
 	def SetLog(self,level,logStream=None,lineLen=80):
+		warnings.warn("HTTPRequestManager.SetLog is deprecated, use logging module instead", DeprecationWarning, stacklevel=2)		
 		self.logLevel=level
 		self.logStream=logStream
 		self.logLineLen=lineLen
@@ -230,6 +231,7 @@ class HTTPRequestManager:
 		"""A method that prints a string to a log of some sort.  The string is
 		qualified with a level from the contstants defined at the top of the
 		file."""
+		warnings.warn("HTTPRequestManager.Log is deprecated, use logging module instead", DeprecationWarning, stacklevel=2)		
 		if level<=self.logLevel and logString!=self.logString:
 			if len(logString)>self.logLineLen:
 				print >> self.logStream, logString[:self.logLineLen]+'... + %i chars'%(len(logString)-self.logLineLen)
@@ -240,14 +242,15 @@ class HTTPRequestManager:
 	def AddCredentials(self,credentials):
 		self.credentials.append(credentials)
 	
-	def FindCredentials(self,challenge):
+	def FindCredentials(self,challenge=None,url=None):
+		"""Searches for credentials that match *challenge* or *url*"""		
 		for c in self.credentials:
-			if c.Match(challenge):
+			if c.Match(challenge,url):
 				return c
 	
 	def DNSLookup(self,host,port):
 		if (host,port) not in self.dnsCache:
-			self.Log(HTTP_LOG_DETAIL,"Looking up %s"%host)
+			logging.debug("Looking up %s",host)
 			self.dnsCache[(host,port)]=socket.getaddrinfo(host,port, 0, socket.SOCK_STREAM)
 		return self.dnsCache[(host,port)]
 		
@@ -319,7 +322,7 @@ class HTTPRequestManager:
 		else:
 			try:
 				self.ManagerTask()
-				self.Log(HTTP_LOG_DETAIL,"Socket select for: readers=%s, writers=%s, timeout=%i"%(repr(readers),repr(writers),timeout))
+				logging.debug("Socket select for: readers=%s, writers=%s, timeout=%i",repr(readers),repr(writers),timeout)
 				r,w,e=self.socketSelect(readers,writers,[],timeout)
 			except select.error, err:
 				pass
@@ -382,7 +385,7 @@ class HTTPConnection:
 		self.request.SetConnection(self)
 		headers=self.request.ReadRequestHeader()
 		for h in headers.split(CRLF):
-			self.manager.Log(HTTP_LOG_DETAIL,"Request header: %s"%h)
+			logging.debug("Request header: %s",h)
 		self.sendBuffer.append(headers)
 		# Now check to see if we have an expect header set
 		if self.request.GetExpectContinue():
@@ -425,7 +428,7 @@ class HTTPConnection:
 		response, if we are holding this request's body while waiting for
 		a response from the server then this is our signal to stop waiting and
 		get on with it."""
-		self.manager.Log(HTTP_LOG_INFO,"100 Continue received... ready to send request")
+		logging.info("100 Continue received... ready to send request")
 		if request is self.request and self.requestMode==self.REQ_BODY_WAITING:
 			self.requestMode=self.REQ_BODY_SENDING
 			
@@ -440,14 +443,14 @@ class HTTPConnection:
 				self.NewSocket()
 			while 1:
 				rBusy=None;wBusy=None
-				self.manager.Log(HTTP_LOG_DEBUG,"%s: request mode=%i, sendBuffer=%s"%(self.host,self.requestMode,repr(self.sendBuffer)))
+				logging.debug("%s: request mode=%i, sendBuffer=%s",self.host,self.requestMode,repr(self.sendBuffer))
 				if self.response:
 					if self.recvBufferSize<4096:
-						self.manager.Log(HTTP_LOG_DEBUG,"%s: response mode=%i, recvBuffer=%s"%(self.host,self.response.mode,repr(self.recvBuffer)))
+						logging.debug("%s: response mode=%i, recvBuffer=%s",self.host,self.response.mode,repr(self.recvBuffer))
 					else:
-						self.manager.Log(HTTP_LOG_DEBUG,"%s: response mode=%i, recvBufferSize=%i"%(self.host,self.response.mode,self.recvBufferSize))						
+						logging.debug("%s: response mode=%i, recvBufferSize=%i",self.host,self.response.mode,self.recvBufferSize)
 				else:
-					self.manager.Log(HTTP_LOG_DEBUG,"%s: no response waiting"%self.host)
+					logging.debug("%s: no response waiting",self.host)
 				# The section deals with the sending cycle, we pass on to the
 				# response section only if we are in a waiting mode or we are
 				# waiting for the socket to be ready before we can write data
@@ -562,13 +565,13 @@ class HTTPConnection:
 			# here so this error could be fairly benign.
 			err=e
 			data=None
-		self.manager.Log(HTTP_LOG_DEBUG,"%s: reading %s"%(self.host,repr(data)))
+		logging.debug("%s: reading %s",self.host,repr(data))
 		if data:
 			nBytes=len(data)
 			self.recvBuffer.append(data)
 			self.recvBufferSize+=nBytes
 		else:
-			self.manager.Log(HTTP_LOG_DEBUG,"%s: closing connection after recv returned no data on ready to read socket"%self.host)
+			logging.debug("%s: closing connection after recv returned no data on ready to read socket",self.host)
 			self.Close()
 			return True
 		# Now loop until we can't satisfy the response anymore (or the response is done)
@@ -594,13 +597,13 @@ class HTTPConnection:
 					self.recvBuffer=[]
 					self.recvBufferSize=0
 				if line:
-					self.manager.Log(HTTP_LOG_DETAIL,"Response Header: %s"%repr(line))
+					logging.debug("Response Header: %s",repr(line))
 					self.response.RecvLine(line)
 			elif type(recvNeeds) is types.IntType:
 				nBytes=int(recvNeeds)
 				if nBytes is 0:
 					# As many as possible please
-					self.manager.Log(HTTP_LOG_DEBUG,"Response reading until connection closes")
+					logging.debug("Response reading until connection closes")
 					if self.recvBufferSize>0:
 						bytes=string.join(self.recvBuffer,'')
 						self.recvBuffer=[]
@@ -609,7 +612,7 @@ class HTTPConnection:
 						# recvBuffer is empty but we still want more
 						break
 				elif self.recvBufferSize<nBytes:
-					self.manager.Log(HTTP_LOG_DEBUG,"Response waiting for %s bytes"%str(nBytes-self.recvBufferSize))
+					logging.debug("Response waiting for %s bytes",str(nBytes-self.recvBufferSize))
 					# We can't satisfy the response
 					break
 				else:
@@ -631,7 +634,7 @@ class HTTPConnection:
 							self.recvBuffer=[data[nBytes-gotBytes:]]+self.recvBuffer[buffPos+1:]
 							break
 					self.recvBufferSize=self.recvBufferSize-len(bytes)
-				self.manager.Log(HTTP_LOG_DETAIL,"Response Data: %s"%repr(bytes))
+				logging.debug("Response Data: %s",repr(bytes))
 				self.response.RecvBytes(bytes)
 			elif recvNeeds is None:
 				# We don't need any bytes at all, the response is done
@@ -666,9 +669,9 @@ class HTTPConnection:
 	
 	def Close(self,err=None):
 		if err:
-			self.manager.Log(HTTP_LOG_ERROR,"%s: closing connection after error %s"%(self.host,str(err)))
+			logging.error("%s: closing connection after error %s",self.host,str(err))
 		else:
-			self.manager.Log(HTTP_LOG_DEBUG,"%s: closing connection"%self.host)
+			logging.debug("%s: closing connection",self.host)
 		if self.request:
 			self.request.Disconnect()
 			self.request=None
@@ -937,13 +940,13 @@ class HTTPMessage:
 	
 	
 class HTTPRequest(HTTPMessage):
-	def __init__(self,uri,method="GET",reqBody='',resBody=None,protocolVersion=HTTP_VERSION):
+	def __init__(self,url,method="GET",reqBody='',resBody=None,protocolVersion=HTTP_VERSION):
 		HTTPMessage.Reset(self,True)
 		self.manager=None
 		self.connection=None
 		self.response=None
 		self.status=0
-		self.SetRequestURI(uri)
+		self.SetRequestURI(url)
 		self.method=method
 		self.protocolVersion=HTTPVersion(protocolVersion)
 		if type(reqBody) is types.StringType:
@@ -965,14 +968,15 @@ class HTTPRequest(HTTPMessage):
 			self.resBodyStream=None
 		self.autoRedirect=True
 		self.done=False
+		self.tryCredentials=None	#: used to try out credentials in response to a 401
 		
-	def Resend(self,uri=None):
+	def Resend(self,url=None):
 		self.done=False
-		self.manager.Log(HTTP_LOG_INFO,"Resending request to: %s"%str(uri))
+		logging.info("Resending request to: %s",str(url))
 		self.Reset()
 		self.status=0
-		if uri is not None:
-			self.SetRequestURI(uri)
+		if url is not None:
+			self.SetRequestURI(url)
 		if self.reqBodyStream:
 			self.reqBodyStream.seek(self.reqBodyStart)
 		if self.resBodyStream:
@@ -982,46 +986,49 @@ class HTTPRequest(HTTPMessage):
 			self.resBuffer=[]
 		self.manager.QueueRequest(self)
 
-	def SetRequestURI(self,uri):
-		# From the uri, we'll set the following:
+	def SetRequestURI(self,url):
+		# From the url, we'll set the following:
 		#  The Host: header
 		#  scheme
 		#  port
-		#  uri (for request line)
-		self.requestURI=uri
-		url=urlparse.urlsplit(uri)
-		if url.username:
-			raise HTTPException("Auth not yet supported")
-		if url.path:
-			self.uri=url.path
+		#  url (for request line)
+		if not isinstance(url,uri.URI):
+			url=uri.URIFactory.URI(url)
+		self.requestURI=url
+		if self.requestURI.userinfo:
+			raise HTTPException("username(:password) in URL not yet supported")
+		if self.requestURI.absPath:
+			self.url=self.requestURI.absPath
 		else:
-			self.uri='/'
-		if url.query:
-			self.uri=self.uri+'?'+url.query
-		self.scheme=url.scheme.lower()
-		self.hostname=url.hostname
-		if self.scheme=='http':
-			self.port=HTTP_PORT
-		elif self.scheme=='https':
-			self.port=HTTPS_PORT
+			self.url="/"			
+		if self.requestURI.query is not None:
+			self.url=self.url+'?'+self.requestURI.query
+		if not isinstance(self.requestURI,HTTPURL):
+			raise HTTPException("Scheme not supported: %s"%self.requestURI.scheme)
+		elif isinstance(self.requestURI,HTTPSURL):
+			self.scheme='https'
 		else:
-			raise HTTPException("Scheme not supported: %s"%self.scheme)
-		if url.port:
-			# Custom port in the URL
-			self.port=url.port
-			customPort=self.port
+			self.scheme='http'
+		self.hostname=self.requestURI.host
+		customPort=False
+		if self.requestURI.port:
+			# custom port, perhaps
+			self.port=int(self.requestURI.port)
+			if self.port!=self.requestURI.DEFAULT_PORT:
+				customPort=True
 		else:
-			customPort=None
+			self.port=self.requestURI.DEFAULT_PORT
 		# The Host request-header field (section 14.23) MUST accompany all
 		# HTTP/1.1 requests.
-		if url.hostname:
-			if customPort is None:
-				self.SetHost(url.hostname)
+		if self.hostname:
+			if not customPort:
+				self.SetHost(self.hostname)
 			else:
-				self.SetHost("%s:%i"%(url.hostname,customPort))				
+				self.SetHost("%s:%i"%(self.hostname,self.port))				
 		else:
 			raise HTTPException("No host in request URL")
-
+		
+		
 	def SetManager(self,manager):
 		"""Called when we are queued in an HTTPRequestManager"""
 		self.manager=manager
@@ -1046,11 +1053,16 @@ class HTTPRequest(HTTPMessage):
 	def ReadRequestHeader(self):
 		"""Returns a data string ready to send to the server"""
 		buffer=[]
-		self.manager.Log(HTTP_LOG_INFO,"Sending request to %s"%self.GetHost())
-		self.manager.Log(HTTP_LOG_INFO,"%s %s %s"%(self.method,self.uri,str(self.protocolVersion)))
+		logging.info("Sending request to %s",self.GetHost())
+		logging.info("%s %s %s",self.method,self.url,str(self.protocolVersion))
 		# Calculate the length of the message body for transfer
 		self.CalculateTransferLength(self.reqBody)
-		buffer.append("%s %s %s\r\n"%(self.method,self.uri,str(self.protocolVersion)))
+		buffer.append("%s %s %s\r\n"%(self.method,self.url,str(self.protocolVersion)))
+		# Check authorization and add credentials if the manager has them
+		if not self.HasHeader("Authorization"):
+			credentials=self.manager.FindCredentials(url=self.requestURI)
+			if credentials:
+				self.SetHeader('Authorization',str(credentials))			
 		hList=self.GetHeaderList()
 		for hKey in hList:
 			hName,hValue=self.headers[hKey]
@@ -1118,9 +1130,9 @@ class HTTPRequest(HTTPMessage):
 		response data to a stream, then you can override this method to signal
 		the start of the response.  Override the Finished method to clean up
 		and process the data."""
-		self.manager.Log(HTTP_LOG_DEBUG,"Request: %s %s %s"%(self.method,self.uri,str(self.protocolVersion)))
-		self.manager.Log(HTTP_LOG_DEBUG,"Got Response: %i %s"%(self.response.status,self.response.reason))
-		self.manager.Log(HTTP_LOG_DEBUG,"Response headers: %s"%repr(self.response.headers))
+		logging.debug("Request: %s %s %s",self.method,self.url,str(self.protocolVersion))
+		logging.debug("Got Response: %i %s",self.response.status,self.response.reason)
+		logging.debug("Response headers: %s",repr(self.response.headers))
 		pass
 		
 	def WriteResponse(self,data):
@@ -1133,11 +1145,11 @@ class HTTPRequest(HTTPMessage):
 	def ResponseFinished(self):
 		self.status=self.response.status
 		if self.status is None:
-			self.manager.Log(HTTP_LOG_ERROR,"Error receiving response, %s"%str(self.response.connectionError))
+			logging.error("Error receiving response, %s",str(self.response.connectionError))
 			self.status=0
 			self.Finished()
 		else:
-			self.manager.Log(HTTP_LOG_INFO,"Finished Response, status %i"%self.status)
+			logging.info("Finished Response, status %i",self.status)
 			if self.resBodyStream:
 				self.resBodyStream.flush()
 			else:
@@ -1179,29 +1191,35 @@ class HTTPRequest(HTTPMessage):
 		us go away.  Whatever.  The point is that you can't be sure that all the data
 		was transmitted just because you got here and the server says everything is OK"""
 		self.done=True
+		if self.tryCredentials is not None:
+			# we were trying out some credentials, if this is not a 401 assume they're good
+			if self.status==401:
+				# we must remove these credentials, they matched the challenge but still resulted 401
+				self.manager.RemoveCredentials(self.tryCredentials)
+			else:
+				if isinstance(self.tryCredentials,BasicCredentials):
+					# path rule only works for BasicCredentials
+					self.tryCredentials.AddSuccessPath(self.requestURI.absPath)
+			self.tryCredentials=None
 		if self.autoRedirect and self.status>=300 and self.status<=399 and (self.status!=302 or self.method.upper() in ("GET","HEAD")):
 			# If the 302 status code is received in response to a request other
 			# than GET or HEAD, the user agent MUST NOT automatically redirect the
 			# request unless it can be confirmed by the user
 			location=self.response.GetHeader("Location").strip()
 			if location:
-				url=urlparse.urlsplit(location)
-				if not url.hostname:
+				url=uri.URIFactory.URI(location)
+				if not url.host:
 					# This is an error but a common one (thanks IIS!)
-					location=urlparse.urljoin(self.requestURI,location)
+					location=location.Resolve(self.requestURI)
 				self.Resend(location)
 		elif self.status==401:
 			challenges=self.response.GetWWWAuthenticateChallenges()
 			for c in challenges:
-				c.protectionSpace=uri.URIFactory.URI(self.requestURI).GetCanonicalRoot()
-				credentials=self.manager.FindCredentials(c)
-				if credentials:
-					oldValue=self.GetHeader('Authorization')
-					if oldValue!=str(credentials):
-						# need to avoid uselessly sending the same credentials
-						self.SetHeader('Authorization',str(credentials))
-						self.Resend()
-	
+				c.protectionSpace=self.requestURI.GetCanonicalRoot()
+				self.tryCredentials=self.manager.FindCredentials(challenge=c)
+				if self.tryCredentials:
+					self.SetHeader('Authorization',str(self.tryCredentials))
+					self.Resend()	# to the same URL
 
 class HTTPResponse(HTTPMessage):
 	
@@ -1380,4 +1398,24 @@ class HTTPResponse(HTTPMessage):
 		hangs up and stops sending."""
 		self.connectionError=err
 		self.request.ResponseFinished()
+
+
+class HTTPURL(uri.ServerBasedURL):
+	"""Represents http URLs"""
 	
+	DEFAULT_PORT=80
+	
+	def __init__(self,octets='http://localhost/'):
+		super(HTTPURL,self).__init__(octets)
+
+
+class HTTPSURL(HTTPURL):
+	"""Represents https URLs"""
+	
+	DEFAULT_PORT=443
+	
+	def __init__(self,octets='https://localhost/'):
+		super(HTTPSURL,self).__init__(octets)
+
+uri.URIFactory.Register('http',HTTPURL)
+uri.URIFactory.Register('https',HTTPSURL)

@@ -40,7 +40,6 @@ class InvalidMetadataDocument(Exception): pass
 class InvalidFeedDocument(Exception): pass
 class InvalidEntryDocument(Exception): pass
 class InvalidFeedURL(Exception): pass
-class UnexpectedHTTPResponse(Exception): pass
 
 class ServerError(Exception): pass
 class BadURISegment(ServerError): pass
@@ -342,7 +341,7 @@ class UnaryExpression(CommonExpression):
 		if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Double, edm.SimpleType.Decimal):
 			result=edm.EDMValue.NewSimpleValue(typeCode)
 			if rValue:
-				result.SetFromPyValue(0-rValue.pyValue)
+				result.SetFromValue(0-rValue.value)
 			return result
 		elif typeCode is None:	# -null
 			return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
@@ -355,7 +354,7 @@ class UnaryExpression(CommonExpression):
 				typeCode=rValue.typeCode
 				if typeCode==edm.SimpleType.Boolean:
 					result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
-					result.SetFromPyValue(not rValue.pyValue)
+					result.SetFromValue(not rValue.value)
 					return result
 				else:
 					raise EvaluationError("Illegal operand for not")
@@ -439,7 +438,7 @@ class BinaryExpression(CommonExpression):
 		if not lValue:
 			# cast(NULL, <any type>) results in NULL
 			try:
-				typeCode=edm.SimpleType.DecodeValue(rValue.pyValue)
+				typeCode=edm.SimpleType.DecodeValue(rValue.value)
 				result=edm.EDMValue.NewSimpleValue(typeCode)
 			except ValueError:
 				result=edm.SimpleValue.NewValue(None)
@@ -449,22 +448,22 @@ class BinaryExpression(CommonExpression):
 			# right now, the only thing we can cast an entity instance
 			# to is itself
 			name=lValue.typeDef.GetFQName()
-			if name==rValue.pyValue:
+			if name==rValue.value:
 				return lValue
 			else:
-				raise EvaluationError("Can't cast %s to %s"%(name,str(rValue.pyValue)))
+				raise EvaluationError("Can't cast %s to %s"%(name,str(rValue.value)))
 		elif isinstance(lValue,edm.SimpleValue):
 			# look up the name of the primitive type
 			try:
-				typeCode=edm.SimpleType.DecodeValue(rValue.pyValue)
+				typeCode=edm.SimpleType.DecodeValue(rValue.value)
 			except ValueError:
-				raise EvaluationError("Unrecognized type: %s"%str(rValue.pyValue))
+				raise EvaluationError("Unrecognized type: %s"%str(rValue.value))
 			newCode=PromoteTypes(typeCode,lValue.typeCode)
 			if typeCode!=newCode:
 				raise EvaluationError("Can't cast %s to %s"%(edm.SimpleType.EncodeValue(lValue.typeCode),
 					edm.SimpleType.EncodeValue(typeCode)))
 			result=edm.EDMValue.NewSimpleValue(typeCode)
-			result.SetFromPyValue(lValue.pyValue)
+			result.SetFromValue(lValue.value)
 			return result
 		else:
 			raise EvaluationError("Illegal operands for isof")		
@@ -477,7 +476,7 @@ class BinaryExpression(CommonExpression):
 			rValue=rValue.SimpleCast(typeCode)
 			result=edm.EDMValue.NewSimpleValue(typeCode)
 			if lValue and rValue:
-				result.SetFromPyValue(lValue.pyValue*rValue.pyValue)
+				result.SetFromValue(lValue.value*rValue.value)
 			return result
 		elif typeCode is None:	# null mul null
 			return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
@@ -492,7 +491,7 @@ class BinaryExpression(CommonExpression):
 				rValue=rValue.SimpleCast(typeCode)
 				result=edm.EDMValue.NewSimpleValue(typeCode)
 				if lValue and rValue:
-					result.SetFromPyValue(lValue.pyValue/rValue.pyValue)
+					result.SetFromValue(lValue.value/rValue.value)
 				return result
 			elif typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64):
 				lValue=lValue.SimpleCast(typeCode)
@@ -501,7 +500,7 @@ class BinaryExpression(CommonExpression):
 				if lValue and rValue:
 					# OData doesn't really specify integer division rules so
 					# we use floating point division and truncate towards zero
-					result.SetFromPyValue(int(float(lValue.pyValue)/float(rValue.pyValue)))
+					result.SetFromValue(int(float(lValue.value)/float(rValue.value)))
 				return result
 			elif typeCode is None:	# null div null
 				return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
@@ -518,7 +517,7 @@ class BinaryExpression(CommonExpression):
 				rValue=rValue.SimpleCast(typeCode)
 				result=edm.EDMValue.NewSimpleValue(typeCode)
 				if lValue and rValue:
-					result.SetFromPyValue(math.fmod(lValue.pyValue,rValue.pyValue))
+					result.SetFromValue(math.fmod(lValue.value,rValue.value))
 				return result
 			elif typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64):
 				lValue=lValue.SimpleCast(typeCode)
@@ -527,7 +526,7 @@ class BinaryExpression(CommonExpression):
 				if lValue and rValue:
 					# OData doesn't really specify integer division rules so
 					# we use floating point division and truncate towards zero
-					result.SetFromPyValue(int(math.fmod(float(lValue.pyValue),float(rValue.pyValue))))
+					result.SetFromValue(int(math.fmod(float(lValue.value),float(rValue.value))))
 				return result
 			elif typeCode is None:	# null div null
 				return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
@@ -544,7 +543,7 @@ class BinaryExpression(CommonExpression):
 			rValue=rValue.SimpleCast(typeCode)
 			result=edm.EDMValue.NewSimpleValue(typeCode)
 			if lValue and rValue:
-				result.SetFromPyValue(lValue.pyValue+rValue.pyValue)
+				result.SetFromValue(lValue.value+rValue.value)
 			return result
 		elif typeCode is None:	# null add null
 			return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
@@ -559,7 +558,7 @@ class BinaryExpression(CommonExpression):
 			rValue=rValue.SimpleCast(typeCode)
 			result=edm.EDMValue.NewSimpleValue(typeCode)
 			if lValue and rValue:
-				result.SetFromPyValue(lValue.pyValue-rValue.pyValue)
+				result.SetFromValue(lValue.value-rValue.value)
 			return result
 		elif typeCode is None:	# null sub null
 			return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
@@ -586,18 +585,18 @@ class BinaryExpression(CommonExpression):
 			rValue=rValue.SimpleCast(typeCode)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
 			if lValue and rValue:
-				result.SetFromPyValue(relation(lValue.pyValue,rValue.pyValue))
+				result.SetFromValue(relation(lValue.value,rValue.value))
 			else:
 				# one of the operands is null => False
-				result.SetFromPyValue(False)
+				result.SetFromValue(False)
 			return result
 		elif typeCode in (edm.SimpleType.String, edm.SimpleType.DateTime, edm.SimpleType.Guid):
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
-			result.SetFromPyValue(relation(lValue.pyValue,rValue.pyValue))
+			result.SetFromValue(relation(lValue.value,rValue.value))
 			return result
 		elif typeCode is None:	# e.g., null lt null
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
-			result.SetFromPyValue(False)
+			result.SetFromValue(False)
 			return result
 		else:
 			raise EvaluationError("Illegal operands for %s"%Operator.EncodeValue(self.operator))
@@ -607,20 +606,20 @@ class BinaryExpression(CommonExpression):
 		if not lValue:
 			# isof(NULL, <any type> ) is False
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
-			result.SetFromPyValue(False)
+			result.SetFromValue(False)
 			return result
 		elif isinstance(lValue,edm.Entity):
 			# in the future we should test the entity for inheritance
 			name=lValue.typeDef.GetFQName()
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
-			result.SetFromPyValue(name==rValue.pyValue)
+			result.SetFromValue(name==rValue.value)
 			return result
 		elif isinstance(lValue,edm.SimpleValue):
 			# look up the name of the primitive type
 			try:
-				typeCode=edm.SimpleType.DecodeValue(rValue.pyValue)
+				typeCode=edm.SimpleType.DecodeValue(rValue.value)
 			except ValueError:
-				raise EvaluationError("Unrecognized type: %s"%str(rValue.pyValue))
+				raise EvaluationError("Unrecognized type: %s"%str(rValue.value))
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
 			# we return True if the type of the target, when promoted with type
 			# being tested results in the type being tested
@@ -629,7 +628,7 @@ class BinaryExpression(CommonExpression):
 			except EvaluationError:
 				# incompatible types means False
 				rValue=False
-			result.SetFromPyValue(rValue)
+			result.SetFromValue(rValue)
 			return result
 		else:
 			raise EvaluationError("Illegal operands for isof")		
@@ -640,9 +639,9 @@ class BinaryExpression(CommonExpression):
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
 			if lValue.entitySet is rValue.entitySet:
 				# now test that the keys are the same
-				result.pyValue=(lValue.Key()==rValue.Key())
+				result.value=(lValue.Key()==rValue.Key())
 			else:
-				result.pyValue=False
+				result.value=False
 			return result
 		else:
 			typeCode=self.PromoteOperands(lValue,rValue)
@@ -651,22 +650,22 @@ class BinaryExpression(CommonExpression):
 				lValue=lValue.SimpleCast(typeCode)
 				rValue=rValue.SimpleCast(typeCode)
 				result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
-				result.SetFromPyValue(lValue.pyValue==rValue.pyValue)
+				result.SetFromValue(lValue.value==rValue.value)
 				return result
 			elif typeCode in (edm.SimpleType.String, edm.SimpleType.DateTime, edm.SimpleType.Guid, edm.SimpleType.Binary):
 				result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
-				result.SetFromPyValue(lValue.pyValue==rValue.pyValue)
+				result.SetFromValue(lValue.value==rValue.value)
 				return result
 			elif typeCode is None:	# null eq null
 				result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
-				result.SetFromPyValue(True)
+				result.SetFromValue(True)
 				return result
 			else:
 				raise EvaluationError("Illegal operands for add")
 	
 	def EvaluateNe(self,lValue,rValue):
 		result=self.EvaluateEq(lValue,rValue)
-		result.pyValue=not result.pyValue
+		result.value=not result.value
 		return result
 	
 	def EvaluateAnd(self,lValue,rValue):
@@ -676,14 +675,14 @@ class BinaryExpression(CommonExpression):
 		if typeCode==edm.SimpleType.Boolean:
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
 			if lValue and rValue:
-				result.pyValue=lValue.pyValue and rValue.pyValue
+				result.value=lValue.value and rValue.value
 			else:
-				result.pyValue=False
+				result.value=False
 			return result
 		elif typeCode is None:
 			# null or null
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
-			result.pyValue=False
+			result.value=False
 			return result
 		else:			
 			raise EvaluationError("Illegal operands for boolean and")
@@ -695,14 +694,14 @@ class BinaryExpression(CommonExpression):
 		if typeCode==edm.SimpleType.Boolean:
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
 			if lValue and rValue:
-				result.pyValue=lValue.pyValue or rValue.pyValue
+				result.value=lValue.value or rValue.value
 			else:
-				result.pyValue=False
+				result.value=False
 			return result
 		elif typeCode is None:
 			# null or null
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
-			result.pyValue=False
+			result.value=False
 			return result
 		else:			
 			raise EvaluationError("Illegal operands for boolean and")
@@ -834,7 +833,7 @@ class CallExpression(CommonExpression):
 			prefix=self.PromoteParameter(args[1],edm.SimpleType.String)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
 			if target and prefix:
-				result.SetFromPyValue(target.pyValue.endswith(prefix.pyValue))
+				result.SetFromValue(target.value.endswith(prefix.value))
 			return result
 		else:
 			raise EvaluationError("endswith() takes 2 arguments, %i given"%len(args))
@@ -845,7 +844,7 @@ class CallExpression(CommonExpression):
 			searchString=self.PromoteParameter(args[1],edm.SimpleType.String)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
 			if target and searchString:
-				result.SetFromPyValue(target.pyValue.find(searchString.pyValue))
+				result.SetFromValue(target.value.find(searchString.value))
 			return result
 		else:
 			raise EvaluationError("indexof() takes 2 arguments, %i given"%len(args))
@@ -857,7 +856,7 @@ class CallExpression(CommonExpression):
 			replaceString=self.PromoteParameter(args[2],edm.SimpleType.String)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
 			if target and searchString and replaceString:
-				result.SetFromPyValue(target.pyValue.replace(searchString.pyValue,replaceString.pyValue))
+				result.SetFromValue(target.value.replace(searchString.value,replaceString.value))
 			return result
 		else:
 			raise EvaluationError("replace() takes 3 arguments, %i given"%len(args))
@@ -868,7 +867,7 @@ class CallExpression(CommonExpression):
 			prefix=self.PromoteParameter(args[1],edm.SimpleType.String)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
 			if target and prefix:
-				result.SetFromPyValue(target.pyValue.startswith(prefix.pyValue))
+				result.SetFromValue(target.value.startswith(prefix.value))
 			return result
 		else:
 			raise EvaluationError("startswith() takes 2 arguments, %i given"%len(args))
@@ -878,7 +877,7 @@ class CallExpression(CommonExpression):
 			target=self.PromoteParameter(args[0],edm.SimpleType.String)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
 			if target:
-				result.SetFromPyValue(target.pyValue.lower())
+				result.SetFromValue(target.value.lower())
 			return result
 		else:
 			raise EvaluationError("tolower() takes 1 argument, %i given"%len(args))
@@ -888,7 +887,7 @@ class CallExpression(CommonExpression):
 			target=self.PromoteParameter(args[0],edm.SimpleType.String)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
 			if target:
-				result.SetFromPyValue(target.pyValue.upper())
+				result.SetFromValue(target.value.upper())
 			return result
 		else:
 			raise EvaluationError("toupper() takes 1 argument, %i given"%len(args))
@@ -898,7 +897,7 @@ class CallExpression(CommonExpression):
 			target=self.PromoteParameter(args[0],edm.SimpleType.String)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
 			if target:
-				result.SetFromPyValue(target.pyValue.strip())
+				result.SetFromValue(target.value.strip())
 			return result
 		else:
 			raise EvaluationError("trim() takes 1 argument, %i given"%len(args))
@@ -914,9 +913,9 @@ class CallExpression(CommonExpression):
 				length=None
 			if target and start:
 				if length:
-					result.SetFromPyValue(target.pyValue[start.pyValue:start.pyValue+length.pyValue])
+					result.SetFromValue(target.value[start.value:start.value+length.value])
 				else:
-					result.SetFromPyValue(target.pyValue[start.pyValue:])
+					result.SetFromValue(target.value[start.value:])
 			return result
 		else:
 			raise EvaluationError("substring() takes 2 or 3 arguments, %i given"%len(args))
@@ -927,7 +926,7 @@ class CallExpression(CommonExpression):
 			searchString=self.PromoteParameter(args[1],edm.SimpleType.String)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
 			if target and searchString:
-				result.SetFromPyValue(target.pyValue.find(searchString.pyValue)>=0)
+				result.SetFromValue(target.value.find(searchString.value)>=0)
 			return result
 		else:
 			raise EvaluationError("substringof() takes 2 arguments, %i given"%len(args))
@@ -938,7 +937,7 @@ class CallExpression(CommonExpression):
 			rightString=self.CheckStrictParameter(args[1],edm.SimpleType.String)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
 			if leftString and rightString:
-				result.SetFromPyValue(leftString.pyValue+rightString.pyValue)
+				result.SetFromValue(leftString.value+rightString.value)
 			return result
 		else:
 			raise EvaluationError("concat() takes 2 arguments, %i given"%len(args))
@@ -948,7 +947,7 @@ class CallExpression(CommonExpression):
 			target=self.CheckStrictParameter(args[0],edm.SimpleType.String)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
 			if target:
-				result.SetFromPyValue(len(target.pyValue))
+				result.SetFromValue(len(target.value))
 			return result
 		else:
 			raise EvaluationError("length() takes 1 argument, %i given"%len(args))
@@ -958,7 +957,7 @@ class CallExpression(CommonExpression):
 			target=self.CheckStrictParameter(args[0],edm.SimpleType.DateTime)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
 			if target:
-				result.SetFromPyValue(target.pyValue.date.century*100+target.pyValue.date.year)
+				result.SetFromValue(target.value.date.century*100+target.value.date.year)
 			return result
 		else:
 			raise EvaluationError("year() takes 1 argument, %i given"%len(args))
@@ -968,7 +967,7 @@ class CallExpression(CommonExpression):
 			target=self.CheckStrictParameter(args[0],edm.SimpleType.DateTime)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
 			if target:
-				result.SetFromPyValue(target.pyValue.date.month)
+				result.SetFromValue(target.value.date.month)
 			return result
 		else:
 			raise EvaluationError("month() takes 1 argument, %i given"%len(args))
@@ -978,7 +977,7 @@ class CallExpression(CommonExpression):
 			target=self.CheckStrictParameter(args[0],edm.SimpleType.DateTime)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
 			if target:
-				result.SetFromPyValue(target.pyValue.date.day)
+				result.SetFromValue(target.value.date.day)
 			return result
 		else:
 			raise EvaluationError("day() takes 1 argument, %i given"%len(args))
@@ -988,7 +987,7 @@ class CallExpression(CommonExpression):
 			target=self.CheckStrictParameter(args[0],edm.SimpleType.DateTime)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
 			if target:
-				result.SetFromPyValue(target.pyValue.time.hour)
+				result.SetFromValue(target.value.time.hour)
 			return result
 		else:
 			raise EvaluationError("hour() takes 1 argument, %i given"%len(args))
@@ -998,7 +997,7 @@ class CallExpression(CommonExpression):
 			target=self.CheckStrictParameter(args[0],edm.SimpleType.DateTime)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
 			if target:
-				result.SetFromPyValue(target.pyValue.time.minute)
+				result.SetFromValue(target.value.time.minute)
 			return result
 		else:
 			raise EvaluationError("minute() takes 1 argument, %i given"%len(args))
@@ -1008,7 +1007,7 @@ class CallExpression(CommonExpression):
 			target=self.CheckStrictParameter(args[0],edm.SimpleType.DateTime)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
 			if target:
-				result.SetFromPyValue(target.pyValue.time.second)
+				result.SetFromValue(target.value.time.second)
 			return result
 		else:
 			raise EvaluationError("second() takes 1 argument, %i given"%len(args))
@@ -1022,13 +1021,13 @@ class CallExpression(CommonExpression):
 				target=self.PromoteParameter(args[0],edm.SimpleType.Decimal)
 				result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Decimal)
 				if target:
-					result.SetFromPyValue(target.pyValue.to_integral(decimal.ROUND_HALF_UP))
+					result.SetFromValue(target.value.to_integral(decimal.ROUND_HALF_UP))
 			except EvaluationError:
 				target=self.PromoteParameter(args[0],edm.SimpleType.Double)				
 				result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Double)
 				if target:
-					v=decimal.Decimal(target.pyValue)
-					result.SetFromPyValue(float(v.to_integral(decimal.ROUND_HALF_EVEN)))
+					v=decimal.Decimal(target.value)
+					result.SetFromValue(float(v.to_integral(decimal.ROUND_HALF_EVEN)))
 			return result
 		else:
 			raise EvaluationError("round() takes 1 argument, %i given"%len(args))
@@ -1039,12 +1038,12 @@ class CallExpression(CommonExpression):
 				target=self.PromoteParameter(args[0],edm.SimpleType.Decimal)
 				result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Decimal)
 				if target:
-					result.SetFromPyValue(target.pyValue.to_integral(decimal.ROUND_FLOOR))
+					result.SetFromValue(target.value.to_integral(decimal.ROUND_FLOOR))
 			except EvaluationError:
 				target=self.PromoteParameter(args[0],edm.SimpleType.Double)				
 				result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Double)
 				if target:
-					result.SetFromPyValue(math.floor(target.pyValue))
+					result.SetFromValue(math.floor(target.value))
 			return result
 		else:
 			raise EvaluationError("floor() takes 1 argument, %i given"%len(args))
@@ -1055,12 +1054,12 @@ class CallExpression(CommonExpression):
 				target=self.PromoteParameter(args[0],edm.SimpleType.Decimal)
 				result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Decimal)
 				if target:
-					result.SetFromPyValue(target.pyValue.to_integral(decimal.ROUND_CEILING))
+					result.SetFromValue(target.value.to_integral(decimal.ROUND_CEILING))
 			except EvaluationError:
 				target=self.PromoteParameter(args[0],edm.SimpleType.Double)				
 				result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Double)
 				if target:
-					result.SetFromPyValue(math.ceil(target.pyValue))
+					result.SetFromValue(math.ceil(target.value))
 			return result
 		else:
 			raise EvaluationError("ceiling() takes 1 argument, %i given"%len(args))
@@ -1402,7 +1401,7 @@ class Parser(edm.Parser):
 			value=string.join(value,"'")
 			if self.raw:
 				value=value.decode('utf-8')
-			result.pyValue=value
+			result.value=value
 			return result
 		else:
 			return None
@@ -1451,11 +1450,11 @@ class Parser(edm.Parser):
 				return result
 		elif self.ParseInsensitive("true"):
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
-			result.pyValue=True
+			result.value=True
 			return result
 		elif self.ParseInsensitive("false"):
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
-			result.pyValue=False
+			result.value=False
 			return result
 		elif self.ParseInsensitive("datetimeoffset"):
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.DateTimeOffset)
@@ -1471,28 +1470,22 @@ class Parser(edm.Parser):
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.DateTime)
 			value=self.RequireProduction(self.ParseDateTimeLiteral(),production)
 			self.Require("'",production)
-			result.pyValue=value
+			result.value=value
 			return result
 		elif self.ParseInsensitive("time"):
+			production="time literal"
+			self.Require("'",production)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Time)
-			self.Require("'","time")
-			startPos=self.pos
-			while not self.Parse("'"):
-				if self.MatchEnd():
-					raise ValueError("Unterminated quote in time string")
-				self.NextChar()					
-			try:
-				value=xsi.Duration(self.src[startPos:self.pos-1])
-			except iso.DateTimeError,e:
-				raise ValueError(str(e))			
-			result.pyValue=value
+			value=self.RequireProduction(self.ParseTimeLiteral(),production)
+			self.Require("'",production)
+			result.value=value
 			return result
 		elif self.Parse("X") or self.ParseInsensitive("binary"):
 			self.Require("'","binary")
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Binary)
 			value=self.ParseBinaryLiteral()
 			self.Require("'","binary literal")
-			result.pyValue=value
+			result.value=value
 			return result
 		elif self.ParseInsensitive("nan"):
 			if self.ParseOne("Dd"):
@@ -1508,11 +1501,11 @@ class Parser(edm.Parser):
 		elif self.ParseInsensitive("inf"):
 			if self.ParseOne("Dd"):
 				result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Double)
-				result.pyValue=float("INF")
+				result.value=float("INF")
 				return result
 			elif self.ParseOne("Ff"):
 				result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Single)
-				result.pyValue=float("INF")
+				result.value=float("INF")
 				return result
 			else:
 				raise ValueError("Expected double or single inf: INF%s"%repr(self.Peek(1)))
@@ -1535,7 +1528,7 @@ class Parser(edm.Parser):
 				hex[3:3]=['FFFF']
 				hex.append(self.RequireProduction(self.ParseHexDigits(8,8),"guid"))
 			self.Require("'","guid")
-			result.pyValue=uuid.UUID(hex=string.join(hex,''))
+			result.value=uuid.UUID(hex=string.join(hex,''))
 			return result
 		else:
 			return None			
@@ -2005,7 +1998,7 @@ class ODataURI:
 			keyStr="(%s)"%cls.FormatLiteral(d.values()[0])
 		else:
 			keyStr=[]
-			for k,v in d:
+			for k,v in d.iteritems():
 				keyStr.append("%s=%s"%(k,cls.FormatLiteral(v)))
 			keyStr="(%s)"%string.join(keyStr,",")
 		return uri.EscapeData(keyStr.encode('utf-8'))
@@ -2016,8 +2009,8 @@ class ODataURI:
 			
 	@staticmethod
 	def FormatLiteral(value):
-		"""Returns a URI-formatted value.  For example, 42L or 'Paddy%20O''brian'	"""
-		return uri.EscapeData(unicode(LiteralExpression(value)).encode('utf-8'))
+		"""Returns a URI-literal-formatted value as a *unicode* string.  For example, u"42L" or u"'Paddy O''brian'"	"""
+		return unicode(LiteralExpression(value))
 	
 	@staticmethod
 	def FormatSysQueryOptions(sysQueryOptions):
@@ -2068,7 +2061,7 @@ class Entity(edm.Entity):
 					# assume a complex value then
 					ReadEntityCTValue(v,obj[k])
 			else:
-				v.SetFromPyValue(None)
+				v.SetFromValue(None)
 		if self.exists==False:
 			# we need to look for any link bindings
 			for navProperty in self.NavigationKeys():
@@ -2293,11 +2286,11 @@ def ReadEntityCTValue(complexValue,obj):
 			else:
 				ReadEntityCTValue(v,obj[k])
 		else:
-			v.SetFromPyValue(None)
+			v.SetFromValue(None)
 	
 
 TICKS_PER_DAY=86400000
-BASE_DAY=iso.Date('1970-01-01').GetAbsoluteDay()
+BASE_DAY=iso.Date.FromString('1970-01-01').GetAbsoluteDay()
 
 def EntityPropertyInJSON2(simpleValue):			
 	"""Return a version 2 JSON simple value."""
@@ -2321,20 +2314,20 @@ def EntityPropertyValueInJSON(v):
 		return 'null'
 	elif isinstance(v,edm.BinaryValue):
 		# unusual representation as we use base64 encoding
-		return json.dumps(base64.b64encode(v.pyValue))
+		return json.dumps(base64.b64encode(v.value))
 	elif isinstance(v,(edm.BooleanValue,edm.ByteValue,edm.Int16Value,edm.Int32Value,edm.SByteValue)):
 		# naked representation
 		return unicode(v)
 	elif isinstance(v,edm.DateTimeValue):
 		# a strange format based on ticks, by definition, DateTime has no offset
-		ticks=(v.pyValue.date.GetAbsoluteDay()-BASE_DAY)*TICKS_PER_DAY+int(v.pyValue.time.GetSeconds()*1000)
+		ticks=(v.value.date.GetAbsoluteDay()-BASE_DAY)*TICKS_PER_DAY+int(v.value.time.GetTotalSeconds()*1000)
 		return json.dumps("/Date(%i)/"%ticks)
 	elif isinstance(v,(edm.DecimalValue,edm.DoubleValue,edm.GuidValue,edm.Int64Value,edm.SingleValue,edm.StringValue,edm.TimeValue)):
 		# just use the literal form as a json string
 		return json.dumps(unicode(v))
 	elif isinstance(v,(edm.DateTimeOffsetValue)):
 		# a strange format based on ticks, by definition, DateTime has no offset
-		ticks=(v.pyValue.date.GetAbsoluteDay()-BASE_DAY)*TICKS_PER_DAY+int(v.pyValue.time.GetSeconds()*1000)
+		ticks=(v.value.date.GetAbsoluteDay()-BASE_DAY)*TICKS_PER_DAY+int(v.value.time.GetTotalSeconds()*1000)
 		dir,offset=v.GetZone()
 		if dir>0:
 			s=u"+"
@@ -2349,25 +2342,23 @@ def ReadEntityPropertyValueInJSON(v,jsonValue):
 	*jsonValue* and a :py:class:`SimpleValue` instance, *v*, update *v*
 	to reflect the parsed value."""
 	if jsonValue is None:
-		v.SetFromPyValue(None)
+		v.SetFromValue(None)
 	elif isinstance(v,edm.BinaryValue):
-		v.SetFromPyValue(base64.b64decode(jsonValue))
+		v.SetFromValue(base64.b64decode(jsonValue))
 	elif isinstance(v,(edm.BooleanValue,edm.ByteValue,edm.Int16Value,edm.Int32Value,edm.SByteValue)):
-		v.SetFromPyValue(jsonValue)
+		v.SetFromValue(jsonValue)
 	elif isinstance(v,edm.DateTimeValue):
-		tp=iso.TimePoint()
 		if jsonValue.startswith("/Date(") and jsonValue.endswith(")/"):
 			ticks=int(jsonValue[6:-2])
-			absoluteDay=BASE_DAY+tp.time.SetSeconds(ticks/1000.0)
-			tp.date.SetAbsoluteDay(absoluteDay)
-			v.SetFromPyValue(tp)
+			t,overflow=iso.Time().Offset(seconds=ticks/1000.0)
+			d=iso.Date(absoluteDay=BASE_DAY+overflow)
+			v.SetFromValue(iso.TimePoint(date=d,time=t))
 		else:
 			raise ValueError("Illegal value for DateTime: %s"%jsonValue)		
 	elif isinstance(v,(edm.DecimalValue,edm.DoubleValue,edm.GuidValue,edm.Int64Value,edm.SingleValue,edm.StringValue,edm.TimeValue)):
 		# just use the literal form as a json string
 		v.SetFromLiteral(jsonValue)
 	elif isinstance(v,(edm.DateTimeOffsetValue)):
-		tp=iso.TimePoint()
 		if jsonValue.startswith("/Date(") and jsonValue.endswith(")/"):
 			ticks=int(jsonValue[6:-2])
 			if '+' in ticks:
@@ -2385,11 +2376,10 @@ def ReadEntityPropertyValueInJSON(v,jsonValue):
 					raise ValueError("Illegal value for DateTimeOffset: %s"%jsonValue)
 				zOffset=int(ticks[1])
 			else:
-				zOffset=0	
-			absoluteDay=BASE_DAY+tp.time.SetSeconds(int(ticks[0])/1000.0)
-			tp.date.SetAbsoluteDay(absoluteDay)
-			tp.SetZone(zDir,zOffset//60,zOffset%60)
-			v.SetFromPyValue(tp)			
+				zOffset=0
+			t,overflow=Time().Offset(seconds=int(ticks[0])/1000.0).WithZone(zDir,zOffset//60,zOffset%60)
+			d=Date(absoluteDay=BASE_DAY+overflow)
+			v.SetFromValue(iso.TimePoint(date=d,time=t))
 		else:
 			raise ValueError("Illegal value for DateTimeOffset: %s"%jsonValue)			
 	else:
@@ -2419,13 +2409,13 @@ class EntityCollectionMixin(object):
 		else:
 			result=self.filter.Evaluate(entity)
 			if isinstance(result,edm.BooleanValue):
-				return result.pyValue==True			#: NULL treated as False
+				return result.value==True			#: NULL treated as False
 			else:
 				raise ValueError("Boolean required for filter expression") 
 	
 	def CalculateOrderKey(self,entity,orderObject):
 		"""Evaluates orderObject as an instance of py:class:`CommonExpression`."""
-		return orderObject.Evaluate(entity).pyValue		
+		return orderObject.Evaluate(entity).value		
 
 	def GenerateEntitySetInJSON(self,version=2):
 		"""Generates JSON serialised form of this collection."""
@@ -2622,7 +2612,7 @@ class Property(ODataElement):
 					value=edm.EDMValue.NewValue(p)
 		if isinstance(value,edm.SimpleValue):
 			if null:
-				value.pyValue=None
+				value.value=None
 			else:
 				value.SetFromLiteral(ODataElement.GetValue(self))
 		else:
@@ -2835,7 +2825,7 @@ class Link(atom.Link):
 						entity.exists=exists
 						entry.GetValue(entity)
 						entries.append(entity)
-				deferred.SetExpansion(ExpandedEntityCollection(deferred.name,deferred.fromEntity.entitySet,targetEntitySet,entries))
+				deferred.SetExpansion(ExpandedEntityCollection(deferred.name,deferred.fromEntity,targetEntitySet,entries))
 
 		
 class Entry(atom.Entry):
@@ -2961,13 +2951,26 @@ class Entry(atom.Entry):
 				# This value needs to be read from somewhere special
 				prefix,ns=propertyDef.GetFCNsPrefix()
 				targetElement=self.ResolveTargetPath(targetPath,prefix,ns)
-				# now we need to grab the actual value, only interested in data
-				data=[]
-				for child in targetElement.GetChildren():
-					if type(child) in StringTypes:
-						data.append(child)
-				v.SetFromLiteral(string.join(data,''))
-				selected.add(k)
+				if isinstance(targetElement,atom.Date):
+					dtOffset=targetElement.GetValue()
+					if isinstance(v,edm.DateTimeOffsetValue):
+						v.SetFromValue(dtOffset)
+					elif isinstance(v,edm.DateTimeValue):
+						# strip the zone and use that
+						v.SetFromValue(dtOffset.WithZone(zDirection=None))
+					elif isinstance(v,edm.StringValue):
+						v.SetFromLiteral(str(dtOffset))
+					else:
+						# give up, treat this value as NULL
+						v.SetFromValue(None)
+				else:	
+					# now we need to grab the actual value, only interested in data
+					data=[]
+					for child in targetElement.GetChildren():
+						if type(child) in StringTypes:
+							data.append(child)
+					v.SetFromLiteral(string.join(data,''))
+					selected.add(k)
 			else:
 				# and watch out for unselected properties
 				if k in self._properties:
@@ -2975,7 +2978,7 @@ class Entry(atom.Entry):
 					selected.add(k)
 				else:
 					# Property is not selected!
-					v.SetFromPyValue(None)
+					v.SetFromValue(None)
 					unselected.add(k)
 		# Now set this entity's select property...
 		if not unselected:
@@ -3083,7 +3086,23 @@ class Entry(atom.Entry):
 					else:
 						v=None
 						break
-				if isinstance(v,edm.SimpleValue) and v:
+				if isinstance(targetElement,atom.Date) and v:
+					if isinstance(v,edm.DateTimeOffsetValue):
+						targetElement.AddData(unicode(v))
+					elif isinstance(v,edm.DateTimeValue):
+						# assume UTC
+						dtOffset=v.value.WithZone(zDirection=0)
+						targetElement.AddData(unicode(dtOffset))						
+					elif isinstance(v,edm.StringValue):
+						try:
+							dtOffset=iso8601.TimePoint.FromString(v.value)
+							if dtOffset.GetZone()[0] is None:
+								dtOffset=dtOffset.WithZone(zDirection=0)
+							targetElement.AddData(unicode(dtOffset))
+						except iso8601.DateTimeError:
+							# do nothing
+							pass
+				elif isinstance(v,edm.SimpleValue) and v:
 					targetElement.AddData(unicode(v))
 		# now do the links
 		location=str(entity.GetLocation())
@@ -3136,26 +3155,6 @@ class Entry(atom.Entry):
 				link.rel=ODATA_RELATED+k
 				link.title=k
 				link.href=href
-# 			for navProperty,bindings in entity.bindings.items():
-# 				if not bindings or entity[navProperty].isCollection:
-# 					# nothing to do here, we can't update this type of navigation property
-# 					continue
-# 				# we need to know the location of the target entity set
-# 				targetSet=entity.entitySet.NavigationTarget(navProperty)
-# 				# and we ignore but the last binding to this navigation property
-# 				binding=bindings[-1]
-# 				if isinstance(binding,Entity):
-# 					if binding.exists:
-# 						href=str(targetSet.GetLocation())+ODataURI.FormatEntityKey(binding)
-# 					else:
-# 						# we can't create new entities on update
-# 						continue
-# 				else:
-# 					href=str(targetSet.GetLocation())+ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
-# 				link=self.ChildElement(self.LinkClass)
-# 				link.rel=ODATA_RELATED+navProperty
-# 				link.title=navProperty
-# 				link.href=href
 		else:
 			# entity does not exist...
 			for k,dv in entity.NavigationItems():
@@ -3178,37 +3177,17 @@ class Entry(atom.Entry):
 						link.title=k
 						link.href=href
 				if feed:
-					feed=edm.ExpandedEntityCollection(k,entity.entitySet,targetSet,feed)
 					link=self.ChildElement(self.LinkClass)
 					link.rel=ODATA_RELATED+k
 					link.title=k
 					link.href=location+'/'+k
-					link.Expand(feed)
-# 			for navProperty,bindings in entity.bindings.items():
-# 				# we need to know the location of the target entity set
-# 				targetSet=entity.entitySet.NavigationTarget(navProperty)
-# 				feed=[]
-# 				for binding in bindings:
-# 					if isinstance(binding,Entity):
-# 						if binding.exists:
-# 							href=str(targetSet.GetLocation())+ODataURI.FormatEntityKey(binding)
-# 						else:
-# 							# add to the feed
-# 							feed.append(binding)
-# 							continue
-# 					else:
-# 						href=str(targetSet.GetLocation())+ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
-# 					link=self.ChildElement(self.LinkClass)
-# 					link.rel=ODATA_RELATED+navProperty
-# 					link.title=navProperty
-# 					link.href=href
-# 				if feed:
-# 					feed=edm.ExpandedEntityCollection(navProperty,entity.entitySet,targetSet,feed)
-# 					link=self.ChildElement(self.LinkClass)
-# 					link.rel=ODATA_RELATED+navProperty
-# 					link.title=navProperty
-# 					link.href=location+'/'+navProperty
-# 					link.Expand(feed)
+					if dv.isCollection:
+						feed=edm.ExpandedEntityCollection(k,entity,targetSet,feed)
+						link.Expand(feed)
+					elif len(feed)>1:
+						raise NavigationError("Multiple bindings found for navigation property %s.%s"%(entitySet.name,k))
+					else:
+						link.Expand(feed[0])
 		# Now set the new property values in the properties element
 		if mediaLinkResource:
 			self.ChildElement(Properties)
@@ -3222,14 +3201,33 @@ class Entry(atom.Entry):
 				# This value needs to go somewhere special
 				prefix,ns=propertyDef.GetFCNsPrefix()
 				targetElement=self.ResolveTargetPath(targetPath,prefix,ns)
-				if v:
-					targetElement.AddData(unicode(v))
+				self.SetFCValue(targetElement,v)
 				if not propertyDef.KeepInContent():
 					continue
 			# and watch out for unselected properties
 			if entity.Selected(k):
 				self[k]=v
 		self.ContentChanged()
+
+	def SetFCValue(self,targetElement,v):
+		if isinstance(targetElement,atom.Date) and v:
+			if isinstance(v,edm.DateTimeOffsetValue):
+				targetElement.AddData(unicode(v))
+			elif isinstance(v,edm.DateTimeValue):
+				# assume UTC
+				dtOffset=v.value.WithZone(zDirection=0)
+				targetElement.AddData(unicode(dtOffset))						
+			elif isinstance(v,edm.StringValue):
+				try:
+					dtOffset=iso8601.TimePoint.FromString(v.value)
+					if dtOffset.GetZone()[0] is None:
+						dtOffset=dtOffset.WithZone(zDirection=0)
+					targetElement.AddData(unicode(dtOffset))
+				except iso8601.DateTimeError:
+					# do nothing
+					pass
+		elif isinstance(v,edm.SimpleValue) and v:
+			targetElement.AddData(unicode(v))
 
 
 class URI(ODataElement):

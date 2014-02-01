@@ -187,7 +187,7 @@ class Date(AtomElement):
 		
 	def ContentChanged(self):
 		"""Re-reads the value of the element and sets :py:attr:`date` accordingly."""
-		self.date.SetFromString(AtomElement.GetValue(self))
+		self.date=iso8601.TimePoint.FromString(AtomElement.GetValue(self))
 
 
 class Updated(Date):
@@ -459,8 +459,7 @@ class Feed(Source):
 		self.AtomId=self.AtomIdClass(self)
 		self.Title=self.TitleClass(self)
 		self.Updated=self.UpdatedClass(self)
-		now=iso8601.TimePoint()
-		now.NowUTC()
+		now=iso8601.TimePoint.FromNowUTC()
 		self.Updated.SetValue(now)
 		self.Entry=[]		#: atomEntry
 
@@ -485,8 +484,7 @@ class Entry(Entity):
 		self.AtomId=self.AtomIdClass(self)
 		self.Title=self.TitleClass(self)
 		self.Updated=self.UpdatedClass(self)
-		now=iso8601.TimePoint()
-		now.NowUTC()
+		now=iso8601.TimePoint.FromNowUTC()
 		self.Updated.SetValue(now)
 		self.Content=None
 		self.Published=None
@@ -511,8 +509,7 @@ class Entry(Entity):
 		# Parent Reset removes 'optional' Title and Update elements
 		self.Title=self.TitleClass(self)
 		self.Updated=self.UpdatedClass(self)
-		now=iso8601.TimePoint()
-		now.NowUTC()
+		now=iso8601.TimePoint.FromNowUTC()
 		self.Updated.SetValue(now)
 								
 	def GetChildren(self):

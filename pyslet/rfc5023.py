@@ -168,7 +168,9 @@ class Client(http.HTTPRequestManager):
 		http.HTTPRequestManager.__init__(self)
 
 	def QueueRequest(self,request):
-		request.SetHeader('Accept',string.join((atom.ATOM_MIMETYPE,ATOMSVC_MIMETYPE,ATOMCAT_MIMETYPE),','),True)
+		# if there is no Accept header, add one
+		if not request.HasHeader('Accept'):
+			request.SetHeader('Accept',string.join((atom.ATOM_MIMETYPE,ATOMSVC_MIMETYPE,ATOMCAT_MIMETYPE),','),True)
 		http.HTTPRequestManager.QueueRequest(self,request)
 
 
@@ -210,7 +212,7 @@ class InputWrapper(io.RawIOBase):
 					self.inputStream=None
 					break
 				self.buffer.write(data)
-			self.buffSize=self.buffer.tell()
+				self.buffSize=self.buffer.tell()
 			# now reset the buffer ready for reading
 			self.buffer.seek(0)
 						
