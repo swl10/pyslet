@@ -440,7 +440,7 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 					with targetSet.OpenCollection() as targetCollection:
 						targetCollection.InsertEntity(targetEntity,linkEnd.otherEnd)
 			# Finally, we have a target entity, add the foreign key to fkValues
-			for keyName in targetSet.KeyKeys():
+			for keyName in targetSet.keys:
 				fkValues.append((self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)],targetEntity[keyName]))
 			navigationDone.add(navName)
 		entity.SetConcurrencyTokens()
@@ -498,7 +498,7 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 						if linkEnd.otherEnd in targetFKMapping:
 							# target table has a foreign key
 							targetFKValues=[]
-							for keyName in self.entitySet.KeyKeys():
+							for keyName in self.entitySet.keys:
 								targetFKValues.append((self.container.mangledNames[(targetSet.name,associationSetName,keyName)],entity[keyName]))
 							targetCollection.InsertEntity(binding,linkEnd.otherEnd,targetFKValues)
 						else:
@@ -587,6 +587,7 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 			for value,newValue in zip(values,row):
 				self.container.ReadSQLValue(value,newValue)
 			entity.exists=True
+			entity.Expand(self.expand,self.select)
 			return entity
 		except self.container.dbapi.Error,e:
 			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
@@ -628,7 +629,7 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 					with targetSet.OpenCollection() as targetCollection:
 						targetCollection.InsertEntity(targetEntity,linkEnd.otherEnd)
 			# Finally, we have a target entity, add the foreign key to fkValues
-			for keyName in targetSet.KeyKeys():
+			for keyName in targetSet.keys:
 				fkValues.append((self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)],targetEntity[keyName]))
 			navigationDone.add(k)
 		# grab a list of sql-name,sql-value pairs representing the key constraint
@@ -701,7 +702,7 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 						if linkEnd.otherEnd in targetFKMapping:
 							# target table has a foreign key
 							targetFKValues=[]
-							for keyName in self.entitySet.KeyKeys():
+							for keyName in self.entitySet.keys:
 								targetFKValues.append((self.container.mangledNames[(targetSet.name,associationSetName,keyName)],entity[keyName]))
 							if not dv.isCollection:
 								navCollection.clear()
@@ -728,14 +729,14 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 		if not nullable and targetEntity is None:
 			raise edm.NavigationConstraintError("Can't remove a required link")			
 		if targetEntity:
-			for keyName in targetSet.KeyKeys():
+			for keyName in targetSet.keys:
 				v=targetEntity[keyName]
 				cName=self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)]
 				updates.append('%s=%s'%(cName,params.AddParam(self.container.PrepareSQLValue(v))))
 				if noReplace:
 					nullCols.append(cName)
 		else:
-			for keyName in targetSet.KeyKeys():
+			for keyName in targetSet.keys:
 				cName=self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)]
 				updates.append('%s=NULL'%cName)
 		query.append(string.join(updates,', '))
@@ -833,7 +834,7 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 		nullable,unique=self.container.fkTable[self.entitySet.name][linkEnd]
 		if not nullable:
 			raise edm.NavigationConstraintError("Can't remove a required link from association set %s"%associationSetName)			
-		for keyName in targetSet.KeyKeys():
+		for keyName in targetSet.keys:
 			cName=self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)]
 			updates.append('%s=NULL'%cName)	
 		query.append(string.join(updates,', '))
@@ -843,7 +844,7 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 		kd=entity.KeyDict()
 		for k,v in kd.items():
 			where.append('%s=%s'%(self.container.mangledNames[(self.entitySet.name,k)],params.AddParam(self.container.PrepareSQLValue(v))))
-		for keyName in targetSet.KeyKeys():
+		for keyName in targetSet.keys:
 			v=targetEntity[keyName]
 			cName=self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)]
 			where.append('%s=%s'%(cName,params.AddParam(self.container.PrepareSQLValue(v))))
@@ -866,14 +867,14 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 		associationSetName=linkEnd.parent.name
 		targetSet=linkEnd.otherEnd.entitySet
 		nullable,unique=self.container.fkTable[self.entitySet.name][linkEnd]
-		for keyName in targetSet.KeyKeys():
+		for keyName in targetSet.keys:
 			cName=self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)]
 			updates.append('%s=NULL'%cName)	
 		# custom where clause
 		query.append(string.join(updates,', '))
 		query.append(' WHERE ')
 		where=[]
-		for keyName in targetSet.KeyKeys():
+		for keyName in targetSet.keys:
 			v=targetEntity[keyName]
 			cName=self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)]
 			where.append('%s=%s'%(cName,params.AddParam(self.container.PrepareSQLValue(v))))
@@ -909,7 +910,7 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 			targetTable=self.container.mangledNames[(targetSet.name,)]
 			fkNames=[]
 			kNames=[]
-			for keyName in targetSet.KeyKeys():
+			for keyName in targetSet.keys:
 				# create a dummy value to catch the unusual case where there is a default
 				v=targetSet.entityType[keyName]()
 				cName=self.container.mangledNames[(self.entitySet.name,associationSetName,keyName)]
@@ -951,7 +952,7 @@ class SQLForeignKeyCollection(SQLCollectionMixin,core.NavigationEntityCollection
 	def JoinClause(self):
 		join=[]
 		# we don't need to look up the details of the join again, as self.entitySet must be the target
-		for keyName in self.entitySet.KeyKeys():
+		for keyName in self.entitySet.keys:
 			join.append('%s.%s=%s.%s'%(
 				self.tableName,
 				self.container.mangledNames[(self.entitySet.name,keyName)],
@@ -1206,7 +1207,7 @@ class SQLAssociationCollection(SQLCollectionMixin,core.NavigationEntityCollectio
 	def JoinClause(self):
 		join=[]
 		# we don't need to look up the details of the join again, as self.entitySet must be the target
-		for keyName in self.entitySet.KeyKeys():
+		for keyName in self.entitySet.keys:
 			join.append('%s.%s=%s.%s'%(
 				self.tableName,
 				self.container.mangledNames[(self.entitySet.name,keyName)],
@@ -1438,7 +1439,7 @@ class SQLAssociationCollection(SQLCollectionMixin,core.NavigationEntityCollectio
 			targetTable=container.mangledNames[(es.name,)]
 			fkNames=[]
 			kNames=[]
-			for keyName in es.KeyKeys():
+			for keyName in es.keys:
 				# create a dummy value to catch the unusual case where there is a default
 				v=es.entityType[keyName]()
 				cName=container.mangledNames[(associationSetName,es.name,prefix,keyName)]
@@ -1626,7 +1627,7 @@ class SQLEntityContainer(object):
 				associationSetName=linkEnd.parent.name
 				targetSet=linkEnd.otherEnd.entitySet
 				tableName=self.mangledNames[(esName,)]
-				for keyName in targetSet.KeyKeys():
+				for keyName in targetSet.keys:
 					"""Foreign keys are given fake source paths starting with the association set name::
 					
 						( u"Orders_Customers", u"CustomerID" )"""
@@ -1647,10 +1648,10 @@ class SQLEntityContainer(object):
 			endpoints must still be unique). For one-way associations,
 			prefixB will be an empty string."""
 			esA,prefixA,esB,prefixB,unique=self.auxTable[aSet.name]
-			for keyName in esA.KeyKeys():
+			for keyName in esA.keys:
 				sourcePath=(aSet.name,esA.name,prefixA,keyName)
 				self.mangledNames[sourcePath]=self.MangleName(sourcePath)
-			for keyName in esB.KeyKeys():
+			for keyName in esB.keys:
 				sourcePath=(aSet.name,esB.name,prefixB,keyName)
 				self.mangledNames[sourcePath]=self.MangleName(sourcePath)
 

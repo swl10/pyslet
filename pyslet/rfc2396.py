@@ -450,6 +450,11 @@ class URI(object):
 				elif ord(c)==0x2F:
 					mode='a'
 					aStart=pos+1
+				elif ord(c)==0x3F:
+					# special case, abs_path is /
+					self.absPath='/'
+					mode='?'
+					qStart=pos+1
 				else:
 					mode='p'
 					pStart=pos-1
@@ -520,6 +525,11 @@ class URI(object):
 				elif ord(c)==0x2F:
 					mode='a'
 					aStart=pos+1
+				elif ord(c)==0x3F:
+					# special case, abs_path is /
+					self.absPath='/'
+					mode='?'
+					qStart=pos+1
 				else:
 					mode='p'
 					pStart=pos-1

@@ -283,11 +283,17 @@ class MockRequest(object):
 	def __init__(self,path='/',method="GET"):
 		self.rfile=StringIO.StringIO()
 		self.efile=StringIO.StringIO()
+		if '?' in path:
+			qIndex=path.index('?')
+			query=path[qIndex+1:]
+			path=path[:qIndex]
+		else:
+			query=None
 		self.environ={
 			'REQUEST_METHOD':method,
 			'SCRIPT_NAME':"",
 			'PATH_INFO':path,
-			'QUERY_STRING':'',
+			'QUERY_STRING':query,
 			'SERVER_NAME':"127.0.0.1",
 			'SERVER_PORT':"80",
 			'SERVER_PROTOCOL':"HTTP/1.0",

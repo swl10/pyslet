@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import unittest
+import unittest, logging
 import os, os.path, sys
 from types import UnicodeType, StringType
 
@@ -183,7 +183,15 @@ ABS_EXAMPLES={
 	'http://www.ics.uci.edu/pub/ietf/uri/#Related':
 		('http',None,'www.ics.uci.edu','/pub/ietf/uri/',None,''),
 	'http://a/b/c/g?y':
-		('http',None,'a','/b/c/g','y','g')
+		('http',None,'a','/b/c/g','y','g'),
+	'http://a/b/c/g?':
+		('http',None,'a','/b/c/g','','g'),
+	'http://a/?':
+		('http',None,'a','/','',''),		
+	'noauth:/':
+		('noauth',None,None,'/',None,''),		
+	'noauth:/?':
+		('noauth',None,None,'/','','')
 	}
 
 REL_BASE="http://a/b/c/d;p?q"
@@ -198,10 +206,14 @@ REL_EXAMPLES={
 	'./g':('http://a/b/c/g',None,None,None,'./g',None,None),
 	'g/':('http://a/b/c/g/',None,None,None,'g/',None,None),
 	'/g':('http://a/g',None,None,'/g',None,None,None),
+	'/g?':('http://a/g?',None,None,'/g',None,'',None),
+	'/':('http://a/',None,None,'/',None,None,None),
+	'/?':('http://a/?',None,None,'/',None,'',None),
 	'//g':('http://g',None,'g',None,None,None,None),
 	'?y':('http://a/b/c/?y',None,None,None,'','y',None),
 	'./?y':('http://a/b/c/?y',None,None,None,'./','y',None),
 	'g?y':('http://a/b/c/g?y',None,None,None,'g','y',None),
+	'g?':('http://a/b/c/g?',None,None,None,'g','',None),
 	'#s':('current.doc#s',None,None,None,'',None,'s'),
 	'g#s':('http://a/b/c/g#s',None,None,None,'g',None,'s'),
 	'g?y#s':('http://a/b/c/g?y#s',None,None,None,'g','y','s'),
@@ -215,7 +227,9 @@ REL_EXAMPLES={
 	'../g':('http://a/b/g',None,None,None,'../g',None,None),
 	'../..':('http://a/',None,None,None,'../..',None,None),
 	'../../':('http://a/',None,None,None,'../../',None,None),
-	'../../g':('http://a/g',None,None,None,'../../g',None,None)
+	'../../g':('http://a/g',None,None,None,'../../g',None,None),
+	'../../g?':('http://a/g?',None,None,None,'../../g','',None),
+	'../../?':('http://a/?',None,None,None,'../../','',None),
 	}
 	
 
@@ -264,6 +278,7 @@ class URITests(unittest.TestCase):
 	def testCaseAbsoluteExamples(self):
 		keys=ABS_EXAMPLES.keys()
 		for k in keys:
+			logging.info("Testing absolute: %s",k)
 			u=URI(k)
 			scheme,opaquePart,authority,absPath,query,fName=ABS_EXAMPLES[k]
 			self.assertTrue(scheme==u.scheme,"%s found scheme %s"%(k,u.scheme))
@@ -279,6 +294,7 @@ class URITests(unittest.TestCase):
 		current=URI(REL_CURRENT)
 		relatives={}
 		for k in keys:
+			logging.info("Testing relative: %s",k)
 			u=URI(k)
 			resolved,scheme,authority,absPath,relPath,query,fragment=REL_EXAMPLES[k]
 			relatives[resolved]=relatives.get(resolved,[])+[k]
@@ -291,7 +307,7 @@ class URITests(unittest.TestCase):
 			self.assertTrue(fragment==u.fragment,"%s found fragment %s"%(k,u.fragment))
 			self.assertTrue(resolved==resolution,"%s [*] %s = %s ; found %s"%(str(base),k,resolved,resolution))
 		for r in relatives.keys():
-			# print "Testing %s [/] %s = ( %s )"%(r,str(base),string.join(relatives[r],' | '))
+			logging.info("Testing %s [/] %s = ( %s )",r,str(base),string.join(relatives[r],' | '))
 			u=URI(r)
 			if not u.IsAbsolute(): # this check removes the 'current document' case
 				continue
@@ -315,7 +331,7 @@ class URITests(unittest.TestCase):
 			if not u.octets: # don't test same document cases
 				continue
 			resolved,scheme,authority,absPath,relPath,query,fragment=REL_EXAMPLES[k]
-			# print "Testing: %s [*] ( %s [*] %s ) = %s"%(str(base1),str(base2),k,resolved)
+			logging.info("Testing: %s [*] ( %s [*] %s ) = %s",str(base1),str(base2),k,resolved)
 			# two-step resolution, first combines relative URLs, second resolves to absolute
 			resolution1=u.Resolve(base2,current)
 			relatives[str(resolution1)]=relatives.get(str(resolution1),[])+[k]
@@ -328,7 +344,7 @@ class URITests(unittest.TestCase):
 			self.assertTrue(fragment==u.fragment,"%s found fragment %s"%(k,u.fragment))
 			self.assertTrue(resolved==resolution2,"%s [*] ( %s [*] %s ) = %s ; found %s"%(str(base1),str(base2),k,resolved,resolution2))
 		for r in relatives.keys():
-			#print "Testing: %s [/] %s = ( %s )"%(r,str(base2),string.join(relatives[r],' | '))
+			logging.info("Testing: %s [/] %s = ( %s )",r,str(base2),string.join(relatives[r],' | '))
 			u=URI(r)
 			if u.octets=='current.doc': # this check removes the 'current document' case
 				continue
@@ -384,15 +400,15 @@ class FileURLTests(unittest.TestCase):
 		else:
 			dataPath2=base.GetPathname()
 			self.assertTrue(type(dataPath2) is StringType,"Expected GetPathname to return string")
-			print "\nWarning: os.path.supports_unicode_filenames is False (skipped unicode path tests)"
+			logging.warn("os.path.supports_unicode_filenames is False (skipped unicode path tests)")
 			
 	def VisitMethod(self,dirname,names):
 		d=URIFactory.URLFromPathname(os.path.join(dirname,os.curdir))
 		c=sys.getfilesystemencoding()
 		for name in names:
 			if name.startswith('??'):
-					print "\nWarning: 8-bit path tests limited to ASCII file names by %s encoding"%c
-					continue
+				logging.warn("8-bit path tests limited to ASCII file names by %s encoding",c)
+				continue
 			joinMatch=os.path.join(dirname,name)
 			if type(name) is UnicodeType:
 				segName=EscapeData(name.encode('utf-8'),IsPathSegmentReserved)
@@ -436,7 +452,7 @@ class VirtualFileURLTests(unittest.TestCase):
 		d=URIFactory.URLFromVirtualFilePath(dirname.join(dirname.curdir))
 		for name in names:
 			if unicode(name).startswith('??'):
-				print "\nWarning: 8-bit path tests limited to ASCII file names"
+				logging.warn("8-bit path tests limited to ASCII file names")
 				continue
 			joinMatch=dirname.join(name)
 			segName=EscapeData(unicode(name).encode('utf-8'),IsPathSegmentReserved)
@@ -448,5 +464,6 @@ class VirtualFileURLTests(unittest.TestCase):
 		
 
 if __name__ == "__main__":
+	logging.basicConfig(level=logging.INFO)
 	unittest.main()
 

@@ -96,7 +96,7 @@ class Credentials(object):
 		return True
 
 	@classmethod
-	def FromHeader(cls,wp):
+	def FromWords(cls,wp):
 		scheme=wp.RequireToken("Authentication Scheme").lower()
 		if scheme=="basic":
 			# the rest of the words represent the credentials as a base64 string

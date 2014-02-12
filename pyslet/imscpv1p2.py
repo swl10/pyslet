@@ -6,6 +6,7 @@ import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.imsmdv1p2p1 as imsmd
 import pyslet.imsqtiv2p1 as imsqti
+import pyslet.qtiv2.metadata as qtimd
 import pyslet.rfc2396 as uri
 import pyslet.vfs as vfs
 
@@ -292,7 +293,7 @@ class ManifestDocument(xmlns.XMLNSDocument):
 	
 xmlns.MapClassElements(ManifestDocument.classMap,globals())
 xmlns.MapClassElements(ManifestDocument.classMap,imsmd)
-xmlns.MapClassElements(ManifestDocument.classMap,imsqti)
+xmlns.MapClassElements(ManifestDocument.classMap,qtimd)
 # Add other supported metadata schemas in here
 
 

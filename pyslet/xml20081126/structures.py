@@ -1973,6 +1973,7 @@ class Element(Node):
 				e.AddData(child)
 			else:
 				child.Copy(e)
+		e.ContentChanged()
 		return e
 		
 	def GetBase(self):

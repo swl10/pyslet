@@ -797,6 +797,10 @@ class SimpleValue(EDMValue):
 		You can get the literal form of a value using the unicode function."""
 		raise NotImplementedError
 
+	def SetNull(self):
+		"""Sets the value to NULL"""
+		self.value=None
+		
 	def SetFromValue(self,newValue):
 		"""Sets the value from a python variable coercing *newValue* if
 		necessary to ensure it is of the correct type for the value's
@@ -1535,6 +1539,11 @@ class Complex(EDMValue,TypeInstance):
 		"""Complex values are never Null"""
 		return False
 
+	def SetNull(self):
+		"""Sets all values to Null"""
+		for k,v in self.iteritems():
+			v.SetNull()
+		
 	def SetFromComplex(self,newValue):
 		"""Sets this value from *newValue* which must be a
 		:py:class:`Complex` instance of the same type."""
@@ -1675,7 +1684,11 @@ class DeferredValue(object):
 						collection.InsertEntity(binding)
 					# success, trim bindings now in case we get an error
 					self.bindings=self.bindings[1:]
-		
+	
+	def ClearBindings(self):
+		"""Removes all (unsaved) entity bindings from this entity."""
+		self.bindings=[]
+
 
 class Entity(TypeInstance):
 	"""Represents a single instance of an :py:class:`EntityType`.
@@ -1770,7 +1783,6 @@ class Entity(TypeInstance):
 			yield p.name,self[p.name]
 	
 	def SetFromEntity(self,newEntity):
-		keys=newEntity.entitySet.KeyKeys()
 		for k,v in newEntity.DataItems():
 			if isinstance(v,Complex):
 				self[k].SetFromComplex(v)
@@ -1935,6 +1947,11 @@ class Entity(TypeInstance):
 				# add all non-navigation items
 				for k in self.DataKeys():
 					self.selected.add(k)
+			else:
+				# Force unselected values to NULL
+				for k,v in self.DataItems():
+					if k not in self.entitySet.keys and k not in self.selected:
+						v.SetNull()
 		# Now expand this entity's navigation properties
 		if expand:
 			for k,v in self.NavigationItems():
@@ -2239,7 +2256,7 @@ class EntityCollection(DictionaryLike):
 		foreign key so selecting it alone would not require a join to
 		the target table."""
 		select={}
-		for k in self.entitySet.KeyKeys():
+		for k in self.entitySet.keys:
 			select[k]=None
 		self.Expand(None,select)
 		
@@ -2249,7 +2266,7 @@ class EntityCollection(DictionaryLike):
 		entities expanded and selected according to :py:attr:`expand`
 		and :py:attr:`select` rules."""
 		for e in entityIterable:
-			if self.expand:
+			if self.expand or self.select:
 				e.Expand(self.expand,self.select)
 			yield e
 			
@@ -2447,6 +2464,7 @@ class EntityCollection(DictionaryLike):
 		we cache the last entity returned and also the last entity
 		yielded by iterkeys."""
 		# key=self.entitySet.GetKey(key)
+		logging.info("EntityCollection.__getitem__ without override in %s",self.__class__.__name__)
 		if self.lastYielded and self.lastYielded.Key()==key:
 			self.lastGot=self.lastYielded
 			return self.lastYielded
@@ -3275,6 +3293,7 @@ class EntitySet(CSDLElement):
 		self.name="Default"				#: the declared name of the entity set
 		self.entityTypeName=""			#: the name of the entity type of this set's elements 
 		self.entityType=None			#: the :py:class:`EntityType` of this set's elements
+		self.keys=[]					#: a list of the names of this entity set's keys
 		self.navigation={}				#: a mapping from navigation property names to AssociationSetEnd instances
 		self.linkEnds={}
 		"""A mapping from :py:class:`AssociationSetEnd` instances that
@@ -3302,7 +3321,7 @@ class EntitySet(CSDLElement):
 				order=collection.NewEntity()
 				# set order fields here
 				collection.InsertEntity(order)
-				# raises NavigationConstraintError as order is not bound to a customer
+				# raises ConstraintError as order is not bound to a customer
 
 		Instead, you have to create new orders from a Customer entity::
 		
@@ -3394,6 +3413,9 @@ class EntitySet(CSDLElement):
 			self.entityType=scope[self.entityTypeName]
 			if not isinstance(self.entityType,EntityType):
 				raise KeyError("%s is not an EntityType"%self.entityTypeName)
+			self.keys=[]
+			for kp in self.entityType.Key.PropertyRef:
+				self.keys.append(kp.name)
 		except KeyError:
 			logging.error("EntitySet %s has undeclared type: %s",self.name,self.entityTypeName)
 			self.entityType=None
@@ -3429,12 +3451,8 @@ class EntitySet(CSDLElement):
 					raise ModelIncomplete("Navigation property %s in EntitySet %s is not bound to an association set"%(np.name,self.name))
 				 
 	def KeyKeys(self):
-		"""Returns a list of the names of this entity set's key
-		properties."""
-		keys=[]
-		for kp in self.entityType.Key.PropertyRef:
-			keys.append(kp.name)
-		return keys
+		warnings.warn("EntitySet.KeyKeys is deprecated, use keys attribute instead", DeprecationWarning, stacklevel=2)
+		return self.keys
 		
 	def GetKey(self,keylike):
 		"""Extracts a key value suitable for using as a key in an

@@ -7,6 +7,7 @@
                 <EntitySet Name="AllTypes" EntityType="RegressionModel.AllTypes"/>
                 <EntitySet Name="ComplexTypes" EntityType="RegressionModel.ComplexTypes"/>
                 <EntitySet Name="CompoundKeys" EntityType="RegressionModel.CompoundKey"/>
+                <EntitySet Name="SimpleSelectSet" EntityType="RegressionModel.SimpleSelectType"/>
                 <EntitySet Name="O2Os" EntityType="RegressionModel.O2O"/>
                 <EntitySet Name="O2OXs" EntityType="RegressionModel.O2OX"/>
                 <AssociationSet Name="O_O" Association="RegressionModel.O_O">
@@ -166,6 +167,14 @@
                     MaxLength="4"/>
                 <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
                     MaxLength="255"/>
+            </EntityType>
+            <EntityType Name="SimpleSelectType">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="P1" Type="Edm.Double" Nullable="false"/>
+                <Property Name="P2" Type="Edm.String" Nullable="false"/>
             </EntityType>
             <EntityType Name="O2O">
                 <Key>

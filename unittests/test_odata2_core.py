@@ -1757,6 +1757,33 @@ class DataServiceRegressionTests(unittest.TestCase):
 			except KeyError:
 				pass
 
+	def RunTestCaseSimpleSelect(self):
+		selectSet=self.ds['RegressionModel.RegressionContainer.SimpleSelectSet']
+		with selectSet.OpenCollection() as collection:
+			entity=collection.NewEntity()
+			entity.SetKey(1)
+			entity['P1'].SetFromValue(3.14)
+			entity['P2'].SetFromValue("Pi")
+			collection.InsertEntity(entity)
+			entity=collection.NewEntity()
+			entity.SetKey(2)
+			entity['P1'].SetFromValue(2.72)
+			entity['P2'].SetFromValue("e")
+			collection.InsertEntity(entity)
+			collection.SelectKeys()
+			entity=collection[1]
+			self.assertTrue(entity.Selected('K'),"Key not selected")
+			self.assertTrue(entity['K'],"Key not selected")
+			self.assertFalse(entity.Selected('P1'),"P1 should not be selected")
+			self.assertFalse(entity['P1'],"P1 value should be NULL")
+			self.assertFalse(entity.Selected('P2'),"P2 should not be selected")
+			self.assertFalse(entity['P2'],"P2 value should be NULL")
+			collection.Expand(None,{'P1':None})
+			for k,entity in collection.iteritems():
+				self.assertTrue(entity['K'].value==k,"Key selected and in collection")
+				self.assertTrue(entity['P1'])
+				self.assertFalse(entity['P2'])
+		
 	def RunTestCaseNavigationOne2One(self):
 		ones=self.ds['RegressionModel.RegressionContainer.O2Os']
 		onexs=self.ds['RegressionModel.RegressionContainer.O2OXs']
@@ -4152,6 +4179,7 @@ class DataServiceRegressionTests(unittest.TestCase):
 		self.RunTestCaseAllTypes()
 		self.RunTestCaseComplexTypes()
 		self.RunTestCaseCompoundKey()
+		self.RunTestCaseSimpleSelect()
 		self.RunTestCaseNavigationOne2One()
 		self.RunTestCaseNavigationOne2One1()
 		self.RunTestCaseNavigationZeroOne2One()

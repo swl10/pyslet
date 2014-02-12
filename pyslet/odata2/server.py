@@ -2,7 +2,7 @@
 """This module implements the Open Data Protocol specification defined by Microsoft."""
 
 from types import *
-import sys, cgi, urllib, string, itertools, traceback, StringIO, json, base64, decimal, uuid, math, warnings
+import sys, cgi, urllib, string, itertools, traceback, StringIO, json, base64, decimal, uuid, math, warnings, logging
 
 import pyslet.info as info
 import pyslet.iso8601 as iso
@@ -144,8 +144,8 @@ class Server(app.Server):
 		
 	def SetModel(self,model):
 		"""Sets the model for the server from a parentless
-		:py:class:`pyslet.odatav2_metadata.Edmx` instance or an Edmx
-		:py:class:`pyslet.odatav2_metadata.Document` instance."""
+		:py:class:`~pyslet.odatav2_metadata.Edmx` instance or an Edmx
+		:py:class:`~pyslet.odatav2_metadata.Document` instance."""
 		if isinstance(model,edmx.Document):
 			doc=model
 			model=model.root
@@ -184,7 +184,11 @@ class Server(app.Server):
 			version=self.CheckCapabilityNegotiation(environ,start_response,responseHeaders)
 			if version is None:
 				return self.ODataError(ODataURI('error'),environ,start_response,"DataServiceVersionMismatch","Maximum supported protocol version: 2.0")
-			request=ODataURI(environ['PATH_INFO'],self.pathPrefix,version)
+			path=environ['PATH_INFO']
+			query=environ.get('QUERY_STRING',None)
+			if query is not None:
+				path=path+'?'+query
+			request=ODataURI(path,self.pathPrefix,version)
 			if request.resourcePath is None:
 				# this is not a URI for us, pass to our superclass
 				wrapper=WSGIWrapper(environ,start_response,responseHeaders)
@@ -215,6 +219,7 @@ class Server(app.Server):
 				start_response("%i %s"%(307,"Temporary Redirect"),responseHeaders)
 				return [data]
 			else:
+				logging.debug("SysQueryOptions: %s",repr(request.sysQueryOptions))
 				return self.HandleRequest(request,environ,start_response,responseHeaders)
 		except InvalidSystemQueryOption,e:
 			return self.ODataError(ODataURI('error'),environ,start_response,"InvalidSystemQueryOption","Invalid System Query Option: %s"%str(e))
@@ -579,11 +584,12 @@ class Server(app.Server):
 		try:
 			expand=sysQueryOptions.get(SystemQueryOption.expand,None)
 			select=sysQueryOptions.get(SystemQueryOption.select,None)
+			logging.debug("SysQueryOptions: %s",repr(sysQueryOptions))
 			if expand is None and select is None:
 				return
 			if not isinstance(resource,(EntityCollection,Entity)):
-				raise InvalidSystemQueryOption("$select/$expand not allowed")					
-			resource.Expand(expand,select)				
+				raise InvalidSystemQueryOption("$select/$expand not allowed")
+			resource.Expand(expand,select)		
 		except ValueError as e:
 			raise InvalidSystemQueryOption("$select/$expand error: %s"%str(e))					
 		

@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import unittest
+import unittest, logging
 
 def suite():
 	return unittest.TestSuite((
@@ -157,6 +157,8 @@ class QTIV2ConversionTests(unittest.TestCase):
 				if f not in fList1:
 					diagnosis.append("Missing file: %s"%f)
 			self.fail("File lists:\n  %s"%string.join(diagnosis,'\n  '))
+		logging.debug(str(self.cp.manifest))
+		logging.debug(str(cp2.manifest))
 		output=self.cp.manifest.DiffString(cp2.manifest)
 		self.assertTrue(self.cp.manifest.root==cp2.manifest.root,"Manifests differ:\n%s"%output)
 		checkFiles={}
@@ -234,5 +236,6 @@ class QTIBig5Tests(unittest.TestCase):
 		
 
 if __name__ == "__main__":
+	logging.basicConfig(level=logging.DEBUG)
 	unittest.main()
 

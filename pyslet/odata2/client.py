@@ -37,6 +37,34 @@ class ODataCollectionMixin(object):
 	def __init__(self,baseURI):
 		self.baseURI=baseURI
 	
+	def Expand(self,expand,select=None):
+		"""Sets the expand and select query options for this collection.
+		
+		We override this implementation to ensure that the keys are
+		always selected in each entity set."""
+		self.AddKeys(self.entitySet,expand,select)
+		self.entitySet.entityType.ValidateExpansion(expand,select)
+		self.expand=expand
+		self.select=select
+
+	@classmethod
+	def AddKeys(cls,entitySet,expand,select):
+		if u"*" in select or select is None:
+			pass
+		else:
+			# force the keys to be in the selection
+			for k in entitySet.keys:
+				select[k]=None
+		# now we look for anything that is being expanded
+		if expand is not None:
+			for np,expansion in expand.iteritems():
+				if np in select:
+					# recurse
+					cls.AddKeys(entitySet.NavigationTarget(np),expansion,select[np])
+				else:
+					# not being expanded
+					pass
+
 	def RaiseError(self,request):
 		"""Given a :py:class:`pyslet.rfc2616.HTTPRequest` object
 		containing an unexpected status in the response, parses an error
@@ -115,6 +143,10 @@ class ODataCollectionMixin(object):
 		sysQueryOptions={}
 		if self.filter is not None:
 			sysQueryOptions[core.SystemQueryOption.filter]=unicode(self.filter)
+		if self.expand is not None:
+			sysQueryOptions[core.SystemQueryOption.expand]=core.FormatExpand(self.expand)
+		if self.select is not None:
+			sysQueryOptions[core.SystemQueryOption.select]=core.FormatSelect(self.select)
 		if self.orderby is not None:
 			sysQueryOptions[core.SystemQueryOption.orderby]=core.CommonExpression.OrderByToString(self.orderby)
 		if sysQueryOptions:
@@ -142,8 +174,7 @@ class ODataCollectionMixin(object):
 				break
 		
 	def itervalues(self):
-		return self.ExpandEntities(
-			self.entityGenerator())
+		return self.entityGenerator()
 
 	def __getitem__(self,key):
 		entityURL=str(self.baseURI)+core.ODataURI.FormatKeyDict(self.entitySet.GetKeyDict(key))
@@ -152,6 +183,8 @@ class ODataCollectionMixin(object):
 			sysQueryOptions[core.SystemQueryOption.filter]=unicode(self.filter)
 		if self.expand is not None:
 			sysQueryOptions[core.SystemQueryOption.expand]=core.FormatExpand(self.expand)
+		if self.select is not None:
+			sysQueryOptions[core.SystemQueryOption.select]=core.FormatSelect(self.select)
 		if sysQueryOptions:
 			entityURL=uri.URIFactory.URI(entityURL+"?"+core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
 		doc=core.Document(baseURI=entityURL,reqManager=self.client)
@@ -285,6 +318,10 @@ class NavigationEntityCollection(ODataCollectionMixin,core.NavigationEntityColle
 			sysQueryOptions={}
 			if self.filter is not None:
 				sysQueryOptions[core.SystemQueryOption.filter]=unicode(self.filter)
+			if self.expand is not None:
+				sysQueryOptions[core.SystemQueryOption.expand]=core.FormatExpand(self.expand)
+			if self.select is not None:
+				sysQueryOptions[core.SystemQueryOption.select]=core.FormatSelect(self.select)
 			if sysQueryOptions:
 				entityURL=uri.URIFactory.URI(entityURL+"?"+core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
 			doc=core.Document(baseURI=entityURL,reqManager=self.client)
@@ -310,6 +347,10 @@ class NavigationEntityCollection(ODataCollectionMixin,core.NavigationEntityColle
 			sysQueryOptions={}
 			if self.filter is not None:
 				sysQueryOptions[core.SystemQueryOption.filter]=unicode(self.filter)
+			if self.expand is not None:
+				sysQueryOptions[core.SystemQueryOption.expand]=core.FormatExpand(self.expand)
+			if self.select is not None:
+				sysQueryOptions[core.SystemQueryOption.select]=core.FormatSelect(self.select)
 			if sysQueryOptions:
 				entityURL=uri.URIFactory.URI(entityURL+"?"+core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
 			doc=core.Document(baseURI=entityURL,reqManager=self.client)

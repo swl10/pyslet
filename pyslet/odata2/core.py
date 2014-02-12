@@ -1784,6 +1784,10 @@ def _FormatExpandList(expand):
 		else:
 			result=result+map(lambda x:"%s/%s"%(k,x),_FormatExpandList(v))
 	return result
+
+def FormatSelect(select):
+	"""Returns a unicode string representation of the *select* rules."""
+	return FormatExpand(select)		# same implementation as expand
 	
 
 class ODataURI:
@@ -3088,17 +3092,17 @@ class Entry(atom.Entry):
 						break
 				if isinstance(targetElement,atom.Date) and v:
 					if isinstance(v,edm.DateTimeOffsetValue):
-						targetElement.AddData(unicode(v))
+						targetElement.SetValue(unicode(v))
 					elif isinstance(v,edm.DateTimeValue):
 						# assume UTC
 						dtOffset=v.value.WithZone(zDirection=0)
-						targetElement.AddData(unicode(dtOffset))						
+						targetElement.SetValue(unicode(dtOffset))						
 					elif isinstance(v,edm.StringValue):
 						try:
 							dtOffset=iso8601.TimePoint.FromString(v.value)
 							if dtOffset.GetZone()[0] is None:
 								dtOffset=dtOffset.WithZone(zDirection=0)
-							targetElement.AddData(unicode(dtOffset))
+							targetElement.SetValue(unicode(dtOffset))
 						except iso8601.DateTimeError:
 							# do nothing
 							pass

@@ -68,7 +68,7 @@ class InMemoryEntityStore(object):
 		with self.container.lock:
 			return len(self.data)
 			
-	def GenerateEntities(self):
+	def GenerateEntities(self,select=None):
 		"""A generator function that returns the entities in the entity set
 		
 		The implementation is a compromise, we don't lock the container
@@ -79,23 +79,33 @@ class InMemoryEntityStore(object):
 		with self.container.lock:
 			keys=self.data.keys()
 		for k in keys:
-			e=self.ReadEntity(k)
+			e=self.ReadEntity(k,select)
 			if e is not None:
 				yield e
 
-	def ReadEntity(self,key):
+	def ReadEntity(self,key,select=None):
 		with self.container.lock:
 			value=self.data.get(key,None)
 			if value is None:
 				return None
 			e=Entity(self.entitySet,self)
+			if select is not None:
+				e.Expand(None,select)
 			kv=zip(e.DataKeys(),value)
 			for pName,pValue in kv:
 				p=e[pName]
-				if isinstance(p,edm.Complex):
-					self.SetComplexFromTuple(p,pValue)
+				if select is None or e.Selected(pName) or pName in self.entitySet.keys:
+					# for speed, check if selection is an issue first
+					# we always include the keys
+					if isinstance(p,edm.Complex):
+						self.SetComplexFromTuple(p,pValue)
+					else:
+						p.SetFromValue(pValue)
 				else:
-					p.SetFromValue(pValue)
+					if isinstance(p,edm.Complex):
+						p.SetNull()
+					else:
+						p.SetFromValue(None)
 			e.exists=True
 		return e
 		
@@ -192,7 +202,7 @@ class InMemoryEntityStore(object):
 		"""In the special case where the key is an integer, return the next free integer"""
 		with self.container.lock:
 			if self.nextKey is None:
-				kps=list(self.entitySet.KeyKeys())
+				kps=list(self.entitySet.keys)
 				if len(kps)!=1:
 					raise KeyError("Can't get next value of compound key")
 				key=self.entitySet.entityType[kps[0]]()
@@ -389,10 +399,10 @@ class EntityCollection(odata.EntityCollection):
 		return self.OrderEntities(
 			self.ExpandEntities(
 			self.FilterEntities(
-			self.entityStore.GenerateEntities())))
+			self.entityStore.GenerateEntities(self.select))))
 		
 	def __getitem__(self,key):
-		e=self.entityStore.ReadEntity(key)
+		e=self.entityStore.ReadEntity(key,self.select)
 		if e is not None and self.CheckFilter(e):
 			e.Expand(self.expand,self.select)
 			return e
