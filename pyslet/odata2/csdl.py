@@ -2337,49 +2337,6 @@ class EntityCollection(DictionaryLike):
 		else:
 			for e in entityIterable:
 				yield e
-
-	def Skip(self,skip):
-		"""Sets the skip option for this collection.
-		
-		The skip query option is an integer (or None to remove the
-		option) which seeks in to the entity collection.  The
-		implementation of
-		:py:meth:`itervalues` must honour the skip value."""
-		self.skip=skip		
-	
-	def Top(self,top):
-		"""Sets the top option for this collection.
-		
-		The top query option is an integer (or None to remove the
-		option) which limits the number of entities in the entity
-		collection.  The implementation of
-		:py:meth:`itervalues` must honour the top value."""
-		self.top=top		
-	
-	def TopMax(self,topmax):
-		"""Sets the maximum page size for this collection.
-		
-		This forces the collection to limit the size of a page to at
-		most topmax entities.  When topmax is in force
-		:py:meth:`NextSkipToken` will return a suitable value for
-		identifying the next page in the collection immediately after a
-		complete iteration of :py:meth:`iterpage`."""
-		self.topmax=topmax
-		
-	def SkipToken(self,skiptoken):
-		"""Sets the skip token for this collection.
-		
-		By default, we treat the skip token exactly the same as the skip
-		value itself except that we obscure it slightly by treating it
-		as a hex value."""
-		if skiptoken is None:
-			self.skiptoken=None
-		else:
-			try:
-				self.skiptoken=int(skiptoken,16)
-			except ValueError:
-				# not a skip token we recognise, do nothing
-				self.skiptoken=None
 		
 	def SetInlineCount(self,inlineCount):
 		"""Sets the inline count flag for this collection."""
@@ -2489,11 +2446,44 @@ class EntityCollection(DictionaryLike):
 		"""Not implemented"""
 		raise NotImplementedError
 	
+	def SetPage(self,top,skip=0,skiptoken=None):
+		"""Sets the page parameters.
+		
+		The skip and top query options are integers which determine the
+		number of entities returned (top) and the number of entities
+		skipped (skip and skiptoken) by iterpage.
+		
+		The default implementation treats the skip token exactly the
+		same as the skip value itself except that we obscure it slightly
+		by treating it as a hex value."""
+		self.top=top
+		self.skip=skip		
+		if skiptoken is None:
+			self.skiptoken=None
+		else:
+			try:
+				self.skiptoken=int(skiptoken,16)
+			except ValueError:
+				# not a skip token we recognise, do nothing
+				self.skiptoken=None
+		
+	def TopMax(self,topmax):
+		"""Sets the maximum page size for this collection.
+		
+		This forces the collection to limit the size of a page to at
+		most topmax entities.  When topmax is in force and is less than
+		the top value set in :py:meth:`SetPage`,
+		:py:meth:`NextSkipToken` will return a suitable value for
+		identifying the next page in the collection immediately after a
+		complete iteration of :py:meth:`iterpage`."""
+		self.topmax=topmax
+		
 	def GetPageStart(self):
 		"""Returns the index of the start of the collection's current page.
 		
-		Takes in to consideration both the requested skip value and any
-		skiptoken that may be in force."""
+		Used by the default implementation of iterpage.  Takes in to
+		consideration both the requested skip value and any skiptoken
+		that may be in force."""
 		skip=self.skiptoken
 		if skip is None:
 			skip=0
@@ -2502,22 +2492,29 @@ class EntityCollection(DictionaryLike):
 		else:
 			return self.skip+skip
 	
-	def iterpage(self):
+	def iterpage(self,setNextPage=False):
 		"""Returns an iterable subset of the values returned by :py:meth:`itervalues`
 		
-		The subset is defined by the top, skip (and skiptoken) attributes.
+		The subset is defined by the top, skip and skiptoken attributes
+		set by :py:meth:`SetPage`
+		
+		If *setNextPage* is True then the page is automatically advanced
+		so that the next call to iterpage iterates over the next page.
 		
 		Iterpage should be overridden by derived classes for a more
 		efficient implementation.  The default implementation simply
 		wraps :py:meth:`itervalues`."""
+		if self.top==0:
+			# end of paging
+			return
 		i=0
-		possibleSkiptoken=None
+		self.nextSkiptoken=None
 		eMin=self.GetPageStart()
 		if self.topmax:
 			if self.top is None or self.top>self.topmax:
 				# may be truncated
 				eMax=eMin+self.topmax
-				possibleSkiptoken=eMin+self.topmax
+				self.nextSkiptoken=eMin+self.topmax
 			else:
 				# top not None and <= topmax
 				eMax=eMin+self.top
@@ -2540,9 +2537,19 @@ class EntityCollection(DictionaryLike):
 					yield e
 					i=i+1
 				else:
-					# stop the iteration now, set the nextSkiptoken
-					self.nextSkiptoken=possibleSkiptoken
+					# stop the iteration now
+					if setNextPage:
+						# set the next skiptoken
+						if self.nextSkiptoken is None:
+							self.skip=i
+							self.skiptoken=None
+						else:
+							self.skip=None
+							self.skiptoken=self.nextSkiptoken
 					return
+		# no more pages
+		if setNextPage:
+			self.top=self.skip=self.skiptoken=0
 		
 	def NextSkipToken(self):
 		"""Following a complete iteration of the generator returned by
@@ -2553,7 +2560,7 @@ class EntityCollection(DictionaryLike):
 			return None
 		else:
 			return "%X"%self.nextSkiptoken
-
+			
 	def __len__(self):
 		"""Implements len(self) using :py:attr:`count` as a cache."""
 		if self.count is None:
@@ -3242,9 +3249,9 @@ class AssociationEnd(CSDLElement):
 
 class EntityContainer(NameTableMixin,CSDLElement):
 	XMLNAME=(EDM_NAMESPACE,'EntityContainer')
-
 	XMLATTR_Name=('name',ValidateSimpleIdentifier,None)
 	XMLATTR_Extends='extends'
+	XMLCONTENT=xmlns.ElementType.ElementContent
 	
 	def __init__(self,parent):
 		CSDLElement.__init__(self,parent)
@@ -3637,10 +3644,10 @@ class AssociationSetEnd(CSDLElement):
 	directional, it is not required to support bi-directional
 	associations.  The navigation itself is done using the
 	:py:meth:`Navigate` method.""" 
-	# XMLNAME=(EDM_NAMESPACE,'End')
-	
+	# XMLNAME=(EDM_NAMESPACE,'End')	
 	XMLATTR_Role='name'
 	XMLATTR_EntitySet='entitySetName'
+	XMLCONTENT=xmlns.ElementType.ElementContent
 	
 	def __init__(self,parent):
 		CSDLElement.__init__(self,parent)
@@ -3904,6 +3911,7 @@ class Schema(NameTableMixin,CSDLElement):
 	XMLNAME=(EDM_NAMESPACE,'Schema')
 	XMLATTR_Namespace='name'
 	XMLATTR_Alias='alias'
+	XMLCONTENT=xmlns.ElementType.ElementContent
 	
 	def __init__(self,parent):
 		CSDLElement.__init__(self,parent)

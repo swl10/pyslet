@@ -1045,7 +1045,7 @@ class Element(Node):
 		If the *type* value is not None then the XML attribute value is
 		first split by white-space, as per the XML specification, and
 		then the decode function is applied to each resulting component.
-		 The instance attribute is then set depending on the value of
+		The instance attribute is then set depending on the value of
 		*type*:
 		
 		types.ListType
@@ -1284,8 +1284,8 @@ class Element(Node):
 		"""Sets the value of an attribute.
 		
 		If *value* is None then the attribute is removed or, if an
-		XMLATTR_ mapping is in place its value is set to an empty list,
-		dictionary or None as appropriate."""
+		XMLATTR\\_ mapping is in place its value is set to an empty
+		list, dictionary or None as appropriate."""
 		aMap=self._AMap()
 		if name in aMap:
 			attrName,decode,vType=aMap[name]
@@ -1727,7 +1727,7 @@ class Element(Node):
 		This method does not do any special handling of child elements,
 		the caller takes responsibility for ensuring that this element
 		will no longer be returned by future calls to
-		parent.GetChildren().  However, :py:math:`DetachFromDocument` is
+		parent.GetChildren().  However, :py:meth:`DetachFromDocument` is
 		called to ensure id registrations are removed."""
 		self.DetachFromDocument()
 		self.parent=None
@@ -1799,7 +1799,7 @@ class Element(Node):
 		a large amount of data).  For more information see
 		:py:meth:`GetValue`.  Note that::
 		
-		string.join(e.GenerateValue(),u'')==e.GetValue()"""
+			string.join(e.GenerateValue(),u'')==e.GetValue()"""
 		if not self.IsMixed():
 			raise XMLMixedContentError(self.__class__.__name__)
 		for child in self.GetChildren():

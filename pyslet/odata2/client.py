@@ -49,7 +49,7 @@ class ODataCollectionMixin(object):
 
 	@classmethod
 	def AddKeys(cls,entitySet,expand,select):
-		if u"*" in select or select is None:
+		if select is None or u"*" in select:
 			pass
 		else:
 			# force the keys to be in the selection
@@ -58,7 +58,7 @@ class ODataCollectionMixin(object):
 		# now we look for anything that is being expanded
 		if expand is not None:
 			for np,expansion in expand.iteritems():
-				if np in select:
+				if select and np in select:
 					# recurse
 					cls.AddKeys(entitySet.NavigationTarget(np),expansion,select[np])
 				else:
@@ -175,6 +175,56 @@ class ODataCollectionMixin(object):
 		
 	def itervalues(self):
 		return self.entityGenerator()
+
+	def iterpage(self,setNextPage=False):
+		feedURL=self.baseURI
+		sysQueryOptions={}
+		if self.filter is not None:
+			sysQueryOptions[core.SystemQueryOption.filter]=unicode(self.filter)
+		if self.expand is not None:
+			sysQueryOptions[core.SystemQueryOption.expand]=core.FormatExpand(self.expand)
+		if self.select is not None:
+			sysQueryOptions[core.SystemQueryOption.select]=core.FormatSelect(self.select)
+		if self.orderby is not None:
+			sysQueryOptions[core.SystemQueryOption.orderby]=core.CommonExpression.OrderByToString(self.orderby)
+		if self.top is not None:
+			sysQueryOptions[core.SystemQueryOption.top]=unicode(self.top)
+		if self.skip is not None:
+			sysQueryOptions[core.SystemQueryOption.skip]=unicode(self.skip)
+		if self.skiptoken is not None:
+			sysQueryOptions[core.SystemQueryOption.skiptoken]=self.skiptoken
+		if sysQueryOptions:
+			feedURL=uri.URIFactory.URI(str(feedURL)+"?"+core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+		doc=core.Document(baseURI=feedURL,reqManager=self.client)
+		doc.Read()
+		if isinstance(doc.root,atom.Feed):
+			if len(doc.root.Entry):
+				for e in doc.root.Entry:
+					entity=core.Entity(self.entitySet)
+					entity.exists=True
+					e.GetValue(entity)
+					yield entity
+			else:
+				raise InvalidFeedDocument(str(feedURL))
+			feedURL=self.nextSkiptoken=None
+			for link in doc.root.Link:
+				if link.rel=="next":
+					feedURL=link.ResolveURI(link.href)
+					break
+			if feedURL is not None:
+				# extract the skiptoken from this link
+				feedURL=core.ODataURI(feedURL,self.client.pathPrefix)
+				self.nextSkiptoken=feedURL.sysQueryOptions.get(core.SystemQueryOption.skiptoken,None)
+			if setNextPage:
+				if self.nextSkiptoken is not None:
+					self.skiptoken=self.nextSkiptoken
+					self.skip=None
+				elif self.skip is not None:
+					self.skip+=len(doc.root.Entry)
+				else:
+					self.skip=len(doc.root.Entry)										
+		else:
+			raise InvalidFeedDocument(str(feedURL))
 
 	def __getitem__(self,key):
 		entityURL=str(self.baseURI)+core.ODataURI.FormatKeyDict(self.entitySet.GetKeyDict(key))
@@ -466,6 +516,7 @@ class Client(app.Client):
 		app.Client.__init__(self)
 		self.service=None		#: a :py:class:`pyslet.rfc5023.Service` instance describing this service
 		self.serviceRoot=None	#: a :py:class:`pyslet.rfc2396.URI` instance pointing to the service root
+		self.pathPrefix=None	#: a path prefix string of the service root
 		self.feeds={}			#: a dictionary of feed titles, mapped to :py:class:`csdl.EntitySet` instances
 		self.model=None			#: a :py:class:`metadata.Edmx` instance containing the model for the service
 		if serviceRoot is not None:
@@ -493,6 +544,9 @@ class Client(app.Client):
 						self.feeds[f.Title.GetValue()]=url
 		else:
 			raise InvalidServiceDocument(str(serviceRoot))
+		self.pathPrefix=self.serviceRoot.absPath
+		if self.pathPrefix[-1]==u"/":
+			self.pathPrefix=self.pathPrefix[:-1]
 		metadata=uri.URIFactory.Resolve(serviceRoot,'$metadata')
 		doc=edmx.Document(baseURI=metadata,reqManager=self)
 		defaultContainer=None
@@ -531,156 +585,6 @@ class Client(app.Client):
 					entitySet.BindNavigation(np.name,NavigationEntityCollection,client=self)
 				logging.debug("Registering feed: %s",str(self.feeds[f].GetLocation()))
 	
-# 	def LookupEntityType(self,entityTypeName):
-# 		"""Returns the :py:class:`EntityType` instance associated with the fully qualified *entityTypeName*"""
-# 		entityType=None
-# 		if entityTypeName==self._cacheTerm:
-# 			# time saver as most feeds are just lists of the same type
-# 			entityType=self._cacheType
-# 		else:
-# 			name=entityTypeName.split('.')
-# 			if name[0] in self.schemas:
-# 				try:
-# 					entityType=self.schemas[name[0]][string.join(name[1:],'.')]
-# 				except KeyError:
-# 					pass
-# 			# we cache both positive and negative results
-# 			self._cacheTerm=entityTypeName
-# 			self._cacheType=entityType
-# 		return entityType
-# 
-# 	def AssociateEntityType(self,entry):
-# 		for c in entry.Category:
-# 			entry.entityType=None
-# 			if c.scheme==ODATA_SCHEME and c.term:
-# 				entry.entityType=self.LookupEntityType(c.term)
-# 			
-# 	def RetrieveFeed(self,feedURL,odataQuery=None):
-# 		"""Given a feed URL, returns a :py:class:`pyslet.rfc4287.Feed` object representing it."""
-# 		doc=core.Document(baseURI=self._AddParams(feedURL,odataQuery),reqManager=self)
-# 		doc.Read()
-# 		if isinstance(doc.root,atom.Feed):
-# 			for e in doc.root.Entry:
-# 				self.AssociateEntityType(e)
-# 			return doc.root
-# 		else:
-# 			raise InvalidFeedDocument(str(feedURL))
-# 	
-# 	def RetrieveEntries(self,feedURL,odataQuery=None):
-# 		"""Given a feed URL, returns an iterable yielding :py:class:`Entry` instances.
-# 		
-# 		This method uses the :py:attr:`pageSize` attribute to set the paging of
-# 		the data.  (The source may restrict the number of return values too). 
-# 		It hides the details required to iterate through the entire list of
-# 		entries with the caveat that there is no guarantee that the results will
-# 		be consistent.  If the data source is being updated or reconfigured it
-# 		is possible that the some entries may be skipped or duplicated as a result
-# 		of being returned by different HTTP requests."""
-# 		if self.pageSize:
-# 			skip=0
-# 			page=self.pageSize
-# 		else:
-# 			skip=page=None
-# 		if odataQuery is None:
-# 			odataQuery={}
-# 		while True:
-# 			if page:
-# 				if skip:
-# 					odataQuery['$skip']=str(skip)				
-# 			doc=core.Document(baseURI=self._AddParams(feedURL,odataQuery),reqManager=self)
-# 			doc.Read()
-# 			if isinstance(doc.root,atom.Feed):
-# 				if len(doc.root.Entry):
-# 					for e in doc.root.Entry:
-# 						self.AssociateEntityType(e)
-# 						yield e
-# 				else:
-# 					break
-# 			else:
-# 				raise InvalidFeedDocument(str(feedURL))
-# 			if page:
-# 				skip=skip+page
-# 			else:
-# 				# check for 'next' link
-# 				feedURL=None
-# 				for link in doc.root.Link:
-# 					if link.rel=="next":
-# 						feedURL=link.ResolveURI(link.href)
-# 						break
-# 				if feedURL is None:
-# 					break
-# 						
-# 	def Entry(self,entityTypeName=None):
-# 		"""Returns a new :py:class:`Entry` suitable for passing to :py:meth:`AddEntry`.
-# 		
-# 		The optional *entityTypeName* is the name of an EntityType to bind this
-# 		entry to.  The name must be the fully qualified name of a type in one of
-# 		the namespaces.  A Category instance is added to the Entry to represent this
-# 		binding."""
-# 		if entityTypeName:
-# 			entityType=self.LookupEntityType(entityTypeName)
-# 			if entityType is None:
-# 				raise KeyError("Undeclared Type: %s"%entityTypeName)
-# 		else:
-# 			entityType=None
-# 		e=Entry(None)
-# 		e.entityType=entityType
-# 		if entityType:
-# 			c=e.ChildElement(atom.Category)
-# 			c.scheme=ODATA_SCHEME
-# 			c.term=entityTypeName				
-# 		return e		
-# 				
-# 	def AddEntry(self,feedURL,entry):
-# 		"""Given a feed URL, adds an :py:class:`Entry` to it
-# 		
-# 		Returns the new entry as returned by the OData service.  *entry* must be
-# 		an orphan element."""
-# 		doc=core.Document(root=entry,reqManager=self)
-# 		req=http.HTTPRequest(str(feedURL),"POST",unicode(doc).encode('utf-8'))
-# 		mtype=http.HTTPMediaType()
-# 		mtype.SetMimeType(atom.ATOM_MIMETYPE)
-# 		mtype.parameters['charset']=('Charset','utf-8')
-# 		req.SetHeader("Content-Type",mtype)
-# 		self.ProcessRequest(req)
-# 		if req.status==201:
-# 			newDoc=core.Document()
-# 			e=xml.XMLEntity(req.response)
-# 			newDoc.ReadFromEntity(e)
-# 			if isinstance(newDoc.root,atom.Entry):
-# 				return newDoc.root
-# 			else:
-# 				raise core.InvalidEntryDocument(str(entryURL))
-# 		else:
-# 			raise UnexpectedHTTPResponse("%i %s"%(req.status,req.response.reason))	
-# 			
-# 	def RetrieveEntry(self,entryURL):
-# 		"""Given an entryURL URL, returns the :py:class:`Entry` instance"""
-# 		doc=core.Document(baseURI=entryURL,reqManager=self)
-# 		doc.Read()
-# 		if isinstance(doc.root,atom.Entry):
-# 			self.AssociateEntityType(doc.root)
-# 			return doc.root
-# 		else:
-# 			raise core.InvalidEntryDocument(str(entryURL))
-# 			
-# 	def _AddParams(self,baseURL,odataQuery=None):
-# 		if baseURL.query is None:
-# 			query={}
-# 		else:
-# 			query=cgi.parse_qs(baseURL.query)
-# 		if self.pageSize:
-# 			query["$top"]=str(self.pageSize)
-# 		if odataQuery:
-# 			for k in odataQuery.keys():
-# 				query[k]=odataQuery[k]
-# 		if query:
-# 			if baseURL.absPath is None:
-# 				raise InvalidFeedURL(str(baseURL))
-# 			return uri.URIFactory.Resolve(baseURL,baseURL.absPath+"?"+urllib.urlencode(query))
-# 		else:
-# 			return baseURL
-
 	def QueueRequest(self,request):
 # 		if not request.HasHeader("Accept"):
 # 			request.SetHeader('Accept','application/xml')

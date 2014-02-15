@@ -270,7 +270,7 @@ class SQLCollectionMixin(object):
 		raise NotImplementedError
 		
 	def SQLExpressionSubstringof(self,expression,params,context):
-		"""The basic idea is to do op[0] LIKE '%'+op[1]+'%'
+		"""The basic idea is to do op[1] LIKE '%'+op[0]+'%'
 		
 		To do this we need to invoke the concatenation operator,
 		which is a bit clumsy but more robust than just assuming
@@ -279,13 +279,13 @@ class SQLCollectionMixin(object):
 		percent.SetFromValue(u"'%'")
 		percent=UnparameterizedLiteral(percent)
 		rconcat=core.CallExpression(core.Method.concat)
-		rconcat.operands.append(expression.operands[1])
+		rconcat.operands.append(expression.operands[0])
 		rconcat.operands.append(percent)
 		lconcat=core.CallExpression(core.Method.concat)
 		lconcat.operands.append(percent)
 		lconcat.operands.append(rconcat)
 		query=[]
-		query.append(self.SQLExpression(expression.operands[0],params,'LIKE'))
+		query.append(self.SQLExpression(expression.operands[1],params,'LIKE'))
 		query.append(" LIKE ")
 		query.append(self.SQLExpression(lconcat,params,'LIKE'))
 		return self.SQLBracket(string.join(query,''),context,'LIKE')

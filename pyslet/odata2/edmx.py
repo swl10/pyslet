@@ -13,8 +13,7 @@ import itertools
 EDMX_NAMESPACE="http://schemas.microsoft.com/ado/2007/06/edmx"		#: Namespace to use for EDMX elements
 
 class EDMXElement(xmlns.XMLNSElement):
-	pass
-
+	XMLCONTENT=xmlns.ElementType.ElementContent
 
 class DataServices(edm.NameTableMixin,EDMXElement):
 	XMLNAME=(EDMX_NAMESPACE,'DataServices')

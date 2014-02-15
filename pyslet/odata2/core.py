@@ -922,8 +922,8 @@ class CallExpression(CommonExpression):
 
 	def EvaluateSubstringof(self,args):
 		if (len(args)==2):
-			target=self.PromoteParameter(args[0],edm.SimpleType.String)
-			searchString=self.PromoteParameter(args[1],edm.SimpleType.String)
+			searchString=self.PromoteParameter(args[0],edm.SimpleType.String)
+			target=self.PromoteParameter(args[1],edm.SimpleType.String)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
 			if target and searchString:
 				result.SetFromValue(target.value.find(searchString.value)>=0)

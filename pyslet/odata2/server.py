@@ -405,9 +405,9 @@ class Server(app.Server):
 					if isinstance(resource,edm.EntityCollection):
 						with resource as collection:
 							collection.SelectKeys()
-							collection.Skip(request.sysQueryOptions.get(SystemQueryOption.skip,None))
-							collection.Top(request.sysQueryOptions.get(SystemQueryOption.top,None))
-							collection.SkipToken(request.sysQueryOptions.get(SystemQueryOption.skiptoken,None))
+							collection.SetPage(request.sysQueryOptions.get(SystemQueryOption.top,None),
+								request.sysQueryOptions.get(SystemQueryOption.skip,None),
+								request.sysQueryOptions.get(SystemQueryOption.skiptoken,None))
 							inlineCount=request.sysQueryOptions.get(SystemQueryOption.inlinecount,None)
 							collection.SetInlineCount(inlineCount==InlineCount.allpages)
 							return self.ReturnLinks(collection,request,environ,start_response,responseHeaders)
@@ -488,9 +488,9 @@ class Server(app.Server):
 					self.ExpandResource(resource,request.sysQueryOptions)
 					resource.Filter(request.sysQueryOptions.get(SystemQueryOption.filter,None))
 					resource.OrderBy(request.sysQueryOptions.get(SystemQueryOption.orderby,[]))
-					resource.Skip(request.sysQueryOptions.get(SystemQueryOption.skip,None))
-					resource.Top(request.sysQueryOptions.get(SystemQueryOption.top,None))
-					resource.SkipToken(request.sysQueryOptions.get(SystemQueryOption.skiptoken,None))
+					resource.SetPage(request.sysQueryOptions.get(SystemQueryOption.top,None),
+						request.sysQueryOptions.get(SystemQueryOption.skip,None),
+						request.sysQueryOptions.get(SystemQueryOption.skiptoken,None))
 					inlineCount=request.sysQueryOptions.get(SystemQueryOption.inlinecount,None)
 					resource.SetInlineCount(inlineCount==InlineCount.allpages)
 					return self.ReturnEntityCollection(resource,request,environ,start_response,responseHeaders)
