@@ -230,6 +230,12 @@ easier to read::
 	>>> c.model.DataServices['ODataWeb.Northwind.Model.NorthwindEntities.Products']
 	<pyslet.odata2.metadata.EntitySet object at 0x10800f150>
 
+When writing an application that would normally use a single database
+you should pass an EntityCollection object to it as a data source rather
+than the DataServices ancestor.  It is best not to pass an
+implementation-specific class like the OData Client as that will make
+the application dependent on a particular type of data source.
+
 
 Entity Sets
 ~~~~~~~~~~~
@@ -733,17 +739,324 @@ The expand and select options can be combined in complex ways::
 Entity Objects
 ~~~~~~~~~~~~~~
 
-Documentation coming soon...
+Continuing further with the database analogy and
+:py:class:`~pyslet.odata2.csdl.Entity` is like a single record.
+
+Entity instances behave like a read-only dictionary mapping property
+names onto their values.  The values are either SimpleValue_, Complex_
+or DeferredValue_ instances.  All property values are created on
+construction and cannot be assigned.  To update a SimpleValue, whether
+it is a direct child or part of a Complex value, use its
+:py:meth:`~pyslet.odata2.csdl.SimpleValue.SetFromValue` method::
+	
+	entity['Name'].SetFromValue("Steve")
+	entity['Address']['City'].SetFromValue("Cambridge")
+	
+The following attributes are useful for consumers of the API (and should
+be treated as read only):
+
+:py:attr:`~pyslet.odata2.csdl.Entity.entitySet`
+	The :py:class:`~pyslet.odata2.csdl.EntitySet` to which this entity
+	belongs.
+
+:py:attr:`~pyslet.odata2.csdl.Entity.typeDef`
+	The :py:class:`~pyslet.odata2.csdl.EntityType` which defines this
+	entity's type.
+
+:py:attr:`~pyslet.odata2.csdl.Entity.exists`
+	True if this entity exists in the collection, i.e., it was returned
+	by one of the dictionary methods of an entity collection such as
+	*itervalues* or [key] look-up.
+
+The following methods are useful for consumers of the API:
+
+:py:meth:`~pyslet.odata2.csdl.Entity.Key`
+	Returns the entity's key, as a single python value or tuple in the
+	case of compound keys
+	
+:py:meth:`~pyslet.odata2.core.Entity.GetLocation`
+	Returns a :py:class:`pyslet.rfc2396.URI` object that represents this
+	entity::
+	
+		>>> print scones.GetLocation()
+		http://services.odata.org/V2/Northwind/Northwind.svc/Products(21)
+
+:py:meth:`~pyslet.odata2.csdl.Entity.DataKeys`
+	Iterates over the simple and complex property names::
+	
+		>>> list(scones.DataKeys())
+		[u'ProductID', u'ProductName', u'SupplierID', u'CategoryID', u'QuantityPerUnit', u'UnitPrice', u'UnitsInStock', u'UnitsOnOrder', u'ReorderLevel', u'Discontinued']
+
+:py:meth:`~pyslet.odata2.csdl.Entity.DataItems`
+	Iterates over tuples of simple and complex property (name,value)
+	pairs. See above for examples of usage.
+
+:py:meth:`~pyslet.odata2.csdl.Entity.Selected`
+	Tests if the given data property is selected. 
+
+:py:meth:`~pyslet.odata2.csdl.Entity.NavigationKeys`
+	Iterates over the navigation property names::
+	
+		>>> list(scones.NavigationKeys())
+		[u'Category', u'Order_Details', u'Supplier']
+
+:py:meth:`~pyslet.odata2.csdl.Entity.NavigationItems`
+	Iterates over tuples of navigation property (name,DeferredValue)
+	pairs.
+
+:py:meth:`~pyslet.odata2.csdl.Entity.IsNavigationProperty`
+	Tests if a navigation property with the given name exists 
+
+
+The following methods can be used only on entities that exists, i.e.,
+entities that have been returned from one of the collection's dictionary
+methods:
+
+:py:meth:`~pyslet.odata2.csdl.Entity.Update`
+	Normally you'll use the the Update method of an open
+	EntityCollection but in cases where the originating collection is no
+	longer open this method can be used as a convenience method for
+	opening the base collection, updating the entity and then closing
+	the collection collection again.
+
+:py:meth:`~pyslet.odata2.csdl.Entity.Delete`
+	Deletes this entity from the base entity set.  If you already have
+	the base entity set open it is more efficient to use the *del*
+	operator but if the collection is no longer open or the entity was
+	obtained from a collection opened through navigation then this
+	method can be used to delete the entity.
+
+The following method can only be used on entities that don't exist,
+i.e., entities returned from the collection's NewEntity or CopyEntity
+methods that have not been inserted.
+ 
+:py:meth:`~pyslet.odata2.csdl.Entity.SetKey`
+	Sets the entity's key
+
+
+SimpleValue
++++++++++++
+
+Simple property values are represented by (sub-classes of)
+:py:class:`~pyslet.odata2.csdl.SimpleValue`, they share a number of
+common methods:
+
+:py:meth:`~pyslet.odata2.csdl.SimpleValue.IsNull`
+	Returns True if this value is NULL.  This method is also used
+	by Python's non-zero test so::
+	
+		if entity['Property']:
+			print entity['Property'].value
+			# prints even if value is 0
+
+	will print the Property value of entity if it is non-NULL.  In
+	particular, it will print empty strings or other representations of
+	zero.  If you want to exclude these from the test you should test
+	the value attribute directly::
+
+		if entity['Property'].value:
+			print entity['Property'].value
+			# will not print if value is 0
+	
+:py:meth:`~pyslet.odata2.csdl.SimpleValue.SetFromValue`
+	Updates the value, coercing the argument to the correct type and
+	range checking its value.
+
+:py:meth:`~pyslet.odata2.csdl.SimpleValue.SetFromSimpleValue`
+	Updates the value from another SimpleValue, if the types match then
+	the value is simply copied, otherwise the value is coerced using
+	SetFromValue.
+
+:py:meth:`~pyslet.odata2.csdl.SimpleValue.SetFromLiteral`
+	Updates the value by parsing it from a (unicode) string.  This is
+	the opposite to the unicode function.  The literal form is the form
+	used when serializing the value to XML (but does not include XML
+	character escaping).
+
+:py:meth:`~pyslet.odata2.csdl.SimpleValue.SetNull`
+	Updates the value to NULL
+	
+The value attribute is always an immutable value in python and so can be
+used as a key in your own dictionaries.  The following list describes
+the mapping from the EDM-defined simple types to their corresponding
+native Python types.
+
+Edm.Boolean:
+	one of the Python constants True or False
+	
+Edm.Byte, Edm.SByte, Edm.Int16, Edm.Int32:
+	int
+
+Edm.Int64:
+	long
+
+Edm.Double, Edm.Single:
+	python float
+
+Edm.Decimal:
+	python Decimal instance (from the built-in decimal module)
+
+Edm.DateTime, Edm.DateTimeOffset:
+	py:class:`pyslet.iso8601.TimePoint` instance
+	
+	This is a custom object in Pyslet, see `Working with Dates`_ for
+	more information.
+	
+Edm.Time:
+	py:class:`pyslet.iso8601.Time` instance
+	
+	Early versions of the OData specification incorrectly mapped this
+	type to the XML Schema duration.  The use of a Time object to
+	represent it, rather than a duration, reflects this correction.
+
+	See `Working with Dates`_ for more information.
+
+Edm.Binary:
+	raw string
+	
+Edm.String:
+	unicode string
+
+Edm.Guid:
+	Python UUID instance (from the built-in uuid module)
+
+
+Complex
++++++++
+
+Complex values behave like dictionaries of data properties.  They do not
+have keys or navigation properties.  They are never NULL, IsNull and the
+Python non-zero test will always return True.
+
+:py:meth:`~pyslet.odata2.csdl.SimpleValue.SetNull`
+	Although a Complex value can never be NULL, this method will set all
+	of its data properties (recursively if necessary) to NULL
+
+
+DeferredValue
++++++++++++++
+
+Navigation properties are represented as :py:class:`DeferredValue`
+instances.  All deferred values can be treated as an entity collection
+and opened in a similar way to an entity set::
+
+	>>> sconeSuppliers=scones['Supplier'].OpenCollection()
+	>>> for s in sconeSuppliers.itervalues(): print s['CompanyName'].value
+	... 
+	INFO:root:Sending request to services.odata.org
+	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)/Supplier HTTP/1.1
+	INFO:root:Finished Response, status 200
+	Specialty Biscuits, Ltd.
+	>>> 
+
+For reading, a collection opened from a deferred value behaves in
+exactly the same way as a collection opened from a base entity set. 
+However, for writing there are some difference described above in
+`Entity Collections`_.
+
+If you use the dictionary methods to update the collection the changes
+are made straight away by accessing the data source directly.  If you
+want to make a number of changes simultaneously, or you want to link
+entities to entities that don't yet exist, then you should use the
+BindEntity method described below instead.  This method defers the
+changes until the parent entity is updated (or inserted, in the case of
+non-existent entities.)
+
+Read-only attributes useful to data consumers:
+ 
+:py:attr:`~pyslet.odata2.csdl.DeferredValue.name`
+	The name of the navigation property
+
+:py:attr:`~pyslet.odata2.csdl.DeferredValue.fromEntity`
+	The parent entity of this navigation property
+
+:py:attr:`~pyslet.odata2.csdl.DeferredValue.pDef`
+	The :py:class:`~pyslet.odata2.csdl.NavigationProperty` that defines
+	this navigation property in the model.
+
+:py:attr:`~pyslet.odata2.csdl.DeferredValue.isRequired`
+	True if the target of this property has multiplicity 1, i.e., it is
+	required.
+
+:py:attr:`~pyslet.odata2.csdl.DeferredValue.isCollection`
+	True if the target of this property has multiplicity *
+
+:py:attr:`~pyslet.odata2.csdl.DeferredValue.isExpanded`
+	True if this navigation property has been expanded.  Expanded
+	navigation keep a cached version of the target collection.  Although
+	you can open it and use it in the same way any other collection the
+	values returned are returned from the cache and not by accessing the
+	data source.
+
+Methods useful to data consumers:
+
+:py:meth:`~pyslet.odata2.csdl.DeferredValue.OpenCollection`
+	Returns an :py:class:`pyslet.odata2.csdl.EntityCollection` object
+	that can be used to access the target entities.
+
+:py:meth:`~pyslet.odata2.csdl.DeferredValue.GetEntity`
+	Convenience method that returns the entity that is the target of the
+	link when the target has multiplicity 1 or 0..1.  If no entity is
+	linked by the association then None is returned.
+
+:py:meth:`~pyslet.odata2.csdl.DeferredValue.BindEntity`
+	Marks the target entity for addition to this navigation collection
+	on next update or insert.  If this navigation property is not a
+	collection then the target entity will replace any existing target
+	of the link.
+
+:py:meth:`~pyslet.odata2.csdl.DeferredValue.Target`
+	The target entity set of this navigation property.
 
 
 Working with Dates
 ++++++++++++++++++
 
-Documentation coming soon...
+In the EDM there are two types of date, DateTime and DateTimeOffset. 
+The first represents a time-point in an implicit zone and the second
+represents a time-point with the zone offset explicitly set.
 
+Both types are represented by the custom :py:class:pyslet.iso8601.TimePoint`
+class in Pyslet.
 
-Navigation: DeferredValues
-++++++++++++++++++++++++++
+*time module from build 0.4.20140217 onwards*
+
+Interacting with Python's time module is done using the struct_time type,
+or lists that have values corresponding to those in struct_time::
+
+	>>> import time
+	>>> orders=c.feeds['Orders'].OpenCollection()
+	>>> orders.SetPage(5)
+	>>> top=list(orders.iterpage())
+	INFO:root:Sending request to services.odata.org
+	INFO:root:GET /V2/Northwind/Northwind.svc/Orders?$skip=0&$top=5 HTTP/1.1
+	INFO:root:Finished Response, status 200
+	>>> print top[0]['OrderDate'].value
+	1996-07-04T00:00:00
+	>>> t=[None]*9
+	>>> top[0]['OrderDate'].value.UpdateStructTime(t)
+	>>> t
+	[1996, 7, 4, 0, 0, 0, 3, 186, -1]
+	>>> time.strftime("%a, %d %b %Y %H:%M:%S",t)
+	'Thu, 04 Jul 1996 00:00:00'
+
+You can set values obtained from the time module in a similar way::
+
+	>>> import pyslet.iso8601 as iso
+	>>> t=time.gmtime(time.time())
+	>>> top[0]['OrderDate'].SetFromValue(iso.TimePoint.FromStructTime(t))
+	>>> print top[0]['OrderDate'].value
+	2014-02-17T21:51:41
+
+But if you just want a timestamp use one of the built-in factory
+methods::
+
+	>>> top[0]['OrderDate'].SetFromValue(iso.TimePoint.FromNowUTC())
+	>>> print top[0]['OrderDate'].value
+	2014-02-17T21:56:23
+
+In future versions, look out for better support for datetime and
+calendar module conversion methods.
 
 
 ..	import logging
@@ -756,13 +1069,11 @@ Navigation: DeferredValues
 	products.SetPage(30,50)
 	for p in products.iterpage(True): print p.Key(), p['ProductName'].value
 	for p in products.iterpage(True): print p.Key(), p['ProductName'].value
-
 	import pyslet.odata2.core as core
 	filter=core.CommonExpression.FromString("substringof('one',ProductName)")
 	products.Filter(filter)
-
-ordering=core.CommonExpression.OrderByFromString("ProductName desc")
-products.OrderBy(ordering)
+	ordering=core.CommonExpression.OrderByFromString("ProductName desc")
+	products.OrderBy(ordering)
 
 	
 	

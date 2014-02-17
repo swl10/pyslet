@@ -285,12 +285,14 @@ class DateTests(unittest.TestCase):
 		weekday [0,6], Monday=0
 		Julian day [1,366]
 		daylight savings (0,1, or -1)
-		We only deal with the first three fields and we don't allow reduced precision
-		as this is not needed for interacting with the functions in the time module."""
+		We only ever read the first three fields, but we must update
+		them all when writing, and we don't allow reduced precision as
+		this is not needed for interacting with the functions in the
+		time module."""
 		date=Date.FromStructTime([1969,7,20,None,None,None,None,None,None])
 		timeTuple=[None]*9
 		date.UpdateStructTime(timeTuple)
-		self.assertTrue(timeTuple==[1969,7,20,None,None,None,None,None,None],"simple case")
+		self.assertTrue(timeTuple==[1969,7,20,None,None,None,6,201,None],"simple case")
 		self.assertTrue(date.GetCalendarDay()==(19,69,7,20),"calendar cross-check")
 		date=Date(century=19,year=69,month=7)
 		try:
@@ -573,7 +575,7 @@ class TimeTests(unittest.TestCase):
 		t=Time.FromStructTime([1969,7,20,20,17,40,None,None,None])
 		timeTuple=[None]*9
 		t.UpdateStructTime(timeTuple)
-		self.assertTrue(timeTuple==[None,None,None,20,17,40,None,None,None],"simple case")
+		self.assertTrue(timeTuple==[None,None,None,20,17,40,None,None,-1],"simple case")
 		self.assertTrue(t.GetTime()==(20,17,40),"time cross-check")
 		t=Time(hour=20,minute=20)
 		try:

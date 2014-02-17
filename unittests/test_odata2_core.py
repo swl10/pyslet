@@ -1037,20 +1037,21 @@ class CommonExpressionTests(unittest.TestCase):
 		value indicating whether the second parameter string value
 		occurs in the first parameter string value.
 		
-		TODO: There appears to be an error in the specification here and
-		this should have been the other way around!  Correct in v3"""
-		value=self.EvaluateCommon("substringof('startswith','tart')")
+		The definition of this function is a mess and in OData 4 it has
+		been retired because of the confusion.  See:
+		https://tools.oasis-open.org/issues/browse/ODATA-401"""
+		value=self.EvaluateCommon("substringof('tart','startswith')")
 		self.assertTrue(value.typeCode==edm.SimpleType.Boolean,"Expected Boolean")
 		self.assertTrue(value.value==True)
-		value=self.EvaluateCommon("substringof('startswith','start')")
+		value=self.EvaluateCommon("substringof('start','startswith')")
 		self.assertTrue(value.value==True)
-		value=self.EvaluateCommon("substringof('startswith','t')")
+		value=self.EvaluateCommon("substringof('t','startswith')")
 		self.assertTrue(value.value==True)
 		# not case insensitive
-		value=self.EvaluateCommon("substringof('startswith','W')")
+		value=self.EvaluateCommon("substringof('W','startswith')")
 		self.assertTrue(value.value==False)
 		try:
-			value=self.EvaluateCommon("substringof('3.14',1)")
+			value=self.EvaluateCommon("substringof(1,'3.14')")
 			self.fail("integer as parameter")
 		except EvaluationError:
 			pass

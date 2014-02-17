@@ -526,13 +526,15 @@ class Date(object):
 		return cls(century=t[0]//100,year=t[0]%100,month=t[1],day=t[2])
 	
 	def UpdateStructTime(self,t):
-		"""UpdateStructTime changes the year, month and date fields of
-		t, a struct_time, to match the values in this date."""
+		"""UpdateStructTime changes the year, month, date, wday and ydat
+		fields of t, a struct_time, to match the values in this date."""
 		if not self.Complete():
 			raise DateTimeError("UpdateStructTime requires complete date")
 		t[0]=self.century*100+self.year
 		t[1]=self.month
 		t[2]=self.day
+		t[6]=self.GetWeekDay()[4]-1
+		t[7]=self.GetOrdinalDay()[2]
 		
 	@classmethod
 	def FromNow(cls):
@@ -1368,13 +1370,16 @@ class Time(object):
 		return cls(hour=t[3],minute=t[4],second=t[5])
 	
 	def UpdateStructTime(self,t):
-		"""UpdateStructTime changes the hour, minute and second fields of
-		t, a struct_time, to match the values in this time."""
+		"""UpdateStructTime changes the hour, minute, second and isdst
+		fields of t, a struct_time, to match the values in this time.
+		
+		isdst is always set to -1"""
 		if not self.Complete():
 			raise DateTimeError("UpdateStructTime requires a complete time")
 		t[3]=self.hour
 		t[4]=self.minute
 		t[5]=self.second
+		t[8]=-1
 		
 	@classmethod
 	def FromNow(cls):
@@ -2221,7 +2226,8 @@ class TimePoint:
 		return self.date.GetWeekString(basic,truncation)+tDesignator+\
 			self.time.GetString(basic,NoTruncation,ndp,zonePrecision,dp)
 
-	def FromUnixTime (self,unixTime):
+	@classmethod
+	def FromUnixTime (cls,unixTime):
 		"""Constructs a TimePoint from *unixTime*, the number of seconds
 		since the time origin.  The resulting time has no zone.
 
@@ -2352,11 +2358,6 @@ class TimePoint:
 	def SetUnixTime (self,unixTime):
 		warnings.warn("TimePoint.SetUnixTime is deprecated, use TimePoint.FromUnixTime(t) instead", DeprecationWarning, stacklevel=2)
 		self.SetFromTimePoint(TimePoint.FromUnixTime(unixTime))
-# 		utcTuple=pytime.gmtime(0)
-# 		self.date=Date.FromStructTime(utcTuple)
-# 		self.time=Time.FromStructTime(utcTuple)
-# 		self.time=self.time.WithZone(zDirection=0)
-# 		self.date.AddDays(self.time.AddSeconds(unixTime))
 				
 	def Now (self):
 		warnings.warn("TimePoint.Now is deprecated, use TimePoint.FromNow() instead", DeprecationWarning, stacklevel=2)

@@ -374,7 +374,7 @@ class SQLDSTests(unittest.TestCase):
 				newHire["Address"]["Street"].SetFromValue(random.choice(('Mill Road','Main Street','Privet Drive')))
 				collection.InsertEntity(newHire)
 			self.assertTrue(len(collection)==20)
-			collection.Filter(core.CommonExpression.FromString("substringof(Address/Street,'Road')"))
+			collection.Filter(core.CommonExpression.FromString("substringof('Road',Address/Street)"))
 			roads=len(collection)
 			collection.Filter(core.CommonExpression.FromString("endswith(Address/Street,'Street')"))
 			streets=len(collection)
