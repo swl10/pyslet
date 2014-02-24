@@ -126,6 +126,16 @@ certainly want to create indexes to optimise performance and tweak the
 model to get the best out of your platform.  The automatically generated
 SQL script is supposed to be a starting point, not the complete solution.
 
+For example, the data set I used for this project has over 300,000
+records in it.  At the end of this exercise I had an OData server
+capable of serving this information from a SQLite database but example
+URLs were taking 10s or more on my laptop to load.  I created an index
+on the Temperature column using the SQLite command line and the page
+load times were instantaneous::
+
+	sqlite> create index TIndex ON DataPoints(Temperature);
+
+
 Modelling an Existing Database
 ++++++++++++++++++++++++++++++
 
@@ -253,16 +263,16 @@ Finally, we need to deal with the symmetric relationships, 1 to 1 and \*
 to \*.  These are modelled by separate tables.  1 to 1 relationships are
 best avoided, the advantages over combining the two entities into a
 single larger entity are marginal given OData's $select option which
-allows you to pick a subset of the fields anyway.  If you have then in
+allows you to pick a subset of the fields anyway.  If you have them in
 your SQL schema already you might consider creating a view to combine
 them before attempting to map them to the metadata model.
 
-Many to Many (\* to \*) relationships get mapped to a table with the
-name of the AssociationSet.  There are two sets of foreign keys, one for
-each of the EntitySets being joined.  The paths are rather complex
-consisting of triples:  (name of the source entity set, name of
-navigation property in the source entity set, name of key field in the
-target set).
+Either way, both types of symmetric relationships get mapped to a table
+with the name of the AssociationSet.  There are two sets of foreign
+keys, one for each of the EntitySets being joined.  The paths are rather
+complex consisting of triples:  (name of the source entity set, name of
+navigation property in the source entity set, name of the key field in
+the target set).
 
 
 Step 2: Test the Model

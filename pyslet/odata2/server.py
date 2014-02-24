@@ -251,7 +251,7 @@ class Server(app.Server):
 			# even if you didn't ask for it, you get application/xml in this case
 			responseType="application/xml"
 		if responseType=="application/json":
-			data=string.join(e.GenerateStdErrorJSON(),'')
+			data=str(string.join(e.GenerateStdErrorJSON(),''))
 		else:
 			data=str(e)
 		responseHeaders.append(("Content-Type",str(responseType)))
@@ -594,7 +594,7 @@ class Server(app.Server):
 			raise InvalidSystemQueryOption("$select/$expand error: %s"%str(e))					
 		
 	def ReturnJSONRoot(self,request,environ,start_response,responseHeaders):
-		data='{"d":%s}'%json.dumps({'EntitySets':map(lambda x:x.href,self.ws.Collection)})
+		data=str('{"d":%s}'%json.dumps({'EntitySets':map(lambda x:x.href,self.ws.Collection)}))
 		responseHeaders.append(("Content-Type","application/json"))
 		responseHeaders.append(("Content-Length",str(len(data))))
 		start_response("%i %s"%(200,"Success"),responseHeaders)
@@ -616,7 +616,7 @@ class Server(app.Server):
 		if responseType is None:
 			return self.ODataError(request,environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
 		if responseType=="application/json":
-			data='{"d":%s}'%string.join(entities.GenerateLinkCollJSON(request.version),'')
+			data=str('{"d":%s}'%string.join(entities.GenerateLinkCollJSON(request.version),''))
 		else:
 			doc=Document(root=Links)
 			for e in entities.itervalues():
@@ -647,7 +647,7 @@ class Server(app.Server):
 		if responseType is None:
 			return self.ODataError(request,environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
 		if responseType=="application/json":
-			data='{"d":%s}'%entity.LinkJSON()
+			data=str('{"d":%s}'%entity.LinkJSON())
 		else:
 			doc=Document(root=URI)
 			doc.root.SetValue(str(entity.GetLocation()))
@@ -663,7 +663,7 @@ class Server(app.Server):
 		if responseType is None:
 			return self.ODataError(request,environ,start_response,"Not Acceptable",'xml, json or plain text formats supported',406)
 		if responseType=="application/json":
-			data='{"d":%s}'%string.join(entities.GenerateEntitySetInJSON(request.version),'')
+			data=str('{"d":%s}'%string.join(entities.GenerateEntitySetInJSON(request.version),''))
 		else:
 			# Here's a challenge, we want to pull data through the feed by yielding strings
 			# just load in to memory at the moment
@@ -754,7 +754,7 @@ class Server(app.Server):
 		# Here's a challenge, we want to pull data through the feed by yielding strings
 		# just load in to memory at the moment
 		if responseType=="application/json":
-			data='{"d":%s}'%string.join(entity.GenerateEntityTypeInJSON(),'')
+			data=str('{"d":%s}'%string.join(entity.GenerateEntityTypeInJSON(),''))
 		else:
 			doc=Document(root=Entry)
 			e=doc.root

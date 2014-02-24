@@ -1577,10 +1577,18 @@ class Complex(EDMValue,TypeInstance):
 		
 	def SetFromComplex(self,newValue):
 		"""Sets this value from *newValue* which must be a
-		:py:class:`Complex` instance of the same type."""
-		for k,v in newValue.iteritems():
+		:py:class:`Complex` instance."""
+		for k,v in self.iteritems():
+			nv=newValue.get(k,None)
+			if nv is None:
+				continue
 			if isinstance(v,Complex):
-				self[k].SetFromComplex(v)
+				if isinstance(nv,Complex):
+					self[k].SetFromComplex(v)
+				else:
+					continue
+			elif isinstance(nv,Complex):
+				continue
 			else:
 				self[k].SetFromSimpleValue(v)
 
@@ -1814,9 +1822,19 @@ class Entity(TypeInstance):
 			yield p.name,self[p.name]
 	
 	def SetFromEntity(self,newEntity):
-		for k,v in newEntity.DataItems():
+		for k,v in self.DataItems():
+			if k in self.entitySet.keys:
+				continue
+			newValue=newEntity.get(k,None)
+			if newValue is None:
+				continue
 			if isinstance(v,Complex):
-				self[k].SetFromComplex(v)
+				if isinstance(newValue,Complex):
+					self[k].SetFromComplex(v)
+				else:
+					continue
+			elif isinstance(newValue,Complex):
+				continue
 			else:
 				self[k].SetFromSimpleValue(v)
 				
