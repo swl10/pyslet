@@ -24,11 +24,14 @@ class DatabaseBusy(SQLError):
 
 SQLOperatorPrecedence={
 	"""Look-up table for SQL operator precedence calculations."""
+	',':0,
 	'OR':1,
 	'AND':2,
 	'NOT':3,
 	'=':4,
 	'<>':4,
+	'<':4,
+	'>':4,
 	'<=':4,
 	'>=':4,
 	'LIKE':4,
@@ -40,9 +43,10 @@ SQLOperatorPrecedence={
 
 
 class UnparameterizedLiteral(core.LiteralExpression):
-	"""Class used as a flag that this literal is safe and does not be parameterized.
+	"""Class used as a flag that this literal is safe and does not need
+	to be parameterized.
 	
-	This prevents things like::
+	This prevents things like this happening::
 	
 		"name" LIKE ?+?+? ; params=[u'%',u"Smith",u'%']"""
 	pass
@@ -527,6 +531,25 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 		query=["SELECT "]
 		params=self.container.ParamsClass()
 		columnNames,values=zip(*list(self.FieldGenerator(entity)))
+		# now add the order by clauses
+		orderNames=[]
+		oi=0
+		match=set()
+		for name in columnNames:
+			match.add(name)
+		if self.orderby is not None:
+			columnNames=list(columnNames)
+			for expression,direction in self.orderby:
+				while True:
+					oi=oi+1
+					oName="o%i"%oi
+					if oName in match:
+						continue
+					else:
+						orderNames.append((oName,direction))
+						break
+				sqlExpression=self.SQLExpression(expression,params)
+				columnNames.append("%s AS %s"%(sqlExpression,oName))
 		query.append(string.join(columnNames,", "))
 		query.append(' FROM ')
 		query.append(self.tableName)
@@ -536,15 +559,17 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 		if self.orderby is not None:
 			query.append(" ORDER BY ")
 			orderby=[]
-			for expression,direction in self.orderby:
-				orderby.append("%s %s"%(self.SQLExpression(expression,params),"DESC" if direction <0 else "ASC"))
+			for expression,direction in orderNames:
+				orderby.append("%s %s"%(expression,"DESC" if direction <0 else "ASC"))
 			query.append(string.join(orderby,u", "))
 		query=string.join(query,'')
+		cursor=None
 		try:
+			cursor=self.dbc.cursor()
 			logging.info(query+unicode(params.params))
-			self.cursor.execute(query,params.params)
+			cursor.execute(query,params.params)
 			while True:
-				row=self.cursor.fetchone()
+				row=cursor.fetchone()
 				if row is None:
 					break
 				if entity is None:
@@ -557,10 +582,210 @@ class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
 				entity=None
 		except self.container.dbapi.Error,e:
 			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
+		finally:
+			if cursor is not None:
+				cursor.close()
 		
 	def itervalues(self):
 		return self.ExpandEntities(
 			self.entityGenerator())
+		
+	def SetPage(self,top,skip=0,skiptoken=None):
+		"""Sets the page parameters.
+		
+		The skip and top query options are integers which determine the
+		number of entities returned (top) and the number of entities
+		skipped (skip and skiptoken) by iterpage.
+		
+		The default implementation treats the skip token exactly the
+		same as the skip value itself except that we obscure it slightly
+		by treating it as a hex value."""
+		self.top=top
+		self.skip=skip
+		if skiptoken is None:
+			self.skiptoken=None
+		else:
+			# parse a sequence of literal values
+			p=core.Parser(skiptoken)
+			self.skiptoken=[]
+			while True:
+				p.ParseWSP()
+				self.skiptoken.append(p.RequireProduction(p.ParseURILiteral()))
+				p.ParseWSP()
+				if not p.Parse(','):
+					if p.MatchEnd():
+						break
+					else:
+						raise core.InvalidSystemQueryOption("Unrecognized $skiptoken: %s"%skiptoken)
+			if self.orderby is None:
+				orderLen=0
+			else:
+				orderLen=len(self.orderby)
+			if len(self.skiptoken)==orderLen+len(self.entitySet.keys)+1:
+				# the last value must be an integer we add to skip
+				if isinstance(self.skiptoken[-1],edm.Int32Value):
+					self.skip+=self.skiptoken[-1].value
+					self.skiptoken=self.skiptoken[:-1]
+				else:
+					raise core.InvalidSystemQueryOption("skiptoken incompatible with ordering: %s"%skiptoken)
+			elif len(self.skiptoken)!=orderLen+len(self.entitySet.keys):
+				raise core.InvalidSystemQueryOption("skiptoken incompatible with ordering: %s"%skiptoken)									
+		self.nextSkiptoken=None
+			
+	def NextSkipToken(self):
+		if self.nextSkiptoken:
+			token=[]
+			for t in self.nextSkiptoken:
+				token.append(core.ODataURI.FormatLiteral(t))
+			return string.join(token,u",")
+		else:
+			return None
+			
+	def pageGenerator(self,setNextPage=False):
+		if self.top==0:
+			# end of paging
+			return
+		entity=self.NewEntity()
+		query=["SELECT "]
+		params=self.container.ParamsClass()
+		columnNames,values=zip(*list(self.FieldGenerator(entity)))
+		columnNames=list(columnNames)
+		# now add the order by clauses
+		orderNames=[]
+		self.nextSkiptoken=None
+		oi=0
+		match=set()
+		for name in columnNames:
+			match.add(name)
+		if self.orderby is not None:
+			for expression,direction in self.orderby:
+				while True:
+					oi=oi+1
+					oName="o%i"%oi
+					if oName in match:
+						continue
+					else:
+						orderNames.append((oName,direction))
+						break
+				sqlExpression=self.SQLExpression(expression,params)
+				columnNames.append("%s AS %s"%(sqlExpression,oName))
+		# add the keys too
+		for key in self.entitySet.keys:
+			while True:
+				oi=oi+1
+				oName="o%i"%oi
+				if oName in match:
+					continue
+				else:
+					orderNames.append((oName,1))
+					break
+			columnNames.append("%s AS %s"%(self.container.mangledNames[(self.entitySet.name,key)],oName))			
+		query.append(string.join(columnNames,", "))
+		query.append(' FROM ')
+		query.append(self.tableName)
+		filter=[]
+		if self.filter:
+			filter.append(self.SQLExpression(self.filter,params))
+		if self.skiptoken:
+			# work backwards through the expression
+			expression=[]
+			i=0
+			ket=0
+			while True:
+				oName,dir=orderNames[i]
+				v=self.skiptoken[i]
+				op=">" if dir>0 else "<"
+				expression.append("(%s %s %s"%(oName,op,params.AddParam(self.container.PrepareSQLValue(v))))
+				ket+=1
+				i=i+1
+				if i<len(orderNames):
+					# more to come
+					expression.append(" OR (%s = %s AND "%(oName,params.AddParam(self.container.PrepareSQLValue(v))))
+					ket+=1
+					continue
+				else:
+					expression.append(u")"*ket)
+					break
+			filter.append(string.join(expression,''))
+		if filter:
+			query.append(' WHERE ')
+			query.append(string.join(filter,' AND '))
+		if orderNames:
+			query.append(" ORDER BY ")
+			orderby=[]
+			for expression,direction in orderNames:
+				orderby.append("%s %s"%(expression,"DESC" if direction <0 else "ASC"))
+			query.append(string.join(orderby,u", "))
+		query=string.join(query,'')
+		cursor=None
+		try:
+			skip=self.skip
+			top=self.top
+			topmax=self.topmax
+			cursor=self.dbc.cursor()
+			logging.info(query+unicode(params.params))
+			cursor.execute(query,params.params)
+			while True:
+				row=cursor.fetchone()
+				if row is None:
+					# no more pages
+					if setNextPage:
+						self.top=self.skip=0
+						self.skipToken=None
+					break
+				if skip:
+					skip=skip-1
+					continue
+				if entity is None:
+					entity=self.NewEntity()
+					values=zip(*list(self.FieldGenerator(entity)))[1]
+				rowValues=list(row)
+				for value,newValue in zip(values,rowValues):
+					self.container.ReadSQLValue(value,newValue)
+				entity.exists=True
+				yield entity
+				if topmax is not None:
+					topmax=topmax-1
+					if topmax<1:
+						# this is the last entity, set the nextSkiptoken
+						orderValues=rowValues[-len(orderNames):]
+						self.nextSkiptoken=[]
+						for v in orderValues:
+							self.nextSkiptoken.append(self.container.NewFromSQLValue(v))
+						tokenLen=0
+						for v in self.nextSkiptoken:
+							if v and isinstance(v,(edm.StringValue,edm.BinaryValue)):
+								tokenLen+=len(v.value)
+						# a really large skiptoken is no use to anyone
+						if tokenLen>512:
+							# ditch this one, copy the previous one and add a skip
+							self.nextSkiptoken=list(self.skiptoken)
+							v=edm.Int32Value()
+							v.SetFromValue(self.topmax)
+							self.nextSkiptoken.append(v)
+						if setNextPage:
+							self.skiptoken=self.nextSkiptoken
+							self.skip=0
+						break
+				if top is not None:
+					top=top-1
+					if top<1:
+						if setNextPage:
+							if self.skip is not None:
+								self.skip=self.skip+self.top
+							else:
+								self.skip=self.top
+						break
+				entity=None
+		except self.container.dbapi.Error,e:
+			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
+		finally:
+			if cursor is not None:
+				cursor.close()
+
+	def iterpage(self,setNextPage=False):
+		return self.ExpandEntities(
+			self.pageGenerator(setNextPage))
 		
 	def __getitem__(self,key):
 		entity=self.NewEntity()
@@ -1004,11 +1229,13 @@ class SQLForeignKeyCollection(SQLCollectionMixin,core.NavigationEntityCollection
 		if self.orderby is not None:
 			query.append(self.OrderByClause(params))
 		query=string.join(query,'')
+		cursor=None
 		try:
+			cursor=self.dbc.cursor()
 			logging.info(query+unicode(params.params))
-			self.cursor.execute(query,params.params)
+			cursor.execute(query,params.params)
 			while True:
-				row=self.cursor.fetchone()
+				row=cursor.fetchone()
 				if row is None:
 					break
 				if entity is None:
@@ -1021,7 +1248,10 @@ class SQLForeignKeyCollection(SQLCollectionMixin,core.NavigationEntityCollection
 				entity=None
 		except self.container.dbapi.Error,e:
 			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
-
+		finally:
+			if cursor is not None:
+				cursor.close()
+				
 	def itervalues(self):
 		return self.ExpandEntities(
 			self.entityGenerator())
@@ -1133,11 +1363,13 @@ class SQLReverseKeyCollection(SQLCollectionMixin,core.NavigationEntityCollection
 		if self.orderby is not None:
 			query.append(self.OrderByClause(params))
 		query=string.join(query,'')
+		cursor=None
 		try:
+			cursor=self.dbc.cursor()
 			logging.info(query+unicode(params.params))
-			self.cursor.execute(query,params.params)
+			cursor.execute(query,params.params)
 			while True:
-				row=self.cursor.fetchone()
+				row=cursor.fetchone()
 				if row is None:
 					break
 				if entity is None:
@@ -1150,7 +1382,10 @@ class SQLReverseKeyCollection(SQLCollectionMixin,core.NavigationEntityCollection
 				entity=None
 		except self.container.dbapi.Error,e:
 			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
-
+		finally:
+			if cursor is not None:
+				cursor.close()
+				
 	def itervalues(self):
 		return self.ExpandEntities(
 			self.entityGenerator())
@@ -1310,11 +1545,13 @@ class SQLAssociationCollection(SQLCollectionMixin,core.NavigationEntityCollectio
 		if self.orderby is not None:
 			query.append(self.OrderByClause(params))
 		query=string.join(query,'')
+		cursor=None
 		try:
+			cursor=self.dbc.cursor()
 			logging.info(query+unicode(params.params))
-			self.cursor.execute(query,params.params)
+			cursor.execute(query,params.params)
 			while True:
-				row=self.cursor.fetchone()
+				row=cursor.fetchone()
 				if row is None:
 					break
 				if entity is None:
@@ -1327,7 +1564,10 @@ class SQLAssociationCollection(SQLCollectionMixin,core.NavigationEntityCollectio
 				entity=None
 		except self.container.dbapi.Error,e:
 			raise SQLError(u"%s: %s"%(unicode(sys.exc_info()[0]),unicode(sys.exc_info()[1])))
-
+		finally:
+			if cursor is not None:
+				cursor.close()
+				
 	def itervalues(self):
 		return self.ExpandEntities(
 			self.entityGenerator())
@@ -1537,6 +1777,15 @@ class NamedParams(SQLParams):
 		return ":"+name
 
 
+class SQLConnectionLock(object):
+	
+	def __init__(self,lockClass):
+		self.threadId=None
+		self.lock=lockClass()
+		self.locked=0
+		self.dbc=None
+		
+
 class SQLEntityContainer(object):
 	
 	def __init__(self,containerDef,dbapi,maxConnections=10,fieldNameJoiner=u"_"):
@@ -1548,22 +1797,16 @@ class SQLEntityContainer(object):
 			self.moduleLock=threading.RLock()
 			self.connectionLocker=DummyLock
 			self.cPoolMax=1
-		elif self.dbapi.threadsafety==1:
-			# we can share the module but not the connections
+		else:
+			# Level 1 and above we can share the module
 			self.moduleLock=DummyLock()
 			self.connectionLocker=threading.RLock
 			self.cPoolMax=maxConnections
-		else:
-			# thread safety above level 1 means we can share everything we need
-			self.moduleLock=DummyLock()
-			self.connectionLocker=DummyLock
-			self.cPoolMax=1
 		self.cPoolLock=threading.Condition()
 		self.cPoolClosing=False
-		self.cPoolHints={}
-		self.cMaxHints=maxConnections
-		self.cPoolPos=0
-		self.cPool=[(None,None)]*self.cPoolMax
+		self.cPoolLocked={}
+		self.cPoolUnlocked={}
+		self.cPoolDead=[]
 		# set up the parameter style
 		if self.dbapi.paramstyle=="qmark":
 			self.ParamsClass=QMarkParams
@@ -1808,50 +2051,52 @@ class SQLEntityContainer(object):
 				self.cPoolLock.wait(timeout)
 				now=time.time()
 				if timeout is not None and now>start+timeout:
+					logging.warn("Thread[%i] timed out waiting for the the database module lock",threadId)
 					return None
 			# we have the module lock
-			if threadId in self.cPoolHints:
-				tryPos,tLast=self.cPoolHints[threadId]
-			else:
-				if len(self.cPoolHints)>self.cMaxHints:
-					# clean up the pool hint table, anything older than 1 min goes
-					old=now-60
-					for it in self.cPoolHints.keys():
-						iPos,iLast=self.cPoolHints[it]
-						if iLast<old:
-							del self.cPoolHints[it]
-					# adaptively grow the max size of the hint table
-					if len(self.cPoolHints)>self.cMaxHints:
-						self.cMaxHints=len(self.cPoolHints)+self.cMaxHints
-						logging.debug("Growing the hint table to size: %i",self.cMaxHints)
-				# start looking from the next position on the list
-				tryPos=self.cPoolPos%self.cPoolMax
-			i=0
-			while i<2*self.cPoolMax:
-				c,lock=self.cPool[tryPos]
-				if lock is None:
-					# create this connection
-					lock=self.connectionLocker()
-					c=self.OpenConnection()
-					self.cPool[tryPos]=(c,lock)
-					lock.acquire()
-					self.cPoolHints[threadId]=(tryPos,now)
-					self.cPoolPos=tryPos+1
-					return c
-				elif lock.acquire(False):
-					self.cPoolHints[threadId]=(tryPos,now)
-					self.cPoolPos=tryPos+1
-					return c
+			if threadId in self.cPoolLocked:
+				# our threadId is in the locked table
+				cLock=self.cPoolLocked[threadId]
+				if cLock.lock.acquire(False):
+					cLock.locked+=1
+					return cLock.dbc
 				else:
-					# couldn't get this connection, move on
-					tryPos=(tryPos+1)%self.cPoolMax
-					i=i+1
-					if i==self.cPoolMax:
-						# we've tried every connection, wait
-						logging.debug("Thread [%i] has been forced to wait",threadId)
-						self.cPoolLock.wait(timeout)
-						logging.debug("Thread [%i] is waking up",threadId)
-						# someone released a lock, go round the loop again
+					logging.warn("Thread[%i] moved a database connection to the dead pool",threadId)
+					self.cPoolDead.append(cLock)
+					del self.cPoolLocked[threadId]
+			while True:
+				if threadId in self.cPoolUnlocked:
+					# take the connection that belongs to us
+					cLock=self.cPoolUnlocked[threadId]
+					del self.cPoolUnlocked[threadId]
+				elif len(self.cPoolUnlocked)+len(self.cPoolLocked)<self.cPoolMax:
+					# Add a new connection
+					cLock=SQLConnectionLock(self.connectionLocker)
+					cLock.threadId=threadId
+					cLock.dbc=self.OpenConnection()
+				elif self.cPoolUnlocked:
+					# take a connection that doesn't belong to us, popped at random
+					oldThreadId,cLock=self.cPoolUnlocked.popitem()
+					if self.dbapi.threadsafety>1:
+						logging.debug("Thread[%i] recycled database connection from Thread[%i]",threadId,oldThreadId)
+					else:
+						logging.debug("Thread[%i] closed an unused database connection (max connections reached)",oldThreadId)
+						cLock.dbc.close()	# is it ok to close a connection from a different thread?
+						cLock.threadId=threadId
+						cLock.dbc=self.OpenConnection()
+				else:
+					now=time.time()
+					if timeout is not None and now>start+timeout:
+						logging.warn("Thread[%i] timed out waiting for a database connection",threadId)
+						break
+					logging.debug("Thread[%i] forced to wait for a database connection",threadId)
+					self.cPoolLock.wait(timeout)
+					logging.debug("Thread[%i] resuming search for database connection",threadId)
+					continue
+				cLock.lock.acquire()
+				cLock.locked+=1
+				self.cPoolLocked[threadId]=cLock
+				return cLock.dbc
 		# we are defeated, no database connection for the caller
 		# release lock on the module as there is no connection to release
 		self.moduleLock.release()
@@ -1861,24 +2106,59 @@ class SQLEntityContainer(object):
 		threadId=threading.current_thread().ident
 		with self.cPoolLock:
 			# we have exclusive use of the cPool members
-			if threadId in self.cPoolHints:
-				tryPos,tLast=self.cPoolHints[threadId]
-			else:
-				tryPos=0
-			i=0
-			released=False
-			while i<self.cPoolMax:
-				cTry,lock=self.cPool[tryPos]
-				if c is cTry:
-					# This is our connection, release it
-					lock.release()
+			if threadId in self.cPoolLocked:
+				cLock=self.cPoolLocked[threadId]
+				if cLock.dbc is c:
+					cLock.lock.release()
 					self.moduleLock.release()
-					self.cPoolLock.notify()
+					cLock.locked-=1
+					if not cLock.locked:
+						del self.cPoolLocked[threadId]
+						self.cPoolUnlocked[threadId]=cLock
+						self.cPoolLock.notify()
+					return
+			logging.error("Thread[%i] attempting to release a database connection it didn't acquire",threadId) 
+			# it seems likely that some other thread is going to leave a locked
+			# connection now, let's try and find it to correct the situation
+			badThread,badLock=None,None
+			for tid,cLock in self.cPoolLocked.iteritems():
+				if cLock.dbc is c:
+					badThread=tid
+					badLock=cLock
 					break
-				else:
-					# this wasn't our connection, move on
-					tryPos=(tryPos+1)%self.cPoolMax
-					i=i+1
+			if badLock is not None:
+				badLock.lock.release()
+				self.moduleLock.release()
+				badLock.locked-=1
+				if not badLock.locked:
+					del self.cPoolLocked[badThread]
+					self.cPoolUnlocked[badLock.threadId]=badLock
+					self.cPoolLock.notify()
+					logging.warn("Thread[%i] released database connection acquired by Thread[%i]",threadId,badThread)
+				return
+			# this is getting frustrating, exactly which connection does
+			# this thread think it is trying to release?
+			# Check the dead pool just in case
+			iDead=None
+			for i in xrange(len(self.cPoolDead)):
+				cLock=self.cPoolDead[i]
+				if cLock.dbc is c:
+					iDead=i
+					break
+			if iDead is not None:
+				badLock=self.cPoolDead[iDead]
+				badLock.lock.release()
+				self.moduleLock.release()
+				badLock.locked-=1
+				logging.warn("Thread[%i] successfully released a database connection from the dead pool",threadId)
+				if not badLock.locked:
+					# no need to notify other threads as we close this connection for safety
+					badLock.dbc.close()
+					del self.cPoolDead[iDead]
+					logging.warn("Thread[%i] removed a database connection from the dead pool",threadId)
+				return
+			# ok, this really is an error!
+			logging.error("Thread[%i] attempted to unlock un unknown database connection: %s",threadId,repr(c))									
 
 	def OpenConnection(self):
 		"""Creates and returns a new connection object.
@@ -1898,7 +2178,7 @@ class SQLEntityContainer(object):
 		control normally.""" 
 		pass
 		
-	def close(self):
+	def close(self,waitForLocks=True):
 		"""Closes this database.
 		
 		This method goes through each open connection and attempts to
@@ -1908,23 +2188,38 @@ class SQLEntityContainer(object):
 		:possible."""
 		with self.cPoolLock:
 			self.cPoolClosing=True
-			for i in xrange(len(self.cPool)):
-				c,lock=self.cPool[i]
-				if lock is None:
-					continue
+			while self.cPoolUnlocked:
+				threadId,cLock=self.cPoolUnlocked.popitem()
+				# we don't bother to acquire the lock
+				cLock.dbc.close()
+			while self.cPoolLocked:
+				# trickier, these are in use
+				threadId,cLock=self.cPoolLocked.popitem()
 				while True:
-					if lock.acquire(False):
-						c.close()
-						self.cPool[i]=(None,None)
+					if cLock.lock.acquire(False):
+						cLock.dbc.close()
 						break
+					elif waitForLocks:
+						self.BreakConnection(cLock.dbc)
+						logging.warn("Waiting to break database connection acquired by Thread[%i]",threadId)
+						self.cPoolLock.wait()
 					else:
-						# we failed to get this lock, break the connection
-						self.BreakConnection(c)
-						# now wait forever for someone to release a connection
-						self.cPoolLock.wait()		
+						break
+			while self.cPoolDead:
+				cLock=self.cPoolDead.pop()
+				while True:
+					if cLock.lock.acquire(False):
+						cLock.dbc.close()
+						break
+					elif waitForLocks:
+						self.BreakConnection(cLock.dbc)
+						logging.warn("Waiting to break a database connection from the dead pool")
+						self.cPoolLock.wait()				
+					else:
+						break				
 
 	def __del__(self):
-		self.close()
+		self.close(waitForLocks=False)
 		
 	def QuoteIdentifier(self,identifier):
 		"""Given an *identifier* returns a safely quoted form of it.
@@ -2053,13 +2348,18 @@ class SQLEntityContainer(object):
 	def ReadSQLValue(self,simpleValue,newValue):
 		"""Given a simple value and a newValue returned by the database, updates *simpleValue*."""
 		simpleValue.SetFromValue(newValue)
-		
+
+	def NewFromSQLValue(self,sqlValue):
+		"""Given a sqlValue returned by the database, returns a new
+		SimpleValue instance."""
+		return edm.EDMValue.NewSimpleValueFromValue(sqlValue)
+
 			
 class SQLiteEntityContainer(SQLEntityContainer):
 	
 	def __init__(self,filePath,containerDef):
 		super(SQLiteEntityContainer,self).__init__(containerDef,sqlite3)
-		if not isinstance(filePath,OSFilePath):
+		if not isinstance(filePath,OSFilePath) and not type(filePath) in StringTypes:
 			raise TypeError("SQLiteDB requires an OS file path")
 		self.filePath=filePath
 
@@ -2122,6 +2422,16 @@ class SQLiteEntityContainer(SQLEntityContainer):
 		else:
 			simpleValue.SetFromValue(newValue)
 		
+	def NewFromSQLValue(self,sqlValue):
+		"""Given a sqlValue returned by the database, returns a new
+		SimpleValue instance."""
+		if type(sqlValue)==BufferType:
+			result=edm.BinaryValue()
+			result.SetFromValue(str(sqlValue))
+			return result
+		else:
+			return super(SQLiteEntityContainer,self).NewFromSQLValue(sqlValue)
+
 
 class SQLiteEntityCollection(SQLEntityCollection):
 	
@@ -2133,3 +2443,63 @@ class SQLiteEntityCollection(SQLEntityCollection):
 		query.append(self.SQLExpression(expression.operands[1],params,'*'))
 		return self.SQLBracket(string.join(query,''),context,'*')
 
+	def SQLExpressionLength(self,expression,params,context):
+		query=["length("]
+		query.append(self.SQLExpression(expression.operands[0],params,','))
+		query.append(")")
+		return string.join(query,'')	# don't bother with brackets!
+		
+	def SQLExpressionYear(self,expression,params,context):
+		"""We support month using strftime('%Y',op[0])"""
+		query=["CAST(strftime('%Y',"]
+		query.append(self.SQLExpression(expression.operands[0],params,','))
+		query.append(") AS INTEGER)")
+		return string.join(query,'')	# don't bother with brackets!
+
+	def SQLExpressionMonth(self,expression,params,context):
+		"""We support month using strftime('%m',op[0])"""
+		query=["CAST(strftime('%m',"]
+		query.append(self.SQLExpression(expression.operands[0],params,','))
+		query.append(") AS INTEGER)")
+		return string.join(query,'')	# don't bother with brackets!
+		
+	def SQLExpressionDay(self,expression,params,context):
+		"""We support month using strftime('%d',op[0])"""
+		query=["CAST(strftime('%d',"]
+		query.append(self.SQLExpression(expression.operands[0],params,','))
+		query.append(") AS INTEGER)")
+		return string.join(query,'')	# don't bother with brackets!
+
+	def SQLExpressionHour(self,expression,params,context):
+		"""We support month using strftime('%H',op[0])"""
+		query=["CAST(strftime('%H',"]
+		query.append(self.SQLExpression(expression.operands[0],params,','))
+		query.append(") AS INTEGER)")
+		return string.join(query,'')	# don't bother with brackets!
+
+	def SQLExpressionMinute(self,expression,params,context):
+		"""We support month using strftime('%M',op[0])"""
+		query=["CAST(strftime('%M',"]
+		query.append(self.SQLExpression(expression.operands[0],params,','))
+		query.append(") AS INTEGER)")
+		return string.join(query,'')	# don't bother with brackets!
+
+	def SQLExpressionSecond(self,expression,params,context):
+		"""We support month using strftime('%S',op[0])"""
+		query=["CAST(strftime('%S',"]
+		query.append(self.SQLExpression(expression.operands[0],params,','))
+		query.append(") AS INTEGER)")
+		return string.join(query,'')	# don't bother with brackets!
+
+	def SQLExpressionTolower(self,expression,params,context):
+		query=["lower("]
+		query.append(self.SQLExpression(expression.operands[0],params,','))
+		query.append(")")
+		return string.join(query,'')	# don't bother with brackets!
+		
+	def SQLExpressionToupper(self,expression,params,context):
+		query=["upper("]
+		query.append(self.SQLExpression(expression.operands[0],params,','))
+		query.append(")")
+		return string.join(query,'')	# don't bother with brackets!
+		

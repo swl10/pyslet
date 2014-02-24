@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<edmx:Edmx Version="1.0" xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx"
+    xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata">
+    <edmx:DataServices m:DataServiceVersion="2.0">
+        <Schema Namespace="WeatherSchema" xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
+            <EntityContainer Name="CambridgeWeather" m:IsDefaultEntityContainer="true">
+                <EntitySet Name="DataPoints" EntityType="WeatherSchema.DataPoint"/>
+                <EntitySet Name="Notes" EntityType="WeatherSchema.Note"/>
+                <AssociationSet Name="DataPointNotes" Association="WeatherSchema.DataPointNote">
+                    <End Role="DataPoint" EntitySet="DataPoints"/>
+                    <End Role="Note" EntitySet="Notes"/>
+                </AssociationSet>
+            </EntityContainer>
+            <EntityType Name="DataPoint">
+                <Key>
+                    <PropertyRef Name="TimePoint"/>
+                </Key>
+                <Property Name="TimePoint" Type="Edm.DateTime" Nullable="false" Precision="0" m:FC_TargetPath="SyndicationUpdated" m:FC_KeepInContent="true"/>
+                <Property Name="Temperature" Type="Edm.Single" m:FC_TargetPath="SyndicationTitle" m:FC_KeepInContent="true"/>
+                <Property Name="Humidity" Type="Edm.Byte"/>
+                <Property Name="DewPoint" Type="Edm.Single"/>
+                <Property Name="Pressure" Type="Edm.Int16"/>
+                <Property Name="WindSpeed" Type="Edm.Single"/>
+                <Property Name="WindDirection" Type="Edm.String" MaxLength="3" Unicode="false"/>
+                <Property Name="WindSpeedMax" Type="Edm.Single"/>
+                <Property Name="SunRainStart" Type="Edm.Time" Precision="0"></Property>
+                <Property Name="Sun" Type="Edm.Single"/>
+                <Property Name="Rain" Type="Edm.Single"/>
+                <NavigationProperty Name="Note" Relationship="WeatherSchema.DataPointNote"
+                    FromRole="DataPoint" ToRole="Note"/>
+            </EntityType>
+            <EntityType Name="Note">
+                <Key><PropertyRef Name="ID"></PropertyRef></Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="StartDate" Type="DateTime" Nullable="false" Precision="0"/>
+                <Property Name="EndDate" Type="DateTime" Nullable="false" Precision="0"/>
+                <Property Name="Details" Type="Edm.String" MaxLength="1024" Nullable="false" FixedLength="false"/>
+                <NavigationProperty Name="DataPoints" Relationship="WeatherSchema.DataPointNote"
+                    FromRole="Note" ToRole="DataPoint"/>
+            </EntityType>
+            <Association Name="DataPointNote">
+                <End Role="DataPoint" Type="WeatherSchema.DataPoint" Multiplicity="*"/>
+                <End Role="Note" Type="WeatherSchema.Note" Multiplicity="0..1"/>
+            </Association>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

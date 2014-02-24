@@ -1407,7 +1407,7 @@ class Parser(edm.Parser):
 			return None
 							
 	def ParseURILiteral(self):
-		"""Returns a :py:class:`pyslet.mc_csdl.SimpleType` instance of None if no value can parsed.
+		"""Returns a :py:class:`pyslet.mc_csdl.SimpleType` instance or None if no value can be parsed.
 		
 		Important: do not confuse a return value of (the Python object)
 		None with a
@@ -1418,11 +1418,16 @@ class Parser(edm.Parser):
 		If a URI literal value is partially parsed but is badly formed,
 		a ValueError is raised."""
 		savePos=self.pos
-		if self.ParseInsensitive("null"):
+		nameCase=self.ParseSimpleIdentifier()
+		if nameCase is not None:
+			name=nameCase.lower()
+		else:
+			name=None
+		if name=="null":
 			return edm.EDMValue.NewSimpleValue(None)
-		elif self.Match("'"):
+		elif name is None and self.Match("'"):
 			return self.ParseStringURILiteral()
-		elif self.MatchOne('-.0123456789'):
+		elif name is None and self.MatchOne('-.0123456789'):
 			# one of the number forms (perhaps)
 			num=self.ParseNumericLiteral()
 			if num is None:
@@ -1448,15 +1453,15 @@ class Parser(edm.Parser):
 				result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
 				result.SetFromNumericLiteral(num)
 				return result
-		elif self.ParseInsensitive("true"):
+		elif name=="true":
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
 			result.value=True
 			return result
-		elif self.ParseInsensitive("false"):
+		elif name=="false":
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
 			result.value=False
 			return result
-		elif self.ParseInsensitive("datetimeoffset"):
+		elif name=="datetimeoffset":
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.DateTimeOffset)
 			production="datetimeoffset literal"
 			self.Require("'",production)
@@ -1464,7 +1469,7 @@ class Parser(edm.Parser):
 			self.Require("'",production)
 			result.SetFromLiteral(dtoString)
 			return result
-		elif self.ParseInsensitive("datetime"):
+		elif name=="datetime":
 			production="datetime literal"
 			self.Require("'",production)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.DateTime)
@@ -1472,7 +1477,7 @@ class Parser(edm.Parser):
 			self.Require("'",production)
 			result.value=value
 			return result
-		elif self.ParseInsensitive("time"):
+		elif name=="time":
 			production="time literal"
 			self.Require("'",production)
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Time)
@@ -1480,36 +1485,30 @@ class Parser(edm.Parser):
 			self.Require("'",production)
 			result.value=value
 			return result
-		elif self.Parse("X") or self.ParseInsensitive("binary"):
+		elif nameCase=="X" or name=="binary":
 			self.Require("'","binary")
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Binary)
 			value=self.ParseBinaryLiteral()
 			self.Require("'","binary literal")
 			result.value=value
 			return result
-		elif self.ParseInsensitive("nan"):
-			if self.ParseOne("Dd"):
-				result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Double)
-				result.SetFromNumericLiteral(edm.Numeric('',"nan",None,'',None))
-				return result
-			elif self.ParseOne("Ff"):
-				result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Single)
-				result.SetFromNumericLiteral(edm.Numeric('',"nan",None,'',None))
-				return result
-			else:
-				raise ValueError("Expected double or single Nan: Nan%s"%repr(self.Peek(1)))			
-		elif self.ParseInsensitive("inf"):
-			if self.ParseOne("Dd"):
-				result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Double)
-				result.value=float("INF")
-				return result
-			elif self.ParseOne("Ff"):
-				result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Single)
-				result.value=float("INF")
-				return result
-			else:
-				raise ValueError("Expected double or single inf: INF%s"%repr(self.Peek(1)))
-		elif self.ParseInsensitive("guid"):
+		elif name=="nand":
+			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Double)
+			result.SetFromNumericLiteral(edm.Numeric('',"nan",None,'',None))
+			return result
+		elif name=="nanf":
+			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Single)
+			result.SetFromNumericLiteral(edm.Numeric('',"nan",None,'',None))
+			return result
+		elif name=="infd":
+			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Double)
+			result.value=float("INF")
+			return result
+		elif name=="inff":
+			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Single)
+			result.value=float("INF")
+			return result
+		elif name=="guid":
 			result=edm.EDMValue.NewSimpleValue(edm.SimpleType.Guid)
 			self.Require("'","guid")
 			hex=[]
@@ -1531,6 +1530,7 @@ class Parser(edm.Parser):
 			result.value=uuid.UUID(hex=string.join(hex,''))
 			return result
 		else:
+			self.SetPos(savePos)
 			return None			
 			# raise ValueError("Expected literal: %s"%repr(self.Peek(10)))
 
@@ -2393,6 +2393,26 @@ def ReadEntityPropertyValueInJSON(v,jsonValue):
 class EntityCollectionMixin(object):
 	"""A mix-in for EntityCollections to provide OData-specific options."""
 
+	def GetNextPageLocation(self):
+		"""Returns the location of this page of the collection as a
+		:py:class:`rfc2396.URI` instance."""
+		token=self.NextSkipToken()
+		if token is not None:
+			baseURL=self.GetLocation()
+			sysQueryOptions={}
+			if self.filter is not None:
+				sysQueryOptions[SystemQueryOption.filter]=unicode(self.filter)
+			if self.expand is not None:
+				sysQueryOptions[SystemQueryOption.expand]=FormatExpand(self.expand)
+			if self.select is not None:
+				sysQueryOptions[SystemQueryOption.select]=FormatSelect(self.select)
+			if self.orderby is not None:
+				sysQueryOptions[SystemQueryOption.orderby]=CommonExpression.OrderByToString(self.orderby)
+			sysQueryOptions[SystemQueryOption.skiptoken]=unicode(token)
+			return uri.URIFactory.URI(str(baseURL)+"?"+ODataURI.FormatSysQueryOptions(sysQueryOptions))
+		else:
+			return None
+
 	def NewEntity(self,autoKey=False):
 		"""Returns an OData aware instance"""
 		return Entity(self.entitySet)	
@@ -2419,7 +2439,7 @@ class EntityCollectionMixin(object):
 	
 	def CalculateOrderKey(self,entity,orderObject):
 		"""Evaluates orderObject as an instance of py:class:`CommonExpression`."""
-		return orderObject.Evaluate(entity).value		
+		return orderObject.Evaluate(entity).value					
 
 	def GenerateEntitySetInJSON(self,version=2):
 		"""Generates JSON serialised form of this collection."""
@@ -2442,10 +2462,9 @@ class EntityCollectionMixin(object):
 			yield "]"
 		else:
 			# add a next link if necessary
-			skiptoken=self.NextSkipToken()
-			if skiptoken is not None:
-				yield '],"__next":{"uri":%s}}'%json.dumps(str(self.GetLocation())+
-					"?$skiptoken=%s"%uri.EscapeData(skiptoken,uri.IsQueryReserved))
+			nextLink=self.GetNextPageLocation()
+			if nextLink is not None:
+				yield '],"__next":{"uri":%s}}'%json.dumps(str(nextLink))
 			else:
 				yield ']}'		
 
@@ -2739,11 +2758,11 @@ class Feed(atom.Feed):
 			for entity in self.collection.iterpage():
 				yield Entry(self,entity)
 			# add a next link if necessary
-			skiptoken=self.collection.NextSkipToken()
-			if skiptoken is not None:
+			nextLink=self.collection.GetNextPageLocation()
+			if nextLink is not None:
 				link=Link(self)
 				link.rel="next"
-				link.href=str(self.collection.GetLocation())+"?$skiptoken=%s"%uri.EscapeData(skiptoken,uri.IsQueryReserved)
+				link.href=str(nextLink)
 				yield link
 
 	def AttachToDocument(self,doc=None):
@@ -3186,7 +3205,7 @@ class Entry(atom.Entry):
 					link.title=k
 					link.href=location+'/'+k
 					if dv.isCollection:
-						feed=edm.ExpandedEntityCollection(k,entity,targetSet,feed)
+						feed=ExpandedEntityCollection(k,entity,targetSet,feed)
 						link.Expand(feed)
 					elif len(feed)>1:
 						raise NavigationError("Multiple bindings found for navigation property %s.%s"%(entitySet.name,k))
@@ -3216,17 +3235,17 @@ class Entry(atom.Entry):
 	def SetFCValue(self,targetElement,v):
 		if isinstance(targetElement,atom.Date) and v:
 			if isinstance(v,edm.DateTimeOffsetValue):
-				targetElement.AddData(unicode(v))
+				targetElement.SetValue(unicode(v))
 			elif isinstance(v,edm.DateTimeValue):
 				# assume UTC
 				dtOffset=v.value.WithZone(zDirection=0)
-				targetElement.AddData(unicode(dtOffset))						
+				targetElement.SetValue(unicode(dtOffset))						
 			elif isinstance(v,edm.StringValue):
 				try:
 					dtOffset=iso8601.TimePoint.FromString(v.value)
 					if dtOffset.GetZone()[0] is None:
 						dtOffset=dtOffset.WithZone(zDirection=0)
-					targetElement.AddData(unicode(dtOffset))
+					targetElement.SetValue(unicode(dtOffset))
 				except iso8601.DateTimeError:
 					# do nothing
 					pass

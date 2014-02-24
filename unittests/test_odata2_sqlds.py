@@ -126,7 +126,7 @@ class ThreadTests(unittest.TestCase):
 		self.assertTrue(isinstance(container.acquired,MockConnection),"thread should have acquired the connection")
 		cMatch=container.acquired
 		c1=container.AcquireConnection()
-		self.assertTrue(c1 is cMatch,"one shared connection object")
+		self.assertFalse(c1 is cMatch,"shared connection objects not allowed at level 0")
 		container.acquired=None
 		t=threading.Thread(target=MockRunner,args=(container,))
 		t.start()
@@ -134,7 +134,7 @@ class ThreadTests(unittest.TestCase):
 		self.assertTrue(container.acquired is None,"thread should have failed to acquire the connection")
 		# with thread safety level 0, we should still be able to acquire a single connection twice
 		c2=container.AcquireConnection()
-		self.assertTrue(c2 is cMatch,"Must be the same connection")
+		self.assertFalse(c2 is cMatch,"shared connection objects not allowed at level 0")
 		container.ReleaseConnection(c2)
 		# we should still have a lock on the connection
 		container.acquired=None
@@ -147,7 +147,7 @@ class ThreadTests(unittest.TestCase):
 		t=threading.Thread(target=MockRunner,args=(container,))
 		t.start()
 		t.join()
-		self.assertTrue(container.acquired is cMatch,"thread should have acquired the connection")
+		self.assertFalse(container.acquired is cMatch,"shared connection objects not allowed at level 0")
 
 	def testCaseLevel1(self):
 		# we ask for 2 connections and should get them
@@ -189,9 +189,9 @@ class ThreadTests(unittest.TestCase):
 		self.assertTrue(container.acquired is not None,"thread 1 should also have acquired the connection")
 
 	def testCaseLevel2(self):
-		# we ask for 5 connections but should just get one
+		# we ask for 5 connections and should get them
 		container=MockContainer(self.containerDef,MockAPI(2),5)
-		self.assertTrue(container.cPoolMax==1,"Expected 1 connection")
+		self.assertTrue(container.cPoolMax==5,"Expected 5 connections")
 		c1=container.AcquireConnection()
 		self.assertTrue(isinstance(c1,MockConnection),"we should have acquired a connection")
 		cMatch=c1
@@ -199,7 +199,7 @@ class ThreadTests(unittest.TestCase):
 		t=threading.Thread(target=MockRunner,args=(container,))
 		t.start()
 		t.join()
-		self.assertTrue(container.acquired is cMatch,"thread should have acquired the same connection")
+		self.assertTrue(container.acquired is not cMatch,"thread should not have acquired the same connection")
 		# with thread safety level 2, we should still be able to acquire a single connection twice
 		c2=container.AcquireConnection()
 		self.assertTrue(c2 is c1,"Must be the same connection")
@@ -210,8 +210,8 @@ class ThreadTests(unittest.TestCase):
 		t=threading.Thread(target=MockRunner2,args=(container,))
 		t.start()
 		t.join()
-		self.assertTrue(container.acquired2 is cMatch,"thread 2 should have acquired the same connection")
-		self.assertTrue(container.acquired is cMatch,"thread 1 should have acquired the same connection too")
+		self.assertTrue(container.acquired2 is not cMatch,"thread 2 should have acquired a different connection")
+		self.assertTrue(container.acquired is not cMatch,"thread 1 should have acquired a different connection too")
 		container.ReleaseConnection(c1)
 
 	def testCaseMultiThread(self):
@@ -515,5 +515,5 @@ class RegressionTests(DataServiceRegressionTests):
 
 			
 if __name__ == "__main__":
-	logging.basicConfig(level=logging.INFO)
+	logging.basicConfig(level=logging.DEBUG)
 	unittest.main()

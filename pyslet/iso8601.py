@@ -542,6 +542,7 @@ class Date(object):
 		return cls.FromStructTime(pytime.localtime(pytime.time()))
 					
 	def Offset(self,centuries=0,years=0,months=0,weeks=0,days=0):
+		"""Constructs a :py:class:`Date` from the current date + a given offset"""
 		d=self
 		if days or weeks:
 			baseDay=self.GetAbsoluteDay()

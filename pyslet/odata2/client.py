@@ -164,7 +164,7 @@ class ODataCollectionMixin(object):
 				else:
 					break
 			else:
-				raise InvalidFeedDocument(str(feedURL))
+				raise core.InvalidFeedDocument(str(feedURL))
 			feedURL=None
 			for link in doc.root.Link:
 				if link.rel=="next":
@@ -176,6 +176,9 @@ class ODataCollectionMixin(object):
 	def itervalues(self):
 		return self.entityGenerator()
 
+	def TopMax(self,topmax):
+		raise NotImplementedError("OData client can't override topmax")
+		
 	def iterpage(self,setNextPage=False):
 		feedURL=self.baseURI
 		sysQueryOptions={}
@@ -204,8 +207,6 @@ class ODataCollectionMixin(object):
 					entity.exists=True
 					e.GetValue(entity)
 					yield entity
-			else:
-				raise InvalidFeedDocument(str(feedURL))
 			feedURL=self.nextSkiptoken=None
 			for link in doc.root.Link:
 				if link.rel=="next":
@@ -224,7 +225,7 @@ class ODataCollectionMixin(object):
 				else:
 					self.skip=len(doc.root.Entry)										
 		else:
-			raise InvalidFeedDocument(str(feedURL))
+			raise core.InvalidFeedDocument(str(feedURL))
 
 	def __getitem__(self,key):
 		entityURL=str(self.baseURI)+core.ODataURI.FormatKeyDict(self.entitySet.GetKeyDict(key))

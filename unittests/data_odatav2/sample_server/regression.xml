@@ -8,6 +8,7 @@
                 <EntitySet Name="ComplexTypes" EntityType="RegressionModel.ComplexTypes"/>
                 <EntitySet Name="CompoundKeys" EntityType="RegressionModel.CompoundKey"/>
                 <EntitySet Name="SimpleSelectSet" EntityType="RegressionModel.SimpleSelectType"/>
+                <EntitySet Name="PagingSet" EntityType="RegressionModel.PagingType"/>
                 <EntitySet Name="O2Os" EntityType="RegressionModel.O2O"/>
                 <EntitySet Name="O2OXs" EntityType="RegressionModel.O2OX"/>
                 <AssociationSet Name="O_O" Association="RegressionModel.O_O">
@@ -175,6 +176,16 @@
                 <Property Name="K" Type="Edm.Int32" Nullable="false"/>
                 <Property Name="P1" Type="Edm.Double" Nullable="false"/>
                 <Property Name="P2" Type="Edm.String" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="PagingType">
+                <Key>
+                    <PropertyRef Name="K1"/>
+                    <PropertyRef Name="K2"/>
+                </Key>
+                <Property Name="K1" Type="Edm.Int16" Nullable="false"/>
+                <Property Name="K2" Type="Edm.Int16" Nullable="false"/>
+                <Property Name="Sum" Type="Edm.Int16"/>
+                <Property Name="Product" Type="Edm.Int16"/>
             </EntityType>
             <EntityType Name="O2O">
                 <Key>

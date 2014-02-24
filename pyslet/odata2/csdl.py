@@ -699,6 +699,30 @@ class EDMValue(object):
 		result.typeCode=typeCode
 		return result
 
+	@classmethod
+	def NewSimpleValueFromValue(cls,value):
+		if isinstance(value,uuid.UUID):
+			result=cls.NewSimpleValue(SimpleType.Guid)
+		elif isinstance(value,iso8601.TimePoint):
+			# if it has an offset
+			if value.GetZone()[0] is None:
+				# no timezone
+				result=cls.NewSimpleValue(SimpleType.DateTime)
+			else:
+				result=cls.NewSimpleValue(SimpleType.DateTimeOffset)
+		elif isinstance(value,decimal.Decimal):
+			result=cls.NewSimpleValue(SimpleType.Decimal)
+		elif isinstance(value,datetime.datetime):
+			result=cls.NewSimpleValue(SimpleType.DateTime)
+		else:
+			t=SimpleType.PythonType.get(type(value),None)
+			if t is not None:
+				result=cls.NewSimpleValue(t)
+			else:
+				raise ValueError("Can't construct SimpleValue from %s"%repr(value))
+		result.SetFromValue(value)
+		return result		
+
 
 class SimpleValue(EDMValue):
 	"""Represents a value of a simple type in the EDMModel.
@@ -750,7 +774,7 @@ class SimpleValue(EDMValue):
 	def SimpleCast(self,typeCode):
 		"""Returns a new :py:class:`SimpleValue` instance created from *typeCode*
 		
-		The value of the new instance is set us :py:meth:`Cast`"""
+		The value of the new instance is set using :py:meth:`Cast`"""
 		targetValue=EDMValue.NewSimpleValue(typeCode)
 		return self.Cast(targetValue)
 		
@@ -814,6 +838,13 @@ class SimpleValue(EDMValue):
 		"""The reverse of the :py:meth:`Cast` method, sets this value to
 		the value of *newValue* casting as appropriate."""
 		newValue.Cast(self)
+
+	@classmethod
+	def Copy(cls,value):
+		"""Constructs a new SimpleValue instance by capying *value*"""
+		result=value.__class__(self.pDef)
+		result.value=value.value
+		return result
 
 
 class BinaryValue(SimpleValue):
@@ -2204,7 +2235,8 @@ class EntityCollection(DictionaryLike):
 		will be called before iterating through the collection itself."""
 		self.lastYielded=None
 		self.lastGot=None
-	
+		self.paging=False
+		
 	def __enter__(self):
 		return self
 	
@@ -2302,7 +2334,8 @@ class EntityCollection(DictionaryLike):
 		
 			( an order object as used by :py:meth:`CalculateOrderKey` , 1 | -1 )"""
 		self.orderby=orderby
-
+		self.SetPage(None)
+		
 	def CalculateOrderKey(self,entity,orderObject):
 		"""Given an entity and an order object returns the key used to sort the entity.
 		
@@ -2321,19 +2354,19 @@ class EntityCollection(DictionaryLike):
 		This implementation simply creates a list and then sorts it so
 		is not suitable for use with long lists of entities.  However, if
 		no ordering is required then no list is created."""
-		if self.orderby:
+		eList=None
+		if self.paging:
 			eList=list(entityIterable)
+			eList.sort(key=lambda x:x.Key()) 			
+		if self.orderby:
+			if eList is None:
+				eList=list(entityIterable)
 			# we avoid Py3 warnings by doing multiple sorts with a key function 
 			for rule,ruleDir in reversed(self.orderby):
 				eList.sort(key=lambda x:self.CalculateOrderKey(x,rule),reverse=True if ruleDir<0 else False)
+		if eList:
 			for e in eList:
-				yield e		
-		elif self.skip is not None or self.top is not None:
-			# a skip or top option forces ordering by the key
-			eList=list(entityIterable)
-			eList.sort(key=lambda x:x.Key()) 
-			for e in eList:
-				yield e			
+				yield e
 		else:
 			for e in entityIterable:
 				yield e
@@ -2466,6 +2499,7 @@ class EntityCollection(DictionaryLike):
 			except ValueError:
 				# not a skip token we recognise, do nothing
 				self.skiptoken=None
+		self.nextSkiptoken=None
 		
 	def TopMax(self,topmax):
 		"""Sets the maximum page size for this collection.
@@ -2475,7 +2509,11 @@ class EntityCollection(DictionaryLike):
 		the top value set in :py:meth:`SetPage`,
 		:py:meth:`NextSkipToken` will return a suitable value for
 		identifying the next page in the collection immediately after a
-		complete iteration of :py:meth:`iterpage`."""
+		complete iteration of :py:meth:`iterpage`.
+		
+		If a collection cannot control the maximum page size then
+		NotImplementedError can be raised.  Skiptokens may still be used
+		but page size limits are set outside this process"""
 		self.topmax=topmax
 		
 	def GetPageStart(self):
@@ -2524,29 +2562,33 @@ class EntityCollection(DictionaryLike):
 				eMax=None
 			else:
 				eMax=eMin+self.top
-		if eMax is None:
-			for e in self.itervalues():
-				if i>=eMin:
-					yield e
-				i=i+1
-		else:
-			for e in self.itervalues():
-				if i<eMin:
+		try:
+			self.paging=True
+			if eMax is None:
+				for e in self.itervalues():
+					if i>=eMin:
+						yield e
 					i=i+1
-				elif i<eMax:
-					yield e
-					i=i+1
-				else:
-					# stop the iteration now
-					if setNextPage:
-						# set the next skiptoken
-						if self.nextSkiptoken is None:
-							self.skip=i
-							self.skiptoken=None
-						else:
-							self.skip=None
-							self.skiptoken=self.nextSkiptoken
-					return
+			else:
+				for e in self.itervalues():
+					if i<eMin:
+						i=i+1
+					elif i<eMax:
+						yield e
+						i=i+1
+					else:
+						# stop the iteration now
+						if setNextPage:
+							# set the next skiptoken
+							if self.nextSkiptoken is None:
+								self.skip=i
+								self.skiptoken=None
+							else:
+								self.skip=None
+								self.skiptoken=self.nextSkiptoken
+						return
+		finally:
+			self.paging=False
 		# no more pages
 		if setNextPage:
 			self.top=self.skip=self.skiptoken=0
@@ -2554,8 +2596,7 @@ class EntityCollection(DictionaryLike):
 	def NextSkipToken(self):
 		"""Following a complete iteration of the generator returned by
 		:py:meth:`iterpage` returns the skiptoken which will generate
-		the next page or None if all requested entities have been
-		returned."""
+		the next page or None if all requested entities were returned."""
 		if self.nextSkiptoken is None:
 			return None
 		else:
@@ -2595,7 +2636,7 @@ class NavigationEntityCollection(EntityCollection):
 	of *toEntitySet*.
 	
 	This class is used even when the navigation property is declared to
-	return a single entity, rather than a collection."""
+	return a single entity, rather than a collection."""		
 	def __init__(self,name,fromEntity,toEntitySet):
 		super(NavigationEntityCollection,self).__init__(toEntitySet)
 		self.name=name								#: the name of this collection

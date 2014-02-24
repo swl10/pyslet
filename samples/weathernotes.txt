@@ -1,0 +1,43 @@
+# Notes.txt
+# StartDate EndDate Details
+1990-01-01	1998-09-23	humidity and dew point readings may be inaccurate, particularly high humidity readings
+2001-07-01	2001-08-29	rain sensor malfunction, but dry days are very likely to be accurately recorded
+2004-07-09	2004-07-18	rain sensor malfunction due to storm damage, estimated 50mm shortfall in rain recorded 
+2005-01-21	2005-03-02	rain sensor may be inaccurate
+2005-06-28	2005-07-01	rain sensor malfunction due to storm damage, estimated 30.6mm shortfall in rain recorded
+2005-09-01	2005-11-07	rain and wind direction inaccurate, rainfall readings significantly too high
+2005-12-30	2005-12-30	clock correction, clock moved back 6 minutes around 18:15
+2006-07-16	2006-07-18	humidity, pressure, wind speed and direction sensors stuck
+2006-07-19	2006-07-19	electrical testing around 11:00-11:30
+2006-07-27	2006-07-31	rain sensor malfunction due to suspected storm damage, under-reported rainfall
+2006-10-05	2006-10-09	rainfall sensor readings adjusted following malfunction
+2006-11-20	2006-11-20	rainfall sensor readings adjusted following malfunction
+2006-12-29	2006-12-29	rainfall sensor readings adjusted following malfunction
+2007-06-02	2007-06-04	data-logging system failure
+2007-06-19	2007-06-20	system upgrade, temperature, dew point and sunshine readings inaccurate
+2007-08-04	2007-08-06	data-logging system failure
+2007-09-24	2007-09-24	rain sensor, pressure, wind speed and direction and humidity readings inaccurate
+2007-10-08	2007-10-16	rain sensor under reporting following malfunction
+2007-11-01	2007-11-22	rain sensor over reporting rainfall following malfunction
+2007-12-25	2008-01-02	All sensors inaccurate
+2008-01-15	2008-01-16	All sensors inaccurate
+2008-05-07	2008-05-07	humidity, pressure, wind speed and direction and dew point readings inaccurate
+2008-06-22	2008-06-23	missing data due to system failure
+2008-07-09	2008-07-09	rain sensor under reporting
+2008-07-31	2008-08-01	humidity, pressure and wind speed readings incorrect
+2008-08-12	2008-08-12	rain sensor under reported (heavy rain)
+2008-08-19	2008-08-27	rain sensor under reporting
+2008-09-03	2008-09-04	rain sensor under reporting
+2008-10-25	2008-11-04	rain sensor under reporting
+2009-04-03	2009-04-13	humidity and sunshine reading incorrect, rainfall sensor blocked
+2010-02-06	2010-02-28	rain sensor under reporting due to water damage
+2010-08-14	2010-08-14	system interrupted
+2010-08-16	2010-08-16	system interrupted due to power failure
+2010-08-23	2010-08-23	rain sensor over reporting
+2011-02-26	2011-02-26	rain sensor over reporting, estimated <5mm on this day
+2011-08-16	2011-08-23	rain sensor over reporting, estimated 14mm during this period
+2011-09-06	2012-01-31	rain sensor failure, system interruptions on 2011-10-30, 2012-01-10 and 2012-01-30
+2012-08-20	2012-08-20	rain sensor readings inaccurate
+
+
+

@@ -393,7 +393,13 @@ class EntityCollection(odata.EntityCollection):
 			self.UpdateBindings(entity)
 		
 	def __len__(self):
-		return self.entityStore.CountEntities()
+		if self.filter is None:
+			return self.entityStore.CountEntities()
+		else:
+			result=0
+			for e in self.FilterEntities(self.entityStore.GenerateEntities()):
+				result+=1
+			return result
 		
 	def itervalues(self):
 		return self.OrderEntities(
@@ -486,8 +492,14 @@ class NavigationEntityCollection(odata.NavigationEntityCollection):
 			self.collection=None
 						
 	def __len__(self):
-		resultSet=self.index.get(self.key,set())
-		return len(resultSet)
+		if self.filter is None:
+			resultSet=self.index.get(self.key,set())
+			return len(resultSet)
+		else:
+			result=0
+			for e in self.FilterEntities(self.entityGenerator()):
+				result+=1
+			return result
 
 	def entityGenerator(self):
 		# we create a collection from the appropriate entity set first

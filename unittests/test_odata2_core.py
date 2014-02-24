@@ -1784,7 +1784,80 @@ class DataServiceRegressionTests(unittest.TestCase):
 				self.assertTrue(entity['K'].value==k,"Key selected and in collection")
 				self.assertTrue(entity['P1'])
 				self.assertFalse(entity['P2'])
-		
+	
+	def RunTestCasePaging(self):
+		pagingSet=self.ds['RegressionModel.RegressionContainer.PagingSet']
+		with pagingSet.OpenCollection() as collection:
+			for i in xrange(10):
+				for j in xrange(10):
+					entity=collection.NewEntity()
+					entity.SetKey((i,j))
+					entity['Sum'].SetFromValue(i+j)
+					entity['Product'].SetFromValue(i*j)
+					collection.InsertEntity(entity)
+			# first test, iterpage with no page set, all values returned
+			self.assertTrue(len(list(collection.iterpage()))==100,"no page")
+			# now use top and skip only, no ordering
+			collection.SetPage(10,2)
+			result=list(collection.iterpage())
+			self.assertTrue(len(result)==10,"10,2: length")
+			self.assertTrue(collection.NextSkipToken() is None,"10,2: skiptoken")
+			self.assertTrue(result[0].Key()==(0,2),"10,2: first page")
+			result=list(collection.iterpage(setNextPage=True))
+			self.assertTrue(result[0].Key()==(0,2),"10,2: first page repeated")
+			self.assertTrue(len(result)==10,"10,2: length, first page repeated")
+			for i in xrange(8):
+				result=list(collection.iterpage(setNextPage=True))
+				self.assertTrue(result[0].Key()==(1+i,2),"10,2: page %i"%(i+2))
+				self.assertTrue(len(result)==10,"10,2: length, page %i"%(i+2))
+			result=list(collection.iterpage(setNextPage=True))
+			self.assertTrue(len(result)==8,"10,2: length, last page")
+			self.assertTrue(result[7].Key()==(9,9),"10,2: last entity")
+			result=list(collection.iterpage(setNextPage=True))
+			self.assertTrue(len(result)==0,"10,2: overrun")
+			# test skiptoken
+			try:
+				collection.TopMax(5)
+				collection.SetPage(top=10)
+				result=list(collection.iterpage())
+				self.assertTrue(len(result)==5,"max 5: length")
+				self.assertTrue(result[4].Key()==(0,4),"max 5: last entity on first page")
+				# there should be a skiptoken
+				token=collection.NextSkipToken()
+				self.assertTrue(token is not None,"skip token present")
+				for i in xrange(4):
+					logging.info("$skiptoken=%s",collection.NextSkipToken())
+					result=list(collection.iterpage(setNextPage=True))
+					self.assertTrue(len(result)==5,"max 5: length")
+					self.assertTrue(result[0].Key()==((i*5)//10,(i*5)%10),"max 5: first entity on page")
+				collection.SetPage(top=10,skip=None,skiptoken=token)
+				# This should wind us back to page 2
+				result=list(collection.iterpage())
+				self.assertTrue(len(result)==5,"max 5: length")
+				self.assertTrue(result[4].Key()==(0,9),"max 5: last entity on page 2")
+				# now add an ordering
+				collection.OrderBy(CommonExpression.OrderByFromString(u"Sum desc"))
+				# must have rest the skiptoken
+				self.assertTrue(collection.NextSkipToken() is None,"No page set")
+				collection.SetPage(top=10)
+				result=list(collection.iterpage(setNextPage=True))
+				self.assertTrue(result[0].Key()==(9,9),"first page with ordering")
+				self.assertTrue(result[1].Key()==(8,9),"first page with ordering (8,9)")
+				self.assertTrue(result[2].Key()==(9,8),"first page with ordering (9,8)")
+				token=collection.NextSkipToken()
+				self.assertTrue(token is not None,"skip token present")
+				result=list(collection.iterpage(setNextPage=True))
+				self.assertTrue(result[0].Key()==(9,7),"second page with ordering (9,7)")
+				self.assertTrue(result[1].Key()==(6,9),"second page with ordering (9,8)")
+				for i in xrange(18):
+					logging.info("$skiptoken=%s",collection.NextSkipToken())
+					result=list(collection.iterpage(setNextPage=True))
+				self.assertTrue(result[2].Key()==(0,1),"last page with ordering (0,1)")
+				self.assertTrue(result[3].Key()==(1,0),"last page with ordering (1,0)")
+				self.assertTrue(result[4].Key()==(0,0),"last page with ordering (0,0)")
+			except NotImplementedError:
+				pass							
+			
 	def RunTestCaseNavigationOne2One(self):
 		ones=self.ds['RegressionModel.RegressionContainer.O2Os']
 		onexs=self.ds['RegressionModel.RegressionContainer.O2OXs']
@@ -4181,6 +4254,7 @@ class DataServiceRegressionTests(unittest.TestCase):
 		self.RunTestCaseComplexTypes()
 		self.RunTestCaseCompoundKey()
 		self.RunTestCaseSimpleSelect()
+		self.RunTestCasePaging()
 		self.RunTestCaseNavigationOne2One()
 		self.RunTestCaseNavigationOne2One1()
 		self.RunTestCaseNavigationZeroOne2One()

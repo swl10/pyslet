@@ -140,7 +140,8 @@ class Server(app.Server):
 			self.pathPrefix=self.pathPrefix[:-1]		
 		self.ws=self.service.ChildElement(app.Workspace)	#: a single workspace that contains all collections
 		self.ws.ChildElement(atom.Title).SetValue("Default")
-		self.model=None					#: a :py:class:`metadata.Edmx` instance containing the model for the service
+		self.model=None			#: a :py:class:`metadata.Edmx` instance containing the model for the service
+		self.topmax=100			#: the maximum number of entities to return per request
 		
 	def SetModel(self,model):
 		"""Sets the model for the server from a parentless
@@ -219,7 +220,6 @@ class Server(app.Server):
 				start_response("%i %s"%(307,"Temporary Redirect"),responseHeaders)
 				return [data]
 			else:
-				logging.debug("SysQueryOptions: %s",repr(request.sysQueryOptions))
 				return self.HandleRequest(request,environ,start_response,responseHeaders)
 		except InvalidSystemQueryOption,e:
 			return self.ODataError(ODataURI('error'),environ,start_response,"InvalidSystemQueryOption","Invalid System Query Option: %s"%str(e))
@@ -487,7 +487,7 @@ class Server(app.Server):
 				if method=="GET":
 					self.ExpandResource(resource,request.sysQueryOptions)
 					resource.Filter(request.sysQueryOptions.get(SystemQueryOption.filter,None))
-					resource.OrderBy(request.sysQueryOptions.get(SystemQueryOption.orderby,[]))
+					resource.OrderBy(request.sysQueryOptions.get(SystemQueryOption.orderby,None))
 					resource.SetPage(request.sysQueryOptions.get(SystemQueryOption.top,None),
 						request.sysQueryOptions.get(SystemQueryOption.skip,None),
 						request.sysQueryOptions.get(SystemQueryOption.skiptoken,None))
@@ -667,6 +667,7 @@ class Server(app.Server):
 		else:
 			# Here's a challenge, we want to pull data through the feed by yielding strings
 			# just load in to memory at the moment
+			entities.TopMax(self.topmax)
 			f=Feed(None,entities)
 			doc=Document(root=f)
 			f.collection=entities
@@ -970,45 +971,15 @@ class Server(app.Server):
 			return 1
 
 
-# class ODataStoreClient(edm.ERStore):
-# 	"""Provides an implementation of ERStore based on OData."""
-# 
-# 	def __init__(self,serviceRoot=None):
-# 		edm.ERStore.__init__(self)
-# 		self.client=Client(serviceRoot)
-# 		self.defaultContainer=None		#: the default entity container
-# 		for s in self.client.schemas:
-# 			# if the client has a $metadata document we'll use it
-# 			schema=self.client.schemas[s]
-# 			self.AddSchema(schema)
-# 			# search for the default entity container
-# 			for container in schema.EntityContainer:
-# 				try:
-# 					if container.IsDefaultEntityContainer():
-# 						if self.defaultContainer is None:
-# 							self.defaultContainer=container
-# 						else:
-# 							raise InvalidMetadataDocument("Multiple default entity containers defined")
-# 				except KeyError:
-# 					pass									
-# 				
-# 	def EntityReader(self,entitySetName):
-# 		"""Iterates over the entities in the given entity set (feed)."""
-# 		feedURL=None
-# 		if self.defaultContainer:
-# 			if entitySetName in self.defaultContainer:
-# 				# use this as the name of the feed directly
-# 				# get the entity type from the entitySet definition
-# 				entitySet=self.defaultContainer[entitySetName]
-# 				entityType=self[entitySet.entityTypeName]
-# 				feedURL=uri.URIFactory.Resolve(self.client.serviceRoot,entitySetName)
-# 		if feedURL is None:
-# 			raise NotImplementedError("Entity containers other than the default") 
-# 		for entry in self.client.RetrieveEntries(feedURL):
-# 			values={}
-# 			for p in entityType.Property:
-# 				v=entry[p.name]
-# 				values[p.name]=v
-# 			yield values
+class ReadOnlyServer(Server):
 
-			
+	def HandleRequest(self,request,environ,start_response,responseHeaders):
+		"""Handles a request that has been identified as being an OData request.
+		
+		*	*request* is an :py:class:`ODataURI` instance with a non-empty resourcePath."""
+		method=environ["REQUEST_METHOD"].upper()
+		if method in ("GET","HEAD"):
+			return super(ReadOnlyServer,self).HandleRequest(request,environ,start_response,responseHeaders)
+		else:
+			return self.ODataError(request,environ,start_response,"Unauthorised","Method not allowed",403)
+
