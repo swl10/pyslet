@@ -8,35 +8,141 @@ Microsoft's Entity Data Model (EDM) as documented by the Conceptual
 Schema Definition Language and associated file format:
 http://msdn.microsoft.com/en-us/library/dd541474.aspx
 
+The classes in this model fall in to two categories.  The data classes
+represent the actual data objects, like simple and complex values,
+entities and collections.  The metadata classes represent the elements
+of the metadata model like entity types, property definitions,
+associations, entity sets and so on.  The metadata elements have direct
+XML representations, the data classes do not.
 
-Reference
----------
+.. toctree::
+   :maxdepth: 2
 
-..	autoclass:: EDMValue
-	:members:
-	:show-inheritance:
 
-..	autoclass:: SimpleValue
-	:members:
-	:show-inheritance:
+Data Model
+----------
 
-..	autoclass:: Complex
+..	autoclass:: EntityCollection
 	:members:
 	:show-inheritance:
 
 ..	autoclass:: Entity
 	:members:
 	:show-inheritance:
+	:special-members:
 
-..	autoclass:: EntityCollection
+..	autoclass:: SimpleValue
+	:members:
+	:show-inheritance:
+	:special-members:
+
+..	autoclass:: NumericValue
+	:members:
+	:show-inheritance:
+
+..	autoclass:: FloatValue
 	:members:
 	:show-inheritance:
 
 
-Elements
-~~~~~~~~
+Primitive SimpleTypes
+~~~~~~~~~~~~~~~~~~~~~
 
-..	autoclass:: EntitySet
+Simple values can be created directly using one of the type-specific
+classes below.
+
+..	autoclass:: BinaryValue
+	:show-inheritance:
+
+..	autoclass:: BooleanValue
+	:show-inheritance:
+
+..	autoclass:: ByteValue
+	:show-inheritance:
+
+..	autoclass:: DateTimeValue
+	:show-inheritance:
+
+..	autoclass:: DateTimeOffsetValue
+	:show-inheritance:
+
+..	autoclass:: DecimalValue
+	:show-inheritance:
+
+..	autoclass:: DoubleValue
+	:show-inheritance:
+	:members:
+
+..	autoclass:: GuidValue
+	:show-inheritance:
+
+..	autoclass:: Int16Value
+	:show-inheritance:
+
+..	autoclass:: Int32Value
+	:show-inheritance:
+
+..	autoclass:: Int64Value
+	:show-inheritance:
+
+..	autoclass:: SByteValue
+	:show-inheritance:
+
+..	autoclass:: SingleValue
+	:show-inheritance:
+	:members:
+
+..	autoclass:: StringValue
+	:show-inheritance:
+
+..	autoclass:: TimeValue
+	:show-inheritance:
+
+
+Complex Types
+~~~~~~~~~~~~~
+
+..	autoclass:: Complex
+	:members:
+	:show-inheritance:
+
+
+Navigation: Deferred Values
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+..	autoclass:: DeferredValue
+	:members:
+	:show-inheritance:
+
+..	autoclass:: NavigationEntityCollection
+	:members:
+	:show-inheritance:
+
+..	autoclass:: ExpandedEntityCollection
+	:members:
+	:show-inheritance:
+
+
+Supporting Classes
+~~~~~~~~~~~~~~~~~~
+
+..	autoclass:: EDMValue
+	:members:
+	:show-inheritance:
+	:special-members:
+
+..	autoclass:: TypeInstance
+	:members:
+	:show-inheritance:
+
+
+Metadata Model
+--------------
+
+..	autoclass:: CSDLElement
+	:show-inheritance:
+
+..	autoclass:: Schema
 	:members:
 	:show-inheritance:
 
@@ -44,7 +150,19 @@ Elements
 	:members:
 	:show-inheritance:
 
-..	autoclass:: Schema
+..	autoclass:: EntitySet
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AssociationSet
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AssociationSetEnd
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Type
 	:members:
 	:show-inheritance:
 
@@ -64,11 +182,11 @@ Elements
 	:members:
 	:show-inheritance:
 
-..	autoclass:: NavigationProperty
+..	autoclass:: ComplexType
 	:members:
 	:show-inheritance:
 
-..	autoclass:: ComplexType
+..	autoclass:: NavigationProperty
 	:members:
 	:show-inheritance:
 
@@ -76,32 +194,67 @@ Elements
 	:members:
 	:show-inheritance:
 
-..	autoclass:: CSDLElement
+..	autoclass:: AssociationEnd
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Documentation
+	:show-inheritance:
+
+
+Misc Definitions
+----------------
+
+..	autofunction:: ValidateSimpleIdentifier
+
+..	autoclass:: SimpleType
+	:members:
+	:show-inheritance:
+
+..	autoclass:: ConcurrencyMode
+	:members:
+	:show-inheritance:
+
+..	autofunction::	DecodeMaxLength
+
+..	autofunction::	EncodeMaxLength
+
+..	autodata::	MAX
+
+..	autoclass:: Multiplicity
+	:members:
+	:show-inheritance:
+
+..	autofunction::	DecodeMultiplicity
+
+..	autofunction::	EncodeMultiplicity
+
+..	autoclass:: Parser
 	:members:
 	:show-inheritance:
 
 
-Basic Data Types
-~~~~~~~~~~~~~~~~
+Utility Classes
+---------------
 
-..	autofunction:: ValidateSimpleIdentifier
+These classes are not specific to the EDM but are used to support the
+implementation. They are documented to allow them to be reused in other
+modules.
 
 ..	autoclass:: NameTableMixin
 	:members:
 	:show-inheritance:
 	:special-members:
 
-..	autoclass:: SimpleType
+..	autoclass:: DictionaryLike
 	:members:
 	:show-inheritance:
+	:special-members:
 
 
 Exceptions
-~~~~~~~~~~
+----------
 
-..	autoclass:: EDMError
-	:members:
-	:show-inheritance:
 
 ..	autoclass:: NonExistentEntity
 	:members:
@@ -128,6 +281,18 @@ Exceptions
 	:show-inheritance:
 
 ..	autoclass:: ModelConstraintError
+	:members:
+	:show-inheritance:
+
+..	autoclass:: DuplicateName
+	:members:
+	:show-inheritance:
+
+..	autoclass:: IncompatibleNames
+	:members:
+	:show-inheritance:
+
+..	autoclass:: EDMError
 	:members:
 	:show-inheritance:
 

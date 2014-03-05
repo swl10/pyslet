@@ -21,7 +21,13 @@ class InMemoryEntityStore(object):
 	stored as nested tuples.
 	
 	Media streams are simply strings stored in a parallel dictionary
-	mapping keys on to a tuple of media-type and string."""
+	mapping keys on to a tuple of media-type and string.
+	
+	All access to the data itself uses the *container*'s lock to ensure
+	this object can be called from multi-threaded programs.  Although
+	individual collections must not be shared across threads multiple
+	threads can open separate collections and access the entities
+	safely."""
 	
 	def __init__(self,container,entitySet=None):
 		self.container=container	#: the :py:class:`InMemoryEntityContainer` that contains this entity set
@@ -36,13 +42,17 @@ class InMemoryEntityStore(object):
 			self.BindToEntitySet(entitySet)
 			
 	def BindToEntitySet(self,entitySet):
-		"""Binds this entity store to the given entity set."""
+		"""Binds this entity store to the given entity set.
+		
+		Not thread safe."""
 		entitySet.Bind(EntityCollection,entityStore=self)
 		self.entitySet=entitySet
 		
 	def AddAssociation(self,associationIndex,reverse):
 		"""Adds an association index from this entity set (if reverse is
-		False) or to this entity set (reverse is True)."""
+		False) or to this entity set (reverse is True).
+		
+		Not thread safe."""
 		if reverse:
 			self.reverseAssociations[associationIndex.name]=associationIndex
 		else:
@@ -221,14 +231,15 @@ class InMemoryEntityStore(object):
 
 
 class InMemoryAssociationIndex(object):
-	"""An in memory index that implements the association between two sets of entities.
-	
+	"""An in memory index that implements the association between two
+	sets of entities.
+
 	Instances of this class create storage for an association between
 	*fromEntityStore* and *toEntityStore* which are
 	:py:class:`InMemoryEntityStore` instances.
-		
+	
 	If *propertyName* (and optionally *reverseName*) is provided then
-	the index is immediately bound to the data service, see
+	the index is immediately bound to the associated entity sets, see
 	:py:meth:`Bind` for more information."""	
 	def __init__(self,container,associationSet,fromEntityStore,toEntityStore,propertyName=None,reverseName=None):
 		self.container=container		#: the :py:class:`InMemoryEntityContainer` that contains this index
@@ -376,6 +387,15 @@ class EntityCollection(odata.EntityCollection):
 		return e 
 	
 	def InsertEntity(self,entity,fromEnd=None):
+		"""The optional *fromEnd* is an
+		:py:class:`AssociationSetEnd` instance that is bound to *this*
+		collection's entity set.  It indicates that we are being created
+		by a deep insert or through direct insertion into a
+		:py:class:`NavigationEntityCollection` representing the
+		corresponding association.  This information can be used to
+		suppress a constraint check (on the assumption that it has
+		already been checked) by passing *fromEnd* directly to
+		:py:meth:`Entity.CheckNavigationConstraints`."""
 		try:
 			key=entity.Key()
 		except KeyError:
@@ -473,11 +493,11 @@ class NavigationEntityCollection(odata.NavigationEntityCollection):
 		self.associationIndex=associationIndex
 		self.reverse=reverse
 		if self.reverse:
-			self.index=self.associationIndex.reverseIndex
-			self.rIndex=self.associationIndex.index
+			self.lookupMethod=self.associationIndex.GetLinksTo
+			self.rLookupMethod=self.associationIndex.GetLinksFrom
 		else:
-			self.index=self.associationIndex.index
-			self.rIndex=self.associationIndex.reverseIndex
+			self.lookupMethod=self.associationIndex.GetLinksFrom
+			self.rLookupMethod=self.associationIndex.GetLinksTo
 		super(NavigationEntityCollection,self).__init__(name,fromEntity,toEntitySet)
 		self.collection=self.entitySet.OpenCollection()
 		self.key=self.fromEntity.Key()
@@ -493,7 +513,7 @@ class NavigationEntityCollection(odata.NavigationEntityCollection):
 						
 	def __len__(self):
 		if self.filter is None:
-			resultSet=self.index.get(self.key,set())
+			resultSet=self.lookupMethod(self.key)
 			return len(resultSet)
 		else:
 			result=0
@@ -503,7 +523,7 @@ class NavigationEntityCollection(odata.NavigationEntityCollection):
 
 	def entityGenerator(self):
 		# we create a collection from the appropriate entity set first
-		resultSet=self.index.get(self.key,set())
+		resultSet=self.lookupMethod(self.key)
 		for k in resultSet:
 			yield self.collection[k]
 		
@@ -513,8 +533,19 @@ class NavigationEntityCollection(odata.NavigationEntityCollection):
 			self.FilterEntities(
 			self.entityGenerator())))
 
+	def __getitem__(self,key):
+		resultSet=self.lookupMethod(self.key)
+		if key in resultSet:
+			result=self.collection[key]
+			if self.filter is None:
+				if self.CheckFilter(result):
+					return result
+			else:
+				return result
+		raise KeyError(key)
+		
 	def __setitem__(self,key,value):
-		resultSet=self.index.get(self.key,set())
+		resultSet=self.lookupMethod(self.key)
 		if key in resultSet:
 			# no operation
 			return
@@ -526,7 +557,7 @@ class NavigationEntityCollection(odata.NavigationEntityCollection):
 			if resultSet:
 				raise edm.NavigationConstraintError("Can't add multiple links to navigation property %s"%self.name)
 		if self.fromMultiplicity!=edm.Multiplicity.Many:
-			if self.rIndex.get(key,set()):
+			if self.rLookupMethod(key):
 				raise edm.NavigationConstraintError("Entity %s is already bound through this association"%value.GetLocation())				
 		# clear to add this one to the index
 		if self.reverse:
@@ -540,7 +571,7 @@ class NavigationEntityCollection(odata.NavigationEntityCollection):
 		#	constraint violation
 		if self.fromMultiplicity==edm.Multiplicity.One or self.toMultiplicity==edm.Multiplicity.One:
 			raise edm.NavigationConstraintError("Can't remove a required link")
-		resultSet=self.index.get(self.key,set())
+		resultSet=self.lookupMethod(self.key)
 		if key not in resultSet:
 			raise KeyError
 		if self.reverse:
@@ -550,7 +581,7 @@ class NavigationEntityCollection(odata.NavigationEntityCollection):
 
 	def Replace(self,entity):
 		key=entity.Key()
-		resultSet=list(self.index.get(self.key,set()))
+		resultSet=list(self.lookupMethod(self.key))
 		if resultSet==[key]:
 			# nothing to do!
 			return
@@ -571,7 +602,7 @@ class NavigationEntityCollection(odata.NavigationEntityCollection):
 				# now remove all the old keys.  This implementation
 				# is the same regardless of the allowed multiplicity.
 				# This doesn't just save coding, it ensures that
-				# corrupted indexes self-correcting
+				# corrupted indexes are self-correcting
 				if oldKey!=key:
 					if self.reverse:
 						self.associationIndex.RemoveLink(oldKey,self.key)

@@ -46,7 +46,10 @@ class EDMError(Exception):
 
 class DuplicateName(EDMError):
 	"""Raised by :py:class:`NameTableMixin` when attempting to declare a name in
-	a context where the name is already declared."""
+	a context where the name is already declared.
+	
+	This might be raised if your metadata document incorrectly defines
+	two objects with the same name in the same scope, for example"""
 	pass
 
 
@@ -108,30 +111,73 @@ NavigationConstraintError=NavigationError
 	
 		
 class DictionaryLike(object):
-	"""A new-style class for behaving like a dictionary.
+	"""An abstract class for behaving like a dictionary.
 	
 	Derived classes must override :py:meth:`__iter__` and :py:meth:`__getitem__`
 	and if the dictionary is writable :py:meth:`__setitem__` and probably
 	:py:meth:`__delitem__` too.  These methods all raise NotImplementedError by
 	default.
 	
-	They should also override :py:meth:`__len__` and :py:meth:`clear` as the
-	default implementations are inefficient."""
+	Dervied classes should also override :py:meth:`__len__` and
+	:py:meth:`clear` as the default implementations are inefficient.
+	
+	A note on thread safety.  Unlike native Python dictionaries,
+	DictionaryLike objects can not be treated as thread safe for
+	updates.  The implementations of the read-only methods (including
+	the iterators) are designed to be thread safe so, once populated,
+	they can be safely shared.  Derived classes should honour this
+	contract when implementing :py:meth:`__iter__`,
+	:py:meth:`__getitem__` and :py:meth:`__len__` or clearly document
+	that the object is not thread-safe at all.
+	
+	Finally, one other difference worth noting is touched on in a comment
+	from the following question on Stack Overflow:
+	http://stackoverflow.com/questions/3358770/python-dictionary-is-thread-safe
+	
+	This question is about whether a dictionary can be modified during
+	iteration.  Although not typically a thread-safety issue the commenter
+	says:
+	
+		I think they are related. What if one thread iterates and the
+		other modifies the dict?
+
+	To recap, native Python dictionaries limit the modifications you can make
+	during iteration, quoting from the docs:
+	
+		The dictionary p should not be mutated during iteration. It is
+		safe (since Python 2.1) to modify the values of the keys as you
+		iterate over the dictionary, but only so long as the set of keys
+		does not change
+	
+	You should treat DictionaryLike objects with the same respect but
+	the behaviour is not defined at this abstract class level and will
+	vary depending on the implementation.  Derived classes are only
+	dictionary-like, they are not actually Python dictionaries!"""
 	
 	def __getitem__(self,key):
-		"""Implements self[key]"""
+		"""Implements self[key]
+		
+		This method must be overridden to make a concrete implementation"""
 		raise NotImplementedError
 	
 	def __setitem__(self,key,value):
-		"""Implements assignment to self[key]"""
+		"""Implements assignment to self[key]
+		
+		This method must be overridden if you want your dictionary-like
+		object to be writeable."""
 		raise NotImplementedError
 		
 	def __delitem__(self,key):
-		"""Implements del self[key]"""
+		"""Implements del self[key]
+		
+		This method should be overridden if you want your
+		dictionary-like object to be writeable."""
 		raise NotImplementedError
 	
 	def __iter__(self):
-		"""Returns an object that implements the iterable protocol on the keys"""
+		"""Returns an object that implements the iterable protocol on the keys
+		
+		This method must be overridden to make a concrete implementation"""
 		raise NotImplementedError
 				
 	def __len__(self):
@@ -157,14 +203,14 @@ class DictionaryLike(object):
 			return False
 	
 	def iterkeys(self):
-		"""Returns an iterable of keys, simple calls __iter__"""
+		"""Returns an iterable of the keys, simple calls __iter__"""
 		return self.__iter__()
 
 	def itervalues(self):
-		"""Returns an iterable of values.
+		"""Returns an iterable of the values.
 		
-		The default implementation is a generator function that iterates over
-		the keys and uses __getitem__ to return the value."""
+		The default implementation is a generator function that iterates
+		over the keys and uses __getitem__ to yield each value."""
 		for k in self:
 			yield self[k] 
 		
@@ -185,10 +231,10 @@ class DictionaryLike(object):
 		return list(self.itervalues())
 
 	def iteritems(self):
-		"""Returns an iterable of key,value pairs.
+		"""Returns an iterable of the key,value pairs.
 		
 		The default implementation is a generator function that uses
-		:py:meth:`__iter__` and __getitem__"""
+		:py:meth:`__iter__` and __getitem__ to yield the pairs."""
 		for k in self:
 			yield k,self[k]
 
@@ -196,7 +242,7 @@ class DictionaryLike(object):
 		"""Returns a list of key,value pair tuples.
 
 		This is a copy of the items in no specific order.  Modifications to this
-		list do not affect the object.  The default implementation users
+		list do not affect the object.  The default implementation uses
 		:py:class:`iteritems`."""
 		return list(self.iteritems())
 	
@@ -245,19 +291,27 @@ class DictionaryLike(object):
 		while iterating as the results are generally undefined.  A more
 		efficient implementation is recommended."""
 		for k in self.keys():
-			del self[k]
+			try:
+				del self[k]
+			except KeyError:
+				pass
 
 	def popitem(self):
 		"""Equivalent to: self[key] for some random key; removing key.
 		
-		This is a rather odd implementation but to avoid iterating over the
-		whole object we create an iterator with __iter__, use __getitem__ and
-		__delitem__ to pop the first item and then discard the iterator."""
+		This is a rather odd implementation but to avoid iterating over
+		the whole object we create an iterator with __iter__, use
+		__getitem__ once and then discard it.  If an object is found we
+		use __delitem__ to delete it, otherwise KeyError is raised."""
+		value=None
 		for k in self:
 			value=self[k]
+			break
+		if value is None:
+			raise KeyError
+		else:
 			del self[k]
 			return k,value
-		raise KeyError
 				
 	def bigclear(self):
 		"""Removes all the items from the object (alternative for large
@@ -275,7 +329,10 @@ class DictionaryLike(object):
 			pass
 		
 	def copy(self):
-		"""Makes a shallow copy of this object: raises NotImplementedError."""
+		"""Makes a shallow copy of this object.
+		
+		This method must be overridden if you want your dictionary-like
+		object to support the copy operation."""
 		raise NotImplementedError
 
 	def update(self,items):
@@ -287,29 +344,30 @@ class DictionaryLike(object):
 	
 class NameTableMixin(DictionaryLike):
 	"""A mix-in class to help other objects become named scopes.
+
+	Using this mix-in the class behaves like a read-only named
+	dictionary with string keys and object values.  If the dictionary
+	contains a value that is itself a NameTableMixin then keys can be
+	compounded to look-up items in sub-scopes.
 	
-	Using this mix-in the class behaves like a read-only named dictionary with
-	string keys and object value.  If the dictionary contains a value that is
-	itself a NameTableMixin then keys can be compounded to look-up items in
-	sub-scopes.
-	
-	For example, if the name table contains a value with key "X"
-	that is itself a name table containing a value with key "Y" then both "X"
-	and "X.Y" are valid keys."""
+	For example, if the name table contains a value with key "X" that is
+	itself a name table containing a value with key "Y" then both "X"
+	and "X.Y" are valid keys, the latter performing a 'deep lookup' in
+	the nested scope."""
 	
 	def __init__(self):
 		self.name=""			#: the name of this name table (in the context of its parent)
 		self.nameTable={}		#: a dictionary mapping names to child objects
 	
 	def __getitem__(self,key):
-		"""Looks up *key* in :py:attr:`nameTable` and, if not found, in each
-		child scope with a name that is a valid scope prefix of key.  For
-		example, if key is "My.Scope.Name" then a child scope with name
-		"My.Scope" would be searched for "Name" or a child scope with name "My"
-		would be searched for "Scope.Name"."""
+		"""Looks up *key* in :py:attr:`nameTable` and, if not found, in
+		each child scope with a name that is a valid scope prefix of
+		key.  For example, if key is "My.Scope.Name" then a child scope
+		with name "My.Scope" would be searched for "Name" or a child
+		scope with name "My" would be searched for "Scope.Name"."""
 		result=self.nameTable.get(key,None)
 		if result is None:
-			scope,key=self.SplitKey(key)
+			scope,key=self._SplitKey(key)
 			if scope is not None:
 				return scope[key]
 			raise KeyError("%s not declared in scope %s"%(key,self.name))					
@@ -317,14 +375,26 @@ class NameTableMixin(DictionaryLike):
 			return result
 			
 	def __iter__(self):
+		"""Yields all keys defined in this scope and all compounded keys
+		from nested scopes.  For example, a child scope with name
+		"My.Scope" which itself has a child "Name" would generate two
+		keys: "My.Scope" and "My.Scope.Name"."""
 		for key in self.nameTable:
 			yield key
 		for value in self.nameTable.itervalues():
 			if isinstance(value,NameTableMixin):
 				for key in value:
 					yield value.name+"."+key
-				
-	def SplitKey(self,key):
+	
+	def __len__(self):
+		"""Returns the number of keys in this scope including all
+		compounded keys from nested scopes."""
+		result=len(self.nameTable)
+		for value in self.nameTable.itervalues():
+			if isinstance(value,NameTableMixim):
+				result=result+len(value)
+			
+	def _SplitKey(self,key):
 		sKey=key.split(".")
 		pathLen=1
 		while pathLen<len(sKey):
@@ -335,15 +405,15 @@ class NameTableMixin(DictionaryLike):
 		return None,key
 		
 	def Declare(self,value):
-		"""Declares a value in this name table.
+		"""Declares a value in this named scope.
 		
-		*value* must have a name attribute which is used to declare it in the
-		name table; duplicate keys are not allowed and will raise
+		*value* must have a name attribute which is used to declare it
+		in the scope; duplicate keys are not allowed and will raise
 		:py:class:`DuplicateKey`.
 
-		Values are always declared in the top-level name table, even if they
-		contain the compounding character '.', however, you cannot declare "X"
-		if you have already declared "X.Y" and vice versa."""
+		Values are always declared in the top-level scope, even if they
+		contain the compounding character '.', however, you cannot
+		declare "X" if you have already declared "X.Y" and vice versa."""
 		if value.name in self.nameTable:
 			raise DuplicateName("%s already declared in scope %s"%(value.name,self.name))
 		prefix=value.name+"."
@@ -355,7 +425,9 @@ class NameTableMixin(DictionaryLike):
 		self.nameTable[value.name]=value
 	
 	def Undeclare(self,value):
-		"""Removes a value from the name table."""
+		"""Removes a value from the named scope.
+		
+		Values can only be removed from the top-level scope."""
 		if value.name in self.nameTable:
 			del self.nameTable[value.name]
 		else:
@@ -371,14 +443,17 @@ class SimpleType(xsi.Enumeration):
 
 	For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`
 	
-	[Aside: I'm not that happy with this definition.  In order to ensure that
-	the encode function produces the "Edm.X" form of the name the deocde
-	dictionary is initialised with these forms.  As a result, the class has
-	attributes of the form "SimpleType.Edm.Binary" which are inaccessible to
-	python unless getattr is used.  To workaround this problem (and because the
-	Edm. prefix seems to be optional) we also define aliases without the Edm.
-	prefix. As a result, you can use SimpleType.Binary as the symbolic (integer)
-	representation of the enumeration value.]"""
+	The canonical names for these constants uses the Edm prefix, for
+	example, "Edm.String".  As a result, the class has attributes of the form
+	"SimpleType.Edm.Binary" which are inaccessible to python unless
+	getattr is used.  To workaround this problem (and because the Edm.
+	prefix seems to be optional) we also define aliases without the Edm.
+	prefix. As a result you can use, e.g., SimpleType.Int32 as the symbolic
+	representation in code but the following are all True::
+	
+		SimpleType.DecodeValue(u"Edm.Int32")==SimpleType.Int32
+		SimpleType.DecodeValue(u"Int32")==SimpleType.Int32
+		SimpleType.EncodeValue(SimpleType.Int32)==u"Edm.Int32"	"""
 	decode={
 		'Edm.Binary':1,
 		'Edm.Boolean':2,
@@ -398,45 +473,44 @@ class SimpleType(xsi.Enumeration):
 		}
 	
 	PythonType={}
-		
-	@classmethod
-	def FromPythonType(cls,t):
-		"""Takes a python type (as returned by the built-in type
-		function) and returns the most appropriate constant value."""
-		return cls.PythonType[t]
+	"""A python dictionary that maps a type code (defined by the types
+	module) to a constant from this class indicating a safe
+	representation in the EDM.  For example::
 	
-	@classmethod
-	def CoerceValue(cls,typeCode,value):
-		"""Takes one of the type code constants and a python native value and returns the
-		value coerced to the best python value type for this type code."""
-		if typeCode==cls.Binary:
-			return str(value)
-		elif typeCode==cls.Boolean:
-			return bool(value)
-		elif typeCode in (cls.Byte,cls.Int16,cls.Int32,cls.SByte):
-			return int(value)
-		elif typeCode in (cls.DateTime,cls.DateTimeOffset):
-			if isinstance(value,iso8601.TimePoint):
-				return value
-			elif type(value) in StringTypes:
-				return iso8601.TimePoint.FromString(value)
-			else:
-				raise ValueError("Coercion to TimePoint failed: %s"%repr(value))
-		elif typeCode==cls.Decimal:
-			return decimal.Decimal(value)
-		elif typeCode in (cls.Double,cls.Single):
-			return float(value)
-		elif typeCode==cls.Guid:
-			if isinstance(value,uuid.UUID):
-				return value
-			else:
-				return uuid.UUID(value)
-		elif typeCode==cls.String:
-			return unicode(value)
-		elif typeCode==cls.Time:
-			raise "TODO"
-		else:
-			raise ValueError(typeCode)
+		SimpleType.PythonType[types.IntType]==SimpleType.Int64"""
+		
+# 	@classmethod
+# 	def CoerceValue(cls,typeCode,value):
+# 		"""Takes one of the type code constants and a python native value and returns the
+# 		value coerced to the best python value type for this type code."""
+# 		if typeCode==cls.Binary:
+# 			return str(value)
+# 		elif typeCode==cls.Boolean:
+# 			return bool(value)
+# 		elif typeCode in (cls.Byte,cls.Int16,cls.Int32,cls.SByte):
+# 			return int(value)
+# 		elif typeCode in (cls.DateTime,cls.DateTimeOffset):
+# 			if isinstance(value,iso8601.TimePoint):
+# 				return value
+# 			elif type(value) in StringTypes:
+# 				return iso8601.TimePoint.FromString(value)
+# 			else:
+# 				raise ValueError("Coercion to TimePoint failed: %s"%repr(value))
+# 		elif typeCode==cls.Decimal:
+# 			return decimal.Decimal(value)
+# 		elif typeCode in (cls.Double,cls.Single):
+# 			return float(value)
+# 		elif typeCode==cls.Guid:
+# 			if isinstance(value,uuid.UUID):
+# 				return value
+# 			else:
+# 				return uuid.UUID(value)
+# 		elif typeCode==cls.String:
+# 			return unicode(value)
+# 		elif typeCode==cls.Time:
+# 			raise "TODO"
+# 		else:
+# 			raise ValueError(typeCode)
 			
 xsi.MakeEnumeration(SimpleType)
 xsi.MakeEnumerationAliases(SimpleType,{
@@ -469,17 +543,16 @@ SimpleType.PythonType={
 Numeric=collections.namedtuple('Numeric',"sign lDigits rDigits eSign eDigits")
 
 class Parser(xsi.BasicParser):
-	"""A CSDL-specific parser, mainly for decoding literal values of simple types.
+	"""A CSDL-specific parser, mainly for decoding literal values of
+	simple types.
 	
-	These productions are documented using the ABNF from the OData
-	specification. Clearly they should match the requirements of the CSDL
-	document itself."""
+	The individual parsing methods may raise ValueError in cases where
+	parsed value has a value that is out of range."""
 	
 	def ParseBinaryLiteral(self):
-		"""Parses a binary literal, returning a raw binary string::
-		
-		binaryLiteral = hexDigPair
-		hexDigPair = 2*HEXDIG [hexDigPair]"""		
+		"""Parses a binary literal, returning a binary string"""
+		#	binaryLiteral = hexDigPair
+		#	hexDigPair = 2*HEXDIG [hexDigPair]"""		
 		output=[]
 		hexStr=self.ParseHexDigits(0)
 		if hexStr is None:
@@ -513,7 +586,7 @@ class Parser(xsi.BasicParser):
 		"""Parses a DateTime literal, returning a :py:class:`pyslet.iso8601.TimePoint` instance.
 		
 		Returns None if no DateTime literal can be parsed.  This is a
-		generous way of parsing iso860-like values, it accepts omitted
+		generous way of parsing iso8601-like values, it accepts omitted
 		zeros in the date, such as 4-7-2001."""
 		savePos=self.pos
 		try:
@@ -546,7 +619,8 @@ class Parser(xsi.BasicParser):
 		return value
 	
 	def ParseGuidLiteral(self):
-		"""Parses a Guid literal, returning a UUID instance.
+		"""Parses a Guid literal, returning a UUID instance from the
+		uuid module.
 
 		Returns None if no Guid can be parsed."""
 		savePos=self.pos
@@ -574,11 +648,11 @@ class Parser(xsi.BasicParser):
 		
 			( sign, lDigits, rDigits, expSign, eDigits )
 		
-		An empty string indicates a component that was not present except that
-		rDigits will be None if no decimal point
-		was present.  Likewise, eDigits may be None indicating that no
+		An empty string indicates a component that was not present
+		except that rDigits will be None if no decimal point was
+		present.  Likewise, eDigits may be None indicating that no
 		exponent was found.
-		
+
 		Although both lDigits and rDigits can be empty they will never
 		*both* be empty strings. If there are no digits present then the
 		method returns None, rather than a tuple.  Therefore, forms like
@@ -618,7 +692,7 @@ class Parser(xsi.BasicParser):
 		"""Parses a Time literal, returning a :py:class:`pyslet.iso8601.Time` instance.
 		
 		Returns None if no Time literal can be parsed.  This is a
-		generous way of parsing iso860-like values, it accepts omitted
+		generous way of parsing iso8601-like values, it accepts omitted
 		zeros in the leading field, such as 7:45:00."""
 		savePos=self.pos
 		try:
@@ -644,16 +718,19 @@ class Parser(xsi.BasicParser):
 	
 
 class EDMValue(object):
-	"""Represents a value in the EDMModel.
+	"""Abstract class to represent a value in the EDMModel.
 	
-	This class is not part of the declared metadata model but is used to wrap or
-	'box' instances of a value.  In particular, it can be used in a context
-	where that value can have either a simple or complex type."""
+	This class is used to wrap or 'box' instances of a value.  In
+	particular, it can be used in a context where that value can have
+	either a simple or complex type."""
 	def __init__(self,pDef=None):
-		self.pDef=pDef	#: a :py:class:`Property` instance defining this value's type
+		self.pDef=pDef
+		"""An optional :py:class:`Property` instance from the metadata
+		model defining this value's type"""
 
 	__hash__=None
-	#: EDM values are mutable so may not be used as dictionary keys, enforced by setting __hash__ to None
+	"""EDM values are mutable so may not be used as dictionary keys,
+	this is enforced by setting __hash__ to None"""
 
 	_TypeClass={
 		}
@@ -671,8 +748,7 @@ class EDMValue(object):
 	def NewValue(cls,pDef):
 		"""Constructs an instance of the correct child class of
 		:py:class:`EDMValue` to represent a value defined by
-		::py:class:`Property`
-		instance *pDef*.
+		:py:class:`Property` instance *pDef*.
 
 		We support a special case for creating a type-less NULL.  If you
 		pass None for pDef then a type-less
@@ -689,7 +765,7 @@ class EDMValue(object):
 	@classmethod
 	def NewSimpleValue(cls,typeCode):
 		"""Constructs an instance of the correct child class of
-		:py:class:`EDMValue` to represent an undeclared simple
+		:py:class:`EDMValue` to represent an (undeclared) simple
 		value of :py:class:`SimpleType` *typeCode*."""
 		if typeCode is None:
 			result=SimpleValue(None)
@@ -701,6 +777,11 @@ class EDMValue(object):
 
 	@classmethod
 	def NewSimpleValueFromValue(cls,value):
+		"""Constructs an instance of the correct child class of
+		:py:class:`EDMValue` to hold *value*.
+		
+		*value* may be any of the types listed in
+		:py:class:`SimpleValue`."""		
 		if isinstance(value,uuid.UUID):
 			result=cls.NewSimpleValue(SimpleType.Guid)
 		elif isinstance(value,iso8601.TimePoint):
@@ -725,48 +806,46 @@ class EDMValue(object):
 
 
 class SimpleValue(EDMValue):
-	"""Represents a value of a simple type in the EDMModel.
+	"""An abstract class that represents a value of a simple type in the EDMModel.
 	
-	This class is not designed to be instantiated directly, instead use
-	the class method :py:meth:`NewValue` (with the same signature) to
-	construct one of the specific child classes.
-		
-	The *value* attribute is the python value or None if this value is NULL
-	
-	The python type used for *value* depends on typeCode as follows:
-	
-	* Edm.Boolean: one of the Python constants True or False
-	
-	* Edm.Byte, Edm.SByte, Edm.Int16, Edm.Int32: int
-
-	* Edm.Int64: long
-
-	* Edm.Double, Edm.Single: python float
-
-	* Edm.Decimal: python Decimal instance (from decimal module)
-
-	* Edm.DateTime, Edm.DateTimeOffset: py:class:`pyslet.iso8601.TimePoint` instance
-	
-	* Edm.Time:	py:class:`pyslet.iso8601.Time` instance (note corrected v2 specification of OData)
-
-	* Edm.Binary: raw string
-
-	* Edm.String: unicode string
-
-	* Edm.Guid: python UUID instance (from uuid module)
-	
-	The value of *value* can be assigned directly to alter the value
-	of instance but if you violate the above type rules then you are
-	likely to generate unexpected exceptions elsewhere."""
-	
+	This class is not designed to be instantiated directly, use one of
+	the factory methods in :py:class:`EdmValue` to construct one of the
+	specific child classes."""
 	def __init__(self,pDef=None):
 		EDMValue.__init__(self,pDef)
 		if pDef:
 			self.typeCode=pDef.simpleTypeCode		#: the :py:class:`SimpleType` code
 		else:
 			self.typeCode=None
-		self.mType=None				#: a :py:class:`pyslet.rfc2616.MediaType` representing this value
-		self.value=None				#: the value, as represented using the closest python type
+		self.mType=None		#: an optional :py:class:`pyslet.rfc2616.MediaType` representing this value
+		self.value=None
+		"""The actual value or None if this instance represents a NULL value
+	
+		The python type used for *value* depends on typeCode as follows:
+	
+		* Edm.Boolean: one of the Python constants True or False
+	
+		* Edm.Byte, Edm.SByte, Edm.Int16, Edm.Int32: int
+
+		* Edm.Int64: long
+
+		* Edm.Double, Edm.Single: python float
+
+		* Edm.Decimal: python Decimal instance (from decimal module)
+
+		* Edm.DateTime, Edm.DateTimeOffset: py:class:`pyslet.iso8601.TimePoint` instance
+	
+		* Edm.Time:	py:class:`pyslet.iso8601.Time` instance (not a Duration, note corrected v2 specification of OData)
+
+		* Edm.Binary: raw string
+
+		* Edm.String: unicode string
+
+		* Edm.Guid: python UUID instance (from uuid module)
+	
+		For future compatibility, this attribute should only be updated
+		using
+		:py:meth:`SetFromValue` or one of the other related methods."""
 
 	def IsNull(self):
 		return self.value is None
@@ -781,8 +860,8 @@ class SimpleValue(EDMValue):
 	def Cast(self,targetValue):
 		"""Updates and returns *targetValue* a :py:class:`SimpleValue` instance.
 		
-		The value of targetValue is replaced, casting this instance's
-		value accordingly.
+		The value of targetValue is replaced with a value cast from this
+		instance's value.
 		
 		If the types are incompatible a TypeError is raised, if the
 		values are incompatible then ValueError is raised.
@@ -796,7 +875,14 @@ class SimpleValue(EDMValue):
 				targetValue.SetFromValue(copy.deepcopy(self.value))
 		return targetValue
 					
+	def SetFromSimpleValue(self,newValue):
+		"""The reverse of the :py:meth:`Cast` method, sets this value to
+		the value of *newValue* casting as appropriate."""
+		newValue.Cast(self)
+
 	def __eq__(self,other):
+		"""Instances compare equal only if they of the same type and
+		have values that compare equal."""
 		if isinstance(other,SimpleValue):
 			# are the types compatible? lazy comparison to start with
 			return self.typeCode==other.typeCode and self.value==other.value			
@@ -809,10 +895,10 @@ class SimpleValue(EDMValue):
 	def __unicode__(self):
 		"""Formats this value into its literal form.
 		
-		Note that Null values cannot be represented in literal form and will
-		raise ValueError."""
+		NULL values cannot be represented in literal form and will raise
+		ValueError."""
 		if self.value is None:
-			raise ValueError("%s is Null"%self.name)
+			raise ValueError("%s is NULL"%self.name)
 		return unicode(self.value)
 
 	def SetFromLiteral(self,value):
@@ -834,24 +920,29 @@ class SimpleValue(EDMValue):
 		else:
 			raise NotImplementedError
 
-	def SetFromSimpleValue(self,newValue):
-		"""The reverse of the :py:meth:`Cast` method, sets this value to
-		the value of *newValue* casting as appropriate."""
-		newValue.Cast(self)
-
 	@classmethod
 	def Copy(cls,value):
-		"""Constructs a new SimpleValue instance by capying *value*"""
-		result=value.__class__(self.pDef)
+		"""Constructs a new SimpleValue instance by copying *value*"""
+		if self.pDef:
+			result=value.__class__(self.pDef)
+		else:
+			result=EdmValue.NewSimpleValue(self.typeCode)
 		result.value=value.value
 		return result
 
 
 class BinaryValue(SimpleValue):
-	"""Represents a simple value of type Edm.Binary"""
+	"""Represents a :py:class:`SimpleValue` of type Edm.Binary.
+	
+	Binary literals allow content in the following form::
+
+			[A-Fa-f0-9][A-Fa-f0-9]*
+
+	Binary values can be set from any Python type, though anything other
+	than a binary string is set to its pickled representation.  There is
+	no reverse facility for reading an object from the pickled value."""
 
 	def __unicode__(self):
-		"""Formats this value into its literal form, the hex-string representation."""
 		if self.value is None:
 			raise ValueError("%s is Null"%self.name) 
 		input=StringIO.StringIO(self.value)
@@ -865,23 +956,10 @@ class BinaryValue(SimpleValue):
 		return unicode(output.getvalue())
 
 	def SetFromLiteral(self,value):
-		"""Decodes a value from the value's literal form.
-		
-		Binary literals allow content in the following form::
-
-			[A-Fa-f0-9][A-Fa-f0-9]*"""
 		p=Parser(value)
 		self.value=p.RequireProductionEnd(p.ParseBinaryLiteral(),"binaryLiteral")
 
-	def SetFromValue(self,newValue):
-		"""Sets the value from a raw python string.
-		
-		If *newValue* is anything other than a binary string then the
-		value is set to its pickled representation.  There is no reverse
-		facility for reading an object from the pickled value.  Clearly
-		the purpose of the binary data type is to store this type of
-		serialised data but it needs using with caution due to security
-		risks around unpickling data from an untrusted source."""
+	def SetFromValue(self,newValue):		
 		if type(newValue) is StringType:
 			self.value=newValue
 		elif newValue is None:
@@ -891,20 +969,21 @@ class BinaryValue(SimpleValue):
 
 		
 class BooleanValue(SimpleValue):
-	"""Represents a simple value of type Edm.Boolean"""
+	"""Represents a simple value of type Edm.Boolean
 
+	Boolean literals are one of::
+		
+			true | false
+	
+	Boolean values can be set from their Python equivalents and from any
+	int, long, float or Decimal where the non-zero test is used to set
+	the value."""
 	def __unicode__(self):
-		"""Formats this value into its literal form, the unicode strings true or false."""
 		if self.value is None:
 			raise ValueError("%s is Null"%self.name)
 		return u"true" if self.value else u"false"
 
-	def SetFromLiteral(self,value):
-		"""Decodes a value from the value's literal form.
-		
-		Bool allows content in the following form::
-		
-			true | false"""
+	def SetFromLiteral(self,value):		
 		testValue=value.lower()
 		if testValue==u"true":
 			self.value=True
@@ -914,7 +993,6 @@ class BooleanValue(SimpleValue):
 			raise ValueError("Failed to parse boolean literal from %s"%value)
 
 	def SetFromValue(self,newValue):
-		"""*newValue* must be of type int, long, float or Decimal."""
 		if newValue is None:
 			self.value=None
 		elif isinstance(newValue,decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
@@ -926,23 +1004,31 @@ class BooleanValue(SimpleValue):
 
 
 class NumericValue(SimpleValue):
-	"""An abstract class for Numeric values."""
+	"""An abstract class that represents all numeric simple values.
+	
+	The literal forms of numeric values are parsed in a two-stage
+	process.  Firstly the utility class :py:class:`Parser` is used to
+	obtain a numeric tuple and then the value is set using
+	:py:meth:`SetFromNumericLiteral`
+	
+	All numeric types may have their value set directly from int, long,
+	float or Decimal.
+		
+	Integer representations are rounded towards zero using the python
+	*int* or *long* functions when necessary."""
 	
 	def SetToZero(self):
 		"""Set this value to the default representation of zero"""
 		self.SetFromValue(0)
 		
 	def SetFromLiteral(self,value):
-		"""Decodes a value from the value's literal form.
-		
-		This method is common to all numeric types, it calls
-		:py:meth:`SetFromNumericLiteral`"""
 		p=Parser(value)
 		nValue=p.RequireProductionEnd(p.ParseNumericLiteral(),"byteLiteral")
 		self.SetFromNumericLiteral(nValue)
 
 	def SetFromNumericLiteral(self,numericValue):
-		"""Decodes a value from a :py:class:`Numeric` literal."""
+		"""Decodes a value from a numeric tuple as returned by
+		:py:meth:`Parser.ParseNumericLiteral`."""
 		raise NotImplementedError
 		
 	def JoinNumericLiteral(self,numericValue):
@@ -960,16 +1046,17 @@ class NumericValue(SimpleValue):
 
 
 class ByteValue(NumericValue):
-	"""Represents a simple value of type Edm.Byte"""
-
+	"""Represents a simple value of type Edm.Byte
+	
+	Byte literals must not have a sign, decimal point or exponent.
+	
+	Byte values can be set from an int, long, float or Decimal"""
 	def __unicode__(self):
-		"""Formats this value into its literal form."""
 		if self.value is None:
 			raise ValueError("%s is Null"%self.name)
 		return xsi.EncodeInteger(self.value)
 
 	def SetFromNumericLiteral(self,numericValue):
-		"""Decodes a Byte value from a :py:class:`Numeric` literal."""
 		if (numericValue.sign or 					# no sign allowed at all
 			not numericValue.lDigits or 			# must be left digits
 			numericValue.lDigits.isalpha() or		# must not be nan or inf
@@ -991,10 +1078,32 @@ class ByteValue(NumericValue):
 
 		
 class DateTimeValue(SimpleValue):
-	"""Represents a simple value of type Edm.DateTime"""
-
+	"""Represents a simple value of type Edm.DateTime
+	
+	DateTime literals allow content in the following form::
+		
+		yyyy-mm-ddThh:mm[:ss[.fffffff]]
+	
+	DateTime values can be set from an instance of
+	:py:class:`iso8601.TimePoint` or type int, long, float or Decimal. 
+	
+	Any zone specifier is ignored.  There is *no* conversion to UTC, the
+	value simply becomes a local time in an unspecified zone.  This is a
+	weakness of the EDM, it is good practice to limit use of the
+	DateTime type to UTC times.
+		
+	When set from a numeric value, the value must be non-negative.  Unix
+	time is assumed.  See the
+	:py:meth:`~pyslet.iso8601.TimePoint.FromUnixTime` factory method of
+	TimePoint for information.
+	
+	If a property definition was set on construction then the defined
+	precision is used when representing the value as a unicode string.
+	For example, if the property has precision 3 then the output of the
+	unicode conversion will appear in the following form::
+	
+		1969-07-20T20:17:40.000"""
 	def __unicode__(self):
-		"""Formats this value into its literal form."""
 		if self.value is None:
 			raise ValueError("%s is Null"%self.name)
 		precision=None
@@ -1006,23 +1115,10 @@ class DateTimeValue(SimpleValue):
 		return self.value.GetCalendarString(ndp=precision,dp=u".")
 
 	def SetFromLiteral(self,value):
-		"""Decodes a value from the value's literal form.
-		
-		DateTime allows content in the following form::
-		
-			yyyy-mm-ddThh:mm[:ss[.fffffff]]"""
 		p=Parser(value)
 		self.value=p.RequireProductionEnd(p.ParseDateTimeLiteral(),"DateTime")
 
 	def SetFromValue(self,newValue):
-		"""*newValue* must be an instance of
-		:py:class:`iso8601.TimePoint` or type int, long, float or
-		Decimal.
-		
-		Numeric forms are treated as Unix time values and must be
-		non-negative.  If newValue is a TimePoint instance then any zone
-		specifier is removed from it.  There is *no* conversion to UTC,
-		the value simply becomes a local time in an unspecified zone."""
 		if newValue is None:
 			self.value=None
 		elif isinstance(newValue,iso8601.TimePoint):
@@ -1038,10 +1134,35 @@ class DateTimeValue(SimpleValue):
 
 		
 class DateTimeOffsetValue(SimpleValue):
-	"""Represents a simple value of type Edm.DateTimeOffset"""
-
+	"""Represents a simple value of type Edm.DateTimeOffset
+	
+	DateTimeOffset literals are defined in terms of the XMLSchema
+	lexical representation.
+	
+	DateTimeOffset values can be set from an instance of
+	:py:class:`iso8601.TimePoint` or type int, long, float or Decimal. 
+	
+	TimePoint instances must have a zone specifier.  There is *no*
+	automatic assumption of UTC.
+	
+	When set from a numeric value, the value must be non-negative.  Unix
+	time *in UTC* assumed.  See the
+	:py:meth:`~pyslet.iso8601.TimePoint.FromUnixTime` factory method of
+	TimePoint for information.
+	
+	If a property definition was set on construction then the defined
+	precision is used when representing the value as a unicode string.
+	For example, if the property has precision 3 then the output of the
+	unicode conversion will appear in the following form::
+	
+		1969-07-20T15:17:40.000-05:00
+	
+	It isn't completely clear if the canonical representation of UTC
+	using 'Z' instead of an offset is intended or widely supported so we
+	always use an offset::
+	
+		1969-07-20T20:17:40.000+00:00"""
 	def __unicode__(self):
-		"""Formats this value into its literal form."""
 		if self.value is None:
 			raise ValueError("%s is Null"%self.name)
 		precision=None
@@ -1057,10 +1178,6 @@ class DateTimeOffsetValue(SimpleValue):
 		return result
 
 	def SetFromLiteral(self,value):
-		"""Decodes a value from the value's literal form.
-		
-		DateTimeOffset uses the XMLSchema lexical representation.  We are generous
-		in what we accept!"""
 		try:
 			value=iso8601.TimePoint.FromString(value)
 		except iso8601.DateTimeError as e:
@@ -1068,13 +1185,6 @@ class DateTimeOffsetValue(SimpleValue):
 		self.SetFromValue(value)
 
 	def SetFromValue(self,newValue):
-		"""*newValue* must be an instance of
-		:py:class:`iso8601.TimePoint` or type int, long, float or
-		Decimal.
-		
-		Numeric forms are treated as Unix time values in the UTC zone.
-		If newValue is a TimePoint instance then it must have a zone
-		specifier.  There is *no* automatic assumption of UTC."""
 		if newValue is None:
 			self.value=None
 		elif isinstance(newValue,iso8601.TimePoint):
@@ -1091,10 +1201,27 @@ class DateTimeOffsetValue(SimpleValue):
 
 		
 class TimeValue(SimpleValue):
-	"""Represents a simple value of type Edm.Time"""
+	u"""Represents a simple value of type Edm.Time
+	
+	Time literals allow content in the form:
+		
+		hh:mm:ss.sss
+	
+	Time values can be set from an instance of
+	:py:class:`pyslet.iso8601.Time`, int, long, float or
+	Decimal.
+	
+	When set from a numeric value the value must be in the range
+	0..86399.9\u0305 and is treated as an elapsed time in seconds since
+	midnight.
 
+	If a property definition was set on construction then the defined
+	precision is used when representing the value as a unicode string.
+	For example, if the property has precision 3 then the output of the
+	unicode conversion will appear in the following form::
+	
+		20:17:40.000"""
 	def __unicode__(self):
-		"""Formats this value into its literal form."""
 		if self.value is None:
 			raise ValueError("%s is Null"%self.name)
 		precision=None
@@ -1106,20 +1233,10 @@ class TimeValue(SimpleValue):
 		return self.value.GetString(ndp=precision,dp=u".")
 
 	def SetFromLiteral(self,value):
-		"""Decodes a value from the value's literal form.
-		
-		Time allows content in the following form:
-		
-			hh:mm:ss.sss"""
 		p=Parser(value)
 		self.value=p.RequireProductionEnd(p.ParseTimeLiteral(),"Time")
 
 	def SetFromValue(self,newValue):
-		"""*newValue* must be an instance of
-		:py:class:`iso8601.Time`, type int, long, float or
-		Decimal.
-		
-		Numeric forms are treated as elapsed times in seconds since midnight."""
 		if newValue is None:
 			self.value=None
 		elif isinstance(newValue,iso8601.Time):
@@ -1129,9 +1246,9 @@ class TimeValue(SimpleValue):
 				raise("Can't set Time from %.3f"%float(newValue))
 			tValue=iso8601.Time()
 			if type(newValue) in (IntType,LongType):
-				days=tValue.AddSeconds(newValue)
+				tValue,days=tValue.Offset(newValue)
 			else:
-				days=tValue.AddSeconds(float(newValue))
+				tValue,days=tValue.Offset(float(newValue))
 			if days>0:
 				raise("Can't set Time from %.3f (overflow)"%float(newValue))
 			self.value=tValue
@@ -1140,10 +1257,14 @@ class TimeValue(SimpleValue):
 
 		
 class DecimalValue(NumericValue):
-	"""Represents a simple value of type Edm.Decimal"""
+	"""Represents a simple value of type Edm.Decimal
+	
+	Decimal literals must not use exponent notation and there must be no
+	more than 29 digits to the left and right of the decimal point.
 
-	Max=decimal.Decimal(10)**29-1		#: max decimal in the default context
-	Min=decimal.Decimal(10)**-29		#: min decimal for string representation
+	Decimal values can be set from int, long, float or Decimal values."""
+	Max=decimal.Decimal(10)**29-1		# max decimal in the default context
+	Min=decimal.Decimal(10)**-29		# min decimal for string representation
 	
 	@classmethod
 	def abs(cls,d):
@@ -1153,7 +1274,6 @@ class DecimalValue(NumericValue):
 			return d
 			
 	def __unicode__(self):
-		"""Formats this value into its literal form."""
 		if self.value is None:
 			raise ValueError("%s is Null"%self.name)
 		t=self.value.as_tuple()
@@ -1169,12 +1289,6 @@ class DecimalValue(NumericValue):
 		return unicode(d.__format__('f'))
 
 	def SetFromNumericLiteral(self,numericValue):
-		"""Decodes a Decimal value from a :py:class:`Numeric` literal.
-		
-		We impose the rule that no exponent notation is allowed and that
-		numbers must be limited to 29 digits to the left and right of
-		the point.  Also, if there is a point, there must be digits to
-		the right of it."""
 		dStr=self.JoinNumericLiteral(numericValue)
 		if ((numericValue.lDigits and 
 			(numericValue.lDigits.isalpha() or					# inf and nan not allowed
@@ -1187,7 +1301,6 @@ class DecimalValue(NumericValue):
 		self.SetFromValue(decimal.Decimal(dStr))		
 		
 	def SetFromValue(self,newValue):
-		"""*newValue* must be of type int, long, float or Decimal."""
 		if newValue is None:
 			self.value=None
 			return
@@ -1206,19 +1319,21 @@ class DecimalValue(NumericValue):
 
 
 class FloatValue(NumericValue):
-	"""Represents one of Edm.Double or Edm.Single.
+	"""Abstract class that represents one of Edm.Double or Edm.Single.
 	
-	This is an abstract class.  The derived classes SingleValue and
-	DoubleValue differ in their Max and Min values used when setting the
-	value."""
-	
-	def SetFromValue(self,newValue):
-		"""*newValue* must be of type int, long, float or Decimal.
+	Values can be set from int, long, float or Decimal.
 		
-		There is no hard-and-fast rule about the representation of float
-		in Python and we may refuse to accept values that fall within
-		the accepted ranges defined by the CSDL if float cannot hold
-		them.  That said, you won't have this problem in practice."""
+	There is no hard-and-fast rule about the representation of float in
+	Python and we may refuse to accept values that fall within the
+	accepted ranges defined by the CSDL if float cannot hold them.  That
+	said, you won't have this problem in practice.
+		
+	The derived classes :py:class:`SingleValue` and
+	:py:class:`DoubleValue` only differ in the Max value used
+	when range checking.
+	
+	Values are formatted using Python's default unicode conversion."""
+	def SetFromValue(self,newValue):
 		if newValue is None:
 			self.value=None
 		elif isinstance(newValue,decimal.Decimal) or type(newValue) in (IntType, LongType):
@@ -1239,11 +1354,16 @@ class FloatValue(NumericValue):
 class DoubleValue(FloatValue):
 	"""Represents a simple value of type Edm.Double"""
 
-	Max=None		#: the largest positive double value
-	Min=2**-1074	#: the smallest positive double value
+	Max=None
+	"""the largest positive double value
+	
+	This value is set dynamically on module load, theoretically it may
+	be set lower than the maximum allowed by the specification if
+	Python's native float is of insufficient precision but this is
+	unlikely to be an issue."""
+	# Min=2**-1074	#: the smallest positive double value
 	
 	def SetFromNumericLiteral(self,numericValue):
-		"""Decodes a Double value from a :py:class:`Numeric` literal."""
 		dStr=self.JoinNumericLiteral(numericValue)
 		if numericValue.lDigits and numericValue.lDigits.isalpha():
 			if numericValue.lDigits=="nan":
@@ -1269,7 +1389,6 @@ class DoubleValue(FloatValue):
 		self.SetFromValue(float(dStr))
 
 
-
 for i in xrange(1023,0,-1):
 	try:
 		DoubleValue.Max=(2-2**-52)*2**i
@@ -1277,17 +1396,24 @@ for i in xrange(1023,0,-1):
 	except OverflowError:
 		# worrying this probably means float is too small for this application
 		if i==1023:
-			print "Warning: float may be less than double precision"
+			logging.warning("float may be less than double precision")
 		elif i==127:
-			print "Warning: float may be less than singe precision!"
+			logging.warning("float may be less than singe precision!")
 		continue
 
 		
 class SingleValue(FloatValue):
 	"""Represents a simple value of type Edm.Single"""
 	
-	Max=None					#: the largest positive single value
-	Min=2.0**-149				#: the smallest positive single value
+	Max=None
+	"""the largest positive single value
+	
+	This value is set dynamically on module load, theoretically it may
+	be set lower than the maximum allowed by the specification if
+	Python's native float is of insufficient precision but this is very
+	unlikely to be an issue unless you've compiled Python on in a very
+	unusual environment."""
+	# Min=2.0**-149				#: the smallest positive single value
 
 	def SetFromNumericLiteral(self,numericValue):
 		"""Decodes a Single value from a :py:class:`Numeric` literal."""
@@ -1327,29 +1453,26 @@ for i in xrange(127,0,-1):
 	except OverflowError:
 		# worrying this probably means float is too small for this application
 		if i==127:
-			print "Warning: float may be less than singe precision!"
+			logging.warning("float may be less than singe precision!")
 		continue
 
 		
 class GuidValue(SimpleValue):
-	"""Represents a simple value of type Edm.Guid"""
+	"""Represents a simple value of type Edm.Guid
+	
+	Guid literals allow content in the following form:
+	dddddddd-dddd-dddd-dddd-dddddddddddd where each d represents [A-Fa-f0-9].
 
+	Guid values can also be set directly from either binary or hex
+	strings. Binary strings must be of length 16 and are passed as raw
+	bytes to the UUID constructor, hexadecimal strings can be string or
+	unicode strings and must be of length 32 characters."""
 	def __unicode__(self):
-		"""Formats this value into its literal form."""
 		if self.value is None:
 			raise ValueError("%s is Null"%self.name)
 		return unicode(self.value)
 
 	def SetFromLiteral(self,value):
-		"""Decodes a value from the value's literal form.
-		
-		Guid allows content in the following form:
-		dddddddd-dddd-dddd-dddd-dddddddddddd where each d represents [A-Fa-f0-9].
-	
-		Returns a built-in python uuid.UUID instance, unicode strings are passed
-		directly to UUID's constructor.  Non-unicode strings with length<32 are
-		passed as binary bytes, otherwise they are passed has hex.  If value is
-		an integer it is passed as an int to the constructor."""
 		p=Parser(value)
 		self.value=p.RequireProductionEnd(p.ParseGuidLiteral(),"Guid")
 
@@ -1375,7 +1498,6 @@ class Int16Value(NumericValue):
 	"""Represents a simple value of type Edm.Int16"""
 
 	def SetFromNumericLiteral(self,numericValue):
-		"""Decodes an Int16 value from a :py:class:`Numeric` literal."""
 		if (not numericValue.lDigits or 			# must be left digits
 			numericValue.lDigits.isalpha() or		# must not be nan or inf
 			numericValue.rDigits is not None or 	# must not have '.' or rDigits
@@ -1384,10 +1506,6 @@ class Int16Value(NumericValue):
 		self.SetFromValue(int(self.JoinNumericLiteral(numericValue)))		
 
 	def SetFromValue(self,newValue):
-		"""*newValue* must be of type int, long, float or Decimal.
-		
-		If the value is a float or fractional Decimal then it is rounded
-		towards zero using the python *int* function."""
 		if newValue is None:
 			self.value=None
 		elif isinstance(newValue,decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
@@ -1402,7 +1520,6 @@ class Int32Value(NumericValue):
 	"""Represents a simple value of type Edm.Int32"""
 
 	def SetFromNumericLiteral(self,numericValue):
-		"""Decodes an Int32 value from a :py:class:`Numeric` literal."""
 		if (not numericValue.lDigits or 			# must be left digits
 			len(numericValue.lDigits)>10 or			# must not be more than 10 digits
 			numericValue.lDigits.isalpha() or		# must not be nan or inf
@@ -1412,10 +1529,6 @@ class Int32Value(NumericValue):
 		self.SetFromValue(int(self.JoinNumericLiteral(numericValue)))		
 
 	def SetFromValue(self,newValue):
-		"""*newValue* must be of type int, long, float or Decimal.
-		
-		If the value is a float or fractional Decimal then it is rounded
-		towards zero using the python *int* function."""
 		if newValue is None:
 			self.value=None
 		elif isinstance(newValue,decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
@@ -1430,7 +1543,6 @@ class Int64Value(NumericValue):
 	"""Represents a simple value of type Edm.Int64"""
 
 	def SetFromNumericLiteral(self,numericValue):
-		"""Decodes an Int64 value from a :py:class:`Numeric` literal."""
 		if (not numericValue.lDigits or 			# must be left digits
 			len(numericValue.lDigits)>19 or			# must not be more than 19 digits
 			numericValue.lDigits.isalpha() or		# must not be nan or inf
@@ -1440,10 +1552,6 @@ class Int64Value(NumericValue):
 		self.SetFromValue(int(self.JoinNumericLiteral(numericValue)))		
 
 	def SetFromValue(self,newValue):
-		"""*newValue* must be of type int, long, float or Decimal.
-		
-		If the value is a float or fractional Decimal then it is rounded
-		towards zero using the python *long* function."""
 		if newValue is None:
 			self.value=None
 		elif isinstance(newValue,decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
@@ -1455,16 +1563,18 @@ class Int64Value(NumericValue):
 
 		
 class StringValue(SimpleValue):
-	"""Represents a simple value of type Edm.String"""
-
+	"""Represents a simple value of type Edm.String"
+	
+	The literal form of a string is the string itself.
+	
+	Values may be set from any string or object which supports the
+	native unicode function."""
 	def __unicode__(self):
-		"""Formats this value into its literal form."""
 		if self.value is None:
 			raise ValueError("%s is Null"%self.name)
 		return unicode(self.value)
 
 	def SetFromValue(self,newValue):
-		"""*newValue* must be a string, or have a suitable unicode conversion method."""
 		if newValue is None:
 			self.value=None
 		elif type(newValue)==UnicodeType:
@@ -1473,7 +1583,6 @@ class StringValue(SimpleValue):
 			self.value=unicode(newValue)
 
 	def SetFromLiteral(self,value):
-		"""Decodes a value from the value's literal form - which is the identity."""
 		self.value=value
 
 		
@@ -1481,7 +1590,6 @@ class SByteValue(NumericValue):
 	"""Represents a simple value of type Edm.SByte"""
 
 	def SetFromNumericLiteral(self,numericValue):
-		"""Decodes an SByte value from a :py:class:`Numeric` literal."""
 		if (not numericValue.lDigits or 			# must be left digits
 			numericValue.lDigits.isalpha() or		# must not be nan or inf
 			numericValue.rDigits is not None or 	# must not have '.' or rDigits
@@ -1490,10 +1598,6 @@ class SByteValue(NumericValue):
 		self.SetFromValue(int(self.JoinNumericLiteral(numericValue)))		
 
 	def SetFromValue(self,newValue):
-		"""*newValue* must be of type int, long, float or Decimal.
-		
-		If the value is a float or fractional Decimal then it is rounded
-		towards zero using the python *int* function."""
 		if newValue is None:
 			self.value=None
 		elif isinstance(newValue,decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
@@ -1528,56 +1632,62 @@ class TypeInstance(DictionaryLike):
 	:py:class:`ComplexType` or :py:class:`EntityType`.
 	
 	Behaves like a read-only dictionary mapping property names onto
-	:py:class:`EDMValue` instances.  (You can change the value of a property
-	using the methods of :py:class:`EDMValue` and its descendants.)
+	:py:class:`EDMValue` instances.  (You can change the value of a
+	property using the methods of :py:class:`EDMValue` and its
+	descendants.)
 	
-	TODO: In the future, open types will allow items to be set or deleted."""
+	Unlike regular Python dictionaries, iteration over the of keys in
+	the dictionary (the names of the properties) is always done in the
+	order in which they are declared in the type definition."""
 	def __init__(self,typeDef=None):
 		self.typeDef=typeDef		#: the definition of this type
-		self.data={}				#: a dictionary to hold this instances' property values
+		self.data={}
 		if typeDef is not None:
 			for p in self.typeDef.Property:
 				self.data[p.name]=p()
 
 	def AddProperty(self,pName,pValue):
-		"""Adds a property with name *pName* and value *pValue* to this instance."""
 		self.data[pName]=pValue
 		
 	def __getitem__(self,name):
-		"""Returns the value corresponding to property *name*."""
 		return self.data[name]
 				
 	def __iter__(self):
-		"""Iterates over the property names in the order they are declared in the type definition."""
 		for p in self.typeDef.Property:
 			yield p.name
 				
 	def __len__(self):
-		"""Returns the number of properties in the type."""
 		return len(self.typeDef.Property)
 
 
 class Complex(EDMValue,TypeInstance):
-	"""Represents a single instance of a :py:class:`ComplexType`.
-	
-	*	pDef is the (optional) :py:class:`Property` instance that defines the value"""
+	"""Represents a single instance of a :py:class:`ComplexType`."""
 
 	def __init__(self,pDef=None):
 		EDMValue.__init__(self,pDef)
 		TypeInstance.__init__(self,None if pDef is None else pDef.complexType)
 	
 	def IsNull(self):
-		"""Complex values are never Null"""
+		"""Complex values are never NULL"""
 		return False
 
 	def SetNull(self):
-		"""Sets all values to Null"""
+		"""Sets all simple property values to NULL recursively"""
 		for k,v in self.iteritems():
 			v.SetNull()
 		
 	def SetFromComplex(self,newValue):
 		"""Sets this value from *newValue* which must be a
-		:py:class:`Complex` instance."""
+		:py:class:`Complex` instance.
+		
+		There is no requirement that *newValue* is of the same type,
+		but it must be broadly compatible, which is defined as:
+		
+			Any named property present in both the current value and
+			*newValue* must be of compatible types.
+		
+		Any named property in the current value which is not present in
+		*newValue* is left unchanged by this method."""
 		for k,v in self.iteritems():
 			nv=newValue.get(k,None)
 			if nv is None:
@@ -1586,7 +1696,7 @@ class Complex(EDMValue,TypeInstance):
 				if isinstance(nv,Complex):
 					self[k].SetFromComplex(v)
 				else:
-					continue
+					raise ValueError("Can't set Complex property from %s"%repr(nv))
 			elif isinstance(nv,Complex):
 				continue
 			else:
@@ -1597,8 +1707,8 @@ class DeferredValue(object):
 	"""Represents the value of a navigation property."""
 
 	def __init__(self,name,fromEntity):
-		self.name=name				#: the name of the associated navigation property
-		self.fromEntity=fromEntity	#: the entity that contains this value
+		self.name=name								#: the name of the associated navigation property
+		self.fromEntity=fromEntity					#: the entity that contains this value
 		self.pDef=self.fromEntity.typeDef[name]		#: the definition of the navigation property
 		fromM,targetM=self.fromEntity.entitySet.NavigationMultiplicity(self.name)
 		self.isRequired=(targetM==Multiplicity.One)			#: True if this deferred value represents a (single) required entity
@@ -1609,8 +1719,10 @@ class DeferredValue(object):
 		An expanded navigation property will return a read-only
 		:py:class:`ExpandedEntityCollection` when
 		:py:meth:`OpenCollection` is called."""
-		self.expandedCollection=None	#: an instance of :py:class:`ExpandedEntityCollection` or None if not expanded 
-		self.bindings=[]				#: a list of entity instances or keys to bind to this property on next update 
+		self.bindings=[]						
+		"""The list of entity instances or keys to bind to *fromEntity*
+		when it is inserted or next updated."""
+		self.expandedCollection=None
 	
 	def Target(self):
 		"""Returns the target entity set of this navigation (without opening the collection)."""
@@ -1633,7 +1745,15 @@ class DeferredValue(object):
 				raise NavigationError("Navigation property %s of %s[%s] is not a collection but it yielded multiple entities"%(self.name,self.fromEntity.entitySet.name,str(self.fromEntity.Key())))
 				
 	def OpenCollection(self):
-		"""Opens the collection associated with this navigation property"""
+		"""Opens the collection associated with this navigation property.
+		
+		Returns an :py:class:`EntityCollection` instance which must be closed
+		when it is no longer needed.  This is best achieved with the
+		Python with statement using the collection's context-manager
+		behaviour.  For example::
+		
+			with customer['Orders'].OpenCollection() as orders:
+				# do something with the orders"""
 		if self.fromEntity.exists:
 			if self.isExpanded:
 				return self.expandedCollection
@@ -1646,10 +1766,9 @@ class DeferredValue(object):
 	def SetExpansion(self,expandedCollection):
 		"""Sets the expansion for this deferred value to the :py:class:`ExpandedEntityCollection` given.
 		
-		If *expandedCollection* is None then the expansion is removed and
-		future calls to
-		:py:meth:`OpenColection` will yield a (dynamic) entity
-		:collection."""
+		If *expandedCollection* is None then the expansion is removed
+		and future calls to :py:meth:`OpenColection` will yield a
+		(dynamically created) entity collection."""
 		if expandedCollection is None:
 			self.isExpanded=False
 			self.expandedCollection=None
@@ -1660,6 +1779,12 @@ class DeferredValue(object):
 			self.expandedCollection=expandedCollection
 		
 	def ExpandCollection(self,expand,select):
+		"""A convenience function of use to data providers.
+		
+		Expands this navigation property, further expanding the
+		resulting collection of entities using the given *expand* and
+		*select* options (see :py:meth:`EntityCollection.Expand` for
+		details)."""
 		with self.fromEntity.entitySet.OpenNavigation(self.name,self.fromEntity) as collection:
 			collection.Expand(expand,select)
 			self.SetExpansion(collection.ExpandCollection())
@@ -1668,17 +1793,17 @@ class DeferredValue(object):
 		"""Binds a *target* entity to this navigation property.
 		
 		*target* is either the entity you're binding or its key in the
-		target entity set. For example, assuming that "Orders" is a
-		navigation property that links customers to Order entities::
+		target entity set. For example::
 		
 			customer['Orders'].Bind(1)
 			
 		binds the entity represented by 'customer' to the Order entity
 		with key 1.
 		
-		As for updates to data property values, the binding information
-		is saved and acted upon when the entity is next updated or, for
-		non-existent entities, inserted into the entity set.
+		Just as for updates to data property values, the binding
+		information is saved and acted upon when the entity is next
+		updated or, for non-existent entities, inserted into the entity
+		set.
 		
 		If you attempt to bind to a target entity that doesn't exist the
 		target entity will be created automatically when the source
@@ -1691,14 +1816,21 @@ class DeferredValue(object):
 	def CheckNavigationConstraint(self):
 		"""Checks if this navigation property :py:attr:`isRequired` and
 		raises :py:class:`NavigationConstraintError` if it has not been
-		bound with :py:meth:`BindEntity`."""
+		bound with :py:meth:`BindEntity`.
+		
+		This method is only intended to be called on non-existent
+		entities."""
 		if self.isRequired:
 			if not self.bindings:
 				raise NavigationConstraintError("Required navigation property %s of %s is not bound"%(self.name,self.fromEntity.entitySet.name))
 
 	def UpdateBindings(self):
 		"""Iterates through :py:attr:`bindings` and generates appropriate calls
-		to update the collection."""
+		to update the collection.
+		
+		Unlike the parent Entity's :py:meth:`Entity.Update` method, which updates all
+		data and navigation values simultaneously, this method can be used to selectively
+		update a single navigation property."""
 		if self.bindings:
 			# get an entity collection for this navigation property
 			with self.OpenCollection() as collection:
@@ -1725,22 +1857,28 @@ class DeferredValue(object):
 					self.bindings=self.bindings[1:]
 	
 	def ClearBindings(self):
-		"""Removes all (unsaved) entity bindings from this entity."""
+		"""Removes any (unsaved) entity bindings from this navigation
+		property."""
 		self.bindings=[]
 
 
 class Entity(TypeInstance):
 	"""Represents a single instance of an :py:class:`EntityType`.
 	
+	Entity instance must only be created by data providers, a child
+	class may be used with data provider-specific functionality.  Data
+	consumers should use the :py:meth:`EntityCollection.NewEntity` or
+	:py:class:`EntityCollection.CopyEntity` methods to create instances.
+	
 	*	entitySet is the entity set this entity belongs to
 	
-	Entity instances behave like a dictionary mapping property names
-	onto values.  The values are either :py:class:`SimpleValue`,
-	:py:class:`Complex` or py:class:`DeferredValue`
-	instances.
+	Entity instances extend :py:class:`TypeInstance`'s dictionary-like
+	behaviour to include all properties.  As a result the dictionary
+	values are one of :py:class:`SimpleValue`, :py:class:`Complex` or
+	py:class:`DeferredValue` instances.
 	
-	Property values are created on construction and cannot be assigned. 
-	To update a simple value use the
+	Property values are created on construction and cannot be assigned
+	directly. To update a simple value use the value's
 	:py:meth:`SimpleValue.SetFromPyVaue` method::
 	
 		e['Name'].SetFromValue("Steve")
@@ -1748,7 +1886,7 @@ class Entity(TypeInstance):
 		e['Address']['City'].SetFromValue("Cambridge")
 			# update City in complex property Address
 	
-	Note that a simple valued property that is NULL is still a
+	A simple valued property that is NULL is still a
 	:py:class:`SimpleValue` instance, though it will behave as
 	0 in tests::
 	
@@ -1801,8 +1939,11 @@ class Entity(TypeInstance):
 		"""Iterates over the property names, including the navigation
 		properties.
 
-		The regular property names are yielded first, followed by the
-		navigation properties."""
+		Unlike native Python dictionaries, the order in which the
+		properties are iterated over is defined.  The regular property
+		names are yielded first, followed by the navigation properties. 
+		Within these groups properties are yielded in the order they
+		were declared in the metadata model."""
 		for p in self.typeDef.Property:
 			yield p.name
 		for p in self.typeDef.NavigationProperty:
@@ -1812,20 +1953,36 @@ class Entity(TypeInstance):
 		"""Iterates through the names of this entity's data properties only
 		
 		The order of the names is always the order they are defined in
-		the model."""
+		the metadata model."""
 		for p in self.typeDef.Property:
 			yield p.name
 
 	def DataItems(self):
-		"""Iterator that yields tuples of (key,value) for this entity's data properties only."""
+		"""Iterator that yields tuples of (key,value) for this entity's
+		data properties only.
+		
+		The order of the items is always the order they are defined in
+		the metadata model."""
 		for p in self.typeDef.Property:
 			yield p.name,self[p.name]
 	
-	def SetFromEntity(self,newEntity):
+	def SetFromEntity(self,newValue):
+		"""Sets this entity's value from *newValue* which must be a
+		:py:class:`TypeInstance` instance.  In other words, it may
+		be either an Entity or a Complex value.
+		
+		There is no requirement that *newValue* be of the same type,
+		but it must be broadly compatible, which is defined as:
+		
+			Any named property present in both the current value and
+			*newValue* must be of compatible types.
+		
+		Any named property in the current value which is not present in
+		*newValue* is left unchanged by this method."""
 		for k,v in self.DataItems():
 			if k in self.entitySet.keys:
 				continue
-			newValue=newEntity.get(k,None)
+			newValue=newValue.get(k,None)
 			if newValue is None:
 				continue
 			if isinstance(v,Complex):
@@ -1839,12 +1996,19 @@ class Entity(TypeInstance):
 				self[k].SetFromSimpleValue(v)
 				
 	def NavigationKeys(self):
-		"""Iterates through the names of this entity's navigation properties only."""
+		"""Iterates through the names of this entity's navigation properties only.
+		
+		The order of the names is always the order they are defined in
+		the metadata model."""
 		for np in self.typeDef.NavigationProperty:
 			yield np.name
 	
 	def NavigationItems(self):
-		"""Iterator that yields tuples of (key,deferred value) for this entity's navigation properties only."""
+		"""Iterator that yields tuples of (key,deferred value) for this
+		entity's navigation properties only.
+		
+		The order of the items is always the order they are defined in
+		the metadata model."""
 		for np in self.typeDef.NavigationProperty:
 			yield np.name,self[np.name]
 
@@ -1852,16 +2016,16 @@ class Entity(TypeInstance):
 		"""For entities that do not yet exist, checks that each of the
 		required navigation properties has been bound (with
 		:py:meth:`DeferredValue.BindEntity`).
-		
+	
 		If a required navigation property has not been bound then
 		:py:class:`NavigationConstraintError` is raised.
 
 		If the entity already exists, :py:class:`EntityExists` is
 		raised.
-		
-		*ignoreEnd* may be set to an associationSetEnd bound to this
-		entity's entity set.  Any violation of the related association
-		is ignored."""
+
+		For data providers, *ignoreEnd* may be set to an
+		associationSetEnd bound to this entity's entity set.  Any
+		violation of the related association is ignored."""
 		if self.exists:
 			raise EntityExists("CheckNavigationConstraints: entity %s already exists"%str(self.GetLocation()))
 		badEnd=self.entitySet.unboundPrincipal
@@ -1873,11 +2037,11 @@ class Entity(TypeInstance):
 				np.CheckNavigationConstraint()
 				
 	def __len__(self):
-		"""Returns the number of properties, including navigation properties, in the type."""
 		return len(self.typeDef.Property)+len(self.typeDef.NavigationProperty)
 
 	def IsNavigationProperty(self,name):
-		"""Returns true is name is the name of a navigation property"""
+		"""Returns true if name is the name of a navigation property,
+		False otherwise."""
 		try:
 			pDef=self.typeDef[name]
 			return isinstance(pDef,NavigationProperty)
@@ -1885,13 +2049,11 @@ class Entity(TypeInstance):
 			return False
 		
 	def IsEntityCollection(self,name):
-		"""Returns True if more than one entity is possible when accessing the named property."""
+		"""Returns True if *name* is the name of a navigation property
+		that points to an entity collection, False otherwise."""
 		return self.IsNavigationProperty(name) and self.entitySet.IsEntityCollection(name)
 			
 	def __getitem__(self,name):
-		"""Returns the value corresponding to property *name*.
-		
-		This method always ret"""
 		if name in self.data:
 			return self.data[name]
 		else:
@@ -1905,7 +2067,8 @@ class Entity(TypeInstance):
 		property that is not selected!
 		
 		The default implementation opens a collection object from the
-		parent entity set."""
+		parent entity set and calls
+		:py:meth:`EntityCollection.UpdateEntity`."""
 		with self.entitySet.OpenCollection() as collection:
 			collection.UpdateEntity(self)
 			
@@ -1913,7 +2076,10 @@ class Entity(TypeInstance):
 		"""Deletes this entity from the parent entity set.
 		
 		The default implementation opens a collection object from the
-		parent entity set and uses del."""
+		parent entity set and uses the del operator.
+		
+		Data providers must ensure that the entity's :py:attr:`exists`
+		flag is set to False after deletion."""
 		with self.entitySet.OpenCollection() as collection:
 			del collection[self.Key()]
 			
@@ -1921,8 +2087,8 @@ class Entity(TypeInstance):
 		"""Returns the entity key as a single python value or a tuple of
 		python values for compound keys.
 		
-		The order of the values is the order of the PropertyRef definitions
-		in the associated EntityType's :py:class:`Key`."""
+		The order of the values is always the order of the PropertyRef
+		definitions in the associated EntityType's :py:class:`Key`."""
 		if len(self.typeDef.Key.PropertyRef)==1:
 			result=self[self.typeDef.Key.PropertyRef[0].name].value
 			if result is None:
@@ -1943,9 +2109,9 @@ class Entity(TypeInstance):
 	def SetKey(self,key):
 		"""Sets this entity's key from a single python value or tuple.
 		
-		The entity must be non-existent or ValueError is raised."""
+		The entity must be non-existent or :py:class:`EntityExists` is raised."""
 		if self.exists:
-			raise ValueError("SetKey not allowed; %s[%s] already exists"%(self.entitySet.name,str(self.Key())))
+			raise EntityExists("SetKey not allowed; %s[%s] already exists"%(self.entitySet.name,str(self.Key())))
 		if len(self.typeDef.Key.PropertyRef)==1:
 			self[self.typeDef.Key.PropertyRef[0].name].SetFromValue(key)
 		else:
@@ -1962,25 +2128,20 @@ class Entity(TypeInstance):
 		return k
 					
 	def Expand(self,expand, select=None):
-		"""Expands *entity* according to the given expand rules (if any).
+		"""Expands and selects properties of the entity according to the
+		given *expand* and *select* rules (if any).
 
-		*expand* is a dictionary of expand rules.  Expansions can be chained,
-		represented by the dictionary entry also being a dictionary::
-				
-			# expand the Customer navigation property...
-			{ 'Customer': None }
-			# expand the Customer and Invoice navigation properties
-			{ 'Customer':None, 'Invoice':None }
-			# expand the Customer property and then the Orders property within Customer
-			{ 'Customer': {'Orders':None} }
+		Data consumers will usually apply expand rules to a collection
+		which will then automatically ensure that all entities returned
+		by the collection have been expanded.
 		
-		The expansion rules in effect are saved in the :py:attr:`expand`
-		member and are tested using :py:meth:`Expanded`.
+		If, as a result of *select*, a non-key property is unselected
+		then its value is set to NULL.  (Properties that comprise the
+		key are never NULL.)
 		
-		The *select* option is a similar dictionary structure that can
-		be used to filter the properties in the entity.  If a property
-		that is being expanded is also subject to one or more selection
-		rules these are passed along with any chained Expand call.
+		If a property that is being expanded is also subject to one or
+		more selection rules these are passed along with any chained
+		Expand method call.
 		
 		The selection rules in effect are saved in the :py:attr:`select`
 		member and can be tested using :py:meth:`Selected`."""
@@ -2015,39 +2176,23 @@ class Entity(TypeInstance):
 					v.ExpandCollection(expand[k],subSelect)
 	
 	def Expanded(self,name):
-		"""Returns true if the property *name* should be expanded by
-		the expansion rules in this entity."""
 		warnings.warn("Entity.Expanded is deprecated, use, e.g., customer['Orders'].isExpanded instead", DeprecationWarning, stacklevel=3)
 		return self[name].isExpanded
 		
 	def Selected(self,name):
 		"""Returns true if the property *name* is selected in this entity.
 		
-		The entity always has values for its properties but whether or
-		not the dictionary values represent the true value of the
-		property *may* depend on whether the property is selected. In
-		particular, a property value that is Null may indicate that the
-		named property has a Null value or simply that it hasn't been
-		selected::
-		
-			if e['Name']:
-				print "Name is not NULL"
-			elif e.Selected('Name'):
-				print "Name is NULL"
-				# we know because it has been selected
-			else:
-				print "NULL status of Name is unknown"
-				# we don't know because it hasn't been selected
-		"""
+		You should not rely on the value of a unselected property, in most
+		cases it will be set to NULL."""
 		return self.selected is None or name in self.selected
 	
 	def ETag(self):
 		"""Returns a list of EDMValue instance values to use for optimistic
 		concurrency control or None if the entity does not support it (or if
-		all concurrency tokens are NULL)."""
+		all concurrency tokens are NULL or unselected)."""
 		etag=[]
 		for pDef in self.typeDef.Property:
-			if pDef.concurrencyMode==ConcurrencyMode.Fixed:
+			if pDef.concurrencyMode==ConcurrencyMode.Fixed and self.Selected(pDef.name):
 				token=self[pDef.name]
 				if token:
 					# only append non-null values
@@ -2061,8 +2206,8 @@ class Entity(TypeInstance):
 		"""Returns a list of EDMValue instance values that may be used
 		for optimistic concurrency control.  The difference between this
 		method and :py:meth:`ETag` is that this method returns all
-		values even if they are NULL.  If there are no concurrency
-		tokens then an empty list is returned."""
+		values even if they are NULL or unselected.  If there are no
+		concurrency tokens then an empty list is returned."""
 		etag=[]
 		for pDef in self.typeDef.Property:
 			if pDef.concurrencyMode==ConcurrencyMode.Fixed:
@@ -2073,7 +2218,10 @@ class Entity(TypeInstance):
 	def GenerateConcurrencyHash(self):
 		"""Returns a hash object representing this entity's value.
 		
-		The keys and any concurrency tokens are excluded from the hash"""
+		The hash is a SHA256 obtained by concatenating the literal
+		representations of all data properties (strings are UTF-8
+		encoded) except the keys and properties which have Fixed
+		concurrency mode."""
 		h=hashlib.sha256()
 		key=self.KeyDict()
 		for pDef in self.typeDef.Property:
@@ -2102,6 +2250,24 @@ class Entity(TypeInstance):
 				h.update(unicode(v).encode('utf-8'))
 			
 	def SetConcurrencyTokens(self):
+		"""A utility method for data providers.
+		
+		Sets all :py:meth:`ETagValues` using the following algorithm:
+
+		1.	Binary values are set directly from the output of
+			:py:meth:`GenerateConcurrencyHash`
+		
+		2.	String values are set from the hexdigest of the output
+			:py:meth:`GenerateConcurrencyHash`
+
+		3.	Integer values are incremented.
+		
+		4.	DateTime and DateTimeOffset values are set to the current
+			time in UTC (and nudged by 1s if necessary)
+		
+		5.	Guid values are set to a new random (type 4) UUID.
+
+		Any other type will generate a ValueError."""				
 		for t in self.ETagValues():
 			if isinstance(t,BinaryValue):
 				h=self.GenerateConcurrencyHash().digest()
@@ -2128,10 +2294,19 @@ class Entity(TypeInstance):
 					t.SetFromValue(t.value+1)
 				else:
 					t.SetFromValue(1)
+			elif isinstance(t,(DateTimeValue,DateTimeOffset)):
+				oldT=t.value
+				t.SetFromValue(iso8601.TimePoint.FromNowUTC())
+				if t.value==oldT:
+					# that was quick, push it 1s into the future
+					newTime,overflow=t.value.time.Offset(seconds=1)
+					t.SetFromValue(date=t.value.date.Offset(days=overflow),time=newTime)
+			elif isinstance(t,GuidValue):
+				oldT=t.value
+				while t.value==oldT:
+					t.SetFromValue(uuid.uuid4())
 			else:
 				raise ValueError("Can't auto generate concurrency token for %s"%t.pDef.type)
-			# TODO: if a date time is being used generate a 'now' value
-			# TODO: if a uuid is being used generate a new one
 					
 	def ETagIsStrong(self):
 		"""Returns True if this entity's etag is a strong entity tag as defined
@@ -2140,7 +2315,9 @@ class Entity(TypeInstance):
 			A "strong entity tag" MAY be shared by two entities of a
 			resource only if they are equivalent by octet equality.
 		
-		The default implementation returns False."""
+		The default implementation returns False which is consistent
+		with the implementation of :py:meth:`GenerateConcurrencyHash`
+		as that does not include the key fields."""
 		return False
 
 
@@ -2148,10 +2325,10 @@ class EntityCollection(DictionaryLike):
 	"""Represents a collection of entities from an :py:class:`EntitySet`.
 
 	To use a database analogy, EntitySet's are like tables whereas
-	EntityCollections are somewhat like database cursors you use to read
-	data from those tables.  An entity collection may consume physical
-	resources (like a database connection) and so should be closed
-	with the :py:meth:`close` method when you're done.
+	EntityCollections are more like the database cursors that you use to
+	execute data access commands.  An entity collection may consume
+	physical resources (like a database connection) and so should be
+	closed with the :py:meth:`close` method when you're done.
 	
 	Entity collections support the context manager protocol in python so
 	you can use them in with statements to make clean-up easier::
@@ -2168,91 +2345,72 @@ class EntityCollection(DictionaryLike):
 	Entity's key property or properties.  The keys are either single
 	values (as in the above code example) or tuples in the case of
 	compound keys. The order of the values in the tuple is taken from
-	the order of the PropertyRef definitions in the Entity's Key.
+	the order of the :py:class:`PropertyRef` definitions in the metadata
+	model.  You can obtain an entity's key from the
+	:py:meth:`Entity.Key` method.
+	
+	When an EntityCollection represents an entire entity set you cannot
+	use dictionary assignment to modify the collection.  You must use
+	:py:meth:`InsertEntity` instead where the reasons for this
+	restriction are expanded on.
+	
+	For consistency with python dictionaries the following statement is
+	permitted, though it is effectively a no-operation::
+	
+		etColl[key]=entity
+	
+	The above statement raises KeyError if *entity* is *not* a member of
+	the entity set.  If *key* does not match the entity's key then
+	ValueError is raised.
+	
+	Although you can't add an entity with assignment you can delete an
+	entity with the delete operator::
+	
+		del etColl[key]
 
-	You can obtain a canonical representation of the key from an
-	:py:class:`Entity` instance or other dictionary-like object using
-	the :py:meth:`EntitySet.GetKey` method.
+	Deletes the entity with *key* from the entity set.
+
+	These two operations have a different meaning when a collection
+	represents the subset of entities obtained through navigation.  See
+	:py:class:`NavigationEntityCollection` for details.
+	
+	*Notes for data providers*
 	
 	Derived classes MUST override :py:meth:`itervalues`.  The
 	implementation of itervalues must return an iterable object that
-	honours the value of the expand query option and any filtering
-	or orderby rules.
+	honours the value of the expand query option, the current filter
+	and the orderby rules.
 
-	Derived classes SHOULD also override :py:meth:`__getitem__`,
+	Derived classes SHOULD also override :py:meth:`__getitem__` and
 	:py:meth:`__len__` as the default implementations are very
 	inefficient, particularly for non-trivial entity sets.
-	
-	When an EntityCollection represents an entity set, the following
-	rules apply::
-	
-		etColl[key]=entity	# entity.Key() MUST equal key or ValueError is raised
-							# entity must be the right type for the entity set or TypeError is raised
-							# WARNING: entity must already be in the entity set or KeyError is raised
-							# otherwise does nothing, for consistency with python dictionary behaviour
-		del etColl[key]		# deletes the entity with *key* from the entity set
-
-	The fact that you can't add an entity to the entity set using
-	assignment is, unfortunately, inconsistent with python dictionaries.
-	You must use :py:meth:`InsertEntity` instead where the reasons for
-	this restriction are expanded on.
-
-	When an EntityCollection represents a collection of entities such as
-	those obtained by navigation then these rules are updated as
-	follows:: 		
-
-		etColl[key]=entity	# adds the entity with key to this collection
-		del etColl[key]		# removes the entity with *key* from this collection
 		
-	If the collection obtained from a navigation property has
-	multiplicity 0..1 then assignment will replace any existing value in
-	the collection.
-
-	Note that in the first case del removes the entity completely from
-	the data service whereas in the second case the entity still exists
-	in the parent entity set after being removed from the subset
-	represented by the (navigation) collection.
-
-	Writeable data sources must therefore override py:meth:`__delitem__`
-	for all collections and :py:meth:`__setitem__` for collections that
-	represent sub-sets of the parent entity set.  If a particular
-	operation is not allowed for some data-service specific reason then
-	NotImplementedError should be raised.
-
-	Note that writeable entity collections SHOULD override
-	:py:meth:`clear` as the default implementation is very
-	:inefficient."""
+	Writeable data sources must override py:meth:`__delitem__`.
+	
+	If a particular operation is not supported for some data-service
+	specific reason then NotImplementedError must be raised.
+	
+	Writeable entity collections SHOULD override :py:meth:`clear` as the
+	default implementation is very inefficient."""
 	def __init__(self,entitySet):
 		self.entitySet=entitySet		#: the entity set from which the entities are drawn
 		self.name=self.entitySet.name	#: the name of :py:attr:`entitySet`
 		self.expand=None				#: the expand query option in effect
 		self.select=None				#: the select query option in effect
 		self.filter=None				#: a filter or None for no filter (see :py:meth:`CheckFilter`)
-		self.orderby=None				#: a list of orderby rules
+		self.orderby=None				#: a list of orderby rules or None for no ordering
 		self.skip=None					#: the skip query option in effect
 		self.top=None					#: the top query option in effect
-		self.topmax=None				#: the forced maximum page size in effect
-		self.skiptoken=None				#: the skiptoken option in effect
+		self.topmax=None				#: the provider-enforced maximum page size in effect
+		self.skiptoken=None
 		self.nextSkiptoken=None
-		self.count=None
-		"""the size of this collection, initially None
-		
-		As there may be a penalty for calculating the overall size of
-		the collection this attribute is initialised to None and updated by __len__
-		the first time it is called and then used to prevent unnecessary
-		recalculation.
-
-		If any options affecting the size of the collection are altered
-		then count should be reset to None to force __len__ to
-		recalculate the size of the collection."""
 		self.inlineCount=False
 		"""True if inlineCount option is in effect 
 		
 		The inlineCount option is used to alter the representation of
 		the collection and, if set, indicates that the __len__ method
 		will be called before iterating through the collection itself."""
-		self.lastYielded=None
-		self.lastGot=None
+		self.lastEntity=None
 		self.paging=False
 		
 	def __enter__(self):
@@ -2269,7 +2427,7 @@ class EntityCollection(DictionaryLike):
 
 	def GetLocation(self):
 		"""Returns the location of this collection as a
-		:py:class:`rfc2396.URI` instance.
+		:py:class:`~pyslet.rfc2396.URI` instance.
 		
 		By default, the location is given as the location of the
 		:py:attr:`entitySet` from which the entities are drawn."""
@@ -2278,7 +2436,8 @@ class EntityCollection(DictionaryLike):
 	def GetTitle(self):
 		"""Returns a user recognisable title for the collection.
 		
-		By default this is the fully qualified name of the entity set."""
+		By default this is the fully qualified name of the entity set
+		in the metadata model."""
 		return self.entitySet.GetFQName()
 			
 	def Expand(self,expand,select=None):
@@ -2286,35 +2445,48 @@ class EntityCollection(DictionaryLike):
 		
 		The expand query option causes the named navigation properties
 		to be expanded and the associated entities to be loaded in to
-		the entity instances returned by this collection.
+		the entity instances before they are returned by this collection.
+		
+		*expand* is a dictionary of expand rules.  Expansions can be chained,
+		represented by the dictionary entry also being a dictionary::
+				
+			# expand the Customer navigation property...
+			{ 'Customer': None }
+			# expand the Customer and Invoice navigation properties
+			{ 'Customer':None, 'Invoice':None }
+			# expand the Customer property and then the Orders property within Customer
+			{ 'Customer': {'Orders':None} }
 		
 		The select query option restricts the properties that are set in
-		returned entities.
-		
-		For more details, see :py:meth:`Entity.Expand`"""
+		returned entities.  The *select* option is a similar dictionary
+		structure, the main difference being that it can contain the
+		single key '*' indicating that all *data* properties are
+		selected."""
 		self.entitySet.entityType.ValidateExpansion(expand,select)
 		self.expand=expand
 		self.select=select
+		self.lastEntity=None
 
 	def SelectKeys(self):
 		"""Sets the select rule to select the key property/properties only.
 		
-		Any expand rule is removed.
-
-		This is especially useful when navigating.  For example, for a
-		SQL based store the navigation property may be represented as a
-		foreign key so selecting it alone would not require a join to
-		the target table."""
+		Any expand rule is removed."""
 		select={}
 		for k in self.entitySet.keys:
 			select[k]=None
 		self.Expand(None,select)
 		
 	def ExpandEntities(self,entityIterable):
-		"""Given an object that iterates over all entities in the
-		collection, returns a generator function that returns those
-		entities expanded and selected according to :py:attr:`expand`
-		and :py:attr:`select` rules."""
+		"""Utility method for data providers.
+		
+		Given an object that iterates over all entities in the
+		collection, returns a generator function that returns expanded
+		entities with select rules applied according to
+		:py:attr:`expand` and :py:attr:`select` rules.
+		
+		Data providers should use a better method of expanded entities
+		if possible as this implementation simply iterates through the
+		entities and calls :py:meth:`Entity.Expand` on each one."""
 		for e in entityIterable:
 			if self.expand or self.select:
 				e.Expand(self.expand,self.select)
@@ -2323,12 +2495,19 @@ class EntityCollection(DictionaryLike):
 	def Filter(self,filter):
 		"""Sets the filter object for this collection, see :py:meth:`CheckFilter`."""
 		self.filter=filter
-		self.count=None
+		self.SetPage(None)
+		self.lastEntity=None
 		
 	def FilterEntities(self,entityIterable):
-		"""Given an object that iterates over all entities in the
+		"""Utility method for data providers.
+		
+		Given an object that iterates over all entities in the
 		collection, returns a generator function that returns only those
-		entities that pass through the current :py:attr:`filter` object."""
+		entities that pass through the current :py:attr:`filter` object.
+		
+		Data providers should use a better method of filtering entities
+		if possible as this implementation simply iterates through the
+		entities and calls :py:meth:`CheckFilter` on each one."""
 		for e in entityIterable:
 			if self.CheckFilter(e):
 				yield e
@@ -2337,9 +2516,14 @@ class EntityCollection(DictionaryLike):
 		"""Checks *entity* against the current filter object and returns
 		True if it passes.
 		
-		The default implementation does not actually support any filters
-		so if a filter object has been defined, NotImplementedError is
-		raised."""
+		This method is really a placeholder.  Filtering is not covered
+		in the CSDL model itself but is a feature of the OData
+		:py:mod:`pyslet.odata2.core` module. 
+
+		See
+		:py:meth:`pyslet.odata2.core.EntityCollectionMixin.CheckFilter`
+		for more.  The implementation in the case class simply raises
+		NotImplementedError if a filter has been set."""
 		if self.filter is None:
 			return True
 		else:
@@ -2355,23 +2539,30 @@ class EntityCollection(DictionaryLike):
 		self.SetPage(None)
 		
 	def CalculateOrderKey(self,entity,orderObject):
-		"""Given an entity and an order object returns the key used to sort the entity.
-		
-		The default implementation does not actually support any custom
-		orderings so if an orderby rule is defined, NotImplementedError
-		is raised."""
+		"""Given an entity and an order object returns the key used to
+		sort the entity.
+
+		This method is really a placeholder.  Ordering is not covered
+		in the CSDL model itself but is a feature of the OData
+		:py:mod:`pyslet.odata2.core` module. 
+
+		See
+		:py:meth:`pyslet.odata2.core.EntityCollectionMixin.CalculateOrderKey`
+		for more.  The implementation in the case class simply raises
+		NotImplementedError."""
 		raise NotImplementedError("Collection does not support ordering")
 		
 	def OrderEntities(self,entityIterable):
-		"""Given an object that iterates over the entities in random
-		order, returns a generator function that returns the same
-		entities in sorted order (according to :py:attr:`orderby` object
-		or the entity keys if there is no custom ordering and top or
-		skip has been specified).
+		"""Utility method for data providers.
 		
-		This implementation simply creates a list and then sorts it so
-		is not suitable for use with long lists of entities.  However, if
-		no ordering is required then no list is created."""
+		Given an object that iterates over the entities in random order,
+		returns a generator function that returns the same entities in
+		sorted order (according to the :py:attr:`orderby` object).
+		
+		This implementation simply creates a list and then sorts it
+		based on the output of :py:meth:`CalculateOrderKey` so is not
+		suitable for use with long lists of entities.  However, if no
+		ordering is required then no list is created."""
 		eList=None
 		if self.paging:
 			eList=list(entityIterable)
@@ -2393,7 +2584,7 @@ class EntityCollection(DictionaryLike):
 		"""Sets the inline count flag for this collection."""
 		self.inlineCount=inlineCount
 	
-	def NewEntity(self,autoKey=False):
+	def NewEntity(self):
 		"""Returns a new py:class:`Entity` instance suitable for adding
 		to this collection.
 		
@@ -2403,86 +2594,79 @@ class EntityCollection(DictionaryLike):
 		
 		The entity is not considered to exist until it is actually added
 		to the collection.  At this point we deviate from
-		dictionary-like behaviour::
+		dictionary-like behaviour, Instead of using assignment you must
+		call :py:meth:`InsertEntity`.::
 		
 			e=collection.NewEntity()
 			e["ID"]=1000
 			e["Name"]="Fred"
 			assert 1000 not in collection
-			collection[1000]=e		# raises KeyError
-			
-		The above code is prone to problems as the key 1000 may violate
-		the collection's key allocation policy so we raise KeyError when
-		assignment is used to insert a new entity to the collection.
+			collection[1000]=e			# raises KeyError
 		
-		Instead, you should call :py:meth:`InsertEntity`."""
-		if autoKey:
-			raise NotImplementedError("Auto-key not supported")
+		The correct way to add the entity is::
+		
+			collection.InsertEntity(e)
+			
+		The first block of code is prone to problems as the key 1000 may
+		violate the collection's key allocation policy so we raise
+		KeyError when assignment is used to insert a new entity to the
+		collection. This is consistent with the concept behind OData and
+		Atom where new entities are POSTed to collections and the ID and
+		resulting entity are returned to the caller on success because
+		the service may have modified them to satisfy service-specific
+		constraints."""
 		return Entity(self.entitySet)	
 	
-	def CopyEntity(self,entity,autoKey=False):
+	def CopyEntity(self,entity):
 		"""Creates a new *entity* copying the value from *entity*
 		
-		The key is not copied and is initially set to NULL or, if
-		*autoKey* is True, set automatically by :py:meth:`NewEntity`.""" 
-		newEntity=self.NewEntity(autoKey)
+		The key is not copied and is initially set to NULL.""" 
+		newEntity=self.NewEntity()
 		newEntity.SetFromEntity(entity)
 		return newEntity
 		
-	def InsertEntity(self,entity,fromEnd=None):
+	def InsertEntity(self,entity):
 		"""Inserts *entity* into this entity set.
+
+		After a successful call to InsertEntity:
 		
-		*entity* must be updated with any auto-generated values such as
-		the correct key.
+		1.	*entity* is updated with any auto-generated values such as
+			an autoincrement correct key.
 		
-		*fromEnd* may be set to an :py:class:`AssociationSetEnd`
-		instance that is bound to *this* entity set.  It indicates that
-		we are being created by a deep insert or through direct
-		insertion into a :py:class:`NavigationEntityCollection`
-		representing the corresponding association.  This information
-		can be used to suppress a constraint check (on the assumption
-		that it has already been checked) by passing *fromEnd* directly
-		to
-		:py:meth:`Entity.CheckNavigationConstraints`."""
+		2.	:py:attr:`exists` is set to True for *entity*
+		
+		Data providers must override this method if the collection is
+		writeable."""
 		raise NotImplementedError
 	
 	def UpdateEntity(self,entity):
-		"""Updates *entity* which must already be in the entity set."""
+		"""Updates *entity* which must already be in the entity set.
+		
+		Data providers must override this method if the collection is
+		writeable."""
 		raise NotImplementedError
 		
 	def UpdateBindings(self,entity):
-		"""Iterates through the :py:meth:`Entity.NavigationItems` and generates appropriate calls to
-		create/update any pending bindings."""
+		"""Iterates through the :py:meth:`Entity.NavigationItems` and
+		generates appropriate calls to create/update any pending
+		bindings.
+		
+		Unlike the :py:meth:`Update` method, which updates all data and
+		navigation values simultaneously, this method can be used to
+		selectively update just the navigation properties."""
 		for k,dv in entity.NavigationItems():
 			dv.UpdateBindings()
 	
 	def __getitem__(self,key):
-		"""Returns the py:class:`Entity` instance corresponding to *key*
-		
-		Raises KeyError if the entity with *key* is not in this
-		collection.
-		
-		Derived classes SHOULD override this behaviour.  The default
-		implementation is very basic.  We iterate through the entire
-		collection looking for the entity with the matching key.
-		
-		This implementation favours a smaller memory-footprint over
-		execution speed.  We do implement a couple of minor
-		optimizations to prevent itervalues being called unnecessarily,
-		we cache the last entity returned and also the last entity
-		yielded by iterkeys."""
 		# key=self.entitySet.GetKey(key)
-		logging.info("EntityCollection.__getitem__ without override in %s",self.__class__.__name__)
-		if self.lastYielded and self.lastYielded.Key()==key:
-			self.lastGot=self.lastYielded
-			return self.lastYielded
-		elif self.lastGot and self.lastGot.Key()==key:
-			return self.lastGot
-		else:
-			for e in self.itervalues():
-				if e.Key()==key:
-					self.lastGot=e
-					return e
+		logging.warning("EntityCollection.__getitem__ without override in %s",self.__class__.__name__)
+		if self.lastEntity and self.lastEntity.Key()==key:
+			result=self.lastEntity
+			return result
+		for e in self.itervalues():
+			self.lastEntity=e
+			if e.Key()==key:
+				return e
 		raise KeyError(unicode(key))
 						
 	def __setitem__(self,key,value):
@@ -2494,70 +2678,52 @@ class EntityCollection(DictionaryLike):
 			raise KeyError(unicode(key))
 
 	def __delitem__(self,key):
-		"""Not implemented"""
 		raise NotImplementedError
 	
 	def SetPage(self,top,skip=0,skiptoken=None):
-		"""Sets the page parameters.
+		"""Sets the page parameters that determine the next page
+		returned by :py:meth:`iterpage`.
 		
 		The skip and top query options are integers which determine the
 		number of entities returned (top) and the number of entities
-		skipped (skip and skiptoken) by iterpage.
-		
-		The default implementation treats the skip token exactly the
-		same as the skip value itself except that we obscure it slightly
-		by treating it as a hex value."""
+		skipped (skip).
+
+		*skiptoken* is an opaque token previously obtained from a call
+		to :py:meth:`NextSkipToken` on a similar collection which
+		provides an index into collection prior to any additional *skip*
+		being applied."""
 		self.top=top
-		self.skip=skip		
-		if skiptoken is None:
-			self.skiptoken=None
-		else:
-			try:
-				self.skiptoken=int(skiptoken,16)
-			except ValueError:
-				# not a skip token we recognise, do nothing
-				self.skiptoken=None
+		self.skip=skip
+		self.skiptoken=skiptoken
 		self.nextSkiptoken=None
 		
 	def TopMax(self,topmax):
 		"""Sets the maximum page size for this collection.
 		
-		This forces the collection to limit the size of a page to at
-		most topmax entities.  When topmax is in force and is less than
-		the top value set in :py:meth:`SetPage`,
+		Data consumers should use :py:meth:`SetPage` to control paging,
+		however data providers can use this method to force the
+		collection to limit the size of a page to at most topmax
+		entities.  When topmax is in force and is less than the top
+		value set in :py:meth:`SetPage`,
 		:py:meth:`NextSkipToken` will return a suitable value for
 		identifying the next page in the collection immediately after a
 		complete iteration of :py:meth:`iterpage`.
 		
-		If a collection cannot control the maximum page size then
-		NotImplementedError can be raised.  Skiptokens may still be used
-		but page size limits are set outside this process"""
+		Provider enforced paging is optional, if it is not supported
+		NotImplementedError must be raised."""
 		self.topmax=topmax
 		
-	def GetPageStart(self):
-		"""Returns the index of the start of the collection's current page.
-		
-		Used by the default implementation of iterpage.  Takes in to
-		consideration both the requested skip value and any skiptoken
-		that may be in force."""
-		skip=self.skiptoken
-		if skip is None:
-			skip=0
-		if self.skip is None:
-			return skip
-		else:
-			return self.skip+skip
-	
 	def iterpage(self,setNextPage=False):
-		"""Returns an iterable subset of the values returned by :py:meth:`itervalues`
+		"""Returns an iterable subset of the values returned by
+		:py:meth:`itervalues`
 		
-		The subset is defined by the top, skip and skiptoken attributes
-		set by :py:meth:`SetPage`
+		The subset is defined by the top, skip and skiptoken values set
+		with :py:meth:`SetPage`
 		
 		If *setNextPage* is True then the page is automatically advanced
 		so that the next call to iterpage iterates over the next page.
 		
-		Iterpage should be overridden by derived classes for a more
+		Data providers should override this implementation for a more
 		efficient implementation.  The default implementation simply
 		wraps :py:meth:`itervalues`."""
 		if self.top==0:
@@ -2565,12 +2731,20 @@ class EntityCollection(DictionaryLike):
 			return
 		i=0
 		self.nextSkiptoken=None
-		eMin=self.GetPageStart()
+		try:
+			eMin=int(self.skiptoken,16)
+		except (TypeError,ValueError):
+			# not a skip token we recognise, do nothing
+			eMin=None
+		if eMin is None:
+			eMin=0
+		if self.skip is not None:
+			eMin=self.skip+eMin
 		if self.topmax:
 			if self.top is None or self.top>self.topmax:
 				# may be truncated
 				eMax=eMin+self.topmax
-				self.nextSkiptoken=eMin+self.topmax
+				self.nextSkiptoken="%X"%(eMin+self.topmax)
 			else:
 				# top not None and <= topmax
 				eMax=eMin+self.top
@@ -2584,11 +2758,13 @@ class EntityCollection(DictionaryLike):
 			self.paging=True
 			if eMax is None:
 				for e in self.itervalues():
+					self.lastEntity=e
 					if i>=eMin:
 						yield e
 					i=i+1
 			else:
 				for e in self.itervalues():
+					self.lastEntity=e
 					if i<eMin:
 						i=i+1
 					elif i<eMax:
@@ -2609,105 +2785,147 @@ class EntityCollection(DictionaryLike):
 			self.paging=False
 		# no more pages
 		if setNextPage:
-			self.top=self.skip=self.skiptoken=0
+			self.top=self.skip=0
+			self.skiptoken=None
 		
 	def NextSkipToken(self):
 		"""Following a complete iteration of the generator returned by
-		:py:meth:`iterpage` returns the skiptoken which will generate
-		the next page or None if all requested entities were returned."""
-		if self.nextSkiptoken is None:
-			return None
-		else:
-			return "%X"%self.nextSkiptoken
+		:py:meth:`iterpage`, this method returns the skiptoken which
+		will generate the next page or None if all requested entities
+		were returned."""
+		return self.nextSkiptoken
 			
-	def __len__(self):
-		"""Implements len(self) using :py:attr:`count` as a cache."""
-		if self.count is None:
-			self.count=super(EntityCollection,self).__len__()
-		return self.count
-
 	def itervalues(self):
-		"""Must be overridden to execute an appropriate query to return
-		the collection of entities.
+		"""Iterates over the collection.
 		
-		The default implementation returns an empty list."""
+		The collection is filtered as defined by :py:meth:`Filter` and
+		sorted according to any rules defined by :py:meth:`OrderBy`.
+		
+		Entities are also expanded and selected according to the rules
+		defined by :py:class:`Expand`.
+
+		Data providers must override this implementation which, by
+		default, returns no entities (simulating an empty collection)."""
 		return []
 		
 	def __iter__(self):
-		"""The default implementation uses :py:meth:`itervalues` and :py:meth:`Entity.Key`"""
 		for e in self.itervalues():
-			self.lastYielded=e
+			self.lastEntity=e
 			yield e.Key()
-		self.lastYielded=None
+		self.lastEntity=None
 	
 	def iteritems(self):
 		for e in self.itervalues():
+			self.lastEntity=e
 			yield e.Key(),e
 
 
 class NavigationEntityCollection(EntityCollection):
-	"""Represents the collection of entities returned by a navigation property.
+	"""Represents the collection of entities returned by a *navigation*
+	property.
 	
-	*fromEntity* is the source entity and *toEntitySet* is the target
-	entity set.  We inherit basic behaviour from
-	:py:class:`EntityCollection` acting, in effect, as a special subset
-	of *toEntitySet*.
+	These collections behave in the same way as entity collections
+	opened from the base :py:class:`EntitySet` with the following
+	exceptions::
 	
-	This class is used even when the navigation property is declared to
-	return a single entity, rather than a collection."""		
+		etColl[key]=entity
+	
+	Adds a link to *entity* from the source entity used to open the
+	navigation collection.  If *key* does not match *entity*'s key then
+	ValueError is raised. The entity must already exist and be a member
+	of the base entity set, otherwise KeyError is raised.
+
+	This class is used even if the navigation property is declared to
+	return a single entity, rather than a collection.  In this case
+	assignment will only work if the collection is currently empty. To
+	*replace* an existing link use :py:meth:`Replace`.
+
+		del etColl[key]
+	
+	Deletes the link from the source entity to the entity with *key*. If
+	no such link exists, KeyError is raised.
+
+	Thie behaviour differs from the base :py:class:`EntityCollection`
+	behaviour where the del operator removes the entity completely from
+	the entity container whereas in this case the entity still exists in
+	the parent entity set, only the link is removed.
+
+	Notes for data providers
+		
+	On construction:
+	
+	*	*name* is the name of the navigation property being navigated
+	
+	*	*fromEntity* is the source entity being navigated
+	
+	* 	*toEntitySet* is the entity set containing the target entities,
+	 	the collection behaves like a subset of this entity set.
+	
+	Writeable collections must override the :py:meth:`__setitem__`
+	method."""
 	def __init__(self,name,fromEntity,toEntitySet):
 		super(NavigationEntityCollection,self).__init__(toEntitySet)
-		self.name=name								#: the name of this collection
+		self.name=name								#: the name of the navigation property
 		self.fromEntity=fromEntity					#: the source entity
-		self.fromEnd=self.fromEntity.entitySet.navigation[self.name]	#: the associationSetEnd that represents the source of this association
-		self.pDef=self.fromEntity.typeDef[name]		#: the navigation property definition
+		self.fromEnd=self.fromEntity.entitySet.navigation[self.name]	#: the :py:class:`associationSetEnd` that represents the source of this association
+		self.pDef=self.fromEntity.typeDef[name]		#: the navigation property's definition in the metadata model
 		self.fromMultiplicity,self.toMultiplicity=self.fromEntity.entitySet.NavigationMultiplicity(self.name)
-		"""The endpoint multiplicities of this link."""
+		"""The endpoint multiplicities of this link.  Values are defined
+		by :py:class:`Multiplicity`"""
 	
 	def ExpandCollection(self):
-		"""Return an expanded version of this collection"""
 		return ExpandedEntityCollection(self.name,self.fromEntity,self.entitySet,self.values())						
 
 	def InsertEntity(self,entity):
-		"""Inserts *entity* into this collection.
-		
-		The default implementation calls InsertEntity on the parent
-		entity set and then attempts to add the new entity to this
-		collection using __setitem__."""
+		"""Inserts a new *entity* into the target entity set *and*
+		simultaneously creates a link to it from the source entity."""
 		with self.entitySet.OpenCollection() as baseCollection:
 			baseCollection.InsertEntity(entity,self.fromEnd.otherEnd)
 			self[entity.Key()]=entity
 	
 	def UpdateEntity(self,entity):
-		"""The default implementation redirects this call to the parent
-		entity set."""
 		with self.entitySet.OpenCollection() as baseCollection:
 			baseCollection.UpdateEntity(entity)
 	
 	def __setitem__(self,key,value):
-		"""Inserts a new link into the associated navigation property."""
 		raise NotImplementedError("Entity collection %s[%s] is read-only"%(self.entitySet.name,self.name)) 
 
 	def __delitem__(self,key):
-		"""Removes a link from the associated navigation property."""
 		raise NotImplementedError("Entity collection %s[%s] is read-only"%(self.entitySet.name,self.name)) 
 
 	def Replace(self,entity):
-		"""This method replaces the entire collection with a single
+		"""This method replaces all links with a link to the single
 		item, *entity*.  If the collection was empty then this is
 		equivalent to __setitem__(entity.Key(),entity).
 		
-		For some collections this is equivalent to __delitem__ for each
-		item followed by __setitem__ for *entity*.  However, this method
-		must be used to combine these operations into a single call when
-		the collection has a constraint that it must contain exactly one
-		item at all times."""
+		Although for some collections this is equivalent to
+		:py:meth:`clear` followed by __setitem__, this method must be
+		used to combine these operations into a single call when the
+		collection is required to contain exactly one link at all
+		times."""
 		self.clear()
 		self[entity.Key()]=entity
 		
 
 class ExpandedEntityCollection(NavigationEntityCollection):
+	"""A special sub-class of :py:class:`NavigationEntityCollection`
+	used when a navigation property has been expanded.
 	
+	An expanded entity collection is a read-only, cached view of the
+	entities linked from the source entity.
+	
+	Warning: although you may apply a filter and orderby rules to an
+	expanded collection these are evaluated on the local copy and are
+	not passed to the data source.  As a result, there may be
+	differences in the way these options behave due to different
+	expression semantics.
+	
+	Note for data providers:
+	
+	The additional *entityList* parameter passed to this constructor is
+	a simple python list of the entities it contains.  Internally a
+	dictionary of the entities is built to speed up access by
+	key."""		
 	def __init__(self,name,fromEntity,toEntitySet,entityList):
 		super(ExpandedEntityCollection,self).__init__(name,fromEntity,toEntitySet)
 		self.entityList=entityList
@@ -2717,11 +2935,18 @@ class ExpandedEntityCollection(NavigationEntityCollection):
 			self.entityDict[e.Key()]=e
 			
 	def itervalues(self):
-		for entity in self.entityList:
-			yield entity
+		return self.OrderEntities(
+			self.ExpandEntities(
+			self.FilterEntities(
+			self.entityList)))
 	
 	def __getitem__(self,key):
-		return self.entityDict[key]
+		result=self.entityDict[key]
+		if self.CheckFilter(result):
+			if self.expand or self.select:
+				result.Expand(self.expand,self.select)
+			return result
+		raise KeyError("%s"%unicode(key))
 
 
 class FunctionEntityCollection(EntityCollection):
@@ -2768,6 +2993,7 @@ class FunctionCollection(object):
 
 
 class CSDLElement(xmlns.XMLNSElement):
+	"""All elements in the metadata model inherit from this class."""
 	
 	def UpdateTypeRefs(self,scope,stopOnErrors=False):
 		"""Called on a type definition, or type containing object to update all
@@ -2798,11 +3024,17 @@ class CSDLElement(xmlns.XMLNSElement):
 		pass
 
 
+class Documentation(CSDLElement):
+	"""Used to document elements in the metadata model"""
+	XMLNAME=(EDM_NAMESPACE,'Documentation')
+	XMLCONTENT=xmlns.ElementType.ElementContent
+	
+
 class TypeRef(object):
 	"""Represents a type reference.
 	
-	Created from a formatted string type definition and a scope (in which
-	definitions are looked up)."""
+	Created from a formatted string type definition and a scope (in
+	which type definitions are looked up)."""
 	
 	def __init__(self,typeDef,scope):
 		self.collection=False		#: True if this type is a collection type
@@ -2827,7 +3059,6 @@ class TypeRef(object):
 
 class Using(CSDLElement):
 	XMLNAME=(EDM_NAMESPACE,'Using')
-
 
 MAX=-1		#: we define the constant MAX to represent the spacial 'max' value of maxLength
 
@@ -2880,7 +3111,14 @@ xsi.MakeLowerAliases(ConcurrencyMode)
 
 	
 class Property(CSDLElement):
-	"""Models a property of an :py:class:`EntityType` or :py:class:`ComplexType`."""
+	"""Models a property of an :py:class:`EntityType` or
+	:py:class:`ComplexType`.
+	
+	Instances of this class are callable, taking an optional string
+	literal.  They return a new
+	:py:class:`EDMValue` instance with a value set from the
+	optional literal or NULL if no literal was supplied.  Complex values
+	can't be created from a literal."""
 
 	XMLNAME=(EDM_NAMESPACE,'Property')
 
@@ -2916,7 +3154,7 @@ class Property(CSDLElement):
 		self.collectionKind=None
 		self.concurrencyMode=None
 		self.TypeRef=None
-		self.Documentation=None
+		self.Documentation=None		#: the optional :py:class:`Documentation`
 		self.TypeAnnotation=[]
 		self.ValueAnnotation=[]
 
@@ -2929,7 +3167,6 @@ class Property(CSDLElement):
 			yield child
 
 	def UpdateTypeRefs(self,scope,stopOnErrors=False):
-		"""Sets :py:attr:`simpleTypeCode` and :py:attr:`complexType`."""
 		try:
 			self.simpleTypeCode=SimpleType.DecodeLowerValue(self.type)
 			self.complexType=None
@@ -2946,42 +3183,14 @@ class Property(CSDLElement):
 					raise
 	
 	def __call__(self,literal=None):
-		"""Returns a new :py:class:`EDMValue` instance (from a literal).
-		
-		Complex values can't be created from a simple literal form."""
 		result=EDMValue.NewValue(self)
 		if isinstance(result,SimpleValue) and literal is not None:
 			result.SetFromLiteral(literal)
 		return result
-			
-# 	def DecodeValue(self,value):
-# 		"""Decodes a value from a string used in a serialised form.
-# 		
-# 		The returned type depends on the property's :py:attr:`simpleTypeCode`."""
-# 		if value is None:
-# 			return None
-# 		decoder,encoder=SimpleTypeCodec.get(self.simpleTypeCode,(None,None))
-# 		if decoder is None:
-# 			# treat as per string
-# 			return value
-# 		else:
-# 			return decoder(value)
-# 
-# 	def EncodeValue(self,value):
-# 		"""Encodes a value as a string ready to use in a serialised form.
-# 		
-# 		The input type depends on the property's :py:attr:`simpleTypeCode`"""
-# 		if value is None:
-# 			return None
-# 		decoder,encoder=SimpleTypeCodec.get(self.simpleTypeCode,(None,None))
-# 		if encoder is None:
-# 			# treat as per string
-# 			return value
-# 		else:
-# 			return encoder(value)
 
 		
 class NavigationProperty(CSDLElement):
+	"""Models a navigation property of an :py:class:`EntityType`."""
 	XMLNAME=(EDM_NAMESPACE,'NavigationProperty')
 	
 	XMLATTR_Name='name'
@@ -2999,7 +3208,7 @@ class NavigationProperty(CSDLElement):
 		self.fromEnd=None		#: the :py:class:`AssociationEnd` instance representing this link's source
 		self.toEnd=None			#: the :py:class:`AssociationEnd` instance representing this link's target
 		self.backLink=None		#: the :py:class:`NavigationProperty` that provides the back link (or None, if this link is one-way)
-		self.Documentation=None
+		self.Documentation=None	#: the optional :py:class:`Documentation`
 		self.TypeAnnotation=[]
 		self.ValueAnnotation=[]
 
@@ -3012,7 +3221,6 @@ class NavigationProperty(CSDLElement):
 			yield child
 
 	def UpdateTypeRefs(self,scope,stopOnErrors=False):
-		"""Sets :py:attr:`association`, :py:attr:`fromEnd` and :py:attr:`toEnd`."""
 		# must be a complex type defined elsewhere
 		self.association=self.fromEnd=self.toEnd=None
 		try:
@@ -3032,11 +3240,12 @@ class NavigationProperty(CSDLElement):
 
 
 class Key(CSDLElement):
+	"""Models the key fields of an :py:class:`EntityType`"""
 	XMLNAME=(EDM_NAMESPACE,'Key')
 
 	def __init__(self,parent):
 		CSDLElement.__init__(self,parent)
-		self.PropertyRef=[]
+		self.PropertyRef=[]		#: a list of :py:class:`PropertyRef`
 
 	def GetChildren(self):
 		for child in self.PropertyRef: yield child
@@ -3047,6 +3256,7 @@ class Key(CSDLElement):
 
 
 class PropertyRef(CSDLElement):
+	"""Models a reference to a single property within a :py:class:`Key`."""
 	XMLNAME=(EDM_NAMESPACE,'PropertyRef')
 	
 	XMLATTR_Name='name'
@@ -3073,6 +3283,18 @@ class PropertyRef(CSDLElement):
 
 
 class Type(NameTableMixin,CSDLElement):
+	"""An abstract class for both Entity and Complex types.
+	
+	Types inherit from :py:class:`NameTableMixin` to allow them to
+	behave as scopes in their own right.  The named properties are
+	declared in the type's scope enabling you so use them as
+	dictionaries to look up property definitions.
+	
+	Because of the way nested scopes work, this means that you
+	can concatenate names to do a deep look up, for example, if
+	Person is a defined type::
+	
+		Person['Address']['City'] is Person['Address.City']"""
 	XMLATTR_Name=('name',ValidateSimpleIdentifier,None)
 	XMLATTR_BaseType='baseType'
 	XMLATTR_Abstract=('abstract',xsi.DecodeBoolean,xsi.EncodeBoolean)
@@ -3083,8 +3305,8 @@ class Type(NameTableMixin,CSDLElement):
 		self.name="Default"		#: the declared name of this type
 		self.baseType=None		#: the name of the base-type for this type
 		self.abstract=False
-		self.Documentation=None
-		self.Property=[]
+		self.Documentation=None	#: the optional :py:class:`Documentation`
+		self.Property=[]		#: a list of :py:class:`Property`
 		self.TypeAnnotation=[]
 		self.ValueAnnotation=[]
 		
@@ -3115,13 +3337,16 @@ class Type(NameTableMixin,CSDLElement):
 		
 		
 class EntityType(Type):
+	"""Models the key and the collection of properties that define a set
+	of :py:class:`Entity`"""
+
 	XMLNAME=(EDM_NAMESPACE,'EntityType')
 	XMLCONTENT=xmlns.ElementType.ElementContent
 	
 	def __init__(self,parent):
 		Type.__init__(self,parent)
-		self.Key=None
-		self.NavigationProperty=[]
+		self.Key=None				#: the :py:class:`Key`
+		self.NavigationProperty=[]	#: a list of :py:class:`NavigationProperty`
 		
 	def GetChildren(self):
 		if self.Documentation: yield self.Documentation
@@ -3140,6 +3365,23 @@ class EntityType(Type):
 			self.Declare(np)
 
 	def ValidateExpansion(self,expand,select):
+		"""A utility method for data providers.
+		
+		Checks the expand and select options, as described in
+		:py:meth:`EntityCollection.Expand` for validity raising
+		ValueError if they violate the OData specification.
+		
+		Specifically the following are checked:
+		
+		1.	That "*" only ever appears as the last item in a select
+			path
+		
+		2.	That nothing appears after a simple property in a select
+			path
+		
+		3.	That all names are valid property names
+		
+		4.	That all expanded names are those of navigation properties"""		
 		if expand is None:
 			expand={}
 		if select is None:
@@ -3189,13 +3431,18 @@ class EntityType(Type):
 
 	
 class ComplexType(Type):
+	"""Models the collection of properties that define a
+	:py:class:`Complex` value.
+	
+	This class is a trivial sub-class of :py:class:`Type`"""
 	XMLNAME=(EDM_NAMESPACE,'ComplexType')
 
 
 class Multiplicity:
-	ZeroToOne=0
-	One=1
-	Many=2
+	"""Defines constants for representing association end multiplicities."""
+	ZeroToOne=0		#:	0..1
+	One=1			#:	1
+	Many=2			#:	\*
 	Encode={0:'0..1',1:'1',2:'*'}
 	
 MutliplicityMap={
@@ -3205,14 +3452,23 @@ MutliplicityMap={
 	}
 
 def DecodeMultiplicity(src):
+	"""Decodes a :py:class:`Multiplicity` value from a unicode string.
+	
+	The valid strings are "0..1", "1" and "*" """
 	return MutliplicityMap.get(src.strip(),None)
 
 def EncodeMultiplicity(value):
+	"""Encodes a :py:class:`Multiplicity` value as a unicode string."""
 	return Multiplicity.Encode.get(value,'')
 
 
 class Association(NameTableMixin,CSDLElement):
-	"""Models an association; behaves as dictionary of AssociationEnd keyed on role name."""
+	"""Models an association.
+	
+	This class inherits from :py:class:`NameTableMixin` to enable it to
+	behave like a scope in its own right.  The contained
+	:py:class:`AssociationEnd` instances are declared in the association
+	scope by role name."""
 	XMLNAME=(EDM_NAMESPACE,'Association')
 	XMLATTR_Name='name'
 
@@ -3220,8 +3476,8 @@ class Association(NameTableMixin,CSDLElement):
 		NameTableMixin.__init__(self)
 		CSDLElement.__init__(self,parent)
 		self.name="Default"			#: the name declared for this association
-		self.Documentation=None
-		self.AssociationEnd=[]
+		self.Documentation=None		#: the optional :py:class:`Documentation`
+		self.AssociationEnd=[]		#: a list of :py:class:`AssociationEnd` instances
 		self.ReferentialConstraint=None
 		self.TypeAnnotation=[]
 		self.ValueAnnotation=[]
@@ -3263,8 +3519,10 @@ class Association(NameTableMixin,CSDLElement):
 			# Not always the case, the link may only be navigable one way
 			npList[0].backLink=npList[1]
 			npList[1].backLink=npList[0]
+
 			
 class AssociationEnd(CSDLElement):
+	"""Models one end of an :py:class:`Association`."""
 	# XMLNAME=(EDM_NAMESPACE,'End')
 	
 	XMLATTR_Role='name'
@@ -3278,7 +3536,7 @@ class AssociationEnd(CSDLElement):
 		self.entityType=None	#: :py:class:`EntityType` this end links to
 		self.multiplicity=1		#: a :py:class:`Multiplicity` constant
 		self.otherEnd=None		#: the other :py:class:`AssociationEnd` of this link
-		self.Documentation=None
+		self.Documentation=None	#: the optional :py:class:`Documentation`
 		self.OnDelete=None
 	
 	def GetChildren(self):
@@ -3287,7 +3545,6 @@ class AssociationEnd(CSDLElement):
 		for child in CSDLElement.GetChildren(self): yield child
 
 	def UpdateTypeRefs(self,scope,stopOnErrors=False):
-		"""Sets :py:attr:`entityType` and :py:attr:`otherEnd`."""
 		try:
 			self.entityType=self.otherEnd=None
 			self.entityType=scope[self.type]
@@ -3307,6 +3564,12 @@ class AssociationEnd(CSDLElement):
 
 
 class EntityContainer(NameTableMixin,CSDLElement):
+	"""Models an entity container in the metadata model.
+	
+	An EntityContainer inherits from :py:class:`NameTableMixin` to
+	enable it to behave like a scope.  The :py:class:`EntitySet`
+	instances and :py:class:`AssociationSet` instances it contains are
+	declared within the scope."""	
 	XMLNAME=(EDM_NAMESPACE,'EntityContainer')
 	XMLATTR_Name=('name',ValidateSimpleIdentifier,None)
 	XMLATTR_Extends='extends'
@@ -3316,10 +3579,10 @@ class EntityContainer(NameTableMixin,CSDLElement):
 		CSDLElement.__init__(self,parent)
 		NameTableMixin.__init__(self)
 		self.name="Default"			#: the declared name of the container
-		self.Documentation=None
+		self.Documentation=None		#: the optional :py:class:`Documentation`
 		self.FunctionImport=[]
-		self.EntitySet=[]
-		self.AssociationSet=[]
+		self.EntitySet=[]			#: a list of :py:class:`EntitySet` instances
+		self.AssociationSet=[]		#: a list of :py:class:`AssociationSet` instances
 		self.TypeAnnotation=[]
 		self.ValueAnnotation=[]
 	
@@ -3346,7 +3609,7 @@ class EntityContainer(NameTableMixin,CSDLElement):
 						
 		
 class EntitySet(CSDLElement):
-	"""Represents an EntitySet in the CSDL model."""
+	"""Represents an EntitySet in the metadata model."""
 	XMLNAME=(EDM_NAMESPACE,'EntitySet')	
 	XMLATTR_Name=('name',ValidateSimpleIdentifier,None)
 	XMLATTR_EntityType='entityTypeName'
@@ -3359,12 +3622,13 @@ class EntitySet(CSDLElement):
 		self.name="Default"				#: the declared name of the entity set
 		self.entityTypeName=""			#: the name of the entity type of this set's elements 
 		self.entityType=None			#: the :py:class:`EntityType` of this set's elements
-		self.keys=[]					#: a list of the names of this entity set's keys
-		self.navigation={}				#: a mapping from navigation property names to AssociationSetEnd instances
+		self.keys=[]					#: a list of the names of this entity set's keys in their declared order
+		self.navigation={}				#: a mapping from navigation property names to :py:class:`AssociationSetEnd` instances
 		self.linkEnds={}
 		"""A mapping from :py:class:`AssociationSetEnd` instances that
 		reference this entity set to navigation property names (or None
-		if this end of the association is not bound)"""
+		if this end of the association is not bound to a named
+		navigation property)"""
 		self.unboundPrincipal=None
 		"""An :py:class:`AssociationSetEnd` that represents our end of
 		an association with an unbound principal or None if all
@@ -3415,24 +3679,11 @@ class EntitySet(CSDLElement):
 		principals because if it did you would never be able to create
 		entities in it!"""
 		self.binding=(EntityCollection,{})
-		"""A class (or callable) and a dict of named arguments to pass
-		to it that returns an
-		:py:class:`EntityCollection` instance, by default we are bound
-		to the default EntityCollection class which is always empty! You
-		can change the binding using the :py:meth:`Bind` method."""  
 		self.navigationBindings={}
-		"""A mapping from navigation property names to a tuple
-		comprising a class (or callable) and a dict of named arguments
-		to pass to it that returns a
-		:py:class:`NavigationEntityCollection` instance and a list of
-		extra arguments to pass to it.  By default we are bound to the
-		default NavigationEntityCollection class which is always empty.
-		You can change the bindings using the :py:meth:`BindNavigation`
-		method."""
-		self.Documentation=None
+		self.Documentation=None		#: the optional :py:class:`Documentation`
 		self.TypeAnnotation=[]
 		self.ValueAnnotation=[]
-		self.location=None			#: see :py:meth:`SetLocation`
+		self.location=None
 
 	def GetFQName(self):
 		"""Returns the fully qualified name of this entity set."""
@@ -3445,15 +3696,21 @@ class EntitySet(CSDLElement):
 		return string.join(name,'.')
 	
 	def GetLocation(self):
-		"""Returns a :py:class:`pyslet.rfc2396.URI` location for this
-		entity set or None if the location is unknown."""
+		"""Returns a :py:class:`pyslet.rfc2396.URI` instance
+		representing the location for this entity set."""
 		return self.location
 			
 	def SetLocation(self):
-		"""Sets :py:attr:`location` to a URI derived by resolving a relative path consisting
-		of::
+		"""Sets the location of this entity set by resolving a relative
+		path consisting of::
 		
-			[ EntityContainer.name '.' ] name"""
+			[ EntityContainer.name '.' ] name
+		
+		The resolution of URIs is done in accordance with the XML
+		specification, so is affected by any xml:base attributes set on
+		parent elements or by the original base URI used to load the
+		metadata model.  If no base URI can be found then the location
+		remains expressed in relative terms."""
 		container=self.FindParent(EntityContainer)
 		if container:
 			path=container.name+'.'+self.name
@@ -3474,7 +3731,6 @@ class EntitySet(CSDLElement):
 			yield child		
 		
 	def UpdateSetRefs(self,scope,stopOnErrors=False):
-		"""Sets :py:attr:`entityType`"""
 		try:
 			self.entityType=scope[self.entityTypeName]
 			if not isinstance(self.entityType,EntityType):
@@ -3489,8 +3745,6 @@ class EntitySet(CSDLElement):
 				raise
 	
 	def UpdateNavigation(self):
-		"""Called after UpdateTypeRefs once references have been updated for all
-		association sets in this container."""
 		container=self.FindParent(EntityContainer)
 		if container and self.entityType:
 			for associationSet in container.AssociationSet:
@@ -3586,7 +3840,7 @@ class EntitySet(CSDLElement):
 		The result is a mapping from named properties to
 		:py:class:`SimpleValue` instances.  As a special case, if a
 		single property defines the entity key it is represented using
-		the empty string, not the property name."""
+		the empty string, *not* the property name."""
 		keyDict={}
 		if type(key)!=TupleType:
 			noName=True
@@ -3606,26 +3860,43 @@ class EntitySet(CSDLElement):
 		return keyDict
 	
 	def Bind(self,entityCollectionBinding,**extraArgs):
-		"""Binds this entity set to a specific class or callable used by :py:meth:`OpenCollection`""" 
+		"""Binds this entity set to a specific class or callable used by
+		:py:meth:`OpenCollection`
+		
+		*entityCollectionBinding* must be a class (or other callable)
+		that returns an :py:class:`EntityCollection` instance, by
+		default we are bound to the default EntityCollection class which
+		behaves like an empty collection.
+		
+		*extraArgs* is a python dict of named arguments to pass to the
+		binding callable""" 
 		self.binding=entityCollectionBinding,extraArgs
 		
 	def OpenCollection(self):
 		"""Returns an :py:class:`EntityCollection` instance suitable for
-		accessing the entities themselves.
-		
-		This method must be overridden to return a concrete
-		implementation of an entity collection.  The default
-		implementation returns an instance of the (almost abstract)
-		EntityCollection."""
+		accessing the entities themselves."""
 		cls,extraArgs=self.binding
 		return cls(self,**extraArgs)
 			
 	def BindNavigation(self,name,entityCollectionBinding,**extraArgs):
 		"""Binds the navigation property *name* to a class or callable
-		used by :py:meth:`Navigate`"""
+		used by :py:meth:`OpenNavigation`
+		
+		*entityCollectionBinding* must be a class (or other callable)
+		that returns a :py:class:`NavigationEntityCollection` instance.
+		By default we are bound to the default
+		NavigationEntityCollection class which behaves like an empty
+		collection.
+
+		*extraArgs* is a python dict of named arguments to pass to the
+		binding callable"""
 		self.navigationBindings[name]=(entityCollectionBinding,extraArgs)
 
 	def OpenNavigation(self,name,sourceEntity):
+		"""Returns a :py:class:`NavigationEntityCollection` instance
+		suitable for accessing the entities obtained by navigating from
+		*sourceEntity*, an :py:class:`Entity` instance, via the
+		navigation property with *name*."""
 		cls,extraArgs=self.navigationBindings[name]
 		linkEnd=self.navigation[name]
 		toEntitySet=linkEnd.otherEnd.entitySet
@@ -3639,7 +3910,10 @@ class EntitySet(CSDLElement):
 	def NavigationMultiplicity(self,name):
 		"""Returns the :py:class:`Multiplicity` of both the source and
 		the target of the named navigation property, as a
-		tuple."""
+		tuple, for example, if *customers* is an entity set from
+		the sample OData service::
+		
+			customers.NavigationMultiplicity['Orders']==(Multiplicity.ZeroToOne,Multiplicity.Many)"""
 		linkEnd=self.navigation[name]
 		return linkEnd.associationEnd.multiplicity,linkEnd.otherEnd.associationEnd.multiplicity
 		
@@ -3649,6 +3923,24 @@ class EntitySet(CSDLElement):
 	
 
 class AssociationSet(CSDLElement):
+	"""Represents an association set in the metadata model.
+	
+	The purpose of the association set is to bind the ends of an
+	association to entity sets in the container.
+	
+	Contrast this with the association element which merely describes
+	the association between entity types.
+	
+	At first sight this part of the entity data model can be confusing
+	but imagine an entity container that contains two entity sets
+	that have the same entity type.  Any navigation properties that
+	reference this type will need to be explicitly bound to one or
+	other of the entity sets in the container.
+	
+		As an aside, it isn't really clear if the model was intended to
+		be used this way.  It may have been intended that the entity type
+		in the definition of an entity set should be unique within the
+		scope of the entity container."""	
 	XMLNAME=(EDM_NAMESPACE,'AssociationSet')
 	XMLATTR_Name=('name',ValidateSimpleIdentifier,None)
 	XMLATTR_Association='associationName'
@@ -3659,8 +3951,8 @@ class AssociationSet(CSDLElement):
 		self.name="Default"			#: the declared name of this association set
 		self.associationName=""		#: the name of the association definition
 		self.association=None		#: the :py:class:`Association` definition
-		self.Documentation=None
-		self.AssociationSetEnd=[]
+		self.Documentation=None		#: the optional :py:class:`Documentation`
+		self.AssociationSetEnd=[]	#: a list of :py:class:`AssociationSetEnd` instances
 		self.TypeAnnotation=[]
 		self.ValueAnnotation=[]
 	
@@ -3681,7 +3973,6 @@ class AssociationSet(CSDLElement):
 			yield child		
 
 	def UpdateSetRefs(self,scope,stopOnErrors=False):
-		"""Sets :py:attr:`association`"""
 		try:
 			self.association=scope[self.associationName]
 			if not isinstance(self.association,Association):
@@ -3695,14 +3986,22 @@ class AssociationSet(CSDLElement):
 				
 
 class AssociationSetEnd(CSDLElement):
-	"""The AssociationSetEnd represents the links between two actual sets of entities.
+	"""Represents the links between two actual sets of entities in the
+	metadata model.
 	
-	This class must be overridden by a data service that wishes to
-	support navigation properties.  In effect, the AssociationSetEnd is
-	the index that allows two EntitySets to be joined.  They are
-	directional, it is not required to support bi-directional
-	associations.  The navigation itself is done using the
-	:py:meth:`Navigate` method.""" 
+	The :py:meth:`GetQualifiedName` method defines the identity of this
+	element.  The built-in Python hash function returns a hash based on
+	this value and the associated comparison functions are also
+	implemented enabling these elements to be added to ordinary Python
+	dictionaries.
+
+	Oddly, role names are sometimes treated as optional but it can make
+	it a challenge to work out which end of the association is which
+	when we are actually using the model if one or both are missing. 
+	The algorithm we use is to use role names if either are given,
+	otherwise we match the entity types.  If these are also identical
+	then the choice is arbitrary.  To prevent confusion missing role
+	names are filled in when the metadata model is loaded.""" 
 	# XMLNAME=(EDM_NAMESPACE,'End')	
 	XMLATTR_Role='name'
 	XMLATTR_EntitySet='entitySetName'
@@ -3715,9 +4014,13 @@ class AssociationSetEnd(CSDLElement):
 		self.entitySet=None			#: :py:class:`EntitySet` this end links to
 		self.associationEnd=None	#: :py:class:`AssociationEnd` that defines this end of the link
 		self.otherEnd=None			#: the other :py:class:`AssociationSetEnd` of this link
-		self.Documentation=None
+		self.Documentation=None		#: the optional :py:class:`Documentation`
 	
 	def GetQualifiedName(self):
+		"""A utility function to return a qualified name.
+		
+		The qualified name comprises the name of the parent
+		:py:class:`AssociationSet` and the role name."""
 		if isinstance(self.parent,AssociationSet):
 			return self.parent.name+"."+self.name
 		else:
@@ -3745,20 +4048,7 @@ class AssociationSetEnd(CSDLElement):
 		if self.Documentation: yield self.Documentation
 		for child in CSDLElement.GetChildren(self): yield child
 
-# 	def IsEntityCollection(self):
-# 		"""Returns True if navigating via this association set can yield multiple entities."""
-# 		return self.otherEnd.associationEnd.multiplicity==Multiplicity.Many
-#  
 	def UpdateSetRefs(self,scope,stopOnErrors=False):
-		"""Sets :py:attr:`entitySet`, :py:attr:`otherEnd` and :py:attr:`associationEnd`.
-		
-		Role names on AssociationSetName are marked as optional but it can make
-		it a challenge to work out which end of the association is which if one
-		or both are missing.  In fact, it would be possible to have two
-		identical Ends!  The algorithm we use is to use Role names if either are
-		given, otherwise we match the entity types (if these are also identical
-		then the choice is arbitrary). When we're done, we copy any missing Role
-		names across to reduce confusion."""
 		try:
 			self.entitySet=self.otherEnd=self.associationEnd=None
 			container=self.FindParent(EntityContainer)
@@ -3964,9 +4254,10 @@ class ValueTerm(CSDLElement):
 class Schema(NameTableMixin,CSDLElement):
 	"""Represents the Edm root element.
 	
-	Schema instances are based on :py:class:`NameTableMixin` allowing you to
-	look up the names of declared Associations, ComplexTypes, EntityTypes,
-	EntityContainers and Functions using dictionary-like methods."""
+	Schema instances are based on :py:class:`NameTableMixin` allowing
+	you to look up the names of declared Associations, ComplexTypes,
+	EntityTypes, EntityContainers and Functions using dictionary-like
+	methods."""
 	XMLNAME=(EDM_NAMESPACE,'Schema')
 	XMLATTR_Namespace='name'
 	XMLATTR_Alias='alias'
@@ -3978,10 +4269,10 @@ class Schema(NameTableMixin,CSDLElement):
 		self.name="Default"		#: the declared name of this schema
 		self.alias=None
 		self.Using=[]
-		self.Association=[]
-		self.ComplexType=[]
-		self.EntityType=[]
-		self.EntityContainer=[]
+		self.Association=[]		#: a list of :py:class:`Association` instances
+		self.ComplexType=[]		#: a list of :py:class:`ComplexType` instances
+		self.EntityType=[]		#: a list of :py:class:`EntityType` instances
+		self.EntityContainer=[]	#: a list of :py:class:`EntityContainer` instances
 		self.Function=[]
 		self.Annotations=[]
 		self.ValueTerm=[]

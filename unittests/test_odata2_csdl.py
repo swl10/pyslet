@@ -47,16 +47,16 @@ class CSDLTests(unittest.TestCase):
 		"""Test the SimpleType enumeration."""
 		self.assertTrue(SimpleType.Binary==getattr(SimpleType,'Edm.Binary'),"Dual declaration form.")
 		# Given a python type value (as returned by the type() function) we find the SimpleType
-		self.assertTrue(SimpleType.FromPythonType(type(3.14))==SimpleType.Double,"Bad float type") 
-		self.assertTrue(SimpleType.FromPythonType(type(3))==SimpleType.Int64,"Bad int type") 
-		self.assertTrue(SimpleType.FromPythonType(type("Hello"))==SimpleType.String,"Bad string type") 			
-		self.assertTrue(SimpleType.FromPythonType(type(u"Hello"))==SimpleType.String,"Bad unicode type") 
+		self.assertTrue(SimpleType.PythonType[type(3.14)]==SimpleType.Double,"Bad float type") 
+		self.assertTrue(SimpleType.PythonType[type(3)]==SimpleType.Int64,"Bad int type") 
+		self.assertTrue(SimpleType.PythonType[type("Hello")]==SimpleType.String,"Bad string type") 			
+		self.assertTrue(SimpleType.PythonType[type(u"Hello")]==SimpleType.String,"Bad unicode type") 
 		# Given a python value we coerce to the correct type
-		self.assertTrue(SimpleType.CoerceValue(SimpleType.Boolean,3.14) is True,"Boolean coercion True")
-		self.assertTrue(SimpleType.CoerceValue(SimpleType.Boolean,0.0) is False,"Boolean coercion False")
-		self.assertTrue(SimpleType.CoerceValue(SimpleType.Int32,3.14) is 3,"Int32 coercion")
-		self.assertTrue(SimpleType.CoerceValue(SimpleType.Int32,"3") is 3,"Int32 coercion")
-		self.assertTrue(SimpleType.CoerceValue(SimpleType.Double,"3.14")==3.14,"Double coercion")
+# 		self.assertTrue(SimpleType.CoerceValue(SimpleType.Boolean,3.14) is True,"Boolean coercion True")
+# 		self.assertTrue(SimpleType.CoerceValue(SimpleType.Boolean,0.0) is False,"Boolean coercion False")
+# 		self.assertTrue(SimpleType.CoerceValue(SimpleType.Int32,3.14) is 3,"Int32 coercion")
+# 		self.assertTrue(SimpleType.CoerceValue(SimpleType.Int32,"3") is 3,"Int32 coercion")
+# 		self.assertTrue(SimpleType.CoerceValue(SimpleType.Double,"3.14")==3.14,"Double coercion")
 		
 	def testSimpleValue(self):
 		"""Test the SimpleValue class."""

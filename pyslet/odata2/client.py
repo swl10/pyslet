@@ -178,6 +178,11 @@ class ODataCollectionMixin(object):
 
 	def TopMax(self,topmax):
 		raise NotImplementedError("OData client can't override topmax")
+	
+	def SetPage(self,top,skip=0,skiptoken=None):
+		self.top=top
+		self.skip=skip
+		self.skiptoken=skiptoken	# opaque in the client implementation
 		
 	def iterpage(self,setNextPage=False):
 		feedURL=self.baseURI

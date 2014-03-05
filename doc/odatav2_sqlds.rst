@@ -11,7 +11,35 @@ It also contains a concrete implementation derived from the above
 that uses the standard SQLite module for storage.  For more information
 about SQLite see: http://www.sqlite.org/
 
-Reference
----------
 
-Coming soon...
+Data Access Layer API
+---------------------
+
+..	autoclass:: SQLCollectionMixin
+	:members:
+	:show-inheritance:
+
+
+
+Misc Definitions
+----------------
+
+..	autodata:: SQL_TIMEOUT
+
+..	autoclass:: UnparameterizedLiteral
+	:members:
+	:show-inheritance:
+
+..	autodata:: SQLOperatorPrecedence
+
+
+Exceptions
+----------
+
+..	autoclass:: DatabaseBusy
+	:members:
+	:show-inheritance:
+
+..	autoclass:: SQLError
+	:members:
+	:show-inheritance:

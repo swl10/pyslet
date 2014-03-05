@@ -11,7 +11,7 @@ import csdl as edm
 import core, metadata
 
 
-SQL_TIMEOUT=90	#: the standard timeout, in seconds
+SQL_TIMEOUT=90	#: the standard timeout while waiting for a database connection, in seconds
 
 class SQLError(Exception):
 	"""Base class for all module exceptions."""
@@ -23,7 +23,6 @@ class DatabaseBusy(SQLError):
 	pass
 
 SQLOperatorPrecedence={
-	"""Look-up table for SQL operator precedence calculations."""
 	',':0,
 	'OR':1,
 	'AND':2,
@@ -40,19 +39,36 @@ SQLOperatorPrecedence={
 	'*':6,
 	'/':6
 	}
+"""Look-up table for SQL operator precedence calculations.
+
+The keys are strings representing the operator, the values are
+integers that allow comparisons for operator precedence. For
+example::
+
+	SQLOperatorPrecedence['+']<SQLOperatorPrecedence['*']
+	SQLOperatorPrecedence['<']==SQLOperatorPrecedence['>']"""
 
 
 class UnparameterizedLiteral(core.LiteralExpression):
 	"""Class used as a flag that this literal is safe and does not need
 	to be parameterized.
 	
-	This prevents things like this happening::
+	This is used in the query converter to prevent things like this
+	happening when the converter itself constructs a LIKE expression::
 	
 		"name" LIKE ?+?+? ; params=[u'%',u"Smith",u'%']"""
 	pass
 
 
 class SQLCollectionMixin(object):
+	"""A base class that is mixed in to other SQL collection classes to
+	provide core functionality.
+	
+	*container* must be a :py:class:`SQLEntityContainer` instance.
+	
+	On construction a data connection is acquired from *container*, this
+	may prevent other threads from using the database until the lock is
+	released by :py:class:`close`."""
 	
 	def __init__(self,container):
 		self.container=container		#: the parent container (database) for this collection
@@ -76,7 +92,7 @@ class SQLCollectionMixin(object):
 		Only selected fields are yielded.  If forUpdate is True then key
 		fields are excluded."""
 		if forUpdate:
-			keys=entity.KeyDict()
+			keys=entity.entitySet.keys
 		for k,v in entity.DataItems():
 			if entity.Selected(k) and (not forUpdate or k not in keys):
 				if isinstance(v,edm.SimpleValue):
@@ -86,7 +102,6 @@ class SQLCollectionMixin(object):
 						yield self.container.mangledNames[tuple([self.entitySet.name,k]+sourcePath)],fv
 	
 	def ComplexFieldGenerator(self,ct):
-		"""Generates tuples of source path (as list) and simple value instances."""
 		for k,v in ct.iteritems():
 			if isinstance(v,edm.SimpleValue):
 				yield [k],v
@@ -98,11 +113,32 @@ class SQLCollectionMixin(object):
 	SQLCallExpressionMethod={}
 	
 	def SQLExpression(self,expression,params,context="AND"):
-		"""Returns a SQL-formatted filter string adding paramaters to params.
+		"""Returns expression converted into a SQL expression string.
 		
-		Expression is a :py:class:`edm.CommonExpression` instance.  This
-		method is basically a grand dispatcher that sends calls to other
-		methods in the collection."""
+		*expression* is a :py:class:`core.CommonExpression` instance.
+		
+		This method is basically a grand dispatcher that sends calls to
+		other node-specific methods with similar signatures.  The effect
+		is to traverse the entire rooted at *expression*.
+		
+		*params* is a :py:class:`SQLParams` object of the appropriate
+		type for this database connection.
+		
+		*context* is a string containing the SQL operator that provides
+		the context in which the expression is being converted.  This
+		should be used to determine if the resulting expression must be
+		bracketed or not.  See :py:meth:`SQLBracket` for a useful
+		utility function to illustrate this.
+		
+		The result must be a string containing the parameterized
+		expression with appropriate values added to the *param* object
+		*in the same sequence* that they appear in the returned SQL
+		expression.
+		
+		When creating derived classes to implement database-specific
+		behaviour you should override the individual evaluation methods
+		rather than this method.  All methods follow the same basic
+		pattern, taking these three parameters."""
 		if isinstance(expression,core.UnaryExpression):
 			raise NotImplementedError
 		elif isinstance(expression,core.BinaryExpression):
@@ -129,13 +165,25 @@ class SQLCollectionMixin(object):
 			return getattr(self,self.SQLCallExpressionMethod[expression.method])(expression,params,context)
 	
 	def SQLBracket(self,query,context,operator):
+		"""A utility method that checks the precedence of *operator* in
+		*context* and returns *query* bracketed if necessary.  An
+		example is the easiest way to understand its purpose::
+		
+			collection.SQLBracket("Age+3","*","+")=="(Age+3)"
+			collection.SQLBracket("Age*3","+","*")=="Age*3"	"""		
 		if SQLOperatorPrecedence[context]>SQLOperatorPrecedence[operator]:
 			return "(%s)"%query
 		else:
 			return query
 		
 	def SQLExpressionMember(self,expression,params,context):
-		"""We need to deep dive when evaluating this type of expression."""
+		"""Converts the member expression, e.g., Address/City
+
+		This implementation does not support the use of navigation
+		properties but does support references to complex properties.
+
+		It outputs the mangled name of the property, qualified by the
+		table name if :py:attr:`qualifyNames` is True."""
 		nameList=self.CalculateMemberFieldName(expression)
 		contextDef=self.entitySet.entityType
 		for name in nameList:
@@ -159,7 +207,10 @@ class SQLCollectionMixin(object):
 			return fieldName
 
 	def CalculateMemberFieldName(self,expression):
-		"""Returns a list of names represented by this expression"""
+		"""Utility method for implementing member expressions.
+
+		Given a member expression it returns a list of names, calling
+		itself recursively to cater for deep references."""
 		if isinstance(expression,core.PropertyExpression):
 			return [expression.name]
 		elif isinstance(expression,core.BinaryExpression) and expression.operator==core.Operator.member:
@@ -168,6 +219,7 @@ class SQLCollectionMixin(object):
 			raise core.EvaluationError("Unexpected use of member expression")
 			
 	def SQLExpressionCast(self,expression,params,context):
+		"""Converts the cast expression: no default implementation"""
 		raise NotImplementedError
 
 	def SQLExpressionGenericBinary(self,expression,params,context,operator):
@@ -180,52 +232,65 @@ class SQLCollectionMixin(object):
 		return self.SQLBracket(string.join(query,''),context,operator)
 	
 	def SQLExpressionMul(self,expression,params,context):
+		"""Converts the mul expression: maps to SQL "*" """
 		return self.SQLExpressionGenericBinary(expression,params,context,'*')
 
 	def SQLExpressionDiv(self,expression,params,context):
+		"""Converts the div expression: maps to SQL "/" """
 		return self.SQLExpressionGenericBinary(expression,params,context,'/')
 
 	def SQLExpressionMod(self,expression,params,context):
+		"""Converts the mod expression: no default implementation"""
 		raise NotImplementedError
 
 	def SQLExpressionAdd(self,expression,params,context):
+		"""Converts the add expression: maps to SQL "+" """
 		return self.SQLExpressionGenericBinary(expression,params,context,'+')
 
 	def SQLExpressionSub(self,expression,params,context):
+		"""Converts the sub expression: maps to SQL "-" """
 		return self.SQLExpressionGenericBinary(expression,params,context,'-')
 		
 	def SQLExpressionLt(self,expression,params,context):
+		"""Converts the lt expression: maps to SQL "<" """
 		return self.SQLExpressionGenericBinary(expression,params,context,'<')
 
 	def SQLExpressionGt(self,expression,params,context):
+		"""Converts the gt expression: maps to SQL ">" """
 		return self.SQLExpressionGenericBinary(expression,params,context,'>')
 
 	def SQLExpressionLe(self,expression,params,context):
+		"""Converts the le expression: maps to SQL "<=" """
 		return self.SQLExpressionGenericBinary(expression,params,context,'<=')
 
 	def SQLExpressionGe(self,expression,params,context):
+		"""Converts the ge expression: maps to SQL ">=" """
 		return self.SQLExpressionGenericBinary(expression,params,context,'>=')
 
 	def SQLExpressionIsOf(self,expression,params,context):
+		"""Converts the isof expression: no default implementation"""
 		raise NotImplementedError
 
 	def SQLExpressionEq(self,expression,params,context):
+		"""Converts the eq expression: maps to SQL "=" """
 		return self.SQLExpressionGenericBinary(expression,params,context,'=')
 
 	def SQLExpressionNe(self,expression,params,context):
+		"""Converts the ne expression: maps to SQL "<>" """
 		return self.SQLExpressionGenericBinary(expression,params,context,'<>')
 
 	def SQLExpressionAnd(self,expression,params,context):
+		"""Converts the and expression: maps to SQL "AND" """
 		return self.SQLExpressionGenericBinary(expression,params,context,'AND')
 
 	def SQLExpressionOr(self,expression,params,context):
+		"""Converts the or expression: maps to SQL "OR" """
 		return self.SQLExpressionGenericBinary(expression,params,context,'OR')
 
 	def SQLExpressionEndswith(self,expression,params,context):
-		"""The basic idea is to do op[0] LIKE '%'+op[1]
+		"""Converts the endswith function: maps to "op[0] LIKE '%'+op[1]"
 		
-		To do this we need to invoke the concatenation operator as per
-		Concat"""
+		This is implemented using the concatenation operator"""
 		percent=edm.SimpleValue.NewSimpleValue(edm.SimpleType.String)
 		percent.SetFromValue(u"'%'")
 		percent=UnparameterizedLiteral(percent)
@@ -239,16 +304,17 @@ class SQLCollectionMixin(object):
 		return self.SQLBracket(string.join(query,''),context,'LIKE')
 		
 	def SQLExpressionIndexof(self,expression,params,context):
+		"""Converts the indexof method: no default implementation"""
 		raise NotImplementedError
 		
 	def SQLExpressionReplace(self,expression,params,context):
+		"""Converts the replace method: no default implementation"""
 		raise NotImplementedError
 		
 	def SQLExpressionStartswith(self,expression,params,context):
-		"""The basic idea is to do op[0] LIKE '%'+op[1]
+		"""Converts the startswith function: maps to "op[0] LIKE op[1]+'%'"
 		
-		To do this we need to invoke the concatenation operator as per
-		Concat"""
+		This is implemented using the concatenation operator"""
 		percent=edm.SimpleValue.NewSimpleValue(edm.SimpleType.String)
 		percent.SetFromValue(u"'%'")
 		percent=UnparameterizedLiteral(percent)
@@ -262,23 +328,34 @@ class SQLCollectionMixin(object):
 		return self.SQLBracket(string.join(query,''),context,'LIKE')
 		
 	def SQLExpressionTolower(self,expression,params,context):
+		"""Converts the tolower method: no default implementation"""
 		raise NotImplementedError
 		
 	def SQLExpressionToupper(self,expression,params,context):
+		"""Converts the toupper method: no default implementation"""
 		raise NotImplementedError
 		
 	def SQLExpressionTrim(self,expression,params,context):
+		"""Converts the trim method: no default implementation"""
 		raise NotImplementedError
 		
 	def SQLExpressionSubstring(self,expression,params,context):
+		"""Converts the substring method: no default implementation"""
 		raise NotImplementedError
 		
 	def SQLExpressionSubstringof(self,expression,params,context):
-		"""The basic idea is to do op[1] LIKE '%'+op[0]+'%'
+		"""Converts the substringof function: maps to "op[1] LIKE '%'+op[0]+'%'"
+
+		To do this we need to invoke the concatenation operator.
 		
-		To do this we need to invoke the concatenation operator,
-		which is a bit clumsy but more robust than just assuming
-		that + or ||, or perhaps CONCAT( ).... will actually work."""
+		This method has been poorly defined in OData with the parameters
+		being switched between versions 2 and 3.  It is being withdrawn
+		as a result and replaced with contains in OData version 4.  We
+		follow the version 3 convention here of "first parameter in the
+		second parameter" which fits better with the examples and with
+		the intuitive meaning::
+		
+			substringof(A,B) == A in B"""
 		percent=edm.SimpleValue.NewSimpleValue(edm.SimpleType.String)
 		percent.SetFromValue(u"'%'")
 		percent=UnparameterizedLiteral(percent)
@@ -295,36 +372,47 @@ class SQLCollectionMixin(object):
 		return self.SQLBracket(string.join(query,''),context,'LIKE')
 				
 	def SQLExpressionConcat(self,expression,params,context):
+		"""Converts the concat method: no default implementation"""
 		raise NotImplementedError
 		
 	def SQLExpressionLength(self,expression,params,context):
+		"""Converts the length method: no default implementation"""
 		raise NotImplementedError
 		
 	def SQLExpressionYear(self,expression,params,context):
+		"""Converts the year method: no default implementation"""
 		raise NotImplementedError
 		
 	def SQLExpressionMonth(self,expression,params,context):
+		"""Converts the month method: no default implementation"""
 		raise NotImplementedError
 		
 	def SQLExpressionDay(self,expression,params,context):
+		"""Converts the day method: no default implementation"""
 		raise NotImplementedError
 		
 	def SQLExpressionHour(self,expression,params,context):
+		"""Converts the hour method: no default implementation"""
 		raise NotImplementedError
 		
 	def SQLExpressionMinute(self,expression,params,context):
+		"""Converts the minute method: no default implementation"""
 		raise NotImplementedError
 		
 	def SQLExpressionSecond(self,expression,params,context):
+		"""Converts the second method: no default implementation"""
 		raise NotImplementedError
 		
 	def SQLExpressionRound(self,expression,params,context):
+		"""Converts the round method: no default implementation"""
 		raise NotImplementedError
 		
 	def SQLExpressionFloor(self,expression,params,context):
+		"""Converts the floor method: no default implementation"""
 		raise NotImplementedError
 		
 	def SQLExpressionCeiling(self,expression,params,context):
+		"""Converts the ceiling method: no default implementation"""
 		raise NotImplementedError
 		
 	
@@ -372,12 +460,33 @@ SQLCollectionMixin.SQLBinaryExpressionMethod={
 
 			
 class SQLEntityCollection(SQLCollectionMixin,core.EntityCollection):
+	"""Represents a collection of entities from an :py:class:`EntitySet`
+	stored in a :py:class:`SQLEntityContainer`.
 	
+	The base constructor is extended to allow the *container* to be
+	passed."""	
 	def __init__(self,entitySet,container):
 		core.EntityCollection.__init__(self,entitySet)
 		SQLCollectionMixin.__init__(self,container)
 
 	def WhereClause(self,entity,params,useFilter=True,nullCols=()):
+		"""A convenience method for creating a WHERE clause, returning a
+		parameterized SQL expression.
+		
+		*entity*
+			The entity we want to constrain by so its keys are added to
+			the where clause.
+		
+		*params*
+			The :py:class:`SQLParams` object that the values are added
+			to *in the sequence* they appear in the parameterized result.
+		
+		*useFilter*
+			If True will cause the current filter expression to be added
+			as a constraint.
+		
+		*nullCols*
+			An iterable list of mangled column names that must be NULL"""		
 		where=[]
 		kd=entity.KeyDict()
 		for k,v in kd.items():
