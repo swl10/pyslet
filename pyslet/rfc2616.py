@@ -15,6 +15,7 @@ import socket
 import select
 import types
 import base64
+import threading
 from pyslet.rfc2616_core import *
 from pyslet.rfc2616_params import *
 from pyslet.rfc2616_headers import *
@@ -33,11 +34,73 @@ class HTTP2616ConnectionClosed(HTTPException): pass
 
 
 
-class HTTPRelativeQualityToken:
+class RelativeQualityToken(object):
+	"""Represents an HTTP relative-quality token
+	
+	*token*
+		Used to initialise :py:attr:`token`, defaults to "*"
+	
+	*q*
+		Used to initialise :py:attr:`q`, default o None
+	
+	Instances can be converted to strings using Python's str function,
+	the result is a string suitable for setting or adding to an
+	appropriate HTTP header."""	
 	def __init__(self,token="*",q=None):
-		self.token=token
-		self.q=q
+		self.token=token		#: the token, a python string
+		self.q=q				#: the relative quality value, a python float or None if unspecified
 
+	@classmethod
+	def ListFromWords(cls,wp):
+		"""Returns a list of :py:class:`RelativeQualityToken` instances
+		parsed from a :py:class:`WordParser` set to ignore spaces."""
+		rqList=[]
+		needSep=False
+		while wp.cWord:
+			while wp.ParseSeparator(','):
+				needSep=False
+			if needSep:
+				raise HTTPParameterError("Expected ','")
+			if wp.cWord:
+				rq=cls()
+				rq.ParseWords(wp)
+				rqList.append(rq)
+				needSep=True
+		if not rqList:
+			raise HTTPParameterError("relative quality token required")
+		return rqList	
+					
+	@classmethod
+	def ListFromString(cls,source):
+		"""Returns a list of :py:class:`RelativeQualityToken` instances
+		parsed from a python string."""
+		p=ParameterParser(source)
+		result=cls.ListFromWords(p)
+		p.RequireEnd("relative quality token list")
+		return result
+		
+	def ParseWords(self,wp):
+		"""Parses a relative quality token from a :py:class:`ParameterParser` instance.
+		
+		*wp*
+			Must be set to ignore spaces or have had them stripped.
+			
+		If none is found HTTPParameterError is raised."""
+		self.token=wp.RequireToken("codings")
+		self.q=None
+		savePos=wp.pos
+		if wp.ParseSeparator(";"):
+			try:
+				qParam=wp.RequireToken("q parameter")
+				if qParam.lower()!='q':
+					raise HTTPParameterError("Unrecognized q-parameter: %s"%qParam)
+				wp.RequireSeparator('=',"q parameter")
+				self.q=wp.ParseQualityValue()
+				if self.q is None:
+					raise HTTPParameterError("Unrecognized q-value: %s"%repr(wp.cWord))
+			except HTTPParameterError:
+				wp.SetPos(savePos)
+	
 	def __str__(self):
 		if self.q is not None:
 			if self.q==0:
@@ -60,7 +123,7 @@ def ParseRelativeQualityToken(words,rqToken,pos=0):
 		word=words[pos]
 		pos=pos+1
 		if mode==None:
-			if word[0] in HTTP_SEPARATORS:
+			if word[0] in SEPARATORS:
 				break
 			rqToken.token=word
 			rqToken.q=None
@@ -138,7 +201,7 @@ def ParseETag(words,eTag,pos=0):
 	
 def CheckToken(t):
 	for c in t:
-		if c in HTTP_SEPARATORS:
+		if c in SEPARATORS:
 			raise ValueError("Separator found in token: %s"%t)
 		elif IsCTL(c) or not IsCHAR(c):
 			raise ValueError("Non-ASCII or CTL found in token: %s"%t)
@@ -243,7 +306,9 @@ class HTTPRequestManager(object):
 		self.credentials.append(credentials)
 	
 	def FindCredentials(self,challenge=None,url=None):
-		"""Searches for credentials that match *challenge* or *url*"""		
+		"""Searches for credentials that match *challenge* or *url*"""
+		if challenge is not None:
+			logging.debug("HTTPRequestManager searching for credentials in %s with challenge %s",challenge.protectionSpace,str(challenge))
 		for c in self.credentials:
 			if c.Match(challenge,url):
 				return c
@@ -505,6 +570,9 @@ class HTTPConnection:
 					elif r:
 						if self.RecvResponseData():
 							# The response is done
+							closeConnection=False
+							if self.response:
+								closeConnection="close" in self.response.GetConnection()
 							if self.responseQueue:
 								self.response=self.responseQueue[0]
 								self.responseQueue=self.responseQueue[1:]
@@ -512,7 +580,9 @@ class HTTPConnection:
 								self.response=None
 								if self.requestMode==self.CLOSE_WAIT:
 									# no response and waiting to close the connection
-									self.Close()
+									closeConnection=True
+							if closeConnection:
+								self.Close()
 						# Any data received on the connection could change the request
 						# state, so we loop round again
 						continue
@@ -738,51 +808,97 @@ class HTTPSConnection(HTTPConnection):
 		self.socket.close()
 
 			
-class HTTPMessage:
-
+class HTTPMessage(object):
+	"""An abstract class to represent an HTTP message.
+	
+	The methods of this class are thread safe, using :py:attr:`lock` to
+	protect all access to internal structures."""
+	def __init__(self):
+		self.lock=threading.RLock()			#: a lock used by :py:class:`HTTPClient`
+		self.Reset(True)
+		
 	def Reset(self,resetHeaders=False):
-		if resetHeaders:
-			self.headers={}
-		# Transfer fields are set by CalculateTransferLength
-		self.transferChunked=False
-		self.transferLength=None
-		self.transferPos=0
-		self.transferDone=False
+		"""Resets this messages allowing it to be reused.
+		
+		*resetHeaders*
+			Removes all existing headers."""
+		with self.lock:
+			if resetHeaders:
+				self.headers={}
+			# Transfer fields are set by CalculateTransferLength
+			self.transferChunked=False
+			self.transferLength=None
+			self.transferPos=0
+			self.transferDone=False
 		
 	def GetHeaderList(self):
-		hList=self.headers.keys()
-		hList.sort()
-		return hList
+		"""Returns an alphabetically sorted list of lower-cased header names."""
+		with self.lock:
+			hList=self.headers.keys()
+			hList.sort()
+			return hList
 	
 	def HasHeader(self,fieldName):
-		return fieldName.lower() in self.headers
+		"""Return True if this message has a header with *fieldName*, False otherwise"""
+		with self.lock:
+			return fieldName.lower() in self.headers
 		
 	def GetHeader(self,fieldName):
-		return self.headers.get(fieldName.lower(),[None,None])[1]
+		"""Returns the header with *fieldName* as a string.
+		
+		If there is no header with *fieldName* then None is returned."""
+		with self.lock:
+			return self.headers.get(fieldName.lower(),[None,None])[1]
 
 	def SetHeader(self,fieldName,fieldValue,appendMode=False):
-		fieldNameKey=fieldName.lower()
-		if fieldValue is None:
-			if fieldNameKey in self.headers:
-				del self.headers[fieldNameKey]
-		else:
-			if fieldNameKey in self.headers and appendMode:
-				fieldValue=self.headers[fieldNameKey][1]+", "+fieldValue
-			self.headers[fieldNameKey]=[fieldName,fieldValue]
+		"""Sets the header with *fieldName* to the string *fieldValue*.
+		
+		If *fieldValue* is None then the header is removed (if present).
+		
+		If a header already exists with *fieldName* then the behaviour is
+		determined by *appendMode*:
+		
+		appendMode==True
+			*fieldValue* is joined to the existing value using ", " as
+			a separator.
+		
+		appendMode==False (Default)
+			*fieldValue* replaces the existing value."""
+		with self.lock:
+			fieldNameKey=fieldName.lower()
+			if fieldValue is None:
+				if fieldNameKey in self.headers:
+					del self.headers[fieldNameKey]
+			else:
+				if fieldNameKey in self.headers and appendMode:
+					fieldValue=self.headers[fieldNameKey][1]+", "+fieldValue
+				self.headers[fieldNameKey]=[fieldName,fieldValue]
 
 	def GetAcceptEncoding(self):
-		fieldValue=self.GetHeader("Accept-Encoding")
-		if fieldValue is not None:
-			rqTokens=[]
-			for item in SplitItems(SplitWords(fieldValue)):
-				rqToken=HTTPRelativeQualityToken()
-				ParseRelativeQualityToken(item,rqToken)
-				rqTokens.append(rqToken)
-			return rqTokens
-		else:
-			return None
+		"""Returns a list of :py:class:`RelativeQualityToken` instances
+		or None if no "AcceptEncoding" header is present."""
+		with self.lock:
+			fieldValue=self.GetHeader("Accept-Encoding")
+			if fieldValue is not None:
+				rqTokens=[]
+				for item in SplitItems(SplitWords(fieldValue)):
+					rqToken=RelativeQualityToken()
+					ParseRelativeQualityToken(item,rqToken)
+					rqTokens.append(rqToken)
+				return rqTokens
+			else:
+				return None
 			
-	def SetAcceptEncoding(self,rqTokens=[HTTPRelativeQualityToken("identity")]):
+	def SetAcceptEncoding(self,rqTokens=[RelativeQualityToken("identity")]):
+		"""Sets the "AcceptEncoding" header, replacing any existing value.
+		
+		*rqTokens*
+			A list of :py:class:`RelativeQualityToken` instances.  This
+			parameter defaults to a list with a single member
+			representing the identity encoding.
+			
+		If *rqTokens* is None then any existing AcceptEncoding header is
+		removed."""
 		if rqTokens is None:
 			self.SetHeader("Accept-Encoding",None)
 		else:
@@ -804,7 +920,7 @@ class HTTPMessage:
 	def GetContentType(self):
 		fieldValue=self.GetHeader("Content-Type")
 		if fieldValue is not None:
-			mtype=MediaType(fieldValue)
+			mtype=MediaType.FromString(fieldValue)
 			return mtype
 		else:
 			return None
@@ -869,6 +985,19 @@ class HTTPMessage:
 	def SetHost(self,server):
 		self.SetHeader("Host",server)
 	
+	def GetConnection(self):
+		"""Returns a dict of connection tokens from the Connection header"""
+		src=self.GetHeader("Connection")
+		if src:
+			wp=WordParser(src)
+			return set(map(lambda x:x.lower(),wp.ParseTokenList()))
+		else:
+			return set()
+		
+	def SetConnection(self,connectionTokens):
+		"""Set the Connection tokens from a an iterable set of *connectionTokens*"""
+		self.SetHeader("Connection",string.join(list(connectionTokens)))
+		
 	def GetWWWAuthenticateChallenges(self):
 		fieldValue=self.GetHeader("WWW-Authenticate")
 		if fieldValue is not None:
@@ -941,14 +1070,14 @@ class HTTPMessage:
 	
 class HTTPRequest(HTTPMessage):
 	def __init__(self,url,method="GET",reqBody='',resBody=None,protocolVersion=HTTP_VERSION):
-		HTTPMessage.Reset(self,True)
+		super(HTTPRequest,self).__init__()
 		self.manager=None
 		self.connection=None
 		self.response=None
 		self.status=0
 		self.SetRequestURI(url)
 		self.method=method
-		self.protocolVersion=HTTPVersion(protocolVersion)
+		self.protocolVersion=HTTPVersion.FromString(protocolVersion)
 		if type(reqBody) is types.StringType:
 			self.reqBody=reqBody
 			self.reqBodyStream=None
@@ -1233,12 +1362,13 @@ class HTTPResponse(HTTPMessage):
 	RESP_DONE=-1
 	
 	def __init__(self,request):
+		super(HTTPResponse,self).__init__()
 		self.Reset()
 		self.request=request
 		self.request.SetResponse(self)
 
-	def Reset(self):
-		HTTPMessage.Reset(self,True)
+	def Reset(self,resetHeaders=True):
+		super(HTTPResponse,self).Reset(resetHeaders)
 		self.connectionError=None
 		self.protocolVersion=None
 		self.status=None
@@ -1281,9 +1411,8 @@ class HTTPResponse(HTTPMessage):
 	def RecvLine(self,line):
 		if self.mode==self.RESP_STATUS:
 			# Read the status line
-			statusLine=WordParser(line[:-2],ignoreSpace=False)
-			self.protocolVersion=HTTPVersion()
-			self.protocolVersion.ParseWords(statusLine)
+			statusLine=ParameterParser(line[:-2],ignoreSpace=False)
+			self.protocolVersion=statusLine.ParseHTTPVersion()
 			statusLine.ParseSP()
 			if statusLine.IsInteger():
 				self.status=statusLine.ParseInteger()
@@ -1343,8 +1472,8 @@ class HTTPResponse(HTTPMessage):
 				self.currHeader=None
 			return False
 		else:
-			spLen=ParseLWS(h)
-			if spLen and self.currHeader:
+			fold=HTTPParser(h).ParseLWS()
+			if fold and self.currHeader:
 				# a continuation line
 				self.currHeader[1]=self.currHeader[1]+h
 			else:
@@ -1398,24 +1527,3 @@ class HTTPResponse(HTTPMessage):
 		hangs up and stops sending."""
 		self.connectionError=err
 		self.request.ResponseFinished()
-
-
-class HTTPURL(uri.ServerBasedURL):
-	"""Represents http URLs"""
-	
-	DEFAULT_PORT=80
-	
-	def __init__(self,octets='http://localhost/'):
-		super(HTTPURL,self).__init__(octets)
-
-
-class HTTPSURL(HTTPURL):
-	"""Represents https URLs"""
-	
-	DEFAULT_PORT=443
-	
-	def __init__(self,octets='https://localhost/'):
-		super(HTTPSURL,self).__init__(octets)
-
-uri.URIFactory.Register('http',HTTPURL)
-uri.URIFactory.Register('https',HTTPSURL)

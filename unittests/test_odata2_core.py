@@ -1683,7 +1683,20 @@ class DataServiceRegressionTests(unittest.TestCase):
 				self.fail("Index into collection after AllTypes DELETE")
 			except KeyError:
 				pass
-	
+			#	NULL tests
+			#	CREATE
+			entity=collection.NewEntity()
+			entity['ID'].SetFromValue(2)
+			collection.InsertEntity(entity)
+			#	READ
+			gotEntity=collection[2]
+			self.assertTrue(gotEntity['ID'].value==2)
+			# all other fields should be NULL
+			for k,v in gotEntity.iteritems():
+				if k=='ID':
+					continue
+				self.assertFalse(v,"%s NULL on read"%k)
+			
 	def RunTestCaseComplexTypes(self):
 		complexTypes=self.ds['RegressionModel.RegressionContainer.ComplexTypes']
 		with complexTypes.OpenCollection() as collection:

@@ -61,68 +61,68 @@ class Server(app.Server):
 	as the trailing '/' is implied (and no redirection is necessary)."""
 
 	AtomRanges=[
-		http.MediaRange('application/atom+xml'),
-		http.MediaRange('application/xml'),
-		http.MediaRange('text/xml') ]
+		http.MediaRange.FromString('application/atom+xml'),
+		http.MediaRange.FromString('application/xml'),
+		http.MediaRange.FromString('text/xml') ]
 
 	JSONRanges=[
-		http.MediaRange('application/json')
+		http.MediaRange.FromString('application/json')
 		]
 							
-	DefaultAcceptList=http.AcceptList("application/atom+xml, application/xml; q=0.9, text/xml; q=0.8, text/plain; q=0.7, */*; q=0.6")
+	DefaultAcceptList=http.AcceptList.FromString("application/atom+xml, application/xml; q=0.9, text/xml; q=0.8, text/plain; q=0.7, */*; q=0.6")
 	ErrorTypes=[
-		http.MediaType('application/atom+xml'),
-		http.MediaType('application/xml'),
-		http.MediaType('application/json')]
+		http.MediaType.FromString('application/atom+xml'),
+		http.MediaType.FromString('application/xml'),
+		http.MediaType.FromString('application/json')]
 	
 	RedirectTypes=[
-		http.MediaType('text/html'),
-		http.MediaType('text/plain')]
+		http.MediaType.FromString('text/html'),
+		http.MediaType.FromString('text/plain')]
 			
 	FeedTypes=[		# in order of preference if there is a tie
-		http.MediaType('application/atom+xml'),
-		http.MediaType('application/atom+xml;type=feed'),
-		http.MediaType('application/xml'),
-		http.MediaType('text/xml'),
-		http.MediaType('application/json'),
-		http.MediaType('text/plain')]
+		http.MediaType.FromString('application/atom+xml'),
+		http.MediaType.FromString('application/atom+xml;type=feed'),
+		http.MediaType.FromString('application/xml'),
+		http.MediaType.FromString('text/xml'),
+		http.MediaType.FromString('application/json'),
+		http.MediaType.FromString('text/plain')]
 	
 	EntryTypes=[	# in order of preference if there is a tie
-		http.MediaType('application/atom+xml'),
-		http.MediaType('application/atom+xml;type=entry'),
-		http.MediaType('application/xml'),
-		http.MediaType('text/xml'),
-		http.MediaType('application/json'),
-		http.MediaType('text/plain')]
+		http.MediaType.FromString('application/atom+xml'),
+		http.MediaType.FromString('application/atom+xml;type=entry'),
+		http.MediaType.FromString('application/xml'),
+		http.MediaType.FromString('text/xml'),
+		http.MediaType.FromString('application/json'),
+		http.MediaType.FromString('text/plain')]
 	
 	ValueTypes=[	# in order of preference if there is a tie
-		http.MediaType('application/xml'),
-		http.MediaType('text/xml'),
-		http.MediaType('application/json'),
-		http.MediaType('text/plain')]
+		http.MediaType.FromString('application/xml'),
+		http.MediaType.FromString('text/xml'),
+		http.MediaType.FromString('application/json'),
+		http.MediaType.FromString('text/plain')]
 	
 	ServiceRootTypes=[	# in order of preference if there is a tie
-		http.MediaType('application/atomsvc+xml'),
-		http.MediaType('application/json'),
-		http.MediaType('text/plain')]
+		http.MediaType.FromString('application/atomsvc+xml'),
+		http.MediaType.FromString('application/json'),
+		http.MediaType.FromString('text/plain')]
 	
 	MetadataTypes=[	# in order of preference if there is a tie
-		http.MediaType('application/xml'),
-		http.MediaType('text/xml'),
-		http.MediaType('text/plain')]
+		http.MediaType.FromString('application/xml'),
+		http.MediaType.FromString('text/xml'),
+		http.MediaType.FromString('text/plain')]
 	
 	DereferenceBinaryRanges=[
-		http.MediaRange('application/octet-stream'),
-		http.MediaRange('octet/stream')]
+		http.MediaRange.FromString('application/octet-stream'),
+		http.MediaRange.FromString('octet/stream')]
 		
 	DereferenceTypes=[	# in order of preference
-		http.MediaType('text/plain;charset=utf-8'),
-		http.MediaType('application/octet-stream'),
-		http.MediaType('octet/stream')]		# we allow this one in case someone read the spec literally!
+		http.MediaType.FromString('text/plain;charset=utf-8'),
+		http.MediaType.FromString('application/octet-stream'),
+		http.MediaType.FromString('octet/stream')]		# we allow this one in case someone read the spec literally!
 
 	StreamTypes=[
-		http.MediaType('application/octet-stream'),
-		http.MediaType('octet/stream')]		# we allow this one in case someone read the spec literally!
+		http.MediaType.FromString('application/octet-stream'),
+		http.MediaType.FromString('octet/stream')]		# we allow this one in case someone read the spec literally!
 
 	def __init__(self,serviceRoot="http://localhost"):
 		if serviceRoot[-1]!='/':
@@ -209,7 +209,7 @@ class Server(app.Server):
 				responseType=self.ContentNegotiation(request,environ,self.RedirectTypes)
 				if responseType is None:
 					# this is a redirect response, default to text/plain anyway
-					responseType=http.MediaType('text/plain')
+					responseType=http.MediaType.FromString('text/plain')
 				if responseType=="text/plain":
 					data=r.RenderText()
 				else:
@@ -246,7 +246,7 @@ class Server(app.Server):
 		responseType=self.ContentNegotiation(request,environ,self.ErrorTypes)
 		if responseType is None:
 			# this is an error response, default to text/plain anyway
-			responseType=http.MediaType('text/plain')
+			responseType=http.MediaType.FromString('text/plain')
 		elif responseType=="application/atom+xml":
 			# even if you didn't ask for it, you get application/xml in this case
 			responseType="application/xml"
@@ -460,9 +460,9 @@ class Server(app.Server):
 					if request.pathOption==PathOption.value:
 						if resource.typeDef.HasStream():
 							if "CONTENT_TYPE" in environ:
-								resourceType=http.MediaType(environ["CONTENT_TYPE"])
+								resourceType=http.MediaType.FromString(environ["CONTENT_TYPE"])
 							else:
-								resourceType=http.MediaType('application/octet-stream')
+								resourceType=http.MediaType.FromString('application/octet-stream')
 							input=app.InputWrapper(environ)
 							resource.SetStreamFromGenerator(resourceType,input.iterblocks())
 							self.SetETag(resource,responseHeaders)											
@@ -507,9 +507,9 @@ class Server(app.Server):
 								break					
 					resource.InsertEntity(entity)
 					if "CONTENT_TYPE" in environ:
-						resourceType=http.MediaType(environ["CONTENT_TYPE"])
+						resourceType=http.MediaType.FromString(environ["CONTENT_TYPE"])
 					else:
-						resourceType=http.MediaType('application/octet-stream')
+						resourceType=http.MediaType.FromString('application/octet-stream')
 					input=app.InputWrapper(environ)
 					entity.SetStreamFromGenerator(resourceType,input.iterblocks())
 					responseHeaders.append(('Location',str(entity.GetLocation())))
@@ -683,7 +683,7 @@ class Server(app.Server):
 		atomFlag=None
 		encoding=None
 		if "CONTENT_TYPE" in environ:
-			requestType=http.MediaType(environ["CONTENT_TYPE"])
+			requestType=http.MediaType.FromString(environ["CONTENT_TYPE"])
 			for r in self.AtomRanges:
 				if r.MatchMediaType(requestType):
 					atomFlag=True
@@ -825,7 +825,7 @@ class Server(app.Server):
 	def ReadDereferencedValue(self,value,environ):
 		encoding=None
 		if "CONTENT_TYPE" in environ:
-			requestType=http.MediaType(environ["CONTENT_TYPE"])
+			requestType=http.MediaType.FromString(environ["CONTENT_TYPE"])
 		if value.mType is None:
 			acceptType=False
 			if isinstance(value,edm.BinaryValue):
@@ -836,14 +836,14 @@ class Server(app.Server):
 				else:
 					acceptType=True
 			elif requestType:
-				acceptType=http.MediaRange("text/plain").MatchMediaType(requestType)
+				acceptType=http.MediaRange.FromString("text/plain").MatchMediaType(requestType)
 			else:
 				# by default, http messages are iso-8859-1
-				requestType=http.MediaType("text/plain; charset=iso-8859-1")
+				requestType=http.MediaType.FromString("text/plain; charset=iso-8859-1")
 				acceptType=True
 		else:
 			if requestType:
-				acceptType=http.MediaRange(value.mType).MatchMediaType(requestType)
+				acceptType=http.MediaRange.FromString(value.mType).MatchMediaType(requestType)
 			else:
 				# assume the user knows what they're doing!
 				requestType=value.mType
@@ -931,7 +931,7 @@ class Server(app.Server):
 		if aList is None:
 			if "HTTP_ACCEPT" in environ:
 				try:
-					aList=http.AcceptList(environ["HTTP_ACCEPT"])
+					aList=http.AcceptList.FromString(environ["HTTP_ACCEPT"])
 				except http.HTTPParameterError:
 					# we'll treat this as a missing Accept header
 					aList=self.DefaultAcceptList

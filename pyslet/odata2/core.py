@@ -1559,7 +1559,7 @@ def ParseDataServiceVersion(src):
 	uaStr=[]
 	for w in http.SplitWords(src):
 		if mode=="#":
-			if w[0] in http.HTTP_SEPARATORS:
+			if w[0] in http.SEPARATORS:
 				break
 			else:
 				# looking for the digit.digit
@@ -1571,7 +1571,7 @@ def ParseDataServiceVersion(src):
 			else:
 				break
 		elif mode=='u':
-			if w[0] in http.HTTP_SEPARATORS:
+			if w[0] in http.SEPARATORS:
 				uaStr=None
 				break
 			else:
@@ -1922,15 +1922,15 @@ class ODataURI:
 				# <An IANA-defined [IANA-MMT] content type>)
 				# first up, let's see if this is a valid MediaType
 				try:
-					value=http.AcceptList(paramValue)
+					value=http.AcceptList.FromString(paramValue)
 				except http.HTTPParameterError:
 					pLower=paramValue.lower()
 					if pLower=="atom":
-						value=http.AcceptList('application/atom+xml')
+						value=http.AcceptList.FromString('application/atom+xml')
 					elif pLower=="json":
-						value=http.AcceptList('application/json')
+						value=http.AcceptList.FromString('application/json')
 					elif pLower=="xml":
-						value=http.AcceptList('application/xml')
+						value=http.AcceptList.FromString('application/xml')
 					else:
 						raise InvalidSystemQueryOption("Unsupported $format : %s"%paramValue)
 			elif param==SystemQueryOption.orderby:

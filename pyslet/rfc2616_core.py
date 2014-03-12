@@ -1,14 +1,17 @@
 #! /usr/bin/env python
 
 import string
+from pyslet.unicode5 import BasicParser
 
 class HTTPException(Exception):
 	"""Abstract class for all HTTP errors."""
 	pass
 
-class HTTPParameterError(Exception):
-	"""Raised when an expected parameter is missing."""
+class SyntaxError(HTTPException):
+	"""Raised when a syntax error is encountered parsing an HTTP production."""
 	pass
+
+HTTPParameterError=SyntaxError
 
 
 def IsOCTET(c):
@@ -57,130 +60,10 @@ def IsCTL(c):
 
 CR=chr(13)		#: octet 13 (carriage return)
 LF=chr(10)		#: octet 10 (linefeed)
-HT=chr(9)		#: octet 9 (horizontal tab)
 SP=chr(32)		#: octet 32 (space)
+HT=chr(9)		#: octet 9 (horizontal tab)
 DQUOTE=chr(34)	#: octet 34 (double quote)
-
 CRLF=CR+LF		#: the string consisting of CR followed by LF
-
-HTTP_SEPARATORS='()<>@,;:\\"/[]?={} \t'
-"""A string consisting of all the HTTP separator characters.  Can be used like::
-
-	if c in HTTP_SEPARATORS:
-		# do something"""
-
-
-def ParseLWS(source,pos=0):
-	"""Parse the *source* string (starting from pos) for LWS
-	
-	Parses a single instance of the production LWS.  The return value is the
-	length of the matching string or 0 if no LWS was found at *pos*."""
-	lws=0
-	mode=None
-	while pos<len(source):
-		c=source[pos]
-		pos+=1
-		if mode is None:
-			if c==CR:
-				mode=CR
-			elif c==SP or c==HT:
-				mode=SP
-				lws+=1
-			else:
-				break
-		elif mode==CR:
-			if c==LF:
-				mode=LF
-			else:
-				break
-		elif mode==LF:
-			if c==SP or c==HT:
-				lws+=3
-				mode=SP
-			else:
-				break
-		# mode==SP
-		elif c==SP or c==HT: 
-			lws+=1
-		else:
-			break
-	return lws
-	
-
-def ParseTEXT(source,pos=0):
-	"""Parse the source string (starting from pos) for TEXT
-	
-	Parses a single instance of the production TEXT.  The return value is the
-	length of the matching TEXT string (including any LWS) or 0 if no TEXT was
-	found at *pos*."""
-	text=0
-	while pos<len(source):
-		lws=ParseLWS(source,pos)
-		if lws:
-			pos+=lws
-			text+=lws
-		else:
-			c=source[pos]
-			pos+=1
-			if IsOCTET(c) and not IsCTL(c):
-				text+=1
-			else:
-				break
-	return text
-
-
-def UnfoldTEXT(source):
-	"""Returns a new string equivalent to *source* with all folded lines unfolded.
-	
-	The source string is assumed to be legal TEXT so bare controls or other
-	characters that are not allowed in TEXT may still appear in the output.
-	
-	Line folding sequences are replaced with a single SP.  A line folding
-	sequence is a LWS that starts with a CRLF."""
-	buffer=[]
-	# mode is subtely differently from ParseLWS, we hold SP only when skipping after CRLF
-	mode=None
-	pos=0
-	while pos<len(source):
-		c=source[pos]
-		pos+=1
-		if mode is None:
-			# Normal mode, e.g., following a non LWS char
-			if c==CR:
-				mode=CR
-			else: # we assume good TEXT
-				buffer.append(c)
-		elif mode==CR:
-			if c==LF:
-				mode=LF
-			else: # text with a bare CR, is bad but we pass on the CR and re-parse
-				buffer.append(CR)
-				mode=None
-				pos=pos-1
-		elif mode==LF:
-			if c==SP or c==HT:
-				mode=SP
-			else: # a bare CRLF is not unfolded, change mode and re-parse
-				buffer.append(CRLF)
-				mode=None
-				pos=pos-1
-		# mode==SP
-		elif c==SP or c==HT:
-			continue
-		else:
-			buffer.append(SP)
-			mode=None
-			pos=pos-1
-	# Clean up parser modes
-	if mode==CR:
-		buffer.append(CR)
-	elif mode==LF:
-		buffer.append(CRLF)
-	elif mode==SP:
-		# tricky one, source ends in an empty folded line!
-		buffer.append(SP)
-	return string.join(buffer,'')
-
 
 def IsHEX(c):
 	"""Given a character returns True if it matches the production for HEX."""
@@ -199,114 +82,344 @@ def IsHEXDIGITS(c):
 	else:	
 		return False
 
+SEPARATORS=set('()<>@,;:\\"/[]?={} \t')
+"""A set consisting of all the HTTP separator characters.  For example::
+
+	if c in SEPARATORS:
+		# do something"""
+
+
+def IsSEPARATOR(c):
+	"""Given a characters returns True if it matches the production for separators"""
+	return c in SEPARATORS
+
+
+class HTTPParser(BasicParser):
+	"""A special purpose parser for parsing core HTTP productions."""
+	
+	def ParseLWS(self):
+		"""Parses a single instance of the production LWS
+	
+		The return value is the LWS string parsed of None if there is no
+		LWS."""
+		savePos=self.pos
+		lws=[]
+		if self.Parse(CRLF):
+			lws.append(CRLF)
+		spLen=0
+		while True:
+			c=self.ParseOne(SP+HT)
+			if c is None:
+				break
+			else:
+				lws.append(c)
+				spLen+=1
+		if lws and spLen:
+			return string.join(lws,'')
+		self.SetPos(savePos)
+		return None
+
+	def ParseOneTEXT(self,unfold=False):
+		"""Parses a single TEXT instance.
+	
+		Parses a single character or run of LWS matching the production
+		TEXT.  The return value is the matching character, LWS string or
+		None if no TEXT was found.
+		
+		If *unfold* is True then any folding LWS is replaced with a
+		single SP.  It defaults to False"""
+		lws=self.ParseLWS()
+		if lws:
+			if unfold and lws[:2]==CRLF:
+				return SP
+			else:
+				return lws
+		elif IsOCTET(self.theChar) and not IsCTL(self.theChar):
+			result=self.theChar
+			self.NextChar()
+			return result
+		else:
+			return None
+	
+	def ParseTEXT(self,unfold=False):
+		"""Parses TEXT.
+	
+		Parses a run of characters matching the production TEXT.  The
+		return value is the matching TEXT string (including any LWS) or
+		None if no TEXT was found.
+		
+		If *unfold* is True then any folding LWS is replaced with a
+		single SP.  It defaults to False"""
+		text=[]
+		while self.theChar is not None:
+			t=self.ParseOneTEXT(unfold)
+			if t is not None:
+				text.append(t)
+			else:
+				break
+		if text:
+			return string.join(text,'')
+		else:
+			return None
+
+	def ParseToken(self):
+		"""Parses a token.
+		
+		Parses a single instance of the production token.  The return
+		value is the matching token string or None if no token was
+		found."""
+		token=[]
+		while self.theChar is not None:
+			if IsCTL(self.theChar) or IsSEPARATOR(self.theChar):
+				break
+			else:
+				token.append(self.theChar)
+				self.NextChar()
+		if token:
+			return string.join(token,'')
+		else:
+			return None
+
+	def ParseComment(self,unfold=False):
+		"""Parses a comment.
+		
+		Parses a single instance of the production comment.  The return
+		value is the entire matching comment string (including the
+		brackets, quoted pairs and any nested comments) or None if no
+		comment was found.
+		
+		If *unfold* is True then any folding LWS is replaced with a
+		single SP.  It defaults to False"""
+		if not self.Parse("("):
+			return None
+		comment=["("]
+		depth=1
+		while self.theChar is not None:
+			if self.Parse(")"):
+				comment.append(")")
+				depth-=1
+				if depth<1:
+					break
+			elif self.Parse("("):
+				comment.append("(")
+				depth+=1
+			elif self.Match("\\"):
+				qp=self.ParseQuotedPair()
+				if qp:
+					comment.append(qp)
+				else:
+					raise ValueError("Expected quoted pair: %s..."%self.Peek(5))
+			else:
+				ctext=self.ParseCText(unfold)
+				if ctext:
+					comment.append(ctext)
+				else:
+					break
+		comment=string.join(comment,'')
+		if depth:
+			raise ValueError("Unclosed comment: %s"%comment)
+		else:
+			return comment
+	
+	def ParseCText(self,unfold=False):
+		"""Parses ctext.
+	
+		Parses a run of characters matching the production ctext.  The
+		return value is the matching ctext string (including any LWS) or
+		None if no ctext was found.
+		
+		If *unfold* is True then any folding LWS is replaced with a
+		single SP.  It defaults to False
+		
+		Although the production for ctext would include the backslash
+		character we stop if we encounter one as the grammar is
+		ambiguous at this point."""
+		ctext=[]
+		while self.theChar is not None:
+			if self.MatchOne("()\\"):
+				break
+			else:
+				t=self.ParseOneTEXT(unfold)
+				if t is None:
+					break
+				else:
+					ctext.append(t)
+		if ctext:
+			return string.join(ctext,'')
+		else:
+			return None		
+
+	def ParseQuotedString(self,unfold=False):
+		"""Parses a quoted-string.
+		
+		Parses a single instance of the production quoted-string.  The
+		return value is the entire matching string (including the quotes
+		and any quoted pairs or None if no quoted-string was found.
+		
+		If *unfold* is True then any folding LWS is replaced with a
+		single SP.  It defaults to False"""
+		if not self.Parse(DQUOTE):
+			return None
+		qs=[DQUOTE]
+		while self.theChar is not None:
+			if self.Parse(DQUOTE):
+				qs.append(DQUOTE)
+				break
+			elif self.Match("\\"):
+				qp=self.ParseQuotedPair()
+				if qp:
+					qs.append(qp)
+				else:
+					raise ValueError("Expected quoted pair: %s..."%self.Peek(5))
+			else:
+				qdtext=self.ParseQDText(unfold)
+				if qdtext:
+					qs.append(qdtext)
+				else:
+					raise ValueError("Expected closing <\">: %s%s..."%(string.join(qs,''),self.Peek(5)))
+		return string.join(qs,'')
+
+	def ParseQDText(self,unfold=False):
+		"""Parses qdtext.
+	
+		Parses a run of characters matching the production qdtext.  The
+		return value is the matching qdtext string (including any LWS)
+		or None if no qdtext was found.
+
+		If *unfold* is True then any folding LWS is replaced with a
+		single SP.  It defaults to False
+
+		Although the production for qdtext would include the backslash
+		character we stop if we encounter one as the grammar is
+		ambiguous at this point."""
+		qdtext=[]
+		while self.theChar is not None:
+			if self.MatchOne("\\"+DQUOTE):
+				break
+			else:
+				t=self.ParseOneTEXT(unfold)
+				if t is None:
+					break
+				else:
+					qdtext.append(t)
+		if qdtext:
+			return string.join(qdtext,'')
+		else:
+			return None		
+
+	def ParseQuotedPair(self):
+		"""Parses a single quoted-pair.
+		
+		The return value is the matching string including the backslash
+		so it will always be of length 2 or None if no quoted-pair was
+		found."""
+		savePos=self.pos
+		if self.Parse("\\"):
+			if IsCHAR(self.theChar):
+				self.NextChar()
+				return "\\"+self.theChar
+			else:
+				self.SetPos(savePos)
+		return None
+	
+
+def DecodeQuotedString(qstring):
+	"""Decodes a quoted string, returning the unencoded string.
+	
+	Surrounding double quotes are removed and quoted characters (characters
+	preceded by \\) are unescaped."""
+	qstring=qstring[1:-1]
+	if qstring.find('\\')>=0:
+		# skip the loop if we don't have any escape sequences
+		qbuff=[]
+		escape=False
+		for c in qstring:
+			if not escape and c=='\\':
+				escape=True
+				continue
+			qbuff.append(c)
+			escape=False
+		return string.join(qbuff,'')
+	else:
+		return qstring
+
+
+def QuoteString(s):
+	"""Places a string in double quotes, returning the quoted string.
+	
+	This is the reverse of :py:func:`DecodeQuotedString`.  Note that
+	only the double quote, \\ and CTL characters other than SP and HT
+	are quoted in the output."""
+	qstring=['"']
+	for c in s:
+		if c in '\\"' or (IsCTL(c) and c not in SP+HT):
+			qstring.append('\\'+c)
+		else:
+			qstring.append(c)
+	qstring.append('"')
+	return string.join(qstring,'')
+
 
 class WordParser(object):
-	"""Splits a *source* string into words.
+	"""A word-level parser and tokeniser for the HTTP grammar.
 	
-	*source* is assumed to be *unfolded* TEXT.
+	*source* is the string to be parsed into words.  It will normally be
+	valid TEXT but it can contain control characters if they are escaped
+	as part of a comment or quoted string.
 	
-	By default the function ignores spaces according to the rules for implied
-	*LWS in the specification and neither SP nor HT will be stored in the word
-	list.  If you set *ignoreSpace* to False then LWS is not ignored and each
-	run of LWS is returned as a single SP in the word list."""
+	LWS is unfolded automatically.  By default the parser ignores spaces
+	according to the rules for implied LWS in the specification and
+	neither SP nor HT will be stored in the word list.  If you set
+	*ignoreSpace* to False then LWS is not ignored and each run of LWS
+	is returned as a single SP in the word list.
+
+	The resulting words may be a token, a single separator character, a
+	comment or a quoted string.  To determine the type of word, look at
+	the first character.
+		
+		*	'(' means the word is a comment, surrounded by '(' and ')'
+		
+		*	a double quote means the word is an encoded quoted string (use
+			py:func:`DecodeQuotedString` to decode it)
 	
+		*	other separator chars are just themselves and only appear as single
+			character strings.  (HT is never returned.)
+	
+		*	Any other character indicates a token.
+	
+	Method of the form Require\* raise :py:class:`SyntaxError` if the
+	production is not found."""
 	def __init__(self,source,ignoreSpace=True):
 		self.words=[]
-		"""The words are returned as a list of strings. A word may be a token, a
-		single separator character, a comment or a quoted string.  To determine the
-		type of word, look at the first character.
-		
-			*	'(' means the word is a comment, surrounded by '(' and ')'
-			
-			*	a double quote means the word is an encoded quoted string (use
-				py:func:`DecodeQuotedString` for how to decode it)
-		
-			*	other separator chars are just themselves and only appear as single
-				character strings.  (HT is never returned.)
-		
-			*	Any other character indicates a token."""
 		self.pos=0			#: a pointer to the current word in the list
 		self.cWord=None		#: the current word or None
-		self.InitParser(source,ignoreSpace)
-		
-	def InitParser(self,source,ignoreSpace=True):
-		self.words=[]
+		self._InitParser(source,ignoreSpace)
+	
+	def _InitParser(self,source,ignoreSpace=True):
+		p=HTTPParser(source)
+		while p.theChar is not None:
+			sp=False
+			while p.ParseLWS():
+				if not ignoreSpace:
+					sp=True
+			if sp:
+				self.words.append(SP)
+			if IsSEPARATOR(p.theChar):
+				if p.theChar=="(":
+					self.words.append(p.ParseComment(True))
+				elif p.theChar==DQUOTE:
+					self.words.append(p.ParseQuotedString(True))
+				else:
+					self.words.append(p.theChar)
+					p.NextChar()
+			else:
+				self.words.append(p.ParseToken())
 		self.pos=0
-		mode=None
-		pos=0
-		word=[]
-		while pos<len(source):
-			c=source[pos]
-			pos+=1
-			if mode is None:
-				# Start mode
-				if c in HTTP_SEPARATORS:
-					if c==DQUOTE or c=='(':
-						mode=c
-						word.append(c)
-					elif c==SP or c==HT:
-						mode=SP
-						if not ignoreSpace:
-							self.words.append(SP)
-					else:
-						self.words.append(c)	
-				else:
-					word.append(c)
-					mode='T'
-			elif mode=='T':
-				# Parsing a token
-				if c in HTTP_SEPARATORS:
-					# end the token and reparse
-					self.words.append(string.join(word,''))
-					word=[]
-					mode=None
-					pos=pos-1
-				else:
-					word.append(c)
-			elif mode==SP:
-				# Parsing a SP
-				if c==SP or c==HT:
-					continue
-				else:
-					# End of space separator, re-parse this char
-					mode=None
-					pos=pos-1
-			elif mode==DQUOTE:
-				word.append(c)
-				if c==DQUOTE:
-					self.words.append(string.join(word,''))
-					word=[]
-					mode=None
-				elif c=='\\':
-					mode='Q'
-			elif mode=='(':
-				word.append(c)
-				if c==')':
-					self.words.append(string.join(word,''))
-					word=[]
-					mode=None
-				elif c=='\\':
-					mode='q'
-			elif mode=='Q':
-				word.append(c)
-				mode=DQUOTE
-			elif mode=='q':
-				word.append(c)
-				mode='('
-		# Once the parse is done, clean up the mode:
-		if mode==DQUOTE or mode=='Q':
-			# Be generous and close the quote for them
-			word.append(DQUOTE)
-		elif mode=='(' or mode=='q':
-			# Likewise with the comment
-			word.append(')')
-		if word:
-			self.words.append(string.join(word,''))
 		if self.words:
 			self.cWord=self.words[0]
 		else:
 			self.cWord=None
-
+						
 	def SetPos(self,pos):
 		"""Sets the current position of the parser.
 		
@@ -320,7 +433,7 @@ class WordParser(object):
 				wp.RequireSeparator('/')
 				subtoken=wp.RequireToken()
 				return token,subtoken
-			except HTTPParameterError:
+			except SyntaxError:
 				wp.SetPos(savePos)
 				return None,None"""
 		self.pos=pos
@@ -329,12 +442,72 @@ class WordParser(object):
 		else:
 			self.cWord=None
 		
-	def Error(self,expected):
+	def Peek(self):
+		"""Returns the next word or an empty string if there are no more words."""
 		if self.cWord:
-			raise HTTPParameterError("Expected %s, found %s"%(expected,repr(self.cWord)))
+			return self.cWord
 		else:
-			raise HTTPParameterError("Expected %s"%expected)
+			return ""
 	
+	def Error(self,expected):
+		"""Raises :py:class:`SyntaxError`.
+		
+		*expected* a descriptive string indicating the expected
+		production."""
+		if self.cWord:
+			raise SyntaxError("Expected %s, found %s"%(expected,repr(self.cWord)))
+		else:
+			raise SyntaxError("Expected %s"%expected)
+	
+	def RequireProduction(self,result,production=None):
+		"""Returns *result* if not None or raises SyntaxError.
+		
+		*production*
+			can be used to customize the error message with the name of
+			the expected production."""
+		if result is None:
+			if production is None:
+				raise SyntaxError("Error at ...%s"%self.Peek())
+			else:
+				raise SyntaxError("Expected %s at ...%s"%(production,self.Peek()))
+		else:
+			return result
+
+	def ParseProduction(self,requireMethod,*args):
+		"""Executes the bound method *requireMethod* passing *args*.
+		
+		If successful the result of the method is returned.  If
+		SyntaxError is raised, the exception is caught, the parser
+		rewound and None is returned."""
+		savePos=self.pos
+		try:
+			return requireMethod(*args)
+		except SyntaxError:
+			self.SetPos(savePos)
+			return None
+			
+	def RequireProductionEnd(self,result,production=None):
+		"""Returns *result* if not None and parsing is complete or raises SyntaxError.
+		
+		*production*
+			can be used to customize the error message with the name of
+			the expected production."""
+		result=self.RequireProduction(result,production)
+		self.RequireEnd(production)
+		return result
+				
+	def RequireEnd(self,production=None):
+		"""Raises SyntaxError unless the parser is at the end of the word list.
+
+		*production*
+			can be used to customize the error message with the name of
+			the production being parsed."""
+		if self.cWord:
+			if production:
+				raise SyntaxError("Spurious data after %s: found %s"%(production,repr(self.cWord)))
+			else:
+				raise SyntaxError("Spurious data: %s"%repr(self.cWord))
+
 	def ParseWord(self):
 		"""Parses any word from the list returning the word consumed by the parser"""
 		result=self.cWord
@@ -347,7 +520,7 @@ class WordParser(object):
 		
 	def IsToken(self):
 		"""Returns True if the current word is a token"""
-		return self.cWord and self.cWord[0] not in HTTP_SEPARATORS
+		return self.cWord and self.cWord[0] not in SEPARATORS
 	
 	def ParseToken(self):
 		"""Parses a token from the list of words, returning the token or None."""
@@ -356,10 +529,32 @@ class WordParser(object):
 		else:
 			return None	
 	
+	def ParseTokenLower(self):
+		"""Parses a token from the list of words, returning the lower-cased token or None."""
+		if self.IsToken():
+			return self.ParseWord().lower()
+		else:
+			return None	
+	
+	def ParseTokenList(self):
+		"""Parses a token list from the list of words, returning the list or []."""
+		result=[]
+		while self.cWord:
+			token=self.ParseToken()
+			if token:
+				result.append(token)
+			elif self.ParseSeparator(','):
+				continue
+			else:
+				break
+		return result
+	
 	def RequireToken(self,expected="token"):
-		"""Returns the current token or raises HTTPParameterError.
+		"""Returns the current token or raises SyntaxError.
 
-		*	*expected* can be set to the name of the expected object."""
+		*expected*
+			the name of the expected production, it defaults to
+			"token"."""
 		token=self.ParseToken()
 		if token is None:
 			self.Error(expected)
@@ -378,7 +573,7 @@ class WordParser(object):
 			return None	
 	
 	def RequireInteger(self,expected="integer"):
-		"""Parses an integer or raises HTTPParameterError.
+		"""Parses an integer or raises SyntaxError.
 
 		*	*expected* can be set to the name of the expected object."""
 		result=self.ParseInteger()
@@ -386,25 +581,6 @@ class WordParser(object):
 			self.Error(expected)
 		else:
 			return result
-	
-	def ParseQualityValue(self):
-		"""Parses a q-value from the list of words returning the float equivalent value or None."""
-		if self.IsToken():
-			q=None
-			qSplit=self.cWord.split('.')
-			if len(qSplit)==1:
-				if IsDIGITS(qSplit[0]):
-					q=float(qSplit[0])
-			elif len(qSplit)==2:
-				if IsDIGITS(qSplit[0]) and IsDIGITS(qSplit[1]):
-					q=float("%.3f"%float(self.cWord))
-			if q is None or q>1.0:
-				return None
-			else:
-				self.ParseWord()
-				return q
-		else:
-			return None
 	
 	def IsSeparator(self,sep):
 		"""Returns True if the current word matches *sep*"""
@@ -421,7 +597,7 @@ class WordParser(object):
 			return False
 			
 	def RequireSeparator(self,sep,expected=None):
-		"""Parses *sep* or raises HTTPParameterError.
+		"""Parses *sep* or raises SyntaxError.
 
 		*	*expected* can be set to the name of the expected object."""
 		if self.cWord==sep:
@@ -455,7 +631,7 @@ class WordParser(object):
 				
 			*	*ignoreAllSpace* is a boolean (defaults to True) which causes the
 				function to ignore all LWS in the word list.  If set to False then space
-				around the '=' separator is treated as an error and raises HTTPParameterError.
+				around the '=' separator is treated as an error and raises SyntaxError.
 			
 			*	caseSensitive controls whether parameter names are treated as case
 				sensitive, defaults to False.
@@ -484,7 +660,7 @@ class WordParser(object):
 				else:
 					paramKey=paramName
 				if qMode and paramKey==qMode:
-					raise HTTPParameterError
+					raise SyntaxError
 				if ignoreAllSpace:
 					self.ParseSP()
 				self.RequireSeparator('=',"parameter")
@@ -497,7 +673,7 @@ class WordParser(object):
 				else:
 					self.Error("parameter value")
 				parameters[paramKey]=[paramName,paramValue]
-			except HTTPParameterError:
+			except SyntaxError:
 				self.SetPos(savePos)
 				break
 	
@@ -512,15 +688,6 @@ class WordParser(object):
 		self.SetPos(len(self.words))
 		return result
 				
-	def RequireEnd(self,production=None):
-		"""Raises HTTPParameterError unless the parser is at the end of the word list.
-
-		*	*production* is an optional name for the production being parsed."""
-		if self.cWord:
-			if production:
-				raise HTTPParameterError("Spurious data after %s: found %s"%(production,repr(self.cWord)))
-			else:
-				raise HTTPParameterError("Spurious data: %s"%repr(self.cWord))
 
 
 def SplitWords(source,ignoreSpace=True):
@@ -555,7 +722,7 @@ def SplitWords(source,ignoreSpace=True):
 		pos+=1
 		if mode is None:
 			# Start mode
-			if c in HTTP_SEPARATORS:
+			if c in SEPARATORS:
 				if c==DQUOTE or c=='(':
 					mode=c
 					word.append(c)
@@ -570,7 +737,7 @@ def SplitWords(source,ignoreSpace=True):
 				mode='T'
 		elif mode=='T':
 			# Parsing a token
-			if c in HTTP_SEPARATORS:
+			if c in SEPARATORS:
 				# end the token and reparse
 				words.append(string.join(word,''))
 				word=[]
@@ -660,42 +827,6 @@ def SplitItems(words,sep=",",ignoreNulls=True):
 	return items
 
 	
-def DecodeQuotedString(qstring):
-	"""Decodes a quoted string, returning the unencoded string.
-	
-	Surrounding double quotes are removed and quoted characters (characters
-	preceded by \\) are unescaped."""
-	qstring=qstring[1:-1]
-	# string the qpairs
-	if qstring.find('\\')>=0:
-		qbuff=[]
-		mode=None
-		for c in qstring:
-			if mode==None and c=='\\':
-				mode=c
-				continue
-			qbuff.append(c)
-			mode=None
-		return string.join(qbuff,'')
-	else:
-		return qstring
-
-
-def QuoteString(s):
-	"""Places a string in double quotes, returning the quoted string.
-	
-	This is the reverse of :py:func:`DecodeQuotedString`.  Note that only the
-	double quote and \\ characters are quoted in the output."""
-	qstring=['"']
-	for c in s:
-		if c=='\\':
-			qstring.append('\\\\')
-		elif c=='"':
-			qstring.append('\\"')
-		else:
-			qstring.append(c)
-	qstring.append('"')
-	return string.join(qstring,'')
 
 	
 def ParseToken(words,pos=0):
@@ -704,7 +835,7 @@ def ParseToken(words,pos=0):
 	Returns 1 if the word at position *pos* is a token and 0 otherwise."""
 	if pos<len(words):
 		token=words[pos]
-		if token[0] in HTTP_SEPARATORS:
+		if token[0] in SEPARATORS:
 			return 0
 		else:
 			return 1
@@ -734,7 +865,7 @@ def ParseParameters(words,parameters,pos=0,ignoreAllSpace=True,caseSensitive=Fal
 			
 		*	*ignoreAllSpace* is a boolean (defaults to True) which causes the
 			function to ignore all LWS in the word list.  If set to False then space
-			around the '=' separator is treated as an error and raises HTTPParameterError.
+			around the '=' separator is treated as an error and raises SyntaxError.
 		
 		*	caseSensitive controls whether parameter names are treated as case
 			sensitive, defaults to False.
@@ -770,7 +901,7 @@ def ParseParameters(words,parameters,pos=0,ignoreAllSpace=True,caseSensitive=Fal
 		elif mode==';':
 			if word==SP:
 				pass
-			elif word[0] in HTTP_SEPARATORS:
+			elif word[0] in SEPARATORS:
 				# Not a token!
 				break
 			else:
@@ -795,13 +926,13 @@ def ParseParameters(words,parameters,pos=0,ignoreAllSpace=True,caseSensitive=Fal
 			elif word[0]==DQUOTE:
 				# quoted string
 				param.append(DecodeQuotedString(word))
-			elif word[0] in HTTP_SEPARATORS:
+			elif word[0] in SEPARATORS:
 				break
 			else:
 				# token
 				param.append(word)
 			if badSpace and not ignoreAllSpace:
-				raise HTTPParameterError("LWS not allowed between parameter name and value: %s"%string.join(words,''))
+				raise SyntaxError("LWS not allowed between parameter name and value: %s"%string.join(words,''))
 			if caseSensitive:
 				parameters[param[0]]=param
 			else:

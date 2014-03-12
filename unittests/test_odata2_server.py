@@ -1484,7 +1484,7 @@ class SampleServerTests(unittest.TestCase):
 		documents.data[301]=(301,'A Book','An Author',None)
 		with memds.EntityCollection(documents.entitySet,documents) as collection:
 			doc=collection[301]
-			doc.SetStreamFromGenerator(http.MediaType("text/plain; charset=iso-8859-1"),["An opening line written in a Caf\xe9"])
+			doc.SetStreamFromGenerator(http.MediaType.FromString("text/plain; charset=iso-8859-1"),["An opening line written in a Caf\xe9"])
 		self.xContainer=memds.InMemoryEntityContainer(self.ds['SampleModel.ExtraEntities'])
 		bitsAndPieces=self.xContainer.entityStorage['BitsAndPieces']
 		bitsAndPieces.data[1]=(1,'blahblah')
@@ -2137,7 +2137,7 @@ class SampleServerTests(unittest.TestCase):
 		# include exactly one occurrence of this attribute.
 		# Any media type (see [IANA-MMT] ) is a valid value for this attribute.
 		pType=doc.root.DataServices["SampleModel.BitsAndPieces.Details"]
-		mType=http.MediaType(pType.GetAttribute(MimeType))
+		mType=http.MediaType.FromString(pType.GetAttribute(MimeType))
 		self.assertTrue(mType=="application/x-details","Expected x-details MimeType")	
 		self.assertTrue(version=="2.0","Expected data service version 2.0")
 		baseURI="/service.svc/$metadata?"
@@ -3002,7 +3002,7 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(request.responseCode==201)
 		# We expect a location header
 		self.assertTrue(request.responseHeaders['LOCATION']=="http://host/service.svc/Customers('STEVE')")
-		self.assertTrue(request.responseHeaders['CONTENT-TYPE']==http.MediaType("application/atom+xml"))
+		self.assertTrue(request.responseHeaders['CONTENT-TYPE']==http.MediaType.FromString("application/atom+xml"))
 		doc=Document()
 		doc.Read(request.wfile.getvalue())
 		self.assertTrue(isinstance(doc.root,Entry),"Expected a single Entry, found %s"%doc.root.__class__.__name__)
@@ -3074,7 +3074,7 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(request.responseCode==201)
 		# We expect a location header
 		self.assertTrue(request.responseHeaders['LOCATION']=="http://host/service.svc/Customers('STEVE')")
-		self.assertTrue(request.responseHeaders['CONTENT-TYPE']==http.MediaType('application/json'))
+		self.assertTrue(request.responseHeaders['CONTENT-TYPE']==http.MediaType.FromString('application/json'))
 		obj=json.loads(request.wfile.getvalue())		
 		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
 		obj=obj["d"]		
@@ -3196,7 +3196,7 @@ class SampleServerTests(unittest.TestCase):
 		location=request.responseHeaders['LOCATION']
 		self.assertTrue(location.startswith(u"http://host/service.svc/Documents("))
 		self.assertTrue(location[len(u"http://host/service.svc/Documents("):-1].isdigit(),"document Id is an integer")
-		self.assertTrue(request.responseHeaders['CONTENT-TYPE']==http.MediaType("application/atom+xml"))
+		self.assertTrue(request.responseHeaders['CONTENT-TYPE']==http.MediaType.FromString("application/atom+xml"))
 		# Document has a concurrency token so we expect an ETag too
 		self.assertTrue("ETAG" in request.responseHeaders)
 		self.assertTrue(request.responseHeaders['ETAG']=="W/\"X'%s'\""%h.hexdigest().upper(),"ETag value")
@@ -3222,7 +3222,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/atom+xml")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/atom+xml")
 		# Entity set can't have an ETag
 		self.assertFalse("ETAG" in request.responseHeaders,"Entity set ETag") 
 		doc=app.Document()
@@ -3236,7 +3236,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/json")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/json")
 		self.assertFalse("ETAG" in request.responseHeaders,"Entity set ETag") 
 		obj=json.loads(request.wfile.getvalue())		
 		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
@@ -3253,7 +3253,7 @@ class SampleServerTests(unittest.TestCase):
 		request.SetHeader('Accept','application/json')
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/json")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/json")
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("1.0;"),"DataServiceVersion 1.0 expected")
 		self.assertFalse("ETAG" in request.responseHeaders,"Entity set ETag") 
 		obj=json.loads(request.wfile.getvalue())		
@@ -3268,7 +3268,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/atom+xml")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/atom+xml")
 		# Customer does have a version field for optimistic concurrency control
 		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag") 
 		doc=Document()
@@ -3282,7 +3282,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/json")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/json")
 		# Customer does have a version field for optimistic concurrency control
 		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag") 
 		obj=json.loads(request.wfile.getvalue())		
@@ -3298,7 +3298,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("1.0;"),"DataServiceVersion 1.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/json")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/json")
 		# Customer does have a version field for optimistic concurrency control
 		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag") 
 		obj=json.loads(request.wfile.getvalue())		
@@ -3315,7 +3315,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/xml")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/xml")
 		# Customer does have a version field for optimistic concurrency control
 		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag") 
 		doc=Document()
@@ -3330,7 +3330,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/json")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/json")
 		# Customer does have a version field for optimistic concurrency control
 		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag") 
 		obj=json.loads(request.wfile.getvalue())		
@@ -3348,7 +3348,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("1.0;"),"DataServiceVersion 1.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/json")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/json")
 		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag") 
 		obj=json.loads(request.wfile.getvalue())		
 		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
@@ -3363,7 +3363,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/xml")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/xml")
 		# Customer does have a version field for optimistic concurrency control
 		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag") 
 		doc=Document()
@@ -3378,7 +3378,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/json")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/json")
 		# Customer does have a version field for optimistic concurrency control
 		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag") 
 		obj=json.loads(request.wfile.getvalue())		
@@ -3395,7 +3395,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("1.0;"),"DataServiceVersion 1.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/json")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/json")
 		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag") 
 		obj=json.loads(request.wfile.getvalue())		
 		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
@@ -3409,7 +3409,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaRange("text/plain").MatchMediaType(http.MediaType(request.responseHeaders['CONTENT-TYPE'])))
+		self.assertTrue(http.MediaRange.FromString("text/plain").MatchMediaType(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])))
 		# Customer does have a version field for optimistic concurrency control
 		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag")
 		self.assertTrue(request.wfile.getvalue()=='Example Inc',"Bad company")
@@ -3425,7 +3425,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/octet-stream")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/octet-stream")
 		# Customer does have a version field for optimistic concurrency control
 		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag")
 		self.assertTrue(request.wfile.getvalue()=='\x00\x00\x00\x00\x00\x00\xfa\x01',"Bad version")
@@ -3440,7 +3440,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/xml")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/xml")
 		doc=edmx.Document()
 		doc.Read(request.wfile.getvalue())
 		self.assertTrue(isinstance(doc.root,edmx.Edmx),"Expected Edmx from $metadata request, found %s"%doc.root.__class__.__name__)
@@ -3456,7 +3456,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/atomsvc+xml")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/atomsvc+xml")
 		doc=app.Document()
 		doc.Read(request.wfile.getvalue())
 		self.assertTrue(isinstance(doc.root,app.Service),"Expected atom service document, found %s"%doc.root.__class__.__name__)
@@ -3467,7 +3467,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/json")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/json")
 		obj=json.loads(request.wfile.getvalue())		
 		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
 		obj=obj["d"]		
@@ -3480,7 +3480,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/xml")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/xml")
 		self.assertFalse("ETAG" in request.responseHeaders,"Entity set ETag")
 		doc=Document()
 		doc.Read(request.wfile.getvalue())
@@ -3490,7 +3490,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/xml")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/xml")
 		self.assertFalse("ETAG" in request.responseHeaders,"Entity set ETag")
 		doc=Document()
 		doc.Read(request.wfile.getvalue())
@@ -3503,7 +3503,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/json")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/json")
 		self.assertFalse("ETAG" in request.responseHeaders,"Entity set ETag")
 		obj=json.loads(request.wfile.getvalue())		
 		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
@@ -3519,7 +3519,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("1.0;"),"DataServiceVersion 1.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/json")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/json")
 		self.assertFalse("ETAG" in request.responseHeaders,"Entity set ETag")
 		obj=json.loads(request.wfile.getvalue())		
 		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
@@ -3532,7 +3532,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaType(request.responseHeaders['CONTENT-TYPE'])=="application/json")
+		self.assertTrue(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])=="application/json")
 		self.assertFalse("ETAG" in request.responseHeaders,"Entity set ETag")
 		obj=json.loads(request.wfile.getvalue())		
 		self.assertTrue(type(obj)==DictType and len(obj)==1 and "d" in obj,"JSON object is security wrapped")
@@ -3545,7 +3545,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaRange("text/plain").MatchMediaType(http.MediaType(request.responseHeaders['CONTENT-TYPE'])))
+		self.assertTrue(http.MediaRange.FromString("text/plain").MatchMediaType(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])))
 		self.assertFalse("ETAG" in request.responseHeaders,"Count ETag")
 		self.assertTrue(request.wfile.getvalue()=="91","Sample server has 91 Customers")
 
@@ -3553,7 +3553,7 @@ class SampleServerTests(unittest.TestCase):
 		request=MockRequest("/service.svc/Documents(301)/$value")
 		request.Send(self.svc)
 		self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),"DataServiceVersion 2.0 expected")
-		self.assertTrue(http.MediaRange("text/plain ; charset=iso-8859-1").MatchMediaType(http.MediaType(request.responseHeaders['CONTENT-TYPE'])))
+		self.assertTrue(http.MediaRange.FromString("text/plain ; charset=iso-8859-1").MatchMediaType(http.MediaType.FromString(request.responseHeaders['CONTENT-TYPE'])))
 		self.assertTrue("ETAG" in request.responseHeaders,"Entity set ETag")		
 		self.assertTrue(request.responseCode==200)
 		self.assertTrue(unicode(request.wfile.getvalue(),"iso-8859-1")==unicode('An opening line written in a Caf\xc3\xa9','utf-8'),"media resource characters")

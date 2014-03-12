@@ -487,7 +487,7 @@ class FileValue(SingleValue):
 	def __init__(self):
 		super(FileValue,self).__init__()
 		self.baseType=BaseType.file
-		self.contentType=http.HTTPMediaType("application/octet-stream")
+		self.contentType=http.MediaType.FromString("application/octet-stream")
 		"""The content type of the file, a :py:class:`pyslet.rfc2616.HTTPMediaType` instance."""
 		self.fileName="data.bin"
 		"""The file name to use for the file."""

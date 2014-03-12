@@ -43,7 +43,7 @@ def ParseAuthParams(words,challenge,pos=0):
 		word=words[pos]
 		pos+=1
 		if mode is None:
-			if word[0] in HTTP_SEPARATORS:
+			if word[0] in SEPARATORS:
 				# Not a realm!
 				break
 			else:
@@ -52,7 +52,7 @@ def ParseAuthParams(words,challenge,pos=0):
 		elif mode=='n':
 			if word=='=':
 				mode=word
-			elif word[0] in HTTP_SEPARATORS:
+			elif word[0] in SEPARATORS:
 				# strange, that was the last param
 				break
 			else:
@@ -61,7 +61,7 @@ def ParseAuthParams(words,challenge,pos=0):
 		elif mode=='=':
 			if word[0]==DQUOTE:
 				value=DecodeQuotedString(word)
-			elif word[0] in HTTP_SEPARATORS:
+			elif word[0] in SEPARATORS:
 				break
 			else:
 				value=word

@@ -584,3 +584,238 @@ def ParseBlockTable():
 	f.close()
 
 
+class BasicParser(object):
+	"""An abstract class for parsing unicode strings."""
+
+	def __init__(self,source):
+		self.raw=type(source) is not types.UnicodeType
+		"""Indicates if source is being parsed raw (as OCTETS or plain ASCII
+		characters, or as Unicode characters.  This may affect the
+		interpretation of some productions."""
+		self.src=source		#: the string being parsed
+		self.pos=-1			#: the position of the current character
+		self.theChar=None
+		"""The current character or None if the parser is positioned outside the
+		src string."""
+		self.NextChar()
+	
+	def SetPos(self,newPos):
+		"""Sets the position of the parser to *newPos*"""
+		self.pos=newPos-1
+		self.NextChar()
+
+	def NextChar(self):
+		"""Points the parser at the next character, updating *pos* and *theChar*."""
+		self.pos+=1
+		if self.pos>=0 and self.pos<len(self.src):
+			self.theChar=self.src[self.pos]
+		else:
+			self.theChar=None
+
+	def Peek(self,nChars):
+		"""Returns a string consisting of the next *nChars* characters.
+		
+		If there are less than nChars remaining then a shorter string is returned."""
+		return self.src[self.pos:self.pos+nChars]
+	
+	def RequireProduction(self,result,production=None):
+		"""Returns *result* if not None or raises ValueError.
+		
+		*	production can be used to customize the error message."""
+		if result is None:
+			if production is None:
+				raise ValueError("Error at ...%s"%self.Peek(10))
+			else:
+				raise ValueError("Expected %s at ...%s"%(production,self.Peek(10)))
+		else:
+			return result
+
+	def ParseProduction(self,requireMethod,*args):
+		"""Executes the bound method *requireMethod* passing *args*.
+		
+		If successful the result of the method is returned.  If
+		ValueError is raised, the exception is caught, the parser
+		rewound and None is returned."""
+		savePos=self.pos
+		try:
+			return requireMethod(*args)
+		except ValueError:
+			self.SetPos(savePos)
+			return None
+			
+	def RequireProductionEnd(self,result,production=None):
+		"""Returns *result* if not None and parsing is complete or raises ValueError.
+		
+		*	production can be used to customize the error message."""
+		result=self.RequireProduction(result,production)
+		self.RequireEnd(production)
+		return result
+				
+	def Match(self,matchString):
+		"""Returns true if *matchString* is at the current position"""
+		if self.theChar is None:
+			return False
+		else:
+			return self.src[self.pos:self.pos+len(matchString)]==matchString
+			
+	def Parse(self,matchString):
+		"""Returns *matchString* if *matchString* is at the current position.
+		
+		Advances the parser to the first character after matchString.  Returns
+		an *empty string* otherwise"""
+		if self.Match(matchString):
+			self.SetPos(self.pos+len(matchString))
+			return matchString
+		else:
+			return ''
+
+	def ParseUntil(self,matchString):
+		"""Returns all characters up until the first instance of *matchString*.
+		
+		Advances the parser to the first character *of* matchString.  If
+		matchString is not found then all the remaining characters in
+		the source are parsed."""
+		matchPos=self.src.find(matchString,self.pos)
+		if matchPos==-1:
+			result=self.src[self.pos:]
+			self.SetPos(len(self.src))
+		else:
+			result=self.src[self.pos:matchPos]
+			self.SetPos(matchPos)
+		return result
+			
+	def Require(self,matchString,production=None):
+		"""Parses *matchString* or raises ValueError.
+		
+		*	production can be used to customize the error message."""
+		if not self.Parse(matchString):
+			tail="%s, found %s"%(repr(matchString),repr(self.Peek(len(matchString))))
+			if production is None:
+				raise ValueError("Expected %s"%tail)
+			else:
+				raise ValueError("%s: expected %s"%(production,tail))
+			
+	def MatchOne(self,matchChars):
+		"""Returns true if one of *matchChars* is at the current position"""
+		if self.theChar is None:
+			return False
+		else:
+			return self.theChar in matchChars
+
+	def ParseOne(self,matchChars):
+		"""Parses one of *matchChars*.  Returns the character or None if no match is found."""
+		if self.MatchOne(matchChars):
+			result=self.theChar
+			self.NextChar()
+			return result
+		else:
+			return None
+
+	def MatchInsensitive(self,lowerString):
+		"""Returns true if *lowerString* is at the current position (ignoring case).
+		
+		*lowerString* must be a lower-cased string."""
+		if self.theChar is None:
+			return False
+		else:
+			return self.src[self.pos:self.pos+len(lowerString)].lower()==lowerString
+			
+	def ParseInsensitive(self,lowerString):
+		"""Returns *lowerString* if *lowerString* is at the current position (ignoring case).
+		
+		Advances the parser to the first character after matchString.  Returns
+		an *empty string* otherwise.  *lowerString& must be a lower-cased
+		string."""
+		if self.MatchInsensitive(lowerString):
+			self.SetPos(self.pos+len(lowerString))
+			return lowerString
+		else:
+			return ''
+
+	def MatchDigit(self):
+		"""Returns true if the current character is a digit"""
+		return self.MatchOne("0123456789")
+
+	def ParseDigit(self):
+		"""Parses a digit character.  Returns the digit, or None if no digit is found."""
+		return self.ParseOne("0123456789")
+
+	def ParseDigits(self,min,max=None):
+		"""Parses min digits, and up to max digits, returning the string of digits.
+		
+		If *max* is None then there is no maximum.
+		
+		If min digits can't be parsed then None is returned."""
+		savePos=self.pos
+		result=[]
+		while max is None or len(result)<max:
+			d=self.ParseDigit()
+			if d is None:
+				break
+			else:
+				result.append(d)
+		if len(result)<min:
+			self.SetPos(savePos)
+			return None
+		return string.join(result,'')
+
+	def ParseInteger(self,min=None,max=None,maxDigits=None):
+		"""Parses an integer (or long) with value between min and max, returning the integer.
+		
+		*	*min* can be None to indicate no lower limit
+		
+		*	*max* can be None to indicate no upper limit
+		
+		*	*maxDigits* sets a limit on the number of digits
+		
+		If a suitable integer can't be parsed then None is returned."""
+		savePos=self.pos
+		d=self.ParseDigits(1,maxDigits)
+		if d is None:
+			return None
+		else:
+			d=int(d)
+			if (min is not None and d<min) or (max is not None and d>max):
+				self.SetPos(savePos)
+				return None
+			return d			
+				
+	def MatchHexDigit(self):
+		"""Returns true if the current character is a hex-digit"""
+		return self.MatchOne("0123456789ABCDEFabcdef")
+
+	def ParseHexDigit(self):
+		"""Parses a hex-digit character.  Returns the digit, or None if no digit is found."""
+		return self.ParseOne("0123456789ABCDEFabcdef")
+
+	def ParseHexDigits(self,min,max=None):
+		"""Parses min hex digits, and up to max hex digits, returning the string of hex digits.
+		
+		If *max* is None then there is no maximum.
+		
+		If min digits can't be parsed then None is returned."""
+		savePos=self.pos
+		result=[]
+		while max is None or len(result)<max:
+			d=self.ParseHexDigit()
+			if d is None:
+				break
+			else:
+				result.append(d)
+		if len(result)<min:
+			self.SetPos(savePos)
+			return None
+		return string.join(result,'')
+
+	def MatchEnd(self):
+		return self.theChar is None
+	
+	def RequireEnd(self,production=None):
+		if self.theChar is not None:
+			if production:
+				tail=" after %s"%production
+			else:
+				tail=""
+			raise ValueError("Spurious data%s, found %s"%(tail,repr(self.Peek(10))))
+
+

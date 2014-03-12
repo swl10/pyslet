@@ -136,7 +136,7 @@ class InMemoryEntityStore(object):
 				type,stream=self.streams[key]
 				return type,stream
 			else:
-				return http.MediaType('application/octet-stream'),''
+				return http.MediaType.FromString('application/octet-stream'),''
 
 	def UpdateEntity(self,e):
 		# e is an EntityTypeInstance, we need to convert it to a tuple

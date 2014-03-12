@@ -2518,11 +2518,13 @@ class SQLiteEntityContainer(SQLEntityContainer):
 
 	def ReadSQLValue(self,simpleValue,newValue):
 		"""Handle buffer types specially."""
-		if type(newValue)==BufferType:
+		if newValue is None:
+			simpleValue.SetNull()
+		elif type(newValue)==BufferType:
 			newValue=str(newValue)
 			simpleValue.SetFromValue(newValue)
 		elif isinstance(simpleValue,(edm.DateTimeValue,edm.DateTimeOffsetValue)):
-			# SQLite stores these as strings!
+			# SQLite stores these as strings
 			simpleValue.SetFromValue(iso.TimePoint.FromString(newValue,tDesignators="T "))
 		elif isinstance(simpleValue,edm.TimeValue):
 			simpleValue.value=iso.Time(totalSeconds=newValue)

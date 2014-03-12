@@ -102,6 +102,34 @@ def ParseScheme(octets):
 	return scheme
 
 
+def CanonicalizeData(source):
+	"""Returns the canonical form of *source* string.
+	
+	The canonical form is the same string but any unreserved characters
+	represented as hex escapes in source are unencoded and any unescaped
+	characters that are neither reserved nor unreserved are escaped."""
+	result=[]
+	pos=0
+	while pos<len(source):
+		c=source[pos]
+		if c=="%":
+			escape=source[pos+1:pos+3]
+			c=chr(int(escape,16))
+			if IsUnreserved(c):
+				result.append(c)
+			else:
+				result.append("%")
+				result.append(escape)
+			pos+=3
+		elif not (IsUnreserved(c) or IsReserved(c)):
+			result.append("%%%02X"%ord(c))
+			pos+=1
+		else:
+			result.append(c)
+			pos+=1
+	return string.join(result,'')
+			
+	
 def EscapeData(source,reservedFunction=IsReserved):
 	result=[]
 	for c in source:
@@ -838,11 +866,7 @@ class URI(object):
 		return URIFactory.URI(string.join(newURI,''))
  			
 	def Match(self,otherURI):
-		"""Compares this URI against otherURI returning True if they match.
-		
-		At the moment this is a very simple algorithm: just compare the octet
-		strings.  In the future we should canonicalize before comparing."""
-		
+		"""Compares this URI against otherURI returning True if they match."""
 		return str(self.Canonicalize())==str(otherURI.Canonicalize())
 		
 	def IsAbsolute(self):

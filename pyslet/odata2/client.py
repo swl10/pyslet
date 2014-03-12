@@ -106,7 +106,7 @@ class ODataCollectionMixin(object):
 		doc=core.Document(root=core.Entry(None,entity))
 		data=str(doc)
 		request=http.HTTPRequest(str(self.baseURI),'POST',reqBody=data)
-		request.SetContentType(http.MediaType(core.ODATA_RELATED_ENTRY_TYPE))
+		request.SetContentType(http.MediaType.FromString(core.ODATA_RELATED_ENTRY_TYPE))
 		self.client.ProcessRequest(request)
 		if request.status==201:
 			# success, read the entity back from the response
@@ -152,8 +152,13 @@ class ODataCollectionMixin(object):
 		if sysQueryOptions:
 			feedURL=uri.URIFactory.URI(str(feedURL)+"?"+core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
 		while True:
-			doc=core.Document(baseURI=feedURL,reqManager=self.client)
-			doc.Read()
+			request=http.HTTPRequest(str(feedURL))
+			request.SetHeader('Accept','application/atom+xml')
+			self.client.ProcessRequest(request)
+			if request.status!=200:
+				raise UnexpectedHTTPResponse("%i %s"%(req.status,req.response.reason))	
+			doc=core.Document(baseURI=feedURL)
+			doc.Read(request.resBody)
 			if isinstance(doc.root,atom.Feed):
 				if len(doc.root.Entry):
 					for e in doc.root.Entry:
@@ -275,7 +280,7 @@ class EntityCollection(ODataCollectionMixin,core.EntityCollection):
 		doc.root.SetValue(entity,True)
 		data=str(doc)
 		request=http.HTTPRequest(str(entity.GetLocation()),'PUT',reqBody=data)
-		request.SetContentType(http.MediaType(core.ODATA_RELATED_ENTRY_TYPE))
+		request.SetContentType(http.MediaType.FromString(core.ODATA_RELATED_ENTRY_TYPE))
 		self.client.ProcessRequest(request)
 		if request.status==204:
 			# success, nothing to read back but we're not done
@@ -457,7 +462,7 @@ class NavigationEntityCollection(ODataCollectionMixin,core.NavigationEntityColle
 			doc.root.SetValue(str(entity.GetLocation()))
 			data=str(doc)
 			request=http.HTTPRequest(str(self.linksURI),'PUT',reqBody=data)
-			request.SetContentType(http.MediaType('application/xml'))
+			request.SetContentType(http.MediaType.FromString('application/xml'))
 			self.client.ProcessRequest(request)
 			if request.status==204:
 				return
@@ -468,7 +473,7 @@ class NavigationEntityCollection(ODataCollectionMixin,core.NavigationEntityColle
 			doc.root.SetValue(str(entity.GetLocation()))
 			data=str(doc)
 			request=http.HTTPRequest(str(self.linksURI),'POST',reqBody=data)
-			request.SetContentType(http.MediaType('application/xml'))
+			request.SetContentType(http.MediaType.FromString('application/xml'))
 			self.client.ProcessRequest(request)
 			if request.status==204:
 				return
@@ -488,7 +493,7 @@ class NavigationEntityCollection(ODataCollectionMixin,core.NavigationEntityColle
 			doc.root.SetValue(str(entity.GetLocation()))
 			data=str(doc)
 			request=http.HTTPRequest(str(self.linksURI),'PUT',reqBody=data)
-			request.SetContentType(http.MediaType('application/xml'))
+			request.SetContentType(http.MediaType.FromString('application/xml'))
 			self.client.ProcessRequest(request)
 			if request.status==204:
 				return

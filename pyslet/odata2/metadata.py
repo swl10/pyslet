@@ -87,7 +87,7 @@ class Property(edm.Property,FeedCustomisationMixin):
 	
 	def GetMimeType(self):
 		try:
-			return http.MediaType(self.GetAttribute(MimeType))
+			return http.MediaType.FromString(self.GetAttribute(MimeType))
 		except KeyError:
 			return None
 
@@ -222,7 +222,7 @@ class Document(edmx.Document):
 			raise InvalidMetadataDocument("IsDefaultEntityContainer required on one and only one EntityContainer")
 		for p in self.root.FindChildrenDepthFirst(edm.Property):
 			try:
-				http.MediaType(p.GetAttribute(MimeType))
+				http.MediaType.FromString(p.GetAttribute(MimeType))
 			except http.HTTPParameterError,e:
 				raise InvalidMetadataDocument("MimeType format error in property %s: %s"%(p.name,str(e)))
 			except KeyError:

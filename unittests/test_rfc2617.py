@@ -123,7 +123,7 @@ class HTTP2617Tests(unittest.TestCase):
 		rm.QueueRequest(request2)
 		rm.ManagerLoop()
 		response2=request2.response
-		self.assertTrue(response2.protocolVersion=="HTTP/1.1","Protocol in response1: %s"%response1.protocolVersion)
+		self.assertTrue(str(response2.protocolVersion)=="HTTP/1.1","Protocol in response1: %s"%response1.protocolVersion)
 		self.assertTrue(response2.status==200,"Status in response1: %i"%response1.status)
 		self.assertTrue(response2.reason=="You got it!","Reason in response1: %s"%response1.reason)
 		self.assertTrue(request2.resBody==TEST_STRING,"Data in response1: %s"%request1.resBody)		
