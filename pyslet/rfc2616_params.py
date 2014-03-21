@@ -55,7 +55,8 @@ class HTTPVersion(object):
 			return 1
 		else:
 			return 0
-			
+
+HTTP_1_1=HTTPVersion(1,1)			
 
 class HTTPURL(uri.ServerBasedURL):
 	"""Represents http URLs"""
@@ -127,12 +128,12 @@ class FullDate(iso.TimePoint):
 		
 	def __str__(self):
 		"""Formats a :py:class:`pyslet.iso8601.TimePoint` instance in the
-		following format::
+		following format, described as RFC 1123 [8]-date format::
 		
 			Sun, 06 Nov 1994 08:49:37 GMT
 		
 		Note that this overrides the default behaviour which would be to use one
-		of the iso8601 formats."""
+		of the iso8601 output formats."""
 		century,year,month,day,hour,minute,second=self.GetCalendarTimePoint()
 		century,decade,dyear,week,dayOfWeek=self.date.GetWeekDay()
 		return "%s, %02i %s %04i %02i:%02i:%02i GMT"%(
@@ -438,6 +439,29 @@ class LanguageTag(object):
 			tags.append(sub.lower())
 		self._tag=tuple(tags)
 	
+	def PartialMatch(self,range):
+		"""Returns True if this tag is a partial match against *range*, False otherwise.
+		
+		range
+			A tuple of lower-cased subtags.  An empty tuple matches
+			all instances.
+		
+		For example::
+			
+			lang=LanguageTag("en",("US","Texas"))
+			lang.PartialMatch(())==True
+			lang.PartialMatch(("en",)==True
+			lang.PartialMatch(("en","us")==True
+			lang.PartialMatch(("en","us","texas")==True
+			lang.PartialMatch(("en","gb")==False
+			lang.PartialMatch(("en","us","tex")==False"""
+		if len(range)>len(self._tag):
+			return False
+		for i in xrange(len(range)):
+			if self._tag[i]!=range[i]:
+				return False
+		return True
+			 
 	@classmethod
 	def FromString(cls,source):
 		"""Creates a language tag from a *source* string.
@@ -451,6 +475,23 @@ class LanguageTag(object):
 		p.ParseSP()
 		p.RequireEnd("language tag")
 		return t
+					
+	@classmethod
+	def ListFromString(cls,source):
+		"""Creates a list of language tags from a *source* string."""
+		p=ParameterParser(source,ignoreSpace=False)
+		tags=[]
+		while True:
+			p.ParseSP()
+			t=p.ParseProduction(p.RequireLanguageTag)
+			if t is not None:
+				tags.append(t)
+			p.ParseSP()
+			if not p.ParseSeparator(","):
+				break
+		p.ParseSP()
+		p.RequireEnd("language tag")
+		return tags
 					
 	def __str__(self):
 		return string.join([self.primary]+list(self.subtags),'-')
@@ -471,6 +512,62 @@ class LanguageTag(object):
 
 	def __hash__(self):
 		return hash(self._tag)
+
+
+class EntityTag:
+	"""Represents an HTTP entity-tag.
+	
+	tag
+		The opaque tag
+	
+	weak
+		A boolean indicating if the entity-tag is a weak or strong
+		entity tag.
+		
+	The built-in str function can be used to format instances according
+	to the grammar defined in the specification.
+	
+	Instances must be treated as immutable, they define comparison
+	methods and a hash implementation to allow them to be used as keys
+	in dictionaries."""	
+	def __init__(self,tag,weak=True):
+		self.weak=weak		#: True if this is a weak tag
+		self.tag=tag		#: the opaque tag
+
+	@classmethod
+	def FromString(cls,source):
+		"""Creates an entity-tag from a *source* string."""
+		p=ParameterParser(source)
+		et=p.RequireEntityTag()
+		p.RequireEnd("entity-tag")
+		return et
+		
+	def __str__(self):
+		if self.weak:
+			return "W/"+QuoteString(self.tag)
+		else:
+			return QuoteString(self.tag)
+
+	def __unicode__(self):
+		return unicode(self.__str__())
+	
+	def __repr__(self):
+		return "EntityTag(%s,%s)"%(repr(self.tag),"True" if self.week else "False")
+			
+	def __cmp__(self,other):
+		"""Entity-tags are compared case sensitive."""
+		if type(other) in StringTypes:
+			other=EntityTag.FromString(other)
+		if not isinstance(other,EntityTag):
+			raise TypeError
+		result=cmp(self.tag,other.tag)
+		if not result:
+			# sorts strong tags before weak ones
+			result=cmp(self.weak,other.weak)
+		return result
+		
+	def __hash__(self):
+		return hash((self.tag,self.weak))
 
 
 class ParameterParser(WordParser):
@@ -667,6 +764,25 @@ class ParameterParser(WordParser):
 		self.ParseSP()
 		return LanguageTag(tag[0],*tag[1:])
 					
+	def RequireEntityTag(self):
+		"""Parses an entity-tag returning a :py:class:`EntityTag`
+		instance.  Raises SyntaxError if no language tag was
+		found."""		
+		self.ParseSP()
+		w=self.ParseToken()
+		self.ParseSP()
+		if w is not None:
+			if w.upper()!="W":
+				raise SyntaxError("Expected W/ or quoted string for entity-tag")
+			self.RequireSeparator("/","entity-tag")
+			self.ParseSP()
+			w=True
+		else:
+			w=False
+		tag=self.RequireProduction(self.ParseQuotedString(),"entity-tag")
+		self.ParseSP()
+		return EntityTag(tag,w)
+					
 
 for i in xrange(len(ParameterParser.wkday)):
 	ParameterParser._wkdayTable[ParameterParser.wkday[i].lower()]=i
@@ -675,4 +791,66 @@ for i in xrange(len(ParameterParser._weekday)):
 for i in xrange(len(ParameterParser.month)):
 	ParameterParser._monthTable[ParameterParser.month[i].lower()]=i
 		
+
+# HTTP_DAY_NUM={
+# 	"monday":0, "mon":0,
+# 	"tuesday":1, "tue":1,
+# 	"wednesday":2, "wed":2,
+# 	"thursday":3, "thu":3,
+# 	"friday":4, "fri":4,
+# 	"saturday":5, "sat":5,
+# 	"sunday":6, "sun":6 }
+# 
+# # Note that in Python time/datetime objects Jan has index 1!
+# HTTP_MONTH_NUM={
+# 	"jan":1,"feb":2,"mar":3,"apr":4,"may":5,"jun":6,"jul":7,"aug":8,"sep":9,"oct":10,"nov":11,"dec":12
+# 	}
+# 	
+# def ParseDate(dateStr):
+# 	date=string.split(dateStr.strip().lower())
+# 	if len(date)==4:
+# 		# e.g., "Sunday, 06-Nov-94 08:49:37 GMT"
+# 		date=date[0:1]+date[1].split('-')+date[2].split(':')+date[3:]
+# 	elif len(date)==5:
+# 		# e.g., "Sun Nov  6 08:49:37 1994"
+# 		date=[date[0]+',',date[2],date[1],date[4]]+date[3].split(':')+['gmt']
+# 	elif len(date)==6:
+# 		# e.g., "Sun, 06 Nov 1994 08:49:37 GMT" - the preferred format!
+# 		date=date[0:4]+date[4].split(':')+date[5:]
+# 	if len(date)!=8:
+# 		raise ValueError("Badly formed date: %s"%dateStr)
+# 	wday=HTTP_DAY_NUM[date[0][:-1]]
+# 	mday=int(date[1])
+# 	mon=HTTP_MONTH_NUM[date[2]]
+# 	year=int(date[3])
+# 	# No obvious guidance on base year for two-digit years by HTTP was
+# 	# first used in 1990 so dates before that are unlikely!
+# 	if year<90:
+# 		year=year+2000
+# 	elif year<100:
+# 		year=year+1900
+# 	hour=int(date[4])
+# 	min=int(date[5])
+# 	sec=int(date[6])
+# 	if date[7]!='gmt':
+# 		raise ValueError("HTTP date must have GMT timezone: %s"%dateStr)
+# 	result=datetime.datetime(year,mon,mday,hour,min,sec)
+# 	if result.weekday()!=wday:
+# 		raise ValueError("Weekday mismatch in: %s"%dateStr)
+# 	return result
+# 
+# 
+# HTTP_DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+# HTTP_MONTHS=["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+# 
+# def FormatDate(date):
+# 	# E.g., "Sun, 06 Nov 1994 08:49:37 GMT"
+# 	return "%s, %02i %s %04i %02i:%02i:%02i GMT"%(
+# 			HTTP_DAYS[date.weekday()],
+# 			date.day,
+# 			HTTP_MONTHS[date.month],
+# 			date.year,
+# 			date.hour,
+# 			date.minute,
+# 			date.second)
 	

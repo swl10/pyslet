@@ -547,7 +547,7 @@ class Date(object):
 		if days or weeks:
 			baseDay=self.GetAbsoluteDay()
 			baseDay+=days+7*weeks
-			d=Date(absoluteDay=baseDay)
+			d=type(self)(absoluteDay=baseDay)
 		if months or years or centuries:
 			day=self.day
 			month=d.month+months
@@ -559,7 +559,7 @@ class Date(object):
 				centuries+=year//100
 				year=year%100
 			century=d.century+centuries
-			return Date(century=century,year=year,month=month,day=day)
+			return type(self)(century=century,year=year,month=month,day=day)
 		else:
 			return d
 
@@ -781,7 +781,7 @@ class Date(object):
 		year-=1	
 		for m in mSizes[:month-1]:
 			day+=m
-		return Date(absoluteDay=(year//4)+(year*365)+day-2)
+		return cls(absoluteDay=(year//4)+(year*365)+day-2)
 
 	def GetJulianDay(self):
 		"""Returns a tuple of: (year,month,day) representing the
@@ -1098,7 +1098,7 @@ class Time(object):
 			raise TypeError("Can't construct Time from %s"%repr(src))
 
 	def _SetFromTotalSeconds(self,totalSeconds):
-		t,overflow=Time().Offset(seconds=totalSeconds)
+		t,overflow=type(self)().Offset(seconds=totalSeconds)
 		if overflow:
 			raise DateTimeError("Can't construct Time from totalSeconds=%i"%totalSeconds)
 		self.hour=t.hour
@@ -1245,7 +1245,7 @@ class Time(object):
 			newSecond=second
 		# always copy time zone from base
 		zDirection,zHour,zMinute=self.GetZone3()
-		newTime=Time(hour=newHour,minute=newMinute,second=newSecond,zDirection=zDirection,zHour=zHour,zMinute=zMinute)
+		newTime=type(self)(hour=newHour,minute=newMinute,second=newSecond,zDirection=zDirection,zHour=zHour,zMinute=zMinute)
 		if addHour or addMinute:
 			return newTime.Offset(hours=addHour,minutes=addMinute)
 		else:
@@ -1309,14 +1309,14 @@ class Time(object):
 				hour=hour%24
 		# always copy time zone from base
 		zDirection,zHour,zMinute=self.GetZone3()
-		return Time(hour=hour,minute=minute,second=second,zDirection=zDirection,zHour=zHour,zMinute=zMinute),days
+		return type(self)(hour=hour,minute=minute,second=second,zDirection=zDirection,zHour=zHour,zMinute=zMinute),days
 
 	def WithZone(self,zDirection,zHour=None,zMinute=None):
 		"""Constructs a :py:class:`Time` instance from an existing time
 		but with the time zone specified.  The time zone of the existing
 		time is ignored.  Pass *zDirection*=None to strip the zone
 		information completely."""
-		return Time(hour=self.hour,minute=self.minute,second=self.second,zDirection=zDirection,zHour=zHour,zMinute=zMinute)
+		return type(self)(hour=self.hour,minute=self.minute,second=self.second,zDirection=zDirection,zHour=zHour,zMinute=zMinute)
 	
 	def ShiftZone(self,zDirection,zHour=None,zMinute=None):
 		"""Constructs a :py:class:`Time` instance from an existing time
@@ -1361,7 +1361,7 @@ class Time(object):
 			overflow=-1
 		else:
 			overflow=0
-		return Time(hour=hour,minute=minute,second=second,zDirection=zDirection,zHour=zHour,zMinute=zMinute),overflow
+		return type(self)(hour=hour,minute=minute,second=second,zDirection=zDirection,zHour=zHour,zMinute=zMinute),overflow
 
 	@classmethod
 	def FromStructTime(cls,t):
@@ -1681,7 +1681,7 @@ class Time(object):
 		else:
 			raise ValueError
 		zDirection,zHour,zMinute=self.GetZone3()
-		return Time(hour=hour,minute=minute,second=second,zDirection=zDirection,zHour=zHour,zMinute=zMinute)		
+		return type(self)(hour=hour,minute=minute,second=second,zDirection=zDirection,zHour=zHour,zMinute=zMinute)		
 
 	def _CheckTime(self):
 		if self.zDirection is not None:
@@ -1757,7 +1757,7 @@ class Time(object):
 	
 	def SetSeconds (self,s):
 		warnings.warn("Time.SetSeconds is deprecated, use Time().Offset(seconds=s) instead", DeprecationWarning, stacklevel=2)		
-		t,overflow=Time().Offset(seconds=s)
+		t,overflow=type(self)().Offset(seconds=s)
 		self.SetFromTime(t)
 		return overflow
 # 		"""Set a fully-specified time based on s seconds past midnight.  If s is greater
@@ -1815,7 +1815,7 @@ class Time(object):
 	def SetTime(self,hour,minute,second,base=None):
 		warnings.warn("Time.SetTime is deprecated, use Time(hour=##,...) or base.Extend(hour=##,...) instead", DeprecationWarning, stacklevel=2)		
 		if base is None:
-			t=Time(hour=hour,minute=minute,second=second)
+			t=type(self)(hour=hour,minute=minute,second=second)
 			overflow=0
 		else:
 			t,overflow=base.Extend(hour=hour,minute=minute,second=second)
@@ -2038,7 +2038,7 @@ class Time(object):
 # 		self._CheckTime()
 # 		return overflow
 
-class TimePoint:
+class TimePoint(object):
 	"""A class for representing ISO timepoints
 		
 	TimePoints are constructed from a date and a time (which may or
@@ -2102,7 +2102,7 @@ class TimePoint:
 		"""Constructs a :py:class:`TimePoint` instance from an existing
 		TimePoint but with the time zone specified.  The time zone of
 		the existing TimePoint is ignored."""
-		return TimePoint(date=self.date,time=self.time.WithZone(zDirection=zDirection,zHour=zHour,zMinute=zMinute))
+		return type(self)(date=self.date,time=self.time.WithZone(zDirection=zDirection,zHour=zHour,zMinute=zMinute))
 		
 	def ShiftZone(self,zDirection,zHour=None,zMinute=None):
 		"""Constructs a :py:class:`TimePoint` instance from an existing TimePoint
@@ -2112,7 +2112,7 @@ class TimePoint:
 			d=self.date.Offset(days=overflow)
 		else:
 			d=self.date
-		return TimePoint(date=d,time=t)
+		return type(self)(date=d,time=t)
 		
 	def UpdateStructTime (self,t):
 		"""UpdateStructTime changes the year, month, date, hour, minute
@@ -2233,11 +2233,11 @@ class TimePoint:
 		since the time origin.  The resulting time has no zone.
 
 		This method uses python's gmtime(0) to obtain the Unix origin
-		time."""		 
+		time."""
 		utcTuple=pytime.gmtime(0)
 		t,overflow=Time.FromStructTime(utcTuple).Offset(seconds=unixTime)
 		d=Date.FromStructTime(utcTuple).Offset(days=overflow)
-		return TimePoint(date=d,time=t)
+		return cls(date=d,time=t)
 				
 	@classmethod
 	def FromNow(cls):
@@ -2269,7 +2269,7 @@ class TimePoint:
 		"""Constructs a :py:class:`TimePoint` instance from an existing
 		TimePoint but with the precision specified by *precision*.  For
 		more details see :py:meth:`Time.WithPrecision`"""
-		return TimePoint(date=self.date,time=self.time.WithPrecision(precision,truncate))
+		return type(self)(date=self.date,time=self.time.WithPrecision(precision,truncate))
 		
 	def _CheckTimePoint(self):
 		self.date._CheckDate()
@@ -2292,7 +2292,7 @@ class TimePoint:
 		are equal but are expressed in different time zones will still
 		compare equal."""
 		if not isinstance(other,TimePoint):
-			other=TimePoint(other)
+			other=type(self)(other)
 		# we need to follow the rules for comparing times
 		if self.time.GetPrecision()!=other.time.GetPrecision():
 			raise ValueError("Incompatible precision for comparison: "+str(other))

@@ -46,7 +46,8 @@ TEST_SERVER={
 
 BAD_REQUEST="HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n"
 
-class FakeHTTPConnection(HTTPConnection):
+class FakeHTTPConnection(Connection):
+
 	def NewSocket(self):
 		# Socket implementation to follow
 		logging.info("Opening connection to %s...",self.host)
@@ -116,18 +117,12 @@ class FakeHTTPConnection(HTTPConnection):
 
 class FakeHTTPRequestManager(HTTPRequestManager):
 
-	FakeHTTPConnectionClass=FakeHTTPConnection
+	ConnectionClass=FakeHTTPConnection
 
 	def __init__(self):
 		HTTPRequestManager.__init__(self)
 		self.socketSelect=self.select
 		
-	def NewConnection(self,scheme,server,port):
-		if scheme=='http':
-			return self.FakeHTTPConnectionClass(self,server,port)
-		else:
-			raise ValueError
-
 	def select(self,readers,writers,errors,timeout):
 		r=[]
 		for reader in readers:
@@ -203,7 +198,8 @@ class GenericParserTests(unittest.TestCase):
 		WORD_TESTRESULT=["Hi","(Hi Hi)","Hi","<","Hi",">","Hi","@","Hi",",","Hi",";","Hi",":","Hi","\\","Hi",
 			'"\\"Hi Hi\\""',"/","Hi","[","Hi","]","Hi","?","Hi","=","Hi","{","Hi","}","Hi","Hi","Hi","Hi"]
 		p=HTTPParser(WORD_TEST)
-		self.assertTrue(SplitWords(p.ParseTEXT(True))==WORD_TESTRESULT,"SplitWords")
+		p=WordParser(p.ParseTEXT(True))
+		self.assertTrue(p.words==WORD_TESTRESULT,"basic word parser")
 		# token
 		try:
 			CheckToken("Hi")
@@ -237,6 +233,40 @@ class GenericParserTests(unittest.TestCase):
 		self.assertFalse(p.cWord,"Expected no more words")
 		self.assertFalse(p.IsToken(),"Expected no token")
 
+	def testCaseParameter(self):
+		parameters={}
+		p=WordParser(' ;X=1 ;y=2;Zoo=";A=\\"Three\\""')
+		p.ParseParameters(parameters)
+		self.assertTrue(parameters=={'x':['X','1'],'y':['y','2'],'zoo':['Zoo',';A="Three"']},"Paremters: %s"%repr(parameters))
+		try:
+			parameters={}
+			p=WordParser('token ;X =1',ignoreSpace=False)
+			p.ParseParameters(parameters,ignoreAllSpace=False)
+			p.RequireEnd()
+			self.fail("ParseParameters: ignoreSpace=False")
+		except SyntaxError:
+			pass
+		parameters={}
+		p=WordParser(' ;X=1 ;q=2;Zoo=";A=\\"Three\\""')
+		p.ParseParameters(parameters,qMode="q")
+		self.assertTrue(parameters=={'x':['X','1']},"Paremters: %s"%repr(parameters))
+		parameters={}
+		p.ParseParameters(parameters)
+		self.assertTrue(parameters=={'q':['q','2'],'zoo':['Zoo',';A="Three"']},"Paremters: %s"%repr(parameters))
+		parameters={}
+		p=WordParser(' ;X=1 ;y=2;Zoo=";A=\\"Three\\""')
+		p.ParseParameters(parameters,caseSensitive=True)
+		self.assertTrue(parameters=={'X':['X','1'],'y':['y','2'],'Zoo':['Zoo',';A="Three"']},"Paremters: %s"%repr(parameters))
+	
+# 	def testCaseList(self):
+# 		words=SplitWords(',hello, "Hi"(Hello), goodbye,  ')
+# 		items=SplitItems(words,ignoreNulls=False)
+# 		self.assertTrue(items[0]==[],"Leading empty item")
+# 		self.assertTrue(items[1]==["hello"],"Token item")
+# 		self.assertTrue(items[2]==['"Hi"',"(Hello)"],"Complex item")
+# 		self.assertTrue(items[3]==['goodbye'],"Leading space item")
+# 		self.assertTrue(items[4]==[],"Trailing empty item")
+	
 
 class ProtocolParameterTests(unittest.TestCase):
 
@@ -413,33 +443,29 @@ class ProtocolParameterTests(unittest.TestCase):
 		# test for hash
 		self.assertTrue(hash(LanguageTag.FromString("en-us"))==hash(LanguageTag.FromString("en-US")),"case insensitive hash")
 		
-	def testCaseRelativeQualityToken(self):
-		rqTokens=[]
-		rqToken=RelativeQualityToken()
-		self.assertTrue(rqToken.token=="*" and rqToken.q is None,"RelativeQualityToken constructor")
-		self.assertTrue(str(rqToken)=="*","RelativeQualityToken Format default")
-		rqToken=RelativeQualityToken("gzip",0.5)
-		self.assertTrue(str(rqToken)=="gzip;q=0.5","RelativeQualityToken custom constructor Format default")
-		rqTokens=RelativeQualityToken.ListFromString(" gzip;q=1.0, identity; q=0.5, *;q=0")
-		self.assertTrue(rqTokens[0].token=='gzip' and rqTokens[0].q==1.0,
-			"Parse accept encodings: gzip;q=1.0")
-		self.assertTrue(str(rqTokens[0])=="gzip;q=1.0","Format accept encodings: gzip;q=1.0")
-		self.assertTrue(rqTokens[1].token=='identity' and rqTokens[1].q==0.5,
-			"Accept encodings identity;q=0.5")
-		self.assertTrue(str(rqTokens[1])=="identity;q=0.5","Format accept encodings: identity;q=0.5")
-		self.assertTrue(rqTokens[2].token=='*' and rqTokens[2].q==0,
-			"Accept encodings *;q=0")
-		self.assertTrue(str(rqTokens[2])=="*;q=0","Format accept encodings: *;q=0")
-		# The next loop checks we are over-writing quality OK if left blank
-		rqTokens[0].ParseWords(WordParser(" compress"))
-		self.assertTrue(rqTokens[0].token=='compress' and rqTokens[0].q is None and str(rqTokens[0])=="compress",
-			"Accept encodings compress")
-		rqTokens[1].ParseWords(WordParser("gzip"))
-		self.assertTrue(rqTokens[1].token=='gzip' and rqTokens[1].q is None and str(rqTokens[1])=="gzip",
-			"Accept encodings gzip")
-		# Final tests check bad values for q
-		rqToken=RelativeQualityToken.ListFromString("x;q=1.3")[0]
-		self.assertTrue(rqToken.q==1.0,"Large q value")
+	def testCaseEntityTag(self):
+		try:
+			eTag=EntityTag()
+			self.fail("Required tag in constructor")
+		except TypeError:
+			pass
+		eTag=EntityTag("hello")
+		self.assertTrue(eTag.weak,"ETag constructor makes weak tags")
+		eTag=EntityTag("hello",False)
+		self.assertFalse(eTag.weak,"ETag constructor with strong tag")
+		self.assertTrue(eTag.tag,"ETag constructor tag not None")
+		eTag=EntityTag.FromString('W/"hello"')
+		self.assertTrue(eTag.weak,"Failed to parse weak tag")
+		self.assertTrue(eTag.tag=="hello","Failed to parse ETag value")
+		eTag=EntityTag.FromString('w/ "h\\"ello"')
+		self.assertTrue(eTag.weak,"Failed to parse weak tag with lower case 'w'")
+		self.assertTrue(eTag.tag=='h"ello',"Failed to unpick quoted pair from ETag value; found %s"%repr(eTag.tag))
+		eTag=EntityTag.FromString('"hello"')
+		self.assertFalse(eTag.weak,"Failed to parse strong tag")
+		self.assertTrue(eTag.tag=="hello","Failed to parse ETag value")
+		eTag=EntityTag.FromString(u'"hello"')
+		self.assertFalse(eTag.weak,"Failed to parse strong tag")
+		self.assertTrue(eTag.tag=="hello","Failed to parse ETag value")
 
 				
 class HeaderTests(unittest.TestCase):
@@ -539,6 +565,225 @@ class HeaderTests(unittest.TestCase):
 		bestType=al.SelectType([MediaType.FromString('image/png')])
 		self.assertTrue(str(bestType)=="image/png","Best partial match: %s"%str(bestType))
 		
+	def testCaseAcceptTokenList(self):
+		rqToken=AcceptToken()
+		self.assertTrue(rqToken.token=="*" and rqToken.q==1.0,"AcceptToken constructor")
+		self.assertTrue(str(rqToken)=="*","AcceptToken Format default")
+		rqToken=AcceptToken("gzip",0.5)
+		self.assertTrue(str(rqToken)=="gzip;q=0.5","AcceptToken custom constructor Format default: %s"%str(rqToken))
+		rqTokens=AcceptTokenList.FromString(" gzip;q=1.0, identity; q=0.5, *;q=0")
+		self.assertTrue(rqTokens[0].token=='gzip' and rqTokens[0].q==1.0,
+			"Parse accept encodings: gzip;q=1.0")
+		self.assertTrue(str(rqTokens[0])=="gzip","Format accept encodings: found %s"%str(rqTokens[0]))
+		self.assertTrue(rqTokens[1].token=='identity' and rqTokens[1].q==0.5,
+			"Accept encodings identity;q=0.5")
+		self.assertTrue(str(rqTokens[1])=="identity;q=0.5","Format accept encodings: identity;q=0.5")
+		self.assertTrue(rqTokens[2].token=='*' and rqTokens[2].q==0,
+			"Accept encodings *;q=0")
+		self.assertTrue(str(rqTokens[2])=="*;q=0","Format accept encodings: found %s"%str(rqTokens[2]))
+		# Final tests check bad values for q
+		rqToken=AcceptToken.FromString("x;q=1.3")
+		self.assertTrue(rqToken.q==1.0,"Large q value")
+
+	def testCaseAcceptCharsetList(self):
+		# checks the rule that iso-8859-1, if not present explicitly, matches *
+		rqTokens=AcceptCharsetList.FromString(" utf-8;q=1.0, symbol; q=0.5, *;q=0.5")
+		self.assertTrue(rqTokens.SelectToken(["iso-8859-1"]) is not None,"match *")
+		# so if * is excluded then it will be excluded
+		rqTokens=AcceptCharsetList.FromString(" utf-8;q=1.0, symbol; q=0.5, *;q=0")
+		self.assertTrue(rqTokens.SelectToken(["iso-8859-1"]) is None,"match * q=0")
+		# and if * is not present it gets q value 1		
+		rqTokens=AcceptCharsetList.FromString(" utf-8;q=1.0, symbol; q=0.5")
+		self.assertTrue(rqTokens.SelectToken(["symbol","iso-8859-1"])=="iso-8859-1","default q=1 for latin-1")
+
+	def testCaseAcceptEncodingList(self):
+		rqTokens=AcceptEncodingList.FromString("compress, gzip")
+		self.assertTrue(rqTokens.SelectToken(["gzip"]) is not None,"match token")
+		rqTokens=AcceptEncodingList.FromString("compress, gzip;q=0")
+		self.assertTrue(rqTokens.SelectToken(["gzip"]) is None,"match token unless q=0")
+		rqTokens=AcceptEncodingList.FromString("compress, *, gzip;q=0")
+		self.assertTrue(rqTokens.SelectToken(["gzip"]) is None,"match token unless q=0; unmatched *")
+		rqTokens=AcceptEncodingList.FromString("compress, *;q=0")
+		self.assertTrue(rqTokens.SelectToken(["gzip"]) is None,"match * q=0")
+		rqTokens=AcceptEncodingList.FromString("compress; q=0.5, gzip;q=0.75")
+		self.assertTrue(rqTokens.SelectToken(["compress","gzip"])=="gzip","match highest q")
+		rqTokens=AcceptEncodingList.FromString("compress; q=0.5, gzip;q=0.75, *;q=1")
+		self.assertTrue(rqTokens.SelectToken(["compress","gzip","weird"])=="weird","match highest q *")
+		rqTokens=AcceptEncodingList.FromString("compress; q=0.5, gzip;q=0.75")
+		self.assertTrue(rqTokens.SelectToken(["identity"]) is not None,"identity acceptable")
+		rqTokens=AcceptEncodingList.FromString("compress; q=0.5, gzip;q=0.75, identity;q=0")
+		self.assertTrue(rqTokens.SelectToken(["identity"]) is None,"identity unacceptable")
+		rqTokens=AcceptEncodingList.FromString("compress; q=0.5, gzip;q=0.75, *;q=0")
+		self.assertTrue(rqTokens.SelectToken(["identity"]) is None,"identity unacceptable *")
+		rqTokens=AcceptEncodingList.FromString("")
+		self.assertTrue(rqTokens.SelectToken(["identity"]) is not None,"identity acceptable (empty)")
+		self.assertTrue(rqTokens.SelectToken(["gzip"]) is None,"gzip unacceptable (empty)")
+
+	def testCaseAcceptLanguageList(self):
+		rqTokens=AcceptLanguageList.FromString(" da, en-gb;q=0.8, en;q=0.7 ")
+		self.assertTrue(rqTokens.SelectToken(["en-US"])=="en-US","match prefix")
+		self.assertTrue(type(rqTokens.SelectToken(["en-US"])) in StringTypes,"SelectToken return type")
+		match=rqTokens.SelectLanguage([LanguageTag.FromString("en-US")])
+		self.assertTrue(match=="en-US","match prefix (tag version)")
+		self.assertTrue(isinstance(match,LanguageTag),"SelectLanguage return type")
+		rqTokens=AcceptLanguageList.FromString(" da, en-gb;q=0.8, en;q=0.7 ")
+		self.assertTrue(rqTokens.SelectLanguage([LanguageTag.FromString("eng-US")]) is None,"match prefix only")
+		match=rqTokens.SelectLanguage([LanguageTag.FromString("en-US"),LanguageTag.FromString("en-gb")])
+		self.assertTrue(match=="en-gb","match preference: found %s"%repr(match))
+		rqTokens=AcceptLanguageList.FromString(" da, en-gb;q=0.8, en;q=0.7, *;q=0.75 ")
+		self.assertTrue(rqTokens.SelectLanguage([
+			LanguageTag.FromString("en-US"),
+			LanguageTag.FromString("de"),
+			LanguageTag.FromString("en-gb")
+			])=="en-gb","match preference")
+		self.assertTrue(rqTokens.SelectLanguage([
+			LanguageTag.FromString("en-US"),
+			LanguageTag.FromString("de"),
+			])=="de","match preference")
+		self.assertTrue(rqTokens.SelectLanguage([
+			LanguageTag.FromString("en-gb-drawl-berkshire-westreading")]) is not None,"match long prefix only")
+		rqTokens=AcceptLanguageList.FromString(" da, en-us;q=0.8, en-sg;q=0.7")
+		self.assertTrue(rqTokens.SelectLanguage([
+			LanguageTag.FromString("en-gb-drawl-berkshire-westreading")]) is None,"no match on long prefix only")
+		rqTokens=AcceptLanguageList.FromString(" da, en-us;q=0.8, en-sg;q=0.7, en-gb-drawl-berkshire")
+		self.assertTrue(rqTokens.SelectLanguage([
+			LanguageTag.FromString("en-gb-drawl-berkshire-westreading")]) is not None,"match on long prefix")
+
+	def testCaseAcceptRanges(self):
+		ar=AcceptRanges()
+		# none maps to an empty set of ranges
+		self.assertTrue(len(ar)==0,"Default to none")
+		self.assertTrue(str(ar)=="none","Default to none, str")
+		ar=AcceptRanges("none")
+		self.assertTrue(len(ar)==0,"Explicit none")
+		self.assertTrue(str(ar)=="none","Explicit none, str")
+		ar=AcceptRanges("bytes","bits")
+		self.assertTrue(len(ar)==2,"bytes and bits")
+		self.assertTrue(ar[0]=="bytes","bytes at index 0")
+		self.assertTrue(ar[1]=="bits","bits at index 1")
+		self.assertTrue(str(ar)=="bytes, bits","bytes and bits, str")
+		try:
+			x=ar[2]
+			self.fail("Expected index error")
+		except IndexError:
+				pass
+		try:
+			ar2=AcceptRanges.FromString("")
+			self.fail("range unit required")
+		except SyntaxError:
+			pass
+		ar2=AcceptRanges.FromString("Bits,Bytes")
+		self.assertTrue(ar2==ar,"Equality test is case insensitive and sorted")
+		self.assertTrue(str(ar2)=="Bits, Bytes","str preserves order and case but not spae")
+		try:
+			ar3=AcceptRanges("bytes","none","bits")
+			self.fail("none must be alone")
+		except SyntaxError:
+			pass
+	
+	def testCaseAllow(self):
+		allow=Allow()
+		# none maps to an empty list of methods
+		self.assertTrue(len(allow)==0,"Default to no methods")
+		self.assertTrue(str(allow)=="","Default to no methods, str")
+		allow=Allow("GET","head","PUT")
+		self.assertTrue(len(allow)==3,"3 methods")
+		self.assertTrue(str(allow)=="GET, HEAD, PUT","Force upper-case on str")
+		self.assertTrue(allow[1]=="HEAD","HEAD at index 1")
+		self.assertTrue(allow.Allowed("head"),"method test case insensitive")
+		try:
+			x=allow[3]
+			self.fail("Expected index error")
+		except IndexError:
+				pass
+		allow2=Allow.FromString("")
+		self.assertTrue(len(allow2)==0,"Empty string allowed for no methods")		
+		allow2=Allow.FromString("PUT, get  ,, hEAd")
+		self.assertTrue(allow2==allow,"Equality test is case insensitive and sorted")
+		self.assertTrue(str(allow2)=="PUT, GET, HEAD","str preserves order but not case or space")
+	
+	def testCaseCacheControl(self):
+		try:
+			cc=CacheControl()
+			self.fail("Constructor requires at least one directive")
+		except TypeError:
+			pass
+		cc=CacheControl("NO-cache")
+		self.assertTrue(len(cc)==1,"One item in cc")
+		self.assertTrue("no-cache" in cc,"Case insensitive check")
+		self.assertTrue(str(cc)=="no-cache","Case insenstivie rendering")
+		cc=CacheControl("no-store",("max-age",60))
+		self.assertTrue(len(cc)==2,"Two items in cc")
+		self.assertTrue("max-age" in cc,"Tuple in constructor check")
+		self.assertTrue(str(cc)=="no-store, max-age=60","Unsorted rendering with token")
+		cc=CacheControl("no-store",("private",("x","y","z")))
+		self.assertTrue(len(cc)==2,"Two items in cc")
+		self.assertTrue("private" in cc,"Tuple with tuple in constructor check")
+		self.assertTrue(str(cc)=="no-store, private=\"x, y, z\"","Quoted string")
+		self.assertTrue(cc[0]=="no-store","integer index")
+		self.assertTrue(cc[1]==("private",("x","y","z")),"integer index 1")
+		self.assertTrue(cc["no-store"]==None,"key no value")
+		self.assertTrue(cc["private"]==("x","y","z"),"key tuple value")
+		cc=CacheControl("no-transform",("ext","token"),("ext2","token=4"))
+		self.assertTrue(str(cc)=="no-transform, ext=token, ext2=\"token=4\"","Token and Quoted string")
+	
+	def testCaseContentRange(self):
+		cr=ContentRange()
+		try:
+			len(cr)
+			self.fail("length of unsatisifed byte range not allowed")
+		except ValueError:
+			pass
+		self.assertTrue(cr.firstByte is None)
+		self.assertTrue(cr.lastByte is None)		
+		self.assertTrue(cr.totalLength is None)
+		self.assertFalse(cr.IsValid(),"range is not valid")
+		self.assertTrue(str(cr)=="bytes */*","str output")
+		try:
+			cr=ContentRange(0)
+			self.fail("Contstructor requires byte ranges")
+		except TypeError:
+			pass
+		cr=ContentRange(None,None,1234)
+		try:
+			len(cr)
+			self.fail("length of unsatisfied byte range")
+		except ValueError:
+			pass
+		self.assertFalse(cr.IsValid(),"range is not valid")		
+		self.assertTrue(cr.totalLength==1234)
+		cr=ContentRange(0,499)
+		self.assertTrue(len(cr)==500,"Length of content range")
+		self.assertTrue(cr.IsValid(),"range is valid")
+		self.assertTrue(cr.firstByte==0 and cr.lastByte==499,"field values")
+		self.assertTrue(cr.totalLength==None,"Unknown total length")
+		self.assertTrue(str(cr)=="bytes 0-499/*","str output")
+		cr1=ContentRange.FromString("bytes 0-499 / 1234")
+		self.assertTrue(cr1.firstByte==0 and cr1.lastByte==499 and cr1.totalLength==1234)
+		self.assertTrue(cr1.IsValid())
+		self.assertTrue(str(cr1)=="bytes 0-499/1234")
+		cr2=ContentRange.FromString("bytes 500-999/1234")
+		self.assertTrue(cr2.firstByte==500 and len(cr2)==500)
+		self.assertTrue(cr2.IsValid())
+		cr3=ContentRange.FromString("bytes 500-1233/1234")
+		self.assertTrue(cr3.IsValid())
+		self.assertTrue(len(cr3)==1234-500)
+		cr4=ContentRange.FromString("bytes 734-1233/1234")
+		self.assertTrue(cr4.IsValid())
+		self.assertTrue(len(cr4)==500)
+		cr5=ContentRange.FromString("bytes 734-734/1234")
+		self.assertTrue(cr5.IsValid())
+		self.assertTrue(len(cr5)==1)
+		cr6=ContentRange.FromString("bytes 734-733/1234")
+		self.assertFalse(cr6.IsValid())
+		try:
+			len(cr6)
+			self.fail("Invalid range generates error on len")
+		except ValueError:
+			pass
+		cr7=ContentRange.FromString("bytes 734-1234/1234")
+		self.assertFalse(cr7.IsValid())
+				
 
 class HTTP2616Tests(unittest.TestCase):
 	def setUp(self):
@@ -546,79 +791,7 @@ class HTTP2616Tests(unittest.TestCase):
 		
 	def tearDown(self):
 		os.chdir(self.cwd)
-	
-	def testCaseParameter(self):
-		parameters={}
-		nWords=ParseParameters(SplitWords('token ;X=1 ;y=2;Zoo=";A=\\"Three\\""'),parameters,1)
-		self.assertTrue(nWords==12,"ParseParameters result: %i"%nWords)
-		self.assertTrue(parameters=={'x':['X','1'],'y':['y','2'],'zoo':['Zoo',';A="Three"']},"Paremters: %s"%repr(parameters))
-		parameters={}
-		try:
-			nWords=ParseParameters(SplitWords('token ;X =1',ignoreSpace=False),parameters,1,ignoreAllSpace=False)
-			self.fail("ParseParameters: ignoreSpace=False")
-		except SyntaxError:
-			pass
-		parameters={}
-		nWords=ParseParameters(SplitWords('token ;X=1 ;q=2;Zoo=";A=\\"Three\\""'),parameters,1,qMode="q")
-		self.assertTrue(nWords==4,"ParseParameters qMode result: %i"%nWords)
-		self.assertTrue(parameters=={'x':['X','1']},"Paremters: %s"%repr(parameters))
-		parameters={}
-		nWords=ParseParameters(SplitWords('token ;X=1 ;q=2;Zoo=";A=\\"Three\\""'),parameters,1+nWords)
-		self.assertTrue(nWords==8,"ParseParameters qMode result 2: %i"%nWords)
-		self.assertTrue(parameters=={'q':['q','2'],'zoo':['Zoo',';A="Three"']},"Paremters: %s"%repr(parameters))
-		parameters={}
-		nWords=ParseParameters(SplitWords('token ;X=1 ;y=2;Zoo=";A=\\"Three\\""'),parameters,1,caseSensitive=True)
-		self.assertTrue(nWords==12,"ParseParameters caseSensitive result: %i"%nWords)
-		self.assertTrue(parameters=={'X':['X','1'],'y':['y','2'],'Zoo':['Zoo',';A="Three"']},"Paremters: %s"%repr(parameters))
-	
-	def testCaseList(self):
-		words=SplitWords(',hello, "Hi"(Hello), goodbye,  ')
-		items=SplitItems(words,ignoreNulls=False)
-		self.assertTrue(items[0]==[],"Leading empty item")
-		self.assertTrue(items[1]==["hello"],"Token item")
-		self.assertTrue(items[2]==['"Hi"',"(Hello)"],"Complex item")
-		self.assertTrue(items[3]==['goodbye'],"Leading space item")
-		self.assertTrue(items[4]==[],"Trailing empty item")
-	
-	def testCaseETag(self):
-		eTag=HTTPETag()
-		self.assertFalse(eTag.weak,"ETag constructor makes weak tags")
-		self.assertTrue(eTag.tag is None,"ETag constructor tag not None")
-		eTag=HTTPETag()
-		nWords=ParseETag(SplitWords('W/"hello"'),eTag)
-		self.assertTrue(nWords==3,"ParseETag result: %s"%nWords)
-		self.assertTrue(eTag.weak,"Failed to parse weak tag")
-		self.assertTrue(eTag.tag=="hello","Failed to parse ETag value")
-		eTag=HTTPETag()
-		nWords=ParseETag(SplitWords('w/ "h\\"ello"'),eTag)
-		self.assertTrue(nWords==3,"ParseETag result: %s"%nWords)
-		self.assertTrue(eTag.weak,"Failed to parse weak tag with lower case 'w'")
-		self.assertTrue(eTag.tag=='h"ello',"Failed to unpick quoted pair from ETag value")
-		eTag=HTTPETag()
-		nWords=ParseETag(SplitWords('"hello"'),eTag)
-		self.assertTrue(nWords==1,"ParseETag result: %s"%nWords)
-		self.assertFalse(eTag.weak,"Failed to parse strong tag")
-		self.assertTrue(eTag.tag=="hello","Failed to parse ETag value")
-		eTag=HTTPETag()
-		nWords=ParseETag(SplitWords(u'"hello"'),eTag)
-		self.assertTrue(nWords==1,"ParseETag result: %s"%nWords)
-		self.assertFalse(eTag.weak,"Failed to parse strong tag")
-		self.assertTrue(eTag.tag=="hello","Failed to parse ETag value")
-
-	def testCaseDate(self):
-		timestamp822=ParseDate("Sun, 06 Nov 1994 08:49:37 GMT")	# RFC 822, updated by RFC 1123
-		timestamp850=ParseDate("Sunday, 06-Nov-94 08:49:37 GMT")  # RFC 850, obsoleted by RFC 1036
-		timestampC=ParseDate("Sun Nov  6 08:49:37 1994")		# ANSI C's asctime() format
-		self.assertTrue(timestamp822==timestamp850,"RFC 850 timestamp parser")
-		self.assertTrue(timestamp822==timestampC,"ANSI C timestamp parser")
-		self.assertTrue(FormatDate(timestamp822)=="Sun, 06 Nov 1994 08:49:37 GMT")
-		try:
-			timestamp822=ParseDate("Mon, 06 Nov 1994 08:49:37 GMT")	# Weekday mismatch
-			self.fail("Weekday mismatch passed")
-		except ValueError:
-			pass
-		self.assertTrue(FormatDate(timestamp822)=="Sun, 06 Nov 1994 08:49:37 GMT")
-			
+				
 	def testCaseHeaders(self):
 		message=HTTPRequest("http://www.google.com/")
 		message.SetHeader("x-test","Hello")
@@ -638,8 +811,8 @@ class HTTP2616Tests(unittest.TestCase):
 		self.assertTrue(request2.method=="HEAD")
 		rm.QueueRequest(request1)
 		rm.QueueRequest(request2)
-		# ManagerLoop will process the queue until it blocks for more than the timeout (default, 60s)
-		rm.ManagerLoop()
+		# ThreadLoop will process the queue until it blocks for more than the timeout (default, 60s)
+		rm.ThreadLoop()
 		response1=request1.response
 		self.assertTrue(str(response1.protocolVersion)=="HTTP/1.1","Protocol in response1: %s"%response1.protocolVersion)
 		self.assertTrue(response1.status==200,"Status in response1: %i"%response1.status)
@@ -660,10 +833,8 @@ class HTTP2616Tests(unittest.TestCase):
 		request2.SetExpectContinue()
 		rm.QueueRequest(request1)
 		rm.QueueRequest(request2)
-		# ManagerLoop will process the queue until it blocks for more than the timeout (default, forever) 
-		#import pdb
-		#pdb.set_trace()
-		rm.ManagerLoop()
+		# ThreadLoop will process the queue until it blocks for more than the timeout (default, forever) 
+		rm.ThreadLoop()
 		response1=request1.response
 		self.assertTrue(response1.status==200,"Status in response1: %i"%response1.status)
 		self.assertTrue(response1.reason=="OK","Reason in response1: %s"%response1.reason)
@@ -726,5 +897,5 @@ class ChunkedTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
-	logging.basicConfig(level=logging.INFO)
+	logging.basicConfig(level=logging.DEBUG)
 	unittest.main()

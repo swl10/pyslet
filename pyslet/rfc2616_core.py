@@ -94,6 +94,15 @@ def IsSEPARATOR(c):
 	return c in SEPARATORS
 
 
+def CheckToken(t):
+	"""Raises ValueError if *t* is *not* a valid token"""
+	for c in t:
+		if c in SEPARATORS:
+			raise ValueError("Separator found in token: %s"%t)
+		elif IsCTL(c) or not IsCHAR(c):
+			raise ValueError("Non-ASCII or CTL found in token: %s"%t)
+
+
 class HTTPParser(BasicParser):
 	"""A special purpose parser for parsing core HTTP productions."""
 	
@@ -316,48 +325,12 @@ class HTTPParser(BasicParser):
 		savePos=self.pos
 		if self.Parse("\\"):
 			if IsCHAR(self.theChar):
+				qdPair="\\"+self.theChar
 				self.NextChar()
-				return "\\"+self.theChar
+				return qdPair				
 			else:
 				self.SetPos(savePos)
 		return None
-	
-
-def DecodeQuotedString(qstring):
-	"""Decodes a quoted string, returning the unencoded string.
-	
-	Surrounding double quotes are removed and quoted characters (characters
-	preceded by \\) are unescaped."""
-	qstring=qstring[1:-1]
-	if qstring.find('\\')>=0:
-		# skip the loop if we don't have any escape sequences
-		qbuff=[]
-		escape=False
-		for c in qstring:
-			if not escape and c=='\\':
-				escape=True
-				continue
-			qbuff.append(c)
-			escape=False
-		return string.join(qbuff,'')
-	else:
-		return qstring
-
-
-def QuoteString(s):
-	"""Places a string in double quotes, returning the quoted string.
-	
-	This is the reverse of :py:func:`DecodeQuotedString`.  Note that
-	only the double quote, \\ and CTL characters other than SP and HT
-	are quoted in the output."""
-	qstring=['"']
-	for c in s:
-		if c in '\\"' or (IsCTL(c) and c not in SP+HT):
-			qstring.append('\\'+c)
-		else:
-			qstring.append(c)
-	qstring.append('"')
-	return string.join(qstring,'')
 
 
 class WordParser(object):
@@ -690,257 +663,50 @@ class WordParser(object):
 				
 
 
-def SplitWords(source,ignoreSpace=True):
-	"""Splits a *source* string into words.
+def DecodeQuotedString(qstring):
+	"""Decodes a quoted string, returning the unencoded string.
 	
-	*source* is assumed to be *unfolded* TEXT.
-	
-	The words are returned as a list of strings. A word may be a token, a single
-	separator character, a comment or a quoted string.  To determine the type of
-	word, look at the first character.
-	
-		*	'(' means the word is a comment, surrounded by '(' and ')'
-		
-		*	a double quote means the word is an unencoded quoted string (use
-			py:func:`DecodeQuotedString` for how to decode it)
-	
-		*	other separator chars are just themselves and only appear as single
-			character strings.  (HT is never returned.)
-	
-		*	Any other character indicates a token.
-
-	By default the function ignores spaces according to the rules for implied
-	*LWS in the specification and neither SP nor HT will be returned in the word
-	list.  If you set *ignoreSpace* to False then LWS is not ignored and each
-	run of LWS is returned as a single SP in the resulting word list."""
-	mode=None
-	pos=0
-	words=[]
-	word=[]
-	while pos<len(source):
-		c=source[pos]
-		pos+=1
-		if mode is None:
-			# Start mode
-			if c in SEPARATORS:
-				if c==DQUOTE or c=='(':
-					mode=c
-					word.append(c)
-				elif c==SP or c==HT:
-					mode=SP
-					if not ignoreSpace:
-						words.append(SP)
-				else:
-					words.append(c)	
-			else:
-				word.append(c)
-				mode='T'
-		elif mode=='T':
-			# Parsing a token
-			if c in SEPARATORS:
-				# end the token and reparse
-				words.append(string.join(word,''))
-				word=[]
-				mode=None
-				pos=pos-1
-			else:
-				word.append(c)
-		elif mode==SP:
-			# Parsing a SP
-			if c==SP or c==HT:
+	Surrounding double quotes are removed and quoted characters (characters
+	preceded by \\) are unescaped."""
+	qstring=qstring[1:-1]
+	if qstring.find('\\')>=0:
+		# skip the loop if we don't have any escape sequences
+		qbuff=[]
+		escape=False
+		for c in qstring:
+			if not escape and c=='\\':
+				escape=True
 				continue
-			else:
-				# End of space separator, re-parse this char
-				mode=None
-				pos=pos-1
-		elif mode==DQUOTE:
-			word.append(c)
-			if c==DQUOTE:
-				words.append(string.join(word,''))
-				word=[]
-				mode=None
-			elif c=='\\':
-				mode='Q'
-		elif mode=='(':
-			word.append(c)
-			if c==')':
-				words.append(string.join(word,''))
-				word=[]
-				mode=None
-			elif c=='\\':
-				mode='q'
-		elif mode=='Q':
-			word.append(c)
-			mode=DQUOTE
-		elif mode=='q':
-			word.append(c)
-			mode='('
-	# Once the parse is done, clean up the mode:
-	if mode==DQUOTE or mode=='Q':
-		# Be generous and close the quote for them
-		word.append(DQUOTE)
-	elif mode=='(' or mode=='q':
-		# Likewise with the comment
-		word.append(')')
-	if word:
-		words.append(string.join(word,''))
-	return words
-
-
-def SplitItems(words,sep=",",ignoreNulls=True):
-	"""Splits a word list into a list of words lists representing separate items.
-	
-	*	words is a word list such as that returned by :py:func:`SplitWords`
-	
-	*	sep is the separator to use for splitting the words, it defaults to ","
-	
-	*	ignoreNulls controls the output of empty items (defaults to True)
-	
-	If ignoreNulls is False, empty items are added to the result as empty lists.
-	For example::
-	
-		>>> import pyslet.rfc2616 as http
-		>>> http.SplitItems(http.SplitWords(", Mr Brown, Mr Pink, Mr Orange,"),',',False)
-		[[], ['Mr', 'Brown'], ['Mr', 'Pink'], ['Mr', 'Orange'], []]
-		>>> http.SplitItems(http.SplitWords(", Mr Brown, Mr Pink, Mr Orange,"))
-		[['Mr', 'Brown'], ['Mr', 'Pink'], ['Mr', 'Orange']]
-	
-	If words is empty an empty list is always returned."""		
-	items=[]
-	itemStart=0
-	pos=0
-	while pos<len(words):
-		word=words[pos]
-		if word==sep:
-			if pos>itemStart or not ignoreNulls:
-				items.append(words[itemStart:pos])
-			itemStart=pos+1
-		pos+=1
-	if itemStart:
-		# we found at least one sep
-		if itemStart<len(words) or not ignoreNulls:
-			items.append(words[itemStart:])
+			qbuff.append(c)
+			escape=False
+		return string.join(qbuff,'')
 	else:
-		# No instances of sep found at all
-		if words:
-			items.append(words)
-	return items
+		return qstring
 
-	
 
+def QuoteString(s,force=True):
+	"""Places a string in double quotes, returning the quoted string.
 	
-def ParseToken(words,pos=0):
-	"""Parses a token from a list of words (starting at *pos*).
+	This is the reverse of :py:func:`DecodeQuotedString`.  Note that
+	only the double quote, \\ and CTL characters other than SP and HT
+	are quoted in the output.
 	
-	Returns 1 if the word at position *pos* is a token and 0 otherwise."""
-	if pos<len(words):
-		token=words[pos]
-		if token[0] in SEPARATORS:
-			return 0
+	If *force* is False then valid tokens are *not* quoted."""
+	qstring=['"']
+	for c in s:
+		if c in '\\"' or (IsCTL(c) and c not in SP+HT):
+			qstring.append('\\'+c)
+			force=True
+		elif IsCTL(c) or IsSEPARATOR(c):
+			force=True
+			qstring.append(c)
 		else:
-			return 1
+			qstring.append(c)		
+	if force:
+		qstring.append('"')
 	else:
-		return 0
-
-
-def ParseSP(words,pos=0):
-	"""Parses a SP from a list of words (starting at *pos*).
-	
-	Returns 1 if the word at position *pos* is a SP and 0 otherwise."""
-	if pos<len(words):
-		if words[pos]==SP:
-			return 1
-		else:
-			return 0
-	else:
-		return 0
-
-
-def ParseParameters(words,parameters,pos=0,ignoreAllSpace=True,caseSensitive=False,qMode=None):
-	"""Parses a set of parameters from a list of words.
-	
-		*	*parameters* is the dictionary in which to store the parsed parameters
-			
-		*	*pos* is the position from which to start parsing (defaults to 0)
-			
-		*	*ignoreAllSpace* is a boolean (defaults to True) which causes the
-			function to ignore all LWS in the word list.  If set to False then space
-			around the '=' separator is treated as an error and raises SyntaxError.
-		
-		*	caseSensitive controls whether parameter names are treated as case
-			sensitive, defaults to False.
-			
-		*	qMode allows you to pass a special parameter name that will
-			terminate parameter parsing (without being parsed itself).  This is
-			used to support headers such as the "Accept" header in which the
-			parameter called "q" marks the boundary between media-type
-			parameters and Accept extension parameters.
-			 
-	Returns the number of words parsed and updates the parameters dictionary
-	with the new parameter definitions.  The key in the dictionary is the
-	parameter name (converted to lower case if parameters are being dealt with
-	case insensitively) and the value is a 2-item list of [ name, value ]
-	preserving the original case of the parameter name."""
-	mode=None
-	param=[]
-	startPos=pos
-	nWords=0
-	while pos<len(words):
-		word=words[pos]
-		pos+=1
-		if mode is None:
-			if word==SP:
-				pass
-			# Each parameter must be preceded by a ';'
-			elif word==';':
-				# Start of a parameter perhaps
-				mode=word
-				badSpace=False
-			else:
-				break
-		elif mode==';':
-			if word==SP:
-				pass
-			elif word[0] in SEPARATORS:
-				# Not a token!
-				break
-			else:
-				# token
-				if qMode is None or word!=qMode:
-					param.append(word)
-					mode='p'
-				else:
-					# we've found the q-parameter, we're done
-					break
-		elif mode=='p':
-			if word==SP:
-				badSpace=True
-			elif word=='=':
-				mode=word
-			else:
-				break
-		elif mode=='=':
-			if word==SP:
-				badSpace=True
-				continue
-			elif word[0]==DQUOTE:
-				# quoted string
-				param.append(DecodeQuotedString(word))
-			elif word[0] in SEPARATORS:
-				break
-			else:
-				# token
-				param.append(word)
-			if badSpace and not ignoreAllSpace:
-				raise SyntaxError("LWS not allowed between parameter name and value: %s"%string.join(words,''))
-			if caseSensitive:
-				parameters[param[0]]=param
-			else:
-				parameters[param[0].lower()]=param
-			param=[]
-			nWords=pos-startPos
-			mode=None
-	return nWords
+		del qstring[0]
+	return string.join(qstring,'')
 
 
 def FormatParameters(parameters):
@@ -952,11 +718,6 @@ def FormatParameters(parameters):
 		p,v=parameters[k]
 		format.append(p)
 		format.append('=')
-		words=SplitWords(v)
-		if len(words)==1 and ParseToken(words)==1:
-			# We have a token, no need to escape
-			format.append(v)
-		else:
-			format.append(QuoteString(v))
+		format.append(QuoteString(v,force=False))
 	return string.join(format,'')
 		

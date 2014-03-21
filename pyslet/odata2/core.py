@@ -1557,36 +1557,22 @@ def ParseDataServiceVersion(src):
 	mode="#"
 	versionStr=None
 	uaStr=[]
-	for w in http.SplitWords(src):
-		if mode=="#":
-			if w[0] in http.SEPARATORS:
-				break
+	p=http.ParameterParser(src)
+	versionStr=p.RequireToken("data service version")
+	v=versionStr.split('.')
+	if len(v)==2 and http.IsDIGITS(v[0]) and http.IsDIGITS(v[1]):
+		major=int(v[0])
+		minor=int(v[1])
+	else:
+		raise SyntaxError("Expected data service version, found %s"%versionStr)
+	if p.ParseSeparator(";"):
+		while p.cWord is not None:
+			t=p.ParseToken()
+			if t:
+				uaStr.append(t)
 			else:
-				# looking for the digit.digit
-				versionStr=w
-				mode=';'
-		elif mode==';':
-			if w[0]==mode:
-				mode='u'
-			else:
 				break
-		elif mode=='u':
-			if w[0] in http.SEPARATORS:
-				uaStr=None
-				break
-			else:
-				uaStr.append(w)	
-	if versionStr is not None:
-		v=versionStr.split('.')
-		if len(v)==2 and http.IsDIGITS(v[0]) and http.IsDIGITS(v[1]):
-			major=int(v[0])
-			minor=int(v[1])
-		else:
-			versionStr=None
-	if versionStr is None:
-		raise ValueError("Can't read version number from DataServiceVersion: %s"%src)		
-	if uaStr is None:
-		raise ValueError("Can't read user agent string from DataServiceVersion: %s"%src)
+	# we are generous in what we accept, don't bother checking for the end
 	return major,minor,string.join(uaStr,' ')	
 
 
@@ -1595,26 +1581,21 @@ def ParseMaxDataServiceVersion(src):
 	
 	Returns a triple of (integer) major version, (integer) minor version and a
 	user agent string.  See section 2.2.5.7 of the specification."""
-	src2=src.split(';')
+	src=src.split(';')
 	versionStr=None
 	uaStr=None
-	if len(src2)>0:	
-		words=http.SplitWords(src2[0])
-		if len(words)==1:
-			versionStr=words[0]
-	if len(src2)>1:
-		uaStr=string.join(src2[1:],';')
-	if versionStr is not None:
+	if len(src)>0:
+		p=http.ParameterParser(src[0])
+		versionStr=p.RequireToken("data service version")
 		v=versionStr.split('.')
 		if len(v)==2 and http.IsDIGITS(v[0]) and http.IsDIGITS(v[1]):
 			major=int(v[0])
 			minor=int(v[1])
 		else:
-			versionStr=None
-	if versionStr is None:
-		raise ValueError("Can't read version number from MaxDataServiceVersion: %s"%src)		
-	if uaStr is None:
-		raise ValueError("Can't read user agent string from MaxDataServiceVersion: %s"%src)
+			raise SyntaxError("Expected max data service version, found %s"%versionStr)
+	else:
+		raise SyntaxError("Expected max data service version")
+	uaStr=string.join(src[1:],';')
 	return major,minor,uaStr	
 
 

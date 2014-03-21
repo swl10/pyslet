@@ -596,11 +596,11 @@ class Client(app.Client):
 					entitySet.BindNavigation(np.name,NavigationEntityCollection,client=self)
 				logging.debug("Registering feed: %s",str(self.feeds[f].GetLocation()))
 	
-	def QueueRequest(self,request):
+	def QueueRequest(self,request,timeout=60):
 # 		if not request.HasHeader("Accept"):
 # 			request.SetHeader('Accept','application/xml')
 		request.SetHeader('DataServiceVersion','2.0; pyslet %s'%info.version)
 		request.SetHeader('MaxDataServiceVersion','2.0; pyslet %s'%info.version)
-		super(Client,self).QueueRequest(request)
+		super(Client,self).QueueRequest(request,timeout)
 
 

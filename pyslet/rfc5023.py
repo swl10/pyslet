@@ -167,11 +167,11 @@ class Client(http.HTTPRequestManager):
 	def __init__(self):
 		http.HTTPRequestManager.__init__(self)
 
-	def QueueRequest(self,request):
+	def QueueRequest(self,request,timeout=60):
 		# if there is no Accept header, add one
 		if not request.HasHeader('Accept'):
 			request.SetHeader('Accept',string.join((atom.ATOM_MIMETYPE,ATOMSVC_MIMETYPE,ATOMCAT_MIMETYPE),','),True)
-		http.HTTPRequestManager.QueueRequest(self,request)
+		super(Client,self).QueueRequest(request,timeout)
 
 
 class InputWrapper(io.RawIOBase):

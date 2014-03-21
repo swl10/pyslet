@@ -4,88 +4,145 @@
 import string, base64
 import pyslet.rfc2396 as uri
 from pyslet.rfc2616_core import *
+from pyslet.rfc2616_params import *
 
-
-class HTTPUnknownAuthParam(Exception): pass
 
 class Challenge(object):
-	def __init__(self):
-		self.scheme=None
-		self.protectionSpace=None
-		self.realm=None
+	"""Represents an HTTP authentication challenge.
 	
-	def SetAuthParam(self,name,value):
-		if name.lower()=='realm':
-			self.realm=value
+	The built-in str function can be used to format instances according
+	to the grammar defined in the specification.
+	
+	Instances are created from a scheme and a variable length list of
+	3-tuples containing parameter (name,value,qflag) values.  qflag is a
+	boolean indicating that the value must always be quoted, even if is
+	a valid token.
+	
+	Instances behave like read-only lists of (name,value) pairs
+	implementing len, indexing and iteration in the usual way. Instances
+	also support basic key lookup of parameter names by implementing
+	__contains__ and __getitem__ (which returns the parameter value and
+	raises KeyError for undefined parameters).  Name look-up handles
+	case sensitivity by looking first for a case-sensitive match and
+	then for a case insensitive match.  Instances are not truly
+	dictionary like."""	
+	def __init__(self,scheme,*params):
+		self.scheme=scheme				#: the name of the schema
+		self._params=list(params)
+		self._pdict={}
+		for pn,pv,pq in self._params:
+			self._pdict[pn]=pv
+			_pn=pn.lower()
+			if _pn not in self._pdict:
+				self._pdict[_pn]=pv
+		if "realm" not in self._pdict:
+			self._params.append(("realm","Default",True))
+			self._pdict["realm"]="Default"
+		self.protectionSpace=None
+		"""an optional protection space indicating the scope of this challenge."""
+
+	@classmethod
+	def FromString(cls,source):
+		"""Creates a Challenge from a *source* string."""
+		p=AuthorizationParser(source,ignoreSpace=False)
+		p.ParseSP()
+		c=p.RequireChallenge()
+		p.ParseSP()
+		p.RequireEnd("challenge")
+		return c
+					
+	@classmethod
+	def ListFromString(cls,source):
+		"""Creates a list of Challenges from a *source* string."""
+		p=AuthorizationParser(source)
+		challenges=[]
+		while True:
+			c=p.ParseProduction(p.RequireChallenge)
+			if c is not None:
+				challenges.append(c)
+			if not p.ParseSeparator(","):
+				break
+		p.RequireEnd("challenge")
+		return challenges
+					
+	def __str__(self):
+		result=[self.scheme]
+		params=[]
+		for pn,pv,pq in self._params:
+			params.append("%s=%s"%(pn,QuoteString(pv,force=pq)))
+		if params:
+			result.append(string.join(params,', '))
+		return string.join(result,' ')
+
+	def __unicode__(self):
+		return unicode(self.__str__())
+	
+	def __repr__(self):
+		return "Challege(%s,%s)"%(repr(self.scheme),string.join(map(repr,self._params),','))
+			
+	def __len__(self):
+		return len(self._params)
+	
+	def __getitem__(self,index):
+		if type(index) in StringTypes:
+			# look up by key, case sensitive first
+			result=self._pdict.get(index,None)
+			if result is None:
+				result=self._pdict.get(index.lower(),None)
+			if result is None:
+				raise KeyError(index)
+			return result
 		else:
-			raise HTTPUnknownAuthParam(name)
+			return self._params[index]
+	
+	def __iter__(self):
+		return self._params.__iter__()
+
+	def __contains__(self,key):
+		return key in self._pdict or key.lower() in self._pdict
+
 
 class BasicChallenge(Challenge):
-	def __init__(self):
-		Challenge.__init__(self)
-		self.scheme="Basic"
-
-	def __str__(self):
-		format=[self.scheme,' ']
-		if self.realm is not None:
-			format.append('realm')
-			format.append('=')
-			format.append(QuoteString(self.realm))
-		return string.join(format,'')
-
-		
-def ParseAuthParams(words,challenge,pos=0):
-	mode=None
-	nWords=0
-	name=None
-	value=None
-	while pos<len(words):
-		word=words[pos]
-		pos+=1
-		if mode is None:
-			if word[0] in SEPARATORS:
-				# Not a realm!
-				break
-			else:
-				name=word
-				mode='n'
-		elif mode=='n':
-			if word=='=':
-				mode=word
-			elif word[0] in SEPARATORS:
-				# strange, that was the last param
-				break
-			else:
-				# another token means this is the start of the next challenge
-				break	
-		elif mode=='=':
-			if word[0]==DQUOTE:
-				value=DecodeQuotedString(word)
-			elif word[0] in SEPARATORS:
-				break
-			else:
-				value=word
-			challenge.SetAuthParam(name,value)
-			nWords+=3
-			mode=','
-		elif mode==',':
-			if word[0]==',':
-				mode=None
-				nWords+=1
-			else:
-				break
-	return nWords
+	"""Represents an HTTP Basic authentication challenge."""
+	def __init__(self,*params):
+		super(BasicChallenge,self).__init__("Basic",*params)
 
 
 class Credentials(object):
-	def __init__(self):
-		self.scheme=None
-		self.protectionSpace=None
-		self.realm=None
+	"""An abstract class that represents a set of HTTP authentication
+	credentials.
 	
-	def Match(self,challenge=None,url=None):
-		if challenge is None:
-			raise ValueError("Generic credentials cannot be matched against a URL")
+	Instances are typically created and then added to a request manager
+	object using
+	:py:meth:`~pyslet.rfc2616.HTTPRequestManager.AddCredentials` for
+	matching against HTTP authorization challenges.
+	
+	The built-in str function can be used to format instances according
+	to the grammar defined in the specification."""
+	def __init__(self):
+		self.scheme=None			#: the authentication scheme
+		self.protectionSpace=None
+		"""the protection space in which these credentials should be used.
+		
+		The protection space is a :py:class:`pyslet.rfc2396.URI` instance
+		reduced to just the the URL scheme, hostname and port."""		
+		self.realm=None
+		"""the realm in which these credentials should be used.
+		
+		The realm is a simple string as returned by the HTTP server.  If
+		None then these credentials will be used for any realm within
+		the protection space."""
+	
+	def MatchChallenge(self,challenge):
+		"""Returns True if these credentials can be used in response
+		to *challenge*.
+		
+		challenge
+			A :py:class:`Challenge` instance
+		
+		The match is successful if the authentication scheme, the
+		protection space and the realms match the corresponding values
+		in the challenge."""
 		if self.scheme!=challenge.scheme:
 			return False
 		if self.protectionSpace!=challenge.protectionSpace:
@@ -94,6 +151,16 @@ class Credentials(object):
 			if self.realm!=challenge.realm:
 				return False
 		return True
+
+	def MatchURL(self,url):
+		"""Returns True if these credentials can be used peremptorily
+		when making a request to *url*.
+		
+		url
+			A :py:class:`pyslet.rfc2396.URI` instance.
+		
+		The default implementation always returns False."""
+		return False
 
 	@classmethod
 	def FromWords(cls,wp):
@@ -205,4 +272,33 @@ class BasicCredentials(Credentials):
 			format.append(base64.b64encode(self.userid+":"+self.password))
 		return string.join(format,'')
 
-		
+
+class AuthorizationParser(ParameterParser):
+	
+	def RequireChallenge(self):
+		"""Parses a challenge returning a :py:class:`Challenge`
+		instance.  Raises SyntaxError if no challenge was found."""		
+		self.ParseSP()
+		authScheme=self.RequireToken("auth scheme")
+		params=[]
+		self.ParseSP()
+		while self.cWord is not None:
+			paramName=self.ParseToken()
+			if paramName is not None:
+				self.ParseSP()
+				self.RequireSeparator('=')
+				self.ParseSP()
+				if self.IsToken():
+					paramValue=self.ParseToken()
+					forceQ=False
+				else:
+					paramValue=self.RequireProduction(self.ParseQuotedString(),"auth-param value")
+					forceQ=True
+				params.append((paramName,paramValue,forceQ))
+			self.ParseSP()
+			if not self.ParseSeparator(","):
+				break
+		if authScheme.lower()=="basic":
+			return BasicChallenge(*params)
+		else:
+			return Challenge(*params)

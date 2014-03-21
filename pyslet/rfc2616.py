@@ -30,401 +30,107 @@ HTTP_LOG_DEBUG=4
 HTTP_LOG_ALL=5
 
 class HTTP2616ConnectionBusy(HTTPException): pass
-class HTTP2616ConnectionClosed(HTTPException): pass
+class ConnectionClosed(HTTPException): pass
 
+class ConnectionPool(object):
+	"""Represents a pool of connections to a specific HTTP endpoint."""
+	def __init__(self,scheme,hostname,port,manager,maxConnections=3):
+		self.manager=manager
+		self.scheme=scheme.lower()
+		self.hostname=hostname.lower()
+		self.port=port
+		self.maxConnections=maxConnections
+		self.cActivePool={}			#: dictionary keyed on thread id
+		self.cIdlePool=[]			#: a list of idle connections
 
-
-class RelativeQualityToken(object):
-	"""Represents an HTTP relative-quality token
+	def Key(self):
+		return (self.scheme,self.hostname,self.port)
 	
-	*token*
-		Used to initialise :py:attr:`token`, defaults to "*"
-	
-	*q*
-		Used to initialise :py:attr:`q`, default o None
-	
-	Instances can be converted to strings using Python's str function,
-	the result is a string suitable for setting or adding to an
-	appropriate HTTP header."""	
-	def __init__(self,token="*",q=None):
-		self.token=token		#: the token, a python string
-		self.q=q				#: the relative quality value, a python float or None if unspecified
-
-	@classmethod
-	def ListFromWords(cls,wp):
-		"""Returns a list of :py:class:`RelativeQualityToken` instances
-		parsed from a :py:class:`WordParser` set to ignore spaces."""
-		rqList=[]
-		needSep=False
-		while wp.cWord:
-			while wp.ParseSeparator(','):
-				needSep=False
-			if needSep:
-				raise HTTPParameterError("Expected ','")
-			if wp.cWord:
-				rq=cls()
-				rq.ParseWords(wp)
-				rqList.append(rq)
-				needSep=True
-		if not rqList:
-			raise HTTPParameterError("relative quality token required")
-		return rqList	
-					
-	@classmethod
-	def ListFromString(cls,source):
-		"""Returns a list of :py:class:`RelativeQualityToken` instances
-		parsed from a python string."""
-		p=ParameterParser(source)
-		result=cls.ListFromWords(p)
-		p.RequireEnd("relative quality token list")
-		return result
+	def QueueRequest(self,request,timeout=None):
+		"""Queues a request, waiting for a connection if necessary.
 		
-	def ParseWords(self,wp):
-		"""Parses a relative quality token from a :py:class:`ParameterParser` instance.
-		
-		*wp*
-			Must be set to ignore spaces or have had them stripped.
-			
-		If none is found HTTPParameterError is raised."""
-		self.token=wp.RequireToken("codings")
-		self.q=None
-		savePos=wp.pos
-		if wp.ParseSeparator(";"):
-			try:
-				qParam=wp.RequireToken("q parameter")
-				if qParam.lower()!='q':
-					raise HTTPParameterError("Unrecognized q-parameter: %s"%qParam)
-				wp.RequireSeparator('=',"q parameter")
-				self.q=wp.ParseQualityValue()
-				if self.q is None:
-					raise HTTPParameterError("Unrecognized q-value: %s"%repr(wp.cWord))
-			except HTTPParameterError:
-				wp.SetPos(savePos)
-	
-	def __str__(self):
-		if self.q is not None:
-			if self.q==0:
-				formatStr="%s;q=0"%self.token
-			else:
-				formatStr="%s;q=%.3f"%(self.token,self.q)
-				if formatStr[-2:]=='00':
-					formatStr=formatStr[:-2]
-				elif formatStr[-1]=='0':
-					formatStr=qStr[:-1]
-		else:
-			formatStr=self.token
-		return formatStr
-
-				
-def ParseRelativeQualityToken(words,rqToken,pos=0):
-	mode=None
-	nWords=0
-	while pos<len(words):
-		word=words[pos]
-		pos=pos+1
-		if mode==None:
-			if word[0] in SEPARATORS:
-				break
-			rqToken.token=word
-			rqToken.q=None
-			mode=';'
-			nWords+=1
-		elif mode==';':
-			if word==mode:
-				mode='q'
-			else:
-				break
-		elif mode=='q':
-			if word==mode:
-				mode='='
-			else:
-				break
-		elif mode=='=':
-			if word==mode:
-				mode='#'
-			else:
-				break
-		elif mode=='#':
-			try:
-				rqToken.q=float(word)
-			except ValueError:
-				# If the q value is not a float, then we stop the parser just before the ';'
-				break
-			# If q value is a float, but an invalid one, then we just contrain it silently
-			# be generous with what you accept and all that.
-			if rqToken.q<0:
-				rqToken.q=0
-			elif rqToken.q>1.0:
-				rqToken.q=1.0
-			nWords+=4
-	return nWords
-
-class HTTPETag:
-	def __init__(self):
-		self.weak=False
-		self.tag=None
-
-def ParseETag(words,eTag,pos=0):
-	mode=None
-	nWords=0
-	token=None
-	while pos<len(words):
-		word=words[pos]
-		pos=pos+1
-		if mode==None:
-			if word.upper()=='W':
-				eTag.weak=True
-				nWords+=1
-				mode='/'
-			else:
-				# optional weak specifier not found, try again with strong tag
-				eTag.weak=False
-				pos=pos-1
-				mode=DQUOTE
-		elif mode=='/':
-			if word[0]=='/':
-				nWords+=1
-				mode=DQUOTE
-			else:
-				# Looked like a weak tag but wasn't, we're done
-				nWords=0
-				break
-		elif mode==DQUOTE:
-			if word[0]==DQUOTE:
-				eTag.tag=DecodeQuotedString(word)
-				nWords+=1
-			else:
-				nWords=0
-				break
-	return nWords
-
-	
-def CheckToken(t):
-	for c in t:
-		if c in SEPARATORS:
-			raise ValueError("Separator found in token: %s"%t)
-		elif IsCTL(c) or not IsCHAR(c):
-			raise ValueError("Non-ASCII or CTL found in token: %s"%t)
-
-HTTP_DAY_NUM={
-	"monday":0, "mon":0,
-	"tuesday":1, "tue":1,
-	"wednesday":2, "wed":2,
-	"thursday":3, "thu":3,
-	"friday":4, "fri":4,
-	"saturday":5, "sat":5,
-	"sunday":6, "sun":6 }
-
-# Note that in Python time/datetime objects Jan has index 1!
-HTTP_MONTH_NUM={
-	"jan":1,"feb":2,"mar":3,"apr":4,"may":5,"jun":6,"jul":7,"aug":8,"sep":9,"oct":10,"nov":11,"dec":12
-	}
-	
-def ParseDate(dateStr):
-	date=string.split(dateStr.strip().lower())
-	if len(date)==4:
-		# e.g., "Sunday, 06-Nov-94 08:49:37 GMT"
-		date=date[0:1]+date[1].split('-')+date[2].split(':')+date[3:]
-	elif len(date)==5:
-		# e.g., "Sun Nov  6 08:49:37 1994"
-		date=[date[0]+',',date[2],date[1],date[4]]+date[3].split(':')+['gmt']
-	elif len(date)==6:
-		# e.g., "Sun, 06 Nov 1994 08:49:37 GMT" - the preferred format!
-		date=date[0:4]+date[4].split(':')+date[5:]
-	if len(date)!=8:
-		raise ValueError("Badly formed date: %s"%dateStr)
-	wday=HTTP_DAY_NUM[date[0][:-1]]
-	mday=int(date[1])
-	mon=HTTP_MONTH_NUM[date[2]]
-	year=int(date[3])
-	# No obvious guidance on base year for two-digit years by HTTP was
-	# first used in 1990 so dates before that are unlikely!
-	if year<90:
-		year=year+2000
-	elif year<100:
-		year=year+1900
-	hour=int(date[4])
-	min=int(date[5])
-	sec=int(date[6])
-	if date[7]!='gmt':
-		raise ValueError("HTTP date must have GMT timezone: %s"%dateStr)
-	result=datetime.datetime(year,mon,mday,hour,min,sec)
-	if result.weekday()!=wday:
-		raise ValueError("Weekday mismatch in: %s"%dateStr)
-	return result
-
-
-HTTP_DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
-HTTP_MONTHS=["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
-
-def FormatDate(date):
-	# E.g., "Sun, 06 Nov 1994 08:49:37 GMT"
-	return "%s, %02i %s %04i %02i:%02i:%02i GMT"%(
-			HTTP_DAYS[date.weekday()],
-			date.day,
-			HTTP_MONTHS[date.month],
-			date.year,
-			date.hour,
-			date.minute,
-			date.second)
-
-
-
-class HTTPRequestManager(object):
-	def __init__(self):
-		self.requestQueue=[]
-		self.connections={}
-		self.nextConnection=None
-		self.credentials=[]
-		self.socketSelect=select.select
-		self.dnsCache={}
-		self.logLevel=HTTP_LOG_NONE
-		self.logStream=None
-		self.logLineLen=80
-		self.logString=''
-		self.httpUserAgent="pyslet.rfc2616.HTTPRequestManager"
-		
-	def SetLog(self,level,logStream=None,lineLen=80):
-		warnings.warn("HTTPRequestManager.SetLog is deprecated, use logging module instead", DeprecationWarning, stacklevel=2)		
-		self.logLevel=level
-		self.logStream=logStream
-		self.logLineLen=lineLen
-		
-	def Log(self,level,logString):
-		"""A method that prints a string to a log of some sort.  The string is
-		qualified with a level from the contstants defined at the top of the
-		file."""
-		warnings.warn("HTTPRequestManager.Log is deprecated, use logging module instead", DeprecationWarning, stacklevel=2)		
-		if level<=self.logLevel and logString!=self.logString:
-			if len(logString)>self.logLineLen:
-				print >> self.logStream, logString[:self.logLineLen]+'... + %i chars'%(len(logString)-self.logLineLen)
-			else:
-				print >> self.logStream, logString
-			self.logString=logString			
-
-	def AddCredentials(self,credentials):
-		self.credentials.append(credentials)
-	
-	def FindCredentials(self,challenge=None,url=None):
-		"""Searches for credentials that match *challenge* or *url*"""
-		if challenge is not None:
-			logging.debug("HTTPRequestManager searching for credentials in %s with challenge %s",challenge.protectionSpace,str(challenge))
-		for c in self.credentials:
-			if c.Match(challenge,url):
-				return c
-	
-	def DNSLookup(self,host,port):
-		if (host,port) not in self.dnsCache:
-			logging.debug("Looking up %s",host)
-			self.dnsCache[(host,port)]=socket.getaddrinfo(host,port, 0, socket.SOCK_STREAM)
-		return self.dnsCache[(host,port)]
-		
-	def ProcessRequest(self,request,timeout=60):
-		self.QueueRequest(request)
-		self.ManagerLoop(timeout)
-		
-	def QueueRequest(self,request):
-		"""Commits a request to the queue for processing.
-		
-		The default implementation adds a User-Agent header from
-		:py:attr:`httpUserAgent` if not None.  You can override this method to
-		add other headers appropriate for a specific context prior to passing on
-		to this call.
-
-		The request is added to the internal request queue and the request is
-		notified that is being actively managed through a call to
-		:py:meth:`HTTPRequest.SetManager`."""
-		if self.httpUserAgent:
-			request.SetHeader('User-Agent',self.httpUserAgent)
-		self.requestQueue.append(request)
-		request.SetManager(self)
-
-	def ManagerLoop(self,timeout=60):
+		This method is only called by the request manager and only when
+		the managerLock is in force."""
+		threadId=threading.current_thread().ident
+		now=start=time.time()
 		while True:
-			self.ProcessQueue()
-			if self.ProcessConnections(timeout) and not self.requestQueue:
-				# it is possible that the connections all went idle but
-				# that the queue has been re-filled (e.g., by redirects)
-				# We must only break if we really are done!
+			if threadId in self.cActivePool:
+				# great, add this request to the queue on that connection
+				connection=self.cActivePool[threadId]
 				break
-		self.Close()
-
-	def Close(self):
-		for connection in self.connections.values():
-			connection.Close()
-		
-	def ProcessQueue(self):
-		while self.requestQueue:
-			request=self.requestQueue[0]
-			if self.nextConnection:
-				if self.nextConnection.StartRequest(request):
-					self.nextConnection=None
-					self.requestQueue=self.requestQueue[1:]
-				else:
-					# Connection is not ready for us
-					break
+			elif self.cIdlePool:
+				# grab this connection and assign to our thread
+				connection=self.cIdlePool.pop()
+				self.cActivePool[threadId]=connection
+				self.manager.ActivateConnection(connection)
+				break
+			elif len(self.cActivePool)+len(self.cIdlePool)<self.maxConnections:
+				# expand the pool
+				connection=self.manager.NewConnection(self,timeout)
+				self.cActivePool[threadId]=connection
+				self.manager.ActivateConnection(connection)
+				break
 			else:
-				# Find or create a connection for the next request
-				key=(request.scheme,request.hostname,request.port)
-				self.nextConnection=self.connections.get(key,None)
-				if self.nextConnection is None:
-					self.nextConnection=self.NewConnection(key[0],key[1],key[2])
-					self.connections[key]=self.nextConnection			
-				
-	def ProcessConnections(self,timeout):
-		"""Processes the connections blocking for at most timeout (where possible).
-		Returns True if the connections are all idle, otherwise returns False."""
-		readers=[]
-		writers=[]
-		for c in self.connections.values():
-			r,w=c.ConnectionTask()
-			if r:
-				readers.append(r)
-			if w:
-				writers.append(w)
-		if not readers and not writers:
-			return True
-		else:
-			try:
-				self.ManagerTask()
-				logging.debug("Socket select for: readers=%s, writers=%s, timeout=%i",repr(readers),repr(writers),timeout)
-				r,w,e=self.socketSelect(readers,writers,[],timeout)
-			except select.error, err:
-				pass
-			# We don't bother checking as we'll just go around the loop and find the connection
-			# concerned anyway
-			return False
+				# we have to wait for a connection to become available
+				now=time.time()
+				if timeout is not None and now>start+timeout:
+					logging.warn("Thread[%i] timed out waiting for an HTTP connection",threadId)
+					raise RequestManagerBusy
+				logging.debug("Thread[%i] forced to wait for an HTTP connection",threadId)
+				self.manager.Wait(timeout)
+				#	self.manager.managerLock.wait(timeout)
+				logging.debug("Thread[%i] resuming search for an HTTP connection",threadId)
+		connection.requestQueue.append(request)
+	
+	def ConnectionIdle(self,connection):
+		"""Called during the connection's
+		:py:meth:`Connection.ConnectionTask` method when the connection
+		is idle."""
+		with self.manager.managerLock:
+			if connection.threadId in self.cActivePool:
+				if connection.threadId in self.cActivePool:
+					del self.cActivePool[connection.threadId]
+				self.cIdlePool.append(connection)
+				self.manager.ConnectionIdle(connection)
+					
+	def __hash__(self):
+		return hash(self.Key())
+	
+	def __cmp__(self,other):
+		if not isinstance(other,ConnectionPool):
+			raise TypeError
+		result=cmp(self.hostname,other.hostname)
+		if not result:
+			result=cmp(self.scheme,other.scheme)
+		if not result:
+			result=cmp(self.port,other.port)
+		return result
+	
 		
-	def NewConnection(self,scheme,host,port):
-		if scheme=='http':
-			return HTTPConnection(self,host,port)
-		elif scheme=='https':
-			return HTTPSConnection(self,host,port)
-		else:
-			raise ValueError
+class Connection(object):
+	"""Represents an HTTP connection.  Used internally by the request manager
+	to manage connections to HTTP servers."""
 
-	def ManagerTask(self):
-		"""Designed to allow sub-classing for periodic tasks during idle time such as
-		updating status displays"""
-		pass
-		
-
-class HTTPConnection:
-	# States
-	REQ_READY=0
-	REQ_BODY_WAITING=1
-	REQ_BODY_SENDING=2
-	CLOSE_WAIT=3
+	REQ_READY=0			#:	ready to start a request
+	REQ_BODY_WAITING=1	#:	waiting to send the request body
+	REQ_BODY_SENDING=2	#:	sending the request body
+	CLOSE_WAIT=3		#:	waiting to disconnect
+	
+	MODE_STRINGS={0:"Ready",1:"Waiting",2:"Sending",3:"Closing"}
 	
 	IDEMPOTENT={"GET":1,"HEAD":1,"PUT":1,"DELETE":1,"OPTIONS":1,"TRACE":1,"CONNECT":0,"POST":0}
 	
-	def __init__(self,manager,host,port=HTTP_PORT):
-		self.manager=manager
-		self.host=host
-		self.port=port
+	def __init__(self,pool):
+		self.pool=pool						#: the ConnectionPool that contains this connection
+		self.manager=self.pool.manager		#: the RequestManager that contains the pool
+		self.id=self.manager.NextId()		#: the id of this connection object
+		self.threadId=None					#: the thread we're currently bound to
+		self.lastActive=0					#: time at which this connection was last active
+		self.requestQueue=[]				#: the queue of requests we are processing
+		scheme,self.host,self.port=pool.Key()
 		self.request=None
 		self.requestMode=self.REQ_READY
-		self.continueWaitMax=60.0	# If we don't get a continue in 1 minute, send the data anyway
+		self.continueWaitMax=60.0			# If we don't get a continue in 1 minute, send the data anyway
 		self.continueWaitStart=0
 		self.response=None
 		self.responseQueue=[]
@@ -435,8 +141,16 @@ class HTTPConnection:
 		self.recvBuffer=[]
 		self.recvBufferSize=0
 
+	def __hash__(self):
+		return self.id
+	
+	def __cmp__(self,other):
+		if not isinstance(other,Connection):
+			raise TypeError
+		return cmp(self.lastActive,other.lastActive)
+		
 	def __repr__(self):
-		return "HTTP(%s,%i)"%(self.host,self.port)
+		return "Connection(%s,%i)"%(self.host,self.port)
 		
 	def StartRequest(self,request):
 		"""Starts processing the request.  Returns True if the request has
@@ -447,7 +161,7 @@ class HTTPConnection:
 			# We are waiting for a response and will only accept idempotent methods
 			return False
 		self.request=request
-		self.request.SetConnection(self)
+		self.request.SetHTTPConnection(self)
 		headers=self.request.ReadRequestHeader()
 		for h in headers.split(CRLF):
 			logging.debug("Request header: %s",h)
@@ -477,17 +191,6 @@ class HTTPConnection:
 		else:
 			self.Close()
 			
-	def ReadyToStart(self,request):
-		# Are we ready to start sending a new request?
-		# in the future we can add support for pipelining
-		if self.request:
-			# If we are currently processing a request, we're busy
-			return False
-		elif self.response and not self.IDEMPOTENT.get(request.method,0):
-			# We are waiting for a response and will only accept idempotent methods
-			return False
-		return True
-	
 	def Continue(self,request):
 		"""Called when a request receives 100-Continue or other informational
 		response, if we are holding this request's body while waiting for
@@ -501,19 +204,24 @@ class HTTPConnection:
 		"""Processes the connection, sending requests and receiving responses.  It
 		returns a r,w pair of file numbers suitable for passing to select indicating
 		whether the connection is waiting to read and/or write.  It will return
-		None,None if the connection is currently idle."""
+		None,None if the connection is not blocked on I/O."""
 		rBusy=None;wBusy=None
-		if self.request or self.response:
-			if self.socket is None:
-				self.NewSocket()
-			while 1:
+		while True:
+			self.lastActive=time.time()
+			if self.request is None and self.requestQueue:
+				request=self.requestQueue[0]
+				if self.StartRequest(request):
+					self.requestQueue=self.requestQueue[1:]
+			if self.request or self.response:
+				if self.socket is None:
+					self.NewSocket()
 				rBusy=None;wBusy=None
-				logging.debug("%s: request mode=%i, sendBuffer=%s",self.host,self.requestMode,repr(self.sendBuffer))
+				logging.debug("%s: request mode=%s, sendBuffer=%s",self.host,self.MODE_STRINGS[self.requestMode],repr(self.sendBuffer))
 				if self.response:
 					if self.recvBufferSize<4096:
-						logging.debug("%s: response mode=%i, recvBuffer=%s",self.host,self.response.mode,repr(self.recvBuffer))
+						logging.debug("%s: response mode=%s, recvBuffer=%s",self.host,self.MODE_STRINGS[self.requestMode],repr(self.recvBuffer))
 					else:
-						logging.debug("%s: response mode=%i, recvBufferSize=%i",self.host,self.response.mode,self.recvBufferSize)
+						logging.debug("%s: response mode=%s, recvBufferSize=%i",self.host,self.MODE_STRINGS[self.requestMode],self.recvBufferSize)
 				else:
 					logging.debug("%s: no response waiting",self.host)
 				# The section deals with the sending cycle, we pass on to the
@@ -529,7 +237,7 @@ class HTTPConnection:
 						# We can write
 						self.SendRequestData()
 					if self.sendBuffer:
-						# We are waiting to write, move on to the response section!
+						# We are still waiting to write, move on to the response section!
 						wBusy=self.socketFile
 					else:
 						continue
@@ -572,7 +280,7 @@ class HTTPConnection:
 							# The response is done
 							closeConnection=False
 							if self.response:
-								closeConnection="close" in self.response.GetConnection()
+								closeConnection="close" in self.response.GetConnection() or self.response.protocolVersion<HTTP_1_1
 							if self.responseQueue:
 								self.response=self.responseQueue[0]
 								self.responseQueue=self.responseQueue[1:]
@@ -588,6 +296,14 @@ class HTTPConnection:
 						continue
 					else:
 						rBusy=self.socketFile
+				break
+			else:
+				# no request or response, we're idle
+				if self.requestMode==self.CLOSE_WAIT:
+					# clean up if necessary
+					self.Close()
+				self.pool.ConnectionIdle(self)
+				rBusy=None;wBusy=None
 				break
 		return rBusy,wBusy
 
@@ -772,10 +488,10 @@ class HTTPConnection:
 		self.requestMode=self.REQ_READY
 
 
-class HTTPSConnection(HTTPConnection):
+class SecureConnection(Connection):
 
 	def NewSocket(self):
-		HTTPConnection.NewSocket(self)
+		super(SecureConnection,self).NewSocket()
 		try:
 			self.socketSSL=socket.ssl(self.socket)
 			self.socketTransport=self.socket
@@ -808,6 +524,261 @@ class HTTPSConnection(HTTPConnection):
 		self.socket.close()
 
 			
+class HTTPRequestManager(object):
+	"""An object for managing the sending of HTTP requests and receiving
+	of responses.
+	
+	"""
+	ConnectionClass=Connection
+	SecureConnectionClass=SecureConnection
+	
+	def __init__(self,maxPerPool=3,maxConnections=100):
+		self.managerLock=threading.Condition()
+		self.nextId=1			#: the id of the next connection object we'll create
+		self.cPool={}			#: pool of ConnectionPool objects keyed on (scheme,hostname,port)
+		self.cTaskList={}		#: a dict of dicts of Connection objects keyed on thread id then connection id
+		self.cActiveList={}		#: the pool of active Connection objects keyed on connection id
+		self.cIdleList={}		#: the pool of idle Connection objects keyed on connection id
+		self.closing=False		#: True if we are closing
+		self.maxConnections=maxConnections	#: maximum number of connections to manage
+		self.maxPerPool=maxPerPool			#: maximum number of connections per pool (scheme+host+port)
+		self.dnsCache={}		#: cached results from socket.getaddrinfo keyed on (hostname,port)
+		self.requestQueue=[]
+		self.connections={}
+		self.nextConnection=None
+		self.credentials=[]
+		self.socketSelect=select.select
+		self.httpUserAgent="pyslet.rfc2616.HTTPRequestManager"
+		
+	def QueueRequest(self,request,timeout=None):
+		"""Instructs the manager to start processing *request*.
+		
+		request
+			A :py:class:`Connection` object.
+		
+		timeout
+			Number of seconds to wait for a free connection before timing
+			out.  A timeout raises :py:class:`RequestManagerBusy`
+			
+		The default implementation adds a User-Agent header from
+		:py:attr:`httpUserAgent` if not None.  You can override this method to
+		add other headers appropriate for a specific context prior to passing on
+		to this call."""
+		if self.httpUserAgent:
+			request.SetHeader('User-Agent',self.httpUserAgent)
+		# assign this request to a connection straight away
+		key=(request.scheme,request.hostname,request.port)
+		with self.managerLock:
+			if self.closing:
+				raise ConnectionClosed
+			pool=self.cPool.get(key,None)
+			if pool is None:
+				pool=ConnectionPool(*key,manager=self,maxConnections=self.maxPerPool)
+				self.cPool[pool.Key()]=pool
+			pool.QueueRequest(request,timeout)
+		#	self.requestQueue.append(request)
+		request.SetManager(self)
+
+	def NextId(self):
+		"""Returns the next connection id"""
+		with self.managerLock:
+			id=self.nextId
+			self.nextId+=1
+		return id
+		
+	def NewConnection(self,pool,timeout=None):
+		"""Called by a ConnectionPool when a new connection is required."""
+		scheme,host,port=pool.Key()
+		threadId=threading.current_thread().ident
+		with self.managerLock:
+			while True:
+				if len(self.cActiveList)+len(self.cIdleList)<self.maxConnections:
+					if scheme=='http':
+						connection=self.ConnectionClass(pool)
+					elif scheme=='https':
+						connection=self.SecureConnectionClass(pool)
+					else:
+						raise NotImplementedError("Unsupported connection scheme: %s"%scheme)
+					# add the new connection to the idle list
+					self.cIdleList[connection.id]=connection
+					return connection
+				elif self.cIdleList:
+					# get rid of the oldest connection
+					cIdle=self.cIdleList.values()
+					cIdle.sort()
+					connection=cIdle[0]
+					del self.cIdleList[connection.id]
+					connection.pool.DeleteConnection(connection)
+					# next time around the loop we'll create a new one in the correct *pool*
+				else:					
+					# all connections are active, wait for notification of one becoming idle
+					now=time.time()
+					if timeout is not None and now>start+timeout:
+						logging.warn("Thread[%i] timed out waiting for an HTTP connection",threadId)
+						raise RequestManagerBusy
+					logging.debug("Thread[%i] forced to wait for an HTTP connection",threadId)
+					self.managerLock.wait(timeout)
+					logging.debug("Thread[%i] resuming search for an HTTP connection",threadId)
+
+	def Wait(self,timeout=None):
+		"""Yields the lock until a notification."""
+		self.managerLock.wait(timeout)
+
+	def ActivateConnection(self,connection):
+		"""Called when a connection becomes active."""
+		threadId=threading.current_thread().ident
+		with self.managerLock:
+			if connection.id in self.cIdleList:
+				del self.cIdleList[connection.id]
+			connection.threadId=threadId
+			self.cActiveList[connection.id]=connection
+			if threadId in self.cTaskList:
+				self.cTaskList[threadId][connection.id]=connection
+			else:
+				self.cTaskList[threadId]={connection.id:connection}
+
+	def ConnectionIdle(self,connection):
+		"""Called when a connection becomes idle."""
+		threadId=connection.threadId
+		with self.managerLock:
+			if threadId in self.cTaskList:
+				tasks=self.cTaskList[threadId]
+				if connection.id in tasks:
+					del tasks[connection.id]
+			connection.threadId=None
+			if connection.id in self.cActiveList:
+				del self.cActiveList[connection.id]
+			self.cIdleList[connection.id]=connection
+		
+	def ThreadTask(self,timeout):
+		"""Processes all connections bound to the current thread
+		blocking for at most timeout (where possible). Returns True if
+		at least one connection is active, otherwise returns False."""
+		threadId=threading.current_thread().ident
+		with self.managerLock:
+			connections=self.cTaskList[threadId].values()
+		if not connections:
+			return False
+		readers=[]
+		writers=[]
+		for c in connections:
+			r,w=c.ConnectionTask()
+			if r:
+				readers.append(r)
+			if w:
+				writers.append(w)
+		if readers or writers:
+			try:
+				logging.debug("Socket select for: readers=%s, writers=%s, timeout=%i",repr(readers),repr(writers),timeout)
+				r,w,e=self.socketSelect(readers,writers,[],timeout)
+			except select.error, err:
+				logging.error("Socket error from select: %s",str(err)) 
+		return True
+			
+	def AddCredentials(self,credentials):
+		"""Adds a :py:class:`pyslet.rfc2617.Credentials` instance to this
+		manager.
+		
+		Credentials are used in response to challenges received in HTTP
+		401 responses."""
+		with self.managerLock:
+			self.credentials.append(credentials)
+	
+	def DNSLookup(self,host,port):
+		"""Given a host name (string) and a port number performs a DNS lookup
+		using the native socket.getaddrinfo function.  The resulting value is
+		added to an internal dns cache so that subsequent calls for the same
+		host name and port do not use the network unnecessarily.
+		
+		If you want to flush the cache you must do so manually using
+		:py:meth:`DNSFlush`."""
+		with self.managerLock:
+			result=self.dnsCache.get((host,port),None)
+		if result is None:
+			# do not hold the lock while we do the DNS lookup, this may
+			# result in multiple overlapping DNS requests but this is
+			# better than a complete block.
+			logging.debug("Looking up %s",host)
+			result=socket.getaddrinfo(host,port, 0, socket.SOCK_STREAM)
+			with self.managerLock:
+				# blindly populate the cache
+				self.dnsCache[(host,port)]=result
+		return result
+	
+	def DNSFlush(self):
+		"""Flushes the DNS cache."""
+		with self.managerLock:
+			self.dnsCache={}
+			
+	def FindCredentials(self,challenge):
+		"""Searches for credentials that match *challenge*"""
+		logging.debug("HTTPRequestManager searching for credentials in %s with challenge %s",challenge.protectionSpace,str(challenge))
+		with self.managerLock:
+			for c in self.credentials:
+				if c.MatchChallenge(challenge):
+					return c
+	
+	def FindCredentialsForURL(self,url):
+		"""Searches for credentials that match *url*"""
+		with self.managerLock:
+			for c in self.credentials:
+				if c.MatchURL(url):
+					return c
+	
+	def SetLog(self,level,logStream=None,lineLen=80):
+		warnings.warn("HTTPRequestManager.SetLog is deprecated, use logging module instead", DeprecationWarning, stacklevel=2)		
+		
+	def Log(self,level,logString):
+		warnings.warn("HTTPRequestManager.Log is deprecated, use logging module instead", DeprecationWarning, stacklevel=2)		
+
+	def ProcessRequest(self,request,timeout=60):
+		"""Process an :py:class:`HTTPRequest` object."""
+		self.QueueRequest(request,timeout)
+		self.ThreadLoop(timeout)
+		
+	def ThreadLoop(self,timeout=60,callback=None):
+		while True:
+			if not self.ThreadTask(timeout):
+				break
+			if callback is not None:
+				callback()
+		# self.Close()
+
+# 	def Close(self):
+# 		for connection in self.connections.values():
+# 			connection.Close()
+		
+	def ProcessQueue(self):
+		pass
+# 		with self.managerLock:
+# 			for pool in self.cPool.itervalues():
+# 				pool.ProcessQueue(self)
+# 		while self.requestQueue:
+# 			request=self.requestQueue[0]
+# 			if self.nextConnection:
+# 				if self.nextConnection.StartRequest(request):
+# 					self.nextConnection=None
+# 					self.requestQueue=self.requestQueue[1:]
+# 				else:
+# 					# Connection is not ready for us
+# 					break
+# 			else:
+# 				# Find or create a connection for the next request
+# 				key=(request.scheme,request.hostname,request.port)
+# 				self.nextConnection=self.connections.get(key,None)
+# 				if self.nextConnection is None:
+# 					self.nextConnection=self.NewConnection(key[0],key[1],key[2])
+# 					self.connections[key]=self.nextConnection			
+				
+		
+	def ManagerTask(self):
+		"""Designed to allow sub-classing for periodic tasks during idle time such as
+		updating status displays"""
+		pass
+		
+
+
+
 class HTTPMessage(object):
 	"""An abstract class to represent an HTTP message.
 	
@@ -874,37 +845,129 @@ class HTTPMessage(object):
 					fieldValue=self.headers[fieldNameKey][1]+", "+fieldValue
 				self.headers[fieldNameKey]=[fieldName,fieldValue]
 
-	def GetAcceptEncoding(self):
-		"""Returns a list of :py:class:`RelativeQualityToken` instances
-		or None if no "AcceptEncoding" header is present."""
-		with self.lock:
-			fieldValue=self.GetHeader("Accept-Encoding")
-			if fieldValue is not None:
-				rqTokens=[]
-				for item in SplitItems(SplitWords(fieldValue)):
-					rqToken=RelativeQualityToken()
-					ParseRelativeQualityToken(item,rqToken)
-					rqTokens.append(rqToken)
-				return rqTokens
-			else:
-				return None
-			
-	def SetAcceptEncoding(self,rqTokens=[RelativeQualityToken("identity")]):
-		"""Sets the "AcceptEncoding" header, replacing any existing value.
-		
-		*rqTokens*
-			A list of :py:class:`RelativeQualityToken` instances.  This
-			parameter defaults to a list with a single member
-			representing the identity encoding.
-			
-		If *rqTokens* is None then any existing AcceptEncoding header is
-		removed."""
-		if rqTokens is None:
-			self.SetHeader("Accept-Encoding",None)
+	def GetAllow(self):
+		"""Returns an :py:class:`Allow` instance or None if no "Allow"
+		header is present."""
+		fieldValue=self.GetHeader("Allow")
+		if fieldValue is not None:
+			return Allow.FromString(fieldValue)
 		else:
-			self.SetHeader("Accept-Encoding",string.join(map(str,rqTokens),', '))
+			return None
+			
+	def SetAllow(self,allowed):
+		"""Sets the "Allow" header, replacing any existing value.
+		
+		*allowed*
+			A :py:class:`Allow` instance or a string that one can be
+			parsed from.
+		
+		If allowed is None any existing Allow header is removed."""
+		if allowed is None:
+			self.SetHeader("Allow",None)
+		else:
+			if type(acceptValue) in StringTypes:
+				allowed=Allow.FromString(allowed)
+			if not isinstance(allowed,Allow):
+				raise TypeError
+			self.SetHeader("Allow",str(allowed))
 
+	def GetCacheControl(self):
+		"""Returns an :py:class:`CacheControl` instance or None if no
+		"Cache-Control" header is present."""
+		fieldValue=self.GetHeader("Cache-Control")
+		if fieldValue is not None:
+			return CacheControl.FromString(fieldValue)
+		else:
+			return None
+
+	def SetCacheControl(self,cc):
+		"""Sets the "Cache-Control" header, replacing any existing value.
+		
+		*cc*
+			A :py:class:`CacheControl` instance or a string that one can
+			be parsed from.
+		
+		If *cc* is None any existing Cache-Control header is removed."""
+		if cc is None:
+			self.SetHeader("Cache-Control",None)
+		else:
+			if type(cc) in StringTypes:
+				cc=CacheControl.FromString(cc)
+			if not isinstance(cc,CacheControl):
+				raise TypeError
+			self.SetHeader("Cache-Control",str(cc))
+			
+	def GetConnection(self):
+		"""Returns a set of connection tokens from the Connection header
+		
+		If no Connection header was present an empty set is returned."""
+		fieldValue=self.GetHeader("Connection")
+		if fieldValue:
+			hp=HeaderParser(fieldValue)
+			return set(map(lambda x:x.lower(),hp.ParseTokenList()))
+		else:
+			return set()
+		
+	def SetConnection(self,connectionTokens):
+		"""Set the Connection tokens from a an iterable set of *connectionTokens*
+		
+		If the list is empty any existing header is removed."""
+		if connectionTokens:
+			self.SetHeader("Connection",string.join(list(connectionTokens),", "))
+		else:
+			self.SetHeader("Connection",None)
+		
+	def GetContentEncoding(self):
+		"""Returns a *list* of lower-cased content-coding tokens from
+		the Content-Encoding header
+		
+		If no Content-Encoding header was present an empty list is
+		returned.
+		
+		Content-codings are always listed in the order they have been
+		applied."""
+		fieldValue=self.GetHeader("Content-Encoding")
+		if fieldValue:
+			hp=HeaderParser(fieldValue)
+			return map(lambda x:x.lower(),hp.ParseTokenList())
+		else:
+			return []
+		
+	def SetContentEncoding(self,contentCodings):
+		"""Sets the Content-Encoding header from a an iterable list of
+		*content-coding* tokens.  If the list is empty any existing
+		header is removed."""
+		if contentCodings:
+			self.SetHeader("Content-Encoding",string.join(list(contentCodings),", "))
+		else:
+			self.SetHeader("Content-Encoding",None)
+		
+	def GetContentLanguage(self):
+		"""Returns a *list* of :py:class:`LanguageTag` instances from
+		the Content-Language header
+		
+		If no Content-Language header was present an empty list is
+		returned."""
+		fieldValue=self.GetHeader("Content-Language")
+		if fieldValue:
+			hp=HeaderParser(fieldValue)
+			return LanguageTag.ListFromString(fieldValue)
+		else:
+			return []
+		
+	def SetContentLanguage(self,langList):
+		"""Sets the Content-Language header from a an iterable list of
+		:py:class:`LanguageTag` instances."""
+		if langList:
+			self.SetHeader("Content-Language",string.join(map(str,langList),", "))
+		else:
+			self.SetHeader("Content-Language",None)
+		
 	def GetContentLength(self):
+		"""Returns the integer size of the entity from the
+		Content-Length header
+		
+		If no Content-Length header was present None is returned."""
 		fieldValue=self.GetHeader("Content-Length")
 		if fieldValue is not None:
 			return int(fieldValue.strip())
@@ -912,12 +975,79 @@ class HTTPMessage(object):
 			return None
 
 	def SetContentLength(self,length):
+		"""Sets the Content-Length header from an integer or removes it
+		if *length* is None."""
 		if length is None:
 			self.SetHeader("Content-Length",None)
 		else:
 			self.SetHeader("Content-Length",str(length))
 
+	def GetContentLocation(self):
+		"""Returns a :py:class:`pyslet.rfc2396.URI` instance created from
+		the Content-Location header.
+		
+		If no Content-Location header was present None is returned."""
+		fieldValue=self.GetHeader("Content-Location")
+		if fieldValue is not None:
+			return uri.URIFactory.URI(fieldValue.strip())
+		else:
+			return None
+	
+	def SetContentLocation(self,location):
+		"""Sets the Content-Location header from location, a
+		:py:class:`pyslet.rfc2396.URI` instance or removes it if
+		*location* is None."""
+		if location is None:
+			self.SetHeader("Content-Location",None)
+		else:
+			self.SetHeader("Content-Location",str(location))
+
+	def GetContentMD5(self):
+		"""Returns a 16-byte binary string read from the Content-MD5
+		header or None if no Content-MD5 header was present.
+		
+		The result is suitable for comparing directly with the output
+		of the Python's MD5 digest method."""
+		fieldValue=self.GetHeader("Content-MD5")
+		if fieldValue is not None:
+			return base64.b64decode(fieldValue.strip())
+		else:
+			return None
+	
+	def SetContentMD5(self,digest):
+		"""Sets the Content-MD5 header from a 16-byte binary string
+		returned by Python's MD5 digest method or similar.  If digest is
+		None any existing Content-MD5 header is removed."""
+		if digest is None:
+			self.SetHeader("Content-MD5",None)
+		else:
+			self.SetHeader("Content-MD5",base64.b64encode(digest))
+
+	def GetContentRange(self):
+		"""Returns a :py:class:`ContentRange` instance parsed from the
+		Content-Range header.
+
+		If no Content-Range header was present None is returned."""
+		fieldValue=self.GetHeader("Content-Range")
+		if fieldValue is not None:
+			return ContentRange.FromString(fieldValue)
+		else:
+			return None
+	
+	def SetContentRange(self,range):
+		"""Sets the Content-Range header from range, a
+		:py:class:`ContentRange` instance or removes it if
+		*range* is None."""
+		if range is None:
+			self.SetHeader("Content-Range",None)
+		else:
+			self.SetHeader("Content-Range",str(range))
+
 	def GetContentType(self):
+		"""Returns a :py:class:`MediaType` instance parsed from the
+		Content-Type header.
+
+		If no Content-Type header was present None is returned."""
 		fieldValue=self.GetHeader("Content-Type")
 		if fieldValue is not None:
 			mtype=MediaType.FromString(fieldValue)
@@ -926,40 +1056,38 @@ class HTTPMessage(object):
 			return None
 	
 	def SetContentType(self,mtype=None):
+		"""Sets the Content-Type header from mtype, a
+		:py:class:`MediaType` instance, or removes it if
+		*mtype* is None."""
 		if mtype is None:
 			self.SetHeader('Content-Type',None)
 		else:
 			self.SetHeader('Content-Type',str(mtype))
 		
-	def GetContentMD5(self):
-		fieldValue=self.GetHeader("Content-MD5")
-		if fieldValue is not None:
-			return base64.decodestring(fieldValue.strip())
-		else:
-			return None
-	
-	def SetContentMD5(self,hash):
-		if hash is None:
-			self.SetHeader("Content-MD5",None)
-		else:
-			self.SetHeader("Content-MD5",base64.encodestring(hash).strip())
-			
 	def GetDate(self):
+		"""Returns a :py:class:`FullDate` instance parsed from the
+		Date header.
+
+		If no Date header was present None is returned."""
 		fieldValue=self.GetHeader("Date")
 		if fieldValue is not None:
-			return ParseDate(fieldValue)
+			return FullDate.FromHTTPString(fieldValue)
 		else:
 			return None
 
-	def SetDate(self,date='now'):
-		if date=='now':
-			date=datetime.datetime.utcnow()
+	def SetDate(self,date=None):
+		"""Sets the Date header from *date*, a
+		:py:class:`FullDate` instance, or removes it if
+		*date* is None.
+		
+		To set the date header to the current date use::
+		
+			SetDate(FullDate.FromNowUTC())"""
 		if date is None:
 			self.SetHeader("Date",None)
 		else:
 			self.SetHeader("Date",FormatDate(date))
-			
-	
+				
 	def GetExpectContinue(self):
 		fieldValue=self.GetHeader("Expect")
 		if fieldValue is not None:
@@ -983,35 +1111,7 @@ class HTTPMessage(object):
 		return self.GetHeader("Host")
 		
 	def SetHost(self,server):
-		self.SetHeader("Host",server)
-	
-	def GetConnection(self):
-		"""Returns a dict of connection tokens from the Connection header"""
-		src=self.GetHeader("Connection")
-		if src:
-			wp=WordParser(src)
-			return set(map(lambda x:x.lower(),wp.ParseTokenList()))
-		else:
-			return set()
-		
-	def SetConnection(self,connectionTokens):
-		"""Set the Connection tokens from a an iterable set of *connectionTokens*"""
-		self.SetHeader("Connection",string.join(list(connectionTokens)))
-		
-	def GetWWWAuthenticateChallenges(self):
-		fieldValue=self.GetHeader("WWW-Authenticate")
-		if fieldValue is not None:
-			items=SplitItems(SplitWords(fieldValue))
-			challenges=[]
-			for item in items:
-				if item[0].lower()=='basic':
-					c=BasicChallenge()
-					ParseAuthParams(item,c,1)
-					challenges.append(c)
-			return challenges
-		else:
-			return None
-		
+		self.SetHeader("Host",server)		
 		
 	def CalculateTransferLength(self,body=None):
 		"""See section 4.4 of RFC2616.
@@ -1069,6 +1169,8 @@ class HTTPMessage(object):
 	
 	
 class HTTPRequest(HTTPMessage):
+	"""
+	"""	
 	def __init__(self,url,method="GET",reqBody='',resBody=None,protocolVersion=HTTP_VERSION):
 		super(HTTPRequest,self).__init__()
 		self.manager=None
@@ -1158,11 +1260,74 @@ class HTTPRequest(HTTPMessage):
 			raise HTTPException("No host in request URL")
 		
 		
+	def GetAccept(self):
+		"""Returns an :py:class:`AcceptList` instance or None if no
+		"Accept" header is present."""
+		fieldValue=self.GetHeader("Accept")
+		if fieldValue is not None:
+			return AcceptList.FromString(fieldValue)
+		else:
+			return None
+			
+	def SetAccept(self,acceptValue):
+		"""Sets the "Accept" header, replacing any existing value.
+		
+		*acceptValue*
+			A :py:class:`AcceptList` instance or a string that one can
+			be parsed from."""
+		if type(acceptValue) in StringTypes:
+			acceptValue=AcceptList.FromString(acceptValue)
+		if not isinstance(acceptValue,AcceptList):
+			raise TypeError
+		self.SetHeader("Accept",str(acceptValue))
+
+	def GetAcceptCharset(self):
+		"""Returns an :py:class:`AcceptCharsetList` instance or None if
+		no "Accept-Charset" header is present."""
+		fieldValue=self.GetHeader("Accept-Charset")
+		if fieldValue is not None:
+			return AcceptCharsetList.FromString(fieldValue)
+		else:
+			return None
+			
+	def SetAcceptCharset(self,acceptValue):
+		"""Sets the "Accept-Charset" header, replacing any existing value.
+		
+		*acceptValue*
+			A :py:class:`AcceptCharsetList` instance or a string that
+			one can be parsed from."""
+		if type(acceptValue) in StringTypes:
+			acceptValue=AcceptCharsetList.FromString(acceptValue)
+		if not isinstance(acceptValue,AcceptCharsetList):
+			raise TypeError
+		self.SetHeader("Accept-Charset",str(acceptValue))
+
+	def GetAcceptEncoding(self):
+		"""Returns an :py:class:`AcceptEncodingList` instance or None if
+		no "Accept-Encoding" header is present."""
+		fieldValue=self.GetHeader("Accept-Encoding")
+		if fieldValue is not None:
+			return AcceptEncodingList.FromString(fieldValue)
+		else:
+			return None
+			
+	def SetAcceptEncoding(self,acceptValue):
+		"""Sets the "Accept-Encoding" header, replacing any existing value.
+		
+		*acceptValue*
+			A :py:class:`AcceptEncodingList` instance or a string that
+			one can be parsed from."""
+		if type(acceptValue) in StringTypes:
+			acceptValue=AcceptEncodingList.FromString(acceptValue)
+		if not isinstance(acceptValue,AcceptEncodingList):
+			raise TypeError
+		self.SetHeader("Accept-Encoding",str(acceptValue))
+
 	def SetManager(self,manager):
 		"""Called when we are queued in an HTTPRequestManager"""
 		self.manager=manager
 	
-	def SetConnection(self,connection):
+	def SetHTTPConnection(self,connection):
 		"""Called when we are assigned to an HTTPConnection"""
 		self.connection=connection
 		
@@ -1189,7 +1354,7 @@ class HTTPRequest(HTTPMessage):
 		buffer.append("%s %s %s\r\n"%(self.method,self.url,str(self.protocolVersion)))
 		# Check authorization and add credentials if the manager has them
 		if not self.HasHeader("Authorization"):
-			credentials=self.manager.FindCredentials(url=self.requestURI)
+			credentials=self.manager.FindCredentialsForURL(self.requestURI)
 			if credentials:
 				self.SetHeader('Authorization',str(credentials))			
 		hList=self.GetHeaderList()
@@ -1342,10 +1507,10 @@ class HTTPRequest(HTTPMessage):
 					location=location.Resolve(self.requestURI)
 				self.Resend(location)
 		elif self.status==401:
-			challenges=self.response.GetWWWAuthenticateChallenges()
+			challenges=self.response.GetWWWAuthenticate()
 			for c in challenges:
 				c.protectionSpace=self.requestURI.GetCanonicalRoot()
-				self.tryCredentials=self.manager.FindCredentials(challenge=c)
+				self.tryCredentials=self.manager.FindCredentials(c)
 				if self.tryCredentials:
 					self.SetHeader('Authorization',str(self.tryCredentials))
 					self.Resend()	# to the same URL
@@ -1377,6 +1542,85 @@ class HTTPResponse(HTTPMessage):
 		self.currHeader=None
 		self.waitStart=None
 		
+	def GetAcceptRanges(self):
+		"""Returns an :py:class:`AcceptRanges` instance or None if no
+		"Accept-Ranges" header is present."""
+		fieldValue=self.GetHeader("Accept-Ranges")
+		if fieldValue is not None:
+			return AcceptRanges.FromString(fieldValue)
+		else:
+			return None
+			
+	def SetAcceptRanges(self,acceptValue):
+		"""Sets the "Accept-Ranges" header, replacing any existing value.
+		
+		*acceptValue*
+			A :py:class:`AcceptRanges` instance or a string that
+			one can be parsed from."""
+		if type(acceptValue) in StringTypes:
+			acceptValue=AcceptRanges.FromString(acceptValue)
+		if not isinstance(acceptValue,AcceptRanges):
+			raise TypeError
+		self.SetHeader("Accept-Ranges",str(acceptValue))
+
+	def GetAge(self):
+		"""Returns an integer or None if no "Age" header is present."""
+		fieldValue=self.GetHeader("Age")
+		if fieldValue is not None:
+			hp=HeaderParser(fieldValue)
+			return hp.RequireProductionEnd(hp.ParseDeltaSeconds())
+		else:
+			return None
+			
+	def SetAge(self,age):
+		"""Sets the "Age" header, replacing any existing value.
+		
+		age
+			an integer or long value or None to remove the header"""
+		if age is None:
+			self.SetHeader("Age",None)
+		else:
+			self.SetHeader("Age",str(age))
+
+	def GetETag(self):
+		"""Returns a :py:class:`EntityTag` instance parsed from the ETag
+		header or None if no "ETag" header is present."""
+		fieldValue=self.GetHeader("ETag")
+		if fieldValue is not None:
+			return EntityTag.FromString(fieldValue)
+		else:
+			return None
+			
+	def SetETag(self,eTag):
+		"""Sets the "ETag" header, replacing any existing value.
+		
+		eTag
+			a :py:class:`EntityTag` instance or None to remove
+			any ETag header."""
+		if eTag is None:
+			self.SetHeader("ETag",None)
+		else:
+			self.SetHeader("ETag",str(eTag))		
+
+	def GetWWWAuthenticate(self):
+		"""Returns a list of :py:class:`~pyslet.rfc2617.Challenge`
+		instances.
+		
+		If there are no challenges an empty list is returned."""
+		fieldValue=self.GetHeader("WWW-Authenticate")
+		if fieldValue is not None:
+			return Challenge.ListFromString(fieldValue)
+		else:
+			return None
+
+	def SetWWWAuthenticate(self,challenges):
+		"""Sets the "WWW-Authenticate" header, replacing any exsiting
+		value.
+		
+		challenges
+			a list of :py:class:`~pyslet.rfc2617.Challenge` instances"""
+		self.SetHeader("WWW-Authenticate",string.join(map(str,challenges),", "))
+
 	def StartWaiting(self):
 		# called after the send buffer for our request is cleared
 		# indicating that we are now just waiting for a response from
@@ -1440,7 +1684,8 @@ class HTTPResponse(HTTPMessage):
 				self.request.HandleResponseHeader()
 		elif self.mode==self.RESP_CHUNK_SIZE:
 			# Read the chunk size
-			chunkLine=SplitWords(line[:-2])[0]
+			p=ParameterParser(line[:-2])
+			chunkLink=p.ParseToken()
 			self.transferLength=int(chunkLine,16)
 			self.transferPos=0
 			if self.transferLength==0:

@@ -41,7 +41,7 @@ class FakeHTTPConnection(http.FakeHTTPConnection):
 		self.responseTable=TEST_SERVER[self.host]
 		
 class FakeHTTPRequestManager(http.FakeHTTPRequestManager):
-	FakeHTTPConnectionClass=FakeHTTPConnection
+	ConnectionClass=FakeHTTPConnection
 
 		
 class HTTP2617Tests(unittest.TestCase):
@@ -55,11 +55,10 @@ class HTTP2617Tests(unittest.TestCase):
 		c=BasicChallenge()
 		self.assertTrue(c.scheme=="Basic","Challenge scheme: %s"%c.scheme)
 		self.assertTrue(c.protectionSpace is None,"Challenge protection space: %s"%c.protectionSpace)
-		self.assertTrue(c.realm is None,"Initial challenge realm: %s"%c.realm)
-		nWords=ParseAuthParams(http.SplitWords('realm="Firewall"'),c)
-		self.assertTrue(nWords==3,"ParseAuthParams result: %s"%int(nWords))
-		self.assertTrue(c.realm=="Firewall","Parsed realm: %s"%c.realm)
-		self.assertTrue(str(c)=='Basic realm="Firewall"',"Format challenge")
+		self.assertTrue(c["realm"]=="Default","Initial challenge realm: %s"%c["realm"])
+		c=BasicChallenge.FromString('Basic realm="Firewall"')
+		self.assertTrue(c["realm"]=="Firewall","Parsed realm: %s"%c["realm"])
+		self.assertTrue(str(c)=='Basic realm="Firewall"',"Format challenge: %s"%repr(str(c)))
 		
 	def testCaseBasicCredentials(self):
 		c=BasicCredentials()
@@ -102,16 +101,15 @@ class HTTP2617Tests(unittest.TestCase):
 	def testCase401(self):
 		rm=FakeHTTPRequestManager()
 		rm.httpUserAgent=None
-		import pdb;pdb.set_trace
 		request1=http.HTTPRequest("http://www.domain1.com/")
 		rm.QueueRequest(request1)
-		# ManagerLoop will process the queue until it blocks for more than the timeout (default, 60s)
-		rm.ManagerLoop()
+		# ThreadLoop will process the queue until it blocks for more than the timeout (default, 60s)
+		rm.ThreadLoop()
 		response1=request1.response
 		self.assertTrue(response1.status==401,"Status in response1: %i"%response1.status)
 		self.assertTrue(response1.reason=="Who are you?","Reason in response1: %s"%response1.reason)
 		self.assertTrue(request1.resBody==TEST_STRING,"Data in response1: %s"%request1.resBody)
-		challenges=response1.GetWWWAuthenticateChallenges()
+		challenges=response1.GetWWWAuthenticate()
 		self.assertTrue(len(challenges)==1 and isinstance(challenges[0],BasicChallenge),"Challenge")
 		c=BasicCredentials()
 		c.protectionSpace="http://www.domain1.com"
@@ -121,7 +119,7 @@ class HTTP2617Tests(unittest.TestCase):
 		rm.AddCredentials(c)
 		request2=http.HTTPRequest("http://www.domain1.com/")
 		rm.QueueRequest(request2)
-		rm.ManagerLoop()
+		rm.ThreadLoop()
 		response2=request2.response
 		self.assertTrue(str(response2.protocolVersion)=="HTTP/1.1","Protocol in response1: %s"%response1.protocolVersion)
 		self.assertTrue(response2.status==200,"Status in response1: %i"%response1.status)

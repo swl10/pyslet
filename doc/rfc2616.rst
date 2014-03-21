@@ -38,6 +38,54 @@ and a special-purpose parser for parsing them from strings of octets.
 	:members:
 	:show-inheritance:
 
+..	autoclass:: AcceptCharsetItem
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AcceptCharsetList
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AcceptEncodingItem
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AcceptEncodingList
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AcceptLanguageItem
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AcceptLanguageList
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AcceptToken
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AcceptTokenList
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AcceptRanges
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Allow
+	:members:
+	:show-inheritance:
+
+..	autoclass:: CacheControl
+	:members:
+	:show-inheritance:
+
+..	autoclass:: ContentRange
+	:members:
+	:show-inheritance:
+
 ..	autoclass:: HeaderParser
 	:members:
 	:show-inheritance:
@@ -78,6 +126,10 @@ and a special-purpose parser for parsing them from strings of octets.
 	:show-inheritance:
 
 ..	autoclass:: LanguageTag
+	:members:
+	:show-inheritance:
+
+..	autoclass:: EntityTag
 	:members:
 	:show-inheritance:
 
@@ -130,6 +182,8 @@ This section defines functions for handling basic elements of the HTTP grammar.
 ..	autoclass:: HTTPParser
 	:members:
 	:show-inheritance:
+
+..	autofunction:: CheckToken
 
 ..	autofunction:: QuoteString
 
