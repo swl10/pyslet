@@ -6,10 +6,11 @@ import socket
 
 def suite():
 	return unittest.TestSuite((
-		unittest.makeSuite(HTTP2616Tests,'test'),
 		unittest.makeSuite(GenericParserTests,'test'),
 		unittest.makeSuite(ProtocolParameterTests,'test'),
 		unittest.makeSuite(HeaderTests,'test'),
+		unittest.makeSuite(HTTP2616Tests,'test'),
+		unittest.makeSuite(ThreadedTests,'test'),
 		unittest.makeSuite(ChunkedTests,'test')
 		))
 
@@ -18,10 +19,12 @@ from pyslet.rfc2616 import *
 import random
 import os
 
+TEST_DATA_DIR=os.path.join(os.path.split(os.path.abspath(__file__))[0],'data_rfc2616')
+
 TEST_STRING="The quick brown fox jumped over the lazy dog"
 
 TEST_SERVER_1={
-	"GET / HTTP/1.1\r\nHost: www.domain1.com":"HTTP/1.1 200 You got it!\r\nContent-Length: %i\r\n\r\n%s"%(len(TEST_STRING),TEST_STRING),
+	"GET / HTTP/1.1\r\nHost: www.domain1.com": "HTTP/1.1 200 You got it!\r\nContent-Length: %i\r\n\r\n%s"%(len(TEST_STRING),TEST_STRING),
 	"HEAD / HTTP/1.1\r\nHost: www.domain1.com":"HTTP/1.1 200 You got it!\r\nContent-Length: %i\r\n\r\n"%len(TEST_STRING),
 	"PUT /file HTTP/1.1\r\nContent-Length: 10\r\nHost: www.domain1.com":"",
 	"123456":"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n",
@@ -38,10 +41,20 @@ TEST_SERVER_1={
 TEST_SERVER_2={
 	"HEAD / HTTP/1.1\r\nHost: www.domain2.com":"HTTP/1.1 301 Moved\r\nLocation: http://www.domain1.com/\r\n\r\n"
 	}
+
+TEST_SERVER_3={
+	"GET /index.txt HTTP/1.1\r\nHost: www.domain3.com":"HTTP/1.1 200 You got it!\r\nContent-Length: %i\r\n\r\n%s"%(len(TEST_STRING),TEST_STRING),
+	}
+
+TEST_SERVER_4={
+	"GET /index.txt HTTP/1.1\r\nHost: www.domain4.com":"HTTP/1.1 200 You got it!\r\nContent-Length: %i\r\n\r\n%s"%(len(TEST_STRING),TEST_STRING),
+	}
 	
 TEST_SERVER={
 	'www.domain1.com': TEST_SERVER_1,
-	'www.domain2.com': TEST_SERVER_2
+	'www.domain2.com': TEST_SERVER_2,
+	'www.domain3.com': TEST_SERVER_3,
+	'www.domain4.com': TEST_SERVER_4
 	}
 
 BAD_REQUEST="HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n"
@@ -49,14 +62,21 @@ BAD_REQUEST="HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n"
 class FakeHTTPConnection(Connection):
 
 	def NewSocket(self):
-		# Socket implementation to follow
-		logging.info("Opening connection to %s...",self.host)
-		self.socket=self
-		self.socketFile=self
-		self.socketSelect=self.select
-		self.socketSendBuffer=StringIO.StringIO()
-		self.socketRecvBuffer=StringIO.StringIO()
-		self.responseTable=TEST_SERVER[self.host]
+		with self.connectionLock:
+			if self.connectionClosed:
+				logging.error("NewSocket called on dead connection to %s",self.host)
+				raise HTTPException("Connection closed")
+				self.socket=None
+				self.socketFile=None
+				self.socketSelect=select.select
+			else:
+				logging.info("Opening connection to %s...",self.host)
+				self.socket=self
+				self.socketFile=self
+				self.socketSelect=self.select
+				self.socketSendBuffer=StringIO.StringIO()
+				self.socketRecvBuffer=StringIO.StringIO()
+				self.responseTable=TEST_SERVER[self.host]
 
 	def select(self,readers,writers,errors,timeout):
 		r=[]
@@ -66,12 +86,15 @@ class FakeHTTPConnection(Connection):
 		return r,w,[]
 	
 	def CanRead(self):
-		return len(self.socketRecvBuffer.getvalue())>self.socketRecvBuffer.tell()
+		if self.socketRecvBuffer is None:
+			return True
+		else:
+			return len(self.socketRecvBuffer.getvalue())>self.socketRecvBuffer.tell()
 		
 	def send(self,data):
 		if data:
 			nBytes=random.randint(1,len(data))
-			logging.debug("sending: %s",repr(data[:nBytes]))
+			# logging.debug("sending: %s",repr(data[:nBytes]))
 			self.socketSendBuffer.write(data[:nBytes])
 			# check to see if this request matches any we know about...
 			data=self.socketSendBuffer.getvalue()
@@ -83,7 +106,7 @@ class FakeHTTPConnection(Connection):
 				self.socketSendBuffer=StringIO.StringIO(newData)
 				self.socketSendBuffer.seek(len(newData))
 				data=data[:endpos]
-				logging.debug("%s handling request: \n%s",self.host,data)
+				# logging.debug("%s handling request: \n%s",self.host,data)
 				response=self.responseTable.get(data,BAD_REQUEST)
 				# add this response to the recv buffer
 				if response==BAD_REQUEST:
@@ -98,19 +121,24 @@ class FakeHTTPConnection(Connection):
 			nBytes=random.randint(1,maxBytes)
 			if nBytes>5:
 				nBytes=5
-			data=self.socketRecvBuffer.read(nBytes)
-			logging.debug("receiving %i bytes: %s",nBytes,repr(data))
+			if self.socketRecvBuffer:
+				data=self.socketRecvBuffer.read(nBytes)
+			else:
+				# recv on a closed socket indicated by zero bytes after
+				# select indicates ready to read
+				data=''
+			# logging.debug("receiving %i bytes: %s",nBytes,repr(data))
 			return data
 		else:
-			logging.debug("receiving: empty string")
+			# logging.debug("receiving: empty string")
 			return ''
 
 	def shutdown(self,mode):
-		# Nothing to do
+		# remove the data in the recv buffer
+		self.socketRecvBuffer=None
 		pass
 	
 	def close(self):
-		logging.info("Closing connection to %s...",self.host)
 		self.socketSendBuffer=None
 		self.socketRecvBuffer=None
 		
@@ -119,8 +147,8 @@ class FakeHTTPRequestManager(HTTPRequestManager):
 
 	ConnectionClass=FakeHTTPConnection
 
-	def __init__(self):
-		HTTPRequestManager.__init__(self)
+	def __init__(self,**kwargs):
+		HTTPRequestManager.__init__(self,**kwargs)
 		self.socketSelect=self.select
 		
 	def select(self,readers,writers,errors,timeout):
@@ -875,6 +903,64 @@ class HTTP2616Tests(unittest.TestCase):
 		self.assertTrue(request.resBody=="","Data in streamed response: %s"%request.resBody)
 			
 
+def Domain3ThreadOneShot(rm):
+	time.sleep(1)
+	request=HTTPRequest("http://www.domain3.com/index.txt")
+	try:
+		rm.ProcessRequest(request)
+	except HTTPException, err:
+		logging.error(err)
+
+def Domain4ThreadOneShot(rm):
+	time.sleep(1)
+	request=HTTPRequest("http://www.domain4.com/index.txt")
+	try:
+		rm.ProcessRequest(request)
+	except HTTPException, err:
+		logging.error(err)
+
+class ThreadedTests(unittest.TestCase):
+	
+	def testCaseMultiGET(self):
+		rm=FakeHTTPRequestManager(maxConnections=3)
+		rm.httpUserAgent=None
+		threads=[]
+		for i in xrange(10):
+			threads.append(threading.Thread(target=Domain3ThreadOneShot,args=(rm,)))
+		for i in xrange(10):
+			threads.append(threading.Thread(target=Domain4ThreadOneShot,args=(rm,)))
+		for t in threads:
+			t.start()
+		while threads:
+			t=threads.pop()
+			t.join()
+		# success criteria?  that we survived
+		rm.IdleCleanup(3)
+		rm.IdleCleanup(0)
+
+	def testCaseKill(self):
+		rm=FakeHTTPRequestManager(maxConnections=3)
+		rm.httpUserAgent=None
+		threads=[]
+		for i in xrange(10):
+			threads.append(threading.Thread(target=Domain3ThreadOneShot,args=(rm,)))
+		for i in xrange(10):
+			threads.append(threading.Thread(target=Domain4ThreadOneShot,args=(rm,)))
+		for t in threads:
+			t.start()
+		while rm.ActiveCount()==0:
+			continue
+		logging.info("%i active connections",rm.ActiveCount())
+		rm.ActiveCleanup(3)
+		logging.info("%i active connections after ActiveCleanup(3)",rm.ActiveCount())
+		rm.ActiveCleanup(0)
+		logging.info("%i active connections after ActiveCleanup(0)",rm.ActiveCount())
+		while threads:
+			t=threads.pop()
+			t.join()
+		rm.Close()
+		
+	
 class ChunkedTests(unittest.TestCase):
 	def setUp(self):
 		self.cwd=os.getcwd()
@@ -896,6 +982,39 @@ class ChunkedTests(unittest.TestCase):
 		self.assertTrue(string.join(list(r),'')=='3\r\nabc\r\n6\r\ndefghi\r\n1\r\nj\r\n4\r\nklmn\r\n4\r\nnopq\r\n5\r\nrstuvw\r\n1\r\nx\r\n1\r\ny\r\n1\r\nz\r\n0\r\n')
 
 
+class SecureTests(unittest.TestCase):
+	
+	def testGoogleInsecure(self):
+		rm=HTTPRequestManager()
+		request=HTTPRequest("https://code.google.com/p/qtimigration/")
+		try:
+			rm.ProcessRequest(request)
+		except HTTPException, err:
+			logging.error(err)
+		rm.Close()
+
+	def testGoogleSecure(self):
+		rm=HTTPRequestManager(ca_certs=os.path.join(TEST_DATA_DIR,"ca_certs.txt"))
+		request=HTTPRequest("https://code.google.com/p/qtimigration/")
+		try:
+			rm.ProcessRequest(request)
+		except HTTPException, err:
+			logging.error(err)
+		rm.Close()
+		rm=HTTPRequestManager(ca_certs=os.path.join(TEST_DATA_DIR,"no_certs.txt"))
+		request=HTTPRequest("https://code.google.com/p/qtimigration/")
+		try:
+			rm.ProcessRequest(request)
+			if request.status!=0:
+				self.fail("Expected status=0 after security failure")
+			if not request.error:
+				self.fail("Expected error after security failure")
+			logging.info(str(request.error))
+		except HTTPException, err:
+			logging.error(str(err))
+		rm.Close()
+
+
 if __name__ == '__main__':
-	logging.basicConfig(level=logging.DEBUG)
+	logging.basicConfig(level=logging.INFO,format="[%(thread)d] %(levelname)s %(message)s")
 	unittest.main()

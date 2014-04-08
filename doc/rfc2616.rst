@@ -20,6 +20,22 @@ HTTP Messages
 	:show-inheritance:
 
 
+Sending Requests
+----------------
+
+..	autoclass:: HTTPRequestManager
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Connection
+	:members:
+	:show-inheritance:
+
+..	autoclass:: SecureConnection
+	:members:
+	:show-inheritance:
+
+
 HTTP Headers
 ------------
 
@@ -202,6 +218,20 @@ Exceptions
 
 ..	autoclass:: HTTPException
 	:show-inheritance:
+
+
+Misc Definitions
+----------------
+
+..	autodata:: HTTP_PORT
+
+..	autodata:: HTTPS_PORT
+
+..	autodata:: HTTP_VERSION
+
+..	autodata:: USER_AGENT
+
+..	autodata:: SOCKET_CHUNK
 
 
 

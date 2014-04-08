@@ -95,7 +95,7 @@ class ODataCollectionMixin(object):
 		if eType==KeyError:
 			logging.info("404: %s",errorMsg)
 		else:
-			logging.error("%i: %s",request.status,errorMsg)
+			logging.info("%i: %s",request.status,errorMsg)
 			if debugMsg:
 				logging.debug(debugMsg)
 		raise eType(errorMsg)				

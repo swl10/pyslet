@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import unittest
+import unittest, logging
 
 from sys import maxunicode
 import string
@@ -7,7 +7,6 @@ import string
 MAX_CHAR=0x10FFFF
 if maxunicode<MAX_CHAR:
 	MAX_CHAR=maxunicode
-	print "unicode5 tests truncated to unichr(0x%X) by narrow python build"%MAX_CHAR
 
 from pyslet.unicode5 import *
 
@@ -23,6 +22,8 @@ from pyslet.unicode5 import *
 class CharClassTests(unittest.TestCase):
 	def testConstructor(self):
 		c=CharClass()
+		if MAX_CHAR<0x10FFFF:
+			logging.warn("unicode5 tests truncated to unichr(0x%X) by narrow python build"%MAX_CHAR)
 		for code in xrange(MAX_CHAR+1):
 			self.assertFalse(c.Test(unichr(code)))
 		c=CharClass('a')
@@ -125,13 +126,11 @@ class CharClassTests(unittest.TestCase):
 			
 			
 	def ClassTest(self,cClass):
-		#print cClass.ranges
 		result=[]
 		for c in range(ord('a'),ord('z')+1):
 			if cClass.Test(unichr(c)):
 				result.append(unichr(c))
 		result=string.join(result,'')
-		#print result
 		return result
 						
 
@@ -163,4 +162,5 @@ class UCDTests(unittest.TestCase):
 				
 				 
 if __name__ == "__main__":
+	logging.basicConfig(level=logging.INFO)
 	unittest.main()

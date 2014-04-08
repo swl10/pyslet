@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import unittest
+import unittest, logging
 
 from sys import maxunicode
 from tempfile import mkdtemp
@@ -11,9 +11,6 @@ from types import UnicodeType
 MAX_CHAR=0x10FFFF
 if maxunicode<MAX_CHAR:
 	MAX_CHAR=maxunicode
-	print "xml tests truncated to unichr(0x%X) by narrow python build"%MAX_CHAR
-
-VERBOSE=False
 
 def suite():
 	return unittest.TestSuite((
@@ -175,6 +172,7 @@ class XMLCharacterTests(unittest.TestCase):
 		expectedEdges=[0x9,0xB,0xD,0xE,0x20,0xD800,0xE000,0xFFFE,0x10000,0x110000]
 		if MAX_CHAR<0x10FFFF:
 			expectedEdges=expectedEdges[0:8]
+			logging.warn("xml tests truncated to unichr(0x%X) by narrow python build"%MAX_CHAR)
 		self.assertTrue(self.FindEdges(IsChar,MAX_CHAR)==expectedEdges,"IsChar")
 
 	def testSpace(self):
@@ -296,9 +294,8 @@ class XMLValidationTests(unittest.TestCase):
 				d.Read(e)
 				self.fail("%s is not Well-Formed but failed to raise XMLWellFormedError"%fName)
 			except XMLWellFormedError,e:
-				if VERBOSE:
-					print "\n%s: Well-formed Errors:"%fName				
-					print str(e)
+				logging.info("\n%s: Well-formed Errors:",fName)
+				logging.info(str(e))
 		
 	def testValid(self):
 		dPath=os.path.join(TEST_DATA_DIR,'valid')
@@ -331,10 +328,9 @@ class XMLValidationTests(unittest.TestCase):
 				p.ParseDocument()
 				self.assertFalse(p.valid,"Invalid Example: %s marked as valid in the parser"%fName)
 				self.assertFalse(len(p.nonFatalErrors)==0,"Invalid Example: %s reported no validity errors"%fName)
-				if VERBOSE:
-					print "\n%s: Validity Errors:"%fName
-					for e in p.nonFatalErrors:
-						print e
+				logging.info("\n%s: Validity Errors:",fName)
+				for e in p.nonFatalErrors:
+					logging.info(str(e))
 			except XMLValidityError,e:
 				self.fail("XMLValidityError raised when raiseVaidityErrors is False (%s)"%fName)
 			except XMLWellFormedError,e:
@@ -372,10 +368,9 @@ class XMLValidationTests(unittest.TestCase):
 			try:
 				p.ParseDocument()
 				self.assertFalse(len(p.nonFatalErrors)==0,"Incompatible Example: %s reported no non-fatal errors"%fName)
-				if VERBOSE:
-					print "\n%s: Compatibility Errors:"%fName
-					for e in p.nonFatalErrors:
-						print e
+				logging.info("\n%s: Compatibility Errors:",fName)
+				for e in p.nonFatalErrors:
+					logging.info(str(e))
 			except XMLValidityError,e:
 				self.fail("XMLValidityError raised when raiseVaidityErrors is False (%s)"%fName)
 			except XMLWellFormedError,e:
@@ -409,10 +404,9 @@ class XMLValidationTests(unittest.TestCase):
 			try:
 				p.ParseDocument()
 				self.assertFalse(len(p.nonFatalErrors)==0,"Error example: %s reported no non-fatal errors"%fName)
-				if VERBOSE:
-					print "\n%s: Errors:"%fName
-					for e in p.nonFatalErrors:
-						print e
+				logging.info("\n%s: Errors:",fName)
+				for e in p.nonFatalErrors:
+					logging.info(str(e))
 			except XMLError,e:
 				self.fail("XMLError raised by (non-fatal) error example (%s)"%fName)
 
@@ -1591,8 +1585,7 @@ class XMLParserTests(unittest.TestCase):
 				p.ParseIncludeSect()
 				self.fail("ParseIncludeSect negative validity test: %s"%s)
 			except XMLWellFormedError,e:
-				if VERBOSE:
-					print e
+				logging.info(str(e))
 				self.fail("ParseIncludeSect spurious well-formed error: %s"%s)
 			except XMLValidityError:
 				pass
@@ -1639,8 +1632,7 @@ class XMLParserTests(unittest.TestCase):
 				p.ParseIgnoreSect()
 				self.fail("ParseIgnoreSect negative validity test: %s"%s)
 			except XMLWellFormedError,e:
-				if VERBOSE:
-					print e
+				logging.info(str(e))
 				self.fail("ParseIgnoreSect spurious well-formed error: %s"%s)
 			except XMLValidityError:
 				pass
@@ -2514,6 +2506,5 @@ class DocumentTests(unittest.TestCase):
 		
 		
 if __name__ == "__main__":
-	# When we are run directly, turn on verbose output
-	VERBOSE=True
+	logging.basicConfig(level=logging.INFO)
 	unittest.main()

@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import unittest
+import unittest, logging
 
 import os, random, time
 import StringIO
@@ -43,7 +43,7 @@ def suite():
 	t=Thread(target=runAPPServer)
 	t.setDaemon(True)
 	t.start()
-	print "APP tests starting HTTP server on localhost, port %i"%HTTP_PORT
+	logging.info("APP tests starting HTTP server on localhost, port %i",HTTP_PORT)
 	return unittest.TestSuite((
 		unittest.makeSuite(APP5023Tests,'test'),
 		unittest.makeSuite(APPElementTests,'test'),
@@ -400,4 +400,5 @@ class ServerTests(unittest.TestCase):
 
 		
 if __name__ == "__main__":
+	logging.basicConfig(level=logging.INFO)
 	unittest.main()

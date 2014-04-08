@@ -2,7 +2,7 @@
 
 """Runs unit tests on all pyslet modules"""
 
-import unittest
+import unittest, logging
 
 import test_html40_19991224
 import test_imsbltiv1p0
@@ -72,4 +72,5 @@ def load_tests(loader, tests, pattern):
 if __name__ == "__main__":
 # 	runner=unittest.TextTestRunner()
 # 	runner.run(suite())
+	logging.basicConfig(level=logging.ERROR)
 	unittest.main()

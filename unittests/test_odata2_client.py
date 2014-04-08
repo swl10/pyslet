@@ -200,12 +200,17 @@ class ClientTests(unittest.TestCase):
 # 		self.assertTrue(e.entityType is c.schemas['ODataDemo']['Product'],"New entry not associated with EntityType")
 
 
-from wsgiref.simple_server import make_server
-
+from wsgiref.simple_server import make_server, WSGIRequestHandler
+	
+class LoggingHandler(WSGIRequestHandler):
+	
+	def log_message(self,format,*args):
+		logging.info(format,*args)
+		
 regressionServerApp=None
 
 def runRegressionServer():
-	server=make_server('',HTTP_PORT,regressionServerApp)
+	server=make_server('',HTTP_PORT,regressionServerApp,handler_class=LoggingHandler)
 	logging.info("Serving HTTP on port %i..."%HTTP_PORT)
 	# Respond to requests until process is killed
 	server.serve_forever()

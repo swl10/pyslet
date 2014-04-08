@@ -3,7 +3,6 @@
 import unittest, random, decimal, math, hashlib
 from types import *
 
-VERBOSE=False
 HTTP_PORT=random.randint(1111,9999)
 
 from threading import Thread
@@ -128,6 +127,9 @@ class MockHandler(BaseHTTPRequestHandler):
 		# Prevent successful requests logging to stderr
 		pass
 
+	def log_message(self,format,*args):
+		logging.info(format,*args)
+		
 
 def runODataServer():
 	server=ThreadingHTTPServer(("localhost",HTTP_PORT), MockHandler)
@@ -138,7 +140,7 @@ def suite(prefix='test'):
 	t=Thread(target=runODataServer)
 	t.setDaemon(True)
 	t.start()
-	print "OData tests starting HTTP server on localhost, port %i"%HTTP_PORT
+	logging.info("OData tests starting HTTP server on localhost, port %i",HTTP_PORT)
 	loader=unittest.TestLoader()
 	loader.testMethodPrefix=prefix
 	return unittest.TestSuite((
@@ -3927,5 +3929,5 @@ class SampleServerTests(unittest.TestCase):
 
 			
 if __name__ == "__main__":
-	VERBOSE=True
+	logging.basicConfig(level=logging.INFO)
 	unittest.main()
