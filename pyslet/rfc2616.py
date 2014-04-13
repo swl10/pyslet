@@ -1365,11 +1365,11 @@ class HTTPRequest(HTTPMessage):
 		super(HTTPRequest,self).__init__()
 		self.manager=None
 		self.connection=None
-		self.response=None
-		self.status=0
-		self.error=None		#: If status==0, the error that was raised during processing 
+		self.response=None		#: the associated :py:class:`HTTPResponse`
+		self.status=0			#: the status code received, 0 indicates a failed or unsent request
+		self.error=None			#: If status==0, the error raised during processing 
 		self.SetRequestURI(url)
-		self.method=method
+		self.method=method		#: the method
 		if type(protocolVersion) in StringTypes:
 			self.protocolVersion=HTTPVersion.FromString(protocolVersion)
 		elif isinstance(protocolVersion,HTTPVersion):
@@ -1385,7 +1385,7 @@ class HTTPRequest(HTTPMessage):
 			self.reqBodyStream=reqBody
 			self.reqBodyStart=reqBody.tell()
 			self.reqBody=None
-		self.resBody=''
+		self.resBody=''			#: the response body received (only used if not streaming)
 		self.resBuffer=[]
 		if resBody is not None:
 			# assume that the resBody is a stream like object
@@ -1393,9 +1393,9 @@ class HTTPRequest(HTTPMessage):
 			self.resBodyStart=resBody.tell()
 		else:
 			self.resBodyStream=None
-		self.autoRedirect=True
-		self.done=False
-		self.tryCredentials=None	#: used to try out credentials in response to a 401
+		self.autoRedirect=True	#: flag indicating whether or not to auto-redirect 3xx responses
+		self.done=False			
+		self.tryCredentials=None
 		
 	def Resend(self,url=None):
 		self.done=False
@@ -1521,7 +1521,7 @@ class HTTPRequest(HTTPMessage):
 		self.SetHeader("Accept-Encoding",str(acceptValue))
 
 	def SetManager(self,manager):
-		"""Called when we are queued in an HTTPRequestManager"""
+		"""Called when we are queued for processing by an :py:class:`HTTPRequestManager`"""
 		self.manager=manager
 	
 	def SetHTTPConnection(self,connection):

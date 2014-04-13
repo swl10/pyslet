@@ -515,5 +515,5 @@ class RegressionTests(DataServiceRegressionTests):
 
 			
 if __name__ == "__main__":
-	logging.basicConfig(level=logging.WARN)
+	logging.basicConfig(level=logging.INFO)
 	unittest.main()

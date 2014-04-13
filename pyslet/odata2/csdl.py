@@ -2880,6 +2880,7 @@ class NavigationEntityCollection(EntityCollection):
 		"""Inserts a new *entity* into the target entity set *and*
 		simultaneously creates a link to it from the source entity."""
 		with self.entitySet.OpenCollection() as baseCollection:
+			logging.warning("InsertEntity signature mismatch in NavigationEntityCollection.InsertEntity!")
 			baseCollection.InsertEntity(entity,self.fromEnd.otherEnd)
 			self[entity.Key()]=entity
 	
