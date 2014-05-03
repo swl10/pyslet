@@ -2371,8 +2371,14 @@ def ReadEntityPropertyValueInJSON(v,jsonValue):
 		raise ValueError("Expected SimpleValue: %s"%repr(v))
 
 			
-class EntityCollectionMixin(object):
-	"""A mix-in for EntityCollections to provide OData-specific options."""
+class EntityCollection(edm.EntityCollection):
+	"""EntityCollections that provide OData-specific options
+	
+	Our definition of EntityCollection is designed for use with Python's
+	diamond inheritance model.  We inherit directly from the basic
+	:py:class:`pyslet.odata2.csdl.EntityCollection` object, providing
+	additional methods that support the expression model defined by
+	OData, media link entries and JSON encoding."""
 
 	def GetNextPageLocation(self):
 		"""Returns the location of this page of the collection as a
@@ -2475,25 +2481,28 @@ class EntityCollectionMixin(object):
 					"?$skiptoken=%s"%uri.EscapeData(skiptoken,uri.IsQueryReserved))
 			else:
 				yield ']}'		
-			
-class EntityCollection(EntityCollectionMixin,edm.EntityCollection):
-	"""We override EntityCollection in order to provide OData-specific options."""
-
-	def __init__(self,entitySet):
-		edm.EntityCollection.__init__(self,entitySet)
-		EntityCollectionMixin.__init__(self)
 
 
-class NavigationEntityCollection(EntityCollectionMixin,edm.NavigationEntityCollection):
-	"""We override NavigationEntityCollection in order to provide OData-specific options."""
+class NavigationCollection(EntityCollection,edm.NavigationCollection):
+	"""NavigationEntityCollections that provide OData-specific options.
 	
-	def __init__(self,name,fromEntity,toEntitySet):
-		edm.NavigationEntityCollection.__init__(self,name,fromEntity,toEntitySet)
-		EntityCollectionMixin.__init__(self)
-		
+	This class uses Python's diamond inheritance model
+	
+	.. image:: /images/navcollection.png
+	
+	This allows us to inherit from both the OData-specific form of
+	EntityCollection and NavigationCollection.  This is illustrated in
+	the above diagram which shows the method resolution order reading
+	from the bottom of the diagram.  The default object is omitted.
+	
+	This technique is repeated in specific implementations of the API
+	where common collection behaviour is implemented in a class that
+	inherits from :py:class:`EntityCollection` and then mixed in to a
+	new class derived from :py:class:`NavigationCollection`."""
+	
 	def ExpandCollection(self):
 		"""Return an expanded version of this collection with OData specific class"""
-		return ExpandedEntityCollection(self.name,self.fromEntity,self.entitySet,self.values())						
+		return ExpandedEntityCollection(fromEntity=self.fromEntity,name=self.name,entitySet=self.entitySet,entityList=self.values())						
 
 	def GetLocation(self):
 		"""Returns the location of this collection as a
@@ -2509,23 +2518,25 @@ class NavigationEntityCollection(EntityCollectionMixin,edm.NavigationEntityColle
 		return self.name			
 
 
-class ExpandedEntityCollection(EntityCollectionMixin,edm.ExpandedEntityCollection):
+class ExpandedEntityCollection(EntityCollection,edm.ExpandedEntityCollection):
+	"""We override ExpandedEntityCollection in order to include the OData-specific behaviour.
+	
+	This class uses diamond inheritance in a similar way to
+	:py:class:`NavigationCollection`"""
+	pass
 
-	def __init__(self,name,fromEntity,toEntitySet,entityList):
-		edm.ExpandedEntityCollection.__init__(self,name,fromEntity,toEntitySet,entityList)
-		EntityCollectionMixin.__init__(self)
 
+class FunctionEntityCollection(EntityCollection,edm.FunctionEntityCollection):
+	"""We override FunctionEntityCollection in order to include the OData-specific behaviour.	
 
-class FunctionEntityCollection(EntityCollectionMixin,edm.FunctionEntityCollection):
-	"""We override FunctionEntityCollection in order to provide OData-specific options."""
+	This class uses diamond inheritance in a similar way to
+	:py:class:`NavigationCollection`"""
+	pass
 
-	def __init__(self,function,params):
-		edm.FunctionEntityCollection.__init__(self,function,params)
-		EntityCollectionMixin.__init__(self)
 
 
 class FunctionCollection(edm.FunctionCollection):
-	"""We override FunctionCollection in order to provide OData-specific options."""
+	"""We override FunctionCollection in order to inclue the OData-specific behaviour."""
 
 	def GenerateCollectionInJSON(self,version=2):
 		"""Generates JSON serialised form of this collection."""
@@ -2829,7 +2840,7 @@ class Link(atom.Link):
 						entity.exists=exists
 						entry.GetValue(entity)
 						entries.append(entity)
-				deferred.SetExpansion(ExpandedEntityCollection(deferred.name,deferred.fromEntity,targetEntitySet,entries))
+				deferred.SetExpansion(ExpandedEntityCollection(fromEntity=deferred.fromEntity,name=deferred.name,entitySet=targetEntitySet,entityList=entries))
 
 		
 class Entry(atom.Entry):
@@ -3186,7 +3197,7 @@ class Entry(atom.Entry):
 					link.title=k
 					link.href=location+'/'+k
 					if dv.isCollection:
-						feed=ExpandedEntityCollection(k,entity,targetSet,feed)
+						feed=ExpandedEntityCollection(fromEntity=entity,name=k,entitySet=targetSet,entityList=feed)
 						link.Expand(feed)
 					elif len(feed)>1:
 						raise NavigationError("Multiple bindings found for navigation property %s.%s"%(entitySet.name,k))

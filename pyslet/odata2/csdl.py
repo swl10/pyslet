@@ -2372,14 +2372,30 @@ class EntityCollection(DictionaryLike):
 
 	These two operations have a different meaning when a collection
 	represents the subset of entities obtained through navigation.  See
-	:py:class:`NavigationEntityCollection` for details.
+	:py:class:`NavigationCollection` for details.
 	
 	*Notes for data providers*
 	
-	Derived classes MUST override :py:meth:`itervalues`.  The
+	Derived classes MUST call super in their __init__ method to ensure
+	the proper construction of the parent collection class.  The proper
+	way to do this is::
+	
+		class MyCollection(EntityCollection):
+		
+			def __init__(self,paramA,paramsB,**kwArgs):
+				# paramA and paramB are examples of how to consume
+				# private keyword arguments in this method so that they
+				# aren't passed on to the next __init__
+				super(MyCollection,self).__init__(**kwArgs)
+	
+	All collections require a named entitySet argument, an
+	:py:class:`EntitySet` instance from which all entities in the
+	collection are drawn.
+	
+	Derived classes MUST also override :py:meth:`itervalues`.  The
 	implementation of itervalues must return an iterable object that
-	honours the value of the expand query option, the current filter
-	and the orderby rules.
+	honours the value of the expand query option, the current filter and
+	the orderby rules.
 
 	Derived classes SHOULD also override :py:meth:`__getitem__` and
 	:py:meth:`__len__` as the default implementations are very
@@ -2392,7 +2408,9 @@ class EntityCollection(DictionaryLike):
 	
 	Writeable entity collections SHOULD override :py:meth:`clear` as the
 	default implementation is very inefficient."""
-	def __init__(self,entitySet):
+	def __init__(self,entitySet,**kwArgs):
+		if kwArgs:
+			logging.debug("Unabsorbed kwArgs in EntityCollection constructor")
 		self.entitySet=entitySet		#: the entity set from which the entities are drawn
 		self.name=self.entitySet.name	#: the name of :py:attr:`entitySet`
 		self.expand=None				#: the expand query option in effect
@@ -2636,7 +2654,15 @@ class EntityCollection(DictionaryLike):
 		2.	:py:attr:`exists` is set to True for *entity*
 		
 		Data providers must override this method if the collection is
-		writeable."""
+		writeable.
+		
+		If the call is unsuccessful then *entity* should be discarded as
+		its associated bindings may be in a misleading state (when
+		compared to the state of the data source itself).
+		
+		A general :py:class:`ConstraintError` will be raised when the
+		insertion violates model constraints (including an attempt to
+		create two entities with duplicate keys)."""
 		raise NotImplementedError
 	
 	def UpdateEntity(self,entity):
@@ -2820,7 +2846,7 @@ class EntityCollection(DictionaryLike):
 			yield e.Key(),e
 
 
-class NavigationEntityCollection(EntityCollection):
+class NavigationCollection(EntityCollection):
 	"""Represents the collection of entities returned by a *navigation*
 	property.
 	
@@ -2847,24 +2873,27 @@ class NavigationEntityCollection(EntityCollection):
 
 	Thie behaviour differs from the base :py:class:`EntityCollection`
 	behaviour where the del operator removes the entity completely from
-	the entity container whereas in this case the entity still exists in
-	the parent entity set, only the link is removed.
+	the entity container.  In this case the entity still exists in the
+	parent entity set, only the link is removed.
 
 	Notes for data providers
 		
 	On construction:
 	
-	*	*name* is the name of the navigation property being navigated
+	* 	*entitySet* is the entity set containing the target entities,
+	 	the collection behaves like a subset of this entity set.  It is
+	 	passed to super
+
+	Named arguments specific to this class:
 	
 	*	*fromEntity* is the source entity being navigated
-	
-	* 	*toEntitySet* is the entity set containing the target entities,
-	 	the collection behaves like a subset of this entity set.
+
+	*	*name* is the name of the navigation property being navigated
 	
 	Writeable collections must override the :py:meth:`__setitem__`
 	method."""
-	def __init__(self,name,fromEntity,toEntitySet):
-		super(NavigationEntityCollection,self).__init__(toEntitySet)
+	def __init__(self,fromEntity,name,**kwArgs):
+		super(NavigationCollection,self).__init__(**kwArgs)
 		self.name=name								#: the name of the navigation property
 		self.fromEntity=fromEntity					#: the source entity
 		self.fromEnd=self.fromEntity.entitySet.navigation[self.name]	#: the :py:class:`associationSetEnd` that represents the source of this association
@@ -2872,16 +2901,15 @@ class NavigationEntityCollection(EntityCollection):
 		self.fromMultiplicity,self.toMultiplicity=self.fromEntity.entitySet.NavigationMultiplicity(self.name)
 		"""The endpoint multiplicities of this link.  Values are defined
 		by :py:class:`Multiplicity`"""
-	
+		
 	def ExpandCollection(self):
-		return ExpandedEntityCollection(self.name,self.fromEntity,self.entitySet,self.values())						
+		return ExpandedEntityCollection(fromEntity=self.fromEntity,name=self.name,entitySet=self.entitySet,entityList=self.values())						
 
 	def InsertEntity(self,entity):
 		"""Inserts a new *entity* into the target entity set *and*
 		simultaneously creates a link to it from the source entity."""
 		with self.entitySet.OpenCollection() as baseCollection:
-			logging.warning("InsertEntity signature mismatch in NavigationEntityCollection.InsertEntity!")
-			baseCollection.InsertEntity(entity,self.fromEnd.otherEnd)
+			baseCollection.InsertEntity(entity)
 			self[entity.Key()]=entity
 	
 	def UpdateEntity(self,entity):
@@ -2908,8 +2936,8 @@ class NavigationEntityCollection(EntityCollection):
 		self[entity.Key()]=entity
 		
 
-class ExpandedEntityCollection(NavigationEntityCollection):
-	"""A special sub-class of :py:class:`NavigationEntityCollection`
+class ExpandedEntityCollection(NavigationCollection):
+	"""A special sub-class of :py:class:`NavigationCollection`
 	used when a navigation property has been expanded.
 	
 	An expanded entity collection is a read-only, cached view of the
@@ -2923,12 +2951,12 @@ class ExpandedEntityCollection(NavigationEntityCollection):
 	
 	Note for data providers:
 	
-	The additional *entityList* parameter passed to this constructor is
-	a simple python list of the entities it contains.  Internally a
-	dictionary of the entities is built to speed up access by
-	key."""		
-	def __init__(self,name,fromEntity,toEntitySet,entityList):
-		super(ExpandedEntityCollection,self).__init__(name,fromEntity,toEntitySet)
+	The named argument *entityList* passed to this constructor is a
+	simple python list of the entities the expanded collection contains.
+	Internally a dictionary of the entities is built to speed up access
+	by key."""		
+	def __init__(self,entityList,**kwArgs):
+		super(ExpandedEntityCollection,self).__init__(**kwArgs)
 		self.entityList=entityList
 		self.entityDict={}
 		for e in self.entityList:
@@ -2953,11 +2981,11 @@ class ExpandedEntityCollection(NavigationEntityCollection):
 class FunctionEntityCollection(EntityCollection):
 	"""Represents the collection of entities returned by a specific execution of a :py:class:`FunctionImport`"""
 
-	def __init__(self,function,params):
+	def __init__(self,function,params,**kwArgs):
 		if function.IsEntityCollection():
 			self.function=function
 			self.params=params
-			EntityCollection.__init__(self,self.function.entitySet)
+			super(FunctionEntityCollection,self).__init__(entitySet=self.function.entitySet,**kwArgs)
 		else:
 			raise TypeError("Function call does not return a collection of entities") 
 
@@ -3877,16 +3905,16 @@ class EntitySet(CSDLElement):
 		"""Returns an :py:class:`EntityCollection` instance suitable for
 		accessing the entities themselves."""
 		cls,extraArgs=self.binding
-		return cls(self,**extraArgs)
+		return cls(entitySet=self,**extraArgs)
 			
 	def BindNavigation(self,name,entityCollectionBinding,**extraArgs):
 		"""Binds the navigation property *name* to a class or callable
 		used by :py:meth:`OpenNavigation`
 		
 		*entityCollectionBinding* must be a class (or other callable)
-		that returns a :py:class:`NavigationEntityCollection` instance.
+		that returns a :py:class:`NavigationCollection` instance.
 		By default we are bound to the default
-		NavigationEntityCollection class which behaves like an empty
+		NavigationCollection class which behaves like an empty
 		collection.
 
 		*extraArgs* is a python dict of named arguments to pass to the
@@ -3894,14 +3922,14 @@ class EntitySet(CSDLElement):
 		self.navigationBindings[name]=(entityCollectionBinding,extraArgs)
 
 	def OpenNavigation(self,name,sourceEntity):
-		"""Returns a :py:class:`NavigationEntityCollection` instance
+		"""Returns a :py:class:`NavigationCollection` instance
 		suitable for accessing the entities obtained by navigating from
 		*sourceEntity*, an :py:class:`Entity` instance, via the
 		navigation property with *name*."""
 		cls,extraArgs=self.navigationBindings[name]
 		linkEnd=self.navigation[name]
 		toEntitySet=linkEnd.otherEnd.entitySet
-		return cls(name,sourceEntity,toEntitySet,**extraArgs)
+		return cls(fromEntity=sourceEntity,name=name,entitySet=toEntitySet,**extraArgs)
 									
 	def NavigationTarget(self,name):
 		"""Returns the target entity set of navigation property *name*"""

@@ -242,7 +242,7 @@ class SQLDSTests(unittest.TestCase):
 		self.schema=self.doc.root.DataServices['SampleModel']
 		self.container=self.doc.root.DataServices["SampleModel.SampleEntities"]
 		self.d=FilePath.mkdtemp('.d','pyslet-test_odata2_sqlds-')
-		self.db=SQLiteEntityContainer(self.d.join('test.db'),self.container)
+		self.db=SQLiteEntityContainer(filePath=self.d.join('test.db'),containerDef=self.container)
 				
 	def tearDown(self):
 		if self.db is not None:
@@ -282,7 +282,7 @@ class SQLDSTests(unittest.TestCase):
 			try:
 				collection.InsertEntity(newHire)
 				self.fail("Double insert")
-			except KeyError:
+			except edm.ConstraintError:
 				pass
 	
 	def testCaseUpdate(self):
@@ -501,7 +501,7 @@ class RegressionTests(DataServiceRegressionTests):
 		DataServiceRegressionTests.setUp(self)
 		self.container=self.ds['RegressionModel.RegressionContainer']
 		self.d=FilePath.mkdtemp('.d','pyslet-test_odata2_sqlds-')
-		self.db=SQLiteEntityContainer(self.d.join('test.db'),self.container)
+		self.db=SQLiteEntityContainer(filePath=self.d.join('test.db'),containerDef=self.container)
 		self.db.CreateAllTables()
 		
 	def tearDown(self):

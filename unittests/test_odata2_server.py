@@ -1484,7 +1484,7 @@ class SampleServerTests(unittest.TestCase):
 		documents=self.container.entityStorage['Documents']
 		documents.data[300]=(300,'The Book','The Author',None)
 		documents.data[301]=(301,'A Book','An Author',None)
-		with memds.EntityCollection(documents.entitySet,documents) as collection:
+		with memds.EntityCollection(entitySet=documents.entitySet,entityStore=documents) as collection:
 			doc=collection[301]
 			doc.SetStreamFromGenerator(http.MediaType.FromString("text/plain; charset=iso-8859-1"),["An opening line written in a Caf\xe9"])
 		self.xContainer=memds.InMemoryEntityContainer(self.ds['SampleModel.ExtraEntities'])

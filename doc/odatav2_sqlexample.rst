@@ -12,7 +12,7 @@ We don't need any customisations, this class does everything we need
 will need to create a new implementation of the generic
 :py:class:`~pyslet.odata2.sqlds.SQLEntityContainer`.  See the reference
 documentation for :py:mod:`~pyslet.odata2.sqlds` for details on what is
-involved.
+involved.  You shouldn't have to change much!
 
 Step 1: Creating the Metadata Model
 -----------------------------------
@@ -106,16 +106,15 @@ instance of
 		if drop and os.path.isfile(SAMPLE_DB):
 			os.remove(SAMPLE_DB)
 		create=not os.path.isfile(SAMPLE_DB)
-		container=SQLiteEntityContainer(SAMPLE_DB,doc.root.DataServices['WeatherSchema.CambridgeWeather'])
+		container=SQLiteEntityContainer(filePath=SAMPLE_DB,containerDef=doc.root.DataServices['WeatherSchema.CambridgeWeather'])
 		if create:
 			container.CreateAllTables()
 
 This function handles the only SQL-specific part of our project.  When
-we create a SQLite container we pass the name of the database file along
-with the definition of the container, rather than just the container
-definition as we did for the in-memory implementation.  We don't need to
-return a value because the SQL implementation is bound to the model that
-was passed in *doc*.
+we create a SQLite container we have to pass *two* keyword arguments:
+rather than just the container definition as we did for the in-memory
+implementation.  We don't need to return a value because the SQL
+implementation is bound to the model that was passed in *doc*.
 
 The code above automatically creates the tables if the database doesn't
 exist yet.  This is fine if you are starting from scratch but if you
@@ -201,32 +200,38 @@ What if your foreign key has a different name, say, NoteID?  Pyslet
 gives you the chance to override all name mappings.  To fix up this part
 of the model you need to create a derived class of the base class
 :py:class:`~pyslet.odata2.sqlds.SQLEntityContainer` and override the
-:py:meth:`~pyslet.odata2.sqlds.SQLEntityContainer.FieldName` method.
+:py:meth:`~pyslet.odata2.sqlds.SQLEntityContainer.MangleName` method.
 
 In this case, the method would have been called like this::
 
-	quotedName=container.FieldName(u"DataPoints",(u"DataPointNotes",u"ID"))
+	quotedName=container.MangleName((u"DataPoints",u"DataPointNotes",u"ID"))
 
-The first argument is the name of the EntitySet (SQL TABLE) and the
-second argument is a tuple containing the path to the value.  Foreign
-keys have a path comprising of the AssociationSet name followed by the
-name of the key field in the target EntitySet.  The default
-implementation just joins the path with an underscore character.  The
-method must return a suitably quoted value to use for the field name. 
-The base class has a
-:py:meth:`~pyslet.odata2.sqlds.SQLEntityContainer.QuoteIdentifier`
-method which should be used to wrap the result before returning it.
+There is a single argument consisting of a tuple.  The first item is the
+name of the EntitySet (SQL TABLE) and the subsequent items complete a
+kind of 'path' to the value.  Foreign keys have a path comprising of the
+AssociationSet name followed by the name of the key field in the target
+EntitySet.  The default implementation just joins the path with an
+underscore character.  The method must return a suitably quoted value to
+use for the column name.  To complete the example, here is how our
+subclass might implement this method to ensure that the foreign key is
+called 'NoteID' instead of 'DataPointNotes_ID'::
+
+	def MangleName(self,sourcePath):
+		if sourcePath==(u"DataPoints",u"DataPointNotes",u"ID"):
+			return self.QuoteIdentifier(u'NoteID')
+		else:
+			return super(MyCustomerContainer,self).MangleName(sourcePath)
 
 You may be wondering why we don't expose the foreign key field in the
-model. Some libraries force you to expose the foreign key in order to
-expose the navigation property but Pyslet takes the opposite approach.
-The whole point of navigation properties is to hide away details like
-foreign keys. If you really want to access the value you can always use
-an expansion and select the key field in the target entity.  Exposing it
-in the source entity just tempts you in to writing code that 'knows'
-about your model for example, if we had exposed the foreign key in our
-example as a simple property we might have been tempted to do something
-like this::		
+model. Some libraries might force you to expose the foreign key in order
+to expose the navigation property but Pyslet takes the opposite
+approach. The whole point of navigation properties is to hide away
+details like foreign keys. If you really want to access the value you
+can always use an expansion and select the key field in the target
+entity.  Exposing it in the source entity just tempts you in to writing
+code that 'knows' about your model for example, if we had exposed the
+foreign key in our example as a simple property we might have been
+tempted to do something like this::		
 
 	noteID=dataPoint['DataPointNotes_ID'].value
 	if noteID is not None:
@@ -270,9 +275,8 @@ them before attempting to map them to the metadata model.
 Either way, both types of symmetric relationships get mapped to a table
 with the name of the AssociationSet.  There are two sets of foreign
 keys, one for each of the EntitySets being joined.  The paths are rather
-complex consisting of triples:  (name of the source entity set, name of
-navigation property in the source entity set, name of the key field in
-the target set).
+complex and are explained in detail in
+:py:class:`~pyslet.odata2.sqlds.SQLAssociationCollection`.
 
 
 Step 2: Test the Model
@@ -350,13 +354,31 @@ output on a dry-run of a small sample of the data from November 2007::
 
 You may wonder why we use the values function, rather than itervalues in
 the loop that updates the data points.  itervalues would certainly have
-been more efficient but unfortunately Python 2.7 contains a bug in the
-SQLite driver that makes it a bad idea to do a commit on a database
-connection while you are fetching data on another cursor.  It's a bit
-technical, but the details are here: http://bugs.python.org/issue10513
-The Pyslet DAL API does not impose this restriction but it should at
-least make you think about what it means to be iterating through a
-dynamic data source without the benefit of entity-set locking.
+been more efficient but, just like native Python dictionaries, it is a
+bad idea to modify the data source when iterating as unpredictable
+things may happen.  The concept is extended by this API to cover the
+entire container: a thread should not modify the container while
+iterating through a collection.
+
+Of course, this API has been designed for parallel use so there is
+always the chance that another thread or process is modifying the data
+source outside of your control.  Behaviour in that case is left to be
+implementation dependent - storage engines have widely differing
+policies on what to do in these cases.
+
+If you have large amounts of data to iterate through you should consider
+using list(collection.iterpage(True)) instead.  For a SQL data souurce
+this has the disadvantage of executing a new query for each page rather
+than spooling data from a single SELECT but it provides control over
+page size (and hence memory usage in your client) and is robust to
+modifications.
+
+	As an aside, if you change the call from values to itervalues in
+	the sample you may well discover a bug in the SQLite driver in
+	Python 2.7. The bug means that a commit on a database connection
+	while you are fetching data on another cursor causes subsequent data
+	access commands to fail.  It's a bit technical, but the details are
+	here: http://bugs.python.org/issue10513
 
 Having tested the model using the in-memory provider we can implement a
 full test using the SQL back-end we created in MakeContainer above. 
@@ -443,21 +465,22 @@ When we access this page with logging turned up to INFO we get the
 following output on the console, interspersed with the simple HTTP
 server output::
 
-	INFO:root:SELECT COUNT(*) FROM "DataPoints"[]
+	INFO:root:SELECT COUNT(*) FROM "DataPoints"; []
 	127.0.0.1 - - [21/Feb/2014 22:57:01] "GET /DataPoints/$count HTTP/1.1" 200 6
-	INFO:root:SELECT "TimePoint", "Temperature", "Humidity", "DewPoint", "Pressure", "WindSpeed", "WindDirection", "WindSpeedMax", "SunRainStart", "Sun", "Rain" FROM "DataPoints" ORDER BY "Temperature" DESC[]
+	INFO:root:SELECT "TimePoint", "Temperature", "Humidity", "DewPoint", "Pressure", "WindSpeed", "WindDirection", "WindSpeedMax", "SunRainStart", "Sun", "Rain", "Temperature" AS o_1, "TimePoint" FROM "DataPoints" ORDER BY o_1 DESC, "TimePoint" ASC; []
 	127.0.0.1 - - [21/Feb/2014 22:57:18] "GET /DataPoints?$orderby=Temperature%20desc&$top=30 HTTP/1.1" 200 31006
 
 You may wonder what those square brackets are doing at the end of the
-SQL statements. They're actually used for parameters when the query has
-been parameterised.  If we add a filter you'll see what they do::
+SQL statements. They're actually used for logging the parameter values
+when the query has been parameterised.  If we add a filter you'll see
+what they do::
 
 	http://localhost:8080/DataPoints?$filter=Temperature%20gt%20-100&$orderby=Temperature%20asc&$top=30
 
 And here's the output on the console::
 
-	INFO:root:SELECT "TimePoint", "Temperature", "Humidity", "DewPoint", "Pressure", "WindSpeed", "WindDirection", "WindSpeedMax", "SunRainStart", "Sun", "Rain" FROM "DataPoints" WHERE "Temperature" > ? ORDER BY "Temperature" ASC[-100]
-	127.0.0.1 - - [21/Feb/2014 16:35:09] "GET /DataPoints?$filter=Temperature%20gt%20-100&$orderby=Temperature%20asc&$top=30 HTTP/1.1" 200 31081
+	INFO:root:SELECT "TimePoint", "Temperature", "Humidity", "DewPoint", "Pressure", "WindSpeed", "WindDirection", "WindSpeedMax", "SunRainStart", "Sun", "Rain", "Temperature" AS o_1, "TimePoint" FROM "DataPoints" WHERE ("Temperature" > ?) ORDER BY o_1 DESC, "TimePoint" ASC; [-100]
+	127.0.0.1 - - [21/Feb/2014 16:35:09] "GET /DataPoints?$filter=Temperature%20gt%20-100&$orderby=Temperature%20desc&$top=30 HTTP/1.1" 200 31006
 
 Yes, all Pyslet queries are fully parameterized for security and performance!
 

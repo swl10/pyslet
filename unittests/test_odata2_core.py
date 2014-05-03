@@ -2056,6 +2056,7 @@ class DataServiceRegressionTests(unittest.TestCase):
 			entityO2['Data'].SetFromValue('NavigationOne_2')
 			entityO2['ZO'].BindEntity(entityZO2)
 			collectionO.InsertEntity(entityO2)
+			## entityZO <-> entityO
 			## entityZO2 <-> entityO2
 			#	Now try inserting at the 1 end without a binding
 			entityO3=collectionO.NewEntity()
@@ -2065,7 +2066,48 @@ class DataServiceRegressionTests(unittest.TestCase):
 				collectionO.InsertEntity(entityO3)
 			except edm.ConstraintError:							
 				self.fail("Unbound entity insert failed at the 1 end of 0..1-1 link")			
+			## entityZO <-> entityO
+			## entityZO2 <-> entityO2
 			## None <-> entityO3
+			#	Insert with implicit link
+			entityO4=collectionO.NewEntity()
+			entityO4['K'].SetFromValue(400)
+			entityO4['Data'].SetFromValue('NavigationOne_4')
+			with entityZO['O'].OpenCollection() as navCollection:
+				# 	we can't insert here as entityZO is already bound to entityO
+				try:
+					navCollection.InsertEntity(entityO4)
+					self.fail("InsertEntity on navigation collection should fail towards the 1 end")
+				except edm.ConstraintError:
+					pass
+			# just create entityO4 anyway
+			entityO4=collectionO.NewEntity()
+			entityO4['K'].SetFromValue(400)
+			entityO4['Data'].SetFromValue('NavigationOne_4')
+			try:
+				collectionO.InsertEntity(entityO4)
+			except edm.ConstraintError:
+				# non-transactional warning, the entity was created but
+				# not linked during previous attempt
+				logging.warn("Non-transactional behaviour detected after failed insert on 0..1 to 1 navigation collection")
+				entityO4=collectionO[400]
+			## entityZO <-> entityO
+			## entityZO2 <-> entityO2
+			## None <-> entityO3
+			## None <-> entityO4
+			entityZO3=collectionZO.NewEntity()
+			entityZO3['K'].SetFromValue(3)
+			entityZO3['Data'].SetFromValue('NavigationZeroOne_3')
+			with entityO3['ZO'].OpenCollection() as navCollection:
+				#	we can insert here, will create a bound relationship
+				try:
+					navCollection.InsertEntity(entityZO3)
+				except edm.ConstraintError:
+					self.fail("InsertEntity on navigation collection should not fail towards the 0..1 end")							
+			## entityZO <-> entityO
+			## entityZO2 <-> entityO2
+			## entityZO3 <-> entityO3
+			## None <-> entityO4			
 			#	READ both ways
 			entityZO=collectionZO[1]
 			navO=entityZO['O'].GetEntity()
@@ -2077,12 +2119,14 @@ class DataServiceRegressionTests(unittest.TestCase):
 			#	UPDATE - by replacing the required target of a link, should work
 			try:
 				with entityZO['O'].OpenCollection() as navCollection:
-					navCollection.Replace(entityO3)
+					navCollection.Replace(entityO4)
 			except edm.ConstraintError:
 				self.fail("Replace on 0..1-1 navigation property")
-			## entityZO <-> entityO3
-			## None <-> entityO
-			navZO=entityO3['ZO'].GetEntity()
+			## entityZO <-> entityO4
+			## entityZO2 <-> entityO2
+			## entityZO3 <-> entityO3
+			## None <-> entityO			
+			navZO=entityO4['ZO'].GetEntity()
 			self.assertTrue(navZO['K']==1)
 			navZO=entityO['ZO'].GetEntity()
 			self.assertTrue(navZO is None)
@@ -2090,14 +2134,12 @@ class DataServiceRegressionTests(unittest.TestCase):
 			#	already bound to a different entity (and even if we
 			#	allowed it, we'd have to break the link to entityZO2
 			#	which is illegal without deletion).
-			## entityZO2 <-> entityO2				
-			## entityZO <-> entityO3
 			try:
 				with entityO2['ZO'].OpenCollection() as navCollection:
 					navCollection[entityZO.Key()]=entityZO
 				self.fail("__setitem__ on 1-0..1 navigation property should fail")
 			except edm.ConstraintError:
-				pass				
+				pass
 			#	UPDATE - using bind and update
 			entityZO['O'].BindEntity(entityO)
 			try:
@@ -2105,8 +2147,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 			except edm.ConstraintError:
 				self.fail("BindEntity/Update on 0..1-1 navigation property")
 			## entityZO <-> entityO
-			## entityZO2 <-> entityO2				
-			## None <-> entityO3
+			## entityZO2 <-> entityO2
+			## entityZO3 <-> entityO3
+			## None <-> entityO4			
 			entityO2['ZO'].BindEntity(entityZO)
 			try:
 				entityO2.Update()
@@ -2114,7 +2157,6 @@ class DataServiceRegressionTests(unittest.TestCase):
 			except edm.ConstraintError:
 				pass
 			#	DELETE - link
-			## entityZO <-> entityO
 			with entityO['ZO'].OpenCollection() as navCollection:
 				try:
 					self.assertTrue(len(navCollection)==1)
@@ -2130,15 +2172,17 @@ class DataServiceRegressionTests(unittest.TestCase):
 				except edm.ConstraintError:
 					pass
 			#	DELETE - entity; for a 0..1-1 link should succeed on the 0..1 end			
-			## entityZO <-> entityO
 			try:
 				del collectionZO[1]				
 				self.assertFalse(1 in collectionZO,"Delete entity at 0..1 end of relationship")
 				self.assertTrue(100 in collectionO,"No cascade delete expected for 0..1-1 relationship")			
 			except edm.ConstraintError:
 				self.fail("Delete entity failed at 0..1 end of relationship")
-			#	DELETE - entity; for a 0..1-1 link should fail or cascade the delete on the 1 end			
+			## None <-> entityO
 			## entityZO2 <-> entityO2
+			## entityZO3 <-> entityO3
+			## None <-> entityO4			
+			#	DELETE - entity; for a 0..1-1 link should fail or cascade the delete on the 1 end			
 			try:
 				del collectionO[200]
 				self.assertFalse(200 in collectionO,"Delete entity at 1 end of relationship")

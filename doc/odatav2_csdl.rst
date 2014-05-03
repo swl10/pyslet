@@ -114,7 +114,7 @@ Navigation: Deferred Values
 	:members:
 	:show-inheritance:
 
-..	autoclass:: NavigationEntityCollection
+..	autoclass:: NavigationCollection
 	:members:
 	:show-inheritance:
 

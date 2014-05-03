@@ -37,7 +37,7 @@ def MakeContainer(doc,drop=False):
 	if drop and os.path.isfile(SAMPLE_DB):
 		os.remove(SAMPLE_DB)
 	create=not os.path.isfile(SAMPLE_DB)
-	container=SQLiteEntityContainer(SAMPLE_DB,doc.root.DataServices['WeatherSchema.CambridgeWeather'])
+	container=SQLiteEntityContainer(filePath=SAMPLE_DB,containerDef=doc.root.DataServices['WeatherSchema.CambridgeWeather'])
 	if create:
 		container.CreateAllTables()
 	

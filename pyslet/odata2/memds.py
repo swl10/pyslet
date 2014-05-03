@@ -260,14 +260,14 @@ class InMemoryAssociationIndex(object):
 		If the association is reversible *reverseName* can also be used
 		to bind that property in the entity set bound to
 		:py:attr:`toEntityStore`"""
-		self.fromEntityStore.entitySet.BindNavigation(propertyName,NavigationEntityCollection,associationIndex=self,reverse=False)
+		self.fromEntityStore.entitySet.BindNavigation(propertyName,NavigationCollection,associationIndex=self,reverse=False)
 		if reverseName is not None:
-			self.toEntityStore.entitySet.BindNavigation(reverseName,NavigationEntityCollection,associationIndex=self,reverse=True)
+			self.toEntityStore.entitySet.BindNavigation(reverseName,NavigationCollection,associationIndex=self,reverse=True)
 	
 	def BindReverse(self,reverseName):
 		"""Binds this index to *reverseName* in the :py:attr:`toEntityStore`"""
 		if reverseName is not None:
-			self.toEntityStore.entitySet.BindNavigation(reverseName,NavigationEntityCollection,associationIndex=self,reverse=True)
+			self.toEntityStore.entitySet.BindNavigation(reverseName,NavigationCollection,associationIndex=self,reverse=True)
 				
 	def AddLink(self,fromKey,toKey):
 		"""Adds a link from *fromKey* to *toKey*"""
@@ -375,8 +375,8 @@ class EntityCollection(odata.EntityCollection):
 	"""An entity collection that provides access to entities stored in
 	the :py:class:`InMemoryEntitySet` *entityStore*."""
 	
-	def __init__(self,entitySet,entityStore):
-		super(EntityCollection,self).__init__(entitySet)
+	def __init__(self,entityStore,**kwArgs):
+		super(EntityCollection,self).__init__(**kwArgs)
 		self.entityStore=entityStore
 		
 	def NewEntity(self,autoKey=False):
@@ -391,7 +391,7 @@ class EntityCollection(odata.EntityCollection):
 		:py:class:`AssociationSetEnd` instance that is bound to *this*
 		collection's entity set.  It indicates that we are being created
 		by a deep insert or through direct insertion into a
-		:py:class:`NavigationEntityCollection` representing the
+		:py:class:`NavigationCollection` representing the
 		corresponding association.  This information can be used to
 		suppress a constraint check (on the assumption that it has
 		already been checked) by passing *fromEnd* directly to
@@ -406,7 +406,7 @@ class EntityCollection(odata.EntityCollection):
 			# This is a bit clumsy, but we lock the whole container while we
 			# check all constraints and perform any nested deletes 
 			if key in self:
-				raise KeyError("%s already exists"%odata.ODataURI.FormatEntityKey(entity))
+				raise edm.ConstraintError("%s already exists"%odata.ODataURI.FormatEntityKey(entity))
 			# Check constraints
 			entity.CheckNavigationConstraints(fromEnd)
 			self.entityStore.AddEntity(entity)
@@ -487,9 +487,10 @@ class EntityCollection(odata.EntityCollection):
 		finally:
 			self.entityStore.StopDeletingEntity(key)
 	
-class NavigationEntityCollection(odata.NavigationEntityCollection):
+class NavigationCollection(odata.NavigationCollection):
 	
-	def __init__(self,name,fromEntity,toEntitySet,associationIndex,reverse):
+	def __init__(self,associationIndex,reverse,**kwArgs):
+		super(NavigationCollection,self).__init__(**kwArgs)
 		self.associationIndex=associationIndex
 		self.reverse=reverse
 		if self.reverse:
@@ -498,7 +499,6 @@ class NavigationEntityCollection(odata.NavigationEntityCollection):
 		else:
 			self.lookupMethod=self.associationIndex.GetLinksFrom
 			self.rLookupMethod=self.associationIndex.GetLinksTo
-		super(NavigationEntityCollection,self).__init__(name,fromEntity,toEntitySet)
 		self.collection=self.entitySet.OpenCollection()
 		self.key=self.fromEntity.Key()
 	
@@ -511,6 +511,13 @@ class NavigationEntityCollection(odata.NavigationEntityCollection):
 			self.collection.close()
 			self.collection=None
 						
+	def InsertEntity(self,entity):
+		"""Inserts a new *entity* into the target entity set *and*
+		simultaneously creates a link to it from the source entity."""
+		with self.entitySet.OpenCollection() as baseCollection:
+			baseCollection.InsertEntity(entity,fromEnd=self.fromEnd.otherEnd)
+			self[entity.Key()]=entity
+
 	def __len__(self):
 		if self.filter is None:
 			resultSet=self.lookupMethod(self.key)

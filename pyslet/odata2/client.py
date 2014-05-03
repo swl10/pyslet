@@ -32,10 +32,15 @@ class DataFormatError(ClientException):
 	pass
 	
 	
-class ODataCollectionMixin(object):
+class ClientCollection(core.EntityCollection):
 	
-	def __init__(self,baseURI):
-		self.baseURI=baseURI
+	def __init__(self,client,baseURI=None,**kwArgs):
+		super(ClientCollection,self).__init__(**kwArgs)
+		if baseURI is None:
+			self.baseURI=self.entitySet.GetLocation()
+		else:
+			self.baseURI=baseURI
+		self.client=client
 	
 	def Expand(self,expand,select=None):
 		"""Sets the expand and select query options for this collection.
@@ -264,14 +269,9 @@ class ODataCollectionMixin(object):
 			raise KeyError(key)
 
 		
-class EntityCollection(ODataCollectionMixin,core.EntityCollection):
+class EntityCollection(ClientCollection,core.EntityCollection):
 	"""An entity collection that provides access to entities stored
 	remotely and accessed through *client*."""
-	
-	def __init__(self,entitySet,client):
-		core.EntityCollection.__init__(self,entitySet)
-		self.client=client
-		ODataCollectionMixin.__init__(self,self.entitySet.GetLocation())
 	
 	def UpdateEntity(self,entity):
 		if not entity.exists:
@@ -310,43 +310,67 @@ class EntityCollection(ODataCollectionMixin,core.EntityCollection):
 			self.RaiseError(request)			
 		
 		
-class NavigationEntityCollection(ODataCollectionMixin,core.NavigationEntityCollection):
+class NavigationCollection(ClientCollection,core.NavigationCollection):
 
-	def __init__(self,name,fromEntity,toEntitySet,client):
-		core.NavigationEntityCollection.__init__(self,name,fromEntity,toEntitySet)
-		self.client=client
+	def __init__(self,fromEntity,name,**kwArgs):
+		if kwArgs.pop('baseURI',None):
+			logging.warn('OData Client NavigationCollection ignored baseURI argument')
+		navPath=uri.EscapeData(name.encode('utf-8'))
+		location=str(fromEntity.GetLocation())
+		super(NavigationCollection,self).__init__(fromEntity=fromEntity,name=name,baseURI=uri.URIFactory.URI(location+"/"+navPath),**kwArgs)
 		self.isCollection=self.fromEntity[name].isCollection
-		location=str(self.fromEntity.GetLocation())
-		navPath=uri.EscapeData(self.name.encode('utf-8'))
-		ODataCollectionMixin.__init__(self,uri.URIFactory.URI(location+"/"+navPath))
 		self.linksURI=uri.URIFactory.URI(location+"/$links/"+navPath)
 		
 	def InsertEntity(self,entity):
 		"""Inserts *entity* into this collection.
 		
-		The default implementation calls InsertEntity on the parent
-		entity set and then attempts to add the new entity to this
-		collection using __setitem__."""
-		if self.isCollection:
-			return super(NavigationEntityCollection,self).InsertEntity(entity)
-		elif self.fromEnd.associationEnd.multiplicity==edm.Multiplicity.One:
+		OData servers don't all support insert directly into a
+		navigation property so we risk transactional inconsistency here
+		by overriding the default implementation to performs a two stage
+		insert/create link process unless this is a required link for
+		*entity*, in which case we figure out the back-link, bind
+		*fromEntity* and then do the reverse insert which is more likely
+		to be supported.
+		
+		If there is no back-link we resort to an insert against the
+		navigation property itself."""
+		if self.fromEnd.associationEnd.multiplicity==edm.Multiplicity.One:
 			# we're in trouble, entity can't exist without linking to us 
-			targetSet=self.fromEnd.otherEnd.entitySet
-			backLink=targetSet.linkEnds[self.fromEnd.otherEnd]
+			# so we try a deep link			
+			backLink=self.entitySet.linkEnds[self.fromEnd.otherEnd]
 			if backLink:
 				# there is a navigation property going back
 				entity[backLink].BindEntity(self.fromEntity)
-				targetSet.InsertEntity(entity)
+				with self.entitySet.OpenCollection() as baseCollection:
+					baseCollection.InsertEntity(entity)
+				return
+			elif self.isCollection:
+				# if there is no back link we'll have to do an insert
+				# into this end using a POST to the navigation property.
+				# Surely anyone with a model like this will support such
+				# an implicit link.
+				return super(NavigationCollection,self).InsertEntity(entity)
 			else:
+				# if the URL for this navigation property represents a
+				# single entity then you're out of luck.  You can't POST
+				# to, for example, Orders(12345)/Invoice if there can
+				# only be one Invoice.  We only get here if Invoice
+				# requires an Order but doesn't have a navigation
+				# property to bind it to so we are definitely in the
+				# weeds.  But attempting to insert Invoice without the
+				# link seems fruitless
 				raise NotImplementedError("Can't insert an entity into a 1-(0..)1 relationship without a back-link")
 		else:			
 			with self.entitySet.OpenCollection() as baseCollection:
 				baseCollection.InsertEntity(entity)
+				# this link may fail, which isn't what the caller wanted
+				# but it seems like a bad idea to try deleting the
+				# entity at this stage.
 				self[entity.Key()]=entity
 
 	def __len__(self):
 		if self.isCollection:
-			return ODataCollectionMixin.__len__(self)
+			return super(NavigationCollection,self).__len__()
 		else:
 			# This is clumsy as we grab the entity itself
 			entityURL=str(self.baseURI)
@@ -371,7 +395,7 @@ class NavigationEntityCollection(ODataCollectionMixin,core.NavigationEntityColle
 
 	def entityGenerator(self):
 		if self.isCollection:
-			for entity in ODataCollectionMixin.entityGenerator(self):
+			for entity in super(NavigationCollection,self).entityGenerator():
 				yield entity
 		else:
 			# The baseURI points to a single entity already, we must not add the key
@@ -401,7 +425,7 @@ class NavigationEntityCollection(ODataCollectionMixin,core.NavigationEntityColle
 
 	def __getitem__(self,key):
 		if self.isCollection:
-			return ODataCollectionMixin.__getitem__(self,key)
+			return super(NavigationCollection,self).__getitem__(key)
 		else:
 			# The baseURI points to a single entity already, we must not add the key
 			entityURL=str(self.baseURI)
@@ -485,7 +509,7 @@ class NavigationEntityCollection(ODataCollectionMixin,core.NavigationEntityColle
 			raise edm.NonExistentEntity(str(entity.GetLocation()))
 		if self.isCollection:
 			# inherit the implementation
-			super(NavigationEntityCollection,self).Replace(entity)
+			super(NavigationCollection,self).Replace(entity)
 		else:
 			if not isinstance(entity,edm.Entity) or entity.entitySet is not self.entitySet:
 				raise TypeError
@@ -593,7 +617,7 @@ class Client(app.Client):
 				entitySet=self.feeds[f]
 				entitySet.Bind(EntityCollection,client=self)
 				for np in entitySet.entityType.NavigationProperty:
-					entitySet.BindNavigation(np.name,NavigationEntityCollection,client=self)
+					entitySet.BindNavigation(np.name,NavigationCollection,client=self)
 				logging.debug("Registering feed: %s",str(self.feeds[f].GetLocation()))
 	
 	def QueueRequest(self,request,timeout=60):
