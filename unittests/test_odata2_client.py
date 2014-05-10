@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import unittest, logging, threading
+import unittest, logging, threading, time
 
 import pyslet.odata2.core as core
 import pyslet.odata2.csdl as edm
@@ -228,6 +228,8 @@ class RegressionTests(DataServiceRegressionTests):
 		t.setDaemon(True)
 		t.start()
 		logging.info("OData Client/Server combined tests starting HTTP server on localhost, port %i"%HTTP_PORT)
+		# yield time to allow the server to start up
+		time.sleep(2)
 		self.svcDS=self.ds
 		self.client=Client("http://localhost:%i/"%HTTP_PORT)
 		self.ds=self.client.model.DataServices
