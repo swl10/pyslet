@@ -252,6 +252,8 @@ class XMLCharacterTests(unittest.TestCase):
 			if flag!=testFunc(c):
 				flag=not flag
 				edges.append(code)
+		if flag:
+			edges.append(max+1)
 		return edges
 
 class XMLValidationTests(unittest.TestCase):
