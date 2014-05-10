@@ -131,14 +131,18 @@ class QTIV2ConversionTests(unittest.TestCase):
 	def testCaseOutputV2(self):
 		self.cp.manifest.root.SetID('outputv2')
 		dPath=os.path.join(self.dataPath,'input')
+		fList=[]
 		for f in os.listdir(dPath):
 			if self.cp.IgnoreFile(f):
 				continue
 			stem,ext=os.path.splitext(f)
 			if ext.lower()=='.xml':
-				doc=QTIDocument(baseURI=str(uri.URIFactory.URLFromPathname(os.path.join(dPath,f))))
-				doc.Read()
-				doc.MigrateV2(self.cp)
+				fList.append(f)
+		fList.sort()
+		for f in fList:
+			doc=QTIDocument(baseURI=str(uri.URIFactory.URLFromPathname(os.path.join(dPath,f))))
+			doc.Read()
+			doc.MigrateV2(self.cp)
 		# Having migrated everything in the input folder, we now check our CP against the output
 		cp2=imscp.ContentPackage(os.path.join(self.dataPath,'outputv2'))
 		# To do....
