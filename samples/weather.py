@@ -7,8 +7,6 @@ SAMPLE_DB='weather.db'
 
 SERVICE_PORT=8080
 SERVICE_ROOT="http://localhost:%i/"%SERVICE_PORT
-CLEANUP_SLEEP=10
-
 
 import logging, threading, time, string, os
 from wsgiref.simple_server import make_server
@@ -20,9 +18,6 @@ import pyslet.odata2.metadata as edmx
 from pyslet.odata2.server import ReadOnlyServer
 from pyslet.odata2.sqlds import SQLiteEntityContainer
 from pyslet.odata2.memds import InMemoryEntityContainer
-
-
-cacheApp=None		#: our Server instance
 
 
 def LoadMetadata():

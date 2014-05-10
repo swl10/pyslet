@@ -88,15 +88,18 @@ class ClientCollection(core.EntityCollection):
 			eType=edm.ConstraintError
 		else:
 			eType=UnexpectedHTTPResponse
-		doc=core.Document()
-		doc.Read(src=request.resBody)
 		debugMsg=None
-		if isinstance(doc.root,core.Error):
-			errorMsg="%s: %s"%(doc.root.Code.GetValue(),doc.root.Message.GetValue())
-			if doc.root.InnerError is not None:
-				debugMsg=doc.root.InnerError.GetValue()
+		if request.resBody:
+			doc=core.Document()
+			doc.Read(src=request.resBody)
+			if isinstance(doc.root,core.Error):
+				errorMsg="%s: %s"%(doc.root.Code.GetValue(),doc.root.Message.GetValue())
+				if doc.root.InnerError is not None:
+					debugMsg=doc.root.InnerError.GetValue()
+			else:
+				errorMsg=request.response.reason
 		else:
-			errorMsg=request.response.reason
+			errorMsg=request.response.reason		
 		if eType==KeyError:
 			logging.info("404: %s",errorMsg)
 		else:
@@ -141,7 +144,7 @@ class ClientCollection(core.EntityCollection):
 		if request.status==200:
 			return int(request.resBody)
 		else:
-			raise UnexpectedHTTPResponse("%i %s"%(req.status,req.response.reason))	
+			raise UnexpectedHTTPResponse("%i %s"%(request.status,request.response.reason))	
 
 	def entityGenerator(self):
 		feedURL=self.baseURI
@@ -161,7 +164,7 @@ class ClientCollection(core.EntityCollection):
 			request.SetHeader('Accept','application/atom+xml')
 			self.client.ProcessRequest(request)
 			if request.status!=200:
-				raise UnexpectedHTTPResponse("%i %s"%(req.status,req.response.reason))	
+				raise UnexpectedHTTPResponse("%i %s"%(request.status,request.response.reason))	
 			doc=core.Document(baseURI=feedURL)
 			doc.Read(request.resBody)
 			if isinstance(doc.root,atom.Feed):
@@ -213,8 +216,13 @@ class ClientCollection(core.EntityCollection):
 			sysQueryOptions[core.SystemQueryOption.skiptoken]=self.skiptoken
 		if sysQueryOptions:
 			feedURL=uri.URIFactory.URI(str(feedURL)+"?"+core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
-		doc=core.Document(baseURI=feedURL,reqManager=self.client)
-		doc.Read()
+		request=http.HTTPRequest(str(feedURL))
+		request.SetHeader('Accept','application/atom+xml')
+		self.client.ProcessRequest(request)
+		if request.status!=200:
+			raise UnexpectedHTTPResponse("%i %s"%(request.status,request.response.reason))	
+		doc=core.Document(baseURI=feedURL)
+		doc.Read(request.resBody)
 		if isinstance(doc.root,atom.Feed):
 			if len(doc.root.Entry):
 				for e in doc.root.Entry:
@@ -253,20 +261,24 @@ class ClientCollection(core.EntityCollection):
 			sysQueryOptions[core.SystemQueryOption.select]=core.FormatSelect(self.select)
 		if sysQueryOptions:
 			entityURL=uri.URIFactory.URI(entityURL+"?"+core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
-		doc=core.Document(baseURI=entityURL,reqManager=self.client)
-		try:
-			doc.Read()
-			if isinstance(doc.root,atom.Entry):
-				entity=core.Entity(self.entitySet)
-				entity.exists=True
-				doc.root.GetValue(entity)
-				return entity
-			elif isinstance(doc.root,core.Error):
-				raise KeyError(key)
-			else:
-				raise core.InvalidEntryDocument(str(entityURL))
-		except xml.XMLMissingResourceError:
+		request=http.HTTPRequest(str(entityURL))
+		request.SetHeader('Accept','application/atom+xml;type=entry')
+		self.client.ProcessRequest(request)
+		if request.status==404:
 			raise KeyError(key)
+		elif request.status!=200:
+			raise UnexpectedHTTPResponse("%i %s"%(request.status,request.response.reason))	
+		doc=core.Document(baseURI=entityURL)
+		doc.Read(request.resBody)
+		if isinstance(doc.root,atom.Entry):
+			entity=core.Entity(self.entitySet)
+			entity.exists=True
+			doc.root.GetValue(entity)
+			return entity
+		elif isinstance(doc.root,core.Error):
+			raise KeyError(key)
+		else:
+			raise core.InvalidEntryDocument(str(entityURL))
 
 		
 class EntityCollection(ClientCollection,core.EntityCollection):
@@ -379,19 +391,23 @@ class NavigationCollection(ClientCollection,core.NavigationCollection):
 				sysQueryOptions[core.SystemQueryOption.filter]=unicode(self.filter)
 			if sysQueryOptions:
 				entityURL=uri.URIFactory.URI(entityURL+"?"+core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
-			doc=core.Document(baseURI=entityURL,reqManager=self.client)
-			try:
-				doc.Read()
-				if isinstance(doc.root,atom.Entry):
-					entity=core.Entity(self.entitySet)
-					entity.exists=True
-					doc.root.GetValue(entity)
-					return 1
-				else:
-					raise core.InvalidEntryDocument(str(entityURL))
-			except xml.XMLMissingResourceError:
+			request=http.HTTPRequest(str(entityURL))
+			request.SetHeader('Accept','application/atom+xml;type=entry')
+			self.client.ProcessRequest(request)
+			if request.status==404:
 				# if we got a 404 from the underlying system we're done
 				return 0
+			elif request.status!=200:
+				raise UnexpectedHTTPResponse("%i %s"%(request.status,request.response.reason))	
+			doc=core.Document(baseURI=entityURL)
+			doc.Read(request.resBody)
+			if isinstance(doc.root,atom.Entry):
+				entity=core.Entity(self.entitySet)
+				entity.exists=True
+				doc.root.GetValue(entity)
+				return 1
+			else:
+				raise core.InvalidEntryDocument(str(entityURL))
 
 	def entityGenerator(self):
 		if self.isCollection:
@@ -409,19 +425,22 @@ class NavigationCollection(ClientCollection,core.NavigationCollection):
 				sysQueryOptions[core.SystemQueryOption.select]=core.FormatSelect(self.select)
 			if sysQueryOptions:
 				entityURL=uri.URIFactory.URI(entityURL+"?"+core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
-			doc=core.Document(baseURI=entityURL,reqManager=self.client)
-			try:
-				doc.Read()
-				if isinstance(doc.root,atom.Entry):
-					entity=core.Entity(self.entitySet)
-					entity.exists=True
-					doc.root.GetValue(entity)
-					yield entity
-				else:
-					raise core.InvalidEntryDocument(str(entityURL))
-			except xml.XMLMissingResourceError:
-				# if we got a 404 from the underlying system we're done
+			request=http.HTTPRequest(str(entityURL))
+			request.SetHeader('Accept','application/atom+xml;type=entry')
+			self.client.ProcessRequest(request)
+			if request.status==404:
 				return
+			elif request.status!=200:
+				raise UnexpectedHTTPResponse("%i %s"%(request.status,request.response.reason))	
+			doc=core.Document(baseURI=entityURL)
+			doc.Read(request.resBody)
+			if isinstance(doc.root,atom.Entry):
+				entity=core.Entity(self.entitySet)
+				entity.exists=True
+				doc.root.GetValue(entity)
+				yield entity
+			else:
+				raise core.InvalidEntryDocument(str(entityURL))
 
 	def __getitem__(self,key):
 		if self.isCollection:
@@ -438,23 +457,27 @@ class NavigationCollection(ClientCollection,core.NavigationCollection):
 				sysQueryOptions[core.SystemQueryOption.select]=core.FormatSelect(self.select)
 			if sysQueryOptions:
 				entityURL=uri.URIFactory.URI(entityURL+"?"+core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
-			doc=core.Document(baseURI=entityURL,reqManager=self.client)
-			try:
-				doc.Read()
-				if isinstance(doc.root,atom.Entry):
-					entity=core.Entity(self.entitySet)
-					entity.exists=True
-					doc.root.GetValue(entity)
-					if entity.Key()==key:
-						return entity
-					else:
-						raise KeyError(key)
-				elif isinstance(doc.root,core.Error):
-					raise KeyError(key)
-				else:
-					raise core.InvalidEntryDocument(str(entityURL))
-			except xml.XMLMissingResourceError:
+			request=http.HTTPRequest(str(entityURL))
+			request.SetHeader('Accept','application/atom+xml;type=entry')
+			self.client.ProcessRequest(request)
+			if request.status==404:
 				raise KeyError(key)
+			elif request.status!=200:
+				raise UnexpectedHTTPResponse("%i %s"%(request.status,request.response.reason))	
+			doc=core.Document(baseURI=entityURL)
+			doc.Read(request.resBody)
+			if isinstance(doc.root,atom.Entry):
+				entity=core.Entity(self.entitySet)
+				entity.exists=True
+				doc.root.GetValue(entity)
+				if entity.Key()==key:
+					return entity
+				else:
+					raise KeyError(key)
+			elif isinstance(doc.root,core.Error):
+				raise KeyError(key)
+			else:
+				raise core.InvalidEntryDocument(str(entityURL))
 
 	def __setitem__(self,key,entity):
 		if not isinstance(entity,edm.Entity) or entity.entitySet is not self.entitySet:
@@ -565,8 +588,13 @@ class Client(app.Client):
 			self.serviceRoot=serviceRoot
 		else:
 			self.serviceRoot=uri.URIFactory.URI(serviceRoot)
-		doc=core.Document(baseURI=self.serviceRoot,reqManager=self)
-		doc.Read()
+		request=http.HTTPRequest(str(self.serviceRoot))
+		request.SetHeader('Accept','application/atomsvc+xml')
+		self.ProcessRequest(request)
+		if request.status!=200:
+			raise UnexpectedHTTPResponse("%i %s"%(request.status,request.response.reason))	
+		doc=core.Document(baseURI=self.serviceRoot)
+		doc.Read(request.resBody)
 		if isinstance(doc.root,app.Service):
 			self.service=doc.root
 			self.serviceRoot=uri.URIFactory.URI(doc.root.ResolveBase())

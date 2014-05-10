@@ -495,6 +495,21 @@ class SQLDSTests(unittest.TestCase):
 				self.assertTrue(len(collection)==0,"No data in %s"%es.name)
 
 
+class AutoFieldTests(unittest.TestCase):
+
+	def setUp(self):
+		self.cwd=FilePath.getcwd()
+		TEST_DATA_DIR.chdir()
+		self.doc=edmx.Document()
+		mdPath=TEST_DATA_DIR.join('sample_server','metadata.xml')
+		with mdPath.open('rb') as f:
+			self.doc.Read(f)
+		self.schema=self.doc.root.DataServices['SampleModel']
+		self.container=self.doc.root.DataServices["SampleModel.SampleEntities"]
+		self.d=FilePath.mkdtemp('.d','pyslet-test_odata2_sqlds-')
+		self.db=SQLiteEntityContainer(filePath=self.d.join('test.db'),containerDef=self.container)
+
+		
 class RegressionTests(DataServiceRegressionTests):
 	
 	def setUp(self):

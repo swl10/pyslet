@@ -935,7 +935,7 @@ class HTTPRequestManager(object):
 		"""Searches for credentials that match *url*"""
 		with self.managerLock:
 			for c in self.credentials:
-				if c.MatchURL(url):
+				if c.TestURL(url):
 					return c
 	
 # 	def Close(self):

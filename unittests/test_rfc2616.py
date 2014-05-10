@@ -1,8 +1,7 @@
 #! /usr/bin/env python
 
 import unittest, logging
-import StringIO
-import socket
+import socket, time, StringIO
 
 def suite():
 	return unittest.TestSuite((
@@ -949,6 +948,7 @@ class ThreadedTests(unittest.TestCase):
 		for t in threads:
 			t.start()
 		while rm.ActiveCount()==0:
+			time.sleep(1)
 			continue
 		logging.info("%i active connections",rm.ActiveCount())
 		rm.ActiveCleanup(3)

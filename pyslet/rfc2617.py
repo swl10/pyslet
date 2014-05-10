@@ -152,7 +152,7 @@ class Credentials(object):
 				return False
 		return True
 
-	def MatchURL(self,url):
+	def TestURL(self,url):
 		"""Returns True if these credentials can be used peremptorily
 		when making a request to *url*.
 		
