@@ -77,7 +77,8 @@ class Server(app.Server):
 	
 	RedirectTypes=[
 		http.MediaType.FromString('text/html'),
-		http.MediaType.FromString('text/plain')]
+		http.MediaType.FromString('text/plain'),
+		http.MediaType.FromString('application/xml')]
 			
 	FeedTypes=[		# in order of preference if there is a tie
 		http.MediaType.FromString('application/atom+xml'),
@@ -185,7 +186,8 @@ class Server(app.Server):
 			version=self.CheckCapabilityNegotiation(environ,start_response,responseHeaders)
 			if version is None:
 				return self.ODataError(ODataURI('error'),environ,start_response,"DataServiceVersionMismatch","Maximum supported protocol version: 2.0")
-			path=environ['PATH_INFO']
+			appPath=environ.get('SCRIPT_NAME',"")
+			path=appPath+environ['PATH_INFO']
 			query=environ.get('QUERY_STRING',None)
 			if query is not None:
 				path=path+'?'+query
@@ -211,7 +213,7 @@ class Server(app.Server):
 					# this is a redirect response, default to text/plain anyway
 					responseType=http.MediaType.FromString('text/plain')
 				if responseType=="text/plain":
-					data=r.RenderText()
+					data=str(r.RenderText())
 				else:
 					data=str(r)
 				responseHeaders.append(("Content-Type",str(responseType)))
