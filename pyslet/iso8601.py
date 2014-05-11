@@ -1312,10 +1312,10 @@ class Time(object):
 		return type(self)(hour=hour,minute=minute,second=second,zDirection=zDirection,zHour=zHour,zMinute=zMinute),days
 
 	def WithZone(self,zDirection,zHour=None,zMinute=None):
-		"""Constructs a :py:class:`Time` instance from an existing time
-		but with the time zone specified.  The time zone of the existing
-		time is ignored.  Pass *zDirection*=None to strip the zone
-		information completely."""
+		"""Constructs a :py:class:`Time` instance from an existing time but with the time zone specified.
+		
+		The time zone of the existing time is ignored.  Pass
+		*zDirection*\=None to strip the zone information completely."""
 		return type(self)(hour=self.hour,minute=self.minute,second=self.second,zDirection=zDirection,zHour=zHour,zMinute=zMinute)
 	
 	def ShiftZone(self,zDirection,zHour=None,zMinute=None):
@@ -2241,12 +2241,14 @@ class TimePoint(object):
 				
 	@classmethod
 	def FromNow(cls):
+		"""Constructs a TimePoint from the current local date and time."""
 		t=pytime.time()
 		localTime=pytime.localtime(t)
 		return cls.FromStructTime(localTime)
 	
 	@classmethod
 	def FromNowUTC(cls):
+		"""Constructs a TimePoint from the current UTC date and time."""
 		t=pytime.time()
 		utcTime=pytime.gmtime(t)
 		return cls.FromStructTime(utcTime).WithZone(zDirection=0)		
