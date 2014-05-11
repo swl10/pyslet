@@ -1,0 +1,45 @@
+ISO 8601 Dates and Times
+========================
+
+.. py:module:: pyslet.iso8601
+
+This module defines special classes for handling ISO 8601 dates
+and times.
+
+
+..	autoclass:: Date
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Time
+	:members:
+	:show-inheritance:
+
+..	autoclass:: TimePoint
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Duration
+	:members:
+	:show-inheritance:
+
+
+Supporting Constants
+--------------------
+
+..	autoclass:: Truncation
+	:members:
+
+..	autoclass:: Precision
+	:members:
+
+
+Utility Functions
+-----------------
+
+..	autofunction::	LeapYear
+
+..	autofunction::	DayOfWeek
+
+..	autofunction::	WeekCount
+
