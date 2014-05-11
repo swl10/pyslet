@@ -8,7 +8,7 @@ SAMPLE_DB='weather.db'
 SERVICE_PORT=8080
 SERVICE_ROOT="http://localhost:%i/"%SERVICE_PORT
 
-import logging, threading, time, string, os, StringIO
+import logging, threading, time, string, os, StringIO, os.path
 from wsgiref.simple_server import make_server
 
 import pyslet.iso8601 as iso
@@ -21,21 +21,22 @@ from pyslet.odata2.memds import InMemoryEntityContainer
 import pyslet.rfc2616 as http
 
 
-def LoadMetadata():
+def LoadMetadata(path='WeatherSchema.xml'):
 	"""Loads the metadata file from the current directory."""
 	doc=edmx.Document()
-	with open('WeatherSchema.xml','rb') as f:
+	with open(path,'rb') as f:
 		doc.Read(f)
 	return doc
 
 
-def MakeContainer(doc,drop=False,):
-	if drop and os.path.isfile(SAMPLE_DB):
-		os.remove(SAMPLE_DB)
-	create=not os.path.isfile(SAMPLE_DB)
-	container=SQLiteEntityContainer(filePath=SAMPLE_DB,containerDef=doc.root.DataServices['WeatherSchema.CambridgeWeather'])
+def MakeContainer(doc,drop=False,path=SAMPLE_DB):
+	if drop and os.path.isfile(path):
+		os.remove(path)
+	create=not os.path.isfile(path)
+	container=SQLiteEntityContainer(filePath=path,containerDef=doc.root.DataServices['WeatherSchema.CambridgeWeather'])
 	if create:
 		container.CreateAllTables()
+
 	
 
 def IsBST(t):
@@ -241,12 +242,13 @@ def runWeatherServer(weatherApp=None):
 	server.serve_forever()
 
 
-def runWeatherLoader():
+def runWeatherLoader(container=None):
 	"""Starts a thread that monitors the DTG website for new values"""
-	doc=LoadMetadata()
-	container=MakeContainer(doc)
+	if container is None:
+		doc=LoadMetadata()
+		container=MakeContainer(doc)
 	client=http.HTTPRequestManager()
-	weatherData=doc.root.DataServices['WeatherSchema.CambridgeWeather.DataPoints']
+	weatherData=container['DataPoints']
 	DTG="http://www.cl.cam.ac.uk/research/dtg/weather/daily-text.cgi?%s"
 	with weatherData.OpenCollection() as collection:
 		collection.OrderBy(core.CommonExpression.OrderByFromString('TimePoint desc'))
@@ -271,7 +273,7 @@ def runWeatherLoader():
 					f=StringIO.StringIO(request.resBody)
 					LoadDataFromFile(weatherData,f,century*100+year,month,day)
 					nextDay=nextDay.Offset(days=1)
-					if sleepInterval>60:
+					if sleepInterval>10:
 						sleepInterval=sleepInterval//2
 				else:
 					# back off and try again
@@ -280,6 +282,8 @@ def runWeatherLoader():
 				# back off and try again
 				sleepInterval=sleepInterval*2
 			client.IdleCleanup(0)
+			if sleepInterval>86400:
+				sleepInterval=86400
 			time.sleep(sleepInterval)
 		
 def main():
