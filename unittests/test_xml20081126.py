@@ -173,7 +173,7 @@ class XMLCharacterTests(unittest.TestCase):
 		if MAX_CHAR<0x10FFFF:
 			expectedEdges=expectedEdges[0:8]
 			logging.warn("xml tests truncated to unichr(0x%X) by narrow python build"%MAX_CHAR)
-		self.assertTrue(self.FindEdges(IsChar,MAX_CHAR)==expectedEdges,"IsChar")
+		self.assertTrue(self.FindEdges(IsChar,MAX_CHAR)==expectedEdges,"IsChar range test: "+str(self.FindEdges(IsChar,MAX_CHAR)))
 
 	def testSpace(self):
 		"""[3] S ::= (#x20 | #x9 | #xD | #xA)+"""

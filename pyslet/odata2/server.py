@@ -586,7 +586,6 @@ class Server(app.Server):
 		try:
 			expand=sysQueryOptions.get(SystemQueryOption.expand,None)
 			select=sysQueryOptions.get(SystemQueryOption.select,None)
-			logging.debug("SysQueryOptions: %s",repr(sysQueryOptions))
 			if expand is None and select is None:
 				return
 			if not isinstance(resource,(EntityCollection,Entity)):
@@ -939,7 +938,8 @@ class Server(app.Server):
 					aList=self.DefaultAcceptList
 			else:
 				aList=self.DefaultAcceptList
-		return aList.SelectType(mTypeList)
+		returnType=aList.SelectType(mTypeList)
+		return returnType
 			
 	def CheckCapabilityNegotiation(self,environ,start_response,responseHeaders):
 		"""Sets the protocol version in *responseHeaders* if we can handle this request.
