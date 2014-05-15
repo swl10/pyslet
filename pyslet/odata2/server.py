@@ -105,6 +105,7 @@ class Server(app.Server):
 	ServiceRootTypes=[	# in order of preference if there is a tie
 		http.MediaType.FromString('application/atomsvc+xml'),
 		http.MediaType.FromString('application/json'),
+		http.MediaType.FromString('application/xml'),
 		http.MediaType.FromString('text/plain')]
 	
 	MetadataTypes=[	# in order of preference if there is a tie
@@ -567,10 +568,16 @@ class Server(app.Server):
 				elif responseType=="application/json":
 					return self.ReturnJSONRoot(request,environ,start_response,responseHeaders)
 				else:
-					wrapper=WSGIWrapper(environ,start_response,responseHeaders)
+					# override the default handling of service root to improve content negotiation
+					data=unicode(self.serviceDoc).encode('utf-8')
+					responseHeaders.append(("Content-Type",str(responseType)))
+					responseHeaders.append(("Content-Length",str(len(data))))
+					start_response("200 Ok",responseHeaders)
+					return [data]
+					# wrapper=WSGIWrapper(environ,start_response,responseHeaders)
 					# super essentially allows us to pass a bound method of our parent
 					# that we ourselves are hiding.
-					return wrapper.call(super(Server,self).__call__)
+					# return wrapper.call(super(Server,self).__call__)
 		except MissingURISegment,e:
 			return self.ODataError(request,environ,start_response,"Resource not found","Resource not found for segment %s"%str(e),404)
 		except BadURISegment,e:
@@ -939,6 +946,8 @@ class Server(app.Server):
 			else:
 				aList=self.DefaultAcceptList
 		returnType=aList.SelectType(mTypeList)
+		logging.debug("Content negotiation request: %s",str(aList))
+		logging.debug("Content negotiation result: picked %s from %s",repr(returnType),repr(mTypeList))
 		return returnType
 			
 	def CheckCapabilityNegotiation(self,environ,start_response,responseHeaders):
