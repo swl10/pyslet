@@ -1,0 +1,8 @@
+include *.rst
+include doc/conf.py
+recursive-include doc *.rst
+recursive-include doc/images *.png 
+recursive-include samples *.xml *.py *.txt
+recursive-include unittests *.*
+recursive-exclude unittests *.pyc
+

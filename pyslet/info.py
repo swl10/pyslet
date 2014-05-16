@@ -6,10 +6,10 @@ name="pyslet"
 copyright=u"\xA92008-2014, Steve Lay"
 
 major_version="0.4"
-version="%s.20140511"%major_version
+version="%s.20140516"%major_version
 
 title="Pyslet: python package for Standards in Learning, Education and Training"
-home="http://code.google.com/p/qtimigration/wiki/PysletHome"
+home="http://www.pyslet.org/"
 
 
 

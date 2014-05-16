@@ -31,6 +31,49 @@ class DataFormatError(ClientException):
 	"""Invalid or other input that could not be parsed."""
 	pass
 	
+
+class MediaLinkEntry(core.Entity):
+	
+	def __init__(self,entitySet,client):
+		core.Entity.__init__(self,entitySet)
+		self.client=client
+		
+	def GetStreamType(self):
+		"""Returns the content type of the entity's media stream by issuing a HEAD request."""
+		streamURL=str(self.GetLocation())+"/$value"
+		request=http.HTTPRequest(str(streamURL),'HEAD')
+		request.SetHeader('Accept','*/*')
+		self.client.ProcessRequest(request)
+		if request.status==404:
+			return None
+		elif request.status!=200:
+			raise UnexpectedHTTPResponse("%i %s"%(request.status,request.response.reason))	
+		return request.response.GetContentType()
+					
+	def GetStreamSize(self):
+		"""Returns the size of the entity's media stream in bytes by issuing a HEAD request."""
+		streamURL=str(self.GetLocation())+"/$value"
+		request=http.HTTPRequest(str(streamURL),'HEAD')
+		request.SetHeader('Accept','*/*')
+		self.client.ProcessRequest(request)
+		if request.status==404:
+			return None
+		elif request.status!=200:
+			raise UnexpectedHTTPResponse("%i %s"%(request.status,request.response.reason))	
+		return request.response.GetContentLength()
+		
+	def GetStreamGenerator(self):
+		"""A generator function that yields blocks (strings) of data from the entity's media stream."""
+		streamURL=str(self.GetLocation())+"/$value"
+		request=http.HTTPRequest(str(streamURL),'GET')
+		request.SetHeader('Accept','*/*')
+		self.client.ProcessRequest(request)
+		if request.status==404:
+			return
+		elif request.status!=200:
+			raise UnexpectedHTTPResponse("%i %s"%(request.status,request.response.reason))	
+		yield request.resBody
+	
 	
 class ClientCollection(core.EntityCollection):
 	
@@ -41,6 +84,13 @@ class ClientCollection(core.EntityCollection):
 		else:
 			self.baseURI=baseURI
 		self.client=client
+	
+	def NewEntity(self,autoKey=False):
+		"""Returns an OData aware instance"""
+		if self.IsMediaLinkEntryCollection():
+			return MediaLinkEntry(self.entitySet,self.client)
+		else:
+			return core.Entity(self.entitySet)	
 	
 	def Expand(self,expand,select=None):
 		"""Sets the expand and select query options for this collection.

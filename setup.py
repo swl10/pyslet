@@ -3,18 +3,23 @@
 import sys
 import pyslet.info
 
-if sys.hexversion<0x02060000:
-	print "pyslet requires Python Version 2.6 (or greater)"
+if sys.hexversion<0x02070000:
+	print "pyslet requires Python Version 2.7 (or greater)"
 else:
-	from distutils.core import setup
-	from distutils.sysconfig import get_python_lib
-	pkgBase=get_python_lib()
-	
+	try:
+		from setuptools import setup
+	except ImportError:
+		from distutils.core import setup
+		
+	with open('README.rst') as f:
+		long_description=f.read()
+		
 	setup(name=pyslet.info.name,
 		version=pyslet.info.version,
 		description=pyslet.info.title,
+		long_description=long_description,
 		author="Steve Lay",
-		author_email="steve.w.lay@googlemail.com",
+		author_email="steve.w.lay@gmail.com",
 		url=pyslet.info.home,
 		packages=[
 			'pyslet',
@@ -26,7 +31,22 @@ else:
 			'pyslet':[
 				'unicode5_blocks.pck',
 				'unicode5_catogories.pck' ]
-			}
+			},
+		classifiers=[
+			'Development Status :: 3 - Alpha',
+			'Intended Audience :: Developers',
+			'Natural Language :: English',
+			'License :: OSI Approved :: BSD License',
+			'Operating System :: OS Independent',
+			'Programming Language :: Python',
+			'Programming Language :: Python :: 2',
+			'Programming Language :: Python :: 2.7',
+			'Topic :: Education',
+			'Topic :: Education :: Computer Aided Instruction (CAI)',
+			'Topic :: Education :: Testing',
+			'Topic :: Internet :: WWW/HTTP :: WSGI :: Application',
+			'Topic :: Software Development :: Libraries :: Python Modules'
+			]
 		)
 	
 

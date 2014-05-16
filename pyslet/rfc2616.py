@@ -604,16 +604,16 @@ class HTTPRequestManager(object):
 		self.managerLock=threading.Condition()
 		self.nextId=1			# the id of the next connection object we'll create
 		self.cActiveThreadTargets={}
-		"""A dict of active connections keyed on thread and target (always unique)"""
+		#	A dict of active connections keyed on thread and target (always unique)
 		self.cActiveThreads={}
-		"""A dict of dicts of active connections keyed on thread id then connection id"""
+		#	A dict of dicts of active connections keyed on thread id then connection id
 		self.cIdleTargets={}
-		"""A dict of dicts of idle connections keyed on target and then connection id"""
+		#	A dict of dicts of idle connections keyed on target and then connection id
 		self.cIdleList={}
-		"""A dict of idle connections keyed on connection id (for keeping count)"""
+		#	A dict of idle connections keyed on connection id (for keeping count)
 		self.closing=False					# True if we are closing
-		self.maxConnections=maxConnections	#: maximum number of connections to manage (set only on construction)
-		self.dnsCache={}		# cached results from socket.getaddrinfo keyed on (hostname,port)
+		self.maxConnections=maxConnections	# maximum number of connections to manage (set only on construction)
+		self.dnsCache={}					# cached results from socket.getaddrinfo keyed on (hostname,port)
 		self.ca_certs=ca_certs
 		self.credentials=[]
 		self.socketSelect=select.select
@@ -624,7 +624,7 @@ class HTTPRequestManager(object):
 		"""Instructs the manager to start processing *request*.
 		
 		request
-			A :py:class:`Connection` object.
+			A :py:class:`HTTPRequest` object.
 		
 		timeout
 			Number of seconds to wait for a free connection before timing
