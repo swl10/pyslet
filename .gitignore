@@ -1,0 +1,15 @@
+*.py[cod]
+
+# Packages
+*.egg
+*.egg-info
+build
+dist
+
+# Sphinx
+doc/_build
+htmldocs
+
+# misc
+local
+pep8-count.txt
