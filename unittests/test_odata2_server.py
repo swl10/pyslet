@@ -1729,7 +1729,7 @@ class SampleServerTests(unittest.TestCase):
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==307)		
 		self.assertTrue(request.responseHeaders['LOCATION']=='http://host/service.svc/',"Expected redirect")
-		request=MockRequest('/service.svc/')	
+		request=MockRequest('/service.svc/')
 		request.Send(self.svc)
 		self.assertTrue(request.responseCode==200,"Service root response: %i"%request.responseCode)		
 		self.assertTrue(request.responseHeaders['CONTENT-TYPE']=='application/atomsvc+xml',"Expected application/atomsvc+xml")

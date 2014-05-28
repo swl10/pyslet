@@ -13,3 +13,5 @@ htmldocs
 # misc
 local
 pep8-count.txt
+.coverage
+unittests/pyslet

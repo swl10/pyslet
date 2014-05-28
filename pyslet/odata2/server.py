@@ -69,7 +69,8 @@ class Server(app.Server):
 		http.MediaRange.FromString('application/json')
 		]
 							
-	DefaultAcceptList=http.AcceptList.FromString("application/atom+xml, application/xml; q=0.9, text/xml; q=0.8, text/plain; q=0.7, */*; q=0.6")
+	DefaultAcceptList=http.AcceptList.FromString("application/atom+xml, application/atomsvc+xml, application/xml; q=0.9, text/xml; q=0.8, text/plain; q=0.7, */*; q=0.6")
+
 	ErrorTypes=[
 		http.MediaType.FromString('application/atom+xml'),
 		http.MediaType.FromString('application/xml'),
