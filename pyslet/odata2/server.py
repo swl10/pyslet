@@ -1,48 +1,36 @@
 #! /usr/bin/env python
 """OData server implementation."""
 
-from types import *
 import sys
-import cgi
-import urllib
 import string
-import itertools
 import traceback
-import StringIO
 import json
-import base64
-import decimal
-import uuid
-import math
-import warnings
 import logging
 
 import pyslet.info as info
-import pyslet.iso8601 as iso
 import pyslet.rfc4287 as atom
 import pyslet.rfc5023 as app
 import pyslet.rfc2616 as http
 import pyslet.rfc2396 as uri
 import pyslet.xml20081126.structures as xml
-import pyslet.xmlnames20091208 as xmlns
-import pyslet.xsdatatypes20041028 as xsi
 import pyslet.html40_19991224 as html
-from pyslet.unicode5 import CharClass, DetectEncoding
+from pyslet.unicode5 import DetectEncoding
 import csdl as edm
-
-from core import *
+import core as core
 import metadata as edmx
+
+# from core import *
 
 
 class WSGIWrapper(object):
 
-    def __init__(self, environ, start_response, responseHeaders):
+    def __init__(self, environ, start_response, response_headers):
         """A simple wrapper class for a wsgi application.
 
-        Allows additional responseHeaders to be added to the wsgi response."""
+        Allows additional response headers to be added to the wsgi response."""
         self.environ = environ
         self.start_response = start_response
-        self.responseHeaders = responseHeaders
+        self.response_headers = response_headers
 
     def call(self, application):
         """Calls wsgi *application*"""
@@ -50,7 +38,7 @@ class WSGIWrapper(object):
 
     def start_response_wrapper(self, status, response_headers, exc_info=None):
         """Traps start_response and adds the additional headers."""
-        response_headers = response_headers + self.responseHeaders
+        response_headers = response_headers + self.response_headers
         return self.start_response(status, response_headers, exc_info)
 
 
@@ -214,13 +202,13 @@ class Server(app.Server):
 
     def __call__(self, environ, start_response):
         """wsgi interface for the server."""
-        responseHeaders = []
+        response_headers = []
         try:
             version = self.CheckCapabilityNegotiation(
-                environ, start_response, responseHeaders)
+                environ, start_response, response_headers)
             if version is None:
                 return self.ODataError(
-                    ODataURI('error'),
+                    core.ODataURI('error'),
                     environ,
                     start_response,
                     "DataServiceVersionMismatch",
@@ -230,10 +218,11 @@ class Server(app.Server):
             query = environ.get('QUERY_STRING', None)
             if query is not None:
                 path = path + '?' + query
-            request = ODataURI(path, self.pathPrefix, version)
+            request = core.ODataURI(path, self.pathPrefix, version)
             if request.resourcePath is None:
                 # this is not a URI for us, pass to our superclass
-                wrapper = WSGIWrapper(environ, start_response, responseHeaders)
+                wrapper = WSGIWrapper(
+                    environ, start_response, response_headers)
                 # super essentially allows us to pass a bound method of
                 # our parent that we ourselves are hiding.
                 return wrapper.call(super(Server, self).__call__)
@@ -257,35 +246,35 @@ class Server(app.Server):
                     data = str(r.RenderText())
                 else:
                     data = str(r)
-                responseHeaders.append(("Content-Type", str(responseType)))
-                responseHeaders.append(("Content-Length", str(len(data))))
-                responseHeaders.append(("Location", location))
+                response_headers.append(("Content-Type", str(responseType)))
+                response_headers.append(("Content-Length", str(len(data))))
+                response_headers.append(("Location", location))
                 start_response(
-                    "%i %s" % (307, "Temporary Redirect"), responseHeaders)
+                    "%i %s" % (307, "Temporary Redirect"), response_headers)
                 return [data]
             else:
                 return self.HandleRequest(
-                    request, environ, start_response, responseHeaders)
-        except InvalidSystemQueryOption as e:
+                    request, environ, start_response, response_headers)
+        except core.InvalidSystemQueryOption as e:
             return self.ODataError(
-                ODataURI('error'),
+                core.ODataURI('error'),
                 environ,
                 start_response,
                 "InvalidSystemQueryOption",
                 "Invalid System Query Option: %s" %
                 str(e))
-        except InvalidPathOption as e:
+        except core.InvalidPathOption as e:
             return self.ODataError(
-                ODataURI('error'),
+                core.ODataURI('error'),
                 environ,
                 start_response,
                 "Bad Request",
                 "Path option is invalid or "
                 "incompatible with this form of URI: %s" % str(e),
                 400)
-        except InvalidMethod as e:
+        except core.InvalidMethod as e:
             return self.ODataError(
-                ODataURI('error'),
+                core.ODataURI('error'),
                 environ,
                 start_response,
                 "Bad Request",
@@ -296,7 +285,7 @@ class Server(app.Server):
             traceback.print_exception(*sys.exc_info())
             # This is a bad request
             return self.ODataError(
-                ODataURI('error'),
+                core.ODataURI('error'),
                 environ,
                 start_response,
                 "ValueError",
@@ -304,9 +293,10 @@ class Server(app.Server):
         except:
             eInfo = sys.exc_info()
             traceback.print_exception(*eInfo)
-            # return self.HandleError(ODataURI('error'),environ,start_response)
+            # return self.HandleError(core.ODataURI('error'),
+            #   environ,start_response)
             return self.ODataError(
-                ODataURI('error'),
+                core.ODataURI('error'),
                 environ,
                 start_response,
                 "UnexpectedError",
@@ -324,10 +314,10 @@ class Server(app.Server):
             message='',
             code=400):
         """Generates ODataError, typically as the result of a bad request."""
-        responseHeaders = []
-        e = Error(None)
-        e.ChildElement(Code).SetValue(subCode)
-        e.ChildElement(Message).SetValue(message)
+        response_headers = []
+        e = core.Error(None)
+        e.ChildElement(core.Code).SetValue(subCode)
+        e.ChildElement(core.Message).SetValue(message)
         responseType = self.ContentNegotiation(
             request, environ, self.ErrorTypes)
         if responseType is None:
@@ -341,9 +331,9 @@ class Server(app.Server):
             data = str(string.join(e.GenerateStdErrorJSON(), ''))
         else:
             data = str(e)
-        responseHeaders.append(("Content-Type", str(responseType)))
-        responseHeaders.append(("Content-Length", str(len(data))))
-        start_response("%i %s" % (code, subCode), responseHeaders)
+        response_headers.append(("Content-Type", str(responseType)))
+        response_headers.append(("Content-Length", str(len(data))))
+        start_response("%i %s" % (code, subCode), response_headers)
         return [data]
 
     def GetResourceFromURI(self, href):
@@ -362,7 +352,7 @@ class Server(app.Server):
                 href.GetCanonicalRoot()):
             # This isn't even for us
             return None
-        request = ODataURI(href, self.pathPrefix)
+        request = core.ODataURI(href, self.pathPrefix)
         return self.GetResource(request)[0]
 
     def GetResource(self, odataURI):
@@ -372,12 +362,12 @@ class Server(app.Server):
         for segment in odataURI.navPath:
             name, keyPredicate = segment
             if noNavPath:
-                raise BadURISegment(name)
+                raise core.BadURISegment(name)
             if isinstance(resource, edmx.Edmx):
                 try:
                     resource = resource.DataServices.SearchContainers(name)
                 except KeyError as e:
-                    raise MissingURISegment(str(e))
+                    raise core.MissingURISegment(str(e))
                 if isinstance(resource, edm.FunctionImport):
                     # TODO: grab the params from the query string
                     resource = resource.Execute({})
@@ -391,7 +381,7 @@ class Server(app.Server):
                     resource = resource.OpenCollection()
                 else:
                     # not the right sort of thing
-                    raise MissingURISegment(name)
+                    raise core.MissingURISegment(name)
                 if isinstance(resource, edm.EntityCollection):
                     if keyPredicate:
                         # the keyPredicate can be passed directly as the key
@@ -401,20 +391,20 @@ class Server(app.Server):
                                 collection.entitySet.GetKey(keyPredicate)]
                             collection.close()
                         except KeyError as e:
-                            raise MissingURISegment(
-                                "%s%s" %
-                                (name, ODataURI.FormatKeyDict(keyPredicate)))
+                            raise core.MissingURISegment(
+                                "%s%s" % (name,
+                                          core.ODataURI.FormatKeyDict(keyPredicate)))
                 elif resource is None:
-                    raise MissingURISegment(name)
+                    raise core.MissingURISegment(name)
             elif isinstance(resource,
                             (edm.EntityCollection, edm.FunctionCollection)):
                 # bad request, because the collection must be the last
                 # thing in the path
-                raise BadURISegment(
+                raise core.BadURISegment(
                     "%s since the object's parent is a collection" % name)
             elif isinstance(resource, edm.Entity):
                 if name not in resource:
-                    raise MissingURISegment(name)
+                    raise core.MissingURISegment(name)
                 # set the parent entity
                 parentEntity = resource
                 resource = resource[name]
@@ -427,13 +417,13 @@ class Server(app.Server):
                                         collection.entitySet.GetKey(
                                             keyPredicate)]
                             except KeyError as e:
-                                raise MissingURISegment(name)
+                                raise core.MissingURISegment(name)
                         else:
                             resource = resource.OpenCollection()
                     else:
                         # keyPredicate not allowed here!
                         if keyPredicate:
-                            raise BadURISegment(
+                            raise core.BadURISegment(
                                 "%s (keyPredicate not allowed "
                                 "for a navigation property that identifies a "
                                 "single entity)" %
@@ -446,21 +436,21 @@ class Server(app.Server):
                     # This is a regular property of the ComplexType
                     resource = resource[name]
                 else:
-                    raise MissingURISegment(name)
+                    raise core.MissingURISegment(name)
             elif resource is None:
-                raise MissingURISegment(
+                raise core.MissingURISegment(
                     "%s, property cannot be resolved "
                     "as the parent entity does not exist" %
                     name)
             else:
                 # Any other type is just a property or simple-type
-                raise BadURISegment(name)
+                raise core.BadURISegment(name)
         if isinstance(resource, edm.EntityCollection):
             odataURI.ValidateSystemQueryOptions(1)  # includes 6 Note 2
         elif isinstance(resource, edm.Entity):
-            if odataURI.pathOption == PathOption.value:
+            if odataURI.pathOption == core.PathOption.value:
                 odataURI.ValidateSystemQueryOptions(17)  # media resource value
-            elif odataURI.pathOption != PathOption.links:
+            elif odataURI.pathOption != core.PathOption.links:
                 odataURI.ValidateSystemQueryOptions(2)  # includes 6 Note 1
         elif isinstance(resource, edm.Complex):
             odataURI.ValidateSystemQueryOptions(3)
@@ -470,34 +460,35 @@ class Server(app.Server):
         elif resource is None and parentEntity is not None:
             # there is a very specific use case here, use of
             # <entity>/$links/<nav-et> where the link is NULL
-            if not odataURI.pathOption == PathOption.links:
+            if not odataURI.pathOption == core.PathOption.links:
                 # <entity>/<nav-et> where the link is NULL raises a 404
                 # See the resolution:
                 # https://tools.oasis-open.org/issues/browse/ODATA-412
-                raise MissingURISegment(
+                raise core.MissingURISegment(
                     "no entity is linked by this navigation property")
         return resource, parentEntity
 
-    def SetETag(self, entity, responseHeaders):
+    def SetETag(self, entity, response_headers):
         etag = entity.ETag()
         if etag is not None:
             s = "%s" if entity.ETagIsStrong() else "W/%s"
             etag = s % http.QuoteString(
-                string.join(map(ODataURI.FormatLiteral, etag), ','))
-            responseHeaders.append(("ETag", etag))
+                string.join(map(core.ODataURI.FormatLiteral, etag), ','))
+            response_headers.append(("ETag", etag))
 
-    def HandleRequest(self, request, environ, start_response, responseHeaders):
+    def HandleRequest(self, request, environ, start_response, response_headers):
         """Handles an OData request.
 
         *request*
-            An :py:class:`ODataURI` instance with a non-empty resourcePath."""
+            An :py:class:`core.ODataURI` instance with a non-empty
+            resourcePath."""
         method = environ["REQUEST_METHOD"].upper()
         try:
             resource, parentEntity = self.GetResource(request)
-            if request.pathOption == PathOption.metadata:
+            if request.pathOption == core.PathOption.metadata:
                 return self.ReturnMetadata(
-                    request, environ, start_response, responseHeaders)
-            elif request.pathOption == PathOption.batch:
+                    request, environ, start_response, response_headers)
+            elif request.pathOption == core.PathOption.batch:
                 return self.ODataError(
                     request,
                     environ,
@@ -505,30 +496,30 @@ class Server(app.Server):
                     "Bad Request",
                     "Batch requests not supported",
                     404)
-            elif request.pathOption == PathOption.count:
+            elif request.pathOption == core.PathOption.count:
                 if isinstance(resource, edm.Entity):
                     return self.ReturnCount(
-                        1, request, environ, start_response, responseHeaders)
+                        1, request, environ, start_response, response_headers)
                 elif isinstance(resource, edm.EntityCollection):
                     return self.ReturnCount(
                         len(resource),
                         request,
                         environ,
                         start_response,
-                        responseHeaders)
+                        response_headers)
                 else:
-                    raise BadURISegment(
+                    raise core.BadURISegment(
                         "$count must be applied to "
                         "an EntitySet or single EntityType instance")
-            elif request.pathOption == PathOption.links:
+            elif request.pathOption == core.PathOption.links:
                 # parentEntity will be source entity
                 # request.linksProperty is the name of the navigation
                 # property in the source entity
                 # resource will be the target entity, a collection or
                 # None
-                if not isinstance(parentEntity, Entity):
-                    raise BadURISegment("$links must be preceded by a "
-                                        "single EntityType instance")
+                if not isinstance(parentEntity, edm.Entity):
+                    raise core.BadURISegment("$links must be preceded by a "
+                                             "single EntityType instance")
                 if method == "GET":
                     # open the collection and select the key properties only
                     if isinstance(resource, edm.EntityCollection):
@@ -536,32 +527,32 @@ class Server(app.Server):
                             collection.SelectKeys()
                             collection.SetPage(
                                 request.sysQueryOptions.get(
-                                    SystemQueryOption.top, None),
+                                    core.SystemQueryOption.top, None),
                                 request.sysQueryOptions.get(
-                                    SystemQueryOption.skip, None),
+                                    core.SystemQueryOption.skip, None),
                                 request.sysQueryOptions.get(
-                                    SystemQueryOption.skiptoken, None))
+                                    core.SystemQueryOption.skiptoken, None))
                             inlineCount = request.sysQueryOptions.get(
-                                SystemQueryOption.inlinecount, None)
+                                core.SystemQueryOption.inlinecount, None)
                             collection.SetInlineCount(
-                                inlineCount == InlineCount.allpages)
+                                inlineCount == core.InlineCount.allpages)
                             return self.ReturnLinks(
                                 collection,
                                 request,
                                 environ,
                                 start_response,
-                                responseHeaders)
-                    elif isinstance(resource, Entity):
+                                response_headers)
+                    elif isinstance(resource, edm.Entity):
                         # should have just a single link
                         return self.ReturnLink(
                             resource,
                             request,
                             environ,
                             start_response,
-                            responseHeaders)
+                            response_headers)
                     else:
                         # resource is None - no linked entity
-                        raise MissingURISegment(
+                        raise core.MissingURISegment(
                             "%s, no entity is related" % request.linksProperty)
                 elif method == "POST":
                     if resource is None:
@@ -574,15 +565,16 @@ class Server(app.Server):
                             targetEntity = self.ReadEntityFromLink(environ)
                             collection[targetEntity.Key()] = targetEntity
                         return self.ReturnEmpty(
-                            start_response, responseHeaders)
+                            start_response, response_headers)
                     else:
                         # you can't POST to a single link that already exists
-                        raise BadURISegment("%s is already linked, use PUT "
-                                            "instead of POST to update it" %
-                                            request.linksProperty)
+                        raise core.BadURISegment(
+                            "%s is already linked, use PUT "
+                            "instead of POST to update it" %
+                            request.linksProperty)
                 elif method == "PUT":
                     if parentEntity[request.linksProperty].isCollection:
-                        raise BadURISegment(
+                        raise core.BadURISegment(
                             "%s: can't update a link with multiplicity *" %
                             request.linksProperty)
                     with parentEntity[
@@ -590,34 +582,34 @@ class Server(app.Server):
                             collection:
                         targetEntity = self.ReadEntityFromLink(environ)
                         collection.Replace(targetEntity)
-                    return self.ReturnEmpty(start_response, responseHeaders)
+                    return self.ReturnEmpty(start_response, response_headers)
                 elif method == "DELETE":
                     if isinstance(resource, edm.EntityCollection):
-                        raise BadURISegment(
+                        raise core.BadURISegment(
                             "%s: DELETE must specify a single link" %
                             request.linksProperty)
                     elif resource is None:
-                        raise MissingURISegment(
+                        raise core.MissingURISegment(
                             "%s, no entity is related" % request.linksProperty)
                     with parentEntity[
                             request.linksProperty].OpenCollection() as \
                             collection:
                         del collection[resource.Key()]
-                    return self.ReturnEmpty(start_response, responseHeaders)
+                    return self.ReturnEmpty(start_response, response_headers)
                 else:
-                    raise InvalidMethod("%s not supported here" % method)
+                    raise core.InvalidMethod("%s not supported here" % method)
             elif isinstance(resource, edm.Entity):
                 if method == "GET":
-                    if request.pathOption == PathOption.value:
+                    if request.pathOption == core.PathOption.value:
                         if resource.typeDef.HasStream():
                             return self.ReturnStream(
                                 resource,
                                 request,
                                 environ,
                                 start_response,
-                                responseHeaders)
+                                response_headers)
                         else:
-                            raise BadURISegment(
+                            raise core.BadURISegment(
                                 "$value cannot be used since "
                                 "the entity is not a media stream")
                     else:
@@ -627,9 +619,9 @@ class Server(app.Server):
                             request,
                             environ,
                             start_response,
-                            responseHeaders)
+                            response_headers)
                 elif method == "PUT":
-                    if request.pathOption == PathOption.value:
+                    if request.pathOption == core.PathOption.value:
                         if resource.typeDef.HasStream():
                             if "CONTENT_TYPE" in environ:
                                 resourceType = http.MediaType.FromString(
@@ -640,11 +632,11 @@ class Server(app.Server):
                             input = app.InputWrapper(environ)
                             resource.SetStreamFromGenerator(
                                 resourceType, input.iterblocks())
-                            self.SetETag(resource, responseHeaders)
+                            self.SetETag(resource, response_headers)
                             return self.ReturnEmpty(
-                                start_response, responseHeaders)
+                                start_response, response_headers)
                         else:
-                            raise BadURISegment(
+                            raise core.BadURISegment(
                                 "$value cannot be used since the entity is "
                                 "not a media stream")
                     else:
@@ -653,45 +645,45 @@ class Server(app.Server):
                         resource.Update()
                         # now we've updated the entity it is safe to calculate
                         # the ETag
-                        self.SetETag(resource, responseHeaders)
+                        self.SetETag(resource, response_headers)
                         return self.ReturnEmpty(
-                            start_response, responseHeaders)
+                            start_response, response_headers)
                 elif method == "DELETE":
-                    if request.pathOption == PathOption.value:
-                        raise BadURISegment(
+                    if request.pathOption == core.PathOption.value:
+                        raise core.BadURISegment(
                             "$value cannot be used with DELETE")
                     resource.Delete()
-                    return self.ReturnEmpty(start_response, responseHeaders)
+                    return self.ReturnEmpty(start_response, response_headers)
                 else:
-                    raise InvalidMethod("%s not supported here" % method)
+                    raise core.InvalidMethod("%s not supported here" % method)
             elif isinstance(resource, edm.EntityCollection):
                 if method == "GET":
                     self.ExpandResource(resource, request.sysQueryOptions)
                     resource.Filter(
                         request.sysQueryOptions.get(
-                            SystemQueryOption.filter,
+                            core.SystemQueryOption.filter,
                             None))
                     resource.OrderBy(
                         request.sysQueryOptions.get(
-                            SystemQueryOption.orderby,
+                            core.SystemQueryOption.orderby,
                             None))
                     resource.SetPage(
                         request.sysQueryOptions.get(
-                            SystemQueryOption.top, None),
+                            core.SystemQueryOption.top, None),
                         request.sysQueryOptions.get(
-                            SystemQueryOption.skip, None),
+                            core.SystemQueryOption.skip, None),
                         request.sysQueryOptions.get(
-                            SystemQueryOption.skiptoken, None))
+                            core.SystemQueryOption.skiptoken, None))
                     inlineCount = request.sysQueryOptions.get(
-                        SystemQueryOption.inlinecount, None)
+                        core.SystemQueryOption.inlinecount, None)
                     resource.SetInlineCount(
-                        inlineCount == InlineCount.allpages)
+                        inlineCount == core.InlineCount.allpages)
                     return self.ReturnEntityCollection(
                         resource,
                         request,
                         environ,
                         start_response,
-                        responseHeaders)
+                        response_headers)
                 elif (method == "POST" and
                       resource.IsMediaLinkEntryCollection()):
                     # POST of a media resource
@@ -715,14 +707,14 @@ class Server(app.Server):
                     input = app.InputWrapper(environ)
                     entity.SetStreamFromGenerator(
                         resourceType, input.iterblocks())
-                    responseHeaders.append(
+                    response_headers.append(
                         ('Location', str(entity.GetLocation())))
                     return self.ReturnEntity(
                         entity,
                         request,
                         environ,
                         start_response,
-                        responseHeaders,
+                        response_headers,
                         201,
                         "Created")
                 elif method == "POST":
@@ -731,21 +723,21 @@ class Server(app.Server):
                     # read the entity from the request
                     self.ReadEntity(entity, environ)
                     resource.InsertEntity(entity)
-                    responseHeaders.append(
+                    response_headers.append(
                         ('Location', str(entity.GetLocation())))
                     return self.ReturnEntity(
                         entity,
                         request,
                         environ,
                         start_response,
-                        responseHeaders,
+                        response_headers,
                         201,
                         "Created")
                 else:
-                    raise InvalidMethod("%s not supported here" % method)
+                    raise core.InvalidMethod("%s not supported here" % method)
             elif isinstance(resource, edm.EDMValue):
                 if method == "GET":
-                    if request.pathOption == PathOption.value:
+                    if request.pathOption == core.PathOption.value:
                         if resource:
                             return self.ReturnDereferencedValue(
                                 parentEntity,
@@ -753,9 +745,9 @@ class Server(app.Server):
                                 request,
                                 environ,
                                 start_response,
-                                responseHeaders)
+                                response_headers)
                         else:
-                            raise MissingURISegment(
+                            raise core.MissingURISegment(
                                 "%s (NULL)" % resource.pDef.name)
                     else:
                         return self.ReturnValue(
@@ -764,40 +756,40 @@ class Server(app.Server):
                             request,
                             environ,
                             start_response,
-                            responseHeaders)
+                            response_headers)
                 elif method == "PUT":
-                    if request.pathOption == PathOption.value:
+                    if request.pathOption == core.PathOption.value:
                         if resource:
                             self.ReadDereferencedValue(resource, environ)
                         else:
-                            raise MissingURISegment(
+                            raise core.MissingURISegment(
                                 "%s (NULL)" % resource.pDef.name)
                     else:
                         self.ReadValue(resource, environ)
                     parentEntity.Update()
-                    self.SetETag(parentEntity, responseHeaders)
-                    return self.ReturnEmpty(start_response, responseHeaders)
+                    self.SetETag(parentEntity, response_headers)
+                    return self.ReturnEmpty(start_response, response_headers)
                 elif method == "DELETE":
-                    if request.pathOption == PathOption.value:
-                        raise BadURISegment(
+                    if request.pathOption == core.PathOption.value:
+                        raise core.BadURISegment(
                             "$value cannot be used with DELETE")
                     # make this one NULL, only if it is nullable
                     if resource.pDef and not resource.pDef.nullable:
-                        raise InvalidMethod(
+                        raise core.InvalidMethod(
                             "DELETE failed, %s property is not nullable" %
                             resource.pDef.name)
                     resource.value = None
                     parentEntity.Update()
-                    return self.ReturnEmpty(start_response, responseHeaders)
+                    return self.ReturnEmpty(start_response, response_headers)
                 else:
-                    raise InvalidMethod("%s not supported here" % method)
+                    raise core.InvalidMethod("%s not supported here" % method)
             elif isinstance(resource, edm.FunctionCollection):
                 return self.ReturnCollection(
                     resource,
                     request,
                     environ,
                     start_response,
-                    responseHeaders)
+                    response_headers)
             else:
                 # None or the DataService object: means we are trying to get
                 # the service root
@@ -813,16 +805,17 @@ class Server(app.Server):
                         406)
                 elif responseType == "application/json":
                     return self.ReturnJSONRoot(
-                        request, environ, start_response, responseHeaders)
+                        request, environ, start_response, response_headers)
                 else:
                     # override the default handling of service root to improve
                     # content negotiation
                     data = unicode(self.serviceDoc).encode('utf-8')
-                    responseHeaders.append(("Content-Type", str(responseType)))
-                    responseHeaders.append(("Content-Length", str(len(data))))
-                    start_response("200 Ok", responseHeaders)
+                    response_headers.append(
+                        ("Content-Type", str(responseType)))
+                    response_headers.append(("Content-Length", str(len(data))))
+                    start_response("200 Ok", response_headers)
                     return [data]
-        except MissingURISegment as e:
+        except core.MissingURISegment as e:
             return self.ODataError(
                 request,
                 environ,
@@ -831,7 +824,7 @@ class Server(app.Server):
                 "Resource not found for segment %s" %
                 str(e),
                 404)
-        except BadURISegment as e:
+        except core.BadURISegment as e:
             return self.ODataError(
                 request,
                 environ,
@@ -867,28 +860,29 @@ class Server(app.Server):
 
     def ExpandResource(self, resource, sysQueryOptions):
         try:
-            expand = sysQueryOptions.get(SystemQueryOption.expand, None)
-            select = sysQueryOptions.get(SystemQueryOption.select, None)
+            expand = sysQueryOptions.get(core.SystemQueryOption.expand, None)
+            select = sysQueryOptions.get(core.SystemQueryOption.select, None)
             if expand is None and select is None:
                 return
-            if not isinstance(resource, (EntityCollection, Entity)):
-                raise InvalidSystemQueryOption("$select/$expand not allowed")
+            if not isinstance(resource, (edm.EntityCollection, edm.Entity)):
+                raise core.InvalidSystemQueryOption(
+                    "$select/$expand not allowed")
             resource.Expand(expand, select)
         except ValueError as e:
-            raise InvalidSystemQueryOption(
+            raise core.InvalidSystemQueryOption(
                 "$select/$expand error: %s" % str(e))
 
     def ReturnJSONRoot(
-            self, request, environ, start_response, responseHeaders):
+            self, request, environ, start_response, response_headers):
         data = str('{"d":%s}' % json.dumps(
             {'EntitySets': map(lambda x: x.href, self.ws.Collection)}))
-        responseHeaders.append(("Content-Type", "application/json"))
-        responseHeaders.append(("Content-Length", str(len(data))))
-        start_response("%i %s" % (200, "Success"), responseHeaders)
+        response_headers.append(("Content-Type", "application/json"))
+        response_headers.append(("Content-Length", str(len(data))))
+        start_response("%i %s" % (200, "Success"), response_headers)
         return [data]
 
     def ReturnMetadata(
-            self, request, environ, start_response, responseHeaders):
+            self, request, environ, start_response, response_headers):
         doc = self.model.GetDocument()
         responseType = self.ContentNegotiation(
             request, environ, self.MetadataTypes)
@@ -901,13 +895,13 @@ class Server(app.Server):
                 'xml or plain text formats supported',
                 406)
         data = str(doc)
-        responseHeaders.append(("Content-Type", str(responseType)))
-        responseHeaders.append(("Content-Length", str(len(data))))
-        start_response("%i %s" % (200, "Success"), responseHeaders)
+        response_headers.append(("Content-Type", str(responseType)))
+        response_headers.append(("Content-Length", str(len(data))))
+        start_response("%i %s" % (200, "Success"), response_headers)
         return [data]
 
     def ReturnLinks(
-            self, entities, request, environ, start_response, responseHeaders):
+            self, entities, request, environ, start_response, response_headers):
         responseType = self.ContentNegotiation(
             request, environ, self.ValueTypes)
         if responseType is None:
@@ -922,25 +916,25 @@ class Server(app.Server):
             data = str('{"d":%s}' % string.join(
                 entities.GenerateLinkCollJSON(request.version), ''))
         else:
-            doc = Document(root=Links)
+            doc = core.Document(root=core.Links)
             for e in entities.itervalues():
-                child = doc.root.ChildElement(URI)
+                child = doc.root.ChildElement(core.URI)
                 child.SetValue(str(self.serviceRoot) + "%s(%s)" %
                                (e.entitySet.name, repr(e.Key())))
             data = str(doc)
-        responseHeaders.append(("Content-Type", str(responseType)))
-        responseHeaders.append(("Content-Length", str(len(data))))
-        start_response("%i %s" % (200, "Success"), responseHeaders)
+        response_headers.append(("Content-Type", str(responseType)))
+        response_headers.append(("Content-Length", str(len(data))))
+        start_response("%i %s" % (200, "Success"), response_headers)
         return [data]
 
     def ReadEntityFromLink(self, environ):
         input = self.ReadXMLOrJSON(environ)
-        if isinstance(input, Document):
-            if isinstance(input.root, URI):
+        if isinstance(input, core.Document):
+            if isinstance(input.root, core.URI):
                 return self.GetResourceFromURI(
                     uri.URIFactory.URI(input.root.GetValue()))
             else:
-                raise InvalidData(
+                raise core.InvalidData(
                     "Unable to parse link from request body (found <%s>)" %
                     doc.root.xmlname)
         else:
@@ -949,13 +943,13 @@ class Server(app.Server):
                 return self.GetResourceFromURI(
                     uri.URIFactory.URI(input['uri']))
             except KeyError:
-                raise InvalidData(
+                raise core.InvalidData(
                     "Unable to parse link from JSON request body (found %s )" %
                     str(input)[
                         :256])
 
     def ReturnLink(
-            self, entity, request, environ, start_response, responseHeaders):
+            self, entity, request, environ, start_response, response_headers):
         responseType = self.ContentNegotiation(
             request, environ, self.ValueTypes)
         if responseType is None:
@@ -969,16 +963,16 @@ class Server(app.Server):
         if responseType == "application/json":
             data = str('{"d":%s}' % entity.LinkJSON())
         else:
-            doc = Document(root=URI)
+            doc = core.Document(root=core.URI)
             doc.root.SetValue(str(entity.GetLocation()))
             data = str(doc)
-        responseHeaders.append(("Content-Type", str(responseType)))
-        responseHeaders.append(("Content-Length", str(len(data))))
-        start_response("%i %s" % (200, "Success"), responseHeaders)
+        response_headers.append(("Content-Type", str(responseType)))
+        response_headers.append(("Content-Length", str(len(data))))
+        start_response("%i %s" % (200, "Success"), response_headers)
         return [data]
 
     def ReturnEntityCollection(
-            self, entities, request, environ, start_response, responseHeaders):
+            self, entities, request, environ, start_response, response_headers):
         """Returns an iterable of Entities."""
         responseType = self.ContentNegotiation(
             request, environ, self.FeedTypes)
@@ -997,14 +991,14 @@ class Server(app.Server):
             # Here's a challenge, we want to pull data through the feed
             # by yielding strings just load in to memory at the moment
             entities.TopMax(self.topmax)
-            f = Feed(None, entities)
-            doc = Document(root=f)
+            f = core.Feed(None, entities)
+            doc = core.Document(root=f)
             f.collection = entities
             f.SetBase(str(self.serviceRoot))
             data = str(doc)
-        responseHeaders.append(("Content-Type", str(responseType)))
-        responseHeaders.append(("Content-Length", str(len(data))))
-        start_response("%i %s" % (200, "Success"), responseHeaders)
+        response_headers.append(("Content-Type", str(responseType)))
+        response_headers.append(("Content-Length", str(len(data))))
+        start_response("%i %s" % (200, "Success"), response_headers)
         return [data]
 
     def ReadXMLOrJSON(self, environ):
@@ -1048,11 +1042,11 @@ class Server(app.Server):
             elif b in u'{[':
                 atomFlag = False
             else:
-                raise InvalidData("Unable to parse request body")
+                raise core.InvalidData("Unable to parse request body")
             unicodeInput.seek(0)
         if atomFlag:
             # read atom file
-            doc = Document()
+            doc = core.Document()
             doc.Read(src=xml.XMLEntity(src=input, encoding=encoding))
             return doc
         else:
@@ -1065,19 +1059,20 @@ class Server(app.Server):
 
     def ReadEntity(self, entity, environ):
         input = self.ReadXMLOrJSON(environ)
-        if isinstance(input, Document):
-            if isinstance(input.root, Entry):
+        if isinstance(input, core.Document):
+            if isinstance(input.root, core.Entry):
                 # we have an entry, which is a relief!
                 input.root.GetValue(entity, self.GetResourceFromURI, True)
             else:
-                raise InvalidData("Unable to parse atom Entry from request "
-                                  "body (found <%s>)" % doc.root.xmlname)
+                raise core.InvalidData(
+                    "Unable to parse atom Entry from request "
+                    "body (found <%s>)" % doc.root.xmlname)
         else:
             # must be a json object
             entity.SetFromJSONObject(input, self.GetResourceFromURI, True)
 
     def ReturnEntity(self, entity, request, environ, start_response,
-                     responseHeaders, status=200, statusMsg="Success"):
+                     response_headers, status=200, statusMsg="Success"):
         """Returns a single Entity."""
         responseType = self.ContentNegotiation(
             request, environ, self.EntryTypes)
@@ -1095,19 +1090,19 @@ class Server(app.Server):
             data = str('{"d":%s}' %
                        string.join(entity.GenerateEntityTypeInJSON(), ''))
         else:
-            doc = Document(root=Entry)
+            doc = core.Document(root=core.Entry)
             e = doc.root
             e.SetBase(str(self.serviceRoot))
             e.SetValue(entity)
             data = str(doc)
-        responseHeaders.append(("Content-Type", str(responseType)))
-        responseHeaders.append(("Content-Length", str(len(data))))
-        self.SetETag(entity, responseHeaders)
-        start_response("%i %s" % (status, statusMsg), responseHeaders)
+        response_headers.append(("Content-Type", str(responseType)))
+        response_headers.append(("Content-Length", str(len(data))))
+        self.SetETag(entity, response_headers)
+        start_response("%i %s" % (status, statusMsg), response_headers)
         return [data]
 
     def ReturnStream(
-            self, entity, request, environ, start_response, responseHeaders):
+            self, entity, request, environ, start_response, response_headers):
         """Returns a media stream."""
         types = [entity.GetStreamType()] + self.StreamTypes
         responseType = self.ContentNegotiation(request, environ, types)
@@ -1119,26 +1114,26 @@ class Server(app.Server):
                 "Not Acceptable",
                 'media stream type refused, try application/octet-stream',
                 406)
-        responseHeaders.append(("Content-Type", str(responseType)))
-        responseHeaders.append(("Content-Length", entity.GetStreamSize()))
-        self.SetETag(entity, responseHeaders)
-        start_response("%i %s" % (200, "Success"), responseHeaders)
+        response_headers.append(("Content-Type", str(responseType)))
+        response_headers.append(("Content-Length", entity.GetStreamSize()))
+        self.SetETag(entity, response_headers)
+        start_response("%i %s" % (200, "Success"), response_headers)
         return entity.GetStreamGenerator()
 
     def ReadValue(self, value, environ):
         input = self.ReadXMLOrJSON(environ)
-        if isinstance(input, Document):
-            if isinstance(input.root, Property):
+        if isinstance(input, core.Document):
+            if isinstance(input.root, core.Property):
                 input.root.GetValue(value)
             else:
-                raise InvalidData(
+                raise core.InvalidData(
                     "Unable to parse property from request body (found <%s>)" %
-                    doc.root.xmlname)
+                    input.root.xmlname)
         else:
             if isinstance(value, edm.SimpleValue):
-                ReadEntityPropertyInJSON1(value, input)
+                core.ReadEntityPropertyInJSON1(value, input)
             else:
-                ReadEntityCTInJSON(value, input)
+                core.ReadEntityCTInJSON(value, input)
 
     def ReturnValue(
             self,
@@ -1147,7 +1142,7 @@ class Server(app.Server):
             request,
             environ,
             start_response,
-            responseHeaders):
+            response_headers):
         """Returns a single property value."""
         responseType = self.ContentNegotiation(
             request, environ, self.ValueTypes)
@@ -1162,27 +1157,27 @@ class Server(app.Server):
         if responseType == "application/json":
             if isinstance(value, edm.Complex):
                 if request.version == 2:
-                    data = '{"d":%s}' % EntityCTInJSON2(value)
+                    data = '{"d":%s}' % core.EntityCTInJSON2(value)
                 else:
-                    data = '{"d":%s}' % EntityCTInJSON(value)
+                    data = '{"d":%s}' % core.EntityCTInJSON(value)
             else:
                 if request.version == 2:
                     # the spec goes a bit weird here, tripping up over
                     # brackets!
-                    data = '{"d":%s}' % EntityPropertyInJSON2(value)
+                    data = '{"d":%s}' % core.EntityPropertyInJSON2(value)
                 else:
-                    data = '{"d":{%s}}' % EntityPropertyInJSON(value)
+                    data = '{"d":{%s}}' % core.EntityPropertyInJSON(value)
         else:
-            e = Property(None)
-            e.SetXMLName((ODATA_DATASERVICES_NAMESPACE, value.pDef.name))
-            doc = Document(root=e)
+            e = core.Property(None)
+            e.SetXMLName((core.ODATA_DATASERVICES_NAMESPACE, value.pDef.name))
+            doc = core.Document(root=e)
             e.SetValue(value)
             data = str(doc)
-        responseHeaders.append(("Content-Type", str(responseType)))
-        responseHeaders.append(("Content-Length", str(len(data))))
+        response_headers.append(("Content-Type", str(responseType)))
+        response_headers.append(("Content-Length", str(len(data))))
         if entity is not None:
-            self.SetETag(entity, responseHeaders)
-        start_response("%i %s" % (200, "Success"), responseHeaders)
+            self.SetETag(entity, response_headers)
+        start_response("%i %s" % (200, "Success"), response_headers)
         return [data]
 
     def ReadDereferencedValue(self, value, environ):
@@ -1215,8 +1210,9 @@ class Server(app.Server):
                 requestType = value.mType
                 acceptType = True
         if not acceptType:
-            raise InvalidData("Unable to parse property value from request "
-                              "body (found <%s>)" % str(requestType))
+            raise core.InvalidData(
+                "Unable to parse property value from request "
+                "body (found <%s>)" % str(requestType))
         data = app.InputWrapper(environ).read()
         if requestType.type == "text":
             encoding = requestType.parameters.get('charset', (None, None))[1]
@@ -1235,7 +1231,7 @@ class Server(app.Server):
             request,
             environ,
             start_response,
-            responseHeaders):
+            response_headers):
         """Returns a dereferenced property value."""
         if value.mType is None:
             if isinstance(value, edm.BinaryValue):
@@ -1256,11 +1252,11 @@ class Server(app.Server):
                 "Not Acceptable",
                 '$value requires plain text or octet-stream formats',
                 406)
-        responseHeaders.append(("Content-Type", str(responseType)))
-        responseHeaders.append(("Content-Length", str(len(data))))
+        response_headers.append(("Content-Type", str(responseType)))
+        response_headers.append(("Content-Length", str(len(data))))
         if entity is not None:
-            self.SetETag(entity, responseHeaders)
-        start_response("%i %s" % (200, "Success"), responseHeaders)
+            self.SetETag(entity, response_headers)
+        start_response("%i %s" % (200, "Success"), response_headers)
         return [data]
 
     def ReturnCollection(
@@ -1269,7 +1265,7 @@ class Server(app.Server):
             request,
             environ,
             start_response,
-            responseHeaders):
+            response_headers):
         """Returns a collection of values."""
         responseType = self.ContentNegotiation(
             request, environ, self.ValueTypes)
@@ -1285,21 +1281,22 @@ class Server(app.Server):
             data = '{"d":%s}' % string.join(
                 collection.GenerateCollectionInJSON(request.version))
         else:
-            e = Collection(None)
-            e.SetXMLName((ODATA_METADATA_NAMESPACE, collection.name))
-            doc = Document(root=e)
+            e = core.Collection(None)
+            e.SetXMLName((core.ODATA_METADATA_NAMESPACE, collection.name))
+            doc = core.Document(root=e)
             for value in collection:
-                p = e.ChildElement(Property)
-                p.SetXMLName((ODATA_DATASERVICES_NAMESPACE, value.pDef.name))
+                p = e.ChildElement(core.Property)
+                p.SetXMLName((core.ODATA_DATASERVICES_NAMESPACE,
+                              value.pDef.name))
                 p.SetValue(value)
             data = str(doc)
-        responseHeaders.append(("Content-Type", str(responseType)))
-        responseHeaders.append(("Content-Length", str(len(data))))
-        start_response("%i %s" % (200, "Success"), responseHeaders)
+        response_headers.append(("Content-Type", str(responseType)))
+        response_headers.append(("Content-Length", str(len(data))))
+        start_response("%i %s" % (200, "Success"), response_headers)
         return [data]
 
     def ReturnCount(
-            self, number, request, environ, start_response, responseHeaders):
+            self, number, request, environ, start_response, response_headers):
         """Returns the single value number."""
         responseType = self.ContentNegotiation(
             request, environ, self.DereferenceTypes)
@@ -1312,20 +1309,20 @@ class Server(app.Server):
                 '$count requires plain text or octet-stream formats',
                 406)
         data = str(number)
-        responseHeaders.append(("Content-Type", str(responseType)))
-        responseHeaders.append(("Content-Length", str(len(data))))
-        start_response("%i %s" % (200, "Success"), responseHeaders)
+        response_headers.append(("Content-Type", str(responseType)))
+        response_headers.append(("Content-Length", str(len(data))))
+        start_response("%i %s" % (200, "Success"), response_headers)
         return [data]
 
     def ReturnEmpty(
             self,
             start_response,
-            responseHeaders,
+            response_headers,
             status=204,
             statusMsg="No content"):
         """Returns no content."""
-        responseHeaders.append(("Content-Length", "0"))
-        start_response("%i %s" % (status, statusMsg), responseHeaders)
+        response_headers.append(("Content-Length", "0"))
+        start_response("%i %s" % (status, statusMsg), response_headers)
         return []
 
     def ContentNegotiation(self, request, environ, mTypeList):
@@ -1335,7 +1332,8 @@ class Server(app.Server):
         returns the best match.  If there is no match then None is
         returned.  We also handle an accept list override in the form of
         acceptList, e.g., parsed from the $format parameter."""
-        aList = request.sysQueryOptions.get(SystemQueryOption.format, None)
+        aList = request.sysQueryOptions.get(core.SystemQueryOption.format,
+                                            None)
         if aList is None:
             if "HTTP_ACCEPT" in environ:
                 try:
@@ -1352,30 +1350,30 @@ class Server(app.Server):
         return returnType
 
     def CheckCapabilityNegotiation(
-            self, environ, start_response, responseHeaders):
+            self, environ, start_response, response_headers):
         """Checks if we can handle this request
 
-        Sets the protocol version in *responseHeaders* if we can handle
+        Sets the protocol version in *response_headers* if we can handle
         this request.
 
         Returns None if the application should continue to handle the
         request, otherwise it returns an iterable object suitable for
         the wsgi return value.
 
-        responseHeaders
+        response_headers
             a list which contains the proposed response headers.
 
         In the event of a protocol version mismatch a "400
         DataServiceVersion mismatch" error response is generated."""
         ua = sa = None
         if "HTTP_DATASERVICEVERSION" in environ:
-            major, minor, ua = ParseDataServiceVersion(
+            major, minor, ua = core.ParseDataServiceVersion(
                 environ["HTTP_DATASERVICEVERSION"])
         else:
             major = 2
             minor = 0
         if "HTTP_MAXDATASERVICEVERSION" in environ:
-            maxMajor, maxMinor, sa = ParseMaxDataServiceVersion(
+            maxMajor, maxMinor, sa = core.ParseMaxDataServiceVersion(
                 environ["HTTP_MAXDATASERVICEVERSION"])
         else:
             maxMajor = major
@@ -1384,29 +1382,30 @@ class Server(app.Server):
             # we can't cope with this request
             return None
         elif maxMajor >= 2:
-            responseHeaders.append(
+            response_headers.append(
                 ('DataServiceVersion', '2.0; pyslet %s' % info.version))
             return 2
         else:
-            responseHeaders.append(
+            response_headers.append(
                 ('DataServiceVersion', '1.0; pyslet %s' % info.version))
             return 1
 
 
 class ReadOnlyServer(Server):
 
-    def HandleRequest(self, request, environ, start_response, responseHeaders):
+    def HandleRequest(self, request, environ, start_response, response_headers):
         """Handles an OData request.
 
         *request*
-            An :py:class:`ODataURI` instance with a non-empty resourcePath.
+            An :py:class:`core.ODataURI` instance with a non-empty
+            resourcePath.
 
         If the method is anything other than GET or HEAD a 403 response
         is returned"""
         method = environ["REQUEST_METHOD"].upper()
         if method in ("GET", "HEAD"):
             return super(ReadOnlyServer, self).HandleRequest(
-                request, environ, start_response, responseHeaders)
+                request, environ, start_response, response_headers)
         else:
             return self.ODataError(
                 request,

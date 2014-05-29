@@ -4,5 +4,4 @@
 
 # Define the list of modules to import when clients use:
 # from pyslet import *
-__all__ = [ 'structures', 'parser' ]
-
+__all__ = ['structures', 'parser']

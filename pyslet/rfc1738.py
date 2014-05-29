@@ -4,5 +4,6 @@
 """
 import string
 
-class URLException(Exception): pass
 
+class URLException(Exception):
+    pass
