@@ -8,8 +8,10 @@ help:
 	@echo "test3 - run tests with default python and "-3 -Wd -W module -t" options
 	@echo "docs - generate Sphinx HTML documentation"
 	@echo "dist - package"
-	@echo "pep8 - update progress on PEP-8 compliance"
-	@echo "pep8s - update progress with details of PEP-8 compliance"
+	@echo "pep8 - PEP-8 compliance check using pep8"
+	@echo "pep8s - PEP-8 compliance statistics using pep8"
+	@echo "flake8 - PEP-8 compliance check using flake8"
+	@echo "flake8s - PEP-8 compliance statistics using flake8"
 
 clean: clean-build clean-pyc
 	
@@ -48,4 +50,12 @@ pep8:
 pep8s: pep8
 	pep8 --statistics -qq pyslet
 	
+flake8:
+	touch flake8-count.txt
+	date >> flake8-count.txt
+	-flake8 --count -qq pyslet >> flake8-count.txt 2>&1
+	tail -n 4 flake8-count.txt
+
+flake8s: flake8
+	flake8 --statistics -qq pyslet
 	

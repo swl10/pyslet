@@ -2,6 +2,11 @@
 
 import unittest, logging
 
+try:
+	import vobject
+except ImportError:
+	vobject=None
+
 def suite():
 	return unittest.TestSuite((
 		unittest.makeSuite(QTITests,'test'),
@@ -129,6 +134,9 @@ class QTIV2ConversionTests(unittest.TestCase):
 		os.chdir(self.cwd)
 	
 	def testCaseOutputV2(self):
+		if vobject is None:
+			logging.warn("QTI v1 to v2 migration tests skipped: vobject required")
+			return
 		self.cp.manifest.root.SetID('outputv2')
 		dPath=os.path.join(self.dataPath,'input')
 		fList=[]

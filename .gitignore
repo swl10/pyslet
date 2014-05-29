@@ -10,8 +10,15 @@ dist
 doc/_build
 htmldocs
 
+# tox
+.tox
+
+# nose - *not* supported for testing at the moment
+.coverage
+
 # misc
 local
-pep8-count.txt
-.coverage
 unittests/pyslet
+pep8-count.txt
+flake8-count.txt
+
