@@ -15,22 +15,22 @@ from core import *
 class FeedCustomisationMixin:
 
     AtomPaths = {
-        'SyndicationAuthorName': [(atom.ATOM_NAMESPACE, "author"), (atom.ATOM_NAMESPACE, "name")],
-        'SyndicationAuthorEmail': [(atom.ATOM_NAMESPACE, "author"), (atom.ATOM_NAMESPACE, "email")],
-        'SyndicationAuthorUri': [(atom.ATOM_NAMESPACE, "author"), (atom.ATOM_NAMESPACE, "uri")],
-        'SyndicationPublished': [(atom.ATOM_NAMESPACE, "published")],
-        'SyndicationRights': [(atom.ATOM_NAMESPACE, "rights")],
-        'SyndicationTitle': [(atom.ATOM_NAMESPACE, "title")],
-        'SyndicationUpdated': [(atom.ATOM_NAMESPACE, "updated")],
-        'SyndicationContributorName': [(atom.ATOM_NAMESPACE, "contributor"), (atom.ATOM_NAMESPACE, "name")],
-        'SyndicationContributorEmail': [(atom.ATOM_NAMESPACE, "contributor"), (atom.ATOM_NAMESPACE, "email")],
-        'SyndicationContributorUri': [(atom.ATOM_NAMESPACE, "source")]
-    }
+        'SyndicationAuthorName': [
+            (atom.ATOM_NAMESPACE, "author"), (atom.ATOM_NAMESPACE, "name")], 'SyndicationAuthorEmail': [
+            (atom.ATOM_NAMESPACE, "author"), (atom.ATOM_NAMESPACE, "email")], 'SyndicationAuthorUri': [
+                (atom.ATOM_NAMESPACE, "author"), (atom.ATOM_NAMESPACE, "uri")], 'SyndicationPublished': [
+                    (atom.ATOM_NAMESPACE, "published")], 'SyndicationRights': [
+                        (atom.ATOM_NAMESPACE, "rights")], 'SyndicationTitle': [
+                            (atom.ATOM_NAMESPACE, "title")], 'SyndicationUpdated': [
+                                (atom.ATOM_NAMESPACE, "updated")], 'SyndicationContributorName': [
+                                    (atom.ATOM_NAMESPACE, "contributor"), (atom.ATOM_NAMESPACE, "name")], 'SyndicationContributorEmail': [
+                                        (atom.ATOM_NAMESPACE, "contributor"), (atom.ATOM_NAMESPACE, "email")], 'SyndicationContributorUri': [
+                                            (atom.ATOM_NAMESPACE, "source")]}
 
     def GetTargetPath(self):
         """Returns the target path for the property or None if there is
         no target path set for the property.  The result is a list of
-        qualified element names, that is, tuples of (namespace,name). 
+        qualified element names, that is, tuples of (namespace,name).
         The last name may start with '@' indicating an attribute rather
         than an element."""
         try:
@@ -170,8 +170,10 @@ class Edmx(edmx.Edmx):
 
 
 def ValidateMetadataDocument(doc):
-    warnings.warn("ValidateMetadataDocument is deprecated, use Validate method instead",
-                  DeprecationWarning, stacklevel=3)
+    warnings.warn(
+        "ValidateMetadataDocument is deprecated, use Validate method instead",
+        DeprecationWarning,
+        stacklevel=3)
     return doc.Validate()
 
 
@@ -228,9 +230,10 @@ class Document(edmx.Document):
         for p in self.root.FindChildrenDepthFirst(edm.Property):
             try:
                 http.MediaType.FromString(p.GetAttribute(MimeType))
-            except http.HTTPParameterError, e:
+            except http.HTTPParameterError as e:
                 raise InvalidMetadataDocument(
-                    "MimeType format error in property %s: %s" % (p.name, str(e)))
+                    "MimeType format error in property %s: %s" %
+                    (p.name, str(e)))
             except KeyError:
                 pass
         # HttpMethod: This attribute MUST be used on a <FunctionImport>

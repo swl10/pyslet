@@ -44,8 +44,8 @@ class DataFormatError(ClientException):
 
 class MediaLinkEntry(core.Entity):
 
-    def __init__(self, entitySet, client):
-        core.Entity.__init__(self, entitySet)
+    def __init__(self, entity_set, client):
+        core.Entity.__init__(self, entity_set)
         self.client = client
 
     def GetStreamType(self):
@@ -74,7 +74,7 @@ class MediaLinkEntry(core.Entity):
                 "%i %s" % (request.status, request.response.reason))
         return request.response.GetContentLength()
 
-    def GetStreamGenerator(self):
+    def get_stream_generator(self):
         """A generator function that yields blocks (strings) of data from the entity's media stream."""
         streamURL = str(self.GetLocation()) + "/$value"
         request = http.HTTPRequest(str(streamURL), 'GET')
@@ -90,38 +90,38 @@ class MediaLinkEntry(core.Entity):
 
 class ClientCollection(core.EntityCollection):
 
-    def __init__(self, client, baseURI=None, **kwArgs):
-        super(ClientCollection, self).__init__(**kwArgs)
+    def __init__(self, client, baseURI=None, **kwargs):
+        super(ClientCollection, self).__init__(**kwargs)
         if baseURI is None:
-            self.baseURI = self.entitySet.GetLocation()
+            self.baseURI = self.entity_set.GetLocation()
         else:
             self.baseURI = baseURI
         self.client = client
 
-    def NewEntity(self, autoKey=False):
+    def new_entity(self, autoKey=False):
         """Returns an OData aware instance"""
         if self.IsMediaLinkEntryCollection():
-            return MediaLinkEntry(self.entitySet, self.client)
+            return MediaLinkEntry(self.entity_set, self.client)
         else:
-            return core.Entity(self.entitySet)
+            return core.Entity(self.entity_set)
 
     def Expand(self, expand, select=None):
         """Sets the expand and select query options for this collection.
 
         We override this implementation to ensure that the keys are
         always selected in each entity set."""
-        self.AddKeys(self.entitySet, expand, select)
-        self.entitySet.entityType.ValidateExpansion(expand, select)
+        self.AddKeys(self.entity_set, expand, select)
+        self.entity_set.entityType.ValidateExpansion(expand, select)
         self.expand = expand
         self.select = select
 
     @classmethod
-    def AddKeys(cls, entitySet, expand, select):
+    def AddKeys(cls, entity_set, expand, select):
         if select is None or u"*" in select:
             pass
         else:
             # force the keys to be in the selection
-            for k in entitySet.keys:
+            for k in entity_set.keys:
                 select[k] = None
         # now we look for anything that is being expanded
         if expand is not None:
@@ -129,7 +129,7 @@ class ClientCollection(core.EntityCollection):
                 if select and np in select:
                     # recurse
                     cls.AddKeys(
-                        entitySet.NavigationTarget(np), expansion, select[np])
+                        entity_set.NavigationTarget(np), expansion, select[np])
                 else:
                     # not being expanded
                     pass
@@ -173,7 +173,7 @@ class ClientCollection(core.EntityCollection):
                 logging.debug(debugMsg)
         raise eType(errorMsg)
 
-    def InsertEntity(self, entity):
+    def insert_entity(self, entity):
         if entity.exists:
             raise edm.EntityExists(str(entity.GetLocation()))
         doc = core.Document(root=core.Entry(None, entity))
@@ -203,7 +203,9 @@ class ClientCollection(core.EntityCollection):
                 core.SystemQueryOption.filter] = unicode(self.filter)
         if sysQueryOptions:
             feedURL = uri.URIFactory.URI(
-                str(feedURL) + "/$count?" + core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+                str(feedURL) +
+                "/$count?" +
+                core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
         else:
             feedURL = uri.URIFactory.URI(str(feedURL) + "/$count")
         request = http.HTTPRequest(str(feedURL))
@@ -215,7 +217,7 @@ class ClientCollection(core.EntityCollection):
             raise UnexpectedHTTPResponse(
                 "%i %s" % (request.status, request.response.reason))
 
-    def entityGenerator(self):
+    def entity_generator(self):
         feedURL = self.baseURI
         sysQueryOptions = {}
         if self.filter is not None:
@@ -229,10 +231,13 @@ class ClientCollection(core.EntityCollection):
                 core.SystemQueryOption.select] = core.FormatSelect(self.select)
         if self.orderby is not None:
             sysQueryOptions[
-                core.SystemQueryOption.orderby] = core.CommonExpression.OrderByToString(self.orderby)
+                core.SystemQueryOption.orderby] = core.CommonExpression.OrderByToString(
+                self.orderby)
         if sysQueryOptions:
             feedURL = uri.URIFactory.URI(
-                str(feedURL) + "?" + core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+                str(feedURL) +
+                "?" +
+                core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
         while True:
             request = http.HTTPRequest(str(feedURL))
             request.SetHeader('Accept', 'application/atom+xml')
@@ -245,7 +250,7 @@ class ClientCollection(core.EntityCollection):
             if isinstance(doc.root, atom.Feed):
                 if len(doc.root.Entry):
                     for e in doc.root.Entry:
-                        entity = core.Entity(self.entitySet)
+                        entity = core.Entity(self.entity_set)
                         entity.exists = True
                         e.GetValue(entity)
                         yield entity
@@ -262,17 +267,17 @@ class ClientCollection(core.EntityCollection):
                 break
 
     def itervalues(self):
-        return self.entityGenerator()
+        return self.entity_generator()
 
     def TopMax(self, topmax):
         raise NotImplementedError("OData client can't override topmax")
 
-    def SetPage(self, top, skip=0, skiptoken=None):
+    def set_page(self, top, skip=0, skiptoken=None):
         self.top = top
         self.skip = skip
         self.skiptoken = skiptoken  # opaque in the client implementation
 
-    def iterpage(self, setNextPage=False):
+    def iterpage(self, set_next=False):
         feedURL = self.baseURI
         sysQueryOptions = {}
         if self.filter is not None:
@@ -286,7 +291,8 @@ class ClientCollection(core.EntityCollection):
                 core.SystemQueryOption.select] = core.FormatSelect(self.select)
         if self.orderby is not None:
             sysQueryOptions[
-                core.SystemQueryOption.orderby] = core.CommonExpression.OrderByToString(self.orderby)
+                core.SystemQueryOption.orderby] = core.CommonExpression.OrderByToString(
+                self.orderby)
         if self.top is not None:
             sysQueryOptions[core.SystemQueryOption.top] = unicode(self.top)
         if self.skip is not None:
@@ -295,7 +301,9 @@ class ClientCollection(core.EntityCollection):
             sysQueryOptions[core.SystemQueryOption.skiptoken] = self.skiptoken
         if sysQueryOptions:
             feedURL = uri.URIFactory.URI(
-                str(feedURL) + "?" + core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+                str(feedURL) +
+                "?" +
+                core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
         request = http.HTTPRequest(str(feedURL))
         request.SetHeader('Accept', 'application/atom+xml')
         self.client.ProcessRequest(request)
@@ -307,7 +315,7 @@ class ClientCollection(core.EntityCollection):
         if isinstance(doc.root, atom.Feed):
             if len(doc.root.Entry):
                 for e in doc.root.Entry:
-                    entity = core.Entity(self.entitySet)
+                    entity = core.Entity(self.entity_set)
                     entity.exists = True
                     e.GetValue(entity)
                     yield entity
@@ -321,7 +329,7 @@ class ClientCollection(core.EntityCollection):
                 feedURL = core.ODataURI(feedURL, self.client.pathPrefix)
                 self.nextSkiptoken = feedURL.sysQueryOptions.get(
                     core.SystemQueryOption.skiptoken, None)
-            if setNextPage:
+            if set_next:
                 if self.nextSkiptoken is not None:
                     self.skiptoken = self.nextSkiptoken
                     self.skip = None
@@ -334,7 +342,7 @@ class ClientCollection(core.EntityCollection):
 
     def __getitem__(self, key):
         entityURL = str(
-            self.baseURI) + core.ODataURI.FormatKeyDict(self.entitySet.GetKeyDict(key))
+            self.baseURI) + core.ODataURI.FormatKeyDict(self.entity_set.GetKeyDict(key))
         sysQueryOptions = {}
         if self.filter is not None:
             sysQueryOptions[
@@ -347,7 +355,9 @@ class ClientCollection(core.EntityCollection):
                 core.SystemQueryOption.select] = core.FormatSelect(self.select)
         if sysQueryOptions:
             entityURL = uri.URIFactory.URI(
-                entityURL + "?" + core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+                entityURL +
+                "?" +
+                core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
         request = http.HTTPRequest(str(entityURL))
         request.SetHeader('Accept', 'application/atom+xml;type=entry')
         self.client.ProcessRequest(request)
@@ -359,7 +369,7 @@ class ClientCollection(core.EntityCollection):
         doc = core.Document(baseURI=entityURL)
         doc.Read(request.resBody)
         if isinstance(doc.root, atom.Entry):
-            entity = core.Entity(self.entitySet)
+            entity = core.Entity(self.entity_set)
             entity.exists = True
             doc.root.GetValue(entity)
             return entity
@@ -374,7 +384,7 @@ class EntityCollection(ClientCollection, core.EntityCollection):
     """An entity collection that provides access to entities stored
     remotely and accessed through *client*."""
 
-    def UpdateEntity(self, entity):
+    def update_entity(self, entity):
         if not entity.exists:
             raise edm.NonExistentEntity(str(entity.GetLocation()))
         doc = core.Document(root=core.Entry)
@@ -403,7 +413,7 @@ class EntityCollection(ClientCollection, core.EntityCollection):
             self.RaiseError(request)
 
     def __delitem__(self, key):
-        entity = self.NewEntity()
+        entity = self.new_entity()
         entity.SetKey(key)
         request = http.HTTPRequest(str(entity.GetLocation()), 'DELETE')
         self.client.ProcessRequest(request)
@@ -416,18 +426,26 @@ class EntityCollection(ClientCollection, core.EntityCollection):
 
 class NavigationCollection(ClientCollection, core.NavigationCollection):
 
-    def __init__(self, fromEntity, name, **kwArgs):
-        if kwArgs.pop('baseURI', None):
+    def __init__(self, from_entity, name, **kwargs):
+        if kwargs.pop('baseURI', None):
             logging.warn(
                 'OData Client NavigationCollection ignored baseURI argument')
         navPath = uri.EscapeData(name.encode('utf-8'))
-        location = str(fromEntity.GetLocation())
-        super(NavigationCollection, self).__init__(fromEntity=fromEntity,
-                                                   name=name, baseURI=uri.URIFactory.URI(location + "/" + navPath), **kwArgs)
-        self.isCollection = self.fromEntity[name].isCollection
+        location = str(from_entity.GetLocation())
+        super(
+            NavigationCollection,
+            self).__init__(
+            from_entity=from_entity,
+            name=name,
+            baseURI=uri.URIFactory.URI(
+                location +
+                "/" +
+                navPath),
+            **kwargs)
+        self.isCollection = self.from_entity[name].isCollection
         self.linksURI = uri.URIFactory.URI(location + "/$links/" + navPath)
 
-    def InsertEntity(self, entity):
+    def insert_entity(self, entity):
         """Inserts *entity* into this collection.
 
         OData servers don't all support insert directly into a
@@ -435,27 +453,27 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
         by overriding the default implementation to performs a two stage
         insert/create link process unless this is a required link for
         *entity*, in which case we figure out the back-link, bind
-        *fromEntity* and then do the reverse insert which is more likely
+        *from_entity* and then do the reverse insert which is more likely
         to be supported.
 
         If there is no back-link we resort to an insert against the
         navigation property itself."""
-        if self.fromEnd.associationEnd.multiplicity == edm.Multiplicity.One:
+        if self.from_end.associationEnd.multiplicity == edm.Multiplicity.One:
             # we're in trouble, entity can't exist without linking to us
             # so we try a deep link
-            backLink = self.entitySet.linkEnds[self.fromEnd.otherEnd]
+            backLink = self.entity_set.linkEnds[self.from_end.otherEnd]
             if backLink:
                 # there is a navigation property going back
-                entity[backLink].BindEntity(self.fromEntity)
-                with self.entitySet.OpenCollection() as baseCollection:
-                    baseCollection.InsertEntity(entity)
+                entity[backLink].BindEntity(self.from_entity)
+                with self.entity_set.OpenCollection() as baseCollection:
+                    baseCollection.insert_entity(entity)
                 return
             elif self.isCollection:
                 # if there is no back link we'll have to do an insert
                 # into this end using a POST to the navigation property.
                 # Surely anyone with a model like this will support such
                 # an implicit link.
-                return super(NavigationCollection, self).InsertEntity(entity)
+                return super(NavigationCollection, self).insert_entity(entity)
             else:
                 # if the URL for this navigation property represents a
                 # single entity then you're out of luck.  You can't POST
@@ -468,8 +486,8 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 raise NotImplementedError(
                     "Can't insert an entity into a 1-(0..)1 relationship without a back-link")
         else:
-            with self.entitySet.OpenCollection() as baseCollection:
-                baseCollection.InsertEntity(entity)
+            with self.entity_set.OpenCollection() as baseCollection:
+                baseCollection.insert_entity(entity)
                 # this link may fail, which isn't what the caller wanted
                 # but it seems like a bad idea to try deleting the
                 # entity at this stage.
@@ -487,7 +505,9 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                     core.SystemQueryOption.filter] = unicode(self.filter)
             if sysQueryOptions:
                 entityURL = uri.URIFactory.URI(
-                    entityURL + "?" + core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+                    entityURL +
+                    "?" +
+                    core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
             request = http.HTTPRequest(str(entityURL))
             request.SetHeader('Accept', 'application/atom+xml;type=entry')
             self.client.ProcessRequest(request)
@@ -500,16 +520,16 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             doc = core.Document(baseURI=entityURL)
             doc.Read(request.resBody)
             if isinstance(doc.root, atom.Entry):
-                entity = core.Entity(self.entitySet)
+                entity = core.Entity(self.entity_set)
                 entity.exists = True
                 doc.root.GetValue(entity)
                 return 1
             else:
                 raise core.InvalidEntryDocument(str(entityURL))
 
-    def entityGenerator(self):
+    def entity_generator(self):
         if self.isCollection:
-            for entity in super(NavigationCollection, self).entityGenerator():
+            for entity in super(NavigationCollection, self).entity_generator():
                 yield entity
         else:
             # The baseURI points to a single entity already, we must not add
@@ -521,13 +541,17 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                     core.SystemQueryOption.filter] = unicode(self.filter)
             if self.expand is not None:
                 sysQueryOptions[
-                    core.SystemQueryOption.expand] = core.FormatExpand(self.expand)
+                    core.SystemQueryOption.expand] = core.FormatExpand(
+                    self.expand)
             if self.select is not None:
                 sysQueryOptions[
-                    core.SystemQueryOption.select] = core.FormatSelect(self.select)
+                    core.SystemQueryOption.select] = core.FormatSelect(
+                    self.select)
             if sysQueryOptions:
                 entityURL = uri.URIFactory.URI(
-                    entityURL + "?" + core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+                    entityURL +
+                    "?" +
+                    core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
             request = http.HTTPRequest(str(entityURL))
             request.SetHeader('Accept', 'application/atom+xml;type=entry')
             self.client.ProcessRequest(request)
@@ -539,7 +563,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             doc = core.Document(baseURI=entityURL)
             doc.Read(request.resBody)
             if isinstance(doc.root, atom.Entry):
-                entity = core.Entity(self.entitySet)
+                entity = core.Entity(self.entity_set)
                 entity.exists = True
                 doc.root.GetValue(entity)
                 yield entity
@@ -559,13 +583,17 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                     core.SystemQueryOption.filter] = unicode(self.filter)
             if self.expand is not None:
                 sysQueryOptions[
-                    core.SystemQueryOption.expand] = core.FormatExpand(self.expand)
+                    core.SystemQueryOption.expand] = core.FormatExpand(
+                    self.expand)
             if self.select is not None:
                 sysQueryOptions[
-                    core.SystemQueryOption.select] = core.FormatSelect(self.select)
+                    core.SystemQueryOption.select] = core.FormatSelect(
+                    self.select)
             if sysQueryOptions:
                 entityURL = uri.URIFactory.URI(
-                    entityURL + "?" + core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+                    entityURL +
+                    "?" +
+                    core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
             request = http.HTTPRequest(str(entityURL))
             request.SetHeader('Accept', 'application/atom+xml;type=entry')
             self.client.ProcessRequest(request)
@@ -577,7 +605,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             doc = core.Document(baseURI=entityURL)
             doc.Read(request.resBody)
             if isinstance(doc.root, atom.Entry):
-                entity = core.Entity(self.entitySet)
+                entity = core.Entity(self.entity_set)
                 entity.exists = True
                 doc.root.GetValue(entity)
                 if entity.Key() == key:
@@ -590,7 +618,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 raise core.InvalidEntryDocument(str(entityURL))
 
     def __setitem__(self, key, entity):
-        if not isinstance(entity, edm.Entity) or entity.entitySet is not self.entitySet:
+        if not isinstance(entity, edm.Entity) or entity.entity_set is not self.entity_set:
             raise TypeError
         if key != entity.Key():
             raise ValueError
@@ -603,7 +631,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 # this collection is not empty, which will be an error
                 # unless it already contains entity, in which case it's
                 # a no-op
-                existingEntity = self.NewEntity()
+                existingEntity = self.new_entity()
                 doc = core.Document()
                 doc.Read(request.resBody)
                 existingEntity.exists = True
@@ -612,7 +640,8 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                     return
                 else:
                     raise edm.NavigationError(
-                        "Navigation property %s already points to an entity (use Replace to update it)" % self.name)
+                        "Navigation property %s already points to an entity (use replace to update it)" %
+                        self.name)
             elif request.status != 404:
                 # some type of error
                 self.RaiseError(request)
@@ -641,14 +670,14 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             else:
                 self.RaiseError(request)
 
-    def Replace(self, entity):
+    def replace(self, entity):
         if not entity.exists:
             raise edm.NonExistentEntity(str(entity.GetLocation()))
         if self.isCollection:
             # inherit the implementation
-            super(NavigationCollection, self).Replace(entity)
+            super(NavigationCollection, self).replace(entity)
         else:
-            if not isinstance(entity, edm.Entity) or entity.entitySet is not self.entitySet:
+            if not isinstance(entity, edm.Entity) or entity.entity_set is not self.entity_set:
                 raise TypeError
             doc = core.Document(root=core.URI)
             doc.root.SetValue(str(entity.GetLocation()))
@@ -664,7 +693,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
 
     def __delitem__(self, key):
         if self.isCollection:
-            entity = self.NewEntity()
+            entity = self.new_entity()
             entity.SetKey(key)
             request = http.HTTPRequest(
                 str(self.linksURI) + core.ODataURI.FormatEntityKey(entity), 'DELETE')
@@ -752,7 +781,7 @@ class Client(app.Client):
                                     self.feeds[fTitle] = es
             else:
                 raise DataFormatError(str(metadata))
-        except xml.XMLError, e:
+        except xml.XMLError as e:
             # Failed to read the metadata document, there may not be one of
             # course
             raise DataFormatError(str(e))
@@ -761,14 +790,15 @@ class Client(app.Client):
         for f in self.feeds.keys():
             if isinstance(self.feeds[f], uri.URI):
                 logging.info(
-                    "Can't find metadata definition of feed: %s", str(self.feeds[f]))
+                    "Can't find metadata definition of feed: %s", str(
+                        self.feeds[f]))
                 del self.feeds[f]
             else:
                 # Bind our EntityCollection class
-                entitySet = self.feeds[f]
-                entitySet.Bind(EntityCollection, client=self)
-                for np in entitySet.entityType.NavigationProperty:
-                    entitySet.BindNavigation(
+                entity_set = self.feeds[f]
+                entity_set.Bind(EntityCollection, client=self)
+                for np in entity_set.entityType.NavigationProperty:
+                    entity_set.BindNavigation(
                         np.name, NavigationCollection, client=self)
                 logging.debug(
                     "Registering feed: %s", str(self.feeds[f].GetLocation()))

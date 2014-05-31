@@ -198,29 +198,51 @@ class XMLParser:
             self.BuffText(entity.buffText)
 
     BOMRequired = {
-        'utf_16': True, 'utf-16': True, 'u16': True, 'utf16': True,
-        'utf_16_be': True, 'utf-16-be': True, 'utf_16be': True, 'utf-16be': True,
-        'utf_16_le': True, 'utf-16-le': True, 'utf_16le': True, 'utf-16le': True
-    }
+        'utf_16': True,
+        'utf-16': True,
+        'u16': True,
+        'utf16': True,
+        'utf_16_be': True,
+        'utf-16-be': True,
+        'utf_16be': True,
+        'utf-16be': True,
+        'utf_16_le': True,
+        'utf-16-le': True,
+        'utf_16le': True,
+        'utf-16le': True}
 
     EncodingNotRequired = {
-        'utf_16': True, 'utf-16': True, 'u16': True, 'utf16': True,
-        'utf_16_be': True, 'utf-16-be': True, 'utf_16be': True, 'utf-16be': True,
-        'utf_16_le': True, 'utf-16-le': True, 'utf_16le': True, 'utf-16le': True,
-        'utf_8': True, 'utf-8': True, 'u8': True, 'utf': True, 'utf8': True
-    }
+        'utf_16': True,
+        'utf-16': True,
+        'u16': True,
+        'utf16': True,
+        'utf_16_be': True,
+        'utf-16-be': True,
+        'utf_16be': True,
+        'utf-16be': True,
+        'utf_16_le': True,
+        'utf-16-le': True,
+        'utf_16le': True,
+        'utf-16le': True,
+        'utf_8': True,
+        'utf-8': True,
+        'u8': True,
+        'utf': True,
+        'utf8': True}
 
     def CheckEncoding(self, entity, declaredEncoding):
         """Checks the entity against the declared encoding (if any) and the rules on entity encodings."""
         if not self.EncodingNotRequired.get(entity.encoding.lower(), False):
             # Encoding required!
             if declaredEncoding is None:
-                self.ProcessingError("Encoding declaration required in %s (%s) but missing" % (
-                    entity.GetName(), entity.encoding))
+                self.ProcessingError(
+                    "Encoding declaration required in %s (%s) but missing" %
+                    (entity.GetName(), entity.encoding))
         if self.BOMRequired.get(entity.encoding.lower(), False):
             if not (entity.bom or (declaredEncoding and declaredEncoding.lower() == 'iso-10646-ucs-2')):
-                self.ProcessingError("Byte order mark required in %s (%s) was missing" % (
-                    entity.GetName(), entity.encoding))
+                self.ProcessingError(
+                    "Byte order mark required in %s (%s) was missing" %
+                    (entity.GetName(), entity.encoding))
 
     def GetExternalEntity(self):
         """Returns the external entity currently being parsed.
@@ -253,7 +275,10 @@ class XMLParser:
         """True if the current document was declared standalone."""
         return self.declaration and self.declaration.standalone
 
-    def WellFormednessError(self, msg="well-formedness error", errorClass=XMLWellFormedError):
+    def WellFormednessError(
+            self,
+            msg="well-formedness error",
+            errorClass=XMLWellFormedError):
         """Raises an XMLWellFormedError error.
 
         Called by the parsing methods whenever a well-formedness constraint is
@@ -277,7 +302,7 @@ class XMLParser:
         :py:attr:`checkValidity` and :py:attr:`raiseValidityErrors` options. The
         default (both False) causes validity errors to be ignored.  When
         checking validity an error message is logged to
-        :py:attr:`nonFatalErrors` and :py:attr:`valid` is set to False. 
+        :py:attr:`nonFatalErrors` and :py:attr:`valid` is set to False.
         Furthermore, if :py:attr:`raiseValidityErrors` is True *error* is raised
         (or a new instance of *error* is raised) and parsing terminates.
 
@@ -287,7 +312,8 @@ class XMLParser:
             self.valid = False
             if isinstance(error, XMLValidityError):
                 self.nonFatalErrors.append(
-                    "%s: %s (%s)" % (self.entity.GetPositionStr(), msg, str(error)))
+                    "%s: %s (%s)" %
+                    (self.entity.GetPositionStr(), msg, str(error)))
                 if self.raiseValidityErrors:
                     raise error
             elif issubclass(error, XMLValidityError):
@@ -297,7 +323,8 @@ class XMLParser:
                     raise error(msg)
             else:
                 raise TypeError(
-                    "ValidityError expected class or instance of XMLValidityError (found %s)" % repr(error))
+                    "ValidityError expected class or instance of XMLValidityError (found %s)" %
+                    repr(error))
 
     def CompatibilityError(self, msg="compatibility error"):
         """Called when the parser encounters a compatibility error.
@@ -336,7 +363,7 @@ class XMLParser:
     def ParseLiteral(self, match):
         """Parses a literal string, passed in *match*.
 
-        Returns True if *match* is successfully parsed and False otherwise. 
+        Returns True if *match* is successfully parsed and False otherwise.
         There is no partial matching, if *match* is not found then the parser is
         left in its original position."""
         matchLen = 0
@@ -449,7 +476,9 @@ class XMLParser:
         self.ParseMisc()
         if self.theChar is not None and not self.dontCheckWellFormedness:
             self.WellFormednessError(
-                "Unparsed characters in entity after document: %s" % repr(self.theChar))
+                "Unparsed characters in entity after document: %s" %
+                repr(
+                    self.theChar))
         return self.doc
 
     def GetDocumentClass(self, dtd):
@@ -529,7 +558,7 @@ class XMLParser:
         If there is no white space at the current position then an empty string
         is returned.
 
-        The productions in the specification do not make explicit mention of 
+        The productions in the specification do not make explicit mention of
         parameter entity references, they are covered by the general statement
         that "Parameter entity references are recognized anwhere in the DTD..."
         In practice, this means that while parsing the DTD, anywhere that an S
@@ -565,7 +594,7 @@ class XMLParser:
     def ParseRequiredS(self, production="[3] S"):
         """[3] S: Parses required white space from the stream.
 
-        If there is no white space then a well-formedness error is raised. 
+        If there is no white space then a well-formedness error is raised.
         *production* is an optional string describing the context in which the
         space was expected."""
         if not self.ParseS() and not self.dontCheckWellFormedness:
@@ -1002,12 +1031,14 @@ class XMLParser:
                             aDef = aDefs[aName]
                             if aDef.type == XMLAttributeDefinition.Notation:
                                 self.ValidityError(
-                                    "No Notation on Empty Element: attribute %s on element %s cannot have NOTATION type" % (aName, eName))
+                                    "No Notation on Empty Element: attribute %s on element %s cannot have NOTATION type" %
+                                    (aName, eName))
             for eName in self.dtd.generalEntities.keys():
                 eDef = self.dtd.generalEntities[eName]
                 if eDef.notation and not eDef.notation in self.dtd.notations:
                     self.ValidityError(
-                        "Notation Declared: notation %s used in declaration of entity %s has not been declared" % (eDef.notation, eName))
+                        "Notation Declared: notation %s used in declaration of entity %s has not been declared" %
+                        (eDef.notation, eName))
 
     def ParseXMLDecl(self, gotLiteral=False):
         """[23] XMLDecl: parses an XML declaration.
@@ -1146,7 +1177,9 @@ class XMLParser:
                 break
         if not gotSep:
             self.WellFormednessError(
-                "[28a] DeclSep: expected PEReference or S, found %s" % repr(self.theChar))
+                "[28a] DeclSep: expected PEReference or S, found %s" %
+                repr(
+                    self.theChar))
 
     def ParseIntSubset(self):
         """[28b] intSubset: parses an internal subset."""
@@ -1220,12 +1253,14 @@ class XMLParser:
         *checkEntity* is the entity we should still be in!"""
         if self.checkValidity and self.entity is not checkEntity:
             self.ValidityError(
-                "Proper Declaration/PE Nesting: found '>' in entity %s" % self.entity.GetName())
+                "Proper Declaration/PE Nesting: found '>' in entity %s" %
+                self.entity.GetName())
         if not self.dontCheckWellFormedness and self.entity is not checkEntity and checkEntity.flags.get('DeclSep', False):
             # a badly nested declaration in an entity opened within a DeclSep
             # is a well-formedness error
             self.WellFormednessError(
-                "[31] extSubsetDecl: failed for entity %s included in a DeclSep" % checkEntity.GetName())
+                "[31] extSubsetDecl: failed for entity %s included in a DeclSep" %
+                checkEntity.GetName())
 
     def ParseSDDecl(self, gotLiteral=False):
         """[32] SDDecl: parses a standalone declaration
@@ -1284,7 +1319,8 @@ class XMLParser:
             if self.checkValidity:
                 if self.element is None and self.dtd.name is not None and self.dtd.name != name:
                     self.ValidityError(
-                        "Root Element Type: expected element %s" % self.dtd.name)
+                        "Root Element Type: expected element %s" %
+                        self.dtd.name)
                 # The current particle map must have an entry for name...
                 self.CheckExpectedParticle(name)
                 saveCursor = self.cursor
@@ -1328,7 +1364,7 @@ class XMLParser:
         for attr in attrs.keys():
             try:
                 self.element.SetAttribute(attr, attrs[attr])
-            except ValueError, e:
+            except ValueError as e:
                 if self.raiseValidityErrors:
                     raise XMLValidityError(str(e))
             except XMLValidityError:
@@ -1383,7 +1419,8 @@ class XMLParser:
                             continue
                         else:
                             self.WellFormednessError(
-                                "Element Type Mismatch: found </%s>, expected <%s/>" % (endName, name))
+                                "Element Type Mismatch: found </%s>, expected <%s/>" %
+                                (endName, name))
                     else:
                         break
                 self.CheckExpectedParticle('')
@@ -1392,7 +1429,9 @@ class XMLParser:
                 # It didn't consume any data so we raise an error here to
                 # prevent a loop
                 raise XMLFatalError(
-                    production + ": element implied by PCDATA had empty content %s" % self.element)
+                    production +
+                    ": element implied by PCDATA had empty content %s" %
+                    self.element)
         self.element.ContentChanged()
         self.element = saveElement
         self.elementType = saveElementType
@@ -1422,10 +1461,12 @@ class XMLParser:
                         attrs[a] = aDef.defaultValue
                         if checkStandalone:
                             self.ValidityError(
-                                "Standalone Document Declaration: specification for attribute %s required (externally defined default)" % a)
+                                "Standalone Document Declaration: specification for attribute %s required (externally defined default)" %
+                                a)
                     elif aDef.presence == XMLAttributeDefinition.Required:
                         self.ValidityError(
-                            "Required Attribute: %s must be specified for element %s" % (a, name))
+                            "Required Attribute: %s must be specified for element %s" %
+                            (a, name))
                 else:
                     if aDef.type != XMLAttributeDefinition.CData:
                         # ...then the XML processor must further process the normalized attribute value by
@@ -1435,12 +1476,14 @@ class XMLParser:
                         newValue = NormalizeSpace(value)
                         if checkStandalone and newValue != value:
                             self.ValidityError(
-                                "Standalone Document Declaration: specification for attribute %s altered by normalization (externally defined tokenized type)" % a)
+                                "Standalone Document Declaration: specification for attribute %s altered by normalization (externally defined tokenized type)" %
+                                a)
                         attrs[a] = newValue
                 if aDef.presence == XMLAttributeDefinition.Fixed:
                     if value != aDef.defaultValue:
-                        self.ValidityError("Fixed Attribute Default: %s must match the #FIXED value %s" % (
-                            value, aDef.defaultValue))
+                        self.ValidityError(
+                            "Fixed Attribute Default: %s must match the #FIXED value %s" %
+                            (value, aDef.defaultValue))
         if self.checkValidity:
             for a in attrs.keys():
                 if aList:
@@ -1449,13 +1492,15 @@ class XMLParser:
                     aDef = None
                 if aDef is None:
                     self.ValidityError(
-                        "Attribute Value Type: attribute %s must be declared" % a)
+                        "Attribute Value Type: attribute %s must be declared" %
+                        a)
                 else:
                     value = attrs[a]
                     if aDef.type == XMLAttributeDefinition.ID:
                         if not IsValidName(value):
                             self.ValidityError(
-                                "ID: %s does not match the Name production" % value)
+                                "ID: %s does not match the Name production" %
+                                value)
                         if value in self.idTable:
                             self.ValidityError(
                                 "ID: value %s already in use" % value)
@@ -1469,7 +1514,8 @@ class XMLParser:
                         for iValue in values:
                             if not IsValidName(iValue):
                                 self.ValidityError(
-                                    "IDREF: %s does not match the Name production" % iValue)
+                                    "IDREF: %s does not match the Name production" %
+                                    iValue)
                             self.idRefTable[iValue] = True
                     elif aDef.type == XMLAttributeDefinition.Entity or aDef.type == XMLAttributeDefinition.Entities:
                         if aDef.type == XMLAttributeDefinition.Entity:
@@ -1479,14 +1525,17 @@ class XMLParser:
                         for iValue in values:
                             if not IsValidName(iValue):
                                 self.ValidityError(
-                                    "Entity Name: %s does not match the Name production" % iValue)
+                                    "Entity Name: %s does not match the Name production" %
+                                    iValue)
                             e = self.dtd.GetEntity(iValue)
                             if e is None:
                                 self.ValidityError(
-                                    "Entity Name: entity %s has not been declared" % iValue)
+                                    "Entity Name: entity %s has not been declared" %
+                                    iValue)
                             elif e.notation is None:
                                 self.ValidityError(
-                                    "Entity Name: entity %s is not unparsed" % iValue)
+                                    "Entity Name: entity %s is not unparsed" %
+                                    iValue)
                     elif aDef.type == XMLAttributeDefinition.NmToken or aDef.type == XMLAttributeDefinition.NmTokens:
                         if aDef.type == XMLAttributeDefinition.NmToken:
                             values = [value]
@@ -1495,16 +1544,19 @@ class XMLParser:
                         for iValue in values:
                             if not IsValidNmToken(iValue):
                                 self.ValidityError(
-                                    "Name Token: %s does not match the NmToken production" % iValue)
+                                    "Name Token: %s does not match the NmToken production" %
+                                    iValue)
                     elif aDef.type == XMLAttributeDefinition.Notation:
                         if aDef.values.get(value, None) is None:
                             self.ValidityError(
-                                "Notation Attributes: %s is not one of the notation names included in the declaration of %s" % (value, a))
+                                "Notation Attributes: %s is not one of the notation names included in the declaration of %s" %
+                                (value, a))
                     elif aDef.type == XMLAttributeDefinition.Enumeration:
                         # must be one of the values
                         if aDef.values.get(value, None) is None:
                             self.ValidityError(
-                                "Enumeration: %s is not one of the NmTokens in the declaration of %s" % (value, a))
+                                "Enumeration: %s is not one of the NmTokens in the declaration of %s" %
+                                (value, a))
 
     def MatchXMLName(self, element, name):
         """Tests if *name* is a possible name for this element.
@@ -1525,7 +1577,8 @@ class XMLParser:
                 # content model violation
                 expected = string.join(self.cursor.Expected(), ' | ')
                 self.ValidityError(
-                    "Element Valid: found %s, expected (%s)" % (name, expected))
+                    "Element Valid: found %s, expected (%s)" %
+                    (name, expected))
                 # don't generate any more errors for this element
                 self.cursor = None
 
@@ -1588,7 +1641,7 @@ class XMLParser:
 
         This method returns a triple of name, attrs, emptyFlag where:
 
-        -	*name* 
+        -	*name*
                 is the name of the element parsed.
         -	*attrs*
                 is a dictionary of attribute values keyed by attribute name
@@ -1614,7 +1667,8 @@ class XMLParser:
                     aName, aValue = self.ParseAttribute()
                     if not self.dontCheckWellFormedness and aName in attrs:
                         self.WellFormednessError(
-                            "Unique Att Spec: attribute %s appears more than once" % aName)
+                            "Unique Att Spec: attribute %s appears more than once" %
+                            aName)
                     attrs[aName] = aValue
                 else:
                     self.WellFormednessError(
@@ -1633,7 +1687,7 @@ class XMLParser:
 
         Returns *name*, *value* where:
 
-        -	name 
+        -	name
                 is the name of the attribute or None if :py:attr:`sgmlShorttag` is
                 True and a short form attribute value was supplied.
         -	value is the attribute value.
@@ -1702,7 +1756,8 @@ class XMLParser:
                         self.ParseComment(True)
                         if self.checkValidity and self.elementType.contentType == ElementType.Empty:
                             self.ValidityError(
-                                "Element Valid: comment not allowed in element declared EMPTY: %s" % self.elementType.name)
+                                "Element Valid: comment not allowed in element declared EMPTY: %s" %
+                                self.elementType.name)
                     elif self.theChar == '[':
                         self.ParseRequiredLiteral('[CDATA[')
                         # can CDATA sections imply missing markup?
@@ -1721,7 +1776,8 @@ class XMLParser:
                     self.ParsePI(True)
                     if self.checkValidity and self.elementType.contentType == ElementType.Empty:
                         self.ValidityError(
-                            "Element Valid: processing instruction not allowed in element declared EMPTY: %s" % self.elementType.name)
+                            "Element Valid: processing instruction not allowed in element declared EMPTY: %s" %
+                            self.elementType.name)
                 elif self.theChar != '/':
                     # element
                     self.BuffText('<')
@@ -1742,7 +1798,8 @@ class XMLParser:
                     data = self.ParseReference()
                     if self.checkValidity and self.elementType and self.elementType.contentType == ElementType.Empty:
                         self.ValidityError(
-                            "Element Valid: reference not allowed in element declared EMPTY: %s" % self.elementType.name)
+                            "Element Valid: reference not allowed in element declared EMPTY: %s" %
+                            self.elementType.name)
                     self.HandleData(data, True)
             elif self.theChar is None:
                 # end of entity
@@ -1771,13 +1828,16 @@ class XMLParser:
                 ) and self.elementType.entity is not self.docEntity
                 if checkStandalone and self.elementType.contentType == ElementType.ElementContent and ContainsS(data):
                     self.ValidityError(
-                        "Standalone Document Declaration: white space not allowed in element %s (externally defined as element content)" % self.elementType.name)
+                        "Standalone Document Declaration: white space not allowed in element %s (externally defined as element content)" %
+                        self.elementType.name)
                 if self.elementType.contentType == ElementType.Empty:
                     self.ValidityError(
-                        "Element Valid: content not allowed in element declared EMPTY: %s" % self.elementType.name)
+                        "Element Valid: content not allowed in element declared EMPTY: %s" %
+                        self.elementType.name)
                 if self.elementType.contentType == ElementType.ElementContent and (cdata or not IsWhiteSpace(data)):
                     self.ValidityError(
-                        "Element Valid: character data is not allowed in element %s" % self.elementType.name)
+                        "Element Valid: character data is not allowed in element %s" %
+                        self.elementType.name)
             self.element.AddData(data)
             self.dataCount += len(data)
 
@@ -1832,10 +1892,12 @@ class XMLParser:
             eType.BuildModel()
             if not eType.IsDeterministic():
                 self.CompatibilityError(
-                    "Deterministic Content Model: <%s> has non-deterministic content model" % eType.name)
+                    "Deterministic Content Model: <%s> has non-deterministic content model" %
+                    eType.name)
             if self.dtd.GetElementType(eType.name) is not None:
                 self.ValidityError(
-                    "Unique Element Type Declaration: <%s> already declared" % eType.name)
+                    "Unique Element Type Declaration: <%s> already declared" %
+                    eType.name)
             self.dtd.DeclareElementType(eType)
 
     def ParseContentSpec(self, eType):
@@ -1928,7 +1990,7 @@ class XMLParser:
         """[49] choice: parses a sequence of content particles.
 
         *firstChild* is an optional
-        :py:class:`~pyslet.xml20081126.structures.XMLContentParticle` instance. 
+        :py:class:`~pyslet.xml20081126.structures.XMLContentParticle` instance.
         If present the method assumes that the first particle and any following
         white space has already been parsed.  If *firstChild* is given then
         *groupEntity* must be the entity in which the opening '(' was parsed
@@ -1948,16 +2010,23 @@ class XMLParser:
             elif self.theChar == ')':
                 if self.checkValidity and self.entity is not groupEntity:
                     self.ValidityError(
-                        "Proper Group/PE Nesting: found ')' in entity %s" % self.entity.GetName())
+                        "Proper Group/PE Nesting: found ')' in entity %s" %
+                        self.entity.GetName())
                 if len(cp.children) > 1:
                     self.NextChar()
                     break
                 else:
                     self.WellFormednessError(
-                        production + ": Expected '|', found %s" % repr(self.theChar))
+                        production +
+                        ": Expected '|', found %s" %
+                        repr(
+                            self.theChar))
             else:
                 self.WellFormednessError(
-                    production + ": Expected '|' or ')', found %s" % repr(self.theChar))
+                    production +
+                    ": Expected '|' or ')', found %s" %
+                    repr(
+                        self.theChar))
             self.ParseS()
             cp.children.append(self.ParseCP())
             self.ParseS()
@@ -1984,12 +2053,16 @@ class XMLParser:
             elif self.theChar == ')':
                 if self.checkValidity and self.entity is not groupEntity:
                     self.ValidityError(
-                        "Proper Group/PE Nesting: found ')' in entity %s" % self.entity.GetName())
+                        "Proper Group/PE Nesting: found ')' in entity %s" %
+                        self.entity.GetName())
                 self.NextChar()
                 break
             else:
                 self.WellFormednessError(
-                    production + ": Expected ',' or ')', found %s" % repr(self.theChar))
+                    production +
+                    ": Expected ',' or ')', found %s" %
+                    repr(
+                        self.theChar))
             self.ParseS()
             cp.children.append(self.ParseCP())
             self.ParseS()
@@ -2020,7 +2093,8 @@ class XMLParser:
             if self.theChar == ')':
                 if self.checkValidity and self.entity is not groupEntity:
                     self.ValidityError(
-                        "Proper Group/PE Nesting: found ')' in entity %s" % self.entity.GetName())
+                        "Proper Group/PE Nesting: found ')' in entity %s" %
+                        self.entity.GetName())
                 break
             elif self.theChar == '|':
                 self.NextChar()
@@ -2030,7 +2104,8 @@ class XMLParser:
                 if self.checkValidity:
                     if cpChild.name in names:
                         self.ValidityError(
-                            "No Duplicate Types: %s appears multiple times in mixed-content declaration" % cpChild.name)
+                            "No Duplicate Types: %s appears multiple times in mixed-content declaration" %
+                            cpChild.name)
                     else:
                         names[cpChild.name] = True
                 cp.children.append(cpChild)
@@ -2066,20 +2141,23 @@ class XMLParser:
                         if a.type == XMLAttributeDefinition.ID:
                             if a.presence != XMLAttributeDefinition.Implied and a.presence != XMLAttributeDefinition.Required:
                                 self.ValidityError(
-                                    "ID Attribute Default: ID attribute %s must have a declared default of #IMPLIED or #REQUIRED" % a.name)
+                                    "ID Attribute Default: ID attribute %s must have a declared default of #IMPLIED or #REQUIRED" %
+                                    a.name)
                             aList = self.dtd.GetAttributeList(name)
                             if aList:
                                 for ia in aList.values():
                                     if ia.type == XMLAttributeDefinition.ID:
                                         self.ValidityError(
-                                            "One ID per Element Type: attribute %s must not be of type ID, element %s already has an ID attribute" % (a.name, name))
+                                            "One ID per Element Type: attribute %s must not be of type ID, element %s already has an ID attribute" %
+                                            (a.name, name))
                         elif a.type == XMLAttributeDefinition.Notation:
                             aList = self.dtd.GetAttributeList(name)
                             if aList:
                                 for ia in aList.values():
                                     if ia.type == XMLAttributeDefinition.Notation:
                                         self.ValidityError(
-                                            "One Notation per Element Type: attribute %s must not be of type NOTATION, element %s already has a NOTATION attribute" % (a.name, name))
+                                            "One Notation per Element Type: attribute %s must not be of type NOTATION, element %s already has a NOTATION attribute" %
+                                            (a.name, name))
                     a.entity = dEntity
                     self.dtd.DeclareAttribute(name, a)
 
@@ -2172,7 +2250,8 @@ class XMLParser:
                 a.type = XMLAttributeDefinition.NmToken
         else:
             self.WellFormednessError(
-                production + ": Expected 'ID', 'IDREF', 'IDREFS', 'ENTITY', 'ENTITIES', 'NMTOKEN' or 'NMTOKENS'")
+                production +
+                ": Expected 'ID', 'IDREF', 'IDREFS', 'ENTITY', 'ENTITIES', 'NMTOKEN' or 'NMTOKENS'")
         a.values = None
 
     def ParseEnumeratedType(self, a):
@@ -2224,7 +2303,10 @@ class XMLParser:
                 break
             else:
                 self.WellFormednessError(
-                    production + ": expected '|' or ')', found %s" % repr(self.theChar))
+                    production +
+                    ": expected '|' or ')', found %s" %
+                    repr(
+                        self.theChar))
         return value
 
     def ParseEnumeration(self):
@@ -2253,7 +2335,10 @@ class XMLParser:
                 break
             else:
                 self.WellFormednessError(
-                    production + ": expected '|' or ')', found %s" % repr(self.theChar))
+                    production +
+                    ": expected '|' or ')', found %s" %
+                    repr(
+                        self.theChar))
         return value
 
     def ParseDefaultDecl(self, a):
@@ -2285,27 +2370,42 @@ class XMLParser:
                 if a.type == XMLAttributeDefinition.IDRef or a.type == XMLAttributeDefinition.Entity:
                     if not IsValidName(a.defaultValue):
                         self.ValidityError(
-                            "Attribute Default Value Syntactically Correct: %s does not match the Name production" % EscapeCharData(a.defaultValue, True))
+                            "Attribute Default Value Syntactically Correct: %s does not match the Name production" %
+                            EscapeCharData(
+                                a.defaultValue,
+                                True))
                 elif a.type == XMLAttributeDefinition.IDRefs or a.type == XMLAttributeDefinition.Entities:
                     values = a.defaultValue.split(' ')
                     for iValue in values:
                         if not IsValidName(iValue):
                             self.ValidityError(
-                                "Attribute Default Value Syntactically Correct: %s does not match the Names production" % EscapeCharData(a.defaultValue, True))
+                                "Attribute Default Value Syntactically Correct: %s does not match the Names production" %
+                                EscapeCharData(
+                                    a.defaultValue,
+                                    True))
                 elif a.type == XMLAttributeDefinition.NmToken:
                     if not IsValidNmToken(a.defaultValue):
                         self.ValidityError(
-                            "Attribute Default Value Syntactically Correct: %s does not match the Nmtoken production" % EscapeCharData(a.defaultValue, True))
+                            "Attribute Default Value Syntactically Correct: %s does not match the Nmtoken production" %
+                            EscapeCharData(
+                                a.defaultValue,
+                                True))
                 elif a.type == XMLAttributeDefinition.NmTokens:
                     values = a.defaultValue.split(' ')
                     for iValue in values:
                         if not IsValidNmToken(iValue):
                             self.ValidityError(
-                                "Attribute Default Value Syntactically Correct: %s does not match the Nmtokens production" % EscapeCharData(a.defaultValue, True))
+                                "Attribute Default Value Syntactically Correct: %s does not match the Nmtokens production" %
+                                EscapeCharData(
+                                    a.defaultValue,
+                                    True))
                 elif a.type == XMLAttributeDefinition.Notation or a.type == XMLAttributeDefinition.Enumeration:
                     if a.values.get(a.defaultValue, None) is None:
                         self.ValidityError(
-                            "Attribute Default Value Syntactically Correct: %s is not one of the allowed enumerated values" % EscapeCharData(a.defaultValue, True))
+                            "Attribute Default Value Syntactically Correct: %s is not one of the allowed enumerated values" %
+                            EscapeCharData(
+                                a.defaultValue,
+                                True))
 
     def ParseConditionalSect(self, gotLiteralEntity=None):
         """[61] conditionalSect: parses a conditional section.
@@ -2368,12 +2468,14 @@ class XMLParser:
         self.ParseS()
         if self.checkValidity and not self.entity is gotLiteralEntity:
             self.ValidityError(
-                "Proper Conditional Section/PE Nesting: [ must not be in replacement text of %s" % self.entity.GetName())
+                "Proper Conditional Section/PE Nesting: [ must not be in replacement text of %s" %
+                self.entity.GetName())
         self.ParseRequiredLiteral('[', production)
         self.ParseIgnoreSectContents()
         if self.checkValidity and not self.entity is gotLiteralEntity:
             self.ValidityError(
-                "Proper Conditional Section/PE Nesting: ]]> must not be in replacement text of %s" % self.entity.GetName())
+                "Proper Conditional Section/PE Nesting: ]]> must not be in replacement text of %s" %
+                self.entity.GetName())
         self.ParseRequiredLiteral(']]>', production)
 
     def ParseIgnoreSectContents(self):
@@ -2428,7 +2530,8 @@ class XMLParser:
             data = "&#%s%s;" % (qualifier, digits)
         elif not IsChar(data):
             raise XMLWellFormedError(
-                "Legal Character: &#%s%s; does not match production for Char" % (qualifier, digits))
+                "Legal Character: &#%s%s; does not match production for Char" %
+                (qualifier, digits))
         return data
 
     def ParseReference(self):
@@ -2500,15 +2603,18 @@ class XMLParser:
                     e = self.dtd.GetEntity(name)
                     if e and self.DeclaredStandalone() and e.entity is not self.docEntity:
                         self.ValidityError(
-                            "Standalone Document Declaration: reference to entity %s not allowed (externally defined)" % e.GetName())
+                            "Standalone Document Declaration: reference to entity %s not allowed (externally defined)" %
+                            e.GetName())
                 if e is not None:
                     if e.notation is not None:
                         self.WellFormednessError(
-                            "Parsed Entity: &%s; reference to unparsed entity not allowed" % name)
+                            "Parsed Entity: &%s; reference to unparsed entity not allowed" %
+                            name)
                     else:
                         if not self.dontCheckWellFormedness and self.refMode == XMLParser.RefModeInAttributeValue and e.IsExternal():
                             self.WellFormednessError(
-                                "No External Entity References: &%s; not allowed in attribute value" % name)
+                                "No External Entity References: &%s; not allowed in attribute value" %
+                                name)
                         if e.IsOpen() or (e is entity):
                             # if the last char of the entity is a ';' closing a
                             # recursive entity reference then # the entity will
@@ -2516,13 +2622,15 @@ class XMLParser:
                             # reference # too, not just whether it is currently
                             # open
                             self.WellFormednessError(
-                                "No Recursion: entity &%s; is already open" % name)
+                                "No Recursion: entity &%s; is already open" %
+                                name)
                         e.Open()
                         self.PushEntity(e)
                     return ''
                 elif self.Standalone():
                     self.WellFormednessError(
-                        "Entity Declared: undeclared general entity %s in standalone document" % name)
+                        "Entity Declared: undeclared general entity %s in standalone document" %
+                        name)
                 else:
                     self.ValidityError(
                         "Entity Declared: undeclared general entity %s" % name)
@@ -2565,7 +2673,9 @@ class XMLParser:
             self.gotPERef = True
             if self.noPERefs:
                 self.WellFormednessError(
-                    production + ": PE referenced in Internal Subset, %%%s;" % name)
+                    production +
+                    ": PE referenced in Internal Subset, %%%s;" %
+                    name)
             if self.dtd:
                 e = self.dtd.GetParameterEntity(name)
             else:
@@ -2575,18 +2685,22 @@ class XMLParser:
                     # in a standalone document, PERefs in the internal subset
                     # must be declared
                     self.WellFormednessError(
-                        "Entity Declared: Undeclared parameter entity %s in standalone document" % name)
+                        "Entity Declared: Undeclared parameter entity %s in standalone document" %
+                        name)
                 else:
                     self.ValidityError(
-                        "Entity Declared: undeclared parameter entity %s" % name)
+                        "Entity Declared: undeclared parameter entity %s" %
+                        name)
             else:
                 if self.DeclaredStandalone() and e.entity is not self.docEntity:
                     if entity is self.docEntity:
                         self.WellFormednessError(
-                            "Entity Declared: parameter entity %s declared externally but document is standalone" % name)
+                            "Entity Declared: parameter entity %s declared externally but document is standalone" %
+                            name)
                     else:
                         self.ValidityError(
-                            "Standalone Document Declaration: reference to entity %s not allowed (externally defined)" % e.GetName())
+                            "Standalone Document Declaration: reference to entity %s not allowed (externally defined)" %
+                            e.GetName())
                 if self.checkValidity:
                     """An external markup declaration is defined as a markup
                     declaration occurring in the external subset or in a parameter
@@ -2594,7 +2708,8 @@ class XMLParser:
                     non-validating processors are not required to read them"""
                     if e.IsOpen() or (e is entity):
                         self.WellFormednessError(
-                            "No Recursion: entity %%%s; is already open" % name)
+                            "No Recursion: entity %%%s; is already open" %
+                            name)
                     if self.refMode == XMLParser.RefModeInEntityValue:
                         # Parameter entities are fed back into the parser
                         # somehow
@@ -2609,7 +2724,7 @@ class XMLParser:
         """[70] EntityDecl: parses an entity declaration.
 
         Returns an instance of either :py:class:`~pyslet.xml20081126.structures.XMLGeneralEntity` or
-        :py:class:`~pyslet.xml20081126.structures.XMLParameterEntity` depending on the type of entity parsed. 
+        :py:class:`~pyslet.xml20081126.structures.XMLParameterEntity` depending on the type of entity parsed.
         If *gotLiteral* is True the method assumes that the leading '<!ENTITY'
         literal has already been parsed."""
         production = "[70] EntityDecl"
@@ -2858,7 +2973,8 @@ class XMLParser:
         if self.dtd:
             if self.checkValidity and not (self.dtd.GetNotation(name) is None):
                 self.ValidityError(
-                    "Unique Notation Name: %s has already been declared" % name)
+                    "Unique Notation Name: %s has already been declared" %
+                    name)
             self.dtd.DeclareNotation(XMLNotation(name, xID))
 
     def ParsePublicID(self):

@@ -68,7 +68,7 @@ class Action(xsi.Enumeration):
 
     """Action enumeration (for :py:class:`pyslet.qtiv1.common.SetVar`::
 
-    (Set | Add | Subtract | Multiply | Divide )  'Set'	
+    (Set | Add | Subtract | Multiply | Divide )  'Set'
 
     Defines constants for the above action types.  Usage example::
 
@@ -445,7 +445,7 @@ def MigrateV2VarType(vartype, log):
     version 2 the BaseType values were chosen to map onto the typical types
     available in most programming languages.  The representation of the number
     in decimal or exponent form is considered to be part of the interaction or
-    the presentation rather than part of the underlying processing model. 
+    the presentation rather than part of the underlying processing model.
     Although there clearly are use cases where retaining this distinction would
     have been an advantage the quality of implementation was likely to be poor
     and use cases that require a distinction are now implemented in more

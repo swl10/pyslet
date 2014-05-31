@@ -197,7 +197,9 @@ class OrderInteraction(BlockInteraction):
     XMLATTR_maxChoices = ('maxChoices', xsi.DecodeInteger, xsi.EncodeInteger)
     XMLATTR_minChoices = ('minChoices', xsi.DecodeInteger, xsi.EncodeInteger)
     XMLATTR_orientation = (
-        'orientation', core.Orientation.DecodeLowerValue, core.Orientation.EncodeValue)
+        'orientation',
+        core.Orientation.DecodeLowerValue,
+        core.Orientation.EncodeValue)
 
     def __init__(self, parent):
         BlockInteraction.__init__(self, parent)
@@ -934,7 +936,9 @@ class SliderInteraction(BlockInteraction):
     XMLATTR_step = ('step', xsi.DecodeInteger, xsi.EncodeInteger)
     XMLATTR_stepLabel = ('stepLabel', xsi.DecodeBoolean, xsi.EncodeBoolean)
     XMLATTR_orientation = (
-        'orientation', core.Orientation.DecodeLowerValue, core.Orientation.EncodeValue)
+        'orientation',
+        core.Orientation.DecodeLowerValue,
+        core.Orientation.EncodeValue)
     XMLATTR_reverse = ('reverse', xsi.DecodeBoolean, xsi.EncodeBoolean)
 
     def __init__(self, parent):

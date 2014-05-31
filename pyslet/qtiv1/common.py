@@ -33,7 +33,7 @@ class QTIComment(core.QTIElement):
     """This element contains the comments that are relevant to the host element.
     The comment is contained as a string::
 
-            <!ELEMENT qticomment (#PCDATA)>	
+            <!ELEMENT qticomment (#PCDATA)>
             <!ATTLIST qticomment  xml:lang CDATA  #IMPLIED >"""
     XMLNAME = 'qticomment'
     XMLCONTENT = xml.XMLMixedContent
@@ -180,10 +180,11 @@ class ContentMixin:
                         p = None
                         brBefore = brAfter = False
                         child.MigrateV2Content(parent, html.BlockMixin, log)
-                except AttributeError, e:
+                except AttributeError as e:
                     print e
                     raise core.QTIError(
-                        "Error: unsupported QTI v1 content element " + child.xmlname)
+                        "Error: unsupported QTI v1 content element " +
+                        child.xmlname)
 
 
 class Material(QTICommentContainer, ContentMixin):
@@ -294,7 +295,7 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
     """The <mattext> element contains any text that is to be displayed to the users
     ::
 
-            <!ELEMENT mattext (#PCDATA)>	
+            <!ELEMENT mattext (#PCDATA)>
             <!ATTLIST mattext
                     texttype    CDATA  'text/plain'
                     label		CDATA  #IMPLIED
@@ -342,7 +343,7 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                 uri = self.ResolveURI(self.uri)
                 try:
                     e = xml.XMLEntity(uri)
-                except http.HTTP2616Exception, e:
+                except http.HTTP2616Exception as e:
                     e = xml.XMLEntity(unicode(e))
             else:
                 uri = self.ResolveBase()
@@ -418,10 +419,14 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                         html.P, (qtiv2.core.IMSQTI_NAMESPACE, 'p'))
                     if self.inlineWrapper:
                         span = span.ChildElement(
-                            self.inlineWrapper, (qtiv2.core.IMSQTI_NAMESPACE, self.inlineWrapper.XMLNAME[1]))
+                            self.inlineWrapper,
+                            (qtiv2.core.IMSQTI_NAMESPACE,
+                             self.inlineWrapper.XMLNAME[1]))
                 elif self.inlineWrapper:
                     span = parent.ChildElement(
-                        self.inlineWrapper, (qtiv2.core.IMSQTI_NAMESPACE, self.inlineWrapper.XMLNAME[1]))
+                        self.inlineWrapper,
+                        (qtiv2.core.IMSQTI_NAMESPACE,
+                         self.inlineWrapper.XMLNAME[1]))
                 else:
                     span = parent.ChildElement(
                         html.Span, (qtiv2.core.IMSQTI_NAMESPACE, 'span'))
@@ -437,13 +442,17 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                     html.P, (qtiv2.core.IMSQTI_NAMESPACE, 'p'))
                 if self.inlineWrapper:
                     p = p.ChildElement(
-                        self.inlineWrapper, (qtiv2.core.IMSQTI_NAMESPACE, self.inlineWrapper.XMLNAME[1]))
+                        self.inlineWrapper,
+                        (qtiv2.core.IMSQTI_NAMESPACE,
+                         self.inlineWrapper.XMLNAME[1]))
                 p.AddData(data)
             else:
                 # inline or flow, just add the text directly...
                 if self.inlineWrapper:
                     addNode = parent.ChildElement(
-                        self.inlineWrapper, (qtiv2.core.IMSQTI_NAMESPACE, self.inlineWrapper.XMLNAME[1]))
+                        self.inlineWrapper,
+                        (qtiv2.core.IMSQTI_NAMESPACE,
+                         self.inlineWrapper.XMLNAME[1]))
                 else:
                     addNode = parent
                 parent.AddData(data)
@@ -459,7 +468,9 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                                 html.P, (qtiv2.core.IMSQTI_NAMESPACE, 'p'))
                             if self.inlineWrapper:
                                 p = p.ChildElement(
-                                    self.inlineWrapper, (qtiv2.core.IMSQTI_NAMESPACE, self.inlineWrapper.XMLNAME[1]))
+                                    self.inlineWrapper,
+                                    (qtiv2.core.IMSQTI_NAMESPACE,
+                                     self.inlineWrapper.XMLNAME[1]))
                         if type(child) in StringTypes:
                             p.AddData(child)
                         else:
@@ -470,14 +481,17 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                         p = None
                         if self.inlineWrapper:
                             log.append(
-                                'Warning: block level elements in text/html cannot be wrapped with <%s>' % self.inlineWrapper.XMLNAME[1])
+                                'Warning: block level elements in text/html cannot be wrapped with <%s>' %
+                                self.inlineWrapper.XMLNAME[1])
                         newChild = child.Copy(parent)
                         qtiv2.content.FixHTMLNamespace(newChild)
             else:
                 # Flow context (with only inline children) or inline context
                 if self.inlineWrapper:
                     addNode = parent.ChildElement(
-                        self.inlineWrapper, (qtiv2.core.IMSQTI_NAMESPACE, self.inlineWrapper.XMLNAME[1]))
+                        self.inlineWrapper,
+                        (qtiv2.core.IMSQTI_NAMESPACE,
+                         self.inlineWrapper.XMLNAME[1]))
                 else:
                     addNode = parent
                 for child in self.matChildren:
@@ -496,7 +510,7 @@ class MatEmText(MatText):
     displayed to the users. The type of emphasis is dependent on the
     question-engine rendering the text::
 
-            <!ELEMENT matemtext (#PCDATA)>	
+            <!ELEMENT matemtext (#PCDATA)>
             <!ATTLIST matemtext
                     texttype	CDATA  'text/plain'
                     label		CDATA  #IMPLIED
@@ -551,7 +565,7 @@ class MatImage(core.QTIElement, PositionMixin, MatThingMixin):
     """The <matimage> element is used to contain image content that is to be
     displayed to the users::
 
-            <!ELEMENT matimage (#PCDATA)>	
+            <!ELEMENT matimage (#PCDATA)>
             <!ATTLIST matimage
                     imagtype    CDATA  'image/jpeg'
                     label		CDATA  #IMPLIED
@@ -608,7 +622,7 @@ class MatAudio(core.QTIElement, MatThingMixin):
     """The <mataudio> element is used to contain audio content that is to be
     displayed to the users::
 
-            <!ELEMENT mataudio (#PCDATA)>	
+            <!ELEMENT mataudio (#PCDATA)>
             <!ATTLIST mataudio
                     audiotype	CDATA  'audio/base'
                     label		CDATA  #IMPLIED
@@ -659,7 +673,7 @@ class MatVideo(core.QTIElement, PositionMixin, MatThingMixin):
     """The <matvideo> element is used to contain video content that is to be
     displayed to the users::
 
-            <!ELEMENT matvideo (#PCDATA)>	
+            <!ELEMENT matvideo (#PCDATA)>
             <!ATTLIST matvideo
                     videotype	CDATA  'video/avi'
                     label		CDATA  #IMPLIED
@@ -716,7 +730,7 @@ class MatApplet(core.QTIElement, PositionMixin, MatThingMixin):
     launched should be enclosed in a CDATA block within the content of the
     <matapplet> element::
 
-            <!ELEMENT matapplet (#PCDATA)>	
+            <!ELEMENT matapplet (#PCDATA)>
             <!ATTLIST matapplet
                     label		CDATA  #IMPLIED
                     uri			CDATA  #IMPLIED
@@ -759,7 +773,7 @@ class MatApplication(core.QTIElement, MatThingMixin):
     application being launched should be enclosed in a CDATA block within the
     content of the <matapplication> element::
 
-            <!ELEMENT matapplication (#PCDATA)>	
+            <!ELEMENT matapplication (#PCDATA)>
             <!ATTLIST matapplication
                     apptype		CDATA  #IMPLIED
                     label		CDATA  #IMPLIED
@@ -802,7 +816,7 @@ class MatRef(MatThingMixin, core.QTIElement):
     <material> element (the element <material_ref> should be used for the
     latter)::
 
-            <!ELEMENT matref EMPTY>	
+            <!ELEMENT matref EMPTY>
             <!ATTLIST matref linkrefid CDATA  #REQUIRED >"""
     XMLNAME = "matref"
     XMLATTR_linkrefid = 'linkRefID'
@@ -878,7 +892,7 @@ class FlowMat(FlowMatContainer, FlowMixin):
     grouped together using flows. The manner in which these flows are handled is
     dependent upon the display-engine::
 
-            <!ELEMENT flow_mat (qticomment? , (flow_mat | material | material_ref)+)>	
+            <!ELEMENT flow_mat (qticomment? , (flow_mat | material | material_ref)+)>
             <!ATTLIST flow_mat  class CDATA  'Block' >"""
     XMLNAME = "flow_mat"
     XMLATTR_class = 'flowClass'
@@ -1054,7 +1068,7 @@ class Objectives(FlowMatContainer):
 
             <!ELEMENT objectives (qticomment? , (material+ | flow_mat+))>
             <!ATTLIST objectives  view	(All | Administrator | AdminAuthority | Assessor | Author |
-                                    Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+                                    Candidate | InvigilatorProctor | Psychometrician | Scorer |
                                     Tutor ) 'All' >"""
     XMLNAME = 'objectives'
     XMLATTR_view = ('view', core.View.DecodeLowerValue, core.View.EncodeValue)
@@ -1069,7 +1083,11 @@ class Objectives(FlowMatContainer):
         rubric = v2Item.ChildElement(
             qtiv2.content.ItemBody).ChildElement(qtiv2.RubricBlock)
         rubric.SetAttribute(
-            'view', qtiv2.core.View.EncodeValueList(core.MigrateV2View(self.view, log)))
+            'view',
+            qtiv2.core.View.EncodeValueList(
+                core.MigrateV2View(
+                    self.view,
+                    log)))
         # rubric is not a flow-container so we force inlines to be p-wrapped
         self.MigrateV2Content(rubric, html.BlockMixin, log)
 
@@ -1089,9 +1107,9 @@ class Rubric(FlowMatContainer):
     rubric can be defined for each of the possible 'views'. The material
     contained within the rubric must be displayed to the participant::
 
-            <!ELEMENT rubric (qticomment? , (material+ | flow_mat+))>	
+            <!ELEMENT rubric (qticomment? , (material+ | flow_mat+))>
             <!ATTLIST rubric  view	(All | Administrator | AdminAuthority | Assessor | Author |
-                                    Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+                                    Candidate | InvigilatorProctor | Psychometrician | Scorer |
                                     Tutor ) 'All' >"""
     XMLNAME = 'rubric'
     XMLATTR_view = ('view', core.View.DecodeLowerValue, core.View.EncodeValue)
@@ -1112,7 +1130,11 @@ class Rubric(FlowMatContainer):
             rubric = v2Item.ChildElement(
                 qtiv2.content.ItemBody).ChildElement(qtiv2.RubricBlock)
             rubric.SetAttribute(
-                'view', qtiv2.core.View.EncodeValueList(core.MigrateV2View(self.view, log)))
+                'view',
+                qtiv2.core.View.EncodeValueList(
+                    core.MigrateV2View(
+                        self.view,
+                        log)))
         # rubric is not a flow-container so we force inlines to be p-wrapped
         self.MigrateV2Content(rubric, html.BlockMixin, log)
 
@@ -1124,7 +1146,7 @@ class DecVar(core.QTIElement):
 
             <!ELEMENT decvar (#PCDATA)>
             <!ATTLIST decvar  varname CDATA  'SCORE' ::
-                    vartype		(Integer |  String |  Decimal |  Scientific |  Boolean | 
+                    vartype		(Integer |  String |  Decimal |  Scientific |  Boolean |
                             Enumerated | Set )  'Integer'
                     defaultval 	CDATA  #IMPLIED
                     minvalue   	CDATA  #IMPLIED
@@ -1160,7 +1182,8 @@ class DecVar(core.QTIElement):
                 'Warning: treating vartype="Set" as equivalent to "Enumerated"')
         elif v2Type is None:
             log.append(
-                'Error: bad vartype for decvar "%s"; defaulting to integer' % self.varName)
+                'Error: bad vartype for decvar "%s"; defaulting to integer' %
+                self.varName)
             v2Type = qtiv2.variables.BaseType.integer
         d.baseType = v2Type
         d.cardinality = qtiv2.variables.Cardinality.single
@@ -1178,7 +1201,8 @@ class DecVar(core.QTIElement):
             d.normalMaximum = float(self.maxValue)
         if self.members is not None:
             log.append(
-                'Warning: enumerated members no longer supported, ignoring "%s"' % self.members)
+                'Warning: enumerated members no longer supported, ignoring "%s"' %
+                self.members)
         if v2Type in (qtiv2.variables.BaseType.integer, qtiv2.variables.BaseType.float):
             # we need to adjust minValue/maxValue later
             if self.cutValue is not None:
@@ -1201,7 +1225,7 @@ class InterpretVar(core.QTIElement, ContentMixin):
     """The <interpretvar> element is used to provide statistical interpretation
     information about the associated variables::
 
-            <!ELEMENT interpretvar (material | material_ref)>	
+            <!ELEMENT interpretvar (material | material_ref)>
             <!ATTLIST interpretvar
                     view	(All | Administrator | AdminAuthority | Assessor | Author | Candidate |
                             InvigilatorProctor | Psychometrician | Scorer | Tutor )  'All'
@@ -1229,8 +1253,10 @@ class InterpretVar(core.QTIElement, ContentMixin):
     def MigrateV2(self, v2Item, log):
         identifier = qtiv2.core.ValidateIdentifier(self.varName)
         if self.view != core.View.All:
-            log.append('Warning: view restriction on outcome interpretation no longer supported (%s)' %
-                       core.View.EncodeValue(self.view))
+            log.append(
+                'Warning: view restriction on outcome interpretation no longer supported (%s)' %
+                core.View.EncodeValue(
+                    self.view))
         d = v2Item.declarations.get(identifier)
         di, lang = self.ExtractText()
         di = xsi.WhiteSpaceCollapse(di)
@@ -1246,7 +1272,7 @@ class SetVar(core.QTIElement):
     """The <setvar> element is responsible for changing the value of the scoring
     variable as a result of the associated response processing test::
 
-            <!ELEMENT setvar (#PCDATA)>	
+            <!ELEMENT setvar (#PCDATA)>
             <!ATTLIST setvar  varname CDATA  'SCORE'
                     action     (Set | Add | Subtract | Multiply | Divide )  'Set' >"""
     XMLNAME = "setvar"
@@ -1269,8 +1295,11 @@ class SetVar(core.QTIElement):
         setValue = parent.ChildElement(qtiv2.processing.SetOutcomeValue)
         setValue.identifier = identifier
         if outcome.cardinality != qtiv2.variables.Cardinality.single:
-            raise QTIUnimplementedError("setvar for '%s' with cardinality %s" % (identifier,
-                                                                                 qtiv2.variables.Cardinality.encode[outcome.cardinality]))
+            raise QTIUnimplementedError(
+                "setvar for '%s' with cardinality %s" %
+                (identifier,
+                 qtiv2.variables.Cardinality.encode[
+                     outcome.cardinality]))
         value = None
         variable = None
         if not self.action or self.action == core.Action.Set:
@@ -1303,7 +1332,9 @@ class DisplayFeedback(core.QTIElement):
                     linkrefid		CDATA  #REQUIRED >"""
     XMLNAME = "displayfeedback"
     XMLATTR_feedbacktype = (
-        'feedbackType', core.FeedbackType.DecodeTitleValue, core.FeedbackType.EncodeValue)
+        'feedbackType',
+        core.FeedbackType.DecodeTitleValue,
+        core.FeedbackType.EncodeValue)
     XMLATTR_linkrefid = 'linkRefID'
     XMLCONTENT = xml.XMLMixedContent
 
@@ -1397,7 +1428,8 @@ class VarThing(core.QTIElement, ExpressionMixin):
 
     def MigrateV2Missing(self, identifier, parent, log):
         log.append(
-            "Warning: test of undeclared response (%s) replaced with Null operator" % identifier)
+            "Warning: test of undeclared response (%s) replaced with Null operator" %
+            identifier)
         parent.ChildElement(qtiv2.expressions.Null)
 
     def MigrateV2Variable(self, d, parent, log):
@@ -1432,7 +1464,7 @@ class VarEqual(VarThing):
     of the <response_label> values (this were assigned using the ident
     attribute)::
 
-            <!ELEMENT varequal (#PCDATA)>	
+            <!ELEMENT varequal (#PCDATA)>
             <!ATTLIST varequal
                     case  (Yes | No )  'No'
                     respident CDATA  #REQUIRED"
@@ -1468,7 +1500,9 @@ class VarEqual(VarThing):
                 expression = parent.ChildElement(qtiv2.expressions.Equal)
             else:
                 raise QTIUnimplementedOperator(
-                    "varequal(%s)" % qtiv2.variables.BaseType.Encode(d.baseType))
+                    "varequal(%s)" %
+                    qtiv2.variables.BaseType.Encode(
+                        d.baseType))
             self.MigrateV2Variable(d, expression, log)
             self.MigrateV2Value(d, expression, log)
         else:
@@ -1486,7 +1520,9 @@ class VarEqual(VarThing):
                     "Warning: member operation is deprecated when baseType is float")
             else:
                 raise QTIUnimplementedOperator(
-                    "varequal(%s)" % qtiv2.variables.BaseType.Encode(d.baseType))
+                    "varequal(%s)" %
+                    qtiv2.variables.BaseType.Encode(
+                        d.baseType))
             expression = parent.ChildElement(qtiv2.expressions.Member)
             self.MigrateV2Value(d, expression, log)
             self.MigrateV2Variable(d, expression, log)
@@ -1512,12 +1548,18 @@ class VarInequality(VarThing):
                 expression = parent.ChildElement(self.MigrateV2Inequality())
             else:
                 raise QTIUnimplementedOperator(
-                    "%s(%s)" % (self.xmlname, qtiv2.variables.BaseType.Encode(d.baseType)))
+                    "%s(%s)" %
+                    (self.xmlname,
+                     qtiv2.variables.BaseType.Encode(
+                         d.baseType)))
             self.MigrateV2Variable(d, expression, log)
             self.MigrateV2Value(d, expression, log)
         else:
-            raise QTIUnimplementedOperator("%s(%s:%s)" % (self.xmlname, qtiv2.variables.Cardinality.Encode(
-                d.cardinality), qtiv2.variables.BaseType.Encode(d.baseType)))
+            raise QTIUnimplementedOperator(
+                "%s(%s:%s)" %
+                (self.xmlname, qtiv2.variables.Cardinality.Encode(
+                    d.cardinality), qtiv2.variables.BaseType.Encode(
+                    d.baseType)))
 
 
 class VarLT(VarInequality):
@@ -1543,7 +1585,7 @@ class VarLTE(VarInequality):
     test is contained within the element's PCDATA string and is assumed to be
     numerical in nature::
 
-            <!ELEMENT varlte (#PCDATA)>	
+            <!ELEMENT varlte (#PCDATA)>
             <!ATTLIST varlte
                     respident CDATA  #REQUIRED"
                     index CDATA  #IMPLIED >"""
@@ -1560,7 +1602,7 @@ class VarGT(VarInequality):
     contained within the element's PCDATA string and is assumed to be numerical
     in nature::
 
-            <!ELEMENT vargt (#PCDATA)>	
+            <!ELEMENT vargt (#PCDATA)>
             <!ATTLIST vargt
                     respident CDATA  #REQUIRED"
                     index CDATA  #IMPLIED >"""
@@ -1577,7 +1619,7 @@ class VarGTE(VarInequality):
     the test is contained within the element's PCDATA string and is assumed to
     be numerical in nature::
 
-            <!ELEMENT vargte (#PCDATA)>	
+            <!ELEMENT vargte (#PCDATA)>
             <!ATTLIST vargte
                     respident CDATA  #REQUIRED"
                     index CDATA  #IMPLIED >"""
@@ -1608,7 +1650,7 @@ class VarSubString(core.QTIElement, ExpressionMixin):
     """The <varsubstring> element is used to determine if a given string is a
     substring of some other string::
 
-            <!ELEMENT varsubstring (#PCDATA)>	
+            <!ELEMENT varsubstring (#PCDATA)>
             <!ATTLIST varsubstring
                     index CDATA  #IMPLIED
                     respident CDATA  #REQUIRED"
@@ -1623,7 +1665,7 @@ class VarInside(VarThing):
     data for the test is contained within the element's PCDATA string and is a
     set of co-ordinates that define the area::
 
-            <!ELEMENT varinside (#PCDATA)>	
+            <!ELEMENT varinside (#PCDATA)>
             <!ATTLIST varinside
                     areatype     (Ellipse | Rectangle | Bounded )  #REQUIRED
                     respident CDATA  #REQUIRED"
@@ -1652,7 +1694,9 @@ class VarInside(VarThing):
                 self.MigrateV2Variable(d, expression, log)
             else:
                 raise QTIUnimplementedError(
-                    "varinside(%s)" % qtiv2.variables.BaseType.EncodeValue(d.baseType))
+                    "varinside(%s)" %
+                    qtiv2.variables.BaseType.EncodeValue(
+                        d.baseType))
         else:
             raise QTIUnimplementedError(
                 "varinside with multiple/orderd variable")
@@ -1663,7 +1707,7 @@ class DurEqual(core.QTIElement, ExpressionMixin):
     """The <durequal> element is the 'duration equal to' test i.e. a test on the
     time taken to make the response::
 
-            <!ELEMENT durequal (#PCDATA)>	
+            <!ELEMENT durequal (#PCDATA)>
             <!ATTLIST durequal
                     index CDATA  #IMPLIED
                     respident CDATA  #REQUIRED" >"""
@@ -1689,7 +1733,7 @@ class DurLTE(core.QTIElement, ExpressionMixin):
     """The <durlte> element is the 'duration less than or equal to' test i.e. a
     test on the time taken to make the response::
 
-            <!ELEMENT durlte (#PCDATA)>	
+            <!ELEMENT durlte (#PCDATA)>
             <!ATTLIST durlte
                     index		CDATA  #IMPLIED
                     respident	CDATA  #REQUIRED" >"""
@@ -1702,7 +1746,7 @@ class DurGT(core.QTIElement, ExpressionMixin):
     """The <durgt> element is the 'duration greater than' test i.e. a test on
     the time taken to make the response::
 
-            <!ELEMENT durgt (#PCDATA)>	
+            <!ELEMENT durgt (#PCDATA)>
             <!ATTLIST durgt
                     index		CDATA  #IMPLIED
                     respident	CDATA  #REQUIRED" >"""
@@ -1715,7 +1759,7 @@ class DurGTE(core.QTIElement, ExpressionMixin):
     """The <durgte> element is the 'duration greater than or equal to' test i.e.
     a test on the time taken to make the response::
 
-            <!ELEMENT durgte (#PCDATA)>	
+            <!ELEMENT durgte (#PCDATA)>
             <!ATTLIST durgte
                     index		CDATA  #IMPLIED
                     respident	CDATA  #REQUIRED" >"""
@@ -1900,7 +1944,7 @@ class MaterialRef(core.QTIElement):
     enable such a reference to be reconciled when the instance is parsed into
     the system::
 
-            <!ELEMENT material_ref EMPTY>	
+            <!ELEMENT material_ref EMPTY>
             <!ATTLIST material_ref  linkrefid CDATA  #REQUIRED >"""
     XMLNAME = "material_ref"
     XMLATTR_linkrefid = 'linkRefID'

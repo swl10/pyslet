@@ -380,7 +380,7 @@ del collection[key]
 The following attribute is useful for consumers of the API (and should
 be treated as read only)
 
-:py:attr:`~pyslet.odata2.csdl.EntityCollection.entitySet`
+:py:attr:`~pyslet.odata2.csdl.EntityCollection.entity_set`
 	The :py:class:`~pyslet.odata2.csdl.EntitySet` of this collection. In
 	the case of a collection opened through navigation this is the base
 	entity set. 
@@ -395,28 +395,28 @@ and so on, the following methods are useful for consumers of the API:
 :py:meth:`~pyslet.odata2.csdl.EntityCollection.GetTitle`
 	Returns a user-friendly title to represent this entity collection.
 
-:py:meth:`~pyslet.odata2.csdl.EntityCollection.NewEntity`
+:py:meth:`~pyslet.odata2.csdl.EntityCollection.new_entity`
 	Creates a new entity suitable for inserting into this collection.
-	The entity does not exist until it is inserted with InsertEntity.
+	The entity does not exist until it is inserted with insert_entity.
 
 :py:meth:`~pyslet.odata2.csdl.EntityCollection.CopyEntity`
 	Creates a new entity by copying all non-key properties from another
 	entity. The entity does not exist until it is inserted with
-	InsertEntity.
+	insert_entity.
 
-:py:meth:`~pyslet.odata2.csdl.EntityCollection.InsertEntity`
-	Inserts an entity previously created by NewEntity or CopyEntity.
+:py:meth:`~pyslet.odata2.csdl.EntityCollection.insert_entity`
+	Inserts an entity previously created by new_entity or CopyEntity.
 	When inserting an entity any active filter is ignored.
 	
 	Warning: an active filter may result in a paradoxical KeyError::
 	
 		import pyslet.odata2.core as core
 		with people.OpenCollection() as collection:
-			collection.Filter(core.CommonExpression.FromString("startswith(Name,'D')"))
-			newEntity=collection.NewEntity()
+			collection.set_filter(core.CommonExpression.FromString("startswith(Name,'D')"))
+			newEntity=collection.new_entity()
 			newEntity['Key'].SetFromValue(1)
 			newEntity['Name'].SetFromValue(u"Steve")
-			collection.InsertEntity(newEntity)
+			collection.insert_entity(newEntity)
 			# newEntity now exists in the base collection but... 
 			e1=collection[1]
 			# ...raises KeyError as newEntity did not match the filter!
@@ -424,14 +424,14 @@ and so on, the following methods are useful for consumers of the API:
 	It is recommended that collections used to insert entities are not
 	filtered.
 
-:py:meth:`~pyslet.odata2.csdl.EntityCollection.UpdateEntity`
+:py:meth:`~pyslet.odata2.csdl.EntityCollection.update_entity`
 	Updates an existing entity following changes to the Entity's values.
 	You can't update the values of key properties.  To change the key
 	you will need to create a new entity with CopyEntity, insert the new
-	entity and then remove the old one.  Like InsertEntity, the current
+	entity and then remove the old one.  Like insert_entity, the current
 	filter is ignored.
 
-:py:meth:`~pyslet.odata2.csdl.EntityCollection.SetPage`
+:py:meth:`~pyslet.odata2.csdl.EntityCollection.set_page`
 	Sets the top and skip values for this collection, equivalent to the
 	$top and $skip options in OData. This value only affects calls to
 	iterpage.  See `Paging`_ for more information.
@@ -441,13 +441,13 @@ and so on, the following methods are useful for consumers of the API:
 	defined by the top and skip values.  See `Paging`_ for more
 	information.
 
-:py:meth:`~pyslet.odata2.csdl.EntityCollection.Filter`
+:py:meth:`~pyslet.odata2.csdl.EntityCollection.set_filter`
 	Sets the filter for this collection, equivalent to the $filter
 	option in OData. Once set this value effects all future entities
-	returned from the collection (with the exception of NewEntity).  See
+	returned from the collection (with the exception of new_entity).  See
 	`Filtering Collections`_ for more information.
 
-:py:meth:`~pyslet.odata2.csdl.EntityCollection.OrderBy`
+:py:meth:`~pyslet.odata2.csdl.EntityCollection.set_orderby`
 	Sets the filter for this collection, equivalent to the $orderby
 	option in OData. Once set this value effects all future iterations
 	through the collection.  See `Ordering Collections`_ for more
@@ -457,7 +457,7 @@ and so on, the following methods are useful for consumers of the API:
 	Sets expand and select options for this collection, equivalent to
 	the $expand and $select system query options in OData.  Once set
 	these values effect all future entities returned from the collection
-	(with the exception of NewEntity).  See `Expand and Select`_ for
+	(with the exception of new_entity).  See `Expand and Select`_ for
 	more information.
 
 Paging
@@ -477,17 +477,17 @@ smaller *top* value or simply have more control over the automatic
 paging implemented by the default iterators. 
 
 To iterate through a single page of entities you'll start by using the
-the :py:meth:`~pyslet.odata2.csdl.EntityCollection.SetPage` method to
+the :py:meth:`~pyslet.odata2.csdl.EntityCollection.set_page` method to
 specify values for top and, optinally, skip.  You must then use the
 :py:meth:`~pyslet.odata2.csdl.EntityCollection.iterpage` method to 
-iterate through the entities in just that page.  The *setNextPage*
+iterate through the entities in just that page.  The *set_next*
 boolean parameter indicates whether or not the next call to iterpage
 iterates over the same page or the next page of the collection.
 
 To continue the example above, in which *products* is an open collection
 from the Northwind data service::
 
-	>>> products.SetPage(5,50)
+	>>> products.set_page(5,50)
 	>>> for p in products.iterpage(True): print p.Key(), p['ProductName'].value
 	... 
 	INFO:root:Sending request to services.odata.org
@@ -513,7 +513,7 @@ In some cases, the server will restrict the page size and fewer entities
 will be returned than expected, in these cases the skiptoken is used
 automatically when the next page is requested::
 
-	>>> products.SetPage(30,50)
+	>>> products.set_page(30,50)
 	>>> for p in products.iterpage(True): print p.Key(), p['ProductName'].value
 	... 
 	INFO:root:Sending request to services.odata.org
@@ -550,7 +550,7 @@ the entity by the property being navigated.  Filtering a collection
 expression. 
 
 Filter expressions are set using the
-:py:meth:`~pyslet.odata2.csdl.EntityCollection.Filter` method of the
+:py:meth:`~pyslet.odata2.csdl.EntityCollection.set_filter` method of the
 collection.  Once a filter is set, the dictionary methods, and iterpage,
 will only return entities that match the filter.
 
@@ -559,7 +559,7 @@ representation using OData's query language.  For example::
 
 	>>> import pyslet.odata2.core as core
 	>>> filter=core.CommonExpression.FromString("substringof('one',ProductName)")
-	>>> products.Filter(filter)
+	>>> products.set_filter(filter)
 	>>> for p in products.itervalues(): print p.Key(), p['ProductName'].value
 	... 
 	INFO:root:Sending request to services.odata.org
@@ -570,7 +570,7 @@ representation using OData's query language.  For example::
 
 To remove a filter, set the filter expression to None::
 
-	>>> products.Filter(None)
+	>>> products.set_filter(None)
 
 
 Ordering Collections
@@ -582,7 +582,7 @@ unlike python dictionaries you can control this order using an orderby
 option. 
 
 OrderBy expressions are set using the
-:py:meth:`~pyslet.odata2.csdl.EntityCollection.OrderBy` method of the
+:py:meth:`~pyslet.odata2.csdl.EntityCollection.set_orderby` method of the
 collection.  Once an order by expression is set, the dictionary methods,
 and iterpage, will return entities in the order specified.
 
@@ -590,7 +590,7 @@ The easiest way to define an ordering is to compile one directly from a
 string representation using OData's query language.  For example::
 
 	>>> ordering=core.CommonExpression.OrderByFromString("ProductName desc")
-	>>> products.OrderBy(ordering)
+	>>> products.set_orderby(ordering)
 	>>> for p in products.itervalues(): print p.Key(), p['ProductName'].value
 	... 
 	INFO:root:Sending request to services.odata.org
@@ -755,11 +755,11 @@ it is a direct child or part of a Complex value, use its
 The following attributes are useful for consumers of the API (and should
 be treated as read only):
 
-:py:attr:`~pyslet.odata2.csdl.Entity.entitySet`
+:py:attr:`~pyslet.odata2.csdl.Entity.entity_set`
 	The :py:class:`~pyslet.odata2.csdl.EntitySet` to which this entity
 	belongs.
 
-:py:attr:`~pyslet.odata2.csdl.Entity.typeDef`
+:py:attr:`~pyslet.odata2.csdl.Entity.type_def`
 	The :py:class:`~pyslet.odata2.csdl.EntityType` which defines this
 	entity's type.
 
@@ -827,7 +827,7 @@ methods:
 	method can be used to delete the entity.
 
 The following method can only be used on entities that don't exist,
-i.e., entities returned from the collection's NewEntity or CopyEntity
+i.e., entities returned from the collection's new_entity or CopyEntity
 methods that have not been inserted.
  
 :py:meth:`~pyslet.odata2.csdl.Entity.SetKey`
@@ -967,7 +967,7 @@ Read-only attributes useful to data consumers:
 :py:attr:`~pyslet.odata2.csdl.DeferredValue.name`
 	The name of the navigation property
 
-:py:attr:`~pyslet.odata2.csdl.DeferredValue.fromEntity`
+:py:attr:`~pyslet.odata2.csdl.DeferredValue.from_entity`
 	The parent entity of this navigation property
 
 :py:attr:`~pyslet.odata2.csdl.DeferredValue.pDef`
@@ -1026,7 +1026,7 @@ or lists that have values corresponding to those in struct_time::
 
 	>>> import time
 	>>> orders=c.feeds['Orders'].OpenCollection()
-	>>> orders.SetPage(5)
+	>>> orders.set_page(5)
 	>>> top=list(orders.iterpage())
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Orders?$skip=0&$top=5 HTTP/1.1
@@ -1064,16 +1064,16 @@ calendar module conversion methods.
 	from pyslet.odata2.client import Client
 	c=Client("http://services.odata.org/V2/Northwind/Northwind.svc/")
 	products=c.feeds['Products'].OpenCollection()
-	products.SetPage(5,50)
+	products.set_page(5,50)
 	for p in products.iterpage(True): print p.Key(), p['ProductName'].value
-	products.SetPage(30,50)
+	products.set_page(30,50)
 	for p in products.iterpage(True): print p.Key(), p['ProductName'].value
 	for p in products.iterpage(True): print p.Key(), p['ProductName'].value
 	import pyslet.odata2.core as core
 	filter=core.CommonExpression.FromString("substringof('one',ProductName)")
-	products.Filter(filter)
+	products.set_filter(filter)
 	ordering=core.CommonExpression.OrderByFromString("ProductName desc")
-	products.OrderBy(ordering)
+	products.set_orderby(ordering)
 
 	
 	

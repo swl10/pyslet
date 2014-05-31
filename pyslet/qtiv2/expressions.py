@@ -107,7 +107,9 @@ class BaseValue(Expression):
             </xsd:complexType>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'baseValue')
     XMLATTR_baseType = (
-        'baseType', variables.BaseType.DecodeLowerValue, variables.BaseType.EncodeValue)
+        'baseType',
+        variables.BaseType.DecodeLowerValue,
+        variables.BaseType.EncodeValue)
     XMLCONTENT = xmlns.XMLMixedContent
 
     def __init__(self, parent):
@@ -196,7 +198,8 @@ class Correct(Expression):
                 return state[self.identifier + ".CORRECT"]
             elif state.IsResponse(self.identifier):
                 raise core.ProcessingError(
-                    "Can't get the correct value of a built-in response %s" % self.identifier)
+                    "Can't get the correct value of a built-in response %s" %
+                    self.identifier)
             else:
                 raise core.ProcessingError(
                     "%s is not a response variable" % self.identifier)
@@ -268,7 +271,11 @@ class MapResponsePoint(Expression):
                     raise core.ProcessingError(
                         "%s has no areaMapping" % self.identifier)
                 width, height = d.GetStageDimensions()
-                return d.AreaMapping.MapValue(state[self.identifier], width, height)
+                return d.AreaMapping.MapValue(
+                    state[
+                        self.identifier],
+                    width,
+                    height)
             elif state.IsResponse(self.identifier):
                 raise core.ProcessingError(
                     "Can't map built-in response %s" % self.identifier)
@@ -320,7 +327,14 @@ class RandomInteger(Expression):
         min = self.IntegerOrTemplateRef(state, self.min)
         max = self.IntegerOrTemplateRef(state, self.max)
         step = self.IntegerOrTemplateRef(state, self.step)
-        return variables.IntegerValue(min + step * random.randint(0, (max - min) // step))
+        return variables.IntegerValue(
+            min +
+            step *
+            random.randint(
+                0,
+                (max -
+                 min) //
+                step))
 
 
 class RandomFloat(Expression):
@@ -407,8 +421,11 @@ class Multiple(NOperator):
             if baseType is None:
                 baseType = v.baseType
             elif baseType != v.baseType:
-                raise core.ProcessingError("Mixed containers are not allowed: expected %s, found %s" % (
-                    variables.BaseType.EncodeValue(baseType), variables.BaseType.EncodeValue(v.baseType)))
+                raise core.ProcessingError(
+                    "Mixed containers are not allowed: expected %s, found %s" %
+                    (variables.BaseType.EncodeValue(baseType),
+                     variables.BaseType.EncodeValue(
+                        v.baseType)))
             if not v:
                 # ignore NULL
                 continue
@@ -451,8 +468,11 @@ class Ordered(NOperator):
             if baseType is None:
                 baseType = v.baseType
             elif baseType != v.baseType:
-                raise core.ProcessingError("Mixed containers are not allowed: expected %s, found %s" % (
-                    variables.BaseType.EncodeValue(baseType), variables.BaseType.EncodeValue(v.baseType)))
+                raise core.ProcessingError(
+                    "Mixed containers are not allowed: expected %s, found %s" %
+                    (variables.BaseType.EncodeValue(baseType),
+                     variables.BaseType.EncodeValue(
+                        v.baseType)))
             if not v:
                 # ignore NULL
                 continue
@@ -559,8 +579,10 @@ class Index(UnaryOperator):
             return result
         else:
             # wrong cardinality
-            raise core.ProcessingError("Index requires ordered value, found %s" %
-                                       variables.Cardinality.EncodeValue(value.Cardinality()))
+            raise core.ProcessingError(
+                "Index requires ordered value, found %s" %
+                variables.Cardinality.EncodeValue(
+                    value.Cardinality()))
 
 
 class FieldValue(UnaryOperator):
@@ -595,8 +617,10 @@ class FieldValue(UnaryOperator):
                 return variables.SingleValue()
         else:
             # wrong cardinality
-            raise core.ProcessingError("fieldValue requires record value, found %s" %
-                                       variables.Cardinality.EncodeValue(value.Cardinality()))
+            raise core.ProcessingError(
+                "fieldValue requires record value, found %s" %
+                variables.Cardinality.EncodeValue(
+                    value.Cardinality()))
 
 
 class Random(UnaryOperator):
@@ -629,8 +653,10 @@ class Random(UnaryOperator):
             return variables.SingleValue()
         else:
             # wrong cardinality
-            raise core.ProcessingError("Random requires multiple or ordered value, found %s" %
-                                       variables.Cardinality.EncodeValue(value.Cardinality()))
+            raise core.ProcessingError(
+                "Random requires multiple or ordered value, found %s" %
+                variables.Cardinality.EncodeValue(
+                    value.Cardinality()))
 
 
 class Member(NOperator):
@@ -664,15 +690,21 @@ class Member(NOperator):
                 "Member operator must not be used on duration values")
         if singleValue and containerValue:
             if singleValue.Cardinality() != variables.Cardinality.single:
-                raise core.ProcessingError("Expected single value, found %s" %
-                                           variables.Cardinality.EncodeValue(singleValue.Cardinality()))
+                raise core.ProcessingError(
+                    "Expected single value, found %s" %
+                    variables.Cardinality.EncodeValue(
+                        singleValue.Cardinality()))
             if containerValue.Cardinality() == variables.Cardinality.ordered:
-                return variables.BooleanValue(singleValue.value in containerValue.value)
+                return variables.BooleanValue(
+                    singleValue.value in containerValue.value)
             elif containerValue.Cardinality() == variables.Cardinality.multiple:
-                return variables.BooleanValue(singleValue.value in containerValue.value.keys())
+                return variables.BooleanValue(
+                    singleValue.value in containerValue.value.keys())
             else:
-                raise core.ProcessingError("Expected ordered or multiple value, found %s" %
-                                           variables.Cardinality.EncodeValue(containerValue.Cardinality()))
+                raise core.ProcessingError(
+                    "Expected ordered or multiple value, found %s" %
+                    variables.Cardinality.EncodeValue(
+                        containerValue.Cardinality()))
         else:
             return variables.BooleanValue()
 
@@ -699,9 +731,13 @@ class Delete(NOperator):
                 "Delete requires two sub-expressions, found %i" % len(values))
         singleValue, containerValue = values
         if containerValue.baseType is None:
-            return variables.Container.NewValue(containerValue.Cardinality(), singleValue.baseType)
+            return variables.Container.NewValue(
+                containerValue.Cardinality(),
+                singleValue.baseType)
         elif singleValue.baseType is None:
-            return variables.Container.NewValue(containerValue.Cardinality(), containerValue.baseType)
+            return variables.Container.NewValue(
+                containerValue.Cardinality(),
+                containerValue.baseType)
         elif singleValue.baseType != containerValue.baseType:
             raise core.ProcessingError(
                 "Mismatched base types for delete operator")
@@ -709,11 +745,15 @@ class Delete(NOperator):
             raise core.ProcessingError(
                 "Delete operator must not be used on duration values")
         if singleValue.Cardinality() not in (variables.Cardinality.single, None):
-            raise core.ProcessingError("Expected single value, found %s" %
-                                       variables.Cardinality.EncodeValue(singleValue.Cardinality()))
+            raise core.ProcessingError(
+                "Expected single value, found %s" %
+                variables.Cardinality.EncodeValue(
+                    singleValue.Cardinality()))
         if containerValue.Cardinality() not in (variables.Cardinality.ordered, variables.Cardinality.multiple, None):
-            raise core.ProcessingError("Expected ordered or multiple value, found %s" %
-                                       variables.Cardinality.EncodeValue(containerValue.Cardinality()))
+            raise core.ProcessingError(
+                "Expected ordered or multiple value, found %s" %
+                variables.Cardinality.EncodeValue(
+                    containerValue.Cardinality()))
         result = variables.Container.NewValue(
             containerValue.Cardinality(), containerValue.baseType)
         if singleValue and containerValue:
@@ -748,7 +788,8 @@ class Contains(NOperator):
         values = list(self.EvaluateChildren(state))
         if len(values) != 2:
             raise core.ProcessingError(
-                "Contains requires two sub-expressions, found %i" % len(values))
+                "Contains requires two sub-expressions, found %i" %
+                len(values))
         v1, v2 = values
         baseType = variables.CheckBaseTypes(v1.baseType, v2.baseType)
         cardinality = variables.CheckCardinalities(
@@ -784,8 +825,9 @@ class Contains(NOperator):
                         break
                 return variables.BooleanValue(match)
             else:
-                raise core.ProcessingError("Expected ordered or multiple value, found %s" %
-                                           variables.Cardinality.EncodeValue(cardinality))
+                raise core.ProcessingError(
+                    "Expected ordered or multiple value, found %s" %
+                    variables.Cardinality.EncodeValue(cardinality))
         else:
             return variables.BooleanValue()
 
@@ -818,7 +860,8 @@ class SubString(NOperator):
         values = list(self.EvaluateChildren(state))
         if len(values) != 2:
             raise core.ProcessingError(
-                "substring requires two sub-expressions, found %i" % len(values))
+                "substring requires two sub-expressions, found %i" %
+                len(values))
         v1, v2 = values
         baseType = variables.CheckBaseTypes(
             v1.baseType, v2.baseType, variables.BaseType.string)
@@ -828,7 +871,8 @@ class SubString(NOperator):
             if self.caseSensitive:
                 return variables.BooleanValue(v1.value in v2.value)
             else:
-                return variables.BooleanValue(v1.value.lower() in v2.value.lower())
+                return variables.BooleanValue(
+                    v1.value.lower() in v2.value.lower())
         else:
             return variables.BooleanValue()
 
@@ -875,8 +919,9 @@ class And(NOperator):
         # go...
         baseType = None
         values = list(self.EvaluateChildren(state))
-        variables.CheckCardinalities(
-            *map(lambda x: x.Cardinality(), values) + [variables.Cardinality.single])
+        variables.CheckCardinalities(*
+                                     map(lambda x: x.Cardinality(), values) +
+                                     [variables.Cardinality.single])
         variables.CheckBaseTypes(
             *map(lambda x: x.baseType, values) + [variables.BaseType.boolean])
         result = True
@@ -907,13 +952,14 @@ class Or(NOperator):
         # go...
         baseType = None
         values = list(self.EvaluateChildren(state))
-        variables.CheckCardinalities(
-            *map(lambda x: x.Cardinality(), values) + [variables.Cardinality.single])
+        variables.CheckCardinalities(*
+                                     map(lambda x: x.Cardinality(), values) +
+                                     [variables.Cardinality.single])
         variables.CheckBaseTypes(
             *map(lambda x: x.baseType, values) + [variables.BaseType.boolean])
         result = False
         for v in values:
-            if v.value == True:
+            if v.value:
                 return variables.BooleanValue(True)
             elif v.value is None:
                 result = None
@@ -952,13 +998,14 @@ class AnyN(NOperator):
         min = self.IntegerOrTemplateRef(state, self.min)
         max = self.IntegerOrTemplateRef(state, self.max)
         values = list(self.EvaluateChildren(state))
-        variables.CheckCardinalities(
-            *map(lambda x: x.Cardinality(), values) + [variables.Cardinality.single])
+        variables.CheckCardinalities(*
+                                     map(lambda x: x.Cardinality(), values) +
+                                     [variables.Cardinality.single])
         variables.CheckBaseTypes(
             *map(lambda x: x.baseType, values) + [variables.BaseType.boolean])
         nTrue = nNull = 0
         for v in values:
-            if v.value == True:
+            if v.value:
                 nTrue += 1
             elif v.value is None:
                 nNull += 1
@@ -1003,7 +1050,7 @@ class Match(NOperator):
         v1, v2 = values
         try:
             return variables.BooleanValue(v1 == v2)
-        except variables.NullResult, null:
+        except variables.NullResult as null:
             return null.value
 
 
@@ -1037,7 +1084,8 @@ class StringMatch(NOperator):
         values = list(self.EvaluateChildren(state))
         if len(values) != 2:
             raise core.ProcessingError(
-                "stringMatch requires two sub-expressions, found %i" % len(values))
+                "stringMatch requires two sub-expressions, found %i" %
+                len(values))
         v1, v2 = values
         baseType = variables.CheckBaseTypes(
             v1.baseType, v2.baseType, variables.BaseType.string)
@@ -1155,7 +1203,9 @@ class Equal(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'equal')
     XMLATTR_toleranceMode = (
-        'toleranceMode', ToleranceMode.DecodeLowerValue, ToleranceMode.EncodeValue)
+        'toleranceMode',
+        ToleranceMode.DecodeLowerValue,
+        ToleranceMode.EncodeValue)
     XMLATTR_tolerance = 'tolerance'
     XMLATTR_includeLowerBound = (
         'includeLowerBound', xsi.DecodeBoolean, xsi.EncodeBoolean)
@@ -1273,7 +1323,8 @@ class EqualRounded(NOperator):
         values = list(self.EvaluateChildren(state))
         if len(values) != 2:
             raise core.ProcessingError(
-                "equalRounded requires two sub-expressions, found %i" % len(values))
+                "equalRounded requires two sub-expressions, found %i" %
+                len(values))
         v1, v2 = values
         baseType = variables.CheckNumericalTypes(v1.baseType, v2.baseType)
         cardinality = variables.CheckCardinalities(
@@ -1284,12 +1335,24 @@ class EqualRounded(NOperator):
             v2v = float(v2.value)
             figures = self.IntegerOrTemplateRef(state, self.figures)
             if self.roundingMode == RoundingMode.decimalPlaces:
-                return variables.BooleanValue(xsi.EncodeDecimal(v1v, figures, False) ==
-                                              xsi.EncodeDecimal(v2v, figures, False))
+                return variables.BooleanValue(
+                    xsi.EncodeDecimal(
+                        v1v,
+                        figures,
+                        False) == xsi.EncodeDecimal(
+                        v2v,
+                        figures,
+                        False))
             else:
                 # for sig fig, we need to use the double form
-                return variables.BooleanValue(xsi.EncodeDouble(v1v, figures - 1) ==
-                                              xsi.EncodeDouble(v2v, figures - 1))
+                return variables.BooleanValue(
+                    xsi.EncodeDouble(
+                        v1v,
+                        figures -
+                        1) == xsi.EncodeDouble(
+                        v2v,
+                        figures -
+                        1))
         else:
             return variables.BooleanValue()
 
@@ -1323,7 +1386,11 @@ class Inside(UnaryOperator, core.ShapeElementMixin):
         variables.CheckBaseTypes(value.baseType, variables.BaseType.point)
         if value.Cardinality() == variables.Cardinality.single:
             if value:
-                return variables.BooleanValue(self.TestPoint(value.value, None, None))
+                return variables.BooleanValue(
+                    self.TestPoint(
+                        value.value,
+                        None,
+                        None))
             else:
                 return variables.BooleanValue()
         elif value.Cardinality() in (variables.Cardinality.ordered, variables.Cardinality.multiple):
@@ -1557,9 +1624,11 @@ class Sum(NOperator):
         values = list(self.EvaluateChildren(state))
         if len(values) < 1:
             raise core.ProcessingError(
-                "sum requires at least one sub-expression, found %i" % len(values))
-        variables.CheckCardinalities(
-            *map(lambda x: x.Cardinality(), values) + [variables.Cardinality.single])
+                "sum requires at least one sub-expression, found %i" %
+                len(values))
+        variables.CheckCardinalities(*
+                                     map(lambda x: x.Cardinality(), values) +
+                                     [variables.Cardinality.single])
         baseType = variables.CheckNumericalTypes(
             *map(lambda x: x.baseType, values))
         if baseType is None:
@@ -1599,9 +1668,11 @@ class Product(NOperator):
         values = list(self.EvaluateChildren(state))
         if len(values) < 1:
             raise core.ProcessingError(
-                "product requires at least one sub-expression, found %i" % len(values))
-        variables.CheckCardinalities(
-            *map(lambda x: x.Cardinality(), values) + [variables.Cardinality.single])
+                "product requires at least one sub-expression, found %i" %
+                len(values))
+        variables.CheckCardinalities(*
+                                     map(lambda x: x.Cardinality(), values) +
+                                     [variables.Cardinality.single])
         baseType = variables.CheckNumericalTypes(
             *map(lambda x: x.baseType, values))
         if baseType is None:
@@ -1641,7 +1712,8 @@ class Subtract(NOperator):
         values = list(self.EvaluateChildren(state))
         if len(values) != 2:
             raise core.ProcessingError(
-                "subtract requires two sub-expressions, found %i" % len(values))
+                "subtract requires two sub-expressions, found %i" %
+                len(values))
         v1, v2 = values
         baseType = variables.CheckNumericalTypes(v1.baseType, v2.baseType)
         cardinality = variables.CheckCardinalities(
@@ -1755,7 +1827,8 @@ class IntegerDivide(NOperator):
         values = list(self.EvaluateChildren(state))
         if len(values) != 2:
             raise core.ProcessingError(
-                "integerDivide requires two sub-expressions, found %i" % len(values))
+                "integerDivide requires two sub-expressions, found %i" %
+                len(values))
         v1, v2 = values
         variables.CheckBaseTypes(
             v1.baseType, v2.baseType, variables.BaseType.integer)
@@ -1789,7 +1862,8 @@ class IntegerModulus(NOperator):
         values = list(self.EvaluateChildren(state))
         if len(values) != 2:
             raise core.ProcessingError(
-                "integerModulus requires two sub-expressions, found %i" % len(values))
+                "integerModulus requires two sub-expressions, found %i" %
+                len(values))
         v1, v2 = values
         variables.CheckBaseTypes(
             v1.baseType, v2.baseType, variables.BaseType.integer)
@@ -1903,5 +1977,6 @@ class CustomOperator(NOperator):
         self.definition = None
 
     def Evaluate(self, state):
-        raise core.ProcessingError("customOperator.%s not supported" %
-                                   (self.customClass if self.customClass is not None else "<unknown>"))
+        raise core.ProcessingError(
+            "customOperator.%s not supported" %
+            (self.customClass if self.customClass is not None else "<unknown>"))

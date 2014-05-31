@@ -16,7 +16,7 @@ class ObjectBank(common.MetadataContainerMixin, common.QTICommentContainer):
     grouped as an object-bank. The object-bank is assigned its own unique
     identifier and can have the full set of QTI-specific meta-data::
 
-    <!ELEMENT objectbank (qticomment? , qtimetadata* , (section | item)+)>	
+    <!ELEMENT objectbank (qticomment? , qtimetadata* , (section | item)+)>
     <!ATTLIST objectbank  ident CDATA  #REQUIRED >"""
     XMLNAME = "objectbank"
     XMLATTR_ident = 'ident'

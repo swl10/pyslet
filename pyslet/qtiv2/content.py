@@ -98,21 +98,28 @@ ObjectElements = {
 
 
 PresentationElements = {
-    'caption': ('id', 'class', 'label'),
-    'col': ('id', 'class', 'label', 'span'),
-    'colgroup': ('id', 'class', 'label', 'span'),
-    'table': ('id', 'class', 'label', 'summary'),
-    'tbody': ('id', 'class', 'label'),
-    'tfoot': ('id', 'class', 'label'),
-    'thead': ('id', 'class', 'label'),
-    'tr': ('id', 'class', 'label'),
-    'th': ('id', 'class', 'label', 'headers', 'scope', 'abbr', 'axis', 'rowspan', 'colspan'),
-    'td': ('id', 'class', 'label', 'headers', 'scope', 'abbr', 'axis', 'rowspan', 'colspan')
-}		#: Tables
+    'caption': (
+        'id', 'class', 'label'), 'col': (
+            'id', 'class', 'label', 'span'), 'colgroup': (
+                'id', 'class', 'label', 'span'), 'table': (
+                    'id', 'class', 'label', 'summary'), 'tbody': (
+                        'id', 'class', 'label'), 'tfoot': (
+                            'id', 'class', 'label'), 'thead': (
+                                'id', 'class', 'label'), 'tr': (
+                                    'id', 'class', 'label'), 'th': (
+                                        'id', 'class', 'label', 'headers', 'scope', 'abbr', 'axis', 'rowspan', 'colspan'), 'td': (
+                                            'id', 'class', 'label', 'headers', 'scope', 'abbr', 'axis', 'rowspan', 'colspan')}  # : Tables
 
 ImageElement = {
-    'img': ('id', 'class', 'label', 'src', 'alt', 'longdesc', 'height', 'width')
-}		#: Images
+    'img': (
+        'id',
+        'class',
+        'label',
+        'src',
+        'alt',
+        'longdesc',
+        'height',
+        'width')}  # : Images
 
 
 HypertextElement = {
@@ -165,7 +172,10 @@ class ItemBody(BodyElement):
             return BodyElement.ChildElement(self, childClass, name)
         else:
             raise core.QTIValidityError(
-                "%s (%s) in %s" % (repr(name), childClass.__name__, self.__class__.__name__))
+                "%s (%s) in %s" %
+                (repr(name),
+                 childClass.__name__,
+                 self.__class__.__name__))
 
     def RenderHTML(self, parent, profile, itemState):
         """Overrides :py:meth:`BodyElement.RenderHTML`, the result is always a

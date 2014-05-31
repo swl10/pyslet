@@ -1180,7 +1180,7 @@ class ServerTests(unittest.TestCase):
 		etag="W/\"X'%s'\""%h.hexdigest().upper()
 		documents.data[1801]=(1801,'War and Peace','Tolstoy',h.digest())
 		document=documentSet.OpenCollection()[1801]
-		document.SetStreamFromGenerator('text/plain',[docText])
+		document.set_stream_from_generator('text/plain',[docText])
 		jsonData=string.join(document.GenerateEntityTypeInJSON())
 		obj=json.loads(jsonData)
 		meta=obj["__metadata"]
@@ -1232,7 +1232,7 @@ class ServerTests(unittest.TestCase):
 		h.update(docText)
 		documents.data[1801]=(1801,'War and Peace','Tolstoy',h.digest())
 		document=documentSet.OpenCollection()[1801]
-		document.SetStreamFromGenerator('text/plain',[docText])
+		document.set_stream_from_generator('text/plain',[docText])
 		jsonData=string.join(document.GenerateEntityTypeInJSON())
 		obj=json.loads(jsonData)
 		newDocument=core.Entity(documentSet)
@@ -1387,7 +1387,7 @@ class CustomersByCityEntityCollection(core.FunctionEntityCollection):
 	def __init__(self,function,params,customers):
 		core.FunctionEntityCollection.__init__(self,function,params)
 		self.customers=customers
-		self.collection=self.entitySet.OpenCollection()
+		self.collection=self.entity_set.OpenCollection()
 		self.city=params.get('city','Chunton')
 		
 	def itervalues(self):
@@ -1471,24 +1471,24 @@ class SampleServerTests(unittest.TestCase):
 		orderLines=self.container.entityStorage['OrderLines']
 		orderLines.data[100]=(100,12,decimal.Decimal('0.45'))
 		orderLines.data[200]=(200,144,decimal.Decimal('2.50'))
-		with orders.entitySet.OpenCollection() as collOrders:
+		with orders.entity_set.OpenCollection() as collOrders:
 			order=collOrders[1]
 			order['Customer'].BindEntity('ALFKI')
 			order['OrderLine'].BindEntity(100)
-			collOrders.UpdateEntity(order)
+			collOrders.update_entity(order)
 			order=collOrders[2]
 			order['Customer'].BindEntity('ALFKI')
 			order['OrderLine'].BindEntity(200)
-			collOrders.UpdateEntity(order)
+			collOrders.update_entity(order)
 			order=collOrders[3]
 			order['Customer'].BindEntity('XXX00')
-			collOrders.UpdateEntity(order)
+			collOrders.update_entity(order)
 		documents=self.container.entityStorage['Documents']
 		documents.data[300]=(300,'The Book','The Author',None)
 		documents.data[301]=(301,'A Book','An Author',None)
-		with memds.EntityCollection(entitySet=documents.entitySet,entityStore=documents) as collection:
+		with memds.EntityCollection(entity_set=documents.entity_set,entity_store=documents) as collection:
 			doc=collection[301]
-			doc.SetStreamFromGenerator(http.MediaType.FromString("text/plain; charset=iso-8859-1"),["An opening line written in a Caf\xe9"])
+			doc.set_stream_from_generator(http.MediaType.FromString("text/plain; charset=iso-8859-1"),["An opening line written in a Caf\xe9"])
 		self.xContainer=memds.InMemoryEntityContainer(self.ds['SampleModel.ExtraEntities'])
 		bitsAndPieces=self.xContainer.entityStorage['BitsAndPieces']
 		bitsAndPieces.data[1]=(1,'blahblah')
@@ -2991,7 +2991,7 @@ class SampleServerTests(unittest.TestCase):
 			with order['Customer'].OpenCollection() as navCollection:
 				del navCollection['XXX00']				
 		customers=self.ds['SampleModel.SampleEntities.Customers'].OpenCollection()
-		customer=customers.NewEntity()
+		customer=customers.new_entity()
 		customer['CustomerID'].SetFromValue(u'STEVE')
 		customer['CompanyName'].SetFromValue("Steve's Inc")
 		customer['Address']['City'].SetFromValue('Cambridge')
@@ -3018,7 +3018,7 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(newCustomer['Address']['City'].value==u"Cambridge")
 		self.assertFalse(newCustomer['Address']['Street'])	
 		# insert entity with binding
-		customer=customers.NewEntity()
+		customer=customers.new_entity()
 		customer['CustomerID'].SetFromValue(u'ASDFG')
 		customer['CompanyName'].SetFromValue("Contoso Widgets")
 		customer['Address']['Street'].SetFromValue('58 Contoso St')
@@ -3063,7 +3063,7 @@ class SampleServerTests(unittest.TestCase):
 			with order['Customer'].OpenCollection() as navCollection:
 				del navCollection['XXX00']				
 		customers=self.ds['SampleModel.SampleEntities.Customers'].OpenCollection()
-		customer=customers.NewEntity()
+		customer=customers.new_entity()
 		customer['CustomerID'].SetFromValue(u'STEVE')
 		customer['CompanyName'].SetFromValue("Steve's Inc")
 		customer['Address']['City'].SetFromValue('Cambridge')
@@ -3091,7 +3091,7 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(newCustomer['Address']['City'].value==u"Cambridge")
 		self.assertFalse(newCustomer['Address']['Street'])	
 		# insert entity with binding
-		customer=customers.NewEntity()
+		customer=customers.new_entity()
 		customer['CustomerID'].SetFromValue(u'ASDFG')
 		customer['CompanyName'].SetFromValue("Contoso Widgets")
 		customer['Address']['Street'].SetFromValue('58 Contoso St')
@@ -3851,7 +3851,7 @@ class SampleServerTests(unittest.TestCase):
 		self.assertTrue(document['Version'].value==h.digest(),'Version calculation')
 		self.assertTrue(document.GetStreamType()=="text/x-tolstoy")
 		self.assertTrue(document.GetStreamSize()==len(data))
-		self.assertTrue(string.join(document.GetStreamGenerator(),'')==data)
+		self.assertTrue(string.join(document.get_stream_generator(),'')==data)
 
 	def testCaseDeleteEntity(self):
 		request=MockRequest("/service.svc/Customers('ALFKI')","DELETE")

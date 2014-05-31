@@ -118,12 +118,12 @@ class SectionControl(common.QTICommentContainer):
     """The control switches that are used to enable or disable the display of
     hints, solutions and feedback within the Section::
 
-    <!ELEMENT sectioncontrol (qticomment?)>	
+    <!ELEMENT sectioncontrol (qticomment?)>
     <!ATTLIST sectioncontrol  feedbackswitch  (Yes | No )  'Yes'
             hintswitch  (Yes | No )  'Yes'
             solutionswitch  (Yes | No )  'Yes'
             view	(All | Administrator | AdminAuthority | Assessor | Author |
-                            Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+                            Candidate | InvigilatorProctor | Psychometrician | Scorer |
                             Tutor ) 'All' >"""
     XMLNAME = 'sectioncontrol'
     XMLATTR_feedbackswitch = (
@@ -157,10 +157,10 @@ class SectionFeedback(common.QTICommentContainer, common.ContentMixin):
     """The container for the Section-level feedback that is to be presented as a
     result of Section-level processing of the user's responses::
 
-    <!ELEMENT sectionfeedback (qticomment? , (material+ | flow_mat+))>	
-    <!ATTLIST sectionfeedback  
+    <!ELEMENT sectionfeedback (qticomment? , (material+ | flow_mat+))>
+    <!ATTLIST sectionfeedback
             view	(All | Administrator | AdminAuthority | Assessor | Author |
-                            Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+                            Candidate | InvigilatorProctor | Psychometrician | Scorer |
                             Tutor ) 'All'
             ident CDATA  #REQUIRED
             title CDATA  #IMPLIED >"""
@@ -193,7 +193,7 @@ class SectionRef(core.SectionMixin, core.QTIElement):
 
     """Represents the sectionref element::
 
-    <!ELEMENT sectionref (#PCDATA)>	
+    <!ELEMENT sectionref (#PCDATA)>
     <!ATTLIST sectionref  linkrefid CDATA  #REQUIRED >"""
     XMLNAME = 'sectionref'
     XMLATTR_linkrefid = 'linkrefid'
@@ -216,7 +216,7 @@ class ItemRef(core.QTIElement, core.SectionItemMixin):
     refer to a Item that has been defined elsewhere but which is to be logically
     related to this group of Items::
 
-    <!ELEMENT itemref (#PCDATA)>	
+    <!ELEMENT itemref (#PCDATA)>
     <!ATTLIST itemref  linkrefid CDATA  #REQUIRED >"""
     XMLNAME = 'itemref'
     XMLATTR_linkrefid = 'linkrefid'

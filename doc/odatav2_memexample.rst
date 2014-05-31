@@ -71,11 +71,11 @@ Let's write a simple test function to test our model::
 	def TestData(memCache):
 		with memCache.OpenCollection() as collection:
 			for i in xrange(26):
-				e=collection.NewEntity()
+				e=collection.new_entity()
 				e.SetKey(str(i))
 				e['Value'].SetFromValue(unichr(0x41+i))
 				e['Expires'].SetFromValue(iso.TimePoint.FromUnixTime(time.time()+10*i))
-				collection.InsertEntity(e)
+				collection.insert_entity(e)
 
 	def TestModel():
 		"""Read and write some key value pairs"""
@@ -237,13 +237,13 @@ add one last function to our code::
 			now.SetFromValue(iso.TimePoint.FromNowUTC())
 			logging.info("Cleanup thread running at %s",str(now.value))
 			with memCache.OpenCollection() as cacheEntries:
-				cacheEntries.Filter(filter)
+				cacheEntries.set_filter(filter)
 				expiredList=list(cacheEntries)
 				if expiredList:
 					logging.info("Cleaning %i cache entries",len(expiredList))
 					for expired in expiredList:
 						del cacheEntries[expired]
-				cacheEntries.Filter(None)
+				cacheEntries.set_filter(None)
 				logging.info("Cleanup complete, %i cache entries remain",len(cacheEntries))			
 			time.sleep(CLEANUP_SLEEP)
 

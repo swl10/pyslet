@@ -1,4 +1,4 @@
-"""A package of modules reading and writing data structures to XML documents. 
+"""A package of modules reading and writing data structures to XML documents.
 
 """
 

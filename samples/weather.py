@@ -27,7 +27,7 @@ from pyslet.odata2.memds import InMemoryEntityContainer
 import pyslet.rfc2616 as http
 
 
-def LoadMetadata(path='WeatherSchema.xml'):
+def LoadMetadata(path=os.path.join(os.path.split(__file__)[0],'WeatherSchema.xml')):
     """Loads the metadata file from the current directory."""
     doc = edmx.Document()
     with open(path, 'rb') as f:
@@ -40,10 +40,10 @@ def MakeContainer(doc, drop=False, path=SAMPLE_DB):
         os.remove(path)
     create = not os.path.isfile(path)
     container = SQLiteEntityContainer(
-        filePath=path,
-        containerDef=doc.root.DataServices['WeatherSchema.CambridgeWeather'])
+        file_path=path,
+        container=doc.root.DataServices['WeatherSchema.CambridgeWeather'])
     if create:
-        container.CreateAllTables()
+        container.create_all_tables()
 
 
 def IsBST(t):
@@ -124,7 +124,7 @@ def LoadDataFromFile(weatherData, f, year, month, day):
                     data[i] = int(data[i])
                 except ValueError:
                     data[i] = None
-            dataPoint = collection.NewEntity()
+            dataPoint = collection.new_entity()
             hour, min = map(int, data[0].split(':'))
             tValue = iso.TimePoint(
                 date=iso.Date(century=year / 100, year=year %
@@ -149,7 +149,7 @@ def LoadDataFromFile(weatherData, f, year, month, day):
                 iso.Time(hour=shour, minute=smin, second=0))
             dataPoint['WindSpeedMax'].SetFromValue(data[10])
             try:
-                collection.InsertEntity(dataPoint)
+                collection.insert_entity(dataPoint)
             except edm.ConstraintError:
                 if bst is None:
                     # This was an ambiguous entry, the first one is in BST, the
@@ -161,7 +161,7 @@ def LoadDataFromFile(weatherData, f, year, month, day):
                     logging.info(
                         "Auto-detecting switch to GMT at: %s", str(tValue))
                     try:
-                        collection.InsertEntity(dataPoint)
+                        collection.insert_entity(dataPoint)
                     except KeyError:
                         logging.error(
                             "Duplicate data point during BST/GMT switching: %s",
@@ -195,7 +195,7 @@ def LoadNotes(weatherNotes, fileName, weatherData):
                     continue
                 noteWords = line.split()
                 if noteWords:
-                    note = collection.NewEntity()
+                    note = collection.new_entity()
                     note['ID'].SetFromValue(id)
                     start = iso.TimePoint(
                         date=iso.Date.FromString(noteWords[0]),
@@ -207,9 +207,9 @@ def LoadNotes(weatherNotes, fileName, weatherData):
                     note['EndDate'].SetFromValue(end)
                     note['Details'].SetFromValue(
                         string.join(noteWords[2:], ' '))
-                    collection.InsertEntity(note)
+                    collection.insert_entity(note)
                     # now find the data points that match
-                    data.Filter(
+                    data.set_filter(
                         core.CommonExpression.FromString(
                             "TimePoint ge datetime'%s' and TimePoint lt datetime'%s'" %
                             (unicode(start), unicode(end))))
@@ -217,10 +217,10 @@ def LoadNotes(weatherNotes, fileName, weatherData):
                         # use values, not itervalues to avoid this bug in Python 2.7
                         # http://bugs.python.org/issue10513
                         dataPoint['Note'].BindEntity(note)
-                        data.UpdateEntity(dataPoint)
+                        data.update_entity(dataPoint)
                     id = id + 1
     with weatherNotes.OpenCollection() as collection:
-        collection.OrderBy(
+        collection.set_orderby(
             core.CommonExpression.OrderByFromString('StartDate desc'))
         for e in collection.itervalues():
             with e['DataPoints'].OpenCollection() as affectedData:
@@ -254,9 +254,9 @@ def TestModel(drop=False):
         LoadData(weatherData, SAMPLE_DIR)
         LoadNotes(weatherNotes, 'weathernotes.txt', weatherData)
     with weatherData.OpenCollection() as collection:
-        collection.OrderBy(
+        collection.set_orderby(
             core.CommonExpression.OrderByFromString('WindSpeedMax desc'))
-        collection.SetPage(30)
+        collection.set_page(30)
         for e in collection.iterpage():
             note = e['Note'].GetEntity()
             if e['WindSpeedMax'] and e['Pressure']:
@@ -283,10 +283,10 @@ def runWeatherLoader(container=None):
     weatherData = container['DataPoints']
     DTG = "http://www.cl.cam.ac.uk/research/dtg/weather/daily-text.cgi?%s"
     with weatherData.OpenCollection() as collection:
-        collection.OrderBy(
+        collection.set_orderby(
             core.CommonExpression.OrderByFromString('TimePoint desc'))
         sleepInterval = 60
-        collection.SetPage(1)
+        collection.set_page(1)
         lastPoint = list(collection.iterpage())
         if lastPoint:
             lastPoint = lastPoint[0]['TimePoint'].value

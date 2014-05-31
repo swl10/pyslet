@@ -1312,9 +1312,9 @@ class ODataURITests(unittest.TestCase):
 		self.assertTrue(dsURI.pathPrefix=='/x.svc',"svc path prefix")
 		self.assertTrue(dsURI.resourcePath=='/Products',"resource path")
 		self.assertTrue(len(dsURI.navPath)==1,"navPath: %s"%repr(dsURI.navPath))
-		self.assertTrue(type(dsURI.navPath[0][0]) is UnicodeType,"entitySet name type")
-		self.assertTrue(dsURI.navPath[0][0]=='Products',"entitySet name: Products")
-		self.assertTrue(dsURI.navPath[0][1]==None,"entitySet no key-predicate")		
+		self.assertTrue(type(dsURI.navPath[0][0]) is UnicodeType,"entity set name type")
+		self.assertTrue(dsURI.navPath[0][0]=='Products',"entity set name: Products")
+		self.assertTrue(dsURI.navPath[0][1]==None,"entity set no key-predicate")		
 		dsURI=ODataURI('Products','/x.svc')
 		self.assertTrue(dsURI.pathPrefix=='/x.svc',"svc path prefix")
 		self.assertTrue(dsURI.resourcePath=='/Products',"resource path")
@@ -1367,7 +1367,7 @@ class ODataURITests(unittest.TestCase):
 		self.assertTrue(set(dsURI.sysQueryOptions.keys())==set([SystemQueryOption.format,
 			SystemQueryOption.top,SystemQueryOption.skip]),repr(dsURI.sysQueryOptions))
 		self.assertTrue(dsURI.queryOptions==["space='%20'"],'query options')
-		self.assertTrue(dsURI.navPath==[(u'Products',{})],"entitySet: Products, found %s"%repr(dsURI.navPath))
+		self.assertTrue(dsURI.navPath==[(u'Products',{})],"entity set: Products, found %s"%repr(dsURI.navPath))
 		dsURI=ODataURI('Products()/$count','/x.svc')
 		self.assertTrue(dsURI.resourcePath=='/Products()/$count',"resource path")
 		self.assertTrue(dsURI.sysQueryOptions=={},'sysQueryOptions')
@@ -1565,7 +1565,7 @@ class DataServiceRegressionTests(unittest.TestCase):
 	def RunTestCaseAllTypes(self):
 		allTypes=self.ds['RegressionModel.RegressionContainer.AllTypes']
 		with allTypes.OpenCollection() as collection:
-			entity=collection.NewEntity()
+			entity=collection.new_entity()
 			# <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
 			entity['ID'].SetFromValue(1)
 			# <Property Name="BinaryFixed" Type="Edm.Binary" MaxLength="10" FixedLength="true"/>
@@ -1603,7 +1603,7 @@ class DataServiceRegressionTests(unittest.TestCase):
 			# <Property Name="FixedString" Type="Edm.String" FixedLength="true" MaxLength="5"/>
 			entity['FixedString'].SetFromValue(u"ALFKI")
 			#	CREATE
-			collection.InsertEntity(entity)
+			collection.insert_entity(entity)
 			#	READ (collection)
 			self.assertTrue(len(collection)==1,"AllTypes length after insert")
 			gotEntity=collection.values()[0]
@@ -1651,7 +1651,7 @@ class DataServiceRegressionTests(unittest.TestCase):
 			gotEntity['UnicodeString'].SetFromValue(u"I\u2764Unicode")
 			gotEntity['ASCIIString'].SetFromValue(u"Bistro")
 			gotEntity['FixedString'].SetFromValue(u"\u2780\u2781\u2782\u2783\u2784")
-			collection.UpdateEntity(gotEntity)
+			collection.update_entity(gotEntity)
 			checkEntity=collection[1]
 			self.assertTrue(checkEntity['BinaryFixed'].value=='\x00\x01\x02\x03\x04~\xDE\xAD\xBE\xEF',"BinaryFixed on read")
 			self.assertTrue(checkEntity['BinaryVariable'].value=='\x00~\xDE\xAD\xBE\xEF',"BinaryVariable on read")
@@ -1685,9 +1685,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 				pass
 			#	NULL tests
 			#	CREATE
-			entity=collection.NewEntity()
+			entity=collection.new_entity()
 			entity['ID'].SetFromValue(2)
-			collection.InsertEntity(entity)
+			collection.insert_entity(entity)
 			#	READ
 			gotEntity=collection[2]
 			self.assertTrue(gotEntity['ID'].value==2)
@@ -1700,13 +1700,13 @@ class DataServiceRegressionTests(unittest.TestCase):
 	def RunTestCaseComplexTypes(self):
 		complexTypes=self.ds['RegressionModel.RegressionContainer.ComplexTypes']
 		with complexTypes.OpenCollection() as collection:
-			entity=collection.NewEntity()
+			entity=collection.new_entity()
 			entity['ID'].SetFromValue(100)
 			entity['Complex']['Data'].SetFromValue("Level1")
 			entity['Complex']['Complex']['Data'].SetFromValue("Level2")
 			entity['Complex']['Complex']['Index'].SetFromValue(255)
 			#	CREATE
-			collection.InsertEntity(entity)
+			collection.insert_entity(entity)
 			#	READ (collection)
 			self.assertTrue(len(collection)==1,"ComplexTypes length after insert")
 			gotEntity=collection.values()[0]
@@ -1721,7 +1721,7 @@ class DataServiceRegressionTests(unittest.TestCase):
 			gotEntity['Complex']['Data'].SetFromValue("Level1Update")
 			gotEntity['Complex']['Complex']['Data'].SetFromValue("Level2Update")
 			gotEntity['Complex']['Complex']['Index'].SetFromValue(-255)
-			collection.UpdateEntity(gotEntity)
+			collection.update_entity(gotEntity)
 			checkEntity=collection[100]
 			self.assertTrue(gotEntity['Complex']['Data'].value=='Level1Update',"Level 1 on read")
 			self.assertTrue(gotEntity['Complex']['Complex']['Data'].value=='Level2Update',"Level 2 on read")
@@ -1738,14 +1738,14 @@ class DataServiceRegressionTests(unittest.TestCase):
 	def RunTestCaseCompoundKey(self):
 		compoundKeys=self.ds['RegressionModel.RegressionContainer.CompoundKeys']
 		with compoundKeys.OpenCollection() as collection:
-			entity=collection.NewEntity()
+			entity=collection.new_entity()
 			entity['K1'].SetFromValue(1)
 			entity['K2'].SetFromValue('00001')
 			entity['K3'].SetFromValue(iso.TimePoint.FromString('2013-12-25T15:59:03.142'))
 			entity['K4'].SetFromValue('\xde\xad\xbe\xef')
 			entity['Data'].SetFromValue("Compound Key")
 			#	CREATE
-			collection.InsertEntity(entity)
+			collection.insert_entity(entity)
 			#	READ (collection)
 			self.assertTrue(len(collection)==1,"CompoundKey length after insert")
 			gotEntity=collection.values()[0]
@@ -1759,7 +1759,7 @@ class DataServiceRegressionTests(unittest.TestCase):
 			self.assertTrue(gotEntity['Data'].value=="Compound Key")
 			#	UPDATE			
 			gotEntity['Data'].SetFromValue("Updated Compound Key")
-			collection.UpdateEntity(gotEntity)
+			collection.update_entity(gotEntity)
 			checkEntity=collection[(1,'00001',iso.TimePoint.FromString('2013-12-25T15:59:03.142'),'\xde\xad\xbe\xef')]
 			self.assertTrue(checkEntity['Data'].value=='Updated Compound Key')
 			#	DELETE	
@@ -1774,16 +1774,16 @@ class DataServiceRegressionTests(unittest.TestCase):
 	def RunTestCaseSimpleSelect(self):
 		selectSet=self.ds['RegressionModel.RegressionContainer.SimpleSelectSet']
 		with selectSet.OpenCollection() as collection:
-			entity=collection.NewEntity()
+			entity=collection.new_entity()
 			entity.SetKey(1)
 			entity['P1'].SetFromValue(3.14)
 			entity['P2'].SetFromValue("Pi")
-			collection.InsertEntity(entity)
-			entity=collection.NewEntity()
+			collection.insert_entity(entity)
+			entity=collection.new_entity()
 			entity.SetKey(2)
 			entity['P1'].SetFromValue(2.72)
 			entity['P2'].SetFromValue("e")
-			collection.InsertEntity(entity)
+			collection.insert_entity(entity)
 			collection.SelectKeys()
 			entity=collection[1]
 			self.assertTrue(entity.Selected('K'),"Key not selected")
@@ -1803,68 +1803,68 @@ class DataServiceRegressionTests(unittest.TestCase):
 		with pagingSet.OpenCollection() as collection:
 			for i in xrange(10):
 				for j in xrange(10):
-					entity=collection.NewEntity()
+					entity=collection.new_entity()
 					entity.SetKey((i,j))
 					entity['Sum'].SetFromValue(i+j)
 					entity['Product'].SetFromValue(i*j)
-					collection.InsertEntity(entity)
+					collection.insert_entity(entity)
 			# first test, iterpage with no page set, all values returned
 			self.assertTrue(len(list(collection.iterpage()))==100,"no page")
 			# now use top and skip only, no ordering
-			collection.SetPage(10,2)
+			collection.set_page(10,2)
 			result=list(collection.iterpage())
 			self.assertTrue(len(result)==10,"10,2: length")
-			self.assertTrue(collection.NextSkipToken() is None,"10,2: skiptoken")
+			self.assertTrue(collection.next_skiptoken() is None,"10,2: skiptoken")
 			self.assertTrue(result[0].Key()==(0,2),"10,2: first page")
-			result=list(collection.iterpage(setNextPage=True))
+			result=list(collection.iterpage(set_next=True))
 			self.assertTrue(result[0].Key()==(0,2),"10,2: first page repeated")
 			self.assertTrue(len(result)==10,"10,2: length, first page repeated")
 			for i in xrange(8):
-				result=list(collection.iterpage(setNextPage=True))
+				result=list(collection.iterpage(set_next=True))
 				self.assertTrue(result[0].Key()==(1+i,2),"10,2: page %i"%(i+2))
 				self.assertTrue(len(result)==10,"10,2: length, page %i"%(i+2))
-			result=list(collection.iterpage(setNextPage=True))
+			result=list(collection.iterpage(set_next=True))
 			self.assertTrue(len(result)==8,"10,2: length, last page")
 			self.assertTrue(result[7].Key()==(9,9),"10,2: last entity")
-			result=list(collection.iterpage(setNextPage=True))
+			result=list(collection.iterpage(set_next=True))
 			self.assertTrue(len(result)==0,"10,2: overrun")
 			# test skiptoken
 			try:
 				collection.TopMax(5)
-				collection.SetPage(top=10)
+				collection.set_page(top=10)
 				result=list(collection.iterpage())
 				self.assertTrue(len(result)==5,"max 5: length")
 				self.assertTrue(result[4].Key()==(0,4),"max 5: last entity on first page")
 				# there should be a skiptoken
-				token=collection.NextSkipToken()
+				token=collection.next_skiptoken()
 				self.assertTrue(token is not None,"skip token present")
 				for i in xrange(4):
-					logging.info("$skiptoken=%s",collection.NextSkipToken())
-					result=list(collection.iterpage(setNextPage=True))
+					logging.info("$skiptoken=%s",collection.next_skiptoken())
+					result=list(collection.iterpage(set_next=True))
 					self.assertTrue(len(result)==5,"max 5: length")
 					self.assertTrue(result[0].Key()==((i*5)//10,(i*5)%10),"max 5: first entity on page")
-				collection.SetPage(top=10,skip=None,skiptoken=token)
+				collection.set_page(top=10,skip=None,skiptoken=token)
 				# This should wind us back to page 2
 				result=list(collection.iterpage())
 				self.assertTrue(len(result)==5,"max 5: length")
 				self.assertTrue(result[4].Key()==(0,9),"max 5: last entity on page 2")
 				# now add an ordering
-				collection.OrderBy(CommonExpression.OrderByFromString(u"Sum desc"))
+				collection.set_orderby(CommonExpression.OrderByFromString(u"Sum desc"))
 				# must have rest the skiptoken
-				self.assertTrue(collection.NextSkipToken() is None,"No page set")
-				collection.SetPage(top=10)
-				result=list(collection.iterpage(setNextPage=True))
+				self.assertTrue(collection.next_skiptoken() is None,"No page set")
+				collection.set_page(top=10)
+				result=list(collection.iterpage(set_next=True))
 				self.assertTrue(result[0].Key()==(9,9),"first page with ordering")
 				self.assertTrue(result[1].Key()==(8,9),"first page with ordering (8,9)")
 				self.assertTrue(result[2].Key()==(9,8),"first page with ordering (9,8)")
-				token=collection.NextSkipToken()
+				token=collection.next_skiptoken()
 				self.assertTrue(token is not None,"skip token present")
-				result=list(collection.iterpage(setNextPage=True))
+				result=list(collection.iterpage(set_next=True))
 				self.assertTrue(result[0].Key()==(9,7),"second page with ordering (9,7)")
 				self.assertTrue(result[1].Key()==(6,9),"second page with ordering (9,8)")
 				for i in xrange(18):
-					logging.info("$skiptoken=%s",collection.NextSkipToken())
-					result=list(collection.iterpage(setNextPage=True))
+					logging.info("$skiptoken=%s",collection.next_skiptoken())
+					result=list(collection.iterpage(set_next=True))
 				self.assertTrue(result[2].Key()==(0,1),"last page with ordering (0,1)")
 				self.assertTrue(result[3].Key()==(1,0),"last page with ordering (1,0)")
 				self.assertTrue(result[4].Key()==(0,0),"last page with ordering (0,0)")
@@ -1875,32 +1875,32 @@ class DataServiceRegressionTests(unittest.TestCase):
 		ones=self.ds['RegressionModel.RegressionContainer.O2Os']
 		onexs=self.ds['RegressionModel.RegressionContainer.O2OXs']
 		with ones.OpenCollection() as collection,onexs.OpenCollection() as collectionX:
-			entity=collection.NewEntity()
+			entity=collection.new_entity()
 			entity['K'].SetFromValue(1)
 			entity['Data'].SetFromValue('NavigationOne')
 			#	CREATE
 			try:
-				collection.InsertEntity(entity)
+				collection.insert_entity(entity)
 				self.fail("Entity inserted without 1-1 relationship")
 			except edm.ConstraintError:
 				pass
-			entityX=collectionX.NewEntity()
+			entityX=collectionX.new_entity()
 			entityX['K'].SetFromValue(100)
 			entityX['Data'].SetFromValue('NavigationOneX')
 			entity['OX'].BindEntity(entityX)
 			try:
-				collection.InsertEntity(entity)
+				collection.insert_entity(entity)
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with 1-1 binding")
 			# Repeat but in reverse to check symmetry				
-			e2=collection.NewEntity()
+			e2=collection.new_entity()
 			e2['K'].SetFromValue(2)
 			e2['Data'].SetFromValue('NavigationTwo')
-			e2X=collectionX.NewEntity()
+			e2X=collectionX.new_entity()
 			e2X['K'].SetFromValue(200)
 			e2X['Data'].SetFromValue('NavigationTwoX')
 			e2X['O'].BindEntity(e2)
-			collectionX.InsertEntity(e2X)
+			collectionX.insert_entity(e2X)
 			#	READ both ways
 			entity=collection[1]
 			navX=entity['OX'].GetEntity()
@@ -1946,38 +1946,38 @@ class DataServiceRegressionTests(unittest.TestCase):
 		ones=self.ds['RegressionModel.RegressionContainer.O2O1s']
 		onexs=self.ds['RegressionModel.RegressionContainer.O2OX1s']
 		with ones.OpenCollection() as collection,onexs.OpenCollection() as collectionX:
-			entity=collection.NewEntity()
+			entity=collection.new_entity()
 			entity['K'].SetFromValue(1)
 			entity['Data'].SetFromValue('NavigationOne')
 			#	CREATE
 			try:
-				collection.InsertEntity(entity)
+				collection.insert_entity(entity)
 				self.fail("Entity inserted without 1-1 relationship")
 			except edm.ConstraintError:
 				pass
-			entityX=collectionX.NewEntity()
+			entityX=collectionX.new_entity()
 			entityX['K'].SetFromValue(100)
 			entityX['Data'].SetFromValue('NavigationOneX')
 			entity['OX'].BindEntity(entityX)
 			try:
-				collection.InsertEntity(entity)
+				collection.insert_entity(entity)
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with 1-1 binding")
 			# Repeat but in reverse to check that we can't insert into a
 			# dependent entity set without the principal leading
-			e2=collection.NewEntity()
+			e2=collection.new_entity()
 			e2['K'].SetFromValue(2)
 			e2['Data'].SetFromValue('NavigationTwo')
-			e2X=collectionX.NewEntity()
+			e2X=collectionX.new_entity()
 			e2X['K'].SetFromValue(200)
 			e2X['Data'].SetFromValue('NavigationTwoX')
 			try:
-				collectionX.InsertEntity(e2X)
+				collectionX.insert_entity(e2X)
 				self.fail("Entity insert should fail with unbound 1-1 relationship")
 			except edm.ConstraintError:
 				pass
 			e2['OX'].BindEntity(e2X)
-			collection.InsertEntity(e2)
+			collection.insert_entity(e2)
 			#	READ the link
 			entity=collection[1]
 			navX=entity['OX'].GetEntity()
@@ -2028,64 +2028,64 @@ class DataServiceRegressionTests(unittest.TestCase):
 		zeroones=self.ds['RegressionModel.RegressionContainer.ZO2Os']
 		ones=self.ds['RegressionModel.RegressionContainer.ZO2OXs']
 		with zeroones.OpenCollection() as collectionZO,ones.OpenCollection() as collectionO:
-			entityZO=collectionZO.NewEntity()
+			entityZO=collectionZO.new_entity()
 			entityZO['K'].SetFromValue(1)
 			entityZO['Data'].SetFromValue('NavigationZeroOne')
 			#	CREATE
 			try:
-				collectionZO.InsertEntity(entityZO)
+				collectionZO.insert_entity(entityZO)
 				self.fail("Entity inserted without 0..1-1 relationship")
 			except edm.ConstraintError:
 				pass
-			entityO=collectionO.NewEntity()
+			entityO=collectionO.new_entity()
 			entityO['K'].SetFromValue(100)
 			entityO['Data'].SetFromValue('NavigationOne')
 			entityZO['O'].BindEntity(entityO)
 			try:
-				collectionZO.InsertEntity(entityZO)
+				collectionZO.insert_entity(entityZO)
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with 0..1-1 binding")
 			entityO=collectionO[100]
 			## entityZO <-> entityO
 			# Repeat but in reverse to check symmetry				
-			entityZO2=collectionZO.NewEntity()
+			entityZO2=collectionZO.new_entity()
 			entityZO2['K'].SetFromValue(2)
 			entityZO2['Data'].SetFromValue('NavigationZeroOne_2')
-			entityO2=collectionO.NewEntity()
+			entityO2=collectionO.new_entity()
 			entityO2['K'].SetFromValue(200)
 			entityO2['Data'].SetFromValue('NavigationOne_2')
 			entityO2['ZO'].BindEntity(entityZO2)
-			collectionO.InsertEntity(entityO2)
+			collectionO.insert_entity(entityO2)
 			## entityZO <-> entityO
 			## entityZO2 <-> entityO2
 			#	Now try inserting at the 1 end without a binding
-			entityO3=collectionO.NewEntity()
+			entityO3=collectionO.new_entity()
 			entityO3['K'].SetFromValue(300)
 			entityO3['Data'].SetFromValue('NavigationOne_3')
 			try:
-				collectionO.InsertEntity(entityO3)
+				collectionO.insert_entity(entityO3)
 			except edm.ConstraintError:							
 				self.fail("Unbound entity insert failed at the 1 end of 0..1-1 link")			
 			## entityZO <-> entityO
 			## entityZO2 <-> entityO2
 			## None <-> entityO3
 			#	Insert with implicit link
-			entityO4=collectionO.NewEntity()
+			entityO4=collectionO.new_entity()
 			entityO4['K'].SetFromValue(400)
 			entityO4['Data'].SetFromValue('NavigationOne_4')
 			with entityZO['O'].OpenCollection() as navCollection:
 				# 	we can't insert here as entityZO is already bound to entityO
 				try:
-					navCollection.InsertEntity(entityO4)
-					self.fail("InsertEntity on navigation collection should fail towards the 1 end")
+					navCollection.insert_entity(entityO4)
+					self.fail("insert_entity on navigation collection should fail towards the 1 end")
 				except edm.ConstraintError:
 					pass
 			# just create entityO4 anyway
-			entityO4=collectionO.NewEntity()
+			entityO4=collectionO.new_entity()
 			entityO4['K'].SetFromValue(400)
 			entityO4['Data'].SetFromValue('NavigationOne_4')
 			try:
-				collectionO.InsertEntity(entityO4)
+				collectionO.insert_entity(entityO4)
 			except edm.ConstraintError:
 				# non-transactional warning, the entity was created but
 				# not linked during previous attempt
@@ -2095,15 +2095,15 @@ class DataServiceRegressionTests(unittest.TestCase):
 			## entityZO2 <-> entityO2
 			## None <-> entityO3
 			## None <-> entityO4
-			entityZO3=collectionZO.NewEntity()
+			entityZO3=collectionZO.new_entity()
 			entityZO3['K'].SetFromValue(3)
 			entityZO3['Data'].SetFromValue('NavigationZeroOne_3')
 			with entityO3['ZO'].OpenCollection() as navCollection:
 				#	we can insert here, will create a bound relationship
 				try:
-					navCollection.InsertEntity(entityZO3)
+					navCollection.insert_entity(entityZO3)
 				except edm.ConstraintError:
-					self.fail("InsertEntity on navigation collection should not fail towards the 0..1 end")							
+					self.fail("insert_entity on navigation collection should not fail towards the 0..1 end")							
 			## entityZO <-> entityO
 			## entityZO2 <-> entityO2
 			## entityZO3 <-> entityO3
@@ -2119,9 +2119,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 			#	UPDATE - by replacing the required target of a link, should work
 			try:
 				with entityZO['O'].OpenCollection() as navCollection:
-					navCollection.Replace(entityO4)
+					navCollection.replace(entityO4)
 			except edm.ConstraintError:
-				self.fail("Replace on 0..1-1 navigation property")
+				self.fail("replace on 0..1-1 navigation property")
 			## entityZO <-> entityO4
 			## entityZO2 <-> entityO2
 			## entityZO3 <-> entityO3
@@ -2198,22 +2198,22 @@ class DataServiceRegressionTests(unittest.TestCase):
 		ones=self.ds['RegressionModel.RegressionContainer.ZO2OXFs']
 		with zeroones.OpenCollection() as collectionZO,ones.OpenCollection() as collectionO:
 			#	CREATE
-			entityZO=collectionZO.NewEntity()
+			entityZO=collectionZO.new_entity()
 			entityZO['K'].SetFromValue(1)
 			entityZO['Data'].SetFromValue('NavigationZeroOne')
-			entityO=collectionO.NewEntity()
+			entityO=collectionO.new_entity()
 			entityO['K'].SetFromValue(100)
 			entityO['Data'].SetFromValue('NavigationOne')
 			entityZO['O'].BindEntity(entityO)
 			try:
-				collectionZO.InsertEntity(entityZO)
+				collectionZO.insert_entity(entityZO)
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with 0..1-1 binding")
 			## entityZO <-> entityO
-			entityO2=collectionO.NewEntity()
+			entityO2=collectionO.new_entity()
 			entityO2['K'].SetFromValue(200)
 			entityO2['Data'].SetFromValue('NavigationOne_2')
-			collectionO.InsertEntity(entityO2)
+			collectionO.insert_entity(entityO2)
 			## None <-> entityO2
 			#	READ (forward only)
 			entityZO=collectionZO[1]
@@ -2224,9 +2224,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 			#	UPDATE - by replacing the required target of a link, should work
 			try:
 				with entityZO['O'].OpenCollection() as navCollection:
-					navCollection.Replace(entityO2)
+					navCollection.replace(entityO2)
 			except edm.ConstraintError:
-				self.fail("Replace on 0..1-1 navigation property")
+				self.fail("replace on 0..1-1 navigation property")
 			## entityZO <-> entityO2
 			## None <-> entityO
 			#	UPDATE - using bind and update
@@ -2256,11 +2256,11 @@ class DataServiceRegressionTests(unittest.TestCase):
 			#	DELETE - entity; for a 0..1-1 link should fail on the 1 end when there is no navigation to cascade over
 			## None <-> entityO			
 			## None <-> entityO2
-			entityZO2=collectionZO.NewEntity()
+			entityZO2=collectionZO.new_entity()
 			entityZO2['K'].SetFromValue(2)
 			entityZO2['Data'].SetFromValue('NavigationZeroOne_2')
 			entityZO2['O'].BindEntity(entityO2)
-			collectionZO.InsertEntity(entityZO2)
+			collectionZO.insert_entity(entityZO2)
 			## entityZO2 <-> entityO2
 			try:
 				del collectionO[200]
@@ -2273,30 +2273,30 @@ class DataServiceRegressionTests(unittest.TestCase):
 		zeroones=self.ds['RegressionModel.RegressionContainer.ZO2ORs']
 		ones=self.ds['RegressionModel.RegressionContainer.ZO2OXRs']
 		with zeroones.OpenCollection() as collectionZO,ones.OpenCollection() as collectionO:
-			entityZO=collectionZO.NewEntity()
+			entityZO=collectionZO.new_entity()
 			entityZO['K'].SetFromValue(1)
 			entityZO['Data'].SetFromValue('NavigationZeroOne')
 			#	CREATE
 			try:
-				collectionZO.InsertEntity(entityZO)
+				collectionZO.insert_entity(entityZO)
 				self.fail("Entity inserted without 0..1-1 relationship (unbound navigation property)")
 			except edm.ConstraintError:
 				pass
-			entityO=collectionO.NewEntity()
+			entityO=collectionO.new_entity()
 			entityO['K'].SetFromValue(100)
 			entityO['Data'].SetFromValue('NavigationOne')
 			entityO['ZO'].BindEntity(entityZO)
 			try:
-				collectionO.InsertEntity(entityO)
+				collectionO.insert_entity(entityO)
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with 0..1-1 binding")
 			## entityZO <-> entityO
 			#	Now try inserting at the 1 end without a binding
-			entityO2=collectionO.NewEntity()
+			entityO2=collectionO.new_entity()
 			entityO2['K'].SetFromValue(200)
 			entityO2['Data'].SetFromValue('NavigationOne_2')
 			try:
-				collectionO.InsertEntity(entityO2)
+				collectionO.insert_entity(entityO2)
 			except edm.ConstraintError:							
 				self.fail("Unbound entity insert failed at the 1 end of 0..1-1 link")			
 			## None <-> entityO2
@@ -2307,12 +2307,12 @@ class DataServiceRegressionTests(unittest.TestCase):
 			self.assertTrue(navZO is not None,"Failed to read back navigation link")
 			self.assertTrue(navZO['K']==1)
 			#	UPDATE - by inserting a new value into the navigation collection  should work
-			entityZO2=collectionZO.NewEntity()
+			entityZO2=collectionZO.new_entity()
 			entityZO2['K'].SetFromValue(2)
 			entityZO2['Data'].SetFromValue('NavigationZeroOne')
 			with entityO2['ZO'].OpenCollection() as navCollection:
 				try:
-					navCollection.InsertEntity(entityZO2)
+					navCollection.insert_entity(entityZO2)
 				except NotImplementedError:
 					# acceptable to reject this as there is no back link
 					logging.warning("Insertion into O[2].ZO not supported due to absence of back-link")															
@@ -2325,7 +2325,7 @@ class DataServiceRegressionTests(unittest.TestCase):
 				del collectionO[200]
 				entityO2.SetKey(200)
 				entityO2['ZO'].BindEntity(entityZO2)
-				collectionO.InsertEntity(entityO2)		
+				collectionO.insert_entity(entityO2)		
 				navZO=entityO2['ZO'].GetEntity()
 			self.assertTrue(navZO['K']==2)
 			entityZO2=collectionZO[2]
@@ -2384,45 +2384,45 @@ class DataServiceRegressionTests(unittest.TestCase):
 		manys=self.ds['RegressionModel.RegressionContainer.Many2Os']
 		ones=self.ds['RegressionModel.RegressionContainer.Many2OXs']
 		with manys.OpenCollection() as collectionMany,ones.OpenCollection() as collectionO:
-			entityMany=collectionMany.NewEntity()
+			entityMany=collectionMany.new_entity()
 			entityMany['K'].SetFromValue(1)
 			entityMany['Data'].SetFromValue('NavigationMany')
 			#	CREATE
 			try:
-				collectionMany.InsertEntity(entityMany)
+				collectionMany.insert_entity(entityMany)
 				self.fail("Entity inserted without *-1 relationship")
 			except edm.ConstraintError:
 				pass
-			entityO=collectionO.NewEntity()
+			entityO=collectionO.new_entity()
 			entityO['K'].SetFromValue(100)
 			entityO['Data'].SetFromValue('NavigationOne')
 			entityMany['O'].BindEntity(entityO)
 			try:
-				collectionMany.InsertEntity(entityMany)
+				collectionMany.insert_entity(entityMany)
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with *-1 binding")
 			## entityMany <-> entityO
 			# Repeat but in reverse to check symmetry				
-			entityMany2=collectionMany.NewEntity()
+			entityMany2=collectionMany.new_entity()
 			entityMany2['K'].SetFromValue(2)
 			entityMany2['Data'].SetFromValue('NavigationMany_2')
-			entityMany3=collectionMany.NewEntity()
+			entityMany3=collectionMany.new_entity()
 			entityMany3['K'].SetFromValue(3)
 			entityMany3['Data'].SetFromValue('NavigationMany_3')
-			entityO2=collectionO.NewEntity()
+			entityO2=collectionO.new_entity()
 			entityO2['K'].SetFromValue(200)
 			entityO2['Data'].SetFromValue('NavigationOne_2')
 			# we can create more than one link now
 			entityO2['Many'].BindEntity(entityMany2)
 			entityO2['Many'].BindEntity(entityMany3)
-			collectionO.InsertEntity(entityO2)
+			collectionO.insert_entity(entityO2)
 			## entityMany2, entityMany3 <-> entityO2
 			#	Now try inserting at the 1 end without a binding
-			entityO3=collectionO.NewEntity()
+			entityO3=collectionO.new_entity()
 			entityO3['K'].SetFromValue(300)
 			entityO3['Data'].SetFromValue('NavigationOne_3')
 			try:
-				collectionO.InsertEntity(entityO3)
+				collectionO.insert_entity(entityO3)
 			except edm.ConstraintError:							
 				self.fail("Unbound entity insert failed at the 1 end of *-1 link")			
 			## [] <-> entityO3
@@ -2461,9 +2461,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 			#	UPDATE - by replacing the required target of a link, should work
 			try:
 				with entityMany['O'].OpenCollection() as navCollection:
-					navCollection.Replace(entityO3)
+					navCollection.replace(entityO3)
 			except edm.ConstraintError:
-				self.fail("Replace on *-1 navigation property")
+				self.fail("replace on *-1 navigation property")
 			## entityMany <-> entityO3
 			## [] <-> entityO
 			with entityO3['Many'].OpenCollection() as navCollection:
@@ -2541,40 +2541,40 @@ class DataServiceRegressionTests(unittest.TestCase):
 		manys=self.ds['RegressionModel.RegressionContainer.Many2OFs']
 		ones=self.ds['RegressionModel.RegressionContainer.Many2OXFs']
 		with manys.OpenCollection() as collectionMany,ones.OpenCollection() as collectionO:
-			entityMany=collectionMany.NewEntity()
+			entityMany=collectionMany.new_entity()
 			entityMany['K'].SetFromValue(1)
 			entityMany['Data'].SetFromValue('NavigationMany')
 			#	CREATE
-			entityO=collectionO.NewEntity()
+			entityO=collectionO.new_entity()
 			entityO['K'].SetFromValue(100)
 			entityO['Data'].SetFromValue('NavigationOne')
 			entityMany['O'].BindEntity(entityO)
 			try:
-				collectionMany.InsertEntity(entityMany)
+				collectionMany.insert_entity(entityMany)
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with *-1 binding")
 			## entityMany <-> entityO
 			# we can create more than one link now, but must go forward
-			entityO2=collectionO.NewEntity()
+			entityO2=collectionO.new_entity()
 			entityO2['K'].SetFromValue(200)
 			entityO2['Data'].SetFromValue('NavigationOne_2')
-			collectionO.InsertEntity(entityO2)
-			entityMany2=collectionMany.NewEntity()
+			collectionO.insert_entity(entityO2)
+			entityMany2=collectionMany.new_entity()
 			entityMany2['K'].SetFromValue(2)
 			entityMany2['Data'].SetFromValue('NavigationMany_2')
 			entityMany2['O'].BindEntity(entityO2)
-			collectionMany.InsertEntity(entityMany2)
-			entityMany3=collectionMany.NewEntity()
+			collectionMany.insert_entity(entityMany2)
+			entityMany3=collectionMany.new_entity()
 			entityMany3['K'].SetFromValue(3)
 			entityMany3['Data'].SetFromValue('NavigationMany_3')
 			entityMany3['O'].BindEntity(entityO2)
-			collectionMany.InsertEntity(entityMany3)
+			collectionMany.insert_entity(entityMany3)
 			## entityMany2, entityMany3 <-> entityO2
 			#	Now try inserting at the 1 end without a binding
-			entityO3=collectionO.NewEntity()
+			entityO3=collectionO.new_entity()
 			entityO3['K'].SetFromValue(300)
 			entityO3['Data'].SetFromValue('NavigationOne_3')
-			collectionO.InsertEntity(entityO3)
+			collectionO.insert_entity(entityO3)
 			## [] <-> entityO3
 			#	READ (forward only)
 			entityMany=collectionMany[1]
@@ -2594,9 +2594,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 			#	UPDATE - by replacing the required target of a link, should work
 			try:
 				with entityMany2['O'].OpenCollection() as navCollection:
-					navCollection.Replace(entityO3)
+					navCollection.replace(entityO3)
 			except edm.ConstraintError:
-				self.fail("Replace on *-1 navigation property")
+				self.fail("replace on *-1 navigation property")
 			## entityMany <-> entityO
 			## entityMany3 <-> entityO2
 			## entityMany2 <-> entityO3
@@ -2649,44 +2649,44 @@ class DataServiceRegressionTests(unittest.TestCase):
 		manys=self.ds['RegressionModel.RegressionContainer.Many2ORs']
 		ones=self.ds['RegressionModel.RegressionContainer.Many2OXRs']
 		with manys.OpenCollection() as collectionMany,ones.OpenCollection() as collectionO:
-			entityMany=collectionMany.NewEntity()
+			entityMany=collectionMany.new_entity()
 			entityMany['K'].SetFromValue(1)
 			entityMany['Data'].SetFromValue('NavigationMany')
 			#	CREATE
 			try:
-				collectionMany.InsertEntity(entityMany)
+				collectionMany.insert_entity(entityMany)
 				self.fail("Entity inserted without *-1 relationship (no forward link)")
 			except edm.ConstraintError:
 				pass
-			entityO=collectionO.NewEntity()
+			entityO=collectionO.new_entity()
 			entityO['K'].SetFromValue(100)
 			entityO['Data'].SetFromValue('NavigationOne')
 			entityO['Many'].BindEntity(entityMany)
 			try:
-				collectionO.InsertEntity(entityO)
+				collectionO.insert_entity(entityO)
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with *-1 binding")
 			## entityMany <-> entityO
-			entityMany2=collectionMany.NewEntity()
+			entityMany2=collectionMany.new_entity()
 			entityMany2['K'].SetFromValue(2)
 			entityMany2['Data'].SetFromValue('NavigationMany_2')
-			entityMany3=collectionMany.NewEntity()
+			entityMany3=collectionMany.new_entity()
 			entityMany3['K'].SetFromValue(3)
 			entityMany3['Data'].SetFromValue('NavigationMany_3')
-			entityO2=collectionO.NewEntity()
+			entityO2=collectionO.new_entity()
 			entityO2['K'].SetFromValue(200)
 			entityO2['Data'].SetFromValue('NavigationOne_2')
 			# we can create more than one link now
 			entityO2['Many'].BindEntity(entityMany2)
 			entityO2['Many'].BindEntity(entityMany3)
-			collectionO.InsertEntity(entityO2)
+			collectionO.insert_entity(entityO2)
 			## entityMany2, entityMany3 <-> entityO2
 			#	Now try inserting at the 1 end without a binding
-			entityO3=collectionO.NewEntity()
+			entityO3=collectionO.new_entity()
 			entityO3['K'].SetFromValue(300)
 			entityO3['Data'].SetFromValue('NavigationOne_3')
 			try:
-				collectionO.InsertEntity(entityO3)
+				collectionO.insert_entity(entityO3)
 			except edm.ConstraintError:							
 				self.fail("Unbound entity insert failed at the 1 end of *-1 link")			
 			## [] <-> entityO3
@@ -2712,11 +2712,11 @@ class DataServiceRegressionTests(unittest.TestCase):
 			with entityO3['Many'].OpenCollection() as navCollection:
 				self.assertTrue(len(navCollection)==0)
 			#	UPDATE - with entity creation
-			entityMany4=collectionMany.NewEntity()
+			entityMany4=collectionMany.new_entity()
 			entityMany4['K'].SetFromValue(4)
 			entityMany4['Data'].SetFromValue('NavigationMany_4')
 			entityO2['Many'].BindEntity(entityMany4)
-			collectionO.UpdateEntity(entityO2)
+			collectionO.update_entity(entityO2)
 			self.assertTrue(entityMany4.exists)
 			with entityO2['Many'].OpenCollection() as navCollection:
 				self.assertTrue(len(navCollection)==3)
@@ -2783,47 +2783,47 @@ class DataServiceRegressionTests(unittest.TestCase):
 		manys=self.ds['RegressionModel.RegressionContainer.Many2ZOs']
 		zeroones=self.ds['RegressionModel.RegressionContainer.Many2ZOXs']
 		with manys.OpenCollection() as collectionMany,zeroones.OpenCollection() as collectionZO:
-			entityMany=collectionMany.NewEntity()
+			entityMany=collectionMany.new_entity()
 			entityMany['K'].SetFromValue(1)
 			entityMany['Data'].SetFromValue('NavigationMany')
-			collectionMany.InsertEntity(entityMany)
+			collectionMany.insert_entity(entityMany)
 			self.assertTrue(1 in collectionMany)
 			## entityMany <-> None
-			entityMany2=collectionMany.NewEntity()
+			entityMany2=collectionMany.new_entity()
 			entityMany2['K'].SetFromValue(2)
 			entityMany2['Data'].SetFromValue('NavigationMany_2')
-			entityZO=collectionZO.NewEntity()
+			entityZO=collectionZO.new_entity()
 			entityZO['K'].SetFromValue(100)
 			entityZO['Data'].SetFromValue('NavigationOne')
 			entityMany2['ZO'].BindEntity(entityZO)
 			try:
-				collectionMany.InsertEntity(entityMany2)
+				collectionMany.insert_entity(entityMany2)
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with *-1 binding")
 			## entityMany <-> None
 			## entityMany2 <-> entityZO
-			entityMany3=collectionMany.NewEntity()
+			entityMany3=collectionMany.new_entity()
 			entityMany3['K'].SetFromValue(3)
 			entityMany3['Data'].SetFromValue('NavigationMany_3')
-			entityMany4=collectionMany.NewEntity()
+			entityMany4=collectionMany.new_entity()
 			entityMany4['K'].SetFromValue(4)
 			entityMany4['Data'].SetFromValue('NavigationMany_4')
-			entityZO2=collectionZO.NewEntity()
+			entityZO2=collectionZO.new_entity()
 			entityZO2['K'].SetFromValue(200)
 			entityZO2['Data'].SetFromValue('NavigationOne_2')
 			# we can create more than one link now
 			entityZO2['Many'].BindEntity(entityMany3)
 			entityZO2['Many'].BindEntity(entityMany4)
-			collectionZO.InsertEntity(entityZO2)
+			collectionZO.insert_entity(entityZO2)
 			## entityMany <-> None
 			## entityMany2 <-> entityZO
 			## entityMany3, entityMany4 <-> entityZO2
 			#	Now try inserting at the 1 end without a binding
-			entityZO3=collectionZO.NewEntity()
+			entityZO3=collectionZO.new_entity()
 			entityZO3['K'].SetFromValue(300)
 			entityZO3['Data'].SetFromValue('NavigationOne_3')
 			try:
-				collectionZO.InsertEntity(entityZO3)
+				collectionZO.insert_entity(entityZO3)
 			except edm.ConstraintError:							
 				self.fail("Unbound entity insert failed at the 1 end of *-1 link")			
 			#	READ both ways
@@ -2875,9 +2875,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 			## [] <-> entityZO3
 			try:
 				with entityMany2['ZO'].OpenCollection() as navCollection:
-					navCollection.Replace(entityZO3)
+					navCollection.replace(entityZO3)
 			except edm.ConstraintError:
-				self.fail("Replace on *-0..1 navigation property")
+				self.fail("replace on *-0..1 navigation property")
 			## entityMany <-> None
 			## [] <-> entityZO
 			## entityMany3, entityMany4 <-> entityZO2
@@ -2949,9 +2949,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 			## entityMany4 <-> entityZO2
 			## [] <-> entityZO3
 			entityMany['ZO'].BindEntity(entityZO)
-			collectionMany.UpdateEntity(entityMany)
+			collectionMany.update_entity(entityMany)
 			entityMany2['ZO'].BindEntity(entityZO)
-			collectionMany.UpdateEntity(entityMany2)
+			collectionMany.update_entity(entityMany2)
 			## entityMany, entityMany2 <-> entityZO
 			## entityMany3 <-> None
 			## entityMany4 <-> entityZO2
@@ -2984,41 +2984,41 @@ class DataServiceRegressionTests(unittest.TestCase):
 		manys=self.ds['RegressionModel.RegressionContainer.Many2ZOFs']
 		zeroones=self.ds['RegressionModel.RegressionContainer.Many2ZOXFs']
 		with manys.OpenCollection() as collectionMany,zeroones.OpenCollection() as collectionZO:
-			entityMany=collectionMany.NewEntity()
+			entityMany=collectionMany.new_entity()
 			entityMany['K'].SetFromValue(1)
 			entityMany['Data'].SetFromValue('NavigationMany')
-			collectionMany.InsertEntity(entityMany)
+			collectionMany.insert_entity(entityMany)
 			self.assertTrue(1 in collectionMany)
 			## entityMany <-> None
-			entityMany2=collectionMany.NewEntity()
+			entityMany2=collectionMany.new_entity()
 			entityMany2['K'].SetFromValue(2)
 			entityMany2['Data'].SetFromValue('NavigationMany_2')
-			entityZO=collectionZO.NewEntity()
+			entityZO=collectionZO.new_entity()
 			entityZO['K'].SetFromValue(100)
 			entityZO['Data'].SetFromValue('NavigationOne')
 			entityMany2['ZO'].BindEntity(entityZO)
 			try:
-				collectionMany.InsertEntity(entityMany2)
+				collectionMany.insert_entity(entityMany2)
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with *-1 binding")
 			entityZO=collectionZO[100]
 			## entityMany <-> None
 			## entityMany2 <-> entityZO
 			#	Now try inserting at the 1 end without a binding
-			entityZO2=collectionZO.NewEntity()
+			entityZO2=collectionZO.new_entity()
 			entityZO2['K'].SetFromValue(200)
 			entityZO2['Data'].SetFromValue('NavigationOne_2')
 			try:
-				collectionZO.InsertEntity(entityZO2)
+				collectionZO.insert_entity(entityZO2)
 			except edm.ConstraintError:							
 				self.fail("Unbound entity insert failed at the 1 end of *-1 link")
 			#	insert multiple...
-			entityMany3=collectionMany.NewEntity()
+			entityMany3=collectionMany.new_entity()
 			entityMany3['K'].SetFromValue(3)
 			entityMany3['Data'].SetFromValue('NavigationMany_3')
 			entityMany3['ZO'].BindEntity(entityZO)
 			try:
-				collectionMany.InsertEntity(entityMany3)
+				collectionMany.insert_entity(entityMany3)
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed to update * link")	
 			#	READ (forward only)
@@ -3040,9 +3040,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 			## [] <-> entityZO2
 			try:
 				with entityMany2['ZO'].OpenCollection() as navCollection:
-					navCollection.Replace(entityZO2)
+					navCollection.replace(entityZO2)
 			except edm.ConstraintError:
-				self.fail("Replace on *-0..1 navigation property")
+				self.fail("replace on *-0..1 navigation property")
 			## entityMany <-> None
 			## entityMany3 <-> entityZO
 			## entityMany2 <-> entityZO2
@@ -3069,9 +3069,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 			## [] <-> entityZO2
 			## entityMany3 <-> None
 			entityMany['ZO'].BindEntity(entityZO)
-			collectionMany.UpdateEntity(entityMany)
+			collectionMany.update_entity(entityMany)
 			entityMany3['ZO'].BindEntity(entityZO2)
-			collectionMany.UpdateEntity(entityMany3)
+			collectionMany.update_entity(entityMany3)
 			## entityMany, entityMany2 <-> entityZO
 			## entityMany3 <-> entityZO2
 			try:
@@ -3098,31 +3098,31 @@ class DataServiceRegressionTests(unittest.TestCase):
 		manys=self.ds['RegressionModel.RegressionContainer.Many2ZORs']
 		zeroones=self.ds['RegressionModel.RegressionContainer.Many2ZOXRs']
 		with manys.OpenCollection() as collectionMany,zeroones.OpenCollection() as collectionZO:
-			entityMany=collectionMany.NewEntity()
+			entityMany=collectionMany.new_entity()
 			entityMany['K'].SetFromValue(1)
 			entityMany['Data'].SetFromValue('NavigationMany')
-			collectionMany.InsertEntity(entityMany)
+			collectionMany.insert_entity(entityMany)
 			self.assertTrue(1 in collectionMany)
 			## entityMany <-> None
-			entityZO=collectionZO.NewEntity()
+			entityZO=collectionZO.new_entity()
 			entityZO['K'].SetFromValue(100)
 			entityZO['Data'].SetFromValue('NavigationOne')
-			collectionZO.InsertEntity(entityZO)
+			collectionZO.insert_entity(entityZO)
 			## entityMany <-> None
 			## [] <-> entityZO
-			entityMany2=collectionMany.NewEntity()
+			entityMany2=collectionMany.new_entity()
 			entityMany2['K'].SetFromValue(2)
 			entityMany2['Data'].SetFromValue('NavigationMany_2')
-			entityMany3=collectionMany.NewEntity()
+			entityMany3=collectionMany.new_entity()
 			entityMany3['K'].SetFromValue(3)
 			entityMany3['Data'].SetFromValue('NavigationMany_3')
-			entityZO2=collectionZO.NewEntity()
+			entityZO2=collectionZO.new_entity()
 			entityZO2['K'].SetFromValue(200)
 			entityZO2['Data'].SetFromValue('NavigationOne_2')
 			# we can create more than one link now
 			entityZO2['Many'].BindEntity(entityMany2)
 			entityZO2['Many'].BindEntity(entityMany3)
-			collectionZO.InsertEntity(entityZO2)
+			collectionZO.insert_entity(entityZO2)
 			entityMany2=collectionMany[2]
 			entityMany3=collectionMany[3]
 			## entityMany <-> None
@@ -3203,36 +3203,36 @@ class DataServiceRegressionTests(unittest.TestCase):
 	def RunTestCaseNavigationMany2ZeroOneRecursive(self):
 		manys2zeroones=self.ds['RegressionModel.RegressionContainer.Many2ZORvs']
 		with manys2zeroones.OpenCollection() as collection:
-			entity1=collection.NewEntity()
+			entity1=collection.new_entity()
 			entity1['K'].SetFromValue(1)
 			entity1['Data'].SetFromValue('Navigation_1')
-			collection.InsertEntity(entity1)
+			collection.insert_entity(entity1)
 			self.assertTrue(1 in collection)
 			## [] <-> entity1 <-> None
-			entity2=collection.NewEntity()
+			entity2=collection.new_entity()
 			entity2['K'].SetFromValue(2)
 			entity2['Data'].SetFromValue('Navigation_2')
-			entity3=collection.NewEntity()
+			entity3=collection.new_entity()
 			entity3['K'].SetFromValue(3)
 			entity3['Data'].SetFromValue('Navigation_3')
 			entity2['ZO'].BindEntity(entity3)
 			try:
-				collection.InsertEntity(entity2)
+				collection.insert_entity(entity2)
 				entity3=collection[3]
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with *-1 binding")
 			## [] <-> entity1 <-> None
 			## [] <-> entity2 <-> entity3
-			entity4=collection.NewEntity()
+			entity4=collection.new_entity()
 			entity4['K'].SetFromValue(4)
 			entity4['Data'].SetFromValue('Navigation_4')
-			entity5=collection.NewEntity()
+			entity5=collection.new_entity()
 			entity5['K'].SetFromValue(5)
 			entity5['Data'].SetFromValue('Navigation_5')
 			# we can create more than one link now
 			entity4['Many'].BindEntity(entity5)
 			entity4['Many'].BindEntity(entity3)
-			collection.InsertEntity(entity4)
+			collection.insert_entity(entity4)
 			entity5=collection[5]
 			## [] <-> entity1 <-> None
 			## [] <-> entity2 <-> entity3 <-> entity4 <-> None
@@ -3276,9 +3276,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 			##             [] <-> entity5 ...
 			try:
 				with entity3['ZO'].OpenCollection() as navCollection:
-					navCollection.Replace(entity1)
+					navCollection.replace(entity1)
 			except edm.ConstraintError:
-				self.fail("Replace on *-0..1 navigation property")
+				self.fail("replace on *-0..1 navigation property")
 			## [] <-> entity2 <-> entity3 <-> entity1 <-> None
 			##             [] <-> entity5 <-> entity4 <-> None
 			with entity1['Many'].OpenCollection() as navCollection:
@@ -3370,36 +3370,36 @@ class DataServiceRegressionTests(unittest.TestCase):
 	def RunTestCaseNavigationMany2ZeroOneRecursiveForward(self):
 		manys2zeroones=self.ds['RegressionModel.RegressionContainer.Many2ZORvFs']
 		with manys2zeroones.OpenCollection() as collection:
-			entity1=collection.NewEntity()
+			entity1=collection.new_entity()
 			entity1['K'].SetFromValue(1)
 			entity1['Data'].SetFromValue('Navigation_1')
-			collection.InsertEntity(entity1)
+			collection.insert_entity(entity1)
 			self.assertTrue(1 in collection)
 			## [] -> entity1 -> None
-			entity2=collection.NewEntity()
+			entity2=collection.new_entity()
 			entity2['K'].SetFromValue(2)
 			entity2['Data'].SetFromValue('Navigation_2')
-			entity3=collection.NewEntity()
+			entity3=collection.new_entity()
 			entity3['K'].SetFromValue(3)
 			entity3['Data'].SetFromValue('Navigation_3')
-			entity4=collection.NewEntity()
+			entity4=collection.new_entity()
 			entity4['K'].SetFromValue(4)
 			entity4['Data'].SetFromValue('Navigation_4')
 			entity2['ZO'].BindEntity(entity3)
 			entity3['ZO'].BindEntity(entity4)
 			try:
-				collection.InsertEntity(entity2)
+				collection.insert_entity(entity2)
 				entity3=collection[3]
 				entity4=collection[4]
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with deep *-1 binding")
 			## [] -> entity1 -> None
 			## [] -> entity2 -> entity3 -> entity4 -> None
-			entity5=collection.NewEntity()
+			entity5=collection.new_entity()
 			entity5['K'].SetFromValue(5)
 			entity5['Data'].SetFromValue('Navigation_5')
 			entity5['ZO'].BindEntity(entity4)
-			collection.InsertEntity(entity5)
+			collection.insert_entity(entity5)
 			## [] -> entity1 -> None
 			## [] -> entity2 -> entity3 -> entity4 -> None
 			##             [] -> entity5 ...
@@ -3424,9 +3424,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 			##             [] -> entity5 ...
 			try:
 				with entity3['ZO'].OpenCollection() as navCollection:
-					navCollection.Replace(entity1)
+					navCollection.replace(entity1)
 			except edm.ConstraintError:
-				self.fail("Replace on *-0..1 navigation property")
+				self.fail("replace on *-0..1 navigation property")
 			self.assertTrue(entity3['ZO'].GetEntity().Key()==1)
 			## [] -> entity2 -> entity3 -> entity1 -> None
 			##             [] -> entity5 -> entity4 -> None
@@ -3483,36 +3483,36 @@ class DataServiceRegressionTests(unittest.TestCase):
 	def RunTestCaseNavigationMany2ZeroOneRecursiveReverse(self):
 		manys2zeroones=self.ds['RegressionModel.RegressionContainer.Many2ZORvRs']
 		with manys2zeroones.OpenCollection() as collection:
-			entity1=collection.NewEntity()
+			entity1=collection.new_entity()
 			entity1['K'].SetFromValue(1)
 			entity1['Data'].SetFromValue('Navigation_1')
-			collection.InsertEntity(entity1)
+			collection.insert_entity(entity1)
 			self.assertTrue(1 in collection)
 			## [] <- entity1 <- None
-			entity2=collection.NewEntity()
+			entity2=collection.new_entity()
 			entity2['K'].SetFromValue(2)
 			entity2['Data'].SetFromValue('Navigation_2')
-			entity3=collection.NewEntity()
+			entity3=collection.new_entity()
 			entity3['K'].SetFromValue(3)
 			entity3['Data'].SetFromValue('Navigation_3')
 			entity3['Many'].BindEntity(entity2)
 			try:
-				collection.InsertEntity(entity3)
+				collection.insert_entity(entity3)
 				entity2=collection[2]
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with *-1 binding")
 			## [] <- entity1 <- None
 			## [] <- entity2 <- entity3
-			entity4=collection.NewEntity()
+			entity4=collection.new_entity()
 			entity4['K'].SetFromValue(4)
 			entity4['Data'].SetFromValue('Navigation_4')
-			entity5=collection.NewEntity()
+			entity5=collection.new_entity()
 			entity5['K'].SetFromValue(5)
 			entity5['Data'].SetFromValue('Navigation_5')
 			# we can create more than one link now
 			entity4['Many'].BindEntity(entity5)
 			entity4['Many'].BindEntity(entity3)
-			collection.InsertEntity(entity4)
+			collection.insert_entity(entity4)
 			entity5=collection[5]
 			## [] <- entity1 <- None
 			## [] <- entity2 <- entity3 <- entity4 <- None
@@ -3545,9 +3545,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 			##             [] <- entity5 ...
 			try:
 				with entity4['Many'].OpenCollection() as navCollection:
-					navCollection.Replace(entity1)
+					navCollection.replace(entity1)
 			except edm.ConstraintError:
-				self.fail("Replace on *-0..1 navigation property")
+				self.fail("replace on *-0..1 navigation property")
 			## [] <- entity1 <- entity4 <- None
 			## [] <- entity2 <- entity3 <- None
 			##             [] <- entity5 <- None
@@ -3578,7 +3578,7 @@ class DataServiceRegressionTests(unittest.TestCase):
 			## [] <- entity5 <- None
 			## [] <- entity2 <- None
 			with entity4['Many'].OpenCollection() as navCollection:
-				navCollection.Replace(entity5)
+				navCollection.replace(entity5)
 			entity4['Many'].BindEntity(entity2)
 			try:
 				entity4.Update()
@@ -3639,50 +3639,50 @@ class DataServiceRegressionTests(unittest.TestCase):
 		manys=self.ds['RegressionModel.RegressionContainer.Many2Manys']
 		manyXs=self.ds['RegressionModel.RegressionContainer.Many2ManyXs']
 		with manys.OpenCollection() as collectionMany,manyXs.OpenCollection() as collectionManyX:
-			entityMany=collectionMany.NewEntity()
+			entityMany=collectionMany.new_entity()
 			entityMany['K'].SetFromValue(1)
 			entityMany['Data'].SetFromValue('NavigationMany_1')
-			collectionMany.InsertEntity(entityMany)
+			collectionMany.insert_entity(entityMany)
 			self.assertTrue(1 in collectionMany)
 			## entityMany <-> []
-			entityMany2=collectionMany.NewEntity()
+			entityMany2=collectionMany.new_entity()
 			entityMany2['K'].SetFromValue(2)
 			entityMany2['Data'].SetFromValue('NavigationMany_2')
-			entityManyX=collectionManyX.NewEntity()
+			entityManyX=collectionManyX.new_entity()
 			entityManyX['K'].SetFromValue(100)
 			entityManyX['Data'].SetFromValue('NavigationOne')
 			entityMany2['ManyX'].BindEntity(entityManyX)
 			try:
-				collectionMany.InsertEntity(entityMany2)
+				collectionMany.insert_entity(entityMany2)
 				entityManyX=collectionManyX[100]
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with *-1 binding")
 			## entityMany <-> []
 			## entityMany2 <-> entityManyX
-			entityMany3=collectionMany.NewEntity()
+			entityMany3=collectionMany.new_entity()
 			entityMany3['K'].SetFromValue(3)
 			entityMany3['Data'].SetFromValue('NavigationMany_3')
-			entityMany4=collectionMany.NewEntity()
+			entityMany4=collectionMany.new_entity()
 			entityMany4['K'].SetFromValue(4)
 			entityMany4['Data'].SetFromValue('NavigationMany_4')
-			entityManyX2=collectionManyX.NewEntity()
+			entityManyX2=collectionManyX.new_entity()
 			entityManyX2['K'].SetFromValue(200)
 			entityManyX2['Data'].SetFromValue('NavigationOne_2')
 			# we can create more than one link now
 			entityManyX2['Many'].BindEntity(entityMany3)
 			entityManyX2['Many'].BindEntity(entityMany4)
-			collectionManyX.InsertEntity(entityManyX2)
+			collectionManyX.insert_entity(entityManyX2)
 			entityMany3=collectionMany[3]
 			## entityMany <-> []
 			## entityMany2 <-> entityManyX
 			## entityMany3, entityMany4 <-> entityManyX2
 			#	Now try inserting with a binding to an existing entity
-			entityManyX3=collectionManyX.NewEntity()
+			entityManyX3=collectionManyX.new_entity()
 			entityManyX3['K'].SetFromValue(300)
 			entityManyX3['Data'].SetFromValue('NavigationOne_3')
 			entityManyX3['Many'].BindEntity(entityMany2)
 			try:
-				collectionManyX.InsertEntity(entityManyX3)
+				collectionManyX.insert_entity(entityManyX3)
 			except edm.ConstraintError:							
 				self.fail("Unbound entity insert failed with existing entity")			
 			## entityMany <-> []
@@ -3715,9 +3715,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 			## entityMany3, entityMany4 <-> entityManyX2
 			try:
 				with entityMany2['ManyX'].OpenCollection() as navCollection:
-					navCollection.Replace(entityManyX2)
+					navCollection.replace(entityManyX2)
 			except edm.ConstraintError:
-				self.fail("Replace on *-* navigation property")
+				self.fail("replace on *-* navigation property")
 			## entityMany <-> []
 			## [] <-> entityManyX
 			## entityMany2, entityMany3, entityMany4 <-> entityManyX2
@@ -3820,51 +3820,51 @@ class DataServiceRegressionTests(unittest.TestCase):
 		manys=self.ds['RegressionModel.RegressionContainer.Many2Many1s']
 		manyXs=self.ds['RegressionModel.RegressionContainer.Many2ManyX1s']
 		with manys.OpenCollection() as collectionMany,manyXs.OpenCollection() as collectionManyX:
-			entityMany=collectionMany.NewEntity()
+			entityMany=collectionMany.new_entity()
 			entityMany['K'].SetFromValue(1)
 			entityMany['Data'].SetFromValue('NavigationMany_1')
-			collectionMany.InsertEntity(entityMany)
+			collectionMany.insert_entity(entityMany)
 			self.assertTrue(1 in collectionMany)
 			## entityMany <-> []
-			entityMany2=collectionMany.NewEntity()
+			entityMany2=collectionMany.new_entity()
 			entityMany2['K'].SetFromValue(2)
 			entityMany2['Data'].SetFromValue('NavigationMany_2')
-			entityManyX=collectionManyX.NewEntity()
+			entityManyX=collectionManyX.new_entity()
 			entityManyX['K'].SetFromValue(100)
 			entityManyX['Data'].SetFromValue('NavigationOne')
 			entityMany2['ManyX'].BindEntity(entityManyX)
 			try:
-				collectionMany.InsertEntity(entityMany2)
+				collectionMany.insert_entity(entityMany2)
 				entityManyX=collectionManyX[100]
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with *-1 binding")
 			## entityMany <-> []
 			## entityMany2 <-> entityManyX
-			entityMany3=collectionMany.NewEntity()
+			entityMany3=collectionMany.new_entity()
 			entityMany3['K'].SetFromValue(3)
 			entityMany3['Data'].SetFromValue('NavigationMany_3')
-			entityManyX2=collectionManyX.NewEntity()
+			entityManyX2=collectionManyX.new_entity()
 			entityManyX2['K'].SetFromValue(200)
 			entityManyX2['Data'].SetFromValue('NavigationOne_2')
-			entityManyX3=collectionManyX.NewEntity()
+			entityManyX3=collectionManyX.new_entity()
 			entityManyX3['K'].SetFromValue(300)
 			entityManyX3['Data'].SetFromValue('NavigationOne_3')
 			# we can create more than one link now
 			entityMany3['ManyX'].BindEntity(entityManyX2)
 			entityMany3['ManyX'].BindEntity(entityManyX3)
-			collectionMany.InsertEntity(entityMany3)
+			collectionMany.insert_entity(entityMany3)
 			entityManyX2=collectionManyX[200]
 			entityManyX3=collectionManyX[300]
 			## entityMany  -> []
 			## entityMany2  -> entityManyX
 			## entityMany3  -> entityManyX2, entityManyX3
 			#	Now try inserting with a binding to an existing entity
-			entityMany4=collectionMany.NewEntity()
+			entityMany4=collectionMany.new_entity()
 			entityMany4['K'].SetFromValue(4)
 			entityMany4['Data'].SetFromValue('NavigationMany_4')
 			entityMany4['ManyX'].BindEntity(entityManyX2)
 			try:
-				collectionMany.InsertEntity(entityMany4)
+				collectionMany.insert_entity(entityMany4)
 			except edm.ConstraintError:							
 				self.fail("Unbound entity insert failed with existing entity")			
 			## entityMany  -> []
@@ -3893,9 +3893,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 			## entityMany4  -> entityManyX2
 			try:
 				with entityMany2['ManyX'].OpenCollection() as navCollection:
-					navCollection.Replace(entityManyX2)
+					navCollection.replace(entityManyX2)
 			except edm.ConstraintError:
-				self.fail("Replace on *-* navigation property")
+				self.fail("replace on *-* navigation property")
 			## entityMany  -> []
 			## entityMany2  -> entityManyX2
 			## entityMany3  -> entityManyX2, entityManyX3
@@ -3980,47 +3980,47 @@ class DataServiceRegressionTests(unittest.TestCase):
 	def RunTestCaseNavigationMany2ManyRecursive(self):
 		manys2manys=self.ds['RegressionModel.RegressionContainer.Many2ManyRvs']
 		with manys2manys.OpenCollection() as collection:
-			entity1=collection.NewEntity()
+			entity1=collection.new_entity()
 			entity1['K'].SetFromValue(1)
 			entity1['Data'].SetFromValue('Navigation_1')
-			collection.InsertEntity(entity1)
+			collection.insert_entity(entity1)
 			self.assertTrue(1 in collection)
 			## [] <- entity1 -> []
-			entity2=collection.NewEntity()
+			entity2=collection.new_entity()
 			entity2['K'].SetFromValue(2)
 			entity2['Data'].SetFromValue('Navigation_2')
-			entity3=collection.NewEntity()
+			entity3=collection.new_entity()
 			entity3['K'].SetFromValue(3)
 			entity3['Data'].SetFromValue('Navigation_3')
 			entity2['ManyX'].BindEntity(entity3)
 			try:
-				collection.InsertEntity(entity2)
+				collection.insert_entity(entity2)
 				entity3=collection[3]
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with *-* binding")
 			## [] <- entity1 -> []
 			## [] <- entity2 -> entity3
 			## entity2 <- entity3 -> []			
-			entity4=collection.NewEntity()
+			entity4=collection.new_entity()
 			entity4['K'].SetFromValue(4)
 			entity4['Data'].SetFromValue('Navigation_4')
-			entity5=collection.NewEntity()
+			entity5=collection.new_entity()
 			entity5['K'].SetFromValue(5)
 			entity5['Data'].SetFromValue('Navigation_5')
 			# we can create more than one link now
 			entity4['Many'].BindEntity(entity5)
 			entity4['Many'].BindEntity(entity3)
-			collection.InsertEntity(entity4)
+			collection.insert_entity(entity4)
 			## [] <- entity1 -> []
 			## [] <- entity2 -> entity3
 			## entity2 <- entity3 -> entity4			
 			## entity3, entity5 <- entity4 -> []			
 			## [] <- entity5 -> entity4
-			entity6=collection.NewEntity()
+			entity6=collection.new_entity()
 			entity6['K'].SetFromValue(6)
 			entity6['Data'].SetFromValue('Navigation_6')
 			entity6['Many'].BindEntity(entity3)
-			collection.InsertEntity(entity6)			
+			collection.insert_entity(entity6)			
 			## [] <- entity1 -> []
 			## [] <- entity2 -> entity3
 			## entity2 <- entity3 -> entity4, entity6			
@@ -4076,9 +4076,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 			## entity3 <- entity6 -> []
 			try:
 				with entity3['ManyX'].OpenCollection() as navCollection:
-					navCollection.Replace(entity1)
+					navCollection.replace(entity1)
 			except edm.ConstraintError:
-				self.fail("Replace on *-* navigation property")
+				self.fail("replace on *-* navigation property")
 			## entity3 <- entity1 -> []
 			## [] <- entity2 -> entity3
 			## entity2 <- entity3 -> entity1			
@@ -4183,36 +4183,36 @@ class DataServiceRegressionTests(unittest.TestCase):
 	def RunTestCaseNavigationMany2ManyRecursive1(self):
 		manys2manys=self.ds['RegressionModel.RegressionContainer.Many2ManyRv1s']
 		with manys2manys.OpenCollection() as collection:
-			entity1=collection.NewEntity()
+			entity1=collection.new_entity()
 			entity1['K'].SetFromValue(1)
 			entity1['Data'].SetFromValue('Navigation_1')
-			collection.InsertEntity(entity1)
+			collection.insert_entity(entity1)
 			self.assertTrue(1 in collection)
 			## [] <- entity1 -> []
-			entity2=collection.NewEntity()
+			entity2=collection.new_entity()
 			entity2['K'].SetFromValue(2)
 			entity2['Data'].SetFromValue('Navigation_2')
-			entity3=collection.NewEntity()
+			entity3=collection.new_entity()
 			entity3['K'].SetFromValue(3)
 			entity3['Data'].SetFromValue('Navigation_3')
 			entity2['ManyX'].BindEntity(entity3)
 			try:
-				collection.InsertEntity(entity2)
+				collection.insert_entity(entity2)
 			except edm.ConstraintError:							
 				self.fail("Entity insert failed with *-* binding")
 			## [] <- entity1 -> []
 			## [] <- entity2 -> entity3
 			## entity2 <- entity3 -> []			
-			entity4=collection.NewEntity()
+			entity4=collection.new_entity()
 			entity4['K'].SetFromValue(4)
 			entity4['Data'].SetFromValue('Navigation_4')
-			entity5=collection.NewEntity()
+			entity5=collection.new_entity()
 			entity5['K'].SetFromValue(5)
 			entity5['Data'].SetFromValue('Navigation_5')
 			# we can create more than one link now
 			entity4['ManyX'].BindEntity(entity5)
 			entity4['ManyX'].BindEntity(entity3)
-			collection.InsertEntity(entity4)
+			collection.insert_entity(entity4)
 			## [] <- entity1 -> []
 			## [] <- entity2 -> entity3
 			## entity2, entity4 <- entity3 -> []			
@@ -4245,9 +4245,9 @@ class DataServiceRegressionTests(unittest.TestCase):
 			## entity4 <- entity5 -> []			
 			try:
 				with entity4['ManyX'].OpenCollection() as navCollection:
-					navCollection.Replace(entity1)
+					navCollection.replace(entity1)
 			except edm.ConstraintError:
-				self.fail("Replace on *-* navigation property")
+				self.fail("replace on *-* navigation property")
 			try:
 				with entity5['ManyX'].OpenCollection() as navCollection:
 					navCollection[entity2.Key()]=entity2

@@ -14,7 +14,10 @@ import itertools
 from types import StringTypes
 
 
-class Item(common.QTICommentContainer, core.SectionItemMixin, core.ObjectMixin):
+class Item(
+        common.QTICommentContainer,
+        core.SectionItemMixin,
+        core.ObjectMixin):
 
     """The Item is the smallest unit data structure that can be exchanged using
     the QTI specification. Each Item consists of five distinct parts, namely:
@@ -108,8 +111,9 @@ class Item(common.QTICommentContainer, core.SectionItemMixin, core.ObjectMixin):
         log = []
         ident = qtiv2.MakeValidNCName(self.ident)
         if self.ident != ident:
-            log.append("Warning: illegal NCName for ident: %s, replaced with: %s" % (
-                self.ident, ident))
+            log.append(
+                "Warning: illegal NCName for ident: %s, replaced with: %s" %
+                (self.ident, ident))
         item.identifier = ident
         title = self.title
         # may be specified in the metadata
@@ -125,7 +129,9 @@ class Item(common.QTICommentContainer, core.SectionItemMixin, core.ObjectMixin):
             item.title = ident
         if self.maxattempts is not None:
             log.append(
-                "Warning: maxattempts can not be controlled at item level, ignored: maxattempts='" + self.maxattempts + "'")
+                "Warning: maxattempts can not be controlled at item level, ignored: maxattempts='" +
+                self.maxattempts +
+                "'")
         if self.label:
             item.label = self.label
         lang = self.ResolveLang()
@@ -169,7 +175,8 @@ class Item(common.QTICommentContainer, core.SectionItemMixin, core.ObjectMixin):
                 self.QTIComment.GetValue())
         if self.Duration:
             log.append(
-                "Warning: duration is currently outside the scope of version 2: ignored " + self.Duration.GetValue())
+                "Warning: duration is currently outside the scope of version 2: ignored " +
+                self.Duration.GetValue())
         if self.ItemMetadata:
             self.ItemMetadata.MigrateV2(doc, lom, log)
         for objective in self.Objectives:
@@ -373,7 +380,8 @@ class ItemMetadata(common.MetadataContainerMixin, core.QTIElement):
         if contributors:
             if imsmd.vobject is None:
                 log.append(
-                    'Warning: qmd_%s support disabled (vobject not installed)' % fieldName)
+                    'Warning: qmd_%s support disabled (vobject not installed)' %
+                    fieldName)
             else:
                 for value, definition in contributors:
                     lifecycle = lom.ChildElement(imsmd.LOMLifecycle)
@@ -477,7 +485,8 @@ class ItemMetadata(common.MetadataContainerMixin, core.QTIElement):
         itemtypes = self.metadata.get('itemtype', ())
         for itemtype, itemtypeDef in itemtypes:
             log.append(
-                "Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, ignoring %s" % itemtype)
+                "Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, ignoring %s" %
+                itemtype)
         self.LRMMigrateLevelOfDifficulty(lom, log)
         self.LRMMigrateStatus(lom, log)
         vendors = self.metadata.get('toolvendor', ())
@@ -709,12 +718,12 @@ class ItemControl(common.QTICommentContainer):
     """The control switches that are used to enable or disable the display of
     hints, solutions and feedback within the Item::
 
-    <!ELEMENT itemcontrol (qticomment?)>	
+    <!ELEMENT itemcontrol (qticomment?)>
     <!ATTLIST itemcontrol  feedbackswitch  (Yes | No )  'Yes'
             hintswitch  (Yes | No )  'Yes'
             solutionswitch  (Yes | No )  'Yes'
             view	(All | Administrator | AdminAuthority | Assessor | Author |
-                            Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+                            Candidate | InvigilatorProctor | Psychometrician | Scorer |
                             Tutor ) 'All' >
     """
     XMLNAME = 'itemcontrol'
@@ -741,9 +750,9 @@ class ItemRubric(common.Rubric):
     rubric can be defined for each of the possible views::
 
     <!ELEMENT itemrubric (material)>
-    <!ATTLIST itemrubric  
+    <!ATTLIST itemrubric
             view	(All | Administrator | AdminAuthority | Assessor | Author |
-                            Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+                            Candidate | InvigilatorProctor | Psychometrician | Scorer |
                             Tutor ) 'All' >
 
     We are generous with this element, extending the allowable content model
@@ -794,7 +803,7 @@ class Presentation(FlowContainer, common.PositionMixin):
                     response_grp |
                     response_extension)+
                     )
-            )>	
+            )>
     <!ATTLIST presentation  label CDATA  #IMPLIED
             xml:lang CDATA  #IMPLIED
             y0 CDATA  #IMPLIED
@@ -846,8 +855,11 @@ class Presentation(FlowContainer, common.PositionMixin):
         fiddle around at the time we simply migrate the lot, duplicating the images
         in the hotspotInteractions.  When the itemBody is complete we do a grand tidy
         up to remove spurious images."""
-        hotspots = list(itemBody.FindChildrenDepthFirst(
-            (qtiv2.interactions.HotspotInteraction, qtiv2.interactions.SelectPointInteraction), False))
+        hotspots = list(
+            itemBody.FindChildrenDepthFirst(
+                (qtiv2.interactions.HotspotInteraction,
+                 qtiv2.interactions.SelectPointInteraction),
+                False))
         images = list(itemBody.FindChildrenDepthFirst(html.Img, False))
         for hs in hotspots:
             for img in images:
@@ -955,7 +967,9 @@ class ResponseThing(Response):
             ident 			CDATA  #REQUIRED >"""
     XMLATTR_ident = 'ident'
     XMLATTR_rcardinality = (
-        'rCardinality', core.RCardinality.DecodeTitleValue, core.RCardinality.EncodeValue)
+        'rCardinality',
+        core.RCardinality.DecodeTitleValue,
+        core.RCardinality.EncodeValue)
     XMLATTR_rtiming = ('rTiming', core.ParseYesNo, core.FormatYesNo)
     XMLATTR_ident = 'ident'
     XMLCONTENT = xml.ElementContent
@@ -1036,7 +1050,8 @@ class ResponseThing(Response):
                         self.inlineFooter = False
 
     def InlineChildren(self):
-        return self.inlinePrompt and (self.render is None or self.render.IsInline()) and self.inlineFooter
+        return self.inlinePrompt and (
+            self.render is None or self.render.IsInline()) and self.inlineFooter
 
     def GetBaseType(self, interaction):
         """Returns the base type to use for the given interaction."""
@@ -1069,7 +1084,8 @@ class ResponseThing(Response):
             item = parent.FindParent(qtiv2.items.AssessmentItem)
             if len(interactionList) > 1 and self.rCardinality == core.RCardinality.Single:
                 log.append(
-                    "Error: unable to migrate a response with Single cardinality to a single interaction: %s" % self.ident)
+                    "Error: unable to migrate a response with Single cardinality to a single interaction: %s" %
+                    self.ident)
                 interactionList = []
                 responseList = []
             else:
@@ -1126,7 +1142,7 @@ class ResponseLId(ResponseThing):
     <!ELEMENT response_lid ((material | material_ref)? ,
             (render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
             (material | material_ref)?)>
-    <!ATTLIST response_lid  
+    <!ATTLIST response_lid
             rcardinality	(Single | Multiple | Ordered )  'Single'
             rtiming  		(Yes | No )  'No'
             ident 			CDATA  #REQUIRED >"""
@@ -1173,7 +1189,7 @@ class ResponseStr(ResponseThing):
             (render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
             (material | material_ref)?)>
 
-    <!ATTLIST response_str  
+    <!ATTLIST response_str
             rcardinality	(Single | Multiple | Ordered )  'Single'
             ident 			CDATA #REQUIRED
             rtiming  		(Yes | No )  'No' >"""
@@ -1226,7 +1242,7 @@ class ResponseGrp(core.QTIElement, common.ContentMixin):
 
     <!ELEMENT response_grp ((material | material_ref)? ,
             (render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
-            (material | material_ref)?)>	
+            (material | material_ref)?)>
     <!ATTLIST response_grp
             rcardinality	(Single | Multiple | Ordered )  'Single'
             ident			CDATA  #REQUIRED
@@ -1285,7 +1301,8 @@ class RenderThing(Render):
 
     def MigrateV2Interaction(self, parent, childType, prompt, log):
         raise QTIUnimplementedError(
-            "%s x %s" % (self.parent.__class__.__name__, self.__class__.__name__))
+            "%s x %s" %
+            (self.parent.__class__.__name__, self.__class__.__name__))
 
     def MigrateV2InteractionDefault(self, parent, interaction):
         # Most interactions do not need default values.
@@ -1359,7 +1376,7 @@ class RenderHotspot(RenderThing):
     responses is determined by the <response_label> elements contained. Both
     flowed and non-flowed formats are supported::
 
-    <!ELEMENT render_hotspot ((material | material_ref | response_label | flow_label)* , response_na?)>	
+    <!ELEMENT render_hotspot ((material | material_ref | response_label | flow_label)* , response_na?)>
     <!ATTLIST render_hotspot
             maxnumber	CDATA  #IMPLIED
             minnumber	CDATA  #IMPLIED
@@ -1421,7 +1438,10 @@ class RenderHotspot(RenderThing):
                     child.MigrateV2Content(
                         interactionPrompt, html.InlineMixin, log)
                 prompt = list(
-                    interactionPrompt.FindChildrenDepthFirst(html.Img, False))[0:1]
+                    interactionPrompt.FindChildrenDepthFirst(
+                        html.Img,
+                        False))[
+                    0:1]
         if prompt:
             # now the prompt should be a list containing a single image to use
             # as the hotspot
@@ -1433,7 +1453,10 @@ class RenderHotspot(RenderThing):
                 # Annoyingly, Img throws away mime-type information from
                 # matimage
                 images = list(
-                    self.parent.FindChildrenDepthFirst(common.MatImage, False))[0:1]
+                    self.parent.FindChildrenDepthFirst(
+                        common.MatImage,
+                        False))[
+                    0:1]
                 if images and images[0].uri:
                     # Check that this is the right image in case img was
                     # embedded in MatText
@@ -1450,7 +1473,9 @@ class RenderHotspot(RenderThing):
             presentation = self.FindParent(Presentation)
             if presentation:
                 images = list(
-                    presentation.FindChildrenDepthFirst(common.MatImage, False))
+                    presentation.FindChildrenDepthFirst(
+                        common.MatImage,
+                        False))
             hsi = []
             if len(images) == 1:
                 # Single image that must have gone AWOL
@@ -1538,7 +1563,9 @@ class RenderFIB(RenderThing):
     XMLATTR_rows = ('rows', xsi.DecodeInteger, xsi.EncodeInteger)
     XMLATTR_maxchars = ('maxChars', xsi.DecodeInteger, xsi.EncodeInteger)
     XMLATTR_prompt = (
-        'prompt', core.PromptType.DecodeTitleValue, core.PromptType.EncodeValue)
+        'prompt',
+        core.PromptType.DecodeTitleValue,
+        core.PromptType.EncodeValue)
     XMLATTR_columns = ('columns', xsi.DecodeInteger, xsi.EncodeInteger)
     XMLATTR_charset = 'charset'
     XMLATTR_maxnumber = ('maxNumber', xsi.DecodeInteger, xsi.EncodeInteger)
@@ -1650,7 +1677,7 @@ class RenderSlider(RenderThing):
     determined by the <response_label> elements contained. Both flowed and
     non-flowed formats are supported::
 
-    <!ELEMENT render_slider ((material | material_ref | response_label | flow_label)* , response_na?)>	
+    <!ELEMENT render_slider ((material | material_ref | response_label | flow_label)* , response_na?)>
     <!ATTLIST render_slider
             orientation		(Horizontal | Vertical )  'Horizontal'
             lowerbound		CDATA  #REQUIRED
@@ -1662,7 +1689,9 @@ class RenderSlider(RenderThing):
             minnumber		CDATA  #IMPLIED >"""
     XMLNAME = 'render_slider'
     XMLATTR_orientation = (
-        'orientation', core.Orientation.DecodeTitleValue, core.Orientation.EncodeValue)
+        'orientation',
+        core.Orientation.DecodeTitleValue,
+        core.Orientation.EncodeValue)
     XMLATTR_lowerbound = ('lowerBound', xsi.DecodeInteger, xsi.EncodeInteger)
     XMLATTR_upperbound = ('upperBound', xsi.DecodeInteger, xsi.EncodeInteger)
     XMLATTR_step = ('step', xsi.DecodeInteger, xsi.EncodeInteger)
@@ -1752,15 +1781,18 @@ class RenderSlider(RenderThing):
         # Most interactions do not need default values.
         if isinstance(interaction, qtiv2.interactions.SliderInteraction) and self.startVal is not None:
             value = declaration.ChildElement(
-                qtiv2.variables.DefaultValue).ChildElement(qtiv2.variables.ValueElement)
+                qtiv2.variables.DefaultValue).ChildElement(
+                qtiv2.variables.ValueElement)
             if declaration.baseType == qtiv2.variables.BaseType.integer:
                 value.SetValue(xsi.EncodeInteger(self.startVal))
             elif declaration.baseType == qtiv2.variables.BaseType.float:
                 value.SetValue(xsi.EncodeFloat(self.startVal))
             else:
                 # slider bound to something else?
-                raise QTIError("Unexpected slider type for default: %s" %
-                               qtiv2.variables.BaseType.EncodeValue(declaration.baseType))
+                raise QTIError(
+                    "Unexpected slider type for default: %s" %
+                    qtiv2.variables.BaseType.EncodeValue(
+                        declaration.baseType))
 
 
 class RenderExtension(Render):
@@ -1781,7 +1813,7 @@ class ResponseLabel(core.QTIElement, common.ContentMixin):
     response. The label is used in the response processing. Flow and non-flow
     approaches are supported::
 
-    <!ELEMENT response_label (#PCDATA | qticomment | material | material_ref | flow_mat)*>	
+    <!ELEMENT response_label (#PCDATA | qticomment | material | material_ref | flow_mat)*>
     <!ATTLIST response_label  rshuffle     (Yes | No )  'Yes'
     rarea			(Ellipse | Rectangle | Bounded )  'Ellipse'
     rrange			(Exact | Range )  'Exact'
@@ -1863,7 +1895,10 @@ class ResponseLabel(core.QTIElement, common.ContentMixin):
                 gotElements = True
         if data and gotElements:
             log.append(
-                'Warning: ignoring PCDATA in <response_label>, "%s"' % string.join(data, ' '))
+                'Warning: ignoring PCDATA in <response_label>, "%s"' %
+                string.join(
+                    data,
+                    ' '))
         elif data:
             for d in data:
                 choice.AddData(d)
@@ -1879,7 +1914,8 @@ class ResponseLabel(core.QTIElement, common.ContentMixin):
         """Migrate this label into a v2 hotspotChoice in interaction."""
         if isinstance(interaction, qtiv2.interactions.SelectPointInteraction):
             log.append(
-                "Warning: ignoring response_label in selectPointInteraction (%s)" % self.ident)
+                "Warning: ignoring response_label in selectPointInteraction (%s)" %
+                self.ident)
             return
         choice = interaction.ChildElement(qtiv2.interactions.HotspotChoice)
         choice.identifier = qtiv2.core.ValidateIdentifier(self.ident)
@@ -1936,12 +1972,15 @@ class ResponseLabel(core.QTIElement, common.ContentMixin):
         return lang, labelData, valueData
 
 
-class FlowLabel(common.QTICommentContainer, common.ContentMixin, common.FlowMixin):
+class FlowLabel(
+        common.QTICommentContainer,
+        common.ContentMixin,
+        common.FlowMixin):
 
     """The <flow_label> element is the blocking/paragraph equivalent to the
     <response_label> element::
 
-    <!ELEMENT flow_label	(qticomment? , (flow_label | response_label)+)>	
+    <!ELEMENT flow_label	(qticomment? , (flow_label | response_label)+)>
     <!ATTLIST flow_label	class CDATA  'Block' >"""
     XMLNAME = 'flow_label'
     XMLCONTENT = xml.ElementContent
@@ -2078,7 +2117,7 @@ class RespCondition(common.QTICommentContainer, ConditionMixin):
     an actual test, the assignment of a value to the associate scoring variables
     and the identification of the feedback to be associated with the test::
 
-    <!ELEMENT respcondition (qticomment? , conditionvar , setvar* , displayfeedback* , respcond_extension?)>	
+    <!ELEMENT respcondition (qticomment? , conditionvar , setvar* , displayfeedback* , respcond_extension?)>
     <!ATTLIST respcondition
             continue  (Yes | No )  'No'
             title CDATA  #IMPLIED >"""
@@ -2221,10 +2260,10 @@ class ItemFeedback(core.QTIElement, common.ContentMixin):
     user's responses. The feedback can include hints and solutions and both of
     these can be revealed in a variety of different ways::
 
-    <!ELEMENT itemfeedback ((flow_mat | material) | solution | hint)+>	
+    <!ELEMENT itemfeedback ((flow_mat | material) | solution | hint)+>
     <!ATTLIST itemfeedback
             view	(All | Administrator | AdminAuthority | Assessor | Author |
-                            Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+                            Candidate | InvigilatorProctor | Psychometrician | Scorer |
                             Tutor ) 'All'
             ident CDATA  #REQUIRED
             title CDATA  #IMPLIED >"""
@@ -2277,7 +2316,9 @@ class Solution(common.ContentMixin, common.QTICommentContainer):
     <!ATTLIST solution  feedbackstyle  (Complete | Incremental | Multilevel | Proprietary )  'Complete' >"""
     XMLNAME = 'solution'
     XMLATTR_feedbackstyle = (
-        'feedbackStyle', core.FeedbackStyle.DecodeTitleValue, core.FeedbackStyle.EncodeValue)
+        'feedbackStyle',
+        core.FeedbackStyle.DecodeTitleValue,
+        core.FeedbackStyle.EncodeValue)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -2339,7 +2380,9 @@ class Hint(common.ContentMixin, common.QTICommentContainer):
     <!ATTLIST hint  feedbackstyle  (Complete | Incremental | Multilevel | Proprietary )  'Complete' >"""
     XMLNAME = 'hint'
     XMLATTR_feedbackstyle = (
-        'feedbackStyle', core.FeedbackStyle.DecodeTitleValue, core.FeedbackStyle.EncodeValue)
+        'feedbackStyle',
+        core.FeedbackStyle.DecodeTitleValue,
+        core.FeedbackStyle.EncodeValue)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):

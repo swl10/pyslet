@@ -1,18 +1,13 @@
 #! /usr/bin/env python
-"""This module provides a simple implementation of an EntitySet using a python list object."""
-
-
-import pyslet.odata2.csdl as edm
-import pyslet.odata2.edmx as edmx
-import pyslet.odata2.core as odata
-import pyslet.xml20081126.structures as xml
-import pyslet.xmlnames20091208 as xmlns
-import pyslet.iso8601 as iso8601
-import pyslet.rfc2616 as http
+"""A simple Entity store using a python dictionary"""
 
 import string
 import hashlib
 import threading
+
+import pyslet.odata2.csdl as edm
+import pyslet.odata2.core as odata
+import pyslet.rfc2616 as http
 
 
 class InMemoryEntityStore(object):
@@ -32,39 +27,44 @@ class InMemoryEntityStore(object):
     threads can open separate collections and access the entities
     safely."""
 
-    def __init__(self, container, entitySet=None):
-        # : the :py:class:`InMemoryEntityContainer` that contains this entity set
+    def __init__(self, container, entity_set=None):
         self.container = container
-        self.entitySet = entitySet  # : the entity set we're bound to
+        # the :py:class:`InMemoryEntityContainer` that contains this
+        # entity set
+        self.entity_set = entity_set  # the entity set we're bound to
         self.data = {}				#: simple dictionary of the values
         self.streams = {}				#: simple dictionary of streams
-        #: a mapping of association set names to :py:class:`InMemoryAssociation` instances *from* this entity set
+        # a mapping of association set names to
+        # :py:class:`InMemoryAssociation` instances *from* this entity
+        # set
         self.associations = {}
-        # : a mapping of association set names to :py:class:`InMemoryAssociation` index instances *to* this entity set
+        # a mapping of association set names to
+        # :py:class:`InMemoryAssociation` index instances *to* this
+        # entity set
         self.reverseAssociations = {}
         self._deleting = set()
         self.nextKey = None
-        if entitySet is not None:
-            self.BindToEntitySet(entitySet)
+        if entity_set is not None:
+            self.bind_to_entity_set(entity_set)
 
-    def BindToEntitySet(self, entitySet):
+    def bind_to_entity_set(self, entity_set):
         """Binds this entity store to the given entity set.
 
         Not thread safe."""
-        entitySet.Bind(EntityCollection, entityStore=self)
-        self.entitySet = entitySet
+        entity_set.Bind(EntityCollection, entity_store=self)
+        self.entity_set = entity_set
 
-    def AddAssociation(self, associationIndex, reverse):
+    def add_association(self, aindex, reverse):
         """Adds an association index from this entity set (if reverse is
         False) or to this entity set (reverse is True).
 
         Not thread safe."""
         if reverse:
-            self.reverseAssociations[associationIndex.name] = associationIndex
+            self.reverseAssociations[aindex.name] = aindex
         else:
-            self.associations[associationIndex.name] = associationIndex
+            self.associations[aindex.name] = aindex
 
-    def AddEntity(self, e):
+    def add_entity(self, e):
         key = e.Key()
         value = []
         for pName in e.DataKeys():
@@ -72,7 +72,7 @@ class InMemoryEntityStore(object):
                 continue
             p = e[pName]
             if isinstance(p, edm.Complex):
-                value.append(self.GetTupleFromComplex(p))
+                value.append(self.get_tuple_from_complex(p))
             elif isinstance(p, edm.SimpleValue):
                 value.append(p.value)
         with self.container.lock:
@@ -80,11 +80,11 @@ class InMemoryEntityStore(object):
             # At this point the entity exists
             e.exists = True
 
-    def CountEntities(self):
+    def count_entities(self):
         with self.container.lock:
             return len(self.data)
 
-    def GenerateEntities(self, select=None):
+    def generate_entities(self, select=None):
         """A generator function that returns the entities in the entity set
 
         The implementation is a compromise, we don't lock the container
@@ -95,26 +95,27 @@ class InMemoryEntityStore(object):
         with self.container.lock:
             keys = self.data.keys()
         for k in keys:
-            e = self.ReadEntity(k, select)
+            e = self.read_entity(k, select)
             if e is not None:
                 yield e
 
-    def ReadEntity(self, key, select=None):
+    def read_entity(self, key, select=None):
         with self.container.lock:
             value = self.data.get(key, None)
             if value is None:
                 return None
-            e = Entity(self.entitySet, self)
+            e = Entity(self.entity_set, self)
             if select is not None:
                 e.Expand(None, select)
             kv = zip(e.DataKeys(), value)
             for pName, pValue in kv:
                 p = e[pName]
-                if select is None or e.Selected(pName) or pName in self.entitySet.keys:
+                if (select is None or e.Selected(pName) or
+                        pName in self.entity_set.keys):
                     # for speed, check if selection is an issue first
                     # we always include the keys
                     if isinstance(p, edm.Complex):
-                        self.SetComplexFromTuple(p, pValue)
+                        self.set_complex_from_tuple(p, pValue)
                     else:
                         p.SetFromValue(pValue)
                 else:
@@ -125,16 +126,18 @@ class InMemoryEntityStore(object):
             e.exists = True
         return e
 
-    def SetComplexFromTuple(self, complexValue, t):
-        for pName, pValue in zip(complexValue.iterkeys(), t):
-            p = complexValue[pName]
+    def set_complex_from_tuple(self, complex_value, t):
+        for pName, pValue in zip(complex_value.iterkeys(), t):
+            p = complex_value[pName]
             if isinstance(p, edm.Complex):
-                self.SetComplexFromTuple(p, pValue)
+                self.set_complex_from_tuple(p, pValue)
             else:
                 p.SetFromValue(pValue)
 
-    def ReadStream(self, key):
-        """Returns a tuple of (content type, data) of the entity's media stream."""
+    def read_stream(self, key):
+        """Returns a tuple of the entity's media stream
+
+        The return value is a tuple: (content type, data)."""
         with self.container.lock:
             if key not in self.data:
                 raise KeyError
@@ -142,9 +145,10 @@ class InMemoryEntityStore(object):
                 type, stream = self.streams[key]
                 return type, stream
             else:
-                return http.MediaType.FromString('application/octet-stream'), ''
+                return http.MediaType.FromString(
+                    'application/octet-stream'), ''
 
-    def UpdateEntity(self, e):
+    def update_entity(self, e):
         # e is an EntityTypeInstance, we need to convert it to a tuple
         key = e.Key()
         with self.container.lock:
@@ -154,27 +158,27 @@ class InMemoryEntityStore(object):
                 if e.Selected(pName):
                     p = e[pName]
                     if isinstance(p, edm.Complex):
-                        value[i] = self.GetTupleFromComplex(p)
+                        value[i] = self.get_tuple_from_complex(p)
                     elif isinstance(p, edm.SimpleValue):
                         value[i] = p.value
                 i = i + 1
             self.data[key] = tuple(value)
 
-    def UpdateEntityStream(self, key, streamType, stream):
+    def update_entity_stream(self, key, stream_type, stream):
         with self.container.lock:
-            self.streams[key] = (streamType, stream)
+            self.streams[key] = (stream_type, stream)
 
-    def GetTupleFromComplex(self, complexValue):
+    def get_tuple_from_complex(self, complex_value):
         value = []
-        for pName in complexValue.iterkeys():
-            p = complexValue[pName]
+        for pName in complex_value.iterkeys():
+            p = complex_value[pName]
             if isinstance(p, edm.Complex):
-                value.append(self.GetTupleFromComplex(p))
+                value.append(self.get_tuple_from_complex(p))
             else:
                 value.append(p.value)
         return tuple(value)
 
-    def StartDeletingEntity(self, key):
+    def start_deleting_entity(self, key):
         """Returns True if it is OK to start deleting the entity, False
         if it is already being deleted.
 
@@ -188,7 +192,7 @@ class InMemoryEntityStore(object):
             self._deleting.add(key)
             return True
 
-    def DeletingEntity(self, key):
+    def deleting(self, key):
         """Returns True if the entity with key is currently being
         deleted.
 
@@ -196,7 +200,7 @@ class InMemoryEntityStore(object):
         acquired the container lock."""
         return key in self._deleting
 
-    def StopDeletingEntity(self, key):
+    def stop_deleting(self, key):
         """Removes *key* from the list of entities being deleted.
 
         Not thread-safe, must only be called if you have
@@ -204,24 +208,24 @@ class InMemoryEntityStore(object):
         if key in self._deleting:
             self._deleting.remove(key)
 
-    def DeleteEntity(self, key):
+    def delete_entity(self, key):
         with self.container.lock:
-            for associationIndex in self.associations.values():
-                associationIndex.DeleteHook(key)
-            for associationIndex in self.reverseAssociations.values():
-                associationIndex.ReverseDeleteHook(key)
+            for aindex in self.associations.values():
+                aindex.delete_hook(key)
+            for aindex in self.reverseAssociations.values():
+                aindex.rdelete_hook(key)
             del self.data[key]
             if key in self.streams:
                 del self.streams[key]
 
-    def NextKey(self):
-        """In the special case where the key is an integer, return the next free integer"""
+    def next_key(self):
+        """Returns the next free integer assuming an integer key"""
         with self.container.lock:
             if self.nextKey is None:
-                kps = list(self.entitySet.keys)
+                kps = list(self.entity_set.keys)
                 if len(kps) != 1:
                     raise KeyError("Can't get next value of compound key")
-                key = self.entitySet.entityType[kps[0]]()
+                key = self.entity_set.entityType[kps[0]]()
                 if not isinstance(key, edm.NumericValue):
                     raise KeyError("Can't get next value non-integer key")
                 keys = self.data.keys()
@@ -242,93 +246,109 @@ class InMemoryAssociationIndex(object):
     sets of entities.
 
     Instances of this class create storage for an association between
-    *fromEntityStore* and *toEntityStore* which are
+    *from_store* and *to_store* which are
     :py:class:`InMemoryEntityStore` instances.
 
-    If *propertyName* (and optionally *reverseName*) is provided then
+    If *property_name* (and optionally *reverse_name*) is provided then
     the index is immediately bound to the associated entity sets, see
-    :py:meth:`Bind` for more information."""
+    :py:meth:`bind` for more information."""
 
-    def __init__(self, container, associationSet, fromEntityStore, toEntityStore, propertyName=None, reverseName=None):
+    def __init__(
+            self,
+            container,
+            association_set,
+            from_store,
+            to_store,
+            property_name=None,
+            reverse_name=None):
         #: the :py:class:`InMemoryEntityContainer` that contains this index
         self.container = container
         # : the name of the association set this index represents
-        self.name = associationSet.name
+        self.name = association_set.name
         #: a dictionary mapping source keys on to sets of target keys
         self.index = {}
         #: the reverse index mapping target keys on to sets of source keys
         self.reverseIndex = {}
-        self.fromEntityStore = fromEntityStore
-        fromEntityStore.AddAssociation(self, reverse=False)
-        self.toEntityStore = toEntityStore
-        toEntityStore.AddAssociation(self, reverse=True)
-        if propertyName is not None:
-            self.Bind(propertyName, reverseName)
+        self.from_store = from_store
+        from_store.add_association(self, reverse=False)
+        self.to_store = to_store
+        to_store.add_association(self, reverse=True)
+        if property_name is not None:
+            self.bind(property_name, reverse_name)
 
-    def Bind(self, propertyName, reverseName=None):
+    def bind(self, property_name, reverse_name=None):
         """Binds this index to the named property of the entity set
-        bound to :py:attr:`fromEntityStore`.
+        bound to :py:attr:`from_store`.
 
-        If the association is reversible *reverseName* can also be used
+        If the association is reversible *reverse_name* can also be used
         to bind that property in the entity set bound to
-        :py:attr:`toEntityStore`"""
-        self.fromEntityStore.entitySet.BindNavigation(
-            propertyName, NavigationCollection, associationIndex=self, reverse=False)
-        if reverseName is not None:
-            self.toEntityStore.entitySet.BindNavigation(
-                reverseName, NavigationCollection, associationIndex=self, reverse=True)
+        :py:attr:`to_store`"""
+        self.from_store.entity_set.BindNavigation(
+            property_name,
+            NavigationCollection,
+            aindex=self,
+            reverse=False)
+        if reverse_name is not None:
+            self.to_store.entity_set.BindNavigation(
+                reverse_name,
+                NavigationCollection,
+                aindex=self,
+                reverse=True)
 
-    def BindReverse(self, reverseName):
-        """Binds this index to *reverseName* in the :py:attr:`toEntityStore`"""
-        if reverseName is not None:
-            self.toEntityStore.entitySet.BindNavigation(
-                reverseName, NavigationCollection, associationIndex=self, reverse=True)
+    def bind_reverse(self, reverse_name):
+        """Binds this index to *reverse_name* in the :py:attr:`to_store`"""
+        if reverse_name is not None:
+            self.to_store.entity_set.BindNavigation(
+                reverse_name,
+                NavigationCollection,
+                aindex=self,
+                reverse=True)
 
-    def AddLink(self, fromKey, toKey):
-        """Adds a link from *fromKey* to *toKey*"""
+    def add_link(self, from_key, to_key):
+        """Adds a link from *from_key* to *to_key*"""
         with self.container.lock:
-            self.index.setdefault(fromKey, set()).add(toKey)
-            self.reverseIndex.setdefault(toKey, set()).add(fromKey)
+            self.index.setdefault(from_key, set()).add(to_key)
+            self.reverseIndex.setdefault(to_key, set()).add(from_key)
 
-    def GetLinksFrom(self, fromKey):
-        """Returns a tuple of toKeys linked from *fromKey*"""
+    def get_links_from(self, from_key):
+        """Returns a tuple of to_keys linked from *from_key*"""
         with self.container.lock:
-            return tuple(self.index.get(fromKey, ()))
+            return tuple(self.index.get(from_key, ()))
 
-    def GetLinksTo(self, toKey):
-        """Returns a tuple of fromKeys linked to *toKey*"""
+    def get_links_to(self, to_key):
+        """Returns a tuple of from_keys linked to *to_key*"""
         with self.container.lock:
-            return tuple(self.reverseIndex.get(toKey, ()))
+            return tuple(self.reverseIndex.get(to_key, ()))
 
-    def RemoveLink(self, fromKey, toKey):
-        """Removes a link from *fromKey* to *toKey*"""
+    def remove_link(self, from_key, to_key):
+        """Removes a link from *from_key* to *to_key*"""
         with self.container.lock:
-            self.index.get(fromKey, set()).discard(toKey)
-            self.reverseIndex.get(toKey, set()).discard(fromKey)
+            self.index.get(from_key, set()).discard(to_key)
+            self.reverseIndex.get(to_key, set()).discard(from_key)
 
-    def DeleteHook(self, fromKey):
-        """Called only by :py:meth:`InMemoryEntityStore.DeleteEntity`"""
+    def delete_hook(self, from_key):
+        """Called only by :py:meth:`InMemoryEntityStore.delete_entity`"""
         try:
-            toKeys = self.index[fromKey]
-            for toKey in toKeys:
-                fromKeys = self.reverseIndex[toKey]
-                fromKeys.remove(fromKey)
-                if len(fromKeys) == 0:
-                    del self.reverseIndex[toKey]
-            del self.index[fromKey]
+            to_keys = self.index[from_key]
+            for to_key in to_keys:
+                from_keys = self.reverseIndex[to_key]
+                from_keys.remove(from_key)
+                if len(from_keys) == 0:
+                    del self.reverseIndex[to_key]
+            del self.index[from_key]
         except KeyError:
             pass
 
-    def ReverseDeleteHook(self, toKey):
-        """Called only by :py:meth:`InMemoryEntityStore.DeleteEntity`"""
+    def rdelete_hook(self, to_key):
+        """Called only by :py:meth:`InMemoryEntityStore.delete_entity`"""
         try:
-            fromKeys = self.reverseIndex[toKey]
-            for fromKey in fromKeys:
-                toKeys = self.index[fromKey]
-                toKeys.remove(toKey)
-                if len(toKeys) == 0:
-                    del self.index[fromKey]
-            del self.reverseIndex[toKey]
+            from_keys = self.reverseIndex[to_key]
+            for from_key in from_keys:
+                to_keys = self.index[from_key]
+                to_keys.remove(to_key)
+                if len(to_keys) == 0:
+                    del self.index[from_key]
+            del self.reverseIndex[to_key]
         except KeyError:
             pass
 
@@ -338,32 +358,28 @@ class Entity(odata.Entity):
     """We override OData's EntitySet class to support the
     media-streaming methods."""
 
-    def __init__(self, entitySet, entityStore):
-        super(Entity, self).__init__(entitySet)
-        self.entityStore = entityStore		#: points to the entity storage
+    def __init__(self, entity_set, entity_store):
+        super(Entity, self).__init__(entity_set)
+        self.entity_store = entity_store  # : points to the entity storage
 
-    def GetStreamType(self):
-        """Returns the content type of the entity's media stream.
-
-        Must return a :py:class:`pyslet.rfc2616.MediaType` instance."""
+    def get_stream_info(self):
+        """Returns the content type and size of the entity's media stream."""
         key = self.Key()
-        return self.entityStore.ReadStream(key)[0]
+        type, data = self.entity_store.read_stream(key)
+        return (type, len(data))
 
-    def GetStreamSize(self):
-        """Returns the size of the entity's media stream in bytes."""
+    def get_stream_generator(self):
+        """A generator function that yields blocks (strings) of data"""
         key = self.Key()
-        return len(self.entityStore.ReadStream(key)[1])
+        yield self.entity_store.read_stream(key)[1]
 
-    def GetStreamGenerator(self):
-        """A generator function that yields blocks (strings) of data from the entity's media stream."""
-        key = self.Key()
-        yield self.entityStore.ReadStream(key)[1]
+    def set_stream_from_generator(self, stream_type, src):
+        """Replaces the contents of this stream
 
-    def SetStreamFromGenerator(self, streamType, src):
-        """Replaces the contents of this stream with the strings output by iterating over src.
+        The stream is set from the strings output by iterating over src.
 
         If the entity has a concurrency token and it is a binary value,
-        updates the token to be a hash of the stream."""
+        also updates the token to be a hash of the stream."""
         key = self.Key()
         etag = self.ETagValues()
         if len(etag) == 1 and isinstance(etag[0], edm.BinaryValue):
@@ -381,62 +397,64 @@ class Entity(odata.Entity):
         if h is not None:
             # we need the lock to ensure the stream and etag are updated
             # together
-            with self.entityStore.container.lock:
-                self.entityStore.UpdateEntityStream(key, streamType, data)
+            with self.entity_store.container.lock:
+                self.entity_store.update_entity_stream(key, stream_type, data)
                 self.Update()
         else:
-            self.entityStore.UpdateEntityStream(key, streamType, data)
+            self.entity_store.update_entity_stream(key, stream_type, data)
 
 
 class EntityCollection(odata.EntityCollection):
 
     """An entity collection that provides access to entities stored in
-    the :py:class:`InMemoryEntitySet` *entityStore*."""
+    the :py:class:`InMemoryEntitySet` *entity_store*."""
 
-    def __init__(self, entityStore, **kwArgs):
-        super(EntityCollection, self).__init__(**kwArgs)
-        self.entityStore = entityStore
+    def __init__(self, entity_store, **kwargs):
+        super(EntityCollection, self).__init__(**kwargs)
+        self.entity_store = entity_store
 
-    def NewEntity(self, autoKey=False):
+    def new_entity(self, auto_key=False):
         """Returns an OData aware instance"""
-        e = Entity(self.entitySet, self.entityStore)
-        if autoKey:
-            e.SetKey(self.entityStore.NextKey())
+        e = Entity(self.entity_set, self.entity_store)
+        if auto_key:
+            e.SetKey(self.entity_store.next_key())
         return e
 
-    def InsertEntity(self, entity, fromEnd=None):
-        """The optional *fromEnd* is an
+    def insert_entity(self, entity, from_end=None):
+        """The optional *from_end* is an
         :py:class:`AssociationSetEnd` instance that is bound to *this*
         collection's entity set.  It indicates that we are being created
         by a deep insert or through direct insertion into a
         :py:class:`NavigationCollection` representing the
         corresponding association.  This information can be used to
         suppress a constraint check (on the assumption that it has
-        already been checked) by passing *fromEnd* directly to
+        already been checked) by passing *from_end* directly to
         :py:meth:`Entity.CheckNavigationConstraints`."""
         try:
             key = entity.Key()
         except KeyError:
             # if the entity doesn't have a key, autogenerate one
-            key = self.entityStore.NextKey()
+            key = self.entity_store.next_key()
             entity.SetKey(key)
-        with self.entityStore.container.lock:
+        with self.entity_store.container.lock:
             # This is a bit clumsy, but we lock the whole container while we
             # check all constraints and perform any nested deletes
             if key in self:
                 raise edm.ConstraintError(
-                    "%s already exists" % odata.ODataURI.FormatEntityKey(entity))
+                    "%s already exists" %
+                    odata.ODataURI.FormatEntityKey(entity))
             # Check constraints
-            entity.CheckNavigationConstraints(fromEnd)
-            self.entityStore.AddEntity(entity)
+            entity.CheckNavigationConstraints(from_end)
+            self.entity_store.add_entity(entity)
             self.UpdateBindings(entity)
 
     def __len__(self):
         if self.filter is None:
-            return self.entityStore.CountEntities()
+            return self.entity_store.count_entities()
         else:
             result = 0
-            for e in self.FilterEntities(self.entityStore.GenerateEntities()):
+            for e in self.FilterEntities(
+                    self.entity_store.generate_entities()):
                 result += 1
             return result
 
@@ -444,129 +462,142 @@ class EntityCollection(odata.EntityCollection):
         return self.OrderEntities(
             self.ExpandEntities(
                 self.FilterEntities(
-                    self.entityStore.GenerateEntities(self.select))))
+                    self.entity_store.generate_entities(self.select))))
 
     def __getitem__(self, key):
-        e = self.entityStore.ReadEntity(key, self.select)
+        e = self.entity_store.read_entity(key, self.select)
         if e is not None and self.CheckFilter(e):
             e.Expand(self.expand, self.select)
             return e
         else:
             raise KeyError
 
-    def UpdateEntity(self, entity):
+    def update_entity(self, entity):
         # force an error if we don't have a key
-        key = entity.Key()
-        with self.entityStore.container.lock:
-            self.entityStore.UpdateEntity(entity)
+        with self.entity_store.container.lock:
+            self.entity_store.update_entity(entity)
             # now process any bindings
             self.UpdateBindings(entity)
 
     def __delitem__(self, key):
         """We do a cascade delete of everything that *must* be linked to
         us. We don't need to bother about deleting links because the
-        delete hooks on entityStore do this automatically."""
-        if not self.entityStore.StartDeletingEntity(key):
+        delete hooks on entity_store do this automatically."""
+        if not self.entity_store.start_deleting_entity(key):
             # we're already being deleted so do nothing
             return
         try:
-            for linkEnd, navName in self.entitySet.linkEnds.iteritems():
-                if linkEnd.associationEnd.multiplicity == edm.Multiplicity.One:
-                    # there must be one of us, delete the other end with
-                    # the exception that if there is no navigation property
-                    # bound to this property then we won't do a cascade delete
-                    # We have to go straight to the storage layer to sort
-                    # this out. We are allowed to raise
-                    # edm.NavigationConstraintError here but then it would
-                    # be impossible to delete 1-1 related entities which is
-                    # a bit limited
-                    associationSetName = linkEnd.parent.name
-                    associationIndex = self.entityStore.associations.get(
-                        linkEnd.parent.name, None)
-                    if associationIndex:
-                        with associationIndex.toEntityStore.entitySet.OpenCollection() as toCollection:
-                            for toKey in associationIndex.GetLinksFrom(key):
-                                if navName is None and not associationIndex.toEntityStore.DeletingEntity(toKey):
-                                    # if we are not in the process of deleting toKey
-                                    # and there is no navigation property linking us
-                                    # to it then raise an error
-                                    raise edm.NavigationConstraintError("Can't cascade delete from an entity in %s as the association set %s is not bound to a navigation property" % (
-                                        self.entitySet.name, associationSetName))
-                                # delete this link first to prevent infinite
-                                # recursion
-                                associationIndex.RemoveLink(key, toKey)
-                                del toCollection[toKey]
-                    else:
-                        associationIndex = self.entityStore.reverseAssociations.get(
-                            linkEnd.parent.name, None)
-                        with associationIndex.fromEntityStore.entitySet.OpenCollection() as fromCollection:
-                            for fromKey in associationIndex.GetLinksTo(key):
-                                if navName is None and not associationIndex.fromEntityStore.DeletingEntity(fromKey):
-                                    raise edm.NavigationConstraintError("Can't cascade delete from an entity in %s as the association set %s is not bound to a navigation property" % (
-                                        self.entitySet.name, associationSetName))
-                                associationIndex.RemoveLink(fromKey, key)
-                                del fromCollection[fromKey]
-            self.entityStore.DeleteEntity(key)
+            for linkEnd, navName in self.entity_set.linkEnds.iteritems():
+                if linkEnd.associationEnd.multiplicity != edm.Multiplicity.One:
+                    continue
+                # there must be one of us, delete the other end with
+                # the exception that if there is no navigation property
+                # bound to this property then we won't do a cascade delete
+                # We have to go straight to the storage layer to sort
+                # this out. We are allowed to raise
+                # edm.NavigationConstraintError here but then it would
+                # be impossible to delete 1-1 related entities which is
+                # a bit limited
+                as_name = linkEnd.parent.name
+                aindex = self.entity_store.associations.get(
+                    linkEnd.parent.name, None)
+                if aindex:
+                    with aindex.to_store.entity_set.OpenCollection() as \
+                            toCollection:
+                        for to_key in aindex.get_links_from(key):
+                            if navName is None and \
+                                    not aindex.to_store.deleting(to_key):
+                                # if we are not in the process of
+                                # deleting to_key and there is no
+                                # navigation property linking us to it
+                                # then raise an error
+                                raise edm.NavigationConstraintError(
+                                    "Can't cascade delete from an entity in "
+                                    "%s as the association set %s is not "
+                                    "bound to a navigation property" %
+                                    (self.entity_set.name, as_name))
+                            # delete this link first to prevent infinite
+                            # recursion
+                            aindex.remove_link(key, to_key)
+                            del toCollection[to_key]
+                else:
+                    aindex = self.entity_store.reverseAssociations.get(
+                        linkEnd.parent.name,
+                        None)
+                    with aindex.from_store.entity_set.OpenCollection() as \
+                            from_collection:
+                        for from_key in aindex.get_links_to(key):
+                            if navName is None and not \
+                                    aindex.from_store.deleting(from_key):
+                                raise edm.NavigationConstraintError(
+                                    "Can't cascade delete from an entity in "
+                                    "%s as the association set %s is not "
+                                    "bound to a navigation property" %
+                                    (self.entity_set.name, as_name))
+                            aindex.remove_link(from_key, key)
+                            del from_collection[from_key]
+            self.entity_store.delete_entity(key)
         finally:
-            self.entityStore.StopDeletingEntity(key)
+            self.entity_store.stop_deleting(key)
 
 
 class NavigationCollection(odata.NavigationCollection):
 
-    def __init__(self, associationIndex, reverse, **kwArgs):
-        super(NavigationCollection, self).__init__(**kwArgs)
-        self.associationIndex = associationIndex
+    def __init__(self, aindex, reverse, **kwargs):
+        super(NavigationCollection, self).__init__(**kwargs)
+        self.aindex = aindex
         self.reverse = reverse
         if self.reverse:
-            self.lookupMethod = self.associationIndex.GetLinksTo
-            self.rLookupMethod = self.associationIndex.GetLinksFrom
+            self.lookupMethod = self.aindex.get_links_to
+            self.rLookupMethod = self.aindex.get_links_from
         else:
-            self.lookupMethod = self.associationIndex.GetLinksFrom
-            self.rLookupMethod = self.associationIndex.GetLinksTo
-        self.collection = self.entitySet.OpenCollection()
-        self.key = self.fromEntity.Key()
+            self.lookupMethod = self.aindex.get_links_from
+            self.rLookupMethod = self.aindex.get_links_to
+        self.collection = self.entity_set.OpenCollection()
+        self.key = self.from_entity.Key()
 
-    def NewEntity(self, autoKey=False):
+    def new_entity(self):
         """Returns an OData aware instance"""
-        return self.collection.NewEntity(autoKey)
+        return self.collection.new_entity()
 
     def close(self):
         if self.collection is not None:
             self.collection.close()
             self.collection = None
 
-    def InsertEntity(self, entity):
+    def insert_entity(self, entity):
         """Inserts a new *entity* into the target entity set *and*
         simultaneously creates a link to it from the source entity."""
-        with self.entitySet.OpenCollection() as baseCollection:
-            baseCollection.InsertEntity(entity, fromEnd=self.fromEnd.otherEnd)
+        with self.entity_set.OpenCollection() as baseCollection:
+            baseCollection.insert_entity(entity,
+                                         from_end=self.from_end.otherEnd)
             self[entity.Key()] = entity
 
     def __len__(self):
         if self.filter is None:
-            resultSet = self.lookupMethod(self.key)
-            return len(resultSet)
+            result_set = self.lookupMethod(self.key)
+            return len(result_set)
         else:
             result = 0
-            for e in self.FilterEntities(self.entityGenerator()):
+            for e in self.FilterEntities(self.entity_generator()):
                 result += 1
             return result
 
-    def entityGenerator(self):
+    def entity_generator(self):
         # we create a collection from the appropriate entity set first
-        resultSet = self.lookupMethod(self.key)
-        for k in resultSet:
+        result_set = self.lookupMethod(self.key)
+        for k in result_set:
             yield self.collection[k]
 
     def itervalues(self):
         return self.OrderEntities(
             self.ExpandEntities(
                 self.FilterEntities(
-                    self.entityGenerator())))
+                    self.entity_generator())))
 
     def __getitem__(self, key):
-        resultSet = self.lookupMethod(self.key)
-        if key in resultSet:
+        result_set = self.lookupMethod(self.key)
+        if key in result_set:
             result = self.collection[key]
             if self.filter is None:
                 if self.CheckFilter(result):
@@ -576,50 +607,51 @@ class NavigationCollection(odata.NavigationCollection):
         raise KeyError(key)
 
     def __setitem__(self, key, value):
-        resultSet = self.lookupMethod(self.key)
-        if key in resultSet:
+        result_set = self.lookupMethod(self.key)
+        if key in result_set:
             # no operation
             return
         # forces a check of value to ensure it is good
         self.collection[key] = value
         if self.toMultiplicity != edm.Multiplicity.Many:
-            #	if not self.fromEntity.IsEntityCollection(self.name):
-            #	Should be an error if we already have a link
-            if resultSet:
+            if result_set:
                 raise edm.NavigationConstraintError(
-                    "Can't add multiple links to navigation property %s" % self.name)
+                    "Can't add multiple links to navigation property %s" %
+                    self.name)
         if self.fromMultiplicity != edm.Multiplicity.Many:
             if self.rLookupMethod(key):
                 raise edm.NavigationConstraintError(
-                    "Entity %s is already bound through this association" % value.GetLocation())
+                    "Entity %s is already bound through this association" %
+                    value.GetLocation())
         # clear to add this one to the index
         if self.reverse:
-            self.associationIndex.AddLink(key, self.key)
+            self.aindex.add_link(key, self.key)
         else:
-            self.associationIndex.AddLink(self.key, key)
+            self.aindex.add_link(self.key, key)
 
     def __delitem__(self, key):
-        #	Before we remove a link we need to know if either entity
-        #	requires a link, if so, this deletion will result in a
-        #	constraint violation
-        if self.fromMultiplicity == edm.Multiplicity.One or self.toMultiplicity == edm.Multiplicity.One:
+        # Before we remove a link we need to know if either entity
+        # requires a link, if so, this deletion will result in a
+        # constraint violation
+        if (self.fromMultiplicity == edm.Multiplicity.One or
+                self.toMultiplicity == edm.Multiplicity.One):
             raise edm.NavigationConstraintError("Can't remove a required link")
-        resultSet = self.lookupMethod(self.key)
-        if key not in resultSet:
+        result_set = self.lookupMethod(self.key)
+        if key not in result_set:
             raise KeyError
         if self.reverse:
-            self.associationIndex.RemoveLink(key, self.key)
+            self.aindex.remove_link(key, self.key)
         else:
-            self.associationIndex.RemoveLink(self.key, key)
+            self.aindex.remove_link(self.key, key)
 
-    def Replace(self, entity):
+    def replace(self, entity):
         key = entity.Key()
-        resultSet = list(self.lookupMethod(self.key))
-        if resultSet == [key]:
+        result_set = list(self.lookupMethod(self.key))
+        if result_set == [key]:
             # nothing to do!
             return
         if self.fromMultiplicity == edm.Multiplicity.One:
-            if resultSet:
+            if result_set:
                 # we can't delete these links because we are required
                 raise edm.NavigationConstraintError(
                     "Can't remove a required link")
@@ -627,57 +659,67 @@ class NavigationCollection(odata.NavigationCollection):
                 self[key] = entity
         else:
             # add the new link first
-            if key not in resultSet:
+            if key not in result_set:
                 if self.reverse:
-                    self.associationIndex.AddLink(key, self.key)
+                    self.aindex.add_link(key, self.key)
                 else:
-                    self.associationIndex.AddLink(self.key, key)
-            for oldKey in resultSet:
+                    self.aindex.add_link(self.key, key)
+            for oldKey in result_set:
                 # now remove all the old keys.  This implementation
                 # is the same regardless of the allowed multiplicity.
                 # This doesn't just save coding, it ensures that
                 # corrupted indexes are self-correcting
                 if oldKey != key:
                     if self.reverse:
-                        self.associationIndex.RemoveLink(oldKey, self.key)
+                        self.aindex.remove_link(oldKey, self.key)
                     else:
-                        self.associationIndex.RemoveLink(self.key, oldKey)
+                        self.aindex.remove_link(self.key, oldKey)
 
 
 class InMemoryEntityContainer(object):
 
-    def __init__(self, containerDef):
+    def __init__(self, container_def):
         #: the :py:class:`csdl.EntityContainer` that defines this container
-        self.containerDef = containerDef
-        #: a lock that must be acquired before modifying any entity or association in this container
+        self.container_def = container_def
+        """a lock that must be acquired before modifying any entity or
+        association in this container"""
         self.lock = threading.RLock()
-        #: a mapping from entity set names to :py:class:`InMemoryEntityStore` instances
+        """a mapping from entity set names to
+        :py:class:`InMemoryEntityStore` instances"""
         self.entityStorage = {}
-        #: a mapping from association set name to :py:class:`InMemoryAssociationIndex` instances
+        """a mapping from association set name to
+        :py:class:`InMemoryAssociationIndex` instances"""
         self.associationStorage = {}
         # for each entity set in this container, bind some storage
-        for es in self.containerDef.EntitySet:
+        for es in self.container_def.EntitySet:
             self.entityStorage[es.name] = InMemoryEntityStore(self, es)
-        for es in self.containerDef.EntitySet:
-            fromStorage = self.entityStorage[es.name]
+        for es in self.container_def.EntitySet:
+            from_storage = self.entityStorage[es.name]
             if es.entityType is None:
                 raise edm.ModelIncomplete(
                     "EntitySet %s is not bound to an entity type" % es.name)
             for np in es.entityType.NavigationProperty:
                 if np.association is None:
                     raise edm.ModelIncomplete(
-                        "NavigationProperty %s.%s is not bound to an AssociationSet" % (es.name, np.name))
-                associationSetEnd = es.navigation[np.name]
-                associationSet = associationSetEnd.parent
-                if associationSet.name in self.associationStorage:
+                        "NavigationProperty %s.%s is not bound to an "
+                        "AssociationSet" % (es.name, np.name))
+                association_set_end = es.navigation[np.name]
+                association_set = association_set_end.parent
+                if association_set.name in self.associationStorage:
                     # we already have it, do the reverse binding
                     self.associationStorage[
-                        associationSet.name].BindReverse(np.name)
+                        association_set.name].bind_reverse(np.name)
                 else:
                     target = es.NavigationTarget(np.name)
                     if target is None:
                         raise edm.ModelIncomplete(
-                            "Target of navigation property %s.%s is not bound to an entity set" % (es.name, np.name))
-                    toStorage = self.entityStorage[target.name]
-                    self.associationStorage[associationSet.name] = InMemoryAssociationIndex(
-                        self, associationSet, fromStorage, toStorage, np.name)
+                            "Target of navigation property %s.%s is not bound "
+                            "to an entity set" % (es.name, np.name))
+                    to_storage = self.entityStorage[target.name]
+                    self.associationStorage[
+                        association_set.name] = InMemoryAssociationIndex(
+                        self,
+                        association_set,
+                        from_storage,
+                        to_storage,
+                        np.name)

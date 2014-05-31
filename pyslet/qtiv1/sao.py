@@ -18,7 +18,7 @@ class SelectionOrdering(common.QTICommentContainer):
     and Item objects within the parent object defines the default coverage of
     the ordering with respect to the selected objects::
 
-    <!ELEMENT selection_ordering (qticomment? , sequence_parameter* , selection* , order?)>	
+    <!ELEMENT selection_ordering (qticomment? , sequence_parameter* , selection* , order?)>
     <!ATTLIST selection_ordering  sequence_type CDATA  #IMPLIED >"""
     XMLNAME = "selection_ordering"
     XMLATTR_sequence_type = 'sequenceType'
@@ -46,7 +46,7 @@ class SequenceParameter(core.QTIElement):
     """This element contains the comments that are relevant to the selection and
     ordering structure as a whole::
 
-    <!ELEMENT sequence_parameter (#PCDATA)>	
+    <!ELEMENT sequence_parameter (#PCDATA)>
     <!ATTLIST sequence_parameter  pname CDATA  #REQUIRED >"""
     XMLNAME = 'sequence_parameter'
     XMLATTR_pname = 'pName'
@@ -132,14 +132,16 @@ class SelectionMetadata(SelectionOperator):
     the value of the meta-data field that is being tested for within the rule.
     This data is a string of up to 64 characters length::
 
-    <!ELEMENT selection_metadata (#PCDATA)>	
+    <!ELEMENT selection_metadata (#PCDATA)>
     <!ATTLIST selection_metadata
             mdname CDATA  #REQUIRED
             mdoperator  (EQ | NEQ | LT | LTE | GT | GTE )  #REQUIRED >"""
     XMLNAME = 'selection_metadata'
     XMLATTR_mdname = 'mdName'
     XMLATTR_mdoperator = (
-        'mdOperator', core.MDOperator.DecodeLowerValue, core.MDOperator.EncodeValue)
+        'mdOperator',
+        core.MDOperator.DecodeLowerValue,
+        core.MDOperator.EncodeValue)
     XMLCONTENT = xml.XMLMixedContent
 
     def __init__(self, parent):

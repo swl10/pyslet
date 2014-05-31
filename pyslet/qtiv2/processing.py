@@ -503,7 +503,8 @@ class SetCorrectResponse(TemplateRule):
             state[self.identifier + ".CORRECT"] = value
         elif state.IsResponse(self.identifier):
             raise core.ProcessingError(
-                "Can't set the correct value of a built-in response %s" % self.identifier)
+                "Can't set the correct value of a built-in response %s" %
+                self.identifier)
         else:
             raise core.ProcessingError(
                 "%s is not a response variable" % self.identifier)
@@ -546,7 +547,8 @@ class SetDefaultValue(TemplateRule):
             state[self.identifier + ".DEFAULT"] = value
         elif state.IsResponse(self.identifier) or state.IsOutcome(self.identifier):
             raise core.ProcessingError(
-                "Can't set the correct value of a built-in variable %s" % self.identifier)
+                "Can't set the correct value of a built-in variable %s" %
+                self.identifier)
         else:
             raise core.ProcessingError(
                 "%s is not a response or outcome variable" % self.identifier)

@@ -106,9 +106,9 @@ instance of
 		if drop and os.path.isfile(SAMPLE_DB):
 			os.remove(SAMPLE_DB)
 		create=not os.path.isfile(SAMPLE_DB)
-		container=SQLiteEntityContainer(filePath=SAMPLE_DB,containerDef=doc.root.DataServices['WeatherSchema.CambridgeWeather'])
+		container=SQLiteEntityContainer(file_path=SAMPLE_DB,containerDef=doc.root.DataServices['WeatherSchema.CambridgeWeather'])
 		if create:
-			container.CreateAllTables()
+			container.create_all_tables()
 
 This function handles the only SQL-specific part of our project.  When
 we create a SQLite container we have to pass *two* keyword arguments:
@@ -200,11 +200,11 @@ What if your foreign key has a different name, say, NoteID?  Pyslet
 gives you the chance to override all name mappings.  To fix up this part
 of the model you need to create a derived class of the base class
 :py:class:`~pyslet.odata2.sqlds.SQLEntityContainer` and override the
-:py:meth:`~pyslet.odata2.sqlds.SQLEntityContainer.MangleName` method.
+:py:meth:`~pyslet.odata2.sqlds.SQLEntityContainer.mangle_name` method.
 
 In this case, the method would have been called like this::
 
-	quotedName=container.MangleName((u"DataPoints",u"DataPointNotes",u"ID"))
+	quotedName=container.mangle_name((u"DataPoints",u"DataPointNotes",u"ID"))
 
 There is a single argument consisting of a tuple.  The first item is the
 name of the EntitySet (SQL TABLE) and the subsequent items complete a
@@ -216,11 +216,11 @@ use for the column name.  To complete the example, here is how our
 subclass might implement this method to ensure that the foreign key is
 called 'NoteID' instead of 'DataPointNotes_ID'::
 
-	def MangleName(self,sourcePath):
-		if sourcePath==(u"DataPoints",u"DataPointNotes",u"ID"):
-			return self.QuoteIdentifier(u'NoteID')
+	def mangle_name(self,source_path):
+		if source_path==(u"DataPoints",u"DataPointNotes",u"ID"):
+			return self.quote_identifier(u'NoteID')
 		else:
-			return super(MyCustomerContainer,self).MangleName(sourcePath)
+			return super(MyCustomerContainer,self).mangle_name(source_path)
 
 You may be wondering why we don't expose the foreign key field in the
 model. Some libraries might force you to expose the foreign key in order
@@ -316,7 +316,7 @@ navigation properties::
 						continue
 					noteWords=line.split()
 					if noteWords:
-						note=collection.NewEntity()
+						note=collection.new_entity()
 						note['ID'].SetFromValue(id)
 						start=iso.TimePoint(
 							date=iso.Date.FromString(noteWords[0]),
@@ -327,15 +327,15 @@ navigation properties::
 							time=iso.Time(hour=0,minute=0,second=0))
 						note['EndDate'].SetFromValue(end)
 						note['Details'].SetFromValue(string.join(noteWords[2:],' '))
-						collection.InsertEntity(note)
+						collection.insert_entity(note)
 						# now find the data points that match
-						data.Filter(core.CommonExpression.FromString("TimePoint ge datetime'%s' and TimePoint lt datetime'%s'"%(unicode(start),unicode(end))))
+						data.set_filter(core.CommonExpression.FromString("TimePoint ge datetime'%s' and TimePoint lt datetime'%s'"%(unicode(start),unicode(end))))
 						for dataPoint in data.values():
 							dataPoint['Note'].BindEntity(note)
-							data.UpdateEntity(dataPoint)
+							data.update_entity(dataPoint)
 						id=id+1
 		with weatherNotes.OpenCollection() as collection:
-			collection.OrderBy(core.CommonExpression.OrderByFromString('StartDate desc'))
+			collection.set_orderby(core.CommonExpression.OrderByFromString('StartDate desc'))
 			for e in collection.itervalues():
 				with e['DataPoints'].OpenCollection() as affectedData:
 					print "%s-%s: %s (%i data points affected)"%(unicode(e['StartDate'].value),
@@ -394,8 +394,8 @@ along with any linked note::
 			LoadData(weatherData,SAMPLE_DIR)
 			LoadNotes(weatherNotes,'weathernotes.txt',weatherData)
 		with weatherData.OpenCollection() as collection:
-			collection.OrderBy(core.CommonExpression.OrderByFromString('WindSpeedMax desc'))
-			collection.SetPage(30)
+			collection.set_orderby(core.CommonExpression.OrderByFromString('WindSpeedMax desc'))
+			collection.set_page(30)
 			for e in collection.iterpage():
 				note=e['Note'].GetEntity()
 				if e['WindSpeedMax'] and e['Pressure']:

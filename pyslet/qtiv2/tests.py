@@ -76,7 +76,7 @@ class AssessmentTest(core.QTIElement, core.DeclarationContainer):
         self.SortDeclarations()
 
     def SortDeclarations(self):
-        """Sort the outcome declarations so that they are in identifier order. 
+        """Sort the outcome declarations so that they are in identifier order.
         This is not essential but it does help ensure that output is
         predictable. This method is called automatically when reading items from
         XML files."""
@@ -182,9 +182,13 @@ class TestPart(core.QTIElement):
     XMLNAME = (core.IMSQTI_NAMESPACE, 'testPart')
     XMLATTR_identifier = 'identifier'
     XMLATTR_navigationMode = (
-        'navigationMode', NavigationMode.DecodeValue, NavigationMode.EncodeValue)
+        'navigationMode',
+        NavigationMode.DecodeValue,
+        NavigationMode.EncodeValue)
     XMLATTR_submissionMode = (
-        'submissionMode', SubmissionMode.DecodeValue, SubmissionMode.EncodeValue)
+        'submissionMode',
+        SubmissionMode.DecodeValue,
+        SubmissionMode.EncodeValue)
     XMLCONTENT = xmlns.ElementContent
 
     def __init__(self, parent):
@@ -242,11 +246,13 @@ class TestPart(core.QTIElement):
                     if not isinstance(target, TestPart):
                         # test parts can only point at other test parts
                         raise core.ProcessingError(
-                            "Target of testPart branch rule is not a testPart: %s" % r.target)
+                            "Target of testPart branch rule is not a testPart: %s" %
+                            r.target)
                     return r.target
                 except KeyError:
                     raise core.ProcessingError(
-                        "Target of testPart branch rule has not been declared: %s" % r.target)
+                        "Target of testPart branch rule has not been declared: %s" %
+                        r.target)
 
 
 class Selection(core.QTIElement):
@@ -381,14 +387,17 @@ class SectionPart(core.QTIElement):
                     if not isinstance(target, SectionPart):
                         # section parts can only point at other section parts
                         raise core.ProcessingError(
-                            "Target of section or item branch rule is not a section or item: %s" % r.target)
+                            "Target of section or item branch rule is not a section or item: %s" %
+                            r.target)
                     if target.FindParent(TestPart) is not testPart:
                         raise core.ProcessingError(
-                            "Target or section or item branch rule is not in the same testPart: %s" % r.target)
+                            "Target or section or item branch rule is not in the same testPart: %s" %
+                            r.target)
                     return r.target
                 except KeyError:
                     raise core.ProcessingError(
-                        "Target of section or item branch rule has not been declared: %s" % r.target)
+                        "Target of section or item branch rule has not been declared: %s" %
+                        r.target)
 
 
 class AssessmentSection(SectionPart):
@@ -579,7 +588,8 @@ class TestForm(object):
                     bag.remove(i)
         if len(selection) > targetSize:
             raise core.SelectionError(
-                "#%s contains a selection rule that selects fewer child elements than the number of required elements" % section.identifier)
+                "#%s contains a selection rule that selects fewer child elements than the number of required elements" %
+                section.identifier)
         # Step 2: top up the selection until we reach the target size
         while len(selection) < targetSize:
             if bag:
@@ -589,7 +599,8 @@ class TestForm(object):
                     bag.remove(i)
             else:
                 raise core.SelectionError(
-                    "Number of children to select in #%s exceeds the number of child elements, use withReplacement to resolve" % section.identifier)
+                    "Number of children to select in #%s exceeds the number of child elements, use withReplacement to resolve" %
+                    section.identifier)
         shuffleList = []
         # Step 3: sort the list to ensure the position of fixed children is
         # honoured
@@ -616,7 +627,8 @@ class TestForm(object):
                         gChild = self.test.GetPart(gChildID)
                         if gChild.fixed:
                             raise core.SelectionError(
-                                "Fixed child of invisible section #%s is subject to parent shuffling, use keepTogether to resolve" % child.identifier)
+                                "Fixed child of invisible section #%s is subject to parent shuffling, use keepTogether to resolve" %
+                                child.identifier)
                         shuffleList.append(gChildID)
                 else:
                     # invisible sections with keepTogether go in to the shuffle

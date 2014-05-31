@@ -388,12 +388,12 @@ class Server(app.Server):
                         try:
                             collection = resource
                             resource = collection[
-                                collection.entitySet.GetKey(keyPredicate)]
+                                collection.entity_set.GetKey(keyPredicate)]
                             collection.close()
                         except KeyError as e:
                             raise core.MissingURISegment(
-                                "%s%s" % (name,
-                                          core.ODataURI.FormatKeyDict(keyPredicate)))
+                                "%s%s" %
+                                (name, core.ODataURI.FormatKeyDict(keyPredicate)))
                 elif resource is None:
                     raise core.MissingURISegment(name)
             elif isinstance(resource,
@@ -414,7 +414,7 @@ class Server(app.Server):
                             try:
                                 with resource.OpenCollection() as collection:
                                     resource = collection[
-                                        collection.entitySet.GetKey(
+                                        collection.entity_set.GetKey(
                                             keyPredicate)]
                             except KeyError as e:
                                 raise core.MissingURISegment(name)
@@ -476,7 +476,12 @@ class Server(app.Server):
                 string.join(map(core.ODataURI.FormatLiteral, etag), ','))
             response_headers.append(("ETag", etag))
 
-    def HandleRequest(self, request, environ, start_response, response_headers):
+    def HandleRequest(
+            self,
+            request,
+            environ,
+            start_response,
+            response_headers):
         """Handles an OData request.
 
         *request*
@@ -525,7 +530,7 @@ class Server(app.Server):
                     if isinstance(resource, edm.EntityCollection):
                         with resource as collection:
                             collection.SelectKeys()
-                            collection.SetPage(
+                            collection.set_page(
                                 request.sysQueryOptions.get(
                                     core.SystemQueryOption.top, None),
                                 request.sysQueryOptions.get(
@@ -581,7 +586,7 @@ class Server(app.Server):
                             request.linksProperty].OpenCollection() as \
                             collection:
                         targetEntity = self.ReadEntityFromLink(environ)
-                        collection.Replace(targetEntity)
+                        collection.replace(targetEntity)
                     return self.ReturnEmpty(start_response, response_headers)
                 elif method == "DELETE":
                     if isinstance(resource, edm.EntityCollection):
@@ -601,7 +606,7 @@ class Server(app.Server):
             elif isinstance(resource, edm.Entity):
                 if method == "GET":
                     if request.pathOption == core.PathOption.value:
-                        if resource.typeDef.HasStream():
+                        if resource.type_def.HasStream():
                             return self.ReturnStream(
                                 resource,
                                 request,
@@ -622,7 +627,7 @@ class Server(app.Server):
                             response_headers)
                 elif method == "PUT":
                     if request.pathOption == core.PathOption.value:
-                        if resource.typeDef.HasStream():
+                        if resource.type_def.HasStream():
                             if "CONTENT_TYPE" in environ:
                                 resourceType = http.MediaType.FromString(
                                     environ["CONTENT_TYPE"])
@@ -630,7 +635,7 @@ class Server(app.Server):
                                 resourceType = http.MediaType.FromString(
                                     'application/octet-stream')
                             input = app.InputWrapper(environ)
-                            resource.SetStreamFromGenerator(
+                            resource.set_stream_from_generator(
                                 resourceType, input.iterblocks())
                             self.SetETag(resource, response_headers)
                             return self.ReturnEmpty(
@@ -659,15 +664,15 @@ class Server(app.Server):
             elif isinstance(resource, edm.EntityCollection):
                 if method == "GET":
                     self.ExpandResource(resource, request.sysQueryOptions)
-                    resource.Filter(
+                    resource.set_filter(
                         request.sysQueryOptions.get(
                             core.SystemQueryOption.filter,
                             None))
-                    resource.OrderBy(
+                    resource.set_orderby(
                         request.sysQueryOptions.get(
                             core.SystemQueryOption.orderby,
                             None))
-                    resource.SetPage(
+                    resource.set_page(
                         request.sysQueryOptions.get(
                             core.SystemQueryOption.top, None),
                         request.sysQueryOptions.get(
@@ -687,17 +692,17 @@ class Server(app.Server):
                 elif (method == "POST" and
                       resource.IsMediaLinkEntryCollection()):
                     # POST of a media resource
-                    entity = resource.NewEntity()
+                    entity = resource.new_entity()
                     if "HTTP_SLUG" in environ:
                         slug = environ["HTTP_SLUG"]
                         for k, v in entity.DataItems():
                             # catch property-level feed customisation here
-                            propertyDef = entity.typeDef[k]
+                            propertyDef = entity.type_def[k]
                             if (propertyDef.GetTargetPath() ==
                                     [(atom.ATOM_NAMESPACE, "title")]):
                                 entity[k].SetFromValue(slug)
                                 break
-                    resource.InsertEntity(entity)
+                    resource.insert_entity(entity)
                     if "CONTENT_TYPE" in environ:
                         resourceType = http.MediaType.FromString(
                             environ["CONTENT_TYPE"])
@@ -705,7 +710,7 @@ class Server(app.Server):
                         resourceType = http.MediaType.FromString(
                             'application/octet-stream')
                     input = app.InputWrapper(environ)
-                    entity.SetStreamFromGenerator(
+                    entity.set_stream_from_generator(
                         resourceType, input.iterblocks())
                     response_headers.append(
                         ('Location', str(entity.GetLocation())))
@@ -719,10 +724,10 @@ class Server(app.Server):
                         "Created")
                 elif method == "POST":
                     # POST to an ordinary entity collection
-                    entity = resource.NewEntity()
+                    entity = resource.new_entity()
                     # read the entity from the request
                     self.ReadEntity(entity, environ)
-                    resource.InsertEntity(entity)
+                    resource.insert_entity(entity)
                     response_headers.append(
                         ('Location', str(entity.GetLocation())))
                     return self.ReturnEntity(
@@ -901,7 +906,12 @@ class Server(app.Server):
         return [data]
 
     def ReturnLinks(
-            self, entities, request, environ, start_response, response_headers):
+            self,
+            entities,
+            request,
+            environ,
+            start_response,
+            response_headers):
         responseType = self.ContentNegotiation(
             request, environ, self.ValueTypes)
         if responseType is None:
@@ -920,7 +930,7 @@ class Server(app.Server):
             for e in entities.itervalues():
                 child = doc.root.ChildElement(core.URI)
                 child.SetValue(str(self.serviceRoot) + "%s(%s)" %
-                               (e.entitySet.name, repr(e.Key())))
+                               (e.entity_set.name, repr(e.Key())))
             data = str(doc)
         response_headers.append(("Content-Type", str(responseType)))
         response_headers.append(("Content-Length", str(len(data))))
@@ -972,7 +982,12 @@ class Server(app.Server):
         return [data]
 
     def ReturnEntityCollection(
-            self, entities, request, environ, start_response, response_headers):
+            self,
+            entities,
+            request,
+            environ,
+            start_response,
+            response_headers):
         """Returns an iterable of Entities."""
         responseType = self.ContentNegotiation(
             request, environ, self.FeedTypes)
@@ -1118,7 +1133,7 @@ class Server(app.Server):
         response_headers.append(("Content-Length", entity.GetStreamSize()))
         self.SetETag(entity, response_headers)
         start_response("%i %s" % (200, "Success"), response_headers)
-        return entity.GetStreamGenerator()
+        return entity.get_stream_generator()
 
     def ReadValue(self, value, environ):
         input = self.ReadXMLOrJSON(environ)
@@ -1393,7 +1408,12 @@ class Server(app.Server):
 
 class ReadOnlyServer(Server):
 
-    def HandleRequest(self, request, environ, start_response, response_headers):
+    def HandleRequest(
+            self,
+            request,
+            environ,
+            start_response,
+            response_headers):
         """Handles an OData request.
 
         *request*

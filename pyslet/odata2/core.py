@@ -1,6 +1,16 @@
 #! /usr/bin/env python
 """OData core elements"""
 
+import string
+import itertools
+import json
+import base64
+import decimal
+import uuid
+import math
+import warnings
+from types import *
+
 from pyslet.unicode5 import CharClass, DetectEncoding
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
@@ -10,16 +20,9 @@ import pyslet.rfc2616 as http
 import pyslet.rfc4287 as atom
 import pyslet.rfc5023 as app
 import pyslet.iso8601 as iso
+
 import csdl as edm
 
-import string
-import itertools
-import json
-import base64
-import decimal
-import uuid
-import math
-from types import *
 
 # : namespace for metadata, e.g., the property type attribute
 ODATA_METADATA_NAMESPACE = "http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"
@@ -126,8 +129,10 @@ def PromoteTypes(typeA, typeB):
     elif typeB is None:
         return typeA
     elif typeA not in NUMERIC_TYPES or typeB not in NUMERIC_TYPES:
-        raise EvaluationError("Incompatible types: %s and %s" % (edm.SimpleType.EncodeValue(typeA),
-                                                                 edm.SimpleType.EncodeValue(typeB)))
+        raise EvaluationError(
+            "Incompatible types: %s and %s" %
+            (edm.SimpleType.EncodeValue(typeA),
+             edm.SimpleType.EncodeValue(typeB)))
     elif edm.SimpleType.Double in (typeA, typeB):
         return edm.SimpleType.Double
     elif edm.SimpleType.Single in (typeA, typeB):
@@ -158,7 +163,11 @@ def CanCastMethodArgument(typeA, typeB):
     elif typeB == edm.SimpleType.Single:
         return typeA in NUMERIC_TYPES
     elif typeB == edm.SimpleType.Decimal:
-        return typeA in (edm.SimpleType.Decimal, edm.SimpleType.Int64, edm.SimpleType.Int32, edm.SimpleType.Int16)
+        return typeA in (
+            edm.SimpleType.Decimal,
+            edm.SimpleType.Int64,
+            edm.SimpleType.Int32,
+            edm.SimpleType.Int16)
     elif typeB == edm.SimpleType.Int64:
         return typeA in NUMERIC_TYPES
     elif typeB == edm.SimpleType.Int32:
@@ -176,7 +185,7 @@ class OperatorCategory(xsi.Enumeration):
     """An enumeration used to represent operator categories (for precedence).
     ::
 
-            OperatorCategory.Unary	
+            OperatorCategory.Unary
             SimpleType.DEFAULT == None
 
     Note that OperatorCategory.X > OperatorCategory.Y if and only if operator X
@@ -238,19 +247,19 @@ class Operator(xsi.Enumeration):
     Category = {
     }
     """A mapping from an operator to an operator category identifier
-	which can be compared for precedence testing::
-	
-		Operator.Category.[opA] > Operator.Category.[opB]
-	
-	if and only if opA has higher precedence than opB."""
+    which can be compared for precedence testing::
+    
+        Operator.Category.[opA] > Operator.Category.[opB]
+    
+    if and only if opA has higher precedence than opB."""
 
     IsSpecial = None
     """A set of Operator values that are special, in that they do no
-	describe the simple pattern::
-	
-		[lvalue] opname right-value  
-	
-	For example, isof, negate, method, etc..."""
+    describe the simple pattern::
+    
+        [lvalue] opname right-value
+    
+    For example, isof, negate, method, etc..."""
 
 xsi.MakeEnumeration(Operator)
 xsi.MakeEnumerationAliases(Operator, {
@@ -283,7 +292,12 @@ Operator.Category = {
     Operator.boolOr: OperatorCategory.ConditionalOr}
 
 Operator.IsSpecial = set(
-    (Operator.paren, Operator.member, Operator.methodCall, Operator.negate, Operator.cast, Operator.isof))
+    (Operator.paren,
+     Operator.member,
+     Operator.methodCall,
+     Operator.negate,
+     Operator.cast,
+     Operator.isof))
 
 
 class Method(xsi.Enumeration):
@@ -339,12 +353,17 @@ class CommonExpression(object):
         """We implement __cmp__ based on operator precedence."""
         if other.operator is None or self.operator is None:
             raise ValueError("Expression without operator cannot be compared")
-        return cmp(Operator.Category[self.operator], Operator.Category[other.operator])
+        return cmp(
+            Operator.Category[
+                self.operator], Operator.Category[
+                other.operator])
 
     @staticmethod
     def FromString(src):
         p = Parser(src)
-        return p.RequireProductionEnd(p.ParseCommonExpression(), "commonExpression")
+        return p.RequireProductionEnd(
+            p.ParseCommonExpression(),
+            "commonExpression")
 
     @staticmethod
     def OrderByFromString(src):
@@ -353,7 +372,8 @@ class CommonExpression(object):
 
     @staticmethod
     def OrderByToString(orderBy):
-        return string.join(map(lambda x: "%s %s" % (unicode(x[0]), "asc" if x[1] > 0 else "desc"), orderBy), ', ')
+        return string.join(map(lambda x: "%s %s" % (
+            unicode(x[0]), "asc" if x[1] > 0 else "desc"), orderBy), ', ')
 
     def __unicode__(self):
         raise NotImplementedError
@@ -364,7 +384,7 @@ class UnaryExpression(CommonExpression):
     EvalMethod = {
     }
     """A mapping from unary operator constants to unbound methods that
-	evaluate the operator."""
+    evaluate the operator."""
 
     def __init__(self, operator):
         super(UnaryExpression, self).__init__(operator)
@@ -431,7 +451,7 @@ class BinaryExpression(CommonExpression):
     EvalMethod = {
     }
     """A mapping from binary operators to unbound methods that evaluate
-	the operator."""
+    the operator."""
 
     def __init__(self, operator):
         super(BinaryExpression, self).__init__(operator)
@@ -447,7 +467,8 @@ class BinaryExpression(CommonExpression):
                 opSuffix = ")"
             else:
                 raise ValueError(
-                    "Can't format %s as a binary operator" & Operator.EncodeValue(self.operator))
+                    "Can't format %s as a binary operator" & Operator.EncodeValue(
+                        self.operator))
         else:
             op = u" %s " % Operator.EncodeValue(self.operator)
         lValue = self.operands[0]
@@ -489,7 +510,9 @@ class BinaryExpression(CommonExpression):
             return PromoteTypes(lValue.typeCode, rValue.typeCode)
         else:
             raise EvaluationError(
-                "Expected primitive value for %s" % Operator.EncodeValue(self.operator))
+                "Expected primitive value for %s" %
+                Operator.EncodeValue(
+                    self.operator))
 
     def EvaluateCast(self, lValue, rValue):
         # rValue is always a string literal name of the type to look up
@@ -505,7 +528,7 @@ class BinaryExpression(CommonExpression):
             # in the future we should deal with entity type inheritance
             # right now, the only thing we can cast an entity instance
             # to is itself
-            name = lValue.typeDef.GetFQName()
+            name = lValue.type_def.GetFQName()
             if name == rValue.value:
                 return lValue
             else:
@@ -520,8 +543,11 @@ class BinaryExpression(CommonExpression):
                     "Unrecognized type: %s" % str(rValue.value))
             newCode = PromoteTypes(typeCode, lValue.typeCode)
             if typeCode != newCode:
-                raise EvaluationError("Can't cast %s to %s" % (edm.SimpleType.EncodeValue(lValue.typeCode),
-                                                               edm.SimpleType.EncodeValue(typeCode)))
+                raise EvaluationError(
+                    "Can't cast %s to %s" %
+                    (edm.SimpleType.EncodeValue(
+                        lValue.typeCode),
+                        edm.SimpleType.EncodeValue(typeCode)))
             result = edm.EDMValue.NewSimpleValue(typeCode)
             result.SetFromValue(lValue.value)
             return result
@@ -662,7 +688,9 @@ class BinaryExpression(CommonExpression):
             return result
         else:
             raise EvaluationError(
-                "Illegal operands for %s" % Operator.EncodeValue(self.operator))
+                "Illegal operands for %s" %
+                Operator.EncodeValue(
+                    self.operator))
 
     def EvaluateIsOf(self, lValue, rValue):
         # rValue is always a string literal name of the type to look up
@@ -673,7 +701,7 @@ class BinaryExpression(CommonExpression):
             return result
         elif isinstance(lValue, edm.Entity):
             # in the future we should test the entity for inheritance
-            name = lValue.typeDef.GetFQName()
+            name = lValue.type_def.GetFQName()
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
             result.SetFromValue(name == rValue.value)
             return result
@@ -701,7 +729,7 @@ class BinaryExpression(CommonExpression):
         if isinstance(lValue, edm.Entity) and isinstance(rValue, edm.Entity):
             # we can do comparison of entities, but must be the same entity!
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
-            if lValue.entitySet is rValue.entitySet:
+            if lValue.entity_set is rValue.entity_set:
                 # now test that the keys are the same
                 result.value = (lValue.Key() == rValue.Key())
             else:
@@ -795,7 +823,7 @@ class LiteralExpression(CommonExpression):
         self.value = value
 
     def __unicode__(self):
-        """Return, for example, 42L or 'Paddy O''brian'	- note that %-encoding is not applied"""
+        """Return, for example, 42L or 'Paddy O''brian' - note that %-encoding is not applied"""
         if not self.value:
             return "null"
         else:
@@ -842,7 +870,8 @@ class PropertyExpression(CommonExpression):
             if isinstance(contextEntity, edm.Entity):
                 if contextEntity.IsEntityCollection(self.name):
                     raise EvaluationError(
-                        "%s navigation property must have cardinality of 1 or 0..1" % self.name)
+                        "%s navigation property must have cardinality of 1 or 0..1" %
+                        self.name)
                 else:
                     result = contextEntity[self.name]
                     if isinstance(result, edm.DeferredValue):
@@ -867,32 +896,41 @@ class CallExpression(CommonExpression):
     EvalMethod = {
     }
     """A mapping from method calls to unbound methods that evaluate
-	the method."""
+    the method."""
 
     def __init__(self, methodCall):
         super(CallExpression, self).__init__(Operator.methodCall)
         self.method = methodCall
 
     def __unicode__(self):
-        return "%s(%s)" % (Method.EncodeValue(self.method), string.join(map(lambda x: unicode(x), self.operands), ','))
+        return "%s(%s)" % (Method.EncodeValue(self.method), string.join(
+            map(lambda x: unicode(x), self.operands), ','))
 
     def Evaluate(self, contextEntity):
-        return self.EvalMethod[self.method](self,
-                                            map(lambda x: x.Evaluate(contextEntity), self.operands))
+        return self.EvalMethod[
+            self.method](
+            self, map(
+                lambda x: x.Evaluate(contextEntity), self.operands))
 
     def PromoteParameter(self, arg, typeCode):
         if isinstance(arg, edm.SimpleValue):
             if CanCastMethodArgument(arg.typeCode, typeCode):
                 return arg.SimpleCast(typeCode)
-        raise EvaluationError("Expected %s value in %s()" % (
-            edm.SimpleType.EncodeValue(typeCode), Method.EncodeValue(self.method)))
+        raise EvaluationError(
+            "Expected %s value in %s()" %
+            (edm.SimpleType.EncodeValue(typeCode),
+             Method.EncodeValue(
+                self.method)))
 
     def CheckStrictParameter(self, arg, typeCode):
         if isinstance(arg, edm.SimpleValue):
             if arg.typeCode == typeCode:
                 return arg
-        raise EvaluationError("Expected %s value in %s()" % (
-            edm.SimpleType.EncodeValue(typeCode), Method.EncodeValue(self.method)))
+        raise EvaluationError(
+            "Expected %s value in %s()" %
+            (edm.SimpleType.EncodeValue(typeCode),
+             Method.EncodeValue(
+                self.method)))
 
     def EvaluateEndswith(self, args):
         if (len(args) == 2):
@@ -929,7 +967,9 @@ class CallExpression(CommonExpression):
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
             if target and searchString and replaceString:
                 result.SetFromValue(
-                    target.value.replace(searchString.value, replaceString.value))
+                    target.value.replace(
+                        searchString.value,
+                        replaceString.value))
             return result
         else:
             raise EvaluationError(
@@ -1216,11 +1256,17 @@ class Parser(edm.Parser):
                 elif name == "isof":
                     self.ParseWSP()
                     rightOp = self.RequireProduction(
-                        self.ParseCastLike(Operator.isof, "isof"), "isofExpression")
+                        self.ParseCastLike(
+                            Operator.isof,
+                            "isof"),
+                        "isofExpression")
                 elif name == "cast":
                     self.ParseWSP()
                     rightOp = self.RequireProduction(
-                        self.ParseCastLike(Operator.cast, "cast"), "caseExpression")
+                        self.ParseCastLike(
+                            Operator.cast,
+                            "cast"),
+                        "caseExpression")
                 elif name is not None:
                     self.ParseWSP()
                     if self.Match("("):
@@ -1231,15 +1277,19 @@ class Parser(edm.Parser):
             if rightOp is None:
                 if self.Parse("("):
                     rightOp = self.RequireProduction(
-                        self.ParseCommonExpression(), "commonExpression inside parenExpression")
+                        self.ParseCommonExpression(),
+                        "commonExpression inside parenExpression")
                     self.RequireProduction(
                         self.Parse(")"), "closing bracket in parenExpression")
                 elif self.Parse("-"):
                     rightOp = UnaryExpression(Operator.negate)
                 elif leftOp:
                     # an operator waiting for an operand is an error
-                    raise ValueError("Expected expression after %s in ...%s" % (
-                        Operator.EncodeValue(leftOp.operator), self.Peek(10)))
+                    raise ValueError(
+                        "Expected expression after %s in ...%s" %
+                        (Operator.EncodeValue(
+                            leftOp.operator),
+                            self.Peek(10)))
                 else:
                     # no common expression found at all
                     return None
@@ -1425,7 +1475,7 @@ class Parser(edm.Parser):
         selectItem = star / selectedProperty / (selectedNavProperty ["/" selectItem])
         selectedProperty = entityProperty / entityComplexProperty
         selectedNavProperty = entityNavProperty-es / entityNavProperty-et
-        star = "*"	"""
+        star = "*"  """
         result = {}
         while True:
             parent = result
@@ -1453,7 +1503,9 @@ class Parser(edm.Parser):
         if self.Parse("*"):
             return '*'
         else:
-            return self.RequireProduction(self.ParseSimpleIdentifier(), "selectItem")
+            return self.RequireProduction(
+                self.ParseSimpleIdentifier(),
+                "selectItem")
 
     SimpleIdentifierStartClass = None
     SimpleIdentifierClass = None
@@ -1656,7 +1708,11 @@ class Parser(edm.Parser):
             if self.Parse('-'):
                 # this is a proper guid
                 hex.append(
-                    self.RequireProduction(self.ParseHexDigits(12, 12), "guid"))
+                    self.RequireProduction(
+                        self.ParseHexDigits(
+                            12,
+                            12),
+                        "guid"))
             else:
                 # this a broken guid, add some magic to make it right
                 hex[3:3] = ['FFFF']
@@ -1676,9 +1732,9 @@ def ParseURILiteral(source):
 
     Returns a tuple of a:
 
-            *	a constant from :py:class:`pyslet.mc_csdl.SimpleType`
+            *   a constant from :py:class:`pyslet.mc_csdl.SimpleType`
 
-            *	the value, represented with the closest python built-in type
+            *   the value, represented with the closest python built-in type
 
     The special string "null" returns None,None"""
     p = Parser(source)
@@ -1743,7 +1799,7 @@ class SystemQueryOption(xsi.Enumeration):
 
     Note that these options are enumerated without their '$' prefix::
 
-            SystemQueryOption.filter	
+            SystemQueryOption.filter
             SystemQueryOption.DEFAULT == None
 
     For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
@@ -1798,25 +1854,25 @@ class PathOption(xsi.Enumeration):
     }
 xsi.MakeEnumeration(PathOption)
 
-#	URI1: http://host/service.svc/Customers	:	Entity Set
-#	URI2: http://host/service.svc/Customers('ALFKI')	:	Entity
-#	URI3: http://host/service.svc/Customers('ALFKI')/Address	:	Complex Property
-#	URI4: http://host/service.svc/Customers('ALFKI')/Address/Name	:	Complex+Simple Property
-#			http://host/service.svc/Customers('ALFKI')/Address/Name/$value
-#	URI5: http://host/service.svc/Customers('ALFKI')/CompanyName	:	Simple Property
-#			http://host/service.svc/Customers('ALFKI')/CompanyName/$value
-#	URI6: http://host/service.svc/Customers('ALFKI')/Orders	:	Navigation property
-#	URI7: http://host/service.svc/Customers('ALFKI')/$links/Orders	: links
-#	URI8: http://host/service.svc/$metadata	:	metadata
-#	URI9: http://host/service.svc/$batch	:	batch
-#	URI10: http://host/service.svc/EtFunction	: function returning entity
-#	URI11: http://host/service.svc/CollCtFunction	: function returning collection of complex
-#	URI12: http://host/service.svc/CtFunction	: function returning complex
-#	URI13: http://host/service.svc/CollPrimFunction	: function returning collection of simple values
-#	URI14: http://host/service.svc/PrimFunction	: function returning simple value
-#	URI15: http://host/service.svc/Customers/$count	: count
-#	URI16: http://host/service.svc/Customers('ALFKI')/$count	: count=1
-#	URI17: http://host/service.svc/Documents(1)/$value	: media resource
+#   URI1: http://host/service.svc/Customers :   Entity Set
+#   URI2: http://host/service.svc/Customers('ALFKI')    :   Entity
+#   URI3: http://host/service.svc/Customers('ALFKI')/Address    :   Complex Property
+#   URI4: http://host/service.svc/Customers('ALFKI')/Address/Name   :   Complex+Simple Property
+#           http://host/service.svc/Customers('ALFKI')/Address/Name/$value
+#   URI5: http://host/service.svc/Customers('ALFKI')/CompanyName    :   Simple Property
+#           http://host/service.svc/Customers('ALFKI')/CompanyName/$value
+#   URI6: http://host/service.svc/Customers('ALFKI')/Orders :   Navigation property
+#   URI7: http://host/service.svc/Customers('ALFKI')/$links/Orders  : links
+#   URI8: http://host/service.svc/$metadata :   metadata
+#   URI9: http://host/service.svc/$batch    :   batch
+#   URI10: http://host/service.svc/EtFunction   : function returning entity
+#   URI11: http://host/service.svc/CollCtFunction   : function returning collection of complex
+#   URI12: http://host/service.svc/CtFunction   : function returning complex
+#   URI13: http://host/service.svc/CollPrimFunction : function returning collection of simple values
+#   URI14: http://host/service.svc/PrimFunction : function returning simple value
+#   URI15: http://host/service.svc/Customers/$count : count
+#   URI16: http://host/service.svc/Customers('ALFKI')/$count    : count=1
+#   URI17: http://host/service.svc/Documents(1)/$value  : media resource
 
 SupportedSystemQueryOptions = {
     1: set((
@@ -1893,8 +1949,7 @@ Note that URI6 is split into 61 and 62 based on the notes in the specification""
 
 def FormatExpand(expand):
     """Returns a unicode string representation of the *expand* rules."""
-    result = _FormatExpandList(expand)
-    result.sort()
+    result = sorted(_FormatExpandList(expand))
     return string.join(result, ',')
 
 
@@ -1912,7 +1967,7 @@ def _FormatExpandList(expand):
 
 def FormatSelect(select):
     """Returns a unicode string representation of the *select* rules."""
-    return FormatExpand(select)		# same implementation as expand
+    return FormatExpand(select)     # same implementation as expand
 
 
 class ODataURI:
@@ -1939,13 +1994,13 @@ class ODataURI:
             dsURI = uri.URIFactory.URI(dsURI)
         #: a :py:class:`pyslet.rfc2396.URI` instance representing the whole URI
         self.uri = dsURI
-        self.version = version			#: the OData version of this request
+        self.version = version          #: the OData version of this request
         # self.schema=dsURI.scheme
         #: a string containing the path prefix without a trailing slash
         self.pathPrefix = pathPrefix
         #: a string containing the resource path (or None if this is not a resource path)
         self.resourcePath = None
-        self.navPath = []					#: a list of navigation path segment strings
+        self.navPath = []                   #: a list of navigation path segment strings
         #: the path option in effect or None if no path option was given
         self.pathOption = None
         #: the name of the navigation property following $links (no None)
@@ -1956,26 +2011,28 @@ class ODataURI:
         self.sysQueryOptions = {}
         self.paramTable = {}
         if dsURI.absPath is None:
-            #	relative paths are resolved relative to the pathPrefix with an added slash!
+            #   relative paths are resolved relative to the pathPrefix with an added slash!
             # so ODataURI('Products','/OData/OData.svc') is treated as
             # '/OData/OData.svc/Products'
             dsURI = uri.URIFactory.Resolve(pathPrefix + '/', dsURI)
         if dsURI.absPath is None:
-            #	both dsURI and pathPrefix are relative, this is an error
+            #   both dsURI and pathPrefix are relative, this is an error
             raise ValueError("pathPrefix cannot be relative: %s" % pathPrefix)
         if pathPrefix and not dsURI.absPath.startswith(pathPrefix):
             # this is not a URI we own
             return
         #
-        #	Unpack the query
+        #   Unpack the query
         if dsURI.query is not None:
             rawOptions = dsURI.query.split('&')
             for paramDef in rawOptions:
                 if paramDef.startswith('$'):
                     paramName = uri.UnescapeData(
                         paramDef[1:paramDef.index('=')]).decode('utf-8')
-                    param, paramValue = self.ParseSystemQueryOption(paramName,
-                                                                    uri.UnescapeData(paramDef[paramDef.index('=') + 1:]).decode('utf-8'))
+                    param, paramValue = self.ParseSystemQueryOption(
+                        paramName, uri.UnescapeData(
+                            paramDef[
+                                paramDef.index('=') + 1:]).decode('utf-8'))
                     self.sysQueryOptions[param] = paramValue
                 else:
                     if '=' in paramDef:
@@ -1984,7 +2041,7 @@ class ODataURI:
                         self.paramTable[paramName] = len(self.queryOptions)
                     self.queryOptions.append(paramDef)
         #
-        #	Unpack the resource path
+        #   Unpack the resource path
         self.resourcePath = dsURI.absPath[len(pathPrefix):]
         if self.resourcePath == '/':
             self.navPath = []
@@ -1995,10 +2052,12 @@ class ODataURI:
                 if self.pathOption == PathOption.links:
                     if self.linksProperty is not None:
                         raise InvalidPathOption(
-                            "A navigation property preceded by $links must be the last path segment, found %s" % segment)
+                            "A navigation property preceded by $links must be the last path segment, found %s" %
+                            segment)
                     elif segment.startswith("$"):
                         raise InvalidPathOption(
-                            "A navigation property is required after $links, found %s" % segment)
+                            "A navigation property is required after $links, found %s" %
+                            segment)
                     npSegment = self.SplitSegment(segment)
                     self.navPath.append(npSegment)
                     self.linksProperty = npSegment[0]
@@ -2008,11 +2067,16 @@ class ODataURI:
                     except KeyError:
                         raise InvalidPathOption(segment)
                     if self.pathOption is not None:
-                        raise InvalidPathOption("%s must not be used with $%s" % (
-                            segment, PathOption.EncodeValue(self.pathOption)))
+                        raise InvalidPathOption(
+                            "%s must not be used with $%s" %
+                            (segment,
+                             PathOption.EncodeValue(
+                                 self.pathOption)))
                     if self.navPath and self.pathOption in (PathOption.batch, PathOption.metadata):
                         raise InvalidPathOption(
-                            "$%s must be the only path segment" % PathOption.EncodeValue(self.pathOption))
+                            "$%s must be the only path segment" %
+                            PathOption.EncodeValue(
+                                self.pathOption))
                     elif self.pathOption == PathOption.links:
                         if not self.navPath:
                             raise InvalidPathOption(
@@ -2022,7 +2086,9 @@ class ODataURI:
                     # count, value, batch and metadata must be the last segment
                     if self.pathOption in (PathOption.count, PathOption.value, PathOption.batch, PathOption.metadata):
                         raise InvalidPathOption(
-                            "$%s must be the last path segment" % PathOption.EncodeValue(self.pathOption))
+                            "$%s must be the last path segment" %
+                            PathOption.EncodeValue(
+                                self.pathOption))
                     self.navPath.append(self.SplitSegment(segment))
             if self.pathOption == PathOption.links and self.linksProperty is None:
                 raise InvalidPathOption(
@@ -2044,20 +2110,21 @@ class ODataURI:
         """Returns a tuple of :py:class:`SystemQueryOption` constant and
         an appropriate representation of the value:
 
-        *	filter: an instance of :py:class:`CommonExpression`
+        *   filter: an instance of :py:class:`CommonExpression`
 
-        *	expand: a list of expand options, see py:meth:`pyslet.mc_csdl.Entity.Expand`
+        *   expand: a list of expand options, see py:meth:`pyslet.mc_csdl.Entity.Expand`
 
-        *	format: a list of :py:meth:`pyslet:rfc2616.MediaType` instances (of length 1)
+        *   format: a list of :py:meth:`pyslet:rfc2616.MediaType` instances (of length 1)
 
-        *	other options return a the paramValue unchanged at the moment"""
+        *   other options return a the paramValue unchanged at the moment"""
         try:
             param = SystemQueryOption.DecodeValue(paramName)
             # Now parse the parameter value
             paramParser = Parser(paramValue)
             if param == SystemQueryOption.filter:
                 value = paramParser.RequireProductionEnd(
-                    paramParser.ParseCommonExpression(), "boolCommonExpression")
+                    paramParser.ParseCommonExpression(),
+                    "boolCommonExpression")
             elif param == SystemQueryOption.expand:
                 value = paramParser.RequireProductionEnd(
                     paramParser.ParseExpandOption(), "expand query option")
@@ -2096,7 +2163,7 @@ class ODataURI:
                     paramParser.ParseSelectOption(), "selection query option")
             else:
                 value = paramValue
-        except ValueError, e:
+        except ValueError as e:
             raise InvalidSystemQueryOption("$%s : %s" % (paramName, str(e)))
         return param, value
 
@@ -2105,7 +2172,8 @@ class ODataURI:
         for p in self.sysQueryOptions:
             if p not in rules:
                 raise InvalidSystemQueryOption(
-                    '$%s cannot be used with this form of URI' % SystemQueryOption.EncodeValue(p))
+                    '$%s cannot be used with this form of URI' %
+                    SystemQueryOption.EncodeValue(p))
 
     def SplitSegment(self, segment):
         """Splits a string segment into a unicode name and a keyPredicate dictionary."""
@@ -2146,7 +2214,8 @@ class ODataURI:
             return ParseURILiteral(paramDef[paramDef.index('=') + 1:])
         else:
             raise KeyError(
-                "Missing service operation, or custom parameter: %s" % paramName)
+                "Missing service operation, or custom parameter: %s" %
+                paramName)
 
     @classmethod
     def FormatKeyDict(cls, d):
@@ -2168,7 +2237,7 @@ class ODataURI:
 
     @staticmethod
     def FormatLiteral(value):
-        """Returns a URI-literal-formatted value as a *unicode* string.  For example, u"42L" or u"'Paddy O''brian'"	"""
+        """Returns a URI-literal-formatted value as a *unicode* string.  For example, u"42L" or u"'Paddy O''brian'" """
         return unicode(LiteralExpression(value))
 
     @staticmethod
@@ -2187,30 +2256,55 @@ class Entity(edm.Entity):
     for sets of media-stream entities."""
 
     def GetLocation(self):
-        return uri.URIFactory.URI(str(self.entitySet.GetLocation()) + ODataURI.FormatEntityKey(self))
+        return uri.URIFactory.URI(
+            str(self.entity_set.GetLocation()) + ODataURI.FormatEntityKey(self))
 
-    def GetStreamType(self):
-        """Returns the content type of the entity's media stream.
+    def get_stream_info(self):
+        """Returns the content type and size of the entity's media stream.
 
-        Must return a :py:class:`pyslet.rfc2616.MediaType` instance."""
+        Must return a tuple of
+        (:py:class:`pyslet.rfc2616.MediaType`, long)
+        
+        If the size information is not available then the second item in
+        the tuple must be None"""
         raise NotImplementedError
+        
+    def GetStreamType(self):    # noqa
+        warnings.warn("Entity.GetStreamType is deprecated, "
+                      "use get_stream_info()[0]", DeprecationWarning,
+                      stacklevel=2)
+        return self.get_stream_info()[0]
 
-    def GetStreamSize(self):
-        """Returns the size of the entity's media stream in bytes."""
+    def GetStreamSize(self):    # noqa
+        warnings.warn("Entity.GetStreamSize is deprecated, "
+                      "use get_stream_info()[1]", DeprecationWarning,
+                      stacklevel=2)
+        return self.get_stream_info()[1]
+
+    def get_stream_generator(self):
+        """A generator function that yields the media stream as strings."""
         raise NotImplementedError
+        
+    def GetStreamGenerator(self):   # noqa
+        warnings.warn("Entity.GetStreamGenerator is deprecated, "
+                      "use get_stream_generator()", DeprecationWarning,
+                      stacklevel=2)
+        return self.get_stream_generator()[1]
 
-    def GetStreamGenerator(self):
-        """A generator function that yields blocks (strings) of data from the entity's media stream."""
-        raise NotImplementedError
-
-    def SetStreamFromGenerator(self, streamType, src):
+    def set_stream_from_generator(self, stream_type, src):
         """Replaces the contents of this stream with the strings output
         by iterating over src.
 
-        *streamType* must be a :py:class:`pyslet.rfc2616.MediaType`
+        *stream_type* must be a :py:class:`pyslet.rfc2616.MediaType`
         instance."""
         raise NotImplementedError
 
+    def SetStreamFromGenerator(self, stream_type, src): # noqa
+        warnings.warn("Entity.SetStreamFromGenerator is deprecated, "
+                      "use set_stream_from_generator", DeprecationWarning,
+                      stacklevel=2)
+        self.set_stream_from_generator(stream_type, src)
+    
     def SetFromJSONObject(self, obj, entityResolver=None, forUpdate=False):
         """Sets the value of this entity from a dictionary parsed from a
         JSON representation."""
@@ -2232,7 +2326,7 @@ class Entity(edm.Entity):
                 if not self.IsEntityCollection(navProperty):
                     # wrap singletons for convenience
                     links = (links,)
-                targetSet = self.entitySet.NavigationTarget(navProperty)
+                targetSet = self.entity_set.NavigationTarget(navProperty)
                 with targetSet.OpenCollection() as collection:
                     for link in links:
                         if len(link) == 1 and '__metadata' in link:
@@ -2241,25 +2335,27 @@ class Entity(edm.Entity):
                                 link['__metadata']['uri'])
                             if entityResolver is not None:
                                 if not href.IsAbsolute():
-                                    #	we'll assume that the base URI is the
-                                    #	location of this entity once it is
-                                    #	created.  Witness this thread:
-                                    #	http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
+                                    #   we'll assume that the base URI is the
+                                    #   location of this entity once it is
+                                    #   created.  Witness this thread:
+                                    #   http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
                                     href = uri.URIFactory.Resolve(
                                         self.GetLocation(), href)
                                 targetEntity = entityResolver(href)
-                                if isinstance(targetEntity, Entity) and targetEntity.entitySet is targetSet:
+                                if isinstance(targetEntity, Entity) and targetEntity.entity_set is targetSet:
                                     self[navProperty].BindEntity(targetEntity)
                                 else:
                                     raise InvalidData(
-                                        "Resource is not a valid target for %s: %s" % (navProperty, str(href)))
+                                        "Resource is not a valid target for %s: %s" %
+                                        (navProperty, str(href)))
                             else:
                                 raise InvalidData(
-                                    "No context to resolve entity URI: %s" % str(link))
+                                    "No context to resolve entity URI: %s" %
+                                    str(link))
                         else:
                             # full inline representation is expected for deep
                             # insert
-                            targetEntity = collection.NewEntity()
+                            targetEntity = collection.new_entity()
                             targetEntity.SetFromJSONObject(
                                 link, entityResolver)
                             self[navProperty].BindEntity(targetEntity)
@@ -2271,32 +2367,33 @@ class Entity(edm.Entity):
                     continue
                 link = obj[navProperty]
                 if '__metadata' in link:
-                    targetSet = self.entitySet.NavigationTarget(navProperty)
+                    targetSet = self.entity_set.NavigationTarget(navProperty)
                     # bind to an existing entity
                     href = uri.URIFactory.URI(link['__metadata']['uri'])
                     if entityResolver is not None:
                         if not href.IsAbsolute():
-                            #	we'll assume that the base URI is the
-                            #	location of this entity.  Witness this thread:
-                            #	http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
+                            #   we'll assume that the base URI is the
+                            #   location of this entity.  Witness this thread:
+                            #   http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
                             href = uri.URIFactory.Resolve(
                                 self.GetLocation(), href)
                         targetEntity = entityResolver(href)
-                        if isinstance(targetEntity, Entity) and targetEntity.entitySet is targetSet:
+                        if isinstance(targetEntity, Entity) and targetEntity.entity_set is targetSet:
                             self[navProperty].BindEntity(targetEntity)
                         else:
                             raise InvalidData(
-                                "Resource is not a valid target for %s: %s" % (navProperty, str(href)))
+                                "Resource is not a valid target for %s: %s" %
+                                (navProperty, str(href)))
                     else:
                         raise InvalidData(
                             "No context to resolve entity URI: %s" % str(link))
 
     def GenerateEntityTypeInJSON(self, forUpdate=False, version=2):
         location = str(self.GetLocation())
-        mediaLinkResource = self.typeDef.HasStream()
+        mediaLinkResource = self.type_def.HasStream()
         yield '{"__metadata":{'
         yield '"uri":%s' % json.dumps(location)
-        yield ',"type":%s' % json.dumps(self.entitySet.entityType.GetFQName())
+        yield ',"type":%s' % json.dumps(self.entity_set.entityType.GetFQName())
         etag = self.ETag()
         if etag:
             s = "" if self.ETagIsStrong() else "W/"
@@ -2356,21 +2453,21 @@ class Entity(edm.Entity):
                     href = str(
                         targetSet.GetLocation()) + ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
                 yield ', %s:{"__metadata":{"uri":%s}}' % (json.dumps(k), json.dumps(href))
-# 			for navProperty,bindings in self.bindings.items():
-# 				if not bindings or self[navProperty].isCollection:
+#           for navProperty,bindings in self.bindings.items():
+#               if not bindings or self[navProperty].isCollection:
 # nothing to do here, we can't update this type of navigation property
-# 					continue
+#                   continue
 # we need to know the location of the target entity set
-# 				targetSet=self.entitySet.NavigationTarget(navProperty)
-# 				binding=bindings[-1]
-# 				if isinstance(binding,Entity):
-# 					if binding.exists:
-# 						href=str(targetSet.GetLocation())+ODataURI.FormatEntityKey(binding)
-# 					else:
+#               targetSet=self.entity_set.NavigationTarget(navProperty)
+#               binding=bindings[-1]
+#               if isinstance(binding,Entity):
+#                   if binding.exists:
+#                       href=str(targetSet.GetLocation())+ODataURI.FormatEntityKey(binding)
+#                   else:
 # we can't create new entities on update
-# 						continue
-# 				else:
-# 					href=str(targetSet.GetLocation())+ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
+#                       continue
+#               else:
+#                   href=str(targetSet.GetLocation())+ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
 # yield ',
 # %s:{"__metadata":{"uri":%s}}'%(json.dumps(navProperty),json.dumps(href))
         else:
@@ -2400,22 +2497,22 @@ class Entity(edm.Entity):
                     if href:
                         yield '{ "__metadata":{"uri":%s}}' % json.dumps(href)
                 yield ']'
-# 			for navProperty,bindings in self.bindings.items():
+#           for navProperty,bindings in self.bindings.items():
 # we need to know the location of the target entity set
-# 				targetSet=self.entitySet.NavigationTarget(navProperty)
-# 				yield ', %s :['%json.dumps(navProperty)
-# 				sep=False
-# 				for binding in bindings:
-# 					if sep:
-# 						yield ', '
-# 					else:
-# 						sep=True
-# 					if isinstance(binding,Entity):
-# 						href=str(targetSet.GetLocation())+ODataURI.FormatEntityKey(binding)
-# 					else:
-# 						href=str(targetSet.GetLocation())+ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
-# 					yield '{ "__metadata":{"uri":%s}}'%json.dumps(href)
-# 				yield ']'
+#               targetSet=self.entity_set.NavigationTarget(navProperty)
+#               yield ', %s :['%json.dumps(navProperty)
+#               sep=False
+#               for binding in bindings:
+#                   if sep:
+#                       yield ', '
+#                   else:
+#                       sep=True
+#                   if isinstance(binding,Entity):
+#                       href=str(targetSet.GetLocation())+ODataURI.FormatEntityKey(binding)
+#                   else:
+#                       href=str(targetSet.GetLocation())+ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
+#                   yield '{ "__metadata":{"uri":%s}}'%json.dumps(href)
+#               yield ']'
         yield '}'
 
     def LinkJSON(self):
@@ -2429,7 +2526,7 @@ def EntityCTInJSON2(complexValue):
 
 
 def ReadEntityCTInJSON2(complexValue, obj):
-    if "results" in obj and type(obj["results"]) == DictType:
+    if "results" in obj and isinstance(obj["results"], DictType):
         obj = obj["results"]
         ReadEntityCTInJSON(complexValue, obj)
 
@@ -2445,7 +2542,9 @@ def ReadEntityCTInJSON(complexValue, obj):
 
 
 def EntityCTBody(complexValue):
-    return "%s:%s" % (json.dumps(complexValue.pDef.name), EntityCTValueToJSON(complexValue))
+    return "%s:%s" % (json.dumps(
+        complexValue.pDef.name),
+        EntityCTValueToJSON(complexValue))
 
 
 def EntityCTValueToJSON(complexValue):
@@ -2492,7 +2591,9 @@ def ReadEntityPropertyInJSON1(simpleValue, obj):
 
 
 def EntityPropertyInJSON(simpleValue):
-    return "%s:%s" % (json.dumps(simpleValue.pDef.name), EntityPropertyValueInJSON(simpleValue))
+    return "%s:%s" % (json.dumps(
+        simpleValue.pDef.name),
+        EntityPropertyValueInJSON(simpleValue))
 
 
 def EntityPropertyValueInJSON(v):
@@ -2593,7 +2694,7 @@ class EntityCollection(edm.EntityCollection):
     def GetNextPageLocation(self):
         """Returns the location of this page of the collection as a
         :py:class:`rfc2396.URI` instance."""
-        token = self.NextSkipToken()
+        token = self.next_skiptoken()
         if token is not None:
             baseURL = self.GetLocation()
             sysQueryOptions = {}
@@ -2607,20 +2708,24 @@ class EntityCollection(edm.EntityCollection):
                 sysQueryOptions[
                     SystemQueryOption.select] = FormatSelect(self.select)
             if self.orderby is not None:
-                sysQueryOptions[SystemQueryOption.orderby] = CommonExpression.OrderByToString(
+                sysQueryOptions[
+                    SystemQueryOption.orderby] = CommonExpression.OrderByToString(
                     self.orderby)
             sysQueryOptions[SystemQueryOption.skiptoken] = unicode(token)
-            return uri.URIFactory.URI(str(baseURL) + "?" + ODataURI.FormatSysQueryOptions(sysQueryOptions))
+            return uri.URIFactory.URI(
+                str(baseURL) +
+                "?" +
+                ODataURI.FormatSysQueryOptions(sysQueryOptions))
         else:
             return None
 
-    def NewEntity(self, autoKey=False):
+    def new_entity(self):
         """Returns an OData aware instance"""
-        return Entity(self.entitySet)
+        return Entity(self.entity_set)
 
     def IsMediaLinkEntryCollection(self):
         """Returns True if this is a collection of Media-Link Entries"""
-        return self.entitySet.entityType.HasStream()
+        return self.entity_set.entityType.HasStream()
 
     def CheckFilter(self, entity):
         """Checks *entity* against any filter and returns True if it passes.
@@ -2634,7 +2739,7 @@ class EntityCollection(edm.EntityCollection):
         else:
             result = self.filter.Evaluate(entity)
             if isinstance(result, edm.BooleanValue):
-                return result.value == True			#: NULL treated as False
+                return result.value         #: NULL treated as False
             else:
                 raise ValueError("Boolean required for filter expression")
 
@@ -2689,7 +2794,7 @@ class EntityCollection(edm.EntityCollection):
             yield "]"
         else:
             # add a next link if necessary
-            skiptoken = self.NextSkipToken()
+            skiptoken = self.next_skiptoken()
             if skiptoken is not None:
                 yield '],"__next":{"uri":%s}}' % json.dumps(str(self.GetLocation()) +
                                                             "?$skiptoken=%s" % uri.EscapeData(skiptoken, uri.IsQueryReserved))
@@ -2717,7 +2822,11 @@ class NavigationCollection(EntityCollection, edm.NavigationCollection):
 
     def ExpandCollection(self):
         """Return an expanded version of this collection with OData specific class"""
-        return ExpandedEntityCollection(fromEntity=self.fromEntity, name=self.name, entitySet=self.entitySet, entityList=self.values())
+        return ExpandedEntityCollection(
+            from_entity=self.from_entity,
+            name=self.name,
+            entity_set=self.entity_set,
+            entityList=self.values())
 
     def GetLocation(self):
         """Returns the location of this collection as a
@@ -2725,7 +2834,7 @@ class NavigationCollection(EntityCollection, edm.NavigationCollection):
 
         We override the location based on the source entity set + the fromKey."""
         return uri.URIFactory.URI(string.join([
-            str(self.fromEntity.GetLocation()),
+            str(self.from_entity.GetLocation()),
             '/',
             uri.EscapeData(self.name)], ''))
 
@@ -2744,7 +2853,7 @@ class ExpandedEntityCollection(EntityCollection, edm.ExpandedEntityCollection):
 
 class FunctionEntityCollection(EntityCollection, edm.FunctionEntityCollection):
 
-    """We override FunctionEntityCollection in order to include the OData-specific behaviour.	
+    """We override FunctionEntityCollection in order to include the OData-specific behaviour.
 
     This class uses diamond inheritance in a similar way to
     :py:class:`NavigationCollection`"""
@@ -2794,7 +2903,7 @@ class Property(ODataElement):
 
     def __init__(self, parent):
         ODataElement.__init__(self, parent)
-        self.edmValue = None		# an :py:class:`pyslet.mc_csdl.EDMValue` instance
+        self.edmValue = None        # an :py:class:`pyslet.mc_csdl.EDMValue` instance
 
     def GetSimpleType(self):
         type = self.GetNSAttribute((ODATA_METADATA_NAMESPACE, 'type'))
@@ -2873,15 +2982,18 @@ class Property(ODataElement):
             if self.parent is None:
                 # If we have no parent then we set the type attribute
                 self.SetAttribute(
-                    (ODATA_METADATA_NAMESPACE, 'type'), edm.SimpleType.EncodeValue(value.typeCode))
+                    (ODATA_METADATA_NAMESPACE,
+                     'type'),
+                    edm.SimpleType.EncodeValue(
+                        value.typeCode))
             if value:
                 ODataElement.SetValue(self, unicode(value))
             else:
                 self.SetAttribute((ODATA_METADATA_NAMESPACE, 'null'), "true")
         elif isinstance(value, edm.Complex):
-            if value.typeDef:
+            if value.type_def:
                 self.SetAttribute(
-                    (ODATA_METADATA_NAMESPACE, 'type'), value.typeDef.name)
+                    (ODATA_METADATA_NAMESPACE, 'type'), value.type_def.name)
             else:
                 raise ValueError(
                     "Complex-valued properties must have a defined type")
@@ -2953,7 +3065,7 @@ class Feed(atom.Feed):
 
     def __init__(self, parent, collection=None):
         super(Feed, self).__init__(parent)
-        self.collection = collection			#: the collection this feed represents
+        self.collection = collection            #: the collection this feed represents
         if self.collection is not None:
             location = str(self.collection.GetLocation())
             self.AtomId.SetValue(location)
@@ -3067,19 +3179,23 @@ class Link(atom.Link):
             targetEntitySet = deferred.Target()
             with targetEntitySet.OpenCollection() as collection:
                 if self.Inline.Entry is not None:
-                    entity = collection.NewEntity()
+                    entity = collection.new_entity()
                     entity.exists = exists
                     self.Inline.Entry.GetValue(entity)
                     entries = [entity]
                 elif self.Inline.Feed is not None:
                     entries = []
                     for entry in self.Inline.Feed.FindChildrenDepthFirst(Entry, subMatch=False):
-                        entity = collection.NewEntity()
+                        entity = collection.new_entity()
                         entity.exists = exists
                         entry.GetValue(entity)
                         entries.append(entity)
-                deferred.SetExpansion(ExpandedEntityCollection(
-                    fromEntity=deferred.fromEntity, name=deferred.name, entitySet=targetEntitySet, entityList=entries))
+                deferred.SetExpansion(
+                    ExpandedEntityCollection(
+                        from_entity=deferred.from_entity,
+                        name=deferred.name,
+                        entity_set=targetEntitySet,
+                        entityList=entries))
 
 
 class Entry(atom.Entry):
@@ -3210,7 +3326,7 @@ class Entry(atom.Entry):
         unselected = set()
         for k, v in entity.DataItems():
             # catch property-level feed customisation here
-            propertyDef = entity.typeDef[k]
+            propertyDef = entity.type_def[k]
             targetPath = propertyDef.GetTargetPath()
             if targetPath and not propertyDef.KeepInContent():
                 # This value needs to be read from somewhere special
@@ -3259,7 +3375,7 @@ class Entry(atom.Entry):
                 navProperty = link.rel[len(ODATA_RELATED):]
                 if not entity.IsNavigationProperty(navProperty):
                     continue
-                targetSet = entity.entitySet.NavigationTarget(navProperty)
+                targetSet = entity.entity_set.NavigationTarget(navProperty)
                 # we have a navigation property we understand
                 if link.Inline is not None:
                     with targetSet.OpenCollection() as collection:
@@ -3267,34 +3383,36 @@ class Entry(atom.Entry):
                             for entry in link.Inline.Feed.FindChildrenDepthFirst(Entry, subMatch=False):
                                 # create a new entity from the target entity
                                 # set
-                                targetEntity = collection.NewEntity()
+                                targetEntity = collection.new_entity()
                                 entry.GetValue(targetEntity, entityResolver)
                                 entity[navProperty].BindEntity(targetEntity)
                         elif link.Inline.Entry is not None:
-                            targetEntity = collection.NewEntity()
+                            targetEntity = collection.new_entity()
                             link.Inline.Entry.GetValue(
                                 targetEntity, entityResolver)
                             entity[navProperty].BindEntity(targetEntity)
                 elif entityResolver is not None:
-                    #	this is the tricky bit, we need to resolve
-                    #	the URI to an entity key
+                    #   this is the tricky bit, we need to resolve
+                    #   the URI to an entity key
                     href = link.ResolveURI(link.href)
                     if not href.IsAbsolute():
-                        #	we'll assume that the base URI is the
-                        #	location of this entity once it is
-                        #	created.  Witness this thread:
-                        #	http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
+                        #   we'll assume that the base URI is the
+                        #   location of this entity once it is
+                        #   created.  Witness this thread:
+                        #   http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
                         href = uri.URIFactory.Resolve(
                             entity.GetLocation(), href)
                     targetEntity = entityResolver(href)
-                    if isinstance(targetEntity, Entity) and targetEntity.entitySet is targetSet:
+                    if isinstance(targetEntity, Entity) and targetEntity.entity_set is targetSet:
                         entity[navProperty].BindEntity(targetEntity)
                     else:
                         raise InvalidData(
-                            "Resource is not a valid target for %s: %s" % (navProperty, str(href)))
+                            "Resource is not a valid target for %s: %s" %
+                            (navProperty, str(href)))
                 else:
                     raise InvalidData(
-                        "No context to resolve entity URI: %s" % str(link.href))
+                        "No context to resolve entity URI: %s" % str(
+                            link.href))
         elif forUpdate:
             # we need to look for any updated link bindings
             for link in self.Link:
@@ -3303,27 +3421,29 @@ class Entry(atom.Entry):
                 navProperty = link.rel[len(ODATA_RELATED):]
                 if not entity.IsNavigationProperty(navProperty) or entity[navProperty].isCollection:
                     continue
-                targetSet = entity.entitySet.NavigationTarget(navProperty)
+                targetSet = entity.entity_set.NavigationTarget(navProperty)
                 # we have a navigation property we can update
                 if entityResolver is not None:
-                    #	this is the tricky bit, we need to resolve
-                    #	the URI to an entity key
+                    #   this is the tricky bit, we need to resolve
+                    #   the URI to an entity key
                     href = link.ResolveURI(link.href)
                     if not href.IsAbsolute():
-                        #	we'll assume that the base URI is the location of this entity
-                        #	Witness this thread:
-                        #	http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
+                        #   we'll assume that the base URI is the location of this entity
+                        #   Witness this thread:
+                        #   http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
                         href = uri.URIFactory.Resolve(
                             entity.GetLocation(), href)
                     targetEntity = entityResolver(href)
-                    if isinstance(targetEntity, Entity) and targetEntity.entitySet is targetSet:
+                    if isinstance(targetEntity, Entity) and targetEntity.entity_set is targetSet:
                         entity[navProperty].BindEntity(targetEntity)
                     else:
                         raise InvalidData(
-                            "Resource is not a valid target for %s: %s" % (navProperty, str(href)))
+                            "Resource is not a valid target for %s: %s" %
+                            (navProperty, str(href)))
                 else:
                     raise InvalidData(
-                        "No context to resolve entity URI: %s" % str(link.href))
+                        "No context to resolve entity URI: %s" % str(
+                            link.href))
         else:
             # entity exists, look to see if it has been expanded
             for link in self.Link:
@@ -3332,7 +3452,7 @@ class Entry(atom.Entry):
                 navProperty = link.rel[len(ODATA_RELATED):]
                 if not entity.IsNavigationProperty(navProperty):
                     continue
-                targetSet = entity.entitySet.NavigationTarget(navProperty)
+                targetSet = entity.entity_set.NavigationTarget(navProperty)
                 link.LoadExpansion(entity[navProperty])
         return entity
 
@@ -3340,21 +3460,21 @@ class Entry(atom.Entry):
         """Sets the value of this Entry to represent *entity*, a :py:class:`pyslet.mc_csdl.Entity` instance."""
         # start with a reset
         self.Reset()
-        mediaLinkResource = entity.typeDef.HasStream()
+        mediaLinkResource = entity.type_def.HasStream()
         self.etag = entity.ETag()
         # Now set the new property values, starting with entity-type level feed customisation
         # seems odd that there can only be one of these but, hey...
         cat = self.ChildElement(atom.Category)
-        cat.term = entity.typeDef.GetFQName()
+        cat.term = entity.type_def.GetFQName()
         cat.scheme = ODATA_SCHEME
-        targetPath = entity.typeDef.GetTargetPath()
+        targetPath = entity.type_def.GetTargetPath()
         if targetPath:
-            prefix, ns = entity.typeDef.GetFCNsPrefix()
+            prefix, ns = entity.type_def.GetFCNsPrefix()
             targetElement = self.ResolveTargetPath(targetPath, prefix, ns)
-            sourcePath = entity.typeDef.GetSourcePath()
-            if sourcePath:
+            source_path = entity.type_def.GetSourcePath()
+            if source_path:
                 v = entity
-                for p in sourcePath:
+                for p in source_path:
                     if isinstance(v, (edm.Entity, edm.Complex)):
                         v = v[p]
                     else:
@@ -3391,8 +3511,16 @@ class Entry(atom.Entry):
                 link.rel = "edit-media"
                 if self.etag:
                     s = "" if entity.ETagIsStrong() else "W/"
-                    link.SetAttribute((ODATA_METADATA_NAMESPACE, 'etag'), s + http.QuoteString(
-                        string.join(map(ODataURI.FormatLiteral, self.etag), ',')))
+                    link.SetAttribute(
+                        (ODATA_METADATA_NAMESPACE,
+                         'etag'),
+                        s +
+                        http.QuoteString(
+                            string.join(
+                                map(
+                                    ODataURI.FormatLiteral,
+                                    self.etag),
+                                ',')))
             for navProperty, navValue in entity.NavigationItems():
                 link = self.ChildElement(self.LinkClass)
                 link.href = location + '/' + navProperty
@@ -3463,11 +3591,15 @@ class Entry(atom.Entry):
                     link.href = location + '/' + k
                     if dv.isCollection:
                         feed = ExpandedEntityCollection(
-                            fromEntity=entity, name=k, entitySet=targetSet, entityList=feed)
+                            from_entity=entity,
+                            name=k,
+                            entity_set=targetSet,
+                            entityList=feed)
                         link.Expand(feed)
                     elif len(feed) > 1:
                         raise NavigationError(
-                            "Multiple bindings found for navigation property %s.%s" % (entitySet.name, k))
+                            "Multiple bindings found for navigation property %s.%s" %
+                            (entity_set.name, k))
                     else:
                         link.Expand(feed[0])
         # Now set the new property values in the properties element
@@ -3477,7 +3609,7 @@ class Entry(atom.Entry):
             self.ChildElement(Content).ChildElement(Properties)
         for k, v in entity.DataItems():
             # catch property-level feed customisation here
-            propertyDef = entity.typeDef[k]
+            propertyDef = entity.type_def[k]
             targetPath = propertyDef.GetTargetPath()
             if targetPath:
                 # This value needs to go somewhere special

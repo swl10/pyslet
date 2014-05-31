@@ -94,7 +94,7 @@ class ClientTests(unittest.TestCase):
 		c=Client(ODATA_SAMPLE_SERVICEROOT)
 		names=set()
 		with c.feeds['Products'].OpenCollection() as collection:
-			collection.OrderBy(core.CommonExpression.OrderByFromString("ProductName asc"))
+			collection.set_orderby(core.CommonExpression.OrderByFromString("ProductName asc"))
 			firstValue=None
 			lastValue=None
 			for product in collection.itervalues():
@@ -108,7 +108,7 @@ class ClientTests(unittest.TestCase):
 		c=Client(ODATA_SAMPLE_SERVICEROOT)
 		names=set()		
 		with c.feeds['Products'].OpenCollection() as collection:
-			collection.Filter(core.CommonExpression.FromString("substringof('bread',ProductName)"))
+			collection.set_filter(core.CommonExpression.FromString("substringof('bread',ProductName)"))
 			self.assertTrue(len(collection)==1)
 			product=collection.values()[0]
 			self.assertTrue(product['ProductName']=="Scottish Longbreads")

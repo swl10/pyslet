@@ -235,7 +235,7 @@ class Value(object):
 		is not determined and could potentially be any of the
 		:py:class:`BaseType` values. This distinction has implications for the
 		way evaluation is done.  A value with a baseType of None will not raise
-		TypeErrors during evaluation if the cardinalities match the context. 
+		TypeErrors during evaluation if the cardinalities match the context.
 		This allows expressions which contain types bound only at runtime to be
 		evaluated for validity checking."""
         self.value = None
@@ -315,8 +315,11 @@ class Value(object):
 
     def ValueError(self, value):
         """Raises a ValueError with a debug-friendly message string."""
-        raise ValueError("Can't set value of %s %s from %s" % (Cardinality.EncodeValue(self.Cardinality()),
-                                                               BaseType.EncodeValue(self.baseType), repr(value)))
+        raise ValueError(
+            "Can't set value of %s %s from %s" %
+            (Cardinality.EncodeValue(
+                self.Cardinality()), BaseType.EncodeValue(
+                self.baseType), repr(value)))
 
     def Cardinality(self):
         """Returns the cardinality of this value.  One of the :py:class:`Cardinality` constants.
@@ -458,7 +461,7 @@ class BooleanValue(SingleValue):
                 v.SetValue(True if x else False)"""
         if value is None:
             self.value = None
-        elif type(value) is BooleanType:
+        elif isinstance(value, BooleanType):
             self.value = value
         elif type(value) in (IntType, LongType):
             self.value = True if value else False
@@ -526,7 +529,11 @@ class FileValue(SingleValue):
         else:
             raise NotImplementedError("String serialization of BaseType.file.")
 
-    def SetValue(self, value, type="application/octet-stream", name="data.bin"):
+    def SetValue(
+            self,
+            value,
+            type="application/octet-stream",
+            name="data.bin"):
         """Sets a file value from a file like object or a string.
 
         There are some important and subtle distinctions in this method.
@@ -543,11 +550,11 @@ class FileValue(SingleValue):
         self.fileName = name
         if value is None:
             self.value = None
-        elif type(value) is FileType:
+        elif isinstance(value, FileType):
             self.value = value
-        elif type(value) is StringType:
+        elif isinstance(value, StringType):
             self.value = StringIO.StringIO(value)
-        elif type(value) is UnicodeType:
+        elif isinstance(value, UnicodeType):
             # Parse this value from the MIME stream.
             raise NotImplementedError(
                 "String deserialization of BaseType.file.")
@@ -581,7 +588,7 @@ class FloatValue(SingleValue):
                 v.SetValue(float(x))"""
         if value is None:
             self.value = None
-        elif type(value) is FloatType:
+        elif isinstance(value, FloatType):
             self.value = value
         elif type(value) in StringTypes:
             self.value = xsi.DecodeDouble(value)
@@ -719,7 +726,9 @@ class PointValue(SingleValue):
                 for v in value:
                     if type(v) not in (IntType, LongType):
                         raise ValueError(
-                            "Illegal type for point coordinate %s" % repr(type(v)))
+                            "Illegal type for point coordinate %s" %
+                            repr(
+                                type(v)))
                     elif v < -2147483648 or v > 2147483647:
                         raise ValueError(
                             "Integer coordinate range: %s" % repr(v))
@@ -807,10 +816,13 @@ class Container(Value):
 
         We therefore opt for a minimal representation."""
         if self.baseType is None:
-            return u"%s container of unknown base type" % Cardinality.EncodeValue(self.Cardinality)
+            return u"%s container of unknown base type" % Cardinality.EncodeValue(
+                self.Cardinality)
         else:
-            return u"%s container of base type %s" % (Cardinality.EncodeValue(self.Cardinality),
-                                                      BaseType.EncodeValue(self.baseType))
+            return u"%s container of base type %s" % (Cardinality.EncodeValue(
+                self.Cardinality),
+                BaseType.EncodeValue(
+                self.baseType))
 
     @classmethod
     def NewValue(cls, cardinality, baseType=None):
@@ -914,8 +926,7 @@ class MultipleContainer(Container):
         """Returns an iterable of values in the ordered container."""
         if self.value is None:
             return
-        keys = self.value.keys()
-        keys.sort()
+        keys = sorted(self.value.keys())
         for k in keys:
             for i in xrange(self.value[k]):
                 yield k
@@ -944,12 +955,13 @@ class RecordContainer(Container):
             self.value = None
         else:
             newValue = {}
-            if type(value) is DictType:
+            if isinstance(value, DictType):
                 valueDict = value
                 fieldList = value.keys()
             else:
                 raise ValueError(
-                    "RecordContainer.SetValue expected dictionary, found %s" % repr(value))
+                    "RecordContainer.SetValue expected dictionary, found %s" %
+                    repr(value))
             for f in fieldList:
                 v = value[f]
                 if v is None:
@@ -1456,7 +1468,10 @@ class OutcomeDeclaration(VariableDeclaration):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'outcomeDeclaration')
     XMLATTR_view = (
-        'view', core.View.DecodeLowerValue, core.View.EncodeValue, types.DictType)
+        'view',
+        core.View.DecodeLowerValue,
+        core.View.EncodeValue,
+        types.DictType)
     XMLATTR_interpretation = 'interpretation'
     XMLATTR_longInterpretation = (
         'longInterpretation', html.DecodeURI, html.EncodeURI)
@@ -1555,7 +1570,9 @@ class MatchTable(LookupTable):
             raise ValueError("Can't match container: %s" % repr(value))
         elif value.baseType != BaseType.integer:
             raise ValueError(
-                "MatchTable requires integer, found %s" % BaseType.EncodeValue(value.baseType))
+                "MatchTable requires integer, found %s" %
+                BaseType.EncodeValue(
+                    value.baseType))
         else:
             srcValue = value.value
         dstValue = SingleValue.NewValue(self.baseType)
@@ -1634,7 +1651,9 @@ class InterpolationTable(LookupTable):
             srcValue = value.value
         else:
             raise ValueError(
-                "Interpolation table requires integer or float, found %s" % BaseType.EncodeValue(value.baseType))
+                "Interpolation table requires integer or float, found %s" %
+                BaseType.EncodeValue(
+                    value.baseType))
         dstValue = SingleValue.NewValue(self.baseType)
         if not nullFlag:
             dstValue.SetValue(self.default.value)
@@ -1768,11 +1787,17 @@ class SessionState(object):
             raise TypeError
         v = self[varName]
         if value.Cardinality() is not None and value.Cardinality() != v.Cardinality():
-            raise ValueError("Expected %s value, found %s" % (Cardinality.EncodeValue(v.Cardinality()),
-                                                              Cardinality.EncodeValue(value.Cardinality())))
+            raise ValueError(
+                "Expected %s value, found %s" %
+                (Cardinality.EncodeValue(
+                    v.Cardinality()), Cardinality.EncodeValue(
+                    value.Cardinality())))
         if value.baseType is not None and value.baseType != v.baseType:
-            raise ValueError("Expected %s value, found %s" % (BaseType.EncodeValue(v.baseType),
-                                                              BaseType.EncodeValue(value.baseType)))
+            raise ValueError(
+                "Expected %s value, found %s" %
+                (BaseType.EncodeValue(
+                    v.baseType), BaseType.EncodeValue(
+                    value.baseType)))
         v.SetValue(value.value)
 
     def __delitem__(self, varName):
@@ -1797,7 +1822,7 @@ class ItemSessionState(SessionState):
     In addition to the variables defined by the specification we add meta
     variables corresponding to response and outcome defaults, these have the
     same name as the variable but with ".DEFAULT" appended.  Similarly, we
-    define names for the correct values of response variables using ".CORRECT". 
+    define names for the correct values of response variables using ".CORRECT".
     The values of these meta-variables are all initialised from the item
     definition on construction."""
 
@@ -1966,8 +1991,7 @@ class ItemSessionState(SessionState):
             # response we just sort them, so missing ranks are OK.
             for response in orderedParams:
                 rParams = orderedParams[response]
-                ranks = rParams.keys()
-                ranks.sort()
+                ranks = sorted(rParams.keys())
                 sValue = []
                 for r in ranks:
                     sValue.append(rParams[r])
@@ -2084,7 +2108,7 @@ class TestSessionState(SessionState):
             self.salt = string.join(self.salt, '')
         self.key = ''
         """A key representing this session in its current state, this key is
-		initialised to a random value and changes as each event is received. 
+		initialised to a random value and changes as each event is received.
 		The key must be supplied when triggering subsequent events.  The key is
 		designed to be unguessable and unique so a caller presenting the correct
 		key when triggering an event can be securely assumed to be the owner of

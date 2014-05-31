@@ -221,7 +221,9 @@ class ShapeElementMixin:
             return self.coords.TestCircle(x, y, width, height)
         elif self.shape == Shape.default:
             # The entire region
-            return x >= 0 and y >= 0 and (width is None or x <= width) and (height is None or y <= height)
+            return x >= 0 and y >= 0 and (
+                width is None or x <= width) and (
+                height is None or y <= height)
         elif self.shape == Shape.ellipse:
             # Ellipse is deprecated because there is no HTML equivalent test
             return self.TestEllipse(x, y, width, height)
@@ -239,7 +241,8 @@ class ShapeElementMixin:
         specification itself: center-x, center-y, x-radius, y-radius."""
         if len(self.coords.values) < 4:
             raise ValueError(
-                "Ellipse test requires 4 coordinates: %s" % str(self.coords.values))
+                "Ellipse test requires 4 coordinates: %s" % str(
+                    self.coords.values))
         dx = x - self.coords.values[0].GetValue(width)
         dy = y - self.coords.values[1].GetValue(height)
         rx = self.coords.values[2].GetValue(width)
@@ -341,10 +344,16 @@ class QTIDocument(xmlns.XMLNSDocument):
         self.MakePrefix(xsi.XMLSCHEMA_NAMESPACE, 'xsi')
         if isinstance(self.root, QTIElement):
             self.root.SetAttribute(
-                (xsi.XMLSCHEMA_NAMESPACE, 'schemaLocation'), IMSQTI_NAMESPACE + ' ' + IMSQTI_SCHEMALOCATION)
+                (xsi.XMLSCHEMA_NAMESPACE,
+                 'schemaLocation'),
+                IMSQTI_NAMESPACE +
+                ' ' +
+                IMSQTI_SCHEMALOCATION)
 
     def GetElementClass(self, name):
-        return QTIDocument.classMap.get(name, QTIDocument.classMap.get((name[0], None), xmlns.XMLNSElement))
+        return QTIDocument.classMap.get(
+            name, QTIDocument.classMap.get(
+                (name[0], None), xmlns.XMLNSElement))
 
     def AddToContentPackage(self, cp, metadata, dName=None):
         """Copies this QTI document into a content package and returns the resource ID used.

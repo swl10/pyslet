@@ -26,7 +26,7 @@ class OutcomesProcessing(common.QTICommentContainer):
     outcome variable and the results will be undefined::
 
     <!ELEMENT outcomes_processing (qticomment? , outcomes , objects_condition* ,
-            processing_parameter* , map_output* , outcomes_feedback_test*)>	
+            processing_parameter* , map_output* , outcomes_feedback_test*)>
     <!ATTLIST outcomes_processing  scoremodel CDATA  #IMPLIED >"""
     XMLNAME = "outcomes_processing"
     XMLATTR_scoremodel = 'scoreModel'
@@ -82,7 +82,7 @@ class MapOutput(core.QTIElement):
     to 'myScore.min', 'myScore.max' and 'myScore.normalized' respectively.
     Data-type = string (1-256 chars)::
 
-    <!ELEMENT map_output (#PCDATA)>	
+    <!ELEMENT map_output (#PCDATA)>
     <!ATTLIST map_output  varname CDATA  'SCORE' >"""
     XMLNAME = 'map_output'
     XMLATTR_varname = 'varName'
@@ -169,7 +169,7 @@ class MapInput(core.QTIElement):
     select the same object, the input mapping used is the one contained in the
     first <outcomes_condition> that selects the element::
 
-    <!ELEMENT map_input (#PCDATA)>	
+    <!ELEMENT map_input (#PCDATA)>
     <!ATTLIST map_input  varname CDATA  'SCORE' >"""
     XMLNAME = 'map_input'
     XMLATTR_varname = 'varName'
@@ -236,7 +236,9 @@ class OutcomesMetadata(OutcomesOperator):
     XMLNAME = 'outcomes_metadata'
     XMLATTR_mdname = 'mdName'
     XMLATTR_mdoperator = (
-        'mdOperator', core.MDOperator.DecodeLowerValue, core.MDOperator.EncodeValue)
+        'mdOperator',
+        core.MDOperator.DecodeLowerValue,
+        core.MDOperator.EncodeValue)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -343,7 +345,9 @@ class VariableTest(OutcomesTest):
     XMLNAME = 'variable_test'
     XMLATTR_varname = 'varName'
     XMLATTR_testoperator = (
-        'testOperator', core.TestOperator.DecodeLowerValue, core.TestOperator.EncodeValue)
+        'testOperator',
+        core.TestOperator.DecodeLowerValue,
+        core.TestOperator.EncodeValue)
     XMLCONTENT = xml.XMLMixedContent
 
     def __init__(self, parent):

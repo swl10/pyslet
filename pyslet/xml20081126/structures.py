@@ -767,8 +767,17 @@ def IsNameStartChar(c):
     else:
         return NameStartCharClass.Test(c)
 
-NameCharClass = CharClass(NameStartCharClass, u'-', u'.', (u'0', u'9'),
-                          u'\xb7', (u'\u0300', u'\u036f'), (u'\u203f', u'\u2040'))
+NameCharClass = CharClass(
+    NameStartCharClass,
+    u'-',
+    u'.',
+    (u'0',
+     u'9'),
+    u'\xb7',
+    (u'\u0300',
+     u'\u036f'),
+    (u'\u203f',
+     u'\u2040'))
 
 
 def IsNameChar(c):
@@ -826,7 +835,7 @@ def IsPubidChar(c):
 
 
 def EscapeCDSect(src):
-    """Returns a unicode string enclosed in <!CDATA[[ ]]> with ]]> 
+    """Returns a unicode string enclosed in <!CDATA[[ ]]> with ]]>
     by the clumsy sequence: ]]>]]&gt;<!CDATA[[
 
     Degenerate case: an empty string is returned as an empty string
@@ -1119,7 +1128,7 @@ class Element(Node):
             When XML attribute values are parsed from tags the optional
             *type* component of the tuple descriptor can be used to indicate
             a multi-valued attribute (for example, XML attributes defined
-            using one of the plural forms, IDREFS, ENTITIES and NMTOKENS). 
+            using one of the plural forms, IDREFS, ENTITIES and NMTOKENS).
             If the *type* value is not None then the XML attribute value is
             first split by white-space, as per the XML specification, and
             then the decode function is applied to each resulting component.
@@ -1176,7 +1185,7 @@ class Element(Node):
 
                     (<python attribute name>, decodeFunction, type)
 
-            The XMLARMAP maps python attribute names onto a tuple of: 
+            The XMLARMAP maps python attribute names onto a tuple of:
 
                     (<xml attribute name>, encodeFunction)
 
@@ -1282,7 +1291,7 @@ class Element(Node):
                 if type(setter) in StringTypes:
                     # use simple attribute assignment
                     attrName, encode, decode, vtype = setter, None, None, None
-                elif type(setter) is TupleType:
+                elif isinstance(setter, TupleType):
                     if len(setter) == 3:
                         attrName, decode, encode = setter
                         vtype = None
@@ -1290,17 +1299,20 @@ class Element(Node):
                         attrName, decode, encode, vtype = setter
                     else:
                         raise XMLAttributeSetter(
-                            "bad XMLATTR_ definition: %s attribute of %s" % (name, self.__class__.__name__))
+                            "bad XMLATTR_ definition: %s attribute of %s" %
+                            (name, self.__class__.__name__))
                 else:
                     raise XMLAttributeSetter(
-                        "setting %s attribute of %s" % (name, self.__class__.__name__))
+                        "setting %s attribute of %s" %
+                        (name, self.__class__.__name__))
                 if encode is None:
                     encode = nop
                 if decode is None:
                     decode = nop
                 if vtype not in (types.ListType, types.DictType, None):
-                    raise XMLAttributeSetter("Legacy XMLATTR_ definition: %s attribute of %s" % (
-                        name, self.__class__.__name__))
+                    raise XMLAttributeSetter(
+                        "Legacy XMLATTR_ definition: %s attribute of %s" %
+                        (name, self.__class__.__name__))
                 aMap[name] = (attrName, decode, vtype)
                 arMap[attrName] = (name, encode)
         setattr(self.__class__, "XMLAMAP", aMap)
@@ -1349,9 +1361,9 @@ class Element(Node):
         for attrName, desc in arMap.items():
             name, encode = desc
             value = getattr(self, attrName, None)
-            if type(value) is ListType:
+            if isinstance(value, ListType):
                 value = string.join(map(encode, value), ' ')
-            elif type(value) is DictType:
+            elif isinstance(value, DictType):
                 lValue = []
                 for key, freq in value.items():
                     v = encode(key)
@@ -1424,9 +1436,9 @@ class Element(Node):
                 raise KeyError("Attribute value undefined: %s" % repr(name))
             arMap = self._ARMap()
             unusedName, encode = arMap[attrName]
-            if type(value) is ListType:
+            if isinstance(value, ListType):
                 value = string.join(map(encode, value), ' ')
-            elif type(value) is DictType:
+            elif isinstance(value, DictType):
                 lValue = []
                 for key, freq in value.items():
                     v = encode(key)
@@ -1602,15 +1614,15 @@ class Element(Node):
         try:
             if factoryName:
                 factory = getattr(self, factoryName)
-                if type(factory) is MethodType:
+                if isinstance(factory, MethodType):
                     if factoryName != childClass.__name__:
                         child = factory(childClass)
                     else:
                         child = factory()
-                elif type(factory) is NoneType:
+                elif isinstance(factory, NoneType):
                     child = childClass(self)
                     setattr(self, factoryName, child)
-                elif type(factory) is ListType:
+                elif isinstance(factory, ListType):
                     child = childClass(self)
                     factory.append(child)
                 elif isinstance(factory, childClass):
@@ -1648,12 +1660,12 @@ class Element(Node):
         factoryName = self._FindFactory(child.__class__)
         if factoryName:
             factory = getattr(self, factoryName)
-            if type(factory) is MethodType:
+            if isinstance(factory, MethodType):
                 deleteFactory = getattr(self, "Delete_" + factoryName)
                 deleteFactory(child)
-            elif type(factory) is NoneType:
+            elif isinstance(factory, NoneType):
                 raise XMLUnknownChild(child.xmlname)
-            elif type(factory) is ListType:
+            elif isinstance(factory, ListType):
                 match = False
                 for i in xrange(len(factory)):
                     if factory[i] is child:
@@ -1702,10 +1714,12 @@ class Element(Node):
         Effectively this method provides a depth-first list of children.  For
         example, to get all <div> elements in an HTML <body> you would have to
         recurse over the resulting list calling FindChildren again until the
-        list of matching children stops growing.		
+        list of matching children stops growing.
         """
         warnings.warn(
-            "Element.FindChildren is deprecated, use FindChildrenDepthFirst instead", DeprecationWarning, stacklevel=3)
+            "Element.FindChildren is deprecated, use FindChildrenDepthFirst instead",
+            DeprecationWarning,
+            stacklevel=3)
         if max is not None and len(childList) >= max:
             return
         for child in self.GetChildren():
@@ -1716,7 +1730,11 @@ class Element(Node):
             if max is not None and len(childList) >= max:
                 break
 
-    def FindChildrenBreadthFirst(self, childClass, subMatch=True, maxDepth=1000):
+    def FindChildrenBreadthFirst(
+            self,
+            childClass,
+            subMatch=True,
+            maxDepth=1000):
         """A generator method that iterates over children of class
         *childClass* using a breadth first scan.
 
@@ -1789,7 +1807,7 @@ class Element(Node):
 
         This method does not do any special handling of child elements,
         the caller takes responsibility for ensuring that this element
-        will be returned by future calls to parent.GetChildren(). 
+        will be returned by future calls to parent.GetChildren().
         However,
         :py:meth:`AttachToDocument` is called to ensure id registrations
         are made."""
@@ -2207,8 +2225,11 @@ class Element(Node):
             # mixed content.
             return self.__class__.XMLCONTENT != XMLMixedContent
         else:
-            warnings.warn("class %s: Element.PrettyPrint with undefined content models is deprecated" %
-                          self.__class__.__name__, DeprecationWarning, stacklevel=3)
+            warnings.warn(
+                "class %s: Element.PrettyPrint with undefined content models is deprecated" %
+                self.__class__.__name__,
+                DeprecationWarning,
+                stacklevel=3)
             for child in self.GetChildren():
                 if type(child) in StringTypes:
                     for c in child:
@@ -2216,7 +2237,11 @@ class Element(Node):
                             return False
         return True
 
-    def WriteXMLAttributes(self, attributes, escapeFunction=EscapeCharData, root=False):
+    def WriteXMLAttributes(
+            self,
+            attributes,
+            escapeFunction=EscapeCharData,
+            root=False):
         """Adds strings representing the element's attributes
 
         attributes is a list of unicode strings.  Attributes should be appended
@@ -2228,7 +2253,12 @@ class Element(Node):
         for a in keys:
             attributes.append(u'%s=%s' % (a, escapeFunction(attrs[a], True)))
 
-    def GenerateXML(self, escapeFunction=EscapeCharData, indent='', tab='\t', root=False):
+    def GenerateXML(
+            self,
+            escapeFunction=EscapeCharData,
+            indent='',
+            tab='\t',
+            root=False):
         """A generator function that returns strings representing the
         serialised version of this element::
 
@@ -2284,7 +2314,13 @@ class Element(Node):
         except StopIteration:
             yield u'%s<%s%s/>' % (ws, self.xmlname, attributes)
 
-    def WriteXML(self, writer, escapeFunction=EscapeCharData, indent='', tab='\t', root=False):
+    def WriteXML(
+            self,
+            writer,
+            escapeFunction=EscapeCharData,
+            indent='',
+            tab='\t',
+            root=False):
         for s in self.GenerateXML(escapeFunction, indent, tab, root):
             writer.write(s)
 
@@ -2549,7 +2585,7 @@ class ContentParticleCursor(object):
                     if self.pList is None:
                         self.state = ContentParticleCursor.EndState
                     else:
-                        if not type(self.pList) is ListType:
+                        if not isinstance(self.pList, ListType):
                             self.pList = [self.pList]
                         self.state = ContentParticleCursor.ParticleState
                     return True
@@ -2578,7 +2614,7 @@ class ContentParticleCursor(object):
                         newPList = None
                         self.state = ContentParticleCursor.EndState
                         break
-                    if type(ps) is ListType:
+                    if isinstance(ps, ListType):
                         newPList = newPList + ps
                     else:
                         newPList.append(ps)
@@ -2613,8 +2649,7 @@ class ContentParticleCursor(object):
                         expected[name] = True
                     else:
                         endTag = "</%s>" % self.elementType.name
-        result = expected.keys()
-        result.sort()
+        result = sorted(expected.keys())
         if endTag:
             result.append(endTag)
         return result
@@ -2703,13 +2738,13 @@ class XMLEntity(object):
         self.charPos = None
         self.ignoreLF = None
         self.flags = {}
-        if type(src) is UnicodeType:
+        if isinstance(src, UnicodeType):
             self.OpenUnicode(src)
         elif isinstance(src, URI):
             self.OpenURI(src, encoding, reqManager)
         elif isinstance(src, http.HTTPResponse):
             self.OpenHTTPResponse(src, encoding)
-        elif type(src) is StringType:
+        elif isinstance(src, StringType):
             self.OpenString(src, encoding)
         elif not src is None:
             self.OpenFile(src, encoding)
@@ -3098,11 +3133,11 @@ class XMLDeclaredEntity(XMLEntity):
 
         External entities must be parsed for text declarations before the
         replacement text is encountered.  This requires a small amount of
-        look-ahead which may result in some characters needing to be re-parsed. 
+        look-ahead which may result in some characters needing to be re-parsed.
         We pass this to future parsers using :py:attr:`buffText`."""
-        if type(self.definition) is StringType:
+        if isinstance(self.definition, StringType):
             self.OpenString(self.definition)
-        elif type(self.definition) is UnicodeType:
+        elif isinstance(self.definition, UnicodeType):
             self.OpenUnicode(self.definition)
         elif isinstance(self.definition, XMLExternalID):
             # open from location or raise UnimplementedError
@@ -3330,8 +3365,9 @@ def IsBaseChar(c):
 
 def IsIdeographic(c):
     """Tests if the character *c* matches production [86] Ideographic."""
-    return c and ((ord(c) >= 0x4E00 and ord(c) <= 0x9FA5) or ord(c) == 0x3007 or
-                  (ord(c) >= 0x3021 and ord(c) <= 0x3029))
+    return c and (
+        (ord(c) >= 0x4E00 and ord(c) <= 0x9FA5) or ord(c) == 0x3007 or (
+            ord(c) >= 0x3021 and ord(c) <= 0x3029))
 
 IdeographicCharClass = CharClass(
     (u'\u4e00', u'\u9fa5'), u'\u3007', (u'\u3021', u'\u3029'))
@@ -3405,10 +3441,21 @@ def IsDigit(c):
     """Tests if the character *c* matches production [88] Digit."""
     return DigitClass.Test(c)
 
-ExtenderClass = CharClass(u'\xb7', (u'\u02d0', u'\u02d1'), u'\u0387', u'\u0640',
-                          u'\u0e46', u'\u0ec6', u'\u3005', (
-                              u'\u3031', u'\u3035'), (u'\u309d', u'\u309e'),
-                          (u'\u30fc', u'\u30fe'))
+ExtenderClass = CharClass(
+    u'\xb7',
+    (u'\u02d0',
+     u'\u02d1'),
+    u'\u0387',
+    u'\u0640',
+    u'\u0e46',
+    u'\u0ec6',
+    u'\u3005',
+    (u'\u3031',
+     u'\u3035'),
+    (u'\u309d',
+     u'\u309e'),
+    (u'\u30fc',
+     u'\u30fe'))
 
 
 def IsExtender(c):
@@ -3431,7 +3478,7 @@ def MapClassElements(classMap, scope):
     Mappings are added for each class that is derived from :py:class:`Element`
     that has an XMLNAME attribute defined.  It is an error if a class is
     found with an XMLNAME that has already been mapped."""
-    if type(scope) is not DictType:
+    if not isinstance(scope, DictType):
         scope = scope.__dict__
     names = scope.keys()
     for name in names:
@@ -3439,8 +3486,10 @@ def MapClassElements(classMap, scope):
         if type(obj) in (ClassType, TypeType) and issubclass(obj, Element):
             if hasattr(obj, 'XMLNAME'):
                 if obj.XMLNAME in classMap:
-                    raise DuplicateXMLNAME("%s and %s have matching XMLNAMEs" % (
-                        obj.__name__, classMap[obj.XMLNAME].__name__))
+                    raise DuplicateXMLNAME(
+                        "%s and %s have matching XMLNAMEs" %
+                        (obj.__name__, classMap[
+                            obj.XMLNAME].__name__))
                 classMap[obj.XMLNAME] = obj
 
 

@@ -36,20 +36,20 @@ database will be project specific.
 
 For example, to achieve platform specific modifications you'll override
 SQLEntityContainer and provide new implementations for methods such as
-:py:meth:`SQLEntityContainer.GetCollectionClass`::
+:py:meth:`SQLEntityContainer.get_collection_class`::
 
 	class MyDBContainer(SQLEntityContainer):
 		
-		def GetCollectionClass(self):
+		def get_collection_class(self):
 			return MyDBEntityCollection
 	
 To achieve modified property name mappings you'll override
 SQLEntityContainer and provide new implementations for methods such as
-:py:meth:`SQLEntityContainer.MangleName`::
+:py:meth:`SQLEntityContainer.mangle_name`::
 
 	class SouthwindDBContainer(SQLEntityContainer):
 		
-		def MangleName(self,sourcePath):
+		def mangle_name(self,source_path):
 			# do some custom name mangling here....
 
 Normally, you'll want to achieve both use cases, so to actually
@@ -72,7 +72,7 @@ contains your data-specific modifications::
 		pass
 	
 	# .... load the metadata from disk and then do something like this 
-	db=SouthwindDB(containerDef=SouthwindMetadata,maxConnections=MAX_CONNECTIONS,**DBCONTAINER_ARGS)
+	db=SouthwindDB(container=SouthwindMetadata,max_connections=MAX_CONNECTIONS,**DBCONTAINER_ARGS)
 	
 
 ..	autoclass:: SQLEntityContainer

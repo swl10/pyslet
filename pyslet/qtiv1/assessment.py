@@ -107,7 +107,7 @@ class AssessmentControl(common.QTICommentContainer):
                     hintswitch  (Yes | No )  'Yes'
                     solutionswitch  (Yes | No )  'Yes'
                     view	(All | Administrator | AdminAuthority | Assessor | Author |
-                                    Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+                                    Candidate | InvigilatorProctor | Psychometrician | Scorer |
                                     Tutor ) 'All'
                     feedbackswitch  (Yes | No )  'Yes' >"""
     XMLNAME = 'assessmentcontrol'
@@ -143,9 +143,9 @@ class AssessFeedback(common.QTICommentContainer, common.ContentMixin):
     as a result of Assessment-level processing of the user responses::
 
             <!ELEMENT assessfeedback (qticomment? , (material+ | flow_mat+))>
-            <!ATTLIST assessfeedback  
+            <!ATTLIST assessfeedback
                     view	(All | Administrator | AdminAuthority | Assessor | Author |
-                                    Candidate | InvigilatorProctor | Psychometrician | Scorer | 
+                                    Candidate | InvigilatorProctor | Psychometrician | Scorer |
                                     Tutor ) 'All'
                     ident CDATA  #REQUIRED
                     title CDATA  #IMPLIED >"""
