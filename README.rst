@@ -27,6 +27,9 @@ What's next?
 * MySQL shim for the OData SQL storage model
 * Improved support for LTI to take it beyond 'basic'
 
+I'm also slowly transforming the code for better PEP-8 compliance as
+reported by the fantastic flake8.
+
 I write about Pyslet on my blog, which is a good place to find out
 what's new: http://swl10.blogspot.co.uk/
 
@@ -34,13 +37,16 @@ what's new: http://swl10.blogspot.co.uk/
 Feedback
 ~~~~~~~~
 
-The code is maintained on Google Code:
+The code is now maintained on Github (version 0.5 and later):
+https://github.com/swl10/pyslet - the best way to get something changed
+is to create an issue there.
+
+Some historical information is available on QTI Migration tool's Google
+Code project:
 https://code.google.com/p/qtimigration/
 
-Issues can be raised on the project site - all feedback welcome.
-
 You can find out more about me and contact me directly through my Google
-profile page.
+profile page linked from my blog page.
 
 Pyslet is written and maintained by the main author on a spare time
 basis and is not connected to my current employer.

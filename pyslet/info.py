@@ -5,8 +5,8 @@ title_name = u"Pyslet"
 name = "pyslet"
 copyright = u"\xA92008-2014, Steve Lay"
 
-major_version = "0.4"
-version = "%s.20140530d1" % major_version
+major_version = "0.5"
+version = "%s.20140531d1" % major_version
 
 title = (
     "Pyslet: "

@@ -302,7 +302,7 @@ class SQLCollectionBase(core.EntityCollection):
         super(SQLCollectionBase, self).__init__(**kwargs)
         self.container = container
         #: the parent container (database) for this collection
-        self.table_name = self.container.mangledNames[(self.entity_set.name,)]
+        self.table_name = self.container.mangled_names[(self.entity_set.name,)]
         # the quoted table name containing this collection
         self.qualify_names = qualify_names
         # if True, field names in expressions are qualified with
@@ -675,7 +675,7 @@ class SQLCollectionBase(core.EntityCollection):
         for k, v in entity.KeyDict().items():
             where.append(
                 '%s=%s' %
-                (self.container.mangledNames[
+                (self.container.mangled_names[
                     (self.entity_set.name, k)], params.add_param(
                     self.container.prepare_sql_value(v))))
 
@@ -740,11 +740,11 @@ class SQLCollectionBase(core.EntityCollection):
             for expression, direction in self.orderby:
                 oi = oi + 1
                 oname = "o_%i" % oi
-                oname = self.container.mangledNames.get(
+                oname = self.container.mangled_names.get(
                     (self.entity_set.name, oname), oname)
                 self.orderNames.append((oname, direction))
         for key in self.entity_set.keys:
-            mangled_name = self.container.mangledNames[
+            mangled_name = self.container.mangled_names[
                 (self.entity_set.name, key)]
             if self.qualify_names:
                 mangled_name = "%s.%s" % (self.table_name, mangled_name)
@@ -791,33 +791,44 @@ class SQLCollectionBase(core.EntityCollection):
                 oname_index += 1
                 column_names.append(oname)
 
-    def field_generator(self, entity, for_update=False):
+    def field_generator(self, entity, include_keys=True, include_ro=True):
         """A utility generator method for mangled property names and values.
 
         entity
-                Any instance of :py:class:`~pyslet.odata2.csdl.Entity`
+            Any instance of :py:class:`~pyslet.odata2.csdl.Entity`
 
-        for_update
-                True if the result should exclude the entity's keys
+        include_keys
+            True if the keys should be included (defaults to True)
+
+        include_ro
+            True if read-only properties should be included (defaults
+            to True)
 
         The yielded values are tuples of (mangled field name,
         :py:class:`~pyslet.odata2.csdl.SimpleValue` instance).
         Only selected fields are yielded."""
-        if for_update:
+        if not include_keys:
             keys = entity.entity_set.keys
         for k, v in entity.DataItems():
-            if entity.Selected(k) and (not for_update or k not in keys):
+            source_path = (self.entity_set.name, k)
+            if (entity.Selected(k) and (include_keys or k not in keys) and
+                    (include_ro or
+                     source_path not in self.container.ro_names)):
                 if isinstance(v, edm.SimpleValue):
-                    mangled_name = self.container.mangledNames[
-                        (self.entity_set.name, k)]
+                    mangled_name = self.container.mangled_names[source_path]
                     if self.qualify_names:
                         mangled_name = "%s.%s" % (self.table_name,
                                                   mangled_name)
                     yield mangled_name, v
                 else:
-                    for source_path, fv in self._complex_field_generator(v):
-                        mangled_name = self.container.mangledNames[
-                            tuple([self.entity_set.name, k] + source_path)]
+                    for sub_path, fv in self._complex_field_generator(v):
+                        source_path = tuple([self.entity_set.name, k] +
+                                            sub_path)
+                        if (not include_ro and
+                                source_path in self.container.ro_names):
+                            continue
+                        mangled_name = self.container.mangled_names[
+                            source_path]
                         if self.qualify_names:
                             mangled_name = "%s.%s" % (
                                 self.table_name, mangled_name)
@@ -888,7 +899,7 @@ class SQLCollectionBase(core.EntityCollection):
                 p = self.entity_set.entityType[expression.name]
                 if isinstance(p, edm.Property):
                     if p.complexType is None:
-                        field_name = self.container.mangledNames[
+                        field_name = self.container.mangled_names[
                             (self.entity_set.name, expression.name)]
                         if self.qualify_names:
                             return "%s.%s" % (self.table_name, field_name)
@@ -970,7 +981,7 @@ class SQLCollectionBase(core.EntityCollection):
                 string.join(
                     name_list,
                     '/'))
-        field_name = self.container.mangledNames[
+        field_name = self.container.mangled_names[
             tuple([self.entity_set.name] + name_list)]
         if self.qualify_names:
             return "%s.%s" % (self.table_name, field_name)
@@ -1445,7 +1456,7 @@ class SQLEntityCollection(SQLCollectionBase):
         # own and add in the foreign keys for forward links.
         if fk_values is None:
             fk_values = []
-        fk_mapping = self.container.fkTable[self.entity_set.name]
+        fk_mapping = self.container.fk_table[self.entity_set.name]
         try:
             transaction.begin()
             nav_done = set()
@@ -1504,7 +1515,7 @@ class SQLEntityCollection(SQLCollectionBase):
                 # fk_values
                 for key_name in target_set.keys:
                     fk_values.append(
-                        (self.container.mangledNames[
+                        (self.container.mangled_names[
                             (self.entity_set.name,
                              aset_name,
                              key_name)],
@@ -1514,7 +1525,8 @@ class SQLEntityCollection(SQLCollectionBase):
             entity.SetConcurrencyTokens()
             query = ['INSERT INTO ', self.table_name, ' (']
             column_names, values = zip(
-                *(list(self.field_generator(entity)) + fk_values))
+                *(list(self.field_generator(entity, include_ro=False)) +
+                    fk_values))
             query.append(string.join(column_names, ", "))
             query.append(') VALUES (')
             params = self.container.ParamsClass()
@@ -1536,7 +1548,7 @@ class SQLEntityCollection(SQLCollectionBase):
                     continue
                 aset_name = link_end.parent.name
                 target_set = dv.Target()
-                target_fk_mapping = self.container.fkTable[target_set.name]
+                target_fk_mapping = self.container.fk_table[target_set.name]
                 with dv.OpenCollection() as navCollection, \
                         target_set.OpenCollection() as targetCollection:
                     while dv.bindings:
@@ -1552,7 +1564,7 @@ class SQLEntityCollection(SQLCollectionBase):
                                 target_fk_values = []
                                 for key_name in self.entity_set.keys:
                                     target_fk_values.append(
-                                        (self.container.mangledNames[
+                                        (self.container.mangled_names[
                                             (target_set.name,
                                              aset_name,
                                              key_name)],
@@ -1622,7 +1634,7 @@ class SQLEntityCollection(SQLCollectionBase):
                 str(entity.GetLocation()))
             fk_values = []
         fk_values = []
-        fk_mapping = self.container.fkTable[self.entity_set.name]
+        fk_mapping = self.container.fk_table[self.entity_set.name]
         transaction = SQLTransaction(self.container.dbapi, self.dbc)
         try:
             transaction.begin()
@@ -1663,7 +1675,7 @@ class SQLEntityCollection(SQLCollectionBase):
                 # fk_values
                 for key_name in target_set.keys:
                     fk_values.append(
-                        (self.container.mangledNames[
+                        (self.container.mangled_names[
                             (self.entity_set.name,
                              aset_name,
                              key_name)],
@@ -1675,10 +1687,11 @@ class SQLEntityCollection(SQLCollectionBase):
             constraints = []
             for k, v in entity.KeyDict().items():
                 constraints.append(
-                    (self.container.mangledNames[
+                    (self.container.mangled_names[
                         (self.entity_set.name, k)],
                         self.container.prepare_sql_value(v)))
-            cv_list = list(self.field_generator(entity, True))
+            cv_list = list(self.field_generator(entity, include_keys=False,
+                                                include_ro=False))
             for cname, v in cv_list:
                 # concurrency tokens get added as if they were part of the key
                 if v.pDef.concurrencyMode == edm.ConcurrencyMode.Fixed:
@@ -1726,7 +1739,7 @@ class SQLEntityCollection(SQLCollectionBase):
                     continue
                 aset_name = link_end.parent.name
                 target_set = dv.Target()
-                target_fk_mapping = self.container.fkTable[target_set.name]
+                target_fk_mapping = self.container.fk_table[target_set.name]
                 with dv.OpenCollection() as navCollection, \
                         target_set.OpenCollection() as targetCollection:
                     while dv.bindings:
@@ -1746,7 +1759,7 @@ class SQLEntityCollection(SQLCollectionBase):
                                 target_fk_values = []
                                 for key_name in self.entity_set.keys:
                                     target_fk_values.append(
-                                        (self.container.mangledNames[
+                                        (self.container.mangled_names[
                                             (target_set.name,
                                              aset_name,
                                              key_name)],
@@ -1826,13 +1839,13 @@ class SQLEntityCollection(SQLCollectionBase):
         target_set = link_end.otherEnd.entity_set
         aset_name = link_end.parent.name
         nullable, unique = \
-            self.container.fkTable[self.entity_set.name][link_end]
+            self.container.fk_table[self.entity_set.name][link_end]
         if not nullable and target_entity is None:
             raise edm.NavigationError("Can't remove a required link")
         if target_entity:
             for key_name in target_set.keys:
                 v = target_entity[key_name]
-                cname = self.container.mangledNames[
+                cname = self.container.mangled_names[
                     (self.entity_set.name, aset_name, key_name)]
                 updates.append(
                     '%s=%s' %
@@ -1843,7 +1856,7 @@ class SQLEntityCollection(SQLCollectionBase):
                     null_cols.append(cname)
         else:
             for key_name in target_set.keys:
-                cname = self.container.mangledNames[
+                cname = self.container.mangled_names[
                     (self.entity_set.name, aset_name, key_name)]
                 updates.append('%s=NULL' % cname)
         query.append(string.join(updates, ', '))
@@ -1907,7 +1920,7 @@ class SQLEntityCollection(SQLCollectionBase):
             transaction = SQLTransaction(self.container.dbapi, self.dbc)
         try:
             transaction.begin()
-            fk_mapping = self.container.fkTable[self.entity_set.name]
+            fk_mapping = self.container.fk_table[self.entity_set.name]
             for link_end, nav_name in self.entity_set.linkEnds.iteritems():
                 if link_end == from_end:
                     continue
@@ -1947,7 +1960,7 @@ class SQLEntityCollection(SQLCollectionBase):
                             with entity[nav_name].OpenCollection() as links:
                                 links.clear_links(transaction)
                         # otherwise annoying, we need to do something special
-                        elif aset_name in self.container.auxTable:
+                        elif aset_name in self.container.aux_table:
                             # foreign keys are in an association table,
                             # hardest case as navigation may be unbound so
                             # we have to call a class method and pass the
@@ -2017,13 +2030,13 @@ class SQLEntityCollection(SQLCollectionBase):
         aset_name = link_end.parent.name
         target_set = link_end.otherEnd.entity_set
         nullable, unique = \
-            self.container.fkTable[self.entity_set.name][link_end]
+            self.container.fk_table[self.entity_set.name][link_end]
         if not nullable:
             raise edm.NavigationError(
                 "Can't remove a required link from association set %s" %
                 aset_name)
         for key_name in target_set.keys:
-            cname = self.container.mangledNames[
+            cname = self.container.mangled_names[
                 (self.entity_set.name, aset_name, key_name)]
             updates.append('%s=NULL' % cname)
         query.append(string.join(updates, ', '))
@@ -2035,12 +2048,12 @@ class SQLEntityCollection(SQLCollectionBase):
         for k, v in kd.items():
             where.append(
                 '%s=%s' %
-                (self.container.mangledNames[
+                (self.container.mangled_names[
                     (self.entity_set.name, k)], params.add_param(
                     self.container.prepare_sql_value(v))))
         for key_name in target_set.keys:
             v = target_entity[key_name]
-            cname = self.container.mangledNames[
+            cname = self.container.mangled_names[
                 (self.entity_set.name, aset_name, key_name)]
             where.append(
                 '%s=%s' %
@@ -2091,9 +2104,9 @@ class SQLEntityCollection(SQLCollectionBase):
         aset_name = link_end.parent.name
         target_set = link_end.otherEnd.entity_set
         nullable, unique = \
-            self.container.fkTable[self.entity_set.name][link_end]
+            self.container.fk_table[self.entity_set.name][link_end]
         for key_name in target_set.keys:
-            cname = self.container.mangledNames[
+            cname = self.container.mangled_names[
                 (self.entity_set.name, aset_name, key_name)]
             updates.append('%s=NULL' % cname)
         # custom where clause
@@ -2102,7 +2115,7 @@ class SQLEntityCollection(SQLCollectionBase):
         where = []
         for key_name in target_set.keys:
             v = target_entity[key_name]
-            cname = self.container.mangledNames[
+            cname = self.container.mangled_names[
                 (self.entity_set.name, aset_name, key_name)]
             where.append(
                 '%s=%s' %
@@ -2134,19 +2147,24 @@ class SQLEntityCollection(SQLCollectionBase):
         query = ['CREATE TABLE ', self.table_name, ' (']
         params = self.container.ParamsClass()
         cols = []
+        cnames = {}
         for c, v in self.field_generator(entity):
-            cols.append("%s %s" %
-                        (c, self.container.prepare_sql_type(v, params)))
+            if c in cnames:
+                continue
+            else:
+                cnames[c] = True
+                cols.append("%s %s" %
+                            (c, self.container.prepare_sql_type(v, params)))
         keys = entity.KeyDict()
         constraints = []
         constraints.append(
             u'PRIMARY KEY (%s)' %
             string.join(
                 map(
-                    lambda x: self.container.mangledNames[
+                    lambda x: self.container.mangled_names[
                         (self.entity_set.name, x)], keys.keys()), u', '))
         # Now generate the foreign keys
-        fk_mapping = self.container.fkTable[self.entity_set.name]
+        fk_mapping = self.container.fk_table[self.entity_set.name]
         for link_end in fk_mapping:
             aset_name = link_end.parent.name
             target_set = link_end.otherEnd.entity_set
@@ -2157,22 +2175,26 @@ class SQLEntityCollection(SQLCollectionBase):
                 # create a dummy value to catch the unusual case where
                 # there is a default
                 v = target_set.entityType[key_name]()
-                cname = self.container.mangledNames[
+                cname = self.container.mangled_names[
                     (self.entity_set.name, aset_name, key_name)]
                 fk_names.append(cname)
                 k_names.append(
-                    self.container.mangledNames[(target_set.name, key_name)])
-                cols.append(
-                    "%s %s" %
-                    (cname,
-                     self.container.prepare_sql_type(
-                         v,
-                         params,
-                         nullable)))
+                    self.container.mangled_names[(target_set.name, key_name)])
+                if cname in cnames:
+                    # if a fk is already declared, skip it
+                    continue
+                else:
+                    cols.append(
+                        "%s %s" %
+                        (cname,
+                         self.container.prepare_sql_type(
+                             v,
+                             params,
+                             nullable)))
             constraints.append(
                 "CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s(%s)" %
                 (self.container.quote_identifier(aset_name), string.join(
-                    fk_names, ', '), self.container.mangledNames[
+                    fk_names, ', '), self.container.mangled_names[
                     (target_set.name,)], string.join(
                     k_names, ', ')))
         cols = cols + constraints
@@ -2302,10 +2324,10 @@ class SQLForeignKeyCollection(SQLNavigationCollection):
         self.keyCollection = self.from_entity.entity_set.OpenCollection()
         nav_name = self.entity_set.linkEnds[self.from_end.otherEnd]
         if not nav_name:
-            self.sourceName = self.container.mangledNames[
+            self.sourceName = self.container.mangled_names[
                 (self.entity_set.name, self.from_end.name)]
         else:
-            self.sourceName = self.container.mangledNames[
+            self.sourceName = self.container.mangled_names[
                 (self.entity_set.name, nav_name)]
 
     def join_clause(self):
@@ -2347,13 +2369,13 @@ class SQLForeignKeyCollection(SQLNavigationCollection):
         for key_name in self.entity_set.keys:
             join.append(
                 '%s.%s=%s.%s' %
-                (self.table_name,
-                 self.container.mangledNames[(self.entity_set.name, key_name)],
-                 self.sourceName,
-                 self.container.mangledNames[(self.from_entity.entity_set.name,
-                                              self.aset_name, key_name)]))
+                (self.table_name, self.container.mangled_names[
+                    (self.entity_set.name, key_name)],
+                    self.sourceName, self.container.mangled_names[
+                        (self.from_entity.entity_set.name,
+                         self.aset_name, key_name)]))
         return ' INNER JOIN %s AS %s ON ' % (
-            self.container.mangledNames[(self.from_entity.entity_set.name,)],
+            self.container.mangled_names[(self.from_entity.entity_set.name,)],
             self.sourceName) + string.join(join, ', ')
 
     def where_clause(self, entity, params, use_filter=True, use_skip=False):
@@ -2365,7 +2387,7 @@ class SQLForeignKeyCollection(SQLNavigationCollection):
         for k, v in self.from_entity.KeyDict().items():
             where.append(
                 u"%s.%s=%s" %
-                (self.sourceName, self.container.mangledNames[
+                (self.sourceName, self.container.mangled_names[
                     (self.from_entity.entity_set.name, k)], params.add_param(
                     self.container.prepare_sql_value(v))))
         if entity is not None:
@@ -2479,7 +2501,7 @@ class SQLReverseKeyCollection(SQLNavigationCollection):
         where = []
         for k, v in self.from_entity.KeyDict().items():
             where.append(u"%s=%s" % (
-                self.container.mangledNames[
+                self.container.mangled_names[
                     (self.entity_set.name, self.aset_name, k)],
                 params.add_param(self.container.prepare_sql_value(v))))
         if entity is not None:
@@ -2499,7 +2521,7 @@ class SQLReverseKeyCollection(SQLNavigationCollection):
         fk_values = []
         for k, v in self.from_entity.KeyDict().items():
             fk_values.append(
-                (self.container.mangledNames[
+                (self.container.mangled_names[
                     (self.entity_set.name, self.aset_name, k)], v))
         try:
             transaction.begin()
@@ -2644,10 +2666,10 @@ class SQLAssociationCollection(SQLNavigationCollection):
         # The relation is actually stored in an extra table so we will
         # need a join for all operations.
         self.aset_name = self.from_end.parent.name
-        self.atable_name = self.container.mangledNames[
+        self.atable_name = self.container.mangled_names[
             (self.aset_name,)]
         entitySetA, nameA, entitySetB, nameB, self.uniqueKeys = \
-            self.container.auxTable[self.aset_name]
+            self.container.aux_table[self.aset_name]
         if self.from_entity.entity_set is entitySetA and self.name == nameA:
             self.from_nav_name = nameA
             self.toNavName = nameB
@@ -2668,11 +2690,11 @@ class SQLAssociationCollection(SQLNavigationCollection):
             join.append(
                 '%s.%s=%s.%s' %
                 (self.table_name,
-                 self.container.mangledNames[
+                 self.container.mangled_names[
                      (self.entity_set.name,
                       key_name)],
                     self.atable_name,
-                    self.container.mangledNames[
+                    self.container.mangled_names[
                      (self.aset_name,
                       self.entity_set.name,
                       self.toNavName,
@@ -2687,7 +2709,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
             where.append(
                 u"%s.%s=%s" %
                 (self.atable_name,
-                 self.container.mangledNames[
+                 self.container.mangled_names[
                      (self.aset_name,
                       self.from_entity.entity_set.name,
                       self.from_nav_name,
@@ -2699,7 +2721,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
                 where.append(
                     u"%s.%s=%s" %
                     (self.atable_name,
-                     self.container.mangledNames[
+                     self.container.mangled_names[
                          (self.aset_name,
                           entity.entity_set.name,
                           self.toNavName,
@@ -2753,7 +2775,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
         values = []
         for k, v in self.from_entity.KeyDict().items():
             value_names.append(
-                self.container.mangledNames[
+                self.container.mangled_names[
                     (self.aset_name,
                      self.from_entity.entity_set.name,
                      self.from_nav_name,
@@ -2763,7 +2785,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
                     self.container.prepare_sql_value(v)))
         for k, v in entity.KeyDict().items():
             value_names.append(
-                self.container.mangledNames[
+                self.container.mangled_names[
                     (self.aset_name,
                      self.entity_set.name,
                      self.toNavName,
@@ -2918,14 +2940,14 @@ class SQLAssociationCollection(SQLNavigationCollection):
         there was a navigation property then an instance could be
         created and the simpler :py:meth:`clear_links` method used."""
         aset_name = from_end.parent.name
-        atable_name = container.mangledNames[(aset_name,)]
+        atable_name = container.mangled_names[(aset_name,)]
         nav_name = from_entity.entity_set.linkEnds[from_end]
         if nav_name is None:
             # this is most likely the case, we're being called this way
             # because we can't instantiate a collection on an unbound
             # navigation property
             nav_name = u""
-        entitySetA, nameA, entitySetB, nameB, uniqueKeys = container.auxTable[
+        entitySetA, nameA, entitySetB, nameB, uniqueKeys = container.aux_table[
             aset_name]
         if from_entity.entity_set is entitySetA and nav_name == nameA:
             from_nav_name = nameA
@@ -2939,7 +2961,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
             where.append(
                 u"%s.%s=%s" %
                 (atable_name,
-                 container.mangledNames[
+                 container.mangled_names[
                      (aset_name,
                       from_entity.entity_set.name,
                       from_nav_name,
@@ -2957,9 +2979,9 @@ class SQLAssociationCollection(SQLNavigationCollection):
 
         This is a class method to enable the table to be created before
         any entities are created."""
-        entitySetA, nameA, entitySetB, nameB, uniqueKeys = container.auxTable[
+        entitySetA, nameA, entitySetB, nameB, uniqueKeys = container.aux_table[
             aset_name]
-        query = ['CREATE TABLE ', container.mangledNames[
+        query = ['CREATE TABLE ', container.mangled_names[
             (aset_name,)], ' (']
         params = container.ParamsClass()
         cols = []
@@ -2967,18 +2989,18 @@ class SQLAssociationCollection(SQLNavigationCollection):
         pk_names = []
         for es, prefix, ab in ((entitySetA, nameA, 'A'),
                                (entitySetB, nameB, 'B')):
-            target_table = container.mangledNames[(es.name,)]
+            target_table = container.mangled_names[(es.name,)]
             fk_names = []
             k_names = []
             for key_name in es.keys:
                 # create a dummy value to catch the unusual case where
                 # there is a default
                 v = es.entityType[key_name]()
-                cname = container.mangledNames[
+                cname = container.mangled_names[
                     (aset_name, es.name, prefix, key_name)]
                 fk_names.append(cname)
                 pk_names.append(cname)
-                k_names.append(container.mangledNames[(es.name, key_name)])
+                k_names.append(container.mangled_names[(es.name, key_name)])
                 cols.append("%s %s" %
                             (cname, container.prepare_sql_type(v, params)))
             constraints.append(
@@ -3123,24 +3145,26 @@ class SQLEntityContainer(object):
             logging.debug(
                 "Unabsorbed kwargs in SQLEntityContainer constructor")
         self.container = container
-        self.dbapi = dbapi              #: the DB API compatible module
-        self.moduleLock = None
+        #: the :py:class:`~pyslet.odata2.csdl.EntityContainer`
+        self.dbapi = dbapi
+        #: the DB API compatible module
+        self.module_lock = None
         if self.dbapi.threadsafety == 0:
             # we can't even share the module, so just use one connection will
             # do
-            self.moduleLock = threading.RLock()
-            self.connectionLocker = DummyLock
-            self.cPoolMax = 1
+            self.module_lock = threading.RLock()
+            self.clocker = DummyLock
+            self.cpool_max = 1
         else:
             # Level 1 and above we can share the module
-            self.moduleLock = DummyLock()
-            self.connectionLocker = threading.RLock
-            self.cPoolMax = max_connections
-        self.cPoolLock = threading.Condition()
-        self.cPoolClosing = False
-        self.cPoolLocked = {}
-        self.cPoolUnlocked = {}
-        self.cPoolDead = []
+            self.module_lock = DummyLock()
+            self.clocker = threading.RLock
+            self.cpool_max = max_connections
+        self.cpool_lock = threading.Condition()
+        self.cpool_closing = False
+        self.cpool_locked = {}
+        self.cpool_unlocked = {}
+        self.cpool_dead = []
         # set up the parameter style
         if self.dbapi.paramstyle == "qmark":
             self.ParamsClass = QMarkParams
@@ -3151,7 +3175,7 @@ class SQLEntityContainer(object):
         else:
             # will fail later when we try and add parameters
             self.ParamsClass = SQLParams
-        self.fkTable = {}
+        self.fk_table = {}
         """A mapping from an entity set name to a FK mapping of the form::
 
             {<association set end>: (<nullable flag>, <unique keys flag>),...}
@@ -3165,12 +3189,12 @@ class SQLEntityContainer(object):
         set (the other end will be bound to the target entity set).
         This allows us to distinguish between the two ends of a
         recursive association."""
-        self.auxTable = {}
+        self.aux_table = {}
         """A mapping from the names of symmetric association sets to::
 
             ( <entity set A>, <name prefix A>, <entity set B>, <name
             prefix B>, <unique keys> )"""
-        self.mangledNames = {}
+        self.mangled_names = {}
         """A mapping from source path tuples to mangled and quoted names
         to use in SQL queries.  For example::
 
@@ -3187,20 +3211,27 @@ class SQLEntityContainer(object):
         self.field_name_joiner = field_name_joiner
         """Default string used to join complex field names in SQL
         queries, e.g. Address_City"""
+        self.ro_names = set()
+        """The set of names that should be considered read only by the
+        SQL insert and update generation code.  The items in the set are
+        source paths, as per :py:attr:`mangled_names`.  The set is
+        populated on construction using the :py:meth:`ro_name` method."""
         # for each entity set in this container, bind a SQLEntityCollection
         # object
         for es in self.container.EntitySet:
-            self.fkTable[es.name] = {}
+            self.fk_table[es.name] = {}
             for source_path in self.source_path_generator(es):
-                self.mangledNames[source_path] = self.mangle_name(source_path)
+                self.mangled_names[source_path] = self.mangle_name(source_path)
+                if self.ro_name(source_path):
+                    self.ro_names.add(source_path)
             self.bind_entity_set(es)
         for es in self.container.EntitySet:
             for np in es.entityType.NavigationProperty:
                 self.bind_navigation_property(es, np.name)
-        # once the navigation properties have been bound, fkTable will
+        # once the navigation properties have been bound, fk_table will
         # have been populated with any foreign keys we need to add field
         # name mappings for
-        for esName, fk_mapping in self.fkTable.iteritems():
+        for esName, fk_mapping in self.fk_table.iteritems():
             for link_end, details in fk_mapping.iteritems():
                 aset_name = link_end.parent.name
                 target_set = link_end.otherEnd.entity_set
@@ -3210,14 +3241,14 @@ class SQLEntityContainer(object):
 
                             ( u"Orders_Customers", u"CustomerID" )"""
                     source_path = (esName, aset_name, key_name)
-                    self.mangledNames[source_path] = \
+                    self.mangled_names[source_path] = \
                         self.mangle_name(source_path)
-        # and auxTable will have been populated with additional tables to
+        # and aux_table will have been populated with additional tables to
         # hold symmetric associations...
         for aSet in self.container.AssociationSet:
-            if aSet.name not in self.auxTable:
+            if aSet.name not in self.aux_table:
                 continue
-            self.mangledNames[(aSet.name,)] = self.mangle_name((aSet.name,))
+            self.mangled_names[(aSet.name,)] = self.mangle_name((aSet.name,))
             """Foreign keys in Tables that model association sets are
             given fake source paths that combine the entity set name and
             the name of the navigation property endpoint.
@@ -3226,13 +3257,13 @@ class SQLEntityContainer(object):
             the same is taken care of (as the navigation property
             endpoints must still be unique). For one-way associations,
             prefixB will be an empty string."""
-            esA, prefixA, esB, prefixB, unique = self.auxTable[aSet.name]
+            esA, prefixA, esB, prefixB, unique = self.aux_table[aSet.name]
             for key_name in esA.keys:
                 source_path = (aSet.name, esA.name, prefixA, key_name)
-                self.mangledNames[source_path] = self.mangle_name(source_path)
+                self.mangled_names[source_path] = self.mangle_name(source_path)
             for key_name in esB.keys:
                 source_path = (aSet.name, esB.name, prefixB, key_name)
-                self.mangledNames[source_path] = self.mangle_name(source_path)
+                self.mangled_names[source_path] = self.mangle_name(source_path)
 
     def mangle_name(self, source_path):
         """Mangles a source path into a quoted SQL name
@@ -3288,6 +3319,31 @@ class SQLEntityContainer(object):
                 source_path,
                 self.field_name_joiner))
 
+    def ro_name(self, source_path):
+        """Test if a source_path identifies a read-only property
+
+        This is a an additional extension point to use when you are
+        wrapping an existing database with the API.  It allows you to
+        manage situations where an entity property has an implied
+        value and should be treated read only.
+
+        There are two key use cases, auto-generated primary keys (such
+        as auto-increment integer keys) and foreign keys which are
+        exposed explicitly as foreign keys and should only be updated
+        through an associated navigation property.
+
+        source_path
+            A tuple or list of strings describing the path to a property
+            in the metadata model.  See :py:meth:`mangle_name` for more
+            information.
+
+        The default implementation returns False.
+
+        If you override this method you must ensure all other names
+        (including any unrecognized by your program) are passed to the
+        default implementation using super."""
+        return False
+
     def source_path_generator(self, entity_set):
         """Utility generator for source path *tuples* for *entity_set*"""
         yield (entity_set.name,)
@@ -3330,7 +3386,7 @@ class SQLEntityContainer(object):
         multiplicity = (
             from_as_end.associationEnd.multiplicity,
             to_as_end.associationEnd.multiplicity)
-        # now we can work on a case-by-case basis, note that fkTable may
+        # now we can work on a case-by-case basis, note that fk_table may
         # be filled in twice for the same association (if navigation
         # properties are defined in both directions) but this is benign
         # because the definition should be identical.
@@ -3342,12 +3398,12 @@ class SQLEntityContainer(object):
                 self.get_symmetric_navigation_class(),
                 container=self,
                 aset_name=aset_name)
-            if aset_name in self.auxTable:
+            if aset_name in self.aux_table:
                 # This is the navigation property going back the other
                 # way, set the navigation name only
-                self.auxTable[aset_name][3] = name
+                self.aux_table[aset_name][3] = name
             else:
-                self.auxTable[aset_name] = [
+                self.aux_table[aset_name] = [
                     entity_set, name, target_set, "", True]
         elif multiplicity == (edm.Multiplicity.Many, edm.Multiplicity.Many):
             entity_set.BindNavigation(
@@ -3355,22 +3411,22 @@ class SQLEntityContainer(object):
                 self.get_symmetric_navigation_class(),
                 container=self,
                 aset_name=aset_name)
-            if aset_name in self.auxTable:
-                self.auxTable[aset_name][3] = name
+            if aset_name in self.aux_table:
+                self.aux_table[aset_name][3] = name
             else:
-                self.auxTable[aset_name] = [
+                self.aux_table[aset_name] = [
                     entity_set, name, target_set, "", False]
         elif (multiplicity ==
                 (edm.Multiplicity.One, edm.Multiplicity.ZeroToOne)):
             entity_set.BindNavigation(name,
                                       self.get_rk_class(),
                                       container=self, aset_name=aset_name)
-            self.fkTable[target_set.name][to_as_end] = (False, True)
+            self.fk_table[target_set.name][to_as_end] = (False, True)
         elif multiplicity == (edm.Multiplicity.One, edm.Multiplicity.Many):
             entity_set.BindNavigation(name,
                                       self.get_rk_class(),
                                       container=self, aset_name=aset_name)
-            self.fkTable[target_set.name][to_as_end] = (False, False)
+            self.fk_table[target_set.name][to_as_end] = (False, False)
         elif (multiplicity ==
                 (edm.Multiplicity.ZeroToOne, edm.Multiplicity.Many)):
             entity_set.BindNavigation(
@@ -3378,7 +3434,7 @@ class SQLEntityContainer(object):
                 self.get_rk_class(),
                 container=self,
                 aset_name=aset_name)
-            self.fkTable[target_set.name][to_as_end] = (True, False)
+            self.fk_table[target_set.name][to_as_end] = (True, False)
         elif (multiplicity ==
                 (edm.Multiplicity.ZeroToOne, edm.Multiplicity.One)):
             entity_set.BindNavigation(
@@ -3386,19 +3442,19 @@ class SQLEntityContainer(object):
                 self.get_fk_class(),
                 container=self,
                 aset_name=aset_name)
-            self.fkTable[entity_set.name][from_as_end] = (False, True)
+            self.fk_table[entity_set.name][from_as_end] = (False, True)
         elif multiplicity == (edm.Multiplicity.Many, edm.Multiplicity.One):
             entity_set.BindNavigation(
                 name,
                 self.get_fk_class(),
                 container=self,
                 aset_name=aset_name)
-            self.fkTable[entity_set.name][from_as_end] = (False, False)
+            self.fk_table[entity_set.name][from_as_end] = (False, False)
         else:
             #           (edm.Multiplicity.Many,edm.Multiplicity.ZeroToOne)
             entity_set.BindNavigation(name, self.get_fk_class(
             ), container=self, aset_name=aset_name)
-            self.fkTable[entity_set.name][from_as_end] = (True, False)
+            self.fk_table[entity_set.name][from_as_end] = (True, False)
 
     def get_collection_class(self):
         """Returns the collection class used to represent a generic entity set.
@@ -3446,8 +3502,8 @@ class SQLEntityContainer(object):
         for es in self.container.EntitySet:
             if es.name not in visited:
                 self.create_table(es, visited)
-        # we now need to go through the auxTable and create them
-        for aset_name in self.auxTable:
+        # we now need to go through the aux_table and create them
+        for aset_name in self.aux_table:
             self.get_symmetric_navigation_class().create_table(
                 self, aset_name)
 
@@ -3462,7 +3518,7 @@ class SQLEntityContainer(object):
         # before we create this table, we need to check to see if it
         # references another table
         visited.add(es.name)
-        fk_mapping = self.fkTable[es.name]
+        fk_mapping = self.fk_table[es.name]
         for link_end, details in fk_mapping.iteritems():
             target_set = link_end.otherEnd.entity_set
             if target_set.name in visited:
@@ -3477,12 +3533,12 @@ class SQLEntityContainer(object):
         # block on the module for threadsafety==0 case
         thread_id = threading.current_thread().ident
         now = start = time.time()
-        with self.cPoolLock:
-            if self.cPoolClosing:
+        with self.cpool_lock:
+            if self.cpool_closing:
                 # don't open connections when we are trying to close them
                 return None
-            while not self.moduleLock.acquire(False):
-                self.cPoolLock.wait(timeout)
+            while not self.module_lock.acquire(False):
+                self.cpool_lock.wait(timeout)
                 now = time.time()
                 if timeout is not None and now > start + timeout:
                     logging.warn(
@@ -3490,9 +3546,9 @@ class SQLEntityContainer(object):
                         "module lock", thread_id)
                     return None
             # we have the module lock
-            if thread_id in self.cPoolLocked:
+            if thread_id in self.cpool_locked:
                 # our thread_id is in the locked table
-                cpool_lock = self.cPoolLocked[thread_id]
+                cpool_lock = self.cpool_locked[thread_id]
                 if cpool_lock.lock.acquire(False):
                     cpool_lock.locked += 1
                     return cpool_lock.dbc
@@ -3500,22 +3556,22 @@ class SQLEntityContainer(object):
                     logging.warn(
                         "Thread[%i] moved a database connection to the "
                         "dead pool", thread_id)
-                    self.cPoolDead.append(cpool_lock)
-                    del self.cPoolLocked[thread_id]
+                    self.cpool_dead.append(cpool_lock)
+                    del self.cpool_locked[thread_id]
             while True:
-                if thread_id in self.cPoolUnlocked:
+                if thread_id in self.cpool_unlocked:
                     # take the connection that last belonged to us
-                    cpool_lock = self.cPoolUnlocked[thread_id]
-                    del self.cPoolUnlocked[thread_id]
-                elif (len(self.cPoolUnlocked) + len(self.cPoolLocked) <
-                      self.cPoolMax):
+                    cpool_lock = self.cpool_unlocked[thread_id]
+                    del self.cpool_unlocked[thread_id]
+                elif (len(self.cpool_unlocked) + len(self.cpool_locked) <
+                      self.cpool_max):
                     # Add a new connection
-                    cpool_lock = SQLConnectionLock(self.connectionLocker)
+                    cpool_lock = SQLConnectionLock(self.clocker)
                     cpool_lock.dbc = self.open()
-                elif self.cPoolUnlocked:
+                elif self.cpool_unlocked:
                     # take a connection that doesn't belong to us, popped at
                     # random
-                    oldThreadId, cpool_lock = self.cPoolUnlocked.popitem()
+                    oldThreadId, cpool_lock = self.cpool_unlocked.popitem()
                     if self.dbapi.threadsafety > 1:
                         logging.debug(
                             "Thread[%i] recycled database connection from "
@@ -3538,7 +3594,7 @@ class SQLEntityContainer(object):
                     logging.debug(
                         "Thread[%i] forced to wait for a database connection",
                         thread_id)
-                    self.cPoolLock.wait(timeout)
+                    self.cpool_lock.wait(timeout)
                     logging.debug(
                         "Thread[%i] resuming search for database connection",
                         thread_id)
@@ -3547,27 +3603,27 @@ class SQLEntityContainer(object):
                 cpool_lock.locked += 1
                 cpool_lock.thread = threading.current_thread()
                 cpool_lock.thread_id = thread_id
-                self.cPoolLocked[thread_id] = cpool_lock
+                self.cpool_locked[thread_id] = cpool_lock
                 return cpool_lock.dbc
         # we are defeated, no database connection for the caller
         # release lock on the module as there is no connection to release
-        self.moduleLock.release()
+        self.module_lock.release()
         return None
 
     def release_connection(self, c):
         thread_id = threading.current_thread().ident
-        with self.cPoolLock:
+        with self.cpool_lock:
             # we have exclusive use of the cPool members
-            if thread_id in self.cPoolLocked:
-                cpool_lock = self.cPoolLocked[thread_id]
+            if thread_id in self.cpool_locked:
+                cpool_lock = self.cpool_locked[thread_id]
                 if cpool_lock.dbc is c:
                     cpool_lock.lock.release()
-                    self.moduleLock.release()
+                    self.module_lock.release()
                     cpool_lock.locked -= 1
                     if not cpool_lock.locked:
-                        del self.cPoolLocked[thread_id]
-                        self.cPoolUnlocked[thread_id] = cpool_lock
-                        self.cPoolLock.notify()
+                        del self.cpool_locked[thread_id]
+                        self.cpool_unlocked[thread_id] = cpool_lock
+                        self.cpool_lock.notify()
                     return
             logging.error(
                 "Thread[%i] attempting to release a database connection "
@@ -3576,19 +3632,19 @@ class SQLEntityContainer(object):
             # locked connection now, let's try and find it to correct
             # the situation
             bad_thread, bad_lock = None, None
-            for tid, cpool_lock in self.cPoolLocked.iteritems():
+            for tid, cpool_lock in self.cpool_locked.iteritems():
                 if cpool_lock.dbc is c:
                     bad_thread = tid
                     bad_lock = cpool_lock
                     break
             if bad_lock is not None:
                 bad_lock.lock.release()
-                self.moduleLock.release()
+                self.module_lock.release()
                 bad_lock.locked -= 1
                 if not bad_lock.locked:
-                    del self.cPoolLocked[bad_thread]
-                    self.cPoolUnlocked[bad_lock.thread_id] = bad_lock
-                    self.cPoolLock.notify()
+                    del self.cpool_locked[bad_thread]
+                    self.cpool_unlocked[bad_lock.thread_id] = bad_lock
+                    self.cpool_lock.notify()
                     logging.warn(
                         "Thread[%i] released database connection acquired by "
                         "Thread[%i]", thread_id, bad_thread)
@@ -3597,15 +3653,15 @@ class SQLEntityContainer(object):
             # this thread think it is trying to release?
             # Check the dead pool just in case
             idead = None
-            for i in xrange(len(self.cPoolDead)):
-                cpool_lock = self.cPoolDead[i]
+            for i in xrange(len(self.cpool_dead)):
+                cpool_lock = self.cpool_dead[i]
                 if cpool_lock.dbc is c:
                     idead = i
                     break
             if idead is not None:
-                bad_lock = self.cPoolDead[idead]
+                bad_lock = self.cpool_dead[idead]
                 bad_lock.lock.release()
-                self.moduleLock.release()
+                self.module_lock.release()
                 bad_lock.locked -= 1
                 logging.warn(
                     "Thread[%i] successfully released a database connection "
@@ -3614,7 +3670,7 @@ class SQLEntityContainer(object):
                     # no need to notify other threads as we close this
                     # connection for safety
                     bad_lock.dbc.close()
-                    del self.cPoolDead[idead]
+                    del self.cpool_dead[idead]
                     logging.warn(
                         "Thread[%i] removed a database connection from the "
                         "dead pool", thread_id)
@@ -3672,15 +3728,15 @@ class SQLEntityContainer(object):
         Any locks we fail to acquire in the timeout are ignored and
         the connections are left open for the python garbage
         collector to dispose of."""
-        with self.cPoolLock:
-            self.cPoolClosing = True
-            while self.cPoolUnlocked:
-                thread_id, cpool_lock = self.cPoolUnlocked.popitem()
+        with self.cpool_lock:
+            self.cpool_closing = True
+            while self.cpool_unlocked:
+                thread_id, cpool_lock = self.cpool_unlocked.popitem()
                 # we don't bother to acquire the lock
                 cpool_lock.dbc.close()
-            while self.cPoolLocked:
+            while self.cpool_locked:
                 # trickier, these are in use
-                thread_id, cpool_lock = self.cPoolLocked.popitem()
+                thread_id, cpool_lock = self.cpool_locked.popitem()
                 no_wait = False
                 while True:
                     if cpool_lock.lock.acquire(False):
@@ -3694,13 +3750,13 @@ class SQLEntityContainer(object):
                             logging.warn(
                                 "Waiting to break database connection "
                                 "acquired by Thread[%i]", thread_id)
-                            self.cPoolLock.wait(timeout)
+                            self.cpool_lock.wait(timeout)
                             no_wait = True
                     else:
                         # This connection will never be released properly
                         cpool_lock.dbc.close()
-            while self.cPoolDead:
-                cpool_lock = self.cPoolDead.pop()
+            while self.cpool_dead:
+                cpool_lock = self.cpool_dead.pop()
                 no_wait = False
                 while True:
                     if cpool_lock.lock.acquire(False):
@@ -3714,7 +3770,7 @@ class SQLEntityContainer(object):
                             logging.warn(
                                 "Waiting to break a database connection from "
                                 "the dead pool")
-                            self.cPoolLock.wait(timeout)
+                            self.cpool_lock.wait(timeout)
                             no_wait = True
                     else:
                         # This connection will never be released properly

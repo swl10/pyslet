@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx" Version="1.0">
+    <edmx:DataServices xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"
+        m:DataServiceVersion="1.0">
+        <Schema xmlns:d="http://schemas.microsoft.com/ado/2007/08/dataservices"
+            xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"
+            xmlns="http://schemas.microsoft.com/ado/2008/09/edm" Namespace="CustomModel">
+            <EntityContainer Name="FileContainer" m:IsDefaultEntityContainer="true">
+                <EntitySet Name="Files" EntityType="CustomModel.File"/>
+                <EntitySet Name="Blobs" EntityType="CustomModel.Blob"/>
+                <AssociationSet Name="FilesBlobs" Association="CustomModel.FileBlob">
+                    <End Role="file" EntitySet="Files"/>
+                    <End Role="blob" EntitySet="Blobs"/>
+                </AssociationSet>
+                <EntitySet Name="AutoKeys" EntityType="CustomModel.AutoKey"/>
+            </EntityContainer>
+            <EntityType Name="File">
+                <Key>
+                    <PropertyRef Name="path"/>
+                </Key>
+                <Property Name="path" Type="Edm.String" Nullable="false" MaxLength="1024"/>
+                <Property Name="mime" Type="CustomModel.MimeType" Nullable="false"/>
+                <Property Name="hash" Type="Edm.String" Nullable="true" MaxLength="32"/>
+                <NavigationProperty Name="Blob" FromRole="file" ToRole="blob"
+                    Relationship="CustomModel.FileBlob"> </NavigationProperty>
+            </EntityType>
+            <ComplexType Name="MimeType">
+                <Property Name="type" Type="Edm.String" Nullable="false" MaxLength="32"/>
+                <Property Name="subtype" Type="Edm.String" Nullable="false" MaxLength="32"/>
+            </ComplexType>
+            <EntityType Name="Blob">
+                <Key>
+                    <PropertyRef Name="hash"/>
+                </Key>
+                <Property Name="hash" Type="Edm.String" Nullable="false" MaxLength="32"/>
+                <Property Name="data" Type="Edm.String" Nullable="false" MaxLength="4096"/>
+                <NavigationProperty Name="Files" FromRole="blob" ToRole="file"
+                    Relationship="CustomModel.FileBlob"> </NavigationProperty>
+            </EntityType>
+            <EntityType Name="AutoKey">
+                <Key>
+                    <PropertyRef Name="id"/>
+                </Key>
+                <Property Name="id" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="data" Type="Edm.String" Nullable="true" MaxLength="32"/>
+            </EntityType>
+            <Association Name="FileBlob">
+                <End Role="file" Type="CustomModel.File" Multiplicity="*"/>
+                <End Role="blob" Type="CustomModel.Blob" Multiplicity="0..1"/>
+            </Association>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

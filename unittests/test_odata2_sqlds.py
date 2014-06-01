@@ -136,7 +136,7 @@ class ThreadTests(unittest.TestCase):
         # we ask for 5 connections, but should only get one due to level 0
         container = MockContainer(self.container, MockAPI(0), 5)
         self.assertTrue(
-            container.cPoolMax == 1,
+            container.cpool_max == 1,
             "A pool with a single connection")
         # check we can acquire and release a connection from a different
         # thread
@@ -188,7 +188,7 @@ class ThreadTests(unittest.TestCase):
     def test_level1(self):
         # we ask for 2 connections and should get them
         container = MockContainer(self.container, MockAPI(1), 2)
-        self.assertTrue(container.cPoolMax == 2, "Expected 2 connections")
+        self.assertTrue(container.cpool_max == 2, "Expected 2 connections")
         # check we can acquire and release a connection from a different
         # thread
         container.acquired = None
@@ -247,7 +247,7 @@ class ThreadTests(unittest.TestCase):
     def test_level2(self):
         # we ask for 5 connections and should get them
         container = MockContainer(self.container, MockAPI(2), 5)
-        self.assertTrue(container.cPoolMax == 5, "Expected 5 connections")
+        self.assertTrue(container.cpool_max == 5, "Expected 5 connections")
         c1 = container.acquire_connection()
         self.assertTrue(
             isinstance(
@@ -284,7 +284,7 @@ class ThreadTests(unittest.TestCase):
     def test_multithread(self):
         # we ask for 5 connections and should get them
         container = MockContainer(self.container, MockAPI(1), 5)
-        self.assertTrue(container.cPoolMax == 5, "Expected 5 connections")
+        self.assertTrue(container.cpool_max == 5, "Expected 5 connections")
         threads = []
         for i in xrange(100):
             threads.append(
@@ -646,22 +646,114 @@ class SQLDSTests(unittest.TestCase):
                     es.name)
 
 
+class CustomisedContainer(SQLiteEntityContainer):
+
+    def mangle_name(self, source_path):
+        if source_path == (u'Files', ):
+            return self.quote_identifier("prefix_Files")
+        elif source_path == ('Blobs', ):
+            return self.quote_identifier("prefix_Blobs")
+        elif source_path == ('Files', 'path'):          # simple property
+            return self.quote_identifier("fPath")
+        elif source_path == ('Files', 'mime', 'type'):  # complex property
+            return self.quote_identifier("type")
+        elif source_path == ('Files', 'mime', 'subtype'):
+            return self.quote_identifier("subtype")
+        elif source_path == ('Files', 'FilesBlobs', 'hash'):   # fk
+            return self.quote_identifier("hash")
+        else:
+            return super(CustomisedContainer, self).mangle_name(source_path)
+
+    def ro_name(self, source_path):
+        # expose fk field as ro property
+        if source_path == ('Files', 'hash'):
+            return True
+        elif source_path == ('AutoKeys', 'id'):
+            return True
+        else:
+            return False
+
+
 class AutoFieldTests(unittest.TestCase):
 
     def setUp(self):  # noqa
         self.cwd = FilePath.getcwd()
         TEST_DATA_DIR.chdir()
         self.doc = edmx.Document()
-        md_path = TEST_DATA_DIR.join('sample_server', 'metadata.xml')
+        md_path = TEST_DATA_DIR.join('sqlds', 'custom.xml')
         with md_path.open('rb') as f:
             self.doc.Read(f)
-        self.schema = self.doc.root.DataServices['SampleModel']
+        self.schema = self.doc.root.DataServices['CustomModel']
         self.container = self.doc.root.DataServices[
-            "SampleModel.SampleEntities"]
+            "CustomModel.FileContainer"]
         self.d = FilePath.mkdtemp('.d', 'pyslet-test_odata2_sqlds-')
-        self.db = SQLiteEntityContainer(
+        self.db = CustomisedContainer(
             file_path=self.d.join('test.db'),
             container=self.container)
+
+    def tearDown(self):  # noqa
+        if self.db is not None:
+            self.db.close()
+        self.cwd.chdir()
+        self.d.rmtree(True)
+
+    def test_create(self):
+        files = self.container['Files']
+        with files.OpenCollection() as collection:
+            query, params = collection.create_table_query()
+            print query
+            self.assertFalse('"Files"' in query, "Missing table prefix")
+            self.assertTrue('"prefix_Files"' in query)
+            self.assertFalse('"path"' in query, "Missing name mapping")
+            self.assertTrue('"fPath"' in query)
+            self.assertFalse('"mime_type"' in query, "Missing complex mapping")
+            self.assertTrue('"type"' in query)
+            self.assertTrue(len(query.split('"hash" TEXT')) == 2,
+                            "Expected 1 FK definition")
+
+    def test_fk_readonly(self):
+        self.db.create_all_tables()
+        files = self.container['Files']
+        blobs = self.container['Blobs']
+        with files.OpenCollection() as file_coll, \
+                blobs.OpenCollection() as blob_coll:
+            f = file_coll.new_entity()
+            f['path'].SetFromValue("hello.txt")
+            f['mime']['type'].SetFromValue("text")
+            f['mime']['subtype'].SetFromValue("plain")
+            f['hash'].SetFromValue("deadbeef")
+            file_coll.insert_entity(f)
+            f2 = file_coll["hello.txt"]
+            self.assertTrue(f2['path'].value == "hello.txt")
+            self.assertTrue(f2['mime']['subtype'].value == "plain")
+            self.assertFalse(f2['hash'], "Readonly attribute NULL on insert")
+            b = blob_coll.new_entity()
+            b['hash'].SetFromValue('deadbeef')
+            b['data'].SetFromValue('The quick brown fox jumped over...')
+            f2['Blob'].BindEntity(b)
+            with f2['Blob'].OpenCollection() as nav_coll:
+                self.assertTrue(len(nav_coll) == 0)
+                nav_coll.insert_entity(b)
+                self.assertTrue(len(nav_coll) == 1)
+            f3 = file_coll["hello.txt"]
+            self.assertTrue(f3['hash'].value == 'deadbeef',
+                            "Readonly fk attribute non-Null after link")
+
+    def test_pk_readonly(self):
+        self.db.create_all_tables()
+        # note: the following SQL statement results in an alias for the
+        # rowid in SQLite so no custom SQL is required to test this...
+        # CREATE TABLE "AutoKeys" ("id" INTEGER NOT NULL,
+        #   "data" TEXT, PRIMARY KEY ("id"));
+        autos = self.container['AutoKeys']
+        with autos.OpenCollection() as auto_coll:
+            ak = auto_coll.new_entity()
+            auto_coll.insert_entity(ak)
+            self.assertTrue(len(auto_coll) == 1, "auto pk insert")
+            ak2 = auto_coll.values()[0]
+            self.assertTrue(ak2['id'], "auto non-NULL key")
+            self.assertFalse(ak2['data'], "auto NULL property")
+            logging.info("First generated PK: %i",ak2['id'].value)
 
 
 class RegressionTests(DataServiceRegressionTests):
