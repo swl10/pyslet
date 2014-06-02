@@ -24,6 +24,7 @@ def suite():
     return unittest.TestSuite((
         loader.loadTestsFromTestCase(ThreadTests),
         loader.loadTestsFromTestCase(SQLDSTests),
+        loader.loadTestsFromTestCase(AutoFieldTests),
         loader.loadTestsFromTestCase(RegressionTests),
     ))
 
@@ -701,7 +702,6 @@ class AutoFieldTests(unittest.TestCase):
         files = self.container['Files']
         with files.OpenCollection() as collection:
             query, params = collection.create_table_query()
-            print query
             self.assertFalse('"Files"' in query, "Missing table prefix")
             self.assertTrue('"prefix_Files"' in query)
             self.assertFalse('"path"' in query, "Missing name mapping")
@@ -753,7 +753,7 @@ class AutoFieldTests(unittest.TestCase):
             ak2 = auto_coll.values()[0]
             self.assertTrue(ak2['id'], "auto non-NULL key")
             self.assertFalse(ak2['data'], "auto NULL property")
-            logging.info("First generated PK: %i",ak2['id'].value)
+            logging.info("First generated PK: %i", ak2['id'].value)
 
 
 class RegressionTests(DataServiceRegressionTests):

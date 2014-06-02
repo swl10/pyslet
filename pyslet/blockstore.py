@@ -1,0 +1,484 @@
+#! /usr/bin/env python
+
+import hashlib
+import os
+import threading
+import time
+import random
+import logging
+import string
+
+from pyslet.vfs import OSFilePath as FilePath
+from pyslet.iso8601 import TimePoint
+import pyslet.odata2.csdl as edm
+import pyslet.odata2.core as core
+
+
+MAX_BLOCK_SIZE = 65536
+"""The default maximum block size for block stores: 64K"""
+
+
+def _magic():
+    """Calculate a magic string used to identify an object."""
+    try:
+        magic = os.urandom(4)
+    except NotImplementedError:
+        logging.warn("weak magic: urandom not available, "
+                     "falling back to random.randint")
+        magic = []
+        for i in xrange(4):
+            magic.append(unichr(random.randint(0, 255)))
+        magic = string.join(magic, '')
+    return magic.encode('hex')
+
+
+class BlockSize(Exception):
+
+    """Raised when an attempt is made to store a block exceeding the
+    maximum block size for the block store."""
+    pass
+
+
+class BlockMissing(Exception):
+
+    """Raised when an attempt is made to retrieve a block with an
+    unknown key."""
+    pass
+
+
+class LockError(Exception):
+
+    """Raised when a timeout occurs during by
+    :py:meth:`LockingBlockStore.lock`"""
+    pass
+
+
+class BlockStore(object):
+
+    """Abstract class representing storage for blocks of data.
+
+    max_block_size
+        The maximum block size the store can hold.  Defaults to
+        :py:attr:`MAX_BLOCK_SIZE`.
+
+    hash_class
+        The hashing object to use when calculating block keys. Defaults
+        to hashlib.sha256."""
+
+    def __init__(
+            self,
+            max_block_size=MAX_BLOCK_SIZE,
+            hash_class=hashlib.sha256):
+        self.hash_class = hash_class
+        self.max_block_size = max_block_size
+
+    def key(self, data):
+        return self.hash_class(data).hexdigest().lower()
+
+    def store(self, data):
+        """Stores a block of data, returning the hash key
+
+        data
+            A binary string not exceeding the maximum block size"""
+        if len(data) > self.max_block_size:
+            raise BlockSize
+        else:
+            raise NotImplementedError
+
+    def retrieve(self, key):
+        """Returns the block of data referenced by key
+
+        key
+            A hex string previously returned by :py:meth:`store`.
+
+        If there is no block with *key* :py:class:`BlockMissing` is
+        raised."""
+        raise BlockMissing(key)
+
+    def delete(self, key):
+        """Deletes the block of data referenced by key
+
+        key
+            A hex string previously returned by :py:meth:`store`."""
+        raise NotImplementedError
+
+
+class FileBlockStore(BlockStore):
+
+    """Class for storing blocks of data in the file system.
+
+    Additional keyword arguments:
+
+    dpath
+        A :py:class:`FilePath` instance pointing to a directory
+        in which to store the data blocks.
+
+    Each block is saved as a single file but the hash key is decomposed
+    into 3 components to reduce the number of files in a single
+    directory.  For example, if the hash key is 'ABCDEF123' then the
+    file would be stored at the path: 'AB/CD/EF123'"""
+
+    def __init__(self, dpath=None, **kwargs):
+        super(FileBlockStore, self).__init__(**kwargs)
+        if dpath is None:
+            # create a temporary directory
+            self.dpath = FilePath.mkdtemp('.d', 'pyslet_blockstore-')
+        else:
+            self.dpath = dpath
+        self.tmpdir = self.dpath.join('tmp')
+        if not self.tmpdir.exists():
+            try:
+                self.tmpdir.mkdir()
+            except OSError:
+                # catch race condition where someone already created it
+                pass
+        self.magic = _magic()
+
+    def store(self, data):
+        # calculate the key
+        key = self.key(data)
+        parent = self.dpath.join(key[0:2], key[2:4])
+        path = parent.join(key[4:])
+        if path.exists():
+            return key
+        elif len(data) > self.max_block_size:
+            raise BlockSize
+        else:
+            tmp_path = self.tmpdir.join(
+                "%s_%i_%s" %
+                (self.magic, threading.current_thread().ident, key[
+                    0:32]))
+            with tmp_path.open(mode="wb") as f:
+                f.write(data)
+            parent.makedirs()
+            tmp_path.move(path)
+            return key
+
+    def retrieve(self, key):
+        path = self.dpath.join(key[0:2], key[2:4], key[4:])
+        if path.exists():
+            with path.open('rb') as f:
+                data = f.read()
+            return data
+        else:
+            raise BlockMissing
+
+    def delete(self, key):
+        path = self.dpath.join(key[0:2], key[2:4], key[4:])
+        if path.exists():
+            try:
+                path.remove()
+            except OSError:
+                # catch race condition where path is gone already
+                pass
+
+
+class EDMBlockStore(BlockStore):
+
+    """Class for storing blocks of data in an EDM-backed data service.
+
+    Additional keyword arguments:
+
+    entity_set
+        A :py:class:`pyslet.odata2.csdl.EntitySet` instance
+
+    Each block is saved as a single entity using the hash as the key.
+    The entity must have a string key property named *hash* large enough
+    to hold the hex strings generated by the selected hashing module.
+    It must also have a Binary *data* property capable of holding
+    max_block_size bytes."""
+
+    def __init__(self, entity_set, **kwargs):
+        super(EDMBlockStore, self).__init__(**kwargs)
+        self.entity_set = entity_set
+
+    def store(self, data):
+        key = self.key(data)
+        with self.entity_set.OpenCollection() as blocks:
+            if key in blocks:
+                return key
+            elif len(data) > self.max_block_size:
+                raise BlockSize
+            try:
+                block = blocks.new_entity()
+                block['hash'].SetFromValue(key)
+                block['data'].SetFromValue(data)
+                blocks.insert_entity(block)
+            except edm.ConstraintError:
+                # race condition, duplicate key
+                pass
+        return key
+
+    def retrieve(self, key):
+        with self.entity_set.OpenCollection() as blocks:
+            try:
+                block = blocks[key]
+                return block['data'].value
+            except KeyError:
+                raise BlockMissing
+
+    def delete(self, key):
+        with self.entity_set.OpenCollection() as blocks:
+            try:
+                del blocks[key]
+            except KeyError:
+                pass
+
+
+class LockStoreContext(object):
+
+    def __init__(self, ls, hash_key):
+        self.ls = ls
+        self.hash_key = hash_key
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.ls.unlock(self.hash_key)
+
+
+class LockStore(object):
+
+    """Class for storing simple locks
+
+    entity_set
+        A :py:class:`pyslet.odata2.csdl.EntitySet` instance for the
+        locks.
+
+    lock_timeout
+        The maximum number of seconds that a lock is considered
+        valid for.  If a lock is older than this time it will be
+        reused automatically.
+
+    This object is designed for use in conjunction with the basic block
+    store to provide locking.  The locks are managed using an EDM entity
+    set.
+
+    The entity must have a string key property named *hash* large enough
+    to hold the hex strings generated by the block store - the hash
+    values are not checked and can be any ASCII string so the LockStore
+    class could be reused for other purposes if required.
+
+    The entity must also have a string field named *owner* capable of
+    holding an ASCII string up to 32 characters in length and a datetime
+    field named *created* for storing the UTC timestamp when each lock
+    is created. The created property is used for optimistic concurrency
+    control during updates."""
+
+    def __init__(self, entity_set, lock_timeout=180):
+        self.entity_set = entity_set
+        self.lock_timeout = lock_timeout
+        self.magic = _magic()
+
+    def lock(self, hash_key, timeout=60):
+        """Acquires the lock on hash_key or raises LockError
+
+        The return value is a context manager object that will
+        automatically release the lock on hash_key when it exits.
+
+        locks are not nestable, they can only be acquired once.  If the
+        lock cannot be acquired a back-off strategy is implemented using
+        random waits up to a total maximum of *timeout* seconds.  If the
+        lock still cannot be obtained :py:class:`LockError` is raised."""
+        owner = "%s_%i" % (self.magic, threading.current_thread().ident)
+        with self.entity_set.OpenCollection() as locks:
+            tnow = time.time()
+            tstop = tnow + timeout
+            twait = 0
+            while tnow < tstop:
+                time.sleep(twait)
+                lock = locks.new_entity()
+                lock['hash'].SetFromValue(hash_key)
+                lock['owner'].SetFromValue(owner)
+                lock['created'].SetFromValue(TimePoint.FromNowUTC())
+                try:
+                    locks.insert_entity(lock)
+                    return LockStoreContext(self, hash_key)
+                except edm.ConstraintError:
+                    pass
+                try:
+                    lock = locks[hash_key]
+                except KeyError:
+                    # someone deleted the lock, go straight round again
+                    twait = 0
+                    tnow = time.time()
+                    continue
+                # has this lock expired?
+                locktime = lock['created'].value.WithZone(zDirection=0)
+                if locktime.get_unixtime() + self.lock_timeout < tnow:
+                    # use optimistic locking
+                    lock['owner'].SetFromValue(owner)
+                    try:
+                        locks.update_entity(lock)
+                        logging.warn("LockingBlockStore removed stale lock "
+                                     "on %s", hash_key)
+                        return LockStoreContext(self, hash_key)
+                    except KeyError:
+                        twait = 0
+                        tnow = time.time()
+                        continue
+                    except edm.ConstraintError:
+                        pass
+                twait = random.randint(0, timeout // 5)
+                tnow = time.time()
+        logging.error("LockingBlockStore: timeout locking %s", hash_key)
+        raise LockError
+
+    def unlock(self, hash_key):
+        """Releases the lock on *hash_key*
+
+        Typically called by the context manager object returned by
+        :py:meth:`lock` rather than called directly.
+
+        Stale locks are handled automatically but three possible warning
+        conditions may be logged.  All stale locks indicate that the
+        process holding the lock was unexpectedly slow (or clients with
+        poorly synchronised clocks) so these warnings suggest the need
+        for increasing the lock_timeout.
+
+        stale lock reused
+            The lock was not released as it has been acquired by another
+            owner.  Could indicate significant contention on this
+            hash_key.
+
+        stale lock detected
+            The lock was no longer present and has since been acquired
+            and released by another owner.  Indicates a slow process
+            holding locks.
+
+        stale lock race
+            The lock timed out and was reused while we were removing it.
+            Unlikely but indicates both significant contention and a
+            slow process holding the lock."""
+        owner = "%s_%i" % (self.magic, threading.current_thread().ident)
+        with self.entity_set.OpenCollection() as locks:
+            try:
+                lock = locks[hash_key]
+                if lock['owner'].value == owner:
+                    # this is our lock - delete it
+                    # potential race condition here if we timeout between
+                    # loading and deleting the entity so we check how
+                    # close it is and buy more time if necessary
+                    locktime = lock['created'].value.WithZone(zDirection=0)
+                    if (locktime.get_unixtime() + self.lock_timeout <
+                            time.time() + 1):
+                        # less than 1 second left, buy more time
+                        # triggers update of 'created' property using
+                        # optimistic locking ensuring we still own
+                        locks.update_entity(lock)
+                    del locks[hash_key]
+                else:
+                    # we're not the owner
+                    logging.warn("LockingBlockStore: stale lock reused "
+                                 "on busy hash %s", hash_key)
+            except KeyError:
+                # someone deleted the lock already - timeout?
+                logging.warn("LockingBlockStore: stale lock detected "
+                             "on hash %s", hash_key)
+                pass
+            except edm.ConstraintError:
+                logging.warn("LockingBlockStore: stale lock race "
+                             "on busy hash %s", hash_key)
+
+
+class StreamStore(object):
+
+    """Class for storing stream objects
+
+    Streams are split in to blocks that are stored in the associated
+    BlockStore.  Locks are used to minimise the risk of conflicts during
+    store and delete operations but all reading is done without locks.
+    As a result, it is possible to delete or modify a stream while
+    another client is reading it.
+
+    bs
+        A :py:class:`BlockStore`: used to store the actual data
+
+    ls
+        A :py:class:`LockStore`: used to lock blocks during write and
+        delete operations.
+
+    entity_set
+        A :py:class:`~pyslet.odata2.csdl.EntitySet` to hold the Stream
+        entities.
+
+    The entity set must have the following properties:
+
+    streamID
+        An automatically generated integer stream identifier that is
+        also the key
+
+    mimetype
+        An ASCII string to hold the stream's mime type (at least 64
+        characters).
+
+    created
+        An Edm.DateTime property to hold the creation date.
+
+    modified
+        An Edm.DateTime property to hold the last modified date.
+
+    Blocks
+        A 1..Many navigation property to a related entity set with the
+        following properties...
+
+        blockID
+            An automatically generated integer block identifier that is
+            also the key
+
+        num
+            A block sequence integer
+
+        hash
+            The hash key of the block in the block store"""
+
+    def __init__(self, bs, ls, entity_set):
+        self.bs = bs
+        self.ls = ls
+        self.stream_set = entity_set
+        self.block_set = entity_set.NavigationTarget('Blocks')
+
+    def store_block(self, stream, block_num, data):
+        """Stores a block of data in a stream
+
+        This method exposes the underlying block storage model and is
+        used internally by the writer object."""
+        hash_key = self.bs.key(data)
+        with stream['Blocks'].OpenCollection() as blocks:
+            block = blocks.new_entity()
+            block['num'].SetFromValue(block_num)
+            block['hash'].SetFromValue(hash_key)
+            blocks.insert_entity(block)
+            # now ensure that the data is stored
+            with self.ls.lock(hash_key):
+                self.bs.store(data)
+
+    def retrieve_blocklist(self, stream):
+        with stream['Blocks'].OpenCollection() as blocks:
+            blocks.set_orderby(
+                core.CommonExpression.OrderByFromString("num asc"))
+            for block in blocks.itervalues():
+                yield block
+
+    def retrieve_block(self, block):
+        return self.bs.retrieve(block['hash'].value)
+
+    def delete(self, stream):
+        blocks = list(self.retrieve_blocklist(stream))
+        filter = core.BinaryExpression(core.Operator.eq)
+        filter.AddOperand(core.PropertyExpression('hash'))
+        hash_value = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
+        filter.AddOperand(core.LiteralExpression(hash_value))
+        # filter is: hash eq <hash_value>
+        with self.block_set.OpenCollection() as base_coll:
+            for block in blocks:
+                hash_key = block['hash'].value
+                del base_coll[block.Key()]
+                # is this hash key used anywhere?
+                hash_value.SetFromValue(hash_key)
+                base_coll.set_filter(filter)
+                with self.ls.lock(block['hash'].value):
+                    if len(base_coll) == 0:
+                        # remove orphan block
+                        self.bs.delete(hash_key)

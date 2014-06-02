@@ -22,16 +22,16 @@ class VirtualFilePath:
 
     supports_unicode_filenames = False
     """Indicates whether this file system supports unicode file names natively.
-	In general, you don't need to worry about this as all methods that accept
-	strings will accept either type of string and convert to the native
-	representation."""
+    In general, you don't need to worry about this as all methods that accept
+    strings will accept either type of string and convert to the native
+    representation."""
 
     supports_unc = False
     """Indicates whether this file system supports UNC paths."""
 
     codec = 'utf-8'
     """The codec used by this file system to convert between byte strings and
-	unicode strings."""
+    unicode strings."""
 
     sep = '/'
     """The path separator used by this file system"""
@@ -166,6 +166,10 @@ class VirtualFilePath:
         Note that you can't copy between file system implementations."""
         raise NotImplementedError
 
+    def move(self, dst):
+        """Moves a file to dst path like Python's os.rename."""
+        raise NotImplementedError
+
     def remove(self):
         """Removes a file."""
         raise NotImplementedError
@@ -248,16 +252,16 @@ class OSFilePath(VirtualFilePath):
         elif cls.supports_unicode_filenames:
             if path is None:
                 return u""
-            elif type(path) is StringType:
+            elif isinstance(path, StringType):
                 return unicode(path, cls.codec)
-            elif type(path) is UnicodeType:
+            elif isinstance(path, UnicodeType):
                 return path
         else:
             if path is None:
                 return ""
-            elif type(path) is StringType:
+            elif isinstance(path, StringType):
                 return path
-            elif type(path) is UnicodeType:
+            elif isinstance(path, UnicodeType):
                 return path.encode(cls.codec)
         raise ValueError("Can't initialise OSFilePath with %s" % repr(path))
 
@@ -353,6 +357,13 @@ class OSFilePath(VirtualFilePath):
         else:
             shutil.copy(self.path, dst.path)
 
+    def move(self, dst):
+        """Moves a file to dst path like Python's os.rename."""
+        if not isinstance(dst, self.__class__):
+            raise ValueError("Can't move across file system implementations")
+        else:
+            os.rename(self.path, dst.path)
+
     def remove(self):
         """Removes a file."""
         os.remove(self.path)
@@ -378,13 +389,13 @@ class OSFilePath(VirtualFilePath):
         shutil.rmtree(self.path, ignoreErrors)
 
     def __str__(self):
-        if type(self.path) is UnicodeType:
+        if isinstance(self.path, UnicodeType):
             return self.path.encode(sys.getfilesystemencoding())
         else:
             return self.path
 
     def __unicode__(self):
-        if type(self.path) is StringType:
+        if isinstance(self.path, StringType):
             return self.path.decode(sys.getfilesystemencoding())
         else:
             return self.path

@@ -8,18 +8,18 @@ Redistribution and use of this software in source and binary forms
 (where applicable), with or without modification, are permitted
 provided that the following conditions are met:
 
- *  Redistributions of source code must retain the above copyright
-    notice, this list of conditions, and the following disclaimer.
+ *	Redistributions of source code must retain the above copyright
+	notice, this list of conditions, and the following disclaimer.
 
- *  Redistributions in binary form must reproduce the above
-    copyright notice, this list of conditions, and the following
-    disclaimer in the documentation and/or other materials provided with
-    the distribution.
-    
- *  Neither the name of the University of Cambridge, nor the names of
-    any other contributors to the software, may be used to endorse or
-    promote products derived from this software without specific prior
-    written permission.
+ *	Redistributions in binary form must reproduce the above
+	copyright notice, this list of conditions, and the following
+	disclaimer in the documentation and/or other materials provided with
+	the distribution.
+	
+ *	Neither the name of the University of Cambridge, nor the names of
+	any other contributors to the software, may be used to endorse or
+	promote products derived from this software without specific prior
+	written permission.
 
 THIS SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
 EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
@@ -122,7 +122,7 @@ class Truncation(object):
 
     """Defines constants to use when formatting to truncated forms."""
     No = 0		#: constant for no truncation
-    Century = 1  # : constant for truncating to century
+    Century = 1	 # : constant for truncating to century
     Decade = 2  # : constant for truncating to decade
     Year = 3		#: constant for truncating to year
     Month = 4		#: constant for truncating to month
@@ -136,7 +136,7 @@ NoTruncation = Truncation.No  # : a synonym for Truncation.No
 class Precision(object):
 
     """Defines constants for representing reduced precision."""
-    Century = 1  # : constant for century precision
+    Century = 1	 # : constant for century precision
     Year = 2		#: constant for year precision
     Month = 3		#: constant for month precision
     Week = 4		#: constant for week precision
@@ -152,48 +152,60 @@ class Date(object):
     Values can be represent dates with reduced precision, for
     example::
 
-            Date(century=20,year=13,month=12)
+        Date(century=20,year=13,month=12)
 
     represents December 2013, no specific day.
 
     There are a number of different forms of the constructor based on
     named parameters, the simplest is::
 
-            Date(century=19,year=69,month=7,day=20)
+        Date(century=19,year=69,month=7,day=20)
 
     You can also use weekday format (note that decade must be provided
     separately)::
 
-            Date(century=19,decade=6,year=9,week=29,weekday=7) 
+        Date(century=19,decade=6,year=9,week=29,weekday=7)
 
     Ordinal format (where day 1 is 1st Jan)::
 
-            Date(century=19,year=69,ordinalDay=201) 
+        Date(century=19,year=69,ordinalDay=201)
 
     Absolute format (where day 1 is the notional 1st Jan 0001)::
 
-            Date(absoluteDay=718998)
+        Date(absoluteDay=718998)
 
     An empty constructor is equivalent to::
 
-            Date()==Date(absoluteDay=1)
+        Date()==Date(absoluteDay=1)
 
     All constructors except the absolute form allow the passing of a
     *base* date which allows the most-significant values to be omitted,
     for example::
 
-            base=Date(century=19,year=69,month=7,day=20)
-            newDate=Date(day=21,base=base)	#: 21st July 1969
+        base=Date(century=19,year=69,month=7,day=20)
+        newDate=Date(day=21,base=base)	#: 21st July 1969
 
     Note that *base* always represents a date *before* the newly constructed date,
     so::
 
-            base=Date(century=19,year=99,month=12,day=31)
-            newDate=Date(day=5,base=base)
+        base=Date(century=19,year=99,month=12,day=31)
+        newDate=Date(day=5,base=base)
 
     constructs a Date representing the 5th January 2000"""
 
-    def __init__(self, src=None, base=None, century=None, decade=None, year=None, month=None, day=None, week=None, weekday=None, ordinalDay=None, absoluteDay=None):
+    def __init__(
+            self,
+            src=None,
+            base=None,
+            century=None,
+            decade=None,
+            year=None,
+            month=None,
+            day=None,
+            week=None,
+            weekday=None,
+            ordinalDay=None,
+            absoluteDay=None):
         if src is None:
             # explicit form
             if absoluteDay:
@@ -229,7 +241,7 @@ class Date(object):
     def _SetFromAbsoluteDay(self, absDay):
         quadCentury = 146097  # 365*400+97 always holds
         century = 36524		# 365*100+24 excludes centennial leap
-        quadYear = 1461		# 365*4+1    includes leap
+        quadYear = 1461		# 365*4+1	 includes leap
         # Shift the base so that day 0 is 1st Jan 0001, makes the year
         # calculation easier
         absDay = absDay - 1
@@ -267,7 +279,8 @@ class Date(object):
         if not self.Complete():
             raise DateTimeError("absolute day requires complete date")
         absYear = self.century * 100 + self.year - 1
-        return (absYear // 4) - (absYear // 100) + (absYear // 400) + (absYear * 365) + self.GetOrdinalDay()[2]
+        return (absYear // 4) - (absYear // 100) + (absYear // 400) + \
+            (absYear * 365) + self.GetOrdinalDay()[2]
 
     def _SetFromCalendarDay(self, century, year, month, day, base=None):
         self.week = None
@@ -509,12 +522,26 @@ class Date(object):
         that Monday is 1 and Sunday is 7"""
         if self.day is None:
             if self.week:
-                return (self.century, self.year // 10, self.year % 10, self.week, None)
+                return (
+                    self.century,
+                    self.year //
+                    10,
+                    self.year %
+                    10,
+                    self.week,
+                    None)
             elif self.month is None:
                 if self.year is None:
                     return (self.century, None, None, None, None)
                 else:
-                    return (self.century, self.year // 10, self.year % 10, None, None)
+                    return (
+                        self.century,
+                        self.year //
+                        10,
+                        self.year %
+                        10,
+                        None,
+                        None)
             else:
                 raise DateTimeError("can't get week day with month precision")
         else:
@@ -539,7 +566,7 @@ class Date(object):
                 year += 1
                 week = 1
             else:
-                # We are part of this year, but which week?  Jan 4th is always
+                # We are part of this year, but which week?	 Jan 4th is always
                 # part of the first week of the year, so we calculate the ordinal
                 # value of the Monay that began that week
                 yearBase = 5 - DayOfWeek(year, 1, 4)
@@ -607,8 +634,8 @@ class Date(object):
         instance, the second is a string describing the format parsed.
         For example::
 
-                d,f=Date.FromStringFormat("1969-07-20")
-                # f is set to "YYYY-MM-DD".	"""
+                        d,f=Date.FromStringFormat("1969-07-20")
+                        # f is set to "YYYY-MM-DD". """
         if type(src) in StringTypes:
             p = ISO8601Parser(src)
             return p.ParseDateFormat(base)
@@ -625,22 +652,24 @@ class Date(object):
 
     def __repr__(self):
         if self.week is None:
-            return "Date(century=%s,year=%s,month=%s,day=%s)" % (str(self.century), str(self.year), str(self.month), str(self.day))
+            return "Date(century=%s,year=%s,month=%s,day=%s)" % (
+                str(self.century), str(self.year), str(self.month), str(self.day))
         else:
-            return "Date(century=%s,decade=%s,year=%s,week=%s,weekday=%s)" % (str(self.century), str(self.year // 10), str(self.year % 10), str(self.week), str(self.day))
+            return "Date(century=%s,decade=%s,year=%s,week=%s,weekday=%s)" % (
+                str(self.century), str(self.year // 10), str(self.year % 10), str(self.week), str(self.day))
 
     def GetCalendarString(self, basic=False, truncation=NoTruncation):
         """Formats this date using calendar form, for example 1969-07-20
 
-                *basic*
-                        True/False, selects basic form, e.g., 19690720.  Default
-                        is False
+        *basic*
+            True/False, selects basic form, e.g., 19690720.	 Default
+            is False
 
-                *truncation*
-                        One of the :py:class:`Truncation` constants used to
-                        select truncated forms of the date.  For example, if you
-                        specify :py:attr:`Truncation.Year` you'll get --07-20 or
-                        --0720.  Default is :py:attr:`NoTruncation`.
+        *truncation*
+            One of the :py:class:`Truncation` constants used to
+            select truncated forms of the date.	 For example, if you
+            specify :py:attr:`Truncation.Year` you'll get --07-20 or
+            --0720.	 Default is :py:attr:`NoTruncation`.
 
         Note that Calendar format only supports Century, Year and Month
         truncated forms."""
@@ -666,7 +695,9 @@ class Date(object):
                         raise ValueError
             else:
                 if truncation == NoTruncation:
-                    return "%02i%02i-%02i" % (self.century, self.year, self.month)
+                    return "%02i%02i-%02i" % (self.century,
+                                              self.year,
+                                              self.month)
                 elif truncation == Truncation.Century:
                     if basic:
                         return "-%02i%02i" % (self.year, self.month)
@@ -679,9 +710,13 @@ class Date(object):
         else:
             if truncation == NoTruncation:
                 if basic:
-                    return "%02i%02i%02i%02i" % (self.century, self.year, self.month, self.day)
+                    return "%02i%02i%02i%02i" % (
+                        self.century, self.year, self.month, self.day)
                 else:
-                    return "%02i%02i-%02i-%02i" % (self.century, self.year, self.month, self.day)
+                    return "%02i%02i-%02i-%02i" % (self.century,
+                                                   self.year,
+                                                   self.month,
+                                                   self.day)
             elif truncation == Truncation.Century:
                 if basic:
                     return "%02i%02i%02i" % (self.year, self.month, self.day)
@@ -700,15 +735,15 @@ class Date(object):
     def GetOrdinalString(self, basic=False, truncation=NoTruncation):
         """Formats this date using ordinal form, for example 1969-201
 
-                *basic*
-                        True/False, selects basic form, e.g., 1969201.  Default
-                        is False
+        *basic*
+            True/False, selects basic form, e.g., 1969201.	Default
+            is False
 
-                *truncation*
-                        One of the :py:class:`Truncation` constants used to
-                        select truncated forms of the date.  For example, if you
-                        specify :py:attr:`Truncation.Year` you'll get -201. 
-                        Default is :py:attr:`NoTruncation`.
+        *truncation*
+            One of the :py:class:`Truncation` constants used to
+            select truncated forms of the date.	 For example, if you
+            specify :py:attr:`Truncation.Year` you'll get -201.
+            Default is :py:attr:`NoTruncation`.
 
         Note that ordinal format only supports century and year
         truncated forms."""
@@ -735,15 +770,15 @@ class Date(object):
     def GetWeekString(self, basic=False, truncation=NoTruncation):
         """Formats this date using week form, for example 1969-W29-7
 
-                *basic*
-                        True/False, selects basic form, e.g., 1969W297.  Default
-                        is False
+        *basic*
+            True/False, selects basic form, e.g., 1969W297.	 Default
+            is False
 
-                *truncation*
-                        One of the :py:class:`Truncation` constants used to
-                        select truncated forms of the date.  For example, if you
-                        specify :py:attr:`Truncation.Year` you'll get -W297. 
-                        Default is :py:attr:`NoTruncation`.
+        *truncation*
+            One of the :py:class:`Truncation` constants used to
+            select truncated forms of the date.	 For example, if you
+            specify :py:attr:`Truncation.Year` you'll get -W297.
+            Default is :py:attr:`NoTruncation`.
 
         Note that week format only supports century, decade, year and
         week truncated forms."""
@@ -775,9 +810,14 @@ class Date(object):
         else:
             if truncation == NoTruncation:
                 if basic:
-                    return "%02i%i%iW%02i%i" % (century, decade, year, week, day)
+                    return "%02i%i%iW%02i%i" % (
+                        century, decade, year, week, day)
                 else:
-                    return "%02i%i%i-W%02i-%i" % (century, decade, year, week, day)
+                    return "%02i%i%i-W%02i-%i" % (century,
+                                                  decade,
+                                                  year,
+                                                  week,
+                                                  day)
             elif truncation == Truncation.Century:
                 if basic:
                     return "%i%iW%02i%i" % (decade, year, week, day)
@@ -814,7 +854,7 @@ class Date(object):
     def GetJulianDay(self):
         """Returns a tuple of: (year,month,day) representing the
         equivalent date in the Julian calendar."""
-        quadYear = 1461		# 365*4+1    includes leap
+        quadYear = 1461		# 365*4+1	 includes leap
         # Returns tuple of (year,month,day)
         day = self.GetAbsoluteDay()
         # 1st Jan 0001 Gregorian -> 3rd Jan 0001 Julian
@@ -930,7 +970,7 @@ class Date(object):
         note in :py:meth:`__cmp__` below for details.
 
         Some older functions did allow modification but these have been
-        deprecated.  Use python -Wd to force warnings from these unsafe
+        deprecated.	 Use python -Wd to force warnings from these unsafe
         methods."""
         return hash((self.century, self.year, self.month, self.week, self.day))
 
@@ -963,7 +1003,9 @@ class Date(object):
 
     def SetFromDate(self, src):
         warnings.warn(
-            "Date.SetFromDate is deprecated, use Date(src) instead", DeprecationWarning, stacklevel=2)
+            "Date.SetFromDate is deprecated, use Date(src) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self.century = src.century
         self.year = src.year
         self.month = src.month
@@ -972,49 +1014,65 @@ class Date(object):
 
     def SetOrigin(self):
         warnings.warn(
-            "Date.SetOrigin is deprecated, use Date.Origin() instead", DeprecationWarning, stacklevel=2)
+            "Date.SetOrigin is deprecated, use Date.Origin() instead",
+            DeprecationWarning,
+            stacklevel=2)
         self.century = 0
         self.year = self.month = self.day = 1
         self.week = None
 
     def SetAbsoluteDay(self, absDay):
         warnings.warn(
-            "Date.SetAbsoluteDay is deprecated, use Date(absoluteDay=###) instead", DeprecationWarning, stacklevel=2)
+            "Date.SetAbsoluteDay is deprecated, use Date(absoluteDay=###) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self._SetFromAbsoluteDay(absDay)
         self._CheckDate()
 
     def SetCalendarDay(self, century, year, month, day, base=None):
         warnings.warn(
-            "Date.SetCalendarDay is deprecated, use Date(century=##,year=##,...etc ) instead", DeprecationWarning, stacklevel=2)
+            "Date.SetCalendarDay is deprecated, use Date(century=##,year=##,...etc ) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self._SetFromCalendarDay(century, year, month, day, base)
         self._CheckDate()
 
     def SetOrdinalDay(self, century, year, ordinalDay, base=None):
-        warnings.warn("Date.SetOrdinalDay is deprecated, use Date(century=##,year=##,ordinalDay=##,...etc ) instead",
-                      DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "Date.SetOrdinalDay is deprecated, use Date(century=##,year=##,ordinalDay=##,...etc ) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self._SetFromOrdinalDay(century, year, ordinalDay, base)
         self._CheckDate()
 
     def SetWeekDay(self, century, decade, year, week, weekday, base=None):
-        warnings.warn("Date.SetWeekDay is deprecated, use Date(century=##,decade=##,year=##,week=##,...etc ) instead",
-                      DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "Date.SetWeekDay is deprecated, use Date(century=##,decade=##,year=##,week=##,...etc ) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self._SetFromWeekDay(century, decade, year, week, weekday, base)
         self._CheckDate()
 
     def SetTimeTuple(self, t):
         warnings.warn(
-            "Date.SetTimeTuple is deprecated, use Date.FromStructTime(t) instead", DeprecationWarning, stacklevel=2)
+            "Date.SetTimeTuple is deprecated, use Date.FromStructTime(t) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self._SetFromCalendarDay(t[0] // 100, t[0] % 100, t[1], t[2])
         self._CheckDate()
 
     def GetTimeTuple(self, t):
         warnings.warn(
-            "Date.GetTimeTuple is deprecated, use Date.UpdateStructTime(t) instead", DeprecationWarning, stacklevel=2)
+            "Date.GetTimeTuple is deprecated, use Date.UpdateStructTime(t) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self.UpdateStructTime(t)
 
     def SetFromString(self, dateStr, base=None):
         warnings.warn(
-            "Date.SetFromString is deprecated, use Date.FromString(<string>[, base]) instead", DeprecationWarning, stacklevel=2)
+            "Date.SetFromString is deprecated, use Date.FromString(<string>[, base]) instead",
+            DeprecationWarning,
+            stacklevel=2)
         if type(dateStr) in StringTypes:
             p = ISO8601Parser(dateStr)
             d, f = p.ParseDateFormat(base)
@@ -1025,14 +1083,18 @@ class Date(object):
 
     def Now(self):
         warnings.warn(
-            "Date.Now is deprecated, use Date.FromNow() instead", DeprecationWarning, stacklevel=2)
+            "Date.Now is deprecated, use Date.FromNow() instead",
+            DeprecationWarning,
+            stacklevel=2)
         t = pytime.localtime(pytime.time())
         self._SetFromCalendarDay(t[0] // 100, t[0] % 100, t[1], t[2])
         self._CheckDate()
 
     def SetJulianDay(self, year, month, day):
         warnings.warn(
-            "Date.SetJulianDay is deprecated, use Date.FromJulian() instead", DeprecationWarning, stacklevel=2)
+            "Date.SetJulianDay is deprecated, use Date.FromJulian() instead",
+            DeprecationWarning,
+            stacklevel=2)
         if year % 4:
             mSizes = MONTH_SIZES
         else:
@@ -1044,27 +1106,37 @@ class Date(object):
 
     def AddCentury(self):
         warnings.warn(
-            "Date.AddCentury is deprecated, use Offset(centuries=1) instead", DeprecationWarning, stacklevel=2)
+            "Date.AddCentury is deprecated, use Offset(centuries=1) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self._AddCentury()
 
     def AddYear(self):
         warnings.warn(
-            "Date.AddYear is deprecated, use Offset(base,years=1) instead", DeprecationWarning, stacklevel=2)
+            "Date.AddYear is deprecated, use Offset(base,years=1) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self._AddYear()
 
     def AddMonth(self):
         warnings.warn(
-            "Date.AddMonth is deprecated, use Offset(base,months=1) instead", DeprecationWarning, stacklevel=2)
+            "Date.AddMonth is deprecated, use Offset(base,months=1) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self._AddMonth()
 
     def AddWeek(self):
         warnings.warn(
-            "Date.AddWeek is deprecated, use Date.Offset(base,weeks=1) instead", DeprecationWarning, stacklevel=2)
+            "Date.AddWeek is deprecated, use Date.Offset(base,weeks=1) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self._AddWeek()
 
     def AddDays(self, days):
         warnings.warn(
-            "Date.AddDays is deprecated, use Offset(base,days=##) instead", DeprecationWarning, stacklevel=2)
+            "Date.AddDays is deprecated, use Offset(base,days=##) instead",
+            DeprecationWarning,
+            stacklevel=2)
         if days:
             self._SetFromAbsoluteDay(self.GetAbsoluteDay() + days)
 
@@ -1076,23 +1148,23 @@ class Time(object):
     Values can be represent times with reduced precision, for
     example::
 
-            Time(hour=20)
+        Time(hour=20)
 
     represents 8pm without a specific minute/seconds value.
 
     There are a number of different forms of the constructor based on
     named parameters, the simplest is::
 
-            Time(hour=20,minute=17,second=40)
+        Time(hour=20,minute=17,second=40)
 
     To indicate UTC (Zulu time) by providing a zone direction of 0::
 
-            Time(hour=20,minute=17,second=40,zDirection=0)
+        Time(hour=20,minute=17,second=40,zDirection=0)
 
     To indicate a UTC offset provide additional values for hours (and
     optionally minutes)::
 
-            Time(hour=15,minute=17,second=40,zDirection=-1,zHour=5,zMinute=0)
+        Time(hour=15,minute=17,second=40,zDirection=-1,zHour=5,zMinute=0)
 
     A UTC offset of 0 hours and minutes results in a value that compares
     as equal to the corresponding Zulu time but is formatted using an
@@ -1101,25 +1173,34 @@ class Time(object):
 
     You may also specify a total number of seconds past midnight (no zone):
 
-            Time(totalSeconds=73060)
+        Time(totalSeconds=73060)
 
     If totalSeconds overflows an error is raised.  To create a time from
     an arbitrary number of seconds and catch overflow use Offset instead::
 
-            Time(totalSeconds=159460)
-            # raises DateTimeError
+        Time(totalSeconds=159460)
+        # raises DateTimeError
 
-            t,overflow=Time().Offset(seconds=159460)
-            # sets t to 20:40:17 and overflow=1
+        t,overflow=Time().Offset(seconds=159460)
+        # sets t to 20:40:17 and overflow=1
 
     Time supports two representations of midnight: 00:00:00 and 24:00:00
-    in keeping with the ISO specification.  These are considered
+    in keeping with the ISO specification.	These are considered
     equivalent by comparisons!
 
     Truncated forms can be created directly from the base time, see
     :py:meth:`Extend` for more information."""
 
-    def __init__(self, src=None, hour=None, minute=None, second=None, totalSeconds=None, zDirection=None, zHour=None, zMinute=None):
+    def __init__(
+            self,
+            src=None,
+            hour=None,
+            minute=None,
+            second=None,
+            totalSeconds=None,
+            zDirection=None,
+            zHour=None,
+            zMinute=None):
         if src is None:
             # explicit form
             if totalSeconds is not None:
@@ -1234,7 +1315,7 @@ class Time(object):
         (zDirection,zHour,zMinute)
 
         These values are defined as per Time's constructor but zero
-        offsets always return zDirection=0.  If present, the zone is
+        offsets always return zDirection=0.	 If present, the zone is
         always returned with complete (minute) precision."""
         zDirection = self.zDirection
         if zDirection is None:
@@ -1255,21 +1336,22 @@ class Time(object):
         """Constructs a :py:class:`Time` instance from an existing time,
         extended a (possibly) truncated hour/minute/second value.
 
-        The time zone is always copied if present.  The result is a
+        The time zone is always copied if present.	The result is a
         tuple of (<Time instance>,overflow) where overflow 0 or 1
-        indicating whether or not the time overflowed.  For example:: 
+        indicating whether or not the time overflowed.	For example::
 
-                # set base to 20:17:40Z
-                base=Time(hour=20,minute=17,second=40,zDirection=0)
-                t,overflow=base.Extend(minute=37)
-                # t is 20:37:40Z, overflow is 0
-                t,overflow=base.Extend(minute=7)
-                # t is 21:07:40Z, overflow is 0
-                t,overflow=base.Extend(hour=19,minute=7)
-                # t is 19:07:40Z, overflow is 1"""
+            # set base to 20:17:40Z
+            base=Time(hour=20,minute=17,second=40,zDirection=0)
+            t,overflow=base.Extend(minute=37)
+            # t is 20:37:40Z, overflow is 0
+            t,overflow=base.Extend(minute=7)
+            # t is 21:07:40Z, overflow is 0
+            t,overflow=base.Extend(hour=19,minute=7)
+            # t is 19:07:40Z, overflow is 1"""
         if not self.Complete():
             raise DateTimeError(
-                "Can't construct truncated time from incomplete base: %s" % str(base))
+                "Can't construct truncated time from incomplete base: %s" %
+                str(base))
         addMinute = addHour = 0
         if hour is None:
             # Truncation of hour or more
@@ -1300,8 +1382,13 @@ class Time(object):
             newSecond = second
         # always copy time zone from base
         zDirection, zHour, zMinute = self.GetZone3()
-        newTime = type(self)(hour=newHour, minute=newMinute, second=newSecond,
-                             zDirection=zDirection, zHour=zHour, zMinute=zMinute)
+        newTime = type(self)(
+            hour=newHour,
+            minute=newMinute,
+            second=newSecond,
+            zDirection=zDirection,
+            zHour=zHour,
+            zMinute=zMinute)
         if addHour or addMinute:
             return newTime.Offset(hours=addHour, minutes=addMinute)
         else:
@@ -1313,21 +1400,21 @@ class Time(object):
 
         The time zone is always copied (if present).  The result is a
         tuple of (<Time instance>,overflow) where overflow is 0 or 1
-        indicating whether or not the time overflowed.  For example::
+        indicating whether or not the time overflowed.	For example::
 
-                # set base to 20:17:40Z
-                base=Time(hour=20,minute=17,second=40,zDirection=0)
-                t,overflow=base.Offset(minutes=37)
-                # t is 20:54:40Z, overflow is 0
-                t,overflow=base.Offset(hours=4,minutes=37)
-                # t is 00:54:40Z, overflow is 1"""
+            # set base to 20:17:40Z
+            base=Time(hour=20,minute=17,second=40,zDirection=0)
+            t,overflow=base.Offset(minutes=37)
+            # t is 20:54:40Z, overflow is 0
+            t,overflow=base.Offset(hours=4,minutes=37)
+            # t is 00:54:40Z, overflow is 1"""
         days = 0
         second = self.second
         if seconds:
             if second is None:
                 raise DateTimeError("second precision required")
             second = second + seconds
-            if type(second) == FloatType:
+            if isinstance(second, FloatType):
                 fs, s = modf(second)
                 s = int(s)
                 minutes += s // 60
@@ -1340,7 +1427,7 @@ class Time(object):
             if minute is None:
                 raise DateTimeError("minute or second precision required")
             minute = minute + minutes
-            if type(minute) == FloatType:
+            if isinstance(minute, FloatType):
                 if second is not None:
                     raise DateTimeError("minute precision required")
                 fm, m = modf(minute)
@@ -1353,7 +1440,7 @@ class Time(object):
         hour = self.hour
         if hours:
             hour = hour + hours
-            if type(hour) == FloatType:
+            if isinstance(hour, FloatType):
                 if minute is not None:
                     raise DateTimeError("hour precision required")
                 fh, h = modf(hour)
@@ -1365,21 +1452,28 @@ class Time(object):
                 hour = hour % 24
         # always copy time zone from base
         zDirection, zHour, zMinute = self.GetZone3()
-        return type(self)(hour=hour, minute=minute, second=second, zDirection=zDirection, zHour=zHour, zMinute=zMinute), days
+        return type(self)(hour=hour, minute=minute, second=second,
+                          zDirection=zDirection, zHour=zHour, zMinute=zMinute), days
 
     def WithZone(self, zDirection, zHour=None, zMinute=None):
         """Constructs a :py:class:`Time` instance from an existing time but with the time zone specified.
 
-        The time zone of the existing time is ignored.  Pass
+        The time zone of the existing time is ignored.	Pass
         *zDirection*\=None to strip the zone information completely."""
-        return type(self)(hour=self.hour, minute=self.minute, second=self.second, zDirection=zDirection, zHour=zHour, zMinute=zMinute)
+        return type(self)(
+            hour=self.hour,
+            minute=self.minute,
+            second=self.second,
+            zDirection=zDirection,
+            zHour=zHour,
+            zMinute=zMinute)
 
     def ShiftZone(self, zDirection, zHour=None, zMinute=None):
         """Constructs a :py:class:`Time` instance from an existing time
         but shifted so that it is in the time zone specified.  The return
         value is a tuple of::
 
-                (<Time instance>, overflow)
+            (<Time instance>, overflow)
 
         overflow is one of -1, 0 or 1 indicating if the time over- or
         under-flowed as a result of the time zone shift."""
@@ -1400,7 +1494,8 @@ class Time(object):
                 # hours
                 if zShift % 60:
                     raise DateTimeError(
-                        "Zone shift of %i minutes requires at least minute precision: " % zShift)
+                        "Zone shift of %i minutes requires at least minute precision: " %
+                        zShift)
         # // and % may seem odd when negative shifting but this still works
         # shift of -105 minutes results in +15 minutes and -2 hours!
         minute = self.minute
@@ -1422,7 +1517,8 @@ class Time(object):
             overflow = -1
         else:
             overflow = 0
-        return type(self)(hour=hour, minute=minute, second=second, zDirection=zDirection, zHour=zHour, zMinute=zMinute), overflow
+        return type(self)(hour=hour, minute=minute, second=second,
+                          zDirection=zDirection, zHour=zHour, zMinute=zMinute), overflow
 
     @classmethod
     def FromStructTime(cls, t):
@@ -1468,7 +1564,10 @@ class Time(object):
         if type(zoneStr) in StringTypes:
             p = ISO8601Parser(zoneStr)
             zDirection, zHour, zMinute, format = p.ParseTimeZoneFormat()
-            return self.WithZone(zDirection=zDireciton, zHour=zHour, zMinute=zMinute)
+            return self.WithZone(
+                zDirection=zDireciton,
+                zHour=zHour,
+                zMinute=zMinute)
         else:
             raise TypeError
 
@@ -1481,7 +1580,8 @@ class Time(object):
         if type(zoneStr) in StringTypes:
             p = ISO8601Parser(zoneStr)
             zDirection, zHour, zMinute, format = p.ParseTimeZoneFormat()
-            return self.WithZone(zDirection=zDirection, zHour=zHour, zMinute=zMinute), format
+            return self.WithZone(
+                zDirection=zDirection, zHour=zHour, zMinute=zMinute), format
         else:
             raise TypeError
 
@@ -1510,39 +1610,48 @@ class Time(object):
         return unicode(self.GetString())
 
     def __repr__(self):
-        return "Time(hour=%s,minute=%s,second=%s,zDirection=%s,zHour=%s,zMinute=%s)" % ((str(self.hour), str(self.minute), str(self.second)) + tuple(map(str, self.GetZone3())))
+        return "Time(hour=%s,minute=%s,second=%s,zDirection=%s,zHour=%s,zMinute=%s)" % (
+            (str(self.hour), str(self.minute), str(self.second)) + tuple(map(str, self.GetZone3())))
 
-    def GetString(self, basic=False, truncation=NoTruncation, ndp=0, zonePrecision=Precision.Complete, dp=","):
+    def GetString(
+            self,
+            basic=False,
+            truncation=NoTruncation,
+            ndp=0,
+            zonePrecision=Precision.Complete,
+            dp=","):
         """Formats this time, including zone, for example 20:17:40
 
-                *basic*
-                        True/False, selects basic form, e.g., 201740.  Default
-                        is False
+        *basic*
+            True/False, selects basic form, e.g., 201740.  Default
+            is False
 
-                *truncation*
-                        One of the :py:class:`Truncation` constants used to
-                        select truncated forms of the time.  For example, if you
-                        specify :py:attr:`Truncation.Hour` you'll get -17:40 or
-                        -1740.  Default is :py:attr:`NoTruncation`.
+        *truncation*
+            One of the :py:class:`Truncation` constants used to
+            select truncated forms of the time.	 For example, if you
+            specify :py:attr:`Truncation.Hour` you'll get -17:40 or
+            -1740.	Default is :py:attr:`NoTruncation`.
 
-                *ndp*
-                        Specifies the number of decimal places to display for
-                        the least significant component, the default is 0.
+        *ndp*
+            Specifies the number of decimal places to display for
+            the least significant component, the default is 0.
 
-                *dp*
-                        The character to use as the decimal point, the default
-                        is the *comma*, as per the ISO standard.
+        *dp*
+            The character to use as the decimal point, the default
+            is the *comma*, as per the ISO standard.
 
-                *zonePrecision*
-                        One of :py:attr:`Precision.Hour` or
-                        :py:attr:`Precision.Complete` to control the precision
-                        of the zone offset.
+        *zonePrecision*
+            One of :py:attr:`Precision.Hour` or
+            :py:attr:`Precision.Complete` to control the precision
+            of the zone offset.
 
         Note that time formats only support Minute and Second truncated
         forms."""
         if ndp < 0:
             warnings.warn(
-                "Replace negative ndp in Time.GetString with dp parameter instead", DeprecationWarning, stacklevel=2)
+                "Replace negative ndp in Time.GetString with dp parameter instead",
+                DeprecationWarning,
+                stacklevel=2)
             ndp = -ndp
             dp = "."
         if self.second is None:
@@ -1551,7 +1660,7 @@ class Time(object):
                     raise DateTimeError("no time to format")
                 else:
                     if truncation == NoTruncation:
-                        if type(self.hour) is FloatType:
+                        if isinstance(self.hour, FloatType):
                             fraction, hour = modf(self.hour)
                             hour = int(hour)
                         else:
@@ -1560,7 +1669,7 @@ class Time(object):
                     else:
                         raise ValueError
             else:
-                if type(self.minute) is FloatType:
+                if isinstance(self.minute, FloatType):
                     fraction, minute = modf(self.minute)
                     minute = int(minute)
                 else:
@@ -1575,7 +1684,7 @@ class Time(object):
                 else:
                     raise ValueError
         else:
-            if type(self.second) is FloatType:
+            if isinstance(self.second, FloatType):
                 fraction, second = modf(self.second)
                 second = int(second)
             else:
@@ -1598,7 +1707,7 @@ class Time(object):
             # less)
             fractionStr = "%s%s%0*i"
             fraction += 2e-13
-            fraction = int(floor(fraction * float(10L ** ndp)))
+            fraction = int(floor(fraction * float(10 ** ndp)))
             stem = fractionStr % (stem, dp, ndp, fraction)
         if truncation == NoTruncation:
             # untruncated forms can have a zone string
@@ -1608,18 +1717,18 @@ class Time(object):
     def GetZoneString(self, basic=False, zonePrecision=Precision.Complete):
         """Formats this time's zone, for example -05:00.
 
-                *basic*
-                        True/False, selects basic form, e.g., -0500.  Default
-                        is False
+        *basic*
+            True/False, selects basic form, e.g., -0500.  Default
+            is False
 
-                *zonePrecision*
-                        One of :py:attr:`Precision.Hour` or
-                        :py:attr:`Precision.Complete` to control the precision
-                        of the zone offset.
+        *zonePrecision*
+            One of :py:attr:`Precision.Hour` or
+            :py:attr:`Precision.Complete` to control the precision
+            of the zone offset.
 
         Times constructed with a zDirection value of 0 are always
         rendered using "Z" for Zulu time (the name is taken from the
-        phonetic alphabet).  To force use of the offset format you must
+        phonetic alphabet).	 To force use of the offset format you must
         construct the time with a non-zero value for zDirection."""
         if self.zDirection is None:
             return ""
@@ -1674,16 +1783,16 @@ class Time(object):
         hour, minute and complete precision are valid.
 
         *truncate* is True/False indicating whether or not the time
-        value should be truncated so that all values are integers.  For
+        value should be truncated so that all values are integers.	For
         example::
 
-                t=Time(hour=20,minute=17,second=40)
-                tm=t.WithPrecision(Precision.Minute,False)
-                print tm.GetString(ndp=3)
-                #	20:17,667
-                tm=t.WithPrecision(Precision.Minute,True)
-                print tm.GetString(ndp=3)
-                #	20:17,000	"""
+            t=Time(hour=20,minute=17,second=40)
+            tm=t.WithPrecision(Precision.Minute,False)
+            print tm.GetString(ndp=3)
+            #	20:17,667
+            tm=t.WithPrecision(Precision.Minute,True)
+            print tm.GetString(ndp=3)
+            #	20:17,000	"""
         hour = self.hour
         minute = self.minute
         second = self.second
@@ -1692,32 +1801,32 @@ class Time(object):
                 if minute is None:
                     if hour is None:
                         raise DateTimeError("Missing time")
-                    elif type(hour) is FloatType:
+                    elif isinstance(hour, FloatType):
                         minute, hour = modf(hour)
                         minute *= 60.0
                         hour = int(hour)
                     else:
                         minute = 0
-                if type(minute) is FloatType:
+                if isinstance(minute, FloatType):
                     second, minute = modf(minute)
                     second *= 60.0
                     minute = int(minute)
                 else:
                     second = 0
-            if truncate and type(second) is FloatType:
+            if truncate and isinstance(second, FloatType):
                 second = int(floor(second))
         elif precision == Precision.Minute:
             if second is None:
                 if minute is None:
                     if hour is None:
                         raise DateTimeError("Missing time")
-                    elif type(hour) is FloatType:
+                    elif isinstance(hour, FloatType):
                         minute, hour = modf(hour)
                         minute *= 60.0
                         hour = int(hour)
                     else:
                         minute = 0
-                if truncate and type(minute) is FloatType:
+                if truncate and isinstance(minute, FloatType):
                     minute = int(floor(minute))
             elif truncate:
                 second = None
@@ -1729,7 +1838,7 @@ class Time(object):
                 if minute is None:
                     if hour is None:
                         hour = 0
-                    elif truncate and type(hour) is FloatType:
+                    elif truncate and isinstance(hour, FloatType):
                         hour = int(floor(hour))
                 elif truncate:
                     minute = None
@@ -1744,7 +1853,13 @@ class Time(object):
         else:
             raise ValueError
         zDirection, zHour, zMinute = self.GetZone3()
-        return type(self)(hour=hour, minute=minute, second=second, zDirection=zDirection, zHour=zHour, zMinute=zMinute)
+        return type(self)(
+            hour=hour,
+            minute=minute,
+            second=second,
+            zDirection=zDirection,
+            zHour=zHour,
+            zMinute=zMinute)
 
     def _CheckTime(self):
         if self.zDirection is not None:
@@ -1756,7 +1871,11 @@ class Time(object):
                     raise DateTimeError("missing zone offset")
                 elif self.zOffset >= 1440:
                     raise DateTimeError(
-                        "zone offset out of range %i:%02i" % (self.zOffset // 60, self.zOffset % 60))
+                        "zone offset out of range %i:%02i" %
+                        (self.zOffset //
+                         60,
+                         self.zOffset %
+                         60))
         if self.hour is None:
             raise DateTimeError("missing time")
         if self.hour < 0 or self.hour > 24:
@@ -1765,13 +1884,13 @@ class Time(object):
             raise DateTimeError("time overflow")
         if self.minute is None:
             return
-        if not type(self.hour) is IntType:
+        if not isinstance(self.hour, IntType):
             raise DateTimeError("bad fractional hour %s" % str(self.hour))
         if self.minute < 0 or self.minute > 59:
             raise DateTimeError("minute out of range %s" % str(self.minute))
         if self.second is None:
             return
-        if not type(self.minute) is IntType:
+        if not isinstance(self.minute, IntType):
             raise DateTimeError("bad fractional minute %s" % str(self.minute))
         if self.second < 0 or self.second >= 61:
             raise DateTimeError("second out of range %s" % str(self.second))
@@ -1782,13 +1901,17 @@ class Time(object):
         note in :py:meth:`__cmp__` below for details.
 
         Some older functions did allow modification but these have been
-        deprecated.  Use python -Wd to force warnings from these unsafe
+        deprecated.	 Use python -Wd to force warnings from these unsafe
         methods.
 
         There is one subtlety to this implementation.  Times stored with
         a redundant +00:00 or -00:00 are treated the same as those with
         a zero direction (Zulu time)."""
-        return hash((self.hour, self.minute, self.second, self.GetZoneOffset()))
+        return hash(
+            (self.hour,
+             self.minute,
+             self.second,
+             self.GetZoneOffset()))
 
     def __cmp__(self, other):
         """Time can hold partially specified times, we deal with
@@ -1819,73 +1942,52 @@ class Time(object):
 
     def SetOrigin(self):
         warnings.warn(
-            "Time.SetOrigin is deprecated, use Time() instead", DeprecationWarning, stacklevel=2)
+            "Time.SetOrigin is deprecated, use Time() instead",
+            DeprecationWarning,
+            stacklevel=2)
         self._SetFromValues(0, 0, 0, None, None, None)
 
     def SetSeconds(self, s):
         warnings.warn(
-            "Time.SetSeconds is deprecated, use Time().Offset(seconds=s) instead", DeprecationWarning, stacklevel=2)
+            "Time.SetSeconds is deprecated, use Time().Offset(seconds=s) instead",
+            DeprecationWarning,
+            stacklevel=2)
         t, overflow = type(self)().Offset(seconds=s)
         self.SetFromTime(t)
         return overflow
-# 		"""Set a fully-specified time based on s seconds past midnight.  If s is greater
-# 		than or equal to the number of seconds in a normal day then the number of whole days
-# 		represented is returned and the time is set to the fractional part of the day, otherwise
-# 		0 is returned.  Negative numbers underflow (and return negative numbers of days)"""
-# 		overflow=0
-# 		if type(s) is FloatType:
-# 			sFloor=floor(s)
-# 			sFraction=s-sFloor
-# 			s=int(sFloor)
-# 		else:
-# 			sFraction=None
-# python's div and mod make this calculation easy, s will always be +ve
-# and overflow will always be floored
-# 		overflow=s//86400
-# 		s=s%86400
-# 		self.hour=int(s//3600)
-# 		self.minute=int((s%3600)//60)
-# 		if sFraction is None:
-# 			self.second=int(s%60)
-# 		else:
-# 			self.second=(s%60)+sFraction
-# 		self._CheckTime()
-# 		return overflow
 
     def AddSeconds(self, s):
         warnings.warn(
-            "Time.AddSeconds is deprecated, use Time().Offset(seconds=s) instead", DeprecationWarning, stacklevel=2)
+            "Time.AddSeconds is deprecated, use Time().Offset(seconds=s) instead",
+            DeprecationWarning,
+            stacklevel=2)
         t, overflow = self.Offset(seconds=s)
         self.SetFromTime(t)
         return overflow
 
     def AddMinute(self):
         warnings.warn(
-            "Time.AddMinute is deprecated, use Time().Offset(minutes=1) instead", DeprecationWarning, stacklevel=2)
+            "Time.AddMinute is deprecated, use Time().Offset(minutes=1) instead",
+            DeprecationWarning,
+            stacklevel=2)
         t, overflow = self.Offset(minutes=1)
         self.SetFromTime(t)
         return overflow
-# 		if self.minute>=59:
-# 			self.minute=0
-# 			return self.AddHour()
-# 		else:
-# 			self.minute+=1
 
     def AddHour(self):
         warnings.warn(
-            "Time.AddHour is deprecated, use Time().Offset(hour=1) instead", DeprecationWarning, stacklevel=2)
+            "Time.AddHour is deprecated, use Time().Offset(hour=1) instead",
+            DeprecationWarning,
+            stacklevel=2)
         t, overflow = self.Offset(hours=1)
         self.SetFromTime(t)
         return overflow
-# 		if self.hour>=23:
-# 			self.hour=0
-# 			return 1
-# 		else:
-# 			self.hour+=1
 
     def SetTime(self, hour, minute, second, base=None):
         warnings.warn(
-            "Time.SetTime is deprecated, use Time(hour=##,...) or base.Extend(hour=##,...) instead", DeprecationWarning, stacklevel=2)
+            "Time.SetTime is deprecated, use Time(hour=##,...) or base.Extend(hour=##,...) instead",
+            DeprecationWarning,
+            stacklevel=2)
         if base is None:
             t = type(self)(hour=hour, minute=minute, second=second)
             overflow = 0
@@ -1893,68 +1995,27 @@ class Time(object):
             t, overflow = base.Extend(hour=hour, minute=minute, second=second)
         self.SetFromTime(t)
         return overflow
-# 		overflow=0
-# 		if hour is None:
-# Truncation of hour or more
-# 			if base is None or not base.Complete():
-# 				raise DateTimeError("truncated time with no base")
-# 			else:
-# 				baseHour,baseMinute,baseSecond=base.GetTime()
-# 				if second is None:
-# 					baseSecond=None
-# 					if minute is None:
-# 						baseMinute=None
-# 			self.hour=baseHour
-# 			if minute is None:
-# Truncation of minutes
-# 				self.minute=baseMinute
-# 				if second is None:
-# 					raise ValueError
-# 				else:
-# 					self.second=second
-# 					if self.second<baseSecond:
-# 						overflow=self.AddMinute()
-# 			else:
-# 				self.minute=minute
-# 				self.second=second
-# 				if self.minute<baseMinute or (self.minute==baseMinute and self.second<baseSecond):
-# 					overflow=self.AddHour()
-# copy time zone from base
-# 			self.zDirection=base.zDirection
-# 			self.zOffset=base.zOffset
-# 		else:
-# 			self.hour=hour
-# 			self.minute=minute
-# 			self.second=second
-# 		self._CheckTime()
-# 		return overflow
 
     def SetZone(self, zDirection, hourOffset=None, minuteOffset=None):
         warnings.warn(
-            "Time.SetZone is deprecated, use WithZone(zDirection,etc...) instead", DeprecationWarning, stacklevel=2)
+            "Time.SetZone is deprecated, use WithZone(zDirection,etc...) instead",
+            DeprecationWarning,
+            stacklevel=2)
         t = self.WithZone(zDirection, hourOffset, minuteOffset)
         self.SetFromTime(t)
-# 		self.zDirection=zDirection
-# 		if zDirection is None:
-# 			self.zOffset=None
-# 		elif zDirection==0:
-# 			self.zOffset=0
-# 		elif hourOffset is None:
-# 			self.zOffset=None
-# 		elif minuteOffset is None:
-# 			self.zOffset=hourOffset*60
-# 		else:
-# 			self.zOffset=hourOffset*60+minuteOffset
-# 		self._CheckTime()
 
     def GetSeconds(self):
         warnings.warn(
-            "Time.GetSeconds is deprecated, use GetTotalSeconds() instead", DeprecationWarning, stacklevel=2)
+            "Time.GetSeconds is deprecated, use GetTotalSeconds() instead",
+            DeprecationWarning,
+            stacklevel=2)
         return self.GetTotalSeconds()
 
     def SetFromTime(self, src):
         warnings.warn(
-            "Time.SetFromTime is deprecated, use Time(src) instead", DeprecationWarning, stacklevel=2)
+            "Time.SetFromTime is deprecated, use Time(src) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self.hour = src.hour
         self.minute = src.minute
         self.second = src.second
@@ -1963,29 +2024,32 @@ class Time(object):
 
     def SetTimeTuple(self, t):
         warnings.warn(
-            "Time.SetTimeTuple is deprecated, use Time.FromStructTime(t) instead", DeprecationWarning, stacklevel=2)
+            "Time.SetTimeTuple is deprecated, use Time.FromStructTime(t) instead",
+            DeprecationWarning,
+            stacklevel=2)
         t = Time.FromStructTime(t)
         self.SetFromTime(t)
-# 		self.hour=t[3]
-# 		self.minute=t[4]
-# 		self.second=t[5]
-# 		self._CheckTime()
 
     def GetTimeTuple(self, t):
         warnings.warn(
-            "Time.GetTimeTuple is deprecated, use Time.UpdateStructTime(t) instead", DeprecationWarning, stacklevel=2)
+            "Time.GetTimeTuple is deprecated, use Time.UpdateStructTime(t) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self.UpdateStructTime(t)
 
     def Now(self):
         warnings.warn(
-            "Time.Now is deprecated, use Time.FromNow() instead", DeprecationWarning, stacklevel=2)
+            "Time.Now is deprecated, use Time.FromNow() instead",
+            DeprecationWarning,
+            stacklevel=2)
         t = Time.FromNow()
         self.SetFromTime(t)
-# 		self.SetTimeTuple(pytime.localtime(pytime.time()))
 
     def SetFromString(self, src, base=None):
         warnings.warn(
-            "Time.SetFromString is deprecated, use Time.FromString(src[,base]) instead", DeprecationWarning, stacklevel=2)
+            "Time.SetFromString is deprecated, use Time.FromString(src[,base]) instead",
+            DeprecationWarning,
+            stacklevel=2)
         if type(src) in StringTypes:
             p = ISO8601Parser(src)
             return p.ParseTime(self, base)
@@ -1994,7 +2058,9 @@ class Time(object):
 
     def SetZoneFromString(self, zoneStr):
         warnings.warn(
-            "Time.SetZoneFromString is deprecated, use Time.WithZoneString(t,zoneStr) instead", DeprecationWarning, stacklevel=2)
+            "Time.SetZoneFromString is deprecated, use Time.WithZoneString(t,zoneStr) instead",
+            DeprecationWarning,
+            stacklevel=2)
         if type(zoneStr) in StringTypes:
             p = ISO8601Parser(zoneStr)
             return p.ParseTimeZone(self)
@@ -2003,71 +2069,17 @@ class Time(object):
 
     def SetPrecision(self, precision, truncate=False):
         warnings.warn(
-            "Time.SetPrecision is deprecated, use WithPrecision(precision,truncate) instead", DeprecationWarning, stacklevel=2)
+            "Time.SetPrecision is deprecated, use WithPrecision(precision,truncate) instead",
+            DeprecationWarning,
+            stacklevel=2)
         t = self.WithPrecision(precision, truncate)
         self.SetFromTime(t)
-# 		if precision==Precision.Complete:
-# 			if self.second is None:
-# 				if self.minute is None:
-# 					if self.hour is None:
-# 						self.hour=0
-# 						self.minute=0
-# 					elif type(self.hour) is FloatType:
-# 						self.minute,self.hour=modf(self.hour)
-# 						self.minute*=60.0
-# 						self.hour=int(self.hour)
-# 					else:
-# 						self.minute=0
-# 				if type(self.minute) is FloatType:
-# 					self.second,self.minute=modf(self.minute)
-# 					self.second*=60.0
-# 					self.minute=int(self.minute)
-# 				else:
-# 					self.second=0
-# 			if truncate and type(self.second) is FloatType:
-# 				self.second=int(floor(self.second))
-# 		elif precision==Precision.Minute:
-# 			if self.second is None:
-# 				if self.minute is None:
-# 					if self.hour is None:
-# 						self.hour=0
-# 						self.minute=0
-# 					elif type(self.hour) is FloatType:
-# 						self.minute,self.hour=modf(self.hour)
-# 						self.minute*=60.0
-# 						self.hour=int(self.hour)
-# 					else:
-# 						self.minute=0
-# 				if truncate and type(self.minute) is FloatType:
-# 					self.minute=int(floor(self.minute))
-# 			elif truncate:
-# 				self.second=None
-# 			else:
-# 				self.minute=float(self.minute)+self.second/60.0
-# 				self.second=None
-# 		elif precision==Precision.Hour:
-# 			if self.second is None:
-# 				if self.minute is None:
-# 					if self.hour is None:
-# 						self.hour=0
-# 					elif truncate and type(self.hour) is FloatType:
-# 						self.hour=int(floor(self.hour))
-# 				elif truncate:
-# 					self.minute=None
-# 				else:
-# 					self.hour=float(self.hour)+self.minute/60.0
-# 					self.minute=None
-# 			elif truncate:
-# 				self.minute=self.second=None
-# 			else:
-# 				self.hour=float(self.hour)+self.minute/60.0+self.second/3600.0
-# 				self.minute=self.second=None
-# 		else:
-# 			raise ValueError
 
     def ChangeZone(self, zChange):
         warnings.warn(
-            "Time.ChangeZone is deprecated, use ShiftZone(zDirection,zHour,zMinute) instead", DeprecationWarning, stacklevel=2)
+            "Time.ChangeZone is deprecated, use ShiftZone(zDirection,zHour,zMinute) instead",
+            DeprecationWarning,
+            stacklevel=2)
         # we need to calculate the new zone from zChange
         z = self.GetZoneOffset()
         if z is None:
@@ -2085,43 +2097,6 @@ class Time(object):
                 zDirection=1, zHour=newOffset // 60, zMinute=newOffset % 60)
         self.SetFromTime(t)
         return overflow
-# 		zHours=zChange//60
-# 		zMinutes=zChange%60
-# 		if self.second is None:
-# 			if self.minute is None:
-# hour precision only - zMinutes better be a whole number of hours
-# 				if zMinutes:
-# 					raise DateTimeError("fractional zone change requires at least minute precision")
-# 		if zMinutes:
-# 			self.minute+=zMinutes
-# 			if self.minute>59:
-# 				zHours+=1
-# 				self.minute-=60
-# 			elif self.minute<0:
-# 				zHours-=1
-# 				self.minute+=60
-# 		if zHours:
-# 			self.hour+=zHours
-# 			if self.hour<0:
-# 				self.hour+=24
-# 				overflow=-1
-# 			elif self.hour>23:
-# 				self.hour-=24
-# 				overflow=1
-# 			else:
-# 				overflow=0
-# 		else:
-# 			overflow=0
-# Now update the zone if it is specified
-# 		if zChange and self.zDirection is not None:
-# 			self.zOffset=(self.zDirection*self.zOffset)+zChange
-# 			if self.zOffset<0:
-# 				self.zOffset=-self.zOffset
-# 				self.zDirection=-1
-# 			else:
-# 				self.zDirection=1
-# 		self._CheckTime()
-# 		return overflow
 
 
 class TimePoint(object):
@@ -2131,11 +2106,11 @@ class TimePoint(object):
     TimePoints are constructed from a date and a time (which may or
     may not have a time zone), for example::
 
-            TimePoint(date=Date(year=1969,month=7,day=20),
-                    time=Time(hour=20,minute=17,second=40,zDirection=0))
+        TimePoint(date=Date(year=1969,month=7,day=20),
+                        time=Time(hour=20,minute=17,second=40,zDirection=0))
 
     If the date is missing then the date origin is used, Date() or
-    0001-01-01.  Similarly, if the time is missing then the time origin
+    0001-01-01.	 Similarly, if the time is missing then the time origin
     is used, Time() or 00:00:00
 
     Times may be given with reduced precision but the date must be
@@ -2163,34 +2138,39 @@ class TimePoint(object):
     def GetCalendarTimePoint(self):
         """Returns a tuple of::
 
-                (century,year,month,day,hour,minute,second)"""
+                        (century,year,month,day,hour,minute,second)"""
         return self.date.GetCalendarDay() + self.time.GetTime()
 
     def GetOrdinalTimePoint(self):
         """Returns a tuple of::
 
-                (century,year,ordinalDay,hour,minute,second)"""
+            (century,year,ordinalDay,hour,minute,second)"""
         return self.date.GetOrdinalDay() + self.time.GetTime()
 
     def GetWeekDayTimePoint(self):
         """Returns a tuple of::
 
-                (century,decade,year,week,weekday,hour,minute,second)"""
+            (century,decade,year,week,weekday,hour,minute,second)"""
         return self.date.GetWeekDay() + self.time.GetTime()
 
     def GetZone(self):
         """Returns a tuple of ::
 
-                (zDirection,zOffset)
+            (zDirection,zOffset)
 
         See :py:meth:`Time.GetZone` for details."""
         return self.time.GetZone()
 
     def WithZone(self, zDirection, zHour=None, zMinute=None):
         """Constructs a :py:class:`TimePoint` instance from an existing
-        TimePoint but with the time zone specified.  The time zone of
+        TimePoint but with the time zone specified.	 The time zone of
         the existing TimePoint is ignored."""
-        return type(self)(date=self.date, time=self.time.WithZone(zDirection=zDirection, zHour=zHour, zMinute=zMinute))
+        return type(self)(
+            date=self.date,
+            time=self.time.WithZone(
+                zDirection=zDirection,
+                zHour=zHour,
+                zMinute=zMinute))
 
     def ShiftZone(self, zDirection, zHour=None, zMinute=None):
         """Constructs a :py:class:`TimePoint` instance from an existing TimePoint
@@ -2217,7 +2197,7 @@ class TimePoint(object):
 
     @classmethod
     def FromString(cls, src, base=None, tDesignators="T"):
-        """Constructs a TimePoint from a string representation. 
+        """Constructs a TimePoint from a string representation.
         Truncated forms are parsed with reference to *base*."""
         if type(src) in StringTypes:
             p = ISO8601Parser(src)
@@ -2233,8 +2213,8 @@ class TimePoint(object):
         instance, the second is a string describing the format parsed.
         For example::
 
-                tp,f=TimePoint.FromStringFormat("1969-07-20T20:40:17")
-                # f is set to "YYYY-MM-DDTmm:hh:ss"."""
+            tp,f=TimePoint.FromStringFormat("1969-07-20T20:40:17")
+            # f is set to "YYYY-MM-DDTmm:hh:ss"."""
         if type(src) in StringTypes:
             p = ISO8601Parser(src)
             return p.ParseTimePointFormat(base, tDesignators)
@@ -2250,75 +2230,97 @@ class TimePoint(object):
         return unicode(self.GetCalendarString())
 
     def __repr__(self):
-        return "TimePoint(date=%s,time=%s)" % (repr(self.date), repr(self.time))
+        return "TimePoint(date=%s,time=%s)" % (
+            repr(self.date), repr(self.time))
 
-    def GetCalendarString(self, basic=False, truncation=NoTruncation, ndp=0, zonePrecision=Precision.Complete, dp=",", tDesignator="T"):
+    def GetCalendarString(
+            self,
+            basic=False,
+            truncation=NoTruncation,
+            ndp=0,
+            zonePrecision=Precision.Complete,
+            dp=",",
+            tDesignator="T"):
         """Formats this TimePoint using calendar form, for example 1969-07-20T20:17:40
 
-                *basic*
-                        True/False, selects basic form, e.g., 19690720T201740. 
-                        Default is False
+        *basic*
+            True/False, selects basic form, e.g., 19690720T201740.
+            Default is False
 
-                *truncation*
-                        One of the :py:class:`Truncation` constants used to
-                        select truncated forms of the date.  For example, if you
-                        specify :py:attr:`Truncation.Year` you'll get
-                        --07-20T20:17:40 or --0720T201740.  Default is
-                        :py:attr:`NoTruncation`.  Note that Calendar format only
-                        :supports Century, Year and Month truncated forms, the
-                        time component cannot be truncated.
+        *truncation*
+            One of the :py:class:`Truncation` constants used to
+            select truncated forms of the date.	 For example, if you
+            specify :py:attr:`Truncation.Year` you'll get
+            --07-20T20:17:40 or --0720T201740.	Default is
+            :py:attr:`NoTruncation`.  Note that Calendar format only
+            :supports Century, Year and Month truncated forms, the
+            time component cannot be truncated.
 
-                *ndp*, *dp* and *zonePrecision*
-                        As specified in :py:meth:`Time.GetString`"""
+        *ndp*, *dp* and *zonePrecision*
+            As specified in :py:meth:`Time.GetString`"""
         return self.date.GetCalendarString(basic, truncation) + tDesignator +\
             self.time.GetString(basic, NoTruncation, ndp, zonePrecision, dp)
 
-    def GetOrdinalString(self, basic=0, truncation=0, ndp=0, zonePrecision=Precision.Complete, dp=",", tDesignator="T"):
+    def GetOrdinalString(
+            self,
+            basic=0,
+            truncation=0,
+            ndp=0,
+            zonePrecision=Precision.Complete,
+            dp=",",
+            tDesignator="T"):
         """Formats this TimePoint using ordinal form, for example 1969-201T20-17-40
 
-                *basic*
-                        True/False, selects basic form, e.g., 1969201T201740. 
-                        Default is False
+        *basic*
+            True/False, selects basic form, e.g., 1969201T201740.
+            Default is False
 
-                *truncation*
-                        One of the :py:class:`Truncation` constants used to
-                        select truncated forms of the date.  For example, if you
-                        specify :py:attr:`Truncation.Year` you'll get
-                        -201T20-17-40. Default is :py:attr:`NoTruncation`.  Note
-                        that ordinal format only supports century and year
-                        truncated forms, the time component cannot be
-                        truncated.
+        *truncation*
+            One of the :py:class:`Truncation` constants used to
+            select truncated forms of the date.	 For example, if you
+            specify :py:attr:`Truncation.Year` you'll get
+            -201T20-17-40. Default is :py:attr:`NoTruncation`.	Note
+            that ordinal format only supports century and year
+            truncated forms, the time component cannot be
+            truncated.
 
-                *ndp*, *dp* and *zonePrecision*
-                        As specified in :py:meth:`Time.GetString`"""
+        *ndp*, *dp* and *zonePrecision*
+            As specified in :py:meth:`Time.GetString`"""
         return self.date.GetOrdinalString(basic, truncation) + tDesignator +\
             self.time.GetString(basic, NoTruncation, ndp, zonePrecision, dp)
 
-    def GetWeekString(self, basic=0, truncation=0, ndp=0, zonePrecision=Precision.Complete, dp=",", tDesignator="T"):
+    def GetWeekString(
+            self,
+            basic=0,
+            truncation=0,
+            ndp=0,
+            zonePrecision=Precision.Complete,
+            dp=",",
+            tDesignator="T"):
         """Formats this TimePoint using week form, for example 1969-W29-7T20:17:40
 
-                *basic*
-                        True/False, selects basic form, e.g., 1969W297T201740. 
-                        Default is False
+        *basic*
+            True/False, selects basic form, e.g., 1969W297T201740.
+            Default is False
 
-                *truncation*
-                        One of the :py:class:`Truncation` constants used to
-                        select truncated forms of the date.  For example, if you
-                        specify :py:attr:`Truncation.Year` you'll get
-                        -W297T20-17-40. Default is :py:attr:`NoTruncation`. 
-                        Note that week format only supports century, decade,
-                        year and week truncated forms, the time component cannot
-                        be truncated.
+        *truncation*
+            One of the :py:class:`Truncation` constants used to
+            select truncated forms of the date.	 For example, if you
+            specify :py:attr:`Truncation.Year` you'll get
+            -W297T20-17-40. Default is :py:attr:`NoTruncation`.
+            Note that week format only supports century, decade,
+            year and week truncated forms, the time component cannot
+            be truncated.
 
-                *ndp*, *dp* and *zonePrecision*
-                        As specified in :py:meth:`Time.GetString`"""
+        *ndp*, *dp* and *zonePrecision*
+            As specified in :py:meth:`Time.GetString`"""
         return self.date.GetWeekString(basic, truncation) + tDesignator +\
             self.time.GetString(basic, NoTruncation, ndp, zonePrecision, dp)
 
     @classmethod
     def FromUnixTime(cls, unixTime):
         """Constructs a TimePoint from *unixTime*, the number of seconds
-        since the time origin.  The resulting time has no zone.
+        since the time origin.	The resulting time has no zone.
 
         This method uses python's gmtime(0) to obtain the Unix origin
         time."""
@@ -2326,6 +2328,21 @@ class TimePoint(object):
         t, overflow = Time.FromStructTime(utcTuple).Offset(seconds=unixTime)
         d = Date.FromStructTime(utcTuple).Offset(days=overflow)
         return cls(date=d, time=t)
+
+    def get_unixtime(self):
+        """Returns a unix time value representing this time point."""
+        if not self.Complete():
+            raise DateTimeError("get_unixtime requires complete timepoint")
+        zoffset = self.time.GetZoneOffset()
+        if zoffset is None:
+            raise DateTimeError("get_unixtime requires timezone")
+        elif zoffset == 0:
+            zt = self
+        else:
+            zt = self.ShiftZone(zDirection=0)
+        days = zt.date.GetAbsoluteDay() - EPOCH.date.GetAbsoluteDay()
+        seconds = zt.time.GetTotalSeconds() - EPOCH.time.GetTotalSeconds()
+        return 86400 * days + seconds
 
     @classmethod
     def FromNow(cls):
@@ -2357,9 +2374,13 @@ class TimePoint(object):
 
     def WithPrecision(self):
         """Constructs a :py:class:`TimePoint` instance from an existing
-        TimePoint but with the precision specified by *precision*.  For
+        TimePoint but with the precision specified by *precision*.	For
         more details see :py:meth:`Time.WithPrecision`"""
-        return type(self)(date=self.date, time=self.time.WithPrecision(precision, truncate))
+        return type(self)(
+            date=self.date,
+            time=self.time.WithPrecision(
+                precision,
+                truncate))
 
     def _CheckTimePoint(self):
         self.date._CheckDate()
@@ -2402,37 +2423,106 @@ class TimePoint(object):
 
     def SetOrigin(self):
         warnings.warn(
-            "TimePoint.SetOrigin is deprecated, use TimePoint() instead", DeprecationWarning, stacklevel=2)
+            "TimePoint.SetOrigin is deprecated, use TimePoint() instead",
+            DeprecationWarning,
+            stacklevel=2)
         self.date = Date()
         self.time = Time()
 
     def SetFromTimePoint(self, t):
         warnings.warn(
-            "TimePoint.SetFromTimePoint is deprecated, use TimePoint(t.date,t.time) instead", DeprecationWarning, stacklevel=2)
+            "TimePoint.SetFromTimePoint is deprecated, use TimePoint(t.date,t.time) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self.date = Date(t.date)
         self.time = Time(t.time)
 
-    def SetCalendarTimePoint(self, century, year, month, day, hour, minute, second, base=None):
-        warnings.warn("TimePoint.SetCalendarTimePoint is deprecated, use TimePoint(Date(century=...),Time(hour=...)) instead",
-                      DeprecationWarning, stacklevel=2)
-        self.SetFromTimePoint(TimePoint(date=Date(century=century, year=year, month=month, day=day, base=base),
-                                        time=Time(hour=hour, minute=minute, second=second)))
+    def SetCalendarTimePoint(
+            self,
+            century,
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            base=None):
+        warnings.warn(
+            "TimePoint.SetCalendarTimePoint is deprecated, use TimePoint(Date(century=...),Time(hour=...)) instead",
+            DeprecationWarning,
+            stacklevel=2)
+        self.SetFromTimePoint(
+            TimePoint(
+                date=Date(
+                    century=century,
+                    year=year,
+                    month=month,
+                    day=day,
+                    base=base),
+                time=Time(
+                    hour=hour,
+                    minute=minute,
+                    second=second)))
 
-    def SetOrdinalTimePoint(self, century, year, ordinalDay, hour, minute, second, base=None):
-        warnings.warn("TimePoint.SetOrdinalTimePoint is deprecated, use TimePoint(Date(century=...),Time(hour=...)) instead",
-                      DeprecationWarning, stacklevel=2)
-        self.SetFromTimePoint(TimePoint(date=Date(century=century, year=year, ordinalDay=ordinalDay, base=base),
-                                        time=Time(hour, minute, second)))
+    def SetOrdinalTimePoint(
+            self,
+            century,
+            year,
+            ordinalDay,
+            hour,
+            minute,
+            second,
+            base=None):
+        warnings.warn(
+            "TimePoint.SetOrdinalTimePoint is deprecated, use TimePoint(Date(century=...),Time(hour=...)) instead",
+            DeprecationWarning,
+            stacklevel=2)
+        self.SetFromTimePoint(
+            TimePoint(
+                date=Date(
+                    century=century,
+                    year=year,
+                    ordinalDay=ordinalDay,
+                    base=base),
+                time=Time(
+                    hour,
+                    minute,
+                    second)))
 
-    def SetWeekTimePoint(self, century, decade, year, week, day, hour, minute, second, base=None):
-        warnings.warn("TimePoint.SetWeekTimePoint is deprecated, use TimePoint(Date(century=...),Time(hour=...)) instead",
-                      DeprecationWarning, stacklevel=2)
-        self.SetFromTimePoint(TimePoint(date=Date(century=century, decade=decade, year=year, week=week, day=day, base=base),
-                                        time=Time(hour=hour, minute=minute, second=second)))
+    def SetWeekTimePoint(
+            self,
+            century,
+            decade,
+            year,
+            week,
+            day,
+            hour,
+            minute,
+            second,
+            base=None):
+        warnings.warn(
+            "TimePoint.SetWeekTimePoint is deprecated, use TimePoint(Date(century=...),Time(hour=...)) instead",
+            DeprecationWarning,
+            stacklevel=2)
+        self.SetFromTimePoint(
+            TimePoint(
+                date=Date(
+                    century=century,
+                    decade=decade,
+                    year=year,
+                    week=week,
+                    day=day,
+                    base=base),
+                time=Time(
+                    hour=hour,
+                    minute=minute,
+                    second=second)))
 
     def SetFromString(self, timePointStr, base=None):
         warnings.warn(
-            "TimePoint.SetFromString is deprecated, use TimePoint.FromString(src[,base]) instead", DeprecationWarning, stacklevel=2)
+            "TimePoint.SetFromString is deprecated, use TimePoint.FromString(src[,base]) instead",
+            DeprecationWarning,
+            stacklevel=2)
         if type(timePointStr) in StringTypes:
             p = ISO8601Parser(timePointStr)
             tp, f = p.ParseTimePointFormat(base)
@@ -2443,43 +2533,59 @@ class TimePoint(object):
 
     def SetZone(self, zDirection, hourOffset=None, minuteOffset=None):
         warnings.warn(
-            "TimePoint.SetZone is deprecated, use TimePoint.WithZone(zDirection, etc...) instead", DeprecationWarning, stacklevel=2)
+            "TimePoint.SetZone is deprecated, use TimePoint.WithZone(zDirection, etc...) instead",
+            DeprecationWarning,
+            stacklevel=2)
         t = self.time.WithZone(zDirection, hourOffset, minuteOffset)
         self.SetFromTimePoint(TimePoint(date=self.date, time=t))
 
     def GetTimeTuple(self, timeTuple):
         warnings.warn(
-            "TimePoint.GetTimeTuple is deprecated, use TimePoint.UpdateStructTime(t) instead", DeprecationWarning, stacklevel=2)
+            "TimePoint.GetTimeTuple is deprecated, use TimePoint.UpdateStructTime(t) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self.UpdateStructTime(timeTuple)
 
     def SetTimeTuple(self, t):
         warnings.warn(
-            "TimePoint.SetTimeTuple is deprecated, use TimePoint.FromStructTime(t) instead", DeprecationWarning, stacklevel=2)
+            "TimePoint.SetTimeTuple is deprecated, use TimePoint.FromStructTime(t) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self.SetFromTimePoint(TimePoint.FromStructTime(t))
 
     def SetUnixTime(self, unixTime):
         warnings.warn(
-            "TimePoint.SetUnixTime is deprecated, use TimePoint.FromUnixTime(t) instead", DeprecationWarning, stacklevel=2)
+            "TimePoint.SetUnixTime is deprecated, use TimePoint.FromUnixTime(t) instead",
+            DeprecationWarning,
+            stacklevel=2)
         self.SetFromTimePoint(TimePoint.FromUnixTime(unixTime))
 
     def Now(self):
         warnings.warn(
-            "TimePoint.Now is deprecated, use TimePoint.FromNow() instead", DeprecationWarning, stacklevel=2)
+            "TimePoint.Now is deprecated, use TimePoint.FromNow() instead",
+            DeprecationWarning,
+            stacklevel=2)
         self.SetFromTimePoint(TimePoint.FromNow())
 
     def NowUTC(self):
         warnings.warn(
-            "TimePoint.NowUTC is deprecated, use TimePoint.FromNowUTC() instead", DeprecationWarning, stacklevel=2)
+            "TimePoint.NowUTC is deprecated, use TimePoint.FromNowUTC() instead",
+            DeprecationWarning,
+            stacklevel=2)
         self.SetFromTimePoint(TimePoint.FromNowUTC())
 
     def SetPrecision(self, precision, truncate=0):
         warnings.warn(
-            "TimePoint.SetPrecision is deprecated, use WithPrecision(precision,truncate) instead", DeprecationWarning, stacklevel=2)
+            "TimePoint.SetPrecision is deprecated, use WithPrecision(precision,truncate) instead",
+            DeprecationWarning,
+            stacklevel=2)
         return self.SetFromTimePoint(self.WithPrecision(precision, truncate))
 
     def ChangeZone(self, zChange):
         warnings.warn(
-            "TimePoint.ChangeZone is deprecated, use ShiftZone() instead", DeprecationWarning, stacklevel=2)
+            "TimePoint.ChangeZone is deprecated, use ShiftZone() instead",
+            DeprecationWarning,
+            stacklevel=2)
         z = self.time.GetZoneOffset()
         if z is None:
             raise DateTimeTimeError(
@@ -2521,7 +2627,14 @@ class Duration:
         self.seconds = 0
         self.weeks = None
 
-    def SetCalendarDuration(self, years, months, days, hours, minutes, seconds):
+    def SetCalendarDuration(
+            self,
+            years,
+            months,
+            days,
+            hours,
+            minutes,
+            seconds):
         self.years = years
         self.months = months
         self.days = days
@@ -2532,7 +2645,13 @@ class Duration:
 
     def GetCalendarDuration(self):
         if self.weeks is None:
-            return (self.years, self.months, self.days, self.hours, self.minutes, self.seconds)
+            return (
+                self.years,
+                self.months,
+                self.days,
+                self.hours,
+                self.minutes,
+                self.seconds)
         else:
             raise DateTimeError("duration mode mismatch")
 
@@ -2571,7 +2690,7 @@ class Duration:
                 if value is None:
                     components[i] = ""
                     continue
-                if type(value) is FloatType:
+                if isinstance(value, FloatType):
                     fraction, value = modf(value)
                     value = int(value)
                     if ndp:
@@ -2584,7 +2703,7 @@ class Duration:
                             fractionStr = "%i.%0*i"
                             ndp = -ndp
                         fraction += 2e-13
-                        fraction = int(floor(fraction * float(10L ** ndp)))
+                        fraction = int(floor(fraction * float(10 ** ndp)))
                         components[i] = fractionStr % (value, ndp, fraction)
                     else:
                         components[i] = str(value)
@@ -2792,12 +2911,15 @@ class ISO8601Parser(RFC2234CoreParser):
         if not ((ExtendedTimeFormats.get(tf) and ExtendedDateFormats.get(df)) or
                 (BasicTimeFormats.get(tf) and BasicDateFormats.get(df))):
             raise DateTimeError(
-                "inconsistent use of basic/extended form in time point %s%s%s" % (df, tDesignator, tf))
+                "inconsistent use of basic/extended form in time point %s%s%s" %
+                (df, tDesignator, tf))
         return TimePoint(date=d, time=t), df + tDesignator + tf
 
     def ParseTimePoint(self, timePoint, base=None, tDesignators="T"):
         warnings.warn(
-            "ISO8601Parser.ParseTimePoint is deprecated, use ParseTimePointFormat instead", DeprecationWarning, stacklevel=2)
+            "ISO8601Parser.ParseTimePoint is deprecated, use ParseTimePointFormat instead",
+            DeprecationWarning,
+            stacklevel=2)
         date, dateFormat = self.ParseDateFormat(base)
         timePoint.date = date
         if not timePoint.date.Complete():
@@ -2814,7 +2936,8 @@ class ISO8601Parser(RFC2234CoreParser):
         if not ((ExtendedTimeFormats.get(timeFormat) and ExtendedDateFormats.get(dateFormat)) or
                 (BasicTimeFormats.get(timeFormat) and BasicDateFormats.get(dateFormat))):
             raise DateTimeError(
-                "inconsistent use of basic/extended form in time point %s%s%s" % (dateFormat, tDesignator, timeFormat))
+                "inconsistent use of basic/extended form in time point %s%s%s" %
+                (dateFormat, tDesignator, timeFormat))
         return dateFormat + tDesignator + timeFormat
 
     def ParseDateFormat(self, base=None):
@@ -2836,13 +2959,17 @@ class ISO8601Parser(RFC2234CoreParser):
                             v4 = self.ParseDIGIT()
                             if IsDIGIT(self.theChar):
                                 v4 = v4 * 10 + self.ParseDIGIT()
-                                return Date(century=v1, year=v2, month=v3, day=v4, base=base), "YYYYMMDD"
+                                return Date(
+                                    century=v1, year=v2, month=v3, day=v4, base=base), "YYYYMMDD"
                             else:
-                                return Date(century=v1, year=v2, ordinalDay=v3 * 10 + v4, base=base), "YYYYDDD"
+                                return Date(
+                                    century=v1, year=v2, ordinalDay=v3 * 10 + v4, base=base), "YYYYDDD"
                         else:
-                            return Date(year=v1, month=v2, day=v3, base=base), "YYMMDD"
+                            return Date(
+                                year=v1, month=v2, day=v3, base=base), "YYMMDD"
                     else:
-                        return Date(year=v1, ordinalDay=v2 * 10 + v3, base=base), "YYDDD"
+                        return Date(
+                            year=v1, ordinalDay=v2 * 10 + v3, base=base), "YYDDD"
                 elif self.theChar == "-":
                     self.NextChar()
                     if IsDIGIT(self.theChar):
@@ -2850,14 +2977,17 @@ class ISO8601Parser(RFC2234CoreParser):
                         v3 = v3 * 10 + self.ParseDIGIT()
                         if IsDIGIT(self.theChar):
                             v3 = v3 * 10 + self.ParseDIGIT()
-                            return Date(century=v1, year=v2, ordinalDay=v3, base=base), "YYYY-DDD"
+                            return Date(
+                                century=v1, year=v2, ordinalDay=v3, base=base), "YYYY-DDD"
                         elif self.theChar == "-":
                             self.NextChar()
                             v4 = self.ParseDIGIT()
                             v4 = v4 * 10 + self.ParseDIGIT()
-                            return Date(century=v1, year=v2, month=v3, day=v4, base=base), "YYYY-MM-DD"
+                            return Date(
+                                century=v1, year=v2, month=v3, day=v4, base=base), "YYYY-MM-DD"
                         else:
-                            return Date(century=v1, year=v2, month=v3, base=base), "YYYY-MM"
+                            return Date(
+                                century=v1, year=v2, month=v3, base=base), "YYYY-MM"
                     elif self.theChar == "W":
                         self.NextChar()
                         v3 = self.ParseDIGIT()
@@ -2865,9 +2995,13 @@ class ISO8601Parser(RFC2234CoreParser):
                         if self.theChar == "-":
                             self.NextChar()
                             v4 = self.ParseDIGIT()
-                            return Date(century=v1, decade=v2 // 10, year=v2 % 10, week=v3, weekday=v4, base=base), "YYYY-Www-D"
+                            return Date(
+                                century=v1, decade=v2 // 10, year=v2 %
+                                10, week=v3, weekday=v4, base=base), "YYYY-Www-D"
                         else:
-                            return Date(century=v1, decade=v2 // 10, year=v2 % 10, week=v3, base=base), "YYYY-Www"
+                            return Date(
+                                century=v1, decade=v2 // 10, year=v2 %
+                                10, week=v3, base=base), "YYYY-Www"
                     else:
                         self.SyntaxError("expected digit or W in ISO date")
                 elif self.theChar == "W":
@@ -2876,9 +3010,12 @@ class ISO8601Parser(RFC2234CoreParser):
                     v3 = v3 * 10 + self.ParseDIGIT()
                     if IsDIGIT(self.theChar):
                         v4 = self.ParseDIGIT()
-                        return Date(century=v1, decade=v2 // 10, year=v2 % 10, week=v3, weekday=v4, base=base), "YYYYWwwD"
+                        return Date(
+                            century=v1, decade=v2 // 10, year=v2 %
+                            10, week=v3, weekday=v4, base=base), "YYYYWwwD"
                     else:
-                        return Date(century=v1, decade=v2 // 10, year=v2 % 10, week=v3, base=base), "YYYYWww"""
+                        return Date(
+                            century=v1, decade=v2 // 10, year=v2 % 10, week=v3, base=base), "YYYYWww"""
                 else:
                     return Date(century=v1, year=v2, base=base), "YYYY"
             elif self.theChar == "-":
@@ -2889,12 +3026,14 @@ class ISO8601Parser(RFC2234CoreParser):
                     v2 = v2 * 10 + self.ParseDIGIT()
                     if IsDIGIT(self.theChar):
                         v2 = v2 * 10 + self.ParseDIGIT()
-                        return Date(year=v1, ordinalDay=v2, base=base), "YY-DDD"
+                        return Date(
+                            year=v1, ordinalDay=v2, base=base), "YY-DDD"
                     elif self.theChar == "-":
                         self.NextChar()
                         v3 = self.ParseDIGIT()
                         v3 = v3 * 10 + self.ParseDIGIT()
-                        return Date(year=v1, month=v2, day=v3, base=base), "YY-MM-DD"
+                        return Date(
+                            year=v1, month=v2, day=v3, base=base), "YY-MM-DD"
                     else:
                         self.SyntaxError(
                             "expected digit or hyphen in ISO date")
@@ -2905,9 +3044,13 @@ class ISO8601Parser(RFC2234CoreParser):
                     if self.theChar == "-":
                         self.NextChar()
                         v3 = self.ParseDIGIT()
-                        return Date(decade=v1 // 10, year=v1 % 10, week=v2, weekday=v3, base=base), "YY-Www-D"
+                        return Date(
+                            decade=v1 // 10, year=v1 %
+                            10, week=v2, weekday=v3, base=base), "YY-Www-D"
                     else:
-                        return Date(decade=v1 // 10, year=v1 % 10, week=v2, base=base), "YY-Www"
+                        return Date(
+                            decade=v1 // 10, year=v1 %
+                            10, week=v2, base=base), "YY-Www"
                 else:
                     self.SyntaxError("expected digit or W in ISO date")
             elif self.theChar == "W":
@@ -2916,9 +3059,13 @@ class ISO8601Parser(RFC2234CoreParser):
                 v2 = v2 * 10 + self.ParseDIGIT()
                 if IsDIGIT(self.theChar):
                     v3 = self.ParseDIGIT()
-                    return Date(decade=v1 // 10, year=v1 % 10, week=v2, weekday=v3, base=base), "YYWwwD"
+                    return Date(
+                        decade=v1 // 10, year=v1 %
+                        10, week=v2, weekday=v3, base=base), "YYWwwD"
                 else:
-                    return Date(decade=v1 // 10, year=v1 % 10, week=v2, base=base), "YYWww"
+                    return Date(
+                        decade=v1 // 10, year=v1 %
+                        10, week=v2, base=base), "YYWww"
             else:
                 return Date(century=v1, base=base), "YY"
         elif self.theChar == "-":
@@ -2933,7 +3080,8 @@ class ISO8601Parser(RFC2234CoreParser):
                             v2 = v2 * 10 + self.ParseDIGIT()
                             return Date(year=v1, month=v2, base=base), "-YYMM"
                         else:
-                            return Date(ordinalDay=v1 * 10 + v2, base=base), "-DDD"
+                            return Date(
+                                ordinalDay=v1 * 10 + v2, base=base), "-DDD"
                     elif self.theChar == "-":
                         self.NextChar()
                         v2 = self.ParseDIGIT()
@@ -2949,7 +3097,8 @@ class ISO8601Parser(RFC2234CoreParser):
                     if self.theChar == "-":
                         self.NextChar()
                         v3 = self.ParseDIGIT()
-                        return Date(year=v1, week=v2, weekday=v3, base=base), "-Y-Www-D"
+                        return Date(
+                            year=v1, week=v2, weekday=v3, base=base), "-Y-Www-D"
                     else:
                         return Date(year=v1, week=v2, base=base), "-Y-Www"
                 elif self.theChar == "W":
@@ -2958,7 +3107,8 @@ class ISO8601Parser(RFC2234CoreParser):
                     v2 = v2 * 10 + self.ParseDIGIT()
                     if IsDIGIT(self.theChar):
                         v3 = self.ParseDIGIT()
-                        return Date(year=v1, week=v2, weekday=v3, base=base), "-YWwwD"
+                        return Date(
+                            year=v1, week=v2, weekday=v3, base=base), "-YWwwD"
                     else:
                         return Date(year=v1, week=v2, base=base), "-YWww"
             elif self.theChar == "-":
@@ -3014,7 +3164,9 @@ class ISO8601Parser(RFC2234CoreParser):
 
     def ParseDate(self, date, base=None):
         warnings.warn(
-            "ISO8601Parser.ParseDate is deprecated, use ParseDateFormat instead", DeprecationWarning, stacklevel=2)
+            "ISO8601Parser.ParseDate is deprecated, use ParseDateFormat instead",
+            DeprecationWarning,
+            stacklevel=2)
         if IsDIGIT(self.theChar):
             v1 = self.ParseDIGIT()
             v1 = v1 * 10 + self.ParseDIGIT()
@@ -3370,7 +3522,8 @@ class ISO8601Parser(RFC2234CoreParser):
             if not (BasicTimeFormats.get(tFormat) or ExtendedTimeFormats.get(tFormat)):
                 raise DateTimeError(
                     "inconsistent use of extended/basic format in time zone")
-            return Time(hour=hour, minute=minute, second=second, zDirection=zDirection, zHour=zHour, zMinute=zMinute), 0, tFormat
+            return Time(hour=hour, minute=minute, second=second,
+                        zDirection=zDirection, zHour=zHour, zMinute=zMinute), 0, tFormat
         elif base is not None:
             t, overflow = base.Extend(hour=hour, minute=minute, second=second)
             return t, overflow, tFormat
@@ -3408,7 +3561,9 @@ class ISO8601Parser(RFC2234CoreParser):
 
     def ParseTime(self, t, tBase=None, tDesignator="T"):
         warnings.warn(
-            "ISO8601Parser.ParseTime is deprecated, use ParseTimeFormat instead", DeprecationWarning, stacklevel=2)
+            "ISO8601Parser.ParseTime is deprecated, use ParseTimeFormat instead",
+            DeprecationWarning,
+            stacklevel=2)
         if self.theChar in tDesignators:
             self.NextChar()
             tDesignator = 1
@@ -3679,11 +3834,14 @@ class ISO8601Parser(RFC2234CoreParser):
         if not (self.theChar == "." or self.theChar == ","):
             self.SyntaxError("expected decimal sign")
         self.NextChar()
-        f = 0L
-        fMag = 1L
+        f = 0
+        fMag = 1
         while IsDIGIT(self.theChar):
             f = f * 10 + self.ParseDIGIT()
             fMag *= 10
         if fMag == 1:
             self.SyntaxError("expected decimal digit")
         return float(f) / float(fMag)
+
+
+EPOCH = TimePoint.FromStructTime(pytime.gmtime(0)).WithZone(zDirection=0)

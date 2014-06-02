@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx" Version="1.0">
+    <edmx:DataServices xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"
+        m:DataServiceVersion="1.0">
+        <Schema xmlns:d="http://schemas.microsoft.com/ado/2007/08/dataservices"
+            xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"
+            xmlns="http://schemas.microsoft.com/ado/2008/09/edm" Namespace="BlockSchema">
+            <EntityContainer Name="BlockContainer" m:IsDefaultEntityContainer="true">
+                <EntitySet Name="Blocks" EntityType="BlockSchema.Block"/>
+                <EntitySet Name="BlockLocks" EntityType="BlockSchema.BlockLock"/>
+                <EntitySet Name="Streams" EntityType="BlockSchema.Stream"/>
+                <EntitySet Name="BlockLists" EntityType="BlockSchema.BlockList"/>
+                <AssociationSet Name="StreamsBlockLists" Association="BlockSchema.StreamBlockList">
+                    <End Role="stream" EntitySet="Streams"/>
+                    <End Role="blocklist" EntitySet="BlockLists"/>
+                </AssociationSet>
+            </EntityContainer>
+            <EntityType Name="Block">
+                <Key>
+                    <PropertyRef Name="hash"/>
+                </Key>
+                <Property Name="hash" Type="Edm.String" Nullable="false" MaxLength="64" unicode="false"/>
+                <Property Name="data" Type="Edm.Binary" Nullable="false" MaxLength="65536"/>
+            </EntityType>
+            <EntityType Name="BlockLock">
+                <Key>
+                    <PropertyRef Name="hash"/>
+                </Key>
+                <Property Name="hash" Type="Edm.String" Nullable="false" MaxLength="64" unicode="False"/>
+                <Property Name="owner" Type="Edm.String" Nullable="false" MaxLength="32" unicode="False"/>
+                <Property Name="created" Type="Edm.DateTime" Nullable="false" Precision="3" ConcurrencyMode="Fixed"/>
+            </EntityType>
+            <EntityType Name="Stream">
+                <Key>
+                    <PropertyRef Name="streamID"/>
+                </Key>
+                <Property Name="streamID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="mimetype" Type="Edm.String" Nullable="false" MaxLength="64" unicode="false"/>
+                <Property Name="created" Type="Edm.DateTime" Nullable="false" Precision="3"/>
+                <Property Name="modified" Type="Edm.DateTime" Nullable="false" Precision="3"/>
+                <NavigationProperty Name="Blocks" FromRole="stream" ToRole="blocklist"
+                    Relationship="BlockSchema.StreamBlockList"/>
+            </EntityType>
+            <EntityType Name="BlockList">
+                <Key>
+                    <PropertyRef Name="blockID"/>                    
+                </Key>
+                <Property Name="blockID" Type="Edm.Int64" Nullable="false"/>
+                <Property Name="num" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="hash" Type="Edm.String" Nullable="false" MaxLength="64" unicode="false"/>
+                <NavigationProperty Name="Stream" FromRole="blocklist" ToRole="stream"
+                    Relationship="BlockSchema.StreamBlockList"/>             
+            </EntityType>
+            <Association Name="StreamBlockList">
+                <End Role="stream" Type="BlockSchema.Stream" Multiplicity="0..1"/>
+                <End Role="blocklist" Type="BlockSchema.BlockList" Multiplicity="*"/>
+            </Association>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>
