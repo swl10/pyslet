@@ -7,9 +7,11 @@ import time
 import random
 import logging
 import string
+import io
 
 from pyslet.vfs import OSFilePath as FilePath
 from pyslet.iso8601 import TimePoint
+import pyslet.rfc2616 as http
 import pyslet.odata2.csdl as edm
 import pyslet.odata2.core as core
 
@@ -150,7 +152,12 @@ class FileBlockStore(BlockStore):
                     0:32]))
             with tmp_path.open(mode="wb") as f:
                 f.write(data)
-            parent.makedirs()
+            if not parent.exists():
+                try:
+                    parent.makedirs()
+                except OSError:
+                    # possible race condition, ignore for now
+                    pass
             tmp_path.move(path)
             return key
 
@@ -247,9 +254,10 @@ class LockStore(object):
         locks.
 
     lock_timeout
-        The maximum number of seconds that a lock is considered
-        valid for.  If a lock is older than this time it will be
-        reused automatically.
+        The maximum number of seconds that a lock is considered valid
+        for.  If a lock is older than this time it will be reused
+        automatically.  This value is a long-stop cut off which allows a
+        system to recover automatically from bugs causing stale locks.
 
     This object is designed for use in conjunction with the basic block
     store to provide locking.  The locks are managed using an EDM entity
@@ -387,13 +395,26 @@ class StreamStore(object):
     """Class for storing stream objects
 
     Streams are split in to blocks that are stored in the associated
-    BlockStore.  Locks are used to minimise the risk of conflicts during
-    store and delete operations but all reading is done without locks.
-    As a result, it is possible to delete or modify a stream while
-    another client is reading it.
+    BlockStore.  Timed locks are used to minimise the risk of conflicts
+    during store and delete operations on each block but all other
+    operations are done without locks. As a result, it is possible to
+    delete or modify a stream while another client is using it.
+
+    The intended use case for this store is to read and write entire
+    streams - not for editing.  The stream identifiers are simply
+    numbers so if you want to modify the stream associated with a
+    resource in your application upload a new stream, switch the
+    references in your application and then delete the old one.
 
     bs
-        A :py:class:`BlockStore`: used to store the actual data
+        A :py:class:`BlockStore`: used to store the actual data.  The
+        use of a block store to persist the data in the stream ensures
+        that duplicate streams have only a small impact on storage
+        requirements as the block references are all that is duplicated.
+        Larger block sizes reduce this overhead and speed up access at
+        the expense of keeping a larger portion of the stream in memory
+        during streaming operations.  The block size is set when the
+        block store is created.
 
     ls
         A :py:class:`LockStore`: used to lock blocks during write and
@@ -439,11 +460,66 @@ class StreamStore(object):
         self.stream_set = entity_set
         self.block_set = entity_set.NavigationTarget('Blocks')
 
-    def store_block(self, stream, block_num, data):
-        """Stores a block of data in a stream
+    def new_stream(self,
+                   mimetype=http.MediaType('application', 'octet-stream')):
+        """Creates a new stream in the store.
 
-        This method exposes the underlying block storage model and is
-        used internally by the writer object."""
+        mimetype
+            A :py:class:`~pyslet.rfc2616.MimeType` object
+
+        Returns a stream entity which is an
+        :py:class:`~pyslet.odata2.csdl.Entity` instance.
+
+        The stream is identified by the stream entity's key which
+        you can store elsewhere as a reference."""
+        with self.stream_set.OpenCollection() as streams:
+            stream = streams.new_entity()
+            if not isinstance(mimetype, http.MediaType):
+                mimetype = http.MediaType.FromString(mimetype)
+            stream['mimetype'].SetFromValue(str(mimetype))
+            now = TimePoint.FromNowUTC()
+            stream['size'].SetFromValue(0)
+            stream['created'].SetFromValue(now)
+            stream['modified'].SetFromValue(now)
+            streams.insert_entity(stream)
+            return stream
+
+    def get_stream(self, stream_id):
+        """Returns the stream with identifier *stream_id*.
+
+        Returns the stream entity as an
+        :py:class:`~pyslet.odata2.csdl.Entity` instance."""
+        with self.stream_set.OpenCollection() as streams:
+            stream = streams[stream_id]
+        return stream
+
+    def open_stream(self, stream, mode="r"):
+        """Returns a file-like object for a stream object.
+
+        Returns an object derived from io.RawIOBase.
+
+        mode
+            Files are always opened in binary mode.  The characters "r",
+            "w" and "+" and "a" are honoured.
+
+        Warning: read and write methods of the resulting objects do not
+        always return all requested bytes.  In particular, read or write
+        operations never cross block boundaries in a single call."""
+        if stream is None:
+            raise ValueError
+        return BlockStream(self, stream, mode)
+
+    def delete_stream(self, stream):
+        """Deletes a stream from the store.
+
+        Any data blocks that are orphaned by this deletion are
+        removed."""
+        with self.stream_set.OpenCollection() as streams:
+            self.delete_blocks(stream)
+            del streams[stream.Key()]
+            stream.exists = False
+
+    def store_block(self, stream, block_num, data):
         hash_key = self.bs.key(data)
         with stream['Blocks'].OpenCollection() as blocks:
             block = blocks.new_entity()
@@ -453,6 +529,29 @@ class StreamStore(object):
             # now ensure that the data is stored
             with self.ls.lock(hash_key):
                 self.bs.store(data)
+            return block
+
+    def update_block(self, block, data):
+        hash_key = block['hash'].value
+        new_hash = self.bs.key(data)
+        if new_hash == hash_key:
+            return
+        filter = core.BinaryExpression(core.Operator.eq)
+        filter.AddOperand(core.PropertyExpression('hash'))
+        hash_value = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
+        filter.AddOperand(core.LiteralExpression(hash_value))
+        # filter is: hash eq <hash_value>
+        with self.block_set.OpenCollection() as base_coll:
+            with self.ls.lock(hash_key), self.ls.lock(new_hash):
+                self.bs.store(data)
+                block['hash'].SetFromValue(new_hash)
+                base_coll.update_entity(block)
+                # is the old hash key used anywhere?
+                hash_value.SetFromValue(hash_key)
+                base_coll.set_filter(filter)
+                if len(base_coll) == 0:
+                    # remove orphan block from block store
+                    self.bs.delete(hash_key)
 
     def retrieve_blocklist(self, stream):
         with stream['Blocks'].OpenCollection() as blocks:
@@ -464,7 +563,7 @@ class StreamStore(object):
     def retrieve_block(self, block):
         return self.bs.retrieve(block['hash'].value)
 
-    def delete(self, stream):
+    def delete_blocks(self, stream, from_num=0):
         blocks = list(self.retrieve_blocklist(stream))
         filter = core.BinaryExpression(core.Operator.eq)
         filter.AddOperand(core.PropertyExpression('hash'))
@@ -473,12 +572,160 @@ class StreamStore(object):
         # filter is: hash eq <hash_value>
         with self.block_set.OpenCollection() as base_coll:
             for block in blocks:
+                if from_num and block['num'].value < from_num:
+                    continue
                 hash_key = block['hash'].value
-                del base_coll[block.Key()]
-                # is this hash key used anywhere?
-                hash_value.SetFromValue(hash_key)
-                base_coll.set_filter(filter)
-                with self.ls.lock(block['hash'].value):
+                with self.ls.lock(hash_key):
+                    del base_coll[block.Key()]
+                    # is this hash key used anywhere?
+                    hash_value.SetFromValue(hash_key)
+                    base_coll.set_filter(filter)
                     if len(base_coll) == 0:
-                        # remove orphan block
+                        # remove orphan block from block store
                         self.bs.delete(hash_key)
+
+
+class BlockStream(io.RawIOBase):
+
+    def __init__(self, ss, stream, mode="r"):
+        self.ss = ss
+        self.stream = stream
+        self.r = "r" in mode or "+" in mode
+        self.w = "w" in mode or "+" in mode
+        self.size = stream['size'].value
+        self.blocks = list(self.ss.retrieve_blocklist(self.stream))
+        self.block_size = self.ss.bs.max_block_size
+        self._bdata = None
+        self._bnum = 0
+        self._bpos = 0
+        self._btop = 0
+        self._bdirty = False
+        if "a" in mode:
+            self.seek(self.size)
+        else:
+            self.seek(0)
+            if "w" in mode:
+                self.ss.delete_blocks(self.stream)
+
+    def close(self):
+        super(BlockStream, self).close()
+        self.blocks = None
+        self.r = self.w = False
+
+    def readable(self):
+        return self.r
+
+    def writable(self):
+        return self.w
+
+    def seekable(self):
+        return True
+
+    def seek(self, offset, whence=io.SEEK_SET):
+        if whence == io.SEEK_SET:
+            self.pos = offset
+        elif whence == io.SEEK_CUR:
+            self.pos += offset
+        elif whence == io.SEEK_END:
+            self.pos = self.size + offset
+        else:
+            raise IOError("bad value for whence in seek")
+        new_bnum = self.pos // self.block_size
+        if new_bnum != self._bnum:
+            self.flush()
+            self._bdata = None
+            self._bnum = new_bnum
+        self._bpos = self.pos % self.block_size
+        self._set_btop()
+
+    def _set_btop(self):
+        if self.size // self.block_size == self._bnum:
+            # we're pointing to the last block
+            self._btop = self.size % self.block_size
+        else:
+            self._btop = self.block_size
+
+    def flush(self):
+        if self._bdirty:
+            # the current block is dirty, write it out
+            data = self._bdata[:self._btop]
+            if data:
+                block = self.blocks[self._bnum]
+                if block.exists:
+                    self.ss.update_block(block, str(data))
+                else:
+                    self.blocks[self._bnum] = self.ss.store_block(
+                        self.stream, self._bnum, data)
+            if self.size != self.stream['size'].value:
+                self.stream['size'].SetFromValue(self.size)
+            now = TimePoint.FromNowUTC()
+            self.stream['modified'].SetFromValue(now)
+            self.stream.Update()
+            self._bdirty = False
+
+    def tell(self):
+        return self.pos
+
+    def readinto(self, b):
+        if not self.r:
+            raise IOError("stream not open for reading")
+        nbytes = self._btop - self._bpos
+        if nbytes <= 0:
+            # we must be at the file size limit
+            return 0
+        if self._bdata is None:
+            # load the data
+            if self.w:
+                # create a full size block in case we also write
+                self._bdata = bytearray(self.block_size)
+                data = self.ss.retrieve_block(self.blocks[self._bnum])
+                self._bdata[:len(data)] = data
+            else:
+                self._bdata = bytearray(
+                    self.ss.retrieve_block(self.blocks[self._bnum]))
+        if nbytes > len(b):
+            nbytes = len(b)
+        b[:nbytes] = self._bdata[self._bpos:self._bpos + nbytes]
+        self.seek(nbytes, io.SEEK_CUR)
+        return nbytes
+
+    def write(self, b):
+        if not self.w:
+            raise IOError("stream not open for writing")
+        # we can always write something in the block, nbytes > 0
+        nbytes = self.block_size - self._bpos
+        if self._bdata is None:
+            if self._btop <= 0:
+                # add a new empty blocks first
+                last_block = len(self.blocks)
+                while last_block < self._bnum:
+                    self.blocks.append(self.ss.store_block(
+                        self.stream, last_block, bytearray(self.block_size)))
+                    last_block += 1
+                    self.size = last_block * self.block_size
+                # force the new size to be written
+                self._bdata = bytearray(self.block_size)
+                self._bdirty = True
+                self.flush()
+                # finally add the last block, but don't store it yet
+                with self.stream['Blocks'].OpenCollection() as blist:
+                    new_block = blist.new_entity()
+                    new_block['num'].SetFromValue(self._bnum)
+                    self.blocks.append(new_block)
+                self.size = self.pos
+                self._set_btop()
+                if self._bpos:
+                    self._bdirty = True
+            else:
+                self._bdata = bytearray(self.block_size)
+                data = self.ss.retrieve_block(self.blocks[self._bnum])
+                self._bdata[:len(data)] = data
+        if nbytes > len(b):
+            nbytes = len(b)
+        self._bdata[self._bpos:self._bpos + nbytes] = b[:nbytes]
+        self._bdirty = True
+        if self.pos + nbytes > self.size:
+            self.size = self.pos + nbytes
+            self._set_btop()
+        self.seek(nbytes, io.SEEK_CUR)
+        return nbytes

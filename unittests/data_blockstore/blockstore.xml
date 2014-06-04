@@ -38,6 +38,7 @@
                 <Property Name="mimetype" Type="Edm.String" Nullable="false" MaxLength="64" unicode="false"/>
                 <Property Name="created" Type="Edm.DateTime" Nullable="false" Precision="3"/>
                 <Property Name="modified" Type="Edm.DateTime" Nullable="false" Precision="3"/>
+                <Property Name="size" Type="Edm.Int64" Nullable="false"/>
                 <NavigationProperty Name="Blocks" FromRole="stream" ToRole="blocklist"
                     Relationship="BlockSchema.StreamBlockList"/>
             </EntityType>

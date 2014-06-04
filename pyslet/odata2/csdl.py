@@ -1033,8 +1033,10 @@ class BinaryValue(SimpleValue):
             p.ParseBinaryLiteral(), "binaryLiteral")
 
     def SetFromValue(self, newValue):
-        if isinstance(newValue, StringType):
+        if isinstance(newValue, bytes):
             self.value = newValue
+        elif isinstance(newValue, bytearray):
+            self.value = bytes(newValue)
         elif newValue is None:
             self.value = None
         else:
@@ -2469,14 +2471,14 @@ class Entity(TypeInstance):
                     t.SetFromValue(t.value + 1)
                 else:
                     t.SetFromValue(1)
-            elif isinstance(t, (DateTimeValue, DateTimeOffset)):
+            elif isinstance(t, (DateTimeValue, DateTimeOffsetValue)):
                 oldT = t.value
                 t.SetFromValue(iso8601.TimePoint.FromNowUTC())
                 if t.value == oldT:
                     # that was quick, push it 1s into the future
                     newTime, overflow = t.value.time.Offset(seconds=1)
-                    t.SetFromValue(
-                        date=t.value.date.Offset(days=overflow), time=newTime)
+                    t.SetFromValue(iso8601.TimePoint(
+                        date=t.value.date.Offset(days=overflow), time=newTime))
             elif isinstance(t, GuidValue):
                 oldT = t.value
                 while t.value == oldT:
@@ -2833,12 +2835,12 @@ class EntityCollection(DictionaryLike):
         constraints."""
         return Entity(self.entity_set)
 
-    def NewEntity(self, entity): # noqa
+    def NewEntity(self, entity):  # noqa
         warnings.warn("EntityCollection.NewEntity is deprecated, "
                       "use new_entity", DeprecationWarning,
                       stacklevel=2)
         self.new_entity(entity)
-        
+
     def CopyEntity(self, entity):
         """Creates a new *entity* copying the value from *entity*
 
@@ -2869,12 +2871,12 @@ class EntityCollection(DictionaryLike):
         create two entities with duplicate keys)."""
         raise NotImplementedError
 
-    def InsertEntity(self, entity): # noqa
+    def InsertEntity(self, entity):  # noqa
         warnings.warn("EntityCollection.InsertEntity is deprecated, "
                       "use insert_entity", DeprecationWarning,
                       stacklevel=2)
         self.insert_entity(entity)
-        
+
     def update_entity(self, entity):
         """Updates *entity* which must already be in the entity set.
 
@@ -2882,12 +2884,12 @@ class EntityCollection(DictionaryLike):
         writeable."""
         raise NotImplementedError
 
-    def UpdateEntity(self, entity): # noqa
+    def UpdateEntity(self, entity):  # noqa
         warnings.warn("EntityCollection.UpdateEntity is deprecated, "
                       "use update_entity", DeprecationWarning,
                       stacklevel=2)
         self.update_entity(entity)
-        
+
     def update_bindings(self, entity):
         """Iterates through the :py:meth:`Entity.NavigationItems` and
         generates appropriate calls to create/update any pending
@@ -2899,12 +2901,12 @@ class EntityCollection(DictionaryLike):
         for k, dv in entity.NavigationItems():
             dv.update_bindings()
 
-    def UpdateBindings(self, entity): # noqa
+    def UpdateBindings(self, entity):  # noqa
         warnings.warn("EntityCollection.UpdateBindings is deprecated, "
                       "use update_entity", DeprecationWarning,
                       stacklevel=2)
         self.update_bindings(entity)
-        
+
     def __getitem__(self, key):
         # key=self.entity_set.GetKey(key)
         logging.warning(
@@ -3186,12 +3188,12 @@ class NavigationCollection(EntityCollection):
         self.clear()
         self[entity.Key()] = entity
 
-    def Replace(self, entity): # noqa
+    def Replace(self, entity):  # noqa
         warnings.warn("NavigationCollection.Replace is deprecated, "
                       "use replace", DeprecationWarning,
                       stacklevel=2)
         self.replace(entity)
-        
+
 
 class ExpandedEntityCollection(NavigationCollection):
 

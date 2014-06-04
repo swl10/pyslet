@@ -8,6 +8,7 @@ import os.path
 from pyslet.vfs import OSFilePath as FilePath
 import pyslet.odata2.edmx as edmx
 from pyslet.odata2.memds import InMemoryEntityContainer
+from pyslet.odata2.sqlds import SQLiteEntityContainer
 
 from pyslet.blockstore import *     # noqa
 
@@ -20,7 +21,8 @@ def suite():
         loader.loadTestsFromTestCase(FileTests),
         loader.loadTestsFromTestCase(ODataTests),
         loader.loadTestsFromTestCase(LockingTests),
-        loader.loadTestsFromTestCase(StreamStoreTests)
+        loader.loadTestsFromTestCase(StreamStoreTests),
+        loader.loadTestsFromTestCase(RandomStreamTests),
     ))
 
 
@@ -317,12 +319,12 @@ class StreamStoreTests(unittest.TestCase):
         self.container = InMemoryEntityContainer(self.cdef)
         self.mt_lock = threading.Lock()
         self.mt_count = 0
-        self.bs = EDMBlockStore(entity_set=self.cdef['Blocks'])
+        self.bs = EDMBlockStore(entity_set=self.cdef['Blocks'],
+                                max_block_size=64)
         self.ls = LockStore(entity_set=self.cdef['BlockLocks'])
 
     def test_init(self):
-        ss = StreamStore(bs=self.bs, ls=self.ls,
-                         entity_set=self.cdef['Streams'])
+        StreamStore(bs=self.bs, ls=self.ls, entity_set=self.cdef['Streams'])
 
     def test_store(self):
         ss = StreamStore(bs=self.bs, ls=self.ls,
@@ -343,27 +345,214 @@ class StreamStoreTests(unittest.TestCase):
             streams.insert_entity(stream2)
             fox = "The quick brown fox jumped over the lazy dog"
             cafe = u"Caf\xe9".encode('utf-8')
-            ss.store_block(stream1, 0, fox)
-            ss.store_block(stream1, 1, cafe)
+            ss.store_block(stream1, 0, cafe)
+            ss.store_block(stream1, 1, fox)
             ss.store_block(stream2, 0, cafe)
             self.assertTrue(len(blocks) == 3)
             blocks1 = list(ss.retrieve_blocklist(stream1))
-            self.assertTrue(ss.retrieve_block(blocks1[0]) == fox)
-            self.assertTrue(ss.retrieve_block(blocks1[1]) == cafe)
+            self.assertTrue(ss.retrieve_block(blocks1[0]) == cafe)
+            self.assertTrue(ss.retrieve_block(blocks1[1]) == fox)
             blocks2 = list(ss.retrieve_blocklist(stream2))
             self.assertTrue(ss.retrieve_block(blocks2[0]) == cafe)
-            ss.delete(stream1)
-            self.assertTrue(len(blocks) == 1)
+            ss.delete_blocks(stream1, 1)
+            # should also have deleted fox from the block store
+            self.assertTrue(len(blocks) == 2)
             try:
-                ss.retrieve_block(blocks1[0])
+                ss.retrieve_block(blocks1[1])
                 self.fail("Expected missing block")
             except BlockMissing:
                 pass
+            self.assertTrue(ss.retrieve_block(blocks1[0]) == cafe)
+            ss.delete_blocks(stream1)
+            self.assertTrue(len(blocks) == 1)
             self.assertTrue(ss.retrieve_block(blocks2[0]) == cafe)
+
+    def test_create(self):
+        ss = StreamStore(bs=self.bs, ls=self.ls,
+                         entity_set=self.cdef['Streams'])
+        s1 = ss.new_stream("text/plain")
+        self.assertTrue(isinstance(s1, edm.Entity))
+        self.assertTrue(s1['mimetype'].value == "text/plain")
+        s2 = ss.new_stream(http.MediaType('text', 'plain',
+                                          {'charset': ('charset', 'utf-8')}))
+        self.assertTrue(isinstance(s2, edm.Entity))
+        self.assertTrue(s2['mimetype'].value == "text/plain; charset=utf-8")
+        skey1 = s1.Key()
+        skey2 = s2.Key()
+        s1 = ss.get_stream(skey1)
+        self.assertTrue(isinstance(s1, edm.Entity))
+        for i in xrange(10):
+            try:
+                ss.get_stream(i)
+                self.assertTrue(i == skey1 or i == skey2)
+            except KeyError:
+                self.assertFalse(i == skey1 or i == skey2)
+
+    def test_open_default(self):
+        ss = StreamStore(bs=self.bs, ls=self.ls,
+                         entity_set=self.cdef['Streams'])
+        s1 = ss.new_stream("text/plain")
+        self.assertTrue(s1['size'].value == 0)
+        with ss.open_stream(s1) as s:
+            self.assertTrue(isinstance(s, io.RawIOBase))
+            self.assertFalse(s.closed)
+            try:
+                s.fileno()
+                self.fail("streams do not have file numbers")
+            except IOError:
+                pass
+            self.assertFalse(s.isatty())
+            self.assertTrue(s.readable())
+            self.assertFalse(s.writable())
+            self.assertTrue(s.tell() == 0)
+            self.assertTrue(s.seekable())
+            # the stream is empty, so read should return EOF
+            self.assertTrue(len(s.read()) == 0)
+
+    def test_open_w_r(self):
+        ss = StreamStore(bs=self.bs, ls=self.ls,
+                         entity_set=self.cdef['Streams'])
+        s1 = ss.new_stream("text/plain")
+        with ss.open_stream(s1, 'w') as s:
+            self.assertFalse(s.closed)
+            self.assertFalse(s.readable())
+            self.assertTrue(s.writable())
+            self.assertTrue(s.tell() == 0)
+            # try writing a multi-block string
+            nbytes = 0
+            fox = "The quick brown fox jumped over the lazy dog"
+            cafe = u"Caf\xe9".encode('utf-8')
+            data = fox + cafe + fox
+            while nbytes < len(data):
+                nbytes += s.write(data[nbytes:])
+            self.assertTrue(s.tell() == nbytes)
+        self.assertTrue(s1['size'].value == nbytes)
+        with self.cdef['BlockLists'].OpenCollection() as blocks:
+            # data should spill over to 2 blocks
+            self.assertTrue(len(blocks) == 2)
+        with ss.open_stream(s1, 'r') as s:
+            self.assertFalse(s.closed)
+            self.assertTrue(s.readable())
+            self.assertFalse(s.writable())
+            self.assertTrue(s.tell() == 0)
+            rdata = s.read()
+            self.assertTrue(rdata == data, "Read back %s" % repr(rdata))
+            self.assertTrue(s.tell() == nbytes)
+
+
+class BlockStoreContainer(SQLiteEntityContainer):
+
+    def ro_name(self, source_path):
+        # force auto numbering of primary keys
+        if source_path == ('Streams', 'streamID'):
+            return True
+        elif source_path == ('BlockLists', 'blockID'):
+            return True
+        else:
+            return super(BlockStoreContainer, self).ro_name(source_path)
+
+
+class RandomStreamTests(unittest.TestCase):
+
+    def setUp(self):  # noqa
+        self.d = FilePath.mkdtemp('.d', 'pyslet-test_blockstore-')
+        path = os.path.join(DATA_DIR, 'blockstore.xml')
+        self.doc = edmx.Document()
+        with open(path, 'rb') as f:
+            self.doc.Read(f)
+        self.cdef = self.doc.root.DataServices['BlockSchema.BlockContainer']
+        self.block_size = random.randint(1, 100)
+        logging.info("File block size: %i", self.block_size)
+        self.f = self.d.join('blockstore.test').open('w+b')
+        self.fox = (u"The quick brown fox jumped over the lazy dog "
+                    u"Caf\xe9".encode('utf-8'))
+
+    def tearDown(self):  # noqa
+        self.f.close()
+        self.d.rmtree(True)
+
+    def random_rw(self):
+        stream = self.ss.new_stream("text/plain; charset=utf-8")
+        ssize = 0
+        with self.ss.open_stream(stream, 'w+b') as sf:
+            for i in xrange(100):
+                pos = random.randint(0, ssize)
+                nbytes = random.randint(0, len(self.fox))
+                # read what we have
+                sf.seek(pos)
+                self.f.seek(pos)
+                expectBytes = self.f.read(nbytes)
+                gotBytes = ""
+                while len(gotBytes) < nbytes:
+                    newBytes = sf.read(nbytes - len(gotBytes))
+                    if len(newBytes):
+                        gotBytes = gotBytes + newBytes
+                    else:
+                        break
+                logging.debug("Read @%i expected: %s", pos, repr(expectBytes))
+                logging.debug("Read @%i received: %s", pos, repr(gotBytes))
+                self.assertTrue(gotBytes == expectBytes)
+                sf.seek(pos)
+                wbytes = 0
+                while wbytes < nbytes:
+                    wbytes += sf.write(self.fox[wbytes:nbytes])
+                self.f.seek(pos)
+                self.f.write(self.fox[:nbytes])
+                expectPos = self.f.tell()
+                gotPos = sf.tell()
+                logging.debug("Tell expected %i got %i after "
+                              "writing %i bytes @%i", expectPos, gotPos, nbytes, pos)
+                self.assertTrue(expectPos == gotPos)
+                if expectPos > ssize:
+                    ssize = expectPos
+        stream = self.ss.get_stream(stream.Key())
+        self.assertTrue(stream['size'].value == ssize)
+
+    def test_mem_file(self):
+        self.container = InMemoryEntityContainer(self.cdef)
+        self.bs = FileBlockStore(dpath=self.d,
+                                 max_block_size=self.block_size)
+        self.ls = LockStore(entity_set=self.cdef['BlockLocks'])
+        self.ss = StreamStore(bs=self.bs, ls=self.ls,
+                              entity_set=self.cdef['Streams'])
+        self.random_rw()
+
+    def test_mem_mem(self):
+        self.container = InMemoryEntityContainer(self.cdef)
+        self.bs = EDMBlockStore(entity_set=self.cdef['Blocks'],
+                                max_block_size=self.block_size)
+        self.ls = LockStore(entity_set=self.cdef['BlockLocks'])
+        self.ss = StreamStore(bs=self.bs, ls=self.ls,
+                              entity_set=self.cdef['Streams'])
+        self.random_rw()
+
+    def test_sql_file(self):
+        self.container = BlockStoreContainer(
+            container=self.cdef,
+            file_path=str(self.d.join('blockstore.db')))
+        self.container.create_all_tables()
+        self.bs = FileBlockStore(dpath=self.d,
+                                 max_block_size=self.block_size)
+        self.ls = LockStore(entity_set=self.cdef['BlockLocks'])
+        self.ss = StreamStore(bs=self.bs, ls=self.ls,
+                              entity_set=self.cdef['Streams'])
+        self.random_rw()
+
+    def test_sql_sql(self):
+        self.container = BlockStoreContainer(
+            container=self.cdef,
+            file_path=str(self.d.join('blockstore.db')))
+        self.container.create_all_tables()
+        self.bs = EDMBlockStore(entity_set=self.cdef['Blocks'],
+                                max_block_size=self.block_size)
+        self.ls = LockStore(entity_set=self.cdef['BlockLocks'])
+        self.ss = StreamStore(bs=self.bs, ls=self.ls,
+                              entity_set=self.cdef['Streams'])
+        self.random_rw()
 
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.WARN,
         format="[%(thread)d] %(levelname)s %(message)s")
     unittest.main()
