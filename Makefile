@@ -51,6 +51,7 @@ pep8s: pep8
 	pep8 --statistics -qq pyslet
 	
 flake8:
+	autopep8 -i -r pyslet
 	touch flake8-count.txt
 	date >> flake8-count.txt
 	-flake8 --count -qq pyslet >> flake8-count.txt 2>&1

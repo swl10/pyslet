@@ -2000,7 +2000,8 @@ class ODataURI:
         self.pathPrefix = pathPrefix
         #: a string containing the resource path (or None if this is not a resource path)
         self.resourcePath = None
-        self.navPath = []                   #: a list of navigation path segment strings
+        #: a list of navigation path segment strings
+        self.navPath = []
         #: the path option in effect or None if no path option was given
         self.pathOption = None
         #: the name of the navigation property following $links (no None)
@@ -2264,11 +2265,11 @@ class Entity(edm.Entity):
 
         Must return a tuple of
         (:py:class:`pyslet.rfc2616.MediaType`, long)
-        
+
         If the size information is not available then the second item in
         the tuple must be None"""
         raise NotImplementedError
-        
+
     def GetStreamType(self):    # noqa
         warnings.warn("Entity.GetStreamType is deprecated, "
                       "use get_stream_info()[0]", DeprecationWarning,
@@ -2284,7 +2285,7 @@ class Entity(edm.Entity):
     def get_stream_generator(self):
         """A generator function that yields the media stream as strings."""
         raise NotImplementedError
-        
+
     def GetStreamGenerator(self):   # noqa
         warnings.warn("Entity.GetStreamGenerator is deprecated, "
                       "use get_stream_generator()", DeprecationWarning,
@@ -2299,12 +2300,12 @@ class Entity(edm.Entity):
         instance."""
         raise NotImplementedError
 
-    def SetStreamFromGenerator(self, stream_type, src): # noqa
+    def SetStreamFromGenerator(self, stream_type, src):  # noqa
         warnings.warn("Entity.SetStreamFromGenerator is deprecated, "
                       "use set_stream_from_generator", DeprecationWarning,
                       stacklevel=2)
         self.set_stream_from_generator(stream_type, src)
-    
+
     def SetFromJSONObject(self, obj, entityResolver=None, forUpdate=False):
         """Sets the value of this entity from a dictionary parsed from a
         JSON representation."""
@@ -2903,7 +2904,8 @@ class Property(ODataElement):
 
     def __init__(self, parent):
         ODataElement.__init__(self, parent)
-        self.edmValue = None        # an :py:class:`pyslet.mc_csdl.EDMValue` instance
+        # an :py:class:`pyslet.mc_csdl.EDMValue` instance
+        self.edmValue = None
 
     def GetSimpleType(self):
         type = self.GetNSAttribute((ODATA_METADATA_NAMESPACE, 'type'))
@@ -3065,7 +3067,8 @@ class Feed(atom.Feed):
 
     def __init__(self, parent, collection=None):
         super(Feed, self).__init__(parent)
-        self.collection = collection            #: the collection this feed represents
+        #: the collection this feed represents
+        self.collection = collection
         if self.collection is not None:
             location = str(self.collection.GetLocation())
             self.AtomId.SetValue(location)

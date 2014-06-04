@@ -4,59 +4,67 @@ import unittest
 
 from StringIO import StringIO
 
+
 def suite():
-	return unittest.TestSuite((
-		unittest.makeSuite(LRMTests,'test'),
-		unittest.makeSuite(LRMElementTests,'test'),
-		unittest.makeSuite(LRMEducationalTests,'test'),
-		unittest.makeSuite(LRMDocumentTests,'test')
-		))
+    return unittest.TestSuite((
+        unittest.makeSuite(LRMTests, 'test'),
+        unittest.makeSuite(LRMElementTests, 'test'),
+        unittest.makeSuite(LRMEducationalTests, 'test'),
+        unittest.makeSuite(LRMDocumentTests, 'test')
+    ))
 
 from pyslet.imsmdv1p2p1 import *
 import pyslet.imscpv1p2 as imscp
 
 try:
-	import pkg_resources
+    import pkg_resources
 except ImportError:
-	pkg_resources=None
-	
-if vobject is None:
-	print "vobject tests skipped"
-	print "\tTry installing vobject from http://vobject.skyhouseconsulting.com/  (vobject-0.8.1c)"
-	print "\t\talso requires http://labix.org/python-dateutil"
-elif pkg_resources:
-	vv=pkg_resources.get_distribution("vobject").version
-	dv=pkg_resources.get_distribution("python-dateutil").version
-	if vv!='0.8.1c':
-		print "Designed for vobject-0.8.1c, testing with version %s"%vv
-	if dv!='1.5':
-		print "Designed for python-dateutil-1.5, testing with version %s"%dv
-else:
-	print "\tCannot determine vobject package version, install setuptools to remove this message"
+    pkg_resources = None
 
-	
+if vobject is None:
+    print "vobject tests skipped"
+    print "\tTry installing vobject from http://vobject.skyhouseconsulting.com/  (vobject-0.8.1c)"
+    print "\t\talso requires http://labix.org/python-dateutil"
+elif pkg_resources:
+    vv = pkg_resources.get_distribution("vobject").version
+    dv = pkg_resources.get_distribution("python-dateutil").version
+    if vv != '0.8.1c':
+        print "Designed for vobject-0.8.1c, testing with version %s" % vv
+    if dv != '1.5':
+        print "Designed for python-dateutil-1.5, testing with version %s" % dv
+else:
+    print "\tCannot determine vobject package version, install setuptools to remove this message"
+
+
 class LRMTests(unittest.TestCase):
-	def testCaseConstants(self):
-		self.assertTrue(IMSLRM_NAMESPACE=="http://www.imsglobal.org/xsd/imsmd_v1p2","Wrong LRM namespace: %s"%IMSLRM_NAMESPACE)
-		self.assertTrue(len(IMSLRM_NAMESPACE_ALIASES)==2)
-		for alias in IMSLRM_NAMESPACE_ALIASES:
-			self.assertFalse(alias==IMSLRM_NAMESPACE)
-		self.assertTrue(IMSLRM_SCHEMALOCATION=="http://www.imsglobal.org/xsd/imsmd_v1p2p4.xsd","LRM schemaLocation: %s"%IMSLRM_SCHEMALOCATION)
-		self.assertTrue(LOM_SOURCE=="LOMv1.0","LOM_SOURCE")
-		
-	def testCaseClassMap(self):
-		self.assertTrue(GetElementClass((IMSLRM_NAMESPACE,'lom')) is LOM)
-		for alias in IMSLRM_NAMESPACE_ALIASES:
-			self.assertTrue(GetElementClass((alias,'lom')) is LOM)
-		self.assertFalse(GetElementClass(('http://www.example.com/','lom')) is LOM)
-		self.assertTrue(GetElementClass((IMSLRM_NAMESPACE,'x-undefined')) is LRMElement)
-		
+
+    def testCaseConstants(self):
+        self.assertTrue(IMSLRM_NAMESPACE == "http://www.imsglobal.org/xsd/imsmd_v1p2",
+                        "Wrong LRM namespace: %s" % IMSLRM_NAMESPACE)
+        self.assertTrue(len(IMSLRM_NAMESPACE_ALIASES) == 2)
+        for alias in IMSLRM_NAMESPACE_ALIASES:
+            self.assertFalse(alias == IMSLRM_NAMESPACE)
+        self.assertTrue(IMSLRM_SCHEMALOCATION == "http://www.imsglobal.org/xsd/imsmd_v1p2p4.xsd",
+                        "LRM schemaLocation: %s" % IMSLRM_SCHEMALOCATION)
+        self.assertTrue(LOM_SOURCE == "LOMv1.0", "LOM_SOURCE")
+
+    def testCaseClassMap(self):
+        self.assertTrue(GetElementClass((IMSLRM_NAMESPACE, 'lom')) is LOM)
+        for alias in IMSLRM_NAMESPACE_ALIASES:
+            self.assertTrue(GetElementClass((alias, 'lom')) is LOM)
+        self.assertFalse(
+            GetElementClass(('http://www.example.com/', 'lom')) is LOM)
+        self.assertTrue(
+            GetElementClass((IMSLRM_NAMESPACE, 'x-undefined')) is LRMElement)
+
+
 class LRMElementTests(unittest.TestCase):
-	def testCaseConstructor(self):
-		e=LRMElement(None)
-		#self.assertTrue(e.ns==IMSLRM_NAMESPACE,'ns on construction')
-		
-EXAMPLE_1="""<manifest xmlns="http://www.imsglobal.org/xsd/imscp_v1p1" xmlns:imsmd="http://www.imsglobal.org/xsd/imsmd_v1p2" 
+
+    def testCaseConstructor(self):
+        e = LRMElement(None)
+        #self.assertTrue(e.ns==IMSLRM_NAMESPACE,'ns on construction')
+
+EXAMPLE_1 = """<manifest xmlns="http://www.imsglobal.org/xsd/imscp_v1p1" xmlns:imsmd="http://www.imsglobal.org/xsd/imsmd_v1p2" 
 xmlns:imsqti="http://www.imsglobal.org/xsd/imsqti_v2p1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="MANIFEST-QTI-1" 
 xsi:schemaLocation="http://www.imsglobal.org/xsd/imscp_v1p1 http://www.imsglobal.org/xsd/imscp_v1p1.xsd   
 http://www.imsglobal.org/xsd/imsmd_v1p2 imsmd_v1p2p4.xsd  http://www.imsglobal.org/xsd/imsqti_v2p1 http://www.imsglobal.org/xsd/imsqti_v2p1.xsd">
@@ -115,42 +123,44 @@ http://www.imsglobal.org/xsd/imsmd_v1p2 imsmd_v1p2p4.xsd  http://www.imsglobal.o
 
 
 class LRMEducationalTests(unittest.TestCase):
-	def testCaseDescription(self):
-		"""We have to deal with the LRM binding's lack of multiplicity on educational description.
-		That means that we need method in lists of LangStrings that allow us to add language-tagged
-		text to an existing list of langstrings."""
-		edu=LOMEducational(None)
-		description=edu.ChildElement(Description)
-		hello=description.ChildElement(description.LangStringClass)
-		hello.SetValue("Hello")
-		hello.SetLang('en-GB')
-		ciao=description.ChildElement(description.LangStringClass)
-		ciao.SetValue("Ciao")
-		ciao.SetLang('it')
-		helloTest=description.GetLangString('en')
-		self.assertTrue(helloTest.GetValue()=='Hello')
-		ciaoTest=description.GetLangString('it')
-		self.assertTrue(ciaoTest.GetValue()=='Ciao')
-		ciaoTest=description.GetLangString('it-IT')
-		self.assertTrue(ciaoTest.GetValue()=='Ciao')
-		description.AddString('en','World')
-		helloTest=description.GetLangString('en')
-		self.assertTrue(helloTest.GetValue()=='Hello; World')
-		bonjour=description.AddString('fr','Bonjour')
-		bonjourTest=description.GetLangString('fr')
-		self.assertTrue(bonjourTest.GetValue()=='Bonjour')
-		unknown=description.AddString(None,'Hi')
-		unknownTest=description.GetLangString(None)
-		self.assertTrue(unknownTest.GetValue()=='Hi')
-		
+
+    def testCaseDescription(self):
+        """We have to deal with the LRM binding's lack of multiplicity on educational description.
+        That means that we need method in lists of LangStrings that allow us to add language-tagged
+        text to an existing list of langstrings."""
+        edu = LOMEducational(None)
+        description = edu.ChildElement(Description)
+        hello = description.ChildElement(description.LangStringClass)
+        hello.SetValue("Hello")
+        hello.SetLang('en-GB')
+        ciao = description.ChildElement(description.LangStringClass)
+        ciao.SetValue("Ciao")
+        ciao.SetLang('it')
+        helloTest = description.GetLangString('en')
+        self.assertTrue(helloTest.GetValue() == 'Hello')
+        ciaoTest = description.GetLangString('it')
+        self.assertTrue(ciaoTest.GetValue() == 'Ciao')
+        ciaoTest = description.GetLangString('it-IT')
+        self.assertTrue(ciaoTest.GetValue() == 'Ciao')
+        description.AddString('en', 'World')
+        helloTest = description.GetLangString('en')
+        self.assertTrue(helloTest.GetValue() == 'Hello; World')
+        bonjour = description.AddString('fr', 'Bonjour')
+        bonjourTest = description.GetLangString('fr')
+        self.assertTrue(bonjourTest.GetValue() == 'Bonjour')
+        unknown = description.AddString(None, 'Hi')
+        unknownTest = description.GetLangString(None)
+        self.assertTrue(unknownTest.GetValue() == 'Hi')
+
 
 class LRMDocumentTests(unittest.TestCase):
-	def testCaseExample1(self):
-		doc=imscp.ManifestDocument()
-		doc.Read(src=StringIO(EXAMPLE_1))
-		r=doc.GetElementByID('choice')
-		self.assertTrue(isinstance(list(r.Metadata.GetChildren())[0],LOM),"LOM")
-		
-if __name__ == "__main__":
-	unittest.main()
 
+    def testCaseExample1(self):
+        doc = imscp.ManifestDocument()
+        doc.Read(src=StringIO(EXAMPLE_1))
+        r = doc.GetElementByID('choice')
+        self.assertTrue(
+            isinstance(list(r.Metadata.GetChildren())[0], LOM), "LOM")
+
+if __name__ == "__main__":
+    unittest.main()

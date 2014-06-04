@@ -2,23 +2,27 @@
 
 import unittest
 
+
 def suite():
-	loader=unittest.TestLoader()
-	loader.testMethodPrefix='test'
-	return unittest.TestSuite((
-		loader.loadTestsFromTestCase(RTFTests)
-		))
+    loader = unittest.TestLoader()
+    loader.testMethodPrefix = 'test'
+    return unittest.TestSuite((
+        loader.loadTestsFromTestCase(RTFTests)
+    ))
+
 
 def load_tests(loader, tests, pattern):
-	return suite()
+    return suite()
 
 
 from pyslet.rtf_1p6 import *
 
+
 class RTFTests(unittest.TestCase):
-	def testCaseConstants(self):
-		pass
+
+    def testCaseConstants(self):
+        pass
 
 
 if __name__ == "__main__":
-	unittest.main()
+    unittest.main()
