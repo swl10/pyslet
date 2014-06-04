@@ -262,7 +262,7 @@ class SQLTransaction(object):
                     traceback.format_exception(
                         *
                         sys.exc_info(),
-                        limit=3)))
+                        limit=6)))
             if isinstance(err, self.api.Error):
                 raise SQLError(str(err))
             else:
@@ -303,6 +303,11 @@ class SQLCollectionBase(core.EntityCollection):
         self.container = container
         #: the parent container (database) for this collection
         self.table_name = self.container.mangled_names[(self.entity_set.name,)]
+        self.auto_keys = False
+        for k in self.entity_set.keys:
+            source_path = (self.entity_set.name, k)
+            if source_path in self.container.ro_names:
+                self.auto_keys = True
         # the quoted table name containing this collection
         self.qualify_names = qualify_names
         # if True, field names in expressions are qualified with
@@ -360,7 +365,7 @@ class SQLCollectionBase(core.EntityCollection):
             entity = self.new_entity()
             query = ["SELECT "]
             params = self.container.ParamsClass()
-            column_names, values = zip(*list(self.field_generator(entity)))
+            column_names, values = zip(*list(self.select_fields(entity)))
             # values is used later for the first result
             column_names = list(column_names)
             self.orderby_cols(column_names, params)
@@ -386,7 +391,7 @@ class SQLCollectionBase(core.EntityCollection):
                     break
                 if entity is None:
                     entity = self.new_entity()
-                    values = zip(*list(self.field_generator(entity)))[1]
+                    values = zip(*list(self.select_fields(entity)))[1]
                 for value, new_value in zip(values, row):
                     self.container.read_sql_value(value, new_value)
                 entity.exists = True
@@ -471,7 +476,7 @@ class SQLCollectionBase(core.EntityCollection):
         entity = self.new_entity()
         query = ["SELECT "]
         params = self.container.ParamsClass()
-        column_names, values = zip(*list(self.field_generator(entity)))
+        column_names, values = zip(*list(self.select_fields(entity)))
         column_names = list(column_names)
         self.orderby_cols(column_names, params, True)
         query.append(string.join(column_names, ", "))
@@ -503,7 +508,7 @@ class SQLCollectionBase(core.EntityCollection):
                     continue
                 if entity is None:
                     entity = self.new_entity()
-                    values = zip(*list(self.field_generator(entity)))[1]
+                    values = zip(*list(self.select_fields(entity)))[1]
                 row_values = list(row)
                 for value, new_value in zip(values, row_values):
                     self.container.read_sql_value(value, new_value)
@@ -562,7 +567,7 @@ class SQLCollectionBase(core.EntityCollection):
         entity.SetKey(key)
         params = self.container.ParamsClass()
         query = ["SELECT "]
-        column_names, values = zip(*list(self.field_generator(entity)))
+        column_names, values = zip(*list(self.select_fields(entity)))
         query.append(string.join(column_names, ", "))
         query.append(' FROM ')
         query.append(self.table_name)
@@ -791,48 +796,146 @@ class SQLCollectionBase(core.EntityCollection):
                 oname_index += 1
                 column_names.append(oname)
 
-    def field_generator(self, entity, include_keys=True, include_ro=True):
-        """A utility generator method for mangled property names and values.
+    def _mangle_name(self, source_path):
+        mangled_name = self.container.mangled_names[source_path]
+        if self.qualify_names:
+            mangled_name = "%s.%s" % (self.table_name, mangled_name)
+        return mangled_name
+
+    def insert_fields(self, entity):
+        """A generator for inserting mangled property names and values.
 
         entity
             Any instance of :py:class:`~pyslet.odata2.csdl.Entity`
 
-        include_keys
-            True if the keys should be included (defaults to True)
-
-        include_ro
-            True if read-only properties should be included (defaults
-            to True)
-
         The yielded values are tuples of (mangled field name,
         :py:class:`~pyslet.odata2.csdl.SimpleValue` instance).
-        Only selected fields are yielded."""
-        if not include_keys:
-            keys = entity.entity_set.keys
+
+        Read only fields are never generated, even if they are keys.
+        This allows automatically generated keys to be used and also
+        covers the more esoteric use case where a foreign key constraint
+        exists on the primary key (or part thereof) - in the latter case
+        the relationship should be marked as required to prevent
+        unexpected constraint violations.
+
+        Otherwise, only selected fields are yielded so if you attempt to
+        insert a value without selecting the key fields you can expect a
+        constraint violation unless the key is read only."""
         for k, v in entity.DataItems():
             source_path = (self.entity_set.name, k)
-            if (entity.Selected(k) and (include_keys or k not in keys) and
-                    (include_ro or
-                     source_path not in self.container.ro_names)):
+            if (source_path not in self.container.ro_names and
+                    entity.Selected(k)):
                 if isinstance(v, edm.SimpleValue):
-                    mangled_name = self.container.mangled_names[source_path]
-                    if self.qualify_names:
-                        mangled_name = "%s.%s" % (self.table_name,
-                                                  mangled_name)
-                    yield mangled_name, v
+                    yield self._mangle_name(source_path), v
                 else:
                     for sub_path, fv in self._complex_field_generator(v):
                         source_path = tuple([self.entity_set.name, k] +
                                             sub_path)
-                        if (not include_ro and
-                                source_path in self.container.ro_names):
-                            continue
-                        mangled_name = self.container.mangled_names[
-                            source_path]
-                        if self.qualify_names:
-                            mangled_name = "%s.%s" % (
-                                self.table_name, mangled_name)
-                        yield mangled_name, fv
+                        yield self._mangle_name(source_path), fv
+
+    def auto_fields(self, entity):
+        """A generator for selecting auto mangled property names and values.
+
+        entity
+            Any instance of :py:class:`~pyslet.odata2.csdl.Entity`
+
+        The yielded values are tuples of (mangled field name,
+        :py:class:`~pyslet.odata2.csdl.SimpleValue` instance).
+
+        Only fields that are read only are yielded with the caveat that
+        they must also be either selected or keys.  The purpose of this
+        method is to assist with reading back automatically generated
+        field values after an insert or update."""
+        keys = entity.entity_set.keys
+        for k, v in entity.DataItems():
+            source_path = (self.entity_set.name, k)
+            if (source_path in self.container.ro_names and (
+                    entity.Selected(k) or k in keys)):
+                if isinstance(v, edm.SimpleValue):
+                    yield self._mangle_name(source_path), v
+                else:
+                    for sub_path, fv in self._complex_field_generator(v):
+                        source_path = tuple([self.entity_set.name, k] +
+                                            sub_path)
+                        yield self._mangle_name(source_path), fv
+
+    def select_fields(self, entity):
+        """A generator for selecting mangled property names and values.
+
+        entity
+            Any instance of :py:class:`~pyslet.odata2.csdl.Entity`
+
+        The yielded values are tuples of (mangled field name,
+        :py:class:`~pyslet.odata2.csdl.SimpleValue` instance).
+        Only selected fields are yielded with the caveat that the keys
+        are always selected."""
+        keys = entity.entity_set.keys
+        for k, v in entity.DataItems():
+            source_path = (self.entity_set.name, k)
+            if (k in keys or entity.Selected(k)):
+                if isinstance(v, edm.SimpleValue):
+                    yield self._mangle_name(source_path), v
+                else:
+                    for sub_path, fv in self._complex_field_generator(v):
+                        source_path = tuple([self.entity_set.name, k] +
+                                            sub_path)
+                        yield self._mangle_name(source_path), fv
+
+    def update_fields(self, entity):
+        """A generator for updating mangled property names and values.
+
+        entity
+            Any instance of :py:class:`~pyslet.odata2.csdl.Entity`
+
+        The yielded values are tuples of (mangled field name,
+        :py:class:`~pyslet.odata2.csdl.SimpleValue` instance).
+
+        Neither read only fields nor key are generated.  All other
+        fields are yielded but unselected fields are set to NULL before
+        being yielded. This implements OData's PUT semantics.  See
+        :py:meth:`merge_fields` for an alternative."""
+        keys = entity.entity_set.keys
+        for k, v in entity.DataItems():
+            source_path = (self.entity_set.name, k)
+            if k in keys or source_path in self.container.ro_names:
+                continue
+            if not entity.Selected(k):
+                v.SetNull()
+            if isinstance(v, edm.SimpleValue):
+                yield self._mangle_name(source_path), v
+            else:
+                for sub_path, fv in self._complex_field_generator(v):
+                    source_path = tuple([self.entity_set.name, k] +
+                                        sub_path)
+                    yield self._mangle_name(source_path), fv
+
+    def merge_fields(self, entity):
+        """A generator for merging mangled property names and values.
+
+        entity
+            Any instance of :py:class:`~pyslet.odata2.csdl.Entity`
+
+        The yielded values are tuples of (mangled field name,
+        :py:class:`~pyslet.odata2.csdl.SimpleValue` instance).
+
+        Neither read only fields, keys nor unselected fields are
+        generated. All other fields are yielded implementing OData's
+        MERGE semantics.  See
+        :py:meth:`update_fields` for an alternative."""
+        keys = entity.entity_set.keys
+        for k, v in entity.DataItems():
+            source_path = (self.entity_set.name, k)
+            if (k in keys or
+                    source_path in self.container.ro_names or
+                    not entity.Selected(k)):
+                continue
+            if isinstance(v, edm.SimpleValue):
+                yield self._mangle_name(source_path), v
+            else:
+                for sub_path, fv in self._complex_field_generator(v):
+                    source_path = tuple([self.entity_set.name, k] +
+                                        sub_path)
+                    yield self._mangle_name(source_path), fv
 
     def _complex_field_generator(self, ct):
         for k, v in ct.iteritems():
@@ -1409,34 +1512,34 @@ class SQLEntityCollection(SQLCollectionBase):
         The method functions in three phases.
 
         1.  Process all bindings for which we hold the foreign key.
-                This includes inserting new entities where deep inserts are
-                being used or calculating foreign key values where links to
-                existing entities have been specified on creation.
+            This includes inserting new entities where deep inserts are
+            being used or calculating foreign key values where links to
+            existing entities have been specified on creation.
 
-                In addition, all required links are checked and raise errors
-                if no binding is present.
+            In addition, all required links are checked and raise errors
+            if no binding is present.
 
         2.  A simple SQL INSERT statement is executed to add the record
-                to the database along with any foreign keys generated in (1)
-                or passed in *fk_values*.
+            to the database along with any foreign keys generated in (1)
+            or passed in *fk_values*.
 
         3.  Process all remaining bindings.  Although we could do this
-                using the
-                :py:meth:`~pyslet.odata2.csdl.DeferredValue.UpdateBindings`
-                method of DeferredValue we handle this directly to retain
-                transactional integrity (where supported).
+            using the
+            :py:meth:`~pyslet.odata2.csdl.DeferredValue.UpdateBindings`
+            method of DeferredValue we handle this directly to retain
+            transactional integrity (where supported).
 
-                Links to existing entities are created using the insert_link
-                method available on the SQL-specific
-                :py:class:`SQLNavigationCollection`.
+            Links to existing entities are created using the insert_link
+            method available on the SQL-specific
+            :py:class:`SQLNavigationCollection`.
 
-                Deep inserts are handled by a recursive call to this method.
-                After step 1, the only bindings that remain are (a) those
-                that are stored at the other end of the link and so can be
-                created by passing values for *from_end* and *fk_values* in a
-                recursive call or (b) those that are stored in a separate
-                table which are created by combining a recursive call and a
-                call to insert_link.
+            Deep inserts are handled by a recursive call to this method.
+            After step 1, the only bindings that remain are (a) those
+            that are stored at the other end of the link and so can be
+            created by passing values for *from_end* and *fk_values* in a
+            recursive call or (b) those that are stored in a separate
+            table which are created by combining a recursive call and a
+            call to insert_link.
 
         Required links are always created in step 1 because the
         overarching mapping to SQL forces such links to be represented
@@ -1524,19 +1627,38 @@ class SQLEntityCollection(SQLCollectionBase):
             # Step 2
             entity.SetConcurrencyTokens()
             query = ['INSERT INTO ', self.table_name, ' (']
+            insert_values = list(self.insert_fields(entity))
+            # watch out for exposed FK fields!
+            for fkname, fkv in fk_values:
+                i = 0
+                while i < len(insert_values):
+                    iname, iv = insert_values[i]
+                    if fkname == iname:
+                        # fk overrides - update the entity's value
+                        iv.SetFromValue(fkv.value)
+                        # now drop it from the list to prevent
+                        # double column names
+                        del insert_values[i]
+                    else:
+                        i += 1
             column_names, values = zip(
-                *(list(self.field_generator(entity, include_ro=False)) +
-                    fk_values))
+                *(insert_values + fk_values))
             query.append(string.join(column_names, ", "))
             query.append(') VALUES (')
             params = self.container.ParamsClass()
             query.append(string.join(
                 map(lambda x: params.add_param(
                     self.container.prepare_sql_value(x)), values), ", "))
-            query.append(');')
+            query.append(')')
             query = string.join(query, '')
             logging.info("%s; %s", query, unicode(params.params))
             transaction.execute(query, params)
+            # before we can say the entity exists we need to ensure
+            # we have the key
+            auto_fields = list(self.auto_fields(entity))
+            if auto_fields:
+                # refresh these fields in the entity
+                self.get_auto(entity, auto_fields, transaction)
             entity.exists = True
             # Step 3
             for k, dv in entity.NavigationItems():
@@ -1600,6 +1722,44 @@ class SQLEntityCollection(SQLCollectionBase):
             transaction.rollback(e)
         finally:
             transaction.close()
+
+    def get_auto(self, entity, auto_fields, transaction):
+        params = self.container.ParamsClass()
+        query = ["SELECT "]
+        column_names, values = zip(*auto_fields)
+        query.append(string.join(column_names, ", "))
+        query.append(' FROM ')
+        query.append(self.table_name)
+        # no join clause required
+        if self.auto_keys:
+            query.append(self.where_last(entity, params))
+        else:
+            query.append(self.where_clause(entity, params, use_filter=False))
+        query = string.join(query, '')
+        try:
+            transaction.begin()
+            logging.info("%s; %s", query, unicode(params.params))
+            transaction.execute(query, params)
+            rowcount = transaction.cursor.rowcount
+            row = transaction.cursor.fetchone()
+            if rowcount == 0 or row is None:
+                raise KeyError
+            elif rowcount > 1 or (rowcount == -1 and
+                                  transaction.cursor.fetchone() is not None):
+                # whoops, that was unexpected
+                raise SQLError(
+                    "Integrity check failure, non-unique key after insert")
+            for value, new_value in zip(values, row):
+                self.container.read_sql_value(value, new_value)
+            entity.Expand(self.expand, self.select)
+            transaction.commit()
+        except Exception as e:
+            transaction.rollback(e)
+        finally:
+            transaction.close()
+
+    def where_last(self, entity, params):
+        raise NotImplementedError("Automatic keys not supported")
 
     def update_entity(self, entity):
         """Updates *entity*
@@ -1690,8 +1850,7 @@ class SQLEntityCollection(SQLCollectionBase):
                     (self.container.mangled_names[
                         (self.entity_set.name, k)],
                         self.container.prepare_sql_value(v)))
-            cv_list = list(self.field_generator(entity, include_keys=False,
-                                                include_ro=False))
+            cv_list = list(self.update_fields(entity))
             for cname, v in cv_list:
                 # concurrency tokens get added as if they were part of the key
                 if v.pDef.concurrencyMode == edm.ConcurrencyMode.Fixed:
@@ -2148,7 +2307,7 @@ class SQLEntityCollection(SQLCollectionBase):
         params = self.container.ParamsClass()
         cols = []
         cnames = {}
-        for c, v in self.field_generator(entity):
+        for c, v in self.select_fields(entity):
             if c in cnames:
                 continue
             else:
@@ -4091,7 +4250,11 @@ class SQLiteEntityContainer(SQLEntityContainer):
         Other connection arguments are not currently supported, you can
         derive a more complex implementation by overriding this method
         and (optionally) the __init__ method to pass in values for ."""
-        return self.dbapi.connect(str(self.file_path), **self.sqlite_options)
+        dbc = self.dbapi.connect(str(self.file_path), **self.sqlite_options)
+        c = dbc.cursor()
+        c.execute("PRAGMA foreign_keys = ON")
+        c.close()
+        return dbc
 
     def break_connection(self, connection):
         """Calls the underlying interrupt method."""
@@ -4100,8 +4263,8 @@ class SQLiteEntityContainer(SQLEntityContainer):
     def prepare_sql_type(self, simple_value, params, nullable=None):
         """Performs SQLite custom mappings
 
-        We inherit most of the type mappings but the following three
-        types use custom mappings:
+        We inherit most of the type mappings but the following types use
+        custom mappings:
 
         ==================  ===================================
            EDM Type         SQLite Equivalent
@@ -4109,6 +4272,7 @@ class SQLiteEntityContainer(SQLEntityContainer):
         Edm.Decimal         TEXT
         Edm.Guid            BLOB
         Edm.Time            REAL
+        Edm.Int64           INTEGER
         ==================  ==================================="""
         p = simple_value.pDef
         column_def = []
@@ -4118,6 +4282,8 @@ class SQLiteEntityContainer(SQLEntityContainer):
             column_def.append(u"BLOB")
         elif isinstance(simple_value, edm.TimeValue):
             column_def.append(u"REAL")
+        elif isinstance(simple_value, edm.Int64Value):
+            column_def.append(u"INTEGER")
         else:
             return super(
                 SQLiteEntityContainer,
@@ -4294,7 +4460,10 @@ class SQLiteEntityCollectionBase(SQLCollectionBase):
 class SQLiteEntityCollection(SQLiteEntityCollectionBase, SQLEntityCollection):
 
     """SQLite-specific collection for entity sets"""
-    pass
+
+    def where_last(self, entity, params):
+        """In SQLite all tables have a ROWID concept"""
+        return ' WHERE ROWID = last_insert_rowid()'
 
 
 class SQLiteAssociationCollection(

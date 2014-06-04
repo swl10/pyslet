@@ -581,9 +581,12 @@ class SQLDSTests(unittest.TestCase):
         # <NavigationProperty Name="OrderLine"
         #     Relationship="SampleModel.OrderLines_Orders"
         #     FromRole="Order" ToRole="OrderLine"/>
-        with es.OpenCollection() as collection:
-            # we'll need to create this table first too
+        with es.OpenCollection() as collection, \
+                self.schema['SampleEntities.OrderLines'].OpenCollection() as \
+                orderlines:
+            # we'll need to create both tables first due to FK constraint
             collection.create_table()
+            orderlines.create_table()
             order = collection.new_entity()
             order.SetKey(1)
             order["ShippedDate"].SetFromLiteral('2013-10-02T10:20:59')
@@ -667,9 +670,7 @@ class CustomisedContainer(SQLiteEntityContainer):
 
     def ro_name(self, source_path):
         # expose fk field as ro property
-        if source_path == ('Files', 'hash'):
-            return True
-        elif source_path == ('AutoKeys', 'id'):
+        if source_path == ('AutoKeys', 'id'):
             return True
         else:
             return False
@@ -711,7 +712,7 @@ class AutoFieldTests(unittest.TestCase):
             self.assertTrue(len(query.split('"hash" TEXT')) == 2,
                             "Expected 1 FK definition")
 
-    def test_fk_readonly(self):
+    def test_exposed_fk(self):
         self.db.create_all_tables()
         files = self.container['Files']
         blobs = self.container['Blobs']
@@ -722,6 +723,12 @@ class AutoFieldTests(unittest.TestCase):
             f['mime']['type'].SetFromValue("text")
             f['mime']['subtype'].SetFromValue("plain")
             f['hash'].SetFromValue("deadbeef")
+            try:
+                file_coll.insert_entity(f)
+                self.fail("Insert FK with invalid value succeeded")
+            except edm.ConstraintError:
+                pass
+            f['hash'].SetNull()
             file_coll.insert_entity(f)
             f2 = file_coll["hello.txt"]
             self.assertTrue(f2['path'].value == "hello.txt")
@@ -737,7 +744,7 @@ class AutoFieldTests(unittest.TestCase):
                 self.assertTrue(len(nav_coll) == 1)
             f3 = file_coll["hello.txt"]
             self.assertTrue(f3['hash'].value == 'deadbeef',
-                            "Readonly fk attribute non-Null after link")
+                            "Exposed fk attribute non-Null after link")
 
     def test_pk_readonly(self):
         self.db.create_all_tables()
@@ -750,9 +757,13 @@ class AutoFieldTests(unittest.TestCase):
             ak = auto_coll.new_entity()
             auto_coll.insert_entity(ak)
             self.assertTrue(len(auto_coll) == 1, "auto pk insert")
+            # insert_entity is supposed to update ak!
+            self.assertTrue(ak['id'], "Auto key missing after insert")
+            pk = ak['id'].value
             ak2 = auto_coll.values()[0]
             self.assertTrue(ak2['id'], "auto non-NULL key")
             self.assertFalse(ak2['data'], "auto NULL property")
+            self.assertTrue(ak2['id'].value == pk, "auto key value")
             logging.info("First generated PK: %i", ak2['id'].value)
 
 
