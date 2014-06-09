@@ -265,7 +265,7 @@ class XMLNSElement(XMLNSElementContainerMixin, Element):
         if base is None:
             self._attrs.pop(xmlns_base, None)
         else:
-            self._attrs[xmlns_base] = base
+            self._attrs[xmlns_base] = str(base)
 
     def GetLang(self):
         return self._attrs.get(xmlns_lang, None)

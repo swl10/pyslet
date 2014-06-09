@@ -461,7 +461,7 @@ class RandomStreamTests(unittest.TestCase):
         with open(path, 'rb') as f:
             self.doc.Read(f)
         self.cdef = self.doc.root.DataServices['BlockSchema.BlockContainer']
-        self.block_size = random.randint(1, 100)
+        self.block_size = random.randint(5, 100)
         logging.info("File block size: %i", self.block_size)
         self.f = self.d.join('blockstore.test').open('w+b')
         self.fox = (u"The quick brown fox jumped over the lazy dog "
@@ -553,6 +553,6 @@ class RandomStreamTests(unittest.TestCase):
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.WARN,
+        level=logging.INFO,
         format="[%(thread)d] %(levelname)s %(message)s")
     unittest.main()

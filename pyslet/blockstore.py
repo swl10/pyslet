@@ -112,8 +112,9 @@ class FileBlockStore(BlockStore):
     Additional keyword arguments:
 
     dpath
-        A :py:class:`FilePath` instance pointing to a directory
-        in which to store the data blocks.
+        A :py:class:`FilePath` instance pointing to a directory in which
+        to store the data blocks.  If this argument is omitted then a
+        temporary directory is created using the builtin mkdtemp.
 
     Each block is saved as a single file but the hash key is decomposed
     into 3 components to reduce the number of files in a single
@@ -259,6 +260,8 @@ class LockStore(object):
         automatically.  This value is a long-stop cut off which allows a
         system to recover automatically from bugs causing stale locks.
 
+        Defaults to 180s (3 minutes)
+
     This object is designed for use in conjunction with the basic block
     store to provide locking.  The locks are managed using an EDM entity
     set.
@@ -272,7 +275,8 @@ class LockStore(object):
     holding an ASCII string up to 32 characters in length and a datetime
     field named *created* for storing the UTC timestamp when each lock
     is created. The created property is used for optimistic concurrency
-    control during updates."""
+    control during updates and must be identified as having fixed
+    concurrency mode in the entity type's definition."""
 
     def __init__(self, entity_set, lock_timeout=180):
         self.entity_set = entity_set
@@ -421,7 +425,7 @@ class StreamStore(object):
         delete operations.
 
     entity_set
-        A :py:class:`~pyslet.odata2.csdl.EntitySet` to hold the Stream
+        An :py:class:`~pyslet.odata2.csdl.EntitySet` to hold the Stream
         entities.
 
     The entity set must have the following properties:
@@ -470,8 +474,9 @@ class StreamStore(object):
         Returns a stream entity which is an
         :py:class:`~pyslet.odata2.csdl.Entity` instance.
 
-        The stream is identified by the stream entity's key which
-        you can store elsewhere as a reference."""
+        The stream is identified by the stream entity's key which you
+        can store elsewhere as a reference and pass to
+        :py:meth:`get_stream` to retrieve the stream again later."""
         with self.stream_set.OpenCollection() as streams:
             stream = streams.new_entity()
             if not isinstance(mimetype, http.MediaType):
@@ -494,9 +499,12 @@ class StreamStore(object):
         return stream
 
     def open_stream(self, stream, mode="r"):
-        """Returns a file-like object for a stream object.
+        """Returns a file-like object for a stream.
 
         Returns an object derived from io.RawIOBase.
+
+        stream
+            A stream entity
 
         mode
             Files are always opened in binary mode.  The characters "r",
@@ -586,6 +594,14 @@ class StreamStore(object):
 
 
 class BlockStream(io.RawIOBase):
+
+    """Provides a file-like interface to stored streams
+
+    Based on the new style io.RawIOBase these streams are always in
+    binary mode.  They are seekable but lack efficiency if random access
+    is used across block boundaries.  The main design criteria is to
+    ensure that no more than one block is kept in memory at any one
+    time."""
 
     def __init__(self, ss, stream, mode="r"):
         self.ss = ss
@@ -681,8 +697,7 @@ class BlockStream(io.RawIOBase):
                 data = self.ss.retrieve_block(self.blocks[self._bnum])
                 self._bdata[:len(data)] = data
             else:
-                self._bdata = bytearray(
-                    self.ss.retrieve_block(self.blocks[self._bnum]))
+                self._bdata = self.ss.retrieve_block(self.blocks[self._bnum])
         if nbytes > len(b):
             nbytes = len(b)
         b[:nbytes] = self._bdata[self._bpos:self._bpos + nbytes]
