@@ -2608,10 +2608,10 @@ class EntityCollection(DictionaryLike):
         self.topmax = None
         self.skiptoken = None
         self.nextSkiptoken = None
-        self.inlineCount = False
-        """True if inlineCount option is in effect
+        self.inlinecount = False
+        """True if inlinecount option is in effect
         
-        The inlineCount option is used to alter the representation of
+        The inlinecount option is used to alter the representation of
         the collection and, if set, indicates that the __len__ method
         will be called before iterating through the collection itself."""
         self.lastEntity = None
@@ -2798,9 +2798,9 @@ class EntityCollection(DictionaryLike):
             for e in entityIterable:
                 yield e
 
-    def SetInlineCount(self, inlineCount):
+    def SetInlineCount(self, inlinecount):
         """Sets the inline count flag for this collection."""
-        self.inlineCount = inlineCount
+        self.inlinecount = inlinecount
 
     def new_entity(self):
         """Returns a new py:class:`Entity` instance suitable for adding

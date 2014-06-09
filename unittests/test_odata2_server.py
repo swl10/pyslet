@@ -1505,7 +1505,7 @@ class ServerTests(unittest.TestCase):
         page.SetInlineCount(True)
         feed = core.Feed(None, page)
         nEntries = 0
-        #	[with inlineCount the response] MUST include the count of
+        #	[with inlinecount the response] MUST include the count of
         #	the number of entities in the collection of entities
         count = None
         for child in feed.GetChildren():

@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+import logging
 import string
 import types
 from StringIO import StringIO
@@ -207,8 +208,8 @@ class Node(object):
         which is either another element or an XML document."""
         self.parent = parent
         """The parent of this element, for XML documents this attribute is used
-		as a sentinel to simplify traversal of the hierarchy and is set to
-		None."""
+        as a sentinel to simplify traversal of the hierarchy and is set to
+        None."""
 
     def GetChildren(self):
         """Returns an iterator over this object's children."""
@@ -258,10 +259,10 @@ class Node(object):
     def ChildElement(self, childClass, name=None):
         """Returns a new child of the given class attached to this object.
 
-        -	childClass is a class (or callable) used to create a new instance
+        -   childClass is a class (or callable) used to create a new instance
                 of :py:class:`Element`.
 
-        -	name is the name given to the element (by the caller).  If no name
+        -   name is the name given to the element (by the caller).  If no name
                 is given then the default name for the child is used.  When the
                 child returned is an existing instance, name is ignored."""
         raise NotImplementedError
@@ -424,6 +425,12 @@ class Document(Node):
         msg contains a brief message suitable for describing the error in a log
         file.  data and aname have the same meanings as
         Element.ValidationError."""
+        if aname:
+            logging.warn("%s (in %s.%s) %s", msg, aname,
+                         "" if data is None else repr(data))
+        else:
+            logging.warn("%s (in %s) %s", msg, element.xmlname,
+                         "" if data is None else repr(data))
         raise XMLValidityError("%s (in %s)" % (msg, element.xmlname))
 
     def RegisterElement(self, element):
@@ -607,19 +614,19 @@ def RegisterDocumentClass(docClass, rootName, publicID=None, systemID=None):
     used to identify the correct class to use to represent a document based
     on the information obtained from the DTD.
 
-    -	*docClass*
+    -   *docClass*
             is the class object being registered, it must be derived from
             :py:class:`Document`
 
-    -	*rootName*
+    -   *rootName*
             is the name of the root element or None if this class can be used with
             any root element.
 
-    -	*publicID*
+    -   *publicID*
             is the public ID of the doctype, or None if any doctype can be used with
             this document class.
 
-    -	*systemID*
+    -   *systemID*
             is the system ID of the doctype, this will usually be None indicating
             that the document class can match any system ID."""
     XMLParser.DocumentClassTable[(rootName, publicID, systemID)] = docClass
@@ -700,7 +707,7 @@ def NormalizeSpace(data):
 
     "...by discarding any leading and trailing space (#x20) characters, and by
     replacing sequences of space (#x20) characters by a single space (#x20)
-    character"	"""
+    character"  """
     result = []
     sCount = 2  # 0=no space; 1=add space; 2=don't add space
     for c in data:
@@ -860,7 +867,7 @@ class XMLDTD(object):
         The document type declaration acts as a container for the
         entity, element and attribute declarations used in a document.
         """
-        self.name = None			#: The declared Name of the root element
+        self.name = None            #: The declared Name of the root element
         # : An :py:class:`XMLExternalID` instance (may be None)
         self.externalID = None
         self.parameterEntities = {}
@@ -871,11 +878,11 @@ class XMLDTD(object):
         """A dictionary of XMLNotation instances keyed on notation name."""
         self.elementList = {}
         """A dictionary of :py:class:`ElementType` definitions keyed on the
-		name of element."""
+        name of element."""
         self.attributeLists = {}
         """A dictionary of dictionaries, keyed on element name.  Each of the
-		resulting dictionaries is a dictionary of
-		:py:class:`XMLAttributeDefinition` keyed on attribute name."""
+        resulting dictionaries is a dictionary of
+        :py:class:`XMLAttributeDefinition` keyed on attribute name."""
 
     def DeclareEntity(self, entity):
         """Declares an entity in this document.
@@ -938,10 +945,10 @@ class XMLDTD(object):
     def DeclareAttribute(self, elementName, attributeDef):
         """Declares an attribute.
 
-        -	*elementName*
+        -   *elementName*
                 is the name of the element type which should have this attribute
                 applied
-        -	*attributeDef*
+        -   *attributeDef*
                 is an :py:class:`XMLAttributeDefinition` instance describing the
                 attribute being declared."""
         aList = self.attributeLists.get(elementName, None)
@@ -1000,27 +1007,27 @@ class XMLDeclaration(XMLTextDeclaration):
 
 class ElementType(object):
 
-    Empty = 0				#: Content type constant for EMPTY
-    Any = 1				#: Content type constant for ANY
-    Mixed = 2				#: Content type constant for mixed content
+    Empty = 0               #: Content type constant for EMPTY
+    Any = 1             #: Content type constant for ANY
+    Mixed = 2               #: Content type constant for mixed content
     ElementContent = 3  # : Content type constant for element content
-    SGMLCDATA = 4			#: Additional content type constant for SGML CDATA
+    SGMLCDATA = 4           #: Additional content type constant for SGML CDATA
 
     def __init__(self):
         """An object for representing element type definitions."""
         self.entity = None  # : The entity in which this element was declared
-        self.name = None		#: The name of this element
+        self.name = None        #: The name of this element
         self.contentType = ElementType.Empty
         """The content type of this element, one of the constants defined above."""
         self.contentModel = None
         """A :py:class:`XMLContentParticle` instance which contains the element's
-		content model or None in the case of EMPTY or ANY declarations."""
+        content model or None in the case of EMPTY or ANY declarations."""
         self.particleMap = None
         """A mapping used to validate the content model during parsing.  It maps
-		the name of the first child element found to a list of
-		:py:class:`XMLNameParticle` instances that can represent it in the
-		content model.  For more information see
-		:py:attr:`XMLNameParticle.particleMap`."""
+        the name of the first child element found to a list of
+        :py:class:`XMLNameParticle` instances that can represent it in the
+        content model.  For more information see
+        :py:attr:`XMLNameParticle.particleMap`."""
 
     def BuildModel(self):
         """Builds internal strutures to support model validation."""
@@ -1095,7 +1102,7 @@ class Element(Node):
 
             To be parsed into python objects that behave like this::
 
-                    element.styleClass=="x"		# True
+                    element.styleClass=="x"     # True
 
             If an instance is missing a python attribute corresponding to a defined
             XML attribute, or it's value has been set to None, then the XML
@@ -1121,7 +1128,7 @@ class Element(Node):
                     XMLATTR_apples=('nApples',int,unicode)
 
                     # resulting object behaves like this...
-                    element.nApples==5		# True
+                    element.nApples==5      # True
 
     XMLATTR_aname=(<string>, decodeFunction, encodeFunction, type)
 
@@ -1146,7 +1153,7 @@ class Element(Node):
                             XMLATTR_primes=('primes',int,unicode)
 
                             # resulting object behaves like this...
-                            element.primes==[2,3,5,7]		# True
+                            element.primes==[2,3,5,7]       # True
 
             types.DictType
 
@@ -1160,7 +1167,7 @@ class Element(Node):
                             XMLATTR_fruit=('fruit',None,None,types.DictType)
 
                             # resulting object behaves like this...
-                            element.fruit=={'apple':1, 'orange':1, 'pear':2}		# True
+                            element.fruit=={'apple':1, 'orange':1, 'pear':2}        # True
 
                     In this case, the decode function (if given) must return a hashable
                     object.
@@ -1523,9 +1530,9 @@ class Element(Node):
             # There was only one child
             if type(firstChild) in StringTypes:
                 firstChild = CollapseSpace(firstChild)
-# 				if len(firstChild)>1 and firstChild[-1]==u' ':
+#               if len(firstChild)>1 and firstChild[-1]==u' ':
 # strip the trailing space from the only child - why do we do this?
-# 					firstChild=firstChild[:-1]
+#                   firstChild=firstChild[:-1]
             yield firstChild
             return
         # Collapse strings to a single string entry and collapse spaces
@@ -1645,8 +1652,8 @@ class Element(Node):
             traceback.print_exc()
             raise TypeError("Can't create %s in %s" %
                             (childClass.__name__, self.__class__.__name__))
-# 		if child is None:
-# 			raise TypeError("ChildElement got None: %s in %s"%(childClass.__name__,self.__class__.__name__))
+#       if child is None:
+#           raise TypeError("ChildElement got None: %s in %s"%(childClass.__name__,self.__class__.__name__))
 
     def DeleteChild(self, child):
         """Deletes the given child from this element's children.
@@ -2329,9 +2336,9 @@ class XMLContentParticle(object):
 
     # : Occurrence constant for particles that must appear exactly once
     ExactlyOnce = 0
-    ZeroOrOne = 1		#: Occurrence constant for '?'
+    ZeroOrOne = 1       #: Occurrence constant for '?'
     ZeroOrMore = 2  # : Occurrence constant for '*'
-    OneOrMore = 3		#: Occurrence constant for '+'
+    OneOrMore = 3       #: Occurrence constant for '+'
 
     def __init__(self):
         """An object for representing content particles."""
@@ -2424,11 +2431,11 @@ class XMLNameParticle(XMLContentParticle):
         self.name = None
         self.particleMap = {}
         """Each :py:class:`XMLNameParticle` has a particle map that maps the
-		name of the 'next' element found in the content model to the list of
-		possible :py:class:`XMLNameParticles XMLNameParticle` that represent it in the content
-		model.
+        name of the 'next' element found in the content model to the list of
+        possible :py:class:`XMLNameParticles XMLNameParticle` that represent it in the content
+        model.
 
-		The content model can be traversed using :py:class:`ContentParticleCursor`."""
+        The content model can be traversed using :py:class:`ContentParticleCursor`."""
 
     def BuildParticleMaps(self, exitParticles):
         self.particleMap = {}
@@ -2552,7 +2559,7 @@ class ContentParticleCursor(object):
 
     StartState = 0  # : State constant representing the start state
     ParticleState = 1  # : State constant representing a particle
-    EndState = 2		#: State constant representing the end state
+    EndState = 2        #: State constant representing the end state
 
     def __init__(self, elementType):
         """An object used to traverse an :py:class:`ElementType`'s content model.
@@ -2657,15 +2664,15 @@ class ContentParticleCursor(object):
 
 class XMLAttributeDefinition(object):
 
-    CData = 0			#: Type constant representing CDATA
-    ID = 1			#: Type constant representing ID
-    IDRef = 2			#: Type constant representing IDREF
-    IDRefs = 3		#: Type constant representing IDREFS
-    Entity = 4		#: Type constant representing ENTITY
-    Entities = 5		#: Type constant representing ENTITIES
-    NmToken = 6		#: Type constant representing NMTOKEN
-    NmTokens = 7		#: Type constant representing NMTOKENS
-    Notation = 8		#: Type constant representing NOTATION
+    CData = 0           #: Type constant representing CDATA
+    ID = 1          #: Type constant representing ID
+    IDRef = 2           #: Type constant representing IDREF
+    IDRefs = 3      #: Type constant representing IDREFS
+    Entity = 4      #: Type constant representing ENTITY
+    Entities = 5        #: Type constant representing ENTITIES
+    NmToken = 6     #: Type constant representing NMTOKEN
+    NmTokens = 7        #: Type constant representing NMTOKENS
+    Notation = 8        #: Type constant representing NOTATION
     Enumeration = 9  # : Type constant representing an enumeration
 
     TypeString = {
@@ -2680,21 +2687,24 @@ class XMLAttributeDefinition(object):
         8: 'NOTATION',
         9: 'Enumeration'}
 
-    Implied = 0		#: Presence constant representing #IMPLIED
-    Required = 1		#: Presence constant representing #REQUIRED
-    Fixed = 2			#: Presence constant representing #FIXED
-    Default = 3		#: Presence constant representing a declared default value
+    Implied = 0     #: Presence constant representing #IMPLIED
+    Required = 1        #: Presence constant representing #REQUIRED
+    Fixed = 2           #: Presence constant representing #FIXED
+    Default = 3     #: Presence constant representing a declared default value
 
     def __init__(self):
         """An object for representing attribute declarations."""
-        self.entity = None								#: the entity in which this attribute was declared
-        self.name = None									#: the name of the attribute
+        self.entity = None                              #: the entity in which this attribute was declared
+        #: the name of the attribute
+        self.name = None
         #: One of the above type constants
         self.type = XMLAttributeDefinition.CData
-        self.values = None								#: An optional dictionary of values
+        #: An optional dictionary of values
+        self.values = None
         # : One of the above presence constants
         self.presence = XMLAttributeDefinition.Implied
-        self.defaultValue = None							#: An optional default value
+        #: An optional default value
+        self.defaultValue = None
 
 
 class XMLEntity(object):
@@ -2713,24 +2723,26 @@ class XMLEntity(object):
         *src* may be a unicode string, a byte string, an instance of
         :py:class:`pyslet.rfc2396.URI` or any object that supports file-like
         behaviour.  If using a file, the file must support seek behaviour."""
-        self.location = None		#: the location of this entity (used as the base URI to resolve relative links)
-        self.mimetype = None		#: the mime type of the entity, if known, or None
-        self.encoding = None		#: the encoding of the entity (text entities)
+        self.location = None        #: the location of this entity (used as the base URI to resolve relative links)
+        #: the mime type of the entity, if known, or None
+        self.mimetype = None
+        #: the encoding of the entity (text entities)
+        self.encoding = None
         # : a file like object from which the entity's data is read
         self.dataSource = None
         self.charSource = None
         """A unicode data reader used to read characters from the entity.  If
-		None, then the entity is closed."""
+        None, then the entity is closed."""
         self.bom = False
         """flag to indicate whether or not the byte order mark was detected.  If
-		detected the flag is set to True.  An initial byte order mark is not
-		reported in :py:attr:`theChar` or by the :py:meth:`NextChar` method."""
-        self.theChar = None		#: the character at the current position in the entity
+        detected the flag is set to True.  An initial byte order mark is not
+        reported in :py:attr:`theChar` or by the :py:meth:`NextChar` method."""
+        self.theChar = None     #: the character at the current position in the entity
         #: the current line number within the entity (first line is line 1)
         self.lineNum = None
         #: the current character position within the entity (first char is 1)
         self.linePos = None
-        self.buffText = ''		#: used by :py:meth:`XMLParser.PushEntity`
+        self.buffText = ''      #: used by :py:meth:`XMLParser.PushEntity`
         self.basePos = None
         self.charSeek = None
         self.chunk = None
@@ -2751,14 +2763,14 @@ class XMLEntity(object):
 
     ChunkSize = 4096
     """Characters are read from the dataSource in chunks.  The default chunk size is 4KB.
-	
-	In fact, in some circumstances the entity reader starts more cautiously.  If
-	the entity reader expects to read an XML or Text declaration, which may have
-	an encoding declaration then it reads one character at a time until the
-	declaration is complete.  This allows the reader to change to the encoding
-	in the declaration without causing errors caused by reading too many
-	characters using the wrong codec.  See :py:meth:`ChangeEncoding` and
-	:py:meth:`KeepEncoding` for more information."""
+    
+    In fact, in some circumstances the entity reader starts more cautiously.  If
+    the entity reader expects to read an XML or Text declaration, which may have
+    an encoding declaration then it reads one character at a time until the
+    declaration is complete.  This allows the reader to change to the encoding
+    in the declaration without causing errors caused by reading too many
+    characters using the wrong codec.  See :py:meth:`ChangeEncoding` and
+    :py:meth:`KeepEncoding` for more information."""
 
     def GetName(self):
         """Abstract method to return a name to represent this entity in logs and error messages."""
@@ -2790,7 +2802,7 @@ class XMLEntity(object):
 
     def OpenUnicode(self, src):
         """Opens the entity from a unicode string."""
-        self.encoding = 'utf-8'		#: a white lie to ensure that all entities have an encoding
+        self.encoding = 'utf-8'     #: a white lie to ensure that all entities have an encoding
         self.dataSource = None
         self.chunk = XMLEntity.ChunkSize
         self.charSource = StringIO(src)
@@ -2988,9 +3000,10 @@ class XMLEntity(object):
         '\x00\x00\xff\xfe': ('utf_32', 4, True),
         # UCS-4, unusual octet order (3412)
         '\xfe\xff\x00\x00': ('utf_32', 4, True),
-        '\xfe\xff': ('utf_16_be', 2, True),				# UTF-16, big-endian
-        '\xff\xfe': ('utf_16_le', 2, True),				# UTF-16, little-endian
-        '\xef\xbb\xbf': ('utf-8', 3, True),				# UTF-8 with byte order mark
+        '\xfe\xff': ('utf_16_be', 2, True),             # UTF-16, big-endian
+        '\xff\xfe': ('utf_16_le', 2, True),             # UTF-16, little-endian
+        # UTF-8 with byte order mark
+        '\xef\xbb\xbf': ('utf-8', 3, True),
         # UCS-4 or other encoding with a big-endian 32-bit code unit
         '\x00\x00\x00\x3c': ('utf_32_be', 0, False),
         # UCS-4 or other encoding with a little-endian 32-bit code unit
@@ -3007,7 +3020,8 @@ class XMLEntity(object):
         '\x3c\x00\x3f\x00': ('utf_16_le', 0, False),
         # UTF-8, ISO 646, ASCII or similar
         '\3c\x3f\x78\x6D': ('utf_8', 0, False),
-        '\4c\x6f\xa7\x94': ('cp500', 0, False)				# EBCDIC (in some flavor)
+        # EBCDIC (in some flavor)
+        '\4c\x6f\xa7\x94': ('cp500', 0, False)
     }
 
     def AutoDetectEncoding(self, srcFile):
@@ -3114,11 +3128,11 @@ class XMLDeclaredEntity(XMLEntity):
         """Abstract class for representing declared entities."""
         XMLEntity.__init__(self)
         self.entity = None  # : the entity in which this entity was declared
-        self.name = name		#: the name of the declared entity
+        self.name = name        #: the name of the declared entity
         self.definition = definition
         """The definition of the entity is either a string or an instance of
-		XMLExternalID, depending on whether the entity is an internal or
-		external entity respectively."""
+        XMLExternalID, depending on whether the entity is an internal or
+        external entity respectively."""
 
     def GetName(self):
         """Returns a representation of the entitiy's name suitable for logging/error reporting."""
@@ -3241,7 +3255,7 @@ class XMLNotation(object):
 
         *externalID* is a :py:class:`XMLExternalID` instance in which one of
         *public* or *system* must be provided."""
-        self.name = name					#: the notation name
+        self.name = name                    #: the notation name
         #: the external ID of the notation (an XMLExternalID instance)
         self.externalID = externalID
 

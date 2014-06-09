@@ -75,7 +75,7 @@ class RegressionTests(DataServiceRegressionTests):
             self.ds['RegressionModel.RegressionContainer'])
 
     def testCaseAllTests(self):
-        self.RunAllCombined()
+        self.run_combined()
 
 
 if __name__ == "__main__":

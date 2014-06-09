@@ -32,8 +32,8 @@ class ConnectionClosed(HTTPException):
     is in the process of closing."""
     pass
 
-HTTP_PORT = 80		#: symbolic name for the default HTTP port
-HTTPS_PORT = 443		#: symbolic name for the default HTTPS port
+HTTP_PORT = 80      #: symbolic name for the default HTTP port
+HTTPS_PORT = 443        #: symbolic name for the default HTTPS port
 
 HTTP_VERSION = HTTPVersion(1, 1)
 """A :py:class:`HTTPVersion` instance representing HTTP version 1.1"""
@@ -86,19 +86,26 @@ class Connection(object):
     def __init__(self, manager, scheme, hostname, port):
         #: the RequestManager that owns this connection
         self.manager = manager
-        self.id = self.manager._NextId()		#: the id of this connection object
-        self.scheme = scheme					#: the http scheme in use, 'http' or 'https'
-        self.host = hostname					#: the target host of this connection
-        self.port = port						#: the target port of this connection
-        self.threadId = None					#: the thread we're currently bound to
+        #: the id of this connection object
+        self.id = self.manager._NextId()
+        #: the http scheme in use, 'http' or 'https'
+        self.scheme = scheme
+        #: the target host of this connection
+        self.host = hostname
+        #: the target port of this connection
+        self.port = port
+        #: the thread we're currently bound to
+        self.threadId = None
         #: time at which this connection was last active
         self.lastActive = 0
         #: the queue of requests we are waiting to process
         self.requestQueue = []
-        self.request = None					#: the current request we are processing
+        #: the current request we are processing
+        self.request = None
         #: the queue of responses we are waiting to process
         self.responseQueue = []
-        self.response = None					#: the current response we are processing
+        #: the current response we are processing
+        self.response = None
         self.requestMode = self.REQ_READY
         # If we don't get a continue in 1 minute, send the data anyway
         self.continueWaitMax = 60.0
@@ -139,7 +146,7 @@ class Connection(object):
         message itself and the server.  The implementation breaks down
         in to a number of phases:
 
-        1.	Start processing a request if one is queued and we're ready
+        1.  Start processing a request if one is queued and we're ready
                 for it.  For idempotent requests (in practice, everything
                 except POST) we take advantage of HTTP pipelining to send
                 the request without waiting for the previous response(s).
@@ -149,9 +156,9 @@ class Connection(object):
                 the server has caught up with us and sent the 100 response
                 code.
 
-        2.	Send as much data to the server as we can without blocking.
+        2.  Send as much data to the server as we can without blocking.
 
-        3.	Read and process as much data from the server as we can
+        3.  Read and process as much data from the server as we can
                 without blocking.
 
         The above steps are repeated until we are blocked at which point
@@ -384,7 +391,7 @@ class Connection(object):
         return True
 
     def _SendRequestData(self):
-        #	Sends the next chunk of data in the buffer
+        #   Sends the next chunk of data in the buffer
         if not self.sendBuffer:
             return
         data = self.sendBuffer[0]
@@ -418,9 +425,9 @@ class Connection(object):
             del self.sendBuffer[0]
 
     def _RecvResponseData(self):
-        #	We ask the response what it is expecting and try and
-        #	satisfy that, we return True when the response has been
-        #	received completely, False otherwise"""
+        #   We ask the response what it is expecting and try and
+        #   satisfy that, we return True when the response has been
+        #   received completely, False otherwise"""
         err = None
         try:
             data = self.socket.recv(SOCKET_CHUNK)
@@ -626,9 +633,9 @@ class HTTPRequestManager(object):
     (mostly) takes care of the following restriction imposed by RFC2616:
 
             Clients SHOULD NOT pipeline requests using non-idempotent
-            methods or non-idempotent sequences of methods	
+            methods or non-idempotent sequences of methods  
 
-    In other words, a POST 	(or CONNECT) request will cause the
+    In other words, a POST  (or CONNECT) request will cause the
     pipeline to stall until all the responses have been received.  Users
     should beware of non-idempotent sequences as these are not
     automatically detected by the manager.  For example, a GET,PUT
@@ -643,7 +650,8 @@ class HTTPRequestManager(object):
 
     def __init__(self, maxConnections=100, ca_certs=None):
         self.managerLock = threading.Condition()
-        self.nextId = 1			# the id of the next connection object we'll create
+        # the id of the next connection object we'll create
+        self.nextId = 1
         self.cActiveThreadTargets = {}
         # A dict of active connections keyed on thread and target (always
         # unique)
@@ -654,8 +662,8 @@ class HTTPRequestManager(object):
         # A dict of dicts of idle connections keyed on target and then
         # connection id
         self.cIdleList = {}
-        #	A dict of idle connections keyed on connection id (for keeping count)
-        self.closing = False					# True if we are closing
+        # A dict of idle connections keyed on connection id (for keeping count)
+        self.closing = False                    # True if we are closing
         # maximum number of connections to manage (set only on construction)
         self.maxConnections = maxConnections
         # cached results from socket.getaddrinfo keyed on (hostname,port)
@@ -803,14 +811,14 @@ class HTTPRequestManager(object):
             connection.Close()
 
     def _NextId(self):
-        #	Used internally to manage auto-incrementing connection ids
+        #   Used internally to manage auto-incrementing connection ids
         with self.managerLock:
             id = self.nextId
             self.nextId += 1
         return id
 
     def _NewConnection(self, target, timeout=None):
-        #	Called by a connection pool when a new connection is required
+        #   Called by a connection pool when a new connection is required
         scheme, host, port = target
         if scheme == 'http':
             connection = self.ConnectionClass(self, scheme, host, port)
@@ -854,7 +862,7 @@ class HTTPRequestManager(object):
                 pass
         if (timeout is None or timeout > 0) and (readers or writers):
             try:
-                #	logging.debug("Socket select for: readers=%s, writers=%s, timeout=%i",repr(readers),repr(writers),timeout)
+                #   logging.debug("Socket select for: readers=%s, writers=%s, timeout=%i",repr(readers),repr(writers),timeout)
                 r, w, e = self.socketSelect(readers, writers, [], timeout)
             except select.error, err:
                 logging.error("Socket error from select: %s", str(err))
@@ -929,7 +937,7 @@ class HTTPRequestManager(object):
             for connection in cList:
                 connection.Kill()
 
-    def Close(self):
+    def close(self):
         """Closes all connections and sets the manager to a state where
         new connections cannot not be created.
 
@@ -942,7 +950,13 @@ class HTTPRequestManager(object):
             self.ActiveCleanup(0)
             self.IdleCleanup(0)
 
-    def AddCredentials(self, credentials):
+    def Close(self):    # noqa
+        warnings.warn("HTTPRequestManager.Close is deprecated, use close",
+                      DeprecationWarning,
+                      stacklevel=2)
+        return self.close()
+
+    def add_credentials(self, credentials):
         """Adds a :py:class:`pyslet.rfc2617.Credentials` instance to this
         manager.
 
@@ -950,6 +964,26 @@ class HTTPRequestManager(object):
         401 responses."""
         with self.managerLock:
             self.credentials.append(credentials)
+
+    def AddCredentials(self, credentials):  # noqa
+        warnings.warn("HTTPRequestManager.AddCredentials is deprecated, use "
+                      "add_credentials", DeprecationWarning, stacklevel=2)
+        return self.add_credentials(credentials)
+
+    def remove_credentials(self, credentials):
+        """Removes credentials from this manager.
+
+        credentials
+            A :py:class:`pyslet.rfc2617.Credentials` instance previously
+            added with :py:meth:`add_credentials`.
+
+        If the credentials can't be found then they are silently ignored
+        as it is possible that two threads may independently call the
+        method with the same credentials."""
+        with self.managerLock:
+            for i in xrange(len(self.credentials)):
+                if self.credentials[i] is credentials:
+                    del self.credentials[i]
 
     def DNSLookup(self, host, port):
         """Given a host name (string) and a port number performs a DNS lookup
@@ -993,9 +1027,9 @@ class HTTPRequestManager(object):
                 if c.TestURL(url):
                     return c
 
-# 	def Close(self):
-# 		for connection in self.connections.values():
-# 			connection.Close()
+#   def Close(self):
+#       for connection in self.connections.values():
+#           connection.Close()
 
 
 class HTTPMessage(object):
@@ -1434,12 +1468,13 @@ class HTTPRequest(HTTPMessage):
         super(HTTPRequest, self).__init__()
         self.manager = None
         self.connection = None
-        self.response = None		#: the associated :py:class:`HTTPResponse`
+        self.response = None        #: the associated :py:class:`HTTPResponse`
         #: the status code received, 0 indicates a failed or unsent request
         self.status = 0
-        self.error = None			#: If status==0, the error raised during processing
+        #: If status==0, the error raised during processing
+        self.error = None
         self.SetRequestURI(url)
-        self.method = method		#: the method
+        self.method = method        #: the method
         if type(protocolVersion) in StringTypes:
             self.protocolVersion = HTTPVersion.FromString(protocolVersion)
         elif isinstance(protocolVersion, HTTPVersion):
@@ -1771,7 +1806,7 @@ class HTTPRequest(HTTPMessage):
             if self.status == 401:
                 # we must remove these credentials, they matched the challenge
                 # but still resulted in 401
-                self.manager.RemoveCredentials(self.tryCredentials)
+                self.manager.remove_credentials(self.tryCredentials)
             else:
                 if isinstance(self.tryCredentials, BasicCredentials):
                     # path rule only works for BasicCredentials

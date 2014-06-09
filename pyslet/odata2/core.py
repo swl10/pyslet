@@ -371,9 +371,9 @@ class CommonExpression(object):
         return p.RequireProductionEnd(p.ParseOrderbyOption(), "orderbyOption")
 
     @staticmethod
-    def OrderByToString(orderBy):
+    def OrderByToString(orderby):
         return string.join(map(lambda x: "%s %s" % (
-            unicode(x[0]), "asc" if x[1] > 0 else "desc"), orderBy), ', ')
+            unicode(x[0]), "asc" if x[1] > 0 else "desc"), orderby), ', ')
 
     def __unicode__(self):
         raise NotImplementedError
@@ -1820,7 +1820,7 @@ xsi.MakeEnumeration(SystemQueryOption)
 
 class InlineCount(xsi.Enumeration):
 
-    """inlineCount defines constants for the $inlinecount system query option::
+    """inlinecount defines constants for the $inlinecount system query option::
 
             InlineCount.allpages
             InlineCount.none
@@ -2754,7 +2754,7 @@ class EntityCollection(edm.EntityCollection):
             yield "["
         else:
             yield "{"
-            if self.inlineCount:
+            if self.inlinecount:
                 yield '"__count":%s,' % json.dumps(len(self))
             yield '"results":['
         sep = False
@@ -2781,7 +2781,7 @@ class EntityCollection(edm.EntityCollection):
             yield "["
         else:
             yield "{"
-            if self.inlineCount:
+            if self.inlinecount:
                 yield '"__count":%s,' % json.dumps(len(self))
             yield '"results":['
         sep = False
@@ -3089,7 +3089,7 @@ class Feed(atom.Feed):
         if self.Count:
             yield self.Count
         if self.collection is not None:
-            if self.collection.inlineCount:
+            if self.collection.inlinecount:
                 count = Count(self)
                 count.SetValue(len(self.collection))
                 yield count

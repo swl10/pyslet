@@ -537,10 +537,10 @@ class Server(app.Server):
                                     core.SystemQueryOption.skip, None),
                                 request.sysQueryOptions.get(
                                     core.SystemQueryOption.skiptoken, None))
-                            inlineCount = request.sysQueryOptions.get(
+                            inlinecount = request.sysQueryOptions.get(
                                 core.SystemQueryOption.inlinecount, None)
                             collection.SetInlineCount(
-                                inlineCount == core.InlineCount.allpages)
+                                inlinecount == core.InlineCount.allpages)
                             return self.ReturnLinks(
                                 collection,
                                 request,
@@ -679,10 +679,10 @@ class Server(app.Server):
                             core.SystemQueryOption.skip, None),
                         request.sysQueryOptions.get(
                             core.SystemQueryOption.skiptoken, None))
-                    inlineCount = request.sysQueryOptions.get(
+                    inlinecount = request.sysQueryOptions.get(
                         core.SystemQueryOption.inlinecount, None)
                     resource.SetInlineCount(
-                        inlineCount == core.InlineCount.allpages)
+                        inlinecount == core.InlineCount.allpages)
                     return self.ReturnEntityCollection(
                         resource,
                         request,

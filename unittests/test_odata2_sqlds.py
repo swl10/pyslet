@@ -785,7 +785,7 @@ class RegressionTests(DataServiceRegressionTests):
         DataServiceRegressionTests.tearDown(self)
 
     def test_all_tests(self):
-        self.RunAllCombined()
+        self.run_combined()
 
 
 if __name__ == "__main__":
