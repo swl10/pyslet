@@ -1,6 +1,12 @@
 #! /usr/bin/env python
 
 import unittest
+import decimal
+
+import pyslet.xml20081126.structures as xml
+from pyslet.vfs import OSFilePath as FilePath
+
+from pyslet.odata2.csdl import *    # noqa
 
 
 def suite():
@@ -14,13 +20,6 @@ def suite():
 def load_tests(loader, tests, pattern):
     return suite()
 
-from pyslet.odata2.csdl import *
-
-import pyslet.xml20081126.structures as xml
-import pyslet.odata2.edmx as edmx
-from pyslet.vfs import OSFilePath as FilePath
-
-import decimal
 
 TEST_DATA_DIR = FilePath(
     FilePath(__file__).abspath().split()[0], 'data_mc_csdl')
@@ -28,49 +27,44 @@ TEST_DATA_DIR = FilePath(
 
 class CSDLTests(unittest.TestCase):
 
-    def testCaseConstants(self):
-        self.assertTrue(EDM_NAMESPACE == "http://schemas.microsoft.com/ado/2009/11/edm",
+    def test_constants(self):
+        self.assertTrue(EDM_NAMESPACE ==
+                        "http://schemas.microsoft.com/ado/2009/11/edm",
                         "Wrong CSDL namespace: %s" % EDM_NAMESPACE)
 
-    def testCaseSimpleIdentifier(self):
+    def test_simple_identifier(self):
         # basic tests here:
-        for iTest in ("45",
-                      "M'",
-                      "M;",
-                      "M=",
-                      "M\\",
-                      "M.N",
-                      "M+", "M-", "M*", "M/", "M<", "M>", "M=", "M~", "M!", "M@", "M#", "M%", "M^", "M&", "M|", "M`", "M?",
+        for iTest in ("45", "M'", "M;", "M=", "M\\", "M.N",
+                      "M+", "M-", "M*", "M/", "M<", "M>", "M=", "M~", "M!",
+                      "M@", "M#", "M%", "M^", "M&", "M|", "M`", "M?",
                       "M(", "M)", "M[", "M]", "M,", "M;", "M*", "M."
                       ):
             try:
                 self.assertFalse(
                     ValidateSimpleIdentifier(iTest), "%s: Fail" % repr(iTest))
-            except ValueError, e:
+            except ValueError:
                 pass
 
-    def testCaseSimpleType(self):
+    def test_simple_type(self):
         """Test the SimpleType enumeration."""
         self.assertTrue(SimpleType.Binary == getattr(
             SimpleType, 'Edm.Binary'), "Dual declaration form.")
         # Given a python type value (as returned by the type() function) we
         # find the SimpleType
         self.assertTrue(
-            SimpleType.PythonType[type(3.14)] == SimpleType.Double, "Bad float type")
+            SimpleType.PythonType[type(3.14)] == SimpleType.Double,
+            "Bad float type")
         self.assertTrue(
-            SimpleType.PythonType[type(3)] == SimpleType.Int64, "Bad int type")
+            SimpleType.PythonType[type(3)] == SimpleType.Int64,
+            "Bad int type")
         self.assertTrue(
-            SimpleType.PythonType[type("Hello")] == SimpleType.String, "Bad string type")
+            SimpleType.PythonType[type("Hello")] == SimpleType.String,
+            "Bad string type")
         self.assertTrue(
-            SimpleType.PythonType[type(u"Hello")] == SimpleType.String, "Bad unicode type")
-        # Given a python value we coerce to the correct type
-# 		self.assertTrue(SimpleType.CoerceValue(SimpleType.Boolean,3.14) is True,"Boolean coercion True")
-# 		self.assertTrue(SimpleType.CoerceValue(SimpleType.Boolean,0.0) is False,"Boolean coercion False")
-# 		self.assertTrue(SimpleType.CoerceValue(SimpleType.Int32,3.14) is 3,"Int32 coercion")
-# 		self.assertTrue(SimpleType.CoerceValue(SimpleType.Int32,"3") is 3,"Int32 coercion")
-# 		self.assertTrue(SimpleType.CoerceValue(SimpleType.Double,"3.14")==3.14,"Double coercion")
+            SimpleType.PythonType[type(u"Hello")] == SimpleType.String,
+            "Bad unicode type")
 
-    def testSimpleValue(self):
+    def test_simple_value(self):
         """Test the SimpleValue class."""
         p = Property(None)
         p.simpleTypeCode = SimpleType.Boolean
@@ -80,11 +74,11 @@ class CSDLTests(unittest.TestCase):
         self.assertTrue(v.value is None, "Null value on construction")
         p.name = "flag"
         v = SimpleValue.NewValue(p)
-        self.assertTrue(
-            v.pDef.name == "flag", "SimpleValue property definition set on constructor")
+        self.assertTrue(v.pDef.name == "flag",
+                        "SimpleValue property definition set on constructor")
         self.assertTrue(v.value is None, "Null value on construction")
 
-    def testSimpleValueCasts(self):
+    def test_casts(self):
         p = Property(None)
         p.simpleTypeCode = SimpleType.Byte
         v = SimpleValue.NewValue(p)
@@ -132,36 +126,36 @@ class CSDLTests(unittest.TestCase):
             isinstance(v3.value, decimal.Decimal), "Cast to Decimal")
         self.assertTrue(v3 == 13, "Cast to Double")
 
-    def testCaseSchema(self):
+    def test_schema(self):
         s = Schema(None)
         self.assertTrue(
             isinstance(s, xml.Element), "Schema not an XML element")
         self.assertTrue(s.ns == EDM_NAMESPACE, "CSDL namespace")
         self.assertTrue(s.name == 'Default', 'Namespace default')
-        self.assertTrue(s.alias == None, 'Alias default')
+        self.assertTrue(s.alias is None, 'Alias default')
         self.assertTrue(
             len(s.Using) == 0, "No Using elements allowed on construction")
-        self.assertTrue(
-            len(s.Association) == 0, "No Association elements allowed on construction")
-        self.assertTrue(
-            len(s.ComplexType) == 0, "No ComplexType elements allowed on construction")
-        self.assertTrue(
-            len(s.EntityType) == 0, "No EntityType elements allowed on construction")
+        self.assertTrue(len(s.Association) == 0,
+                        "No Association elements allowed on construction")
+        self.assertTrue(len(s.ComplexType) == 0,
+                        "No ComplexType elements allowed on construction")
+        self.assertTrue(len(s.EntityType) == 0,
+                        "No EntityType elements allowed on construction")
         self.assertTrue(len(s.EntityContainer) == 0,
                         "No EntityContainer elements allowed on construction")
-        self.assertTrue(
-            len(s.Function) == 0, "No Function elements allowed on construction")
-        self.assertTrue(
-            len(s.Annotations) == 0, "No Annotations elements allowed on construction")
-        self.assertTrue(
-            len(s.ValueTerm) == 0, "No ValueTerm elements allowed on construction")
+        self.assertTrue(len(s.Function) == 0,
+                        "No Function elements allowed on construction")
+        self.assertTrue(len(s.Annotations) == 0,
+                        "No Annotations elements allowed on construction")
+        self.assertTrue(len(s.ValueTerm) == 0,
+                        "No ValueTerm elements allowed on construction")
         e = s.ChildElement(EntityType)
         e.name = "TestType"
         s.ContentChanged()
         self.assertTrue(
             s['TestType'] is e, "Schema subscripting, EntityType declared")
 
-    def testCaseEntityType(self):
+    def test_entity_type(self):
         et = EntityType(None)
         self.assertTrue(
             isinstance(et, CSDLElement), "EntityType not a CSDLelement")
@@ -175,12 +169,12 @@ class CSDLTests(unittest.TestCase):
         self.assertTrue(et.abstract is False, "Default abstract")
         et.SetAttribute('Abstract', "true")
         self.assertTrue(et.abstract is True, "Abstract attribute setter")
-        self.assertTrue(
-            et.Documentation is None, "No Documentation elements allowed on construction")
+        self.assertTrue(et.Documentation is None,
+                        "No Documentation elements allowed on construction")
         self.assertTrue(
             et.Key is None, "No Key elements allowed on construction")
-        self.assertTrue(
-            len(et.Property) == 0, "No Property elements allowed on construction")
+        self.assertTrue(len(et.Property) == 0,
+                        "No Property elements allowed on construction")
         self.assertTrue(len(et.NavigationProperty) == 0,
                         "No Property elements allowed on construction")
         self.assertTrue(len(et.TypeAnnotation) == 0,
@@ -188,7 +182,7 @@ class CSDLTests(unittest.TestCase):
         self.assertTrue(len(et.ValueAnnotation) == 0,
                         "No ValueAnnotation elements allowed on construction")
 
-    def testCaseProperty(self):
+    def test_property(self):
         p = Property(None)
         self.assertTrue(
             isinstance(p, CSDLElement), "Property not a CSDLelement")
@@ -199,7 +193,7 @@ class CSDLTests(unittest.TestCase):
         p.SetAttribute('Type', "Edm.Int32")
         self.assertTrue(p.type == "Edm.Int32", "Type attribute setter")
         self.assertTrue(p.TypeRef is None, "No TypeRef child on construction")
-        self.assertTrue(p.nullable == True, "Default nullable value")
+        self.assertTrue(p.nullable is True, "Default nullable value")
         p.SetAttribute('Nullable', "false")
         self.assertTrue(p.nullable is False, "Nullable attribute setter")
         self.assertTrue(p.defaultValue is None, "DefaultValue on construction")
@@ -220,41 +214,41 @@ class CSDLTests(unittest.TestCase):
             p.collectionKind is None, "CollectionKind on construction")
         self.assertTrue(
             p.concurrencyMode is None, "ConcurrencyMode on construction")
-        self.assertTrue(
-            p.Documentation is None, "No Documentation elements allowed on construction")
+        self.assertTrue(p.Documentation is None,
+                        "No Documentation elements allowed on construction")
         self.assertTrue(len(p.TypeAnnotation) == 0,
                         "No TypeAnnotation elements allowed on construction")
         self.assertTrue(len(p.ValueAnnotation) == 0,
                         "No ValueAnnotation elements allowed on construction")
 
-    def testCaseNavigationProperty(self):
+    def test_navigation_property(self):
         np = NavigationProperty(None)
-        self.assertTrue(
-            isinstance(np, CSDLElement), "NavigationProperty not a CSDLElement")
+        self.assertTrue(isinstance(np, CSDLElement),
+                        "NavigationProperty not a CSDLElement")
         self.assertTrue(np.name == "Default", "Default name")
         self.assertTrue(np.relationship is None, "Default relationship")
         self.assertTrue(np.toRole is None, "Default ToRole")
         self.assertTrue(np.fromRole is None, "Default FromRole")
-        self.assertTrue(
-            np.Documentation is None, "No Documentation elements allowed on construction")
+        self.assertTrue(np.Documentation is None,
+                        "No Documentation elements allowed on construction")
         self.assertTrue(len(np.TypeAnnotation) == 0,
                         "No TypeAnnotation elements allowed on construction")
         self.assertTrue(len(np.ValueAnnotation) == 0,
                         "No ValueAnnotation elements allowed on construction")
 
-    def testCaseKey(self):
+    def test_key(self):
         k = Key(None)
         self.assertTrue(isinstance(k, CSDLElement), "Key not a CSDLElement")
-        self.assertTrue(
-            len(k.PropertyRef) == 0, "No PropertyRef elements allowed on construction")
+        self.assertTrue(len(k.PropertyRef) == 0,
+                        "No PropertyRef elements allowed on construction")
 
-    def testCasePropertyRef(self):
+    def test_property_ref(self):
         pr = PropertyRef(None)
         self.assertTrue(
             isinstance(pr, CSDLElement), "PropertyRef not a CSDLElement")
         self.assertTrue(pr.name == "Default", "Default name")
 
-    def testCaseComplexType(self):
+    def test_complex_type(self):
         ct = ComplexType(None)
         self.assertTrue(
             isinstance(ct, CSDLElement), "ComplexType not a CSDLElement")
@@ -266,16 +260,16 @@ class CSDLTests(unittest.TestCase):
         self.assertTrue(ct.abstract is False, "Default abstract")
         ct.SetAttribute('Abstract', "true")
         self.assertTrue(ct.abstract is True, "Abstract attribute setter")
-        self.assertTrue(
-            ct.Documentation is None, "No Documentation elements allowed on construction")
-        self.assertTrue(
-            len(ct.Property) == 0, "No Property elements allowed on construction")
+        self.assertTrue(ct.Documentation is None,
+                        "No Documentation elements allowed on construction")
+        self.assertTrue(len(ct.Property) == 0,
+                        "No Property elements allowed on construction")
         self.assertTrue(len(ct.TypeAnnotation) == 0,
                         "No TypeAnnotation elements allowed on construction")
         self.assertTrue(len(ct.ValueAnnotation) == 0,
                         "No ValueAnnotation elements allowed on construction")
 
-    def testCaseAssociation(self):
+    def test_association(self):
         a = Association(None)
         self.assertTrue(
             isinstance(a, CSDLElement), "Association not a CSDLElement")
@@ -283,18 +277,19 @@ class CSDLTests(unittest.TestCase):
         a.SetAttribute('Name', "NewName")
         self.assertTrue(
             a.name == "NewName", "Name attribute setter: %s" % repr(a.name))
-        self.assertTrue(
-            a.Documentation is None, "No Documentation elements allowed on construction")
-        self.assertTrue(
-            len(a.AssociationEnd) == 0, "No AssociationEnds allowed on construction")
+        self.assertTrue(a.Documentation is None,
+                        "No Documentation elements allowed on construction")
+        self.assertTrue(len(a.AssociationEnd) == 0,
+                        "No AssociationEnds allowed on construction")
         self.assertTrue(a.ReferentialConstraint is None,
-                        "No ReferentialConstraint elements allowed on construction")
+                        "No ReferentialConstraint elements allowed "
+                        "on construction")
         self.assertTrue(len(a.TypeAnnotation) == 0,
                         "No TypeAnnotation elements allowed on construction")
         self.assertTrue(len(a.ValueAnnotation) == 0,
                         "No ValueAnnotation elements allowed on construction")
 
-    def testCaseEnd(self):
+    def test_end(self):
         e = AssociationEnd(None)
         self.assertTrue(
             isinstance(e, CSDLElement), "AssociationEnd not a CSDLElement")
@@ -307,48 +302,52 @@ class CSDLTests(unittest.TestCase):
         self.assertTrue(
             e.multiplicity == Multiplicity.One, "Default Multiplicity")
         e.SetAttribute('Multiplicity', "0..1")
-        self.assertTrue(
-            e.multiplicity == Multiplicity.ZeroToOne, "Multiplicity attribute setter")
+        self.assertTrue(e.multiplicity == Multiplicity.ZeroToOne,
+                        "Multiplicity attribute setter")
         e.SetAttribute('Multiplicity', "*")
-        self.assertTrue(
-            e.multiplicity == Multiplicity.Many, "Multiplicity attribute setter")
-        self.assertTrue(
-            e.Documentation is None, "No Documentation elements allowed on construction")
-        self.assertTrue(
-            e.OnDelete is None, "No OnDelete elements allowed on construction")
+        self.assertTrue(e.multiplicity == Multiplicity.Many,
+                        "Multiplicity attribute setter")
+        self.assertTrue(e.Documentation is None,
+                        "No Documentation elements allowed on construction")
+        self.assertTrue(e.OnDelete is None,
+                        "No OnDelete elements allowed on construction")
 
-    def testCaseEntity(self):
-        minimalNavSchema = """<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
-<Schema Namespace="SampleModel" xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
-	<EntityContainer Name="SampleEntities" m:IsDefaultEntityContainer="true">
-    	<EntitySet Name="Customers" EntityType="SampleModel.Customer"/>
+    def test_entity(self):
+        min_nav_schema = \
+            """<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<Schema Namespace="SampleModel"
+        xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
+    <EntityContainer Name="SampleEntities" m:IsDefaultEntityContainer="true">
+        <EntitySet Name="Customers" EntityType="SampleModel.Customer"/>
         <EntitySet Name="Orders" EntityType="SampleModel.Order"/>
-		<AssociationSet Name="Orders_Customers" Association="SampleModel.Orders_Customers">
-			<End Role="Customer" EntitySet="Customers"/>
-			<End Role="Order" EntitySet="Orders"/>
-		</AssociationSet>
+        <AssociationSet Name="Orders_Customers"
+                Association="SampleModel.Orders_Customers">
+            <End Role="Customer" EntitySet="Customers"/>
+            <End Role="Order" EntitySet="Orders"/>
+        </AssociationSet>
     </EntityContainer>
-	<EntityType Name="Order">
-		<Key>
-			<PropertyRef Name="OrderID"/>
-		</Key>
-		<Property Name="OrderID" Type="Edm.Int32" Nullable="false"/>
-	</EntityType>
-	<EntityType Name="Customer">
-		<Key>
-			<PropertyRef Name="CustomerID"/>
-		</Key>
-		<Property Name="CustomerID" Type="Edm.String"/>
-		<NavigationProperty Name="Orders" Relationship="SampleModel.Orders_Customers"
-			FromRole="Customer" ToRole="Order"/>
-	</EntityType>
-	<Association Name="Orders_Customers">
-		<End Role="Customer" Type="SampleModel.Customer" Multiplicity="0..1"/>
-		<End Role="Order" Type="SampleModel.Order" Multiplicity="*"/>
-	</Association>
+    <EntityType Name="Order">
+        <Key>
+            <PropertyRef Name="OrderID"/>
+        </Key>
+        <Property Name="OrderID" Type="Edm.Int32" Nullable="false"/>
+    </EntityType>
+    <EntityType Name="Customer">
+        <Key>
+            <PropertyRef Name="CustomerID"/>
+        </Key>
+        <Property Name="CustomerID" Type="Edm.String"/>
+        <NavigationProperty Name="Orders"
+            Relationship="SampleModel.Orders_Customers"
+            FromRole="Customer" ToRole="Order"/>
+    </EntityType>
+    <Association Name="Orders_Customers">
+        <End Role="Customer" Type="SampleModel.Customer" Multiplicity="0..1"/>
+        <End Role="Order" Type="SampleModel.Order" Multiplicity="*"/>
+    </Association>
 </Schema>"""
         doc = Document()
-        doc.Read(src=minimalNavSchema)
+        doc.Read(src=min_nav_schema)
         scope = NameTableMixin()
         scope.Declare(doc.root)
         doc.root.UpdateTypeRefs(scope)
@@ -357,10 +356,10 @@ class CSDLTests(unittest.TestCase):
         e = Entity(es)
         # initially the entity is marked as a new entity
         self.assertFalse(e.exists)
-        self.assertTrue(
-            isinstance(e['CustomerID'], StringValue), "Type of simple property")
-        self.assertTrue(
-            isinstance(e['Orders'], DeferredValue), "Type of navigation property")
+        self.assertTrue(isinstance(e['CustomerID'], StringValue),
+                        "Type of simple property")
+        self.assertTrue(isinstance(e['Orders'], DeferredValue),
+                        "Type of navigation property")
 
 
 if __name__ == "__main__":
