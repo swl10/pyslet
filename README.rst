@@ -1,6 +1,10 @@
 Welcome to Pyslet
 =================
 
+.. image:: https://secure.travis-ci.org/swl10/pyslet.png
+   :alt: Build Status
+   :target: https://travis-ci.org/swl10/pyslet
+
 Pyslet is a Python package for Standards in Learning Education and
 Training (LET). It implements a number of LET-specific standards,
 including IMS QTI, Content Packaging and Basic LTI.  It also includes
@@ -51,7 +55,7 @@ profile page linked from my blog page.
 Pyslet is written and maintained by the main author on a spare time
 basis and is not connected to my current employer.
 
-As I don't have much spare time, the code tends to be fairly stable. 
+As I don't have much spare time, the code tends to be fairly stable.
 Some of the code was written almost 20 years ago and it owes a lot to
 the University of Cambridge that employed me for many years in a variety
 of different roles.
@@ -66,7 +70,7 @@ from the early days of the code.  Although Copyright to much of the
 source is owned by the author personally earlier parts are owned by the
 University of Cambridge and are marked as such.
 
- 
- 
+
+
 
 
