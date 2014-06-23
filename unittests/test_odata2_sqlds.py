@@ -77,13 +77,8 @@ class MockAPI(object):
 
 class MockContainer(SQLEntityContainer):
 
-    def __init__(self, container, dbapi, max_connections=10):
-        super(
-            MockContainer,
-            self).__init__(
-            container,
-            dbapi,
-            max_connections)
+    def __init__(self, **kwargs):
+        super(MockContainer, self).__init__(**kwargs)
         self.acquired = None
         self.acquired2 = None
 
@@ -135,7 +130,8 @@ class ThreadTests(unittest.TestCase):
 
     def test_level0(self):
         # we ask for 5 connections, but should only get one due to level 0
-        container = MockContainer(self.container, MockAPI(0), 5)
+        container = MockContainer(container=self.container,
+                                  dbapi=MockAPI(0), max_connections=5)
         self.assertTrue(
             container.cpool_max == 1,
             "A pool with a single connection")
@@ -188,7 +184,8 @@ class ThreadTests(unittest.TestCase):
 
     def test_level1(self):
         # we ask for 2 connections and should get them
-        container = MockContainer(self.container, MockAPI(1), 2)
+        container = MockContainer(container=self.container, dbapi=MockAPI(1),
+                                  max_connections=2)
         self.assertTrue(container.cpool_max == 2, "Expected 2 connections")
         # check we can acquire and release a connection from a different
         # thread
@@ -247,7 +244,8 @@ class ThreadTests(unittest.TestCase):
 
     def test_level2(self):
         # we ask for 5 connections and should get them
-        container = MockContainer(self.container, MockAPI(2), 5)
+        container = MockContainer(container=self.container, dbapi=MockAPI(2),
+                                  max_connections=5)
         self.assertTrue(container.cpool_max == 5, "Expected 5 connections")
         c1 = container.acquire_connection()
         self.assertTrue(
@@ -284,7 +282,8 @@ class ThreadTests(unittest.TestCase):
 
     def test_multithread(self):
         # we ask for 5 connections and should get them
-        container = MockContainer(self.container, MockAPI(1), 5)
+        container = MockContainer(container=self.container, dbapi=MockAPI(1),
+                                  max_connections=5)
         self.assertTrue(container.cpool_max == 5, "Expected 5 connections")
         threads = []
         for i in xrange(100):
@@ -775,7 +774,9 @@ class RegressionTests(DataServiceRegressionTests):
         self.d = FilePath.mkdtemp('.d', 'pyslet-test_odata2_sqlds-')
         self.db = SQLiteEntityContainer(
             file_path=self.d.join('test.db'),
-            container=self.container)
+            container=self.container,
+            streamstore=SQLiteStreamStore(
+                file_path=self.d.join('streamstore.db')))
         self.db.create_all_tables()
 
     def tearDown(self):  # noqa

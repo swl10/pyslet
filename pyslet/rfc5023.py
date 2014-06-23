@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-"""This module implements the Atom Publishing Protocol specification defined in RFC 5023
+"""Implements the Atom Publishing Protocol defined in RFC 5023
 
 References:
 
@@ -17,7 +17,6 @@ import sys
 import io
 import traceback
 
-import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 from pyslet import rfc4287 as atom
 from pyslet import rfc2616 as http
@@ -53,7 +52,7 @@ class APPElement(xmlns.XMLNSElement):
 
     """Base class for all APP elements.
 
-    All APP elements can have xml:base, xml:lang and/or xml:space attributes. 
+    All APP elements can have xml:base, xml:lang and/or xml:space attributes.
     These are handled by the base
     :py:class:`~pyslet.xml20081126.structures.Element` base class."""
     pass
@@ -69,7 +68,8 @@ class Categories(APPElement):
 
     """The root of a Category Document.
 
-    A category document is a document that describes the categories allowed in a collection."""
+    A category document is a document that describes the categories
+    allowed in a collection."""
     XMLNAME = (APP_NAMESPACE, 'categories')
 
     XMLATTR_href = ('href', uri.URIFactory.URI, str)
@@ -79,14 +79,17 @@ class Categories(APPElement):
 
     def __init__(self, parent):
         APPElement.__init__(self, parent)
-        #: an optional :py:class:`~pyslet.rfc2396.URI` to the category
         self.href = None
-        #: indicates whether the list of categories is a fixed set.  By default they're open.
+        #: an optional :py:class:`~pyslet.rfc2396.URI` to the category
         self.fixed = None
-        # : identifies the default scheme for categories defined by this element
+        #: indicates whether the list of categories is a fixed set. By
+        #: default they're open.
         self.scheme = None
-        # : the list of categories, instances of :py:class:~pyslet.rfc4287.Category
+        #: identifies the default scheme for categories defined by this
+        #: element
         self.Category = []
+        #: the list of categories, instances of
+        #: :py:class:~pyslet.rfc4287.Category
 
     def GetChildren(self):
         for child in self.Category:
@@ -97,7 +100,9 @@ class Categories(APPElement):
 
 class Service(APPElement):
 
-    """The container for service information associated with one or more Workspaces."""
+    """The container for service information
+
+    Associated with one or more Workspaces."""
     XMLNAME = (APP_NAMESPACE, 'service')
     XMLCONTENT = xmlns.ElementContent
 
@@ -142,12 +147,16 @@ class Collection(APPElement):
 
     def __init__(self, parent):
         APPElement.__init__(self, parent)
-        self.href = None		#: the URI of the collection (feed)
-        self.Title = None		#: the human readable title of the collection
-        #: list of :py:class:`Accept` media ranges that can be posted to the collection
+        self.href = None
+        #: the URI of the collection (feed)
+        self.Title = None
+        #: the human readable title of the collection
         self.Accept = []
-        # : list of :py:class:`Categories` that can be applied to members of the collection
+        #: list of :py:class:`Accept` media ranges that can be posted to
+        #: the collection
         self.Categories = []
+        # : list of :py:class:`Categories` that can be applied to
+        # : members of the collection
 
     def GetChildren(self):
         for child in APPElement.GetChildren(self):
@@ -176,21 +185,77 @@ class Document(atom.AtomDocument):
         self.defaultNS = APP_NAMESPACE
 
     def ValidateMimeType(self, mimetype):
-        """Checks *mimetype* against the mime types given in the APP or Atom specifications."""
-        return mimetype in APP_MIMETYPES or atom.AtomDocument.ValidateMimeType(self, mimetype)
+        """Checks *mimetype* against the APP or Atom specifications."""
+        return (mimetype in APP_MIMETYPES or
+                atom.AtomDocument.ValidateMimeType(self, mimetype))
 
     @classmethod
     def GetElementClass(cls, name):
         """Returns the APP or Atom class used to represent name.
 
-        Overrides :py:meth:`~pyslet.rfc4287.AtomDocument.GetElementClass` when
-        the namespace is :py:data:`APP_NAMESPACE`."""
+        Overrides
+        :py:meth:`~pyslet.rfc4287.AtomDocument.GetElementClass` when the
+        namespace is :py:data:`APP_NAMESPACE`."""
         if name[0] == APP_NAMESPACE:
-            return cls.classMap.get(name, atom.AtomDocument.classMap.get((name[0], None), APPElement))
+            return cls.classMap.get(
+                name, atom.AtomDocument.classMap.get((name[0], None),
+                                                     APPElement))
         else:
             return atom.AtomDocument.GetElementClass(name)
 
 xmlns.MapClassElements(Document.classMap, globals())
+
+
+class Slug(object):
+
+    """Represents an HTTP slug header value.
+
+    slug
+            The opaque slug as a unicode string
+
+    The built-in str function can be used to format instances according
+    to the grammar defined in the specification.
+
+    Instances must be treated as immutable, they define comparison
+    methods and a hash implementation to allow them to be used as keys
+    in dictionaries."""
+
+    def __init__(self, slug):
+        self.slug = slug		#: the slug value
+
+    @classmethod
+    def FromString(cls, source):
+        """Creates a slug from a *source* string."""
+        return cls(unicode(uri.UnescapeData(source), 'utf-8'))
+
+    def __str__(self):
+        result = []
+        for c in self.slug.encode('utf-8'):
+            if c == '%' or ord(c) < 0x20 or ord(c) > 0x7E:
+                result.append("%%%02X" % ord(c))
+            else:
+                result.append(c)
+        return string.join(result, '')
+
+    def __unicode__(self):
+        return unicode(self.__str__())
+
+    def __repr__(self):
+        return "Slig(%s)" % repr(self.slug)
+
+    def __cmp__(self, other):
+        """Slugs are compared case sensitive."""
+        if isinstance(other, unicode):
+            result = cmp(self.slug, other)
+        elif isinstance(other, str):
+            other = Slug.FromString(other)
+            result = cmp(self.slug, other.slug)
+        elif isinstance(other, Slug):
+            result = cmp(self.slug, other.slug)
+        return result
+
+    def __hash__(self):
+        return hash(self.slug)
 
 
 class Client(http.HTTPRequestManager):
@@ -226,13 +291,20 @@ class InputWrapper(io.RawIOBase):
 
     def __init__(self, environ, seekSize=io.DEFAULT_BUFFER_SIZE):
         super(InputWrapper, self).__init__()
-        self.inputStream = environ['wsgi.input']
-        self.inputLength = None
-        if "CONTENT_LENGTH" in environ:
+        self.input_stream = environ['wsgi.input']
+        if ('HTTP_TRANSFER_ENCODING' in environ and
+                environ['HTTP_TRANSFER_ENCODING'].lower() != 'identity'):
+            self.input_stream = http.ChunkedReader(self.input_stream)
+            # ignore the content length
+            self.inputLength = None
+        elif ("CONTENT_LENGTH" in environ and environ['CONTENT_LENGTH']):
             self.inputLength = int(environ['CONTENT_LENGTH'])
             if self.inputLength < seekSize:
                 # we can buffer the entire stream
                 seekSize = self.inputLength
+        else:
+            # read until EOF
+            self.inputLength = None
         self.pos = 0
         self.buffer = None
         self.buffSize = 0
@@ -240,10 +312,10 @@ class InputWrapper(io.RawIOBase):
             self.buffer = StringIO.StringIO()
             # now fill the buffer
             while self.buffSize < seekSize:
-                data = self.inputStream.read(seekSize - self.buffSize)
+                data = self.input_stream.read(seekSize - self.buffSize)
                 if len(data) == 0:
                     # we ran out of data
-                    self.inputStream = None
+                    self.input_stream = None
                     break
                 self.buffer.write(data)
                 self.buffSize = self.buffer.tell()
@@ -254,7 +326,7 @@ class InputWrapper(io.RawIOBase):
         """This is the heart of our wrapper.
 
         We read bytes first from the buffer and, when exhausted, from
-        the inputStream itself."""
+        the input_stream itself."""
         if self.closed:
             raise IOError("InputWrapper was closed")
         if n == -1:
@@ -264,14 +336,14 @@ class InputWrapper(io.RawIOBase):
             data = self.buffer.read(n)
             self.pos += len(data)
             n = n - len(data)
-        if n and self.inputStream is not None:
+        if n and self.input_stream is not None:
             if self.inputLength is not None and self.pos + n > self.inputLength:
                 # application should not attempt to read past the
                 # CONTENT_LENGTH
                 n = self.inputLength - self.pos
-            iData = self.inputStream.read(n)
+            iData = self.input_stream.read(n)
             if len(iData) == 0:
-                self.inputStream = None
+                self.input_stream = None
             else:
                 self.pos += len(iData)
                 if data:

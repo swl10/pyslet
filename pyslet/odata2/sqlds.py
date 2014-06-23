@@ -13,12 +13,18 @@ import math
 import logging
 import types
 import warnings
+import os.path
+import hashlib
+import io
 
 import pyslet.iso8601 as iso
+import pyslet.rfc2616 as http
+import pyslet.blockstore as blockstore
 from pyslet.vfs import OSFilePath
 
 import csdl as edm
 import core
+import metadata as edmx
 
 
 # : the standard timeout while waiting for a database connection, in seconds
@@ -599,6 +605,203 @@ class SQLCollectionBase(core.EntityCollection):
         finally:
             transaction.close()
 
+    def read_stream(self, key, out=None):
+        entity = self.new_entity()
+        entity.SetKey(key)
+        svalue = self._get_streamid(key)
+        if not svalue:
+            # null means no stream associated with the entity
+            raise KeyError("No stream associated with entity %s",
+                           entity.GetLocation())
+        sinfo = core.StreamInfo()
+        estream = self.container.streamstore.get_stream(svalue.value)
+        sinfo.type = http.MediaType.FromString(estream['mimetype'].value)
+        sinfo.created = estream['created'].value.WithZone(0)
+        sinfo.modified = estream['modified'].value.WithZone(0)
+        sinfo.size = estream['size'].value
+        sinfo.md5 = estream['md5'].value
+        if out is not None:
+            with self.container.streamstore.open_stream(estream, 'r') as src:
+                actual_size, actual_md5 = self._copy_src(src, out)
+            if sinfo.size is not None and sinfo.size != actual_size:
+                # unexpected size mismatch
+                raise SQLError("stream size mismatch on read %s" %
+                               entity.GetLocation())
+            if sinfo.md5 is not None and sinfo.md5 != actual_md5:
+                # md5 mismatch
+                raise SQLError("stream checksum mismatch on read %s" %
+                               entity.GetLocation())
+        return sinfo
+
+    def read_stream_close(self, key):
+        entity = self.new_entity()
+        entity.SetKey(key)
+        svalue = self._get_streamid(key)
+        if not svalue:
+            # null means no stream associated with the entity
+            raise KeyError("No stream associated with entity %s",
+                           entity.GetLocation())
+        sinfo = core.StreamInfo()
+        estream = self.container.streamstore.get_stream(svalue.value)
+        sinfo.type = http.MediaType.FromString(estream['mimetype'].value)
+        sinfo.created = estream['created'].value.WithZone(0)
+        sinfo.modified = estream['modified'].value.WithZone(0)
+        sinfo.size = estream['size'].value
+        sinfo.md5 = estream['md5'].value
+        return sinfo, self._read_stream_gen(estream, sinfo)
+
+    def _read_stream_gen(self, estream, sinfo):
+        try:
+            with self.container.streamstore.open_stream(estream, 'r') as src:
+                h = hashlib.md5()
+                count = 0
+                while True:
+                    data = src.read(io.DEFAULT_BUFFER_SIZE)
+                    if len(data):
+                        count += len(data)
+                        h.update(data)
+                        yield data
+                    else:
+                        break
+            if sinfo.size is not None and sinfo.size != count:
+                # unexpected size mismatch
+                raise SQLError("stream size mismatch on read [%i]" %
+                               estream.Key())
+            if sinfo.md5 is not None and sinfo.md5 != h.digest():
+                # md5 mismatch
+                raise SQLError("stream checksum mismatch on read [%i]" %
+                               estream.Key())
+        finally:
+            self.close()
+
+    def update_stream(self, src, key, sinfo=None):
+        e = self.new_entity()
+        e.SetKey(key)
+        if sinfo is None:
+            sinfo = core.StreamInfo()
+        etag = e.ETagValues()
+        if len(etag) == 1 and isinstance(etag[0], edm.BinaryValue):
+            h = hashlib.sha256()
+            etag = etag[0]
+        else:
+            h = None
+        c, v = self.stream_field(e)
+        if self.container.streamstore:
+            # spool the data into the store and store the stream key
+            estream = self.container.streamstore.new_stream(sinfo.type,
+                                                            sinfo.created)
+            with self.container.streamstore.open_stream(estream, 'w') as dst:
+                sinfo.size, sinfo.md5 = self._copy_src(src, dst, sinfo.size, h)
+            if sinfo.modified is not None:
+                # force modified date based on input
+                estream['modified'].SetFromValue(sinfo.modified.ShiftZone(0))
+                estream.Update()
+            v.SetFromValue(estream.Key())
+        else:
+            raise NotImplementedError
+        if h is not None:
+            etag.SetFromValue(h.digest())
+        oldvalue = self._get_streamid(key)
+        transaction = SQLTransaction(self.container.dbapi, self.dbc)
+        try:
+            transaction.begin()
+            # store the new stream value for the entity
+            query = ['UPDATE ', self.table_name, ' SET ']
+            params = self.container.ParamsClass()
+            query.append(
+                "%s=%s" %
+                (c, params.add_param(self.container.prepare_sql_value(v))))
+            query.append(' WHERE ')
+            for k, kv in e.KeyDict().items():
+                query.append(
+                    '%s=%s' %
+                    (self.container.mangled_names[(self.entity_set.name, k)],
+                     params.add_param(self.container.prepare_sql_value(kv))))
+            query = string.join(query, '')
+            logging.info("%s; %s", query, unicode(params.params))
+            transaction.execute(query, params)
+        except Exception as e:
+            # we allow the stream store to re-use the same database but
+            # this means we can't transact on both at once (from the
+            # same thread) - settle for logging at the moment
+            # self.container.streamstore.delete_stream(estream)
+            logging.error("Orphan stream created %s[%i]",
+                          estream.entity_set.name, estream.Key())
+            transaction.rollback(e)
+        finally:
+            transaction.close()
+        # now remove the old stream
+        if oldvalue:
+            oldstream = self.container.streamstore.get_stream(oldvalue.value)
+            self.container.streamstore.delete_stream(oldstream)
+
+    def _get_streamid(self, key, transaction=None):
+        entity = self.new_entity()
+        entity.SetKey(key)
+        params = self.container.ParamsClass()
+        query = ["SELECT "]
+        sname, svalue = self.stream_field(entity)
+        query.append(sname)
+        query.append(' FROM ')
+        query.append(self.table_name)
+        query.append(self.where_clause(entity, params, use_filter=False))
+        query = string.join(query, '')
+        if transaction is None:
+            transaction = SQLTransaction(self.container.dbapi, self.dbc)
+        try:
+            transaction.begin()
+            logging.info("%s; %s", query, unicode(params.params))
+            transaction.execute(query, params)
+            rowcount = transaction.cursor.rowcount
+            row = transaction.cursor.fetchone()
+            if rowcount == 0 or row is None:
+                raise KeyError
+            elif rowcount > 1 or (rowcount == -1 and
+                                  transaction.cursor.fetchone() is not None):
+                # whoops, that was unexpected
+                raise SQLError(
+                    "Integrity check failure, non-unique key: %s" % repr(key))
+            self.container.read_sql_value(svalue, row[0])
+            entity.exists = True
+            transaction.commit()
+        except Exception as e:
+            transaction.rollback(e)
+        finally:
+            transaction.close()
+        return svalue
+
+    def _copy_src(self, src, dst, max_bytes=None, xhash=None):
+        md5 = hashlib.md5()
+        rbytes = max_bytes
+        count = 0
+        while rbytes is None or rbytes > 0:
+            if rbytes is None:
+                data = src.read(io.DEFAULT_BUFFER_SIZE)
+            else:
+                data = src.read(min(rbytes, io.DEFAULT_BUFFER_SIZE))
+                rbytes -= len(data)
+            if not data:
+                # we're done
+                break
+            # add the data to the hash
+            md5.update(data)
+            if xhash is not None:
+                xhash.update(data)
+            while data:
+                wbytes = dst.write(data)
+                if wbytes is None:
+                    if not isinstance(dst, io.RawIOBase):
+                        wbytes = len(data)
+                    else:
+                        wbytes = 0
+                        time.sleep(0)   # yield to prevent hard loop
+                if wbytes < len(data):
+                    data = data[wbytes:]
+                else:
+                    data = None
+                count += wbytes
+        return count, md5.digest()
+
     def join_clause(self):
         """A utility method to return the JOIN clause.
 
@@ -859,6 +1062,20 @@ class SQLCollectionBase(core.EntityCollection):
                                             sub_path)
                         yield self._mangle_name(source_path), fv
 
+    def key_fields(self, entity):
+        """A generator for selecting mangled key names and values.
+
+        entity
+            Any instance of :py:class:`~pyslet.odata2.csdl.Entity`
+
+        The yielded values are tuples of (mangled field name,
+        :py:class:`~pyslet.odata2.csdl.SimpleValue` instance).
+        Only the keys fields are yielded."""
+        for k in entity.entity_set.keys:
+            v = entity[k]
+            source_path = (self.entity_set.name, k)
+            yield self._mangle_name(source_path), v
+
     def select_fields(self, entity):
         """A generator for selecting mangled property names and values.
 
@@ -944,6 +1161,18 @@ class SQLCollectionBase(core.EntityCollection):
             else:
                 for source_path, fv in self._complex_field_generator(v):
                     yield [k] + source_path, fv
+
+    def stream_field(self, entity):
+        """Returns information for selecting the stream ID.
+
+        entity
+            Any instance of :py:class:`~pyslet.odata2.csdl.Entity`
+
+        Returns a tuples of (mangled field name,
+        :py:class:`~pyslet.odata2.csdl.SimpleValue` instance)."""
+        source_path = (self.entity_set.name, '_value')
+        return self._mangle_name(source_path), \
+            edm.EDMValue.NewSimpleValue(edm.SimpleType.Int64)
 
     SQLBinaryExpressionMethod = {}
     SQLCallExpressionMethod = {}
@@ -1473,6 +1702,79 @@ class SQLEntityCollection(SQLCollectionBase):
         implementation that takes additional arguments."""
         self.insert_entity_sql(entity)
 
+    def new_stream(self, src, sinfo=None, key=None):
+        e = self.new_entity()
+        if key is None:
+            e.auto_key()
+        else:
+            e.set_key(key)
+        if sinfo is None:
+            sinfo = core.StreamInfo()
+        etag = e.ETagValues()
+        if len(etag) == 1 and isinstance(etag[0], edm.BinaryValue):
+            h = hashlib.sha256()
+            etag = etag[0]
+        else:
+            h = None
+        c, v = self.stream_field(e)
+        if self.container.streamstore:
+            # spool the data into the store and store the stream key
+            estream = self.container.streamstore.new_stream(sinfo.type,
+                                                            sinfo.created)
+            with self.container.streamstore.open_stream(estream, 'w') as dst:
+                sinfo.size, sinfo.md5 = self._copy_src(src, dst, sinfo.size, h)
+            if sinfo.modified is not None:
+                # force modified date based on input
+                estream['modified'].SetFromValue(sinfo.modified.ShiftZone(0))
+                estream.Update()
+            v.SetFromValue(estream.Key())
+        else:
+            raise NotImplementedError
+        if h is not None:
+            etag.SetFromValue(h.digest())
+        transaction = SQLTransaction(self.container.dbapi, self.dbc)
+        try:
+            transaction.begin()
+            # now try the insert and loop with random keys if required
+            for i in xrange(100):
+                try:
+                    self.insert_entity_sql(e, transaction=transaction)
+                    break
+                except edm.ConstraintError:
+                    # try a different key
+                    e.auto_key()
+            if not e.exists:
+                # give up - we can't insert anything
+                logging.error("Failed to find an unused key in %s "
+                              "after 100 attempts", e.entity_set.name)
+                raise edm.SQLError("Auto-key failure")
+            # finally, store the stream value for the entity
+            query = ['UPDATE ', self.table_name, ' SET ']
+            params = self.container.ParamsClass()
+            query.append(
+                "%s=%s" %
+                (c, params.add_param(self.container.prepare_sql_value(v))))
+            query.append(' WHERE ')
+            for k, kv in e.KeyDict().items():
+                query.append(
+                    '%s=%s' %
+                    (self.container.mangled_names[(self.entity_set.name, k)],
+                     params.add_param(self.container.prepare_sql_value(kv))))
+            query = string.join(query, '')
+            logging.info("%s; %s", query, unicode(params.params))
+            transaction.execute(query, params)
+        except Exception as e:
+            # we allow the stream store to re-use the same database but
+            # this means we can't transact on both at once (from the
+            # same thread) - settle for logging at the moment
+            # self.container.streamstore.delete_stream(estream)
+            logging.error("Orphan stream created %s[%i]",
+                          estream.entity_set.name, estream.Key())
+            transaction.rollback(e)
+        finally:
+            transaction.close()
+        return e
+
     def insert_entity_sql(
             self,
             entity,
@@ -1625,6 +1927,14 @@ class SQLEntityCollection(SQLCollectionBase):
                             target_entity[key_name]))
                 nav_done.add(nav_name)
             # Step 2
+            try:
+                entity.Key()
+            except KeyError:
+                # missing key on insert, auto-generate if we can
+                for i in xrange(100):
+                    entity.auto_key()
+                    if not self.test_key(entity, transaction):
+                        break
             entity.SetConcurrencyTokens()
             query = ['INSERT INTO ', self.table_name, ' (']
             insert_values = list(self.insert_fields(entity))
@@ -1753,6 +2063,38 @@ class SQLEntityCollection(SQLCollectionBase):
                 self.container.read_sql_value(value, new_value)
             entity.Expand(self.expand, self.select)
             transaction.commit()
+        except Exception as e:
+            transaction.rollback(e)
+        finally:
+            transaction.close()
+
+    def test_key(self, entity, transaction):
+        params = self.container.ParamsClass()
+        query = ["SELECT "]
+        column_names, values = zip(*list(self.key_fields(entity)))
+        query.append(string.join(column_names, ", "))
+        query.append(' FROM ')
+        query.append(self.table_name)
+        query.append(self.where_clause(entity, params, use_filter=False))
+        query = string.join(query, '')
+        try:
+            transaction.begin()
+            logging.info("%s; %s", query, unicode(params.params))
+            transaction.execute(query, params)
+            rowcount = transaction.cursor.rowcount
+            row = transaction.cursor.fetchone()
+            if rowcount == 0 or row is None:
+                result = False
+            elif rowcount > 1 or (rowcount == -1 and
+                                  transaction.cursor.fetchone() is not None):
+                # whoops, that was unexpected
+                raise SQLError(
+                    "Integrity check failure, non-unique key: %s" %
+                    repr(entity.Key()))
+            else:
+                result = True
+            transaction.commit()
+            return result
         except Exception as e:
             transaction.rollback(e)
         finally:
@@ -2051,8 +2393,11 @@ class SQLEntityCollection(SQLCollectionBase):
 
     def __delitem__(self, key):
         with self.entity_set.OpenCollection() as base:
-            base.SelectKeys()
-            entity = base[key]
+            entity = base.new_entity()
+            entity.SetKey(key)
+            entity.exists = True    # an assumption!
+            # base.SelectKeys()
+            # entity = base[key]
         self.delete_entity(entity)
 
     def delete_entity(self, entity, from_end=None, transaction=None):
@@ -2314,6 +2659,13 @@ class SQLEntityCollection(SQLCollectionBase):
                 cnames[c] = True
                 cols.append("%s %s" %
                             (c, self.container.prepare_sql_type(v, params)))
+        # do we have a media stream?
+        if self.entity_set.entityType.HasStream():
+            v = edm.EDMValue.NewSimpleValue(edm.SimpleType.Int64)
+            c = self.container.mangled_names[(self.entity_set.name, u'_value')]
+            cnames[c] = True
+            cols.append("%s %s" %
+                        (c, self.container.prepare_sql_type(v, params)))
         keys = entity.KeyDict()
         constraints = []
         constraints.append(
@@ -3253,6 +3605,11 @@ class SQLEntityContainer(object):
         The :py:class:`~pyslet.odata2.csdl.EntityContainer` that defines
         this database.
 
+    streamstore
+        An optional :py:class:`~pyslet.blockstore.StreamStore` that will
+        be used to store media resources in the container.  If absent,
+        media resources actions will generate NotImplementedError.
+
     dbapi
         The DB API v2 compatible module to use to connect to the
         database.
@@ -3297,6 +3654,7 @@ class SQLEntityContainer(object):
             self,
             container,
             dbapi,
+            streamstore=None,
             max_connections=10,
             field_name_joiner=u"_",
             **kwargs):
@@ -3305,6 +3663,8 @@ class SQLEntityContainer(object):
                 "Unabsorbed kwargs in SQLEntityContainer constructor")
         self.container = container
         #: the :py:class:`~pyslet.odata2.csdl.EntityContainer`
+        self.streamstore = streamstore
+        #: the optional :py:class:`~pyslet.blockstore.StreamStore`
         self.dbapi = dbapi
         #: the DB API compatible module
         self.module_lock = None
@@ -3508,6 +3868,8 @@ class SQLEntityContainer(object):
         yield (entity_set.name,)
         for source_path in self.type_name_generator(entity_set.entityType):
             yield tuple([entity_set.name] + source_path)
+        if entity_set.entityType.HasStream():
+            yield (entity_set.name, u'_value')
         for link_end, nav_name in entity_set.linkEnds.iteritems():
             if not nav_name:
                 # use the role name of the other end of the link instead
@@ -3953,7 +4315,7 @@ class SQLEntityContainer(object):
 
         simple_value
             A :py:class:`pyslet.odata2.csdl.SimpleValue` instance which
-            must have been created from a suitable
+            should have been created from a suitable
             :py:class:`pyslet.odata2.csdl.Property` definition.
 
         params
@@ -4003,7 +4365,11 @@ class SQLEntityContainer(object):
         p = simple_value.pDef
         column_def = []
         if isinstance(simple_value, edm.BinaryValue):
-            if p.fixedLength:
+            if p is None:
+                raise NotImplementedError(
+                    "SQL binding for Edm.Binary of unbounded length: %s" %
+                    p.name)
+            elif p.fixedLength:
                 if p.maxLength:
                     column_def.append(u"BINARY(%i)" % p.maxLength)
                 else:
@@ -4292,7 +4658,7 @@ class SQLiteEntityContainer(SQLEntityContainer):
                 params,
                 nullable)
         if ((nullable is not None and not nullable) or
-                (nullable is None and not p.nullable)):
+                (nullable is None and p is not None and not p.nullable)):
             column_def.append(u' NOT NULL')
         if simple_value:
             # Format the default
@@ -4488,3 +4854,51 @@ class SQLiteReverseKeyCollection(
 
     """SQLite-specific collection for navigation to a foreign key"""
     pass
+
+
+class SQLiteStreamStore(blockstore.StreamStore):
+
+    """A stream store backed by a SQLite database.
+
+    file_path
+        The path to the SQLite database file.
+
+    dpath
+        The optional directory path to the file system to use for
+        storing the blocks of data. If dpath is None then the blocks are
+        stored in the SQLite database itself."""
+
+    def load_container(self):
+        """Loads and returns a default entity container
+
+        The return value is a
+        :py:class:`pyslet.odata2.csdl.EntityContainer` instance with
+        an EntitySets called 'Blocks', 'Locks' and 'Streams' that are
+        suitable for passing to the constructors of
+        :py:class:`pyslet.blockstore.BlockStore`,
+        :py:class:`pyslet.blockstore.LockStore` and
+        :py:class:`pyslet.blockstore.StreamStore`
+        respectively."""
+        doc = edmx.Document()
+        with file(os.path.join(os.path.dirname(__file__),
+                               'streamstore.xml'), 'r') as f:
+            doc.Read(f)
+        return doc.root.DataServices['StreamStoreSchema.Container']
+
+    def __init__(self, file_path, dpath=None):
+        self.container_def = self.load_container()
+        if isinstance(file_path, OSFilePath):
+            file_path = str(file_path)
+        create = not os.path.exists(file_path)
+        self.container = SQLiteEntityContainer(file_path=file_path,
+                                               container=self.container_def)
+        if create:
+            self.container.create_all_tables()
+        if dpath is None:
+            bs = blockstore.FileBlockStore(dpath)
+        else:
+            bs = blockstore.EDMBlockStore(
+                entity_set=self.container_def['Blocks'])
+        ls = blockstore.LockStore(entity_set=self.container_def['Locks'])
+        blockstore.StreamStore.__init__(
+            self, bs, ls, self.container_def['Streams'])

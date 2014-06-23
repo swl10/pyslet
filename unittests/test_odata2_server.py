@@ -10,6 +10,7 @@ import os
 import time
 import uuid
 from types import *
+from StringIO import StringIO
 
 from threading import Thread
 from SocketServer import ThreadingMixIn
@@ -1381,8 +1382,10 @@ class ServerTests(unittest.TestCase):
         h.update(docText)
         etag = "W/\"X'%s'\"" % h.hexdigest().upper()
         documents.data[1801] = (1801, 'War and Peace', 'Tolstoy', h.digest())
-        document = documentSet.OpenCollection()[1801]
-        document.set_stream_from_generator('text/plain', [docText])
+        with documentSet.OpenCollection() as coll:
+            sinfo = core.StreamInfo(type = http.PLAIN_TEXT)
+            coll.update_stream(StringIO(docText), 1801, sinfo)
+            document = coll[1801]
         jsonData = string.join(document.GenerateEntityTypeInJSON())
         obj = json.loads(jsonData)
         meta = obj["__metadata"]
@@ -1443,8 +1446,10 @@ class ServerTests(unittest.TestCase):
         h = hashlib.sha256()
         h.update(docText)
         documents.data[1801] = (1801, 'War and Peace', 'Tolstoy', h.digest())
-        document = documentSet.OpenCollection()[1801]
-        document.set_stream_from_generator('text/plain', [docText])
+        with documentSet.OpenCollection() as coll:
+            sinfo = core.StreamInfo(type = http.PLAIN_TEXT)
+            coll.update_stream(StringIO(docText), 1801, sinfo)
+            document = coll[1801]
         jsonData = string.join(document.GenerateEntityTypeInJSON())
         obj = json.loads(jsonData)
         newDocument = core.Entity(documentSet)
@@ -1725,10 +1730,12 @@ class SampleServerTests(unittest.TestCase):
         documents = self.container.entityStorage['Documents']
         documents.data[300] = (300, 'The Book', 'The Author', None)
         documents.data[301] = (301, 'A Book', 'An Author', None)
-        with memds.EntityCollection(entity_set=documents.entity_set, entity_store=documents) as collection:
-            doc = collection[301]
-            doc.set_stream_from_generator(http.MediaType.FromString(
-                "text/plain; charset=iso-8859-1"), ["An opening line written in a Caf\xe9"])
+        with memds.EntityCollection(entity_set=documents.entity_set,
+                entity_store=documents) as collection:
+            sinfo = core.StreamInfo(type=http.MediaType.FromString(
+                "text/plain; charset=iso-8859-1"))
+            collection.update_stream(
+                StringIO("An opening line written in a Caf\xe9"), 301, sinfo)
         self.xContainer = memds.InMemoryEntityContainer(
             self.ds['SampleModel.ExtraEntities'])
         bitsAndPieces = self.xContainer.entityStorage['BitsAndPieces']
@@ -4404,19 +4411,23 @@ class SampleServerTests(unittest.TestCase):
             "2.0;"), "DataServiceVersion 2.0 expected")
         self.assertTrue("ETAG" in request.responseHeaders, "Entity set ETag")
         self.assertTrue(request.responseHeaders[
-                        'ETAG'] == "W/\"X'%s'\"" % h.hexdigest().upper(), "ETag value")
+                        'ETAG'] == "W/\"X'%s'\"" % h.hexdigest().upper(),
+                        "ETag value: %s; expected %s" % (
+                            request.responseHeaders['ETAG'],
+                            h.hexdigest().upper()))
         self.assertTrue(
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         documents = self.ds['SampleModel.SampleEntities.Documents']
         with documents.OpenCollection() as collection:
             document = collection[301]
-        # version should match the etag
-        self.assertTrue(
-            document['Version'].value == h.digest(), 'Version calculation')
-        self.assertTrue(document.GetStreamType() == "text/x-tolstoy")
-        self.assertTrue(document.GetStreamSize() == len(data))
-        self.assertTrue(
-            string.join(document.get_stream_generator(), '') == data)
+            # version should match the etag
+            self.assertTrue(
+                document['Version'].value == h.digest(), 'Version calculation')
+            sread = StringIO()
+            sinfo = collection.read_stream(301, sread)
+            self.assertTrue(str(sinfo.type) == "text/x-tolstoy")
+            self.assertTrue(sinfo.size == len(data))
+            self.assertTrue(sread.getvalue() == data)
 
     def testCaseDeleteEntity(self):
         request = MockRequest("/service.svc/Customers('ALFKI')", "DELETE")

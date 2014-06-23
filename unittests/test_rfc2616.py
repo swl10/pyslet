@@ -1131,20 +1131,13 @@ class ChunkedTests(unittest.TestCase):
     def tearDown(self):
         os.chdir(self.cwd)
 
-    def ABC(self):
-        for x in ("abc", "defghi", "j", "klmn", "", "nopq", "rstuvw", "x", "y", "z"):
-            yield x
-
-    def untestCaseChunkedReader(self):
-        r = HTTPChunkedWriter(stringSource=self.ABD())
-        r.SetChunk(5)
-        output = StringIO.StrionIO()
-        self.assertTrue(string.join(list(
-            r), '') == '9\r\nabcdefghi\r\n5\r\njklmn\r\nA\r\nnopqrstuvw\r\n3\r\nxyz\r\n0\r\n')
-        r.SetChunk(1)
-        output = StringIO.StrionIO()
-        self.assertTrue(string.join(list(
-            r), '') == '3\r\nabc\r\n6\r\ndefghi\r\n1\r\nj\r\n4\r\nklmn\r\n4\r\nnopq\r\n5\r\nrstuvw\r\n1\r\nx\r\n1\r\ny\r\n1\r\nz\r\n0\r\n')
+    def testCaseChunkedReader(self):
+        src = StringIO.StringIO("10\r\n0123456789ABCDEF\r\n"
+                                "5; ext=true\r\n01234\r\n"
+                                "0\r\nhead: false trailer\r\n\r\ntrailer")
+        r = ChunkedReader(src)
+        self.assertTrue(r.read() == "0123456789ABCDEF01234", "unchunked data")
+        self.assertTrue(src.read() == "trailer", "trailer left on the stream")
 
 
 class SecureTests(unittest.TestCase):

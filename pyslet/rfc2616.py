@@ -1346,7 +1346,7 @@ class HTTPMessage(object):
         if date is None:
             self.SetHeader("Date", None)
         else:
-            self.SetHeader("Date", FormatDate(date))
+            self.SetHeader("Date", str(date))
 
     def GetExpectContinue(self):
         fieldValue = self.GetHeader("Expect")
@@ -1360,6 +1360,30 @@ class HTTPMessage(object):
             self.SetHeader("Expect", "100-continue")
         else:
             self.SetHeader("Expect", None)
+
+    def get_last_modified(self):
+        """Returns a :py:class:`FullDate` instance parsed from the
+        Last-Modified header.
+
+        If no Last-Modified header was present None is returned."""
+        fieldValue = self.GetHeader("Last-Modified")
+        if fieldValue is not None:
+            return FullDate.FromHTTPString(fieldValue)
+        else:
+            return None
+
+    def set_last_modified(self, date=None):
+        """Sets the Last-Modified header from *date*, a
+        :py:class:`FullDate` instance, or removes it if
+        *date* is None.
+
+        To set the date header to the current date use::
+
+                set_last_modified(FullDate.FromNowUTC())"""
+        if date is None:
+            self.SetHeader("Last-Modified", None)
+        else:
+            self.SetHeader("Last-Modified", str(date))
 
     def GetTransferEncoding(self):
         return self.GetHeader("Transfer-Encoding")
@@ -1496,7 +1520,10 @@ class HTTPRequest(HTTPMessage):
         if resBody is not None:
             # assume that the resBody is a stream like object
             self.resBodyStream = resBody
-            self.resBodyStart = resBody.tell()
+            if isinstance(resBody, io.IOBase) and resBody.seekable():
+                self.resBodyStart = resBody.tell()
+            else:
+                self.resBodyStart = None
         else:
             self.resBodyStream = None
         # : flag indicating whether or not to auto-redirect 3xx responses
@@ -1514,7 +1541,7 @@ class HTTPRequest(HTTPMessage):
             self.SetRequestURI(url)
         if self.reqBodyStream:
             self.reqBodyStream.seek(self.reqBodyStart)
-        if self.resBodyStream:
+        if self.resBodyStream and self.resBodyStart is not None:
             self.resBodyStream.seek(self.resBodyStart)
             self.resBodyStream.truncate()
         else:
@@ -2094,3 +2121,47 @@ class HTTPResponse(HTTPMessage):
         hangs up and stops sending."""
         self.reason = str(err)
         self.request.ResponseFinished(err)
+
+
+class ChunkedReader(io.RawIOBase):
+
+    def __init__(self, src):
+        self.src = src
+        self.chunk_left = -1
+        self.eof = False
+
+    def _read_chunksize(self):
+        # trailing CRLF needs to be read:
+        if self.chunk_left == 0:
+            self.src.readline()
+        p = ParameterParser(self.src.readline().strip())
+        self.chunk_left = int(p.ParseToken(), 16)
+        if self.chunk_left == 0:
+            self.eof = True
+            # read the trailing headers and CRLF
+            while True:
+                line = self.src.readline()
+                if not line.strip():
+                    break
+
+    def readable(self):
+        return True
+
+    def writable(self):
+        return False
+
+    def seekable(self):
+        return False
+
+    def readinto(self, b):
+        if self.chunk_left <= 0:
+            if not self.eof:
+                self._read_chunksize()
+            if self.eof:
+                return 0
+        nbytes = len(b)
+        if nbytes > self.chunk_left:
+            nbytes = self.chunk_left
+        b[:nbytes] = self.src.read(nbytes)
+        self.chunk_left -= nbytes
+        return nbytes

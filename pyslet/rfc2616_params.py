@@ -141,8 +141,9 @@ class FullDate(iso.TimePoint):
 
         Note that this overrides the default behaviour which would be to use one
         of the iso8601 output formats."""
-        century, year, month, day, hour, minute, second = self.GetCalendarTimePoint()
-        century, decade, dyear, week, dayOfWeek = self.date.GetWeekDay()
+        z = self.ShiftZone(0)
+        century, year, month, day, hour, minute, second = z.GetCalendarTimePoint()
+        century, decade, dyear, week, dayOfWeek = z.date.GetWeekDay()
         return "%s, %02i %s %04i %02i:%02i:%02i GMT" % (
             ParameterParser.wkday[dayOfWeek - 1],
             day,
@@ -262,6 +263,10 @@ class MediaType(object):
 
     def __hash__(self):
         return hash((self.type.lower(), self.subtype.lower(), self._hp))
+
+
+APPLICATION_OCTETSTREAM = MediaType('application', 'octet-stream')
+PLAIN_TEXT = MediaType('text', 'plain')
 
 
 class ProductToken(object):

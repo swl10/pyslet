@@ -2,6 +2,8 @@
 
 import unittest
 import logging
+import hashlib
+from StringIO import StringIO
 
 from pyslet.vfs import OSFilePath as FilePath
 import pyslet.odata2.metadata as edmx
@@ -14,10 +16,8 @@ def suite(prefix='test'):
     return unittest.TestSuite((
         loader.loadTestsFromTestCase(ODataTests),
         loader.loadTestsFromTestCase(CommonExpressionTests),
-        loader.loadTestsFromTestCase(ODataURITests)
-        # 		loader.loadTestsFromTestCase(ClientTests),
-        # 		loader.loadTestsFromTestCase(ServerTests),
-        # 		loader.loadTestsFromTestCase(SampleServerTests)
+        loader.loadTestsFromTestCase(ODataURITests),
+        loader.loadTestsFromTestCase(StreamInfoTests)
     ))
 
 
@@ -1780,6 +1780,20 @@ class ODataURITests(unittest.TestCase):
             pass
 
 
+class StreamInfoTests(unittest.TestCase):
+
+    def test_init(self):
+        sinfo = StreamInfo()
+        self.assertTrue(sinfo.type, http.MediaType)
+        self.assertTrue(sinfo.type == http.APPLICATION_OCTETSTREAM)
+        self.assertTrue(sinfo.created is None)
+        self.assertTrue(sinfo.modified is None)
+        self.assertTrue(sinfo.size is None)
+        self.assertTrue(sinfo.md5 is None)
+        sinfo2 = StreamInfo(type=http.PLAIN_TEXT)
+        self.assertTrue(sinfo2.type == http.PLAIN_TEXT)
+
+
 class DataServiceRegressionTests(unittest.TestCase):
 
     """Abstract class used to test individual data services."""
@@ -1797,10 +1811,27 @@ class DataServiceRegressionTests(unittest.TestCase):
     def tearDown(self):     # noqa
         pass
 
+    def runtest_autokey(self):
+        container = self.ds['RegressionModel.RegressionContainer']
+        for keytype in ['Int32', 'Int64', 'String']:
+            autokeys = container['AutoKeys' + keytype]
+            with autokeys.OpenCollection() as coll:
+                e = coll.new_entity()
+                self.assertTrue(e.exists is False)
+                e['Data'].SetFromValue('hello')
+                coll.insert_entity(e)
+                self.assertTrue(e.exists)
+                try:
+                    self.assertTrue(e.Key() is not None)
+                except KeyError:
+                    self.fail("insert_entity returned a NULL key (%s)" %
+                              keytype)
+
     def runtest_all_types(self):
         all_types = self.ds['RegressionModel.RegressionContainer.AllTypes']
         with all_types.OpenCollection() as coll:
             e = coll.new_entity()
+            self.assertTrue(e.exists is False)
             # <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
             e['ID'].SetFromValue(1)
             # <Property Name="BinaryFixed" Type="Edm.Binary"
@@ -1850,6 +1881,11 @@ class DataServiceRegressionTests(unittest.TestCase):
             e['FixedString'].SetFromValue(u"ALFKI")
             # CREATE
             coll.insert_entity(e)
+            self.assertTrue(e.exists is True)
+            try:
+                self.assertTrue(e.Key() is not None)
+            except KeyError:
+                self.fail("Entity with NULL key after insert")
             # READ (coll)
             self.assertTrue(
                 len(coll) == 1, "AllTypes length after insert")
@@ -4960,10 +4996,69 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <- e2 -> []
             # [] <- e5 -> []
 
+    def runtest_mediaresource(self):
+        streams = self.ds[
+            'RegressionModel.RegressionContainer.Streams']
+        fox = 'The quick brown fox jumped over the lazy dog'
+        cafe = u'I like going to the Caf\xe9'.encode('utf-8')
+        with streams.OpenCollection() as coll:
+            fin = StringIO(fox)
+            e1 = coll.new_stream(fin)
+            # successful call results in an entity that exists
+            self.assertTrue(e1.exists)
+            self.assertTrue(len(coll) == 1)
+            fout = StringIO()
+            sinfo = coll.read_stream(e1.Key(), fout)
+            self.assertTrue(isinstance(sinfo, StreamInfo))
+            self.assertTrue(fout.getvalue() == fox)
+            self.assertTrue(sinfo.type == http.APPLICATION_OCTETSTREAM)
+            self.assertTrue(sinfo.size == len(fox))
+            self.assertTrue(isinstance(sinfo.modified, iso.TimePoint))
+            self.assertTrue(sinfo.md5 == hashlib.md5(fox).digest())
+            # now try inserting with additional metadata
+            t = iso.TimePoint.FromString('20140614T180000-0400')
+            sinfo = StreamInfo(type=http.PLAIN_TEXT,
+                               created=t, modified=t)
+            fin.seek(0)
+            e2 = coll.new_stream(fin, key='foxy', sinfo=sinfo)
+            self.assertTrue(len(coll) == 2)
+            self.assertTrue(e2.Key() == 'foxy')
+            # alternative read form with no stream to copy to
+            sinfo = coll.read_stream(e2.Key())
+            self.assertTrue(sinfo.type == http.PLAIN_TEXT)
+            self.assertTrue(sinfo.size == len(fox))
+            self.assertTrue(sinfo.modified == t)
+            self.assertTrue(sinfo.created == t)
+            # we can update a stream by using an existing key
+            fin = StringIO(cafe + fox)
+            sinfo = StreamInfo(type=http.PLAIN_TEXT,
+                               size=len(cafe))
+            # the size prevents reading to the end of the stream
+            coll.update_stream(fin, key='foxy', sinfo=sinfo)
+            sinfo = coll.read_stream('foxy')
+            self.assertTrue(sinfo.type == http.PLAIN_TEXT)
+            self.assertTrue(sinfo.size == len(cafe))
+            self.assertTrue(sinfo.md5 == hashlib.md5(cafe).digest())
+        # finally, we test the combined read and close method
+        # although the collection's close method is called
+        # the close is deferred until the generator completes
+        # or is destroyed
+        coll = streams.OpenCollection()
+        sinfo, sgen = coll.read_stream_close('foxy')
+        self.assertTrue(sinfo.type == http.PLAIN_TEXT)
+        self.assertTrue(sinfo.size == len(cafe))
+        count = 0
+        for data in sgen:
+            count += len(data)
+        self.assertTrue(count == sinfo.size)
+        # the collection should now be closed!
+
     def run_combined(self):
         """Runs all individual tests combined into one
 
         Useful for expensive setUp/tearDown"""
+        self.runtest_autokey()
+        self.runtest_mediaresource()
         self.runtest_all_types()
         self.runtest_complex_types()
         self.runtest_compound_key()

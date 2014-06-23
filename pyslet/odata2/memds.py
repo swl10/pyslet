@@ -4,10 +4,18 @@
 import string
 import hashlib
 import threading
+import logging
+from StringIO import StringIO
+try:
+    from cStringIO import StringIO as RStringIO
+except ImportError:
+    RStringIO = StringIO
+WStringIO = RStringIO
 
 import pyslet.odata2.csdl as edm
 import pyslet.odata2.core as odata
 import pyslet.rfc2616 as http
+import pyslet.iso8601 as iso
 
 
 class InMemoryEntityStore(object):
@@ -29,21 +37,20 @@ class InMemoryEntityStore(object):
 
     def __init__(self, container, entity_set=None):
         self.container = container
-        # the :py:class:`InMemoryEntityContainer` that contains this
-        # entity set
-        self.entity_set = entity_set  # the entity set we're bound to
-        self.data = {}				#: simple dictionary of the values
-        self.streams = {}				#: simple dictionary of streams
+        """the :py:class:`InMemoryEntityContainer` that contains this
+        entity set"""
+        self.entity_set = entity_set    #: the entity set we're bound to
+        self.data = {}                  #: simple dictionary of the values
+        self.streams = {}               #: simple dictionary of streams
+        self.associations = {}
         # a mapping of association set names to
         # :py:class:`InMemoryAssociation` instances *from* this entity
         # set
-        self.associations = {}
+        self.reverseAssociations = {}
         # a mapping of association set names to
         # :py:class:`InMemoryAssociation` index instances *to* this
         # entity set
-        self.reverseAssociations = {}
         self._deleting = set()
-        self.nextKey = None
         if entity_set is not None:
             self.bind_to_entity_set(entity_set)
 
@@ -76,6 +83,8 @@ class InMemoryEntityStore(object):
             elif isinstance(p, edm.SimpleValue):
                 value.append(p.value)
         with self.container.lock:
+            if key in self.data:
+                raise edm.ConstraintError("Duplicate key: %s", str(key))
             self.data[key] = tuple(value)
             # At this point the entity exists
             e.exists = True
@@ -137,16 +146,15 @@ class InMemoryEntityStore(object):
     def read_stream(self, key):
         """Returns a tuple of the entity's media stream
 
-        The return value is a tuple: (content type, data)."""
+        The return value is a tuple: (data, StreamInfo)."""
         with self.container.lock:
             if key not in self.data:
                 raise KeyError
             if key in self.streams:
-                type, stream = self.streams[key]
-                return type, stream
+                stream, sinfo = self.streams[key]
+                return stream, sinfo
             else:
-                return http.MediaType.FromString(
-                    'application/octet-stream'), ''
+                return '', odata.StreamInfo(size=0)
 
     def update_entity(self, e):
         # e is an EntityTypeInstance, we need to convert it to a tuple
@@ -164,9 +172,9 @@ class InMemoryEntityStore(object):
                 i = i + 1
             self.data[key] = tuple(value)
 
-    def update_entity_stream(self, key, stream_type, stream):
+    def update_entity_stream(self, key, stream, sinfo):
         with self.container.lock:
-            self.streams[key] = (stream_type, stream)
+            self.streams[key] = (stream, sinfo)
 
     def get_tuple_from_complex(self, complex_value):
         value = []
@@ -218,26 +226,12 @@ class InMemoryEntityStore(object):
             if key in self.streams:
                 del self.streams[key]
 
-    def next_key(self):
-        """Returns the next free integer assuming an integer key"""
-        with self.container.lock:
-            if self.nextKey is None:
-                kps = list(self.entity_set.keys)
-                if len(kps) != 1:
-                    raise KeyError("Can't get next value of compound key")
-                key = self.entity_set.entityType[kps[0]]()
-                if not isinstance(key, edm.NumericValue):
-                    raise KeyError("Can't get next value non-integer key")
-                keys = self.data.keys()
-                if keys:
-                    keys.sort()
-                    self.nextKey = keys[-1]
-                else:
-                    key.SetToZero()
-                    self.nextKey = key.value
-            while self.nextKey in self.data:
-                self.nextKey += 1
-            return self.nextKey
+    def test_key(self, key):
+        """Return True if *key* is in the container.
+
+        Not thread-safe, should only be called if you have the container
+        lock."""
+        return key in self.data
 
 
 class InMemoryAssociationIndex(object):
@@ -353,55 +347,27 @@ class InMemoryAssociationIndex(object):
             pass
 
 
+class WEntityStream(StringIO):
+
+    def __init__(self, entity):
+        self.entity = entity
+        StringIO.__init__(self)
+
+    def close(self):
+        type, data = self.entity.get_stream_info()
+        if type is None:
+            type = http.APPLICATION_OCTETSTREAM
+        self.entity.set_stream(type, [self.getvalue()])
+        StringIO.close(self)
+
+
 class Entity(odata.Entity):
 
-    """We override OData's EntitySet class to support the
-    media-streaming methods."""
+    """We override the CSDL's Entity class for legacy reasons"""
 
     def __init__(self, entity_set, entity_store):
         super(Entity, self).__init__(entity_set)
         self.entity_store = entity_store  # : points to the entity storage
-
-    def get_stream_info(self):
-        """Returns the content type and size of the entity's media stream."""
-        key = self.Key()
-        type, data = self.entity_store.read_stream(key)
-        return (type, len(data))
-
-    def get_stream_generator(self):
-        """A generator function that yields blocks (strings) of data"""
-        key = self.Key()
-        yield self.entity_store.read_stream(key)[1]
-
-    def set_stream_from_generator(self, stream_type, src):
-        """Replaces the contents of this stream
-
-        The stream is set from the strings output by iterating over src.
-
-        If the entity has a concurrency token and it is a binary value,
-        also updates the token to be a hash of the stream."""
-        key = self.Key()
-        etag = self.ETagValues()
-        if len(etag) == 1 and isinstance(etag[0], edm.BinaryValue):
-            h = hashlib.sha256()
-            etag = etag[0]
-        else:
-            h = None
-        value = []
-        for data in src:
-            value.append(data)
-        data = string.join(value, '')
-        if h is not None:
-            h.update(data)
-            etag.SetFromValue(h.digest())
-        if h is not None:
-            # we need the lock to ensure the stream and etag are updated
-            # together
-            with self.entity_store.container.lock:
-                self.entity_store.update_entity_stream(key, stream_type, data)
-                self.Update()
-        else:
-            self.entity_store.update_entity_stream(key, stream_type, data)
 
 
 class EntityCollection(odata.EntityCollection):
@@ -413,11 +379,9 @@ class EntityCollection(odata.EntityCollection):
         super(EntityCollection, self).__init__(**kwargs)
         self.entity_store = entity_store
 
-    def new_entity(self, auto_key=False):
+    def new_entity(self):
         """Returns an OData aware instance"""
         e = Entity(self.entity_set, self.entity_store)
-        if auto_key:
-            e.SetKey(self.entity_store.next_key())
         return e
 
     def insert_entity(self, entity, from_end=None):
@@ -430,19 +394,26 @@ class EntityCollection(odata.EntityCollection):
         suppress a constraint check (on the assumption that it has
         already been checked) by passing *from_end* directly to
         :py:meth:`Entity.CheckNavigationConstraints`."""
-        try:
-            key = entity.Key()
-        except KeyError:
-            # if the entity doesn't have a key, autogenerate one
-            key = self.entity_store.next_key()
-            entity.SetKey(key)
         with self.entity_store.container.lock:
             # This is a bit clumsy, but we lock the whole container while we
             # check all constraints and perform any nested deletes
-            if key in self:
-                raise edm.ConstraintError(
-                    "%s already exists" %
-                    odata.ODataURI.FormatEntityKey(entity))
+            try:
+                key = entity.Key()
+            except KeyError:
+                # if the entity doesn't have a key, autogenerate one
+                # until we have one that is good
+                for i in xrange(100):
+                    entity.auto_key()
+                    key = entity.Key()
+                    if not self.entity_store.test_key(key):
+                        break
+                    else:
+                        key = None
+            if key is None:
+                logging.error("Failed to find an unused key in %s "
+                              "after 100 attempts", entity.entity_set.name)
+                raise edm.EDMError("Auto-key failure" %
+                                   odata.ODataURI.FormatEntityKey(entity))
             # Check constraints
             entity.CheckNavigationConstraints(from_end)
             self.entity_store.add_entity(entity)
@@ -539,6 +510,111 @@ class EntityCollection(odata.EntityCollection):
             self.entity_store.delete_entity(key)
         finally:
             self.entity_store.stop_deleting(key)
+
+    def _read_src(self, src, max_bytes=None):
+        value = []
+        nbytes = max_bytes
+        while nbytes is None or nbytes > 0:
+            if nbytes is None:
+                data = src.read()
+            else:
+                data = src.read(nbytes)
+                nbytes -= len(data)
+            if not data:
+                break
+            else:
+                value.append(data)
+        return string.join(value, '')
+
+    def new_stream(self, src, sinfo=None, key=None):
+        e = self.new_entity()
+        if sinfo is None:
+            sinfo = odata.StreamInfo()
+        etag = e.ETagValues()
+        if len(etag) == 1 and isinstance(etag[0], edm.BinaryValue):
+            h = hashlib.sha256()
+            etag = etag[0]
+        else:
+            h = None
+        data = self._read_src(src, sinfo.size)
+        if h is not None:
+            h.update(data)
+            etag.SetFromValue(h.digest())
+        if sinfo.created is None:
+            sinfo.created = iso.TimePoint.FromNowUTC()
+        if sinfo.modified is None:
+            sinfo.modified = sinfo.created
+        sinfo.size = len(data)
+        sinfo.md5 = hashlib.md5(data).digest()
+        # we need the lock to ensure the entity and stream and updated
+        # together
+        with self.entity_store.container.lock:
+            if key is None:
+                e.auto_key()
+            else:
+                e.SetKey(key)
+            for i in xrange(1000):
+                key = e.Key()
+                if not self.entity_store.test_key(key):
+                    break
+                e.auto_key()
+            self.insert_entity(e)
+            self.entity_store.update_entity_stream(key, data, sinfo)
+        return e
+
+    def update_stream(self, src, key, sinfo=None):
+        update = False
+        e = self[key]
+        old_data, oldinfo = self.entity_store.read_stream(key)
+        if sinfo is None:
+            sinfo = odata.StreamInfo()
+        etag = e.ETagValues()
+        if len(etag) == 1 and isinstance(etag[0], edm.BinaryValue):
+            h = hashlib.sha256()
+            etag = etag[0]
+        else:
+            h = None
+        data = self._read_src(src, sinfo.size)
+        if h is not None:
+            h.update(data)
+            etag.SetFromValue(h.digest())
+            update = True
+        if sinfo.created is None:
+            sinfo.created = oldinfo.created
+        if sinfo.created is None:
+            sinfo.created = iso.TimePoint.FromNowUTC()
+        if sinfo.modified is None:
+            sinfo.modified = iso.TimePoint.FromNowUTC()
+        sinfo.size = len(data)
+        sinfo.md5 = hashlib.md5(data).digest()
+        # we need the lock to ensure the entity and stream and updated
+        # together
+        with self.entity_store.container.lock:
+            if update:
+                self.update_entity(e)
+            self.entity_store.update_entity_stream(key, data, sinfo)
+
+    def read_stream(self, key, out=None):
+        data, sinfo = self.entity_store.read_stream(key)
+        if out is not None:
+            nbytes = 0
+            while nbytes < len(data):
+                result = out.write(data[nbytes:])
+                if result is not None:
+                    nbytes += result
+                else:
+                    break
+        return sinfo
+
+    def read_stream_close(self, key):
+        data, sinfo = self.entity_store.read_stream(key)
+        return sinfo, self._stream_gen(data)
+
+    def _stream_gen(self, data):
+        try:
+            yield data
+        finally:
+            self.close()
 
 
 class NavigationCollection(odata.NavigationCollection):

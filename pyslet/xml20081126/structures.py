@@ -1647,8 +1647,9 @@ class Element(Node):
             if name:
                 child.SetXMLName(name)
             return child
-        except TypeError:
+        except TypeError, e:
             import traceback
+            logging.error("Error creating XML element: %s", e)
             traceback.print_exc()
             raise TypeError("Can't create %s in %s" %
                             (childClass.__name__, self.__class__.__name__))

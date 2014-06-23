@@ -6,7 +6,7 @@ import hashlib
 import os.path
 
 from pyslet.vfs import OSFilePath as FilePath
-import pyslet.odata2.edmx as edmx
+import pyslet.odata2.metadata as edmx
 from pyslet.odata2.memds import InMemoryEntityContainer
 from pyslet.odata2.sqlds import SQLiteEntityContainer
 
@@ -372,6 +372,11 @@ class StreamStoreTests(unittest.TestCase):
                          entity_set=self.cdef['Streams'])
         s1 = ss.new_stream("text/plain")
         self.assertTrue(isinstance(s1, edm.Entity))
+        self.assertTrue(s1.exists)
+        try:
+            self.assertTrue(s1.Key() is not None)
+        except KeyError:
+            self.fail("stream entity has not key")
         self.assertTrue(s1['mimetype'].value == "text/plain")
         s2 = ss.new_stream(http.MediaType('text', 'plain',
                                           {'charset': ('charset', 'utf-8')}))
@@ -413,6 +418,7 @@ class StreamStoreTests(unittest.TestCase):
         ss = StreamStore(bs=self.bs, ls=self.ls,
                          entity_set=self.cdef['Streams'])
         s1 = ss.new_stream("text/plain")
+        self.assertTrue(s1['md5'].value == hashlib.md5().digest())
         with ss.open_stream(s1, 'w') as s:
             self.assertFalse(s.closed)
             self.assertFalse(s.readable())
@@ -427,6 +433,7 @@ class StreamStoreTests(unittest.TestCase):
                 nbytes += s.write(data[nbytes:])
             self.assertTrue(s.tell() == nbytes)
         self.assertTrue(s1['size'].value == nbytes)
+        self.assertTrue(s1['md5'].value == hashlib.md5(data).digest())
         with self.cdef['BlockLists'].OpenCollection() as blocks:
             # data should spill over to 2 blocks
             self.assertTrue(len(blocks) == 2)
@@ -481,30 +488,31 @@ class RandomStreamTests(unittest.TestCase):
                 # read what we have
                 sf.seek(pos)
                 self.f.seek(pos)
-                expectBytes = self.f.read(nbytes)
-                gotBytes = ""
-                while len(gotBytes) < nbytes:
-                    newBytes = sf.read(nbytes - len(gotBytes))
-                    if len(newBytes):
-                        gotBytes = gotBytes + newBytes
+                expect_bytes = self.f.read(nbytes)
+                got_bytes = ""
+                while len(got_bytes) < nbytes:
+                    new_bytes = sf.read(nbytes - len(got_bytes))
+                    if len(new_bytes):
+                        got_bytes = got_bytes + new_bytes
                     else:
                         break
-                logging.debug("Read @%i expected: %s", pos, repr(expectBytes))
-                logging.debug("Read @%i received: %s", pos, repr(gotBytes))
-                self.assertTrue(gotBytes == expectBytes)
+                logging.debug("Read @%i expected: %s", pos, repr(expect_bytes))
+                logging.debug("Read @%i received: %s", pos, repr(got_bytes))
+                self.assertTrue(got_bytes == expect_bytes)
                 sf.seek(pos)
                 wbytes = 0
                 while wbytes < nbytes:
                     wbytes += sf.write(self.fox[wbytes:nbytes])
                 self.f.seek(pos)
                 self.f.write(self.fox[:nbytes])
-                expectPos = self.f.tell()
-                gotPos = sf.tell()
+                expect_pos = self.f.tell()
+                got_pos = sf.tell()
                 logging.debug("Tell expected %i got %i after "
-                              "writing %i bytes @%i", expectPos, gotPos, nbytes, pos)
-                self.assertTrue(expectPos == gotPos)
-                if expectPos > ssize:
-                    ssize = expectPos
+                              "writing %i bytes @%i",
+                              expect_pos, got_pos, nbytes, pos)
+                self.assertTrue(expect_pos == got_pos)
+                if expect_pos > ssize:
+                    ssize = expect_pos
         stream = self.ss.get_stream(stream.Key())
         self.assertTrue(stream['size'].value == ssize)
 

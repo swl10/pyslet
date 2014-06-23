@@ -30,7 +30,9 @@ else:
 		package_data={
 			'pyslet':[
 				'unicode5_blocks.pck',
-				'unicode5_catogories.pck' ]
+				'unicode5_catogories.pck' ],
+			'pyslet.odata2':[
+			    'streamstore.xml']
 			},
 		classifiers=[
 			'Development Status :: 3 - Alpha',

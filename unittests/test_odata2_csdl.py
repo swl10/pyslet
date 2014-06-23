@@ -78,6 +78,80 @@ class CSDLTests(unittest.TestCase):
                         "SimpleValue property definition set on constructor")
         self.assertTrue(v.value is None, "Null value on construction")
 
+    def test_binary_value(self):
+        """Test the BinaryValue class."""
+        v = EDMValue.NewSimpleValue(SimpleType.Binary)
+        # check __nonzero__
+        self.assertFalse(v)
+        # check IsNull
+        self.assertTrue(v.IsNull())
+        v.SetFromValue('1234567890')
+        # check __nonzero__
+        self.assertTrue(v)
+        # check IsNull
+        self.assertFalse(v.IsNull())
+        # v2 = EDMValue.NewSimpleValue(SimpleType.Binary)
+        # v2.SetRandomValue(v)
+        # self.assertFalse(v2.value == v.value)
+
+    def test_int32_value(self):
+        """Test the Int32Value class."""
+        v = EDMValue.NewSimpleValue(SimpleType.Int32)
+        # check __nonzero__
+        self.assertFalse(v)
+        # check IsNull
+        self.assertTrue(v.IsNull())
+        v.SetFromValue(123)
+        # check __nonzero__
+        self.assertTrue(v)
+        # check IsNull
+        self.assertFalse(v.IsNull())
+        v2 = EDMValue.NewSimpleValue(SimpleType.Int32)
+        v2.SetRandomValue(v)
+        self.assertTrue(v2.value >= 0)
+        v.SetFromValue(-1)
+        v2.SetRandomValue(v)
+        self.assertTrue(v2.value <= 0)
+
+    def test_int64_value(self):
+        """Test the Int64Value class."""
+        v = EDMValue.NewSimpleValue(SimpleType.Int64)
+        # check __nonzero__
+        self.assertFalse(v)
+        # check IsNull
+        self.assertTrue(v.IsNull())
+        v.SetFromValue(123)
+        # check __nonzero__
+        self.assertTrue(v)
+        # check IsNull
+        self.assertFalse(v.IsNull())
+        v2 = EDMValue.NewSimpleValue(SimpleType.Int64)
+        v2.SetRandomValue(v)
+        self.assertTrue(v2.value >= 0)
+        v.SetFromValue(-1)
+        v2.SetRandomValue(v)
+        self.assertTrue(v2.value <= 0)
+
+    def test_string_value(self):
+        """Test the StringValue class."""
+        v = EDMValue.NewSimpleValue(SimpleType.String)
+        # check __nonzero__
+        self.assertFalse(v)
+        # check IsNull
+        self.assertTrue(v.IsNull())
+        v.SetFromValue(123)
+        # check __nonzero__
+        self.assertTrue(v)
+        # check IsNull
+        self.assertFalse(v.IsNull())
+        v2 = EDMValue.NewSimpleValue(SimpleType.String)
+        v2.SetRandomValue()
+        self.assertTrue(len(v2.value) == 8,
+                        "Expected 8 characters: %s" % v2.value)
+        v.SetFromValue("stem")
+        v2.SetRandomValue(v)
+        self.assertTrue(len(v2.value) == 12 and v2.value[0:4] == "stem")
+
     def test_casts(self):
         p = Property(None)
         p.simpleTypeCode = SimpleType.Byte

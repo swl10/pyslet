@@ -9,6 +9,7 @@ import decimal
 import uuid
 import math
 import warnings
+import io
 from types import *
 
 from pyslet.unicode5 import CharClass, DetectEncoding
@@ -47,6 +48,22 @@ ODATA_RELATED = "http://schemas.microsoft.com/ado/2007/08/dataservices/related/"
 
 ODATA_RELATED_ENTRY_TYPE = "application/atom+xml;type=entry"
 ODATA_RELATED_FEED_TYPE = "application/atom+xml;type=feed"
+
+
+class ODataError(Exception):
+
+    """Base class for OData-specific errors."""
+    pass
+
+
+class ExpectedMediaLinkCollection(ODataError):
+
+    """Expected a collection of media link entries
+
+    Raised when a method reserved for media resources is called on a
+    collection with an underlying entity type that was not declared to
+    have an associated stream."""
+    pass
 
 
 class InvalidLiteral(Exception):
@@ -2251,6 +2268,19 @@ class ODataURI:
             '&')
 
 
+class StreamInfo(object):
+
+    """Represents information about a media resource stream."""
+
+    def __init__(self, type=http.APPLICATION_OCTETSTREAM,
+                 created=None, modified=None, size=None):
+        self.type = type
+        self.created = created
+        self.modified = modified
+        self.size = size
+        self.md5 = None
+
+
 class Entity(edm.Entity):
 
     """We override Entity in order to provide some documented signatures
@@ -2260,51 +2290,30 @@ class Entity(edm.Entity):
         return uri.URIFactory.URI(
             str(self.entity_set.GetLocation()) + ODataURI.FormatEntityKey(self))
 
-    def get_stream_info(self):
-        """Returns the content type and size of the entity's media stream.
-
-        Must return a tuple of
-        (:py:class:`pyslet.rfc2616.MediaType`, long)
-
-        If the size information is not available then the second item in
-        the tuple must be None"""
-        raise NotImplementedError
-
     def GetStreamType(self):    # noqa
         warnings.warn("Entity.GetStreamType is deprecated, "
-                      "use get_stream_info()[0]", DeprecationWarning,
-                      stacklevel=2)
-        return self.get_stream_info()[0]
+                      "use collection.read_stream(key).type",
+                      DeprecationWarning, stacklevel=2)
+        with self.entity_set.OpenCollection() as collection:
+            return collection.read_stream(self.Key()).type
 
     def GetStreamSize(self):    # noqa
         warnings.warn("Entity.GetStreamSize is deprecated, "
-                      "use get_stream_info()[1]", DeprecationWarning,
-                      stacklevel=2)
-        return self.get_stream_info()[1]
-
-    def get_stream_generator(self):
-        """A generator function that yields the media stream as strings."""
-        raise NotImplementedError
+                      "use collection.read_stream(key).size",
+                      DeprecationWarning, stacklevel=2)
+        with self.entity_set.OpenCollection() as collection:
+            return collection.read_stream(self.Key()).size
 
     def GetStreamGenerator(self):   # noqa
         warnings.warn("Entity.GetStreamGenerator is deprecated, "
-                      "use get_stream_generator()", DeprecationWarning,
-                      stacklevel=2)
-        return self.get_stream_generator()[1]
-
-    def set_stream_from_generator(self, stream_type, src):
-        """Replaces the contents of this stream with the strings output
-        by iterating over src.
-
-        *stream_type* must be a :py:class:`pyslet.rfc2616.MediaType`
-        instance."""
-        raise NotImplementedError
-
-    def SetStreamFromGenerator(self, stream_type, src):  # noqa
-        warnings.warn("Entity.SetStreamFromGenerator is deprecated, "
-                      "use set_stream_from_generator", DeprecationWarning,
-                      stacklevel=2)
-        self.set_stream_from_generator(stream_type, src)
+                      "use collection.read_stream_close(key)",
+                      DeprecationWarning, stacklevel=2)
+        collection = self.entity_set.OpenCollection()
+        try:
+            return collection.read_stream_close(self.Key())[1]
+        except Exception:
+            collection.close()
+            raise
 
     def SetFromJSONObject(self, obj, entityResolver=None, forUpdate=False):
         """Sets the value of this entity from a dictionary parsed from a
@@ -2724,9 +2733,75 @@ class EntityCollection(edm.EntityCollection):
         """Returns an OData aware instance"""
         return Entity(self.entity_set)
 
-    def IsMediaLinkEntryCollection(self):
+    def is_medialink_collection(self):
         """Returns True if this is a collection of Media-Link Entries"""
         return self.entity_set.entityType.HasStream()
+
+    def new_stream(self, src, sinfo=None, key=None):
+        """Creates a media resource.
+
+        src
+            A file-like object from which the stream's data will be read.
+
+        sinfo
+            A :py:class:`StreamInfo` object containing metadata about
+            the stream.  If the size field of sinfo is set then *at
+            most* sinfo.size bytes are read from src. Otherwise src is
+            read until the end of the file.
+
+        key
+            The key associated with the stream being written.  This
+            value is taken as a suggestion for the key to use, its use
+            is not guaranteed.  The key actually used to store the
+            stream can be obtained from the resulting entity.
+
+        Returns the media-link entry :py:class:`Entity`"""
+        if not self.is_medialink_collection():
+            raise ExpectedMediaLinkCollection
+        raise NotImplementedError
+
+    def update_stream(self, src, key, sinfo=None):
+        """Updates an existing media resource.
+
+        The parameters are the same as :py:meth:`new_stream` except that
+        the key must be present and must be an existing key in the
+        collection."""
+        if not self.is_medialink_collection():
+            raise ExpectedMediaLinkCollection
+        raise NotImplementedError
+
+    def read_stream(self, key, out=None):
+        """Reads a media resource.
+
+        key
+            The key associated with the stream being read.
+
+        out
+            An optional file like object to which the stream's data will
+            be written. If no output file is provided then no data is
+            written.
+
+        The return result is the :py:class:`StreamInfo` class describing
+        the stream."""
+        if not self.is_medialink_collection():
+            raise ExpectedMediaLinkCollection
+        raise NotImplementedError
+
+    def read_stream_close(self, key):
+        """Creates a generator for a media resource.
+
+        key
+            The key associated with the stream being read.
+
+        The return result is a tuple of the :py:class:`StreamInfo` class
+        describing the stream and a generator that yields the stream's
+        data.
+
+        The collection is closed by the generator when the iteration is
+        complete (or when the generator is destroyed)."""
+        if not self.is_medialink_collection():
+            raise ExpectedMediaLinkCollection
+        raise NotImplementedError
 
     def CheckFilter(self, entity):
         """Checks *entity* against any filter and returns True if it passes.

@@ -4,6 +4,8 @@
 import sys
 import urllib
 import logging
+import io
+
 import pyslet.info as info
 import pyslet.rfc2396 as uri
 import pyslet.rfc2616 as http
@@ -100,7 +102,7 @@ class ClientCollection(core.EntityCollection):
 
     def new_entity(self, autoKey=False):
         """Returns an OData aware instance"""
-        if self.IsMediaLinkEntryCollection():
+        if self.is_medialink_collection():
             return MediaLinkEntry(self.entity_set, self.client)
         else:
             return core.Entity(self.entity_set)
@@ -377,6 +379,158 @@ class ClientCollection(core.EntityCollection):
             raise KeyError(key)
         else:
             raise core.InvalidEntryDocument(str(entityURL))
+
+    def new_stream(self, src, sinfo=None, key=None):
+        """Creates a media resource"""
+        if not self.is_medialink_collection():
+            raise ExpectedMediaLinkCollection
+        if sinfo is None:
+            sinfo = core.StreamInfo()
+        request = http.HTTPRequest(str(self.baseURI), 'POST', reqBody=src)
+        request.SetContentType(sinfo.type)
+        if sinfo.size is not None:
+            request.SetContentLength(sinfo.size)
+        if sinfo.modified is not None:
+            request.set_last_modified(http.FullDate(src=sinfo.modified))
+        if key:
+            request.SetHeader("Slug", str(app.Slug(unicode(key))))
+        self.client.ProcessRequest(request)
+        if request.status == 201:
+            # success, read the entity back from the response
+            doc = core.Document()
+            doc.Read(request.resBody)
+            entity = self.new_entity()
+            entity.exists = True
+            doc.root.GetValue(entity)
+            return entity
+        else:
+            self.RaiseError(request)
+
+    def update_stream(self, src, key, sinfo=None):
+        """Updates an existing media resource.
+
+        The parameters are the same as :py:meth:`new_stream` except that
+        the key must be present and must be an existing key in the
+        collection."""
+        if not self.is_medialink_collection():
+            raise ExpectedMediaLinkCollection
+        streamURL = str(self.baseURI) + core.ODataURI.FormatKeyDict(
+            self.entity_set.GetKeyDict(key)) + "/$value"
+        if sinfo is None:
+            sinfo = core.StreamInfo()
+        request = http.HTTPRequest(streamURL, 'PUT', reqBody=src)
+        request.SetContentType(sinfo.type)
+        if sinfo.size is not None:
+            request.SetContentLength(sinfo.size)
+        if sinfo.modified is not None:
+            request.set_last_modified(http.FullDate(src=sinfo.modified))
+        self.client.ProcessRequest(request)
+        if request.status == 204:
+            # success, read the entity back from the response
+            return
+        else:
+            self.RaiseError(request)
+
+    def read_stream(self, key, out=None):
+        """Reads a media resource"""
+        if not self.is_medialink_collection():
+            raise ExpectedMediaLinkCollection
+        streamURL = str(self.baseURI) + core.ODataURI.FormatKeyDict(
+            self.entity_set.GetKeyDict(key)) + "/$value"
+        if out is None:
+            request = http.HTTPRequest(streamURL, 'HEAD')
+        else:
+            request = http.HTTPRequest(streamURL, 'GET', resBody=out)
+        request.SetAccept("*/*")
+        self.client.ProcessRequest(request)
+        if request.status == 200:
+            # success, read the entity information back from the response
+            sinfo = core.StreamInfo()
+            sinfo.type = request.response.GetContentType()
+            sinfo.size = request.response.GetContentLength()
+            sinfo.modified = request.response.get_last_modified()
+            sinfo.created = sinfo.modified
+            sinfo.md5 = request.response.GetContentMD5()
+            return sinfo
+        else:
+            self.RaiseError(request)
+
+    def read_stream_close(self, key):
+        """Creates a generator for a media resource."""
+        if not self.is_medialink_collection():
+            raise ExpectedMediaLinkCollection
+        streamURL = str(self.baseURI) + core.ODataURI.FormatKeyDict(
+            self.entity_set.GetKeyDict(key)) + "/$value"
+        swrapper = EntityStream(self)
+        request = http.HTTPRequest(streamURL, 'GET', resBody=swrapper)
+        request.SetAccept("*/*")
+        swrapper.start_request(request)
+        return swrapper.sinfo, swrapper.data_gen()
+
+
+class EntityStream(io.RawIOBase):
+
+    def __init__(self, collection):
+        self.collection = collection
+        self.request = None
+        self.sinfo = None
+        self.data = []
+
+    def start_request(self, request):
+        self.request = request
+        # now loop until we get the first write or until there nothing
+        # to do!
+        self.collection.client.QueueRequest(self.request)
+        while self.collection.client.ThreadTask():
+            if self.data:
+                if self.request.status == 200:
+                    break
+                else:
+                    # discard data at this point
+                    self.data = []
+        if self.request.status == 200:
+            self.sinfo = core.StreamInfo()
+            self.sinfo.type = request.response.GetContentType()
+            self.sinfo.size = request.response.GetContentLength()
+            self.sinfo.modified = request.response.get_last_modified()
+            self.sinfo.created = self.sinfo.modified
+            self.sinfo.md5 = request.response.GetContentMD5()
+        else:
+            # unexpected HTTP response
+            self.collection.RaiseError(self.request)
+
+    def data_gen(self):
+        """Generates the data written to the stream.
+
+        Rather than call ProcessRequest which would spool all the data
+        into the stream before returning, we split apart the individual
+        calls to handle the request to enable us to yield data as soon
+        as it is available without needing the full stream in memory."""
+        while self.collection.client.ThreadTask():
+            if self.data:
+                chunk = self.data[0]
+                self.data = self.data[1:]
+                if chunk:
+                    yield chunk
+        for chunk in self.data:
+            if chunk:
+                yield chunk
+        # that's all the data consumed, request is finished
+        self.collection.close()
+
+    def readable(self):
+        return False
+
+    def writable(self):
+        return True
+
+    def seekable(self):
+        return False
+
+    def write(self, b):
+        if b:
+            self.data.append(str(b))
+        return len(b)
 
 
 class EntityCollection(ClientCollection, core.EntityCollection):

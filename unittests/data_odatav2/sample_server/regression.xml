@@ -4,6 +4,9 @@
     <edmx:DataServices m:DataServiceVersion="2.0">
         <Schema Namespace="RegressionModel" xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
             <EntityContainer Name="RegressionContainer" m:IsDefaultEntityContainer="true">
+                <EntitySet Name="AutoKeysInt32" EntityType="RegressionModel.AutoKeyInt32"/>
+                <EntitySet Name="AutoKeysInt64" EntityType="RegressionModel.AutoKeyInt64"/>
+                <EntitySet Name="AutoKeysString" EntityType="RegressionModel.AutoKeyString"/>
                 <EntitySet Name="AllTypes" EntityType="RegressionModel.AllTypes"/>
                 <EntitySet Name="ComplexTypes" EntityType="RegressionModel.ComplexTypes"/>
                 <EntitySet Name="CompoundKeys" EntityType="RegressionModel.CompoundKey"/>
@@ -112,7 +115,29 @@
                     <End Role="Many" EntitySet="Many2ManyRv1s"/>
                     <End Role="ManyX" EntitySet="Many2ManyRv1s"/>
                 </AssociationSet>
+                <EntitySet Name="Streams" EntityType="RegressionModel.Stream"/>
             </EntityContainer>
+            <EntityType Name="AutoKeyInt32">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" MaxLength="32" FixedLength="false"/>
+            </EntityType>
+            <EntityType Name="AutoKeyInt64">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int64" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" MaxLength="32" FixedLength="false"/>
+            </EntityType>
+            <EntityType Name="AutoKeyString">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.String" Nullable="false" MaxLength="10"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" MaxLength="32" FixedLength="false"/>
+            </EntityType>
             <EntityType Name="AllTypes">
                 <Key>
                     <PropertyRef Name="ID"/>
@@ -563,6 +588,13 @@
                 <End Role="Many" Type="RegressionModel.Many2ManyRv1" Multiplicity="*"/>
                 <End Role="ManyX" Type="RegressionModel.Many2ManyRv1" Multiplicity="*"/>
             </Association>
+            <EntityType Name="Stream" m:HasStream="true">
+                <Key>
+                    <PropertyRef Name="slug"/>
+                </Key>
+                <Property Name="slug" Type="Edm.String" Nullable="false" MaxLength="32" FixedLength="false"/>
+                
+            </EntityType>
          </Schema>
     </edmx:DataServices>
 </edmx:Edmx>

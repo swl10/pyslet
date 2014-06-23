@@ -6,6 +6,7 @@ import string
 import traceback
 import json
 import logging
+import base64
 
 import pyslet.info as info
 import pyslet.rfc4287 as atom
@@ -604,7 +605,7 @@ class Server(app.Server):
                 else:
                     raise core.InvalidMethod("%s not supported here" % method)
             elif isinstance(resource, edm.Entity):
-                if method == "GET":
+                if method == "GET" or method == "HEAD":
                     if request.pathOption == core.PathOption.value:
                         if resource.type_def.HasStream():
                             return self.ReturnStream(
@@ -612,7 +613,8 @@ class Server(app.Server):
                                 request,
                                 environ,
                                 start_response,
-                                response_headers)
+                                response_headers,
+                                method)
                         else:
                             raise core.BadURISegment(
                                 "$value cannot be used since "
@@ -628,15 +630,18 @@ class Server(app.Server):
                 elif method == "PUT":
                     if request.pathOption == core.PathOption.value:
                         if resource.type_def.HasStream():
+                            sinfo = core.StreamInfo()
                             if "CONTENT_TYPE" in environ:
-                                resourceType = http.MediaType.FromString(
+                                sinfo.type = http.MediaType.FromString(
                                     environ["CONTENT_TYPE"])
-                            else:
-                                resourceType = http.MediaType.FromString(
-                                    'application/octet-stream')
                             input = app.InputWrapper(environ)
-                            resource.set_stream_from_generator(
-                                resourceType, input.iterblocks())
+                            with resource.entity_set.OpenCollection() as coll:
+                                coll.update_stream(input,
+                                                   resource.Key(),
+                                                   sinfo)
+                                # need to update the resource as some fields
+                                # may have changed
+                                resource = coll[resource.Key()]
                             self.SetETag(resource, response_headers)
                             return self.ReturnEmpty(
                                 start_response, response_headers)
@@ -690,28 +695,31 @@ class Server(app.Server):
                         start_response,
                         response_headers)
                 elif (method == "POST" and
-                      resource.IsMediaLinkEntryCollection()):
+                        resource.is_medialink_collection()):
                     # POST of a media resource
-                    entity = resource.new_entity()
+                    sinfo = core.StreamInfo()
+                    if "CONTENT_TYPE" in environ:
+                        sinfo.type = http.MediaType.FromString(
+                            environ["CONTENT_TYPE"])
+                    if "HTTP_LAST_MODIFIED" in environ:
+                        sinfo.modified = http.FullDate.FromHTTPString(
+                            environ["HTTP_LAST_MODIFIED"])
+                    input = app.InputWrapper(environ)
                     if "HTTP_SLUG" in environ:
-                        slug = environ["HTTP_SLUG"]
+                        slug = app.Slug(environ["HTTP_SLUG"])
+                        key = resource.entity_set.extract_key(slug)
+                    else:
+                        slug = key = None
+                    entity = resource.new_stream(input, sinfo=sinfo, key=key)
+                    if slug:
                         for k, v in entity.DataItems():
                             # catch property-level feed customisation here
                             propertyDef = entity.type_def[k]
                             if (propertyDef.GetTargetPath() ==
                                     [(atom.ATOM_NAMESPACE, "title")]):
-                                entity[k].SetFromValue(slug)
+                                entity[k].SetFromValue(slug.slug)
+                                resource.update_entity(entity)
                                 break
-                    resource.insert_entity(entity)
-                    if "CONTENT_TYPE" in environ:
-                        resourceType = http.MediaType.FromString(
-                            environ["CONTENT_TYPE"])
-                    else:
-                        resourceType = http.MediaType.FromString(
-                            'application/octet-stream')
-                    input = app.InputWrapper(environ)
-                    entity.set_stream_from_generator(
-                        resourceType, input.iterblocks())
                     response_headers.append(
                         ('Location', str(entity.GetLocation())))
                     return self.ReturnEntity(
@@ -1116,10 +1124,21 @@ class Server(app.Server):
         start_response("%i %s" % (status, statusMsg), response_headers)
         return [data]
 
-    def ReturnStream(
-            self, entity, request, environ, start_response, response_headers):
+    def ReturnStream(self, entity, request, environ, start_response,
+                     response_headers, method):
         """Returns a media stream."""
-        types = [entity.GetStreamType()] + self.StreamTypes
+        coll = entity.entity_set.OpenCollection()
+        try:
+            if method == "GET":
+                sinfo, sgen = coll.read_stream_close(entity.Key())
+            else:
+                sinfo = coll.read_stream(entity.Key())
+                sgen = []
+                coll.close()
+        except Exception:
+            coll.close()
+            raise
+        types = [sinfo.type] + self.StreamTypes
         responseType = self.ContentNegotiation(request, environ, types)
         if responseType is None:
             return self.ODataError(
@@ -1130,10 +1149,17 @@ class Server(app.Server):
                 'media stream type refused, try application/octet-stream',
                 406)
         response_headers.append(("Content-Type", str(responseType)))
-        response_headers.append(("Content-Length", entity.GetStreamSize()))
+        if sinfo.size is not None:
+            response_headers.append(("Content-Length", str(sinfo.size)))
+        if sinfo.modified is not None:
+            response_headers.append(("Last-Modified",
+                                     str(http.FullDate(src=sinfo.modified))))
+        if sinfo.md5 is not None:
+            response_headers.append(("Content-MD5",
+                                     base64.b64encode(sinfo.md5)))
         self.SetETag(entity, response_headers)
         start_response("%i %s" % (200, "Success"), response_headers)
-        return entity.get_stream_generator()
+        return sgen
 
     def ReadValue(self, value, environ):
         input = self.ReadXMLOrJSON(environ)

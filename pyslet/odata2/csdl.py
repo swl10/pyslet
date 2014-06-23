@@ -26,6 +26,7 @@ import collections
 import warnings
 import pickle
 import datetime
+import random
 from types import BooleanType, FloatType, StringTypes, StringType, UnicodeType, BooleanType, IntType, LongType, TupleType, DictType
 
 
@@ -952,7 +953,7 @@ class SimpleValue(EDMValue):
         newValue.Cast(self)
 
     def __eq__(self, other):
-        """Instances compare equal only if they of the same type and
+        """Instances compare equal only if they are of the same type and
         have values that compare equal."""
         if isinstance(other, SimpleValue):
             # are the types compatible? lazy comparison to start with
@@ -990,6 +991,15 @@ class SimpleValue(EDMValue):
             self.value = None
         else:
             raise NotImplementedError
+
+    def SetRandomValue(self, base=None):
+        """Sets a random value based
+
+        base
+            a :py:class:`SimpleValue` instance of the same type that may
+            be used as a base or stem or the random value generated or
+            may be ignored, depending on the value type."""
+        raise NotImplementedError
 
     @classmethod
     def Copy(cls, value):
@@ -1667,6 +1677,12 @@ class Int32Value(NumericValue):
         else:
             raise TypeError("Can't set Int32 from %s" % str(newValue))
 
+    def SetRandomValue(self, base=None):
+        if base and base.value < 0:
+            self.SetFromValue(-random.getrandbits(31))
+        else:
+            self.SetFromValue(random.getrandbits(31))
+
 
 class Int64Value(NumericValue):
 
@@ -1695,6 +1711,18 @@ class Int64Value(NumericValue):
         else:
             raise TypeError("Can't set Int64 from %s" % str(newValue))
 
+    def SetRandomValue(self, base=None):
+        if base and base < 0:
+            self.SetFromValue(-random.getrandbits(63))
+        else:
+            self.SetFromValue(random.getrandbits(63))
+
+    def SetRandomValue(self, base=None):
+        if base and base.value < 0:
+            self.SetFromValue(-random.getrandbits(63))
+        else:
+            self.SetFromValue(random.getrandbits(63))
+
 
 class StringValue(SimpleValue):
 
@@ -1720,6 +1748,27 @@ class StringValue(SimpleValue):
 
     def SetFromLiteral(self, value):
         self.value = value
+
+    def SetRandomValue(self, base=None):
+        if base:
+            base = base.value
+        else:
+            base = ''
+        rbytes = 8
+        if self.pDef:
+            # how much of base do
+            if rbytes > self.pDef.maxLength:
+                rbytes = self.pDef.maxLength
+            if (self.pDef.fixedLength and
+                    rbytes + len(base) < self.pDef.maxLength):
+                rbytes = self.maxLength - len(base)
+            elif len(base) + rbytes > self.pDef.maxLength:
+                # shorten base
+                base = base[:self.pDef.maxLength - rbytes]
+        value = [base]
+        for r in xrange(rbytes):
+            value.append("%X" % random.randint(0, 15))
+        self.SetFromValue(string.join(value, ''))
 
 
 class SByteValue(NumericValue):
@@ -2278,7 +2327,7 @@ class Entity(TypeInstance):
                 raise KeyError("Entity with NULL key not allowed")
             return tuple(k)
 
-    def SetKey(self, key):
+    def set_key(self, key):
         """Sets this entity's key from a single python value or tuple.
 
         The entity must be non-existent or :py:class:`EntityExists` is raised."""
@@ -2291,6 +2340,33 @@ class Entity(TypeInstance):
             k = iter(key)
             for pRef in self.type_def.Key.PropertyRef:
                 self[pRef.name].SetFromValue(k.next())
+
+    def SetKey(self, key):
+        warnings.warn(
+            "Entity.SetKey is deprecated, use, set_key instead",
+            DeprecationWarning,
+            stacklevel=3)
+        return self.set_key(key)
+
+    def auto_key(self, base=None):
+        """Sets the key to a random value
+
+        base
+            An optional key suggestion which can be used to influence
+            the choice of automatically generated key."""
+        if base:
+            if len(self.type_def.Key.PropertyRef) > 1:
+                base = iter(base)
+            else:
+                base = iter([base])
+        for pRef in self.type_def.Key.PropertyRef:
+            if base is not None:
+                bv = self.type_def[pRef.name]()
+                bv.SetFromValue(base.next())
+            else:
+                bv = None
+            v = self[pRef.name]
+            v.SetRandomValue(bv)
 
     def KeyDict(self):
         """Returns the entity key as a dictionary mapping key property
@@ -2391,7 +2467,7 @@ class Entity(TypeInstance):
                 etag.append(token)
         return etag
 
-    def GenerateConcurrencyHash(self):
+    def generate_ctoken(self):
         """Returns a hash object representing this entity's value.
 
         The hash is a SHA256 obtained by concatenating the literal
@@ -2407,20 +2483,20 @@ class Entity(TypeInstance):
                 continue
             v = self[pDef.name]
             if isinstance(v, Complex):
-                self.UpdateComplexHash(h, v)
+                self._complex_ctoken(h, v)
             elif not v:
                 continue
             else:
                 h.update(unicode(v).encode('utf-8'))
         return h
 
-    def UpdateComplexHash(self, h, ct):
+    def _complex_ctoken(self, h, ct):
         for pDef in ct.type_def.Property:
-            # complex types can't have properties used as concurrency tokens or
-            # keys
+            # complex types can't have properties used as concurrency
+            # tokens or keys
             v = ct[pDef.name]
             if isinstance(v, Complex):
-                self.UpdateComplexHash(h, v)
+                self._complex_ctoken(h, v)
             elif not v:
                 continue
             else:
@@ -2432,10 +2508,10 @@ class Entity(TypeInstance):
         Sets all :py:meth:`ETagValues` using the following algorithm:
 
         1.  Binary values are set directly from the output of
-                :py:meth:`GenerateConcurrencyHash`
+                :py:meth:`generate_ctoken`
 
         2.  String values are set from the hexdigest of the output
-                :py:meth:`GenerateConcurrencyHash`
+                :py:meth:`generate_ctoken`
 
         3.  Integer values are incremented.
 
@@ -2447,7 +2523,7 @@ class Entity(TypeInstance):
         Any other type will generate a ValueError."""
         for t in self.ETagValues():
             if isinstance(t, BinaryValue):
-                h = self.GenerateConcurrencyHash().digest()
+                h = self.generate_ctoken().digest()
                 if t.pDef.maxLength is not None and t.pDef.maxLength < len(h):
                     # take the right-most bytes
                     h = h[len(h) - t.pDef.maxLength:]
@@ -2457,7 +2533,7 @@ class Entity(TypeInstance):
                         h = h.ljust(t.pDef.maxLength, '\x00')
                 t.SetFromValue(h)
             elif isinstance(t, StringValue):
-                h = self.GenerateConcurrencyHash().hexdigest()
+                h = self.generate_ctoken().hexdigest()
                 if t.pDef.maxLength is not None and t.pDef.maxLength < len(h):
                     # take the right-most bytes
                     h = h[len(h) - t.pDef.maxLength:]
@@ -2496,7 +2572,7 @@ class Entity(TypeInstance):
                 resource only if they are equivalent by octet equality.
 
         The default implementation returns False which is consistent
-        with the implementation of :py:meth:`GenerateConcurrencyHash`
+        with the implementation of :py:meth:`generate_ctoken`
         as that does not include the key fields."""
         return False
 
@@ -3330,6 +3406,31 @@ class Documentation(CSDLElement):
     XMLNAME = (EDM_NAMESPACE, 'Documentation')
     XMLCONTENT = xmlns.ElementType.ElementContent
 
+    def __init__(self, parent):
+        CSDLElement.__init__(self, parent)
+        self.Summary = None
+        self.LongDescription = None
+
+    def GetChildren(self):
+        if self.Summary:
+            yield self.Summary
+        if self.LongDescription:
+            yield self.LondDescription
+
+
+class Summary(CSDLElement):
+
+    """Used to document elements in the metadata model"""
+    XMLNAME = (EDM_NAMESPACE, 'Summary')
+    XMLCONTENT = xmlns.ElementType.Mixed
+
+
+class LongDescription(CSDLElement):
+
+    """Used to document elements in the metadata model"""
+    XMLNAME = (EDM_NAMESPACE, 'LongDescription')
+    XMLCONTENT = xmlns.ElementType.Mixed
+
 
 class TypeRef(object):
 
@@ -3451,24 +3552,24 @@ class Property(CSDLElement):
         CSDLElement.__init__(self, parent)
         self.name = "Default"           #: the declared name of the property
         self.type = "Edm.String"        #: the name of the property's type
-        # : one of the :py:class:`SimpleType` constants if the property has a simple type
         self.simpleTypeCode = None
-        #: the associated :py:class:`ComplexType` if the property has a complex type
+        #: one of the :py:class:`SimpleType` constants if the property has a simple type
         self.complexType = None
-        #: if the property may have a null value
+        #: the associated :py:class:`ComplexType` if the property has a complex type
         self.nullable = True
-        #: a string containing the default value for the property or None if no default is defined
+        #: if the property may have a null value
         self.defaultValue = None
-        #: the maximum length permitted for property values
+        #: a string containing the default value for the property or None if no default is defined
         self.maxLength = None
-        #: a boolean indicating that the property must be of length :py:attr:`maxLength`
+        #: the maximum length permitted for property values
         self.fixedLength = None
-        #: a positive integer indicating the maximum number of decimal digits (decimal values)
+        #: a boolean indicating that the property must be of length :py:attr:`maxLength`
         self.precision = None
-        #: a non-negative integer indicating the maximum number of decimal digits to the right of the point
+        #: a positive integer indicating the maximum number of decimal digits (decimal values)
         self.scale = None
-        #: a boolean indicating that a string property contains unicode data
+        #: a non-negative integer indicating the maximum number of decimal digits to the right of the point
         self.unicode = None
+        #: a boolean indicating that a string property contains unicode data
         self.collation = None
         self.SRID = None
         self.collectionKind = None
@@ -3998,16 +4099,16 @@ class EntitySet(CSDLElement):
 
     def __init__(self, parent):
         super(EntitySet, self).__init__(parent)
-        #: the declared name of the entity set
         self.name = "Default"
-        #: the name of the entity type of this set's elements
+        #: the declared name of the entity set
         self.entityTypeName = ""
-        #: the :py:class:`EntityType` of this set's elements
+        #: the name of the entity type of this set's elements
         self.entityType = None
-        #: a list of the names of this entity set's keys in their declared order
+        #: the :py:class:`EntityType` of this set's elements
         self.keys = []
-        #: a mapping from navigation property names to :py:class:`AssociationSetEnd` instances
+        #: a list of the names of this entity set's keys in their declared order
         self.navigation = {}
+        #: a mapping from navigation property names to :py:class:`AssociationSetEnd` instances
         self.linkEnds = {}
         """A mapping from :py:class:`AssociationSetEnd` instances that
         reference this entity set to navigation property names (or None
@@ -4231,6 +4332,43 @@ class EntitySet(CSDLElement):
         else:
             #: assume it is of the correct type to be the key
             return keylike
+
+    def extract_key(self, keyvalue):
+        """Extracts a key value from *keylike*.
+
+        Unlike GetKey, this method attempts to convert the data in
+        *keyvalue* into the correct format for the key.  For compound
+        keys *keyvalue* must be a suitable list or tuple or compatible
+        iterable supporting the len method.  Dictionaries are not
+        supported.
+
+        If keyvalue cannot be converted into a suitable representation
+        of the key then None is returned."""
+        klen = len(self.entityType.Key.PropertyRef)
+        if klen == 1:
+            kv = self.entityType[self.keys[0]]()
+            try:
+                if type(keyvalue) in StringTypes:
+                    kv.SetFromLiteral(keyvalue)
+                else:
+                    kv.SetFromValue(keyvalue)
+            except (TypeError, ValueError):
+                return None
+            return kv.value
+        elif klen == len(keyvalue):
+            i = 0
+            result = []
+            for kvi in keyvalue:
+                kv = self.entityType[self.keys[i]]()
+                try:
+                    if type(kvi) in StringTypes:
+                        kv.SetFromLiteral(kvi)
+                    else:
+                        kv.SetFromValue(kvi)
+                except (TypeError, ValueError):
+                    return None
+                result.append(kv.value)
+            return tuple(result)
 
     def GetKeyDict(self, key):
         """Given a key from this entity set, returns a key dictionary.
@@ -4712,6 +4850,7 @@ class Schema(NameTableMixin, CSDLElement):
         NameTableMixin.__init__(self)
         self.name = "Default"       #: the declared name of this schema
         self.alias = None
+        self.Documentation = None
         self.Using = []
         #: a list of :py:class:`Association` instances
         self.Association = []

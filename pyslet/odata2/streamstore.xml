@@ -4,13 +4,13 @@
         m:DataServiceVersion="1.0">
         <Schema xmlns:d="http://schemas.microsoft.com/ado/2007/08/dataservices"
             xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"
-            xmlns="http://schemas.microsoft.com/ado/2008/09/edm" Namespace="BlockSchema">
-            <EntityContainer Name="BlockContainer" m:IsDefaultEntityContainer="true">
-                <EntitySet Name="Blocks" EntityType="BlockSchema.Block"/>
-                <EntitySet Name="BlockLocks" EntityType="BlockSchema.BlockLock"/>
-                <EntitySet Name="Streams" EntityType="BlockSchema.Stream"/>
-                <EntitySet Name="BlockLists" EntityType="BlockSchema.BlockList"/>
-                <AssociationSet Name="StreamsBlockLists" Association="BlockSchema.StreamBlockList">
+            xmlns="http://schemas.microsoft.com/ado/2008/09/edm" Namespace="StreamStoreSchema">
+            <EntityContainer Name="Container" m:IsDefaultEntityContainer="true">
+                <EntitySet Name="Blocks" EntityType="StreamStoreSchema.Block"/>
+                <EntitySet Name="Locks" EntityType="StreamStoreSchema.Lock"/>
+                <EntitySet Name="Streams" EntityType="StreamStoreSchema.Stream"/>
+                <EntitySet Name="BlockLists" EntityType="StreamStoreSchema.BlockList"/>
+                <AssociationSet Name="StreamsBlockLists" Association="StreamStoreSchema.StreamBlockList">
                     <End Role="stream" EntitySet="Streams"/>
                     <End Role="blocklist" EntitySet="BlockLists"/>
                 </AssociationSet>
@@ -22,7 +22,7 @@
                 <Property Name="hash" Type="Edm.String" Nullable="false" MaxLength="64" unicode="false"/>
                 <Property Name="data" Type="Edm.Binary" Nullable="false" MaxLength="65536"/>
             </EntityType>
-            <EntityType Name="BlockLock">
+            <EntityType Name="Lock">
                 <Key>
                     <PropertyRef Name="hash"/>
                 </Key>
@@ -41,7 +41,7 @@
                 <Property Name="size" Type="Edm.Int64" Nullable="false"/>
                 <Property Name="md5" Type="Edm.Binary" Nullable="true" MaxLength="16" FixedLength="16"/>
                 <NavigationProperty Name="Blocks" FromRole="stream" ToRole="blocklist"
-                    Relationship="BlockSchema.StreamBlockList"/>
+                    Relationship="StreamStoreSchema.StreamBlockList"/>
             </EntityType>
             <EntityType Name="BlockList">
                 <Key>
@@ -51,11 +51,11 @@
                 <Property Name="num" Type="Edm.Int32" Nullable="false"/>
                 <Property Name="hash" Type="Edm.String" Nullable="false" MaxLength="64" unicode="false"/>
                 <NavigationProperty Name="Stream" FromRole="blocklist" ToRole="stream"
-                    Relationship="BlockSchema.StreamBlockList"/>             
+                    Relationship="StreamStoreSchema.StreamBlockList"/>             
             </EntityType>
             <Association Name="StreamBlockList">
-                <End Role="stream" Type="BlockSchema.Stream" Multiplicity="0..1"/>
-                <End Role="blocklist" Type="BlockSchema.BlockList" Multiplicity="*"/>
+                <End Role="stream" Type="StreamStoreSchema.Stream" Multiplicity="0..1"/>
+                <End Role="blocklist" Type="StreamStoreSchema.BlockList" Multiplicity="*"/>
             </Association>
         </Schema>
     </edmx:DataServices>

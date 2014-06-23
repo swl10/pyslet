@@ -444,6 +444,13 @@ class StreamStore(object):
     modified
         An Edm.DateTime property to hold the last modified date.
 
+    size
+        An Edm.Int64 to hold the stream's size
+
+    md5
+        An Edm.Binary field of fixed length 16 bytes to hold the
+        MD5 checksum of the stream.
+
     Blocks
         A 1..Many navigation property to a related entity set with the
         following properties...
@@ -465,7 +472,8 @@ class StreamStore(object):
         self.block_set = entity_set.NavigationTarget('Blocks')
 
     def new_stream(self,
-                   mimetype=http.MediaType('application', 'octet-stream')):
+                   mimetype=http.MediaType('application', 'octet-stream'),
+                   created=None):
         """Creates a new stream in the store.
 
         mimetype
@@ -484,8 +492,14 @@ class StreamStore(object):
             stream['mimetype'].SetFromValue(str(mimetype))
             now = TimePoint.FromNowUTC()
             stream['size'].SetFromValue(0)
-            stream['created'].SetFromValue(now)
-            stream['modified'].SetFromValue(now)
+            if created is None:
+                stream['created'].SetFromValue(now)
+                stream['modified'].SetFromValue(now)
+            else:
+                created = created.ShiftZone(0)
+                stream['created'].SetFromValue(created)
+                stream['modified'].SetFromValue(created)
+            stream['md5'].SetFromValue(hashlib.md5().digest())
             streams.insert_entity(stream)
             return stream
 
@@ -609,19 +623,25 @@ class BlockStream(io.RawIOBase):
         self.r = "r" in mode or "+" in mode
         self.w = "w" in mode or "+" in mode
         self.size = stream['size'].value
-        self.blocks = list(self.ss.retrieve_blocklist(self.stream))
         self.block_size = self.ss.bs.max_block_size
         self._bdata = None
         self._bnum = 0
         self._bpos = 0
         self._btop = 0
         self._bdirty = False
+        self._md5 = None
         if "a" in mode:
             self.seek(self.size)
+            self.blocks = list(self.ss.retrieve_blocklist(self.stream))
         else:
             self.seek(0)
             if "w" in mode:
                 self.ss.delete_blocks(self.stream)
+                self.blocks = []
+                self._md5 = hashlib.md5()
+                self._md5num = 0
+            else:
+                self.blocks = list(self.ss.retrieve_blocklist(self.stream))
 
     def close(self):
         super(BlockStream, self).close()
@@ -672,10 +692,19 @@ class BlockStream(io.RawIOBase):
                 else:
                     self.blocks[self._bnum] = self.ss.store_block(
                         self.stream, self._bnum, data)
+                if self._md5 is not None and self._bnum == self._md5num:
+                    self._md5.update(data)
+                    self._md5num += 1
+                else:
+                    self._md5 = None
             if self.size != self.stream['size'].value:
                 self.stream['size'].SetFromValue(self.size)
             now = TimePoint.FromNowUTC()
             self.stream['modified'].SetFromValue(now)
+            if self._md5 is not None:
+                self.stream['md5'].SetFromValue(self._md5.digest())
+            else:
+                self.stream['md5'].SetNull()
             self.stream.Update()
             self._bdirty = False
 

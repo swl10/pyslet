@@ -59,7 +59,8 @@ def suite():
         unittest.makeSuite(WorkspaceTests, 'test'),
         unittest.makeSuite(CollectionTests, 'test'),
         unittest.makeSuite(ClientTests, 'test'),
-        unittest.makeSuite(ServerTests, 'test')
+        unittest.makeSuite(ServerTests, 'test'),
+        unittest.makeSuite(SlugTests, 'test')
     ))
 
 
@@ -454,6 +455,16 @@ class ServerTests(unittest.TestCase):
             c2Result.Title.GetValue() == "Collection 2", "Server: two collections title")
         self.assertTrue(c2Result.ResolveURI(c2Result.href) ==
                         "http://localhost/etc/c2", "Server: collection href")
+
+
+class SlugTests(unittest.TestCase):
+
+    def test_slug(self):
+        src = "The Beach at S%C3%A8te"
+        slug = Slug.FromString(src)
+        self.assertTrue(slug.slug == u"The Beach at S\xe8te")
+        slug = Slug(u"The Beach at S\xe8te")
+        self.assertTrue(str(slug) == src)
 
 
 if __name__ == "__main__":
