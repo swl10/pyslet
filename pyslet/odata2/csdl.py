@@ -394,7 +394,8 @@ class NameTableMixin(DictionaryLike):
     def __init__(self):
         #: the name of this name table (in the context of its parent)
         self.name = ""
-        self.nameTable = {}     #: a dictionary mapping names to child objects
+        #: a dictionary mapping names to child objects
+        self.nameTable = {}
 
     def __getitem__(self, key):
         """Looks up *key* in :py:attr:`nameTable` and, if not found, in
@@ -888,7 +889,8 @@ class SimpleValue(EDMValue):
             self.typeCode = pDef.simpleTypeCode
         else:
             self.typeCode = None
-        #: an optional :py:class:`pyslet.rfc2616.MediaType` representing this value
+        #: an optional :py:class:`pyslet.rfc2616.MediaType` representing
+        #: this value
         self.mType = None
         self.value = None
         """The actual value or None if this instance represents a NULL value
@@ -942,15 +944,15 @@ class SimpleValue(EDMValue):
         if self.typeCode == targetValue.typeCode:
             targetValue.value = self.value
         else:
-            # newValue=EDMValue.NewValue(newTypeCode,self.name)
+            # new_value=EDMValue.NewValue(newTypeCode,self.name)
             if self.typeCode is not None:
                 targetValue.SetFromValue(copy.deepcopy(self.value))
         return targetValue
 
-    def SetFromSimpleValue(self, newValue):
+    def SetFromSimpleValue(self, new_value):
         """The reverse of the :py:meth:`Cast` method, sets this value to
-        the value of *newValue* casting as appropriate."""
-        newValue.Cast(self)
+        the value of *new_value* casting as appropriate."""
+        new_value.Cast(self)
 
     def __eq__(self, other):
         """Instances compare equal only if they are of the same type and
@@ -983,11 +985,11 @@ class SimpleValue(EDMValue):
         """Sets the value to NULL"""
         self.value = None
 
-    def SetFromValue(self, newValue):
-        """Sets the value from a python variable coercing *newValue* if
+    def SetFromValue(self, new_value):
+        """Sets the value from a python variable coercing *new_value* if
         necessary to ensure it is of the correct type for the value's
         :py:attr:`typeCode`."""
-        if newValue is None:
+        if new_value is None:
             self.value = None
         else:
             raise NotImplementedError
@@ -1042,15 +1044,15 @@ class BinaryValue(SimpleValue):
         self.value = p.RequireProductionEnd(
             p.ParseBinaryLiteral(), "binaryLiteral")
 
-    def SetFromValue(self, newValue):
-        if isinstance(newValue, bytes):
-            self.value = newValue
-        elif isinstance(newValue, bytearray):
-            self.value = bytes(newValue)
-        elif newValue is None:
+    def SetFromValue(self, new_value):
+        if isinstance(new_value, bytes):
+            self.value = new_value
+        elif isinstance(new_value, bytearray):
+            self.value = bytes(new_value)
+        elif new_value is None:
             self.value = None
         else:
-            self.value = pickle.dumps(newValue)
+            self.value = pickle.dumps(new_value)
 
 
 class BooleanValue(SimpleValue):
@@ -1079,15 +1081,15 @@ class BooleanValue(SimpleValue):
         else:
             raise ValueError("Failed to parse boolean literal from %s" % value)
 
-    def SetFromValue(self, newValue):
-        if newValue is None:
+    def SetFromValue(self, new_value):
+        if new_value is None:
             self.value = None
-        elif isinstance(newValue, decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
-            self.value = (newValue != 0)
-        elif isinstance(newValue, BooleanType):
-            self.value = newValue
+        elif isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType):
+            self.value = (new_value != 0)
+        elif isinstance(new_value, BooleanType):
+            self.value = new_value
         else:
-            raise TypeError("Can't set Boolean from %s" % str(newValue))
+            raise TypeError("Can't set Boolean from %s" % str(new_value))
 
 
 class NumericValue(SimpleValue):
@@ -1158,16 +1160,16 @@ class ByteValue(NumericValue):
                              self.JoinNumericLiteral(numericValue))
         self.SetFromValue(int(numericValue.lDigits))
 
-    def SetFromValue(self, newValue):
-        """*newValue* must be of type int, long, float or Decimal."""
-        if newValue is None:
+    def SetFromValue(self, new_value):
+        """*new_value* must be of type int, long, float or Decimal."""
+        if new_value is None:
             self.value = None
-        elif isinstance(newValue, decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
-            if newValue < 0 or newValue > 255:
-                raise ValueError("Illegal value for Byte: %s" % str(newValue))
-            self.value = int(newValue)
+        elif isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType):
+            if new_value < 0 or new_value > 255:
+                raise ValueError("Illegal value for Byte: %s" % str(new_value))
+            self.value = int(new_value)
         else:
-            raise TypeError("Can't set Byte from %s" % str(newValue))
+            raise TypeError("Can't set Byte from %s" % str(new_value))
 
 
 class DateTimeValue(SimpleValue):
@@ -1214,29 +1216,29 @@ class DateTimeValue(SimpleValue):
         self.value = p.RequireProductionEnd(
             p.ParseDateTimeLiteral(), "DateTime")
 
-    def SetFromValue(self, newValue):
-        if newValue is None:
+    def SetFromValue(self, new_value):
+        if new_value is None:
             self.value = None
-        elif isinstance(newValue, iso8601.TimePoint):
-            self.value = newValue.WithZone(zDirection=None)
-        elif (isinstance(newValue, decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType)) and newValue >= 0:
-            self.value = iso8601.TimePoint.FromUnixTime(float(newValue))
-        elif isinstance(newValue, datetime.datetime):
+        elif isinstance(new_value, iso8601.TimePoint):
+            self.value = new_value.WithZone(zDirection=None)
+        elif (isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType)) and new_value >= 0:
+            self.value = iso8601.TimePoint.FromUnixTime(float(new_value))
+        elif isinstance(new_value, datetime.datetime):
             self.value = iso8601.TimePoint(
                 date=iso8601.Date(
-                    century=newValue.year //
+                    century=new_value.year //
                     100,
-                    year=newValue.year %
+                    year=new_value.year %
                     100,
-                    month=newValue.month,
-                    day=newValue.day),
+                    month=new_value.month,
+                    day=new_value.day),
                 time=iso8601.Time(
-                    hour=newValue.hour,
-                    minute=newValue.minute,
-                    second=newValue.second,
+                    hour=new_value.hour,
+                    minute=new_value.minute,
+                    second=new_value.second,
                     zDirection=None))
         else:
-            raise TypeError("Can't set DateTime from %s" % repr(newValue))
+            raise TypeError("Can't set DateTime from %s" % repr(new_value))
 
 
 class DateTimeOffsetValue(SimpleValue):
@@ -1293,24 +1295,25 @@ class DateTimeOffsetValue(SimpleValue):
             raise ValueError(str(e))
         self.SetFromValue(value)
 
-    def SetFromValue(self, newValue):
-        if newValue is None:
+    def SetFromValue(self, new_value):
+        if new_value is None:
             self.value = None
-        elif isinstance(newValue, iso8601.TimePoint):
-            zDir, zOffset = newValue.GetZone()
+        elif isinstance(new_value, iso8601.TimePoint):
+            zDir, zOffset = new_value.GetZone()
             if zOffset is None:
                 raise ValueError(
                     "DateTimeOffset requires a time zone specifier: %s" %
-                    newValue)
-            if not newValue.Complete():
+                    new_value)
+            if not new_value.Complete():
                 raise ValueError(
                     "DateTimeOffset requires a complete representation: %s" %
-                    str(newValue))
-            self.value = newValue
-        elif (isinstance(newValue, decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType)) and newValue >= 0:
-            self.value = iso8601.TimePoint.FromUnixTime(float(newValue))
+                    str(new_value))
+            self.value = new_value
+        elif (isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType)) and new_value >= 0:
+            self.value = iso8601.TimePoint.FromUnixTime(float(new_value))
         else:
-            raise TypeError("Can't set DateTimeOffset from %s" % str(newValue))
+            raise TypeError(
+                "Can't set DateTimeOffset from %s" % str(new_value))
 
 
 class TimeValue(SimpleValue):
@@ -1351,24 +1354,24 @@ class TimeValue(SimpleValue):
         p = Parser(value)
         self.value = p.RequireProductionEnd(p.ParseTimeLiteral(), "Time")
 
-    def SetFromValue(self, newValue):
-        if newValue is None:
+    def SetFromValue(self, new_value):
+        if new_value is None:
             self.value = None
-        elif isinstance(newValue, iso8601.Time):
-            self.value = newValue
-        elif (isinstance(newValue, decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType)) and newValue >= 0:
-            if newValue < 0:
+        elif isinstance(new_value, iso8601.Time):
+            self.value = new_value
+        elif (isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType)) and new_value >= 0:
+            if new_value < 0:
                 raise "Can't set Time from %.3f"
             tValue = iso8601.Time()
-            if type(newValue) in (IntType, LongType):
-                tValue, days = tValue.Offset(newValue)
+            if type(new_value) in (IntType, LongType):
+                tValue, days = tValue.Offset(new_value)
             else:
-                tValue, days = tValue.Offset(float(newValue))
+                tValue, days = tValue.Offset(float(new_value))
             if days > 0:
                 raise "Can't set Time from %.3f (overflow)"
             self.value = tValue
         else:
-            raise TypeError("Can't set Time from %s" % repr(newValue))
+            raise TypeError("Can't set Time from %s" % repr(new_value))
 
 
 class DecimalValue(NumericValue):
@@ -1420,16 +1423,16 @@ class DecimalValue(NumericValue):
             raise ValueError("Illegal literal for Decimal: %s" % dStr)
         self.SetFromValue(decimal.Decimal(dStr))
 
-    def SetFromValue(self, newValue):
-        if newValue is None:
+    def SetFromValue(self, new_value):
+        if new_value is None:
             self.value = None
             return
-        elif isinstance(newValue, decimal.Decimal):
-            d = newValue
-        elif type(newValue) in (IntType, LongType, FloatType):
-            d = decimal.Decimal(newValue)
+        elif isinstance(new_value, decimal.Decimal):
+            d = new_value
+        elif type(new_value) in (IntType, LongType, FloatType):
+            d = decimal.Decimal(new_value)
         else:
-            raise TypeError("Can't set Decimal from %s" % str(newValue))
+            raise TypeError("Can't set Decimal from %s" % str(new_value))
         if self.abs(d) > self.Max:
             # too big for CSDL decimal forms
             raise ValueError("Value exceeds limits for Decimal: %s" % str(d))
@@ -1455,24 +1458,24 @@ class FloatValue(NumericValue):
 
     Values are formatted using Python's default unicode conversion."""
 
-    def SetFromValue(self, newValue):
-        if newValue is None:
+    def SetFromValue(self, new_value):
+        if new_value is None:
             self.value = None
-        elif isinstance(newValue, decimal.Decimal) or type(newValue) in (IntType, LongType):
-            if newValue < -self.Max or newValue > self.Max:
+        elif isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType):
+            if new_value < -self.Max or new_value > self.Max:
                 raise ValueError(
-                    "Value for Double out of range: %s" % str(newValue))
-            self.value = float(newValue)
-        elif isinstance(newValue, FloatType):
-            if math.isnan(newValue) or math.isinf(newValue):
-                self.value = newValue
-            elif newValue < -self.Max or newValue > self.Max:
-                raise ValueError("Value out of range: %s" % str(newValue))
+                    "Value for Double out of range: %s" % str(new_value))
+            self.value = float(new_value)
+        elif isinstance(new_value, FloatType):
+            if math.isnan(new_value) or math.isinf(new_value):
+                self.value = new_value
+            elif new_value < -self.Max or new_value > self.Max:
+                raise ValueError("Value out of range: %s" % str(new_value))
             else:
-                self.value = newValue
+                self.value = new_value
         else:
             raise TypeError(
-                "Can't set floating-point value from %s" % str(newValue))
+                "Can't set floating-point value from %s" % str(new_value))
 
 
 class DoubleValue(FloatValue):
@@ -1606,22 +1609,22 @@ class GuidValue(SimpleValue):
         p = Parser(value)
         self.value = p.RequireProductionEnd(p.ParseGuidLiteral(), "Guid")
 
-    def SetFromValue(self, newValue):
-        """*newValue* must be an instance of Python's UUID class
+    def SetFromValue(self, new_value):
+        """*new_value* must be an instance of Python's UUID class
 
         We also support setting from a raw string of exactly 16 bytes in
         length or a text string of exactly 32 bytes (the latter is
         treated as the hex representation)."""
-        if newValue is None:
+        if new_value is None:
             self.value = None
-        elif isinstance(newValue, uuid.UUID):
-            self.value = newValue
-        elif isinstance(newValue, StringType) and len(newValue) == 16:
-            self.value = uuid.UUID(bytes=newValue)
-        elif type(newValue) in StringTypes and len(newValue) == 32:
-            self.value = uuid.UUID(hex=newValue)
+        elif isinstance(new_value, uuid.UUID):
+            self.value = new_value
+        elif isinstance(new_value, StringType) and len(new_value) == 16:
+            self.value = uuid.UUID(bytes=new_value)
+        elif type(new_value) in StringTypes and len(new_value) == 32:
+            self.value = uuid.UUID(hex=new_value)
         else:
-            raise TypeError("Can't set Guid from %s" % repr(newValue))
+            raise TypeError("Can't set Guid from %s" % repr(new_value))
 
 
 class Int16Value(NumericValue):
@@ -1639,15 +1642,16 @@ class Int16Value(NumericValue):
                              self.JoinNumericLiteral(numericValue))
         self.SetFromValue(int(self.JoinNumericLiteral(numericValue)))
 
-    def SetFromValue(self, newValue):
-        if newValue is None:
+    def SetFromValue(self, new_value):
+        if new_value is None:
             self.value = None
-        elif isinstance(newValue, decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
-            if newValue < -32768 or newValue > 32767:
-                raise ValueError("Illegal value for Int16: %s" % str(newValue))
-            self.value = int(newValue)
+        elif isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType):
+            if new_value < -32768 or new_value > 32767:
+                raise ValueError(
+                    "Illegal value for Int16: %s" % str(new_value))
+            self.value = int(new_value)
         else:
-            raise TypeError("Can't set Int16 from %s" % str(newValue))
+            raise TypeError("Can't set Int16 from %s" % str(new_value))
 
 
 class Int32Value(NumericValue):
@@ -1667,15 +1671,16 @@ class Int32Value(NumericValue):
                              self.JoinNumericLiteral(numericValue))
         self.SetFromValue(int(self.JoinNumericLiteral(numericValue)))
 
-    def SetFromValue(self, newValue):
-        if newValue is None:
+    def SetFromValue(self, new_value):
+        if new_value is None:
             self.value = None
-        elif isinstance(newValue, decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
-            if newValue < -2147483648 or newValue > 2147483647:
-                raise ValueError("Illegal value for Int32: %s" % str(newValue))
-            self.value = int(newValue)
+        elif isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType):
+            if new_value < -2147483648 or new_value > 2147483647:
+                raise ValueError(
+                    "Illegal value for Int32: %s" % str(new_value))
+            self.value = int(new_value)
         else:
-            raise TypeError("Can't set Int32 from %s" % str(newValue))
+            raise TypeError("Can't set Int32 from %s" % str(new_value))
 
     def SetRandomValue(self, base=None):
         if base and base.value < 0:
@@ -1701,15 +1706,16 @@ class Int64Value(NumericValue):
                              self.JoinNumericLiteral(numericValue))
         self.SetFromValue(int(self.JoinNumericLiteral(numericValue)))
 
-    def SetFromValue(self, newValue):
-        if newValue is None:
+    def SetFromValue(self, new_value):
+        if new_value is None:
             self.value = None
-        elif isinstance(newValue, decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
-            if newValue < -9223372036854775808 or newValue > 9223372036854775807:
-                raise ValueError("Illegal value for Int64: %s" % str(newValue))
-            self.value = long(newValue)
+        elif isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType):
+            if new_value < -9223372036854775808 or new_value > 9223372036854775807:
+                raise ValueError(
+                    "Illegal value for Int64: %s" % str(new_value))
+            self.value = long(new_value)
         else:
-            raise TypeError("Can't set Int64 from %s" % str(newValue))
+            raise TypeError("Can't set Int64 from %s" % str(new_value))
 
     def SetRandomValue(self, base=None):
         if base and base < 0:
@@ -1738,13 +1744,13 @@ class StringValue(SimpleValue):
             raise ValueError("%s is Null" % self.name)
         return unicode(self.value)
 
-    def SetFromValue(self, newValue):
-        if newValue is None:
+    def SetFromValue(self, new_value):
+        if new_value is None:
             self.value = None
-        elif isinstance(newValue, UnicodeType):
-            self.value = newValue
+        elif isinstance(new_value, UnicodeType):
+            self.value = new_value
         else:
-            self.value = unicode(newValue)
+            self.value = unicode(new_value)
 
     def SetFromLiteral(self, value):
         self.value = value
@@ -1786,15 +1792,16 @@ class SByteValue(NumericValue):
                              self.JoinNumericLiteral(numericValue))
         self.SetFromValue(int(self.JoinNumericLiteral(numericValue)))
 
-    def SetFromValue(self, newValue):
-        if newValue is None:
+    def SetFromValue(self, new_value):
+        if new_value is None:
             self.value = None
-        elif isinstance(newValue, decimal.Decimal) or type(newValue) in (IntType, LongType, FloatType):
-            if newValue < -128 or newValue > 127:
-                raise ValueError("Illegal value for SByte: %s" % str(newValue))
-            self.value = int(newValue)
+        elif isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType):
+            if new_value < -128 or new_value > 127:
+                raise ValueError(
+                    "Illegal value for SByte: %s" % str(new_value))
+            self.value = int(new_value)
         else:
-            raise TypeError("Can't set SByte from %s" % str(newValue))
+            raise TypeError("Can't set SByte from %s" % str(new_value))
 
 
 EDMValue._TypeClass = {
@@ -1831,7 +1838,8 @@ class TypeInstance(DictionaryLike):
     order in which they are declared in the type definition."""
 
     def __init__(self, type_def=None):
-        self.type_def = type_def      #: the definition of this type
+        #: the definition of this type
+        self.type_def = type_def
         self.data = {}
         if type_def is not None:
             for p in self.type_def.Property:
@@ -1868,32 +1876,34 @@ class Complex(EDMValue, TypeInstance):
         for k, v in self.iteritems():
             v.SetNull()
 
-    def SetFromComplex(self, newValue):
-        """Sets this value from *newValue* which must be a
+    def merge(self, new_value):
+        """Sets this value from *new_value* which must be a
         :py:class:`Complex` instance.
 
-        There is no requirement that *newValue* is of the same type,
+        There is no requirement that *new_value* is of the same type,
         but it must be broadly compatible, which is defined as:
 
                 Any named property present in both the current value and
-                *newValue* must be of compatible types.
+                *new_value* must be of compatible types.
 
         Any named property in the current value which is not present in
-        *newValue* is left unchanged by this method."""
+        *new_value* is left unchanged by this method.
+
+        Null values are not merged."""
         for k, v in self.iteritems():
-            nv = newValue.get(k, None)
-            if nv is None:
+            nv = new_value.get(k, None)
+            if not nv:
                 continue
             if isinstance(v, Complex):
                 if isinstance(nv, Complex):
-                    self[k].SetFromComplex(v)
+                    v.merge(nv)
                 else:
                     raise ValueError(
                         "Can't set Complex property from %s" % repr(nv))
             elif isinstance(nv, Complex):
                 continue
             else:
-                self[k].SetFromSimpleValue(v)
+                v.SetFromSimpleValue(nv)
 
 
 class DeferredValue(object):
@@ -1947,7 +1957,7 @@ class DeferredValue(object):
                 raise NavigationError(
                     "Navigation property %s of %s[%s] is not a collection but it yielded multiple entities" %
                     (self.name, self.from_entity.entity_set.name, str(
-                        self.from_entity.Key())))
+                        self.from_entity.key())))
 
     def OpenCollection(self):
         """Opens the collection associated with this navigation property.
@@ -2057,7 +2067,7 @@ class DeferredValue(object):
                         if self.isCollection:
                             # use __setitem__ to add this entity to the entity
                             # collection
-                            collection[binding.Key()] = binding
+                            collection[binding.key()] = binding
                         else:
                             # use replace to replace the current binding
                             collection.replace(binding)
@@ -2182,34 +2192,36 @@ class Entity(TypeInstance):
         for p in self.type_def.Property:
             yield p.name, self[p.name]
 
-    def SetFromEntity(self, newValue):
-        """Sets this entity's value from *newValue* which must be a
+    def merge(self, fromvalue):
+        """Sets this entity's value from *fromvalue* which must be a
         :py:class:`TypeInstance` instance.  In other words, it may
         be either an Entity or a Complex value.
 
-        There is no requirement that *newValue* be of the same type,
+        There is no requirement that *fromvalue* be of the same type,
         but it must be broadly compatible, which is defined as:
 
                 Any named property present in both the current value and
-                *newValue* must be of compatible types.
+                *fromvalue* must be of compatible types.
 
         Any named property in the current value which is not present in
-        *newValue* is left unchanged by this method."""
+        *fromvalue* is left unchanged by this method.
+
+        Null values in fromvalue are not copied."""
         for k, v in self.DataItems():
             if k in self.entity_set.keys:
                 continue
-            newValue = newValue.get(k, None)
-            if newValue is None:
+            nv = fromvalue.get(k, None)
+            if not nv:
                 continue
             if isinstance(v, Complex):
-                if isinstance(newValue, Complex):
-                    self[k].SetFromComplex(v)
+                if isinstance(nv, Complex):
+                    v.merge(nv)
                 else:
                     continue
-            elif isinstance(newValue, Complex):
+            elif isinstance(nv, Complex):
                 continue
             else:
-                self[k].SetFromSimpleValue(v)
+                v.SetFromSimpleValue(nv)
 
     def NavigationKeys(self):
         """Iterates through the names of this entity's navigation properties only.
@@ -2302,14 +2314,21 @@ class Entity(TypeInstance):
         Data providers must ensure that the entity's :py:attr:`exists`
         flag is set to False after deletion."""
         with self.entity_set.OpenCollection() as collection:
-            del collection[self.Key()]
+            del collection[self.key()]
 
-    def Key(self):
+    def Key(self):  # noqa
+        warnings.warn(
+            "Entity.Key is deprecated, use, key instead",
+            DeprecationWarning,
+            stacklevel=3)
+        return self.key()
+
+    def key(self):
         """Returns the entity key as a single python value or a tuple of
         python values for compound keys.
 
         The order of the values is always the order of the PropertyRef
-        definitions in the associated EntityType's :py:class:`Key`."""
+        definitions in the associated EntityType's :py:class:`key`."""
         if len(self.type_def.Key.PropertyRef) == 1:
             result = self[self.type_def.Key.PropertyRef[0].name].value
             if result is None:
@@ -2333,7 +2352,7 @@ class Entity(TypeInstance):
         The entity must be non-existent or :py:class:`EntityExists` is raised."""
         if self.exists:
             raise EntityExists("SetKey not allowed; %s[%s] already exists" % (
-                self.entity_set.name, str(self.Key())))
+                self.entity_set.name, str(self.key())))
         if len(self.type_def.Key.PropertyRef) == 1:
             self[self.type_def.Key.PropertyRef[0].name].SetFromValue(key)
         else:
@@ -2341,7 +2360,7 @@ class Entity(TypeInstance):
             for pRef in self.type_def.Key.PropertyRef:
                 self[pRef.name].SetFromValue(k.next())
 
-    def SetKey(self, key):
+    def SetKey(self, key):  # noqa
         warnings.warn(
             "Entity.SetKey is deprecated, use, set_key instead",
             DeprecationWarning,
@@ -2604,7 +2623,7 @@ class EntityCollection(DictionaryLike):
     compound keys. The order of the values in the tuple is taken from
     the order of the :py:class:`PropertyRef` definitions in the metadata
     model.  You can obtain an entity's key from the
-    :py:meth:`Entity.Key` method.
+    :py:meth:`Entity.key` method.
 
     When an EntityCollection represents an entire entity set you cannot
     use dictionary assignment to modify the collection.  You must use
@@ -2671,15 +2690,20 @@ class EntityCollection(DictionaryLike):
             logging.debug("Unabsorbed kwargs in EntityCollection constructor")
         #: the entity set from which the entities are drawn
         self.entity_set = entity_set
-        self.name = self.entity_set.name  # : the name of :py:attr:`entity_set`
-        self.expand = None              #: the expand query option in effect
-        self.select = None              #: the select query option in effect
+        # : the name of :py:attr:`entity_set`
+        self.name = self.entity_set.name
+        #: the expand query option in effect
+        self.expand = None
+        #: the select query option in effect
+        self.select = None
         #: a filter or None for no filter (see :py:meth:`CheckFilter`)
         self.filter = None
         #: a list of orderby rules or None for no ordering
         self.orderby = None
-        self.skip = None                    #: the skip query option in effect
-        self.top = None                 #: the top query option in effect
+        #: the skip query option in effect
+        self.skip = None
+        #: the top query option in effect
+        self.top = None
         #: the provider-enforced maximum page size in effect
         self.topmax = None
         self.skiptoken = None
@@ -2859,7 +2883,7 @@ class EntityCollection(DictionaryLike):
         eList = None
         if self.paging:
             eList = list(entityIterable)
-            eList.sort(key=lambda x: x.Key())
+            eList.sort(key=lambda x: x.key())
         if self.orderby:
             if eList is None:
                 eList = list(entityIterable)
@@ -2922,7 +2946,7 @@ class EntityCollection(DictionaryLike):
 
         The key is not copied and is initially set to NULL."""
         newEntity = self.new_entity()
-        newEntity.SetFromEntity(entity)
+        newEntity.merge(entity)
         return newEntity
 
     def insert_entity(self, entity):
@@ -2988,19 +3012,19 @@ class EntityCollection(DictionaryLike):
         logging.warning(
             "EntityCollection.__getitem__ without override in %s",
             self.__class__.__name__)
-        if self.lastEntity and self.lastEntity.Key() == key:
+        if self.lastEntity and self.lastEntity.key() == key:
             result = self.lastEntity
             return result
         for e in self.itervalues():
             self.lastEntity = e
-            if e.Key() == key:
+            if e.key() == key:
                 return e
         raise KeyError(unicode(key))
 
     def __setitem__(self, key, value):
         if not isinstance(value, Entity) or value.entity_set is not self.entity_set:
             raise TypeError
-        if key != value.Key():
+        if key != value.key():
             raise ValueError
         if key not in self:
             raise KeyError(unicode(key))
@@ -3152,13 +3176,13 @@ class EntityCollection(DictionaryLike):
     def __iter__(self):
         for e in self.itervalues():
             self.lastEntity = e
-            yield e.Key()
+            yield e.key()
         self.lastEntity = None
 
     def iteritems(self):
         for e in self.itervalues():
             self.lastEntity = e
-            yield e.Key(), e
+            yield e.key(), e
 
 
 class NavigationCollection(EntityCollection):
@@ -3213,8 +3237,10 @@ class NavigationCollection(EntityCollection):
         super(NavigationCollection, self).__init__(**kwargs)
         #: the name of the navigation property
         self.name = name
-        self.from_entity = from_entity                    #: the source entity
-        # : the :py:class:`AssociationSetEnd` that represents the source of this association
+        #: the source entity
+        self.from_entity = from_entity
+        #: the :py:class:`AssociationSetEnd` that represents the source
+        #: of this association
         self.from_end = self.from_entity.entity_set.navigation[self.name]
         #: the navigation property's definition in the metadata model
         self.pDef = self.from_entity.type_def[name]
@@ -3235,7 +3261,7 @@ class NavigationCollection(EntityCollection):
         simultaneously creates a link to it from the source entity."""
         with self.entity_set.OpenCollection() as baseCollection:
             baseCollection.insert_entity(entity)
-            self[entity.Key()] = entity
+            self[entity.key()] = entity
 
     def update_entity(self, entity):
         with self.entity_set.OpenCollection() as baseCollection:
@@ -3254,7 +3280,7 @@ class NavigationCollection(EntityCollection):
     def replace(self, entity):
         """This method replaces all links with a link to the single
         item, *entity*.  If the collection was empty then this is
-        equivalent to __setitem__(entity.Key(),entity).
+        equivalent to __setitem__(entity.key(),entity).
 
         Although for some collections this is equivalent to
         :py:meth:`clear` followed by __setitem__, this method must be
@@ -3262,7 +3288,7 @@ class NavigationCollection(EntityCollection):
         collection is required to contain exactly one link at all
         times."""
         self.clear()
-        self[entity.Key()] = entity
+        self[entity.key()] = entity
 
     def Replace(self, entity):  # noqa
         warnings.warn("NavigationCollection.Replace is deprecated, "
@@ -3298,7 +3324,7 @@ class ExpandedEntityCollection(NavigationCollection):
         self.entityDict = {}
         for e in self.entityList:
             # Build a dictionary
-            self.entityDict[e.Key()] = e
+            self.entityDict[e.key()] = e
 
     def itervalues(self):
         return self.OrderEntities(
@@ -3440,8 +3466,9 @@ class TypeRef(object):
     which type definitions are looked up)."""
 
     def __init__(self, type_def, scope):
-        self.collection = False     #: True if this type is a collection type
-        # : a :py:class:`SimpleType` value if this is a scalar type
+        #: True if this type is a collection type
+        self.collection = False
+        #: a :py:class:`SimpleType` value if this is a primitive type
         self.simpleTypeCode = None
         #: a :py:class:`ComplexType` or :py:class:`EntityType` instance.
         self.type_def = None
@@ -3465,7 +3492,8 @@ class TypeRef(object):
 class Using(CSDLElement):
     XMLNAME = (EDM_NAMESPACE, 'Using')
 
-#: we define the constant MAX to represent the spacial 'max' value of maxLength
+#: we define the constant MAX to represent the special 'max' value of
+#: maxLength
 MAX = -1
 
 
@@ -3550,26 +3578,35 @@ class Property(CSDLElement):
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
-        self.name = "Default"           #: the declared name of the property
-        self.type = "Edm.String"        #: the name of the property's type
+        #: the declared name of the property
+        self.name = "Default"
+        #: the name of the property's type
+        self.type = "Edm.String"
+        #: one of the :py:class:`SimpleType` constants if the property
+        #: has a simple type
         self.simpleTypeCode = None
-        #: one of the :py:class:`SimpleType` constants if the property has a simple type
+        #: the associated :py:class:`ComplexType` if the property has a
+        #: complex type
         self.complexType = None
-        #: the associated :py:class:`ComplexType` if the property has a complex type
-        self.nullable = True
         #: if the property may have a null value
+        self.nullable = True
+        #: a string containing the default value for the property or
+        #: None if no default is defined
         self.defaultValue = None
-        #: a string containing the default value for the property or None if no default is defined
-        self.maxLength = None
         #: the maximum length permitted for property values
+        self.maxLength = None
+        #: a boolean indicating that the property must be of length
+        #: :py:attr:`maxLength`
         self.fixedLength = None
-        #: a boolean indicating that the property must be of length :py:attr:`maxLength`
+        #: a positive integer indicating the maximum number of decimal
+        #: digits (decimal values)
         self.precision = None
-        #: a positive integer indicating the maximum number of decimal digits (decimal values)
+        #: a non-negative integer indicating the maximum number of
+        #: decimal digits to the right of the point
         self.scale = None
-        #: a non-negative integer indicating the maximum number of decimal digits to the right of the point
+        #: a boolean indicating that a string property contains unicode
+        #: data
         self.unicode = None
-        #: a boolean indicating that a string property contains unicode data
         self.collation = None
         self.SRID = None
         self.collectionKind = None
@@ -3631,15 +3668,21 @@ class NavigationProperty(CSDLElement):
         self.relationship = None
         # : the :py:class:`Association` described by this link
         self.association = None
-        self.fromRole = None        #: the name of this link's source role
-        self.toRole = None      #: the name of this link's target role
-        #: the :py:class:`AssociationEnd` instance representing this link's source
+        #: the name of this link's source role
+        self.fromRole = None
+        #: the name of this link's target role
+        self.toRole = None
+        #: the :py:class:`AssociationEnd` instance representing this
+        #: link's source
         self.from_end = None
-        #: the :py:class:`AssociationEnd` instance representing this link's target
+        #: the :py:class:`AssociationEnd` instance representing this
+        #: link's target
         self.toEnd = None
-        #: the :py:class:`NavigationProperty` that provides the back link (or None, if this link is one-way)
+        #: the :py:class:`NavigationProperty` that provides the back
+        #: link (or None, if this link is one-way)
         self.backLink = None
-        self.Documentation = None  # : the optional :py:class:`Documentation`
+        # : the optional :py:class:`Documentation`
+        self.Documentation = None
         self.TypeAnnotation = []
         self.ValueAnnotation = []
 
@@ -3682,7 +3725,8 @@ class Key(CSDLElement):
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
-        self.PropertyRef = []       #: a list of :py:class:`PropertyRef`
+        #: a list of :py:class:`PropertyRef`
+        self.PropertyRef = []
 
     def GetChildren(self):
         for child in self.PropertyRef:
@@ -3702,7 +3746,8 @@ class PropertyRef(CSDLElement):
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
-        self.name = 'Default'       #: the name of this (key) property
+        #: the name of this (key) property
+        self.name = 'Default'
         #: the :py:class:`Property` instance of this (key) property
         self.property = None
 
@@ -3744,11 +3789,15 @@ class Type(NameTableMixin, CSDLElement):
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
         NameTableMixin.__init__(self)
-        self.name = "Default"       #: the declared name of this type
-        self.baseType = None        #: the name of the base-type for this type
+        #: the declared name of this type
+        self.name = "Default"
+        #: the name of the base-type for this type
+        self.baseType = None
         self.abstract = False
-        self.Documentation = None  # : the optional :py:class:`Documentation`
-        self.Property = []      #: a list of :py:class:`Property`
+        # : the optional :py:class:`Documentation`
+        self.Documentation = None
+        #: a list of :py:class:`Property`
+        self.Property = []
         self.TypeAnnotation = []
         self.ValueAnnotation = []
 
@@ -3789,7 +3838,8 @@ class EntityType(Type):
 
     def __init__(self, parent):
         Type.__init__(self, parent)
-        self.Key = None             #: the :py:class:`Key`
+        #: the :py:class:`Key`
+        self.Key = None
         # : a list of :py:class:`NavigationProperty`
         self.NavigationProperty = []
 
@@ -4000,11 +4050,14 @@ class AssociationEnd(CSDLElement):
         self.name = None
         #: name of the entity type this end links to
         self.type = None
-        self.entityType = None  # : :py:class:`EntityType` this end links to
-        self.multiplicity = 1       #: a :py:class:`Multiplicity` constant
+        #: :py:class:`EntityType` this end links to
+        self.entityType = None
+        #: a :py:class:`Multiplicity` constant
+        self.multiplicity = 1
         #: the other :py:class:`AssociationEnd` of this link
         self.otherEnd = None
-        self.Documentation = None  # : the optional :py:class:`Documentation`
+        # : the optional :py:class:`Documentation`
+        self.Documentation = None
         self.OnDelete = None
 
     def GetChildren(self):
@@ -4052,7 +4105,8 @@ class EntityContainer(NameTableMixin, CSDLElement):
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
         NameTableMixin.__init__(self)
-        self.name = "Default"           #: the declared name of the container
+        #: the declared name of the container
+        self.name = "Default"
         #: the optional :py:class:`Documentation`
         self.Documentation = None
         self.FunctionImport = []
@@ -4099,16 +4153,18 @@ class EntitySet(CSDLElement):
 
     def __init__(self, parent):
         super(EntitySet, self).__init__(parent)
-        self.name = "Default"
         #: the declared name of the entity set
-        self.entityTypeName = ""
+        self.name = "Default"
         #: the name of the entity type of this set's elements
-        self.entityType = None
+        self.entityTypeName = ""
         #: the :py:class:`EntityType` of this set's elements
+        self.entityType = None
+        #: a list of the names of this entity set's keys in their
+        #: declared order
         self.keys = []
-        #: a list of the names of this entity set's keys in their declared order
+        #: a mapping from navigation property names to
+        #: :py:class:`AssociationSetEnd` instances
         self.navigation = {}
-        #: a mapping from navigation property names to :py:class:`AssociationSetEnd` instances
         self.linkEnds = {}
         """A mapping from :py:class:`AssociationSetEnd` instances that
         reference this entity set to navigation property names (or None
@@ -4493,7 +4549,8 @@ class AssociationSet(CSDLElement):
         self.name = "Default"
         #: the name of the association definition
         self.associationName = ""
-        self.association = None     #: the :py:class:`Association` definition
+        #: the :py:class:`Association` definition
+        self.association = None
         #: the optional :py:class:`Documentation`
         self.Documentation = None
         # : a list of :py:class:`AssociationSetEnd` instances
@@ -4563,7 +4620,7 @@ class AssociationSetEnd(CSDLElement):
         self.entitySetName = None
         #: :py:class:`EntitySet` this end links to
         self.entity_set = None
-        # : :py:class:`AssociationEnd` that defines this end of the link
+        #: :py:class:`AssociationEnd` that defines this end of the link
         self.associationEnd = None
         #: the other :py:class:`AssociationSetEnd` of this link
         self.otherEnd = None
@@ -4667,14 +4724,18 @@ class FunctionImport(CSDLElement):
         CSDLElement.__init__(self, parent)
         #: the declared name of this function import
         self.name = "Default"
-        self.returnType = ""            #: the return type of the function
+        #: the return type of the function
+        self.returnType = ""
         #: reference to the return type definition
         self.returnTypeRef = None
-        #: the name of the entity set from which the return values are taken
+        #: the name of the entity set from which the return values are
+        #: taken
         self.entitySetName = ''
-        #: the :py:class:`EntitySet` corresponding to :py:attr:`entitySetName`
+        #: the :py:class:`EntitySet` corresponding to
+        #: :py:attr:`entitySetName`
         self.entity_set = None
-        #: a callable to use when executing this function (see :py:meth:`Bind`)
+        #: a callable to use when executing this function (see
+        #: :py:meth:`Bind`)
         self.binding = None, {}
         self.Documentation = None
         self.ReturnType = []
@@ -4788,15 +4849,21 @@ class Parameter(CSDLElement):
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
-        self.name = "Default"           #: the declared name of this parameter
-        #: the type of the parameter, a scalar type, ComplexType or EntityType (or a Collection)
+        #: the declared name of this parameter
+        self.name = "Default"
+        #: the type of the parameter, a scalar type, ComplexType or
+        #: EntityType (or a Collection)
         self.type = ""
-        self.typeRef = None         #: reference to the type definition
+        #: reference to the type definition
+        self.typeRef = None
         #: one of the :py:class:`ParameterMode` constants
         self.mode = None
-        self.maxLength = None           #: the maxLength facet of the parameter
-        self.precision = None           #: the precision facet of the parameter
-        self.scale = None               #: the scale facet of the parameter
+        #: the maxLength facet of the parameter
+        self.maxLength = None
+        #: the precision facet of the parameter
+        self.precision = None
+        #: the scale facet of the parameter
+        self.scale = None
         self.Documentation = None
         self.TypeAnnotation = []
         self.ValueAnnotation = []
@@ -4848,7 +4915,8 @@ class Schema(NameTableMixin, CSDLElement):
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
         NameTableMixin.__init__(self)
-        self.name = "Default"       #: the declared name of this schema
+        #: the declared name of this schema
+        self.name = "Default"
         self.alias = None
         self.Documentation = None
         self.Using = []

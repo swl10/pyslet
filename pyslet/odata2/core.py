@@ -748,7 +748,7 @@ class BinaryExpression(CommonExpression):
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
             if lValue.entity_set is rValue.entity_set:
                 # now test that the keys are the same
-                result.value = (lValue.Key() == rValue.Key())
+                result.value = (lValue.key() == rValue.key())
             else:
                 result.value = False
             return result
@@ -2009,13 +2009,15 @@ class ODataURI:
     def __init__(self, dsURI, pathPrefix='', version=2):
         if not isinstance(dsURI, uri.URI):
             dsURI = uri.URIFactory.URI(dsURI)
-        #: a :py:class:`pyslet.rfc2396.URI` instance representing the whole URI
+        #: a :py:class:`pyslet.rfc2396.URI` instance representing the
+        #: whole URI
         self.uri = dsURI
-        self.version = version          #: the OData version of this request
-        # self.schema=dsURI.scheme
+        #: the OData version of this request
+        self.version = version
         #: a string containing the path prefix without a trailing slash
         self.pathPrefix = pathPrefix
-        #: a string containing the resource path (or None if this is not a resource path)
+        #: a string containing the resource path (or None if this is not
+        #: a resource path)
         self.resourcePath = None
         #: a list of navigation path segment strings
         self.navPath = []
@@ -2023,14 +2025,17 @@ class ODataURI:
         self.pathOption = None
         #: the name of the navigation property following $links (no None)
         self.linksProperty = None
-        #: a list of raw strings containing custom query options and service op params
+        #: a list of raw strings containing custom query options and
+        #: service op params
         self.queryOptions = []
-        #: a dictionary mapping :py:class:`SystemQueryOption` constants to their values
+        #: a dictionary mapping :py:class:`SystemQueryOption` constants
+        #: to their values
         self.sysQueryOptions = {}
         self.paramTable = {}
         if dsURI.absPath is None:
-            #   relative paths are resolved relative to the pathPrefix with an added slash!
-            # so ODataURI('Products','/OData/OData.svc') is treated as
+            # relative paths are resolved relative to the pathPrefix
+            # with an added slash! so
+            # ODataURI('Products','/OData/OData.svc') is treated as
             # '/OData/OData.svc/Products'
             dsURI = uri.URIFactory.Resolve(pathPrefix + '/', dsURI)
         if dsURI.absPath is None:
@@ -2295,14 +2300,14 @@ class Entity(edm.Entity):
                       "use collection.read_stream(key).type",
                       DeprecationWarning, stacklevel=2)
         with self.entity_set.OpenCollection() as collection:
-            return collection.read_stream(self.Key()).type
+            return collection.read_stream(self.key()).type
 
     def GetStreamSize(self):    # noqa
         warnings.warn("Entity.GetStreamSize is deprecated, "
                       "use collection.read_stream(key).size",
                       DeprecationWarning, stacklevel=2)
         with self.entity_set.OpenCollection() as collection:
-            return collection.read_stream(self.Key()).size
+            return collection.read_stream(self.key()).size
 
     def GetStreamGenerator(self):   # noqa
         warnings.warn("Entity.GetStreamGenerator is deprecated, "
@@ -2310,7 +2315,7 @@ class Entity(edm.Entity):
                       DeprecationWarning, stacklevel=2)
         collection = self.entity_set.OpenCollection()
         try:
-            return collection.read_stream_close(self.Key())[1]
+            return collection.read_stream_close(self.key())[1]
         except Exception:
             collection.close()
             raise

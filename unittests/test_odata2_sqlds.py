@@ -591,15 +591,15 @@ class SQLDSTests(unittest.TestCase):
             order["ShippedDate"].SetFromLiteral('2013-10-02T10:20:59')
             collection.insert_entity(order)
             with order['Customer'].OpenCollection() as parentCollection:
-                parentCollection[customer.Key()] = customer
+                parentCollection[customer.key()] = customer
             # now check that get entity works
             match_customer = order['Customer'].GetEntity()
             self.assertTrue(match_customer is not None)
-            self.assertTrue(match_customer.Key() == customer.Key())
+            self.assertTrue(match_customer.key() == customer.key())
         # now check the association the other way
         with customer['Orders'].OpenCollection() as collection:
             self.assertTrue(len(collection) == 1)
-            self.assertTrue(order.Key() in collection)
+            self.assertTrue(order.key() in collection)
         # now add a second order for this customer
         with es.OpenCollection() as collection:
             # we'll need to create this table first too
@@ -608,7 +608,7 @@ class SQLDSTests(unittest.TestCase):
             order["ShippedDate"].SetFromLiteral('2013-11-05T08:30:00')
             collection.insert_entity(order)
             with order['Customer'].OpenCollection() as parentCollection:
-                parentCollection[customer.Key()] = customer
+                parentCollection[customer.key()] = customer
                 self.assertTrue(len(parentCollection) == 1)
                 # check with a filter
                 parentCollection.set_filter(
@@ -635,7 +635,7 @@ class SQLDSTests(unittest.TestCase):
                 core.CommonExpression.FromString(
                     "ShippedDate ge datetime'2013-11-01T00:00:00'"))
             self.assertTrue(len(collection) == 1)
-            self.assertTrue(order.Key() in collection)
+            self.assertTrue(order.key() in collection)
 
     def test_all_tables(self):
         self.db.create_all_tables()

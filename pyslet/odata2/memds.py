@@ -72,7 +72,7 @@ class InMemoryEntityStore(object):
             self.associations[aindex.name] = aindex
 
     def add_entity(self, e):
-        key = e.Key()
+        key = e.key()
         value = []
         for pName in e.DataKeys():
             if not e.Selected(pName):
@@ -158,7 +158,7 @@ class InMemoryEntityStore(object):
 
     def update_entity(self, e):
         # e is an EntityTypeInstance, we need to convert it to a tuple
-        key = e.Key()
+        key = e.key()
         with self.container.lock:
             value = list(self.data[key])
             i = 0
@@ -398,13 +398,13 @@ class EntityCollection(odata.EntityCollection):
             # This is a bit clumsy, but we lock the whole container while we
             # check all constraints and perform any nested deletes
             try:
-                key = entity.Key()
+                key = entity.key()
             except KeyError:
                 # if the entity doesn't have a key, autogenerate one
                 # until we have one that is good
                 for i in xrange(100):
                     entity.auto_key()
-                    key = entity.Key()
+                    key = entity.key()
                     if not self.entity_store.test_key(key):
                         break
                     else:
@@ -554,7 +554,7 @@ class EntityCollection(odata.EntityCollection):
             else:
                 e.SetKey(key)
             for i in xrange(1000):
-                key = e.Key()
+                key = e.key()
                 if not self.entity_store.test_key(key):
                     break
                 e.auto_key()
@@ -630,7 +630,7 @@ class NavigationCollection(odata.NavigationCollection):
             self.lookupMethod = self.aindex.get_links_from
             self.rLookupMethod = self.aindex.get_links_to
         self.collection = self.entity_set.OpenCollection()
-        self.key = self.from_entity.Key()
+        self.key = self.from_entity.key()
 
     def new_entity(self):
         """Returns an OData aware instance"""
@@ -647,7 +647,7 @@ class NavigationCollection(odata.NavigationCollection):
         with self.entity_set.OpenCollection() as baseCollection:
             baseCollection.insert_entity(entity,
                                          from_end=self.from_end.otherEnd)
-            self[entity.Key()] = entity
+            self[entity.key()] = entity
 
     def __len__(self):
         if self.filter is None:
@@ -721,7 +721,7 @@ class NavigationCollection(odata.NavigationCollection):
             self.aindex.remove_link(self.key, key)
 
     def replace(self, entity):
-        key = entity.Key()
+        key = entity.key()
         result_set = list(self.lookupMethod(self.key))
         if result_set == [key]:
             # nothing to do!

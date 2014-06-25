@@ -569,7 +569,7 @@ class Server(app.Server):
                     if isinstance(resource, edm.EntityCollection):
                         with resource as collection:
                             targetEntity = self.ReadEntityFromLink(environ)
-                            collection[targetEntity.Key()] = targetEntity
+                            collection[targetEntity.key()] = targetEntity
                         return self.ReturnEmpty(
                             start_response, response_headers)
                     else:
@@ -600,7 +600,7 @@ class Server(app.Server):
                     with parentEntity[
                             request.linksProperty].OpenCollection() as \
                             collection:
-                        del collection[resource.Key()]
+                        del collection[resource.key()]
                     return self.ReturnEmpty(start_response, response_headers)
                 else:
                     raise core.InvalidMethod("%s not supported here" % method)
@@ -637,11 +637,11 @@ class Server(app.Server):
                             input = app.InputWrapper(environ)
                             with resource.entity_set.OpenCollection() as coll:
                                 coll.update_stream(input,
-                                                   resource.Key(),
+                                                   resource.key(),
                                                    sinfo)
                                 # need to update the resource as some fields
                                 # may have changed
-                                resource = coll[resource.Key()]
+                                resource = coll[resource.key()]
                             self.SetETag(resource, response_headers)
                             return self.ReturnEmpty(
                                 start_response, response_headers)
@@ -938,7 +938,7 @@ class Server(app.Server):
             for e in entities.itervalues():
                 child = doc.root.ChildElement(core.URI)
                 child.SetValue(str(self.serviceRoot) + "%s(%s)" %
-                               (e.entity_set.name, repr(e.Key())))
+                               (e.entity_set.name, repr(e.key())))
             data = str(doc)
         response_headers.append(("Content-Type", str(responseType)))
         response_headers.append(("Content-Length", str(len(data))))
@@ -1130,9 +1130,9 @@ class Server(app.Server):
         coll = entity.entity_set.OpenCollection()
         try:
             if method == "GET":
-                sinfo, sgen = coll.read_stream_close(entity.Key())
+                sinfo, sgen = coll.read_stream_close(entity.key())
             else:
-                sinfo = coll.read_stream(entity.Key())
+                sinfo = coll.read_stream(entity.key())
                 sgen = []
                 coll.close()
         except Exception:

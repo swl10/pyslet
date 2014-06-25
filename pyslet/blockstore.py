@@ -538,7 +538,7 @@ class StreamStore(object):
         removed."""
         with self.stream_set.OpenCollection() as streams:
             self.delete_blocks(stream)
-            del streams[stream.Key()]
+            del streams[stream.key()]
             stream.exists = False
 
     def store_block(self, stream, block_num, data):
@@ -598,7 +598,7 @@ class StreamStore(object):
                     continue
                 hash_key = block['hash'].value
                 with self.ls.lock(hash_key):
-                    del base_coll[block.Key()]
+                    del base_coll[block.key()]
                     # is this hash key used anywhere?
                     hash_value.SetFromValue(hash_key)
                     base_coll.set_filter(filter)

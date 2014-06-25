@@ -1053,7 +1053,8 @@ class Coords:
     """
 
     def __init__(self, values=None):
-        self.values = []		#: a list of :py:class:`LengthType` values
+        #: a list of :py:class:`LengthType` values
+        self.values = []
         if values:
             if type(values) in StringTypes:
                 if ',' in values:
@@ -1450,7 +1451,8 @@ class MultiLengths(object):
             <!ENTITY % MultiLengths "CDATA" -- comma-separated list of MultiLength -->"""
 
     def __init__(self, values=None):
-        self.values = []		#: a list of :py:class:`MultiLength` values
+        #: a list of :py:class:`MultiLength` values
+        self.values = []
         if values:
             if type(values) in StringTypes:
                 if ',' in values:

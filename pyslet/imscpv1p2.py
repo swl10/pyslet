@@ -126,8 +126,10 @@ class Metadata(CPElement):
 
     def __init__(self, parent):
         CPElement.__init__(self, parent)
-        self.Schema = None				#: the optional schema element
-        self.SchemaVersion = None			#: the optional schemaversion element
+        #: the optional schema element
+        self.Schema = None
+        #: the optional schemaversion element
+        self.SchemaVersion = None
 
     def GetChildren(self):
         if self.Schema:
@@ -155,7 +157,8 @@ class Organizations(CPElement):
 
     def __init__(self, parent):
         CPElement.__init__(self, parent)
-        self.Organization = []			#: a list of organization elements
+        #: a list of organization elements
+        self.Organization = []
 
     def GetChildren(self):
         return itertools.chain(self.Organization, CPElement.GetChildren(self))
@@ -169,7 +172,8 @@ class File(CPElement):
 
     def __init__(self, parent):
         CPElement.__init__(self, parent)
-        self.href = None					#: the href used to locate the file object
+        #: the href used to locate the file object
+        self.href = None
 
     def PackagePath(self, cp):
         """Returns the normalized file path relative to the root of the content package, *cp*.
@@ -207,18 +211,23 @@ class Resource(CPElement):
 
     #: the default class to represent the metadata element
     MetadataClass = Metadata
-    FileClass = File						#: the default class to represent the file element
+    #: the default class to represent the file element
+    FileClass = File
     #: the default class to represent the dependency element
     DependencyClass = Dependency
 
     def __init__(self, parent):
         CPElement.__init__(self, parent)
-        self.type = None					#: the type of the resource
-        self.href = None					#: the href pointing at the resource's entry point
-        self.Metadata = None				#: the resource's optional metadata element
+        #: the type of the resource
+        self.type = None
+        #: the href pointing at the resource's entry point
+        self.href = None
+        #: the resource's optional metadata element
+        self.Metadata = None
         #: a list of file elements associated with the resource
         self.File = []
-        self.Dependency = []				#: a list of dependencies of this resource
+        #: a list of dependencies of this resource
+        self.Dependency = []
 
     def GetEntryPoint(self):
         """Returns the :py:class:`File` object that is identified as the entry point.
@@ -277,7 +286,8 @@ class Resources(CPElement):
 
     def __init__(self, parent):
         CPElement.__init__(self, parent)
-        self.Resource = []				#: the list of resources in the manifest
+        #: the list of resources in the manifest
+        self.Resource = []
 
     def GetChildren(self):
         return itertools.chain(self.Resource, CPElement.GetChildren(self))
@@ -292,7 +302,7 @@ class Manifest(CPElement):
 
     #: the default class to represent the metadata element
     MetadataClass = Metadata
-    # : the default class to represent the organizations element
+    #: the default class to represent the organizations element
     OrganizationsClass = Organizations
     #: the default class to represent the resources element
     ResourcesClass = Resources
@@ -301,11 +311,14 @@ class Manifest(CPElement):
 
     def __init__(self, parent):
         CPElement.__init__(self, parent)
-        self.Metadata = None									#: the manifest's metadata element
-        self.Organizations = self.OrganizationsClass(
-            self)  # : the organizations element
-        self.Resources = self.ResourcesClass(self)			#: the resources element
-        self.Manifest = []									#: a list of child manifest elements
+        #: the manifest's metadata element
+        self.Metadata = None
+        #: the organizations element
+        self.Organizations = self.OrganizationsClass(self)
+        #: the resources element
+        self.Resources = self.ResourcesClass(self)
+        #: a list of child manifest elements
+        self.Manifest = []
 
     def GetChildren(self):
         if self.Metadata:

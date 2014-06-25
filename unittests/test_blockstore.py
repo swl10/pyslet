@@ -374,7 +374,7 @@ class StreamStoreTests(unittest.TestCase):
         self.assertTrue(isinstance(s1, edm.Entity))
         self.assertTrue(s1.exists)
         try:
-            self.assertTrue(s1.Key() is not None)
+            self.assertTrue(s1.key() is not None)
         except KeyError:
             self.fail("stream entity has not key")
         self.assertTrue(s1['mimetype'].value == "text/plain")
@@ -382,8 +382,8 @@ class StreamStoreTests(unittest.TestCase):
                                           {'charset': ('charset', 'utf-8')}))
         self.assertTrue(isinstance(s2, edm.Entity))
         self.assertTrue(s2['mimetype'].value == "text/plain; charset=utf-8")
-        skey1 = s1.Key()
-        skey2 = s2.Key()
+        skey1 = s1.key()
+        skey2 = s2.key()
         s1 = ss.get_stream(skey1)
         self.assertTrue(isinstance(s1, edm.Entity))
         for i in xrange(10):
@@ -513,7 +513,7 @@ class RandomStreamTests(unittest.TestCase):
                 self.assertTrue(expect_pos == got_pos)
                 if expect_pos > ssize:
                     ssize = expect_pos
-        stream = self.ss.get_stream(stream.Key())
+        stream = self.ss.get_stream(stream.key())
         self.assertTrue(stream['size'].value == ssize)
 
     def test_mem_file(self):

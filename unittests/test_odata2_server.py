@@ -1816,7 +1816,7 @@ class SampleServerTests(unittest.TestCase):
         for binding in newCustomer['Orders'].bindings:
             if isinstance(binding, core.Entity):
                 if binding.exists:
-                    idLinks.add(binding.Key())
+                    idLinks.add(binding.key())
                 else:
                     entityLink = binding
             else:
@@ -4122,7 +4122,7 @@ class SampleServerTests(unittest.TestCase):
         with orders.OpenCollection() as collection:
             order = collection[3]
         oldCustomer = order['Customer'].GetEntity()
-        self.assertTrue(oldCustomer.Key() == 'XXX00', "Previous customer")
+        self.assertTrue(oldCustomer.key() == 'XXX00', "Previous customer")
         order['Customer'].BindEntity(customer)
         request = MockRequest("/service.svc/Orders(3)", "PUT")
         doc = core.Document(root=core.Entry)
@@ -4144,7 +4144,7 @@ class SampleServerTests(unittest.TestCase):
         with orders.OpenCollection() as collection:
             order = collection[3]
         newCustomer = order['Customer'].GetEntity()
-        self.assertTrue(newCustomer.Key() == 'ALFKI', "Customer updated")
+        self.assertTrue(newCustomer.key() == 'ALFKI', "Customer updated")
 
     def testCaseUpdateEntityJSON(self):
         customers = self.ds['SampleModel.SampleEntities.Customers']
@@ -4174,7 +4174,7 @@ class SampleServerTests(unittest.TestCase):
         with orders.OpenCollection() as collection:
             order = collection[3]
         oldCustomer = order['Customer'].GetEntity()
-        self.assertTrue(oldCustomer.Key() == 'XXX00', "Previous customer")
+        self.assertTrue(oldCustomer.key() == 'XXX00', "Previous customer")
         order['Customer'].BindEntity(customer)
         request = MockRequest("/service.svc/Orders(3)", "PUT")
         jsonData = string.join(order.GenerateEntityTypeInJSON(True))
@@ -4195,7 +4195,7 @@ class SampleServerTests(unittest.TestCase):
         with orders.OpenCollection() as collection:
             order = collection[3]
         newCustomer = order['Customer'].GetEntity()
-        self.assertTrue(newCustomer.Key() == 'ALFKI', "Customer updated")
+        self.assertTrue(newCustomer.key() == 'ALFKI', "Customer updated")
 
     def testCaseUpdateComplexType(self):
         customers = self.ds['SampleModel.SampleEntities.Customers']
@@ -4342,7 +4342,7 @@ class SampleServerTests(unittest.TestCase):
         with orders.OpenCollection() as collection:
             order = collection[3]
         oldCustomer = order['Customer'].GetEntity()
-        self.assertTrue(oldCustomer.Key() == 'XXX00', "Previous customer")
+        self.assertTrue(oldCustomer.key() == 'XXX00', "Previous customer")
         customers = self.ds['SampleModel.SampleEntities.Customers']
         with customers.OpenCollection() as collection:
             customer = collection['ALFKI']
@@ -4366,14 +4366,14 @@ class SampleServerTests(unittest.TestCase):
         with orders.OpenCollection() as collection:
             order = collection[3]
         newCustomer = order['Customer'].GetEntity()
-        self.assertTrue(newCustomer.Key() == 'ALFKI', "Customer updated")
+        self.assertTrue(newCustomer.key() == 'ALFKI', "Customer updated")
 
     def testCaseUpdateLinkJSON(self):
         orders = self.ds['SampleModel.SampleEntities.Orders']
         with orders.OpenCollection() as collection:
             order = collection[3]
         oldCustomer = order['Customer'].GetEntity()
-        self.assertTrue(oldCustomer.Key() == 'XXX00', "Previous customer")
+        self.assertTrue(oldCustomer.key() == 'XXX00', "Previous customer")
         customers = self.ds['SampleModel.SampleEntities.Customers']
         with customers.OpenCollection() as collection:
             customer = collection['ALFKI']
@@ -4395,7 +4395,7 @@ class SampleServerTests(unittest.TestCase):
         with orders.OpenCollection() as collection:
             order = collection[3]
         newCustomer = order['Customer'].GetEntity()
-        self.assertTrue(newCustomer.Key() == 'ALFKI', "Customer updated")
+        self.assertTrue(newCustomer.key() == 'ALFKI', "Customer updated")
 
     def testCaseUpdateMediaResource(self):
         data = "Well, Prince, so Genoa and Lucca are now just family estates of the Buonapartes"
