@@ -28,7 +28,7 @@ feeds and the metadata document from which it will set the
 :py:attr:`Client.model`.
 
 	>>> from pyslet.odata2.client import Client
-	>>> c=Client("http://services.odata.org/V2/Northwind/Northwind.svc/")
+	>>> c = Client("http://services.odata.org/V2/Northwind/Northwind.svc/")
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/ HTTP/1.1
 	INFO:root:Finished Response, status 200
@@ -43,7 +43,7 @@ instances.  This makes it easy to open the feeds as EDM collections.  In
 your code you'd typically use the with statement when opening the
 collection but for clarity we'll continue on the python command line::
 
-	>>> products=c.feeds['Products'].OpenCollection()
+	>>> products = c.feeds['Products'].OpenCollection()
 	>>> for p in products: print p
 	... 
 	INFO:root:Sending request to services.odata.org
@@ -79,7 +79,7 @@ collections.
 The keys alone are of limited interest, let's try a similar loop but this
 time we'll print the product names as well::
 
-	>>> for k,p in products.iteritems(): print k,p['ProductName'].value
+	>>> for k, p in products.iteritems(): print k, p['ProductName'].value
 	... 
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products HTTP/1.1
@@ -105,11 +105,11 @@ time we'll print the product names as well::
 Sir Rodney's Scones sound interesting, we can grab an individual record
 in the usual way::
 
-	>>> scones=products[21]
+	>>> scones = products[21]
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21) HTTP/1.1
 	INFO:root:Finished Response, status 200
-	>>> for k,v in scones.DataItems(): print k,v.value
+	>>> for k, v in scones.DataItems(): print k, v.value
 	... 
 	ProductID 21
 	ProductName Sir Rodney's Scones
@@ -126,11 +126,11 @@ in the usual way::
 Well, I've simply got to have some of these, let's use one of the navigation
 properties to load information about the supplier::
 
-	>>> supplier=scones['Supplier'].GetEntity()
+	>>> supplier = scones['Supplier'].GetEntity()
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)/Supplier HTTP/1.1
 	INFO:root:Finished Response, status 200
-	>>> for k,v in supplier.DataItems(): print k,v.value
+	>>> for k, v in supplier.DataItems(): print k, v.value
 	... 
 	SupplierID 8
 	CompanyName Specialty Biscuits, Ltd.
@@ -148,7 +148,7 @@ properties to load information about the supplier::
 Attempting to load a non existent entity results in a KeyError of
 course::
 
-	>>> p=products[211]
+	>>> p = products[211]
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(211) HTTP/1.1
 	INFO:root:Finished Response, status 404
@@ -346,7 +346,7 @@ collection[key]
 	looking up the *key* in the collection.  As a result, subsequent
 	calls will return a different object, but with the same key!
 	
-collection[key]=newEntity
+collection[key] = new_entity
 	For an existing entity this is essentially a no-operation.  This
 	form of assignment cannot be used to create a new entity in the
 	collection because the act of inserting the entity may alter its key
@@ -412,14 +412,15 @@ and so on, the following methods are useful for consumers of the API:
 	
 		import pyslet.odata2.core as core
 		with people.OpenCollection() as collection:
-			collection.set_filter(core.CommonExpression.FromString("startswith(Name,'D')"))
-			newEntity=collection.new_entity()
-			newEntity['Key'].SetFromValue(1)
-			newEntity['Name'].SetFromValue(u"Steve")
-			collection.insert_entity(newEntity)
-			# newEntity now exists in the base collection but... 
-			e1=collection[1]
-			# ...raises KeyError as newEntity did not match the filter!
+			collection.set_filter(
+			    core.CommonExpression.FromString("startswith(Name,'D')"))
+			new_entity = collection.new_entity()
+			new_entity['Key'].SetFromValue(1)
+			new_entity['Name'].SetFromValue(u"Steve")
+			collection.insert_entity(new_entity)
+			# new_entity now exists in the base collection but... 
+			e1 = collection[1]
+			# ...raises KeyError as new_entity did not match the filter!
 	
 	It is recommended that collections used to insert entities are not
 	filtered.
@@ -488,7 +489,7 @@ To continue the example above, in which *products* is an open collection
 from the Northwind data service::
 
 	>>> products.set_page(5,50)
-	>>> for p in products.iterpage(True): print p.Key(), p['ProductName'].value
+	>>> for p in products.iterpage(True): print p.key(), p['ProductName'].value
 	... 
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products?$skip=50&$top=5 HTTP/1.1
@@ -498,7 +499,7 @@ from the Northwind data service::
 	53 Perth Pasties
 	54 Tourtière
 	55 Pâté chinois
-	>>> for p in products.iterpage(True): print p.Key(), p['ProductName'].value
+	>>> for p in products.iterpage(True): print p.key(), p['ProductName'].value
 	... 
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products?$skip=55&$top=5 HTTP/1.1
@@ -513,8 +514,8 @@ In some cases, the server will restrict the page size and fewer entities
 will be returned than expected, in these cases the skiptoken is used
 automatically when the next page is requested::
 
-	>>> products.set_page(30,50)
-	>>> for p in products.iterpage(True): print p.Key(), p['ProductName'].value
+	>>> products.set_page(30, 50)
+	>>> for p in products.iterpage(True): print p.key(), p['ProductName'].value
 	... 
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products?$skip=50&$top=30 HTTP/1.1
@@ -526,7 +527,7 @@ automatically when the next page is requested::
 	...
 	69 Gudbrandsdalsost
 	70 Outback Lager
-	>>> for p in products.iterpage(True): print p.Key(), p['ProductName'].value
+	>>> for p in products.iterpage(True): print p.key(), p['ProductName'].value
 	... 
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products?$top=30&$skiptoken=70 HTTP/1.1
@@ -558,9 +559,9 @@ The easiest way to set a filter is to compile one directly from a string
 representation using OData's query language.  For example::
 
 	>>> import pyslet.odata2.core as core
-	>>> filter=core.CommonExpression.FromString("substringof('one',ProductName)")
+	>>> filter = core.CommonExpression.FromString("substringof('one',ProductName)")
 	>>> products.set_filter(filter)
-	>>> for p in products.itervalues(): print p.Key(), p['ProductName'].value
+	>>> for p in products.itervalues(): print p.key(), p['ProductName'].value
 	... 
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products?$filter=substringof('one'%2CProductName) HTTP/1.1
@@ -591,7 +592,7 @@ string representation using OData's query language.  For example::
 
 	>>> ordering=core.CommonExpression.OrderByFromString("ProductName desc")
 	>>> products.set_orderby(ordering)
-	>>> for p in products.itervalues(): print p.Key(), p['ProductName'].value
+	>>> for p in products.itervalues(): print p.key(), p['ProductName'].value
 	... 
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products?$orderby=ProductName%20desc HTTP/1.1
@@ -640,13 +641,13 @@ The value in the dictionary is either None, indicating no further
 expansion, or another dictionary specifying the expansion to apply to
 any linked Suppliers::
 
-	>>> products.Expand({'Supplier':None},None)
-	>>> scones=products[21]
+	>>> products.Expand({'Supplier':None}, None)
+	>>> scones = products[21]
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)?$expand=Supplier HTTP/1.1
 	INFO:root:Finished Response, status 200
 	>>> supplier=scones['Supplier'].GetEntity()
-	>>> for k,v in supplier.DataItems(): print k,v.value
+	>>> for k, v in supplier.DataItems(): print k, v.value
 	... 
 	SupplierID 8
 	CompanyName Specialty Biscuits, Ltd.
@@ -667,12 +668,12 @@ they are linked to and cached.  In the example above, the GetEntity call
 does not generate a call to the server.  Compare this with the same code
 executed without the expansion::
 
-	>>> products.Expand(None,None)
-	>>> scones=products[21]
+	>>> products.Expand(None, None)
+	>>> scones = products[21]
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21) HTTP/1.1
 	INFO:root:Finished Response, status 200
-	>>> supplier=scones['Supplier'].GetEntity()
+	>>> supplier = scones['Supplier'].GetEntity()
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)/Supplier HTTP/1.1
 	INFO:root:Finished Response, status 200
@@ -684,12 +685,12 @@ complex properties must always map to None, for a more complex example
 with navigation properties see below.  Suppose we are only interested in
 the product name::
 
-	>>> products.Expand(None,{'ProductName':None})
-	>>> scones=products[21]
+	>>> products.Expand(None, {'ProductName':None})
+	>>> scones = products[21]
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)?$select=ProductID%2CProductName HTTP/1.1
 	INFO:root:Finished Response, status 200
-	>>> for k,v in scones.DataItems(): print k,v.value
+	>>> for k, v in scones.DataItems(): print k, v.value
 	... 
 	ProductID 21
 	ProductName Sir Rodney's Scones
@@ -710,27 +711,27 @@ way has NULL values for any properties that weren't retrieved.  The
 determine if a value is NULL in the data source or NULL because it is
 not selected::
 
-	>>> for k,v in scones.DataItems(): 
-	...  if scones.Selected(k): print k,v.value
+	>>> for k, v in scones.DataItems(): 
+	...  if scones.Selected(k): print k, v.value
 	... 
 	ProductID 21
 	ProductName Sir Rodney's Scones
 
 The expand and select options can be combined in complex ways::
 
-	>>> products.Expand({'Supplier':None},{'ProductName':None,'Supplier':{'Phone':None}})
-	>>> scones=products[21]
+	>>> products.Expand({'Supplier':None}, {'ProductName':None, 'Supplier':{'Phone':None}})
+	>>> scones = products[21]
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)?$expand=Supplier&$select=ProductID%2CProductName%2CSupplier%2FPhone%2CSupplier%2FSupplierID HTTP/1.1
 	INFO:root:Finished Response, status 200
-	>>> supplier=scones['Supplier'].GetEntity()
-	>>> for k,v in scones.DataItems():
-	...  if scones.Selected(k): print k,v.value
+	>>> supplier = scones['Supplier'].GetEntity()
+	>>> for k, v in scones.DataItems():
+	...  if scones.Selected(k): print k, v.value
 	... 
 	ProductID 21
 	ProductName Sir Rodney's Scones
-	>>> for k,v in supplier.DataItems():
-	...  if supplier.Selected(k): print k,v.value
+	>>> for k, v in supplier.DataItems():
+	...  if supplier.Selected(k): print k, v.value
 	... 
 	SupplierID 8
 	Phone (161) 555-4448
@@ -770,7 +771,7 @@ be treated as read only):
 
 The following methods are useful for consumers of the API:
 
-:py:meth:`~pyslet.odata2.csdl.Entity.Key`
+:py:meth:`~pyslet.odata2.csdl.Entity.key`
 	Returns the entity's key, as a single python value or tuple in the
 	case of compound keys
 	
@@ -1025,15 +1026,15 @@ Interacting with Python's time module is done using the struct_time type,
 or lists that have values corresponding to those in struct_time::
 
 	>>> import time
-	>>> orders=c.feeds['Orders'].OpenCollection()
+	>>> orders = c.feeds['Orders'].OpenCollection()
 	>>> orders.set_page(5)
-	>>> top=list(orders.iterpage())
+	>>> top = list(orders.iterpage())
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Orders?$skip=0&$top=5 HTTP/1.1
 	INFO:root:Finished Response, status 200
 	>>> print top[0]['OrderDate'].value
 	1996-07-04T00:00:00
-	>>> t=[None]*9
+	>>> t = [None]*9
 	>>> top[0]['OrderDate'].value.UpdateStructTime(t)
 	>>> t
 	[1996, 7, 4, 0, 0, 0, 3, 186, -1]
@@ -1043,7 +1044,7 @@ or lists that have values corresponding to those in struct_time::
 You can set values obtained from the time module in a similar way::
 
 	>>> import pyslet.iso8601 as iso
-	>>> t=time.gmtime(time.time())
+	>>> t = time.gmtime(time.time())
 	>>> top[0]['OrderDate'].SetFromValue(iso.TimePoint.FromStructTime(t))
 	>>> print top[0]['OrderDate'].value
 	2014-02-17T21:51:41
@@ -1059,21 +1060,61 @@ In future versions, look out for better support for datetime and
 calendar module conversion methods.
 
 
-..	import logging
-	logging.basicConfig(level=logging.INFO)
-	from pyslet.odata2.client import Client
-	c=Client("http://services.odata.org/V2/Northwind/Northwind.svc/")
-	products=c.feeds['Products'].OpenCollection()
-	products.set_page(5,50)
-	for p in products.iterpage(True): print p.Key(), p['ProductName'].value
-	products.set_page(30,50)
-	for p in products.iterpage(True): print p.Key(), p['ProductName'].value
-	for p in products.iterpage(True): print p.Key(), p['ProductName'].value
-	import pyslet.odata2.core as core
-	filter=core.CommonExpression.FromString("substringof('one',ProductName)")
-	products.set_filter(filter)
-	ordering=core.CommonExpression.OrderByFromString("ProductName desc")
-	products.set_orderby(ordering)
+Working with Media Resources
+++++++++++++++++++++++++++++
+
+OData is based on Atom and the Atom Publishing Protocol (APP) and
+inherits the concept of media resources and media link entries from
+those specifications.
+
+In OData, an entity can be declared as a media link entry indicating
+that the main purpose of the entity is to hold a media stream.  If the
+entity with the following URL is a media link entry::
+
+    http://host/Documents(123) 
+
+then the following URL provides access to the associated media resource::
+
+    http://host/Documents(123)/$value
+
+In the DAL this behaviour is modelled by operations on the *collection*
+containing the entities.  The methods you'll use are::
+
+:py:meth:`~pyslet.odata2.core.EntityCollection.is_medialink_collection`
+	Returns True if the entities are media link entries
+
+:py:meth:`~pyslet.odata2.core.EntityCollection.read_stream`
+	Reads information about a stream, optionally copying the stream's
+	data to a file-like object.
+
+:py:meth:`~pyslet.odata2.core.EntityCollection.new_stream`
+	Creates a new media resource, copying the stream's data from a
+	file-like object.
+	
+	This method implicitly creates an associated media link entry and
+	returns the resulting :py:class:`~pyslet.odata2.csdl.Entity` object.
+	By its nature, APP does not guarantee the URL that will be used to
+	store a posted resource.  The implication for OData is that you
+	can't specify the key that will be used for the media resource's
+	entry, though this method does allow you to supply a hint.
+
+:py:meth:`~pyslet.odata2.core.EntityCollection.udpate_stream`
+	Updates a media resource, copying the stream's new data from a
+	file-like object.
+
+If a collection is a collection of media link entries then the behaviour
+of :py:meth:~pyslet.odata2.core.EntityCollection.insert_entity` is
+modified as entities are created implicitly when a new stream is added
+to the collection.  In this case, insert_entity creates an empty stream
+of type application/octet-stream and then merges the property values
+from the entity being inserted into the new media link entry created for
+the stream.
+ 
+
+	
+
+
+
 
 	
 	

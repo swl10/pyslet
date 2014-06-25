@@ -5,6 +5,7 @@ import sys
 import urllib
 import logging
 import io
+from StringIO import StringIO
 
 import pyslet.info as info
 import pyslet.rfc2396 as uri
@@ -178,23 +179,33 @@ class ClientCollection(core.EntityCollection):
     def insert_entity(self, entity):
         if entity.exists:
             raise edm.EntityExists(str(entity.GetLocation()))
-        doc = core.Document(root=core.Entry(None, entity))
-        data = str(doc)
-        request = http.HTTPRequest(str(self.baseURI), 'POST', reqBody=data)
-        request.SetContentType(
-            http.MediaType.FromString(core.ODATA_RELATED_ENTRY_TYPE))
-        self.client.ProcessRequest(request)
-        if request.status == 201:
-            # success, read the entity back from the response
-            doc = core.Document()
-            doc.Read(request.resBody)
+        if self.is_medialink_collection():
+            # insert a blank stream and then update
+            mle = self.new_stream(src=StringIO())
+            entity.SetKey(mle.key())
+            # 2-way merge
+            mle.merge(entity)
+            entity.merge(mle)
             entity.exists = True
-            doc.root.GetValue(entity)
-            # so which bindings got handled?  Assume all of them
-            for k, dv in entity.NavigationItems():
-                dv.bindings = []
+            self.update_entity(entity)
         else:
-            self.RaiseError(request)
+            doc = core.Document(root=core.Entry(None, entity))
+            data = str(doc)
+            request = http.HTTPRequest(str(self.baseURI), 'POST', reqBody=data)
+            request.SetContentType(
+                http.MediaType.FromString(core.ODATA_RELATED_ENTRY_TYPE))
+            self.client.ProcessRequest(request)
+            if request.status == 201:
+                # success, read the entity back from the response
+                doc = core.Document()
+                doc.Read(request.resBody)
+                entity.exists = True
+                doc.root.GetValue(entity)
+                # so which bindings got handled?  Assume all of them
+                for k, dv in entity.NavigationItems():
+                    dv.bindings = []
+            else:
+                self.RaiseError(request)
 
     def __len__(self):
         # use $count
@@ -452,6 +463,11 @@ class ClientCollection(core.EntityCollection):
             sinfo.created = sinfo.modified
             sinfo.md5 = request.response.GetContentMD5()
             return sinfo
+        elif request.status == 404:
+            # sort of success, we return an empty stream
+            sinfo = core.StreamInfo()
+            sinfo.size = 0
+            return sinfo
         else:
             self.RaiseError(request)
 
@@ -483,18 +499,24 @@ class EntityStream(io.RawIOBase):
         self.collection.client.QueueRequest(self.request)
         while self.collection.client.ThreadTask():
             if self.data:
-                if self.request.status == 200:
+                if self.request.response.status == 200:
                     break
                 else:
-                    # discard data at this point
+                    # discard data received before the response status
+                    logging.debug("EntityStream discarding data... %i",
+                                  sum(map(lambda x: len(x), self.data)))
                     self.data = []
-        if self.request.status == 200:
+        if self.request.response.status == 200:
             self.sinfo = core.StreamInfo()
             self.sinfo.type = request.response.GetContentType()
             self.sinfo.size = request.response.GetContentLength()
             self.sinfo.modified = request.response.get_last_modified()
             self.sinfo.created = self.sinfo.modified
             self.sinfo.md5 = request.response.GetContentMD5()
+        elif self.request.status == 404:
+            # sort of success, we return an empty stream
+            self.sinfo = core.StreamInfo()
+            self.sinfo.size = 0
         else:
             # unexpected HTTP response
             self.collection.RaiseError(self.request)
@@ -506,15 +528,14 @@ class EntityStream(io.RawIOBase):
         into the stream before returning, we split apart the individual
         calls to handle the request to enable us to yield data as soon
         as it is available without needing the full stream in memory."""
-        while self.collection.client.ThreadTask():
-            if self.data:
-                chunk = self.data[0]
-                self.data = self.data[1:]
+        yield_data = (self.request.status == 200)
+        while self.data or self.collection.client.ThreadTask():
+            for chunk in self.data:
                 if chunk:
-                    yield chunk
-        for chunk in self.data:
-            if chunk:
-                yield chunk
+                    logging.debug("EntityStream: writing %i bytes", len(chunk))
+                    if yield_data:
+                        yield chunk
+            self.data = []
         # that's all the data consumed, request is finished
         self.collection.close()
 
@@ -529,6 +550,7 @@ class EntityStream(io.RawIOBase):
 
     def write(self, b):
         if b:
+            logging.debug("EntityStream: reading %i bytes", len(b))
             self.data.append(str(b))
         return len(b)
 
@@ -645,7 +667,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 # this link may fail, which isn't what the caller wanted
                 # but it seems like a bad idea to try deleting the
                 # entity at this stage.
-                self[entity.Key()] = entity
+                self[entity.key()] = entity
 
     def __len__(self):
         if self.isCollection:
@@ -762,7 +784,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 entity = core.Entity(self.entity_set)
                 entity.exists = True
                 doc.root.GetValue(entity)
-                if entity.Key() == key:
+                if entity.key() == key:
                     return entity
                 else:
                     raise KeyError(key)
@@ -774,7 +796,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
     def __setitem__(self, key, entity):
         if not isinstance(entity, edm.Entity) or entity.entity_set is not self.entity_set:
             raise TypeError
-        if key != entity.Key():
+        if key != entity.key():
             raise ValueError
         if not entity.exists:
             raise edm.NonExistentEntity(str(entity.GetLocation()))
@@ -790,7 +812,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 doc.Read(request.resBody)
                 existingEntity.exists = True
                 doc.root.GetValue(existingEntity)
-                if existingEntity.Key() == entity.Key():
+                if existingEntity.key() == entity.key():
                     return
                 else:
                     raise edm.NavigationError(
@@ -871,14 +893,19 @@ class Client(app.Client):
 
     def __init__(self, serviceRoot=None):
         app.Client.__init__(self)
-        #: a :py:class:`pyslet.rfc5023.Service` instance describing this service
+        #: a :py:class:`pyslet.rfc5023.Service` instance describing this
+        #: service
         self.service = None
-        # : a :py:class:`pyslet.rfc2396.URI` instance pointing to the service root
+        # : a :py:class:`pyslet.rfc2396.URI` instance pointing to the
+        # : service root
         self.serviceRoot = None
-        self.pathPrefix = None  # : a path prefix string of the service root
-        #: a dictionary of feed titles, mapped to :py:class:`csdl.EntitySet` instances
+        # a path prefix string of the service root
+        self.pathPrefix = None
+        #: a dictionary of feed titles, mapped to
+        #: :py:class:`csdl.EntitySet` instances
         self.feeds = {}
-        #: a :py:class:`metadata.Edmx` instance containing the model for the service
+        #: a :py:class:`metadata.Edmx` instance containing the model for
+        #: the service
         self.model = None
         if serviceRoot is not None:
             self.LoadService(serviceRoot)

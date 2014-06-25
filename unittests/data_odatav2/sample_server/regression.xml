@@ -593,7 +593,7 @@
                     <PropertyRef Name="slug"/>
                 </Key>
                 <Property Name="slug" Type="Edm.String" Nullable="false" MaxLength="32" FixedLength="false"/>
-                
+                <Property Name="title" Type="Edm.String" Nullable="true" MaxLength="255" FixedLength="false"/>
             </EntityType>
          </Schema>
     </edmx:DataServices>

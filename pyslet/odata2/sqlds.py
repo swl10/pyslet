@@ -609,18 +609,19 @@ class SQLCollectionBase(core.EntityCollection):
         entity = self.new_entity()
         entity.SetKey(key)
         svalue = self._get_streamid(key)
-        if not svalue:
-            # null means no stream associated with the entity
-            raise KeyError("No stream associated with entity %s",
-                           entity.GetLocation())
         sinfo = core.StreamInfo()
-        estream = self.container.streamstore.get_stream(svalue.value)
-        sinfo.type = http.MediaType.FromString(estream['mimetype'].value)
-        sinfo.created = estream['created'].value.WithZone(0)
-        sinfo.modified = estream['modified'].value.WithZone(0)
-        sinfo.size = estream['size'].value
-        sinfo.md5 = estream['md5'].value
-        if out is not None:
+        if svalue:
+            estream = self.container.streamstore.get_stream(svalue.value)
+            sinfo.type = http.MediaType.FromString(estream['mimetype'].value)
+            sinfo.created = estream['created'].value.WithZone(0)
+            sinfo.modified = estream['modified'].value.WithZone(0)
+            sinfo.size = estream['size'].value
+            sinfo.md5 = estream['md5'].value
+        else:
+            estream = None
+            sinfo.size = 0
+            sinfo.md5 = hashlib.md5('').digest()
+        if out is not None and svalue:
             with self.container.streamstore.open_stream(estream, 'r') as src:
                 actual_size, actual_md5 = self._copy_src(src, out)
             if sinfo.size is not None and sinfo.size != actual_size:
@@ -637,18 +638,21 @@ class SQLCollectionBase(core.EntityCollection):
         entity = self.new_entity()
         entity.SetKey(key)
         svalue = self._get_streamid(key)
-        if not svalue:
-            # null means no stream associated with the entity
-            raise KeyError("No stream associated with entity %s",
-                           entity.GetLocation())
         sinfo = core.StreamInfo()
-        estream = self.container.streamstore.get_stream(svalue.value)
-        sinfo.type = http.MediaType.FromString(estream['mimetype'].value)
-        sinfo.created = estream['created'].value.WithZone(0)
-        sinfo.modified = estream['modified'].value.WithZone(0)
-        sinfo.size = estream['size'].value
-        sinfo.md5 = estream['md5'].value
-        return sinfo, self._read_stream_gen(estream, sinfo)
+        if svalue:
+            estream = self.container.streamstore.get_stream(svalue.value)
+            sinfo.type = http.MediaType.FromString(estream['mimetype'].value)
+            sinfo.created = estream['created'].value.WithZone(0)
+            sinfo.modified = estream['modified'].value.WithZone(0)
+            sinfo.size = estream['size'].value
+            sinfo.md5 = estream['md5'].value
+            return sinfo, self._read_stream_gen(estream, sinfo)
+        else:
+            estream = None
+            sinfo.size = 0
+            sinfo.md5 = hashlib.md5('').digest()
+            self.close()
+            return sinfo, []
 
     def _read_stream_gen(self, estream, sinfo):
         try:
@@ -666,11 +670,11 @@ class SQLCollectionBase(core.EntityCollection):
             if sinfo.size is not None and sinfo.size != count:
                 # unexpected size mismatch
                 raise SQLError("stream size mismatch on read [%i]" %
-                               estream.Key())
+                               estream.key())
             if sinfo.md5 is not None and sinfo.md5 != h.digest():
                 # md5 mismatch
                 raise SQLError("stream checksum mismatch on read [%i]" %
-                               estream.Key())
+                               estream.key())
         finally:
             self.close()
 
@@ -696,7 +700,7 @@ class SQLCollectionBase(core.EntityCollection):
                 # force modified date based on input
                 estream['modified'].SetFromValue(sinfo.modified.ShiftZone(0))
                 estream.Update()
-            v.SetFromValue(estream.Key())
+            v.SetFromValue(estream.key())
         else:
             raise NotImplementedError
         if h is not None:
@@ -726,7 +730,7 @@ class SQLCollectionBase(core.EntityCollection):
             # same thread) - settle for logging at the moment
             # self.container.streamstore.delete_stream(estream)
             logging.error("Orphan stream created %s[%i]",
-                          estream.entity_set.name, estream.Key())
+                          estream.entity_set.name, estream.key())
             transaction.rollback(e)
         finally:
             transaction.close()
@@ -1727,7 +1731,7 @@ class SQLEntityCollection(SQLCollectionBase):
                 # force modified date based on input
                 estream['modified'].SetFromValue(sinfo.modified.ShiftZone(0))
                 estream.Update()
-            v.SetFromValue(estream.Key())
+            v.SetFromValue(estream.key())
         else:
             raise NotImplementedError
         if h is not None:
@@ -1769,7 +1773,7 @@ class SQLEntityCollection(SQLCollectionBase):
             # same thread) - settle for logging at the moment
             # self.container.streamstore.delete_stream(estream)
             logging.error("Orphan stream created %s[%i]",
-                          estream.entity_set.name, estream.Key())
+                          estream.entity_set.name, estream.key())
             transaction.rollback(e)
         finally:
             transaction.close()
@@ -1928,7 +1932,7 @@ class SQLEntityCollection(SQLCollectionBase):
                 nav_done.add(nav_name)
             # Step 2
             try:
-                entity.Key()
+                entity.key()
             except KeyError:
                 # missing key on insert, auto-generate if we can
                 for i in xrange(100):
@@ -2090,7 +2094,7 @@ class SQLEntityCollection(SQLCollectionBase):
                 # whoops, that was unexpected
                 raise SQLError(
                     "Integrity check failure, non-unique key: %s" %
-                    repr(entity.Key()))
+                    repr(entity.key()))
             else:
                 result = True
             transaction.commit()
@@ -2495,7 +2499,7 @@ class SQLEntityCollection(SQLCollectionBase):
                 # whoops, that was unexpected
                 raise SQLError(
                     "Integrity check failure, non-unique key: %s" %
-                    repr(entity.Key()))
+                    repr(entity.key()))
             transaction.commit()
         except Exception as e:
             transaction.rollback(e)
@@ -2748,7 +2752,7 @@ class SQLNavigationCollection(SQLCollectionBase, core.NavigationCollection):
         if (not isinstance(entity, edm.Entity) or
                 entity.entity_set is not self.entity_set):
             raise TypeError
-        if key != entity.Key():
+        if key != entity.key():
             raise ValueError
         if not entity.exists:
             raise edm.NonExistentEntity(
@@ -2919,9 +2923,9 @@ class SQLForeignKeyCollection(SQLNavigationCollection):
             # Because of the nature of the relationships we are used
             # for, *entity* can be inserted into the base collection
             # without a link back to us (the link is optional from
-            # entity's point of view). We we still force the insert to
+            # entity's point of view). We still force the insert to
             # take place without a commit as the insertion of the link
-            # afterwards may still fail.
+            # afterwards might still fail.
             transaction.begin()
             with self.entity_set.OpenCollection() as baseCollection:
                 baseCollection.insert_entity_sql(

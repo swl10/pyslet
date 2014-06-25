@@ -1822,7 +1822,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 coll.insert_entity(e)
                 self.assertTrue(e.exists)
                 try:
-                    self.assertTrue(e.Key() is not None)
+                    self.assertTrue(e.key() is not None)
                 except KeyError:
                     self.fail("insert_entity returned a NULL key (%s)" %
                               keytype)
@@ -1883,7 +1883,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             coll.insert_entity(e)
             self.assertTrue(e.exists is True)
             try:
-                self.assertTrue(e.Key() is not None)
+                self.assertTrue(e.key() is not None)
             except KeyError:
                 self.fail("Entity with NULL key after insert")
             # READ (coll)
@@ -2212,21 +2212,21 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertTrue(len(result) == 10, "10,2: length")
             self.assertTrue(
                 coll.next_skiptoken() is None, "10,2: skiptoken")
-            self.assertTrue(result[0].Key() == (0, 2), "10,2: first page")
+            self.assertTrue(result[0].key() == (0, 2), "10,2: first page")
             result = list(coll.iterpage(set_next=True))
             self.assertTrue(
-                result[0].Key() == (0, 2), "10,2: first page repeated")
+                result[0].key() == (0, 2), "10,2: first page repeated")
             self.assertTrue(
                 len(result) == 10, "10,2: length, first page repeated")
             for i in xrange(8):
                 result = list(coll.iterpage(set_next=True))
                 self.assertTrue(
-                    result[0].Key() == (1 + i, 2), "10,2: page %i" % (i + 2))
+                    result[0].key() == (1 + i, 2), "10,2: page %i" % (i + 2))
                 self.assertTrue(
                     len(result) == 10, "10,2: length, page %i" % (i + 2))
             result = list(coll.iterpage(set_next=True))
             self.assertTrue(len(result) == 8, "10,2: length, last page")
-            self.assertTrue(result[7].Key() == (9, 9), "10,2: last e")
+            self.assertTrue(result[7].key() == (9, 9), "10,2: last e")
             result = list(coll.iterpage(set_next=True))
             self.assertTrue(len(result) == 0, "10,2: overrun")
             # test skiptoken
@@ -2236,7 +2236,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 result = list(coll.iterpage())
                 self.assertTrue(len(result) == 5, "max 5: length")
                 self.assertTrue(
-                    result[4].Key() == (0, 4),
+                    result[4].key() == (0, 4),
                     "max 5: last e on first page")
                 # there should be a skiptoken
                 token = coll.next_skiptoken()
@@ -2245,7 +2245,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                     logging.info("$skiptoken=%s", coll.next_skiptoken())
                     result = list(coll.iterpage(set_next=True))
                     self.assertTrue(len(result) == 5, "max 5: length")
-                    self.assertTrue(result[0].Key() == (
+                    self.assertTrue(result[0].key() == (
                         (i * 5) // 10, (i * 5) % 10),
                         "max 5: first e on page")
                 coll.set_page(top=10, skip=None, skiptoken=token)
@@ -2253,7 +2253,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 result = list(coll.iterpage())
                 self.assertTrue(len(result) == 5, "max 5: length")
                 self.assertTrue(
-                    result[4].Key() == (0, 9), "max 5: last e on page 2")
+                    result[4].key() == (0, 9), "max 5: last e on page 2")
                 # now add an ordering
                 coll.set_orderby(
                     CommonExpression.OrderByFromString(u"Sum desc"))
@@ -2263,34 +2263,34 @@ class DataServiceRegressionTests(unittest.TestCase):
                 coll.set_page(top=10)
                 result = list(coll.iterpage(set_next=True))
                 self.assertTrue(
-                    result[0].Key() == (9, 9),
+                    result[0].key() == (9, 9),
                     "first page with ordering")
                 self.assertTrue(
-                    result[1].Key() == (8, 9),
+                    result[1].key() == (8, 9),
                     "first page with ordering (8,9)")
                 self.assertTrue(
-                    result[2].Key() == (9, 8),
+                    result[2].key() == (9, 8),
                     "first page with ordering (9,8)")
                 token = coll.next_skiptoken()
                 self.assertTrue(token is not None, "skip token present")
                 result = list(coll.iterpage(set_next=True))
                 self.assertTrue(
-                    result[0].Key() == (9, 7),
+                    result[0].key() == (9, 7),
                     "second page with ordering (9,7)")
                 self.assertTrue(
-                    result[1].Key() == (6, 9),
+                    result[1].key() == (6, 9),
                     "second page with ordering (9,8)")
                 for i in xrange(18):
                     logging.info("$skiptoken=%s", coll.next_skiptoken())
                     result = list(coll.iterpage(set_next=True))
                 self.assertTrue(
-                    result[2].Key() == (0, 1),
+                    result[2].key() == (0, 1),
                     "last page with ordering (0,1)")
                 self.assertTrue(
-                    result[3].Key() == (1, 0),
+                    result[3].key() == (1, 0),
                     "last page with ordering (1,0)")
                 self.assertTrue(
-                    result[4].Key() == (0, 0),
+                    result[4].key() == (0, 0),
                     "last page with ordering (0,0)")
             except NotImplementedError:
                 pass
@@ -2590,7 +2590,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # which is illegal without deletion).
             try:
                 with e_o2['ZO'].OpenCollection() as navCollection:
-                    navCollection[e_zo.Key()] = e_zo
+                    navCollection[e_zo.key()] = e_zo
                 self.fail(
                     "__setitem__ on 1-0..1 navigation property should fail")
             except edm.ConstraintError:
@@ -2820,7 +2820,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # unbound which would require an implicit delete
             try:
                 with e_o2['ZO'].OpenCollection() as navCollection:
-                    navCollection[e_zo.Key()] = e_zo
+                    navCollection[e_zo.key()] = e_zo
                 self.fail(
                     "__setitem__ on 1-0..1 navigation property should fail")
             except edm.ConstraintError:
@@ -2980,7 +2980,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # e_many <-> e_o3
             try:
                 with e_o2['Many'].OpenCollection() as navCollection:
-                    navCollection[e_many.Key()] = e_many
+                    navCollection[e_many.key()] = e_many
                 self.fail("__setitem__ on 1-* navigation property should fail")
             except edm.ConstraintError:
                 pass
@@ -3115,7 +3115,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # e_many <-> e_o
             # e_many3 <-> e_o2
             # e_many2 <-> e_o3
-            self.assertTrue(collectionMany[2]['O'].GetEntity().Key() == 300)
+            self.assertTrue(collectionMany[2]['O'].GetEntity().key() == 300)
             # now the other way around, should fail as e_many is
             # already bound to a different e and we don't allow
             # that link to be broken implicitly
@@ -3128,7 +3128,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # e_many, e_many2 <-> e_o
             # e_many3 <-> e_o2
             # [] <-> e_o3
-            self.assertTrue(collectionMany[2]['O'].GetEntity().Key() == 100)
+            self.assertTrue(collectionMany[2]['O'].GetEntity().key() == 100)
             # DELETE - link
             with e_many3['O'].OpenCollection() as navCollection:
                 try:
@@ -3254,7 +3254,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <-> e_o3
             try:
                 with e_o3['Many'].OpenCollection() as navCollection:
-                    navCollection[e_many.Key()] = e_many
+                    navCollection[e_many.key()] = e_many
                 self.fail("__setitem__ on 1-* navigation property should fail")
             except edm.ConstraintError:
                 pass
@@ -3439,7 +3439,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # e_many2 <-> e_zo3
             try:
                 with e_zo2['Many'].OpenCollection() as navCollection:
-                    navCollection[e_many2.Key()] = e_many2
+                    navCollection[e_many2.key()] = e_many2
                 self.fail(
                     "__setitem__ on 0..1-* navigation property should fail")
             except edm.ConstraintError:
@@ -3716,13 +3716,13 @@ class DataServiceRegressionTests(unittest.TestCase):
             # e_many2, e_many3 <-> e_zo2
             with e_zo['Many'].OpenCollection() as navCollection:
                 try:
-                    navCollection[e_many.Key()] = e_many
+                    navCollection[e_many.key()] = e_many
                     self.assertTrue(1 in navCollection)
                 except edm.ConstraintError:
                     self.fail("__setitem__ on 0..1-* navigation property "
                               "should succeed")
                 try:
-                    navCollection[e_many2.Key()] = e_many2
+                    navCollection[e_many2.key()] = e_many2
                     self.fail("__setitem__ on 0..1-* navigation property "
                               "should fail (target already linked)")
                 except edm.ConstraintError:
@@ -3881,7 +3881,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # that link to be broken implicitly
             try:
                 with e5['Many'].OpenCollection() as navCollection:
-                    navCollection[e2.Key()] = e2
+                    navCollection[e2.key()] = e2
                 self.fail(
                     "__setitem__ on 0..1-* navigation property should fail")
             except edm.ConstraintError:
@@ -4032,7 +4032,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                     navCollection.replace(e1)
             except edm.ConstraintError:
                 self.fail("replace on *-0..1 navigation property")
-            self.assertTrue(e3['ZO'].GetEntity().Key() == 1)
+            self.assertTrue(e3['ZO'].GetEntity().key() == 1)
             # [] -> e2 -> e3 -> e1 -> None
             # [] -> e5 -> e4 -> None
             # UPDATE - using bind and update
@@ -4371,8 +4371,8 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <-> e_manyx3
             try:
                 with e_many['ManyX'].OpenCollection() as navCollection:
-                    navCollection[e_manyx2.Key()] = e_manyx2
-                    navCollection[e_manyx.Key()] = e_manyx
+                    navCollection[e_manyx2.key()] = e_manyx2
+                    navCollection[e_manyx.key()] = e_manyx
                     self.assertTrue(len(navCollection) == 2)
             except edm.ConstraintError:
                 self.fail("__setitem__ on *-* navigation property")
@@ -4553,8 +4553,8 @@ class DataServiceRegressionTests(unittest.TestCase):
             # UPDATE - __setitem__
             try:
                 with e_many['ManyX'].OpenCollection() as navCollection:
-                    navCollection[e_manyx2.Key()] = e_manyx2
-                    navCollection[e_manyx.Key()] = e_manyx
+                    navCollection[e_manyx2.key()] = e_manyx2
+                    navCollection[e_manyx.key()] = e_manyx
                     self.assertTrue(len(navCollection) == 2)
             except edm.ConstraintError:
                 self.fail("__setitem__ on *-* navigation property")
@@ -4758,7 +4758,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # now the other way around...
             try:
                 with e5['Many'].OpenCollection() as navCollection:
-                    navCollection[e2.Key()] = e2
+                    navCollection[e2.key()] = e2
             except edm.ConstraintError:
                 self.fail("__setitem__ on *-* navigation property should pass")
             # e3 <- e1 -> []
@@ -4932,7 +4932,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 self.fail("replace on *-* navigation property")
             try:
                 with e5['ManyX'].OpenCollection() as navCollection:
-                    navCollection[e2.Key()] = e2
+                    navCollection[e2.key()] = e2
             except edm.ConstraintError:
                 self.fail("__setitem__ on *-* navigation property should pass")
             # e4 <- e1 -> []
@@ -5008,9 +5008,9 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertTrue(e1.exists)
             self.assertTrue(len(coll) == 1)
             fout = StringIO()
-            sinfo = coll.read_stream(e1.Key(), fout)
+            sinfo = coll.read_stream(e1.key(), fout)
             self.assertTrue(isinstance(sinfo, StreamInfo))
-            self.assertTrue(fout.getvalue() == fox)
+            self.assertTrue(fout.getvalue() == fox,"Read back: "+fout.getvalue())
             self.assertTrue(sinfo.type == http.APPLICATION_OCTETSTREAM)
             self.assertTrue(sinfo.size == len(fox))
             self.assertTrue(isinstance(sinfo.modified, iso.TimePoint))
@@ -5022,9 +5022,9 @@ class DataServiceRegressionTests(unittest.TestCase):
             fin.seek(0)
             e2 = coll.new_stream(fin, key='foxy', sinfo=sinfo)
             self.assertTrue(len(coll) == 2)
-            self.assertTrue(e2.Key() == 'foxy')
+            self.assertTrue(e2.key() == 'foxy')
             # alternative read form with no stream to copy to
-            sinfo = coll.read_stream(e2.Key())
+            sinfo = coll.read_stream(e2.key())
             self.assertTrue(sinfo.type == http.PLAIN_TEXT)
             self.assertTrue(sinfo.size == len(fox))
             self.assertTrue(sinfo.modified == t)
@@ -5052,7 +5052,23 @@ class DataServiceRegressionTests(unittest.TestCase):
             count += len(data)
         self.assertTrue(count == sinfo.size)
         # the collection should now be closed!
-
+        with streams.OpenCollection() as coll:
+            # now some negative tests
+            e = coll.new_entity()
+            e['slug'].SetFromValue('quick_fox')
+            e['title'].SetFromValue('The quick fox')
+            coll.insert_entity(e)
+            # the result should be an entity that exists...
+            self.assertTrue(e.exists)
+            # ...and has an empty stream
+            sinfo = coll.read_stream(e.key())
+            self.assertTrue(sinfo.type == http.APPLICATION_OCTETSTREAM,
+                str(sinfo.type))
+            self.assertTrue(sinfo.size == 0)
+            # but it should have our requested title
+            e2 = coll[e.key()]
+            self.assertTrue(e2['title'].value == 'The quick fox')
+            
     def run_combined(self):
         """Runs all individual tests combined into one
 
