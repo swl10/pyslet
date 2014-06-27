@@ -41,8 +41,8 @@ BAD_REQUEST = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n"
 
 class FakeHTTPConnection(http.FakeHTTPConnection):
 
-    def NewSocket(self):
-        http.FakeHTTPConnection.NewSocket(self)
+    def new_socket(self):
+        http.FakeHTTPConnection.new_socket(self)
         self.responseTable = TEST_SERVER[self.host]
 
 

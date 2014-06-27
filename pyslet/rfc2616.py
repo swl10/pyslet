@@ -180,7 +180,7 @@ class Connection(object):
                 self._StartRequest(request)
             if self.request or self.response:
                 if self.socket is None:
-                    self.NewSocket()
+                    self.new_socket()
                 rBusy = None
                 wBusy = None
                 # The first section deals with the sending cycle, we
@@ -524,11 +524,11 @@ class Connection(object):
                     "Unexpected RecvNeeds response: %s" % repr(recvNeeds))
         return False
 
-    def NewSocket(self):
+    def new_socket(self):
         with self.connectionLock:
             if self.connectionClosed:
                 logging.error(
-                    "NewSocket called on dead connection to %s", self.host)
+                    "new_socket called on dead connection to %s", self.host)
                 raise HTTPException("Connection closed")
             self.socket = None
             self.socketFile = None
@@ -582,8 +582,8 @@ class SecureConnection(Connection):
         super(SecureConnection, self).__init__(manager, scheme, hostname, port)
         self.ca_certs = ca_certs
 
-    def NewSocket(self):
-        super(SecureConnection, self).NewSocket()
+    def new_socket(self):
+        super(SecureConnection, self).new_socket()
         try:
             with self.connectionLock:
                 if self.socket is not None:
