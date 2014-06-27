@@ -627,7 +627,7 @@ class Parser(xsi.BasicParser):
 
         We are generous in what we accept, ignoring leading zeros.  Values
         outside the range for byte return None."""
-        return self.ParseInteger(0, 255)
+        return self.parse_integer(0, 255)
 
     def ParseDateTimeLiteral(self):
         """Parses a DateTime literal, returning a :py:class:`pyslet.iso8601.TimePoint` instance.
@@ -635,29 +635,29 @@ class Parser(xsi.BasicParser):
         Returns None if no DateTime literal can be parsed.  This is a
         generous way of parsing iso8601-like values, it accepts omitted
         zeros in the date, such as 4-7-2001."""
-        savePos = self.pos
+        savepos = self.pos
         try:
             production = "dateTimeLiteral"
-            year = int(self.RequireProduction(self.ParseDigits(4, 4), "year"))
+            year = int(self.require_production(self.ParseDigits(4, 4), "year"))
             self.Require("-",)
-            month = self.RequireProduction(self.ParseInteger(1, 12), "month")
+            month = self.require_production(self.parse_integer(1, 12), "month")
             self.Require("-", production)
-            day = self.RequireProduction(self.ParseInteger(1, 31, 2), "day")
+            day = self.require_production(self.parse_integer(1, 31, 2), "day")
             self.Require("T", production)
-            hour = self.RequireProduction(self.ParseInteger(0, 24), "hour")
+            hour = self.require_production(self.parse_integer(0, 24), "hour")
             self.Require(":", production)
-            minute = self.RequireProduction(
-                self.ParseInteger(0, 60, 2), "minute")
+            minute = self.require_production(
+                self.parse_integer(0, 60, 2), "minute")
             if self.Parse(":"):
-                second = self.RequireProduction(
-                    self.ParseInteger(0, 60, 2), "second")
+                second = self.require_production(
+                    self.parse_integer(0, 60, 2), "second")
                 if self.Parse("."):
                     nano = self.ParseDigits(1, 7)
                     second += float("0." + nano)
             else:
                 second = 0
         except ValueError:
-            self.SetPos(savePos)
+            self.setpos(savepos)
             return None
         try:
             value = iso8601.TimePoint(
@@ -674,33 +674,33 @@ class Parser(xsi.BasicParser):
         uuid module.
 
         Returns None if no Guid can be parsed."""
-        savePos = self.pos
+        savepos = self.pos
         try:
             production = "guidLiteral"
             # dddddddd-dddd-dddd-dddd-dddddddddddd where each d represents
             # [A-Fa-f0-9]
             guid = []
             guid.append(
-                self.RequireProduction(self.ParseHexDigits(8, 8), production))
-            self.RequireProduction(self.Parse('-'))
+                self.require_production(self.ParseHexDigits(8, 8), production))
+            self.require_production(self.Parse('-'))
             guid.append(
-                self.RequireProduction(self.ParseHexDigits(4, 4), production))
-            self.RequireProduction(self.Parse('-'))
+                self.require_production(self.ParseHexDigits(4, 4), production))
+            self.require_production(self.Parse('-'))
             guid.append(
-                self.RequireProduction(self.ParseHexDigits(4, 4), production))
-            self.RequireProduction(self.Parse('-'))
+                self.require_production(self.ParseHexDigits(4, 4), production))
+            self.require_production(self.Parse('-'))
             guid.append(
-                self.RequireProduction(self.ParseHexDigits(4, 4), production))
-            self.RequireProduction(self.Parse('-'))
+                self.require_production(self.ParseHexDigits(4, 4), production))
+            self.require_production(self.Parse('-'))
             guid.append(
-                self.RequireProduction(
+                self.require_production(
                     self.ParseHexDigits(
                         12,
                         12),
                     production))
             value = uuid.UUID(string.join(guid, ''))
         except ValueError:
-            self.SetPos(savePos)
+            self.setpos(savepos)
             return None
         return value
 
@@ -725,7 +725,7 @@ class Parser(xsi.BasicParser):
         Representations of infinity and not-a-number result in lDigits
         being set to 'inf' and 'nan' respectively.  They always result
         in rDigits and eDigits being None."""
-        savePos = self.pos
+        savepos = self.pos
         eSign = ''
         rDigits = eDigits = None
         sign = self.ParseOne("-")
@@ -740,7 +740,7 @@ class Parser(xsi.BasicParser):
             if self.Parse('.'):
                 rDigits = self.ParseDigits(0)
             if not lDigits and not rDigits:
-                self.SetPos(savePos)
+                self.setpos(savepos)
                 return None
             if self.ParseOne('eE'):
                 eSign = self.ParseOne("-")
@@ -755,23 +755,23 @@ class Parser(xsi.BasicParser):
         Returns None if no Time literal can be parsed.  This is a
         generous way of parsing iso8601-like values, it accepts omitted
         zeros in the leading field, such as 7:45:00."""
-        savePos = self.pos
+        savepos = self.pos
         try:
             production = "timeLiteral"
-            hour = self.RequireProduction(self.ParseInteger(0, 24), "hour")
+            hour = self.require_production(self.parse_integer(0, 24), "hour")
             self.Require(":", production)
-            minute = self.RequireProduction(
-                self.ParseInteger(0, 60, 2), "minute")
+            minute = self.require_production(
+                self.parse_integer(0, 60, 2), "minute")
             if self.Parse(":"):
-                second = self.RequireProduction(
-                    self.ParseInteger(0, 60, 2), "second")
+                second = self.require_production(
+                    self.parse_integer(0, 60, 2), "second")
                 if self.Parse("."):
                     nano = self.ParseDigits(1, 7)
                     second += float("0." + nano)
             else:
                 second = 0
         except ValueError:
-            self.SetPos(savePos)
+            self.setpos(savepos)
             return None
         try:
             value = iso8601.Time(
@@ -1041,7 +1041,7 @@ class BinaryValue(SimpleValue):
 
     def SetFromLiteral(self, value):
         p = Parser(value)
-        self.value = p.RequireProductionEnd(
+        self.value = p.require_production_end(
             p.ParseBinaryLiteral(), "binaryLiteral")
 
     def SetFromValue(self, new_value):
@@ -1113,7 +1113,8 @@ class NumericValue(SimpleValue):
 
     def SetFromLiteral(self, value):
         p = Parser(value)
-        nValue = p.RequireProductionEnd(p.ParseNumericLiteral(), "byteLiteral")
+        nValue = p.require_production_end(
+            p.ParseNumericLiteral(), "byteLiteral")
         self.SetFromNumericLiteral(nValue)
 
     def SetFromNumericLiteral(self, numericValue):
@@ -1213,7 +1214,7 @@ class DateTimeValue(SimpleValue):
 
     def SetFromLiteral(self, value):
         p = Parser(value)
-        self.value = p.RequireProductionEnd(
+        self.value = p.require_production_end(
             p.ParseDateTimeLiteral(), "DateTime")
 
     def SetFromValue(self, new_value):
@@ -1352,7 +1353,7 @@ class TimeValue(SimpleValue):
 
     def SetFromLiteral(self, value):
         p = Parser(value)
-        self.value = p.RequireProductionEnd(p.ParseTimeLiteral(), "Time")
+        self.value = p.require_production_end(p.ParseTimeLiteral(), "Time")
 
     def SetFromValue(self, new_value):
         if new_value is None:
@@ -1607,7 +1608,7 @@ class GuidValue(SimpleValue):
 
     def SetFromLiteral(self, value):
         p = Parser(value)
-        self.value = p.RequireProductionEnd(p.ParseGuidLiteral(), "Guid")
+        self.value = p.require_production_end(p.ParseGuidLiteral(), "Guid")
 
     def SetFromValue(self, new_value):
         """*new_value* must be an instance of Python's UUID class

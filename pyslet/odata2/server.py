@@ -473,7 +473,7 @@ class Server(app.Server):
         etag = entity.ETag()
         if etag is not None:
             s = "%s" if entity.ETagIsStrong() else "W/%s"
-            etag = s % http.QuoteString(
+            etag = s % http.quote_string(
                 string.join(map(core.ODataURI.FormatLiteral, etag), ','))
             response_headers.append(("ETag", etag))
 
@@ -1379,7 +1379,7 @@ class Server(app.Server):
             if "HTTP_ACCEPT" in environ:
                 try:
                     aList = http.AcceptList.FromString(environ["HTTP_ACCEPT"])
-                except http.HTTPParameterError:
+                except http.BadSyntax:
                     # we'll treat this as a missing Accept header
                     aList = self.DefaultAcceptList
             else:

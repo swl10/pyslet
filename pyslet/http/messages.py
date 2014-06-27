@@ -4,8 +4,8 @@ import string
 import logging
 from types import *
 
-from pyslet.rfc2616_core import *
-from pyslet.rfc2616_params import *
+from pyslet.http.grammar import *
+from pyslet.http.params import *
 
 import pyslet.iso8601 as iso
 
@@ -49,7 +49,7 @@ class MediaRange(MediaType):
         Unlike the parent media-type we ignore all spaces."""
         p = HeaderParser(source)
         mr = p.RequireMediaRange()
-        p.RequireEnd("media-range")
+        p.require_end("media-range")
         return mr
 
     def __repr__(self):
@@ -148,10 +148,10 @@ class AcceptItem(MediaRange):
     def FromString(cls, source):
         """Creates a single AcceptItem instance from a *source* string."""
         p = HeaderParser(source)
-        p.ParseSP()
+        p.parse_sp()
         ai = p.RequireAcceptItem()
-        p.ParseSP()
-        p.RequireEnd("Accept header item")
+        p.parse_sp()
+        p.require_end("Accept header item")
         return ai
 
     def __str__(self):
@@ -161,7 +161,7 @@ class AcceptItem(MediaRange):
             qStr = qStr.rstrip('0')
             qStr = qStr.rstrip('.')
             result.append("; q=%s" % qStr)
-            result.append(FormatParameters(self.params))
+            result.append(format_parameters(self.params))
         return string.join(result, '')
 
     def __cmp__(self, other):
@@ -225,7 +225,7 @@ class AcceptList(object):
         """Create an AcceptList from a *source* string."""
         p = HeaderParser(source)
         al = p.RequireAcceptList()
-        p.RequireEnd("Accept header")
+        p.require_end("Accept header")
         return al
 
     def __str__(self):
@@ -268,10 +268,10 @@ class AcceptToken(object):
     def FromString(cls, source):
         """Creates a single AcceptToken instance from a *source* string."""
         p = HeaderParser(source)
-        p.ParseSP()
+        p.parse_sp()
         at = p.RequireAcceptToken(cls)
-        p.ParseSP()
-        p.RequireEnd("Accept token")
+        p.parse_sp()
+        p.require_end("Accept token")
         return at
 
     def __str__(self):
@@ -355,7 +355,7 @@ class AcceptTokenList(object):
         """Create an AcceptTokenList from a *source* string."""
         p = HeaderParser(source)
         al = p.RequireAcceptTokenList(cls)
-        p.RequireEnd("Accept header")
+        p.require_end("Accept header")
         return al
 
     def __str__(self):
@@ -515,17 +515,17 @@ class AcceptRanges(object):
                 self._ranges = ()
                 self._sorted = []
             else:
-                raise SyntaxError("none is not a valid range-unit")
+                raise BadSyntax("none is not a valid range-unit")
         self._sorted.sort()
 
     @classmethod
     def FromString(cls, source):
         """Create an AcceptRanges value from a *source* string."""
         p = HeaderParser(source)
-        ar = p.ParseTokenList()
+        ar = p.parse_tokenlist()
         if not ar:
-            raise SyntaxError("range-unit or none required in Accept-Ranges")
-        p.RequireEnd("Accept-Ranges header")
+            raise BadSyntax("range-unit or none required in Accept-Ranges")
+        p.require_end("Accept-Ranges header")
         return AcceptRanges(*ar)
 
     def __str__(self):
@@ -573,8 +573,8 @@ class Allow(object):
     def FromString(cls, source):
         """Create an Allow value from a *source* string."""
         p = HeaderParser(source)
-        allow = p.ParseTokenList()
-        p.RequireEnd("Allow header")
+        allow = p.parse_tokenlist()
+        p.require_end("Allow header")
         return Allow(*allow)
 
     def Allowed(self, method):
@@ -647,7 +647,7 @@ class CacheControl(object):
         """Create a Cache-Control value from a *source* string."""
         p = HeaderParser(source)
         cc = p.ParseCacheControl()
-        p.RequireEnd("Cache-Control header")
+        p.require_end("Cache-Control header")
         return cc
 
     def __str__(self):
@@ -658,9 +658,9 @@ class CacheControl(object):
                 result.append(d)
             elif type(v) == TupleType:
                 result.append("%s=%s" %
-                              (d, QuoteString(string.join(map(str, v), ", "))))
+                              (d, quote_string(string.join(map(str, v), ", "))))
             else:
-                result.append("%s=%s" % (d, QuoteString(str(v), force=False)))
+                result.append("%s=%s" % (d, quote_string(str(v), force=False)))
         return string.join(result, ", ")
 
     def __len__(self):
@@ -727,10 +727,10 @@ class ContentRange(object):
     def FromString(cls, source):
         """Creates a single ContentRange instance from a *source* string."""
         p = HeaderParser(source)
-        p.ParseSP()
+        p.parse_sp()
         cr = p.RequireContentRangeSpec()
-        p.ParseSP()
-        p.RequireEnd("Content-Range specification")
+        p.parse_sp()
+        p.require_end("Content-Range specification")
         return cr
 
     def __str__(self):
@@ -768,92 +768,92 @@ class HeaderParser(ParameterParser):
     """A special parser extended to include methods for parsing HTTP headers."""
 
     def ParseMediaRange(self):
-        savePos = self.pos
+        savepos = self.pos
         try:
             return self.RequireMediaRange()
-        except SyntaxError:
-            self.SetPos(savePos)
+        except BadSyntax:
+            self.setpos(savepos)
             return None
 
     def RequireMediaRange(self):
         """Parses a media range returning a :py:class:`MediaRange`
-        instance.  Raises SyntaxError if no media-type was found."""
-        self.ParseSP()
-        type = self.RequireToken("media-type").lower()
-        self.RequireSeparator('/', "media-type")
-        subtype = self.RequireToken("media-subtype").lower()
-        self.ParseSP()
+        instance.  Raises BadSyntax if no media-type was found."""
+        self.parse_sp()
+        type = self.require_token("media-type").lower()
+        self.require_separator('/', "media-type")
+        subtype = self.require_token("media-subtype").lower()
+        self.parse_sp()
         parameters = {}
-        self.ParseParameters(parameters, ignoreAllSpace=False, qMode='q')
+        self.parse_parameters(parameters, ignore_allsp=False, qmode='q')
         return MediaRange(type, subtype, parameters)
 
     def RequireAcceptItem(self):
         """Parses a single item from an Accept header, returning a
-        :py:class:`AcceptItem` instance.  Raises SyntaxError if no
+        :py:class:`AcceptItem` instance.  Raises BadSyntax if no
         item was found."""
-        self.ParseSP()
+        self.parse_sp()
         extensions = {}
         range = self.RequireMediaRange()
-        self.ParseSP()
-        if self.ParseSeparator(';'):
-            self.ParseSP()
-            qParam = self.RequireToken("q parameter")
+        self.parse_sp()
+        if self.parse_separator(';'):
+            self.parse_sp()
+            qParam = self.require_token("q parameter")
             if qParam.lower() != 'q':
-                raise SyntaxError("Unrecognized q-parameter: %s" % qParam)
-            self.ParseSP()
-            self.RequireSeparator('=', "q parameter")
-            self.ParseSP()
+                raise BadSyntax("Unrecognized q-parameter: %s" % qParam)
+            self.parse_sp()
+            self.require_separator('=', "q parameter")
+            self.parse_sp()
             qvalue = self.ParseQualityValue()
             if qvalue is None:
-                raise SyntaxError(
-                    "Unrecognized q-value: %s" % repr(self.cWord))
-            self.ParseParameters(extensions)
+                raise BadSyntax(
+                    "Unrecognized q-value: %s" % repr(self.the_word))
+            self.parse_parameters(extensions)
         else:
             qvalue = 1.0
         return AcceptItem(range, qvalue, extensions)
 
     def RequireAcceptList(self):
         """Parses a list of accept items, returning a
-        :py:class:`AcceptList` instance.  Raises SyntaxError if no valid
+        :py:class:`AcceptList` instance.  Raises BadSyntax if no valid
         items were found."""
         items = []
-        self.ParseSP()
-        while self.cWord:
-            a = self.ParseProduction(self.RequireAcceptItem)
+        self.parse_sp()
+        while self.the_word:
+            a = self.parse_production(self.RequireAcceptItem)
             if a is None:
                 break
             items.append(a)
-            self.ParseSP()
-            if not self.ParseSeparator(','):
+            self.parse_sp()
+            if not self.parse_separator(','):
                 break
         if items:
             return AcceptList(*items)
         else:
-            raise SyntaxError("Expected Accept item")
+            raise BadSyntax("Expected Accept item")
 
     def RequireAcceptToken(self, cls=AcceptToken):
         """Parses a single item from a token-based Accept header,
         returning a :py:class:`AcceptToken` instance.  Raises
-        SyntaxError if no item was found.
+        BadSyntax if no item was found.
 
         cls
                 An optional sub-class of :py:class:`AcceptToken` to create
                 instead."""
-        self.ParseSP()
-        token = self.RequireToken()
-        self.ParseSP()
-        if self.ParseSeparator(';'):
-            self.ParseSP()
-            qParam = self.RequireToken("q parameter")
+        self.parse_sp()
+        token = self.require_token()
+        self.parse_sp()
+        if self.parse_separator(';'):
+            self.parse_sp()
+            qParam = self.require_token("q parameter")
             if qParam.lower() != 'q':
-                raise SyntaxError("Unrecognized q-parameter: %s" % qParam)
-            self.ParseSP()
-            self.RequireSeparator('=', "q parameter")
-            self.ParseSP()
+                raise BadSyntax("Unrecognized q-parameter: %s" % qParam)
+            self.parse_sp()
+            self.require_separator('=', "q parameter")
+            self.parse_sp()
             qvalue = self.ParseQualityValue()
             if qvalue is None:
-                raise SyntaxError(
-                    "Unrecognized q-value: %s" % repr(self.cWord))
+                raise BadSyntax(
+                    "Unrecognized q-value: %s" % repr(self.the_word))
         else:
             qvalue = 1.0
         return cls(token, qvalue)
@@ -867,44 +867,44 @@ class HeaderParser(ParameterParser):
                 An optional sub-class of :py:class:`AcceptTokenList` to
                 create instead."""
         items = []
-        self.ParseSP()
-        while self.cWord:
-            a = self.ParseProduction(self.RequireAcceptToken, cls.ItemClass)
+        self.parse_sp()
+        while self.the_word:
+            a = self.parse_production(self.RequireAcceptToken, cls.ItemClass)
             if a is None:
                 break
             items.append(a)
-            self.ParseSP()
-            if not self.ParseSeparator(','):
+            self.parse_sp()
+            if not self.parse_separator(','):
                 break
         return cls(*items)
 
     def RequireContentRangeSpec(self):
         """Parses a content-range-spec, returning an
         :py:class:`ContentRange` instance."""
-        self.ParseSP()
-        unit = self.RequireToken("bytes-unit")
+        self.parse_sp()
+        unit = self.require_token("bytes-unit")
         if unit.lower() != 'bytes':
-            raise SyntaxError("Unrecognized unit in content-range: %s" % unit)
-        self.ParseSP()
-        spec = self.RequireToken()
+            raise BadSyntax("Unrecognized unit in content-range: %s" % unit)
+        self.parse_sp()
+        spec = self.require_token()
         # the spec must be an entire token, '-' is not a separator
         if spec == "*":
             firstByte = lastByte = None
         else:
             spec = spec.split('-')
-            if len(spec) != 2 or not IsDIGITS(spec[0]) or not IsDIGITS(spec[1]):
-                raise SyntaxError(
+            if len(spec) != 2 or not is_digits(spec[0]) or not is_digits(spec[1]):
+                raise BadSyntax(
                     "Expected digits or * in byte-range-resp-spec")
             firstByte = int(spec[0])
             lastByte = int(spec[1])
-        self.ParseSP()
-        self.RequireSeparator('/', "byte-content-range-spec")
-        self.ParseSP()
-        totalLength = self.RequireToken()
+        self.parse_sp()
+        self.require_separator('/', "byte-content-range-spec")
+        self.parse_sp()
+        totalLength = self.require_token()
         if totalLength == "*":
             totalLength = None
-        elif IsDIGITS(totalLength):
+        elif is_digits(totalLength):
             totalLength = int(totalLength)
         else:
-            raise SyntaxError("Expected digits or * for instance-length")
+            raise BadSyntax("Expected digits or * for instance-length")
         return ContentRange(firstByte, lastByte, totalLength)

@@ -362,14 +362,14 @@ class MockRequest(object):
         self.wfile = None
 
     def start_response(self, status, response_headers, exc_info=None):
-        statusLine = http.WordParser(status, ignoreSpace=False)
-        statusLine.ParseSP()
-        if statusLine.IsInteger():
-            self.responseCode = statusLine.ParseInteger()
+        statusLine = http.WordParser(status, ignore_sp=False)
+        statusLine.parse_sp()
+        if statusLine.is_integer():
+            self.responseCode = statusLine.parse_integer()
         else:
             self.responseCode = 0
-        statusLine.ParseSP()
-        self.responseMessage = statusLine.ParseRemainder()
+        statusLine.parse_sp()
+        self.responseMessage = statusLine.parse_remainder()
         self.responseHeaders = {}
         for r in response_headers:
             hName = r[0].upper()

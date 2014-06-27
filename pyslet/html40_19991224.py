@@ -2675,12 +2675,12 @@ class HTMLParser(xmlns.XMLNSParser):
         # we inline ParseMisc to capture all the white space
         s = []
         while True:
-            if xml.IsS(self.theChar):
-                s.append(self.theChar)
+            if xml.IsS(self.the_char):
+                s.append(self.the_char)
                 self.NextChar()
                 continue
             elif self.ParseLiteral('<!--'):
-                self.ParseComment(True)
+                self.parse_comment(True)
                 continue
             elif self.ParseLiteral('<?'):
                 self.ParsePI(True)
@@ -2696,7 +2696,7 @@ class HTMLParser(xmlns.XMLNSParser):
                 self.dtd.name = 'HTML'
                 # no XML declaration, and no DOCTYPE, are we at the first
                 # element?
-                if self.theChar != '<':
+                if self.the_char != '<':
                     # this document starts with character data but we want to fore
                     # any leading space to be included, as that is usually the
                     # intention of authors writing HTML fragments,

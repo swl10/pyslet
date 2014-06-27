@@ -230,7 +230,7 @@ class Document(edmx.Document):
         for p in self.root.FindChildrenDepthFirst(edm.Property):
             try:
                 http.MediaType.FromString(p.GetAttribute(MimeType))
-            except http.HTTPParameterError as e:
+            except http.BadSyntax as e:
                 raise InvalidMetadataDocument(
                     "MimeType format error in property %s: %s" %
                     (p.name, str(e)))

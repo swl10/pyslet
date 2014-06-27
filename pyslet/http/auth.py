@@ -4,8 +4,8 @@
 import string
 import base64
 import pyslet.rfc2396 as uri
-from pyslet.rfc2616_core import *
-from pyslet.rfc2616_params import *
+from pyslet.http.grammar import *
+from pyslet.http.params import *
 
 
 class Challenge(object):
@@ -47,11 +47,11 @@ class Challenge(object):
     @classmethod
     def FromString(cls, source):
         """Creates a Challenge from a *source* string."""
-        p = AuthorizationParser(source, ignoreSpace=False)
-        p.ParseSP()
+        p = AuthorizationParser(source, ignore_sp=False)
+        p.parse_sp()
         c = p.RequireChallenge()
-        p.ParseSP()
-        p.RequireEnd("challenge")
+        p.parse_sp()
+        p.require_end("challenge")
         return c
 
     @classmethod
@@ -60,19 +60,19 @@ class Challenge(object):
         p = AuthorizationParser(source)
         challenges = []
         while True:
-            c = p.ParseProduction(p.RequireChallenge)
+            c = p.parse_production(p.RequireChallenge)
             if c is not None:
                 challenges.append(c)
-            if not p.ParseSeparator(","):
+            if not p.parse_separator(","):
                 break
-        p.RequireEnd("challenge")
+        p.require_end("challenge")
         return challenges
 
     def __str__(self):
         result = [self.scheme]
         params = []
         for pn, pv, pq in self._params:
-            params.append("%s=%s" % (pn, QuoteString(pv, force=pq)))
+            params.append("%s=%s" % (pn, quote_string(pv, force=pq)))
         if params:
             result.append(string.join(params, ', '))
         return string.join(result, ' ')
@@ -171,12 +171,12 @@ class Credentials(object):
 
     @classmethod
     def FromWords(cls, wp):
-        scheme = wp.RequireToken("Authentication Scheme").lower()
+        scheme = wp.require_token("Authentication Scheme").lower()
         if scheme == "basic":
             # the rest of the words represent the credentials as a base64
             # string
             credentials = BasicCredentials()
-            credentials.SetBasicCredentials(wp.ParseRemainder())
+            credentials.SetBasicCredentials(wp.parse_remainder())
         else:
             raise NotImplementedError
         return credentials
@@ -187,7 +187,7 @@ class Credentials(object):
         formatted string."""
         wp = WordParser(source)
         credentials = cls.FromWords(wp)
-        wp.RequireEnd("authorization header")
+        wp.require_end("authorization header")
         return credentials
 
 
@@ -288,27 +288,27 @@ class AuthorizationParser(ParameterParser):
 
     def RequireChallenge(self):
         """Parses a challenge returning a :py:class:`Challenge`
-        instance.  Raises SyntaxError if no challenge was found."""
-        self.ParseSP()
-        authScheme = self.RequireToken("auth scheme")
+        instance.  Raises BadSyntax if no challenge was found."""
+        self.parse_sp()
+        authScheme = self.require_token("auth scheme")
         params = []
-        self.ParseSP()
-        while self.cWord is not None:
-            paramName = self.ParseToken()
-            if paramName is not None:
-                self.ParseSP()
-                self.RequireSeparator('=')
-                self.ParseSP()
-                if self.IsToken():
-                    paramValue = self.ParseToken()
+        self.parse_sp()
+        while self.the_word is not None:
+            param_name = self.parse_token()
+            if param_name is not None:
+                self.parse_sp()
+                self.require_separator('=')
+                self.parse_sp()
+                if self.is_token():
+                    param_value = self.parse_token()
                     forceQ = False
                 else:
-                    paramValue = self.RequireProduction(
-                        self.ParseQuotedString(), "auth-param value")
+                    param_value = self.require_production(
+                        self.parse_quoted_string(), "auth-param value")
                     forceQ = True
-                params.append((paramName, paramValue, forceQ))
-            self.ParseSP()
-            if not self.ParseSeparator(","):
+                params.append((param_name, param_value, forceQ))
+            self.parse_sp()
+            if not self.parse_separator(","):
                 break
         if authScheme.lower() == "basic":
             return BasicChallenge(*params)

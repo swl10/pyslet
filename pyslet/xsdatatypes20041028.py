@@ -731,7 +731,7 @@ class RegularExpressionParser(BasicParser):
 
     def _REEscape(self, c=None):
         if c is None:
-            c == self.theChar
+            c == self.the_char
         if c in u".^$*+?{}\\[]|()":
             return "\\" + c
         else:
@@ -746,7 +746,7 @@ class RegularExpressionParser(BasicParser):
         while True:
             # expression ends at the end of the string or at a closing bracket
             result.append(self.ParseBranch())
-            if self.theChar == u"|":
+            if self.the_char == u"|":
                 self.NextChar()
                 result.append(u"|")
                 continue
@@ -795,19 +795,19 @@ class RegularExpressionParser(BasicParser):
 
         Symbolic values are expanded to the appropriate pair.  The second
         value may be None indicating unbounded."""
-        if self.theChar == u"?":
+        if self.the_char == u"?":
             self.NextChar()
             return 0, 1
-        elif self.theChar == u"*":
+        elif self.the_char == u"*":
             self.NextChar()
             return 0, None
-        elif self.theChar == u"+":
+        elif self.the_char == u"+":
             self.NextChar()
             return 1, None
-        elif self.theChar == u"{":
+        elif self.the_char == u"{":
             self.NextChar()
             result = self.ParseQuantity()
-            if self.theChar == u"}":
+            if self.the_char == u"}":
                 self.NextChar()
                 return result
             else:
@@ -823,7 +823,7 @@ class RegularExpressionParser(BasicParser):
         value may be None indicated unbounded."""
         n = self.ParseQuantExact()
         m = None
-        if self.theChar == u",":
+        if self.the_char == u",":
             self.NextChar()
             if self.MatchOne(u"0123456789"):
                 m = self.ParseQuantExact()
@@ -839,7 +839,7 @@ class RegularExpressionParser(BasicParser):
         result = 0
         nDigits = 0
         while self.MatchOne(u"0123456789"):
-            result = result * 10 + ord(self.theChar) - 0x30
+            result = result * 10 + ord(self.the_char) - 0x30
             self.NextChar()
             nDigits += 1
         if nDigits == 0:
@@ -849,13 +849,13 @@ class RegularExpressionParser(BasicParser):
     def ParseAtom(self):
         """Returns a unicode string representing this atom as a python regular expression."""
         if self.IsChar():
-            result = self._REEscape(self.theChar)
+            result = self._REEscape(self.the_char)
             self.NextChar()
-        elif self.theChar == "(":
+        elif self.the_char == "(":
             # a regular expression
             self.NextChar()
             result = "(%s)" % self.ParseRegExp()
-            if self.theChar != ")":
+            if self.the_char != ")":
                 raise RegularExpressionError("Expected ) at [%i]" % self.pos)
             self.NextChar()
         else:
@@ -870,7 +870,7 @@ class RegularExpressionParser(BasicParser):
         | was intended to be excluded in the prose but has been omitted, the
         reverse being true for the curly-brackets."""
         if c is None:
-            c = self.theChar
+            c = self.the_char
         if c is None or c in ".\\?*+{}()[]|":
             return False
         else:
@@ -878,11 +878,11 @@ class RegularExpressionParser(BasicParser):
 
     def ParseCharClass(self):
         """Returns a CharClass instance representing this class."""
-        if self.theChar == u"[":
+        if self.the_char == u"[":
             return self.ParseCharClassExpr()
-        elif self.theChar == u"\\":
+        elif self.the_char == u"\\":
             return self.ParseCharClassEsc()
-        elif self.theChar == u".":
+        elif self.the_char == u".":
             return self.ParseWildcardEsc()
         else:
             raise RegularExpressionError(
@@ -890,10 +890,10 @@ class RegularExpressionParser(BasicParser):
 
     def ParseCharClassExpr(self):
         """Returns a CharClass instance representing this class expression."""
-        if self.theChar == "[":
+        if self.the_char == "[":
             self.NextChar()
             cClass = self.ParseCharGroup()
-            if self.theChar == "]":
+            if self.the_char == "]":
                 self.NextChar()
                 return cClass
             else:
@@ -906,11 +906,11 @@ class RegularExpressionParser(BasicParser):
         handles the case of a class subtraction directly to reduce the need for
         look-ahead.  If you specifically want to parse a subtraction you can do
         this with :py:meth:`ParseCharClassSub`."""
-        if self.theChar == u"^":
+        if self.the_char == u"^":
             cClass = self.ParseNegCharGroup()
         else:
             cClass = self.ParsePosCharGroup()
-        if self.theChar == u"-":
+        if self.the_char == u"-":
             self.NextChar()
             subClass = self.ParseCharClassExpr()
             cClass.SubtractClass(subClass)
@@ -921,8 +921,8 @@ class RegularExpressionParser(BasicParser):
         cClass = CharClass()
         nRanges = 0
         while True:
-            savePos = self.pos
-            if self.theChar == u"-" and nRanges:
+            savepos = self.pos
+            if self.the_char == u"-" and nRanges:
                 # This had better be the last hyphen in the posCharGroup
                 if self.Match(u"-["):
                     # a subtraction
@@ -940,7 +940,7 @@ class RegularExpressionParser(BasicParser):
                 nRanges += 1
                 continue
             except RegularExpressionError:
-                self.SetPos(savePos)
+                self.setpos(savepos)
                 pass
             try:
                 cClass.AddClass(self.ParseCharClassEsc())
@@ -948,7 +948,7 @@ class RegularExpressionParser(BasicParser):
                 continue
             except RegularExpressionError:
                 if nRanges:
-                    self.SetPos(savePos)
+                    self.setpos(savepos)
                     break
                 else:
                     # We expected either a charRange or a charClassEsc
@@ -958,7 +958,7 @@ class RegularExpressionParser(BasicParser):
 
     def ParseNegCharGroup(self):
         """Returns a CharClass representing this range."""
-        if self.theChar == u"^":
+        if self.the_char == u"^":
             # we have a negative range
             self.NextChar()
             cClass = self.ParsePosCharGroup()
@@ -972,11 +972,11 @@ class RegularExpressionParser(BasicParser):
         """Returns a CharClass representing this range - this method is not
         normally used by the parser as in present for completeness.  See
         :py:meth:`ParseCharGroup`."""
-        if self.theChar == u"^":
+        if self.the_char == u"^":
             cClass = self.ParseNegCharGroup()
         else:
             cClass = self.ParsePosCharGroup()
-        if self.theChar == u"-":
+        if self.the_char == u"-":
             self.NextChar()
             subClass = self.ParseCharClassExpr()
             cClass.SubtractClass(subClass)
@@ -986,13 +986,13 @@ class RegularExpressionParser(BasicParser):
 
     def ParseCharRange(self):
         """Returns a CharClass representing this range."""
-        savePos = self.pos
+        savepos = self.pos
         try:
             cClass = self.ParseSERange()
         except RegularExpressionError:
-            self.SetPos(savePos)
+            self.setpos(savepos)
             if self.IsXmlCharIncDash():
-                cClass = CharClass(self.theChar)
+                cClass = CharClass(self.the_char)
                 self.NextChar()
             else:
                 raise
@@ -1001,7 +1001,7 @@ class RegularExpressionParser(BasicParser):
     def ParseSERange(self):
         """Returns a CharClass representing this range."""
         s = self.ParseCharOrEsc()
-        if self.theChar == u"-":
+        if self.the_char == u"-":
             self.NextChar()
         else:
             raise RegularExpressionError(
@@ -1015,7 +1015,7 @@ class RegularExpressionParser(BasicParser):
     def ParseCharOrEsc(self):
         """Returns a single unicode character."""
         if self.IsXmlChar():
-            result = self.theChar
+            result = self.the_char
             self.NextChar()
             return result
         else:
@@ -1023,12 +1023,12 @@ class RegularExpressionParser(BasicParser):
 
     def IsXmlChar(self, c=None):
         if c is None:
-            c = self.theChar
+            c = self.the_char
         return c is not None and c not in "\\-[]"
 
     def IsXmlCharIncDash(self, c=None):
         if c is None:
-            c = self.theChar
+            c = self.the_char
         return c is not None and c not in "\\[]"
 
     def ParseCharClassEsc(self):
@@ -1037,12 +1037,12 @@ class RegularExpressionParser(BasicParser):
             cClass = self.ParseCatEsc()
         elif self.Match(u"\\P"):
             cClass = self.ParseComplEsc()
-        elif self.theChar == u"\\":
+        elif self.the_char == u"\\":
             try:
-                savePos = self.pos
+                savepos = self.pos
                 cClass = self.ParseMultiCharEsc()
             except RegularExpressionError:
-                self.SetPos(savePos)
+                self.setpos(savepos)
                 cClass = CharClass(self.ParseSingleCharEsc())
         else:
             raise RegularExpressionError(
@@ -1071,10 +1071,10 @@ class RegularExpressionParser(BasicParser):
 
     def ParseSingleCharEsc(self):
         """Returns a single unicode character parsed from a single char escape."""
-        if self.theChar == u"\\":
+        if self.the_char == u"\\":
             self.NextChar()
-            if self.theChar in self.SingleCharEscapes:
-                result = self.SingleCharEscapes[self.theChar]
+            if self.the_char in self.SingleCharEscapes:
+                result = self.SingleCharEscapes[self.the_char]
                 self.NextChar()
                 return result
         raise RegularExpressionError(
@@ -1083,9 +1083,9 @@ class RegularExpressionParser(BasicParser):
     def ParseCatEsc(self):
         """Returns a CharClass, parsing a category escape."""
         if self.Match("\\p{"):
-            self.SetPos(self.pos + 3)
+            self.setpos(self.pos + 3)
             cClass = self.ParseCharProp()
-            if self.theChar == '}':
+            if self.the_char == '}':
                 self.NextChar()
                 return cClass
         raise RegularExpressionError("Expected \\p{...} at [%i]" % self.pos)
@@ -1093,9 +1093,9 @@ class RegularExpressionParser(BasicParser):
     def ParseComplEsc(self):
         """Returns a CharClass, parsing the complement of a category escape."""
         if self.Match("\\P{"):
-            self.SetPos(self.pos + 3)
+            self.setpos(self.pos + 3)
             cClass = CharClass(self.ParseCharProp())
-            if self.theChar == '}':
+            if self.the_char == '}':
                 self.NextChar()
                 cClass.Negate()
                 return cClass
@@ -1103,11 +1103,11 @@ class RegularExpressionParser(BasicParser):
 
     def ParseCharProp(self):
         """Returns a CharClass, parsing an IsCategory or IsBlock."""
-        savePos = self.pos
+        savepos = self.pos
         try:
             cClass = self.ParseIsCategory()
         except RegularExpressionError:
-            self.SetPos(savePos)
+            self.setpos(savepos)
             cClass = self.ParseIsBlock()
         return cClass
 
@@ -1153,11 +1153,11 @@ class RegularExpressionParser(BasicParser):
     def ParseIsCategory(self):
         """Returns a CharClass corresponding to one of the character categories
         or raises an error."""
-        if self.theChar in self.Categories:
-            cat = self.theChar
+        if self.the_char in self.Categories:
+            cat = self.the_char
             self.NextChar()
-            if self.theChar is not None and (cat + self.theChar) in self.Categories:
-                cat = cat + self.theChar
+            if self.the_char is not None and (cat + self.the_char) in self.Categories:
+                cat = cat + self.the_char
                 self.NextChar()
             return CharClass.UCDCategory(cat)
         else:
@@ -1173,8 +1173,8 @@ class RegularExpressionParser(BasicParser):
     def ParseIsBlock(self):
         """Returns a CharClass corresponding to one of the Unicode blocks."""
         block = []
-        while self.IsBlockClass.Test(self.theChar):
-            block.append(self.theChar)
+        while self.IsBlockClass.Test(self.the_char):
+            block.append(self.the_char)
             self.NextChar()
         block = string.join(block, '')
         if block.startswith("Is"):
@@ -1201,16 +1201,16 @@ class RegularExpressionParser(BasicParser):
 
     def ParseMultiCharEsc(self):
         """Returns a CharClass corresponding to one of the multichar escapes, if parsed."""
-        if self.theChar == u"\\":
+        if self.the_char == u"\\":
             self.NextChar()
             try:
-                result = self.MultiCharEscapes[self.theChar]
+                result = self.MultiCharEscapes[self.the_char]
                 self.NextChar()
                 return result
             except KeyError:
                 # unknown escape
                 raise RegularExpressionError(
-                    "Unknown multichar escape at [%i], \\%s" % (self.pos, repr(self.theChar)))
+                    "Unknown multichar escape at [%i], \\%s" % (self.pos, repr(self.the_char)))
         else:
             raise RegularExpressionError("Expected '\\' at [%i]" % self.pos)
 
@@ -1221,7 +1221,7 @@ class RegularExpressionParser(BasicParser):
 
     def ParseWildcardEsc(self):
         """Returns a CharClass corresponding to the wildcard '.' character if parsed."""
-        if self.theChar == u".":
+        if self.the_char == u".":
             self.NextChar()
             return self.DotClass
         else:

@@ -627,67 +627,67 @@ class BasicParser(object):
 		interpretation of some productions."""
         self.src = source		#: the string being parsed
         self.pos = -1			#: the position of the current character
-        self.theChar = None
+        self.the_char = None
         """The current character or None if the parser is positioned outside the
 		src string."""
         self.NextChar()
 
-    def SetPos(self, newPos):
+    def setpos(self, newPos):
         """Sets the position of the parser to *newPos*"""
         self.pos = newPos - 1
         self.NextChar()
 
     def NextChar(self):
-        """Points the parser at the next character, updating *pos* and *theChar*."""
+        """Points the parser at the next character, updating *pos* and *the_char*."""
         self.pos += 1
         if self.pos >= 0 and self.pos < len(self.src):
-            self.theChar = self.src[self.pos]
+            self.the_char = self.src[self.pos]
         else:
-            self.theChar = None
+            self.the_char = None
 
-    def Peek(self, nChars):
+    def peek(self, nChars):
         """Returns a string consisting of the next *nChars* characters.
 
         If there are less than nChars remaining then a shorter string is returned."""
         return self.src[self.pos:self.pos + nChars]
 
-    def RequireProduction(self, result, production=None):
+    def require_production(self, result, production=None):
         """Returns *result* if not None or raises ValueError.
 
         *	production can be used to customize the error message."""
         if result is None:
             if production is None:
-                raise ValueError("Error at ...%s" % self.Peek(10))
+                raise ValueError("Error at ...%s" % self.peek(10))
             else:
                 raise ValueError("Expected %s at ...%s" %
-                                 (production, self.Peek(10)))
+                                 (production, self.peek(10)))
         else:
             return result
 
-    def ParseProduction(self, requireMethod, *args):
-        """Executes the bound method *requireMethod* passing *args*.
+    def parse_production(self, require_method, *args):
+        """Executes the bound method *require_method* passing *args*.
 
         If successful the result of the method is returned.  If
         ValueError is raised, the exception is caught, the parser
         rewound and None is returned."""
-        savePos = self.pos
+        savepos = self.pos
         try:
-            return requireMethod(*args)
+            return require_method(*args)
         except ValueError:
-            self.SetPos(savePos)
+            self.setpos(savepos)
             return None
 
-    def RequireProductionEnd(self, result, production=None):
+    def require_production_end(self, result, production=None):
         """Returns *result* if not None and parsing is complete or raises ValueError.
 
         *	production can be used to customize the error message."""
-        result = self.RequireProduction(result, production)
-        self.RequireEnd(production)
+        result = self.require_production(result, production)
+        self.require_end(production)
         return result
 
     def Match(self, matchString):
         """Returns true if *matchString* is at the current position"""
-        if self.theChar is None:
+        if self.the_char is None:
             return False
         else:
             return self.src[self.pos:self.pos + len(matchString)] == matchString
@@ -698,7 +698,7 @@ class BasicParser(object):
         Advances the parser to the first character after matchString.  Returns
         an *empty string* otherwise"""
         if self.Match(matchString):
-            self.SetPos(self.pos + len(matchString))
+            self.setpos(self.pos + len(matchString))
             return matchString
         else:
             return ''
@@ -712,10 +712,10 @@ class BasicParser(object):
         matchPos = self.src.find(matchString, self.pos)
         if matchPos == -1:
             result = self.src[self.pos:]
-            self.SetPos(len(self.src))
+            self.setpos(len(self.src))
         else:
             result = self.src[self.pos:matchPos]
-            self.SetPos(matchPos)
+            self.setpos(matchPos)
         return result
 
     def Require(self, matchString, production=None):
@@ -724,7 +724,7 @@ class BasicParser(object):
         *	production can be used to customize the error message."""
         if not self.Parse(matchString):
             tail = "%s, found %s" % (
-                repr(matchString), repr(self.Peek(len(matchString))))
+                repr(matchString), repr(self.peek(len(matchString))))
             if production is None:
                 raise ValueError("Expected %s" % tail)
             else:
@@ -732,15 +732,15 @@ class BasicParser(object):
 
     def MatchOne(self, matchChars):
         """Returns true if one of *matchChars* is at the current position"""
-        if self.theChar is None:
+        if self.the_char is None:
             return False
         else:
-            return self.theChar in matchChars
+            return self.the_char in matchChars
 
     def ParseOne(self, matchChars):
         """Parses one of *matchChars*.  Returns the character or None if no match is found."""
         if self.MatchOne(matchChars):
-            result = self.theChar
+            result = self.the_char
             self.NextChar()
             return result
         else:
@@ -750,7 +750,7 @@ class BasicParser(object):
         """Returns true if *lowerString* is at the current position (ignoring case).
 
         *lowerString* must be a lower-cased string."""
-        if self.theChar is None:
+        if self.the_char is None:
             return False
         else:
             return self.src[self.pos:self.pos + len(lowerString)].lower() == lowerString
@@ -762,7 +762,7 @@ class BasicParser(object):
         an *empty string* otherwise.  *lowerString& must be a lower-cased
         string."""
         if self.MatchInsensitive(lowerString):
-            self.SetPos(self.pos + len(lowerString))
+            self.setpos(self.pos + len(lowerString))
             return lowerString
         else:
             return ''
@@ -781,7 +781,7 @@ class BasicParser(object):
         If *max* is None then there is no maximum.
 
         If min digits can't be parsed then None is returned."""
-        savePos = self.pos
+        savepos = self.pos
         result = []
         while max is None or len(result) < max:
             d = self.ParseDigit()
@@ -790,11 +790,11 @@ class BasicParser(object):
             else:
                 result.append(d)
         if len(result) < min:
-            self.SetPos(savePos)
+            self.setpos(savepos)
             return None
         return string.join(result, '')
 
-    def ParseInteger(self, min=None, max=None, maxDigits=None):
+    def parse_integer(self, min=None, max=None, maxDigits=None):
         """Parses an integer (or long) with value between min and max, returning the integer.
 
         *	*min* can be None to indicate no lower limit
@@ -804,14 +804,14 @@ class BasicParser(object):
         *	*maxDigits* sets a limit on the number of digits
 
         If a suitable integer can't be parsed then None is returned."""
-        savePos = self.pos
+        savepos = self.pos
         d = self.ParseDigits(1, maxDigits)
         if d is None:
             return None
         else:
             d = int(d)
             if (min is not None and d < min) or (max is not None and d > max):
-                self.SetPos(savePos)
+                self.setpos(savepos)
                 return None
             return d
 
@@ -829,7 +829,7 @@ class BasicParser(object):
         If *max* is None then there is no maximum.
 
         If min digits can't be parsed then None is returned."""
-        savePos = self.pos
+        savepos = self.pos
         result = []
         while max is None or len(result) < max:
             d = self.ParseHexDigit()
@@ -838,18 +838,18 @@ class BasicParser(object):
             else:
                 result.append(d)
         if len(result) < min:
-            self.SetPos(savePos)
+            self.setpos(savepos)
             return None
         return string.join(result, '')
 
     def MatchEnd(self):
-        return self.theChar is None
+        return self.the_char is None
 
-    def RequireEnd(self, production=None):
-        if self.theChar is not None:
+    def require_end(self, production=None):
+        if self.the_char is not None:
             if production:
                 tail = " after %s" % production
             else:
                 tail = ""
             raise ValueError("Spurious data%s, found %s" %
-                             (tail, repr(self.Peek(10))))
+                             (tail, repr(self.peek(10))))

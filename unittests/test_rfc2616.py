@@ -8,7 +8,6 @@ import StringIO
 
 def suite():
     return unittest.TestSuite((
-        unittest.makeSuite(GenericParserTests, 'test'),
         unittest.makeSuite(ProtocolParameterTests, 'test'),
         unittest.makeSuite(HeaderTests, 'test'),
         unittest.makeSuite(HTTP2616Tests, 'test'),
@@ -188,181 +187,6 @@ class FakeHTTPRequestManager(HTTPRequestManager):
         return r, writers, errors
 
 
-class GenericParserTests(unittest.TestCase):
-
-    def test_basic(self):
-        # OCTET = <any 8-bit sequence of data>
-        for c in xrange(0, 256):
-            self.assertTrue(IsOCTET(chr(c)), "IsOCTET(chr(%i))" % c)
-        # CHAR = <any US-ASCII character (octets 0 - 127)>
-        for c in xrange(0, 128):
-            self.assertTrue(IsCHAR(chr(c)), "IsCHAR(chr(%i))" % c)
-        for c in xrange(128, 256):
-            self.assertFalse(IsCHAR(chr(c)), "IsCHAR(chr(%i))" % c)
-        # upalpha = <any US-ASCII uppercase letter "A".."Z">
-        upalpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        for i in xrange(0, 256):
-            c = chr(i)
-            self.assertTrue(
-                IsUPALPHA(c) == (c in upalpha), "IsUPALPHA(chr(%i))" % i)
-        # loalpha = <any US-ASCII lowercase letter "a".."z">
-        loalpha = "abcdefghijklmnopqrstuvwxyz"
-        for i in xrange(0, 256):
-            c = chr(i)
-            self.assertTrue(
-                IsLOALPHA(c) == (c in loalpha), "IsLOALPHA(chr(%i))" % i)
-        # alpha = upalpha | loalpha
-        alpha = upalpha + loalpha
-        for i in xrange(0, 256):
-            c = chr(i)
-            self.assertTrue(IsALPHA(c) == (c in alpha), "IsALPHA(chr(%i))" % i)
-        # digit  = <any US-ASCII digit "0".."9">
-        digit = "0123456789"
-        for i in xrange(0, 256):
-            c = chr(i)
-            self.assertTrue(IsDIGIT(c) == (c in digit), "IsDIGIT(chr(%i))" % i)
-        # ctl = <any US-ASCII control character (octets 0 - 31) and DEL (127)>
-        ctl = string.join(map(chr, xrange(0, 32)) + [chr(127)], '')
-        for i in xrange(0, 256):
-            c = chr(i)
-            self.assertTrue(IsCTL(c) == (c in ctl), "IsCTL(chr(%i))" % i)
-        # CR = <US-ASCII CR, carriage return (13)>
-        self.assertTrue(CR == chr(13), "CR")
-        # LF = <US-ASCII LF, linefeed (10)>
-        self.assertTrue(LF == chr(10), "LF")
-        # SP = <US-ASCII SP, space (32)>
-        self.assertTrue(SP == chr(32), "SP")
-        # HT = <US-ASCII HT, horizontal-tab (9)>
-        self.assertTrue(HT == chr(9), "HT")
-        # DQUOTE = <US-ASCII double-quote mark (34)>
-        self.assertTrue(DQUOTE == chr(34), "DQUOTE")
-        # CRLF
-        self.assertTrue(CRLF == CR + LF, "CRLF")
-        # LWS = [CRLF] 1*( SP | HT )
-        lws_test = "; \t ;\r\n ;\r\n \r\n\t \r "
-        p = HTTPParser(lws_test)
-        self.assertTrue(p.ParseLWS() is None, "No LWS")
-        p.Parse(";")
-        self.assertTrue(p.ParseLWS() == " \t ", "LWS no CRLF")
-        p.Parse(";")
-        self.assertTrue(p.ParseLWS() == "\r\n ", "LWS with CRLF")
-        p.Parse(";")
-        self.assertTrue(p.ParseLWS() == "\r\n ", "LWS ending at CRLF")
-        self.assertTrue(p.ParseLWS() == "\r\n\t ", "LWS ending at CRLF")
-        # TEXT = <any OCTET except CTLs, but including LWS>
-        p = HTTPParser(lws_test)
-        self.assertTrue(len(p.ParseTEXT()) == 16, "TEXT ending at CR")
-        p = HTTPParser(lws_test)
-        self.assertTrue(p.ParseTEXT(True) == "; \t ; ;  ", "Unfolded TEXT")
-        # hexdigit = "A" | "B" | "C" | "D" | "E" | "F" | "a" | "b" | "c"
-        # | "d" | "e" | "f" | digit
-        hexdigit = "ABCDEFabcdef" + digit
-        for i in xrange(0, 256):
-            c = chr(i)
-            self.assertTrue(IsHEX(c) == (c in hexdigit), "IsHEX(chr(%i))" % i)
-        # words, including comment, quoted string and qdpair
-        word_test = 'Hi(Hi\r\n Hi)Hi<Hi>Hi@Hi,Hi;Hi:Hi\\Hi"\\"Hi\r\n Hi\\""'\
-            '/Hi[Hi]Hi?Hi=Hi{Hi}Hi Hi\tHi\r\n Hi'
-        word_testresult = [
-            "Hi", "(Hi Hi)", "Hi", "<", "Hi", ">", "Hi", "@", "Hi", ",",
-            "Hi", ";", "Hi", ":", "Hi", "\\", "Hi", '"\\"Hi Hi\\""', "/",
-            "Hi", "[", "Hi", "]", "Hi", "?", "Hi", "=", "Hi", "{", "Hi",
-            "}", "Hi", "Hi", "Hi", "Hi"]
-        p = HTTPParser(word_test)
-        p = WordParser(p.ParseTEXT(True))
-        self.assertTrue(p.words == word_testresult, "basic word parser")
-        # token
-        try:
-            CheckToken("Hi")
-        except ValueError:
-            self.fail("CheckToken('Hi')")
-        for t in word_testresult:
-            if t == "Hi":
-                continue
-            try:
-                CheckToken(t)
-                self.fail("Non token checked OK: %s" % t)
-            except ValueError:
-                pass
-        # comment
-
-    def test_token(self):
-        p = WordParser(" a ")
-        self.assertTrue(p.cWord, "Expected a word")
-        self.assertTrue(p.IsToken(), "Expected a token")
-        self.assertTrue(p.ParseToken() == "a", "Expected 'a'")
-        self.assertFalse(p.cWord, "Expected no more words")
-        self.assertFalse(p.IsToken(), "Expected no token")
-
-    def test_token_list(self):
-        p = WordParser(" a ")
-        self.assertTrue(p.ParseTokenList() == ["a"], "Expected ['a']")
-        self.assertFalse(p.cWord, "Expected no more words")
-        self.assertFalse(p.IsToken(), "Expected no token")
-        p = WordParser(" a , b,c ,d,,efg")
-        self.assertTrue(
-            p.ParseTokenList() == ["a", "b", "c", "d", "efg"],
-            "Bad token list")
-        self.assertFalse(p.cWord, "Expected no more words")
-        self.assertFalse(p.IsToken(), "Expected no token")
-
-    def test_parameter(self):
-        parameters = {}
-        p = WordParser(' ;X=1 ;y=2;Zoo=";A=\\"Three\\""')
-        p.ParseParameters(parameters)
-        self.assertTrue(
-            parameters == {
-                'x': ['X', '1'],
-                'y': ['y', '2'],
-                'zoo': ['Zoo', ';A="Three"']},
-            "Paremters: %s" % repr(parameters))
-        try:
-            parameters = {}
-            p = WordParser('token ;X =1', ignoreSpace=False)
-            p.ParseParameters(parameters, ignoreAllSpace=False)
-            p.RequireEnd()
-            self.fail("ParseParameters: ignoreSpace=False")
-        except SyntaxError:
-            pass
-        parameters = {}
-        p = WordParser(' ;X=1 ;q=2;Zoo=";A=\\"Three\\""')
-        p.ParseParameters(parameters, qMode="q")
-        self.assertTrue(
-            parameters == {
-                'x': [
-                    'X',
-                    '1']},
-            "Paremters: %s" %
-            repr(parameters))
-        parameters = {}
-        p.ParseParameters(parameters)
-        self.assertTrue(
-            parameters == {
-                'q': [
-                    'q', '2'], 'zoo': [
-                    'Zoo', ';A="Three"']}, "Paremters: %s" %
-            repr(parameters))
-        parameters = {}
-        p = WordParser(' ;X=1 ;y=2;Zoo=";A=\\"Three\\""')
-        p.ParseParameters(parameters, caseSensitive=True)
-        self.assertTrue(
-            parameters == {
-                'X': [
-                    'X', '1'], 'y': [
-                    'y', '2'], 'Zoo': [
-                    'Zoo', ';A="Three"']}, "Paremters: %s" %
-            repr(parameters))
-
-#   def test_list(self):
-#       words=SplitWords(',hello, "Hi"(Hello), goodbye,  ')
-#       items=SplitItems(words,ignoreNulls=False)
-#       self.assertTrue(items[0]==[],"Leading empty item")
-#       self.assertTrue(items[1]==["hello"],"Token item")
-#       self.assertTrue(items[2]==['"Hi"',"(Hello)"],"Complex item")
-#       self.assertTrue(items[3]==['goodbye'],"Leading space item")
-#       self.assertTrue(items[4]==[],"Trailing empty item")
-
-
 class ProtocolParameterTests(unittest.TestCase):
 
     def test_version(self):
@@ -418,7 +242,7 @@ class ProtocolParameterTests(unittest.TestCase):
             timestamp_822 = FullDate.FromHTTPString(
                 "Mon, 06 Nov 1994 08:49:37 GMT")
             self.fail("Weekday mismatch passed")
-        except SyntaxError:
+        except BadSyntax:
             pass
         timestamp_822 = FullDate.FromHTTPString(
             "Sun, 06 Nov 1994 08:49:37 GMT")
@@ -435,73 +259,57 @@ class ProtocolParameterTests(unittest.TestCase):
         self.assertTrue(te.token == "extension", "Token not case insensitive")
         self.assertTrue(len(te.parameters) == 2, "No of extension parameters")
         self.assertTrue(
-            te.parameters == {
-                'x': [
-                    'x', '1'], 'y': [
-                    'y', '2']}, "Extension parameters: %s" %
-            repr(
-                te.parameters))
+            te.parameters == {'x': ('x', '1'), 'y': ('y', '2')},
+            "Extension parameters: %s" % repr(te.parameters))
         self.assertTrue(str(te) == "extension; x=1; y=2", "te output")
         te = TransferEncoding.FromString("bob; a=4")
         self.assertTrue(te.token == "bob", "Token not case insensitive")
         self.assertTrue(len(te.parameters) == 1, "No of extension parameters")
         self.assertTrue(
-            te.parameters == {
-                'a': [
-                    'a',
-                    '4']},
-            "Single extension parameters: %s" %
-            repr(
-                te.parameters))
+            te.parameters == {'a': ('a', '4')},
+            "Single extension parameters: %s" % repr(te.parameters))
         try:
             te = TransferEncoding.FromString("chunked ; x=1 ; y = 2")
             self.fail("chunked with spurious parameters")
-        except SyntaxError:
+        except BadSyntax:
             pass
         parameters = {}
-        ParameterParser("; x=1 ; y = 2").ParseParameters(parameters)
+        ParameterParser("; x=1 ; y = 2").parse_parameters(parameters)
         te = TransferEncoding("chunked", parameters)
         self.assertTrue(
             len(te.parameters) == 0, "Overparsing of chunked with parameters")
         te = TransferEncoding.FromString("chunkie ; z = 3 ")
-        self.assertTrue(
-            te.parameters == {'z': ['z', '3']}, "chunkie parameters")
+        self.assertTrue(te.parameters == {'z': ('z', '3')},
+                        "chunkie parameters")
 
     def test_media_type(self):
         mtype = MediaType()
         try:
             mtype = MediaType.FromString(' application / octet-stream ')
             self.fail("Space between type and sub-type")
-        except SyntaxError:
+        except BadSyntax:
             pass
         try:
             mtype = MediaType.FromString(' application/octet-stream ')
-        except SyntaxError:
+        except BadSyntax:
             self.fail("No space between type and sub-type")
         try:
             mtype = MediaType.FromString(
                 ' application/octet-stream ; Charset = "en-US"')
             self.fail("Space between param and value")
-        except SyntaxError:
+        except BadSyntax:
             pass
         try:
             mtype = MediaType.FromString(
                 ' application/octet-stream ; Charset="en-US" ; x=1')
-        except SyntaxError:
+        except BadSyntax:
             self.fail("No space between param and value")
         self.assertTrue(mtype.type == 'application', "Media type")
         self.assertTrue(mtype.subtype == 'octet-stream', "Media sub-type")
         self.assertTrue(
-            mtype.parameters == {
-                'charset': [
-                    'Charset',
-                    'en-US'],
-                'x': [
-                    'x',
-                    '1']},
-            "Media type parameters: %s" %
-            repr(
-                mtype.parameters))
+            mtype.parameters == {'charset': ('Charset', 'en-US'),
+                                 'x': ('x', '1')},
+            "Media type parameters: %s" % repr(mtype.parameters))
         self.assertTrue(
             str(mtype) == 'application/octet-stream; Charset=en-US; x=1')
 
@@ -510,15 +318,15 @@ class ProtocolParameterTests(unittest.TestCase):
         self.assertTrue(ptoken.token is None)
         self.assertTrue(ptoken.version is None)
         p = ParameterParser('http/2616; x=1')
-        ptoken = p.ParseProduction(p.RequireProductToken)
+        ptoken = p.parse_production(p.RequireProductToken)
         self.assertTrue(
-            p.cWord == ";", "ParseProductToken result: %s" % p.cWord)
+            p.the_word == ";", "ParseProductToken result: %s" % p.the_word)
         self.assertTrue(ptoken.token == "http", "Product token")
         self.assertTrue(ptoken.version == "2616", "Product token version")
         try:
             ptoken = ProductToken.FromString('http/2616; x=1')
             self.fail("Spurious data test")
-        except SyntaxError:
+        except BadSyntax:
             pass
         ptokens = ProductToken.ListFromString(
             "CERN-LineMode/2.15 libwww/2.17b3")
@@ -563,9 +371,9 @@ class ProtocolParameterTests(unittest.TestCase):
         wp = ParameterParser('0.2 1.x x.1 1.001 0.14151')
         self.assertTrue(str(wp.ParseQualityValue()) == '0.2', "0.2")
         self.assertTrue(wp.ParseQualityValue() is None, "1.x")
-        wp.ParseToken()
+        wp.parse_token()
         self.assertTrue(wp.ParseQualityValue() is None, "x.1")
-        wp.ParseToken()
+        wp.parse_token()
         self.assertTrue(wp.ParseQualityValue() == 1.0, "1.001")
         q = wp.ParseQualityValue()
         self.assertTrue(str(q) == '0.142', "0.14151: %s" % str(q))
@@ -583,11 +391,11 @@ class ProtocolParameterTests(unittest.TestCase):
             # White space is not allowed within the tag
             lang = LanguageTag.FromString(' en - us ')
             self.fail("Space between primary tag and sub-tags")
-        except SyntaxError:
+        except BadSyntax:
             pass
         try:
             lang = LanguageTag.FromString(' en-us ')
-        except SyntaxError:
+        except BadSyntax:
             self.fail("No space between primary tag and sub-tags")
         lang = LanguageTag.FromString('en-US')
         self.assertTrue(lang.primary == 'en', "Primary tag")
@@ -956,7 +764,7 @@ class HeaderTests(unittest.TestCase):
         try:
             ar2 = AcceptRanges.FromString("")
             self.fail("range unit required")
-        except SyntaxError:
+        except BadSyntax:
             pass
         ar2 = AcceptRanges.FromString("Bits,Bytes")
         self.assertTrue(
@@ -967,7 +775,7 @@ class HeaderTests(unittest.TestCase):
         try:
             AcceptRanges("bytes", "none", "bits")
             self.fail("none must be alone")
-        except SyntaxError:
+        except BadSyntax:
             pass
 
     def test_allow(self):

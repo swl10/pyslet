@@ -440,7 +440,8 @@ class SQLCollectionBase(core.EntityCollection):
             self.skiptoken = []
             while True:
                 p.ParseWSP()
-                self.skiptoken.append(p.RequireProduction(p.ParseURILiteral()))
+                self.skiptoken.append(
+                    p.require_production(p.ParseURILiteral()))
                 p.ParseWSP()
                 if not p.Parse(','):
                     if p.MatchEnd():

@@ -108,9 +108,9 @@ class XMLParser:
         self.entityStack = []
         if self.entity:
             # : the current character; None indicates end of stream
-            self.theChar = self.entity.theChar
+            self.the_char = self.entity.the_char
         else:
-            self.theChar = None
+            self.the_char = None
         self.buff = []
         self.stagBuffer = None
         self.declaration = None
@@ -144,20 +144,20 @@ class XMLParser:
     def NextChar(self):
         """Moves to the next character in the stream.
 
-        The current character can always be read from :py:attr:`theChar`.  If
+        The current character can always be read from :py:attr:`the_char`.  If
         there are no characters left in the current entity then entities are
         popped from an internal entity stack automatically."""
         if self.buff:
             self.buff = self.buff[1:]
         if self.buff:
-            self.theChar = self.buff[0]
+            self.the_char = self.buff[0]
         else:
             self.entity.NextChar()
-            self.theChar = self.entity.theChar
-            while self.theChar is None and self.entityStack:
+            self.the_char = self.entity.the_char
+            while self.the_char is None and self.entityStack:
                 self.entity.Close()
                 self.entity = self.entityStack.pop()
-                self.theChar = self.entity.theChar
+                self.the_char = self.entity.the_char
 
     def BuffText(self, unusedChars):
         if unusedChars:
@@ -165,9 +165,9 @@ class XMLParser:
                 self.buff = list(unusedChars) + self.buff
             else:
                 self.buff = list(unusedChars)
-                if self.entity.theChar is not None:
-                    self.buff.append(self.entity.theChar)
-            self.theChar = self.buff[0]
+                if self.entity.the_char is not None:
+                    self.buff.append(self.entity.the_char)
+            self.the_char = self.buff[0]
 
     def GetBuff(self):
         if len(self.buff) > 1:
@@ -178,18 +178,18 @@ class XMLParser:
     def PushEntity(self, entity):
         """Starts parsing *entity*
 
-        :py:attr:`theChar` is set to the current character in the entity's
+        :py:attr:`the_char` is set to the current character in the entity's
         stream.  The current entity is pushed onto an internal stack and will be
         resumed when this entity has been parsed completely.
 
         Note that in the degenerate case where the entity being pushed is empty
         (or is already positioned at the end of the file) then PushEntity does
         nothing."""
-        if entity.theChar is not None:
+        if entity.the_char is not None:
             self.entityStack.append(self.entity)
             self.entity = entity
             self.entity.flags = {}
-            self.theChar = self.entity.theChar
+            self.the_char = self.entity.the_char
         else:
             # Harsh but fair, if we had reason to believe that this entity used UTF-16 but it
             # was completely empty (not even a BOM) then that is an error.
@@ -368,9 +368,9 @@ class XMLParser:
         left in its original position."""
         matchLen = 0
         for m in match:
-            if m != self.theChar and (not self.sgmlNamecaseGeneral or
-                                      self.theChar is None or
-                                      m.lower() != self.theChar.lower()):
+            if m != self.the_char and (not self.sgmlNamecaseGeneral or
+                                       self.the_char is None or
+                                       m.lower() != self.the_char.lower()):
                 self.BuffText(match[:matchLen])
                 break
             matchLen += 1
@@ -389,8 +389,8 @@ class XMLParser:
     def ParseDecimalDigits(self):
         """Parses a, possibly empty, string of decimal digits matching [0-9]*."""
         data = []
-        while self.theChar is not None and self.theChar in "0123456789":
-            data.append(self.theChar)
+        while self.the_char is not None and self.the_char in "0123456789":
+            data.append(self.the_char)
             self.NextChar()
         return string.join(data, '')
 
@@ -407,8 +407,8 @@ class XMLParser:
     def ParseHexDigits(self):
         """Parses a, possibly empty, string of hexadecimal digits matching [0-9a-fA-F]."""
         data = []
-        while self.theChar is not None and self.theChar in "0123456789abcdefABCDEF":
-            data.append(self.theChar)
+        while self.the_char is not None and self.the_char in "0123456789abcdefABCDEF":
+            data.append(self.the_char)
             self.NextChar()
         return string.join(data, '')
 
@@ -427,13 +427,13 @@ class XMLParser:
 
         Returns the character parsed or raises a well formed error."""
         if q:
-            if self.theChar == q:
+            if self.the_char == q:
                 self.NextChar()
                 return q
             else:
                 self.WellFormednessError("Expected %s" % q)
-        elif self.theChar == '"' or self.theChar == "'":
-            q = self.theChar
+        elif self.the_char == '"' or self.the_char == "'":
+            q = self.the_char
             self.NextChar()
             return q
         else:
@@ -474,11 +474,11 @@ class XMLParser:
                     self.ValidityError(
                         "IDREF: %s does not match any ID attribute value")
         self.ParseMisc()
-        if self.theChar is not None and not self.dontCheckWellFormedness:
+        if self.the_char is not None and not self.dontCheckWellFormedness:
             self.WellFormednessError(
                 "Unparsed characters in entity after document: %s" %
                 repr(
-                    self.theChar))
+                    self.the_char))
         return self.doc
 
     def GetDocumentClass(self, dtd):
@@ -546,11 +546,11 @@ class XMLParser:
         characters at code points 2028 and 2029 to line feed and space
         respectively."""
         if self.unicodeCompatibility:
-            if self.theChar == u"\u2028":
-                self.theChar = "\n"
-            elif self.theChar == u"\u2029":
-                self.theChar = ' '
-        return IsS(self.theChar)
+            if self.the_char == u"\u2028":
+                self.the_char = "\n"
+            elif self.the_char == u"\u2029":
+                self.the_char = ' '
+        return IsS(self.the_char)
 
     def ParseS(self):
         """[3] S: Parses white space from the stream matching the production for S.
@@ -569,20 +569,20 @@ class XMLParser:
         sLen = 0
         while True:
             if self.IsS():
-                s.append(self.theChar)
+                s.append(self.the_char)
                 self.NextChar()
-            elif self.theChar == '%' and self.refMode == XMLParser.RefModeInDTD:
+            elif self.the_char == '%' and self.refMode == XMLParser.RefModeInDTD:
                 self.NextChar()
-                if IsNameStartChar(self.theChar):
+                if IsNameStartChar(self.the_char):
                     self.ParsePEReference(True)
                 else:
                     # '%' followed by anything other than name start is not a reference.
                     self.BuffText('%')
                     break
             elif self.unicodeCompatibility:
-                if self.theChar == u"\u2028":
+                if self.the_char == u"\u2028":
                     s.append('\n')
-                elif self.theChar == u"\u2029":
+                elif self.the_char == u"\u2029":
                     s.append(' ')
                 else:
                     break
@@ -610,11 +610,11 @@ class XMLParser:
         The name is returned as a unicode string.  If no Name can be parsed then
         None is returned."""
         name = []
-        if IsNameStartChar(self.theChar):
-            name.append(self.theChar)
+        if IsNameStartChar(self.the_char):
+            name.append(self.the_char)
             self.NextChar()
-            while IsNameChar(self.theChar):
-                name.append(self.theChar)
+            while IsNameChar(self.the_char):
+                name.append(self.the_char)
                 self.NextChar()
         if name:
             return string.join(name, '')
@@ -640,7 +640,7 @@ class XMLParser:
         if name is None:
             return None
         names.append(name)
-        while self.theChar == u' ':
+        while self.the_char == u' ':
             self.NextChar()
             name = self.ParseName()
             if name is None:
@@ -657,8 +657,8 @@ class XMLParser:
 
         If no Nmtoken can be parsed then None is returned."""
         nmtoken = []
-        while IsNameChar(self.theChar):
-            nmtoken.append(self.theChar)
+        while IsNameChar(self.the_char):
+            nmtoken.append(self.the_char)
             self.NextChar()
         if nmtoken:
             return string.join(nmtoken, '')
@@ -675,7 +675,7 @@ class XMLParser:
         if nmtoken is None:
             return None
         nmtokens.append(nmtoken)
-        while self.theChar == u' ':
+        while self.the_char == u' ':
             self.NextChar()
             nmtoken = self.ParseNmtoken()
             if nmtoken is None:
@@ -698,22 +698,22 @@ class XMLParser:
         self.refMode = XMLParser.RefModeInEntityValue
         value = []
         while True:
-            if self.theChar == '&':
+            if self.the_char == '&':
                 value.append(self.ParseReference())
-            elif self.theChar == '%':
+            elif self.the_char == '%':
                 self.ParsePEReference()
-            elif self.theChar == q:
+            elif self.the_char == q:
                 if self.entity is qEntity:
                     self.NextChar()
                     break
                 else:
                     # a quote but in a different entity is treated as data
-                    value.append(self.theChar)
+                    value.append(self.the_char)
                     self.NextChar()
-            elif IsChar(self.theChar):
-                value.append(self.theChar)
+            elif IsChar(self.the_char):
+                value.append(self.the_char)
                 self.NextChar()
-            elif self.theChar is None:
+            elif self.the_char is None:
                 self.WellFormednessError("Incomplete EntityValue")
             else:
                 self.WellFormednessError("Unexpected data in EntityValue")
@@ -747,36 +747,36 @@ class XMLParser:
         self.refMode = XMLParser.RefModeInAttributeValue
         while True:
             try:
-                if self.theChar is None:
+                if self.the_char is None:
                     self.WellFormednessError(production + ":EOF in AttValue")
-                elif self.theChar == q:
+                elif self.the_char == q:
                     if self.entity is qEntity:
                         self.NextChar()
                         break
                     else:
-                        value.append(self.theChar)
+                        value.append(self.the_char)
                         self.NextChar()
-                elif self.theChar in end and self.entity is qEntity:
+                elif self.the_char in end and self.entity is qEntity:
                     # only when not checking well-formedness mode only
                     break
-                elif self.theChar == '&':
+                elif self.the_char == '&':
                     refData = self.ParseReference()
                     value.append(refData)
                 elif self.IsS():
                     value.append(unichr(0x20))
                     self.NextChar()
-                elif self.theChar == '<':
+                elif self.the_char == '<':
                     self.WellFormednessError("No < in Attribute Values")
                 else:
-                    value.append(self.theChar)
+                    value.append(self.the_char)
                     self.NextChar()
             except XMLWellFormedError:
                 if not self.dontCheckWellFormedness:
                     raise
-                elif self.theChar == '<':
-                    value.append(self.theChar)
+                elif self.the_char == '<':
+                    value.append(self.the_char)
                     self.NextChar()
-                elif self.theChar is None:
+                elif self.the_char is None:
                     break
         self.refMode = saveMode
         return string.join(value, '')
@@ -790,18 +790,18 @@ class XMLParser:
         q = self.ParseQuote()
         value = []
         while True:
-            if self.theChar == q:
+            if self.the_char == q:
                 self.NextChar()
                 break
-            elif IsChar(self.theChar):
-                value.append(self.theChar)
+            elif IsChar(self.the_char):
+                value.append(self.the_char)
                 self.NextChar()
-            elif self.theChar is None:
+            elif self.the_char is None:
                 self.WellFormednessError(
                     production + ": Unexpected end of file")
             else:
                 self.WellFormednessError(
-                    production + ": Illegal character %s" % repr(self.theChar))
+                    production + ": Illegal character %s" % repr(self.the_char))
         return string.join(value, '')
 
     def ParsePubidLiteral(self):
@@ -813,18 +813,18 @@ class XMLParser:
         q = self.ParseQuote()
         value = []
         while True:
-            if self.theChar == q:
+            if self.the_char == q:
                 self.NextChar()
                 break
-            elif IsPubidChar(self.theChar):
-                value.append(self.theChar)
+            elif IsPubidChar(self.the_char):
+                value.append(self.the_char)
                 self.NextChar()
-            elif self.theChar is None:
+            elif self.the_char is None:
                 self.WellFormednessError(
                     production + ": Unexpected End of file")
             else:
                 self.WellFormednessError(
-                    production + ": Illegal character %s" % repr(self.theChar))
+                    production + ": Illegal character %s" % repr(self.the_char))
         return string.join(value, '')
 
     def ParseCharData(self):
@@ -840,15 +840,15 @@ class XMLParser:
         occurr until the first non-S character (so any implied start tag is
         treated as being immediately prior to the first non-S)."""
         data = []
-        while self.theChar is not None:
-            if self.theChar == '<' or self.theChar == '&':
+        while self.the_char is not None:
+            if self.the_char == '<' or self.the_char == '&':
                 break
-            if self.theChar == ']':
+            if self.the_char == ']':
                 if self.ParseLiteral(']]>'):
                     self.BuffText(']]>')
                     break
             self.IsS()		# force Unicode compatible white space handling
-            data.append(self.theChar)
+            data.append(self.the_char)
             self.NextChar()
             if len(data) >= XMLEntity.ChunkSize:
                 data = string.join(data, '')
@@ -868,7 +868,7 @@ class XMLParser:
             raise
         return None
 
-    def ParseComment(self, gotLiteral=False):
+    def parse_comment(self, gotLiteral=False):
         """[15] Comment: parses a comment.
 
         If *gotLiteral* is True then the method assumes that the '<!--' literal
@@ -879,13 +879,13 @@ class XMLParser:
         if not gotLiteral:
             self.ParseRequiredLiteral('<!--', production)
         cEntity = self.entity
-        while self.theChar is not None:
-            if self.theChar == '-':
+        while self.the_char is not None:
+            if self.the_char == '-':
                 self.NextChar()
                 nHyphens += 1
                 if nHyphens > 2 and not self.dontCheckWellFormedness:
                     self.WellFormednessError("-- in Comment")
-            elif self.theChar == '>':
+            elif self.the_char == '>':
                 if nHyphens == 2:
                     self.CheckPEBetweenDeclarations(cEntity)
                     self.NextChar()
@@ -902,7 +902,7 @@ class XMLParser:
                     break
             elif self.IsS():
                 if nHyphens < 2:
-                    data.append('-' * nHyphens + self.theChar)
+                    data.append('-' * nHyphens + self.the_char)
                     nHyphens = 0
                 # space does not change the hyphen count
                 self.NextChar()
@@ -912,7 +912,7 @@ class XMLParser:
                         self.WellFormednessError("-- in Comment")
                     data.append('-' * nHyphens)
                     nHyphens = 0
-                data.append(self.theChar)
+                data.append(self.the_char)
                 self.NextChar()
         return string.join(data, '')
 
@@ -932,16 +932,16 @@ class XMLParser:
         dEntity = self.entity
         target = self.ParsePITarget()
         if self.ParseS():
-            while self.theChar is not None:
-                if self.theChar == '?':
+            while self.the_char is not None:
+                if self.the_char == '?':
                     self.NextChar()
-                    if self.theChar == '>':
+                    if self.the_char == '>':
                         self.NextChar()
                         break
                     else:
                         # just a single '?'
                         data.append('?')
-                data.append(self.theChar)
+                data.append(self.the_char)
                 self.NextChar()
         else:
             self.CheckPEBetweenDeclarations(dEntity)
@@ -985,11 +985,11 @@ class XMLParser:
 
         This method adds any parsed data to the current element."""
         data = []
-        while self.theChar is not None:
+        while self.the_char is not None:
             if self.ParseLiteral(cdEnd):
                 self.BuffText(cdEnd)
                 break
-            data.append(self.theChar)
+            data.append(self.the_char)
             self.NextChar()
             if len(data) >= XMLEntity.ChunkSize:
                 data = string.join(data, '')
@@ -1112,7 +1112,7 @@ class XMLParser:
                 self.NextChar()
                 continue
             elif self.ParseLiteral('<!--'):
-                self.ParseComment(True)
+                self.parse_comment(True)
                 continue
             elif self.ParseLiteral('<?'):
                 self.ParsePI(True)
@@ -1139,7 +1139,7 @@ class XMLParser:
         self.dtd.name = self.ParseRequiredName(production)
         if self.ParseS():
             # could be an ExternalID
-            if self.theChar != '[' and self.theChar != '>':
+            if self.the_char != '[' and self.the_char != '>':
                 self.dtd.externalID = self.ParseExternalID()
                 self.ParseS()
         if self.ParseLiteral('['):
@@ -1163,7 +1163,7 @@ class XMLParser:
         """[28a] DeclSep: parses a declaration separator."""
         gotSep = False
         while True:
-            if self.theChar == '%':
+            if self.the_char == '%':
                 refEntity = self.entity
                 self.ParsePEReference()
                 if self.entity is not refEntity:
@@ -1179,17 +1179,17 @@ class XMLParser:
             self.WellFormednessError(
                 "[28a] DeclSep: expected PEReference or S, found %s" %
                 repr(
-                    self.theChar))
+                    self.the_char))
 
     def ParseIntSubset(self):
         """[28b] intSubset: parses an internal subset."""
         subsetEntity = self.entity
         while True:
-            if self.theChar == '<':
+            if self.the_char == '<':
                 self.noPERefs = (self.GetExternalEntity() is subsetEntity)
                 self.ParseMarkupDecl()
                 self.noPERefs = False
-            elif self.theChar == '%' or self.IsS():
+            elif self.the_char == '%' or self.IsS():
                 self.ParseDeclSep()
             else:
                 break
@@ -1201,14 +1201,14 @@ class XMLParser:
         production = "[29] markupDecl"
         if not gotLiteral:
             self.ParseRequiredLiteral('<', production)
-        if self.theChar == '?':
+        if self.the_char == '?':
             self.NextChar()
             self.ParsePI(True)
-        elif self.theChar == '!':
+        elif self.the_char == '!':
             self.NextChar()
-            if self.theChar == '-':
+            if self.the_char == '-':
                 self.ParseRequiredLiteral('--', production)
-                self.ParseComment(True)
+                self.parse_comment(True)
             elif self.ParseLiteral('ELEMENT'):
                 self.ParseElementDecl(True)
             elif self.ParseLiteral('ATTLIST'):
@@ -1238,11 +1238,11 @@ class XMLParser:
         initialStack = len(self.entityStack)
         while len(self.entityStack) >= initialStack:
             literalEntity = self.entity
-            if self.theChar == '%' or self.IsS():
+            if self.the_char == '%' or self.IsS():
                 self.ParseDeclSep()
             elif self.ParseLiteral("<!["):
                 self.ParseConditionalSect(literalEntity)
-            elif self.theChar == '<':
+            elif self.the_char == '<':
                 self.ParseMarkupDecl()
             else:
                 break
@@ -1272,7 +1272,7 @@ class XMLParser:
             self.ParseRequiredLiteral('standalone', production)
         self.ParseEq(production)
         q = self.ParseQuote()
-        if self.theChar == u'y':
+        if self.the_char == u'y':
             result = True
             match = u'yes'
         else:
@@ -1307,7 +1307,7 @@ class XMLParser:
         saveElement = self.element
         saveElementType = self.elementType
         saveCursor = None
-        if self.sgmlOmittag and self.theChar != '<':
+        if self.sgmlOmittag and self.the_char != '<':
             # Leading data means the start tag was omitted (perhaps at the
             # start of the doc)
             name = None
@@ -1377,7 +1377,7 @@ class XMLParser:
                 # SGML says that the content ends at the first ETAGO
                 while True:
                     self.ParseCData('</')
-                    if self.theChar is None:
+                    if self.the_char is None:
                         break
                     self.ParseRequiredLiteral('</', "SGML CDATA Content:")
                     endName = self.ParseName()
@@ -1656,10 +1656,10 @@ class XMLParser:
         while True:
             try:
                 s = self.ParseS()
-                if self.theChar == '>':
+                if self.the_char == '>':
                     self.NextChar()
                     break
-                elif self.theChar == '/':
+                elif self.the_char == '/':
                     self.ParseRequiredLiteral('/>')
                     empty = True
                     break
@@ -1672,7 +1672,7 @@ class XMLParser:
                     attrs[aName] = aValue
                 else:
                     self.WellFormednessError(
-                        "Expected S, '>' or '/>', found '%s'" % self.theChar)
+                        "Expected S, '>' or '/>', found '%s'" % self.the_char)
             except XMLWellFormedError:
                 if not self.dontCheckWellFormedness:
                     raise
@@ -1699,7 +1699,7 @@ class XMLParser:
         if self.sgmlShorttag:
             # name on its own may be OK
             s = self.ParseS()
-            if self.theChar != '=':
+            if self.the_char != '=':
                 self.BuffText(s)
                 return '@' + name, name
         self.ParseEq(production)
@@ -1720,8 +1720,8 @@ class XMLParser:
         self.ParseS()
         if self.dontCheckWellFormedness:
             # ignore all rubbish in end tags
-            while self.theChar is not None:
-                if self.theChar == '>':
+            while self.the_char is not None:
+                if self.the_char == '>':
                     self.NextChar()
                     break
                 self.NextChar()
@@ -1745,20 +1745,20 @@ class XMLParser:
         element's ETag has been omitted).  See py:meth:`ParseElement` for more
         information."""
         while True:
-            if self.theChar == '<':
+            if self.the_char == '<':
                 # element, CDSect, PI or Comment
                 self.NextChar()
-                if self.theChar == '!':
+                if self.the_char == '!':
                     # CDSect or Comment
                     self.NextChar()
-                    if self.theChar == '-':
+                    if self.the_char == '-':
                         self.ParseRequiredLiteral('--')
-                        self.ParseComment(True)
+                        self.parse_comment(True)
                         if self.checkValidity and self.elementType.contentType == ElementType.Empty:
                             self.ValidityError(
                                 "Element Valid: comment not allowed in element declared EMPTY: %s" %
                                 self.elementType.name)
-                    elif self.theChar == '[':
+                    elif self.the_char == '[':
                         self.ParseRequiredLiteral('[CDATA[')
                         # can CDATA sections imply missing markup?
                         if self.sgmlOmittag and not self.element.IsMixed():
@@ -1770,7 +1770,7 @@ class XMLParser:
                             self.ParseCDSect(True)
                     else:
                         self.WellFormednessError("Expected Comment or CDSect")
-                elif self.theChar == '?':
+                elif self.the_char == '?':
                     # PI
                     self.NextChar()
                     self.ParsePI(True)
@@ -1778,7 +1778,7 @@ class XMLParser:
                         self.ValidityError(
                             "Element Valid: processing instruction not allowed in element declared EMPTY: %s" %
                             self.elementType.name)
-                elif self.theChar != '/':
+                elif self.the_char != '/':
                     # element
                     self.BuffText('<')
                     if not self.ParseElement():
@@ -1787,7 +1787,7 @@ class XMLParser:
                     # end of content
                     self.BuffText('<')
                     break
-            elif self.theChar == '&':
+            elif self.the_char == '&':
                 # Reference
                 if self.sgmlOmittag and not self.element.IsMixed():
                     # we step in before resolving the reference, just in case
@@ -1801,7 +1801,7 @@ class XMLParser:
                             "Element Valid: reference not allowed in element declared EMPTY: %s" %
                             self.elementType.name)
                     self.HandleData(data, True)
-            elif self.theChar is None:
+            elif self.the_char is None:
                 # end of entity
                 if self.sgmlOmittag:
                     return False
@@ -1939,19 +1939,19 @@ class XMLParser:
         # choice or seq
         firstChild = self.ParseCP()
         self.ParseS()
-        if self.theChar == ',' or self.theChar == ')':
+        if self.the_char == ',' or self.the_char == ')':
             cp = self.ParseSeq(firstChild, groupEntity)
-        elif self.theChar == '|':
+        elif self.the_char == '|':
             cp = self.ParseChoice(firstChild, groupEntity)
         else:
             self.WellFormednessError(production + ": expected seq or choice")
-        if self.theChar == '?':
+        if self.the_char == '?':
             cp.occurrence = XMLContentParticle.ZeroOrOne
             self.NextChar()
-        elif self.theChar == '*':
+        elif self.the_char == '*':
             cp.occurrence = XMLContentParticle.ZeroOrMore
             self.NextChar()
-        elif self.theChar == '+':
+        elif self.the_char == '+':
             cp.occurrence = XMLContentParticle.OneOrMore
             self.NextChar()
         return cp
@@ -1965,9 +1965,9 @@ class XMLParser:
             self.ParseS()
             firstChild = self.ParseCP()
             self.ParseS()
-            if self.theChar == ',' or self.theChar == ')':
+            if self.the_char == ',' or self.the_char == ')':
                 cp = self.ParseSeq(firstChild, groupEntity)
-            elif self.theChar == '|':
+            elif self.the_char == '|':
                 cp = self.ParseChoice(firstChild, groupEntity)
             else:
                 self.WellFormednessError(
@@ -1975,13 +1975,13 @@ class XMLParser:
         else:
             cp = XMLNameParticle()
             cp.name = self.ParseRequiredName(production)
-        if self.theChar == '?':
+        if self.the_char == '?':
             cp.occurrence = XMLContentParticle.ZeroOrOne
             self.NextChar()
-        elif self.theChar == '*':
+        elif self.the_char == '*':
             cp.occurrence = XMLContentParticle.ZeroOrMore
             self.NextChar()
-        elif self.theChar == '+':
+        elif self.the_char == '+':
             cp.occurrence = XMLContentParticle.OneOrMore
             self.NextChar()
         return cp
@@ -2005,9 +2005,9 @@ class XMLParser:
             self.ParseS()
         cp.children.append(firstChild)
         while True:
-            if self.theChar == '|':
+            if self.the_char == '|':
                 self.NextChar()
-            elif self.theChar == ')':
+            elif self.the_char == ')':
                 if self.checkValidity and self.entity is not groupEntity:
                     self.ValidityError(
                         "Proper Group/PE Nesting: found ')' in entity %s" %
@@ -2020,13 +2020,13 @@ class XMLParser:
                         production +
                         ": Expected '|', found %s" %
                         repr(
-                            self.theChar))
+                            self.the_char))
             else:
                 self.WellFormednessError(
                     production +
                     ": Expected '|' or ')', found %s" %
                     repr(
-                        self.theChar))
+                        self.the_char))
             self.ParseS()
             cp.children.append(self.ParseCP())
             self.ParseS()
@@ -2048,9 +2048,9 @@ class XMLParser:
             self.ParseS()
         cp.children.append(firstChild)
         while True:
-            if self.theChar == ',':
+            if self.the_char == ',':
                 self.NextChar()
-            elif self.theChar == ')':
+            elif self.the_char == ')':
                 if self.checkValidity and self.entity is not groupEntity:
                     self.ValidityError(
                         "Proper Group/PE Nesting: found ')' in entity %s" %
@@ -2062,7 +2062,7 @@ class XMLParser:
                     production +
                     ": Expected ',' or ')', found %s" %
                     repr(
-                        self.theChar))
+                        self.the_char))
             self.ParseS()
             cp.children.append(self.ParseCP())
             self.ParseS()
@@ -2090,13 +2090,13 @@ class XMLParser:
             self.ParseRequiredLiteral('#PCDATA', production)
         while True:
             self.ParseS()
-            if self.theChar == ')':
+            if self.the_char == ')':
                 if self.checkValidity and self.entity is not groupEntity:
                     self.ValidityError(
                         "Proper Group/PE Nesting: found ')' in entity %s" %
                         self.entity.GetName())
                 break
-            elif self.theChar == '|':
+            elif self.the_char == '|':
                 self.NextChar()
                 self.ParseS()
                 cpChild = XMLNameParticle()
@@ -2133,7 +2133,7 @@ class XMLParser:
         name = self.ParseRequiredName(production)
         while True:
             if self.ParseS():
-                if self.theChar == '>':
+                if self.the_char == '>':
                     break
                 a = self.ParseAttDef(True)
                 if self.dtd:
@@ -2200,7 +2200,7 @@ class XMLParser:
         elif self.ParseLiteral('NOTATION'):
             a.type = XMLAttributeDefinition.Notation
             a.values = self.ParseNotationType(True)
-        elif self.theChar == '(':
+        elif self.the_char == '(':
             a.type = XMLAttributeDefinition.Enumeration
             a.values = self.ParseEnumeration()
         else:
@@ -2266,7 +2266,7 @@ class XMLParser:
         if self.ParseLiteral('NOTATION'):
             a.type = XMLAttributeDefinition.Notation
             a.values = self.ParseNotationType(True)
-        elif self.theChar == '(':
+        elif self.the_char == '(':
             a.type = XMLAttributeDefinition.Enumeration
             a.values = self.ParseEnumeration()
         else:
@@ -2295,10 +2295,10 @@ class XMLParser:
                     "No Duplicate Tokens: %s already declared" % name)
             value[name] = True
             self.ParseS()
-            if self.theChar == '|':
+            if self.the_char == '|':
                 self.NextChar()
                 continue
-            elif self.theChar == ')':
+            elif self.the_char == ')':
                 self.NextChar()
                 break
             else:
@@ -2306,7 +2306,7 @@ class XMLParser:
                     production +
                     ": expected '|' or ')', found %s" %
                     repr(
-                        self.theChar))
+                        self.the_char))
         return value
 
     def ParseEnumeration(self):
@@ -2327,10 +2327,10 @@ class XMLParser:
             else:
                 self.WellFormednessError(production + ": expected Nmtoken")
             self.ParseS()
-            if self.theChar == '|':
+            if self.the_char == '|':
                 self.NextChar()
                 continue
-            elif self.theChar == ')':
+            elif self.the_char == ')':
                 self.NextChar()
                 break
             else:
@@ -2338,7 +2338,7 @@ class XMLParser:
                     production +
                     ": expected '|' or ')', found %s" %
                     repr(
-                        self.theChar))
+                        self.the_char))
         return value
 
     def ParseDefaultDecl(self, a):
@@ -2492,11 +2492,11 @@ class XMLParser:
         """[65] Ignore: parses a run of characters in an ignored section.
 
         This method returns no data."""
-        while IsChar(self.theChar):
-            if self.theChar == '<' and self.ParseLiteral('<!['):
+        while IsChar(self.the_char):
+            if self.the_char == '<' and self.ParseLiteral('<!['):
                 self.BuffText(u'<![')
                 break
-            elif self.theChar == ']' and self.ParseLiteral(']]>'):
+            elif self.the_char == ']' and self.ParseLiteral(']]>'):
                 self.BuffText(u']]>')
                 break
             else:
@@ -2542,7 +2542,7 @@ class XMLParser:
         general entity the data returned will depend on the parsing context. For
         more information see :py:meth:`ParseEntityRef`."""
         self.ParseRequiredLiteral('&', "[67] Reference")
-        if self.theChar == '#':
+        if self.the_char == '#':
             return self.ParseCharRef(True)
         else:
             return self.ParseEntityRef(True)
@@ -2733,7 +2733,7 @@ class XMLParser:
         dEntity = self.entity
         xEntity = self.GetExternalEntity()
         self.ParseRequiredS(production)
-        if self.theChar == '%':
+        if self.the_char == '%':
             e = self.ParsePEDecl(True)
         else:
             e = self.ParseGEDecl(True)
@@ -2796,9 +2796,9 @@ class XMLParser:
         definition."""
         ge.definition = None
         ge.notation = None
-        if self.theChar == '"' or self.theChar == "'":
+        if self.the_char == '"' or self.the_char == "'":
             ge.definition = self.ParseEntityValue()
-        elif self.theChar == 'S' or self.theChar == 'P':
+        elif self.the_char == 'S' or self.the_char == 'P':
             ge.definition = self.ParseExternalID()
             s = self.ParseS()
             if s:
@@ -2817,9 +2817,9 @@ class XMLParser:
         sets the :py:attr:`~pyslet.xml20081126.structures.XMLParameterEntity.definition` field from the parsed
         parameter entity definition."""
         pe.definition = None
-        if self.theChar == '"' or self.theChar == "'":
+        if self.the_char == '"' or self.the_char == "'":
             pe.definition = self.ParseEntityValue()
-        elif self.theChar == 'S' or self.theChar == 'P':
+        elif self.the_char == 'S' or self.the_char == 'P':
             pe.definition = self.ParseExternalID()
         else:
             self.WellFormednessError(
@@ -2849,7 +2849,7 @@ class XMLParser:
                 production + ": Expected 'PUBLIC' or 'SYSTEM'")
         if (allowPublicOnly):
             if self.ParseS():
-                if self.theChar == '"' or self.theChar == "'":
+                if self.the_char == '"' or self.the_char == "'":
                     systemID = self.ParseSystemLiteral()
                 else:
                     # we've consumed the trailing S, not a big deal
@@ -2943,11 +2943,11 @@ class XMLParser:
         Returns the encoding name as a string or None if no valid encoding name
         start character was found."""
         name = []
-        if EncNameStartCharClass.Test(self.theChar):
-            name.append(self.theChar)
+        if EncNameStartCharClass.Test(self.the_char):
+            name.append(self.the_char)
             self.NextChar()
-            while EncNameCharClass.Test(self.theChar):
-                name.append(self.theChar)
+            while EncNameCharClass.Test(self.the_char):
+                name.append(self.the_char)
                 self.NextChar()
         if name:
             return string.join(name, '')

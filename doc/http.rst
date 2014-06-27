@@ -1,16 +1,23 @@
 Hypertext Transfer Protocol (RFC2616)
 =====================================
 
-.. py:module:: pyslet.rfc2616
+.. py:module:: pyslet.rfc2617
 
-This module defines functions and classes for working with HTTP as defined by
-RFC2616: http://www.ietf.org/rfc/rfc2616.txt
+This sub-package defines functions and classes for working with HTTP as
+defined by RFC2616: http://www.ietf.org/rfc/rfc2616.txt and RFC2617:
+http://www.ietf.org/rfc/rfc2616.txt
 
 The purpose of this module is to expose some of the basic constructs
 (including the synax of protocol components) to allow them to be used
 normatively in other contexts.  The module also contains a functional
 HTTP client designed to support non-blocking and persistent HTTP client
 operations.
+
+.. toctree::
+   :maxdepth: 2
+
+   http/grammar
+
 
 HTTP Messages
 -------------
@@ -152,68 +159,12 @@ and a special-purpose parser for parsing them from strings of octets.
 ..	autoclass:: ParameterParser
 	:members:
 	:show-inheritance:
-
-
-Generic Grammar
----------------
-
-This section defines functions for handling basic elements of the HTTP grammar.
-
-..	autofunction:: IsOCTET
-
-..	autofunction:: IsCHAR
-
-..	autofunction:: IsUPALPHA
-
-..	autofunction:: IsLOALPHA
-
-..	autofunction:: IsALPHA
-
-..	autofunction:: IsDIGIT
-
-..	autofunction:: IsDIGITS
-
-..	autofunction:: IsCTL
-
-..	autodata::CR
-
-..	autodata::LF
-
-..	autodata::SP
-
-..	autodata::HT
-
-..	autodata::DQUOTE
-
-..	autodata::CRLF
-
-..	autofunction:: IsHEX
-
-..	autofunction:: IsHEXDIGITS
-
-..	autodata::SEPARATORS
-
-..	autofunction:: IsSEPARATOR
-
-..	autoclass:: HTTPParser
-	:members:
-	:show-inheritance:
-
-..	autofunction:: CheckToken
-
-..	autofunction:: QuoteString
-
-..	autofunction:: DecodeQuotedString
-
-..	autoclass:: WordParser
-	:members:
-	:show-inheritance:
 	
 
 Exceptions
 ----------
 
-..	autoclass:: SyntaxError
+..	autoclass:: BadSyntax
 	:show-inheritance:
 
 ..	autoclass:: HTTPException

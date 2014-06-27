@@ -4,7 +4,7 @@ import string
 import warnings
 from types import *
 
-from pyslet.rfc2616_core import *
+from pyslet.http.grammar import *
 import pyslet.iso8601 as iso
 import pyslet.rfc2396 as uri
 
@@ -35,8 +35,8 @@ class HTTPVersion(object):
     def FromString(cls, source):
         """Constructs an :py:class:`HTTPVersion` object from a string."""
         wp = ParameterParser(source)
-        result = wp.RequireProduction(wp.ParseHTTPVersion(), "HTTP Version")
-        wp.RequireEnd("HTTP version")
+        result = wp.require_production(wp.ParseHTTPVersion(), "HTTP Version")
+        wp.require_end("HTTP version")
         return result
 
     def __str__(self):
@@ -129,8 +129,8 @@ class FullDate(iso.TimePoint):
         formatted string."""
         wp = ParameterParser(source)
         tp = wp.RequireFullDate()
-        wp.ParseSP()
-        wp.RequireEnd("full date")
+        wp.parse_sp()
+        wp.require_end("full date")
         return tp
 
     def __str__(self):
@@ -183,14 +183,14 @@ class TransferEncoding(object):
     def FromString(cls, source):
         """Parses the transfer-encoding from a *source* string.
 
-        If the protocol version is not parsed correctly SyntaxError is raised."""
+        If the protocol version is not parsed correctly BadSyntax is raised."""
         p = ParameterParser(source)
         te = p.RequireTransferEncoding()
-        p.RequireEnd("transfer-encoding")
+        p.require_end("transfer-encoding")
         return te
 
     def __str__(self):
-        return self.token + FormatParameters(self.parameters)
+        return self.token + format_parameters(self.parameters)
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -233,14 +233,14 @@ class MediaType(object):
 
                 Linear white space (LWS) MUST NOT be used between the type and
                 subtype, nor between an attribute and its value"""
-        p = ParameterParser(source, ignoreSpace=False)
+        p = ParameterParser(source, ignore_sp=False)
         mt = p.RequireMediaType()
-        p.ParseSP()
-        p.RequireEnd("media-type")
+        p.parse_sp()
+        p.require_end("media-type")
         return mt
 
     def __str__(self):
-        return string.join([self.type, '/', self.subtype], '') + FormatParameters(self.parameters)
+        return string.join([self.type, '/', self.subtype], '') + format_parameters(self.parameters)
 
     def __unicode__(self):
         return unicode(self.__str__())
@@ -320,16 +320,16 @@ class ProductToken(object):
         to force "a3" to sort before "0a3"."""
         exploded = []
         p = BasicParser(version)
-        while p.theChar is not None:
+        while p.the_char is not None:
             # parse an item
             vitem = []
             modifier = []
             while not p.Match(".") and not p.MatchEnd():
-                num = p.ParseInteger()
+                num = p.parse_integer()
                 if num is None:
                     if not vitem:
                         vitem.append(-1)
-                    modifier.append(p.theChar)
+                    modifier.append(p.the_char)
                     p.NextChar()
                 else:
                     if modifier:
@@ -346,10 +346,10 @@ class ProductToken(object):
     def FromString(cls, source):
         """Creates a product token from a *source* string."""
         p = ParameterParser(source)
-        p.ParseSP()
+        p.parse_sp()
         pt = p.RequireProductToken()
-        p.ParseSP()
-        p.RequireEnd("product token")
+        p.parse_sp()
+        p.require_end("product token")
         return pt
 
     @classmethod
@@ -359,11 +359,11 @@ class ProductToken(object):
         Individual tokens are separated by white space."""
         ptList = []
         p = ParameterParser(source)
-        p.ParseSP()
-        while p.cWord is not None:
+        p.parse_sp()
+        while p.the_word is not None:
             ptList.append(p.RequireProductToken())
-            p.ParseSP()
-        p.RequireEnd("product token")
+            p.parse_sp()
+        p.require_end("product token")
         return ptList
 
     def __str__(self):
@@ -490,28 +490,28 @@ class LanguageTag(object):
         Enforces the following rules from the specification:
 
                 White space is not allowed within the tag"""
-        p = ParameterParser(source, ignoreSpace=False)
-        p.ParseSP()
+        p = ParameterParser(source, ignore_sp=False)
+        p.parse_sp()
         t = p.RequireLanguageTag()
-        p.ParseSP()
-        p.RequireEnd("language tag")
+        p.parse_sp()
+        p.require_end("language tag")
         return t
 
     @classmethod
     def ListFromString(cls, source):
         """Creates a list of language tags from a *source* string."""
-        p = ParameterParser(source, ignoreSpace=False)
+        p = ParameterParser(source, ignore_sp=False)
         tags = []
         while True:
-            p.ParseSP()
-            t = p.ParseProduction(p.RequireLanguageTag)
+            p.parse_sp()
+            t = p.parse_production(p.RequireLanguageTag)
             if t is not None:
                 tags.append(t)
-            p.ParseSP()
-            if not p.ParseSeparator(","):
+            p.parse_sp()
+            if not p.parse_separator(","):
                 break
-        p.ParseSP()
-        p.RequireEnd("language tag")
+        p.parse_sp()
+        p.require_end("language tag")
         return tags
 
     def __str__(self):
@@ -562,14 +562,14 @@ class EntityTag:
         """Creates an entity-tag from a *source* string."""
         p = ParameterParser(source)
         et = p.RequireEntityTag()
-        p.RequireEnd("entity-tag")
+        p.require_end("entity-tag")
         return et
 
     def __str__(self):
         if self.weak:
-            return "W/" + QuoteString(self.tag)
+            return "W/" + quote_string(self.tag)
         else:
-            return QuoteString(self.tag)
+            return quote_string(self.tag)
 
     def __unicode__(self):
         return unicode(self.__str__())
@@ -598,22 +598,22 @@ class ParameterParser(WordParser):
     def ParseHTTPVersion(self):
         """Parses an :py:class:`HTTPVersion` instance or None if no
         version was found."""
-        savePos = self.pos
+        savepos = self.pos
         try:
-            self.ParseSP()
-            token = self.RequireToken("HTTP").upper()
+            self.parse_sp()
+            token = self.require_token("HTTP").upper()
             if token != "HTTP":
-                raise SyntaxError("Expected 'HTTP', found %s" % repr(token))
-            self.ParseSP()
-            self.RequireSeparator('/', "HTTP/")
-            self.ParseSP()
-            token = self.RequireToken("protocol version")
+                raise BadSyntax("Expected 'HTTP', found %s" % repr(token))
+            self.parse_sp()
+            self.require_separator('/', "HTTP/")
+            self.parse_sp()
+            token = self.require_token("protocol version")
             version = token.split('.')
-            if len(version) != 2 or not IsDIGITS(version[0]) or not IsDIGITS(version[1]):
-                raise SyntaxError("Expected version, found %s" % repr(token))
+            if len(version) != 2 or not is_digits(version[0]) or not is_digits(version[1]):
+                raise BadSyntax("Expected version, found %s" % repr(token))
             return HTTPVersion(major=int(version[0]), minor=int(version[1]))
-        except SyntaxError:
-            self.SetPos(savePost)
+        except BadSyntax:
+            self.setpos(savePost)
             return None
 
     wkday = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -632,7 +632,7 @@ class ParameterParser(WordParser):
 
     def RequireFullDate(self):
         """Parses a :py:class:`FullDate` instance raising
-        :py:class:`SyntaxError` if none is found.
+        :py:class:`BadSyntax` if none is found.
 
         There are three supported formats as described in the specification::
 
@@ -649,63 +649,63 @@ class ParameterParser(WordParser):
         minute = None
         second = None
         dayOfWeek = None
-        self.ParseSP()
-        token = self.RequireToken("day-of-week").lower()
+        self.parse_sp()
+        token = self.require_token("day-of-week").lower()
         dayOfWeek = self._wkdayTable.get(token, None)
         if dayOfWeek is None:
-            raise SyntaxError("Unrecognized day of week: %s" % token)
-        self.ParseSP()
-        if self.ParseSeparator(","):
-            self.ParseSP()
-            if self.IsToken() and IsDIGITS(self.cWord):
+            raise BadSyntax("Unrecognized day of week: %s" % token)
+        self.parse_sp()
+        if self.parse_separator(","):
+            self.parse_sp()
+            if self.is_token() and is_digits(self.the_word):
                 # Best format 0: "Sun, 06 Nov 1994 08:49:37 GMT" - the
                 # preferred format!
-                day = self.RequireInteger("date")
-                self.ParseSP()
-                token = self.RequireToken("month").lower()
+                day = self.require_integer("date")
+                self.parse_sp()
+                token = self.require_token("month").lower()
                 month = self._monthTable.get(token, None)
                 if month is None:
-                    raise SyntaxError("Unrecognized month: %s" % repr(token))
-                self.ParseSP()
-                year = self.RequireInteger("year")
+                    raise BadSyntax("Unrecognized month: %s" % repr(token))
+                self.parse_sp()
+                year = self.require_integer("year")
                 century = year // 100
                 year = year % 100
             else:
                 # Alternative 1: "Sunday, 06-Nov-94 08:49:37 GMT"
-                token = self.RequireToken("DD-MMM-YY")
+                token = self.require_token("DD-MMM-YY")
                 sToken = token.split('-')
-                if len(sToken) != 3 or not IsDIGITS(sToken[0]) or not IsDIGITS(sToken[2]):
-                    raise SyntaxError(
+                if len(sToken) != 3 or not is_digits(sToken[0]) or not is_digits(sToken[2]):
+                    raise BadSyntax(
                         "Expected DD-MMM-YY, found %s" % repr(token))
                 day = int(sToken[0])
                 year = int(sToken[2])
                 month = self._monthTable.get(sToken[1].lower(), None)
                 if month is None:
-                    raise SyntaxError(
+                    raise BadSyntax(
                         "Unrecognized month: %s" % repr(sToken[1]))
         else:
             # "Sun Nov  6 08:49:37 1994"
-            token = self.RequireToken("month").lower()
+            token = self.require_token("month").lower()
             month = self._monthTable.get(token, None)
             if month is None:
-                raise SyntaxError("Unrecognized month: %s" % repr(token))
-            self.ParseSP()
-            day = self.RequireInteger("date")
-        self.ParseSP()
-        hour = self.RequireInteger("hour")
-        self.RequireSeparator(':')
-        minute = self.RequireInteger("minute")
-        self.RequireSeparator(':')
-        second = self.RequireInteger("second")
-        self.ParseSP()
+                raise BadSyntax("Unrecognized month: %s" % repr(token))
+            self.parse_sp()
+            day = self.require_integer("date")
+        self.parse_sp()
+        hour = self.require_integer("hour")
+        self.require_separator(':')
+        minute = self.require_integer("minute")
+        self.require_separator(':')
+        second = self.require_integer("second")
+        self.parse_sp()
         if year is None:
-            year = self.RequireInteger("year")
+            year = self.require_integer("year")
             century = year // 100
             year = year % 100
         else:
-            token = self.RequireToken("GMT").upper()
+            token = self.require_token("GMT").upper()
             if token != "GMT":
-                raise SyntaxError("Unrecognized timezone: %s" % repr(token))
+                raise BadSyntax("Unrecognized timezone: %s" % repr(token))
         if century is None:
             if year < 90:
                 century = 20
@@ -715,52 +715,52 @@ class ParameterParser(WordParser):
                       time=iso.Time(hour=hour, minute=minute, second=second, zDirection=0))
         d1, d2, d3, d4, dow = tp.date.GetWeekDay()
         if dow != dayOfWeek + 1:
-            raise SyntaxError("Day-of-week mismatch, expected %s but found %s" %
-                              (self.wkday[dow - 1], self.wkday[dayOfWeek]))
+            raise BadSyntax("Day-of-week mismatch, expected %s but found %s" %
+                            (self.wkday[dow - 1], self.wkday[dayOfWeek]))
         return tp
 
-    #: Parses a delta-seconds value, see :py:meth:`WordParser.ParseInteger`
-    ParseDeltaSeconds = WordParser.ParseInteger
+    #: Parses a delta-seconds value, see :py:meth:`WordParser.parse_integer`
+    ParseDeltaSeconds = WordParser.parse_integer
 
-    #: Parses a charset, see :py:meth:`WordParser.ParseTokenLower`
-    ParseCharset = WordParser.ParseTokenLower
+    #: Parses a charset, see :py:meth:`WordParser.parse_tokenlower`
+    ParseCharset = WordParser.parse_tokenlower
 
-    # : Parses a content-coding, see :py:meth:`WordParser.ParseTokenLower`
-    ParseContentCoding = WordParser.ParseTokenLower
+    # : Parses a content-coding, see :py:meth:`WordParser.parse_tokenlower`
+    ParseContentCoding = WordParser.parse_tokenlower
 
     def RequireTransferEncoding(self):
         """Parses a transfer-encoding returning a
         :py:class:`TransferEncoding` instance or None if no
         transfer-encoding was found."""
-        self.ParseSP()
-        token = self.RequireToken("transfer-encoding").lower()
+        self.parse_sp()
+        token = self.require_token("transfer-encoding").lower()
         if token != "chunked":
             parameters = {}
-            self.ParseParameters(parameters)
+            self.parse_parameters(parameters)
             return TransferEncoding(token, parameters)
         else:
             return TransferEncoding()
 
     def RequireMediaType(self):
         """Parses a media type returning a :py:class:`MediaType`
-        instance.  Raises SyntaxError if no media-type was found."""
-        self.ParseSP()
-        type = self.RequireToken("media-type").lower()
-        self.RequireSeparator('/', "media-type")
-        subtype = self.RequireToken("media-subtype").lower()
-        self.ParseSP()
+        instance.  Raises BadSyntax if no media-type was found."""
+        self.parse_sp()
+        type = self.require_token("media-type").lower()
+        self.require_separator('/', "media-type")
+        subtype = self.require_token("media-subtype").lower()
+        self.parse_sp()
         parameters = {}
-        self.ParseParameters(parameters, ignoreAllSpace=False)
+        self.parse_parameters(parameters, ignore_allsp=False)
         return MediaType(type, subtype, parameters)
 
     def RequireProductToken(self):
         """Parses a product token returning a :py:class:`ProductToken`
-        instance.  Raises SyntaxError if no product token was found."""
-        self.ParseSP()
-        token = self.RequireToken("product token")
-        self.ParseSP()
-        if self.ParseSeparator('/'):
-            version = self.RequireToken("product-version")
+        instance.  Raises BadSyntax if no product token was found."""
+        self.parse_sp()
+        token = self.require_token("product token")
+        self.parse_sp()
+        if self.parse_separator('/'):
+            version = self.require_token("product-version")
         else:
             version = None
         return ProductToken(token, version)
@@ -768,53 +768,53 @@ class ParameterParser(WordParser):
     def ParseQualityValue(self):
         """Parses a qvalue from returning the float equivalent value or
         None if no qvalue was found."""
-        if self.IsToken():
+        if self.is_token():
             q = None
-            qSplit = self.cWord.split('.')
+            qSplit = self.the_word.split('.')
             if len(qSplit) == 1:
-                if IsDIGITS(qSplit[0]):
+                if is_digits(qSplit[0]):
                     q = float(qSplit[0])
             elif len(qSplit) == 2:
-                if IsDIGITS(qSplit[0]) and IsDIGITS(qSplit[1]):
-                    q = float("%.3f" % float(self.cWord))
+                if is_digits(qSplit[0]) and is_digits(qSplit[1]):
+                    q = float("%.3f" % float(self.the_word))
             if q is None:
                 return None
             else:
                 if q > 1.0:
                     # be generous if the value has overflowed
                     q = 1.0
-                self.ParseWord()
+                self.parse_word()
                 return q
         else:
             return None
 
     def RequireLanguageTag(self):
         """Parses a language tag returning a :py:class:`LanguageTag`
-        instance.  Raises SyntaxError if no language tag was
+        instance.  Raises BadSyntax if no language tag was
         found."""
-        self.ParseSP()
-        tag = self.RequireToken("languaget-tag").split('-')
-        self.ParseSP()
+        self.parse_sp()
+        tag = self.require_token("languaget-tag").split('-')
+        self.parse_sp()
         return LanguageTag(tag[0], *tag[1:])
 
     def RequireEntityTag(self):
         """Parses an entity-tag returning a :py:class:`EntityTag`
-        instance.  Raises SyntaxError if no language tag was
+        instance.  Raises BadSyntax if no language tag was
         found."""
-        self.ParseSP()
-        w = self.ParseToken()
-        self.ParseSP()
+        self.parse_sp()
+        w = self.parse_token()
+        self.parse_sp()
         if w is not None:
             if w.upper() != "W":
-                raise SyntaxError(
+                raise BadSyntax(
                     "Expected W/ or quoted string for entity-tag")
-            self.RequireSeparator("/", "entity-tag")
-            self.ParseSP()
+            self.require_separator("/", "entity-tag")
+            self.parse_sp()
             w = True
         else:
             w = False
-        tag = self.RequireProduction(self.ParseQuotedString(), "entity-tag")
-        self.ParseSP()
+        tag = self.require_production(self.parse_quoted_string(), "entity-tag")
+        self.parse_sp()
         return EntityTag(tag, w)
 
 

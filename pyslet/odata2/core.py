@@ -378,14 +378,14 @@ class CommonExpression(object):
     @staticmethod
     def FromString(src):
         p = Parser(src)
-        return p.RequireProductionEnd(
+        return p.require_production_end(
             p.ParseCommonExpression(),
             "commonExpression")
 
     @staticmethod
     def OrderByFromString(src):
         p = Parser(src)
-        return p.RequireProductionEnd(p.ParseOrderbyOption(), "orderbyOption")
+        return p.require_production_end(p.ParseOrderbyOption(), "orderbyOption")
 
     @staticmethod
     def OrderByToString(orderby):
@@ -1268,18 +1268,18 @@ class Parser(edm.Parser):
             else:
                 name = self.ParseSimpleIdentifier()
                 if name == "not":
-                    self.RequireProduction(self.ParseWSP(), "WSP after not")
+                    self.require_production(self.ParseWSP(), "WSP after not")
                     rightOp = UnaryExpression(Operator.boolNot)
                 elif name == "isof":
                     self.ParseWSP()
-                    rightOp = self.RequireProduction(
+                    rightOp = self.require_production(
                         self.ParseCastLike(
                             Operator.isof,
                             "isof"),
                         "isofExpression")
                 elif name == "cast":
                     self.ParseWSP()
-                    rightOp = self.RequireProduction(
+                    rightOp = self.require_production(
                         self.ParseCastLike(
                             Operator.cast,
                             "cast"),
@@ -1293,10 +1293,10 @@ class Parser(edm.Parser):
                         rightOp = PropertyExpression(name)
             if rightOp is None:
                 if self.Parse("("):
-                    rightOp = self.RequireProduction(
+                    rightOp = self.require_production(
                         self.ParseCommonExpression(),
                         "commonExpression inside parenExpression")
-                    self.RequireProduction(
+                    self.require_production(
                         self.Parse(")"), "closing bracket in parenExpression")
                 elif self.Parse("-"):
                     rightOp = UnaryExpression(Operator.negate)
@@ -1306,7 +1306,7 @@ class Parser(edm.Parser):
                         "Expected expression after %s in ...%s" %
                         (Operator.EncodeValue(
                             leftOp.operator),
-                            self.Peek(10)))
+                            self.peek(10)))
                 else:
                     # no common expression found at all
                     return None
@@ -1319,7 +1319,7 @@ class Parser(edm.Parser):
                     # Member operator is a special case as it isn't a name
                     rightOp = BinaryExpression(Operator.member)
                 else:
-                    savePos = self.pos
+                    savepos = self.pos
                     name = self.ParseSimpleIdentifier()
                     if name is not None:
                         try:
@@ -1330,7 +1330,7 @@ class Parser(edm.Parser):
                         except ValueError:
                             # this is not an operator we recognise
                             name = None
-                            self.SetPos(savePos)
+                            self.setpos(savepos)
                             pass
                     # if name is None and (self.MatchOne(",)") or self.MatchEnd()):
                     # indicates the end of this common expression
@@ -1373,11 +1373,11 @@ class Parser(edm.Parser):
 
     def ParseMethodCallExpression(self, methodCall):
         method = CallExpression(methodCall)
-        self.RequireProduction(
+        self.require_production(
             self.Parse("("), "opening bracket in methodCallExpression")
         while True:
             self.ParseWSP()
-            param = self.RequireProduction(
+            param = self.require_production(
                 self.ParseCommonExpression(), "methodCall argument")
             method.AddOperand(param)
             self.ParseWSP()
@@ -1394,7 +1394,7 @@ class Parser(edm.Parser):
         self.ParseWSP()
         if self.Parse("("):
             e = BinaryExpression(op)
-            firstParam = self.RequireProduction(
+            firstParam = self.require_production(
                 self.ParseCommonExpression(), "%s argument" % name)
             e.AddOperand(firstParam)
             self.ParseWSP()
@@ -1402,13 +1402,13 @@ class Parser(edm.Parser):
                 # first parameter omitted
                 stringParam = firstParam
             else:
-                self.RequireProduction(self.Parse(","), "',' in %s" % name)
+                self.require_production(self.Parse(","), "',' in %s" % name)
                 self.ParseWSP()
-                stringParam = self.RequireProduction(
+                stringParam = self.require_production(
                     self.ParseCommonExpression(), "%s argument" % name)
                 e.AddOperand(stringParam)
                 self.ParseWSP()
-                self.RequireProduction(self.Parse(")"), "')' after %s" % name)
+                self.require_production(self.Parse(")"), "')' after %s" % name)
             # Final check, the string parameter must be a string literal!
             if not isinstance(stringParam, LiteralExpression) or stringParam.value.typeCode != edm.SimpleType.String:
                 raise ValueError("%s requires string literal")
@@ -1437,7 +1437,7 @@ class Parser(edm.Parser):
         result = {}
         while True:
             parent = result
-            navPath = self.RequireProduction(
+            navPath = self.require_production(
                 self.ParseSimpleIdentifier(), "entityNavProperty")
             if navPath not in parent:
                 parent[navPath] = None
@@ -1445,13 +1445,13 @@ class Parser(edm.Parser):
                 if parent[navPath] is None:
                     parent[navPath] = {}
                 parent = parent[navPath]
-                navPath = self.RequireProduction(
+                navPath = self.require_production(
                     self.ParseSimpleIdentifier(), "entityNavProperty")
                 if navPath not in parent:
                     parent[navPath] = None
             if not self.Parse(","):
                 break
-        self.RequireEnd("expandQueryOp")
+        self.require_end("expandQueryOp")
         return result
 
     def ParseOrderbyOption(self):
@@ -1463,7 +1463,7 @@ class Parser(edm.Parser):
         result = []
         while True:
             self.ParseWSP()
-            e = self.RequireProduction(
+            e = self.require_production(
                 self.ParseCommonExpression(), "commonExpression")
             self.ParseWSP()
             if self.ParseInsensitive("asc"):
@@ -1476,7 +1476,7 @@ class Parser(edm.Parser):
             self.ParseWSP()
             if not self.Parse(","):
                 break
-        self.RequireEnd("orderbyQueryOp")
+        self.require_end("orderbyQueryOp")
         return result
 
     def ParseSelectOption(self):
@@ -1497,7 +1497,7 @@ class Parser(edm.Parser):
         while True:
             parent = result
             self.ParseWSP()
-            navPath = self.RequireProduction(
+            navPath = self.require_production(
                 self.ParseStarOrIdentifier(), "selectItem")
             if navPath not in parent:
                 parent[navPath] = None
@@ -1505,14 +1505,14 @@ class Parser(edm.Parser):
                 if parent[navPath] is None:
                     parent[navPath] = {}
                 parent = parent[navPath]
-                navPath = self.RequireProduction(
+                navPath = self.require_production(
                     self.ParseStarOrIdentifier(), "selectItem")
                 if navPath not in parent:
                     parent[navPath] = None
             self.ParseWSP()
             if not self.Parse(","):
                 break
-        self.RequireEnd("selectQueryOp")
+        self.require_end("selectQueryOp")
         return result
 
     def ParseStarOrIdentifier(self):
@@ -1520,7 +1520,7 @@ class Parser(edm.Parser):
         if self.Parse("*"):
             return '*'
         else:
-            return self.RequireProduction(
+            return self.require_production(
                 self.ParseSimpleIdentifier(),
                 "selectItem")
 
@@ -1560,17 +1560,17 @@ class Parser(edm.Parser):
                 self.SimpleIdentifierStartClass)
             for c in ['Nd', 'Mn', 'Mc', 'Pc', 'Cf']:
                 self.SimpleIdentifierClass.AddClass(CharClass.UCDCategory(c))
-        savePos = self.pos
+        savepos = self.pos
         result = []
         while True:
             # each segment must start with a start character
-            if self.theChar is None or not self.SimpleIdentifierStartClass.Test(self.theChar):
-                self.SetPos(savePos)
+            if self.the_char is None or not self.SimpleIdentifierStartClass.Test(self.the_char):
+                self.setpos(savepos)
                 return None
-            result.append(self.theChar)
+            result.append(self.the_char)
             self.NextChar()
-            while self.theChar is not None and self.SimpleIdentifierClass.Test(self.theChar):
-                result.append(self.theChar)
+            while self.the_char is not None and self.SimpleIdentifierClass.Test(self.the_char):
+                result.append(self.the_char)
                 self.NextChar()
             if not self.Parse('.'):
                 break
@@ -1613,7 +1613,7 @@ class Parser(edm.Parser):
 
         If a URI literal value is partially parsed but is badly formed,
         a ValueError is raised."""
-        savePos = self.pos
+        savepos = self.pos
         nameCase = self.ParseSimpleIdentifier()
         if nameCase is not None:
             name = nameCase.lower()
@@ -1669,7 +1669,7 @@ class Parser(edm.Parser):
             production = "datetime literal"
             self.Require("'", production)
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.DateTime)
-            value = self.RequireProduction(
+            value = self.require_production(
                 self.ParseDateTimeLiteral(), production)
             self.Require("'", production)
             result.value = value
@@ -1678,7 +1678,8 @@ class Parser(edm.Parser):
             production = "time literal"
             self.Require("'", production)
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Time)
-            value = self.RequireProduction(self.ParseTimeLiteral(), production)
+            value = self.require_production(
+                self.ParseTimeLiteral(), production)
             self.Require("'", production)
             result.value = value
             return result
@@ -1712,20 +1713,20 @@ class Parser(edm.Parser):
             self.Require("'", "guid")
             hex = []
             hex.append(
-                self.RequireProduction(self.ParseHexDigits(8, 8), "guid"))
+                self.require_production(self.ParseHexDigits(8, 8), "guid"))
             self.Require("-", "guid")
             hex.append(
-                self.RequireProduction(self.ParseHexDigits(4, 4), "guid"))
+                self.require_production(self.ParseHexDigits(4, 4), "guid"))
             self.Require("-", "guid")
             hex.append(
-                self.RequireProduction(self.ParseHexDigits(4, 4), "guid"))
+                self.require_production(self.ParseHexDigits(4, 4), "guid"))
             self.Require("-", "guid")
             hex.append(
-                self.RequireProduction(self.ParseHexDigits(4, 4), "guid"))
+                self.require_production(self.ParseHexDigits(4, 4), "guid"))
             if self.Parse('-'):
                 # this is a proper guid
                 hex.append(
-                    self.RequireProduction(
+                    self.require_production(
                         self.ParseHexDigits(
                             12,
                             12),
@@ -1734,14 +1735,14 @@ class Parser(edm.Parser):
                 # this a broken guid, add some magic to make it right
                 hex[3:3] = ['FFFF']
                 hex.append(
-                    self.RequireProduction(self.ParseHexDigits(8, 8), "guid"))
+                    self.require_production(self.ParseHexDigits(8, 8), "guid"))
             self.Require("'", "guid")
             result.value = uuid.UUID(hex=string.join(hex, ''))
             return result
         else:
-            self.SetPos(savePos)
+            self.setpos(savepos)
             return None
-            # raise ValueError("Expected literal: %s"%repr(self.Peek(10)))
+            # raise ValueError("Expected literal: %s"%repr(self.peek(10)))
 
 
 def ParseURILiteral(source):
@@ -1755,7 +1756,7 @@ def ParseURILiteral(source):
 
     The special string "null" returns None,None"""
     p = Parser(source)
-    return p.RequireProductionEnd(p.ParseURILiteral(), "uri literal")
+    return p.require_production_end(p.ParseURILiteral(), "uri literal")
 
 
 def ParseDataServiceVersion(src):
@@ -1767,17 +1768,17 @@ def ParseDataServiceVersion(src):
     versionStr = None
     uaStr = []
     p = http.ParameterParser(src)
-    versionStr = p.RequireToken("data service version")
+    versionStr = p.require_token("data service version")
     v = versionStr.split('.')
-    if len(v) == 2 and http.IsDIGITS(v[0]) and http.IsDIGITS(v[1]):
+    if len(v) == 2 and http.is_digits(v[0]) and http.is_digits(v[1]):
         major = int(v[0])
         minor = int(v[1])
     else:
-        raise SyntaxError(
+        raise BadSyntax(
             "Expected data service version, found %s" % versionStr)
-    if p.ParseSeparator(";"):
-        while p.cWord is not None:
-            t = p.ParseToken()
+    if p.parse_separator(";"):
+        while p.the_word is not None:
+            t = p.parse_token()
             if t:
                 uaStr.append(t)
             else:
@@ -1796,16 +1797,16 @@ def ParseMaxDataServiceVersion(src):
     uaStr = None
     if len(src) > 0:
         p = http.ParameterParser(src[0])
-        versionStr = p.RequireToken("data service version")
+        versionStr = p.require_token("data service version")
         v = versionStr.split('.')
-        if len(v) == 2 and http.IsDIGITS(v[0]) and http.IsDIGITS(v[1]):
+        if len(v) == 2 and http.is_digits(v[0]) and http.is_digits(v[1]):
             major = int(v[0])
             minor = int(v[1])
         else:
-            raise SyntaxError(
+            raise BadSyntax(
                 "Expected max data service version, found %s" % versionStr)
     else:
-        raise SyntaxError("Expected max data service version")
+        raise BadSyntax("Expected max data service version")
     uaStr = string.join(src[1:], ';')
     return major, minor, uaStr
 
@@ -2050,18 +2051,18 @@ class ODataURI:
             rawOptions = dsURI.query.split('&')
             for paramDef in rawOptions:
                 if paramDef.startswith('$'):
-                    paramName = uri.UnescapeData(
+                    param_name = uri.UnescapeData(
                         paramDef[1:paramDef.index('=')]).decode('utf-8')
-                    param, paramValue = self.ParseSystemQueryOption(
-                        paramName, uri.UnescapeData(
+                    param, param_value = self.ParseSystemQueryOption(
+                        param_name, uri.UnescapeData(
                             paramDef[
                                 paramDef.index('=') + 1:]).decode('utf-8'))
-                    self.sysQueryOptions[param] = paramValue
+                    self.sysQueryOptions[param] = param_value
                 else:
                     if '=' in paramDef:
-                        paramName = uri.UnescapeData(
+                        param_name = uri.UnescapeData(
                             paramDef[:paramDef.index('=')]).decode('utf-8')
-                        self.paramTable[paramName] = len(self.queryOptions)
+                        self.paramTable[param_name] = len(self.queryOptions)
                     self.queryOptions.append(paramDef)
         #
         #   Unpack the resource path
@@ -2129,7 +2130,7 @@ class ODataURI:
                 else:
                     self.ValidateSystemQueryOptions(15)
 
-    def ParseSystemQueryOption(self, paramName, paramValue):
+    def ParseSystemQueryOption(self, param_name, param_value):
         """Returns a tuple of :py:class:`SystemQueryOption` constant and
         an appropriate representation of the value:
 
@@ -2139,17 +2140,17 @@ class ODataURI:
 
         *   format: a list of :py:meth:`pyslet:rfc2616.MediaType` instances (of length 1)
 
-        *   other options return a the paramValue unchanged at the moment"""
+        *   other options return a the param_value unchanged at the moment"""
         try:
-            param = SystemQueryOption.DecodeValue(paramName)
+            param = SystemQueryOption.DecodeValue(param_name)
             # Now parse the parameter value
-            paramParser = Parser(paramValue)
+            paramParser = Parser(param_value)
             if param == SystemQueryOption.filter:
-                value = paramParser.RequireProductionEnd(
+                value = paramParser.require_production_end(
                     paramParser.ParseCommonExpression(),
                     "boolCommonExpression")
             elif param == SystemQueryOption.expand:
-                value = paramParser.RequireProductionEnd(
+                value = paramParser.require_production_end(
                     paramParser.ParseExpandOption(), "expand query option")
             elif param == SystemQueryOption.format:
                 # ("json" / "atom" / "xml" /
@@ -2157,9 +2158,9 @@ class ODataURI:
                 # <An IANA-defined [IANA-MMT] content type>)
                 # first up, let's see if this is a valid MediaType
                 try:
-                    value = http.AcceptList.FromString(paramValue)
-                except http.HTTPParameterError:
-                    pLower = paramValue.lower()
+                    value = http.AcceptList.FromString(param_value)
+                except http.BadSyntax:
+                    pLower = param_value.lower()
                     if pLower == "atom":
                         value = http.AcceptList.FromString(
                             'application/atom+xml')
@@ -2169,25 +2170,25 @@ class ODataURI:
                         value = http.AcceptList.FromString('application/xml')
                     else:
                         raise InvalidSystemQueryOption(
-                            "Unsupported $format : %s" % paramValue)
+                            "Unsupported $format : %s" % param_value)
             elif param == SystemQueryOption.orderby:
-                value = paramParser.RequireProductionEnd(
+                value = paramParser.require_production_end(
                     paramParser.ParseOrderbyOption(), "orderby query option")
             elif param == SystemQueryOption.skip:
-                value = paramParser.RequireProductionEnd(
-                    paramParser.ParseInteger(), "skip query option")
+                value = paramParser.require_production_end(
+                    paramParser.parse_integer(), "skip query option")
             elif param == SystemQueryOption.top:
-                value = paramParser.RequireProductionEnd(
-                    paramParser.ParseInteger(), "top query option")
+                value = paramParser.require_production_end(
+                    paramParser.parse_integer(), "top query option")
             elif param == SystemQueryOption.inlinecount:
-                value = InlineCount.DecodeLowerValue(paramValue)
+                value = InlineCount.DecodeLowerValue(param_value)
             elif param == SystemQueryOption.select:
-                value = paramParser.RequireProductionEnd(
+                value = paramParser.require_production_end(
                     paramParser.ParseSelectOption(), "selection query option")
             else:
-                value = paramValue
+                value = param_value
         except ValueError as e:
-            raise InvalidSystemQueryOption("$%s : %s" % (paramName, str(e)))
+            raise InvalidSystemQueryOption("$%s : %s" % (param_name, str(e)))
         return param, value
 
     def ValidateSystemQueryOptions(self, uriNum):
@@ -2230,15 +2231,15 @@ class ODataURI:
         else:
             return uri.UnescapeData(segment).decode('utf-8'), None
 
-    def GetParamValue(self, paramName):
-        if paramName in self.paramTable:
-            paramDef = self.queryOptions[self.paramTable[paramName]]
+    def GetParamValue(self, param_name):
+        if param_name in self.paramTable:
+            paramDef = self.queryOptions[self.paramTable[param_name]]
             # must be a primitive type
             return ParseURILiteral(paramDef[paramDef.index('=') + 1:])
         else:
             raise KeyError(
                 "Missing service operation, or custom parameter: %s" %
-                paramName)
+                param_name)
 
     @classmethod
     def FormatKeyDict(cls, d):
@@ -2412,14 +2413,14 @@ class Entity(edm.Entity):
         etag = self.ETag()
         if etag:
             s = "" if self.ETagIsStrong() else "W/"
-            yield ',"etag":%s' % json.dumps(s + http.QuoteString(string.join(map(ODataURI.FormatLiteral, etag), ',')))
+            yield ',"etag":%s' % json.dumps(s + http.quote_string(string.join(map(ODataURI.FormatLiteral, etag), ',')))
         if mediaLinkResource:
             yield ',"media_src":%s' % json.dumps(location + "/$value")
             yield ',"content_type":%s' % json.dumps(str(self.GetStreamType()))
             yield ',"edit_media":%s' % json.dumps(location + "/$value")
             if etag:
                 s = "" if self.ETagIsStrong() else "W/"
-                yield ',"media_etag":%s' % json.dumps(s + http.QuoteString(string.join(map(ODataURI.FormatLiteral, etag), ',')))
+                yield ',"media_etag":%s' % json.dumps(s + http.quote_string(string.join(map(ODataURI.FormatLiteral, etag), ',')))
         yield '}'
         for k, v in self.DataItems():
             # watch out for unselected properties
@@ -3598,7 +3599,7 @@ class Entry(atom.Entry):
                         (ODATA_METADATA_NAMESPACE,
                          'etag'),
                         s +
-                        http.QuoteString(
+                        http.quote_string(
                             string.join(
                                 map(
                                     ODataURI.FormatLiteral,

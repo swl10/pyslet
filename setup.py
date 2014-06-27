@@ -23,6 +23,7 @@ else:
 		url=pyslet.info.home,
 		packages=[
 			'pyslet',
+			'pyslet.http',
 			'pyslet.xml20081126',
 			'pyslet.qtiv1',
 			'pyslet.qtiv2',

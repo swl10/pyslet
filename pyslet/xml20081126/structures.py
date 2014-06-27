@@ -2737,8 +2737,8 @@ class XMLEntity(object):
         self.bom = False
         """flag to indicate whether or not the byte order mark was detected.  If
         detected the flag is set to True.  An initial byte order mark is not
-        reported in :py:attr:`theChar` or by the :py:meth:`NextChar` method."""
-        self.theChar = None     #: the character at the current position in the entity
+        reported in :py:attr:`the_char` or by the :py:meth:`NextChar` method."""
+        self.the_char = None     #: the character at the current position in the entity
         #: the current line number within the entity (first line is line 1)
         self.lineNum = None
         #: the current character position within the entity (first char is 1)
@@ -2936,11 +2936,11 @@ class XMLEntity(object):
     def Reset(self):
         """Resets an open entity, causing it to return to the first character in the entity."""
         if self.charSource is None:
-            self.theChar = None
+            self.the_char = None
             self.basePos = None
         else:
             self.charSource.seek(self.basePos)
-            self.theChar = ''
+            self.the_char = ''
         self.lineNum = 1
         self.linePos = 0
         self.chars = ''
@@ -2950,7 +2950,7 @@ class XMLEntity(object):
         self.NextChar()
         # python handles the utf-16 BOM automatically but we have to skip it
         # for utf-8
-        if self.theChar == u'\ufeff' and self.encoding is not None and self.encoding.lower() == 'utf-8':
+        if self.the_char == u'\ufeff' and self.encoding is not None and self.encoding.lower() == 'utf-8':
             self.NextChar()
 
     def GetPositionStr(self):
@@ -2966,7 +2966,7 @@ class XMLEntity(object):
         This method takes care of the End-of-Line handling rules for XML which force
         us to remove any CR characters and replace them with LF if they appear on their
         own or to silenty drop them if they appear as part of a CR-LF combination."""
-        if self.theChar is None:
+        if self.the_char is None:
             return
         self.charPos = self.charPos + 1
         self.linePos = self.linePos + 1
@@ -2975,15 +2975,15 @@ class XMLEntity(object):
             self.chars = self.charSource.read(self.chunk)
             self.charPos = 0
         if self.charPos >= len(self.chars):
-            self.theChar = None
+            self.the_char = None
         else:
-            self.theChar = self.chars[self.charPos]
-            if self.theChar == '\x0D':
+            self.the_char = self.chars[self.charPos]
+            if self.the_char == '\x0D':
                 # change to a line feed and ignore the next line feed
-                self.theChar = '\x0A'
+                self.the_char = '\x0A'
                 self.ignoreLF = True
                 self.NextLine()
-            elif self.theChar == '\x0A':
+            elif self.the_char == '\x0A':
                 if self.ignoreLF:
                     self.ignoreLF = False
                     self.NextChar()
@@ -3088,7 +3088,7 @@ class XMLEntity(object):
                 self.chars = self.charSource.read(len(self.chars))
                 # We assume that charPos will still point to the correct next
                 # character
-                self.theChar = self.chars[self.charPos]
+                self.the_char = self.chars[self.charPos]
         self.KeepEncoding()
 
     def KeepEncoding(self):
@@ -3118,7 +3118,7 @@ class XMLEntity(object):
         if self.dataSource is not None:
             self.dataSource.close()
             self.dataSource = None
-        self.theChar = None
+        self.the_char = None
         self.lineNum = None
         self.linePos = None
 
@@ -3199,8 +3199,8 @@ class XMLParameterEntity(XMLDeclaredEntity):
     def NextChar(self):
         """Overrridden to provide trailing space during special parameter entity handling."""
         XMLEntity.NextChar(self)
-        if self.theChar is None and self.peEnd:
-            self.theChar = self.peEnd
+        if self.the_char is None and self.peEnd:
+            self.the_char = self.peEnd
             self.peEnd = None
 
     def OpenAsPE(self):
