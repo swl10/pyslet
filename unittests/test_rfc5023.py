@@ -461,7 +461,7 @@ class SlugTests(unittest.TestCase):
 
     def test_slug(self):
         src = "The Beach at S%C3%A8te"
-        slug = Slug.FromString(src)
+        slug = Slug.from_str(src)
         self.assertTrue(slug.slug == u"The Beach at S\xe8te")
         slug = Slug(u"The Beach at S\xe8te")
         self.assertTrue(str(slug) == src)

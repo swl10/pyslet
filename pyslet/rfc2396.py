@@ -672,7 +672,7 @@ class URI(object):
 
         Only valid for absolute URIs."""
         if self.IsAbsolute():
-            canonicalURI = self.Canonicalize()
+            canonicalURI = self.canonicalize()
             result = [canonicalURI.scheme, ':']
             if canonicalURI.authority is not None:
                 result.append('//')
@@ -892,24 +892,24 @@ class URI(object):
         """Compare this URI against another URI or a string."""
         return cmp(str(self), str(otherURI))
 
-    def Canonicalize(self):
+    def canonicalize(self):
         """Returns a canonical form of this URI"""
-        newURI = []
+        new_uri = []
         if self.scheme is not None:
-            newURI.append(self.scheme.lower())
-            newURI.append(':')
-            newURI.append(self.schemeSpecificPart)
+            new_uri.append(self.scheme.lower())
+            new_uri.append(':')
+            new_uri.append(self.schemeSpecificPart)
         else:
             # we don't need to look inside the URI
-            newURI.append(self.octets)
+            new_uri.append(self.octets)
         if self.fragment:
-            newURI.append('#')
-            newURI.append(self.fragment)
-        return URIFactory.URI(string.join(newURI, ''))
+            new_uri.append('#')
+            new_uri.append(self.fragment)
+        return URIFactory.URI(string.join(new_uri, ''))
 
     def Match(self, otherURI):
         """Compares this URI against otherURI returning True if they match."""
-        return str(self.Canonicalize()) == str(otherURI.Canonicalize())
+        return str(self.canonicalize()) == str(otherURI.canonicalize())
 
     def IsAbsolute(self):
         """Returns True if this URI is absolute, i.e., fully specified with a scheme name."""
@@ -1045,34 +1045,34 @@ class ServerBasedURL(URI):
         super(ServerBasedURL, self).__init__(octets)
         self.userinfo, self.host, self.port = SplitServer(self.authority)
 
-    def Canonicalize(self):
+    def canonicalize(self):
         """Returns a canonical form of this URI"""
-        newURI = []
+        new_uri = []
         if self.scheme is not None:
-            newURI.append(self.scheme.lower())
-            newURI.append(':')
+            new_uri.append(self.scheme.lower())
+            new_uri.append(':')
         if self.authority is not None:
-            newURI.append('//')
+            new_uri.append('//')
             if self.userinfo is not None:
-                newURI.append(self.userinfo)
-                newURI.append('@')
-            newURI.append(self.host.lower())
+                new_uri.append(self.userinfo)
+                new_uri.append('@')
+            new_uri.append(self.host.lower())
             if self.port:  # port could be an empty string
                 port = int(self.port)
                 if port != self.DEFAULT_PORT:
-                    newURI.append(':')
-                    newURI.append("%i" % int(self.port))
+                    new_uri.append(':')
+                    new_uri.append("%i" % int(self.port))
         if self.absPath is not None:
-            newURI.append(self.absPath)
+            new_uri.append(self.absPath)
         elif self.relPath is not None:
-            newURI.append(self.relPath)
+            new_uri.append(self.relPath)
         if self.query is not None:
-            newURI.append('?')
-            newURI.append(self.query)
+            new_uri.append('?')
+            new_uri.append(self.query)
         if self.fragment is not None:
-            newURI.append('#')
-            newURI.append(self.fragment)
-        return URIFactory.URI(string.join(newURI, ''))
+            new_uri.append('#')
+            new_uri.append(self.fragment)
+        return URIFactory.URI(string.join(new_uri, ''))
 
 
 class FileURL(ServerBasedURL):

@@ -8,7 +8,6 @@ import StringIO
 
 def suite():
     return unittest.TestSuite((
-        unittest.makeSuite(ProtocolParameterTests, 'test'),
         unittest.makeSuite(HeaderTests, 'test'),
         unittest.makeSuite(HTTP2616Tests, 'test'),
         unittest.makeSuite(ThreadedTests, 'test'),
@@ -187,268 +186,6 @@ class FakeHTTPRequestManager(HTTPRequestManager):
         return r, writers, errors
 
 
-class ProtocolParameterTests(unittest.TestCase):
-
-    def test_version(self):
-        v = HTTPVersion()
-        self.assertTrue(v.major == 1 and v.minor == 1, "1.1 on construction")
-        self.assertTrue(str(v) == "HTTP/1.1", "Formatting")
-        v = HTTPVersion(1)
-        self.assertTrue(v.major == 1 and v.minor == 1, "1.1 on construction")
-        v = HTTPVersion(2)
-        self.assertTrue(v.major == 2 and v.minor == 0, "2.0 on construction")
-        v = HTTPVersion(2, 1)
-        self.assertTrue(v.major == 2 and v.minor == 1, "2.1 on construction")
-        v = HTTPVersion.FromString(" HTTP / 1.0 ")
-        self.assertTrue(str(v) == "HTTP/1.0", "Parse of 1.0")
-        v1 = HTTPVersion.FromString("HTTP/2.4")
-        self.assertTrue(v1.major == 2 and v1.minor == 4, "2.4")
-        v2 = HTTPVersion.FromString("HTTP/2.13")
-        v3 = HTTPVersion.FromString("HTTP/12.3")
-        self.assertTrue(v1 < v2, "2.4 < 2.13")
-        self.assertTrue(v2 < v3, "2.13 < 12.3")
-        self.assertTrue(v1 < v3, "2.4 < 12.3")
-        v4 = HTTPVersion.FromString("HTTP/02.004")
-        self.assertTrue(v4.major == 2 and v4.minor == 4, "2.4")
-        self.assertTrue(v1 == v4, "2.4 == 02.004")
-
-    def test_url(self):
-        v1 = HTTPURL("http://abc.com:80/~smith/home.html")
-        v2 = HTTPURL("http://ABC.com/%7Esmith/home.html")
-        v3 = HTTPURL("http://ABC.com:/%7esmith/home.html")
-        self.assertTrue(v1.Match(v2))
-        self.assertTrue(v1.Match(v3))
-        self.assertTrue(v2.Match(v3))
-
-    def test_full_date(self):
-        # RFC 822, updated by RFC 1123
-        timestamp_822 = FullDate.FromHTTPString(
-            "Sun, 06 Nov 1994 08:49:37 GMT")
-        # RFC 850, obsoleted by RFC 1036
-        timestamp_850 = FullDate.FromHTTPString(
-            "Sunday, 06-Nov-94 08:49:37 GMT")
-        # ANSI C's asctime() format
-        timestamp_c = FullDate.FromHTTPString("Sun Nov  6 08:49:37 1994")
-        self.assertTrue(
-            timestamp_822 == timestamp_850, "RFC 850 timestamp parser")
-        self.assertTrue(
-            timestamp_822 == timestamp_c,
-            "ANSI C timestamp parser")
-        self.assertTrue(str(timestamp_822) == "Sun, 06 Nov 1994 08:49:37 GMT")
-        self.assertTrue(str(timestamp_850) == "Sun, 06 Nov 1994 08:49:37 GMT")
-        self.assertTrue(str(timestamp_c) == "Sun, 06 Nov 1994 08:49:37 GMT")
-        try:
-            # Weekday mismatch
-            timestamp_822 = FullDate.FromHTTPString(
-                "Mon, 06 Nov 1994 08:49:37 GMT")
-            self.fail("Weekday mismatch passed")
-        except BadSyntax:
-            pass
-        timestamp_822 = FullDate.FromHTTPString(
-            "Sun, 06 Nov 1994 08:49:37 GMT")
-        self.assertTrue(
-            str(timestamp_822) == "Sun, 06 Nov 1994 08:49:37 GMT",
-            "All-in-one parser")
-
-    def test_transfer_encoding(self):
-        te = TransferEncoding()
-        self.assertTrue(te.token == "chunked", "Default not chunked")
-        self.assertTrue(
-            len(te.parameters) == 0, "Default has extension parameters")
-        te = TransferEncoding.FromString("Extension ; x=1 ; y = 2")
-        self.assertTrue(te.token == "extension", "Token not case insensitive")
-        self.assertTrue(len(te.parameters) == 2, "No of extension parameters")
-        self.assertTrue(
-            te.parameters == {'x': ('x', '1'), 'y': ('y', '2')},
-            "Extension parameters: %s" % repr(te.parameters))
-        self.assertTrue(str(te) == "extension; x=1; y=2", "te output")
-        te = TransferEncoding.FromString("bob; a=4")
-        self.assertTrue(te.token == "bob", "Token not case insensitive")
-        self.assertTrue(len(te.parameters) == 1, "No of extension parameters")
-        self.assertTrue(
-            te.parameters == {'a': ('a', '4')},
-            "Single extension parameters: %s" % repr(te.parameters))
-        try:
-            te = TransferEncoding.FromString("chunked ; x=1 ; y = 2")
-            self.fail("chunked with spurious parameters")
-        except BadSyntax:
-            pass
-        parameters = {}
-        ParameterParser("; x=1 ; y = 2").parse_parameters(parameters)
-        te = TransferEncoding("chunked", parameters)
-        self.assertTrue(
-            len(te.parameters) == 0, "Overparsing of chunked with parameters")
-        te = TransferEncoding.FromString("chunkie ; z = 3 ")
-        self.assertTrue(te.parameters == {'z': ('z', '3')},
-                        "chunkie parameters")
-
-    def test_media_type(self):
-        mtype = MediaType()
-        try:
-            mtype = MediaType.FromString(' application / octet-stream ')
-            self.fail("Space between type and sub-type")
-        except BadSyntax:
-            pass
-        try:
-            mtype = MediaType.FromString(' application/octet-stream ')
-        except BadSyntax:
-            self.fail("No space between type and sub-type")
-        try:
-            mtype = MediaType.FromString(
-                ' application/octet-stream ; Charset = "en-US"')
-            self.fail("Space between param and value")
-        except BadSyntax:
-            pass
-        try:
-            mtype = MediaType.FromString(
-                ' application/octet-stream ; Charset="en-US" ; x=1')
-        except BadSyntax:
-            self.fail("No space between param and value")
-        self.assertTrue(mtype.type == 'application', "Media type")
-        self.assertTrue(mtype.subtype == 'octet-stream', "Media sub-type")
-        self.assertTrue(
-            mtype.parameters == {'charset': ('Charset', 'en-US'),
-                                 'x': ('x', '1')},
-            "Media type parameters: %s" % repr(mtype.parameters))
-        self.assertTrue(
-            str(mtype) == 'application/octet-stream; Charset=en-US; x=1')
-
-    def test_product_token(self):
-        ptoken = ProductToken()
-        self.assertTrue(ptoken.token is None)
-        self.assertTrue(ptoken.version is None)
-        p = ParameterParser('http/2616; x=1')
-        ptoken = p.parse_production(p.RequireProductToken)
-        self.assertTrue(
-            p.the_word == ";", "ParseProductToken result: %s" % p.the_word)
-        self.assertTrue(ptoken.token == "http", "Product token")
-        self.assertTrue(ptoken.version == "2616", "Product token version")
-        try:
-            ptoken = ProductToken.FromString('http/2616; x=1')
-            self.fail("Spurious data test")
-        except BadSyntax:
-            pass
-        ptokens = ProductToken.ListFromString(
-            "CERN-LineMode/2.15 libwww/2.17b3")
-        self.assertTrue(len(ptokens) == 2)
-        self.assertTrue(ptokens[0].version == "2.15")
-        self.assertTrue(ptokens[1].version == "2.17b3")
-        self.assertTrue(
-            ProductToken.Explode("2.17b3") == (
-                (2,), (17, "b", 3)), "Complex explode: %s" %
-            repr(
-                ProductToken.Explode("2.17b3")))
-        self.assertTrue(ProductToken.Explode("2.b3") == ((2,), (-1, "b", 3)))
-        self.assertTrue(ProductToken.Explode(".b3") == ((), (-1, "b", 3)))
-        self.assertTrue(
-            ProductToken("Apache", "0.8.4") < ProductToken("Apache", "0.8.30"))
-        self.assertTrue(
-            ProductToken(
-                "Apache",
-                "0.8.200") > ProductToken(
-                "Apache",
-                "0.8.30"))
-        self.assertTrue(
-            ProductToken(
-                "Apache",
-                "0.8.4") == ProductToken(
-                "Apache",
-                "0.8.04"))
-        self.assertTrue(
-            ProductToken(
-                "Apache",
-                "0.8.4") > ProductToken(
-                "Apache",
-                "0.8b1.4"))
-        self.assertTrue(
-            ProductToken(
-                "Apache",
-                "1b4.8.4") > ProductToken(
-                "Apache",
-                "0.8.4"))
-
-    def test_qvalue(self):
-        wp = ParameterParser('0.2 1.x x.1 1.001 0.14151')
-        self.assertTrue(str(wp.ParseQualityValue()) == '0.2', "0.2")
-        self.assertTrue(wp.ParseQualityValue() is None, "1.x")
-        wp.parse_token()
-        self.assertTrue(wp.ParseQualityValue() is None, "x.1")
-        wp.parse_token()
-        self.assertTrue(wp.ParseQualityValue() == 1.0, "1.001")
-        q = wp.ParseQualityValue()
-        self.assertTrue(str(q) == '0.142', "0.14151: %s" % str(q))
-
-    def test_language_tag(self):
-        lang = LanguageTag("EN")
-        self.assertTrue(lang.primary == 'EN', "Primary tag")
-        self.assertTrue(len(lang.subtags) == 0, "Sub-tags")
-        self.assertTrue(str(lang) == "EN")
-        lang = LanguageTag("x", "pig", "latin")
-        self.assertTrue(lang.primary == 'x', "Primary tag")
-        self.assertTrue(len(lang.subtags) == 2, "Sub-tags")
-        self.assertTrue(str(lang) == "x-pig-latin")
-        try:
-            # White space is not allowed within the tag
-            lang = LanguageTag.FromString(' en - us ')
-            self.fail("Space between primary tag and sub-tags")
-        except BadSyntax:
-            pass
-        try:
-            lang = LanguageTag.FromString(' en-us ')
-        except BadSyntax:
-            self.fail("No space between primary tag and sub-tags")
-        lang = LanguageTag.FromString('en-US')
-        self.assertTrue(lang.primary == 'en', "Primary tag")
-        self.assertTrue(
-            lang.subtags == ('US',), "Sub-tags: %s" % repr(lang.subtags))
-        self.assertTrue(str(lang) == 'en-US')
-        # all tags are case-insensitive
-        self.assertTrue(lang == "en-US", "Naked string comparison")
-        self.assertTrue(
-            lang == LanguageTag.FromString('en-us'),
-            "case insensitive comparison")
-        for langStr in ["en", "en-US", "en-cockney", "i-cherokee",
-                        "x-pig-latin"]:
-            lang = LanguageTag.FromString(langStr)
-        # test for case-insensitive ordering
-        self.assertTrue(
-            LanguageTag.FromString("en-US") > LanguageTag.FromString("en-gb"),
-            "case insensitive order")
-        # test for hash
-        self.assertTrue(hash(LanguageTag.FromString("en-us")) ==
-                        hash(LanguageTag.FromString("en-US")),
-                        "case insensitive hash")
-
-    def test_entity_tag(self):
-        try:
-            etag = EntityTag()
-            self.fail("Required tag in constructor")
-        except TypeError:
-            pass
-        etag = EntityTag("hello")
-        self.assertTrue(etag.weak, "ETag constructor makes weak tags")
-        etag = EntityTag("hello", False)
-        self.assertFalse(etag.weak, "ETag constructor with strong tag")
-        self.assertTrue(etag.tag, "ETag constructor tag not None")
-        etag = EntityTag.FromString('W/"hello"')
-        self.assertTrue(etag.weak, "Failed to parse weak tag")
-        self.assertTrue(etag.tag == "hello", "Failed to parse ETag value")
-        etag = EntityTag.FromString('w/ "h\\"ello"')
-        self.assertTrue(
-            etag.weak, "Failed to parse weak tag with lower case 'w'")
-        self.assertTrue(
-            etag.tag == 'h"ello',
-            "Failed to unpick quoted pair from ETag value; found %s" %
-            repr(
-                etag.tag))
-        etag = EntityTag.FromString('"hello"')
-        self.assertFalse(etag.weak, "Failed to parse strong tag")
-        self.assertTrue(etag.tag == "hello", "Failed to parse ETag value")
-        etag = EntityTag.FromString(u'"hello"')
-        self.assertFalse(etag.weak, "Failed to parse strong tag")
-        self.assertTrue(etag.tag == "hello", "Failed to parse ETag value")
-
-
 class HeaderTests(unittest.TestCase):
 
     def test_media_range(self):
@@ -456,7 +193,7 @@ class HeaderTests(unittest.TestCase):
         self.assertTrue(
             isinstance(mr, MediaType), "Special type of media-type")
         self.assertTrue(str(mr) == "*/*")
-        mr = MediaRange.FromString("*/*")
+        mr = MediaRange.from_str("*/*")
         self.assertTrue(mr.type == "*", "Main type")
         self.assertTrue(mr.subtype == "*", "subtype")
         self.assertTrue(len(mr.parameters) == 0, "Parameters")
@@ -468,21 +205,21 @@ class HeaderTests(unittest.TestCase):
                         repr(mr.parameters))
         # check comparisons
         self.assertTrue(
-            MediaRange.FromString("image/*") < MediaRange.FromString("*/*"),
+            MediaRange.from_str("image/*") < MediaRange.from_str("*/*"),
             "Specific over general */*")
         self.assertTrue(
-            MediaRange.FromString("image/png") <
-            MediaRange.FromString("image/*"),
+            MediaRange.from_str("image/png") <
+            MediaRange.from_str("image/*"),
             "Specific over general image/*")
         self.assertTrue(
-            MediaRange.FromString("text/plain;charset=utf-8") <
-            MediaRange.FromString("text/plain"),
+            MediaRange.from_str("text/plain;charset=utf-8") <
+            MediaRange.from_str("text/plain"),
             "Parameter over no-parameter")
 
     def test_accept_list(self):
         al = AcceptList()
         self.assertTrue(len(al) == 0)
-        al = AcceptList.FromString("audio/*; q=0.2, audio/basic")
+        al = AcceptList.from_str("audio/*; q=0.2, audio/basic")
         self.assertTrue(len(al) == 2, "Length of AcceptList")
         self.assertTrue(isinstance(al[0], AcceptItem), "AcceptList item type")
         self.assertTrue(str(al[0].range) == "audio/basic", str(al[0].range))
@@ -494,21 +231,21 @@ class HeaderTests(unittest.TestCase):
         self.assertTrue(al[1].q == 0.2)
         self.assertTrue(len(al[1].params) == 0)
         self.assertTrue(str(al[1]) == "audio/*; q=0.2", "add the q value")
-        al = AcceptList.FromString(
+        al = AcceptList.from_str(
             "text/plain; q=0.5, text/html,  text/x-dvi; q=0.8, text/x-c")
         self.assertTrue(len(al) == 4, "Length of AcceptList")
         self.assertTrue(
             str(al) ==
             "text/html, text/plain; q=0.5, text/x-c, text/x-dvi; q=0.8",
             str(al))
-        al = AcceptList.FromString("text/*, text/html, text/html;level=1, */*")
+        al = AcceptList.from_str("text/*, text/html, text/html;level=1, */*")
         self.assertTrue(
             str(al) == "text/html; level=1, text/html, text/*, */*", str(al))
         type_list = [
-            MediaType.FromString("text/html;level=1"),
-            MediaType.FromString("text/html"),
-            MediaType.FromString("text/html;level=2"),
-            MediaType.FromString("text/xhtml")]
+            MediaType.from_str("text/html;level=1"),
+            MediaType.from_str("text/html"),
+            MediaType.from_str("text/html;level=2"),
+            MediaType.from_str("text/xhtml")]
         best_type = al.SelectType(type_list)
         #   Accept: text/html; level=1, text/html, text/*, */*
         #   text/html;level=1   : q=1.0
@@ -517,7 +254,7 @@ class HeaderTests(unittest.TestCase):
         #   text/xhtml          : q=1.0     partial match on text/*
         # first in list
         self.assertTrue(str(best_type) == "text/html; level=1", str(best_type))
-        al = AcceptList.FromString(
+        al = AcceptList.from_str(
             "text/*; q=1.0, text/html; q=0.5, text/html;level=1; q=0, */*")
         #   Accept: text/*; q=1.0, text/html; q=0.5, text/html;level=1;
         #       q=0, */*
@@ -539,16 +276,16 @@ class HeaderTests(unittest.TestCase):
         best_type = al.SelectType(type_list)
         self.assertTrue(str(best_type) == "text/html; level=2",
                         "Partial level match beats exact rule deprecation")
-        al = AcceptList.FromString(
+        al = AcceptList.from_str(
             "text/*;q=0.3, text/html;q=0.7, "
             "text/html;level=1,  text/html;level=2;q=0.4, */*;q=0.5 ")
         type_list = [
-            MediaType.FromString("text/html;level=1"),
-            MediaType.FromString("text/html"),
-            MediaType.FromString("text/plain"),
-            MediaType.FromString("image/jpeg"),
-            MediaType.FromString("text/html;level=2"),
-            MediaType.FromString("text/html;level=3")]
+            MediaType.from_str("text/html;level=1"),
+            MediaType.from_str("text/html"),
+            MediaType.from_str("text/plain"),
+            MediaType.from_str("image/jpeg"),
+            MediaType.from_str("text/html;level=2"),
+            MediaType.from_str("text/html;level=3")]
         #   Accept: text/*;q=0.3, text/html;q=0.7, text/html;level=1,
         #       text/html;level=2;q=0.4, */*;q=0.5
         #   text/html;level=1   : q=1.0
@@ -580,15 +317,15 @@ class HeaderTests(unittest.TestCase):
         del type_list[1]
         best_type = al.SelectType(type_list)
         self.assertTrue(str(best_type) == "text/plain", "matches text/*")
-        al = AcceptList.FromString("text/*, text/html, text/html;level=1, "
+        al = AcceptList.from_str("text/*, text/html, text/html;level=1, "
                                    "image/*; q=0, image/png; q=0.05")
         #   Accept: text/*, text/html, text/html;level=1, */*; q=0,
         #       image/*; q=0.05
         #   video/mpeg  : q=0.0
         #   image/png   : q=0.05
-        best_type = al.SelectType([MediaType.FromString('video/mpeg')])
+        best_type = al.SelectType([MediaType.from_str('video/mpeg')])
         self.assertTrue(best_type is None, "Unacceptable: %s" % str(best_type))
-        best_type = al.SelectType([MediaType.FromString('image/png')])
+        best_type = al.SelectType([MediaType.from_str('image/png')])
         self.assertTrue(
             str(best_type) == "image/png",
             "Best partial match: %s" %
@@ -605,7 +342,7 @@ class HeaderTests(unittest.TestCase):
             str(rq_token) == "gzip;q=0.5",
             "AcceptToken custom constructor Format default: %s" %
             str(rq_token))
-        rq_tokens = AcceptTokenList.FromString(
+        rq_tokens = AcceptTokenList.from_str(
             " gzip;q=1.0, identity; q=0.5, *;q=0")
         self.assertTrue(rq_tokens[0].token == 'gzip' and rq_tokens[0].q == 1.0,
                         "Parse accept encodings: gzip;q=1.0")
@@ -624,69 +361,69 @@ class HeaderTests(unittest.TestCase):
             str(rq_tokens[2]) == "*;q=0",
             "Format accept encodings: found %s" % str(rq_tokens[2]))
         # Final tests check bad values for q
-        rq_token = AcceptToken.FromString("x;q=1.3")
+        rq_token = AcceptToken.from_str("x;q=1.3")
         self.assertTrue(rq_token.q == 1.0, "Large q value")
 
     def test_accept_charset_list(self):
         # checks the rule that iso-8859-1, if not present explicitly, matches *
-        rq_tokens = AcceptCharsetList.FromString(
+        rq_tokens = AcceptCharsetList.from_str(
             " utf-8;q=1.0, symbol; q=0.5, *;q=0.5")
         self.assertTrue(
             rq_tokens.SelectToken(["iso-8859-1"]) is not None, "match *")
         # so if * is excluded then it will be excluded
-        rq_tokens = AcceptCharsetList.FromString(
+        rq_tokens = AcceptCharsetList.from_str(
             " utf-8;q=1.0, symbol; q=0.5, *;q=0")
         self.assertTrue(
             rq_tokens.SelectToken(["iso-8859-1"]) is None, "match * q=0")
         # and if * is not present it gets q value 1
-        rq_tokens = AcceptCharsetList.FromString(
+        rq_tokens = AcceptCharsetList.from_str(
             " utf-8;q=1.0, symbol; q=0.5")
         self.assertTrue(rq_tokens.SelectToken(
             ["symbol", "iso-8859-1"]) == "iso-8859-1",
             "default q=1 for latin-1")
 
     def test_accept_encoding_list(self):
-        rq_tokens = AcceptEncodingList.FromString("compress, gzip")
+        rq_tokens = AcceptEncodingList.from_str("compress, gzip")
         self.assertTrue(
             rq_tokens.SelectToken(["gzip"]) is not None, "match token")
-        rq_tokens = AcceptEncodingList.FromString("compress, gzip;q=0")
+        rq_tokens = AcceptEncodingList.from_str("compress, gzip;q=0")
         self.assertTrue(
             rq_tokens.SelectToken(["gzip"]) is None, "match token unless q=0")
-        rq_tokens = AcceptEncodingList.FromString("compress, *, gzip;q=0")
+        rq_tokens = AcceptEncodingList.from_str("compress, *, gzip;q=0")
         self.assertTrue(
             rq_tokens.SelectToken(
                 ["gzip"]) is None,
             "match token unless q=0; unmatched *")
-        rq_tokens = AcceptEncodingList.FromString("compress, *;q=0")
+        rq_tokens = AcceptEncodingList.from_str("compress, *;q=0")
         self.assertTrue(rq_tokens.SelectToken(["gzip"]) is None, "match * q=0")
-        rq_tokens = AcceptEncodingList.FromString(
+        rq_tokens = AcceptEncodingList.from_str(
             "compress; q=0.5, gzip;q=0.75")
         self.assertTrue(
             rq_tokens.SelectToken(["compress", "gzip"]) == "gzip",
             "match highest q")
-        rq_tokens = AcceptEncodingList.FromString(
+        rq_tokens = AcceptEncodingList.from_str(
             "compress; q=0.5, gzip;q=0.75, *;q=1")
         self.assertTrue(rq_tokens.SelectToken(
             ["compress", "gzip", "weird"]) == "weird", "match highest q *")
-        rq_tokens = AcceptEncodingList.FromString(
+        rq_tokens = AcceptEncodingList.from_str(
             "compress; q=0.5, gzip;q=0.75")
         self.assertTrue(
             rq_tokens.SelectToken(
                 ["identity"]) is not None,
             "identity acceptable")
-        rq_tokens = AcceptEncodingList.FromString(
+        rq_tokens = AcceptEncodingList.from_str(
             "compress; q=0.5, gzip;q=0.75, identity;q=0")
         self.assertTrue(
             rq_tokens.SelectToken(
                 ["identity"]) is None,
             "identity unacceptable")
-        rq_tokens = AcceptEncodingList.FromString(
+        rq_tokens = AcceptEncodingList.from_str(
             "compress; q=0.5, gzip;q=0.75, *;q=0")
         self.assertTrue(
             rq_tokens.SelectToken(
                 ["identity"]) is None,
             "identity unacceptable *")
-        rq_tokens = AcceptEncodingList.FromString("")
+        rq_tokens = AcceptEncodingList.from_str("")
         self.assertTrue(
             rq_tokens.SelectToken(
                 ["identity"]) is not None,
@@ -697,7 +434,7 @@ class HeaderTests(unittest.TestCase):
             "gzip unacceptable (empty)")
 
     def test_accept_language_list(self):
-        rq_tokens = AcceptLanguageList.FromString(
+        rq_tokens = AcceptLanguageList.from_str(
             " da, en-gb;q=0.8, en;q=0.7 ")
         self.assertTrue(
             rq_tokens.SelectToken(["en-US"]) == "en-US", "match prefix")
@@ -706,40 +443,40 @@ class HeaderTests(unittest.TestCase):
                 rq_tokens.SelectToken(
                     ["en-US"])) in StringTypes,
             "SelectToken return type")
-        match = rq_tokens.SelectLanguage([LanguageTag.FromString("en-US")])
+        match = rq_tokens.SelectLanguage([LanguageTag.from_str("en-US")])
         self.assertTrue(match == "en-US", "match prefix (tag version)")
         self.assertTrue(
             isinstance(match, LanguageTag), "SelectLanguage return type")
-        rq_tokens = AcceptLanguageList.FromString(
+        rq_tokens = AcceptLanguageList.from_str(
             " da, en-gb;q=0.8, en;q=0.7 ")
         self.assertTrue(rq_tokens.SelectLanguage(
-            [LanguageTag.FromString("eng-US")]) is None, "match prefix only")
+            [LanguageTag.from_str("eng-US")]) is None, "match prefix only")
         match = rq_tokens.SelectLanguage(
-            [LanguageTag.FromString("en-US"), LanguageTag.FromString("en-gb")])
+            [LanguageTag.from_str("en-US"), LanguageTag.from_str("en-gb")])
         self.assertTrue(
             match == "en-gb", "match preference: found %s" % repr(match))
-        rq_tokens = AcceptLanguageList.FromString(
+        rq_tokens = AcceptLanguageList.from_str(
             " da, en-gb;q=0.8, en;q=0.7, *;q=0.75 ")
         self.assertTrue(rq_tokens.SelectLanguage([
-            LanguageTag.FromString("en-US"),
-            LanguageTag.FromString("de"),
-            LanguageTag.FromString("en-gb")
+            LanguageTag.from_str("en-US"),
+            LanguageTag.from_str("de"),
+            LanguageTag.from_str("en-gb")
         ]) == "en-gb", "match preference")
         self.assertTrue(rq_tokens.SelectLanguage([
-            LanguageTag.FromString("en-US"),
-            LanguageTag.FromString("de"),
+            LanguageTag.from_str("en-US"),
+            LanguageTag.from_str("de"),
         ]) == "de", "match preference")
-        self.assertTrue(rq_tokens.SelectLanguage([LanguageTag.FromString(
+        self.assertTrue(rq_tokens.SelectLanguage([LanguageTag.from_str(
             "en-gb-drawl-berkshire-westreading")]) is not None,
             "match long prefix only")
-        rq_tokens = AcceptLanguageList.FromString(
+        rq_tokens = AcceptLanguageList.from_str(
             " da, en-us;q=0.8, en-sg;q=0.7")
-        self.assertTrue(rq_tokens.SelectLanguage([LanguageTag.FromString(
+        self.assertTrue(rq_tokens.SelectLanguage([LanguageTag.from_str(
             "en-gb-drawl-berkshire-westreading")]) is None,
             "no match on long prefix only")
-        rq_tokens = AcceptLanguageList.FromString(
+        rq_tokens = AcceptLanguageList.from_str(
             " da, en-us;q=0.8, en-sg;q=0.7, en-gb-drawl-berkshire")
-        self.assertTrue(rq_tokens.SelectLanguage([LanguageTag.FromString(
+        self.assertTrue(rq_tokens.SelectLanguage([LanguageTag.from_str(
             "en-gb-drawl-berkshire-westreading")]) is not None,
             "match on long prefix")
 
@@ -762,11 +499,11 @@ class HeaderTests(unittest.TestCase):
         except IndexError:
             pass
         try:
-            ar2 = AcceptRanges.FromString("")
+            ar2 = AcceptRanges.from_str("")
             self.fail("range unit required")
         except BadSyntax:
             pass
-        ar2 = AcceptRanges.FromString("Bits,Bytes")
+        ar2 = AcceptRanges.from_str("Bits,Bytes")
         self.assertTrue(
             ar2 == ar, "Equality test is case insensitive and sorted")
         self.assertTrue(
@@ -794,10 +531,10 @@ class HeaderTests(unittest.TestCase):
             self.fail("Expected index error")
         except IndexError:
             pass
-        allow2 = Allow.FromString("")
+        allow2 = Allow.from_str("")
         self.assertTrue(
             len(allow2) == 0, "Empty string allowed for no methods")
-        allow2 = Allow.FromString("PUT, get  ,, hEAd")
+        allow2 = Allow.from_str("PUT, get  ,, hEAd")
         self.assertTrue(
             allow2 == allow, "Equality test is case insensitive and sorted")
         self.assertTrue(
@@ -868,33 +605,33 @@ class HeaderTests(unittest.TestCase):
             cr.firstByte == 0 and cr.lastByte == 499, "field values")
         self.assertTrue(cr.totalLength is None, "Unknown total length")
         self.assertTrue(str(cr) == "bytes 0-499/*", "str output")
-        cr1 = ContentRange.FromString("bytes 0-499 / 1234")
+        cr1 = ContentRange.from_str("bytes 0-499 / 1234")
         self.assertTrue(
             cr1.firstByte == 0 and
             cr1.lastByte == 499 and
             cr1.totalLength == 1234)
         self.assertTrue(cr1.IsValid())
         self.assertTrue(str(cr1) == "bytes 0-499/1234")
-        cr2 = ContentRange.FromString("bytes 500-999/1234")
+        cr2 = ContentRange.from_str("bytes 500-999/1234")
         self.assertTrue(cr2.firstByte == 500 and len(cr2) == 500)
         self.assertTrue(cr2.IsValid())
-        cr3 = ContentRange.FromString("bytes 500-1233/1234")
+        cr3 = ContentRange.from_str("bytes 500-1233/1234")
         self.assertTrue(cr3.IsValid())
         self.assertTrue(len(cr3) == 1234 - 500)
-        cr4 = ContentRange.FromString("bytes 734-1233/1234")
+        cr4 = ContentRange.from_str("bytes 734-1233/1234")
         self.assertTrue(cr4.IsValid())
         self.assertTrue(len(cr4) == 500)
-        cr5 = ContentRange.FromString("bytes 734-734/1234")
+        cr5 = ContentRange.from_str("bytes 734-734/1234")
         self.assertTrue(cr5.IsValid())
         self.assertTrue(len(cr5) == 1)
-        cr6 = ContentRange.FromString("bytes 734-733/1234")
+        cr6 = ContentRange.from_str("bytes 734-733/1234")
         self.assertFalse(cr6.IsValid())
         try:
             len(cr6)
             self.fail("Invalid range generates error on len")
         except ValueError:
             pass
-        cr7 = ContentRange.FromString("bytes 734-1234/1234")
+        cr7 = ContentRange.from_str("bytes 734-1234/1234")
         self.assertFalse(cr7.IsValid())
 
 

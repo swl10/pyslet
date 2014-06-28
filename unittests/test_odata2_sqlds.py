@@ -478,15 +478,15 @@ class SQLDSTests(unittest.TestCase):
                 collection.insert_entity(new_hire)
             self.assertTrue(len(collection) == 20)
             collection.set_filter(
-                core.CommonExpression.FromString(
+                core.CommonExpression.from_str(
                     "substringof('Road',Address/Street)"))
             roads = len(collection)
             collection.set_filter(
-                core.CommonExpression.FromString(
+                core.CommonExpression.from_str(
                     "endswith(Address/Street,'Street')"))
             streets = len(collection)
             collection.set_filter(
-                core.CommonExpression.FromString(
+                core.CommonExpression.from_str(
                     "startswith(Address/Street,'Privet')"))
             drives = len(collection)
             self.assertTrue(
@@ -498,7 +498,7 @@ class SQLDSTests(unittest.TestCase):
                  streets +
                  drives))
             collection.set_filter(
-                core.CommonExpression.FromString(
+                core.CommonExpression.from_str(
                     "EmployeeName eq 'Talent #13'"))
             self.assertTrue(len(collection) == 1, "Just one matching employee")
             talent = collection.values()[0]
@@ -534,7 +534,7 @@ class SQLDSTests(unittest.TestCase):
                 last_talent = talent
             # add a filter and check again
             collection.set_filter(
-                core.CommonExpression.FromString(
+                core.CommonExpression.from_str(
                     "endswith(Address/Street,'Drive')"))
             last_talent = None
             for talent in collection.values():
@@ -612,7 +612,7 @@ class SQLDSTests(unittest.TestCase):
                 self.assertTrue(len(parentCollection) == 1)
                 # check with a filter
                 parentCollection.set_filter(
-                    core.CommonExpression.FromString(
+                    core.CommonExpression.from_str(
                         "Address/City eq 'Chunton'"))
                 self.assertTrue(len(parentCollection) == 1)
         # now check the association is working with filter and orderby too
@@ -632,7 +632,7 @@ class SQLDSTests(unittest.TestCase):
                 orders[1]['ShippedDate'].value >
                 orders[0]['ShippedDate'].value)
             collection.set_filter(
-                core.CommonExpression.FromString(
+                core.CommonExpression.from_str(
                     "ShippedDate ge datetime'2013-11-01T00:00:00'"))
             self.assertTrue(len(collection) == 1)
             self.assertTrue(order.key() in collection)

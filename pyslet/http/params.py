@@ -1,41 +1,53 @@
 #! /usr/bin/env python
 
 import string
-import warnings
-from types import *
+import types
 
-from pyslet.http.grammar import *
 import pyslet.iso8601 as iso
 import pyslet.rfc2396 as uri
+
+from pyslet.http.grammar import *       # noqa
 
 
 class HTTPVersion(object):
 
     """Represents the HTTP Version.
 
-    HTTPVersion objects can be created from their string representation
-    passed in *source*.  If *source* is None then the protocol version
-    is set to 1.1.
+    major
+        The (optional) major version
 
-    HTTPVersion objects must be treated as immutable, they define
-    comparison functions (such that 1.1>1.0 and  1.2<1.25) and can also
-    be used as keys in dictionaries if required.
+    minor
+        The (optional) minor version
 
-    Finally, on conversion to a string the output is of the form::
+    The default instance, HTTPVersion(), represents HTTP/1.1
 
-            HTTP/<major>.<minor>"""
+    HTTPVersion objects are immutable, they define comparison functions
+    (such that 1.1 > 1.0 and  1.2 < 1.25) and a hash implementation is
+    provided.
+
+    On conversion to a string the output is of the form::
+
+            HTTP/<major>.<minor>
+
+    For convenience, the constants HTTP_1p1 and HTTP_1p0 are provided
+    for comparisons, e.g.::
+
+        if HTTPVersion.from_str(version_str) == HTTP_1p0:
+            # do something to support a legacy system..."""
 
     def __init__(self, major=1, minor=None):
-        self.major = major  # : major protocol version (read only)
-        self.minor = minor  # : minor protocol version (read only)
+        #: major protocol version (read only)
+        self.major = major
+        #: minor protocol version (read only)
+        self.minor = minor
         if minor is None:
             self.minor = 1 if major == 1 else 0
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Constructs an :py:class:`HTTPVersion` object from a string."""
         wp = ParameterParser(source)
-        result = wp.require_production(wp.ParseHTTPVersion(), "HTTP Version")
+        result = wp.require_production(wp.parse_http_version(), "HTTP Version")
         wp.require_end("HTTP version")
         return result
 
@@ -59,56 +71,62 @@ class HTTPVersion(object):
         else:
             return 0
 
-HTTP_1_1 = HTTPVersion(1, 1)
+#: A constant representing HTTP/1.1
+HTTP_1p1 = HTTPVersion(1, 1)
+
+#: A constant representing HTTP/1.0
+HTTP_1p0 = HTTPVersion(1, 0)
 
 
 class HTTPURL(uri.ServerBasedURL):
 
     """Represents http URLs"""
 
-    DEFAULT_PORT = 80		#: the default HTTP port
+    #: the default HTTP port
+    DEFAULT_PORT = 80
 
     def __init__(self, octets='http://localhost/'):
         super(HTTPURL, self).__init__(octets)
 
-    def Canonicalize(self):
+    def canonicalize(self):
         """Returns a canonical form of this URI"""
-        newURI = []
+        new_uri = []
         if self.scheme is not None:
-            newURI.append(self.scheme.lower())
-            newURI.append(':')
+            new_uri.append(self.scheme.lower())
+            new_uri.append(':')
         if self.authority is not None:
-            newURI.append('//')
+            new_uri.append('//')
             if self.userinfo is not None:
-                newURI.append(self.userinfo)
-                newURI.append('@')
-            newURI.append(self.host.lower())
+                new_uri.append(self.userinfo)
+                new_uri.append('@')
+            new_uri.append(self.host.lower())
             if self.port:  # port could be an empty string
                 port = int(self.port)
                 if port != self.DEFAULT_PORT:
-                    newURI.append(':')
-                    newURI.append("%i" % int(self.port))
+                    new_uri.append(':')
+                    new_uri.append("%i" % int(self.port))
         if self.absPath is not None:
             if not self.absPath:
-                newURI.append("/")
+                new_uri.append("/")
             else:
-                newURI.append(uri.CanonicalizeData(self.absPath))
+                new_uri.append(uri.CanonicalizeData(self.absPath))
         elif self.relPath is not None:
-            newURI.append(uri.CanonicalizeData(self.relPath))
+            new_uri.append(uri.CanonicalizeData(self.relPath))
         if self.query is not None:
-            newURI.append('?')
-            newURI.append(uri.CanonicalizeData(self.query))
+            new_uri.append('?')
+            new_uri.append(uri.CanonicalizeData(self.query))
         if self.fragment is not None:
-            newURI.append('#')
-            newURI.append(self.fragment)
-        return uri.URIFactory.URI(string.join(newURI, ''))
+            new_uri.append('#')
+            new_uri.append(self.fragment)
+        return uri.URIFactory.URI(string.join(new_uri, ''))
 
 
 class HTTPSURL(HTTPURL):
 
     """Represents https URLs"""
 
-    DEFAULT_PORT = 443  # : the default HTTPS port
+    #: the default HTTPS port
+    DEFAULT_PORT = 443
 
     def __init__(self, octets='https://localhost/'):
         super(HTTPSURL, self).__init__(octets)
@@ -120,32 +138,35 @@ uri.URIFactory.Register('https', HTTPSURL)
 
 class FullDate(iso.TimePoint):
 
-    """A sub-class of :py:class:`pyslet.iso8601.TimePoint` which adds parsing
-    and formatting methods for HTTP-formatted dates."""
+    """A special sub-class for HTTP-formatted dates"""
 
     @classmethod
-    def FromHTTPString(cls, source):
-        """Parses a :py:class:`pyslet.iso8601.TimePoint` instance from an HTTP
-        formatted string."""
+    def from_http_str(cls, source):
+        """Returns an instance parsed from an HTTP formatted string"""
         wp = ParameterParser(source)
-        tp = wp.RequireFullDate()
+        tp = wp.require_fulldate()
         wp.parse_sp()
         wp.require_end("full date")
         return tp
 
     def __str__(self):
-        """Formats a :py:class:`pyslet.iso8601.TimePoint` instance in the
-        following format, described as RFC 1123 [8]-date format::
+        """Formats the instance according to RFC 1123
 
-                Sun, 06 Nov 1994 08:49:37 GMT
+        The format is as follows::
 
-        Note that this overrides the default behaviour which would be to use one
-        of the iso8601 output formats."""
+            Sun, 06 Nov 1994 08:49:37 GMT
+
+        This format is also described in in RFC2616 in the production
+        rfc1123-date.
+
+        Note that this overrides the default behaviour which would be to
+        use one of the iso8601 output formats."""
         z = self.ShiftZone(0)
-        century, year, month, day, hour, minute, second = z.GetCalendarTimePoint()
-        century, decade, dyear, week, dayOfWeek = z.date.GetWeekDay()
+        (century, year, month, day,
+         hour, minute, second) = z.GetCalendarTimePoint()
+        century, decade, dyear, week, dayofweek = z.date.GetWeekDay()
         return "%s, %02i %s %04i %02i:%02i:%02i GMT" % (
-            ParameterParser.wkday[dayOfWeek - 1],
+            ParameterParser.wkday[dayofweek - 1],
             day,
             ParameterParser.month[month - 1],
             century * 100 + year,
@@ -160,19 +181,26 @@ class TransferEncoding(object):
 
     """Represents an HTTP transfer-encoding.
 
+    token
+        The transfer encoding identifier, defaults to "chunked"
+
+    parameters
+        A parameter dictionary mapping parameter names to tuples
+        of strings: (parameter name, parameter value)
+
     The built-in str function can be used to format instances according
     to the grammar defined in the specification.
 
-    Instances must be treated as immutable, they define comparison
-    methods and a hash implementation to allow them to be used as keys
-    in dictionaries."""
+    Instances are immutable, they define comparison methods and a hash
+    implementation."""
 
     def __init__(self, token="chunked", parameters={}):
         token = token.lower()
         if token == "chunked":
             #: the transfer-encoding token (defaults to "chunked")
             self.token = "chunked"
-            self.parameters = {}			#: declared extension parameters
+            #: declared extension parameters
+            self.parameters = {}
         else:
             self.token = token
             self.parameters = parameters
@@ -180,12 +208,12 @@ class TransferEncoding(object):
         self._hp.sort()
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Parses the transfer-encoding from a *source* string.
 
-        If the protocol version is not parsed correctly BadSyntax is raised."""
+        If the encoding is not parsed correctly BadSyntax is raised."""
         p = ParameterParser(source)
-        te = p.RequireTransferEncoding()
+        te = p.require_transfer_encoding()
         p.require_end("transfer-encoding")
         return te
 
@@ -196,14 +224,73 @@ class TransferEncoding(object):
         return hash(self) == hash(other)
 
     def __cmp__(self, other):
-        if type(other) in StringTypes:
-            other = TransferEncoding.FromString(other)
+        if type(other) in types.StringTypes:
+            other = TransferEncoding.from_str(other)
         if not isinstance(TransferEncoding):
             raise TypeError
         return cmp((self.token, self._hp), (other.token, other._hp))
 
     def __hash__(self):
         return hash((self.token, self._hp))
+
+
+class Chunk(object):
+
+    """Represents an HTTP chunk header
+
+    size
+        The size of this chunk (defaults to 0)
+
+    extensions
+        A parameter dictionary mapping parameter names to tuples
+        of strings: (chunk-ext-name, chunk-ext-val)
+
+    The built-in str function can be used to format instances according
+    to the grammar defined in the specification.  The resulting string
+    does *not* include the trailing CRLF.
+
+    Instances are immutable, they define comparison methods and a hash
+    implementation."""
+
+    def __init__(self, size=0, extensions=None):
+        #: the chunk-size
+        self.size = size
+        #: declared extension parameters
+        if extensions is None:
+            self.extensions = {}
+        else:
+            self.extensions = extensions
+        self._cx = map(lambda x: (x[0], x[1][1]), self.extensions.items())
+        self._cx.sort()
+
+    @classmethod
+    def from_str(cls, source):
+        """Parses the chunk header from a *source* string of *TEXT*.
+
+        If the chunk header is not parsed correctly BadSyntax is raised.
+        The header includes the chunk-size and any chunk-extension
+        parameters but it does *not* include the trailing CRLF or the
+        chunk-data"""
+        p = ParameterParser(source)
+        chunk = p.require_chunk()
+        p.require_end("chunk")
+        return chunk
+
+    def __str__(self):
+        return "%X%s" % (self.size, format_parameters(self.extensions))
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
+    def __cmp__(self, other):
+        if type(other) in types.StringTypes:
+            other = self.from_str(other)
+        if not isinstance(Chunk):
+            raise TypeError
+        return cmp((self.size, self._cx), (other.size, other._cx))
+
+    def __hash__(self):
+        return hash((self.size, self._cx))
 
 
 class MediaType(object):
@@ -213,12 +300,12 @@ class MediaType(object):
     The built-in str function can be used to format instances according
     to the grammar defined in the specification.
 
-    Instances must be treated as immutable, they define comparison
-    methods and a hash implementation to allow them to be used as keys
-    in dictionaries.  Media-types are compared by type, subtype and
+    Instances are immutable, they define comparison methods and a hash
+    implementation.  Media-types are compared by type, subtype and
     ultimately parameters."""
 
-    def __init__(self, type="application", subtype="octet-stream", parameters={}):
+    def __init__(self, type="application", subtype="octet-stream",
+                 parameters={}):
         self.type = type
         self.subtype = subtype
         self.parameters = parameters
@@ -226,31 +313,34 @@ class MediaType(object):
         self._hp.sort()
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Creates a media-type from a *source* string.
 
         Enforces the following rule from the specification:
 
-                Linear white space (LWS) MUST NOT be used between the type and
-                subtype, nor between an attribute and its value"""
+            Linear white space (LWS) MUST NOT be used between the type
+            and subtype, nor between an attribute and its value"""
         p = ParameterParser(source, ignore_sp=False)
-        mt = p.RequireMediaType()
+        mt = p.require_media_type()
         p.parse_sp()
         p.require_end("media-type")
         return mt
 
     def __str__(self):
-        return string.join([self.type, '/', self.subtype], '') + format_parameters(self.parameters)
+        return (string.join([self.type, '/', self.subtype], '') +
+                format_parameters(self.parameters))
 
     def __unicode__(self):
         return unicode(self.__str__())
 
     def __repr__(self):
-        return "MediaType(%s,%s,%s)" % (repr(self.type), repr(self.subtype), repr(self.parameters))
+        return "MediaType(%s,%s,%s)" % (repr(self.type),
+                                        repr(self.subtype),
+                                        repr(self.parameters))
 
     def __cmp__(self, other):
-        if type(other) in StringTypes:
-            other = MediaType.FromString(other)
+        if type(other) in types.StringTypes:
+            other = MediaType.from_str(other)
         if not isinstance(other, MediaType):
             raise TypeError
         result = cmp(self.type.lower(), other.type.lower())
@@ -265,7 +355,10 @@ class MediaType(object):
         return hash((self.type.lower(), self.subtype.lower(), self._hp))
 
 
+#: A predefined constant for application/octet-stream
 APPLICATION_OCTETSTREAM = MediaType('application', 'octet-stream')
+
+#: A predefined constant for text/plain
 PLAIN_TEXT = MediaType('text', 'plain')
 
 
@@ -276,15 +369,14 @@ class ProductToken(object):
     The built-in str function can be used to format instances according
     to the grammar defined in the specification.
 
-    Instances must be treated as immutable, they define comparison
-    methods and a hash implementation to allow them to be used as keys
-    in dictionaries.
+    Instances are immutable, they define comparison methods and a hash
+    implementation.
 
     The comparison operations use a more interesting sort than plain
     text on version in order to provide a more intuitive ordering.  As
     it is common practice to use dotted decimal notation for versions
     (with some alphanumeric modifiers) the version string is exploded
-    (see :py:meth:`Explode`) internally on construction and this
+    (see :py:meth:`explode`) internally on construction and this
     exploded value is used in comparisons.  The upshot is that version
     1.0.3 sorts before 1.0.10 as you would expect and 1.0a < 1.0 <
     1.0.3a3 < 1.0.3a20 < 1.0.3b1 < 1.0.3; there are limits to this
@@ -297,24 +389,26 @@ class ProductToken(object):
     compatible with these rules."""
 
     def __init__(self, token=None, version=None):
-        self.token = token		#: the product's token
-        self.version = version  # : the product's version
+        #: the product's token
+        self.token = token
+        #: the product's version
+        self.version = version
         if self.version is not None:
             # explode the version string
-            self._version = self.Explode(self.version)
+            self._version = self.explode(self.version)
         else:
             self._version = ()
 
     @classmethod
-    def Explode(cls, version):
+    def explode(cls, version):
         """Returns an exploded version string.
 
         Version strings are split by dot and then by runs of non-digit
         characters resulting in a list of tuples.  Examples will help::
 
-                Explode("2.15")==((2),(15))
-                Explode("2.17b3")==((2),(17,"b",3))
-                Explode("2.b3")==((2),(-1,"b",3))
+                explode("2.15")==((2),(15))
+                explode("2.17b3")==((2),(17,"b",3))
+                explode("2.b3")==((2),(-1,"b",3))
 
         Note that a missing leading numeric component is treated as -1
         to force "a3" to sort before "0a3"."""
@@ -343,28 +437,28 @@ class ProductToken(object):
         return tuple(exploded)
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Creates a product token from a *source* string."""
         p = ParameterParser(source)
         p.parse_sp()
-        pt = p.RequireProductToken()
+        pt = p.require_product_token()
         p.parse_sp()
         p.require_end("product token")
         return pt
 
     @classmethod
-    def ListFromString(cls, source):
+    def list_from_str(cls, source):
         """Creates a list of product tokens from a *source* string.
 
         Individual tokens are separated by white space."""
-        ptList = []
+        ptlist = []
         p = ParameterParser(source)
         p.parse_sp()
         while p.the_word is not None:
-            ptList.append(p.RequireProductToken())
+            ptlist.append(p.require_product_token())
             p.parse_sp()
         p.require_end("product token")
-        return ptList
+        return ptlist
 
     def __str__(self):
         if self.version is None:
@@ -379,59 +473,59 @@ class ProductToken(object):
         return "ProductToken(%s,%s)" % (repr(self.token), repr(self.version))
 
     def __cmp__(self, other):
-        if type(other) in StringTypes:
-            other = ProductToken.FromString(other)
+        if type(other) in types.StringTypes:
+            other = ProductToken.from_str(other)
         elif not isinstance(other, ProductToken):
             raise TypeError
         result = cmp(self.token, other.token)
         if result:
             return result
-        iVersion = 0
+        iversion = 0
         while True:
-            if iVersion < len(self._version):
-                v = self._version[iVersion]
+            if iversion < len(self._version):
+                v = self._version[iversion]
             else:
                 v = None
-            if iVersion < len(other._version):
-                vOther = other._version[iVersion]
+            if iversion < len(other._version):
+                vother = other._version[iversion]
             else:
-                vOther = None
+                vother = None
             # a missing component sorts before
             if v is None:
-                if vOther is None:
+                if vother is None:
                     # both missing, must be equal.  Note that this
                     # means that "01" is treated equal to "1"
                     return 0
                 else:
                     return -1
-            elif vOther is None:
+            elif vother is None:
                 return 1
             # now loop through the sub-components and compare them
-            jVersion = 0
+            jversion = 0
             while True:
-                if jVersion < len(v):
-                    vv = v[jVersion]
+                if jversion < len(v):
+                    vv = v[jversion]
                 else:
                     vv = None
-                if jVersion < len(vOther):
-                    vvOther = vOther[jVersion]
+                if jversion < len(vother):
+                    vvother = vother[jversion]
                 else:
-                    vvOther = None
+                    vvother = None
                 if vv is None:
-                    if vvOther is None:
+                    if vvother is None:
                         break
                     else:
                         # "1.0">"1.0a"
                         return 1
-                elif vvOther is None:
+                elif vvother is None:
                     # "1.0a"<"1.0"
                     return -1
                 # 1.0 < 1.1 and 1.0a<1.0b
-                result = cmp(vv, vvOther)
+                result = cmp(vv, vvother)
                 if result:
                     return result
-                jVersion += 1
-            iVersion += 1
+                jversion += 1
+            iversion += 1
         # we can't get here
         return 0
 
@@ -448,9 +542,8 @@ class LanguageTag(object):
     The built-in str function can be used to format instances according
     to the grammar defined in the specification.
 
-    Instances must be treated as immutable, they define comparison
-    methods and a hash implementation to allow them to be used as keys
-    in dictionaries."""
+    Instances are immutable, they define comparison methods and a hash
+    implementation."""
 
     def __init__(self, primary, *subtags):
         self.primary = primary
@@ -460,22 +553,22 @@ class LanguageTag(object):
             tags.append(sub.lower())
         self._tag = tuple(tags)
 
-    def PartialMatch(self, range):
-        """Returns True if this tag is a partial match against *range*, False otherwise.
+    def partial_match(self, range):
+        """True if this tag is a partial match against *range*
 
         range
-                A tuple of lower-cased subtags.  An empty tuple matches
-                all instances.
+            A tuple of lower-cased subtags.  An empty tuple matches all
+            instances.
 
         For example::
 
-                lang=LanguageTag("en",("US","Texas"))
-                lang.PartialMatch(())==True
-                lang.PartialMatch(("en",)==True
-                lang.PartialMatch(("en","us")==True
-                lang.PartialMatch(("en","us","texas")==True
-                lang.PartialMatch(("en","gb")==False
-                lang.PartialMatch(("en","us","tex")==False"""
+            lang=LanguageTag("en",("US","Texas"))
+            lang.partial_match(())==True
+            lang.partial_match(("en",)==True
+            lang.partial_match(("en","us")==True
+            lang.partial_match(("en","us","texas")==True
+            lang.partial_match(("en","gb")==False
+            lang.partial_match(("en","us","tex")==False"""
         if len(range) > len(self._tag):
             return False
         for i in xrange(len(range)):
@@ -484,7 +577,7 @@ class LanguageTag(object):
         return True
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Creates a language tag from a *source* string.
 
         Enforces the following rules from the specification:
@@ -492,19 +585,19 @@ class LanguageTag(object):
                 White space is not allowed within the tag"""
         p = ParameterParser(source, ignore_sp=False)
         p.parse_sp()
-        t = p.RequireLanguageTag()
+        t = p.require_language_tag()
         p.parse_sp()
         p.require_end("language tag")
         return t
 
     @classmethod
-    def ListFromString(cls, source):
+    def list_from_str(cls, source):
         """Creates a list of language tags from a *source* string."""
         p = ParameterParser(source, ignore_sp=False)
         tags = []
         while True:
             p.parse_sp()
-            t = p.parse_production(p.RequireLanguageTag)
+            t = p.parse_production(p.require_language_tag)
             if t is not None:
                 tags.append(t)
             p.parse_sp()
@@ -521,12 +614,14 @@ class LanguageTag(object):
         return unicode(self.__str__())
 
     def __repr__(self):
-        return "LanguageTag(%s)" % string.join(map(repr, [self.primary] + list(self.subtags)), ',')
+        return (
+            "LanguageTag(%s)" %
+            string.join(map(repr, [self.primary] + list(self.subtags)), ','))
 
     def __cmp__(self, other):
         """Language tags are compared case insensitive."""
-        if type(other) in StringTypes:
-            other = LanguageTag.FromString(other)
+        if type(other) in types.StringTypes:
+            other = LanguageTag.from_str(other)
         if not isinstance(other, LanguageTag):
             raise TypeError
         return cmp(self._tag, other._tag)
@@ -540,28 +635,29 @@ class EntityTag:
     """Represents an HTTP entity-tag.
 
     tag
-            The opaque tag
+        The opaque tag
 
     weak
-            A boolean indicating if the entity-tag is a weak or strong
-            entity tag.
+        A boolean indicating if the entity-tag is a weak or strong
+        entity tag.  Defaults to True.
 
     The built-in str function can be used to format instances according
     to the grammar defined in the specification.
 
-    Instances must be treated as immutable, they define comparison
-    methods and a hash implementation to allow them to be used as keys
-    in dictionaries."""
+    Instances are immutable, they define comparison methods and a hash
+    implementation."""
 
     def __init__(self, tag, weak=True):
-        self.weak = weak		#: True if this is a weak tag
-        self.tag = tag		#: the opaque tag
+        #: True if this is a weak tag
+        self.weak = weak
+        #: the opaque tag
+        self.tag = tag
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Creates an entity-tag from a *source* string."""
         p = ParameterParser(source)
-        et = p.RequireEntityTag()
+        et = p.require_entity_tag()
         p.require_end("entity-tag")
         return et
 
@@ -575,12 +671,13 @@ class EntityTag:
         return unicode(self.__str__())
 
     def __repr__(self):
-        return "EntityTag(%s,%s)" % (repr(self.tag), "True" if self.week else "False")
+        return ("EntityTag(%s,%s)" %
+                (repr(self.tag), "True" if self.week else "False"))
 
     def __cmp__(self, other):
         """Entity-tags are compared case sensitive."""
         if type(other) in StringTypes:
-            other = EntityTag.FromString(other)
+            other = EntityTag.from_str(other)
         if not isinstance(other, EntityTag):
             raise TypeError
         result = cmp(self.tag, other.tag)
@@ -595,9 +692,17 @@ class EntityTag:
 
 class ParameterParser(WordParser):
 
-    def ParseHTTPVersion(self):
-        """Parses an :py:class:`HTTPVersion` instance or None if no
-        version was found."""
+    """An extended parser for parameter values
+
+    This parser defines attributes for dealing with English date names
+    that are useful beyond the basic parsing functions to allow the
+    formatting of date information in English regardless of the
+    locale."""
+
+    def parse_http_version(self):
+        """Parses an :py:class:`HTTPVersion` instance
+
+        Returns None if no version was found."""
         savepos = self.pos
         try:
             self.parse_sp()
@@ -609,36 +714,41 @@ class ParameterParser(WordParser):
             self.parse_sp()
             token = self.require_token("protocol version")
             version = token.split('.')
-            if len(version) != 2 or not is_digits(version[0]) or not is_digits(version[1]):
+            if (len(version) != 2 or not is_digits(version[0]) or
+                    not is_digits(version[1])):
                 raise BadSyntax("Expected version, found %s" % repr(token))
             return HTTPVersion(major=int(version[0]), minor=int(version[1]))
         except BadSyntax:
-            self.setpos(savePost)
+            self.setpos(savepos)
             return None
 
+    #: A list of English day-of-week abbreviations: wkday[0] == "Mon",
+    #: etc.
     wkday = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    #	A list of day-of-week names Mon=0, Sun=6.
-    _weekday = ["Monday", "Tuesday", "Wednesday",
-                "Thursday", "Friday", "Saturday", "Sunday"]
-    #	A list of long-form day-of-week names Monday=0, Sunday=6.
-    _wkdayTable = {}
-    #	A mapping from lower-case day-of-week names to integers (Mon=0, Sun=6)
 
+    #: A list of English day-of-week full names: weekday[0] == "Monday"
+    weekday = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+               "Saturday", "Sunday"]
+
+    _wkdayTable = {}
+
+    #: A list of English month names: month[0] == "Jan", etc.
     month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    #	A list of month names Jan=0, Dec=11.
+
     _monthTable = {}
-    #	A mapping from lower-case month names to integers (Jan=0, Dec=11)
 
-    def RequireFullDate(self):
-        """Parses a :py:class:`FullDate` instance raising
-        :py:class:`BadSyntax` if none is found.
+    def require_fulldate(self):
+        """Parses a :py:class:`FullDate` instance.
 
-        There are three supported formats as described in the specification::
+        Raises :py:class:`BadSyntax` if none is found.
 
-                "Sun, 06 Nov 1994 08:49:37 GMT"
-                "Sunday, 06-Nov-94 08:49:37 GMT"
-                "Sun Nov  6 08:49:37 1994"
+        There are three supported formats as described in the
+        specification::
+
+            "Sun, 06 Nov 1994 08:49:37 GMT"
+            "Sunday, 06-Nov-94 08:49:37 GMT"
+            "Sun Nov  6 08:49:37 1994"
 
         The first of these is the preferred format."""
         century = None
@@ -648,11 +758,11 @@ class ParameterParser(WordParser):
         hour = None
         minute = None
         second = None
-        dayOfWeek = None
+        dayofweek = None
         self.parse_sp()
         token = self.require_token("day-of-week").lower()
-        dayOfWeek = self._wkdayTable.get(token, None)
-        if dayOfWeek is None:
+        dayofweek = self._wkdayTable.get(token, None)
+        if dayofweek is None:
             raise BadSyntax("Unrecognized day of week: %s" % token)
         self.parse_sp()
         if self.parse_separator(","):
@@ -673,16 +783,17 @@ class ParameterParser(WordParser):
             else:
                 # Alternative 1: "Sunday, 06-Nov-94 08:49:37 GMT"
                 token = self.require_token("DD-MMM-YY")
-                sToken = token.split('-')
-                if len(sToken) != 3 or not is_digits(sToken[0]) or not is_digits(sToken[2]):
-                    raise BadSyntax(
-                        "Expected DD-MMM-YY, found %s" % repr(token))
-                day = int(sToken[0])
-                year = int(sToken[2])
-                month = self._monthTable.get(sToken[1].lower(), None)
+                stoken = token.split('-')
+                if (len(stoken) != 3 or not is_digits(stoken[0]) or
+                        not is_digits(stoken[2])):
+                    raise BadSyntax("Expected DD-MMM-YY, found %s" %
+                                    repr(token))
+                day = int(stoken[0])
+                year = int(stoken[2])
+                month = self._monthTable.get(stoken[1].lower(), None)
                 if month is None:
                     raise BadSyntax(
-                        "Unrecognized month: %s" % repr(sToken[1]))
+                        "Unrecognized month: %s" % repr(stoken[1]))
         else:
             # "Sun Nov  6 08:49:37 1994"
             token = self.require_token("month").lower()
@@ -711,27 +822,32 @@ class ParameterParser(WordParser):
                 century = 20
             else:
                 century = 19
-        tp = FullDate(date=iso.Date(century=century, year=year, month=month + 1, day=day),
-                      time=iso.Time(hour=hour, minute=minute, second=second, zDirection=0))
+        tp = FullDate(
+            date=iso.Date(century=century, year=year, month=month + 1,
+                          day=day),
+            time=iso.Time(hour=hour, minute=minute, second=second,
+                          zDirection=0))
         d1, d2, d3, d4, dow = tp.date.GetWeekDay()
-        if dow != dayOfWeek + 1:
+        if dow != dayofweek + 1:
             raise BadSyntax("Day-of-week mismatch, expected %s but found %s" %
-                            (self.wkday[dow - 1], self.wkday[dayOfWeek]))
+                            (self.wkday[dow - 1], self.wkday[dayofweek]))
         return tp
 
-    #: Parses a delta-seconds value, see :py:meth:`WordParser.parse_integer`
-    ParseDeltaSeconds = WordParser.parse_integer
+    #: Parses a delta-seconds value, see
+    #: :py:meth:`WordParser.parse_integer`
+    parse_delta_seconds = WordParser.parse_integer
 
     #: Parses a charset, see :py:meth:`WordParser.parse_tokenlower`
-    ParseCharset = WordParser.parse_tokenlower
+    parse_charset = WordParser.parse_tokenlower
 
-    # : Parses a content-coding, see :py:meth:`WordParser.parse_tokenlower`
-    ParseContentCoding = WordParser.parse_tokenlower
+    #: Parses a content-coding, see
+    #: :py:meth:`WordParser.parse_tokenlower`
+    parse_content_coding = WordParser.parse_tokenlower
 
-    def RequireTransferEncoding(self):
-        """Parses a transfer-encoding returning a
-        :py:class:`TransferEncoding` instance or None if no
-        transfer-encoding was found."""
+    def require_transfer_encoding(self):
+        """Parses a :py:class:`TransferEncoding` instance
+
+        Returns None if no transfer-encoding was found."""
         self.parse_sp()
         token = self.require_token("transfer-encoding").lower()
         if token != "chunked":
@@ -741,9 +857,21 @@ class ParameterParser(WordParser):
         else:
             return TransferEncoding()
 
-    def RequireMediaType(self):
-        """Parses a media type returning a :py:class:`MediaType`
-        instance.  Raises BadSyntax if no media-type was found."""
+    def require_chunk(self):
+        """Parses a chunk header
+
+        Returns a :py:class:`Chunk` instance or None if no chunk was
+        found."""
+        self.parse_sp()
+        size = self.require_hexinteger("chunk-size")
+        extensions = {}
+        self.parse_parameters(extensions)
+        return Chunk(size, extensions)
+
+    def require_media_type(self):
+        """Parses a :py:class:`MediaType` instance.
+
+        Raises BadSyntax if no media-type was found."""
         self.parse_sp()
         type = self.require_token("media-type").lower()
         self.require_separator('/', "media-type")
@@ -753,9 +881,10 @@ class ParameterParser(WordParser):
         self.parse_parameters(parameters, ignore_allsp=False)
         return MediaType(type, subtype, parameters)
 
-    def RequireProductToken(self):
-        """Parses a product token returning a :py:class:`ProductToken`
-        instance.  Raises BadSyntax if no product token was found."""
+    def require_product_token(self):
+        """Parses a :py:class:`ProductToken` instance.
+
+        Raises BadSyntax if no product token was found."""
         self.parse_sp()
         token = self.require_token("product token")
         self.parse_sp()
@@ -765,17 +894,18 @@ class ParameterParser(WordParser):
             version = None
         return ProductToken(token, version)
 
-    def ParseQualityValue(self):
-        """Parses a qvalue from returning the float equivalent value or
-        None if no qvalue was found."""
+    def parse_qvalue(self):
+        """Parses a qvalue returning a float
+
+        Returns None if no qvalue was found."""
         if self.is_token():
             q = None
-            qSplit = self.the_word.split('.')
-            if len(qSplit) == 1:
-                if is_digits(qSplit[0]):
-                    q = float(qSplit[0])
-            elif len(qSplit) == 2:
-                if is_digits(qSplit[0]) and is_digits(qSplit[1]):
+            qsplit = self.the_word.split('.')
+            if len(qsplit) == 1:
+                if is_digits(qsplit[0]):
+                    q = float(qsplit[0])
+            elif len(qsplit) == 2:
+                if is_digits(qsplit[0]) and is_digits(qsplit[1]):
                     q = float("%.3f" % float(self.the_word))
             if q is None:
                 return None
@@ -788,7 +918,7 @@ class ParameterParser(WordParser):
         else:
             return None
 
-    def RequireLanguageTag(self):
+    def require_language_tag(self):
         """Parses a language tag returning a :py:class:`LanguageTag`
         instance.  Raises BadSyntax if no language tag was
         found."""
@@ -797,7 +927,7 @@ class ParameterParser(WordParser):
         self.parse_sp()
         return LanguageTag(tag[0], *tag[1:])
 
-    def RequireEntityTag(self):
+    def require_entity_tag(self):
         """Parses an entity-tag returning a :py:class:`EntityTag`
         instance.  Raises BadSyntax if no language tag was
         found."""
@@ -820,70 +950,7 @@ class ParameterParser(WordParser):
 
 for i in xrange(len(ParameterParser.wkday)):
     ParameterParser._wkdayTable[ParameterParser.wkday[i].lower()] = i
-for i in xrange(len(ParameterParser._weekday)):
-    ParameterParser._wkdayTable[ParameterParser._weekday[i].lower()] = i
+for i in xrange(len(ParameterParser.weekday)):
+    ParameterParser._wkdayTable[ParameterParser.weekday[i].lower()] = i
 for i in xrange(len(ParameterParser.month)):
     ParameterParser._monthTable[ParameterParser.month[i].lower()] = i
-
-
-# HTTP_DAY_NUM={
-# 	"monday":0, "mon":0,
-# 	"tuesday":1, "tue":1,
-# 	"wednesday":2, "wed":2,
-# 	"thursday":3, "thu":3,
-# 	"friday":4, "fri":4,
-# 	"saturday":5, "sat":5,
-# 	"sunday":6, "sun":6 }
-#
-# Note that in Python time/datetime objects Jan has index 1!
-# HTTP_MONTH_NUM={
-# 	"jan":1,"feb":2,"mar":3,"apr":4,"may":5,"jun":6,"jul":7,"aug":8,"sep":9,"oct":10,"nov":11,"dec":12
-# 	}
-#
-# def ParseDate(dateStr):
-# 	date=string.split(dateStr.strip().lower())
-# 	if len(date)==4:
-# e.g., "Sunday, 06-Nov-94 08:49:37 GMT"
-# 		date=date[0:1]+date[1].split('-')+date[2].split(':')+date[3:]
-# 	elif len(date)==5:
-# e.g., "Sun Nov  6 08:49:37 1994"
-# 		date=[date[0]+',',date[2],date[1],date[4]]+date[3].split(':')+['gmt']
-# 	elif len(date)==6:
-# e.g., "Sun, 06 Nov 1994 08:49:37 GMT" - the preferred format!
-# 		date=date[0:4]+date[4].split(':')+date[5:]
-# 	if len(date)!=8:
-# 		raise ValueError("Badly formed date: %s"%dateStr)
-# 	wday=HTTP_DAY_NUM[date[0][:-1]]
-# 	mday=int(date[1])
-# 	mon=HTTP_MONTH_NUM[date[2]]
-# 	year=int(date[3])
-# No obvious guidance on base year for two-digit years by HTTP was
-# first used in 1990 so dates before that are unlikely!
-# 	if year<90:
-# 		year=year+2000
-# 	elif year<100:
-# 		year=year+1900
-# 	hour=int(date[4])
-# 	min=int(date[5])
-# 	sec=int(date[6])
-# 	if date[7]!='gmt':
-# 		raise ValueError("HTTP date must have GMT timezone: %s"%dateStr)
-# 	result=datetime.datetime(year,mon,mday,hour,min,sec)
-# 	if result.weekday()!=wday:
-# 		raise ValueError("Weekday mismatch in: %s"%dateStr)
-# 	return result
-#
-#
-# HTTP_DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
-# HTTP_MONTHS=["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
-#
-# def FormatDate(date):
-# E.g., "Sun, 06 Nov 1994 08:49:37 GMT"
-# 	return "%s, %02i %s %04i %02i:%02i:%02i GMT"%(
-# 			HTTP_DAYS[date.weekday()],
-# 			date.day,
-# 			HTTP_MONTHS[date.month],
-# 			date.year,
-# 			date.hour,
-# 			date.minute,
-# 			date.second)

@@ -140,7 +140,7 @@ class ClientTests(unittest.TestCase):
         names = set()
         with c.feeds['Products'].OpenCollection() as collection:
             collection.set_filter(
-                core.CommonExpression.FromString("substringof('bread',ProductName)"))
+                core.CommonExpression.from_str("substringof('bread',ProductName)"))
             self.assertTrue(len(collection) == 1)
             product = collection.values()[0]
             self.assertTrue(product['ProductName'] == "Scottish Longbreads")

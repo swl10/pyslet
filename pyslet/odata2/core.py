@@ -376,7 +376,7 @@ class CommonExpression(object):
                 other.operator])
 
     @staticmethod
-    def FromString(src):
+    def from_str(src):
         p = Parser(src)
         return p.require_production_end(
             p.ParseCommonExpression(),
@@ -2158,16 +2158,16 @@ class ODataURI:
                 # <An IANA-defined [IANA-MMT] content type>)
                 # first up, let's see if this is a valid MediaType
                 try:
-                    value = http.AcceptList.FromString(param_value)
+                    value = http.AcceptList.from_str(param_value)
                 except http.BadSyntax:
                     pLower = param_value.lower()
                     if pLower == "atom":
-                        value = http.AcceptList.FromString(
+                        value = http.AcceptList.from_str(
                             'application/atom+xml')
                     elif pLower == "json":
-                        value = http.AcceptList.FromString('application/json')
+                        value = http.AcceptList.from_str('application/json')
                     elif pLower == "xml":
-                        value = http.AcceptList.FromString('application/xml')
+                        value = http.AcceptList.from_str('application/xml')
                     else:
                         raise InvalidSystemQueryOption(
                             "Unsupported $format : %s" % param_value)
@@ -2586,7 +2586,7 @@ def ReadEntityCTValue(complexValue, obj):
 
 
 TICKS_PER_DAY = 86400000
-BASE_DAY = iso.Date.FromString('1970-01-01').GetAbsoluteDay()
+BASE_DAY = iso.Date.from_str('1970-01-01').GetAbsoluteDay()
 
 
 def EntityPropertyInJSON2(simpleValue):
@@ -3573,7 +3573,7 @@ class Entry(atom.Entry):
                         targetElement.SetValue(unicode(dtOffset))
                     elif isinstance(v, edm.StringValue):
                         try:
-                            dtOffset = iso8601.TimePoint.FromString(v.value)
+                            dtOffset = iso8601.TimePoint.from_str(v.value)
                             if dtOffset.GetZone()[0] is None:
                                 dtOffset = dtOffset.WithZone(zDirection=0)
                             targetElement.SetValue(unicode(dtOffset))
@@ -3717,7 +3717,7 @@ class Entry(atom.Entry):
                 targetElement.SetValue(unicode(dtOffset))
             elif isinstance(v, edm.StringValue):
                 try:
-                    dtOffset = iso8601.TimePoint.FromString(v.value)
+                    dtOffset = iso8601.TimePoint.from_str(v.value)
                     if dtOffset.GetZone()[0] is None:
                         dtOffset = dtOffset.WithZone(zDirection=0)
                     targetElement.SetValue(unicode(dtOffset))

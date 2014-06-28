@@ -193,7 +193,7 @@ class ClientCollection(core.EntityCollection):
             data = str(doc)
             request = http.HTTPRequest(str(self.baseURI), 'POST', reqBody=data)
             request.SetContentType(
-                http.MediaType.FromString(core.ODATA_RELATED_ENTRY_TYPE))
+                http.MediaType.from_str(core.ODATA_RELATED_ENTRY_TYPE))
             self.client.ProcessRequest(request)
             if request.status == 201:
                 # success, read the entity back from the response
@@ -569,7 +569,7 @@ class EntityCollection(ClientCollection, core.EntityCollection):
         request = http.HTTPRequest(
             str(entity.GetLocation()), 'PUT', reqBody=data)
         request.SetContentType(
-            http.MediaType.FromString(core.ODATA_RELATED_ENTRY_TYPE))
+            http.MediaType.from_str(core.ODATA_RELATED_ENTRY_TYPE))
         self.client.ProcessRequest(request)
         if request.status == 204:
             # success, nothing to read back but we're not done
@@ -826,7 +826,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             data = str(doc)
             request = http.HTTPRequest(str(self.linksURI), 'PUT', reqBody=data)
             request.SetContentType(
-                http.MediaType.FromString('application/xml'))
+                http.MediaType.from_str('application/xml'))
             self.client.ProcessRequest(request)
             if request.status == 204:
                 return
@@ -839,7 +839,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             request = http.HTTPRequest(
                 str(self.linksURI), 'POST', reqBody=data)
             request.SetContentType(
-                http.MediaType.FromString('application/xml'))
+                http.MediaType.from_str('application/xml'))
             self.client.ProcessRequest(request)
             if request.status == 204:
                 return
@@ -860,7 +860,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             data = str(doc)
             request = http.HTTPRequest(str(self.linksURI), 'PUT', reqBody=data)
             request.SetContentType(
-                http.MediaType.FromString('application/xml'))
+                http.MediaType.from_str('application/xml'))
             self.client.ProcessRequest(request)
             if request.status == 204:
                 return

@@ -413,7 +413,7 @@ and so on, the following methods are useful for consumers of the API:
 		import pyslet.odata2.core as core
 		with people.OpenCollection() as collection:
 			collection.set_filter(
-			    core.CommonExpression.FromString("startswith(Name,'D')"))
+			    core.CommonExpression.from_str("startswith(Name,'D')"))
 			new_entity = collection.new_entity()
 			new_entity['Key'].SetFromValue(1)
 			new_entity['Name'].SetFromValue(u"Steve")
@@ -559,7 +559,7 @@ The easiest way to set a filter is to compile one directly from a string
 representation using OData's query language.  For example::
 
 	>>> import pyslet.odata2.core as core
-	>>> filter = core.CommonExpression.FromString("substringof('one',ProductName)")
+	>>> filter = core.CommonExpression.from_str("substringof('one',ProductName)")
 	>>> products.set_filter(filter)
 	>>> for p in products.itervalues(): print p.key(), p['ProductName'].value
 	... 

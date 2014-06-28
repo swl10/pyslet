@@ -204,7 +204,7 @@ class Date(AtomElement):
 
     def ContentChanged(self):
         """Re-reads the value of the element and sets :py:attr:`date` accordingly."""
-        self.date = iso8601.TimePoint.FromString(AtomElement.GetValue(self))
+        self.date = iso8601.TimePoint.from_str(AtomElement.GetValue(self))
 
 
 class Updated(Date):

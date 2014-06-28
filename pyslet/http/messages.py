@@ -43,7 +43,7 @@ class MediaRange(MediaType):
         super(MediaRange, self).__init__(type, subtype, parameters)
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Creates a media-rannge from a *source* string.
 
         Unlike the parent media-type we ignore all spaces."""
@@ -145,7 +145,7 @@ class AcceptItem(MediaRange):
         self.params = extensions  # : any accept-extension parameters
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Creates a single AcceptItem instance from a *source* string."""
         p = HeaderParser(source)
         p.parse_sp()
@@ -166,7 +166,7 @@ class AcceptItem(MediaRange):
 
     def __cmp__(self, other):
         if type(other) in StringTypes:
-            other = AcceptItem.FromString(other)
+            other = AcceptItem.from_str(other)
         elif not isinstance(other, AcceptItem):
             raise TypeError
         result = cmp(self.range, other.range)
@@ -221,7 +221,7 @@ class AcceptList(object):
         return bestMatch
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Create an AcceptList from a *source* string."""
         p = HeaderParser(source)
         al = p.RequireAcceptList()
@@ -265,7 +265,7 @@ class AcceptToken(object):
         self.q = qvalue			#: the q-value (defaults to 1.0)
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Creates a single AcceptToken instance from a *source* string."""
         p = HeaderParser(source)
         p.parse_sp()
@@ -285,7 +285,7 @@ class AcceptToken(object):
 
     def __cmp__(self, other):
         if type(other) in StringTypes:
-            other = AcceptToken.FromString(other)
+            other = AcceptToken.from_str(other)
         elif not isinstance(other, AcceptToken):
             raise TypeError
         if self.token == "*":
@@ -351,7 +351,7 @@ class AcceptTokenList(object):
         return bestMatch
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Create an AcceptTokenList from a *source* string."""
         p = HeaderParser(source)
         al = p.RequireAcceptTokenList(cls)
@@ -456,7 +456,7 @@ class AcceptLanguageItem(AcceptToken):
 
     def __cmp__(self, other):
         if type(other) in StringTypes:
-            other = AcceptLanguageItem.FromString(other)
+            other = AcceptLanguageItem.from_str(other)
         elif not isinstance(other, AcceptLanguageItem):
             raise TypeError
         # sort first by length, longest first to catch most specific match
@@ -477,7 +477,7 @@ class AcceptLanguageList(AcceptTokenList):
 
     def SelectToken(self, tokenList):
         """Remapped to :py:meth:`SelectLanguage`"""
-        return str(self.SelectLanguage(map(LanguageTag.FromString, tokenList)))
+        return str(self.SelectLanguage(map(LanguageTag.from_str, tokenList)))
 
     def SelectLanguage(self, langList):
         bestMatch = None
@@ -485,7 +485,7 @@ class AcceptLanguageList(AcceptTokenList):
         for lang in langList:
             # calculate a match score for each input item, highest score wins
             for aItem in self._items:
-                if lang.PartialMatch(aItem._range):
+                if lang.partial_match(aItem._range):
                     if aItem.q > bestQ:
                         bestMatch = lang
                         bestQ = aItem.q
@@ -519,7 +519,7 @@ class AcceptRanges(object):
         self._sorted.sort()
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Create an AcceptRanges value from a *source* string."""
         p = HeaderParser(source)
         ar = p.parse_tokenlist()
@@ -545,7 +545,7 @@ class AcceptRanges(object):
 
     def __cmp__(self, other):
         if type(other) in StringTypes:
-            other = AcceptRanges.FromString(other)
+            other = AcceptRanges.from_str(other)
         if not isinstance(other, AcceptRanges):
             raise TypeError
         return cmp(self._sorted, other._sorted)
@@ -570,7 +570,7 @@ class Allow(object):
         self._sorted.sort()
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Create an Allow value from a *source* string."""
         p = HeaderParser(source)
         allow = p.parse_tokenlist()
@@ -595,7 +595,7 @@ class Allow(object):
 
     def __cmp__(self, other):
         if type(other) in StringTypes:
-            other = Allow.FromString(other)
+            other = Allow.from_str(other)
         if not isinstance(other, Allow):
             raise TypeError
         return cmp(self._sorted, other._sorted)
@@ -643,7 +643,7 @@ class CacheControl(object):
             self._values[d] = v
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Create a Cache-Control value from a *source* string."""
         p = HeaderParser(source)
         cc = p.ParseCacheControl()
@@ -724,7 +724,7 @@ class ContentRange(object):
                 "ContentRange: lastByte must not be None when firstByte=%i" % self.firstByte)
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Creates a single ContentRange instance from a *source* string."""
         p = HeaderParser(source)
         p.parse_sp()
@@ -803,7 +803,7 @@ class HeaderParser(ParameterParser):
             self.parse_sp()
             self.require_separator('=', "q parameter")
             self.parse_sp()
-            qvalue = self.ParseQualityValue()
+            qvalue = self.parse_qvalue()
             if qvalue is None:
                 raise BadSyntax(
                     "Unrecognized q-value: %s" % repr(self.the_word))
@@ -850,7 +850,7 @@ class HeaderParser(ParameterParser):
             self.parse_sp()
             self.require_separator('=', "q parameter")
             self.parse_sp()
-            qvalue = self.ParseQualityValue()
+            qvalue = self.parse_qvalue()
             if qvalue is None:
                 raise BadSyntax(
                     "Unrecognized q-value: %s" % repr(self.the_word))

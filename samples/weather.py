@@ -198,11 +198,11 @@ def LoadNotes(weatherNotes, fileName, weatherData):
                     note = collection.new_entity()
                     note['ID'].SetFromValue(id)
                     start = iso.TimePoint(
-                        date=iso.Date.FromString(noteWords[0]),
+                        date=iso.Date.from_str(noteWords[0]),
                         time=iso.Time(hour=0, minute=0, second=0))
                     note['StartDate'].SetFromValue(start)
                     end = iso.TimePoint(
-                        date=iso.Date.FromString(noteWords[1]).Offset(days=1),
+                        date=iso.Date.from_str(noteWords[1]).Offset(days=1),
                         time=iso.Time(hour=0, minute=0, second=0))
                     note['EndDate'].SetFromValue(end)
                     note['Details'].SetFromValue(
@@ -210,7 +210,7 @@ def LoadNotes(weatherNotes, fileName, weatherData):
                     collection.insert_entity(note)
                     # now find the data points that match
                     data.set_filter(
-                        core.CommonExpression.FromString(
+                        core.CommonExpression.from_str(
                             "TimePoint ge datetime'%s' and TimePoint lt datetime'%s'" %
                             (unicode(start), unicode(end))))
                     for dataPoint in data.values():
@@ -291,7 +291,7 @@ def runWeatherLoader(container=None):
         if lastPoint:
             lastPoint = lastPoint[0]['TimePoint'].value
         else:
-            lastPoint = iso.TimePoint.FromString("19950630T000000Z")
+            lastPoint = iso.TimePoint.from_str("19950630T000000Z")
         nextDay = lastPoint.date
         while True:
             today = iso.TimePoint.FromNowUTC().date

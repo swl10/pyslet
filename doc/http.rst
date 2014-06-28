@@ -17,6 +17,7 @@ operations.
    :maxdepth: 2
 
    http/grammar
+   http/params
 
 
 HTTP Messages
@@ -114,58 +115,9 @@ and a special-purpose parser for parsing them from strings of octets.
 	:show-inheritance:
 
 
-Protocol Parameters
--------------------
-
-This section defines objects that are reused in a variety of contexts
-and a special-purpose parser for parsing them from strings of octets.
-
-..	autoclass:: HTTPVersion
-	:members:
-	:show-inheritance:
-
-..	autoclass:: HTTPURL
-	:members:
-	:show-inheritance:
-
-..	autoclass:: HTTPSURL
-	:members:
-	:show-inheritance:
-
-..	autoclass:: FullDate
-	:members:
-	:show-inheritance:
-
-..	autoclass:: TransferEncoding
-	:members:
-	:show-inheritance:
-
-..	autoclass:: MediaType
-	:members:
-	:show-inheritance:
-
-..	autoclass:: ProductToken
-	:members:
-	:show-inheritance:
-
-..	autoclass:: LanguageTag
-	:members:
-	:show-inheritance:
-
-..	autoclass:: EntityTag
-	:members:
-	:show-inheritance:
-
-..	autoclass:: ParameterParser
-	:members:
-	:show-inheritance:
-	
 
 Exceptions
 ----------
-
-..	autoclass:: BadSyntax
-	:show-inheritance:
 
 ..	autoclass:: HTTPException
 	:show-inheritance:

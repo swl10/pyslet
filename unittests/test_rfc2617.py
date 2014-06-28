@@ -65,7 +65,7 @@ class HTTP2617Tests(unittest.TestCase):
             c.protectionSpace is None, "Challenge protection space: %s" % c.protectionSpace)
         self.assertTrue(
             c["realm"] == "Default", "Initial challenge realm: %s" % c["realm"])
-        c = BasicChallenge.FromString('Basic realm="Firewall"')
+        c = BasicChallenge.from_str('Basic realm="Firewall"')
         self.assertTrue(
             c["realm"] == "Firewall", "Parsed realm: %s" % c["realm"])
         self.assertTrue(

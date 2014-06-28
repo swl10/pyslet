@@ -675,6 +675,31 @@ class WordParser(object):
         else:
             return result
 
+    def is_hexinteger(self):
+        """Returns True if the current word is a hex token"""
+        return self.the_word and is_hexdigits(self.the_word)
+
+    def parse_hexinteger(self):
+        """Parses a hex integer token from the list of words
+
+        Return the hex integer's *value* or None."""
+        if self.is_hexinteger():
+            return int(self.parse_word(), 16)
+        else:
+            return None
+
+    def require_hexinteger(self, expected="hex integer"):
+        """Parses a hex integer or raises :py:class:`BadSyntax`
+
+        expected
+            can be set to the name of the expected object, defaults to
+            "hex integer"."""
+        result = self.parse_hexinteger()
+        if result is None:
+            self.syntax_error(expected)
+        else:
+            return result
+
     def is_separator(self, sep):
         """Returns True if the current word matches *sep*"""
         return self.the_word == sep

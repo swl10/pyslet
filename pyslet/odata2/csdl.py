@@ -536,7 +536,7 @@ class SimpleType(xsi.Enumeration):
 #           if isinstance(value,iso8601.TimePoint):
 #               return value
 #           elif type(value) in StringTypes:
-#               return iso8601.TimePoint.FromString(value)
+#               return iso8601.TimePoint.from_str(value)
 #           else:
 #               raise ValueError("Coercion to TimePoint failed: %s"%repr(value))
 #       elif typeCode==cls.Decimal:
@@ -1291,7 +1291,7 @@ class DateTimeOffsetValue(SimpleValue):
 
     def SetFromLiteral(self, value):
         try:
-            value = iso8601.TimePoint.FromString(value)
+            value = iso8601.TimePoint.from_str(value)
         except iso8601.DateTimeError as e:
             raise ValueError(str(e))
         self.SetFromValue(value)

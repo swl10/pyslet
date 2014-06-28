@@ -289,7 +289,7 @@ class FeedTests(unittest.TestCase):
                         "http://example.org/", "Example 1 link")
         updated = feed.Updated
         self.assertTrue(isinstance(updated.GetValue(), iso8601.TimePoint) and updated.GetValue(
-        ) == iso8601.TimePoint.FromString("2003-12-13T18:30:02Z"), "Example 1 updated: found %s" % updated.GetValue())
+        ) == iso8601.TimePoint.from_str("2003-12-13T18:30:02Z"), "Example 1 updated: found %s" % updated.GetValue())
         author = feed.Author[0]
         self.assertTrue(isinstance(
             author, Person) and author.Name.GetValue() == "John Doe", "Example 1 author")
@@ -309,7 +309,7 @@ class FeedTests(unittest.TestCase):
                         "Example 1 entry id")
         updated = entry.Updated
         self.assertTrue(isinstance(updated, Date) and updated.GetValue(
-        ) == iso8601.TimePoint.FromString("2003-12-13T18:30:02Z"), "Example 1 entry updated")
+        ) == iso8601.TimePoint.from_str("2003-12-13T18:30:02Z"), "Example 1 entry updated")
         summary = entry.Summary
         self.assertTrue(isinstance(summary, Text) and summary.GetValue(
         ) == "Some text.", "Example 1 entry summary")

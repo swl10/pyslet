@@ -11,6 +11,8 @@ import types
 import base64
 import threading
 import io
+import warnings
+
 import pyslet.info as info
 from pyslet.http.grammar import *
 from pyslet.http.params import *
@@ -254,7 +256,7 @@ class Connection(object):
                             closeConnection = False
                             if self.response:
                                 closeConnection = "close" in self.response.GetConnection(
-                                ) or self.response.protocolVersion < HTTP_1_1
+                                ) or self.response.protocolVersion < HTTP_1p1
                             if self.responseQueue:
                                 self.response = self.responseQueue[0]
                                 self.responseQueue = self.responseQueue[1:]
@@ -1113,7 +1115,7 @@ class HTTPMessage(object):
         header is present."""
         fieldValue = self.GetHeader("Allow")
         if fieldValue is not None:
-            return Allow.FromString(fieldValue)
+            return Allow.from_str(fieldValue)
         else:
             return None
 
@@ -1129,7 +1131,7 @@ class HTTPMessage(object):
             self.SetHeader("Allow", None)
         else:
             if type(acceptValue) in StringTypes:
-                allowed = Allow.FromString(allowed)
+                allowed = Allow.from_str(allowed)
             if not isinstance(allowed, Allow):
                 raise TypeError
             self.SetHeader("Allow", str(allowed))
@@ -1139,7 +1141,7 @@ class HTTPMessage(object):
         "Cache-Control" header is present."""
         fieldValue = self.GetHeader("Cache-Control")
         if fieldValue is not None:
-            return CacheControl.FromString(fieldValue)
+            return CacheControl.from_str(fieldValue)
         else:
             return None
 
@@ -1155,7 +1157,7 @@ class HTTPMessage(object):
             self.SetHeader("Cache-Control", None)
         else:
             if type(cc) in StringTypes:
-                cc = CacheControl.FromString(cc)
+                cc = CacheControl.from_str(cc)
             if not isinstance(cc, CacheControl):
                 raise TypeError
             self.SetHeader("Cache-Control", str(cc))
@@ -1216,7 +1218,7 @@ class HTTPMessage(object):
         fieldValue = self.GetHeader("Content-Language")
         if fieldValue:
             hp = HeaderParser(fieldValue)
-            return LanguageTag.ListFromString(fieldValue)
+            return LanguageTag.list_from_str(fieldValue)
         else:
             return []
 
@@ -1296,7 +1298,7 @@ class HTTPMessage(object):
         If no Content-Range header was present None is returned."""
         fieldValue = self.GetHeader("Content-Range")
         if fieldValue is not None:
-            return ContentRange.FromString(fieldValue)
+            return ContentRange.from_str(fieldValue)
         else:
             return None
 
@@ -1316,7 +1318,7 @@ class HTTPMessage(object):
         If no Content-Type header was present None is returned."""
         fieldValue = self.GetHeader("Content-Type")
         if fieldValue is not None:
-            mtype = MediaType.FromString(fieldValue)
+            mtype = MediaType.from_str(fieldValue)
             return mtype
         else:
             return None
@@ -1337,7 +1339,7 @@ class HTTPMessage(object):
         If no Date header was present None is returned."""
         fieldValue = self.GetHeader("Date")
         if fieldValue is not None:
-            return FullDate.FromHTTPString(fieldValue)
+            return FullDate.from_http_str(fieldValue)
         else:
             return None
 
@@ -1374,7 +1376,7 @@ class HTTPMessage(object):
         If no Last-Modified header was present None is returned."""
         fieldValue = self.GetHeader("Last-Modified")
         if fieldValue is not None:
-            return FullDate.FromHTTPString(fieldValue)
+            return FullDate.from_http_str(fieldValue)
         else:
             return None
 
@@ -1506,7 +1508,7 @@ class HTTPRequest(HTTPMessage):
         self.SetRequestURI(url)
         self.method = method        #: the method
         if type(protocolVersion) in StringTypes:
-            self.protocolVersion = HTTPVersion.FromString(protocolVersion)
+            self.protocolVersion = HTTPVersion.from_str(protocolVersion)
         elif isinstance(protocolVersion, HTTPVersion):
             self.protocolVersion = protocolVersion
         else:
@@ -1602,7 +1604,7 @@ class HTTPRequest(HTTPMessage):
         "Accept" header is present."""
         fieldValue = self.GetHeader("Accept")
         if fieldValue is not None:
-            return AcceptList.FromString(fieldValue)
+            return AcceptList.from_str(fieldValue)
         else:
             return None
 
@@ -1613,7 +1615,7 @@ class HTTPRequest(HTTPMessage):
                 A :py:class:`AcceptList` instance or a string that one can
                 be parsed from."""
         if type(acceptValue) in StringTypes:
-            acceptValue = AcceptList.FromString(acceptValue)
+            acceptValue = AcceptList.from_str(acceptValue)
         if not isinstance(acceptValue, AcceptList):
             raise TypeError
         self.SetHeader("Accept", str(acceptValue))
@@ -1623,7 +1625,7 @@ class HTTPRequest(HTTPMessage):
         no "Accept-Charset" header is present."""
         fieldValue = self.GetHeader("Accept-Charset")
         if fieldValue is not None:
-            return AcceptCharsetList.FromString(fieldValue)
+            return AcceptCharsetList.from_str(fieldValue)
         else:
             return None
 
@@ -1634,7 +1636,7 @@ class HTTPRequest(HTTPMessage):
                 A :py:class:`AcceptCharsetList` instance or a string that
                 one can be parsed from."""
         if type(acceptValue) in StringTypes:
-            acceptValue = AcceptCharsetList.FromString(acceptValue)
+            acceptValue = AcceptCharsetList.from_str(acceptValue)
         if not isinstance(acceptValue, AcceptCharsetList):
             raise TypeError
         self.SetHeader("Accept-Charset", str(acceptValue))
@@ -1644,7 +1646,7 @@ class HTTPRequest(HTTPMessage):
         no "Accept-Encoding" header is present."""
         fieldValue = self.GetHeader("Accept-Encoding")
         if fieldValue is not None:
-            return AcceptEncodingList.FromString(fieldValue)
+            return AcceptEncodingList.from_str(fieldValue)
         else:
             return None
 
@@ -1655,7 +1657,7 @@ class HTTPRequest(HTTPMessage):
                 A :py:class:`AcceptEncodingList` instance or a string that
                 one can be parsed from."""
         if type(acceptValue) in StringTypes:
-            acceptValue = AcceptEncodingList.FromString(acceptValue)
+            acceptValue = AcceptEncodingList.from_str(acceptValue)
         if not isinstance(acceptValue, AcceptEncodingList):
             raise TypeError
         self.SetHeader("Accept-Encoding", str(acceptValue))
@@ -1897,7 +1899,7 @@ class HTTPResponse(HTTPMessage):
         "Accept-Ranges" header is present."""
         fieldValue = self.GetHeader("Accept-Ranges")
         if fieldValue is not None:
-            return AcceptRanges.FromString(fieldValue)
+            return AcceptRanges.from_str(fieldValue)
         else:
             return None
 
@@ -1908,7 +1910,7 @@ class HTTPResponse(HTTPMessage):
                 A :py:class:`AcceptRanges` instance or a string that
                 one can be parsed from."""
         if type(acceptValue) in StringTypes:
-            acceptValue = AcceptRanges.FromString(acceptValue)
+            acceptValue = AcceptRanges.from_str(acceptValue)
         if not isinstance(acceptValue, AcceptRanges):
             raise TypeError
         self.SetHeader("Accept-Ranges", str(acceptValue))
@@ -1918,7 +1920,7 @@ class HTTPResponse(HTTPMessage):
         fieldValue = self.GetHeader("Age")
         if fieldValue is not None:
             hp = HeaderParser(fieldValue)
-            return hp.require_production_end(hp.ParseDeltaSeconds())
+            return hp.require_production_end(hp.parse_delta_seconds())
         else:
             return None
 
@@ -1937,7 +1939,7 @@ class HTTPResponse(HTTPMessage):
         header or None if no "ETag" header is present."""
         fieldValue = self.GetHeader("ETag")
         if fieldValue is not None:
-            return EntityTag.FromString(fieldValue)
+            return EntityTag.from_str(fieldValue)
         else:
             return None
 
@@ -1959,7 +1961,7 @@ class HTTPResponse(HTTPMessage):
         If there are no challenges an empty list is returned."""
         fieldValue = self.GetHeader("WWW-Authenticate")
         if fieldValue is not None:
-            return Challenge.ListFromString(fieldValue)
+            return Challenge.list_from_str(fieldValue)
         else:
             return None
 
@@ -2007,7 +2009,7 @@ class HTTPResponse(HTTPMessage):
         if self.mode == self.RESP_STATUS:
             # Read the status line
             statusLine = ParameterParser(line[:-2], ignore_sp=False)
-            self.protocolVersion = statusLine.ParseHTTPVersion()
+            self.protocolVersion = statusLine.parse_http_version()
             statusLine.parse_sp()
             if statusLine.is_integer():
                 self.status = statusLine.parse_integer()

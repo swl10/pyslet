@@ -224,7 +224,7 @@ class Slug(object):
         self.slug = slug		#: the slug value
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Creates a slug from a *source* string."""
         return cls(unicode(uri.UnescapeData(source), 'utf-8'))
 
@@ -248,7 +248,7 @@ class Slug(object):
         if isinstance(other, unicode):
             result = cmp(self.slug, other)
         elif isinstance(other, str):
-            other = Slug.FromString(other)
+            other = Slug.from_str(other)
             result = cmp(self.slug, other.slug)
         elif isinstance(other, Slug):
             result = cmp(self.slug, other.slug)
@@ -488,10 +488,10 @@ class Server(object):
 
     def __init__(self, serviceRoot='http://localhost/'):
         if not isinstance(serviceRoot, uri.URI):
-            self.serviceRoot = uri.URIFactory.URI(serviceRoot).Canonicalize()
+            self.serviceRoot = uri.URIFactory.URI(serviceRoot).canonicalize()
             #: the canonical URL of the service root
         else:
-            self.serviceRoot = serviceRoot.Canonicalize()
+            self.serviceRoot = serviceRoot.canonicalize()
         self.serviceDoc = Document(root=Service, baseURI=self.serviceRoot)
         #: the :py:class:`Service` instance that describes this service.
         self.service = self.serviceDoc.root

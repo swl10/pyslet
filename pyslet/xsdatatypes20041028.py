@@ -406,7 +406,7 @@ def EncodeDateTime(value):
 def DecodeDateTime(src):
     """Returns an :py:class:`pyslet.iso8601.TimePoint` instance."""
     try:
-        return iso8601.TimePoint.FromString(src)
+        return iso8601.TimePoint.from_str(src)
     except:
         return None
 

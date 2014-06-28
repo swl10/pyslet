@@ -8,6 +8,7 @@ import logging
 import test_blockstore
 import test_html40_19991224
 import test_http_grammar
+import test_http_params
 import test_imsbltiv1p0
 import test_imscc_profilev1p0
 import test_imscc_profilev1p1
@@ -43,6 +44,7 @@ def suite():
     s.addTest(test_blockstore.suite())
     s.addTest(test_html40_19991224.suite())
     s.addTest(test_http_grammar.suite())
+    s.addTest(test_http_params.suite())
     s.addTest(test_imsbltiv1p0.suite())
     s.addTest(test_imscc_profilev1p0.suite())
     s.addTest(test_imscc_profilev1p1.suite())

@@ -849,7 +849,7 @@ class CommonExpressionTests(unittest.TestCase):
             value.typeCode == edm.SimpleType.DateTimeOffset,
             "Expected DateTimeOffset")
         self.assertTrue(value.value ==
-                        iso.TimePoint.FromString('2002-10-10T12:00:00-05:00'))
+                        iso.TimePoint.from_str('2002-10-10T12:00:00-05:00'))
 
     def test_evaluate_method_call_expression(self):
         """Cursory check only."""
@@ -1416,8 +1416,8 @@ class CommonExpressionTests(unittest.TestCase):
             "ceiling(1.5D)",
             "--2 mul 3 div 1 mul 2 mod 2 add 2 div 2 sub 1 eq 2 and "
                 "false or true", ]:
-            e1 = CommonExpression.FromString(example)
-            e2 = CommonExpression.FromString(unicode(e1))
+            e1 = CommonExpression.from_str(example)
+            e2 = CommonExpression.from_str(unicode(e1))
             self.assertTrue(e1.Evaluate(None) == e2.Evaluate(
                 None), "Mismatch evaluating: %s" % example)
             self.assertTrue(unicode(e1) == unicode(e2),
@@ -1845,14 +1845,14 @@ class DataServiceRegressionTests(unittest.TestCase):
             # <Property Name="DateTimeProperty" Type="Edm.DateTime"
             # Precision="3"/>
             e['DateTimeProperty'].SetFromValue(
-                iso.TimePoint.FromString('1972-03-03T09:45:00'))
+                iso.TimePoint.from_str('1972-03-03T09:45:00'))
             # <Property Name="TimeProperty" Type="Edm.Time" Precision="3"/>
             e['TimeProperty'].SetFromValue(
-                iso.Time.FromString('09:45:00'))
+                iso.Time.from_str('09:45:00'))
             # <Property Name="DateTimeOffsetProperty"
             # Type="Edm.DateTimeOffset" Precision="3"/>
             e['DateTimeOffsetProperty'].SetFromValue(
-                iso.TimePoint.FromString('1972-07-03T09:45:00+01:00'))
+                iso.TimePoint.from_str('1972-07-03T09:45:00+01:00'))
             # <Property Name="DecimalProperty" Type="Edm.Decimal"
             # Precision="10" Scale="2"/>
             e['DecimalProperty'].SetFromValue(decimal.Decimal('3.14'))
@@ -1904,20 +1904,20 @@ class DataServiceRegressionTests(unittest.TestCase):
                                        iso.TimePoint),
                             "DateTimeProperty type on read")
             self.assertTrue(got_e['DateTimeProperty'].value ==
-                            iso.TimePoint.FromString('1972-03-03T09:45:00'),
+                            iso.TimePoint.from_str('1972-03-03T09:45:00'),
                             "DateTimeProperty value on read")
             self.assertTrue(isinstance(
                 got_e['TimeProperty'].value, iso.Time),
                 "TimeProperty type on read")
             self.assertTrue(got_e['TimeProperty'].value ==
-                            iso.Time.FromString('09:45:00'),
+                            iso.Time.from_str('09:45:00'),
                             "TimeProperty value on read")
             self.assertTrue(
                 isinstance(got_e['DateTimeOffsetProperty'].value,
                            iso.TimePoint),
                 "DateTimeOffsetProperty type on read")
             self.assertTrue(got_e['DateTimeOffsetProperty'].value ==
-                            iso.TimePoint.FromString(
+                            iso.TimePoint.from_str(
                                 '1972-07-03T09:45:00+01:00'),
                             "DateTimeOffsetProperty value on read")
             self.assertTrue(isinstance(got_e['DecimalProperty'].value,
@@ -1959,11 +1959,11 @@ class DataServiceRegressionTests(unittest.TestCase):
             got_e['BinaryVariable'].SetFromValue('\x00~\xDE\xAD\xBE\xEF')
             got_e['BooleanProperty'].SetFromValue(False)
             got_e['DateTimeProperty'].SetFromValue(
-                iso.TimePoint.FromString('2013-12-25T15:59:03.142'))
+                iso.TimePoint.from_str('2013-12-25T15:59:03.142'))
             got_e['TimeProperty'].SetFromValue(
-                iso.Time.FromString('17:32:03.142'))
+                iso.Time.from_str('17:32:03.142'))
             got_e['DateTimeOffsetProperty'].SetFromValue(
-                iso.TimePoint.FromString('2013-12-25T15:59:03.142-05:00'))
+                iso.TimePoint.from_str('2013-12-25T15:59:03.142-05:00'))
             got_e['DecimalProperty'].SetFromValue(
                 decimal.Decimal('-100.50'))
             got_e['SingleValue'].SetFromValue(-100.5)
@@ -1992,7 +1992,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                                        iso.TimePoint),
                             "DateTimeProperty type on read")
             self.assertTrue(check_e['DateTimeProperty'].value ==
-                            iso.TimePoint.FromString(
+                            iso.TimePoint.from_str(
                                 '2013-12-25T15:59:03.142'),
                             "DateTimeProperty value on read")
             self.assertTrue(isinstance(check_e['TimeProperty'].value,
@@ -2125,7 +2125,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             e['K1'].SetFromValue(1)
             e['K2'].SetFromValue('00001')
             e['K3'].SetFromValue(
-                iso.TimePoint.FromString('2013-12-25T15:59:03.142'))
+                iso.TimePoint.from_str('2013-12-25T15:59:03.142'))
             e['K4'].SetFromValue('\xde\xad\xbe\xef')
             e['Data'].SetFromValue("Compound Key")
             # CREATE
@@ -2141,23 +2141,23 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertTrue(got_e['K4'].value == '\xde\xad\xbe\xef')
             self.assertTrue(got_e['Data'].value == 'Compound Key')
             # READ (by key)
-            got_e = coll[(1, '00001', iso.TimePoint.FromString(
+            got_e = coll[(1, '00001', iso.TimePoint.from_str(
                 '2013-12-25T15:59:03.142'), '\xde\xad\xbe\xef')]
             self.assertTrue(got_e['Data'].value == "Compound Key")
             # UPDATE
             got_e['Data'].SetFromValue("Updated Compound Key")
             coll.update_entity(got_e)
-            check_e = coll[(1, '00001', iso.TimePoint.FromString(
+            check_e = coll[(1, '00001', iso.TimePoint.from_str(
                 '2013-12-25T15:59:03.142'), '\xde\xad\xbe\xef')]
             self.assertTrue(
                 check_e['Data'].value == 'Updated Compound Key')
             # DELETE
-            del coll[(1, '00001', iso.TimePoint.FromString(
+            del coll[(1, '00001', iso.TimePoint.from_str(
                 '2013-12-25T15:59:03.142'), '\xde\xad\xbe\xef')]
             self.assertTrue(
                 len(coll) == 0, "CompoundKey length after DELETE")
             try:
-                got_e = coll[(1, '00001', iso.TimePoint.FromString(
+                got_e = coll[(1, '00001', iso.TimePoint.from_str(
                     '2013-12-25T15:59:03.142'), '\xde\xad\xbe\xef')]
                 self.fail("Index into coll after CompoundKey DELETE")
             except KeyError:
@@ -5016,7 +5016,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertTrue(isinstance(sinfo.modified, iso.TimePoint))
             self.assertTrue(sinfo.md5 == hashlib.md5(fox).digest())
             # now try inserting with additional metadata
-            t = iso.TimePoint.FromString('20140614T180000-0400')
+            t = iso.TimePoint.from_str('20140614T180000-0400')
             sinfo = StreamInfo(type=http.PLAIN_TEXT,
                                created=t, modified=t)
             fin.seek(0)

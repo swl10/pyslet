@@ -3,6 +3,8 @@
 
 import string
 import base64
+import types
+
 import pyslet.rfc2396 as uri
 from pyslet.http.grammar import *
 from pyslet.http.params import *
@@ -45,7 +47,7 @@ class Challenge(object):
         """an optional protection space indicating the scope of this challenge."""
 
     @classmethod
-    def FromString(cls, source):
+    def from_str(cls, source):
         """Creates a Challenge from a *source* string."""
         p = AuthorizationParser(source, ignore_sp=False)
         p.parse_sp()
@@ -55,7 +57,7 @@ class Challenge(object):
         return c
 
     @classmethod
-    def ListFromString(cls, source):
+    def list_from_str(cls, source):
         """Creates a list of Challenges from a *source* string."""
         p = AuthorizationParser(source)
         challenges = []
@@ -87,7 +89,7 @@ class Challenge(object):
         return len(self._params)
 
     def __getitem__(self, index):
-        if type(index) in StringTypes:
+        if type(index) in types.StringTypes:
             # look up by key, case sensitive first
             result = self._pdict.get(index, None)
             if result is None:
@@ -182,7 +184,7 @@ class Credentials(object):
         return credentials
 
     @classmethod
-    def FromHTTPString(cls, source):
+    def from_http_str(cls, source):
         """Constructs a :py:class:`Credentials` instance from an HTTP
         formatted string."""
         wp = WordParser(source)

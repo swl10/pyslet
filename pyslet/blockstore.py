@@ -488,7 +488,7 @@ class StreamStore(object):
         with self.stream_set.OpenCollection() as streams:
             stream = streams.new_entity()
             if not isinstance(mimetype, http.MediaType):
-                mimetype = http.MediaType.FromString(mimetype)
+                mimetype = http.MediaType.from_str(mimetype)
             stream['mimetype'].SetFromValue(str(mimetype))
             now = TimePoint.FromNowUTC()
             stream['size'].SetFromValue(0)

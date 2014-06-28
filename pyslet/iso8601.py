@@ -618,7 +618,7 @@ class Date(object):
             return d
 
     @classmethod
-    def FromString(cls, src, base=None):
+    def from_str(cls, src, base=None):
         """Parses a :py:class:`Date` instance from a *src* string."""
         if type(src) in StringTypes:
             p = ISO8601Parser(src)
@@ -629,7 +629,7 @@ class Date(object):
 
     @classmethod
     def FromStringFormat(cls, src, base=None):
-        """Similar to :py:meth:`FromString` except that a tuple is
+        """Similar to :py:meth:`from_str` except that a tuple is
         returned, the first item is the resulting :py:class:`Date`
         instance, the second is a string describing the format parsed.
         For example::
@@ -1070,7 +1070,7 @@ class Date(object):
 
     def SetFromString(self, dateStr, base=None):
         warnings.warn(
-            "Date.SetFromString is deprecated, use Date.FromString(<string>[, base]) instead",
+            "Date.SetFromString is deprecated, use Date.from_str(<string>[, base]) instead",
             DeprecationWarning,
             stacklevel=2)
         if type(dateStr) in StringTypes:
@@ -1545,7 +1545,7 @@ class Time(object):
         return cls.FromStructTime(pytime.localtime(pytime.time()))
 
     @classmethod
-    def FromString(cls, src, base=None):
+    def from_str(cls, src, base=None):
         """Constructs a :py:class:`Time` instance from a string
         representation, truncated forms are returned as the earliest
         time on or after *base* and may have overflowed.  See
@@ -2047,7 +2047,7 @@ class Time(object):
 
     def SetFromString(self, src, base=None):
         warnings.warn(
-            "Time.SetFromString is deprecated, use Time.FromString(src[,base]) instead",
+            "Time.SetFromString is deprecated, use Time.from_str(src[,base]) instead",
             DeprecationWarning,
             stacklevel=2)
         if type(src) in StringTypes:
@@ -2196,7 +2196,7 @@ class TimePoint(object):
         return cls(date=Date.FromStructTime(t), time=Time.FromStructTime(t))
 
     @classmethod
-    def FromString(cls, src, base=None, tDesignators="T"):
+    def from_str(cls, src, base=None, tDesignators="T"):
         """Constructs a TimePoint from a string representation.
         Truncated forms are parsed with reference to *base*."""
         if type(src) in StringTypes:
@@ -2208,7 +2208,7 @@ class TimePoint(object):
 
     @classmethod
     def FromStringFormat(cls, src, base=None, tDesignators="T"):
-        """Similar to :py:meth:`FromString` except that a tuple is
+        """Similar to :py:meth:`from_str` except that a tuple is
         returned, the first item is the resulting :py:class:`TimePoint`
         instance, the second is a string describing the format parsed.
         For example::
@@ -2520,7 +2520,7 @@ class TimePoint(object):
 
     def SetFromString(self, timePointStr, base=None):
         warnings.warn(
-            "TimePoint.SetFromString is deprecated, use TimePoint.FromString(src[,base]) instead",
+            "TimePoint.SetFromString is deprecated, use TimePoint.from_str(src[,base]) instead",
             DeprecationWarning,
             stacklevel=2)
         if type(timePointStr) in StringTypes:

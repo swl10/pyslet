@@ -613,7 +613,7 @@ class SQLCollectionBase(core.EntityCollection):
         sinfo = core.StreamInfo()
         if svalue:
             estream = self.container.streamstore.get_stream(svalue.value)
-            sinfo.type = http.MediaType.FromString(estream['mimetype'].value)
+            sinfo.type = http.MediaType.from_str(estream['mimetype'].value)
             sinfo.created = estream['created'].value.WithZone(0)
             sinfo.modified = estream['modified'].value.WithZone(0)
             sinfo.size = estream['size'].value
@@ -642,7 +642,7 @@ class SQLCollectionBase(core.EntityCollection):
         sinfo = core.StreamInfo()
         if svalue:
             estream = self.container.streamstore.get_stream(svalue.value)
-            sinfo.type = http.MediaType.FromString(estream['mimetype'].value)
+            sinfo.type = http.MediaType.from_str(estream['mimetype'].value)
             sinfo.created = estream['created'].value.WithZone(0)
             sinfo.modified = estream['modified'].value.WithZone(0)
             sinfo.size = estream['size'].value
@@ -4717,7 +4717,7 @@ class SQLiteEntityContainer(SQLEntityContainer):
                         (edm.DateTimeValue, edm.DateTimeOffsetValue)):
             # SQLite stores these as strings
             simple_value.SetFromValue(
-                iso.TimePoint.FromString(new_value, tDesignators="T "))
+                iso.TimePoint.from_str(new_value, tDesignators="T "))
         elif isinstance(simple_value, edm.TimeValue):
             simple_value.value = iso.Time(totalSeconds=new_value)
         elif isinstance(simple_value, edm.DecimalValue):
