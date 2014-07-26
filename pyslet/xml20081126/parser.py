@@ -155,7 +155,7 @@ class XMLParser:
             self.entity.NextChar()
             self.the_char = self.entity.the_char
             while self.the_char is None and self.entityStack:
-                self.entity.Close()
+                self.entity.close()
                 self.entity = self.entityStack.pop()
                 self.the_char = self.entity.the_char
 
@@ -1358,7 +1358,7 @@ class XMLParser:
             self.element = self.doc.ChildElement(elementClass, elementName)
         else:
             self.element = self.element.ChildElement(elementClass, elementName)
-        self.element.Reset()
+        self.element.reset()
         if self.sgmlContent and getattr(elementClass, 'XMLCONTENT', XMLMixedContent) == XMLEmpty:
             empty = True
         for attr in attrs.keys():

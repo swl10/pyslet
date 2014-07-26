@@ -831,7 +831,7 @@ The following method can only be used on entities that don't exist,
 i.e., entities returned from the collection's new_entity or CopyEntity
 methods that have not been inserted.
  
-:py:meth:`~pyslet.odata2.csdl.Entity.SetKey`
+:py:meth:`~pyslet.odata2.csdl.Entity.set_key`
 	Sets the entity's key
 
 

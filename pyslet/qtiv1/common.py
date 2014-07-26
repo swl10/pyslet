@@ -343,7 +343,7 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                 uri = self.ResolveURI(self.uri)
                 try:
                     e = xml.XMLEntity(uri)
-                except http.HTTP2616Exception as e:
+                except messags.HTTPException as e:
                     e = xml.XMLEntity(unicode(e))
             else:
                 uri = self.ResolveBase()

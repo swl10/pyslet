@@ -15,6 +15,16 @@ def suite():
 class ProtocolParameterTests(unittest.TestCase):
 
     def test_version(self):
+        """test HTTPVersion
+
+        RFC2616 quotes...
+
+            Note that the major and minor numbers MUST be treated as
+            separate integers and that each MAY be incremented higher
+            than a single digit.
+
+            Leading zeros MUST be ignored by recipients and MUST NOT be
+            sent."""
         v = HTTPVersion()
         self.assertTrue(v.major == 1 and v.minor == 1, "1.1 on construction")
         self.assertTrue(str(v) == "HTTP/1.1", "Formatting")
@@ -38,22 +48,65 @@ class ProtocolParameterTests(unittest.TestCase):
         self.assertTrue(v1 == v4, "2.4 == 02.004")
 
     def test_url(self):
+        """URL comparison tests.
+
+        RFC2616:
+
+        When comparing two URIs to decide if they match or not, a client
+        SHOULD use a case-sensitive octet-by-octet comparison of the
+        entire URIs, with these exceptions:
+
+        -   A port that is empty or not given is equivalent to the
+            default port for that URI-reference;
+
+        -   Comparisons of host names MUST be case-insensitive;
+
+        -   Comparisons of scheme names MUST be case-insensitive;
+
+        -   An empty abs_path is equivalent to an abs_path of "/"."""
         v1 = HTTPURL("http://abc.com:80/~smith/home.html")
         v2 = HTTPURL("http://ABC.com/%7Esmith/home.html")
         v3 = HTTPURL("http://ABC.com:/%7esmith/home.html")
-        self.assertTrue(v1.Match(v2))
-        self.assertTrue(v1.Match(v3))
-        self.assertTrue(v2.Match(v3))
+        v4 = HTTPURL("http://abc.com/~smith/HOME.html")
+        v5 = HTTPURL("http://abc.com:/~smith/home.html")
+        v6 = HTTPURL("http://abc.com/~smith/home.html")
+        v7 = HTTPURL("http://ABC.com/~smith/home.html")
+        v8 = HTTPURL("HTTP://ABC.com/~smith/home.html")
+        self.assertFalse(v1.match(v4))
+        self.assertTrue(v1.match(v5))
+        self.assertTrue(v1.match(v6))
+        self.assertTrue(v1.match(v7))
+        self.assertTrue(v1.match(v8))
+        # explicit examples from the specification...
+        self.assertTrue(v1.match(v2))
+        self.assertTrue(v1.match(v3))
+        self.assertTrue(v2.match(v3))
 
     def test_full_date(self):
+        """date tests from RFC2616:
+
+            HTTP/1.1 clients and servers that parse the date value MUST
+            accept all three formats..., though they MUST only generate
+            the RFC 1123 format for representing HTTP-date values in
+            header fields
+
+            All HTTP date/time stamps MUST be represented in Greenwich
+            Mean Time (GMT).  This ...MUST be assumed when reading the
+            asctime format.
+
+            HTTP-date is case sensitive and MUST NOT include additional
+            LWS beyond that specifically included as SP in the grammar"""
         # RFC 822, updated by RFC 1123
         timestamp_822 = FullDate.from_http_str(
             "Sun, 06 Nov 1994 08:49:37 GMT")
+        self.assertTrue(timestamp_822.GetZone()[0] == 0)
         # RFC 850, obsoleted by RFC 1036
         timestamp_850 = FullDate.from_http_str(
             "Sunday, 06-Nov-94 08:49:37 GMT")
+        self.assertTrue(timestamp_850.GetZone()[0] == 0)
         # ANSI C's asctime() format
         timestamp_c = FullDate.from_http_str("Sun Nov  6 08:49:37 1994")
+        self.assertTrue(timestamp_c.GetZone()[0] == 0)
         self.assertTrue(
             timestamp_822 == timestamp_850, "RFC 850 timestamp parser")
         self.assertTrue(
@@ -87,7 +140,7 @@ class ProtocolParameterTests(unittest.TestCase):
             te.parameters == {'x': ('x', '1'), 'y': ('y', '2')},
             "Extension parameters: %s" % repr(te.parameters))
         self.assertTrue(str(te) == "extension; x=1; y=2", "te output")
-        te = TransferEncoding.from_str("bob; a=4")
+        te = TransferEncoding.from_str("Bob; a=4")
         self.assertTrue(te.token == "bob", "Token not case insensitive")
         self.assertTrue(len(te.parameters) == 1, "No of extension parameters")
         self.assertTrue(
@@ -106,6 +159,11 @@ class ProtocolParameterTests(unittest.TestCase):
         te = TransferEncoding.from_str("chunkie ; z = 3 ")
         self.assertTrue(te.parameters == {'z': ('z', '3')},
                         "chunkie parameters")
+        telist = TransferEncoding.list_from_str("chunkie; z=3, ,gzip, chunked")
+        self.assertTrue(len(telist) == 3)
+        self.assertTrue(telist[0] == te, repr(map(str, telist)))
+        self.assertTrue(telist[1] == "gzip", repr(map(str, telist)))
+        self.assertTrue(telist[2] == "chunked", repr(map(str, telist)))
 
     def test_chunk(self):
         chunk = Chunk()
@@ -121,6 +179,10 @@ class ProtocolParameterTests(unittest.TestCase):
         self.assertTrue(str(chunk) == "ABCD; x=1; y=abcd", repr(str(chunk)))
 
     def test_media_type(self):
+        """RFC 2616:
+
+            Linear white space (LWS) MUST NOT be used between the type
+            and subtype, nor between an attribute and its value"""
         mtype = MediaType()
         try:
             mtype = MediaType.from_str(' application / octet-stream ')
@@ -144,10 +206,13 @@ class ProtocolParameterTests(unittest.TestCase):
             self.fail("No space between param and value")
         self.assertTrue(mtype.type == 'application', "Media type")
         self.assertTrue(mtype.subtype == 'octet-stream', "Media sub-type")
-        self.assertTrue(
-            mtype.parameters == {'charset': ('Charset', 'en-US'),
-                                 'x': ('x', '1')},
-            "Media type parameters: %s" % repr(mtype.parameters))
+        self.assertTrue(mtype['charset'] == 'en-US')
+        self.assertTrue(mtype['x'] == '1')
+        try:
+            mtype['y']
+            self.fail("unparsed parameter in __getitem__")
+        except KeyError:
+            pass
         self.assertTrue(
             str(mtype) == 'application/octet-stream; Charset=en-US; x=1')
 
@@ -206,6 +271,10 @@ class ProtocolParameterTests(unittest.TestCase):
                 "0.8.4"))
 
     def test_qvalue(self):
+        """RFC2616:
+
+            HTTP/1.1 applications MUST NOT generate more than three
+            digits after the decimal point"""
         wp = ParameterParser('0.2 1.x x.1 1.001 0.14151')
         self.assertTrue(str(wp.parse_qvalue()) == '0.2', "0.2")
         self.assertTrue(wp.parse_qvalue() is None, "1.x")

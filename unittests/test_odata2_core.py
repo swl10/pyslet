@@ -5,7 +5,10 @@ import logging
 import hashlib
 from StringIO import StringIO
 
+import pyslet.http.params as params
+import pyslet.http.messages as messages
 from pyslet.vfs import OSFilePath as FilePath
+
 import pyslet.odata2.metadata as edmx
 from pyslet.odata2.core import *    # noqa
 
@@ -239,7 +242,8 @@ class CommonExpressionTests(unittest.TestCase):
         value = self.evaluate_common("5.5M mod 2M")
         self.assertTrue(
             value.typeCode == edm.SimpleType.Decimal, "Expected Decimal")
-        self.assertTrue(value.value == 1.5, "Expected 1.5")
+        self.assertTrue(value.value == decimal.Decimal('1.5'),
+                        "Expected 1.5; found %s" % repr(value.value))
         value = self.evaluate_common("5.5D mod 2M")
         self.assertTrue(
             value.typeCode == edm.SimpleType.Double, "Expected Double")
@@ -808,7 +812,7 @@ class CommonExpressionTests(unittest.TestCase):
         value = self.evaluate_common("123.5M")
         self.assertTrue(
             value.typeCode == edm.SimpleType.Decimal, "Expected Decimal")
-        self.assertTrue(value.value == 123.5)
+        self.assertTrue(value.value == decimal.Decimal('123.5'))
         value = self.evaluate_common("123.5D")
         self.assertTrue(
             value.typeCode == edm.SimpleType.Double, "Expected Double")
@@ -1618,7 +1622,7 @@ class ODataURITests(unittest.TestCase):
         ds_uri = ODataURI("Orders?$format=json", '/x.svc')
         format = ds_uri.sysQueryOptions[SystemQueryOption.format]
         self.assertTrue(
-            isinstance(format, http.AcceptList),
+            isinstance(format, messages.AcceptList),
             "Format is an HTTP AcceptList instance")
         self.assertTrue(str(format) == 'application/json', str(format[0]))
 
@@ -1784,14 +1788,14 @@ class StreamInfoTests(unittest.TestCase):
 
     def test_init(self):
         sinfo = StreamInfo()
-        self.assertTrue(sinfo.type, http.MediaType)
-        self.assertTrue(sinfo.type == http.APPLICATION_OCTETSTREAM)
+        self.assertTrue(sinfo.type, params.MediaType)
+        self.assertTrue(sinfo.type == params.APPLICATION_OCTETSTREAM)
         self.assertTrue(sinfo.created is None)
         self.assertTrue(sinfo.modified is None)
         self.assertTrue(sinfo.size is None)
         self.assertTrue(sinfo.md5 is None)
-        sinfo2 = StreamInfo(type=http.PLAIN_TEXT)
-        self.assertTrue(sinfo2.type == http.PLAIN_TEXT)
+        sinfo2 = StreamInfo(type=params.PLAIN_TEXT)
+        self.assertTrue(sinfo2.type == params.PLAIN_TEXT)
 
 
 class DataServiceRegressionTests(unittest.TestCase):
@@ -2168,12 +2172,12 @@ class DataServiceRegressionTests(unittest.TestCase):
             'RegressionModel.RegressionContainer.SimpleSelectSet']
         with select_set.OpenCollection() as coll:
             e = coll.new_entity()
-            e.SetKey(1)
+            e.set_key(1)
             e['P1'].SetFromValue(3.14)
             e['P2'].SetFromValue("Pi")
             coll.insert_entity(e)
             e = coll.new_entity()
-            e.SetKey(2)
+            e.set_key(2)
             e['P1'].SetFromValue(2.72)
             e['P2'].SetFromValue("e")
             coll.insert_entity(e)
@@ -2200,7 +2204,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             for i in xrange(10):
                 for j in xrange(10):
                     e = coll.new_entity()
-                    e.SetKey((i, j))
+                    e.set_key((i, j))
                     e['Sum'].SetFromValue(i + j)
                     e['Product'].SetFromValue(i * j)
                     coll.insert_entity(e)
@@ -2298,1494 +2302,1536 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_o2o(self):
         ones = self.ds['RegressionModel.RegressionContainer.O2Os']
         onexs = self.ds['RegressionModel.RegressionContainer.O2OXs']
-        with ones.OpenCollection() as coll, \
-                onexs.OpenCollection() as coll_x:
-            e = coll.new_entity()
-            e['K'].SetFromValue(1)
-            e['Data'].SetFromValue('NavigationOne')
-            # CREATE
-            try:
-                coll.insert_entity(e)
-                self.fail("e inserted without 1-1 relationship")
-            except edm.ConstraintError:
-                pass
-            e_x = coll_x.new_entity()
-            e_x['K'].SetFromValue(100)
-            e_x['Data'].SetFromValue('NavigationOneX')
-            e['OX'].BindEntity(e_x)
-            try:
-                coll.insert_entity(e)
-            except edm.ConstraintError:
-                self.fail("e insert failed with 1-1 binding")
-            # Repeat but in reverse to check symmetry
-            e2 = coll.new_entity()
-            e2['K'].SetFromValue(2)
-            e2['Data'].SetFromValue('NavigationTwo')
-            e2_x = coll_x.new_entity()
-            e2_x['K'].SetFromValue(200)
-            e2_x['Data'].SetFromValue('NavigationTwoX')
-            e2_x['O'].BindEntity(e2)
-            coll_x.insert_entity(e2_x)
-            # READ both ways
-            e = coll[1]
-            nav_x = e['OX'].GetEntity()
-            self.assertTrue(
-                nav_x is not None, "Failed to read back navigation link")
-            self.assertTrue(nav_x['K'] == 100)
-            nav = nav_x['O'].GetEntity()
-            self.assertFalse(
-                nav is None, "Failed to read back reverse navigation link")
-            self.assertTrue(nav['K'] == 1)
-            # UPDATE - by adding a link, should fail.  Requires a deep delete.
-            try:
-                with e['OX'].OpenCollection() as navCollection:
-                    navCollection[200] = e2_x
-                self.fail("Nav coll __setitem__ should have failed "
-                          "for 1-1 relationship")
-            except edm.ConstraintError:
-                pass
-            # UPDATE - using bind and update - also should fail for 1-1 link
-            e['OX'].BindEntity(e2_x)
-            try:
-                e.Update()
-                self.fail("BindEntity/Update should have failed "
-                          "for 1-1 relationship")
-            except edm.ConstraintError:
-                pass
-            # DELETE - link
-            with e['OX'].OpenCollection() as navCollection:
+        with ones.OpenCollection() as coll:
+            with onexs.OpenCollection() as coll_x:
+                e = coll.new_entity()
+                e['K'].SetFromValue(1)
+                e['Data'].SetFromValue('NavigationOne')
+                # CREATE
                 try:
-                    self.assertTrue(len(navCollection) == 1)
-                    del navCollection[100]
-                    self.fail("Delete of link in a 1-1 relationship")
+                    coll.insert_entity(e)
+                    self.fail("e inserted without 1-1 relationship")
                 except edm.ConstraintError:
                     pass
-            # DELETE - e; for a 1-1 link it should fail or cascade the
-            # delete
-            try:
-                del coll[1]
-                self.assertFalse(
-                    1 in coll, "Delete with a 1-1 relationship")
-                self.assertFalse(
-                    100 in coll_x, "Cascade delete for 1-1 relationship")
-            except edm.ConstraintError:
-                # an error is acceptable here, though we generate a warning
-                logging.warning(
-                    "entities with a 1-1 relationship cannot be deleted")
+                e_x = coll_x.new_entity()
+                e_x['K'].SetFromValue(100)
+                e_x['Data'].SetFromValue('NavigationOneX')
+                e['OX'].BindEntity(e_x)
+                try:
+                    coll.insert_entity(e)
+                except edm.ConstraintError:
+                    self.fail("e insert failed with 1-1 binding")
+                # Repeat but in reverse to check symmetry
+                e2 = coll.new_entity()
+                e2['K'].SetFromValue(2)
+                e2['Data'].SetFromValue('NavigationTwo')
+                e2_x = coll_x.new_entity()
+                e2_x['K'].SetFromValue(200)
+                e2_x['Data'].SetFromValue('NavigationTwoX')
+                e2_x['O'].BindEntity(e2)
+                coll_x.insert_entity(e2_x)
+                # READ both ways
+                e = coll[1]
+                nav_x = e['OX'].GetEntity()
                 self.assertTrue(
-                    1 in coll, "Delete with a 1-1 relationship")
-                self.assertTrue(
-                    100 in coll_x, "Cascade delete for 1-1 relationship")
+                    nav_x is not None, "Failed to read back navigation link")
+                self.assertTrue(nav_x['K'] == 100)
+                nav = nav_x['O'].GetEntity()
+                self.assertFalse(
+                    nav is None, "Failed to read back reverse navigation link")
+                self.assertTrue(nav['K'] == 1)
+                # UPDATE - by adding a link, should fail.  Requires a
+                # deep delete.
+                try:
+                    with e['OX'].OpenCollection() as navCollection:
+                        navCollection[200] = e2_x
+                    self.fail("Nav coll __setitem__ should have failed "
+                              "for 1-1 relationship")
+                except edm.ConstraintError:
+                    pass
+                # UPDATE - using bind and update - also should fail for
+                # 1-1 link
+                e['OX'].BindEntity(e2_x)
+                try:
+                    e.Update()
+                    self.fail("BindEntity/Update should have failed "
+                              "for 1-1 relationship")
+                except edm.ConstraintError:
+                    pass
+                # DELETE - link
+                with e['OX'].OpenCollection() as navCollection:
+                    try:
+                        self.assertTrue(len(navCollection) == 1)
+                        del navCollection[100]
+                        self.fail("Delete of link in a 1-1 relationship")
+                    except edm.ConstraintError:
+                        pass
+                # DELETE - e; for a 1-1 link it should fail or cascade the
+                # delete
+                try:
+                    del coll[1]
+                    self.assertFalse(
+                        1 in coll, "Delete with a 1-1 relationship")
+                    self.assertFalse(
+                        100 in coll_x, "Cascade delete for 1-1 relationship")
+                except edm.ConstraintError:
+                    # an error is acceptable here, though we generate a
+                    # warning
+                    logging.warning(
+                        "entities with a 1-1 relationship cannot be deleted")
+                    self.assertTrue(
+                        1 in coll, "Delete with a 1-1 relationship")
+                    self.assertTrue(
+                        100 in coll_x, "Cascade delete for 1-1 relationship")
 
     def runtest_nav_o2o_1(self):
         ones = self.ds['RegressionModel.RegressionContainer.O2O1s']
         onexs = self.ds['RegressionModel.RegressionContainer.O2OX1s']
-        with ones.OpenCollection() as coll, \
-                onexs.OpenCollection() as coll_x:
-            e = coll.new_entity()
-            e['K'].SetFromValue(1)
-            e['Data'].SetFromValue('NavigationOne')
-            # CREATE
-            try:
-                coll.insert_entity(e)
-                self.fail("e inserted without 1-1 relationship")
-            except edm.ConstraintError:
-                pass
-            e_x = coll_x.new_entity()
-            e_x['K'].SetFromValue(100)
-            e_x['Data'].SetFromValue('NavigationOneX')
-            e['OX'].BindEntity(e_x)
-            try:
-                coll.insert_entity(e)
-            except edm.ConstraintError:
-                self.fail("e insert failed with 1-1 binding")
-            # Repeat but in reverse to check that we can't insert into a
-            # dependent e set without the principal leading
-            e2 = coll.new_entity()
-            e2['K'].SetFromValue(2)
-            e2['Data'].SetFromValue('NavigationTwo')
-            e2_x = coll_x.new_entity()
-            e2_x['K'].SetFromValue(200)
-            e2_x['Data'].SetFromValue('NavigationTwoX')
-            try:
-                coll_x.insert_entity(e2_x)
-                self.fail(
-                    "e insert should fail with unbound 1-1 relationship")
-            except edm.ConstraintError:
-                pass
-            e2['OX'].BindEntity(e2_x)
-            coll.insert_entity(e2)
-            # READ the link
-            e = coll[1]
-            nav_x = e['OX'].GetEntity()
-            self.assertTrue(
-                nav_x is not None, "Failed to read back navigation link")
-            self.assertTrue(nav_x['K'] == 100)
-            # UPDATE - by adding a link, should fail.  Requires a deep delete.
-            e2_x = coll_x[200]
-            try:
-                with e['OX'].OpenCollection() as navCollection:
-                    navCollection[200] = e2_x
-                self.fail("Nav coll __setitem__ should have failed "
-                          "for 1-1 relationship")
-            except edm.ConstraintError:
-                pass
-            # UPDATE - using bind and update - also should fail for 1-1 link
-            e['OX'].BindEntity(e2_x)
-            try:
-                e.Update()
-                self.fail("BindEntity/Update should have failed "
-                          "for 1-1 relationship")
-            except edm.ConstraintError:
-                pass
-            # DELETE - link
-            with e['OX'].OpenCollection() as navCollection:
+        with ones.OpenCollection() as coll:
+            with onexs.OpenCollection() as coll_x:
+                e = coll.new_entity()
+                e['K'].SetFromValue(1)
+                e['Data'].SetFromValue('NavigationOne')
+                # CREATE
                 try:
-                    self.assertTrue(len(navCollection) == 1)
-                    del navCollection[100]
-                    self.fail("Delete of link in a 1-1 relationship")
+                    coll.insert_entity(e)
+                    self.fail("e inserted without 1-1 relationship")
                 except edm.ConstraintError:
                     pass
-            # DELETE - e; for a 1-1 link it should fail or cascade the
-            # delete
-            try:
-                # with no navigation property we mustn't cascade the delete
-                # (I'm making up my own rules here)
-                del coll_x[100]
-                self.fail("Deletion should fail for unbound 1-1 relationship")
-            except edm.ConstraintError:
-                pass
-            try:
-                del coll[1]
-                self.assertFalse(
-                    1 in coll, "Delete with a 1-1 relationship")
-                self.assertFalse(
-                    100 in coll_x, "Cascade delete for 1-1 relationship")
-            except edm.ConstraintError:
-                # an error is acceptable here, though we generate a warning
-                logging.warning(
-                    "entities with a 1-1 relationship cannot be deleted.")
+                e_x = coll_x.new_entity()
+                e_x['K'].SetFromValue(100)
+                e_x['Data'].SetFromValue('NavigationOneX')
+                e['OX'].BindEntity(e_x)
+                try:
+                    coll.insert_entity(e)
+                except edm.ConstraintError:
+                    self.fail("e insert failed with 1-1 binding")
+                # Repeat but in reverse to check that we can't insert into a
+                # dependent e set without the principal leading
+                e2 = coll.new_entity()
+                e2['K'].SetFromValue(2)
+                e2['Data'].SetFromValue('NavigationTwo')
+                e2_x = coll_x.new_entity()
+                e2_x['K'].SetFromValue(200)
+                e2_x['Data'].SetFromValue('NavigationTwoX')
+                try:
+                    coll_x.insert_entity(e2_x)
+                    self.fail(
+                        "e insert should fail with unbound 1-1 relationship")
+                except edm.ConstraintError:
+                    pass
+                e2['OX'].BindEntity(e2_x)
+                coll.insert_entity(e2)
+                # READ the link
+                e = coll[1]
+                nav_x = e['OX'].GetEntity()
                 self.assertTrue(
-                    1 in coll, "Delete with a 1-1 relationship")
-                self.assertTrue(
-                    100 in coll_x, "Cascade delete for 1-1 relationship")
+                    nav_x is not None, "Failed to read back navigation link")
+                self.assertTrue(nav_x['K'] == 100)
+                # UPDATE - by adding a link, should fail.  Requires a
+                # deep delete.
+                e2_x = coll_x[200]
+                try:
+                    with e['OX'].OpenCollection() as navCollection:
+                        navCollection[200] = e2_x
+                    self.fail("Nav coll __setitem__ should have failed "
+                              "for 1-1 relationship")
+                except edm.ConstraintError:
+                    pass
+                # UPDATE - using bind and update - also should fail for
+                # 1-1 link
+                e['OX'].BindEntity(e2_x)
+                try:
+                    e.Update()
+                    self.fail("BindEntity/Update should have failed "
+                              "for 1-1 relationship")
+                except edm.ConstraintError:
+                    pass
+                # DELETE - link
+                with e['OX'].OpenCollection() as navCollection:
+                    try:
+                        self.assertTrue(len(navCollection) == 1)
+                        del navCollection[100]
+                        self.fail("Delete of link in a 1-1 relationship")
+                    except edm.ConstraintError:
+                        pass
+                # DELETE - e; for a 1-1 link it should fail or cascade the
+                # delete
+                try:
+                    # with no navigation property we mustn't cascade the
+                    # delete (I'm making up my own rules here)
+                    del coll_x[100]
+                    self.fail(
+                        "Deletion should fail for unbound 1-1 relationship")
+                except edm.ConstraintError:
+                    pass
+                try:
+                    del coll[1]
+                    self.assertFalse(
+                        1 in coll, "Delete with a 1-1 relationship")
+                    self.assertFalse(
+                        100 in coll_x, "Cascade delete for 1-1 relationship")
+                except edm.ConstraintError:
+                    # an error is acceptable here, though we generate a warning
+                    logging.warning(
+                        "entities with a 1-1 relationship cannot be deleted.")
+                    self.assertTrue(
+                        1 in coll, "Delete with a 1-1 relationship")
+                    self.assertTrue(
+                        100 in coll_x, "Cascade delete for 1-1 relationship")
 
     def runtest_nav_zo2o(self):
         zeroones = self.ds['RegressionModel.RegressionContainer.ZO2Os']
         ones = self.ds['RegressionModel.RegressionContainer.ZO2OXs']
-        with zeroones.OpenCollection() as collectionZO, \
-                ones.OpenCollection() as collectionO:
-            e_zo = collectionZO.new_entity()
-            e_zo['K'].SetFromValue(1)
-            e_zo['Data'].SetFromValue('NavigationZeroOne')
-            # CREATE
-            try:
-                collectionZO.insert_entity(e_zo)
-                self.fail("e inserted without 0..1-1 relationship")
-            except edm.ConstraintError:
-                pass
-            e_o = collectionO.new_entity()
-            e_o['K'].SetFromValue(100)
-            e_o['Data'].SetFromValue('NavigationOne')
-            e_zo['O'].BindEntity(e_o)
-            try:
-                collectionZO.insert_entity(e_zo)
-            except edm.ConstraintError:
-                self.fail("e insert failed with 0..1-1 binding")
-            e_o = collectionO[100]
-            # e_zo <-> e_o
-            # Repeat but in reverse to check symmetry
-            e_zo2 = collectionZO.new_entity()
-            e_zo2['K'].SetFromValue(2)
-            e_zo2['Data'].SetFromValue('NavigationZeroOne_2')
-            e_o2 = collectionO.new_entity()
-            e_o2['K'].SetFromValue(200)
-            e_o2['Data'].SetFromValue('NavigationOne_2')
-            e_o2['ZO'].BindEntity(e_zo2)
-            collectionO.insert_entity(e_o2)
-            # e_zo <-> e_o
-            # e_zo2 <-> e_o2
-            # Now try inserting at the 1 end without a binding
-            e_o3 = collectionO.new_entity()
-            e_o3['K'].SetFromValue(300)
-            e_o3['Data'].SetFromValue('NavigationOne_3')
-            try:
-                collectionO.insert_entity(e_o3)
-            except edm.ConstraintError:
-                self.fail("Unbound e insert failed at the 1 end "
-                          "of 0..1-1 link")
-            # e_zo <-> e_o
-            # e_zo2 <-> e_o2
-            # None <-> e_o3
-            # Insert with implicit link
-            e_o4 = collectionO.new_entity()
-            e_o4['K'].SetFromValue(400)
-            e_o4['Data'].SetFromValue('NavigationOne_4')
-            with e_zo['O'].OpenCollection() as navCollection:
-                # 	we can't insert here as e_zo is already bound to e_o
+        with zeroones.OpenCollection() as collectionZO:
+            with ones.OpenCollection() as collectionO:
+                e_zo = collectionZO.new_entity()
+                e_zo['K'].SetFromValue(1)
+                e_zo['Data'].SetFromValue('NavigationZeroOne')
+                # CREATE
                 try:
-                    navCollection.insert_entity(e_o4)
-                    self.fail("insert_entity on navigation coll "
-                              "should fail towards the 1 end")
+                    collectionZO.insert_entity(e_zo)
+                    self.fail("e inserted without 0..1-1 relationship")
                 except edm.ConstraintError:
                     pass
-            # just create e_o4 anyway
-            e_o4 = collectionO.new_entity()
-            e_o4['K'].SetFromValue(400)
-            e_o4['Data'].SetFromValue('NavigationOne_4')
-            try:
-                collectionO.insert_entity(e_o4)
-            except edm.ConstraintError:
-                # non-transactional warning, the e was created but
-                # not linked during previous attempt
-                logging.warn("Non-transactional behaviour detected after "
-                             "failed insert on 0..1 to 1 navigation "
-                             "coll")
-                e_o4 = collectionO[400]
-            # e_zo <-> e_o
-            # e_zo2 <-> e_o2
-            # None <-> e_o3
-            # None <-> e_o4
-            e_zo3 = collectionZO.new_entity()
-            e_zo3['K'].SetFromValue(3)
-            e_zo3['Data'].SetFromValue('NavigationZeroOne_3')
-            with e_o3['ZO'].OpenCollection() as navCollection:
-                # we can insert here, will create a bound relationship
+                e_o = collectionO.new_entity()
+                e_o['K'].SetFromValue(100)
+                e_o['Data'].SetFromValue('NavigationOne')
+                e_zo['O'].BindEntity(e_o)
                 try:
-                    navCollection.insert_entity(e_zo3)
+                    collectionZO.insert_entity(e_zo)
                 except edm.ConstraintError:
-                    self.fail("insert_entity on navigation coll "
-                              "should not fail towards the 0..1 end")
-            # e_zo <-> e_o
-            # e_zo2 <-> e_o2
-            # e_zo3 <-> e_o3
-            # None <-> e_o4
-            # READ both ways
-            e_zo = collectionZO[1]
-            nav_o = e_zo['O'].GetEntity()
-            self.assertTrue(
-                nav_o is not None, "Failed to read back navigation link")
-            self.assertTrue(nav_o['K'] == 100)
-            nav_zo = nav_o['ZO'].GetEntity()
-            self.assertFalse(
-                nav_zo is None, "Failed to read back reverse navigation link")
-            self.assertTrue(nav_zo['K'] == 1)
-            # UPDATE - by replacing the required target of a link, should work
-            try:
+                    self.fail("e insert failed with 0..1-1 binding")
+                e_o = collectionO[100]
+                # e_zo <-> e_o
+                # Repeat but in reverse to check symmetry
+                e_zo2 = collectionZO.new_entity()
+                e_zo2['K'].SetFromValue(2)
+                e_zo2['Data'].SetFromValue('NavigationZeroOne_2')
+                e_o2 = collectionO.new_entity()
+                e_o2['K'].SetFromValue(200)
+                e_o2['Data'].SetFromValue('NavigationOne_2')
+                e_o2['ZO'].BindEntity(e_zo2)
+                collectionO.insert_entity(e_o2)
+                # e_zo <-> e_o
+                # e_zo2 <-> e_o2
+                # Now try inserting at the 1 end without a binding
+                e_o3 = collectionO.new_entity()
+                e_o3['K'].SetFromValue(300)
+                e_o3['Data'].SetFromValue('NavigationOne_3')
+                try:
+                    collectionO.insert_entity(e_o3)
+                except edm.ConstraintError:
+                    self.fail("Unbound e insert failed at the 1 end "
+                              "of 0..1-1 link")
+                # e_zo <-> e_o
+                # e_zo2 <-> e_o2
+                # None <-> e_o3
+                # Insert with implicit link
+                e_o4 = collectionO.new_entity()
+                e_o4['K'].SetFromValue(400)
+                e_o4['Data'].SetFromValue('NavigationOne_4')
                 with e_zo['O'].OpenCollection() as navCollection:
-                    navCollection.replace(e_o4)
-            except edm.ConstraintError:
-                self.fail("replace on 0..1-1 navigation property")
-            # e_zo <-> e_o4
-            # e_zo2 <-> e_o2
-            # e_zo3 <-> e_o3
-            # None <-> e_o
-            nav_zo = e_o4['ZO'].GetEntity()
-            self.assertTrue(nav_zo['K'] == 1)
-            nav_zo = e_o['ZO'].GetEntity()
-            self.assertTrue(nav_zo is None)
-            # now the other way around, should fail as e_zo is
-            # already bound to a different e (and even if we
-            # allowed it, we'd have to break the link to e_zo2
-            # which is illegal without deletion).
-            try:
-                with e_o2['ZO'].OpenCollection() as navCollection:
-                    navCollection[e_zo.key()] = e_zo
-                self.fail(
-                    "__setitem__ on 1-0..1 navigation property should fail")
-            except edm.ConstraintError:
-                pass
-            # UPDATE - using bind and update
-            e_zo['O'].BindEntity(e_o)
-            try:
-                e_zo.Update()
-            except edm.ConstraintError:
-                self.fail("BindEntity/Update on 0..1-1 navigation property")
-            # e_zo <-> e_o
-            # e_zo2 <-> e_o2
-            # e_zo3 <-> e_o3
-            # None <-> e_o4
-            e_o2['ZO'].BindEntity(e_zo)
-            try:
-                e_o2.Update()
-                self.fail("BindEntity/Update on 1-0..1 navigation property "
-                          "should fail")
-            except edm.ConstraintError:
-                pass
-            # DELETE - link
-            with e_o['ZO'].OpenCollection() as navCollection:
+                    # 	we can't insert here as e_zo is already bound to e_o
+                    try:
+                        navCollection.insert_entity(e_o4)
+                        self.fail("insert_entity on navigation coll "
+                                  "should fail towards the 1 end")
+                    except edm.ConstraintError:
+                        pass
+                # just create e_o4 anyway
+                e_o4 = collectionO.new_entity()
+                e_o4['K'].SetFromValue(400)
+                e_o4['Data'].SetFromValue('NavigationOne_4')
                 try:
-                    self.assertTrue(len(navCollection) == 1)
-                    del navCollection[1]
-                    self.fail(
-                        "Delete of link in a 0..1-1 relationship from 1 end")
+                    collectionO.insert_entity(e_o4)
                 except edm.ConstraintError:
-                    pass
-            with e_zo['O'].OpenCollection() as navCollection:
-                try:
-                    self.assertTrue(len(navCollection) == 1)
-                    del navCollection[100]
-                    self.fail("Delete of link in a 0..1-1 relationship "
-                              "from the 0..1 end")
-                except edm.ConstraintError:
-                    pass
-            # DELETE - e; for a 0..1-1 link should succeed on the 0..1 end
-            try:
-                del collectionZO[1]
-                self.assertFalse(
-                    1 in collectionZO,
-                    "Delete e at 0..1 end of relationship")
+                    # non-transactional warning, the e was created but
+                    # not linked during previous attempt
+                    logging.warn("Non-transactional behaviour detected after "
+                                 "failed insert on 0..1 to 1 navigation "
+                                 "coll")
+                    e_o4 = collectionO[400]
+                # e_zo <-> e_o
+                # e_zo2 <-> e_o2
+                # None <-> e_o3
+                # None <-> e_o4
+                e_zo3 = collectionZO.new_entity()
+                e_zo3['K'].SetFromValue(3)
+                e_zo3['Data'].SetFromValue('NavigationZeroOne_3')
+                with e_o3['ZO'].OpenCollection() as navCollection:
+                    # we can insert here, will create a bound relationship
+                    try:
+                        navCollection.insert_entity(e_zo3)
+                    except edm.ConstraintError:
+                        self.fail("insert_entity on navigation coll "
+                                  "should not fail towards the 0..1 end")
+                # e_zo <-> e_o
+                # e_zo2 <-> e_o2
+                # e_zo3 <-> e_o3
+                # None <-> e_o4
+                # READ both ways
+                e_zo = collectionZO[1]
+                nav_o = e_zo['O'].GetEntity()
                 self.assertTrue(
-                    100 in collectionO,
-                    "No cascade delete expected for 0..1-1 relationship")
-            except edm.ConstraintError:
-                self.fail("Delete e failed at 0..1 end of relationship")
-            # None <-> e_o
-            # e_zo2 <-> e_o2
-            # e_zo3 <-> e_o3
-            # None <-> e_o4
-            # DELETE - e; for a 0..1-1 link should fail or cascade the
-            # delete on the 1 end
-            try:
-                del collectionO[200]
+                    nav_o is not None, "Failed to read back navigation link")
+                self.assertTrue(nav_o['K'] == 100)
+                nav_zo = nav_o['ZO'].GetEntity()
                 self.assertFalse(
-                    200 in collectionO,
-                    "Delete e at 1 end of relationship")
-                self.assertFalse(
-                    2 in collectionZO,
-                    "Cascade delete required for 0..1 end of relationship")
-            except edm.ConstraintError:
-                # an error is acceptable here, though we generate a warning
-                logging.warning("no cascade delete across 0..1-1 relationship")
-                self.assertTrue(200 in collectionO)
-                self.assertTrue(2 in collectionZO)
+                    nav_zo is None,
+                    "Failed to read back reverse navigation link")
+                self.assertTrue(nav_zo['K'] == 1)
+                # UPDATE - by replacing the required target of a link,
+                # should work
+                try:
+                    with e_zo['O'].OpenCollection() as navCollection:
+                        navCollection.replace(e_o4)
+                except edm.ConstraintError:
+                    self.fail("replace on 0..1-1 navigation property")
+                # e_zo <-> e_o4
+                # e_zo2 <-> e_o2
+                # e_zo3 <-> e_o3
+                # None <-> e_o
+                nav_zo = e_o4['ZO'].GetEntity()
+                self.assertTrue(nav_zo['K'] == 1)
+                nav_zo = e_o['ZO'].GetEntity()
+                self.assertTrue(nav_zo is None)
+                # now the other way around, should fail as e_zo is
+                # already bound to a different e (and even if we
+                # allowed it, we'd have to break the link to e_zo2
+                # which is illegal without deletion).
+                try:
+                    with e_o2['ZO'].OpenCollection() as navCollection:
+                        navCollection[e_zo.key()] = e_zo
+                    self.fail(
+                        "__setitem__ on 1-0..1 navigation property "
+                        "should fail")
+                except edm.ConstraintError:
+                    pass
+                # UPDATE - using bind and update
+                e_zo['O'].BindEntity(e_o)
+                try:
+                    e_zo.Update()
+                except edm.ConstraintError:
+                    self.fail(
+                        "BindEntity/Update on 0..1-1 navigation property")
+                # e_zo <-> e_o
+                # e_zo2 <-> e_o2
+                # e_zo3 <-> e_o3
+                # None <-> e_o4
+                e_o2['ZO'].BindEntity(e_zo)
+                try:
+                    e_o2.Update()
+                    self.fail("BindEntity/Update on 1-0..1 navigation "
+                              "property should fail")
+                except edm.ConstraintError:
+                    pass
+                # DELETE - link
+                with e_o['ZO'].OpenCollection() as navCollection:
+                    try:
+                        self.assertTrue(len(navCollection) == 1)
+                        del navCollection[1]
+                        self.fail(
+                            "Delete of link in a 0..1-1 relationship "
+                            "from 1 end")
+                    except edm.ConstraintError:
+                        pass
+                with e_zo['O'].OpenCollection() as navCollection:
+                    try:
+                        self.assertTrue(len(navCollection) == 1)
+                        del navCollection[100]
+                        self.fail("Delete of link in a 0..1-1 relationship "
+                                  "from the 0..1 end")
+                    except edm.ConstraintError:
+                        pass
+                # DELETE - e; for a 0..1-1 link should succeed on the 0..1 end
+                try:
+                    del collectionZO[1]
+                    self.assertFalse(
+                        1 in collectionZO,
+                        "Delete e at 0..1 end of relationship")
+                    self.assertTrue(
+                        100 in collectionO,
+                        "No cascade delete expected for 0..1-1 relationship")
+                except edm.ConstraintError:
+                    self.fail("Delete e failed at 0..1 end of relationship")
+                # None <-> e_o
+                # e_zo2 <-> e_o2
+                # e_zo3 <-> e_o3
+                # None <-> e_o4
+                # DELETE - e; for a 0..1-1 link should fail or cascade the
+                # delete on the 1 end
+                try:
+                    del collectionO[200]
+                    self.assertFalse(
+                        200 in collectionO,
+                        "Delete e at 1 end of relationship")
+                    self.assertFalse(
+                        2 in collectionZO,
+                        "Cascade delete required for 0..1 end of relationship")
+                except edm.ConstraintError:
+                    # an error is acceptable here, though we generate a
+                    # warning
+                    logging.warning(
+                        "no cascade delete across 0..1-1 relationship")
+                    self.assertTrue(200 in collectionO)
+                    self.assertTrue(2 in collectionZO)
 
     def runtest_nav_zo2o_f(self):
         zeroones = self.ds['RegressionModel.RegressionContainer.ZO2OFs']
         ones = self.ds['RegressionModel.RegressionContainer.ZO2OXFs']
-        with zeroones.OpenCollection() as collectionZO, \
-                ones.OpenCollection() as collectionO:
-            # CREATE
-            e_zo = collectionZO.new_entity()
-            e_zo['K'].SetFromValue(1)
-            e_zo['Data'].SetFromValue('NavigationZeroOne')
-            e_o = collectionO.new_entity()
-            e_o['K'].SetFromValue(100)
-            e_o['Data'].SetFromValue('NavigationOne')
-            e_zo['O'].BindEntity(e_o)
-            try:
-                collectionZO.insert_entity(e_zo)
-            except edm.ConstraintError:
-                self.fail("e insert failed with 0..1-1 binding")
-            # e_zo <-> e_o
-            e_o2 = collectionO.new_entity()
-            e_o2['K'].SetFromValue(200)
-            e_o2['Data'].SetFromValue('NavigationOne_2')
-            collectionO.insert_entity(e_o2)
-            # None <-> e_o2
-            # READ (forward only)
-            e_zo = collectionZO[1]
-            e_o = collectionO[100]
-            nav_o = e_zo['O'].GetEntity()
-            self.assertTrue(
-                nav_o is not None, "Failed to read back navigation link")
-            self.assertTrue(nav_o['K'] == 100)
-            # UPDATE - by replacing the required target of a link, should work
-            try:
-                with e_zo['O'].OpenCollection() as navCollection:
-                    navCollection.replace(e_o2)
-            except edm.ConstraintError:
-                self.fail("replace on 0..1-1 navigation property")
-            # e_zo <-> e_o2
-            # None <-> e_o
-            # UPDATE - using bind and update
-            e_zo['O'].BindEntity(e_o)
-            try:
-                e_zo.Update()
-            except edm.ConstraintError:
-                self.fail("BindEntity/Update on 0..1-1 navigation property")
-            # e_zo <-> e_o
-            # None <-> e_o2
-            # DELETE - link
-            with e_zo['O'].OpenCollection() as navCollection:
+        with zeroones.OpenCollection() as collectionZO:
+            with ones.OpenCollection() as collectionO:
+                # CREATE
+                e_zo = collectionZO.new_entity()
+                e_zo['K'].SetFromValue(1)
+                e_zo['Data'].SetFromValue('NavigationZeroOne')
+                e_o = collectionO.new_entity()
+                e_o['K'].SetFromValue(100)
+                e_o['Data'].SetFromValue('NavigationOne')
+                e_zo['O'].BindEntity(e_o)
                 try:
-                    self.assertTrue(len(navCollection) == 1)
-                    del navCollection[100]
-                    self.fail("Delete of link in a 0..1-1 relationship "
-                              "from the 0..1 end")
+                    collectionZO.insert_entity(e_zo)
                 except edm.ConstraintError:
-                    pass
-            # DELETE - e; for a 0..1-1 link should succeed on the 0..1 end
-            # e_zo <-> e_o
-            try:
-                del collectionZO[1]
-                self.assertFalse(
-                    1 in collectionZO,
-                    "Delete e at 0..1 end of relationship")
+                    self.fail("e insert failed with 0..1-1 binding")
+                # e_zo <-> e_o
+                e_o2 = collectionO.new_entity()
+                e_o2['K'].SetFromValue(200)
+                e_o2['Data'].SetFromValue('NavigationOne_2')
+                collectionO.insert_entity(e_o2)
+                # None <-> e_o2
+                # READ (forward only)
+                e_zo = collectionZO[1]
+                e_o = collectionO[100]
+                nav_o = e_zo['O'].GetEntity()
                 self.assertTrue(
-                    100 in collectionO,
-                    "No cascade delete expected for 0..1-1 relationship")
-            except edm.ConstraintError:
-                self.fail("Delete e failed at 0..1 end of relationship")
-            # DELETE - e; for a 0..1-1 link should fail on the 1 end
-            # when there is no navigation to cascade over
-            # None <-> e_o
-            # None <-> e_o2
-            e_zo2 = collectionZO.new_entity()
-            e_zo2['K'].SetFromValue(2)
-            e_zo2['Data'].SetFromValue('NavigationZeroOne_2')
-            e_zo2['O'].BindEntity(e_o2)
-            collectionZO.insert_entity(e_zo2)
-            # e_zo2 <-> e_o2
-            try:
-                del collectionO[200]
-                self.fail("(Cascade) delete not allowed over unbound "
-                          "navigation property")
-            except edm.ConstraintError:
-                self.assertTrue(200 in collectionO)
-                self.assertTrue(2 in collectionZO)
+                    nav_o is not None, "Failed to read back navigation link")
+                self.assertTrue(nav_o['K'] == 100)
+                # UPDATE - by replacing the required target of a link,
+                # should work
+                try:
+                    with e_zo['O'].OpenCollection() as navCollection:
+                        navCollection.replace(e_o2)
+                except edm.ConstraintError:
+                    self.fail("replace on 0..1-1 navigation property")
+                # e_zo <-> e_o2
+                # None <-> e_o
+                # UPDATE - using bind and update
+                e_zo['O'].BindEntity(e_o)
+                try:
+                    e_zo.Update()
+                except edm.ConstraintError:
+                    self.fail(
+                        "BindEntity/Update on 0..1-1 navigation property")
+                # e_zo <-> e_o
+                # None <-> e_o2
+                # DELETE - link
+                with e_zo['O'].OpenCollection() as navCollection:
+                    try:
+                        self.assertTrue(len(navCollection) == 1)
+                        del navCollection[100]
+                        self.fail("Delete of link in a 0..1-1 relationship "
+                                  "from the 0..1 end")
+                    except edm.ConstraintError:
+                        pass
+                # DELETE - e; for a 0..1-1 link should succeed on the 0..1 end
+                # e_zo <-> e_o
+                try:
+                    del collectionZO[1]
+                    self.assertFalse(
+                        1 in collectionZO,
+                        "Delete e at 0..1 end of relationship")
+                    self.assertTrue(
+                        100 in collectionO,
+                        "No cascade delete expected for 0..1-1 relationship")
+                except edm.ConstraintError:
+                    self.fail("Delete e failed at 0..1 end of relationship")
+                # DELETE - e; for a 0..1-1 link should fail on the 1 end
+                # when there is no navigation to cascade over
+                # None <-> e_o
+                # None <-> e_o2
+                e_zo2 = collectionZO.new_entity()
+                e_zo2['K'].SetFromValue(2)
+                e_zo2['Data'].SetFromValue('NavigationZeroOne_2')
+                e_zo2['O'].BindEntity(e_o2)
+                collectionZO.insert_entity(e_zo2)
+                # e_zo2 <-> e_o2
+                try:
+                    del collectionO[200]
+                    self.fail("(Cascade) delete not allowed over unbound "
+                              "navigation property")
+                except edm.ConstraintError:
+                    self.assertTrue(200 in collectionO)
+                    self.assertTrue(2 in collectionZO)
 
     def runtest_nav_zo2o_b(self):
         zeroones = self.ds['RegressionModel.RegressionContainer.ZO2ORs']
         ones = self.ds['RegressionModel.RegressionContainer.ZO2OXRs']
-        with zeroones.OpenCollection() as collectionZO, \
-                ones.OpenCollection() as collectionO:
-            e_zo = collectionZO.new_entity()
-            e_zo['K'].SetFromValue(1)
-            e_zo['Data'].SetFromValue('NavigationZeroOne')
-            # CREATE
-            try:
-                collectionZO.insert_entity(e_zo)
-                self.fail("e inserted without 0..1-1 relationship "
-                          "(unbound navigation property)")
-            except edm.ConstraintError:
-                pass
-            e_o = collectionO.new_entity()
-            e_o['K'].SetFromValue(100)
-            e_o['Data'].SetFromValue('NavigationOne')
-            e_o['ZO'].BindEntity(e_zo)
-            try:
-                collectionO.insert_entity(e_o)
-            except edm.ConstraintError:
-                self.fail("e insert failed with 0..1-1 binding")
-            # e_zo <-> e_o
-            # Now try inserting at the 1 end without a binding
-            e_o2 = collectionO.new_entity()
-            e_o2['K'].SetFromValue(200)
-            e_o2['Data'].SetFromValue('NavigationOne_2')
-            try:
-                collectionO.insert_entity(e_o2)
-            except edm.ConstraintError:
-                self.fail("Unbound e insert failed at the 1 end "
-                          "of 0..1-1 link")
-            # None <-> e_o2
-            # READ (reverse only)
-            e_o = collectionO[100]
-            e_zo = collectionZO[1]
-            nav_zo = e_o['ZO'].GetEntity()
-            self.assertTrue(
-                nav_zo is not None, "Failed to read back navigation link")
-            self.assertTrue(nav_zo['K'] == 1)
-            # UPDATE - by inserting a new value into the navigation coll
-            # should work
-            e_zo2 = collectionZO.new_entity()
-            e_zo2['K'].SetFromValue(2)
-            e_zo2['Data'].SetFromValue('NavigationZeroOne')
-            with e_o2['ZO'].OpenCollection() as navCollection:
+        with zeroones.OpenCollection() as collectionZO:
+            with ones.OpenCollection() as collectionO:
+                e_zo = collectionZO.new_entity()
+                e_zo['K'].SetFromValue(1)
+                e_zo['Data'].SetFromValue('NavigationZeroOne')
+                # CREATE
                 try:
-                    navCollection.insert_entity(e_zo2)
-                except NotImplementedError:
-                    # acceptable to reject this as there is no back link
-                    logging.warning("Insertion into O[2].ZO not supported due "
-                                    "to absence of back-link")
-                except edm.ConstraintError:
-                    self.fail("Failed to insert a new e at the 0..1 end "
-                              "of an empty link")
-            nav_zo = e_o2['ZO'].GetEntity()
-            if nav_zo is None:
-                # Fix up the unimplemented insertion...
-                e_o2 = collectionO.CopyEntity(e_o2)
-                del collectionO[200]
-                e_o2.SetKey(200)
-                e_o2['ZO'].BindEntity(e_zo2)
-                collectionO.insert_entity(e_o2)
-                nav_zo = e_o2['ZO'].GetEntity()
-            self.assertTrue(nav_zo['K'] == 2)
-            e_zo2 = collectionZO[2]
-            # e_zo <-> e_o
-            # e_zo2 <-> e_o2
-            # now try and update the link, should fail as e_zo
-            # is already bound and even if we allowed ourselves to
-            # implicitly break that link it would leave e_zo2
-            # unbound which would require an implicit delete
-            try:
-                with e_o2['ZO'].OpenCollection() as navCollection:
-                    navCollection[e_zo.key()] = e_zo
-                self.fail(
-                    "__setitem__ on 1-0..1 navigation property should fail")
-            except edm.ConstraintError:
-                pass
-            e_o2['ZO'].BindEntity(e_zo)
-            try:
-                e_o2.Update()
-                self.fail("BindEntity/Update on 1-0..1 navigation property "
-                          "should fail")
-            except edm.ConstraintError:
-                pass
-            # DELETE - link
-            # e_zo <-> e_o
-            # e_zo2 <-> e_o2
-            with e_o['ZO'].OpenCollection() as navCollection:
-                try:
-                    self.assertTrue(len(navCollection) == 1)
-                    del navCollection[1]
-                    self.fail(
-                        "Delete of link in a 0..1-1 relationship from 1 end")
+                    collectionZO.insert_entity(e_zo)
+                    self.fail("e inserted without 0..1-1 relationship "
+                              "(unbound navigation property)")
                 except edm.ConstraintError:
                     pass
-            # DELETE - e; for a 0..1-1 link should succeed on
-            # the 0..1 end even though there is no navigation
-            # property, the link must be broken of course!
-            # e_zo <-> e_o
-            try:
-                del collectionZO[1]
-                self.assertFalse(
-                    1 in collectionZO,
-                    "Delete e at 0..1 end of relationship")
+                e_o = collectionO.new_entity()
+                e_o['K'].SetFromValue(100)
+                e_o['Data'].SetFromValue('NavigationOne')
+                e_o['ZO'].BindEntity(e_zo)
+                try:
+                    collectionO.insert_entity(e_o)
+                except edm.ConstraintError:
+                    self.fail("e insert failed with 0..1-1 binding")
+                # e_zo <-> e_o
+                # Now try inserting at the 1 end without a binding
+                e_o2 = collectionO.new_entity()
+                e_o2['K'].SetFromValue(200)
+                e_o2['Data'].SetFromValue('NavigationOne_2')
+                try:
+                    collectionO.insert_entity(e_o2)
+                except edm.ConstraintError:
+                    self.fail("Unbound e insert failed at the 1 end "
+                              "of 0..1-1 link")
+                # None <-> e_o2
+                # READ (reverse only)
+                e_o = collectionO[100]
+                e_zo = collectionZO[1]
+                nav_zo = e_o['ZO'].GetEntity()
                 self.assertTrue(
-                    100 in collectionO,
-                    "No cascade delete expected for 0..1-1 relationship")
-                self.assertTrue(e_o['ZO'].GetEntity() is None,
-                                "Link should have been broken by deletion "
-                                "at 0..1 end")
-            except edm.ConstraintError:
-                self.fail("Delete e failed at 0..1 end of relationship")
-            # DELETE - e; for a 0..1-1 link should fail or cascade
-            # e_zo2 <-> e_o2
-            try:
-                del collectionO[200]
-                self.assertFalse(
-                    200 in collectionO,
-                    "Delete e at 1 end of relationship")
-                self.assertFalse(
-                    2 in collectionZO,
-                    "Cascade delete required for 0..1 end of relationship")
-            except edm.ConstraintError:
-                # an error is acceptable here, though we generate a warning
-                logging.warning("no cascade delete across 0..1-1 relationship")
-                self.assertTrue(200 in collectionO)
-                self.assertTrue(2 in collectionZO)
+                    nav_zo is not None, "Failed to read back navigation link")
+                self.assertTrue(nav_zo['K'] == 1)
+                # UPDATE - by inserting a new value into the navigation coll
+                # should work
+                e_zo2 = collectionZO.new_entity()
+                e_zo2['K'].SetFromValue(2)
+                e_zo2['Data'].SetFromValue('NavigationZeroOne')
+                with e_o2['ZO'].OpenCollection() as navCollection:
+                    try:
+                        navCollection.insert_entity(e_zo2)
+                    except NotImplementedError:
+                        # acceptable to reject this as there is no back link
+                        logging.warning("Insertion into O[2].ZO not supported due "
+                                        "to absence of back-link")
+                    except edm.ConstraintError:
+                        self.fail("Failed to insert a new e at the 0..1 end "
+                                  "of an empty link")
+                nav_zo = e_o2['ZO'].GetEntity()
+                if nav_zo is None:
+                    # Fix up the unimplemented insertion...
+                    e_o2 = collectionO.CopyEntity(e_o2)
+                    del collectionO[200]
+                    e_o2.set_key(200)
+                    e_o2['ZO'].BindEntity(e_zo2)
+                    collectionO.insert_entity(e_o2)
+                    nav_zo = e_o2['ZO'].GetEntity()
+                self.assertTrue(nav_zo['K'] == 2)
+                e_zo2 = collectionZO[2]
+                # e_zo <-> e_o
+                # e_zo2 <-> e_o2
+                # now try and update the link, should fail as e_zo
+                # is already bound and even if we allowed ourselves to
+                # implicitly break that link it would leave e_zo2
+                # unbound which would require an implicit delete
+                try:
+                    with e_o2['ZO'].OpenCollection() as navCollection:
+                        navCollection[e_zo.key()] = e_zo
+                    self.fail(
+                        "__setitem__ on 1-0..1 navigation property "
+                        "should fail")
+                except edm.ConstraintError:
+                    pass
+                e_o2['ZO'].BindEntity(e_zo)
+                try:
+                    e_o2.Update()
+                    self.fail("BindEntity/Update on 1-0..1 navigation "
+                              "property should fail")
+                except edm.ConstraintError:
+                    pass
+                # DELETE - link
+                # e_zo <-> e_o
+                # e_zo2 <-> e_o2
+                with e_o['ZO'].OpenCollection() as navCollection:
+                    try:
+                        self.assertTrue(len(navCollection) == 1)
+                        del navCollection[1]
+                        self.fail(
+                            "Delete of link in a 0..1-1 relationship "
+                            "from 1 end")
+                    except edm.ConstraintError:
+                        pass
+                # DELETE - e; for a 0..1-1 link should succeed on
+                # the 0..1 end even though there is no navigation
+                # property, the link must be broken of course!
+                # e_zo <-> e_o
+                try:
+                    del collectionZO[1]
+                    self.assertFalse(
+                        1 in collectionZO,
+                        "Delete e at 0..1 end of relationship")
+                    self.assertTrue(
+                        100 in collectionO,
+                        "No cascade delete expected for 0..1-1 relationship")
+                    self.assertTrue(e_o['ZO'].GetEntity() is None,
+                                    "Link should have been broken by deletion "
+                                    "at 0..1 end")
+                except edm.ConstraintError:
+                    self.fail("Delete e failed at 0..1 end of relationship")
+                # DELETE - e; for a 0..1-1 link should fail or cascade
+                # e_zo2 <-> e_o2
+                try:
+                    del collectionO[200]
+                    self.assertFalse(
+                        200 in collectionO,
+                        "Delete e at 1 end of relationship")
+                    self.assertFalse(
+                        2 in collectionZO,
+                        "Cascade delete required for 0..1 end of relationship")
+                except edm.ConstraintError:
+                    # an error is acceptable here, though we generate a
+                    # warning
+                    logging.warning(
+                        "no cascade delete across 0..1-1 relationship")
+                    self.assertTrue(200 in collectionO)
+                    self.assertTrue(2 in collectionZO)
 
     def runtest_nav_many2o(self):
         manys = self.ds['RegressionModel.RegressionContainer.Many2Os']
         ones = self.ds['RegressionModel.RegressionContainer.Many2OXs']
-        with manys.OpenCollection() as collectionMany, \
-                ones.OpenCollection() as collectionO:
-            e_many = collectionMany.new_entity()
-            e_many['K'].SetFromValue(1)
-            e_many['Data'].SetFromValue('NavigationMany')
-            # CREATE
-            try:
-                collectionMany.insert_entity(e_many)
-                self.fail("e inserted without *-1 relationship")
-            except edm.ConstraintError:
-                pass
-            e_o = collectionO.new_entity()
-            e_o['K'].SetFromValue(100)
-            e_o['Data'].SetFromValue('NavigationOne')
-            e_many['O'].BindEntity(e_o)
-            try:
-                collectionMany.insert_entity(e_many)
-            except edm.ConstraintError:
-                self.fail("e insert failed with *-1 binding")
-            # e_many <-> e_o
-            # Repeat but in reverse to check symmetry
-            e_many2 = collectionMany.new_entity()
-            e_many2['K'].SetFromValue(2)
-            e_many2['Data'].SetFromValue('NavigationMany_2')
-            e_many3 = collectionMany.new_entity()
-            e_many3['K'].SetFromValue(3)
-            e_many3['Data'].SetFromValue('NavigationMany_3')
-            e_o2 = collectionO.new_entity()
-            e_o2['K'].SetFromValue(200)
-            e_o2['Data'].SetFromValue('NavigationOne_2')
-            # we can create more than one link now
-            e_o2['Many'].BindEntity(e_many2)
-            e_o2['Many'].BindEntity(e_many3)
-            collectionO.insert_entity(e_o2)
-            # e_many2, e_many3 <-> e_o2
-            # Now try inserting at the 1 end without a binding
-            e_o3 = collectionO.new_entity()
-            e_o3['K'].SetFromValue(300)
-            e_o3['Data'].SetFromValue('NavigationOne_3')
-            try:
-                collectionO.insert_entity(e_o3)
-            except edm.ConstraintError:
-                self.fail(
-                    "Unbound e insert failed at the 1 end of *-1 link")
-            # [] <-> e_o3
-            # READ both ways
-            e_many = collectionMany[1]
-            nav_o = e_many['O'].GetEntity()
-            self.assertTrue(
-                nav_o is not None, "Failed to read back navigation link")
-            self.assertTrue(nav_o['K'] == 100)
-            try:
-                nav_many = nav_o['Many'].GetEntity()
-                self.fail("GetEntity should fail on a deferred value "
-                          "with multiplicity *")
-            except edm.NavigationError:
-                pass
-            with nav_o['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 1)
-                nav_many = navCollection[1]
-                self.assertTrue(nav_many['K'] == 1)
-            # READ multiple...
-            e_many2 = collectionMany[2]
-            nav_o = e_many2['O'].GetEntity()
-            self.assertTrue(nav_o is not None, "Failed to read back Many2")
-            self.assertTrue(nav_o['K'] == 200)
-            e_many3 = collectionMany[3]
-            nav_o = e_many3['O'].GetEntity()
-            self.assertTrue(nav_o is not None, "Failed to read back Many3")
-            self.assertTrue(nav_o['K'] == 200)
-            e_o2 = collectionO[200]
-            with e_o2['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 2)
-                self.assertFalse(1 in navCollection)
-                self.assertTrue(2 in navCollection)
-                self.assertTrue(3 in navCollection)
-            # READ empty link...
-            with e_o3['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 0)
-            # UPDATE - by replacing the required target of a link, should work
-            try:
-                with e_many['O'].OpenCollection() as navCollection:
-                    navCollection.replace(e_o3)
-            except edm.ConstraintError:
-                self.fail("replace on *-1 navigation property")
-            # e_many <-> e_o3
-            # [] <-> e_o
-            with e_o3['Many'].OpenCollection() as navCollection:
-                self.assertTrue(1 in navCollection)
-            e_o = collectionO[100]
-            with e_o['Many'].OpenCollection() as navCollection:
-                self.assertTrue(1 not in navCollection)
-                self.assertTrue(len(navCollection) == 0)
-            # now the other way around, should fail as e_many is
-            # already bound to a different e and we don't allow
-            # that link to be broken implicitly
-            # [] <-> e_o
-            # e_many2, e_many3 <-> e_o2
-            # e_many <-> e_o3
-            try:
-                with e_o2['Many'].OpenCollection() as navCollection:
-                    navCollection[e_many.key()] = e_many
-                self.fail("__setitem__ on 1-* navigation property should fail")
-            except edm.ConstraintError:
-                pass
-            # UPDATE - using bind and update
-            e_many['O'].BindEntity(e_o)
-            try:
-                e_many.Update()
-            except edm.ConstraintError:
-                self.fail("BindEntity/Update on *-1 navigation property")
-            # e_many <-> e_o
-            # e_many2, e_many3 <-> e_o2
-            # [] <-> e_o3
-            e_o2['Many'].BindEntity(e_many)
-            try:
-                e_o2.Update()
-                self.fail(
-                    "BindEntity/Update on 1-* navigation property should fail")
-            except edm.ConstraintError:
-                pass
-            # DELETE - link
-            # e_many <-> e_o
-            with e_o['Many'].OpenCollection() as navCollection:
+        with manys.OpenCollection() as collectionMany:
+            with ones.OpenCollection() as collectionO:
+                e_many = collectionMany.new_entity()
+                e_many['K'].SetFromValue(1)
+                e_many['Data'].SetFromValue('NavigationMany')
+                # CREATE
                 try:
-                    self.assertTrue(len(navCollection) == 1)
-                    del navCollection[1]
-                    self.fail(
-                        "Delete of link in a *-1 relationship from 1 end")
+                    collectionMany.insert_entity(e_many)
+                    self.fail("e inserted without *-1 relationship")
                 except edm.ConstraintError:
                     pass
-            with e_many['O'].OpenCollection() as navCollection:
+                e_o = collectionO.new_entity()
+                e_o['K'].SetFromValue(100)
+                e_o['Data'].SetFromValue('NavigationOne')
+                e_many['O'].BindEntity(e_o)
                 try:
-                    self.assertTrue(len(navCollection) == 1)
-                    del navCollection[100]
-                    self.fail(
-                        "Delete of link in a *-1 relationship from the * end")
+                    collectionMany.insert_entity(e_many)
                 except edm.ConstraintError:
-                    pass
-            # DELETE - e; for a *-1 link should succeed on the * end
-            # e_many <-> e_o
-            try:
-                del collectionMany[1]
-                self.assertFalse(
-                    1 in collectionMany,
-                    "Delete e at * end of relationship")
+                    self.fail("e insert failed with *-1 binding")
+                # e_many <-> e_o
+                # Repeat but in reverse to check symmetry
+                e_many2 = collectionMany.new_entity()
+                e_many2['K'].SetFromValue(2)
+                e_many2['Data'].SetFromValue('NavigationMany_2')
+                e_many3 = collectionMany.new_entity()
+                e_many3['K'].SetFromValue(3)
+                e_many3['Data'].SetFromValue('NavigationMany_3')
+                e_o2 = collectionO.new_entity()
+                e_o2['K'].SetFromValue(200)
+                e_o2['Data'].SetFromValue('NavigationOne_2')
+                # we can create more than one link now
+                e_o2['Many'].BindEntity(e_many2)
+                e_o2['Many'].BindEntity(e_many3)
+                collectionO.insert_entity(e_o2)
+                # e_many2, e_many3 <-> e_o2
+                # Now try inserting at the 1 end without a binding
+                e_o3 = collectionO.new_entity()
+                e_o3['K'].SetFromValue(300)
+                e_o3['Data'].SetFromValue('NavigationOne_3')
+                try:
+                    collectionO.insert_entity(e_o3)
+                except edm.ConstraintError:
+                    self.fail(
+                        "Unbound e insert failed at the 1 end of *-1 link")
+                # [] <-> e_o3
+                # READ both ways
+                e_many = collectionMany[1]
+                nav_o = e_many['O'].GetEntity()
                 self.assertTrue(
-                    100 in collectionO,
-                    "No cascade delete expected for *-1 relationship")
-            except edm.ConstraintError:
-                self.fail("Delete e failed at * end of relationship")
-            # DELETE - e; for a *-1 link should fail or cascade
-            # e_many2, e_many3 <-> e_o2
-            try:
-                del collectionO[200]
-                self.assertFalse(
-                    200 in collectionO,
-                    "Delete e at 1 end of relationship")
-                self.assertFalse(
-                    2 in collectionMany,
-                    "Cascade delete required for * end of relationship")
-                self.assertFalse(
-                    3 in collectionMany,
-                    "Cascade delete required for * end of relationship")
-            except edm.ConstraintError:
-                # an error is acceptable here, though we generate a warning
-                logging.warning("no cascade delete across *-1 relationship")
-                self.assertTrue(200 in collectionO)
-                self.assertTrue(2 in collectionMany)
-                self.assertTrue(3 in collectionMany)
+                    nav_o is not None, "Failed to read back navigation link")
+                self.assertTrue(nav_o['K'] == 100)
+                try:
+                    nav_many = nav_o['Many'].GetEntity()
+                    self.fail("GetEntity should fail on a deferred value "
+                              "with multiplicity *")
+                except edm.NavigationError:
+                    pass
+                with nav_o['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 1)
+                    nav_many = navCollection[1]
+                    self.assertTrue(nav_many['K'] == 1)
+                # READ multiple...
+                e_many2 = collectionMany[2]
+                nav_o = e_many2['O'].GetEntity()
+                self.assertTrue(nav_o is not None, "Failed to read back Many2")
+                self.assertTrue(nav_o['K'] == 200)
+                e_many3 = collectionMany[3]
+                nav_o = e_many3['O'].GetEntity()
+                self.assertTrue(nav_o is not None, "Failed to read back Many3")
+                self.assertTrue(nav_o['K'] == 200)
+                e_o2 = collectionO[200]
+                with e_o2['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 2)
+                    self.assertFalse(1 in navCollection)
+                    self.assertTrue(2 in navCollection)
+                    self.assertTrue(3 in navCollection)
+                # READ empty link...
+                with e_o3['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 0)
+                # UPDATE - by replacing the required target of a link,
+                # should work
+                try:
+                    with e_many['O'].OpenCollection() as navCollection:
+                        navCollection.replace(e_o3)
+                except edm.ConstraintError:
+                    self.fail("replace on *-1 navigation property")
+                # e_many <-> e_o3
+                # [] <-> e_o
+                with e_o3['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(1 in navCollection)
+                e_o = collectionO[100]
+                with e_o['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(1 not in navCollection)
+                    self.assertTrue(len(navCollection) == 0)
+                # now the other way around, should fail as e_many is
+                # already bound to a different e and we don't allow
+                # that link to be broken implicitly
+                # [] <-> e_o
+                # e_many2, e_many3 <-> e_o2
+                # e_many <-> e_o3
+                try:
+                    with e_o2['Many'].OpenCollection() as navCollection:
+                        navCollection[e_many.key()] = e_many
+                    self.fail(
+                        "__setitem__ on 1-* navigation property should fail")
+                except edm.ConstraintError:
+                    pass
+                # UPDATE - using bind and update
+                e_many['O'].BindEntity(e_o)
+                try:
+                    e_many.Update()
+                except edm.ConstraintError:
+                    self.fail("BindEntity/Update on *-1 navigation property")
+                # e_many <-> e_o
+                # e_many2, e_many3 <-> e_o2
+                # [] <-> e_o3
+                e_o2['Many'].BindEntity(e_many)
+                try:
+                    e_o2.Update()
+                    self.fail(
+                        "BindEntity/Update on 1-* navigation property "
+                        "should fail")
+                except edm.ConstraintError:
+                    pass
+                # DELETE - link
+                # e_many <-> e_o
+                with e_o['Many'].OpenCollection() as navCollection:
+                    try:
+                        self.assertTrue(len(navCollection) == 1)
+                        del navCollection[1]
+                        self.fail(
+                            "Delete of link in a *-1 relationship from 1 end")
+                    except edm.ConstraintError:
+                        pass
+                with e_many['O'].OpenCollection() as navCollection:
+                    try:
+                        self.assertTrue(len(navCollection) == 1)
+                        del navCollection[100]
+                        self.fail(
+                            "Delete of link in a *-1 relationship "
+                            "from the * end")
+                    except edm.ConstraintError:
+                        pass
+                # DELETE - e; for a *-1 link should succeed on the * end
+                # e_many <-> e_o
+                try:
+                    del collectionMany[1]
+                    self.assertFalse(
+                        1 in collectionMany,
+                        "Delete e at * end of relationship")
+                    self.assertTrue(
+                        100 in collectionO,
+                        "No cascade delete expected for *-1 relationship")
+                except edm.ConstraintError:
+                    self.fail("Delete e failed at * end of relationship")
+                # DELETE - e; for a *-1 link should fail or cascade
+                # e_many2, e_many3 <-> e_o2
+                try:
+                    del collectionO[200]
+                    self.assertFalse(
+                        200 in collectionO,
+                        "Delete e at 1 end of relationship")
+                    self.assertFalse(
+                        2 in collectionMany,
+                        "Cascade delete required for * end of relationship")
+                    self.assertFalse(
+                        3 in collectionMany,
+                        "Cascade delete required for * end of relationship")
+                except edm.ConstraintError:
+                    # an error is acceptable here, though we generate a
+                    # warning
+                    logging.warning(
+                        "no cascade delete across *-1 relationship")
+                    self.assertTrue(200 in collectionO)
+                    self.assertTrue(2 in collectionMany)
+                    self.assertTrue(3 in collectionMany)
 
     def runtest_nav_many2o_f(self):
         manys = self.ds['RegressionModel.RegressionContainer.Many2OFs']
         ones = self.ds['RegressionModel.RegressionContainer.Many2OXFs']
-        with manys.OpenCollection() as collectionMany, \
-                ones.OpenCollection() as collectionO:
-            e_many = collectionMany.new_entity()
-            e_many['K'].SetFromValue(1)
-            e_many['Data'].SetFromValue('NavigationMany')
-            # CREATE
-            e_o = collectionO.new_entity()
-            e_o['K'].SetFromValue(100)
-            e_o['Data'].SetFromValue('NavigationOne')
-            e_many['O'].BindEntity(e_o)
-            try:
-                collectionMany.insert_entity(e_many)
-            except edm.ConstraintError:
-                self.fail("e insert failed with *-1 binding")
-            # e_many <-> e_o
-            # we can create more than one link now, but must go forward
-            e_o2 = collectionO.new_entity()
-            e_o2['K'].SetFromValue(200)
-            e_o2['Data'].SetFromValue('NavigationOne_2')
-            collectionO.insert_entity(e_o2)
-            e_many2 = collectionMany.new_entity()
-            e_many2['K'].SetFromValue(2)
-            e_many2['Data'].SetFromValue('NavigationMany_2')
-            e_many2['O'].BindEntity(e_o2)
-            collectionMany.insert_entity(e_many2)
-            e_many3 = collectionMany.new_entity()
-            e_many3['K'].SetFromValue(3)
-            e_many3['Data'].SetFromValue('NavigationMany_3')
-            e_many3['O'].BindEntity(e_o2)
-            collectionMany.insert_entity(e_many3)
-            # e_many2, e_many3 <-> e_o2
-            # Now try inserting at the 1 end without a binding
-            e_o3 = collectionO.new_entity()
-            e_o3['K'].SetFromValue(300)
-            e_o3['Data'].SetFromValue('NavigationOne_3')
-            collectionO.insert_entity(e_o3)
-            # [] <-> e_o3
-            # READ (forward only)
-            e_many = collectionMany[1]
-            e_o = collectionO[100]
-            nav_o = e_many['O'].GetEntity()
-            self.assertTrue(
-                nav_o is not None, "Failed to read back navigation link")
-            self.assertTrue(nav_o['K'] == 100)
-            # READ multiple...
-            e_many2 = collectionMany[2]
-            nav_o = e_many2['O'].GetEntity()
-            self.assertTrue(nav_o is not None, "Failed to read back Many2")
-            self.assertTrue(nav_o['K'] == 200)
-            e_many3 = collectionMany[3]
-            nav_o = e_many3['O'].GetEntity()
-            self.assertTrue(nav_o is not None, "Failed to read back Many3")
-            self.assertTrue(nav_o['K'] == 200)
-            # UPDATE - by replacing the required target of a link, should work
-            try:
-                with e_many2['O'].OpenCollection() as navCollection:
-                    navCollection.replace(e_o3)
-            except edm.ConstraintError:
-                self.fail("replace on *-1 navigation property")
-            # e_many <-> e_o
-            # e_many3 <-> e_o2
-            # e_many2 <-> e_o3
-            self.assertTrue(collectionMany[2]['O'].GetEntity().key() == 300)
-            # now the other way around, should fail as e_many is
-            # already bound to a different e and we don't allow
-            # that link to be broken implicitly
-            # UPDATE - using bind and update
-            e_many2['O'].BindEntity(e_o)
-            try:
-                e_many2.Update()
-            except edm.ConstraintError:
-                self.fail("BindEntity/Update on *-1 navigation property")
-            # e_many, e_many2 <-> e_o
-            # e_many3 <-> e_o2
-            # [] <-> e_o3
-            self.assertTrue(collectionMany[2]['O'].GetEntity().key() == 100)
-            # DELETE - link
-            with e_many3['O'].OpenCollection() as navCollection:
+        with manys.OpenCollection() as collectionMany:
+            with ones.OpenCollection() as collectionO:
+                e_many = collectionMany.new_entity()
+                e_many['K'].SetFromValue(1)
+                e_many['Data'].SetFromValue('NavigationMany')
+                # CREATE
+                e_o = collectionO.new_entity()
+                e_o['K'].SetFromValue(100)
+                e_o['Data'].SetFromValue('NavigationOne')
+                e_many['O'].BindEntity(e_o)
                 try:
-                    self.assertTrue(len(navCollection) == 1)
-                    del navCollection[200]
-                    self.fail(
-                        "Delete of link in a *-1 relationship from the * end")
+                    collectionMany.insert_entity(e_many)
                 except edm.ConstraintError:
-                    pass
-            # DELETE - e; for a *-1 link should succeed on the * end
-            # e_many, e_many2 <-> e_o
-            # e_many3 <-> e_o2
-            # [] <-> e_o3
-            try:
-                del collectionMany[3]
-                self.assertFalse(
-                    3 in collectionMany,
-                    "Delete e at * end of relationship")
+                    self.fail("e insert failed with *-1 binding")
+                # e_many <-> e_o
+                # we can create more than one link now, but must go forward
+                e_o2 = collectionO.new_entity()
+                e_o2['K'].SetFromValue(200)
+                e_o2['Data'].SetFromValue('NavigationOne_2')
+                collectionO.insert_entity(e_o2)
+                e_many2 = collectionMany.new_entity()
+                e_many2['K'].SetFromValue(2)
+                e_many2['Data'].SetFromValue('NavigationMany_2')
+                e_many2['O'].BindEntity(e_o2)
+                collectionMany.insert_entity(e_many2)
+                e_many3 = collectionMany.new_entity()
+                e_many3['K'].SetFromValue(3)
+                e_many3['Data'].SetFromValue('NavigationMany_3')
+                e_many3['O'].BindEntity(e_o2)
+                collectionMany.insert_entity(e_many3)
+                # e_many2, e_many3 <-> e_o2
+                # Now try inserting at the 1 end without a binding
+                e_o3 = collectionO.new_entity()
+                e_o3['K'].SetFromValue(300)
+                e_o3['Data'].SetFromValue('NavigationOne_3')
+                collectionO.insert_entity(e_o3)
+                # [] <-> e_o3
+                # READ (forward only)
+                e_many = collectionMany[1]
+                e_o = collectionO[100]
+                nav_o = e_many['O'].GetEntity()
                 self.assertTrue(
-                    200 in collectionO,
-                    "No cascade delete expected for *-1 relationship")
-            except edm.ConstraintError:
-                self.fail("Delete e failed at * end of relationship")
-            # DELETE - e; for a *-1 link should fail or cascade
-            # e_many, e_many2 <-> e_o
-            # [] <-> e_o2
-            # [] <-> e_o3
-            try:
-                del collectionO[100]
-                # with no back link we don't allow cascade deletion
-                self.fail("Cascale delete across *-1 relationship "
-                          "(unbound back link)")
-            except edm.ConstraintError:
-                self.assertTrue(100 in collectionO)
-                self.assertTrue(1 in collectionMany)
-                self.assertTrue(2 in collectionMany)
+                    nav_o is not None, "Failed to read back navigation link")
+                self.assertTrue(nav_o['K'] == 100)
+                # READ multiple...
+                e_many2 = collectionMany[2]
+                nav_o = e_many2['O'].GetEntity()
+                self.assertTrue(nav_o is not None, "Failed to read back Many2")
+                self.assertTrue(nav_o['K'] == 200)
+                e_many3 = collectionMany[3]
+                nav_o = e_many3['O'].GetEntity()
+                self.assertTrue(nav_o is not None, "Failed to read back Many3")
+                self.assertTrue(nav_o['K'] == 200)
+                # UPDATE - by replacing the required target of a link,
+                # should work
+                try:
+                    with e_many2['O'].OpenCollection() as navCollection:
+                        navCollection.replace(e_o3)
+                except edm.ConstraintError:
+                    self.fail("replace on *-1 navigation property")
+                # e_many <-> e_o
+                # e_many3 <-> e_o2
+                # e_many2 <-> e_o3
+                self.assertTrue(collectionMany[2]['O'].GetEntity().key() ==
+                                300)
+                # now the other way around, should fail as e_many is
+                # already bound to a different e and we don't allow
+                # that link to be broken implicitly
+                # UPDATE - using bind and update
+                e_many2['O'].BindEntity(e_o)
+                try:
+                    e_many2.Update()
+                except edm.ConstraintError:
+                    self.fail("BindEntity/Update on *-1 navigation property")
+                # e_many, e_many2 <-> e_o
+                # e_many3 <-> e_o2
+                # [] <-> e_o3
+                self.assertTrue(collectionMany[2]['O'].GetEntity().key() == 
+                                100)
+                # DELETE - link
+                with e_many3['O'].OpenCollection() as navCollection:
+                    try:
+                        self.assertTrue(len(navCollection) == 1)
+                        del navCollection[200]
+                        self.fail(
+                            "Delete of link in a *-1 relationship "
+                            "from the * end")
+                    except edm.ConstraintError:
+                        pass
+                # DELETE - e; for a *-1 link should succeed on the * end
+                # e_many, e_many2 <-> e_o
+                # e_many3 <-> e_o2
+                # [] <-> e_o3
+                try:
+                    del collectionMany[3]
+                    self.assertFalse(
+                        3 in collectionMany,
+                        "Delete e at * end of relationship")
+                    self.assertTrue(
+                        200 in collectionO,
+                        "No cascade delete expected for *-1 relationship")
+                except edm.ConstraintError:
+                    self.fail("Delete e failed at * end of relationship")
+                # DELETE - e; for a *-1 link should fail or cascade
+                # e_many, e_many2 <-> e_o
+                # [] <-> e_o2
+                # [] <-> e_o3
+                try:
+                    del collectionO[100]
+                    # with no back link we don't allow cascade deletion
+                    self.fail("Cascale delete across *-1 relationship "
+                              "(unbound back link)")
+                except edm.ConstraintError:
+                    self.assertTrue(100 in collectionO)
+                    self.assertTrue(1 in collectionMany)
+                    self.assertTrue(2 in collectionMany)
 
     def runtest_nav_many2o_b(self):
         manys = self.ds['RegressionModel.RegressionContainer.Many2ORs']
         ones = self.ds['RegressionModel.RegressionContainer.Many2OXRs']
-        with manys.OpenCollection() as collectionMany, \
-                ones.OpenCollection() as collectionO:
-            e_many = collectionMany.new_entity()
-            e_many['K'].SetFromValue(1)
-            e_many['Data'].SetFromValue('NavigationMany')
-            # CREATE
-            try:
-                collectionMany.insert_entity(e_many)
-                self.fail("e inserted without *-1 relationship "
-                          "(no forward link)")
-            except edm.ConstraintError:
-                pass
-            e_o = collectionO.new_entity()
-            e_o['K'].SetFromValue(100)
-            e_o['Data'].SetFromValue('NavigationOne')
-            e_o['Many'].BindEntity(e_many)
-            try:
-                collectionO.insert_entity(e_o)
-            except edm.ConstraintError:
-                self.fail("e insert failed with *-1 binding")
-            # e_many <-> e_o
-            e_many2 = collectionMany.new_entity()
-            e_many2['K'].SetFromValue(2)
-            e_many2['Data'].SetFromValue('NavigationMany_2')
-            e_many3 = collectionMany.new_entity()
-            e_many3['K'].SetFromValue(3)
-            e_many3['Data'].SetFromValue('NavigationMany_3')
-            e_o2 = collectionO.new_entity()
-            e_o2['K'].SetFromValue(200)
-            e_o2['Data'].SetFromValue('NavigationOne_2')
-            # we can create more than one link now
-            e_o2['Many'].BindEntity(e_many2)
-            e_o2['Many'].BindEntity(e_many3)
-            collectionO.insert_entity(e_o2)
-            # e_many2, e_many3 <-> e_o2
-            # Now try inserting at the 1 end without a binding
-            e_o3 = collectionO.new_entity()
-            e_o3['K'].SetFromValue(300)
-            e_o3['Data'].SetFromValue('NavigationOne_3')
-            try:
-                collectionO.insert_entity(e_o3)
-            except edm.ConstraintError:
-                self.fail(
-                    "Unbound e insert failed at the 1 end of *-1 link")
-            # [] <-> e_o3
-            # READ (reverse link only)
-            e_many = collectionMany[1]
-            try:
-                nav_many = e_o['Many'].GetEntity()
-                self.fail("GetEntity should fail on a deferred value "
-                          "with multiplicity *")
-            except edm.NavigationError:
-                pass
-            with e_o['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 1)
-                nav_many = navCollection[1]
-                self.assertTrue(nav_many['K'] == 1)
-            # READ multiple...
-            e_o2 = collectionO[200]
-            with e_o2['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 2)
-                self.assertFalse(1 in navCollection)
-                self.assertTrue(2 in navCollection)
-                self.assertTrue(3 in navCollection)
-            # READ empty link...
-            with e_o3['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 0)
-            # UPDATE - with e creation
-            e_many4 = collectionMany.new_entity()
-            e_many4['K'].SetFromValue(4)
-            e_many4['Data'].SetFromValue('NavigationMany_4')
-            e_o2['Many'].BindEntity(e_many4)
-            collectionO.update_entity(e_o2)
-            self.assertTrue(e_many4.exists)
-            with e_o2['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 3)
-                self.assertTrue(4 in navCollection)
-            # UPDATE - should fail as e_many is already bound to
-            # a different e and we don't allow that link to be
-            # broken implicitly
-            # e_many <-> e_o
-            # e_many2, e_many3, e_many4 <-> e_o2
-            # [] <-> e_o3
-            try:
-                with e_o3['Many'].OpenCollection() as navCollection:
-                    navCollection[e_many.key()] = e_many
-                self.fail("__setitem__ on 1-* navigation property should fail")
-            except edm.ConstraintError:
-                pass
-            # UPDATE - using bind and update
-            e_o3['Many'].BindEntity(e_many)
-            try:
-                e_o3.Update()
-                self.fail(
-                    "BindEntity/Update on 1-* navigation property should fail")
-            except edm.ConstraintError:
-                pass
-            # DELETE - link; fails when link is required
-            # e_many <-> e_o
-            # e_many2, e_many3, e_many4 <-> e_o2
-            # [] <-> e_o3
-            with e_o['Many'].OpenCollection() as navCollection:
+        with manys.OpenCollection() as collectionMany:
+            with ones.OpenCollection() as collectionO:
+                e_many = collectionMany.new_entity()
+                e_many['K'].SetFromValue(1)
+                e_many['Data'].SetFromValue('NavigationMany')
+                # CREATE
                 try:
-                    self.assertTrue(len(navCollection) == 1)
-                    del navCollection[1]
-                    self.fail(
-                        "Delete of link in a *-1 relationship from 1 end")
+                    collectionMany.insert_entity(e_many)
+                    self.fail("e inserted without *-1 relationship "
+                              "(no forward link)")
                 except edm.ConstraintError:
                     pass
-            # DELETE - e; for a *-1 link should succeed on the * end
-            # e_many <-> e_o
-            # e_many2, e_many3, e_many4 <-> e_o2
-            # [] <-> e_o3
-            try:
-                del collectionMany[1]
-                self.assertFalse(
-                    1 in collectionMany,
-                    "Delete e at * end of relationship")
-                self.assertTrue(
-                    100 in collectionO,
-                    "No cascade delete expected for *-1 relationship")
-            except edm.ConstraintError:
-                self.fail("Delete e failed at * end of relationship")
-            # DELETE - e; for a *-1 link should fail or cascade
-            # [] <-> e_o
-            # e_many2, e_many3, e_many4 <-> e_o2
-            # [] <-> e_o3
-            try:
-                del collectionO[200]
-                self.assertFalse(
-                    200 in collectionO,
-                    "Delete e at 1 end of relationship")
-                self.assertFalse(
-                    2 in collectionMany,
-                    "Cascade delete required for * end of relationship")
-                self.assertFalse(
-                    3 in collectionMany,
-                    "Cascade delete required for * end of relationship")
-                self.assertFalse(
-                    4 in collectionMany,
-                    "Cascade delete required for * end of relationship")
-            except edm.ConstraintError:
-                # an error is acceptable here, though we generate a warning
-                logging.warning("no cascade delete across *-1 relationship")
-                self.assertTrue(200 in collectionO)
-                self.assertTrue(2 in collectionMany)
-                self.assertTrue(3 in collectionMany)
-                self.assertTrue(4 in collectionMany)
+                e_o = collectionO.new_entity()
+                e_o['K'].SetFromValue(100)
+                e_o['Data'].SetFromValue('NavigationOne')
+                e_o['Many'].BindEntity(e_many)
+                try:
+                    collectionO.insert_entity(e_o)
+                except edm.ConstraintError:
+                    self.fail("e insert failed with *-1 binding")
+                # e_many <-> e_o
+                e_many2 = collectionMany.new_entity()
+                e_many2['K'].SetFromValue(2)
+                e_many2['Data'].SetFromValue('NavigationMany_2')
+                e_many3 = collectionMany.new_entity()
+                e_many3['K'].SetFromValue(3)
+                e_many3['Data'].SetFromValue('NavigationMany_3')
+                e_o2 = collectionO.new_entity()
+                e_o2['K'].SetFromValue(200)
+                e_o2['Data'].SetFromValue('NavigationOne_2')
+                # we can create more than one link now
+                e_o2['Many'].BindEntity(e_many2)
+                e_o2['Many'].BindEntity(e_many3)
+                collectionO.insert_entity(e_o2)
+                # e_many2, e_many3 <-> e_o2
+                # Now try inserting at the 1 end without a binding
+                e_o3 = collectionO.new_entity()
+                e_o3['K'].SetFromValue(300)
+                e_o3['Data'].SetFromValue('NavigationOne_3')
+                try:
+                    collectionO.insert_entity(e_o3)
+                except edm.ConstraintError:
+                    self.fail(
+                        "Unbound e insert failed at the 1 end of *-1 link")
+                # [] <-> e_o3
+                # READ (reverse link only)
+                e_many = collectionMany[1]
+                try:
+                    nav_many = e_o['Many'].GetEntity()
+                    self.fail("GetEntity should fail on a deferred value "
+                              "with multiplicity *")
+                except edm.NavigationError:
+                    pass
+                with e_o['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 1)
+                    nav_many = navCollection[1]
+                    self.assertTrue(nav_many['K'] == 1)
+                # READ multiple...
+                e_o2 = collectionO[200]
+                with e_o2['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 2)
+                    self.assertFalse(1 in navCollection)
+                    self.assertTrue(2 in navCollection)
+                    self.assertTrue(3 in navCollection)
+                # READ empty link...
+                with e_o3['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 0)
+                # UPDATE - with e creation
+                e_many4 = collectionMany.new_entity()
+                e_many4['K'].SetFromValue(4)
+                e_many4['Data'].SetFromValue('NavigationMany_4')
+                e_o2['Many'].BindEntity(e_many4)
+                collectionO.update_entity(e_o2)
+                self.assertTrue(e_many4.exists)
+                with e_o2['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 3)
+                    self.assertTrue(4 in navCollection)
+                # UPDATE - should fail as e_many is already bound to
+                # a different e and we don't allow that link to be
+                # broken implicitly
+                # e_many <-> e_o
+                # e_many2, e_many3, e_many4 <-> e_o2
+                # [] <-> e_o3
+                try:
+                    with e_o3['Many'].OpenCollection() as navCollection:
+                        navCollection[e_many.key()] = e_many
+                    self.fail(
+                        "__setitem__ on 1-* navigation property should fail")
+                except edm.ConstraintError:
+                    pass
+                # UPDATE - using bind and update
+                e_o3['Many'].BindEntity(e_many)
+                try:
+                    e_o3.Update()
+                    self.fail(
+                        "BindEntity/Update on 1-* navigation property "
+                        "should fail")
+                except edm.ConstraintError:
+                    pass
+                # DELETE - link; fails when link is required
+                # e_many <-> e_o
+                # e_many2, e_many3, e_many4 <-> e_o2
+                # [] <-> e_o3
+                with e_o['Many'].OpenCollection() as navCollection:
+                    try:
+                        self.assertTrue(len(navCollection) == 1)
+                        del navCollection[1]
+                        self.fail(
+                            "Delete of link in a *-1 relationship from 1 end")
+                    except edm.ConstraintError:
+                        pass
+                # DELETE - e; for a *-1 link should succeed on the * end
+                # e_many <-> e_o
+                # e_many2, e_many3, e_many4 <-> e_o2
+                # [] <-> e_o3
+                try:
+                    del collectionMany[1]
+                    self.assertFalse(
+                        1 in collectionMany,
+                        "Delete e at * end of relationship")
+                    self.assertTrue(
+                        100 in collectionO,
+                        "No cascade delete expected for *-1 relationship")
+                except edm.ConstraintError:
+                    self.fail("Delete e failed at * end of relationship")
+                # DELETE - e; for a *-1 link should fail or cascade
+                # [] <-> e_o
+                # e_many2, e_many3, e_many4 <-> e_o2
+                # [] <-> e_o3
+                try:
+                    del collectionO[200]
+                    self.assertFalse(
+                        200 in collectionO,
+                        "Delete e at 1 end of relationship")
+                    self.assertFalse(
+                        2 in collectionMany,
+                        "Cascade delete required for * end of relationship")
+                    self.assertFalse(
+                        3 in collectionMany,
+                        "Cascade delete required for * end of relationship")
+                    self.assertFalse(
+                        4 in collectionMany,
+                        "Cascade delete required for * end of relationship")
+                except edm.ConstraintError:
+                    # an error is acceptable here, though we generate a
+                    # warning
+                    logging.warning(
+                        "no cascade delete across *-1 relationship")
+                    self.assertTrue(200 in collectionO)
+                    self.assertTrue(2 in collectionMany)
+                    self.assertTrue(3 in collectionMany)
+                    self.assertTrue(4 in collectionMany)
 
     def runtest_nav_many2zo(self):
         manys = self.ds['RegressionModel.RegressionContainer.Many2ZOs']
         zeroones = self.ds['RegressionModel.RegressionContainer.Many2ZOXs']
-        with manys.OpenCollection() as collectionMany, \
-                zeroones.OpenCollection() as collectionZO:
-            e_many = collectionMany.new_entity()
-            e_many['K'].SetFromValue(1)
-            e_many['Data'].SetFromValue('NavigationMany')
-            collectionMany.insert_entity(e_many)
-            self.assertTrue(1 in collectionMany)
-            # e_many <-> None
-            e_many2 = collectionMany.new_entity()
-            e_many2['K'].SetFromValue(2)
-            e_many2['Data'].SetFromValue('NavigationMany_2')
-            e_zo = collectionZO.new_entity()
-            e_zo['K'].SetFromValue(100)
-            e_zo['Data'].SetFromValue('NavigationOne')
-            e_many2['ZO'].BindEntity(e_zo)
-            try:
-                collectionMany.insert_entity(e_many2)
-            except edm.ConstraintError:
-                self.fail("e insert failed with *-1 binding")
-            # e_many <-> None
-            # e_many2 <-> e_zo
-            e_many3 = collectionMany.new_entity()
-            e_many3['K'].SetFromValue(3)
-            e_many3['Data'].SetFromValue('NavigationMany_3')
-            e_many4 = collectionMany.new_entity()
-            e_many4['K'].SetFromValue(4)
-            e_many4['Data'].SetFromValue('NavigationMany_4')
-            e_zo2 = collectionZO.new_entity()
-            e_zo2['K'].SetFromValue(200)
-            e_zo2['Data'].SetFromValue('NavigationOne_2')
-            # we can create more than one link now
-            e_zo2['Many'].BindEntity(e_many3)
-            e_zo2['Many'].BindEntity(e_many4)
-            collectionZO.insert_entity(e_zo2)
-            # e_many <-> None
-            # e_many2 <-> e_zo
-            # e_many3, e_many4 <-> e_zo2
-            # Now try inserting at the 1 end without a binding
-            e_zo3 = collectionZO.new_entity()
-            e_zo3['K'].SetFromValue(300)
-            e_zo3['Data'].SetFromValue('NavigationOne_3')
-            try:
-                collectionZO.insert_entity(e_zo3)
-            except edm.ConstraintError:
-                self.fail(
-                    "Unbound e insert failed at the 1 end of *-1 link")
-            # READ both ways
-            # e_many <-> None
-            # e_many2 <-> e_zo
-            # e_many3, e_many4 <-> e_zo2
-            # [] <-> e_zo3
-            self.assertTrue(e_many['ZO'].GetEntity() is None)
-            e_many2 = collectionMany[2]
-            nav_zo = e_many2['ZO'].GetEntity()
-            self.assertTrue(
-                nav_zo is not None, "Failed to read back navigation link")
-            self.assertTrue(nav_zo['K'] == 100)
-            try:
-                nav_zo['Many'].GetEntity()
-                self.fail("GetEntity should fail on a deferred value with "
-                          "multiplicity *")
-            except edm.NavigationError:
-                pass
-            with nav_zo['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 1)
-                self.assertTrue(2 in navCollection)
-            # READ multiple...
-            # e_many <-> None
-            # e_many2 <-> e_zo
-            # e_many3, e_many4 <-> e_zo2
-            # [] <-> e_zo3
-            e_many3 = collectionMany[3]
-            e_zo = collectionZO[100]
-            nav_zo = e_many3['ZO'].GetEntity()
-            self.assertTrue(nav_zo is not None, "Failed to read back Many3")
-            self.assertTrue(nav_zo['K'] == 200)
-            e_many4 = collectionMany[4]
-            nav_zo = e_many4['ZO'].GetEntity()
-            self.assertTrue(nav_zo is not None, "Failed to read back Many4")
-            self.assertTrue(nav_zo['K'] == 200)
-            e_zo2 = collectionZO[200]
-            with e_zo2['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 2)
-                self.assertFalse(1 in navCollection)
-                self.assertFalse(2 in navCollection)
-                self.assertTrue(3 in navCollection)
-                self.assertTrue(4 in navCollection)
-            # READ empty link...
-            with e_zo3['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 0)
-            # UPDATE - by replacing the target of a 0..1 link, should work
-            # e_many <-> None
-            # e_many2 <-> e_zo
-            # e_many3, e_many4 <-> e_zo2
-            # [] <-> e_zo3
-            try:
-                with e_many2['ZO'].OpenCollection() as navCollection:
-                    navCollection.replace(e_zo3)
-            except edm.ConstraintError:
-                self.fail("replace on *-0..1 navigation property")
-            # e_many <-> None
-            # [] <-> e_zo
-            # e_many3, e_many4 <-> e_zo2
-            # e_many2 <-> e_zo3
-            with e_zo3['Many'].OpenCollection() as navCollection:
-                self.assertTrue(2 in navCollection)
-            with e_zo['Many'].OpenCollection() as navCollection:
-                self.assertTrue(2 not in navCollection)
-                self.assertTrue(len(navCollection) == 0)
-            # now the other way around, should fail as e_many is
-            # already bound to a different e and we don't allow
-            # that link to be broken implicitly
-            # e_many <-> None
-            # [] <-> e_zo
-            # e_many3, e_many4 <-> e_zo2
-            # e_many2 <-> e_zo3
-            try:
-                with e_zo2['Many'].OpenCollection() as navCollection:
-                    navCollection[e_many2.key()] = e_many2
-                self.fail(
-                    "__setitem__ on 0..1-* navigation property should fail")
-            except edm.ConstraintError:
-                pass
-            # UPDATE - using bind and update
-            e_many2['ZO'].BindEntity(e_zo)
-            try:
-                e_many2.Update()
-            except edm.ConstraintError:
-                self.fail("BindEntity/Update on *-0..1 navigation property")
-            # e_many <-> None
-            # e_many2 <-> e_zo
-            # e_many3, e_many4 <-> e_zo2
-            # [] <-> e_zo3
-            e_zo2['Many'].BindEntity(e_many2)
-            try:
-                e_zo2.Update()
-                self.fail("BindEntity/Update on 0..1-* navigation property "
-                          "should fail")
-            except edm.ConstraintError:
-                pass
-            # DELETE - link
-            # e_many <-> None
-            # e_many2 <-> e_zo
-            # e_many3, e_many4 <-> e_zo2
-            # [] <-> e_zo3
-            with e_zo['Many'].OpenCollection() as navCollection:
+        with manys.OpenCollection() as collectionMany:
+            with zeroones.OpenCollection() as collectionZO:
+                e_many = collectionMany.new_entity()
+                e_many['K'].SetFromValue(1)
+                e_many['Data'].SetFromValue('NavigationMany')
+                collectionMany.insert_entity(e_many)
+                self.assertTrue(1 in collectionMany)
+                # e_many <-> None
+                e_many2 = collectionMany.new_entity()
+                e_many2['K'].SetFromValue(2)
+                e_many2['Data'].SetFromValue('NavigationMany_2')
+                e_zo = collectionZO.new_entity()
+                e_zo['K'].SetFromValue(100)
+                e_zo['Data'].SetFromValue('NavigationOne')
+                e_many2['ZO'].BindEntity(e_zo)
                 try:
-                    self.assertTrue(len(navCollection) == 1)
-                    del navCollection[2]
-                    self.assertTrue(2 in collectionMany)
-                    self.assertTrue(
-                        collectionMany[2]['ZO'].GetEntity() is None)
+                    collectionMany.insert_entity(e_many2)
+                except edm.ConstraintError:
+                    self.fail("e insert failed with *-1 binding")
+                # e_many <-> None
+                # e_many2 <-> e_zo
+                e_many3 = collectionMany.new_entity()
+                e_many3['K'].SetFromValue(3)
+                e_many3['Data'].SetFromValue('NavigationMany_3')
+                e_many4 = collectionMany.new_entity()
+                e_many4['K'].SetFromValue(4)
+                e_many4['Data'].SetFromValue('NavigationMany_4')
+                e_zo2 = collectionZO.new_entity()
+                e_zo2['K'].SetFromValue(200)
+                e_zo2['Data'].SetFromValue('NavigationOne_2')
+                # we can create more than one link now
+                e_zo2['Many'].BindEntity(e_many3)
+                e_zo2['Many'].BindEntity(e_many4)
+                collectionZO.insert_entity(e_zo2)
+                # e_many <-> None
+                # e_many2 <-> e_zo
+                # e_many3, e_many4 <-> e_zo2
+                # Now try inserting at the 1 end without a binding
+                e_zo3 = collectionZO.new_entity()
+                e_zo3['K'].SetFromValue(300)
+                e_zo3['Data'].SetFromValue('NavigationOne_3')
+                try:
+                    collectionZO.insert_entity(e_zo3)
                 except edm.ConstraintError:
                     self.fail(
-                        "Delete of link in a *-0..1 relationship from 1 end")
-            # e_many <-> None
-            # e_many2 <-> None
-            # [] <-> e_zo
-            # e_many3, e_many4 <-> e_zo2
-            # [] <-> e_zo3
-            with e_many3['ZO'].OpenCollection() as navCollection:
+                        "Unbound e insert failed at the 1 end of *-1 link")
+                # READ both ways
+                # e_many <-> None
+                # e_many2 <-> e_zo
+                # e_many3, e_many4 <-> e_zo2
+                # [] <-> e_zo3
+                self.assertTrue(e_many['ZO'].GetEntity() is None)
+                e_many2 = collectionMany[2]
+                nav_zo = e_many2['ZO'].GetEntity()
+                self.assertTrue(
+                    nav_zo is not None, "Failed to read back navigation link")
+                self.assertTrue(nav_zo['K'] == 100)
                 try:
+                    nav_zo['Many'].GetEntity()
+                    self.fail("GetEntity should fail on a deferred value with "
+                              "multiplicity *")
+                except edm.NavigationError:
+                    pass
+                with nav_zo['Many'].OpenCollection() as navCollection:
                     self.assertTrue(len(navCollection) == 1)
-                    del navCollection[200]
-                    self.assertTrue(200 in collectionZO)
+                    self.assertTrue(2 in navCollection)
+                # READ multiple...
+                # e_many <-> None
+                # e_many2 <-> e_zo
+                # e_many3, e_many4 <-> e_zo2
+                # [] <-> e_zo3
+                e_many3 = collectionMany[3]
+                e_zo = collectionZO[100]
+                nav_zo = e_many3['ZO'].GetEntity()
+                self.assertTrue(nav_zo is not None,
+                                "Failed to read back Many3")
+                self.assertTrue(nav_zo['K'] == 200)
+                e_many4 = collectionMany[4]
+                nav_zo = e_many4['ZO'].GetEntity()
+                self.assertTrue(nav_zo is not None,
+                                "Failed to read back Many4")
+                self.assertTrue(nav_zo['K'] == 200)
+                e_zo2 = collectionZO[200]
+                with e_zo2['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 2)
+                    self.assertFalse(1 in navCollection)
+                    self.assertFalse(2 in navCollection)
+                    self.assertTrue(3 in navCollection)
+                    self.assertTrue(4 in navCollection)
+                # READ empty link...
+                with e_zo3['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 0)
+                # UPDATE - by replacing the target of a 0..1 link, should work
+                # e_many <-> None
+                # e_many2 <-> e_zo
+                # e_many3, e_many4 <-> e_zo2
+                # [] <-> e_zo3
+                try:
+                    with e_many2['ZO'].OpenCollection() as navCollection:
+                        navCollection.replace(e_zo3)
                 except edm.ConstraintError:
-                    self.fail("Delete of link in a *-0..1 relationship "
-                              "from the * end")
-            # DELETE - e; for a *-0..1 link should succeed on the * end
-            # e_many <-> None
-            # e_many2 <-> None
-            # [] <-> e_zo
-            # e_many3 <-> None
-            # e_many4 <-> e_zo2
-            # [] <-> e_zo3
-            e_many['ZO'].BindEntity(e_zo)
-            collectionMany.update_entity(e_many)
-            e_many2['ZO'].BindEntity(e_zo)
-            collectionMany.update_entity(e_many2)
-            # e_many, e_many2 <-> e_zo
-            # e_many3 <-> None
-            # e_many4 <-> e_zo2
-            # [] <-> e_zo3
-            try:
-                del collectionMany[4]
-                self.assertFalse(
-                    4 in collectionMany,
-                    "Delete e at * end of relationship")
-                self.assertTrue(
-                    200 in collectionZO,
-                    "No cascade delete expected for *-0..1 relationship")
-            except edm.ConstraintError:
-                self.fail("Delete e failed at * end of relationship")
-            # DELETE - e; for a *-0..1 link should succeed on the 0..1 end
-            # e_many, e_many2 <-> e_zo
-            # e_many3 <-> None
-            # [] <-> e_zo2
-            # [] <-> e_zo3
-            try:
-                del collectionZO[100]
-                self.assertFalse(
-                    100 in collectionZO,
-                    "Delete e at 0..1 end of relationship")
-                self.assertTrue(
-                    1 in collectionMany,
-                    "Cascade delete not allowed for * end of relationship")
-                self.assertTrue(
-                    2 in collectionMany,
-                    "Cascade delete not allwoed for * end of relationship")
-            except edm.ConstraintError:
-                self.fail("Delete e at the 0..1 end of the relationship")
-            # e_many <-> None
-            # e_many2 <-> None
-            # e_many3 <-> None
-            # [] <-> e_zo2
-            # [] <-> e_zo3
+                    self.fail("replace on *-0..1 navigation property")
+                # e_many <-> None
+                # [] <-> e_zo
+                # e_many3, e_many4 <-> e_zo2
+                # e_many2 <-> e_zo3
+                with e_zo3['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(2 in navCollection)
+                with e_zo['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(2 not in navCollection)
+                    self.assertTrue(len(navCollection) == 0)
+                # now the other way around, should fail as e_many is
+                # already bound to a different e and we don't allow
+                # that link to be broken implicitly
+                # e_many <-> None
+                # [] <-> e_zo
+                # e_many3, e_many4 <-> e_zo2
+                # e_many2 <-> e_zo3
+                try:
+                    with e_zo2['Many'].OpenCollection() as navCollection:
+                        navCollection[e_many2.key()] = e_many2
+                    self.fail(
+                        "__setitem__ on 0..1-* navigation property "
+                        "should fail")
+                except edm.ConstraintError:
+                    pass
+                # UPDATE - using bind and update
+                e_many2['ZO'].BindEntity(e_zo)
+                try:
+                    e_many2.Update()
+                except edm.ConstraintError:
+                    self.fail(
+                        "BindEntity/Update on *-0..1 navigation property")
+                # e_many <-> None
+                # e_many2 <-> e_zo
+                # e_many3, e_many4 <-> e_zo2
+                # [] <-> e_zo3
+                e_zo2['Many'].BindEntity(e_many2)
+                try:
+                    e_zo2.Update()
+                    self.fail(
+                        "BindEntity/Update on 0..1-* navigation property "
+                        "should fail")
+                except edm.ConstraintError:
+                    pass
+                # DELETE - link
+                # e_many <-> None
+                # e_many2 <-> e_zo
+                # e_many3, e_many4 <-> e_zo2
+                # [] <-> e_zo3
+                with e_zo['Many'].OpenCollection() as navCollection:
+                    try:
+                        self.assertTrue(len(navCollection) == 1)
+                        del navCollection[2]
+                        self.assertTrue(2 in collectionMany)
+                        self.assertTrue(
+                            collectionMany[2]['ZO'].GetEntity() is None)
+                    except edm.ConstraintError:
+                        self.fail(
+                            "Delete of link in a *-0..1 relationship "
+                            "from 1 end")
+                # e_many <-> None
+                # e_many2 <-> None
+                # [] <-> e_zo
+                # e_many3, e_many4 <-> e_zo2
+                # [] <-> e_zo3
+                with e_many3['ZO'].OpenCollection() as navCollection:
+                    try:
+                        self.assertTrue(len(navCollection) == 1)
+                        del navCollection[200]
+                        self.assertTrue(200 in collectionZO)
+                    except edm.ConstraintError:
+                        self.fail("Delete of link in a *-0..1 relationship "
+                                  "from the * end")
+                # DELETE - e; for a *-0..1 link should succeed on the * end
+                # e_many <-> None
+                # e_many2 <-> None
+                # [] <-> e_zo
+                # e_many3 <-> None
+                # e_many4 <-> e_zo2
+                # [] <-> e_zo3
+                e_many['ZO'].BindEntity(e_zo)
+                collectionMany.update_entity(e_many)
+                e_many2['ZO'].BindEntity(e_zo)
+                collectionMany.update_entity(e_many2)
+                # e_many, e_many2 <-> e_zo
+                # e_many3 <-> None
+                # e_many4 <-> e_zo2
+                # [] <-> e_zo3
+                try:
+                    del collectionMany[4]
+                    self.assertFalse(
+                        4 in collectionMany,
+                        "Delete e at * end of relationship")
+                    self.assertTrue(
+                        200 in collectionZO,
+                        "No cascade delete expected for *-0..1 relationship")
+                except edm.ConstraintError:
+                    self.fail("Delete e failed at * end of relationship")
+                # DELETE - e; for a *-0..1 link should succeed on the 0..1 end
+                # e_many, e_many2 <-> e_zo
+                # e_many3 <-> None
+                # [] <-> e_zo2
+                # [] <-> e_zo3
+                try:
+                    del collectionZO[100]
+                    self.assertFalse(
+                        100 in collectionZO,
+                        "Delete e at 0..1 end of relationship")
+                    self.assertTrue(
+                        1 in collectionMany,
+                        "Cascade delete not allowed for * end of relationship")
+                    self.assertTrue(
+                        2 in collectionMany,
+                        "Cascade delete not allwoed for * end of relationship")
+                except edm.ConstraintError:
+                    self.fail("Delete e at the 0..1 end of the relationship")
+                # e_many <-> None
+                # e_many2 <-> None
+                # e_many3 <-> None
+                # [] <-> e_zo2
+                # [] <-> e_zo3
 
     def runtest_nav_many2zo_f(self):
         manys = self.ds['RegressionModel.RegressionContainer.Many2ZOFs']
         zeroones = self.ds['RegressionModel.RegressionContainer.Many2ZOXFs']
-        with manys.OpenCollection() as collectionMany, \
-                zeroones.OpenCollection() as collectionZO:
-            e_many = collectionMany.new_entity()
-            e_many['K'].SetFromValue(1)
-            e_many['Data'].SetFromValue('NavigationMany')
-            collectionMany.insert_entity(e_many)
-            self.assertTrue(1 in collectionMany)
-            # e_many <-> None
-            e_many2 = collectionMany.new_entity()
-            e_many2['K'].SetFromValue(2)
-            e_many2['Data'].SetFromValue('NavigationMany_2')
-            e_zo = collectionZO.new_entity()
-            e_zo['K'].SetFromValue(100)
-            e_zo['Data'].SetFromValue('NavigationOne')
-            e_many2['ZO'].BindEntity(e_zo)
-            try:
-                collectionMany.insert_entity(e_many2)
-            except edm.ConstraintError:
-                self.fail("e insert failed with *-1 binding")
-            e_zo = collectionZO[100]
-            # e_many <-> None
-            # e_many2 <-> e_zo
-            # Now try inserting at the 1 end without a binding
-            e_zo2 = collectionZO.new_entity()
-            e_zo2['K'].SetFromValue(200)
-            e_zo2['Data'].SetFromValue('NavigationOne_2')
-            try:
-                collectionZO.insert_entity(e_zo2)
-            except edm.ConstraintError:
-                self.fail(
-                    "Unbound e insert failed at the 1 end of *-1 link")
-            # insert multiple...
-            e_many3 = collectionMany.new_entity()
-            e_many3['K'].SetFromValue(3)
-            e_many3['Data'].SetFromValue('NavigationMany_3')
-            e_many3['ZO'].BindEntity(e_zo)
-            try:
-                collectionMany.insert_entity(e_many3)
-            except edm.ConstraintError:
-                self.fail("e insert failed to update * link")
-            # READ (forward only)
-            # e_many <-> None
-            # e_many2, e_many3 <-> e_zo
-            # [] <-> e_zo2
-            self.assertTrue(e_many['ZO'].GetEntity() is None)
-            e_many2 = collectionMany[2]
-            nav_zo = e_many2['ZO'].GetEntity()
-            self.assertTrue(
-                nav_zo is not None, "Failed to read back navigation link")
-            self.assertTrue(nav_zo['K'] == 100)
-            e_many3 = collectionMany[3]
-            nav_zo = e_many3['ZO'].GetEntity()
-            self.assertTrue(nav_zo is not None, "Failed to read back Many3")
-            self.assertTrue(nav_zo['K'] == 100)
-            # UPDATE - by replacing the target of a 0..1 link, should work
-            # e_many <-> None
-            # e_many2, e_many3 <-> e_zo
-            # [] <-> e_zo2
-            try:
-                with e_many2['ZO'].OpenCollection() as navCollection:
-                    navCollection.replace(e_zo2)
-            except edm.ConstraintError:
-                self.fail("replace on *-0..1 navigation property")
-            # e_many <-> None
-            # e_many3 <-> e_zo
-            # e_many2 <-> e_zo2
-            # UPDATE - using bind and update
-            e_many2['ZO'].BindEntity(e_zo)
-            try:
-                e_many2.Update()
-            except edm.ConstraintError:
-                self.fail("BindEntity/Update on *-0..1 navigation property")
-            # DELETE - link
-            # e_many <-> None
-            # e_many2, e_many3 <-> e_zo
-            # [] <-> e_zo2
-            with e_many3['ZO'].OpenCollection() as navCollection:
+        with manys.OpenCollection() as collectionMany:
+            with zeroones.OpenCollection() as collectionZO:
+                e_many = collectionMany.new_entity()
+                e_many['K'].SetFromValue(1)
+                e_many['Data'].SetFromValue('NavigationMany')
+                collectionMany.insert_entity(e_many)
+                self.assertTrue(1 in collectionMany)
+                # e_many <-> None
+                e_many2 = collectionMany.new_entity()
+                e_many2['K'].SetFromValue(2)
+                e_many2['Data'].SetFromValue('NavigationMany_2')
+                e_zo = collectionZO.new_entity()
+                e_zo['K'].SetFromValue(100)
+                e_zo['Data'].SetFromValue('NavigationOne')
+                e_many2['ZO'].BindEntity(e_zo)
                 try:
-                    self.assertTrue(len(navCollection) == 1)
-                    del navCollection[100]
-                    self.assertTrue(100 in collectionZO)
+                    collectionMany.insert_entity(e_many2)
                 except edm.ConstraintError:
-                    self.fail("Delete of link in a *-0..1 relationship "
-                              "from the * end")
-            # DELETE - e; for a *-1 link should succeed on the * end
-            # e_many <-> None
-            # e_many2 <-> e_zo
-            # [] <-> e_zo2
-            # e_many3 <-> None
-            e_many['ZO'].BindEntity(e_zo)
-            collectionMany.update_entity(e_many)
-            e_many3['ZO'].BindEntity(e_zo2)
-            collectionMany.update_entity(e_many3)
-            # e_many, e_many2 <-> e_zo
-            # e_many3 <-> e_zo2
-            try:
-                del collectionMany[3]
-                self.assertFalse(
-                    3 in collectionMany,
-                    "Delete e at * end of relationship")
+                    self.fail("e insert failed with *-1 binding")
+                e_zo = collectionZO[100]
+                # e_many <-> None
+                # e_many2 <-> e_zo
+                # Now try inserting at the 1 end without a binding
+                e_zo2 = collectionZO.new_entity()
+                e_zo2['K'].SetFromValue(200)
+                e_zo2['Data'].SetFromValue('NavigationOne_2')
+                try:
+                    collectionZO.insert_entity(e_zo2)
+                except edm.ConstraintError:
+                    self.fail(
+                        "Unbound e insert failed at the 1 end of *-1 link")
+                # insert multiple...
+                e_many3 = collectionMany.new_entity()
+                e_many3['K'].SetFromValue(3)
+                e_many3['Data'].SetFromValue('NavigationMany_3')
+                e_many3['ZO'].BindEntity(e_zo)
+                try:
+                    collectionMany.insert_entity(e_many3)
+                except edm.ConstraintError:
+                    self.fail("e insert failed to update * link")
+                # READ (forward only)
+                # e_many <-> None
+                # e_many2, e_many3 <-> e_zo
+                # [] <-> e_zo2
+                self.assertTrue(e_many['ZO'].GetEntity() is None)
+                e_many2 = collectionMany[2]
+                nav_zo = e_many2['ZO'].GetEntity()
                 self.assertTrue(
-                    200 in collectionZO,
-                    "No cascade delete expected for *-0..1 relationship")
-            except edm.ConstraintError:
-                self.fail("Delete e failed at * end of relationship")
-            # DELETE - e; for a *-0..1 link should not cascade
-            # e_many, e_many2 <-> e_zo
-            # None <-> e_zo2
-            try:
-                del collectionZO[100]
-                self.assertFalse(
-                    100 in collectionZO,
-                    "Delete e at 0..1 end of relationship")
-                self.assertTrue(
-                    1 in collectionMany,
-                    "Cascade delete not allowed for * end of relationship")
-                self.assertTrue(
-                    2 in collectionMany,
-                    "Cascade delete not allwoed for * end of relationship")
-            except edm.ConstraintError:
-                self.fail("Delete e at the 0..1 end of the relationship")
-            # e_many <-> None
-            # e_many2 <-> None
-            # None <-> e_zo2
+                    nav_zo is not None, "Failed to read back navigation link")
+                self.assertTrue(nav_zo['K'] == 100)
+                e_many3 = collectionMany[3]
+                nav_zo = e_many3['ZO'].GetEntity()
+                self.assertTrue(nav_zo is not None,
+                                "Failed to read back Many3")
+                self.assertTrue(nav_zo['K'] == 100)
+                # UPDATE - by replacing the target of a 0..1 link, should work
+                # e_many <-> None
+                # e_many2, e_many3 <-> e_zo
+                # [] <-> e_zo2
+                try:
+                    with e_many2['ZO'].OpenCollection() as navCollection:
+                        navCollection.replace(e_zo2)
+                except edm.ConstraintError:
+                    self.fail("replace on *-0..1 navigation property")
+                # e_many <-> None
+                # e_many3 <-> e_zo
+                # e_many2 <-> e_zo2
+                # UPDATE - using bind and update
+                e_many2['ZO'].BindEntity(e_zo)
+                try:
+                    e_many2.Update()
+                except edm.ConstraintError:
+                    self.fail(
+                        "BindEntity/Update on *-0..1 navigation property")
+                # DELETE - link
+                # e_many <-> None
+                # e_many2, e_many3 <-> e_zo
+                # [] <-> e_zo2
+                with e_many3['ZO'].OpenCollection() as navCollection:
+                    try:
+                        self.assertTrue(len(navCollection) == 1)
+                        del navCollection[100]
+                        self.assertTrue(100 in collectionZO)
+                    except edm.ConstraintError:
+                        self.fail("Delete of link in a *-0..1 relationship "
+                                  "from the * end")
+                # DELETE - e; for a *-1 link should succeed on the * end
+                # e_many <-> None
+                # e_many2 <-> e_zo
+                # [] <-> e_zo2
+                # e_many3 <-> None
+                e_many['ZO'].BindEntity(e_zo)
+                collectionMany.update_entity(e_many)
+                e_many3['ZO'].BindEntity(e_zo2)
+                collectionMany.update_entity(e_many3)
+                # e_many, e_many2 <-> e_zo
+                # e_many3 <-> e_zo2
+                try:
+                    del collectionMany[3]
+                    self.assertFalse(
+                        3 in collectionMany,
+                        "Delete e at * end of relationship")
+                    self.assertTrue(
+                        200 in collectionZO,
+                        "No cascade delete expected for *-0..1 relationship")
+                except edm.ConstraintError:
+                    self.fail("Delete e failed at * end of relationship")
+                # DELETE - e; for a *-0..1 link should not cascade
+                # e_many, e_many2 <-> e_zo
+                # None <-> e_zo2
+                try:
+                    del collectionZO[100]
+                    self.assertFalse(
+                        100 in collectionZO,
+                        "Delete e at 0..1 end of relationship")
+                    self.assertTrue(
+                        1 in collectionMany,
+                        "Cascade delete not allowed for * end of relationship")
+                    self.assertTrue(
+                        2 in collectionMany,
+                        "Cascade delete not allwoed for * end of relationship")
+                except edm.ConstraintError:
+                    self.fail("Delete e at the 0..1 end of the relationship")
+                # e_many <-> None
+                # e_many2 <-> None
+                # None <-> e_zo2
 
     def runtest_nav_many2zo_b(self):
         manys = self.ds['RegressionModel.RegressionContainer.Many2ZORs']
         zeroones = self.ds['RegressionModel.RegressionContainer.Many2ZOXRs']
-        with manys.OpenCollection() as collectionMany, \
-                zeroones.OpenCollection() as collectionZO:
-            e_many = collectionMany.new_entity()
-            e_many['K'].SetFromValue(1)
-            e_many['Data'].SetFromValue('NavigationMany')
-            collectionMany.insert_entity(e_many)
-            self.assertTrue(1 in collectionMany)
-            # e_many <-> None
-            e_zo = collectionZO.new_entity()
-            e_zo['K'].SetFromValue(100)
-            e_zo['Data'].SetFromValue('NavigationOne')
-            collectionZO.insert_entity(e_zo)
-            # e_many <-> None
-            # [] <-> e_zo
-            e_many2 = collectionMany.new_entity()
-            e_many2['K'].SetFromValue(2)
-            e_many2['Data'].SetFromValue('NavigationMany_2')
-            e_many3 = collectionMany.new_entity()
-            e_many3['K'].SetFromValue(3)
-            e_many3['Data'].SetFromValue('NavigationMany_3')
-            e_zo2 = collectionZO.new_entity()
-            e_zo2['K'].SetFromValue(200)
-            e_zo2['Data'].SetFromValue('NavigationOne_2')
-            # we can create more than one link now
-            e_zo2['Many'].BindEntity(e_many2)
-            e_zo2['Many'].BindEntity(e_many3)
-            collectionZO.insert_entity(e_zo2)
-            e_many2 = collectionMany[2]
-            e_many3 = collectionMany[3]
-            # e_many <-> None
-            # [] <-> e_zo
-            # e_many2, e_many3 <-> e_zo2
-            # READ (reverse only)
-            with e_zo['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 0)
-            with e_zo2['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 2)
-                self.assertTrue(2 in navCollection)
-                self.assertTrue(3 in navCollection)
-            # UPDATE - e_many should work, but e_many2 should
-            # fail as it is already bound to a different e and
-            # we don't allow that link to be broken implicitly
-            # e_many <-> None
-            # [] <-> e_zo
-            # e_many2, e_many3 <-> e_zo2
-            with e_zo['Many'].OpenCollection() as navCollection:
+        with manys.OpenCollection() as collectionMany:
+            with zeroones.OpenCollection() as collectionZO:
+                e_many = collectionMany.new_entity()
+                e_many['K'].SetFromValue(1)
+                e_many['Data'].SetFromValue('NavigationMany')
+                collectionMany.insert_entity(e_many)
+                self.assertTrue(1 in collectionMany)
+                # e_many <-> None
+                e_zo = collectionZO.new_entity()
+                e_zo['K'].SetFromValue(100)
+                e_zo['Data'].SetFromValue('NavigationOne')
+                collectionZO.insert_entity(e_zo)
+                # e_many <-> None
+                # [] <-> e_zo
+                e_many2 = collectionMany.new_entity()
+                e_many2['K'].SetFromValue(2)
+                e_many2['Data'].SetFromValue('NavigationMany_2')
+                e_many3 = collectionMany.new_entity()
+                e_many3['K'].SetFromValue(3)
+                e_many3['Data'].SetFromValue('NavigationMany_3')
+                e_zo2 = collectionZO.new_entity()
+                e_zo2['K'].SetFromValue(200)
+                e_zo2['Data'].SetFromValue('NavigationOne_2')
+                # we can create more than one link now
+                e_zo2['Many'].BindEntity(e_many2)
+                e_zo2['Many'].BindEntity(e_many3)
+                collectionZO.insert_entity(e_zo2)
+                e_many2 = collectionMany[2]
+                e_many3 = collectionMany[3]
+                # e_many <-> None
+                # [] <-> e_zo
+                # e_many2, e_many3 <-> e_zo2
+                # READ (reverse only)
+                with e_zo['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 0)
+                with e_zo2['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 2)
+                    self.assertTrue(2 in navCollection)
+                    self.assertTrue(3 in navCollection)
+                # UPDATE - e_many should work, but e_many2 should
+                # fail as it is already bound to a different e and
+                # we don't allow that link to be broken implicitly
+                # e_many <-> None
+                # [] <-> e_zo
+                # e_many2, e_many3 <-> e_zo2
+                with e_zo['Many'].OpenCollection() as navCollection:
+                    try:
+                        navCollection[e_many.key()] = e_many
+                        self.assertTrue(1 in navCollection)
+                    except edm.ConstraintError:
+                        self.fail("__setitem__ on 0..1-* navigation property "
+                                  "should succeed")
+                    try:
+                        navCollection[e_many2.key()] = e_many2
+                        self.fail("__setitem__ on 0..1-* navigation property "
+                                  "should fail (target already linked)")
+                    except edm.ConstraintError:
+                        pass
+                # UPDATE - using bind and update
+                # e_many <-> e_zo
+                # e_many2, e_many3 <-> e_zo2
+                e_zo['Many'].BindEntity(e_many2)
                 try:
-                    navCollection[e_many.key()] = e_many
-                    self.assertTrue(1 in navCollection)
-                except edm.ConstraintError:
-                    self.fail("__setitem__ on 0..1-* navigation property "
-                              "should succeed")
-                try:
-                    navCollection[e_many2.key()] = e_many2
-                    self.fail("__setitem__ on 0..1-* navigation property "
-                              "should fail (target already linked)")
+                    e_zo.Update()
+                    self.fail("BindEntity/Update on 0..1-* navigation property "
+                              "should fail")
                 except edm.ConstraintError:
                     pass
-            # UPDATE - using bind and update
-            # e_many <-> e_zo
-            # e_many2, e_many3 <-> e_zo2
-            e_zo['Many'].BindEntity(e_many2)
-            try:
+                # DELETE - link
+                # e_many <-> e_zo
+                # e_many2, e_many3 <-> e_zo2
+                with e_zo['Many'].OpenCollection() as navCollection:
+                    try:
+                        self.assertTrue(len(navCollection) == 1)
+                        del navCollection[1]
+                        self.assertTrue(1 in collectionMany)
+                    except edm.ConstraintError:
+                        self.fail(
+                            "Delete of link in a *-0..1 relationship "
+                            "from 1 end")
+                # e_many <-> None
+                # [] <-> e_zo
+                # e_many2, e_many3 <-> e_zo2
+                e_zo = collectionZO[100]
+                e_zo['Many'].BindEntity(e_many)
                 e_zo.Update()
-                self.fail("BindEntity/Update on 0..1-* navigation property "
-                          "should fail")
-            except edm.ConstraintError:
-                pass
-            # DELETE - link
-            # e_many <-> e_zo
-            # e_many2, e_many3 <-> e_zo2
-            with e_zo['Many'].OpenCollection() as navCollection:
+                # DELETE - e; for a *-0..1 link should succeed on the * end
+                # e_many <-> e_zo
+                # e_many2, e_many3 <-> e_zo2
                 try:
-                    self.assertTrue(len(navCollection) == 1)
-                    del navCollection[1]
-                    self.assertTrue(1 in collectionMany)
+                    del collectionMany[1]
+                    self.assertFalse(
+                        1 in collectionMany,
+                        "Delete e at * end of relationship")
+                    self.assertTrue(
+                        100 in collectionZO,
+                        "No cascade delete expected for *-0..1 relationship")
                 except edm.ConstraintError:
-                    self.fail(
-                        "Delete of link in a *-0..1 relationship from 1 end")
-            # e_many <-> None
-            # [] <-> e_zo
-            # e_many2, e_many3 <-> e_zo2
-            e_zo = collectionZO[100]
-            e_zo['Many'].BindEntity(e_many)
-            e_zo.Update()
-            # DELETE - e; for a *-0..1 link should succeed on the * end
-            # e_many <-> e_zo
-            # e_many2, e_many3 <-> e_zo2
-            try:
-                del collectionMany[1]
-                self.assertFalse(
-                    1 in collectionMany,
-                    "Delete e at * end of relationship")
-                self.assertTrue(
-                    100 in collectionZO,
-                    "No cascade delete expected for *-0..1 relationship")
-            except edm.ConstraintError:
-                self.fail("Delete e failed at * end of relationship")
-            # DELETE - e; for a *-0..1 link should succeed on the 0..1 end
-            # None <-> e_zo
-            # e_many2, e_many3 <-> e_zo2
-            try:
-                del collectionZO[200]
-                self.assertFalse(
-                    200 in collectionZO,
-                    "Delete e at 0..1 end of relationship")
-                self.assertTrue(
-                    2 in collectionMany,
-                    "Cascade delete not allowed for * end of relationship")
-                self.assertTrue(
-                    3 in collectionMany,
-                    "Cascade delete not allwoed for * end of relationship")
-            except edm.ConstraintError:
-                self.fail("Delete e at the 0..1 end of the relationship")
-            # None <-> e_zo
-            # e_many2 <-> None
-            # e_many3 <-> None
+                    self.fail("Delete e failed at * end of relationship")
+                # DELETE - e; for a *-0..1 link should succeed on the 0..1 end
+                # None <-> e_zo
+                # e_many2, e_many3 <-> e_zo2
+                try:
+                    del collectionZO[200]
+                    self.assertFalse(
+                        200 in collectionZO,
+                        "Delete e at 0..1 end of relationship")
+                    self.assertTrue(
+                        2 in collectionMany,
+                        "Cascade delete not allowed for * end of relationship")
+                    self.assertTrue(
+                        3 in collectionMany,
+                        "Cascade delete not allwoed for * end of relationship")
+                except edm.ConstraintError:
+                    self.fail("Delete e at the 0..1 end of the relationship")
+                # None <-> e_zo
+                # e_many2 <-> None
+                # e_many3 <-> None
 
     def runtest_nav_many2zo_r(self):
         manys2zeroones = self.ds[
@@ -4268,376 +4314,376 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_many2many(self):
         manys = self.ds['RegressionModel.RegressionContainer.Many2Manys']
         manyxs = self.ds['RegressionModel.RegressionContainer.Many2ManyXs']
-        with manys.OpenCollection() as collectionMany, \
-                manyxs.OpenCollection() as collectionManyX:
-            e_many = collectionMany.new_entity()
-            e_many['K'].SetFromValue(1)
-            e_many['Data'].SetFromValue('NavigationMany_1')
-            collectionMany.insert_entity(e_many)
-            self.assertTrue(1 in collectionMany)
-            # e_many <-> []
-            e_many2 = collectionMany.new_entity()
-            e_many2['K'].SetFromValue(2)
-            e_many2['Data'].SetFromValue('NavigationMany_2')
-            e_manyx = collectionManyX.new_entity()
-            e_manyx['K'].SetFromValue(100)
-            e_manyx['Data'].SetFromValue('NavigationOne')
-            e_many2['ManyX'].BindEntity(e_manyx)
-            try:
-                collectionMany.insert_entity(e_many2)
-                e_manyx = collectionManyX[100]
-            except edm.ConstraintError:
-                self.fail("e insert failed with *-1 binding")
-            # e_many <-> []
-            # e_many2 <-> e_manyx
-            e_many3 = collectionMany.new_entity()
-            e_many3['K'].SetFromValue(3)
-            e_many3['Data'].SetFromValue('NavigationMany_3')
-            e_many4 = collectionMany.new_entity()
-            e_many4['K'].SetFromValue(4)
-            e_many4['Data'].SetFromValue('NavigationMany_4')
-            e_manyx2 = collectionManyX.new_entity()
-            e_manyx2['K'].SetFromValue(200)
-            e_manyx2['Data'].SetFromValue('NavigationOne_2')
-            # we can create more than one link now
-            e_manyx2['Many'].BindEntity(e_many3)
-            e_manyx2['Many'].BindEntity(e_many4)
-            collectionManyX.insert_entity(e_manyx2)
-            e_many3 = collectionMany[3]
-            # e_many <-> []
-            # e_many2 <-> e_manyx
-            # e_many3, e_many4 <-> e_manyx2
-            # Now try inserting with a binding to an existing e
-            e_manyx3 = collectionManyX.new_entity()
-            e_manyx3['K'].SetFromValue(300)
-            e_manyx3['Data'].SetFromValue('NavigationOne_3')
-            e_manyx3['Many'].BindEntity(e_many2)
-            try:
-                collectionManyX.insert_entity(e_manyx3)
-            except edm.ConstraintError:
-                self.fail("Unbound e insert failed with existing e")
-            # e_many <-> []
-            # e_many2 <-> e_manyx, e_manyx3
-            # e_many3, e_many4 <-> e_manyx2
-            # READ both ways
-            try:
-                e_many['ManyX'].GetEntity()
-                self.fail("GetEntity should fail on a deferred value with "
-                          "multiplicity *")
-            except edm.NavigationError:
-                pass
-            e_many2 = collectionMany[2]
-            with e_many2['ManyX'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 2)
-                self.assertTrue(100 in navCollection)
-                self.assertFalse(200 in navCollection)
-                self.assertTrue(300 in navCollection)
-            with e_manyx['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 1)
-                self.assertFalse(1 in navCollection)
-                self.assertTrue(2 in navCollection)
-                self.assertFalse(3 in navCollection)
-                self.assertFalse(4 in navCollection)
-            # READ empty link...
-            with e_many['ManyX'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 0)
-            # UPDATE - by replace
-            # e_many <-> []
-            # e_many2 <-> e_manyx, e_manyx3
-            # e_many3, e_many4 <-> e_manyx2
-            try:
+        with manys.OpenCollection() as collectionMany:
+            with manyxs.OpenCollection() as collectionManyX:
+                e_many = collectionMany.new_entity()
+                e_many['K'].SetFromValue(1)
+                e_many['Data'].SetFromValue('NavigationMany_1')
+                collectionMany.insert_entity(e_many)
+                self.assertTrue(1 in collectionMany)
+                # e_many <-> []
+                e_many2 = collectionMany.new_entity()
+                e_many2['K'].SetFromValue(2)
+                e_many2['Data'].SetFromValue('NavigationMany_2')
+                e_manyx = collectionManyX.new_entity()
+                e_manyx['K'].SetFromValue(100)
+                e_manyx['Data'].SetFromValue('NavigationOne')
+                e_many2['ManyX'].BindEntity(e_manyx)
+                try:
+                    collectionMany.insert_entity(e_many2)
+                    e_manyx = collectionManyX[100]
+                except edm.ConstraintError:
+                    self.fail("e insert failed with *-1 binding")
+                # e_many <-> []
+                # e_many2 <-> e_manyx
+                e_many3 = collectionMany.new_entity()
+                e_many3['K'].SetFromValue(3)
+                e_many3['Data'].SetFromValue('NavigationMany_3')
+                e_many4 = collectionMany.new_entity()
+                e_many4['K'].SetFromValue(4)
+                e_many4['Data'].SetFromValue('NavigationMany_4')
+                e_manyx2 = collectionManyX.new_entity()
+                e_manyx2['K'].SetFromValue(200)
+                e_manyx2['Data'].SetFromValue('NavigationOne_2')
+                # we can create more than one link now
+                e_manyx2['Many'].BindEntity(e_many3)
+                e_manyx2['Many'].BindEntity(e_many4)
+                collectionManyX.insert_entity(e_manyx2)
+                e_many3 = collectionMany[3]
+                # e_many <-> []
+                # e_many2 <-> e_manyx
+                # e_many3, e_many4 <-> e_manyx2
+                # Now try inserting with a binding to an existing e
+                e_manyx3 = collectionManyX.new_entity()
+                e_manyx3['K'].SetFromValue(300)
+                e_manyx3['Data'].SetFromValue('NavigationOne_3')
+                e_manyx3['Many'].BindEntity(e_many2)
+                try:
+                    collectionManyX.insert_entity(e_manyx3)
+                except edm.ConstraintError:
+                    self.fail("Unbound e insert failed with existing e")
+                # e_many <-> []
+                # e_many2 <-> e_manyx, e_manyx3
+                # e_many3, e_many4 <-> e_manyx2
+                # READ both ways
+                try:
+                    e_many['ManyX'].GetEntity()
+                    self.fail("GetEntity should fail on a deferred value with "
+                              "multiplicity *")
+                except edm.NavigationError:
+                    pass
+                e_many2 = collectionMany[2]
                 with e_many2['ManyX'].OpenCollection() as navCollection:
-                    navCollection.replace(e_manyx2)
-            except edm.ConstraintError:
-                self.fail("replace on *-* navigation property")
-            # e_many <-> []
-            # [] <-> e_manyx
-            # e_many2, e_many3, e_many4 <-> e_manyx2
-            # [] <-> e_manyx3
-            with e_manyx['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 0)
-            with e_manyx2['Many'].OpenCollection() as navCollection:
-                self.assertTrue(1 not in navCollection)
-                self.assertTrue(2 in navCollection)
-                self.assertTrue(3 in navCollection)
-                self.assertTrue(4 in navCollection)
-                self.assertTrue(len(navCollection) == 3)
-            with e_manyx3['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 0)
-            # UPDATE - __setitem__
-            # e_many <-> []
-            # [] <-> e_manyx
-            # e_many2, e_many3, e_many4 <-> e_manyx2
-            # [] <-> e_manyx3
-            try:
+                    self.assertTrue(len(navCollection) == 2)
+                    self.assertTrue(100 in navCollection)
+                    self.assertFalse(200 in navCollection)
+                    self.assertTrue(300 in navCollection)
+                with e_manyx['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 1)
+                    self.assertFalse(1 in navCollection)
+                    self.assertTrue(2 in navCollection)
+                    self.assertFalse(3 in navCollection)
+                    self.assertFalse(4 in navCollection)
+                # READ empty link...
                 with e_many['ManyX'].OpenCollection() as navCollection:
-                    navCollection[e_manyx2.key()] = e_manyx2
-                    navCollection[e_manyx.key()] = e_manyx
-                    self.assertTrue(len(navCollection) == 2)
-            except edm.ConstraintError:
-                self.fail("__setitem__ on *-* navigation property")
-            with e_manyx2['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 4)
-                self.assertTrue(1 in navCollection)
-            # e_many <-> e_manyx,...
-            # e_many, e_many2, e_many3, e_many4 <-> e_manyx2
-            # [] <-> e_manyx3
-            # UPDATE - using bind and update
-            e_many['ManyX'].BindEntity(e_manyx3)
-            try:
-                e_many.Update()
-            except edm.ConstraintError:
-                self.fail("BindEntity/Update on *-* navigation property")
-            # e_many <-> e_manyx, e_manyx2, e_manyx3
-            # e_many, e_many2, e_many3, e_many4 <->
-            # e_manyx2
-            e_manyx3['Many'].BindEntity(e_many3)
-            try:
-                e_manyx3.Update()
-            except edm.ConstraintError:
-                self.fail("BindEntity/Update on *-* navigation property")
-            # e_many  -> e_manyx, e_manyx2, e_manyx3
-            # e_many, e_many2, e_many3, e_many4 <- e_manyx2
-            # e_many, e_many3 <-  e_manyx3
-            with e_manyx3['Many'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 2)
-            # DELETE - link
-            with e_manyx['Many'].OpenCollection() as navCollection:
-                try:
-                    self.assertTrue(len(navCollection) == 1)
-                    del navCollection[1]
                     self.assertTrue(len(navCollection) == 0)
-                    self.assertTrue(1 in collectionMany)
-                except edm.ConstraintError:
-                    self.fail("Delete of link in a *-* relationship")
-            # [] <- e_manyx
-            # e_many  -> e_manyx2, e_manyx3
-            # e_many, e_many2, e_many3, e_many4 <- e_manyx2
-            # e_many, e_many3 <-  e_manyx3
-            with e_many['ManyX'].OpenCollection() as navCollection:
+                # UPDATE - by replace
+                # e_many <-> []
+                # e_many2 <-> e_manyx, e_manyx3
+                # e_many3, e_many4 <-> e_manyx2
                 try:
-                    self.assertTrue(len(navCollection) == 2)
-                    del navCollection[300]
-                    self.assertTrue(len(navCollection) == 1)
-                    self.assertTrue(300 in collectionManyX)
+                    with e_many2['ManyX'].OpenCollection() as navCollection:
+                        navCollection.replace(e_manyx2)
                 except edm.ConstraintError:
-                    self.fail("Delete of link in a *-* relationship")
-            # [] <- e_manyx
-            # e_many, e_many2, e_many3, e_many4 <- e_manyx2
-            # e_many3 <-  e_manyx3
-            # DELETE - e
-            try:
-                del collectionMany[4]
-                self.assertFalse(
-                    4 in collectionMany, "Delete e in *-* relationship")
-                self.assertTrue(
-                    200 in collectionManyX,
-                    "No cascade delete expected for *-* relationship")
-            except edm.ConstraintError:
-                self.fail("Delete e failed for *-* relationship")
-            # DELETE - e with multiple links
-            # [] <- e_manyx
-            # e_many, e_many2, e_many3 <-  e_manyx2
-            # e_many3 <-  e_manyx3
-            try:
-                del collectionManyX[200]
-                self.assertFalse(
-                    200 in collectionManyX,
-                    "Delete e in *-* relationship")
-                self.assertTrue(
-                    1 in collectionMany,
-                    "Cascade delete not allowed for * end of relationship")
-                self.assertTrue(
-                    2 in collectionMany,
-                    "Cascade delete not allwoed for * end of relationship")
-                self.assertTrue(
-                    3 in collectionMany,
-                    "Cascade delete not allwoed for * end of relationship")
-            except edm.ConstraintError:
-                self.fail("Delete e for *-* relationship")
-            # [] <- e_manyx
-            # e_many -> []
-            # e_many2 -> []
-            # e_many3 <-> e_manyx3
+                    self.fail("replace on *-* navigation property")
+                # e_many <-> []
+                # [] <-> e_manyx
+                # e_many2, e_many3, e_many4 <-> e_manyx2
+                # [] <-> e_manyx3
+                with e_manyx['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 0)
+                with e_manyx2['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(1 not in navCollection)
+                    self.assertTrue(2 in navCollection)
+                    self.assertTrue(3 in navCollection)
+                    self.assertTrue(4 in navCollection)
+                    self.assertTrue(len(navCollection) == 3)
+                with e_manyx3['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 0)
+                # UPDATE - __setitem__
+                # e_many <-> []
+                # [] <-> e_manyx
+                # e_many2, e_many3, e_many4 <-> e_manyx2
+                # [] <-> e_manyx3
+                try:
+                    with e_many['ManyX'].OpenCollection() as navCollection:
+                        navCollection[e_manyx2.key()] = e_manyx2
+                        navCollection[e_manyx.key()] = e_manyx
+                        self.assertTrue(len(navCollection) == 2)
+                except edm.ConstraintError:
+                    self.fail("__setitem__ on *-* navigation property")
+                with e_manyx2['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 4)
+                    self.assertTrue(1 in navCollection)
+                # e_many <-> e_manyx,...
+                # e_many, e_many2, e_many3, e_many4 <-> e_manyx2
+                # [] <-> e_manyx3
+                # UPDATE - using bind and update
+                e_many['ManyX'].BindEntity(e_manyx3)
+                try:
+                    e_many.Update()
+                except edm.ConstraintError:
+                    self.fail("BindEntity/Update on *-* navigation property")
+                # e_many <-> e_manyx, e_manyx2, e_manyx3
+                # e_many, e_many2, e_many3, e_many4 <->
+                # e_manyx2
+                e_manyx3['Many'].BindEntity(e_many3)
+                try:
+                    e_manyx3.Update()
+                except edm.ConstraintError:
+                    self.fail("BindEntity/Update on *-* navigation property")
+                # e_many  -> e_manyx, e_manyx2, e_manyx3
+                # e_many, e_many2, e_many3, e_many4 <- e_manyx2
+                # e_many, e_many3 <-  e_manyx3
+                with e_manyx3['Many'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 2)
+                # DELETE - link
+                with e_manyx['Many'].OpenCollection() as navCollection:
+                    try:
+                        self.assertTrue(len(navCollection) == 1)
+                        del navCollection[1]
+                        self.assertTrue(len(navCollection) == 0)
+                        self.assertTrue(1 in collectionMany)
+                    except edm.ConstraintError:
+                        self.fail("Delete of link in a *-* relationship")
+                # [] <- e_manyx
+                # e_many  -> e_manyx2, e_manyx3
+                # e_many, e_many2, e_many3, e_many4 <- e_manyx2
+                # e_many, e_many3 <-  e_manyx3
+                with e_many['ManyX'].OpenCollection() as navCollection:
+                    try:
+                        self.assertTrue(len(navCollection) == 2)
+                        del navCollection[300]
+                        self.assertTrue(len(navCollection) == 1)
+                        self.assertTrue(300 in collectionManyX)
+                    except edm.ConstraintError:
+                        self.fail("Delete of link in a *-* relationship")
+                # [] <- e_manyx
+                # e_many, e_many2, e_many3, e_many4 <- e_manyx2
+                # e_many3 <-  e_manyx3
+                # DELETE - e
+                try:
+                    del collectionMany[4]
+                    self.assertFalse(
+                        4 in collectionMany, "Delete e in *-* relationship")
+                    self.assertTrue(
+                        200 in collectionManyX,
+                        "No cascade delete expected for *-* relationship")
+                except edm.ConstraintError:
+                    self.fail("Delete e failed for *-* relationship")
+                # DELETE - e with multiple links
+                # [] <- e_manyx
+                # e_many, e_many2, e_many3 <-  e_manyx2
+                # e_many3 <-  e_manyx3
+                try:
+                    del collectionManyX[200]
+                    self.assertFalse(
+                        200 in collectionManyX,
+                        "Delete e in *-* relationship")
+                    self.assertTrue(
+                        1 in collectionMany,
+                        "Cascade delete not allowed for * end of relationship")
+                    self.assertTrue(
+                        2 in collectionMany,
+                        "Cascade delete not allwoed for * end of relationship")
+                    self.assertTrue(
+                        3 in collectionMany,
+                        "Cascade delete not allwoed for * end of relationship")
+                except edm.ConstraintError:
+                    self.fail("Delete e for *-* relationship")
+                # [] <- e_manyx
+                # e_many -> []
+                # e_many2 -> []
+                # e_many3 <-> e_manyx3
 
     def runtest_nav_many2many_1(self):
         manys = self.ds['RegressionModel.RegressionContainer.Many2Many1s']
         manyxs = self.ds['RegressionModel.RegressionContainer.Many2ManyX1s']
-        with manys.OpenCollection() as collectionMany, \
-                manyxs.OpenCollection() as collectionManyX:
-            e_many = collectionMany.new_entity()
-            e_many['K'].SetFromValue(1)
-            e_many['Data'].SetFromValue('NavigationMany_1')
-            collectionMany.insert_entity(e_many)
-            self.assertTrue(1 in collectionMany)
-            # e_many <-> []
-            e_many2 = collectionMany.new_entity()
-            e_many2['K'].SetFromValue(2)
-            e_many2['Data'].SetFromValue('NavigationMany_2')
-            e_manyx = collectionManyX.new_entity()
-            e_manyx['K'].SetFromValue(100)
-            e_manyx['Data'].SetFromValue('NavigationOne')
-            e_many2['ManyX'].BindEntity(e_manyx)
-            try:
-                collectionMany.insert_entity(e_many2)
-                e_manyx = collectionManyX[100]
-            except edm.ConstraintError:
-                self.fail("e insert failed with *-1 binding")
-            # e_many <-> []
-            # e_many2 <-> e_manyx
-            e_many3 = collectionMany.new_entity()
-            e_many3['K'].SetFromValue(3)
-            e_many3['Data'].SetFromValue('NavigationMany_3')
-            e_manyx2 = collectionManyX.new_entity()
-            e_manyx2['K'].SetFromValue(200)
-            e_manyx2['Data'].SetFromValue('NavigationOne_2')
-            e_manyx3 = collectionManyX.new_entity()
-            e_manyx3['K'].SetFromValue(300)
-            e_manyx3['Data'].SetFromValue('NavigationOne_3')
-            # we can create more than one link now
-            e_many3['ManyX'].BindEntity(e_manyx2)
-            e_many3['ManyX'].BindEntity(e_manyx3)
-            collectionMany.insert_entity(e_many3)
-            e_manyx2 = collectionManyX[200]
-            e_manyx3 = collectionManyX[300]
-            # e_many  -> []
-            # e_many2  -> e_manyx
-            # e_many3  -> e_manyx2, e_manyx3
-            # Now try inserting with a binding to an existing e
-            e_many4 = collectionMany.new_entity()
-            e_many4['K'].SetFromValue(4)
-            e_many4['Data'].SetFromValue('NavigationMany_4')
-            e_many4['ManyX'].BindEntity(e_manyx2)
-            try:
-                collectionMany.insert_entity(e_many4)
-            except edm.ConstraintError:
-                self.fail("Unbound e insert failed with existing e")
-            # e_many  -> []
-            # e_many2  -> e_manyx
-            # e_many3  -> e_manyx2, e_manyx3
-            # e_many4  -> e_manyx2
-            # READ (one way only)
-            try:
-                e_many['ManyX'].GetEntity()
-                self.fail("GetEntity should fail on a deferred value "
-                          "with multiplicity *")
-            except edm.NavigationError:
-                pass
-            e_many3 = collectionMany[3]
-            with e_many3['ManyX'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 2)
-                self.assertTrue(100 not in navCollection)
-                self.assertTrue(200 in navCollection)
-                self.assertTrue(300 in navCollection)
-            # READ empty link...
-            with e_many['ManyX'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 0)
-            # UPDATE - by replace
-            # e_many  -> []
-            # e_many2  -> e_manyx
-            # e_many3  -> e_manyx2, e_manyx3
-            # e_many4  -> e_manyx2
-            try:
-                with e_many2['ManyX'].OpenCollection() as navCollection:
-                    navCollection.replace(e_manyx2)
-            except edm.ConstraintError:
-                self.fail("replace on *-* navigation property")
-            # e_many  -> []
-            # e_many2  -> e_manyx2
-            # e_many3  -> e_manyx2, e_manyx3
-            # e_many4  -> e_manyx2
-            for e in (e_many2, e_many3, e_many4):
-                with e['ManyX'].OpenCollection() as navCollection:
-                    self.assertTrue(200 in navCollection)
-                    self.assertFalse(100 in navCollection)
-            # UPDATE - __setitem__
-            try:
-                with e_many['ManyX'].OpenCollection() as navCollection:
-                    navCollection[e_manyx2.key()] = e_manyx2
-                    navCollection[e_manyx.key()] = e_manyx
-                    self.assertTrue(len(navCollection) == 2)
-            except edm.ConstraintError:
-                self.fail("__setitem__ on *-* navigation property")
-            # e_many  -> e_manyx, e_manyx2
-            # e_many2  -> e_manyx2
-            # e_many3  -> e_manyx2, e_manyx3
-            # e_many4  -> e_manyx2
-            # UPDATE - using bind and update
-            e_many['ManyX'].BindEntity(e_manyx3)
-            try:
-                e_many.Update()
-            except edm.ConstraintError:
-                self.fail("BindEntity/Update on *-* navigation property")
-            # e_many  -> e_manyx, e_manyx2, e_manyx3
-            # e_many2  -> e_manyx2
-            # e_many3  -> e_manyx2, e_manyx3
-            # e_many4  -> e_manyx2
-            with e_many['ManyX'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 3)
-            # DELETE - link
-            with e_many['ManyX'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 3)
+        with manys.OpenCollection() as collectionMany:
+            with manyxs.OpenCollection() as collectionManyX:
+                e_many = collectionMany.new_entity()
+                e_many['K'].SetFromValue(1)
+                e_many['Data'].SetFromValue('NavigationMany_1')
+                collectionMany.insert_entity(e_many)
+                self.assertTrue(1 in collectionMany)
+                # e_many <-> []
+                e_many2 = collectionMany.new_entity()
+                e_many2['K'].SetFromValue(2)
+                e_many2['Data'].SetFromValue('NavigationMany_2')
+                e_manyx = collectionManyX.new_entity()
+                e_manyx['K'].SetFromValue(100)
+                e_manyx['Data'].SetFromValue('NavigationOne')
+                e_many2['ManyX'].BindEntity(e_manyx)
                 try:
-                    del navCollection[100]
-                    self.assertTrue(len(navCollection) == 2)
-                    self.assertTrue(100 in collectionManyX)
+                    collectionMany.insert_entity(e_many2)
+                    e_manyx = collectionManyX[100]
                 except edm.ConstraintError:
-                    self.fail("Delete of link in a *-* relationship")
-            # e_many  -> e_manyx2, e_manyx3
-            # e_many2  -> e_manyx2
-            # e_many3  -> e_manyx2, e_manyx3
-            # e_many4  -> e_manyx2
-            # DELETE - e
-            try:
-                del collectionMany[4]
-                self.assertFalse(
-                    4 in collectionMany, "Delete e in *-* relationship")
-                self.assertTrue(
-                    200 in collectionManyX,
-                    "No cascade delete expected for *-* relationship")
-            except edm.ConstraintError:
-                self.fail("Delete e failed for *-* relationship")
-            # DELETE - e from unbound end (links just get dropped)
-            try:
-                del collectionManyX[200]
-                self.assertFalse(
-                    200 in collectionManyX,
-                    "Delete e in *-* relationship")
-                self.assertTrue(
-                    1 in collectionMany,
-                    "No cascade delete expected for *-* relationship")
-                self.assertTrue(
-                    2 in collectionMany,
-                    "No cascade delete expected for *-* relationship")
-                self.assertTrue(
-                    3 in collectionMany,
-                    "No cascade delete expected for *-* relationship")
-            except edm.ConstraintError:
-                self.fail("Delete e failed for unbound *-* relationship")
-            # e_many  -> e_manyx3
-            # e_many2  -> []
-            # e_many3  -> e_manyx3
-            with e_many['ManyX'].OpenCollection() as navCollection:
-                self.assertTrue(len(navCollection) == 1)
-                navCollection[100] = e_manyx
-            # DELETE - e with multiple links
-            # e_many  -> e_manyx, e_manyx3
-            # e_many2  -> []
-            # e_many3  -> e_manyx3
-            try:
-                del collectionMany[1]
-                self.assertFalse(
-                    1 in collectionMany, "Delete e in *-* relationship")
-                self.assertTrue(
-                    100 in collectionManyX,
-                    "Cascade delete not allowed for * end of relationship")
-                self.assertTrue(
-                    300 in collectionManyX,
-                    "Cascade delete not allwoed for * end of relationship")
-            except edm.ConstraintError:
-                self.fail("Delete e for *-* relationship")
-            # e_many2  -> []
-            # e_many3  -> e_manyx3
+                    self.fail("e insert failed with *-1 binding")
+                # e_many <-> []
+                # e_many2 <-> e_manyx
+                e_many3 = collectionMany.new_entity()
+                e_many3['K'].SetFromValue(3)
+                e_many3['Data'].SetFromValue('NavigationMany_3')
+                e_manyx2 = collectionManyX.new_entity()
+                e_manyx2['K'].SetFromValue(200)
+                e_manyx2['Data'].SetFromValue('NavigationOne_2')
+                e_manyx3 = collectionManyX.new_entity()
+                e_manyx3['K'].SetFromValue(300)
+                e_manyx3['Data'].SetFromValue('NavigationOne_3')
+                # we can create more than one link now
+                e_many3['ManyX'].BindEntity(e_manyx2)
+                e_many3['ManyX'].BindEntity(e_manyx3)
+                collectionMany.insert_entity(e_many3)
+                e_manyx2 = collectionManyX[200]
+                e_manyx3 = collectionManyX[300]
+                # e_many  -> []
+                # e_many2  -> e_manyx
+                # e_many3  -> e_manyx2, e_manyx3
+                # Now try inserting with a binding to an existing e
+                e_many4 = collectionMany.new_entity()
+                e_many4['K'].SetFromValue(4)
+                e_many4['Data'].SetFromValue('NavigationMany_4')
+                e_many4['ManyX'].BindEntity(e_manyx2)
+                try:
+                    collectionMany.insert_entity(e_many4)
+                except edm.ConstraintError:
+                    self.fail("Unbound e insert failed with existing e")
+                # e_many  -> []
+                # e_many2  -> e_manyx
+                # e_many3  -> e_manyx2, e_manyx3
+                # e_many4  -> e_manyx2
+                # READ (one way only)
+                try:
+                    e_many['ManyX'].GetEntity()
+                    self.fail("GetEntity should fail on a deferred value "
+                              "with multiplicity *")
+                except edm.NavigationError:
+                    pass
+                e_many3 = collectionMany[3]
+                with e_many3['ManyX'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 2)
+                    self.assertTrue(100 not in navCollection)
+                    self.assertTrue(200 in navCollection)
+                    self.assertTrue(300 in navCollection)
+                # READ empty link...
+                with e_many['ManyX'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 0)
+                # UPDATE - by replace
+                # e_many  -> []
+                # e_many2  -> e_manyx
+                # e_many3  -> e_manyx2, e_manyx3
+                # e_many4  -> e_manyx2
+                try:
+                    with e_many2['ManyX'].OpenCollection() as navCollection:
+                        navCollection.replace(e_manyx2)
+                except edm.ConstraintError:
+                    self.fail("replace on *-* navigation property")
+                # e_many  -> []
+                # e_many2  -> e_manyx2
+                # e_many3  -> e_manyx2, e_manyx3
+                # e_many4  -> e_manyx2
+                for e in (e_many2, e_many3, e_many4):
+                    with e['ManyX'].OpenCollection() as navCollection:
+                        self.assertTrue(200 in navCollection)
+                        self.assertFalse(100 in navCollection)
+                # UPDATE - __setitem__
+                try:
+                    with e_many['ManyX'].OpenCollection() as navCollection:
+                        navCollection[e_manyx2.key()] = e_manyx2
+                        navCollection[e_manyx.key()] = e_manyx
+                        self.assertTrue(len(navCollection) == 2)
+                except edm.ConstraintError:
+                    self.fail("__setitem__ on *-* navigation property")
+                # e_many  -> e_manyx, e_manyx2
+                # e_many2  -> e_manyx2
+                # e_many3  -> e_manyx2, e_manyx3
+                # e_many4  -> e_manyx2
+                # UPDATE - using bind and update
+                e_many['ManyX'].BindEntity(e_manyx3)
+                try:
+                    e_many.Update()
+                except edm.ConstraintError:
+                    self.fail("BindEntity/Update on *-* navigation property")
+                # e_many  -> e_manyx, e_manyx2, e_manyx3
+                # e_many2  -> e_manyx2
+                # e_many3  -> e_manyx2, e_manyx3
+                # e_many4  -> e_manyx2
+                with e_many['ManyX'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 3)
+                # DELETE - link
+                with e_many['ManyX'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 3)
+                    try:
+                        del navCollection[100]
+                        self.assertTrue(len(navCollection) == 2)
+                        self.assertTrue(100 in collectionManyX)
+                    except edm.ConstraintError:
+                        self.fail("Delete of link in a *-* relationship")
+                # e_many  -> e_manyx2, e_manyx3
+                # e_many2  -> e_manyx2
+                # e_many3  -> e_manyx2, e_manyx3
+                # e_many4  -> e_manyx2
+                # DELETE - e
+                try:
+                    del collectionMany[4]
+                    self.assertFalse(
+                        4 in collectionMany, "Delete e in *-* relationship")
+                    self.assertTrue(
+                        200 in collectionManyX,
+                        "No cascade delete expected for *-* relationship")
+                except edm.ConstraintError:
+                    self.fail("Delete e failed for *-* relationship")
+                # DELETE - e from unbound end (links just get dropped)
+                try:
+                    del collectionManyX[200]
+                    self.assertFalse(
+                        200 in collectionManyX,
+                        "Delete e in *-* relationship")
+                    self.assertTrue(
+                        1 in collectionMany,
+                        "No cascade delete expected for *-* relationship")
+                    self.assertTrue(
+                        2 in collectionMany,
+                        "No cascade delete expected for *-* relationship")
+                    self.assertTrue(
+                        3 in collectionMany,
+                        "No cascade delete expected for *-* relationship")
+                except edm.ConstraintError:
+                    self.fail("Delete e failed for unbound *-* relationship")
+                # e_many  -> e_manyx3
+                # e_many2  -> []
+                # e_many3  -> e_manyx3
+                with e_many['ManyX'].OpenCollection() as navCollection:
+                    self.assertTrue(len(navCollection) == 1)
+                    navCollection[100] = e_manyx
+                # DELETE - e with multiple links
+                # e_many  -> e_manyx, e_manyx3
+                # e_many2  -> []
+                # e_many3  -> e_manyx3
+                try:
+                    del collectionMany[1]
+                    self.assertFalse(
+                        1 in collectionMany, "Delete e in *-* relationship")
+                    self.assertTrue(
+                        100 in collectionManyX,
+                        "Cascade delete not allowed for * end of relationship")
+                    self.assertTrue(
+                        300 in collectionManyX,
+                        "Cascade delete not allwoed for * end of relationship")
+                except edm.ConstraintError:
+                    self.fail("Delete e for *-* relationship")
+                # e_many2  -> []
+                # e_many3  -> e_manyx3
 
     def runtest_nav_many2many_r(self):
         manys2manys = self.ds[
@@ -5011,13 +5057,13 @@ class DataServiceRegressionTests(unittest.TestCase):
             sinfo = coll.read_stream(e1.key(), fout)
             self.assertTrue(isinstance(sinfo, StreamInfo))
             self.assertTrue(fout.getvalue() == fox,"Read back: "+fout.getvalue())
-            self.assertTrue(sinfo.type == http.APPLICATION_OCTETSTREAM)
+            self.assertTrue(sinfo.type == params.APPLICATION_OCTETSTREAM)
             self.assertTrue(sinfo.size == len(fox))
             self.assertTrue(isinstance(sinfo.modified, iso.TimePoint))
             self.assertTrue(sinfo.md5 == hashlib.md5(fox).digest())
             # now try inserting with additional metadata
             t = iso.TimePoint.from_str('20140614T180000-0400')
-            sinfo = StreamInfo(type=http.PLAIN_TEXT,
+            sinfo = StreamInfo(type=params.PLAIN_TEXT,
                                created=t, modified=t)
             fin.seek(0)
             e2 = coll.new_stream(fin, key='foxy', sinfo=sinfo)
@@ -5025,18 +5071,18 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertTrue(e2.key() == 'foxy')
             # alternative read form with no stream to copy to
             sinfo = coll.read_stream(e2.key())
-            self.assertTrue(sinfo.type == http.PLAIN_TEXT)
+            self.assertTrue(sinfo.type == params.PLAIN_TEXT)
             self.assertTrue(sinfo.size == len(fox))
             self.assertTrue(sinfo.modified == t)
             self.assertTrue(sinfo.created == t)
             # we can update a stream by using an existing key
             fin = StringIO(cafe + fox)
-            sinfo = StreamInfo(type=http.PLAIN_TEXT,
+            sinfo = StreamInfo(type=params.PLAIN_TEXT,
                                size=len(cafe))
             # the size prevents reading to the end of the stream
             coll.update_stream(fin, key='foxy', sinfo=sinfo)
             sinfo = coll.read_stream('foxy')
-            self.assertTrue(sinfo.type == http.PLAIN_TEXT)
+            self.assertTrue(sinfo.type == params.PLAIN_TEXT)
             self.assertTrue(sinfo.size == len(cafe))
             self.assertTrue(sinfo.md5 == hashlib.md5(cafe).digest())
         # finally, we test the combined read and close method
@@ -5045,7 +5091,7 @@ class DataServiceRegressionTests(unittest.TestCase):
         # or is destroyed
         coll = streams.OpenCollection()
         sinfo, sgen = coll.read_stream_close('foxy')
-        self.assertTrue(sinfo.type == http.PLAIN_TEXT)
+        self.assertTrue(sinfo.type == params.PLAIN_TEXT)
         self.assertTrue(sinfo.size == len(cafe))
         count = 0
         for data in sgen:
@@ -5062,7 +5108,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertTrue(e.exists)
             # ...and has an empty stream
             sinfo = coll.read_stream(e.key())
-            self.assertTrue(sinfo.type == http.APPLICATION_OCTETSTREAM,
+            self.assertTrue(sinfo.type == params.APPLICATION_OCTETSTREAM,
                 str(sinfo.type))
             self.assertTrue(sinfo.size == 0)
             # but it should have our requested title

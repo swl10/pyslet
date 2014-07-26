@@ -282,5 +282,5 @@ class RegressionTests(DataServiceRegressionTests):
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.INFO, format="[%(thread)d] %(levelname)s %(message)s")
+        level=logging.DEBUG, format="[%(thread)d] %(levelname)s %(message)s")
     unittest.main()

@@ -241,7 +241,7 @@ class Resource(CPElement):
                 fHREF = f.href
                 if fHREF:
                     fHREF = f.ResolveURI(fHREF)
-                    if href.Match(fHREF):
+                    if href.match(fHREF):
                         return f
         return None
 

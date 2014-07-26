@@ -27,6 +27,8 @@ import pyslet.iso8601 as iso8601
 import pyslet.rfc5023 as app
 import pyslet.rfc4287 as atom
 import pyslet.rfc2616 as http
+import pyslet.http.params as params
+import pyslet.http.messages as messages
 import pyslet.iso8601 as iso
 import pyslet.odata2.csdl as edm
 
@@ -508,8 +510,9 @@ class ODataURILiteralTests(unittest.TestCase):
             int(v.value.log10()) == 28, "29-digit log10 value: %s" % repr(v.value))
         v2 = core.ParseURILiteral(
             "12345678901234567890123456789.12345678901234567890123456789m")
-        self.assertTrue(v2.value - v.value < 0.13 and v2.value - v.value >
-                        0.12, "29digit.29digit value: %s" % repr(v2.value - v.value))
+        self.assertTrue(v2.value - v.value < decimal.Decimal('0.13') and
+                        v2.value - v.value > decimal.Decimal('0.12'),
+                        "29digit.29digit value: %s" % repr(v2.value - v.value))
         v = core.ParseURILiteral("-2147483648M")
         self.assertTrue(v.typeCode == edm.SimpleType.Decimal,
                         "-2147483648 type: %s" % repr(v.typeCode))
@@ -943,7 +946,7 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(
             major == 2 and minor == 0, "No version should return 2.0")
         request = MockRequest('/')
-        request.SetHeader('DataServiceVersion', "1.0; old request")
+        request.set_header('DataServiceVersion', "1.0; old request")
         request.Send(s)
         self.assertTrue(request.responseCode == 200,
                         "Version 1.0 request:\n\n" + request.wfile.getvalue())
@@ -952,7 +955,7 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(
             major == 1 and minor == 0, "Version 1.0 request should return 1.0 response")
         request = MockRequest('/')
-        request.SetHeader('DataServiceVersion', "2.0; current request")
+        request.set_header('DataServiceVersion', "2.0; current request")
         request.Send(s)
         self.assertTrue(request.responseCode == 200)
         major, minor, ua = core.ParseDataServiceVersion(
@@ -961,7 +964,7 @@ class ServerTests(unittest.TestCase):
             major == 2 and minor == 0, "Version 2.0 request should return 2.0 response")
         # Should be OK
         request = MockRequest('/')
-        request.SetHeader('DataServiceVersion', "2.1; future request")
+        request.set_header('DataServiceVersion', "2.1; future request")
         request.Send(s)
         self.assertTrue(request.responseCode == 400,
                         "Version mismatch error response: %i" % request.responseCode)
@@ -976,8 +979,8 @@ class ServerTests(unittest.TestCase):
         ) == "Maximum supported protocol version: 2.0", "Error message")
         self.assertTrue(error.InnerError is None, "No inner error")
         request = MockRequest('/')
-        request.SetHeader('DataServiceVersion', "2.1; future request")
-        request.SetHeader('Accept', "application/json")
+        request.set_header('DataServiceVersion', "2.1; future request")
+        request.set_header('Accept', "application/json")
         request.Send(s)
         self.assertTrue(
             request.responseCode == 400, "Version mismatch error response")
@@ -992,8 +995,8 @@ class ServerTests(unittest.TestCase):
                         'message'] == "Maximum supported protocol version: 2.0", "Error message")
         self.assertFalse('innererror' in errorDoc['error'], "No inner error")
         request = MockRequest('/')
-        request.SetHeader('DataServiceVersion', "1.0; old request")
-        request.SetHeader('MaxDataServiceVersion', "1.0; old max")
+        request.set_header('DataServiceVersion', "1.0; old request")
+        request.set_header('MaxDataServiceVersion', "1.0; old max")
         request.Send(s)
         self.assertTrue(request.responseCode == 200)
         major, minor, ua = core.ParseDataServiceVersion(
@@ -1001,8 +1004,8 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(major == 1 and minor == 0,
                         "MaxVersion 1.0 request should return 1.0 response: %i.%i" % (major, minor))
         request = MockRequest('/')
-        request.SetHeader('DataServiceVersion', "1.0; old request")
-        request.SetHeader('MaxDataServiceVersion', "2.0; current max")
+        request.set_header('DataServiceVersion', "1.0; old request")
+        request.set_header('MaxDataServiceVersion', "2.0; current max")
         request.Send(s)
         self.assertTrue(request.responseCode == 200)
         major, minor, ua = core.ParseDataServiceVersion(
@@ -1010,8 +1013,8 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(
             major == 2 and minor == 0, "MaxVersion 2.0 request should return 2.0 response")
         request = MockRequest('/')
-        request.SetHeader('DataServiceVersion', "1.0; old request")
-        request.SetHeader('MaxDataServiceVersion', "2.1; future max")
+        request.set_header('DataServiceVersion', "1.0; old request")
+        request.set_header('MaxDataServiceVersion', "2.1; future max")
         request.Send(s)
         self.assertTrue(request.responseCode == 200)
         major, minor, ua = core.ParseDataServiceVersion(
@@ -1383,7 +1386,7 @@ class ServerTests(unittest.TestCase):
         etag = "W/\"X'%s'\"" % h.hexdigest().upper()
         documents.data[1801] = (1801, 'War and Peace', 'Tolstoy', h.digest())
         with documentSet.OpenCollection() as coll:
-            sinfo = core.StreamInfo(type = http.PLAIN_TEXT)
+            sinfo = core.StreamInfo(type = params.PLAIN_TEXT)
             coll.update_stream(StringIO(docText), 1801, sinfo)
             document = coll[1801]
         jsonData = string.join(document.GenerateEntityTypeInJSON())
@@ -1447,7 +1450,7 @@ class ServerTests(unittest.TestCase):
         h.update(docText)
         documents.data[1801] = (1801, 'War and Peace', 'Tolstoy', h.digest())
         with documentSet.OpenCollection() as coll:
-            sinfo = core.StreamInfo(type = http.PLAIN_TEXT)
+            sinfo = core.StreamInfo(type = params.PLAIN_TEXT)
             coll.update_stream(StringIO(docText), 1801, sinfo)
             document = coll[1801]
         jsonData = string.join(document.GenerateEntityTypeInJSON())
@@ -1732,7 +1735,7 @@ class SampleServerTests(unittest.TestCase):
         documents.data[301] = (301, 'A Book', 'An Author', None)
         with memds.EntityCollection(entity_set=documents.entity_set,
                 entity_store=documents) as collection:
-            sinfo = core.StreamInfo(type=http.MediaType.from_str(
+            sinfo = core.StreamInfo(type=params.MediaType.from_str(
                 "text/plain; charset=iso-8859-1"))
             collection.update_stream(
                 StringIO("An opening line written in a Caf\xe9"), 301, sinfo)
@@ -2041,7 +2044,7 @@ class SampleServerTests(unittest.TestCase):
         for r in ("Customers", "Orders", "OrderLines", "Employees", "Documents", "ExtraEntities.Content", "ExtraEntities.BitsAndPieces"):
             self.assertTrue(r in feeds, "Missing feed: %s" % r)
         request = MockRequest('/service.svc/')
-        request.SetHeader('Accept', "application/json")
+        request.set_header('Accept', "application/json")
         request.Send(self.svc)
         self.assertTrue(
             request.responseCode == 200, "Service root response: %i" % request.responseCode)
@@ -2395,7 +2398,7 @@ class SampleServerTests(unittest.TestCase):
         # test json output
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/$links/Orders?$inlinecount=allpages&$top=1")
-        request.SetHeader('Accept', "application/json")
+        request.set_header('Accept', "application/json")
         request.Send(self.svc)
         self.assertTrue(
             request.responseHeaders['CONTENT-TYPE'] == "application/json")
@@ -2417,8 +2420,8 @@ class SampleServerTests(unittest.TestCase):
             self.assertTrue("uri" in link, "link has 'link' propert")
         # similar test but force a version 1 response
         request = MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
-        request.SetHeader('Accept', "application/json")
-        request.SetHeader('MaxDataServiceVersion', "1.0; old max")
+        request.set_header('Accept', "application/json")
+        request.set_header('MaxDataServiceVersion', "1.0; old max")
         request.Send(self.svc)
         obj = json.loads(request.wfile.getvalue())
         self.assertTrue(type(obj) == DictType and len(
@@ -2472,9 +2475,9 @@ class SampleServerTests(unittest.TestCase):
         # include exactly one occurrence of this attribute.
         # Any media type (see [IANA-MMT] ) is a valid value for this attribute.
         pType = doc.root.DataServices["SampleModel.BitsAndPieces.Details"]
-        mType = http.MediaType.from_str(pType.GetAttribute(core.MimeType))
+        mtype = params.MediaType.from_str(pType.GetAttribute(core.MimeType))
         self.assertTrue(
-            mType == "application/x-details", "Expected x-details MimeType")
+            mtype == "application/x-details", "Expected x-details MimeType")
         self.assertTrue(version == "2.0", "Expected data service version 2.0")
         baseURI = "/service.svc/$metadata?"
         request = MockRequest(baseURI)
@@ -2572,7 +2575,7 @@ class SampleServerTests(unittest.TestCase):
         # collection of addresses
         request = MockRequest(
             "/service.svc/ShippedAddressByDate?date=datetime'2013-08-02'")
-        request.SetHeader('Accept', "application/json")
+        request.set_header('Accept', "application/json")
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         #	check json output
@@ -2600,8 +2603,8 @@ class SampleServerTests(unittest.TestCase):
         #	check version 1 json output
         request = MockRequest(
             "/service.svc/ShippedAddressByDate?date=datetime'2013-08-02'")
-        request.SetHeader('Accept', "application/json")
-        request.SetHeader('MaxDataServiceVersion', "1.0; old max")
+        request.set_header('Accept', "application/json")
+        request.set_header('MaxDataServiceVersion', "1.0; old max")
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(
@@ -2680,7 +2683,7 @@ class SampleServerTests(unittest.TestCase):
         resource that does not exist in the data model."""
         request = MockRequest(
             "/service.svc/ShippedCustomerNamesByDate?date=datetime'2013-08-02'")
-        request.SetHeader('Accept', "application/json")
+        request.set_header('Accept', "application/json")
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         #	check json version 2 ouptput
@@ -2701,8 +2704,8 @@ class SampleServerTests(unittest.TestCase):
         #	check version 1 json output
         request = MockRequest(
             "/service.svc/ShippedCustomerNamesByDate?date=datetime'2013-08-02'")
-        request.SetHeader('Accept', "application/json")
-        request.SetHeader('MaxDataServiceVersion', "1.0; old max")
+        request.set_header('Accept', "application/json")
+        request.set_header('MaxDataServiceVersion', "1.0; old max")
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(
@@ -2912,7 +2915,7 @@ class SampleServerTests(unittest.TestCase):
                     linkInline is None, "Expected no inline content for Orders link")
         #	Test json format
         request = MockRequest("/service.svc/Customers?$expand=Orders")
-        request.SetHeader('Accept', "application/json")
+        request.set_header('Accept', "application/json")
         request.Send(self.svc)
         obj = json.loads(request.wfile.getvalue())
         self.assertTrue(type(obj) == DictType and len(
@@ -2951,7 +2954,7 @@ class SampleServerTests(unittest.TestCase):
             isinstance(linkInline, atom.Entry), "Expected atom.Entry in Customer link")
         #	Test json format
         request = MockRequest("/service.svc/Orders(1)?$expand=Customer")
-        request.SetHeader('Accept', "application/json")
+        request.set_header('Accept', "application/json")
         request.Send(self.svc)
         obj = json.loads(request.wfile.getvalue())
         self.assertTrue(type(obj) == DictType and len(
@@ -2985,7 +2988,7 @@ class SampleServerTests(unittest.TestCase):
             linkInline is None, "Expected empty inline in Customer link")
         #	Test json format
         request = MockRequest("/service.svc/Orders(4)?$expand=Customer")
-        request.SetHeader('Accept', "application/json")
+        request.set_header('Accept', "application/json")
         request.Send(self.svc)
         obj = json.loads(request.wfile.getvalue())
         self.assertTrue(type(obj) == DictType and len(
@@ -3023,7 +3026,7 @@ class SampleServerTests(unittest.TestCase):
         If the value of the query option is "xml", then the media type
         used in the response MUST be "application/xml"	"""
         request = MockRequest("/service.svc/Orders?$format=xml")
-        request.SetHeader('Accept', "application/json")
+        request.set_header('Accept', "application/json")
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(
@@ -3034,13 +3037,13 @@ class SampleServerTests(unittest.TestCase):
             isinstance(doc.root, atom.Feed), "Expected atom.Feed from /Orders?$format=xml")
         self.assertTrue(len(doc.root.Entry) == 4, "Expected 4 Orders")
         request = MockRequest("/service.svc/Orders?$format=atom")
-        request.SetHeader('Accept', "application/xml")
+        request.set_header('Accept', "application/xml")
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(
             request.responseHeaders['CONTENT-TYPE'] == "application/atom+xml")
         request = MockRequest("/service.svc/Orders(1)?$format=json")
-        request.SetHeader('Accept', "application/xml")
+        request.set_header('Accept', "application/xml")
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(
@@ -3056,7 +3059,7 @@ class SampleServerTests(unittest.TestCase):
         #
         # TODO: if ever, support custom format specifiers (note that media types are supported)
         # request.MockRequest("/Orders(1)/ShipCountry/$value/?$format=example")
-        # request.SetHeader('Accept',"application/json")
+        # request.set_header('Accept',"application/json")
 
     def testCaseOrderby(self):
         """the data service MUST return the entities, in order, based on
@@ -3397,8 +3400,8 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest("/service.svc/Customers", "POST")
         doc = core.Document(root=core.Entry(None, customer))
         data = str(doc)
-        request.SetHeader('Content-Type', core.ODATA_RELATED_ENTRY_TYPE)
-        request.SetHeader('Content-Length', str(len(data)))
+        request.set_header('Content-Type', core.ODATA_RELATED_ENTRY_TYPE)
+        request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 201)
@@ -3406,7 +3409,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request.responseHeaders[
                         'LOCATION'] == "http://host/service.svc/Customers('STEVE')")
         self.assertTrue(request.responseHeaders[
-                        'CONTENT-TYPE'] == http.MediaType.from_str("application/atom+xml"))
+                        'CONTENT-TYPE'] == params.MediaType.from_str("application/atom+xml"))
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, core.Entry),
@@ -3430,8 +3433,8 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest("/service.svc/Customers", "POST")
         doc = core.Document(root=core.Entry(None, customer))
         data = str(doc)
-        request.SetHeader('Content-Type', core.ODATA_RELATED_ENTRY_TYPE)
-        request.SetHeader('Content-Length', str(len(data)))
+        request.set_header('Content-Type', core.ODATA_RELATED_ENTRY_TYPE)
+        request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 201)
@@ -3477,9 +3480,9 @@ class SampleServerTests(unittest.TestCase):
         #	street left blank
         request = MockRequest("/service.svc/Customers", "POST")
         data = string.join(customer.GenerateEntityTypeInJSON(False, 1))
-        request.SetHeader('Content-Type', 'application/json')
-        request.SetHeader('Content-Length', str(len(data)))
-        request.SetHeader('Accept', "application/json")
+        request.set_header('Content-Type', 'application/json')
+        request.set_header('Content-Length', str(len(data)))
+        request.set_header('Accept', "application/json")
         request.rfile.write(data)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 201)
@@ -3487,7 +3490,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request.responseHeaders[
                         'LOCATION'] == "http://host/service.svc/Customers('STEVE')")
         self.assertTrue(request.responseHeaders[
-                        'CONTENT-TYPE'] == http.MediaType.from_str('application/json'))
+                        'CONTENT-TYPE'] == params.MediaType.from_str('application/json'))
         obj = json.loads(request.wfile.getvalue())
         self.assertTrue(type(obj) == DictType and len(
             obj) == 1 and "d" in obj, "JSON object is security wrapped")
@@ -3512,9 +3515,9 @@ class SampleServerTests(unittest.TestCase):
         customer['Orders'].BindEntity(4)
         request = MockRequest("/service.svc/Customers", "POST")
         data = string.join(customer.GenerateEntityTypeInJSON(False, 1))
-        request.SetHeader('Content-Type', 'application/json')
-        request.SetHeader('Content-Length', str(len(data)))
-        request.SetHeader('Accept', "application/json")
+        request.set_header('Content-Type', 'application/json')
+        request.set_header('Content-Length', str(len(data)))
+        request.set_header('Accept', "application/json")
         request.rfile.write(data)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 201)
@@ -3530,7 +3533,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(
             newCustomer['Address']['Street'].value == u"58 Contoso St")
         request = MockRequest("/service.svc/Customers('ASDFG')/Orders")
-        request.SetHeader('Accept', "application/json")
+        request.set_header('Accept', "application/json")
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         obj = json.loads(request.wfile.getvalue())
@@ -3558,8 +3561,8 @@ class SampleServerTests(unittest.TestCase):
         order = orders[4]
         doc.root.SetValue(str(order.GetLocation()))
         data = str(doc)
-        request.SetHeader('Content-Type', 'application/xml')
-        request.SetHeader('Content-Length', str(len(data)))
+        request.set_header('Content-Type', 'application/xml')
+        request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 204)
@@ -3586,8 +3589,8 @@ class SampleServerTests(unittest.TestCase):
         order = orders[4]
         obj = {'uri': str(order.GetLocation())}
         data = json.dumps(obj)
-        request.SetHeader('Content-Type', 'application/json')
-        request.SetHeader('Content-Length', str(len(data)))
+        request.set_header('Content-Type', 'application/json')
+        request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 204)
@@ -3595,7 +3598,7 @@ class SampleServerTests(unittest.TestCase):
             len(request.wfile.getvalue()) == 0, "empty response body expected")
         # let's just test the links themselves
         request = MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
-        request.SetHeader('Accept', 'application/json')
+        request.set_header('Accept', 'application/json')
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         obj = json.loads(request.wfile.getvalue())
@@ -3614,9 +3617,9 @@ class SampleServerTests(unittest.TestCase):
         h = hashlib.sha256()
         h.update(data)
         request = MockRequest("/service.svc/Documents", "POST")
-        request.SetHeader('Content-Type', "text/x-tolstoy")
-        request.SetHeader('Content-Length', str(len(data)))
-        request.SetHeader('Slug', 'War and Peace')
+        request.set_header('Content-Type', "text/x-tolstoy")
+        request.set_header('Content-Length', str(len(data)))
+        request.set_header('Slug', 'War and Peace')
         request.rfile.write(data)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 201)
@@ -3627,7 +3630,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(location[len(
             u"http://host/service.svc/Documents("):-1].isdigit(), "document Id is an integer")
         self.assertTrue(request.responseHeaders[
-                        'CONTENT-TYPE'] == http.MediaType.from_str("application/atom+xml"))
+                        'CONTENT-TYPE'] == params.MediaType.from_str("application/atom+xml"))
         # Document has a concurrency token so we expect an ETag too
         self.assertTrue("ETAG" in request.responseHeaders)
         self.assertTrue(request.responseHeaders[
@@ -3661,7 +3664,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/atom+xml")
         # Entity set can't have an ETag
         self.assertFalse("ETAG" in request.responseHeaders, "Entity set ETag")
@@ -3674,12 +3677,12 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseRetrieveEntitySetJSON(self):
         request = MockRequest('/service.svc/Customers')
-        request.SetHeader('Accept', 'application/json')
+        request.set_header('Accept', 'application/json')
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/json")
         self.assertFalse("ETAG" in request.responseHeaders, "Entity set ETag")
         obj = json.loads(request.wfile.getvalue())
@@ -3695,11 +3698,11 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(len(obj) == 91, "Sample server has 91 Customers")
         # make the same request with version 1
         request = MockRequest('/service.svc/Customers')
-        request.SetHeader('DataServiceVersion', "1.0; old request")
-        request.SetHeader('Accept', 'application/json')
+        request.set_header('DataServiceVersion', "1.0; old request")
+        request.set_header('Accept', 'application/json')
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/json")
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "1.0;"), "DataServiceVersion 1.0 expected")
@@ -3718,7 +3721,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/atom+xml")
         # Customer does have a version field for optimistic concurrency control
         self.assertTrue("ETAG" in request.responseHeaders, "Entity set ETag")
@@ -3730,12 +3733,12 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseRetrieveEntityJSON(self):
         request = MockRequest("/service.svc/Customers('ALFKI')")
-        request.SetHeader('Accept', 'application/json')
+        request.set_header('Accept', 'application/json')
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/json")
         # Customer does have a version field for optimistic concurrency control
         self.assertTrue("ETAG" in request.responseHeaders, "Entity set ETag")
@@ -3749,13 +3752,13 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue("CustomerID" in obj, "CustomerID in response")
         self.assertTrue(obj["CustomerID"] == 'ALFKI', "Bad CustomerID")
         request = MockRequest("/service.svc/Customers('ALFKI')")
-        request.SetHeader('DataServiceVersion', "1.0; old request")
-        request.SetHeader('Accept', 'application/json')
+        request.set_header('DataServiceVersion', "1.0; old request")
+        request.set_header('Accept', 'application/json')
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "1.0;"), "DataServiceVersion 1.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/json")
         # Customer does have a version field for optimistic concurrency control
         self.assertTrue("ETAG" in request.responseHeaders, "Entity set ETag")
@@ -3776,7 +3779,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/xml")
         # Customer does have a version field for optimistic concurrency control
         self.assertTrue("ETAG" in request.responseHeaders, "Entity set ETag")
@@ -3790,12 +3793,12 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseRetrieveComplexTypeJSON(self):
         request = MockRequest("/service.svc/Customers('ALFKI')/Address")
-        request.SetHeader('Accept', 'application/json')
+        request.set_header('Accept', 'application/json')
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/json")
         # Customer does have a version field for optimistic concurrency control
         self.assertTrue("ETAG" in request.responseHeaders, "Entity set ETag")
@@ -3812,13 +3815,13 @@ class SampleServerTests(unittest.TestCase):
         obj = obj["Address"]
         self.assertTrue(obj["Street"] == 'Mill Road', "Bad street in address")
         request = MockRequest("/service.svc/Customers('ALFKI')/Address")
-        request.SetHeader('DataServiceVersion', "1.0; old request")
-        request.SetHeader('Accept', 'application/json')
+        request.set_header('DataServiceVersion', "1.0; old request")
+        request.set_header('Accept', 'application/json')
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "1.0;"), "DataServiceVersion 1.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/json")
         self.assertTrue("ETAG" in request.responseHeaders, "Entity set ETag")
         obj = json.loads(request.wfile.getvalue())
@@ -3838,7 +3841,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/xml")
         # Customer does have a version field for optimistic concurrency control
         self.assertTrue("ETAG" in request.responseHeaders, "Entity set ETag")
@@ -3851,12 +3854,12 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseRetrievePrimitivePropertyJSON(self):
         request = MockRequest("/service.svc/Customers('ALFKI')/CompanyName")
-        request.SetHeader('Accept', 'application/json')
+        request.set_header('Accept', 'application/json')
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/json")
         # Customer does have a version field for optimistic concurrency control
         self.assertTrue("ETAG" in request.responseHeaders, "Entity set ETag")
@@ -3872,13 +3875,13 @@ class SampleServerTests(unittest.TestCase):
             "CompanyName" in obj, "Expected named object 'CompanyName' in response")
         self.assertTrue(obj["CompanyName"] == 'Example Inc', "Bad company")
         request = MockRequest("/service.svc/Customers('ALFKI')/CompanyName")
-        request.SetHeader('DataServiceVersion', "1.0; old request")
-        request.SetHeader('Accept', 'application/json')
+        request.set_header('DataServiceVersion', "1.0; old request")
+        request.set_header('Accept', 'application/json')
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "1.0;"), "DataServiceVersion 1.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/json")
         self.assertTrue("ETAG" in request.responseHeaders, "Entity set ETag")
         obj = json.loads(request.wfile.getvalue())
@@ -3898,8 +3901,8 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaRange.from_str(
-            "text/plain").MatchMediaType(http.MediaType.from_str(request.responseHeaders['CONTENT-TYPE'])))
+        self.assertTrue(messages.MediaRange.from_str(
+            "text/plain").match_media_type(params.MediaType.from_str(request.responseHeaders['CONTENT-TYPE'])))
         # Customer does have a version field for optimistic concurrency control
         self.assertTrue("ETAG" in request.responseHeaders, "Entity set ETag")
         self.assertTrue(
@@ -3921,7 +3924,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/octet-stream")
         # Customer does have a version field for optimistic concurrency control
         self.assertTrue("ETAG" in request.responseHeaders, "Entity set ETag")
@@ -3940,7 +3943,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/xml")
         doc = edmx.Document()
         doc.Read(request.wfile.getvalue())
@@ -3960,7 +3963,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/atomsvc+xml")
         doc = app.Document()
         doc.Read(request.wfile.getvalue())
@@ -3969,12 +3972,12 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseRetrieveServiceDocumentJSON(self):
         request = MockRequest("/service.svc/")
-        request.SetHeader('Accept', 'application/json')
+        request.set_header('Accept', 'application/json')
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/json")
         obj = json.loads(request.wfile.getvalue())
         self.assertTrue(type(obj) == DictType and len(
@@ -3993,7 +3996,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/xml")
         self.assertFalse("ETAG" in request.responseHeaders, "Entity set ETag")
         doc = core.Document()
@@ -4006,7 +4009,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/xml")
         self.assertFalse("ETAG" in request.responseHeaders, "Entity set ETag")
         doc = core.Document()
@@ -4018,12 +4021,12 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseRetrieveLinkJSON(self):
         request = MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
-        request.SetHeader('Accept', 'application/json')
+        request.set_header('Accept', 'application/json')
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/json")
         self.assertFalse("ETAG" in request.responseHeaders, "Entity set ETag")
         obj = json.loads(request.wfile.getvalue())
@@ -4036,13 +4039,13 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(len(obj) == 2, "Sample customer has 2 orders")
         # version 1 format
         request = MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
-        request.SetHeader('DataServiceVersion', "1.0; old request")
-        request.SetHeader('Accept', 'application/json')
+        request.set_header('DataServiceVersion', "1.0; old request")
+        request.set_header('Accept', 'application/json')
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "1.0;"), "DataServiceVersion 1.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/json")
         self.assertFalse("ETAG" in request.responseHeaders, "Entity set ETag")
         obj = json.loads(request.wfile.getvalue())
@@ -4053,12 +4056,12 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(len(obj) == 2, "Sample customer has 2 orders")
         # Now the single link use case: one format for both versions
         request = MockRequest("/service.svc/Orders(1)/$links/Customer")
-        request.SetHeader('Accept', 'application/json')
+        request.set_header('Accept', 'application/json')
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaType.from_str(
+        self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/json")
         self.assertFalse("ETAG" in request.responseHeaders, "Entity set ETag")
         obj = json.loads(request.wfile.getvalue())
@@ -4075,8 +4078,8 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaRange.from_str(
-            "text/plain").MatchMediaType(http.MediaType.from_str(request.responseHeaders['CONTENT-TYPE'])))
+        self.assertTrue(messages.MediaRange.from_str(
+            "text/plain").match_media_type(params.MediaType.from_str(request.responseHeaders['CONTENT-TYPE'])))
         self.assertFalse("ETAG" in request.responseHeaders, "Count ETag")
         self.assertTrue(
             request.wfile.getvalue() == "91", "Sample server has 91 Customers")
@@ -4086,8 +4089,8 @@ class SampleServerTests(unittest.TestCase):
         request.Send(self.svc)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
-        self.assertTrue(http.MediaRange.from_str("text/plain ; charset=iso-8859-1").MatchMediaType(
-            http.MediaType.from_str(request.responseHeaders['CONTENT-TYPE'])))
+        self.assertTrue(messages.MediaRange.from_str("text/plain ; charset=iso-8859-1").match_media_type(
+            params.MediaType.from_str(request.responseHeaders['CONTENT-TYPE'])))
         self.assertTrue("ETAG" in request.responseHeaders, "Entity set ETag")
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(unicode(request.wfile.getvalue(), "iso-8859-1") == unicode(
@@ -4102,8 +4105,8 @@ class SampleServerTests(unittest.TestCase):
         doc = core.Document(root=core.Entry)
         doc.root.SetValue(customer, True)
         data = str(doc)
-        request.SetHeader('Content-Type', core.ODATA_RELATED_ENTRY_TYPE)
-        request.SetHeader('Content-Length', str(len(data)))
+        request.set_header('Content-Type', core.ODATA_RELATED_ENTRY_TYPE)
+        request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 204)
@@ -4128,8 +4131,8 @@ class SampleServerTests(unittest.TestCase):
         doc = core.Document(root=core.Entry)
         doc.root.SetValue(order, True)
         data = str(doc)
-        request.SetHeader('Content-Type', core.ODATA_RELATED_ENTRY_TYPE)
-        request.SetHeader('Content-Length', str(len(data)))
+        request.set_header('Content-Type', core.ODATA_RELATED_ENTRY_TYPE)
+        request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 204)
@@ -4153,9 +4156,9 @@ class SampleServerTests(unittest.TestCase):
         customer['CompanyName'].SetFromValue("Example Inc Updated")
         request = MockRequest("/service.svc/Customers('ALFKI')", "PUT")
         jsonData = string.join(customer.GenerateEntityTypeInJSON(True))
-        request.SetHeader('Accept', "application/json")
-        request.SetHeader('Content-Type', "application/json")
-        request.SetHeader('Content-Length', str(len(jsonData)))
+        request.set_header('Accept', "application/json")
+        request.set_header('Content-Type', "application/json")
+        request.set_header('Content-Length', str(len(jsonData)))
         request.rfile.write(jsonData)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 204)
@@ -4178,9 +4181,9 @@ class SampleServerTests(unittest.TestCase):
         order['Customer'].BindEntity(customer)
         request = MockRequest("/service.svc/Orders(3)", "PUT")
         jsonData = string.join(order.GenerateEntityTypeInJSON(True))
-        request.SetHeader('Accept', "application/json")
-        request.SetHeader('Content-Type', "application/json")
-        request.SetHeader('Content-Length', str(len(jsonData)))
+        request.set_header('Accept', "application/json")
+        request.set_header('Content-Type', "application/json")
+        request.set_header('Content-Length', str(len(jsonData)))
         request.rfile.write(jsonData.encode('utf-8'))
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 204)
@@ -4207,8 +4210,8 @@ class SampleServerTests(unittest.TestCase):
         doc.root.SetXMLName((core.ODATA_DATASERVICES_NAMESPACE, 'Address'))
         doc.root.SetValue(customer['Address'])
         data = str(doc)
-        request.SetHeader('Content-Type', "application/xml")
-        request.SetHeader('Content-Length', str(len(data)))
+        request.set_header('Content-Type', "application/xml")
+        request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 204)
@@ -4230,10 +4233,10 @@ class SampleServerTests(unittest.TestCase):
             customer = collection['ALFKI']
         customer['Address']['Street'].SetFromValue("High Street")
         request = MockRequest("/service.svc/Customers('ALFKI')/Address", "PUT")
-        request.SetHeader('Accept', "application/json")
+        request.set_header('Accept', "application/json")
         data = core.EntityCTInJSON(customer['Address'])
-        request.SetHeader('Content-Type', "application/json")
-        request.SetHeader('Content-Length', str(len(data)))
+        request.set_header('Content-Type', "application/json")
+        request.set_header('Content-Length', str(len(data)))
         request.rfile.write(str(data))
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 204)
@@ -4260,8 +4263,8 @@ class SampleServerTests(unittest.TestCase):
         doc.root.SetXMLName((core.ODATA_DATASERVICES_NAMESPACE, 'CompanyName'))
         doc.root.SetValue(customer['CompanyName'])
         data = str(doc)
-        request.SetHeader('Content-Type', "application/xml")
-        request.SetHeader('Content-Length', str(len(data)))
+        request.set_header('Content-Type', "application/xml")
+        request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 204)
@@ -4284,10 +4287,10 @@ class SampleServerTests(unittest.TestCase):
         customer['CompanyName'].SetFromValue("Example Inc Updated")
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/CompanyName", "PUT")
-        request.SetHeader('Accept', "application/json")
+        request.set_header('Accept', "application/json")
         data = core.EntityPropertyInJSON1(customer['CompanyName'])
-        request.SetHeader('Content-Type', "application/json")
-        request.SetHeader('Content-Length', str(len(data)))
+        request.set_header('Content-Type', "application/json")
+        request.set_header('Content-Length', str(len(data)))
         request.rfile.write(str(data))
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 204)
@@ -4308,8 +4311,8 @@ class SampleServerTests(unittest.TestCase):
             "/service.svc/Customers('ALFKI')/CompanyName/$value", "PUT")
         data = u"Caf\xe9 Inc".encode("ISO-8859-1")
         # by default we use ISO-8859-1
-        request.SetHeader('Content-Type', "text/plain")
-        request.SetHeader('Content-Length', str(len(data)))
+        request.set_header('Content-Type', "text/plain")
+        request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 204)
@@ -4327,8 +4330,8 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/CompanyName/$value", "PUT")
         data = u"Caf\xe9 Incorporated".encode("utf-8")
-        request.SetHeader('Content-Type', "text/plain; charset=utf-8")
-        request.SetHeader('Content-Length', str(len(data)))
+        request.set_header('Content-Type', "text/plain; charset=utf-8")
+        request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 204)
@@ -4350,8 +4353,8 @@ class SampleServerTests(unittest.TestCase):
         doc = core.Document(root=core.URI)
         doc.root.SetValue(str(customer.GetLocation()))
         data = str(doc)
-        request.SetHeader('Content-Type', "application/xml")
-        request.SetHeader('Content-Length', str(len(data)))
+        request.set_header('Content-Type', "application/xml")
+        request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 204)
@@ -4379,8 +4382,8 @@ class SampleServerTests(unittest.TestCase):
             customer = collection['ALFKI']
         request = MockRequest("/service.svc/Orders(3)/$links/Customer", "PUT")
         data = str(customer.LinkJSON())
-        request.SetHeader('Content-Type', "application/json")
-        request.SetHeader('Content-Length', str(len(data)))
+        request.set_header('Content-Type', "application/json")
+        request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 204)
@@ -4402,8 +4405,8 @@ class SampleServerTests(unittest.TestCase):
         h = hashlib.sha256()
         h.update(data)
         request = MockRequest("/service.svc/Documents(301)/$value", "PUT")
-        request.SetHeader('Content-Type', "text/x-tolstoy")
-        request.SetHeader('Content-Length', str(len(data)))
+        request.set_header('Content-Type', "text/x-tolstoy")
+        request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 204)

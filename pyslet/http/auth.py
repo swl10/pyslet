@@ -6,8 +6,8 @@ import base64
 import types
 
 import pyslet.rfc2396 as uri
-from pyslet.http.grammar import *
-from pyslet.http.params import *
+import pyslet.http.grammar as grammar
+import pyslet.http.params as params
 
 
 class Challenge(object):
@@ -32,7 +32,7 @@ class Challenge(object):
     dictionary like."""
 
     def __init__(self, scheme, *params):
-        self.scheme = scheme				#: the name of the schema
+        self.scheme = scheme                #: the name of the schema
         self._params = list(params)
         self._pdict = {}
         for pn, pv, pq in self._params:
@@ -44,14 +44,15 @@ class Challenge(object):
             self._params.append(("realm", "Default", True))
             self._pdict["realm"] = "Default"
         self.protectionSpace = None
-        """an optional protection space indicating the scope of this challenge."""
+        """an optional protection space indicating the scope of this
+        challenge."""
 
     @classmethod
     def from_str(cls, source):
         """Creates a Challenge from a *source* string."""
         p = AuthorizationParser(source, ignore_sp=False)
         p.parse_sp()
-        c = p.RequireChallenge()
+        c = p.require_challenge()
         p.parse_sp()
         p.require_end("challenge")
         return c
@@ -62,7 +63,7 @@ class Challenge(object):
         p = AuthorizationParser(source)
         challenges = []
         while True:
-            c = p.parse_production(p.RequireChallenge)
+            c = p.parse_production(p.require_challenge)
             if c is not None:
                 challenges.append(c)
             if not p.parse_separator(","):
@@ -74,7 +75,7 @@ class Challenge(object):
         result = [self.scheme]
         params = []
         for pn, pv, pq in self._params:
-            params.append("%s=%s" % (pn, quote_string(pv, force=pq)))
+            params.append("%s=%s" % (pn, grammar.quote_string(pv, force=pq)))
         if params:
             result.append(string.join(params, ', '))
         return string.join(result, ' ')
@@ -83,7 +84,8 @@ class Challenge(object):
         return unicode(self.__str__())
 
     def __repr__(self):
-        return "Challege(%s,%s)" % (repr(self.scheme), string.join(map(repr, self._params), ','))
+        return "Challege(%s,%s)" % (repr(self.scheme),
+                                    string.join(map(repr, self._params), ','))
 
     def __len__(self):
         return len(self._params)
@@ -122,27 +124,27 @@ class Credentials(object):
 
     Instances are typically created and then added to a request manager
     object using
-    :py:meth:`~pyslet.rfc2616.HTTPRequestManager.AddCredentials` for
+    :py:meth:`~pyslet.rfc2616.HTTPRequestManager.add_credentials` for
     matching against HTTP authorization challenges.
 
     The built-in str function can be used to format instances according
     to the grammar defined in the specification."""
 
     def __init__(self):
-        self.scheme = None			#: the authentication scheme
+        self.scheme = None          #: the authentication scheme
         self.protectionSpace = None
         """the protection space in which these credentials should be used.
-		
-		The protection space is a :py:class:`pyslet.rfc2396.URI` instance
-		reduced to just the the URL scheme, hostname and port."""
+
+        The protection space is a :py:class:`pyslet.rfc2396.URI` instance
+        reduced to just the the URL scheme, hostname and port."""
         self.realm = None
         """the realm in which these credentials should be used.
-		
-		The realm is a simple string as returned by the HTTP server.  If
-		None then these credentials will be used for any realm within
-		the protection space."""
 
-    def MatchChallenge(self, challenge):
+        The realm is a simple string as returned by the HTTP server.  If
+        None then these credentials will be used for any realm within
+        the protection space."""
+
+    def match_challenge(self, challenge):
         """Returns True if these credentials can be used in response
         to *challenge*.
 
@@ -161,7 +163,7 @@ class Credentials(object):
                 return False
         return True
 
-    def TestURL(self, url):
+    def test_url(self, url):
         """Returns True if these credentials can be used peremptorily
         when making a request to *url*.
 
@@ -172,23 +174,23 @@ class Credentials(object):
         return False
 
     @classmethod
-    def FromWords(cls, wp):
+    def from_words(cls, wp):
         scheme = wp.require_token("Authentication Scheme").lower()
         if scheme == "basic":
             # the rest of the words represent the credentials as a base64
             # string
             credentials = BasicCredentials()
-            credentials.SetBasicCredentials(wp.parse_remainder())
+            credentials.set_basic_credentials(wp.parse_remainder())
         else:
             raise NotImplementedError
         return credentials
 
     @classmethod
-    def from_http_str(cls, source):
+    def from_str(cls, source):
         """Constructs a :py:class:`Credentials` instance from an HTTP
         formatted string."""
-        wp = WordParser(source)
-        credentials = cls.FromWords(wp)
+        wp = grammar.WordParser(source)
+        credentials = cls.from_words(wp)
         wp.require_end("authorization header")
         return credentials
 
@@ -200,75 +202,77 @@ class BasicCredentials(Credentials):
         self.scheme = "Basic"
         self.userid = None
         self.password = None
-        # : a list of path-prefixes for which these credentials are known to be good
+        # a list of path-prefixes for which these credentials are known
+        # to be good
         self.pathPrefixes = []
 
-    def SetBasicCredentials(self, basicCredentials):
-        credentials = base64.b64decode(basicCredentials).split(':')
+    def set_basic_credentials(self, basic_credentials):
+        credentials = base64.b64decode(basic_credentials).split(':')
         if len(credentials) == 2:
             self.userid, self.password = credentials
         else:
-            raise HTTPInvalidBasicCredentials(basicCredentials)
+            raise ValueError(basic_credentials)
 
-    def Match(self, challenge=None, url=None):
+    def match(self, challenge=None, url=None):
         if challenge is not None:
             # must match the challenge
-            if not super(BasicCredentials, self).Match(challenge):
+            if not super(BasicCredentials, self).match(challenge):
                 return False
         if url is not None:
             # must match the url
-            if not self.TestURL(url):
+            if not self.test_url(url):
                 return False
         elif challenge is None:
             raise ValueError(
                 "BasicCredentials must be matched to a challenge or a URL")
         return True
 
-    def TestURL(self, url):
+    def test_url(self, url):
         """Given a :py:class:`~pyslet.rfc2396.URI` instance representing
         an absolute URI, checks if these credentials contain a matching
         protection space and path prefix."""
         if not url.IsAbsolute():
-            raise ValueError("TestURL requires an absolute URL")
-        if self.protectionSpace == url.GetCanonicalRoot() and self.TestPath(url.absPath):
+            raise ValueError("test_url requires an absolute URL")
+        if (self.protectionSpace == url.GetCanonicalRoot() and
+                self.test_path(url.absPath)):
             return True
         else:
             return False
 
-    def TestPath(self, path):
+    def test_path(self, path):
         """Returns True if there is a path prefix that matches *path*"""
         path = uri.SplitPath(path)
         uri.NormalizeSegments(path)
         for p in self.pathPrefixes:
-            if self.IsPrefix(p, path):
+            if self.is_prefix(p, path):
                 return True
         return False
 
-    def AddSuccessPath(self, path):
+    def add_success_path(self, path):
         """Adds *pathPrefix* to the list of path prefixes that these
         credentials apply to.
 
         If pathPrefix is a more general prefix than an existing prefix
         in the list then it replaces that prefix."""
-        newPrefix = uri.SplitPath(path)
-        uri.NormalizeSegments(newPrefix)
+        new_prefix = uri.SplitPath(path)
+        uri.NormalizeSegments(new_prefix)
         keep = True
         i = 0
         while i < len(self.pathPrefixes):
             p = self.pathPrefixes[i]
-            # p could be a prefix of newPrefix
-            if self.IsPrefix(p, newPrefix):
+            # p could be a prefix of new_prefix
+            if self.is_prefix(p, new_prefix):
                 keep = False
                 break
-            elif self.IsPrefix(newPrefix, p):
-                # newPrefix could be a prefix of p
+            elif self.is_prefix(new_prefix, p):
+                # new_prefix could be a prefix of p
                 del self.pathPrefixes[i]
                 continue
             i = i + 1
         if keep:
-            self.pathPrefixes.append(newPrefix)
+            self.pathPrefixes.append(new_prefix)
 
-    def IsPrefix(self, prefix, path):
+    def is_prefix(self, prefix, path):
         if len(prefix) > len(path):
             return False
         i = 0
@@ -286,13 +290,13 @@ class BasicCredentials(Credentials):
         return string.join(format, '')
 
 
-class AuthorizationParser(ParameterParser):
+class AuthorizationParser(params.ParameterParser):
 
-    def RequireChallenge(self):
+    def require_challenge(self):
         """Parses a challenge returning a :py:class:`Challenge`
         instance.  Raises BadSyntax if no challenge was found."""
         self.parse_sp()
-        authScheme = self.require_token("auth scheme")
+        auth_scheme = self.require_token("auth scheme")
         params = []
         self.parse_sp()
         while self.the_word is not None:
@@ -303,16 +307,16 @@ class AuthorizationParser(ParameterParser):
                 self.parse_sp()
                 if self.is_token():
                     param_value = self.parse_token()
-                    forceQ = False
+                    forceq = False
                 else:
                     param_value = self.require_production(
                         self.parse_quoted_string(), "auth-param value")
-                    forceQ = True
-                params.append((param_name, param_value, forceQ))
+                    forceq = True
+                params.append((param_name, param_value, forceq))
             self.parse_sp()
             if not self.parse_separator(","):
                 break
-        if authScheme.lower() == "basic":
+        if auth_scheme.lower() == "basic":
             return BasicChallenge(*params)
         else:
             return Challenge(*params)

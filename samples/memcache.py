@@ -31,7 +31,7 @@ def TestData(memCache):
 	with memCache.OpenCollection() as collection:
 		for i in xrange(26):
 			e=collection.new_entity()
-			e.SetKey(str(i))
+			e.set_key(str(i))
 			e['Value'].SetFromValue(unichr(0x41+i))
 			e['Expires'].SetFromValue(iso.TimePoint.FromUnixTime(time.time()+10*i))
 			collection.insert_entity(e)

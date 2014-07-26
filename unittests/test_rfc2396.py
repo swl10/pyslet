@@ -298,14 +298,14 @@ class URITests(unittest.TestCase):
         u1 = URI(SIMPLE_EXAMPLE)
         u2 = URI(SIMPLE_EXAMPLE)
         self.assertTrue(
-            u1.Match(u2) and u2.Match(u1), "Equal URIs fail to match")
+            u1.match(u2) and u2.match(u1), "Equal URIs fail to match")
         u2 = URI('hello.xml')
         self.assertFalse(
-            u1.Match(u2) or u2.Match(u1), "Mismatched URIs do match")
+            u1.match(u2) or u2.match(u1), "Mismatched URIs do match")
         u1 = URI("HTTP://www.example.com/")
         u2 = URI("http://www.example.com/")
         self.assertTrue(
-            u1.Match(u2) and u2.Match(u1), "Equal URIs fail to match")
+            u1.match(u2) and u2.match(u1), "Equal URIs fail to match")
 
     def testCaseScheme(self):
         u = URI(SIMPLE_EXAMPLE)

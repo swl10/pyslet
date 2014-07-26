@@ -685,7 +685,7 @@ class BasicParser(object):
         self.require_end(production)
         return result
 
-    def Match(self, matchString):
+    def match(self, matchString):
         """Returns true if *matchString* is at the current position"""
         if self.the_char is None:
             return False
@@ -697,7 +697,7 @@ class BasicParser(object):
 
         Advances the parser to the first character after matchString.  Returns
         an *empty string* otherwise"""
-        if self.Match(matchString):
+        if self.match(matchString):
             self.setpos(self.pos + len(matchString))
             return matchString
         else:

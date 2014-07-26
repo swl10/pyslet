@@ -433,7 +433,7 @@ class Entity(AtomElement):
         self.Title = None		#: atomTitle
         self.Updated = None  # : atomUpdated
 
-    def Reset(self):
+    def reset(self):
         for child in itertools.chain(self.Author, self.Category, self.Contributor, self.Link):
             child.DetachFromParent
         self.Author = []
@@ -449,7 +449,7 @@ class Entity(AtomElement):
         if self.Updated:
             self.Updated.DetachFromParent()
             self.Update = None
-        super(Entity, self).Reset()
+        super(Entity, self).reset()
 
     def GetChildren(self):
         if self.AtomId:
@@ -546,8 +546,8 @@ class Entry(Entity):
         self.Source = None
         self.Summary = None
 
-    def Reset(self):
-        self.AtomId.Reset()
+    def reset(self):
+        self.AtomId.reset()
         if self.Content:
             self.Content.DetatchFromParent()
             self.Content = None
@@ -560,8 +560,8 @@ class Entry(Entity):
         if self.Summary:
             self.Summary.DetachFromParent()
             self.Summary = None
-        super(Entry, self).Reset()
-        # Parent Reset removes 'optional' Title and Update elements
+        super(Entry, self).reset()
+        # Parent reset removes 'optional' Title and Update elements
         self.Title = self.TitleClass(self)
         self.Updated = self.UpdatedClass(self)
         now = iso8601.TimePoint.FromNowUTC()

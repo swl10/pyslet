@@ -299,11 +299,11 @@ def runWeatherLoader(container=None):
                 # Load in nextDay
                 logging.info("Requesting data for %s", str(nextDay))
                 century, year, month, day = nextDay.GetCalendarDay()
-                request = http.HTTPRequest(DTG % str(nextDay))
-                client.ProcessRequest(request)
+                request = ClientRequest(DTG % str(nextDay))
+                client.process_request(request)
                 if request.status == 200:
                     # process this file and move on to the next day
-                    f = StringIO.StringIO(request.resBody)
+                    f = StringIO.StringIO(request.res_body)
                     LoadDataFromFile(
                         weatherData, f, century * 100 + year, month, day)
                     nextDay = nextDay.Offset(days=1)
@@ -315,7 +315,7 @@ def runWeatherLoader(container=None):
             else:
                 # back off and try again
                 sleepInterval = sleepInterval * 2
-            client.IdleCleanup(0)
+            client.idle_cleanup(0)
             if sleepInterval > 86400:
                 sleepInterval = 86400
             time.sleep(sleepInterval)

@@ -12,6 +12,7 @@ import io
 from pyslet.vfs import OSFilePath as FilePath
 from pyslet.iso8601 import TimePoint
 import pyslet.rfc2616 as http
+import pyslet.http.params as params
 import pyslet.odata2.csdl as edm
 import pyslet.odata2.core as core
 
@@ -75,6 +76,8 @@ class BlockStore(object):
         self.max_block_size = max_block_size
 
     def key(self, data):
+        if isinstance(data, bytearray):
+            data = str(data)
         return self.hash_class(data).hexdigest().lower()
 
     def store(self, data):
@@ -334,7 +337,7 @@ class LockStore(object):
                         pass
                 twait = random.randint(0, timeout // 5)
                 tnow = time.time()
-        logging.error("LockingBlockStore: timeout locking %s", hash_key)
+        logging.warn("LockingBlockStore: timeout locking %s", hash_key)
         raise LockError
 
     def unlock(self, hash_key):
@@ -472,7 +475,7 @@ class StreamStore(object):
         self.block_set = entity_set.NavigationTarget('Blocks')
 
     def new_stream(self,
-                   mimetype=http.MediaType('application', 'octet-stream'),
+                   mimetype=params.MediaType('application', 'octet-stream'),
                    created=None):
         """Creates a new stream in the store.
 
@@ -487,8 +490,8 @@ class StreamStore(object):
         :py:meth:`get_stream` to retrieve the stream again later."""
         with self.stream_set.OpenCollection() as streams:
             stream = streams.new_entity()
-            if not isinstance(mimetype, http.MediaType):
-                mimetype = http.MediaType.from_str(mimetype)
+            if not isinstance(mimetype, params.MediaType):
+                mimetype = params.MediaType.from_str(mimetype)
             stream['mimetype'].SetFromValue(str(mimetype))
             now = TimePoint.FromNowUTC()
             stream['size'].SetFromValue(0)
@@ -564,16 +567,17 @@ class StreamStore(object):
         filter.AddOperand(core.LiteralExpression(hash_value))
         # filter is: hash eq <hash_value>
         with self.block_set.OpenCollection() as base_coll:
-            with self.ls.lock(hash_key), self.ls.lock(new_hash):
-                self.bs.store(data)
-                block['hash'].SetFromValue(new_hash)
-                base_coll.update_entity(block)
-                # is the old hash key used anywhere?
-                hash_value.SetFromValue(hash_key)
-                base_coll.set_filter(filter)
-                if len(base_coll) == 0:
-                    # remove orphan block from block store
-                    self.bs.delete(hash_key)
+            with self.ls.lock(hash_key):
+                with self.ls.lock(new_hash):
+                    self.bs.store(data)
+                    block['hash'].SetFromValue(new_hash)
+                    base_coll.update_entity(block)
+                    # is the old hash key used anywhere?
+                    hash_value.SetFromValue(hash_key)
+                    base_coll.set_filter(filter)
+                    if len(base_coll) == 0:
+                        # remove orphan block from block store
+                        self.bs.delete(hash_key)
 
     def retrieve_blocklist(self, stream):
         with stream['Blocks'].OpenCollection() as blocks:
@@ -693,7 +697,7 @@ class BlockStream(io.RawIOBase):
                     self.blocks[self._bnum] = self.ss.store_block(
                         self.stream, self._bnum, data)
                 if self._md5 is not None and self._bnum == self._md5num:
-                    self._md5.update(data)
+                    self._md5.update(str(data))
                     self._md5num += 1
                 else:
                     self._md5 = None

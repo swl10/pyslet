@@ -1,6 +1,8 @@
 #! /usr/bin/env python
 """OData server implementation."""
 
+from pyslet.py26 import *       # noqa
+
 import sys
 import string
 import traceback
@@ -12,6 +14,9 @@ import pyslet.info as info
 import pyslet.rfc4287 as atom
 import pyslet.rfc5023 as app
 import pyslet.rfc2616 as http
+import pyslet.http.grammar as grammar
+import pyslet.http.params as params
+import pyslet.http.messages as messages
 import pyslet.rfc2396 as uri
 import pyslet.xml20081126.structures as xml
 import pyslet.html40_19991224 as html
@@ -68,15 +73,15 @@ class Server(app.Server):
     (and no redirection is necessary)."""
 
     AtomRanges = [
-        http.MediaRange.from_str('application/atom+xml'),
-        http.MediaRange.from_str('application/xml'),
-        http.MediaRange.from_str('text/xml')]
+        messages.MediaRange.from_str('application/atom+xml'),
+        messages.MediaRange.from_str('application/xml'),
+        messages.MediaRange.from_str('text/xml')]
 
     JSONRanges = [
-        http.MediaRange.from_str('application/json')
+        messages.MediaRange.from_str('application/json')
     ]
 
-    DefaultAcceptList = http.AcceptList.from_str(
+    DefaultAcceptList = messages.AcceptList.from_str(
         "application/atom+xml, "
         "application/atomsvc+xml, "
         "application/xml; q=0.9, "
@@ -85,61 +90,61 @@ class Server(app.Server):
         "*/*; q=0.6")
 
     ErrorTypes = [
-        http.MediaType.from_str('application/atom+xml'),
-        http.MediaType.from_str('application/xml'),
-        http.MediaType.from_str('application/json')]
+        params.MediaType.from_str('application/atom+xml'),
+        params.MediaType.from_str('application/xml'),
+        params.MediaType.from_str('application/json')]
 
     RedirectTypes = [
-        http.MediaType.from_str('text/html'),
-        http.MediaType.from_str('text/plain'),
-        http.MediaType.from_str('application/xml')]
+        params.MediaType.from_str('text/html'),
+        params.MediaType.from_str('text/plain'),
+        params.MediaType.from_str('application/xml')]
 
     FeedTypes = [		# in order of preference if there is a tie
-        http.MediaType.from_str('application/atom+xml'),
-        http.MediaType.from_str('application/atom+xml;type=feed'),
-        http.MediaType.from_str('application/xml'),
-        http.MediaType.from_str('text/xml'),
-        http.MediaType.from_str('application/json'),
-        http.MediaType.from_str('text/plain')]
+        params.MediaType.from_str('application/atom+xml'),
+        params.MediaType.from_str('application/atom+xml;type=feed'),
+        params.MediaType.from_str('application/xml'),
+        params.MediaType.from_str('text/xml'),
+        params.MediaType.from_str('application/json'),
+        params.MediaType.from_str('text/plain')]
 
     EntryTypes = [  # in order of preference if there is a tie
-        http.MediaType.from_str('application/atom+xml'),
-        http.MediaType.from_str('application/atom+xml;type=entry'),
-        http.MediaType.from_str('application/xml'),
-        http.MediaType.from_str('text/xml'),
-        http.MediaType.from_str('application/json'),
-        http.MediaType.from_str('text/plain')]
+        params.MediaType.from_str('application/atom+xml'),
+        params.MediaType.from_str('application/atom+xml;type=entry'),
+        params.MediaType.from_str('application/xml'),
+        params.MediaType.from_str('text/xml'),
+        params.MediaType.from_str('application/json'),
+        params.MediaType.from_str('text/plain')]
 
     ValueTypes = [  # in order of preference if there is a tie
-        http.MediaType.from_str('application/xml'),
-        http.MediaType.from_str('text/xml'),
-        http.MediaType.from_str('application/json'),
-        http.MediaType.from_str('text/plain')]
+        params.MediaType.from_str('application/xml'),
+        params.MediaType.from_str('text/xml'),
+        params.MediaType.from_str('application/json'),
+        params.MediaType.from_str('text/plain')]
 
     ServiceRootTypes = [  # in order of preference if there is a tie
-        http.MediaType.from_str('application/atomsvc+xml'),
-        http.MediaType.from_str('application/json'),
-        http.MediaType.from_str('application/xml'),
-        http.MediaType.from_str('text/plain')]
+        params.MediaType.from_str('application/atomsvc+xml'),
+        params.MediaType.from_str('application/json'),
+        params.MediaType.from_str('application/xml'),
+        params.MediaType.from_str('text/plain')]
 
     MetadataTypes = [  # in order of preference if there is a tie
-        http.MediaType.from_str('application/xml'),
-        http.MediaType.from_str('text/xml'),
-        http.MediaType.from_str('text/plain')]
+        params.MediaType.from_str('application/xml'),
+        params.MediaType.from_str('text/xml'),
+        params.MediaType.from_str('text/plain')]
 
     DereferenceBinaryRanges = [
-        http.MediaRange.from_str('application/octet-stream'),
-        http.MediaRange.from_str('octet/stream')]
+        messages.MediaRange.from_str('application/octet-stream'),
+        messages.MediaRange.from_str('octet/stream')]
 
     DereferenceTypes = [  # in order of preference
-        http.MediaType.from_str('text/plain;charset=utf-8'),
-        http.MediaType.from_str('application/octet-stream'),
-        http.MediaType.from_str('octet/stream')]
+        params.MediaType.from_str('text/plain;charset=utf-8'),
+        params.MediaType.from_str('application/octet-stream'),
+        params.MediaType.from_str('octet/stream')]
     # we allow the last one in case someone read the spec literally!
 
     StreamTypes = [
-        http.MediaType.from_str('application/octet-stream'),
-        http.MediaType.from_str('octet/stream')]
+        params.MediaType.from_str('application/octet-stream'),
+        params.MediaType.from_str('octet/stream')]
     # we allow the last one in case someone read the spec literally!
 
     def __init__(self, serviceRoot="http://localhost"):
@@ -242,7 +247,7 @@ class Server(app.Server):
                     request, environ, self.RedirectTypes)
                 if responseType is None:
                     # this is a redirect response, default to text/plain anyway
-                    responseType = http.MediaType.from_str('text/plain')
+                    responseType = params.MediaType.from_str('text/plain')
                 if responseType == "text/plain":
                     data = str(r.RenderText())
                 else:
@@ -323,7 +328,7 @@ class Server(app.Server):
             request, environ, self.ErrorTypes)
         if responseType is None:
             # this is an error response, default to text/plain anyway
-            responseType = http.MediaType.from_str('text/plain')
+            responseType = params.MediaType.from_str('text/plain')
         elif responseType == "application/atom+xml":
             # even if you didn't ask for it, you get application/xml in this
             # case
@@ -349,7 +354,7 @@ class Server(app.Server):
             # resolve relative to the service root
             href = URIFactory.Resolve(self.serviceRoot, href)
         # check the canonical roots
-        if not self.serviceRoot.GetCanonicalRoot().Match(
+        if not self.serviceRoot.GetCanonicalRoot().match(
                 href.GetCanonicalRoot()):
             # This isn't even for us
             return None
@@ -469,11 +474,11 @@ class Server(app.Server):
                     "no entity is linked by this navigation property")
         return resource, parentEntity
 
-    def SetETag(self, entity, response_headers):
+    def set_etag(self, entity, response_headers):
         etag = entity.ETag()
         if etag is not None:
             s = "%s" if entity.ETagIsStrong() else "W/%s"
-            etag = s % http.quote_string(
+            etag = s % grammar.quote_string(
                 string.join(map(core.ODataURI.FormatLiteral, etag), ','))
             response_headers.append(("ETag", etag))
 
@@ -632,7 +637,7 @@ class Server(app.Server):
                         if resource.type_def.HasStream():
                             sinfo = core.StreamInfo()
                             if "CONTENT_TYPE" in environ:
-                                sinfo.type = http.MediaType.from_str(
+                                sinfo.type = params.MediaType.from_str(
                                     environ["CONTENT_TYPE"])
                             input = app.InputWrapper(environ)
                             with resource.entity_set.OpenCollection() as coll:
@@ -642,7 +647,7 @@ class Server(app.Server):
                                 # need to update the resource as some fields
                                 # may have changed
                                 resource = coll[resource.key()]
-                            self.SetETag(resource, response_headers)
+                            self.set_etag(resource, response_headers)
                             return self.ReturnEmpty(
                                 start_response, response_headers)
                         else:
@@ -655,7 +660,7 @@ class Server(app.Server):
                         resource.Update()
                         # now we've updated the entity it is safe to calculate
                         # the ETag
-                        self.SetETag(resource, response_headers)
+                        self.set_etag(resource, response_headers)
                         return self.ReturnEmpty(
                             start_response, response_headers)
                 elif method == "DELETE":
@@ -699,10 +704,10 @@ class Server(app.Server):
                     # POST of a media resource
                     sinfo = core.StreamInfo()
                     if "CONTENT_TYPE" in environ:
-                        sinfo.type = http.MediaType.from_str(
+                        sinfo.type = params.MediaType.from_str(
                             environ["CONTENT_TYPE"])
                     if "HTTP_LAST_MODIFIED" in environ:
-                        sinfo.modified = http.FullDate.from_http_str(
+                        sinfo.modified = params.FullDate.from_http_str(
                             environ["HTTP_LAST_MODIFIED"])
                     input = app.InputWrapper(environ)
                     if "HTTP_SLUG" in environ:
@@ -780,7 +785,7 @@ class Server(app.Server):
                     else:
                         self.ReadValue(resource, environ)
                     parentEntity.Update()
-                    self.SetETag(parentEntity, response_headers)
+                    self.set_etag(parentEntity, response_headers)
                     return self.ReturnEmpty(start_response, response_headers)
                 elif method == "DELETE":
                     if request.pathOption == core.PathOption.value:
@@ -1029,14 +1034,14 @@ class Server(app.Server):
         atomFlag = None
         encoding = None
         if "CONTENT_TYPE" in environ:
-            requestType = http.MediaType.from_str(environ["CONTENT_TYPE"])
+            requestType = params.MediaType.from_str(environ["CONTENT_TYPE"])
             for r in self.AtomRanges:
-                if r.MatchMediaType(requestType):
+                if r.match_media_type(requestType):
                     atomFlag = True
                     break
             if atomFlag is None:
                 for r in self.JSONRanges:
-                    if r.MatchMediaType(requestType):
+                    if r.match_media_type(requestType):
                         atomFlag = False
                         break
             encoding = requestType.parameters.get('charset', (None, None))[1]
@@ -1120,7 +1125,7 @@ class Server(app.Server):
             data = str(doc)
         response_headers.append(("Content-Type", str(responseType)))
         response_headers.append(("Content-Length", str(len(data))))
-        self.SetETag(entity, response_headers)
+        self.set_etag(entity, response_headers)
         start_response("%i %s" % (status, statusMsg), response_headers)
         return [data]
 
@@ -1153,11 +1158,11 @@ class Server(app.Server):
             response_headers.append(("Content-Length", str(sinfo.size)))
         if sinfo.modified is not None:
             response_headers.append(("Last-Modified",
-                                     str(http.FullDate(src=sinfo.modified))))
+                                     str(params.FullDate(src=sinfo.modified))))
         if sinfo.md5 is not None:
             response_headers.append(("Content-MD5",
                                      base64.b64encode(sinfo.md5)))
-        self.SetETag(entity, response_headers)
+        self.set_etag(entity, response_headers)
         start_response("%i %s" % (200, "Success"), response_headers)
         return sgen
 
@@ -1217,38 +1222,38 @@ class Server(app.Server):
         response_headers.append(("Content-Type", str(responseType)))
         response_headers.append(("Content-Length", str(len(data))))
         if entity is not None:
-            self.SetETag(entity, response_headers)
+            self.set_etag(entity, response_headers)
         start_response("%i %s" % (200, "Success"), response_headers)
         return [data]
 
     def ReadDereferencedValue(self, value, environ):
         encoding = None
         if "CONTENT_TYPE" in environ:
-            requestType = http.MediaType.from_str(environ["CONTENT_TYPE"])
-        if value.mType is None:
+            requestType = params.MediaType.from_str(environ["CONTENT_TYPE"])
+        if value.mtype is None:
             acceptType = False
             if isinstance(value, edm.BinaryValue):
                 if requestType:
                     for r in DeferenceBinaryRanges:
-                        if r.MatchMediaType(requestType):
+                        if r.match_media_type(requestType):
                             acceptType = True
                 else:
                     acceptType = True
             elif requestType:
-                acceptType = http.MediaRange.from_str(
-                    "text/plain").MatchMediaType(requestType)
+                acceptType = messages.MediaRange.from_str(
+                    "text/plain").match_media_type(requestType)
             else:
                 # by default, http messages are iso-8859-1
-                requestType = http.MediaType.from_str(
+                requestType = params.MediaType.from_str(
                     "text/plain; charset=iso-8859-1")
                 acceptType = True
         else:
             if requestType:
-                acceptType = http.MediaRange.from_str(
-                    value.mType).MatchMediaType(requestType)
+                acceptType = messages.MediaRange.from_str(
+                    value.mtype).match_media_type(requestType)
             else:
                 # assume the user knows what they're doing!
-                requestType = value.mType
+                requestType = value.mtype
                 acceptType = True
         if not acceptType:
             raise core.InvalidData(
@@ -1274,7 +1279,7 @@ class Server(app.Server):
             start_response,
             response_headers):
         """Returns a dereferenced property value."""
-        if value.mType is None:
+        if value.mtype is None:
             if isinstance(value, edm.BinaryValue):
                 mTypes = self.StreamTypes
                 data = value.value
@@ -1282,7 +1287,7 @@ class Server(app.Server):
                 mTypes = self.DereferenceTypes
                 data = unicode(value).encode('utf-8')
         else:
-            mTypes = [value.mType]
+            mTypes = [value.mtype]
             data = unicode(value).encode('utf-8')
         responseType = self.ContentNegotiation(request, environ, mTypes)
         if responseType is None:
@@ -1296,7 +1301,7 @@ class Server(app.Server):
         response_headers.append(("Content-Type", str(responseType)))
         response_headers.append(("Content-Length", str(len(data))))
         if entity is not None:
-            self.SetETag(entity, response_headers)
+            self.set_etag(entity, response_headers)
         start_response("%i %s" % (200, "Success"), response_headers)
         return [data]
 
@@ -1366,7 +1371,7 @@ class Server(app.Server):
         start_response("%i %s" % (status, statusMsg), response_headers)
         return []
 
-    def ContentNegotiation(self, request, environ, mTypeList):
+    def ContentNegotiation(self, request, environ, mtype_list):
         """Returns the best match for the Accept header.
 
         Given a list of media types, examines the Accept header and
@@ -1378,16 +1383,17 @@ class Server(app.Server):
         if aList is None:
             if "HTTP_ACCEPT" in environ:
                 try:
-                    aList = http.AcceptList.from_str(environ["HTTP_ACCEPT"])
-                except http.BadSyntax:
+                    aList = messages.AcceptList.from_str(
+                        environ["HTTP_ACCEPT"])
+                except grammar.BadSyntax:
                     # we'll treat this as a missing Accept header
                     aList = self.DefaultAcceptList
             else:
                 aList = self.DefaultAcceptList
-        returnType = aList.SelectType(mTypeList)
+        returnType = aList.select_type(mtype_list)
         logging.debug("Content negotiation request: %s", str(aList))
         logging.debug("Content negotiation result: picked %s from %s", repr(
-            returnType), repr(mTypeList))
+            returnType), repr(mtype_list))
         return returnType
 
     def CheckCapabilityNegotiation(

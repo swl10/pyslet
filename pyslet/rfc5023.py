@@ -263,12 +263,12 @@ class Client(http.HTTPRequestManager):
     def __init__(self):
         http.HTTPRequestManager.__init__(self)
 
-    def QueueRequest(self, request, timeout=60):
+    def queue_request(self, request, timeout=60):
         # if there is no Accept header, add one
-        if not request.HasHeader('Accept'):
-            request.SetHeader('Accept', string.join(
+        if not request.has_header('Accept'):
+            request.set_header('Accept', string.join(
                 (atom.ATOM_MIMETYPE, ATOMSVC_MIMETYPE, ATOMCAT_MIMETYPE), ','), True)
-        super(Client, self).QueueRequest(request, timeout)
+        super(Client, self).queue_request(request, timeout)
 
 
 class InputWrapper(io.RawIOBase):
@@ -294,7 +294,7 @@ class InputWrapper(io.RawIOBase):
         self.input_stream = environ['wsgi.input']
         if ('HTTP_TRANSFER_ENCODING' in environ and
                 environ['HTTP_TRANSFER_ENCODING'].lower() != 'identity'):
-            self.input_stream = http.ChunkedReader(self.input_stream)
+            self.input_stream = messages.ChunkedReader(self.input_stream)
             # ignore the content length
             self.inputLength = None
         elif ("CONTENT_LENGTH" in environ and environ['CONTENT_LENGTH']):
@@ -472,7 +472,7 @@ class InputWrapper(io.RawIOBase):
         return False
 
     def write(self, b):
-        raise IOError("InputWrapper is not writeable")
+        raise IOError("InputWrapper is not writable")
 
     def writelines(self):
         raise IOError("InputWrapper is not writable")

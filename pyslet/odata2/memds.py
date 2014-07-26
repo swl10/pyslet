@@ -356,7 +356,7 @@ class WEntityStream(StringIO):
     def close(self):
         type, data = self.entity.get_stream_info()
         if type is None:
-            type = http.APPLICATION_OCTETSTREAM
+            type = params.APPLICATION_OCTETSTREAM
         self.entity.set_stream(type, [self.getvalue()])
         StringIO.close(self)
 
@@ -417,7 +417,7 @@ class EntityCollection(odata.EntityCollection):
             # Check constraints
             entity.CheckNavigationConstraints(from_end)
             self.entity_store.add_entity(entity)
-            self.UpdateBindings(entity)
+            self.update_bindings(entity)
 
     def __len__(self):
         if self.filter is None:
@@ -448,7 +448,7 @@ class EntityCollection(odata.EntityCollection):
         with self.entity_store.container.lock:
             self.entity_store.update_entity(entity)
             # now process any bindings
-            self.UpdateBindings(entity)
+            self.update_bindings(entity)
 
     def __delitem__(self, key):
         """We do a cascade delete of everything that *must* be linked to
@@ -552,7 +552,7 @@ class EntityCollection(odata.EntityCollection):
             if key is None:
                 e.auto_key()
             else:
-                e.SetKey(key)
+                e.set_key(key)
             for i in xrange(1000):
                 key = e.key()
                 if not self.entity_store.test_key(key):

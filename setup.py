@@ -3,7 +3,7 @@
 import sys
 import pyslet.info
 
-if sys.hexversion<0x02070000:
+if sys.hexversion < 0x02070000:
 	print "pyslet requires Python Version 2.7 (or greater)"
 else:
 	try:

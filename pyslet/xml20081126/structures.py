@@ -159,17 +159,17 @@ def EscapeCharData7(src, quote=False):
     if quote:
         if "'" in src:
             q = '"'
-            qStr = '&#x22;'
+            qstr = '&#x22;'
         elif '"' in src:
             q = "'"
-            qStr = '&#x27;'
+            qstr = '&#x27;'
         else:
             q = '"'
-            qStr = '&#x22;'
+            qstr = '&#x22;'
         dst.append(q)
     else:
         q = None
-        qStr = ''
+        qstr = ''
     for c in src:
         if ord(c) > 0x7F:
             if ord(c) > 0xFF:
@@ -191,7 +191,7 @@ def EscapeCharData7(src, quote=False):
         elif c == '\r':
             dst.append("&#xD;")
         elif c == q:
-            dst.append(qStr)
+            dst.append(qstr)
         else:
             dst.append(c)
     if quote:
@@ -1235,7 +1235,7 @@ class Element(Node):
     def GetXMLName(self):
         return self.xmlname
 
-    def Reset(self, resetAttributes=False):
+    def reset(self, resetAttributes=False):
         """Clears all attributes and (optional) children."""
         if resetAttributes:
             self._attrs = {}
@@ -1964,7 +1964,7 @@ class Element(Node):
         element type being represented in the application."""
         if not self.IsMixed():
             raise XMLMixedContentError
-        self.Reset(False)
+        self.reset(False)
         if value is None:
             self._children = []
         else:
@@ -2755,7 +2755,7 @@ class XMLEntity(object):
             self.OpenUnicode(src)
         elif isinstance(src, URI):
             self.OpenURI(src, encoding, reqManager)
-        elif isinstance(src, http.HTTPResponse):
+        elif isinstance(src, http.ClientResponse):
             self.OpenHTTPResponse(src, encoding)
         elif isinstance(src, StringType):
             self.OpenString(src, encoding)
@@ -2808,7 +2808,7 @@ class XMLEntity(object):
         self.chunk = XMLEntity.ChunkSize
         self.charSource = StringIO(src)
         self.basePos = self.charSource.tell()
-        self.Reset()
+        self.reset()
 
     def OpenString(self, src, encoding=None):
         """Opens the entity from a byte string.
@@ -2828,7 +2828,7 @@ class XMLEntity(object):
         self.chunk = 1
         self.charSource = codecs.getreader(self.encoding)(self.dataSource)
         self.basePos = self.charSource.tell()
-        self.Reset()
+        self.reset()
 
     def OpenFile(self, src, encoding='utf-8'):
         """Opens the entity from an existing (open) binary file.
@@ -2845,7 +2845,7 @@ class XMLEntity(object):
         self.chunk = 1
         self.charSource = codecs.getreader(self.encoding)(self.dataSource)
         self.basePos = self.charSource.tell()
-        self.Reset()
+        self.reset()
 
     def OpenURI(self, src, encoding=None, reqManager=None):
         """Opens the entity from a URI passed in *src*.
@@ -2872,12 +2872,12 @@ class XMLEntity(object):
         elif src.scheme.lower() in ['http', 'https']:
             if reqManager is None:
                 reqManager = http.HTTPRequestManager()
-            req = http.HTTPRequest(str(src))
-            req.SetHeader('Accept', "application/xml, text/*, */*")
-            reqManager.ProcessRequest(req)
+            req = http.ClientRequest(str(src))
+            req.set_header('Accept', "application/xml, text/*, */*")
+            reqManager.process_request(req)
             if req.status == 200:
                 self.OpenHTTPResponse(req.response, encoding)
-                mtype = req.response.GetContentType()
+                mtype = req.response.get_content_type()
                 if mtype is None:
                     # We'll attempt to do this with xml and utf8
                     charset = 'utf8'
@@ -2893,7 +2893,7 @@ class XMLEntity(object):
                         self.encoding = respEncoding[1].lower()
                 # print "...reading %s stream with
                 # charset=%s"%(self.mimetype,self.encoding)
-                srcFile = StringIO(req.resBody)
+                srcFile = StringIO(req.res_body)
                 if self.encoding is None:
                     self.AutoDetectEncoding(srcFile)
                 self.OpenFile(srcFile, self.encoding)
@@ -2913,10 +2913,10 @@ class XMLEntity(object):
         the data and defaults to UTF-8.  This parameter is only used if the
         charset cannot be read successfully from the HTTP response headers."""
         self.encoding = encoding
-        newLocation = src.GetHeader("Location")
+        newLocation = src.get_header("Location")
         if newLocation:
             self.location = URIFactory.URI(newLocation.strip())
-        mtype = src.GetContentType()
+        mtype = src.get_content_type()
         if mtype is None:
             # We'll attempt to do this with xml and utf8
             charset = 'utf8'
@@ -2931,9 +2931,9 @@ class XMLEntity(object):
                 self.encoding = respEncoding[1].lower()
         # print "...reading %s stream with
         # charset=%s"%(self.mimetype,self.encoding)
-        self.OpenFile(StringIO(src.request.resBody), self.encoding)
+        self.OpenFile(StringIO(src.request.res_body), self.encoding)
 
-    def Reset(self):
+    def reset(self):
         """Resets an open entity, causing it to return to the first character in the entity."""
         if self.charSource is None:
             self.the_char = None
@@ -3110,7 +3110,7 @@ class XMLEntity(object):
         self.lineNum = self.lineNum + 1
         self.linePos = 0
 
-    def Close(self):
+    def close(self):
         """Closes the entity."""
         if self.charSource is not None:
             self.charSource.close()

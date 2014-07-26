@@ -28,7 +28,7 @@ def fetch_url(url, username=None, password=None):
         cred.userid = username
         cred.password = password
         cred.protectionSpace = url.GetCanonicalRoot()
-        mgr.AddCredentials(cred)
+        mgr.add_credentials(cred)
     doc = edmx.Document(baseURI=url, reqManager=mgr)
     doc.Read()
     mgr.close()

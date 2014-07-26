@@ -7,6 +7,8 @@ import string
 import os
 import os.path
 import sys
+import warnings
+
 from types import UnicodeType, StringType
 from pyslet.rfc1738 import *
 import pyslet.vfs as vfs
@@ -907,7 +909,13 @@ class URI(object):
             new_uri.append(self.fragment)
         return URIFactory.URI(string.join(new_uri, ''))
 
-    def Match(self, otherURI):
+    def Match(self, otherURI):      # noqa
+        warnings.warn("URI.Match is deprecated, use URI.match instead",
+                      DeprecationWarning,
+                      stacklevel=2)
+        return self.match(otherURI)
+
+    def match(self, otherURI):
         """Compares this URI against otherURI returning True if they match."""
         return str(self.canonicalize()) == str(otherURI.canonicalize())
 

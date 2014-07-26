@@ -375,13 +375,13 @@ class ItemMetadata(common.MetadataContainerMixin, core.QTIElement):
                 imsmd.LOMEducational).ChildElement(imsmd.Description)
             description.AddString(lang, value)
 
-    def LRMMigrateContributor(self, fieldName, lomRole, lom, log):
-        contributors = self.metadata.get(fieldName, ())
+    def LRMMigrateContributor(self, field_name, lomRole, lom, log):
+        contributors = self.metadata.get(field_name, ())
         if contributors:
             if imsmd.vobject is None:
                 log.append(
                     'Warning: qmd_%s support disabled (vobject not installed)' %
-                    fieldName)
+                    field_name)
             else:
                 for value, definition in contributors:
                     lifecycle = lom.ChildElement(imsmd.LOMLifecycle)

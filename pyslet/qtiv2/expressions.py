@@ -1138,7 +1138,7 @@ class PatternMatch(UnaryOperator):
         if value:
             try:
                 re = xsi.RegularExpression(pattern)
-                return variables.BooleanValue(re.Match(value.value))
+                return variables.BooleanValue(re.match(value.value))
             except xsi.RegularExpressionError:
                 # illegal regular expression results in NULL
                 return variables.BooleanValue()

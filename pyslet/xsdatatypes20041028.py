@@ -691,14 +691,14 @@ class RegularExpression:
     def __repr__(self):
         return "RegularExpression(%s)" % repr(self.src)
 
-    def Match(self, target):
+    def match(self, target):
         """A convenience function, returns True if the expression matches *target*."""
         m = self.p.match(target)
         if m is None or m.end(0) < len(target):
-            # print "No Match"
+            # print "No match"
             return 0
         else:
-            # print "Match"
+            # print "match"
             return 1
 
 
@@ -924,10 +924,10 @@ class RegularExpressionParser(BasicParser):
             savepos = self.pos
             if self.the_char == u"-" and nRanges:
                 # This had better be the last hyphen in the posCharGroup
-                if self.Match(u"-["):
+                if self.match(u"-["):
                     # a subtraction
                     break
-                elif self.Match(u"-]") or self.Match(u"--["):
+                elif self.match(u"-]") or self.match(u"--["):
                     cClass.AddChar(u"-")
                     self.NextChar()
                     break
@@ -1033,9 +1033,9 @@ class RegularExpressionParser(BasicParser):
 
     def ParseCharClassEsc(self):
         """Returns a CharClass instance representing one of the escape sequences."""
-        if self.Match(u"\\p"):
+        if self.match(u"\\p"):
             cClass = self.ParseCatEsc()
-        elif self.Match(u"\\P"):
+        elif self.match(u"\\P"):
             cClass = self.ParseComplEsc()
         elif self.the_char == u"\\":
             try:
@@ -1082,7 +1082,7 @@ class RegularExpressionParser(BasicParser):
 
     def ParseCatEsc(self):
         """Returns a CharClass, parsing a category escape."""
-        if self.Match("\\p{"):
+        if self.match("\\p{"):
             self.setpos(self.pos + 3)
             cClass = self.ParseCharProp()
             if self.the_char == '}':
@@ -1092,7 +1092,7 @@ class RegularExpressionParser(BasicParser):
 
     def ParseComplEsc(self):
         """Returns a CharClass, parsing the complement of a category escape."""
-        if self.Match("\\P{"):
+        if self.match("\\P{"):
             self.setpos(self.pos + 3)
             cClass = CharClass(self.ParseCharProp())
             if self.the_char == '}':

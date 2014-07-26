@@ -478,12 +478,12 @@ class EntityTests(unittest.TestCase):
 
     def test_merge(self):
         e = Entity(self.es)
-        e.SetKey("abc")
+        e.set_key("abc")
         e['Name'].SetFromValue("Widget Co")
         e['Address']['City'].SetFromValue("Smalltown")
         # regions and address street are NULL
         e2 = Entity(self.es)
-        e2.SetKey("xyz")
+        e2.set_key("xyz")
         e2['Address']['Street'].SetFromValue("1 Main Street")
         e2['Region'].SetFromValue(1)
         self.assertFalse(e['Address']['Street'])

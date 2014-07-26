@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+from pyslet.py26 import *       # noqa
+
 import unittest
 import logging
 
@@ -10,6 +12,9 @@ import StringIO
 from threading import Thread
 from SocketServer import ThreadingMixIn
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
+
+import pyslet.http.grammar as grammar
+import pyslet.http.client as http
 
 HTTP_PORT = random.randint(1111, 9999)
 
@@ -64,6 +69,7 @@ def suite():
     ))
 
 
+    
 def load_tests(loader, tests, pattern):
     """Called when we execute this file directly."""
     return suite()
@@ -362,7 +368,7 @@ class MockRequest(object):
         self.wfile = None
 
     def start_response(self, status, response_headers, exc_info=None):
-        statusLine = http.WordParser(status, ignore_sp=False)
+        statusLine = grammar.WordParser(status, ignore_sp=False)
         statusLine.parse_sp()
         if statusLine.is_integer():
             self.responseCode = statusLine.parse_integer()
@@ -380,7 +386,7 @@ class MockRequest(object):
                 self.responseHeaders[hName] = r[1]
         self.wfile = StringIO.StringIO()
 
-    def SetHeader(self, header, value):
+    def set_header(self, header, value):
         """Convenience method for setting header values in the request."""
         if header.lower() == "content-type":
             self.environ["CONTENT_TYPE"] = value
@@ -469,4 +475,9 @@ class SlugTests(unittest.TestCase):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    if py26:
+        # no automatic test discovery
+        t = Thread(target=runAPPServer)
+        t.setDaemon(True)
+        t.start()
     unittest.main()

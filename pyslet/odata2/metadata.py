@@ -4,6 +4,8 @@
 import csdl as edm
 import edmx as edmx
 import pyslet.rfc2616 as http
+import pyslet.http.grammar as grammar
+import pyslet.http.params as params
 import pyslet.rfc4287 as atom
 import pyslet.rfc5023 as app
 import pyslet.xmlnames20091208 as xmlns
@@ -87,14 +89,14 @@ class Property(edm.Property, FeedCustomisationMixin):
 
     def GetMimeType(self):
         try:
-            return http.MediaType.from_str(self.GetAttribute(MimeType))
+            return params.MediaType.from_str(self.GetAttribute(MimeType))
         except KeyError:
             return None
 
     def __call__(self, literal=None):
         """Overridden to add mime type handling"""
         value = super(Property, self).__call__(literal)
-        value.mType = self.GetMimeType()
+        value.mtype = self.GetMimeType()
         return value
 
 
@@ -229,8 +231,8 @@ class Document(edmx.Document):
                 "IsDefaultEntityContainer required on one and only one EntityContainer")
         for p in self.root.FindChildrenDepthFirst(edm.Property):
             try:
-                http.MediaType.from_str(p.GetAttribute(MimeType))
-            except http.BadSyntax as e:
+                params.MediaType.from_str(p.GetAttribute(MimeType))
+            except grammar.BadSyntax as e:
                 raise InvalidMetadataDocument(
                     "MimeType format error in property %s: %s" %
                     (p.name, str(e)))

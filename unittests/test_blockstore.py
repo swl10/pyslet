@@ -5,8 +5,9 @@ import logging
 import hashlib
 import os.path
 
-from pyslet.vfs import OSFilePath as FilePath
 import pyslet.odata2.metadata as edmx
+import pyslet.http.params as params
+from pyslet.vfs import OSFilePath as FilePath
 from pyslet.odata2.memds import InMemoryEntityContainer
 from pyslet.odata2.sqlds import SQLiteEntityContainer
 
@@ -329,43 +330,43 @@ class StreamStoreTests(unittest.TestCase):
     def test_store(self):
         ss = StreamStore(bs=self.bs, ls=self.ls,
                          entity_set=self.cdef['Streams'])
-        with self.cdef['Streams'].OpenCollection() as streams,\
-                self.cdef['BlockLists'].OpenCollection() as blocks:
-            stream1 = streams.new_entity()
-            stream1['mimetype'].SetFromValue("text/plain")
-            now = TimePoint.FromNowUTC()
-            stream1['created'].SetFromValue(now)
-            stream1['modified'].SetFromValue(now)
-            streams.insert_entity(stream1)
-            stream2 = streams.new_entity()
-            stream2['mimetype'].SetFromValue("text/plain")
-            now = TimePoint.FromNowUTC()
-            stream2['created'].SetFromValue(now)
-            stream2['modified'].SetFromValue(now)
-            streams.insert_entity(stream2)
-            fox = "The quick brown fox jumped over the lazy dog"
-            cafe = u"Caf\xe9".encode('utf-8')
-            ss.store_block(stream1, 0, cafe)
-            ss.store_block(stream1, 1, fox)
-            ss.store_block(stream2, 0, cafe)
-            self.assertTrue(len(blocks) == 3)
-            blocks1 = list(ss.retrieve_blocklist(stream1))
-            self.assertTrue(ss.retrieve_block(blocks1[0]) == cafe)
-            self.assertTrue(ss.retrieve_block(blocks1[1]) == fox)
-            blocks2 = list(ss.retrieve_blocklist(stream2))
-            self.assertTrue(ss.retrieve_block(blocks2[0]) == cafe)
-            ss.delete_blocks(stream1, 1)
-            # should also have deleted fox from the block store
-            self.assertTrue(len(blocks) == 2)
-            try:
-                ss.retrieve_block(blocks1[1])
-                self.fail("Expected missing block")
-            except BlockMissing:
-                pass
-            self.assertTrue(ss.retrieve_block(blocks1[0]) == cafe)
-            ss.delete_blocks(stream1)
-            self.assertTrue(len(blocks) == 1)
-            self.assertTrue(ss.retrieve_block(blocks2[0]) == cafe)
+        with self.cdef['Streams'].OpenCollection() as streams:
+            with self.cdef['BlockLists'].OpenCollection() as blocks:
+                stream1 = streams.new_entity()
+                stream1['mimetype'].SetFromValue("text/plain")
+                now = TimePoint.FromNowUTC()
+                stream1['created'].SetFromValue(now)
+                stream1['modified'].SetFromValue(now)
+                streams.insert_entity(stream1)
+                stream2 = streams.new_entity()
+                stream2['mimetype'].SetFromValue("text/plain")
+                now = TimePoint.FromNowUTC()
+                stream2['created'].SetFromValue(now)
+                stream2['modified'].SetFromValue(now)
+                streams.insert_entity(stream2)
+                fox = "The quick brown fox jumped over the lazy dog"
+                cafe = u"Caf\xe9".encode('utf-8')
+                ss.store_block(stream1, 0, cafe)
+                ss.store_block(stream1, 1, fox)
+                ss.store_block(stream2, 0, cafe)
+                self.assertTrue(len(blocks) == 3)
+                blocks1 = list(ss.retrieve_blocklist(stream1))
+                self.assertTrue(ss.retrieve_block(blocks1[0]) == cafe)
+                self.assertTrue(ss.retrieve_block(blocks1[1]) == fox)
+                blocks2 = list(ss.retrieve_blocklist(stream2))
+                self.assertTrue(ss.retrieve_block(blocks2[0]) == cafe)
+                ss.delete_blocks(stream1, 1)
+                # should also have deleted fox from the block store
+                self.assertTrue(len(blocks) == 2)
+                try:
+                    ss.retrieve_block(blocks1[1])
+                    self.fail("Expected missing block")
+                except BlockMissing:
+                    pass
+                self.assertTrue(ss.retrieve_block(blocks1[0]) == cafe)
+                ss.delete_blocks(stream1)
+                self.assertTrue(len(blocks) == 1)
+                self.assertTrue(ss.retrieve_block(blocks2[0]) == cafe)
 
     def test_create(self):
         ss = StreamStore(bs=self.bs, ls=self.ls,
@@ -378,7 +379,7 @@ class StreamStoreTests(unittest.TestCase):
         except KeyError:
             self.fail("stream entity has not key")
         self.assertTrue(s1['mimetype'].value == "text/plain")
-        s2 = ss.new_stream(http.MediaType('text', 'plain',
+        s2 = ss.new_stream(params.MediaType('text', 'plain',
                                           {'charset': ('charset', 'utf-8')}))
         self.assertTrue(isinstance(s2, edm.Entity))
         self.assertTrue(s2['mimetype'].value == "text/plain; charset=utf-8")

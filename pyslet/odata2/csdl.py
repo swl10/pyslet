@@ -49,7 +49,7 @@ SimpleIdentifierRE = xsi.RegularExpression(
 def ValidateSimpleIdentifier(identifier):
     """Validates a simple identifier, returning the identifier unchanged or
     raising ValueError."""
-    if SimpleIdentifierRE.Match(identifier):
+    if SimpleIdentifierRE.match(identifier):
         return identifier
     else:
         raise ValueError(
@@ -199,14 +199,14 @@ class DictionaryLike(object):
         """Implements assignment to self[key]
 
         This method must be overridden if you want your dictionary-like
-        object to be writeable."""
+        object to be writable."""
         raise NotImplementedError
 
     def __delitem__(self, key):
         """Implements del self[key]
 
         This method should be overridden if you want your
-        dictionary-like object to be writeable."""
+        dictionary-like object to be writable."""
         raise NotImplementedError
 
     def __iter__(self):
@@ -891,7 +891,7 @@ class SimpleValue(EDMValue):
             self.typeCode = None
         #: an optional :py:class:`pyslet.rfc2616.MediaType` representing
         #: this value
-        self.mType = None
+        self.mtype = None
         self.value = None
         """The actual value or None if this instance represents a NULL value
     
@@ -1430,7 +1430,9 @@ class DecimalValue(NumericValue):
             return
         elif isinstance(new_value, decimal.Decimal):
             d = new_value
-        elif type(new_value) in (IntType, LongType, FloatType):
+        elif isinstance(new_value, float):
+            d = decimal.Decimal(str(new_value))
+        elif type(new_value) in (IntType, LongType):
             d = decimal.Decimal(new_value)
         else:
             raise TypeError("Can't set Decimal from %s" % str(new_value))
@@ -1462,7 +1464,14 @@ class FloatValue(NumericValue):
     def SetFromValue(self, new_value):
         if new_value is None:
             self.value = None
-        elif isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType):
+        elif isinstance(new_value, decimal.Decimal):
+            # deal with py26 decimal bug!
+            # see http://bugs.python.org/issue2531
+            if new_value < -self.MaxD or new_value > self.MaxD:
+                raise ValueError(
+                    "Value for Double out of range: %s" % str(new_value))
+            self.value = float(new_value)
+        elif type(new_value) in (IntType, LongType):
             if new_value < -self.Max or new_value > self.Max:
                 raise ValueError(
                     "Value for Double out of range: %s" % str(new_value))
@@ -1490,6 +1499,10 @@ class DoubleValue(FloatValue):
     be set lower than the maximum allowed by the specification if
     Python's native float is of insufficient precision but this is
     unlikely to be an issue."""
+
+    MaxD = None
+    """the largest positive double value converted to decimal form"""
+
     # Min=2**-1074  #: the smallest positive double value
 
     def SetFromNumericLiteral(self, numericValue):
@@ -1531,6 +1544,8 @@ for i in xrange(1023, 0, -1):
             logging.warning("float may be less than singe precision!")
         continue
 
+DoubleValue.MaxD = decimal.Decimal(str(DoubleValue.Max))
+
 
 class SingleValue(FloatValue):
 
@@ -1544,6 +1559,10 @@ class SingleValue(FloatValue):
     Python's native float is of insufficient precision but this is very
     unlikely to be an issue unless you've compiled Python on in a very
     unusual environment."""
+
+    MaxD = None
+    """the largest positive single value converted to Decimal"""
+
     # Min=2.0**-149             #: the smallest positive single value
 
     def SetFromNumericLiteral(self, numericValue):
@@ -1587,6 +1606,8 @@ for i in xrange(127, 0, -1):
         if i == 127:
             logging.warning("float may be less than singe precision!")
         continue
+
+SingleValue.MaxD = decimal.Decimal(str(SingleValue.Max))
 
 
 class GuidValue(SimpleValue):
@@ -2352,7 +2373,7 @@ class Entity(TypeInstance):
 
         The entity must be non-existent or :py:class:`EntityExists` is raised."""
         if self.exists:
-            raise EntityExists("SetKey not allowed; %s[%s] already exists" % (
+            raise EntityExists("set_key not allowed; %s[%s] already exists" % (
                 self.entity_set.name, str(self.key())))
         if len(self.type_def.Key.PropertyRef) == 1:
             self[self.type_def.Key.PropertyRef[0].name].SetFromValue(key)
@@ -2961,7 +2982,7 @@ class EntityCollection(DictionaryLike):
         2.  :py:attr:`exists` is set to True for *entity*
 
         Data providers must override this method if the collection is
-        writeable.
+        writable.
 
         If the call is unsuccessful then *entity* should be discarded as
         its associated bindings may be in a misleading state (when
@@ -2982,7 +3003,7 @@ class EntityCollection(DictionaryLike):
         """Updates *entity* which must already be in the entity set.
 
         Data providers must override this method if the collection is
-        writeable."""
+        writable."""
         raise NotImplementedError
 
     def UpdateEntity(self, entity):  # noqa
@@ -3004,7 +3025,7 @@ class EntityCollection(DictionaryLike):
 
     def UpdateBindings(self, entity):  # noqa
         warnings.warn("EntityCollection.UpdateBindings is deprecated, "
-                      "use update_entity", DeprecationWarning,
+                      "use update_bindings", DeprecationWarning,
                       stacklevel=2)
         self.update_bindings(entity)
 

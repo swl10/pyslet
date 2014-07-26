@@ -1,14 +1,19 @@
 #! /usr/bin/env python
-
 """Runs unit tests on all pyslet modules"""
+
+from pyslet.py26 import *       # noqa
 
 import unittest
 import logging
 
 import test_blockstore
 import test_html40_19991224
+import test_http_auth
+import test_http_client
 import test_http_grammar
+import test_http_messages
 import test_http_params
+import test_http_server
 import test_imsbltiv1p0
 import test_imscc_profilev1p0
 import test_imscc_profilev1p1
@@ -27,8 +32,6 @@ import test_odata2_sqlds
 import test_qml420
 import test_rfc2234
 import test_rfc2396
-import test_rfc2616
-import test_rfc2617
 import test_rfc4287
 import test_rfc5023
 import test_rtf_1p6
@@ -43,8 +46,12 @@ def suite():
     s = unittest.TestSuite()
     s.addTest(test_blockstore.suite())
     s.addTest(test_html40_19991224.suite())
+    s.addTest(test_http_auth.suite())
+    s.addTest(test_http_client.suite())
     s.addTest(test_http_grammar.suite())
+    s.addTest(test_http_messages.suite())
     s.addTest(test_http_params.suite())
+    s.addTest(test_http_server.suite())
     s.addTest(test_imsbltiv1p0.suite())
     s.addTest(test_imscc_profilev1p0.suite())
     s.addTest(test_imscc_profilev1p1.suite())
@@ -62,8 +69,6 @@ def suite():
     s.addTest(test_odata2_sqlds.suite())
     s.addTest(test_rfc2234.suite())
     s.addTest(test_rfc2396.suite())
-    s.addTest(test_rfc2616.suite())
-    s.addTest(test_rfc2617.suite())
     s.addTest(test_rfc4287.suite())
     s.addTest(test_rfc5023.suite())
     s.addTest(test_rtf_1p6.suite())
@@ -82,4 +87,7 @@ if __name__ == "__main__":
     # 	runner=unittest.TextTestRunner()
     # 	runner.run(suite())
     logging.basicConfig(level=logging.ERROR)
-    unittest.main()
+    if py26:
+        unittest.TextTestRunner(verbosity=0).run(suite())
+    else:
+        unittest.main()

@@ -296,7 +296,7 @@ class OctetParser(BasicParser):
             elif self.Parse("("):
                 comment.append("(")
                 depth += 1
-            elif self.Match("\\"):
+            elif self.match("\\"):
                 qp = self.parse_quoted_pair()
                 if qp:
                     comment.append(qp)
@@ -359,7 +359,7 @@ class OctetParser(BasicParser):
             if self.Parse(DQUOTE):
                 qs.append(DQUOTE)
                 break
-            elif self.Match("\\"):
+            elif self.match("\\"):
                 qp = self.parse_quoted_pair()
                 if qp:
                     qs.append(qp)
@@ -434,6 +434,9 @@ class WordParser(object):
     *ignore_sp* to False then LWS is not ignored and each run of LWS is
     returned as a single SP in the word list.
 
+    If the source contains a CRLF (or any other non-TEXT character) that
+    is not part of a folding or escape sequence it raises ValueError
+
     The resulting words may be a token, a single separator character, a
     comment or a quoted string.  To determine the type of word, look at
     the first character.
@@ -448,7 +451,7 @@ class WordParser(object):
 
     *   Any other character indicates a token.
 
-    Methods of the form require_\* raise :py:class:`BadSyntax` if the
+    Methods of the form require\_\* raise :py:class:`BadSyntax` if the
     production is not found."""
 
     def __init__(self, source, ignore_sp=True):
@@ -476,8 +479,11 @@ class WordParser(object):
                 else:
                     self.words.append(p.the_char)
                     p.NextChar()
+            elif p.the_char is None:
+                break
             else:
-                self.words.append(p.parse_token())
+                self.words.append(p.require_production(p.parse_token(),
+                                                       "TEXT"))
         self.pos = 0
         if self.words:
             self.the_word = self.words[0]

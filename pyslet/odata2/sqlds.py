@@ -19,6 +19,7 @@ import io
 
 import pyslet.iso8601 as iso
 import pyslet.rfc2616 as http
+import pyslet.http.params as params
 import pyslet.blockstore as blockstore
 from pyslet.vfs import OSFilePath
 
@@ -571,7 +572,7 @@ class SQLCollectionBase(core.EntityCollection):
 
     def __getitem__(self, key):
         entity = self.new_entity()
-        entity.SetKey(key)
+        entity.set_key(key)
         params = self.container.ParamsClass()
         query = ["SELECT "]
         column_names, values = zip(*list(self.select_fields(entity)))
@@ -608,12 +609,12 @@ class SQLCollectionBase(core.EntityCollection):
 
     def read_stream(self, key, out=None):
         entity = self.new_entity()
-        entity.SetKey(key)
+        entity.set_key(key)
         svalue = self._get_streamid(key)
         sinfo = core.StreamInfo()
         if svalue:
             estream = self.container.streamstore.get_stream(svalue.value)
-            sinfo.type = http.MediaType.from_str(estream['mimetype'].value)
+            sinfo.type = params.MediaType.from_str(estream['mimetype'].value)
             sinfo.created = estream['created'].value.WithZone(0)
             sinfo.modified = estream['modified'].value.WithZone(0)
             sinfo.size = estream['size'].value
@@ -637,12 +638,12 @@ class SQLCollectionBase(core.EntityCollection):
 
     def read_stream_close(self, key):
         entity = self.new_entity()
-        entity.SetKey(key)
+        entity.set_key(key)
         svalue = self._get_streamid(key)
         sinfo = core.StreamInfo()
         if svalue:
             estream = self.container.streamstore.get_stream(svalue.value)
-            sinfo.type = http.MediaType.from_str(estream['mimetype'].value)
+            sinfo.type = params.MediaType.from_str(estream['mimetype'].value)
             sinfo.created = estream['created'].value.WithZone(0)
             sinfo.modified = estream['modified'].value.WithZone(0)
             sinfo.size = estream['size'].value
@@ -681,7 +682,7 @@ class SQLCollectionBase(core.EntityCollection):
 
     def update_stream(self, src, key, sinfo=None):
         e = self.new_entity()
-        e.SetKey(key)
+        e.set_key(key)
         if sinfo is None:
             sinfo = core.StreamInfo()
         etag = e.ETagValues()
@@ -742,7 +743,7 @@ class SQLCollectionBase(core.EntityCollection):
 
     def _get_streamid(self, key, transaction=None):
         entity = self.new_entity()
-        entity.SetKey(key)
+        entity.set_key(key)
         params = self.container.ParamsClass()
         query = ["SELECT "]
         sname, svalue = self.stream_field(entity)
@@ -1832,7 +1833,7 @@ class SQLEntityCollection(SQLCollectionBase):
 
         3.  Process all remaining bindings.  Although we could do this
             using the
-            :py:meth:`~pyslet.odata2.csdl.DeferredValue.UpdateBindings`
+            :py:meth:`~pyslet.odata2.csdl.DeferredValue.update_bindings`
             method of DeferredValue we handle this directly to retain
             transactional integrity (where supported).
 
@@ -1986,39 +1987,40 @@ class SQLEntityCollection(SQLCollectionBase):
                 aset_name = link_end.parent.name
                 target_set = dv.Target()
                 target_fk_mapping = self.container.fk_table[target_set.name]
-                with dv.OpenCollection() as navCollection, \
-                        target_set.OpenCollection() as targetCollection:
-                    while dv.bindings:
-                        binding = dv.bindings[0]
-                        if not isinstance(binding, edm.Entity):
-                            targetCollection.SelectKeys()
-                            binding = targetCollection[binding]
-                        if binding.exists:
-                            navCollection.insert_link(binding, transaction)
-                        else:
-                            if link_end.otherEnd in target_fk_mapping:
-                                # target table has a foreign key
-                                target_fk_values = []
-                                for key_name in self.entity_set.keys:
-                                    target_fk_values.append(
-                                        (self.container.mangled_names[
-                                            (target_set.name,
-                                             aset_name,
-                                             key_name)],
-                                            entity[key_name]))
-                                targetCollection.insert_entity_sql(
-                                    binding,
-                                    link_end.otherEnd,
-                                    target_fk_values,
-                                    transaction=transaction)
-                            else:
-                                # foreign keys are in an auxiliary table
-                                targetCollection.insert_entity_sql(
-                                    binding,
-                                    link_end.otherEnd,
-                                    transaction=transaction)
+                with dv.OpenCollection() as navCollection:
+                    with target_set.OpenCollection() as targetCollection:
+                        while dv.bindings:
+                            binding = dv.bindings[0]
+                            if not isinstance(binding, edm.Entity):
+                                targetCollection.SelectKeys()
+                                binding = targetCollection[binding]
+                            if binding.exists:
                                 navCollection.insert_link(binding, transaction)
-                        dv.bindings = dv.bindings[1:]
+                            else:
+                                if link_end.otherEnd in target_fk_mapping:
+                                    # target table has a foreign key
+                                    target_fk_values = []
+                                    for key_name in self.entity_set.keys:
+                                        target_fk_values.append(
+                                            (self.container.mangled_names[
+                                                (target_set.name,
+                                                 aset_name,
+                                                 key_name)],
+                                                entity[key_name]))
+                                    targetCollection.insert_entity_sql(
+                                        binding,
+                                        link_end.otherEnd,
+                                        target_fk_values,
+                                        transaction=transaction)
+                                else:
+                                    # foreign keys are in an auxiliary table
+                                    targetCollection.insert_entity_sql(
+                                        binding,
+                                        link_end.otherEnd,
+                                        transaction=transaction)
+                                    navCollection.insert_link(
+                                        binding, transaction)
+                            dv.bindings = dv.bindings[1:]
             transaction.commit()
         except self.container.dbapi.IntegrityError as e:
             # we might need to distinguish between a failure due to
@@ -2246,48 +2248,49 @@ class SQLEntityCollection(SQLCollectionBase):
                 aset_name = link_end.parent.name
                 target_set = dv.Target()
                 target_fk_mapping = self.container.fk_table[target_set.name]
-                with dv.OpenCollection() as navCollection, \
-                        target_set.OpenCollection() as targetCollection:
-                    while dv.bindings:
-                        binding = dv.bindings[0]
-                        if not isinstance(binding, edm.Entity):
-                            targetCollection.SelectKeys()
-                            binding = targetCollection[binding]
-                        if binding.exists:
-                            if dv.isCollection:
-                                navCollection.insert_link(binding, transaction)
-                            else:
-                                navCollection.replace_link(binding,
-                                                           transaction)
-                        else:
-                            if link_end.otherEnd in target_fk_mapping:
-                                # target table has a foreign key
-                                target_fk_values = []
-                                for key_name in self.entity_set.keys:
-                                    target_fk_values.append(
-                                        (self.container.mangled_names[
-                                            (target_set.name,
-                                             aset_name,
-                                             key_name)],
-                                            entity[key_name]))
-                                if not dv.isCollection:
-                                    navCollection.clear_links(transaction)
-                                targetCollection.insert_entity_sql(
-                                    binding,
-                                    link_end.otherEnd,
-                                    target_fk_values,
-                                    transaction)
-                            else:
-                                # foreign keys are in an auxiliary table
-                                targetCollection.insert_entity_sql(
-                                    binding, link_end.otherEnd)
+                with dv.OpenCollection() as navCollection:
+                    with target_set.OpenCollection() as targetCollection:
+                        while dv.bindings:
+                            binding = dv.bindings[0]
+                            if not isinstance(binding, edm.Entity):
+                                targetCollection.SelectKeys()
+                                binding = targetCollection[binding]
+                            if binding.exists:
                                 if dv.isCollection:
                                     navCollection.insert_link(
                                         binding, transaction)
                                 else:
-                                    navCollection.replace_link(
-                                        binding, transaction)
-                        dv.bindings = dv.bindings[1:]
+                                    navCollection.replace_link(binding,
+                                                               transaction)
+                            else:
+                                if link_end.otherEnd in target_fk_mapping:
+                                    # target table has a foreign key
+                                    target_fk_values = []
+                                    for key_name in self.entity_set.keys:
+                                        target_fk_values.append(
+                                            (self.container.mangled_names[
+                                                (target_set.name,
+                                                 aset_name,
+                                                 key_name)],
+                                                entity[key_name]))
+                                    if not dv.isCollection:
+                                        navCollection.clear_links(transaction)
+                                    targetCollection.insert_entity_sql(
+                                        binding,
+                                        link_end.otherEnd,
+                                        target_fk_values,
+                                        transaction)
+                                else:
+                                    # foreign keys are in an auxiliary table
+                                    targetCollection.insert_entity_sql(
+                                        binding, link_end.otherEnd)
+                                    if dv.isCollection:
+                                        navCollection.insert_link(
+                                            binding, transaction)
+                                    else:
+                                        navCollection.replace_link(
+                                            binding, transaction)
+                            dv.bindings = dv.bindings[1:]
             transaction.commit()
         except self.container.dbapi.IntegrityError as e:
             # we might need to distinguish between a failure due to
@@ -2399,7 +2402,7 @@ class SQLEntityCollection(SQLCollectionBase):
     def __delitem__(self, key):
         with self.entity_set.OpenCollection() as base:
             entity = base.new_entity()
-            entity.SetKey(key)
+            entity.set_key(key)
             entity.exists = True    # an assumption!
             # base.SelectKeys()
             # entity = base[key]
@@ -2446,17 +2449,17 @@ class SQLEntityCollection(SQLCollectionBase):
                             # and it is bound to a navigation property so we
                             # can cascade delete
                             target_entity_set = link_end.otherEnd.entity_set
-                            with entity[nav_name].OpenCollection() as links, \
-                                    target_entity_set.OpenCollection() as \
-                                    cascade:
-                                links.SelectKeys()
-                                for target_entity in links.values():
-                                    links.delete_link(target_entity,
-                                                      transaction)
-                                    cascade.delete_entity(
-                                        target_entity,
-                                        link_end.otherEnd,
-                                        transaction)
+                            with entity[nav_name].OpenCollection() as links:
+                                with target_entity_set.OpenCollection() as \
+                                        cascade:
+                                    links.SelectKeys()
+                                    for target_entity in links.values():
+                                        links.delete_link(target_entity,
+                                                          transaction)
+                                        cascade.delete_entity(
+                                            target_entity,
+                                            link_end.otherEnd,
+                                            transaction)
                         else:
                             raise edm.NavigationError(
                                 "Can't cascade delete from an entity in %s as "
@@ -2982,7 +2985,7 @@ class SQLForeignKeyCollection(SQLNavigationCollection):
         #   Turn the key into an entity object as required by delete_link
         with self.entity_set.OpenCollection() as targetCollection:
             target_entity = targetCollection.new_entity()
-            target_entity.SetKey(key)
+            target_entity.set_key(key)
             # we open the base collection and call the update link method
             self.keyCollection.delete_link(
                 self.from_entity, self.from_end, target_entity)
@@ -3367,7 +3370,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
             raise edm.NavigationError("Can't remove a required link")
         with self.entity_set.OpenCollection() as targetCollection:
             entity = targetCollection.new_entity()
-            entity.SetKey(key)
+            entity.set_key(key)
             self.delete_link(entity)
 
     def delete_link(self, entity, transaction=None):
@@ -3717,7 +3720,8 @@ class SQLEntityContainer(object):
         """A mapping from the names of symmetric association sets to::
 
             ( <entity set A>, <name prefix A>, <entity set B>, <name
-            prefix B>, <unique keys> )"""
+            prefix B>, <unique keys> )
+        """
         self.mangled_names = {}
         """A mapping from source path tuples to mangled and quoted names
         to use in SQL queries.  For example::
@@ -4678,9 +4682,9 @@ class SQLiteEntityContainer(SQLEntityContainer):
         We inherit most of the value mappings but the following types
         have custom mappings.
 
-        ==================  =============================================
+        ==================  ==============================================
            EDM Type         Python value added as parameter
-        ------------------  ---------------------------------------------
+        ------------------  ----------------------------------------------
         Edm.Binary          buffer object
         Edm.Decimal         string representation obtained with str()
         Edm.Guid            buffer object containing bytes representation

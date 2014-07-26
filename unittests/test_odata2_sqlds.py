@@ -3,9 +3,11 @@
 import unittest
 import logging
 import random
+import sqlite3
 
 import pyslet.odata2.csdl as edm
 import pyslet.odata2.edmx as edmx
+import pyslet.http.params as params
 from pyslet.vfs import OSFilePath as FilePath
 
 from test_odata2_core import DataServiceRegressionTests
@@ -347,7 +349,7 @@ class SQLDSTests(unittest.TestCase):
                     "EmployeeName",
                     "Address",
                     "Version"])
-            new_hire.SetKey('00001')
+            new_hire.set_key('00001')
             new_hire["EmployeeName"].SetFromValue('Joe Bloggs')
             new_hire["Address"]["City"].SetFromValue('Chunton')
             new_hire["Address"]["Street"].SetFromValue('Mill Road')
@@ -359,7 +361,7 @@ class SQLDSTests(unittest.TestCase):
             self.assertTrue(new_hire['Version'])
             self.assertTrue(len(collection) == 1, "Length after insert")
             new_hire = collection.new_entity()
-            new_hire.SetKey('00001')
+            new_hire.set_key('00001')
             new_hire["EmployeeName"].SetFromValue('Jane Doe')
             try:
                 collection.insert_entity(new_hire)
@@ -380,7 +382,7 @@ class SQLDSTests(unittest.TestCase):
                     "EmployeeName",
                     "Address",
                     "Version"])
-            new_hire.SetKey('00001')
+            new_hire.set_key('00001')
             new_hire["EmployeeName"].SetFromValue('Joe Bloggs')
             new_hire["Address"]["City"].SetFromValue('Chunton')
             new_hire["Address"]["Street"].SetFromValue('Mill Road')
@@ -418,7 +420,7 @@ class SQLDSTests(unittest.TestCase):
                     "EmployeeName",
                     "Address",
                     "Version"])
-            new_hire.SetKey('00001')
+            new_hire.set_key('00001')
             new_hire["EmployeeName"].SetFromValue('Joe Bloggs')
             new_hire["Address"]["City"].SetFromValue('Chunton')
             new_hire["Address"]["Street"].SetFromValue('Mill Road')
@@ -448,7 +450,7 @@ class SQLDSTests(unittest.TestCase):
             collection.create_table()
             for i in xrange(10):
                 new_hire = collection.new_entity()
-                new_hire.SetKey('%05X' % i)
+                new_hire.set_key('%05X' % i)
                 new_hire["EmployeeName"].SetFromValue('Talent #%i' % i)
                 new_hire["Address"]["City"].SetFromValue('Chunton')
                 new_hire["Address"]["Street"].SetFromValue(
@@ -469,7 +471,7 @@ class SQLDSTests(unittest.TestCase):
             collection.create_table()
             for i in xrange(20):
                 new_hire = collection.new_entity()
-                new_hire.SetKey('%05X' % i)
+                new_hire.set_key('%05X' % i)
                 new_hire["EmployeeName"].SetFromValue('Talent #%i' % i)
                 new_hire["Address"]["City"].SetFromValue('Chunton')
                 new_hire["Address"]["Street"].SetFromValue(
@@ -510,7 +512,7 @@ class SQLDSTests(unittest.TestCase):
             collection.create_table()
             for i in xrange(20):
                 new_hire = collection.new_entity()
-                new_hire.SetKey('%05X' % i)
+                new_hire.set_key('%05X' % i)
                 new_hire["EmployeeName"].SetFromValue(
                     'Talent #%02i' %
                     random.randint(
@@ -563,7 +565,7 @@ class SQLDSTests(unittest.TestCase):
             # we'll need to create this table first
             collection.create_table()
             customer = collection.new_entity()
-            customer.SetKey('ALFKI')
+            customer.set_key('ALFKI')
             customer["CompanyName"].SetFromValue('Widget Inc')
             customer["Address"]["City"].SetFromValue('Chunton')
             customer["Address"]["Street"].SetFromValue('Factory Lane')
@@ -580,22 +582,22 @@ class SQLDSTests(unittest.TestCase):
         # <NavigationProperty Name="OrderLine"
         #     Relationship="SampleModel.OrderLines_Orders"
         #     FromRole="Order" ToRole="OrderLine"/>
-        with es.OpenCollection() as collection, \
-                self.schema['SampleEntities.OrderLines'].OpenCollection() as \
-                orderlines:
-            # we'll need to create both tables first due to FK constraint
-            collection.create_table()
-            orderlines.create_table()
-            order = collection.new_entity()
-            order.SetKey(1)
-            order["ShippedDate"].SetFromLiteral('2013-10-02T10:20:59')
-            collection.insert_entity(order)
-            with order['Customer'].OpenCollection() as parentCollection:
-                parentCollection[customer.key()] = customer
-            # now check that get entity works
-            match_customer = order['Customer'].GetEntity()
-            self.assertTrue(match_customer is not None)
-            self.assertTrue(match_customer.key() == customer.key())
+        with es.OpenCollection() as collection:
+            with self.schema['SampleEntities.OrderLines'].OpenCollection() as \
+                    orderlines:
+                # we'll need to create both tables first due to FK constraint
+                collection.create_table()
+                orderlines.create_table()
+                order = collection.new_entity()
+                order.set_key(1)
+                order["ShippedDate"].SetFromLiteral('2013-10-02T10:20:59')
+                collection.insert_entity(order)
+                with order['Customer'].OpenCollection() as parentCollection:
+                    parentCollection[customer.key()] = customer
+                # now check that get entity works
+                match_customer = order['Customer'].GetEntity()
+                self.assertTrue(match_customer is not None)
+                self.assertTrue(match_customer.key() == customer.key())
         # now check the association the other way
         with customer['Orders'].OpenCollection() as collection:
             self.assertTrue(len(collection) == 1)
@@ -604,7 +606,7 @@ class SQLDSTests(unittest.TestCase):
         with es.OpenCollection() as collection:
             # we'll need to create this table first too
             order = collection.new_entity()
-            order.SetKey(2)
+            order.set_key(2)
             order["ShippedDate"].SetFromLiteral('2013-11-05T08:30:00')
             collection.insert_entity(order)
             with order['Customer'].OpenCollection() as parentCollection:
@@ -712,38 +714,55 @@ class AutoFieldTests(unittest.TestCase):
                             "Expected 1 FK definition")
 
     def test_exposed_fk(self):
+        # see
+        # http://stackoverflow.com/questions/3296040/why-arent-my-sqlite3-foreign-keys-working
+        fk_version = params.ProductToken('sqlite', '3.6.19')
+        sqlite_version = params.ProductToken('sqlite', sqlite3.sqlite_version)
+        if sqlite_version < fk_version:
+            skip_fk = True
+            logging.warning(
+                "SQLite Foreign Key support not available in sqlite %s",
+                str(sqlite_version))
+        else:
+            skip_fk = False
         self.db.create_all_tables()
         files = self.container['Files']
         blobs = self.container['Blobs']
-        with files.OpenCollection() as file_coll, \
-                blobs.OpenCollection() as blob_coll:
-            f = file_coll.new_entity()
-            f['path'].SetFromValue("hello.txt")
-            f['mime']['type'].SetFromValue("text")
-            f['mime']['subtype'].SetFromValue("plain")
-            f['hash'].SetFromValue("deadbeef")
-            try:
+        with files.OpenCollection() as file_coll:
+            with blobs.OpenCollection() as blob_coll:
+                f = file_coll.new_entity()
+                f['path'].SetFromValue("hello.txt")
+                f['mime']['type'].SetFromValue("text")
+                f['mime']['subtype'].SetFromValue("plain")
+                f['hash'].SetFromValue("deadbeef")
+                try:
+                    file_coll.insert_entity(f)
+                    if not skip_fk:
+                        self.fail("Insert FK with invalid value succeeded")
+                    else:
+                        # clean up after fk failure
+                        del file_coll[f.key()]
+                        f.exists = False
+                except edm.ConstraintError:
+                    pass
+                f['hash'].SetNull()
                 file_coll.insert_entity(f)
-                self.fail("Insert FK with invalid value succeeded")
-            except edm.ConstraintError:
-                pass
-            f['hash'].SetNull()
-            file_coll.insert_entity(f)
-            f2 = file_coll["hello.txt"]
-            self.assertTrue(f2['path'].value == "hello.txt")
-            self.assertTrue(f2['mime']['subtype'].value == "plain")
-            self.assertFalse(f2['hash'], "Readonly attribute NULL on insert")
-            b = blob_coll.new_entity()
-            b['hash'].SetFromValue('deadbeef')
-            b['data'].SetFromValue('The quick brown fox jumped over...')
-            f2['Blob'].BindEntity(b)
-            with f2['Blob'].OpenCollection() as nav_coll:
-                self.assertTrue(len(nav_coll) == 0)
-                nav_coll.insert_entity(b)
-                self.assertTrue(len(nav_coll) == 1)
-            f3 = file_coll["hello.txt"]
-            self.assertTrue(f3['hash'].value == 'deadbeef',
-                            "Exposed fk attribute non-Null after link")
+                f2 = file_coll["hello.txt"]
+                self.assertTrue(f2['path'].value == "hello.txt")
+                self.assertTrue(f2['mime']['subtype'].value == "plain")
+                self.assertFalse(f2['hash'],
+                                 "Readonly attribute NULL on insert")
+                b = blob_coll.new_entity()
+                b['hash'].SetFromValue('deadbeef')
+                b['data'].SetFromValue('The quick brown fox jumped over...')
+                f2['Blob'].BindEntity(b)
+                with f2['Blob'].OpenCollection() as nav_coll:
+                    self.assertTrue(len(nav_coll) == 0)
+                    nav_coll.insert_entity(b)
+                    self.assertTrue(len(nav_coll) == 1)
+                f3 = file_coll["hello.txt"]
+                self.assertTrue(f3['hash'].value == 'deadbeef',
+                                "Exposed fk attribute non-Null after link")
 
     def test_pk_readonly(self):
         self.db.create_all_tables()
@@ -778,6 +797,7 @@ class RegressionTests(DataServiceRegressionTests):
             streamstore=SQLiteStreamStore(
                 file_path=self.d.join('streamstore.db')))
         self.db.create_all_tables()
+        
 
     def tearDown(self):  # noqa
         if self.db is not None:

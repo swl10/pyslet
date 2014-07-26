@@ -197,7 +197,7 @@ class TransferEncoding(object):
     def __init__(self, token="chunked", parameters={}):
         token = token.lower()
         if token == "chunked":
-            #: the transfer-encoding token (defaults to "chunked")
+            #: the lower-cased transfer-encoding token (defaults to "chunked")
             self.token = "chunked"
             #: declared extension parameters
             self.parameters = {}
@@ -206,6 +206,7 @@ class TransferEncoding(object):
             self.parameters = parameters
         self._hp = map(lambda x: (x[0], x[1][1]), self.parameters.items())
         self._hp.sort()
+        self._hp = tuple(self._hp)
 
     @classmethod
     def from_str(cls, source):
@@ -217,16 +218,36 @@ class TransferEncoding(object):
         p.require_end("transfer-encoding")
         return te
 
+    @classmethod
+    def list_from_str(cls, source):
+        """Creates a list of transfer-encodings from a string
+
+        Transfer-encodings are comma-separated"""
+        telist = []
+        p = ParameterParser(source)
+        p.parse_sp()
+        while p.the_word is not None:
+            if p.parse_separator(','):
+                continue
+            else:
+                te = p.require_transfer_encoding()
+                telist.append(te)
+        return telist
+
     def __str__(self):
         return self.token + format_parameters(self.parameters)
 
     def __eq__(self, other):
+        if type(other) in types.StringTypes:
+            other = TransferEncoding.from_str(other)
+        if not isinstance(other, TransferEncoding):
+            raise TypeError
         return hash(self) == hash(other)
 
     def __cmp__(self, other):
         if type(other) in types.StringTypes:
             other = TransferEncoding.from_str(other)
-        if not isinstance(TransferEncoding):
+        if not isinstance(other, TransferEncoding):
             raise TypeError
         return cmp((self.token, self._hp), (other.token, other._hp))
 
@@ -300,9 +321,24 @@ class MediaType(object):
     The built-in str function can be used to format instances according
     to the grammar defined in the specification.
 
-    Instances are immutable, they define comparison methods and a hash
-    implementation.  Media-types are compared by type, subtype and
-    ultimately parameters."""
+    type
+        The type code string, defaults to 'application'
+
+    subtype
+        The sub-type code, defaults to 'octet-stream'
+
+    parameters
+        A dictionary such as would be returned by
+        :py:meth:`grammar.WordParser.parse_parameters` containing the
+        media type's parameters.
+
+    Instances are immutable and support parameter value access by
+    lower-case key, returning the corresponding value or raising
+    KeyError.  E.g., mtype['charset']
+
+    Instances also define comparison methods and a hash implementation.
+    Media-types are compared by type, subtype and ultimately
+    parameters."""
 
     def __init__(self, type="application", subtype="octet-stream",
                  parameters={}):
@@ -337,6 +373,13 @@ class MediaType(object):
         return "MediaType(%s,%s,%s)" % (repr(self.type),
                                         repr(self.subtype),
                                         repr(self.parameters))
+
+    def __getitem__(self, key):
+        if key in self.parameters:
+            return self.parameters[key][1]
+        else:
+            raise KeyError("MediaType instance has no parameter %s" %
+                           repr(key))
 
     def __cmp__(self, other):
         if type(other) in types.StringTypes:
@@ -418,7 +461,7 @@ class ProductToken(object):
             # parse an item
             vitem = []
             modifier = []
-            while not p.Match(".") and not p.MatchEnd():
+            while not p.match(".") and not p.MatchEnd():
                 num = p.parse_integer()
                 if num is None:
                     if not vitem:

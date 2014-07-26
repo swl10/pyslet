@@ -550,9 +550,9 @@ kIncrementalRule = 1
 class RFC2234ABNFRuleBase:
 
     def __init__(self):
-        self.Reset()
+        self.reset()
 
-    def Reset(self):
+    def reset(self):
         self.rules = {}
         self.ruleID = {}
         self.nextRuleID = 0

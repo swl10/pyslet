@@ -10,6 +10,8 @@ from StringIO import StringIO
 import pyslet.info as info
 import pyslet.rfc2396 as uri
 import pyslet.rfc2616 as http
+import pyslet.http.params as params
+import pyslet.http.messages as messages
 import pyslet.xml20081126.structures as xml
 import pyslet.rfc4287 as atom
 import pyslet.rfc5023 as app
@@ -54,41 +56,41 @@ class MediaLinkEntry(core.Entity):
     def GetStreamType(self):
         """Returns the content type of the entity's media stream by issuing a HEAD request."""
         streamURL = str(self.GetLocation()) + "/$value"
-        request = http.HTTPRequest(str(streamURL), 'HEAD')
-        request.SetHeader('Accept', '*/*')
-        self.client.ProcessRequest(request)
+        request = http.ClientRequest(str(streamURL), 'HEAD')
+        request.set_header('Accept', '*/*')
+        self.client.process_request(request)
         if request.status == 404:
             return None
         elif request.status != 200:
             raise UnexpectedHTTPResponse(
                 "%i %s" % (request.status, request.response.reason))
-        return request.response.GetContentType()
+        return request.response.get_content_type()
 
     def GetStreamSize(self):
         """Returns the size of the entity's media stream in bytes by issuing a HEAD request."""
         streamURL = str(self.GetLocation()) + "/$value"
-        request = http.HTTPRequest(str(streamURL), 'HEAD')
-        request.SetHeader('Accept', '*/*')
-        self.client.ProcessRequest(request)
+        request = http.ClientRequest(str(streamURL), 'HEAD')
+        request.set_header('Accept', '*/*')
+        self.client.process_request(request)
         if request.status == 404:
             return None
         elif request.status != 200:
             raise UnexpectedHTTPResponse(
                 "%i %s" % (request.status, request.response.reason))
-        return request.response.GetContentLength()
+        return request.response.get_content_length()
 
     def get_stream_generator(self):
         """A generator function that yields blocks (strings) of data from the entity's media stream."""
         streamURL = str(self.GetLocation()) + "/$value"
-        request = http.HTTPRequest(str(streamURL), 'GET')
-        request.SetHeader('Accept', '*/*')
-        self.client.ProcessRequest(request)
+        request = http.ClientRequest(str(streamURL), 'GET')
+        request.set_header('Accept', '*/*')
+        self.client.process_request(request)
         if request.status == 404:
             return
         elif request.status != 200:
             raise UnexpectedHTTPResponse(
                 "%i %s" % (request.status, request.response.reason))
-        yield request.resBody
+        yield request.res_body
 
 
 class ClientCollection(core.EntityCollection):
@@ -138,7 +140,7 @@ class ClientCollection(core.EntityCollection):
                     pass
 
     def RaiseError(self, request):
-        """Given a :py:class:`pyslet.rfc2616.HTTPRequest` object
+        """Given a :py:class:`pyslet.rfc2616.Message` object
         containing an unexpected status in the response, parses an error
         response and raises an error accordingly."""
         if request.status == 404:
@@ -156,9 +158,9 @@ class ClientCollection(core.EntityCollection):
         else:
             eType = UnexpectedHTTPResponse
         debugMsg = None
-        if request.resBody:
+        if request.res_body:
             doc = core.Document()
-            doc.Read(src=request.resBody)
+            doc.Read(src=request.res_body)
             if isinstance(doc.root, core.Error):
                 errorMsg = "%s: %s" % (
                     doc.root.Code.GetValue(), doc.root.Message.GetValue())
@@ -182,7 +184,7 @@ class ClientCollection(core.EntityCollection):
         if self.is_medialink_collection():
             # insert a blank stream and then update
             mle = self.new_stream(src=StringIO())
-            entity.SetKey(mle.key())
+            entity.set_key(mle.key())
             # 2-way merge
             mle.merge(entity)
             entity.merge(mle)
@@ -191,14 +193,15 @@ class ClientCollection(core.EntityCollection):
         else:
             doc = core.Document(root=core.Entry(None, entity))
             data = str(doc)
-            request = http.HTTPRequest(str(self.baseURI), 'POST', reqBody=data)
-            request.SetContentType(
-                http.MediaType.from_str(core.ODATA_RELATED_ENTRY_TYPE))
-            self.client.ProcessRequest(request)
+            request = http.ClientRequest(
+                str(self.baseURI), 'POST', entity_body=data)
+            request.set_content_type(
+                params.MediaType.from_str(core.ODATA_RELATED_ENTRY_TYPE))
+            self.client.process_request(request)
             if request.status == 201:
                 # success, read the entity back from the response
                 doc = core.Document()
-                doc.Read(request.resBody)
+                doc.Read(request.res_body)
                 entity.exists = True
                 doc.root.GetValue(entity)
                 # so which bindings got handled?  Assume all of them
@@ -221,11 +224,11 @@ class ClientCollection(core.EntityCollection):
                 core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
         else:
             feedURL = uri.URIFactory.URI(str(feedURL) + "/$count")
-        request = http.HTTPRequest(str(feedURL))
-        request.SetHeader('Accept', 'text/plain')
-        self.client.ProcessRequest(request)
+        request = http.ClientRequest(str(feedURL))
+        request.set_header('Accept', 'text/plain')
+        self.client.process_request(request)
         if request.status == 200:
-            return int(request.resBody)
+            return int(request.res_body)
         else:
             raise UnexpectedHTTPResponse(
                 "%i %s" % (request.status, request.response.reason))
@@ -252,14 +255,14 @@ class ClientCollection(core.EntityCollection):
                 "?" +
                 core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
         while True:
-            request = http.HTTPRequest(str(feedURL))
-            request.SetHeader('Accept', 'application/atom+xml')
-            self.client.ProcessRequest(request)
+            request = http.ClientRequest(str(feedURL))
+            request.set_header('Accept', 'application/atom+xml')
+            self.client.process_request(request)
             if request.status != 200:
                 raise UnexpectedHTTPResponse(
                     "%i %s" % (request.status, request.response.reason))
             doc = core.Document(baseURI=feedURL)
-            doc.Read(request.resBody)
+            doc.Read(request.res_body)
             if isinstance(doc.root, atom.Feed):
                 if len(doc.root.Entry):
                     for e in doc.root.Entry:
@@ -317,14 +320,14 @@ class ClientCollection(core.EntityCollection):
                 str(feedURL) +
                 "?" +
                 core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
-        request = http.HTTPRequest(str(feedURL))
-        request.SetHeader('Accept', 'application/atom+xml')
-        self.client.ProcessRequest(request)
+        request = http.ClientRequest(str(feedURL))
+        request.set_header('Accept', 'application/atom+xml')
+        self.client.process_request(request)
         if request.status != 200:
             raise UnexpectedHTTPResponse(
                 "%i %s" % (request.status, request.response.reason))
         doc = core.Document(baseURI=feedURL)
-        doc.Read(request.resBody)
+        doc.Read(request.res_body)
         if isinstance(doc.root, atom.Feed):
             if len(doc.root.Entry):
                 for e in doc.root.Entry:
@@ -371,16 +374,16 @@ class ClientCollection(core.EntityCollection):
                 entityURL +
                 "?" +
                 core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
-        request = http.HTTPRequest(str(entityURL))
-        request.SetHeader('Accept', 'application/atom+xml;type=entry')
-        self.client.ProcessRequest(request)
+        request = http.ClientRequest(str(entityURL))
+        request.set_header('Accept', 'application/atom+xml;type=entry')
+        self.client.process_request(request)
         if request.status == 404:
             raise KeyError(key)
         elif request.status != 200:
             raise UnexpectedHTTPResponse(
                 "%i %s" % (request.status, request.response.reason))
         doc = core.Document(baseURI=entityURL)
-        doc.Read(request.resBody)
+        doc.Read(request.res_body)
         if isinstance(doc.root, atom.Entry):
             entity = core.Entity(self.entity_set)
             entity.exists = True
@@ -397,19 +400,20 @@ class ClientCollection(core.EntityCollection):
             raise ExpectedMediaLinkCollection
         if sinfo is None:
             sinfo = core.StreamInfo()
-        request = http.HTTPRequest(str(self.baseURI), 'POST', reqBody=src)
-        request.SetContentType(sinfo.type)
+        request = http.ClientRequest(
+            str(self.baseURI), 'POST', entity_body=src)
+        request.set_content_type(sinfo.type)
         if sinfo.size is not None:
-            request.SetContentLength(sinfo.size)
+            request.set_content_length(sinfo.size)
         if sinfo.modified is not None:
-            request.set_last_modified(http.FullDate(src=sinfo.modified))
+            request.set_last_modified(params.FullDate(src=sinfo.modified))
         if key:
-            request.SetHeader("Slug", str(app.Slug(unicode(key))))
-        self.client.ProcessRequest(request)
+            request.set_header("Slug", str(app.Slug(unicode(key))))
+        self.client.process_request(request)
         if request.status == 201:
             # success, read the entity back from the response
             doc = core.Document()
-            doc.Read(request.resBody)
+            doc.Read(request.res_body)
             entity = self.new_entity()
             entity.exists = True
             doc.root.GetValue(entity)
@@ -429,13 +433,13 @@ class ClientCollection(core.EntityCollection):
             self.entity_set.GetKeyDict(key)) + "/$value"
         if sinfo is None:
             sinfo = core.StreamInfo()
-        request = http.HTTPRequest(streamURL, 'PUT', reqBody=src)
-        request.SetContentType(sinfo.type)
+        request = http.ClientRequest(streamURL, 'PUT', entity_body=src)
+        request.set_content_type(sinfo.type)
         if sinfo.size is not None:
-            request.SetContentLength(sinfo.size)
+            request.set_content_length(sinfo.size)
         if sinfo.modified is not None:
-            request.set_last_modified(http.FullDate(src=sinfo.modified))
-        self.client.ProcessRequest(request)
+            request.set_last_modified(params.FullDate(src=sinfo.modified))
+        self.client.process_request(request)
         if request.status == 204:
             # success, read the entity back from the response
             return
@@ -449,19 +453,19 @@ class ClientCollection(core.EntityCollection):
         streamURL = str(self.baseURI) + core.ODataURI.FormatKeyDict(
             self.entity_set.GetKeyDict(key)) + "/$value"
         if out is None:
-            request = http.HTTPRequest(streamURL, 'HEAD')
+            request = http.ClientRequest(streamURL, 'HEAD')
         else:
-            request = http.HTTPRequest(streamURL, 'GET', resBody=out)
-        request.SetAccept("*/*")
-        self.client.ProcessRequest(request)
+            request = http.ClientRequest(streamURL, 'GET', res_body=out)
+        request.set_accept("*/*")
+        self.client.process_request(request)
         if request.status == 200:
             # success, read the entity information back from the response
             sinfo = core.StreamInfo()
-            sinfo.type = request.response.GetContentType()
-            sinfo.size = request.response.GetContentLength()
+            sinfo.type = request.response.get_content_type()
+            sinfo.size = request.response.get_content_length()
             sinfo.modified = request.response.get_last_modified()
             sinfo.created = sinfo.modified
-            sinfo.md5 = request.response.GetContentMD5()
+            sinfo.md5 = request.response.get_content_md5()
             return sinfo
         elif request.status == 404:
             # sort of success, we return an empty stream
@@ -478,8 +482,8 @@ class ClientCollection(core.EntityCollection):
         streamURL = str(self.baseURI) + core.ODataURI.FormatKeyDict(
             self.entity_set.GetKeyDict(key)) + "/$value"
         swrapper = EntityStream(self)
-        request = http.HTTPRequest(streamURL, 'GET', resBody=swrapper)
-        request.SetAccept("*/*")
+        request = http.ClientRequest(streamURL, 'GET', res_body=swrapper)
+        request.set_accept("*/*")
         swrapper.start_request(request)
         return swrapper.sinfo, swrapper.data_gen()
 
@@ -496,8 +500,8 @@ class EntityStream(io.RawIOBase):
         self.request = request
         # now loop until we get the first write or until there nothing
         # to do!
-        self.collection.client.QueueRequest(self.request)
-        while self.collection.client.ThreadTask():
+        self.collection.client.queue_request(self.request)
+        while self.collection.client.thread_task():
             if self.data:
                 if self.request.response.status == 200:
                     break
@@ -508,11 +512,11 @@ class EntityStream(io.RawIOBase):
                     self.data = []
         if self.request.response.status == 200:
             self.sinfo = core.StreamInfo()
-            self.sinfo.type = request.response.GetContentType()
-            self.sinfo.size = request.response.GetContentLength()
+            self.sinfo.type = request.response.get_content_type()
+            self.sinfo.size = request.response.get_content_length()
             self.sinfo.modified = request.response.get_last_modified()
             self.sinfo.created = self.sinfo.modified
-            self.sinfo.md5 = request.response.GetContentMD5()
+            self.sinfo.md5 = request.response.get_content_md5()
         elif self.request.status == 404:
             # sort of success, we return an empty stream
             self.sinfo = core.StreamInfo()
@@ -524,12 +528,12 @@ class EntityStream(io.RawIOBase):
     def data_gen(self):
         """Generates the data written to the stream.
 
-        Rather than call ProcessRequest which would spool all the data
+        Rather than call process_request which would spool all the data
         into the stream before returning, we split apart the individual
         calls to handle the request to enable us to yield data as soon
         as it is available without needing the full stream in memory."""
-        yield_data = (self.request.status == 200)
-        while self.data or self.collection.client.ThreadTask():
+        yield_data = (self.request.response.status == 200)
+        while self.data or self.collection.client.thread_task():
             for chunk in self.data:
                 if chunk:
                     logging.debug("EntityStream: writing %i bytes", len(chunk))
@@ -566,11 +570,11 @@ class EntityCollection(ClientCollection, core.EntityCollection):
         doc = core.Document(root=core.Entry)
         doc.root.SetValue(entity, True)
         data = str(doc)
-        request = http.HTTPRequest(
-            str(entity.GetLocation()), 'PUT', reqBody=data)
-        request.SetContentType(
-            http.MediaType.from_str(core.ODATA_RELATED_ENTRY_TYPE))
-        self.client.ProcessRequest(request)
+        request = http.ClientRequest(
+            str(entity.GetLocation()), 'PUT', entity_body=data)
+        request.set_content_type(
+            params.MediaType.from_str(core.ODATA_RELATED_ENTRY_TYPE))
+        self.client.process_request(request)
         if request.status == 204:
             # success, nothing to read back but we're not done
             # we've only updated links to existing entities on properties with
@@ -583,16 +587,16 @@ class EntityCollection(ClientCollection, core.EntityCollection):
                 if isinstance(binding, edm.Entity) and binding.exists:
                     dv.bindings = []
             # now use the default method to finish the job
-            self.UpdateBindings(entity)
+            self.update_bindings(entity)
             return
         else:
             self.RaiseError(request)
 
     def __delitem__(self, key):
         entity = self.new_entity()
-        entity.SetKey(key)
-        request = http.HTTPRequest(str(entity.GetLocation()), 'DELETE')
-        self.client.ProcessRequest(request)
+        entity.set_key(key)
+        request = http.ClientRequest(str(entity.GetLocation()), 'DELETE')
+        self.client.process_request(request)
         if request.status == 204:
             # success, nothing to read back
             return
@@ -684,9 +688,9 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                     entityURL +
                     "?" +
                     core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
-            request = http.HTTPRequest(str(entityURL))
-            request.SetHeader('Accept', 'application/atom+xml;type=entry')
-            self.client.ProcessRequest(request)
+            request = http.ClientRequest(str(entityURL))
+            request.set_header('Accept', 'application/atom+xml;type=entry')
+            self.client.process_request(request)
             if request.status == 404:
                 # if we got a 404 from the underlying system we're done
                 return 0
@@ -694,7 +698,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 raise UnexpectedHTTPResponse(
                     "%i %s" % (request.status, request.response.reason))
             doc = core.Document(baseURI=entityURL)
-            doc.Read(request.resBody)
+            doc.Read(request.res_body)
             if isinstance(doc.root, atom.Entry):
                 entity = core.Entity(self.entity_set)
                 entity.exists = True
@@ -728,16 +732,16 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                     entityURL +
                     "?" +
                     core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
-            request = http.HTTPRequest(str(entityURL))
-            request.SetHeader('Accept', 'application/atom+xml;type=entry')
-            self.client.ProcessRequest(request)
+            request = http.ClientRequest(str(entityURL))
+            request.set_header('Accept', 'application/atom+xml;type=entry')
+            self.client.process_request(request)
             if request.status == 404:
                 return
             elif request.status != 200:
                 raise UnexpectedHTTPResponse(
                     "%i %s" % (request.status, request.response.reason))
             doc = core.Document(baseURI=entityURL)
-            doc.Read(request.resBody)
+            doc.Read(request.res_body)
             if isinstance(doc.root, atom.Entry):
                 entity = core.Entity(self.entity_set)
                 entity.exists = True
@@ -770,16 +774,16 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                     entityURL +
                     "?" +
                     core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
-            request = http.HTTPRequest(str(entityURL))
-            request.SetHeader('Accept', 'application/atom+xml;type=entry')
-            self.client.ProcessRequest(request)
+            request = http.ClientRequest(str(entityURL))
+            request.set_header('Accept', 'application/atom+xml;type=entry')
+            self.client.process_request(request)
             if request.status == 404:
                 raise KeyError(key)
             elif request.status != 200:
                 raise UnexpectedHTTPResponse(
                     "%i %s" % (request.status, request.response.reason))
             doc = core.Document(baseURI=entityURL)
-            doc.Read(request.resBody)
+            doc.Read(request.res_body)
             if isinstance(doc.root, atom.Entry):
                 entity = core.Entity(self.entity_set)
                 entity.exists = True
@@ -801,15 +805,15 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
         if not entity.exists:
             raise edm.NonExistentEntity(str(entity.GetLocation()))
         if not self.isCollection:
-            request = http.HTTPRequest(str(self.baseURI), 'GET')
-            self.client.ProcessRequest(request)
+            request = http.ClientRequest(str(self.baseURI), 'GET')
+            self.client.process_request(request)
             if request.status == 200:
                 # this collection is not empty, which will be an error
                 # unless it already contains entity, in which case it's
                 # a no-op
                 existingEntity = self.new_entity()
                 doc = core.Document()
-                doc.Read(request.resBody)
+                doc.Read(request.res_body)
                 existingEntity.exists = True
                 doc.root.GetValue(existingEntity)
                 if existingEntity.key() == entity.key():
@@ -824,10 +828,11 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             doc = core.Document(root=core.URI)
             doc.root.SetValue(str(entity.GetLocation()))
             data = str(doc)
-            request = http.HTTPRequest(str(self.linksURI), 'PUT', reqBody=data)
-            request.SetContentType(
-                http.MediaType.from_str('application/xml'))
-            self.client.ProcessRequest(request)
+            request = http.ClientRequest(
+                str(self.linksURI), 'PUT', entity_body=data)
+            request.set_content_type(
+                params.MediaType.from_str('application/xml'))
+            self.client.process_request(request)
             if request.status == 204:
                 return
             else:
@@ -836,11 +841,11 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             doc = core.Document(root=core.URI)
             doc.root.SetValue(str(entity.GetLocation()))
             data = str(doc)
-            request = http.HTTPRequest(
-                str(self.linksURI), 'POST', reqBody=data)
-            request.SetContentType(
-                http.MediaType.from_str('application/xml'))
-            self.client.ProcessRequest(request)
+            request = http.ClientRequest(
+                str(self.linksURI), 'POST', entity_body=data)
+            request.set_content_type(
+                params.MediaType.from_str('application/xml'))
+            self.client.process_request(request)
             if request.status == 204:
                 return
             else:
@@ -858,10 +863,11 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             doc = core.Document(root=core.URI)
             doc.root.SetValue(str(entity.GetLocation()))
             data = str(doc)
-            request = http.HTTPRequest(str(self.linksURI), 'PUT', reqBody=data)
-            request.SetContentType(
-                http.MediaType.from_str('application/xml'))
-            self.client.ProcessRequest(request)
+            request = http.ClientRequest(
+                str(self.linksURI), 'PUT', entity_body=data)
+            request.set_content_type(
+                params.MediaType.from_str('application/xml'))
+            self.client.process_request(request)
             if request.status == 204:
                 return
             else:
@@ -870,13 +876,14 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
     def __delitem__(self, key):
         if self.isCollection:
             entity = self.new_entity()
-            entity.SetKey(key)
-            request = http.HTTPRequest(
-                str(self.linksURI) + core.ODataURI.FormatEntityKey(entity), 'DELETE')
+            entity.set_key(key)
+            request = http.ClientRequest(
+                str(self.linksURI) + core.ODataURI.FormatEntityKey(entity),
+                'DELETE')
         else:
             # danger, how do we know that key really is the right one?
-            request = http.HTTPRequest(str(self.linksURI), 'DELETE')
-        self.client.ProcessRequest(request)
+            request = http.ClientRequest(str(self.linksURI), 'DELETE')
+        self.client.process_request(request)
         if request.status == 204:
             # success, nothing to read back
             return
@@ -918,14 +925,14 @@ class Client(app.Client):
             self.serviceRoot = serviceRoot
         else:
             self.serviceRoot = uri.URIFactory.URI(serviceRoot)
-        request = http.HTTPRequest(str(self.serviceRoot))
-        request.SetHeader('Accept', 'application/atomsvc+xml')
-        self.ProcessRequest(request)
+        request = http.ClientRequest(str(self.serviceRoot))
+        request.set_header('Accept', 'application/atomsvc+xml')
+        self.process_request(request)
         if request.status != 200:
             raise UnexpectedHTTPResponse(
                 "%i %s" % (request.status, request.response.reason))
         doc = core.Document(baseURI=self.serviceRoot)
-        doc.Read(request.resBody)
+        doc.Read(request.res_body)
         if isinstance(doc.root, app.Service):
             self.service = doc.root
             self.serviceRoot = uri.URIFactory.URI(doc.root.ResolveBase())
@@ -984,11 +991,17 @@ class Client(app.Client):
                 logging.debug(
                     "Registering feed: %s", str(self.feeds[f].GetLocation()))
 
-    def QueueRequest(self, request, timeout=60):
-        # 		if not request.HasHeader("Accept"):
-        # 			request.SetHeader('Accept','application/xml')
-        request.SetHeader(
+    ACCEPT_LIST = messages.AcceptList(
+        messages.AcceptItem(messages.MediaRange('application', 'atom+xml')),
+        messages.AcceptItem(messages.MediaRange('application', 'atomsvc+xml')),
+        messages.AcceptItem(messages.MediaRange('application', 'atomcat+xml')),
+        messages.AcceptItem(messages.MediaRange('application', 'xml')))
+
+    def queue_request(self, request, timeout=60):
+        if not request.has_header("Accept"):
+            request.set_accept(self.ACCEPT_LIST)
+        request.set_header(
             'DataServiceVersion', '2.0; pyslet %s' % info.version)
-        request.SetHeader(
+        request.set_header(
             'MaxDataServiceVersion', '2.0; pyslet %s' % info.version)
-        super(Client, self).QueueRequest(request, timeout)
+        super(Client, self).queue_request(request, timeout)

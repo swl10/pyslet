@@ -483,7 +483,7 @@ class XMLEntityTests(unittest.TestCase):
             self.assertTrue(e.the_char == c)
             e.NextChar()
         self.assertTrue(e.the_char is None)
-        e.Reset()
+        e.reset()
         self.assertTrue(e.the_char == '<')
 
     def testLines(self):

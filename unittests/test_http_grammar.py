@@ -134,6 +134,12 @@ class GenericParserTests(unittest.TestCase):
         self.assertFalse(p.is_token(), "Expected no token")
 
     def test_parameter(self):
+        """tests parameter parsing
+
+        RFC2616 quotes...
+
+            special characters MUST be in a quoted string to be used
+            within a parameter value"""
         parameters = {}
         p = WordParser(' ;X=1 ;y=2;Zoo=";A=\\"Three\\""')
         p.parse_parameters(parameters)
@@ -169,6 +175,23 @@ class GenericParserTests(unittest.TestCase):
             parameters == {'X': ('X', '1'), 'y': ('y', '2'),
                            'Zoo': ('Zoo', ';A="Three"')},
             "Paremters: %s" % repr(parameters))
+
+    def test_crlf(self):
+        try:
+            p = WordParser('"\\\r\n"')
+            self.fail("Unquoted CTL")
+        except ValueError:
+            pass
+        try:
+            p = WordParser('"\\\r\\\n"')
+            self.assertTrue(decode_quoted_string(p.parse_word()) == "\r\n")
+        except ValueError:
+            self.fail("Quoted CTL")
+        try:
+            p = WordParser('token1, token2, token3\r\nstuff')
+            self.fail("CRLF without fold")
+        except ValueError:
+            pass
 
 
 if __name__ == '__main__':

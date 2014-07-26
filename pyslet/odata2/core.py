@@ -18,6 +18,9 @@ import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.rfc2396 as uri
 import pyslet.rfc2616 as http
+import pyslet.http.grammar as grammar
+import pyslet.http.params as params
+import pyslet.http.messages as messages
 import pyslet.rfc4287 as atom
 import pyslet.rfc5023 as app
 import pyslet.iso8601 as iso
@@ -1184,7 +1187,7 @@ class CallExpression(CommonExpression):
                 target = self.PromoteParameter(args[0], edm.SimpleType.Double)
                 result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Double)
                 if target:
-                    v = decimal.Decimal(target.value)
+                    v = decimal.Decimal(str(target.value))
                     result.SetFromValue(
                         float(v.to_integral(decimal.ROUND_HALF_EVEN)))
             return result
@@ -1286,7 +1289,7 @@ class Parser(edm.Parser):
                         "caseExpression")
                 elif name is not None:
                     self.ParseWSP()
-                    if self.Match("("):
+                    if self.match("("):
                         methodCall = Method.DecodeValue(name)
                         rightOp = self.ParseMethodCallExpression(methodCall)
                     else:
@@ -1621,7 +1624,7 @@ class Parser(edm.Parser):
             name = None
         if name == "null":
             return edm.EDMValue.NewSimpleValue(None)
-        elif name is None and self.Match("'"):
+        elif name is None and self.match("'"):
             return self.ParseStringURILiteral()
         elif name is None and self.MatchOne('-.0123456789'):
             # one of the number forms (perhaps)
@@ -1767,14 +1770,14 @@ def ParseDataServiceVersion(src):
     mode = "#"
     versionStr = None
     uaStr = []
-    p = http.ParameterParser(src)
+    p = params.ParameterParser(src)
     versionStr = p.require_token("data service version")
     v = versionStr.split('.')
-    if len(v) == 2 and http.is_digits(v[0]) and http.is_digits(v[1]):
+    if len(v) == 2 and grammar.is_digits(v[0]) and grammar.is_digits(v[1]):
         major = int(v[0])
         minor = int(v[1])
     else:
-        raise BadSyntax(
+        raise grammar.BadSyntax(
             "Expected data service version, found %s" % versionStr)
     if p.parse_separator(";"):
         while p.the_word is not None:
@@ -1796,17 +1799,17 @@ def ParseMaxDataServiceVersion(src):
     versionStr = None
     uaStr = None
     if len(src) > 0:
-        p = http.ParameterParser(src[0])
+        p = params.ParameterParser(src[0])
         versionStr = p.require_token("data service version")
         v = versionStr.split('.')
-        if len(v) == 2 and http.is_digits(v[0]) and http.is_digits(v[1]):
+        if len(v) == 2 and grammar.is_digits(v[0]) and grammar.is_digits(v[1]):
             major = int(v[0])
             minor = int(v[1])
         else:
-            raise BadSyntax(
+            raise grammar.BadSyntax(
                 "Expected max data service version, found %s" % versionStr)
     else:
-        raise BadSyntax("Expected max data service version")
+        raise grammar.BadSyntax("Expected max data service version")
     uaStr = string.join(src[1:], ';')
     return major, minor, uaStr
 
@@ -2136,9 +2139,11 @@ class ODataURI:
 
         *   filter: an instance of :py:class:`CommonExpression`
 
-        *   expand: a list of expand options, see py:meth:`pyslet.mc_csdl.Entity.Expand`
+        *   expand: a list of expand options, see
+            py:meth:`pyslet.mc_csdl.Entity.Expand`
 
-        *   format: a list of :py:meth:`pyslet:rfc2616.MediaType` instances (of length 1)
+        *   format: a list of :py:meth:`pyslet.http.params.MediaType`
+            instances (of length 1)
 
         *   other options return a the param_value unchanged at the moment"""
         try:
@@ -2158,16 +2163,17 @@ class ODataURI:
                 # <An IANA-defined [IANA-MMT] content type>)
                 # first up, let's see if this is a valid MediaType
                 try:
-                    value = http.AcceptList.from_str(param_value)
-                except http.BadSyntax:
+                    value = messages.AcceptList.from_str(param_value)
+                except grammar.BadSyntax:
                     pLower = param_value.lower()
                     if pLower == "atom":
-                        value = http.AcceptList.from_str(
+                        value = messages.AcceptList.from_str(
                             'application/atom+xml')
                     elif pLower == "json":
-                        value = http.AcceptList.from_str('application/json')
+                        value = messages.AcceptList.from_str(
+                            'application/json')
                     elif pLower == "xml":
-                        value = http.AcceptList.from_str('application/xml')
+                        value = messages.AcceptList.from_str('application/xml')
                     else:
                         raise InvalidSystemQueryOption(
                             "Unsupported $format : %s" % param_value)
@@ -2278,7 +2284,7 @@ class StreamInfo(object):
 
     """Represents information about a media resource stream."""
 
-    def __init__(self, type=http.APPLICATION_OCTETSTREAM,
+    def __init__(self, type=params.APPLICATION_OCTETSTREAM,
                  created=None, modified=None, size=None):
         self.type = type
         self.created = created
@@ -2413,14 +2419,14 @@ class Entity(edm.Entity):
         etag = self.ETag()
         if etag:
             s = "" if self.ETagIsStrong() else "W/"
-            yield ',"etag":%s' % json.dumps(s + http.quote_string(string.join(map(ODataURI.FormatLiteral, etag), ',')))
+            yield ',"etag":%s' % json.dumps(s + grammar.quote_string(string.join(map(ODataURI.FormatLiteral, etag), ',')))
         if mediaLinkResource:
             yield ',"media_src":%s' % json.dumps(location + "/$value")
             yield ',"content_type":%s' % json.dumps(str(self.GetStreamType()))
             yield ',"edit_media":%s' % json.dumps(location + "/$value")
             if etag:
                 s = "" if self.ETagIsStrong() else "W/"
-                yield ',"media_etag":%s' % json.dumps(s + http.quote_string(string.join(map(ODataURI.FormatLiteral, etag), ',')))
+                yield ',"media_etag":%s' % json.dumps(s + grammar.quote_string(string.join(map(ODataURI.FormatLiteral, etag), ',')))
         yield '}'
         for k, v in self.DataItems():
             # watch out for unselected properties
@@ -3060,7 +3066,7 @@ class Property(ODataElement):
         the existing type.  For new property values we use the value
         type to set the type property."""
         # start with a clean slate, remove attributes too
-        self.Reset(True)
+        self.reset(True)
         if isinstance(value, edm.SimpleValue):
             if self.parent is None:
                 # If we have no parent then we set the type attribute
@@ -3307,13 +3313,13 @@ class Entry(atom.Entry):
         if entity is not None:
             self.SetValue(entity)
 
-    def Reset(self):
+    def reset(self):
         if self.Properties:
             self.Properties.DetachFromParent()
             self.Properties = None
         self.etag = None
         self._properties = {}
-        super(Entry, self).Reset()
+        super(Entry, self).reset()
 
     def GetChildren(self):
         """Replaces the implementation in atom.Entry completed so that
@@ -3543,7 +3549,7 @@ class Entry(atom.Entry):
     def SetValue(self, entity, forUpdate=False):
         """Sets the value of this Entry to represent *entity*, a :py:class:`pyslet.mc_csdl.Entity` instance."""
         # start with a reset
-        self.Reset()
+        self.reset()
         mediaLinkResource = entity.type_def.HasStream()
         self.etag = entity.ETag()
         # Now set the new property values, starting with entity-type level feed customisation
@@ -3599,7 +3605,7 @@ class Entry(atom.Entry):
                         (ODATA_METADATA_NAMESPACE,
                          'etag'),
                         s +
-                        http.quote_string(
+                        grammar.quote_string(
                             string.join(
                                 map(
                                     ODataURI.FormatLiteral,
