@@ -4,15 +4,7 @@
 http://msdn.microsoft.com/en-us/library/dd541211.aspx
 http://msdn.microsoft.com/en-us/library/dd541474(v=prot.10)"""
 
-import pyslet.xml20081126.structures as xml
-import pyslet.xmlnames20091208 as xmlns
-import pyslet.rfc2396 as uri
-import pyslet.rfc2616 as http
-import pyslet.xsdatatypes20041028 as xsi
-from pyslet.vfs import OSFilePath
-import pyslet.iso8601 as iso8601
 import logging
-
 import string
 import itertools
 import StringIO
@@ -28,6 +20,15 @@ import pickle
 import datetime
 import random
 from types import BooleanType, FloatType, StringTypes, StringType, UnicodeType, BooleanType, IntType, LongType, TupleType, DictType
+
+from pyslet.pep8 import PEP8Compatibility
+import pyslet.xml20081126.structures as xml
+import pyslet.xmlnames20091208 as xmlns
+import pyslet.rfc2396 as uri
+import pyslet.rfc2616 as http
+import pyslet.xsdatatypes20041028 as xsi
+from pyslet.vfs import OSFilePath
+import pyslet.iso8601 as iso8601
 
 
 #: Namespace to use for CSDL elements
@@ -781,7 +782,7 @@ class Parser(xsi.BasicParser):
         return value
 
 
-class EDMValue(object):
+class EDMValue(PEP8Compatibility):
 
     """Abstract class to represent a value in the EDMModel.
 
@@ -870,7 +871,7 @@ class EDMValue(object):
             else:
                 raise ValueError(
                     "Can't construct SimpleValue from %s" % repr(value))
-        result.SetFromValue(value)
+        result.set_from_value(value)
         return result
 
 
@@ -919,7 +920,7 @@ class SimpleValue(EDMValue):
     
         For future compatibility, this attribute should only be updated
         using
-        :py:meth:`SetFromValue` or one of the other related methods."""
+        :py:meth:`set_from_value` or one of the other related methods."""
 
     def IsNull(self):
         return self.value is None
@@ -946,7 +947,7 @@ class SimpleValue(EDMValue):
         else:
             # new_value=EDMValue.NewValue(newTypeCode,self.name)
             if self.typeCode is not None:
-                targetValue.SetFromValue(copy.deepcopy(self.value))
+                targetValue.set_from_value(copy.deepcopy(self.value))
         return targetValue
 
     def SetFromSimpleValue(self, new_value):
@@ -985,7 +986,7 @@ class SimpleValue(EDMValue):
         """Sets the value to NULL"""
         self.value = None
 
-    def SetFromValue(self, new_value):
+    def set_from_value(self, new_value):
         """Sets the value from a python variable coercing *new_value* if
         necessary to ensure it is of the correct type for the value's
         :py:attr:`typeCode`."""
@@ -1044,7 +1045,7 @@ class BinaryValue(SimpleValue):
         self.value = p.require_production_end(
             p.ParseBinaryLiteral(), "binaryLiteral")
 
-    def SetFromValue(self, new_value):
+    def set_from_value(self, new_value):
         if isinstance(new_value, bytes):
             self.value = new_value
         elif isinstance(new_value, bytearray):
@@ -1081,7 +1082,7 @@ class BooleanValue(SimpleValue):
         else:
             raise ValueError("Failed to parse boolean literal from %s" % value)
 
-    def SetFromValue(self, new_value):
+    def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
         elif isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType):
@@ -1109,7 +1110,7 @@ class NumericValue(SimpleValue):
 
     def SetToZero(self):
         """Set this value to the default representation of zero"""
-        self.SetFromValue(0)
+        self.set_from_value(0)
 
     def SetFromLiteral(self, value):
         p = Parser(value)
@@ -1159,9 +1160,9 @@ class ByteValue(NumericValue):
                 numericValue.eDigits is not None):      # must not have an exponent
             raise ValueError("Illegal literal for Byte: %s" %
                              self.JoinNumericLiteral(numericValue))
-        self.SetFromValue(int(numericValue.lDigits))
+        self.set_from_value(int(numericValue.lDigits))
 
-    def SetFromValue(self, new_value):
+    def set_from_value(self, new_value):
         """*new_value* must be of type int, long, float or Decimal."""
         if new_value is None:
             self.value = None
@@ -1217,7 +1218,7 @@ class DateTimeValue(SimpleValue):
         self.value = p.require_production_end(
             p.ParseDateTimeLiteral(), "DateTime")
 
-    def SetFromValue(self, new_value):
+    def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
         elif isinstance(new_value, iso8601.TimePoint):
@@ -1294,9 +1295,9 @@ class DateTimeOffsetValue(SimpleValue):
             value = iso8601.TimePoint.from_str(value)
         except iso8601.DateTimeError as e:
             raise ValueError(str(e))
-        self.SetFromValue(value)
+        self.set_from_value(value)
 
-    def SetFromValue(self, new_value):
+    def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
         elif isinstance(new_value, iso8601.TimePoint):
@@ -1355,7 +1356,7 @@ class TimeValue(SimpleValue):
         p = Parser(value)
         self.value = p.require_production_end(p.ParseTimeLiteral(), "Time")
 
-    def SetFromValue(self, new_value):
+    def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
         elif isinstance(new_value, iso8601.Time):
@@ -1422,9 +1423,9 @@ class DecimalValue(NumericValue):
                 numericValue.rDigits == "" or
                 numericValue.eDigits is not None):                  # do not allow exponent
             raise ValueError("Illegal literal for Decimal: %s" % dStr)
-        self.SetFromValue(decimal.Decimal(dStr))
+        self.set_from_value(decimal.Decimal(dStr))
 
-    def SetFromValue(self, new_value):
+    def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
             return
@@ -1461,7 +1462,7 @@ class FloatValue(NumericValue):
 
     Values are formatted using Python's default unicode conversion."""
 
-    def SetFromValue(self, new_value):
+    def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
         elif isinstance(new_value, decimal.Decimal):
@@ -1529,7 +1530,7 @@ class DoubleValue(FloatValue):
                      (len(numericValue.eDigits) > 3 or          # long exponent not allowed
                       not numericValue.lDigits))):          # exponent requires digits to left of point
                 raise ValueError("Illegal exponent form for double: %s" % dStr)
-        self.SetFromValue(float(dStr))
+        self.set_from_value(float(dStr))
 
 
 for i in xrange(1023, 0, -1):
@@ -1594,7 +1595,7 @@ class SingleValue(FloatValue):
                      (len(numericValue.eDigits) > 2 or          # long exponent not allowed
                       not numericValue.lDigits))):          # exponent requires digits to left of point
                 raise ValueError("Illegal exponent form for single: %s" % dStr)
-        self.SetFromValue(float(dStr))
+        self.set_from_value(float(dStr))
 
 
 for i in xrange(127, 0, -1):
@@ -1631,7 +1632,7 @@ class GuidValue(SimpleValue):
         p = Parser(value)
         self.value = p.require_production_end(p.ParseGuidLiteral(), "Guid")
 
-    def SetFromValue(self, new_value):
+    def set_from_value(self, new_value):
         """*new_value* must be an instance of Python's UUID class
 
         We also support setting from a raw string of exactly 16 bytes in
@@ -1662,9 +1663,9 @@ class Int16Value(NumericValue):
                 numericValue.eDigits is not None):      # must not have an exponent
             raise ValueError("Illegal literal for Int16: %s" %
                              self.JoinNumericLiteral(numericValue))
-        self.SetFromValue(int(self.JoinNumericLiteral(numericValue)))
+        self.set_from_value(int(self.JoinNumericLiteral(numericValue)))
 
-    def SetFromValue(self, new_value):
+    def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
         elif isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType):
@@ -1691,9 +1692,9 @@ class Int32Value(NumericValue):
                 numericValue.eDigits is not None):      # must not have an exponent
             raise ValueError("Illegal literal for Int32: %s" %
                              self.JoinNumericLiteral(numericValue))
-        self.SetFromValue(int(self.JoinNumericLiteral(numericValue)))
+        self.set_from_value(int(self.JoinNumericLiteral(numericValue)))
 
-    def SetFromValue(self, new_value):
+    def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
         elif isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType):
@@ -1706,9 +1707,9 @@ class Int32Value(NumericValue):
 
     def SetRandomValue(self, base=None):
         if base and base.value < 0:
-            self.SetFromValue(-random.getrandbits(31))
+            self.set_from_value(-random.getrandbits(31))
         else:
-            self.SetFromValue(random.getrandbits(31))
+            self.set_from_value(random.getrandbits(31))
 
 
 class Int64Value(NumericValue):
@@ -1726,9 +1727,9 @@ class Int64Value(NumericValue):
                 numericValue.eDigits is not None):      # must not have an exponent
             raise ValueError("Illegal literal for Int64: %s" %
                              self.JoinNumericLiteral(numericValue))
-        self.SetFromValue(int(self.JoinNumericLiteral(numericValue)))
+        self.set_from_value(int(self.JoinNumericLiteral(numericValue)))
 
-    def SetFromValue(self, new_value):
+    def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
         elif isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType):
@@ -1741,15 +1742,15 @@ class Int64Value(NumericValue):
 
     def SetRandomValue(self, base=None):
         if base and base < 0:
-            self.SetFromValue(-random.getrandbits(63))
+            self.set_from_value(-random.getrandbits(63))
         else:
-            self.SetFromValue(random.getrandbits(63))
+            self.set_from_value(random.getrandbits(63))
 
     def SetRandomValue(self, base=None):
         if base and base.value < 0:
-            self.SetFromValue(-random.getrandbits(63))
+            self.set_from_value(-random.getrandbits(63))
         else:
-            self.SetFromValue(random.getrandbits(63))
+            self.set_from_value(random.getrandbits(63))
 
 
 class StringValue(SimpleValue):
@@ -1766,7 +1767,7 @@ class StringValue(SimpleValue):
             raise ValueError("%s is Null" % self.name)
         return unicode(self.value)
 
-    def SetFromValue(self, new_value):
+    def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
         elif isinstance(new_value, UnicodeType):
@@ -1796,7 +1797,7 @@ class StringValue(SimpleValue):
         value = [base]
         for r in xrange(rbytes):
             value.append("%X" % random.randint(0, 15))
-        self.SetFromValue(string.join(value, ''))
+        self.set_from_value(string.join(value, ''))
 
 
 class SByteValue(NumericValue):
@@ -1812,9 +1813,9 @@ class SByteValue(NumericValue):
                 numericValue.eDigits is not None):      # must not have an exponent
             raise ValueError("Illegal literal for SByte: %s" %
                              self.JoinNumericLiteral(numericValue))
-        self.SetFromValue(int(self.JoinNumericLiteral(numericValue)))
+        self.set_from_value(int(self.JoinNumericLiteral(numericValue)))
 
-    def SetFromValue(self, new_value):
+    def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
         elif isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType):
@@ -1845,7 +1846,7 @@ EDMValue._TypeClass = {
 }
 
 
-class TypeInstance(DictionaryLike):
+class TypeInstance(DictionaryLike, PEP8Compatibility):
 
     """Abstract class to represents a single instance of a
     :py:class:`ComplexType` or :py:class:`EntityType`.
@@ -2035,7 +2036,7 @@ class DeferredValue(object):
         *target* is either the entity you're binding or its key in the
         target entity set. For example::
 
-                customer['Orders'].Bind(1)
+                customer['Orders'].bind(1)
 
         binds the entity represented by 'customer' to the Order entity
         with key 1.
@@ -2126,16 +2127,16 @@ class Entity(TypeInstance):
     directly. To update a simple value use the value's
     :py:meth:`SimpleValue.SetFromPyVaue` method::
 
-            e['Name'].SetFromValue("Steve")
+            e['Name'].set_from_value("Steve")
                     # update simple property Name
-            e['Address']['City'].SetFromValue("Cambridge")
+            e['Address']['City'].set_from_value("Cambridge")
                     # update City in complex property Address
 
     A simple valued property that is NULL is still a
     :py:class:`SimpleValue` instance, though it will behave as
     0 in tests::
 
-            e['Name'].SetFromValue(None)    # set to NULL
+            e['Name'].set_from_value(None)    # set to NULL
             if e['Name']:
                     print "Will not print!"
 
@@ -2205,7 +2206,7 @@ class Entity(TypeInstance):
         for p in self.type_def.Property:
             yield p.name
 
-    def DataItems(self):
+    def data_items(self):
         """Iterator that yields tuples of (key,value) for this entity's
         data properties only.
 
@@ -2229,7 +2230,7 @@ class Entity(TypeInstance):
         *fromvalue* is left unchanged by this method.
 
         Null values in fromvalue are not copied."""
-        for k, v in self.DataItems():
+        for k, v in self.data_items():
             if k in self.entity_set.keys:
                 continue
             nv = fromvalue.get(k, None)
@@ -2376,11 +2377,11 @@ class Entity(TypeInstance):
             raise EntityExists("set_key not allowed; %s[%s] already exists" % (
                 self.entity_set.name, str(self.key())))
         if len(self.type_def.Key.PropertyRef) == 1:
-            self[self.type_def.Key.PropertyRef[0].name].SetFromValue(key)
+            self[self.type_def.Key.PropertyRef[0].name].set_from_value(key)
         else:
             k = iter(key)
             for pRef in self.type_def.Key.PropertyRef:
-                self[pRef.name].SetFromValue(k.next())
+                self[pRef.name].set_from_value(k.next())
 
     def SetKey(self, key):  # noqa
         warnings.warn(
@@ -2403,7 +2404,7 @@ class Entity(TypeInstance):
         for pRef in self.type_def.Key.PropertyRef:
             if base is not None:
                 bv = self.type_def[pRef.name]()
-                bv.SetFromValue(base.next())
+                bv.set_from_value(base.next())
             else:
                 bv = None
             v = self[pRef.name]
@@ -2449,7 +2450,7 @@ class Entity(TypeInstance):
                     self.selected.add(k)
             else:
                 # Force unselected values to NULL
-                for k, v in self.DataItems():
+                for k, v in self.data_items():
                     if k not in self.entity_set.keys and k not in self.selected:
                         v.SetNull()
         # Now expand this entity's navigation properties
@@ -2572,7 +2573,7 @@ class Entity(TypeInstance):
                     if t.pDef.maxLength > len(h):
                         # we need to zero-pad our binary string
                         h = h.ljust(t.pDef.maxLength, '\x00')
-                t.SetFromValue(h)
+                t.set_from_value(h)
             elif isinstance(t, StringValue):
                 h = self.generate_ctoken().hexdigest()
                 if t.pDef.maxLength is not None and t.pDef.maxLength < len(h):
@@ -2582,24 +2583,24 @@ class Entity(TypeInstance):
                     if t.pDef.maxLength > len(h):
                         # we need to zero-pad our binary string
                         h = h.ljust(t.pDef.maxLength, '0')
-                t.SetFromValue(h)
+                t.set_from_value(h)
             elif isinstance(t, (Int16Value, Int32Value, Int64Value)):
                 if t:
-                    t.SetFromValue(t.value + 1)
+                    t.set_from_value(t.value + 1)
                 else:
-                    t.SetFromValue(1)
+                    t.set_from_value(1)
             elif isinstance(t, (DateTimeValue, DateTimeOffsetValue)):
                 oldT = t.value
-                t.SetFromValue(iso8601.TimePoint.FromNowUTC())
+                t.set_from_value(iso8601.TimePoint.FromNowUTC())
                 if t.value == oldT:
                     # that was quick, push it 1s into the future
                     newTime, overflow = t.value.time.Offset(seconds=1)
-                    t.SetFromValue(iso8601.TimePoint(
+                    t.set_from_value(iso8601.TimePoint(
                         date=t.value.date.Offset(days=overflow), time=newTime))
             elif isinstance(t, GuidValue):
                 oldT = t.value
                 while t.value == oldT:
-                    t.SetFromValue(uuid.uuid4())
+                    t.set_from_value(uuid.uuid4())
             else:
                 raise ValueError(
                     "Can't auto generate concurrency token for %s" %
@@ -2618,7 +2619,7 @@ class Entity(TypeInstance):
         return False
 
 
-class EntityCollection(DictionaryLike):
+class EntityCollection(DictionaryLike, PEP8Compatibility):
 
     """Represents a collection of entities from an :py:class:`EntitySet`.
 
@@ -2802,7 +2803,7 @@ class EntityCollection(DictionaryLike):
             select[k] = None
         self.Expand(None, select)
 
-    def ExpandEntities(self, entityIterable):
+    def expand_entities(self, entityIterable):
         """Utility method for data providers.
 
         Given an object that iterates over all entities in the
@@ -2830,7 +2831,7 @@ class EntityCollection(DictionaryLike):
                       stacklevel=2)
         return self.set_filter(filter)
 
-    def FilterEntities(self, entityIterable):
+    def filter_entities(self, entityIterable):
         """Utility method for data providers.
 
         Given an object that iterates over all entities in the
@@ -2891,7 +2892,7 @@ class EntityCollection(DictionaryLike):
         NotImplementedError."""
         raise NotImplementedError("Collection does not support ordering")
 
-    def OrderEntities(self, entityIterable):
+    def order_entities(self, entityIterable):
         """Utility method for data providers.
 
         Given an object that iterates over the entities in random order,
@@ -3349,9 +3350,9 @@ class ExpandedEntityCollection(NavigationCollection):
             self.entityDict[e.key()] = e
 
     def itervalues(self):
-        return self.OrderEntities(
-            self.ExpandEntities(
-                self.FilterEntities(
+        return self.order_entities(
+            self.expand_entities(
+                self.filter_entities(
                     self.entityList)))
 
     def __getitem__(self, key):
@@ -3415,7 +3416,7 @@ class FunctionCollection(object):
             "Unbound FunctionCollection: %s" % self.function.name)
 
 
-class CSDLElement(xmlns.XMLNSElement):
+class CSDLElement(xmlns.XMLNSElement, PEP8Compatibility):
 
     """All elements in the metadata model inherit from this class."""
 
@@ -4429,7 +4430,7 @@ class EntitySet(CSDLElement):
                 if type(keyvalue) in StringTypes:
                     kv.SetFromLiteral(keyvalue)
                 else:
-                    kv.SetFromValue(keyvalue)
+                    kv.set_from_value(keyvalue)
             except (TypeError, ValueError):
                 return None
             return kv.value
@@ -4442,7 +4443,7 @@ class EntitySet(CSDLElement):
                     if type(kvi) in StringTypes:
                         kv.SetFromLiteral(kvi)
                     else:
-                        kv.SetFromValue(kvi)
+                        kv.set_from_value(kvi)
                 except (TypeError, ValueError):
                     return None
                 result.append(kv.value)
@@ -4466,14 +4467,14 @@ class EntitySet(CSDLElement):
             k = ki.next()
             #   create a new simple value to hold k
             kv = kp.property()
-            kv.SetFromValue(k)
+            kv.set_from_value(k)
             if noName:
                 keyDict[''] = kv
             else:
                 keyDict[kp.property.name] = kv
         return keyDict
 
-    def Bind(self, entityCollectionBinding, **extraArgs):
+    def bind(self, entityCollectionBinding, **extraArgs):
         """Binds this entity set to a specific class or callable used by
         :py:meth:`OpenCollection`
 
@@ -4757,7 +4758,7 @@ class FunctionImport(CSDLElement):
         #: :py:attr:`entitySetName`
         self.entity_set = None
         #: a callable to use when executing this function (see
-        #: :py:meth:`Bind`)
+        #: :py:meth:`bind`)
         self.binding = None, {}
         self.Documentation = None
         self.ReturnType = []
@@ -4808,7 +4809,7 @@ class FunctionImport(CSDLElement):
         """Returns True if this FunctionImport returns a collection of entities."""
         return self.entity_set is not None and self.returnTypeRef.collection
 
-    def Bind(self, callable, **extraArgs):
+    def bind(self, callable, **extraArgs):
         """Binds this instance of FunctionImport to a callable with the
         following signature and the appropriate return type as per the
         :py:meth:`Execute` method:

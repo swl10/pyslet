@@ -55,6 +55,7 @@ flake8:
 	touch flake8-count.txt
 	date >> flake8-count.txt
 	-flake8 --count -qq pyslet >> flake8-count.txt 2>&1
+	./pep8-regression.py
 	tail -n 4 flake8-count.txt
 
 flake8s: flake8

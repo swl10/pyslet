@@ -333,16 +333,16 @@ class StreamStoreTests(unittest.TestCase):
         with self.cdef['Streams'].OpenCollection() as streams:
             with self.cdef['BlockLists'].OpenCollection() as blocks:
                 stream1 = streams.new_entity()
-                stream1['mimetype'].SetFromValue("text/plain")
+                stream1['mimetype'].set_from_value("text/plain")
                 now = TimePoint.FromNowUTC()
-                stream1['created'].SetFromValue(now)
-                stream1['modified'].SetFromValue(now)
+                stream1['created'].set_from_value(now)
+                stream1['modified'].set_from_value(now)
                 streams.insert_entity(stream1)
                 stream2 = streams.new_entity()
-                stream2['mimetype'].SetFromValue("text/plain")
+                stream2['mimetype'].set_from_value("text/plain")
                 now = TimePoint.FromNowUTC()
-                stream2['created'].SetFromValue(now)
-                stream2['modified'].SetFromValue(now)
+                stream2['created'].set_from_value(now)
+                stream2['modified'].set_from_value(now)
                 streams.insert_entity(stream2)
                 fox = "The quick brown fox jumped over the lazy dog"
                 cafe = u"Caf\xe9".encode('utf-8')
@@ -379,8 +379,9 @@ class StreamStoreTests(unittest.TestCase):
         except KeyError:
             self.fail("stream entity has not key")
         self.assertTrue(s1['mimetype'].value == "text/plain")
-        s2 = ss.new_stream(params.MediaType('text', 'plain',
-                                          {'charset': ('charset', 'utf-8')}))
+        s2 = ss.new_stream(
+            params.MediaType('text', 'plain',
+                             {'charset': ('charset', 'utf-8')}))
         self.assertTrue(isinstance(s2, edm.Entity))
         self.assertTrue(s2['mimetype'].value == "text/plain; charset=utf-8")
         skey1 = s1.key()

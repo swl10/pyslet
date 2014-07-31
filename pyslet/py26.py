@@ -38,12 +38,11 @@ def is_zipfile(filename):
 
 if sys.hexversion < 0x02070000:
     logging.info("Adding missing constants to py26.io")
-
     io.SEEK_SET = 0
     io.SEEK_CUR = 1
     io.SEEK_END = 2
 
-    class memoryview(object):
+    class memoryview(object):       # noqa
 
         def __init__(self):
             raise TypeError("memoryview object not available in py26")

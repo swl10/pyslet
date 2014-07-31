@@ -2,7 +2,7 @@
 
 import warnings
 
-from pyslet.http.client import *
+from pyslet.http.client import *        # noqa
 
 
 warnings.warn("rfc2616 module is deprecated, use http package instead",

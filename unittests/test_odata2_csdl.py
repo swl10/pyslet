@@ -325,7 +325,7 @@ class ValueTests(unittest.TestCase):
         self.assertFalse(v)
         # check IsNull
         self.assertTrue(v.IsNull())
-        v.SetFromValue('1234567890')
+        v.set_from_value('1234567890')
         # check __nonzero__
         self.assertTrue(v)
         # check IsNull
@@ -341,7 +341,7 @@ class ValueTests(unittest.TestCase):
         self.assertFalse(v)
         # check IsNull
         self.assertTrue(v.IsNull())
-        v.SetFromValue(123)
+        v.set_from_value(123)
         # check __nonzero__
         self.assertTrue(v)
         # check IsNull
@@ -349,7 +349,7 @@ class ValueTests(unittest.TestCase):
         v2 = EDMValue.NewSimpleValue(SimpleType.Int32)
         v2.SetRandomValue(v)
         self.assertTrue(v2.value >= 0)
-        v.SetFromValue(-1)
+        v.set_from_value(-1)
         v2.SetRandomValue(v)
         self.assertTrue(v2.value <= 0)
 
@@ -360,7 +360,7 @@ class ValueTests(unittest.TestCase):
         self.assertFalse(v)
         # check IsNull
         self.assertTrue(v.IsNull())
-        v.SetFromValue(123)
+        v.set_from_value(123)
         # check __nonzero__
         self.assertTrue(v)
         # check IsNull
@@ -368,7 +368,7 @@ class ValueTests(unittest.TestCase):
         v2 = EDMValue.NewSimpleValue(SimpleType.Int64)
         v2.SetRandomValue(v)
         self.assertTrue(v2.value >= 0)
-        v.SetFromValue(-1)
+        v.set_from_value(-1)
         v2.SetRandomValue(v)
         self.assertTrue(v2.value <= 0)
 
@@ -379,7 +379,7 @@ class ValueTests(unittest.TestCase):
         self.assertFalse(v)
         # check IsNull
         self.assertTrue(v.IsNull())
-        v.SetFromValue(123)
+        v.set_from_value(123)
         # check __nonzero__
         self.assertTrue(v)
         # check IsNull
@@ -388,7 +388,7 @@ class ValueTests(unittest.TestCase):
         v2.SetRandomValue()
         self.assertTrue(len(v2.value) == 8,
                         "Expected 8 characters: %s" % v2.value)
-        v.SetFromValue("stem")
+        v.set_from_value("stem")
         v2.SetRandomValue(v)
         self.assertTrue(len(v2.value) == 12 and v2.value[0:4] == "stem")
 
@@ -479,13 +479,13 @@ class EntityTests(unittest.TestCase):
     def test_merge(self):
         e = Entity(self.es)
         e.set_key("abc")
-        e['Name'].SetFromValue("Widget Co")
-        e['Address']['City'].SetFromValue("Smalltown")
+        e['Name'].set_from_value("Widget Co")
+        e['Address']['City'].set_from_value("Smalltown")
         # regions and address street are NULL
         e2 = Entity(self.es)
         e2.set_key("xyz")
-        e2['Address']['Street'].SetFromValue("1 Main Street")
-        e2['Region'].SetFromValue(1)
+        e2['Address']['Street'].set_from_value("1 Main Street")
+        e2['Region'].set_from_value(1)
         self.assertFalse(e['Address']['Street'])
         e.merge(e2)
         # merges non-NULL values from e2 into e

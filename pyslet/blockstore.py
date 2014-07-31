@@ -11,7 +11,6 @@ import io
 
 from pyslet.vfs import OSFilePath as FilePath
 from pyslet.iso8601 import TimePoint
-import pyslet.rfc2616 as http
 import pyslet.http.params as params
 import pyslet.odata2.csdl as edm
 import pyslet.odata2.core as core
@@ -212,8 +211,8 @@ class EDMBlockStore(BlockStore):
                 raise BlockSize
             try:
                 block = blocks.new_entity()
-                block['hash'].SetFromValue(key)
-                block['data'].SetFromValue(data)
+                block['hash'].set_from_value(key)
+                block['data'].set_from_value(data)
                 blocks.insert_entity(block)
             except edm.ConstraintError:
                 # race condition, duplicate key
@@ -304,9 +303,9 @@ class LockStore(object):
             while tnow < tstop:
                 time.sleep(twait)
                 lock = locks.new_entity()
-                lock['hash'].SetFromValue(hash_key)
-                lock['owner'].SetFromValue(owner)
-                lock['created'].SetFromValue(TimePoint.FromNowUTC())
+                lock['hash'].set_from_value(hash_key)
+                lock['owner'].set_from_value(owner)
+                lock['created'].set_from_value(TimePoint.FromNowUTC())
                 try:
                     locks.insert_entity(lock)
                     return LockStoreContext(self, hash_key)
@@ -323,7 +322,7 @@ class LockStore(object):
                 locktime = lock['created'].value.WithZone(zDirection=0)
                 if locktime.get_unixtime() + self.lock_timeout < tnow:
                     # use optimistic locking
-                    lock['owner'].SetFromValue(owner)
+                    lock['owner'].set_from_value(owner)
                     try:
                         locks.update_entity(lock)
                         logging.warn("LockingBlockStore removed stale lock "
@@ -480,7 +479,7 @@ class StreamStore(object):
         """Creates a new stream in the store.
 
         mimetype
-            A :py:class:`~pyslet.rfc2616.MimeType` object
+            A :py:class:`~pyslet.http.params.MediaType` object
 
         Returns a stream entity which is an
         :py:class:`~pyslet.odata2.csdl.Entity` instance.
@@ -492,17 +491,17 @@ class StreamStore(object):
             stream = streams.new_entity()
             if not isinstance(mimetype, params.MediaType):
                 mimetype = params.MediaType.from_str(mimetype)
-            stream['mimetype'].SetFromValue(str(mimetype))
+            stream['mimetype'].set_from_value(str(mimetype))
             now = TimePoint.FromNowUTC()
-            stream['size'].SetFromValue(0)
+            stream['size'].set_from_value(0)
             if created is None:
-                stream['created'].SetFromValue(now)
-                stream['modified'].SetFromValue(now)
+                stream['created'].set_from_value(now)
+                stream['modified'].set_from_value(now)
             else:
                 created = created.ShiftZone(0)
-                stream['created'].SetFromValue(created)
-                stream['modified'].SetFromValue(created)
-            stream['md5'].SetFromValue(hashlib.md5().digest())
+                stream['created'].set_from_value(created)
+                stream['modified'].set_from_value(created)
+            stream['md5'].set_from_value(hashlib.md5().digest())
             streams.insert_entity(stream)
             return stream
 
@@ -548,8 +547,8 @@ class StreamStore(object):
         hash_key = self.bs.key(data)
         with stream['Blocks'].OpenCollection() as blocks:
             block = blocks.new_entity()
-            block['num'].SetFromValue(block_num)
-            block['hash'].SetFromValue(hash_key)
+            block['num'].set_from_value(block_num)
+            block['hash'].set_from_value(hash_key)
             blocks.insert_entity(block)
             # now ensure that the data is stored
             with self.ls.lock(hash_key):
@@ -570,10 +569,10 @@ class StreamStore(object):
             with self.ls.lock(hash_key):
                 with self.ls.lock(new_hash):
                     self.bs.store(data)
-                    block['hash'].SetFromValue(new_hash)
+                    block['hash'].set_from_value(new_hash)
                     base_coll.update_entity(block)
                     # is the old hash key used anywhere?
-                    hash_value.SetFromValue(hash_key)
+                    hash_value.set_from_value(hash_key)
                     base_coll.set_filter(filter)
                     if len(base_coll) == 0:
                         # remove orphan block from block store
@@ -604,7 +603,7 @@ class StreamStore(object):
                 with self.ls.lock(hash_key):
                     del base_coll[block.key()]
                     # is this hash key used anywhere?
-                    hash_value.SetFromValue(hash_key)
+                    hash_value.set_from_value(hash_key)
                     base_coll.set_filter(filter)
                     if len(base_coll) == 0:
                         # remove orphan block from block store
@@ -702,11 +701,11 @@ class BlockStream(io.RawIOBase):
                 else:
                     self._md5 = None
             if self.size != self.stream['size'].value:
-                self.stream['size'].SetFromValue(self.size)
+                self.stream['size'].set_from_value(self.size)
             now = TimePoint.FromNowUTC()
-            self.stream['modified'].SetFromValue(now)
+            self.stream['modified'].set_from_value(now)
             if self._md5 is not None:
-                self.stream['md5'].SetFromValue(self._md5.digest())
+                self.stream['md5'].set_from_value(self._md5.digest())
             else:
                 self.stream['md5'].SetNull()
             self.stream.Update()
@@ -758,7 +757,7 @@ class BlockStream(io.RawIOBase):
                 # finally add the last block, but don't store it yet
                 with self.stream['Blocks'].OpenCollection() as blist:
                     new_block = blist.new_entity()
-                    new_block['num'].SetFromValue(self._bnum)
+                    new_block['num'].set_from_value(self._bnum)
                     self.blocks.append(new_block)
                 self.size = self.pos
                 self._set_btop()

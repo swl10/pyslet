@@ -350,9 +350,9 @@ class SQLDSTests(unittest.TestCase):
                     "Address",
                     "Version"])
             new_hire.set_key('00001')
-            new_hire["EmployeeName"].SetFromValue('Joe Bloggs')
-            new_hire["Address"]["City"].SetFromValue('Chunton')
-            new_hire["Address"]["Street"].SetFromValue('Mill Road')
+            new_hire["EmployeeName"].set_from_value('Joe Bloggs')
+            new_hire["Address"]["City"].set_from_value('Chunton')
+            new_hire["Address"]["Street"].set_from_value('Mill Road')
             # we leave the version concurrency token as NULL and assume
             # it will be autofilled
             collection.insert_entity(new_hire)
@@ -362,7 +362,7 @@ class SQLDSTests(unittest.TestCase):
             self.assertTrue(len(collection) == 1, "Length after insert")
             new_hire = collection.new_entity()
             new_hire.set_key('00001')
-            new_hire["EmployeeName"].SetFromValue('Jane Doe')
+            new_hire["EmployeeName"].set_from_value('Jane Doe')
             try:
                 collection.insert_entity(new_hire)
                 self.fail("Double insert")
@@ -383,24 +383,24 @@ class SQLDSTests(unittest.TestCase):
                     "Address",
                     "Version"])
             new_hire.set_key('00001')
-            new_hire["EmployeeName"].SetFromValue('Joe Bloggs')
-            new_hire["Address"]["City"].SetFromValue('Chunton')
-            new_hire["Address"]["Street"].SetFromValue('Mill Road')
+            new_hire["EmployeeName"].set_from_value('Joe Bloggs')
+            new_hire["Address"]["City"].set_from_value('Chunton')
+            new_hire["Address"]["Street"].set_from_value('Mill Road')
             # we leave the version concurrency token as NULL and assume
             # it will be autofilled
             collection.insert_entity(new_hire)
             self.assertTrue(new_hire['Version'])
             # employee moves house some time later...
             talent = collection['00001']
-            talent["Address"]["City"].SetFromValue('Chunton')
-            talent["Address"]["Street"].SetFromValue('Main Street')
+            talent["Address"]["City"].set_from_value('Chunton')
+            talent["Address"]["Street"].set_from_value('Main Street')
             collection.update_entity(talent)
             self.assertTrue(talent['Version'])
             self.assertFalse(
                 talent['Version'].value == new_hire['Version'],
                 "Concurrency token updated")
             # now let's try and change the name of the original entity too
-            new_hire["Address"]["Street"].SetFromValue('Main Street')
+            new_hire["Address"]["Street"].set_from_value('Main Street')
             try:
                 collection.update_entity(new_hire)
                 self.fail("Concurrency failure")
@@ -421,9 +421,9 @@ class SQLDSTests(unittest.TestCase):
                     "Address",
                     "Version"])
             new_hire.set_key('00001')
-            new_hire["EmployeeName"].SetFromValue('Joe Bloggs')
-            new_hire["Address"]["City"].SetFromValue('Chunton')
-            new_hire["Address"]["Street"].SetFromValue('Mill Road')
+            new_hire["EmployeeName"].set_from_value('Joe Bloggs')
+            new_hire["Address"]["City"].set_from_value('Chunton')
+            new_hire["Address"]["Street"].set_from_value('Mill Road')
             # we leave the version concurrency token as NULL and assume
             # it will be autofilled
             collection.insert_entity(new_hire)
@@ -451,9 +451,9 @@ class SQLDSTests(unittest.TestCase):
             for i in xrange(10):
                 new_hire = collection.new_entity()
                 new_hire.set_key('%05X' % i)
-                new_hire["EmployeeName"].SetFromValue('Talent #%i' % i)
-                new_hire["Address"]["City"].SetFromValue('Chunton')
-                new_hire["Address"]["Street"].SetFromValue(
+                new_hire["EmployeeName"].set_from_value('Talent #%i' % i)
+                new_hire["Address"]["City"].set_from_value('Chunton')
+                new_hire["Address"]["Street"].set_from_value(
                     random.choice(
                         ('Mill Road', 'Main Street', 'Privet Drive')))
                 collection.insert_entity(new_hire)
@@ -472,9 +472,9 @@ class SQLDSTests(unittest.TestCase):
             for i in xrange(20):
                 new_hire = collection.new_entity()
                 new_hire.set_key('%05X' % i)
-                new_hire["EmployeeName"].SetFromValue('Talent #%i' % i)
-                new_hire["Address"]["City"].SetFromValue('Chunton')
-                new_hire["Address"]["Street"].SetFromValue(
+                new_hire["EmployeeName"].set_from_value('Talent #%i' % i)
+                new_hire["Address"]["City"].set_from_value('Chunton')
+                new_hire["Address"]["Street"].set_from_value(
                     random.choice(
                         ('Mill Road', 'Main Street', 'Privet Drive')))
                 collection.insert_entity(new_hire)
@@ -513,13 +513,13 @@ class SQLDSTests(unittest.TestCase):
             for i in xrange(20):
                 new_hire = collection.new_entity()
                 new_hire.set_key('%05X' % i)
-                new_hire["EmployeeName"].SetFromValue(
+                new_hire["EmployeeName"].set_from_value(
                     'Talent #%02i' %
                     random.randint(
                         1,
                         99))  # Force alphabetic sorting
-                new_hire["Address"]["City"].SetFromValue('Chunton')
-                new_hire["Address"]["Street"].SetFromValue(
+                new_hire["Address"]["City"].set_from_value('Chunton')
+                new_hire["Address"]["Street"].set_from_value(
                     random.choice(
                         ('Mill Road', 'Main Street', 'Privet Drive')))
                 collection.insert_entity(new_hire)
@@ -566,9 +566,9 @@ class SQLDSTests(unittest.TestCase):
             collection.create_table()
             customer = collection.new_entity()
             customer.set_key('ALFKI')
-            customer["CompanyName"].SetFromValue('Widget Inc')
-            customer["Address"]["City"].SetFromValue('Chunton')
-            customer["Address"]["Street"].SetFromValue('Factory Lane')
+            customer["CompanyName"].set_from_value('Widget Inc')
+            customer["Address"]["City"].set_from_value('Chunton')
+            customer["Address"]["Street"].set_from_value('Factory Lane')
             # we leave the version concurrency token as NULL and assume
             # it will be autofilled
             collection.insert_entity(customer)
@@ -731,10 +731,10 @@ class AutoFieldTests(unittest.TestCase):
         with files.OpenCollection() as file_coll:
             with blobs.OpenCollection() as blob_coll:
                 f = file_coll.new_entity()
-                f['path'].SetFromValue("hello.txt")
-                f['mime']['type'].SetFromValue("text")
-                f['mime']['subtype'].SetFromValue("plain")
-                f['hash'].SetFromValue("deadbeef")
+                f['path'].set_from_value("hello.txt")
+                f['mime']['type'].set_from_value("text")
+                f['mime']['subtype'].set_from_value("plain")
+                f['hash'].set_from_value("deadbeef")
                 try:
                     file_coll.insert_entity(f)
                     if not skip_fk:
@@ -753,8 +753,8 @@ class AutoFieldTests(unittest.TestCase):
                 self.assertFalse(f2['hash'],
                                  "Readonly attribute NULL on insert")
                 b = blob_coll.new_entity()
-                b['hash'].SetFromValue('deadbeef')
-                b['data'].SetFromValue('The quick brown fox jumped over...')
+                b['hash'].set_from_value('deadbeef')
+                b['data'].set_from_value('The quick brown fox jumped over...')
                 f2['Blob'].BindEntity(b)
                 with f2['Blob'].OpenCollection() as nav_coll:
                     self.assertTrue(len(nav_coll) == 0)
@@ -797,7 +797,6 @@ class RegressionTests(DataServiceRegressionTests):
             streamstore=SQLiteStreamStore(
                 file_path=self.d.join('streamstore.db')))
         self.db.create_all_tables()
-        
 
     def tearDown(self):  # noqa
         if self.db is not None:

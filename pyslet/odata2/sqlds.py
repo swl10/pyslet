@@ -18,7 +18,6 @@ import hashlib
 import io
 
 import pyslet.iso8601 as iso
-import pyslet.rfc2616 as http
 import pyslet.http.params as params
 import pyslet.blockstore as blockstore
 from pyslet.vfs import OSFilePath
@@ -413,7 +412,7 @@ class SQLCollectionBase(core.EntityCollection):
             transaction.close()
 
     def itervalues(self):
-        return self.ExpandEntities(
+        return self.expand_entities(
             self.entity_generator())
 
     def set_page(self, top, skip=0, skiptoken=None):
@@ -542,7 +541,7 @@ class SQLCollectionBase(core.EntityCollection):
                             # skip
                             self.nextSkiptoken = list(self.skiptoken)
                             v = edm.Int32Value()
-                            v.SetFromValue(self.topmax)
+                            v.set_from_value(self.topmax)
                             self.nextSkiptoken.append(v)
                         if set_next:
                             self.skiptoken = self.nextSkiptoken
@@ -567,7 +566,7 @@ class SQLCollectionBase(core.EntityCollection):
             transaction.close()
 
     def iterpage(self, set_next=False):
-        return self.ExpandEntities(
+        return self.expand_entities(
             self.page_generator(set_next))
 
     def __getitem__(self, key):
@@ -700,13 +699,13 @@ class SQLCollectionBase(core.EntityCollection):
                 sinfo.size, sinfo.md5 = self._copy_src(src, dst, sinfo.size, h)
             if sinfo.modified is not None:
                 # force modified date based on input
-                estream['modified'].SetFromValue(sinfo.modified.ShiftZone(0))
+                estream['modified'].set_from_value(sinfo.modified.ShiftZone(0))
                 estream.Update()
-            v.SetFromValue(estream.key())
+            v.set_from_value(estream.key())
         else:
             raise NotImplementedError
         if h is not None:
-            etag.SetFromValue(h.digest())
+            etag.set_from_value(h.digest())
         oldvalue = self._get_streamid(key)
         transaction = SQLTransaction(self.container.dbapi, self.dbc)
         try:
@@ -1030,7 +1029,7 @@ class SQLCollectionBase(core.EntityCollection):
         Otherwise, only selected fields are yielded so if you attempt to
         insert a value without selecting the key fields you can expect a
         constraint violation unless the key is read only."""
-        for k, v in entity.DataItems():
+        for k, v in entity.data_items():
             source_path = (self.entity_set.name, k)
             if (source_path not in self.container.ro_names and
                     entity.Selected(k)):
@@ -1056,7 +1055,7 @@ class SQLCollectionBase(core.EntityCollection):
         method is to assist with reading back automatically generated
         field values after an insert or update."""
         keys = entity.entity_set.keys
-        for k, v in entity.DataItems():
+        for k, v in entity.data_items():
             source_path = (self.entity_set.name, k)
             if (source_path in self.container.ro_names and (
                     entity.Selected(k) or k in keys)):
@@ -1093,7 +1092,7 @@ class SQLCollectionBase(core.EntityCollection):
         Only selected fields are yielded with the caveat that the keys
         are always selected."""
         keys = entity.entity_set.keys
-        for k, v in entity.DataItems():
+        for k, v in entity.data_items():
             source_path = (self.entity_set.name, k)
             if (k in keys or entity.Selected(k)):
                 if isinstance(v, edm.SimpleValue):
@@ -1118,7 +1117,7 @@ class SQLCollectionBase(core.EntityCollection):
         being yielded. This implements OData's PUT semantics.  See
         :py:meth:`merge_fields` for an alternative."""
         keys = entity.entity_set.keys
-        for k, v in entity.DataItems():
+        for k, v in entity.data_items():
             source_path = (self.entity_set.name, k)
             if k in keys or source_path in self.container.ro_names:
                 continue
@@ -1146,7 +1145,7 @@ class SQLCollectionBase(core.EntityCollection):
         MERGE semantics.  See
         :py:meth:`update_fields` for an alternative."""
         keys = entity.entity_set.keys
-        for k, v in entity.DataItems():
+        for k, v in entity.data_items():
             source_path = (self.entity_set.name, k)
             if (k in keys or
                     source_path in self.container.ro_names or
@@ -1471,7 +1470,7 @@ class SQLCollectionBase(core.EntityCollection):
 
         This is implemented using the concatenation operator"""
         percent = edm.SimpleValue.NewSimpleValue(edm.SimpleType.String)
-        percent.SetFromValue(u"'%'")
+        percent.set_from_value(u"'%'")
         percent = UnparameterizedLiteral(percent)
         concat = core.CallExpression(core.Method.concat)
         concat.operands.append(percent)
@@ -1501,7 +1500,7 @@ class SQLCollectionBase(core.EntityCollection):
 
         This is implemented using the concatenation operator"""
         percent = edm.SimpleValue.NewSimpleValue(edm.SimpleType.String)
-        percent.SetFromValue(u"'%'")
+        percent.set_from_value(u"'%'")
         percent = UnparameterizedLiteral(percent)
         concat = core.CallExpression(core.Method.concat)
         concat.operands.append(expression.operands[1])
@@ -1565,7 +1564,7 @@ class SQLCollectionBase(core.EntityCollection):
 
                 substringof(A,B) == A in B"""
         percent = edm.SimpleValue.NewSimpleValue(edm.SimpleType.String)
-        percent.SetFromValue(u"'%'")
+        percent.set_from_value(u"'%'")
         percent = UnparameterizedLiteral(percent)
         rconcat = core.CallExpression(core.Method.concat)
         rconcat.operands.append(expression.operands[0])
@@ -1731,13 +1730,13 @@ class SQLEntityCollection(SQLCollectionBase):
                 sinfo.size, sinfo.md5 = self._copy_src(src, dst, sinfo.size, h)
             if sinfo.modified is not None:
                 # force modified date based on input
-                estream['modified'].SetFromValue(sinfo.modified.ShiftZone(0))
+                estream['modified'].set_from_value(sinfo.modified.ShiftZone(0))
                 estream.Update()
-            v.SetFromValue(estream.key())
+            v.set_from_value(estream.key())
         else:
             raise NotImplementedError
         if h is not None:
-            etag.SetFromValue(h.digest())
+            etag.set_from_value(h.digest())
         transaction = SQLTransaction(self.container.dbapi, self.dbc)
         try:
             transaction.begin()
@@ -1951,7 +1950,7 @@ class SQLEntityCollection(SQLCollectionBase):
                     iname, iv = insert_values[i]
                     if fkname == iname:
                         # fk overrides - update the entity's value
-                        iv.SetFromValue(fkv.value)
+                        iv.set_from_value(fkv.value)
                         # now drop it from the list to prevent
                         # double column names
                         del insert_values[i]
@@ -3719,8 +3718,8 @@ class SQLEntityContainer(object):
         self.aux_table = {}
         """A mapping from the names of symmetric association sets to::
 
-            ( <entity set A>, <name prefix A>, <entity set B>, <name
-            prefix B>, <unique keys> )
+            (<entity set A>, <name prefix A>, <entity set B>,
+             <name prefix B>, <unique keys>)
         """
         self.mangled_names = {}
         """A mapping from source path tuples to mangled and quoted names
@@ -3904,7 +3903,7 @@ class SQLEntityContainer(object):
                 yield [p.name]
 
     def bind_entity_set(self, entity_set):
-        entity_set.Bind(self.get_collection_class(), container=self)
+        entity_set.bind(self.get_collection_class(), container=self)
 
     def bind_navigation_property(self, entity_set, name):
         # Start by making a tuple of the end multiplicities.
@@ -4543,9 +4542,9 @@ class SQLEntityContainer(object):
         :py:meth:`prepare_sql_value` and may need to be overridden to
         convert *new_value* into a form suitable for passing to the
         underlying
-        :py:meth:`~pyslet.odata2.csdl.SimpleValue.SetFromValue`
+        :py:meth:`~pyslet.odata2.csdl.SimpleValue.set_from_value`
         method."""
-        simple_value.SetFromValue(new_value)
+        simple_value.set_from_value(new_value)
 
     def new_from_sql_value(self, sql_value):
         """Returns a new simple value with value *sql_value*
@@ -4716,18 +4715,18 @@ class SQLiteEntityContainer(SQLEntityContainer):
             simple_value.SetNull()
         elif isinstance(new_value, types.BufferType):
             new_value = str(new_value)
-            simple_value.SetFromValue(new_value)
+            simple_value.set_from_value(new_value)
         elif isinstance(simple_value,
                         (edm.DateTimeValue, edm.DateTimeOffsetValue)):
             # SQLite stores these as strings
-            simple_value.SetFromValue(
+            simple_value.set_from_value(
                 iso.TimePoint.from_str(new_value, tDesignators="T "))
         elif isinstance(simple_value, edm.TimeValue):
             simple_value.value = iso.Time(totalSeconds=new_value)
         elif isinstance(simple_value, edm.DecimalValue):
             simple_value.value = decimal.Decimal(new_value)
         else:
-            simple_value.SetFromValue(new_value)
+            simple_value.set_from_value(new_value)
 
     def new_from_sql_value(self, sql_value):
         """Returns a new simple value instance initialised from *sql_value*
@@ -4737,7 +4736,7 @@ class SQLiteEntityContainer(SQLEntityContainer):
         *sql_value* is passed directly to the parent."""
         if isinstance(sql_value, types.BufferType):
             result = edm.BinaryValue()
-            result.SetFromValue(str(sql_value))
+            result.set_from_value(str(sql_value))
             return result
         else:
             return super(SQLiteEntityContainer, self).new_from_sql_value(

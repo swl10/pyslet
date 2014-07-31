@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-"""Creates an OData in-memory cache of key value pairs"""
+"""Creates an OData service from weather data"""
 
 # SAMPLE_DIR='small-sample'
 SAMPLE_DIR = 'daily-text'
@@ -135,19 +135,19 @@ def LoadDataFromFile(weatherData, f, year, month, day):
                 # assume BST for now, add the zone info and then shift to GMT
                 tValue = tValue.WithZone(
                     zDirection=1, zHour=1).ShiftZone(zDirection=0)
-            dataPoint['TimePoint'].SetFromValue(tValue)
-            dataPoint['Temperature'].SetFromValue(data[1])
-            dataPoint['Humidity'].SetFromValue(data[2])
-            dataPoint['DewPoint'].SetFromValue(data[3])
-            dataPoint['Pressure'].SetFromValue(data[4])
-            dataPoint['WindSpeed'].SetFromValue(data[5])
-            dataPoint['WindDirection'].SetFromValue(data[6])
-            dataPoint['Sun'].SetFromValue(data[7])
-            dataPoint['Rain'].SetFromValue(data[8])
+            dataPoint['TimePoint'].set_from_value(tValue)
+            dataPoint['Temperature'].set_from_value(data[1])
+            dataPoint['Humidity'].set_from_value(data[2])
+            dataPoint['DewPoint'].set_from_value(data[3])
+            dataPoint['Pressure'].set_from_value(data[4])
+            dataPoint['WindSpeed'].set_from_value(data[5])
+            dataPoint['WindDirection'].set_from_value(data[6])
+            dataPoint['Sun'].set_from_value(data[7])
+            dataPoint['Rain'].set_from_value(data[8])
             shour, smin = map(int, data[9].split(':'))
-            dataPoint['SunRainStart'].SetFromValue(
+            dataPoint['SunRainStart'].set_from_value(
                 iso.Time(hour=shour, minute=smin, second=0))
-            dataPoint['WindSpeedMax'].SetFromValue(data[10])
+            dataPoint['WindSpeedMax'].set_from_value(data[10])
             try:
                 collection.insert_entity(dataPoint)
             except edm.ConstraintError:
@@ -157,7 +157,7 @@ def LoadDataFromFile(weatherData, f, year, month, day):
                     # shift forward again and then force the zone to GMT
                     tValue = tValue.ShiftZone(
                         zDirection=1, zHour=1).WithZone(zDirection=0)
-                    dataPoint['TimePoint'].SetFromValue(tValue)
+                    dataPoint['TimePoint'].set_from_value(tValue)
                     logging.info(
                         "Auto-detecting switch to GMT at: %s", str(tValue))
                     try:
@@ -196,16 +196,16 @@ def LoadNotes(weatherNotes, fileName, weatherData):
                 noteWords = line.split()
                 if noteWords:
                     note = collection.new_entity()
-                    note['ID'].SetFromValue(id)
+                    note['ID'].set_from_value(id)
                     start = iso.TimePoint(
                         date=iso.Date.from_str(noteWords[0]),
                         time=iso.Time(hour=0, minute=0, second=0))
-                    note['StartDate'].SetFromValue(start)
+                    note['StartDate'].set_from_value(start)
                     end = iso.TimePoint(
                         date=iso.Date.from_str(noteWords[1]).Offset(days=1),
                         time=iso.Time(hour=0, minute=0, second=0))
-                    note['EndDate'].SetFromValue(end)
-                    note['Details'].SetFromValue(
+                    note['EndDate'].set_from_value(end)
+                    note['Details'].set_from_value(
                         string.join(noteWords[2:], ' '))
                     collection.insert_entity(note)
                     # now find the data points that match
@@ -279,7 +279,7 @@ def runWeatherLoader(container=None):
     if container is None:
         doc = LoadMetadata()
         container = MakeContainer(doc)
-    client = http.HTTPRequestManager()
+    client = http.Client()
     weatherData = container['DataPoints']
     DTG = "http://www.cl.cam.ac.uk/research/dtg/weather/daily-text.cgi?%s"
     with weatherData.OpenCollection() as collection:

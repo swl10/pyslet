@@ -14,7 +14,7 @@ WStringIO = RStringIO
 
 import pyslet.odata2.csdl as edm
 import pyslet.odata2.core as odata
-import pyslet.rfc2616 as http
+import pyslet.http.params as params
 import pyslet.iso8601 as iso
 
 
@@ -58,7 +58,7 @@ class InMemoryEntityStore(object):
         """Binds this entity store to the given entity set.
 
         Not thread safe."""
-        entity_set.Bind(EntityCollection, entity_store=self)
+        entity_set.bind(EntityCollection, entity_store=self)
         self.entity_set = entity_set
 
     def add_association(self, aindex, reverse):
@@ -126,12 +126,12 @@ class InMemoryEntityStore(object):
                     if isinstance(p, edm.Complex):
                         self.set_complex_from_tuple(p, pValue)
                     else:
-                        p.SetFromValue(pValue)
+                        p.set_from_value(pValue)
                 else:
                     if isinstance(p, edm.Complex):
                         p.SetNull()
                     else:
-                        p.SetFromValue(None)
+                        p.set_from_value(None)
             e.exists = True
         return e
 
@@ -141,7 +141,7 @@ class InMemoryEntityStore(object):
             if isinstance(p, edm.Complex):
                 self.set_complex_from_tuple(p, pValue)
             else:
-                p.SetFromValue(pValue)
+                p.set_from_value(pValue)
 
     def read_stream(self, key):
         """Returns a tuple of the entity's media stream
@@ -424,15 +424,15 @@ class EntityCollection(odata.EntityCollection):
             return self.entity_store.count_entities()
         else:
             result = 0
-            for e in self.FilterEntities(
+            for e in self.filter_entities(
                     self.entity_store.generate_entities()):
                 result += 1
             return result
 
     def itervalues(self):
-        return self.OrderEntities(
-            self.ExpandEntities(
-                self.FilterEntities(
+        return self.order_entities(
+            self.expand_entities(
+                self.filter_entities(
                     self.entity_store.generate_entities(self.select))))
 
     def __getitem__(self, key):
@@ -539,7 +539,7 @@ class EntityCollection(odata.EntityCollection):
         data = self._read_src(src, sinfo.size)
         if h is not None:
             h.update(data)
-            etag.SetFromValue(h.digest())
+            etag.set_from_value(h.digest())
         if sinfo.created is None:
             sinfo.created = iso.TimePoint.FromNowUTC()
         if sinfo.modified is None:
@@ -577,7 +577,7 @@ class EntityCollection(odata.EntityCollection):
         data = self._read_src(src, sinfo.size)
         if h is not None:
             h.update(data)
-            etag.SetFromValue(h.digest())
+            etag.set_from_value(h.digest())
             update = True
         if sinfo.created is None:
             sinfo.created = oldinfo.created
@@ -655,7 +655,7 @@ class NavigationCollection(odata.NavigationCollection):
             return len(result_set)
         else:
             result = 0
-            for e in self.FilterEntities(self.entity_generator()):
+            for e in self.filter_entities(self.entity_generator()):
                 result += 1
             return result
 
@@ -666,9 +666,9 @@ class NavigationCollection(odata.NavigationCollection):
             yield self.collection[k]
 
     def itervalues(self):
-        return self.OrderEntities(
-            self.ExpandEntities(
-                self.FilterEntities(
+        return self.order_entities(
+            self.expand_entities(
+                self.filter_entities(
                     self.entity_generator())))
 
     def __getitem__(self, key):
