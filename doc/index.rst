@@ -20,7 +20,12 @@ Compatibility
 -------------
 
 Pyslet requires Python 2.6 or Python 2.7, with Python 2.7 being
-preferred. When run under Python 2.6 Pyslet will patch the following
+preferred.
+
+Python 2.6
+~~~~~~~~~~
+
+When run under Python 2.6 Pyslet will patch the following
 modules to make them more compatible with Python 2.7 code.
 
 zipfile
@@ -46,18 +51,32 @@ of sqlite3 that does not support validation of foreign key constraints,
 the unittests have been designed to skip these tests when such a version
 is encountered.
 
-    .. warning::
+    .. note::
 
-        When run under Python 2.6, Pyslet does not support certificate
-        validation of HTTP connections.
+        When run under Python 2.6, Pyslet may not support certificate
+        validation of HTTP connections properly, this seems to depend
+        on the version of OpenSSL that Python is linked to.  If you
+        have successfully used pip to install Pyslet then your Python
+        is probably unaffected though.
+
+Please be aware of the following bug in Python 2.6:
+http://bugs.python.org/issue2531  this problem caused a number of
+Pyslet's tests to fail initially and remains a potential source of problems
+if you are using Decimal types in OData models.
+
+Python 3
+~~~~~~~~
 
 Pyslet is not currently compatible with Python 3, though some work has
 been towards a Python 3 version.
 
+PEP-8
+~~~~~
+
 The code is not currently PEP-8 compliant but it is slowly being
 refactored for compliance as modules are touched during development. 
 Where critical methods are renamed from CamelCase to PEP-8 compliant
-camel_case then the old names are defined as wrappers which raise
+lower_case_form then the old names are defined as wrappers which raise
 deprecation warnings.
 
     
@@ -68,8 +87,14 @@ Pyslet is developed on github: https://github.com/swl10/pyslet but it
 can be downloaded and installed from the popular PyPi package
 distribution site: https://pypi.python.org/pypi/pyslet using *pip*.
 
+Users of older Python builds (e.g., the current Python 2.6 installed on
+OS X as of August 2014) should be aware that pip may well fell to
+install itself or other modules due to a failure to connect to the PyPi
+repository.  Fixing this is hard and installing from source is
+recommended instead if you are afflicted by this issue.
+
 Pyslet is distributed under the 'New' BSD license:
-http://opensource.org/licenses/BSD-3-Clause		
+http://opensource.org/licenses/BSD-3-Clause     
 
 
 Installing from Source
@@ -97,13 +122,17 @@ python-cross referencing in the code that may not be interpretable by
 other system (see below for details).
 
 *   ReStructuredText Primer:
-    http://docutils.sourceforge.net/docs/user/rst/quickstart.html	
-	*   Quick Reference:
-    	http://docutils.sourceforge.net/docs/user/rst/quickref.html
-	*   Sphinx: http://sphinx.pocoo.org/
-		*   Autodoc externsion: http://sphinx.pocoo.org/ext/autodoc.html
-		*   Python-cross references:
-    		http://sphinx.pocoo.org/domains.html#python-roles
+    http://docutils.sourceforge.net/docs/user/rst/quickstart.html   
+    
+    -   Quick Reference:
+        http://docutils.sourceforge.net/docs/user/rst/quickref.html
+    
+    -   Sphinx: http://sphinx.pocoo.org/
+    
+        +   Autodoc externsion: http://sphinx.pocoo.org/ext/autodoc.html
+
+        +   Python-cross references:
+            http://sphinx.pocoo.org/domains.html#python-roles
 
 
 Indices and tables
