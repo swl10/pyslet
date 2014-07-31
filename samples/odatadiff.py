@@ -18,7 +18,7 @@ import pyslet.odata2.metadata as edmx
 
 
 def fetch_url(url, username=None, password=None):
-    mgr = http.HTTPRequestManager()
+    mgr = http.Client()
     url = uri.URIFactory.URI(url)
     # does url end with $metadata?
     if url.GetFileName() != "$metadata":

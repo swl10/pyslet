@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<edmx:Edmx Version="1.0"
+    xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx"
+    xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata">
+    <edmx:DataServices m:DataServiceVersion="2.0">
+        <Schema Namespace="FSSchema"
+            xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
+            <EntityContainer Name="FS" m:IsDefaultEntityContainer="true">
+                <EntitySet Name="Files" EntityType="FSSchema.File"/>
+            </EntityContainer>
+            <EntityType Name="File">
+                <Key>
+                    <PropertyRef Name="path"/>
+                </Key>
+                <Property Name="path" Type="Edm.String" Nullable="false"
+                    MaxLength="1024" Unicode="false" FixedLength="false"/>
+                <Property Name="name" Type="Edm.String" Nullable="false"
+                    MaxLength="255" Unicode="true" FixedLength="false"
+                    m:FC_TargetPath="SyndicationTitle"
+                    m:FC_KeepInContent="true"/>
+                <Property Name="size" Type="Edm.Int32" Nullable="true"/>
+                <Property Name="lastAccess" Type="Edm.DateTime"
+                    Nullable="false" Precision="3"/>
+                <Property Name="lastModified" Type="Edm.DateTime"
+                    Nullable="false" Precision="3"
+                    m:FC_TargetPath="SyndicationUpdated"
+                    m:FC_KeepInContent="true"/>
+            </EntityType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>
