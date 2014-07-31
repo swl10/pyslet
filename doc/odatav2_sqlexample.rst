@@ -317,16 +317,16 @@ navigation properties::
 					noteWords=line.split()
 					if noteWords:
 						note=collection.new_entity()
-						note['ID'].SetFromValue(id)
+						note['ID'].set_from_value(id)
 						start=iso.TimePoint(
 							date=iso.Date.from_str(noteWords[0]),
 							time=iso.Time(hour=0,minute=0,second=0))
-						note['StartDate'].SetFromValue(start)
+						note['StartDate'].set_from_value(start)
 						end=iso.TimePoint(
 							date=iso.Date.from_str(noteWords[1]).Offset(days=1),
 							time=iso.Time(hour=0,minute=0,second=0))
-						note['EndDate'].SetFromValue(end)
-						note['Details'].SetFromValue(string.join(noteWords[2:],' '))
+						note['EndDate'].set_from_value(end)
+						note['Details'].set_from_value(string.join(noteWords[2:],' '))
 						collection.insert_entity(note)
 						# now find the data points that match
 						data.set_filter(core.CommonExpression.from_str("TimePoint ge datetime'%s' and TimePoint lt datetime'%s'"%(unicode(start),unicode(end))))

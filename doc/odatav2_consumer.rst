@@ -109,7 +109,7 @@ in the usual way::
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21) HTTP/1.1
 	INFO:root:Finished Response, status 200
-	>>> for k, v in scones.DataItems(): print k, v.value
+	>>> for k, v in scones.data_items(): print k, v.value
 	... 
 	ProductID 21
 	ProductName Sir Rodney's Scones
@@ -130,7 +130,7 @@ properties to load information about the supplier::
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)/Supplier HTTP/1.1
 	INFO:root:Finished Response, status 200
-	>>> for k, v in supplier.DataItems(): print k, v.value
+	>>> for k, v in supplier.data_items(): print k, v.value
 	... 
 	SupplierID 8
 	CompanyName Specialty Biscuits, Ltd.
@@ -415,8 +415,8 @@ and so on, the following methods are useful for consumers of the API:
 			collection.set_filter(
 			    core.CommonExpression.from_str("startswith(Name,'D')"))
 			new_entity = collection.new_entity()
-			new_entity['Key'].SetFromValue(1)
-			new_entity['Name'].SetFromValue(u"Steve")
+			new_entity['Key'].set_from_value(1)
+			new_entity['Name'].set_from_value(u"Steve")
 			collection.insert_entity(new_entity)
 			# new_entity now exists in the base collection but... 
 			e1 = collection[1]
@@ -647,7 +647,7 @@ any linked Suppliers::
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)?$expand=Supplier HTTP/1.1
 	INFO:root:Finished Response, status 200
 	>>> supplier=scones['Supplier'].GetEntity()
-	>>> for k, v in supplier.DataItems(): print k, v.value
+	>>> for k, v in supplier.data_items(): print k, v.value
 	... 
 	SupplierID 8
 	CompanyName Specialty Biscuits, Ltd.
@@ -690,7 +690,7 @@ the product name::
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)?$select=ProductID%2CProductName HTTP/1.1
 	INFO:root:Finished Response, status 200
-	>>> for k, v in scones.DataItems(): print k, v.value
+	>>> for k, v in scones.data_items(): print k, v.value
 	... 
 	ProductID 21
 	ProductName Sir Rodney's Scones
@@ -711,7 +711,7 @@ way has NULL values for any properties that weren't retrieved.  The
 determine if a value is NULL in the data source or NULL because it is
 not selected::
 
-	>>> for k, v in scones.DataItems(): 
+	>>> for k, v in scones.data_items(): 
 	...  if scones.Selected(k): print k, v.value
 	... 
 	ProductID 21
@@ -725,12 +725,12 @@ The expand and select options can be combined in complex ways::
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)?$expand=Supplier&$select=ProductID%2CProductName%2CSupplier%2FPhone%2CSupplier%2FSupplierID HTTP/1.1
 	INFO:root:Finished Response, status 200
 	>>> supplier = scones['Supplier'].GetEntity()
-	>>> for k, v in scones.DataItems():
+	>>> for k, v in scones.data_items():
 	...  if scones.Selected(k): print k, v.value
 	... 
 	ProductID 21
 	ProductName Sir Rodney's Scones
-	>>> for k, v in supplier.DataItems():
+	>>> for k, v in supplier.data_items():
 	...  if supplier.Selected(k): print k, v.value
 	... 
 	SupplierID 8
@@ -748,10 +748,10 @@ names onto their values.  The values are either SimpleValue_, Complex_
 or DeferredValue_ instances.  All property values are created on
 construction and cannot be assigned.  To update a SimpleValue, whether
 it is a direct child or part of a Complex value, use its
-:py:meth:`~pyslet.odata2.csdl.SimpleValue.SetFromValue` method::
+:py:meth:`~pyslet.odata2.csdl.SimpleValue.set_from_value` method::
 	
-	entity['Name'].SetFromValue("Steve")
-	entity['Address']['City'].SetFromValue("Cambridge")
+	entity['Name'].set_from_value("Steve")
+	entity['Address']['City'].set_from_value("Cambridge")
 	
 The following attributes are useful for consumers of the API (and should
 be treated as read only):
@@ -788,7 +788,7 @@ The following methods are useful for consumers of the API:
 		>>> list(scones.DataKeys())
 		[u'ProductID', u'ProductName', u'SupplierID', u'CategoryID', u'QuantityPerUnit', u'UnitPrice', u'UnitsInStock', u'UnitsOnOrder', u'ReorderLevel', u'Discontinued']
 
-:py:meth:`~pyslet.odata2.csdl.Entity.DataItems`
+:py:meth:`~pyslet.odata2.csdl.Entity.data_items`
 	Iterates over tuples of simple and complex property (name,value)
 	pairs. See above for examples of usage.
 
@@ -859,14 +859,14 @@ common methods:
 			print entity['Property'].value
 			# will not print if value is 0
 	
-:py:meth:`~pyslet.odata2.csdl.SimpleValue.SetFromValue`
+:py:meth:`~pyslet.odata2.csdl.SimpleValue.set_from_value`
 	Updates the value, coercing the argument to the correct type and
 	range checking its value.
 
 :py:meth:`~pyslet.odata2.csdl.SimpleValue.SetFromSimpleValue`
 	Updates the value from another SimpleValue, if the types match then
 	the value is simply copied, otherwise the value is coerced using
-	SetFromValue.
+	set_from_value.
 
 :py:meth:`~pyslet.odata2.csdl.SimpleValue.SetFromLiteral`
 	Updates the value by parsing it from a (unicode) string.  This is
@@ -1045,14 +1045,14 @@ You can set values obtained from the time module in a similar way::
 
 	>>> import pyslet.iso8601 as iso
 	>>> t = time.gmtime(time.time())
-	>>> top[0]['OrderDate'].SetFromValue(iso.TimePoint.FromStructTime(t))
+	>>> top[0]['OrderDate'].set_from_value(iso.TimePoint.FromStructTime(t))
 	>>> print top[0]['OrderDate'].value
 	2014-02-17T21:51:41
 
 But if you just want a timestamp use one of the built-in factory
 methods::
 
-	>>> top[0]['OrderDate'].SetFromValue(iso.TimePoint.FromNowUTC())
+	>>> top[0]['OrderDate'].set_from_value(iso.TimePoint.FromNowUTC())
 	>>> print top[0]['OrderDate'].value
 	2014-02-17T21:56:23
 

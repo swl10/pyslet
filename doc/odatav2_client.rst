@@ -108,7 +108,7 @@ in the usual way::
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21) HTTP/1.1
 	INFO:root:Finished Response, status 200
-	>>> for k,v in scones.DataItems(): print k,v.value
+	>>> for k,v in scones.data_items(): print k,v.value
 	... 
 	ProductID 21
 	ProductName Sir Rodney's Scones
@@ -129,7 +129,7 @@ properties to load information about the supplier::
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)/Supplier HTTP/1.1
 	INFO:root:Finished Response, status 200
-	>>> for k,v in supplier.DataItems(): print k,v.value
+	>>> for k,v in supplier.data_items(): print k,v.value
 	... 
 	SupplierID 8
 	CompanyName Specialty Biscuits, Ltd.
