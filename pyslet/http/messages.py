@@ -7,7 +7,6 @@ import types
 import base64
 import threading
 import logging
-import warnings
 import io
 import os
 import zlib
@@ -15,6 +14,7 @@ import errno
 from StringIO import StringIO
 
 import pyslet.rfc2396 as uri
+from pyslet.pep8 import PEP8Compatibility
 
 import grammar
 import params
@@ -300,7 +300,7 @@ class ChunkedReader(io.RawIOBase):
         return nbytes
 
 
-class Message(object):
+class Message(PEP8Compatibility, object):
 
     """An abstract class to represent an HTTP message.
 
@@ -406,7 +406,7 @@ class Message(object):
             recipient only supports HTTP/1.0.  This has the effect of
             suppressing some features.
 
-        The message is sent using the send_ family of methods."""
+        The message is sent using the send\_ family of methods."""
         with self.lock:
             self.send_protocol = protocol
             if (self.send_protocol is not None and
@@ -1003,12 +1003,6 @@ class Message(object):
         with self.lock:
             return self.headers.get(field_name.lower(), [None, None])[1]
 
-    def GetHeader(self, field_name):  # noqa
-        warnings.warn("Message.get_header is deprecated, "
-                      "use get_header instead",
-                      DeprecationWarning, stacklevel=3)
-        return self.get_header(field_name)
-
     def set_header(self, field_name, field_value, append_mode=False):
         """Sets the header with *field_name* to the string *field_value*.
 
@@ -1035,12 +1029,6 @@ class Message(object):
                 else:
                     field_value = field_value.strip()
                 self.headers[fieldname_key] = [field_name, field_value]
-
-    def SetHeader(self, field_name, field_value, append_mode=False):  # noqa
-        warnings.warn("Message.SetHeader is deprecated, "
-                      "use set_header instead",
-                      DeprecationWarning, stacklevel=3)
-        self.set_header(field_name, field_value, append_mode)
 
     def get_allow(self):
         """Returns an :py:class:`Allow` instance or None if no "Allow"
@@ -1191,12 +1179,6 @@ class Message(object):
         else:
             return None
 
-    def GetContentLength(self):       # noqa
-        warnings.warn("Message.GetContentLength is deprecated, "
-                      "use set_content_length instead",
-                      DeprecationWarning, stacklevel=3)
-        return self.get_content_length()
-
     def set_content_length(self, length):
         """Sets the Content-Length header from an integer or removes it
         if *length* is None."""
@@ -1204,12 +1186,6 @@ class Message(object):
             self.set_header("Content-Length", None)
         else:
             self.set_header("Content-Length", str(length))
-
-    def SetContentLength(self, length):       # noqa
-        warnings.warn("Message.SetContentLength is deprecated, "
-                      "use set_content_length instead",
-                      DeprecationWarning, stacklevel=3)
-        self.set_content_length(length)
 
     def get_content_location(self):
         """Returns a :py:class:`pyslet.rfc2396.URI` instance created from
@@ -1284,12 +1260,6 @@ class Message(object):
         else:
             return None
 
-    def GetContentType(self):       # noqa
-        warnings.warn("Message.GetContentType is deprecated, "
-                      "use get_content_type instead",
-                      DeprecationWarning, stacklevel=3)
-        return self.get_content_type()
-
     def set_content_type(self, mtype=None):
         """Sets the Content-Type header from mtype, a
         :py:class:`MediaType` instance, or removes it if
@@ -1298,12 +1268,6 @@ class Message(object):
             self.set_header('Content-Type', None)
         else:
             self.set_header('Content-Type', str(mtype))
-
-    def SetContentType(self, mtype=None):       # noqa
-        warnings.warn("Message.SetContentType is deprecated, "
-                      "use set_content_type instead",
-                      DeprecationWarning, stacklevel=3)
-        self.set_content_type(mtype)
 
     def get_date(self):
         """Returns the value of the Date header.
@@ -1384,7 +1348,7 @@ class Message(object):
                                         "after chunked" % te.token)
 
     def get_transfer_encoding(self):
-        """Returns a list of :py:`params.TransferEncoding`
+        """Returns a list of :py:class:`params.TransferEncoding`
 
         If no TransferEncoding header is present None is returned."""
         field_value = self.get_header("Transfer-Encoding")
@@ -1421,18 +1385,18 @@ class Message(object):
 
 class Request(Message):
 
+    # a mapping from upper case method name to True/False with True
+    # indicating the method is idempotent
+    IDEMPOTENT = {"GET": True, "HEAD": True, "PUT": True, "DELETE": True,
+                  "OPTIONS": True, "TRACE": True, "CONNECT": False,
+                  "POST": False}
+
     def __init__(self, **kwargs):
         super(Request, self).__init__(**kwargs)
         #: the http method, always upper case, e.g., 'POST'
         self.method = None
-        #: the hostname of the origin server
-        self.hostname = None
-        #: the port on the origin server
-        self.port = None
         #: the request uri as it appears in the start line
         self.request_uri = None
-        #: the full URL of the requested resource
-        self.url = None
         #: the associated response
         self.response = None
 
@@ -1507,6 +1471,10 @@ class Request(Message):
             return "%s %s %s" % (self.method, self.request_uri,
                                  str(self.protocol))
 
+    def is_idempotent(self):
+        """Returns True if this is an idempotent request"""
+        return self.method and self.IDEMPOTENT.get(self.method, False)
+
     def set_method(self, method):
         with self.lock:
             self.method = method.upper()
@@ -1557,52 +1525,6 @@ class Request(Message):
         if url.query is not None:
             self.request_uri = self.request_uri + '?' + url.query
         return authority
-
-    def set_url(self, url):
-        """Sets the URL for this request
-
-        This method sets the Host header and the following local
-        attributes:
-        :py:attr:`scheme`, :py:attr:`hostname`, :py:attr:`port` and
-        :py:attr:`request_uri`."""
-        with self.lock:
-            if not isinstance(url, uri.URI):
-                url = uri.URIFactory.URI(url)
-            self.url = url
-            if self.url.userinfo:
-                raise NotImplementedError(
-                    "username(:password) in URL not yet supported")
-            if self.url.absPath:
-                self.request_uri = self.url.absPath
-            else:
-                self.request_uri = "/"
-            if self.url.query is not None:
-                self.request_uri = self.request_uri + '?' + self.url.query
-            if not isinstance(self.url, params.HTTPURL):
-                raise HTTPException(
-                    "Scheme not supported: %s" % self.url.scheme)
-            elif isinstance(self.url, params.HTTPSURL):
-                self.scheme = 'https'
-            else:
-                self.scheme = 'http'
-            self.hostname = self.url.host
-            custom_port = False
-            if self.url.port:
-                # custom port, perhaps
-                self.port = int(self.url.port)
-                if self.port != self.url.DEFAULT_PORT:
-                    custom_port = True
-            else:
-                self.port = self.url.DEFAULT_PORT
-            # The Host request-header field (section 14.23) MUST accompany all
-            # HTTP/1.1 requests.
-            if self.hostname:
-                if not custom_port:
-                    self.set_host(self.hostname)
-                else:
-                    self.set_host("%s:%i" % (self.hostname, self.port))
-            else:
-                raise HTTPException("No host in request URL")
 
     def get_accept(self):
         """Returns an :py:class:`AcceptList` instance or None if no
@@ -1945,12 +1867,12 @@ class MediaRange(params.MediaType):
     In other words, the following media ranges would be sorted in the
     order shown:
 
-    1.	image/png
-    2.	image/\*
-    3.	text/plain;charset=utf-8
-    4.	text/plain
-    5.	text/\*
-    6.	\*/\*
+    1.  image/png
+    2.  image/\*
+    3.  text/plain;charset=utf-8
+    4.  text/plain
+    5.  text/\*
+    6.  \*/\*
 
     If we have two rules with identical precedence then we sort them
     alphabetically by type; sub-type and ultimately alphabetically by
@@ -2007,18 +1929,20 @@ class MediaRange(params.MediaType):
             range.
 
         The matching algorithm takes in to consideration wild-cards so
-        that \*/\* matches all types, image/* matches any image type and
-        so on.
+        that \*/\* matches all types, image/\* matches any image type
+        and so on.
 
         If a media-range contains parameters then each of these must be
         matched exactly in the media-type being tested. Parameter names
         are treated case-insensitively and any additional parameters in
         the media type are ignored.  As a result:
 
-        *	text/plain *does not match* the range
+        *   text/plain *does not match* the range
             text/plain;charset=utf-8
-        *	application/myapp;charset=utf-8;option=on *does* match the
+
+        *   application/myapp;charset=utf-8;option=on *does* match the
             range application/myapp;option=on
+
         """
         if self.type == '*':
             return True
@@ -2065,7 +1989,7 @@ class AcceptItem(MediaRange):
     def __init__(self, range=MediaRange(), qvalue=1.0, extensions={}):
         #: the :py:class:`MediaRange` instance that is acceptable
         self.range = range
-        self.q = qvalue			#: the q-value (defaults to 1.0)
+        self.q = qvalue         #: the q-value (defaults to 1.0)
         self.params = extensions  # : any accept-extension parameters
 
     @classmethod
@@ -2187,7 +2111,7 @@ class AcceptToken(object):
         #: the token that is acceptable or "*" for any token
         self.token = token
         self._token = token.lower()
-        self.q = qvalue			#: the q-value (defaults to 1.0)
+        self.q = qvalue         #: the q-value (defaults to 1.0)
 
     @classmethod
     def from_str(cls, source):
@@ -2650,8 +2574,8 @@ class ContentRange(object):
     Instances are immutable."""
 
     def __init__(self, first_byte=None, last_byte=None, total_len=None):
-        self.first_byte = first_byte		#: first byte in the range
-        self.last_byte = last_byte			#: last byte in the range
+        self.first_byte = first_byte        #: first byte in the range
+        self.last_byte = last_byte          #: last byte in the range
         # : total length of the entity or None if not known
         self.total_len = total_len
         if self.first_byte is not None and self.last_byte is None:

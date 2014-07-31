@@ -1349,8 +1349,7 @@ class Element(Node):
         if name in self._ARMap():
             return None
         else:
-            raise AttributeError(
-                "%s has no attribute %s" % (self.__class__.__name__, name))
+            return super(Element, self).__getattr__(name)
 
     def GetAttributes(self):
         """Returns a dictionary object that maps attribute names onto values.
@@ -2858,7 +2857,7 @@ class XMLEntity(object):
         headers.
 
         The optional *reqManager* allows you to pass an existing instance of
-        :py:class:`pyslet.rfc2616.HTTPRequestManager` for handling URI with
+        :py:class:`pyslet.rfc2616.Client` for handling URI with
         http or https schemes."""
         self.location = src
         if isinstance(src, FileURL):
@@ -2871,7 +2870,7 @@ class XMLEntity(object):
             self.OpenFile(srcFile, self.encoding)
         elif src.scheme.lower() in ['http', 'https']:
             if reqManager is None:
-                reqManager = http.HTTPRequestManager()
+                reqManager = http.Client()
             req = http.ClientRequest(str(src))
             req.set_header('Accept', "application/xml, text/*, */*")
             reqManager.process_request(req)

@@ -70,12 +70,12 @@ class MockSocket(MockSocketBase):
                         lines.append(last_line)
                     request.recv(lines)
                     check_continue = True
+                elif mode is None:
+                    break
                 elif mode > 0:
                     request.recv(self.send_pipe.read(mode))
                 elif mode == messages.Message.RECV_ALL:
                     request.recv(self.send_pipe.read())
-                elif mode is None:
-                    break
                 else:
                     raise ValueError("unexpected recv_mode!")
         except IOError as e:
@@ -107,27 +107,27 @@ class MockConnectionWrapper(Connection):
     def new_socket(self):
         # turn the timeout down nice and low
         self.timeout = 10
-        with self.connectionLock:
-            if self.connectionClosed:
+        with self.lock:
+            if self.closed:
                 logging.error(
                     "new_socket called on dead connection to %s", self.host)
                 raise messages.HTTPException("Connection closed")
                 self.socket = None
-                self.socketFile = None
+                self.socket_file = None
                 self.socketSelect = select.select
             else:
                 logging.info("Opening connection to %s...", self.host)
                 self.socket = MockSocket(self)
-                self.socketFile = self.socket
+                self.socket_file = self.socket
                 self.socketSelect = MockSocket.wrap_select
 
 
-class MockClientWrapper(HTTPRequestManager):
+class MockClientWrapper(Client):
 
     ConnectionClass = MockConnectionWrapper
 
     def __init__(self, mock_server, **kwargs):
-        HTTPRequestManager.__init__(self, **kwargs)
+        Client.__init__(self, **kwargs)
         self.socketSelect = MockSocket.wrap_select
         self.mock_server = mock_server
 
@@ -137,6 +137,7 @@ class ClientTests(unittest.TestCase):
     def setUp(self):        # noqa
         self.client = MockClientWrapper(self.run_manager, max_connections=3)
         self.client.httpUserAgent = None
+        self.unreliable = True
 
     def tearDown(self):     # noqa
         self.client.close()
@@ -192,6 +193,35 @@ class ClientTests(unittest.TestCase):
                 response.set_status(400, "Test failed for domain2")
             sock.send_response(response)
 
+    def run_domain5(self, sock):
+        while True:
+            if self.unreliable:
+                self.unreliable = False
+                # shutdown the socket
+                logging.debug("Server hang-up before reading request")
+                sock.mock_shutdown(socket.SHUT_RDWR)
+                break
+            req = sock.recv_request()
+            if req is None:
+                break
+            if req.method == "GET":
+                response = messages.Response(req, entity_body=TEST_STRING)
+                response.set_status(200, "Thanks for your patience")
+            elif req.method == "HEAD":
+                response.set_content_length(len(TEST_STRING))
+                response.set_status(200, "Thanks for your patience")
+            else:
+                response = messages.Response(req)
+                response.set_status(400, "Test failed for domain5")
+            sock.send_response(response)
+
+    def run_domain6(self, sock):
+        while True:
+            # shutdown the socket
+            logging.debug("Server hang-up before reading request")
+            sock.mock_shutdown(socket.SHUT_RDWR)
+            break
+
     def run_manager(self, host, port, sock):
         # read some data from sock, and post a response
         if host == "www.domain1.com" and port == 80:
@@ -204,6 +234,10 @@ class ClientTests(unittest.TestCase):
         elif host == "www.domain4.com" and port == 80:
             # just a copy of domain1
             self.run_domain1(sock)
+        elif host == "www.domain5.com" and port == 80:
+            self.run_domain5(sock)
+        elif host == "www.domain6.com" and port == 80:
+            self.run_domain6(sock)
         else:
             # connection error
             raise ValueError("run_manager: bad host in connect")
@@ -368,6 +402,36 @@ class ClientTests(unittest.TestCase):
         self.client.idle_cleanup(3)
         self.client.idle_cleanup(0)
 
+    def test_async_close(self):
+        """RFC2616:
+
+            clients, servers, and proxies MUST be able to recover from
+            asynchronous close events
+
+            Client software SHOULD reopen the transport connection and
+            retransmit the aborted sequence of requests without user
+            interaction so long as the request sequence is idempotent"""
+        request = ClientRequest("http://www.domain5.com/unreliable")
+        # this request will timeout the first time before any data
+        # has been sent to the client, it should retry and succeed
+        self.client.process_request(request)
+        response = request.response
+        self.assertFalse(response.status is None, "No response")
+        self.assertTrue(
+            response.status == 200, "Status in response: %i" % response.status)
+        self.assertTrue(
+            response.reason == "Thanks for your patience",
+            "Reason in response: %s" %
+            response.reason)
+        self.assertTrue(
+            response.entity_body.getvalue() == TEST_STRING,
+            "Body in response: %i" % response.status)
+        request = ClientRequest("http://www.domain6.com/unreliable")
+        # this request will always fail with a broken server
+        self.client.process_request(request)
+        response = request.response
+        self.assertTrue(response.status is None, "No response")
+
     def test_kill(self):
         threads = []
         for i in xrange(10):
@@ -401,7 +465,7 @@ class LegacyServerTests(unittest.TestCase):
         self.server = server.Server(port=self.port, app=self.legacy_app,
                                     protocol=params.HTTP_1p0)
         self.server.timeout = 0.5
-        self.client = HTTPRequestManager()
+        self.client = Client()
 
     def tearDown(self):     # noqa
         self.client.close()
@@ -477,7 +541,7 @@ class LegacyServerTests(unittest.TestCase):
 class SecureTests(unittest.TestCase):
 
     def test_google_insecure(self):
-        client = HTTPRequestManager()
+        client = Client()
         request = ClientRequest("https://code.google.com/p/qtimigration/")
         try:
             client.process_request(request)
@@ -486,7 +550,7 @@ class SecureTests(unittest.TestCase):
         client.close()
 
     def test_google_secure(self):
-        client = HTTPRequestManager(
+        client = Client(
             ca_certs=os.path.join(TEST_DATA_DIR, "ca_certs.txt"))
         request = ClientRequest("https://code.google.com/p/qtimigration/")
         try:
@@ -494,7 +558,7 @@ class SecureTests(unittest.TestCase):
         except messages.HTTPException as err:
             logging.error(err)
         client.close()
-        client = HTTPRequestManager(
+        client = Client(
             ca_certs=os.path.join(TEST_DATA_DIR, "no_certs.txt"))
         request = ClientRequest("https://code.google.com/p/qtimigration/")
         try:

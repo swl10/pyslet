@@ -124,7 +124,7 @@ class Credentials(object):
 
     Instances are typically created and then added to a request manager
     object using
-    :py:meth:`~pyslet.rfc2616.HTTPRequestManager.add_credentials` for
+    :py:meth:`~pyslet.rfc2616.Client.add_credentials` for
     matching against HTTP authorization challenges.
 
     The built-in str function can be used to format instances according

@@ -77,13 +77,19 @@ HTTP_1p1 = HTTPVersion(1, 1)
 #: A constant representing HTTP/1.0
 HTTP_1p0 = HTTPVersion(1, 0)
 
+#: symbolic name for the default HTTP port
+HTTP_PORT = 80
+
+#: symbolic name for the default HTTPS port
+HTTPS_PORT = 443
+
 
 class HTTPURL(uri.ServerBasedURL):
 
     """Represents http URLs"""
 
     #: the default HTTP port
-    DEFAULT_PORT = 80
+    DEFAULT_PORT = HTTP_PORT
 
     def __init__(self, octets='http://localhost/'):
         super(HTTPURL, self).__init__(octets)
@@ -126,7 +132,7 @@ class HTTPSURL(HTTPURL):
     """Represents https URLs"""
 
     #: the default HTTPS port
-    DEFAULT_PORT = 443
+    DEFAULT_PORT = HTTPS_PORT
 
     def __init__(self, octets='https://localhost/'):
         super(HTTPSURL, self).__init__(octets)

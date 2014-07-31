@@ -205,7 +205,8 @@ class MessageTests(unittest.TestCase):
         recipient."""
         request = Request(entity_body=StringIO("How long?"))
         request.set_method("PUT")
-        request.set_url("http://www.example.com/resource")
+        request.set_request_uri("/resource")
+        request.set_host("www.example.com")
         request.start_sending(params.HTTP_1p0)
         # a content-length must have been set
         self.assertTrue(request.get_content_length() is not None)
@@ -213,7 +214,8 @@ class MessageTests(unittest.TestCase):
         # now check that we default to chunked instead of buffering
         request = Request(entity_body=StringIO("How long?"))
         request.set_method("PUT")
-        request.set_url("http://www.example.com/resource")
+        request.set_request_uri("/resource")
+        request.set_host("www.example.com")
         request.start_sending(params.HTTP_1p1)
         # a content-length must not have been set
         self.assertTrue(request.get_content_length() is None)
@@ -270,7 +272,8 @@ class MessageTests(unittest.TestCase):
         src_request = Request(entity_body=srcbody)
         dst_request = Request(entity_body=dstbody)
         src_request.set_method("post")
-        src_request.set_url("http://www.example.com/script.cgi")
+        src_request.set_request_uri("/script.cgi")
+        src_request.set_host("www.example.com")
         src_request.set_transfer_encoding("gzip, chunked")
         src_request.start_sending()
         dst_request.start_receiving()

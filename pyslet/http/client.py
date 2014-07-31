@@ -9,50 +9,73 @@ import select
 import types
 import threading
 import io
-import warnings
 import errno
 import os
 
 import pyslet.info as info
-import pyslet.http.grammar as grammar
-import pyslet.http.params as params
-import pyslet.http.messages as messages
-import pyslet.http.auth as auth
 import pyslet.rfc2396 as uri
+from pyslet.pep8 import PEP8Compatibility
+
+import grammar
+import params
+import messages
+import auth
 
 
 class RequestManagerBusy(messages.HTTPException):
 
-    """Raised when attempting to queue a request and no connections
-    become available within the specified timeout."""
+    """The HTTP client is busy
+
+    Raised when attempting to queue a request and no connections become
+    available within the specified timeout."""
     pass
 
 
 class ConnectionClosed(messages.HTTPException):
 
-    """Raised when attempting to queue a request when the manager object
-    is in the process of closing."""
+    """The HTTP client has been closed
+
+    Raised when attempting to queue a request for a :py:class:`Client`
+    object that is in the process of closing."""
     pass
 
-HTTP_PORT = 80      #: symbolic name for the default HTTP port
-HTTPS_PORT = 443        #: symbolic name for the default HTTPS port
-
-
-SOCKET_CHUNK = io.DEFAULT_BUFFER_SIZE
-"""The default chunk size to use when reading from network sockets."""
 
 USER_AGENT = params.ProductToken('pyslet', info.version)
-"""A :py:class:`ProductToken` instance that can be used to represent the
-current version of Pyslet."""
+"""A :py:class:`ProductToken` instance
+
+This value is used as the default UserAgent string and is based on the
+current version of the Pyslet library.  E.g.::
+
+    pyslet-0.5.20120801"""
 
 
 class Connection(object):
 
-    """Represents an HTTP connection.  Used internally by the request
-    manager to manage connections to HTTP servers.  Each connection is
-    assigned a unique :py:attr:`id` on construction.  In normal use you
-    won't need to call any of these methods yourself but the interfaces
-    are documented to make it easier to override the behaviour of the
+    """Represents an HTTP connection.
+
+    manager
+        The :py:class:`Client` instance that owns us
+
+    scheme
+        The scheme we are being opened for ('http' or 'https')
+
+    hostname
+        The host name we should connect to
+
+    port
+        The port we should connect to
+
+    timeout
+        The maximum time to wait for a connection.  If the connection
+        has not been able to read or write data for more than this
+        timeout value it will assume the server has hung up.  Defaults
+        to None, no timeout.
+
+    Used internally by the :py:class:`Client` to manage connections to
+    HTTP servers.  Each connection is assigned a unique :py:attr:`id` on
+    construction.  In normal use you won't need to call any of these
+    methods yourself but the interfaces are documented to make it easier
+    to override the behaviour of the
     :py:class:`messages.Message` object that *may* call some of these
     connection methods to indicate protocol exceptions.
 
@@ -68,20 +91,26 @@ class Connection(object):
     than one thread at a time.  The thread currently bound to a
     connection is indicated by :py:attr:`thread_id`.  The value of this
     attribute is managed by the associated
-    :py:class:`HTTPRequestManager`. Methods *must only* be called
+    :py:class:`Client`. Methods *must only* be called
     from this thread unless otherwise stated.
 
     The scheme, hostname and port are defined on construction and do not
     change."""
-    REQ_READY = 0           # ready to start a request
-    REQ_BODY_WAITING = 1    # waiting to send the request body
-    REQ_BODY_SENDING = 2    # sending the request body
-    CLOSE_WAIT = 3          # waiting to disconnect
 
+    # mode constant: ready to start a request
+    REQ_READY = 0
+
+    # mode constant: waiting to send the request body
+    REQ_BODY_WAITING = 1
+
+    # mode constant: sending the request body
+    REQ_BODY_SENDING = 2
+
+    # mode constant: waiting to disconnect
+    CLOSE_WAIT = 3
+
+    # a mapping to make debugging messages easier to read
     MODE_STRINGS = {0: "Ready", 1: "Waiting", 2: "Sending", 3: "Closing"}
-
-    IDEMPOTENT = {"GET": 1, "HEAD": 1, "PUT": 1, "DELETE": 1,
-                  "OPTIONS": 1, "TRACE": 1, "CONNECT": 0, "POST": 0}
 
     def __init__(self, manager, scheme, hostname, port, timeout=None):
         #: the RequestManager that owns this connection
@@ -99,31 +128,33 @@ class Connection(object):
         #: the thread we're currently bound to
         self.thread_id = None
         #: time at which this connection was last active
-        self.lastActive = 0
+        self.last_active = 0
         #: timeout (seconds) for our connection
         self.timeout = timeout
         #: time of the last successful read or write operation
         self.last_rw = None
         #: the queue of requests we are waiting to process
-        self.requestQueue = []
+        self.request_queue = []
         #: the current request we are processing
         self.request = None
         #: the queue of responses we are waiting to process
-        self.responseQueue = []
+        self.response_queue = []
         #: the current response we are processing
         self.response = None
-        self.requestMode = self.REQ_READY
+        self.request_mode = self.REQ_READY
         # If we don't get a continue in 1 minute, send the data anyway
-        self.continueWaitMax = 60.0
-        self.continueWaitStart = 0
+        self.continue_waitmax = 60.0
+        self.continue_waitstart = 0
+        # a lock for our structures to help us go multi-threaded
+        self.lock = threading.RLock()
+        # True if we are closed or closing
+        self.closed = False
         # Low-level socket members
-        self.connectionLock = threading.RLock()
-        self.connectionClosed = False
         self.socket = None
-        self.socketFile = None
-        self.sendBuffer = []
-        self.recvBuffer = []
-        self.recvBufferSize = 0
+        self.socket_file = None
+        self.send_buffer = []
+        self.recv_buffer = []
+        self.recv_buffer_size = 0
 
     def thread_target_key(self):
         return (self.thread_id, self.scheme, self.host, self.port)
@@ -134,19 +165,24 @@ class Connection(object):
     def __cmp__(self, other):
         if not isinstance(other, Connection):
             raise TypeError
-        return cmp(self.lastActive, other.lastActive)
+        return cmp(self.last_active, other.last_active)
 
     def __repr__(self):
         return "Connection(%s,%i)" % (self.host, self.port)
 
+    def queue_request(self, request):
+        self.request_queue.append(request)
+
     def connection_task(self):
         """Processes the requests and responses for this connection.
 
-        This method is mostly non-blocking.  It returns a (r,w) pair of
-        file numbers suitable for passing to select indicating whether
-        the connection is waiting to read and/or write data.  It will
-        return None,None if the connection is not currently blocked on
-        I/O.
+        This method is mostly non-blocking.  It returns a (r,w,wait)
+        triple consisting of two sockets or file numbers and a wait time
+        (in seconds).  The first two values are suitable for passing
+        to select and indicate whether the connection is waiting to read
+        and/or write data.  Either or both may be None.  The third value
+        indicates the desired maximum amount of time to wait before the next
+        call and is usually used only when the first two values are None.
 
         The connection object acts as a small buffer between the HTTP
         message itself and the server.  The implementation breaks down
@@ -176,15 +212,14 @@ class Connection(object):
         rbusy = None
         wbusy = None
         while True:
-            self.lastActive = time.time()
-            if self.requestQueue and self.requestMode == self.REQ_READY:
-                request = self.requestQueue[0]
+            self.last_active = time.time()
+            if self.request_queue and self.request_mode == self.REQ_READY:
+                request = self.request_queue[0]
                 if (self.response is None or
-                        self.IDEMPOTENT.get(request.method, False)):
-                    # If we are waiting for a response we only accept
-                    # idempotent methods
-                    self.requestQueue = self.requestQueue[1:]
-                self._start_request(request)
+                        request.is_idempotent()):
+                    # only pipeline idempotent methods
+                    self.request_queue = self.request_queue[1:]
+                    self._start_request(request)
             if self.request or self.response:
                 if self.socket is None:
                     self.new_socket()
@@ -194,13 +229,9 @@ class Connection(object):
                 # pass on to the response section only if we are in a
                 # waiting mode or we are waiting for the socket to be
                 # ready before we can write data
-                if self.sendBuffer:
-                    try:
-                        r, w, e = self.socketSelect(
-                            [], [self.socketFile], [], 0.0)
-                    except select.error, err:
-                        self.close(err)
-                        w = []
+                if self.send_buffer:
+                    r, w, e = self.socketSelect(
+                        [], [self.socket_file], [], 0.0)
                     if w:
                         # We can write
                         self._send_request_data()
@@ -213,29 +244,29 @@ class Connection(object):
                                 errno.ETIMEDOUT,
                                 os.strerror(errno.ETIMEDOUT),
                                 "pyslet.http.client.Connection")
-                    if self.sendBuffer:
+                    if self.send_buffer:
                         # We are still waiting to write, move on to the
                         # response section!
-                        wbusy = self.socketFile
+                        wbusy = self.socket_file
                     else:
                         continue
-                elif self.requestMode == self.REQ_BODY_WAITING:
+                elif self.request_mode == self.REQ_BODY_WAITING:
                     # empty buffer and we're waiting for a 100-continue (that
                     # may never come)
-                    if self.continueWaitStart:
-                        if (time.time() - self.continueWaitStart >
-                                self.continueWaitMax):
+                    if self.continue_waitstart:
+                        if (time.time() - self.continue_waitstart >
+                                self.continue_waitmax):
                             logging.warn("%s timeout while waiting for "
                                          "100-Continue response")
-                            self.requestMode = self.REQ_BODY_SENDING
+                            self.request_mode = self.REQ_BODY_SENDING
                     else:
-                        self.continueWaitStart = time.time()
-                elif self.requestMode == self.REQ_BODY_SENDING:
+                        self.continue_waitstart = time.time()
+                elif self.request_mode == self.REQ_BODY_SENDING:
                     # Buffer is empty, refill it from the request
                     data = self.request.send_body()
                     if data:
                         logging.debug("Sending to %s: \n%s", self.host, data)
-                        self.sendBuffer.append(data)
+                        self.send_buffer.append(data)
                         # Go around again to send the buffer
                         continue
                     elif data is None:
@@ -250,20 +281,18 @@ class Connection(object):
                         # self.response.StartWaiting()
                         self.request.disconnect()
                         self.request = None
-                        self.requestMode = self.REQ_READY
+                        self.request_mode = self.REQ_READY
                 # This section deals with the response cycle, we only
                 # get here once the buffer is empty or we're blocked on
                 # sending.
                 if self.response:
-                    try:
-                        r, w, e = self.socketSelect(
-                            [self.socketFile], [], [self.socketFile], 0)
-                    except select.error, err:
-                        r = []
-                        self.close(err)
+                    r, w, e = self.socketSelect(
+                        [self.socket_file], [], [self.socket_file], 0)
                     if e:
-                        # there is an error on our socket...
-                        self.close("socket error indicated by select")
+                        # we're not really sure what this means raise
+                        # an error (will close the connection)
+                        raise IOError(errno.EIO,
+                                      "socket exception indicated by select")
                     elif r:
                         if self._recv_task():
                             # The response is done
@@ -271,13 +300,13 @@ class Connection(object):
                             if self.response:
                                 self.protocol = self.response.protocol
                                 close_connection = not self.response.keep_alive
-                            if self.responseQueue:
-                                self.response = self.responseQueue[0]
-                                self.responseQueue = self.responseQueue[1:]
+                            if self.response_queue:
+                                self.response = self.response_queue[0]
+                                self.response_queue = self.response_queue[1:]
                                 self.response.start_receiving()
                             elif self.response:
                                 self.response = None
-                                if self.requestMode == self.CLOSE_WAIT:
+                                if self.request_mode == self.CLOSE_WAIT:
                                     # no response and waiting to close the
                                     # connection
                                     close_connection = True
@@ -296,11 +325,11 @@ class Connection(object):
                                 errno.ETIMEDOUT,
                                 os.strerror(errno.ETIMEDOUT),
                                 "pyslet.http.client.Connection")
-                        rbusy = self.socketFile
+                        rbusy = self.socket_file
                 break
             else:
                 # no request or response, we're idle
-                if self.requestMode == self.CLOSE_WAIT:
+                if self.request_mode == self.CLOSE_WAIT:
                     # clean up if necessary
                     self.close()
                 self.manager._deactivate_connection(self)
@@ -314,8 +343,8 @@ class Connection(object):
         self.request.disconnect()
         self.request = None
         if self.response:
-            self.sendBuffer = []
-            self.requestMode = self.CLOSE_WAIT
+            self.send_buffer = []
+            self.request_mode = self.CLOSE_WAIT
         else:
             self.close()
 
@@ -325,11 +354,11 @@ class Connection(object):
         If a request had an "Expect: 100-continue" header then the
         connection will not send the data until instructed to do so by a
         call to this method, or
-        :py:attr:`continueWaitMax` seconds have elapsed."""
+        :py:attr:`continue_waitmax` seconds have elapsed."""
         logging.debug("100 Continue received... ready to send request")
         if (request is self.request and
-                self.requestMode == self.REQ_BODY_WAITING):
-            self.requestMode = self.REQ_BODY_SENDING
+                self.request_mode == self.REQ_BODY_WAITING):
+            self.request_mode = self.REQ_BODY_SENDING
 
     def close(self, err=None):
         """Closes this connection nicelly, optionally logging the
@@ -349,26 +378,36 @@ class Connection(object):
         if self.request:
             self.request.disconnect()
             self.request = None
-            self.requestMode = self.CLOSE_WAIT
+            self.request_mode = self.CLOSE_WAIT
+        resend = True
         while self.response:
-            # If we get Closed while waiting for a response then we tell
-            # the response about the error before hanging up
-            self.response.handle_disconnect(err)
-            if self.responseQueue:
-                self.response = self.responseQueue[0]
-                self.responseQueue = self.responseQueue[1:]
+            response = self.response
+            # remove it from the queue
+            if self.response_queue:
+                self.response = self.response_queue[0]
+                self.response_queue = self.response_queue[1:]
             else:
                 self.response = None
-        with self.connectionLock:
+            # check for resends
+            if err or response.status is None and resend:
+                # terminated by an error or before we read the response
+                if response.request.can_retry():
+                    # resend this request
+                    self.queue_request(response.request)
+                    continue
+                else:
+                    resend = False
+            response.handle_disconnect(err)
+        with self.lock:
             if self.socket:
                 olds = self.socket
                 self.socket = None
                 if olds is not None:
                     self._close_socket(olds)
-        self.sendBuffer = []
-        self.recvBuffer = []
-        self.recvBufferSize = 0
-        self.requestMode = self.REQ_READY
+        self.send_buffer = []
+        self.recv_buffer = []
+        self.recv_buffer_size = 0
+        self.request_mode = self.REQ_READY
 
     def kill(self):
         """Kills the connection, typically called from a different
@@ -387,9 +426,9 @@ class Connection(object):
         If the owning thread really died, Python's garbage collection
         will take care of actually closing the socket and freeing up the
         file descriptor."""
-        with self.connectionLock:
+        with self.lock:
             logging.debug("Killing connection to %s", self.host)
-            if not self.connectionClosed and self.socket:
+            if not self.closed and self.socket:
                 try:
                     logging.warn(
                         "Connection.kill forcing socket shutdown for %s",
@@ -399,7 +438,7 @@ class Connection(object):
                     # ignore errors, most likely the server has stopped
                     # listening
                     pass
-                self.connectionClosed = True
+                self.closed = True
 
     def _start_request(self, request):
         # Starts processing the request.  Returns True if the request
@@ -409,18 +448,18 @@ class Connection(object):
         self.request.start_sending(self.protocol)
         headers = self.request.send_start() + self.request.send_header()
         logging.debug("Sending to %s: \n%s", self.host, headers)
-        self.sendBuffer.append(headers)
+        self.send_buffer.append(headers)
         # Now check to see if we have an expect header set
         if self.request.get_expect_continue():
-            self.requestMode = self.REQ_BODY_WAITING
-            self.continueWaitStart = 0
+            self.request_mode = self.REQ_BODY_WAITING
+            self.continue_waitstart = 0
         else:
-            self.requestMode = self.REQ_BODY_SENDING
+            self.request_mode = self.REQ_BODY_SENDING
         logging.debug("%s: request mode=%s", self.host,
-                      self.MODE_STRINGS[self.requestMode])
+                      self.MODE_STRINGS[self.request_mode])
         if self.response:
             # Queue a response as we're still handling the last one!
-            self.responseQueue.append(request.response)
+            self.response_queue.append(request.response)
         else:
             self.response = request.response
             self.response.start_receiving()
@@ -428,9 +467,9 @@ class Connection(object):
 
     def _send_request_data(self):
         #   Sends the next chunk of data in the buffer
-        if not self.sendBuffer:
+        if not self.send_buffer:
             return
-        data = self.sendBuffer[0]
+        data = self.send_buffer[0]
         if data:
             try:
                 nbytes = self.socket.send(data)
@@ -449,17 +488,17 @@ class Connection(object):
                 # requests!
                 self.request.disconnect()
                 self.request = None
-                self.requestMode == self.CLOSE_WAIT
-                self.sendBuffer = []
+                self.request_mode == self.CLOSE_WAIT
+                self.send_buffer = []
             elif nbytes < len(data):
                 # Some of the data went:
-                self.sendBuffer[0] = data[nbytes:]
+                self.send_buffer[0] = data[nbytes:]
             else:
-                del self.sendBuffer[0]
+                del self.send_buffer[0]
         else:
             # shouldn't get empty strings in the buffer but if we do, delete
             # them
-            del self.sendBuffer[0]
+            del self.send_buffer[0]
 
     def _recv_task(self):
         #   We ask the response what it is expecting and try and
@@ -467,7 +506,7 @@ class Connection(object):
         #   received completely, False otherwise"""
         err = None
         try:
-            data = self.socket.recv(SOCKET_CHUNK)
+            data = self.socket.recv(io.DEFAULT_BUFFER_SIZE)
             self.last_rw = time.time()
         except socket.error, e:
             # We can't truly tell if the server hung-up except by
@@ -477,8 +516,8 @@ class Connection(object):
         logging.debug("Reading from %s: \n%s", self.host, repr(data))
         if data:
             nbytes = len(data)
-            self.recvBuffer.append(data)
-            self.recvBufferSize += nbytes
+            self.recv_buffer.append(data)
+            self.recv_buffer_size += nbytes
         else:
             # TODO: this is typically a signal that the other end hung
             # up, we should implement the HTTP retry strategy for the
@@ -496,7 +535,7 @@ class Connection(object):
                 return True
             elif recv_needs == messages.Message.RECV_HEADERS:
                 # scan for CRLF, consolidate first
-                data = string.join(self.recvBuffer, '')
+                data = string.join(self.recv_buffer, '')
                 pos = data.find(grammar.CRLF)
                 if pos == 0:
                     # just a blank line, no headers
@@ -519,17 +558,17 @@ class Connection(object):
                     # We didn't find the data we wanted this time
                     break
                 if data:
-                    self.recvBuffer = [data]
-                    self.recvBufferSize = len(data)
+                    self.recv_buffer = [data]
+                    self.recv_buffer_size = len(data)
                 else:
-                    self.recvBuffer = []
-                    self.recvBufferSize = 0
+                    self.recv_buffer = []
+                    self.recv_buffer_size = 0
                 if lines:
                     logging.debug("Response Headers: %s", repr(lines))
                     self.response.recv(lines)
             elif recv_needs == messages.Message.RECV_LINE:
                 # scan for CRLF, consolidate first
-                data = string.join(self.recvBuffer, '')
+                data = string.join(self.recv_buffer, '')
                 pos = data.find(grammar.CRLF)
                 if pos >= 0:
                     line = data[0:pos + 2]
@@ -541,11 +580,11 @@ class Connection(object):
                     # We didn't find the data we wanted this time
                     break
                 if data:
-                    self.recvBuffer = [data]
-                    self.recvBufferSize = len(data)
+                    self.recv_buffer = [data]
+                    self.recv_buffer_size = len(data)
                 else:
-                    self.recvBuffer = []
-                    self.recvBufferSize = 0
+                    self.recv_buffer = []
+                    self.recv_buffer_size = 0
                 if line:
                     logging.debug("Response Header: %s", repr(line))
                     self.response.recv(line)
@@ -558,53 +597,54 @@ class Connection(object):
                 if nbytes < 0:
                     # As many as possible please
                     logging.debug("Response reading until connection closes")
-                    if self.recvBufferSize > 0:
-                        bytes = string.join(self.recvBuffer, '')
-                        self.recvBuffer = []
-                        self.recvBufferSize = 0
+                    if self.recv_buffer_size > 0:
+                        bytes = string.join(self.recv_buffer, '')
+                        self.recv_buffer = []
+                        self.recv_buffer_size = 0
                     else:
-                        # recvBuffer is empty but we still want more
+                        # recv_buffer is empty but we still want more
                         break
-                elif self.recvBufferSize < nbytes:
+                elif self.recv_buffer_size < nbytes:
                     logging.debug("Response waiting for %s bytes",
-                                  str(nbytes - self.recvBufferSize))
+                                  str(nbytes - self.recv_buffer_size))
                     # We can't satisfy the response
                     break
                 else:
                     got_bytes = 0
                     buff_pos = 0
                     while got_bytes < nbytes:
-                        data = self.recvBuffer[buff_pos]
+                        data = self.recv_buffer[buff_pos]
                         if got_bytes + len(data) < nbytes:
                             buff_pos += 1
                             got_bytes += len(data)
                             continue
                         elif got_bytes + len(data) == nbytes:
                             bytes = string.join(
-                                self.recvBuffer[0:buff_pos + 1], '')
-                            self.recvBuffer = self.recvBuffer[buff_pos + 1:]
+                                self.recv_buffer[0:buff_pos + 1], '')
+                            self.recv_buffer = self.recv_buffer[buff_pos + 1:]
                             break
                         else:
                             # Tricky case, only some of this string is needed
-                            bytes = string.join(self.recvBuffer[0:buff_pos] +
-                                                [data[0:nbytes - got_bytes]],
-                                                '')
-                            self.recvBuffer = ([data[nbytes - got_bytes:]] +
-                                               self.recvBuffer[buff_pos + 1:])
+                            bytes = string.join(
+                                self.recv_buffer[0:buff_pos] +
+                                [data[0:nbytes - got_bytes]], '')
+                            self.recv_buffer = (
+                                [data[nbytes - got_bytes:]] +
+                                self.recv_buffer[buff_pos + 1:])
                             break
-                    self.recvBufferSize = self.recvBufferSize - len(bytes)
+                    self.recv_buffer_size = self.recv_buffer_size - len(bytes)
                 logging.debug("Response Data: %s", repr(bytes))
                 self.response.recv(bytes)
         return False
 
     def new_socket(self):
-        with self.connectionLock:
-            if self.connectionClosed:
+        with self.lock:
+            if self.closed:
                 logging.error(
                     "new_socket called on dead connection to %s", self.host)
                 raise messages.HTTPException("Connection closed")
             self.socket = None
-            self.socketFile = None
+            self.socket_file = None
             self.socketSelect = select.select
         try:
             for target in self.manager.dnslookup(self.host, self.port):
@@ -625,8 +665,8 @@ class Connection(object):
         if not snew:
             raise messages.HTTPException("failed to connect to %s" % self.host)
         else:
-            with self.connectionLock:
-                if self.connectionClosed:
+            with self.lock:
+                if self.closed:
                     # This connection has been killed
                     self._close_socket(snew)
                     logging.error(
@@ -634,7 +674,7 @@ class Connection(object):
                     raise messages.HTTPException("Connection closed")
                 else:
                     self.socket = snew
-                    self.socketFile = self.socket.fileno()
+                    self.socket_file = self.socket.fileno()
                     self.socketSelect = select.select
 
     def _close_socket(self, s):
@@ -658,7 +698,7 @@ class SecureConnection(Connection):
     def new_socket(self):
         super(SecureConnection, self).new_socket()
         try:
-            with self.connectionLock:
+            with self.lock:
                 if self.socket is not None:
                     socket_ssl = ssl.wrap_socket(
                         self.socket, ca_certs=self.ca_certs,
@@ -675,10 +715,17 @@ class SecureConnection(Connection):
                 "failed to build secure connection to %s" % self.host)
 
 
-class HTTPRequestManager(object):
+class Client(PEP8Compatibility, object):
 
-    """An object for managing the sending of HTTP/1.1 requests and
-    receiving of responses.  There are a number of keyword arguments
+    """An HTTP client
+
+    .. note::
+
+        In Pyslet 0.4 and earlier the name HTTPRequestManager was used,
+        this name is still available as an alias for Client.
+
+    The object manages the sending and receiving of HTTP/1.1 requests
+    and responses respectively.  There are a number of keyword arguments
     that can be used to set operational parameters:
 
     max_connections
@@ -687,10 +734,22 @@ class HTTPRequestManager(object):
         raise :py:class:`RequestManagerBusy`) if an attempt to queue a
         request would cause this limit to be exceeded.
 
+    timeout
+        The maximum wait time on the connection.  This is not the same
+        as a limit on the total time to receive a request but a limit on
+        the time the client will wait with no activity on the connection
+        before assuming that the server is no longer responding.
+        Defaults to None, no timeout.
+
     ca_certs
         The file name of a certificate file to use when checking SSL
         connections.  For more information see
         http://docs.python.org/2.7/library/ssl.html
+
+        In practice, there seem to be serious limitations on SSL
+        connections and certificate validation in Python distributions
+        linked to earlier versions of the OpenSSL library (e.g., Python
+        2.6 installed by default on OS X and Windows).
 
     .. warning::
 
@@ -724,7 +783,7 @@ class HTTPRequestManager(object):
     ConnectionClass = Connection
     SecureConnectionClass = SecureConnection
 
-    def __init__(self, max_connections=100, ca_certs=None):
+    def __init__(self, max_connections=100, ca_certs=None, timeout=None):
         self.managerLock = threading.Condition()
         # the id of the next connection object we'll create
         self.nextId = 1
@@ -742,26 +801,24 @@ class HTTPRequestManager(object):
         self.closing = False                    # True if we are closing
         # maximum number of connections to manage (set only on construction)
         self.max_connections = max_connections
+        # maximum wait time on connections
+        self.timeout = timeout
         # cached results from socket.getaddrinfo keyed on (hostname,port)
         self.dnsCache = {}
         self.ca_certs = ca_certs
         self.credentials = []
         self.socketSelect = select.select
-        self.httpUserAgent = "%s (HTTPRequestManager)" % str(USER_AGENT)
-        """The default User-Agent string to use."""
+        self.httpUserAgent = "%s (http.client.Client)" % str(USER_AGENT)
+        """The default User-Agent string to use, defaults to a string
+        derived from the installed version of Pyslet, e.g.::
 
-    def QueueRequest(self, request, timeout=60):    # noqa
-        warnings.warn("HTTPRequestManager.QueueRequest is deprecated, "
-                      "use HTTPRequestManager.queue_request instead",
-                      DeprecationWarning,
-                      stacklevel=2)
-        return self.queue_request(request, timeout)
+            pyslet 0.5.20140727 (http.client.Client)"""
 
     def queue_request(self, request, timeout=None):
-        """Instructs the manager to start processing *request*.
+        """Starts processing an HTTP *request*
 
         request
-            A :py:class:`messages.Message` object.
+            A :py:class:`messages.Request` object.
 
         timeout
             Number of seconds to wait for a free connection before
@@ -830,8 +887,8 @@ class HTTPRequestManager(object):
                     self.managerLock.wait(timeout)
                     logging.debug(
                         "queue_request resuming search for an HTTP connection")
-            # add this request tot he queue on the connection
-            connection.requestQueue.append(request)
+            # add this request to the queue on the connection
+            connection.queue_request(request)
             request.set_client(self)
 
     def active_count(self):
@@ -908,7 +965,8 @@ class HTTPRequestManager(object):
         #   Called by a connection pool when a new connection is required
         scheme, host, port = target
         if scheme == 'http':
-            connection = self.ConnectionClass(self, scheme, host, port)
+            connection = self.ConnectionClass(self, scheme, host, port,
+                                              timeout=self.timeout)
         elif scheme == 'https':
             connection = self.SecureConnectionClass(
                 self, scheme, host, port, self.ca_certs)
@@ -944,7 +1002,7 @@ class HTTPRequestManager(object):
                     readers.append(r)
                 if w:
                     writers.append(w)
-            except messages.HTTPException as err:
+            except Exception as err:
                 c.close(err)
                 pass
         if (timeout is None or timeout > 0) and (readers or writers):
@@ -963,13 +1021,6 @@ class HTTPRequestManager(object):
             continue
         # self.close()
 
-    def ProcessRequest(self, request, timeout=60):    # noqa
-        warnings.warn("HTTPRequestManager.ProcessRequest is deprecated, "
-                      "use HTTPRequestManager.process_request instead",
-                      DeprecationWarning,
-                      stacklevel=2)
-        return self.process_request(request, timeout)
-
     def process_request(self, request, timeout=60):
         """Process an :py:class:`messages.Message` object.
 
@@ -985,7 +1036,7 @@ class HTTPRequestManager(object):
         now = time.time()
         with self.managerLock:
             for connection in self.cIdleList.values():
-                if connection.lastActive < now - max_inactive:
+                if connection.last_active < now - max_inactive:
                     clist.append(connection)
                     del self.cIdleList[connection.id]
                     target = connection.target_key()
@@ -1017,7 +1068,7 @@ class HTTPRequestManager(object):
         with self.managerLock:
             for thread_id in self.cActiveThreads:
                 for connection in self.cActiveThreads[thread_id].values():
-                    if connection.lastActive < now - max_inactive:
+                    if connection.last_active < now - max_inactive:
                         # remove this connection from the active lists
                         del self.cActiveThreads[thread_id][connection.id]
                         del self.cActiveThreadTargets[
@@ -1046,32 +1097,21 @@ class HTTPRequestManager(object):
             self.active_cleanup(0)
             self.idle_cleanup(0)
 
-    def Close(self):    # noqa
-        warnings.warn("HTTPRequestManager.Close is deprecated, use close",
-                      DeprecationWarning,
-                      stacklevel=2)
-        return self.close()
-
     def add_credentials(self, credentials):
-        """Adds a :py:class:`pyslet.rfc2617.Credentials` instance to this
-        manager.
+        """Adds a :py:class:`pyslet.http.auth.Credentials` instance to
+        this manager.
 
         Credentials are used in response to challenges received in HTTP
         401 responses."""
         with self.managerLock:
             self.credentials.append(credentials)
 
-    def AddCredentials(self, credentials):  # noqa
-        warnings.warn("HTTPRequestManager.AddCredentials is deprecated, use "
-                      "add_credentials", DeprecationWarning, stacklevel=2)
-        return self.add_credentials(credentials)
-
     def remove_credentials(self, credentials):
         """Removes credentials from this manager.
 
         credentials
-            A :py:class:`pyslet.rfc2617.Credentials` instance previously
-            added with :py:meth:`add_credentials`.
+            A :py:class:`pyslet.http.auth.Credentials` instance
+            previously added with :py:meth:`add_credentials`.
 
         If the credentials can't be found then they are silently ignored
         as it is possible that two threads may independently call the
@@ -1109,7 +1149,7 @@ class HTTPRequestManager(object):
 
     def find_credentials(self, challenge):
         """Searches for credentials that match *challenge*"""
-        logging.debug("HTTPRequestManager searching for credentials in "
+        logging.debug("Client searching for credentials in "
                       "%s with challenge %s",
                       challenge.protectionSpace, str(challenge))
         with self.managerLock:
@@ -1125,19 +1165,24 @@ class HTTPRequestManager(object):
                     return c
 
 
+HTTPRequestManager = Client
+
+
 class ClientRequest(messages.Request):
 
     """Represents an HTTP request.
 
     To make an HTTP request, create an instance of this class and then
-    pass it to an :py:class:`HTTPRequestManager` instance using either
-    :py:meth:`HTTPRequestManager.queue_request` or
-    :py:meth:`HTTPRequestManager.process_request`.
+    pass it to an :py:class:`Client` instance using either
+    :py:meth:`Client.queue_request` or
+    :py:meth:`Client.process_request`.
 
     url
         An absolute URI using either http or https schemes.  A
         :py:class:`pyslet.rfc2396.URI` instance or an object that can be
         passed to its constructor.
+
+    And the following keyword arguments:
 
     method
         A string.  The HTTP method to use, defaults to "GET"
@@ -1155,19 +1200,44 @@ class ClientRequest(messages.Request):
 
     protocol
         An :py:class:`params.HTTPVersion` object, defaults to
-        HTTPVersion(1,1)"""
+        HTTPVersion(1,1)
+
+    autoredirect
+        Whether or not the request will follow redirects, defaults to
+        True.
+
+    max_retries
+        The maximum number of times to attempt to resend the request
+        following an error on the connection or an unexpected hang-up.
+        Defaults to 3, you should not use a value lower than 1 because
+        it is always possible that the server has gracefully closed the
+        socket and we don't notice until we've sent the request and get
+        0 bytes back on recv.  Although 'normal' this scenario counts as
+        a retry."""
 
     def __init__(self, url, method="GET", res_body=None,
-                 protocol=params.HTTP_1p1, **kwargs):
+                 protocol=params.HTTP_1p1, auto_redirect=True,
+                 max_retries=3, **kwargs):
         super(ClientRequest, self).__init__(**kwargs)
+        #: the :py:class:`Client` object that is managing us
         self.manager = None
+        #: the :py:class:`Connection` object that is currently sending us
         self.connection = None
         #: the status code received, 0 indicates a failed or unsent request
         self.status = 0
-        #: If status==0, the error raised during processing
+        #: If status == 0, the error raised during processing
         self.error = None
+        #: the scheme of the request (http or https)
+        self.scheme = None
+        #: the hostname of the origin server
+        self.hostname = None
+        #: the port on the origin server
+        self.port = None
+        #: the full URL of the requested resource
+        self.url = None
         self.set_url(url)
-        self.method = method        #: the method
+        # copy over the keyword arguments
+        self.method = method
         if type(protocol) in types.StringTypes:
             self.protocol = params.HTTPVersion.from_str(protocol)
         elif isinstance(protocol, params.HTTPVersion):
@@ -1178,14 +1248,82 @@ class ClientRequest(messages.Request):
         self.res_body = ''
         if res_body is not None:
             # assume that the res_body is a stream like object
-            self.resBodyStream = res_body
+            self.res_bodystream = res_body
         else:
-            self.resBodyStream = None
-        # : flag indicating whether or not to auto-redirect 3xx responses
-        self.autoRedirect = True
-        self.tryCredentials = None
+            self.res_bodystream = None
+        #: whether or not auto redirection is in force for 3xx responses
+        self.auto_redirect = auto_redirect
+        #: the maximum number of retries we'll attempt
+        self.max_retries = max_retries
+        #: the number of retries we've had
+        self.nretries = 0
         #: the associated :py:class:`ClientResponse`
         self.response = ClientResponse(request=self)
+        # the credentials we're using in this request, this attribute is
+        # used when we are responding to a 401 and the managing Client
+        # has credentials that meet the challenge received in the
+        # response.  We keep track of them here to avoid constantly
+        # looping with the same broken credentials. to set the
+        # Authorization header and
+        self.tried_credentials = None
+
+    def set_url(self, url):
+        """Sets the URL for this request
+
+        This method sets the Host header and the following local
+        attributes:
+        :py:attr:`scheme`, :py:attr:`hostname`, :py:attr:`port` and
+        :py:attr:`request_uri`."""
+        with self.lock:
+            if not isinstance(url, uri.URI):
+                url = uri.URIFactory.URI(url)
+            self.url = url
+            if self.url.userinfo:
+                raise NotImplementedError(
+                    "username(:password) in URL not yet supported")
+            if self.url.absPath:
+                self.request_uri = self.url.absPath
+            else:
+                self.request_uri = "/"
+            if self.url.query is not None:
+                self.request_uri = self.request_uri + '?' + self.url.query
+            if not isinstance(self.url, params.HTTPURL):
+                raise messages.HTTPException(
+                    "Scheme not supported: %s" % self.url.scheme)
+            elif isinstance(self.url, params.HTTPSURL):
+                self.scheme = 'https'
+            else:
+                self.scheme = 'http'
+            self.hostname = self.url.host
+            custom_port = False
+            if self.url.port:
+                # custom port, perhaps
+                self.port = int(self.url.port)
+                if self.port != self.url.DEFAULT_PORT:
+                    custom_port = True
+            else:
+                self.port = self.url.DEFAULT_PORT
+            # The Host request-header field (section 14.23) MUST
+            # accompany all HTTP/1.1 requests.
+            if self.hostname:
+                if not custom_port:
+                    self.set_host(self.hostname)
+                else:
+                    self.set_host("%s:%i" % (self.hostname, self.port))
+            else:
+                raise messages.HTTPException("No host in request URL")
+
+    def can_retry(self):
+        """Called after each connection-related failure
+
+        For idempotent methods we lose a life and check that it's not
+        game over.  For non-idempotent methods (e.g., POST) we always
+        return False."""
+        if self.is_idempotent():
+            self.nretries += 1
+            return self.nretries <= self.max_retries
+        else:
+            return False
 
     def resend(self, url=None):
         logging.info("Resending request to: %s", str(url))
@@ -1199,7 +1337,7 @@ class ClientRequest(messages.Request):
         """Called when we are queued for processing.
 
         client
-            an :py:class:`HTTPRequestManager` instance"""
+            an :py:class:`Client` instance"""
         self.manager = client
 
     def set_connection(self, connection):
@@ -1207,9 +1345,10 @@ class ClientRequest(messages.Request):
         self.connection = connection
 
     def disconnect(self):
-        """Called when the connection has finished sending the
-        request, may be before or after the response is received
-        and handled!"""
+        """Called when the connection has finished sending us
+
+        This may be before or after the response is received and
+        handled!"""
         self.connection = None
         if self.status > 0:
             # The response has finished
@@ -1224,6 +1363,7 @@ class ClientRequest(messages.Request):
         return super(ClientRequest, self).send_header()
 
     def response_finished(self, err=None):
+        # called when the response has been received
         self.status = self.response.status
         self.error = err
         if self.status is None:
@@ -1232,8 +1372,8 @@ class ClientRequest(messages.Request):
             self.finished()
         else:
             logging.info("Finished Response, status %i", self.status)
-            if self.resBodyStream:
-                self.resBodyStream.flush()
+            if self.res_bodystream:
+                self.res_bodystream.flush()
             else:
                 self.res_body = self.response.entity_body.getvalue()
             if self.response.status >= 100 and self.response.status <= 199:
@@ -1269,13 +1409,6 @@ class ClientRequest(messages.Request):
                 # The request is already disconnected, we're done
                 self.finished()
 
-    def Finished(self):     # noqa
-        warnings.warn("ClientRequest.Finished is deprecated, "
-                      "use ClientRequest.finished",
-                      DeprecationWarning,
-                      stacklevel=2)
-        return self.finished()
-
     def finished(self):
         """Called when we have a final response *and* have disconnected
         from the connection There is no guarantee that the server got
@@ -1285,19 +1418,19 @@ class ClientRequest(messages.Request):
         make us go away.  Whatever.  The point is that you can't be sure
         that all the data was transmitted just because you got here and
         the server says everything is OK"""
-        if self.tryCredentials is not None:
+        if self.tried_credentials is not None:
             # we were trying out some credentials, if this is not a 401 assume
             # they're good
             if self.status == 401:
                 # we must remove these credentials, they matched the challenge
                 # but still resulted in 401
-                self.manager.remove_credentials(self.tryCredentials)
+                self.manager.remove_credentials(self.tried_credentials)
             else:
-                if isinstance(self.tryCredentials, auth.BasicCredentials):
+                if isinstance(self.tried_credentials, auth.BasicCredentials):
                     # path rule only works for BasicCredentials
-                    self.tryCredentials.add_success_path(self.url.absPath)
-            self.tryCredentials = None
-        if (self.autoRedirect and self.status >= 300 and
+                    self.tried_credentials.add_success_path(self.url.absPath)
+            self.tried_credentials = None
+        if (self.auto_redirect and self.status >= 300 and
                 self.status <= 399 and
                 (self.status != 302 or
                  self.method.upper() in ("GET", "HEAD"))):
@@ -1316,9 +1449,9 @@ class ClientRequest(messages.Request):
             challenges = self.response.get_www_authenticate()
             for c in challenges:
                 c.protectionSpace = self.url.GetCanonicalRoot()
-                self.tryCredentials = self.manager.find_credentials(c)
-                if self.tryCredentials:
-                    self.set_authorization(self.tryCredentials)
+                self.tried_credentials = self.manager.find_credentials(c)
+                if self.tried_credentials:
+                    self.set_authorization(self.tried_credentials)
                     self.resend()  # to the same URL
 
 
@@ -1326,7 +1459,7 @@ class ClientResponse(messages.Response):
 
     def __init__(self, request, **kwargs):
         super(ClientResponse, self).__init__(
-            request=request, entity_body=request.resBodyStream, **kwargs)
+            request=request, entity_body=request.res_bodystream, **kwargs)
 
     def handle_headers(self):
         """Hook for response header processing.

@@ -258,10 +258,10 @@ class Slug(object):
         return hash(self.slug)
 
 
-class Client(http.HTTPRequestManager):
+class Client(http.Client):
 
     def __init__(self):
-        http.HTTPRequestManager.__init__(self)
+        http.Client.__init__(self)
 
     def queue_request(self, request, timeout=60):
         # if there is no Accept header, add one

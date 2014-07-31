@@ -20,10 +20,16 @@ def suite():
 
 class MockSocketBase(object):
 
+    id_next = 1
+    id_lock = threading.RLock()
+
     def __init__(self):
+        with self.id_lock:
+            self.id = MockSocketBase.id_next
+            MockSocketBase.id_next += 1
         self.blocking = True
-        self.send_pipe = Pipe(timeout=10, name="MockSocket.send")
-        self.recv_pipe = Pipe(timeout=10, name="MockSocket.recv")
+        self.send_pipe = Pipe(timeout=10, name="MockSocket.send[%i]" % self.id)
+        self.recv_pipe = Pipe(timeout=10, name="MockSocket.recv[%i]" % self.id)
         self.send_rbuffer = io.BufferedReader(self.send_pipe)
         self.recv_wbuffer = io.BufferedWriter(self.recv_pipe)
 
@@ -116,6 +122,7 @@ class MockSocketBase(object):
             self.send_pipe.write_eof()
             # but don't wait for send buffer, we stopped reading
             # self.send_rbuffer.flush()
+            self.send_pipe.close()
 
     def close(self):
         self.send_pipe.close()
@@ -152,12 +159,12 @@ class MockSocket(MockSocketBase):
                     last_line = self.send_pipe.readmatch()
                     lines.append(last_line)
                 response.recv(lines)
+            elif mode is None:
+                break
             elif mode > 0:
                 response.recv(self.send_pipe.read(mode))
             elif mode == messages.Message.RECV_ALL:
                 response.recv(self.send_pipe.read())
-            elif mode is None:
-                break
             else:
                 raise ValueError("unexpected recv_mode!")
         return response
