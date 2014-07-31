@@ -79,7 +79,7 @@ TextElements = {
     'span': ('id', 'class', 'label'),
     'strong': ('id', 'class', 'label'),
     'var': ('id', 'class', 'label')
-}		#: Basic text formatting elements
+}       #: Basic text formatting elements
 
 ListElements = {
     'dl': ('id', 'class', 'label'),
@@ -88,46 +88,41 @@ ListElements = {
     'ol': ('id', 'class', 'label'),
     'ul': ('id', 'class', 'label'),
     'li': ('id', 'class', 'label')
-}		#: Elements required for lists
+}       #: Elements required for lists
 
 
 ObjectElements = {
     'object': ('id', 'class', 'label', 'data', 'type', 'width', 'height'),
     'param': ('id', 'class', 'label', 'name', 'value', 'valuetype', 'type')
-}		#: The object element
+}       #: The object element
 
 
 PresentationElements = {
-    'caption': (
-        'id', 'class', 'label'), 'col': (
-            'id', 'class', 'label', 'span'), 'colgroup': (
-                'id', 'class', 'label', 'span'), 'table': (
-                    'id', 'class', 'label', 'summary'), 'tbody': (
-                        'id', 'class', 'label'), 'tfoot': (
-                            'id', 'class', 'label'), 'thead': (
-                                'id', 'class', 'label'), 'tr': (
-                                    'id', 'class', 'label'), 'th': (
-                                        'id', 'class', 'label', 'headers', 'scope', 'abbr', 'axis', 'rowspan', 'colspan'), 'td': (
-                                            'id', 'class', 'label', 'headers', 'scope', 'abbr', 'axis', 'rowspan', 'colspan')}  # : Tables
+    'caption': ('id', 'class', 'label'),
+    'col': ('id', 'class', 'label', 'span'),
+    'colgroup': ('id', 'class', 'label', 'span'),
+    'table': ('id', 'class', 'label', 'summary'),
+    'tbody': ('id', 'class', 'label'),
+    'tfoot': ('id', 'class', 'label'),
+    'thead': ('id', 'class', 'label'),
+    'tr': ('id', 'class', 'label'),
+    'th': ('id', 'class', 'label', 'headers', 'scope', 'abbr', 'axis',
+           'rowspan', 'colspan'),
+    'td': ('id', 'class', 'label', 'headers', 'scope', 'abbr', 'axis',
+           'rowspan', 'colspan')
+    }  #: Tables
 
 ImageElement = {
-    'img': (
-        'id',
-        'class',
-        'label',
-        'src',
-        'alt',
-        'longdesc',
-        'height',
-        'width')}  # : Images
+    'img': ('id', 'class', 'label', 'src', 'alt', 'longdesc', 'height',
+            'width')}  #: Images
 
 
 HypertextElement = {
     'a': ('id', 'class', 'label', 'href', 'type')
-}		#: Hyperlinks
+}       #: Hyperlinks
 
 
-HTMLProfile = {}		#: The full HTML profile defined by QTI
+HTMLProfile = {}        #: The full HTML profile defined by QTI
 
 HTMLProfile.update(TextElements)
 HTMLProfile.update(ListElements)
