@@ -206,6 +206,67 @@ class Server(app.Server):
                     es.SetLocation()
         self.model = model
 
+    @classmethod
+    def encode_pathinfo(cls, pathinfo):
+        """Encodes PATHINFO using URL-encoding
+        
+        According to RC3875_ the PATHINFO CGI variable contains an
+        unencoded path string.  That means that reserved characters
+        escaped in the original URL will be unescaped in PATHINFO.  This
+        cases problems in OData because the path component of the URL
+        may contain arbitrary strings (as keys).  Unfortunately there is
+        no other CGI variable that communicates the original requested
+        URL, so we are stuck with interpreting PATHINFO.  In fact, the
+        constraints on identifiers mean that there are only two problem
+        cases.
+
+        1.  %2F in the URL becomes / and is mistaken for a path
+            separator.  This can only occur within a quoted string so we
+            scan the URL and determine whether or not we are in a quoted
+            string, if we are, we percent-encode path-segment reserved
+            characters.
+        
+        2.  The second issue is the quote character itself.  Depending on
+            which version of the URI spec you are working to it may be
+            escaped or not.  OData originally attempted to double-up on
+            the escaping mechanism and use 'O%27Toole' as the way to
+            include a quote in a quoted string.  Sadly this will break
+            for us because we'll receive 'O'Toole' instead but it breaks
+            for many client anyway as unescaped quotes are often
+            replaced with %27 anyway.
+            
+            Fortunately it never really worked that way in practice
+            anyway and the more recent specs use quote doubling
+            'O''Toole' which is much more robust.  This enable us to
+            determine if we are in a quoted string or not simply by
+            counting, and hence deal with issue 1.
+                                
+        ..  _RFC3875 http://www.ietf.org/rfc/rfc3875"""
+        if isinstance(pathinfo, unicode):
+            pathinfo = pathinfo.encode('utf-8')
+        qmode = False
+        result = []
+        for c in pathinfo:
+            if qmode:
+                # we need to quote reserved characters
+                if uri.IsPathSegmentReserved(c):
+                    result.append("%%%02X" % ord(c))
+                else:
+                    result.append(c)
+                if c == "'":
+                    qmode = False
+            elif c == "'":
+                result.append(c)
+                qmode = True
+            elif c == '?':
+                # we continue to escape '?' as it must have been escaped
+                # in the original URI
+                result.append('%3F')
+            else:
+                # leave '/', ';' and '=' unescaped
+                result.append(c)
+        return string.join(result, '')
+
     def __call__(self, environ, start_response):
         """wsgi interface for the server."""
         response_headers = []
@@ -221,8 +282,10 @@ class Server(app.Server):
                     "Maximum supported protocol version: 2.0")
             appPath = environ.get('SCRIPT_NAME', "")
             path = appPath + environ['PATH_INFO']
+            # we have to URL-encode PATH_INFO
+            path = self.encode_pathinfo(path)
             query = environ.get('QUERY_STRING', None)
-            if query is not None:
+            if query:
                 path = path + '?' + query
             request = core.ODataURI(path, self.pathPrefix, version)
             if request.resourcePath is None:
@@ -717,12 +780,12 @@ class Server(app.Server):
                         slug = key = None
                     entity = resource.new_stream(input, sinfo=sinfo, key=key)
                     if slug:
-                        for k, v in entity.DataItems():
+                        for k, v in entity.data_items():
                             # catch property-level feed customisation here
                             propertyDef = entity.type_def[k]
                             if (propertyDef.GetTargetPath() ==
                                     [(atom.ATOM_NAMESPACE, "title")]):
-                                entity[k].SetFromValue(slug.slug)
+                                entity[k].set_from_value(slug.slug)
                                 resource.update_entity(entity)
                                 break
                     response_headers.append(

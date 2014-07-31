@@ -317,7 +317,7 @@ class ClientTests(unittest.TestCase):
     def testCaseConstructor(self):
         client = Client()
         self.assertTrue(
-            isinstance(client, http.HTTPRequestManager), 'Client super')
+            isinstance(client, http.Client), 'Client super')
 
     def testCaseAPPGet(self):
         doc = Document(baseURI='http://localhost:%i/service' % HTTP_PORT)
@@ -350,7 +350,9 @@ class MockRequest(object):
         self.environ = {
             'REQUEST_METHOD': method,
             'SCRIPT_NAME': "",
-            'PATH_INFO': path,
+            # the definition of PATH_INFO requires removal of
+            # URL-encoding!  This will cause problems!
+            'PATH_INFO': uri.UnescapeData(path).decode('utf-8'),
             'QUERY_STRING': query,
             'SERVER_NAME': "127.0.0.1",
             'SERVER_PORT': "80",

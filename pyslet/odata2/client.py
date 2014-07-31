@@ -47,50 +47,50 @@ class DataFormatError(ClientException):
     pass
 
 
-class MediaLinkEntry(core.Entity):
-
-    def __init__(self, entity_set, client):
-        core.Entity.__init__(self, entity_set)
-        self.client = client
-
-    def GetStreamType(self):
-        """Returns the content type of the entity's media stream by issuing a HEAD request."""
-        streamURL = str(self.GetLocation()) + "/$value"
-        request = http.ClientRequest(str(streamURL), 'HEAD')
-        request.set_header('Accept', '*/*')
-        self.client.process_request(request)
-        if request.status == 404:
-            return None
-        elif request.status != 200:
-            raise UnexpectedHTTPResponse(
-                "%i %s" % (request.status, request.response.reason))
-        return request.response.get_content_type()
-
-    def GetStreamSize(self):
-        """Returns the size of the entity's media stream in bytes by issuing a HEAD request."""
-        streamURL = str(self.GetLocation()) + "/$value"
-        request = http.ClientRequest(str(streamURL), 'HEAD')
-        request.set_header('Accept', '*/*')
-        self.client.process_request(request)
-        if request.status == 404:
-            return None
-        elif request.status != 200:
-            raise UnexpectedHTTPResponse(
-                "%i %s" % (request.status, request.response.reason))
-        return request.response.get_content_length()
-
-    def get_stream_generator(self):
-        """A generator function that yields blocks (strings) of data from the entity's media stream."""
-        streamURL = str(self.GetLocation()) + "/$value"
-        request = http.ClientRequest(str(streamURL), 'GET')
-        request.set_header('Accept', '*/*')
-        self.client.process_request(request)
-        if request.status == 404:
-            return
-        elif request.status != 200:
-            raise UnexpectedHTTPResponse(
-                "%i %s" % (request.status, request.response.reason))
-        yield request.res_body
+# class MediaLinkEntry(core.Entity):
+#
+#     def __init__(self, entity_set, client):
+#         core.Entity.__init__(self, entity_set)
+#         self.client = client
+#
+#     def GetStreamType(self):
+#         """Returns the content type of the entity's media stream by issuing a HEAD request."""
+#         streamURL = str(self.GetLocation()) + "/$value"
+#         request = http.ClientRequest(str(streamURL), 'HEAD')
+#         request.set_header('Accept', '*/*')
+#         self.client.process_request(request)
+#         if request.status == 404:
+#             return None
+#         elif request.status != 200:
+#             raise UnexpectedHTTPResponse(
+#                 "%i %s" % (request.status, request.response.reason))
+#         return request.response.get_content_type()
+#
+#     def GetStreamSize(self):
+#         """Returns the size of the entity's media stream in bytes by issuing a HEAD request."""
+#         streamURL = str(self.GetLocation()) + "/$value"
+#         request = http.ClientRequest(str(streamURL), 'HEAD')
+#         request.set_header('Accept', '*/*')
+#         self.client.process_request(request)
+#         if request.status == 404:
+#             return None
+#         elif request.status != 200:
+#             raise UnexpectedHTTPResponse(
+#                 "%i %s" % (request.status, request.response.reason))
+#         return request.response.get_content_length()
+#
+#     def get_stream_generator(self):
+#         """A generator function that yields blocks (strings) of data from the entity's media stream."""
+#         streamURL = str(self.GetLocation()) + "/$value"
+#         request = http.ClientRequest(str(streamURL), 'GET')
+#         request.set_header('Accept', '*/*')
+#         self.client.process_request(request)
+#         if request.status == 404:
+#             return
+#         elif request.status != 200:
+#             raise UnexpectedHTTPResponse(
+#                 "%i %s" % (request.status, request.response.reason))
+#         yield request.res_body
 
 
 class ClientCollection(core.EntityCollection):
@@ -103,12 +103,12 @@ class ClientCollection(core.EntityCollection):
             self.baseURI = baseURI
         self.client = client
 
-    def new_entity(self, autoKey=False):
-        """Returns an OData aware instance"""
-        if self.is_medialink_collection():
-            return MediaLinkEntry(self.entity_set, self.client)
-        else:
-            return core.Entity(self.entity_set)
+#     def new_entity(self, autoKey=False):
+#         """Returns an OData aware instance"""
+#         if self.is_medialink_collection():
+#             return MediaLinkEntry(self.entity_set, self.client)
+#         else:
+#             return core.Entity(self.entity_set)
 
     def Expand(self, expand, select=None):
         """Sets the expand and select query options for this collection.
@@ -982,9 +982,9 @@ class Client(app.Client):
                         self.feeds[f]))
                 del self.feeds[f]
             else:
-                # Bind our EntityCollection class
+                # bind our EntityCollection class
                 entity_set = self.feeds[f]
-                entity_set.Bind(EntityCollection, client=self)
+                entity_set.bind(EntityCollection, client=self)
                 for np in entity_set.entityType.NavigationProperty:
                     entity_set.BindNavigation(
                         np.name, NavigationCollection, client=self)

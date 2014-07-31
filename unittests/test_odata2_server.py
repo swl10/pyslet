@@ -756,25 +756,30 @@ class ODataURILiteralTests(unittest.TestCase):
                 characters = UTF8-char """
         v = core.ParseURILiteral("'0A'")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.String, "string type: %s" % repr(v.typeCode))
+            v.typeCode == edm.SimpleType.String,
+            "string type: %s" % repr(v.typeCode))
         self.assertTrue(v.value == '0A', "string type: %s" % repr(v.value))
         v = core.ParseURILiteral("'0a'")
         self.assertTrue(v.value == "0a", "string type: %s" % repr(v.value))
-        v = core.ParseURILiteral("'Caf\xc3\xa9'")
-        # When parsed from a URL we assume that %-encoding is removed
-        # when the parameters are split leaving octet-strings that
-        # are parsed.  So utf-8 encoding of strings must be removed
-        # at the literal parsing stage
+        v = core.ParseURILiteral("'Caf%C3%A9'")
+        # When parsed from a URL we assume that UTF-8 and then
+        # %-encoding has been applied
         self.assertTrue(
             v.value == u"Caf\xe9", "unicode string type: %s" % repr(v.value))
-        # This next case is a shocker, the specification provides no way to escape SQUOTE
-        # We support the undocumented doubling of the SQUOTE character.
+        # This next case is a shocker, the specification provides no way
+        # to escape SQUOTE We support the undocumented doubling of the
+        # SQUOTE character (now part of the published standard)
+        # This particularly problematic because many browsers
+        # automatically
+        # %-encode single-quote in URLs even though it is not reserved by
+        # RFC2396.
         v = core.ParseURILiteral("'Peter O''Toole'")
         self.assertTrue(
             v.value == u"Peter O'Toole", "double SQUOTE: %s" % repr(v.value))
-        v = core.ParseURILiteral("'Peter O%27Toole'")
+        v = core.ParseURILiteral("%27Peter O%27%27Toole%27")
         self.assertTrue(
-            v.value == u"Peter O%27Toole", "%%-encoding ignored: %s" % repr(v.value))
+            v.value == u"Peter O'Toole",
+            "%%-encoding removed: %s" % repr(v.value))
         for bad in ["0A", "'0a", "'Caf\xc3 Curtains'", "'Peter O'Toole'"]:
             try:
                 v = core.ParseURILiteral(bad)
@@ -1055,8 +1060,8 @@ class ServerTests(unittest.TestCase):
         ds = doc.root.DataServices
         customers = ds['SampleModel.SampleEntities.Customers']
         customer = core.Entity(customers)
-        customer['CustomerID'].SetFromValue('X')
-        customer['CompanyName'].SetFromValue('Megacorp')
+        customer['CustomerID'].set_from_value('X')
+        customer['CompanyName'].set_from_value('Megacorp')
         # fake existence
         customer.exists = True
         #	If the entity represents an AtomPub Entry Resource...
@@ -1108,7 +1113,7 @@ class ServerTests(unittest.TestCase):
         #	of deep insert and binding to existing entities on the same
         #	request, but in theory there is no reason why we shouldn't
         order = core.Entity(ds['SampleModel.SampleEntities.Orders'])
-        order['OrderID'].SetFromValue(3)
+        order['OrderID'].set_from_value(3)
         customer['Orders'].BindEntity(order)
         #	To bind the new entity to an existing entity the "href"
         #	attribute of the <atom:link> element must represent the URI
@@ -1148,7 +1153,7 @@ class ServerTests(unittest.TestCase):
         #
         orders = ds['SampleModel.SampleEntities.Orders']
         order = core.Entity(orders)
-        order['OrderID'].SetFromValue(1)
+        order['OrderID'].set_from_value(1)
         order.exists = True
         entry = core.Entry(None, order)
         children = list(entry.FindChildrenDepthFirst(atom.Link))
@@ -1174,9 +1179,9 @@ class ServerTests(unittest.TestCase):
         #
         employees = ds['SampleModel.SampleEntities.Employees']
         employee = core.Entity(employees)
-        employee['EmployeeID'].SetFromValue('12345')
-        employee['EmployeeName'].SetFromValue('Joe Bloggs')
-        employee['Address']['City'].SetFromValue('Chunton')
+        employee['EmployeeID'].set_from_value('12345')
+        employee['EmployeeName'].set_from_value('Joe Bloggs')
+        employee['Address']['City'].set_from_value('Chunton')
         employee.exists = True
         entry = core.Entry(None, employee)
         properties = list(entry.Content.GetChildren())[0]
@@ -1221,7 +1226,7 @@ class ServerTests(unittest.TestCase):
         entry = core.Entry(None, employee)
         properties = list(list(entry.Content.GetChildren())[0].GetChildren())
         self.assertTrue(len(properties) == 1, "A single property selected")
-        employee['EmployeeName'].SetFromValue(None)
+        employee['EmployeeName'].set_from_value(None)
         entry = core.Entry(None, employee)
         #	If the property of an Entity Type instance ...includes
         #	Customizable Feed annotations ... and has a value of null,
@@ -1232,13 +1237,13 @@ class ServerTests(unittest.TestCase):
         #
         documents = ds['SampleModel.SampleEntities.Documents']
         document = core.Entity(documents)
-        document['DocumentID'].SetFromValue(1801)
-        document['Title'].SetFromValue('War and Peace')
-        document['Author'].SetFromValue('Tolstoy')
+        document['DocumentID'].set_from_value(1801)
+        document['Title'].set_from_value('War and Peace')
+        document['Author'].set_from_value('Tolstoy')
         h = hashlib.sha256()
         h.update(
             "Well, Prince, so Genoa and Lucca are now just family estates of the Buonapartes")
-        document['Version'].SetFromValue(h.digest())
+        document['Version'].set_from_value(h.digest())
         document.exists = True
         entry = core.Entry(None, document)
         #	If the entity represents an AtomPub Media Link Entry...
@@ -1295,9 +1300,9 @@ class ServerTests(unittest.TestCase):
         ds = doc.root.DataServices
         customers = ds['SampleModel.SampleEntities.Customers']
         customer = core.Entity(customers)
-        customer['CustomerID'].SetFromValue('X')
-        customer['CompanyName'].SetFromValue('Megacorp')
-        customer['Address']['City'].SetFromValue('Chunton')
+        customer['CustomerID'].set_from_value('X')
+        customer['CompanyName'].set_from_value('Megacorp')
+        customer['Address']['City'].set_from_value('Chunton')
         customer.exists = True
         jsonData = string.join(customer.GenerateEntityTypeInJSON())
         obj = json.loads(jsonData)
@@ -1411,8 +1416,8 @@ class ServerTests(unittest.TestCase):
         ds = doc.root.DataServices
         customers = ds['SampleModel.SampleEntities.Customers']
         customer = core.Entity(customers)
-        customer['CustomerID'].SetFromValue('X')
-        customer['CompanyName'].SetFromValue('Megacorp')
+        customer['CustomerID'].set_from_value('X')
+        customer['CompanyName'].set_from_value('Megacorp')
         jsonData = string.join(customer.GenerateEntityTypeInJSON())
         obj = json.loads(jsonData)
         newCustomer = core.Entity(customers)
@@ -1426,9 +1431,9 @@ class ServerTests(unittest.TestCase):
         self.assertFalse(newCustomer['Version'], "No version")
         employees = ds['SampleModel.SampleEntities.Employees']
         employee = core.Entity(employees)
-        employee['EmployeeID'].SetFromValue('12345')
-        employee['EmployeeName'].SetFromValue('Joe Bloggs')
-        employee['Address']['City'].SetFromValue('Chunton')
+        employee['EmployeeID'].set_from_value('12345')
+        employee['EmployeeName'].set_from_value('Joe Bloggs')
+        employee['Address']['City'].set_from_value('Chunton')
         jsonData = string.join(employee.GenerateEntityTypeInJSON())
         obj = json.loads(jsonData)
         newEmployee = core.Entity(employees)
@@ -1478,8 +1483,8 @@ class ServerTests(unittest.TestCase):
         customers.data['ALFKI'] = (
             'ALFKI', 'Example Inc', ("Mill Road", "Chunton"), None)
         for i in xrange(3):
-            customers.data['XXX%02X' % i] = (
-                'XXX%02X' % i, 'Example-%i Ltd' % i, (None, None), None)
+            customers.data['XX=%02X' % i] = (
+                'XX=%02X' % i, 'Example-%i Ltd' % i, (None, None), None)
         feed = core.Feed(None, customersSet.OpenCollection())
         # The <atom:id> element MUST contain the URI that identifies the
         # EntitySet
@@ -1565,8 +1570,8 @@ class ServerTests(unittest.TestCase):
         customers.data['ALFKI'] = (
             'ALFKI', 'Example Inc', ("Mill Road", "Chunton"), None)
         for i in xrange(3):
-            customers.data['XXX%02X' % i] = (
-                'XXX%02X' % i, 'Example-%i Ltd' % i, (None, None), None)
+            customers.data['XX=%02X' % i] = (
+                'XX=%02X' % i, 'Example-%i Ltd' % i, (None, None), None)
         collection = customersSet.OpenCollection()
         jsonData = string.join(collection.GenerateEntitySetInJSON(), '')
         #	Version 2 object by default
@@ -1619,6 +1624,14 @@ class ServerTests(unittest.TestCase):
             type(obj["results"]) == ListType, "Empty EntitySet represented as JSON array")
         self.assertTrue(len(obj["results"]) == 0, "No entities")
 
+    def testCaseEncodePATHINFO(self):
+        self.assertTrue(Server.encode_pathinfo("/?/'/hello?'/bye") ==
+                        "/%3F/'%2Fhello%3F'/bye")
+        self.assertTrue(Server.encode_pathinfo("/a;b/'/a;b?'/bye") ==
+                        "/a;b/'%2Fa%3Bb%3F'/bye")
+        self.assertTrue(Server.encode_pathinfo("/'a'';b'/bye") ==
+                        "/'a''%3Bb'/bye")
+        
 
 class CustomersByCityEntityCollection(core.FunctionEntityCollection):
 
@@ -1700,8 +1713,8 @@ class SampleServerTests(unittest.TestCase):
         customers.data['ALFKI'] = (
             'ALFKI', 'Example Inc', ("Mill Road", "Chunton"), '\x00\x00\x00\x00\x00\x00\xfa\x01')
         for i in xrange(90):
-            customers.data['XXX%02X' % i] = (
-                'XXX%02X' % i, 'Example-%i Ltd' % i, (None, None), None)
+            customers.data['XX=%02X' % i] = (
+                'XX=%02X' % i, 'Example-%i Ltd' % i, (None, None), None)
         employees = self.container.entityStorage['Employees']
         employees.data['1'] = (
             '1', 'Joe Bloggs', ("The Elms", "Chunton"), 'DEADBEEF')
@@ -1728,7 +1741,7 @@ class SampleServerTests(unittest.TestCase):
             order['OrderLine'].BindEntity(200)
             collOrders.update_entity(order)
             order = collOrders[3]
-            order['Customer'].BindEntity('XXX00')
+            order['Customer'].BindEntity('XX=00')
             collOrders.update_entity(order)
         documents = self.container.entityStorage['Documents']
         documents.data[300] = (300, 'The Book', 'The Author', None)
@@ -1744,25 +1757,25 @@ class SampleServerTests(unittest.TestCase):
         bitsAndPieces = self.xContainer.entityStorage['BitsAndPieces']
         bitsAndPieces.data[1] = (1, 'blahblah')
         customersByCity = self.ds['SampleModel.SampleEntities.CustomersByCity']
-        customersByCity.Bind(
+        customersByCity.bind(
             CustomersByCityEntityCollection, customers=customers)
         lastCustomerByLine = self.ds[
             'SampleModel.SampleEntities.LastCustomerByLine']
-        lastCustomerByLine.Bind(self.LastCustomerByLine)
+        lastCustomerByLine.bind(self.LastCustomerByLine)
         shippedAddressByDate = self.ds[
             'SampleModel.SampleEntities.ShippedAddressByDate']
-        shippedAddressByDate.Bind(ShippedAddressByDateCollection, customersEntitySet=self.ds[
+        shippedAddressByDate.bind(ShippedAddressByDateCollection, customersEntitySet=self.ds[
                                   'SampleModel.SampleEntities.Customers'])
         lastShippedByLine = self.ds[
             'SampleModel.SampleEntities.LastShippedByLine']
-        lastShippedByLine.Bind(self.LastShippedByLine)
+        lastShippedByLine.bind(self.LastShippedByLine)
         shippedCustomerNamesByDate = self.ds[
             'SampleModel.SampleEntities.ShippedCustomerNamesByDate']
-        shippedCustomerNamesByDate.Bind(ShippedCustomerNamesByDateCollection, customersEntitySet=self.ds[
+        shippedCustomerNamesByDate.bind(ShippedCustomerNamesByDateCollection, customersEntitySet=self.ds[
                                         'SampleModel.SampleEntities.Customers'])
         lastCustomerNameByLine = self.ds[
             'SampleModel.SampleEntities.LastCustomerNameByLine']
-        lastCustomerNameByLine.Bind(self.LastCustomerNameByLine)
+        lastCustomerNameByLine.bind(self.LastCustomerNameByLine)
 
     def LastCustomerByLine(self, function, params):
         with self.ds['SampleModel.SampleEntities.Customers'].OpenCollection() as customers:
@@ -1782,8 +1795,8 @@ class SampleServerTests(unittest.TestCase):
     def testCaseEntityTypeFromAtomEntry(self):
         customers = self.ds['SampleModel.SampleEntities.Customers']
         customer = core.Entity(customers)
-        customer['CustomerID'].SetFromValue('X')
-        customer['CompanyName'].SetFromValue('Megacorp')
+        customer['CustomerID'].set_from_value('X')
+        customer['CompanyName'].set_from_value('Megacorp')
         customer.exists = True
         entry = core.Entry(None, customer)
         self.assertTrue(
@@ -1804,7 +1817,7 @@ class SampleServerTests(unittest.TestCase):
         customer['Orders'].BindEntity(1)
         customer['Orders'].BindEntity(2)
         order = core.Entity(self.ds['SampleModel.SampleEntities.Orders'])
-        order['OrderID'].SetFromValue(3)
+        order['OrderID'].set_from_value(3)
         customer['Orders'].BindEntity(order)
         entry = core.Entry(None, customer)
         newCustomer = core.Entity(customers)
@@ -1833,9 +1846,9 @@ class SampleServerTests(unittest.TestCase):
         #
         employees = self.ds['SampleModel.SampleEntities.Employees']
         employee = core.Entity(employees)
-        employee['EmployeeID'].SetFromValue('12345')
-        employee['EmployeeName'].SetFromValue('Joe Bloggs')
-        employee['Address']['City'].SetFromValue('Chunton')
+        employee['EmployeeID'].set_from_value('12345')
+        employee['EmployeeName'].set_from_value('Joe Bloggs')
+        employee['Address']['City'].set_from_value('Chunton')
         entry = core.Entry(None, employee)
         self.assertTrue(
             entry.entityType == None, "Ensure there is no relation to the model here")
@@ -1850,13 +1863,13 @@ class SampleServerTests(unittest.TestCase):
         self.assertFalse(newEmployee['Version'], "No version")
         documents = self.ds['SampleModel.SampleEntities.Documents']
         document = core.Entity(documents)
-        document['DocumentID'].SetFromValue(1801)
-        document['Title'].SetFromValue('War and Peace')
-        document['Author'].SetFromValue('Tolstoy')
+        document['DocumentID'].set_from_value(1801)
+        document['Title'].set_from_value('War and Peace')
+        document['Author'].set_from_value('Tolstoy')
         h = hashlib.sha256()
         h.update(
             "Well, Prince, so Genoa and Lucca are now just family estates of the Buonapartes")
-        document['Version'].SetFromValue(h.digest())
+        document['Version'].set_from_value(h.digest())
         entry = core.Entry(None, document)
         self.assertTrue(
             entry.entityType == None, "Ensure there is no relation to the model here")
@@ -1904,7 +1917,7 @@ class SampleServerTests(unittest.TestCase):
             isinstance(value, edm.Complex), "Expected Complex value")
         self.assertTrue(value['City'].value == 'Chunton', "Expected Chunton")
         # Simple Property (NULL)
-        customer00 = customers.OpenCollection()['XXX00']
+        customer00 = customers.OpenCollection()['XX=00']
         p = core.Parser("Version")
         e = p.ParseCommonExpression()
         value = e.Evaluate(customer00)
@@ -2910,7 +2923,7 @@ class SampleServerTests(unittest.TestCase):
                     isinstance(linkInline, atom.Feed), "Expected atom.Feed in Orders link")
                 self.assertTrue(
                     len(linkInline.Entry) == 2, "Expected 2 Orders in expand")
-            elif e['CustomerID'].value != 'XXX00':
+            elif e['CustomerID'].value != 'XX=00':
                 self.assertTrue(
                     linkInline is None, "Expected no inline content for Orders link")
         #	Test json format
@@ -2933,7 +2946,7 @@ class SampleServerTests(unittest.TestCase):
                     "results" in orders, "Version 2 expanded entity set as array")
                 self.assertTrue(
                     len(orders["results"]) == 2, "Expected 2 Orders in expand")
-            elif objItem["CustomerID"] != 'XXX00':
+            elif objItem["CustomerID"] != 'XX=00':
                 self.assertTrue(
                     len(orders["results"]) == 0, "Expected no inline content for Orders link")
         request = MockRequest("/service.svc/Orders(1)?$expand=Customer")
@@ -3389,13 +3402,13 @@ class SampleServerTests(unittest.TestCase):
         with self.ds['SampleModel.SampleEntities.Orders'].OpenCollection() as orders:
             order = orders[3]
             with order['Customer'].OpenCollection() as navCollection:
-                del navCollection['XXX00']
+                del navCollection['XX=00']
         customers = self.ds[
             'SampleModel.SampleEntities.Customers'].OpenCollection()
         customer = customers.new_entity()
-        customer['CustomerID'].SetFromValue(u'STEVE')
-        customer['CompanyName'].SetFromValue("Steve's Inc")
-        customer['Address']['City'].SetFromValue('Cambridge')
+        customer['CustomerID'].set_from_value(u'STEVE')
+        customer['CompanyName'].set_from_value("Steve's Inc")
+        customer['Address']['City'].set_from_value('Cambridge')
         #	street left blank
         request = MockRequest("/service.svc/Customers", "POST")
         doc = core.Document(root=core.Entry(None, customer))
@@ -3424,10 +3437,10 @@ class SampleServerTests(unittest.TestCase):
         self.assertFalse(newCustomer['Address']['Street'])
         # insert entity with binding
         customer = customers.new_entity()
-        customer['CustomerID'].SetFromValue(u'ASDFG')
-        customer['CompanyName'].SetFromValue("Contoso Widgets")
-        customer['Address']['Street'].SetFromValue('58 Contoso St')
-        customer['Address']['City'].SetFromValue('Seattle')
+        customer['CustomerID'].set_from_value(u'ASDFG')
+        customer['CompanyName'].set_from_value("Contoso Widgets")
+        customer['Address']['Street'].set_from_value('58 Contoso St')
+        customer['Address']['City'].set_from_value('Seattle')
         customer['Orders'].BindEntity(3)
         customer['Orders'].BindEntity(4)
         request = MockRequest("/service.svc/Customers", "POST")
@@ -3470,13 +3483,13 @@ class SampleServerTests(unittest.TestCase):
         with self.ds['SampleModel.SampleEntities.Orders'].OpenCollection() as orders:
             order = orders[3]
             with order['Customer'].OpenCollection() as navCollection:
-                del navCollection['XXX00']
+                del navCollection['XX=00']
         customers = self.ds[
             'SampleModel.SampleEntities.Customers'].OpenCollection()
         customer = customers.new_entity()
-        customer['CustomerID'].SetFromValue(u'STEVE')
-        customer['CompanyName'].SetFromValue("Steve's Inc")
-        customer['Address']['City'].SetFromValue('Cambridge')
+        customer['CustomerID'].set_from_value(u'STEVE')
+        customer['CompanyName'].set_from_value("Steve's Inc")
+        customer['Address']['City'].set_from_value('Cambridge')
         #	street left blank
         request = MockRequest("/service.svc/Customers", "POST")
         data = string.join(customer.GenerateEntityTypeInJSON(False, 1))
@@ -3507,10 +3520,10 @@ class SampleServerTests(unittest.TestCase):
         self.assertFalse(newCustomer['Address']['Street'])
         # insert entity with binding
         customer = customers.new_entity()
-        customer['CustomerID'].SetFromValue(u'ASDFG')
-        customer['CompanyName'].SetFromValue("Contoso Widgets")
-        customer['Address']['Street'].SetFromValue('58 Contoso St')
-        customer['Address']['City'].SetFromValue('Seattle')
+        customer['CustomerID'].set_from_value(u'ASDFG')
+        customer['CompanyName'].set_from_value("Contoso Widgets")
+        customer['Address']['Street'].set_from_value('58 Contoso St')
+        customer['Address']['City'].set_from_value('Seattle')
         customer['Orders'].BindEntity(3)
         customer['Orders'].BindEntity(4)
         request = MockRequest("/service.svc/Customers", "POST")
@@ -3933,7 +3946,7 @@ class SampleServerTests(unittest.TestCase):
         # check behaviour of null values, this was clarified in the v3 specification
         # A $value request for a property that is NULL SHOULD result in a 404
         # Not Found. response.
-        request = MockRequest("/service.svc/Customers('XXX00')/Version/$value")
+        request = MockRequest("/service.svc/Customers('XX%3D00')/Version/$value")
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 404)
 
@@ -4100,7 +4113,7 @@ class SampleServerTests(unittest.TestCase):
         customers = self.ds['SampleModel.SampleEntities.Customers']
         with customers.OpenCollection() as collection:
             customer = collection['ALFKI']
-        customer['CompanyName'].SetFromValue("Example Inc Updated")
+        customer['CompanyName'].set_from_value("Example Inc Updated")
         request = MockRequest("/service.svc/Customers('ALFKI')", "PUT")
         doc = core.Document(root=core.Entry)
         doc.root.SetValue(customer, True)
@@ -4125,7 +4138,7 @@ class SampleServerTests(unittest.TestCase):
         with orders.OpenCollection() as collection:
             order = collection[3]
         oldCustomer = order['Customer'].GetEntity()
-        self.assertTrue(oldCustomer.key() == 'XXX00', "Previous customer")
+        self.assertTrue(oldCustomer.key() == 'XX=00', "Previous customer")
         order['Customer'].BindEntity(customer)
         request = MockRequest("/service.svc/Orders(3)", "PUT")
         doc = core.Document(root=core.Entry)
@@ -4153,7 +4166,7 @@ class SampleServerTests(unittest.TestCase):
         customers = self.ds['SampleModel.SampleEntities.Customers']
         with customers.OpenCollection() as collection:
             customer = collection['ALFKI']
-        customer['CompanyName'].SetFromValue("Example Inc Updated")
+        customer['CompanyName'].set_from_value("Example Inc Updated")
         request = MockRequest("/service.svc/Customers('ALFKI')", "PUT")
         jsonData = string.join(customer.GenerateEntityTypeInJSON(True))
         request.set_header('Accept', "application/json")
@@ -4177,7 +4190,7 @@ class SampleServerTests(unittest.TestCase):
         with orders.OpenCollection() as collection:
             order = collection[3]
         oldCustomer = order['Customer'].GetEntity()
-        self.assertTrue(oldCustomer.key() == 'XXX00', "Previous customer")
+        self.assertTrue(oldCustomer.key() == 'XX=00', "Previous customer")
         order['Customer'].BindEntity(customer)
         request = MockRequest("/service.svc/Orders(3)", "PUT")
         jsonData = string.join(order.GenerateEntityTypeInJSON(True))
@@ -4204,7 +4217,7 @@ class SampleServerTests(unittest.TestCase):
         customers = self.ds['SampleModel.SampleEntities.Customers']
         with customers.OpenCollection() as collection:
             customer = collection['ALFKI']
-        customer['Address']['Street'].SetFromValue("High Street")
+        customer['Address']['Street'].set_from_value("High Street")
         request = MockRequest("/service.svc/Customers('ALFKI')/Address", "PUT")
         doc = core.Document(root=core.Property)
         doc.root.SetXMLName((core.ODATA_DATASERVICES_NAMESPACE, 'Address'))
@@ -4231,7 +4244,7 @@ class SampleServerTests(unittest.TestCase):
         customers = self.ds['SampleModel.SampleEntities.Customers']
         with customers.OpenCollection() as collection:
             customer = collection['ALFKI']
-        customer['Address']['Street'].SetFromValue("High Street")
+        customer['Address']['Street'].set_from_value("High Street")
         request = MockRequest("/service.svc/Customers('ALFKI')/Address", "PUT")
         request.set_header('Accept', "application/json")
         data = core.EntityCTInJSON(customer['Address'])
@@ -4256,7 +4269,7 @@ class SampleServerTests(unittest.TestCase):
         customers = self.ds['SampleModel.SampleEntities.Customers']
         with customers.OpenCollection() as collection:
             customer = collection['ALFKI']
-        customer['CompanyName'].SetFromValue("Example Inc Updated")
+        customer['CompanyName'].set_from_value("Example Inc Updated")
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/CompanyName", "PUT")
         doc = core.Document(root=core.Property)
@@ -4284,7 +4297,7 @@ class SampleServerTests(unittest.TestCase):
         customers = self.ds['SampleModel.SampleEntities.Customers']
         with customers.OpenCollection() as collection:
             customer = collection['ALFKI']
-        customer['CompanyName'].SetFromValue("Example Inc Updated")
+        customer['CompanyName'].set_from_value("Example Inc Updated")
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/CompanyName", "PUT")
         request.set_header('Accept', "application/json")
@@ -4345,7 +4358,7 @@ class SampleServerTests(unittest.TestCase):
         with orders.OpenCollection() as collection:
             order = collection[3]
         oldCustomer = order['Customer'].GetEntity()
-        self.assertTrue(oldCustomer.key() == 'XXX00', "Previous customer")
+        self.assertTrue(oldCustomer.key() == 'XX=00', "Previous customer")
         customers = self.ds['SampleModel.SampleEntities.Customers']
         with customers.OpenCollection() as collection:
             customer = collection['ALFKI']
@@ -4376,7 +4389,7 @@ class SampleServerTests(unittest.TestCase):
         with orders.OpenCollection() as collection:
             order = collection[3]
         oldCustomer = order['Customer'].GetEntity()
-        self.assertTrue(oldCustomer.key() == 'XXX00', "Previous customer")
+        self.assertTrue(oldCustomer.key() == 'XX=00', "Previous customer")
         customers = self.ds['SampleModel.SampleEntities.Customers']
         with customers.OpenCollection() as collection:
             customer = collection['ALFKI']

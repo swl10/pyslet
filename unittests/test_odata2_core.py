@@ -1579,6 +1579,26 @@ class ODataURITests(unittest.TestCase):
             "Key value type")
         self.assertTrue(ds_uri.navPath[0][1][u'y'].value == 2, "y Key value")
         # [(u'Products',{u'x':1,u'y':2})]
+        ds_uri = ODataURI("/service.svc/Customers('ALF%2FKI')/Orders",
+                          '/service.svc')
+        self.assertTrue(len(ds_uri.navPath) == 2)
+        self.assertTrue(ds_uri.navPath[0][0] == u'Customers')
+        self.assertTrue(
+            isinstance(ds_uri.navPath[0][1][u''], edm.StringValue),
+            "Key value type")
+        self.assertTrue(ds_uri.navPath[0][1][u''].value == 'ALF/KI',
+                        "String Key value")
+        self.assertTrue(ds_uri.navPath[1][0] == u'Orders')
+        ds_uri = ODataURI("/service.svc/Customers(%27ALF%2FKI%27)/Orders",
+                          '/service.svc')
+        self.assertTrue(len(ds_uri.navPath) == 2)
+        self.assertTrue(ds_uri.navPath[0][0] == u'Customers')
+        self.assertTrue(
+            isinstance(ds_uri.navPath[0][1][u''], edm.StringValue),
+            "Key value type")
+        self.assertTrue(ds_uri.navPath[0][1][u''].value == 'ALF/KI',
+                        "String Key value")
+        self.assertTrue(ds_uri.navPath[1][0] == u'Orders')
 
     def test_expand(self):
         """Redundant expandClause rules on the same data service URI can
@@ -1822,7 +1842,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             with autokeys.OpenCollection() as coll:
                 e = coll.new_entity()
                 self.assertTrue(e.exists is False)
-                e['Data'].SetFromValue('hello')
+                e['Data'].set_from_value('hello')
                 coll.insert_entity(e)
                 self.assertTrue(e.exists)
                 try:
@@ -1837,52 +1857,52 @@ class DataServiceRegressionTests(unittest.TestCase):
             e = coll.new_entity()
             self.assertTrue(e.exists is False)
             # <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
-            e['ID'].SetFromValue(1)
+            e['ID'].set_from_value(1)
             # <Property Name="BinaryFixed" Type="Edm.Binary"
             # MaxLength="10" FixedLength="true"/>
-            e['BinaryFixed'].SetFromValue('1234567890')
+            e['BinaryFixed'].set_from_value('1234567890')
             # <Property Name="BinaryVariable" Type="Edm.Binary"
             # MaxLength="10" FixedLength="false"/>
-            e['BinaryVariable'].SetFromValue('1234567')
+            e['BinaryVariable'].set_from_value('1234567')
             # <Property Name="BooleanProperty" Type="Edm.Boolean"/>
-            e['BooleanProperty'].SetFromValue(True)
+            e['BooleanProperty'].set_from_value(True)
             # <Property Name="DateTimeProperty" Type="Edm.DateTime"
             # Precision="3"/>
-            e['DateTimeProperty'].SetFromValue(
+            e['DateTimeProperty'].set_from_value(
                 iso.TimePoint.from_str('1972-03-03T09:45:00'))
             # <Property Name="TimeProperty" Type="Edm.Time" Precision="3"/>
-            e['TimeProperty'].SetFromValue(
+            e['TimeProperty'].set_from_value(
                 iso.Time.from_str('09:45:00'))
             # <Property Name="DateTimeOffsetProperty"
             # Type="Edm.DateTimeOffset" Precision="3"/>
-            e['DateTimeOffsetProperty'].SetFromValue(
+            e['DateTimeOffsetProperty'].set_from_value(
                 iso.TimePoint.from_str('1972-07-03T09:45:00+01:00'))
             # <Property Name="DecimalProperty" Type="Edm.Decimal"
             # Precision="10" Scale="2"/>
-            e['DecimalProperty'].SetFromValue(decimal.Decimal('3.14'))
+            e['DecimalProperty'].set_from_value(decimal.Decimal('3.14'))
             # <Property Name="SingleValue" Type="Edm.Single"/>
-            e['SingleValue'].SetFromValue(3.14)
+            e['SingleValue'].set_from_value(3.14)
             # <Property Name="DoubleValue" Type="Edm.Double"/>
-            e['DoubleValue'].SetFromValue(3.14)
+            e['DoubleValue'].set_from_value(3.14)
             # <Property Name="GuidValue" Type="Edm.Guid"/>
-            e['GuidValue'].SetFromValue(uuid.UUID(int=3))
+            e['GuidValue'].set_from_value(uuid.UUID(int=3))
             # <Property Name="SByteValue" Type="Edm.SByte"/>
-            e['SByteValue'].SetFromValue(3)
+            e['SByteValue'].set_from_value(3)
             # <Property Name="Int16Value" Type="Edm.Int16"/>
-            e['Int16Value'].SetFromValue(3)
+            e['Int16Value'].set_from_value(3)
             # <Property Name="Int64Value" Type="Edm.Int64"/>
-            e['Int64Value'].SetFromValue(3)
+            e['Int64Value'].set_from_value(3)
             # <Property Name="ByteValue" Type="Edm.Byte"/>
-            e['ByteValue'].SetFromValue(3)
+            e['ByteValue'].set_from_value(3)
             # <Property Name="UnicodeString" Type="Edm.String"
             # Unicode="true" FixedLength="false" MaxLength="10"/>
-            e['UnicodeString'].SetFromValue(u"Caf\xe9")
+            e['UnicodeString'].set_from_value(u"Caf\xe9")
             # <Property Name="ASCIIString" Type="Edm.String"
             # Unicode="false" FixedLength="false" MaxLength="10"/>
-            e['ASCIIString'].SetFromValue(u"Cafe")
+            e['ASCIIString'].set_from_value(u"Cafe")
             # <Property Name="FixedString" Type="Edm.String"
             # FixedLength="true" MaxLength="5"/>
-            e['FixedString'].SetFromValue(u"ALFKI")
+            e['FixedString'].set_from_value(u"ALFKI")
             # CREATE
             coll.insert_entity(e)
             self.assertTrue(e.exists is True)
@@ -1958,29 +1978,29 @@ class DataServiceRegressionTests(unittest.TestCase):
                 got_e['FixedString'].value == u"ALFKI",
                 "FixedString on read")
             # UPDATE
-            got_e['BinaryFixed'].SetFromValue(
+            got_e['BinaryFixed'].set_from_value(
                 '\x00\x01\x02\x03\x04~\xDE\xAD\xBE\xEF')
-            got_e['BinaryVariable'].SetFromValue('\x00~\xDE\xAD\xBE\xEF')
-            got_e['BooleanProperty'].SetFromValue(False)
-            got_e['DateTimeProperty'].SetFromValue(
+            got_e['BinaryVariable'].set_from_value('\x00~\xDE\xAD\xBE\xEF')
+            got_e['BooleanProperty'].set_from_value(False)
+            got_e['DateTimeProperty'].set_from_value(
                 iso.TimePoint.from_str('2013-12-25T15:59:03.142'))
-            got_e['TimeProperty'].SetFromValue(
+            got_e['TimeProperty'].set_from_value(
                 iso.Time.from_str('17:32:03.142'))
-            got_e['DateTimeOffsetProperty'].SetFromValue(
+            got_e['DateTimeOffsetProperty'].set_from_value(
                 iso.TimePoint.from_str('2013-12-25T15:59:03.142-05:00'))
-            got_e['DecimalProperty'].SetFromValue(
+            got_e['DecimalProperty'].set_from_value(
                 decimal.Decimal('-100.50'))
-            got_e['SingleValue'].SetFromValue(-100.5)
-            got_e['DoubleValue'].SetFromValue(-100.5)
-            got_e['GuidValue'].SetFromValue(
+            got_e['SingleValue'].set_from_value(-100.5)
+            got_e['DoubleValue'].set_from_value(-100.5)
+            got_e['GuidValue'].set_from_value(
                 uuid.UUID(int=20131225155903142))
-            got_e['SByteValue'].SetFromValue(-101)
-            got_e['Int16Value'].SetFromValue(-101)
-            got_e['Int64Value'].SetFromValue(-101)
-            got_e['ByteValue'].SetFromValue(255)
-            got_e['UnicodeString'].SetFromValue(u"I\u2764Unicode")
-            got_e['ASCIIString'].SetFromValue(u"Bistro")
-            got_e['FixedString'].SetFromValue(
+            got_e['SByteValue'].set_from_value(-101)
+            got_e['Int16Value'].set_from_value(-101)
+            got_e['Int64Value'].set_from_value(-101)
+            got_e['ByteValue'].set_from_value(255)
+            got_e['UnicodeString'].set_from_value(u"I\u2764Unicode")
+            got_e['ASCIIString'].set_from_value(u"Bistro")
+            got_e['FixedString'].set_from_value(
                 u"\u2780\u2781\u2782\u2783\u2784")
             coll.update_entity(got_e)
             check_e = coll[1]
@@ -2056,7 +2076,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # NULL tests
             # CREATE
             e = coll.new_entity()
-            e['ID'].SetFromValue(2)
+            e['ID'].set_from_value(2)
             coll.insert_entity(e)
             # READ
             got_e = coll[2]
@@ -2072,10 +2092,10 @@ class DataServiceRegressionTests(unittest.TestCase):
             'RegressionModel.RegressionContainer.ComplexTypes']
         with complex_types.OpenCollection() as coll:
             e = coll.new_entity()
-            e['ID'].SetFromValue(100)
-            e['Complex']['Data'].SetFromValue("Level1")
-            e['Complex']['Complex']['Data'].SetFromValue("Level2")
-            e['Complex']['Complex']['Index'].SetFromValue(255)
+            e['ID'].set_from_value(100)
+            e['Complex']['Data'].set_from_value("Level1")
+            e['Complex']['Complex']['Data'].set_from_value("Level2")
+            e['Complex']['Complex']['Index'].set_from_value(255)
             # CREATE
             coll.insert_entity(e)
             # READ (coll)
@@ -2096,10 +2116,10 @@ class DataServiceRegressionTests(unittest.TestCase):
                 got_e['Complex']['Complex']['Index'].value == 255,
                 "Level 2 index on read")
             # UPDATE
-            got_e['Complex']['Data'].SetFromValue("Level1Update")
+            got_e['Complex']['Data'].set_from_value("Level1Update")
             got_e['Complex']['Complex'][
-                'Data'].SetFromValue("Level2Update")
-            got_e['Complex']['Complex']['Index'].SetFromValue(-255)
+                'Data'].set_from_value("Level2Update")
+            got_e['Complex']['Complex']['Index'].set_from_value(-255)
             coll.update_entity(got_e)
             check_e = coll[100]
             self.assertTrue(
@@ -2126,12 +2146,12 @@ class DataServiceRegressionTests(unittest.TestCase):
             'RegressionModel.RegressionContainer.CompoundKeys']
         with compound_keys.OpenCollection() as coll:
             e = coll.new_entity()
-            e['K1'].SetFromValue(1)
-            e['K2'].SetFromValue('00001')
-            e['K3'].SetFromValue(
+            e['K1'].set_from_value(1)
+            e['K2'].set_from_value('00001')
+            e['K3'].set_from_value(
                 iso.TimePoint.from_str('2013-12-25T15:59:03.142'))
-            e['K4'].SetFromValue('\xde\xad\xbe\xef')
-            e['Data'].SetFromValue("Compound Key")
+            e['K4'].set_from_value('\xde\xad\xbe\xef')
+            e['Data'].set_from_value("Compound Key")
             # CREATE
             coll.insert_entity(e)
             # READ (coll)
@@ -2149,7 +2169,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 '2013-12-25T15:59:03.142'), '\xde\xad\xbe\xef')]
             self.assertTrue(got_e['Data'].value == "Compound Key")
             # UPDATE
-            got_e['Data'].SetFromValue("Updated Compound Key")
+            got_e['Data'].set_from_value("Updated Compound Key")
             coll.update_entity(got_e)
             check_e = coll[(1, '00001', iso.TimePoint.from_str(
                 '2013-12-25T15:59:03.142'), '\xde\xad\xbe\xef')]
@@ -2173,13 +2193,13 @@ class DataServiceRegressionTests(unittest.TestCase):
         with select_set.OpenCollection() as coll:
             e = coll.new_entity()
             e.set_key(1)
-            e['P1'].SetFromValue(3.14)
-            e['P2'].SetFromValue("Pi")
+            e['P1'].set_from_value(3.14)
+            e['P2'].set_from_value("Pi")
             coll.insert_entity(e)
             e = coll.new_entity()
             e.set_key(2)
-            e['P1'].SetFromValue(2.72)
-            e['P2'].SetFromValue("e")
+            e['P1'].set_from_value(2.72)
+            e['P2'].set_from_value("e")
             coll.insert_entity(e)
             coll.SelectKeys()
             e = coll[1]
@@ -2205,8 +2225,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 for j in xrange(10):
                     e = coll.new_entity()
                     e.set_key((i, j))
-                    e['Sum'].SetFromValue(i + j)
-                    e['Product'].SetFromValue(i * j)
+                    e['Sum'].set_from_value(i + j)
+                    e['Product'].set_from_value(i * j)
                     coll.insert_entity(e)
             # first test, iterpage with no page set, all values returned
             self.assertTrue(len(list(coll.iterpage())) == 100, "no page")
@@ -2305,8 +2325,8 @@ class DataServiceRegressionTests(unittest.TestCase):
         with ones.OpenCollection() as coll:
             with onexs.OpenCollection() as coll_x:
                 e = coll.new_entity()
-                e['K'].SetFromValue(1)
-                e['Data'].SetFromValue('NavigationOne')
+                e['K'].set_from_value(1)
+                e['Data'].set_from_value('NavigationOne')
                 # CREATE
                 try:
                     coll.insert_entity(e)
@@ -2314,8 +2334,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 except edm.ConstraintError:
                     pass
                 e_x = coll_x.new_entity()
-                e_x['K'].SetFromValue(100)
-                e_x['Data'].SetFromValue('NavigationOneX')
+                e_x['K'].set_from_value(100)
+                e_x['Data'].set_from_value('NavigationOneX')
                 e['OX'].BindEntity(e_x)
                 try:
                     coll.insert_entity(e)
@@ -2323,11 +2343,11 @@ class DataServiceRegressionTests(unittest.TestCase):
                     self.fail("e insert failed with 1-1 binding")
                 # Repeat but in reverse to check symmetry
                 e2 = coll.new_entity()
-                e2['K'].SetFromValue(2)
-                e2['Data'].SetFromValue('NavigationTwo')
+                e2['K'].set_from_value(2)
+                e2['Data'].set_from_value('NavigationTwo')
                 e2_x = coll_x.new_entity()
-                e2_x['K'].SetFromValue(200)
-                e2_x['Data'].SetFromValue('NavigationTwoX')
+                e2_x['K'].set_from_value(200)
+                e2_x['Data'].set_from_value('NavigationTwoX')
                 e2_x['O'].BindEntity(e2)
                 coll_x.insert_entity(e2_x)
                 # READ both ways
@@ -2390,8 +2410,8 @@ class DataServiceRegressionTests(unittest.TestCase):
         with ones.OpenCollection() as coll:
             with onexs.OpenCollection() as coll_x:
                 e = coll.new_entity()
-                e['K'].SetFromValue(1)
-                e['Data'].SetFromValue('NavigationOne')
+                e['K'].set_from_value(1)
+                e['Data'].set_from_value('NavigationOne')
                 # CREATE
                 try:
                     coll.insert_entity(e)
@@ -2399,8 +2419,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 except edm.ConstraintError:
                     pass
                 e_x = coll_x.new_entity()
-                e_x['K'].SetFromValue(100)
-                e_x['Data'].SetFromValue('NavigationOneX')
+                e_x['K'].set_from_value(100)
+                e_x['Data'].set_from_value('NavigationOneX')
                 e['OX'].BindEntity(e_x)
                 try:
                     coll.insert_entity(e)
@@ -2409,11 +2429,11 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # Repeat but in reverse to check that we can't insert into a
                 # dependent e set without the principal leading
                 e2 = coll.new_entity()
-                e2['K'].SetFromValue(2)
-                e2['Data'].SetFromValue('NavigationTwo')
+                e2['K'].set_from_value(2)
+                e2['Data'].set_from_value('NavigationTwo')
                 e2_x = coll_x.new_entity()
-                e2_x['K'].SetFromValue(200)
-                e2_x['Data'].SetFromValue('NavigationTwoX')
+                e2_x['K'].set_from_value(200)
+                e2_x['Data'].set_from_value('NavigationTwoX')
                 try:
                     coll_x.insert_entity(e2_x)
                     self.fail(
@@ -2486,8 +2506,8 @@ class DataServiceRegressionTests(unittest.TestCase):
         with zeroones.OpenCollection() as collectionZO:
             with ones.OpenCollection() as collectionO:
                 e_zo = collectionZO.new_entity()
-                e_zo['K'].SetFromValue(1)
-                e_zo['Data'].SetFromValue('NavigationZeroOne')
+                e_zo['K'].set_from_value(1)
+                e_zo['Data'].set_from_value('NavigationZeroOne')
                 # CREATE
                 try:
                     collectionZO.insert_entity(e_zo)
@@ -2495,8 +2515,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 except edm.ConstraintError:
                     pass
                 e_o = collectionO.new_entity()
-                e_o['K'].SetFromValue(100)
-                e_o['Data'].SetFromValue('NavigationOne')
+                e_o['K'].set_from_value(100)
+                e_o['Data'].set_from_value('NavigationOne')
                 e_zo['O'].BindEntity(e_o)
                 try:
                     collectionZO.insert_entity(e_zo)
@@ -2506,19 +2526,19 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_zo <-> e_o
                 # Repeat but in reverse to check symmetry
                 e_zo2 = collectionZO.new_entity()
-                e_zo2['K'].SetFromValue(2)
-                e_zo2['Data'].SetFromValue('NavigationZeroOne_2')
+                e_zo2['K'].set_from_value(2)
+                e_zo2['Data'].set_from_value('NavigationZeroOne_2')
                 e_o2 = collectionO.new_entity()
-                e_o2['K'].SetFromValue(200)
-                e_o2['Data'].SetFromValue('NavigationOne_2')
+                e_o2['K'].set_from_value(200)
+                e_o2['Data'].set_from_value('NavigationOne_2')
                 e_o2['ZO'].BindEntity(e_zo2)
                 collectionO.insert_entity(e_o2)
                 # e_zo <-> e_o
                 # e_zo2 <-> e_o2
                 # Now try inserting at the 1 end without a binding
                 e_o3 = collectionO.new_entity()
-                e_o3['K'].SetFromValue(300)
-                e_o3['Data'].SetFromValue('NavigationOne_3')
+                e_o3['K'].set_from_value(300)
+                e_o3['Data'].set_from_value('NavigationOne_3')
                 try:
                     collectionO.insert_entity(e_o3)
                 except edm.ConstraintError:
@@ -2529,8 +2549,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # None <-> e_o3
                 # Insert with implicit link
                 e_o4 = collectionO.new_entity()
-                e_o4['K'].SetFromValue(400)
-                e_o4['Data'].SetFromValue('NavigationOne_4')
+                e_o4['K'].set_from_value(400)
+                e_o4['Data'].set_from_value('NavigationOne_4')
                 with e_zo['O'].OpenCollection() as navCollection:
                     # 	we can't insert here as e_zo is already bound to e_o
                     try:
@@ -2541,8 +2561,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                         pass
                 # just create e_o4 anyway
                 e_o4 = collectionO.new_entity()
-                e_o4['K'].SetFromValue(400)
-                e_o4['Data'].SetFromValue('NavigationOne_4')
+                e_o4['K'].set_from_value(400)
+                e_o4['Data'].set_from_value('NavigationOne_4')
                 try:
                     collectionO.insert_entity(e_o4)
                 except edm.ConstraintError:
@@ -2557,8 +2577,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # None <-> e_o3
                 # None <-> e_o4
                 e_zo3 = collectionZO.new_entity()
-                e_zo3['K'].SetFromValue(3)
-                e_zo3['Data'].SetFromValue('NavigationZeroOne_3')
+                e_zo3['K'].set_from_value(3)
+                e_zo3['Data'].set_from_value('NavigationZeroOne_3')
                 with e_o3['ZO'].OpenCollection() as navCollection:
                     # we can insert here, will create a bound relationship
                     try:
@@ -2684,11 +2704,11 @@ class DataServiceRegressionTests(unittest.TestCase):
             with ones.OpenCollection() as collectionO:
                 # CREATE
                 e_zo = collectionZO.new_entity()
-                e_zo['K'].SetFromValue(1)
-                e_zo['Data'].SetFromValue('NavigationZeroOne')
+                e_zo['K'].set_from_value(1)
+                e_zo['Data'].set_from_value('NavigationZeroOne')
                 e_o = collectionO.new_entity()
-                e_o['K'].SetFromValue(100)
-                e_o['Data'].SetFromValue('NavigationOne')
+                e_o['K'].set_from_value(100)
+                e_o['Data'].set_from_value('NavigationOne')
                 e_zo['O'].BindEntity(e_o)
                 try:
                     collectionZO.insert_entity(e_zo)
@@ -2696,8 +2716,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                     self.fail("e insert failed with 0..1-1 binding")
                 # e_zo <-> e_o
                 e_o2 = collectionO.new_entity()
-                e_o2['K'].SetFromValue(200)
-                e_o2['Data'].SetFromValue('NavigationOne_2')
+                e_o2['K'].set_from_value(200)
+                e_o2['Data'].set_from_value('NavigationOne_2')
                 collectionO.insert_entity(e_o2)
                 # None <-> e_o2
                 # READ (forward only)
@@ -2751,8 +2771,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # None <-> e_o
                 # None <-> e_o2
                 e_zo2 = collectionZO.new_entity()
-                e_zo2['K'].SetFromValue(2)
-                e_zo2['Data'].SetFromValue('NavigationZeroOne_2')
+                e_zo2['K'].set_from_value(2)
+                e_zo2['Data'].set_from_value('NavigationZeroOne_2')
                 e_zo2['O'].BindEntity(e_o2)
                 collectionZO.insert_entity(e_zo2)
                 # e_zo2 <-> e_o2
@@ -2770,8 +2790,8 @@ class DataServiceRegressionTests(unittest.TestCase):
         with zeroones.OpenCollection() as collectionZO:
             with ones.OpenCollection() as collectionO:
                 e_zo = collectionZO.new_entity()
-                e_zo['K'].SetFromValue(1)
-                e_zo['Data'].SetFromValue('NavigationZeroOne')
+                e_zo['K'].set_from_value(1)
+                e_zo['Data'].set_from_value('NavigationZeroOne')
                 # CREATE
                 try:
                     collectionZO.insert_entity(e_zo)
@@ -2780,8 +2800,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 except edm.ConstraintError:
                     pass
                 e_o = collectionO.new_entity()
-                e_o['K'].SetFromValue(100)
-                e_o['Data'].SetFromValue('NavigationOne')
+                e_o['K'].set_from_value(100)
+                e_o['Data'].set_from_value('NavigationOne')
                 e_o['ZO'].BindEntity(e_zo)
                 try:
                     collectionO.insert_entity(e_o)
@@ -2790,8 +2810,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_zo <-> e_o
                 # Now try inserting at the 1 end without a binding
                 e_o2 = collectionO.new_entity()
-                e_o2['K'].SetFromValue(200)
-                e_o2['Data'].SetFromValue('NavigationOne_2')
+                e_o2['K'].set_from_value(200)
+                e_o2['Data'].set_from_value('NavigationOne_2')
                 try:
                     collectionO.insert_entity(e_o2)
                 except edm.ConstraintError:
@@ -2808,8 +2828,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # UPDATE - by inserting a new value into the navigation coll
                 # should work
                 e_zo2 = collectionZO.new_entity()
-                e_zo2['K'].SetFromValue(2)
-                e_zo2['Data'].SetFromValue('NavigationZeroOne')
+                e_zo2['K'].set_from_value(2)
+                e_zo2['Data'].set_from_value('NavigationZeroOne')
                 with e_o2['ZO'].OpenCollection() as navCollection:
                     try:
                         navCollection.insert_entity(e_zo2)
@@ -2905,8 +2925,8 @@ class DataServiceRegressionTests(unittest.TestCase):
         with manys.OpenCollection() as collectionMany:
             with ones.OpenCollection() as collectionO:
                 e_many = collectionMany.new_entity()
-                e_many['K'].SetFromValue(1)
-                e_many['Data'].SetFromValue('NavigationMany')
+                e_many['K'].set_from_value(1)
+                e_many['Data'].set_from_value('NavigationMany')
                 # CREATE
                 try:
                     collectionMany.insert_entity(e_many)
@@ -2914,8 +2934,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 except edm.ConstraintError:
                     pass
                 e_o = collectionO.new_entity()
-                e_o['K'].SetFromValue(100)
-                e_o['Data'].SetFromValue('NavigationOne')
+                e_o['K'].set_from_value(100)
+                e_o['Data'].set_from_value('NavigationOne')
                 e_many['O'].BindEntity(e_o)
                 try:
                     collectionMany.insert_entity(e_many)
@@ -2924,14 +2944,14 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many <-> e_o
                 # Repeat but in reverse to check symmetry
                 e_many2 = collectionMany.new_entity()
-                e_many2['K'].SetFromValue(2)
-                e_many2['Data'].SetFromValue('NavigationMany_2')
+                e_many2['K'].set_from_value(2)
+                e_many2['Data'].set_from_value('NavigationMany_2')
                 e_many3 = collectionMany.new_entity()
-                e_many3['K'].SetFromValue(3)
-                e_many3['Data'].SetFromValue('NavigationMany_3')
+                e_many3['K'].set_from_value(3)
+                e_many3['Data'].set_from_value('NavigationMany_3')
                 e_o2 = collectionO.new_entity()
-                e_o2['K'].SetFromValue(200)
-                e_o2['Data'].SetFromValue('NavigationOne_2')
+                e_o2['K'].set_from_value(200)
+                e_o2['Data'].set_from_value('NavigationOne_2')
                 # we can create more than one link now
                 e_o2['Many'].BindEntity(e_many2)
                 e_o2['Many'].BindEntity(e_many3)
@@ -2939,8 +2959,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many2, e_many3 <-> e_o2
                 # Now try inserting at the 1 end without a binding
                 e_o3 = collectionO.new_entity()
-                e_o3['K'].SetFromValue(300)
-                e_o3['Data'].SetFromValue('NavigationOne_3')
+                e_o3['K'].set_from_value(300)
+                e_o3['Data'].set_from_value('NavigationOne_3')
                 try:
                     collectionO.insert_entity(e_o3)
                 except edm.ConstraintError:
@@ -3085,12 +3105,12 @@ class DataServiceRegressionTests(unittest.TestCase):
         with manys.OpenCollection() as collectionMany:
             with ones.OpenCollection() as collectionO:
                 e_many = collectionMany.new_entity()
-                e_many['K'].SetFromValue(1)
-                e_many['Data'].SetFromValue('NavigationMany')
+                e_many['K'].set_from_value(1)
+                e_many['Data'].set_from_value('NavigationMany')
                 # CREATE
                 e_o = collectionO.new_entity()
-                e_o['K'].SetFromValue(100)
-                e_o['Data'].SetFromValue('NavigationOne')
+                e_o['K'].set_from_value(100)
+                e_o['Data'].set_from_value('NavigationOne')
                 e_many['O'].BindEntity(e_o)
                 try:
                     collectionMany.insert_entity(e_many)
@@ -3099,24 +3119,24 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many <-> e_o
                 # we can create more than one link now, but must go forward
                 e_o2 = collectionO.new_entity()
-                e_o2['K'].SetFromValue(200)
-                e_o2['Data'].SetFromValue('NavigationOne_2')
+                e_o2['K'].set_from_value(200)
+                e_o2['Data'].set_from_value('NavigationOne_2')
                 collectionO.insert_entity(e_o2)
                 e_many2 = collectionMany.new_entity()
-                e_many2['K'].SetFromValue(2)
-                e_many2['Data'].SetFromValue('NavigationMany_2')
+                e_many2['K'].set_from_value(2)
+                e_many2['Data'].set_from_value('NavigationMany_2')
                 e_many2['O'].BindEntity(e_o2)
                 collectionMany.insert_entity(e_many2)
                 e_many3 = collectionMany.new_entity()
-                e_many3['K'].SetFromValue(3)
-                e_many3['Data'].SetFromValue('NavigationMany_3')
+                e_many3['K'].set_from_value(3)
+                e_many3['Data'].set_from_value('NavigationMany_3')
                 e_many3['O'].BindEntity(e_o2)
                 collectionMany.insert_entity(e_many3)
                 # e_many2, e_many3 <-> e_o2
                 # Now try inserting at the 1 end without a binding
                 e_o3 = collectionO.new_entity()
-                e_o3['K'].SetFromValue(300)
-                e_o3['Data'].SetFromValue('NavigationOne_3')
+                e_o3['K'].set_from_value(300)
+                e_o3['Data'].set_from_value('NavigationOne_3')
                 collectionO.insert_entity(e_o3)
                 # [] <-> e_o3
                 # READ (forward only)
@@ -3205,8 +3225,8 @@ class DataServiceRegressionTests(unittest.TestCase):
         with manys.OpenCollection() as collectionMany:
             with ones.OpenCollection() as collectionO:
                 e_many = collectionMany.new_entity()
-                e_many['K'].SetFromValue(1)
-                e_many['Data'].SetFromValue('NavigationMany')
+                e_many['K'].set_from_value(1)
+                e_many['Data'].set_from_value('NavigationMany')
                 # CREATE
                 try:
                     collectionMany.insert_entity(e_many)
@@ -3215,8 +3235,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 except edm.ConstraintError:
                     pass
                 e_o = collectionO.new_entity()
-                e_o['K'].SetFromValue(100)
-                e_o['Data'].SetFromValue('NavigationOne')
+                e_o['K'].set_from_value(100)
+                e_o['Data'].set_from_value('NavigationOne')
                 e_o['Many'].BindEntity(e_many)
                 try:
                     collectionO.insert_entity(e_o)
@@ -3224,14 +3244,14 @@ class DataServiceRegressionTests(unittest.TestCase):
                     self.fail("e insert failed with *-1 binding")
                 # e_many <-> e_o
                 e_many2 = collectionMany.new_entity()
-                e_many2['K'].SetFromValue(2)
-                e_many2['Data'].SetFromValue('NavigationMany_2')
+                e_many2['K'].set_from_value(2)
+                e_many2['Data'].set_from_value('NavigationMany_2')
                 e_many3 = collectionMany.new_entity()
-                e_many3['K'].SetFromValue(3)
-                e_many3['Data'].SetFromValue('NavigationMany_3')
+                e_many3['K'].set_from_value(3)
+                e_many3['Data'].set_from_value('NavigationMany_3')
                 e_o2 = collectionO.new_entity()
-                e_o2['K'].SetFromValue(200)
-                e_o2['Data'].SetFromValue('NavigationOne_2')
+                e_o2['K'].set_from_value(200)
+                e_o2['Data'].set_from_value('NavigationOne_2')
                 # we can create more than one link now
                 e_o2['Many'].BindEntity(e_many2)
                 e_o2['Many'].BindEntity(e_many3)
@@ -3239,8 +3259,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many2, e_many3 <-> e_o2
                 # Now try inserting at the 1 end without a binding
                 e_o3 = collectionO.new_entity()
-                e_o3['K'].SetFromValue(300)
-                e_o3['Data'].SetFromValue('NavigationOne_3')
+                e_o3['K'].set_from_value(300)
+                e_o3['Data'].set_from_value('NavigationOne_3')
                 try:
                     collectionO.insert_entity(e_o3)
                 except edm.ConstraintError:
@@ -3271,8 +3291,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                     self.assertTrue(len(navCollection) == 0)
                 # UPDATE - with e creation
                 e_many4 = collectionMany.new_entity()
-                e_many4['K'].SetFromValue(4)
-                e_many4['Data'].SetFromValue('NavigationMany_4')
+                e_many4['K'].set_from_value(4)
+                e_many4['Data'].set_from_value('NavigationMany_4')
                 e_o2['Many'].BindEntity(e_many4)
                 collectionO.update_entity(e_o2)
                 self.assertTrue(e_many4.exists)
@@ -3361,17 +3381,17 @@ class DataServiceRegressionTests(unittest.TestCase):
         with manys.OpenCollection() as collectionMany:
             with zeroones.OpenCollection() as collectionZO:
                 e_many = collectionMany.new_entity()
-                e_many['K'].SetFromValue(1)
-                e_many['Data'].SetFromValue('NavigationMany')
+                e_many['K'].set_from_value(1)
+                e_many['Data'].set_from_value('NavigationMany')
                 collectionMany.insert_entity(e_many)
                 self.assertTrue(1 in collectionMany)
                 # e_many <-> None
                 e_many2 = collectionMany.new_entity()
-                e_many2['K'].SetFromValue(2)
-                e_many2['Data'].SetFromValue('NavigationMany_2')
+                e_many2['K'].set_from_value(2)
+                e_many2['Data'].set_from_value('NavigationMany_2')
                 e_zo = collectionZO.new_entity()
-                e_zo['K'].SetFromValue(100)
-                e_zo['Data'].SetFromValue('NavigationOne')
+                e_zo['K'].set_from_value(100)
+                e_zo['Data'].set_from_value('NavigationOne')
                 e_many2['ZO'].BindEntity(e_zo)
                 try:
                     collectionMany.insert_entity(e_many2)
@@ -3380,14 +3400,14 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many <-> None
                 # e_many2 <-> e_zo
                 e_many3 = collectionMany.new_entity()
-                e_many3['K'].SetFromValue(3)
-                e_many3['Data'].SetFromValue('NavigationMany_3')
+                e_many3['K'].set_from_value(3)
+                e_many3['Data'].set_from_value('NavigationMany_3')
                 e_many4 = collectionMany.new_entity()
-                e_many4['K'].SetFromValue(4)
-                e_many4['Data'].SetFromValue('NavigationMany_4')
+                e_many4['K'].set_from_value(4)
+                e_many4['Data'].set_from_value('NavigationMany_4')
                 e_zo2 = collectionZO.new_entity()
-                e_zo2['K'].SetFromValue(200)
-                e_zo2['Data'].SetFromValue('NavigationOne_2')
+                e_zo2['K'].set_from_value(200)
+                e_zo2['Data'].set_from_value('NavigationOne_2')
                 # we can create more than one link now
                 e_zo2['Many'].BindEntity(e_many3)
                 e_zo2['Many'].BindEntity(e_many4)
@@ -3397,8 +3417,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many3, e_many4 <-> e_zo2
                 # Now try inserting at the 1 end without a binding
                 e_zo3 = collectionZO.new_entity()
-                e_zo3['K'].SetFromValue(300)
-                e_zo3['Data'].SetFromValue('NavigationOne_3')
+                e_zo3['K'].set_from_value(300)
+                e_zo3['Data'].set_from_value('NavigationOne_3')
                 try:
                     collectionZO.insert_entity(e_zo3)
                 except edm.ConstraintError:
@@ -3587,17 +3607,17 @@ class DataServiceRegressionTests(unittest.TestCase):
         with manys.OpenCollection() as collectionMany:
             with zeroones.OpenCollection() as collectionZO:
                 e_many = collectionMany.new_entity()
-                e_many['K'].SetFromValue(1)
-                e_many['Data'].SetFromValue('NavigationMany')
+                e_many['K'].set_from_value(1)
+                e_many['Data'].set_from_value('NavigationMany')
                 collectionMany.insert_entity(e_many)
                 self.assertTrue(1 in collectionMany)
                 # e_many <-> None
                 e_many2 = collectionMany.new_entity()
-                e_many2['K'].SetFromValue(2)
-                e_many2['Data'].SetFromValue('NavigationMany_2')
+                e_many2['K'].set_from_value(2)
+                e_many2['Data'].set_from_value('NavigationMany_2')
                 e_zo = collectionZO.new_entity()
-                e_zo['K'].SetFromValue(100)
-                e_zo['Data'].SetFromValue('NavigationOne')
+                e_zo['K'].set_from_value(100)
+                e_zo['Data'].set_from_value('NavigationOne')
                 e_many2['ZO'].BindEntity(e_zo)
                 try:
                     collectionMany.insert_entity(e_many2)
@@ -3608,8 +3628,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many2 <-> e_zo
                 # Now try inserting at the 1 end without a binding
                 e_zo2 = collectionZO.new_entity()
-                e_zo2['K'].SetFromValue(200)
-                e_zo2['Data'].SetFromValue('NavigationOne_2')
+                e_zo2['K'].set_from_value(200)
+                e_zo2['Data'].set_from_value('NavigationOne_2')
                 try:
                     collectionZO.insert_entity(e_zo2)
                 except edm.ConstraintError:
@@ -3617,8 +3637,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                         "Unbound e insert failed at the 1 end of *-1 link")
                 # insert multiple...
                 e_many3 = collectionMany.new_entity()
-                e_many3['K'].SetFromValue(3)
-                e_many3['Data'].SetFromValue('NavigationMany_3')
+                e_many3['K'].set_from_value(3)
+                e_many3['Data'].set_from_value('NavigationMany_3')
                 e_many3['ZO'].BindEntity(e_zo)
                 try:
                     collectionMany.insert_entity(e_many3)
@@ -3717,26 +3737,26 @@ class DataServiceRegressionTests(unittest.TestCase):
         with manys.OpenCollection() as collectionMany:
             with zeroones.OpenCollection() as collectionZO:
                 e_many = collectionMany.new_entity()
-                e_many['K'].SetFromValue(1)
-                e_many['Data'].SetFromValue('NavigationMany')
+                e_many['K'].set_from_value(1)
+                e_many['Data'].set_from_value('NavigationMany')
                 collectionMany.insert_entity(e_many)
                 self.assertTrue(1 in collectionMany)
                 # e_many <-> None
                 e_zo = collectionZO.new_entity()
-                e_zo['K'].SetFromValue(100)
-                e_zo['Data'].SetFromValue('NavigationOne')
+                e_zo['K'].set_from_value(100)
+                e_zo['Data'].set_from_value('NavigationOne')
                 collectionZO.insert_entity(e_zo)
                 # e_many <-> None
                 # [] <-> e_zo
                 e_many2 = collectionMany.new_entity()
-                e_many2['K'].SetFromValue(2)
-                e_many2['Data'].SetFromValue('NavigationMany_2')
+                e_many2['K'].set_from_value(2)
+                e_many2['Data'].set_from_value('NavigationMany_2')
                 e_many3 = collectionMany.new_entity()
-                e_many3['K'].SetFromValue(3)
-                e_many3['Data'].SetFromValue('NavigationMany_3')
+                e_many3['K'].set_from_value(3)
+                e_many3['Data'].set_from_value('NavigationMany_3')
                 e_zo2 = collectionZO.new_entity()
-                e_zo2['K'].SetFromValue(200)
-                e_zo2['Data'].SetFromValue('NavigationOne_2')
+                e_zo2['K'].set_from_value(200)
+                e_zo2['Data'].set_from_value('NavigationOne_2')
                 # we can create more than one link now
                 e_zo2['Many'].BindEntity(e_many2)
                 e_zo2['Many'].BindEntity(e_many3)
@@ -3838,17 +3858,17 @@ class DataServiceRegressionTests(unittest.TestCase):
             'RegressionModel.RegressionContainer.Many2ZORvs']
         with manys2zeroones.OpenCollection() as coll:
             e1 = coll.new_entity()
-            e1['K'].SetFromValue(1)
-            e1['Data'].SetFromValue('Navigation_1')
+            e1['K'].set_from_value(1)
+            e1['Data'].set_from_value('Navigation_1')
             coll.insert_entity(e1)
             self.assertTrue(1 in coll)
             # [] <-> e1 <-> None
             e2 = coll.new_entity()
-            e2['K'].SetFromValue(2)
-            e2['Data'].SetFromValue('Navigation_2')
+            e2['K'].set_from_value(2)
+            e2['Data'].set_from_value('Navigation_2')
             e3 = coll.new_entity()
-            e3['K'].SetFromValue(3)
-            e3['Data'].SetFromValue('Navigation_3')
+            e3['K'].set_from_value(3)
+            e3['Data'].set_from_value('Navigation_3')
             e2['ZO'].BindEntity(e3)
             try:
                 coll.insert_entity(e2)
@@ -3858,11 +3878,11 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <-> e1 <-> None
             # [] <-> e2 <-> e3
             e4 = coll.new_entity()
-            e4['K'].SetFromValue(4)
-            e4['Data'].SetFromValue('Navigation_4')
+            e4['K'].set_from_value(4)
+            e4['Data'].set_from_value('Navigation_4')
             e5 = coll.new_entity()
-            e5['K'].SetFromValue(5)
-            e5['Data'].SetFromValue('Navigation_5')
+            e5['K'].set_from_value(5)
+            e5['Data'].set_from_value('Navigation_5')
             # we can create more than one link now
             e4['Many'].BindEntity(e5)
             e4['Many'].BindEntity(e3)
@@ -4021,20 +4041,20 @@ class DataServiceRegressionTests(unittest.TestCase):
             'RegressionModel.RegressionContainer.Many2ZORvFs']
         with manys2zeroones.OpenCollection() as coll:
             e1 = coll.new_entity()
-            e1['K'].SetFromValue(1)
-            e1['Data'].SetFromValue('Navigation_1')
+            e1['K'].set_from_value(1)
+            e1['Data'].set_from_value('Navigation_1')
             coll.insert_entity(e1)
             self.assertTrue(1 in coll)
             # [] -> e1 -> None
             e2 = coll.new_entity()
-            e2['K'].SetFromValue(2)
-            e2['Data'].SetFromValue('Navigation_2')
+            e2['K'].set_from_value(2)
+            e2['Data'].set_from_value('Navigation_2')
             e3 = coll.new_entity()
-            e3['K'].SetFromValue(3)
-            e3['Data'].SetFromValue('Navigation_3')
+            e3['K'].set_from_value(3)
+            e3['Data'].set_from_value('Navigation_3')
             e4 = coll.new_entity()
-            e4['K'].SetFromValue(4)
-            e4['Data'].SetFromValue('Navigation_4')
+            e4['K'].set_from_value(4)
+            e4['Data'].set_from_value('Navigation_4')
             e2['ZO'].BindEntity(e3)
             e3['ZO'].BindEntity(e4)
             try:
@@ -4046,8 +4066,8 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] -> e1 -> None
             # [] -> e2 -> e3 -> e4 -> None
             e5 = coll.new_entity()
-            e5['K'].SetFromValue(5)
-            e5['Data'].SetFromValue('Navigation_5')
+            e5['K'].set_from_value(5)
+            e5['Data'].set_from_value('Navigation_5')
             e5['ZO'].BindEntity(e4)
             coll.insert_entity(e5)
             # [] -> e1 -> None
@@ -4147,17 +4167,17 @@ class DataServiceRegressionTests(unittest.TestCase):
             'RegressionModel.RegressionContainer.Many2ZORvRs']
         with manys2zeroones.OpenCollection() as coll:
             e1 = coll.new_entity()
-            e1['K'].SetFromValue(1)
-            e1['Data'].SetFromValue('Navigation_1')
+            e1['K'].set_from_value(1)
+            e1['Data'].set_from_value('Navigation_1')
             coll.insert_entity(e1)
             self.assertTrue(1 in coll)
             # [] <- e1 <- None
             e2 = coll.new_entity()
-            e2['K'].SetFromValue(2)
-            e2['Data'].SetFromValue('Navigation_2')
+            e2['K'].set_from_value(2)
+            e2['Data'].set_from_value('Navigation_2')
             e3 = coll.new_entity()
-            e3['K'].SetFromValue(3)
-            e3['Data'].SetFromValue('Navigation_3')
+            e3['K'].set_from_value(3)
+            e3['Data'].set_from_value('Navigation_3')
             e3['Many'].BindEntity(e2)
             try:
                 coll.insert_entity(e3)
@@ -4167,11 +4187,11 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <- e1 <- None
             # [] <- e2 <- e3
             e4 = coll.new_entity()
-            e4['K'].SetFromValue(4)
-            e4['Data'].SetFromValue('Navigation_4')
+            e4['K'].set_from_value(4)
+            e4['Data'].set_from_value('Navigation_4')
             e5 = coll.new_entity()
-            e5['K'].SetFromValue(5)
-            e5['Data'].SetFromValue('Navigation_5')
+            e5['K'].set_from_value(5)
+            e5['Data'].set_from_value('Navigation_5')
             # we can create more than one link now
             e4['Many'].BindEntity(e5)
             e4['Many'].BindEntity(e3)
@@ -4317,17 +4337,17 @@ class DataServiceRegressionTests(unittest.TestCase):
         with manys.OpenCollection() as collectionMany:
             with manyxs.OpenCollection() as collectionManyX:
                 e_many = collectionMany.new_entity()
-                e_many['K'].SetFromValue(1)
-                e_many['Data'].SetFromValue('NavigationMany_1')
+                e_many['K'].set_from_value(1)
+                e_many['Data'].set_from_value('NavigationMany_1')
                 collectionMany.insert_entity(e_many)
                 self.assertTrue(1 in collectionMany)
                 # e_many <-> []
                 e_many2 = collectionMany.new_entity()
-                e_many2['K'].SetFromValue(2)
-                e_many2['Data'].SetFromValue('NavigationMany_2')
+                e_many2['K'].set_from_value(2)
+                e_many2['Data'].set_from_value('NavigationMany_2')
                 e_manyx = collectionManyX.new_entity()
-                e_manyx['K'].SetFromValue(100)
-                e_manyx['Data'].SetFromValue('NavigationOne')
+                e_manyx['K'].set_from_value(100)
+                e_manyx['Data'].set_from_value('NavigationOne')
                 e_many2['ManyX'].BindEntity(e_manyx)
                 try:
                     collectionMany.insert_entity(e_many2)
@@ -4337,14 +4357,14 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many <-> []
                 # e_many2 <-> e_manyx
                 e_many3 = collectionMany.new_entity()
-                e_many3['K'].SetFromValue(3)
-                e_many3['Data'].SetFromValue('NavigationMany_3')
+                e_many3['K'].set_from_value(3)
+                e_many3['Data'].set_from_value('NavigationMany_3')
                 e_many4 = collectionMany.new_entity()
-                e_many4['K'].SetFromValue(4)
-                e_many4['Data'].SetFromValue('NavigationMany_4')
+                e_many4['K'].set_from_value(4)
+                e_many4['Data'].set_from_value('NavigationMany_4')
                 e_manyx2 = collectionManyX.new_entity()
-                e_manyx2['K'].SetFromValue(200)
-                e_manyx2['Data'].SetFromValue('NavigationOne_2')
+                e_manyx2['K'].set_from_value(200)
+                e_manyx2['Data'].set_from_value('NavigationOne_2')
                 # we can create more than one link now
                 e_manyx2['Many'].BindEntity(e_many3)
                 e_manyx2['Many'].BindEntity(e_many4)
@@ -4355,8 +4375,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many3, e_many4 <-> e_manyx2
                 # Now try inserting with a binding to an existing e
                 e_manyx3 = collectionManyX.new_entity()
-                e_manyx3['K'].SetFromValue(300)
-                e_manyx3['Data'].SetFromValue('NavigationOne_3')
+                e_manyx3['K'].set_from_value(300)
+                e_manyx3['Data'].set_from_value('NavigationOne_3')
                 e_manyx3['Many'].BindEntity(e_many2)
                 try:
                     collectionManyX.insert_entity(e_manyx3)
@@ -4512,17 +4532,17 @@ class DataServiceRegressionTests(unittest.TestCase):
         with manys.OpenCollection() as collectionMany:
             with manyxs.OpenCollection() as collectionManyX:
                 e_many = collectionMany.new_entity()
-                e_many['K'].SetFromValue(1)
-                e_many['Data'].SetFromValue('NavigationMany_1')
+                e_many['K'].set_from_value(1)
+                e_many['Data'].set_from_value('NavigationMany_1')
                 collectionMany.insert_entity(e_many)
                 self.assertTrue(1 in collectionMany)
                 # e_many <-> []
                 e_many2 = collectionMany.new_entity()
-                e_many2['K'].SetFromValue(2)
-                e_many2['Data'].SetFromValue('NavigationMany_2')
+                e_many2['K'].set_from_value(2)
+                e_many2['Data'].set_from_value('NavigationMany_2')
                 e_manyx = collectionManyX.new_entity()
-                e_manyx['K'].SetFromValue(100)
-                e_manyx['Data'].SetFromValue('NavigationOne')
+                e_manyx['K'].set_from_value(100)
+                e_manyx['Data'].set_from_value('NavigationOne')
                 e_many2['ManyX'].BindEntity(e_manyx)
                 try:
                     collectionMany.insert_entity(e_many2)
@@ -4532,14 +4552,14 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many <-> []
                 # e_many2 <-> e_manyx
                 e_many3 = collectionMany.new_entity()
-                e_many3['K'].SetFromValue(3)
-                e_many3['Data'].SetFromValue('NavigationMany_3')
+                e_many3['K'].set_from_value(3)
+                e_many3['Data'].set_from_value('NavigationMany_3')
                 e_manyx2 = collectionManyX.new_entity()
-                e_manyx2['K'].SetFromValue(200)
-                e_manyx2['Data'].SetFromValue('NavigationOne_2')
+                e_manyx2['K'].set_from_value(200)
+                e_manyx2['Data'].set_from_value('NavigationOne_2')
                 e_manyx3 = collectionManyX.new_entity()
-                e_manyx3['K'].SetFromValue(300)
-                e_manyx3['Data'].SetFromValue('NavigationOne_3')
+                e_manyx3['K'].set_from_value(300)
+                e_manyx3['Data'].set_from_value('NavigationOne_3')
                 # we can create more than one link now
                 e_many3['ManyX'].BindEntity(e_manyx2)
                 e_many3['ManyX'].BindEntity(e_manyx3)
@@ -4551,8 +4571,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many3  -> e_manyx2, e_manyx3
                 # Now try inserting with a binding to an existing e
                 e_many4 = collectionMany.new_entity()
-                e_many4['K'].SetFromValue(4)
-                e_many4['Data'].SetFromValue('NavigationMany_4')
+                e_many4['K'].set_from_value(4)
+                e_many4['Data'].set_from_value('NavigationMany_4')
                 e_many4['ManyX'].BindEntity(e_manyx2)
                 try:
                     collectionMany.insert_entity(e_many4)
@@ -4690,17 +4710,17 @@ class DataServiceRegressionTests(unittest.TestCase):
             'RegressionModel.RegressionContainer.Many2ManyRvs']
         with manys2manys.OpenCollection() as coll:
             e1 = coll.new_entity()
-            e1['K'].SetFromValue(1)
-            e1['Data'].SetFromValue('Navigation_1')
+            e1['K'].set_from_value(1)
+            e1['Data'].set_from_value('Navigation_1')
             coll.insert_entity(e1)
             self.assertTrue(1 in coll)
             # [] <- e1 -> []
             e2 = coll.new_entity()
-            e2['K'].SetFromValue(2)
-            e2['Data'].SetFromValue('Navigation_2')
+            e2['K'].set_from_value(2)
+            e2['Data'].set_from_value('Navigation_2')
             e3 = coll.new_entity()
-            e3['K'].SetFromValue(3)
-            e3['Data'].SetFromValue('Navigation_3')
+            e3['K'].set_from_value(3)
+            e3['Data'].set_from_value('Navigation_3')
             e2['ManyX'].BindEntity(e3)
             try:
                 coll.insert_entity(e2)
@@ -4711,11 +4731,11 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <- e2 -> e3
             # e2 <- e3 -> []
             e4 = coll.new_entity()
-            e4['K'].SetFromValue(4)
-            e4['Data'].SetFromValue('Navigation_4')
+            e4['K'].set_from_value(4)
+            e4['Data'].set_from_value('Navigation_4')
             e5 = coll.new_entity()
-            e5['K'].SetFromValue(5)
-            e5['Data'].SetFromValue('Navigation_5')
+            e5['K'].set_from_value(5)
+            e5['Data'].set_from_value('Navigation_5')
             # we can create more than one link now
             e4['Many'].BindEntity(e5)
             e4['Many'].BindEntity(e3)
@@ -4726,8 +4746,8 @@ class DataServiceRegressionTests(unittest.TestCase):
             # e3, e5 <- e4 -> []
             # [] <- e5 -> e4
             entity6 = coll.new_entity()
-            entity6['K'].SetFromValue(6)
-            entity6['Data'].SetFromValue('Navigation_6')
+            entity6['K'].set_from_value(6)
+            entity6['Data'].set_from_value('Navigation_6')
             entity6['Many'].BindEntity(e3)
             coll.insert_entity(entity6)
             # [] <- e1 -> []
@@ -4908,17 +4928,17 @@ class DataServiceRegressionTests(unittest.TestCase):
             'RegressionModel.RegressionContainer.Many2ManyRv1s']
         with manys2manys.OpenCollection() as coll:
             e1 = coll.new_entity()
-            e1['K'].SetFromValue(1)
-            e1['Data'].SetFromValue('Navigation_1')
+            e1['K'].set_from_value(1)
+            e1['Data'].set_from_value('Navigation_1')
             coll.insert_entity(e1)
             self.assertTrue(1 in coll)
             # [] <- e1 -> []
             e2 = coll.new_entity()
-            e2['K'].SetFromValue(2)
-            e2['Data'].SetFromValue('Navigation_2')
+            e2['K'].set_from_value(2)
+            e2['Data'].set_from_value('Navigation_2')
             e3 = coll.new_entity()
-            e3['K'].SetFromValue(3)
-            e3['Data'].SetFromValue('Navigation_3')
+            e3['K'].set_from_value(3)
+            e3['Data'].set_from_value('Navigation_3')
             e2['ManyX'].BindEntity(e3)
             try:
                 coll.insert_entity(e2)
@@ -4930,11 +4950,11 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <- e2 -> e3
             # e2 <- e3 -> []
             e4 = coll.new_entity()
-            e4['K'].SetFromValue(4)
-            e4['Data'].SetFromValue('Navigation_4')
+            e4['K'].set_from_value(4)
+            e4['Data'].set_from_value('Navigation_4')
             e5 = coll.new_entity()
-            e5['K'].SetFromValue(5)
-            e5['Data'].SetFromValue('Navigation_5')
+            e5['K'].set_from_value(5)
+            e5['Data'].set_from_value('Navigation_5')
             # we can create more than one link now
             e4['ManyX'].BindEntity(e5)
             e4['ManyX'].BindEntity(e3)
@@ -5101,8 +5121,8 @@ class DataServiceRegressionTests(unittest.TestCase):
         with streams.OpenCollection() as coll:
             # now some negative tests
             e = coll.new_entity()
-            e['slug'].SetFromValue('quick_fox')
-            e['title'].SetFromValue('The quick fox')
+            e['slug'].set_from_value('quick_fox')
+            e['title'].set_from_value('The quick fox')
             coll.insert_entity(e)
             # the result should be an entity that exists...
             self.assertTrue(e.exists)

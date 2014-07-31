@@ -235,7 +235,10 @@ ABS_EXAMPLES = {
         'noauth:/':
     ('noauth', None, None, '/', None, ''),
         'noauth:/?':
-    ('noauth', None, None, '/', '', '')
+    ('noauth', None, None, '/', '', ''),
+    'http://localhost/reserved/%2F%3Fx%3D1':
+        ('http', None, 'localhost', '/reserved/%2F%3Fx%3D1', None,
+         '/?x=1')
 }
 
 REL_BASE = "http://a/b/c/d;p?q"
