@@ -18,7 +18,7 @@ old-style names to improve backwards compatibility on request.
 ..  _Github: https://github.com/swl10/pyslet
 
 
-Version 0.5.2014####
+Version 0.5.20140801
 --------------------
 
 Summary of New Features:
