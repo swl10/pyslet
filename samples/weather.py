@@ -24,7 +24,7 @@ import pyslet.odata2.metadata as edmx
 from pyslet.odata2.server import ReadOnlyServer
 from pyslet.odata2.sqlds import SQLiteEntityContainer
 from pyslet.odata2.memds import InMemoryEntityContainer
-import pyslet.rfc2616 as http
+import pyslet.http.client as http
 
 
 def LoadMetadata(path=os.path.join(os.path.split(__file__)[0],'WeatherSchema.xml')):
@@ -44,6 +44,7 @@ def MakeContainer(doc, drop=False, path=SAMPLE_DB):
         container=doc.root.DataServices['WeatherSchema.CambridgeWeather'])
     if create:
         container.create_all_tables()
+    return doc.root.DataServices['WeatherSchema.CambridgeWeather']
 
 
 def IsBST(t):
@@ -119,11 +120,12 @@ def LoadDataFromFile(weatherData, f, year, month, day):
                     data[i] = float(data[i])
                 except ValueError:
                     data[i] = None
-            for i in (2, 4, 6):
+            for i in (2, 4):
                 try:
                     data[i] = int(data[i])
                 except ValueError:
                     data[i] = None
+            data[6] = data[6].strip()
             dataPoint = collection.new_entity()
             hour, min = map(int, data[0].split(':'))
             tValue = iso.TimePoint(
@@ -299,7 +301,7 @@ def runWeatherLoader(container=None):
                 # Load in nextDay
                 logging.info("Requesting data for %s", str(nextDay))
                 century, year, month, day = nextDay.GetCalendarDay()
-                request = ClientRequest(DTG % str(nextDay))
+                request = http.ClientRequest(DTG % str(nextDay))
                 client.process_request(request)
                 if request.status == 200:
                     # process this file and move on to the next day
