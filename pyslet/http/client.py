@@ -209,8 +209,8 @@ class Connection(object):
         Although data is streamed in a non-blocking manner there are
         situations in which the method will block.  DNS name resolution
         and creation/closure of sockets may block."""
-        rbusy = None
-        wbusy = None
+        rbusy = False
+        wbusy = False
         while True:
             self.last_active = time.time()
             if self.request_queue and self.request_mode == self.REQ_READY:
@@ -223,19 +223,21 @@ class Connection(object):
             if self.request or self.response:
                 if self.socket is None:
                     self.new_socket()
-                rbusy = None
-                wbusy = None
+                rbusy = False
+                wbusy = False
                 # The first section deals with the sending cycle, we
                 # pass on to the response section only if we are in a
                 # waiting mode or we are waiting for the socket to be
                 # ready before we can write data
                 if self.send_buffer:
-                    r, w, e = self.socketSelect(
-                        [], [self.socket_file], [], 0.0)
-                    if w:
-                        # We can write
-                        self._send_request_data()
-                    else:
+#                     r, w, e = self.socketSelect(
+#                         [], [self.socket_file], [], 0.0)
+#                     if w:
+#                         # We can write
+                    send_rbusy, send_wbusy = self._send_request_data()
+                    rbusy = rbusy or send_rbusy
+                    wbusy = wbusy or send_wbusy
+                    if rbusy or wbusy:
                         if (self.last_rw is not None and
                                 self.timeout is not None and
                                 self.last_rw + self.timeout < time.time()):
@@ -244,12 +246,14 @@ class Connection(object):
                                 errno.ETIMEDOUT,
                                 os.strerror(errno.ETIMEDOUT),
                                 "pyslet.http.client.Connection")
-                    if self.send_buffer:
-                        # We are still waiting to write, move on to the
-                        # response section!
-                        wbusy = self.socket_file
                     else:
                         continue
+#                     if self.send_buffer:
+#                         # We are still waiting to write, move on to the
+#                         # response section!
+#                         wbusy = self.socket_file
+#                     else:
+#                         continue
                 elif self.request_mode == self.REQ_BODY_WAITING:
                     # empty buffer and we're waiting for a 100-continue (that
                     # may never come)
@@ -286,15 +290,27 @@ class Connection(object):
                 # get here once the buffer is empty or we're blocked on
                 # sending.
                 if self.response:
-                    r, w, e = self.socketSelect(
-                        [self.socket_file], [], [self.socket_file], 0)
-                    if e:
-                        # we're not really sure what this means raise
-                        # an error (will close the connection)
-                        raise IOError(errno.EIO,
-                                      "socket exception indicated by select")
-                    elif r:
-                        if self._recv_task():
+#                     r, w, e = self.socketSelect(
+#                         [self.socket_file], [], [self.socket_file], 0)
+#                     if e:
+#                         # we're not really sure what this means raise
+#                         # an error (will close the connection)
+#                         raise IOError(errno.EIO,
+#                                       "socket exception indicated by select")
+                    recv_done, recv_rbusy, recv_wbusy = self._recv_task()
+                    rbusy = rbusy or recv_rbusy
+                    wbusy = wbusy or recv_wbusy
+                    if rbusy or wbusy:
+                        if (self.last_rw is not None and
+                                self.timeout is not None and
+                                self.last_rw + self.timeout < time.time()):
+                            # assume we're dead in the water
+                            raise IOError(
+                                errno.ETIMEDOUT,
+                                os.strerror(errno.ETIMEDOUT),
+                                "pyslet.http.client.Connection")
+                    else:
+                        if recv_done:
                             # The response is done
                             close_connection = False
                             if self.response:
@@ -316,16 +332,6 @@ class Connection(object):
                         # change the request state, so we loop round
                         # again
                         continue
-                    else:
-                        if (self.last_rw is not None and
-                                self.timeout is not None and
-                                self.last_rw + self.timeout < time.time()):
-                            # assume we're dead in the water
-                            raise IOError(
-                                errno.ETIMEDOUT,
-                                os.strerror(errno.ETIMEDOUT),
-                                "pyslet.http.client.Connection")
-                        rbusy = self.socket_file
                 break
             else:
                 # no request or response, we're idle
@@ -333,9 +339,13 @@ class Connection(object):
                     # clean up if necessary
                     self.close()
                 self.manager._deactivate_connection(self)
-                rbusy = None
-                wbusy = None
+                rbusy = False
+                wbusy = False
                 break
+        if rbusy:
+            rbusy = self.socket_file
+        if wbusy:
+            wbusy = self.socket_file
         return rbusy, wbusy
 
     def request_disconnect(self):
@@ -474,7 +484,21 @@ class Connection(object):
             try:
                 nbytes = self.socket.send(data)
                 self.last_rw = time.time()
-            except socket.error, err:
+            except ssl.SSLError as err:
+                if err.args[0] == ssl.SSL_ERROR_WANT_READ:
+                    # we're blocked on recv, really this can happen!
+                    return (True, False)
+                elif err.args[0] == ssl.SSL_ERROR_WANT_WRITE:
+                    # we're blocked on send, really this can happen!
+                    return (False, True)
+                else:
+                    # we're going to swallow this error, log it
+                    logging.error("socket.recv raised %s", str(err))
+                    data = None
+            except socket.error as err:
+                if err.errno == errno.EAGAIN:
+                    # we're blocked on send
+                    return (False, True)
                 # stop everything
                 self.close(err)
                 return
@@ -499,6 +523,7 @@ class Connection(object):
             # shouldn't get empty strings in the buffer but if we do, delete
             # them
             del self.send_buffer[0]
+        return (False, False)
 
     def _recv_task(self):
         #   We ask the response what it is expecting and try and
@@ -508,10 +533,28 @@ class Connection(object):
         try:
             data = self.socket.recv(io.DEFAULT_BUFFER_SIZE)
             self.last_rw = time.time()
-        except socket.error, e:
+#         except ssl.SSLError as e:
+#             if e.args[0] in ssl.SSL_ERROR_WANT_READ, ssl.SSL_ERROR_WANT_WRITE):
+#              and self.suppress_ragged_eofs:
+#                 return ''
+        except ssl.SSLError as err:
+            if err.args[0] == ssl.SSL_ERROR_WANT_READ:
+                # we're blocked on recv
+                return (False, True, False)
+            elif err.args[0] == ssl.SSL_ERROR_WANT_WRITE:
+                # we're blocked on send, really this can happen!
+                return (False, False, True)
+            else:
+                # we're going to swallow this error, log it
+                logging.error("socket.recv raised %s", str(err))
+                data = None
+        except socket.error as err:
+            if err.errno == errno.EAGAIN:
+                # we're blocked on recv
+                return (False, True, False)
             # We can't truly tell if the server hung-up except by
             # getting an error here so this error could be fairly benign.
-            err = e
+            logging.warn("socket.recv raised %s", str(err))
             data = None
         logging.debug("Reading from %s: \n%s", self.host, repr(data))
         if data:
@@ -525,14 +568,14 @@ class Connection(object):
             logging.debug("%s: closing connection after recv returned no "
                           "data on ready to read socket", self.host)
             self.close()
-            return True
+            return (True, False, False)
         # Now loop until we can't satisfy the response anymore (or the response
         # is done)
         while self.response is not None:
             recv_needs = self.response.recv_mode()
             if recv_needs is None:
                 # We don't need any bytes at all, the response is done
-                return True
+                return (True, False, False)
             elif recv_needs == messages.Message.RECV_HEADERS:
                 # scan for CRLF, consolidate first
                 data = string.join(self.recv_buffer, '')
@@ -553,7 +596,7 @@ class Connection(object):
                     data = data[pos + 4:]
                 elif err:
                     self.close(err)
-                    return True
+                    return (True, False, False)
                 elif pos < 0:
                     # We didn't find the data we wanted this time
                     break
@@ -575,7 +618,7 @@ class Connection(object):
                     data = data[pos + 2:]
                 elif err:
                     self.close(err)
-                    return True
+                    return (True, False, False)
                 else:
                     # We didn't find the data we wanted this time
                     break
@@ -635,7 +678,7 @@ class Connection(object):
                     self.recv_buffer_size = self.recv_buffer_size - len(bytes)
                 logging.debug("Response Data: %s", repr(bytes))
                 self.response.recv(bytes)
-        return False
+        return (False, False, False)
 
     def new_socket(self):
         with self.lock:
@@ -675,6 +718,7 @@ class Connection(object):
                 else:
                     self.socket = snew
                     self.socket_file = self.socket.fileno()
+                    self.socket.setblocking(False)
                     self.socketSelect = select.select
 
     def _close_socket(self, s):
@@ -700,12 +744,14 @@ class SecureConnection(Connection):
         try:
             with self.lock:
                 if self.socket is not None:
+                    self.socket.setblocking(True)
                     socket_ssl = ssl.wrap_socket(
                         self.socket, ca_certs=self.ca_certs,
                         cert_reqs=ssl.CERT_REQUIRED if
                         self.ca_certs is not None else ssl.CERT_NONE)
                     # self.socket_ssl=socket.ssl(self.socket)
                     self.socketTransport = self.socket
+                    self.socket.setblocking(False)
                     self.socket = socket_ssl
                     logging.info(
                         "Connected to %s with %s, %s, key length %i",
