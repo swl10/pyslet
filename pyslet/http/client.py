@@ -230,10 +230,6 @@ class Connection(object):
                 # waiting mode or we are waiting for the socket to be
                 # ready before we can write data
                 if self.send_buffer:
-#                     r, w, e = self.socketSelect(
-#                         [], [self.socket_file], [], 0.0)
-#                     if w:
-#                         # We can write
                     send_rbusy, send_wbusy = self._send_request_data()
                     rbusy = rbusy or send_rbusy
                     wbusy = wbusy or send_wbusy
@@ -248,12 +244,6 @@ class Connection(object):
                                 "pyslet.http.client.Connection")
                     else:
                         continue
-#                     if self.send_buffer:
-#                         # We are still waiting to write, move on to the
-#                         # response section!
-#                         wbusy = self.socket_file
-#                     else:
-#                         continue
                 elif self.request_mode == self.REQ_BODY_WAITING:
                     # empty buffer and we're waiting for a 100-continue (that
                     # may never come)
@@ -290,13 +280,6 @@ class Connection(object):
                 # get here once the buffer is empty or we're blocked on
                 # sending.
                 if self.response:
-#                     r, w, e = self.socketSelect(
-#                         [self.socket_file], [], [self.socket_file], 0)
-#                     if e:
-#                         # we're not really sure what this means raise
-#                         # an error (will close the connection)
-#                         raise IOError(errno.EIO,
-#                                       "socket exception indicated by select")
                     recv_done, recv_rbusy, recv_wbusy = self._recv_task()
                     rbusy = rbusy or recv_rbusy
                     wbusy = wbusy or recv_wbusy
@@ -533,10 +516,6 @@ class Connection(object):
         try:
             data = self.socket.recv(io.DEFAULT_BUFFER_SIZE)
             self.last_rw = time.time()
-#         except ssl.SSLError as e:
-#             if e.args[0] in ssl.SSL_ERROR_WANT_READ, ssl.SSL_ERROR_WANT_WRITE):
-#              and self.suppress_ragged_eofs:
-#                 return ''
         except ssl.SSLError as err:
             if err.args[0] == ssl.SSL_ERROR_WANT_READ:
                 # we're blocked on recv

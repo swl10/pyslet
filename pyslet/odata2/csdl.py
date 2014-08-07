@@ -2019,7 +2019,7 @@ class DeferredValue(object):
             self.isExpanded = True
             self.expandedCollection = expandedCollection
 
-    def ExpandCollection(self, expand, select):
+    def expand_collection(self, expand, select):
         """A convenience function of use to data providers.
 
         Expands this navigation property, further expanding the
@@ -2028,7 +2028,7 @@ class DeferredValue(object):
         details)."""
         with self.from_entity.entity_set.OpenNavigation(self.name, self.from_entity) as collection:
             collection.Expand(expand, select)
-            self.SetExpansion(collection.ExpandCollection())
+            self.SetExpansion(collection.expand_collection())
 
     def BindEntity(self, target):
         """Binds a *target* entity to this navigation property.
@@ -2280,11 +2280,11 @@ class Entity(TypeInstance):
         if self.exists:
             raise EntityExists(
                 "CheckNavigationConstraints: entity %s already exists" % str(
-                    self.GetLocation()))
+                    self.get_location()))
         badEnd = self.entity_set.unboundPrincipal
         if badEnd and badEnd != ignoreEnd:
             raise NavigationConstraintError(
-                "entity %s has an unbound principal" % str(self.GetLocation()))
+                "entity %s has an unbound principal" % str(self.get_location()))
         ignoreName = self.entity_set.linkEnds.get(ignoreEnd, None)
         for name, np in self.NavigationItems():
             if name != ignoreName:
@@ -2464,7 +2464,7 @@ class Entity(TypeInstance):
                             subSelect = {'*': None}
                     else:
                         subSelect = None
-                    v.ExpandCollection(expand[k], subSelect)
+                    v.expand_collection(expand[k], subSelect)
 
     def Expanded(self, name):
         warnings.warn(
@@ -2719,7 +2719,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         self.expand = None
         #: the select query option in effect
         self.select = None
-        #: a filter or None for no filter (see :py:meth:`CheckFilter`)
+        #: a filter or None for no filter (see :py:meth:`check_filter`)
         self.filter = None
         #: a list of orderby rules or None for no ordering
         self.orderby = None
@@ -2752,15 +2752,15 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
     def __del__(self):
         self.close()
 
-    def GetLocation(self):
+    def get_location(self):
         """Returns the location of this collection as a
         :py:class:`~pyslet.rfc2396.URI` instance.
 
         By default, the location is given as the location of the
         :py:attr:`entity_set` from which the entities are drawn."""
-        return self.entity_set.GetLocation()
+        return self.entity_set.get_location()
 
-    def GetTitle(self):
+    def get_title(self):
         """Returns a user recognisable title for the collection.
 
         By default this is the fully qualified name of the entity set
@@ -2820,7 +2820,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
             yield e
 
     def set_filter(self, filter):   # noqa
-        """Sets the filter object for this collection, see :py:meth:`CheckFilter`."""
+        """Sets the filter object for this collection, see :py:meth:`check_filter`."""
         self.filter = filter
         self.set_page(None)
         self.lastEntity = None
@@ -2840,12 +2840,12 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
 
         Data providers should use a better method of filtering entities
         if possible as this implementation simply iterates through the
-        entities and calls :py:meth:`CheckFilter` on each one."""
+        entities and calls :py:meth:`check_filter` on each one."""
         for e in entityIterable:
-            if self.CheckFilter(e):
+            if self.check_filter(e):
                 yield e
 
-    def CheckFilter(self, entity):
+    def check_filter(self, entity):
         """Checks *entity* against the current filter object and returns
         True if it passes.
 
@@ -2854,7 +2854,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         :py:mod:`pyslet.odata2.core` module.
 
         See
-        :py:meth:`pyslet.odata2.core.EntityCollectionMixin.CheckFilter`
+        :py:meth:`pyslet.odata2.core.EntityCollectionMixin.check_filter`
         for more.  The implementation in the case class simply raises
         NotImplementedError if a filter has been set."""
         if self.filter is None:
@@ -2867,7 +2867,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
 
         *orderby* is a list of tuples, each consisting of::
 
-                ( an order object as used by :py:meth:`CalculateOrderKey` , 1 | -1 )"""
+                ( an order object as used by :py:meth:`calculate_order_key` , 1 | -1 )"""
         self.orderby = orderby
         self.set_page(None)
 
@@ -2878,7 +2878,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
             stacklevel=2)
         return self.set_orderby(orderby)
 
-    def CalculateOrderKey(self, entity, orderObject):
+    def calculate_order_key(self, entity, orderObject):
         """Given an entity and an order object returns the key used to
         sort the entity.
 
@@ -2887,7 +2887,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         :py:mod:`pyslet.odata2.core` module.
 
         See
-        :py:meth:`pyslet.odata2.core.EntityCollectionMixin.CalculateOrderKey`
+        :py:meth:`pyslet.odata2.core.EntityCollectionMixin.calculate_order_key`
         for more.  The implementation in the case class simply raises
         NotImplementedError."""
         raise NotImplementedError("Collection does not support ordering")
@@ -2900,7 +2900,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         sorted order (according to the :py:attr:`orderby` object).
 
         This implementation simply creates a list and then sorts it
-        based on the output of :py:meth:`CalculateOrderKey` so is not
+        based on the output of :py:meth:`calculate_order_key` so is not
         suitable for use with long lists of entities.  However, if no
         ordering is required then no list is created."""
         eList = None
@@ -2912,7 +2912,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
                 eList = list(entityIterable)
             # we avoid Py3 warnings by doing multiple sorts with a key function
             for rule, ruleDir in reversed(self.orderby):
-                eList.sort(key=lambda x: self.CalculateOrderKey(
+                eList.sort(key=lambda x: self.calculate_order_key(
                     x, rule), reverse=True if ruleDir < 0 else False)
         if eList:
             for e in eList:
@@ -3272,7 +3272,7 @@ class NavigationCollection(EntityCollection):
         """The endpoint multiplicities of this link.  Values are defined
         by :py:class:`Multiplicity`"""
 
-    def ExpandCollection(self):
+    def expand_collection(self):
         return ExpandedEntityCollection(
             from_entity=self.from_entity,
             name=self.name,
@@ -3357,7 +3357,7 @@ class ExpandedEntityCollection(NavigationCollection):
 
     def __getitem__(self, key):
         result = self.entityDict[key]
-        if self.CheckFilter(result):
+        if self.check_filter(result):
             if self.expand or self.select:
                 result.Expand(self.expand, self.select)
             return result
@@ -4260,7 +4260,7 @@ class EntitySet(CSDLElement):
         name.append(self.name)
         return string.join(name, '.')
 
-    def GetLocation(self):
+    def get_location(self):
         """Returns a :py:class:`pyslet.rfc2396.URI` instance
         representing the location for this entity set."""
         return self.location

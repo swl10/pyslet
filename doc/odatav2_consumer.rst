@@ -268,11 +268,11 @@ The following methods are useful for consumers of the API.
 	Returns the fully qualified name of the entity set, suitable for
 	looking up the entity set in the enclosing DataServices object.
 
-:py:meth:`~pyslet.odata2.csdl.EntitySet.GetLocation`
+:py:meth:`~pyslet.odata2.csdl.EntitySet.get_location`
 	Returns a :py:class:`pyslet.rfc2396.URI` object that represents
 	this entity set::
 	
-		>>> print products.GetLocation()
+		>>> print products.get_location()
 		http://services.odata.org/V2/Northwind/Northwind.svc/Products
 
 	(If there is no base URL available this will be a relative URI.)
@@ -388,11 +388,11 @@ be treated as read only)
 In addition to all the usual dictionary methods like *len*, *itervalues*
 and so on, the following methods are useful for consumers of the API:
 
-:py:meth:`~pyslet.odata2.csdl.EntityCollection.GetLocation`
+:py:meth:`~pyslet.odata2.csdl.EntityCollection.get_location`
 	Returns a :py:class:`pyslet.rfc2396.URI` object that represents
 	this entity collection.
 	
-:py:meth:`~pyslet.odata2.csdl.EntityCollection.GetTitle`
+:py:meth:`~pyslet.odata2.csdl.EntityCollection.get_title`
 	Returns a user-friendly title to represent this entity collection.
 
 :py:meth:`~pyslet.odata2.csdl.EntityCollection.new_entity`
@@ -775,11 +775,11 @@ The following methods are useful for consumers of the API:
 	Returns the entity's key, as a single python value or tuple in the
 	case of compound keys
 	
-:py:meth:`~pyslet.odata2.core.Entity.GetLocation`
+:py:meth:`~pyslet.odata2.core.Entity.get_location`
 	Returns a :py:class:`pyslet.rfc2396.URI` object that represents this
 	entity::
 	
-		>>> print scones.GetLocation()
+		>>> print scones.get_location()
 		http://services.odata.org/V2/Northwind/Northwind.svc/Products(21)
 
 :py:meth:`~pyslet.odata2.csdl.Entity.DataKeys`
@@ -1078,7 +1078,7 @@ then the following URL provides access to the associated media resource::
     http://host/Documents(123)/$value
 
 In the DAL this behaviour is modelled by operations on the *collection*
-containing the entities.  The methods you'll use are::
+containing the entities.  The methods you'll use are:
 
 :py:meth:`~pyslet.odata2.core.EntityCollection.is_medialink_collection`
 	Returns True if the entities are media link entries

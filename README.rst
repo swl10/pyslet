@@ -15,6 +15,9 @@ Pyslet was originally written to be the engine behind the QTI migration
 tool but it can be used independently as a support module for your own
 Python applications.
 
+Full documentation is hosted at http://pyslet.readthedocs.org
+
+
 Current Status & Road Map
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 

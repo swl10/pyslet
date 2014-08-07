@@ -2874,7 +2874,7 @@ class XMLParser:
         currently open external entity (where available) is used instead.
 
         The default implementation simply calls
-        :py:meth:`~pyslet.xml20081126.structures.XMLExternalID.GetLocation` with the entities base URL and
+        :py:meth:`~pyslet.xml20081126.structures.XMLExternalID.get_location` with the entities base URL and
         ignores the public ID.  Derived parsers may recognize public identifiers
         and resolve accordingly."""
         base = None
@@ -2882,7 +2882,7 @@ class XMLParser:
             entity = self.GetExternalEntity()
         if entity:
             base = entity.location
-        return externalID.GetLocation(base)
+        return externalID.get_location(base)
 
     def ParseNDataDecl(self, gotLiteral=False):
         """[76] NDataDecl: parses an unparsed entity notation reference.

@@ -437,7 +437,7 @@ class EntityCollection(odata.EntityCollection):
 
     def __getitem__(self, key):
         e = self.entity_store.read_entity(key, self.select)
-        if e is not None and self.CheckFilter(e):
+        if e is not None and self.check_filter(e):
             e.Expand(self.expand, self.select)
             return e
         else:
@@ -676,7 +676,7 @@ class NavigationCollection(odata.NavigationCollection):
         if key in result_set:
             result = self.collection[key]
             if self.filter is None:
-                if self.CheckFilter(result):
+                if self.check_filter(result):
                     return result
             else:
                 return result
@@ -698,7 +698,7 @@ class NavigationCollection(odata.NavigationCollection):
             if self.rLookupMethod(key):
                 raise edm.NavigationConstraintError(
                     "Entity %s is already bound through this association" %
-                    value.GetLocation())
+                    value.get_location())
         # clear to add this one to the index
         if self.reverse:
             self.aindex.add_link(key, self.key)

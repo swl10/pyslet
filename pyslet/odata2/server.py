@@ -789,7 +789,7 @@ class Server(app.Server):
                                 resource.update_entity(entity)
                                 break
                     response_headers.append(
-                        ('Location', str(entity.GetLocation())))
+                        ('Location', str(entity.get_location())))
                     return self.ReturnEntity(
                         entity,
                         request,
@@ -805,7 +805,7 @@ class Server(app.Server):
                     self.ReadEntity(entity, environ)
                     resource.insert_entity(entity)
                     response_headers.append(
-                        ('Location', str(entity.GetLocation())))
+                        ('Location', str(entity.get_location())))
                     return self.ReturnEntity(
                         entity,
                         request,
@@ -1000,7 +1000,7 @@ class Server(app.Server):
                 406)
         if responseType == "application/json":
             data = str('{"d":%s}' % string.join(
-                entities.GenerateLinkCollJSON(request.version), ''))
+                entities.generate_link_coll_json(request.version), ''))
         else:
             doc = core.Document(root=core.Links)
             for e in entities.itervalues():
@@ -1047,10 +1047,10 @@ class Server(app.Server):
                 'xml, json or plain text formats supported',
                 406)
         if responseType == "application/json":
-            data = str('{"d":%s}' % entity.LinkJSON())
+            data = str('{"d":%s}' % entity.link_json())
         else:
             doc = core.Document(root=core.URI)
-            doc.root.SetValue(str(entity.GetLocation()))
+            doc.root.SetValue(str(entity.get_location()))
             data = str(doc)
         response_headers.append(("Content-Type", str(responseType)))
         response_headers.append(("Content-Length", str(len(data))))
@@ -1077,7 +1077,7 @@ class Server(app.Server):
                 406)
         if responseType == "application/json":
             data = str('{"d":%s}' % string.join(
-                entities.GenerateEntitySetInJSON(request.version), ''))
+                entities.generate_entity_set_in_json(request.version), ''))
         else:
             # Here's a challenge, we want to pull data through the feed
             # by yielding strings just load in to memory at the moment
@@ -1160,7 +1160,7 @@ class Server(app.Server):
                     "body (found <%s>)" % doc.root.xmlname)
         else:
             # must be a json object
-            entity.SetFromJSONObject(input, self.GetResourceFromURI, True)
+            entity.set_from_json_object(input, self.GetResourceFromURI, True)
 
     def ReturnEntity(self, entity, request, environ, start_response,
                      response_headers, status=200, statusMsg="Success"):
@@ -1179,7 +1179,7 @@ class Server(app.Server):
         # yielding strings just load in to memory at the moment
         if responseType == "application/json":
             data = str('{"d":%s}' %
-                       string.join(entity.GenerateEntityTypeInJSON(), ''))
+                       string.join(entity.generate_entity_type_in_json(), ''))
         else:
             doc = core.Document(root=core.Entry)
             e = doc.root

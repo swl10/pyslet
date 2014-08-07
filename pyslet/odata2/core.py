@@ -2297,12 +2297,11 @@ class StreamInfo(object):
 
 class Entity(edm.Entity):
 
-    """We override Entity in order to provide some documented signatures
-    for sets of media-stream entities."""
+    """We override Entity in order to provide OData serialisation."""
 
-    def GetLocation(self):
+    def get_location(self):
         return uri.URIFactory.URI(
-            str(self.entity_set.GetLocation()) + ODataURI.FormatEntityKey(self))
+            str(self.entity_set.get_location()) + ODataURI.FormatEntityKey(self))
 
     def get_content_type(self):
         with self.entity_set.OpenCollection() as collection:
@@ -2333,9 +2332,25 @@ class Entity(edm.Entity):
             collection.close()
             raise
 
-    def SetFromJSONObject(self, obj, entityResolver=None, forUpdate=False):
-        """Sets the value of this entity from a dictionary parsed from a
-        JSON representation."""
+    def set_from_json_object(self, obj, entity_resolver=None,
+                             for_update=False):
+
+        """Sets the value from a JSON representation.
+        
+        obj
+            A python dictionary parsed from a JSON representation
+        
+        entity_resolver
+            An optional callable that takes a URI object and returns the
+            entity object it points to.  This is used for resolving
+            links when creating or updating entities from a JSON source.
+        
+        for_update
+            An optional boolean (defaults to False) that indicates if an
+            *existing* entity is being deserialised for update or just
+            for read access.  When True, new bindings are added to the
+            entity for links provided in the obj.  If the entity doesn't
+            exist then this argument is ignored."""
         for k, v in self.data_items():
             if k in obj:
                 if isinstance(v, edm.SimpleValue):
@@ -2361,15 +2376,15 @@ class Entity(edm.Entity):
                             # bind to an existing entity
                             href = uri.URIFactory.URI(
                                 link['__metadata']['uri'])
-                            if entityResolver is not None:
+                            if entity_resolver is not None:
                                 if not href.IsAbsolute():
                                     #   we'll assume that the base URI is the
                                     #   location of this entity once it is
                                     #   created.  Witness this thread:
                                     #   http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
                                     href = uri.URIFactory.Resolve(
-                                        self.GetLocation(), href)
-                                targetEntity = entityResolver(href)
+                                        self.get_location(), href)
+                                targetEntity = entity_resolver(href)
                                 if isinstance(targetEntity, Entity) and targetEntity.entity_set is targetSet:
                                     self[navProperty].BindEntity(targetEntity)
                                 else:
@@ -2384,10 +2399,10 @@ class Entity(edm.Entity):
                             # full inline representation is expected for deep
                             # insert
                             targetEntity = collection.new_entity()
-                            targetEntity.SetFromJSONObject(
-                                link, entityResolver)
+                            targetEntity.set_from_json_object(
+                                link, entity_resolver)
                             self[navProperty].BindEntity(targetEntity)
-        elif forUpdate:
+        elif for_update:
             # we need to look for any updated link bindings
             for navProperty in self.NavigationKeys():
                 if navProperty not in obj or self.IsEntityCollection(navProperty):
@@ -2398,14 +2413,14 @@ class Entity(edm.Entity):
                     targetSet = self.entity_set.NavigationTarget(navProperty)
                     # bind to an existing entity
                     href = uri.URIFactory.URI(link['__metadata']['uri'])
-                    if entityResolver is not None:
+                    if entity_resolver is not None:
                         if not href.IsAbsolute():
                             #   we'll assume that the base URI is the
                             #   location of this entity.  Witness this thread:
                             #   http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
                             href = uri.URIFactory.Resolve(
-                                self.GetLocation(), href)
-                        targetEntity = entityResolver(href)
+                                self.get_location(), href)
+                        targetEntity = entity_resolver(href)
                         if isinstance(targetEntity, Entity) and targetEntity.entity_set is targetSet:
                             self[navProperty].BindEntity(targetEntity)
                         else:
@@ -2416,8 +2431,16 @@ class Entity(edm.Entity):
                         raise InvalidData(
                             "No context to resolve entity URI: %s" % str(link))
 
-    def GenerateEntityTypeInJSON(self, forUpdate=False, version=2):
-        location = str(self.GetLocation())
+    def generate_entity_type_in_json(self, for_update=False, version=2):
+        """Returns a JSON-encoded string representing this entity
+        
+        for_update
+            A boolean, defaults to False, indicating that the output
+            JSON should include any unsaved bindings
+        
+        version
+            Defaults to version 2 output"""
+        location = str(self.get_location())
         mediaLinkResource = self.type_def.HasStream()
         yield '{"__metadata":{'
         yield '"uri":%s' % json.dumps(location)
@@ -2442,7 +2465,7 @@ class Entity(edm.Entity):
                     yield EntityPropertyInJSON(v)
                 else:
                     yield EntityCTBody(v)
-        if self.exists and not forUpdate:
+        if self.exists and not for_update:
             for navProperty, navValue in self.NavigationItems():
                 if self.Selected(navProperty):
                     yield ', %s' % json.dumps(navProperty)
@@ -2450,18 +2473,18 @@ class Entity(edm.Entity):
                         yield ':'
                         if navValue.isCollection:
                             with navValue.OpenCollection() as collection:
-                                for y in collection.GenerateEntitySetInJSON(version):
+                                for y in collection.generate_entity_set_in_json(version):
                                     yield y
                         else:
                             entity = navValue.GetEntity()
                             if entity:
-                                for y in entity.GenerateEntityTypeInJSON(False, version):
+                                for y in entity.generate_entity_type_in_json(False, version):
                                     yield y
                             else:
                                 yield json.dumps(None)
                     else:
                         yield ':{"__deferred":{"uri":%s}}' % json.dumps(location + '/' + navProperty)
-        elif forUpdate:
+        elif for_update:
             for k, dv in self.NavigationItems():
                 if not dv.bindings or dv.isCollection:
                     # nothing to do here, we can't update this type of
@@ -2472,32 +2495,15 @@ class Entity(edm.Entity):
                 binding = dv.bindings[-1]
                 if isinstance(binding, Entity):
                     if binding.exists:
-                        href = str(targetSet.GetLocation()) + \
+                        href = str(targetSet.get_location()) + \
                             ODataURI.FormatEntityKey(binding)
                     else:
                         # we can't create new entities on update
                         continue
                 else:
                     href = str(
-                        targetSet.GetLocation()) + ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
+                        targetSet.get_location()) + ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
                 yield ', %s:{"__metadata":{"uri":%s}}' % (json.dumps(k), json.dumps(href))
-#           for navProperty,bindings in self.bindings.items():
-#               if not bindings or self[navProperty].isCollection:
-# nothing to do here, we can't update this type of navigation property
-#                   continue
-# we need to know the location of the target entity set
-#               targetSet=self.entity_set.NavigationTarget(navProperty)
-#               binding=bindings[-1]
-#               if isinstance(binding,Entity):
-#                   if binding.exists:
-#                       href=str(targetSet.GetLocation())+ODataURI.FormatEntityKey(binding)
-#                   else:
-# we can't create new entities on update
-#                       continue
-#               else:
-#                   href=str(targetSet.GetLocation())+ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
-# yield ',
-# %s:{"__metadata":{"uri":%s}}'%(json.dumps(navProperty),json.dumps(href))
         else:
             for k, dv in self.NavigationItems():
                 if not dv.bindings:
@@ -2512,40 +2518,24 @@ class Entity(edm.Entity):
                         sep = True
                     if isinstance(binding, Entity):
                         if binding.exists:
-                            href = str(targetSet.GetLocation()) + \
+                            href = str(targetSet.get_location()) + \
                                 ODataURI.FormatEntityKey(binding)
                         else:
                             # we need to yield the entire entity instead
-                            for s in binding.GenerateEntityTypeInJSON():
+                            for s in binding.generate_entity_type_in_json():
                                 yield s
                             href = None
                     else:
                         href = str(
-                            targetSet.GetLocation()) + ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
+                            targetSet.get_location()) + ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
                     if href:
                         yield '{ "__metadata":{"uri":%s}}' % json.dumps(href)
                 yield ']'
-#           for navProperty,bindings in self.bindings.items():
-# we need to know the location of the target entity set
-#               targetSet=self.entity_set.NavigationTarget(navProperty)
-#               yield ', %s :['%json.dumps(navProperty)
-#               sep=False
-#               for binding in bindings:
-#                   if sep:
-#                       yield ', '
-#                   else:
-#                       sep=True
-#                   if isinstance(binding,Entity):
-#                       href=str(targetSet.GetLocation())+ODataURI.FormatEntityKey(binding)
-#                   else:
-#                       href=str(targetSet.GetLocation())+ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
-#                   yield '{ "__metadata":{"uri":%s}}'%json.dumps(href)
-#               yield ']'
         yield '}'
 
-    def LinkJSON(self):
-        """Returns JSON serialised link"""
-        return '{"uri":%s}' % json.dumps(str(self.GetLocation()))
+    def link_json(self):
+        """Returns a JSON-serialised link to this entity"""
+        return '{"uri":%s}' % json.dumps(str(self.get_location()))
 
 
 def EntityCTInJSON2(complexValue):
@@ -2719,12 +2709,13 @@ class EntityCollection(edm.EntityCollection):
     additional methods that support the expression model defined by
     OData, media link entries and JSON encoding."""
 
-    def GetNextPageLocation(self):
-        """Returns the location of this page of the collection as a
-        :py:class:`rfc2396.URI` instance."""
+    def get_next_page_location(self):
+        """Returns the location of this page of the collection
+        
+        The result is a :py:class:`rfc2396.URI` instance."""
         token = self.next_skiptoken()
         if token is not None:
-            baseURL = self.GetLocation()
+            baseURL = self.get_location()
             sysQueryOptions = {}
             if self.filter is not None:
                 sysQueryOptions[
@@ -2821,7 +2812,7 @@ class EntityCollection(edm.EntityCollection):
             raise ExpectedMediaLinkCollection
         raise NotImplementedError
 
-    def CheckFilter(self, entity):
+    def check_filter(self, entity):
         """Checks *entity* against any filter and returns True if it passes.
 
         The *filter* object must be an instance of
@@ -2837,11 +2828,11 @@ class EntityCollection(edm.EntityCollection):
             else:
                 raise ValueError("Boolean required for filter expression")
 
-    def CalculateOrderKey(self, entity, orderObject):
+    def calculate_order_key(self, entity, orderObject):
         """Evaluates orderObject as an instance of py:class:`CommonExpression`."""
         return orderObject.Evaluate(entity).value
 
-    def GenerateEntitySetInJSON(self, version=2):
+    def generate_entity_set_in_json(self, version=2):
         """Generates JSON serialised form of this collection."""
         if version < 2:
             yield "["
@@ -2856,19 +2847,19 @@ class EntityCollection(edm.EntityCollection):
                 sep = True
             else:
                 yield ','
-            for s in entity.GenerateEntityTypeInJSON(False, version):
+            for s in entity.generate_entity_type_in_json(False, version):
                 yield s
         if version < 2:
             yield "]"
         else:
             # add a next link if necessary
-            nextLink = self.GetNextPageLocation()
+            nextLink = self.get_next_page_location()
             if nextLink is not None:
                 yield '],"__next":{"uri":%s}}' % json.dumps(str(nextLink))
             else:
                 yield ']}'
 
-    def GenerateLinkCollJSON(self, version=2):
+    def generate_link_coll_json(self, version=2):
         """Generates JSON serialised collection of links"""
         if version < 2:
             yield "["
@@ -2883,14 +2874,14 @@ class EntityCollection(edm.EntityCollection):
                 sep = True
             else:
                 yield ','
-            yield '{"uri":%s}' % json.dumps(str(entity.GetLocation()))
+            yield '{"uri":%s}' % json.dumps(str(entity.get_location()))
         if version < 2:
             yield "]"
         else:
             # add a next link if necessary
             skiptoken = self.next_skiptoken()
             if skiptoken is not None:
-                yield '],"__next":{"uri":%s}}' % json.dumps(str(self.GetLocation()) +
+                yield '],"__next":{"uri":%s}}' % json.dumps(str(self.get_location()) +
                                                             "?$skiptoken=%s" % uri.EscapeData(skiptoken, uri.IsQueryReserved))
             else:
                 yield ']}'
@@ -2898,7 +2889,7 @@ class EntityCollection(edm.EntityCollection):
 
 class NavigationCollection(EntityCollection, edm.NavigationCollection):
 
-    """NavigationEntityCollections that provide OData-specific options.
+    """NavigationCollections that provide OData-specific options.
 
     This class uses Python's diamond inheritance model
 
@@ -2914,31 +2905,34 @@ class NavigationCollection(EntityCollection, edm.NavigationCollection):
     inherits from :py:class:`EntityCollection` and then mixed in to a
     new class derived from :py:class:`NavigationCollection`."""
 
-    def ExpandCollection(self):
-        """Return an expanded version of this collection with OData specific class"""
+    def expand_collection(self):
+        """Return an expanded version of this collection
+        
+        Returns an instance of an OData-specific
+        :py:class:`ExpandedEntityCollection`."""
         return ExpandedEntityCollection(
             from_entity=self.from_entity,
             name=self.name,
             entity_set=self.entity_set,
             entityList=self.values())
 
-    def GetLocation(self):
+    def get_location(self):
         """Returns the location of this collection as a
         :py:class:`rfc2396.URI` instance.
 
         We override the location based on the source entity set + the fromKey."""
         return uri.URIFactory.URI(string.join([
-            str(self.from_entity.GetLocation()),
+            str(self.from_entity.get_location()),
             '/',
             uri.EscapeData(self.name)], ''))
 
-    def GetTitle(self):
+    def get_title(self):
         return self.name
 
 
 class ExpandedEntityCollection(EntityCollection, edm.ExpandedEntityCollection):
 
-    """We override ExpandedEntityCollection in order to include the OData-specific behaviour.
+    """Expanded collections with OData-specific behaviour.
 
     This class uses diamond inheritance in a similar way to
     :py:class:`NavigationCollection`"""
@@ -3163,9 +3157,9 @@ class Feed(atom.Feed):
         #: the collection this feed represents
         self.collection = collection
         if self.collection is not None:
-            location = str(self.collection.GetLocation())
+            location = str(self.collection.get_location())
             self.AtomId.SetValue(location)
-            self.Title.SetValue(self.collection.GetTitle())
+            self.Title.SetValue(self.collection.get_title())
             link = self.ChildElement(self.LinkClass)
             link.href = location
             link.rel = "self"
@@ -3189,7 +3183,7 @@ class Feed(atom.Feed):
             for entity in self.collection.iterpage():
                 yield Entry(self, entity)
             # add a next link if necessary
-            nextLink = self.collection.GetNextPageLocation()
+            nextLink = self.collection.get_next_page_location()
             if nextLink is not None:
                 link = Link(self)
                 link.rel = "next"
@@ -3406,7 +3400,7 @@ class Entry(atom.Entry):
             targetElement = newTargetElement
         return targetElement
 
-    def GetValue(self, entity, entityResolver=None, forUpdate=False):
+    def GetValue(self, entity, entity_resolver=None, for_update=False):
         """Update *entity* to reflect the value of this Entry.
 
         *entity* must be an :py:class:`pyslet.mc_csdl.Entity`
@@ -3414,7 +3408,7 @@ class Entry(atom.Entry):
         with the behaviour of the overridden method.
 
         When reading entities that don't yet exist, or values
-        *forUpdate* an entityResolver may be required.  It is a callable
+        *for_update* an entity_resolver may be required.  It is a callable
         that accepts a single parameter of type
         :py:class:`pyslet.rfc2396.URI` and returns a an object
         representing the resource it points to."""
@@ -3480,14 +3474,14 @@ class Entry(atom.Entry):
                                 # create a new entity from the target entity
                                 # set
                                 targetEntity = collection.new_entity()
-                                entry.GetValue(targetEntity, entityResolver)
+                                entry.GetValue(targetEntity, entity_resolver)
                                 entity[navProperty].BindEntity(targetEntity)
                         elif link.Inline.Entry is not None:
                             targetEntity = collection.new_entity()
                             link.Inline.Entry.GetValue(
-                                targetEntity, entityResolver)
+                                targetEntity, entity_resolver)
                             entity[navProperty].BindEntity(targetEntity)
-                elif entityResolver is not None:
+                elif entity_resolver is not None:
                     #   this is the tricky bit, we need to resolve
                     #   the URI to an entity key
                     href = link.ResolveURI(link.href)
@@ -3497,8 +3491,8 @@ class Entry(atom.Entry):
                         #   created.  Witness this thread:
                         #   http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
                         href = uri.URIFactory.Resolve(
-                            entity.GetLocation(), href)
-                    targetEntity = entityResolver(href)
+                            entity.get_location(), href)
+                    targetEntity = entity_resolver(href)
                     if isinstance(targetEntity, Entity) and targetEntity.entity_set is targetSet:
                         entity[navProperty].BindEntity(targetEntity)
                     else:
@@ -3509,7 +3503,7 @@ class Entry(atom.Entry):
                     raise InvalidData(
                         "No context to resolve entity URI: %s" % str(
                             link.href))
-        elif forUpdate:
+        elif for_update:
             # we need to look for any updated link bindings
             for link in self.Link:
                 if not link.rel.startswith(ODATA_RELATED):
@@ -3519,7 +3513,7 @@ class Entry(atom.Entry):
                     continue
                 targetSet = entity.entity_set.NavigationTarget(navProperty)
                 # we have a navigation property we can update
-                if entityResolver is not None:
+                if entity_resolver is not None:
                     #   this is the tricky bit, we need to resolve
                     #   the URI to an entity key
                     href = link.ResolveURI(link.href)
@@ -3528,8 +3522,8 @@ class Entry(atom.Entry):
                         #   Witness this thread:
                         #   http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
                         href = uri.URIFactory.Resolve(
-                            entity.GetLocation(), href)
-                    targetEntity = entityResolver(href)
+                            entity.get_location(), href)
+                    targetEntity = entity_resolver(href)
                     if isinstance(targetEntity, Entity) and targetEntity.entity_set is targetSet:
                         entity[navProperty].BindEntity(targetEntity)
                     else:
@@ -3552,7 +3546,7 @@ class Entry(atom.Entry):
                 link.LoadExpansion(entity[navProperty])
         return entity
 
-    def SetValue(self, entity, forUpdate=False):
+    def SetValue(self, entity, for_update=False):
         """Sets the value of this Entry to represent *entity*, a :py:class:`pyslet.mc_csdl.Entity` instance."""
         # start with a reset
         self.reset()
@@ -3595,9 +3589,9 @@ class Entry(atom.Entry):
                 elif isinstance(v, edm.SimpleValue) and v:
                     targetElement.AddData(unicode(v))
         # now do the links
-        location = str(entity.GetLocation())
+        location = str(entity.get_location())
         self.ChildElement(atom.AtomId).SetValue(location)
-        if entity.exists and not forUpdate:
+        if entity.exists and not for_update:
             link = self.ChildElement(self.LinkClass)
             link.href = location
             link.rel = "edit"
@@ -3632,7 +3626,7 @@ class Entry(atom.Entry):
                         link.Expand(navValue.OpenCollection())
                     else:
                         link.Expand(navValue.GetEntity())
-        elif forUpdate:
+        elif for_update:
             # This is a special form of representation which only represents the
             # navigation properties with single cardinality
             for k, dv in entity.NavigationItems():
@@ -3645,14 +3639,14 @@ class Entry(atom.Entry):
                 binding = dv.bindings[-1]
                 if isinstance(binding, Entity):
                     if binding.exists:
-                        href = str(targetSet.GetLocation()) + \
+                        href = str(targetSet.get_location()) + \
                             ODataURI.FormatEntityKey(binding)
                     else:
                         # we can't create new entities on update
                         continue
                 else:
                     href = str(
-                        targetSet.GetLocation()) + ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
+                        targetSet.get_location()) + ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
                 link = self.ChildElement(self.LinkClass)
                 link.rel = ODATA_RELATED + k
                 link.title = k
@@ -3667,14 +3661,14 @@ class Entry(atom.Entry):
                 for binding in dv.bindings:
                     if isinstance(binding, Entity):
                         if binding.exists:
-                            href = str(targetSet.GetLocation()) + \
+                            href = str(targetSet.get_location()) + \
                                 ODataURI.FormatEntityKey(binding)
                         else:
                             feed.append(binding)
                             href = None
                     else:
                         href = str(
-                            targetSet.GetLocation()) + ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
+                            targetSet.get_location()) + ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
                     if href:
                         link = self.ChildElement(self.LinkClass)
                         link.rel = ODATA_RELATED + k

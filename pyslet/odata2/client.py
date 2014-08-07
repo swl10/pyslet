@@ -55,7 +55,7 @@ class DataFormatError(ClientException):
 #
 #     def GetStreamType(self):
 #         """Returns the content type of the entity's media stream by issuing a HEAD request."""
-#         streamURL = str(self.GetLocation()) + "/$value"
+#         streamURL = str(self.get_location()) + "/$value"
 #         request = http.ClientRequest(str(streamURL), 'HEAD')
 #         request.set_header('Accept', '*/*')
 #         self.client.process_request(request)
@@ -68,7 +68,7 @@ class DataFormatError(ClientException):
 #
 #     def GetStreamSize(self):
 #         """Returns the size of the entity's media stream in bytes by issuing a HEAD request."""
-#         streamURL = str(self.GetLocation()) + "/$value"
+#         streamURL = str(self.get_location()) + "/$value"
 #         request = http.ClientRequest(str(streamURL), 'HEAD')
 #         request.set_header('Accept', '*/*')
 #         self.client.process_request(request)
@@ -81,7 +81,7 @@ class DataFormatError(ClientException):
 #
 #     def get_stream_generator(self):
 #         """A generator function that yields blocks (strings) of data from the entity's media stream."""
-#         streamURL = str(self.GetLocation()) + "/$value"
+#         streamURL = str(self.get_location()) + "/$value"
 #         request = http.ClientRequest(str(streamURL), 'GET')
 #         request.set_header('Accept', '*/*')
 #         self.client.process_request(request)
@@ -98,7 +98,7 @@ class ClientCollection(core.EntityCollection):
     def __init__(self, client, baseURI=None, **kwargs):
         super(ClientCollection, self).__init__(**kwargs)
         if baseURI is None:
-            self.baseURI = self.entity_set.GetLocation()
+            self.baseURI = self.entity_set.get_location()
         else:
             self.baseURI = baseURI
         self.client = client
@@ -180,7 +180,7 @@ class ClientCollection(core.EntityCollection):
 
     def insert_entity(self, entity):
         if entity.exists:
-            raise edm.EntityExists(str(entity.GetLocation()))
+            raise edm.EntityExists(str(entity.get_location()))
         if self.is_medialink_collection():
             # insert a blank stream and then update
             mle = self.new_stream(src=StringIO())
@@ -566,12 +566,12 @@ class EntityCollection(ClientCollection, core.EntityCollection):
 
     def update_entity(self, entity):
         if not entity.exists:
-            raise edm.NonExistentEntity(str(entity.GetLocation()))
+            raise edm.NonExistentEntity(str(entity.get_location()))
         doc = core.Document(root=core.Entry)
         doc.root.SetValue(entity, True)
         data = str(doc)
         request = http.ClientRequest(
-            str(entity.GetLocation()), 'PUT', entity_body=data)
+            str(entity.get_location()), 'PUT', entity_body=data)
         request.set_content_type(
             params.MediaType.from_str(core.ODATA_RELATED_ENTRY_TYPE))
         self.client.process_request(request)
@@ -595,7 +595,7 @@ class EntityCollection(ClientCollection, core.EntityCollection):
     def __delitem__(self, key):
         entity = self.new_entity()
         entity.set_key(key)
-        request = http.ClientRequest(str(entity.GetLocation()), 'DELETE')
+        request = http.ClientRequest(str(entity.get_location()), 'DELETE')
         self.client.process_request(request)
         if request.status == 204:
             # success, nothing to read back
@@ -611,7 +611,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             logging.warn(
                 'OData Client NavigationCollection ignored baseURI argument')
         navPath = uri.EscapeData(name.encode('utf-8'))
-        location = str(from_entity.GetLocation())
+        location = str(from_entity.get_location())
         super(
             NavigationCollection,
             self).__init__(
@@ -803,7 +803,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
         if key != entity.key():
             raise ValueError
         if not entity.exists:
-            raise edm.NonExistentEntity(str(entity.GetLocation()))
+            raise edm.NonExistentEntity(str(entity.get_location()))
         if not self.isCollection:
             request = http.ClientRequest(str(self.baseURI), 'GET')
             self.client.process_request(request)
@@ -826,7 +826,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 # some type of error
                 self.RaiseError(request)
             doc = core.Document(root=core.URI)
-            doc.root.SetValue(str(entity.GetLocation()))
+            doc.root.SetValue(str(entity.get_location()))
             data = str(doc)
             request = http.ClientRequest(
                 str(self.linksURI), 'PUT', entity_body=data)
@@ -839,7 +839,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 self.RaiseError(request)
         else:
             doc = core.Document(root=core.URI)
-            doc.root.SetValue(str(entity.GetLocation()))
+            doc.root.SetValue(str(entity.get_location()))
             data = str(doc)
             request = http.ClientRequest(
                 str(self.linksURI), 'POST', entity_body=data)
@@ -853,7 +853,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
 
     def replace(self, entity):
         if not entity.exists:
-            raise edm.NonExistentEntity(str(entity.GetLocation()))
+            raise edm.NonExistentEntity(str(entity.get_location()))
         if self.isCollection:
             # inherit the implementation
             super(NavigationCollection, self).replace(entity)
@@ -861,7 +861,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             if not isinstance(entity, edm.Entity) or entity.entity_set is not self.entity_set:
                 raise TypeError
             doc = core.Document(root=core.URI)
-            doc.root.SetValue(str(entity.GetLocation()))
+            doc.root.SetValue(str(entity.get_location()))
             data = str(doc)
             request = http.ClientRequest(
                 str(self.linksURI), 'PUT', entity_body=data)
@@ -965,7 +965,7 @@ class Client(app.Client):
                         for es in container.EntitySet:
                             fTitle = prefix + es.name
                             if fTitle in self.feeds:
-                                if self.feeds[fTitle] == es.GetLocation():
+                                if self.feeds[fTitle] == es.get_location():
                                     self.feeds[fTitle] = es
             else:
                 raise DataFormatError(str(metadata))
@@ -989,7 +989,7 @@ class Client(app.Client):
                     entity_set.BindNavigation(
                         np.name, NavigationCollection, client=self)
                 logging.debug(
-                    "Registering feed: %s", str(self.feeds[f].GetLocation()))
+                    "Registering feed: %s", str(self.feeds[f].get_location()))
 
     ACCEPT_LIST = messages.AcceptList(
         messages.AcceptItem(messages.MediaRange('application', 'atom+xml')),

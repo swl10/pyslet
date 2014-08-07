@@ -7,6 +7,11 @@
             xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
             <EntityContainer Name="FS" m:IsDefaultEntityContainer="true">
                 <EntitySet Name="Files" EntityType="FSSchema.File"/>
+                <AssociationSet Name="Directories"
+                    Association="FSSchema.Directory">
+                    <End Role="Parent" EntitySet="Files"/>
+                    <End Role="Child" EntitySet="Files"/>
+                </AssociationSet>
             </EntityContainer>
             <EntityType Name="File">
                 <Key>
@@ -18,6 +23,8 @@
                     MaxLength="255" Unicode="true" FixedLength="false"
                     m:FC_TargetPath="SyndicationTitle"
                     m:FC_KeepInContent="true"/>
+                <Property Name="isDirectory" Type="Edm.Boolean"
+                    Nullable="false"/>
                 <Property Name="size" Type="Edm.Int32" Nullable="true"/>
                 <Property Name="lastAccess" Type="Edm.DateTime"
                     Nullable="false" Precision="3"/>
@@ -25,7 +32,17 @@
                     Nullable="false" Precision="3"
                     m:FC_TargetPath="SyndicationUpdated"
                     m:FC_KeepInContent="true"/>
+                <NavigationProperty Name="Files"
+                    Relationship="FSSchema.Directory" FromRole="Parent"
+                    ToRole="Child"/>                
+                <NavigationProperty Name="Parent"
+                    Relationship="FSSchema.Directory" FromRole="Child"
+                    ToRole="Parent"/>                
             </EntityType>
+            <Association Name="Directory">
+                <End Role="Parent" Type="FSSchema.File" Multiplicity="0..1"/>
+                <End Role="Child" Type="FSSchema.File" Multiplicity="*"/>
+            </Association>
         </Schema>
     </edmx:DataServices>
 </edmx:Edmx>

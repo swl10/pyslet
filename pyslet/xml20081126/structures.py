@@ -14,6 +14,7 @@ from types import *
 from copy import copy
 import warnings
 
+from pyslet.pep8 import PEP8Compatibility
 from pyslet.rfc2396 import URIFactory, URI, FileURL
 
 xml_base = 'xml:base'
@@ -3217,7 +3218,7 @@ class XMLParameterEntity(XMLDeclaredEntity):
         return "%%%s;" % self.name
 
 
-class XMLExternalID(object):
+class XMLExternalID(PEP8Compatibility, object):
 
     """Used to represent external references to entities."""
 
@@ -3226,7 +3227,7 @@ class XMLExternalID(object):
         self.public = public  # : the public identifier, may be None
         self.system = system  # : the system identifier, may be None.
 
-    def GetLocation(self, base=None):
+    def get_location(self, base=None):
         """Returns the absolute URI where the external entity can be found.
 
         Returns a :py:class:`pyslet.rfc2396.URI` resolved against :py:attr:`base` if

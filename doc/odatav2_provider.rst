@@ -147,7 +147,7 @@ proxying the request.
 
 The implementation isn't trivial because the identities of the entities
 created by the client (as reported by
-:py:meth:`~pyslet.odata2.csdl.Entity.GetLocation`) are the URLs of the
+:py:meth:`~pyslet.odata2.csdl.Entity.get_location`) are the URLs of the
 entities as they appear in the remote data service whereas the OData
 proxy needs to serve up entities with identities with URLs that appear
 under its service root.  As a result, you need to create a copy of the

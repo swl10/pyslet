@@ -628,11 +628,11 @@ class SQLCollectionBase(core.EntityCollection):
             if sinfo.size is not None and sinfo.size != actual_size:
                 # unexpected size mismatch
                 raise SQLError("stream size mismatch on read %s" %
-                               entity.GetLocation())
+                               entity.get_location())
             if sinfo.md5 is not None and sinfo.md5 != actual_md5:
                 # md5 mismatch
                 raise SQLError("stream checksum mismatch on read %s" %
-                               entity.GetLocation())
+                               entity.get_location())
         return sinfo
 
     def read_stream_close(self, key):
@@ -1861,7 +1861,7 @@ class SQLEntityCollection(SQLCollectionBase):
         if transaction is None:
             transaction = SQLTransaction(self.container.dbapi, self.dbc)
         if entity.exists:
-            raise edm.EntityExists(str(entity.GetLocation()))
+            raise edm.EntityExists(str(entity.get_location()))
         # We must also go through each bound navigation property of our
         # own and add in the foreign keys for forward links.
         if fk_values is None:
@@ -2032,7 +2032,7 @@ class SQLEntityCollection(SQLCollectionBase):
             raise edm.ConstraintError(
                 "insert_entity failed for %s : %s" %
                 (str(
-                    entity.GetLocation()),
+                    entity.get_location()),
                     str(e)))
         except Exception as e:
             transaction.rollback(e)
@@ -2139,7 +2139,7 @@ class SQLEntityCollection(SQLCollectionBase):
         if not entity.exists:
             raise edm.NonExistentEntity(
                 "Attempt to update non existent entity: " +
-                str(entity.GetLocation()))
+                str(entity.get_location()))
             fk_values = []
         fk_values = []
         fk_mapping = self.container.fk_table[self.entity_set.name]
@@ -2232,7 +2232,7 @@ class SQLEntityCollection(SQLCollectionBase):
                     raise edm.ConcurrencyError
                 else:
                     raise KeyError("Entity %s does not exist" %
-                                   str(entity.GetLocation()))
+                                   str(entity.get_location()))
             # We finish off the bindings in a similar way to
             # insert_entity_sql but this time we need to handle the case
             # where there is an existing link and the navigation
@@ -2298,7 +2298,7 @@ class SQLEntityCollection(SQLCollectionBase):
             raise edm.ConstraintError(
                 "Update failed for %s : %s" %
                 (str(
-                    entity.GetLocation()),
+                    entity.get_location()),
                     str(e)))
         except Exception as e:
             transaction.rollback(e)
@@ -2337,7 +2337,7 @@ class SQLEntityCollection(SQLCollectionBase):
         if not entity.exists:
             raise edm.NonExistentEntity(
                 "Attempt to update non-existent entity: " +
-                str(entity.GetLocation()))
+                str(entity.get_location()))
         if transaction is None:
             transaction = SQLTransaction(self.container.dbapi, self.dbc)
         query = ['UPDATE ', self.table_name, ' SET ']
@@ -2383,16 +2383,16 @@ class SQLEntityCollection(SQLCollectionBase):
                     # assume entity is good
                     raise edm.NavigationError(
                         "Entity %s is already linked through association %s" %
-                        (entity.GetLocation(), aset_name))
+                        (entity.get_location(), aset_name))
                 else:
                     # key failure - unexpected case as entity should be good
                     raise KeyError("Entity %s does not exist" %
-                                   str(entity.GetLocation()))
+                                   str(entity.get_location()))
             transaction.commit()
         except self.container.dbapi.IntegrityError as e:
             transaction.rollback(e, swallow=True)
             raise KeyError("Linked entity %s does not exist" %
-                           str(target_entity.GetLocation()))
+                           str(target_entity.get_location()))
         except Exception as e:
             transaction.rollback(e)
         finally:
@@ -2532,7 +2532,7 @@ class SQLEntityCollection(SQLCollectionBase):
         if not entity.exists:
             raise edm.NonExistentEntity(
                 "Attempt to update non-existent entity: " +
-                str(entity.GetLocation()))
+                str(entity.get_location()))
         if transaction is None:
             transaction = SQLTransaction(self.container.dbapi, self.dbc)
         query = ['UPDATE ', self.table_name, ' SET ']
@@ -2582,8 +2582,8 @@ class SQLEntityCollection(SQLCollectionBase):
                 # or wasn't linked to the target
                 raise KeyError(
                     "Entity %s does not exist or is not linked to %s" % str(
-                        entity.GetLocation(),
-                        target_entity.GetLocation))
+                        entity.get_location(),
+                        target_entity.get_location))
             transaction.commit()
         except Exception as e:
             transaction.rollback(e)
@@ -2760,7 +2760,7 @@ class SQLNavigationCollection(SQLCollectionBase, core.NavigationCollection):
         if not entity.exists:
             raise edm.NonExistentEntity(
                 "Attempt to link to a non-existent entity: " +
-                str(entity.GetLocation()))
+                str(entity.get_location()))
         self.insert_link(entity)
 
     def insert_link(self, entity, transaction=None):
@@ -2778,7 +2778,7 @@ class SQLNavigationCollection(SQLCollectionBase, core.NavigationCollection):
         if not entity.exists:
             raise edm.NonExistentEntity(
                 "Attempt to link to a non-existent entity: " +
-                str(entity.GetLocation()))
+                str(entity.get_location()))
         self.replace_link(entity)
 
     def replace_link(self, entity, transaction=None):
@@ -3048,7 +3048,7 @@ class SQLReverseKeyCollection(SQLNavigationCollection):
             transaction.commit()
         except self.container.dbapi.IntegrityError as e:
             transaction.rollback(e, swallow=True)
-            raise KeyError(str(entity.GetLocation()))
+            raise KeyError(str(entity.get_location()))
         except Exception as e:
             transaction.rollback(e)
         finally:
@@ -3084,8 +3084,8 @@ class SQLReverseKeyCollection(SQLNavigationCollection):
             raise edm.NavigationError(
                 "Model integrity error when linking %s and %s" %
                 (str(
-                    self.from_entity.GetLocation()), str(
-                    entity.GetLocation())))
+                    self.from_entity.get_location()), str(
+                    entity.get_location())))
         except Exception as e:
             transaction.rollback(e)
         finally:
@@ -3278,7 +3278,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
             transaction.commit()
         except self.container.dbapi.IntegrityError as e:
             transaction.rollback(e, swallow=True)
-            raise edm.NavigationError(str(entity.GetLocation()))
+            raise edm.NavigationError(str(entity.get_location()))
         except Exception as e:
             transaction.rollback(e)
         finally:
@@ -3327,8 +3327,8 @@ class SQLAssociationCollection(SQLNavigationCollection):
             raise edm.NavigationError(
                 "Model integrity error when linking %s and %s" %
                 (str(
-                    self.from_entity.GetLocation()), str(
-                    entity.GetLocation())))
+                    self.from_entity.get_location()), str(
+                    entity.get_location())))
         except Exception as e:
             transaction.rollback(e)
         finally:
@@ -3348,8 +3348,8 @@ class SQLAssociationCollection(SQLNavigationCollection):
                 raise edm.NavigationError(
                     "Model integrity error when linking %s and %s" %
                     (str(
-                        self.from_entity.GetLocation()), str(
-                        entity.GetLocation())))
+                        self.from_entity.get_location()), str(
+                        entity.get_location())))
             except Exception as e:
                 transaction.rollback(e)
             finally:
@@ -3395,8 +3395,8 @@ class SQLAssociationCollection(SQLNavigationCollection):
                 raise KeyError(
                     "One of the entities %s or %s no longer exists" %
                     (str(
-                        self.from_entity.GetLocation()), str(
-                        entity.GetLocation())))
+                        self.from_entity.get_location()), str(
+                        entity.get_location())))
             transaction.commit()
         except Exception as e:
             transaction.rollback(e)
@@ -3716,11 +3716,11 @@ class SQLEntityContainer(object):
         This allows us to distinguish between the two ends of a
         recursive association."""
         self.aux_table = {}
-        """A mapping from the names of symmetric association sets to::
+        """A mapping from the names of symmetric association sets to a
+        tuple of::
 
             (<entity set A>, <name prefix A>, <entity set B>,
-             <name prefix B>, <unique keys>)
-        """
+            <name prefix B>, <unique keys>)"""
         self.mangled_names = {}
         """A mapping from source path tuples to mangled and quoted names
         to use in SQL queries.  For example::

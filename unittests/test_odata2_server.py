@@ -1304,7 +1304,7 @@ class ServerTests(unittest.TestCase):
         customer['CompanyName'].set_from_value('Megacorp')
         customer['Address']['City'].set_from_value('Chunton')
         customer.exists = True
-        jsonData = string.join(customer.GenerateEntityTypeInJSON())
+        jsonData = string.join(customer.generate_entity_type_in_json())
         obj = json.loads(jsonData)
         # Each property on the EntityType MUST be represented as a name/value
         # pair
@@ -1357,7 +1357,7 @@ class ServerTests(unittest.TestCase):
         customer.exists = False
         customer['Orders'].BindEntity(1)
         customer['Orders'].BindEntity(2)
-        jsonData = string.join(customer.GenerateEntityTypeInJSON())
+        jsonData = string.join(customer.generate_entity_type_in_json())
         obj = json.loads(jsonData)
         self.assertTrue(type(obj['Orders']) == ListType, "JSON array")
         self.assertTrue(len(obj['Orders']) == 2, "Two bindings")
@@ -1372,7 +1372,7 @@ class ServerTests(unittest.TestCase):
         #	[if using the] Select System Query Option then only the
         #	properties identified by the $select query option MUST be
         #	represented by name/value pairs
-        jsonData = string.join(customer.GenerateEntityTypeInJSON())
+        jsonData = string.join(customer.generate_entity_type_in_json())
         obj = json.loads(jsonData)
         nProps = 0
         for k in obj:
@@ -1394,7 +1394,7 @@ class ServerTests(unittest.TestCase):
             sinfo = core.StreamInfo(type = params.PLAIN_TEXT)
             coll.update_stream(StringIO(docText), 1801, sinfo)
             document = coll[1801]
-        jsonData = string.join(document.GenerateEntityTypeInJSON())
+        jsonData = string.join(document.generate_entity_type_in_json())
         obj = json.loads(jsonData)
         meta = obj["__metadata"]
         self.assertTrue(
@@ -1418,10 +1418,10 @@ class ServerTests(unittest.TestCase):
         customer = core.Entity(customers)
         customer['CustomerID'].set_from_value('X')
         customer['CompanyName'].set_from_value('Megacorp')
-        jsonData = string.join(customer.GenerateEntityTypeInJSON())
+        jsonData = string.join(customer.generate_entity_type_in_json())
         obj = json.loads(jsonData)
         newCustomer = core.Entity(customers)
-        newCustomer.SetFromJSONObject(obj)
+        newCustomer.set_from_json_object(obj)
         self.assertTrue(
             newCustomer['CustomerID'].value == "X", "Check customer ID")
         self.assertTrue(
@@ -1434,10 +1434,10 @@ class ServerTests(unittest.TestCase):
         employee['EmployeeID'].set_from_value('12345')
         employee['EmployeeName'].set_from_value('Joe Bloggs')
         employee['Address']['City'].set_from_value('Chunton')
-        jsonData = string.join(employee.GenerateEntityTypeInJSON())
+        jsonData = string.join(employee.generate_entity_type_in_json())
         obj = json.loads(jsonData)
         newEmployee = core.Entity(employees)
-        newEmployee.SetFromJSONObject(obj)
+        newEmployee.set_from_json_object(obj)
         self.assertTrue(
             newEmployee['EmployeeID'].value == "12345", "Check employee ID")
         self.assertTrue(
@@ -1458,10 +1458,10 @@ class ServerTests(unittest.TestCase):
             sinfo = core.StreamInfo(type = params.PLAIN_TEXT)
             coll.update_stream(StringIO(docText), 1801, sinfo)
             document = coll[1801]
-        jsonData = string.join(document.GenerateEntityTypeInJSON())
+        jsonData = string.join(document.generate_entity_type_in_json())
         obj = json.loads(jsonData)
         newDocument = core.Entity(documentSet)
-        newDocument.SetFromJSONObject(obj)
+        newDocument.set_from_json_object(obj)
         self.assertTrue(
             newDocument['DocumentID'].value == 1801, "Check document ID")
         self.assertTrue(
@@ -1573,7 +1573,7 @@ class ServerTests(unittest.TestCase):
             customers.data['XX=%02X' % i] = (
                 'XX=%02X' % i, 'Example-%i Ltd' % i, (None, None), None)
         collection = customersSet.OpenCollection()
-        jsonData = string.join(collection.GenerateEntitySetInJSON(), '')
+        jsonData = string.join(collection.generate_entity_set_in_json(), '')
         #	Version 2 object by default
         obj = json.loads(jsonData)
         self.assertTrue(type(obj) == DictType, "Version 2 type is dictionary")
@@ -1585,7 +1585,7 @@ class ServerTests(unittest.TestCase):
             type(obj["results"]) == ListType, "EntitySet represented as JSON array")
         self.assertTrue(len(obj["results"]) == 4, "Four entities")
         #	Version 1.0 JSON representation
-        v1JSONData = string.join(collection.GenerateEntitySetInJSON(1), '')
+        v1JSONData = string.join(collection.generate_entity_set_in_json(1), '')
         obj = json.loads(v1JSONData)
         self.assertTrue(type(obj) == ListType, "Version 1 type is an array")
         self.assertTrue(len(obj) == 4, "Four entities")
@@ -1594,7 +1594,7 @@ class ServerTests(unittest.TestCase):
         #	if the server does not include an entityTypeInJson ... for
         #	every entity in the collection ... a nextLinkNVP name value
         #	pair MUST be included
-        jsonData = string.join(collection.GenerateEntitySetInJSON(), '')
+        jsonData = string.join(collection.generate_entity_set_in_json(), '')
         obj = json.loads(jsonData)
         self.assertTrue("__next" in obj, "next link included")
         #	The URI in the associated nextURINVP name value pair MUST
@@ -1618,7 +1618,7 @@ class ServerTests(unittest.TestCase):
         #	An empty EntitySet or collection of entities MUST be
         #	represented as an empty JSON array.
         emptyCollection = collection['ALFKI']["Orders"].OpenCollection()
-        jsonData = string.join(emptyCollection.GenerateEntitySetInJSON(), '')
+        jsonData = string.join(emptyCollection.generate_entity_set_in_json(), '')
         obj = json.loads(jsonData)
         self.assertTrue(
             type(obj["results"]) == ListType, "Empty EntitySet represented as JSON array")
@@ -3492,7 +3492,7 @@ class SampleServerTests(unittest.TestCase):
         customer['Address']['City'].set_from_value('Cambridge')
         #	street left blank
         request = MockRequest("/service.svc/Customers", "POST")
-        data = string.join(customer.GenerateEntityTypeInJSON(False, 1))
+        data = string.join(customer.generate_entity_type_in_json(False, 1))
         request.set_header('Content-Type', 'application/json')
         request.set_header('Content-Length', str(len(data)))
         request.set_header('Accept', "application/json")
@@ -3513,7 +3513,7 @@ class SampleServerTests(unittest.TestCase):
         newCustomer = core.Entity(
             self.ds['SampleModel.SampleEntities.Customers'])
         newCustomer.exists = True
-        newCustomer.SetFromJSONObject(obj)
+        newCustomer.set_from_json_object(obj)
         self.assertTrue(newCustomer['CustomerID'].value == u"STEVE")
         self.assertTrue(newCustomer['CompanyName'].value == u"Steve's Inc")
         self.assertTrue(newCustomer['Address']['City'].value == u"Cambridge")
@@ -3527,7 +3527,7 @@ class SampleServerTests(unittest.TestCase):
         customer['Orders'].BindEntity(3)
         customer['Orders'].BindEntity(4)
         request = MockRequest("/service.svc/Customers", "POST")
-        data = string.join(customer.GenerateEntityTypeInJSON(False, 1))
+        data = string.join(customer.generate_entity_type_in_json(False, 1))
         request.set_header('Content-Type', 'application/json')
         request.set_header('Content-Length', str(len(data)))
         request.set_header('Accept', "application/json")
@@ -3541,7 +3541,7 @@ class SampleServerTests(unittest.TestCase):
         newCustomer = core.Entity(
             self.ds['SampleModel.SampleEntities.Customers'])
         newCustomer.exists = True
-        newCustomer.SetFromJSONObject(obj)
+        newCustomer.set_from_json_object(obj)
         self.assertTrue(newCustomer['CustomerID'].value == u"ASDFG")
         self.assertTrue(
             newCustomer['Address']['Street'].value == u"58 Contoso St")
@@ -3561,7 +3561,7 @@ class SampleServerTests(unittest.TestCase):
         for entry in obj['results']:
             order = core.Entity(self.ds['SampleModel.SampleEntities.Orders'])
             order.exists = True
-            order.SetFromJSONObject(entry)
+            order.set_from_json_object(entry)
             orderKeys.add(order['OrderID'].value)
         self.assertTrue(3 in orderKeys, "New entity bound to order 3")
         self.assertTrue(4 in orderKeys, "New entity bound to order 4")
@@ -3572,7 +3572,7 @@ class SampleServerTests(unittest.TestCase):
         doc = core.Document(root=core.URI)
         orders = self.ds['SampleModel.SampleEntities.Orders'].OpenCollection()
         order = orders[4]
-        doc.root.SetValue(str(order.GetLocation()))
+        doc.root.SetValue(str(order.get_location()))
         data = str(doc)
         request.set_header('Content-Type', 'application/xml')
         request.set_header('Content-Length', str(len(data)))
@@ -3600,7 +3600,7 @@ class SampleServerTests(unittest.TestCase):
             "/service.svc/Customers('ALFKI')/$links/Orders", "POST")
         orders = self.ds['SampleModel.SampleEntities.Orders'].OpenCollection()
         order = orders[4]
-        obj = {'uri': str(order.GetLocation())}
+        obj = {'uri': str(order.get_location())}
         data = json.dumps(obj)
         request.set_header('Content-Type', 'application/json')
         request.set_header('Content-Length', str(len(data)))
@@ -4168,7 +4168,7 @@ class SampleServerTests(unittest.TestCase):
             customer = collection['ALFKI']
         customer['CompanyName'].set_from_value("Example Inc Updated")
         request = MockRequest("/service.svc/Customers('ALFKI')", "PUT")
-        jsonData = string.join(customer.GenerateEntityTypeInJSON(True))
+        jsonData = string.join(customer.generate_entity_type_in_json(True))
         request.set_header('Accept', "application/json")
         request.set_header('Content-Type', "application/json")
         request.set_header('Content-Length', str(len(jsonData)))
@@ -4193,7 +4193,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(oldCustomer.key() == 'XX=00', "Previous customer")
         order['Customer'].BindEntity(customer)
         request = MockRequest("/service.svc/Orders(3)", "PUT")
-        jsonData = string.join(order.GenerateEntityTypeInJSON(True))
+        jsonData = string.join(order.generate_entity_type_in_json(True))
         request.set_header('Accept', "application/json")
         request.set_header('Content-Type', "application/json")
         request.set_header('Content-Length', str(len(jsonData)))
@@ -4364,7 +4364,7 @@ class SampleServerTests(unittest.TestCase):
             customer = collection['ALFKI']
         request = MockRequest("/service.svc/Orders(3)/$links/Customer", "PUT")
         doc = core.Document(root=core.URI)
-        doc.root.SetValue(str(customer.GetLocation()))
+        doc.root.SetValue(str(customer.get_location()))
         data = str(doc)
         request.set_header('Content-Type', "application/xml")
         request.set_header('Content-Length', str(len(data)))
@@ -4394,7 +4394,7 @@ class SampleServerTests(unittest.TestCase):
         with customers.OpenCollection() as collection:
             customer = collection['ALFKI']
         request = MockRequest("/service.svc/Orders(3)/$links/Customer", "PUT")
-        data = str(customer.LinkJSON())
+        data = str(customer.link_json())
         request.set_header('Content-Type', "application/json")
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
