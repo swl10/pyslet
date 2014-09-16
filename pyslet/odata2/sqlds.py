@@ -85,7 +85,7 @@ class SQLParams(object):
 
     """An abstract class used to build parameterized queries.
 
-    Python's DB API support three different conventions for specifying
+    Python's DB API supports three different conventions for specifying
     parameters and each module indicates the convention in use.  The SQL
     construction methods in this module abstract away this variability
     for maximum portability using different implementations of the basic
@@ -125,7 +125,7 @@ class NumericParams(SQLParams):
     """A class for building parameter lists using ':1', ':2',... syntax"""
 
     def __init__(self):
-        super(QMarkParams, self).__init__()
+        super(NumericParams, self).__init__()
         self.params = []
 
     def add_param(self, value):
@@ -139,10 +139,10 @@ class NamedParams(SQLParams):
 
     Although there is more freedom with named parameters, in order to
     support the ordered lists of the other formats we just invent
-    parameter names using ':p1', ':p2', etc."""
+    parameter names using ':p0', ':p1', etc."""
 
     def __init__(self):
-        super(QMarkParams, self).__init__()
+        super(NamedParams, self).__init__()
         self.params = {}
 
     def add_param(self, value):

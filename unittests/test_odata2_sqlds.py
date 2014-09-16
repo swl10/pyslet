@@ -3,6 +3,7 @@
 import unittest
 import logging
 import random
+import uuid
 import sqlite3
 
 import pyslet.odata2.csdl as edm
@@ -24,6 +25,7 @@ def suite():
     loader = unittest.TestLoader()
     loader.testMethodPrefix = 'test'
     return unittest.TestSuite((
+        loader.loadTestsFromTestCase(ParamTests),
         loader.loadTestsFromTestCase(ThreadTests),
         loader.loadTestsFromTestCase(SQLDSTests),
         loader.loadTestsFromTestCase(AutoFieldTests),
@@ -33,6 +35,43 @@ def suite():
 
 def load_tests(loader, tests, pattern):
     return suite()
+
+
+class ParamTests(unittest.TestCase):
+
+    def setUp(self):        # noqa
+        self.testparams = [uuid.UUID(int=0), 1, 2L, 3.141, '4', u"five", True,
+                           False, None]
+
+    def test_qmark(self):
+        params = QMarkParams()
+        query = []
+        for p in self.testparams:
+            query.append(params.add_param(p))
+        query = string.join(query, ' ')
+        self.assertTrue(query == '? ? ? ? ? ? ? ? ?')
+        self.assertTrue(params.params == self.testparams)
+
+    def test_numeric(self):
+        params = NumericParams()
+        query = []
+        for p in self.testparams:
+            query.append(params.add_param(p))
+        query = string.join(query, ' ')
+        self.assertTrue(query == ':1 :2 :3 :4 :5 :6 :7 :8 :9')
+        self.assertTrue(params.params == self.testparams)
+
+    def test_named(self):
+        params = NamedParams()
+        query = []
+        for p in self.testparams:
+            query.append(params.add_param(p))
+        query = string.join(query, ' ')
+        self.assertTrue(query == ':p0 :p1 :p2 :p3 :p4 :p5 :p6 :p7 :p8', query)
+        self.assertTrue(
+            params.params == dict(zip(['p0', 'p1', 'p2', 'p3', 'p4', 'p5',
+                                  'p6', 'p7', 'p8'], self.testparams)),
+            repr(params.params))
 
 
 class MockCursor(object):
