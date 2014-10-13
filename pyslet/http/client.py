@@ -11,6 +11,7 @@ import threading
 import io
 import errno
 import os
+import random
 
 import pyslet.info as info
 import pyslet.rfc2396 as uri
@@ -143,7 +144,13 @@ class Connection(object):
         self.response = None
         self.request_mode = self.REQ_READY
         # If we don't get a continue in 1 minute, send the data anyway
-        self.continue_waitmax = 60.0
+        if timeout is None:
+            self.continue_waitmax = 60.0
+        else:
+            # this rather odd simplification is based on a typical
+            # request timeout of 90s on a server corresponding to a wait
+            # of 15s for the 100 Continue response.
+            self.continue_waitmax = timeout / 6
         self.continue_waitstart = 0
         # a lock for our structures to help us go multi-threaded
         self.lock = threading.RLock()
@@ -153,6 +160,11 @@ class Connection(object):
         self.socket = None
         self.socket_file = None
         self.send_buffer = []
+        # the number of bytes buffered for sending
+        self.buffered_bytes = 0
+        #: The number of bytes sent to the server since the connection
+        #: was last established
+        self.sent_bytes = 0
         self.recv_buffer = []
         self.recv_buffer_size = 0
 
@@ -182,7 +194,7 @@ class Connection(object):
         to select and indicate whether the connection is waiting to read
         and/or write data.  Either or both may be None.  The third value
         indicates the desired maximum amount of time to wait before the next
-        call and is usually used only when the first two values are None.
+        call and is usually set to the connection's timeout.
 
         The connection object acts as a small buffer between the HTTP
         message itself and the server.  The implementation breaks down
@@ -209,17 +221,25 @@ class Connection(object):
         Although data is streamed in a non-blocking manner there are
         situations in which the method will block.  DNS name resolution
         and creation/closure of sockets may block."""
-        rbusy = False
-        wbusy = False
         while True:
+            rbusy = False
+            wbusy = False
+            tbusy = None
             self.last_active = time.time()
             if self.request_queue and self.request_mode == self.REQ_READY:
                 request = self.request_queue[0]
-                if (self.response is None or
-                        request.is_idempotent()):
-                    # only pipeline idempotent methods
-                    self.request_queue = self.request_queue[1:]
-                    self._start_request(request)
+                if (request.is_idempotent() or
+                    (self.response is None and
+                     not self.send_buffer)):
+                    # only pipeline idempotent methods, our pipelining
+                    # is strict for POST requests, wait for the
+                    # response, request and buffer to be finished.
+                    wait_time = request.retry_time - time.time()
+                    if wait_time <= 0:
+                        self.request_queue = self.request_queue[1:]
+                        self._start_request(request)
+                    elif tbusy is None or wait_time < tbusy:
+                        tbusy = wait_time
             if self.request or self.response:
                 if self.socket is None:
                     self.new_socket()
@@ -245,22 +265,38 @@ class Connection(object):
                     else:
                         continue
                 elif self.request_mode == self.REQ_BODY_WAITING:
-                    # empty buffer and we're waiting for a 100-continue (that
-                    # may never come)
+                    # empty buffer and we're waiting for a 100-continue
+                    # (that may never come)
                     if self.continue_waitstart:
-                        if (time.time() - self.continue_waitstart >
-                                self.continue_waitmax):
+                        logging.info("%s waiting for 100-Continue...",
+                                     self.host)
+                        wait_time = (self.continue_waitmax -
+                                     (time.time() - self.continue_waitstart))
+                        if (wait_time < 0):
                             logging.warn("%s timeout while waiting for "
-                                         "100-Continue response")
+                                         "100-Continue response",
+                                         self.host)
                             self.request_mode = self.REQ_BODY_SENDING
+                            # change of mode, restart the loop
+                            continue
+                        else:
+                            # we need to be called again in at most
+                            # wait_time seconds so we can give up
+                            # waiting for the 100 response
+                            if tbusy is None or tbusy > wait_time:
+                                tbusy = wait_time
                     else:
                         self.continue_waitstart = time.time()
+                        wait_time = self.continue_waitmax
+                        if tbusy is None or tbusy > wait_time:
+                            tbusy = wait_time
                 elif self.request_mode == self.REQ_BODY_SENDING:
                     # Buffer is empty, refill it from the request
                     data = self.request.send_body()
                     if data:
                         logging.debug("Sending to %s: \n%s", self.host, data)
                         self.send_buffer.append(data)
+                        self.buffered_bytes += len(data)
                         # Go around again to send the buffer
                         continue
                     elif data is None:
@@ -273,7 +309,7 @@ class Connection(object):
                         # associated respone that it is now waiting, but
                         # matching is hard when pipelining!
                         # self.response.StartWaiting()
-                        self.request.disconnect()
+                        self.request.disconnect(self.sent_bytes)
                         self.request = None
                         self.request_mode = self.REQ_READY
                 # This section deals with the response cycle, we only
@@ -316,6 +352,11 @@ class Connection(object):
                         # again
                         continue
                 break
+            elif self.request_queue:
+                # no request or response but we're waiting for a retry
+                rbusy = False
+                wbusy = False
+                break
             else:
                 # no request or response, we're idle
                 if self.request_mode == self.CLOSE_WAIT:
@@ -325,15 +366,23 @@ class Connection(object):
                 rbusy = False
                 wbusy = False
                 break
+        if (rbusy or wbusy) and (tbusy is None or tbusy > self.timeout):
+            # waiting for i/o, make sure the timeout is capped
+            tbusy = self.timeout
         if rbusy:
             rbusy = self.socket_file
         if wbusy:
             wbusy = self.socket_file
-        return rbusy, wbusy
+        logging.debug("connection_task returning %s, %s, %s",
+                      repr(rbusy), repr(wbusy), str(tbusy))
+        if not rbusy and not wbusy and tbusy is not None and tbusy > 50:
+            import pdb
+            pdb.set_trace()
+        return rbusy, wbusy, tbusy
 
     def request_disconnect(self):
         """Disconnects the connection, aborting the current request."""
-        self.request.disconnect()
+        self.request.disconnect(self.sent_bytes)
         self.request = None
         if self.response:
             self.send_buffer = []
@@ -369,7 +418,7 @@ class Connection(object):
         else:
             logging.debug("%s: closing connection", self.host)
         if self.request:
-            self.request.disconnect()
+            self.request.disconnect(self.sent_bytes)
             self.request = None
             self.request_mode = self.CLOSE_WAIT
         resend = True
@@ -386,6 +435,7 @@ class Connection(object):
                 # terminated by an error or before we read the response
                 if response.request.can_retry():
                     # resend this request
+                    logging.warn("retrying %s", response.request.get_start())
                     self.queue_request(response.request)
                     continue
                 else:
@@ -398,6 +448,8 @@ class Connection(object):
                 if olds is not None:
                     self._close_socket(olds)
         self.send_buffer = []
+        self.buffered_bytes = 0
+        self.sent_bytes = 0
         self.recv_buffer = []
         self.recv_buffer_size = 0
         self.request_mode = self.REQ_READY
@@ -427,7 +479,7 @@ class Connection(object):
                         "Connection.kill forcing socket shutdown for %s",
                         self.host)
                     self.socket.shutdown(socket.SHUT_RDWR)
-                except socket.error:
+                except IOError:
                     # ignore errors, most likely the server has stopped
                     # listening
                     pass
@@ -437,11 +489,12 @@ class Connection(object):
         # Starts processing the request.  Returns True if the request
         # has been accepted for processing, False otherwise.
         self.request = request
-        self.request.set_connection(self)
+        self.request.connect(self, self.buffered_bytes)
         self.request.start_sending(self.protocol)
         headers = self.request.send_start() + self.request.send_header()
         logging.debug("Sending to %s: \n%s", self.host, headers)
         self.send_buffer.append(headers)
+        self.buffered_bytes += len(headers)
         # Now check to see if we have an expect header set
         if self.request.get_expect_continue():
             self.request_mode = self.REQ_BODY_WAITING
@@ -466,6 +519,7 @@ class Connection(object):
         if data:
             try:
                 nbytes = self.socket.send(data)
+                self.sent_bytes += nbytes
                 self.last_rw = time.time()
             except ssl.SSLError as err:
                 if err.args[0] == ssl.SSL_ERROR_WANT_READ:
@@ -478,13 +532,13 @@ class Connection(object):
                     # we're going to swallow this error, log it
                     logging.error("socket.recv raised %s", str(err))
                     data = None
-            except socket.error as err:
+            except IOError as err:
                 if err.errno == errno.EAGAIN:
                     # we're blocked on send
                     return (False, True)
                 # stop everything
                 self.close(err)
-                return
+                return (False, False)
             if nbytes == 0:
                 # We can't send any more data to the socket
                 # The other side has closed the connection
@@ -493,7 +547,7 @@ class Connection(object):
                 # will be handled more seriously.  However,
                 # we do change to a mode that prevents future
                 # requests!
-                self.request.disconnect()
+                self.request.disconnect(self.sent_bytes)
                 self.request = None
                 self.request_mode == self.CLOSE_WAIT
                 self.send_buffer = []
@@ -504,7 +558,7 @@ class Connection(object):
                 del self.send_buffer[0]
         else:
             # shouldn't get empty strings in the buffer but if we do, delete
-            # them
+            # them, no change to the buffer size!
             del self.send_buffer[0]
         return (False, False)
 
@@ -527,7 +581,7 @@ class Connection(object):
                 # we're going to swallow this error, log it
                 logging.error("socket.recv raised %s", str(err))
                 data = None
-        except socket.error as err:
+        except IOError as err:
             if err.errno == errno.EAGAIN:
                 # we're blocked on recv
                 return (False, True, False)
@@ -674,7 +728,7 @@ class Connection(object):
                 try:
                     snew = socket.socket(family, socktype, protocol)
                     snew.connect(address)
-                except socket.error:
+                except IOError:
                     if snew:
                         snew.close()
                         snew = None
@@ -703,12 +757,12 @@ class Connection(object):
     def _close_socket(self, s):
         try:
             s.shutdown(socket.SHUT_RDWR)
-        except socket.error:
+        except IOError:
             # ignore errors, most likely the server has stopped listening
             pass
         try:
             s.close()
-        except socket.error:
+        except IOError:
             pass
 
 
@@ -735,7 +789,7 @@ class SecureConnection(Connection):
                     logging.info(
                         "Connected to %s with %s, %s, key length %i",
                         self.host, *self.socket.cipher())
-        except socket.error:
+        except IOError:
             raise messages.HTTPException(
                 "failed to build secure connection to %s" % self.host)
 
@@ -1020,9 +1074,14 @@ class Client(PEP8Compatibility, object):
             return False
         readers = []
         writers = []
+        wait_time = None
         for c in connections:
             try:
-                r, w = c.connection_task()
+                r, w, tmax = c.connection_task()
+                if wait_time is None or (tmax is not None and
+                                         wait_time > tmax):
+                    # shorten the timeout
+                    wait_time = tmax
                 if r:
                     readers.append(r)
                 if w:
@@ -1030,14 +1089,22 @@ class Client(PEP8Compatibility, object):
             except Exception as err:
                 c.close(err)
                 pass
-        if (timeout is None or timeout > 0) and (readers or writers):
+        if readers or writers:
+            if timeout is not None:
+                if wait_time is not None:
+                    if timeout < wait_time:
+                        wait_time = timeout
             try:
                 logging.debug("thread_task waiting for select: "
-                              "readers=%s, writers=%s, timeout=%i",
+                              "readers=%s, writers=%s, timeout=%f",
                               repr(readers), repr(writers), timeout)
-                r, w, e = self.socketSelect(readers, writers, [], timeout)
+                r, w, e = self.socketSelect(readers, writers, [], wait_time)
             except select.error, err:
                 logging.error("Socket error from select: %s", str(err))
+        elif wait_time is not None:
+            # not waiting for i/o, let time pass
+            logging.debug("thread_task waiting to retry: %f", wait_time)
+            time.sleep(wait_time)
         return True
 
     def thread_loop(self, timeout=60):
@@ -1234,20 +1301,22 @@ class ClientRequest(messages.Request):
     max_retries
         The maximum number of times to attempt to resend the request
         following an error on the connection or an unexpected hang-up.
-        Defaults to 3, you should not use a value lower than 1 because
-        it is always possible that the server has gracefully closed the
-        socket and we don't notice until we've sent the request and get
-        0 bytes back on recv.  Although 'normal' this scenario counts as
-        a retry."""
+        Defaults to 3, you should not use a value lower than 1 because,
+        when pipelining, it is always possible that the server has
+        gracefully closed the socket and we won't notice until we've
+        sent the request and get 0 bytes back on recv.  Although
+        'normal' this scenario counts as a retry."""
 
     def __init__(self, url, method="GET", res_body=None,
                  protocol=params.HTTP_1p1, auto_redirect=True,
-                 max_retries=3, **kwargs):
+                 max_retries=3, min_retry_time=5, **kwargs):
         super(ClientRequest, self).__init__(**kwargs)
         #: the :py:class:`Client` object that is managing us
         self.manager = None
         #: the :py:class:`Connection` object that is currently sending us
         self.connection = None
+        # private member used to determine if we've been sent
+        self._send_pos = 0
         #: the status code received, 0 indicates a failed or unsent request
         self.status = 0
         #: If status == 0, the error raised during processing
@@ -1282,6 +1351,9 @@ class ClientRequest(messages.Request):
         self.max_retries = max_retries
         #: the number of retries we've had
         self.nretries = 0
+        self.retry_time = 0
+        self._rt1 = 0
+        self._rt2 = min_retry_time
         #: the associated :py:class:`ClientResponse`
         self.response = ClientResponse(request=self)
         # the credentials we're using in this request, this attribute is
@@ -1339,16 +1411,12 @@ class ClientRequest(messages.Request):
                 raise messages.HTTPException("No host in request URL")
 
     def can_retry(self):
-        """Called after each connection-related failure
-
-        For idempotent methods we lose a life and check that it's not
-        game over.  For non-idempotent methods (e.g., POST) we always
-        return False."""
-        if self.is_idempotent():
-            self.nretries += 1
-            return self.nretries <= self.max_retries
-        else:
+        """Returns True if we reconnect and retry this request"""
+        if self.nretries > self.max_retries:
+            logging.error("%s retry limit exceeded", self.get_start())
             return False
+        else:
+            return True
 
     def resend(self, url=None):
         logging.info("Resending request to: %s", str(url))
@@ -1365,15 +1433,43 @@ class ClientRequest(messages.Request):
             an :py:class:`Client` instance"""
         self.manager = client
 
-    def set_connection(self, connection):
-        """Called when we are assigned to an HTTPConnection"""
-        self.connection = connection
+    def connect(self, connection, send_pos):
+        """Called when we are assigned to an HTTPConnection"
 
-    def disconnect(self):
+        connection
+            A :py:class:`Connection` object
+
+        send_pos
+            The position of the sent bytes pointer after which this
+            request has been (or at least has started to be) sent."""
+        self.connection = connection
+        self._send_pos = send_pos
+
+    def disconnect(self, send_pos):
         """Called when the connection has finished sending us
 
         This may be before or after the response is received and
-        handled!"""
+        handled!
+
+        send_pos
+            The number of bytes sent on this connection before the
+            disconnect.  This value is compared with the value passed to
+            :py:meth:`connect` to determine if the request was actually
+            sent to the server or abandoned without a byte being sent.
+
+            For idempotent methods we lose a life every time.  For
+            non-idempotent methods (e.g., POST) we do the same except
+            that if we been (at least partially) sent then we lose all
+            lives to prevent "indeterminate results"."""
+        self.nretries += 1
+        if self.is_idempotent() or send_pos <= self._send_pos:
+            self.retry_time = (time.time() +
+                               self._rt1 * (5 - 2 * random.random()) / 4)
+            rtnext = self._rt1 + self._rt2
+            self._rt2 = self._rt1
+            self._rt1 = rtnext
+        else:
+            self.max_retries = 0
         self.connection = None
         if self.status > 0:
             # The response has finished

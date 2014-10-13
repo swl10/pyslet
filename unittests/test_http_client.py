@@ -8,8 +8,9 @@ from StringIO import StringIO
 
 import pyslet.http.messages as messages
 import pyslet.http.server as server
-from test_http_server import MockSocketBase
+from test_http_server import MockSocketBase, MockTime
 
+import pyslet.http.client as http
 from pyslet.http.client import *       # noqa
 
 
@@ -25,6 +26,7 @@ def suite():
     return unittest.TestSuite((
         unittest.makeSuite(ClientTests, 'test'),
         unittest.makeSuite(LegacyServerTests, 'test'),
+        unittest.makeSuite(ClientRequestTests, 'test'),
         # unittest.makeSuite(SecureTests, 'test')
     ))
 
@@ -53,7 +55,7 @@ class MockSocket(MockSocketBase):
                 mode = request.recv_mode()
                 if mode == messages.Message.RECV_LINE:
                     line = self.send_pipe.readmatch()
-                    if line is '':
+                    if line == '':
                         if request.method is None:
                             # EOF, no more requests
                             return None
@@ -73,9 +75,20 @@ class MockSocket(MockSocketBase):
                 elif mode is None:
                     break
                 elif mode > 0:
-                    request.recv(self.send_pipe.read(mode))
+                    data = self.send_pipe.read(mode)
+                    if data == '':
+                        # EOF, unexpected
+                        raise messages.HTTPException(
+                            "Unexpected EOF in mock socket")
+                    else:
+                        request.recv(data)
                 elif mode == messages.Message.RECV_ALL:
-                    request.recv(self.send_pipe.read())
+                    data = self.send_pipe.read()
+                    if data == '':
+                        # EOF, expected
+                        break
+                    else:
+                        request.recv(data)
                 else:
                     raise ValueError("unexpected recv_mode!")
         except IOError as e:
@@ -132,12 +145,56 @@ class MockClientWrapper(Client):
         self.mock_server = mock_server
 
 
+class ClientRequestTests(unittest.TestCase):
+
+    def setUp(self):        # noqa
+        global time
+        self.save_time = http.time
+        http.time = MockTime
+
+    def tearDown(self):     # noqa
+        global time
+        http.time = self.save_time
+        MockTime.now = time.time()
+
+    def test_retries(self):
+        request = ClientRequest("http://www.domain1.com/", max_retries=10,
+                                min_retry_time=4)
+        self.assertTrue(request.max_retries == 10)
+        self.assertTrue(request.nretries == 0)
+        self.assertTrue(request.retry_time == 0)
+        MockTime.now = 10.0
+        ranges = [
+            (10.0, 10.0),   # 10+0 +-0
+            (13.0, 15.0),   # 10+4 +-1
+            (13.0, 15.0),   # 10+4 +-1
+            (16.0, 20.0),   # 10+8 +-2
+            (19.0, 25.0),   # 10+12 +-3
+            (25.0, 35.0),   # 10+20 +-5
+            (34.0, 50.0),   # 10+32 +-8
+            (49.0, 75.0),   # 10+52 +-13
+            (73.0, 115.0),  # 10+84 +-21
+            (112.0, 180.0)]  # 10+136 +-34
+        for i in xrange(10):
+            # simulate a failed send
+            request.connect(None, 0)
+            request.disconnect(1)
+            self.assertTrue(request.can_retry(), "retry %ith time" % i)
+            self.assertTrue(request.retry_time >= ranges[i][0],
+                            "%f too small in pair %i" %
+                            (request.retry_time, i))
+            self.assertTrue(request.retry_time <= ranges[i][1],
+                            "%f too large in pair %i" %
+                            (request.retry_time, i))
+
+
 class ClientTests(unittest.TestCase):
 
     def setUp(self):        # noqa
         self.client = MockClientWrapper(self.run_manager, max_connections=3)
         self.client.httpUserAgent = None
         self.unreliable = True
+        self.error_count = 2
 
     def tearDown(self):     # noqa
         self.client.close()
@@ -163,6 +220,7 @@ class ClientTests(unittest.TestCase):
                 response = messages.Response(req, entity_body=TEST_STRING)
                 response.set_status(200, "You got it!")
             elif req.method == "HEAD":
+                response = messages.Response(req)
                 response.set_content_length(len(TEST_STRING))
                 response.set_status(200, "You got it!")
             elif req.method == "PUT":
@@ -195,19 +253,24 @@ class ClientTests(unittest.TestCase):
 
     def run_domain5(self, sock):
         while True:
+            req = sock.recv_request()
+            if req is None:
+                break
             if self.unreliable:
                 self.unreliable = False
                 # shutdown the socket
-                logging.debug("Server hang-up before reading request")
+                logging.debug("Server hang-up after reading request")
                 sock.mock_shutdown(socket.SHUT_RDWR)
-                break
-            req = sock.recv_request()
-            if req is None:
                 break
             if req.method == "GET":
                 response = messages.Response(req, entity_body=TEST_STRING)
                 response.set_status(200, "Thanks for your patience")
             elif req.method == "HEAD":
+                response = messages.Response(req)
+                response.set_content_length(len(TEST_STRING))
+                response.set_status(200, "Thanks for your patience")
+            elif req.method == "POST":
+                response = messages.Response(req, entity_body=TEST_STRING)
                 response.set_content_length(len(TEST_STRING))
                 response.set_status(200, "Thanks for your patience")
             else:
@@ -219,6 +282,56 @@ class ClientTests(unittest.TestCase):
         while True:
             # shutdown the socket
             logging.debug("Server hang-up before reading request")
+            sock.mock_shutdown(socket.SHUT_RDWR)
+            break
+
+    def run_domain7(self, sock):
+        while True:
+            if self.error_count > 1:
+                # generate an error on the socket for the client
+                sock.io_error = socket.error(errno.ENOLINK,
+                                             os.strerror(errno.ENOLINK))
+                self.error_count -= 1
+                break
+            elif self.error_count:
+                req = sock.recv_request()
+                if req is None:
+                    break
+                sock.io_error = socket.error(errno.ENOLINK,
+                                             os.strerror(errno.ENOLINK))
+                self.error_count -= 1
+                sock.close()
+                break
+            else:
+                req = sock.recv_request()
+                if req is None:
+                    break
+                response = messages.Response(req, entity_body=TEST_STRING)
+                response.set_status(200, "Thanks for your patience")
+            sock.send_response(response)
+
+    def run_domain8(self, sock):
+        while True:
+            # simulates a server with a short fuse, shuts down
+            # the socket after a single request
+            req = sock.recv_request()
+            if req is None:
+                break
+            if req.method == "GET":
+                response = messages.Response(req, entity_body=TEST_STRING)
+                response.set_status(200, "Success")
+            elif req.method == "HEAD":
+                response = messages.Response(req)
+                response.set_content_length(len(TEST_STRING))
+                response.set_status(200, "Success")
+            elif req.method == "POST":
+                response = messages.Response(req)
+                response.set_status(200, "Success")
+            else:
+                response = messages.Response(req)
+                response.set_status(400, "Test failed for domain8")
+            sock.send_response(response)
+            logging.debug("Server hang-up after 0s idle time")
             sock.mock_shutdown(socket.SHUT_RDWR)
             break
 
@@ -238,6 +351,10 @@ class ClientTests(unittest.TestCase):
             self.run_domain5(sock)
         elif host == "www.domain6.com" and port == 80:
             self.run_domain6(sock)
+        elif host == "www.domain7.com" and port == 80:
+            self.run_domain7(sock)
+        elif host == "www.domain8.com" and port == 80:
+            self.run_domain8(sock)
         else:
             # connection error
             raise ValueError("run_manager: bad host in connect")
@@ -280,18 +397,25 @@ class ClientTests(unittest.TestCase):
                         "Data in response2: %s" % request2.res_body)
 
     def test_continue(self):
+        """RFC2616:
+
+            If a client will wait for a 100 (Continue) response before
+            sending the request body, it MUST send an Expect
+            request-header field with the "100-continue" expectation."""
         request1 = ClientRequest(
-            "http://www.domain1.com/file", "PUT",
+            "http://www.domain1.com/file", method="PUT",
             entity_body=TEST_BODY)
         self.assertTrue(request1.method == "PUT")
         request2 = ClientRequest(
-            "http://www.domain1.com/file2", "PUT",
+            "http://www.domain1.com/file2", method="PUT",
             entity_body=TEST_BODY)
         request2.set_expect_continue()
         self.client.queue_request(request1)
+        self.assertTrue(request1.get_header('Expect') is None)
         self.client.queue_request(request2)
-        # thread_loop will process the queue until it blocks for more than the
-        # timeout (default, forever)
+        self.assertTrue(request2.get_header('Expect') == "100-continue")
+        # thread_loop will process the queue until it blocks for more
+        # than the timeout (default, forever)
         self.client.thread_loop(timeout=5)
         response1 = request1.response
         self.assertTrue(
@@ -426,11 +550,50 @@ class ClientTests(unittest.TestCase):
         self.assertTrue(
             response.entity_body.getvalue() == TEST_STRING,
             "Body in response: %i" % response.status)
-        request = ClientRequest("http://www.domain6.com/unreliable")
+        request = ClientRequest("http://www.domain6.com/unreliable",
+                                min_retry_time=0.1)
         # this request will always fail with a broken server
         self.client.process_request(request)
         response = request.response
         self.assertTrue(response.status is None, "No response")
+
+    def test_async_close2(self):
+        """RFC2616:
+
+            Non-idempotent methods or sequences MUST NOT be
+            automatically retried."""
+        request = ClientRequest("http://www.domain5.com/unreliable",
+                                method="POST", entity_body="Hello")
+        # this request will timeout the first time before any data
+        # has been sent to the client, it should retry and fail!
+        self.client.process_request(request)
+        response = request.response
+        self.assertTrue(response.status is None, "No response")
+
+    def test_async_error(self):
+        request = ClientRequest("http://www.domain7.com/", min_retry_time=0.1)
+        self.client.process_request(request)
+        response = request.response
+        self.assertTrue(response.status == 200)
+        self.client.idle_cleanup(0)
+
+    def test_post_after_shutdown(self):
+        request = ClientRequest("http://www.domain8.com/",
+                                method="POST", entity_body="Hello")
+        self.client.process_request(request)
+        response = request.response
+        self.assertTrue(response.status == 200)
+        # the remote end has shut down the socket, but without telling
+        # us so we'll get an error here.  We should be able to detect
+        # that the error happens before we send the request and so
+        # re-establish the connection.  A fail is likely though because
+        # the method is POST which we won't resend if the data was
+        # partially sent.
+        request = ClientRequest("http://www.domain8.com/",
+                                method="POST", entity_body="Hello")
+        self.client.process_request(request)
+        response = request.response
+        self.assertTrue(response.status == 200)
 
     def test_kill(self):
         threads = []
@@ -509,7 +672,6 @@ class LegacyServerTests(unittest.TestCase):
             requests containing a message-body MUST include a valid
             Content-Length header field unless the server is known to be
             HTTP/1.1 compliant"""
-        # TODO
         t = threading.Thread(target=self.run_legacy, args=(2,))
         t.start()
         request = ClientRequest("http://localhost:%i/nochunked" % self.port)
@@ -536,6 +698,26 @@ class LegacyServerTests(unittest.TestCase):
         self.client.process_request(request)
         self.assertTrue(request.response.status == 204)
         self.assertFalse(request.response.keep_alive)
+
+    def test_nochunked2(self):
+        """RFC2616:
+
+            when a client sends this header field to an origin server
+            (possibly via a proxy) from which it has never seen a 100
+            (Continue) status, the client SHOULD NOT wait for an
+            indefinite period before sending the request body."""
+        t = threading.Thread(target=self.run_legacy, args=(1,))
+        t.start()
+        data = "How long is a piece of string?"
+        request = ClientRequest("http://localhost:%i/nochunked" % self.port,
+                                "PUT", entity_body=data)
+        # we don't know that the server is 1.0, let's clip the timeout
+        # on the wait for 100-Continue, 6s on the client is about right,
+        # will translate to 1s on the wait for continue timeout
+        self.client.timeout = 6.0
+        request.set_expect_continue()
+        self.client.process_request(request)
+        self.assertTrue(request.response.status == 204)
 
 
 class SecureTests(unittest.TestCase):

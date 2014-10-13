@@ -8,6 +8,7 @@ import SocketServer
 import random
 import select
 
+import pyslet.rfc5023 as app
 from pyslet.http.server import *       # noqa
 
 
@@ -16,6 +17,25 @@ def suite():
         unittest.makeSuite(ServerTests, 'test'),
         unittest.makeSuite(PipeTests, 'test'),
     ))
+
+
+TEST_BODY = "The quick brown fox jumped over the lazy dog."
+
+
+class MockTime:
+    now = time.time()
+
+    @classmethod
+    def time(cls):
+        return cls.now
+
+    @classmethod
+    def gmtime(cls, *args):
+        return time.gmtime(*args)
+
+    @classmethod
+    def localtime(cls, *args):
+        return time.localtime(*args)
 
 
 class MockSocketBase(object):
@@ -32,6 +52,7 @@ class MockSocketBase(object):
         self.recv_pipe = Pipe(timeout=10, name="MockSocket.recv[%i]" % self.id)
         self.send_rbuffer = io.BufferedReader(self.send_pipe)
         self.recv_wbuffer = io.BufferedWriter(self.recv_pipe)
+        self.io_error = None
 
     pass_select = select.select
 
@@ -94,12 +115,24 @@ class MockSocketBase(object):
         self.send_pipe.set_writeblocking(blocking)
 
     def recv(self, nbytes):
-        return self.recv_pipe.read(nbytes)
+        if self.io_error:
+            raise self.io_error
+        result = self.recv_pipe.read(nbytes)
+        if self.io_error:
+            raise self.io_error
+        return result
 
     def send(self, data):
-        return self.send_pipe.write(data)
+        if self.io_error:
+            raise self.io_error
+        result = self.send_pipe.write(data)
+        if self.io_error:
+            raise self.io_error
+        return result
 
     def shutdown(self, how):
+        if self.io_error:
+            raise self.io_error
         if how in (socket.SHUT_RD, socket.SHUT_RDWR):
             # don't want any more data
             self.recv_pipe.write_eof()
@@ -110,6 +143,8 @@ class MockSocketBase(object):
             # but wait for the client to finish reading
             self.send_pipe.set_writeblocking(True)
             self.send_rbuffer.flush()
+        if self.io_error:
+            raise self.io_error
 
     def mock_shutdown(self, how):
         if how in (socket.SHUT_WR, socket.SHUT_RDWR):
@@ -140,12 +175,19 @@ class MockSocket(MockSocketBase):
         self.recv_pipe.write(request.send_start())
         self.recv_pipe.write(request.send_header())
         while True:
+            if request.get_expect_continue():
+                # don't send the body if we're expecting continue
+                break
             data = request.send_body()
             if data:
                 self.recv_pipe.write(data)
             else:
                 break
         # now to receive the data
+        response = self.receive_response(request)
+        return response
+
+    def receive_response(self, request):
         response = messages.Response(request)
         response.start_receiving()
         while True:
@@ -335,6 +377,10 @@ class ServerTests(unittest.TestCase):
         pass
 
     def test_emptylines(self):
+        """RFC 2616:
+
+            In the interest of robustness, servers SHOULD ignore any
+            empty line(s) received where a Request-Line is expected."""
         s = Server(port=self.port)
         sock = MockSocket()
         t = threading.Thread(target=self.run_request, args=(s, sock))
@@ -427,6 +473,105 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(response.status == 400)
         sock.mock_shutdown(socket.SHUT_RDWR)
         sock.close()
+        t.join()
+
+    def continue_app(self, environ, start_response):
+        path = environ.get('PATH_INFO', None)
+        if path == "/wait":
+            input = app.InputWrapper(environ)
+            # read and discard all the data
+            input.read()
+            start_response("200 Success", [])
+        elif path == "/nowait200":
+            # don't wait, don't read the input
+            start_response("200 Success", [])
+        else:
+            # don't wait, don't read the input
+            start_response("404 Not Found", [])
+        return []
+
+    def test_continue(self):
+        """RFC2616:
+
+            Upon receiving a request which includes an Expect
+            request-header field with the "100-continue" expectation, an
+            origin server MUST either respond with 100 (Continue) status
+            and continue to read from the input stream, or respond with
+            a final status code.
+
+            The origin server MUST NOT wait for the request body before
+            sending the 100 (Continue) response.
+
+            It MUST NOT perform the requested method if it returns a
+            final status code.
+
+            An origin server that sends a 100 (Continue) response MUST
+            ultimately send a final status code"""
+        s = Server(port=self.port, app=self.continue_app)
+        sock = MockSocket()
+        t = threading.Thread(target=self.run_request, args=(s, sock))
+        t.start()
+        request = messages.Request(entity_body=TEST_BODY)
+        request.set_method("POST")
+        request.set_request_uri("http://localhost:%i/wait" % self.port)
+        request.set_expect_continue()
+        response = sock.send_request(request)
+        self.assertTrue(response.status == 100)
+        sock.recv_pipe.write(request.send_body())
+        response = sock.receive_response(request)
+        self.assertTrue(response.status == 200)
+        self.assertTrue(response.keep_alive)
+        # next test, check that an app that doesn't read data still
+        # generates a 100 continue and still reads the data
+        request = messages.Request(entity_body=TEST_BODY)
+        request.set_method("POST")
+        request.set_request_uri("http://localhost:%i/nowait200" % self.port)
+        request.set_expect_continue()
+        response = sock.send_request(request)
+        self.assertTrue(response.status == 100)
+        self.assertTrue(response.keep_alive)
+        response = sock.receive_response(request)
+        self.assertTrue(response.status == 200)
+        self.assertTrue(response.keep_alive)
+        # and now, finally, we should still be able to write the rest of
+        # the data
+        sock.recv_pipe.write(request.send_body())
+        # and the connection should stay up for the next request...
+        request = messages.Request(entity_body=TEST_BODY)
+        request.set_method("POST")
+        request.set_request_uri("http://localhost:%i/nowait404" % self.port)
+        request.set_expect_continue()
+        response = sock.send_request(request)
+        self.assertTrue(response.status == 404)
+        self.assertFalse(response.keep_alive)
+        sock.mock_shutdown(socket.SHUT_RDWR)
+        sock.close()
+        t.join()
+
+    def test_continue10(self):
+        """RFC2616:
+
+            An origin server ... MUST NOT send a 100 (Continue) response
+            if such a request comes from an HTTP/1.0 (or earlier)
+            client.
+
+        If a 1.0 client sends an Expect: 100-Continue we assume that the
+        first rule trumps and you will get a 100 response after all."""
+        s = Server(port=self.port, app=self.continue_app)
+        sock = MockSocket()
+        t = threading.Thread(target=self.run_request, args=(s, sock))
+        t.start()
+        request = messages.Request(entity_body=TEST_BODY,
+                                   protocol=params.HTTP_1p0)
+        request.set_method("POST")
+        request.set_request_uri("http://localhost:%i/wait" % self.port)
+        request.set_expect_continue()
+        response = sock.send_request(request)
+        self.assertTrue(response.status == 100)
+        sock.recv_pipe.write(request.send_body())
+        response = sock.receive_response(request)
+        self.assertTrue(response.status == 200)
+        self.assertTrue(response.keep_alive)
 
 
 class Legacy(unittest.TestCase):
@@ -567,6 +712,29 @@ class PipeTests(unittest.TestCase):
         time.sleep(1)
         logging.debug("rallrunner: calling readall")
         p.readall()
+
+    def test_rdetect(self):
+        p = Pipe(timeout=15, bsize=10)
+        rflag = threading.Event()
+        # set a read event
+        p.set_rflag(rflag)
+        self.assertFalse(rflag.is_set())
+        t = threading.Thread(target=self.rrunner, args=(p,))
+        t.start()
+        # the runner will issue a read call, should trigger the event
+        rflag.wait(5.0)
+        self.assertTrue(rflag.is_set())
+        # write 10 bytes, thread should terminate
+        p.write("1234567890")
+        t.join()
+        # one byte read, write another byte
+        p.write("A")
+        # buffer should now be full at this point...
+        self.assertFalse(p.canwrite())
+        self.assertFalse(rflag.is_set())
+        # the next call to read should set the flag again
+        p.read(1)
+        self.assertTrue(rflag.is_set())
 
     def test_wblocking(self):
         p = Pipe(timeout=15, bsize=10)

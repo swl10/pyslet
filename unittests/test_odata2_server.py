@@ -33,6 +33,7 @@ import pyslet.iso8601 as iso
 import pyslet.odata2.csdl as edm
 
 from pyslet.odata2.server import *
+from test_http_server import MockTime
 
 HTTP_PORT = random.randint(1111, 9999)
 
@@ -180,21 +181,6 @@ def load_tests(loader, tests, pattern):
     return suite('test')
     # return suite('tes')
 
-
-class MockTime:
-    now = time.time()
-
-    @classmethod
-    def time(cls):
-        return cls.now
-
-    @classmethod
-    def gmtime(cls, *args):
-        return time.gmtime(*args)
-
-    @classmethod
-    def localtime(cls, *args):
-        return time.localtime(*args)
 
 iso.pytime = MockTime
 

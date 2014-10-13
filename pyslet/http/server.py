@@ -30,6 +30,38 @@ MAX_HEADER_LINE = 8190
 MAX_HEADER_SIZE = 2 * MAX_HEADER_LINE
 
 
+class UnresponsiveScript(messages.HTTPException):
+    pass
+
+
+def cascading_wait(timeout, *events):
+    wait_event = threading.Event()
+    for e in events:
+        e.cascade_to(wait_event)
+    wait_event.wait(timeout)
+
+
+class CascadingEvent(threading._Event):
+
+    def __init__(self):
+        super(CascadingEvent, self).__init__()
+        self.cascade = None
+
+    def cascade_to(self, e):
+        """Instructs this event to cascade to e"""
+        self.cascade = e
+        # at this point, set will cascade, but if we
+        # were set before we need to cascade now
+        if self.is_set():
+            e.set()
+
+    def set(self):
+        super(CascadingEvent, self).set()
+        e = self.cascade
+        if e is not None:
+            e.set()
+
+
 def split_socket(s, buffstr='', timeout=None,
                  maxline=MAX_HEADER_LINE,
                  maxlines=MAX_HEADER_SIZE):
@@ -172,7 +204,7 @@ def read_socket(s, nbytes, timeout=None):
     try:
         data = s.recv(nbytes)
         # if data is empty the other end has hung up
-        if data is '' and nbytes > 0:
+        if data == '' and nbytes > 0:
             return None
         return data
     except socket.error:
@@ -244,17 +276,51 @@ class Connection(SocketServer.BaseRequestHandler):
             while not self.finished.is_set():
                 logging.debug("handle_request: reading request...")
                 request = ServerRequest(self)
-                # and loop to start reading the request
+                rflag = CascadingEvent()
+                request.recv_pipe.set_rflag(rflag)
                 request.start_receiving()
                 buffstr = ''
                 timeout = self.server.idle_timeout
+                send_continue = False
+                send_continue_start = 0
                 try:
                     while True:
                         mode = request.recv_mode()
+                        if mode is None or request.aborted.is_set():
+                            # the request is complete, simulate EOF on
+                            # the recv_pipe to ensure that any read()
+                            # call in the application terminates and
+                            # doesn't just hang
+                            logging.debug("%s : request complete",
+                                          request.get_start())
+                            request.recv_pipe.write_eof()
+                            break
+                        if send_continue:
+                            if not rflag.is_set():
+                                twait = (self.server.app_timeout -
+                                         (time.time() - send_continue_start))
+                                if twait < 0:
+                                    # application timeout
+                                    raise UnresponsiveScript(
+                                        "timed out waiting to consume "
+                                        "input data")
+                                else:
+                                    # wait for a reader before continuing
+                                    cascading_wait(
+                                        twait, rflag, request.aborted)
+                                    continue
+                            else:
+                                # script is read blocked, send 100-Continue
+                                request.response.send_continue.set()
+                            send_continue = False
                         if mode == request.RECV_HEADERS:
                             headers, buffstr = split_socket(
                                 self.request, buffstr, timeout=timeout)
                             request.recv(headers)
+                            # at this point we should have a response
+                            if request.get_expect_continue():
+                                send_continue = True
+                                send_continue_start = time.time()
                         elif mode == request.RECV_LINE:
                             # we need to read a line from the input stream
                             line, buffstr = split_socket1(
@@ -270,14 +336,6 @@ class Connection(SocketServer.BaseRequestHandler):
                                     break
                             else:
                                 request.recv(line)
-                        elif mode is None:
-                            # the request is complete, simulate EOF on
-                            # the recv_pipe to ensure that read()
-                            # terminates later should we need to call it
-                            logging.debug("%s : request complete",
-                                          request.get_start())
-                            request.recv_pipe.write_eof()
-                            break
                         elif mode > 0:
                             # we need to read some data from the socket
                             if len(buffstr) > mode:
@@ -291,6 +349,11 @@ class Connection(SocketServer.BaseRequestHandler):
                                 # read some data from the socket
                                 data = read_socket(self.request, mode,
                                                    timeout=timeout)
+                                if data is None:
+                                    # client hang up when we expected
+                                    # more data
+                                    raise ProtocolError(
+                                        "Unexpected EOM in data")
                                 request.recv(data)
                         elif mode == request.RECV_ALL:
                             # unlimited read from the socket
@@ -305,14 +368,27 @@ class Connection(SocketServer.BaseRequestHandler):
                                 if not data:
                                     self.finished.set()
                         elif mode == 0:
-                            # the request is write blocked, wait for the
-                            # response's recv_pipe to be ready, this
-                            # allows us to use a longer timeout while
-                            # waiting for a slow script if desired
-                            logging.debug("handle_request: recv_pipe blocked, "
-                                          "waiting for app")
-                            request.recv_pipe.flush_wait(
-                                timeout=self.server.app_timeout)
+                            # the request is write blocked, it doesn't
+                            # want any data, it just wants time to
+                            # digest what it has already.  Typically we
+                            # get here when a POST or similar method is
+                            # waiting for the script to read the last
+                            # bit of the data.  It makes sense to wait
+                            # for the script to finish processing which
+                            # means waiting for a read on the recv_pipe
+                            if rflag.is_set():
+                                rflag.clear()
+                                # next time around we'll wait for it
+                            else:
+                                logging.debug(
+                                    "handle_request: recv_pipe blocked, "
+                                    "waiting for app")
+                                cascading_wait(self.server.app_timeout,
+                                               rflag, request.aborted)
+                                if not rflag.is_set():
+                                    raise UnresponsiveScript(
+                                        "timed out waiting for app to consume "
+                                        "input data")
                             # give time to the message
                             request.recv(None)
                             pass
@@ -368,13 +444,17 @@ class Connection(SocketServer.BaseRequestHandler):
                     response.set_content_length(len(txt))
                     response.write_response(txt)
                     self.finished.set()
-                # we've finished reading the message
+                # we've finished reading the message, close the recv_pipe
+                # to help clean things up quickly
+                request.recv_pipe.close()
                 if not request.keep_alive or request.response is None:
                     # the request wants us to close the connection or
                     # the client has hung up (or something has gone
                     # badly wrong)
                     break
-                # wait for the response to be ready to send
+                # wait for the response to be ready to send before
+                # pipe-lining the next request in case it wants to
+                # hang up the connection.
                 logging.debug("handle_request: waiting for response...")
                 request.response.ready_to_send.wait(self.server.app_timeout)
                 if not request.response.keep_alive:
@@ -407,7 +487,36 @@ class Connection(SocketServer.BaseRequestHandler):
                 # handle the response
                 logging.debug("Waiting for response...")
                 # triggered by a call to response.start_sending()
-                response.ready_to_send.wait(self.server.app_timeout)
+                # or the need for a 100-Continue
+                cascading_wait(self.server.app_timeout,
+                               response.ready_to_send,
+                               response.send_continue)
+                if response.request.get_expect_continue():
+                    # ignore the semaphore, its purpose was purely
+                    # to wake us up early
+                    if (not response.ready_to_send.is_set() or
+                            response.status is None or
+                            (response.status >= 200 and
+                             response.status < 400)):
+                        logging.info("Sending response: %s %s",
+                                     str(response.protocol), "100 Continue")
+                        # Fake this response, as the app may already be
+                        # setting the status, headers etc...
+                        data = "%s %s\r\n\r\n" % (str(response.protocol),
+                                                  "100 Continue")
+                        write_socket(self.request, data,
+                                     self.server.connection_timeout)
+                        # now wait again until we're actually ready to send
+                        response.ready_to_send.wait(self.server.app_timeout)
+                    else:
+                        # ready to send and status does not indicate
+                        # success send a final code, abort reading the
+                        # data and hang up the connection
+                        if response.keep_alive:
+                            # we missed this opportunity before
+                            response.clear_keep_alive()
+                            response.set_connection(["close"])
+                        response.request.aborted.set()
                 if not response.ready_to_send.is_set():
                     # script timeout: generate a 500 error then kill
                     # this connection
@@ -609,6 +718,7 @@ class ServerRequest(messages.Request):
                               timeout=connection.server.connection_timeout,
                               name="ServerRequest[%i].recv_pipe" %
                               self.connection.id)
+        self.aborted = CascadingEvent()
         super(ServerRequest, self).__init__(entity_body=self.recv_pipe,
                                             **kwargs)
 
@@ -663,7 +773,9 @@ class ServerResponse(messages.Response):
             rblocking=False,
             timeout=request.connection.server.connection_timeout,
             name="ServerResponse[%i].send_pipe" % self.connection.id)
-        self.ready_to_send = threading.Event()
+        #: a CascadingEvent set when the response headers are sent
+        self.ready_to_send = CascadingEvent()
+        self.send_continue = CascadingEvent()
         super(ServerResponse, self).__init__(
             request=request, entity_body=self.send_pipe, **kwargs)
 
@@ -723,13 +835,22 @@ class ServerResponse(messages.Response):
         input = environ['wsgi.input']
         # we are limited in the methods we are allowed to use here
         # except that we know it is a BufferedReader over a Pipe object
-        # set for read blocking
-        while True:
+        # set for read blocking up to the connection timeout
+        spool_count = 0
+        while not self.request.aborted.is_set():
+            # this loop monitors the aborted flag for safety. In
+            # practice the recv thread polices any bad clients (such as
+            # those engaged in DoS activity) and if it aborts the
+            # request it will also generate an EOF on the input stream.
+            # We'll stop at whichever is detected first!
+            logging.debug("reading trailing data...")
             data = input.read1(io.DEFAULT_BUFFER_SIZE)
             if data:
-                logging.warn("wsgi application discarded %i bytes of data",
-                             len(data))
-                logging.debug("discarding data: \n%s", data)
+                if spool_count < io.DEFAULT_BUFFER_SIZE:
+                    logging.warn("wsgi application discarded %i bytes of data",
+                                 len(data))
+                    logging.debug("discarding data: \n%s", data)
+                spool_count += len(data)
             else:
                 break
 
@@ -835,6 +956,8 @@ class Pipe(io.RawIOBase):
         # eof indicator
         self._eof = False
         self.rblocking = rblocking
+        # an Event that flags the arrival of a reader
+        self.rflag = None
         self.wblocking = wblocking
         # timeout duration
         self.timeout = timeout
@@ -936,9 +1059,23 @@ class Pipe(io.RawIOBase):
             if self.closed or self._eof:
                 raise IOError("canwrite: can't write past EOF on Pipe object")
             wlen = self.max - self.bsize + self.rpos
-            if wlen < 0:
+            if wlen <= 0:
                 wlen = 0
+                if self.rflag is not None:
+                    self.rflag.clear()
             return wlen
+
+    def set_rflag(self, rflag):
+        """Sets the Event triggered when a reader is detected.
+
+        rflag
+            An Event instance from the threading module.
+
+        The event will be set each time the Pipe is read.  The flag may
+        be cleared at any time by the caller but a convenience it will
+        always be cleared when :py:meth:`canwrite` returns 0."""
+        with self.lock:
+            self.rflag = rflag
 
     def write_wait(self, timeout=None):
         """Waits for the pipe to become writable or raises IOError
@@ -1152,6 +1289,9 @@ class Pipe(io.RawIOBase):
                         self.bsize = self.bsize - len(src)
                         self.rpos = 0
                     self.rstate += 1
+                    # success, set the reader flag
+                    if self.rflag is not None:
+                        self.rflag.set()
                     self.lock.notify_all()
                     return result
                 else:
@@ -1159,6 +1299,11 @@ class Pipe(io.RawIOBase):
                         return ''
                     # not found, should we block?
                     if self.canwrite():
+                        # no match, but the buffer is not full so
+                        # set the reader flag to indicate that we
+                        # are now waiting to accept data.
+                        if self.rflag is not None:
+                            self.rflag.set()
                         if self.rblocking:
                             # we wait for something to happen on the
                             # Pipe hopefully a write operation!
@@ -1196,6 +1341,9 @@ class Pipe(io.RawIOBase):
                         self.buffer = self.buffer[1:]
                         self.bsize = self.bsize - len(src)
                         self.rstate += 1
+                        # successful read
+                        if self.rflag is not None:
+                            self.rflag.set()
                         self.lock.notify_all()
                         return src
                 b = bytearray(nbytes)
@@ -1210,6 +1358,9 @@ class Pipe(io.RawIOBase):
             tstart = time.time()
         with self.lock:
             nbytes = len(b)
+            # we're now reading
+            if self.rflag is not None:
+                self.rflag.set()
             while not self.buffer:
                 if self._eof:
                     return 0

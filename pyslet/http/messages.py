@@ -1112,7 +1112,8 @@ class Message(PEP8Compatibility, object):
             return set()
 
     def set_connection(self, connection_tokens):
-        """Set the Connection tokens from a an iterable set of *connection_tokens*
+        """Set the Connection tokens from an iterable set of
+        *connection_tokens*
 
         If the list is empty any existing header is removed."""
         if connection_tokens:
