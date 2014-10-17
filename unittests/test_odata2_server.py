@@ -37,6 +37,8 @@ from test_http_server import MockTime
 
 HTTP_PORT = random.randint(1111, 9999)
 
+DOCUMENT_TEXT = "Well, Prince, so Genoa and Lucca are now " \
+                "just family estates of the Buonapartes"
 
 class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     pass
@@ -854,25 +856,25 @@ class ODataURILiteralTests(unittest.TestCase):
                 pass
 
 
-# class ODataStoreClientTests(unittest.TestCase):
-#
-# 	Categories={
-# 		0:"Food",
-# 		1:"Beverages",
-# 		2:"Electronics"
-# 		}
-#
-# 	def testCaseConstructor(self):
-# 		sClient=ODataStoreClient('http://localhost:%i/'%HTTP_PORT)
-# 		self.assertTrue(isinstance(sClient,edm.ERStore),"ODataStore not an ERStore")
-# 		s=sClient['ODataDemo']
-# 		self.assertTrue(isinstance(s,edm.Schema),"ODataStore schema")
-#
-# 	def testCaseEntityReader(self):
-# 		sClient=ODataStoreClient('http://localhost:%i/'%HTTP_PORT)
-# 		for c in sClient.EntityReader("Categories"):
-# 			self.assertTrue("ID" in c,"No key field in category")
-# 			self.assertTrue(self.Categories[c["ID"].value]==c["Name"].value,"Category Name")
+class MockDocumentCollection(core.EntityCollection):
+    
+    def read_stream(self, key, out=None):
+        if key == 1801:
+            sinfo = core.StreamInfo(type="text/x-tolstoy")
+            sinfo.size = len(DOCUMENT_TEXT)
+            if out is not None:
+                out.write(DOCUMENT_TEXT)
+            return sinfo
+        else:
+            raise KeyError
+
+    def read_stream_close(self, key):
+        if key == 1801:
+            sinfo = core.StreamInfo(type="text/x-tolstoy")
+            sinfo.size = len(DOCUMENT_TEXT)
+            return sinfo, [DOCUMENT_TEXT]
+        else:
+            raise KeyError
 
 
 class ServerTests(unittest.TestCase):
@@ -1222,13 +1224,13 @@ class ServerTests(unittest.TestCase):
         #	End of employee tests
         #
         documents = ds['SampleModel.SampleEntities.Documents']
+        documents.bind(MockDocumentCollection)
         document = core.Entity(documents)
         document['DocumentID'].set_from_value(1801)
         document['Title'].set_from_value('War and Peace')
         document['Author'].set_from_value('Tolstoy')
         h = hashlib.sha256()
-        h.update(
-            "Well, Prince, so Genoa and Lucca are now just family estates of the Buonapartes")
+        h.update(DOCUMENT_TEXT)
         document['Version'].set_from_value(h.digest())
         document.exists = True
         entry = core.Entry(None, document)
@@ -1240,6 +1242,11 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(len(children) == 1, "one properties element")
         self.assertTrue(
             children[0].parent is entry, "properties is a direct child of *the* entry")
+        children = list(entry.FindChildrenDepthFirst(atom.Content))
+        self.assertTrue(len(children) == 1, "one content element")
+        self.assertTrue(entry.Content is not None,"content is child of entry")
+        self.assertTrue(str(entry.Content.src) == "Documents(1801)/$value")
+        self.assertTrue(entry.Content.type == "text/x-tolstoy")
         children = list(entry.FindChildrenDepthFirst(atom.Link))
         links = set()
         for child in children:
@@ -1371,7 +1378,7 @@ class ServerTests(unittest.TestCase):
         container = memds.InMemoryEntityContainer(
             ds['SampleModel.SampleEntities'])
         documents = container.entityStorage['Documents']
-        docText = "Well, Prince, so Genoa and Lucca are now just family estates of the Buonapartes"
+        docText = DOCUMENT_TEXT
         h = hashlib.sha256()
         h.update(docText)
         etag = "W/\"X'%s'\"" % h.hexdigest().upper()
@@ -1436,7 +1443,7 @@ class ServerTests(unittest.TestCase):
         container = memds.InMemoryEntityContainer(
             ds['SampleModel.SampleEntities'])
         documents = container.entityStorage['Documents']
-        docText = "Well, Prince, so Genoa and Lucca are now just family estates of the Buonapartes"
+        docText = DOCUMENT_TEXT
         h = hashlib.sha256()
         h.update(docText)
         documents.data[1801] = (1801, 'War and Peace', 'Tolstoy', h.digest())
@@ -1848,13 +1855,13 @@ class SampleServerTests(unittest.TestCase):
             newEmployee['Address']['City'] == "Chunton", "Check employee city")
         self.assertFalse(newEmployee['Version'], "No version")
         documents = self.ds['SampleModel.SampleEntities.Documents']
+        documents.bind(MockDocumentCollection)
         document = core.Entity(documents)
         document['DocumentID'].set_from_value(1801)
         document['Title'].set_from_value('War and Peace')
         document['Author'].set_from_value('Tolstoy')
         h = hashlib.sha256()
-        h.update(
-            "Well, Prince, so Genoa and Lucca are now just family estates of the Buonapartes")
+        h.update(DOCUMENT_TEXT)
         document['Version'].set_from_value(h.digest())
         entry = core.Entry(None, document)
         self.assertTrue(
@@ -3612,7 +3619,7 @@ class SampleServerTests(unittest.TestCase):
             'http://host/service.svc/Orders(4)' in orderKeys, "Customer now bound to order 4")
 
     def testCaseInsertMediaResource(self):
-        data = "Well, Prince, so Genoa and Lucca are now just family estates of the Buonapartes"
+        data = DOCUMENT_TEXT
         h = hashlib.sha256()
         h.update(data)
         request = MockRequest("/service.svc/Documents", "POST")
@@ -4400,7 +4407,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(newCustomer.key() == 'ALFKI', "Customer updated")
 
     def testCaseUpdateMediaResource(self):
-        data = "Well, Prince, so Genoa and Lucca are now just family estates of the Buonapartes"
+        data = DOCUMENT_TEXT
         h = hashlib.sha256()
         h.update(data)
         request = MockRequest("/service.svc/Documents(301)/$value", "PUT")

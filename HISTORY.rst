@@ -15,7 +15,31 @@ to include wrappers or aliases so please raise an issue on Github_ if you
 discover a bug caused by the renaming.  I'll restore any missing
 old-style names to improve backwards compatibility on request.
 
+Finally, in some cases you are encouraged to derive classes from those
+defined by Pyslet and to override default method implementations.  If
+you have done this using old-style names you will *have* to update your
+method names to prevent ambiguity.  I have added code to automatically
+detect most problems and force fatal errors on construction. 
+ 
 ..  _Github: https://github.com/swl10/pyslet
+
+
+Version 0.6.2014XXXX
+--------------------
+
+#3 PEP-8 driven refactoring (ongoing)
+
+Added new method decorators to make supporting renamed and redirected
+methods easier.  Added checks for ambiguous names in classes likely
+to have been sub-classed by third-party code.
+
+#9 Improved HTTP retries with simple Fibonacci-based back-off 
+
+#12 Fixed a bug to support SQL databases that use numeric or named
+#parameters
+
+#14 Fixed a missing content element in atom xml formatted entities
+when the entity represents a media-link entry
 
 
 Version 0.5.20140801

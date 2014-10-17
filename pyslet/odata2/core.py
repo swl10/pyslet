@@ -3699,6 +3699,10 @@ class Entry(atom.Entry):
         # Now set the new property values in the properties element
         if mediaLinkResource:
             self.ChildElement(Properties)
+            # and populate the content element itself
+            content = self.ChildElement(Content)
+            content.SetAttribute('src', location + "/$value")
+            content.type = str(entity.get_content_type())
         else:
             self.ChildElement(Content).ChildElement(Properties)
         for k, v in entity.data_items():

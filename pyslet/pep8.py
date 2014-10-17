@@ -151,15 +151,16 @@ def redirected_method(name):
             return func_renamed.target(obj)(*args, **kwargs)
 
         return call_renamed
-    
+
     return custom_renamed_method
-    
-        
+
+
 class PEP8AmbiguousNameError(Exception):
     pass
 
 
 _pep8_class_dict = {}
+
 
 def check_class(cls):
     """Checks a class for ambiguous names"""
