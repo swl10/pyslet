@@ -1242,7 +1242,7 @@ class ExpressionTests(unittest.TestCase):
         e = expressions.BaseValue(None)
         e.baseType = variables.BaseType.point
         e.AddData("3 1")
-        e.ContentChanged()
+        e.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             isinstance(value, variables.PointValue), "BaseValue type")
@@ -1417,12 +1417,12 @@ class ExpressionTests(unittest.TestCase):
         v1 = e.ChildElement(expressions.BaseValue)
         v1.baseType = variables.BaseType.integer
         v1.AddData("1")
-        v1.ContentChanged()
+        v1.content_changed()
         v2 = e.ChildElement(expressions.Null)
         v3 = e.ChildElement(expressions.BaseValue)
         v3.baseType = variables.BaseType.integer
         v3.AddData("3")
-        v3.ContentChanged()
+        v3.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             isinstance(value, variables.MultipleContainer), "Multiple type")
@@ -1434,7 +1434,7 @@ class ExpressionTests(unittest.TestCase):
         v4_1 = v4.ChildElement(expressions.BaseValue)
         v4_1.baseType = variables.BaseType.integer
         v4_1.AddData("3")
-        v4_1.ContentChanged()
+        v4_1.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == {1: 1, 3: 2}, "Multiple in Multiple value: %s" % repr(value.value))
@@ -1442,7 +1442,7 @@ class ExpressionTests(unittest.TestCase):
         v5 = e.ChildElement(expressions.BaseValue)
         v5.baseType = variables.BaseType.float
         v5.AddData("3.1")
-        v5.ContentChanged()
+        v5.content_changed()
         try:
             value = e.Evaluate(self.sessionState)
             self.fail("Multiple with mixed base types")
@@ -1461,12 +1461,12 @@ class ExpressionTests(unittest.TestCase):
         v1 = e.ChildElement(expressions.BaseValue)
         v1.baseType = variables.BaseType.integer
         v1.AddData("1")
-        v1.ContentChanged()
+        v1.content_changed()
         v2 = e.ChildElement(expressions.Null)
         v3 = e.ChildElement(expressions.BaseValue)
         v3.baseType = variables.BaseType.integer
         v3.AddData("3")
-        v3.ContentChanged()
+        v3.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             isinstance(value, variables.OrderedContainer), "Ordered type")
@@ -1478,7 +1478,7 @@ class ExpressionTests(unittest.TestCase):
         v4_1 = v4.ChildElement(expressions.BaseValue)
         v4_1.baseType = variables.BaseType.integer
         v4_1.AddData("3")
-        v4_1.ContentChanged()
+        v4_1.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == [1, 3, 3], "Ordered in Ordered value: %s" % repr(value.value))
@@ -1486,7 +1486,7 @@ class ExpressionTests(unittest.TestCase):
         v5 = e.ChildElement(expressions.BaseValue)
         v5.baseType = variables.BaseType.float
         v5.AddData("3.1")
-        v5.ContentChanged()
+        v5.content_changed()
         try:
             value = e.Evaluate(self.sessionState)
             self.fail("Ordered with mixed base types")
@@ -1505,7 +1505,7 @@ class ExpressionTests(unittest.TestCase):
             v = eo.ChildElement(expressions.BaseValue)
             v.baseType = variables.BaseType.integer
             v.AddData("1")
-            v.ContentChanged()
+            v.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == 5, "ContainerSize of ordered value")
         e = expressions.ContainerSize(None)
@@ -1514,7 +1514,7 @@ class ExpressionTests(unittest.TestCase):
             v = em.ChildElement(expressions.BaseValue)
             v.baseType = variables.BaseType.integer
             v.AddData(str(i // 2))
-            v.ContentChanged()
+            v.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == 6, "ContainerSize of multiple value")
         # check that single values raise an error
@@ -1522,7 +1522,7 @@ class ExpressionTests(unittest.TestCase):
         es = e.ChildElement(expressions.BaseValue)
         es.baseType = variables.BaseType.integer
         es.AddData("3")
-        es.ContentChanged()
+        es.content_changed()
         try:
             value = e.Evaluate(self.sessionState)
             self.fail("ContainerSize with singe value")
@@ -1542,7 +1542,7 @@ class ExpressionTests(unittest.TestCase):
         b = e.ChildElement(expressions.BaseValue)
         b.baseType = variables.BaseType.boolean
         b.AddData("true")
-        b.ContentChanged()
+        b.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             isinstance(value, variables.BooleanValue), "IsNull type")
@@ -1555,7 +1555,7 @@ class ExpressionTests(unittest.TestCase):
         b = e.ChildElement(expressions.BaseValue)
         b.baseType = variables.BaseType.string
         b.AddData("")
-        b.ContentChanged()
+        b.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == True, "IsNull value (empty string): %s" % repr(value.value))

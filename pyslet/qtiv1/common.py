@@ -222,12 +222,12 @@ class Material(QTICommentContainer, ContentMixin):
             QTICommentContainer.GetChildren(self),
             ContentMixin.GetContentChildren(self))
 
-    def ContentChanged(self):
+    def content_changed(self):
         if self.label:
             doc = self.GetDocument()
             if doc:
                 doc.RegisterMaterial(self)
-        QTICommentContainer.ContentChanged(self)
+        QTICommentContainer.content_changed(self)
 
 
 class AltMaterial(QTICommentContainer, ContentMixin):
@@ -332,7 +332,7 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
         #: an inline html object used to wrap inline elements
         self.inlineWrapper = None
 
-    def ContentChanged(self):
+    def content_changed(self):
         if self.label:
             doc = self.GetDocument()
             if doc:
@@ -1023,7 +1023,7 @@ class QTIMetadataField(core.QTIElement):
         yield self.FieldLabel
         yield self.FieldEntry
 
-    def ContentChanged(self):
+    def content_changed(self):
         label = self.FieldLabel.GetValue()
         label = {'marks': 'maximumscore',
                  'qmd_marks': 'maximumscore',
@@ -1209,7 +1209,7 @@ class DecVar(core.QTIElement):
                 d.masteryValue = float(self.cutValue)
         v2Item.RegisterDeclaration(d)
 
-    def ContentChanged(self):
+    def content_changed(self):
         """The decvar element is supposed to be empty but QTI v1 content is all over the place."""
         try:
             value = self.GetValue()

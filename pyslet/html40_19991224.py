@@ -2755,7 +2755,7 @@ class XHTMLDocument(xmlns.XMLNSDocument):
         """Always returns HTML."""
         return HTML
 
-    def GetElementClass(self, name):
+    def get_element_class(self, name):
         eClass = XHTMLDocument.classMap.get(name, None)
         if eClass is None:
             lcName = (name[0], name[1].lower())

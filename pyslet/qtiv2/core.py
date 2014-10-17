@@ -350,7 +350,7 @@ class QTIDocument(xmlns.XMLNSDocument):
                 ' ' +
                 IMSQTI_SCHEMALOCATION)
 
-    def GetElementClass(self, name):
+    def get_element_class(self, name):
         return QTIDocument.classMap.get(
             name, QTIDocument.classMap.get(
                 (name[0], None), xmlns.XMLNSElement))

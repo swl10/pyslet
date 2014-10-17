@@ -72,7 +72,7 @@ class AssessmentTest(core.QTIElement, core.DeclarationContainer):
         for child in self.TestFeedback:
             yield child
 
-    def ContentChanged(self):
+    def content_changed(self):
         self.SortDeclarations()
 
     def SortDeclarations(self):
@@ -217,7 +217,7 @@ class TestPart(core.QTIElement):
         for c in self.TestFeedback:
             yield c
 
-    def ContentChanged(self):
+    def content_changed(self):
         test = self.FindParent(AssessmentTest)
         if test:
             test.RegisterPart(self)
@@ -351,7 +351,7 @@ class SectionPart(core.QTIElement):
         if self.TimeLimits:
             yield self.TimeLimits
 
-    def ContentChanged(self):
+    def content_changed(self):
         test = self.FindParent(AssessmentTest)
         if test:
             test.RegisterPart(self)

@@ -91,7 +91,7 @@ class CSDLTests(unittest.TestCase):
                         "No ValueTerm elements allowed on construction")
         e = s.ChildElement(EntityType)
         e.name = "TestType"
-        s.ContentChanged()
+        s.content_changed()
         self.assertTrue(
             s['TestType'] is e, "Schema subscripting, EntityType declared")
 

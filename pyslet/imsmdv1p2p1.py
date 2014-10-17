@@ -588,7 +588,7 @@ classMap = {
 xmlns.MapClassElements(classMap, globals())
 
 
-def GetElementClass(name):
+def get_element_class(name):
     ns, xmlname = name
     if ns in IMSLRM_NAMESPACE_ALIASES:
         ns = IMSLRM_NAMESPACE_ALIASES[ns]

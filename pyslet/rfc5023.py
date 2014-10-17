@@ -190,18 +190,18 @@ class Document(atom.AtomDocument):
                 atom.AtomDocument.ValidateMimeType(self, mimetype))
 
     @classmethod
-    def GetElementClass(cls, name):
+    def get_element_class(cls, name):
         """Returns the APP or Atom class used to represent name.
 
         Overrides
-        :py:meth:`~pyslet.rfc4287.AtomDocument.GetElementClass` when the
+        :py:meth:`~pyslet.rfc4287.AtomDocument.get_element_class` when the
         namespace is :py:data:`APP_NAMESPACE`."""
         if name[0] == APP_NAMESPACE:
             return cls.classMap.get(
                 name, atom.AtomDocument.classMap.get((name[0], None),
                                                      APPElement))
         else:
-            return atom.AtomDocument.GetElementClass(name)
+            return atom.AtomDocument.get_element_class(name)
 
 xmlns.MapClassElements(Document.classMap, globals())
 

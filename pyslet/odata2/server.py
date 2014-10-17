@@ -192,7 +192,7 @@ class Server(app.Server):
             self.ws.Collection = []
         for s in model.DataServices.Schema:
             for container in s.EntityContainer:
-                if container.IsDefaultEntityContainer():
+                if container.is_default_entity_container():
                     prefix = ""
                 else:
                     prefix = container.name + "."
@@ -203,13 +203,13 @@ class Server(app.Server):
                     feed.href = prefix + es.name
                     feed.ChildElement(atom.Title).SetValue(prefix + es.name)
                     # update the locations following SetBase above
-                    es.SetLocation()
+                    es.set_location()
         self.model = model
 
     @classmethod
     def encode_pathinfo(cls, pathinfo):
         """Encodes PATHINFO using URL-encoding
-        
+
         According to RC3875_ the PATHINFO CGI variable contains an
         unencoded path string.  That means that reserved characters
         escaped in the original URL will be unescaped in PATHINFO.  This
@@ -225,7 +225,7 @@ class Server(app.Server):
             scan the URL and determine whether or not we are in a quoted
             string, if we are, we percent-encode path-segment reserved
             characters.
-        
+
         2.  The second issue is the quote character itself.  Depending on
             which version of the URI spec you are working to it may be
             escaped or not.  OData originally attempted to double-up on
@@ -234,13 +234,13 @@ class Server(app.Server):
             for us because we'll receive 'O'Toole' instead but it breaks
             for many client anyway as unescaped quotes are often
             replaced with %27 anyway.
-            
+
             Fortunately it never really worked that way in practice
             anyway and the more recent specs use quote doubling
             'O''Toole' which is much more robust.  This enable us to
             determine if we are in a quoted string or not simply by
             counting, and hence deal with issue 1.
-                                
+
         ..  _RFC3875 http://www.ietf.org/rfc/rfc3875"""
         if isinstance(pathinfo, unicode):
             pathinfo = pathinfo.encode('utf-8')
@@ -434,7 +434,7 @@ class Server(app.Server):
                 raise core.BadURISegment(name)
             if isinstance(resource, edmx.Edmx):
                 try:
-                    resource = resource.DataServices.SearchContainers(name)
+                    resource = resource.DataServices.search_containers(name)
                 except KeyError as e:
                     raise core.MissingURISegment(str(e))
                 if isinstance(resource, edm.FunctionImport):
@@ -675,7 +675,7 @@ class Server(app.Server):
             elif isinstance(resource, edm.Entity):
                 if method == "GET" or method == "HEAD":
                     if request.pathOption == core.PathOption.value:
-                        if resource.type_def.HasStream():
+                        if resource.type_def.has_stream():
                             return self.ReturnStream(
                                 resource,
                                 request,
@@ -697,7 +697,7 @@ class Server(app.Server):
                             response_headers)
                 elif method == "PUT":
                     if request.pathOption == core.PathOption.value:
-                        if resource.type_def.HasStream():
+                        if resource.type_def.has_stream():
                             sinfo = core.StreamInfo()
                             if "CONTENT_TYPE" in environ:
                                 sinfo.type = params.MediaType.from_str(
@@ -783,7 +783,7 @@ class Server(app.Server):
                         for k, v in entity.data_items():
                             # catch property-level feed customisation here
                             propertyDef = entity.type_def[k]
-                            if (propertyDef.GetTargetPath() ==
+                            if (propertyDef.get_target_path() ==
                                     [(atom.ATOM_NAMESPACE, "title")]):
                                 entity[k].set_from_value(slug.slug)
                                 resource.update_entity(entity)

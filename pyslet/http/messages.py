@@ -352,6 +352,7 @@ class Message(PEP8Compatibility, object):
 
     def __init__(self, entity_body=None, protocol=params.HTTP_1p1):
         #: the lock used to protect multi-threaded access
+        PEP8Compatibility.__init__(self)
         self.lock = threading.RLock()
         self.protocol = protocol
         self.headers = {}

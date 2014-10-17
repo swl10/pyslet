@@ -366,8 +366,8 @@ class ManifestDocument(xmlns.XMLNSDocument):
             self.root.SetAttribute(
                 (xsi.XMLSCHEMA_NAMESPACE, 'schemaLocation'), string.join(schemaLocation, ' '))
 
-    def GetElementClass(self, name):
-        """Overrides :py:meth:`pyslet.xmlnames20091208.XMLNSDocument.GetElementClass` to look up name.
+    def get_element_class(self, name):
+        """Overrides :py:meth:`pyslet.xmlnames20091208.XMLNSDocument.get_element_class` to look up name.
 
         The class contains a mapping from (namespace,element name) pairs to
         class objects representing the elements.  Any element not in the class

@@ -200,9 +200,9 @@ class Date(AtomElement):
             AtomElement.SetValue(self, value.GetCalendarString())
         else:
             AtomElement.SetValue(self, value)
-            self.ContentChanged()
+            self.content_changed()
 
-    def ContentChanged(self):
+    def content_changed(self):
         """Re-reads the value of the element and sets :py:attr:`date` accordingly."""
         self.date = iso8601.TimePoint.from_str(AtomElement.GetValue(self))
 
@@ -261,7 +261,7 @@ class Icon(AtomElement):
         """Overrides :py:meth:`~pyslet.xml20081126.structures.Element.SetValue`, enabling the value to be set from a :py:class:`pyslet.rfc2396.URI` instance.
 
         If *value* is a string it is used to set the element's content,
-        :py:meth:`ContentChanged` is then called to update the value of
+        :py:meth:`content_changed` is then called to update the value of
         :py:attr:`uri`.  If *value* is a URI instance then :py:attr:`uri` is set
         directory and it is then converted to a string and used to set the
         element's content."""
@@ -270,9 +270,9 @@ class Icon(AtomElement):
             AtomElement.SetValue(self, str(value))
         else:
             AtomElement.SetValue(self, value)
-            self.ContentChanged()
+            self.content_changed()
 
-    def ContentChanged(self):
+    def content_changed(self):
         """Re-reads the value of the element and sets :py:attr:`uri` accordingly."""
         self.uri = uri.URIFactory.URI(AtomElement.GetValue(self))
 
@@ -590,7 +590,7 @@ class AtomDocument(xmlns.XMLNSDocument):
         xmlns.XMLNSDocument.__init__(self, defaultNS=ATOM_NAMESPACE, **args)
 
     @classmethod
-    def GetElementClass(cls, name):
+    def get_element_class(cls, name):
         return AtomDocument.classMap.get(name, AtomDocument.classMap.get((name[0], None), xmlns.XMLNSElement))
 
 xmlns.MapClassElements(AtomDocument.classMap, globals())

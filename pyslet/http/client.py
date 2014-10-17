@@ -863,6 +863,7 @@ class Client(PEP8Compatibility, object):
     SecureConnectionClass = SecureConnection
 
     def __init__(self, max_connections=100, ca_certs=None, timeout=None):
+        PEP8Compatibility.__init__(self)
         self.managerLock = threading.Condition()
         # the id of the next connection object we'll create
         self.nextId = 1

@@ -110,7 +110,7 @@ PresentationElements = {
            'rowspan', 'colspan'),
     'td': ('id', 'class', 'label', 'headers', 'scope', 'abbr', 'axis',
            'rowspan', 'colspan')
-    }  #: Tables
+}  #: Tables
 
 ImageElement = {
     'img': ('id', 'class', 'label', 'src', 'alt', 'longdesc', 'height',

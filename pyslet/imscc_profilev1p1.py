@@ -89,7 +89,7 @@ class ManifestDocument(xmlns.XMLNSDocument):
             self.root.SetAttribute(
                 (xsi.XMLSCHEMA_NAMESPACE, 'schemaLocation'), string.join(schemaLocation, ' '))
 
-    def GetElementClass(self, name):
+    def get_element_class(self, name):
         eClass = ManifestDocument.classMap.get(
             name, ManifestDocument.classMap.get((name[0], None), xmlns.XMLNSElement))
         return eClass

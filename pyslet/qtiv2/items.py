@@ -82,7 +82,7 @@ class AssessmentItem(core.QTIElement, core.DeclarationContainer):
         for child in self.QTIModalFeedback:
             yield child
 
-    def ContentChanged(self):
+    def content_changed(self):
         self.SortDeclarations()
 
     def SortDeclarations(self):

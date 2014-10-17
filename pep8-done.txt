@@ -13,6 +13,7 @@ pyslet/http/params.py
 unittests/test_http_params.py
 pyslet/http/server.py
 unittests/test_http_server.py
+pyslet/odata2/metadata.py
 pyslet/odata2/memds.py
 unittests/test_odata2_memds.py
 pyslet/odata2/sqlds.py

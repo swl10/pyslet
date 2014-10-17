@@ -278,7 +278,7 @@ class ODataTests(unittest.TestCase):
             doc = edmx.Document(baseURI=f)
             doc.Read()
             try:
-                doc.Validate()
+                doc.validate()
             except core.InvalidMetadataDocument, e:
                 self.fail(
                     "%s is valid but raised InvalidMetadataDocument: %s" % (fName, str(e)))
@@ -292,7 +292,7 @@ class ODataTests(unittest.TestCase):
             doc = edmx.Document(baseURI=f)
             doc.Read()
             try:
-                doc.Validate()
+                doc.validate()
                 self.fail(
                     "%s is invalid but did not raise InvalidMetadataDocument" % fName)
             except core.InvalidMetadataDocument:
@@ -2468,13 +2468,13 @@ class SampleServerTests(unittest.TestCase):
         doc.Read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, edmx.Edmx),
                         "Expected Edmx from $metadata request, found %s" % doc.root.__class__.__name__)
-        version = doc.Validate()
+        version = doc.validate()
         # MimeType: This attribute MUST be used on a <Property> element...
         # Each <Property> element defining an EDMSimpleType property MAY<48>
         # include exactly one occurrence of this attribute.
         # Any media type (see [IANA-MMT] ) is a valid value for this attribute.
         pType = doc.root.DataServices["SampleModel.BitsAndPieces.Details"]
-        mtype = params.MediaType.from_str(pType.GetAttribute(core.MimeType))
+        mtype = params.MediaType.from_str(pType.GetAttribute(core.MIME_TYPE))
         self.assertTrue(
             mtype == "application/x-details", "Expected x-details MimeType")
         self.assertTrue(version == "2.0", "Expected data service version 2.0")
@@ -3948,13 +3948,13 @@ class SampleServerTests(unittest.TestCase):
         doc.Read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, edmx.Edmx),
                         "Expected Edmx from $metadata request, found %s" % doc.root.__class__.__name__)
-        version = doc.Validate()
+        version = doc.validate()
         #	The version number returned as the value of the
         #	DataServiceVersion response header MUST match the value of
         #	the DataServiceVersion attribute
         ds = doc.root.DataServices
         self.assertTrue(
-            ds.DataServiceVersion() == "2.0", "Expected matching data service version")
+            ds.data_services_version() == "2.0", "Expected matching data service version")
 
     def testCaseRetrieveServiceDocument(self):
         request = MockRequest("/service.svc/")

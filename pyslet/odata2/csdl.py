@@ -21,7 +21,7 @@ import datetime
 import random
 from types import BooleanType, FloatType, StringTypes, StringType, UnicodeType, BooleanType, IntType, LongType, TupleType, DictType
 
-from pyslet.pep8 import PEP8Compatibility
+from pyslet.pep8 import PEP8Compatibility, renamed_method, redirected_method
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.rfc2396 as uri
@@ -791,6 +791,8 @@ class EDMValue(PEP8Compatibility):
     either a simple or complex type."""
 
     def __init__(self, pDef=None):
+        # unlikely that people will have derived classes here
+        PEP8Compatibility.__init__(self)
         self.pDef = pDef
         """An optional :py:class:`Property` instance from the metadata
         model defining this value's type"""
@@ -1861,6 +1863,7 @@ class TypeInstance(DictionaryLike, PEP8Compatibility):
     order in which they are declared in the type definition."""
 
     def __init__(self, type_def=None):
+        PEP8Compatibility.__init__(self)
         #: the definition of this type
         self.type_def = type_def
         self.data = {}
@@ -2315,7 +2318,14 @@ class Entity(TypeInstance):
         else:
             raise KeyError(name)
 
-    def Update(self):
+    def update(self):
+        warnings.warn(
+            "Entity.Update is deprecated, use commit instead\n",
+            DeprecationWarning,
+            stacklevel=3)
+        return self.commit()
+
+    def commit(self):
         """Updates this entity following modification.
 
         You can use select rules to provide a hint about which fields
@@ -2338,13 +2348,6 @@ class Entity(TypeInstance):
         flag is set to False after deletion."""
         with self.entity_set.OpenCollection() as collection:
             del collection[self.key()]
-
-    def Key(self):  # noqa
-        warnings.warn(
-            "Entity.Key is deprecated, use, key instead",
-            DeprecationWarning,
-            stacklevel=3)
-        return self.key()
 
     def key(self):
         """Returns the entity key as a single python value or a tuple of
@@ -2382,13 +2385,6 @@ class Entity(TypeInstance):
             k = iter(key)
             for pRef in self.type_def.Key.PropertyRef:
                 self[pRef.name].set_from_value(k.next())
-
-    def SetKey(self, key):  # noqa
-        warnings.warn(
-            "Entity.SetKey is deprecated, use, set_key instead",
-            DeprecationWarning,
-            stacklevel=3)
-        return self.set_key(key)
 
     def auto_key(self, base=None):
         """Sets the key to a random value
@@ -2466,7 +2462,7 @@ class Entity(TypeInstance):
                         subSelect = None
                     v.expand_collection(expand[k], subSelect)
 
-    def Expanded(self, name):
+    def Expanded(self, name):   # noqa
         warnings.warn(
             "Entity.Expanded is deprecated, use, e.g., customer['Orders'].isExpanded instead",
             DeprecationWarning,
@@ -2709,6 +2705,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
     default implementation is very inefficient."""
 
     def __init__(self, entity_set, **kwargs):
+        PEP8Compatibility.__init__(self)
         if kwargs:
             logging.debug("Unabsorbed kwargs in EntityCollection constructor")
         #: the entity set from which the entities are drawn
@@ -2825,11 +2822,9 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         self.set_page(None)
         self.lastEntity = None
 
-    def Filter(self, filter):
-        warnings.warn("EntityCollection.Filter is deprecated, use set_filter",
-                      DeprecationWarning,
-                      stacklevel=2)
-        return self.set_filter(filter)
+    @redirected_method('set_filter')
+    def Filter(self, filter):   # noqa
+        pass
 
     def filter_entities(self, entityIterable):
         """Utility method for data providers.
@@ -2871,12 +2866,9 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         self.orderby = orderby
         self.set_page(None)
 
+    @redirected_method('set_orderby')
     def OrderBy(self, orderby):  # noqa
-        warnings.warn(
-            "EntityCollection.OrderBy is deprecated, use set_orderby",
-            DeprecationWarning,
-            stacklevel=2)
-        return self.set_orderby(orderby)
+        pass
 
     def calculate_order_key(self, entity, orderObject):
         """Given an entity and an order object returns the key used to
@@ -2958,12 +2950,6 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         constraints."""
         return Entity(self.entity_set)
 
-    def NewEntity(self, entity):  # noqa
-        warnings.warn("EntityCollection.NewEntity is deprecated, "
-                      "use new_entity", DeprecationWarning,
-                      stacklevel=2)
-        self.new_entity(entity)
-
     def CopyEntity(self, entity):
         """Creates a new *entity* copying the value from *entity*
 
@@ -2994,24 +2980,12 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         create two entities with duplicate keys)."""
         raise NotImplementedError
 
-    def InsertEntity(self, entity):  # noqa
-        warnings.warn("EntityCollection.InsertEntity is deprecated, "
-                      "use insert_entity", DeprecationWarning,
-                      stacklevel=2)
-        self.insert_entity(entity)
-
     def update_entity(self, entity):
         """Updates *entity* which must already be in the entity set.
 
         Data providers must override this method if the collection is
         writable."""
         raise NotImplementedError
-
-    def UpdateEntity(self, entity):  # noqa
-        warnings.warn("EntityCollection.UpdateEntity is deprecated, "
-                      "use update_entity", DeprecationWarning,
-                      stacklevel=2)
-        self.update_entity(entity)
 
     def update_bindings(self, entity):
         """Iterates through the :py:meth:`Entity.NavigationItems` and
@@ -3023,12 +2997,6 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         selectively update just the navigation properties."""
         for k, dv in entity.NavigationItems():
             dv.update_bindings()
-
-    def UpdateBindings(self, entity):  # noqa
-        warnings.warn("EntityCollection.UpdateBindings is deprecated, "
-                      "use update_bindings", DeprecationWarning,
-                      stacklevel=2)
-        self.update_bindings(entity)
 
     def __getitem__(self, key):
         # key=self.entity_set.GetKey(key)
@@ -3071,12 +3039,6 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         self.skip = skip
         self.skiptoken = skiptoken
         self.nextSkiptoken = None
-
-    def SetPage(self, top, skip=0, skiptoken=None):  # noqa
-        warnings.warn("EntityCollection.SetPage is deprecated, use set_page",
-                      DeprecationWarning,
-                      stacklevel=2)
-        return self.set_page(top, skip, skiptoken)
 
     def TopMax(self, topmax):
         """Sets the maximum page size for this collection.
@@ -3175,13 +3137,6 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         will generate the next page or None if all requested entities
         were returned."""
         return self.nextSkiptoken
-
-    def NextSkipToken(self):  # noqa
-        warnings.warn(
-            "EntityCollection.NextSkipToken is deprecated, use next_skiptoken",
-            DeprecationWarning,
-            stacklevel=2)
-        return self.next_skiptoken()
 
     def itervalues(self):
         """Iterates over the collection.
@@ -3313,12 +3268,6 @@ class NavigationCollection(EntityCollection):
         self.clear()
         self[entity.key()] = entity
 
-    def Replace(self, entity):  # noqa
-        warnings.warn("NavigationCollection.Replace is deprecated, "
-                      "use replace", DeprecationWarning,
-                      stacklevel=2)
-        self.replace(entity)
-
 
 class ExpandedEntityCollection(NavigationCollection):
 
@@ -3416,7 +3365,7 @@ class FunctionCollection(object):
             "Unbound FunctionCollection: %s" % self.function.name)
 
 
-class CSDLElement(xmlns.XMLNSElement, PEP8Compatibility):
+class CSDLElement(xmlns.XMLNSElement):
 
     """All elements in the metadata model inherit from this class."""
 
@@ -3834,7 +3783,7 @@ class Type(NameTableMixin, CSDLElement):
                 CSDLElement.GetChildren(self)):
             yield child
 
-    def ContentChanged(self):
+    def content_changed(self):
         for p in self.Property:
             self.Declare(p)
 
@@ -3879,8 +3828,8 @@ class EntityType(Type):
                 CSDLElement.GetChildren(self)):
             yield child
 
-    def ContentChanged(self):
-        super(EntityType, self).ContentChanged()
+    def content_changed(self):
+        super(EntityType, self).content_changed()
         for np in self.NavigationProperty:
             self.Declare(np)
 
@@ -4016,13 +3965,13 @@ class Association(NameTableMixin, CSDLElement):
         self.ValueAnnotation = []
 
     @classmethod
-    def GetElementClass(cls, name):
+    def get_element_class(cls, name):
         if xmlns.NSEqualNames((EDM_NAMESPACE, 'End'), name, EDM_NAMESPACE_ALIASES):
             return AssociationEnd
         else:
             return None
 
-    def ContentChanged(self):
+    def content_changed(self):
         for ae in self.AssociationEnd:
             self.Declare(ae)
 
@@ -4152,7 +4101,7 @@ class EntityContainer(NameTableMixin, CSDLElement):
                 CSDLElement.GetChildren(self)):
             yield child
 
-    def ContentChanged(self):
+    def content_changed(self):
         for t in self.EntitySet + self.AssociationSet + self.FunctionImport:
             self.Declare(t)
 
@@ -4260,12 +4209,20 @@ class EntitySet(CSDLElement):
         name.append(self.name)
         return string.join(name, '.')
 
+    @renamed_method
+    def GetLocation(self):       # noqa
+        pass
+
     def get_location(self):
         """Returns a :py:class:`pyslet.rfc2396.URI` instance
         representing the location for this entity set."""
         return self.location
 
-    def SetLocation(self):
+    @renamed_method
+    def SetLocation(self):       # noqa
+        pass
+
+    def set_location(self):
         """Sets the location of this entity set by resolving a relative
         path consisting of::
 
@@ -4283,9 +4240,9 @@ class EntitySet(CSDLElement):
             path = self.name
         self.location = self.ResolveURI(path)
 
-    def ContentChanged(self):
-        super(EntitySet, self).ContentChanged()
-        self.SetLocation()
+    def content_changed(self):
+        super(EntitySet, self).content_changed()
+        self.set_location()
 
     def GetChildren(self):
         if self.Documentation:
@@ -4582,7 +4539,7 @@ class AssociationSet(CSDLElement):
         self.ValueAnnotation = []
 
     @classmethod
-    def GetElementClass(cls, name):
+    def get_element_class(cls, name):
         if xmlns.NSEqualNames((EDM_NAMESPACE, 'End'), name, EDM_NAMESPACE_ALIASES):
             return AssociationSetEnd
         else:
@@ -4967,7 +4924,7 @@ class Schema(NameTableMixin, CSDLElement):
             self.ValueTerm,
             CSDLElement.GetChildren(self))
 
-    def ContentChanged(self):
+    def content_changed(self):
         for t in self.EntityType + self.ComplexType + self.Association + self.Function + self.EntityContainer:
             self.Declare(t)
 
@@ -4992,8 +4949,8 @@ class Document(xmlns.XMLNSDocument):
         self.MakePrefix(EDM_NAMESPACE, 'edm')
 
     @classmethod
-    def GetElementClass(cls, name):
-        """Overrides :py:meth:`pyslet.xmlnames20091208.XMLNSDocument.GetElementClass` to look up name."""
+    def get_element_class(cls, name):
+        """Overrides :py:meth:`pyslet.xmlnames20091208.XMLNSDocument.get_element_class` to look up name."""
         eClass = Document.classMap.get(
             name, Document.classMap.get((name[0], None), xmlns.XMLNSElement))
         return eClass

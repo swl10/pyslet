@@ -398,7 +398,7 @@ class XMLNSDocument(XMLNSElementContainerMixin, Document):
         return XMLNSParser(entity)
 
     @classmethod
-    def GetElementClass(cls, name):
+    def get_element_class(cls, name):
         """Returns a class object suitable for representing <name>
 
         name is a tuple of (namespace, name), this overrides the
@@ -535,7 +535,7 @@ class XMLNSParser(XMLParser):
             expandedName = (documentClass.DefaultNS, expandedName[1])
         if self.sgmlOmittag:
             if qname:
-                stagClass = self.doc.GetElementClass(expandedName)
+                stagClass = self.doc.get_element_class(expandedName)
             else:
                 stagClass = None
             elementClass = context.GetChildClass(stagClass)
@@ -544,11 +544,12 @@ class XMLNSParser(XMLParser):
             else:
                 return elementClass, expandedName, False
         else:
-            stagClass = context.GetElementClass(expandedName)
+            stagClass = context.get_element_class(expandedName)
             if stagClass is None:
-                stagClass = self.doc.GetElementClass(expandedName)
+                stagClass = self.doc.get_element_class(expandedName)
             return stagClass, expandedName, False
-            # return self.doc.GetElementClass(expandedName),expandedName,False
+            # return
+            # self.doc.get_element_class(expandedName),expandedName,False
 
     NSDocumentClassTable = {}
     """A dictionary of class objects keyed on tuples of (namespace,element name).

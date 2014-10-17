@@ -14,7 +14,7 @@ from types import *
 from copy import copy
 import warnings
 
-from pyslet.pep8 import PEP8Compatibility
+from pyslet.pep8 import renamed_method
 from pyslet.rfc2396 import URIFactory, URI, FileURL
 
 xml_base = 'xml:base'
@@ -217,7 +217,11 @@ class Node(object):
         raise NotImplementedError
 
     @classmethod
-    def GetElementClass(cls, name):
+    @renamed_method
+    def GetElementClass(cls, name): pass
+    
+    @classmethod
+    def get_element_class(cls, name):
         """Returns a class object suitable for representing element *name*
 
         name is a unicode string representing the element name.
@@ -357,7 +361,7 @@ class Document(Node):
         return XMLParser(entity)
 
     @classmethod
-    def GetElementClass(cls, name):
+    def get_element_class(cls, name):
         """Returns a class object suitable for representing name
 
         name is a unicode string representing the element name.
@@ -1350,7 +1354,7 @@ class Element(Node):
         if name in self._ARMap():
             return None
         else:
-            return super(Element, self).__getattr__(name)
+            raise AttributeError(name)
 
     def GetAttributes(self):
         """Returns a dictionary object that maps attribute names onto values.
@@ -1884,7 +1888,10 @@ class Element(Node):
             if not ws:
                 self.ValidationError("Unexpected data", data)
 
-    def ContentChanged(self):
+    @renamed_method
+    def ContentChanged(self): pass
+    
+    def content_changed(self):
         """Notifies an element that its content has changed.
 
         The default implementation tidies up the list of children to make
@@ -2091,7 +2098,7 @@ class Element(Node):
                 e.AddData(child)
             else:
                 child.Copy(e)
-        e.ContentChanged()
+        e.content_changed()
         return e
 
     def GetBase(self):
@@ -3218,7 +3225,7 @@ class XMLParameterEntity(XMLDeclaredEntity):
         return "%%%s;" % self.name
 
 
-class XMLExternalID(PEP8Compatibility, object):
+class XMLExternalID(object):
 
     """Used to represent external references to entities."""
 

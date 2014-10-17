@@ -58,11 +58,11 @@ class XMLExampleDocument(XMLNSDocument):
     DefaultNS = "http://www.example.com"
 
     @classmethod
-    def GetElementClass(cls, name):
+    def get_element_class(cls, name):
         if name[1] in ("createTag"):
             return XMLExampleElement
         else:
-            return XMLNSDocument.GetElementClass(name)
+            return XMLNSDocument.get_element_class(name)
 
 
 class XMLNSDocumentTests(unittest.TestCase):

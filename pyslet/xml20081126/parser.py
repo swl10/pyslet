@@ -1286,7 +1286,7 @@ class XMLParser:
         """[39] element: parses an element, including its content.
 
         The class used to represent the element is determined by calling the
-        :py:meth:`~pyslet.xml20081126.structures.Document.GetElementClass` method of the current document.
+        :py:meth:`~pyslet.xml20081126.structures.Document.get_element_class` method of the current document.
         If there is no document yet then a new document is created automatically
         (see :py:meth:`ParseDocument` for more information).
 
@@ -1432,7 +1432,7 @@ class XMLParser:
                     production +
                     ": element implied by PCDATA had empty content %s" %
                     self.element)
-        self.element.ContentChanged()
+        self.element.content_changed()
         self.element = saveElement
         self.elementType = saveElementType
         self.cursor = saveCursor
@@ -1620,9 +1620,9 @@ class XMLParser:
         context = self.GetContext()
         if self.sgmlOmittag:
             if name:
-                stagClass = context.GetElementClass(name)
+                stagClass = context.get_element_class(name)
                 if stagClass is None:
-                    stagClass = self.doc.GetElementClass(name)
+                    stagClass = self.doc.get_element_class(name)
             else:
                 stagClass = None
             elementClass = context.GetChildClass(stagClass)
@@ -1631,9 +1631,9 @@ class XMLParser:
             else:
                 return elementClass, name, False
         else:
-            stagClass = context.GetElementClass(name)
+            stagClass = context.get_element_class(name)
             if stagClass is None:
-                stagClass = self.doc.GetElementClass(name)
+                stagClass = self.doc.get_element_class(name)
             return stagClass, name, False
 
     def ParseSTag(self):

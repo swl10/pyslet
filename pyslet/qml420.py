@@ -831,7 +831,7 @@ class QMLDocument(xml.Document):
     """classMap is a mapping from element names to the class object that will be
 	used to represent them."""
 
-    def GetElementClass(self, name):
+    def get_element_class(self, name):
         """Returns the class to use to represent an element with the given name.
 
         This method is used by the XML parser.  The class object is looked up in

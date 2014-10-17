@@ -506,7 +506,7 @@ class QMDMetadataElement(core.QTIElement):
 
     """Abstract class to represent old-style qmd_ tags"""
 
-    def ContentChanged(self):
+    def content_changed(self):
         self.DeclareMetadata(self.GetXMLName(), self.GetValue(), self)
 
 
@@ -1010,7 +1010,7 @@ class ResponseThing(Response):
         for child in self.outro:
             yield child
 
-    def ContentChanged(self):
+    def content_changed(self):
         if isinstance(self.render, RenderFIB) and self.render.MixedModel():
             # use simplified prompt logic.
             self.prompt = self.intro
@@ -1585,7 +1585,7 @@ class RenderFIB(RenderThing):
         self.maxNumber = None
         self.labels = []
 
-    def ContentChanged(self):
+    def content_changed(self):
         self.labels = list(self.FindChildrenDepthFirst(ResponseLabel, False))
 
     def MixedModel(self):
@@ -2040,7 +2040,7 @@ class ResProcessing(common.QTICommentContainer):
         self.ConditionMixin = []
 
     def GetChildren(self):
-        for child in QTICommentContainer.GetChildren(self):
+        for child in common.QTICommentContainer.GetChildren(self):
             yield child
         yield self.Outcomes
         for child in self.ConditionMixin:
@@ -2091,7 +2091,7 @@ class Outcomes(common.QTICommentContainer):
 
     def GetChildren(self):
         return itertools.chain(
-            QTICommentContainer.GetChildren(self),
+            common.QTICommentContainer.GetChildren(self),
             self.DecVar,
             self.InterpretVar)
 
@@ -2136,7 +2136,7 @@ class RespCondition(common.QTICommentContainer, ConditionMixin):
         self.RespCondExtension = None
 
     def GetChildren(self):
-        for child in QTICommentContainer.GetChildren(self):
+        for child in common.QTICommentContainer.GetChildren(self):
             yield child
         yield self.ConditionVar
         for child in itertools.chain(
@@ -2289,7 +2289,7 @@ class ItemFeedback(core.QTIElement, common.ContentMixin):
 
     def GetChildren(self):
         return itertools.chain(
-            QTIElement.GetChildren(self),
+            core.QTIElement.GetChildren(self),
             self.contentChildren)
 
     def MigrateV2(self, v2Item, log):
@@ -2334,8 +2334,8 @@ class Solution(common.ContentMixin, common.QTICommentContainer):
 
     def GetChildren(self):
         return itertools.chain(
-            common.QTICommentContainer.GetChildren(),
-            common.ContentMixin.GetContentChildren())
+            common.QTICommentContainer.GetChildren(self),
+            common.ContentMixin.GetContentChildren(self))
 
 
 class FeedbackMaterial(common.ContentMixin, core.QTIElement):
@@ -2356,7 +2356,7 @@ class FeedbackMaterial(common.ContentMixin, core.QTIElement):
             raise TypeError
 
     def GetChildren(self):
-        return common.ContentMixin.GetContentChildren()
+        return common.ContentMixin.GetContentChildren(self)
 
 
 class SolutionMaterial(FeedbackMaterial):
@@ -2398,8 +2398,8 @@ class Hint(common.ContentMixin, common.QTICommentContainer):
 
     def GetChildren(self):
         return itertools.chain(
-            common.QTICommentContainer.GetChildren(),
-            common.ContentMixin.GetContentChildren())
+            common.QTICommentContainer.GetChildren(self),
+            common.ContentMixin.GetContentChildren(self))
 
 
 class HintMaterial(FeedbackMaterial):

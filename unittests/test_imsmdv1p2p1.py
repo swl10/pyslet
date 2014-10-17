@@ -49,13 +49,13 @@ class LRMTests(unittest.TestCase):
         self.assertTrue(LOM_SOURCE == "LOMv1.0", "LOM_SOURCE")
 
     def testCaseClassMap(self):
-        self.assertTrue(GetElementClass((IMSLRM_NAMESPACE, 'lom')) is LOM)
+        self.assertTrue(get_element_class((IMSLRM_NAMESPACE, 'lom')) is LOM)
         for alias in IMSLRM_NAMESPACE_ALIASES:
-            self.assertTrue(GetElementClass((alias, 'lom')) is LOM)
+            self.assertTrue(get_element_class((alias, 'lom')) is LOM)
         self.assertFalse(
-            GetElementClass(('http://www.example.com/', 'lom')) is LOM)
+            get_element_class(('http://www.example.com/', 'lom')) is LOM)
         self.assertTrue(
-            GetElementClass((IMSLRM_NAMESPACE, 'x-undefined')) is LRMElement)
+            get_element_class((IMSLRM_NAMESPACE, 'x-undefined')) is LRMElement)
 
 
 class LRMElementTests(unittest.TestCase):

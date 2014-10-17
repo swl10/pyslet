@@ -74,7 +74,7 @@ def write_doc(doc, template, out):
     dl_items = []
     index_items = []
     for ec in ds.Schema[0].EntityContainer:
-        if not ec.IsDefaultEntityContainer():
+        if not ec.is_default_entity_container():
             logging.warn("Ignoring non-default EntityContainer: %s", ec.name)
             continue
         es_list = []
@@ -131,7 +131,7 @@ def es_table(es, index_items):
         'body': ''}
     tb = []
     type = es.entityType
-    if type.HasStream():
+    if type.has_stream():
         params['title'] = (xml.EscapeCharData7(es.name) +
                            " <em>(Media Resource)</em>")
     else:

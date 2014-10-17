@@ -2667,7 +2667,7 @@ class SQLEntityCollection(SQLCollectionBase):
                 cols.append("%s %s" %
                             (c, self.container.prepare_sql_type(v, params)))
         # do we have a media stream?
-        if self.entity_set.entityType.HasStream():
+        if self.entity_set.entityType.has_stream():
             v = edm.EDMValue.NewSimpleValue(edm.SimpleType.Int64)
             c = self.container.mangled_names[(self.entity_set.name, u'_value')]
             cnames[c] = True
@@ -3876,7 +3876,7 @@ class SQLEntityContainer(object):
         yield (entity_set.name,)
         for source_path in self.type_name_generator(entity_set.entityType):
             yield tuple([entity_set.name] + source_path)
-        if entity_set.entityType.HasStream():
+        if entity_set.entityType.has_stream():
             yield (entity_set.name, u'_value')
         for link_end, nav_name in entity_set.linkEnds.iteritems():
             if not nav_name:

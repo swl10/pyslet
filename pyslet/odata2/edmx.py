@@ -3,12 +3,14 @@
 
 http://msdn.microsoft.com/en-us/library/dd541284(v=prot.10)"""
 
+import itertools
+
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.rfc2396 as uri
 import pyslet.odata2.csdl as edm
+from pyslet.pep8 import PEP8Compatibility
 
-import itertools
 
 #: Namespace to use for EDMX elements
 EDMX_NAMESPACE = "http://schemas.microsoft.com/ado/2007/06/edmx"
@@ -32,7 +34,7 @@ class DataServices(edm.NameTableMixin, EDMXElement):
         for child in super(DataServices, self).GetChildren():
             yield child
 
-    def ContentChanged(self):
+    def content_changed(self):
         for s in self.Schema:
             self.Declare(s)
         for s in self.Schema:
@@ -98,8 +100,8 @@ class Document(xmlns.XMLNSDocument):
         self.MakePrefix(EDMX_NAMESPACE, 'edmx')
 
     @classmethod
-    def GetElementClass(cls, name):
-        """Overrides :py:meth:`pyslet.xmlnames20091208.XMLNSDocument.GetElementClass` to look up name."""
+    def get_element_class(cls, name):
+        """Overrides :py:meth:`pyslet.xmlnames20091208.XMLNSDocument.get_element_class` to look up name."""
         eClass = Document.classMap.get(
             name, Document.classMap.get((name[0], None), xmlns.XMLNSElement))
         return eClass

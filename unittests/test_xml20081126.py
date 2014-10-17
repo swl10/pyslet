@@ -124,7 +124,7 @@ class ReflectiveElement(Element):
 class ReflectiveDocument(Document):
 
     @classmethod
-    def GetElementClass(cls, name):
+    def get_element_class(cls, name):
         if name in ["reflection", "etest"]:
             return ReflectiveElement
         else:

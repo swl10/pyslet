@@ -1080,7 +1080,7 @@ class VariableDeclaration(core.QTIElement):
         for child in core.QTIElement.GetChildren(self):
             yield child
 
-    def ContentChanged(self):
+    def content_changed(self):
         if self.parent:
             self.parent.RegisterDeclaration(self)
 
@@ -1185,7 +1185,7 @@ class Mapping(core.QTIElement):
     def GetChildren(self):
         return iter(self.MapEntry)
 
-    def ContentChanged(self):
+    def content_changed(self):
         """Builds an internal dictionary of the values being mapped.
 
         In order to fully specify the mapping we need to know the baseType of
@@ -1523,7 +1523,7 @@ class LookupTable(core.QTIElement):
         #: a :py:class:`Value` instance representing the default
         self.default = None
 
-    def ContentChanged(self):
+    def content_changed(self):
         if isinstance(self.parent, OutcomeDeclaration):
             self.baseType = self.parent.baseType
         else:
@@ -1551,9 +1551,9 @@ class MatchTable(LookupTable):
     def GetChildren(self):
         return iter(self.MatchTableEntry)
 
-    def ContentChanged(self):
+    def content_changed(self):
         """Builds an internal dictionary of the values being mapped."""
-        LookupTable.ContentChanged(self)
+        LookupTable.content_changed(self)
         self.map = {}
         for mte in self.MatchTableEntry:
             v = SingleValue.NewValue(self.baseType, mte.targetValue)
@@ -1627,9 +1627,9 @@ class InterpolationTable(LookupTable):
     def GetChildren(self):
         return iter(self.InterpolationTableEntry)
 
-    def ContentChanged(self):
+    def content_changed(self):
         """Builds an internal table of the values being mapped."""
-        LookupTable.ContentChanged(self)
+        LookupTable.content_changed(self)
         self.table = []
         for ite in self.InterpolationTableEntry:
             v = SingleValue.NewValue(self.baseType, ite.targetValue)

@@ -30,12 +30,17 @@ import csdl as edm
 
 # : namespace for metadata, e.g., the property type attribute
 ODATA_METADATA_NAMESPACE = "http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"
-IsDefaultEntityContainer = (
+
+IS_DEFAULT_ENTITY_CONTAINER = (
     ODATA_METADATA_NAMESPACE, u"IsDefaultEntityContainer")
-MimeType = (ODATA_METADATA_NAMESPACE, u"MimeType")
+
+MIME_TYPE = (ODATA_METADATA_NAMESPACE, u"MimeType")
+
 HttpMethod = (ODATA_METADATA_NAMESPACE, u"HttpMethod")
-HasStream = (ODATA_METADATA_NAMESPACE, u"HasStream")
-DataServiceVersion = (ODATA_METADATA_NAMESPACE, "DataServiceVersion")
+
+HAS_STREAM = (ODATA_METADATA_NAMESPACE, u"HasStream")
+
+DATA_SERVICE_VERSION = (ODATA_METADATA_NAMESPACE, "DataServiceVersion")
 FC_KeepInContent = (ODATA_METADATA_NAMESPACE, "FC_KeepInContent")
 FC_TargetPath = (ODATA_METADATA_NAMESPACE, "FC_TargetPath")
 FC_NsPrefix = (ODATA_METADATA_NAMESPACE, "FC_NsPrefix")
@@ -2334,17 +2339,16 @@ class Entity(edm.Entity):
 
     def set_from_json_object(self, obj, entity_resolver=None,
                              for_update=False):
-
         """Sets the value from a JSON representation.
-        
+
         obj
             A python dictionary parsed from a JSON representation
-        
+
         entity_resolver
             An optional callable that takes a URI object and returns the
             entity object it points to.  This is used for resolving
             links when creating or updating entities from a JSON source.
-        
+
         for_update
             An optional boolean (defaults to False) that indicates if an
             *existing* entity is being deserialised for update or just
@@ -2433,15 +2437,15 @@ class Entity(edm.Entity):
 
     def generate_entity_type_in_json(self, for_update=False, version=2):
         """Returns a JSON-encoded string representing this entity
-        
+
         for_update
             A boolean, defaults to False, indicating that the output
             JSON should include any unsaved bindings
-        
+
         version
             Defaults to version 2 output"""
         location = str(self.get_location())
-        mediaLinkResource = self.type_def.HasStream()
+        mediaLinkResource = self.type_def.has_stream()
         yield '{"__metadata":{'
         yield '"uri":%s' % json.dumps(location)
         yield ',"type":%s' % json.dumps(self.entity_set.entityType.GetFQName())
@@ -2711,7 +2715,7 @@ class EntityCollection(edm.EntityCollection):
 
     def get_next_page_location(self):
         """Returns the location of this page of the collection
-        
+
         The result is a :py:class:`rfc2396.URI` instance."""
         token = self.next_skiptoken()
         if token is not None:
@@ -2744,7 +2748,7 @@ class EntityCollection(edm.EntityCollection):
 
     def is_medialink_collection(self):
         """Returns True if this is a collection of Media-Link Entries"""
-        return self.entity_set.entityType.HasStream()
+        return self.entity_set.entityType.has_stream()
 
     def new_stream(self, src, sinfo=None, key=None):
         """Creates a media resource.
@@ -2907,7 +2911,7 @@ class NavigationCollection(EntityCollection, edm.NavigationCollection):
 
     def expand_collection(self):
         """Return an expanded version of this collection
-        
+
         Returns an instance of an OData-specific
         :py:class:`ExpandedEntityCollection`."""
         return ExpandedEntityCollection(
@@ -3341,8 +3345,8 @@ class Entry(atom.Entry):
         if self.Content:
             yield self.Content
 
-    def ContentChanged(self):
-        atom.Entry.ContentChanged(self)
+    def content_changed(self):
+        atom.Entry.content_changed(self)
         self._properties = {}
         if self.Content and self.Content.Properties:
             pList = self.Content.Properties
@@ -3388,11 +3392,11 @@ class Entry(atom.Entry):
                     break
             if newTargetElement is None:
                 # we need to create a new element
-                eClass = targetElement.GetElementClass(eName)
+                eClass = targetElement.get_element_class(eName)
                 if eClass is None and doc:
-                    eClass = doc.GetElementClass(eName)
+                    eClass = doc.get_element_class(eName)
                 if eClass is None:
-                    eClass = Document.GetElementClass(eName)
+                    eClass = Document.get_element_class(eName)
                 newTargetElement = targetElement.ChildElement(eClass, eName)
                 if eName[0] == ns and newTargetElement.GetPrefix(eName[0]) is None:
                     # No prefix exists for this namespace, make one
@@ -3417,10 +3421,10 @@ class Entry(atom.Entry):
         for k, v in entity.data_items():
             # catch property-level feed customisation here
             propertyDef = entity.type_def[k]
-            targetPath = propertyDef.GetTargetPath()
-            if targetPath and not propertyDef.KeepInContent():
+            targetPath = propertyDef.get_target_path()
+            if targetPath and not propertyDef.keep_in_content():
                 # This value needs to be read from somewhere special
-                prefix, ns = propertyDef.GetFCNsPrefix()
+                prefix, ns = propertyDef.get_fc_ns_prefix()
                 targetElement = self.ResolveTargetPath(targetPath, prefix, ns)
                 if isinstance(targetElement, atom.Date):
                     dtOffset = targetElement.GetValue()
@@ -3550,18 +3554,18 @@ class Entry(atom.Entry):
         """Sets the value of this Entry to represent *entity*, a :py:class:`pyslet.mc_csdl.Entity` instance."""
         # start with a reset
         self.reset()
-        mediaLinkResource = entity.type_def.HasStream()
+        mediaLinkResource = entity.type_def.has_stream()
         self.etag = entity.ETag()
         # Now set the new property values, starting with entity-type level feed customisation
         # seems odd that there can only be one of these but, hey...
         cat = self.ChildElement(atom.Category)
         cat.term = entity.type_def.GetFQName()
         cat.scheme = ODATA_SCHEME
-        targetPath = entity.type_def.GetTargetPath()
+        targetPath = entity.type_def.get_target_path()
         if targetPath:
-            prefix, ns = entity.type_def.GetFCNsPrefix()
+            prefix, ns = entity.type_def.get_fc_ns_prefix()
             targetElement = self.ResolveTargetPath(targetPath, prefix, ns)
-            source_path = entity.type_def.GetSourcePath()
+            source_path = entity.type_def.get_source_path()
             if source_path:
                 v = entity
                 for p in source_path:
@@ -3700,18 +3704,18 @@ class Entry(atom.Entry):
         for k, v in entity.data_items():
             # catch property-level feed customisation here
             propertyDef = entity.type_def[k]
-            targetPath = propertyDef.GetTargetPath()
+            targetPath = propertyDef.get_target_path()
             if targetPath:
                 # This value needs to go somewhere special
-                prefix, ns = propertyDef.GetFCNsPrefix()
+                prefix, ns = propertyDef.get_fc_ns_prefix()
                 targetElement = self.ResolveTargetPath(targetPath, prefix, ns)
                 self.SetFCValue(targetElement, v)
-                if not propertyDef.KeepInContent():
+                if not propertyDef.keep_in_content():
                     continue
             # and watch out for unselected properties
             if entity.Selected(k):
                 self[k] = v
-        self.ContentChanged()
+        self.content_changed()
 
     def SetFCValue(self, targetElement, v):
         if isinstance(targetElement, atom.Date) and v:
@@ -3803,10 +3807,10 @@ class Document(app.Document):
         self.MakePrefix(ODATA_DATASERVICES_NAMESPACE, 'd')
 
     @classmethod
-    def GetElementClass(cls, name):
+    def get_element_class(cls, name):
         """Returns the OData, APP or Atom class used to represent name.
 
-        Overrides :py:meth:`~pyslet.rfc5023.Document.GetElementClass` to allow
+        Overrides :py:meth:`~pyslet.rfc5023.Document.get_element_class` to allow
         custom implementations of the Atom or APP classes to be created and
         to cater for OData-specific elements."""
         result = Document.classMap.get(name, None)
@@ -3814,7 +3818,7 @@ class Document(app.Document):
             if name[0] == ODATA_DATASERVICES_NAMESPACE:
                 result = Property
             else:
-                result = app.Document.GetElementClass(name)
+                result = app.Document.get_element_class(name)
         return result
 
 xmlns.MapClassElements(Document.classMap, globals())

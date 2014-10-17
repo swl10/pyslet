@@ -1,6 +1,13 @@
 #! /usr/bin/env python
 """This module implements the QTI 1.2.1 specification defined by IMS GLC"""
 
+import logging
+import string
+import codecs
+import itertools
+import os.path
+from types import StringTypes
+
 import pyslet.xml20081126.structures as xml
 import pyslet.xml20081126.parser as xmlparser
 import pyslet.imsqtiv2p1 as qtiv2
@@ -9,12 +16,6 @@ import pyslet.html40_19991224 as html
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.rfc2396 as uri
 import pyslet.rfc2616 as http
-
-import string
-import codecs
-import itertools
-import os.path
-from types import StringTypes
 
 from pyslet.qtiv1.core import *
 from pyslet.qtiv1.common import *
@@ -117,7 +118,7 @@ class QTIDocument(xml.Document):
 
     classMap = {}
 
-    def GetElementClass(self, name):
+    def get_element_class(self, name):
         """Returns the class to use to represent an element with the given name.
 
         This method is used by the XML parser.  The class object is looked up in
@@ -183,6 +184,7 @@ class QTIDocument(xml.Document):
 
         Each tuple comprises ( <QTI v2 Document>, <LOM Metadata>, <log>, <Resource> )"""
         if isinstance(self.root, QuesTestInterop):
+            logging.debug("Migrating QTI v1 file:\n%s", str(self.root))
             results = self.root.MigrateV2()
             # list of tuples ( <QTIv2 Document>, <Metadata>, <Log Messages> )
             newResults = []
@@ -196,6 +198,7 @@ class QTIDocument(xml.Document):
                 dName, ext = os.path.splitext(dName)
                 dName = cp.GetUniqueFile(dName)
                 for doc, metadata, log in results:
+                    logging.debug("\nQTIv2 Output:\n%s", str(doc))
                     if log:
                         # clean duplicate lines from the log then add as an
                         # annotation
@@ -209,6 +212,7 @@ class QTIDocument(xml.Document):
                                 i = i + 1
                         annotation = metadata.LOMAnnotation()
                         annotationMsg = string.join(log, ';\n')
+                        logging.info(annotationMsg)
                         description = annotation.ChildElement(
                             imsmd.Description)
                         description.ChildElement(

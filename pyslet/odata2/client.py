@@ -957,7 +957,7 @@ class Client(app.Client):
                 self.model = doc.root
                 for s in self.model.DataServices.Schema:
                     for container in s.EntityContainer:
-                        if container.IsDefaultEntityContainer():
+                        if container.is_default_entity_container():
                             prefix = ""
                             defaultContainer = container
                         else:
