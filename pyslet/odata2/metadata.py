@@ -28,6 +28,7 @@ class FeedCustomisationMixin(object):
             (atom.ATOM_NAMESPACE, "uri")],
         'SyndicationPublished': [(atom.ATOM_NAMESPACE, "published")],
         'SyndicationRights': [(atom.ATOM_NAMESPACE, "rights")],
+        'SyndicationSummary': [(atom.ATOM_NAMESPACE, "summary")],
         'SyndicationTitle': [(atom.ATOM_NAMESPACE, "title")],
         'SyndicationUpdated': [(atom.ATOM_NAMESPACE, "updated")],
         'SyndicationContributorName': [
