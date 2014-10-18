@@ -13,7 +13,7 @@
                     <End Role="Child" EntitySet="Files"/>
                 </AssociationSet>
             </EntityContainer>
-            <EntityType Name="File">
+            <EntityType Name="File" m:HasStream="true">
                 <Key>
                     <PropertyRef Name="path"/>
                 </Key>

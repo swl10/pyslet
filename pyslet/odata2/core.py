@@ -82,10 +82,6 @@ class InvalidServiceDocument(Exception):
     pass
 
 
-class InvalidMetadataDocument(Exception):
-    pass
-
-
 class InvalidFeedDocument(Exception):
     pass
 
@@ -2293,10 +2289,21 @@ class StreamInfo(object):
 
     def __init__(self, type=params.APPLICATION_OCTETSTREAM,
                  created=None, modified=None, size=None):
+        #: the media type, a :py:class:`~pyslet.http.params.MediaType`
+        #: instance
         self.type = type
+        #: the optional creation time, a fully specified
+        #: :py:class:`~pyslet.iso8601.TimePoint` instance that
+        #: includes a zone
         self.created = created
+        #: the optional modification time, a fully specified
+        #: :py:class:`~pyslet.iso8601.TimePoint` instance that
+        #: includes a zone
         self.modified = modified
+        #: the size of the stream (in bytes), None if not known
         self.size = size
+        #: the 16 byte binary MD5 checksum of the stream, None if not
+        #: known
         self.md5 = None
 
 

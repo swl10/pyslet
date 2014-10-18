@@ -14,7 +14,15 @@ import edmx as edmx
 import core as core
 
 
+class InvalidMetadataDocument(Exception):
+
+    """Raised by :py:class:`Document.validate`"""
+    pass
+
+
 class FeedCustomisationMixin(object):
+
+    """Utility class used to add common feed customisation attributes"""
 
     AtomPaths = {
         'SyndicationAuthorName': [
@@ -45,11 +53,14 @@ class FeedCustomisationMixin(object):
         pass
 
     def get_target_path(self):
-        """Returns the target path for the property or None if there is
-        no target path set for the property.  The result is a list of
-        qualified element names, that is, tuples of (namespace,name).
-        The last name may start with '@' indicating an attribute rather
-        than an element."""
+        """Returns the target path for an element
+
+        The result is a list of qualified element names, that is, tuples
+        of (namespace,name). The last name may start with '@' indicating
+        an attribute rather than an element.
+
+        Feed customisations are declared using the FC_TargetPath
+        attribute.  Returns None if there is no target path declared."""
         try:
             path = self.GetAttribute(core.FC_TargetPath)
             if path in self.AtomPaths:
@@ -65,7 +76,12 @@ class FeedCustomisationMixin(object):
         pass
 
     def keep_in_content(self):
-        """Returns true if the property should be kept in the content."""
+        """Returns true if a property value should be kept in the content
+
+        This is indicated with the FC_KeepInContent attribute.  If the
+        attribute is missing then False is returned, so properties with
+        custom paths default to being omitted from the properties
+        list."""
         try:
             return self.GetAttribute(core.FC_KeepInContent) == "true"
         except KeyError:
@@ -76,10 +92,10 @@ class FeedCustomisationMixin(object):
         pass
 
     def get_fc_ns_prefix(self):
-        """Returns the custom namespace mapping to use.  The result is a
-        tuple of:
+        """Returns the custom namespace mapping to use.
 
-        (prefix, namespace uri)
+        The value is read from the FC_NsPrefix attribute.  The result is
+        a tuple of: (prefix, namespace uri).
 
         If no mapping is specified then (None,None) is returned."""
         try:
@@ -92,13 +108,18 @@ class FeedCustomisationMixin(object):
 
 class EntityType(edm.EntityType, FeedCustomisationMixin):
 
+    """Supports feed customisation behaviour of EntityTypes"""
+
     @renamed_method
     def GetSourcePath(self):       # noqa
         pass
 
     def get_source_path(self):
-        """Returns the source path for the property or None if there is
-        no source path set.  The result is a list of property names."""
+        """Returns the source path
+
+        This result is read from the FC_SourcePath attribute.  It is a
+        *list* of property names that represents a path into the entity
+        or None if there is no source path set."""
         try:
             return self.GetAttribute(core.FC_SourcePath).split('/')
         except KeyError:
@@ -109,7 +130,9 @@ class EntityType(edm.EntityType, FeedCustomisationMixin):
         pass
 
     def has_stream(self):
-        """Returns true if this entity type describes a media link resource."""
+        """Returns true if this is a media link resource.
+
+        Read from the HasStream attribute.  The default is False."""
         try:
             return self.GetAttribute(core.HAS_STREAM) == "true"
         except KeyError:
@@ -118,18 +141,31 @@ class EntityType(edm.EntityType, FeedCustomisationMixin):
 
 class Property(edm.Property, FeedCustomisationMixin):
 
+    """Supports feed customisation behaviour of Properties"""
+
     @renamed_method
     def GetMimeType(self):       # noqa
         pass
 
     def get_mime_type(self):
+        """Returns the media type of a property
+
+        The result is read from the MimeType attribute.  It is a
+        :py:class:`~pyslet.http.params.MediaType` instance or None if
+        the attribute is not defined."""
         try:
             return params.MediaType.from_str(self.GetAttribute(core.MIME_TYPE))
         except KeyError:
             return None
 
     def __call__(self, literal=None):
-        """Overridden to add mime type handling"""
+        """Overridden to add mime type handling
+
+        Property elements are callable in the core EDM, returning an
+        :py:class:`~pyslet.odata2.core.EDMValue` object instantiated
+        from the declaration.  This implementation adds to the base
+        behaviour by reading the optional mime type attribute and adding
+        it to the value if applicable."""
         value = super(Property, self).__call__(literal)
         value.mtype = self.get_mime_type()
         return value
@@ -137,11 +173,17 @@ class Property(edm.Property, FeedCustomisationMixin):
 
 class EntityContainer(edm.EntityContainer):
 
+    """Supports OData's concept of the default container."""
+
     @renamed_method
     def IsDefaultEntityContainer(self):       # noqa
         pass
 
     def is_default_entity_container(self):
+        """Returns True if this is the default entity container
+
+        The value is read from the IsDefaultEntityContainer attribute.
+        The default is False."""
         try:
             return self.GetAttribute(
                 core.IS_DEFAULT_ENTITY_CONTAINER) == "true"
@@ -159,7 +201,13 @@ class EntityContainer(edm.EntityContainer):
 class EntitySet(edm.EntitySet):
 
     def set_location(self):
-        """Overridden to add support for the default entity container."""
+        """Overridden to add support for the default entity container
+
+        By default, the path to an EntitySet includes the name of the
+        container it belongs to, e.g., MyDatabase.MyTable.  This
+        implementation checks to see if we in the default container and,
+        if so, omits the container name prefix before setting the
+        location URI."""
         container = self.FindParent(EntityContainer)
         if container and not container.is_default_entity_container():
             path = container.name + '.' + self.name
@@ -170,16 +218,21 @@ class EntitySet(edm.EntitySet):
 
 class DataServices(edmx.DataServices):
 
+    """Adds OData specific behaviour"""
+
     def __init__(self, parent):
         super(DataServices, self).__init__(parent)
-        self.defaultContainer = None		#: the default entity container
+        #: the default entity container
+        self.defaultContainer = None
 
     @renamed_method
     def DataServicesVersion(self):       # noqa
         pass
 
     def data_services_version(self):
-        """Returns the data service version, or None if none is defined"""
+        """Returns the data service version
+
+        Read from the DataServiceVersion attribute.  Defaults to None."""
         try:
             return self.GetAttribute(core.DATA_SERVICE_VERSION)
         except KeyError:
@@ -194,10 +247,10 @@ class DataServices(edmx.DataServices):
 
         *name* must be of the form::
 
-                [<entity container>.]<function or operation name>
+            [<entity container>.]<entity set, function or operation name>
 
         The entity container must be present unless the target is in the
-        default container in which case it must not be present.
+        default container in which case it *must not* be present.
 
         If *name* can't be found KeyError is raised."""
         resource = None
@@ -216,6 +269,9 @@ class DataServices(edmx.DataServices):
 
 
 class Edmx(edmx.Edmx):
+
+    """The root element of OData-specific metadata documents"""
+
     DataServicesClass = DataServices
 
 
@@ -229,7 +285,11 @@ def ValidateMetadataDocument(doc):      # noqa
 
 class Document(edmx.Document):
 
-    """Class for working with OData metadata documents."""
+    """Class for working with OData-specific metadata documents.
+
+    Adds namespace prefix declarations for the OData metadata and OData
+    dataservices namespaces."""
+
     classMap = {}
 
     def __init__(self, **args):
@@ -239,11 +299,12 @@ class Document(edmx.Document):
 
     @classmethod
     def get_element_class(cls, name):
-        """Returns the OData, edmx or csdl class used to represent name.
+        """Returns the class used to represent an element.
 
-        Overrides :py:meth:`~pyslet.rfc5023.Document.get_element_class` to
-        allow custom implementations of the edmx/csdl classes to be
-        created and to cater for OData-specific annotations."""
+        Overrides
+        :py:meth:`~pyslet.odata2.edmx.Document.get_element_class` to use
+        the OData-specific implementations of the edmx/csdl classes
+        defined in this module."""
         result = Document.classMap.get(name, None)
         if result is None:
             result = edmx.Document.get_element_class(name)
@@ -254,13 +315,17 @@ class Document(edmx.Document):
         pass
 
     def validate(self):
-        """Validates the OData extensions and returns the data service
-        version required to process the service or None if no data
-        service version is specified."""
+        """Validates any declared OData extensions
+
+        Checks many of the requirements given in the specification and
+        raises :py:class:`InvalidMetadataDocument` if the tests fail.
+
+        Returns the data service version required to process the service
+        or None if no data service version is specified."""
         # These extensions MUST be used by a data service in conjunction
         # with the "dataservices" node
         if not isinstance(self.root.DataServices, edmx.DataServices):
-            raise core.InvalidMetadataDocument("Expected dataservices node")
+            raise InvalidMetadataDocument("Expected dataservices node")
         # IsDefaultEntityContainer: This attribute MUST be used on an
         # EntityContainer element to indicate which EntityContainer is the
         # default container for the data service. Each conceptual schema
@@ -274,19 +339,19 @@ class Document(edmx.Document):
                 if flag == "true":
                     ndefaults += 1
                 elif flag != "false":
-                    raise core.InvalidMetadataDocument(
+                    raise InvalidMetadataDocument(
                         "IsDefaultEntityContainer: %s" % flag)
             except KeyError:
                 pass
         if ndefaults != 1:
-            raise core.InvalidMetadataDocument(
+            raise InvalidMetadataDocument(
                 "IsDefaultEntityContainer required on "
                 "one and only one EntityContainer")
         for p in self.root.FindChildrenDepthFirst(edm.Property):
             try:
                 params.MediaType.from_str(p.GetAttribute(core.MIME_TYPE))
             except grammar.BadSyntax as e:
-                raise core.InvalidMetadataDocument(
+                raise InvalidMetadataDocument(
                     "MimeType format error in property %s: %s" %
                     (p.name, str(e)))
             except KeyError:
@@ -299,10 +364,10 @@ class Document(edmx.Document):
                 if f.GetAttribute(core.HttpMethod) in (
                         u"POST", u"PUT", u"GET", u"MERGE", u"DELETE"):
                     continue
-                raise core.InvalidMetadataDocument(
+                raise InvalidMetadataDocument(
                     "Bad HttpMethod: %s" % f.GetAttribute(core.HttpMethod))
             except KeyError:
-                raise core.InvalidMetadataDocument(
+                raise InvalidMetadataDocument(
                     "FunctionImport must have HttpMethod defined: %s" % f.name)
         # HasStream: This attribute MUST only be used on an <EntityType>
         # element
@@ -310,10 +375,10 @@ class Document(edmx.Document):
             try:
                 hs = e.GetAttribute(core.HAS_STREAM)
                 if not isinstance(e, edm.EntityType):
-                    raise core.InvalidMetadataDocument(
+                    raise InvalidMetadataDocument(
                         "HasStream must only be used on EntityType")
                 elif hs not in ("true", "false"):
-                    raise core.InvalidMetadataDocument(
+                    raise InvalidMetadataDocument(
                         "Bad value for HasStream: %s" % hs)
             except KeyError:
                 pass
@@ -339,7 +404,7 @@ class Document(edmx.Document):
                 except KeyError:
                     pass
             if version != match:
-                raise core.InvalidMetadataDocument(
+                raise InvalidMetadataDocument(
                     "Expected version %s, found %s" % (match, version))
             return version
         except KeyError:

@@ -370,7 +370,7 @@ class Message(PEP8Compatibility, object):
             try:
                 self.entity_body = entity_body
                 self.body_start = entity_body.tell()
-            except IOError:
+            except (IOError, AttributeError):
                 self.body_start = None
             self.body_len = None
         #: by default we'll keep the connection alive

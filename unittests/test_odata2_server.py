@@ -31,6 +31,7 @@ import pyslet.http.params as params
 import pyslet.http.messages as messages
 import pyslet.iso8601 as iso
 import pyslet.odata2.csdl as edm
+import pyslet.odata2.metadata as edmx
 
 from pyslet.odata2.server import *
 from test_http_server import MockTime
@@ -281,7 +282,7 @@ class ODataTests(unittest.TestCase):
             doc.Read()
             try:
                 doc.validate()
-            except core.InvalidMetadataDocument, e:
+            except edmx.InvalidMetadataDocument, e:
                 self.fail(
                     "%s is valid but raised InvalidMetadataDocument: %s" % (fName, str(e)))
 
@@ -297,7 +298,7 @@ class ODataTests(unittest.TestCase):
                 doc.validate()
                 self.fail(
                     "%s is invalid but did not raise InvalidMetadataDocument" % fName)
-            except core.InvalidMetadataDocument:
+            except edmx.InvalidMetadataDocument:
                 pass
 
 

@@ -5,11 +5,12 @@ The sample code for this service is in the samples directory in the
 Pyslet distribution: fsodata.py
 
 This project demonstrates how to construct a simple OData service based
-on a custom EntityContainer class.
+on a custom EntityContainer class.  It also demonstrates how to handle
+media streams in your own data sources. 
 
 Although OData is often talked about as the ODBC of the web there is no
 reason why your data has to be in a database format to be exposed by
-OData.
+OData...
 
 
 Step 0: Create the DAL implementation
@@ -66,7 +67,7 @@ Here's the model::
                         <End Role="Child" EntitySet="Files"/>
                     </AssociationSet>
                 </EntityContainer>
-                <EntityType Name="File">
+                <EntityType Name="File" m:HasStream="true">
                     <Key>
                         <PropertyRef Name="path"/>
                     </Key>
@@ -106,8 +107,13 @@ date of the file will be echoed in the Atom 'updated' field and the
 file's name will become the Atom title.  This will make my OData service
 more interesting to look at in a standard browser.
 
+Finally, we want to actually download these files so I've added the
+HasStream attribute to the EntityType declaration.  The idea is that
+using the $value path option in the URL will allow you to download the
+contents of the file. 
+
 As before, we'll save the model to a file and load it when our script
-starts up.
+starts up.  This model is fsschema.xml in the samples directory.
 
 
 Step 0: Revisited
@@ -167,7 +173,7 @@ later but let's start with the declaration::
         """ this is our custom collection class
             ... more details below"""
 
-Now let's look at the first part of the load_metadata function which is
+Let's look at the first part of the load_metadata function which is
 called on script start-up::
 
     import pyslet.odata2.metadata as edmx
@@ -186,7 +192,8 @@ called on script start-up::
 The critical step here is the last line where we *bind* our custom
 collection class to the 'Files' entity set.  From this point on, calls
 to the DAL API for the File entity set will be routed to our collection
-class.  What do we need to do to handle them?
+class, not the default implementation.  What do we need to do to handle
+them?
 
 Writing our Custom Entity Collection
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -206,11 +213,11 @@ in the collection, in no particular order::
 
     def generate_entities(self):
         """List all the files in our file system
-        
+
         The first item yielded is a dummy value with path /"""
         e = self.new_entity()
         e['path'].set_from_value('/')
-        e['name'].set_from_value('')
+        e['name'].set_from_value('/')
         e['isDirectory'].set_from_value(True)
         e.exists = True
         yield e
@@ -249,12 +256,12 @@ defined by the base class for itervalues::
             self.expand_entities(self.filter_entities(
                 self.generate_entities())))
 
-Notice that our generator function is passed to filter_entities which
-iterates through our generator yielding only the entities that *match*
-the filter.  Similarly, this filtered iterable is then iterated by the
+Our generator function is passed to filter_entities which iterates
+through our generator yielding only the entities that *match* the
+filter.  Similarly, this filtered iterable is then iterated by the
 expand_entities method to implement the expand and select rules.
 Finally, the resulting generator is wrapped by the order_entities method
-which sorts them according to the orderby rules.  This last step is does
+which sorts them according to the orderby rules.  This last step does
 nothing if there is no orderby option in effect but if there is it is a
 bit wasteful because the iterator will be turned into a list before it
 is sorted, causing all entities to be loaded into memory.  See `Big vs
@@ -306,17 +313,20 @@ number of entities in the collection.  Unfortunately, in this case we
 don't really have a better method than iterating through them all so we
 skip that part.
 
+Dealing With Navigation
+~~~~~~~~~~~~~~~~~~~~~~~
+
 To make our example more interesting, I've defined two navigation
 properties that enable you to use OData to traverse the file system by
 navigating up to a File's parent directory or down to the files and
-sub-directories it contains.  The implementations are similar but notice
-that we have to define two separate classes derived from
-:py:class:`pyslet.odata2.core.NavigationCollection` and that we have
+sub-directories it contains.  The implementations are similar but we
+have to define two separate classes derived from
+:py:class:`pyslet.odata2.core.NavigationCollection` and we have
 to use the attribute from_entity which contains the entity we are
 navigating from::
 
     class FSChildren(odata.NavigationCollection):
-        
+
         # itervalues defined as before
         
         def generate_entities(self):
@@ -376,6 +386,111 @@ rest of the load_metadata function we defined earlier::
     container['Files'].BindNavigation('Parent', FSParent)
 
 
+Adding Support for Streams
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To access the contents of the file we need to implement support for the
+stream methods on the base collection.  These methods are only supported
+(and needed) on base collections, not on navigation collections.  As a
+result, we'll add them to our FSCollection class.
+
+To support reading streams you need to support two new methods,
+read_stream and read_stream_close.  These methods are very similar, they
+just provide different approaches to obtaining the data.  read_stream
+pushes the data by writing it to a file you pass in as a parameter and
+read_stream_close pulls the stream, returning a generator that iterates
+over the data and closing the collection when the iteration terminates. 
+This second form is used by the OData server as it is more compatible
+with the way the WSGI framework expects to consume data. 
+
+The stream methods use a very simple class
+:py:class:`~pyslet.odata2.core.StreamInfo` to return some basic
+information about the stream such as the content type, the size and
+modification time. The content type is required, everything else is
+optional::
+
+    def _get_path_info(self, path):
+        try:
+            e = self[path]
+            fspath = path_to_fspath(path)
+            if os.path.isdir(fspath):
+                # directories return zero-length data
+                sinfo = odata.StreamInfo(type=params.PLAIN_TEXT, size=0)
+            else:
+                root, ext = os.path.splitext(fspath)
+                type = map_extension(ext)
+                modified = e['lastModified'].value
+                if modified:
+                    modified = modified.WithZone(0)
+                sinfo = odata.StreamInfo(
+                    type=type,
+                    modified=modified,
+                    size=e['size'].value)
+            return fspath, sinfo
+        except ValueError:
+            raise KeyError("No such path: %s" % path)
+
+This method returns a tuple of the native file system path and the basic
+information about the stream.  For directories, we return a zero-length
+text/plain stream, for files we use an internally defined map_extension
+function to look up the file extension in a simple dictionary.
+
+The type is an instance of
+:py:class:`pyslet.http.params.MediaType` which is a class wrapper
+for content types, you can create you own very simply by passing
+the type and subtype as strings::
+
+    type = params.MediaType('image','gif')
+
+or, if you have untrusted input, by creating an instance from a
+string::
+
+    type = params.MediaType.from_str(
+        'text/html; name=index.htm; charset="utf-8"')
+    print type
+    # prints: text/html; charset=utf-8; name=index.htm
+    
+To generate the data we use another private method::
+
+    def _generate_file(self, fspath, close_it=False):
+        try:
+            with open(fspath,'rb') as f:
+                data = ''
+                while True:
+                    data = f.read(io.DEFAULT_BUFFER_SIZE)
+                    if not data:
+                        # EOF
+                        break
+                    else:
+                        yield data
+        finally:
+            if close_it:
+                self.close()
+
+This is a generator method that yields the data in chunks.  When the
+iteration is complete (or destroyed) the collection can be closed and
+cleaned up automatically by passing True for close_it. 
+
+Armed with these two methods we can finish our implementation by
+providing implementations of the two required methods for media stream
+support::
+
+    def read_stream(self, path, out=None):
+        fspath, sinfo = self._get_path_info(path)
+        if out is not None and sinfo.size:
+            for data in self._generate_file(fspath):
+                out.write(data)
+        return sinfo                     
+
+    def read_stream_close(self, path):
+        fspath, sinfo = self._get_path_info(path)
+        if sinfo.size:
+            return sinfo, self._generate_file(fspath,True)                     
+        else:
+            self.close()
+            return sinfo, []
+
+
 Step 2: Test the Model
 ----------------------
 
@@ -400,6 +515,16 @@ interpreter::
     /dtest None
     /tmp.txt 2014-07-29T10:02:21
     /dtest/tmp.txt 2014-07-29T10:23:18
+    >>> info, gen = collection.read_stream_close('/tmp.txt')
+    >>> info.size
+    6
+    >>> str(info.type)
+    'text/plain'
+    >>> for data in gen: print data
+    ... 
+    Hello
+
+    >>> 
 
 
 Step 3: Link the Data Source to the OData Server

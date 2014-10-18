@@ -23,7 +23,11 @@ Data Model
 	:show-inheritance:
 	:special-members:
 
+..  autoclass:: StreamInfo
+	:members:
+	:show-inheritance:
 
+    
 Navigation: Deferred Values
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -34,3 +38,4 @@ Navigation: Deferred Values
 ..	autoclass:: ExpandedEntityCollection
 	:members:
 	:show-inheritance:
+

@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 """Creates an OData service from the file system"""
 
+import io
 import os
 import os.path
 import threading
@@ -8,6 +9,7 @@ import logging
 import string
 from wsgiref.simple_server import make_server
 
+import pyslet.http.params as params
 import pyslet.odata2.metadata as edmx
 import pyslet.odata2.core as odata
 from pyslet.odata2.server import ReadOnlyServer
@@ -20,6 +22,23 @@ SERVICE_ROOT = "http://localhost:%i/" % SERVICE_PORT
 
 #: the base path of our exposed file system
 BASE_PATH = os.path.abspath(os.path.normpath("local/fsodata"))
+
+#: a mapping from .ext to mime type
+EXTENSION_MAP = {
+    '.txt': 'text/plain',
+    '.html': 'text/html',
+    '.xml': 'application/xml'}
+
+
+def map_extension(ext):
+    if ext:
+        type = EXTENSION_MAP.get(ext, EXTENSION_MAP.get(ext.lower, None))
+    else:
+        type = None
+    if type is None:
+        return params.APPLICATION_OCTETSTREAM
+    else:
+        return params.MediaType.from_str(type)
 
 
 def path_to_fspath(path):
@@ -145,6 +164,57 @@ class FSCollection(odata.EntityCollection):
         except ValueError:
             raise KeyError("No such path: %s" % path)
 
+    def _get_path_info(self, path):
+        try:
+            e = self[path]
+            fspath = path_to_fspath(path)
+            if os.path.isdir(fspath):
+                # directories return zero-length data
+                sinfo = odata.StreamInfo(type=params.PLAIN_TEXT, size=0)
+            else:
+                root, ext = os.path.splitext(fspath)
+                type = map_extension(ext)
+                modified = e['lastModified'].value
+                if modified:
+                    modified = modified.WithZone(0)
+                sinfo = odata.StreamInfo(
+                    type=type,
+                    modified=modified,
+                    size=e['size'].value)
+            return fspath, sinfo
+        except ValueError:
+            raise KeyError("No such path: %s" % path)
+
+    def _generate_file(self, fspath, close_it=False):
+        try:
+            with open(fspath, 'rb') as f:
+                data = ''
+                while True:
+                    data = f.read(io.DEFAULT_BUFFER_SIZE)
+                    if not data:
+                        # EOF
+                        break
+                    else:
+                        yield data
+        finally:
+            if close_it:
+                self.close()
+
+    def read_stream(self, path, out=None):
+        fspath, sinfo = self._get_path_info(path)
+        if out is not None and sinfo.size:
+            for data in self._generate_file(fspath):
+                out.write(data)
+        return sinfo
+
+    def read_stream_close(self, path):
+        fspath, sinfo = self._get_path_info(path)
+        if sinfo.size:
+            return sinfo, self._generate_file(fspath, True)
+        else:
+            self.close()
+            return sinfo, []
+
 
 class FSChildren(odata.NavigationCollection):
 
@@ -174,7 +244,12 @@ class FSChildren(odata.NavigationCollection):
         # child_path must be child of path
         head = child_path[:len(path)]
         tail = child_path[len(path):]
-        if head != path or not tail or tail[0] != '/':
+        if path == '/':
+            # special handling as tail will not start with /
+            if head != path or not tail or '/' in tail:
+                raise KeyError("not a child path: %s" % child_path)
+        elif (head != path or not tail or
+              tail[0] != '/' or '/' in tail[1:]):
             raise KeyError("not a child path: %s" % child_path)
         child_fspath = path_to_fspath(child_path)
         try:
