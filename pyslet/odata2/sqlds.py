@@ -106,6 +106,23 @@ class SQLParams(object):
                 suitable for passing to the underlying DB API."""
         raise NotImplementedError
 
+    @classmethod
+    def escape_literal(self, literal):
+        """Escapes a literal string, returning the escaped version
+        
+        This method is only used to escape characters that are
+        interpreted specially by the parameter substitution system. For
+        example, if the parameters are being substituted using python's
+        % operator then the '%' sign needs to be escaped (by doubling)
+        in the output.
+        
+        This method has nothing to do with turning python values into
+        SQL escaped literals, that task is always deferred to the
+        underlying DB module to prevent SQL injection attacks.
+        
+        The default implementation does nothing, in most cases that is
+        the correct thing to do."""
+        return literal
 
 class QMarkParams(SQLParams):
 
@@ -118,6 +135,24 @@ class QMarkParams(SQLParams):
     def add_param(self, value):
         self.params.append(value)
         return "?"
+
+
+class FormatParams(SQLParams):
+
+    """A class for building parameter lists using '%s' syntax."""
+
+    def __init__(self):
+        super(FormatParams, self).__init__()
+        self.params = []
+
+    def add_param(self, value):
+        self.params.append(value)
+        return "%s"
+
+    @classmethod
+    def escape_literal(self, literal):
+        """Doubles any % characters to prevent formatting errors"""
+        return literal.replace("%","%%")
 
 
 class NumericParams(SQLParams):
@@ -202,7 +237,7 @@ class SQLTransaction(object):
         else:
             self.noCommit += 1
 
-    def execute(self, sqlcmd, params):
+    def execute(self, sqlcmd, params=None):
         """Executes *sqlcmd* as part of this transaction.
 
         sqlcmd
@@ -211,7 +246,8 @@ class SQLTransaction(object):
         params
                 A :py:class:`SQLParams` object containing any
                 parameterized values."""
-        self.cursor.execute(sqlcmd, params.params)
+        self.cursor.execute(sqlcmd,
+                            params.params if params is not None else None)
         self.queryCount += 1
 
     def commit(self):
@@ -900,12 +936,20 @@ class SQLCollectionBase(core.EntityCollection):
         skip_expression = []
         i = ket = 0
         while True:
-            oname, dir = self.orderNames[i]
+            if self.orderby and i < len(self.orderby):
+                oname = None
+                expression, dir = self.orderby[i]
+            else:
+                oname, dir = self.orderNames[i]
             v = self.skiptoken[i]
             op = ">" if dir > 0 else "<"
+            if oname is None:
+                o_expression = self.sql_expression(expression, params, op)
+            else:
+                o_expression = oname
             skip_expression.append(
                 "(%s %s %s" %
-                (oname,
+                (o_expression,
                  op,
                  params.add_param(
                      self.container.prepare_sql_value(v))))
@@ -913,9 +957,12 @@ class SQLCollectionBase(core.EntityCollection):
             i += 1
             if i < len(self.orderNames):
                 # more to come
+                if oname is None:
+                    # remake the expression
+                    o_expression = self.sql_expression(expression, params, '=')
                 skip_expression.append(
                     " OR (%s = %s AND " %
-                    (oname, params.add_param(
+                    (o_expression, params.add_param(
                         self.container.prepare_sql_value(v))))
                 ket += 1
                 continue
@@ -1122,7 +1169,7 @@ class SQLCollectionBase(core.EntityCollection):
             if k in keys or source_path in self.container.ro_names:
                 continue
             if not entity.Selected(k):
-                v.SetNull()
+                v.set_null()
             if isinstance(v, edm.SimpleValue):
                 yield self._mangle_name(source_path), v
             else:
@@ -1226,7 +1273,8 @@ class SQLCollectionBase(core.EntityCollection):
                 params,
                 context)
         elif isinstance(expression, UnparameterizedLiteral):
-            return unicode(expression.value)
+            return self.container.ParamsClass.escape_literal(
+                unicode(expression.value))
         elif isinstance(expression, core.LiteralExpression):
             return params.add_param(
                 self.container.prepare_sql_value(
@@ -2198,6 +2246,7 @@ class SQLEntityCollection(SQLCollectionBase):
                     (self.container.mangled_names[
                         (self.entity_set.name, k)],
                         self.container.prepare_sql_value(v)))
+            key_len = len(constraints)
             cv_list = list(self.update_fields(entity))
             for cname, v in cv_list:
                 # concurrency tokens get added as if they were part of the key
@@ -2214,25 +2263,47 @@ class SQLEntityCollection(SQLCollectionBase):
                 updates.append(
                     '%s=%s' %
                     (cname,
-                     params.add_param(
-                         self.container.prepare_sql_value(v))))
+                     params.add_param(self.container.prepare_sql_value(v))))
             query.append(string.join(updates, ', '))
             query.append(' WHERE ')
             where = []
-            for cname, cValue in constraints:
-                where.append('%s=%s' % (cname, params.add_param(cValue)))
+            for cname, cvalue in constraints:
+                where.append('%s=%s' % (cname, params.add_param(cvalue)))
             query.append(string.join(where, ' AND '))
             query = string.join(query, '')
             logging.info("%s; %s", query, unicode(params.params))
             transaction.execute(query, params)
             if transaction.cursor.rowcount == 0:
-                # no rows matched this constraint, probably a concurrency
-                # failure
-                if concurrency_check:
-                    raise edm.ConcurrencyError
-                else:
+                # we need to check if this entity really exists
+                query = ['SELECT COUNT(*) FROM ', self.table_name, ' WHERE ']
+                params = self.container.ParamsClass()
+                where = []
+                for cname, cvalue in constraints:
+                    where.append('%s=%s' % (cname, params.add_param(cvalue)))
+                query.append(string.join(where, ' AND '))
+                query = string.join(query, '')
+                logging.info("%s; %s", query, unicode(params.params))
+                transaction.execute(query, params)
+                result = transaction.cursor.fetchone()[0]
+                if result == 0 and concurrency_check:
+                    # could be a concurrency error, repeat with just keys
+                    query = ['SELECT COUNT(*) FROM ', self.table_name, ' WHERE ']
+                    params = self.container.ParamsClass()
+                    where = []
+                    for cname, cvalue in constraints[:key_len]:
+                        where.append(
+                            '%s=%s' % (cname, params.add_param(cvalue)))
+                    query.append(string.join(where, ' AND '))
+                    query = string.join(query, '')
+                    logging.info("%s; %s", query, unicode(params.params))
+                    transaction.execute(query, params)
+                    result = transaction.cursor.fetchone()[0]
+                    if result == 1:
+                        raise edm.ConcurrencyError
+                if result == 0:
                     raise KeyError("Entity %s does not exist" %
                                    str(entity.get_location()))
+                # otherwise, no rows affected, but ignore!
             # We finish off the bindings in a similar way to
             # insert_entity_sql but this time we need to handle the case
             # where there is an existing link and the navigation
@@ -2734,6 +2805,25 @@ class SQLEntityCollection(SQLCollectionBase):
         finally:
             transaction.close()
 
+    def drop_table_query(self):
+        """Returns a SQL statement for dropping the table."""
+        query = ['DROP TABLE ', self.table_name]
+        return string.join(query,'')
+
+    def drop_table(self):
+        """Executes the SQL statement :py:meth:`drop_table_query`"""
+        query = self.drop_table_query()
+        transaction = SQLTransaction(self.container.dbapi, self.dbc)
+        try:
+            transaction.begin()
+            logging.info("%s;", query)
+            transaction.execute(query)
+            transaction.commit()
+        except Exception as e:
+            transaction.rollback(e)
+        finally:
+            transaction.close()
+
 
 class SQLNavigationCollection(SQLCollectionBase, core.NavigationCollection):
 
@@ -3173,7 +3263,17 @@ class SQLAssociationCollection(SQLNavigationCollection):
     database then 'TeamID' and 'PlayerID' on their own are more likely
     choices. You would need to override the
     :py:meth:`SQLEntityContainer.mangle_name` method in the container to
-    catch these cases and return the shorter column names."""
+    catch these cases and return the shorter column names.
+    
+    Finally, to ensure the uniqueness of foreign key constraints, the
+    following names are mangled::
+    
+        ( association set name, association set name, 'fkA')
+        ( association set name, association set name, 'fkB')
+    
+    Notice that the association set name is used twice as it is not only
+    defines the scope of the name but must also be incorporated into the
+    constraint name to ensure uniqueness across the entire databas."""
 
     def __init__(self, **kwargs):
         if not kwargs.pop('qualify_names', True):
@@ -3499,8 +3599,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
         any entities are created."""
         entitySetA, nameA, entitySetB, nameB, uniqueKeys = container.aux_table[
             aset_name]
-        query = ['CREATE TABLE ', container.mangled_names[
-            (aset_name,)], ' (']
+        query = ['CREATE TABLE ', container.mangled_names[(aset_name,)], ' (']
         params = container.ParamsClass()
         cols = []
         constraints = []
@@ -3523,16 +3622,9 @@ class SQLAssociationCollection(SQLNavigationCollection):
                             (cname, container.prepare_sql_type(v, params)))
             constraints.append(
                 "CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s(%s)" %
-                (container.quote_identifier(
-                    u"fk" +
-                    ab),
-                    string.join(
-                    fk_names,
-                    ', '),
-                    target_table,
-                    string.join(
-                    k_names,
-                    ', ')))
+                (container.mangled_names[(aset_name, aset_name, u"fk" + ab)],
+                 string.join(fk_names, ', '),
+                 target_table, string.join(k_names, ', ')))
             if uniqueKeys:
                 constraints.append("CONSTRAINT %s UNIQUE (%s)" % (
                     container.quote_identifier(u"u" + ab),
@@ -3540,7 +3632,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
         # Finally, add a unique constraint spanning all columns as we don't
         # want duplicate relations
         constraints.append("CONSTRAINT %s UNIQUE (%s)" % (
-            container.quote_identifier(u"pk"),
+            container.mangled_names[(aset_name, aset_name, u"pk")],
             string.join(pk_names, ', ')))
         cols = cols + constraints
         query.append(string.join(cols, u", "))
@@ -3561,6 +3653,36 @@ class SQLAssociationCollection(SQLNavigationCollection):
             query, params = cls.create_table_query(container, aset_name)
             logging.info("%s; %s", query, unicode(params.params))
             transaction.execute(query, params)
+            transaction.commit()
+        except Exception as e:
+            transaction.rollback(e)
+        finally:
+            transaction.close()
+            if dbc is not None:
+                container.release_connection(dbc)
+
+    @classmethod
+    def drop_table_query(cls, container, aset_name):
+        """Returns a SQL statement to drop the auxiliary table."""
+        entitySetA, nameA, entitySetB, nameB, uniqueKeys = container.aux_table[
+            aset_name]
+        query = ['DROP TABLE ', container.mangled_names[(aset_name,)]]
+        return string.join(query, '')
+
+    @classmethod
+    def drop_table(cls, container, aset_name):
+        """Executes the SQL statement :py:meth:`drop_table_query`"""
+        dbc = container.acquire_connection(
+            SQL_TIMEOUT)        #: a connection to the database
+        if dbc is None:
+            raise DatabaseBusy(
+                "Failed to acquire connection after %is" % SQL_TIMEOUT)
+        transaction = SQLTransaction(container.dbapi, dbc)
+        try:
+            transaction.begin()
+            query = cls.drop_table_query(container, aset_name)
+            logging.info("%s;", query)
+            transaction.execute(query)
             transaction.commit()
         except Exception as e:
             transaction.rollback(e)
@@ -3698,8 +3820,13 @@ class SQLEntityContainer(object):
             self.ParamsClass = NumericParams
         elif self.dbapi.paramstyle == "named":
             self.ParamsClass = NamedParams
+        elif self.dbapi.paramstyle == "format":
+            self.ParamsClass = FormatParams
         else:
             # will fail later when we try and add parameters
+            logging.warn("Unsupported DBAPI params style: %s\n"
+                         "setting to qmark",
+                          self.dbapi.paramstyle)
             self.ParamsClass = SQLParams
         self.fk_table = {}
         """A mapping from an entity set name to a FK mapping of the form::
@@ -3790,6 +3917,10 @@ class SQLEntityContainer(object):
                 self.mangled_names[source_path] = self.mangle_name(source_path)
             for key_name in esB.keys:
                 source_path = (aSet.name, esB.name, prefixB, key_name)
+                self.mangled_names[source_path] = self.mangle_name(source_path)
+            """And mangle the foreign key constraint names..."""
+            for kc in (u'fkA', u'fkB', u"pk"):
+                source_path = (aSet.name, aSet.name, kc)
                 self.mangled_names[source_path] = self.mangle_name(source_path)
 
     def mangle_name(self, source_path):
@@ -4017,9 +4148,14 @@ class SQLEntityContainer(object):
         implementation for a specific database engine."""
         return SQLReverseKeyCollection
 
-    def create_all_tables(self):
+    def create_all_tables(self, out=None):
         """Creates all tables in this container.
-
+        
+        out
+            An optional file-like object.  If given, the tables are not
+            actually created, the SQL statements are written to this
+            file instead.
+            
         Tables are created in a sensible order to ensure that foreign
         key constraints do not fail but this method is not compatible
         with databases that contain circular references though, e.g.,
@@ -4028,13 +4164,33 @@ class SQLEntityContainer(object):
         hand. You can use the create_table_query methods to act as a
         starting point for your script."""
         visited = set()
+        create_list = []
         for es in self.container.EntitySet:
             if es.name not in visited:
-                self.create_table(es, visited)
+                self.create_table_list(es, visited, create_list)
+        for es in create_list:
+            with es.OpenCollection() as collection:
+                if out is None:
+                    collection.create_table()
+                else:
+                    query, params = collection.create_table_query()
+                    out.write(query)
+                    out.write(";\n\n")
+                    if params.params:
+                        logging.warning("Ignoring params to CREATE TABLE: %s",
+                                        unicode(params.params))
         # we now need to go through the aux_table and create them
         for aset_name in self.aux_table:
-            self.get_symmetric_navigation_class().create_table(
-                self, aset_name)
+            nav_class = self.get_symmetric_navigation_class()
+            if out is None:
+                nav_class.create_table(self, aset_name)
+            else:
+                query, params = nav_class.create_table_query(self, aset_name)
+                out.write(query)
+                out.write(";\n\n")
+                if params.params:
+                    logging.warning("Ignoring params to CREATE TABLE: %s",
+                                    unicode(params.params))
 
     def CreateAllTables(self):      # noqa
         warnings.warn("SQLEntityContainer.CreateAllTables is deprecated, "
@@ -4057,6 +4213,56 @@ class SQLEntityContainer(object):
         # now we are free to create the table
         with es.OpenCollection() as collection:
             collection.create_table()
+
+    def create_table_list(self, es, visited, create_list):
+        # before we create this table, we need to check to see if it
+        # references another table
+        visited.add(es.name)
+        fk_mapping = self.fk_table[es.name]
+        for link_end, details in fk_mapping.iteritems():
+            target_set = link_end.otherEnd.entity_set
+            if target_set.name in visited:
+                # prevent infinite recursion
+                continue
+            self.create_table_list(target_set, visited, create_list)
+        # now we are free to create the table
+        create_list.append(es)
+
+    def drop_all_tables(self, out=None):
+        """Drops all tables in this container.
+
+        Tables are dropped in a sensible order to ensure that foreign
+        key constraints do not fail, the order is essentially the
+        reverse of the order used by :py:meth:`create_all_tables`."""
+        # first we need to go through the aux_table and drop them
+        for aset_name in self.aux_table:
+            nav_class = self.get_symmetric_navigation_class()
+            if out is None:
+                try:
+                    nav_class.drop_table(self, aset_name)
+                except SQLError, e:
+                    logging.warn("Ignoring : %s", str(e))
+            else:
+                query = nav_class.drop_table_query(self, aset_name)
+                out.write(query)
+                out.write(";\n\n")
+        visited = set()
+        drop_list = []
+        for es in self.container.EntitySet:
+            if es.name not in visited:
+                self.create_table_list(es, visited, drop_list)
+        drop_list.reverse()
+        for es in drop_list:
+            with es.OpenCollection() as collection:
+                if out is None:
+                    try:
+                        collection.drop_table()
+                    except SQLError, e:
+                        logging.warn("Ignoring : %s", str(e))
+                else:
+                    query = collection.drop_table_query()
+                    out.write(query)
+                    out.write(";\n\n")        
 
     def acquire_connection(self, timeout=None):
         # block on the module for threadsafety==0 case
@@ -4350,8 +4556,9 @@ class SQLEntityContainer(object):
         Edm.Boolean         BOOLEAN
         Edm.Byte            SMALLINT
         Edm.DateTime        TIMESTAMP
-        Edm.DateTimeOffset  CHARACTER(20), ISO 8601 string
-                            representation is used
+        Edm.DateTimeOffset  CHARACTER(27), ISO 8601 string
+                            representation is used with micro second
+                            precision
         Edm.Decimal         DECIMAL(Precision,Scale), defaults 10,0
         Edm.Double          FLOAT
         Edm.Guid            BINARY(16)
@@ -4396,8 +4603,9 @@ class SQLEntityContainer(object):
         elif isinstance(simple_value, edm.DateTimeValue):
             column_def.append("TIMESTAMP")
         elif isinstance(simple_value, edm.DateTimeOffsetValue):
-            # stored as string and parsed e.g. 20131209T100159+0100
-            column_def.append("CHARACTER(20)")
+            # stored as string and parsed e.g. 20131209T100159.000000+0100
+            # need to check the precision and that in to the mix
+            column_def.append("CHARACTER(27)")
         elif isinstance(simple_value, edm.DecimalValue):
             if p.precision is None:
                 precision = 10  # chosen to allow 32-bit integer precision
@@ -4444,7 +4652,7 @@ class SQLEntityContainer(object):
         else:
             raise NotImplementedError("SQL type for %s" % p.type)
         if ((nullable is not None and not nullable) or
-                (nullable is None and not p.nullable)):
+                (nullable is None and p is not None and not p.nullable)):
             column_def.append(u' NOT NULL')
         if simple_value:
             # Format the default
@@ -4512,11 +4720,7 @@ class SQLEntityContainer(object):
                 int(seconds), int(1000000.0 * microseconds + 0.5))
         elif isinstance(simple_value, edm.DateTimeOffsetValue):
             return simple_value.value.GetCalendarString(
-                basic=True,
-                ndp=6,
-                dp=".").ljust(
-                27,
-                ' ')
+                basic=True, ndp=6, dp=".").ljust(27, ' ')
         elif isinstance(simple_value, edm.GuidValue):
             return simple_value.value.bytes
         elif isinstance(simple_value, edm.TimeValue):
@@ -4544,7 +4748,14 @@ class SQLEntityContainer(object):
         underlying
         :py:meth:`~pyslet.odata2.csdl.SimpleValue.set_from_value`
         method."""
-        simple_value.set_from_value(new_value)
+        if new_value is None:
+            simple_value.set_null()
+        elif isinstance(simple_value, (edm.DateTimeOffsetValue)):
+            # we stored these as strings
+            simple_value.set_from_value(
+                iso.TimePoint.from_str(new_value, tDesignators="T "))
+        else:
+            simple_value.set_from_value(new_value)
 
     def new_from_sql_value(self, sql_value):
         """Returns a new simple value with value *sql_value*
@@ -4637,17 +4848,19 @@ class SQLiteEntityContainer(SQLEntityContainer):
     def prepare_sql_type(self, simple_value, params, nullable=None):
         """Performs SQLite custom mappings
 
-        We inherit most of the type mappings but the following types use
-        custom mappings:
-
         ==================  ===================================
            EDM Type         SQLite Equivalent
         ------------------  -----------------------------------
+        Edm.Binary          BLOB
         Edm.Decimal         TEXT
         Edm.Guid            BLOB
+        Edm.String          TEXT
         Edm.Time            REAL
         Edm.Int64           INTEGER
-        ==================  ==================================="""
+        ==================  ===================================
+        
+        The remainder of the type mappings use the defaults from the
+        parent class."""
         p = simple_value.pDef
         column_def = []
         if isinstance(simple_value, (edm.StringValue, edm.DecimalValue)):
@@ -4712,7 +4925,7 @@ class SQLiteEntityContainer(SQLEntityContainer):
     def read_sql_value(self, simple_value, new_value):
         """Reverses the transformation performed by prepare_sql_value"""
         if new_value is None:
-            simple_value.SetNull()
+            simple_value.set_null()
         elif isinstance(new_value, types.BufferType):
             new_value = str(new_value)
             simple_value.set_from_value(new_value)

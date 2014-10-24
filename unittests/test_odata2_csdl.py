@@ -46,7 +46,12 @@ class CSDLTests(unittest.TestCase):
                     ValidateSimpleIdentifier(iTest), "%s: Fail" % repr(iTest))
             except ValueError:
                 pass
-
+        save_pattern = set_simple_identifier_re(
+            SIMPLE_IDENTIFIER_COMPATIBILITY_RE)
+        simple_identifier_allow_hyphen = True
+        self.assertTrue(ValidateSimpleIdentifier("M-"), "hyphen allowed")
+        set_simple_identifier_re(save_pattern)
+        
     def test_simple_type(self):
         """Test the SimpleType enumeration."""
         self.assertTrue(SimpleType.Binary == getattr(

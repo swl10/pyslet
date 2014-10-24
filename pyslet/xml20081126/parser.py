@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+import logging
 from pyslet.xml20081126.structures import *
 
 
@@ -1367,6 +1368,9 @@ class XMLParser:
             except ValueError as e:
                 if self.raiseValidityErrors:
                     raise XMLValidityError(str(e))
+                else:
+                    logging.warn("Bad attribute value for %s: %s",
+                                 unicode(attr), attrs[attr])
             except XMLValidityError:
                 if self.raiseValidityErrors:
                     raise

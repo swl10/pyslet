@@ -129,7 +129,7 @@ class InMemoryEntityStore(object):
                         p.set_from_value(pValue)
                 else:
                     if isinstance(p, edm.Complex):
-                        p.SetNull()
+                        p.set_null()
                     else:
                         p.set_from_value(None)
             e.exists = True

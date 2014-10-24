@@ -874,7 +874,7 @@ common methods:
 	used when serializing the value to XML (but does not include XML
 	character escaping).
 
-:py:meth:`~pyslet.odata2.csdl.SimpleValue.SetNull`
+:py:meth:`~pyslet.odata2.csdl.SimpleValue.set_null`
 	Updates the value to NULL
 	
 The value attribute is always an immutable value in python and so can be
@@ -929,7 +929,7 @@ Complex values behave like dictionaries of data properties.  They do not
 have keys or navigation properties.  They are never NULL, IsNull and the
 Python non-zero test will always return True.
 
-:py:meth:`~pyslet.odata2.csdl.SimpleValue.SetNull`
+:py:meth:`~pyslet.odata2.csdl.SimpleValue.set_null`
 	Although a Complex value can never be NULL, this method will set all
 	of its data properties (recursively if necessary) to NULL
 

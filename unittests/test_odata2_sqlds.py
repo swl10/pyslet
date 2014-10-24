@@ -784,7 +784,7 @@ class AutoFieldTests(unittest.TestCase):
                         f.exists = False
                 except edm.ConstraintError:
                     pass
-                f['hash'].SetNull()
+                f['hash'].set_null()
                 file_coll.insert_entity(f)
                 f2 = file_coll["hello.txt"]
                 self.assertTrue(f2['path'].value == "hello.txt")

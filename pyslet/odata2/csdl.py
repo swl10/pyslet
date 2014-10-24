@@ -43,14 +43,24 @@ NAMESPACE_ALIASES = {
 }
 
 
-SimpleIdentifierRE = xsi.RegularExpression(
+SIMPLE_IDENTIFIER_RE = xsi.RegularExpression(
     r"[\p{L}\p{Nl}][\p{L}\p{Nl}\p{Nd}\p{Mn}\p{Mc}\p{Pc}\p{Cf}]{0,}")
 
+SIMPLE_IDENTIFIER_COMPATIBILITY_RE = xsi.RegularExpression(
+    r"[\p{L}\p{Nl}][\p{L}\p{Nl}\p{Nd}\p{Mn}\p{Mc}\p{Pc}\p{Pd}\p{Cf}]{0,}")
+
+_simple_identifier_re = SIMPLE_IDENTIFIER_RE
+
+def set_simple_identifier_re(pattern):
+    global _simple_identifier_re
+    result = _simple_identifier_re
+    _simple_identifier_re = pattern
+    return result
 
 def ValidateSimpleIdentifier(identifier):
     """Validates a simple identifier, returning the identifier unchanged or
     raising ValueError."""
-    if SimpleIdentifierRE.match(identifier):
+    if _simple_identifier_re.match(identifier):
         return identifier
     else:
         raise ValueError(
@@ -657,6 +667,21 @@ class Parser(xsi.BasicParser):
                     second += float("0." + nano)
             else:
                 second = 0
+            zpos = self.pos
+            try:
+                # parse and discard a zone specifier
+                z = self.ParseOne("Zz+-")
+                if z == "+" or z == "-":
+                    zh = self.require_production(self.parse_integer(0,24),
+                                            "zhour")
+                    self.require(":")
+                    zm = self.require_production(self.parse_integer(0,24),
+                                            "zminute")
+                    logging.warn("DateTime ignored zone offset: %s%.2i:%.2i",
+                                 z, zh, zm)
+            except ValueError:
+                self.setpos(zpo)
+                pass
         except ValueError:
             self.setpos(savepos)
             return None
@@ -984,7 +1009,7 @@ class SimpleValue(EDMValue):
         You can get the literal form of a value using the unicode function."""
         raise NotImplementedError
 
-    def SetNull(self):
+    def set_null(self):
         """Sets the value to NULL"""
         self.value = None
 
@@ -1239,7 +1264,8 @@ class DateTimeValue(SimpleValue):
                 time=iso8601.Time(
                     hour=new_value.hour,
                     minute=new_value.minute,
-                    second=new_value.second,
+                    second=new_value.second + 
+                    (new_value.microsecond / 1000000.0),
                     zDirection=None))
         else:
             raise TypeError("Can't set DateTime from %s" % repr(new_value))
@@ -1330,7 +1356,7 @@ class TimeValue(SimpleValue):
 
     Time values can be set from an instance of
     :py:class:`pyslet.iso8601.Time`, int, long, float or
-    Decimal.
+    Decimal and from datetime.timedelta values.
 
     When set from a numeric value the value must be in the range
     0..86399.9\u0305 and is treated as an elapsed time in seconds since
@@ -1365,15 +1391,28 @@ class TimeValue(SimpleValue):
             self.value = new_value
         elif (isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType)) and new_value >= 0:
             if new_value < 0:
-                raise "Can't set Time from %.3f"
+                raise ValueError(
+                    "Can't set Time from %.3f" % float(new_value))
             tValue = iso8601.Time()
             if type(new_value) in (IntType, LongType):
-                tValue, days = tValue.Offset(new_value)
+                tValue, days = tValue.Offset(seconds=new_value)
             else:
-                tValue, days = tValue.Offset(float(new_value))
+                tValue, days = tValue.Offset(seconds=float(new_value))
             if days > 0:
-                raise "Can't set Time from %.3f (overflow)"
+                raise ValueError(
+                    "Can't set Time from %.3f (overflow)" % float(new_value))
             self.value = tValue
+        elif isinstance(new_value, datetime.timedelta):
+            seconds = new_value.seconds
+            if new_value.microseconds:
+                seconds = seconds + (new_value.microseconds / 1000000.0)
+            tValue = iso8601.Time()
+            tValue, days = tValue.Offset(seconds=seconds)
+            if days > 0 or new_value.days:
+                raise ValueError(
+                    "Can't set Time from %s (non-zero days)" %
+                    repr(new_value))
+            self.value = tValue                
         else:
             raise TypeError("Can't set Time from %s" % repr(new_value))
 
@@ -1743,12 +1782,6 @@ class Int64Value(NumericValue):
             raise TypeError("Can't set Int64 from %s" % str(new_value))
 
     def SetRandomValue(self, base=None):
-        if base and base < 0:
-            self.set_from_value(-random.getrandbits(63))
-        else:
-            self.set_from_value(random.getrandbits(63))
-
-    def SetRandomValue(self, base=None):
         if base and base.value < 0:
             self.set_from_value(-random.getrandbits(63))
         else:
@@ -1897,10 +1930,10 @@ class Complex(EDMValue, TypeInstance):
         """Complex values are never NULL"""
         return False
 
-    def SetNull(self):
+    def set_null(self):
         """Sets all simple property values to NULL recursively"""
         for k, v in self.iteritems():
-            v.SetNull()
+            v.set_null()
 
     def merge(self, new_value):
         """Sets this value from *new_value* which must be a
@@ -2448,7 +2481,7 @@ class Entity(TypeInstance):
                 # Force unselected values to NULL
                 for k, v in self.data_items():
                     if k not in self.entity_set.keys and k not in self.selected:
-                        v.SetNull()
+                        v.set_null()
         # Now expand this entity's navigation properties
         if expand:
             for k, v in self.NavigationItems():

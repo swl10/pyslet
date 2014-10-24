@@ -2018,7 +2018,8 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertTrue(check_e['DateTimeProperty'].value ==
                             iso.TimePoint.from_str(
                                 '2013-12-25T15:59:03.142'),
-                            "DateTimeProperty value on read")
+                            "DateTimeProperty value on read: %s" %
+                            str(check_e['DateTimeProperty'].value))
             self.assertTrue(isinstance(check_e['TimeProperty'].value,
                                        iso.Time), "TimeProperty type on read")
             self.assertTrue(check_e['TimeProperty'].value.GetString(

@@ -707,7 +707,7 @@ class BlockStream(io.RawIOBase):
             if self._md5 is not None:
                 self.stream['md5'].set_from_value(self._md5.digest())
             else:
-                self.stream['md5'].SetNull()
+                self.stream['md5'].set_null()
             self.stream.Update()
             self._bdirty = False
 
