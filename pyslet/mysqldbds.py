@@ -22,16 +22,16 @@ class MySQLEntityContainer(sqlds.SQLEntityContainer):
 
     db
         name of database to connect to (required)
-        
+
     host
         optional name of host to connect to (defaults to localhost)
-    
+
     user
         optional name of user to connect as (default to effective user)
-    
+
     passwd
         optional password of user to connect with (defaults to none)
-    
+
     mysql_options
         A dictionary of additional options to pass as named arguments to
         the connect method.  It defaults to an empty dictionary.
@@ -43,7 +43,7 @@ class MySQLEntityContainer(sqlds.SQLEntityContainer):
     All other keyword arguments required to initialise the base class
     must be passed on construction except *dbapi* which is automatically
     set to the MySQLdb module.
-    
+
     Please note that the MySQL options use_unicode and charset are
     always set to True and 'utf8' respectively and must not be passed in
     mysql_options.
@@ -62,15 +62,15 @@ class MySQLEntityContainer(sqlds.SQLEntityContainer):
 #     def get_collection_class(self):
 #         """Overridden to return :py:class:`MySQLEntityCollection`"""
 #         return MySQLEntityCollection
-# 
+#
 #     def get_symmetric_navigation_class(self):
 #         """Overridden to return :py:class:`MySQLAssociationCollection`"""
 #         return MySQLAssociationCollection
-# 
+#
 #     def get_fk_class(self):
 #         """Overridden to return :py:class:`MySQLForeignKeyCollection`"""
 #         return MySQLForeignKeyCollection
-# 
+#
 #     def get_rk_class(self):
 #         """Overridden to return :py:class:`MySQLReverseKeyCollection`"""
 #         return MySQLReverseKeyCollection
@@ -115,7 +115,7 @@ class MySQLEntityContainer(sqlds.SQLEntityContainer):
         Edm.String          TEXT (when unbounded)
         Edm.Time            TIME(n) with precision
         ==================  ===================================
-        
+
         All other types use the default mapping."""
         p = simple_value.pDef
         column_def = []
@@ -160,7 +160,7 @@ class MySQLEntityContainer(sqlds.SQLEntityContainer):
             if precision:
                 column_def.append(u"TIME(%i)" % precision)
             else:
-                column_def.append(u"TIME") 
+                column_def.append(u"TIME")
         if column_def:
             if ((nullable is not None and not nullable) or
                     (nullable is None and p is not None and not p.nullable)):
@@ -230,7 +230,7 @@ class MySQLStreamStore(blockstore.StreamStore):
         The optional directory path to the file system to use for
         storing the blocks of data. If dpath is None then the blocks are
         stored in the MySQL database itself.
-    
+
     The MySQL connection options, including host, user, passwd, etc. are
     the same as those passed to the constructor of
     :py:class:`MySQLEntityContainer`.  The prefix option may also be

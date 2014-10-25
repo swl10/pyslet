@@ -107,22 +107,23 @@ class SQLParams(object):
         raise NotImplementedError
 
     @classmethod
-    def escape_literal(self, literal):
+    def escape_literal(cls, literal):
         """Escapes a literal string, returning the escaped version
-        
+
         This method is only used to escape characters that are
         interpreted specially by the parameter substitution system. For
         example, if the parameters are being substituted using python's
         % operator then the '%' sign needs to be escaped (by doubling)
         in the output.
-        
+
         This method has nothing to do with turning python values into
         SQL escaped literals, that task is always deferred to the
         underlying DB module to prevent SQL injection attacks.
-        
+
         The default implementation does nothing, in most cases that is
         the correct thing to do."""
         return literal
+
 
 class QMarkParams(SQLParams):
 
@@ -150,9 +151,9 @@ class FormatParams(SQLParams):
         return "%s"
 
     @classmethod
-    def escape_literal(self, literal):
+    def escape_literal(cls, literal):
         """Doubles any % characters to prevent formatting errors"""
-        return literal.replace("%","%%")
+        return literal.replace("%", "%%")
 
 
 class NumericParams(SQLParams):
@@ -2287,7 +2288,8 @@ class SQLEntityCollection(SQLCollectionBase):
                 result = transaction.cursor.fetchone()[0]
                 if result == 0 and concurrency_check:
                     # could be a concurrency error, repeat with just keys
-                    query = ['SELECT COUNT(*) FROM ', self.table_name, ' WHERE ']
+                    query = [
+                        'SELECT COUNT(*) FROM ', self.table_name, ' WHERE ']
                     params = self.container.ParamsClass()
                     where = []
                     for cname, cvalue in constraints[:key_len]:
@@ -2808,7 +2810,7 @@ class SQLEntityCollection(SQLCollectionBase):
     def drop_table_query(self):
         """Returns a SQL statement for dropping the table."""
         query = ['DROP TABLE ', self.table_name]
-        return string.join(query,'')
+        return string.join(query, '')
 
     def drop_table(self):
         """Executes the SQL statement :py:meth:`drop_table_query`"""
@@ -3264,13 +3266,13 @@ class SQLAssociationCollection(SQLNavigationCollection):
     choices. You would need to override the
     :py:meth:`SQLEntityContainer.mangle_name` method in the container to
     catch these cases and return the shorter column names.
-    
+
     Finally, to ensure the uniqueness of foreign key constraints, the
     following names are mangled::
-    
+
         ( association set name, association set name, 'fkA')
         ( association set name, association set name, 'fkB')
-    
+
     Notice that the association set name is used twice as it is not only
     defines the scope of the name but must also be incorporated into the
     constraint name to ensure uniqueness across the entire databas."""
@@ -3826,7 +3828,7 @@ class SQLEntityContainer(object):
             # will fail later when we try and add parameters
             logging.warn("Unsupported DBAPI params style: %s\n"
                          "setting to qmark",
-                          self.dbapi.paramstyle)
+                         self.dbapi.paramstyle)
             self.ParamsClass = SQLParams
         self.fk_table = {}
         """A mapping from an entity set name to a FK mapping of the form::
@@ -4150,12 +4152,12 @@ class SQLEntityContainer(object):
 
     def create_all_tables(self, out=None):
         """Creates all tables in this container.
-        
+
         out
             An optional file-like object.  If given, the tables are not
             actually created, the SQL statements are written to this
             file instead.
-            
+
         Tables are created in a sensible order to ensure that foreign
         key constraints do not fail but this method is not compatible
         with databases that contain circular references though, e.g.,
@@ -4262,7 +4264,7 @@ class SQLEntityContainer(object):
                 else:
                     query = collection.drop_table_query()
                     out.write(query)
-                    out.write(";\n\n")        
+                    out.write(";\n\n")
 
     def acquire_connection(self, timeout=None):
         # block on the module for threadsafety==0 case
@@ -4858,7 +4860,7 @@ class SQLiteEntityContainer(SQLEntityContainer):
         Edm.Time            REAL
         Edm.Int64           INTEGER
         ==================  ===================================
-        
+
         The remainder of the type mappings use the defaults from the
         parent class."""
         p = simple_value.pDef

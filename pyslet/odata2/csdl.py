@@ -51,11 +51,13 @@ SIMPLE_IDENTIFIER_COMPATIBILITY_RE = xsi.RegularExpression(
 
 _simple_identifier_re = SIMPLE_IDENTIFIER_RE
 
+
 def set_simple_identifier_re(pattern):
     global _simple_identifier_re
     result = _simple_identifier_re
     _simple_identifier_re = pattern
     return result
+
 
 def ValidateSimpleIdentifier(identifier):
     """Validates a simple identifier, returning the identifier unchanged or
@@ -672,11 +674,11 @@ class Parser(xsi.BasicParser):
                 # parse and discard a zone specifier
                 z = self.ParseOne("Zz+-")
                 if z == "+" or z == "-":
-                    zh = self.require_production(self.parse_integer(0,24),
-                                            "zhour")
+                    zh = self.require_production(self.parse_integer(0, 24),
+                                                 "zhour")
                     self.require(":")
-                    zm = self.require_production(self.parse_integer(0,24),
-                                            "zminute")
+                    zm = self.require_production(self.parse_integer(0, 24),
+                                                 "zminute")
                     logging.warn("DateTime ignored zone offset: %s%.2i:%.2i",
                                  z, zh, zm)
             except ValueError:
@@ -1264,7 +1266,7 @@ class DateTimeValue(SimpleValue):
                 time=iso8601.Time(
                     hour=new_value.hour,
                     minute=new_value.minute,
-                    second=new_value.second + 
+                    second=new_value.second +
                     (new_value.microsecond / 1000000.0),
                     zDirection=None))
         else:
@@ -1412,7 +1414,7 @@ class TimeValue(SimpleValue):
                 raise ValueError(
                     "Can't set Time from %s (non-zero days)" %
                     repr(new_value))
-            self.value = tValue                
+            self.value = tValue
         else:
             raise TypeError("Can't set Time from %s" % repr(new_value))
 
@@ -3682,7 +3684,10 @@ class NavigationProperty(CSDLElement):
         self.from_end = None
         #: the :py:class:`AssociationEnd` instance representing this
         #: link's target
-        self.toEnd = None
+        self.to_end = None
+        #: flag set if :py:attr:`Association` is ambiguous within the
+        #: parent EntityType, :py:attr:`backLink` will never be set!
+        self.ambiguous = False
         #: the :py:class:`NavigationProperty` that provides the back
         #: link (or None, if this link is one-way)
         self.backLink = None
@@ -3702,7 +3707,7 @@ class NavigationProperty(CSDLElement):
 
     def UpdateTypeRefs(self, scope, stopOnErrors=False):
         # must be a complex type defined elsewhere
-        self.association = self.from_end = self.toEnd = None
+        self.association = self.from_end = self.to_end = None
         try:
             self.association = scope[self.relationship]
             if not isinstance(self.association, Association):
@@ -3712,15 +3717,19 @@ class NavigationProperty(CSDLElement):
                 raise KeyError(
                     "%s is not a valid end-point for %s" %
                     (self.fromRole, self.relationship))
-            self.toEnd = self.association[self.toRole]
-            if self.toEnd is None or not isinstance(self.toEnd, AssociationEnd):
+            self.to_end = self.association[self.toRole]
+            if self.to_end is None or not isinstance(self.to_end, AssociationEnd):
                 raise KeyError(
                     "%s is not a valid end-point for %s" %
                     (self.fromRole, self.relationship))
         except KeyError:
-            self.association = self.from_end = self.toEnd = None
+            self.association = self.from_end = self.to_end = None
             if stopOnErrors:
                 raise
+
+    def mark_as_ambiguous(self):
+        self.ambiguous = True
+        self.backLink = None
 
 
 class Key(CSDLElement):
@@ -3828,7 +3837,7 @@ class Type(NameTableMixin, CSDLElement):
         """Returns the full name of this type, including the schema namespace prefix."""
         schema = self.FindParent(Schema)
         if schema is None:
-            return name
+            return self.name
         else:
             return string.join((schema.name, '.', self.name), '')
 
@@ -3907,7 +3916,7 @@ class EntityType(Type):
                             subExpand = expand[name]
                         else:
                             subExpand = None
-                        p.toEnd.entityType.ValidateExpansion(subExpand, value)
+                        p.to_end.entityType.ValidateExpansion(subExpand, value)
                     else:
                         raise KeyError
                 except KeyError:
@@ -3922,7 +3931,7 @@ class EntityType(Type):
                         # then we've already been here
                         pass
                     else:
-                        p.toEnd.entityType.ValidateExpansion(value, None)
+                        p.to_end.entityType.ValidateExpansion(value, None)
                 else:
                     raise KeyError
             except KeyError:
@@ -3934,6 +3943,28 @@ class EntityType(Type):
         super(EntityType, self).UpdateTypeRefs(scope, stopOnErrors)
         for p in self.NavigationProperty:
             p.UpdateTypeRefs(scope, stopOnErrors)
+        # at this point we loop through the navigation properties again
+        # looking for duplicates.  These need to be marked on the entity
+        # type as they can never be partnered and will require temporary
+        # AssociationSets to be created in any container that binds the
+        # type to an EntitySet
+        aroles = {}
+        # aroles maps AssociationEnds onto navigation properties
+        for p in self.NavigationProperty:
+            if p.from_end is not None:
+                if p.from_end not in aroles:
+                    aroles[p.from_end] = [p]
+                else:
+                    aroles[p.from_end].append(p)
+        # now if there are any duplicates these are ambiguous references
+        # and need to be marked as such
+        for arole, plist in aroles.items():
+            if len(plist) > 1:
+                # these are all duplicates!
+                for p in plist:
+                    logging.warn(
+                        "Ambiguous navigation: %s.%s", self.name, p.name)
+                    p.mark_as_ambiguous()
         self.Key.UpdateTypeRefs(scope, stopOnErrors)
 
 
@@ -4021,6 +4052,14 @@ class Association(NameTableMixin, CSDLElement):
                 CSDLElement.GetChildren(self)):
             yield child
 
+    def GetFQName(self):
+        """Returns the full name of this association, including the schema namespace prefix."""
+        schema = self.FindParent(Schema)
+        if schema is None:
+            return self.name
+        else:
+            return string.join((schema.name, '.', self.name), '')
+
     def UpdateTypeRefs(self, scope, stopOnErrors=False):
         for iEnd in self.AssociationEnd:
             iEnd.UpdateTypeRefs(scope, stopOnErrors)
@@ -4030,7 +4069,7 @@ class Association(NameTableMixin, CSDLElement):
         npList = []
         for iEnd in self.AssociationEnd:
             for np in iEnd.entityType.NavigationProperty:
-                if scope[np.relationship] is self:
+                if scope[np.relationship] is self and not np.ambiguous:
                     npList.append(np)
                     break
         if len(npList) == 2:
@@ -4041,7 +4080,10 @@ class Association(NameTableMixin, CSDLElement):
 
 class AssociationEnd(CSDLElement):
 
-    """Models one end of an :py:class:`Association`."""
+    """Models one end of an :py:class:`Association`.
+
+    We define a hash method to allow AssociationEnds to be used as keys
+    in a dictionary."""
     # XMLNAME=(EDM_NAMESPACE,'End')
 
     XMLATTR_Role = 'name'
@@ -4064,6 +4106,19 @@ class AssociationEnd(CSDLElement):
         # : the optional :py:class:`Documentation`
         self.Documentation = None
         self.OnDelete = None
+
+    def GetQualifiedName(self):
+        """A utility function to return a qualified name.
+
+        The qualified name comprises the name of the parent
+        :py:class:`Association` and the role name."""
+        if isinstance(self.parent, Association):
+            return self.parent.name + "." + self.name
+        else:
+            return "." + self.name
+
+    def __hash__(self):
+        return hash(self.GetQualifiedName())
 
     def GetChildren(self):
         if self.Documentation:
@@ -4119,6 +4174,8 @@ class EntityContainer(NameTableMixin, CSDLElement):
         self.EntitySet = []
         #: a list of :py:class:`AssociationSet` instances
         self.AssociationSet = []
+        #: a list of auto-generated :py:class:`AssociationSet` instances
+        self._AssociationSet = []
         self.TypeAnnotation = []
         self.ValueAnnotation = []
 
@@ -4137,6 +4194,28 @@ class EntityContainer(NameTableMixin, CSDLElement):
     def content_changed(self):
         for t in self.EntitySet + self.AssociationSet + self.FunctionImport:
             self.Declare(t)
+
+    def find_entitysets(self, entity_type):
+        """Returns a list of all entity sets with a given type
+
+        entity_type
+            An :py:class:`EntityType` instance.
+
+        Returns an empty list if no declared EntitySets have
+        this type."""
+        result = []
+        for child in self.EntitySet:
+            if child.entityType is entity_type:
+                result.append(child)
+        return result
+
+    def add_auto_aset(self, association_set):
+        self._AssociationSet.append(association_set)
+        scope = self.FindParent(Schema)
+        if scope:
+            scope = scope.parent
+        if scope:
+            association_set.UpdateSetRefs(scope, True)
 
     def UpdateSetRefs(self, scope, stopOnErrors=False):
         for child in self.EntitySet + self.AssociationSet + self.FunctionImport:
@@ -4175,6 +4254,7 @@ class EntitySet(CSDLElement):
         reference this entity set to navigation property names (or None
         if this end of the association is not bound to a named
         navigation property)"""
+        self.bad_principal = False
         self.unboundPrincipal = None
         """An :py:class:`AssociationSetEnd` that represents our end of
         an association with an unbound principal or None if all
@@ -4190,8 +4270,12 @@ class EntitySet(CSDLElement):
         Clear as mud?  An example may help.  Suppose that each Order
         entity must have an associated Customer but (perhaps perversely)
         there is no navigation link from Order to Customer, only from
-        Customer to Order.  Attempting to create an Order in the base
-        collection of Orders will always fail::
+        Customer to Order.  For the Order entity, the Customer is the
+        principal as Orders can only be exist when they are associated
+        with a Customer.
+        
+        Attempting to create an Order in the base collection of Orders
+        will always fail::
         
             with Orders.OpenCollection() as collection:
                 order=collection.new_entity()
@@ -4303,9 +4387,65 @@ class EntitySet(CSDLElement):
             if stopOnErrors:
                 raise
 
+    def set_unbound_principal(self, aset_end):
+        logging.warn("Entity set %s has an unbound principal: %s",
+                     self.name, aset_end.otherEnd.entity_set.name)
+        if not self.bad_principal and self.unboundPrincipal is None:
+            self.unboundPrincipal = aset_end
+        else:
+            # so the model is dumb, we have two unbound principals
+            if self.unboundPrincipal:
+                self.bad_principal = True
+                from_end = self.unboundPrincipal
+                self.unboundPrincipal = None
+                from_end.drop_principal()
+            aset_end.drop_principal()
+
     def UpdateNavigation(self):
         container = self.FindParent(EntityContainer)
         if container and self.entityType:
+            # first loop deals with ambiguous navigation properties
+            for np in self.entityType.NavigationProperty:
+                if not np.ambiguous:
+                    continue
+                # find the target set and make sure it is unique
+                if np.from_end and np.to_end and np.to_end.entityType:
+                    esets = container.find_entitysets(np.to_end.entityType)
+                    if len(esets) > 1:
+                        # can't be done!
+                        raise ModelConstraintError(
+                            "Property %s.%s has an ambiguous target set" %
+                            (self.name, np.name))
+                    eset = esets[0]
+                else:
+                    continue
+                # create a unique name
+                stem = "%s_%s" % (self.name, np.name)
+                as_name = stem
+                i = 0
+                while as_name in container:
+                    i += 1
+                    as_name = "%s_%i" % (stem, i)
+                # auto-generate an AssociationSet
+                association_set = AssociationSet(container)
+                association_set.name = as_name
+                association_set.associationName = \
+                    np.to_end.parent.GetFQName()
+                from_end = association_set.ChildElement(AssociationSetEnd)
+                from_end.name = np.from_end.name
+                from_end.entitySetName = self.name
+                to_end = association_set.ChildElement(AssociationSetEnd)
+                to_end.name = np.to_end.name
+                to_end.entitySetName = np.to_end.entityType.name
+                # add the auto-generated set to the container
+                # automatically updates set references
+                container.add_auto_aset(association_set)
+                self.navigation[np.name] = from_end
+                self.linkEnds[from_end] = np.name
+                # if our end is required then we are the unbound
+                # principal of the other entity set
+                if from_end.associationEnd.multiplicity == Multiplicity.One:
+                    to_end.entity_set.set_unbound_principal(to_end)
             for association_set in container.AssociationSet:
                 for iEnd in association_set.AssociationSetEnd:
                     if iEnd.entity_set is self:
@@ -4314,18 +4454,16 @@ class EntitySet(CSDLElement):
                         # corresponding navigation property.
                         navName = None
                         for np in self.entityType.NavigationProperty:
+                            if np.ambiguous:
+                                # ignore ambiguous navigation properties
+                                continue
                             if iEnd.associationEnd is np.from_end:
                                 navName = np.name
                                 break
                         if navName:
                             self.navigation[navName] = iEnd
                         elif iEnd.otherEnd.associationEnd.multiplicity == Multiplicity.One:
-                            if self.unboundPrincipal is None:
-                                self.unboundPrincipal = iEnd
-                            else:
-                                raise ModelConstraintError(
-                                    "Entity set %s has more than one unbound principal" %
-                                    self.name)
+                            self.set_unbound_principal(iEnd)
                         self.linkEnds[iEnd] = navName
             for np in self.entityType.NavigationProperty:
                 if np.name not in self.navigation:
@@ -4674,6 +4812,25 @@ class AssociationSetEnd(CSDLElement):
         for child in CSDLElement.GetChildren(self):
             yield child
 
+    def drop_principal(self):
+        if self.associationEnd.multiplicity == Multiplicity.ZeroToOne:
+            logging.error(
+                "Entity set %s has more than one unbound principal "
+                "changing multiplicity from 0..1 to * and "
+                "dropping mutliplicity of %s to 0..1.  Continuing...",
+                self.entity_set.name, self.otherEnd.name)
+            self.associationEnd.multiplicity = Multiplicity.Many
+            self.otherEnd.associationEnd.multiplicity = Multiplicity.ZeroToOne
+#             raise ModelConstraintError(
+#                 "Entity set %s has more than one unbound principal" %
+#                 self.entity_set.name)
+        else:
+            logging.error(
+                "Entity set %s has more than one unbound principal\n"
+                "dropping mutliplicity of %s to 0..1.  Continuing",
+                self.entity_set.name, self.otherEnd.name)
+            self.otherEnd.associationEnd.multiplicity = Multiplicity.ZeroToOne
+
     def UpdateSetRefs(self, scope, stopOnErrors=False):
         try:
             self.entity_set = self.otherEnd = self.associationEnd = None
@@ -4962,6 +5119,7 @@ class Schema(NameTableMixin, CSDLElement):
             self.Declare(t)
 
     def UpdateTypeRefs(self, scope, stopOnErrors=False):
+        # it is important that we process EntityType before Association!
         for t in self.EntityType + self.ComplexType + self.Association + self.Function:
             t.UpdateTypeRefs(scope, stopOnErrors)
 

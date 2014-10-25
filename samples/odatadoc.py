@@ -179,7 +179,7 @@ def es_table(es, index_items):
         tr.append("<td><em>%s</em></td>" %
                   xml.EscapeCharData7(es.NavigationTarget(np.name).name))
         tr.append("<td>%s</td>" %
-                  edm.EncodeMultiplicity(np.toEnd.multiplicity))
+                  edm.EncodeMultiplicity(np.to_end.multiplicity))
         summary = description = ""
         if np.Documentation is not None:
             if np.Documentation.Summary:

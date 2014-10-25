@@ -218,8 +218,9 @@ class Node(object):
 
     @classmethod
     @renamed_method
-    def GetElementClass(cls, name): pass
-    
+    def GetElementClass(cls, name):
+        pass
+
     @classmethod
     def get_element_class(cls, name):
         """Returns a class object suitable for representing element *name*
@@ -1889,8 +1890,9 @@ class Element(Node):
                 self.ValidationError("Unexpected data", data)
 
     @renamed_method
-    def ContentChanged(self): pass
-    
+    def ContentChanged(self):
+        pass
+
     def content_changed(self):
         """Notifies an element that its content has changed.
 

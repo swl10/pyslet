@@ -21,34 +21,29 @@ else:
           author="Steve Lay",
           author_email="steve.w.lay@gmail.com",
           url=pyslet.info.home,
-          packages=[
-            'pyslet',
-            'pyslet.http',
-            'pyslet.xml20081126',
-            'pyslet.qtiv1',
-            'pyslet.qtiv2',
-            'pyslet.odata2'],
-          package_data={
-            'pyslet':[
-                'unicode5_blocks.pck',
-                'unicode5_catogories.pck' ],
-            'pyslet.odata2':[
-                'streamstore.xml']
-            },
-          classifiers=[
-            'Development Status :: 3 - Alpha',
-            'Intended Audience :: Developers',
-            'Natural Language :: English',
-            'License :: OSI Approved :: BSD License',
-            'Operating System :: OS Independent',
-            'Programming Language :: Python',
-            'Programming Language :: Python :: 2',
-            'Programming Language :: Python :: 2.6',
-            'Programming Language :: Python :: 2.7',
-            'Topic :: Education',
-            'Topic :: Education :: Computer Aided Instruction (CAI)',
-            'Topic :: Education :: Testing',
-            'Topic :: Internet :: WWW/HTTP :: WSGI :: Application',
-            'Topic :: Software Development :: Libraries :: Python Modules'
-            ]
+          packages=['pyslet',
+                    'pyslet.http',
+                    'pyslet.xml20081126',
+                    'pyslet.qtiv1',
+                    'pyslet.qtiv2',
+                    'pyslet.odata2'],
+          package_data={'pyslet': ['unicode5_blocks.pck',
+                                   'unicode5_catogories.pck'],
+                        'pyslet.odata2': ['streamstore.xml']},
+          classifiers=['Development Status :: 3 - Alpha',
+                       'Intended Audience :: Developers',
+                       'Natural Language :: English',
+                       'License :: OSI Approved :: BSD License',
+                       'Operating System :: OS Independent',
+                       'Programming Language :: Python',
+                       'Programming Language :: Python :: 2',
+                       'Programming Language :: Python :: 2.6',
+                       'Programming Language :: Python :: 2.7',
+                       'Topic :: Education',
+                       'Topic :: Education :: '
+                       'Computer Aided Instruction (CAI)',
+                       'Topic :: Education :: Testing',
+                       'Topic :: Internet :: WWW/HTTP :: WSGI :: Application',
+                       'Topic :: Software Development :: '
+                       'Libraries :: Python Modules']
           )

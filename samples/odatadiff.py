@@ -160,16 +160,16 @@ def propdiff(oldp, newp):
 
 
 def navdiff(oldnp, newnp, backlinks=False):
-    if oldnp.toEnd.type != newnp.toEnd.type:
+    if oldnp.to_end.type != newnp.to_end.type:
         logging.info("%s.%s Navigation target type changed from %s to %s",
                      oldnp.parent.name, oldnp.name,
-                     oldnp.toEnd.type, newnp.toEnd.type)
-    if oldnp.toEnd.multiplicity != newnp.toEnd.multiplicity:
+                     oldnp.to_end.type, newnp.to_end.type)
+    if oldnp.to_end.multiplicity != newnp.to_end.multiplicity:
         logging.info("%s.%s Navigation target multiplicity changed "
                      "from %s to %s",
                      oldnp.parent.name, oldnp.name,
-                     edm.EncodeMultiplicity(oldnp.toEnd.multiplicity),
-                     edm.EncodeMultiplicity(newnp.toEnd.multiplicity))
+                     edm.EncodeMultiplicity(oldnp.to_end.multiplicity),
+                     edm.EncodeMultiplicity(newnp.to_end.multiplicity))
     if backlinks:
         old_backname = new_backname = None
         if oldnp.backLink is not None:
