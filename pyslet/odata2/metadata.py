@@ -14,10 +14,8 @@ import edmx as edmx
 import core as core
 
 
-class InvalidMetadataDocument(Exception):
-
-    """Raised by :py:class:`Document.validate`"""
-    pass
+# Legacy name for compatibilty
+InvalidMetadataDocument = edm.InvalidMetadataDocument
 
 
 class FeedCustomisationMixin(object):
@@ -318,14 +316,12 @@ class Document(edmx.Document):
         """Validates any declared OData extensions
 
         Checks many of the requirements given in the specification and
-        raises :py:class:`InvalidMetadataDocument` if the tests fail.
+        raises :py:class:`~pyslet.odata2.csdl.InvalidMetadataDocument`
+        if the tests fail.
 
         Returns the data service version required to process the service
         or None if no data service version is specified."""
-        # These extensions MUST be used by a data service in conjunction
-        # with the "dataservices" node
-        if not isinstance(self.root.DataServices, edmx.DataServices):
-            raise InvalidMetadataDocument("Expected dataservices node")
+        super(Document, self).validate()
         # IsDefaultEntityContainer: This attribute MUST be used on an
         # EntityContainer element to indicate which EntityContainer is the
         # default container for the data service. Each conceptual schema
@@ -339,19 +335,19 @@ class Document(edmx.Document):
                 if flag == "true":
                     ndefaults += 1
                 elif flag != "false":
-                    raise InvalidMetadataDocument(
+                    raise edm.InvalidMetadataDocument(
                         "IsDefaultEntityContainer: %s" % flag)
             except KeyError:
                 pass
         if ndefaults != 1:
-            raise InvalidMetadataDocument(
+            raise edm.InvalidMetadataDocument(
                 "IsDefaultEntityContainer required on "
                 "one and only one EntityContainer")
         for p in self.root.FindChildrenDepthFirst(edm.Property):
             try:
                 params.MediaType.from_str(p.GetAttribute(core.MIME_TYPE))
             except grammar.BadSyntax as e:
-                raise InvalidMetadataDocument(
+                raise edm.InvalidMetadataDocument(
                     "MimeType format error in property %s: %s" %
                     (p.name, str(e)))
             except KeyError:
@@ -364,10 +360,10 @@ class Document(edmx.Document):
                 if f.GetAttribute(core.HttpMethod) in (
                         u"POST", u"PUT", u"GET", u"MERGE", u"DELETE"):
                     continue
-                raise InvalidMetadataDocument(
+                raise edm.InvalidMetadataDocument(
                     "Bad HttpMethod: %s" % f.GetAttribute(core.HttpMethod))
             except KeyError:
-                raise InvalidMetadataDocument(
+                raise edm.InvalidMetadataDocument(
                     "FunctionImport must have HttpMethod defined: %s" % f.name)
         # HasStream: This attribute MUST only be used on an <EntityType>
         # element
@@ -375,10 +371,10 @@ class Document(edmx.Document):
             try:
                 hs = e.GetAttribute(core.HAS_STREAM)
                 if not isinstance(e, edm.EntityType):
-                    raise InvalidMetadataDocument(
+                    raise edm.InvalidMetadataDocument(
                         "HasStream must only be used on EntityType")
                 elif hs not in ("true", "false"):
-                    raise InvalidMetadataDocument(
+                    raise edm.InvalidMetadataDocument(
                         "Bad value for HasStream: %s" % hs)
             except KeyError:
                 pass
@@ -404,7 +400,7 @@ class Document(edmx.Document):
                 except KeyError:
                     pass
             if version != match:
-                raise InvalidMetadataDocument(
+                raise edm.InvalidMetadataDocument(
                     "Expected version %s, found %s" % (match, version))
             return version
         except KeyError:

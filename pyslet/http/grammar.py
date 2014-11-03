@@ -229,7 +229,7 @@ class OctetParser(BasicParser):
                 return lws
         elif is_octet(self.the_char) and not is_ctl(self.the_char):
             result = self.the_char
-            self.NextChar()
+            self.next_char()
             return result
         else:
             return None
@@ -267,7 +267,7 @@ class OctetParser(BasicParser):
                 break
             else:
                 token.append(self.the_char)
-                self.NextChar()
+                self.next_char()
         if token:
             return string.join(token, '')
         else:
@@ -413,7 +413,7 @@ class OctetParser(BasicParser):
         if self.Parse("\\"):
             if is_char(self.the_char):
                 qdpair = "\\" + self.the_char
-                self.NextChar()
+                self.next_char()
                 return qdpair
             else:
                 self.setpos(savepos)
@@ -478,7 +478,7 @@ class WordParser(object):
                     self.words.append(p.parse_quoted_string(True))
                 else:
                     self.words.append(p.the_char)
-                    p.NextChar()
+                    p.next_char()
             elif p.the_char is None:
                 break
             else:

@@ -24,7 +24,7 @@ detect most problems and force fatal errors on construction.
 ..  _Github: https://github.com/swl10/pyslet
 
 
-Version 0.6.20141101
+Version 0.6.201411XX
 --------------------
 
 #3 PEP-8 driven refactoring (ongoing)
@@ -58,6 +58,14 @@ using::
 
     import pyslet.odata2.csdl as edm
     edm.set_simple_identifier_re(edm.SIMPLE_IDENTIFIER_COMPATIBILITY_RE)
+
+#19 OData Function parameter handling
+
+Enabled function parameter passing in OData service operations.  Only
+primitive types are supported but they are now parsed correctly from the
+query string and coerced to the declared parameter type.  Bound
+functions now receive them as a dictionary of SimpleValue instances.
+
 
 Untracked changes:
 

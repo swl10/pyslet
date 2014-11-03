@@ -2374,8 +2374,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # 1-1 link
                 e['OX'].BindEntity(e2_x)
                 try:
-                    e.Update()
-                    self.fail("BindEntity/Update should have failed "
+                    e.commit()
+                    self.fail("BindEntity/commit should have failed "
                               "for 1-1 relationship")
                 except edm.ConstraintError:
                     pass
@@ -2463,8 +2463,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # 1-1 link
                 e['OX'].BindEntity(e2_x)
                 try:
-                    e.Update()
-                    self.fail("BindEntity/Update should have failed "
+                    e.commit()
+                    self.fail("BindEntity/commit should have failed "
                               "for 1-1 relationship")
                 except edm.ConstraintError:
                     pass
@@ -2632,18 +2632,18 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # UPDATE - using bind and update
                 e_zo['O'].BindEntity(e_o)
                 try:
-                    e_zo.Update()
+                    e_zo.commit()
                 except edm.ConstraintError:
                     self.fail(
-                        "BindEntity/Update on 0..1-1 navigation property")
+                        "BindEntity/commit on 0..1-1 navigation property")
                 # e_zo <-> e_o
                 # e_zo2 <-> e_o2
                 # e_zo3 <-> e_o3
                 # None <-> e_o4
                 e_o2['ZO'].BindEntity(e_zo)
                 try:
-                    e_o2.Update()
-                    self.fail("BindEntity/Update on 1-0..1 navigation "
+                    e_o2.commit()
+                    self.fail("BindEntity/commit on 1-0..1 navigation "
                               "property should fail")
                 except edm.ConstraintError:
                     pass
@@ -2740,10 +2740,10 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # UPDATE - using bind and update
                 e_zo['O'].BindEntity(e_o)
                 try:
-                    e_zo.Update()
+                    e_zo.commit()
                 except edm.ConstraintError:
                     self.fail(
-                        "BindEntity/Update on 0..1-1 navigation property")
+                        "BindEntity/commit on 0..1-1 navigation property")
                 # e_zo <-> e_o
                 # None <-> e_o2
                 # DELETE - link
@@ -2868,8 +2868,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                     pass
                 e_o2['ZO'].BindEntity(e_zo)
                 try:
-                    e_o2.Update()
-                    self.fail("BindEntity/Update on 1-0..1 navigation "
+                    e_o2.commit()
+                    self.fail("BindEntity/commit on 1-0..1 navigation "
                               "property should fail")
                 except edm.ConstraintError:
                     pass
@@ -3033,17 +3033,17 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # UPDATE - using bind and update
                 e_many['O'].BindEntity(e_o)
                 try:
-                    e_many.Update()
+                    e_many.commit()
                 except edm.ConstraintError:
-                    self.fail("BindEntity/Update on *-1 navigation property")
+                    self.fail("BindEntity/commit on *-1 navigation property")
                 # e_many <-> e_o
                 # e_many2, e_many3 <-> e_o2
                 # [] <-> e_o3
                 e_o2['Many'].BindEntity(e_many)
                 try:
-                    e_o2.Update()
+                    e_o2.commit()
                     self.fail(
-                        "BindEntity/Update on 1-* navigation property "
+                        "BindEntity/commit on 1-* navigation property "
                         "should fail")
                 except edm.ConstraintError:
                     pass
@@ -3174,9 +3174,9 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # UPDATE - using bind and update
                 e_many2['O'].BindEntity(e_o)
                 try:
-                    e_many2.Update()
+                    e_many2.commit()
                 except edm.ConstraintError:
-                    self.fail("BindEntity/Update on *-1 navigation property")
+                    self.fail("BindEntity/commit on *-1 navigation property")
                 # e_many, e_many2 <-> e_o
                 # e_many3 <-> e_o2
                 # [] <-> e_o3
@@ -3316,9 +3316,9 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # UPDATE - using bind and update
                 e_o3['Many'].BindEntity(e_many)
                 try:
-                    e_o3.Update()
+                    e_o3.commit()
                     self.fail(
-                        "BindEntity/Update on 1-* navigation property "
+                        "BindEntity/commit on 1-* navigation property "
                         "should fail")
                 except edm.ConstraintError:
                     pass
@@ -3508,19 +3508,19 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # UPDATE - using bind and update
                 e_many2['ZO'].BindEntity(e_zo)
                 try:
-                    e_many2.Update()
+                    e_many2.commit()
                 except edm.ConstraintError:
                     self.fail(
-                        "BindEntity/Update on *-0..1 navigation property")
+                        "BindEntity/commit on *-0..1 navigation property")
                 # e_many <-> None
                 # e_many2 <-> e_zo
                 # e_many3, e_many4 <-> e_zo2
                 # [] <-> e_zo3
                 e_zo2['Many'].BindEntity(e_many2)
                 try:
-                    e_zo2.Update()
+                    e_zo2.commit()
                     self.fail(
-                        "BindEntity/Update on 0..1-* navigation property "
+                        "BindEntity/commit on 0..1-* navigation property "
                         "should fail")
                 except edm.ConstraintError:
                     pass
@@ -3675,10 +3675,10 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # UPDATE - using bind and update
                 e_many2['ZO'].BindEntity(e_zo)
                 try:
-                    e_many2.Update()
+                    e_many2.commit()
                 except edm.ConstraintError:
                     self.fail(
-                        "BindEntity/Update on *-0..1 navigation property")
+                        "BindEntity/commit on *-0..1 navigation property")
                 # DELETE - link
                 # e_many <-> None
                 # e_many2, e_many3 <-> e_zo
@@ -3798,8 +3798,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many2, e_many3 <-> e_zo2
                 e_zo['Many'].BindEntity(e_many2)
                 try:
-                    e_zo.Update()
-                    self.fail("BindEntity/Update on 0..1-* navigation property "
+                    e_zo.commit()
+                    self.fail("BindEntity/commit on 0..1-* navigation property "
                               "should fail")
                 except edm.ConstraintError:
                     pass
@@ -3820,7 +3820,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many2, e_many3 <-> e_zo2
                 e_zo = collectionZO[100]
                 e_zo['Many'].BindEntity(e_many)
-                e_zo.Update()
+                e_zo.commit()
                 # DELETE - e; for a *-0..1 link should succeed on the * end
                 # e_many <-> e_zo
                 # e_many2, e_many3 <-> e_zo2
@@ -3956,16 +3956,16 @@ class DataServiceRegressionTests(unittest.TestCase):
             # UPDATE - using bind and update
             e2['ZO'].BindEntity(e4)
             try:
-                e2.Update()
+                e2.commit()
             except edm.ConstraintError:
-                self.fail("BindEntity/Update on *-0..1 navigation property")
+                self.fail("BindEntity/commit on *-0..1 navigation property")
             # [] <-> e3 <-> e1 <-> None
             # [] <-> e5 <-> e4 <-> None
             # [] <-> e2 ...
             e5['Many'].BindEntity(e2)
             try:
-                e5.Update()
-                self.fail("BindEntity/Update on 0..1-* navigation property "
+                e5.commit()
+                self.fail("BindEntity/commit on 0..1-* navigation property "
                           "should fail")
             except edm.ConstraintError:
                 pass
@@ -4000,9 +4000,9 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <-> e5 <-> e4 <-> None
             # [] <-> e2 <-> None
             e2['ZO'].BindEntity(e4)
-            e2.Update()
+            e2.commit()
             e3['ZO'].BindEntity(e4)
-            e3.Update()
+            e3.commit()
             # [] <-> e1 <-> None
             # [] <-> e5 <-> e4 <-> None
             # [] <-> e2 ...
@@ -4105,9 +4105,9 @@ class DataServiceRegressionTests(unittest.TestCase):
             # UPDATE - using bind and update
             e2['ZO'].BindEntity(e4)
             try:
-                e2.Update()
+                e2.commit()
             except edm.ConstraintError:
-                self.fail("BindEntity/Update on *-0..1 navigation property")
+                self.fail("BindEntity/commit on *-0..1 navigation property")
             # [] -> e3 -> e1 -> None
             # [] -> e5 -> e4 -> None
             # [] -> e2 ...
@@ -4127,7 +4127,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] -> e2 ...
             # DELETE - e; for a *-0..1 link should succeed on the * end
             e3['ZO'].BindEntity(e4)
-            e3.Update()
+            e3.commit()
             # [] -> e1 -> None
             # [] -> e5 -> e4 -> None
             # [] -> e2 ...
@@ -4267,16 +4267,16 @@ class DataServiceRegressionTests(unittest.TestCase):
                 navCollection.replace(e5)
             e4['Many'].BindEntity(e2)
             try:
-                e4.Update()
+                e4.commit()
             except edm.ConstraintError:
-                self.fail("BindEntity/Update on *-0..1 navigation property")
+                self.fail("BindEntity/commit on *-0..1 navigation property")
             # [] <- e3 <- e1 <- None
             # [] <- e5 <- e4 <- None
             # [] <- e2 <- ...
             e5['Many'].BindEntity(e2)
             try:
-                e5.Update()
-                self.fail("BindEntity/Update on 0..1-* navigation property "
+                e5.commit()
+                self.fail("BindEntity/commit on 0..1-* navigation property "
                           "should fail")
             except edm.ConstraintError:
                 pass
@@ -4297,7 +4297,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <- e5 <- e4 <- None
             # [] <- e2 ...
             e4['Many'].BindEntity(e3)
-            e4.Update()
+            e4.commit()
             # [] <- e1 <- None
             # [] <- e5 <- e4 <- None
             # [] <- e2 ...
@@ -4452,17 +4452,17 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # UPDATE - using bind and update
                 e_many['ManyX'].BindEntity(e_manyx3)
                 try:
-                    e_many.Update()
+                    e_many.commit()
                 except edm.ConstraintError:
-                    self.fail("BindEntity/Update on *-* navigation property")
+                    self.fail("BindEntity/commit on *-* navigation property")
                 # e_many <-> e_manyx, e_manyx2, e_manyx3
                 # e_many, e_many2, e_many3, e_many4 <->
                 # e_manyx2
                 e_manyx3['Many'].BindEntity(e_many3)
                 try:
-                    e_manyx3.Update()
+                    e_manyx3.commit()
                 except edm.ConstraintError:
-                    self.fail("BindEntity/Update on *-* navigation property")
+                    self.fail("BindEntity/commit on *-* navigation property")
                 # e_many  -> e_manyx, e_manyx2, e_manyx3
                 # e_many, e_many2, e_many3, e_many4 <- e_manyx2
                 # e_many, e_many3 <-  e_manyx3
@@ -4632,9 +4632,9 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # UPDATE - using bind and update
                 e_many['ManyX'].BindEntity(e_manyx3)
                 try:
-                    e_many.Update()
+                    e_many.commit()
                 except edm.ConstraintError:
-                    self.fail("BindEntity/Update on *-* navigation property")
+                    self.fail("BindEntity/commit on *-* navigation property")
                 # e_many  -> e_manyx, e_manyx2, e_manyx3
                 # e_many2  -> e_manyx2
                 # e_many3  -> e_manyx2, e_manyx3
@@ -4837,9 +4837,9 @@ class DataServiceRegressionTests(unittest.TestCase):
             # UPDATE - using bind and update
             e2['ManyX'].BindEntity(e4)
             try:
-                e2.Update()
+                e2.commit()
             except edm.ConstraintError:
-                self.fail("BindEntity/Update on *-* navigation property")
+                self.fail("BindEntity/commit on *-* navigation property")
             # e3 <- e1 -> []
             # [] <- e2 -> e3, e4, e5
             # e2 <- e3 -> e1
@@ -4848,10 +4848,10 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <- entity6 -> []
             e5['Many'].BindEntity(e1)
             try:
-                e5.Update()
+                e5.commit()
             except edm.ConstraintError:
                 self.fail(
-                    "BindEntity/Update on *-* navigation property should pass")
+                    "BindEntity/commit on *-* navigation property should pass")
             # e3 <- e1 -> e5
             # [] <- e2 -> e3, e4, e5
             # e2 <- e3 -> e1
@@ -5010,9 +5010,9 @@ class DataServiceRegressionTests(unittest.TestCase):
             # UPDATE - using bind and update
             e4['ManyX'].BindEntity(e2)
             try:
-                e4.Update()
+                e4.commit()
             except edm.ConstraintError:
-                self.fail("BindEntity/Update on *-* navigation property")
+                self.fail("BindEntity/commit on *-* navigation property")
             # e4 <- e1 -> []
             # e4, e5 <- e2 -> e3
             # e2 <- e3 -> []

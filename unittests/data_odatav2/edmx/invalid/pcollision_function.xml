@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<edmx:Edmx Version="1.0" xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx"
+    xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata">
+    <edmx:DataServices m:DataServiceVersion="2.0">
+        <!-- If the return type of FunctionImport is of ComplexType or scalar type, the EntitySet attribute MUST NOT be defined -->
+        <Schema Namespace="SampleSchema" xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
+            <EntityContainer Name="SampleEntities" m:IsDefaultEntityContainer="true">
+                <FunctionImport Name="activeCustomerCount" ReturnType="Edm.Int32">
+                    <Parameter Name="fiscalyear" Mode="In" Type="String"/>
+                    <Parameter Name="fiscalyear" Mode="In" Type="Int32"/>
+                </FunctionImport>
+            </EntityContainer>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

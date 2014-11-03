@@ -8,6 +8,8 @@ import types
 import string
 import os.path
 
+from pyslet.pep8 import PEP8Compatibility
+
 CHINESE_TEST = u'\u82f1\u56fd'
 
 UCDDatabaseURL = "http://www.unicode.org/Public/UNIDATA/UnicodeData.txt"
@@ -616,7 +618,7 @@ def ParseBlockTable():
     f.close()
 
 
-class BasicParser(object):
+class BasicParser(PEP8Compatibility):
 
     """An abstract class for parsing unicode strings."""
 
@@ -630,14 +632,14 @@ class BasicParser(object):
         self.the_char = None
         """The current character or None if the parser is positioned outside the
 		src string."""
-        self.NextChar()
+        self.next_char()
 
     def setpos(self, newPos):
         """Sets the position of the parser to *newPos*"""
         self.pos = newPos - 1
-        self.NextChar()
+        self.next_char()
 
-    def NextChar(self):
+    def next_char(self):
         """Points the parser at the next character, updating *pos* and *the_char*."""
         self.pos += 1
         if self.pos >= 0 and self.pos < len(self.src):
@@ -741,7 +743,7 @@ class BasicParser(object):
         """Parses one of *matchChars*.  Returns the character or None if no match is found."""
         if self.MatchOne(matchChars):
             result = self.the_char
-            self.NextChar()
+            self.next_char()
             return result
         else:
             return None
@@ -823,7 +825,7 @@ class BasicParser(object):
         """Parses a hex-digit character.  Returns the digit, or None if no digit is found."""
         return self.ParseOne("0123456789ABCDEFabcdef")
 
-    def ParseHexDigits(self, min, max=None):
+    def parse_hex_digits(self, min, max=None):
         """Parses min hex digits, and up to max hex digits, returning the string of hex digits.
 
         If *max* is None then there is no maximum.

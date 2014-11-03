@@ -42,6 +42,10 @@ class DataServices(edm.NameTableMixin, EDMXElement):
         for s in self.Schema:
             s.UpdateSetRefs(self)
 
+    def validate(self):
+        for s in self.Schema:
+            s.validate()
+
 
 class Reference(EDMXElement):
     XMLNAME = (EDMX_NAMESPACE, 'Reference')
@@ -87,6 +91,9 @@ class Edmx(EDMXElement):
         for child in EDMXElement.GetChildren(self):
             yield child
 
+    def validate(self):
+        self.DataServices.validate()
+
 
 class Document(xmlns.XMLNSDocument):
 
@@ -105,6 +112,14 @@ class Document(xmlns.XMLNSDocument):
         eClass = Document.classMap.get(
             name, Document.classMap.get((name[0], None), xmlns.XMLNSElement))
         return eClass
+
+    def validate(self):
+        # These extensions MUST be used by a data service in conjunction
+        # with the "dataservices" node
+        if not isinstance(self.root.DataServices, DataServices):
+            raise edm.InvalidMetadataDocument("Expected dataservices node")
+        self.root.validate()
+
 
 xmlns.MapClassElements(Document.classMap, globals())
 xmlns.MapClassElements(Document.classMap, edm, edm.NAMESPACE_ALIASES)

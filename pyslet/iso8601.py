@@ -2971,7 +2971,7 @@ class ISO8601Parser(RFC2234CoreParser):
                         return Date(
                             year=v1, ordinalDay=v2 * 10 + v3, base=base), "YYDDD"
                 elif self.the_char == "-":
-                    self.NextChar()
+                    self.next_char()
                     if is_digit(self.the_char):
                         v3 = self.ParseDIGIT()
                         v3 = v3 * 10 + self.ParseDIGIT()
@@ -2980,7 +2980,7 @@ class ISO8601Parser(RFC2234CoreParser):
                             return Date(
                                 century=v1, year=v2, ordinalDay=v3, base=base), "YYYY-DDD"
                         elif self.the_char == "-":
-                            self.NextChar()
+                            self.next_char()
                             v4 = self.ParseDIGIT()
                             v4 = v4 * 10 + self.ParseDIGIT()
                             return Date(
@@ -2989,11 +2989,11 @@ class ISO8601Parser(RFC2234CoreParser):
                             return Date(
                                 century=v1, year=v2, month=v3, base=base), "YYYY-MM"
                     elif self.the_char == "W":
-                        self.NextChar()
+                        self.next_char()
                         v3 = self.ParseDIGIT()
                         v3 = v3 * 10 + self.ParseDIGIT()
                         if self.the_char == "-":
-                            self.NextChar()
+                            self.next_char()
                             v4 = self.ParseDIGIT()
                             return Date(
                                 century=v1, decade=v2 // 10, year=v2 %
@@ -3005,7 +3005,7 @@ class ISO8601Parser(RFC2234CoreParser):
                     else:
                         self.BadSyntax("expected digit or W in ISO date")
                 elif self.the_char == "W":
-                    self.NextChar()
+                    self.next_char()
                     v3 = self.ParseDIGIT()
                     v3 = v3 * 10 + self.ParseDIGIT()
                     if is_digit(self.the_char):
@@ -3019,7 +3019,7 @@ class ISO8601Parser(RFC2234CoreParser):
                 else:
                     return Date(century=v1, year=v2, base=base), "YYYY"
             elif self.the_char == "-":
-                self.NextChar()
+                self.next_char()
                 if is_digit(self.the_char):
                     """YY-DDD, YY-MM-DD"""
                     v2 = self.ParseDIGIT()
@@ -3029,7 +3029,7 @@ class ISO8601Parser(RFC2234CoreParser):
                         return Date(
                             year=v1, ordinalDay=v2, base=base), "YY-DDD"
                     elif self.the_char == "-":
-                        self.NextChar()
+                        self.next_char()
                         v3 = self.ParseDIGIT()
                         v3 = v3 * 10 + self.ParseDIGIT()
                         return Date(
@@ -3038,11 +3038,11 @@ class ISO8601Parser(RFC2234CoreParser):
                         self.BadSyntax(
                             "expected digit or hyphen in ISO date")
                 elif self.the_char == "W":
-                    self.NextChar()
+                    self.next_char()
                     v2 = self.ParseDIGIT()
                     v2 = v2 * 10 + self.ParseDIGIT()
                     if self.the_char == "-":
-                        self.NextChar()
+                        self.next_char()
                         v3 = self.ParseDIGIT()
                         return Date(
                             decade=v1 // 10, year=v1 %
@@ -3054,7 +3054,7 @@ class ISO8601Parser(RFC2234CoreParser):
                 else:
                     self.BadSyntax("expected digit or W in ISO date")
             elif self.the_char == "W":
-                self.NextChar()
+                self.next_char()
                 v2 = self.ParseDIGIT()
                 v2 = v2 * 10 + self.ParseDIGIT()
                 if is_digit(self.the_char):
@@ -3069,7 +3069,7 @@ class ISO8601Parser(RFC2234CoreParser):
             else:
                 return Date(century=v1, base=base), "YY"
         elif self.the_char == "-":
-            self.NextChar()
+            self.next_char()
             if is_digit(self.the_char):
                 v1 = self.ParseDIGIT()
                 if is_digit(self.the_char):
@@ -3083,26 +3083,26 @@ class ISO8601Parser(RFC2234CoreParser):
                             return Date(
                                 ordinalDay=v1 * 10 + v2, base=base), "-DDD"
                     elif self.the_char == "-":
-                        self.NextChar()
+                        self.next_char()
                         v2 = self.ParseDIGIT()
                         v2 = v2 * 10 + self.ParseDIGIT()
                         return Date(year=v1, month=v2, base=base), "-YY-MM"
                     else:
                         return Date(year=v1, base=base), "-YY"
                 elif self.the_char == "-":
-                    self.NextChar()
+                    self.next_char()
                     self.ParseTerminal("W")
                     v2 = self.ParseDIGIT()
                     v2 = v2 * 10 + self.ParseDIGIT()
                     if self.the_char == "-":
-                        self.NextChar()
+                        self.next_char()
                         v3 = self.ParseDIGIT()
                         return Date(
                             year=v1, week=v2, weekday=v3, base=base), "-Y-Www-D"
                     else:
                         return Date(year=v1, week=v2, base=base), "-Y-Www"
                 elif self.the_char == "W":
-                    self.NextChar()
+                    self.next_char()
                     v2 = self.ParseDIGIT()
                     v2 = v2 * 10 + self.ParseDIGIT()
                     if is_digit(self.the_char):
@@ -3112,7 +3112,7 @@ class ISO8601Parser(RFC2234CoreParser):
                     else:
                         return Date(year=v1, week=v2, base=base), "-YWww"
             elif self.the_char == "-":
-                self.NextChar()
+                self.next_char()
                 if is_digit(self.the_char):
                     v1 = self.ParseDIGIT()
                     v1 = v1 * 10 + self.ParseDIGIT()
@@ -3121,14 +3121,14 @@ class ISO8601Parser(RFC2234CoreParser):
                         v2 = v2 * 10 + self.ParseDIGIT()
                         return Date(month=v1, day=v2, base=base), "--MMDD"
                     elif self.the_char == "-":
-                        self.NextChar()
+                        self.next_char()
                         v2 = self.ParseDIGIT()
                         v2 = v2 * 10 + self.ParseDIGIT()
                         return Date(month=v1, day=v2, base=base), "--MM-DD"
                     else:
                         return Date(month=v1, base=base), "--MM"
                 elif self.the_char == "-":
-                    self.NextChar()
+                    self.next_char()
                     v1 = self.ParseDIGIT()
                     v1 = v1 * 10 + self.ParseDIGIT()
                     return Date(day=v1, base=base), "---DD"
@@ -3136,7 +3136,7 @@ class ISO8601Parser(RFC2234CoreParser):
                     self.BadSyntax(
                         "expected digit or hyphen in truncated ISO date")
             elif self.the_char == "W":
-                self.NextChar()
+                self.next_char()
                 if is_digit(self.the_char):
                     v1 = self.ParseDIGIT()
                     v1 = v1 * 10 + self.ParseDIGIT()
@@ -3144,13 +3144,13 @@ class ISO8601Parser(RFC2234CoreParser):
                         v2 = self.ParseDIGIT()
                         return Date(week=v1, weekday=v2, base=base), "-WwwD"
                     elif self.the_char == "-":
-                        self.NextChar()
+                        self.next_char()
                         v2 = self.ParseDIGIT()
                         return Date(week=v1, weekday=v2, base=base), "-Www-D"
                     else:
                         return Date(week=v1, base=base), "-Www"
                 elif self.the_char == "-":
-                    self.NextChar()
+                    self.next_char()
                     v1 = self.ParseDIGIT()
                     return Date(weekday=v1, base=base), "-W-D"
                 else:
@@ -3193,7 +3193,7 @@ class ISO8601Parser(RFC2234CoreParser):
                         date.SetOrdinalDay(None, v1, v2 * 10 + v3, base)
                         return "YYDDD"
                 elif self.the_char == "-":
-                    self.NextChar()
+                    self.next_char()
                     if is_digit(self.the_char):
                         v3 = self.ParseDIGIT()
                         v3 = v3 * 10 + self.ParseDIGIT()
@@ -3202,7 +3202,7 @@ class ISO8601Parser(RFC2234CoreParser):
                             date.SetOrdinalDay(v1, v2, v3, base)
                             return "YYYY-DDD"
                         elif self.the_char == "-":
-                            self.NextChar()
+                            self.next_char()
                             v4 = self.ParseDIGIT()
                             v4 = v4 * 10 + self.ParseDIGIT()
                             date.SetCalendarDay(v1, v2, v3, v4, base)
@@ -3211,11 +3211,11 @@ class ISO8601Parser(RFC2234CoreParser):
                             date.SetCalendarDay(v1, v2, v3, None, base)
                             return "YYYY-MM"
                     elif self.the_char == "W":
-                        self.NextChar()
+                        self.next_char()
                         v3 = self.ParseDIGIT()
                         v3 = v3 * 10 + self.ParseDIGIT()
                         if self.the_char == "-":
-                            self.NextChar()
+                            self.next_char()
                             v4 = self.ParseDIGIT()
                             date.SetWeekDay(
                                 v1, v2 // 10, v2 % 10, v3, v4, base)
@@ -3227,7 +3227,7 @@ class ISO8601Parser(RFC2234CoreParser):
                     else:
                         self.BadSyntax("expected digit or W in ISO date")
                 elif self.the_char == "W":
-                    self.NextChar()
+                    self.next_char()
                     v3 = self.ParseDIGIT()
                     v3 = v3 * 10 + self.ParseDIGIT()
                     if is_digit(self.the_char):
@@ -3241,7 +3241,7 @@ class ISO8601Parser(RFC2234CoreParser):
                     date.SetCalendarDay(v1, v2, None, None, base)
                     return "YYYY"
             elif self.the_char == "-":
-                self.NextChar()
+                self.next_char()
                 if is_digit(self.the_char):
                     """YY-DDD, YY-MM-DD"""
                     v2 = self.ParseDIGIT()
@@ -3251,7 +3251,7 @@ class ISO8601Parser(RFC2234CoreParser):
                         date.SetOrdinalDay(None, v1, v2, base)
                         return "YY-DDD"
                     elif self.the_char == "-":
-                        self.NextChar()
+                        self.next_char()
                         v3 = self.ParseDIGIT()
                         v3 = v3 * 10 + self.ParseDIGIT()
                         date.SetCalendarDay(None, v1, v2, v3, base)
@@ -3260,11 +3260,11 @@ class ISO8601Parser(RFC2234CoreParser):
                         self.BadSyntax(
                             "expected digit or hyphen in ISO date")
                 elif self.the_char == "W":
-                    self.NextChar()
+                    self.next_char()
                     v2 = self.ParseDIGIT()
                     v2 = v2 * 10 + self.ParseDIGIT()
                     if self.the_char == "-":
-                        self.NextChar()
+                        self.next_char()
                         v3 = self.ParseDIGIT()
                         date.SetWeekDay(None, v1 // 10, v1 % 10, v2, v3, base)
                         return "YY-Www-D"
@@ -3275,7 +3275,7 @@ class ISO8601Parser(RFC2234CoreParser):
                 else:
                     self.BadSyntax("expected digit or W in ISO date")
             elif self.the_char == "W":
-                self.NextChar()
+                self.next_char()
                 v2 = self.ParseDIGIT()
                 v2 = v2 * 10 + self.ParseDIGIT()
                 if is_digit(self.the_char):
@@ -3289,7 +3289,7 @@ class ISO8601Parser(RFC2234CoreParser):
                 date.SetCalendarDay(v1, None, None, None, base)
                 return "YY"
         elif self.the_char == "-":
-            self.NextChar()
+            self.next_char()
             if is_digit(self.the_char):
                 v1 = self.ParseDIGIT()
                 if is_digit(self.the_char):
@@ -3304,7 +3304,7 @@ class ISO8601Parser(RFC2234CoreParser):
                             date.SetOrdinalDay(None, None, v1 * 10 + v2, base)
                             return "-DDD"
                     elif self.the_char == "-":
-                        self.NextChar()
+                        self.next_char()
                         v2 = self.ParseDIGIT()
                         v2 = v2 * 10 + self.ParseDIGIT()
                         date.SetCalendarDay(None, v1, v2, None, base)
@@ -3313,12 +3313,12 @@ class ISO8601Parser(RFC2234CoreParser):
                         date.SetCalendarDay(None, v1, None, None, base)
                         return "-YY"
                 elif self.the_char == "-":
-                    self.NextChar()
+                    self.next_char()
                     self.ParseTerminal("W")
                     v2 = self.ParseDIGIT()
                     v2 = v2 * 10 + self.ParseDIGIT()
                     if self.the_char == "-":
-                        self.NextChar()
+                        self.next_char()
                         v3 = self.ParseDIGIT()
                         date.SetWeekDay(None, None, v1, v2, v3, base)
                         return "-Y-Www-D"
@@ -3326,7 +3326,7 @@ class ISO8601Parser(RFC2234CoreParser):
                         date.SetWeekDay(None, None, v1, v2, None, base)
                         return "-Y-Www"
                 elif self.the_char == "W":
-                    self.NextChar()
+                    self.next_char()
                     v2 = self.ParseDIGIT()
                     v2 = v2 * 10 + self.ParseDIGIT()
                     if is_digit(self.the_char):
@@ -3337,7 +3337,7 @@ class ISO8601Parser(RFC2234CoreParser):
                         date.SetWeekDay(None, None, v1, v2, None, base)
                         return "-YWww"
             elif self.the_char == "-":
-                self.NextChar()
+                self.next_char()
                 if is_digit(self.the_char):
                     v1 = self.ParseDIGIT()
                     v1 = v1 * 10 + self.ParseDIGIT()
@@ -3347,7 +3347,7 @@ class ISO8601Parser(RFC2234CoreParser):
                         date.SetCalendarDay(None, None, v1, v2, base)
                         return "--MMDD"
                     elif self.the_char == "-":
-                        self.NextChar()
+                        self.next_char()
                         v2 = self.ParseDIGIT()
                         v2 = v2 * 10 + self.ParseDIGIT()
                         date.SetCalendarDay(None, None, v1, v2, base)
@@ -3356,7 +3356,7 @@ class ISO8601Parser(RFC2234CoreParser):
                         date.SetCalendarDay(None, None, v1, None, base)
                         return "--MM"
                 elif self.the_char == "-":
-                    self.NextChar()
+                    self.next_char()
                     v1 = self.ParseDIGIT()
                     v1 = v1 * 10 + self.ParseDIGIT()
                     date.SetCalendarDay(None, None, None, v1, base)
@@ -3365,7 +3365,7 @@ class ISO8601Parser(RFC2234CoreParser):
                     self.BadSyntax(
                         "expected digit or hyphen in truncated ISO date")
             elif self.the_char == "W":
-                self.NextChar()
+                self.next_char()
                 if is_digit(self.the_char):
                     v1 = self.ParseDIGIT()
                     v1 = v1 * 10 + self.ParseDIGIT()
@@ -3374,7 +3374,7 @@ class ISO8601Parser(RFC2234CoreParser):
                         date.SetWeekDay(None, None, None, v1, v2, base)
                         return "-WwwD"
                     elif self.the_char == "-":
-                        self.NextChar()
+                        self.next_char()
                         v2 = self.ParseDIGIT()
                         date.SetWeekDay(None, None, None, v1, v2, base)
                         return "-Www-D"
@@ -3382,7 +3382,7 @@ class ISO8601Parser(RFC2234CoreParser):
                         date.SetWeekDay(None, None, None, v1, None, base)
                         return "-Www"
                 elif self.the_char == "-":
-                    self.NextChar()
+                    self.next_char()
                     v1 = self.ParseDIGIT()
                     date.SetWeekDay(None, None, None, None, v1, base)
                     return "-W-D"
@@ -3397,7 +3397,7 @@ class ISO8601Parser(RFC2234CoreParser):
 
     def ParseTimeFormat(self, base=None, tDesignators="T"):
         if self.the_char in tDesignators:
-            self.NextChar()
+            self.next_char()
             tDesignator = 1
         else:
             tDesignator = 0
@@ -3432,11 +3432,11 @@ class ISO8601Parser(RFC2234CoreParser):
                 hour, minute, second = v1, None, None
                 tFormat = "hh%sh" % point
             elif self.the_char == ":":
-                self.NextChar()
+                self.next_char()
                 v2 = self.ParseDIGIT()
                 v2 = v2 * 10 + self.ParseDIGIT()
                 if self.the_char == ":":
-                    self.NextChar()
+                    self.next_char()
                     v3 = self.ParseDIGIT()
                     v3 = v3 * 10 + self.ParseDIGIT()
                     if self.the_char == "." or self.the_char == ",":
@@ -3461,7 +3461,7 @@ class ISO8601Parser(RFC2234CoreParser):
         elif self.the_char == "-":
             if tDesignator:
                 self.BadSyntax("time designator T before truncated time")
-            self.NextChar()
+            self.next_char()
             if is_digit(self.the_char):
                 v1 = self.ParseDIGIT()
                 v1 = v1 * 10 + self.ParseDIGIT()
@@ -3482,7 +3482,7 @@ class ISO8601Parser(RFC2234CoreParser):
                     hour, minute, second = None, v1, None
                     tFormat = "-mm%sm" % point
                 elif self.the_char == ":":
-                    self.NextChar()
+                    self.next_char()
                     v2 = self.ParseDIGIT()
                     v2 = v2 * 10 + self.ParseDIGIT()
                     if self.the_char == "." or self.the_char == ",":
@@ -3497,7 +3497,7 @@ class ISO8601Parser(RFC2234CoreParser):
                     hour, minute, second = None, v1, None
                     tFormat = "-mm"
             elif self.the_char == "-":
-                self.NextChar()
+                self.next_char()
                 v1 = self.ParseDIGIT()
                 v1 = v1 * 10 + self.ParseDIGIT()
                 if self.the_char == "." or self.the_char == ",":
@@ -3532,7 +3532,7 @@ class ISO8601Parser(RFC2234CoreParser):
 
     def ParseTimeZoneFormat(self):
         if self.the_char == "Z":
-            self.NextChar()
+            self.next_char()
             zDirection, zHour, zMinute = 0, 0, 0
             format = 'Z'
         elif self.the_char == "+" or self.the_char == "-":
@@ -3540,7 +3540,7 @@ class ISO8601Parser(RFC2234CoreParser):
                 v1 = +1
             else:
                 v1 = -1
-            self.NextChar()
+            self.next_char()
             v2 = self.ParseDIGIT()
             v2 = v2 * 10 + self.ParseDIGIT()
             if is_digit(self.the_char):
@@ -3549,7 +3549,7 @@ class ISO8601Parser(RFC2234CoreParser):
                 zDirection, zHour, zMinute = v1, v2, v3
                 format = "+hhmm"
             elif self.the_char == ":":
-                self.NextChar()
+                self.next_char()
                 v3 = self.ParseDIGIT()
                 v3 = v3 * 10 + self.ParseDIGIT()
                 zDirection, zHour, zMinute = v1, v2, v3
@@ -3565,7 +3565,7 @@ class ISO8601Parser(RFC2234CoreParser):
             DeprecationWarning,
             stacklevel=2)
         if self.the_char in tDesignators:
-            self.NextChar()
+            self.next_char()
             tDesignator = 1
         else:
             tDesignator = 0
@@ -3600,11 +3600,11 @@ class ISO8601Parser(RFC2234CoreParser):
                 t.SetTime(v1, None, None)
                 tFormat = "hh%sh" % point
             elif self.the_char == ":":
-                self.NextChar()
+                self.next_char()
                 v2 = self.ParseDIGIT()
                 v2 = v2 * 10 + self.ParseDIGIT()
                 if self.the_char == ":":
-                    self.NextChar()
+                    self.next_char()
                     v3 = self.ParseDIGIT()
                     v3 = v3 * 10 + self.ParseDIGIT()
                     if self.the_char == "." or self.the_char == ",":
@@ -3629,7 +3629,7 @@ class ISO8601Parser(RFC2234CoreParser):
         elif self.the_char == "-":
             if tDesignator:
                 self.BadSyntax("time designator before truncated time")
-            self.NextChar()
+            self.next_char()
             if is_digit(self.the_char):
                 v1 = self.ParseDIGIT()
                 v1 = v1 * 10 + self.ParseDIGIT()
@@ -3650,7 +3650,7 @@ class ISO8601Parser(RFC2234CoreParser):
                     t.SetTime(None, v1, None, tBase)
                     tFormat = "-mm%sm" % point
                 elif self.the_char == ":":
-                    self.NextChar()
+                    self.next_char()
                     v2 = self.ParseDIGIT()
                     v2 = v2 * 10 + self.ParseDIGIT()
                     if self.the_char == "." or self.the_char == ",":
@@ -3665,7 +3665,7 @@ class ISO8601Parser(RFC2234CoreParser):
                     t.SetTime(None, v1, None, tBase)
                     tFormat = "-mm"
             elif self.the_char == "-":
-                self.NextChar()
+                self.next_char()
                 v1 = self.ParseDIGIT()
                 v1 = v1 * 10 + self.ParseDIGIT()
                 if self.the_char == "." or self.the_char == ",":
@@ -3691,7 +3691,7 @@ class ISO8601Parser(RFC2234CoreParser):
 
     def ParseTimeZone(self, t):
         if self.the_char == "Z":
-            self.NextChar()
+            self.next_char()
             t.SetZone(0)
             format = 'Z'
         elif self.the_char == "+" or self.the_char == "-":
@@ -3699,7 +3699,7 @@ class ISO8601Parser(RFC2234CoreParser):
                 v1 = +1
             else:
                 v1 = -1
-            self.NextChar()
+            self.next_char()
             v2 = self.ParseDIGIT()
             v2 = v2 * 10 + self.ParseDIGIT()
             if is_digit(self.the_char):
@@ -3708,7 +3708,7 @@ class ISO8601Parser(RFC2234CoreParser):
                 t.SetZone(v1, v2, v3)
                 format = "+hhmm"
             elif self.the_char == ":":
-                self.NextChar()
+                self.next_char()
                 v3 = self.ParseDIGIT()
                 v3 = v3 * 10 + self.ParseDIGIT()
                 t.SetZone(v1, v2, v3)
@@ -3742,18 +3742,18 @@ class ISO8601Parser(RFC2234CoreParser):
             raise DateTimeError("expected duration")
         format = ['P']
         values = []
-        self.NextChar()
+        self.next_char()
         allowFraction = True
         value, vFormat = self.ParseDurationValue(allowFraction)
         allowFraction = allowFraction and (value is None or vFormat == "n")
         if value is not None and self.the_char == "W":
             format.append(vFormat + "W")
-            self.NextChar()
+            self.next_char()
             d.SetWeekDuration(value)
             return string.join(format, '')
         if value is not None and self.the_char == 'Y':
             format.append(vFormat + "Y")
-            self.NextChar()
+            self.next_char()
             values.append(value)
             value, vFormat = self.ParseDurationValue(allowFraction)
             allowFraction = allowFraction and (value is None or vFormat == "n")
@@ -3761,7 +3761,7 @@ class ISO8601Parser(RFC2234CoreParser):
             values.append(None)
         if value is not None and self.the_char == 'M':
             format.append(vFormat + "M")
-            self.NextChar()
+            self.next_char()
             values.append(value)
             value, vFormat = self.ParseDurationValue(allowFraction)
             allowFraction = allowFraction and (value is None or vFormat == "n")
@@ -3769,7 +3769,7 @@ class ISO8601Parser(RFC2234CoreParser):
             values.append(None)
         if value is not None and self.the_char == 'D':
             format.append(vFormat + "D")
-            self.NextChar()
+            self.next_char()
             values.append(value)
             value, vFormat = None, None
         else:
@@ -3778,12 +3778,12 @@ class ISO8601Parser(RFC2234CoreParser):
             raise DateTimeError("expected 'T', found %s" % str(value))
         if self.the_char == 'T':
             format.append("T")
-            self.NextChar()
+            self.next_char()
             value, vFormat = self.ParseDurationValue(allowFraction)
             allowFraction = allowFraction and (value is None or vFormat == "n")
             if value is not None and self.the_char == 'H':
                 format.append(vFormat + "H")
-                self.NextChar()
+                self.next_char()
                 values.append(value)
                 value, vFormat = self.ParseDurationValue(allowFraction)
                 allowFraction = allowFraction and (
@@ -3792,7 +3792,7 @@ class ISO8601Parser(RFC2234CoreParser):
                 values.append(None)
             if value is not None and self.the_char == 'M':
                 format.append(vFormat + "M")
-                self.NextChar()
+                self.next_char()
                 values.append(value)
                 value, vFormat = self.ParseDurationValue(allowFraction)
                 allowFraction = allowFraction and (
@@ -3801,7 +3801,7 @@ class ISO8601Parser(RFC2234CoreParser):
                 values.append(None)
             if value is not None and self.the_char == 'S':
                 format.append(vFormat + "S")
-                self.NextChar()
+                self.next_char()
                 values.append(value)
                 value, vFormat = None, None
             else:
@@ -3833,7 +3833,7 @@ class ISO8601Parser(RFC2234CoreParser):
     def ParseFraction(self):
         if not (self.the_char == "." or self.the_char == ","):
             self.BadSyntax("expected decimal sign")
-        self.NextChar()
+        self.next_char()
         f = 0
         fMag = 1
         while is_digit(self.the_char):

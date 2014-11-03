@@ -15,6 +15,8 @@ pyslet/http/server.py
 unittests/test_http_server.py
 pyslet/odata2/metadata.py
 pyslet/odata2/memds.py
+unittests/test_odata2_csdl.py
+unittests/test_odata2_edmx.py
 unittests/test_odata2_memds.py
 pyslet/odata2/sqlds.py
 unittests/test_odata2_sqlds.py
@@ -22,6 +24,7 @@ pyslet/pep8.py
 pyslet/py26.py
 pyslet/rfc2616.py
 pyslet/rfc2617.py
+pyslet/xml20081126/parser.py
 samples/fsodata.py
 samples/odatadiff.py
 samples/odatadoc.py

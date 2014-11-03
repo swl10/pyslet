@@ -4,7 +4,6 @@ import unittest
 import decimal
 
 import pyslet.xml20081126.structures as xml
-from pyslet.vfs import OSFilePath as FilePath
 
 from pyslet.odata2.csdl import *    # noqa
 
@@ -21,10 +20,6 @@ def suite():
 
 def load_tests(loader, tests, pattern):
     return suite()
-
-
-TEST_DATA_DIR = FilePath(
-    FilePath(__file__).abspath().split()[0], 'data_mc_csdl')
 
 
 class CSDLTests(unittest.TestCase):
@@ -48,10 +43,9 @@ class CSDLTests(unittest.TestCase):
                 pass
         save_pattern = set_simple_identifier_re(
             SIMPLE_IDENTIFIER_COMPATIBILITY_RE)
-        simple_identifier_allow_hyphen = True
         self.assertTrue(ValidateSimpleIdentifier("M-"), "hyphen allowed")
         set_simple_identifier_re(save_pattern)
-        
+
     def test_simple_type(self):
         """Test the SimpleType enumeration."""
         self.assertTrue(SimpleType.Binary == getattr(
@@ -306,6 +300,67 @@ class CSDLTests(unittest.TestCase):
         self.assertTrue(isinstance(e['Orders'], DeferredValue),
                         "Type of navigation property")
 
+    def test_function(self):
+        """Tests the FunctionImport class."""
+        f = FunctionImport(None)
+        self.assertTrue(
+            isinstance(f, CSDLElement), "FunctionImport not a CSDLElement")
+        # FunctionImport MUST have a Name attribute defined
+        self.assertTrue(f.name == "Default", "Default name")
+        f.SetAttribute('Name', "annualCustomerSales")
+        self.assertTrue(
+            f.name == "annualCustomerSales",
+            "Name attribute setter: %s" % repr(f.name))
+        # Name attribute is of type SimpleIdentifier
+        try:
+            f.SetAttribute('Name', "bad-name")
+            self.fail("bad-name accepted")
+        except ValueError:
+            pass
+        min_func_schema = \
+            """<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<Schema Namespace="SampleModel"
+        xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
+    <EntityContainer Name="SampleEntities" m:IsDefaultEntityContainer="true">
+        <FunctionImport Name="activeCustomerCount"
+            ReturnType="Edm.Int32">
+            <Parameter Name="fiscalyear" Mode="In" Type="String" />
+        </FunctionImport>
+        <FunctionImport Name="annualCustomerSales"
+            EntitySet="result_annualCustomerSalesSet"
+            ReturnType="Collection(SampleModel.result_annualCustomerSales)">
+            <Parameter Name="fiscalyear" Mode="In" Type="String" />
+        </FunctionImport>
+        <EntitySet Name="result_annualCustomerSalesSet"
+            EntityType="SampleModel.result_annualCustomerSales"/>
+    </EntityContainer>
+    <EntityType Name="result_annualCustomerSales">
+        <Key>
+            <PropertyRef Name="ID"/>
+        </Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+    </EntityType>
+</Schema>"""
+        doc = Document()
+        doc.Read(src=min_func_schema)
+        scope = NameTableMixin()
+        scope.Declare(doc.root)
+        doc.root.UpdateTypeRefs(scope)
+        doc.root.UpdateSetRefs(scope)
+        # the type of ReturnType MUST be a scalar type, EntityType, or
+        # ComplexType that is in scope or a collection of one of these
+        # in-scope types
+        f = doc.root["SampleEntities.activeCustomerCount"]
+        self.assertTrue(isinstance(f.returnTypeRef, TypeRef))
+        self.assertFalse(f.is_collection())
+        self.assertFalse(f.is_entity_collection())
+        self.assertTrue(f.returnTypeRef.simpleTypeCode == SimpleType.Int32)
+        f = doc.root["SampleEntities.annualCustomerSales"]
+        self.assertTrue(isinstance(f.returnTypeRef, TypeRef))
+        self.assertTrue(f.is_collection())
+        self.assertTrue(f.is_entity_collection())
+        self.assertTrue(f.returnTypeRef.simpleTypeCode is None)
+
 
 class ValueTests(unittest.TestCase):
 
@@ -444,7 +499,8 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(
             isinstance(v3.value, decimal.Decimal), "Cast to Decimal")
         self.assertTrue(v3 == 13, "Cast to Double")
-        
+
+
 class EntityTests(unittest.TestCase):
 
     def setUp(self):        # noqa
@@ -476,7 +532,7 @@ class EntityTests(unittest.TestCase):
         doc.root.UpdateTypeRefs(scope)
         doc.root.UpdateSetRefs(scope)
         self.es = doc.root['SampleEntities.Customers']
-        
+
     def test_init(self):
         e = Entity(self.es)
         self.assertFalse(e.exists)
@@ -500,6 +556,6 @@ class EntityTests(unittest.TestCase):
         # doesn't touch the key!
         self.assertTrue(e.key() == "abc")
 
-        
+
 if __name__ == "__main__":
     unittest.main()

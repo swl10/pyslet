@@ -250,7 +250,7 @@ class ParserTests(unittest.TestCase):
         e = xml.XMLEntity(
             "Preamble\n<P>Hello&nbsp;<b>World!<P>Pleased to meet you.</P>")
         p = HTMLParser(e)
-        doc = p.ParseDocument(XHTMLDocument())
+        doc = p.parse_document(XHTMLDocument())
         self.assertTrue(
             isinstance(doc, XHTMLDocument), "Type of document parsed")
         fragment = list(doc.root.Body.GetChildren())

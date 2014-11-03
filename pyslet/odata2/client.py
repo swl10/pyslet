@@ -145,18 +145,18 @@ class ClientCollection(core.EntityCollection):
         response and raises an error accordingly."""
         if request.status == 404:
             # translates in to a key error
-            eType = KeyError
+            etype = KeyError
         elif request.status == 405:
             # indicates the URL doesn't support the operation, for example
             # an attempt to POST to a navigation property that the server
             # doesn't support perhaps
-            eType = NotImplementedError
+            etype = NotImplementedError
         elif request.status == 401:
-            eType = AuthorizationRequired
+            etype = AuthorizationRequired
         elif request.status >= 400 and request.status < 500:
-            eType = edm.ConstraintError
+            etype = edm.ConstraintError
         else:
-            eType = UnexpectedHTTPResponse
+            etype = UnexpectedHTTPResponse
         debugMsg = None
         if request.res_body:
             doc = core.Document()
@@ -170,13 +170,13 @@ class ClientCollection(core.EntityCollection):
                 errorMsg = request.response.reason
         else:
             errorMsg = request.response.reason
-        if eType == KeyError:
+        if etype == KeyError:
             logging.info("404: %s", errorMsg)
         else:
             logging.info("%i: %s", request.status, errorMsg)
             if debugMsg:
                 logging.debug(debugMsg)
-        raise eType(errorMsg)
+        raise etype(errorMsg)
 
     def insert_entity(self, entity):
         if entity.exists:

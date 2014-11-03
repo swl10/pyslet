@@ -2759,9 +2759,9 @@ class ExpressionTests(unittest.TestCase):
             expressions.LTE: (True, True, False),
             expressions.GTE: (True, False, True)
         }
-        for eType in tests.keys():
-            expected = tests[eType]
-            e = eType(None)
+        for etype in tests.keys():
+            expected = tests[etype]
+            e = etype(None)
             v1 = e.ChildElement(expressions.Null)
             v2 = e.ChildElement(expressions.BaseValue)
             v2.baseType = variables.BaseType.float
@@ -2773,7 +2773,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<inequality>(Null,3.14) cardinality, found %s" %
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
-            e = eType(None)
+            e = etype(None)
             v2 = e.ChildElement(expressions.BaseValue)
             v2.baseType = variables.BaseType.float
             v2.AddData("3.14")
@@ -2781,7 +2781,7 @@ class ExpressionTests(unittest.TestCase):
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<inequality>(3.14, Null) is NULL")
             # --
-            e = eType(None)
+            e = etype(None)
             v1 = e.ChildElement(expressions.Null)
             v2 = e.ChildElement(expressions.Null)
             value = e.Evaluate(self.sessionState)
@@ -2791,7 +2791,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<inequality>(NULL,NULL) cardinality, found %s" %
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
-            e = eType(None)
+            e = etype(None)
             v1 = e.ChildElement(expressions.BaseValue)
             v1.baseType = variables.BaseType.integer
             v1.AddData("3")
@@ -2807,7 +2807,7 @@ class ExpressionTests(unittest.TestCase):
             value = e.Evaluate(self.sessionState)
             self.assertTrue(value.value == expected[2], "<inequality>(4,3.14)")
             try:
-                e = eType(None)
+                e = etype(None)
                 v1 = e.ChildElement(expressions.BaseValue)
                 v1.baseType = variables.BaseType.identifier
                 v1.AddData("three")
@@ -2825,9 +2825,9 @@ class ExpressionTests(unittest.TestCase):
             expressions.DurationLT: (False, True, False),
             expressions.DurationGTE: (True, False, True)
         }
-        for eType in tests.keys():
-            expected = tests[eType]
-            e = eType(None)
+        for etype in tests.keys():
+            expected = tests[etype]
+            e = etype(None)
             v1 = e.ChildElement(expressions.Null)
             v2 = e.ChildElement(expressions.BaseValue)
             v2.baseType = variables.BaseType.duration
@@ -2839,7 +2839,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<durInequality>(Null,3.14) cardinality, found %s" %
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
-            e = eType(None)
+            e = etype(None)
             v2 = e.ChildElement(expressions.BaseValue)
             v2.baseType = variables.BaseType.duration
             v2.AddData("3.14")
@@ -2847,7 +2847,7 @@ class ExpressionTests(unittest.TestCase):
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<durInequality>(3.14, Null) is NULL")
             # --
-            e = eType(None)
+            e = etype(None)
             v1 = e.ChildElement(expressions.Null)
             v2 = e.ChildElement(expressions.Null)
             value = e.Evaluate(self.sessionState)
@@ -2857,7 +2857,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<durInequality>(NULL,NULL) cardinality, found %s" %
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
-            e = eType(None)
+            e = etype(None)
             v1 = e.ChildElement(expressions.BaseValue)
             v1.baseType = variables.BaseType.duration
             v1.AddData("3")
@@ -2876,7 +2876,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(
                 value.value == expected[2], "<durInequality>(4,3.14)")
             try:
-                e = eType(None)
+                e = etype(None)
                 v1 = e.ChildElement(expressions.BaseValue)
                 v1.baseType = variables.BaseType.float
                 v1.AddData("3")
@@ -2894,9 +2894,9 @@ class ExpressionTests(unittest.TestCase):
             expressions.Sum: (6.0, 6.14, 7.14, -2.86, 3),
             expressions.Product: (9.0, 9.42, 12.56, -125.6, 3)
         }
-        for eType in tests.keys():
-            expected = tests[eType]
-            e = eType(None)
+        for etype in tests.keys():
+            expected = tests[etype]
+            e = etype(None)
             v1 = e.ChildElement(expressions.Null)
             v2 = e.ChildElement(expressions.BaseValue)
             v2.baseType = variables.BaseType.float
@@ -2908,7 +2908,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<mathMulti>(Null,3.14) cardinality, found %s" %
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
-            e = eType(None)
+            e = etype(None)
             v2 = e.ChildElement(expressions.BaseValue)
             v2.baseType = variables.BaseType.float
             v2.AddData("3.14")
@@ -2916,7 +2916,7 @@ class ExpressionTests(unittest.TestCase):
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<mathMulti>(3.14, Null) is NULL")
             # --
-            e = eType(None)
+            e = etype(None)
             v1 = e.ChildElement(expressions.Null)
             v2 = e.ChildElement(expressions.Null)
             value = e.Evaluate(self.sessionState)
@@ -2926,7 +2926,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<mathMulti>(NULL,NULL) cardinality, found %s" %
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
-            e = eType(None)
+            e = etype(None)
             v1 = e.ChildElement(expressions.BaseValue)
             v1.baseType = variables.BaseType.integer
             v1.AddData("3")
@@ -2957,7 +2957,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue("%.5f" % value.value == "%.5f" % expected[3], "<mathMulti>(4,3.14,-10), expected %s, found %s" %
                             (repr(expected[3]), repr(value.value)))
             try:
-                e = eType(None)
+                e = etype(None)
                 v1 = e.ChildElement(expressions.BaseValue)
                 v1.baseType = variables.BaseType.duration
                 v1.AddData("3")
@@ -2976,9 +2976,9 @@ class ExpressionTests(unittest.TestCase):
             expressions.Divide: (1.0, 0.9554, 1.2739, -1.2739),
             expressions.Power: (27.0, 31.4891, 77.7085, 0.0129)
         }
-        for eType in tests.keys():
-            expected = tests[eType]
-            e = eType(None)
+        for etype in tests.keys():
+            expected = tests[etype]
+            e = etype(None)
             v1 = e.ChildElement(expressions.Null)
             v2 = e.ChildElement(expressions.BaseValue)
             v2.baseType = variables.BaseType.float
@@ -2990,7 +2990,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<mathBinary>(Null,3.14) cardinality, found %s" %
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
-            e = eType(None)
+            e = etype(None)
             v2 = e.ChildElement(expressions.BaseValue)
             v2.baseType = variables.BaseType.float
             v2.AddData("3.14")
@@ -2998,7 +2998,7 @@ class ExpressionTests(unittest.TestCase):
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<mathBinary>(3.14, Null) is NULL")
             # --
-            e = eType(None)
+            e = etype(None)
             v1 = e.ChildElement(expressions.Null)
             v2 = e.ChildElement(expressions.Null)
             value = e.Evaluate(self.sessionState)
@@ -3006,7 +3006,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<mathBinary>(NULL,NULL) cardinality, found %s" %
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
-            e = eType(None)
+            e = etype(None)
             v1 = e.ChildElement(expressions.BaseValue)
             v1.baseType = variables.BaseType.integer
             v1.AddData("3")
@@ -3031,7 +3031,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue("%.4f" % value.value == "%.4f" %
                             expected[3], "<mathBinary>(4,-3.14)")
             try:
-                e = eType(None)
+                e = etype(None)
                 v1 = e.ChildElement(expressions.BaseValue)
                 v1.baseType = variables.BaseType.duration
                 v1.AddData("3")
@@ -3061,9 +3061,9 @@ class ExpressionTests(unittest.TestCase):
             expressions.IntegerDivide: (1, 1, 0, 0, -1),
             expressions.IntegerModulus: (1, 0, 2, -2, 1),
         }
-        for eType in tests.keys():
-            expected = tests[eType]
-            e = eType(None)
+        for etype in tests.keys():
+            expected = tests[etype]
+            e = etype(None)
             v1 = e.ChildElement(expressions.Null)
             v2 = e.ChildElement(expressions.BaseValue)
             v2.baseType = variables.BaseType.integer
@@ -3075,7 +3075,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<integerBinary>(Null,3) cardinality, found %s" %
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
-            e = eType(None)
+            e = etype(None)
             v2 = e.ChildElement(expressions.BaseValue)
             v2.baseType = variables.BaseType.integer
             v2.AddData("3")
@@ -3085,7 +3085,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(
                 value.baseType is variables.BaseType.integer, "<integerBinary>(3,Null) base type")
             # --
-            e = eType(None)
+            e = etype(None)
             v1 = e.ChildElement(expressions.Null)
             v2 = e.ChildElement(expressions.Null)
             value = e.Evaluate(self.sessionState)
@@ -3095,7 +3095,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<integerBinary>(NULL,NULL) cardinality, found %s" %
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
-            e = eType(None)
+            e = etype(None)
             v1 = e.ChildElement(expressions.BaseValue)
             v1.baseType = variables.BaseType.integer
             v1.AddData("3")
@@ -3120,7 +3120,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(
                 value.value == expected[4], "<integerBinary>(-2,3)")
             try:
-                e = eType(None)
+                e = etype(None)
                 v1 = e.ChildElement(expressions.BaseValue)
                 v1.baseType = variables.BaseType.float
                 v1.AddData("3.0")
@@ -3138,9 +3138,9 @@ class ExpressionTests(unittest.TestCase):
             expressions.Truncate: (6, -6, 6, -6, 6, -6),
             expressions.Round: (6, -6, 7, -6, 7, -7),
         }
-        for eType in tests.keys():
-            expected = tests[eType]
-            e = eType(None)
+        for etype in tests.keys():
+            expected = tests[etype]
+            e = etype(None)
             v = e.ChildElement(expressions.Null)
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<floatToInteger>(Null) is NULL")
@@ -3149,7 +3149,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<floatToInteger>(Null) cardinality, found %s" %
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
-            e = eType(None)
+            e = etype(None)
             v = e.ChildElement(expressions.BaseValue)
             v.baseType = variables.BaseType.float
             v.AddData("6.49")
@@ -3181,7 +3181,7 @@ class ExpressionTests(unittest.TestCase):
                 value.value == expected[5], "<floatToInteger>(-6.51)")
             # --
             try:
-                e = eType(None)
+                e = etype(None)
                 v = e.ChildElement(expressions.BaseValue)
                 v.baseType = variables.BaseType.integer
                 v.AddData("3")

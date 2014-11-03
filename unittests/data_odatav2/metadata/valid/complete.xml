@@ -5,11 +5,11 @@
         <Schema Namespace="TestModel" xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
             <EntityContainer Name="TestEntities" m:IsDefaultEntityContainer="true">
                 <EntitySet Name="ES1" EntityType="TestModel.TestEntity"/>
-                <FunctionImport Name="fPOST" EntitySet="ES1" ReturnType="Edm.String" m:HttpMethod="POST"/>
-                <FunctionImport Name="fPUT" EntitySet="ES1" ReturnType="Edm.String" m:HttpMethod="PUT"/>
-                <FunctionImport Name="fGET" EntitySet="ES1" ReturnType="Edm.String" m:HttpMethod="GET"/>
-                <FunctionImport Name="fMERGE" EntitySet="ES1" ReturnType="Edm.String" m:HttpMethod="MERGE"/>
-                <FunctionImport Name="fDELETE" EntitySet="ES1" ReturnType="Edm.String" m:HttpMethod="DELETE"/>
+                <FunctionImport Name="fPOST" ReturnType="Edm.String" m:HttpMethod="POST"/>
+                <FunctionImport Name="fPUT" ReturnType="Edm.String" m:HttpMethod="PUT"/>
+                <FunctionImport Name="fGET" ReturnType="Edm.String" m:HttpMethod="GET"/>
+                <FunctionImport Name="fMERGE" ReturnType="Edm.String" m:HttpMethod="MERGE"/>
+                <FunctionImport Name="fDELETE" ReturnType="Edm.String" m:HttpMethod="DELETE"/>
             </EntityContainer>
             <EntityContainer Name="ExtraEntities" m:IsDefaultEntityContainer="false">
             </EntityContainer>

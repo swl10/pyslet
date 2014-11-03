@@ -345,7 +345,7 @@ class XMLNSElement(XMLNSElementContainerMixin, Element):
         children = self.GetCanonicalChildren()
         try:
             child = children.next()
-            if type(child) in StringTypes and len(child) and IsS(child[0]):
+            if type(child) in StringTypes and len(child) and is_s(child[0]):
                 # First character is WS, so assume pre-formatted.
                 indent = tab = ''
             yield u'%s<%s%s%s>' % (ws, prefix, self.xmlname, attributes)
@@ -427,7 +427,7 @@ class XMLNSParser(XMLParser):
         If *useDefault* is False an unqualified name is returned with
         :py:data:`NO_NAMESPACE` as the namespace (this is used when expanded
         attribute names)."""
-        context = self.GetContext()
+        context = self.get_context()
         xname = qname.split(':')
         if len(xname) == 1:
             if qname == 'xmlns':
@@ -454,7 +454,7 @@ class XMLNSParser(XMLParser):
             # something wrong with this element
             raise XMLNSError("Illegal QName: %s" % qname)
 
-    def MatchXMLName(self, element, qname):
+    def match_xml_name(self, element, qname):
         """Tests if *qname* is a possible name for this element.
 
         This method is used by the parser to determine if an end tag is the end
@@ -462,7 +462,7 @@ class XMLNSParser(XMLParser):
         return element.GetXMLName() == self.ExpandQName(qname, {}, True)
 
     def ParseNSAttributes(self, attrs):
-        """Takes a dictionary of attributes as returned by ParseSTag and finds
+        """Takes a dictionary of attributes as returned by parse_stag and finds
         any namespace prefix mappings returning them as a dictionary of
         prefix:namespace suitable for passing to :py:meth:`ExpandQName`.
 
@@ -493,7 +493,7 @@ class XMLNSParser(XMLParser):
         attrs[(NO_NAMESPACE, ".ns")] = ns
         return ns
 
-    def GetSTagClass(self, qname, attrs=None):
+    def get_stag_class(self, qname, attrs=None):
         """[40] STag: returns information suitable for starting element *name* in the current context
 
         Overridden to allow for namespace handling.
@@ -508,7 +508,7 @@ class XMLNSParser(XMLParser):
                 qname = self.dtd.name
         # go through attributes and process namespace declarations
         if attrs and not ((NO_NAMESPACE, ".ns") in attrs):
-            # This deserves an explanation.  It is possible that GetSTagClass will infer
+            # This deserves an explanation.  It is possible that get_stag_class will infer
             # an element in sgmlOmittag mode forcing the parser to buffer this qname
             # and its associated attributes after we've done namespace expansion of them.
             # There is a real question over whether or not it is safe to buffer expanded
@@ -530,24 +530,24 @@ class XMLNSParser(XMLParser):
             self.doc = documentClass()
         else:
             documentClass = self.doc.__class__
-        context = self.GetContext()
+        context = self.get_context()
         if qname and expandedName[0] is None:
             expandedName = (documentClass.DefaultNS, expandedName[1])
         if self.sgmlOmittag:
             if qname:
-                stagClass = self.doc.get_element_class(expandedName)
+                stag_class = self.doc.get_element_class(expandedName)
             else:
-                stagClass = None
-            elementClass = context.GetChildClass(stagClass)
-            if elementClass is not stagClass:
-                return elementClass, None, True
+                stag_class = None
+            element_class = context.GetChildClass(stag_class)
+            if element_class is not stag_class:
+                return element_class, None, True
             else:
-                return elementClass, expandedName, False
+                return element_class, expandedName, False
         else:
-            stagClass = context.get_element_class(expandedName)
-            if stagClass is None:
-                stagClass = self.doc.get_element_class(expandedName)
-            return stagClass, expandedName, False
+            stag_class = context.get_element_class(expandedName)
+            if stag_class is None:
+                stag_class = self.doc.get_element_class(expandedName)
+            return stag_class, expandedName, False
             # return
             # self.doc.get_element_class(expandedName),expandedName,False
 
@@ -568,20 +568,20 @@ class XMLNSParser(XMLParser):
 
         If no document class can be found, :py:class:`XMLNSDocument` is
         returned."""
-        rootName = dtd.name
+        root_name = dtd.name
         if expandedName[0] is None:
-            docClass = XMLParser.NSDocumentClassTable.get(expandedName, None)
+            doc_class = XMLParser.NSDocumentClassTable.get(expandedName, None)
         else:
-            docClass = XMLParser.NSDocumentClassTable.get(expandedName, None)
-            if docClass is None:
-                docClass = XMLParser.DocumentClassTable.get(
+            doc_class = XMLParser.NSDocumentClassTable.get(expandedName, None)
+            if doc_class is None:
+                doc_class = XMLParser.DocumentClassTable.get(
                     (expandedName[0], None), None)
-            if docClass is None:
-                docClass = XMLParser.DocumentClassTable.get(
+            if doc_class is None:
+                doc_class = XMLParser.DocumentClassTable.get(
                     (None, expandedName[1]), None)
-        if docClass is None:
-            docClass = XMLNSDocument
-        return docClass
+        if doc_class is None:
+            doc_class = XMLNSDocument
+        return doc_class
 
 
 def MapClassElements(classMap, scope, nsAliasTable=None):
@@ -649,17 +649,17 @@ def NSEqualNames(baseName, name, nsAliases=None):
     return False
 
 
-def RegisterNSDocumentClass(docClass, expandedName):
-    """Registers a document class for use by :py:meth:`XMLNSParser.ParseElement`.
+def RegisterNSDocumentClass(doc_class, expandedName):
+    """Registers a document class for use by :py:meth:`XMLNSParser.parse_element`.
 
     This module maintains a single table of document classes which can be
     used to identify the correct class to use to represent a document based
     on the namespace and name of the root element (the expanded name).
 
-    - *docClass* is the class object being registered, it must be derived from
+    - *doc_class* is the class object being registered, it must be derived from
     :py:class:`XMLNSDocument`
 
     - *expandedName* is a tuple of (namespace,name) representing the name of the
     root element.  If either (or both) components are None a wildcard is
     registered that will match any corresponding value.	"""
-    XMLNSParser.NSDocumentClassTable[expandedName] = docClass
+    XMLNSParser.NSDocumentClassTable[expandedName] = doc_class

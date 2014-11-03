@@ -39,7 +39,7 @@ Characters
 Common Syntactic Constructs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-..	autofunction:: IsS
+..	autofunction:: is_s
 
 ..	autofunction:: IsWhiteSpace
 

@@ -737,7 +737,7 @@ class SQLCollectionBase(core.EntityCollection):
             if sinfo.modified is not None:
                 # force modified date based on input
                 estream['modified'].set_from_value(sinfo.modified.ShiftZone(0))
-                estream.Update()
+                estream.commit()
             v.set_from_value(estream.key())
         else:
             raise NotImplementedError
@@ -1780,7 +1780,7 @@ class SQLEntityCollection(SQLCollectionBase):
             if sinfo.modified is not None:
                 # force modified date based on input
                 estream['modified'].set_from_value(sinfo.modified.ShiftZone(0))
-                estream.Update()
+                estream.commit()
             v.set_from_value(estream.key())
         else:
             raise NotImplementedError

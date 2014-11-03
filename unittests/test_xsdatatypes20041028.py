@@ -230,7 +230,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
         p.setpos(0)
         self.assertTrue(p.pos == 0)
         self.assertTrue(p.the_char == u".")
-        p.NextChar()
+        p.next_char()
         self.assertTrue(p.the_char == u"*")
         self.assertTrue(p.pos == 1)
 
@@ -438,10 +438,10 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             for c in "ABC":
                 self.assertTrue(p.IsChar(), "Defaulted character +ve test")
                 self.assertFalse(p.IsChar("."), "Specified character -ve test")
-                p.NextChar()
+                p.next_char()
             self.assertFalse(p.IsChar(), "Defaulted character -ve test")
             self.assertTrue(p.IsChar("A"), "Specified character +ve test")
-            p.NextChar()
+            p.next_char()
 
     def testCharClass(self):
         """::
@@ -644,10 +644,10 @@ class XSRegularExpressionParserTests(unittest.TestCase):
                 self.assertTrue(p.IsXmlChar(), "Defaulted character +ve test")
                 self.assertFalse(
                     p.IsXmlChar("\\"), "Specified character -ve test")
-                p.NextChar()
+                p.next_char()
             self.assertFalse(p.IsXmlChar(), "Defaulted character -ve test")
             self.assertTrue(p.IsXmlChar("A"), "Specified character +ve test")
-            p.NextChar()
+            p.next_char()
 
     def testCaseIsXmlCharIncDash(self):
         """XmlCharIncDash	::=	[^\#x5B#x5D]	"""
@@ -658,12 +658,12 @@ class XSRegularExpressionParserTests(unittest.TestCase):
                     p.IsXmlCharIncDash(), "Defaulted character +ve test")
                 self.assertFalse(
                     p.IsXmlCharIncDash("\\"), "Specified character -ve test")
-                p.NextChar()
+                p.next_char()
             self.assertFalse(
                 p.IsXmlCharIncDash(), "Defaulted character -ve test")
             self.assertTrue(
                 p.IsXmlCharIncDash("A"), "Specified character +ve test")
-            p.NextChar()
+            p.next_char()
 
     def testCharClassEsc(self):
         """::

@@ -96,6 +96,10 @@ class XMLValidityError(XMLError):
     pass
 
 
+class XMLApplicationError(XMLError):
+    pass
+
+
 class XMLIDClashError(XMLValidityError):
     pass
 
@@ -243,8 +247,8 @@ class Node(object):
         document, although confusing, this is allowed in XML schema."""
         return None
 
-    def GetChildClass(self, stagClass):
-        """Returns the element class implied by the STag for stagClass in this context.
+    def GetChildClass(self, stag_class):
+        """Returns the element class implied by the STag for stag_class in this context.
 
         This method is only called when the :py:attr:`XMLParser.sgmlOmittag`
         option is in effect.  It is called prior to :py:meth:`ChildElement`
@@ -253,14 +257,14 @@ class Node(object):
         by returning None).
 
         For well-formed XML documents the default implementation is sufficient
-        as it simply returns *stagClass*.
+        as it simply returns *stag_class*.
 
-        The XML parser may pass None for *stagClass* indicating that PCDATA has
+        The XML parser may pass None for *stag_class* indicating that PCDATA has
         been found in element content.  This method should return the first
         child element that may contain (directly or indirectly) PCDATA or None
         if no children may contain PCDATA (or SGML-style omittag is not
         supported)"""
-        return stagClass
+        return stag_class
 
     def ChildElement(self, childClass, name=None):
         """Returns a new child of the given class attached to this object.
@@ -467,13 +471,15 @@ class Document(Node):
     def Read(self, src=None, **args):
         """Reads this document, parsing it from a source stream.
 
-        With no arguments the document is read from the :py:attr:`baseURI` which
-        must have been specified on construction or with a call to the
+        With no arguments the document is read from the
+        :py:attr:`baseURI` which must have been specified on
+        construction or with a call to the
         :py:meth:`SetBase` method.
 
-        You can override the document's baseURI by passing a value for *src*
-        which may be an instance of :py:class:`XMLEntity` or an object that can
-        be passed as a valid source to its constructor."""
+        You can override the document's baseURI by passing a value for
+        *src* which may be an instance of :py:class:`XMLEntity` or an
+        object that can be passed as a valid source to its
+        constructor."""
         if src:
             # Read from this stream, ignore baseURI
             if isinstance(src, XMLEntity):
@@ -497,7 +503,7 @@ class Document(Node):
     def ReadFromEntity(self, e):
         self.data = []
         parser = self.XMLParser(e)
-        parser.ParseDocument(self)
+        parser.parse_document(self)
 
     def Create(self, dst=None, **args):
         """Creates the Document.
@@ -613,29 +619,29 @@ class Document(Node):
         return string.join(output, '\n')
 
 
-def RegisterDocumentClass(docClass, rootName, publicID=None, systemID=None):
-    """Registers a document class for use by :py:meth:`XMLParser.ParseDocument`.
+def RegisterDocumentClass(doc_class, root_name, public_id=None, system_id=None):
+    """Registers a document class for use by :py:meth:`XMLParser.parse_document`.
 
     This module maintains a single table of document classes which can be
     used to identify the correct class to use to represent a document based
     on the information obtained from the DTD.
 
-    -   *docClass*
+    -   *doc_class*
             is the class object being registered, it must be derived from
             :py:class:`Document`
 
-    -   *rootName*
+    -   *root_name*
             is the name of the root element or None if this class can be used with
             any root element.
 
-    -   *publicID*
+    -   *public_id*
             is the public ID of the doctype, or None if any doctype can be used with
             this document class.
 
-    -   *systemID*
+    -   *system_id*
             is the system ID of the doctype, this will usually be None indicating
             that the document class can match any system ID."""
-    XMLParser.DocumentClassTable[(rootName, publicID, systemID)] = docClass
+    XMLParser.DocumentClassTable[(root_name, public_id, system_id)] = doc_class
 
 
 def IsChar(c):
@@ -667,7 +673,7 @@ def IsDiscouraged(c):
     return DiscouragedCharClass.Test(c)
 
 
-def IsS(c):
+def is_s(c):
     """Tests if a single character *c* matches production [3] S"""
     if c:
         c = ord(c)
@@ -681,7 +687,7 @@ def IsS(c):
 def IsWhiteSpace(data):
     """Tests if every character in *data* matches production [3] S"""
     for c in data:
-        if not IsS(c):
+        if not is_s(c):
             return False
     return True
 
@@ -689,7 +695,7 @@ def IsWhiteSpace(data):
 def ContainsS(data):
     """Tests if data contains any characters matching production [3] S"""
     for c in data:
-        if IsS(c):
+        if is_s(c):
             return True
     return False
 
@@ -698,7 +704,7 @@ def StripLeadingS(data):
     """Returns data with leading S removed."""
     s = 0
     for c in data:
-        if IsS(c):
+        if is_s(c):
             s += 1
         else:
             break
@@ -728,7 +734,7 @@ def NormalizeSpace(data):
     return string.join(result, '')
 
 
-def CollapseSpace(data, sMode=True, sTest=IsS):
+def CollapseSpace(data, sMode=True, sTest=is_s):
     """Returns data with all spaces collapsed to a single space.
 
     sMode determines the fate of any leading space, by default it is True and
@@ -736,7 +742,7 @@ def CollapseSpace(data, sMode=True, sTest=IsS):
     characters.
 
     You can override the test of what consitutes a space by passing a function
-    for sTest, by default we use IsS.
+    for sTest, by default we use is_s.
 
     Note on degenerate case: this function is intended to be called with
     non-empty strings and will never *return* an empty string.  If there is no
@@ -875,7 +881,7 @@ class XMLDTD(object):
         """
         self.name = None            #: The declared Name of the root element
         # : An :py:class:`XMLExternalID` instance (may be None)
-        self.externalID = None
+        self.external_id = None
         self.parameterEntities = {}
         """A dictionary of XMLParameterEntity instances keyed on entity name."""
         self.generalEntities = {}
@@ -930,38 +936,38 @@ class XMLDTD(object):
         been declared with *name* then None is returned."""
         return self.notations.get(name, None)
 
-    def DeclareElementType(self, eType):
+    def DeclareElementType(self, etype):
         """Declares an element type.
 
-        *eType* is an :py:class:`ElementType` instance containing the element
+        *etype* is an :py:class:`ElementType` instance containing the element
         definition."""
-        eList = self.elementList.get(eType.name, None)
+        eList = self.elementList.get(etype.name, None)
         if eList is None:
-            self.elementList[eType.name] = eType
+            self.elementList[etype.name] = etype
 
-    def GetElementType(self, elementName):
+    def GetElementType(self, element_name):
         """Looks up an element type definition.
 
-        *elementName* is the name of the element type to look up
+        *element_name* is the name of the element type to look up
 
         The method returns an instance of :py:class:`ElementType` or
         None if no element with that name has been declared."""
-        return self.elementList.get(elementName, None)
+        return self.elementList.get(element_name, None)
 
-    def DeclareAttribute(self, elementName, attributeDef):
+    def DeclareAttribute(self, element_name, attributeDef):
         """Declares an attribute.
 
-        -   *elementName*
+        -   *element_name*
                 is the name of the element type which should have this attribute
                 applied
         -   *attributeDef*
                 is an :py:class:`XMLAttributeDefinition` instance describing the
                 attribute being declared."""
-        aList = self.attributeLists.get(elementName, None)
-        if aList is None:
-            self.attributeLists[elementName] = aList = {}
-        if not attributeDef.name in aList:
-            aList[attributeDef.name] = attributeDef
+        alist = self.attributeLists.get(element_name, None)
+        if alist is None:
+            self.attributeLists[element_name] = alist = {}
+        if not attributeDef.name in alist:
+            alist[attributeDef.name] = attributeDef
 
     def GetAttributeList(self, name):
         """Returns a dictionary of attribute definitions for the element type *name*.
@@ -970,18 +976,18 @@ class XMLDTD(object):
         returned."""
         return self.attributeLists.get(name, None)
 
-    def GetAttributeDefinition(self, elementName, attributeName):
+    def GetAttributeDefinition(self, element_name, attributeName):
         """Looks up an attribute definition.
 
-        *elementName* is the name of the element type in which to search
+        *element_name* is the name of the element type in which to search
 
         *attributeName* is the name of the attribute to search for.
 
         The method returns an instance of :py:class:`XMLAttributeDefinition` or
         None if no attribute matching this description has been declared."""
-        aList = self.attributeLists.get(name, None)
-        if aList:
-            return aList.get(attributeName, None)
+        alist = self.attributeLists.get(name, None)
+        if alist:
+            return alist.get(attributeName, None)
         else:
             return None
 
@@ -1512,20 +1518,20 @@ class Element(Node):
         children = self.GetChildren()
         # If there are no children there is nothing to do, so we don't catch
         # StopIteration.
-        firstChild = children.next()
+        first_child = children.next()
         e = self
         while isinstance(e, Element):
             spc = e.GetSpace()
             if spc is not None:
                 if spc == 'preserve':
-                    yield firstChild
+                    yield first_child
                     while True:
                         yield children.next()
                     # will raise StopIteration and terminate method
                 else:
                     break
             if hasattr(e.__class__, 'SGMLCDATA'):
-                yield firstChild
+                yield first_child
                 while True:
                     yield children.next()
             e = e.parent
@@ -1533,21 +1539,21 @@ class Element(Node):
             iChild = children.next()
         except StopIteration:
             # There was only one child
-            if type(firstChild) in StringTypes:
-                firstChild = CollapseSpace(firstChild)
-#               if len(firstChild)>1 and firstChild[-1]==u' ':
+            if type(first_child) in StringTypes:
+                first_child = CollapseSpace(first_child)
+#               if len(first_child)>1 and first_child[-1]==u' ':
 # strip the trailing space from the only child - why do we do this?
-#                   firstChild=firstChild[:-1]
-            yield firstChild
+#                   first_child=first_child[:-1]
+            yield first_child
             return
         # Collapse strings to a single string entry and collapse spaces
         data = []
-        if type(firstChild) in StringTypes:
-            data.append(firstChild)
+        if type(first_child) in StringTypes:
+            data.append(first_child)
             sMode = True
         else:
             sMode = False
-            yield firstChild
+            yield first_child
         while True:
             if type(iChild) in StringTypes:
                 data.append(iChild)
@@ -1883,7 +1889,7 @@ class Element(Node):
         else:
             ws = True
             for c in data:
-                if not IsS(c):
+                if not is_s(c):
                     ws = False
                     break
             if not ws:
@@ -2250,7 +2256,7 @@ class Element(Node):
             for child in self.GetChildren():
                 if type(child) in StringTypes:
                     for c in child:
-                        if not IsS(c):
+                        if not is_s(c):
                             return False
         return True
 
@@ -2300,7 +2306,7 @@ class Element(Node):
         children = self.GetCanonicalChildren()
         try:
             child = children.next()
-            if type(child) in StringTypes and len(child) > 0 and IsS(child[0]):
+            if type(child) in StringTypes and len(child) > 0 and is_s(child[0]):
                 # First character is WS, so assume pre-formatted
                 indent = tab = ''
             yield u'%s<%s%s>' % (ws, self.xmlname, attributes)
@@ -2746,13 +2752,13 @@ class XMLEntity(object):
         self.bom = False
         """flag to indicate whether or not the byte order mark was detected.  If
         detected the flag is set to True.  An initial byte order mark is not
-        reported in :py:attr:`the_char` or by the :py:meth:`NextChar` method."""
+        reported in :py:attr:`the_char` or by the :py:meth:`next_char` method."""
         self.the_char = None     #: the character at the current position in the entity
         #: the current line number within the entity (first line is line 1)
         self.lineNum = None
         #: the current character position within the entity (first char is 1)
         self.linePos = None
-        self.buffText = ''      #: used by :py:meth:`XMLParser.PushEntity`
+        self.buffText = ''      #: used by :py:meth:`XMLParser.push_entity`
         self.basePos = None
         self.charSeek = None
         self.chunk = None
@@ -2956,11 +2962,11 @@ class XMLEntity(object):
         self.charSeek = self.basePos
         self.charPos = -1
         self.ignoreLF = False
-        self.NextChar()
+        self.next_char()
         # python handles the utf-16 BOM automatically but we have to skip it
         # for utf-8
         if self.the_char == u'\ufeff' and self.encoding is not None and self.encoding.lower() == 'utf-8':
-            self.NextChar()
+            self.next_char()
 
     def GetPositionStr(self):
         """Returns a short string describing the current line number and character position.
@@ -2969,7 +2975,7 @@ class XMLEntity(object):
         4 then it will return the string 'Line 4.6'"""
         return "Line %i.%i" % (self.lineNum, self.linePos)
 
-    def NextChar(self):
+    def next_char(self):
         """Advances to the next character in an open entity.
 
         This method takes care of the End-of-Line handling rules for XML which force
@@ -2995,7 +3001,7 @@ class XMLEntity(object):
             elif self.the_char == '\x0A':
                 if self.ignoreLF:
                     self.ignoreLF = False
-                    self.NextChar()
+                    self.next_char()
                 else:
                     self.NextLine()
             else:
@@ -3115,7 +3121,7 @@ class XMLEntity(object):
         This method increases the internal line count and resets the
         character position to the beginning of the line.  You will not
         normally need to call this directly as line handling is done
-        automatically by :py:meth:`NextChar`."""
+        automatically by :py:meth:`next_char`."""
         self.lineNum = self.lineNum + 1
         self.linePos = 0
 
@@ -3169,12 +3175,12 @@ class XMLDeclaredEntity(XMLEntity):
             # Now to handle the text declaration
             from pyslet.xml20081126.parser import XMLParser
             p = XMLParser(self)
-            if p.ParseLiteral('<?xml'):
-                p.ParseTextDecl(True)
+            if p.parse_literal('<?xml'):
+                p.parse_text_decl(True)
             self.KeepEncoding()
             # at this point we may have some left over text in p's buffer
             # we can't push it back down the pipe so need to handle here
-            self.buffText = p.GetBuff()
+            self.buffText = p._get_buff()
         else:
             raise XMLError("Bad Entity Definition")
 
@@ -3205,9 +3211,9 @@ class XMLParameterEntity(XMLDeclaredEntity):
         XMLDeclaredEntity.__init__(self, name, definition)
         self.peEnd = None
 
-    def NextChar(self):
+    def next_char(self):
         """Overrridden to provide trailing space during special parameter entity handling."""
-        XMLEntity.NextChar(self)
+        XMLEntity.next_char(self)
         if self.the_char is None and self.peEnd:
             self.the_char = self.peEnd
             self.peEnd = None
@@ -3260,14 +3266,14 @@ class XMLNotation(object):
 
     """Represents an XML Notation"""
 
-    def __init__(self, name, externalID):
+    def __init__(self, name, external_id):
         """Returns an XMLNotation instance.
 
-        *externalID* is a :py:class:`XMLExternalID` instance in which one of
+        *external_id* is a :py:class:`XMLExternalID` instance in which one of
         *public* or *system* must be provided."""
         self.name = name                    #: the notation name
         #: the external ID of the notation (an XMLExternalID instance)
-        self.externalID = externalID
+        self.external_id = external_id
 
 
 def IsLetter(c):

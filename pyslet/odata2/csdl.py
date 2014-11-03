@@ -70,12 +70,16 @@ def ValidateSimpleIdentifier(identifier):
 
 
 class EDMError(Exception):
-
     """General exception for all CSDL model errors."""
     pass
 
 
-class DuplicateName(EDMError):
+class ModelError(EDMError):
+    """Exception for all model-related errors."""
+    pass
+
+
+class DuplicateName(ModelError):
 
     """Raised by :py:class:`NameTableMixin` when attempting to declare a name in
     a context where the name is already declared.
@@ -98,7 +102,7 @@ class IncompatibleNames(DuplicateName):
     pass
 
 
-class ModelIncomplete(EDMError):
+class ModelIncomplete(ModelError):
 
     """Raised when a model element has a missing reference.
 
@@ -108,13 +112,19 @@ class ModelIncomplete(EDMError):
     pass
 
 
-class ModelConstraintError(EDMError):
+class ModelConstraintError(ModelError):
 
     """Raised when an issue in the model other than completeness
     prevents an action being performed.
 
     For example, an entity type that is dependent on two unbound
     principals (so can never be inserted)."""
+
+
+class InvalidMetadataDocument(ModelError):
+
+    """Raised by general CSDL model violations."""
+    pass
 
 
 class NonExistentEntity(EDMError):
@@ -613,7 +623,7 @@ class Parser(xsi.BasicParser):
         #   binaryLiteral = hexDigPair
         #   hexDigPair = 2*HEXDIG [hexDigPair]"""
         output = []
-        hexStr = self.ParseHexDigits(0)
+        hexStr = self.parse_hex_digits(0)
         if hexStr is None:
             return ''
         if len(hexStr) % 2:
@@ -709,20 +719,20 @@ class Parser(xsi.BasicParser):
             # [A-Fa-f0-9]
             guid = []
             guid.append(
-                self.require_production(self.ParseHexDigits(8, 8), production))
+                self.require_production(self.parse_hex_digits(8, 8), production))
             self.require_production(self.Parse('-'))
             guid.append(
-                self.require_production(self.ParseHexDigits(4, 4), production))
+                self.require_production(self.parse_hex_digits(4, 4), production))
             self.require_production(self.Parse('-'))
             guid.append(
-                self.require_production(self.ParseHexDigits(4, 4), production))
+                self.require_production(self.parse_hex_digits(4, 4), production))
             self.require_production(self.Parse('-'))
             guid.append(
-                self.require_production(self.ParseHexDigits(4, 4), production))
+                self.require_production(self.parse_hex_digits(4, 4), production))
             self.require_production(self.Parse('-'))
             guid.append(
                 self.require_production(
-                    self.ParseHexDigits(
+                    self.parse_hex_digits(
                         12,
                         12),
                     production))
@@ -2109,7 +2119,7 @@ class DeferredValue(object):
         """Iterates through :py:attr:`bindings` and generates appropriate calls
         to update the collection.
 
-        Unlike the parent Entity's :py:meth:`Entity.Update` method, which updates all
+        Unlike the parent Entity's :py:meth:`Entity.commit` method, which updates all
         data and navigation values simultaneously, this method can be used to selectively
         update a single navigation property."""
         if self.bindings:
@@ -3027,7 +3037,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         generates appropriate calls to create/update any pending
         bindings.
 
-        Unlike the :py:meth:`Update` method, which updates all data and
+        Unlike the :py:meth:`commit` method, which updates all data and
         navigation values simultaneously, this method can be used to
         selectively update just the navigation properties."""
         for k, dv in entity.NavigationItems():
@@ -3350,10 +3360,11 @@ class ExpandedEntityCollection(NavigationCollection):
 
 class FunctionEntityCollection(EntityCollection):
 
-    """Represents the collection of entities returned by a specific execution of a :py:class:`FunctionImport`"""
+    """Represents the collection of entities returned by a specific
+    execution of a :py:class:`FunctionImport`"""
 
     def __init__(self, function, params, **kwargs):
-        if function.IsEntityCollection():
+        if function.is_entity_collection():
             self.function = function
             self.params = params
             super(FunctionEntityCollection, self).__init__(
@@ -3384,8 +3395,8 @@ class FunctionCollection(object):
     address an individual item using an index or a slice."""
 
     def __init__(self, function, params):
-        if function.IsCollection():
-            if function.IsEntityCollection():
+        if function.is_collection():
+            if function.is_entity_collection():
                 raise TypeError(
                     "FunctionCollection must not return a collection of entities")
             self.function = function
@@ -3466,11 +3477,16 @@ class LongDescription(CSDLElement):
 
 
 class TypeRef(object):
-
     """Represents a type reference.
 
     Created from a formatted string type definition and a scope (in
-    which type definitions are looked up)."""
+    which type definitions are looked up).
+    
+    TypeRef objects are callable with an optional
+    :py:class:`SimpleValue` or :py:class:`TypeInstance` object.
+    Calling a TypeRef returns an instance of the type referred to with a
+    default value (typically NULL) or a value set from the optional
+    parameter."""
 
     def __init__(self, type_def, scope):
         #: True if this type is a collection type
@@ -3494,6 +3510,20 @@ class TypeRef(object):
             self.type_def = scope[typeName]
             if not isinstance(self.type_def, (ComplexType, EntityType)):
                 raise KeyError("%s is not a valid type" % typeName)
+
+    def __call__(self, value=None):
+        if self.simpleTypeCode is not None:
+            result = SimpleValue.NewSimpleValue(self.simpleTypeCode)
+            if isinstance(value, SimpleValue):
+                result.SetFromSimpleValue(value)
+            elif value is not None:
+                raise ValueError(
+                    "Can't set %s from %s" %
+                    (SimpleType.EncodeValue(self.simpleTypeCode),
+                     repr(value)))
+        else:
+            raise NotImplemented("Parameter value of non-primitive type")
+        return result
 
 
 class Using(CSDLElement):
@@ -4223,6 +4253,10 @@ class EntityContainer(NameTableMixin, CSDLElement):
         for child in self.EntitySet:
             child.UpdateNavigation()
 
+    def validate(self):
+        for child in self.FunctionImport:
+            child.validate()
+
 
 class EntitySet(CSDLElement):
 
@@ -4879,8 +4913,7 @@ class AssociationSetEnd(CSDLElement):
                 raise
 
 
-class FunctionImport(CSDLElement):
-
+class FunctionImport(NameTableMixin, CSDLElement):
     """Represents a FunctionImport in an entity collection."""
     XMLNAME = (EDM_NAMESPACE, 'FunctionImport')
 
@@ -4892,6 +4925,7 @@ class FunctionImport(CSDLElement):
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
+        NameTableMixin.__init__(self)
         #: the declared name of this function import
         self.name = "Default"
         #: the return type of the function
@@ -4924,6 +4958,11 @@ class FunctionImport(CSDLElement):
                 CSDLElement.GetChildren(self)):
             yield child
 
+    def content_changed(self):
+        super(FunctionImport, self).content_changed()
+        for p in self.Parameter:
+            self.Declare(p)
+
     def UpdateSetRefs(self, scope, stopOnErrors=False):
         """Sets :py:attr:`entity_set` if applicable"""
         try:
@@ -4936,11 +4975,11 @@ class FunctionImport(CSDLElement):
                 if not isinstance(self.entity_set, EntitySet):
                     raise KeyError("%s is not an EntitySet" %
                                    self.entitySetName)
-            else:
-                if isinstance(self.returnTypeRef.type_def, EntityType) and self.returnTypeRef.collection:
-                    raise KeyError(
-                        "Return type %s requires an EntitySet" %
-                        self.returnType)
+#             else:
+#                 if isinstance(self.returnTypeRef.type_def, EntityType) and self.returnTypeRef.collection:
+#                     raise KeyError(
+#                         "Return type %s requires an EntitySet" %
+#                         self.returnType)
             for p in self.Parameter:
                 p.UpdateSetRefs(scope, stopOnErrors)
         except KeyError:
@@ -4948,12 +4987,41 @@ class FunctionImport(CSDLElement):
             if stopOnErrors:
                 raise
 
+    def validate(self):
+        """Validates this FunctionImport"""
+        # If the return type of FunctionImport is a collection of
+        # entities, the EntitySet attribute MUST be defined
+        if (self.returnTypeRef.collection and
+            isinstance(self.returnTypeRef.type_def, EntityType) and
+            self.entity_set is None):
+            raise ModelIncomplete(
+                "FunctionImport %s must be bound to an entity set" %
+                self.name)
+        # If the return type of FunctionImport is of ComplexType or
+        # scalar type, the EntitySet attribute MUST NOT be defined
+        if ((self.returnTypeRef.simpleTypeCode is not None or
+             isinstance(self.returnTypeRef.type_def, ComplexType)) and
+             self.entity_set is not None):
+            raise InvalidMetadataDocument(
+                "FunctionImport %s must not be bound to an entity set" %
+                self.name)
+        # Parameter element names inside a FunctionImport MUST NOT
+        # collide - checked during the initial parse
+        
+    @renamed_method
     def IsCollection(self):
-        """Returns True if this FunctionImport returns a collection."""
+        pass
+
+    def is_collection(self):
+        """Returns True if the return type is a collection."""
         return self.returnTypeRef.collection
 
+    @renamed_method
     def IsEntityCollection(self):
-        """Returns True if this FunctionImport returns a collection of entities."""
+        pass
+
+    def is_entity_collection(self):
+        """Returns True if the return type is a collection of entities."""
         return self.entity_set is not None and self.returnTypeRef.collection
 
     def bind(self, callable, **extraArgs):
@@ -5126,6 +5194,10 @@ class Schema(NameTableMixin, CSDLElement):
     def UpdateSetRefs(self, scope, stopOnErrors=False):
         for t in self.EntityContainer:
             t.UpdateSetRefs(scope, stopOnErrors)
+
+    def validate(self):
+        for child in self.EntityContainer:
+            child.validate()
 
 
 class Document(xmlns.XMLNSDocument):

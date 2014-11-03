@@ -708,7 +708,7 @@ class BlockStream(io.RawIOBase):
                 self.stream['md5'].set_from_value(self._md5.digest())
             else:
                 self.stream['md5'].set_null()
-            self.stream.Update()
+            self.stream.commit()
             self._bdirty = False
 
     def tell(self):

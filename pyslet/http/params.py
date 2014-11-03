@@ -473,7 +473,7 @@ class ProductToken(object):
                     if not vitem:
                         vitem.append(-1)
                     modifier.append(p.the_char)
-                    p.NextChar()
+                    p.next_char()
                 else:
                     if modifier:
                         vitem.append(string.join(modifier, ''))

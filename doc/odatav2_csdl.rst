@@ -292,6 +292,10 @@ Exceptions
 	:members:
 	:show-inheritance:
 
+..	autoclass:: InvalidMetadataDocument
+	:members:
+	:show-inheritance:
+
 ..	autoclass:: EDMError
 	:members:
 	:show-inheritance:

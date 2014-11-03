@@ -813,8 +813,8 @@ The following methods can be used only on entities that exists, i.e.,
 entities that have been returned from one of the collection's dictionary
 methods:
 
-:py:meth:`~pyslet.odata2.csdl.Entity.Update`
-	Normally you'll use the the Update method of an open
+:py:meth:`~pyslet.odata2.csdl.Entity.commit`
+	Normally you'll use the the update_entity method of an open
 	EntityCollection but in cases where the originating collection is no
 	longer open this method can be used as a convenience method for
 	opening the base collection, updating the entity and then closing

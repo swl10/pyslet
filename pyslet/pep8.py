@@ -94,11 +94,10 @@ class RenamedMethod(object):
             self.new_name = make_attr_name(self.old_name)
         else:
             self.new_name = new_name
-        self.func_target = None
+        self.warned = False
 
     def target(self, obj):
-        if self.func_target is None:
-            self.func_target = getattr(obj, self.new_name)
+        if not self.warned:
             if isinstance(obj, type):
                 cname = obj.__name__
             else:
@@ -107,7 +106,8 @@ class RenamedMethod(object):
                 "%s.%s is deprecated, use, %s instead" %
                 (cname, self.old_name, self.new_name),
                 DeprecationWarning, stacklevel=3)
-        return self.func_target
+            self.warned = True
+        return getattr(obj, self.new_name)
 
 
 def renamed_method(func):

@@ -31,6 +31,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."""
 import types
 import random
 
+from pyslet.pep8 import PEP8Compatibility
+
 # We read 64K
 READ_BUFFER_SIZE = 65536
 
@@ -98,7 +100,7 @@ class RFCParserWarning (RFCParserError):
         return "Warning"
 
 
-class RFC2234Parser:
+class RFC2234Parser(PEP8Compatibility):
 
     """
     A general purpose RFC2234 Parser class, the data source can be a string,
@@ -139,10 +141,10 @@ class RFC2234Parser:
             else:
                 self.the_char = None
 
-    def NextChar(self):
+    def next_char(self):
         if self.the_char is not None:
             if self.parent:
-                self.parent.NextChar()
+                self.parent.next_char()
                 self.the_char = self.parent.the_char
             else:
                 self.dataPos = self.dataPos + 1
@@ -187,9 +189,9 @@ class RFC2234Parser:
             if fatal or self.validationMode >= RFC2234Parser.kStopOnAllErrors:
                 raise self.errors[-1]
 
-    def ValidityError(self, msgStr=None, fatal=1):
+    def validity_error(self, msgStr=None, fatal=1):
         if self.parent:
-            self.parent.ValidityError(msgStr, fatal)
+            self.parent.validity_error(msgStr, fatal)
         else:
             self.errors.append(
                 RFCValidityError(msgStr, self.lineNum, self.dataPos - self.basePos))
@@ -226,7 +228,7 @@ class RFC2234Parser:
     def ParseTerminal(self, terminal):
         for c in terminal:
             if self.the_char == c:
-                self.NextChar()
+                self.next_char()
             else:
                 if not IsVCHAR(c):
                     expected = "expected chr(" + str(ord(c)) + ")"
@@ -235,12 +237,12 @@ class RFC2234Parser:
                 self.BadSyntax(expected)
         return terminal
 
-    def ParseLiteral(self, literal):
+    def parse_literal(self, literal):
         result = ""
         for c in literal.lower():
             if self.the_char is not None and self.the_char.lower() == c:
                 result = result + self.the_char
-                self.NextChar()
+                self.next_char()
             else:
                 if not IsVCHAR(c):
                     expected = "expected chr(" + str(ord(c)) + ")"
@@ -252,7 +254,7 @@ class RFC2234Parser:
     def ParseValueRange(self, lowerBound, upperBound):
         if self.the_char is not None and ord(self.the_char) >= lowerBound and ord(self.the_char) <= upperBound:
             the_char = self.the_char
-            self.NextChar()
+            self.next_char()
             return the_char
         else:
             if not IsVCHAR(unichr(lowerBound)) or not IsVCHAR(unichr(upperBound)):
@@ -343,13 +345,13 @@ class RFC2234CoreParser (RFC2234Parser):
         result = ""
         while testFunction(self.the_char):
             result = result + self.the_char
-            self.NextChar()
+            self.next_char()
         return result
 
     def ParseALPHA(self):
         if is_alpha(self.the_char):
             the_char = self.the_char
-            self.NextChar()
+            self.next_char()
             return the_char
         else:
             self.BadSyntax('expected ALPHA')
@@ -357,7 +359,7 @@ class RFC2234CoreParser (RFC2234Parser):
     def ParseBIT(self):
         if IsBIT(self.the_char):
             bit = self.the_char
-            self.NextChar()
+            self.next_char()
             return bit == "1"
         else:
             self.BadSyntax("expected BIT")
@@ -369,29 +371,29 @@ class RFC2234CoreParser (RFC2234Parser):
                 value = (self.the_char == "1")
             else:
                 value = value * 2 + (self.the_char == "1")
-            self.NextChar()
+            self.next_char()
         return value
 
     def ParseCHAR(self):
         if is_char(self.the_char):
             the_char = self.the_char
-            self.NextChar()
+            self.next_char()
             return the_char
         else:
             self.BadSyntax("expected CHAR")
 
     def ParseCR(self):
         if IsCR(self.the_char):
-            self.NextChar()
+            self.next_char()
             return CR
         else:
             self.BadSyntax("expected CR")
 
     def ParseCRLF(self):
         if IsCR(self.the_char):
-            self.NextChar()
+            self.next_char()
             if IsLF(self.the_char):
-                self.NextChar()
+                self.next_char()
                 self.NextLine()
                 return CRLF
         self.BadSyntax("expected CRLF")
@@ -399,7 +401,7 @@ class RFC2234CoreParser (RFC2234Parser):
     def ParseCTL(self):
         if is_ctl(self.the_char):
             the_char = self.the_char
-            self.NextChar()
+            self.next_char()
             return the_char
         else:
             self.BadSyntax("expected CTL")
@@ -407,7 +409,7 @@ class RFC2234CoreParser (RFC2234Parser):
     def ParseDIGIT(self):
         if is_digit(self.the_char):
             value = ord(self.the_char) - ord('0')
-            self.NextChar()
+            self.next_char()
             return value
         else:
             self.BadSyntax("expected DIGIT")
@@ -419,12 +421,12 @@ class RFC2234CoreParser (RFC2234Parser):
                 value = ord(self.the_char) - ord('0')
             else:
                 value = value * 10 + (ord(self.the_char) - ord('0'))
-            self.NextChar()
+            self.next_char()
         return value
 
     def ParseDQUOTE(self):
         if IsDQUOTE(self.the_char):
-            self.NextChar()
+            self.next_char()
             return DQUOTE
         else:
             self.BadSyntax("expected DQUOTE")
@@ -440,7 +442,7 @@ class RFC2234CoreParser (RFC2234Parser):
             elif (theCharCode >= ord('A') and theCharCode <= ord('F')):
                 value = theCharCode - ord('A') + 10
         if value >= 0:
-            self.NextChar()
+            self.next_char()
             return value
         else:
             self.BadSyntax("expected HEXDIG")
@@ -461,19 +463,19 @@ class RFC2234CoreParser (RFC2234Parser):
                 value = digitValue
             else:
                 value = value * 16 + digitValue
-            self.NextChar()
+            self.next_char()
         return value
 
     def ParseHTAB(self):
         if IsHTAB(self.the_char):
-            self.NextChar()
+            self.next_char()
             return HTAB
         else:
             self.BadSyntax("expected HTAB")
 
     def ParseLF(self):
         if IsLF(self.the_char):
-            self.NextChar()
+            self.next_char()
             return LF
         else:
             self.BadSyntax("expected LF")
@@ -483,7 +485,7 @@ class RFC2234CoreParser (RFC2234Parser):
         while 1:
             if IsWSP(self.the_char):
                 lwsp = lwsp + self.the_char
-                self.NextChar()
+                self.next_char()
             elif IsCR(self.the_char):
                 try:
                     self.PushParser()
@@ -497,14 +499,14 @@ class RFC2234CoreParser (RFC2234Parser):
     def ParseOCTET(self):
         if is_octet(self.the_char):
             the_char = self.the_char
-            self.NextChar()
+            self.next_char()
             return the_char
         else:
             self.BadSyntax("expected OCTET")
 
     def parse_sp(self):
         if self.the_char == 0x20:
-            self.NextChar()
+            self.next_char()
             return ' '
         else:
             self.BadSyntax("expected SP")
@@ -513,7 +515,7 @@ class RFC2234CoreParser (RFC2234Parser):
         theCharCode = ord(self.the_char)
         if theCharCode >= 0x21 and theCharCode <= 0x7E:
             the_char = self.the_char
-            self.NextChar()
+            self.next_char()
             return the_char
         else:
             self.BadSyntax("expected VCHAR")
@@ -521,7 +523,7 @@ class RFC2234CoreParser (RFC2234Parser):
     def ParseWSP(self):
         if IsWSP(self.the_char):
             the_char = self.the_char
-            self.NextChar()
+            self.next_char()
             return the_char
         else:
             self.BadSyntax("expected WSP")
@@ -917,15 +919,15 @@ class RFC2234ABNFParser (RFC2234CoreParser):
         name = self.ParseALPHA()
         while is_alpha(self.the_char) or is_digit(self.the_char) or self.the_char == "-":
             name = name + self.the_char
-            self.NextChar()
+            self.next_char()
         return name
 
     def ParseDefinedAs(self):
         self.ParseCWspRepeat()
         if self.the_char == "=":
-            self.NextChar()
+            self.next_char()
             if self.the_char == "/":
-                self.NextChar()
+                self.next_char()
                 result = kIncrementalRule
             else:
                 result = kBasicRule
@@ -941,7 +943,7 @@ class RFC2234ABNFParser (RFC2234CoreParser):
 
     def ParseCWsp(self):
         if IsWSP(self.the_char):
-            self.NextChar()
+            self.next_char()
         else:
             self.ParseCNl()
             self.ParseWSP()
@@ -949,7 +951,7 @@ class RFC2234ABNFParser (RFC2234CoreParser):
     def ParseCWspRepeat(self):
         while self.the_char:
             if IsWSP(self.the_char):
-                self.NextChar()
+                self.next_char()
             elif IsCR(self.the_char) or self.the_char == ";":
                 try:
                     self.PushParser()
@@ -972,10 +974,10 @@ class RFC2234ABNFParser (RFC2234CoreParser):
     def parse_comment(self):
         comment = ''
         if self.the_char == ";":
-            self.NextChar()
+            self.next_char()
             while IsWSP(self.the_char) or IsVCHAR(self.the_char):
                 comment = comment + self.the_char
-                self.NextChar()
+                self.next_char()
             self.ParseCRLF()
             return comment
         else:
@@ -988,7 +990,7 @@ class RFC2234ABNFParser (RFC2234CoreParser):
             try:
                 self.PushParser()
                 self.ParseCWspRepeat()
-                self.ParseLiteral("/")
+                self.parse_literal("/")
                 self.ParseCWspRepeat()
                 alternation.append(self.ParseConcatenation())
                 self.PopParser(0)
@@ -1021,14 +1023,14 @@ class RFC2234ABNFParser (RFC2234CoreParser):
     def ParseRepetition(self):
         if is_digit(self.the_char) or self.the_char == "*":
             minRepeat, maxRepeat = self.ParseRepeat()
-            return self.ruleBase.AddRule([kRepeatRule, minRepeat, maxRepeat, self.ParseElement()])
+            return self.ruleBase.AddRule([kRepeatRule, minRepeat, maxRepeat, self.parse_element()])
         else:
-            return self.ParseElement()
+            return self.parse_element()
 
     def ParseRepeat(self):
         minRepeat = self.ParseDIGITRepeat()
         if self.the_char == "*":
-            self.NextChar()
+            self.next_char()
             maxRepeat = self.ParseDIGITRepeat()
             if minRepeat is None:
                 minRepeat = 0
@@ -1038,7 +1040,7 @@ class RFC2234ABNFParser (RFC2234CoreParser):
             maxRepeat = minRepeat
         return (minRepeat, maxRepeat)
 
-    def ParseElement(self):
+    def parse_element(self):
         if is_alpha(self.the_char):
             return self.ruleBase.DeclareRule(self.ParseRulename())
         elif self.the_char == "(":
@@ -1056,38 +1058,38 @@ class RFC2234ABNFParser (RFC2234CoreParser):
 
     def ParseGroup(self):
         if self.the_char == "(":
-            self.NextChar()
+            self.next_char()
             self.ParseCWspRepeat()
             result = self.ParseAlternation()
             self.ParseCWspRepeat()
             if self.the_char == ")":
-                self.NextChar()
+                self.next_char()
                 return result
         self.Syntaxerror("expected '('")
 
     def ParseOption(self):
         if self.the_char == "[":
-            self.NextChar()
+            self.next_char()
             self.ParseCWspRepeat()
             result = self.ParseAlternation()
             self.ParseCWspRepeat()
             if self.the_char == "]":
-                self.NextChar()
+                self.next_char()
                 return self.ruleBase.AddRule([kRepeatRule, 0, 1, result])
         self.BadSyntax("expected '['")
 
     def ParseCharVal(self):
         if IsDQUOTE(self.the_char):
             literalStr = ""
-            self.NextChar()
+            self.next_char()
             while self.the_char:
                 if IsDQUOTE(self.the_char):
-                    self.NextChar()
+                    self.next_char()
                     return self.ruleBase.AddRule([kLiteralRule, literalStr])
                 theCharCode = ord(self.the_char)
                 if theCharCode >= 0x20 and theCharCode <= 0x7E:
                     literalStr = literalStr + self.the_char
-                    self.NextChar()
+                    self.next_char()
                 else:
                     break
         self.BadSyntax("expected DQUOTE")
@@ -1095,7 +1097,7 @@ class RFC2234ABNFParser (RFC2234CoreParser):
     def ParseNumVal(self):
         # Parses a TerminalRule, or ValueRangeRule
         if self.the_char == "%":
-            self.NextChar()
+            self.next_char()
             if self.the_char == "b" or self.the_char == "B":
                 val = self.ParseBinVal()
             elif self.the_char == "d" or self.the_char == "D":
@@ -1111,21 +1113,21 @@ class RFC2234ABNFParser (RFC2234CoreParser):
 
     def ParseBinVal(self):
         if self.the_char == "b" or self.the_char == "B":
-            self.NextChar()
+            self.next_char()
             return self.ParseVal(self.ParseBITRepeat)
         else:
             self.BadSyntax("expected bin-val")
 
     def ParseDecVal(self):
         if self.the_char == "d" or self.the_char == "D":
-            self.NextChar()
+            self.next_char()
             return self.ParseVal(self.ParseDIGITRepeat)
         else:
             self.BadSyntax("expected dec-val")
 
     def ParseHexVal(self):
         if self.the_char == "x" or self.the_char == "X":
-            self.NextChar()
+            self.next_char()
             return self.ParseVal(self.ParseHEXDIGRepeat)
         else:
             self.BadSyntax("expected hex-val")
@@ -1137,7 +1139,7 @@ class RFC2234ABNFParser (RFC2234CoreParser):
         if self.the_char == "-":
             self.PushParser()
             # It's a value range, maybe
-            self.NextChar()
+            self.next_char()
             value2 = fValueParser()
             if value2 is None:
                 # It's a one-value terminal
@@ -1153,7 +1155,7 @@ class RFC2234ABNFParser (RFC2234CoreParser):
             terminalStr = chr(value)
         while self.the_char == ".":
             self.PushParser()
-            self.NextChar()
+            self.next_char()
             value = fValueParser()
             if value is None:
                 self.PopParser(1)
@@ -1169,15 +1171,15 @@ class RFC2234ABNFParser (RFC2234CoreParser):
     def ParseProseVal(self):
         if self.the_char == "<":
             proseStr = ""
-            self.NextChar()
+            self.next_char()
             while self.the_char:
                 theCharCode = ord(self.the_char)
                 if theCharCode == 0x3E:
-                    self.NextChar()
+                    self.next_char()
                     return self.ruleBase.AddRule([kProseRule, proseStr])
                 if theCharCode >= 0x20 and theCharCode <= 0x7E:
                     proseStr = proseStr + self.the_char
-                    self.NextChar()
+                    self.next_char()
                 else:
                     self.BadSyntax("expected '>'")
         self.BadSyntax("expected '<'")

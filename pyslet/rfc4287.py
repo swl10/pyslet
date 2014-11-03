@@ -448,7 +448,7 @@ class Entity(AtomElement):
             self.Title = None
         if self.Updated:
             self.Updated.DetachFromParent()
-            self.Update = None
+            self.Updated = None
         super(Entity, self).reset()
 
     def GetChildren(self):
@@ -561,7 +561,7 @@ class Entry(Entity):
             self.Summary.DetachFromParent()
             self.Summary = None
         super(Entry, self).reset()
-        # Parent reset removes 'optional' Title and Update elements
+        # Parent reset removes 'optional' Title and Updated elements
         self.Title = self.TitleClass(self)
         self.Updated = self.UpdatedClass(self)
         now = iso8601.TimePoint.FromNowUTC()

@@ -197,7 +197,7 @@ class FlowContainerMixin:
         for child in self.GetChildren():
             if type(child) in StringTypes:
                 for c in child:
-                    if not xml.IsS(c):
+                    if not xml.is_s(c):
                         return False
             elif isinstance(child, html.InlineMixin):
                 return False

@@ -49,10 +49,4 @@ EDMX Elements
 	:show-inheritance:
 
 
-Exceptions
-----------
-
-..	autoclass:: InvalidMetadataDocument
-	:members:
-	:show-inheritance:
 

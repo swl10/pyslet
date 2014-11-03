@@ -1574,10 +1574,10 @@ class Parser(edm.Parser):
                 self.setpos(savepos)
                 return None
             result.append(self.the_char)
-            self.NextChar()
+            self.next_char()
             while self.the_char is not None and self.SimpleIdentifierClass.Test(self.the_char):
                 result.append(self.the_char)
-                self.NextChar()
+                self.next_char()
             if not self.Parse('.'):
                 break
             result.append('.')
@@ -1594,7 +1594,7 @@ class Parser(edm.Parser):
                     if self.MatchEnd():
                         raise ValueError(
                             "Unterminated quote in literal string")
-                    self.NextChar()
+                    self.next_char()
                 value.append(self.src[startPos:self.pos - 1])
                 if self.Parse("'"):
                     # a repeated SQUOTE, go around again
@@ -1719,21 +1719,21 @@ class Parser(edm.Parser):
             self.Require("'", "guid")
             hex = []
             hex.append(
-                self.require_production(self.ParseHexDigits(8, 8), "guid"))
+                self.require_production(self.parse_hex_digits(8, 8), "guid"))
             self.Require("-", "guid")
             hex.append(
-                self.require_production(self.ParseHexDigits(4, 4), "guid"))
+                self.require_production(self.parse_hex_digits(4, 4), "guid"))
             self.Require("-", "guid")
             hex.append(
-                self.require_production(self.ParseHexDigits(4, 4), "guid"))
+                self.require_production(self.parse_hex_digits(4, 4), "guid"))
             self.Require("-", "guid")
             hex.append(
-                self.require_production(self.ParseHexDigits(4, 4), "guid"))
+                self.require_production(self.parse_hex_digits(4, 4), "guid"))
             if self.Parse('-'):
                 # this is a proper guid
                 hex.append(
                     self.require_production(
-                        self.ParseHexDigits(
+                        self.parse_hex_digits(
                             12,
                             12),
                         "guid"))
@@ -1741,7 +1741,7 @@ class Parser(edm.Parser):
                 # this a broken guid, add some magic to make it right
                 hex[3:3] = ['FFFF']
                 hex.append(
-                    self.require_production(self.ParseHexDigits(8, 8), "guid"))
+                    self.require_production(self.parse_hex_digits(8, 8), "guid"))
             self.Require("'", "guid")
             result.value = uuid.UUID(hex=string.join(hex, ''))
             return result
@@ -2240,15 +2240,14 @@ class ODataURI:
         else:
             return uri.UnescapeData(segment).decode('utf-8'), None
 
-    def GetParamValue(self, param_name):
+    def get_param_value(self, param_name):
         if param_name in self.paramTable:
             paramDef = self.queryOptions[self.paramTable[param_name]]
             # must be a primitive type
             return ParseURILiteral(paramDef[paramDef.index('=') + 1:])
         else:
-            raise KeyError(
-                "Missing service operation, or custom parameter: %s" %
-                param_name)
+            # missing parameter is equivalent to NULL
+            return edm.SimpleValue.NewSimpleValue(None)
 
     @classmethod
     def FormatKeyDict(cls, d):
@@ -3239,8 +3238,8 @@ class Count(ODataElement):
     """Implements inlinecount handling."""
     XMLNAME = (ODATA_METADATA_NAMESPACE, 'count')
 
-    def SetValue(self, newValue):
-        super(Count, self).SetValue(str(newValue))
+    def SetValue(self, new_value):
+        super(Count, self).SetValue(str(new_value))
 
     def GetValue(self):
         return int(super(Count, self).GetValue())
@@ -3391,21 +3390,21 @@ class Entry(atom.Entry):
     def ResolveTargetPath(self, targetPath, prefix, ns):
         doc = self.GetDocument()
         targetElement = self
-        for eName in targetPath:
+        for ename in targetPath:
             newTargetElement = None
             for eTest in targetElement.GetChildren():
-                if eTest.GetXMLName() == eName:
+                if eTest.GetXMLName() == ename:
                     newTargetElement = eTest
                     break
             if newTargetElement is None:
                 # we need to create a new element
-                eClass = targetElement.get_element_class(eName)
+                eClass = targetElement.get_element_class(ename)
                 if eClass is None and doc:
-                    eClass = doc.get_element_class(eName)
+                    eClass = doc.get_element_class(ename)
                 if eClass is None:
-                    eClass = Document.get_element_class(eName)
-                newTargetElement = targetElement.ChildElement(eClass, eName)
-                if eName[0] == ns and newTargetElement.GetPrefix(eName[0]) is None:
+                    eClass = Document.get_element_class(ename)
+                newTargetElement = targetElement.ChildElement(eClass, ename)
+                if ename[0] == ns and newTargetElement.GetPrefix(ename[0]) is None:
                     # No prefix exists for this namespace, make one
                     newTargetElement.MakePrefix(ns, prefix)
             targetElement = newTargetElement

@@ -439,7 +439,14 @@ class Server(app.Server):
                     raise core.MissingURISegment(str(e))
                 if isinstance(resource, edm.FunctionImport):
                     # TODO: grab the params from the query string
-                    resource = resource.Execute({})
+                    params = {}
+                    for p in resource.values():
+                        # these are the parameters
+                        if p.mode in (edm.ParameterMode.In,
+                                      edm.ParameterMode.InOut):
+                            params[p.name] = p.typeRef(
+                                odataURI.get_param_value(p.name))
+                    resource = resource.Execute(params)
                     # If this does not identify a collection of entities it
                     # must be the last path segment
                     if not isinstance(resource, edm.EntityCollection):
@@ -720,7 +727,7 @@ class Server(app.Server):
                     else:
                         # update the entity from the request
                         self.ReadEntity(resource, environ)
-                        resource.Update()
+                        resource.commit()
                         # now we've updated the entity it is safe to calculate
                         # the ETag
                         self.set_etag(resource, response_headers)
@@ -847,7 +854,7 @@ class Server(app.Server):
                                 "%s (NULL)" % resource.pDef.name)
                     else:
                         self.ReadValue(resource, environ)
-                    parentEntity.Update()
+                    parentEntity.commit()
                     self.set_etag(parentEntity, response_headers)
                     return self.ReturnEmpty(start_response, response_headers)
                 elif method == "DELETE":
@@ -860,7 +867,7 @@ class Server(app.Server):
                             "DELETE failed, %s property is not nullable" %
                             resource.pDef.name)
                     resource.value = None
-                    parentEntity.Update()
+                    parentEntity.commit()
                     return self.ReturnEmpty(start_response, response_headers)
                 else:
                     raise core.InvalidMethod("%s not supported here" % method)
@@ -1441,20 +1448,20 @@ class Server(app.Server):
         returns the best match.  If there is no match then None is
         returned.  We also handle an accept list override in the form of
         acceptList, e.g., parsed from the $format parameter."""
-        aList = request.sysQueryOptions.get(core.SystemQueryOption.format,
+        alist = request.sysQueryOptions.get(core.SystemQueryOption.format,
                                             None)
-        if aList is None:
+        if alist is None:
             if "HTTP_ACCEPT" in environ:
                 try:
-                    aList = messages.AcceptList.from_str(
+                    alist = messages.AcceptList.from_str(
                         environ["HTTP_ACCEPT"])
                 except grammar.BadSyntax:
                     # we'll treat this as a missing Accept header
-                    aList = self.DefaultAcceptList
+                    alist = self.DefaultAcceptList
             else:
-                aList = self.DefaultAcceptList
-        returnType = aList.select_type(mtype_list)
-        logging.debug("Content negotiation request: %s", str(aList))
+                alist = self.DefaultAcceptList
+        returnType = alist.select_type(mtype_list)
+        logging.debug("Content negotiation request: %s", str(alist))
         logging.debug("Content negotiation result: picked %s from %s", repr(
             returnType), repr(mtype_list))
         return returnType

@@ -272,35 +272,6 @@ class ODataTests(unittest.TestCase):
         except core.EvaluationError:
             pass
 
-    def testCaseValidMetadataExamples(self):
-        dPath = os.path.join(TEST_DATA_DIR, 'valid')
-        for fName in os.listdir(dPath):
-            if fName[-4:] != ".xml":
-                continue
-            f = uri.URIFactory.URLFromPathname(os.path.join(dPath, fName))
-            doc = edmx.Document(baseURI=f)
-            doc.Read()
-            try:
-                doc.validate()
-            except edmx.InvalidMetadataDocument, e:
-                self.fail(
-                    "%s is valid but raised InvalidMetadataDocument: %s" % (fName, str(e)))
-
-    def testCaseInvalidMetadataExamples(self):
-        dPath = os.path.join(TEST_DATA_DIR, 'invalid')
-        for fName in os.listdir(dPath):
-            if fName[-4:] != ".xml":
-                continue
-            f = uri.URIFactory.URLFromPathname(os.path.join(dPath, fName))
-            doc = edmx.Document(baseURI=f)
-            doc.Read()
-            try:
-                doc.validate()
-                self.fail(
-                    "%s is invalid but did not raise InvalidMetadataDocument" % fName)
-            except edmx.InvalidMetadataDocument:
-                pass
-
 
 class ODataURILiteralTests(unittest.TestCase):
 
@@ -1633,7 +1604,7 @@ class CustomersByCityEntityCollection(core.FunctionEntityCollection):
         core.FunctionEntityCollection.__init__(self, function, params)
         self.customers = customers
         self.collection = self.entity_set.OpenCollection()
-        self.city = params.get('city', 'Chunton')
+        self.city = params.get('city').value
 
     def itervalues(self):
         for customer in self.customers.data.itervalues():
@@ -1645,7 +1616,7 @@ class ShippedAddressByDateCollection(core.FunctionCollection):
 
     def __init__(self, function, params, customersEntitySet):
         core.FunctionCollection.__init__(self, function, params)
-        self.date = params.get('date', None)
+        self.date = params.get('date').value
         if self.date is None:
             self.date = iso8601.TimePoint.FromNow()
         self.collection = customersEntitySet.OpenCollection()
@@ -1659,7 +1630,7 @@ class ShippedCustomerNamesByDateCollection(core.FunctionCollection):
 
     def __init__(self, function, params, customersEntitySet):
         core.FunctionCollection.__init__(self, function, params)
-        self.date = params.get('date', None)
+        self.date = params.get('date').value
         if self.date is None:
             self.date = iso8601.TimePoint.FromNow()
         self.collection = customersEntitySet.OpenCollection()
@@ -2581,7 +2552,7 @@ class SampleServerTests(unittest.TestCase):
         # TODO, an actual function that does something that returns a
         # collection of addresses
         request = MockRequest(
-            "/service.svc/ShippedAddressByDate?date=datetime'2013-08-02'")
+            "/service.svc/ShippedAddressByDate?date=datetime'2013-08-02T00:00'")
         request.set_header('Accept', "application/json")
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
@@ -2609,7 +2580,7 @@ class SampleServerTests(unittest.TestCase):
             i = i + 1
         #	check version 1 json output
         request = MockRequest(
-            "/service.svc/ShippedAddressByDate?date=datetime'2013-08-02'")
+            "/service.svc/ShippedAddressByDate?date=datetime'2013-08-02T00:00'")
         request.set_header('Accept', "application/json")
         request.set_header('MaxDataServiceVersion', "1.0; old max")
         request.Send(self.svc)
@@ -2625,10 +2596,10 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(len(obj) == i, "Expected same number of results")
         #	End of JSON tests
         request = MockRequest(
-            "/service.svc/PendingAddressByDate?date=datetime'2013-08-02'")
+            "/service.svc/PendingAddressByDate?date=datetime'2013-08-02T00:00'")
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 404)
-        baseURI = "/service.svc/ShippedAddressByDate?date=datetime'2013-08-02'&$format=xml"
+        baseURI = "/service.svc/ShippedAddressByDate?date=datetime'2013-08-02T00:00'&$format=xml"
         request = MockRequest(baseURI)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
@@ -2689,7 +2660,7 @@ class SampleServerTests(unittest.TestCase):
         serviceOperation-collPrim rule, then this URI MUST represent a
         resource that does not exist in the data model."""
         request = MockRequest(
-            "/service.svc/ShippedCustomerNamesByDate?date=datetime'2013-08-02'")
+            "/service.svc/ShippedCustomerNamesByDate?date=datetime'2013-08-02T00:00'")
         request.set_header('Accept', "application/json")
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)
@@ -2710,7 +2681,7 @@ class SampleServerTests(unittest.TestCase):
             i = i + 1
         #	check version 1 json output
         request = MockRequest(
-            "/service.svc/ShippedCustomerNamesByDate?date=datetime'2013-08-02'")
+            "/service.svc/ShippedCustomerNamesByDate?date=datetime'2013-08-02T00:00'")
         request.set_header('Accept', "application/json")
         request.set_header('MaxDataServiceVersion', "1.0; old max")
         request.Send(self.svc)
@@ -2726,10 +2697,10 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(len(obj) == i, "Expected same number of results")
         #	End of JSON tests
         request = MockRequest(
-            "/service.svc/PendingCustomerNamesByDate?date=datetime'2013-08-02'")
+            "/service.svc/PendingCustomerNamesByDate?date=datetime'2013-08-02T00:00'")
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 404)
-        baseURI = "/service.svc/ShippedCustomerNamesByDate?date=datetime'2013-08-02'&$format=xml"
+        baseURI = "/service.svc/ShippedCustomerNamesByDate?date=datetime'2013-08-02T00:00'&$format=xml"
         request = MockRequest(baseURI)
         request.Send(self.svc)
         self.assertTrue(request.responseCode == 200)

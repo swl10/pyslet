@@ -954,7 +954,7 @@ class RecordContainer(Container):
         if value is None:
             self.value = None
         else:
-            newValue = {}
+            new_value = {}
             if isinstance(value, DictType):
                 valueDict = value
                 fieldList = value.keys()
@@ -972,9 +972,9 @@ class RecordContainer(Container):
                 if not v:
                     # ignore NULL, no need to type check in records
                     continue
-                newValue[f] = value[f]
-            if newValue:
-                self.value = newValue
+                new_value[f] = value[f]
+            if new_value:
+                self.value = new_value
             else:
                 self.value = None
 
