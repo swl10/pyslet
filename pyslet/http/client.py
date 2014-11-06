@@ -789,7 +789,8 @@ class SecureConnection(Connection):
                     logging.info(
                         "Connected to %s with %s, %s, key length %i",
                         self.host, *self.socket.cipher())
-        except IOError:
+        except IOError as e:
+            logging.warn(str(e))
             raise messages.HTTPException(
                 "failed to build secure connection to %s" % self.host)
 

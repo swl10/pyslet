@@ -898,8 +898,8 @@ class Client(app.Client):
     Can be constructed with an optional URL specifying the service root of an
     OData service.  The URL is passed directly to :py:meth:`LoadService`."""
 
-    def __init__(self, serviceRoot=None):
-        app.Client.__init__(self)
+    def __init__(self, serviceRoot=None, **kwargs):
+        app.Client.__init__(self, **kwargs)
         #: a :py:class:`pyslet.rfc5023.Service` instance describing this
         #: service
         self.service = None

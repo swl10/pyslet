@@ -1053,6 +1053,21 @@ class ServerBasedURL(URI):
         super(ServerBasedURL, self).__init__(octets)
         self.userinfo, self.host, self.port = SplitServer(self.authority)
 
+    def get_addr(self):
+        """Returns a hostname and integer port tuple
+        
+        The format is suitable for socket operations.  The main purpose
+        of this method is to determine if the port is set on the URL
+        and, if it isn't, to return the default port for this URL type
+        instead."""
+        hostname = self.host
+        if self.port:
+            # custom port, perhaps
+            port = int(self.port)
+        else:
+            port = self.DEFAULT_PORT
+        return hostname, port
+        
     def canonicalize(self):
         """Returns a canonical form of this URI"""
         new_uri = []

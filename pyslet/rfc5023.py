@@ -260,8 +260,8 @@ class Slug(object):
 
 class Client(http.Client):
 
-    def __init__(self):
-        http.Client.__init__(self)
+    def __init__(self, **kwargs):
+        http.Client.__init__(self, **kwargs)
 
     def queue_request(self, request, timeout=60):
         # if there is no Accept header, add one

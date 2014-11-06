@@ -12,6 +12,7 @@ import SocketServer
 import Queue
 import select
 import socket
+import ssl
 import string
 
 import pyslet.rfc2396 as uri
@@ -615,14 +616,20 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
         passed to the underlying system for binding the server.  The
         port given in the authority string is ignored when binding but
         in most cases it should correspond to the port passed as the
-        first parmeter!"""
+        first parmeter!
 
+    keyfile, certfile
+        Optional paths to an SSL key and certificate file.  If given the
+        server is an https server.  For an explanation of these
+        arguments see the builtin Python ssl.wrap_socket function to
+        which they are passed."""
     #: overridden to allow our server to restart even if there are
     #: existing connections from a previous invocation.
     allow_reuse_address = True
 
     def __init__(self, port, max_connections=None, app=None,
-                 protocol=params.HTTP_1p1, authorities=None):
+                 protocol=params.HTTP_1p1, authorities=None,
+                 keyfile=None, certfile=None):
         #: a dictionary mapping authority onto the WSGI callable that
         #: handles it
         self.authorities = {}
@@ -637,8 +644,16 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
             self.authorities[a.lower()] = app
         #: the port we are bound to
         self.port = port
+        #: whether or not we are serving using https
+        self.https = False
         SocketServer.TCPServer.__init__(
             self, (self.host, self.port), Connection)
+        if keyfile is not None:
+            # This must be an HTTPS server
+            self.socket = ssl.wrap_socket(
+                self.socket, keyfile=keyfile, certfile=certfile,
+                server_side=True, do_handshake_on_connect=True)
+            self.https = True
         #: the protocol semantics we use for handling requests
         self.protocol = protocol
         self.lock = threading.RLock()
@@ -738,7 +753,8 @@ class ServerRequest(messages.Request):
                 'SERVER_PROTCOL': str(self.protocol),
                 'REMOTE_ADDR': str(self.connection.client_address),
                 'wsgi.version': (1, 0),
-                'wsgi.url_scheme': 'http',
+                'wsgi.url_scheme':
+                'https' if self.connection.server.https else 'http',
                 'wsgi.input': io.BufferedReader(self.recv_pipe),
                 'wsgi.errors': self.connection.server.error_pipe,
                 'wsgi.multithread': True,
