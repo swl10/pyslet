@@ -161,7 +161,7 @@ Character Classes
 
 ..	autofunction:: IsCombiningChar
 
-..	autofunction:: IsDigit
+..	autofunction:: is_digit
 
 ..	autofunction:: IsExtender
 

@@ -231,18 +231,18 @@ class BasicCredentials(Credentials):
         """Given a :py:class:`~pyslet.rfc2396.URI` instance representing
         an absolute URI, checks if these credentials contain a matching
         protection space and path prefix."""
-        if not url.IsAbsolute():
+        if not url.is_absolute():
             raise ValueError("test_url requires an absolute URL")
-        if (self.protectionSpace == url.GetCanonicalRoot() and
-                self.test_path(url.absPath)):
+        if (self.protectionSpace == url.get_canonical_root() and
+                self.test_path(url.abs_path)):
             return True
         else:
             return False
 
     def test_path(self, path):
         """Returns True if there is a path prefix that matches *path*"""
-        path = uri.SplitPath(path)
-        uri.NormalizeSegments(path)
+        path = uri.split_path(path)
+        uri.normalize_segments(path)
         for p in self.pathPrefixes:
             if self.is_prefix(p, path):
                 return True
@@ -254,8 +254,8 @@ class BasicCredentials(Credentials):
 
         If pathPrefix is a more general prefix than an existing prefix
         in the list then it replaces that prefix."""
-        new_prefix = uri.SplitPath(path)
-        uri.NormalizeSegments(new_prefix)
+        new_prefix = uri.split_path(path)
+        uri.normalize_segments(new_prefix)
         keep = True
         i = 0
         while i < len(self.pathPrefixes):

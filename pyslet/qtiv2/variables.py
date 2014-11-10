@@ -520,7 +520,7 @@ class FileValue(SingleValue):
         self.contentType = params.MediaType.from_str(
             "application/octet-stream")
         """The content type of the file, a :py:class:`pyslet.rfc2616.HTTPMediaType` instance."""
-        self.fileName = "data.bin"
+        self.file_name = "data.bin"
         """The file name to use for the file."""
 
     def __unicode__(self):
@@ -547,7 +547,7 @@ class FileValue(SingleValue):
         data directly, *type* and *name* are used to interpret the data.
         Other file type objects are set in the same way."""
         self.contentType = type
-        self.fileName = name
+        self.file_name = name
         if value is None:
             self.value = None
         elif isinstance(value, FileType):
@@ -785,7 +785,7 @@ class URIValue(SingleValue):
         if value is None:
             self.value = None
         elif type(value) in StringTypes:
-            self.value = URIFactory.URI(value)
+            self.value = URI.from_octets(value)
         elif isinstance(value, URI):
             self.value = value
         else:

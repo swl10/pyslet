@@ -242,18 +242,18 @@ class ContentPackageTests(unittest.TestCase):
             cp.GetPackageName() == 'imscp', "Default package name is not empty string")
         # Ensure the temporary directory is cleaned up
         self.dList.append(cp.dPath)
-        url = uri.URIFactory.URI(cp.manifest.GetBase())
+        url = uri.URI.from_octets(cp.manifest.GetBase())
         self.assertTrue(isinstance(cp.manifest, xmlns.XMLNSDocument) and isinstance(
             cp.manifest.root, Manifest), "Constructor must create manifest")
         self.assertTrue(
-            url.GetVirtualFilePath().split()[1] == 'imsmanifest.xml', "Manifest file name")
+            url.get_virtual_file_path().split()[1] == 'imsmanifest.xml', "Manifest file name")
         self.assertTrue(isinstance(cp.manifest.root, Manifest),
                         "Constructor must create manifest element")
         id = cp.manifest.root.id
         self.assertTrue(cp.manifest.GetElementByID(
             id) is cp.manifest.root, "Manifest identifief not declared")
         self.assertTrue(
-            url.GetVirtualFilePath().isfile(), "Constructor must create manifest file")
+            url.get_virtual_file_path().isfile(), "Constructor must create manifest file")
         cp = ContentPackage('newpackage')
         self.assertTrue(cp.dPath.isdir() and FilePath(
             'newpackage').abspath() == cp.dPath, "Constructor creates specified directory")

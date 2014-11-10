@@ -218,12 +218,12 @@ class ClientCollection(core.EntityCollection):
             sysQueryOptions[
                 core.SystemQueryOption.filter] = unicode(self.filter)
         if sysQueryOptions:
-            feedURL = uri.URIFactory.URI(
+            feedURL = uri.URI.from_octets(
                 str(feedURL) +
                 "/$count?" +
                 core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
         else:
-            feedURL = uri.URIFactory.URI(str(feedURL) + "/$count")
+            feedURL = uri.URI.from_octets(str(feedURL) + "/$count")
         request = http.ClientRequest(str(feedURL))
         request.set_header('Accept', 'text/plain')
         self.client.process_request(request)
@@ -250,7 +250,7 @@ class ClientCollection(core.EntityCollection):
                 core.SystemQueryOption.orderby] = core.CommonExpression.OrderByToString(
                 self.orderby)
         if sysQueryOptions:
-            feedURL = uri.URIFactory.URI(
+            feedURL = uri.URI.from_octets(
                 str(feedURL) +
                 "?" +
                 core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
@@ -316,7 +316,7 @@ class ClientCollection(core.EntityCollection):
         if self.skiptoken is not None:
             sysQueryOptions[core.SystemQueryOption.skiptoken] = self.skiptoken
         if sysQueryOptions:
-            feedURL = uri.URIFactory.URI(
+            feedURL = uri.URI.from_octets(
                 str(feedURL) +
                 "?" +
                 core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
@@ -370,7 +370,7 @@ class ClientCollection(core.EntityCollection):
             sysQueryOptions[
                 core.SystemQueryOption.select] = core.FormatSelect(self.select)
         if sysQueryOptions:
-            entityURL = uri.URIFactory.URI(
+            entityURL = uri.URI.from_octets(
                 entityURL +
                 "?" +
                 core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
@@ -610,20 +610,20 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
         if kwargs.pop('baseURI', None):
             logging.warn(
                 'OData Client NavigationCollection ignored baseURI argument')
-        navPath = uri.EscapeData(name.encode('utf-8'))
+        navPath = uri.escape_data(name.encode('utf-8'))
         location = str(from_entity.get_location())
         super(
             NavigationCollection,
             self).__init__(
             from_entity=from_entity,
             name=name,
-            baseURI=uri.URIFactory.URI(
+            baseURI=uri.URI.from_octets(
                 location +
                 "/" +
                 navPath),
             **kwargs)
         self.isCollection = self.from_entity[name].isCollection
-        self.linksURI = uri.URIFactory.URI(location + "/$links/" + navPath)
+        self.linksURI = uri.URI.from_octets(location + "/$links/" + navPath)
 
     def insert_entity(self, entity):
         """Inserts *entity* into this collection.
@@ -684,7 +684,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 sysQueryOptions[
                     core.SystemQueryOption.filter] = unicode(self.filter)
             if sysQueryOptions:
-                entityURL = uri.URIFactory.URI(
+                entityURL = uri.URI.from_octets(
                     entityURL +
                     "?" +
                     core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
@@ -728,7 +728,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                     core.SystemQueryOption.select] = core.FormatSelect(
                     self.select)
             if sysQueryOptions:
-                entityURL = uri.URIFactory.URI(
+                entityURL = uri.URI.from_octets(
                     entityURL +
                     "?" +
                     core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
@@ -770,7 +770,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                     core.SystemQueryOption.select] = core.FormatSelect(
                     self.select)
             if sysQueryOptions:
-                entityURL = uri.URIFactory.URI(
+                entityURL = uri.URI.from_octets(
                     entityURL +
                     "?" +
                     core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
@@ -924,7 +924,7 @@ class Client(app.Client):
         if isinstance(serviceRoot, uri.URI):
             self.serviceRoot = serviceRoot
         else:
-            self.serviceRoot = uri.URIFactory.URI(serviceRoot)
+            self.serviceRoot = uri.URI.from_octets(serviceRoot)
         request = http.ClientRequest(str(self.serviceRoot))
         request.set_header('Accept', 'application/atomsvc+xml')
         self.process_request(request)
@@ -935,7 +935,7 @@ class Client(app.Client):
         doc.Read(request.res_body)
         if isinstance(doc.root, app.Service):
             self.service = doc.root
-            self.serviceRoot = uri.URIFactory.URI(doc.root.ResolveBase())
+            self.serviceRoot = uri.URI.from_octets(doc.root.ResolveBase())
             self.feeds = {}
             self.model = None
             for w in self.service.Workspace:
@@ -945,10 +945,10 @@ class Client(app.Client):
                         self.feeds[f.Title.GetValue()] = url
         else:
             raise InvalidServiceDocument(str(serviceRoot))
-        self.pathPrefix = self.serviceRoot.absPath
+        self.pathPrefix = self.serviceRoot.abs_path
         if self.pathPrefix[-1] == u"/":
             self.pathPrefix = self.pathPrefix[:-1]
-        metadata = uri.URIFactory.Resolve(serviceRoot, '$metadata')
+        metadata = uri.URI.from_octets('$metadata').resolve(serviceRoot)
         doc = edmx.Document(baseURI=metadata, reqManager=self)
         defaultContainer = None
         try:

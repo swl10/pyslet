@@ -3,8 +3,7 @@
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
-
-from pyslet.rfc2396 import URIFactory, EncodeUnicodeURI, FileURL, IsHex
+import pyslet.rfc2396 as uri
 
 import htmlentitydefs
 import string
@@ -283,11 +282,12 @@ def DecodeURI(src):
 
     <!ENTITY % URI "CDATA"  -- a Uniform Resource Identifier -->
 
-    Note that we adopt the algorithm recommended in Appendix B of the specification,
-    which involves replacing non-ASCII characters with percent-encoded UTF-sequences.
+    We adopt the algorithm recommended in Appendix B of the
+    specification, which involves replacing non-ASCII characters with
+    percent-encoded UTF-sequences.
 
-    For more information see :func:`psylet.rfc2396.EncodeUnicodeURI`"""
-    return URIFactory.URI(EncodeUnicodeURI(src))
+    For more information see :func:`psylet.rfc2396.encode_unicode_uri`"""
+    return uri.URI.from_octets(uri.encode_unicode_uri(src))
 
 
 def EncodeURI(uri):
@@ -355,7 +355,7 @@ class Color(object):
         base = 0
         len = 0
         for c in src:
-            if IsHex(c):
+            if uri.is_hex(c):
                 len = len + 1
             else:
                 base = base + len + 1
@@ -1559,7 +1559,7 @@ class Img(AttrsMixin, SpecialMixin, XHTMLElement):
         self.alt = ''
 
     def AddToCPResource(self, cp, resource, beenThere):
-        if isinstance(self.src, FileURL):
+        if isinstance(self.src, uri.FileURL):
             f = beenThere.get(str(self.src), None)
             if f is None:
                 f = cp.FileCopy(resource, self.src)
@@ -2197,7 +2197,7 @@ class Object(AttrsMixin, SpecialMixin, HeadMiscMixin, XHTMLElement):
             return None
 
     def AddToCPResource(self, cp, resource, beenThere):
-        if isinstance(self.data, FileURL):
+        if isinstance(self.data, uri.FileURL):
             f = beenThere.get(str(self.data), None)
             if f is None:
                 f = cp.FileCopy(resource, self.data)
@@ -2733,11 +2733,11 @@ class XHTMLDocument(xmlns.XMLNSDocument):
         self.p = None
 
     def XMLParser(self, entity):
-        """We override the basic XML parser to use a custom parser that is
-        intelligent about the use of omitted tags, elements defined to have
-        CDATA content and other SGML-based variations.  Note that if the
-        document starts with an XML declaration then the normal XML parser is
-        used instead.
+        """We override the basic XML parser to use a custom parser that
+        is intelligent about the use of omitted tags, elements defined
+        to have CDATA content and other SGML-based variations.  If the
+        document starts with an XML declaration then the normal XML
+        parser is used instead.
 
         You won't normally need to call this method as it is invoked automatically
         when you call :meth:`pyslet.xml20081126.XMLDocument.Read`.

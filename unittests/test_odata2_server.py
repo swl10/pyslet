@@ -119,9 +119,9 @@ class MockODataServer:
             handler.send_header("Content-Length", "0")
             handler.end_headers()
 
-    def SendResponse(self, handler, code, rType, fileName):
+    def SendResponse(self, handler, code, rType, file_name):
         try:
-            rPath = self.dataRoot.join(fileName)
+            rPath = self.dataRoot.join(file_name)
             f = rPath.open('rb')
             rData = f.read() % {'port': HTTP_PORT}
             f.close()

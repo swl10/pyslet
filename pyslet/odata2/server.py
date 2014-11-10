@@ -151,13 +151,13 @@ class Server(app.Server):
         if serviceRoot[-1] != '/':
             serviceRoot = serviceRoot + '/'
         app.Server.__init__(self, serviceRoot)
-        if self.serviceRoot.relPath is not None:
+        if self.serviceRoot.rel_path is not None:
             # The service root must be absolute (or missing completely)!
             raise ValueError("serviceRoot must not be relative")
-        if self.serviceRoot.absPath is None:
+        if self.serviceRoot.abs_path is None:
             self.pathPrefix = ''
         else:
-            self.pathPrefix = self.serviceRoot.absPath
+            self.pathPrefix = self.serviceRoot.abs_path
         # pathPrefix must not have a tailing slash, even if this makes it an
         # empty string
         if self.pathPrefix[-1] == '/':
@@ -249,7 +249,7 @@ class Server(app.Server):
         for c in pathinfo:
             if qmode:
                 # we need to quote reserved characters
-                if uri.IsPathSegmentReserved(c):
+                if uri.is_path_segment_reserved(c):
                     result.append("%%%02X" % ord(c))
                 else:
                     result.append(c)
@@ -413,12 +413,12 @@ class Server(app.Server):
 
         The URI must not use path, or system query options but must
         identify an enity set, entity, complex or simple value."""
-        if not href.IsAbsolute():
+        if not href.is_absolute():
             # resolve relative to the service root
-            href = URIFactory.Resolve(self.serviceRoot, href)
+            href = href.resolve(self.serviceRoot)
         # check the canonical roots
-        if not self.serviceRoot.GetCanonicalRoot().match(
-                href.GetCanonicalRoot()):
+        if not self.serviceRoot.get_canonical_root().match(
+                href.get_canonical_root()):
             # This isn't even for us
             return None
         request = core.ODataURI(href, self.pathPrefix)
@@ -1025,7 +1025,7 @@ class Server(app.Server):
         if isinstance(input, core.Document):
             if isinstance(input.root, core.URI):
                 return self.GetResourceFromURI(
-                    uri.URIFactory.URI(input.root.GetValue()))
+                    uri.URI.from_octets(input.root.GetValue()))
             else:
                 raise core.InvalidData(
                     "Unable to parse link from request body (found <%s>)" %
@@ -1034,7 +1034,7 @@ class Server(app.Server):
             # must be a json object
             try:
                 return self.GetResourceFromURI(
-                    uri.URIFactory.URI(input['uri']))
+                    uri.URI.from_octets(input['uri']))
             except KeyError:
                 raise core.InvalidData(
                     "Unable to parse link from JSON request body (found %s )" %

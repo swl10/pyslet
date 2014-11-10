@@ -19,15 +19,15 @@ import pyslet.xml20081126.structures as xml
 
 def fetch_url(url, username=None, password=None):
     mgr = http.Client()
-    url = uri.URIFactory.URI(url)
+    url = uri.URI.from_octets(url)
     # does url end with $metadata?
-    if url.GetFileName() != "$metadata":
-        url = uri.URIFactory.Resolve(url, "$metadata")
+    if url.get_file_name() != "$metadata":
+        url = uri.URI.from_octets("$metadata").resolve(url)
     if username:
         cred = auth.BasicCredentials()
         cred.userid = username
         cred.password = password
-        cred.protectionSpace = url.GetCanonicalRoot()
+        cred.protectionSpace = url.get_canonical_root()
         mgr.add_credentials(cred)
     doc = edmx.Document(baseURI=url, reqManager=mgr)
     doc.Read()

@@ -164,7 +164,7 @@ class QTIV2ConversionTests(unittest.TestCase):
         fList.sort()
         for f in fList:
             doc = QTIDocument(
-                baseURI=str(uri.URIFactory.URLFromPathname(os.path.join(dPath, f))))
+                baseURI=str(uri.URI.from_path(os.path.join(dPath, f))))
             doc.Read()
             doc.MigrateV2(self.cp)
         # Having migrated everything in the input folder, we now check our CP
@@ -198,11 +198,11 @@ class QTIV2ConversionTests(unittest.TestCase):
             if f:
                 fPath = f.PackagePath(cp2)
                 qtiDoc = qtiv2.core.QTIDocument(
-                    baseURI=str(uri.URIFactory.URLFromVirtualFilePath(self.cp.dPath.join(fPath))))
+                    baseURI=str(uri.URI.from_virtual_path(self.cp.dPath.join(fPath))))
                 qtiDoc.Read()
                 # print str(qtiDoc)
                 qtiDoc2 = qtiv2.core.QTIDocument(
-                    baseURI=str(uri.URIFactory.URLFromVirtualFilePath(cp2.dPath.join(fPath))))
+                    baseURI=str(uri.URI.from_virtual_path(cp2.dPath.join(fPath))))
                 qtiDoc2.Read()
                 # print str(qtiDoc2)
                 output = qtiDoc.DiffString(qtiDoc2)
@@ -213,14 +213,14 @@ class QTIV2ConversionTests(unittest.TestCase):
                 self.assertTrue(
                     qtiDoc.root == qtiDoc2.root, "QTI Files differ at %s (actual output shown first)\n%s" % (fPath, output))
             for f in r.File:
-                if f.href is None or f.href.IsAbsolute():
+                if f.href is None or f.href.is_absolute():
                     continue
                 fPath = f.PackagePath(cp2)
                 fAbsPath = self.cp.dPath.join(fPath)
                 fAbsPath2 = cp2.dPath.join(fPath)
-                baseURI = str(uri.URIFactory.URLFromVirtualFilePath(fAbsPath))
+                baseURI = str(uri.URI.from_virtual_path(fAbsPath))
                 baseURI2 = str(
-                    uri.URIFactory.URLFromVirtualFilePath(fAbsPath2))
+                    uri.URI.from_virtual_path(fAbsPath2))
                 if fAbsPath.splitext()[1].lower() == '.xml':
                     # Two xml files, compare with simple XMLElement
                     doc = xml.Document(baseURI=baseURI)

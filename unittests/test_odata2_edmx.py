@@ -59,7 +59,7 @@ class EDMXTests(unittest.TestCase):
             if fName[-4:] != ".xml":
                 continue
             logging.debug("testing valid Edmx file %s", fName)
-            f = uri.URIFactory.URLFromPathname(os.path.join(dpath, fName))
+            f = uri.URI.from_path(os.path.join(dpath, fName))
             doc = edmx.Document(baseURI=f)
             try:
                 doc.Read()
@@ -74,7 +74,7 @@ class EDMXTests(unittest.TestCase):
             if fName[-4:] != ".xml":
                 continue
             logging.debug("testing invalid Edmx file %s", fName)
-            f = uri.URIFactory.URLFromPathname(os.path.join(dpath, fName))
+            f = uri.URI.from_path(os.path.join(dpath, fName))
             doc = edmx.Document(baseURI=f)
             try:
                 doc.Read()

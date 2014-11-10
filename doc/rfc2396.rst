@@ -34,7 +34,7 @@ Creating URI Instances
 	:members:
 	:show-inheritance:
 
-..	autofunction:: EncodeUnicodeURI
+..	autofunction:: encode_unicode_uri
 
 
 URI

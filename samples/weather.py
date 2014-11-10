@@ -174,19 +174,19 @@ def LoadDataFromFile(weatherData, f, year, month, day):
 
 
 def LoadData(weatherData, dirName):
-    for fileName in os.listdir(dirName):
-        if not fileName[0:4].isdigit() or fileName[-1] == '~':
+    for file_name in os.listdir(dirName):
+        if not file_name[0:4].isdigit() or file_name[-1] == '~':
             # ignore odd files and some editor backups
             continue
         logging.info(
-            "Loading data from file %s", os.path.join(dirName, fileName))
-        year, month, day = map(int, fileName.split('_'))
-        with open(os.path.join(dirName, fileName), 'r') as f:
+            "Loading data from file %s", os.path.join(dirName, file_name))
+        year, month, day = map(int, file_name.split('_'))
+        with open(os.path.join(dirName, file_name), 'r') as f:
             LoadDataFromFile(weatherData, f, year, month, day)
 
 
-def LoadNotes(weatherNotes, fileName, weatherData):
-    with open(fileName, 'r') as f:
+def LoadNotes(weatherNotes, file_name, weatherData):
+    with open(file_name, 'r') as f:
         id = 1
         with weatherNotes.OpenCollection() as collection, weatherData.OpenCollection() as data:
             while True:

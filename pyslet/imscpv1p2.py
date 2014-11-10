@@ -86,7 +86,7 @@ def PathInPath(childPath, parentPath):
     If childPath is not contained in parentPath then None is returned.
 
     If childPath and parentPath are equal an empty string is returned."""
-    relPath = []
+    rel_path = []
     childPath = childPath.normpath()
     parentPath = parentPath.normpath().normcase()
     while childPath.normcase() != parentPath:
@@ -94,9 +94,9 @@ def PathInPath(childPath, parentPath):
         if not childPath or not tail:
             # We've gone as far as we can, fail!
             return None
-        relPath[0:0] = [tail]
-    if relPath:
-        return parentPath.__class__(*relPath)
+        rel_path[0:0] = [tail]
+    if rel_path:
+        return parentPath.__class__(*rel_path)
     else:
         return ''
 
@@ -168,7 +168,7 @@ class File(CPElement):
 
     """Represents the file element."""
     XMLNAME = (IMSCP_NAMESPACE, 'file')
-    XMLATTR_href = ('href', uri.URIFactory.URI, str)
+    XMLATTR_href = ('href', uri.URI.from_octets, str)
 
     def __init__(self, parent):
         CPElement.__init__(self, parent)
@@ -185,7 +185,7 @@ class File(CPElement):
         url = self.ResolveURI(self.href)
         if not isinstance(url, uri.FileURL):
             return None
-        return cp.PackagePath(url.GetVirtualFilePath())
+        return cp.PackagePath(url.get_virtual_file_path())
 
 
 class Dependency(CPElement):
@@ -205,7 +205,7 @@ class Resource(CPElement):
     """Represents the resource element."""
     XMLNAME = (IMSCP_NAMESPACE, 'resource')
     ID = (xmlns.NO_NAMESPACE, "identifier")
-    XMLATTR_href = ('href', uri.URIFactory.URI, str)
+    XMLATTR_href = ('href', uri.URI.from_octets, str)
     XMLATTR_type = 'type'
     XMLCONTENT = xmlns.ElementContent
 
@@ -447,7 +447,7 @@ class ContentPackage:
             mPath = self.dPath.join('imsmanifest.xml')
             if mPath.exists():
                 self.manifest = self.ManifestDocumentClass(
-                    baseURI=str(uri.URIFactory.URLFromVirtualFilePath(mPath)))
+                    baseURI=str(uri.URI.from_virtual_path(mPath)))
                 """The :py:class:`ManifestDocument` object representing the imsmanifest.xml file.
 				
 				The file is read (or created) on construction."""
@@ -457,7 +457,7 @@ class ContentPackage:
                                           (mPath, self.manifest.root.ns, self.manifest.root.xmlname))
             else:
                 self.manifest = self.ManifestDocumentClass(root=Manifest,
-                                                           baseURI=str(uri.URIFactory.URLFromVirtualFilePath(mPath)))
+                                                           baseURI=str(uri.URI.from_virtual_path(mPath)))
                 self.manifest.root.SetID(self.manifest.GetUniqueID('manifest'))
                 md = self.manifest.root.ChildElement(
                     self.manifest.root.MetadataClass)
@@ -600,15 +600,15 @@ class ContentPackage:
         """Converts an absolute file path into a canonical package-relative path
 
         Returns None if fPath is not inside the package."""
-        relPath = []
+        rel_path = []
         assert isinstance(fPath, vfs.VirtualFilePath)
         while fPath != self.dPath:
             fPath, tail = fPath.split()
             if not fPath or not tail:
                 # We've gone as far as we can, fail!
                 return None
-            relPath[0:0] = [tail]
-        return self.dPath.__class__(*relPath).normcase()
+            rel_path[0:0] = [tail]
+        return self.dPath.__class__(*rel_path).normcase()
 
     def ExpandZip(self, zf):
         self.dPath = vfs.defaultFS.mkdtemp('.d', 'imscpv1p2-')
@@ -755,23 +755,23 @@ class ContentPackage:
             f = resource.ChildElement(resource.FileClass)
             f.href = href
         else:
-            if href.IsAbsolute():
-                href = uri.URIFactory.Relative(href, resource.ResolveBase())
-            fullPath = fURL.GetVirtualFilePath()
+            if href.is_absolute():
+                href = uri.URIFactory.relative(href, resource.ResolveBase())
+            fullPath = fURL.get_virtual_file_path()
             head, tail = fullPath.split()
             if self.IgnoreFile(unicode(tail)):
                 raise CPFilePathError(fullPath)
-            relPath = PathInPath(fullPath, self.dPath)
-            if relPath is None or unicode(relPath).lower == u'imsmanifest.xml':
+            rel_path = PathInPath(fullPath, self.dPath)
+            if rel_path is None or unicode(rel_path).lower == u'imsmanifest.xml':
                 raise CPFilePathError(url.path)
             # normalise the case ready to put in the file table
-            relPath = relPath.normcase()
+            rel_path = rel_path.normcase()
             f = resource.ChildElement(resource.FileClass)
             f.href = href
-            if not relPath in self.fileTable:
-                self.fileTable[relPath] = [f]
+            if not rel_path in self.fileTable:
+                self.fileTable[rel_path] = [f]
             else:
-                self.fileTable[relPath].append(f)
+                self.fileTable[rel_path].append(f)
         return f
 
     def FileCopy(self, resource, srcURL):
@@ -784,7 +784,7 @@ class ContentPackage:
 
         Note that if srcURL points to a missing file then no file is copied to the package but the
         associated :py:class:`File` is still created.  It will point to a missing file."""
-        srcPath = srcURL.GetVirtualFilePath()
+        srcPath = srcURL.get_virtual_file_path()
         # We need to create a new file object
         fStart = resource.GetEntryPoint()
         if fStart is None:
@@ -794,12 +794,12 @@ class ContentPackage:
             if not isinstance(url, uri.FileURL):
                 basePath = self.dPath
             else:
-                basePath, tail = url.GetVirtualFilePath().split()
+                basePath, tail = url.get_virtual_file_path().split()
         # now pick up the last component of src
         head, tail = srcPath.split()
         newSrcPath = self.GetUniqueFile(basePath.join(tail))
         newSrcPath = self.dPath.join(newSrcPath)
-        newSrc = uri.URIFactory.URLFromVirtualFilePath(newSrcPath)
+        newSrc = uri.URI.from_virtual_path(newSrcPath)
         # Turn this file path into a relative URL in the context of the new
         # resource
         href = resource.RelativeURI(newSrc)
@@ -828,35 +828,35 @@ class ContentPackage:
         the local file system."""
         baser = self
         baseURI = self.manifest.GetBase()
-        base = uri.URIFactory.URI(baseURI)
-        fURL = uri.URIFactory.URI(href).Resolve(base)
+        base = uri.URI.from_octets(baseURI)
+        fURL = uri.URI.from_octets(href).resolve(base)
         if not isinstance(fURL, uri.FileURL):
             # We cannot delete non-file objects (though in future
             # we should support HTTP DELETE)
             return CPProtocolError(str(fURL))
-        fullPath = fURL.GetVirtualFilePath()
+        fullPath = fURL.get_virtual_file_path()
         if not fullPath.isfile():
             raise CPFileTypeError(fullPath)
         head, tail = fullPath.split()
         if self.IgnoreFile(unicode(tail)):
             raise CPFilePathError(fullPath)
-        relPath = PathInPath(fullPath, self.dPath)
-        if relPath is None or unicode(relPath).lower == u'imsmanifest.xml':
+        rel_path = PathInPath(fullPath, self.dPath)
+        if rel_path is None or unicode(rel_path).lower == u'imsmanifest.xml':
             raise CPFilePathError(fullPath)
         # normalise the case ready for comparisons
-        relPath = relPath.normcase()
+        rel_path = rel_path.normcase()
         for r in self.manifest.root.Resources.Resource:
             delList = []
             for f in r.File:
                 # Does f point to the same file?
-                if f.PackagePath(self) == relPath:
+                if f.PackagePath(self) == rel_path:
                     delList.append(f)
             for f in delList:
                 r.DeleteFile(f)
         # Now there are no more references, safe to remove the file itself
         fullPath.remove()
-        if relPath in self.fileTable:
-            del self.fileTable[relPath]
+        if rel_path in self.fileTable:
+            del self.fileTable[rel_path]
 
     def GetPackageName(self):
         """Returns a human readable name for the package

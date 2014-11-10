@@ -14,8 +14,8 @@ from types import *
 from copy import copy
 import warnings
 
-from pyslet.pep8 import renamed_method
-from pyslet.rfc2396 import URIFactory, URI, FileURL
+import pyslet.rfc2396 as uri
+from pyslet.pep8 import renamed_method, renamed_function
 
 xml_base = 'xml:base'
 xml_lang = 'xml:lang'
@@ -401,14 +401,14 @@ class Document(Node):
         if baseURI is None:
             self.baseURI = None
         else:
-            if isinstance(baseURI, URI):
+            if isinstance(baseURI, uri.URI):
                 self.baseURI = baseURI
             else:
-                self.baseURI = URIFactory.URI(baseURI)
-            if not self.baseURI.IsAbsolute():
-                cwd = URIFactory.URLFromPathname(
+                self.baseURI = uri.URI.from_octets(baseURI)
+            if not self.baseURI.is_absolute():
+                cwd = uri.URI.from_path(
                     os.path.join(os.getcwd(), os.curdir))
-                self.baseURI = self.baseURI.Resolve(cwd)
+                self.baseURI = self.baseURI.resolve(cwd)
 
     def GetBase(self):
         """Returns a string representation of the document's baseURI."""
@@ -520,8 +520,8 @@ class Document(Node):
             self.WriteXML(dst)
         elif self.baseURI is None:
             raise XMLMissingLocationError
-        elif isinstance(self.baseURI, FileURL):
-            fPath = self.baseURI.GetPathname()
+        elif isinstance(self.baseURI, uri.FileURL):
+            fPath = self.baseURI.get_pathname()
             fdir, fname = os.path.split(fPath)
             if not os.path.isdir(fdir):
                 os.makedirs(fdir)
@@ -554,8 +554,8 @@ class Document(Node):
         with file type baseURIs are supported."""
         if self.baseURI is None:
             raise XMLMissingLocationError
-        elif isinstance(self.baseURI, FileURL):
-            fPath = self.baseURI.GetPathname()
+        elif isinstance(self.baseURI, uri.FileURL):
+            fPath = self.baseURI.get_pathname()
             if not os.path.isfile(fPath):
                 raise XMLMissingResourceError(fPath)
             f = codecs.open(fPath, 'wb', 'utf-8')
@@ -2146,36 +2146,41 @@ class Element(Node):
                 break
         return baseURI
 
-    def ResolveURI(self, uri):
-        """Returns a fully specified URL, resolving uri in the current context.
+    def ResolveURI(self, uriref):
+        """Resolves a URI reference in the current context.
 
-        The uri is resolved relative to the xml:base values of the element's
-        ancestors and ultimately relative to the document's baseURI."""
+        uriref
+            A :class:`pyslet.rfc2396.URI` instance or a string
+
+        The argument is resolved relative to the xml:base values of the
+        element's ancestors and ultimately relative to the document's
+        baseURI.  Ther result may still be a relative URI, there may be
+        no base set or the base may only be known in relative terms."""
+        if not isinstance(uriref, uri.URI):
+            uriref = uri.URI.from_octets(uriref)
         baseURI = self.ResolveBase()
         if baseURI:
-            return URIFactory.Resolve(baseURI, uri)
-        elif isinstance(uri, URI):
-            return uri
+            return uriref.resolve(baseURI)
         else:
-            return URIFactory.URI(uri)
+            return uriref
 
     def RelativeURI(self, href):
         """Returns href expressed relative to the element's base.
 
-        If href is a relative URI then it is converted to a fully specified URL
-        by interpreting it as being the URI of a file expressed relative to the
-        current working directory.
+        If href is a relative URI then it is converted to a fully
+        specified URL by interpreting it as being the URI of a file
+        expressed relative to the current working directory.
 
-        If the element does not have a fully-specified base URL then href is
-        returned as a fully-specified URL itself."""
+        If the element does not have a fully-specified base URL then
+        href is returned as a fully-specified URL itself."""
         result = []
-        if not isinstance(href, URI):
-            href = URIFactory.URI(href)
-        if not href.IsAbsolute():
-            href = href.Resolve(URIFactory.URLFromPathname(os.getcwd()))
+        if not isinstance(href, uri.URI):
+            href = uri.URI.from_octets(href)
+        if not href.is_absolute():
+            href = href.resolve(uri.URI.from_path(os.getcwd()))
         base = self.ResolveBase()
         if base is not None:
-            return URIFactory.Relative(href, base)
+            return href.relative(base)
         else:
             return href
 
@@ -2768,7 +2773,7 @@ class XMLEntity(object):
         self.flags = {}
         if isinstance(src, UnicodeType):
             self.OpenUnicode(src)
-        elif isinstance(src, URI):
+        elif isinstance(src, uri.URI):
             self.OpenURI(src, encoding, reqManager)
         elif isinstance(src, http.ClientResponse):
             self.OpenHTTPResponse(src, encoding)
@@ -2876,8 +2881,8 @@ class XMLEntity(object):
         :py:class:`pyslet.rfc2616.Client` for handling URI with
         http or https schemes."""
         self.location = src
-        if isinstance(src, FileURL):
-            srcFile = open(src.GetPathname(), 'rb')
+        if isinstance(src, uri.FileURL):
+            srcFile = open(src.get_pathname(), 'rb')
             self.encoding = encoding
             if self.encoding is None:
                 # Given that we know we have a file we can use some auto-detection
@@ -2930,7 +2935,7 @@ class XMLEntity(object):
         self.encoding = encoding
         newLocation = src.get_header("Location")
         if newLocation:
-            self.location = URIFactory.URI(newLocation.strip())
+            self.location = uri.URI.from_octets(newLocation.strip())
         mtype = src.get_content_type()
         if mtype is None:
             # We'll attempt to do this with xml and utf8
@@ -3249,15 +3254,14 @@ class XMLExternalID(object):
         applicable.  If there is no system identifier then None is returned."""
         if self.system:
             if base:
-                location = URIFactory.Resolve(
-                    base, URIFactory.URI(self.system))
+                location = uri.URI.from_octets(self.system).resolve(base)
             else:
-                location = URIFactory.URI(self.system)
-            if not location.IsAbsolute():
-                cwd = URIFactory.URLFromPathname(
+                location = uri.URI.from_octets(self.system)
+            if not location.is_absolute():
+                cwd = uri.URI.from_path(
                     os.path.join(os.getcwd(), os.curdir))
-                location = location.Resolve(cwd)
-            if location.IsAbsolute():
+                location = location.resolve(cwd)
+            if location.is_absolute():
                 return location
         return None
 
@@ -3467,9 +3471,13 @@ DigitClass = CharClass((u'0', u'9'), (u'\u0660', u'\u0669'),
                        (u'\u0f20', u'\u0f29'))
 
 
-def IsDigit(c):
+def is_digit(c):
     """Tests if the character *c* matches production [88] Digit."""
     return DigitClass.Test(c)
+
+@renamed_function
+def IsDigit(c): pass      # noqa
+
 
 ExtenderClass = CharClass(
     u'\xb7',

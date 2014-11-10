@@ -44,10 +44,10 @@ files are not added::
 			if os.path.isdir(resFile):
 				print "Resource entry point must be a file, not a directory."
 				return
-			resHREF=URIFactory.URLFromPathname(resFile)
+			resHREF=URI.from_path(resFile)
 			srcDir,srcFile=os.path.split(resFile)
 			r=pkg.manifest.root.Resources.ChildElement(pkg.manifest.root.Resources.ResourceClass)
-			r.href=str(resHREF.Relative(URIFactory.URLFromPathname(os.path.join(srcDir,'imsmanifest.xml'))))
+			r.href=str(resHREF.relative(URI.from_path(os.path.join(srcDir,'imsmanifest.xml'))))
 			r.type=='webcontent'
 			for dirpath,dirnames,filenames in os.walk(srcDir):
 				for f in filenames:
@@ -62,7 +62,7 @@ files are not added::
 						os.makedirs(dName)
 					print "Copying: %s"%srcPath
 					shutil.copy(srcPath,dstPath)
-					pkg.File(r,URIFactory.URLFromPathname(dstPath))
+					pkg.File(r,URI.from_path(dstPath))
 			if os.path.exists(pkgFile):
 				if raw_input("Are you sure you want to overwrite %s? (y/n) "%pkgFile).lower()!='y':
 					return

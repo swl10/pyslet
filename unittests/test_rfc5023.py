@@ -352,7 +352,7 @@ class MockRequest(object):
             'SCRIPT_NAME': "",
             # the definition of PATH_INFO requires removal of
             # URL-encoding!  This will cause problems!
-            'PATH_INFO': uri.UnescapeData(path).decode('utf-8'),
+            'PATH_INFO': uri.unescape_data(path).decode('utf-8'),
             'QUERY_STRING': query,
             'SERVER_NAME': "127.0.0.1",
             'SERVER_PORT': "80",

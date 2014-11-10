@@ -4,8 +4,12 @@ import unittest
 import logging
 import os
 import os.path
+import string
 import sys
 from types import UnicodeType, StringType
+
+import pyslet.vfs as vfs
+import pyslet.rfc2396 as uri
 
 
 def suite():
@@ -16,8 +20,6 @@ def suite():
         unittest.makeSuite(VirtualFileURLTests, 'test')
     ))
 
-from pyslet.rfc2396 import *
-import pyslet.vfs as vfs
 
 SERVER_EXAMPLES = {
     # if there is no authority then it is safe to parse
@@ -36,12 +38,12 @@ SERVER_EXAMPLES = {
     ('myname', 'host.dom', None),
     'user:pass@host.com:443':
     ('user:pass', 'host.com', '443')
-}
+    }
 
 
 class RFC2396Tests(unittest.TestCase):
 
-    def testCaseBasics(self):
+    def test_basics(self):
         """Tests for basic character classes.
 
         alpha = lowalpha | upalpha
@@ -51,153 +53,174 @@ class RFC2396Tests(unittest.TestCase):
         alphanum = alpha | digit
         reserved = ";" | "/" | "?" | ":" | "@" | "&" | "=" | "+" | "$" | ","
         unreserved  = alphanum | mark
-        mark = "-" | "_" | "." | "!" | "~" | "*" | "'" | "(" | ")"		
+        mark = "-" | "_" | "." | "!" | "~" | "*" | "'" | "(" | ")"
         """
         # UPALPHA = <any US-ASCII uppercase letter "A".."Z">
         upalpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         for i in xrange(0, 256):
             c = chr(i)
             self.assertTrue(
-                IsUpAlpha(c) == (c in upalpha), "IsUpAlpha(chr(%i))" % i)
+                uri.is_up_alpha(c) == (c in upalpha),
+                "is_up_alpha(chr(%i))" % i)
         lowalpha = "abcdefghijklmnopqrstuvwxyz"
         for i in xrange(0, 256):
             c = chr(i)
-            self.assertTrue(
-                IsLowAlpha(c) == (c in lowalpha), "IsLowAlpha(chr(%i))" % i)
+            self.assertTrue(uri.is_low_alpha(c) == (c in lowalpha),
+                            "is_low_alpha(chr(%i))" % i)
         alpha = upalpha + lowalpha
         for i in xrange(0, 256):
             c = chr(i)
-            self.assertTrue(IsAlpha(c) == (c in alpha), "IsAlpha(chr(%i))" % i)
+            self.assertTrue(uri.is_alpha(c) == (c in alpha),
+                            "is_alpha(chr(%i))" % i)
         digit = "0123456789"
         for i in xrange(0, 256):
             c = chr(i)
-            self.assertTrue(IsDigit(c) == (c in digit), "IsDigit(chr(%i))" % i)
+            self.assertTrue(uri.is_digit(c) == (c in digit),
+                            "is_digit(chr(%i))" % i)
         alphanum = alpha + digit
         for i in xrange(0, 256):
             c = chr(i)
-            self.assertTrue(
-                IsAlphaNum(c) == (c in alphanum), "IsAlphaNum(chr(%i))" % i)
+            self.assertTrue(uri.is_alpha_num(c) == (c in alphanum),
+                            "is_alpha_num(chr(%i))" % i)
         reserved = ";/?:@&=+$,"
         for i in xrange(0, 256):
             c = chr(i)
-            self.assertTrue(
-                IsReserved(c) == (c in reserved), "IsReserved(chr(%i))" % i)
+            self.assertTrue(uri.is_reserved(c) == (c in reserved),
+                            "is_reserved(chr(%i))" % i)
         mark = "-_.!~*'()"
         for i in xrange(0, 256):
             c = chr(i)
-            self.assertTrue(IsMark(c) == (c in mark), "IsMark(chr(%i))" % i)
+            self.assertTrue(uri.is_mark(c) == (c in mark),
+                            "is_mark(chr(%i))" % i)
         unreserved = alphanum + mark
         for i in xrange(0, 256):
             c = chr(i)
-            self.assertTrue(
-                IsUnreserved(c) == (c in unreserved), "IsUnreserved(chr(%i))" % i)
-        control = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1A\x1B\x1C\x1D\x1E\x1F\x7F"
+            self.assertTrue(uri.is_unreserved(c) == (c in unreserved),
+                            "is_unreserved(chr(%i))" % i)
+        control = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D"\
+            "\x0E\x0F\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1A\x1B\x1C"\
+            "\x1D\x1E\x1F\x7F"
         for i in xrange(0, 256):
             c = chr(i)
             self.assertTrue(
-                IsControl(c) == (c in control), "IsControl(chr(%i))" % i)
+                uri.is_control(c) == (c in control), "is_control(chr(%i))" % i)
         space = " "
         for i in xrange(0, 256):
             c = chr(i)
-            self.assertTrue(IsSpace(c) == (c in space), "IsSpace(chr(%i))" % i)
+            self.assertTrue(uri.is_space(c) == (c in space),
+                            "is_space(chr(%i))" % i)
         delims = "<>#%\""
         for i in xrange(0, 256):
             c = chr(i)
             self.assertTrue(
-                IsDelims(c) == (c in delims), "IsDelims(chr(%i))" % i)
+                uri.is_delims(c) == (c in delims), "is_delims(chr(%i))" % i)
         unwise = "{}|\\^[]`"
         for i in xrange(0, 256):
             c = chr(i)
             self.assertTrue(
-                IsUnwise(c) == (c in unwise), "IsUnwise(chr(%i))" % i)
-        authorityReserved = ";:@?/"
+                uri.is_unwise(c) == (c in unwise), "is_unwise(chr(%i))" % i)
+        authority_reserved = ";:@?/"
         for i in xrange(0, 256):
             c = chr(i)
-            self.assertTrue(IsAuthorityReserved(c) == (
-                c in authorityReserved), "IsAuthorityReserved(chr(%i))" % i)
-        pathSegmentReserved = "/;=?"
+            self.assertTrue(uri.is_authority_reserved(c) == (
+                c in authority_reserved), "is_authority_reserved(chr(%i))" % i)
+        path_segment_reserved = "/;=?"
         for i in xrange(0, 256):
             c = chr(i)
-            self.assertTrue(IsPathSegmentReserved(c) == (
-                c in pathSegmentReserved), "IsPathSegmentReserved(chr(%i))" % i)
-        queryReserved = ";/?:@&=+,$"
+            self.assertTrue(uri.is_path_segment_reserved(c) ==
+                            (c in path_segment_reserved),
+                            "is_path_segment_reserved(chr(%i))" % i)
+        query_reserved = ";/?:@&=+,$"
         for i in xrange(0, 256):
             c = chr(i)
-            self.assertTrue(
-                IsQueryReserved(c) == (c in queryReserved), "IsQueryReserved(chr(%i))" % i)
+            self.assertTrue(uri.is_query_reserved(c) == (c in query_reserved),
+                            "is_query_reserved(chr(%i))" % i)
 
-    def testURIC(self):
+    def test_uric(self):
         """uric = reserved | unreserved | escaped"""
-        self.assertTrue(ParseURIC("w ") == 1, "space in URI")
-        self.assertTrue(ParseURIC("'w'>") == 3, "single-quote in URI")
-        self.assertTrue(ParseURIC('"w">') == 0, "double-quote in URI")
-        self.assertTrue(ParseURIC('Caf%E9 ') == 6, "uc hex")
-        self.assertTrue(ParseURIC('Caf%e9 ') == 6, "lc hex")
-        self.assertTrue(ParseURIC('index#frag') == 5, "fragment in URI")
+        self.assertTrue(uri.parse_uric("w ") == 1, "space in URI")
+        self.assertTrue(uri.parse_uric("'w'>") == 3, "single-quote in URI")
+        self.assertTrue(uri.parse_uric('"w">') == 0, "double-quote in URI")
+        self.assertTrue(uri.parse_uric('Caf%E9 ') == 6, "uc hex")
+        self.assertTrue(uri.parse_uric('Caf%e9 ') == 6, "lc hex")
+        self.assertTrue(uri.parse_uric('index#frag') == 5, "fragment in URI")
 
-    def testEscape(self):
-        DATA = "\t\n\r !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
-        ESCAPED_NORMAL = "%09%0A%0D%20!%22%23%24%25%26'()*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"
-        ESCAPED_MAX = "%09%0A%0D%20%21%22%23%24%25%26%27%28%29%2A%2B%2C%2D%2E%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E%5F%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D%7E"
-        ESCAPED_MIN = "%09%0A%0D%20!%22%23$%25&'()*+,-./0123456789:;%3C=%3E?@ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"
-        self.CompareStrings(
-            ESCAPED_NORMAL, EscapeData(DATA), "Normal escaping")
-        self.CompareStrings(
-            ESCAPED_MAX, EscapeData(DATA, lambda x: not IsAlphaNum(x)), "Max escaping")
-        self.CompareStrings(
-            ESCAPED_MIN, EscapeData(DATA, lambda x: False), "Min escaping")
-        self.CompareStrings(
-            DATA, UnescapeData(EscapeData(DATA)), "Round-trip escaping")
+    def test_escape(self):
+        data = "\t\n\r !\"#$%&'()*+,-./0123456789:;<=>?@"\
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+        escaped_normal = "%09%0A%0D%20!%22%23%24%25%26'()*%2B%2C-.%2F"\
+            "0123456789%3A%3B%3C%3D%3E%3F%40"\
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60"\
+            "abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"
+        escaped_max = "%09%0A%0D%20%21%22%23%24%25%26%27%28%29%2A%2B%2C%2D"\
+            "%2E%2F0123456789%3A%3B%3C%3D%3E%3F%40"\
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E%5F%60"\
+            "abcdefghijklmnopqrstuvwxyz%7B%7C%7D%7E"
+        escaped_min = "%09%0A%0D%20!%22%23$%25&'()*+,-./0123456789:;%3C=%3E?@"\
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60"\
+            "abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"
+        self.compare_strings(
+            escaped_normal, uri.escape_data(data), "Normal escaping")
+        self.compare_strings(escaped_max, uri.escape_data(data,
+                             lambda x: not uri.is_alpha_num(x)),
+                             "Max escaping")
+        self.compare_strings(
+            escaped_min, uri.escape_data(data, lambda x: False),
+            "Min escaping")
+        self.compare_strings(data,
+                             uri.unescape_data(uri.escape_data(data)),
+                             "Round-trip escaping")
 
-    def CompareStrings(self, expected, found, label="Test"):
+    def compare_strings(self, expected, found, label="Test"):
         for i in xrange(len(expected)):
             if i >= len(found):
                 self.fail("%s truncation failure:\n%s... expected %s" %
                           (label, found[0:i], expected[i]))
             if expected[i] == found[i]:
                 continue
-            self.fail("%s mismatch:\n%s... expected %s ; found %s" % (
-                label, repr(found[0:i + 1]), repr(expected[i]), repr(found[i])))
+            self.fail("%s mismatch:\n%s... expected %s ; found %s" %
+                      (label, repr(found[0:i + 1]),
+                       repr(expected[i]), repr(found[i])))
 
-    def testPathSegments(self):
-        # if there is no absPath in a URI then absPath will be None, should be
-        # safe to split
-        segments = SplitAbsPath(None)
+    def test_path_segments(self):
+        # if there is no abs_path in a URI then abs_path will be None,
+        # should be safe to split
+        segments = uri.split_abs_path(None)
         self.assertTrue(segments == [])
-        # an absPath cannot be an empty string so treat this the same as None
-        segments = SplitAbsPath('')
+        # an abs_path cannot be an empty string so treat this the same as None
+        segments = uri.split_abs_path('')
         self.assertTrue(segments == [])
-        # if there is an absPath there is always at least one segment, so '/'
+        # if there is an abs_path there is always at least one segment, so '/'
         # is a single empty segment
-        segments = SplitAbsPath('/')
+        segments = uri.split_abs_path('/')
         self.assertTrue(segments == [''])
         # we don't decode when splitting, segments can contain params
-        segments = SplitAbsPath('/Caf%e9/Nero;LHR.T2/Table4/')
+        segments = uri.split_abs_path('/Caf%e9/Nero;LHR.T2/Table4/')
         self.assertTrue(segments == ['Caf%e9', 'Nero;LHR.T2', 'Table4', ''])
         # A segment may be empty
-        pchar, params = SplitPathSegment('')
+        pchar, params = uri.split_path_segment('')
         self.assertTrue(pchar == '' and params == [])
         # A segment may have no params (and should not remove escaping)
-        pchar, params = SplitPathSegment('Caf%e9')
+        pchar, params = uri.split_path_segment('Caf%e9')
         self.assertTrue(pchar == 'Caf%e9' and params == [])
         # A segment param may be empty
-        pchar, params = SplitPathSegment('Nero;')
-        self.assertTrue(
-            pchar == 'Nero' and params == [''], "Got: %s %s" % (pchar, str(params)))
+        pchar, params = uri.split_path_segment('Nero;')
+        self.assertTrue(pchar == 'Nero' and params == [''],
+                        "Got: %s %s" % (pchar, str(params)))
         # A segment may consist only of params
-        pchar, params = SplitPathSegment(';Nero')
+        pchar, params = uri.split_path_segment(';Nero')
         self.assertTrue(pchar == '' and params == ['Nero'])
         # Degenerate params
-        pchar, params = SplitPathSegment(';')
+        pchar, params = uri.split_path_segment(';')
         self.assertTrue(pchar == '' and params == [''])
         # A segment param does not remove escaping
-        pchar, params = SplitPathSegment('Nero;LHR.T2;curr=%a3')
+        pchar, params = uri.split_path_segment('Nero;LHR.T2;curr=%a3')
         self.assertTrue(pchar == 'Nero' and params == ['LHR.T2', 'curr=%a3'])
 
-    def testServer(self):
+    def test_server(self):
         keys = SERVER_EXAMPLES.keys()
         for k in keys:
-            userinfo, host, port = SplitServer(k)
+            userinfo, host, port = uri.split_server(k)
             userinfo2, host2, port2 = SERVER_EXAMPLES[k]
             self.assertTrue(
                 userinfo == userinfo2, "%s found userinfo %s" % (k, userinfo2))
@@ -247,7 +270,7 @@ REL_BASE2 = "c/d;p?q"
 
 REL_CURRENT = "current.doc"
 REL_EXAMPLES = {
-    # resolved URI, scheme, authority, absPath, relPath, query, fragment
+    # resolved URI, scheme, authority, abs_path, rel_path, query, fragment
     'g:h': ('g:h', 'g', None, None, None, None, None),
     'g': ('http://a/b/c/g', None, None, None, 'g', None, None),
     './g': ('http://a/b/c/g', None, None, None, './g', None, None),
@@ -282,283 +305,290 @@ REL_EXAMPLES = {
 
 class URITests(unittest.TestCase):
 
-    def testCaseConstructor(self):
-        u = URI(SIMPLE_EXAMPLE)
-        self.assertTrue(isinstance(u, URI))
+    def test_constructor(self):
+        u = uri.URI(SIMPLE_EXAMPLE)
+        self.assertTrue(isinstance(u, uri.URI))
         self.assertTrue(str(u) == SIMPLE_EXAMPLE)
         try:
-            u = URI(LIST_EXAMPLE)
+            u = uri.URI(LIST_EXAMPLE)
             # we don't support this type of thing any more
             # self.assertTrue(str(u)==SIMPLE_EXAMPLE,"Simple from list")
-        except URIException:
+        except uri.URIException:
             pass
-        u = URI(u'\u82f1\u56fd.xml')
+        u = uri.URI.from_octets(u'\u82f1\u56fd.xml')
         self.assertTrue(
             str(u) == '%E8%8B%B1%E5%9B%BD.xml', "Unicode example: %s" % str(u))
         self.assertTrue(type(u.octets) is StringType, "octest must be string")
 
-    def testCaseCompare(self):
-        u1 = URI(SIMPLE_EXAMPLE)
-        u2 = URI(SIMPLE_EXAMPLE)
+    def test_compare(self):
+        u1 = uri.URI(SIMPLE_EXAMPLE)
+        u2 = uri.URI(SIMPLE_EXAMPLE)
         self.assertTrue(
             u1.match(u2) and u2.match(u1), "Equal URIs fail to match")
-        u2 = URI('hello.xml')
+        u2 = uri.URI('hello.xml')
         self.assertFalse(
             u1.match(u2) or u2.match(u1), "Mismatched URIs do match")
-        u1 = URI("HTTP://www.example.com/")
-        u2 = URI("http://www.example.com/")
+        u1 = uri.URI("HTTP://www.example.com/")
+        u2 = uri.URI("http://www.example.com/")
         self.assertTrue(
             u1.match(u2) and u2.match(u1), "Equal URIs fail to match")
 
-    def testCaseScheme(self):
-        u = URI(SIMPLE_EXAMPLE)
-        self.assertTrue(u.IsAbsolute(), "Absolute test")
+    def test_scheme(self):
+        u = uri.URI(SIMPLE_EXAMPLE)
+        self.assertTrue(u.is_absolute(), "Absolute test")
         self.assertTrue(u.scheme == 'http', "Scheme")
-        self.assertTrue(u.schemeSpecificPart == '//www.example.com/')
-        u = URI(RELATIVE_EXAMPLE)
-        self.assertFalse(u.IsAbsolute(), "Relative test")
+        self.assertTrue(u.scheme_specific_part == '//www.example.com/')
+        u = uri.URI(RELATIVE_EXAMPLE)
+        self.assertFalse(u.is_absolute(), "Relative test")
         self.assertTrue(u.scheme is None, "relative scheme")
-        self.assertTrue(u.schemeSpecificPart is None)
+        self.assertTrue(u.scheme_specific_part is None)
 
-    def testCaseFragment(self):
-        u = URI(SIMPLE_EXAMPLE)
+    def test_fragment(self):
+        u = uri.URI(SIMPLE_EXAMPLE)
         self.assertTrue(u.fragment is None, "no fragment")
-        u = URI('http://www.ics.uci.edu/pub/ietf/uri/#Related')
-        self.assertTrue(
-            u.schemeSpecificPart == '//www.ics.uci.edu/pub/ietf/uri/', 'URI with fragment')
+        u = uri.URI('http://www.ics.uci.edu/pub/ietf/uri/#Related')
+        self.assertTrue(u.scheme_specific_part ==
+                        '//www.ics.uci.edu/pub/ietf/uri/', 'URI with fragment')
         self.assertTrue(u.fragment == 'Related', 'fragment')
 
-    def testCaseAbsoluteExamples(self):
+    def test_absolute_examples(self):
         keys = ABS_EXAMPLES.keys()
         for k in keys:
             logging.info("Testing absolute: %s", k)
-            u = URI(k)
-            scheme, opaquePart, authority, absPath, query, fName = ABS_EXAMPLES[
-                k]
-            self.assertTrue(
-                scheme == u.scheme, "%s found scheme %s" % (k, u.scheme))
-            self.assertTrue(
-                opaquePart == u.opaquePart, "%s found opaquePart %s" % (k, u.opaquePart))
-            self.assertTrue(
-                authority == u.authority, "%s found authority %s" % (k, u.authority))
-            self.assertTrue(
-                absPath == u.absPath, "%s found absPath %s" % (k, u.absPath))
-            self.assertTrue(
-                query == u.query, "%s found query %s" % (k, u.query))
-            self.assertTrue(
-                fName == u.GetFileName(), "%s found file name %s" % (k, u.GetFileName()))
+            u = uri.URI(k)
+            scheme, opaque_part, authority, abs_path, query, fName = \
+                ABS_EXAMPLES[k]
+            self.assertTrue(scheme == u.scheme,
+                            "%s found scheme %s" % (k, u.scheme))
+            self.assertTrue(opaque_part == u.opaque_part,
+                            "%s found opaque_part %s" % (k, u.opaque_part))
+            self.assertTrue(authority == u.authority,
+                            "%s found authority %s" % (k, u.authority))
+            self.assertTrue(abs_path == u.abs_path,
+                            "%s found abs_path %s" % (k, u.abs_path))
+            self.assertTrue(query == u.query,
+                            "%s found query %s" % (k, u.query))
+            self.assertTrue(fName == u.get_file_name(),
+                            "%s found file name %s" % (k, u.get_file_name()))
 
-    def testCaseRelativeExamples(self):
+    def test_relative_examples(self):
         keys = REL_EXAMPLES.keys()
-        base = URI(REL_BASE)
-        current = URI(REL_CURRENT)
+        base = uri.URI(REL_BASE)
+        current = uri.URI(REL_CURRENT)
         relatives = {}
         for k in keys:
             logging.info("Testing relative: %s", k)
-            u = URI(k)
-            resolved, scheme, authority, absPath, relPath, query, fragment = REL_EXAMPLES[
-                k]
+            u = uri.URI(k)
+            resolved, scheme, authority, abs_path, rel_path, query, \
+                fragment = REL_EXAMPLES[k]
             relatives[resolved] = relatives.get(resolved, []) + [k]
-            resolution = str(u.Resolve(base, current))
-            self.assertTrue(
-                scheme == u.scheme, "%s found scheme %s" % (k, u.scheme))
-            self.assertTrue(
-                authority == u.authority, "%s found authority %s" % (k, u.authority))
-            self.assertTrue(
-                absPath == u.absPath, "%s found absPath %s" % (k, u.absPath))
-            self.assertTrue(
-                relPath == u.relPath, "%s found relPath %s" % (k, u.relPath))
-            self.assertTrue(
-                query == u.query, "%s found query %s" % (k, u.query))
-            self.assertTrue(
-                fragment == u.fragment, "%s found fragment %s" % (k, u.fragment))
-            self.assertTrue(
-                resolved == resolution, "%s [*] %s = %s ; found %s" % (str(base), k, resolved, resolution))
+            resolution = str(u.resolve(base, current))
+            self.assertTrue(scheme == u.scheme,
+                            "%s found scheme %s" % (k, u.scheme))
+            self.assertTrue(authority == u.authority,
+                            "%s found authority %s" % (k, u.authority))
+            self.assertTrue(abs_path == u.abs_path,
+                            "%s found abs_path %s" % (k, u.abs_path))
+            self.assertTrue(rel_path == u.rel_path,
+                            "%s found rel_path %s" % (k, u.rel_path))
+            self.assertTrue(query == u.query,
+                            "%s found query %s" % (k, u.query))
+            self.assertTrue(fragment == u.fragment,
+                            "%s found fragment %s" % (k, u.fragment))
+            self.assertTrue(resolved == resolution,
+                            "%s [*] %s = %s ; found %s" %
+                            (str(base), k, resolved, resolution))
         for r in relatives.keys():
-            logging.info(
-                "Testing %s [/] %s = ( %s )", r, str(base), string.join(relatives[r], ' | '))
-            u = URI(r)
+            logging.info("Testing %s [/] %s = ( %s )", r, str(base),
+                         string.join(relatives[r], ' | '))
+            u = uri.URI(r)
             # this check removes the 'current document' case
-            if not u.IsAbsolute():
+            if not u.is_absolute():
                 continue
-            relative = str(u.Relative(base))
+            relative = str(u.relative(base))
             # relative should be one of the relatives!
-            noMatch = True
+            no_match = True
             for k in relatives[r]:
                 if k == relative:
-                    noMatch = False
+                    no_match = False
                     break
-            self.assertFalse(noMatch, "%s [/] %s = ( %s ) ; found %s" %
-                             (r, str(base), string.join(relatives[r], ' | '), relative))
+            self.assertFalse(no_match, "%s [/] %s = ( %s ) ; found %s" %
+                             (r, str(base), string.join(relatives[r], ' | '),
+                              relative))
 
-    def testCaseRelativeJoinExamples(self):
+    def test_relative_join_examples(self):
         keys = REL_EXAMPLES.keys()
-        base1 = URI(REL_BASE1)
-        base2 = URI(REL_BASE2)
-        current = URI(REL_CURRENT)
+        base1 = uri.URI(REL_BASE1)
+        base2 = uri.URI(REL_BASE2)
+        current = uri.URI(REL_CURRENT)
         relatives = {}
         for k in keys:
-            u = URI(k)
+            u = uri.URI(k)
             if not u.octets:  # don't test same document cases
                 continue
-            resolved, scheme, authority, absPath, relPath, query, fragment = REL_EXAMPLES[
-                k]
-            logging.info(
-                "Testing: %s [*] ( %s [*] %s ) = %s", str(base1), str(base2), k, resolved)
+            resolved, scheme, authority, abs_path, rel_path, query, \
+                fragment = REL_EXAMPLES[k]
+            logging.info("Testing: %s [*] ( %s [*] %s ) = %s",
+                         str(base1), str(base2), k, resolved)
             # two-step resolution, first combines relative URLs, second
             # resolves to absolute
-            resolution1 = u.Resolve(base2, current)
+            resolution1 = u.resolve(base2, current)
             relatives[str(resolution1)] = relatives.get(
                 str(resolution1), []) + [k]
-            resolution2 = str(resolution1.Resolve(base1, current))
-            self.assertTrue(
-                scheme == u.scheme, "%s found scheme %s" % (k, u.scheme))
-            self.assertTrue(
-                authority == u.authority, "%s found authority %s" % (k, u.authority))
-            self.assertTrue(
-                absPath == u.absPath, "%s found absPath %s" % (k, u.absPath))
-            self.assertTrue(
-                relPath == u.relPath, "%s found relPath %s" % (k, u.relPath))
-            self.assertTrue(
-                query == u.query, "%s found query %s" % (k, u.query))
-            self.assertTrue(
-                fragment == u.fragment, "%s found fragment %s" % (k, u.fragment))
-            self.assertTrue(resolved == resolution2, "%s [*] ( %s [*] %s ) = %s ; found %s" % (
-                str(base1), str(base2), k, resolved, resolution2))
+            resolution2 = str(resolution1.resolve(base1, current))
+            self.assertTrue(scheme == u.scheme,
+                            "%s found scheme %s" % (k, u.scheme))
+            self.assertTrue(authority == u.authority,
+                            "%s found authority %s" % (k, u.authority))
+            self.assertTrue(abs_path == u.abs_path,
+                            "%s found abs_path %s" % (k, u.abs_path))
+            self.assertTrue(rel_path == u.rel_path,
+                            "%s found rel_path %s" % (k, u.rel_path))
+            self.assertTrue(query == u.query,
+                            "%s found query %s" % (k, u.query))
+            self.assertTrue(fragment == u.fragment,
+                            "%s found fragment %s" % (k, u.fragment))
+            self.assertTrue(resolved == resolution2,
+                            "%s [*] ( %s [*] %s ) = %s ; found %s" %
+                            (str(base1), str(base2), k, resolved, resolution2))
         for r in relatives.keys():
-            logging.info(
-                "Testing: %s [/] %s = ( %s )", r, str(base2), string.join(relatives[r], ' | '))
-            u = URI(r)
+            logging.info("Testing: %s [/] %s = ( %s )", r,
+                         str(base2), string.join(relatives[r], ' | '))
+            u = uri.URI(r)
             # this check removes the 'current document' case
             if u.octets == 'current.doc':
                 continue
-            relative = str(u.Relative(base2))
+            relative = str(u.relative(base2))
             # now relative should be one of the relatives!
-            noMatch = True
+            no_match = True
             for k in relatives[r]:
                 if k == relative:
-                    noMatch = False
+                    no_match = False
                     break
-            self.assertFalse(
-                noMatch, "%s [/] %s = ( %s ); found %s" % (r, str(base2), repr(relatives[r]), relative))
+            self.assertFalse(no_match, "%s [/] %s = ( %s ); found %s" %
+                             (r, str(base2), repr(relatives[r]), relative))
 
 FILE_EXAMPLE = "file://vms.host.edu/disk$user/my/notes/note12345.txt"
 
 
 class FileURLTests(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self):    # noqa
         self.cwd = os.getcwd()
-        self.dataPath = os.path.join(
+        self.data_path = os.path.join(
             os.path.split(__file__)[0], 'data_rfc2396')
-        if not os.path.isabs(self.dataPath):
-            self.dataPath = os.path.join(os.getcwd(), self.dataPath)
+        if not os.path.isabs(self.data_path):
+            self.data_path = os.path.join(os.getcwd(), self.data_path)
 
-    def testCaseConstructor(self):
-        u = URIFactory.URI(FILE_EXAMPLE)
-        self.assertTrue(isinstance(u, URI), "FileURL is URI")
-        self.assertTrue(isinstance(u, FileURL), "FileURI is FileURL")
+    def test_constructor(self):
+        u = uri.URI.from_octets(FILE_EXAMPLE)
+        self.assertTrue(isinstance(u, uri.URI), "FileURL is URI")
+        self.assertTrue(isinstance(u, uri.FileURL), "FileURI is FileURL")
         self.assertTrue(str(u) == FILE_EXAMPLE)
-        u = FileURL()
+        u = uri.FileURL()
         self.assertTrue(str(u) == 'file:///', 'Default file')
 
-    def testCasePathnames(self):
-        force8Bit = type(self.dataPath) is StringType
-        base = URIFactory.URLFromPathname(self.dataPath)
-        self.assertTrue(base.GetPathname(force8Bit) == self.dataPath,
-                        "Expected %s found %s" % (self.dataPath, base.GetPathname(force8Bit)))
-        for dirpath, dirnames, filenames in os.walk(self.dataPath):
-            self.VisitMethod(dirpath, filenames)
+    def test_pathnames(self):
+        force_8bit = type(self.data_path) is StringType
+        base = uri.URI.from_path(self.data_path)
+        self.assertTrue(base.get_pathname(force_8bit) == self.data_path,
+                        "Expected %s found %s" %
+                        (self.data_path, base.get_pathname(force_8bit)))
+        for dirpath, dirnames, filenames in os.walk(self.data_path):
+            self.visit_method(dirpath, filenames)
 
-    def testCaseUnicodePathnames(self):
-        if type(self.dataPath) is StringType:
+    def test_unicode_pathnames(self):
+        if type(self.data_path) is StringType:
             c = sys.getfilesystemencoding()
-            dataPath = unicode(self.dataPath, c)
+            data_path = unicode(self.data_path, c)
         else:
-            dataPath = self.dataPath
-        base = URIFactory.URLFromPathname(dataPath)
+            data_path = self.data_path
+        base = uri.URI.from_path(data_path)
         if os.path.supports_unicode_filenames:
-            dataPath2 = base.GetPathname()
-            self.assertTrue(
-                type(dataPath2) is UnicodeType, "Expected GetPathname to return unicode")
-            self.assertTrue(dataPath2 == dataPath,
-                            u"Expected %s found %s" % (dataPath, dataPath2))
-            # os.path.walk(dataPath,self.VisitMethod,None)
-            for dirpath, dirnames, filenames in os.walk(dataPath):
-                self.VisitMethod(dirpath, filenames)
+            data_path2 = base.get_pathname()
+            self.assertTrue(type(data_path2) is UnicodeType,
+                            "Expected get_pathname to return unicode")
+            self.assertTrue(data_path2 == data_path,
+                            u"Expected %s found %s" % (data_path, data_path2))
+            # os.path.walk(data_path,self.visit_method,None)
+            for dirpath, dirnames, filenames in os.walk(data_path):
+                self.visit_method(dirpath, filenames)
         else:
-            dataPath2 = base.GetPathname()
-            self.assertTrue(
-                type(dataPath2) is StringType, "Expected GetPathname to return string")
-            logging.warn(
-                "os.path.supports_unicode_filenames is False (skipped unicode path tests)")
+            data_path2 = base.get_pathname()
+            self.assertTrue(type(data_path2) is StringType,
+                            "Expected get_pathname to return string")
+            logging.warn("os.path.supports_unicode_filenames is False "
+                         "(skipped unicode path tests)")
 
-    def VisitMethod(self, dirname, names):
-        d = URIFactory.URLFromPathname(os.path.join(dirname, os.curdir))
+    def visit_method(self, dirname, names):
+        d = uri.URI.from_path(os.path.join(dirname, os.curdir))
         c = sys.getfilesystemencoding()
         for name in names:
             if name.startswith('??'):
-                logging.warn(
-                    "8-bit path tests limited to ASCII file names by %s encoding", c)
+                logging.warn("8-bit path tests limited to ASCII file names "
+                             "by %s encoding", c)
                 continue
-            joinMatch = os.path.join(dirname, name)
+            join_match = os.path.join(dirname, name)
             if type(name) is UnicodeType:
-                segName = EscapeData(
-                    name.encode('utf-8'), IsPathSegmentReserved)
+                seg_name = uri.escape_data(
+                    name.encode('utf-8'), uri.is_path_segment_reserved)
             else:
-                segName = EscapeData(name, IsPathSegmentReserved)
-            u = URI(segName)
-            u = u.Resolve(d)
-            self.assertTrue(isinstance(u, FileURL))
-            joined = u.GetPathname()
-            if type(joinMatch) is StringType and type(joined) is UnicodeType:
+                seg_name = uri.escape_data(name, uri.is_path_segment_reserved)
+            u = uri.URI(seg_name)
+            u = u.resolve(d)
+            self.assertTrue(isinstance(u, uri.FileURL))
+            joined = u.get_pathname()
+            if type(join_match) is StringType and type(joined) is UnicodeType:
                 # if we're walking in 8-bit mode we need to downgrade to
                 # compare
                 joined = joined.encode(c)
-            self.assertTrue(
-                joined == joinMatch, "Joined pathnames mismatch:\n%s\n%s" % (joined, joinMatch))
+            self.assertTrue(joined == join_match,
+                            "Joined pathnames mismatch:\n%s\n%s" %
+                            (joined, join_match))
 
 
 class VirtualFileURLTests(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self):        # noqa
         self.vfs = vfs.defaultFS
         self.cwd = self.vfs.getcwd()
-        self.dataPath = self.vfs(__file__).split()[0].join('data_rfc2396')
-        if not self.dataPath.isabs():
-            self.dataPath = self.vfs.getcwd().join(self.dataPath)
+        self.data_path = self.vfs(__file__).split()[0].join('data_rfc2396')
+        if not self.data_path.isabs():
+            self.data_path = self.vfs.getcwd().join(self.data_path)
 
-    def testCaseConstructor(self):
-        u = URIFactory.URI(FILE_EXAMPLE)
-        self.assertTrue(isinstance(u, URI), "FileURL is URI")
-        self.assertTrue(isinstance(u, FileURL), "FileURI is FileURL")
+    def test_constructor(self):
+        u = uri.URI.from_octets(FILE_EXAMPLE)
+        self.assertTrue(isinstance(u, uri.URI), "FileURL is URI")
+        self.assertTrue(isinstance(u, uri.FileURL), "FileURI is FileURL")
         self.assertTrue(str(u) == FILE_EXAMPLE)
-        u = FileURL()
+        u = uri.FileURL()
         self.assertTrue(str(u) == 'file:///', 'Default file')
 
-    def testCasePathnames(self):
-        base = URIFactory.URLFromVirtualFilePath(self.dataPath)
-        self.assertTrue(base.GetVirtualFilePath() == self.dataPath,
-                        "Expected %s found %s" % (self.dataPath, base.GetVirtualFilePath()))
-        for dirpath, dirnames, filenames in self.dataPath.walk():
-            self.VisitMethod(dirpath, filenames)
+    def test_pathnames(self):
+        base = uri.URI.from_virtual_path(self.data_path)
+        self.assertTrue(base.get_virtual_file_path() == self.data_path,
+                        "Expected %s found %s" %
+                        (self.data_path, base.get_virtual_file_path()))
+        for dirpath, dirnames, filenames in self.data_path.walk():
+            self.visit_method(dirpath, filenames)
 
-    def VisitMethod(self, dirname, names):
+    def visit_method(self, dirname, names):
         # Make d a directory like path by adding an empty component at the end
-        d = URIFactory.URLFromVirtualFilePath(dirname.join(dirname.curdir))
+        d = uri.URI.from_virtual_path(dirname.join(dirname.curdir))
         for name in names:
             if unicode(name).startswith('??'):
                 logging.warn("8-bit path tests limited to ASCII file names")
                 continue
-            joinMatch = dirname.join(name)
-            segName = EscapeData(
-                unicode(name).encode('utf-8'), IsPathSegmentReserved)
-            u = URI(segName)
-            u = u.Resolve(d)
-            self.assertTrue(isinstance(u, FileURL))
-            joined = u.GetVirtualFilePath()
-            self.assertTrue(
-                joined == joinMatch, "Joined pathnames mismatch:\n%s\n%s" % (joined, joinMatch))
+            join_match = dirname.join(name)
+            seg_name = uri.escape_data(
+                unicode(name).encode('utf-8'), uri.is_path_segment_reserved)
+            u = uri.URI(seg_name)
+            u = u.resolve(d)
+            self.assertTrue(isinstance(u, uri.FileURL))
+            joined = u.get_virtual_file_path()
+            self.assertTrue(joined == join_match,
+                            "Joined pathnames mismatch:\n%s\n%s" %
+                            (joined, join_match))
 
 
 if __name__ == "__main__":

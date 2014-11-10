@@ -13,6 +13,8 @@ pyslet/http/params.py
 unittests/test_http_params.py
 pyslet/http/server.py
 unittests/test_http_server.py
+pyslet/imsbltiv1p0.py
+unittests/test_imsbltiv1p0.py
 pyslet/odata2/metadata.py
 pyslet/odata2/memds.py
 unittests/test_odata2_csdl.py
@@ -22,6 +24,8 @@ pyslet/odata2/sqlds.py
 unittests/test_odata2_sqlds.py
 pyslet/pep8.py
 pyslet/py26.py
+pyslet/rfc2396.py
+unittests/test_rfc2396.py
 pyslet/rfc2616.py
 pyslet/rfc2617.py
 pyslet/xml20081126/parser.py

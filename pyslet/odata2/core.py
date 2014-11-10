@@ -1761,7 +1761,7 @@ def ParseURILiteral(source):
             *   the value, represented with the closest python built-in type
 
     The special string "null" returns None,None"""
-    p = Parser(uri.UnescapeData(source).decode('utf-8'))
+    p = Parser(uri.unescape_data(source).decode('utf-8'))
     return p.require_production_end(p.ParseURILiteral(), "uri literal")
 
 
@@ -2015,7 +2015,7 @@ class ODataURI:
 
     def __init__(self, dsURI, pathPrefix='', version=2):
         if not isinstance(dsURI, uri.URI):
-            dsURI = uri.URIFactory.URI(dsURI)
+            dsURI = uri.URI.from_octets(dsURI)
         #: a :py:class:`pyslet.rfc2396.URI` instance representing the
         #: whole URI
         self.uri = dsURI
@@ -2039,16 +2039,16 @@ class ODataURI:
         #: to their values
         self.sysQueryOptions = {}
         self.paramTable = {}
-        if dsURI.absPath is None:
+        if dsURI.abs_path is None:
             # relative paths are resolved relative to the pathPrefix
             # with an added slash! so
             # ODataURI('Products','/OData/OData.svc') is treated as
             # '/OData/OData.svc/Products'
-            dsURI = uri.URIFactory.Resolve(pathPrefix + '/', dsURI)
-        if dsURI.absPath is None:
+            dsURI = dsURI.resolve(pathPrefix + '/')
+        if dsURI.abs_path is None:
             #   both dsURI and pathPrefix are relative, this is an error
             raise ValueError("pathPrefix cannot be relative: %s" % pathPrefix)
-        if pathPrefix and not dsURI.absPath.startswith(pathPrefix):
+        if pathPrefix and not dsURI.abs_path.startswith(pathPrefix):
             # this is not a URI we own
             return
         #
@@ -2057,22 +2057,22 @@ class ODataURI:
             rawOptions = dsURI.query.split('&')
             for paramDef in rawOptions:
                 if paramDef.startswith('$'):
-                    param_name = uri.UnescapeData(
+                    param_name = uri.unescape_data(
                         paramDef[1:paramDef.index('=')]).decode('utf-8')
                     param, param_value = self.ParseSystemQueryOption(
-                        param_name, uri.UnescapeData(
+                        param_name, uri.unescape_data(
                             paramDef[
                                 paramDef.index('=') + 1:]).decode('utf-8'))
                     self.sysQueryOptions[param] = param_value
                 else:
                     if '=' in paramDef:
-                        param_name = uri.UnescapeData(
+                        param_name = uri.unescape_data(
                             paramDef[:paramDef.index('=')]).decode('utf-8')
                         self.paramTable[param_name] = len(self.queryOptions)
                     self.queryOptions.append(paramDef)
         #
         #   Unpack the resource path
-        self.resourcePath = dsURI.absPath[len(pathPrefix):]
+        self.resourcePath = dsURI.abs_path[len(pathPrefix):]
         if self.resourcePath == '/':
             self.navPath = []
         else:
@@ -2214,7 +2214,7 @@ class ODataURI:
             # some type of control word
             return segment, None
         elif '(' in segment and segment[-1] == ')':
-            name = uri.UnescapeData(
+            name = uri.unescape_data(
                 segment[:segment.index('(')]).decode('utf-8')
             keys = segment[segment.index('(') + 1:-1]
             if keys == '':
@@ -2233,12 +2233,12 @@ class ODataURI:
                         raise ValueError(
                             "unrecognized key predicate: %s" % repr(keys))
                     kname, value = nv
-                    kname = uri.UnescapeData(kname).decode('utf-8')
+                    kname = uri.unescape_data(kname).decode('utf-8')
                     kvalue = ParseURILiteral(value)
                     keyPredicate[kname] = kvalue
                 return name, keyPredicate
         else:
-            return uri.UnescapeData(segment).decode('utf-8'), None
+            return uri.unescape_data(segment).decode('utf-8'), None
 
     def get_param_value(self, param_name):
         if param_name in self.paramTable:
@@ -2261,7 +2261,7 @@ class ODataURI:
             for k, v in d.iteritems():
                 keyStr.append("%s=%s" % (k, cls.FormatLiteral(v)))
             keyStr = "(%s)" % string.join(keyStr, ",")
-        return uri.EscapeData(keyStr.encode('utf-8'))
+        return uri.escape_data(keyStr.encode('utf-8'))
 
     @classmethod
     def FormatEntityKey(cls, entity):
@@ -2277,7 +2277,7 @@ class ODataURI:
         return string.join(
             map(lambda x: "$%s=%s" % (
                 str(SystemQueryOption.EncodeValue(x[0])),
-                uri.EscapeData(x[1].encode('utf-8'))),
+                uri.escape_data(x[1].encode('utf-8'))),
                 sysQueryOptions.items()),
             '&')
 
@@ -2311,7 +2311,7 @@ class Entity(edm.Entity):
     """We override Entity in order to provide OData serialisation."""
 
     def get_location(self):
-        return uri.URIFactory.URI(
+        return uri.URI.from_octets(
             str(self.entity_set.get_location()) + ODataURI.FormatEntityKey(self))
 
     def get_content_type(self):
@@ -2384,16 +2384,15 @@ class Entity(edm.Entity):
                     for link in links:
                         if len(link) == 1 and '__metadata' in link:
                             # bind to an existing entity
-                            href = uri.URIFactory.URI(
+                            href = uri.URI.from_octets(
                                 link['__metadata']['uri'])
                             if entity_resolver is not None:
-                                if not href.IsAbsolute():
+                                if not href.is_absolute():
                                     #   we'll assume that the base URI is the
                                     #   location of this entity once it is
                                     #   created.  Witness this thread:
                                     #   http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
-                                    href = uri.URIFactory.Resolve(
-                                        self.get_location(), href)
+                                    href = href.resolve(self.get_location())
                                 targetEntity = entity_resolver(href)
                                 if isinstance(targetEntity, Entity) and targetEntity.entity_set is targetSet:
                                     self[navProperty].BindEntity(targetEntity)
@@ -2422,14 +2421,13 @@ class Entity(edm.Entity):
                 if '__metadata' in link:
                     targetSet = self.entity_set.NavigationTarget(navProperty)
                     # bind to an existing entity
-                    href = uri.URIFactory.URI(link['__metadata']['uri'])
+                    href = uri.URI.from_octets(link['__metadata']['uri'])
                     if entity_resolver is not None:
-                        if not href.IsAbsolute():
+                        if not href.is_absolute():
                             #   we'll assume that the base URI is the
                             #   location of this entity.  Witness this thread:
                             #   http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
-                            href = uri.URIFactory.Resolve(
-                                self.get_location(), href)
+                            href = href.resolve(self.get_location())
                         targetEntity = entity_resolver(href)
                         if isinstance(targetEntity, Entity) and targetEntity.entity_set is targetSet:
                             self[navProperty].BindEntity(targetEntity)
@@ -2741,7 +2739,7 @@ class EntityCollection(edm.EntityCollection):
                     SystemQueryOption.orderby] = CommonExpression.OrderByToString(
                     self.orderby)
             sysQueryOptions[SystemQueryOption.skiptoken] = unicode(token)
-            return uri.URIFactory.URI(
+            return uri.URI.from_octets(
                 str(baseURL) +
                 "?" +
                 ODataURI.FormatSysQueryOptions(sysQueryOptions))
@@ -2892,7 +2890,7 @@ class EntityCollection(edm.EntityCollection):
             skiptoken = self.next_skiptoken()
             if skiptoken is not None:
                 yield '],"__next":{"uri":%s}}' % json.dumps(str(self.get_location()) +
-                                                            "?$skiptoken=%s" % uri.EscapeData(skiptoken, uri.IsQueryReserved))
+                                                            "?$skiptoken=%s" % uri.escape_data(skiptoken, uri.is_query_reserved))
             else:
                 yield ']}'
 
@@ -2931,10 +2929,10 @@ class NavigationCollection(EntityCollection, edm.NavigationCollection):
         :py:class:`rfc2396.URI` instance.
 
         We override the location based on the source entity set + the fromKey."""
-        return uri.URIFactory.URI(string.join([
+        return uri.URI.from_octets(string.join([
             str(self.from_entity.get_location()),
             '/',
-            uri.EscapeData(self.name)], ''))
+            uri.escape_data(self.name)], ''))
 
     def get_title(self):
         return self.name
@@ -3495,13 +3493,12 @@ class Entry(atom.Entry):
                     #   this is the tricky bit, we need to resolve
                     #   the URI to an entity key
                     href = link.ResolveURI(link.href)
-                    if not href.IsAbsolute():
+                    if not href.is_absolute():
                         #   we'll assume that the base URI is the
                         #   location of this entity once it is
                         #   created.  Witness this thread:
                         #   http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
-                        href = uri.URIFactory.Resolve(
-                            entity.get_location(), href)
+                        href = href.resolve(entity.get_location())
                     targetEntity = entity_resolver(href)
                     if isinstance(targetEntity, Entity) and targetEntity.entity_set is targetSet:
                         entity[navProperty].BindEntity(targetEntity)
@@ -3527,12 +3524,11 @@ class Entry(atom.Entry):
                     #   this is the tricky bit, we need to resolve
                     #   the URI to an entity key
                     href = link.ResolveURI(link.href)
-                    if not href.IsAbsolute():
+                    if not href.is_absolute():
                         #   we'll assume that the base URI is the location of this entity
                         #   Witness this thread:
                         #   http://lists.w3.org/Archives/Public/ietf-http-wg/2012OctDec/0122.html
-                        href = uri.URIFactory.Resolve(
-                            entity.get_location(), href)
+                        href = href.resolve(entity.get_location())
                     targetEntity = entity_resolver(href)
                     if isinstance(targetEntity, Entity) and targetEntity.entity_set is targetSet:
                         entity[navProperty].BindEntity(targetEntity)

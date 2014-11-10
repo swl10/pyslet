@@ -1375,13 +1375,13 @@ class ClientRequest(messages.Request):
         :py:attr:`request_uri`."""
         with self.lock:
             if not isinstance(url, uri.URI):
-                url = uri.URIFactory.URI(url)
+                url = uri.URI.from_octets(url)
             self.url = url
             if self.url.userinfo:
                 raise NotImplementedError(
                     "username(:password) in URL not yet supported")
-            if self.url.absPath:
-                self.request_uri = self.url.absPath
+            if self.url.abs_path:
+                self.request_uri = self.url.abs_path
             else:
                 self.request_uri = "/"
             if self.url.query is not None:
@@ -1551,7 +1551,7 @@ class ClientRequest(messages.Request):
             else:
                 if isinstance(self.tried_credentials, auth.BasicCredentials):
                     # path rule only works for BasicCredentials
-                    self.tried_credentials.add_success_path(self.url.absPath)
+                    self.tried_credentials.add_success_path(self.url.abs_path)
             self.tried_credentials = None
         if (self.auto_redirect and self.status >= 300 and
                 self.status <= 399 and
@@ -1563,15 +1563,15 @@ class ClientRequest(messages.Request):
             # confirmed by the user
             location = self.response.get_header("Location").strip()
             if location:
-                url = uri.URIFactory.URI(location)
+                url = uri.URI.from_octets(location)
                 if not url.host:
                     # This is an error but a common one (thanks IIS!)
-                    location = location.Resolve(self.url)
+                    location = location.resolve(self.url)
                 self.resend(location)
         elif self.status == 401:
             challenges = self.response.get_www_authenticate()
             for c in challenges:
-                c.protectionSpace = self.url.GetCanonicalRoot()
+                c.protectionSpace = self.url.get_canonical_root()
                 self.tried_credentials = self.manager.find_credentials(c)
                 if self.tried_credentials:
                     self.set_authorization(self.tried_credentials)

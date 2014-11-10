@@ -1196,7 +1196,7 @@ class Message(PEP8Compatibility, object):
         If no Content-Location header was present None is returned."""
         field_value = self.get_header("Content-Location")
         if field_value is not None:
-            return uri.URIFactory.URI(field_value.strip())
+            return uri.URI.from_octets(field_value.strip())
         else:
             return None
 
@@ -1497,8 +1497,8 @@ class Request(Message):
 
         If the url contains user information it raises
         NotImplementedError"""
-        url = uri.URIFactory.URI(self.request_uri)
-        if url.IsAbsolute():
+        url = uri.URI.from_octets(self.request_uri)
+        if url.is_absolute():
             if not isinstance(url, params.HTTPURL):
                 raise HTTPException(
                     "Scheme not supported: %s" % url.scheme)
@@ -1517,9 +1517,9 @@ class Request(Message):
                 raise HTTPException("No host in request URL")
         else:
             authority = self.get_host()
-        if url.absPath:
-            self.request_uri = url.absPath
-        elif url.relPath:
+        if url.abs_path:
+            self.request_uri = url.abs_path
+        elif url.rel_path:
             raise ValueError(
                 "request URI cannot be relative: %s" % self.request_uri)
         else:
@@ -1808,7 +1808,7 @@ class Response(Message):
         If no Location header was present None is returned."""
         field_value = self.get_header("Location")
         if field_value is not None:
-            return uri.URIFactory.URI(field_value)
+            return uri.URI.from_octets(field_value)
         else:
             return None
 
@@ -1820,10 +1820,10 @@ class Response(Message):
             from which one can be parsed.  If None, the Location
             header is removed."""
         if isinstance(location, str):
-            location = uri.URIFactory.URI(location)
+            location = uri.URI.from_octets(location)
         if not isinstance(location, uri.URI):
             raise TypeError
-        if not location.IsAbsolute():
+        if not location.is_absolute():
             raise HTTPException("Location header must be an absolute URI")
         if location is None:
             self.set_header("Location", None)

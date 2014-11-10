@@ -10,6 +10,8 @@ import os.path
 from StringIO import StringIO
 from types import UnicodeType
 
+import pyslet.rfc2396 as uri
+
 MAX_CHAR = 0x10FFFF
 if maxunicode < MAX_CHAR:
     MAX_CHAR = maxunicode
@@ -259,7 +261,7 @@ class XMLCharacterTests(unittest.TestCase):
                                  "unichr(%#x) is an ideographic or base character but not a letter")
             if IsCombiningChar(c):
                 nCombiningChars += 1
-            if IsDigit(c):
+            if is_digit(c):
                 nDigits += 1
             if IsExtender(c):
                 nExtenders += 1
@@ -304,7 +306,7 @@ class XMLValidationTests(unittest.TestCase):
         for fName in os.listdir(dPath):
             if fName[-4:] != ".xml":
                 continue
-            f = URIFactory.URLFromPathname(os.path.join(dPath, fName))
+            f = uri.URI.from_path(os.path.join(dPath, fName))
             e = XMLEntity(f)
             d = Document()
             p = XMLParser(e)
@@ -320,7 +322,7 @@ class XMLValidationTests(unittest.TestCase):
         for fName in os.listdir(dPath):
             if fName[-4:] != ".xml":
                 continue
-            f = URIFactory.URLFromPathname(os.path.join(dPath, fName))
+            f = uri.URI.from_path(os.path.join(dPath, fName))
             e = XMLEntity(f)
             d = Document()
             try:
@@ -336,7 +338,7 @@ class XMLValidationTests(unittest.TestCase):
         for fName in os.listdir(dPath):
             if fName[-4:] != ".xml":
                 continue
-            f = URIFactory.URLFromPathname(os.path.join(dPath, fName))
+            f = uri.URI.from_path(os.path.join(dPath, fName))
             e = XMLEntity(f)
             p = XMLParser(e)
             p.checkValidity = True
@@ -357,7 +359,7 @@ class XMLValidationTests(unittest.TestCase):
         for fName in os.listdir(dPath):
             if fName[-4:] != ".xml":
                 continue
-            f = URIFactory.URLFromPathname(os.path.join(dPath, fName))
+            f = uri.URI.from_path(os.path.join(dPath, fName))
             e = XMLEntity(f)
             p = XMLParser(e)
             p.checkValidity = True
@@ -386,7 +388,7 @@ class XMLValidationTests(unittest.TestCase):
         for fName in os.listdir(dPath):
             if fName[-4:] != ".xml":
                 continue
-            f = URIFactory.URLFromPathname(os.path.join(dPath, fName))
+            f = uri.URI.from_path(os.path.join(dPath, fName))
             e = XMLEntity(f)
             p = XMLParser(e)
             p.checkCompatibility = True
@@ -407,7 +409,7 @@ class XMLValidationTests(unittest.TestCase):
         for fName in os.listdir(dPath):
             if fName[-4:] != ".xml":
                 continue
-            f = URIFactory.URLFromPathname(os.path.join(dPath, fName))
+            f = uri.URI.from_path(os.path.join(dPath, fName))
             e = XMLEntity(f)
             p = XMLParser(e)
             p.checkCompatibility = True
@@ -433,7 +435,7 @@ class XMLValidationTests(unittest.TestCase):
         for fName in os.listdir(dPath):
             if fName[-4:] != ".xml":
                 continue
-            f = URIFactory.URLFromPathname(os.path.join(dPath, fName))
+            f = uri.URI.from_path(os.path.join(dPath, fName))
             e = XMLEntity(f, 'latin-1' if "latin" in fName else None)
             p = XMLParser(e)
             p.checkAllErrors = True
@@ -447,7 +449,7 @@ class XMLValidationTests(unittest.TestCase):
         for fName in os.listdir(dPath):
             if fName[-4:] != ".xml":
                 continue
-            f = URIFactory.URLFromPathname(os.path.join(dPath, fName))
+            f = uri.URI.from_path(os.path.join(dPath, fName))
             e = XMLEntity(f, 'latin-1' if "latin" in fName else None)
             p = XMLParser(e)
             p.checkAllErrors = True
@@ -1040,7 +1042,7 @@ class XMLParserTests(unittest.TestCase):
              ('Steve', None, None),
              ('Steve', None, None)]
         dtdPath = os.path.join(TEST_DATA_DIR, 'SteveDoc.dtd')
-        f = URIFactory.URLFromPathname(dtdPath)
+        f = uri.URI.from_path(dtdPath)
         for sEntity, match in zip(s, m):
             e = XMLEntity(sEntity)
             e.location = f
@@ -2656,7 +2658,7 @@ class DocumentTests(unittest.TestCase):
     def testCaseBase(self):
         """Test the use of a file path on construction"""
         fpath = os.path.abspath('fpath.xml')
-        furl = str(URIFactory.URLFromPathname(fpath))
+        furl = str(uri.URI.from_path(fpath))
         d = Document(baseURI=furl)
         self.assertTrue(d.GetBase() == furl, "Base not set in constructor")
         self.assertTrue(d.root is None, 'root on construction')
@@ -2717,9 +2719,9 @@ class DocumentTests(unittest.TestCase):
         self.assertTrue(
             child.ResolveBase() == 'file:///index.xml', "No xml:base inheritance")
         # Tests with a document follow....
-        furl = str(URIFactory.URLFromPathname(os.path.abspath('base.xml')))
-        href = URIFactory.URLFromPathname(os.path.abspath('link.xml'))
-        hrefPath = href.absPath
+        furl = str(uri.URI.from_path(os.path.abspath('base.xml')))
+        href = uri.URI.from_path(os.path.abspath('link.xml'))
+        hrefPath = href.abs_path
         href = str(href)
         altRef = 'file:///hello/link.xml'
         d = Document(baseURI='base.xml')

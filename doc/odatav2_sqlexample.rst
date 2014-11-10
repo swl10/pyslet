@@ -304,8 +304,8 @@ The implementation of the LoadNotes function is more interesting as it
 demonstrates use of the API for binding entities together using
 navigation properties::
 
-	def LoadNotes(weatherNotes,fileName,weatherData):
-		with open(fileName,'r') as f:
+	def LoadNotes(weatherNotes,file_name,weatherData):
+		with open(file_name,'r') as f:
 			id=1
 			with weatherNotes.OpenCollection() as collection, weatherData.OpenCollection() as data:
 				while True:

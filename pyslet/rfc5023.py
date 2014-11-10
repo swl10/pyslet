@@ -72,7 +72,7 @@ class Categories(APPElement):
     allowed in a collection."""
     XMLNAME = (APP_NAMESPACE, 'categories')
 
-    XMLATTR_href = ('href', uri.URIFactory.URI, str)
+    XMLATTR_href = ('href', uri.URI.from_octets, str)
     XMLATTR_fixed = ('fixed', ParseYesNo, FormatYesNo)
     XMLATTR_scheme = 'scheme'
     XMLCONTENT = xmlns.ElementContent
@@ -143,7 +143,7 @@ class Collection(APPElement):
     XMLNAME = (APP_NAMESPACE, 'collection')
     XMLCONTENT = xmlns.ElementContent
 
-    XMLATTR_href = ('href', uri.URIFactory.URI, str)
+    XMLATTR_href = ('href', uri.URI.from_octets, str)
 
     def __init__(self, parent):
         APPElement.__init__(self, parent)
@@ -226,7 +226,7 @@ class Slug(object):
     @classmethod
     def from_str(cls, source):
         """Creates a slug from a *source* string."""
-        return cls(unicode(uri.UnescapeData(source), 'utf-8'))
+        return cls(unicode(uri.unescape_data(source), 'utf-8'))
 
     def __str__(self):
         result = []
@@ -488,7 +488,7 @@ class Server(object):
 
     def __init__(self, serviceRoot='http://localhost/'):
         if not isinstance(serviceRoot, uri.URI):
-            self.serviceRoot = uri.URIFactory.URI(serviceRoot).canonicalize()
+            self.serviceRoot = uri.URI.from_octets(serviceRoot).canonicalize()
             #: the canonical URL of the service root
         else:
             self.serviceRoot = serviceRoot.canonicalize()
@@ -505,7 +505,7 @@ class Server(object):
 
         We add an additional optional parameter *responseHeaders*"""
         responseHeaders = []
-        if environ['SCRIPT_NAME'] + environ['PATH_INFO'] == self.serviceRoot.absPath:
+        if environ['SCRIPT_NAME'] + environ['PATH_INFO'] == self.serviceRoot.abs_path:
             data = unicode(self.serviceDoc).encode('utf-8')
             responseHeaders.append(("Content-Type", ATOMSVC_MIMETYPE))
             responseHeaders.append(("Content-Length", str(len(data))))

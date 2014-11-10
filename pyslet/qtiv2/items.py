@@ -134,7 +134,7 @@ class AssessmentItem(core.QTIElement, core.DeclarationContainer):
         fPath = cp.GetUniqueFile(fPath)
         # This will be the path to the file in the package
         fullPath = cp.dPath.join(fPath)
-        base = uri.URIFactory.URLFromVirtualFilePath(fullPath)
+        base = uri.URI.from_virtual_path(fullPath)
         if isinstance(self.parent, xml.Document):
             # we are the root so we change the document base
             self.parent.SetBase(base)

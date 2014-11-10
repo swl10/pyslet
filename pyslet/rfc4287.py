@@ -223,7 +223,7 @@ class Link(AtomElement):
 
     """A reference from an entry or feed to a Web resource."""
     XMLNAME = (ATOM_NAMESPACE, 'link')
-    XMLATTR_href = ('href', uri.URIFactory.URI, str)
+    XMLATTR_href = ('href', uri.URI.from_octets, str)
     XMLATTR_rel = 'rel'
     XMLATTR_type = 'type'
     XMLATTR_hreflang = 'hreflang'
@@ -274,7 +274,7 @@ class Icon(AtomElement):
 
     def content_changed(self):
         """Re-reads the value of the element and sets :py:attr:`uri` accordingly."""
-        self.uri = uri.URIFactory.URI(AtomElement.GetValue(self))
+        self.uri = uri.URI.from_octets(AtomElement.GetValue(self))
 
 
 class Logo(Icon):
@@ -287,7 +287,7 @@ class Generator(AtomElement):
 
     """Identifies the agent used to generate a feed, for debugging and other purposes."""
     XMLNAME = (ATOM_NAMESPACE, 'generator')
-    XMLATTR_uri = ('uri', uri.URIFactory.URI, str)
+    XMLATTR_uri = ('uri', uri.URI.from_octets, str)
     XMLATTR_version = 'version'
 
     def __init__(self, parent):
@@ -298,7 +298,7 @@ class Generator(AtomElement):
 
     def SetPysletInfo(self):
         """Sets this generator to a default representation of this Pyslet module."""
-        self.uri = uri.URIFactory.URI(pyslet.info.home)
+        self.uri = uri.URI.from_octets(pyslet.info.home)
         self.version = pyslet.info.version
         self.SetValue(pyslet.info.title)
 
@@ -324,7 +324,7 @@ class Content(Text):
     Although derived from :py:class:`Text` this class overloads the meaning of
     the :py:attr:`Text.type` attribute allowing it to be a media type."""
     XMLNAME = (ATOM_NAMESPACE, "content")
-    XMLATTR_src = ('src', uri.URIFactory.URI, str)
+    XMLATTR_src = ('src', uri.URI.from_octets, str)
     XMLATTR_type = ('type', DecodeContentType, EncodeContentType)
 
     def __init__(self, parent):

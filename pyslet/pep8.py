@@ -4,6 +4,7 @@
 import warnings
 import logging
 import string
+import sys
 
 
 def make_attr_name(name):
@@ -118,7 +119,7 @@ def renamed_method(func):
         class X(object):
 
             @renamed_method
-            def MyMethod(self,....): pass
+            def MyMethod(self,....): pass       # noqa
 
             def my_method(self,....):
                 # implementation goes here"""
@@ -139,10 +140,85 @@ def redirected_method(name):
         class X(object):
 
             @redirected_method('new_method')
-            def MyMethod(self,....): pass
+            def MyMethod(self,....): pass       # noqa
 
             def new_method(self,....):
                 # implementation goes here"""
+
+    def custom_renamed_method(func):
+        func_renamed = RenamedMethod(func, name)
+
+        def call_renamed(obj, *args, **kwargs):
+            return func_renamed.target(obj)(*args, **kwargs)
+
+        return call_renamed
+
+    return custom_renamed_method
+
+
+class RenamedFunction(object):
+
+    """Represents a renamed function
+
+    func
+        A function object"""
+
+    def __init__(self, func, new_func=None):
+        self.module = func.__module__
+        self.old_name = func.__name__
+        if new_func is None:
+            self.new_func = getattr(sys.modules[func.__module__],
+                                    make_attr_name(self.old_name))
+        else:
+            self.new_func = new_func
+        self.warned = False
+
+    def target(self):
+        if not self.warned:
+            print "Warning!"
+            warnings.warn(
+                "%s.%s is deprecated, use, %s instead" %
+                (self.module, self.old_name, self.new_func.__name__),
+                DeprecationWarning, stacklevel=3)
+            self.warned = True
+        return self.new_func
+
+
+def renamed_function(func):
+    """Provides a decorator for an single renamed function.
+
+    Intended usage::
+
+        @renamed_function
+        def MyFunc(self,....): pass     # noqa
+
+        def my_func(self,....):
+            # implementation goes here
+
+    IMPORTANT: note that the new function must be defined before the
+    renamed function."""
+
+    func_renamed = RenamedFunction(func)
+
+    def call_renamed(*args, **kwargs):
+        return func_renamed.target()(*args, **kwargs)
+
+    return call_renamed
+
+
+def redirected_function(name):
+    """Provides a factory decorator for a custom renamed function.
+
+    Intended usage::
+
+        def new_function(self,....):
+            # implementation goes here
+
+        @redirected_function(new_function)
+        def MyFunction(self,....): pass     # noqa
+    
+    IMPORTANT: note that the new function must be defined before the
+    redirected function."""
 
     def custom_renamed_method(func):
         func_renamed = RenamedMethod(func, name)

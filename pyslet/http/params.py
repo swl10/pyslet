@@ -111,20 +111,23 @@ class HTTPURL(uri.ServerBasedURL):
                 if port != self.DEFAULT_PORT:
                     new_uri.append(':')
                     new_uri.append("%i" % int(self.port))
-        if self.absPath is not None:
-            if not self.absPath:
+        if self.abs_path is not None:
+            if not self.abs_path:
                 new_uri.append("/")
             else:
-                new_uri.append(uri.CanonicalizeData(self.absPath))
-        elif self.relPath is not None:
-            new_uri.append(uri.CanonicalizeData(self.relPath))
+                new_uri.append(uri.canonicalize_data(self.abs_path))
+        elif self.rel_path is not None:
+            new_uri.append(uri.canonicalize_data(self.rel_path))
         if self.query is not None:
             new_uri.append('?')
-            new_uri.append(uri.CanonicalizeData(self.query))
+            new_uri.append(uri.canonicalize_data(self.query))
         if self.fragment is not None:
             new_uri.append('#')
             new_uri.append(self.fragment)
-        return uri.URIFactory.URI(string.join(new_uri, ''))
+        return uri.URI.from_octets(string.join(new_uri, ''))
+
+
+uri.URI.register('http', HTTPURL)
 
 
 class HTTPSURL(HTTPURL):
@@ -138,8 +141,7 @@ class HTTPSURL(HTTPURL):
         super(HTTPSURL, self).__init__(octets)
 
 
-uri.URIFactory.Register('http', HTTPURL)
-uri.URIFactory.Register('https', HTTPSURL)
+uri.URI.register('https', HTTPSURL)
 
 
 class FullDate(iso.TimePoint):

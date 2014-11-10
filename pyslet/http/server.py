@@ -639,7 +639,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                            else "localhost:%i" % port]
         #: the default authority
         self.default_authority = authorities[0].lower()
-        self.host = uri.SplitServer(self.default_authority)[1]
+        self.host = uri.split_server(self.default_authority)[1]
         for a in authorities:
             self.authorities[a.lower()] = app
         #: the port we are bound to
@@ -743,11 +743,11 @@ class ServerRequest(messages.Request):
         # ensures Host: is set correctly
         self.extract_authority()
         with self.lock:
-            url = uri.URIFactory.URI(self.request_uri)
+            url = uri.URI.from_octets(self.request_uri)
             environ = {
                 'REQUEST_METHOD': self.method,
                 'SCRIPT_NAME': '',
-                'PATH_INFO': url.absPath,
+                'PATH_INFO': url.abs_path,
                 'SERVER_NAME': self.connection.server.host,
                 'SERVER_PORT': str(self.connection.server.port),
                 'SERVER_PROTCOL': str(self.protocol),

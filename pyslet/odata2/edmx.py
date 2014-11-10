@@ -50,7 +50,7 @@ class DataServices(edm.NameTableMixin, EDMXElement):
 class Reference(EDMXElement):
     XMLNAME = (EDMX_NAMESPACE, 'Reference')
 
-    XMLATTR_Url = ('url', uri.URIFactory.URI, str)
+    XMLATTR_Url = ('url', uri.URI.from_octets, str)
 
     def __init__(self, parent):
         EDMXElement.__init__(self, parent)
@@ -60,7 +60,7 @@ class Reference(EDMXElement):
 class AnnotationsReference(EDMXElement):
     XMLNAME = (EDMX_NAMESPACE, 'AnnotationsReference')
 
-    XMLATTR_Url = ('url', uri.URIFactory.URI, str)
+    XMLATTR_Url = ('url', uri.URI.from_octets, str)
 
     def __init__(self, parent):
         EDMXElement.__init__(self, parent)

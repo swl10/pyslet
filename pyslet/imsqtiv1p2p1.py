@@ -192,7 +192,7 @@ class QTIDocument(xml.Document):
                 # Make a directory to hold the files (makes it easier to find
                 # unique names for media files)
                 if isinstance(self.baseURI, uri.FileURL):
-                    ignore, dName = os.path.split(self.baseURI.GetPathname())
+                    ignore, dName = os.path.split(self.baseURI.get_pathname())
                 else:
                     dName = "questestinterop"
                 dName, ext = os.path.splitext(dName)
