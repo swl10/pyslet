@@ -112,42 +112,44 @@ class HTTP2617Tests(unittest.TestCase):
         self.assertTrue(len(c.pathPrefixes) == 1, "One path")
         self.assertTrue(c.test_path("/website/private/document"),
                         "Simple match")
-        self.assertFalse(c.test_path("/website/private/document.doc"),
-                         "No match with segment extension")
-        self.assertFalse(c.test_path("/website/private/"),
-                         "Simple match doesn't apply to parent")
-        c.add_success_path("/website/private/document2")
+        self.assertTrue(c.test_path("/website/private/undocument"),
+                         "Match at same depth")
+        self.assertTrue(c.test_path("/website/private/"),
+                         "Simple match to directory at same depth")
+        self.assertFalse(c.test_path("/website/private"),
+                         "Simple match doesn't extend to parent")
+        c.add_success_path("/website/private2/document2")
         self.assertTrue(len(c.pathPrefixes) == 2, "Two paths, no common root")
         self.assertTrue(
             c.test_path("/website/private/document"), "Simple match")
         self.assertTrue(
-            c.test_path("/website/private/document2"), "Simple match")
-        self.assertFalse(c.test_path("/website/private/"),
+            c.test_path("/website/private2/document2"), "Simple match")
+        self.assertFalse(c.test_path("/website/private2"),
                          "Simple match doesn't apply to parent")
-        c.add_success_path("/website/~user/secrets")
+        c.add_success_path("/internal/~user/secrets")
         self.assertTrue(
             len(c.pathPrefixes) == 3, "Three paths, no common root")
-        c.add_success_path("/website/private/")
+        c.add_success_path("/website/private")
         self.assertTrue(
             len(c.pathPrefixes) == 2, "Reduced to two paths with common root")
         self.assertTrue(
             c.test_path("/website/private/document"), "Simple match")
         self.assertTrue(
-            c.test_path("/website/private/document2"), "Simple match")
-        self.assertFalse(c.test_path("/website/private"),
+            c.test_path("/website/private2/document2"), "Simple match")
+        self.assertFalse(c.test_path("/website"),
                          "Simple match doesn't apply to parent "
                          "(without redirect)")
         c.add_success_path("/website")
         self.assertTrue(len(c.pathPrefixes) == 1,
-                        "Reduced to one paths with common root (no slash)")
+                        "Reduced to one path with common root (no slash)")
         self.assertTrue(
             c.test_path("/website/private/document"), "Simple match")
         self.assertTrue(
-            c.test_path("/website/private/document2"), "Simple match")
+            c.test_path("/website/private2/document2"), "Simple match")
         self.assertTrue(c.test_path("/website/"), "Simple match with slash")
         self.assertTrue(c.test_path("/website"), "Simple match without slash")
         self.assertFalse(
-            c.test_path("/websites"), "No match with segment extension")
+            c.test_path(""), "Degenerate case, empty path")
 
     def test_401(self):
         request1 = client.ClientRequest("http://www.domain1.com/")

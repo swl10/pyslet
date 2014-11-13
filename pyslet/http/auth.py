@@ -249,12 +249,28 @@ class BasicCredentials(Credentials):
         return False
 
     def add_success_path(self, path):
-        """Adds *pathPrefix* to the list of path prefixes that these
-        credentials apply to.
+        """Updates credentials based on success at path
+        
+        path
+            A string of octets representing the path that these
+            credentials have been used for with a successful result.
+            
+        This method implements the requirement that paths "at or deeper
+        than the depth of the last symbolic element in the path field"
+        should be treated as being part of the same protection space. 
 
-        If pathPrefix is a more general prefix than an existing prefix
-        in the list then it replaces that prefix."""
+        The path is reduced to a path prefix by removing the last
+        symbolic element and then it is tested against existing prefixes
+        to ensure that the most general prefix is being stored, for
+        example, if path is "/website/document" it will replace any
+        existing prefixes of the form "/website/folder." with the common
+        prefix "/website"."""
+        if not path:
+            # empty path, treat as entire space!
+            path = "/"
         new_prefix = uri.split_path(path)
+        if new_prefix[-1]:
+            new_prefix[-1] = ""
         uri.normalize_segments(new_prefix)
         keep = True
         i = 0
