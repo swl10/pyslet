@@ -12,7 +12,7 @@ import getpass
 
 import pyslet.rfc2396 as uri
 import pyslet.rfc2617 as auth
-import pyslet.rfc2616 as http
+import pyslet.http.client as http
 import pyslet.odata2.csdl as edm
 import pyslet.odata2.metadata as edmx
 

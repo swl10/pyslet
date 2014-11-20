@@ -2320,14 +2320,14 @@ class TimePoint(object):
     @classmethod
     def FromUnixTime(cls, unixTime):
         """Constructs a TimePoint from *unixTime*, the number of seconds
-        since the time origin.	The resulting time has no zone.
+        since the time origin.	The resulting time is in UTC.
 
         This method uses python's gmtime(0) to obtain the Unix origin
         time."""
         utcTuple = pytime.gmtime(0)
         t, overflow = Time.FromStructTime(utcTuple).Offset(seconds=unixTime)
         d = Date.FromStructTime(utcTuple).Offset(days=overflow)
-        return cls(date=d, time=t)
+        return cls(date=d, time=t.WithZone(zDirection=0))
 
     def get_unixtime(self):
         """Returns a unix time value representing this time point."""

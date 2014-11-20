@@ -175,7 +175,6 @@ class RenamedFunction(object):
 
     def target(self):
         if not self.warned:
-            print "Warning!"
             warnings.warn(
                 "%s.%s is deprecated, use, %s instead" %
                 (self.module, self.old_name, self.new_func.__name__),
@@ -216,7 +215,7 @@ def redirected_function(name):
 
         @redirected_function(new_function)
         def MyFunction(self,....): pass     # noqa
-    
+
     IMPORTANT: note that the new function must be defined before the
     redirected function."""
 

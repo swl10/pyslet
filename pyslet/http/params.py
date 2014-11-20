@@ -484,7 +484,7 @@ class ProductToken(object):
             if modifier:
                 vitem.append(string.join(modifier, ''))
             exploded.append(tuple(vitem))
-            p.Parse(".")
+            p.parse(".")
         return tuple(exploded)
 
     @classmethod

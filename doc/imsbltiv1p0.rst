@@ -29,7 +29,7 @@ on the code provided with the oauth module::
 	class BLTIRequestHandler(BaseHTTPRequestHandler):
 		def __init__(self, *args, **kwargs):
 			self.tp = blti.BLTIToolProvider()
-			self.tp.LoadFromFile(open('consumers.txt'))
+			self.tp.load_from_file(open('consumers.txt'))
 			BaseHTTPRequestHandler.__init__(self, *args, **kwargs)
 		
 		def do_GET(self):

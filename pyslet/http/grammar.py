@@ -197,11 +197,11 @@ class OctetParser(BasicParser):
         LWS."""
         savepos = self.pos
         lws = []
-        if self.Parse(CRLF):
+        if self.parse(CRLF):
             lws.append(CRLF)
         splen = 0
         while True:
-            c = self.ParseOne(SP + HT)
+            c = self.parse_one(SP + HT)
             if c is None:
                 break
             else:
@@ -283,17 +283,17 @@ class OctetParser(BasicParser):
 
         If *unfold* is True then any folding LWS is replaced with a
         single SP.  It defaults to False"""
-        if not self.Parse("("):
+        if not self.parse("("):
             return None
         comment = ["("]
         depth = 1
         while self.the_char is not None:
-            if self.Parse(")"):
+            if self.parse(")"):
                 comment.append(")")
                 depth -= 1
                 if depth < 1:
                     break
-            elif self.Parse("("):
+            elif self.parse("("):
                 comment.append("(")
                 depth += 1
             elif self.match("\\"):
@@ -352,11 +352,11 @@ class OctetParser(BasicParser):
 
         If *unfold* is True then any folding LWS is replaced with a
         single SP.  It defaults to False"""
-        if not self.Parse(DQUOTE):
+        if not self.parse(DQUOTE):
             return None
         qs = [DQUOTE]
         while self.the_char is not None:
-            if self.Parse(DQUOTE):
+            if self.parse(DQUOTE):
                 qs.append(DQUOTE)
                 break
             elif self.match("\\"):
@@ -410,7 +410,7 @@ class OctetParser(BasicParser):
         so it will always be of length 2 or None if no quoted-pair was
         found."""
         savepos = self.pos
-        if self.Parse("\\"):
+        if self.parse("\\"):
             if is_char(self.the_char):
                 qdpair = "\\" + self.the_char
                 self.next_char()

@@ -68,11 +68,11 @@ class GenericParserTests(unittest.TestCase):
         lws_test = "; \t ;\r\n ;\r\n \r\n\t \r "
         p = OctetParser(lws_test)
         self.assertTrue(p.parse_lws() is None, "No LWS")
-        p.Parse(";")
+        p.parse(";")
         self.assertTrue(p.parse_lws() == " \t ", "LWS no CRLF")
-        p.Parse(";")
+        p.parse(";")
         self.assertTrue(p.parse_lws() == "\r\n ", "LWS with CRLF")
-        p.Parse(";")
+        p.parse(";")
         self.assertTrue(p.parse_lws() == "\r\n ", "LWS ending at CRLF")
         self.assertTrue(p.parse_lws() == "\r\n\t ", "LWS ending at CRLF")
         # TEXT = <any OCTET except CTLs, but including LWS>

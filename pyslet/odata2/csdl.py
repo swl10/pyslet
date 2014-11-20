@@ -25,7 +25,6 @@ from pyslet.pep8 import PEP8Compatibility, renamed_method, redirected_method
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.rfc2396 as uri
-import pyslet.rfc2616 as http
 import pyslet.xsdatatypes20041028 as xsi
 from pyslet.vfs import OSFilePath
 import pyslet.iso8601 as iso8601
@@ -70,11 +69,13 @@ def ValidateSimpleIdentifier(identifier):
 
 
 class EDMError(Exception):
+
     """General exception for all CSDL model errors."""
     pass
 
 
 class ModelError(EDMError):
+
     """Exception for all model-related errors."""
     pass
 
@@ -638,9 +639,9 @@ class Parser(xsi.BasicParser):
     def ParseBooleanLiteral(self):
         """Parses a boolean literal returning True, False or None if no boolean
         literal was found."""
-        if self.ParseInsensitive("true"):
+        if self.parse_insensitive("true"):
             return True
-        elif self.ParseInsensitive("false"):
+        elif self.parse_insensitive("false"):
             return False
         else:
             return None
@@ -661,28 +662,28 @@ class Parser(xsi.BasicParser):
         savepos = self.pos
         try:
             production = "dateTimeLiteral"
-            year = int(self.require_production(self.ParseDigits(4, 4), "year"))
-            self.Require("-",)
+            year = int(self.require_production(self.parse_digits(4, 4), "year"))
+            self.require("-",)
             month = self.require_production(self.parse_integer(1, 12), "month")
-            self.Require("-", production)
+            self.require("-", production)
             day = self.require_production(self.parse_integer(1, 31, 2), "day")
-            self.Require("T", production)
+            self.require("T", production)
             hour = self.require_production(self.parse_integer(0, 24), "hour")
-            self.Require(":", production)
+            self.require(":", production)
             minute = self.require_production(
                 self.parse_integer(0, 60, 2), "minute")
-            if self.Parse(":"):
+            if self.parse(":"):
                 second = self.require_production(
                     self.parse_integer(0, 60, 2), "second")
-                if self.Parse("."):
-                    nano = self.ParseDigits(1, 7)
+                if self.parse("."):
+                    nano = self.parse_digits(1, 7)
                     second += float("0." + nano)
             else:
                 second = 0
             zpos = self.pos
             try:
                 # parse and discard a zone specifier
-                z = self.ParseOne("Zz+-")
+                z = self.parse_one("Zz+-")
                 if z == "+" or z == "-":
                     zh = self.require_production(self.parse_integer(0, 24),
                                                  "zhour")
@@ -720,16 +721,16 @@ class Parser(xsi.BasicParser):
             guid = []
             guid.append(
                 self.require_production(self.parse_hex_digits(8, 8), production))
-            self.require_production(self.Parse('-'))
+            self.require_production(self.parse('-'))
             guid.append(
                 self.require_production(self.parse_hex_digits(4, 4), production))
-            self.require_production(self.Parse('-'))
+            self.require_production(self.parse('-'))
             guid.append(
                 self.require_production(self.parse_hex_digits(4, 4), production))
-            self.require_production(self.Parse('-'))
+            self.require_production(self.parse('-'))
             guid.append(
                 self.require_production(self.parse_hex_digits(4, 4), production))
-            self.require_production(self.Parse('-'))
+            self.require_production(self.parse('-'))
             guid.append(
                 self.require_production(
                     self.parse_hex_digits(
@@ -766,25 +767,25 @@ class Parser(xsi.BasicParser):
         savepos = self.pos
         eSign = ''
         rDigits = eDigits = None
-        sign = self.ParseOne("-")
+        sign = self.parse_one("-")
         if sign is None:
             sign = ""
-        if self.ParseInsensitive("inf"):
+        if self.parse_insensitive("inf"):
             lDigits = "inf"
-        elif self.ParseInsensitive("nan"):
+        elif self.parse_insensitive("nan"):
             lDigits = "nan"
         else:
-            lDigits = self.ParseDigits(0)
-            if self.Parse('.'):
-                rDigits = self.ParseDigits(0)
+            lDigits = self.parse_digits(0)
+            if self.parse('.'):
+                rDigits = self.parse_digits(0)
             if not lDigits and not rDigits:
                 self.setpos(savepos)
                 return None
-            if self.ParseOne('eE'):
-                eSign = self.ParseOne("-")
+            if self.parse_one('eE'):
+                eSign = self.parse_one("-")
                 if eSign is None:
                     eSign = '+'
-                eDigits = self.ParseDigits(0)
+                eDigits = self.parse_digits(0)
         return Numeric(sign, lDigits, rDigits, eSign, eDigits)
 
     def ParseTimeLiteral(self):
@@ -797,14 +798,14 @@ class Parser(xsi.BasicParser):
         try:
             production = "timeLiteral"
             hour = self.require_production(self.parse_integer(0, 24), "hour")
-            self.Require(":", production)
+            self.require(":", production)
             minute = self.require_production(
                 self.parse_integer(0, 60, 2), "minute")
-            if self.Parse(":"):
+            if self.parse(":"):
                 second = self.require_production(
                     self.parse_integer(0, 60, 2), "second")
-                if self.Parse("."):
-                    nano = self.ParseDigits(1, 7)
+                if self.parse("."):
+                    nano = self.parse_digits(1, 7)
                     second += float("0." + nano)
             else:
                 second = 0
@@ -929,7 +930,7 @@ class SimpleValue(EDMValue):
             self.typeCode = pDef.simpleTypeCode
         else:
             self.typeCode = None
-        #: an optional :py:class:`pyslet.rfc2616.MediaType` representing
+        #: an optional :py:class:`pyslet.http.params.MediaType` representing
         #: this value
         self.mtype = None
         self.value = None
@@ -3477,11 +3478,12 @@ class LongDescription(CSDLElement):
 
 
 class TypeRef(object):
+
     """Represents a type reference.
 
     Created from a formatted string type definition and a scope (in
     which type definitions are looked up).
-    
+
     TypeRef objects are callable with an optional
     :py:class:`SimpleValue` or :py:class:`TypeInstance` object.
     Calling a TypeRef returns an instance of the type referred to with a
@@ -4914,6 +4916,7 @@ class AssociationSetEnd(CSDLElement):
 
 
 class FunctionImport(NameTableMixin, CSDLElement):
+
     """Represents a FunctionImport in an entity collection."""
     XMLNAME = (EDM_NAMESPACE, 'FunctionImport')
 
@@ -4992,8 +4995,8 @@ class FunctionImport(NameTableMixin, CSDLElement):
         # If the return type of FunctionImport is a collection of
         # entities, the EntitySet attribute MUST be defined
         if (self.returnTypeRef.collection and
-            isinstance(self.returnTypeRef.type_def, EntityType) and
-            self.entity_set is None):
+                isinstance(self.returnTypeRef.type_def, EntityType) and
+                self.entity_set is None):
             raise ModelIncomplete(
                 "FunctionImport %s must be bound to an entity set" %
                 self.name)
@@ -5001,13 +5004,13 @@ class FunctionImport(NameTableMixin, CSDLElement):
         # scalar type, the EntitySet attribute MUST NOT be defined
         if ((self.returnTypeRef.simpleTypeCode is not None or
              isinstance(self.returnTypeRef.type_def, ComplexType)) and
-             self.entity_set is not None):
+                self.entity_set is not None):
             raise InvalidMetadataDocument(
                 "FunctionImport %s must not be bound to an entity set" %
                 self.name)
         # Parameter element names inside a FunctionImport MUST NOT
         # collide - checked during the initial parse
-        
+
     @renamed_method
     def IsCollection(self):
         pass

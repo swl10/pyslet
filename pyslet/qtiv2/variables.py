@@ -3,7 +3,6 @@
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
-import pyslet.rfc2616 as http
 import pyslet.html40_19991224 as html
 from pyslet.rfc2396 import URI, URIFactory
 import pyslet.qtiv2.core as core
@@ -519,7 +518,7 @@ class FileValue(SingleValue):
         self.baseType = BaseType.file
         self.contentType = params.MediaType.from_str(
             "application/octet-stream")
-        """The content type of the file, a :py:class:`pyslet.rfc2616.HTTPMediaType` instance."""
+        """The content type of the file, a :py:class:`pyslet.http.params.MediaType` instance."""
         self.file_name = "data.bin"
         """The file name to use for the file."""
 

@@ -80,11 +80,11 @@ class BLTIProviderTests(unittest.TestCase):
 
     def test_load_save(self):
         tp = lti.BLTIToolProvider()
-        tp.LoadFromFile(StringIO.StringIO(EXAMPLE_CONSUMERS))
+        tp.load_from_file(StringIO.StringIO(EXAMPLE_CONSUMERS))
         consumer = tp.lookup_consumer('www.example.com')
         self.assertTrue(consumer.secret == "Secret")
         try:
-            tp.LoadFromFile(StringIO.StringIO(EXAMPLE_CONSUMERS))
+            tp.load_from_file(StringIO.StringIO(EXAMPLE_CONSUMERS))
             self.fail("Faiure to spot duplicate key on reload")
         except lti.BLTIDuplicateKeyError:
             pass
@@ -94,7 +94,7 @@ class BLTIProviderTests(unittest.TestCase):
 
     def test_launch(self):
         tp = lti.BLTIToolProvider()
-        tp.LoadFromFile(StringIO.StringIO(EXAMPLE_CONSUMERS))
+        tp.load_from_file(StringIO.StringIO(EXAMPLE_CONSUMERS))
 
 if __name__ == "__main__":
     unittest.main()

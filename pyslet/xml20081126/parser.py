@@ -69,6 +69,7 @@ class XMLParser(PEP8Compatibility):
     apos, quot) to their replacement characters."""
 
     def __init__(self, entity):
+        PEP8Compatibility.__init__(self)
         #: checks XML validity constraints
         #: If *checkValidity* is True, and all other options are left at
         #: their default (False) setting then the parser will behave as

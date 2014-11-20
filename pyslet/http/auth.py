@@ -124,7 +124,7 @@ class Credentials(object):
 
     Instances are typically created and then added to a request manager
     object using
-    :py:meth:`~pyslet.rfc2616.Client.add_credentials` for
+    :py:meth:`~pyslet.http.client.Client.add_credentials` for
     matching against HTTP authorization challenges.
 
     The built-in str function can be used to format instances according
@@ -250,14 +250,14 @@ class BasicCredentials(Credentials):
 
     def add_success_path(self, path):
         """Updates credentials based on success at path
-        
+
         path
             A string of octets representing the path that these
             credentials have been used for with a successful result.
-            
+
         This method implements the requirement that paths "at or deeper
         than the depth of the last symbolic element in the path field"
-        should be treated as being part of the same protection space. 
+        should be treated as being part of the same protection space.
 
         The path is reduced to a path prefix by removing the last
         symbolic element and then it is tested against existing prefixes

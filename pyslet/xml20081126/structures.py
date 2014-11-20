@@ -1,21 +1,26 @@
 #! /usr/bin/env python
 
+import codecs
 import logging
-import string
-import types
-from StringIO import StringIO
-import urlparse
 import os
 import os.path
-from sys import maxunicode
-import codecs
 import random
-from types import *
-from copy import copy
+import string
+import types
+import urlparse
 import warnings
 
+from copy import copy
+from StringIO import StringIO
+from sys import maxunicode
+from types import *
+
 import pyslet.rfc2396 as uri
+import pyslet.http.client as http
+
 from pyslet.pep8 import renamed_method, renamed_function
+from pyslet.unicode5 import CharClass
+
 
 xml_base = 'xml:base'
 xml_lang = 'xml:lang'
@@ -110,9 +115,6 @@ class XMLIDValueError(XMLValidityError):
 
 class XMLUnknownChild(XMLError):
     pass
-
-from pyslet.unicode5 import CharClass
-from pyslet import rfc2616 as http
 
 
 def EscapeCharData(src, quote=False):
@@ -2878,7 +2880,7 @@ class XMLEntity(object):
         headers.
 
         The optional *reqManager* allows you to pass an existing instance of
-        :py:class:`pyslet.rfc2616.Client` for handling URI with
+        :py:class:`pyslet.http.client.Client` for handling URI with
         http or https schemes."""
         self.location = src
         if isinstance(src, uri.FileURL):
@@ -3475,8 +3477,10 @@ def is_digit(c):
     """Tests if the character *c* matches production [88] Digit."""
     return DigitClass.Test(c)
 
+
 @renamed_function
-def IsDigit(c): pass      # noqa
+def IsDigit(c):
+    pass      # noqa
 
 
 ExtenderClass = CharClass(

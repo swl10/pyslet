@@ -480,7 +480,7 @@ class SQLCollectionBase(core.EntityCollection):
                 self.skiptoken.append(
                     p.require_production(p.ParseURILiteral()))
                 p.ParseWSP()
-                if not p.Parse(','):
+                if not p.parse(','):
                     if p.MatchEnd():
                         break
                     else:

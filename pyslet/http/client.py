@@ -21,6 +21,7 @@ import grammar
 import params
 import messages
 import auth
+import cookie
 
 
 class RequestManagerBusy(messages.HTTPException):
@@ -888,12 +889,16 @@ class Client(PEP8Compatibility, object):
         self.dnsCache = {}
         self.ca_certs = ca_certs
         self.credentials = []
+        self.cookie_store = None
         self.socketSelect = select.select
         self.httpUserAgent = "%s (http.client.Client)" % str(USER_AGENT)
         """The default User-Agent string to use, defaults to a string
         derived from the installed version of Pyslet, e.g.::
 
             pyslet 0.5.20140727 (http.client.Client)"""
+
+    def set_cookie_store(self, cookie_store):
+        self.cookie_store = cookie_store
 
     def queue_request(self, request, timeout=None):
         """Starts processing an HTTP *request*
@@ -1289,7 +1294,7 @@ class ClientRequest(messages.Request):
 
     res_body
         A stream-like object to write data to.  Defaults to None, in
-        which case the response body is returned as a string the
+        which case the response body is returned as a string in the
         :py:attr:`res_body`.
 
     protocol
@@ -1421,11 +1426,18 @@ class ClientRequest(messages.Request):
             return True
 
     def resend(self, url=None):
-        logging.info("Resending request to: %s", str(url))
         self.status = 0
         self.error = None
         if url is not None:
+            # if the host, port or scheme is different, strip any
+            # Authorization header
+            if self.url.get_canonical_root() != url.get_canonical_root():
+                self.set_authorization(None)
             self.set_url(url)
+        # always strip cookies, as these are added at the last
+        # minute from the cookie store
+        self.set_cookie(None)
+        logging.info("Resending request to: %s", str(self.url))
         self.manager.queue_request(self)
 
     def set_client(self, client):
@@ -1483,6 +1495,12 @@ class ClientRequest(messages.Request):
             credentials = self.manager.find_credentials_by_url(self.url)
             if credentials:
                 self.set_authorization(credentials)
+        if (self.manager.cookie_store is not None and
+                not self.has_header("Cookie")):
+            # add some cookies to this request
+            cookie_list = self.manager.cookie_store.search(self.url)
+            if cookie_list:
+                self.set_cookie(cookie_list)
         return super(ClientRequest, self).send_header()
 
     def response_finished(self, err=None):
@@ -1495,6 +1513,25 @@ class ClientRequest(messages.Request):
             self.finished()
         else:
             logging.info("Finished Response, status %i", self.status)
+            # we grab the cookies early in the flow, they may help
+            # improve the chances of a success follow-up call in the
+            # case of an error
+            if self.manager.cookie_store:
+                try:
+                    cookie_list = self.response.get_set_cookie()
+                except ValueError as e:
+                    # ignore these cookies
+                    logging.warn("Ignoring cookies after %s", str(e))
+                    cookie_list = None
+                if cookie_list:
+                    for icookie in cookie_list:
+                        try:
+                            self.manager.cookie_store.set_cookie(
+                                self.url, icookie)
+                            logging.info("Stored cookie: %s", str(icookie))
+                        except cookie.CookieError as e:
+                            logging.warn("Error setting cookie %s: %s",
+                                         icookie.name, str(e))
             if self.res_bodystream:
                 self.res_bodystream.flush()
             else:
@@ -1561,10 +1598,9 @@ class ClientRequest(messages.Request):
             # request other than GET or HEAD, the user agent MUST NOT
             # automatically redirect the request unless it can be
             # confirmed by the user
-            location = self.response.get_header("Location").strip()
+            location = self.response.get_location()
             if location:
-                url = uri.URI.from_octets(location)
-                if not url.host:
+                if not location.host:
                     # This is an error but a common one (thanks IIS!)
                     location = location.resolve(self.url)
                 self.resend(location)

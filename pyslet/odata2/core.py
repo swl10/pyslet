@@ -17,7 +17,6 @@ import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.rfc2396 as uri
-import pyslet.rfc2616 as http
 import pyslet.http.grammar as grammar
 import pyslet.http.params as params
 import pyslet.http.messages as messages
@@ -1298,13 +1297,13 @@ class Parser(edm.Parser):
                     else:
                         rightOp = PropertyExpression(name)
             if rightOp is None:
-                if self.Parse("("):
+                if self.parse("("):
                     rightOp = self.require_production(
                         self.ParseCommonExpression(),
                         "commonExpression inside parenExpression")
                     self.require_production(
-                        self.Parse(")"), "closing bracket in parenExpression")
-                elif self.Parse("-"):
+                        self.parse(")"), "closing bracket in parenExpression")
+                elif self.parse("-"):
                     rightOp = UnaryExpression(Operator.negate)
                 elif leftOp:
                     # an operator waiting for an operand is an error
@@ -1321,7 +1320,7 @@ class Parser(edm.Parser):
             if not isinstance(rightOp, UnaryExpression):
                 operand = rightOp
                 self.ParseWSP()
-                if self.Parse("/"):
+                if self.parse("/"):
                     # Member operator is a special case as it isn't a name
                     rightOp = BinaryExpression(Operator.member)
                 else:
@@ -1380,16 +1379,16 @@ class Parser(edm.Parser):
     def ParseMethodCallExpression(self, methodCall):
         method = CallExpression(methodCall)
         self.require_production(
-            self.Parse("("), "opening bracket in methodCallExpression")
+            self.parse("("), "opening bracket in methodCallExpression")
         while True:
             self.ParseWSP()
             param = self.require_production(
                 self.ParseCommonExpression(), "methodCall argument")
             method.AddOperand(param)
             self.ParseWSP()
-            if self.Parse(","):
+            if self.parse(","):
                 continue
-            elif self.Parse(")"):
+            elif self.parse(")"):
                 break
             else:
                 raise ValueError("closing bracket in methodCallExpression")
@@ -1398,23 +1397,23 @@ class Parser(edm.Parser):
     def ParseCastLike(self, op, name):
         """Parses a cast-like expression, including 'isof'."""
         self.ParseWSP()
-        if self.Parse("("):
+        if self.parse("("):
             e = BinaryExpression(op)
             firstParam = self.require_production(
                 self.ParseCommonExpression(), "%s argument" % name)
             e.AddOperand(firstParam)
             self.ParseWSP()
-            if self.ParseOne(")"):
+            if self.parse_one(")"):
                 # first parameter omitted
                 stringParam = firstParam
             else:
-                self.require_production(self.Parse(","), "',' in %s" % name)
+                self.require_production(self.parse(","), "',' in %s" % name)
                 self.ParseWSP()
                 stringParam = self.require_production(
                     self.ParseCommonExpression(), "%s argument" % name)
                 e.AddOperand(stringParam)
                 self.ParseWSP()
-                self.require_production(self.Parse(")"), "')' after %s" % name)
+                self.require_production(self.parse(")"), "')' after %s" % name)
             # Final check, the string parameter must be a string literal!
             if not isinstance(stringParam, LiteralExpression) or stringParam.value.typeCode != edm.SimpleType.String:
                 raise ValueError("%s requires string literal")
@@ -1426,7 +1425,7 @@ class Parser(edm.Parser):
         """Parses WSP characters, returning the string of WSP parsed or None."""
         result = []
         while True:
-            c = self.ParseOne(" \t")
+            c = self.parse_one(" \t")
             if c:
                 result.append(c)
             else:
@@ -1447,7 +1446,7 @@ class Parser(edm.Parser):
                 self.ParseSimpleIdentifier(), "entityNavProperty")
             if navPath not in parent:
                 parent[navPath] = None
-            while self.Parse("/"):
+            while self.parse("/"):
                 if parent[navPath] is None:
                     parent[navPath] = {}
                 parent = parent[navPath]
@@ -1455,7 +1454,7 @@ class Parser(edm.Parser):
                     self.ParseSimpleIdentifier(), "entityNavProperty")
                 if navPath not in parent:
                     parent[navPath] = None
-            if not self.Parse(","):
+            if not self.parse(","):
                 break
         self.require_end("expandQueryOp")
         return result
@@ -1472,15 +1471,15 @@ class Parser(edm.Parser):
             e = self.require_production(
                 self.ParseCommonExpression(), "commonExpression")
             self.ParseWSP()
-            if self.ParseInsensitive("asc"):
+            if self.parse_insensitive("asc"):
                 dir = 1
-            elif self.ParseInsensitive("desc"):
+            elif self.parse_insensitive("desc"):
                 dir = -1
             else:
                 dir = 1
             result.append((e, dir))
             self.ParseWSP()
-            if not self.Parse(","):
+            if not self.parse(","):
                 break
         self.require_end("orderbyQueryOp")
         return result
@@ -1507,7 +1506,7 @@ class Parser(edm.Parser):
                 self.ParseStarOrIdentifier(), "selectItem")
             if navPath not in parent:
                 parent[navPath] = None
-            while navPath != "*" and self.Parse("/"):
+            while navPath != "*" and self.parse("/"):
                 if parent[navPath] is None:
                     parent[navPath] = {}
                 parent = parent[navPath]
@@ -1516,14 +1515,14 @@ class Parser(edm.Parser):
                 if navPath not in parent:
                     parent[navPath] = None
             self.ParseWSP()
-            if not self.Parse(","):
+            if not self.parse(","):
                 break
         self.require_end("selectQueryOp")
         return result
 
     def ParseStarOrIdentifier(self):
         self.ParseWSP()
-        if self.Parse("*"):
+        if self.parse("*"):
             return '*'
         else:
             return self.require_production(
@@ -1578,25 +1577,25 @@ class Parser(edm.Parser):
             while self.the_char is not None and self.SimpleIdentifierClass.Test(self.the_char):
                 result.append(self.the_char)
                 self.next_char()
-            if not self.Parse('.'):
+            if not self.parse('.'):
                 break
             result.append('.')
         return string.join(result, '')
 
     def ParseStringURILiteral(self):
-        if self.Parse("'"):
+        if self.parse("'"):
             # string of utf-8 characters
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
             value = []
             while True:
                 startPos = self.pos
-                while not self.Parse("'"):
+                while not self.parse("'"):
                     if self.MatchEnd():
                         raise ValueError(
                             "Unterminated quote in literal string")
                     self.next_char()
                 value.append(self.src[startPos:self.pos - 1])
-                if self.Parse("'"):
+                if self.parse("'"):
                     # a repeated SQUOTE, go around again
                     continue
                 break
@@ -1635,19 +1634,19 @@ class Parser(edm.Parser):
             if num is None:
                 # must be something like "." or "-" on its own, not a literal
                 return None
-            if self.ParseOne("Dd"):
+            if self.parse_one("Dd"):
                 result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Double)
                 result.SetFromNumericLiteral(num)
                 return result
-            elif self.ParseOne("Ff"):
+            elif self.parse_one("Ff"):
                 result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Single)
                 result.SetFromNumericLiteral(num)
                 return result
-            elif self.ParseOne("Mm"):
+            elif self.parse_one("Mm"):
                 result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Decimal)
                 result.SetFromNumericLiteral(num)
                 return result
-            elif self.ParseOne("Ll"):
+            elif self.parse_one("Ll"):
                 result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Int64)
                 result.SetFromNumericLiteral(num)
                 return result
@@ -1666,34 +1665,34 @@ class Parser(edm.Parser):
         elif name == "datetimeoffset":
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.DateTimeOffset)
             production = "datetimeoffset literal"
-            self.Require("'", production)
-            dtoString = self.ParseUntil("'")
-            self.Require("'", production)
+            self.require("'", production)
+            dtoString = self.parse_until("'")
+            self.require("'", production)
             result.SetFromLiteral(dtoString)
             return result
         elif name == "datetime":
             production = "datetime literal"
-            self.Require("'", production)
+            self.require("'", production)
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.DateTime)
             value = self.require_production(
                 self.ParseDateTimeLiteral(), production)
-            self.Require("'", production)
+            self.require("'", production)
             result.value = value
             return result
         elif name == "time":
             production = "time literal"
-            self.Require("'", production)
+            self.require("'", production)
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Time)
             value = self.require_production(
                 self.ParseTimeLiteral(), production)
-            self.Require("'", production)
+            self.require("'", production)
             result.value = value
             return result
         elif nameCase == "X" or name == "binary":
-            self.Require("'", "binary")
+            self.require("'", "binary")
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Binary)
             value = self.ParseBinaryLiteral()
-            self.Require("'", "binary literal")
+            self.require("'", "binary literal")
             result.value = value
             return result
         elif name == "nand":
@@ -1716,20 +1715,20 @@ class Parser(edm.Parser):
             return result
         elif name == "guid":
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Guid)
-            self.Require("'", "guid")
+            self.require("'", "guid")
             hex = []
             hex.append(
                 self.require_production(self.parse_hex_digits(8, 8), "guid"))
-            self.Require("-", "guid")
+            self.require("-", "guid")
             hex.append(
                 self.require_production(self.parse_hex_digits(4, 4), "guid"))
-            self.Require("-", "guid")
+            self.require("-", "guid")
             hex.append(
                 self.require_production(self.parse_hex_digits(4, 4), "guid"))
-            self.Require("-", "guid")
+            self.require("-", "guid")
             hex.append(
                 self.require_production(self.parse_hex_digits(4, 4), "guid"))
-            if self.Parse('-'):
+            if self.parse('-'):
                 # this is a proper guid
                 hex.append(
                     self.require_production(
@@ -1742,7 +1741,7 @@ class Parser(edm.Parser):
                 hex[3:3] = ['FFFF']
                 hex.append(
                     self.require_production(self.parse_hex_digits(8, 8), "guid"))
-            self.Require("'", "guid")
+            self.require("'", "guid")
             result.value = uuid.UUID(hex=string.join(hex, ''))
             return result
         else:

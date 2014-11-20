@@ -18,6 +18,7 @@ BLTI_LAUNCH_REQUEST = "basic-lti-launch-request"
 
 
 class BLTIError(Exception):
+
     """Base class for BLTI errors."""
     pass
 
@@ -31,6 +32,7 @@ class BLTIOAuthParameterError(BLTIError):
 
 
 class BLTIAuthenticationError(BLTIError):
+
     """Error raised when a launch request cannot be authorized."""
     pass
 
@@ -39,6 +41,7 @@ try:
     from oauth import oauth
 
     class BLTIConsumer(oauth.OAuthConsumer):
+
         """Represents a Tool Consumer."""
 
         def __init__(self, key, secret):
@@ -67,6 +70,7 @@ try:
             self.nonces.append((nonce, now))
 
     class BLTIToolProvider(oauth.OAuthDataStore):
+
         """Represents a Tool Provider."""
 
         def __init__(self):

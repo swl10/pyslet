@@ -7,7 +7,7 @@ import pyslet.http.messages as messages
 import pyslet.http.client as client
 from test_http_client import MockClientWrapper
 
-from pyslet.rfc2617 import *        # noqa
+from pyslet.http.auth import *        # noqa
 
 
 def suite():
@@ -113,9 +113,9 @@ class HTTP2617Tests(unittest.TestCase):
         self.assertTrue(c.test_path("/website/private/document"),
                         "Simple match")
         self.assertTrue(c.test_path("/website/private/undocument"),
-                         "Match at same depth")
+                        "Match at same depth")
         self.assertTrue(c.test_path("/website/private/"),
-                         "Simple match to directory at same depth")
+                        "Simple match to directory at same depth")
         self.assertFalse(c.test_path("/website/private"),
                          "Simple match doesn't extend to parent")
         c.add_success_path("/website/private2/document2")

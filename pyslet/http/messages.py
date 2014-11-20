@@ -19,6 +19,7 @@ from pyslet.pep8 import PEP8Compatibility
 import grammar
 import params
 import auth
+import cookie
 
 
 class BufferedEntityWrapper(io.RawIOBase):
@@ -441,8 +442,10 @@ class Message(PEP8Compatibility, object):
         self.send_transferlength()
         hlist = self.get_headerlist()
         for hKey in hlist:
-            hName, hValue = self.headers[hKey]
-            buffer.append("%s: %s\r\n" % (hName, hValue))
+            h = self.headers[hKey]
+            hname = h[0]
+            for hvalue in h[1:]:
+                buffer.append("%s: %s\r\n" % (hname, hvalue))
         buffer.append("\r\n")
         return string.join(buffer, '')
 
@@ -997,12 +1000,28 @@ class Message(PEP8Compatibility, object):
         with self.lock:
             return field_name.lower() in self.headers
 
-    def get_header(self, field_name):
+    def get_header(self, field_name, list_mode=False):
         """Returns the header with *field_name* as a string.
 
-        If there is no header with *field_name* then None is returned."""
+        list_mode=False
+            In this mode, get_header always returns a single string,
+            this isn't always what you want as it automatically 'folds'
+            multiple headers with the same name into a string using ", "
+            as a separator.
+
+        list_mode=True
+            In this mode, get_header always returns a list of strings.
+
+        If there is no header with *field_name* then None is returned
+        in both modes."""
         with self.lock:
-            return self.headers.get(field_name.lower(), [None, None])[1]
+            h = self.headers.get(field_name.lower(), [None, None])
+            if h[1] is None:
+                return None
+            if list_mode:
+                return h[1:]
+            else:
+                return string.join(h[1:], ", ")
 
     def set_header(self, field_name, field_value, append_mode=False):
         """Sets the header with *field_name* to the string *field_value*.
@@ -1025,11 +1044,12 @@ class Message(PEP8Compatibility, object):
                     del self.headers[fieldname_key]
             else:
                 if fieldname_key in self.headers and append_mode:
-                    field_value = self.headers[
-                        fieldname_key][1] + ", " + field_value.strip()
+                    self.headers[fieldname_key].append(field_value.strip())
+                    # field_value = self.headers[
+                    #    fieldname_key][1] + ", " + field_value.strip()
                 else:
                     field_value = field_value.strip()
-                self.headers[fieldname_key] = [field_name, field_value]
+                    self.headers[fieldname_key] = [field_name, field_value]
 
     def get_allow(self):
         """Returns an :py:class:`Allow` instance or None if no "Allow"
@@ -1591,6 +1611,36 @@ class Request(Message):
             raise TypeError
         self.set_header("Accept-Encoding", str(accept_value))
 
+    def get_cookie(self):
+        """Reads the 'Cookie' header(s)
+
+        Returns a dictionary of cookies.  If there are multiple values
+        for a cookie the dictionary value is a set, otherwise it is a
+        string."""
+        field_value = self.get_header('Cookie')
+        if field_value is not None:
+            p = cookie.CookieParser(field_value)
+            cookies = p.require_cookie_string()
+            return cookies
+        else:
+            return {}
+
+    def set_cookie(self, cookie_list):
+        """Set a "Set-Cookie" header
+
+        cookie_list
+            a list of cookies such as would be returned by
+            :meth:`pyslet.http.cookie.CookieStore.search`.
+
+        If cookie list is None the Cookie header is removed."""
+        if cookie_list is None:
+            self.set_header('Cookie', None)
+        else:
+            self.set_header(
+                'Cookie',
+                string.join(map(lambda x: "%s=%s" % (x.name, x.value),
+                                cookie_list), "; "))
+
 
 class Response(Message):
 
@@ -1847,8 +1897,48 @@ class Response(Message):
 
         challenges
                 a list of :py:class:`~pyslet.rfc2617.Challenge` instances"""
-        self.set_header(
-            "WWW-Authenticate", string.join(map(str, challenges), ", "))
+        if challenges is None:
+            self.set_header("WWW-Authenticate", None)
+        else:
+            self.set_header(
+                "WWW-Authenticate", string.join(map(str, challenges), ", "))
+
+    def get_set_cookie(self):
+        """Reads all 'Set-Cookie' headers
+
+        Returns a list of :class:`~pyslet.http.cookie.Cookie` instances
+        """
+        field_value = self.get_header('Set-Cookie', list_mode=True)
+        if field_value is not None:
+            return map(cookie.Cookie.from_str, field_value)
+        else:
+            return None
+
+    def set_set_cookie(self, cookie, replace=False):
+        """Set a "Set-Cookie" header
+
+        cookie
+            a :class:`~pyslet.http.cookie.Cookie` instance
+
+        replace=True
+            Remove all existing cookies from the response
+
+        replace=False
+            Add this cookie to the existing cookies in the response
+            (default value)
+
+        If called multiple times the header value will become a list
+        of cookie values.  No folding together is performed.
+
+        If cookie is None all Set-Cookie headers are removed,
+        implying replace mode."""
+        if cookie is None:
+            self.set_header('Set-Cookie', None)
+        else:
+            if replace:
+                self.set_header('Set-Cookie', None)
+            self.set_header(
+                'Set-Cookie', str(cookie), append_mode=True)
 
 
 class MediaRange(params.MediaType):

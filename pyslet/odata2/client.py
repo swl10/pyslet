@@ -9,7 +9,7 @@ from StringIO import StringIO
 
 import pyslet.info as info
 import pyslet.rfc2396 as uri
-import pyslet.rfc2616 as http
+import pyslet.http.client as http
 import pyslet.http.params as params
 import pyslet.http.messages as messages
 import pyslet.xml20081126.structures as xml
@@ -140,7 +140,7 @@ class ClientCollection(core.EntityCollection):
                     pass
 
     def RaiseError(self, request):
-        """Given a :py:class:`pyslet.rfc2616.Message` object
+        """Given a :py:class:`pyslet.http.messages.Message` object
         containing an unexpected status in the response, parses an error
         response and raises an error accordingly."""
         if request.status == 404:

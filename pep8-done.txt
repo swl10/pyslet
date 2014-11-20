@@ -5,6 +5,8 @@ pyslet/http/auth.py
 unittests/test_http_auth.py
 pyslet/http/client.py
 unittests/test_http_client.py
+pyslet/http/cookie.py
+unittests/test_http_cookie.py
 pyslet/http/grammar.py
 unittests/test_http_grammar.py
 pyslet/http/messages.py
@@ -28,6 +30,8 @@ pyslet/rfc2396.py
 unittests/test_rfc2396.py
 pyslet/rfc2616.py
 pyslet/rfc2617.py
+pyslet/urn.py
+unittests/test_urn.py
 pyslet/xml20081126/parser.py
 samples/fsodata.py
 samples/odatadiff.py

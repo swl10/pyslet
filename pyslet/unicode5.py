@@ -623,6 +623,7 @@ class BasicParser(PEP8Compatibility):
     """An abstract class for parsing unicode strings."""
 
     def __init__(self, source):
+        PEP8Compatibility.__init__(self)
         self.raw = type(source) is not types.UnicodeType
         """Indicates if source is being parsed raw (as OCTETS or plain ASCII
 		characters, or as Unicode characters.  This may affect the
@@ -694,7 +695,7 @@ class BasicParser(PEP8Compatibility):
         else:
             return self.src[self.pos:self.pos + len(matchString)] == matchString
 
-    def Parse(self, matchString):
+    def parse(self, matchString):
         """Returns *matchString* if *matchString* is at the current position.
 
         Advances the parser to the first character after matchString.  Returns
@@ -705,13 +706,16 @@ class BasicParser(PEP8Compatibility):
         else:
             return ''
 
-    def ParseUntil(self, matchString):
+    def parse_until(self, matchString):
         """Returns all characters up until the first instance of *matchString*.
 
         Advances the parser to the first character *of* matchString.  If
-        matchString is not found then all the remaining characters in
-        the source are parsed."""
-        matchPos = self.src.find(matchString, self.pos)
+        matchString is not found (or is None) then all the remaining
+        characters in the source are parsed."""
+        if matchString is None:
+            matchPos = -1
+        else:
+            matchPos = self.src.find(matchString, self.pos)
         if matchPos == -1:
             result = self.src[self.pos:]
             self.setpos(len(self.src))
@@ -720,11 +724,11 @@ class BasicParser(PEP8Compatibility):
             self.setpos(matchPos)
         return result
 
-    def Require(self, matchString, production=None):
+    def require(self, matchString, production=None):
         """Parses *matchString* or raises ValueError.
 
         *	production can be used to customize the error message."""
-        if not self.Parse(matchString):
+        if not self.parse(matchString):
             tail = "%s, found %s" % (
                 repr(matchString), repr(self.peek(len(matchString))))
             if production is None:
@@ -739,7 +743,7 @@ class BasicParser(PEP8Compatibility):
         else:
             return self.the_char in matchChars
 
-    def ParseOne(self, matchChars):
+    def parse_one(self, matchChars):
         """Parses one of *matchChars*.  Returns the character or None if no match is found."""
         if self.MatchOne(matchChars):
             result = self.the_char
@@ -757,7 +761,7 @@ class BasicParser(PEP8Compatibility):
         else:
             return self.src[self.pos:self.pos + len(lowerString)].lower() == lowerString
 
-    def ParseInsensitive(self, lowerString):
+    def parse_insensitive(self, lowerString):
         """Returns *lowerString* if *lowerString* is at the current position (ignoring case).
 
         Advances the parser to the first character after matchString.  Returns
@@ -775,9 +779,9 @@ class BasicParser(PEP8Compatibility):
 
     def ParseDigit(self):
         """Parses a digit character.  Returns the digit, or None if no digit is found."""
-        return self.ParseOne("0123456789")
+        return self.parse_one("0123456789")
 
-    def ParseDigits(self, min, max=None):
+    def parse_digits(self, min, max=None):
         """Parses min digits, and up to max digits, returning the string of digits.
 
         If *max* is None then there is no maximum.
@@ -807,7 +811,7 @@ class BasicParser(PEP8Compatibility):
 
         If a suitable integer can't be parsed then None is returned."""
         savepos = self.pos
-        d = self.ParseDigits(1, maxDigits)
+        d = self.parse_digits(1, maxDigits)
         if d is None:
             return None
         else:
@@ -823,7 +827,7 @@ class BasicParser(PEP8Compatibility):
 
     def ParseHexDigit(self):
         """Parses a hex-digit character.  Returns the digit, or None if no digit is found."""
-        return self.ParseOne("0123456789ABCDEFabcdef")
+        return self.parse_one("0123456789ABCDEFabcdef")
 
     def parse_hex_digits(self, min, max=None):
         """Parses min hex digits, and up to max hex digits, returning the string of hex digits.

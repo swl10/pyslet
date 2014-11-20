@@ -26,7 +26,6 @@ import pyslet.odata2.memds as memds
 import pyslet.iso8601 as iso8601
 import pyslet.rfc5023 as app
 import pyslet.rfc4287 as atom
-import pyslet.rfc2616 as http
 import pyslet.http.params as params
 import pyslet.http.messages as messages
 import pyslet.iso8601 as iso

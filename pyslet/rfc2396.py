@@ -141,12 +141,19 @@ def parse_scheme(octets):
     return scheme
 
 
-def canonicalize_data(source):
+def canonicalize_data(source, unreserved_test=is_unreserved):
     """Returns the canonical form of *source* string.
+
+    unreserved_test
+        A function with the same signature as :func:`is_unreserved`,
+        which it defaults to.  By providing a different function you can
+        control which characters will have their escapes removed.
 
     The canonical form is the same string but any unreserved characters
     represented as hex escapes in source are unencoded and any unescaped
-    characters that are neither reserved nor unreserved are escaped."""
+    characters that are neither reserved nor unreserved are escaped.
+
+    All hex escapes are promoted to upper case."""
     result = []
     pos = 0
     while pos < len(source):
@@ -154,11 +161,10 @@ def canonicalize_data(source):
         if c == "%":
             escape = source[pos + 1:pos + 3]
             c = chr(int(escape, 16))
-            if is_unreserved(c):
+            if unreserved_test(c):
                 result.append(c)
             else:
-                result.append("%")
-                result.append(escape)
+                result.append("%%%02X" % ord(c))
             pos += 3
         elif not (is_unreserved(c) or is_reserved(c)):
             result.append("%%%02X" % ord(c))
@@ -487,6 +493,11 @@ def is_query_reserved(c):
                              0x2B, 0x2C, 0x24))
 
 
+@renamed_function
+def IsQueryReserved(c):     # noqa
+    pass
+
+
 def encode_unicode_uri(usrc):
     """Extracts a URI octet-string from a unicode string.
 
@@ -510,6 +521,7 @@ def EncodeUnicodeURI(usrc):     # noqa
 
 
 class URI(PEP8Compatibility):
+
     r"""Class to represent URI References
 
         You won't normally instantiate a URI directly as it represents a
@@ -543,6 +555,7 @@ class URI(PEP8Compatibility):
         set."""
 
     def __init__(self, octets):
+        PEP8Compatibility.__init__(self)
         uri_len = parse_uric(octets)
         #: The octet string representing this URI
         self.octets = octets[0:uri_len]
@@ -995,7 +1008,9 @@ class URI(PEP8Compatibility):
             return self.octets
 
     def __cmp__(self, other_uri):
-        return cmp(str(self), str(other_uri))
+        if not isinstance(other_uri, URI):
+            other_uri = URI.from_octets(other_uri)
+        return cmp(str(self.canonicalize()), str(other_uri.canonicalize()))
 
     def canonicalize(self):
         """Returns a canonical form of this URI
@@ -1168,6 +1183,7 @@ class URI(PEP8Compatibility):
 class URIFactoryClass(PEP8Compatibility):
 
     def __init__(self):
+        PEP8Compatibility.__init__(self)
         self.urlClass = {}
 
     def register(self, scheme, uri_class):
@@ -1219,6 +1235,7 @@ class URIFactoryClass(PEP8Compatibility):
 
 
 class ServerBasedURL(URI):
+
     """Represents server-based URIs
 
     A server-based URI is one of the form::
@@ -1285,6 +1302,7 @@ class ServerBasedURL(URI):
 
 
 class FileURL(ServerBasedURL):
+
     """Represents the file URL scheme defined by RFC1738
 
     The initialisation string is optional, if omitted the URL will
@@ -1388,6 +1406,8 @@ def _load_uri_class(scheme):
     # called only if we find a URI with a scheme we don't understand
     if scheme in ('http', 'https'):
         import http.params      # noqa
+    elif scheme == ('urn'):
+        import urn              # noqa
     else:
         # unknown scheme, map it to URI itself to prevent repeated
         # look-ups

@@ -10,6 +10,7 @@ import test_blockstore
 import test_html40_19991224
 import test_http_auth
 import test_http_client
+import test_http_cookie
 import test_http_grammar
 import test_http_messages
 import test_http_params
@@ -37,6 +38,7 @@ import test_rfc4287
 import test_rfc5023
 import test_rtf_1p6
 import test_unicode5
+import test_urn
 import test_vfs
 import test_xml20081126
 import test_xmlnames20091208
@@ -49,6 +51,7 @@ def suite():
     s.addTest(test_html40_19991224.suite())
     s.addTest(test_http_auth.suite())
     s.addTest(test_http_client.suite())
+    s.addTest(test_http_cookie.suite())
     s.addTest(test_http_grammar.suite())
     s.addTest(test_http_messages.suite())
     s.addTest(test_http_params.suite())
@@ -75,6 +78,7 @@ def suite():
     s.addTest(test_rfc5023.suite())
     s.addTest(test_rtf_1p6.suite())
     s.addTest(test_unicode5.suite())
+    s.addTest(test_urn.suite())
     s.addTest(test_vfs.suite())
     s.addTest(test_xml20081126.suite())
     s.addTest(test_xmlnames20091208.suite())

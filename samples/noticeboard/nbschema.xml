@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<edmx:Edmx Version="1.0" xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx"
+    xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata">
+    <edmx:DataServices m:DataServiceVersion="2.0">
+        <Schema Namespace="NBSchema" xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
+            <EntityContainer Name="NBDatabase" m:IsDefaultEntityContainer="true">
+                <EntitySet Name="Silos" EntityType="NBSchema.Silo"/>
+                <EntitySet Name="Consumers" EntityType="NBSchema.Consumer"/>
+                <EntitySet Name="Contexts" EntityType="NBSchema.Context"/>
+                <EntitySet Name="Resources" EntityType="NBSchema.Resource"/>
+                <EntitySet Name="Launches" EntityType="NBSchema.Launch"/>
+                <EntitySet Name="Sessions" EntityType="NBSchema.Session"/>
+                <AssociationSet Name="Silos_Consumers" Association="NBSchema.Silos_Consumers">
+                    <End Role="Silo" EntitySet="Silos"/>
+                    <End Role="Consumer" EntitySet="Consumers"/>
+                </AssociationSet>
+            </EntityContainer>
+            <EntityType Name="Silo">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <NavigationProperty Name="Consumers" Relationship="NBSchema.Silos_Consumers"
+                    FromRole="Silo" ToRole="Consumer"/>
+            </EntityType>
+            <EntityType Name="Consumer">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <NavigationProperty Name="Silo" Relationship="NBSchema.Silos_Consumers"
+                    FromRole="Consumer" ToRole="Silo"/>
+            </EntityType>
+            <EntityType Name="Context">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="Resource">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="Launch">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="Session">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+            <Association Name="Silos_Consumers">
+                <End Role="Silo" Type="NBSchema.Silo" Multiplicity="1"/>
+                <End Role="Consumer" Type="NBSchema.Consumer" Multiplicity="*"/>
+            </Association>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

@@ -13,7 +13,6 @@ import base64
 import pyslet.info as info
 import pyslet.rfc4287 as atom
 import pyslet.rfc5023 as app
-import pyslet.rfc2616 as http
 import pyslet.http.grammar as grammar
 import pyslet.http.params as params
 import pyslet.http.messages as messages
@@ -1082,13 +1081,13 @@ class Server(app.Server):
                 "Not Acceptable",
                 'xml, json or plain text formats supported',
                 406)
+        entities.TopMax(self.topmax)
         if responseType == "application/json":
             data = str('{"d":%s}' % string.join(
                 entities.generate_entity_set_in_json(request.version), ''))
         else:
             # Here's a challenge, we want to pull data through the feed
             # by yielding strings just load in to memory at the moment
-            entities.TopMax(self.topmax)
             f = core.Feed(None, entities)
             doc = core.Document(root=f)
             f.collection = entities

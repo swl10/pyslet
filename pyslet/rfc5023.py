@@ -19,7 +19,7 @@ import traceback
 
 import pyslet.xmlnames20091208 as xmlns
 from pyslet import rfc4287 as atom
-from pyslet import rfc2616 as http
+import pyslet.http.client as http
 import pyslet.rfc2396 as uri
 
 

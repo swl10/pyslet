@@ -50,7 +50,7 @@ class MockSocket(MockSocketBase):
             while True:
                 if check_continue and request.get_expect_continue():
                     # push an expect response
-                    self.recv_pipe.write("HTTP/1.1 100 Go on then!\r\n\r\n")
+                    self.send_continue()
                     check_continue = False
                 mode = request.recv_mode()
                 if mode == messages.Message.RECV_LINE:
@@ -99,6 +99,9 @@ class MockSocket(MockSocketBase):
                 raise
         return request
 
+    def send_continue(self):
+        self.recv_pipe.write("HTTP/1.1 100 Go on then!\r\n\r\n")
+
     def send_response(self, response):
         response.start_sending()
         try:
@@ -117,6 +120,8 @@ class MockSocket(MockSocketBase):
 
 class MockConnectionWrapper(Connection):
 
+    SocketClass = MockSocket
+
     def new_socket(self):
         # turn the timeout down nice and low
         self.timeout = 10
@@ -130,9 +135,9 @@ class MockConnectionWrapper(Connection):
                 self.socketSelect = select.select
             else:
                 logging.info("Opening connection to %s...", self.host)
-                self.socket = MockSocket(self)
+                self.socket = self.SocketClass(self)
                 self.socket_file = self.socket
-                self.socketSelect = MockSocket.wrap_select
+                self.socketSelect = self.SocketClass.wrap_select
 
 
 class MockClientWrapper(Client):
@@ -141,7 +146,7 @@ class MockClientWrapper(Client):
 
     def __init__(self, mock_server, **kwargs):
         Client.__init__(self, **kwargs)
-        self.socketSelect = MockSocket.wrap_select
+        self.socketSelect = self.ConnectionClass.SocketClass.wrap_select
         self.mock_server = mock_server
 
 

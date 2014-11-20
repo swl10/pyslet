@@ -108,6 +108,7 @@ class RFC2234Parser(PEP8Compatibility):
     """
 
     def __init__(self, source=None):
+        PEP8Compatibility.__init__(self)
         self.validationMode = RFC2234Parser.kStopOnFatalErrors
         if source is None:
             self.ResetParser("")

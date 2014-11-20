@@ -19,6 +19,6 @@ operations.
     http/messages
     http/params
     http/grammar
-
+    http/cookie
 
 

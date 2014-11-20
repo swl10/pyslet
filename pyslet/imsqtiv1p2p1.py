@@ -15,7 +15,6 @@ import pyslet.imsmdv1p2p1 as imsmd
 import pyslet.html40_19991224 as html
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.rfc2396 as uri
-import pyslet.rfc2616 as http
 
 from pyslet.qtiv1.core import *
 from pyslet.qtiv1.common import *
