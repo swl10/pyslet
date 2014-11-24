@@ -747,7 +747,8 @@ class ServerRequest(messages.Request):
             environ = {
                 'REQUEST_METHOD': self.method,
                 'SCRIPT_NAME': '',
-                'PATH_INFO': url.abs_path,
+                'PATH_INFO': uri.unescape_data(url.abs_path),
+                'QUERY_STRING': url.query,
                 'SERVER_NAME': self.connection.server.host,
                 'SERVER_PORT': str(self.connection.server.port),
                 'SERVER_PROTCOL': str(self.protocol),

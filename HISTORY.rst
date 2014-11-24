@@ -35,6 +35,11 @@ Changes are reported against the versions released to PyPi.  'XX' at the
 end of the version indicates changes that have not yet been released to
 PyPi but have been committed to the master branch (with tests passing).
 
+Not sure which version you are using?  Try::
+
+    from pyslet.info import version
+    print version
+
 
 Version 0.6.201411XX
 --------------------
@@ -107,6 +112,9 @@ now be configured to accept cookies.  The default behaviour is to
 Added a new module to support URN syntax in preparation for a better
 implementation of the IMS LTI vocabularies.
 
+Added an optional params dictionary to the OData expression parser to
+make it *much* easier to parse parameterized OData queries.
+
 Added new methods for creating and executing drop table statements in
 the DAL.
 
@@ -120,6 +128,8 @@ Fixed a bug in the OData server which meant that requests for JSON
 format responses were not being limited by the builtin topmax and would
 therefore attempt to return all matching entities in a single response.
 
+Fixed XML parser bug, ID elements in namespaced documents were not
+being handled properly. 
 
 Version 0.5.20140801
 --------------------

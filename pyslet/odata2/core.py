@@ -379,10 +379,10 @@ class CommonExpression(object):
                 other.operator])
 
     @staticmethod
-    def from_str(src):
+    def from_str(src, params=None):
         p = Parser(src)
         return p.require_production_end(
-            p.ParseCommonExpression(),
+            p.ParseCommonExpression(params),
             "commonExpression")
 
     @staticmethod
@@ -1259,15 +1259,34 @@ CallExpression.EvalMethod = {
 
 
 class Parser(edm.Parser):
-
-    def ParseCommonExpression(self):
-        """Returns a :py:class:`CommonExpression` instance."""
+        
+    def parse_common_expression(self, params=None):
+        """Returns a :py:class:`CommonExpression` instance
+        
+        params (Default: None)
+            A dictionary of :class:`~pyslet.odata2.edm.SimpleValue`
+            instances keyed on a string that will be used as
+            a parameter name.
+        
+        This type of parameterization is stricter than the untyped form
+        used in Python's DB API.  You must create instances of the
+        required types and add them to the dictionary.  You can then use
+        :meth:`~pyslet.odata2.edm.SimpleValue.set_from_value` directly
+        on the values in the dictionary to set parameter values prior to
+        evaluating the expression or using it in a collection filter."""
         leftOp = None
         rightOp = None
         opStack = []
         while True:
             self.ParseWSP()
-            value = self.ParseURILiteral()
+            if params is not None and self.parse(':'):
+                pname = self.ParseSimpleIdentifier()
+                if pname in params:
+                    value = params[pname]
+                else:
+                    raise ValueError("Expected parameter name after ':'")
+            else:
+                value = self.ParseURILiteral()
             if value is not None:
                 rightOp = LiteralExpression(value)
             else:
@@ -1608,13 +1627,15 @@ class Parser(edm.Parser):
             return None
 
     def ParseURILiteral(self):
-        """Returns a :py:class:`pyslet.mc_csdl.SimpleType` instance or None if no value can be parsed.
+        """Parses a URI literal.
+        
+        Returns a :py:class:`pyslet.mc_csdl.SimpleType` instance or None
+        if no value can be parsed.
 
         Important: do not confuse a return value of (the Python object)
-        None with a
-        :py:class:`pyslet.mc_csdl.SimpleValue` instance that tests
-        :False.  The latter is
-        returned when the URI-literal string 'null' is parsed.
+        None with a :py:class:`pyslet.mc_csdl.SimpleValue` instance that
+        tests False.  The latter is returned when the URI-literal string
+        'null' is parsed.
 
         If a URI literal value is partially parsed but is badly formed,
         a ValueError is raised."""

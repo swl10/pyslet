@@ -116,7 +116,7 @@ try:
         def NewConsumer(self, key=None):    # noqa
             pass
 
-        def new_consumer(self, key=None):
+        def new_consumer(self, key=None, secret=None):
             """Creates a new BLTIConsumer instance
 
             The new instance is added to the dictionary of consumers
@@ -127,7 +127,8 @@ try:
                 key = self.generate_key()
             elif key in self.consumers:
                 raise BLTIDuplicateKeyError(key)
-            secret = self.generate_key()
+            if secret is None:
+                secret = self.generate_key()
             self.consumers[key] = BLTIConsumer(key, secret)
             return key, secret
 

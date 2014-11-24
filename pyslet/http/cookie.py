@@ -895,6 +895,7 @@ class Section4Cookie(Cookie):
                         raise CookieError("Duplicate attribute: %s" % ext)
                     attrs.add(ext)
 
+    @classmethod
     def from_str(self, src):
         """Creates a new instance from a src string
 

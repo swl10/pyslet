@@ -237,6 +237,10 @@ class XMLNSElement(XMLNSElementContainerMixin, Element):
             self.prefixToNS = nsMap = value
             self.nsToPrefix = dict(zip(nsMap.values(), nsMap.keys()))
             return
+        elif (hasattr(self.__class__, 'ID') and
+                name == (NO_NAMESPACE, self.__class__.ID)):
+            # we have to override ID handling as mangling is special
+            self.SetID(value)
         if type(name) in types.StringTypes:
             return Element.SetAttribute(self, (NO_NAMESPACE, name), value)
         else:

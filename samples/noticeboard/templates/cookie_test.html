@@ -1,0 +1,43 @@
+<html>
+<head><title>Cookie Warning</title></head>
+<body>
+<div id="framed">
+    <form id="wlaunch" action={{ ctest_attr|safe }} method="GET"
+            target="_blank" name="autosubmit">
+        <p>Your browser may be configured to block certain 'third party'
+        cookies.  You may still be able to use this tool in its own
+        window or tab.  If you don't see a pop-up window open
+        automatically it may also be blocked, in which case you can try
+        to open it manually with the button below.</p>
+        <input type="hidden" name="return" value={{ return_attr|safe }} />
+        <input type="hidden" name="sid" value={{ sid_attr|safe }} />
+        <p><button type="submit" name="continue" value="continue">Open in
+        New Window</button></p>
+    </form>
+</div>
+<hr/ >
+<div id="info">
+    <p>This website requires cookies to be enabled so that it can
+    remember you during your visit. Use of cookies improves security but
+    can raise concerns over privacy.  Cookies appear to be blocked by
+    your browser or you may have requested that they be removed.</p>
+
+    <p>Instructions on how to enable cookies and manage privacy settings
+    are typically specific to each device or browser.</p>
+
+    <p>For technical information about cookies see <a
+    href="http://en.wikipedia.org/wiki/HTTP_cookie">Wikipedia</a>.</p>    
+</div>
+<script>
+window.onload = function(){
+    if (window.top != window.self) {
+        // we're framed
+        document.getElementById('info').style.display = 'none';
+        document.forms[0].submit();
+    } else {
+        document.getElementById('framed').style.display = 'none';
+    };
+}
+</script>
+</body>
+</html>

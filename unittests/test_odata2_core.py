@@ -19,6 +19,7 @@ def suite(prefix='test'):
     return unittest.TestSuite((
         loader.loadTestsFromTestCase(ODataTests),
         loader.loadTestsFromTestCase(CommonExpressionTests),
+        loader.loadTestsFromTestCase(ParamsExpressionTests),
         loader.loadTestsFromTestCase(ODataURITests),
         loader.loadTestsFromTestCase(StreamInfoTests)
     ))
@@ -1428,6 +1429,49 @@ class CommonExpressionTests(unittest.TestCase):
                             "Unstable expression: %s, %s!=%s" %
                             (example, unicode(e1), unicode(e2)))
 
+
+class ParamsExpressionTests(unittest.TestCase):
+
+    def evaluate_common(self, expr_string):
+        p = Parser(expr_string)
+        e = p.ParseCommonExpression()
+        return e.Evaluate(None)
+
+    def test_noparams_expression(self):
+        p = Parser("true and false")
+        params = {}
+        e = p.parse_common_expression(params)
+        self.assertTrue(
+            isinstance(e, CommonExpression), "Expected common expression")
+        value = e.Evaluate(None)
+        self.assertTrue(value.value is False, "Expected false")
+
+    def test_params_expression(self):
+        p = Parser("true and :bool")
+        params = {}
+        try:
+            e = p.parse_common_expression(params)
+            self.fail("Undeclared parameter")
+        except ValueError:
+            # undeclared parameter
+            pass
+        params = {'bool': edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)}
+        p.setpos(0)
+        e = p.parse_common_expression(params)
+        self.assertTrue(isinstance(e, CommonExpression),
+                        "Expected common expression: %s" % repr(e))
+        # true and null = false
+        value = e.Evaluate(None)
+        self.assertTrue(value.value is False, "Expected false")
+        # true and false = false
+        params['bool'].set_from_value(False)
+        value = e.Evaluate(None)
+        self.assertTrue(value.value is False, "Expected false")
+        # true and true = true
+        params['bool'].set_from_value(True)
+        value = e.Evaluate(None)
+        self.assertTrue(value.value is True, "Expected true")
+        
 
 class ODataURITests(unittest.TestCase):
 
