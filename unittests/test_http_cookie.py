@@ -595,6 +595,8 @@ class DomainTests(unittest.TestCase):
         self.assertFalse(cookie.is_ldh_label("cd.ef"))
         # the label cannot contain or '_'
         self.assertFalse(cookie.is_ldh_label("cd_ef"))
+        # empty strings are not valid labels
+        self.assertFalse(cookie.is_ldh_label(""))
 
     def test_rldh_label(self):
         """R-LDH rules:

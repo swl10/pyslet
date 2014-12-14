@@ -391,7 +391,7 @@ class ValueTests(unittest.TestCase):
         # check IsNull
         self.assertFalse(v.IsNull())
         # v2 = EDMValue.NewSimpleValue(SimpleType.Binary)
-        # v2.SetRandomValue(v)
+        # v2.set_random_value(v)
         # self.assertFalse(v2.value == v.value)
 
     def test_int32_value(self):
@@ -407,10 +407,10 @@ class ValueTests(unittest.TestCase):
         # check IsNull
         self.assertFalse(v.IsNull())
         v2 = EDMValue.NewSimpleValue(SimpleType.Int32)
-        v2.SetRandomValue(v)
+        v2.set_random_value(v)
         self.assertTrue(v2.value >= 0)
         v.set_from_value(-1)
-        v2.SetRandomValue(v)
+        v2.set_random_value(v)
         self.assertTrue(v2.value <= 0)
 
     def test_int64_value(self):
@@ -426,10 +426,10 @@ class ValueTests(unittest.TestCase):
         # check IsNull
         self.assertFalse(v.IsNull())
         v2 = EDMValue.NewSimpleValue(SimpleType.Int64)
-        v2.SetRandomValue(v)
+        v2.set_random_value(v)
         self.assertTrue(v2.value >= 0)
         v.set_from_value(-1)
-        v2.SetRandomValue(v)
+        v2.set_random_value(v)
         self.assertTrue(v2.value <= 0)
 
     def test_string_value(self):
@@ -445,11 +445,11 @@ class ValueTests(unittest.TestCase):
         # check IsNull
         self.assertFalse(v.IsNull())
         v2 = EDMValue.NewSimpleValue(SimpleType.String)
-        v2.SetRandomValue()
+        v2.set_random_value()
         self.assertTrue(len(v2.value) == 8,
                         "Expected 8 characters: %s" % v2.value)
         v.set_from_value("stem")
-        v2.SetRandomValue(v)
+        v2.set_random_value(v)
         self.assertTrue(len(v2.value) == 12 and v2.value[0:4] == "stem")
 
     def test_casts(self):

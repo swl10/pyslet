@@ -64,7 +64,9 @@ http://swl10.blogspot.co.uk/2014/11/basic-authentication-ssl-and-pyslets.html
 
 #9 HTTP client retry strategy
 
-Improved HTTP retries with simple Fibonacci-based back-off 
+Improved HTTP retries with simple Fibonacci-based back-off.  Also fixed
+a bug where, if the first request after a server timed out an idle
+connection is a POST, the request would fail.  
 
 #12 bug when using numeric or named parameters in DB API
 
@@ -105,6 +107,9 @@ http://swl10.blogspot.co.uk/2014/11/basic-authentication-ssl-and-pyslets.html
  
 Untracked enhancements:
 
+Added a new module to make it easier to write WSGI-based applications.
+Currently work in progress.
+
 Added a new module to support HTTP cookies.  The HTTP/OData client can
 now be configured to accept cookies.  The default behaviour is to
 *ignore* them so this won't affect existing applications.
@@ -128,8 +133,24 @@ Fixed a bug in the OData server which meant that requests for JSON
 format responses were not being limited by the builtin topmax and would
 therefore attempt to return all matching entities in a single response.
 
+Fixed a bug in the OData URI parser that prevent compound keys from
+working properly when zealous escaping was used.
+
+Fixed a bug in the OData server which meant that error messages that
+contained non-ASCII characters were causing a 500 error due to character
+encoding issues when outputting the expected OData error format.
+
+Fixed a bug in the SQL DAL implementation which means that navigation
+properties that require joining across a composite key were generating
+syntax errors, e.g., in SQLite the message 'near "=": syntax error'
+would be seen.
+
+Fixed a bug in the SQLite DAL implementation which means that in-memory
+databases were not working correctly in multi-threaded environments.
+
 Fixed XML parser bug, ID elements in namespaced documents were not
 being handled properly. 
+
 
 Version 0.5.20140801
 --------------------

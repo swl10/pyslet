@@ -489,6 +489,7 @@ def split_path_segment(segment):
 
 
 def is_query_reserved(c):
+    #: adds comma to is_reserved
     return (c and ord(c) in (0x3B, 0x2F, 0x3F, 0x3A, 0x40, 0x26, 0x3D,
                              0x2B, 0x2C, 0x24))
 

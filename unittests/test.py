@@ -40,6 +40,7 @@ import test_rtf_1p6
 import test_unicode5
 import test_urn
 import test_vfs
+import test_wsgi
 import test_xml20081126
 import test_xmlnames20091208
 import test_xsdatatypes20041028
@@ -80,6 +81,7 @@ def suite():
     s.addTest(test_unicode5.suite())
     s.addTest(test_urn.suite())
     s.addTest(test_vfs.suite())
+    s.addTest(test_wsgi.suite())
     s.addTest(test_xml20081126.suite())
     s.addTest(test_xmlnames20091208.suite())
     s.addTest(test_xsdatatypes20041028.suite())

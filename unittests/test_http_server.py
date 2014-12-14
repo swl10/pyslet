@@ -96,11 +96,19 @@ class MockSocketBase(object):
             rs = []
             ws = []
             for r in rlist:
-                if r.recv_pipe.canread():
-                    rs.append(r)
+                try:
+                    if r.recv_pipe.canread():
+                        rs.append(r)
+                except IOError:
+                    # raise a socket error
+                    raise select.error(errno.EPIPE, os.strerror(errno.EPIPE))
             for w in wlist:
-                if w.send_pipe.canwrite():
-                    ws.append(w)
+                try:
+                    if w.send_pipe.canwrite():
+                        ws.append(w)
+                except IOError:
+                    # raise a socket error
+                    raise select.error(errno.EPIPE, os.strerror(errno.EPIPE))
             if rs or ws:
                 return rs, ws, []
             else:
@@ -120,6 +128,10 @@ class MockSocketBase(object):
         result = self.recv_pipe.read(nbytes)
         if self.io_error:
             raise self.io_error
+        if result is None:
+            # non-blocking read, nothing to read
+            raise IOError(errno.EAGAIN, os.strerror(errno.EAGAIN),
+                          "MockSocket.recv")
         return result
 
     def send(self, data):
@@ -128,6 +140,10 @@ class MockSocketBase(object):
         result = self.send_pipe.write(data)
         if self.io_error:
             raise self.io_error
+        if result is None:
+            # non-blocking read, nothing to read
+            raise IOError(errno.EAGAIN, os.strerror(errno.EAGAIN),
+                          "MockSocket.send")
         return result
 
     def shutdown(self, how):

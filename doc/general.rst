@@ -11,6 +11,7 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
+   wsgi
    xml20081126
    xml20081126.parser
    xsdatatypes20041028

@@ -137,6 +137,7 @@ class MockConnectionWrapper(Connection):
                 logging.info("Opening connection to %s...", self.host)
                 self.socket = self.SocketClass(self)
                 self.socket_file = self.socket
+                self.socket.setblocking(False)
                 self.socketSelect = self.SocketClass.wrap_select
 
 

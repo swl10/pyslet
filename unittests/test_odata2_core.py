@@ -1512,6 +1512,24 @@ class ODataURITests(unittest.TestCase):
         except ValueError:
             pass
 
+    def test_compound_key(self):
+        ds_uri = ODataURI(
+            "/CompoundKeys(K3%3Ddatetime'2013-12-25T15%3A59%3A03.142'%2C"
+            "K2%3D'00001'%2CK1%3D1%2CK4%3DX'DEADBEEF')")
+        self.assertTrue(
+            ds_uri.navPath[0][0] == 'CompoundKeys', "e set name")
+        self.assertTrue(
+            isinstance(ds_uri.navPath[0][1][u'K1'], edm.Int32Value))
+        self.assertTrue(
+            isinstance(ds_uri.navPath[0][1][u'K2'], edm.StringValue))
+        self.assertTrue(
+            isinstance(ds_uri.navPath[0][1][u'K3'], edm.DateTimeValue))
+        self.assertTrue(
+            isinstance(ds_uri.navPath[0][1][u'K4'], edm.BinaryValue))
+        ds_uri = ODataURI(
+            "/CompoundKeys(K3%3Ddatetime'2013-12-25T15%3A59%3A03.142',"
+            "K2%3D'00001',K1%3D1,K4%3DX'DEADBEEF')")        
+        
     def test_query_options(self):
         """QueryOptions:
 
@@ -2189,6 +2207,8 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_compound_key(self):
         compound_keys = self.ds[
             'RegressionModel.RegressionContainer.CompoundKeys']
+        compound_keyxs = self.ds[
+            'RegressionModel.RegressionContainer.CompoundKeyXs']
         with compound_keys.OpenCollection() as coll:
             e = coll.new_entity()
             e['K1'].set_from_value(1)
@@ -2220,6 +2240,19 @@ class DataServiceRegressionTests(unittest.TestCase):
                 '2013-12-25T15:59:03.142'), '\xde\xad\xbe\xef')]
             self.assertTrue(
                 check_e['Data'].value == 'Updated Compound Key')
+            with compound_keyxs.OpenCollection() as collx:
+                ex = collx.new_entity()
+                ex['K'].set_from_value(10)
+                ex['Data'].set_from_value("Compound KeyX")
+                # add a binding
+                ex['CompoundKey'].BindEntity(got_e)
+                collx.insert_entity(ex)
+            with got_e['CompoundKeyXs'].OpenCollection() as collx:
+                self.assertTrue(len(collx) == 1)
+                self.assertTrue(10 in collx)
+                ex = collx.values()[0]
+                match_e = ex['CompoundKey'].GetEntity()
+                self.assertTrue(match_e == got_e)
             # DELETE
             del coll[(1, '00001', iso.TimePoint.from_str(
                 '2013-12-25T15:59:03.142'), '\xde\xad\xbe\xef')]
@@ -2231,6 +2264,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 self.fail("Index into coll after CompoundKey DELETE")
             except KeyError:
                 pass
+                
 
     def runtest_simple_select(self):
         select_set = self.ds[

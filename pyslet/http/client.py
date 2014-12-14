@@ -376,9 +376,6 @@ class Connection(object):
             wbusy = self.socket_file
         logging.debug("connection_task returning %s, %s, %s",
                       repr(rbusy), repr(wbusy), str(tbusy))
-        if not rbusy and not wbusy and tbusy is not None and tbusy > 50:
-            import pdb
-            pdb.set_trace()
         return rbusy, wbusy, tbusy
 
     def request_disconnect(self):
@@ -508,9 +505,44 @@ class Connection(object):
             # Queue a response as we're still handling the last one!
             self.response_queue.append(request.response)
         else:
+            # if there is no response, we may have been idle for some
+            # time, check the connection...
+            if self.socket:
+                self._check_socket()
             self.response = request.response
             self.response.start_receiving()
         return True
+
+    def _check_socket(self):
+        #   Checks to see if the socket has been shutdown
+        logging.debug("_check_socket: attempting to read two bytes...")
+        data = None
+        try:
+            # we're not expecting any data, read two bytes just in case
+            # we get a stray CRLF that we're supposed to be ignoring.
+            data = self.socket.recv(2)
+        except ssl.SSLError as err:
+            if (err.args[0] == ssl.SSL_ERROR_WANT_READ or
+                    err.args[0] == ssl.SSL_ERROR_WANT_WRITE):
+                # blocked on SSL read, OK
+                return
+            else:
+                logging.warn("socket.recv raised %s", str(err))
+        except IOError as err:
+            if err.errno == errno.EAGAIN:
+                # we're blocked on recv
+                return
+            else:
+                logging.warn("socket.recv raised %s", str(err))
+        if data:
+            logging.error("Unexpected data in _check_socket: %s: \n%s",
+                          self.host, repr(data))
+        logging.debug("%s: _check_socket detected closed socket", self.host)
+        with self.lock:
+            olds = self.socket
+            self.socket = None
+            if olds is not None:
+                self._close_socket(olds)
 
     def _send_request_data(self):
         #   Sends the next chunk of data in the buffer
@@ -596,9 +628,6 @@ class Connection(object):
             self.recv_buffer.append(data)
             self.recv_buffer_size += nbytes
         else:
-            # TODO: this is typically a signal that the other end hung
-            # up, we should implement the HTTP retry strategy for the
-            # related request
             logging.debug("%s: closing connection after recv returned no "
                           "data on ready to read socket", self.host)
             self.close()

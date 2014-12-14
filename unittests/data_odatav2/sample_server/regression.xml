@@ -10,6 +10,11 @@
                 <EntitySet Name="AllTypes" EntityType="RegressionModel.AllTypes"/>
                 <EntitySet Name="ComplexTypes" EntityType="RegressionModel.ComplexTypes"/>
                 <EntitySet Name="CompoundKeys" EntityType="RegressionModel.CompoundKey"/>
+                <EntitySet Name="CompoundKeyXs" EntityType="RegressionModel.CompoundKeyX"/>
+                <AssociationSet Name="CompoundNavigationLinks" Association="RegressionModel.CompoundNavigation">
+                    <End Role="CompoundKey" EntitySet="CompoundKeys"/>
+                    <End Role="CompoundKeyX" EntitySet="CompoundKeyXs"/>
+                </AssociationSet>
                 <EntitySet Name="SimpleSelectSet" EntityType="RegressionModel.SimpleSelectType"/>
                 <EntitySet Name="PagingSet" EntityType="RegressionModel.PagingType"/>
                 <EntitySet Name="O2Os" EntityType="RegressionModel.O2O"/>
@@ -193,7 +198,26 @@
                     MaxLength="4"/>
                 <Property Name="Data" Type="Edm.String" Nullable="true" FixedLength="false"
                     MaxLength="255"/>
+                <NavigationProperty Name="CompoundKeyXs" FromRole="CompoundKey"
+                    ToRole="CompoundKeyX"
+                    Relationship="RegressionModel.CompoundNavigation"/>
             </EntityType>
+            <EntityType Name="CompoundKeyX">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data"
+                    Type="Edm.String" Nullable="true"
+                    FixedLength="false" MaxLength="255"/>
+                <NavigationProperty Name="CompoundKey" FromRole="CompoundKeyX"
+                    ToRole="CompoundKey"
+                    Relationship="RegressionModel.CompoundNavigation"/>
+            </EntityType>            
+            <Association Name="CompoundNavigation">
+                <End Role="CompoundKey" Type="RegressionModel.CompoundKey" Multiplicity="0..1"/>
+                <End Role="CompoundKeyX" Type="RegressionModel.CompoundKeyX" Multiplicity="*"/>
+            </Association>
             <EntityType Name="SimpleSelectType">
                 <Key>
                     <PropertyRef Name="K"/>

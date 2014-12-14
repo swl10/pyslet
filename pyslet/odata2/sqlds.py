@@ -10,7 +10,6 @@ import traceback
 import threading
 import decimal
 import math
-import logging
 import types
 import warnings
 import os.path
@@ -26,6 +25,8 @@ import csdl as edm
 import core
 import metadata as edmx
 
+import logging
+logging = logging.getLogger('pyslet.odata2.sqlds')
 
 # : the standard timeout while waiting for a database connection, in seconds
 SQL_TIMEOUT = 90
@@ -2986,7 +2987,7 @@ class SQLForeignKeyCollection(SQLNavigationCollection):
                          self.aset_name, key_name)]))
         return ' INNER JOIN %s AS %s ON ' % (
             self.container.mangled_names[(self.from_entity.entity_set.name,)],
-            self.sourceName) + string.join(join, ', ')
+            self.sourceName) + string.join(join, 'AND ')
 
     def where_clause(self, entity, params, use_filter=True, use_skip=False):
         """Adds the constraint for entities linked from *from_entity* only.
@@ -3320,7 +3321,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
                       self.toNavName,
                       key_name)]))
         return ' INNER JOIN %s ON ' % self.atable_name + \
-            string.join(join, ', ')
+            string.join(join, 'AND ')
 
     def where_clause(self, entity, params, use_filter=True, use_skip=False):
         """Provides the *from_entity* constraint in the auxiliary table."""
@@ -4318,8 +4319,8 @@ class SQLEntityContainer(object):
                             "Thread[%i] closed an unused database connection "
                             "(max connections reached)", oldThreadId)
                         # is it ok to close a connection from a different
-                        # thread?
-                        cpool_lock.dbc.close()
+                        # thread?  Perhaps
+                        self.close_connection(cpool_lock.dbc)
                         cpool_lock.dbc = self.open()
                 else:
                     now = time.time()
@@ -4406,7 +4407,7 @@ class SQLEntityContainer(object):
                 if not bad_lock.locked:
                     # no need to notify other threads as we close this
                     # connection for safety
-                    bad_lock.dbc.close()
+                    self.close_connection(bad_lock.dbc)
                     del self.cpool_dead[idead]
                     logging.warn(
                         "Thread[%i] removed a database connection from the "
@@ -4424,6 +4425,10 @@ class SQLEntityContainer(object):
         the underlying DB ABI does not provide a standard method of
         connecting."""
         raise NotImplementedError
+
+    def close_connection(self, connection):
+        """Calls the underlying close method."""
+        connection.close()
 
     def break_connection(self, connection):
         """Called when closing or cleaning up locked connections.
@@ -4470,14 +4475,14 @@ class SQLEntityContainer(object):
             while self.cpool_unlocked:
                 thread_id, cpool_lock = self.cpool_unlocked.popitem()
                 # we don't bother to acquire the lock
-                cpool_lock.dbc.close()
+                self.close_connection(cpool_lock.dbc)
             while self.cpool_locked:
                 # trickier, these are in use
                 thread_id, cpool_lock = self.cpool_locked.popitem()
                 no_wait = False
                 while True:
                     if cpool_lock.lock.acquire(False):
-                        cpool_lock.dbc.close()
+                        self.close_connection(cpool_lock.dbc)
                         break
                     elif cpool_lock.thread.isAlive():
                         if no_wait:
@@ -4491,13 +4496,13 @@ class SQLEntityContainer(object):
                             no_wait = True
                     else:
                         # This connection will never be released properly
-                        cpool_lock.dbc.close()
+                        self.close_connection(cpool_lock.dbc)
             while self.cpool_dead:
                 cpool_lock = self.cpool_dead.pop()
                 no_wait = False
                 while True:
                     if cpool_lock.lock.acquire(False):
-                        cpool_lock.dbc.close()
+                        self.close_connection(cpool_lock.dbc)
                         break
                     elif cpool_lock.thread.isAlive():
                         if no_wait:
@@ -4511,7 +4516,7 @@ class SQLEntityContainer(object):
                             no_wait = True
                     else:
                         # This connection will never be released properly
-                        cpool_lock.dbc.close()
+                        self.close_connection(cpool_lock.dbc)
 
     def __del__(self):
         self.close()
@@ -4793,7 +4798,10 @@ class SQLiteEntityContainer(SQLEntityContainer):
         the connect method.  It defaults to an empty dictionary, you
         won't normally need to pass additional options and you shouldn't
         change the isolation_level as the collection classes have been
-        designed to work in the default mode.
+        designed to work in the default mode.  Also, check_same_thread
+        is forced to False, this is poorly documented but we only do it
+        so that we can close a connection in a different thread from the
+        one that opened it when cleaning up.
 
         For more information see sqlite3_
 
@@ -4804,6 +4812,17 @@ class SQLiteEntityContainer(SQLEntityContainer):
     set to the Python sqlite3 module."""
 
     def __init__(self, file_path, sqlite_options={}, **kwargs):
+        if isinstance(file_path, (str, unicode)) and file_path == ":memory:":
+            if (('max_connections' in kwargs and
+                    kwargs['max_connections'] != 1) or
+                    'max_connections' not in kwargs):
+                logging.warn("Forcing max_connections=1 for in-memory "
+                             "SQLite database")
+            kwargs['max_connections'] = 1
+            self.sqlite_memdbc = sqlite3.connect(
+                ":memory:", check_same_thread=False, **sqlite_options)
+        else:
+            self.sqlite_memdbc = None
         super(SQLiteEntityContainer, self).__init__(dbapi=sqlite3, **kwargs)
         if (not isinstance(file_path, OSFilePath) and
                 not type(file_path) in types.StringTypes):
@@ -4837,7 +4856,10 @@ class SQLiteEntityContainer(SQLEntityContainer):
         Other connection arguments are not currently supported, you can
         derive a more complex implementation by overriding this method
         and (optionally) the __init__ method to pass in values for ."""
-        dbc = self.dbapi.connect(str(self.file_path), **self.sqlite_options)
+        if self.sqlite_memdbc is not None:
+            return self.sqlite_memdbc
+        dbc = self.dbapi.connect(str(self.file_path), check_same_thread=False,
+                                 **self.sqlite_options)
         c = dbc.cursor()
         c.execute("PRAGMA foreign_keys = ON")
         c.close()
@@ -4846,6 +4868,17 @@ class SQLiteEntityContainer(SQLEntityContainer):
     def break_connection(self, connection):
         """Calls the underlying interrupt method."""
         connection.interrupt()
+
+    def close_connection(self, connection):
+        """Calls the underlying close method."""
+        if self.sqlite_memdbc is None:
+            connection.close()
+
+    def close(self):
+        super(SQLiteEntityContainer, self).close()
+        # close any in-memory database
+        if self.sqlite_memdbc is not None:
+            self.sqlite_memdbc.close()
 
     def prepare_sql_type(self, simple_value, params, nullable=None):
         """Performs SQLite custom mappings

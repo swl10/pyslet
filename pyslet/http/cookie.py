@@ -45,7 +45,7 @@ def is_ldh_label(label):
         <let-dig> ::= <letter> | <digit>"""
     allow_hyphen = False
     trailing_hyphen = False
-    if len(label) > 63:
+    if not label or len(label) > 63:
         return False
     for c in label:
         if (grammar.is_alpha(c) or grammar.is_digit(c) or
@@ -896,7 +896,7 @@ class Section4Cookie(Cookie):
                     attrs.add(ext)
 
     @classmethod
-    def from_str(self, src):
+    def from_str(cls, src):
         """Creates a new instance from a src string
 
         Overridden to provide stricter parsing.  This may still appear

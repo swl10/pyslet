@@ -1035,7 +1035,7 @@ class SimpleValue(EDMValue):
         else:
             raise NotImplementedError
 
-    def SetRandomValue(self, base=None):
+    def set_random_value(self, base=None):
         """Sets a random value based
 
         base
@@ -1759,7 +1759,7 @@ class Int32Value(NumericValue):
         else:
             raise TypeError("Can't set Int32 from %s" % str(new_value))
 
-    def SetRandomValue(self, base=None):
+    def set_random_value(self, base=None):
         if base and base.value < 0:
             self.set_from_value(-random.getrandbits(31))
         else:
@@ -1794,7 +1794,7 @@ class Int64Value(NumericValue):
         else:
             raise TypeError("Can't set Int64 from %s" % str(new_value))
 
-    def SetRandomValue(self, base=None):
+    def set_random_value(self, base=None):
         if base and base.value < 0:
             self.set_from_value(-random.getrandbits(63))
         else:
@@ -1826,7 +1826,7 @@ class StringValue(SimpleValue):
     def SetFromLiteral(self, value):
         self.value = value
 
-    def SetRandomValue(self, base=None):
+    def set_random_value(self, base=None):
         if base:
             base = base.value
         else:
@@ -2053,6 +2053,28 @@ class DeferredValue(object):
                 "Attempt to navigate a non-existent entity: %s.%s" %
                 (self.from_entity.type_def.name, self.name))
 
+    def set_expansion_values(self, values):
+        """Sets the expansion of this deferred value
+        
+        values
+            A list of :class:`Entity` instances.
+        
+        No call to the underlying data-layer is made, it is assumed that
+        values is an appropriate representation of the data that would
+        be obtained by executing::
+        
+            with self.OpenCollection() as coll:
+                return coll.values()
+            
+        The purpose of this method is to allow the re-use of a value
+        list that has been obtained previously without having to consult
+        the data source again."""
+        self.SetExpansion(ExpandedEntityCollection(
+                          from_entity=self.from_entity,
+                          name=self.name,
+                          entity_set=self.Target(),
+                          entityList=values))
+        
     def SetExpansion(self, expandedCollection):
         """Sets the expansion for this deferred value to the :py:class:`ExpandedEntityCollection` given.
 
@@ -2174,7 +2196,7 @@ class Entity(TypeInstance):
 
     Property values are created on construction and cannot be assigned
     directly. To update a simple value use the value's
-    :py:meth:`SimpleValue.SetFromPyVaue` method::
+    :py:meth:`SimpleValue.set_from_value` method::
 
             e['Name'].set_from_value("Steve")
                     # update simple property Name
@@ -2212,6 +2234,11 @@ class Entity(TypeInstance):
     default values, or NULL if there is no default specified in the
     model. Entity instances returned as values in collection objects
     have exists set to True.
+    
+    Entities from the same entity set can be compared (unlike
+    :class:`Complex` instances), comparison is done by :meth:`key`. 
+    Therefore, two instances that represent that same entity will
+    compare equal.
 
     If an entity does not exist, OpenCollection will fail if called on
     one of its navigation properties with :py:class:`NonExistentEntity`.
@@ -2233,6 +2260,12 @@ class Entity(TypeInstance):
         for np in self.type_def.NavigationProperty:
             self.data[np.name] = DeferredValue(np.name, self)
 
+    def __cmp__(self, other):
+        if (not isinstance(other, Entity) or
+                other.entity_set is not self.entity_set):
+            raise TypeError
+        return cmp(self.key(), other.key())
+        
     def __iter__(self):
         """Iterates over the property names, including the navigation
         properties.
@@ -2450,7 +2483,7 @@ class Entity(TypeInstance):
             else:
                 bv = None
             v = self[pRef.name]
-            v.SetRandomValue(bv)
+            v.set_random_value(bv)
 
     def KeyDict(self):
         """Returns the entity key as a dictionary mapping key property
@@ -2810,7 +2843,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         in the metadata model."""
         return self.entity_set.GetFQName()
 
-    def Expand(self, expand, select=None):
+    def set_expand(self, expand, select=None):
         """Sets the expand and select query options for this collection.
 
         The expand query option causes the named navigation properties
@@ -2836,6 +2869,10 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         self.expand = expand
         self.select = select
         self.lastEntity = None
+
+    @redirected_method('set_expand')
+    def Expand(self, expand, select=None):   # noqa
+        pass
 
     def SelectKeys(self):
         """Sets the select rule to select the key property/properties only.

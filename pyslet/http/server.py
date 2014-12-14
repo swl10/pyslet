@@ -201,7 +201,7 @@ def read_socket(s, nbytes, timeout=None):
                           "select in pyslet.http.messages.read_socket")
     except select.error as err:
         logging.error("Socket error from select: %s", str(err))
-        raise IOError(err.errno, err.strerror(err.errno))
+        raise IOError(err.args[0], err.args[1])
     try:
         data = s.recv(nbytes)
         # if data is empty the other end has hung up
@@ -238,7 +238,7 @@ def write_socket(s, data, timeout=None):
                               "select in pyslet.http.messages.write_socket")
         except select.error as err:
             logging.error("Socket error from select: %s", str(err))
-            raise IOError(err.errno, err.strerror)
+            raise IOError(err.args[0], err.args[1])
         try:
             nbytes = s.send(data)
             if nbytes:
@@ -1074,7 +1074,9 @@ class Pipe(io.RawIOBase):
         IOError is raised."""
         with self.lock:
             if self.closed or self._eof:
-                raise IOError("canwrite: can't write past EOF on Pipe object")
+                raise IOError(
+                    errno.EPIPE,
+                    "canwrite: can't write past EOF on Pipe object")
             wlen = self.max - self.bsize + self.rpos
             if wlen <= 0:
                 wlen = 0
@@ -1126,7 +1128,8 @@ class Pipe(io.RawIOBase):
         use."""
         with self.lock:
             if self.closed:
-                raise IOError("can't read from a closed Pipe object")
+                raise IOError(
+                    errno.EPIPE, "can't read from a closed Pipe object")
             if self.buffer or self._eof:
                 return True
             else:
@@ -1152,7 +1155,8 @@ class Pipe(io.RawIOBase):
             tstart = time.time()
         with self.lock:
             if self.closed or self._eof:
-                raise IOError("write: can't write past EOF on Pipe object")
+                raise IOError(errno.EPIPE,
+                              "write: can't write past EOF on Pipe object")
             if isinstance(b, memoryview):
                 # catch memory view objects here
                 b = b.tobytes()
@@ -1174,7 +1178,8 @@ class Pipe(io.RawIOBase):
                     self.lock.wait(twait)
                     # check for eof again!
                     if self.closed or self._eof:
-                        raise IOError("write: EOF or pipe closed after wait")
+                        raise IOError(errno.EPIPE,
+                                      "write: EOF or pipe closed after wait")
                     # recalculate the writable space
                     wlen = self.max - self.bsize + self.rpos
                 else:

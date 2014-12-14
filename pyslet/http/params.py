@@ -91,7 +91,8 @@ class HTTPURL(uri.ServerBasedURL):
     #: the default HTTP port
     DEFAULT_PORT = HTTP_PORT
 
-    def __init__(self, octets='http://localhost/'):
+    def __init__(self, octets='http://localhost/',
+                 host=None, path=None, query=None, fragment=None):
         super(HTTPURL, self).__init__(octets)
 
     def canonicalize(self):

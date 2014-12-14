@@ -1,19 +1,22 @@
 #! /usr/bin/env python
 
-import unittest
 import logging
 import random
-import uuid
 import sqlite3
+import string
+import threading
+import uuid
+import unittest
 
 import pyslet.odata2.csdl as edm
-import pyslet.odata2.edmx as edmx
+import pyslet.odata2.core as core
+import pyslet.odata2.metadata as edmx
 import pyslet.http.params as params
 from pyslet.vfs import OSFilePath as FilePath
 
 from test_odata2_core import DataServiceRegressionTests
 
-from pyslet.odata2.sqlds import *  # noqa
+import pyslet.odata2.sqlds as sqlds
 
 
 TEST_DATA_DIR = FilePath(
@@ -44,7 +47,7 @@ class ParamTests(unittest.TestCase):
                            False, None]
 
     def test_qmark(self):
-        params = QMarkParams()
+        params = sqlds.QMarkParams()
         query = []
         for p in self.testparams:
             query.append(params.add_param(p))
@@ -53,7 +56,7 @@ class ParamTests(unittest.TestCase):
         self.assertTrue(params.params == self.testparams)
 
     def test_numeric(self):
-        params = NumericParams()
+        params = sqlds.NumericParams()
         query = []
         for p in self.testparams:
             query.append(params.add_param(p))
@@ -62,7 +65,7 @@ class ParamTests(unittest.TestCase):
         self.assertTrue(params.params == self.testparams)
 
     def test_named(self):
-        params = NamedParams()
+        params = sqlds.NamedParams()
         query = []
         for p in self.testparams:
             query.append(params.add_param(p))
@@ -108,7 +111,7 @@ class MockAPI(object):
     def __init__(self, threadsafety=0):
         self.threadsafety = threadsafety
 
-    Error = SQLError
+    Error = sqlds.SQLError
 
     paramstyle = 'qmark'
 
@@ -116,7 +119,7 @@ class MockAPI(object):
         return MockConnection(**kwargs)
 
 
-class MockContainer(SQLEntityContainer):
+class MockContainer(sqlds.SQLEntityContainer):
 
     def __init__(self, **kwargs):
         super(MockContainer, self).__init__(**kwargs)
@@ -356,7 +359,7 @@ class SQLDSTests(unittest.TestCase):
         self.container = self.doc.root.DataServices[
             "SampleModel.SampleEntities"]
         self.d = FilePath.mkdtemp('.d', 'pyslet-test_odata2_sqlds-')
-        self.db = SQLiteEntityContainer(
+        self.db = sqlds.SQLiteEntityContainer(
             file_path=self.d.join('test.db'),
             container=self.container)
 
@@ -368,7 +371,8 @@ class SQLDSTests(unittest.TestCase):
 
     def test_constructors(self):
         es = self.schema['SampleEntities.Employees']
-        self.assertTrue(isinstance(es.OpenCollection(), SQLEntityCollection))
+        self.assertTrue(isinstance(es.OpenCollection(),
+                                   sqlds.SQLEntityCollection))
         with es.OpenCollection() as collection:
             collection.create_table()
             self.assertTrue(collection.entity_set is es, "Entity set pointer")
@@ -690,7 +694,7 @@ class SQLDSTests(unittest.TestCase):
                     es.name)
 
 
-class CustomisedContainer(SQLiteEntityContainer):
+class CustomisedContainer(sqlds.SQLiteEntityContainer):
 
     def mangle_name(self, source_path):
         if source_path == (u'Files', ):
@@ -830,10 +834,10 @@ class RegressionTests(DataServiceRegressionTests):
         DataServiceRegressionTests.setUp(self)
         self.container = self.ds['RegressionModel.RegressionContainer']
         self.d = FilePath.mkdtemp('.d', 'pyslet-test_odata2_sqlds-')
-        self.db = SQLiteEntityContainer(
+        self.db = sqlds.SQLiteEntityContainer(
             file_path=self.d.join('test.db'),
             container=self.container,
-            streamstore=SQLiteStreamStore(
+            streamstore=sqlds.SQLiteStreamStore(
                 file_path=self.d.join('streamstore.db')))
         self.db.create_all_tables()
 

@@ -1478,7 +1478,7 @@ class Parser(edm.Parser):
         self.require_end("expandQueryOp")
         return result
 
-    def ParseOrderbyOption(self):
+    def parse_orderby_option(self):
         """Parses an orderby system query option, returning a list of 2-tuples.
 
         Each tuple is ( <py:class:`CommonExpression` instance>, 1 | -1 )
@@ -1772,17 +1772,25 @@ class Parser(edm.Parser):
 
 
 def ParseURILiteral(source):
-    """Parses a literal value from a source string.
+    """Parses a URI-literal value from a source string.
 
-    Returns a tuple of a:
-
-            *   a constant from :py:class:`pyslet.mc_csdl.SimpleType`
-
-            *   the value, represented with the closest python built-in type
-
-    The special string "null" returns None,None"""
+    source
+        A URI-encoded string of octets
+    
+    Returns a :class:`~pyslet.odata2.csdl.SimpleValue` instance."""
     p = Parser(uri.unescape_data(source).decode('utf-8'))
     return p.require_production_end(p.ParseURILiteral(), "uri literal")
+
+
+def FormatURILiteral(value, query=True):
+    """Formats a simple value as a URI-encoded literal
+    
+    value
+        A :class:`~pyslet.odata2.csdl.SimpleValue` instance.
+    
+    Returns a URI-encoded string of octets."""
+    return uri.escape_data(ODataURI.FormatLiteral(value).encode('utf-8'),
+                           uri.is_query_reserved if query else uri.is_reserved)    
 
 
 def ParseDataServiceVersion(src):
@@ -2230,35 +2238,51 @@ class ODataURI:
 
     def SplitSegment(self, segment):
         """Splits a string segment into a unicode name and a keyPredicate dictionary."""
+        segment = uri.unescape_data(segment).decode('utf-8')
         if segment.startswith('$'):
             # some type of control word
             return segment, None
         elif '(' in segment and segment[-1] == ')':
-            name = uri.unescape_data(
-                segment[:segment.index('(')]).decode('utf-8')
+            name = segment[:segment.index('(')]
             keys = segment[segment.index('(') + 1:-1]
             if keys == '':
                 keys = []
             else:
-                keys = keys.split(',')
+                qmode = False                
+                vstring = []
+                keylist = []
+                kname = ''
+                for c in keys:
+                    if c == "'":
+                        qmode = not qmode
+                    if c == ',' and not qmode:
+                        keylist.append((kname, string.join(vstring, '')))
+                        kname = ''
+                        vstring = []
+                    elif c == '=' and not qmode:
+                        kname = string.join(vstring, '')
+                        vstring = []
+                    else:
+                        vstring.append(c)
+                if vstring or kname:
+                    keylist.append((kname, string.join(vstring, '')))
+                keys = keylist
             if len(keys) == 0:
                 return name, {}
-            elif len(keys) == 1 and '=' not in keys[0]:
-                return name, {u'': ParseURILiteral(keys[0])}
+            elif len(keys) == 1:
+                return name, {keys[0][0]: ParseURILiteral(keys[0][1])}
             else:
                 keyPredicate = {}
                 for k in keys:
-                    nv = k.split('=')
-                    if len(nv) != 2:
+                    if not k[0]:
                         raise ValueError(
                             "unrecognized key predicate: %s" % repr(keys))
-                    kname, value = nv
-                    kname = uri.unescape_data(kname).decode('utf-8')
+                    kname, value = k
                     kvalue = ParseURILiteral(value)
                     keyPredicate[kname] = kvalue
                 return name, keyPredicate
         else:
-            return uri.unescape_data(segment).decode('utf-8'), None
+            return segment, None
 
     def get_param_value(self, param_name):
         if param_name in self.paramTable:

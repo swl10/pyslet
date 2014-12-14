@@ -248,7 +248,8 @@ class Server(app.Server):
         for c in pathinfo:
             if qmode:
                 # we need to quote reserved characters
-                if uri.is_path_segment_reserved(c):
+                if uri.is_path_segment_reserved(c) or not (
+                        uri.is_unreserved(c) or uri.is_reserved):
                     result.append("%%%02X" % ord(c))
                 else:
                     result.append(c)
@@ -261,6 +262,8 @@ class Server(app.Server):
                 # we continue to escape '?' as it must have been escaped
                 # in the original URI
                 result.append('%3F')
+            elif not (uri.is_unreserved(c) or uri.is_reserved(c)):
+                result.append("%%%02X" % ord(c))
             else:
                 # leave '/', ';' and '=' unescaped
                 result.append(c)
@@ -329,16 +332,15 @@ class Server(app.Server):
                 environ,
                 start_response,
                 "InvalidSystemQueryOption",
-                "Invalid System Query Option: %s" %
-                str(e))
+                u"Invalid System Query Option: %s" % unicode(e))
         except core.InvalidPathOption as e:
             return self.ODataError(
                 core.ODataURI('error'),
                 environ,
                 start_response,
                 "Bad Request",
-                "Path option is invalid or "
-                "incompatible with this form of URI: %s" % str(e),
+                u"Path option is invalid or "
+                "incompatible with this form of URI: %s" % unicode(e),
                 400)
         except core.InvalidMethod as e:
             return self.ODataError(
@@ -346,8 +348,7 @@ class Server(app.Server):
                 environ,
                 start_response,
                 "Bad Request",
-                "Method not allowed: %s" %
-                str(e),
+                u"Method not allowed: %s" % unicode(e),
                 400)
         except ValueError as e:
             traceback.print_exception(*sys.exc_info())
@@ -357,7 +358,7 @@ class Server(app.Server):
                 environ,
                 start_response,
                 "ValueError",
-                str(e))
+                unicode(e))
         except:
             eInfo = sys.exc_info()
             traceback.print_exception(*eInfo)
@@ -368,9 +369,7 @@ class Server(app.Server):
                 environ,
                 start_response,
                 "UnexpectedError",
-                "%s: %s" %
-                (eInfo[0],
-                 eInfo[1]),
+                u"%s: %s" % (eInfo[0], eInfo[1]),
                 500)
 
     def ODataError(

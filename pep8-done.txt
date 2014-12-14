@@ -32,8 +32,12 @@ pyslet/rfc2616.py
 pyslet/rfc2617.py
 pyslet/urn.py
 unittests/test_urn.py
+pyslet/wsgi.py
+unittests/test_wsgi.py
 pyslet/xml20081126/parser.py
 samples/fsodata.py
 samples/odatadiff.py
 samples/odatadoc.py
+samples/noticeboard/noticeboard.py
+samples/noticeboard/test_noticeboard.py
 setup.py
