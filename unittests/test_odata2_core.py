@@ -2204,6 +2204,36 @@ class DataServiceRegressionTests(unittest.TestCase):
             except KeyError:
                 pass
 
+    def runtest_only_key(self):
+        only_keys = self.ds[
+            'RegressionModel.RegressionContainer.OnlyKeys']
+        with only_keys.OpenCollection() as coll:
+            e = coll.new_entity()
+            e['ID'].set_from_value(100)
+            # CREATE
+            coll.insert_entity(e)
+            # READ (coll)
+            self.assertTrue(
+                len(coll) == 1, "only_keys length after insert")
+            got_e = coll.values()[0]
+            self.assertTrue(got_e['ID'].value == 100)
+            # READ (by key)
+            got_e = coll[100]
+            self.assertTrue(got_e['ID'].value == 100, "ID on read")
+            # UPDATE
+            # nothing to change, should do nothing!
+            coll.update_entity(got_e)
+            check_e = coll[100]
+            # DELETE
+            del coll[100]
+            self.assertTrue(
+                len(coll) == 0, "only_keys length after DELETE")
+            try:
+                got_e = coll[100]
+                self.fail("Index into coll after only_keys DELETE")
+            except KeyError:
+                pass
+        
     def runtest_compound_key(self):
         compound_keys = self.ds[
             'RegressionModel.RegressionContainer.CompoundKeys']
@@ -5222,6 +5252,7 @@ class DataServiceRegressionTests(unittest.TestCase):
         self.runtest_mediaresource()
         self.runtest_all_types()
         self.runtest_complex_types()
+        self.runtest_only_key()
         self.runtest_compound_key()
         self.runtest_simple_select()
         self.runtest_paging()

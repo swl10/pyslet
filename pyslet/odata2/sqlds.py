@@ -2266,16 +2266,17 @@ class SQLEntityCollection(SQLCollectionBase):
                     '%s=%s' %
                     (cname,
                      params.add_param(self.container.prepare_sql_value(v))))
-            query.append(string.join(updates, ', '))
-            query.append(' WHERE ')
-            where = []
-            for cname, cvalue in constraints:
-                where.append('%s=%s' % (cname, params.add_param(cvalue)))
-            query.append(string.join(where, ' AND '))
-            query = string.join(query, '')
-            logging.info("%s; %s", query, unicode(params.params))
-            transaction.execute(query, params)
-            if transaction.cursor.rowcount == 0:
+            if updates:
+                query.append(string.join(updates, ', '))
+                query.append(' WHERE ')
+                where = []
+                for cname, cvalue in constraints:
+                    where.append('%s=%s' % (cname, params.add_param(cvalue)))
+                query.append(string.join(where, ' AND '))
+                query = string.join(query, '')
+                logging.info("%s; %s", query, unicode(params.params))
+                transaction.execute(query, params)
+            if updates and transaction.cursor.rowcount == 0:
                 # we need to check if this entity really exists
                 query = ['SELECT COUNT(*) FROM ', self.table_name, ' WHERE ']
                 params = self.container.ParamsClass()

@@ -9,6 +9,7 @@
                 <EntitySet Name="AutoKeysString" EntityType="RegressionModel.AutoKeyString"/>
                 <EntitySet Name="AllTypes" EntityType="RegressionModel.AllTypes"/>
                 <EntitySet Name="ComplexTypes" EntityType="RegressionModel.ComplexTypes"/>
+                <EntitySet Name="OnlyKeys" EntityType="RegressionModel.OnlyKey"/>
                 <EntitySet Name="CompoundKeys" EntityType="RegressionModel.CompoundKey"/>
                 <EntitySet Name="CompoundKeyXs" EntityType="RegressionModel.CompoundKeyX"/>
                 <AssociationSet Name="CompoundNavigationLinks" Association="RegressionModel.CompoundNavigation">
@@ -183,6 +184,12 @@
                 <Property Name="Data" Type="Edm.String" MaxLength="32" FixedLength="false"/>
                 <Property Name="Index" Type="Edm.Int32"/>
             </ComplexType>
+            <EntityType Name="OnlyKey">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
             <EntityType Name="CompoundKey">
                 <Key>
                     <PropertyRef Name="K1"/>
