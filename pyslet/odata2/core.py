@@ -511,7 +511,13 @@ class BinaryExpression(CommonExpression):
             # Special handling for the member operator, as the left-hand
             # side of the expression returns the context for evaluating
             # the right-hand side
-            return self.operands[1].Evaluate(lValue)
+            if lValue:
+                return self.operands[1].Evaluate(lValue)
+            else:
+                # an optional navigation property is not bound to
+                # an entity.  We return NULL without evaluating
+                # the right hand side
+                return edm.EDMValue.NewValue(None)
         elif self.operator in (Operator.isof, Operator.cast):
             # Special handling due to optional first parameter to
             # signify the context entity
@@ -1259,15 +1265,15 @@ CallExpression.EvalMethod = {
 
 
 class Parser(edm.Parser):
-        
+
     def parse_common_expression(self, params=None):
         """Returns a :py:class:`CommonExpression` instance
-        
+
         params (Default: None)
             A dictionary of :class:`~pyslet.odata2.edm.SimpleValue`
             instances keyed on a string that will be used as
             a parameter name.
-        
+
         This type of parameterization is stricter than the untyped form
         used in Python's DB API.  You must create instances of the
         required types and add them to the dictionary.  You can then use
@@ -1628,7 +1634,7 @@ class Parser(edm.Parser):
 
     def ParseURILiteral(self):
         """Parses a URI literal.
-        
+
         Returns a :py:class:`pyslet.mc_csdl.SimpleType` instance or None
         if no value can be parsed.
 
@@ -1776,7 +1782,7 @@ def ParseURILiteral(source):
 
     source
         A URI-encoded string of octets
-    
+
     Returns a :class:`~pyslet.odata2.csdl.SimpleValue` instance."""
     p = Parser(uri.unescape_data(source).decode('utf-8'))
     return p.require_production_end(p.ParseURILiteral(), "uri literal")
@@ -1784,13 +1790,13 @@ def ParseURILiteral(source):
 
 def FormatURILiteral(value, query=True):
     """Formats a simple value as a URI-encoded literal
-    
+
     value
         A :class:`~pyslet.odata2.csdl.SimpleValue` instance.
-    
+
     Returns a URI-encoded string of octets."""
     return uri.escape_data(ODataURI.FormatLiteral(value).encode('utf-8'),
-                           uri.is_query_reserved if query else uri.is_reserved)    
+                           uri.is_query_reserved if query else uri.is_reserved)
 
 
 def ParseDataServiceVersion(src):
@@ -2248,7 +2254,7 @@ class ODataURI:
             if keys == '':
                 keys = []
             else:
-                qmode = False                
+                qmode = False
                 vstring = []
                 keylist = []
                 kname = ''
@@ -2306,6 +2312,19 @@ class ODataURI:
                 keyStr.append("%s=%s" % (k, cls.FormatLiteral(v)))
             keyStr = "(%s)" % string.join(keyStr, ",")
         return uri.escape_data(keyStr.encode('utf-8'))
+
+    @classmethod
+    def key_dict_to_query(cls, d):
+        """Returns a query corresponding to a key dictionary
+
+        The result is a unicode string, it is *not* URI escaped.  For
+        example, it might return "ID eq 42L" or "KeyStr eq
+        'Salt%20%26%20Pepper'", in cases with composite keys the
+        expressions are joined with the and operator."""
+        keyStr = []
+        for k, v in d.iteritems():
+            keyStr.append("%s eq %s" % (k, cls.FormatLiteral(v)))
+        return string.join(keyStr, " and ")
 
     @classmethod
     def FormatEntityKey(cls, entity):

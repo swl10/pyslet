@@ -39,7 +39,7 @@
                 <Property Name="created" Type="Edm.DateTime" Nullable="false" Precision="3"/>
                 <Property Name="modified" Type="Edm.DateTime" Nullable="false" Precision="3"/>
                 <Property Name="size" Type="Edm.Int64" Nullable="false"/>
-                <Property Name="md5" Type="Edm.Binary" Nullable="true" MaxLength="16" FixedLength="16"/>
+                <Property Name="md5" Type="Edm.Binary" Nullable="true" MaxLength="16" FixedLength="true"/>
                 <NavigationProperty Name="Blocks" FromRole="stream" ToRole="blocklist"
                     Relationship="BlockSchema.StreamBlockList"/>
             </EntityType>

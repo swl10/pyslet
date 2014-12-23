@@ -334,28 +334,22 @@ class SQLCollectionBase(core.EntityCollection):
     container
             A :py:class:`SQLEntityContainer` instance.
 
-    qualify_names
-            An optional boolean (defaults to False) indicating whether or not
-            the column names must be qualified in all queries.
-
     On construction a data connection is acquired from *container*, this
     may prevent other threads from using the database until the lock is
     released by the :py:meth:`close` method."""
 
-    def __init__(self, container, qualify_names=False, **kwargs):
+    def __init__(self, container, **kwargs):
         super(SQLCollectionBase, self).__init__(**kwargs)
-        self.container = container
         #: the parent container (database) for this collection
+        self.container = container
+        # the quoted table name containing this collection
         self.table_name = self.container.mangled_names[(self.entity_set.name,)]
         self.auto_keys = False
         for k in self.entity_set.keys:
             source_path = (self.entity_set.name, k)
             if source_path in self.container.ro_names:
                 self.auto_keys = True
-        # the quoted table name containing this collection
-        self.qualify_names = qualify_names
-        # if True, field names in expressions are qualified with
-        # :py:attr:`table_name`
+        self.reset_joins()
         # force orderNames to be initialised
         self.set_orderby(None)
         self.dbc = None                 #: a connection to the database
@@ -380,8 +374,9 @@ class SQLCollectionBase(core.EntityCollection):
         if self._sqlLen is None:
             query = ["SELECT COUNT(*) FROM %s" % self.table_name]
             params = self.container.ParamsClass()
+            where = self.where_clause(None, params)
             query.append(self.join_clause())
-            query.append(self.where_clause(None, params))
+            query.append(where)
             query = string.join(query, '')
             self._sqlLen = (query, params)
         else:
@@ -416,10 +411,14 @@ class SQLCollectionBase(core.EntityCollection):
             query.append(string.join(column_names, ", "))
             query.append(' FROM ')
             query.append(self.table_name)
+            # we force where and orderby to be calculated before the
+            # join clause is added as they may add to the joins
+            where = self.where_clause(
+                None, params, use_filter=True, use_skip=False)
+            orderby = self.orderby_clause()
             query.append(self.join_clause())
-            query.append(self.where_clause(None, params,
-                                           use_filter=True, use_skip=False))
-            query.append(self.orderby_clause())
+            query.append(where)
+            query.append(orderby)
             query = string.join(query, '')
             self._sqlGen = query, params
         else:
@@ -527,10 +526,11 @@ class SQLCollectionBase(core.EntityCollection):
         query.append(string.join(column_names, ", "))
         query.append(' FROM ')
         query.append(self.table_name)
+        where = self.where_clause(None, params, use_filter=True, use_skip=True)
+        orderby = self.orderby_clause()
         query.append(self.join_clause())
-        query.append(
-            self.where_clause(None, params, use_filter=True, use_skip=True))
-        query.append(self.orderby_clause())
+        query.append(where)
+        query.append(orderby)
         query = string.join(query, '')
         transaction = SQLTransaction(self.container.dbapi, self.dbc)
         try:
@@ -616,8 +616,9 @@ class SQLCollectionBase(core.EntityCollection):
         query.append(string.join(column_names, ", "))
         query.append(' FROM ')
         query.append(self.table_name)
+        where = self.where_clause(entity, params)
         query.append(self.join_clause())
-        query.append(self.where_clause(entity, params))
+        query.append(where)
         query = string.join(query, '')
         transaction = SQLTransaction(self.container.dbapi, self.dbc)
         try:
@@ -728,7 +729,7 @@ class SQLCollectionBase(core.EntityCollection):
             etag = etag[0]
         else:
             h = None
-        c, v = self.stream_field(e)
+        c, v = self.stream_field(e, prefix=False)
         if self.container.streamstore:
             # spool the data into the store and store the stream key
             estream = self.container.streamstore.new_stream(sinfo.type,
@@ -845,13 +846,126 @@ class SQLCollectionBase(core.EntityCollection):
                 count += wbytes
         return count, md5.digest()
 
+    def reset_joins(self):
+        """Resets the join information for this collection"""
+        self._joins = {}
+        self._aliases = set()
+        self._aliases.add(self.table_name)
+
+    def next_alias(self):
+        i = len(self._aliases)
+        while True:
+            alias = "nav%i" % i
+            if alias in self._aliases:
+                i += 1
+            else:
+                break
+        return alias
+
+    def add_join(self, name):
+        """Adds a join to this collection
+
+        name
+            The name of the navigation property to traverse.
+
+        The return result is the alias name to use for the target table.
+
+        As per the specification, the target must have multiplicity 1 or
+        0..1."""
+        if name in self._joins:
+            return self._joins[name][0]
+        alias = self.next_alias()
+        src_multiplicity, dst_multiplicity = \
+            self.entity_set.NavigationMultiplicity(name)
+        if dst_multiplicity not in (edm.Multiplicity.ZeroToOne,
+                                    edm.Multiplicity.One):
+            # we can't join on this navigation property
+            raise NotImplementedError(
+                "NavigationProperty %s.%s cannot be used in an expression" %
+                (self.entity_set.name, name))
+        fk_mapping = self.container.fk_table[self.entity_set.name]
+        link_end = self.entity_set.navigation[name]
+        target_set = self.entity_set.NavigationTarget(name)
+        target_table_name = self.container.mangled_names[(target_set.name, )]
+        join = []
+        if link_end in fk_mapping:
+            # we own the foreign key
+            for key_name in target_set.keys:
+                join.append(
+                    '%s.%s=%s.%s' %
+                    (self.table_name, self.container.mangled_names[
+                        (self.entity_set.name, link_end.parent.name,
+                         key_name)],
+                     alias,
+                     self.container.mangled_names[
+                        (target_set.name, key_name)]))
+            join = ' LEFT JOIN %s AS %s ON %s' % (
+                target_table_name, alias, string.join(join, ' AND '))
+            self._joins[name] = (alias, join)
+            self._aliases.add(alias)
+        else:
+            target_fk_mapping = self.container.fk_table[target_set.name]
+            if link_end.otherEnd in target_fk_mapping:
+                # target table has the foreign key
+                for key_name in self.entity_set.keys:
+                    join.append(
+                        '%s.%s=%s.%s' %
+                        (self.table_name, self.container.mangled_names[
+                            (self.entity_set.name, key_name)],
+                         alias,
+                         self.container.mangled_names[
+                            (target_set.name,
+                             link_end.parent.name, key_name)]))
+                join = ' LEFT JOIN %s AS %s ON %s' % (
+                    target_table_name, alias, string.join(join, ' AND '))
+                self._joins[name] = (alias, join)
+                self._aliases.add(alias)
+            else:
+                # relation is in an auxiliary table
+                src_set, src_name, dst_set, dst_name, ukeys = \
+                    self.container.aux_table[link_end.parent.name]
+                if self.entity_set is src_set:
+                    name2 = dst_name
+                else:
+                    name2 = src_name
+                aux_table_name = self.container.mangled_names[(
+                    link_end.parent.name, )]
+                for key_name in self.entity_set.keys:
+                    join.append(
+                        '%s.%s=%s.%s' %
+                        (self.table_name, self.container.mangled_names[
+                            (self.entity_set.name, key_name)],
+                         alias, self.container.mangled_names[
+                            (link_end.parent.name, self.entity_set.name,
+                             name, key_name)]))
+                join = ' LEFT JOIN %s AS %s ON %s' % (
+                    aux_table_name, alias, string.join(join, ' AND '))
+                self._aliases.add(alias)
+                join2 = []
+                alias2 = self.next_alias()
+                for key_name in target_set.keys:
+                    join2.append(
+                        '%s.%s=%s.%s' %
+                        (alias, self.container.mangled_names[
+                            (link_end.parent.name, target_set.name,
+                             name2, key_name)],
+                         alias2, self.container.mangled_names[
+                            (target_set.name, key_name)]))
+                join2 = ' LEFT JOIN %s AS %s ON %s' % (
+                    target_table_name, alias2, string.join(join2, ' AND '))
+                self._aliases.add(alias2)
+                alias = alias2
+                self._joins[name] = (alias, join + join2)
+        return alias
+
     def join_clause(self):
         """A utility method to return the JOIN clause.
 
         Defaults to an empty expression."""
-        return ""
+        return string.join(map(lambda x: x[1], self._joins.values()), '')
 
     def set_filter(self, filter):
+        self.reset_joins()
         self.filter = filter
         self.set_page(None)
         self._sqlLen = None
@@ -925,10 +1039,10 @@ class SQLCollectionBase(core.EntityCollection):
                 An expression is added to restrict the query to this entity"""
         for k, v in entity.KeyDict().items():
             where.append(
-                '%s=%s' %
-                (self.container.mangled_names[
-                    (self.entity_set.name, k)], params.add_param(
-                    self.container.prepare_sql_value(v))))
+                '%s.%s=%s' %
+                (self.table_name,
+                 self.container.mangled_names[(self.entity_set.name, k)],
+                 params.add_param(self.container.prepare_sql_value(v))))
 
     def where_skiptoken_clause(self, where, params):
         """Adds the entity constraint expression to a list of SQL expressions.
@@ -1008,8 +1122,7 @@ class SQLCollectionBase(core.EntityCollection):
         for key in self.entity_set.keys:
             mangled_name = self.container.mangled_names[
                 (self.entity_set.name, key)]
-            if self.qualify_names:
-                mangled_name = "%s.%s" % (self.table_name, mangled_name)
+            mangled_name = "%s.%s" % (self.table_name, mangled_name)
             self.orderNames.append((mangled_name, 1))
         self._sqlGen = None
 
@@ -1053,9 +1166,9 @@ class SQLCollectionBase(core.EntityCollection):
                 oname_index += 1
                 column_names.append(oname)
 
-    def _mangle_name(self, source_path):
+    def _mangle_name(self, source_path, prefix=True):
         mangled_name = self.container.mangled_names[source_path]
-        if self.qualify_names:
+        if prefix:
             mangled_name = "%s.%s" % (self.table_name, mangled_name)
         return mangled_name
 
@@ -1083,12 +1196,12 @@ class SQLCollectionBase(core.EntityCollection):
             if (source_path not in self.container.ro_names and
                     entity.Selected(k)):
                 if isinstance(v, edm.SimpleValue):
-                    yield self._mangle_name(source_path), v
+                    yield self._mangle_name(source_path, prefix=False), v
                 else:
                     for sub_path, fv in self._complex_field_generator(v):
                         source_path = tuple([self.entity_set.name, k] +
                                             sub_path)
-                        yield self._mangle_name(source_path), fv
+                        yield self._mangle_name(source_path, prefix=False), fv
 
     def auto_fields(self, entity):
         """A generator for selecting auto mangled property names and values.
@@ -1130,7 +1243,7 @@ class SQLCollectionBase(core.EntityCollection):
             source_path = (self.entity_set.name, k)
             yield self._mangle_name(source_path), v
 
-    def select_fields(self, entity):
+    def select_fields(self, entity, prefix=True):
         """A generator for selecting mangled property names and values.
 
         entity
@@ -1145,12 +1258,12 @@ class SQLCollectionBase(core.EntityCollection):
             source_path = (self.entity_set.name, k)
             if (k in keys or entity.Selected(k)):
                 if isinstance(v, edm.SimpleValue):
-                    yield self._mangle_name(source_path), v
+                    yield self._mangle_name(source_path, prefix), v
                 else:
                     for sub_path, fv in self._complex_field_generator(v):
                         source_path = tuple([self.entity_set.name, k] +
                                             sub_path)
-                        yield self._mangle_name(source_path), fv
+                        yield self._mangle_name(source_path, prefix), fv
 
     def update_fields(self, entity):
         """A generator for updating mangled property names and values.
@@ -1173,12 +1286,12 @@ class SQLCollectionBase(core.EntityCollection):
             if not entity.Selected(k):
                 v.set_null()
             if isinstance(v, edm.SimpleValue):
-                yield self._mangle_name(source_path), v
+                yield self._mangle_name(source_path, prefix=False), v
             else:
                 for sub_path, fv in self._complex_field_generator(v):
                     source_path = tuple([self.entity_set.name, k] +
                                         sub_path)
-                    yield self._mangle_name(source_path), fv
+                    yield self._mangle_name(source_path, prefix=False), fv
 
     def merge_fields(self, entity):
         """A generator for merging mangled property names and values.
@@ -1216,7 +1329,7 @@ class SQLCollectionBase(core.EntityCollection):
                 for source_path, fv in self._complex_field_generator(v):
                     yield [k] + source_path, fv
 
-    def stream_field(self, entity):
+    def stream_field(self, entity, prefix=True):
         """Returns information for selecting the stream ID.
 
         entity
@@ -1225,7 +1338,7 @@ class SQLCollectionBase(core.EntityCollection):
         Returns a tuples of (mangled field name,
         :py:class:`~pyslet.odata2.csdl.SimpleValue` instance)."""
         source_path = (self.entity_set.name, '_value')
-        return self._mangle_name(source_path), \
+        return self._mangle_name(source_path, prefix), \
             edm.EDMValue.NewSimpleValue(edm.SimpleType.Int64)
 
     SQLBinaryExpressionMethod = {}
@@ -1288,10 +1401,7 @@ class SQLCollectionBase(core.EntityCollection):
                     if p.complexType is None:
                         field_name = self.container.mangled_names[
                             (self.entity_set.name, expression.name)]
-                        if self.qualify_names:
-                            return "%s.%s" % (self.table_name, field_name)
-                        else:
-                            return field_name
+                        return "%s.%s" % (self.table_name, field_name)
                     else:
                         raise core.EvaluationError(
                             "Unqualified property %s "
@@ -1345,35 +1455,42 @@ class SQLCollectionBase(core.EntityCollection):
         properties but does support references to complex properties.
 
         It outputs the mangled name of the property, qualified by the
-        table name if :py:attr:`qualify_names` is True."""
+        table name."""
         name_list = self._calculate_member_field_name(expression)
         context_def = self.entity_set.entityType
+        depth = 0
+        table_name = self.table_name
+        entity_set = self.entity_set
+        path = []
         for name in name_list:
             if context_def is None:
                 raise core.EvaluationError("Property %s is not declared" %
                                            string.join(name_list, '/'))
             p = context_def[name]
             if isinstance(p, edm.Property):
+                path.append(name)
                 if p.complexType is not None:
                     context_def = p.complexType
                 else:
                     context_def = None
             elif isinstance(p, edm.NavigationProperty):
-                raise NotImplementedError("Use of navigation properties in "
-                                          "expressions not supported")
+                if depth > 0:
+                    raise NotImplementedError(
+                        "Member expression exceeds maximum navigation depth")
+                else:
+                    table_name = self.add_join(name)
+                    context_def = p.to_end.entityType
+                    depth += 1
+                    path = []
+                    entity_set = entity_set.NavigationTarget(name)
         # the result must be a simple property, so context_def must not be None
         if context_def is not None:
             raise core.EvaluationError(
                 "Property %s does not reference a primitive type" %
-                string.join(
-                    name_list,
-                    '/'))
+                string.join(name_list, '/'))
         field_name = self.container.mangled_names[
-            tuple([self.entity_set.name] + name_list)]
-        if self.qualify_names:
-            return "%s.%s" % (self.table_name, field_name)
-        else:
-            return field_name
+            tuple([entity_set.name] + path)]
+        return "%s.%s" % (table_name, field_name)
 
     def _calculate_member_field_name(self, expression):
         if isinstance(expression, core.PropertyExpression):
@@ -1771,7 +1888,7 @@ class SQLEntityCollection(SQLCollectionBase):
             etag = etag[0]
         else:
             h = None
-        c, v = self.stream_field(e)
+        c, v = self.stream_field(e, prefix=False)
         if self.container.streamstore:
             # spool the data into the store and store the stream key
             estream = self.container.streamstore.new_stream(sinfo.type,
@@ -2734,7 +2851,7 @@ class SQLEntityCollection(SQLCollectionBase):
         params = self.container.ParamsClass()
         cols = []
         cnames = {}
-        for c, v in self.select_fields(entity):
+        for c, v in self.select_fields(entity, prefix=False):
             if c in cnames:
                 continue
             else:
@@ -2777,13 +2894,10 @@ class SQLEntityCollection(SQLCollectionBase):
                     # if a fk is already declared, skip it
                     continue
                 else:
-                    cols.append(
-                        "%s %s" %
-                        (cname,
-                         self.container.prepare_sql_type(
-                             v,
-                             params,
-                             nullable)))
+                    cols.append("%s %s" % (
+                                cname,
+                                self.container.prepare_sql_type(
+                                    v, params, nullable)))
             constraints.append(
                 "CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s(%s)" %
                 (self.container.quote_identifier(aset_name), string.join(
@@ -2841,8 +2955,8 @@ class SQLNavigationCollection(SQLCollectionBase, core.NavigationCollection):
             the field name (or table name) used for the foreign keys."""
 
     def __init__(self, aset_name, **kwargs):
-        super(SQLNavigationCollection, self).__init__(**kwargs)
         self.aset_name = aset_name
+        super(SQLNavigationCollection, self).__init__(**kwargs)
 
     def __setitem__(self, key, entity):
         # sanity check entity to check it can be inserted here
@@ -2928,53 +3042,42 @@ class SQLForeignKeyCollection(SQLNavigationCollection):
     :py:meth:`SQLEntityContainer.mangle_name` method in the container."""
 
     def __init__(self, **kwargs):
-        # absorb qualify_names just in case
-        if not kwargs.pop('qualify_names', True):
-            logging.warn("SQLForeignKeyCollection ignored qualify_names=False")
-        super(SQLForeignKeyCollection, self).__init__(
-            qualify_names=True, **kwargs)
+        super(SQLForeignKeyCollection, self).__init__(**kwargs)
         self.keyCollection = self.from_entity.entity_set.OpenCollection()
-        nav_name = self.entity_set.linkEnds[self.from_end.otherEnd]
-        if not nav_name:
-            self.sourceName = self.container.mangled_names[
-                (self.entity_set.name, self.from_end.name)]
-        else:
-            self.sourceName = self.container.mangled_names[
-                (self.entity_set.name, nav_name)]
 
-    def join_clause(self):
-        """Overridden to provide a join to *from_entity*'s table.
+    def reset_joins(self):
+        """Overridden to provide an inner join to *from_entity*'s table.
 
-        The join clause introduces an additional name that is looked up
-        by the name mangler.  To avoid name clashes when the
-        relationship is recursive the join clause introduces an alias
-        for the table containing *from_entity*.  To continue the example
-        above, if the link from Orders to Customers is bound to a
-        navigation property in the reverse direction called, say,
-        'AllOrders' *in the target entity set* then this alias is
-        looked up using::
-
-            ('Customers','AllOrders')
-
-        By default this would just be the string 'AllOrders' (the
-        name of the navigation property). The resulting join looks
-        something like this::
+        The join clause introduces an alias for the table containing
+        *from_entity*.  The resulting join looks something like this::
 
             SELECT ... FROM Customers
-            INNER JOIN Orders AS AllOrders ON
-                Customers.CustomerID=AllOrders.OrdersToCustomers_CustomerID
+            INNER JOIN Orders AS nav1 ON
+                Customers.CustomerID=nav1.OrdersToCustomers_CustomerID
             ...
-            WHERE AllOrders.OrderID = ?;
+            WHERE nav1.OrderID = ?;
 
         The value of the OrderID key property in from_entity is passed as
         a parameter when executing the expression.
 
-        There is an awkward case when the reverse navigation property
-        has not been bound, in this case the link's role name is used
-        instead, this provides a best guess as to what the navigation
-        property name would have been had it been bound; it must be
-        unique within the context of *target* entity_set's type - a
-        benign constraint on the model's metadata description."""
+        In most cases, there will be a navigation properly bound to this
+        association in the reverse direction.  For example, to continue
+        the above example, Orders to Customers might be bound to a
+        navigation property in the reverse direction called, say,
+        'AllOrders' *in the target entity set*.
+
+        If this navigation property is used in an expression then the
+        existing INNER JOIN defined here is used instead of a new LEFT
+        JOIN as would normally be the case."""
+        super(SQLForeignKeyCollection, self).reset_joins()
+        # nav_name is the navigation property from this entity set that
+        # takes you back to the from_entity.  It may by an empty string
+        # if there is no back link.  We need to know this in case
+        # someone adds this navigation property to an expression, they
+        # need to use our inner join in preference to the usual left
+        # join.
+        nav_name = self.entity_set.linkEnds[self.from_end.otherEnd]
+        alias = self.next_alias()
         join = []
         # we don't need to look up the details of the join again, as
         # self.entity_set must be the target
@@ -2983,12 +3086,16 @@ class SQLForeignKeyCollection(SQLNavigationCollection):
                 '%s.%s=%s.%s' %
                 (self.table_name, self.container.mangled_names[
                     (self.entity_set.name, key_name)],
-                    self.sourceName, self.container.mangled_names[
+                    alias, self.container.mangled_names[
                         (self.from_entity.entity_set.name,
                          self.aset_name, key_name)]))
-        return ' INNER JOIN %s AS %s ON ' % (
+        join = ' INNER JOIN %s AS %s ON ' % (
             self.container.mangled_names[(self.from_entity.entity_set.name,)],
-            self.sourceName) + string.join(join, 'AND ')
+            alias) + string.join(join, ' AND ')
+        self._aliases.add(alias)
+        self._joins[nav_name] = (alias, join)
+        self._source_alias = alias
+        return join
 
     def where_clause(self, entity, params, use_filter=True, use_skip=False):
         """Adds the constraint for entities linked from *from_entity* only.
@@ -2999,7 +3106,7 @@ class SQLForeignKeyCollection(SQLNavigationCollection):
         for k, v in self.from_entity.KeyDict().items():
             where.append(
                 u"%s.%s=%s" %
-                (self.sourceName, self.container.mangled_names[
+                (self._source_alias, self.container.mangled_names[
                     (self.from_entity.entity_set.name, k)], params.add_param(
                     self.container.prepare_sql_value(v))))
         if entity is not None:
@@ -3280,11 +3387,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
     constraint name to ensure uniqueness across the entire databas."""
 
     def __init__(self, **kwargs):
-        if not kwargs.pop('qualify_names', True):
-            logging.warn(
-                'SQLAssociationCollection ignored qualify_names=False')
-        super(SQLAssociationCollection, self).__init__(
-            qualify_names=True, **kwargs)
+        super(SQLAssociationCollection, self).__init__(**kwargs)
         # The relation is actually stored in an extra table so we will
         # need a join for all operations.
         self.aset_name = self.from_end.parent.name

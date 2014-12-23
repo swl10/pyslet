@@ -662,7 +662,8 @@ class Parser(xsi.BasicParser):
         savepos = self.pos
         try:
             production = "dateTimeLiteral"
-            year = int(self.require_production(self.parse_digits(4, 4), "year"))
+            year = int(
+                self.require_production(self.parse_digits(4, 4), "year"))
             self.require("-",)
             month = self.require_production(self.parse_integer(1, 12), "month")
             self.require("-", production)
@@ -2055,17 +2056,17 @@ class DeferredValue(object):
 
     def set_expansion_values(self, values):
         """Sets the expansion of this deferred value
-        
+
         values
             A list of :class:`Entity` instances.
-        
+
         No call to the underlying data-layer is made, it is assumed that
         values is an appropriate representation of the data that would
         be obtained by executing::
-        
+
             with self.OpenCollection() as coll:
                 return coll.values()
-            
+
         The purpose of this method is to allow the re-use of a value
         list that has been obtained previously without having to consult
         the data source again."""
@@ -2074,7 +2075,7 @@ class DeferredValue(object):
                           name=self.name,
                           entity_set=self.Target(),
                           entityList=values))
-        
+
     def SetExpansion(self, expandedCollection):
         """Sets the expansion for this deferred value to the :py:class:`ExpandedEntityCollection` given.
 
@@ -2234,7 +2235,7 @@ class Entity(TypeInstance):
     default values, or NULL if there is no default specified in the
     model. Entity instances returned as values in collection objects
     have exists set to True.
-    
+
     Entities from the same entity set can be compared (unlike
     :class:`Complex` instances), comparison is done by :meth:`key`. 
     Therefore, two instances that represent that same entity will
@@ -2265,7 +2266,7 @@ class Entity(TypeInstance):
                 other.entity_set is not self.entity_set):
             raise TypeError
         return cmp(self.key(), other.key())
-        
+
     def __iter__(self):
         """Iterates over the property names, including the navigation
         properties.
@@ -2427,6 +2428,7 @@ class Entity(TypeInstance):
         flag is set to False after deletion."""
         with self.entity_set.OpenCollection() as collection:
             del collection[self.key()]
+        self.exists = False
 
     def key(self):
         """Returns the entity key as a single python value or a tuple of
@@ -4649,6 +4651,25 @@ class EntitySet(CSDLElement):
                     return None
                 result.append(kv.value)
             return tuple(result)
+
+    def key_dict(self, key):
+        """Given a key from this entity set, returns a key dictionary.
+
+        The result is a mapping from named properties to
+        :class:`SimpleValue` instances.  The property name is always used
+        as the key in the mapping, even if the key refers to a single
+        property.  This contrasts with :meth:`GetKeyDict`."""
+        keyDict = {}
+        if not isinstance(key, TupleType):
+            key = (key,)
+        ki = iter(key)
+        for kp in self.entityType.Key.PropertyRef:
+            k = ki.next()
+            #   create a new simple value to hold k
+            kv = kp.property()
+            kv.set_from_value(k)
+            keyDict[kp.property.name] = kv
+        return keyDict
 
     def GetKeyDict(self, key):
         """Given a key from this entity set, returns a key dictionary.

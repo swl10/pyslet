@@ -2469,6 +2469,13 @@ class DataServiceRegressionTests(unittest.TestCase):
                 self.assertFalse(
                     nav is None, "Failed to read back reverse navigation link")
                 self.assertTrue(nav['K'] == 1)
+                # READ with deep filter
+                filter = CommonExpression.from_str(
+                    "OX/Data eq 'NavigationOneX'")
+                coll.set_filter(filter)
+                self.assertTrue(1 in coll)
+                self.assertFalse(2 in coll)
+                coll.set_filter(None)
                 # UPDATE - by adding a link, should fail.  Requires a
                 # deep delete.
                 try:
@@ -2557,6 +2564,13 @@ class DataServiceRegressionTests(unittest.TestCase):
                 self.assertTrue(
                     nav_x is not None, "Failed to read back navigation link")
                 self.assertTrue(nav_x['K'] == 100)
+                # READ with deep filter
+                filter = CommonExpression.from_str(
+                    "OX/Data eq 'NavigationOneX'")
+                coll.set_filter(filter)
+                self.assertTrue(1 in coll)
+                self.assertFalse(2 in coll)
+                coll.set_filter(None)
                 # UPDATE - by adding a link, should fail.  Requires a
                 # deep delete.
                 e2_x = coll_x[200]
@@ -2710,6 +2724,19 @@ class DataServiceRegressionTests(unittest.TestCase):
                     nav_zo is None,
                     "Failed to read back reverse navigation link")
                 self.assertTrue(nav_zo['K'] == 1)
+                # READ with deep filter both ways
+                filter = CommonExpression.from_str(
+                    "O/Data eq 'NavigationOne'")
+                collectionZO.set_filter(filter)
+                self.assertTrue(1 in collectionZO)
+                self.assertFalse(2 in collectionZO)
+                collectionZO.set_filter(None)
+                filter = CommonExpression.from_str(
+                    "ZO/Data eq 'NavigationZeroOne'")
+                collectionO.set_filter(filter)
+                self.assertTrue(100 in collectionO)
+                self.assertFalse(200 in collectionO)
+                collectionO.set_filter(None)                
                 # UPDATE - by replacing the required target of a link,
                 # should work
                 try:

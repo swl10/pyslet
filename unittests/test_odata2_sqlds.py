@@ -647,7 +647,6 @@ class SQLDSTests(unittest.TestCase):
             self.assertTrue(order.key() in collection)
         # now add a second order for this customer
         with es.OpenCollection() as collection:
-            # we'll need to create this table first too
             order = collection.new_entity()
             order.set_key(2)
             order["ShippedDate"].SetFromLiteral('2013-11-05T08:30:00')
@@ -660,6 +659,13 @@ class SQLDSTests(unittest.TestCase):
                     core.CommonExpression.from_str(
                         "Address/City eq 'Chunton'"))
                 self.assertTrue(len(parentCollection) == 1)
+            # add a filter that includes a join
+            collection.set_filter(
+                core.CommonExpression.from_str(
+                    "Customer/Address/City eq 'Chunton'"))
+            self.assertTrue(len(collection) == 2)
+            orders = collection.values()
+            self.assertTrue(len(orders) == 2)
         # now check the association is working with filter and orderby too
         with customer['Orders'].OpenCollection() as collection:
             collection.set_orderby(

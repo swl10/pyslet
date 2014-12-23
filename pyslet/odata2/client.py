@@ -357,12 +357,15 @@ class ClientCollection(core.EntityCollection):
             raise core.InvalidFeedDocument(str(feedURL))
 
     def __getitem__(self, key):
-        entityURL = str(
-            self.baseURI) + core.ODataURI.FormatKeyDict(self.entity_set.GetKeyDict(key))
         sysQueryOptions = {}
         if self.filter is not None:
-            sysQueryOptions[
-                core.SystemQueryOption.filter] = unicode(self.filter)
+            sysQueryOptions[core.SystemQueryOption.filter] = "%s and %s" % (
+                core.ODataURI.key_dict_to_query(self.entity_set.key_dict(key)),
+                unicode(self.filter))
+            entityURL = str(self.baseURI)
+        else:
+            entityURL = (str(self.baseURI) +
+                         core.ODataURI.FormatKeyDict(self.entity_set.GetKeyDict(key)))
         if self.expand is not None:
             sysQueryOptions[
                 core.SystemQueryOption.expand] = core.FormatExpand(self.expand)
@@ -375,7 +378,10 @@ class ClientCollection(core.EntityCollection):
                 "?" +
                 core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
         request = http.ClientRequest(str(entityURL))
-        request.set_header('Accept', 'application/atom+xml;type=entry')
+        if self.filter:
+            request.set_header('Accept', 'application/atom+xml')
+        else:
+            request.set_header('Accept', 'application/atom+xml;type=entry')
         self.client.process_request(request)
         if request.status == 404:
             raise KeyError(key)
@@ -389,6 +395,19 @@ class ClientCollection(core.EntityCollection):
             entity.exists = True
             doc.root.GetValue(entity)
             return entity
+        elif isinstance(doc.root, atom.Feed):
+            nresults = len(doc.root.Entry)
+            if nresults == 0:
+                raise KeyError(key)
+            elif nresults == 1:
+                e = doc.root.Entry[0]
+                entity = core.Entity(self.entity_set)
+                entity.exists = True
+                e.GetValue(entity)
+                return entity
+            else:
+                raise UnexpectedHTTPResponse("%i entities returned from %s" %
+                                             nresults, entityURL)
         elif isinstance(doc.root, core.Error):
             raise KeyError(key)
         else:
