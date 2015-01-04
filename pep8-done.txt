@@ -40,4 +40,7 @@ samples/odatadiff.py
 samples/odatadoc.py
 samples/noticeboard/noticeboard.py
 samples/noticeboard/test_noticeboard.py
+samples/wsgi_basic.py
+samples/wsgi_data.py
+samples/wsgi_session.py
 setup.py

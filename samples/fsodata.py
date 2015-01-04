@@ -21,7 +21,7 @@ SERVICE_PORT = 8081
 SERVICE_ROOT = "http://localhost:%i/" % SERVICE_PORT
 
 #: the base path of our exposed file system
-BASE_PATH = os.path.abspath(os.path.normpath("local/fsodata"))
+BASE_PATH = os.path.realpath(os.path.abspath("local/fsodata"))
 
 #: a mapping from .ext to mime type
 EXTENSION_MAP = {
@@ -71,7 +71,7 @@ def fspath_to_path(fspath):
         return '/'
     else:
         path = []
-        fspath = os.path.normpath(os.path.abspath(fspath))
+        fspath = os.path.normpath(os.path.realpath(os.path.abspath(fspath)))
         while len(fspath) > len(BASE_PATH):
             base, name = os.path.split(fspath)
             if (not name or name[0] == '.' or '/' in name or

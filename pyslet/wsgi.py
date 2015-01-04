@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 """Utilities for writing applications based on wsgi"""
 
+import base64
 import cgi
 import io
 import json
@@ -20,6 +21,13 @@ import urlparse
 from hashlib import sha256
 from wsgiref.simple_server import make_server
 
+try:
+    from Crypto.Cipher import AES
+    from Crypto import Random
+    got_crypto = True
+except ImportError:
+    got_crypto = False
+
 import pyslet.http.cookie as cookie
 import pyslet.http.messages as messages
 import pyslet.http.params as params
@@ -29,33 +37,39 @@ import pyslet.odata2.csdl as edm
 import pyslet.odata2.metadata as edmx
 import pyslet.xml20081126.structures as xml
 
+from pyslet.odata2.sqlds import SQLEntityContainer
 from pyslet.rfc2396 import URI
 
 import logging
-logging = logging.getLogger('pyslet.wsgi')
+logger = logging.getLogger('pyslet.wsgi')
 
 
 class BadRequest(Exception):
+
     """An exception that will generate a 400 response code"""
     pass
 
 
 class PageNotAuthorized(BadRequest):
+
     """An exception that will generate a 403 response code"""
     pass
 
 
 class PageNotFound(BadRequest):
+
     """An exception that will generate a 404 response code"""
     pass
 
 
 class MethodNotAllowed(BadRequest):
+
     """An exception that will generate a 405 response code"""
     pass
 
 
 class SessionError(RuntimeError):
+
     """Unexpected session handling error"""
     pass
 
@@ -80,7 +94,7 @@ def generate_key(key_length=128):
                 ord(rbytes[2 * i]), ord(rbytes[2 * i + 1]))
             key.append(four)
     except NotImplementedError:
-        logging.warn("urandom required for secure key generation")
+        logger.warn("urandom required for secure key generation")
         for i in xrange(nfours):
             four = []
             for j in xrange(4):
@@ -109,6 +123,7 @@ def key60(src):
 
 
 class WSGIContext(object):
+
     """A class used for managing WSGI calls
 
     environ
@@ -124,7 +139,7 @@ class WSGIContext(object):
     information about the WSGI environment and the response too."""
 
     #: The maximum amount of content we'll read into memory (64K)
-    MAX_CONTENT = 64*1024
+    MAX_CONTENT = 64 * 1024
 
     def __init__(self, environ, start_response):
         #: the WSGI environ
@@ -150,7 +165,8 @@ class WSGIContext(object):
             An HTTP *integer* response code.
 
         This method sets the :attr:`status_message` automatically from
-        the code."""
+        the code.  You must call this method before calling
+        start_response."""
         self.status = code
         self.status_message = messages.Response.REASON.get(code, "Unknown")
 
@@ -391,6 +407,22 @@ class WSGIContext(object):
                 return result.value
         return ''
 
+    def get_form_long(self, name):
+        """Returns the value of a (long) integer parameter from the form.
+
+        name
+            The name of the parameter
+
+        If the parameter is missing from the form then None is returned,
+        if the parameter is present but is not a valid integer then
+        :class:`BadRequest` is raised."""
+        value = self.get_form_string(name, 256)
+        try:
+            return long(value)
+        except ValueError as err:
+            logging.debug("get_form_long: %s", str(err))
+            raise BadRequest
+
     def get_cookies(self):
         """Returns a dictionary of cookies from the request
 
@@ -416,6 +448,7 @@ class WSGIContext(object):
 
 
 class DispatchNode(object):
+
     """An opaque class used for dispatching requests."""
 
     def __init__(self):
@@ -425,6 +458,7 @@ class DispatchNode(object):
 
 
 class WSGIApp(DispatchNode):
+
     """An object to help support WSGI-based applications.
 
     Instances are designed to be callable by the WSGI middle-ware, on
@@ -441,10 +475,18 @@ class WSGIApp(DispatchNode):
     #: a directory called "static" in the current working directory.
     static_files = os.path.abspath("static")
 
-    #: the directory used for storing private data, defaults to None for
-    #: safety as the application can assume that this directory has been
-    #: configured to allow data to be written by the application
     private_files = None
+    """Private data diretory
+
+    The directory used for storing private data.  The directory is
+    partitioned into sub-directories based on the lower-cased class name
+    of the object that owns the data.  For example, if private_file is
+    set to '/var/www/data' and you derive a class called 'MyApp' from
+    WSGIApp you can assume that it is safe to store and retrieve private
+    data files from '/var/www/data/myapp'.
+
+    private_files defaults to None for safety.  The current WSGIApp
+    implementation does not depend on any private data."""
 
     settings_file = None
     """The path to the settings file.
@@ -478,7 +520,7 @@ class WSGIApp(DispatchNode):
 
     content_type = {
         'ico': params.MediaType('image', 'vnd.microsoft.icon'),
-        }
+    }
     """The mime type mapping table.
 
     This table is used before falling back on Python's built-in
@@ -492,13 +534,13 @@ class WSGIApp(DispatchNode):
     #: (static) file.  Defaults to 64K.
     MAX_CHUNK = 0x10000
 
-    #: the integer 'UNIX' time corresponding to 01 January 1970 00:00:00
-    #: UTC the JavaScript time origin.  Most likely 0.
+    #: the integer millisecond time (since the epoch) corresponding to
+    #: 01 January 1970 00:00:00 UTC the JavaScript time origin.
     js_origin = int(
         iso.TimePoint(
             date=iso.Date(century=19, year=70, month=1, day=1),
             time=iso.Time(hour=0, minute=0, second=0, zDirection=0)
-            ).get_unixtime() * 1000)
+        ).get_unixtime() * 1000)
 
     #: a threading.RLock instance that can be used to lock the class
     #: when dealing with data that might be shared amongst threads.
@@ -531,32 +573,26 @@ class WSGIApp(DispatchNode):
         The following options are added to *parser* by the base
         implementation:
 
-        -v
-            Sets the logging level to WARN, INFO or DEBUG depending on
-            the number of times it is specified.  Overrides the 'level'
-            setting in the settings file.
+        -v          Sets the logging level to WARNING, INFO or DEBUG
+                    depending on the number of times it is specified.
+                    Overrides the 'level' setting in the settings file.
 
-        -p, --port
-            Overrides the value of the 'port' setting in the settings
-            file.
+        -p, --port  Overrides the value of the 'port' setting in the
+                    settings file.
 
-        -i, --interactive
-            Overrides the value of the 'interactive' setting in the
-            settings file.
+        -i, --interactive   Overrides the value of the 'interactive'
+                            setting in the settings file.
 
-        --static
-            Overrides the value of :attr:`static_files`.
+        --static    Overrides the value of :attr:`static_files`.
 
-        --private
-            Overrides the value of :attr:`private_files`.
+        --private   Overrides the value of :attr:`private_files`.
 
-        --settings
-            Sets the path to the :attr:`settings_file`.  Defaults to the
-            file "settings.json" in the current working directory."
-        """
+        --settings  Sets the path to the :attr:`settings_file`.
+                    Defaults to the file "settings.json" in the current
+                    working directory."""
         parser.add_option(
             "-v", action="count", dest="logging",
-            default=0, help="increase verbosity of output up to 3x")
+            default=None, help="increase verbosity of output up to 3x")
         parser.add_option(
             "-p", "--port", action="store", dest="port",
             default=None, help="port on which to listen")
@@ -601,8 +637,10 @@ class WSGIApp(DispatchNode):
         overrides parsed from options.
 
         Finally, the root logger is initialised based on the level
-        setting."""
-        import logging as logging_mod
+        setting.
+
+        Derived classes should always use super to call the base
+        implementation before their own setup actions are performed."""
         if options and options.static:
             cls.static_files = os.path.abspath(options.static)
         if options and options.private:
@@ -619,11 +657,11 @@ class WSGIApp(DispatchNode):
         settings = cls.settings.setdefault('WSGIApp', {})
         if options and options.logging is not None:
             settings['level'] = (
-                logging_mod.ERROR, logging_mod.WARN, logging_mod.INFO,
-                logging_mod.DEBUG)[min(options.logging, 3)]
+                logging.ERROR, logging.WARNING, logging.INFO,
+                logging.DEBUG)[min(options.logging, 3)]
         level = settings.setdefault('level', None)
         if level is not None:
-            logging_mod.basicConfig(level=settings['level'])
+            logging.basicConfig(level=settings['level'])
         if options and options.port is not None:
             settings['port'] = int(options.port)
         else:
@@ -632,6 +670,9 @@ class WSGIApp(DispatchNode):
             settings['interactive'] = options.interactive
         else:
             settings.setdefault('interactive', False)
+        # this logging line forces the root logger to be initialised
+        # with the default level as a catch all
+        logging.info("WSGIApp setup complete for %s", cls.__name__)
 
     def __init__(self):
         # keyword arguments end here, no more super after WSGIApp
@@ -727,38 +768,38 @@ class WSGIApp(DispatchNode):
         # make a closure
         def wrap_response(status, response_headers, exc_info=None):
             if not isinstance(status, str):
-                logging.error("Value for status line: %s", repr(status))
+                logger.error("Value for status line: %s", repr(status))
                 status = str(status)
-            logging.debug("*** START RESPONSE ***")
-            logging.debug(status)
+            logger.debug("*** START RESPONSE ***")
+            logger.debug(status)
             new_headers = []
             for h, v in response_headers:
                 if not isinstance(h, str):
-                    logging.error("Header name: %s", repr(h))
+                    logger.error("Header name: %s", repr(h))
                     h = str(h)
                 if not isinstance(v, str):
-                    logging.error("Header value: %s: %s", h, repr(v))
+                    logger.error("Header value: %s: %s", h, repr(v))
                     v = str(v)
-                logging.debug("%s: %s", h, v)
+                logger.debug("%s: %s", h, v)
                 new_headers.append((h, v))
             return start_response(status, new_headers, exc_info)
-        logging.debug("*** START REQUEST ***")
+        logger.debug("*** START REQUEST ***")
         for key in environ:
-            logging.debug("%s: %s", key, str(environ[key]))
+            logger.debug("%s: %s", key, str(environ[key]))
         blank = False
         for data in self(environ, wrap_response):
             if not blank:
-                logging.debug("")
+                logger.debug("")
                 blank = True
             if not isinstance(data, str):
-                logging.error("Bad type for response data in %s\n%s",
-                              str(environ['PATH_INFO']), repr(data))
+                logger.error("Bad type for response data in %s\n%s",
+                             str(environ['PATH_INFO']), repr(data))
                 if isinstance(data, unicode):
                     data = data.encode('utf-8')
                 else:
                     data = str(data)
             else:
-                logging.debug(data.encode('quoted-printable'))
+                logger.debug(data.encode('quoted-printable'))
             yield data
 
     def __call__(self, environ, start_response):
@@ -808,7 +849,7 @@ class WSGIApp(DispatchNode):
         except BadRequest:
             return self.error_page(context, 400)
         except Exception as e:
-            logging.exception(context.environ['PATH_INFO'])
+            logger.exception(context.environ['PATH_INFO'])
             return self.internal_error(context, e)
 
     def static_page(self, context):
@@ -1039,7 +1080,7 @@ class WSGIApp(DispatchNode):
         """Starts the web server running"""
         port = self.settings['WSGIApp']['port']
         server = make_server('', port, self.call_wrapper)
-        logging.info("HTTP server on port %i running", port)
+        logger.info("HTTP server on port %i running", port)
         # Respond to requests until process is killed
         while not self.stop:
             server.handle_request()
@@ -1048,8 +1089,8 @@ class WSGIApp(DispatchNode):
         t = threading.Thread(target=self._run_server_thread)
         t.setDaemon(True)
         t.start()
-        logging.info("Starting %s server on port %s", self.__class__.__name__,
-                     self.settings['WSGIApp']['port'])
+        logger.info("Starting %s server on port %s", self.__class__.__name__,
+                    self.settings['WSGIApp']['port'])
         if self.settings['WSGIApp']['interactive']:
             # loop around getting commands
             while not self.stop:
@@ -1063,179 +1104,308 @@ class WSGIApp(DispatchNode):
             t.join()
 
 
+class WSGIDataApp(WSGIApp):
+
+    """Extends WSGIApp to include a data store
+
+    The key 'WSGIDataApp' is reserved for settings defined by this
+    class in the settings file. The defined settings are:
+
+    container (None)
+        The name of the container to use for the data store.  By
+        default, the default container is used.  For future
+        compatibility you should not depend on using this option.
+
+    source_type ('sqlite')
+        The type of data source to create.  The default (and only)
+        supported value at the time of writing is sqlite though
+        additional source types will be added in due course.
+
+    sqlite_path ('database.sqlite3')
+        The name of the database file.  The file is assumed to be
+        relative to the private_files/wsgidataapp directory, though an
+        absolute path may be given."""
+
+    @classmethod
+    def add_options(cls, parser):
+        """Adds the following options:
+
+        -s, --sqlout        print the suggested SQL database schema and
+                            then exit.  The setting of --create is
+                            ignored.
+
+        --create_tables     create tables in the database
+
+        -m. --memory        Use an in-memory SQLite database.  Overrides
+                            any source_type setting value.  Implies
+                            --create_tables"""
+        super(WSGIDataApp, cls).add_options(parser)
+        parser.add_option(
+            "--metadata", dest="metadata",
+            default=None, help="Path to metadata file")
+        parser.add_option(
+            "-s", "--sqlout", dest="sqlout", action="store_true",
+            default=False, help="Write out SQL script and quit")
+        parser.add_option(
+            "--create_tables", dest="create_tables", action="store_true",
+            default=False, help="Create tables in the database")
+        parser.add_option(
+            "-m", "--memory", dest="in_memory", action="store_true",
+            default=False, help="Use in-memory sqlite database")
+
+    metadata_file = 'metadata.xml'
+    """The name of the metadata file.
+
+    The file is assumed to be relative to the private_files/wsgidataapp
+    directory, though an absolute path may be given."""
+
+    #: the metadata document for the underlying data service
+    metadata = None
+
+    #: the data source object for the underlying data service the type
+    #: of this object will vary depending on the source type.  For
+    #: SQL-type containers this will be an instance of a class derived
+    #: from :class:`~pyslet.odata2.sqlds.SQLEntityContainer`
+    data_source = None
+
+    #: the entity container (cf database)
+    container = None
+
+    @classmethod
+    def setup(cls, options=None, args=None, **kwargs):
+        """Adds database initialisation
+
+        Loads the :attr:`metadata_file` and the :attr:`metadata`
+        document.  Creates the :attr:`data_source` according to the
+        configured :attr:`settings` (creating the tables only if
+        requested in the command line options).  Finally sets the
+        :attr:`container` to the entity container for the application.
+
+        If the -s or --sqlout option is given in options then the data
+        source's create table script is output to standard output and
+        sys.exit(0) is used to terminate the process."""
+        super(WSGIDataApp, cls).setup(options, args, **kwargs)
+        settings = cls.settings.setdefault('WSGIDataApp', {})
+        if cls.metadata_file:
+            if not os.path.isabs(cls.metadata_file):
+                if cls.private_files:
+                    cls.metadata_file = os.path.join(cls.private_files,
+                                                     'wsgidataapp',
+                                                     cls.metadata_file)
+                else:
+                    # must be absolute, could be in the options
+                    cls.metadata_file = None
+        if not cls.metadata_file:
+            raise RuntimeError("No path to metadata")
+        # load the metadata document for our data layer
+        cls.metadata = edmx.Document()
+        with open(cls.metadata_file, 'rb') as f:
+            cls.metadata.Read(f)
+        container_name = settings.setdefault('container', None)
+        if container_name:
+            cls.container = cls.metadata.root.DataServices[container_name]
+        else:
+            cls.container = cls.metadata.root.DataServices.defaultContainer
+        if options and options.create_tables:
+            create_tables = True
+        else:
+            create_tables = False
+        if options and options.in_memory:
+            source_type = "sqlite"
+            sqlite_path = ':memory:'
+            create_tables = True
+        else:
+            source_type = settings.setdefault('source_type', 'sqlite')
+            if source_type == 'sqlite':
+                # do sqlite settings here
+                if options and options.sqlout:
+                    # use an in-memory database
+                    sqlite_path = ':memory:'
+                else:
+                    sqlite_path = settings.setdefault('sqlite_path',
+                                                      'database.sqlite3')
+                    if not os.path.isabs(sqlite_path):
+                        if cls.private_files:
+                            sqlite_path = os.path.join(
+                                cls.private_files, 'wsgidataapp', sqlite_path)
+                        else:
+                            raise RuntimeError("No path to sqlite database")
+        if source_type == 'sqlite':
+            from pyslet.odata2.sqlds import SQLiteEntityContainer
+            cls.data_source = SQLiteEntityContainer(
+                file_path=sqlite_path, container=cls.container)
+        else:
+            raise ValueError("Unknown data source type: %s" % source_type)
+        if isinstance(cls.data_source, SQLEntityContainer):
+            if options and options.sqlout:
+                out = StringIO.StringIO()
+                cls.data_source.create_all_tables(out=out)
+                print out.getvalue()
+                sys.exit(0)
+            elif create_tables:
+                cls.data_source.create_all_tables()
+
+
 class Session(object):
 
-    #: session expire after...
-    SESSION_EXPIRY = 600
+    """A session object
 
-    #: name of session cookie
-    COOKIE_SESSION = "sid"
+    A light wrapper for the entity object that is used to persist
+    information on the server to make the user's browser session
+    stateful.  The session is persisted in a data store using a single
+    entity passed on construction which must have the following required
+    properties:
 
-    #: name of the test cookie
-    COOKIE_TEST = "cok"
+    ID: Int32
+        A database key for the session, this value is never exposed
+        to the client.
 
-    #: the length of time to store the test cookie for
-    COOKIE_TEST_AGE = 8640000    # 100 days
+    Established: Boolean
+        A flag indicating that the session has been established.  A
+        session is established when we have successfully read the
+        session id from a cookie sent by the browser.  Tracking
+        whether or not a session is established helps us defeat
+        session fixation attacks.
 
-    @classmethod
-    def from_context(cls, app, context):
-        """Creates a session object from an application context
+    UserKey: String
+        This is the string used to set the cookie value
 
-        The session id is read from the session cookie, if no cookie is
-        found a new session is created and returned instead (and an
-        appropriate cookie is added to the response headers)."""
-        cookies = context.get_cookies()
-        sid = cookies.get(Session.COOKIE_SESSION, '')
-        if sid:
-            entity = cls.load_entity(app, sid)
+    ServerKey: String
+        This is a random string that can be used as a server-side secret
+        specific to this session.  It is never revealed to the browser
+
+    FirstSeen: DateTime
+        The UTC time when the session started.
+
+    LastSeen: DateTime
+        The UTC time of the last request issued in this session.
+
+    UserAgent: String
+        The user agent string from the browser, if given.
+
+    Derived classes may add optional properties to the basic definition,
+    including optional navigation properties, for their own data.
+
+    Changes to the entity are not written back to the database until the
+    :meth:`commit` method is called.  This is done automatically by
+    :meth:`SessionContext.start_response`."""
+
+    def __init__(self, entity):
+        #: the session's entity
+        self.entity = entity
+        self.touched = False
+
+    def new_from_context(self, context):
+        """Initialises the entity's fields from a context
+
+        Generates new keys for UserKey and ServerKey.. The session is
+        *not* marked as Established.  The UserAgent is read from the
+        context and FirstSeen and LastSeen values are set from the
+        current time."""
+        user_key = generate_key()
+        server_key = generate_key()
+        self.entity['UserKey'].set_from_value(user_key)
+        self.entity['ServerKey'].set_from_value(server_key)
+        self.entity['Established'].set_from_value(False)
+        self.entity['FirstSeen'].set_from_value(
+            iso.TimePoint.FromNowUTC())
+        self.entity['LastSeen'].set_from_value(
+            self.entity['FirstSeen'].value)
+        if 'HTTP_USER_AGENT' in context.environ:
+            user_agent = context.environ['HTTP_USER_AGENT']
+            if len(user_agent) > 255:
+                user_agent = user_agent[0:255]
+            self.entity['UserAgent'].set_from_value(user_agent)
+        self.touched = True
+
+    def touch(self):
+        """Indicates the session entity needs to be updated
+
+        If you change any of the entity field values directly you must
+        call this method to ensure the entity is written out correctly
+        before the response is returned."""
+        self.touched = True
+
+    def sid(self):
+        """Returns the UserKey field value"""
+        return self.entity['UserKey'].value
+
+    def update_sid(self):
+        """Generates a new UserKey value, and returns it."""
+        self.entity['UserKey'].set_from_value(generate_key())
+        self.touched = True
+        return self.entity['UserKey'].value
+
+    def seen(self):
+        """Updates the LastSeen field with the current time."""
+        self.entity['LastSeen'].set_from_value(iso.TimePoint.FromNowUTC())
+        self.touched = True
+
+    def expired(self, timeout):
+        """Tests for session expiry.
+
+        timeout
+            The maximum number of seconds that may have elapsed since
+            the session was 'LastSeen'."""
+        return (self.entity['LastSeen'].value.WithZone(0).get_unixtime() +
+                timeout < time.time())
+
+    def established(self):
+        """Return True if this session is Established."""
+        if self.entity['Established'].value:
+            return True
         else:
-            entity = None
-        if entity is None:
-            with app.session_set.OpenCollection() as collection:
-                # generate a new user_key
-                user_key = generate_key()
-                server_key = generate_key()
-                entity = collection.new_entity()
-                entity['UserKey'].set_from_value(user_key)
-                entity['ServerKey'].set_from_value(server_key)
-                entity['Expires'].set_from_value(
-                    iso.TimePoint.FromUnixTime(
-                        time.time() +
-                        cls.SESSION_EXPIRY).WithZone(None))
-                entity['Established'].set_from_value(False)
-                if 'HTTP_USER_AGENT' in context.environ:
-                    user_agent = context.environ['HTTP_USER_AGENT']
-                    if len(user_agent) > 255:
-                        user_agent = user_agent[0:255]
-                    entity['UserAgent'].set_from_value(user_agent)
-                collection.insert_entity(entity)
-        session = cls(app, entity)
-        if entity['UserKey'].value != sid:
-            # set the cookie to keep the client up-to-date
-            session.set_cookie(context)
-        return session
+            return False
 
-    @classmethod
-    def from_sid(cls, app, sid):
-        """Creates a session object from a given session id
+    def establish(self):
+        """Marks this session as Established."""
+        if not self.entity['Established'].value:
+            self.entity['Established'].set_from_value(True)
+            self.touched = True
 
-        No cookies are read or written by this method and if the session
-        is not found None is returned."""
-        if sid:
-            entity = cls.load_entity(app, sid)
-            if entity is not None:
-                return cls(app, entity)
-        else:
-            return None
+    def match_environ(self, context):
+        """Compares the session environment with context
 
-    @classmethod
-    def load_entity(cls, app, sid):
-        """Given a session id retrieves the session entity.
+        context
+            The current context
 
-        The session id is matched against the UserKey field.  If no
-        matching session is found, or the matching session has expired,
-        None is returned."""
-        with app.session_set.OpenCollection() as collection:
-            # load the session
-            now = iso.TimePoint.FromNowUTC().WithZone(None)
-            param = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
-            param.set_from_value(sid)
-            params = {'user_key': param}
-            filter = core.CommonExpression.from_str(
-                "UserKey eq :user_key", params)
-            collection.set_filter(filter)
-            slist = collection.values()
-            collection.set_filter(None)
-            if len(slist) > 1:
-                # that's an internal error
-                raise SessionError(
-                    "Duplicate user_key in Sessions: %s" % sid)
-            elif len(slist) == 1:
-                entity = slist[0]
-                if (not entity['Expires'] or
-                        entity['Expires'].value < now):
-                    # session has expired, remove it
-                    del collection[entity.key()]
-                    entity = None
-                else:
-                    # update the session expiry time
-                    entity['Expires'].set_from_value(
-                        iso.TimePoint.FromUnixTime(
-                            time.time() +
-                            cls.SESSION_EXPIRY).WithZone(None))
-                    collection.update_entity(entity)
-                return entity
-            else:
-                return None
+        The default implementation compares the user agent string
+        to ensure that it is identical.
 
-    def __init__(self, app, entity):
-        self.app = app
-        self.sentity = entity
-        self.expires = iso.TimePoint.FromUnixTime(
-            time.time() + self.SESSION_EXPIRY)
+        The purpose behind this check is to make it that little bit
+        harder to carry out session hijacking or fixation.  It doesn't
+        add a lot to the security and is here because we might as well
+        check the things we can - we do not rely on it to defeat this
+        type of attack!"""
+        user_agent = context.environ.get('HTTP_USER_AGENT', None)
+        if user_agent and len(user_agent) > 255:
+            user_agent = user_agent[0:255]
+        if self.entity['UserAgent'].value != user_agent:
+            return False
+        return True
 
     def absorb(self, new_session):
         """Merge a session into this one.
 
         new_session
-            A session which was started by the same browser as us (in
-            a mode where cookies were clocked) but now needs to be
-            merged in."""
-        # just delete new_session
-        new_session.delete()
+            A session which was started in the same browser session as
+            this one but (presumably) in a mode where cookies were
+            blocked.
 
-    def set_cookie(self, context):
-        c = cookie.Section4Cookie(
-            self.COOKIE_SESSION, self.sentity['UserKey'].value,
-            path=str(context.get_app_root().abs_path), http_only=True)
-        context.add_header('Set-Cookie', str(c))
+        The purpose of this method is to merge information from the new
+        session into this one.  The default implementation simply
+        deletes the new session."""
+        new_session.entity.Delete()
 
-    def get_user_key(self):
-        return self.sentity['UserKey'].value
-
-    def update_user_key(self, context):
-        with self.app.session_set.OpenCollection() as collection:
-            self.sentity['UserKey'].set_from_value(generate_key())
-            collection.update_entity(self.sentity)
-        self.set_cookie(context)
-
-    def establish(self):
-        # if this session is not yet established then establish it
-        if not self.sentity['Established'].value:
-            with self.app.session_set.OpenCollection() as collection:
-                self.sentity['Established'].set_from_value(True)
-                collection.update_entity(self.sentity)
-
-    def is_established(self):
-        return self.sentity['Established'].value
-
-    def match_environ(self, context):
-        user_agent = context.environ.get('HTTP_USER_AGENT', None)
-        if user_agent and len(user_agent) > 255:
-            user_agent = user_agent[0:255]
-        if self.sentity['UserAgent'].value != user_agent:
-            return False
-        return True
-
-    def delete(self):
-        if self.sentity.exists:
-            with self.app.session_set.OpenCollection() as collection:
-                del collection[self.sentity.key()]
-
-    @classmethod
-    def delete_session(cls, session_set, user_key):
-        with session_set.OpenCollection() as collection:
-            param = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
-            param.set_from_value(user_key)
-            params = {'user_key': param}
-            filter = core.CommonExpression.from_str("UserKey eq :user_key",
-                                                    params)
-            collection.set_filter(filter)
-            slist = collection.values()
-            collection.set_filter(None)
-            if len(slist):
-                for sentity in slist:
-                    del collection[sentity.key()]
+    def commit(self):
+        """Saves any changes back to the data store"""
+        if self.touched:
+            with self.entity.entity_set.OpenCollection() as collection:
+                if self.entity.exists:
+                    collection.update_entity(self.entity)
+                else:
+                    collection.insert_entity(self.entity)
+            self.touched = False
 
 
 def session_decorator(page_method):
@@ -1244,7 +1414,9 @@ def session_decorator(page_method):
     page_method
         An unbound method with signature: page_method(obj, context)
         which performs the WSGI protocol and returns the page
-        generator."""
+        generator.
+
+    Our decorator just calls :meth:`SessionContext.session_wrapper`."""
 
     def method_call(self, context):
         # There's a smarter way to do this but this is easier to read
@@ -1258,16 +1430,83 @@ def session_decorator(page_method):
 
 class SessionContext(WSGIContext):
 
+    """Extends the base class with a session object."""
+
     def __init__(self, environ, start_response):
         WSGIContext.__init__(self, environ, start_response)
         #: a session object, or None if no session available
         self.session = None
 
+    def start_response(self):
+        """Commits changes to the session object.
 
-class SessionApp(WSGIApp):
+        If you call start_response with unsaved changes in the session
+        the session's :meth:`Session.commit` method is called to save
+        them to the data store."""
+        if self.session:
+            # save any changes to the session to the database
+            self.session.commit()
+        return super(SessionContext, self).start_response()
+
+
+class SessionApp(WSGIDataApp):
+
+    """Extends WSGIDataApp to include session handling.
+
+    These sessions require support for cookies. The SessionApp class
+    itself uses two cookies purely for session tracking.
+
+    The key 'SessionApp' is reserved for settings defined by this
+    class in the settings file. The defined settings are:
+
+    timeout (600)
+        The number of seconds after which an inactive session will time
+        out and no longer be accessible to the client.
+
+    cookie ('sid')
+        The name of the session cookie.
+
+    cookie_test ('ctest')
+        The name of the test cookie.  This cookie is set with a longer
+        lifetime and acts both as a test of whether cookies are
+        supported or not and can double up as an indicator of whether
+        user consent has been obtained for any extended use of cookies.
+        It defaults to the value '0', indicating that cookies can be
+        stored but that no special consent has been obtained.
+
+    cookie_test_age (8640000)
+        The age of the test cookie (in seconds).  The default value is
+        equivalent to 100 days.  If you use the test cookie to record
+        consent to some cookie policy you should ensure that when you
+        set the value you use a reasonable lifespan.
+
+    csrftoken ('csrftoken')
+        The name of the form field containing the CSRF token
+
+    session_set ('Sessions')
+        The name of the entity set to use for persisting session
+        entities."""
+
+    _session_timeout = None
+    _session_cookie = None
+    _test_cookie = None
+    _session_set = None
+
+    @classmethod
+    def setup(cls, options=None, args=None, **kwargs):
+        """Adds database initialisation"""
+        super(SessionApp, cls).setup(options, args, **kwargs)
+        settings = cls.settings.setdefault('SessionApp', {})
+        cls._session_timeout = settings.setdefault('timeout', 600)
+        cls._session_cookie = settings.setdefault('cookie', 'sid')
+        cls._test_cookie = settings.setdefault('cookie_test', 'ctest')
+        cls.csrf_token = settings.setdefault('crsf_token', 'csrftoken')
+        session_set = settings.setdefault('session_set', 'Sessions')
+        cls._session_set = cls.container[session_set]
+        settings.setdefault('cookie_test_age', 8640000)
 
     #: The name of our CSRF token
-    CSRF_TOKEN = "csrftoken"
+    csrf_token = None
 
     #: Extended context class
     ContextClass = SessionContext
@@ -1275,15 +1514,101 @@ class SessionApp(WSGIApp):
     #: The session class to use, must be (derived from) :class:`Session`
     SessionClass = Session
 
-    def __init__(self, session_set):
-        WSGIApp.__init__(self)
-        #: the entity set used to store sessions
-        self.session_set = session_set
-
     def init_dispatcher(self):
+        """Adds pre-defined pages for this application
+
+        These pages are mapped to /ctest and /wlaunch.  These names are
+        not currently configurable.  See :meth:`ctest` and
+        :meth:`wlaunch` for more information."""
         WSGIApp.init_dispatcher(self)
         self.set_method('/ctest', self.ctest)
         self.set_method('/wlaunch', self.wlaunch)
+
+    def set_session(self, context):
+        """Sets the session object in the context
+
+        The session id is read from the session cookie, if no cookie is
+        found a new session is created (and an appropriate cookie is
+        added to the response headers)."""
+        cookies = context.get_cookies()
+        sid = cookies.get(self._session_cookie, '')
+        if sid:
+            context.session = self._load_session(sid)
+        else:
+            context.session = None
+        if context.session is None:
+            with self._session_set.OpenCollection() as collection:
+                # generate a new user_key
+                user_key = generate_key()
+                server_key = generate_key()
+                entity = collection.new_entity()
+                context.session = self.SessionClass(entity)
+                context.session.new_from_context(context)
+        if context.session.sid() != sid:
+            # set the cookie to keep the client up-to-date
+            self.set_session_cookie(context)
+
+    def set_session_cookie(self, context):
+        """Adds the session ID cookie to the response headers
+
+        The cookie is bound to the path returned by
+        :meth:`WSGIContext.get_app_root` and is marked as being
+        http_only and is marked secure if we have been accessed through
+        an https URL.
+
+        You won't normally have to call this method but you may want to
+        override it if your application wishes to override the cookie
+        settings."""
+        root = context.get_app_root()
+        c = cookie.Section4Cookie(
+            self._session_cookie, context.session.sid(),
+            path=str(root.abs_path), http_only=True,
+            secure=root.scheme.lower() == 'https')
+        context.add_header('Set-Cookie', str(c))
+
+    def _update_session_key(self, context):
+        context.session.update_sid()
+        self.set_session_cookie(context)
+
+    def _delete_session(self, sid):
+        with self._session_set.OpenCollection() as collection:
+            param = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
+            param.set_from_value(sid)
+            params = {'sid': param}
+            filter = core.CommonExpression.from_str(
+                "UserKey eq :sid", params)
+            collection.set_filter(filter)
+            slist = collection.values()
+            collection.set_filter(None)
+            if len(slist):
+                for entity in slist:
+                    del collection[entity.key()]
+
+    def _load_session(self, sid):
+        with self._session_set.OpenCollection() as collection:
+            # load the session
+            param = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
+            param.set_from_value(sid)
+            params = {'user_key': param}
+            filter = core.CommonExpression.from_str(
+                "UserKey eq :user_key", params)
+            collection.set_filter(filter)
+            slist = collection.values()
+            collection.set_filter(None)
+            if len(slist) > 1:
+                # that's an internal error
+                raise SessionError(
+                    "Duplicate user_key in Sessions: %s" % sid)
+            elif len(slist) == 1:
+                session = self.SessionClass(slist[0])
+                if session.expired(self._session_timeout):
+                    self._delete_session(sid)
+                    return None
+                else:
+                    session.seen()
+                    return session
+            else:
+                return None
 
     def session_page(self, context, page_method, return_path):
         """Returns a session protected page
@@ -1303,27 +1628,27 @@ class SessionApp(WSGIApp):
         return_path
             A :class:`pyslet.rfc2396.URI` instance pointing at the page
             that will be returned by page_method, used if the session is
-            not established yet and a test page redirect needs to be
-            implemented.
+            not established yet and a redirect to the test page needs to
+            be implemented.
 
         This method is only called *after* the session has been created,
         in other words, context.session must be a valid session.
 
-        This method either calls the page_method or returns a
-        redirection sequence which culminates in a request to
-        return_path."""
+        This method either calls the page_method (after ensuring that
+        the session is established) or initiates a redirection sequence
+        which culminates in a request to return_path."""
         # has the user been here before?
         cookies = context.get_cookies()
-        if Session.COOKIE_TEST not in cookies:
+        if self._test_cookie not in cookies:
             # no they haven't, set a cookie and redirect
             c = cookie.Section4Cookie(
-                Session.COOKIE_TEST, "0",
+                self._test_cookie, "0",
                 path=str(context.get_app_root().abs_path),
-                max_age=Session.COOKIE_TEST_AGE)
+                max_age=self.settings['SessionApp']['cookie_test_age'])
             context.add_header('Set-Cookie', str(c))
             query = urllib.urlencode(
                 {'return': str(return_path),
-                 'sid': context.session.get_user_key()})
+                 'sid': context.session.sid()})
             ctest = URI.from_octets('ctest?' + query).resolve(
                 context.get_app_root())
             return self.redirect_page(context, ctest)
@@ -1331,26 +1656,61 @@ class SessionApp(WSGIApp):
         return page_method(context)
 
     def session_wrapper(self, context, page_method):
+        """Called by the session_decorator
+
+        Uses :meth:`set_session` to ensure the context has a session
+        object.  If this request is a POST then the form is parsed and
+        the CSRF token checked for validity."""
         if context.session is None:
-            context.session = self.SessionClass.from_context(self, context)
-            sid = context.session.get_user_key()
+            csrf_match = context.get_cookies().get(self._session_cookie, '')
+            self.set_session(context)
             if context.environ['REQUEST_METHOD'].upper() == 'POST':
                 # check the CSRF token
-                token = context.get_form_string(self.CSRF_TOKEN)
+                token = context.get_form_string(self.csrf_token)
                 # we accept a token even if the session expired but this
                 # form is unlikely to do much with a new session.  The point
                 # is we compare to the cookie received and not the actual
                 # session key as this may have changed
-                if not token or token != sid:
-                    logging.warn("%s\nSecurity threat intercepted; "
-                                 "POST token mismatch, possible CSRF attack\n"
-                                 "session=%s; token=%s",
-                                 context.environ.get('PATH_INFO', ''),
-                                 context.session.get_user_key(), token)
+                if not token or token != csrf_match:
+                    logger.warn("%s\nSecurity threat intercepted; "
+                                "POST token mismatch, possible CSRF attack\n"
+                                "cookie=%s; token=%s",
+                                context.environ.get('PATH_INFO', ''),
+                                csrf_match, token)
                     return self.error_page(context, 403)
         return self.session_page(context, page_method, context.get_url())
 
     def ctest_page(self, context, target_url, return_url, sid):
+        """Returns the cookie test page
+
+        Called when cookies are blocked (perhaps in a frame).
+
+        context
+            The request context
+
+        target_url
+            A string containing the base link to the wlaunch page.  This
+            page can opened in a new window (which may get around the
+            cookie restrictions).  You must pass the return_url and the
+            sid values as the 'return' and 'sid' query parameters
+            respectively.
+
+        return_url
+            A string containing the URL the user originally requested,
+            and the location they should be returned to when the session
+            is established.
+
+        sid
+            The session id.
+
+        You may want to override this implementation to provide a more
+        sophisticated page.  The default simply constructs the URL to
+        the wlaunch page and presents it as a simple hypertext link
+        that will open in a new window.
+
+        A more sophisticated application might include a JavaScript to
+        follow the link automatically if it detects that the page is
+        being displayed in a frame."""
         query = urllib.urlencode({'return': return_url, 'sid': sid})
         target_url = str(target_url) + '?' + query
         data = """<html>
@@ -1363,6 +1723,13 @@ class SessionApp(WSGIApp):
         return self.html_response(context, data)
 
     def cfail_page(self, context):
+        """Called when cookies are blocked completely.
+
+        The default simply returns a plain text message stating that
+        cookies are blocked.  You may want to include a page here with
+        information about how to enable cookies, a link to the privacy
+        policy for your application to help people make an informed
+        decision to turn on cookies, etc."""
         context.set_status(200)
         data = "Page load failed: blocked cookies"
         context.add_header("Content-Type", "text/plain")
@@ -1371,14 +1738,42 @@ class SessionApp(WSGIApp):
         return [str(data)]
 
     def ctest(self, context):
+        """The cookie test handler
+
+        This page takes three query parameters:
+
+        return
+            The return URL the user originally requested
+
+        sid
+            The session ID that should be received in a cookie
+
+        framed (optional)
+            An optional parameter, if present and equal to '1' it means
+            we've already attempted to load the page in a new window so
+            if we still can't read cookies we'll return the
+            :meth:`cfail_page`.
+
+        If cookies cannot be read back from the context this page will
+        call the :meth:`ctest_page` to provide an opportunity to open
+        the application in a new window (or :meth:`cfail_page` if this
+        possibility has already been exhausted.
+
+        If cookies are successfully read, they are compared with the
+        expected values (from the query) and the user is returned to the
+        return URL with an automatic redirect.  The return URL must be
+        within the same application (to prevent 'open redirect' issues)
+        and, to be extra safe, we change the user-visible session ID as
+        we've exposed the previous value in the URL which makes it more
+        liable to snooping."""
         cookies = context.get_cookies()
-        logging.debug("cookies: %s", repr(cookies))
+        logger.debug("cookies: %s", repr(cookies))
         query = context.get_query()
-        logging.debug("query: %s", repr(query))
+        logger.debug("query: %s", repr(query))
         if 'return' not in query or 'sid' not in query:
             # missing required parameters
             return self.error_page(context, 400)
-        if Session.COOKIE_TEST not in cookies:
+        if self._test_cookie not in cookies:
             # cookies are blocked
             if query.get('framed', '0') == '1':
                 # we've been through the wlaunch sequence already
@@ -1390,60 +1785,78 @@ class SessionApp(WSGIApp):
                 context, str(wlaunch), query['return'], query['sid'])
         sid = query['sid']
         return_path = query['return']
-        user_key = cookies.get(Session.COOKIE_SESSION, 'MISSING')
+        user_key = cookies.get(self._session_cookie, 'MISSING')
         if user_key != sid:
             # we got a cookie, but not the one we expected.  Possible
             # foul play so remove both sessions and die
             if user_key:
-                Session.delete_session(self.session_set, user_key)
+                self._delete_session(user_key)
             if sid:
-                Session.delete_session(self.session_set, sid)
+                self._delete_session(sid)
             # go to an error page
-            logging.warn("%s\nSecurity threat intercepted; "
-                         "session mismatch, possible fixation attack\n"
-                         "cookie=%s; qparam=%s",
-                         context.environ.get('PATH_INFO', ''),
-                         user_key, sid)
+            logger.warn("%s\nSecurity threat intercepted; "
+                        "session mismatch, possible fixation attack\n"
+                        "cookie=%s; qparam=%s",
+                        context.environ.get('PATH_INFO', ''),
+                        user_key, sid)
             return self.error_page(context, 400)
         if not self.check_redirect(context, return_path):
             return self.error_page(context, 400)
         # we have matching session ids and the redirect checks out
-        context.session = self.SessionClass.from_context(self, context)
-        if context.session.get_user_key() == sid:
+        self.set_session(context)
+        if context.session.sid() == sid:
             # but we've exposed the user_key in the URL which is bad.
             # Let's rewrite that now for safety (without changing
-            # session).
-            user_key = context.session.update_user_key(context)
+            # the actual session).
+            self._update_session_key(context)
         return self.redirect_page(context, return_path)
 
     def wlaunch(self, context):
+        """Handles redirection to a new window
+
+        The redirection may be manual (by the user clicking a link) or
+        it may have been automated using JavaScript - though this latter
+        technique is liable to fall foul of pop-up blockers so should not
+        be relied upon as the only method.
+
+        The query parameters must contain:
+
+        return
+            The return URL the user originally requested
+
+        sid
+            The session ID that should be received in a cookie
+
+        Typically, this page initiates the redirect sequence again, but
+        this time setting the framed query parameter to prevent infinite
+        redirection loops."""
         context.get_app_root()
         cookies = context.get_cookies()
-        logging.debug("cookies: %s", repr(cookies))
+        logger.debug("cookies: %s", repr(cookies))
         query = context.get_query()
         if 'return' not in query or 'sid' not in query:
             # missing required parameters
             return self.error_page(context, 400)
-        logging.debug("query: %s", repr(query))
+        logger.debug("query: %s", repr(query))
         # load the session from the query initially
         sid = query['sid']
-        qsession = self.SessionClass.from_sid(self, sid)
+        qsession = self._load_session(sid)
         if (qsession is not None and
-                (qsession.is_established() or
+                (qsession.established() or
                  not qsession.match_environ(context))):
             # we're still trying to establish a session here so this
             # is a surprising result.  Perhaps an attacker has
             # injected their own established session ID here?
-            Session.delete_session(self.session_set, sid)
-            logging.warn("Security threat intercepted in wlaunch; "
-                         "unexpected session injected in query, "
-                         "possible fixation attack\n"
-                         "session=%s", sid)
+            self._delete_session(sid)
+            logger.warn("Security threat intercepted in wlaunch; "
+                        "unexpected session injected in query, "
+                        "possible fixation attack\n"
+                        "session=%s", sid)
             return self.error_page(context, 400)
         return_path = query['return']
         if not self.check_redirect(context, return_path):
             return self.error_page(context, 400)
-        if Session.COOKIE_TEST not in cookies:
+        if self._test_cookie not in cookies:
             # no cookies, either the user has never been here before or
             # cookies are blocked completely, test again
             if qsession is not None:
@@ -1451,17 +1864,17 @@ class SessionApp(WSGIApp):
                 # BTW, if you delete the test cookie it could kill your
                 # session!
                 context.session = qsession
-                context.session.set_cookie(context)
+                self.set_session_cookie(context)
             else:
-                context.session = self.SessionClass.from_context(self, context)
+                self.set_session(context)
             c = cookie.Section4Cookie(
-                Session.COOKIE_TEST, "0",
+                self._test_cookie, "0",
                 path=str(context.get_app_root().abs_path),
-                max_age=Session.COOKIE_TEST_AGE)
+                max_age=self.settings['SessionApp']['cookie_test_age'])
             context.add_header('Set-Cookie', str(c))
             query = urllib.urlencode(
                 {'return': return_path,
-                 'sid': context.session.get_user_key(),
+                 'sid': context.session.sid(),
                  'framed': '1'})
             ctest = URI.from_octets('ctest?' + query).resolve(
                 context.get_app_root())
@@ -1469,27 +1882,37 @@ class SessionApp(WSGIApp):
         # so cookies were blocked in the frame but now we're in a new
         # window, suddenly, they appear.  Merge our new session into the
         # old one if the old one was already established
-        context.session = self.SessionClass.from_context(self, context)
-        if (context.session.is_established() and qsession is not None):
+        self.set_session(context)
+        if (context.session.established() and qsession is not None):
             # established, matching session.  Merge!
             context.session.absorb(qsession)
         # now we finally have a session
-        if context.session.get_user_key() == sid:
+        if context.session.sid() == sid:
             # this session id was exposed in the query, change it
-            context.session.update_user_key(context)
+            self._update_session_key(context)
         return self.redirect_page(context, return_path)
 
     def check_redirect(self, context, target_path):
+        """Checks a target path for an open redirect
+
+        target_path
+            A string or :class:`~pyslet.rfc2396.URI` instance.
+
+        Returns True if the redirect is *safe*.
+
+        The test ensures that the canonical root of our application
+        matches the canonical root of the target.  In other words, it
+        must have the same scheme and matching authority (host/port)."""
         if target_path:
             if not isinstance(target_path, URI):
                 target_path = URI.from_octets(target_path)
             if (target_path.get_canonical_root() !=
                     context.get_app_root().get_canonical_root()):
                 # catch the open redirect here, nice try!
-                logging.warn("%s\nSecurity threat intercepted; "
-                             "external redirect, possible phishing attack\n"
-                             "requested redirect to %s",
-                             str(context.get_url()), str(target_path))
+                logger.warn("%s\nSecurity threat intercepted; "
+                            "external redirect, possible phishing attack\n"
+                            "requested redirect to %s",
+                            str(context.get_url()), str(target_path))
                 return False
             else:
                 return True
@@ -1497,64 +1920,257 @@ class SessionApp(WSGIApp):
             return False
 
 
-class DBAppMixin(object):
+class PlainTextCipher(object):
 
-    @classmethod
-    def add_options(cls, parser):
-        super(DBAppMixin, cls).add_options(parser)
-        parser.add_option(
-            "-s", "--sqlout", dest="sqlout",
-            default=None, help="Write out SQL script and quit")
-        parser.add_option(
-            "-m", "--memory", dest="in_memory", action="store_true",
-            default=False, help="Use in-memory sqlite database")
+    def encrypt(self, data):
+        return data
 
-    def set_options2(self, options, args):
-        super(DBAppMixin, self).set_options2(options, args)
-        if options.sqlout is not None:
-            # implies in_memory
-            if options.sqlout == '-':
-                out = StringIO.StringIO()
-                self.dbinit_sqlite(in_memory=True, sql_out=out)
-                print out.getvalue()
+    def decrypt(self, data):
+        return data
+
+
+class AppCipher(object):
+
+    """A cipher for encrypting application data
+
+    key_num
+        A key number
+
+    key
+        A binary string containing the application key.
+
+    key_set
+        An entity set used to store previous keys.  The entity set must
+        have an integer key property 'KeyNum' and a string field
+        'KeyString'.  The string field must be large enough to contain
+        encrypted versions of previous keys.
+
+    when (None)
+        A fully specified :class:`pyslet.iso8601.TimePoint` at which
+        time the key will become active.  If None, the key is active
+        straight away.  Otherwise, the key_set is searched for a key
+        that is still active and that key is used when encrypting data
+        until the when time, at which point the given key takes over.
+
+    The object wraps an underlying cipher.  Strings are encrypted using
+    the cipher and then encoded using base64.  The output is then
+    prefixed with an ASCII representation of the key number (key_num)
+    followed by a ':'.  For example, if key_num is 7 and the cipher
+    is plain-text (the default) then encrypt("Hello") results in::
+
+        "7:SGVsbG8="
+
+    When decrypting a string, the key number is parsed and matched
+    against the key_num of the key currently in force.  If the string
+    was encrypted with a different key then the key_set is used to look
+    up that key (which is itself encrypted of course).  The process
+    continues until a key encrypted with key_num is found.
+
+    The upshot of this process is that you can change the key associated
+    with an application.  See :meth:`change_key` for details."""
+
+    #: the maximum age of a key, which is the number of times the key
+    #: can be changed before the original key is considered too old to
+    #: be used for decryption.
+    MAX_AGE = 10
+
+    def __init__(self, key_num, key, key_set, when=None):
+        self.lock = threading.RLock()
+        self.key_set = key_set
+        self.key_num = key_num
+        self.key = key
+        self.ciphers = {key_num: self.new_cipher(key)}
+        if when:
+            # we need to find a key that hasn't expired
+            with key_set.OpenCollection() as keys:
+                t = edm.EDMValue.NewSimpleValue(edm.SimpleType.DateTime)
+                t.set_from_value(time.time())
+                filter = odata.CommonExpression.from_str(
+                    "Expires gte :t", {'t': t})
+                keys.set_filter(filter)
+                # Only interested in keys that haven't expired
+                old_keys = keys.values()
+                if not old_keys:
+                    raise RuntimeError("AppCipher: no current key")
+                old_key = old_keys[0]
+                self.old_num = old_key['KeyNum'].value
+                self.old_key = self.decrypt(old_key['KeyString'])
+                self.old_expires = when.get_unixtime()
+                self.ciphers[self.old_num] = self.new_cipher(self.old_key)
+        else:
+            self.old_num = None
+            self.old_key = None
+            self.old_expires = None
+
+    def new_cipher(self, key):
+        return PlainTextCipher()
+
+    def change_key(self, key_num, key, when):
+        """Changes the key of this application.
+
+        key_num
+            The number given to the new key, must differ from the last
+            :attr:`MAX_AGE` key numbers.
+
+        key
+            A binary string containing the new application key.
+
+        when
+            A fully specified :class:`pyslet.iso8601.TimePoint` at which
+            point the new key will come into effect.
+
+        The existing key is encrypted with the new key and a record is
+        written to the :attr:`key_set` using the *existing* key number,
+        the encrypted key string and the *when* time, which is treated
+        as an expiry time.
+
+        This procedure ensures that strings encrypted with an old key
+        can always be decrypted because the value of the old key can be
+        looked up.  Although it is encrypted, it will be encrypted with
+        a new(er) key and the procedure can be repeated as necessary
+        until a key encrypted with the newest key is found.
+
+        The key change process then becomes:
+
+        1.  Start a utility process connected to the application's
+            entity container using the existing key and then call the
+            change_key method.  Pass a value for *when* that will give
+            you time to reconfigure all AppCipher clients.  Assuming the
+            key change is planned, a time in hours or even days ahead
+            can be used.
+
+        2.  Update or reconfigure all existing applications so that they
+            will be initialised with the new key and the same value for
+            *when* next time they are restarted.
+
+        3.  Restart/refresh all running applications before then change
+            over time.  As this does not need to be done simultaneously,
+            a load balanced set of application servers can be cycled on
+            a schedule to ensure continuous running).
+
+        The purpose of changing the key of an application is to reduce
+        the risk from key exposure.  Long-life keys increase this risk.
+
+        Following a key change the entity container will still contain
+        data encrypted with old keys, which are assumed to be at an
+        increased risk of exposure.  There are two strategies for
+        dealing with this, you could routinely update encrypted data by
+        decrypting and re-encrypting in response to certain events or
+        you could write a script that iterates through the encrypted
+        data fields forcing an update.
+
+        The :attr:`MAX_AGE` attribute determines the maximum number of
+        keys that can be in use in the data set simultaneously. 
+        Eventually you will have to update encrypted data in the data
+        store."""
+        with self.lock:
+            self.old_num = self.key_num
+            self.old_key = self.key
+            self.old_expires = when.get_unixtime()
+            # we should already have a cipher for this key
+            self.key_num = key_num
+            self.key = key
+            cipher = self.ciphers[key_num] = self.new_cipher(key)
+            # we can't use the encrypt method here as we want to force
+            # use of the new key
+            old_key_encrypted = "%i:%s" % (
+                key_num, base64.b64encode(cipher.encrypt(self.old_key)))
+        with self.key_set.OpenCollection() as keys:
+            e = keys.new_entity()
+            e.set_key(self.old_num)
+            e['KeyString'].set_from_value(old_key_encrypted)
+            e['Expires'].set_from_value(when)
+            try:
+                keys.insert_entity(e)
+            except edm.ConstraintError:
+                # Presumably this entity already exists, possible race
+                # condition on change_key - load the entity from the old
+                # key number to raise KeyError if not
+                e = keys[self.old_num]
+
+    def encrypt(self, data):
+        """Encrypts data with the current key"""
+        with self.lock:
+            if self.old_expires:
+                if time.time() > self.old_expires:
+                    # the old key has finally expired
+                    self.old_num = None
+                    self.old_key = None
+                    self.old_expires = None
+                else:
+                    # use the old key
+                    cipher = self.ciphers[self.old_num]
+                    return "%i:%s" % (self.old_num,
+                                      base64.b64encode(cipher.encrypt(data)))
+            cipher = self.ciphers[self.key_num]
+            return "%i:%s" % (self.key_num,
+                              base64.b64encode(cipher.encrypt(data)))
+
+    def decrypt(self, data):
+        """Decrypts data"""
+        key_num, data = self._split_data(data)
+        stack = [(key_num, data, None)]
+        while stack:
+            key_num, data, cipher_num = stack.pop()
+            cipher = self.ciphers.get(key_num, None)
+            if cipher is None:
+                stack.append((key_num, data, cipher_num))
+                with self.key_set.OpenCollection() as collection:
+                    try:
+                        e = collection[key_num]
+                        old_key_num, old_key_data = self._split_data(
+                            e['KeyString'].value)
+                        if len(stack) > self.MAX_AGE:
+                            raise KeyError
+                        stack.append((old_key_num, old_key_data, key_num))
+                    except KeyError:
+                        raise RuntimeError("AppCipher.decript: key too old")
             else:
-                with open(options.sqlout, 'wb') as f:
-                    self.dbinit_sqlite(in_memory=True, sql_out=f)
-            sys.exit(0)
-        elif options.in_memory:
-            self.dbinit_sqlite(in_memory=True)
+                with self.lock:
+                    new_data = cipher.decrypt(data)
+                    if cipher_num is not None:
+                        self.ciphers[cipher_num] = self.new_cipher(new_data)
+                    else:
+                        # this is the data we want
+                        return new_data
+
+    def _split_data(self, data):
+        data = data.split(':')
+        if len(data) != 2 or not data[0].isdigit():
+            raise ValueError
+        key_num = int(data[0])
+        try:
+            data = base64.b64decode(data[1])
+        except TypeError:
+            raise ValueError
+        return key_num, data
+
+
+class AESCipher(object):
+
+    def __init__(self, key):
+        if len(key) >= 32:
+            self.key = key[0:32]
+        elif len(key) >= 24:
+            self.key = key[0:24]
+        elif len(key) >= 16:
+            self.key = key[0:16]
         else:
-            self.dbinit_sqlite(in_memory=False)
+            # not enough data in the key, pad with zeros
+            self.key = key.ljust(16, '\x00')
 
-    def __init__(self, metadata_path, container_name):
-        if not os.path.isabs(metadata_path):
-            metadata_path = os.path.join(self.private_files, metadata_path)
-        #: the metadata document for our data layer
-        self.doc = self._load_metadata(metadata_path)
-        #: the entity container for our database
-        self.container = self.doc.root.DataServices[container_name]
-        #: the concrete database object
-        self.dbcontainer = None
+    def encrypt(self, data):
+        iv = Random.new().read(AES.block_size)
+        cipher = AES.new(self.key, AES.MODE_CFB, iv)
+        return iv + cipher.encrypt(data)
 
-    def _load_metadata(self, path):
-        """Loads the metadata file from path."""
-        doc = edmx.Document()
-        with open(path, 'rb') as f:
-            doc.Read(f)
-        return doc
+    def decrypt(self, data):
+        iv = data[:AES.block_size]
+        cipher = AES.new(self.key, AES.MODE_CFB, iv)
+        return cipher.decrypt(data[AES.block_size:])
 
-    def dbinit_sqlite(self, in_memory=False, sql_out=None):
-        from pyslet.odata2.sqlds import SQLiteEntityContainer
-        if in_memory:
-            path = ":memory:"
-            initdb = True
-        else:
-            path = os.path.join(self.private_files, 'nbdatabase.db')
-            initdb = not os.path.isfile(path)
-        self.dbcontainer = SQLiteEntityContainer(
-            file_path=path, container=self.container)
-        if sql_out is not None:
-            # write the sql create script to sql_out
-            self.dbcontainer.create_all_tables(out=sql_out)
-        elif initdb:
-            self.dbcontainer.create_all_tables()
+
+class AESAppCipher(AppCipher):
+
+    def new_cipher(self, key):
+        return AESCipher(key)

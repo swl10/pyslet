@@ -11,8 +11,8 @@ http://www.imsglobal.org/lti/
 This module implements the Basic LTI specification documented here:
 http://www.imsglobal.org/lti/blti/bltiv1p0/ltiBLTIimgv1p0.html
 
-This module requires the oauth module to be installed.  The oauth module
-is available from http://pypi.python.org/pypi/oauth/1.0.1
+This module requires the oauthlib module to be installed.  The oauthlib
+module is available from https://pypi.python.org/pypi/oauthlib
 
 .. py:module:: pyslet.imsbltiv1p0
 

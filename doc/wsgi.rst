@@ -174,6 +174,246 @@ for all paths.  The star is used instead of a complete path component
 and represents a wildcard that matches any value. When used at the end
 of a path it matches any (possibly empty) sequence of path components.
 
+
+Data Storage
+------------
+
+Most applications will need to read from or write data to some type of
+data store.  Pyslet exposes its own data access layer to web
+applications, for details of the data access layer see the OData section.
+
+To include associate a data container with your application simply
+derive your application from :class:`WSGIDataApp` instead of the more
+basic WSGIApp.
+
+You'll need to supply a metadata XML document describing your data
+schema and information about the data source in the settings file.
+
+The minimum required to get an application working with a sqlite3 database
+would be to define a private_files directory to point to the location
+of a directory with the following layout::
+
+    .
+    wsgidataapp/
+    wsgidataapp/metadata.xml
+    wsgidataapp/database.sqlite3
+
+If this directory was /var/www/wsgi/data then your source could then be::
+
+    from pyslet.wsgi import WSGIDataApp
+
+    class MyApp(WSGIDataApp):
+
+        private_files = '/var/www/wsgi/data'
+
+        # method definitions as before
+        
+    if __name__ == "__main__":
+        MyApp.main()
+
+
+To create your database the first time you will either want to run a
+custom SQL script or get Pyslet to create the tables for you.  With the
+script above both options can be achieved with the command line::
+    
+    $ python samples/wsgi_data.py --create_tables -ivvp8081
+
+This command starts the server as before but instructs it to create the
+tables in the database before running.  Obviously you can only specify
+this option the first time!
+
+Alternatively you might want to customise the table creation script,
+in which case you can create a pro-forma to edit using the --sqlout
+option instead::
+
+    $ python samples/wsgi_data.py --sqlout > wsgi_data.sql
+
+
+Session Management
+------------------
+
+The :class:`WSGIDataApp` is further extended by :class:`SessionApp` to
+cover the common use of case of needing to track information across
+multiple requests from the same user session.
+
+The approach taken requires server side storage (typically in the form
+of a database) with a single entity set reserved for storing session
+data.  It also requires cookies to be enabled in the user's browser. 
+See `Problems with Cookies`_ below for details.  The entity type must
+have at least the following fields::
+
+    <EntityType Name="Session">
+        <Key>
+            <PropertyRef Name="ID"/>
+        </Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+        <Property Name="Established" Type="Edm.Boolean" Nullable="false"/>
+        <Property Name="UserKey" Type="Edm.String" Nullable="false"
+            MaxLength="64" Unicode="false"/>
+        <Property Name="ServerKey" Type="Edm.String" Nullable="false"
+            MaxLength="64" Unicode="false"/>
+        <Property Name="FirstSeen" Type="Edm.DateTime" Nullable="false"/>
+        <Property Name="LastSeen" Type="Edm.DateTime" Nullable="false"/>
+        <Property Name="UserAgent" Type="Edm.String" Nullable="true"
+            MaxLength="256" Unicode="false"/>
+    </EntityType>
+
+A decorator, :func:`session_decoratr` is defined to make it easy to
+write (page) methods that depend on the existence of an active session. 
+The session initiation logic is a little convoluted and is likely to
+involve at least one redirect when a protected page is first requested,
+but this all happens transparently to your application. You may want to
+look at overriding the :meth:`ctest_page` and :meth:`cfail_page` methods
+to provide more user-friendly messages in cases where cookies are
+blocked.
+
+CSRF
+~~~~
+
+Hand-in-hand with session management is defence against cross-site
+request forgery (CSRF) attacks.  Relying purely on a session cookie to
+identify a user is problematic because a third party site could cause
+the user's browser to submit requests to your application on their
+behalf.  The browser will send the session cookie even if the request
+originated outside one of your application's pages.
+
+POST requests that affect the state of the server or carry out some
+other action requiring authorisation must be protected.  Requests that
+simply return information (i.e., GET requests) are usually safe, even if
+the response contains confidential information, as the browser prevents
+the third party site from actually reading the HTML. Be careful when
+returning data other than HTML though, for example, data that could be
+parsed as valid JavaScript will need additional protection.  The
+importance of using HTTP request methods appropriately cannot be
+understated!
+
+The most common pattern for preventing this type of fraud is to use a
+special token in POST requests that can't be guessed by the third party
+and isn't exposed outside the page from which the POSTed form is
+supposed to originate.  If you decorate a page that is the target of a
+POST request (the page that performs the action) with the session
+decorator then the request will fail if a CSRF token is not included in
+the request.  The token can be read from the session object and will
+need to be inserted into any forms in your application.  You shouldn't
+expose your CRSF token in the URL as that makes it vulnerable to being
+discovered, so don't add it to forms that use the GET action.
+
+Here's a simple example method that shows the use of the session
+decorator::
+
+    @session_decorator
+    def home(self, context):
+        page = """<html><head><title>Session Page</title></head><body>
+            <h1>Session Page</h1>
+            %s
+            </body></html>"""
+        if context.session.entity['UserName']:
+            noform = """<p>Welcome: %s</p>"""
+            page = page % (
+                noform % xml.EscapeCharData(
+                    context.session.entity['UserName'].value))
+        else:
+            form = """<form method="POST" action="setname">
+                <p>Please enter your name: <input type="text" name="name"/>
+                    <input type="hidden" name=%s value=%s />
+                    <input type="submit" value="Set"/></p>
+                </form>"""
+            page = page % (
+                form % (xml.EscapeCharData(self.csrf_token, True),
+                        xml.EscapeCharData(context.session.sid(), True)))
+        context.set_status(200)
+        return self.html_response(context, page)
+
+We've added a nullable property to the basic session entity type::
+
+    <Property Name="UserName" Type="Edm.String" Nullable="true"
+        MaxLength="256" Unicode="true"/>
+
+Our method read the value of this property from the session and prints a
+welcome message if it is set.  If not, it prints a form allowing you to
+enter your name.  Notice that we must include a hidden field containing
+the CSRF token.  The name of the token parameter is given in
+:attr:`SessionApp.csrf_token` and the value is read from session object
+directly using the :meth:`Session.sid` method.  It's the same value as
+the session ID that is stored in the cookie - the browser should prevent
+third parties from reading the cookie's value.
+
+The action method that processes the form looks like this::
+
+    @session_decorator
+    def setname(self, context):
+        user_name = context.get_form_string('name')
+        if user_name:
+            context.session.entity['UserName'].set_from_value(user_name)
+            context.session.touch()
+        return self.redirect_page(context, context.get_app_root())
+
+
+Problems with Cookies
+~~~~~~~~~~~~~~~~~~~~~
+
+There has been significant uncertainty over the use of cookies with some
+browsers blocking them in certain situations and some users blocking
+them entirely.  In particular, the `E-Privacy Directive`_ in the
+European Union has led to a spate of scrolling consent banners and
+pop-ups on website landing pages.
+
+It is worth bearing in mind that use of cookies, as opposed to
+URL-based solutions or cacheable basic basic auth credentials, is
+currently considered *more* secure for passing session identifiers. 
+When designing your application you need to balance the privacy rights
+of your users with the need to keep their information safe and secure.
+Indeed, the main provisions of the directive are about providing
+security of services.  As a result, it is generally accepted that the
+use of cookies for tracking sessions is essential and does not require
+any special consent from the user.
+
+By extending :class:`WSGIDataApp` this implementation always
+persists session data on the server.  This gets around most of the
+perceived issues with the directive and cookies but does not absolve
+you and your application of the need to obtain consent from a more
+general data protection perspective!
+
+Perhaps more onerous, but less discussed, is the obligation to
+remove 'traffic data', sometimes referred to metadata, about the
+transmission of a communication.  For this reason, we don't store
+the originating IP address of the session even though doing so might
+actually increase security.  As always, it's a balance.
+    
+..  _`E-Privacy Directive`:
+    http://en.wikipedia.org/wiki/Directive_on_Privacy_and_Electronic_Communications#Cookies
+
+Finally, by relying on cookies we will sometimes fall foul of browser
+attempts to automate the privacy preferences of their users.  The most
+common scenario is when our application is opened in a frame within
+another application.  In this case, some browsers will apply a much
+stricter policy on blocking cookies.  For example, Microsoft's Internet
+Explorer (from version 6) requires the implementation of the P3P_
+standard for communicating privacy information.  Although some sites
+have chosen to fake a policy to trick the browser into accepting their
+cookies this has resulted in legal action so is not to be recommended.
+
+See: http://msdn.microsoft.com/en-us/library/ms537343(v=VS.85).aspx
+
+..  _P3P: http://www.w3.org/P3P/
+
+To maximise the chances of being able to create a session this class
+uses automatic redirection to test for cookie storage and a
+mechanism for transferring the session to a new window if it detects
+that cookies are blocked. 
+
+For a more detailed explanation of how this is achieved see my blog
+post `Putting Cookies in the Frame`_
+
+In many cases, once the application has been opened in a new window and
+the test cookie has been set successfully, future framed calls to the
+application *will* receive cookies and the user experience will be much
+smoother.
+ 
+..  _`Putting Cookies in the Frame`:
+    http://swl10.blogspot.co.uk/2014/11/lti-tools-putting-cookies-in-frame.html
+
+
  
 Reference
 ---------

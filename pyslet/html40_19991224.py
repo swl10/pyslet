@@ -421,7 +421,7 @@ class CoreAttrsMixin(object):
               title       %Text;         #IMPLIED  -- advisory title --"
               >"""
     ID = 'id'
-    XMLATTR_class = 'styleClass'	# re-mapped to avoid python reserved word
+    XMLATTR_class = 'styleClass'  # re-mapped to avoid python reserved word
     XMLATTR_style = 'style'
     XMLATTR_title = 'title'
 

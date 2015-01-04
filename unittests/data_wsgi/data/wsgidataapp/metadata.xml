@@ -75,10 +75,12 @@
                 <Property Name="Established" Type="Edm.Boolean" Nullable="false"/>
                 <Property Name="UserKey" Type="Edm.String" Nullable="false" MaxLength="64"
                     Unicode="false"/>
-                <Property Name="ServerKey" Type="Edm.String" Nullable="false" MaxLength="64"
-                    Unicode="false"/>
-                <Property Name="Expires" Type="Edm.DateTime" Nullable="false" MaxLength="64"
-                    Unicode="false"/>
+                <Property Name="ServerKey" Type="Edm.String"
+                    Nullable="false" MaxLength="64" Unicode="false"/>
+                <Property Name="FirstSeen" Type="Edm.DateTime"
+                    Nullable="false"/>
+                <Property Name="LastSeen" Type="Edm.DateTime"
+                    Nullable="false"/>
                 <Property Name="UserAgent" Type="Edm.String" Nullable="true" MaxLength="256"
                     Unicode="false"/>
             </EntityType>

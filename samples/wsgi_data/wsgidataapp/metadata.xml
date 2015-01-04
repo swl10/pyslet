@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<edmx:Edmx Version="1.0"
+    xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx"
+    xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata">
+    <edmx:DataServices m:DataServiceVersion="2.0">
+        <Schema Namespace="CounterSchema"
+            xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
+            <EntityContainer Name="Counters" m:IsDefaultEntityContainer="true">
+                <EntitySet Name="Hits" EntityType="CounterSchema.HitType"/>                
+            </EntityContainer>
+            <EntityType Name="HitType">
+                <Key>
+                    <PropertyRef Name="Path"/>
+                </Key>
+                <Property Name="Path" Type="Edm.String" Nullable="false"
+                    MaxLength="256" FixedLength="false" Unicode="True"/>
+                <Property Name="Count" Type="Edm.Int32" Nullable="false"
+                    ConcurrencyMode="Fixed"/>
+            </EntityType>            
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

@@ -6,16 +6,22 @@ import logging
 import optparse
 import os.path
 import random
+import shutil
 import string
 import StringIO
+import tempfile
 import threading
+import time
 import unittest
 import urllib
 
+import pyslet.iso8601 as iso
 import pyslet.http.client as http
 import pyslet.http.cookie as cookie
 import pyslet.http.params as params
 import pyslet.html40_19991224 as html
+import pyslet.odata2.metadata as edmx
+import pyslet.odata2.sqlds as sql
 import pyslet.wsgi as wsgi
 
 from pyslet.rfc2396 import URI
@@ -27,6 +33,10 @@ def suite(prefix='test'):
     return unittest.TestSuite((
         loader.loadTestsFromTestCase(FunctionTests),
         loader.loadTestsFromTestCase(ContextTests),
+        loader.loadTestsFromTestCase(AppTests),
+        loader.loadTestsFromTestCase(WSGIDataAppTests),
+        loader.loadTestsFromTestCase(AppCipherTests),
+        loader.loadTestsFromTestCase(SessionTests),
         loader.loadTestsFromTestCase(FullAppTests),
     ))
 
@@ -505,7 +515,37 @@ Content-Type: text/plain
         self.assertTrue(cookies == {"e": "mc2", "F": "ma"})
 
 
+class MockLogging(object):
+
+    CRITICAL = 50
+    ERROR = 40
+    WARNING = 30
+    INFO = 20
+    DEBUG = 10
+    NOTSET = 0
+
+    def __init__(self):
+        self.level = self.NOTSET
+
+    def basicConfig(self, **kwargs):        # noqa
+        if 'level' in kwargs:
+            self.level = kwargs['level']
+
+    def info(self, msg, *args, **kwargs):
+        # don't need to output mocked logging
+        pass
+
+
 class AppTests(unittest.TestCase):
+
+    def setUp(self):        # noqa
+        # mock the logging module in wsgi to prevent out tests actually
+        # overriding the logging level
+        self.save_logging = wsgi.logging
+        wsgi.logging = MockLogging()
+
+    def tearDown(self):     # noqa
+        wsgi.logging = self.save_logging
 
     def test_constructor(self):
         class BaseApp(wsgi.WSGIApp):
@@ -531,17 +571,19 @@ class AppTests(unittest.TestCase):
         p = optparse.OptionParser()
         VApp.add_options(p)
         options, args = p.parse_args([])
-        self.assertTrue(options.logging == 0)
+        self.assertTrue(options.logging is None)
         VApp.setup(options=options, args=args)
         # check setting value
-        self.assertTrue(VApp.settings['WSGIApp']['level'] == logging.ERROR)
+        self.assertTrue(VApp.settings['WSGIApp']['level'] is None)
+        self.assertTrue(wsgi.logging.level == wsgi.logging.NOTSET)
 
         class VApp(wsgi.WSGIApp):
             pass
         options, args = p.parse_args(['-v'])
         self.assertTrue(options.logging == 1)
         VApp.setup(options=options, args=args)
-        self.assertTrue(VApp.settings['WSGIApp']['level'] == logging.WARN)
+        self.assertTrue(VApp.settings['WSGIApp']['level'] == logging.WARNING)
+        self.assertTrue(wsgi.logging.level == wsgi.logging.WARNING)
 
         class VApp(wsgi.WSGIApp):
             pass
@@ -549,6 +591,7 @@ class AppTests(unittest.TestCase):
         self.assertTrue(options.logging == 2)
         VApp.setup(options=options, args=args)
         self.assertTrue(VApp.settings['WSGIApp']['level'] == logging.INFO)
+        self.assertTrue(wsgi.logging.level == wsgi.logging.INFO)
 
         class VApp(wsgi.WSGIApp):
             pass
@@ -556,6 +599,7 @@ class AppTests(unittest.TestCase):
         self.assertTrue(options.logging == 3)
         VApp.setup(options=options, args=args)
         self.assertTrue(VApp.settings['WSGIApp']['level'] == logging.DEBUG)
+        self.assertTrue(wsgi.logging.level == wsgi.logging.DEBUG)
 
         class VApp(wsgi.WSGIApp):
             pass
@@ -563,6 +607,7 @@ class AppTests(unittest.TestCase):
         self.assertTrue(options.logging == 4)
         VApp.setup(options=options, args=args)
         self.assertTrue(VApp.settings['WSGIApp']['level'] == logging.DEBUG)
+        self.assertTrue(wsgi.logging.level == wsgi.logging.DEBUG)
 
     def test_p_option(self):
         class PApp(wsgi.WSGIApp):
@@ -779,7 +824,7 @@ class AppTests(unittest.TestCase):
             def page(self, context):
                 context.set_status(200)
                 context.add_header('Content-Length', 10)
-                context.add_header('Content-Type', 'text/plain')
+                context.add_header('Content-Type', u'text/plain')
                 context.start_response()
                 return [u"0123456789"]
         # check that common errors are caught and absorbed
@@ -1103,17 +1148,369 @@ class AppTests(unittest.TestCase):
         t.join()
 
 
-class FullApp(wsgi.DBAppMixin, wsgi.SessionApp):
+class WSGIDataAppTests(unittest.TestCase):
+
+    DUMMY_SCHEMA = """<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<edmx:Edmx Version="1.0"
+    xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx"
+    xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata">
+    <edmx:DataServices m:DataServiceVersion="2.0">
+        <Schema Namespace="DummySchema"
+            xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
+            <EntityContainer Name="Dummy" m:IsDefaultEntityContainer="true">
+                <EntitySet Name="Dummies" EntityType="DummySchema.DummyType"/>
+            </EntityContainer>
+            <EntityType Name="DummyType">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>"""
+
+    def setUp(self):        # noqa
+        self.d = tempfile.mkdtemp('.d', 'pyslet-test_wsgi-')
+        self.data_dir = os.path.join(self.d, 'wsgidataapp')
+        os.mkdir(self.data_dir)
+        self.default_path = os.path.join(self.data_dir, 'metadata.xml')
+        # put the metadata file in the default place
+        with open(self.default_path, 'wb') as f:
+            f.write(self.DUMMY_SCHEMA)
+        self.db_path = os.path.join(self.data_dir, 'database.sqlite3')
+
+    def tearDown(self):     # noqa
+        shutil.rmtree(self.d)
+
+    def test_metadata_option(self):
+        """
+        cases:
+        rel class attribute, private_files, option: OK, override
+        """
+        # put the metadata file in the default place
+        with open(self.default_path, 'wb') as f:
+            f.write(self.DUMMY_SCHEMA)
+        custom_path = os.path.join(self.data_dir, 'myschema.xml')
+        # put the metadata file in a custom place
+        with open(custom_path, 'wb') as f:
+            f.write(self.DUMMY_SCHEMA)
+
+        class MetadataApp(wsgi.WSGIDataApp):
+            pass
+        p = optparse.OptionParser()
+        MetadataApp.add_options(p)
+        options, args = p.parse_args([])
+        self.assertTrue(options.metadata is None)
+        # setup should fail
+        try:
+            MetadataApp.setup(options=options, args=args)
+            self.fail("private_files or metadata required")
+        except RuntimeError:
+            pass
+        self.assertFalse(os.path.exists(self.db_path))
+
+        class MetadataApp(wsgi.WSGIDataApp):
+            private_files = self.d
+        p = optparse.OptionParser()
+        MetadataApp.add_options(p)
+        options, args = p.parse_args([])
+        self.assertTrue(options.metadata is None)
+        MetadataApp.setup(options=options, args=args)
+        # don't create tables by default
+        self.assertFalse(os.path.exists(self.db_path))
+        # remove the default metadata file
+        os.remove(self.default_path)
+
+        class MetadataApp(wsgi.WSGIDataApp):
+            private_files = self.d
+            metadata_file = 'myschema.xml'
+        p = optparse.OptionParser()
+        MetadataApp.add_options(p)
+        options, args = p.parse_args([])
+        self.assertTrue(options.metadata is None)
+        MetadataApp.setup(options=options, args=args)
+        # don't create tables by default
+        self.assertFalse(os.path.exists(self.db_path))
+
+        class MetadataApp(wsgi.WSGIDataApp):
+            private_files = self.d
+            metadata_file = os.path.abspath(custom_path)
+        p = optparse.OptionParser()
+        MetadataApp.add_options(p)
+        options, args = p.parse_args([])
+        self.assertTrue(options.metadata is None)
+        MetadataApp.setup(options=options, args=args)
+        # don't create tables by default
+        self.assertFalse(os.path.exists(self.db_path))
+
+    def test_s_option(self):
+        class SApp(wsgi.WSGIDataApp):
+            private_files = self.d
+        p = optparse.OptionParser()
+        SApp.add_options(p)
+        options, args = p.parse_args([])
+        self.assertTrue(options.sqlout is False)
+        self.assertTrue(options.create_tables is False)
+        p = optparse.OptionParser()
+        SApp.add_options(p)
+        options, args = p.parse_args(['-s'])
+        self.assertTrue(options.sqlout is True)
+        p = optparse.OptionParser()
+        SApp.add_options(p)
+        options, args = p.parse_args(['--sqlout'])
+        self.assertTrue(options.sqlout is True)
+        self.assertTrue(options.create_tables is False)
+        try:
+            SApp.setup(options=options, args=args)
+            # print the suggested SQL database schema and then exit.
+            self.fail("Expected system exit")
+        except SystemExit:
+            pass
+        self.assertFalse(os.path.exists(self.db_path))
+
+        class SApp(wsgi.WSGIDataApp):
+            private_files = self.d
+        p = optparse.OptionParser()
+        SApp.add_options(p)
+        options, args = p.parse_args(['--sqlout', '--create_tables'])
+        self.assertTrue(options.sqlout is True)
+        self.assertTrue(options.create_tables is True)
+        try:
+            SApp.setup(options=options, args=args)
+            # print the suggested SQL database schema and then exit.
+            # The setting of --create_tables is ignored.
+            self.fail("Expected system exit")
+        except SystemExit:
+            pass
+        self.assertFalse(os.path.exists(self.db_path))
+
+    def test_create_option(self):
+        class CreateApp(wsgi.WSGIDataApp):
+            private_files = self.d
+        p = optparse.OptionParser()
+        CreateApp.add_options(p)
+        options, args = p.parse_args([])
+        self.assertTrue(options.create_tables is False)
+        CreateApp.setup(options=options, args=args)
+        # should not have created the database...
+        self.assertFalse(os.path.exists(self.db_path))
+        # or the tables!
+        with CreateApp.container['Dummies'].OpenCollection() as collection:
+            try:
+                # table should not exist, this should fail
+                len(collection)
+                self.fail("No tables expected")
+            except sql.SQLError:
+                pass
+
+        class CreateApp(wsgi.WSGIDataApp):
+            private_files = self.d
+        p = optparse.OptionParser()
+        CreateApp.add_options(p)
+        options, args = p.parse_args(['--create_tables'])
+        self.assertTrue(options.create_tables is True)
+        CreateApp.setup(options=options, args=args)
+        # should have created the database...
+        self.assertTrue(os.path.exists(self.db_path))
+        # and the tables!
+        with CreateApp.container['Dummies'].OpenCollection() as collection:
+            try:
+                # table should now exit
+                len(collection)
+            except sql.SQLError:
+                self.fail("Tables expected")
+        # remove database for the next test...
+        os.remove(self.db_path)
+
+        class CreateApp(wsgi.WSGIDataApp):
+            private_files = self.d
+        p = optparse.OptionParser()
+        CreateApp.add_options(p)
+        options, args = p.parse_args(['--memory'])
+        self.assertTrue(options.create_tables is False)
+        CreateApp.setup(options=options, args=args)
+        # should not have created the database no disck...
+        self.assertFalse(os.path.exists(self.db_path))
+        # but the tables should exist in memory!
+        with CreateApp.container['Dummies'].OpenCollection() as collection:
+            try:
+                len(collection)
+            except sql.SQLError:
+                self.fail("Tables expected")
+
+
+class AppCipherTests(unittest.TestCase):
+
+    def setUp(self):    # noqa
+        key_schema = """<edmx:Edmx Version="1.0"
+    xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx"
+    xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata">
+    <edmx:DataServices m:DataServiceVersion="2.0">
+        <Schema Namespace="KeySchema"
+            xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
+            <EntityContainer Name="KeyDatabase"
+                    m:IsDefaultEntityContainer="true">
+                <EntitySet Name="AppKeys" EntityType="KeySchema.AppKey"/>
+            </EntityContainer>
+            <EntityType Name="AppKey">
+                <Key>
+                    <PropertyRef Name="KeyNum"/>
+                </Key>
+                <Property Name="KeyNum" Nullable="false" Type="Edm.Int32"/>
+                <Property Name="KeyString" Nullable="false"
+                    Type="Edm.String" MaxLength="256" Unicode="false"/>
+                <Property Name="Expires" Nullable="false"
+                    Type="Edm.DateTime" Precision="0"/>
+            </EntityType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>"""
+        self.doc = edmx.Document()
+        self.doc.Read(src=key_schema)
+        self.container = self.doc.root.DataServices["KeySchema.KeyDatabase"]
+        # self.memcontainer = InMemoryEntityContainer(self.container)
+        self.dbcontainer = sql.SQLiteEntityContainer(
+            file_path=":memory:", container=self.container)
+        self.dbcontainer.create_all_tables()
+        self.key_set = self.container['AppKeys']
+
+    def test_constructor(self):
+        ac = wsgi.AppCipher(0, 'password', self.key_set)
+        # we don't create an records initially
+        with self.key_set.OpenCollection() as collection:
+            self.assertTrue(len(collection) == 0)
+        data0 = ac.encrypt("Hello")
+        self.assertFalse(data0 == "Hello")
+        self.assertTrue(ac.decrypt(data0) == "Hello")
+        ac.change_key(1, "pa$$word",
+                      iso.TimePoint.FromUnixTime(time.time() - 1))
+        with self.key_set.OpenCollection() as collection:
+            self.assertTrue(len(collection) == 1)
+        data1 = ac.encrypt("Hello")
+        self.assertFalse(data0 == data1)
+        self.assertTrue(ac.decrypt(data1) == "Hello")
+        self.assertTrue(ac.decrypt(data0) == "Hello")
+        ac.change_key(2, "unguessable",
+                      iso.TimePoint.FromUnixTime(time.time() - 1))
+        with self.key_set.OpenCollection() as collection:
+            self.assertTrue(len(collection) == 2)
+        self.assertTrue(ac.decrypt(data0) == "Hello")
+        ac.change_key(10, "anotherkey",
+                      iso.TimePoint.FromUnixTime(time.time() - 1))
+        with self.key_set.OpenCollection() as collection:
+            self.assertTrue(len(collection) == 3)
+        self.assertTrue(ac.decrypt(data0) == "Hello")
+        ac2 = wsgi.AppCipher(10, "anotherkey", self.key_set)
+        self.assertTrue(ac2.decrypt(data0) == "Hello")
+
+    def test_constructor(self):
+        if not wsgi.got_crypto:
+            logging.warn("Skipping AESAppCipher tests, PyCrypto not installed")
+            return
+        ac = wsgi.AESAppCipher(0, 'password', self.key_set)
+        # we don't create an records initially
+        with self.key_set.OpenCollection() as collection:
+            self.assertTrue(len(collection) == 0)
+        data0 = ac.encrypt("Hello")
+        self.assertFalse(data0 == "Hello")
+        self.assertTrue(ac.decrypt(data0) == "Hello")
+        ac.change_key(1, "pa$$word",
+                      iso.TimePoint.FromUnixTime(time.time() - 1))
+        with self.key_set.OpenCollection() as collection:
+            self.assertTrue(len(collection) == 1)
+        data1 = ac.encrypt("Hello")
+        self.assertFalse(data0 == data1)
+        self.assertTrue(ac.decrypt(data1) == "Hello")
+        self.assertTrue(ac.decrypt(data0) == "Hello")
+        ac.change_key(2, "unguessable",
+                      iso.TimePoint.FromUnixTime(time.time() - 1))
+        with self.key_set.OpenCollection() as collection:
+            self.assertTrue(len(collection) == 2)
+        self.assertTrue(ac.decrypt(data0) == "Hello")
+        ac.change_key(10, "anotherkey",
+                      iso.TimePoint.FromUnixTime(time.time() - 1))
+        with self.key_set.OpenCollection() as collection:
+            self.assertTrue(len(collection) == 3)
+        self.assertTrue(ac.decrypt(data0) == "Hello")
+        ac2 = wsgi.AESAppCipher(10, "anotherkey", self.key_set)
+        self.assertTrue(ac2.decrypt(data0) == "Hello")
+
+
+class SessionTests(unittest.TestCase):
+
+    def setUp(self):        # noqa
+        self.d = os.path.abspath(
+            os.path.join(os.path.split(__file__)[0], 'data_wsgi', 'data'))
+
+        class TestSessionApp(wsgi.WSGIDataApp):
+            private_files = self.d
+        p = optparse.OptionParser()
+        TestSessionApp.add_options(p)
+        options, args = p.parse_args(['--memory'])
+        TestSessionApp.setup(options=options, args=args)
+        self.app = TestSessionApp()
+
+    def test_sid(self):
+        with self.app.container['Sessions'].OpenCollection() as collection:
+            entity = collection.new_entity()
+            entity['UserKey'].set_from_value('Hello')
+            s = wsgi.Session(entity)
+            self.assertTrue(s.sid() == 'Hello')
+            entity['UserKey'].set_from_value("Goodbye")
+            self.assertTrue(s.sid() == "Goodbye")
+
+    def test_match(self):
+        req = MockRequest()
+        context = wsgi.WSGIContext(req.environ, req.start_response)
+        # default context has no UserAgent
+        with self.app.container['Sessions'].OpenCollection() as collection:
+            entity = collection.new_entity()
+            # no UserAgent in environ should match default (NULL)
+            s = wsgi.Session(entity)
+            self.assertTrue(s.match_environ(context))
+            # but an empty UserAgent should not match
+            entity['UserAgent'].set_from_value('')
+            s = wsgi.Session(entity)
+            context.environ['HTTP_USER_AGENT'] = 'Browser/1.0'
+            self.assertFalse(s.match_environ(context))
+            entity['UserAgent'].set_from_value('Browser/1.0')
+            self.assertTrue(s.match_environ(context))
+
+    def test_delete(self):
+        with self.app.container['Sessions'].OpenCollection() as collection:
+            entity = collection.new_entity()
+            entity.set_key(1)
+            entity['Established'].set_from_value(False)
+            entity['UserKey'].set_from_value('Hello')
+            entity['ServerKey'].set_from_value('Hello')
+            entity['FirstSeen'].set_from_value(time.time())
+            entity['LastSeen'].set_from_value(time.time())
+            entity['UserAgent'].set_from_value('Browser/1.0')
+            self.assertFalse(1 in collection)
+            collection.insert_entity(entity)
+            s = wsgi.Session(entity)
+            self.assertTrue(1 in collection)
+            self.assertTrue(entity.exists)
+            entity2 = collection.new_entity()
+            entity2.set_key(2)
+            entity2.merge(entity)
+            collection.insert_entity(entity2)
+            self.assertTrue(2 in collection)
+            s2 = wsgi.Session(entity2)
+            s.absorb(s2)
+            # should delete s2
+            self.assertFalse(2 in collection)
+            self.assertTrue(1 in collection)
+            self.assertFalse(entity2.exists)
+
+
+class TestSessionApp(wsgi.SessionApp):
 
     private_files = os.path.abspath(
         os.path.join(
             os.path.join(os.path.split(__file__)[0], 'data_wsgi'),
             'data'))
-
-    def __init__(self):
-        data_path = os.path.join(self.private_files, 'metadata.xml')
-        wsgi.DBAppMixin.__init__(self, data_path, 'WSGISchema.WSGIDatabase')
-        wsgi.SessionApp.__init__(self, self.container['Sessions'])
 
     def init_dispatcher(self):
         wsgi.SessionApp.init_dispatcher(self)
@@ -1130,8 +1527,14 @@ class FullApp(wsgi.DBAppMixin, wsgi.SessionApp):
 class FullAppTests(unittest.TestCase):
 
     def setUp(self):    # noqa
+        class FullApp(TestSessionApp):
+            pass
+
+        p = optparse.OptionParser()
+        FullApp.add_options(p)
+        options, args = p.parse_args(['--memory'])
+        FullApp.setup(options, args)
         self.app = FullApp()
-        self.app.dbinit_sqlite(in_memory=True)
 
     def test_framed_cookies(self):
         req = MockRequest()
@@ -1145,11 +1548,11 @@ class FullAppTests(unittest.TestCase):
         self.assertTrue(target.get_addr() == ('localhost', 80))
         self.assertTrue(isinstance(target, params.HTTPURL))
         # and we expect a warning cookie
-        self.assertTrue(wsgi.Session.COOKIE_TEST in req.cookies)
+        self.assertTrue(self.app._test_cookie in req.cookies)
         # and we expect a session cookie
-        self.assertTrue(wsgi.Session.COOKIE_SESSION in req.cookies)
-        cflag = req.cookies[wsgi.Session.COOKIE_TEST]
-        sid = req.cookies[wsgi.Session.COOKIE_SESSION]
+        self.assertTrue(self.app._session_cookie in req.cookies)
+        cflag = req.cookies[self.app._test_cookie]
+        sid = req.cookies[self.app._session_cookie]
         # follow the redirect, passing the cookies
         req = MockRequest(path=target.abs_path, query=target.query)
         req.add_cookies([cflag, sid])
@@ -1164,8 +1567,8 @@ class FullAppTests(unittest.TestCase):
         self.assertTrue(isinstance(target, params.HTTPURL))
         self.assertTrue(target.abs_path == '/')
         # and an updated sid!
-        self.assertTrue(wsgi.Session.COOKIE_SESSION in req.cookies)
-        new_sid = req.cookies[wsgi.Session.COOKIE_SESSION]
+        self.assertTrue(self.app._session_cookie in req.cookies)
+        new_sid = req.cookies[self.app._session_cookie]
         self.assertFalse(sid.value == new_sid.value)
         sid = new_sid
         # now we repeat the first request with the cookies,
@@ -1225,11 +1628,11 @@ class FullAppTests(unittest.TestCase):
         self.assertTrue(target.get_addr() == ('localhost', 80))
         self.assertTrue(isinstance(target, params.HTTPURL))
         # and we expect a warning cookie
-        self.assertTrue(wsgi.Session.COOKIE_TEST in req.cookies)
+        self.assertTrue(self.app._test_cookie in req.cookies)
         # and we expect a session cookie
-        self.assertTrue(wsgi.Session.COOKIE_SESSION in req.cookies)
-        cflag = req.cookies[wsgi.Session.COOKIE_TEST]
-        sid = req.cookies[wsgi.Session.COOKIE_SESSION]
+        self.assertTrue(self.app._session_cookie in req.cookies)
+        cflag = req.cookies[self.app._test_cookie]
+        sid = req.cookies[self.app._session_cookie]
         # follow the redirect, passing the cookies
         req = MockRequest(path=target.abs_path, query=target.query)
         req.add_cookies([cflag, sid])
@@ -1244,8 +1647,8 @@ class FullAppTests(unittest.TestCase):
         self.assertTrue(isinstance(target, params.HTTPURL))
         self.assertTrue(target.abs_path == '/')
         # and an updated sid!
-        self.assertTrue(wsgi.Session.COOKIE_SESSION in req.cookies)
-        new_sid = req.cookies[wsgi.Session.COOKIE_SESSION]
+        self.assertTrue(self.app._session_cookie in req.cookies)
+        new_sid = req.cookies[self.app._session_cookie]
         self.assertFalse(sid.value == new_sid.value)
         sid = new_sid
         # now we repeat the first request with the cookies,
@@ -1300,7 +1703,7 @@ class FullAppTests(unittest.TestCase):
         self.assertTrue(target.abs_path == '/')
         # our session should be merged in, so we have the existing sid
         # and therefore no cookie need be set
-        self.assertFalse(wsgi.Session.COOKIE_SESSION in req.cookies)
+        self.assertFalse(self.app._session_cookie in req.cookies)
         # now we repeat the first request with the cookies again, should
         # not get a redirect anymore
         req = MockRequest()
@@ -1355,5 +1758,5 @@ class FullAppTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     unittest.main()

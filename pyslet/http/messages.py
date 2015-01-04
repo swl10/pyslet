@@ -2572,7 +2572,7 @@ class CacheControl(object):
     iteration in the usual way.  Instances also support basic key lookup
     of directive names by implementing __contains__ and __getitem__
     (which returns None for defined directives with no parameter and
-    raises KeyError for undefined directives.  Instances are not truly
+    raises KeyError for undefined directives).  Instances are not truly
     dictionary like."""
 
     def __init__(self, *args):
