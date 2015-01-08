@@ -551,7 +551,7 @@ class AppTests(unittest.TestCase):
         class BaseApp(wsgi.WSGIApp):
             pass
         self.assertTrue(BaseApp.ContextClass is wsgi.WSGIContext)
-        self.assertTrue(BaseApp.static_files is not None)
+        self.assertTrue(BaseApp.static_files is None)
         self.assertTrue(BaseApp.private_files is None)
         # our BaseApp doesn't define a settings file
         self.assertTrue(BaseApp.settings_file is None)
@@ -668,10 +668,7 @@ class AppTests(unittest.TestCase):
         self.assertTrue(options.static is None)
         StaticApp.setup(options=options, args=args)
         # check setting value
-        self.assertTrue(StaticApp.static_files is not None)
-        self.assertTrue(StaticApp.static_files != STATIC_FILES)
-        self.assertTrue(StaticApp.static_files !=
-                        os.path.abspath(STATIC_FILES))
+        self.assertTrue(StaticApp.static_files is None)
 
         class StaticApp(wsgi.WSGIApp):
             pass
@@ -711,10 +708,8 @@ class AppTests(unittest.TestCase):
         options, args = p.parse_args([])
         self.assertTrue(options.settings is None)
         SettingsApp.setup(options=options, args=args)
-        # check setting value, base setting is current directory
-        self.assertTrue(SettingsApp.settings_file is not None)
-        self.assertTrue(SettingsApp.settings_file != path)
-        self.assertTrue(SettingsApp.settings_file != os.path.abspath(path))
+        # check setting value, base setting is None
+        self.assertTrue(SettingsApp.settings_file is None)
 
         class SettingsApp(wsgi.WSGIApp):
             pass
@@ -1201,7 +1196,6 @@ class WSGIDataAppTests(unittest.TestCase):
         p = optparse.OptionParser()
         MetadataApp.add_options(p)
         options, args = p.parse_args([])
-        self.assertTrue(options.metadata is None)
         # setup should fail
         try:
             MetadataApp.setup(options=options, args=args)
@@ -1215,7 +1209,6 @@ class WSGIDataAppTests(unittest.TestCase):
         p = optparse.OptionParser()
         MetadataApp.add_options(p)
         options, args = p.parse_args([])
-        self.assertTrue(options.metadata is None)
         MetadataApp.setup(options=options, args=args)
         # don't create tables by default
         self.assertFalse(os.path.exists(self.db_path))
@@ -1228,7 +1221,6 @@ class WSGIDataAppTests(unittest.TestCase):
         p = optparse.OptionParser()
         MetadataApp.add_options(p)
         options, args = p.parse_args([])
-        self.assertTrue(options.metadata is None)
         MetadataApp.setup(options=options, args=args)
         # don't create tables by default
         self.assertFalse(os.path.exists(self.db_path))
@@ -1239,7 +1231,6 @@ class WSGIDataAppTests(unittest.TestCase):
         p = optparse.OptionParser()
         MetadataApp.add_options(p)
         options, args = p.parse_args([])
-        self.assertTrue(options.metadata is None)
         MetadataApp.setup(options=options, args=args)
         # don't create tables by default
         self.assertFalse(os.path.exists(self.db_path))
@@ -1404,7 +1395,7 @@ class AppCipherTests(unittest.TestCase):
         ac2 = wsgi.AppCipher(10, "anotherkey", self.key_set)
         self.assertTrue(ac2.decrypt(data0) == "Hello")
 
-    def test_constructor(self):
+    def test_aes_constructor(self):
         if not wsgi.got_crypto:
             logging.warn("Skipping AESAppCipher tests, PyCrypto not installed")
             return

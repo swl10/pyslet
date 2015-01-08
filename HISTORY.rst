@@ -41,14 +41,15 @@ Not sure which version you are using?  Try::
     print version
 
 
-Version 0.6.201412XX
+Version 0.6.2015XXXX
 --------------------
 
 Summary of New Features:
+    LTI module rewritten, now suitable for real applications!
+    WSGI-based web-app framework built using Pyslet's DAL
+    MySQL Database connector for Pyslet's DAL
     SSL, Certificates and HTTP Basic Authentication
     HTTP Cookies
-    MySQL Database connector
-    WSGI-based framework
     URNs
 
 #3 PEP-8 driven refactoring (ongoing)
@@ -112,16 +113,20 @@ SQL did not previously support the use of table joins in SQL
 expressions.  This release adds support for joins (but not for nested
 joins).
 
-Untracked enhancements:
+#23 A Framework for WSGI-based LTI Applications
 
 Added a new module to make it easier to write WSGI-based applications.
-Currently work in progress.
+Re-factored the existing Basic LTI module to use the new oauthlib
+and Pyslet's own OData-inspired data access layer.
+
+
+Untracked enhancements:
 
 Added a new module to support HTTP cookies.  The HTTP/OData client can
 now be configured to accept cookies.  The default behaviour is to
 *ignore* them so this won't affect existing applications.
 
-Added a new module to support URN syntax in preparation for a better
+Added a new module to support URN syntax to provide a better
 implementation of the IMS LTI vocabularies.
 
 Added an optional params dictionary to the OData expression parser to

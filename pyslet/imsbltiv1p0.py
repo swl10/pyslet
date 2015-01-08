@@ -19,6 +19,7 @@ import pyslet.odata2.core as odata
 import pyslet.odata2.metadata as edmx
 import pyslet.odata2.sqlds as sql
 import pyslet.wsgi as wsgi
+import pyslet.xml20081126.structures as xml
 
 from pyslet.pep8 import renamed_method
 from pyslet.rfc2396 import URI
@@ -283,6 +284,8 @@ def is_subrole(role, parent_role):
     return False
 
 
+#: A mapping from LTI context type handles to the full URN for the
+#: context type as a :class:`~pyslet.rfc2396.URI` instance.
 CONTEXT_TYPE_HANDLES = {
     'CourseTemplate':
         URI.from_octets('urn:lti:context-type:ims/lis/CourseTemplate'),
@@ -684,8 +687,17 @@ class ToolProvider(oauth.RequestValidator):
                 collection.insert_entity(e)
                 return True
 
+    dummy_client = u'dummy_'\
+        '6c877d7e0a8d52d3ea51155c0ce5bd75ceaf7bdd1d2041f9fb3703a207278ab9'
+
+    dummy_secret = u'secret'
+
     def get_client_secret(self, client_key, request):
-        return self.lookup_consumer(client_key).secret
+        try:
+            return self.lookup_consumer(client_key).secret
+        except KeyError:
+            # return the same value as the secret
+            return self.dummy_secret
 
     def lookup_consumer(self, key):
         """Implements the required method for consumer lookup
@@ -746,6 +758,445 @@ class ToolProvider(oauth.RequestValidator):
             pass
 
 
+class ToolProviderContext(wsgi.SessionContext):
+
+    def __init__(self, environ, start_response):
+        wsgi.SessionContext.__init__(self, environ, start_response)
+        #: a :class:`~pyslet.imsbltiv1p0.ToolConsumer` instance
+        #: identified from the launch
+        self.consumer = None
+        #: a dictionary of non-oauth parameters from the launch
+        self.parameters = {}
+        #: the effective visit entity
+        self.visit = None
+        #: the effective resource entity
+        self.resource = None
+        #: the effective user entity
+        self.user = None
+        #: the effective group (context) entity
+        self.group = None
+        #: the effective permissions (an integer for bitwise testing)
+        self.permissions = 0
+
+
+class ToolProviderSession(wsgi.Session):
+
+    def add_visit(self, consumer, visit):
+        """Adds a visit entity to this session
+
+        This method creates a link from the current session entity
+        to the visit entity.  If the session entity already exists
+        then the existing collection of linked visits is examined.
+
+        If a visit to the same resource is already associated with the
+        entity is replaced.  This ensures that information about the
+        resource, the user, roles and permissions always corresponds to
+        the most recent launch.
+
+        Any visits from the same consumer but with a different user are
+        also removed.  This handles the case where a previous user of
+        the browser session needs to be logged out of the tool."""
+        resource = visit['Resource'].GetEntity()
+        user = visit['User'].GetEntity()
+        if self.entity.exists:
+            with self.entity['Visits'].OpenCollection() as collection:
+                # we want to load the Resource, Resource/Consumer and User
+                collection.set_expand({'Resource': {'Consumer': None},
+                                       'User': None})
+                visits = collection.values()
+                # now compare these visits to the new one
+                for old_visit in visits:
+                    # if the old visit is to the same resource, replace it
+                    old_resource = old_visit['Resource'].GetEntity()
+                    if old_resource.key() == resource.key():
+                        # drop this visit from this session
+                        del collection[old_visit.key()]
+                        continue
+                    # if the old visit is to the same consumer but with a
+                    # different user, replace it
+                    old_consumer = old_resource['Consumer'].GetEntity()
+                    if old_consumer.key() == consumer.entity.key():
+                        old_user = old_visit['User'].GetEntity()
+                        if user != old_user:
+                            # drop this visit too
+                            del collection[old_visit.key()]
+        # add this visit to this collection, linking it to the
+        # session
+        self.entity['Visits'].BindEntity(visit)
+        self.touch()
+
+    def find_visit(self, resource_id):
+        """Finds a visit that matches this resource_id"""
+        if not self.entity.exists:
+            self.commit()
+        with self.entity['Visits'].OpenCollection() as collection:
+            # we want to load the Resource, Resource/Consumer and User
+            collection.set_expand({'Resource': {'Consumer': None},
+                                   'User': None})
+            visits = collection.values()
+            for visit in visits:
+                resource = visit['Resource'].GetEntity()
+                if resource.key() == resource_id:
+                    return visit
+        return None
+
+
+class ToolProviderApp(wsgi.SessionApp):
+    """Represents WSGI applications that provide LTI Tools"""
+
+    #: We have our own context class
+    ContextClass = ToolProviderContext
+
+    #: We have our own LTI-specific Session class
+    SessionClass = ToolProviderSession
+
+    @classmethod
+    def setup(cls, options=None, args=None, **kwargs):
+        if not os.path.isabs(cls.metadata_file) and not cls.private_files:
+            # fix up a default metadata file if none is present
+            mdir = os.path.split(os.path.abspath(__file__))[0]
+            cls.metadata_file = os.path.abspath(
+                os.path.join(mdir, 'imsbltiv1p0_metadata.xml'))
+        super(ToolProviderApp, cls).setup(options, args, **kwargs)
+        cls.settings.setdefault('ToolProviderApp', {})
+
+    def __init__(self, **kwargs):
+        super(ToolProviderApp, self).__init__()
+        self.provider = ToolProvider(
+            self.container['Consumers'],
+            self.container['Nonces'],
+            self.app_cipher)
+        self.stop = False
+
+    def init_dispatcher(self):
+        """Provides ToolProviderApp specific bindings.
+
+        This method adds bindings for /launch as the launch URL for the
+        tool and all paths within /resource as the resource pages
+        themselves."""
+        wsgi.SessionApp.init_dispatcher(self)
+        self.set_method('/launch', self.lti_launch)
+        self.set_method('/resource/*', self.resource_page)
+
+    @classmethod
+    def init_test_data(cls, cipher):
+        """Creates a consumer for testing
+
+        Only call this method when debugging your tool.  It creates a
+        Silo with a single default consumer which has consumer key
+        '12345' and secret 'secret'.  These are the default values used
+        in the `IMS LTI Test Page`_
+
+        ..  _IMS LTI Test Page:
+            http://www.imsglobal.org/developers/LTI/test/v1p1/lms.php"""
+        with cls.container['Silos'].OpenCollection() as collection:
+            silo = collection.new_entity()
+            silo['Slug'].set_from_value('testing')
+            collection.insert_entity(silo)
+        with silo['Consumers'].OpenCollection() as collection:
+            consumer = ToolConsumer.new_from_values(
+                collection.new_entity(), cipher, 'default', key='12345',
+                secret='secret')
+            collection.insert_entity(consumer.entity)
+
+    def set_launch_group(self, context):
+        """Sets the group in the context from the launch parameters"""
+        group_id = context.parameters.get('context_id', '')
+        if not group_id:
+            # optional parameter, but recommended
+            return None
+        group_types = string.split(context.parameters.get('context_type', ''),
+                                   ',')
+        gtypes = []
+        for group_type in group_types:
+            stype = group_type.strip()
+            gtype_uri = URI.from_octets(stype)
+            if not gtype_uri.is_absolute():
+                gtype_uri = CONTEXT_TYPE_HANDLES.get(stype, None)
+            gtypes.append(gtype_uri)
+        group_title = context.parameters.get('context_title', '')
+        group_label = context.parameters.get('context_label', '')
+        context.group = context.consumer.get_context(
+            group_id, group_title, group_label, gtypes)
+
+    def set_launch_resource(self, context):
+        """Sets the resource in the context from the launch parameters"""
+        resource_id = context.parameters.get('resource_link_id', '')
+        if not resource_id:
+            # required parameter
+            logging.warn("Missing resource_link_id")
+            raise LTIProtocolError
+        resource_title = context.parameters.get('resource_link_title', '')
+        resource_description = context.parameters.get(
+            'resource_link_description', '')
+        # the unique resource within this consumer
+        context.resource = context.consumer.get_resource(
+            resource_id, resource_title, resource_description, context.group)
+
+    def set_launch_user(self, context):
+        """Sets the user in the context from the launch parameters"""
+        user_id = context.parameters.get('user_id', '')
+        if user_id:
+            # not required
+            context.user = context.consumer.get_user(
+                user_id,
+                name_given=context.parameters.get(
+                    'lis_person_name_given', None),
+                name_family=context.parameters.get(
+                    'lis_person_name_family', None),
+                name_full=context.parameters.get(
+                    'lis_person_name_full', None),
+                email=context.parameters.get(
+                    'lis_person_contact_email_primary', None))
+        else:
+            context.user = None
+
+    def set_launch_permissions(self, context):
+        """Sets the permissions in the context from the launch params"""
+        permissions = 0L
+        if 'roles' in context.parameters:
+            roles = string.split(context.parameters['roles'], ',')
+            for role in roles:
+                srole = role.strip()
+                role_uri = URI.from_octets(srole)
+                if not role_uri.is_absolute():
+                    role_uri = ROLE_HANDLES.get(srole, None)
+                permissions |= self.get_permissions(role_uri)
+        context.permissions = permissions
+
+    #: Permission bit mask representing 'read' permission
+    READ_PERMISSION = 0x1
+
+    #: Permission bit mask representing 'write' permission
+    WRITE_PERMISSION = 0x2
+
+    #: Permission bit mask representing 'configure' permission
+    CONFIGURE_PERMISSION = 0x4
+
+    @classmethod
+    def get_permissions(cls, role):
+        """Returns the permissions that apply to a single role
+
+        role
+            A single :class:`~pyslet.urn.URN` instance
+
+        Specific LTI tools can override this method to provide more
+        complex permission models.  Each permission type is represented
+        by an integer bit mask, permissions can be combined with binary
+        or '|' to make an overal permissions integer.  The default
+        implementation uses the :attr:`READ_PERMISSION`,
+        :attr:`WRITE_PERMISSION` and :attr:`CONFIGURE_PERMISSION` bit
+        masks but you are free to use any values you wish.
+
+        In this implementation, Instructors (and all sub-roles) are
+        granted read, write and configure whereas Learners (and all
+        subroles) are granted read only.  Any other role returns 0
+        (no permissions).
+
+        An LTI consumer can specify multiple roles on launch, this
+        method is called for *each* role and the resulting permissions
+        integers are combined to provide an overall permissions
+        integer."""
+        logging.debug("Launch role: %s", str(role))
+        if is_subrole(role, ROLE_HANDLES['Instructor']):
+            return (cls.READ_PERMISSION | cls.WRITE_PERMISSION |
+                    cls.CONFIGURE_PERMISSION)
+        elif is_subrole(role, ROLE_HANDLES['Learner']):
+            return cls.READ_PERMISSION
+        return 0
+
+    def get_user_display_name(self, context, user=None):
+        """Given a user entity, returns a display name
+
+        If user is None then the user from the context is used
+        instead."""
+        if user is None:
+            user = context.user
+        if user is None:
+            return ''
+        if user['FullName']:
+            return user['FullName'].value
+        elif user['GivenName'] and user['FamilyName']:
+            return "%s %s" % (user['GivenName'].value,
+                              user['FamilyName'].value)
+        elif user['GivenName']:
+            return user['GivenName'].value
+        elif user['Email']:
+            return user['Email'].value
+        else:
+            return ''
+
+    def get_resource_title(self, context):
+        """Given a resource entity, returns a display title"""
+        resource = context.resource
+        if resource is None:
+            return ''
+        if resource['Title']:
+            return resource['Title'].value
+        else:
+            return 'Resource: %s' % resource['LinkID'].value
+
+    def new_visit(self, context):
+        """Called during launch to create a new visit entity
+
+        The visit entity is bound to the resource entity referred to in
+        the launch and stores the permissions and a link to the
+        (optional) user entity."""
+        with context.resource.entity_set.NavigationTarget(
+                'Visits').OpenCollection() as collection:
+            visit = collection.new_entity()
+            visit['Permissions'].set_from_value(context.permissions)
+            visit['Resource'].BindEntity(context.resource)
+            user_value = []
+            if context.user is not None:
+                user_value.append(context.user)
+                visit['User'].BindEntity(context.user)
+            collection.insert_entity(visit)
+            visit['Resource'].set_expansion_values([context.resource])
+            visit['User'].set_expansion_values(user_value)
+        context.visit = visit
+
+    def load_visit(self, context):
+        """Loads an existing LTI visit into the context
+
+        You'll normally call this method from each session decorated
+        method of your tool provider that applies to a protected
+        resource.
+
+        This method sets the following attributes of the context...
+
+        :attr:`ToolProviderContext.resource`
+            The resource record is identified from the resource
+            id given in the URL path.
+
+        :attr:`ToolProviderContext.visit`
+            The session is searched for a visit record matching the
+            resource.
+
+        :attr:`ToolProviderContext.permissions`
+            Set from the visit record
+
+        :attr:`ToolProviderContext.user`
+            The optional user is loaded from the visit.
+
+        :attr:`ToolProviderContext.group`
+            The context record identified from the resource id given in
+            the URL path.  This may be None if the resource link was not
+            created in any context.
+
+        :attr:`ToolProviderContext.consumer`
+            The consumer object is looked up from the visit entity.
+
+        If the visit can't be set then an exception is raised, an
+        unknown resource raises :class:`pyslet.wsgi.PageNotFound`
+        whereas the absence of a valid visit for a known resource raises
+        :class:`pyslet.wsgi.PageNotAuthorized`.  These are caught
+        automatically by the WSGI handlers and return 404 and 403 errors
+        respectively."""
+        if context.visit is None:
+            path = context.environ['PATH_INFO'].split('/')
+            if len(path) < 4:
+                raise wsgi.PageNotFound
+            resource_id = path[2]
+            try:
+                resource_id = int(resource_id, 16)
+            except ValueError:
+                raise wsgi.PageNotFound
+            context.visit = context.session.find_visit(resource_id)
+            if context.visit is None:
+                raise wsgi.PageNotAuthorized
+            context.permissions = context.visit['Permissions'].value
+            context.resource = context.visit['Resource'].GetEntity()
+            context.user = context.visit['User'].GetEntity()
+            context.group = context.resource['Context'].GetEntity()
+            tc_entity = context.resource['Consumer'].GetEntity()
+            context.consumer = ToolConsumer(tc_entity, self.app_cipher)
+
+    def lti_launch(self, context):
+        # we are only interested in the authorisation header
+        h = context.environ.get('CONTENT_TYPE', None)
+        if h:
+            headers = {'Content-Type': h}
+        else:
+            headers = None
+        try:
+            context.consumer, context.parameters = self.provider.launch(
+                context.environ['REQUEST_METHOD'].upper(),
+                str(context.get_url()), headers, context.get_content())
+            self.set_launch_group(context)
+            self.set_launch_resource(context)
+            self.set_launch_user(context)
+            self.set_launch_permissions(context)
+            self.new_visit(context)
+            # load the session information into the context and add the
+            # visit to this session.
+            self.set_session(context)
+            context.session.add_visit(context.consumer, context.visit)
+        except LTIProtocolError:
+            logging.exception("LTI Protocol Error")
+            return self.error_page(context, 400)
+        except LTIAuthenticationError:
+            logging.exception("LTI Authentication Failure")
+            return self.error_page(context, 403)
+        launch_target = URI.from_octets(
+            "resource/%08X/" %
+            context.resource.key()).resolve(context.get_app_root())
+        return self.session_page(context, self.launch_redirect, launch_target)
+
+    def launch_redirect(self, context):
+        """Redirects to the resource identified on launch
+
+        A POST request should pretty much always redirect to a GET page
+        and our tool launches are no different.  This allows you to
+        reload a tool page straight away if desired without the risk of
+        double-POST issues."""
+        resource_link = URI.from_octets(
+            "resource/%08X/" %
+            context.resource.key()).resolve(context.get_app_root())
+        return self.redirect_page(context, resource_link, 303)
+
+    @wsgi.session_decorator
+    def resource_page(self, context):
+        """Returns a resource page
+
+        This method is the heart of your tool and will be called for all
+        URLs that start with a resource path.  You can override the
+        behaviour for specific paths by adding new methods to the
+        dispatcher with more specific URLs, such as
+        /resource/*/view.html, but anything in /resource/*/* that is
+        not matched by a more specific method will end up here.
+
+        You'll typically call :meth:`load_visit` to load information
+        about the associated LTI visit into the context before proceeding,
+        it checks authorisation to view the resource for you.
+
+        The default implementation returns a simple page with the
+        resource's title and a simple message reflecting the user name
+        of the authorised user."""
+        page = """<!DOCTYPE html PUBLIC
+    "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+  <head>
+   <title>%(title)s</title>
+  </head>
+<body>
+<h4>%(title)s</h4>
+<p>Congratulations %(user)s, you've launched an LTI tool created with <a
+    href="http://www.pyslet.org/" target="_blank">Pyslet</a>.</p>
+</body>
+</html>"""
+        self.load_visit(context)
+        params = {'user':
+                  xml.EscapeCharData7(self.get_user_display_name(context)),
+                  'title':
+                  xml.EscapeCharData7(self.get_resource_title(context))
+                  }
+        data = page % params
+        context.set_status(200)
+        return self.html_response(context, data)
+
+
 # legacy definitions
 BLTI_VERSION = LTI_VERSION
 BLTI_LAUNCH_REQUEST = LTI_MESSAGE_TYPE
@@ -765,7 +1216,13 @@ class BLTIConsumer(ToolConsumer):
 
 class BLTIToolProvider(ToolProvider):
 
-    """Legacy class for tool provider."""
+    """Legacy class for tool provider.
+
+    Refactored to build directly on the newer :class:`ToolProvider`. A
+    single Silo entity is created containing all defined consumers. An
+    in-memory SQLite database is used as the data store.  Consumer keys
+    are not encrypted (a plaintext cipher is used) as they will not be
+    persisted."""
 
     def __init__(self):
         # initialise a very simple in-memory databse
@@ -789,6 +1246,10 @@ class BLTIToolProvider(ToolProvider):
 
     def generate_key(self, key_length=128):
         """Generates a new key
+
+        Also available as GenerateKey.  This method is deprecated, it
+        has been replaced by the similarly named function
+        :func:`pyslet.wsgi.generate_key`.
 
         key_length
             The minimum key length in bits.  Defaults to 128.
@@ -819,10 +1280,12 @@ class BLTIToolProvider(ToolProvider):
     def new_consumer(self, key=None, secret=None):
         """Creates a new BLTIConsumer instance
 
+        Also available as NewConsumer
+
         The new instance is added to the database of consumers
         authorized to use this tool.  The consumer key and secret
         are automatically generated using :meth:`generate_key` but
-        key and secret can be passed as an argument instead."""
+        key and secret can be passed as optional arguments instead."""
         if key is None:
             key = self.generate_key()
         if secret is None:
@@ -843,6 +1306,8 @@ class BLTIToolProvider(ToolProvider):
 
     def load_from_file(self, f):
         """Loads the list of trusted consumers
+
+        Also available as LoadFromFile
 
         The consumers are loaded from a simple file of key, secret
         pairs formatted as::
@@ -868,6 +1333,8 @@ class BLTIToolProvider(ToolProvider):
 
     def save_to_file(self, f):
         """Saves the list of trusted consumers
+
+        Also available as SaveToFile
 
         The consumers are saved in a simple file suitable for
         reading with :meth:`load_from_file`."""

@@ -2262,6 +2262,8 @@ class Entity(TypeInstance):
             self.data[np.name] = DeferredValue(np.name, self)
 
     def __cmp__(self, other):
+        if other is None:
+            return 1
         if (not isinstance(other, Entity) or
                 other.entity_set is not self.entity_set):
             raise TypeError

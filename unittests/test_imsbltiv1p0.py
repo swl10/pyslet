@@ -19,6 +19,8 @@ import pyslet.wsgi as wsgi
 from pyslet.rfc2396 import URI
 from pyslet.urn import URN
 
+from test_wsgi import MockRequest
+
 
 if not lti.got_oauth:
     print "Basic LTI tests skipped"
@@ -37,6 +39,8 @@ def suite():
     suite_tests = [
         unittest.makeSuite(BLTITests, 'test'),
         unittest.makeSuite(LTIConsumerTests, 'test'),
+        unittest.makeSuite(ToolProviderContextTests, 'test'),
+        unittest.makeSuite(ToolProviderSessionTests, 'test'),
         ]
     if lti.got_oauth:
         suite_tests = suite_tests + [
@@ -557,6 +561,201 @@ class LTIProviderTests(unittest.TestCase):
             self.fail("LTI launch with bad signature")
         except lti.LTIAuthenticationError:
             pass
+
+    def test_bad_launch(self):
+        command = "POST"
+        url = "http://www.example.com/launch"
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+        query_string = "context_id=456434513&context_label=SI182&"\
+            "context_title=Design%20of%20Personal%20Environments&"\
+            "launch_presentation_css_url=http%3A%2F%2Fwww.imsglobal.org%2F"\
+            "developers%2FLTI%2Ftest%2Fv1p1%2Flms.css&"\
+            "launch_presentation_document_target=frame&"\
+            "launch_presentation_locale=en-US&"\
+            "launch_presentation_return_url=http%3A%2F%2Fwww.imsglobal.org%2F"\
+            "developers%2FLTI%2Ftest%2Fv1p1%2Flms_return.php&"\
+            "lis_outcome_service_url=http%3A%2F%2Fwww.imsglobal.org%2F"\
+            "developers%2FLTI%2Ftest%2Fv1p1%2Fcommon%2F"\
+            "tool_consumer_outcome.php%3Fb64%3DMTIzNDU6OjpzZWNyZXQ%3D&"\
+            "lis_person_contact_email_primary=user%40school.edu&"\
+            "lis_person_name_family=Public&"\
+            "lis_person_name_full=Jane%20Q.%20Public&"\
+            "lis_person_name_given=Given&"\
+            "lis_person_sourcedid=school.edu%3Auser&"\
+            "lis_result_sourcedid=feb-123-456-2929%3A%3A28883&"\
+            "lti_message_type=basic-lti-launch-request&"\
+            "lti_version=LTI-1p0&"\
+            "oauth_callback=about%3Ablank&oauth_consumer_key=12345&"\
+            "oauth_nonce=45f32b44e314244a222d0e070fa55384&"\
+            "oauth_signature=SKhxr%2Bx4p9jVO6sFxKdpA5neDtg%3D&"\
+            "oauth_signature_method=HMAC-SHA1&"\
+            "oauth_timestamp=1420370306&"\
+            "oauth_version=1.0&"\
+            "resource_link_description=A%20weekly%20blog.&"\
+            "resource_link_id=120988f929-274612&"\
+            "resource_link_title=Weekly%20Blog&"\
+            "roles=Instructor&"\
+            "tool_consumer_info_product_family_code=ims&"\
+            "tool_consumer_info_version=1.1&"\
+            "tool_consumer_instance_description="\
+            "University%20of%20School%20%28LMSng%29&"\
+            "tool_consumer_instance_guid=lmsng.school.edu&"\
+            "user_id=292832126"
+        with self.silo['Consumers'].OpenCollection() as collection:
+            consumer = lti.ToolConsumer.new_from_values(
+                collection.new_entity(), self.cipher, 'default', key="54321",
+                secret="secret")
+            collection.insert_entity(consumer.entity)
+        provider = lti.ToolProvider(
+            self.container['Consumers'], self.container['Nonces'],
+            self.cipher)
+        try:
+            consumer, parameters = provider.launch(
+                command, url, headers, query_string)
+            self.fail("LTI launch with unknown consumer key")
+        except lti.LTIAuthenticationError:
+            pass
+
+
+class ToolProviderContextTests(unittest.TestCase):
+
+    def test_constructor(self):
+        req = MockRequest()
+        context = lti.ToolProviderContext(req.environ, req.start_response)
+        self.assertTrue(context.consumer is None)
+        self.assertTrue(isinstance(context.parameters, dict))
+        self.assertTrue(len(context.parameters) == 0)
+        self.assertTrue(context.visit is None)
+        self.assertTrue(context.resource is None)
+        self.assertTrue(context.user is None)
+        self.assertTrue(context.group is None)
+        self.assertTrue(context.permissions == 0)
+
+
+class ToolProviderSessionTests(unittest.TestCase):
+
+    def setUp(self):        # noqa
+        metadata = lti.load_metadata()
+        self.container = metadata.root.DataServices.defaultContainer
+        self.data_source = sql.SQLiteEntityContainer(
+            file_path=':memory:', container=self.container)
+        self.data_source.create_all_tables()
+        self.cipher = wsgi.AppCipher(0, 'secret', self.container['AppKeys'])
+        with self.container['Silos'].OpenCollection() as collection:
+            self.silo = collection.new_entity()
+            self.silo['ID'].set_from_value(wsgi.key60('ToolProviderSession'))
+            self.silo['Slug'].set_from_value('ToolProviderSession')
+            collection.insert_entity(self.silo)
+        # create a consumer
+        with self.silo['Consumers'].OpenCollection() as collection:
+            self.consumer = lti.ToolConsumer.new_from_values(
+                collection.new_entity(), self.cipher, 'test', '12345',
+                'secret')
+            collection.insert_entity(self.consumer.entity)
+
+    def test_add_and_find_visit(self):
+        req = MockRequest()
+        context = lti.ToolProviderContext(req.environ, req.start_response)
+        with self.container['Sessions'].OpenCollection() as collection:
+            session = lti.ToolProviderSession(collection.new_entity())
+            session.new_from_context(context)
+            session.establish()
+            session.commit()
+        with session.entity['Visits'].OpenCollection() as collection:
+            self.assertTrue(len(collection) == 0)
+        # add a resource record
+        resource = self.consumer.get_resource(
+            'rlink', 'A Resource', 'About the resource')
+        resource_id = resource['ID'].value
+        # and now a visit
+        with self.container['Visits'].OpenCollection() as collection:
+            visit = collection.new_entity()
+            visit['ID'].set_from_value(1)
+            visit['Permissions'].set_from_value(context.permissions)
+            visit['Resource'].BindEntity(resource)
+            collection.insert_entity(visit)
+        # now add this visit to the session
+        session.add_visit(self.consumer, visit)
+        session.commit()
+        # Should now be possible to navigate from session to visit
+        with session.entity['Visits'].OpenCollection() as collection:
+            self.assertTrue(len(collection) == 1)
+            self.assertTrue(list(collection)[0] == 1)
+        # check that a visit to the same resource replaces
+        with self.container['Visits'].OpenCollection() as collection:
+            visit2 = collection.new_entity()
+            visit2['ID'].set_from_value(2)
+            visit2['Permissions'].set_from_value(context.permissions)
+            visit2['Resource'].BindEntity(resource)
+            collection.insert_entity(visit2)
+        session.add_visit(self.consumer, visit2)
+        session.commit()
+        with session.entity['Visits'].OpenCollection() as collection:
+            self.assertTrue(len(collection) == 1)
+            self.assertTrue(list(collection)[0] == 2)
+        # check that a login to the same resource with a user replaces
+        # no user
+        context.user = self.consumer.get_user('steve', 'Steve')
+        with self.container['Visits'].OpenCollection() as collection:
+            visit3 = collection.new_entity()
+            visit3['ID'].set_from_value(3)
+            visit3['Permissions'].set_from_value(context.permissions)
+            visit3['Resource'].BindEntity(resource)
+            visit3['User'].BindEntity(context.user)
+            collection.insert_entity(visit3)
+        session.add_visit(self.consumer, visit3)
+        session.commit()
+        with session.entity['Visits'].OpenCollection() as collection:
+            self.assertTrue(len(collection) == 1)
+            self.assertTrue(list(collection)[0] == 3)
+        # check that a login to a different resource with a different
+        # user replaces
+        user2 = self.consumer.get_user('dave', 'Dave')
+        resource2 = self.consumer.get_resource(
+            'rlink2', 'Another Resource', 'About the other resource')
+        resource2_id = resource2['ID'].value
+        with self.container['Visits'].OpenCollection() as collection:
+            visit4 = collection.new_entity()
+            visit4['ID'].set_from_value(4)
+            visit4['Permissions'].set_from_value(context.permissions)
+            visit4['Resource'].BindEntity(resource2)
+            visit4['User'].BindEntity(user2)
+            collection.insert_entity(visit4)
+        session.add_visit(self.consumer, visit4)
+        session.commit()
+        with session.entity['Visits'].OpenCollection() as collection:
+            self.assertTrue(len(collection) == 1)
+            self.assertTrue(list(collection)[0] == 4)
+        # check that a login to a different resource with the same
+        # user support multiple visits
+        with self.container['Visits'].OpenCollection() as collection:
+            visit5 = collection.new_entity()
+            visit5['ID'].set_from_value(5)
+            visit5['Permissions'].set_from_value(context.permissions)
+            visit5['Resource'].BindEntity(resource)
+            visit5['User'].BindEntity(user2)
+            collection.insert_entity(visit5)
+        session.add_visit(self.consumer, visit5)
+        session.commit()
+        with session.entity['Visits'].OpenCollection() as collection:
+            self.assertTrue(len(collection) == 2)
+            self.assertTrue(4 in collection)
+            self.assertTrue(5 in collection)
+        # quick check of find_visit...
+        match_visit = session.find_visit(resource_id)
+        self.assertTrue(match_visit is not None)
+        self.assertTrue(match_visit == visit5)
+        match_visit = session.find_visit(resource2_id)
+        self.assertTrue(match_visit is not None)
+        self.assertTrue(match_visit == visit4)
+        match_visit = session.find_visit(max(resource_id, resource2_id) + 1)
+        self.assertTrue(match_visit is None)
+        # check that a login from the NULL user replaces
+        session.add_visit(self.consumer, visit)
+        session.commit()
+        with session.entity['Visits'].OpenCollection() as collection:
+            self.assertTrue(len(collection) == 1)
+            self.assertTrue(1 in collection)
 
 
 EXAMPLE_CONSUMERS = """www.example.com Secret

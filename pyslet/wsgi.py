@@ -32,7 +32,7 @@ import pyslet.http.cookie as cookie
 import pyslet.http.messages as messages
 import pyslet.http.params as params
 import pyslet.iso8601 as iso
-import pyslet.odata2.core as core
+import pyslet.odata2.core as odata
 import pyslet.odata2.csdl as edm
 import pyslet.odata2.metadata as edmx
 import pyslet.xml20081126.structures as xml
@@ -472,8 +472,8 @@ class WSGIApp(DispatchNode):
     ContextClass = WSGIContext
 
     #: The path to the directory for :attr:`static_files`.  Defaults to
-    #: a directory called "static" in the current working directory.
-    static_files = os.path.abspath("static")
+    #: None.
+    static_files = None
 
     private_files = None
     """Private data diretory
@@ -489,9 +489,7 @@ class WSGIApp(DispatchNode):
     implementation does not depend on any private data."""
 
     settings_file = None
-    """The path to the settings file.
-
-    Defaults to "settings.json" in the current directory.
+    """The path to the settings file.  Defaults to None.
 
     The format of the settings file is a json dictionary.  The
     dictionary's keys are class names that define a scope for
@@ -587,9 +585,7 @@ class WSGIApp(DispatchNode):
 
         --private   Overrides the value of :attr:`private_files`.
 
-        --settings  Sets the path to the :attr:`settings_file`.
-                    Defaults to the file "settings.json" in the current
-                    working directory."""
+        --settings  Sets the path to the :attr:`settings_file`."""
         parser.add_option(
             "-v", action="count", dest="logging",
             default=None, help="increase verbosity of output up to 3x")
@@ -647,8 +643,6 @@ class WSGIApp(DispatchNode):
             cls.private_files = os.path.abspath(options.private)
         if options and options.settings:
             cls.settings_file = os.path.abspath(options.settings)
-        if cls.settings_file is None:
-            cls.settings_file = os.path.abspath("settings.json")
         cls.settings = {}
         if cls.settings_file:
             if os.path.isfile(cls.settings_file):
@@ -1124,7 +1118,43 @@ class WSGIDataApp(WSGIApp):
     sqlite_path ('database.sqlite3')
         The name of the database file.  The file is assumed to be
         relative to the private_files/wsgidataapp directory, though an
-        absolute path may be given."""
+        absolute path may be given.
+
+    keynum ('0')
+        The identification number of the key to use when storing
+        encrypted data in the container.
+
+    secret (None)
+        The key corresponding to keynum.  The key is read in plain text
+        from the settings file and must be provided in order to use the
+        :attr:`app_cipher` for managing encrypted data.  Derived classes
+        could use an alternative mechanism for reading the key, for
+        example, using the keyring_ python module.
+
+    cipher ('aes')
+        The type of cipher to use.  By default :class:`AESAppCipher` is
+        used which uses AES_ internally with a 256 bit key created by
+        computing the SHA256 digest of the secret string.  The only
+        other supported value is 'plaintext' which does not provide any
+        encryption but allows the app_cipher object to be used in cases
+        where encryption may or may not be used depending on the
+        deployment environment.  For example, it is often useful to turn
+        off encryption in a development environment!
+
+    when (None)
+        An optional value indicating when the specified secret comes
+        into operation.  The value should be a fully specified time
+        point in ISO format with timezone offset, such as
+        '2015-01-01T09:00:00-05:00'.  This value is used when the
+        application is being restarted after a key change, for details
+        see :meth:`AppCipher.change_key`.
+
+        The use of AES requires the PyCrypto module to be installed.
+
+    ..  _keyring:  https://pypi.python.org/pypi/keyring
+
+    ..  _AES:
+            http://en.wikipedia.org/wiki/Advanced_Encryption_Standard"""
 
     @classmethod
     def add_options(cls, parser):
@@ -1140,9 +1170,6 @@ class WSGIDataApp(WSGIApp):
                             any source_type setting value.  Implies
                             --create_tables"""
         super(WSGIDataApp, cls).add_options(parser)
-        parser.add_option(
-            "--metadata", dest="metadata",
-            default=None, help="Path to metadata file")
         parser.add_option(
             "-s", "--sqlout", dest="sqlout", action="store_true",
             default=False, help="Write out SQL script and quit")
@@ -1244,6 +1271,334 @@ class WSGIDataApp(WSGIApp):
                 sys.exit(0)
             elif create_tables:
                 cls.data_source.create_all_tables()
+        settings.setdefault('keynum', 0)
+        if options and options.in_memory:
+            settings.setdefault('secret', 'secret')
+            settings.setdefault('cipher', 'plaintext')
+        else:
+            settings.setdefault('secret', None)
+            settings.setdefault('cipher', 'aes')
+        settings.setdefault('when', None)
+
+    @classmethod
+    def new_app_cipher(cls):
+        """Creates an :class:`AppCipher` instance
+
+        This method is called automatically on construction, you won't
+        normally need to call it yourself but you may do so, for
+        example, when writing a script that requires access to data
+        encrypted by the application.
+
+        If there is no 'secret' defined then None is returned.
+
+        Reads the values from the settings file and creates an instance
+        of the appropriate class based on the cipher setting value.  The
+        cipher uses the 'AppKeys' entity set in :attr:`container` to store
+        information about expired keys.  The AppKey entities have the
+        following three properties:
+
+        KeyNum (integer key)
+            The key identification number
+
+        KeyString (string)
+            The *encrypted* secret, for example::
+
+                '1:OBimcmOesYOt021NuPXTP01MoBOCSgviOpIL'
+
+            The number before the colon is the key identification number
+            of the secret used to encrypt the string (and will always be
+            different from the KeyNum field of course).  The data after
+            the colon is the base-64 encoded encrypted string.  The same
+            format is used for all data enrypted by
+            :class:`AppCipher` objects.  In this case the secret was the
+            word 'secret' and the algorithm used is AES.
+
+        Expires (DateTime)
+            The UTC time at which this secret will expire.  After this
+            time a newer key should be used for encrypting data though
+            this key may of course still be used for decrypting existing
+            data."""
+        keynum = cls.settings['WSGIDataApp']['keynum']
+        secret = cls.settings['WSGIDataApp']['secret']
+        cipher = cls.settings['WSGIDataApp']['cipher']
+        when = cls.settings['WSGIDataApp']['when']
+        if when:
+            when = iso.TimePoint.from_str(when)
+        if cipher == 'plaintext':
+            cipher_class = AppCipher
+        elif cipher == 'aes':
+            cipher_class = AESCipher
+        else:
+            # danger, raise an error
+            raise RuntimeError("Unknown cipher: %s" % cipher)
+        if secret:
+            return cipher_class(keynum, secret, cls.container['AppKeys'], when)
+        else:
+            return None
+
+    def __init__(self, **kwargs):
+        super(WSGIDataApp, self).__init__()
+        #: the application's cipher, a :class:`AppCipher` instance.
+        self.app_cipher = self.new_app_cipher()
+
+
+class PlainTextCipher(object):
+
+    def encrypt(self, data):
+        return data
+
+    def decrypt(self, data):
+        return data
+
+
+class AppCipher(object):
+
+    """A cipher for encrypting application data
+
+    key_num
+        A key number
+
+    key
+        A binary string containing the application key.
+
+    key_set
+        An entity set used to store previous keys.  The entity set must
+        have an integer key property 'KeyNum' and a string field
+        'KeyString'.  The string field must be large enough to contain
+        encrypted versions of previous keys.
+
+    when (None)
+        A fully specified :class:`pyslet.iso8601.TimePoint` at which
+        time the key will become active.  If None, the key is active
+        straight away.  Otherwise, the key_set is searched for a key
+        that is still active and that key is used when encrypting data
+        until the when time, at which point the given key takes over.
+
+    The object wraps an underlying cipher.  Strings are encrypted using
+    the cipher and then encoded using base64.  The output is then
+    prefixed with an ASCII representation of the key number (key_num)
+    followed by a ':'.  For example, if key_num is 7 and the cipher
+    is plain-text (the default) then encrypt("Hello") results in::
+
+        "7:SGVsbG8="
+
+    When decrypting a string, the key number is parsed and matched
+    against the key_num of the key currently in force.  If the string
+    was encrypted with a different key then the key_set is used to look
+    up that key (which is itself encrypted of course).  The process
+    continues until a key encrypted with key_num is found.
+
+    The upshot of this process is that you can change the key associated
+    with an application.  See :meth:`change_key` for details."""
+
+    #: the maximum age of a key, which is the number of times the key
+    #: can be changed before the original key is considered too old to
+    #: be used for decryption.
+    MAX_AGE = 100
+
+    def __init__(self, key_num, key, key_set, when=None):
+        self.lock = threading.RLock()
+        self.key_set = key_set
+        self.key_num = key_num
+        self.key = key
+        self.ciphers = {key_num: self.new_cipher(key)}
+        if when:
+            # we need to find a key that hasn't expired
+            with key_set.OpenCollection() as keys:
+                t = edm.EDMValue.NewSimpleValue(edm.SimpleType.DateTime)
+                t.set_from_value(time.time())
+                filter = odata.CommonExpression.from_str(
+                    "Expires gte :t", {'t': t})
+                keys.set_filter(filter)
+                # Only interested in keys that haven't expired
+                old_keys = keys.values()
+                if not old_keys:
+                    raise RuntimeError("AppCipher: no current key")
+                old_key = old_keys[0]
+                self.old_num = old_key['KeyNum'].value
+                self.old_key = self.decrypt(old_key['KeyString'])
+                self.old_expires = when.get_unixtime()
+                self.ciphers[self.old_num] = self.new_cipher(self.old_key)
+        else:
+            self.old_num = None
+            self.old_key = None
+            self.old_expires = None
+
+    def new_cipher(self, key):
+        """Returns a new cipher object with the given key
+
+        The default implementation creates a plain-text 'cipher' and is
+        not suitable for secure use."""
+        return PlainTextCipher()
+
+    def change_key(self, key_num, key, when):
+        """Changes the key of this application.
+
+        key_num
+            The number given to the new key, must differ from the last
+            :attr:`MAX_AGE` key numbers.
+
+        key
+            A binary string containing the new application key.
+
+        when
+            A fully specified :class:`pyslet.iso8601.TimePoint` at which
+            point the new key will come into effect.
+
+        The existing key is encrypted with the new key and a record is
+        written to the :attr:`key_set` using the *existing* key number,
+        the encrypted key string and the *when* time, which is treated
+        as an expiry time in this context.
+
+        This procedure ensures that strings encrypted with an old key
+        can always be decrypted because the value of the old key can be
+        looked up.  Although it is encrypted, it will be encrypted with
+        a new(er) key and the procedure can be repeated as necessary
+        until a key encrypted with the newest key is found.
+
+        The key change process then becomes:
+
+        1.  Start a utility process connected to the application's
+            entity container using the existing key and then call the
+            change_key method.  Pass a value for *when* that will give
+            you time to reconfigure all AppCipher clients.  Assuming the
+            key change is planned, a time in hours or even days ahead
+            can be used.
+
+        2.  Update or reconfigure all existing applications so that they
+            will be initialised with the new key and the same value for
+            *when* next time they are restarted.
+
+        3.  Restart/refresh all running applications before the change
+            over time.  As this does not need to be done simultaneously,
+            a load balanced set of application servers can be cycled on
+            a schedule to ensure continuous running).
+
+        The purpose of changing the key of an application is to reduce
+        the risk from key exposure.  Long-life keys increase this risk.
+
+        Following a key change the entity container will still contain
+        data encrypted with old keys, which are assumed to be at an
+        increased risk of exposure.  There are two strategies for
+        dealing with this, you could routinely update encrypted data by
+        decrypting and re-encrypting in response to certain events or
+        you could write a script that iterates through the encrypted
+        data fields forcing an update.
+
+        The :attr:`MAX_AGE` attribute determines the maximum number of
+        keys that can be in use in the data set simultaneously.
+        Eventually you will have to update encrypted data in the data
+        store."""
+        with self.lock:
+            self.old_num = self.key_num
+            self.old_key = self.key
+            self.old_expires = when.get_unixtime()
+            # we should already have a cipher for this key
+            self.key_num = key_num
+            self.key = key
+            cipher = self.ciphers[key_num] = self.new_cipher(key)
+            # we can't use the encrypt method here as we want to force
+            # use of the new key
+            old_key_encrypted = "%i:%s" % (
+                key_num, base64.b64encode(cipher.encrypt(self.old_key)))
+        with self.key_set.OpenCollection() as keys:
+            e = keys.new_entity()
+            e.set_key(self.old_num)
+            e['KeyString'].set_from_value(old_key_encrypted)
+            e['Expires'].set_from_value(when)
+            try:
+                keys.insert_entity(e)
+            except edm.ConstraintError:
+                # Presumably this entity already exists, possible race
+                # condition on change_key - load the entity from the old
+                # key number to raise KeyError if not
+                e = keys[self.old_num]
+
+    def encrypt(self, data):
+        """Encrypts data with the current key"""
+        with self.lock:
+            if self.old_expires:
+                if time.time() > self.old_expires:
+                    # the old key has finally expired
+                    self.old_num = None
+                    self.old_key = None
+                    self.old_expires = None
+                else:
+                    # use the old key
+                    cipher = self.ciphers[self.old_num]
+                    return "%i:%s" % (self.old_num,
+                                      base64.b64encode(cipher.encrypt(data)))
+            cipher = self.ciphers[self.key_num]
+            return "%i:%s" % (self.key_num,
+                              base64.b64encode(cipher.encrypt(data)))
+
+    def decrypt(self, data):
+        """Decrypts data"""
+        key_num, data = self._split_data(data)
+        stack = [(key_num, data, None)]
+        while stack:
+            key_num, data, cipher_num = stack.pop()
+            cipher = self.ciphers.get(key_num, None)
+            if cipher is None:
+                stack.append((key_num, data, cipher_num))
+                with self.key_set.OpenCollection() as collection:
+                    try:
+                        e = collection[key_num]
+                        old_key_num, old_key_data = self._split_data(
+                            e['KeyString'].value)
+                        if len(stack) > self.MAX_AGE:
+                            raise KeyError
+                        stack.append((old_key_num, old_key_data, key_num))
+                    except KeyError:
+                        raise RuntimeError("AppCipher.decript: key too old")
+            else:
+                with self.lock:
+                    new_data = cipher.decrypt(data)
+                    if cipher_num is not None:
+                        self.ciphers[cipher_num] = self.new_cipher(new_data)
+                    else:
+                        # this is the data we want
+                        return new_data
+
+    def _split_data(self, data):
+        data = data.split(':')
+        if len(data) != 2 or not data[0].isdigit():
+            raise ValueError
+        key_num = int(data[0])
+        try:
+            data = base64.b64decode(data[1])
+        except TypeError:
+            raise ValueError
+        return key_num, data
+
+
+class AESCipher(object):
+    def __init__(self, key):
+        self.key = sha256(key).digest()
+
+    def encrypt(self, data):
+        iv = Random.new().read(AES.block_size)
+        cipher = AES.new(self.key, AES.MODE_CFB, iv)
+        return iv + cipher.encrypt(data)
+
+    def decrypt(self, data):
+        iv = data[:AES.block_size]
+        cipher = AES.new(self.key, AES.MODE_CFB, iv)
+        return cipher.decrypt(data[AES.block_size:])
+
+
+class AESAppCipher(AppCipher):
+    """A cipher object that uses AES to encrypt the data
+
+    The Pycrypto module must be installed to use this class.
+
+    The key is hashed using the SHA256 algorithm to obtain a 32 byte
+    value for the AES key.  The encrypted strings contain random
+    initialisation vectors so repeated calls won't generate the same
+    encrypted values.  The CFB mode of operation is used."""
+
+    def new_cipher(self, key):
+        return AESCipher(key)
 
 
 class Session(object):
@@ -1539,8 +1894,6 @@ class SessionApp(WSGIDataApp):
         if context.session is None:
             with self._session_set.OpenCollection() as collection:
                 # generate a new user_key
-                user_key = generate_key()
-                server_key = generate_key()
                 entity = collection.new_entity()
                 context.session = self.SessionClass(entity)
                 context.session.new_from_context(context)
@@ -1575,7 +1928,7 @@ class SessionApp(WSGIDataApp):
             param = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
             param.set_from_value(sid)
             params = {'sid': param}
-            filter = core.CommonExpression.from_str(
+            filter = odata.CommonExpression.from_str(
                 "UserKey eq :sid", params)
             collection.set_filter(filter)
             slist = collection.values()
@@ -1590,7 +1943,7 @@ class SessionApp(WSGIDataApp):
             param = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
             param.set_from_value(sid)
             params = {'user_key': param}
-            filter = core.CommonExpression.from_str(
+            filter = odata.CommonExpression.from_str(
                 "UserKey eq :user_key", params)
             collection.set_filter(filter)
             slist = collection.values()
@@ -1918,259 +2271,3 @@ class SessionApp(WSGIDataApp):
                 return True
         else:
             return False
-
-
-class PlainTextCipher(object):
-
-    def encrypt(self, data):
-        return data
-
-    def decrypt(self, data):
-        return data
-
-
-class AppCipher(object):
-
-    """A cipher for encrypting application data
-
-    key_num
-        A key number
-
-    key
-        A binary string containing the application key.
-
-    key_set
-        An entity set used to store previous keys.  The entity set must
-        have an integer key property 'KeyNum' and a string field
-        'KeyString'.  The string field must be large enough to contain
-        encrypted versions of previous keys.
-
-    when (None)
-        A fully specified :class:`pyslet.iso8601.TimePoint` at which
-        time the key will become active.  If None, the key is active
-        straight away.  Otherwise, the key_set is searched for a key
-        that is still active and that key is used when encrypting data
-        until the when time, at which point the given key takes over.
-
-    The object wraps an underlying cipher.  Strings are encrypted using
-    the cipher and then encoded using base64.  The output is then
-    prefixed with an ASCII representation of the key number (key_num)
-    followed by a ':'.  For example, if key_num is 7 and the cipher
-    is plain-text (the default) then encrypt("Hello") results in::
-
-        "7:SGVsbG8="
-
-    When decrypting a string, the key number is parsed and matched
-    against the key_num of the key currently in force.  If the string
-    was encrypted with a different key then the key_set is used to look
-    up that key (which is itself encrypted of course).  The process
-    continues until a key encrypted with key_num is found.
-
-    The upshot of this process is that you can change the key associated
-    with an application.  See :meth:`change_key` for details."""
-
-    #: the maximum age of a key, which is the number of times the key
-    #: can be changed before the original key is considered too old to
-    #: be used for decryption.
-    MAX_AGE = 10
-
-    def __init__(self, key_num, key, key_set, when=None):
-        self.lock = threading.RLock()
-        self.key_set = key_set
-        self.key_num = key_num
-        self.key = key
-        self.ciphers = {key_num: self.new_cipher(key)}
-        if when:
-            # we need to find a key that hasn't expired
-            with key_set.OpenCollection() as keys:
-                t = edm.EDMValue.NewSimpleValue(edm.SimpleType.DateTime)
-                t.set_from_value(time.time())
-                filter = odata.CommonExpression.from_str(
-                    "Expires gte :t", {'t': t})
-                keys.set_filter(filter)
-                # Only interested in keys that haven't expired
-                old_keys = keys.values()
-                if not old_keys:
-                    raise RuntimeError("AppCipher: no current key")
-                old_key = old_keys[0]
-                self.old_num = old_key['KeyNum'].value
-                self.old_key = self.decrypt(old_key['KeyString'])
-                self.old_expires = when.get_unixtime()
-                self.ciphers[self.old_num] = self.new_cipher(self.old_key)
-        else:
-            self.old_num = None
-            self.old_key = None
-            self.old_expires = None
-
-    def new_cipher(self, key):
-        return PlainTextCipher()
-
-    def change_key(self, key_num, key, when):
-        """Changes the key of this application.
-
-        key_num
-            The number given to the new key, must differ from the last
-            :attr:`MAX_AGE` key numbers.
-
-        key
-            A binary string containing the new application key.
-
-        when
-            A fully specified :class:`pyslet.iso8601.TimePoint` at which
-            point the new key will come into effect.
-
-        The existing key is encrypted with the new key and a record is
-        written to the :attr:`key_set` using the *existing* key number,
-        the encrypted key string and the *when* time, which is treated
-        as an expiry time.
-
-        This procedure ensures that strings encrypted with an old key
-        can always be decrypted because the value of the old key can be
-        looked up.  Although it is encrypted, it will be encrypted with
-        a new(er) key and the procedure can be repeated as necessary
-        until a key encrypted with the newest key is found.
-
-        The key change process then becomes:
-
-        1.  Start a utility process connected to the application's
-            entity container using the existing key and then call the
-            change_key method.  Pass a value for *when* that will give
-            you time to reconfigure all AppCipher clients.  Assuming the
-            key change is planned, a time in hours or even days ahead
-            can be used.
-
-        2.  Update or reconfigure all existing applications so that they
-            will be initialised with the new key and the same value for
-            *when* next time they are restarted.
-
-        3.  Restart/refresh all running applications before then change
-            over time.  As this does not need to be done simultaneously,
-            a load balanced set of application servers can be cycled on
-            a schedule to ensure continuous running).
-
-        The purpose of changing the key of an application is to reduce
-        the risk from key exposure.  Long-life keys increase this risk.
-
-        Following a key change the entity container will still contain
-        data encrypted with old keys, which are assumed to be at an
-        increased risk of exposure.  There are two strategies for
-        dealing with this, you could routinely update encrypted data by
-        decrypting and re-encrypting in response to certain events or
-        you could write a script that iterates through the encrypted
-        data fields forcing an update.
-
-        The :attr:`MAX_AGE` attribute determines the maximum number of
-        keys that can be in use in the data set simultaneously. 
-        Eventually you will have to update encrypted data in the data
-        store."""
-        with self.lock:
-            self.old_num = self.key_num
-            self.old_key = self.key
-            self.old_expires = when.get_unixtime()
-            # we should already have a cipher for this key
-            self.key_num = key_num
-            self.key = key
-            cipher = self.ciphers[key_num] = self.new_cipher(key)
-            # we can't use the encrypt method here as we want to force
-            # use of the new key
-            old_key_encrypted = "%i:%s" % (
-                key_num, base64.b64encode(cipher.encrypt(self.old_key)))
-        with self.key_set.OpenCollection() as keys:
-            e = keys.new_entity()
-            e.set_key(self.old_num)
-            e['KeyString'].set_from_value(old_key_encrypted)
-            e['Expires'].set_from_value(when)
-            try:
-                keys.insert_entity(e)
-            except edm.ConstraintError:
-                # Presumably this entity already exists, possible race
-                # condition on change_key - load the entity from the old
-                # key number to raise KeyError if not
-                e = keys[self.old_num]
-
-    def encrypt(self, data):
-        """Encrypts data with the current key"""
-        with self.lock:
-            if self.old_expires:
-                if time.time() > self.old_expires:
-                    # the old key has finally expired
-                    self.old_num = None
-                    self.old_key = None
-                    self.old_expires = None
-                else:
-                    # use the old key
-                    cipher = self.ciphers[self.old_num]
-                    return "%i:%s" % (self.old_num,
-                                      base64.b64encode(cipher.encrypt(data)))
-            cipher = self.ciphers[self.key_num]
-            return "%i:%s" % (self.key_num,
-                              base64.b64encode(cipher.encrypt(data)))
-
-    def decrypt(self, data):
-        """Decrypts data"""
-        key_num, data = self._split_data(data)
-        stack = [(key_num, data, None)]
-        while stack:
-            key_num, data, cipher_num = stack.pop()
-            cipher = self.ciphers.get(key_num, None)
-            if cipher is None:
-                stack.append((key_num, data, cipher_num))
-                with self.key_set.OpenCollection() as collection:
-                    try:
-                        e = collection[key_num]
-                        old_key_num, old_key_data = self._split_data(
-                            e['KeyString'].value)
-                        if len(stack) > self.MAX_AGE:
-                            raise KeyError
-                        stack.append((old_key_num, old_key_data, key_num))
-                    except KeyError:
-                        raise RuntimeError("AppCipher.decript: key too old")
-            else:
-                with self.lock:
-                    new_data = cipher.decrypt(data)
-                    if cipher_num is not None:
-                        self.ciphers[cipher_num] = self.new_cipher(new_data)
-                    else:
-                        # this is the data we want
-                        return new_data
-
-    def _split_data(self, data):
-        data = data.split(':')
-        if len(data) != 2 or not data[0].isdigit():
-            raise ValueError
-        key_num = int(data[0])
-        try:
-            data = base64.b64decode(data[1])
-        except TypeError:
-            raise ValueError
-        return key_num, data
-
-
-class AESCipher(object):
-
-    def __init__(self, key):
-        if len(key) >= 32:
-            self.key = key[0:32]
-        elif len(key) >= 24:
-            self.key = key[0:24]
-        elif len(key) >= 16:
-            self.key = key[0:16]
-        else:
-            # not enough data in the key, pad with zeros
-            self.key = key.ljust(16, '\x00')
-
-    def encrypt(self, data):
-        iv = Random.new().read(AES.block_size)
-        cipher = AES.new(self.key, AES.MODE_CFB, iv)
-        return iv + cipher.encrypt(data)
-
-    def decrypt(self, data):
-        iv = data[:AES.block_size]
-        cipher = AES.new(self.key, AES.MODE_CFB, iv)
-        return cipher.decrypt(data[AES.block_size:])
-
-
-class AESAppCipher(AppCipher):
-
-    def new_cipher(self, key):
-        return AESCipher(key)

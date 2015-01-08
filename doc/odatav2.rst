@@ -1,3 +1,5 @@
+..  _odatav2:
+
 The Open Data Protocol (OData)
 ==============================
 

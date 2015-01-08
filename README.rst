@@ -1,6 +1,14 @@
 Welcome to Pyslet
 =================
 
+..  note::
+    You are reading the latest development version of the documentation
+    which corresponds to the master branch of the source on GitHub.  The
+    last release on PyPi was pyslet-0.5.20140801 and the corresponding
+    documentation is here__
+    
+    ..  __: http://pyslet.readthedocs.org/en/pyslet-0.5.20140801/
+
 Pyslet_ is a Python package for Standards in Learning Education and
 Training (LET). It implements a number of LET-specific standards,
 including IMS QTI, Content Packaging and Basic LTI.  It also includes
@@ -17,6 +25,7 @@ Full documentation is hosted at http://pyslet.readthedocs.org
 
 Pyslet currently supports Python 2.6 and 2.7, see docs for details.
 
+  
 
 Distribution
 ------------

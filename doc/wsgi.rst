@@ -329,10 +329,10 @@ We've added a nullable property to the basic session entity type::
     <Property Name="UserName" Type="Edm.String" Nullable="true"
         MaxLength="256" Unicode="true"/>
 
-Our method read the value of this property from the session and prints a
-welcome message if it is set.  If not, it prints a form allowing you to
-enter your name.  Notice that we must include a hidden field containing
-the CSRF token.  The name of the token parameter is given in
+Our method reads the value of this property from the session and prints
+a welcome message if it is set.  If not, it prints a form allowing you
+to enter your name.  Notice that we must include a hidden field
+containing the CSRF token.  The name of the token parameter is given in
 :attr:`SessionApp.csrf_token` and the value is read from session object
 directly using the :meth:`Session.sid` method.  It's the same value as
 the session ID that is stored in the cookie - the browser should prevent
@@ -375,9 +375,9 @@ you and your application of the need to obtain consent from a more
 general data protection perspective!
 
 Perhaps more onerous, but less discussed, is the obligation to
-remove 'traffic data', sometimes referred to metadata, about the
-transmission of a communication.  For this reason, we don't store
-the originating IP address of the session even though doing so might
+remove 'traffic data', sometimes referred to as metadata, about the
+transmission of a communication.  For this reason, we don't store the
+originating IP address of the session even though doing so might
 actually increase security.  As always, it's a balance.
     
 ..  _`E-Privacy Directive`:
@@ -400,7 +400,7 @@ See: http://msdn.microsoft.com/en-us/library/ms537343(v=VS.85).aspx
 To maximise the chances of being able to create a session this class
 uses automatic redirection to test for cookie storage and a
 mechanism for transferring the session to a new window if it detects
-that cookies are blocked. 
+that cookies are blocked.
 
 For a more detailed explanation of how this is achieved see my blog
 post `Putting Cookies in the Frame`_
@@ -414,6 +414,29 @@ smoother.
     http://swl10.blogspot.co.uk/2014/11/lti-tools-putting-cookies-in-frame.html
 
 
+Encrypting Data
+---------------
+
+Sometimes you'll want to encrypt sensitive data stored in a data store
+to prevent, say, a database administrator from being able to read it. 
+This module provides a utility class called :class:`AppCipher` which is
+designed to make this easier.
+
+An AppCipher is initialised with a key.  There are various strategies
+for storing keys for application use, in the simplest case you might
+read the key from a configuration file that is only available on the
+application server and not to the database administrator, say.
+
+The default implementation of AppCipher does not use any encryption (it
+merely obfuscates the input using base64 encoding) so to be useful
+you'll need to use a class derived from AppCipher.  If you have the
+Pycrypto_ module installed you can use the :class:`AESAppCipher` class
+to use the AES algorithm to encrypt the data.
+
+..  _Pycrypto: https://pypi.python.org/pypi/pycrypto
+
+For details, see the reference section below.
+
  
 Reference
 ---------
@@ -422,10 +445,36 @@ Reference
 	:members:
 	:show-inheritance:
 
-
 ..	autoclass:: WSGIApp
 	:members:
 	:show-inheritance:
+
+..	autoclass:: WSGIDataApp
+	:members:
+	:show-inheritance:
+
+..	autoclass:: Session
+	:members:
+	:show-inheritance:
+
+..  autofunction:: session_decorator
+
+..	autoclass:: SessionContext
+	:members:
+	:show-inheritance:
+
+..	autoclass:: SessionApp
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AppCipher
+	:members:
+	:show-inheritance:
+
+..	autoclass:: AESAppCipher
+	:members:
+	:show-inheritance:
+
 
 
 Utility Functions
