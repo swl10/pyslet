@@ -672,7 +672,7 @@ class CookieParser(grammar.OctetParser):
                 date=iso.Date(century=century, year=year, month=month,
                               day=day),
                 time=iso.Time(hour=hour, minute=minute, second=second,
-                              zDirection=0))
+                              zdirection=0))
         except iso.DateTimeError:
             logging.warn("Bad cookie date: %s", string.join(token_list))
             return None

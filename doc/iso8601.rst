@@ -37,9 +37,9 @@ Supporting Constants
 Utility Functions
 -----------------
 
-..	autofunction::	LeapYear
+..	autofunction::	leap_year
 
-..	autofunction::	DayOfWeek
+..	autofunction::	day_of_week
 
-..	autofunction::	WeekCount
+..	autofunction::	week_count
 

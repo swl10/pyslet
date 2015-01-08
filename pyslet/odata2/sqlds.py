@@ -653,8 +653,8 @@ class SQLCollectionBase(core.EntityCollection):
         if svalue:
             estream = self.container.streamstore.get_stream(svalue.value)
             sinfo.type = params.MediaType.from_str(estream['mimetype'].value)
-            sinfo.created = estream['created'].value.WithZone(0)
-            sinfo.modified = estream['modified'].value.WithZone(0)
+            sinfo.created = estream['created'].value.with_zone(0)
+            sinfo.modified = estream['modified'].value.with_zone(0)
             sinfo.size = estream['size'].value
             sinfo.md5 = estream['md5'].value
         else:
@@ -682,8 +682,8 @@ class SQLCollectionBase(core.EntityCollection):
         if svalue:
             estream = self.container.streamstore.get_stream(svalue.value)
             sinfo.type = params.MediaType.from_str(estream['mimetype'].value)
-            sinfo.created = estream['created'].value.WithZone(0)
-            sinfo.modified = estream['modified'].value.WithZone(0)
+            sinfo.created = estream['created'].value.with_zone(0)
+            sinfo.modified = estream['modified'].value.with_zone(0)
             sinfo.size = estream['size'].value
             sinfo.md5 = estream['md5'].value
             return sinfo, self._read_stream_gen(estream, sinfo)
@@ -738,7 +738,8 @@ class SQLCollectionBase(core.EntityCollection):
                 sinfo.size, sinfo.md5 = self._copy_src(src, dst, sinfo.size, h)
             if sinfo.modified is not None:
                 # force modified date based on input
-                estream['modified'].set_from_value(sinfo.modified.ShiftZone(0))
+                estream['modified'].set_from_value(
+                    sinfo.modified.shift_zone(0))
                 estream.commit()
             v.set_from_value(estream.key())
         else:
@@ -1897,7 +1898,8 @@ class SQLEntityCollection(SQLCollectionBase):
                 sinfo.size, sinfo.md5 = self._copy_src(src, dst, sinfo.size, h)
             if sinfo.modified is not None:
                 # force modified date based on input
-                estream['modified'].set_from_value(sinfo.modified.ShiftZone(0))
+                estream['modified'].set_from_value(
+                    sinfo.modified.shift_zone(0))
                 estream.commit()
             v.set_from_value(estream.key())
         else:
@@ -4830,7 +4832,7 @@ class SQLEntityContainer(object):
                 simple_value.value.time.minute,
                 int(seconds), int(1000000.0 * microseconds + 0.5))
         elif isinstance(simple_value, edm.DateTimeOffsetValue):
-            return simple_value.value.GetCalendarString(
+            return simple_value.value.get_calendar_string(
                 basic=True, ndp=6, dp=".").ljust(27, ' ')
         elif isinstance(simple_value, edm.GuidValue):
             return simple_value.value.bytes
@@ -4864,7 +4866,7 @@ class SQLEntityContainer(object):
         elif isinstance(simple_value, (edm.DateTimeOffsetValue)):
             # we stored these as strings
             simple_value.set_from_value(
-                iso.TimePoint.from_str(new_value, tDesignators="T "))
+                iso.TimePoint.from_str(new_value, tdesignators="T "))
         else:
             simple_value.set_from_value(new_value)
 
@@ -5040,7 +5042,7 @@ class SQLiteEntityContainer(SQLEntityContainer):
         Edm.Decimal         string representation obtained with str()
         Edm.Guid            buffer object containing bytes representation
         Edm.Time            value of
-                            :py:meth:`pyslet.iso8601.Time.GetTotalSeconds`
+                            :py:meth:`pyslet.iso8601.Time.get_total_seconds`
         ==================  ==============================================
 
         Our use of buffer type is not ideal as it generates warning when
@@ -5055,7 +5057,7 @@ class SQLiteEntityContainer(SQLEntityContainer):
         elif isinstance(simple_value, edm.GuidValue):
             return buffer(simple_value.value.bytes)
         elif isinstance(simple_value, edm.TimeValue):
-            return simple_value.value.GetTotalSeconds()
+            return simple_value.value.get_total_seconds()
         else:
             return super(
                 SQLiteEntityContainer,
@@ -5072,9 +5074,9 @@ class SQLiteEntityContainer(SQLEntityContainer):
                         (edm.DateTimeValue, edm.DateTimeOffsetValue)):
             # SQLite stores these as strings
             simple_value.set_from_value(
-                iso.TimePoint.from_str(new_value, tDesignators="T "))
+                iso.TimePoint.from_str(new_value, tdesignators="T "))
         elif isinstance(simple_value, edm.TimeValue):
-            simple_value.value = iso.Time(totalSeconds=new_value)
+            simple_value.value = iso.Time(total_seconds=new_value)
         elif isinstance(simple_value, edm.DecimalValue):
             simple_value.value = decimal.Decimal(new_value)
         else:

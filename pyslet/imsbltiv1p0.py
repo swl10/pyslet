@@ -671,7 +671,7 @@ class ToolProvider(oauth.RequestValidator):
             now = time.time()
             try:
                 e = collection[key]
-                last_seen = e['LastSeen'].value.WithZone(0).get_unixtime()
+                last_seen = e['LastSeen'].value.with_zone(0).get_unixtime()
                 if last_seen + 5400.0 < now:
                     # last seen more than 90 mins ago, update last_seen
                     e['LastSeen'].set_from_value(now)
@@ -842,6 +842,7 @@ class ToolProviderSession(wsgi.Session):
 
 
 class ToolProviderApp(wsgi.SessionApp):
+
     """Represents WSGI applications that provide LTI Tools"""
 
     #: We have our own context class

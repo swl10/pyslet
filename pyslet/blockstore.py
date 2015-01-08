@@ -305,7 +305,7 @@ class LockStore(object):
                 lock = locks.new_entity()
                 lock['hash'].set_from_value(hash_key)
                 lock['owner'].set_from_value(owner)
-                lock['created'].set_from_value(TimePoint.FromNowUTC())
+                lock['created'].set_from_value(TimePoint.from_now_utc())
                 try:
                     locks.insert_entity(lock)
                     return LockStoreContext(self, hash_key)
@@ -319,7 +319,7 @@ class LockStore(object):
                     tnow = time.time()
                     continue
                 # has this lock expired?
-                locktime = lock['created'].value.WithZone(zDirection=0)
+                locktime = lock['created'].value.with_zone(zdirection=0)
                 if locktime.get_unixtime() + self.lock_timeout < tnow:
                     # use optimistic locking
                     lock['owner'].set_from_value(owner)
@@ -374,7 +374,7 @@ class LockStore(object):
                     # potential race condition here if we timeout between
                     # loading and deleting the entity so we check how
                     # close it is and buy more time if necessary
-                    locktime = lock['created'].value.WithZone(zDirection=0)
+                    locktime = lock['created'].value.with_zone(zdirection=0)
                     if (locktime.get_unixtime() + self.lock_timeout <
                             time.time() + 1):
                         # less than 1 second left, buy more time
@@ -492,13 +492,13 @@ class StreamStore(object):
             if not isinstance(mimetype, params.MediaType):
                 mimetype = params.MediaType.from_str(mimetype)
             stream['mimetype'].set_from_value(str(mimetype))
-            now = TimePoint.FromNowUTC()
+            now = TimePoint.from_now_utc()
             stream['size'].set_from_value(0)
             if created is None:
                 stream['created'].set_from_value(now)
                 stream['modified'].set_from_value(now)
             else:
-                created = created.ShiftZone(0)
+                created = created.shift_zone(0)
                 stream['created'].set_from_value(created)
                 stream['modified'].set_from_value(created)
             stream['md5'].set_from_value(hashlib.md5().digest())
@@ -702,7 +702,7 @@ class BlockStream(io.RawIOBase):
                     self._md5 = None
             if self.size != self.stream['size'].value:
                 self.stream['size'].set_from_value(self.size)
-            now = TimePoint.FromNowUTC()
+            now = TimePoint.from_now_utc()
             self.stream['modified'].set_from_value(now)
             if self._md5 is not None:
                 self.stream['md5'].set_from_value(self._md5.digest())

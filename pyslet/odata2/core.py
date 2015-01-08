@@ -2659,7 +2659,7 @@ def ReadEntityCTValue(complexValue, obj):
 
 
 TICKS_PER_DAY = 86400000
-BASE_DAY = iso.Date.from_str('1970-01-01').GetAbsoluteDay()
+BASE_DAY = iso.Date.from_str('1970-01-01').get_absolute_day()
 
 
 def EntityPropertyInJSON2(simpleValue):
@@ -2697,8 +2697,8 @@ def EntityPropertyValueInJSON(v):
     elif isinstance(v, edm.DateTimeValue):
         # a strange format based on ticks, by definition, DateTime has no
         # offset
-        ticks = (v.value.date.GetAbsoluteDay() - BASE_DAY) * \
-            TICKS_PER_DAY + int(v.value.time.GetTotalSeconds() * 1000)
+        ticks = (v.value.date.get_absolute_day() - BASE_DAY) * \
+            TICKS_PER_DAY + int(v.value.time.get_total_seconds() * 1000)
         return json.dumps("/Date(%i)/" % ticks)
     elif isinstance(v, (edm.DecimalValue, edm.DoubleValue, edm.GuidValue, edm.Int64Value, edm.SingleValue, edm.StringValue, edm.TimeValue)):
         # just use the literal form as a json string
@@ -2706,9 +2706,9 @@ def EntityPropertyValueInJSON(v):
     elif isinstance(v, (edm.DateTimeOffsetValue)):
         # a strange format based on ticks, by definition, DateTime has no
         # offset
-        ticks = (v.value.date.GetAbsoluteDay() - BASE_DAY) * \
-            TICKS_PER_DAY + int(v.value.time.GetTotalSeconds() * 1000)
-        dir, offset = v.GetZone()
+        ticks = (v.value.date.get_absolute_day() - BASE_DAY) * \
+            TICKS_PER_DAY + int(v.value.time.get_total_seconds() * 1000)
+        dir, offset = v.get_zone()
         if dir > 0:
             s = u"+"
         else:
@@ -2731,8 +2731,8 @@ def ReadEntityPropertyValueInJSON(v, jsonValue):
     elif isinstance(v, edm.DateTimeValue):
         if jsonValue.startswith("/Date(") and jsonValue.endswith(")/"):
             ticks = int(jsonValue[6:-2])
-            t, overflow = iso.Time().Offset(seconds=ticks / 1000.0)
-            d = iso.Date(absoluteDay=BASE_DAY + overflow)
+            t, overflow = iso.Time().offset(seconds=ticks / 1000.0)
+            d = iso.Date(absolute_day=BASE_DAY + overflow)
             v.set_from_value(iso.TimePoint(date=d, time=t))
         else:
             raise ValueError("Illegal value for DateTime: %s" % jsonValue)
@@ -2745,23 +2745,23 @@ def ReadEntityPropertyValueInJSON(v, jsonValue):
             if '+' in ticks:
                 # split by +
                 ticks = ticks.split('+')
-                zDir = 1
+                zdir = 1
             elif '-' in ticks:
                 # split by -
                 ticks = ticks.split('-')
-                zDir = -1
+                zdir = -1
             else:
-                zDir = 0
-            if zDir:
+                zdir = 0
+            if zdir:
                 if len(ticks) != 2:
                     raise ValueError(
                         "Illegal value for DateTimeOffset: %s" % jsonValue)
-                zOffset = int(ticks[1])
+                zoffset = int(ticks[1])
             else:
-                zOffset = 0
-            t, overflow = Time().Offset(
-                seconds=int(ticks[0]) / 1000.0).WithZone(zDir, zOffset // 60, zOffset % 60)
-            d = Date(absoluteDay=BASE_DAY + overflow)
+                zoffset = 0
+            t, overflow = Time().offset(
+                seconds=int(ticks[0]) / 1000.0).with_zone(zdir, zoffset // 60, zoffset % 60)
+            d = Date(absolute_day=BASE_DAY + overflow)
             v.set_from_value(iso.TimePoint(date=d, time=t))
         else:
             raise ValueError(
@@ -3499,7 +3499,7 @@ class Entry(atom.Entry):
                         v.set_from_value(dtOffset)
                     elif isinstance(v, edm.DateTimeValue):
                         # strip the zone and use that
-                        v.set_from_value(dtOffset.WithZone(zDirection=None))
+                        v.set_from_value(dtOffset.with_zone(zdirection=None))
                     elif isinstance(v, edm.StringValue):
                         v.SetFromLiteral(str(dtOffset))
                     else:
@@ -3644,13 +3644,13 @@ class Entry(atom.Entry):
                         targetElement.SetValue(unicode(v))
                     elif isinstance(v, edm.DateTimeValue):
                         # assume UTC
-                        dtOffset = v.value.WithZone(zDirection=0)
+                        dtOffset = v.value.with_zone(zdirection=0)
                         targetElement.SetValue(unicode(dtOffset))
                     elif isinstance(v, edm.StringValue):
                         try:
                             dtOffset = iso8601.TimePoint.from_str(v.value)
-                            if dtOffset.GetZone()[0] is None:
-                                dtOffset = dtOffset.WithZone(zDirection=0)
+                            if dtOffset.get_zone()[0] is None:
+                                dtOffset = dtOffset.with_zone(zdirection=0)
                             targetElement.SetValue(unicode(dtOffset))
                         except iso8601.DateTimeError:
                             # do nothing
@@ -3792,13 +3792,13 @@ class Entry(atom.Entry):
                 targetElement.SetValue(unicode(v))
             elif isinstance(v, edm.DateTimeValue):
                 # assume UTC
-                dtOffset = v.value.WithZone(zDirection=0)
+                dtOffset = v.value.with_zone(zdirection=0)
                 targetElement.SetValue(unicode(dtOffset))
             elif isinstance(v, edm.StringValue):
                 try:
                     dtOffset = iso8601.TimePoint.from_str(v.value)
-                    if dtOffset.GetZone()[0] is None:
-                        dtOffset = dtOffset.WithZone(zDirection=0)
+                    if dtOffset.get_zone()[0] is None:
+                        dtOffset = dtOffset.with_zone(zdirection=0)
                     targetElement.SetValue(unicode(dtOffset))
                 except iso8601.DateTimeError:
                     # do nothing

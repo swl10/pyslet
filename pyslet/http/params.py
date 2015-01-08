@@ -170,10 +170,10 @@ class FullDate(iso.TimePoint):
 
         Note that this overrides the default behaviour which would be to
         use one of the iso8601 output formats."""
-        z = self.ShiftZone(0)
+        z = self.shift_zone(0)
         (century, year, month, day,
-         hour, minute, second) = z.GetCalendarTimePoint()
-        century, decade, dyear, week, dayofweek = z.date.GetWeekDay()
+         hour, minute, second) = z.get_calendar_time_point()
+        century, decade, dyear, week, dayofweek = z.date.get_week_day()
         return "%s, %02i %s %04i %02i:%02i:%02i GMT" % (
             ParameterParser.wkday[dayofweek - 1],
             day,
@@ -878,8 +878,8 @@ class ParameterParser(WordParser):
             date=iso.Date(century=century, year=year, month=month + 1,
                           day=day),
             time=iso.Time(hour=hour, minute=minute, second=second,
-                          zDirection=0))
-        d1, d2, d3, d4, dow = tp.date.GetWeekDay()
+                          zdirection=0))
+        d1, d2, d3, d4, dow = tp.date.get_week_day()
         if dow != dayofweek + 1:
             raise BadSyntax("Day-of-week mismatch, expected %s but found %s" %
                             (self.wkday[dow - 1], self.wkday[dayofweek]))

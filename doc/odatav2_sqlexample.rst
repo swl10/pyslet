@@ -323,7 +323,7 @@ navigation properties::
 							time=iso.Time(hour=0,minute=0,second=0))
 						note['StartDate'].set_from_value(start)
 						end=iso.TimePoint(
-							date=iso.Date.from_str(noteWords[1]).Offset(days=1),
+							date=iso.Date.from_str(noteWords[1]).offset(days=1),
 							time=iso.Time(hour=0,minute=0,second=0))
 						note['EndDate'].set_from_value(end)
 						note['Details'].set_from_value(string.join(noteWords[2:],' '))

@@ -1375,7 +1375,7 @@ class AppCipherTests(unittest.TestCase):
         self.assertFalse(data0 == "Hello")
         self.assertTrue(ac.decrypt(data0) == "Hello")
         ac.change_key(1, "pa$$word",
-                      iso.TimePoint.FromUnixTime(time.time() - 1))
+                      iso.TimePoint.from_unix_time(time.time() - 1))
         with self.key_set.OpenCollection() as collection:
             self.assertTrue(len(collection) == 1)
         data1 = ac.encrypt("Hello")
@@ -1383,12 +1383,12 @@ class AppCipherTests(unittest.TestCase):
         self.assertTrue(ac.decrypt(data1) == "Hello")
         self.assertTrue(ac.decrypt(data0) == "Hello")
         ac.change_key(2, "unguessable",
-                      iso.TimePoint.FromUnixTime(time.time() - 1))
+                      iso.TimePoint.from_unix_time(time.time() - 1))
         with self.key_set.OpenCollection() as collection:
             self.assertTrue(len(collection) == 2)
         self.assertTrue(ac.decrypt(data0) == "Hello")
         ac.change_key(10, "anotherkey",
-                      iso.TimePoint.FromUnixTime(time.time() - 1))
+                      iso.TimePoint.from_unix_time(time.time() - 1))
         with self.key_set.OpenCollection() as collection:
             self.assertTrue(len(collection) == 3)
         self.assertTrue(ac.decrypt(data0) == "Hello")
@@ -1407,7 +1407,7 @@ class AppCipherTests(unittest.TestCase):
         self.assertFalse(data0 == "Hello")
         self.assertTrue(ac.decrypt(data0) == "Hello")
         ac.change_key(1, "pa$$word",
-                      iso.TimePoint.FromUnixTime(time.time() - 1))
+                      iso.TimePoint.from_unix_time(time.time() - 1))
         with self.key_set.OpenCollection() as collection:
             self.assertTrue(len(collection) == 1)
         data1 = ac.encrypt("Hello")
@@ -1415,12 +1415,12 @@ class AppCipherTests(unittest.TestCase):
         self.assertTrue(ac.decrypt(data1) == "Hello")
         self.assertTrue(ac.decrypt(data0) == "Hello")
         ac.change_key(2, "unguessable",
-                      iso.TimePoint.FromUnixTime(time.time() - 1))
+                      iso.TimePoint.from_unix_time(time.time() - 1))
         with self.key_set.OpenCollection() as collection:
             self.assertTrue(len(collection) == 2)
         self.assertTrue(ac.decrypt(data0) == "Hello")
         ac.change_key(10, "anotherkey",
-                      iso.TimePoint.FromUnixTime(time.time() - 1))
+                      iso.TimePoint.from_unix_time(time.time() - 1))
         with self.key_set.OpenCollection() as collection:
             self.assertTrue(len(collection) == 3)
         self.assertTrue(ac.decrypt(data0) == "Hello")

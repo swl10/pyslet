@@ -537,7 +537,7 @@ class WSGIApp(DispatchNode):
     js_origin = int(
         iso.TimePoint(
             date=iso.Date(century=19, year=70, month=1, day=1),
-            time=iso.Time(hour=0, minute=0, second=0, zDirection=0)
+            time=iso.Time(hour=0, minute=0, second=0, zdirection=0)
         ).get_unixtime() * 1000)
 
     #: a threading.RLock instance that can be used to lock the class
@@ -928,7 +928,7 @@ class WSGIApp(DispatchNode):
         finfo = os.stat(target_path)
         context.add_header("Content-Length", str(finfo.st_size))
         context.add_header("Last-Modified",
-                           str(params.FullDate.FromUnixTime(finfo.st_mtime)))
+                           str(params.FullDate.from_unix_time(finfo.st_mtime)))
         context.start_response()
         bleft = finfo.st_size
         with open(target_path) as f:
@@ -1573,6 +1573,7 @@ class AppCipher(object):
 
 
 class AESCipher(object):
+
     def __init__(self, key):
         self.key = sha256(key).digest()
 
@@ -1588,6 +1589,7 @@ class AESCipher(object):
 
 
 class AESAppCipher(AppCipher):
+
     """A cipher object that uses AES to encrypt the data
 
     The Pycrypto module must be installed to use this class.
@@ -1663,7 +1665,7 @@ class Session(object):
         self.entity['ServerKey'].set_from_value(server_key)
         self.entity['Established'].set_from_value(False)
         self.entity['FirstSeen'].set_from_value(
-            iso.TimePoint.FromNowUTC())
+            iso.TimePoint.from_now_utc())
         self.entity['LastSeen'].set_from_value(
             self.entity['FirstSeen'].value)
         if 'HTTP_USER_AGENT' in context.environ:
@@ -1693,7 +1695,7 @@ class Session(object):
 
     def seen(self):
         """Updates the LastSeen field with the current time."""
-        self.entity['LastSeen'].set_from_value(iso.TimePoint.FromNowUTC())
+        self.entity['LastSeen'].set_from_value(iso.TimePoint.from_now_utc())
         self.touched = True
 
     def expired(self, timeout):
@@ -1702,7 +1704,7 @@ class Session(object):
         timeout
             The maximum number of seconds that may have elapsed since
             the session was 'LastSeen'."""
-        return (self.entity['LastSeen'].value.WithZone(0).get_unixtime() +
+        return (self.entity['LastSeen'].value.with_zone(0).get_unixtime() +
                 timeout < time.time())
 
     def established(self):

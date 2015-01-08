@@ -541,7 +541,7 @@ class EntityCollection(odata.EntityCollection):
             h.update(data)
             etag.set_from_value(h.digest())
         if sinfo.created is None:
-            sinfo.created = iso.TimePoint.FromNowUTC()
+            sinfo.created = iso.TimePoint.from_now_utc()
         if sinfo.modified is None:
             sinfo.modified = sinfo.created
         sinfo.size = len(data)
@@ -582,9 +582,9 @@ class EntityCollection(odata.EntityCollection):
         if sinfo.created is None:
             sinfo.created = oldinfo.created
         if sinfo.created is None:
-            sinfo.created = iso.TimePoint.FromNowUTC()
+            sinfo.created = iso.TimePoint.from_now_utc()
         if sinfo.modified is None:
-            sinfo.modified = iso.TimePoint.FromNowUTC()
+            sinfo.modified = iso.TimePoint.from_now_utc()
         sinfo.size = len(data)
         sinfo.md5 = hashlib.md5(data).digest()
         # we need the lock to ensure the entity and stream and updated

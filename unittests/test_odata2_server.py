@@ -401,7 +401,7 @@ class ODataURILiteralTests(unittest.TestCase):
         self.assertTrue(
             v.typeCode == edm.SimpleType.DateTime, "date time type: %s" % repr(v.typeCode))
         self.assertTrue(
-            v.value.GetCalendarString(ndp=7, dp=".") == "2012-06-30T23:59:59.9999999")
+            v.value.get_calendar_string(ndp=7, dp=".") == "2012-06-30T23:59:59.9999999")
         # Now for the big one!
         v = core.ParseURILiteral("datetime'2012-06-30T23:59:60'")
         self.assertTrue(v.typeCode == edm.SimpleType.DateTime,
@@ -1617,7 +1617,7 @@ class ShippedAddressByDateCollection(core.FunctionCollection):
         core.FunctionCollection.__init__(self, function, params)
         self.date = params.get('date').value
         if self.date is None:
-            self.date = iso8601.TimePoint.FromNow()
+            self.date = iso8601.TimePoint.from_now()
         self.collection = customersEntitySet.OpenCollection()
 
     def __iter__(self):
@@ -1631,7 +1631,7 @@ class ShippedCustomerNamesByDateCollection(core.FunctionCollection):
         core.FunctionCollection.__init__(self, function, params)
         self.date = params.get('date').value
         if self.date is None:
-            self.date = iso8601.TimePoint.FromNow()
+            self.date = iso8601.TimePoint.from_now()
         self.collection = customersEntitySet.OpenCollection()
 
     def __iter__(self):
@@ -1683,7 +1683,7 @@ class SampleServerTests(unittest.TestCase):
         employees.data['1'] = (
             '1', 'Joe Bloggs', ("The Elms", "Chunton"), 'DEADBEEF')
         orders = self.container.entityStorage['Orders']
-        now = iso8601.TimePoint.FromNow()
+        now = iso8601.TimePoint.from_now()
         orders.data[1] = (
             1, iso8601.TimePoint.from_str('2013-08-01T11:05:00'))
         orders.data[2] = (

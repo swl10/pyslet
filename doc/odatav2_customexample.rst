@@ -421,7 +421,7 @@ optional::
                 type = map_extension(ext)
                 modified = e['lastModified'].value
                 if modified:
-                    modified = modified.WithZone(0)
+                    modified = modified.with_zone(0)
                 sinfo = odata.StreamInfo(
                     type=type,
                     modified=modified,

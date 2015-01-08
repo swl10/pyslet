@@ -24,26 +24,26 @@ class DateTests(unittest.TestCase):
 
     def testConstructor(self):
         date = Date()
-        self.assertTrue(date.GetCalendarDay() == (
+        self.assertTrue(date.get_calendar_day() == (
             0, 1, 1, 1), "empty constructor results in the origin")
         base = Date(century=19, year=69, month=7, day=20)
         self.assertTrue(
-            base.GetCalendarDay() == (19, 69, 7, 20), "explicit constructor")
+            base.get_calendar_day() == (19, 69, 7, 20), "explicit constructor")
         date = Date(base)
         self.assertTrue(
-            date.GetCalendarDay() == (19, 69, 7, 20), "copy constructor")
+            date.get_calendar_day() == (19, 69, 7, 20), "copy constructor")
         date = Date(src=base)
-        self.assertTrue(date.GetCalendarDay() == (
+        self.assertTrue(date.get_calendar_day() == (
             19, 69, 7, 20), "copy constructor, named parameter")
         date = Date.from_str("19690720")
         self.assertTrue(
-            date.GetCalendarDay() == (19, 69, 7, 20), "string constructor")
+            date.get_calendar_day() == (19, 69, 7, 20), "string constructor")
         date = Date.from_str(u"1969-07-20")
         self.assertTrue(
-            date.GetCalendarDay() == (19, 69, 7, 20), "unicode constructor")
+            date.get_calendar_day() == (19, 69, 7, 20), "unicode constructor")
         date = Date.from_str("--0720", base)
         self.assertTrue(
-            date.GetCalendarDay() == (19, 69, 7, 20), "truncated year")
+            date.get_calendar_day() == (19, 69, 7, 20), "truncated year")
 
     def testCalendarDay(self):
         """Test Get and Set Calendar day"""
@@ -54,7 +54,7 @@ class DateTests(unittest.TestCase):
         baseOverflow = Date(century=19, year=69, month=7, day=21)
         date = Date(century=19, year=69, month=7, day=20)
         self.assertTrue(
-            date.GetCalendarDay() == (19, 69, 7, 20), "simple case")
+            date.get_calendar_day() == (19, 69, 7, 20), "simple case")
         try:
             date = Date(year=69, month=7, day=20)
             self.fail("truncation without base")
@@ -62,50 +62,50 @@ class DateTests(unittest.TestCase):
             pass
         date = Date(year=69, month=7, day=20, base=base)
         self.assertTrue(
-            date.GetCalendarDay() == (19, 69, 7, 20), "truncated century")
+            date.get_calendar_day() == (19, 69, 7, 20), "truncated century")
         date = Date(year=69, month=7, day=20, base=baseOverflow)
-        self.assertTrue(date.GetCalendarDay() == (
+        self.assertTrue(date.get_calendar_day() == (
             20, 69, 7, 20), "truncated century with overflow")
         date = Date(month=7, day=20, base=base)
         self.assertTrue(
-            date.GetCalendarDay() == (19, 69, 7, 20), "truncated year")
+            date.get_calendar_day() == (19, 69, 7, 20), "truncated year")
         date = Date(month=7, day=20, base=baseOverflow)
         self.assertTrue(
-            date.GetCalendarDay() == (19, 70, 7, 20), "truncated year with overflow")
+            date.get_calendar_day() == (19, 70, 7, 20), "truncated year with overflow")
         date = Date(day=20, base=base)
         self.assertTrue(
-            date.GetCalendarDay() == (19, 69, 7, 20), "truncated month")
+            date.get_calendar_day() == (19, 69, 7, 20), "truncated month")
         date = Date(day=20, base=baseOverflow)
         self.assertTrue(
-            date.GetCalendarDay() == (19, 69, 8, 20), "truncated month with overflow")
+            date.get_calendar_day() == (19, 69, 8, 20), "truncated month with overflow")
         date = Date(century=19, year=69, month=7)
         self.assertTrue(
-            date.GetCalendarDay() == (19, 69, 7, None), "month precision")
+            date.get_calendar_day() == (19, 69, 7, None), "month precision")
         date = Date(century=19, year=69)
         self.assertTrue(
-            date.GetCalendarDay() == (19, 69, None, None), "year precision")
+            date.get_calendar_day() == (19, 69, None, None), "year precision")
         date = Date(century=19)
         self.assertTrue(
-            date.GetCalendarDay() == (19, None, None, None), "century precision")
+            date.get_calendar_day() == (19, None, None, None), "century precision")
         baseOverflow = Date(century=19, year=69, month=8, day=1)
         date = Date(year=69, month=7, base=base)
-        self.assertTrue(date.GetCalendarDay() == (
+        self.assertTrue(date.get_calendar_day() == (
             19, 69, 7, None), "month precision, truncated century")
         date = Date(year=69, month=7, base=baseOverflow)
-        self.assertTrue(date.GetCalendarDay() == (
+        self.assertTrue(date.get_calendar_day() == (
             20, 69, 7, None), "month precision, truncated century with overflow")
         date = Date(month=7, base=base)
-        self.assertTrue(date.GetCalendarDay() == (
+        self.assertTrue(date.get_calendar_day() == (
             19, 69, 7, None), "month precision, truncated year")
         date = Date(month=7, base=baseOverflow)
-        self.assertTrue(date.GetCalendarDay() == (
+        self.assertTrue(date.get_calendar_day() == (
             19, 70, 7, None), "month precision, truncated year with overflow")
         baseOverflow = Date(century=19, year=69, month=1, day=1)
         date = Date(year=69, base=base)
-        self.assertTrue(date.GetCalendarDay() == (
+        self.assertTrue(date.get_calendar_day() == (
             19, 69, None, None), "year precision, truncated century")
         date = Date(year=68, base=baseOverflow)
-        self.assertTrue(date.GetCalendarDay() == (
+        self.assertTrue(date.get_calendar_day() == (
             20, 68, None, None), "year precision, truncated century with overflow")
         try:
             date = Date(century=100, year=69, month=7, day=20)
@@ -136,17 +136,17 @@ class DateTests(unittest.TestCase):
         base = Date(century=19, year=69, month=7, day=20)
         baseOverflow = Date(century=19, year=69, month=7, day=21)
         date = Date(century=19, year=69, ordinalDay=201)
-        self.assertTrue(date.GetOrdinalDay() == (19, 69, 201), "simple case ")
+        self.assertTrue(date.get_ordinal_day() == (19, 69, 201), "simple case ")
         self.assertTrue(
-            date.GetCalendarDay() == (19, 69, 7, 20), "calendar cross check")
+            date.get_calendar_day() == (19, 69, 7, 20), "calendar cross check")
         date = Date(century=19, year=69, ordinalDay=1)
         self.assertTrue(
-            date.GetCalendarDay() == (19, 69, 1, 1), "calendar cross check Jan 1st")
+            date.get_calendar_day() == (19, 69, 1, 1), "calendar cross check Jan 1st")
         date = Date(century=19, year=68, ordinalDay=366)
-        self.assertTrue(date.GetCalendarDay() == (
+        self.assertTrue(date.get_calendar_day() == (
             19, 68, 12, 31), "calendar cross check Dec 31st (leap)")
         date = Date(century=19, year=69, ordinalDay=365)
-        self.assertTrue(date.GetCalendarDay() == (
+        self.assertTrue(date.get_calendar_day() == (
             19, 69, 12, 31), "calendar cross check Dec 31st (non-leap)")
         try:
             date = Date(year=69, ordinalDay=201)
@@ -155,40 +155,40 @@ class DateTests(unittest.TestCase):
             pass
         date = Date(year=69, ordinalDay=201, base=base)
         self.assertTrue(
-            date.GetOrdinalDay() == (19, 69, 201), "truncated century")
+            date.get_ordinal_day() == (19, 69, 201), "truncated century")
         date = Date(year=69, ordinalDay=201, base=baseOverflow)
         self.assertTrue(
-            date.GetOrdinalDay() == (20, 69, 201), "truncated century with overflow")
+            date.get_ordinal_day() == (20, 69, 201), "truncated century with overflow")
         date = Date(ordinalDay=201, base=base)
         self.assertTrue(
-            date.GetOrdinalDay() == (19, 69, 201), "truncated year")
+            date.get_ordinal_day() == (19, 69, 201), "truncated year")
         date = Date(ordinalDay=201, base=baseOverflow)
         self.assertTrue(
-            date.GetOrdinalDay() == (19, 70, 201), "truncated year with overflow")
+            date.get_ordinal_day() == (19, 70, 201), "truncated year with overflow")
         date = Date(century=19, decade=6, year=9, week=29)
         try:
-            date.GetOrdinalDay()
+            date.get_ordinal_day()
             self.fail("ordinal day with week precision")
         except DateTimeError:
             pass
         date = Date(century=19, year=69, month=7)
         try:
-            date.GetOrdinalDay()
+            date.get_ordinal_day()
             self.fail("ordinal day with month precision")
         except DateTimeError:
             pass
         date = Date(century=19, year=69)
         self.assertTrue(
-            date.GetOrdinalDay() == (19, 69, None), "year precision")
+            date.get_ordinal_day() == (19, 69, None), "year precision")
         date = Date(century=19)
         self.assertTrue(
-            date.GetOrdinalDay() == (19, None, None), "century precision")
+            date.get_ordinal_day() == (19, None, None), "century precision")
         baseOverflow = Date(century=19, year=69, month=1, day=1)
         date = Date(year=69, base=base)
-        self.assertTrue(date.GetOrdinalDay() == (
+        self.assertTrue(date.get_ordinal_day() == (
             19, 69, None), "year precision, truncated century")
         date = Date(year=68, base=baseOverflow)
-        self.assertTrue(date.GetOrdinalDay() == (
+        self.assertTrue(date.get_ordinal_day() == (
             20, 68, None), "year precision, truncated century with overflow")
         try:
             date = Date(century=100, year=69, ordinalDay=201)
@@ -217,15 +217,15 @@ class DateTests(unittest.TestCase):
         base = Date(century=19, year=69, month=7, day=20)
         baseOverflow = Date(century=19, year=69, month=7, day=21)
         date = Date(century=19, decade=6, year=9, week=29, weekday=7)
-        self.assertTrue(date.GetWeekDay() == (19, 6, 9, 29, 7), "simple case")
+        self.assertTrue(date.get_week_day() == (19, 6, 9, 29, 7), "simple case")
         self.assertTrue(
-            date.GetCalendarDay() == (19, 69, 7, 20), "calendar cross check")
+            date.get_calendar_day() == (19, 69, 7, 20), "calendar cross check")
         date = Date(century=19, decade=6, year=9, week=1, weekday=1)
-        self.assertTrue(date.GetCalendarDay() == (
+        self.assertTrue(date.get_calendar_day() == (
             19, 68, 12, 30), "calendar cross check underflow")
         date = Date(century=19, decade=7, year=0, week=53, weekday=5)
         self.assertTrue(
-            date.GetCalendarDay() == (19, 71, 1, 1), "calendar cross check overflow")
+            date.get_calendar_day() == (19, 71, 1, 1), "calendar cross check overflow")
         try:
             date = Date(decade=6, year=9, week=29, weekday=7)
             self.fail("truncation without base")
@@ -233,34 +233,34 @@ class DateTests(unittest.TestCase):
             pass
         date = Date(decade=6, year=9, week=29, weekday=7, base=base)
         self.assertTrue(
-            date.GetWeekDay() == (19, 6, 9, 29, 7), "truncated century")
+            date.get_week_day() == (19, 6, 9, 29, 7), "truncated century")
         date = Date(decade=6, year=9, week=29, weekday=7, base=baseOverflow)
         self.assertTrue(
-            date.GetWeekDay() == (20, 6, 9, 29, 7), "truncated century with overflow")
+            date.get_week_day() == (20, 6, 9, 29, 7), "truncated century with overflow")
         date = Date(year=9, week=29, weekday=7, base=base)
         self.assertTrue(
-            date.GetWeekDay() == (19, 6, 9, 29, 7), "truncated decade")
+            date.get_week_day() == (19, 6, 9, 29, 7), "truncated decade")
         date = Date(year=9, week=29, weekday=7, base=baseOverflow)
         self.assertTrue(
-            date.GetWeekDay() == (19, 7, 9, 29, 7), "truncated decade with overflow")
+            date.get_week_day() == (19, 7, 9, 29, 7), "truncated decade with overflow")
         date = Date(week=29, weekday=7, base=base)
         self.assertTrue(
-            date.GetWeekDay() == (19, 6, 9, 29, 7), "truncated year")
+            date.get_week_day() == (19, 6, 9, 29, 7), "truncated year")
         date = Date(week=29, weekday=7, base=baseOverflow)
         self.assertTrue(
-            date.GetWeekDay() == (19, 7, 0, 29, 7), "truncated year with overflow")
+            date.get_week_day() == (19, 7, 0, 29, 7), "truncated year with overflow")
         date = Date(weekday=7, base=base)
         self.assertTrue(
-            date.GetWeekDay() == (19, 6, 9, 29, 7), "truncated week")
+            date.get_week_day() == (19, 6, 9, 29, 7), "truncated week")
         date = Date(weekday=1, base=baseOverflow)
         self.assertTrue(
-            date.GetWeekDay() == (19, 6, 9, 30, 1), "truncated week with overflow")
+            date.get_week_day() == (19, 6, 9, 30, 1), "truncated week with overflow")
         date = Date(century=19, decade=6, year=9, week=29)
         self.assertTrue(
-            date.GetWeekDay() == (19, 6, 9, 29, None), "week precision")
+            date.get_week_day() == (19, 6, 9, 29, None), "week precision")
         date = Date(century=19, year=69, month=7)
         try:
-            date.GetWeekDay()
+            date.get_week_day()
             self.fail("month precision")
         except DateTimeError:
             pass
@@ -277,21 +277,21 @@ class DateTests(unittest.TestCase):
         baseOverflow = Date(century=19, decade=6, year=9, week=30, weekday=1)
         date = Date(decade=6, year=9, week=29, base=base)
         self.assertTrue(
-            date.GetWeekDay() == (19, 6, 9, 29, None), "week precision, truncated century")
+            date.get_week_day() == (19, 6, 9, 29, None), "week precision, truncated century")
         date = Date(decade=6, year=9, week=29, base=baseOverflow)
-        self.assertTrue(date.GetWeekDay() == (
+        self.assertTrue(date.get_week_day() == (
             20, 6, 9, 29, None), "week precision, truncated century with overflow")
         date = Date(year=9, week=29, base=base)
         self.assertTrue(
-            date.GetWeekDay() == (19, 6, 9, 29, None), "week precision, truncated decade")
+            date.get_week_day() == (19, 6, 9, 29, None), "week precision, truncated decade")
         date = Date(year=9, week=29, base=baseOverflow)
-        self.assertTrue(date.GetWeekDay() == (
+        self.assertTrue(date.get_week_day() == (
             19, 7, 9, 29, None), "week precision, truncated decade with overflow")
         date = Date(week=29, base=base)
         self.assertTrue(
-            date.GetWeekDay() == (19, 6, 9, 29, None), "week precision, truncated year")
+            date.get_week_day() == (19, 6, 9, 29, None), "week precision, truncated year")
         date = Date(week=29, base=baseOverflow)
-        self.assertTrue(date.GetWeekDay() == (
+        self.assertTrue(date.get_week_day() == (
             19, 7, 0, 29, None), "week precision, truncated year with overflow")
         try:
             date = Date(decade=6, year=9, base=base)
@@ -345,17 +345,17 @@ class DateTests(unittest.TestCase):
 		them all when writing, and we don't allow reduced precision as
 		this is not needed for interacting with the functions in the
 		time module."""
-        date = Date.FromStructTime(
+        date = Date.from_struct_time(
             [1969, 7, 20, None, None, None, None, None, None])
-        timeTuple = [None] * 9
-        date.UpdateStructTime(timeTuple)
+        time_tuple = [None] * 9
+        date.update_struct_time(time_tuple)
         self.assertTrue(
-            timeTuple == [1969, 7, 20, None, None, None, 6, 201, None], "simple case")
+            time_tuple == [1969, 7, 20, None, None, None, 6, 201, None], "simple case")
         self.assertTrue(
-            date.GetCalendarDay() == (19, 69, 7, 20), "calendar cross-check")
+            date.get_calendar_day() == (19, 69, 7, 20), "calendar cross-check")
         date = Date(century=19, year=69, month=7)
         try:
-            date.UpdateStructTime(timeTuple)
+            date.update_struct_time(time_tuple)
             self.fail("month precision")
         except DateTimeError:
             pass
@@ -366,48 +366,48 @@ class DateTests(unittest.TestCase):
         # check the 1st January each from from 0001 (the base day) through 2049
         absDay = 1
         for year in xrange(1, 1740):
-            date = Date(absoluteDay=absDay)
-            self.assertTrue(date.GetCalendarDay() == (
+            date = Date(absolute_day=absDay)
+            self.assertTrue(date.get_calendar_day() == (
                 year // 100, year % 100, 1, 1), "%04i-01-01 check" % year)
             self.assertTrue(
-                date.GetAbsoluteDay() == absDay, "%04i-01-01 symmetry check" % year)
+                date.get_absolute_day() == absDay, "%04i-01-01 symmetry check" % year)
             absDay += 365
             if (year % 4 == 0 and (not year % 100 == 0 or year % 400 == 0)):
                 absDay += 1
         # check each day in a sample (leap) year
         date = Date(century=19, year=68, month=1, day=1)
-        absDay = date.GetAbsoluteDay()
+        absDay = date.get_absolute_day()
         for i in xrange(366):
-            date = Date(absoluteDay=absDay)
+            date = Date(absolute_day=absDay)
             self.assertTrue(
-                date.GetOrdinalDay() == (19, 68, i + 1), "1968=%03i check" % (i + 1))
+                date.get_ordinal_day() == (19, 68, i + 1), "1968=%03i check" % (i + 1))
             self.assertTrue(
-                date.GetAbsoluteDay() == absDay, "1968-%03i symmetry check" % (i + 1))
+                date.get_absolute_day() == absDay, "1968-%03i symmetry check" % (i + 1))
             absDay += 1
 
     def testSetFromString(self):
         date = Date.from_str("19690720")
-        self.assertTrue(date.GetCalendarDay() == (19, 69, 7, 20))
+        self.assertTrue(date.get_calendar_day() == (19, 69, 7, 20))
 
     def testGetPrecision(self):
         date = Date(century=19, year=69, month=7, day=20)
         self.assertTrue(
-            date.GetPrecision() == Precision.Complete, "complete precision")
+            date.get_precision() == Precision.Complete, "complete precision")
         date = Date(century=19, year=69, month=7)
         self.assertTrue(
-            date.GetPrecision() == Precision.Month, "month precision")
+            date.get_precision() == Precision.Month, "month precision")
         date = Date(century=19, year=69)
         self.assertTrue(
-            date.GetPrecision() == Precision.Year, "year precision")
+            date.get_precision() == Precision.Year, "year precision")
         date = Date(century=19)
         self.assertTrue(
-            date.GetPrecision() == Precision.Century, "century precision")
+            date.get_precision() == Precision.Century, "century precision")
         date = Date(century=19, decade=6, year=9, week=29, weekday=7)
         self.assertTrue(
-            date.GetPrecision() == Precision.Complete, "complete precision (weekday)")
+            date.get_precision() == Precision.Complete, "complete precision (weekday)")
         date = Date(century=19, decade=6, year=9, week=29)
         self.assertTrue(
-            date.GetPrecision() == Precision.Week, "week precision")
+            date.get_precision() == Precision.Week, "week precision")
 
     def testComparisons(self):
         """Test the comparison methods"""
@@ -438,147 +438,147 @@ class DateTests(unittest.TestCase):
             pass
 
     def testGetCalendarStrings(self):
-        """GetCalendarString tests"""
+        """get_calendar_string tests"""
         self.assertTrue(
-            Date.from_str("19690720").GetCalendarString() == "1969-07-20", "default test")
+            Date.from_str("19690720").get_calendar_string() == "1969-07-20", "default test")
         self.assertTrue(
-            Date.from_str("19690720").GetCalendarString(1) == "19690720", "basic test")
-        self.assertTrue(Date.from_str("19690720").GetCalendarString(
+            Date.from_str("19690720").get_calendar_string(1) == "19690720", "basic test")
+        self.assertTrue(Date.from_str("19690720").get_calendar_string(
             0) == "1969-07-20", "extended test")
-        self.assertTrue(Date.from_str("19690720").GetCalendarString(
+        self.assertTrue(Date.from_str("19690720").get_calendar_string(
             1, NoTruncation) == "19690720", "basic, no truncation")
-        self.assertTrue(Date.from_str("19690720").GetCalendarString(
+        self.assertTrue(Date.from_str("19690720").get_calendar_string(
             0, NoTruncation) == "1969-07-20", "extended, no truncation")
-        self.assertTrue(Date.from_str("19690720").GetCalendarString(
+        self.assertTrue(Date.from_str("19690720").get_calendar_string(
             1, Truncation.Century) == "690720", "basic, century truncation")
-        self.assertTrue(Date.from_str("19690720").GetCalendarString(
+        self.assertTrue(Date.from_str("19690720").get_calendar_string(
             0, Truncation.Century) == "69-07-20", "extended, century truncation")
-        self.assertTrue(Date.from_str("19690720").GetCalendarString(
+        self.assertTrue(Date.from_str("19690720").get_calendar_string(
             1, Truncation.Year) == "--0720", "basic, year truncation")
-        self.assertTrue(Date.from_str("19690720").GetCalendarString(
+        self.assertTrue(Date.from_str("19690720").get_calendar_string(
             0, Truncation.Year) == "--07-20", "extended, year truncation")
-        self.assertTrue(Date.from_str("19690720").GetCalendarString(
+        self.assertTrue(Date.from_str("19690720").get_calendar_string(
             1, Truncation.Month) == "---20", "basic, month truncation")
-        self.assertTrue(Date.from_str("19690720").GetCalendarString(
+        self.assertTrue(Date.from_str("19690720").get_calendar_string(
             0, Truncation.Month) == "---20", "extended, month truncation")
-        self.assertTrue(Date.from_str("1969-07").GetCalendarString(1,
+        self.assertTrue(Date.from_str("1969-07").get_calendar_string(1,
                                                                      NoTruncation) == "1969-07", "basic, month precision, no truncation")
-        self.assertTrue(Date.from_str("1969-07").GetCalendarString(0,
+        self.assertTrue(Date.from_str("1969-07").get_calendar_string(0,
                                                                      NoTruncation) == "1969-07", "extended, month precision, no truncation")
-        self.assertTrue(Date.from_str("1969-07").GetCalendarString(
+        self.assertTrue(Date.from_str("1969-07").get_calendar_string(
             1, Truncation.Century) == "-6907", "basic, month precision, century truncation")
-        self.assertTrue(Date.from_str("1969-07").GetCalendarString(0, Truncation.Century)
+        self.assertTrue(Date.from_str("1969-07").get_calendar_string(0, Truncation.Century)
                         == "-69-07", "extended, month precision, century truncation")
-        self.assertTrue(Date.from_str("1969-07").GetCalendarString(1,
+        self.assertTrue(Date.from_str("1969-07").get_calendar_string(1,
                                                                      Truncation.Year) == "--07", "basic, month precision, year truncation")
-        self.assertTrue(Date.from_str("1969-07").GetCalendarString(0,
+        self.assertTrue(Date.from_str("1969-07").get_calendar_string(0,
                                                                      Truncation.Year) == "--07", "extended, month precision, year truncation")
-        self.assertTrue(Date.from_str("1969").GetCalendarString(
+        self.assertTrue(Date.from_str("1969").get_calendar_string(
             1, NoTruncation) == "1969", "basic, year precision, no truncation")
-        self.assertTrue(Date.from_str("1969").GetCalendarString(
+        self.assertTrue(Date.from_str("1969").get_calendar_string(
             0, NoTruncation) == "1969", "extended, year precision, no truncation")
-        self.assertTrue(Date.from_str("1969").GetCalendarString(
+        self.assertTrue(Date.from_str("1969").get_calendar_string(
             1, Truncation.Century) == "-69", "basic, year precision, century truncation")
-        self.assertTrue(Date.from_str("1969").GetCalendarString(
+        self.assertTrue(Date.from_str("1969").get_calendar_string(
             0, Truncation.Century) == "-69", "extended, year precision, century truncation")
-        self.assertTrue(Date.from_str("19").GetCalendarString(
+        self.assertTrue(Date.from_str("19").get_calendar_string(
             1, NoTruncation) == "19", "basic, century precision, no truncation")
-        self.assertTrue(Date.from_str("19").GetCalendarString(
+        self.assertTrue(Date.from_str("19").get_calendar_string(
             0, NoTruncation) == "19", "extended, century precision, no truncation")
 
     def testGetOrdinalStrings(self):
-        """GetOrdinalString tests"""
+        """get_ordinal_string tests"""
         self.assertTrue(
-            Date.from_str("1969-201").GetOrdinalString() == "1969-201", "default test")
+            Date.from_str("1969-201").get_ordinal_string() == "1969-201", "default test")
         self.assertTrue(
-            Date.from_str("1969-201").GetOrdinalString(1) == "1969201", "basic test")
+            Date.from_str("1969-201").get_ordinal_string(1) == "1969201", "basic test")
         self.assertTrue(
-            Date.from_str("1969-201").GetOrdinalString(0) == "1969-201", "extended test")
+            Date.from_str("1969-201").get_ordinal_string(0) == "1969-201", "extended test")
         self.assertTrue(Date.from_str(
-            "1969-201").GetOrdinalString(1, NoTruncation) == "1969201", "basic, no truncation")
+            "1969-201").get_ordinal_string(1, NoTruncation) == "1969201", "basic, no truncation")
         self.assertTrue(Date.from_str(
-            "1969-201").GetOrdinalString(0, NoTruncation) == "1969-201", "extended, no truncation")
-        self.assertTrue(Date.from_str("1969-201").GetOrdinalString(1,
+            "1969-201").get_ordinal_string(0, NoTruncation) == "1969-201", "extended, no truncation")
+        self.assertTrue(Date.from_str("1969-201").get_ordinal_string(1,
                                                                      Truncation.Century) == "69201", "basic, century truncation")
-        self.assertTrue(Date.from_str("1969-201").GetOrdinalString(0,
+        self.assertTrue(Date.from_str("1969-201").get_ordinal_string(0,
                                                                      Truncation.Century) == "69-201", "extended, century truncation")
         self.assertTrue(Date.from_str(
-            "1969-201").GetOrdinalString(1, Truncation.Year) == "-201", "basic, year truncation")
+            "1969-201").get_ordinal_string(1, Truncation.Year) == "-201", "basic, year truncation")
         self.assertTrue(Date.from_str(
-            "1969-201").GetOrdinalString(0, Truncation.Year) == "-201", "extended, year truncation")
-        self.assertTrue(Date.from_str("1969").GetOrdinalString(
+            "1969-201").get_ordinal_string(0, Truncation.Year) == "-201", "extended, year truncation")
+        self.assertTrue(Date.from_str("1969").get_ordinal_string(
             1, NoTruncation) == "1969", "basic, year precision, no truncation")
-        self.assertTrue(Date.from_str("1969").GetOrdinalString(
+        self.assertTrue(Date.from_str("1969").get_ordinal_string(
             0, NoTruncation) == "1969", "extended, year precision, no truncation")
-        self.assertTrue(Date.from_str("1969").GetOrdinalString(
+        self.assertTrue(Date.from_str("1969").get_ordinal_string(
             1, Truncation.Century) == "-69", "basic, year precision, century truncation")
-        self.assertTrue(Date.from_str("1969").GetOrdinalString(
+        self.assertTrue(Date.from_str("1969").get_ordinal_string(
             0, Truncation.Century) == "-69", "extended, year precision, century truncation")
-        self.assertTrue(Date.from_str("19").GetOrdinalString(
+        self.assertTrue(Date.from_str("19").get_ordinal_string(
             1, NoTruncation) == "19", "basic, century precision, no truncation")
-        self.assertTrue(Date.from_str("19").GetOrdinalString(
+        self.assertTrue(Date.from_str("19").get_ordinal_string(
             0, NoTruncation) == "19", "extended, century precision, no truncation")
 
     def testGetWeekStrings(self):
-        """GetWeekString tests"""
+        """get_week_string tests"""
         self.assertTrue(
-            Date.from_str("1969-W29-7").GetWeekString() == "1969-W29-7", "default test")
+            Date.from_str("1969-W29-7").get_week_string() == "1969-W29-7", "default test")
         self.assertTrue(
-            Date.from_str("1969-W29-7").GetWeekString(1) == "1969W297", "basic test")
+            Date.from_str("1969-W29-7").get_week_string(1) == "1969W297", "basic test")
         self.assertTrue(
-            Date.from_str("1969-W29-7").GetWeekString(0) == "1969-W29-7", "extended test")
+            Date.from_str("1969-W29-7").get_week_string(0) == "1969-W29-7", "extended test")
         self.assertTrue(Date.from_str(
-            "1969-W29-7").GetWeekString(1, NoTruncation) == "1969W297", "basic, no truncation")
+            "1969-W29-7").get_week_string(1, NoTruncation) == "1969W297", "basic, no truncation")
         self.assertTrue(Date.from_str(
-            "1969-W29-7").GetWeekString(0, NoTruncation) == "1969-W29-7", "extended, no truncation")
-        self.assertTrue(Date.from_str("1969-W29-7").GetWeekString(1,
+            "1969-W29-7").get_week_string(0, NoTruncation) == "1969-W29-7", "extended, no truncation")
+        self.assertTrue(Date.from_str("1969-W29-7").get_week_string(1,
                                                                     Truncation.Century) == "69W297", "basic, century truncation")
-        self.assertTrue(Date.from_str("1969-W29-7").GetWeekString(0,
+        self.assertTrue(Date.from_str("1969-W29-7").get_week_string(0,
                                                                     Truncation.Century) == "69-W29-7", "extended, century truncation")
-        self.assertTrue(Date.from_str("1969-W29-7").GetWeekString(1,
+        self.assertTrue(Date.from_str("1969-W29-7").get_week_string(1,
                                                                     Truncation.Decade) == "-9W297", "basic, decade truncation")
-        self.assertTrue(Date.from_str("1969-W29-7").GetWeekString(0,
+        self.assertTrue(Date.from_str("1969-W29-7").get_week_string(0,
                                                                     Truncation.Decade) == "-9-W29-7", "extended, decade truncation")
         self.assertTrue(Date.from_str(
-            "1969-W29-7").GetWeekString(1, Truncation.Year) == "-W297", "basic, year truncation")
-        self.assertTrue(Date.from_str("1969-W29-7").GetWeekString(0,
+            "1969-W29-7").get_week_string(1, Truncation.Year) == "-W297", "basic, year truncation")
+        self.assertTrue(Date.from_str("1969-W29-7").get_week_string(0,
                                                                     Truncation.Year) == "-W29-7", "extended, year truncation")
         self.assertTrue(Date.from_str(
-            "1969-W29-7").GetWeekString(1, Truncation.Week) == "-W-7", "basic, week truncation")
+            "1969-W29-7").get_week_string(1, Truncation.Week) == "-W-7", "basic, week truncation")
         self.assertTrue(Date.from_str(
-            "1969-W29-7").GetWeekString(0, Truncation.Week) == "-W-7", "extended, week truncation")
-        self.assertTrue(Date.from_str("1969-W29").GetWeekString(1,
+            "1969-W29-7").get_week_string(0, Truncation.Week) == "-W-7", "extended, week truncation")
+        self.assertTrue(Date.from_str("1969-W29").get_week_string(1,
                                                                   NoTruncation) == "1969W29", "basic, week precision, no truncation")
-        self.assertTrue(Date.from_str("1969-W29").GetWeekString(0, NoTruncation)
+        self.assertTrue(Date.from_str("1969-W29").get_week_string(0, NoTruncation)
                         == "1969-W29", "extended, week precision, no truncation")
-        self.assertTrue(Date.from_str("1969-W29").GetWeekString(
+        self.assertTrue(Date.from_str("1969-W29").get_week_string(
             1, Truncation.Century) == "69W29", "basic, week precision, century truncation")
-        self.assertTrue(Date.from_str("1969-W29").GetWeekString(0, Truncation.Century)
+        self.assertTrue(Date.from_str("1969-W29").get_week_string(0, Truncation.Century)
                         == "69-W29", "extended, week precision, century truncation")
-        self.assertTrue(Date.from_str("1969-W29").GetWeekString(1, Truncation.Decade)
+        self.assertTrue(Date.from_str("1969-W29").get_week_string(1, Truncation.Decade)
                         == "-9W29", "basic, week precision, decade truncation")
-        self.assertTrue(Date.from_str("1969-W29").GetWeekString(0, Truncation.Decade)
+        self.assertTrue(Date.from_str("1969-W29").get_week_string(0, Truncation.Decade)
                         == "-9-W29", "extended, week precision, decade truncation")
-        self.assertTrue(Date.from_str("1969-W29").GetWeekString(1,
+        self.assertTrue(Date.from_str("1969-W29").get_week_string(1,
                                                                   Truncation.Year) == "-W29", "basic, week precision, year truncation")
-        self.assertTrue(Date.from_str("1969-W29").GetWeekString(0, Truncation.Year)
+        self.assertTrue(Date.from_str("1969-W29").get_week_string(0, Truncation.Year)
                         == "-W29", "extended, week precision, year truncation")
-        self.assertTrue(Date.from_str("1969").GetWeekString(
+        self.assertTrue(Date.from_str("1969").get_week_string(
             1, NoTruncation) == "1969", "basic, year precision, no truncation")
-        self.assertTrue(Date.from_str("1969").GetWeekString(
+        self.assertTrue(Date.from_str("1969").get_week_string(
             0, NoTruncation) == "1969", "extended, year precision, no truncation")
-        self.assertTrue(Date.from_str("1969").GetWeekString(
+        self.assertTrue(Date.from_str("1969").get_week_string(
             1, Truncation.Century) == "-69", "basic, year precision, century truncation")
-        self.assertTrue(Date.from_str("1969").GetWeekString(
+        self.assertTrue(Date.from_str("1969").get_week_string(
             0, Truncation.Century) == "-69", "extended, year precision, century truncation")
-        self.assertTrue(Date.from_str("19").GetWeekString(
+        self.assertTrue(Date.from_str("19").get_week_string(
             1, NoTruncation) == "19", "basic, century precision, no truncation")
-        self.assertTrue(Date.from_str("19").GetWeekString(
+        self.assertTrue(Date.from_str("19").get_week_string(
             0, NoTruncation) == "19", "extended, century precision, no truncation")
 
     def testNow(self):
         # This is a weak test
-        date = Date.FromNow()
+        date = Date.from_now()
         self.assertTrue(date > Date.from_str("20050313"), "now test")
 
 
@@ -586,69 +586,69 @@ class TimeTests(unittest.TestCase):
 
     def testConstructor(self):
         t = Time()
-        self.assertTrue(t.GetTime() == (0, 0, 0), "empty constructor")
-        tBase = Time(hour=20, minute=17, second=40)
-        t = Time(tBase)
-        self.assertTrue(t.GetTime() == (20, 17, 40), "copy constructor")
+        self.assertTrue(t.get_time() == (0, 0, 0), "empty constructor")
+        tbase = Time(hour=20, minute=17, second=40)
+        t = Time(tbase)
+        self.assertTrue(t.get_time() == (20, 17, 40), "copy constructor")
         t = Time.from_str("201740")
-        self.assertTrue(t.GetTime() == (20, 17, 40), "string constructor")
+        self.assertTrue(t.get_time() == (20, 17, 40), "string constructor")
         t = Time.from_str(u"20:17:40")
-        self.assertTrue(t.GetTime() == (20, 17, 40), "unicode constructor")
-        t = Time.from_str("-1740", tBase)
-        self.assertTrue(t.GetTime() == (20, 17, 40), "truncated hour")
-        tBase = Time(hour=20, minute=20, second=30)
-        tBase = tBase.WithZone(zDirection=+1, zHour=1)
-        t = Time(tBase)
-        self.assertTrue(t.GetTime() == (
-            20, 20, 30) and t.GetZone() == (+1, 60), "check zone copy on constructor")
+        self.assertTrue(t.get_time() == (20, 17, 40), "unicode constructor")
+        t = Time.from_str("-1740", tbase)
+        self.assertTrue(t.get_time() == (20, 17, 40), "truncated hour")
+        tbase = Time(hour=20, minute=20, second=30)
+        tbase = tbase.with_zone(zdirection=+1, zhour=1)
+        t = Time(tbase)
+        self.assertTrue(t.get_time() == (
+            20, 20, 30) and t.get_zone() == (+1, 60), "check zone copy on constructor")
 
     def testTime(self):
         """Test Get and Set time methods"""
         t = Time()
-        tBase = Time()
+        tbase = Time()
         tBaseOverflow = Time()
-        tBase = Time(hour=20, minute=17, second=40)
+        tbase = Time(hour=20, minute=17, second=40)
         tBaseOverflow = Time(hour=23, minute=20, second=51)
         t = Time(hour=20, minute=17, second=40)
-        self.assertTrue(t.GetTime() == (20, 17, 40), "simple case")
+        self.assertTrue(t.get_time() == (20, 17, 40), "simple case")
         t = Time(hour=20, minute=17, second=40.5)
-        self.assertTrue(t.GetTime() == (20, 17, 40.5), "fractional seconds")
+        self.assertTrue(t.get_time() == (20, 17, 40.5), "fractional seconds")
         try:
             t = Time(minute=20, second=50)
             self.fail("truncation without base")
         except DateTimeError:
             pass
-        t, overflow = tBase.Extend(None, 47, 40)
+        t, overflow = tbase.extend(None, 47, 40)
         self.assertTrue(
-            t.GetTime() == (20, 47, 40) and not overflow, "truncated hour")
-        t, overflow = tBaseOverflow.Extend(None, 20, 50)
+            t.get_time() == (20, 47, 40) and not overflow, "truncated hour")
+        t, overflow = tBaseOverflow.extend(None, 20, 50)
         self.assertTrue(
-            t.GetTime() == (0, 20, 50) and overflow, "truncated hour with overflow")
-        t, overflow = tBase.Extend(None, None, 50)
+            t.get_time() == (0, 20, 50) and overflow, "truncated hour with overflow")
+        t, overflow = tbase.extend(None, None, 50)
         self.assertTrue(
-            t.GetTime() == (20, 17, 50) and not overflow, "truncated minute")
-        t, overflow = tBaseOverflow.Extend(None, None, 50)
+            t.get_time() == (20, 17, 50) and not overflow, "truncated minute")
+        t, overflow = tBaseOverflow.extend(None, None, 50)
         self.assertTrue(
-            t.GetTime() == (23, 21, 50) and not overflow, "truncated minute with overflow")
+            t.get_time() == (23, 21, 50) and not overflow, "truncated minute with overflow")
         t = Time(hour=20, minute=17)
-        self.assertTrue(t.GetTime() == (20, 17, None), "minute precision")
+        self.assertTrue(t.get_time() == (20, 17, None), "minute precision")
         t = Time(hour=20, minute=17.67)
         self.assertTrue(
-            t.GetTime() == (20, 17.67, None), "fractional minute precision")
+            t.get_time() == (20, 17.67, None), "fractional minute precision")
         t = Time(hour=20)
-        self.assertTrue(t.GetTime() == (20, None, None), "hour precision")
+        self.assertTrue(t.get_time() == (20, None, None), "hour precision")
         t = Time(hour=20.3)
         self.assertTrue(
-            t.GetTime() == (20.3, None, None), "fractional hour precision")
-        t, overflow = tBase.Extend(None, 20, None)
-        self.assertTrue(t.GetTime() == (20, 20, None)
+            t.get_time() == (20.3, None, None), "fractional hour precision")
+        t, overflow = tbase.extend(None, 20, None)
+        self.assertTrue(t.get_time() == (20, 20, None)
                         and not overflow, "minute precision, truncated hour")
-        t, overflow = tBaseOverflow.Extend(None, 19, None)
-        self.assertTrue(t.GetTime() == (
+        t, overflow = tBaseOverflow.extend(None, 19, None)
+        self.assertTrue(t.get_time() == (
             0, 19, None) and overflow, "minute precision, truncated hour with overflow")
         t = Time(hour=24, minute=0, second=0.0)
         self.assertTrue(
-            t.GetTime() == (24, 0, 0), "midnight alternate representation")
+            t.get_time() == (24, 0, 0), "midnight alternate representation")
         try:
             t = Time(hour=25, minute=20, second=50)
             self.fail("bad hour")
@@ -678,41 +678,41 @@ class TimeTests(unittest.TestCase):
     def testTimeZone(self):
         """Test Get and Set TimeZone and correct copy behaviour"""
         t = Time()
-        self.assertTrue(t.GetZone() == (None, None), "unknown zone")
-        t = t.WithZone(zDirection=0)
-        self.assertTrue(t.GetZone() == (0, 0), "UTC")
-        t = t.WithZone(zDirection=+1, zHour=0, zMinute=0)
-        self.assertTrue(t.GetZone() == (+1, 0), "UTC, positive offset form")
-        t = t.WithZone(zDirection=-1, zHour=0, zMinute=0)
-        self.assertTrue(t.GetZone() == (-1, 0), "UTC, negative offset form")
+        self.assertTrue(t.get_zone() == (None, None), "unknown zone")
+        t = t.with_zone(zdirection=0)
+        self.assertTrue(t.get_zone() == (0, 0), "UTC")
+        t = t.with_zone(zdirection=+1, zhour=0, zminute=0)
+        self.assertTrue(t.get_zone() == (+1, 0), "UTC, positive offset form")
+        t = t.with_zone(zdirection=-1, zhour=0, zminute=0)
+        self.assertTrue(t.get_zone() == (-1, 0), "UTC, negative offset form")
         t = Time(hour=15, minute=27, second=46)
-        t = t.WithZone(zDirection=+1, zHour=1, zMinute=0)
-        self.assertTrue(t.GetZone() == (+1, 60), "plus one hour")
-        t = t.WithZone(zDirection=-1, zHour=5, zMinute=0)
-        self.assertTrue(t.GetZone() == (-1, 300), "minus five hours")
-        t = t.WithZone(zDirection=+1, zHour=1)
+        t = t.with_zone(zdirection=+1, zhour=1, zminute=0)
+        self.assertTrue(t.get_zone() == (+1, 60), "plus one hour")
+        t = t.with_zone(zdirection=-1, zhour=5, zminute=0)
+        self.assertTrue(t.get_zone() == (-1, 300), "minus five hours")
+        t = t.with_zone(zdirection=+1, zhour=1)
         self.assertTrue(
-            t.GetZone() == (+1, 60), "plus one hour, hour precision")
-        t = t.WithZone(zDirection=-1, zHour=5)
+            t.get_zone() == (+1, 60), "plus one hour, hour precision")
+        t = t.with_zone(zdirection=-1, zhour=5)
         self.assertTrue(
-            t.GetZone() == (-1, 300), "minus five hours, hour precision")
-        tBase = Time(hour=20, minute=20, second=30)
-        tBase = t.WithZone(zDirection=+1, zHour=1)
-        t, overflow = tBase.Extend(minute=20, second=30)
+            t.get_zone() == (-1, 300), "minus five hours, hour precision")
+        tbase = Time(hour=20, minute=20, second=30)
+        tbase = t.with_zone(zdirection=+1, zhour=1)
+        t, overflow = tbase.extend(minute=20, second=30)
         self.assertTrue(
-            t.GetZone() == (+1, 60), "zone copy on SetTime with truncation")
+            t.get_zone() == (+1, 60), "zone copy on set_time with truncation")
         try:
-            t = t.WithZone(zDirection=-2, zHour=3)
+            t = t.with_zone(zdirection=-2, zhour=3)
             self.fail("bad direction")
         except DateTimeError:
             pass
         try:
-            t = t.WithZone(zDirection=+1)
+            t = t.with_zone(zdirection=+1)
             self.fail("bad offset")
         except DateTimeError:
             pass
         try:
-            t = t.WithZone(zDirection=-1, zHour=24, zMinute=0)
+            t = t.with_zone(zdirection=-1, zhour=24, zminute=0)
             self.fail("large offset")
         except DateTimeError:
             pass
@@ -730,15 +730,15 @@ class TimeTests(unittest.TestCase):
 		Julian day [1,366]
 		daylight savings (0,1, or -1)
 		"""
-        t = Time.FromStructTime([1969, 7, 20, 20, 17, 40, None, None, None])
-        timeTuple = [None] * 9
-        t.UpdateStructTime(timeTuple)
+        t = Time.from_struct_time([1969, 7, 20, 20, 17, 40, None, None, None])
+        time_tuple = [None] * 9
+        t.update_struct_time(time_tuple)
         self.assertTrue(
-            timeTuple == [None, None, None, 20, 17, 40, None, None, -1], "simple case")
-        self.assertTrue(t.GetTime() == (20, 17, 40), "time cross-check")
+            time_tuple == [None, None, None, 20, 17, 40, None, None, -1], "simple case")
+        self.assertTrue(t.get_time() == (20, 17, 40), "time cross-check")
         t = Time(hour=20, minute=20)
         try:
-            t.UpdateStructTime(timeTuple)
+            t.update_struct_time(time_tuple)
             self.fail("minute precision")
         except DateTimeError:
             pass
@@ -746,158 +746,158 @@ class TimeTests(unittest.TestCase):
     def testSeconds(self):
         """Test Get and Set seconds"""
         self.assertTrue(
-            Time.from_str("000000").GetTotalSeconds() == 0, "zero test")
+            Time.from_str("000000").get_total_seconds() == 0, "zero test")
         self.assertTrue(
-            Time.from_str("201740").GetTotalSeconds() == 73060, "sample test")
+            Time.from_str("201740").get_total_seconds() == 73060, "sample test")
         self.assertTrue(
-            Time.from_str("240000").GetTotalSeconds() == 86400, "full day")
+            Time.from_str("240000").get_total_seconds() == 86400, "full day")
         # leap second is equivalent to the second before, not the second after!
         self.assertTrue(Time.from_str(
-            "235960").GetTotalSeconds() == 86399, "leap second before midnight")
+            "235960").get_total_seconds() == 86399, "leap second before midnight")
         t = Time()
-        t, overflow = Time().Offset(seconds=0)
-        self.assertTrue(t.GetTime() == (0, 0, 0) and not overflow, "set zero")
-        t, overflow = Time().Offset(seconds=73060)
+        t, overflow = Time().offset(seconds=0)
+        self.assertTrue(t.get_time() == (0, 0, 0) and not overflow, "set zero")
+        t, overflow = Time().offset(seconds=73060)
         self.assertTrue(
-            t.GetTime() == (20, 17, 40) and not overflow, "set sample time")
-        t, overflow = Time().Offset(seconds=73060.5)
+            t.get_time() == (20, 17, 40) and not overflow, "set sample time")
+        t, overflow = Time().offset(seconds=73060.5)
         self.assertTrue(
-            t.GetTime() == (20, 17, 40.5) and not overflow, "set sample time with fraction")
-        t, overflow = Time().Offset(seconds=86400)
+            t.get_time() == (20, 17, 40.5) and not overflow, "set sample time with fraction")
+        t, overflow = Time().offset(seconds=86400)
         self.assertTrue(
-            t.GetTime() == (0, 0, 0) and overflow == 1, "set midnight end of day")
-        t, overflow = Time().Offset(seconds=677860)
+            t.get_time() == (0, 0, 0) and overflow == 1, "set midnight end of day")
+        t, overflow = Time().offset(seconds=677860)
         self.assertTrue(
-            t.GetTime() == (20, 17, 40) and overflow == 7, "set sample time next week")
-        t, overflow = Time().Offset(seconds=-531740)
+            t.get_time() == (20, 17, 40) and overflow == 7, "set sample time next week")
+        t, overflow = Time().offset(seconds=-531740)
         self.assertTrue(
-            t.GetTime() == (20, 17, 40) and overflow == -7, "set sample time last week")
+            t.get_time() == (20, 17, 40) and overflow == -7, "set sample time last week")
 
     def testGetStrings(self):
-        """GetString tests"""
+        """get_string tests"""
         self.assertTrue(
-            Time.from_str("201740").GetString() == "20:17:40", "default test")
+            Time.from_str("201740").get_string() == "20:17:40", "default test")
         self.assertTrue(
-            Time.from_str("201740").GetString(1) == "201740", "basic test")
+            Time.from_str("201740").get_string(1) == "201740", "basic test")
         self.assertTrue(
-            Time.from_str("201740").GetString(0) == "20:17:40", "extended test")
-        self.assertTrue(Time.from_str("201740").GetString(
+            Time.from_str("201740").get_string(0) == "20:17:40", "extended test")
+        self.assertTrue(Time.from_str("201740").get_string(
             1, NoTruncation) == "201740", "basic, no truncation")
-        self.assertTrue(Time.from_str("201740").GetString(
+        self.assertTrue(Time.from_str("201740").get_string(
             0, NoTruncation) == "20:17:40", "extended, no truncation")
-        self.assertTrue(Time.from_str("201740,5").GetString(
+        self.assertTrue(Time.from_str("201740,5").get_string(
             1, NoTruncation) == "201740", "basic, fractional seconds, default decimals")
-        self.assertTrue(Time.from_str("201740,5").GetString(
+        self.assertTrue(Time.from_str("201740,5").get_string(
             1, NoTruncation, 1) == "201740,5", "basic, fractional seconds")
-        self.assertTrue(Time.from_str("201740,5").GetString(
+        self.assertTrue(Time.from_str("201740,5").get_string(
             1, NoTruncation, 1, dp=".") == "201740.5", "basic, fractional seconds, alt point")
-        self.assertTrue(Time.from_str("201740,567").GetString(
+        self.assertTrue(Time.from_str("201740,567").get_string(
             0, NoTruncation, 2) == "20:17:40,56", "extended, fractional seconds with decimals")
-        self.assertTrue(Time.from_str("201740,567").GetString(
+        self.assertTrue(Time.from_str("201740,567").get_string(
             0, NoTruncation, 2, dp=".") == "20:17:40.56", "extended, fractional seconds with decimals and alt point")
-        self.assertTrue(Time.from_str("201740").GetString(
+        self.assertTrue(Time.from_str("201740").get_string(
             1, Truncation.Hour) == "-1740", "basic, hour truncation")
-        self.assertTrue(Time.from_str("201740").GetString(
+        self.assertTrue(Time.from_str("201740").get_string(
             0, Truncation.Hour) == "-17:40", "extended, hour truncation")
-        self.assertTrue(Time.from_str("201740").GetString(
+        self.assertTrue(Time.from_str("201740").get_string(
             1, Truncation.Minute) == "--40", "basic, minute truncation")
-        self.assertTrue(Time.from_str("201740").GetString(
+        self.assertTrue(Time.from_str("201740").get_string(
             0, Truncation.Minute) == "--40", "extended, minute truncation")
-        self.assertTrue(Time.from_str("2017").GetString(
+        self.assertTrue(Time.from_str("2017").get_string(
             1, NoTruncation) == "2017", "basic, minute precision, no truncation")
-        self.assertTrue(Time.from_str("2017").GetString(
+        self.assertTrue(Time.from_str("2017").get_string(
             0, NoTruncation) == "20:17", "extended, minute precision, no truncation")
-        self.assertTrue(Time.from_str("2017,8").GetString(
+        self.assertTrue(Time.from_str("2017,8").get_string(
             1, NoTruncation, 3) == "2017,800", "basic, fractional minute precision, no truncation")
-        self.assertTrue(Time.from_str("2017,895").GetString(
+        self.assertTrue(Time.from_str("2017,895").get_string(
             0, NoTruncation, 3) == "20:17,895", "extended, fractinoal minute precision, no truncation")
-        self.assertTrue(Time.from_str("20").GetString(
+        self.assertTrue(Time.from_str("20").get_string(
             1, NoTruncation) == "20", "basic, hour precision, no truncation")
-        self.assertTrue(Time.from_str("20").GetString(
+        self.assertTrue(Time.from_str("20").get_string(
             0, NoTruncation) == "20", "extended, hour precision, no truncation")
-        self.assertTrue(Time.from_str("20,3").GetString(
+        self.assertTrue(Time.from_str("20,3").get_string(
             1, NoTruncation, 3) == "20,300", "basic, fractional hour precision")
-        self.assertTrue(Time.from_str("20,345").GetString(
+        self.assertTrue(Time.from_str("20,345").get_string(
             0, NoTruncation, 3) == "20,345", "extended, fractinoal hour precision")
-        self.assertTrue(Time.from_str("2017").GetString(
+        self.assertTrue(Time.from_str("2017").get_string(
             1, Truncation.Hour) == "-17", "basic, minute precision, hour truncation")
-        self.assertTrue(Time.from_str("2017").GetString(
+        self.assertTrue(Time.from_str("2017").get_string(
             0, Truncation.Hour) == "-17", "extended, minute precision, hour truncation")
-        self.assertTrue(Time.from_str("2017,667").GetString(
+        self.assertTrue(Time.from_str("2017,667").get_string(
             1, Truncation.Hour, 3) == "-17,667", "basic, fractional minute precision, hour truncation")
         self.assertTrue(Time.from_str(
-            "211740+0100").GetString() == "21:17:40+01:00", "default test with zone offset")
+            "211740+0100").get_string() == "21:17:40+01:00", "default test with zone offset")
         self.assertTrue(Time.from_str(
-            "211740+0100").GetString(1) == "211740+0100", "basic test with zone offset")
-        self.assertTrue(Time.from_str("211740+0100").GetString(0)
+            "211740+0100").get_string(1) == "211740+0100", "basic test with zone offset")
+        self.assertTrue(Time.from_str("211740+0100").get_string(0)
                         == "21:17:40+01:00", "extended test with zone offset")
         self.assertTrue(
-            Time.from_str("201740Z").GetString(1) == "201740Z", "basic test with Z")
-        self.assertTrue(Time.from_str("201740Z").GetString(
+            Time.from_str("201740Z").get_string(1) == "201740Z", "basic test with Z")
+        self.assertTrue(Time.from_str("201740Z").get_string(
             0) == "20:17:40Z", "extended test with Z")
-        self.assertTrue(Time.from_str("151740-0500").GetString(0, NoTruncation, 0, Precision.Hour) == "15:17:40-05",
+        self.assertTrue(Time.from_str("151740-0500").get_string(0, NoTruncation, 0, Precision.Hour) == "15:17:40-05",
                         "extended test with zone hour precision")
 
     def testSetFromString(self):
-        """Test the basic SetFromString method (exercised more fully by parser tests)"""
+        """Test the basic set_from_string method (exercised more fully by parser tests)"""
         t = Time.from_str("201740")
-        self.assertTrue(t.GetTime() == (20, 17, 40))
+        self.assertTrue(t.get_time() == (20, 17, 40))
 
     def testGetPrecision(self):
         """Test the precision constants"""
         t = Time(hour=20, minute=17, second=40)
         self.assertTrue(
-            t.GetPrecision() == Precision.Complete, "complete precision")
+            t.get_precision() == Precision.Complete, "complete precision")
         t = Time(hour=20, minute=20)
         self.assertTrue(
-            t.GetPrecision() == Precision.Minute, "minute precision")
+            t.get_precision() == Precision.Minute, "minute precision")
         t = Time(hour=20)
-        self.assertTrue(t.GetPrecision() == Precision.Hour, "hour precision")
+        self.assertTrue(t.get_precision() == Precision.Hour, "hour precision")
 
     def testSetPrecision(self):
         """Test the setting of the precision"""
         t = Time(hour=20, minute=17, second=40)
-        t = t.WithPrecision(Precision.Minute)
-        h, m, s = t.GetTime()
+        t = t.with_precision(Precision.Minute)
+        h, m, s = t.get_time()
         self.assertTrue(
             (h, "%f" % m, s) == (20, "17.666667", None), "reduce to minute precision")
-        t = t.WithPrecision(Precision.Hour)
-        h, m, s = t.GetTime()
+        t = t.with_precision(Precision.Hour)
+        h, m, s = t.get_time()
         self.assertTrue(
             ("%f" % h, m, s) == ("20.294444", None, None), "reduce to hour precision")
-        t = t.WithPrecision(Precision.Minute)
-        h, m, s = t.GetTime()
+        t = t.with_precision(Precision.Minute)
+        h, m, s = t.get_time()
         self.assertTrue(
             (h, "%f" % m, s) == (20, "17.666667", None), "extend to minute precision")
-        t = t.WithPrecision(Precision.Complete)
-        h, m, s = t.GetTime()
+        t = t.with_precision(Precision.Complete)
+        h, m, s = t.get_time()
         self.assertTrue(
             (h, m, "%f" % s) == (20, 17, "40.000000"), "extend to complete precision")
         t = Time(hour=20, minute=17, second=40)
-        t = t.WithPrecision(Precision.Minute, 1)
+        t = t.with_precision(Precision.Minute, 1)
         self.assertTrue(
-            t.GetTime() == (20, 17, None), "reduce to integer minute precision")
-        t = t.WithPrecision(Precision.Hour, 1)
+            t.get_time() == (20, 17, None), "reduce to integer minute precision")
+        t = t.with_precision(Precision.Hour, 1)
         self.assertTrue(
-            t.GetTime() == (20, None, None), "reduce to integer hour precision")
-        t = t.WithPrecision(Precision.Minute, 1)
+            t.get_time() == (20, None, None), "reduce to integer hour precision")
+        t = t.with_precision(Precision.Minute, 1)
         self.assertTrue(
-            t.GetTime() == (20, 0, None), "extend to integer minute precision")
-        t = t.WithPrecision(Precision.Complete, 1)
+            t.get_time() == (20, 0, None), "extend to integer minute precision")
+        t = t.with_precision(Precision.Complete, 1)
         self.assertTrue(
-            t.GetTime() == (20, 0, 0), "extend to integer complete precision")
+            t.get_time() == (20, 0, 0), "extend to integer complete precision")
         t = Time(hour=20, minute=17, second=40.5)
-        t = t.WithPrecision(Precision.Complete, 1)
+        t = t.with_precision(Precision.Complete, 1)
         self.assertTrue(
-            t.GetTime() == (20, 17, 40), "integer complete precision")
+            t.get_time() == (20, 17, 40), "integer complete precision")
         t = Time(hour=20, minute=17.666668)
-        t = t.WithPrecision(Precision.Minute, 1)
+        t = t.with_precision(Precision.Minute, 1)
         self.assertTrue(
-            t.GetTime() == (20, 17, None), "integer minute precision")
+            t.get_time() == (20, 17, None), "integer minute precision")
         t = Time(hour=20.294444)
-        t = t.WithPrecision(Precision.Hour, 1)
+        t = t.with_precision(Precision.Hour, 1)
         self.assertTrue(
-            t.GetTime() == (20, None, None), "integer hour precision")
+            t.get_time() == (20, None, None), "integer hour precision")
 
     def testComparisons(self):
         """Test the comparison methods"""
@@ -941,7 +941,7 @@ class TimeTests(unittest.TestCase):
 
     def testNow(self):
         # A very weak test, how do we know the real time?
-        t = Time.FromNow()
+        t = Time.from_now()
 
 
 class TimePointTests(unittest.TestCase):
@@ -954,63 +954,63 @@ class TimePointTests(unittest.TestCase):
 
     def testConstructor(self):
         t = TimePoint()
-        self.assertTrue(t.GetCalendarTimePoint() == (
-            0, 1, 1, 1, 0, 0, 0) and t.time.GetZone() == (None, None), "empty constructor")
+        self.assertTrue(t.get_calendar_time_point() == (
+            0, 1, 1, 1, 0, 0, 0) and t.time.get_zone() == (None, None), "empty constructor")
         base = TimePoint()
         base.date = Date(century=19, year=69, month=7, day=20)
         base.time = Time(hour=20, minute=17, second=40)
-        base.time = base.time.WithZone(zDirection=0)
+        base.time = base.time.with_zone(zdirection=0)
         t = TimePoint(base)
-        self.assertTrue(t.time.GetTime() == (20, 17, 40) and t.time.GetZone() == (0, 0) and
-                        t.date.GetCalendarDay() == (19, 69, 7, 20), "copy constructor")
+        self.assertTrue(t.time.get_time() == (20, 17, 40) and t.time.get_zone() == (0, 0) and
+                        t.date.get_calendar_day() == (19, 69, 7, 20), "copy constructor")
         t = TimePoint.from_str("19690720T201740Z")
-        self.assertTrue(t.time.GetTime() == (20, 17, 40) and t.time.GetZone() == (0, 0) and
-                        t.date.GetCalendarDay() == (19, 69, 7, 20), "string constructor")
+        self.assertTrue(t.time.get_time() == (20, 17, 40) and t.time.get_zone() == (0, 0) and
+                        t.date.get_calendar_day() == (19, 69, 7, 20), "string constructor")
         t = TimePoint.from_str(u"19690720T201740Z")
-        self.assertTrue(t.time.GetTime() == (20, 17, 40) and t.time.GetZone() == (0, 0) and
-                        t.date.GetCalendarDay() == (19, 69, 7, 20), "unicode constructor")
+        self.assertTrue(t.time.get_time() == (20, 17, 40) and t.time.get_zone() == (0, 0) and
+                        t.date.get_calendar_day() == (19, 69, 7, 20), "unicode constructor")
         base = Date(t.date)
         t = TimePoint.from_str("--0720T201740Z", base)
-        self.assertTrue(t.time.GetTime() == (20, 17, 40) and t.time.GetZone() == (0, 0) and
-                        t.date.GetCalendarDay() == (19, 69, 7, 20), "truncated year")
+        self.assertTrue(t.time.get_time() == (20, 17, 40) and t.time.get_zone() == (0, 0) and
+                        t.date.get_calendar_day() == (19, 69, 7, 20), "truncated year")
 
     def testGetStrings(self):
-        """GetString tests"""
+        """get_string tests"""
         self.assertTrue(TimePoint.from_str(
-            "19690720T201740Z").GetCalendarString() == "1969-07-20T20:17:40Z", "default test")
+            "19690720T201740Z").get_calendar_string() == "1969-07-20T20:17:40Z", "default test")
         self.assertTrue(TimePoint.from_str(
-            "19690720T211740+0100").GetCalendarString(1) == "19690720T211740+0100", "basic test")
+            "19690720T211740+0100").get_calendar_string(1) == "19690720T211740+0100", "basic test")
         self.assertTrue(TimePoint.from_str(
-            "19690720T211740+0100").GetCalendarString(0) == "1969-07-20T21:17:40+01:00", "extended test")
-        self.assertTrue(TimePoint.from_str("19690720T201740").GetCalendarString(
+            "19690720T211740+0100").get_calendar_string(0) == "1969-07-20T21:17:40+01:00", "extended test")
+        self.assertTrue(TimePoint.from_str("19690720T201740").get_calendar_string(
             1, NoTruncation) == "19690720T201740", "basic, no truncation")
-        self.assertTrue(TimePoint.from_str("19690720T201740").GetCalendarString(
+        self.assertTrue(TimePoint.from_str("19690720T201740").get_calendar_string(
             0, NoTruncation) == "1969-07-20T20:17:40", "extended, no truncation")
-        self.assertTrue(TimePoint.from_str("19690720T201740").GetCalendarString(
+        self.assertTrue(TimePoint.from_str("19690720T201740").get_calendar_string(
             1, Truncation.Month) == "---20T201740", "basic, month truncation")
-        self.assertTrue(TimePoint.from_str("19690720T201740").GetCalendarString(
+        self.assertTrue(TimePoint.from_str("19690720T201740").get_calendar_string(
             0, Truncation.Month) == "---20T20:17:40", "extended, month truncation")
-        self.assertTrue(TimePoint.from_str("19690720T211740+0100").GetCalendarString(0, NoTruncation, 3, Precision.Hour) ==
+        self.assertTrue(TimePoint.from_str("19690720T211740+0100").get_calendar_string(0, NoTruncation, 3, Precision.Hour) ==
                         "1969-07-20T21:17:40,000+01", "fractional seconds and time zone precision control")
-        self.assertTrue(TimePoint.from_str("19690720T201740Z").GetOrdinalString(
+        self.assertTrue(TimePoint.from_str("19690720T201740Z").get_ordinal_string(
         ) == "1969-201T20:17:40Z", "default ordinal test")
-        self.assertTrue(TimePoint.from_str("19690720T201740Z").GetOrdinalString(
+        self.assertTrue(TimePoint.from_str("19690720T201740Z").get_ordinal_string(
             1) == "1969201T201740Z", "basic ordinal test")
-        self.assertTrue(TimePoint.from_str("19690720T201740Z").GetOrdinalString(
+        self.assertTrue(TimePoint.from_str("19690720T201740Z").get_ordinal_string(
             0) == "1969-201T20:17:40Z", "extended ordinal test")
-        self.assertTrue(TimePoint.from_str("19690720T201740Z").GetOrdinalString(
+        self.assertTrue(TimePoint.from_str("19690720T201740Z").get_ordinal_string(
             1, NoTruncation) == "1969201T201740Z", "basic ordinal, no truncation")
-        self.assertTrue(TimePoint.from_str("19690720T201740Z").GetOrdinalString(
+        self.assertTrue(TimePoint.from_str("19690720T201740Z").get_ordinal_string(
             0, NoTruncation) == "1969-201T20:17:40Z", "extended ordinal, no truncation")
-        self.assertTrue(TimePoint.from_str("19690720T201740Z").GetWeekString(
+        self.assertTrue(TimePoint.from_str("19690720T201740Z").get_week_string(
         ) == "1969-W29-7T20:17:40Z", "default week test")
-        self.assertTrue(TimePoint.from_str("19690720T201740Z").GetWeekString(
+        self.assertTrue(TimePoint.from_str("19690720T201740Z").get_week_string(
             1) == "1969W297T201740Z", "basic week test")
-        self.assertTrue(TimePoint.from_str("19690720T201740Z").GetWeekString(
+        self.assertTrue(TimePoint.from_str("19690720T201740Z").get_week_string(
             0) == "1969-W29-7T20:17:40Z", "extended week test")
-        self.assertTrue(TimePoint.from_str("19690720T201740Z").GetWeekString(
+        self.assertTrue(TimePoint.from_str("19690720T201740Z").get_week_string(
             1, NoTruncation) == "1969W297T201740Z", "basic week, no truncation")
-        self.assertTrue(TimePoint.from_str("19690720T201740Z").GetWeekString(
+        self.assertTrue(TimePoint.from_str("19690720T201740Z").get_week_string(
             0, NoTruncation) == "1969-W29-7T20:17:40Z", "extended week, no truncation")
 
     def testComparisons(self):
@@ -1069,61 +1069,61 @@ class DurationTests(unittest.TestCase):
         """Duration constructor tests."""
         d = Duration()
         self.assertTrue(
-            d.GetCalendarDuration() == (0, 0, 0, 0, 0, 0), "empty constructor")
+            d.get_calender_duration() == (0, 0, 0, 0, 0, 0), "empty constructor")
         dCopy = Duration()
-        dCopy.SetCalendarDuration(36, 11, 13, 10, 5, 0)
+        dCopy.set_calender_duration(36, 11, 13, 10, 5, 0)
         d = Duration(dCopy)
         self.assertTrue(
-            d.GetCalendarDuration() == (36, 11, 13, 10, 5, 0), "copy constructor")
+            d.get_calender_duration() == (36, 11, 13, 10, 5, 0), "copy constructor")
         d = Duration("P36Y11M13DT10H5M0S")
         self.assertTrue(
-            d.GetCalendarDuration() == (36, 11, 13, 10, 5, 0), "string constructor")
+            d.get_calender_duration() == (36, 11, 13, 10, 5, 0), "string constructor")
         d = Duration(u"P36Y11M13DT10H5M0S")
-        self.assertTrue(d.GetCalendarDuration() == (
+        self.assertTrue(d.get_calender_duration() == (
             36, 11, 13, 10, 5, 0), "unicode constructor")
 
     def testCalendarDuration(self):
         """Test Get and Set Calendar Durations"""
         d = Duration()
-        d.SetCalendarDuration(36, 11, 13, 10, 5, 0)
+        d.set_calender_duration(36, 11, 13, 10, 5, 0)
         self.assertTrue(
-            d.GetCalendarDuration() == (36, 11, 13, 10, 5, 0), "simple case")
-        d.SetCalendarDuration(36, 11, 13, 10, 5, 0.5)
-        self.assertTrue(d.GetCalendarDuration() == (
+            d.get_calender_duration() == (36, 11, 13, 10, 5, 0), "simple case")
+        d.set_calender_duration(36, 11, 13, 10, 5, 0.5)
+        self.assertTrue(d.get_calender_duration() == (
             36, 11, 13, 10, 5, 0.5), "fractional seconds")
-        d.SetCalendarDuration(36, 11, 13, 10, 5, None)
-        self.assertTrue(d.GetCalendarDuration() == (
+        d.set_calender_duration(36, 11, 13, 10, 5, None)
+        self.assertTrue(d.get_calender_duration() == (
             36, 11, 13, 10, 5, None), "minute precision")
-        d.SetCalendarDuration(36, 11, 13, 10, 5.5, None)
-        self.assertTrue(d.GetCalendarDuration() == (
+        d.set_calender_duration(36, 11, 13, 10, 5.5, None)
+        self.assertTrue(d.get_calender_duration() == (
             36, 11, 13, 10, 5.5, None), "fractional minutes")
-        d.SetCalendarDuration(36, 11, 13, 10, None, None)
-        self.assertTrue(d.GetCalendarDuration() == (
+        d.set_calender_duration(36, 11, 13, 10, None, None)
+        self.assertTrue(d.get_calender_duration() == (
             36, 11, 13, 10, None, None), "hour precision")
-        d.SetCalendarDuration(36, 11, 13, 10.5, None, None)
-        self.assertTrue(d.GetCalendarDuration() == (
+        d.set_calender_duration(36, 11, 13, 10.5, None, None)
+        self.assertTrue(d.get_calender_duration() == (
             36, 11, 13, 10.5, None, None), "fractional hours")
-        d.SetCalendarDuration(36, 11, 13, None, None, None)
-        self.assertTrue(d.GetCalendarDuration() == (
+        d.set_calender_duration(36, 11, 13, None, None, None)
+        self.assertTrue(d.get_calender_duration() == (
             36, 11, 13, None, None, None), "day precision")
-        d.SetCalendarDuration(36, 11, 13.5, None, None, None)
-        self.assertTrue(d.GetCalendarDuration() == (
+        d.set_calender_duration(36, 11, 13.5, None, None, None)
+        self.assertTrue(d.get_calender_duration() == (
             36, 11, 13.5, None, None, None), "fractional days")
-        d.SetCalendarDuration(36, 11, None, None, None, None)
-        self.assertTrue(d.GetCalendarDuration() == (
+        d.set_calender_duration(36, 11, None, None, None, None)
+        self.assertTrue(d.get_calender_duration() == (
             36, 11, None, None, None, None), "month precision")
-        d.SetCalendarDuration(36, 11.5, None, None, None, None)
-        self.assertTrue(d.GetCalendarDuration() == (
+        d.set_calender_duration(36, 11.5, None, None, None, None)
+        self.assertTrue(d.get_calender_duration() == (
             36, 11.5, None, None, None, None), "fractional months")
-        d.SetCalendarDuration(36, None, None, None, None, None)
-        self.assertTrue(d.GetCalendarDuration() == (
+        d.set_calender_duration(36, None, None, None, None, None)
+        self.assertTrue(d.get_calender_duration() == (
             36, None, None, None, None, None), "year precision")
-        d.SetCalendarDuration(36.5, None, None, None, None, None)
-        self.assertTrue(d.GetCalendarDuration() == (
+        d.set_calender_duration(36.5, None, None, None, None, None)
+        self.assertTrue(d.get_calender_duration() == (
             36.5, None, None, None, None, None), "fractional years")
-        d.SetWeekDuration(45)
+        d.set_week_duration(45)
         try:
-            d.GetCalendarDuration()
+            d.get_calender_duration()
             self.fail("week mode")
         except DateTimeError:
             pass
@@ -1131,88 +1131,88 @@ class DurationTests(unittest.TestCase):
     def testWeekDuration(self):
         """Test Get and Set Week Durations"""
         d = Duration()
-        d.SetWeekDuration(45)
-        self.assertTrue(d.GetWeekDuration() == 45, "simple case")
-        d.SetWeekDuration(45.5)
-        self.assertTrue(d.GetWeekDuration() == 45.5, "fractional case")
-        d.SetCalendarDuration(36, 11, 13, 10, 5, 0)
+        d.set_week_duration(45)
+        self.assertTrue(d.get_week_duration() == 45, "simple case")
+        d.set_week_duration(45.5)
+        self.assertTrue(d.get_week_duration() == 45.5, "fractional case")
+        d.set_calender_duration(36, 11, 13, 10, 5, 0)
         try:
-            d.GetWeekDuration()
+            d.get_week_duration()
             self.fail("calendar mode")
         except DateTimeError:
             pass
 
     def testGetStrings(self):
-        """Test the GetString method."""
+        """Test the get_string method."""
         self.assertTrue(Duration(
-            "P36Y11M13DT10H5M0S").GetString() == "P36Y11M13DT10H5M0S", "complete, default")
-        self.assertTrue(Duration("P36Y11M13DT10H5M0S").GetString(
+            "P36Y11M13DT10H5M0S").get_string() == "P36Y11M13DT10H5M0S", "complete, default")
+        self.assertTrue(Duration("P36Y11M13DT10H5M0S").get_string(
             1) == "P36Y11M13DT10H5M0S", "complete, no truncation")
         self.assertTrue(
-            Duration().GetString(0) == "P0Y0M0DT0H0M0S", "complete zero")
+            Duration().get_string(0) == "P0Y0M0DT0H0M0S", "complete zero")
         self.assertTrue(
-            Duration().GetString(1) == "PT0S", "complete zero with truncation")
-        self.assertTrue(Duration("P0Y0M0DT0H").GetString(
+            Duration().get_string(1) == "PT0S", "complete zero with truncation")
+        self.assertTrue(Duration("P0Y0M0DT0H").get_string(
             1) == "PT0H", "hour precision zero with truncation")
-        self.assertTrue(Duration("P0Y0M0DT0H").GetString(
+        self.assertTrue(Duration("P0Y0M0DT0H").get_string(
             0) == "P0Y0M0DT0H", "hour precision zero without truncation")
-        self.assertTrue(Duration("P0Y11M13DT10H5M0S").GetString(
+        self.assertTrue(Duration("P0Y11M13DT10H5M0S").get_string(
             1) == "P11M13DT10H5M0S", "year truncation")
-        self.assertTrue(Duration("P0Y0M13DT10H5M0S").GetString(
+        self.assertTrue(Duration("P0Y0M13DT10H5M0S").get_string(
             1) == "P13DT10H5M0S", "month truncation")
         self.assertTrue(
-            Duration("P0Y0M0DT10H5M0S").GetString(1) == "PT10H5M0S", "day truncation")
+            Duration("P0Y0M0DT10H5M0S").get_string(1) == "PT10H5M0S", "day truncation")
         self.assertTrue(
-            Duration("P0Y0M0DT0H5M0S").GetString(1) == "PT5M0S", "hour truncation")
-        self.assertTrue(Duration("P0Y0M0DT0H5M").GetString(
+            Duration("P0Y0M0DT0H5M0S").get_string(1) == "PT5M0S", "hour truncation")
+        self.assertTrue(Duration("P0Y0M0DT0H5M").get_string(
             1) == "PT5M", "hour truncation, minute precision")
-        self.assertTrue(Duration("P36Y11M13DT10H5M0,5S").GetString(
+        self.assertTrue(Duration("P36Y11M13DT10H5M0,5S").get_string(
             0) == "P36Y11M13DT10H5M0S", "removal of fractional seconds")
-        self.assertTrue(Duration("P36Y11M13DT10H5M0,5S").GetString(
+        self.assertTrue(Duration("P36Y11M13DT10H5M0,5S").get_string(
             0, 3) == "P36Y11M13DT10H5M0,500S", "display of fractional seconds")
-        self.assertTrue(Duration("P36Y11M13DT10H5M0S").GetString(
+        self.assertTrue(Duration("P36Y11M13DT10H5M0S").get_string(
             0, 3) == "P36Y11M13DT10H5M0S", "missing fractional seconds")
-        self.assertTrue(Duration("P36Y11M13DT10H5M0,5S").GetString(
+        self.assertTrue(Duration("P36Y11M13DT10H5M0,5S").get_string(
             0, -3) == "P36Y11M13DT10H5M0.500S", "display of fractional seconds alt format")
-        self.assertTrue(Duration("P36Y11M13DT10H5M").GetString(
+        self.assertTrue(Duration("P36Y11M13DT10H5M").get_string(
             0) == "P36Y11M13DT10H5M", "minute precision")
-        self.assertTrue(Duration("P36Y11M13DT10H5,0M").GetString(
+        self.assertTrue(Duration("P36Y11M13DT10H5,0M").get_string(
             0) == "P36Y11M13DT10H5M", "removal of fractional minutes")
-        self.assertTrue(Duration("P36Y11M13DT10H5,0M").GetString(
+        self.assertTrue(Duration("P36Y11M13DT10H5,0M").get_string(
             0, 2) == "P36Y11M13DT10H5,00M", "fractional minute precision")
-        self.assertTrue(Duration("P36Y11M13DT10H5,0M").GetString(
+        self.assertTrue(Duration("P36Y11M13DT10H5,0M").get_string(
             0, -2) == "P36Y11M13DT10H5.00M", "fractional minute precision alt format")
-        self.assertTrue(Duration("P36Y11M13DT10H").GetString(
+        self.assertTrue(Duration("P36Y11M13DT10H").get_string(
             0) == "P36Y11M13DT10H", "hour precision")
-        self.assertTrue(Duration("P36Y11M13DT10,08H").GetString(
+        self.assertTrue(Duration("P36Y11M13DT10,08H").get_string(
             0) == "P36Y11M13DT10H", "removal of fractional hours")
-        self.assertTrue(Duration("P36Y11M13DT10,08H").GetString(
+        self.assertTrue(Duration("P36Y11M13DT10,08H").get_string(
             0, 1) == "P36Y11M13DT10,0H", "fractional hour precision")
-        self.assertTrue(Duration("P36Y11M13DT10,08H").GetString(
+        self.assertTrue(Duration("P36Y11M13DT10,08H").get_string(
             0, -1) == "P36Y11M13DT10.0H", "fractional hour precision alt format")
         self.assertTrue(
-            Duration("P36Y11M13D").GetString(0) == "P36Y11M13D", "day precision")
-        self.assertTrue(Duration("P36Y11M13,420D").GetString(
+            Duration("P36Y11M13D").get_string(0) == "P36Y11M13D", "day precision")
+        self.assertTrue(Duration("P36Y11M13,420D").get_string(
             0) == "P36Y11M13D", "removal of fractional days")
-        self.assertTrue(Duration("P36Y11M13,420D").GetString(
+        self.assertTrue(Duration("P36Y11M13,420D").get_string(
             0, 4) == "P36Y11M13,4200D", "fractional day precision")
-        self.assertTrue(Duration("P36Y11M13,420D").GetString(
+        self.assertTrue(Duration("P36Y11M13,420D").get_string(
             0, -4) == "P36Y11M13.4200D", "fractional day precision alt format")
         self.assertTrue(
-            Duration("P36Y11M").GetString(0) == "P36Y11M", "month precision")
-        self.assertTrue(Duration("P36Y11,427M").GetString(
+            Duration("P36Y11M").get_string(0) == "P36Y11M", "month precision")
+        self.assertTrue(Duration("P36Y11,427M").get_string(
             0) == "P36Y11M", "removal of fractional month")
-        self.assertTrue(Duration("P36Y11,427M").GetString(
+        self.assertTrue(Duration("P36Y11,427M").get_string(
             0, 2) == "P36Y11,42M", "fractional month precision")
-        self.assertTrue(Duration("P36Y11,427M").GetString(
+        self.assertTrue(Duration("P36Y11,427M").get_string(
             0, -2) == "P36Y11.42M", "fractional month precision alt format")
         self.assertTrue(
-            Duration("P36Y").GetString(0) == "P36Y", "year precision")
-        self.assertTrue(Duration("P36,95Y").GetString(
+            Duration("P36Y").get_string(0) == "P36Y", "year precision")
+        self.assertTrue(Duration("P36,95Y").get_string(
             0) == "P36Y", "removal of fractional year")
-        self.assertTrue(Duration("P36,95Y").GetString(
+        self.assertTrue(Duration("P36,95Y").get_string(
             0, 1) == "P36,9Y", "fractional year precision")
-        self.assertTrue(Duration("P36,95Y").GetString(
+        self.assertTrue(Duration("P36,95Y").get_string(
             0, -1) == "P36.9Y", "fractional year precision alt format")
 
     def testComparisons(self):
@@ -1233,175 +1233,175 @@ class ParserTests(unittest.TestCase):
         base = Date()
         base = Date(century=19, year=65, month=4, day=12)
         self.assertTrue(
-            Date.FromStringFormat("19850412", base)[1] == "YYYYMMDD")
+            Date.from_string_format("19850412", base)[1] == "YYYYMMDD")
         self.assertTrue(
-            Date.FromStringFormat("1985-04-12", base)[1] == "YYYY-MM-DD")
-        self.assertTrue(Date.FromStringFormat("1985-04", base)[1] == "YYYY-MM")
-        self.assertTrue(Date.FromStringFormat("1985", base)[1] == "YYYY")
-        self.assertTrue(Date.FromStringFormat("19", base)[1] == "YY")
-        self.assertTrue(Date.FromStringFormat("850412", base)[1] == "YYMMDD")
+            Date.from_string_format("1985-04-12", base)[1] == "YYYY-MM-DD")
+        self.assertTrue(Date.from_string_format("1985-04", base)[1] == "YYYY-MM")
+        self.assertTrue(Date.from_string_format("1985", base)[1] == "YYYY")
+        self.assertTrue(Date.from_string_format("19", base)[1] == "YY")
+        self.assertTrue(Date.from_string_format("850412", base)[1] == "YYMMDD")
         self.assertTrue(
-            Date.FromStringFormat("85-04-12", base)[1] == "YY-MM-DD")
-        self.assertTrue(Date.FromStringFormat("-8504", base)[1] == "-YYMM")
-        self.assertTrue(Date.FromStringFormat("-85-04", base)[1] == "-YY-MM")
-        self.assertTrue(Date.FromStringFormat("-85", base)[1] == "-YY")
-        self.assertTrue(Date.FromStringFormat("--0412", base)[1] == "--MMDD")
-        self.assertTrue(Date.FromStringFormat("--04-12", base)[1] == "--MM-DD")
-        self.assertTrue(Date.FromStringFormat("--04", base)[1] == "--MM")
-        self.assertTrue(Date.FromStringFormat("---12", base)[1] == "---DD")
-        self.assertTrue(Date.FromStringFormat("1985102", base)[1] == "YYYYDDD")
+            Date.from_string_format("85-04-12", base)[1] == "YY-MM-DD")
+        self.assertTrue(Date.from_string_format("-8504", base)[1] == "-YYMM")
+        self.assertTrue(Date.from_string_format("-85-04", base)[1] == "-YY-MM")
+        self.assertTrue(Date.from_string_format("-85", base)[1] == "-YY")
+        self.assertTrue(Date.from_string_format("--0412", base)[1] == "--MMDD")
+        self.assertTrue(Date.from_string_format("--04-12", base)[1] == "--MM-DD")
+        self.assertTrue(Date.from_string_format("--04", base)[1] == "--MM")
+        self.assertTrue(Date.from_string_format("---12", base)[1] == "---DD")
+        self.assertTrue(Date.from_string_format("1985102", base)[1] == "YYYYDDD")
         self.assertTrue(
-            Date.FromStringFormat("1985-102", base)[1] == "YYYY-DDD")
-        self.assertTrue(Date.FromStringFormat("85102", base)[1] == "YYDDD")
-        self.assertTrue(Date.FromStringFormat("85-102", base)[1] == "YY-DDD")
-        self.assertTrue(Date.FromStringFormat("-102", base)[1] == "-DDD")
+            Date.from_string_format("1985-102", base)[1] == "YYYY-DDD")
+        self.assertTrue(Date.from_string_format("85102", base)[1] == "YYDDD")
+        self.assertTrue(Date.from_string_format("85-102", base)[1] == "YY-DDD")
+        self.assertTrue(Date.from_string_format("-102", base)[1] == "-DDD")
         self.assertTrue(
-            Date.FromStringFormat("1985W155", base)[1] == "YYYYWwwD")
+            Date.from_string_format("1985W155", base)[1] == "YYYYWwwD")
         self.assertTrue(
-            Date.FromStringFormat("1985-W15-5", base)[1] == "YYYY-Www-D")
-        self.assertTrue(Date.FromStringFormat("1985W15", base)[1] == "YYYYWww")
+            Date.from_string_format("1985-W15-5", base)[1] == "YYYY-Www-D")
+        self.assertTrue(Date.from_string_format("1985W15", base)[1] == "YYYYWww")
         self.assertTrue(
-            Date.FromStringFormat("1985-W15", base)[1] == "YYYY-Www")
-        self.assertTrue(Date.FromStringFormat("85W155", base)[1] == "YYWwwD")
+            Date.from_string_format("1985-W15", base)[1] == "YYYY-Www")
+        self.assertTrue(Date.from_string_format("85W155", base)[1] == "YYWwwD")
         self.assertTrue(
-            Date.FromStringFormat("85-W15-5", base)[1] == "YY-Www-D")
-        self.assertTrue(Date.FromStringFormat("85W15", base)[1] == "YYWww")
-        self.assertTrue(Date.FromStringFormat("85-W15", base)[1] == "YY-Www")
-        self.assertTrue(Date.FromStringFormat("-5W155", base)[1] == "-YWwwD")
+            Date.from_string_format("85-W15-5", base)[1] == "YY-Www-D")
+        self.assertTrue(Date.from_string_format("85W15", base)[1] == "YYWww")
+        self.assertTrue(Date.from_string_format("85-W15", base)[1] == "YY-Www")
+        self.assertTrue(Date.from_string_format("-5W155", base)[1] == "-YWwwD")
         self.assertTrue(
-            Date.FromStringFormat("-5-W15-5", base)[1] == "-Y-Www-D")
-        self.assertTrue(Date.FromStringFormat("-5W15", base)[1] == "-YWww")
-        self.assertTrue(Date.FromStringFormat("-5-W15", base)[1] == "-Y-Www")
-        self.assertTrue(Date.FromStringFormat("-W155", base)[1] == "-WwwD")
-        self.assertTrue(Date.FromStringFormat("-W15-5", base)[1] == "-Www-D")
-        self.assertTrue(Date.FromStringFormat("-W15", base)[1] == "-Www")
-        self.assertTrue(Date.FromStringFormat("-W-5", base)[1] == "-W-D")
+            Date.from_string_format("-5-W15-5", base)[1] == "-Y-Www-D")
+        self.assertTrue(Date.from_string_format("-5W15", base)[1] == "-YWww")
+        self.assertTrue(Date.from_string_format("-5-W15", base)[1] == "-Y-Www")
+        self.assertTrue(Date.from_string_format("-W155", base)[1] == "-WwwD")
+        self.assertTrue(Date.from_string_format("-W15-5", base)[1] == "-Www-D")
+        self.assertTrue(Date.from_string_format("-W15", base)[1] == "-Www")
+        self.assertTrue(Date.from_string_format("-W-5", base)[1] == "-W-D")
 
     def testTimeParser(self):
         t = Time()
         base = Time(hour=20, minute=17, second=40)
-        self.assertTrue(Time.FromStringFormat("201740", base)[2] == "hhmmss")
+        self.assertTrue(Time.from_string_format("201740", base)[2] == "hhmmss")
         self.assertTrue(
-            Time.FromStringFormat("20:17:40", base)[2] == "hh:mm:ss")
-        self.assertTrue(Time.FromStringFormat("2017", base)[2] == "hhmm")
-        self.assertTrue(Time.FromStringFormat("20:17", base)[2] == "hh:mm")
-        self.assertTrue(Time.FromStringFormat("20", base)[2] == "hh")
+            Time.from_string_format("20:17:40", base)[2] == "hh:mm:ss")
+        self.assertTrue(Time.from_string_format("2017", base)[2] == "hhmm")
+        self.assertTrue(Time.from_string_format("20:17", base)[2] == "hh:mm")
+        self.assertTrue(Time.from_string_format("20", base)[2] == "hh")
         self.assertTrue(
-            Time.FromStringFormat("201740,5", base)[2] == "hhmmss,s")
+            Time.from_string_format("201740,5", base)[2] == "hhmmss,s")
         self.assertTrue(
-            Time.FromStringFormat("201740.50", base)[2] == "hhmmss.s")
+            Time.from_string_format("201740.50", base)[2] == "hhmmss.s")
         self.assertTrue(
-            Time.FromStringFormat("20:17:40,5", base)[2] == "hh:mm:ss,s")
-        self.assertTrue(Time.FromStringFormat("2017,8", base)[2] == "hhmm,m")
-        self.assertTrue(Time.FromStringFormat("2017.80", base)[2] == "hhmm.m")
-        self.assertTrue(Time.FromStringFormat("20:17,8", base)[2] == "hh:mm,m")
-        self.assertTrue(Time.FromStringFormat("20,3", base)[2] == "hh,h")
-        self.assertTrue(Time.FromStringFormat("20.80", base)[2] == "hh.h")
-        self.assertTrue(Time.FromStringFormat("-1740", base)[2] == "-mmss")
-        self.assertTrue(Time.FromStringFormat("-17:40", base)[2] == "-mm:ss")
-        self.assertTrue(Time.FromStringFormat("-20", base)[2] == "-mm")
-        self.assertTrue(Time.FromStringFormat("--40", base)[2] == "--ss")
-        self.assertTrue(Time.FromStringFormat("-1740,5", base)[2] == "-mmss,s")
+            Time.from_string_format("20:17:40,5", base)[2] == "hh:mm:ss,s")
+        self.assertTrue(Time.from_string_format("2017,8", base)[2] == "hhmm,m")
+        self.assertTrue(Time.from_string_format("2017.80", base)[2] == "hhmm.m")
+        self.assertTrue(Time.from_string_format("20:17,8", base)[2] == "hh:mm,m")
+        self.assertTrue(Time.from_string_format("20,3", base)[2] == "hh,h")
+        self.assertTrue(Time.from_string_format("20.80", base)[2] == "hh.h")
+        self.assertTrue(Time.from_string_format("-1740", base)[2] == "-mmss")
+        self.assertTrue(Time.from_string_format("-17:40", base)[2] == "-mm:ss")
+        self.assertTrue(Time.from_string_format("-20", base)[2] == "-mm")
+        self.assertTrue(Time.from_string_format("--40", base)[2] == "--ss")
+        self.assertTrue(Time.from_string_format("-1740,5", base)[2] == "-mmss,s")
         self.assertTrue(
-            Time.FromStringFormat("-17:40,5", base)[2] == "-mm:ss,s")
-        self.assertTrue(Time.FromStringFormat("-20,8", base)[2] == "-mm,m")
-        self.assertTrue(Time.FromStringFormat("--40,5", base)[2] == "--ss,s")
-        self.assertTrue(Time.FromStringFormat("T201740", base)[2] == "hhmmss")
+            Time.from_string_format("-17:40,5", base)[2] == "-mm:ss,s")
+        self.assertTrue(Time.from_string_format("-20,8", base)[2] == "-mm,m")
+        self.assertTrue(Time.from_string_format("--40,5", base)[2] == "--ss,s")
+        self.assertTrue(Time.from_string_format("T201740", base)[2] == "hhmmss")
         self.assertTrue(
-            Time.FromStringFormat("T20:17:40", base)[2] == "hh:mm:ss")
-        self.assertTrue(Time.FromStringFormat("T2017", base)[2] == "hhmm")
-        self.assertTrue(Time.FromStringFormat("T20:17", base)[2] == "hh:mm")
-        self.assertTrue(Time.FromStringFormat("T20", base)[2] == "hh")
+            Time.from_string_format("T20:17:40", base)[2] == "hh:mm:ss")
+        self.assertTrue(Time.from_string_format("T2017", base)[2] == "hhmm")
+        self.assertTrue(Time.from_string_format("T20:17", base)[2] == "hh:mm")
+        self.assertTrue(Time.from_string_format("T20", base)[2] == "hh")
         self.assertTrue(
-            Time.FromStringFormat("T201740,5", base)[2] == "hhmmss,s")
+            Time.from_string_format("T201740,5", base)[2] == "hhmmss,s")
         self.assertTrue(
-            Time.FromStringFormat("T20:17:40,5", base)[2] == "hh:mm:ss,s")
-        self.assertTrue(Time.FromStringFormat("T2017,8", base)[2] == "hhmm,m")
+            Time.from_string_format("T20:17:40,5", base)[2] == "hh:mm:ss,s")
+        self.assertTrue(Time.from_string_format("T2017,8", base)[2] == "hhmm,m")
         self.assertTrue(
-            Time.FromStringFormat("T20:17,8", base)[2] == "hh:mm,m")
-        self.assertTrue(Time.FromStringFormat("T20,3", base)[2] == "hh,h")
-        self.assertTrue(Time.FromStringFormat("000000")[2] == "hhmmss")
-        self.assertTrue(Time.FromStringFormat("00:00:00")[2] == "hh:mm:ss")
-        self.assertTrue(Time.FromStringFormat("240000")[2] == "hhmmss")
-        self.assertTrue(Time.FromStringFormat("24:00:00")[2] == "hh:mm:ss")
-        self.assertTrue(Time.FromStringFormat("201740Z", base)[2] == "hhmmssZ")
+            Time.from_string_format("T20:17,8", base)[2] == "hh:mm,m")
+        self.assertTrue(Time.from_string_format("T20,3", base)[2] == "hh,h")
+        self.assertTrue(Time.from_string_format("000000")[2] == "hhmmss")
+        self.assertTrue(Time.from_string_format("00:00:00")[2] == "hh:mm:ss")
+        self.assertTrue(Time.from_string_format("240000")[2] == "hhmmss")
+        self.assertTrue(Time.from_string_format("24:00:00")[2] == "hh:mm:ss")
+        self.assertTrue(Time.from_string_format("201740Z", base)[2] == "hhmmssZ")
         self.assertTrue(
-            Time.FromStringFormat("T20:17:40Z", base)[2] == "hh:mm:ssZ")
-        self.assertTrue(Time.FromStringFormat("T20,3", base)[2] == "hh,h")
-        self.assertTrue(Time.FromStringFormat("T20,3Z", base)[2] == "hh,hZ")
+            Time.from_string_format("T20:17:40Z", base)[2] == "hh:mm:ssZ")
+        self.assertTrue(Time.from_string_format("T20,3", base)[2] == "hh,h")
+        self.assertTrue(Time.from_string_format("T20,3Z", base)[2] == "hh,hZ")
         self.assertTrue(
-            Time.FromStringFormat("152746+0100")[2] == "hhmmss+hhmm")
+            Time.from_string_format("152746+0100")[2] == "hhmmss+hhmm")
         self.assertTrue(
-            Time.FromStringFormat("152746-0500")[2] == "hhmmss+hhmm")
-        self.assertTrue(Time.FromStringFormat("152746+01")[2] == "hhmmss+hh")
-        self.assertTrue(Time.FromStringFormat("152746-05")[2] == "hhmmss+hh")
+            Time.from_string_format("152746-0500")[2] == "hhmmss+hhmm")
+        self.assertTrue(Time.from_string_format("152746+01")[2] == "hhmmss+hh")
+        self.assertTrue(Time.from_string_format("152746-05")[2] == "hhmmss+hh")
         self.assertTrue(
-            Time.FromStringFormat("15:27:46+01:00")[2] == "hh:mm:ss+hh:mm")
+            Time.from_string_format("15:27:46+01:00")[2] == "hh:mm:ss+hh:mm")
         self.assertTrue(
-            Time.FromStringFormat("15:27:46-05:00")[2] == "hh:mm:ss+hh:mm")
+            Time.from_string_format("15:27:46-05:00")[2] == "hh:mm:ss+hh:mm")
         self.assertTrue(
-            Time.FromStringFormat("15:27:46+01")[2] == "hh:mm:ss+hh")
+            Time.from_string_format("15:27:46+01")[2] == "hh:mm:ss+hh")
         self.assertTrue(
-            Time.FromStringFormat("15:27:46-05")[2] == "hh:mm:ss+hh")
+            Time.from_string_format("15:27:46-05")[2] == "hh:mm:ss+hh")
         self.assertTrue(
-            Time.FromStringFormat("15:27+01", base)[2] == "hh:mm+hh")
+            Time.from_string_format("15:27+01", base)[2] == "hh:mm+hh")
         self.assertTrue(
-            Time.FromStringFormat("15,5-05:00", base)[2] == "hh,h+hh:mm")
+            Time.from_string_format("15,5-05:00", base)[2] == "hh,h+hh:mm")
         # pure timezone functions
-        self.assertTrue(t.WithZoneStringFormat("+0100")[1] == "+hhmm")
-        self.assertTrue(t.WithZoneStringFormat("+01")[1] == "+hh")
-        self.assertTrue(t.WithZoneStringFormat("-0100")[1] == "+hhmm")
-        self.assertTrue(t.WithZoneStringFormat("-01")[1] == "+hh")
-        self.assertTrue(t.WithZoneStringFormat("+01:00")[1] == "+hh:mm")
+        self.assertTrue(t.with_zone_string_format("+0100")[1] == "+hhmm")
+        self.assertTrue(t.with_zone_string_format("+01")[1] == "+hh")
+        self.assertTrue(t.with_zone_string_format("-0100")[1] == "+hhmm")
+        self.assertTrue(t.with_zone_string_format("-01")[1] == "+hh")
+        self.assertTrue(t.with_zone_string_format("+01:00")[1] == "+hh:mm")
 
     def testTimePoint(self):
         """Check TimePoint  syntax"""
-        timePoint = TimePoint()
+        time_point = TimePoint()
         base = TimePoint()
-        self.assertTrue(TimePoint.FromStringFormat(
+        self.assertTrue(TimePoint.from_string_format(
             "19850412T101530", base)[1] == "YYYYMMDDThhmmss", "basic local")
-        self.assertTrue(TimePoint.FromStringFormat(
+        self.assertTrue(TimePoint.from_string_format(
             "19850412T101530Z", base)[1] == "YYYYMMDDThhmmssZ", "basic z")
-        self.assertTrue(TimePoint.FromStringFormat(
+        self.assertTrue(TimePoint.from_string_format(
             "19850412T101530+0400", base)[1] == "YYYYMMDDThhmmss+hhmm", "basic zone minutes")
-        self.assertTrue(TimePoint.FromStringFormat(
+        self.assertTrue(TimePoint.from_string_format(
             "19850412T101530+04", base)[1] == "YYYYMMDDThhmmss+hh", "basic zone hours")
-        self.assertTrue(TimePoint.FromStringFormat(
+        self.assertTrue(TimePoint.from_string_format(
             "1985-04-12T10:15:30", base)[1] == "YYYY-MM-DDThh:mm:ss", "extended local")
-        self.assertTrue(TimePoint.FromStringFormat(
+        self.assertTrue(TimePoint.from_string_format(
             "1985-04-12T10:15:30Z", base)[1] == "YYYY-MM-DDThh:mm:ssZ", "extended z")
-        self.assertTrue(TimePoint.FromStringFormat(
+        self.assertTrue(TimePoint.from_string_format(
             "1985-04-12T10:15:30+04:00", base)[1] == "YYYY-MM-DDThh:mm:ss+hh:mm", "extended zone minutes")
-        self.assertTrue(TimePoint.FromStringFormat(
+        self.assertTrue(TimePoint.from_string_format(
             "1985-04-12T10:15:30+04", base)[1] == "YYYY-MM-DDThh:mm:ss+hh", "extended zone hours")
 
     def testDuration(self):
         """Check Duration syntax"""
         duration = Duration()
         self.assertTrue(
-            duration.SetFromString("P36Y11M13DT10H5M0S") == "PnYnMnDTnHnMnS", "complete")
-        self.assertTrue(duration.SetFromString(
+            duration.set_from_string("P36Y11M13DT10H5M0S") == "PnYnMnDTnHnMnS", "complete")
+        self.assertTrue(duration.set_from_string(
             "P36Y11M13DT10H5M0,5S") == "PnYnMnDTnHnMn,nS", "complete with decimals")
-        self.assertTrue(duration.SetFromString(
+        self.assertTrue(duration.set_from_string(
             "P36Y11M13DT10H5M0.5S") == "PnYnMnDTnHnMn.nS", "complete with alt decimals")
-        self.assertTrue(duration.SetFromString(
+        self.assertTrue(duration.set_from_string(
             "P36Y11M13DT10H5M") == "PnYnMnDTnHnM", "minute precision")
         self.assertTrue(
-            duration.SetFromString("P36Y11M13DT10H") == "PnYnMnDTnH", "hour precision")
+            duration.set_from_string("P36Y11M13DT10H") == "PnYnMnDTnH", "hour precision")
         self.assertTrue(
-            duration.SetFromString("P36Y11M13D") == "PnYnMnD", "day precision")
+            duration.set_from_string("P36Y11M13D") == "PnYnMnD", "day precision")
         self.assertTrue(
-            duration.SetFromString("P36Y11M") == "PnYnM", "month precision")
+            duration.set_from_string("P36Y11M") == "PnYnM", "month precision")
         self.assertTrue(
-            duration.SetFromString("P36Y") == "PnY", "year precision")
-        self.assertTrue(duration.SetFromString(
+            duration.set_from_string("P36Y") == "PnY", "year precision")
+        self.assertTrue(duration.set_from_string(
             "P36Y11,2M") == "PnYn,nM", "month precision with decimals")
         self.assertTrue(
-            duration.SetFromString("P11M") == "PnM", "month only precision")
+            duration.set_from_string("P11M") == "PnM", "month only precision")
         self.assertTrue(
-            duration.SetFromString("PT10H5M") == "PTnHnM", "hour and minute only")
+            duration.set_from_string("PT10H5M") == "PTnHnM", "hour and minute only")
         self.assertTrue(
-            duration.SetFromString("PT5M") == "PTnM", "minute only")
+            duration.set_from_string("PT5M") == "PTnM", "minute only")
 
 
 if __name__ == "__main__":

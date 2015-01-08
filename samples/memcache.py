@@ -33,7 +33,7 @@ def TestData(memCache):
 			e=collection.new_entity()
 			e.set_key(str(i))
 			e['Value'].set_from_value(unichr(0x41+i))
-			e['Expires'].set_from_value(iso.TimePoint.FromUnixTime(time.time()+10*i))
+			e['Expires'].set_from_value(iso.TimePoint.from_unix_time(time.time()+10*i))
 			collection.insert_entity(e)
 
 def TestModel():
@@ -64,7 +64,7 @@ def CleanupForever(memCache):
 	filter.operands.append(expires)
 	filter.operands.append(t)
 	while True:
-		now.set_from_value(iso.TimePoint.FromNowUTC())
+		now.set_from_value(iso.TimePoint.from_now_utc())
 		logging.info("Cleanup thread running at %s",str(now.value))
 		with memCache.OpenCollection() as cacheEntries:
 			cacheEntries.set_filter(filter)

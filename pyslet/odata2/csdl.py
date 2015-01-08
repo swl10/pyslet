@@ -704,7 +704,7 @@ class Parser(xsi.BasicParser):
                 date=iso8601.Date(
                     century=year // 100, year=year %
                     100, month=month, day=day), time=iso8601.Time(
-                    hour=hour, minute=minute, second=second, zDirection=None))
+                    hour=hour, minute=minute, second=second, zdirection=None))
         except iso8601.DateTimeError as e:
             raise ValueError(str(e))
         return value
@@ -815,7 +815,7 @@ class Parser(xsi.BasicParser):
             return None
         try:
             value = iso8601.Time(
-                hour=hour, minute=minute, second=second, zDirection=None)
+                hour=hour, minute=minute, second=second, zdirection=None)
         except iso8601.DateTimeError as e:
             raise ValueError(str(e))
         return value
@@ -896,7 +896,7 @@ class EDMValue(PEP8Compatibility):
             result = cls.NewSimpleValue(SimpleType.Guid)
         elif isinstance(value, iso8601.TimePoint):
             # if it has an offset
-            if value.GetZone()[0] is None:
+            if value.get_zone()[0] is None:
                 # no timezone
                 result = cls.NewSimpleValue(SimpleType.DateTime)
             else:
@@ -1233,7 +1233,7 @@ class DateTimeValue(SimpleValue):
 
     When set from a numeric value, the value must be non-negative.  Unix
     time is assumed.  See the
-    :py:meth:`~pyslet.iso8601.TimePoint.FromUnixTime` factory method of
+    :py:meth:`~pyslet.iso8601.TimePoint.from_unix_time` factory method of
     TimePoint for information.
 
     If a property definition was set on construction then the defined
@@ -1252,7 +1252,7 @@ class DateTimeValue(SimpleValue):
             precision = self.pDef.precision
         if precision is None:
             precision = 0
-        return self.value.GetCalendarString(ndp=precision, dp=u".")
+        return self.value.get_calendar_string(ndp=precision, dp=u".")
 
     def SetFromLiteral(self, value):
         p = Parser(value)
@@ -1263,9 +1263,9 @@ class DateTimeValue(SimpleValue):
         if new_value is None:
             self.value = None
         elif isinstance(new_value, iso8601.TimePoint):
-            self.value = new_value.WithZone(zDirection=None)
+            self.value = new_value.with_zone(zdirection=None)
         elif (isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType)) and new_value >= 0:
-            self.value = iso8601.TimePoint.FromUnixTime(float(new_value))
+            self.value = iso8601.TimePoint.from_unix_time(float(new_value))
         elif isinstance(new_value, datetime.datetime):
             self.value = iso8601.TimePoint(
                 date=iso8601.Date(
@@ -1280,7 +1280,7 @@ class DateTimeValue(SimpleValue):
                     minute=new_value.minute,
                     second=new_value.second +
                     (new_value.microsecond / 1000000.0),
-                    zDirection=None))
+                    zdirection=None))
         else:
             raise TypeError("Can't set DateTime from %s" % repr(new_value))
 
@@ -1300,7 +1300,7 @@ class DateTimeOffsetValue(SimpleValue):
 
     When set from a numeric value, the value must be non-negative.  Unix
     time *in UTC* assumed.  See the
-    :py:meth:`~pyslet.iso8601.TimePoint.FromUnixTime` factory method of
+    :py:meth:`~pyslet.iso8601.TimePoint.from_unix_time` factory method of
     TimePoint for information.
 
     If a property definition was set on construction then the defined
@@ -1325,7 +1325,7 @@ class DateTimeOffsetValue(SimpleValue):
             precision = self.pDef.precision
         if precision is None:
             precision = 0
-        result = self.value.GetCalendarString(ndp=precision, dp=u".")
+        result = self.value.get_calendar_string(ndp=precision, dp=u".")
         if result[-1] == "Z":
             # the specification is not clear if the Z form is supported, use
             # numbers for safety
@@ -1343,18 +1343,18 @@ class DateTimeOffsetValue(SimpleValue):
         if new_value is None:
             self.value = None
         elif isinstance(new_value, iso8601.TimePoint):
-            zDir, zOffset = new_value.GetZone()
-            if zOffset is None:
+            zdir, zoffset = new_value.get_zone()
+            if zoffset is None:
                 raise ValueError(
                     "DateTimeOffset requires a time zone specifier: %s" %
                     new_value)
-            if not new_value.Complete():
+            if not new_value.complete():
                 raise ValueError(
                     "DateTimeOffset requires a complete representation: %s" %
                     str(new_value))
             self.value = new_value
         elif (isinstance(new_value, decimal.Decimal) or type(new_value) in (IntType, LongType, FloatType)) and new_value >= 0:
-            self.value = iso8601.TimePoint.FromUnixTime(float(new_value))
+            self.value = iso8601.TimePoint.from_unix_time(float(new_value))
         else:
             raise TypeError(
                 "Can't set DateTimeOffset from %s" % str(new_value))
@@ -1392,7 +1392,7 @@ class TimeValue(SimpleValue):
             precision = self.pDef.precision
         if precision is None:
             precision = 0
-        return self.value.GetString(ndp=precision, dp=u".")
+        return self.value.get_string(ndp=precision, dp=u".")
 
     def SetFromLiteral(self, value):
         p = Parser(value)
@@ -1409,9 +1409,9 @@ class TimeValue(SimpleValue):
                     "Can't set Time from %.3f" % float(new_value))
             tValue = iso8601.Time()
             if type(new_value) in (IntType, LongType):
-                tValue, days = tValue.Offset(seconds=new_value)
+                tValue, days = tValue.offset(seconds=new_value)
             else:
-                tValue, days = tValue.Offset(seconds=float(new_value))
+                tValue, days = tValue.offset(seconds=float(new_value))
             if days > 0:
                 raise ValueError(
                     "Can't set Time from %.3f (overflow)" % float(new_value))
@@ -1421,7 +1421,7 @@ class TimeValue(SimpleValue):
             if new_value.microseconds:
                 seconds = seconds + (new_value.microseconds / 1000000.0)
             tValue = iso8601.Time()
-            tValue, days = tValue.Offset(seconds=seconds)
+            tValue, days = tValue.offset(seconds=seconds)
             if days > 0 or new_value.days:
                 raise ValueError(
                     "Can't set Time from %s (non-zero days)" %
@@ -2670,12 +2670,12 @@ class Entity(TypeInstance):
                     t.set_from_value(1)
             elif isinstance(t, (DateTimeValue, DateTimeOffsetValue)):
                 oldT = t.value
-                t.set_from_value(iso8601.TimePoint.FromNowUTC())
+                t.set_from_value(iso8601.TimePoint.from_now_utc())
                 if t.value == oldT:
                     # that was quick, push it 1s into the future
-                    newTime, overflow = t.value.time.Offset(seconds=1)
+                    new_time, overflow = t.value.time.offset(seconds=1)
                     t.set_from_value(iso8601.TimePoint(
-                        date=t.value.date.Offset(days=overflow), time=newTime))
+                        date=t.value.date.offset(days=overflow), time=new_time))
             elif isinstance(t, GuidValue):
                 oldT = t.value
                 while t.value == oldT:

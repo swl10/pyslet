@@ -2084,14 +2084,14 @@ class DataServiceRegressionTests(unittest.TestCase):
                             str(check_e['DateTimeProperty'].value))
             self.assertTrue(isinstance(check_e['TimeProperty'].value,
                                        iso.Time), "TimeProperty type on read")
-            self.assertTrue(check_e['TimeProperty'].value.GetString(
+            self.assertTrue(check_e['TimeProperty'].value.get_string(
                 ndp=3, dp=".") == '17:32:03.142', "TimeProperty value on read")
             self.assertTrue(
                 isinstance(check_e['DateTimeOffsetProperty'].value,
                            iso.TimePoint),
                 "DateTimeOffsetProperty type on read")
             self.assertTrue(
-                check_e['DateTimeOffsetProperty'].value.GetCalendarString(
+                check_e['DateTimeOffsetProperty'].value.get_calendar_string(
                     ndp=3, dp=".") == '2013-12-25T15:59:03.142-05:00',
                 "DateTimeOffsetProperty value on read")
             self.assertTrue(isinstance(check_e[
@@ -2255,7 +2255,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             got_e = coll.values()[0]
             self.assertTrue(got_e['K1'].value == 1)
             self.assertTrue(got_e['K2'].value == '00001')
-            self.assertTrue(got_e['K3'].value.GetCalendarString(
+            self.assertTrue(got_e['K3'].value.get_calendar_string(
                 ndp=3, dp=".") == '2013-12-25T15:59:03.142')
             self.assertTrue(got_e['K4'].value == '\xde\xad\xbe\xef')
             self.assertTrue(got_e['Data'].value == 'Compound Key')

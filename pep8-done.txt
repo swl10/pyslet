@@ -17,6 +17,7 @@ pyslet/http/server.py
 unittests/test_http_server.py
 pyslet/imsbltiv1p0.py
 unittests/test_imsbltiv1p0.py
+pyslet/iso8601.py
 pyslet/odata2/metadata.py
 pyslet/odata2/memds.py
 unittests/test_odata2_csdl.py

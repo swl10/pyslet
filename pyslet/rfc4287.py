@@ -197,7 +197,7 @@ class Date(AtomElement):
         8601 in accordance with the requirements of the Atom specification."""
         if isinstance(value, iso8601.TimePoint):
             self.date = value
-            AtomElement.SetValue(self, value.GetCalendarString())
+            AtomElement.SetValue(self, value.get_calendar_string())
         else:
             AtomElement.SetValue(self, value)
             self.content_changed()
@@ -513,7 +513,7 @@ class Feed(Source):
         self.AtomId = self.AtomIdClass(self)
         self.Title = self.TitleClass(self)
         self.Updated = self.UpdatedClass(self)
-        now = iso8601.TimePoint.FromNowUTC()
+        now = iso8601.TimePoint.from_now_utc()
         self.Updated.SetValue(now)
         self.Entry = []		#: atomEntry
 
@@ -539,7 +539,7 @@ class Entry(Entity):
         self.AtomId = self.AtomIdClass(self)
         self.Title = self.TitleClass(self)
         self.Updated = self.UpdatedClass(self)
-        now = iso8601.TimePoint.FromNowUTC()
+        now = iso8601.TimePoint.from_now_utc()
         self.Updated.SetValue(now)
         self.Content = None
         self.Published = None
@@ -564,7 +564,7 @@ class Entry(Entity):
         # Parent reset removes 'optional' Title and Updated elements
         self.Title = self.TitleClass(self)
         self.Updated = self.UpdatedClass(self)
-        now = iso8601.TimePoint.FromNowUTC()
+        now = iso8601.TimePoint.from_now_utc()
         self.Updated.SetValue(now)
 
     def GetChildren(self):

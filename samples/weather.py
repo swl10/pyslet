@@ -55,17 +55,17 @@ def IsBST(t):
     The only date of contention in this data set is 1995-10-22 which
     should have a clock change but the data set clearly have a change on
     1995-10-29, a week later."""
-    century, year, month, day = t.date.GetCalendarDay()
+    century, year, month, day = t.date.get_calendar_day()
     if month < 3:
         return False
     elif month == 3:
         if day < 24:
             return False
         # deal with switch to BST
-        century, decade, year, week, weekday = t.date.GetWeekDay()
+        century, decade, year, week, weekday = t.date.get_week_day()
         if weekday == 7:
             # Sunday - look deeper
-            hour, minute, second = t.time.GetTime()
+            hour, minute, second = t.time.get_time()
             if hour <= 1:
                 return False
             else:
@@ -82,10 +82,10 @@ def IsBST(t):
         if day < 24:
             return True
         # deal with switch to GMT
-        century, decade, year, week, weekday = t.date.GetWeekDay()
+        century, decade, year, week, weekday = t.date.get_week_day()
         if weekday == 7:
             # Sunday - look deeper
-            hour, minute, second = t.time.GetTime()
+            hour, minute, second = t.time.get_time()
             if hour < 1:
                 return True
             elif hour > 1:
@@ -135,8 +135,8 @@ def LoadDataFromFile(weatherData, f, year, month, day):
             bst = IsBST(tValue)
             if bst is not False:
                 # assume BST for now, add the zone info and then shift to GMT
-                tValue = tValue.WithZone(
-                    zDirection=1, zHour=1).ShiftZone(zDirection=0)
+                tValue = tValue.with_zone(
+                    zdirection=1, zhour=1).shift_zone(zdirection=0)
             dataPoint['TimePoint'].set_from_value(tValue)
             dataPoint['Temperature'].set_from_value(data[1])
             dataPoint['Humidity'].set_from_value(data[2])
@@ -157,8 +157,8 @@ def LoadDataFromFile(weatherData, f, year, month, day):
                     # This was an ambiguous entry, the first one is in BST, the
                     # second one is in GMT as the clocks have gone back, so we
                     # shift forward again and then force the zone to GMT
-                    tValue = tValue.ShiftZone(
-                        zDirection=1, zHour=1).WithZone(zDirection=0)
+                    tValue = tValue.shift_zone(
+                        zdirection=1, zhour=1).with_zone(zdirection=0)
                     dataPoint['TimePoint'].set_from_value(tValue)
                     logging.info(
                         "Auto-detecting switch to GMT at: %s", str(tValue))
@@ -204,7 +204,7 @@ def LoadNotes(weatherNotes, file_name, weatherData):
                         time=iso.Time(hour=0, minute=0, second=0))
                     note['StartDate'].set_from_value(start)
                     end = iso.TimePoint(
-                        date=iso.Date.from_str(noteWords[1]).Offset(days=1),
+                        date=iso.Date.from_str(noteWords[1]).offset(days=1),
                         time=iso.Time(hour=0, minute=0, second=0))
                     note['EndDate'].set_from_value(end)
                     note['Details'].set_from_value(
@@ -296,11 +296,11 @@ def runWeatherLoader(container=None):
             lastPoint = iso.TimePoint.from_str("19950630T000000Z")
         nextDay = lastPoint.date
         while True:
-            today = iso.TimePoint.FromNowUTC().date
+            today = iso.TimePoint.from_now_utc().date
             if nextDay < today:
                 # Load in nextDay
                 logging.info("Requesting data for %s", str(nextDay))
-                century, year, month, day = nextDay.GetCalendarDay()
+                century, year, month, day = nextDay.get_calendar_day()
                 request = http.ClientRequest(DTG % str(nextDay))
                 client.process_request(request)
                 if request.status == 200:
@@ -308,7 +308,7 @@ def runWeatherLoader(container=None):
                     f = StringIO.StringIO(request.res_body)
                     LoadDataFromFile(
                         weatherData, f, century * 100 + year, month, day)
-                    nextDay = nextDay.Offset(days=1)
+                    nextDay = nextDay.offset(days=1)
                     if sleepInterval > 10:
                         sleepInterval = sleepInterval // 2
                 else:

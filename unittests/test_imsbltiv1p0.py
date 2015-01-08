@@ -414,7 +414,7 @@ class MockTime(object):
     oauth_origin = float(
         iso.TimePoint(
             date=iso.Date(century=19, year=70, month=1, day=1),
-            time=iso.Time(hour=0, minute=0, second=0, zDirection=0)
+            time=iso.Time(hour=0, minute=0, second=0, zdirection=0)
         ).get_unixtime())
 
     def __init__(self, base=None):

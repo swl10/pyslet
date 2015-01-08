@@ -127,7 +127,7 @@ class CookieTests(unittest.TestCase):
         self.assertFalse(c.expired(expire_time))
         c = cookie.Cookie(
             'SID', '31d4d96e407aad42',
-            expires=params.FullDate.FromUnixTime(time.time()+300))
+            expires=params.FullDate.from_unix_time(time.time()+300))
         self.assertFalse(c.expired())
         # If the attribute-value failed to parse as a cookie date,
         # ignore the cookie-av.
@@ -1105,7 +1105,8 @@ class ClientTests(unittest.TestCase):
                 response.set_set_cookie(
                     cookie.Cookie(
                         'SID', '31d4d96e407aad42',
-                        expires=params.FullDate.FromUnixTime(time.time()+300)))
+                        expires=params.FullDate.from_unix_time(
+                            time.time()+300)))
                 response.set_status(200, "Cookie set")
             elif req.request_uri == "/checkCookie":
                 cookies = req.get_cookie()

@@ -1311,7 +1311,7 @@ class Message(PEP8Compatibility, object):
 
         To set the date header to the current date use::
 
-            set_date(params.FullDate.FromNowUTC())"""
+            set_date(params.FullDate.from_now_utc())"""
         if date is None:
             self.set_header("Date", None)
         else:
@@ -1350,7 +1350,7 @@ class Message(PEP8Compatibility, object):
 
         To set the Last-Modified header to the current date use::
 
-            set_last_modified(params.FullDate.FromNowUTC())"""
+            set_last_modified(params.FullDate.from_now_utc())"""
         if date is None:
             self.set_header("Last-Modified", None)
         else:

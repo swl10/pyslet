@@ -99,14 +99,14 @@ class ProtocolParameterTests(unittest.TestCase):
         # RFC 822, updated by RFC 1123
         timestamp_822 = FullDate.from_http_str(
             "Sun, 06 Nov 1994 08:49:37 GMT")
-        self.assertTrue(timestamp_822.GetZone()[0] == 0)
+        self.assertTrue(timestamp_822.get_zone()[0] == 0)
         # RFC 850, obsoleted by RFC 1036
         timestamp_850 = FullDate.from_http_str(
             "Sunday, 06-Nov-94 08:49:37 GMT")
-        self.assertTrue(timestamp_850.GetZone()[0] == 0)
+        self.assertTrue(timestamp_850.get_zone()[0] == 0)
         # ANSI C's asctime() format
         timestamp_c = FullDate.from_http_str("Sun Nov  6 08:49:37 1994")
-        self.assertTrue(timestamp_c.GetZone()[0] == 0)
+        self.assertTrue(timestamp_c.get_zone()[0] == 0)
         self.assertTrue(
             timestamp_822 == timestamp_850, "RFC 850 timestamp parser")
         self.assertTrue(

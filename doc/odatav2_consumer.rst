@@ -1035,7 +1035,7 @@ or lists that have values corresponding to those in struct_time::
 	>>> print top[0]['OrderDate'].value
 	1996-07-04T00:00:00
 	>>> t = [None]*9
-	>>> top[0]['OrderDate'].value.UpdateStructTime(t)
+	>>> top[0]['OrderDate'].value.update_struct_time(t)
 	>>> t
 	[1996, 7, 4, 0, 0, 0, 3, 186, -1]
 	>>> time.strftime("%a, %d %b %Y %H:%M:%S",t)
@@ -1045,14 +1045,14 @@ You can set values obtained from the time module in a similar way::
 
 	>>> import pyslet.iso8601 as iso
 	>>> t = time.gmtime(time.time())
-	>>> top[0]['OrderDate'].set_from_value(iso.TimePoint.FromStructTime(t))
+	>>> top[0]['OrderDate'].set_from_value(iso.TimePoint.from_struct_time(t))
 	>>> print top[0]['OrderDate'].value
 	2014-02-17T21:51:41
 
 But if you just want a timestamp use one of the built-in factory
 methods::
 
-	>>> top[0]['OrderDate'].set_from_value(iso.TimePoint.FromNowUTC())
+	>>> top[0]['OrderDate'].set_from_value(iso.TimePoint.from_now_utc())
 	>>> print top[0]['OrderDate'].value
 	2014-02-17T21:56:23
 

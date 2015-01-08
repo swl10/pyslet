@@ -16,6 +16,7 @@ htmldocs
 
 # nose - *not* supported for testing at the moment
 .coverage
+htmlcov
 
 # misc
 local

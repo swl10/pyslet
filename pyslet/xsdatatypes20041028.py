@@ -358,11 +358,11 @@ class Duration(iso8601.Duration):
     def __init__(self, value=None):
         self.sign = 1		#: an integer with the sign of the duration
         if type(value) in StringTypes:
-            self.SetFromString(value)
+            self.set_from_string(value)
         elif isinstance(value, iso8601.Duration):
-            self.SetFromDuration(value)
+            self.set_from_duration(value)
         elif value is None:
-            self.SetZero()
+            self.set_zero()
         else:
             raise TypeError
 
@@ -371,36 +371,36 @@ class Duration(iso8601.Duration):
 
     def __unicode__(self):
         """Formats this duration."""
-        result = unicode(self.GetString())
+        result = unicode(self.get_string())
         if self.sign < 0:
             return u"-" + result
         else:
             return result
 
-    def SetFromString(self, durationStr):
-        if type(durationStr) in StringTypes:
-            if durationStr[0] == '-':
+    def set_from_string(self, duration_str):
+        if type(duration_str) in StringTypes:
+            if duration_str[0] == '-':
                 self.sign = -1
-                durationStr = durationStr[1:]
+                duration_str = duration_str[1:]
             else:
                 self.sign = 1
-            p = iso8601.ISO8601Parser(durationStr)
-            return p.ParseDuration(self)
+            p = iso8601.ISO8601Parser(duration_str)
+            return p.parse_duration(self)
         else:
             raise TypeError
 
-    def SetFromDuration(self, src):
+    def set_from_duration(self, src):
         if isinstance(src, Duration):
             self.sign = src.sign
         else:
             self.sign = 1
-        iso8601.Duration.SetFromDuration(self, src)
+        iso8601.Duration.set_from_duration(self, src)
 
 
 def EncodeDateTime(value):
     """Returns the canonical lexical representation of a
     :py:class:`pyslet.iso8601.TimePoint` instance."""
-    return value.GetCalendarString()
+    return value.get_calendar_string()
 
 
 def DecodeDateTime(src):
@@ -414,7 +414,7 @@ def DecodeDateTime(src):
 def EncodeDateTime(value):
     """Returns the canonical lexical representation of a
     :py:class:`pyslet.iso8601.TimePoint` instance."""
-    return value.GetCalendarString()
+    return value.get_calendar_string()
 
 
 def DecodeName(src):

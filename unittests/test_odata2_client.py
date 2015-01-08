@@ -198,11 +198,11 @@ class ClientTests(unittest.TestCase):
 # 		fURL=c.feedTitles['Products']
 # 		e=Entry(None)
 # 		now=iso.TimePoint()
-# 		now.NowUTC()
+# 		now.now_utc()
 # 		e.Title.SetValue("Pyslet Python Package")
 # 		e.ChildElement(atom.Summary).SetValue("Python package for Standards in Learning, Education and Training")
 # 		e['ID']=100
-# 		e['ReleaseDate']=now.GetCalendarString()
+# 		e['ReleaseDate']=now.get_calendar_string()
 # 		e['Rating']=5
 # 		e['Price']=0.0
 # 		if catID is not None:

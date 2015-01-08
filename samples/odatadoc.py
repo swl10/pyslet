@@ -56,7 +56,7 @@ def write_doc(doc, template, out):
         'entity_list': "<p>Not supported in this version</p>",
         'tables': "<p>Not supported in this version</p>",
         'index': "<p>Not supported in this version</p>",
-        'date': str(iso.TimePoint.FromNow())
+        'date': str(iso.TimePoint.from_now())
     }
     ds = doc.root.DataServices
     if len(ds.Schema) != 1:
