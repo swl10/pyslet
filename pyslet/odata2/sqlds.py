@@ -2873,14 +2873,14 @@ class SQLEntityCollection(SQLCollectionBase):
             cnames[c] = True
             cols.append("%s %s" %
                         (c, self.container.prepare_sql_type(v, params)))
-        keys = entity.KeyDict()
         constraints = []
         constraints.append(
             u'PRIMARY KEY (%s)' %
             string.join(
                 map(
                     lambda x: self.container.mangled_names[
-                        (self.entity_set.name, x)], keys.keys()), u', '))
+                        (self.entity_set.name, x)], self.entity_set.keys),
+                u', '))
         # Now generate the foreign keys
         fk_mapping = self.container.fk_table[self.entity_set.name]
         for link_end in fk_mapping:
