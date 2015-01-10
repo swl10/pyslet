@@ -2476,6 +2476,13 @@ class DataServiceRegressionTests(unittest.TestCase):
                 self.assertTrue(1 in coll)
                 self.assertFalse(2 in coll)
                 coll.set_filter(None)
+                # READ with deep 'back' filter
+                with e['OX'].OpenCollection() as navCollection:
+                    filter = CommonExpression.from_str(
+                        "O/Data eq 'NavigationOne'")
+                    navCollection.set_filter(filter)
+                    self.assertTrue(100 in navCollection)
+                    self.assertFalse(200 in navCollection)
                 # UPDATE - by adding a link, should fail.  Requires a
                 # deep delete.
                 try:

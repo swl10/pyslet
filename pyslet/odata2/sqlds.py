@@ -349,7 +349,7 @@ class SQLCollectionBase(core.EntityCollection):
             source_path = (self.entity_set.name, k)
             if source_path in self.container.ro_names:
                 self.auto_keys = True
-        self.reset_joins()
+        self._joins = None
         # force orderNames to be initialised
         self.set_orderby(None)
         self.dbc = None                 #: a connection to the database
@@ -848,7 +848,9 @@ class SQLCollectionBase(core.EntityCollection):
         return count, md5.digest()
 
     def reset_joins(self):
-        """Resets the join information for this collection"""
+        """Sets the base join information for this collection
+
+        Called if _joins is None."""
         self._joins = {}
         self._aliases = set()
         self._aliases.add(self.table_name)
@@ -873,7 +875,9 @@ class SQLCollectionBase(core.EntityCollection):
 
         As per the specification, the target must have multiplicity 1 or
         0..1."""
-        if name in self._joins:
+        if self._joins is None:
+            self.reset_joins()
+        elif name in self._joins:
             return self._joins[name][0]
         alias = self.next_alias()
         src_multiplicity, dst_multiplicity = \
@@ -963,10 +967,12 @@ class SQLCollectionBase(core.EntityCollection):
         """A utility method to return the JOIN clause.
 
         Defaults to an empty expression."""
+        if self._joins is None:
+            self.reset_joins()
         return string.join(map(lambda x: x[1], self._joins.values()), '')
 
     def set_filter(self, filter):
-        self.reset_joins()
+        self._joins = None
         self.filter = filter
         self.set_page(None)
         self._sqlLen = None
@@ -3097,13 +3103,14 @@ class SQLForeignKeyCollection(SQLNavigationCollection):
         self._aliases.add(alias)
         self._joins[nav_name] = (alias, join)
         self._source_alias = alias
-        return join
 
     def where_clause(self, entity, params, use_filter=True, use_skip=False):
         """Adds the constraint for entities linked from *from_entity* only.
 
         We continue to use the alias set in the :py:meth:`join_clause`
         where an example WHERE clause is illustrated."""
+        if self._joins is None:
+            self.reset_joins()
         where = []
         for k, v in self.from_entity.KeyDict().items():
             where.append(
@@ -3404,30 +3411,103 @@ class SQLAssociationCollection(SQLNavigationCollection):
             self.from_nav_name = nameB
             self.toNavName = nameA
 
-    def join_clause(self):
-        """Overridden to provide the JOIN to the auxiliary table.
+    def reset_joins(self):
+        """Overridden to provide an inner join to the aux table.
 
-        Unlike the foreign key JOIN clause there is no need to use an
-        alias in this case as the auxiliary table is assumed to be
-        distinct from the the table it is being joined to."""
+        If the Customer and Group entities are related with a Many-Many
+        relationship called Customers_Groups, the resulting join looks
+        something like this (when the from_entity is a Customer)::
+
+        SELECT ... FROM Groups
+        INNER JOIN Customers_Groups ON
+            Groups.GroupID = Customers_Groups.Groups_MemberOf_GroupID
+        ...
+        WHERE Customers_Groups.Customers_Members_CustomerID = ?;
+
+        The value of the CustomerID key property in from_entity is
+        passed as a parameter when executing the expression."""
+        super(SQLAssociationCollection, self).reset_joins()
         join = []
-        # we don't need to look up the details of the join again, as
-        # self.entity_set must be the target
         for key_name in self.entity_set.keys:
             join.append(
                 '%s.%s=%s.%s' %
                 (self.table_name,
-                 self.container.mangled_names[
-                     (self.entity_set.name,
-                      key_name)],
-                    self.atable_name,
-                    self.container.mangled_names[
-                     (self.aset_name,
-                      self.entity_set.name,
-                      self.toNavName,
-                      key_name)]))
-        return ' INNER JOIN %s ON ' % self.atable_name + \
+                 self.container.mangled_names[(self.entity_set.name,
+                                               key_name)],
+                 self.atable_name,
+                 self.container.mangled_names[(self.aset_name,
+                                               self.entity_set.name,
+                                               self.toNavName, key_name)]))
+        join = ' INNER JOIN %s ON ' % self.atable_name + \
             string.join(join, 'AND ')
+        self._aliases.add(self.atable_name)
+        self._joins[''] = ('', join)
+
+    def add_join(self, name):
+        """Overridden to provide special handling of navigation
+
+        In most cases, there will be a navigation property bound to this
+        association in the reverse direction.  For Many-Many relations
+        this can't be used in an expression but if the relationship
+        is actually 1-1 then we would augment the default INNER JOIN
+        with an additional INNER JOIN to include the whole of the
+        from_entity. (Normally we'd think of these expressions as LEFT
+        joins but we're navigating back across a link that points to a
+        single entity so there is no difference.)
+
+        To illustrate, if Customers have a 1-1 relationship with
+        PrimaryContacts through a Customers_PrimaryContacts association
+        set then the expression grows an additional join:
+
+        SELECT ... FROM PrimaryContacts
+        INNER JOIN Customers_PrimaryContacts ON
+            PrimaryContacts.ContactID =
+                Customers_PrimaryContacts.PrimaryContacts_Contact_ContactID
+        INNER JOIN Customers AS nav1 ON
+            Customers_PrimaryContacts.Customers_Customer_CustmerID =
+                Customers.CustomerID
+        ...
+        WHERE Customers_PrimaryContacts.Customers_Customer_CustomerID = ?;
+
+        This is a cumbersome query to join two entities that are
+        supposed to have a 1-1 relationship, which is one of the reasons
+        why it is generally better to pick on side of the relationship
+        or other and make it 0..1 to 1 as this would obviate the
+        auxiliary table completely and just put a non-NULL, unique
+        foreign key in the table that represents the 0..1 side of the
+        relationship."""
+        if not self._joins:
+            self.reset_joins()
+        if name != self.entity_set.linkEnds[self.from_end.otherEnd]:
+            return super(SQLAssociationCollection, self).add_join(name)
+        # special handling here
+        if name in self._joins:
+            return self._joins[name][0]
+        # this collection is either 1-1 or Many-Many
+        src_multiplicity, dst_multiplicity = \
+            self.entity_set.NavigationMultiplicity(name)
+        if dst_multiplicity != edm.Multiplicity.One:
+            # we can't join on this navigation property
+            raise NotImplementedError(
+                "NavigationProperty %s.%s cannot be used in an expression" %
+                (self.entity_set.name, name))
+        alias = self.next_alias()
+        target_set = self.from_entity.entity_set
+        target_table_name = self.container.mangled_names[(target_set.name, )]
+        join = []
+        for key_name in target_set.keys:
+            join.append(
+                '%s.%s=%s.%s' %
+                (self.atable_name,
+                 self.container.mangled_names[(self.aset_name, target_set.name,
+                                               self.fromNavName, key_name)],
+                 alias,
+                 self.container.mangled_names[(target_set.name, key_name)]))
+        join = ' INNER JOIN %s AS %s ON %s' % (
+            target_table_name, alias, string.join(join, ' AND '))
+        self._joins[name] = (alias, join)
+        self._aliases.add(alias)
+        return alias
 
     def where_clause(self, entity, params, use_filter=True, use_skip=False):
         """Provides the *from_entity* constraint in the auxiliary table."""
