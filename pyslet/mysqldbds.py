@@ -106,11 +106,7 @@ class MySQLEntityContainer(sqlds.SQLEntityContainer):
         ==================  ===================================
            EDM Type         MySQL Equivalent
         ------------------  -----------------------------------
-        Edm.DateTime        TIMESTAMP(n) with precision
-                            explicitly NULL if nullable to
-                            prevent auto-updates
-                            Defaults to 0 is NOT NULL to
-                            prevent auto-updates
+        Edm.DateTime        DATETIME(n) with precision
         Edm.Binary          BLOB (when large or unbounded)
         Edm.String          TEXT (when unbounded)
         Edm.Time            TIME(n) with precision
@@ -144,9 +140,9 @@ class MySQLEntityContainer(sqlds.SQLEntityContainer):
                 # maximum precision
                 precision = 6
             if precision:
-                column_def.append(u"TIMESTAMP(%i)" % precision)
+                column_def.append(u"DATETIME(%i)" % precision)
             else:
-                column_def.append(u"TIMESTAMP")
+                column_def.append(u"DATETIME")
             explicit_null = True
             explicit_default = '0'
         elif isinstance(simple_value, edm.TimeValue):

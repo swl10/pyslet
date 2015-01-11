@@ -47,6 +47,19 @@ def MakeContainer(doc, drop=False, path=SAMPLE_DB):
     return doc.root.DataServices['WeatherSchema.CambridgeWeather']
 
 
+def MakeMySQLContainer(doc, drop=False, create=False, host="localhost",
+        user="weather", password="password", database="weather"):
+    import pyslet.mysqldbds as mysql
+    container = mysql.MySQLEntityContainer(host=host, user=user,
+        passwd=password, db=database,
+        container=doc.root.DataServices['WeatherSchema.CambridgeWeather'])
+    if drop:
+        container.drop_all_tables()
+    if create:
+        container.create_all_tables()
+    return doc.root.DataServices['WeatherSchema.CambridgeWeather']
+
+
 def IsBST(t):
     """Returns True/False/Unknown if the timepoint t is in BST
 
