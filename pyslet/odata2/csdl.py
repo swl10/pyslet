@@ -1407,26 +1407,26 @@ class TimeValue(SimpleValue):
             if new_value < 0:
                 raise ValueError(
                     "Can't set Time from %.3f" % float(new_value))
-            tValue = iso8601.Time()
+            tvalue = iso8601.Time()
             if type(new_value) in (IntType, LongType):
-                tValue, days = tValue.offset(seconds=new_value)
+                tvalue, days = tvalue.offset(seconds=new_value)
             else:
-                tValue, days = tValue.offset(seconds=float(new_value))
+                tvalue, days = tvalue.offset(seconds=float(new_value))
             if days > 0:
                 raise ValueError(
                     "Can't set Time from %.3f (overflow)" % float(new_value))
-            self.value = tValue
+            self.value = tvalue
         elif isinstance(new_value, datetime.timedelta):
             seconds = new_value.seconds
             if new_value.microseconds:
                 seconds = seconds + (new_value.microseconds / 1000000.0)
-            tValue = iso8601.Time()
-            tValue, days = tValue.offset(seconds=seconds)
+            tvalue = iso8601.Time()
+            tvalue, days = tvalue.offset(seconds=seconds)
             if days > 0 or new_value.days:
                 raise ValueError(
                     "Can't set Time from %s (non-zero days)" %
                     repr(new_value))
-            self.value = tValue
+            self.value = tvalue
         else:
             raise TypeError("Can't set Time from %s" % repr(new_value))
 
@@ -2096,10 +2096,10 @@ class DeferredValue(object):
 
         Expands this navigation property, further expanding the
         resulting collection of entities using the given *expand* and
-        *select* options (see :py:meth:`EntityCollection.Expand` for
+        *select* options (see :py:meth:`EntityCollection.set_expand` for
         details)."""
         with self.from_entity.entity_set.OpenNavigation(self.name, self.from_entity) as collection:
-            collection.Expand(expand, select)
+            collection.set_expand(expand, select)
             self.SetExpansion(collection.expand_collection())
 
     def BindEntity(self, target):
@@ -2885,7 +2885,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         select = {}
         for k in self.entity_set.keys:
             select[k] = None
-        self.Expand(None, select)
+        self.set_expand(None, select)
 
     def expand_entities(self, entityIterable):
         """Utility method for data providers.
@@ -3232,7 +3232,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         sorted according to any rules defined by :py:meth:`set_orderby`.
 
         Entities are also expanded and selected according to the rules
-        defined by :py:class:`Expand`.
+        defined by :py:class:`set_expand`.
 
         Data providers must override this implementation which, by
         default, returns no entities (simulating an empty collection)."""
@@ -3415,7 +3415,7 @@ class FunctionEntityCollection(EntityCollection):
             raise TypeError(
                 "Function call does not return a collection of entities")
 
-    def Expand(self, expand, select=None):
+    def set_expand(self, expand, select=None):
         """This option is not supported on function results"""
         raise NotImplmentedError("Expand/Select option on Function result")
 
@@ -3952,7 +3952,7 @@ class EntityType(Type):
         """A utility method for data providers.
 
         Checks the expand and select options, as described in
-        :py:meth:`EntityCollection.Expand` for validity raising
+        :py:meth:`EntityCollection.set_expand` for validity raising
         ValueError if they violate the OData specification.
 
         Specifically the following are checked:

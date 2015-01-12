@@ -81,7 +81,9 @@ Fixed. Affected atom xml formatted entities only.
 
 #15 MySQL implementation of Pyslet's DAL (ongoing)
 
-Changes to the core DAL to deal to better support other DB modules
+Changes to the core DAL to deal to better support other DB modules. 
+These included added support for LIMIT clauses to speed up paged access
+to large entity sets.
 
 #18 Possible bug in parsing AssociationSet names
 
@@ -134,6 +136,9 @@ make it *much* easier to parse parameterized OData queries.
 
 Added new methods for creating and executing drop table statements in
 the DAL.
+
+Reworked sample code for the weather data server, included example
+driver files for mod_wsgi
 
 Other fixes:
 

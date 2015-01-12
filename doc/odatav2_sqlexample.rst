@@ -8,11 +8,12 @@ This project demonstrates how to construct a simple OData service based
 on the :py:class:`~pyslet.odata2.sqlds.SQLiteEntityContainer` class. 
 
 We don't need any customisations, this class does everything we need
-'out of the box'.  If you want to use a database other than SQLite you
-will need to create a new implementation of the generic
-:py:class:`~pyslet.odata2.sqlds.SQLEntityContainer`.  See the reference
-documentation for :py:mod:`~pyslet.odata2.sqlds` for details on what is
-involved.  You shouldn't have to change much!
+'out of the box'.  Although we use SQLite by default, an implementation
+is also provided using the MySQLdb adaptor.  If you want to use a
+database other than these you will need to create a new implementation
+of the generic :py:class:`~pyslet.odata2.sqlds.SQLEntityContainer`.  See
+the reference documentation for :py:mod:`~pyslet.odata2.sqlds` for
+details on what is involved.  You shouldn't have to change much!
 
 Step 1: Creating the Metadata Model
 -----------------------------------
@@ -27,7 +28,7 @@ directory.
 
 For this project, I've chosen to write an OData service that exposes
 weather data for my home town of Cambridge, England.  The choice of data
-set is purely because I have access to over 325,000 data points
+set is purely because I have access to over 340,000 data points
 stretching back to 1995 thanks to the excellent Weather Station website
 run by the University of Cambridge's Digital Technology Group:
 http://www.cl.cam.ac.uk/research/dtg/weather/
@@ -102,13 +103,16 @@ instance of
 
 	SAMPLE_DB='weather.db'
 
-	def MakeContainer(doc,drop=False):
-		if drop and os.path.isfile(SAMPLE_DB):
-			os.remove(SAMPLE_DB)
-		create=not os.path.isfile(SAMPLE_DB)
-		container=SQLiteEntityContainer(file_path=SAMPLE_DB,containerDef=doc.root.DataServices['WeatherSchema.CambridgeWeather'])
-		if create:
-			container.create_all_tables()
+    def make_container(doc, drop=False, path=SAMPLE_DB):
+        if drop and os.path.isfile(path):
+            os.remove(path)
+        create = not os.path.isfile(path)
+        container = SQLiteEntityContainer(
+            file_path=path,
+            container=doc.root.DataServices['WeatherSchema.CambridgeWeather'])
+        if create:
+            container.create_all_tables()
+        return doc.root.DataServices['WeatherSchema.CambridgeWeather']
 
 This function handles the only SQL-specific part of our project.  When
 we create a SQLite container we have to pass *two* keyword arguments:
@@ -168,10 +172,10 @@ they can still be modelled.  To start with, look at the way the SQLite
 implementation turns our model into a SQL CREATE TABLE statement::
 
 	>>> import weather
-	>>> doc=weather.LoadMetadata()
-	>>> weather.MakeContainer(doc)
+	>>> doc=weather.load_metadata()
+	>>> weather.make_container(doc)
 	>>> dataPoints=doc.root.DataServices['WeatherSchema.CambridgeWeather.DataPoints'].OpenCollection()
-	>>> print dataPoints.CreateTableQuery()[0]
+	>>> print dataPoints.create_table_query()[0]
 	CREATE TABLE "DataPoints" ("TimePoint" TIMESTAMP NOT NULL,
 	"Temperature" REAL, "Humidity" SMALLINT, "DewPoint" REAL, "Pressure"
 	SMALLINT, "WindSpeed" REAL, "WindDirection" TEXT, "WindSpeedMax"
@@ -233,14 +237,14 @@ code that 'knows' about your model for example, if we had exposed the
 foreign key in our example as a simple property we might have been
 tempted to do something like this::		
 
-	noteID=dataPoint['DataPointNotes_ID'].value
+	noteID=data_point['DataPointNotes_ID'].value
 	if noteID is not None:
 		note=noteCollection[noteID]
 		# do something with the note
 		
 When we should be doing something like this::
 
-	note=dataPoint['Note']
+	note=data_point['Note'].GetEntity()
 	if note is not None:
 		# do something with the note
 	
@@ -286,28 +290,28 @@ Before we add the complication of using our model with a SQL database,
 let's test it out using the same in-memory implementation we used
 before::
 
-	def DryRun():
-		doc=LoadMetadata()
+	def dry_run():
+		doc=load_metadata()
 		container=InMemoryEntityContainer(doc.root.DataServices['WeatherSchema.CambridgeWeather'])
 		weatherData=doc.root.DataServices['WeatherSchema.CambridgeWeather.DataPoints']
-		weatherNotes=doc.root.DataServices['WeatherSchema.CambridgeWeather.Notes']
-		LoadData(weatherData,SAMPLE_DIR)
-		LoadNotes(weatherNotes,'weathernotes.txt',weatherData)
+		weather_notes=doc.root.DataServices['WeatherSchema.CambridgeWeather.Notes']
+		load_data(weatherData,SAMPLE_DIR)
+		load_notes(weather_notes,'weathernotes.txt',weatherData)
 		return doc.root.DataServices['WeatherSchema.CambridgeWeather']
 
 SAMPLE_DIR here is the name of a directory containing data from the
-weather station.  The implementation of the LoadData function is fairly
+weather station.  The implementation of the load_data function is fairly
 ordinary, parsing the daily text files from the station and adding them
 to the DataPoints entity set.
 
-The implementation of the LoadNotes function is more interesting as it
+The implementation of the load_notes function is more interesting as it
 demonstrates use of the API for binding entities together using
 navigation properties::
 
-	def LoadNotes(weatherNotes,file_name,weatherData):
+	def load_notes(weather_notes,file_name,weatherData):
 		with open(file_name,'r') as f:
 			id=1
-			with weatherNotes.OpenCollection() as collection, weatherData.OpenCollection() as data:
+			with weather_notes.OpenCollection() as collection, weatherData.OpenCollection() as data:
 				while True:
 					line=f.readline()
 					if len(line)==0:
@@ -330,11 +334,11 @@ navigation properties::
 						collection.insert_entity(note)
 						# now find the data points that match
 						data.set_filter(core.CommonExpression.from_str("TimePoint ge datetime'%s' and TimePoint lt datetime'%s'"%(unicode(start),unicode(end))))
-						for dataPoint in data.values():
-							dataPoint['Note'].BindEntity(note)
-							data.update_entity(dataPoint)
+						for data_point in data.values():
+							data_point['Note'].BindEntity(note)
+							data.update_entity(data_point)
 						id=id+1
-		with weatherNotes.OpenCollection() as collection:
+		with weather_notes.OpenCollection() as collection:
 			collection.set_orderby(core.CommonExpression.OrderByFromString('StartDate desc'))
 			for e in collection.itervalues():
 				with e['DataPoints'].OpenCollection() as affectedData:
@@ -381,18 +385,18 @@ modifications.
 	here: http://bugs.python.org/issue10513
 
 Having tested the model using the in-memory provider we can implement a
-full test using the SQL back-end we created in MakeContainer above. 
+full test using the SQL back-end we created in make_container above. 
 This test function prints the 30 strongest wind gusts in the database,
 along with any linked note::
 
-	def TestModel(drop=False):
-		doc=LoadMetadata()
-		container=MakeContainer(doc,drop)
+	def test_model(drop=False):
+		doc=load_metadata()
+		container=make_container(doc,drop)
 		weatherData=doc.root.DataServices['WeatherSchema.CambridgeWeather.DataPoints']
-		weatherNotes=doc.root.DataServices['WeatherSchema.CambridgeWeather.Notes']
+		weather_notes=doc.root.DataServices['WeatherSchema.CambridgeWeather.Notes']
 		if drop:
-			LoadData(weatherData,SAMPLE_DIR)
-			LoadNotes(weatherNotes,'weathernotes.txt',weatherData)
+			load_data(weatherData,SAMPLE_DIR)
+			load_notes(weather_notes,'weathernotes.txt',weatherData)
 		with weatherData.OpenCollection() as collection:
 			collection.set_orderby(core.CommonExpression.OrderByFromString('WindSpeedMax desc'))
 			collection.set_page(30)
@@ -405,7 +409,7 @@ along with any linked note::
 
 Here's some sample output::
 
-	>>> weather.TestModel()
+	>>> weather.test_model()
 	2002-10-27T10:30:00: Pressure 988mb, max wind speed 74.0 knots (85.2 mph); 
 	2004-03-20T15:30:00: Pressure 993mb, max wind speed 72.0 knots (82.9 mph); 
 	2007-01-18T14:30:00: Pressure 984mb, max wind speed 70.0 knots (80.6 mph); 
@@ -431,20 +435,20 @@ interface should be read-only so we use the
 :py:class:`~pyslet.odata2.server.ReadOnlyServer` sub-class of the OData
 server::
 
-	def runWeatherServer(weatherApp=None):
+	def run_weather_server(weather_app=None):
 		"""Starts the web server running"""
-		server=make_server('',SERVICE_PORT,weatherApp)
+		server=make_server('',SERVICE_PORT,weather_app)
 		logging.info("HTTP server on port %i running"%SERVICE_PORT)
 		# Respond to requests until process is killed
 		server.serve_forever()
 
 	def main():
 		"""Executed when we are launched"""
-		doc=LoadMetadata()
-		container=MakeContainer(doc)
+		doc=load_metadata()
+		container=make_container(doc)
 		server=ReadOnlyServer(serviceRoot=SERVICE_ROOT)
 		server.SetModel(doc)
-		t=threading.Thread(target=runWeatherServer,kwargs={'weatherApp':server})
+		t=threading.Thread(target=run_weather_server,kwargs={'weather_app':server})
 		t.setDaemon(True)
 		t.start()
 		logging.info("Starting HTTP server on %s"%SERVICE_ROOT)

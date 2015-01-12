@@ -162,7 +162,7 @@ class ClientTests(unittest.TestCase):
                 self.assertFalse(
                     isinstance(orders, edm.ExpandedEntityCollection))
             # now test expansion
-            collection.Expand({"Orders": None})
+            collection.set_expand({"Orders": None})
             customer = collection['ALFKI']
             self.assertTrue(customer['Orders'].isExpanded)
             with customer['Orders'].OpenCollection() as orders:

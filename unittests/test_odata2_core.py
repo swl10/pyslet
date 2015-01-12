@@ -35,7 +35,7 @@ class CommonExpressionTests(unittest.TestCase):
 
     def evaluate_common(self, expr_string):
         p = Parser(expr_string)
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         return e.Evaluate(None)
 
     def test_evaluate_common_expression(self):
@@ -43,7 +43,7 @@ class CommonExpressionTests(unittest.TestCase):
         # a commonExpression must represent any and all supported common
         # expression types
         p = Parser("true and false")
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         self.assertTrue(
             isinstance(e, CommonExpression), "Expected common expression")
         value = e.Evaluate(None)
@@ -69,11 +69,11 @@ class CommonExpressionTests(unittest.TestCase):
         evaluation of the contained expression."""
         p = Parser("(false and false or true)")
         # note that 'or' is the weakest operator
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         value = e.Evaluate(None)
         self.assertTrue(value.value is True, "Expected True")
         p = Parser("(false and (false or true))")   # should change the result
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         value = e.Evaluate(None)
         self.assertTrue(value.value is False, "Expected False")
         value = self.evaluate_common(
@@ -296,7 +296,7 @@ class CommonExpressionTests(unittest.TestCase):
             value.typeCode == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == -2.0, "Expected -2.0")
         p = Parser("-(-2F)")  # unary numeric promotion to Double - a bit weird
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         value = e.Evaluate(None)
         self.assertTrue(
             value.typeCode == edm.SimpleType.Double, "Expected Double")
@@ -564,7 +564,7 @@ class CommonExpressionTests(unittest.TestCase):
         self.assertTrue(value.value is False, "Expected False")
         try:
             p = Parser("X'DEADBEEF' lt binary'deadbeef'")
-            e = p.ParseCommonExpression()
+            e = p.parse_common_expression()
             value = e.Evaluate(None)
             self.fail("Relational operation on binary data")
         except EvaluationError:
@@ -1434,7 +1434,7 @@ class ParamsExpressionTests(unittest.TestCase):
 
     def evaluate_common(self, expr_string):
         p = Parser(expr_string)
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         return e.Evaluate(None)
 
     def test_noparams_expression(self):
@@ -2320,7 +2320,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertFalse(
                 e.Selected('P2'), "P2 should not be selected")
             self.assertFalse(e['P2'], "P2 value should be NULL")
-            coll.Expand(None, {'P1': None})
+            coll.set_expand(None, {'P1': None})
             for k, e in coll.iteritems():
                 self.assertTrue(
                     e['K'].value == k, "Key selected and in coll")

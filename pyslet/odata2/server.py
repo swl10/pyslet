@@ -953,7 +953,10 @@ class Server(app.Server):
             if not isinstance(resource, (edm.EntityCollection, edm.Entity)):
                 raise core.InvalidSystemQueryOption(
                     "$select/$expand not allowed")
-            resource.Expand(expand, select)
+            if isinstance(resource, edm.EntityCollection):
+                resource.set_expand(expand, select)
+            else:
+                resource.Expand(expand, select)
         except ValueError as e:
             raise core.InvalidSystemQueryOption(
                 "$select/$expand error: %s" % str(e))

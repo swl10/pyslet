@@ -517,8 +517,21 @@ class SQLCollectionBase(core.EntityCollection):
         if self.top == 0:
             # end of paging
             return
+        skip = self.skip
+        top = self.top
+        topmax = self.topmax
+        if topmax is not None:
+            if top is not None:
+                limit = min(top, topmax)
+            else:
+                limit = topmax
+        else:
+            limit = top
         entity = self.new_entity()
         query = ["SELECT "]
+        skip, limit_clause = self.container.select_limit_clause(skip, limit)
+        if limit_clause:
+            query.append(limit_clause)
         params = self.container.ParamsClass()
         column_names, values = zip(*list(self.select_fields(entity)))
         column_names = list(column_names)
@@ -531,12 +544,12 @@ class SQLCollectionBase(core.EntityCollection):
         query.append(self.join_clause())
         query.append(where)
         query.append(orderby)
+        skip, limit_clause = self.container.limit_clause(skip, limit)
+        if limit_clause:
+            query.append(limit_clause)
         query = string.join(query, '')
         transaction = SQLTransaction(self.container.dbapi, self.dbc)
         try:
-            skip = self.skip
-            top = self.top
-            topmax = self.topmax
             transaction.begin()
             logging.info("%s; %s", query, unicode(params.params))
             transaction.execute(query, params)
@@ -1143,7 +1156,7 @@ class SQLCollectionBase(core.EntityCollection):
             for expression, direction in self.orderNames:
                 orderby.append(
                     "%s %s" % (expression, "DESC" if direction < 0 else "ASC"))
-            return ' ORDER BY ' + string.join(orderby, u", ")
+            return ' ORDER BY ' + string.join(orderby, u", ") + ' '
         else:
             return ''
 
@@ -3500,7 +3513,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
                 '%s.%s=%s.%s' %
                 (self.atable_name,
                  self.container.mangled_names[(self.aset_name, target_set.name,
-                                               self.fromNavName, key_name)],
+                                               self.from_nav_name, key_name)],
                  alias,
                  self.container.mangled_names[(target_set.name, key_name)]))
         join = ' INNER JOIN %s AS %s ON %s' % (
@@ -4969,6 +4982,80 @@ class SQLEntityContainer(object):
         value type."""
         return edm.EDMValue.NewSimpleValueFromValue(sql_value)
 
+    def select_limit_clause(self, skip, top):
+        """Returns a SELECT modifier to limit a query
+
+        See :meth:`limit_clause` for details of the parameters.
+
+        Returns a tuple of:
+
+        skip
+            0 if the modifier implements this functionality.  If it does
+            not implement this function then the value passed in for
+            skip *must* be returned.
+
+        modifier
+            A string modifier to insert immediately after the SELECT
+            statement (must be empty or end with a space).
+
+        For example, if your database supports the TOP keyword you might
+        return::
+
+            (skip, 'TOP %i' % top)
+
+        This will result in queries such as::
+
+            SELECT TOP 10 FROM ....
+
+        More modern syntax tends to use a special limit clause at the
+        end of the query, rather than a SELECT modifier.  The default
+        implementation returns::
+
+            (skip, '')
+
+        ...essentially doing nothing."""
+        return (skip, '')
+
+    def limit_clause(self, skip, top):
+        """Returns a limit clause to limit a query
+
+        skip
+            An integer number of entities to skip
+
+        top
+            An integer number of entities to limit the result set of a
+            query or None is no limit is desired.
+
+        Returns a tuple of:
+
+        skip
+            0 if the limit clause implements this functionality.  If it
+            does not implement this function then the value passed in
+            for skip *must* be returned.
+
+        clause
+            A limit clause to append to the query.  Must be empty or end
+            with a space.
+
+        For example, if your database supports the MySQL-style LIMIT and
+        OFFSET keywords you would return (for non-None values of top)::
+
+            (0, 'LIMIT %i OFFSET %i' % (top, skip))
+
+        This will result in queries such as::
+
+            SELECT * FROM Customers LIMIT 10 OFFSET 20
+
+        More modern syntax tends to use a special limit clause at the
+        end of the query, rather than a SELECT modifier.  Such as::
+
+            (skip, 'FETCH FIRST %i ROWS ONLY ' % top)
+
+        This syntax is part of SQL 2008 standard but is not widely
+        adopted and, for compatibility with existing external database
+        implementation, the default implementation remains blank."""
+        return (skip, '')
+
 
 class SQLiteEntityContainer(SQLEntityContainer):
 
@@ -5175,6 +5262,15 @@ class SQLiteEntityContainer(SQLEntityContainer):
         else:
             return super(SQLiteEntityContainer, self).new_from_sql_value(
                 sql_value)
+
+    def limit_clause(self, skip, top):
+        clause = []
+        if top:
+            clause.append('LIMIT %i ' % top)
+        if skip:
+            clause.append('OFFSET %i ' % skip)
+            skip = 0
+        return skip, string.join(clause, '')
 
 
 class SQLiteEntityCollectionBase(SQLCollectionBase):

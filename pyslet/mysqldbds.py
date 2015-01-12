@@ -214,6 +214,15 @@ class MySQLEntityContainer(sqlds.SQLEntityContainer):
                 MySQLEntityContainer,
                 self).prepare_sql_value(simple_value)
 
+    def limit_clause(self, skip, top):
+        clause = []
+        if top:
+            clause.append('LIMIT %i ' % top)
+        if skip:
+            clause.append('OFFSET %i ' % skip)
+            skip = 0
+        return skip, string.join(clause, '')
+
 
 class MySQLStreamStore(blockstore.StreamStore):
 

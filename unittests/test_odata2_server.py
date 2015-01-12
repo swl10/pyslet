@@ -857,7 +857,7 @@ class ServerTests(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def LoadMetadata(self):
+    def load_metadata(self):
         doc = edmx.Document()
         mdPath = self.sampleServerData.join('metadata.xml')
         with mdPath.open('rb') as f:
@@ -1009,13 +1009,13 @@ class ServerTests(unittest.TestCase):
         s = Server()
         self.assertTrue(s.model is None, "no model initially")
         # Load the model document
-        doc = self.LoadMetadata()
+        doc = self.load_metadata()
         s.SetModel(doc)
         # at this point, the server's model root is available as model
         self.assertTrue(s.model is doc.root, "model attribute")
 
     def testCaseEntityTypeAsAtomEntry(self):
-        doc = self.LoadMetadata()
+        doc = self.load_metadata()
         ds = doc.root.DataServices
         customers = ds['SampleModel.SampleEntities.Customers']
         customer = core.Entity(customers)
@@ -1260,7 +1260,7 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(gotType, "Expected category term")
 
     def testCaseEntityTypeAsJSON(self):
-        doc = self.LoadMetadata()
+        doc = self.load_metadata()
         ds = doc.root.DataServices
         customers = ds['SampleModel.SampleEntities.Customers']
         customer = core.Entity(customers)
@@ -1376,7 +1376,7 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(meta["media_etag"] == etag, "document etag")
 
     def testCaseEntityTypeFromJSON(self):
-        doc = self.LoadMetadata()
+        doc = self.load_metadata()
         ds = doc.root.DataServices
         customers = ds['SampleModel.SampleEntities.Customers']
         customer = core.Entity(customers)
@@ -1436,7 +1436,7 @@ class ServerTests(unittest.TestCase):
             newDocument['Version'].value == h.digest(), "Mismatched version")
 
     def testCaseEntitySetAsAtomFeed(self):
-        doc = self.LoadMetadata()
+        doc = self.load_metadata()
         ds = doc.root.DataServices
         container = memds.InMemoryEntityContainer(
             ds['SampleModel.SampleEntities'])
@@ -1523,7 +1523,7 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(feed.Title.GetValue() == "Orders")
 
     def testCaseEntitySetAsJSON(self):
-        doc = self.LoadMetadata()
+        doc = self.load_metadata()
         ds = doc.root.DataServices
         container = memds.InMemoryEntityContainer(
             ds['SampleModel.SampleEntities'])
@@ -1865,7 +1865,7 @@ class SampleServerTests(unittest.TestCase):
         order = orders.OpenCollection()[1]
         # Simple Property
         p = core.Parser("OrderID")
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         value = e.Evaluate(order)
         self.assertTrue(
             value.typeCode == edm.SimpleType.Int32, "Expected Int32")
@@ -1875,7 +1875,7 @@ class SampleServerTests(unittest.TestCase):
         customer = customers.OpenCollection()['ALFKI']
         # Complex Property
         p = core.Parser("Address")
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         value = e.Evaluate(customer)
         self.assertTrue(
             isinstance(value, edm.Complex), "Expected Complex value")
@@ -1883,14 +1883,14 @@ class SampleServerTests(unittest.TestCase):
         # Simple Property (NULL)
         customer00 = customers.OpenCollection()['XX=00']
         p = core.Parser("Version")
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         value = e.Evaluate(customer00)
         self.assertTrue(
             value.typeCode == edm.SimpleType.Binary, "Expected Binary")
         self.assertTrue(value.value is None, "Expected NULL")
         # Navigation property
         p = core.Parser("Customer")
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         value = e.Evaluate(order)
         self.assertTrue(isinstance(value, edm.Entity), "Expected Entity")
         self.assertTrue(
@@ -1902,7 +1902,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertFalse(value, "Expected NULL")
         # Navigation property with multiple cardinality
         p = core.Parser("Orders")
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         try:
             value = e.Evaluate(customer)
             self.fail("Navigation property cardinality")
@@ -1929,14 +1929,14 @@ class SampleServerTests(unittest.TestCase):
         order3 = orders.OpenCollection()[3]
         # Known Entity: SimpleProperty
         p = core.Parser("Customer/CustomerID")
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         value = e.Evaluate(order)
         self.assertTrue(
             value.typeCode == edm.SimpleType.String, "Expected string")
         self.assertTrue(value.value == 'ALFKI', "Expected 'ALKFI'")
         # Known ComplexType: SimpleProperty
         p = core.Parser("Customer/Address/City")
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         value = e.Evaluate(order)
         self.assertTrue(
             value.typeCode == edm.SimpleType.String, "Expected string")
@@ -1945,14 +1945,14 @@ class SampleServerTests(unittest.TestCase):
         #	navigation / navigation
         # Simple Property (NULL)
         p = core.Parser("Customer/Version")
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         value = e.Evaluate(order3)
         self.assertTrue(
             value.typeCode == edm.SimpleType.Binary, "Expected Binary")
         self.assertTrue(value.value is None, "Expected NULL")
         # Navigation property with multiple cardinality
         p = core.Parser("Customer/Orders")
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         try:
             value = e.Evaluate(order)
             self.fail("Navigation property cardinality")
@@ -1967,13 +1967,13 @@ class SampleServerTests(unittest.TestCase):
         order = orders.OpenCollection()[1]
         # Known Entity: SimpleProperty
         p = core.Parser("Customer eq Customer")
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         value = e.Evaluate(order)
         self.assertTrue(
             value.typeCode == edm.SimpleType.Boolean, "Expected boolean")
         self.assertTrue(value.value == True, "Expected True")
         p = core.Parser("Customer eq OrderLine")
-        e = p.ParseCommonExpression()
+        e = p.parse_common_expression()
         value = e.Evaluate(order)
         self.assertTrue(value.value == False, "Expected False")
 

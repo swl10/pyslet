@@ -305,7 +305,7 @@ Notice that the value returned by key lookup must still honour any
 filter in place.  We use the base class method
 :py:class:`~pyslet.odata2.csdl.EntityCollection.check_filter` to help us
 implement this requirement.  Similarly for
-:py:class:`~pyslet.odata2.csdl.EntityCollection.Expand`.
+:py:class:`~pyslet.odata2.csdl.EntityCollection.set_expand`.
 
 The final suggestion for improvement is to override the __len__ method
 in order to provide a more efficient implementation for determining the

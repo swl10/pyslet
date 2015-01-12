@@ -454,7 +454,7 @@ and so on, the following methods are useful for consumers of the API:
 	through the collection.  See `Ordering Collections`_ for more
 	information.
 
-:py:meth:`~pyslet.odata2.csdl.EntityCollection.Expand`
+:py:meth:`~pyslet.odata2.csdl.EntityCollection.set_expand`
 	Sets expand and select options for this collection, equivalent to
 	the $expand and $select system query options in OData.  Once set
 	these values effect all future entities returned from the collection
@@ -641,7 +641,7 @@ The value in the dictionary is either None, indicating no further
 expansion, or another dictionary specifying the expansion to apply to
 any linked Suppliers::
 
-	>>> products.Expand({'Supplier':None}, None)
+	>>> products.set_expand({'Supplier':None}, None)
 	>>> scones = products[21]
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)?$expand=Supplier HTTP/1.1
@@ -668,7 +668,7 @@ they are linked to and cached.  In the example above, the GetEntity call
 does not generate a call to the server.  Compare this with the same code
 executed without the expansion::
 
-	>>> products.Expand(None, None)
+	>>> products.set_expand(None, None)
 	>>> scones = products[21]
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21) HTTP/1.1
@@ -685,7 +685,7 @@ complex properties must always map to None, for a more complex example
 with navigation properties see below.  Suppose we are only interested in
 the product name::
 
-	>>> products.Expand(None, {'ProductName':None})
+	>>> products.set_expand(None, {'ProductName':None})
 	>>> scones = products[21]
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)?$select=ProductID%2CProductName HTTP/1.1
@@ -719,7 +719,7 @@ not selected::
 
 The expand and select options can be combined in complex ways::
 
-	>>> products.Expand({'Supplier':None}, {'ProductName':None, 'Supplier':{'Phone':None}})
+	>>> products.set_expand({'Supplier':None}, {'ProductName':None, 'Supplier':{'Phone':None}})
 	>>> scones = products[21]
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)?$expand=Supplier&$select=ProductID%2CProductName%2CSupplier%2FPhone%2CSupplier%2FSupplierID HTTP/1.1

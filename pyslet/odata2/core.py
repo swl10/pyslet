@@ -382,13 +382,13 @@ class CommonExpression(object):
     def from_str(src, params=None):
         p = Parser(src)
         return p.require_production_end(
-            p.ParseCommonExpression(params),
+            p.parse_common_expression(params),
             "commonExpression")
 
     @staticmethod
     def OrderByFromString(src):
         p = Parser(src)
-        return p.require_production_end(p.ParseOrderbyOption(), "orderbyOption")
+        return p.require_production_end(p.parse_orderby_option(), "orderbyOption")
 
     @staticmethod
     def OrderByToString(orderby):
@@ -1324,7 +1324,7 @@ class Parser(edm.Parser):
             if rightOp is None:
                 if self.parse("("):
                     rightOp = self.require_production(
-                        self.ParseCommonExpression(),
+                        self.parse_common_expression(),
                         "commonExpression inside parenExpression")
                     self.require_production(
                         self.parse(")"), "closing bracket in parenExpression")
@@ -1408,7 +1408,7 @@ class Parser(edm.Parser):
         while True:
             self.ParseWSP()
             param = self.require_production(
-                self.ParseCommonExpression(), "methodCall argument")
+                self.parse_common_expression(), "methodCall argument")
             method.AddOperand(param)
             self.ParseWSP()
             if self.parse(","):
@@ -1425,7 +1425,7 @@ class Parser(edm.Parser):
         if self.parse("("):
             e = BinaryExpression(op)
             firstParam = self.require_production(
-                self.ParseCommonExpression(), "%s argument" % name)
+                self.parse_common_expression(), "%s argument" % name)
             e.AddOperand(firstParam)
             self.ParseWSP()
             if self.parse_one(")"):
@@ -1435,7 +1435,7 @@ class Parser(edm.Parser):
                 self.require_production(self.parse(","), "',' in %s" % name)
                 self.ParseWSP()
                 stringParam = self.require_production(
-                    self.ParseCommonExpression(), "%s argument" % name)
+                    self.parse_common_expression(), "%s argument" % name)
                 e.AddOperand(stringParam)
                 self.ParseWSP()
                 self.require_production(self.parse(")"), "')' after %s" % name)
@@ -1494,7 +1494,7 @@ class Parser(edm.Parser):
         while True:
             self.ParseWSP()
             e = self.require_production(
-                self.ParseCommonExpression(), "commonExpression")
+                self.parse_common_expression(), "commonExpression")
             self.ParseWSP()
             if self.parse_insensitive("asc"):
                 dir = 1
@@ -2189,7 +2189,7 @@ class ODataURI:
             paramParser = Parser(param_value)
             if param == SystemQueryOption.filter:
                 value = paramParser.require_production_end(
-                    paramParser.ParseCommonExpression(),
+                    paramParser.parse_common_expression(),
                     "boolCommonExpression")
             elif param == SystemQueryOption.expand:
                 value = paramParser.require_production_end(
@@ -2216,7 +2216,7 @@ class ODataURI:
                             "Unsupported $format : %s" % param_value)
             elif param == SystemQueryOption.orderby:
                 value = paramParser.require_production_end(
-                    paramParser.ParseOrderbyOption(), "orderby query option")
+                    paramParser.parse_orderby_option(), "orderby query option")
             elif param == SystemQueryOption.skip:
                 value = paramParser.require_production_end(
                     paramParser.parse_integer(), "skip query option")

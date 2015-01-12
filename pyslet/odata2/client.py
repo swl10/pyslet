@@ -110,7 +110,7 @@ class ClientCollection(core.EntityCollection):
 #         else:
 #             return core.Entity(self.entity_set)
 
-    def Expand(self, expand, select=None):
+    def set_expand(self, expand, select=None):
         """Sets the expand and select query options for this collection.
 
         We override this implementation to ensure that the keys are

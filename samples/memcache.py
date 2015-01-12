@@ -19,7 +19,7 @@ from pyslet.odata2.memds import InMemoryEntityContainer
 cacheApp=None		#: our Server instance
 
 
-def LoadMetadata():
+def load_metadata():
 	"""Loads the metadata file from the current directory."""
 	doc=edmx.Document()
 	with open('MemCacheSchema.xml','rb') as f:
@@ -36,9 +36,9 @@ def TestData(memCache):
 			e['Expires'].set_from_value(iso.TimePoint.from_unix_time(time.time()+10*i))
 			collection.insert_entity(e)
 
-def TestModel():
+def test_model():
 	"""Read and write some key value pairs"""
-	doc=LoadMetadata()
+	doc=load_metadata()
 	container=InMemoryEntityContainer(doc.root.DataServices['MemCacheSchema.MemCache'])
 	memCache=doc.root.DataServices['MemCacheSchema.MemCache.KeyValuePairs']
 	TestData(memCache)
@@ -80,7 +80,7 @@ def CleanupForever(memCache):
 	
 def main():
 	"""Executed when we are launched"""
-	doc=LoadMetadata()
+	doc=load_metadata()
 	container=InMemoryEntityContainer(doc.root.DataServices['MemCacheSchema.MemCache'])
 	server=Server(serviceRoot=SERVICE_ROOT)
 	server.SetModel(doc)

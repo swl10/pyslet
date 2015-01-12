@@ -53,7 +53,7 @@ file when our script starts up.  Here's the source code::
 
 	import pyslet.odata2.metadata as edmx
 
-	def LoadMetadata():
+	def load_metadata():
 		"""Loads the metadata file from the current directory."""
 		doc=edmx.Document()
 		with open('MemCacheSchema.xml','rb') as f:
@@ -77,9 +77,9 @@ Let's write a simple test function to test our model::
 				e['Expires'].set_from_value(iso.TimePoint.from_unix_time(time.time()+10*i))
 				collection.insert_entity(e)
 
-	def TestModel():
+	def test_model():
 		"""Read and write some key value pairs"""
-		doc=LoadMetadata()
+		doc=load_metadata()
 		container=InMemoryEntityContainer(doc.root.DataServices['MemCacheSchema.MemCache'])
 		memCache=doc.root.DataServices['MemCacheSchema.MemCache.KeyValuePairs']
 		TestData(memCache)
@@ -97,7 +97,7 @@ test data and then opens the *KeyValuePairs* collection itself to check
 that everything is in order.  Here's the output from a sample run::
 
 	>>> import memcache
-	>>> memcache.TestModel()
+	>>> memcache.test_model()
 	24: Y (expires 2014-02-17T22:26:21)
 	25: Z (expires 2014-02-17T22:26:31)
 	20: U (expires 2014-02-17T22:25:41)
@@ -170,7 +170,7 @@ creating the server object and then spawning the server thread::
 
 	def main():
 		"""Executed when we are launched"""
-		doc=LoadMetadata()
+		doc=load_metadata()
 		container=InMemoryEntityContainer(doc.root.DataServices['MemCacheSchema.MemCache'])
 		server=Server(serviceRoot=SERVICE_ROOT)
 		server.SetModel(doc)
