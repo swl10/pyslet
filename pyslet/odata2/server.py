@@ -580,6 +580,10 @@ class Server(app.Server):
                     return self.ReturnCount(
                         1, request, environ, start_response, response_headers)
                 elif isinstance(resource, edm.EntityCollection):
+                    resource.set_filter(
+                        request.sysQueryOptions.get(
+                            core.SystemQueryOption.filter,
+                            None))
                     return self.ReturnCount(
                         len(resource),
                         request,

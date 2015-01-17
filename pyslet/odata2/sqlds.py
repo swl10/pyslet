@@ -188,6 +188,37 @@ class NamedParams(SQLParams):
         return ":" + name
 
 
+def retry_decorator(tmethod):
+    """Decorates a transaction method with retry handling"""
+
+    def retry(self, *args, **kwargs):
+        if self.query_count:
+            return tmethod(self, *args, **kwargs)
+        else:
+            strike = 0
+            while True:
+                try:
+                    result = tmethod(self, *args, **kwargs)
+                    break
+                except self.api.OperationalError, err:
+                    strike += 1
+                    if strike < 3:
+                        logging.error(
+                            "Thread[%i] retrying database connection "
+                            "after error: %s", self.connection.thread_id,
+                            str(err))
+                        self.container.close_connection(self.connection.dbc)
+                        self.connection.dbc = self.container.open()
+                        if self.cursor is not None:
+                            # create a new cursor
+                            self.cursor = self.connection.dbc.cursor()
+                    else:
+                        raise
+        return result
+
+    return retry
+
+
 class SQLTransaction(object):
 
     """Class used to model a transaction.
@@ -205,7 +236,7 @@ class SQLTransaction(object):
 
     Essentially, the class is used as follows::
 
-            t=SQLTransaction(db_module,db_connection)
+            t = SQLTransaction(db_container, db_connection)
             try:
                     t.begin()
                     t.execute("UPDATE SOME_TABLE SET SOME_COL='2'")
@@ -221,24 +252,27 @@ class SQLTransaction(object):
     keeps track of these 'nested' transactions and delays the commit or
     rollback until the outermost method invokes them."""
 
-    def __init__(self, api, dbc):
-        self.api = api          #: the database module
-        self.dbc = dbc          #: the database connection
+    def __init__(self, container, connection):
+        self.container = container
+        self.api = container.dbapi      #: the database module
+        self.connection = connection    #: the database connection
         #: the database cursor to use for executing commands
         self.cursor = None
-        self.noCommit = 0           #: used to manage nested transactions
-        self.queryCount = 0     #: records the number of successful commands
+        self.no_commit = 0      #: used to manage nested transactions
+        self.query_count = 0    #: records the number of successful commands
 
+    @retry_decorator
     def begin(self):
         """Begins a transaction
 
         If a transaction is already in progress a nested transaction is
         started which has no affect on the database connection itself."""
         if self.cursor is None:
-            self.cursor = self.dbc.cursor()
+            self.cursor = self.connection.dbc.cursor()
         else:
-            self.noCommit += 1
+            self.no_commit += 1
 
+    @retry_decorator
     def execute(self, sqlcmd, params=None):
         """Executes *sqlcmd* as part of this transaction.
 
@@ -250,15 +284,15 @@ class SQLTransaction(object):
                 parameterized values."""
         self.cursor.execute(sqlcmd,
                             params.params if params is not None else None)
-        self.queryCount += 1
+        self.query_count += 1
 
     def commit(self):
         """Ends this transaction with a commit
 
         Nested transactions do nothing."""
-        if self.noCommit:
+        if self.no_commit:
             return
-        self.dbc.commit()
+        self.connection.dbc.commit()
 
     def rollback(self, err=None, swallow=False):
         """Calls the underlying database connection rollback method.
@@ -269,27 +303,27 @@ class SQLTransaction(object):
         If rollback is not supported the resulting error is absorbed.
 
         err
-                The exception that triggered the rollback.  If not None then
-                this is logged at INFO level when the rollback succeeds.
+            The exception that triggered the rollback.  If not None then
+            this is logged at INFO level when the rollback succeeds.
 
-                If the transaction contains at least one successfully
-                executed query and the rollback fails then *err* is logged
-                at ERROR rather than INFO level indicating that the data may
-                now be in violation of the model.
+            If the transaction contains at least one successfully
+            executed query and the rollback fails then *err* is logged
+            at ERROR rather than INFO level indicating that the data may
+            now be in violation of the model.
 
         swallow
-                A flag (defaults to False) indicating that *err* should be
-                swallowed, rather than re-raised."""
-        if not self.noCommit:
+            A flag (defaults to False) indicating that *err* should be
+            swallowed, rather than re-raised."""
+        if not self.no_commit:
             try:
-                self.dbc.rollback()
+                self.connection.dbc.rollback()
                 if err is not None:
                     logging.info(
                         "rollback invoked for transaction following error %s",
                         str(err))
             except self.api.NotSupportedError:
                 if err is not None:
-                    if self.queryCount:
+                    if self.query_count:
                         logging.error(
                             "Data Integrity Error on TABLE %s: rollback "
                             "invoked on a connection that does not "
@@ -303,10 +337,7 @@ class SQLTransaction(object):
         if err is not None and not swallow:
             logging.debug(
                 string.join(
-                    traceback.format_exception(
-                        *
-                        sys.exc_info(),
-                        limit=6)))
+                    traceback.format_exception(*sys.exc_info(), limit=6)))
             if isinstance(err, self.api.Error):
                 raise SQLError(str(err))
             else:
@@ -317,12 +348,12 @@ class SQLTransaction(object):
 
         Each call to :py:meth:`begin` MUST be balanced with one call to
         close."""
-        if self.noCommit:
-            self.noCommit = self.noCommit - 1
+        if self.no_commit:
+            self.no_commit = self.no_commit - 1
         elif self.cursor is not None:
             self.cursor.close()
             self.cursor = None
-            self.queryCount = 0
+            self.query_count = 0
 
 
 class SQLCollectionBase(core.EntityCollection):
@@ -352,12 +383,14 @@ class SQLCollectionBase(core.EntityCollection):
         self._joins = None
         # force orderNames to be initialised
         self.set_orderby(None)
-        self.dbc = None                 #: a connection to the database
+        #: a connection to the database acquired with
+        #: :meth:`SQLEntityContainer.acquire_connection`
+        self.connection = None
         self._sqlLen = None
         self._sqlGen = None
         try:
-            self.dbc = self.container.acquire_connection(SQL_TIMEOUT)
-            if self.dbc is None:
+            self.connection = self.container.acquire_connection(SQL_TIMEOUT)
+            if self.connection is None:
                 raise DatabaseBusy(
                     "Failed to acquire connection after %is" % SQL_TIMEOUT)
         except:
@@ -366,9 +399,9 @@ class SQLCollectionBase(core.EntityCollection):
 
     def close(self):
         """Closes the cursor and database connection if they are open."""
-        if self.dbc is not None:
-            self.container.release_connection(self.dbc)
-            self.dbc = None
+        if self.connection is not None:
+            self.container.release_connection(self.connection)
+            self.connection = None
 
     def __len__(self):
         if self._sqlLen is None:
@@ -381,7 +414,7 @@ class SQLCollectionBase(core.EntityCollection):
             self._sqlLen = (query, params)
         else:
             query, params = self._sqlLen
-        transaction = SQLTransaction(self.container.dbapi, self.dbc)
+        transaction = SQLTransaction(self.container, self.connection)
         try:
             transaction.begin()
             logging.info("%s; %s", query, unicode(params.params))
@@ -423,7 +456,7 @@ class SQLCollectionBase(core.EntityCollection):
             self._sqlGen = query, params
         else:
             query, params = self._sqlGen
-        transaction = SQLTransaction(self.container.dbapi, self.dbc)
+        transaction = SQLTransaction(self.container, self.connection)
         try:
             transaction.begin()
             logging.info("%s; %s", query, unicode(params.params))
@@ -548,7 +581,7 @@ class SQLCollectionBase(core.EntityCollection):
         if limit_clause:
             query.append(limit_clause)
         query = string.join(query, '')
-        transaction = SQLTransaction(self.container.dbapi, self.dbc)
+        transaction = SQLTransaction(self.container, self.connection)
         try:
             transaction.begin()
             logging.info("%s; %s", query, unicode(params.params))
@@ -633,7 +666,7 @@ class SQLCollectionBase(core.EntityCollection):
         query.append(self.join_clause())
         query.append(where)
         query = string.join(query, '')
-        transaction = SQLTransaction(self.container.dbapi, self.dbc)
+        transaction = SQLTransaction(self.container, self.connection)
         try:
             transaction.begin()
             logging.info("%s; %s", query, unicode(params.params))
@@ -760,7 +793,7 @@ class SQLCollectionBase(core.EntityCollection):
         if h is not None:
             etag.set_from_value(h.digest())
         oldvalue = self._get_streamid(key)
-        transaction = SQLTransaction(self.container.dbapi, self.dbc)
+        transaction = SQLTransaction(self.container, self.connection)
         try:
             transaction.begin()
             # store the new stream value for the entity
@@ -805,7 +838,7 @@ class SQLCollectionBase(core.EntityCollection):
         query.append(self.where_clause(entity, params, use_filter=False))
         query = string.join(query, '')
         if transaction is None:
-            transaction = SQLTransaction(self.container.dbapi, self.dbc)
+            transaction = SQLTransaction(self.container, self.connection)
         try:
             transaction.begin()
             logging.info("%s; %s", query, unicode(params.params))
@@ -861,9 +894,7 @@ class SQLCollectionBase(core.EntityCollection):
         return count, md5.digest()
 
     def reset_joins(self):
-        """Sets the base join information for this collection
-
-        Called if _joins is None."""
+        """Sets the base join information for this collection"""
         self._joins = {}
         self._aliases = set()
         self._aliases.add(self.table_name)
@@ -1925,7 +1956,7 @@ class SQLEntityCollection(SQLCollectionBase):
             raise NotImplementedError
         if h is not None:
             etag.set_from_value(h.digest())
-        transaction = SQLTransaction(self.container.dbapi, self.dbc)
+        transaction = SQLTransaction(self.container, self.connection)
         try:
             transaction.begin()
             # now try the insert and loop with random keys if required
@@ -2047,7 +2078,7 @@ class SQLEntityCollection(SQLCollectionBase):
         A failed :py:meth:`rollback` call will log this condition along
         with the error that caused it."""
         if transaction is None:
-            transaction = SQLTransaction(self.container.dbapi, self.dbc)
+            transaction = SQLTransaction(self.container, self.connection)
         if entity.exists:
             raise edm.EntityExists(str(entity.get_location()))
         # We must also go through each bound navigation property of our
@@ -2331,7 +2362,7 @@ class SQLEntityCollection(SQLCollectionBase):
             fk_values = []
         fk_values = []
         fk_mapping = self.container.fk_table[self.entity_set.name]
-        transaction = SQLTransaction(self.container.dbapi, self.dbc)
+        transaction = SQLTransaction(self.container, self.connection)
         try:
             transaction.begin()
             nav_done = set()
@@ -2552,7 +2583,7 @@ class SQLEntityCollection(SQLCollectionBase):
                 "Attempt to update non-existent entity: " +
                 str(entity.get_location()))
         if transaction is None:
-            transaction = SQLTransaction(self.container.dbapi, self.dbc)
+            transaction = SQLTransaction(self.container, self.connection)
         query = ['UPDATE ', self.table_name, ' SET ']
         params = self.container.ParamsClass()
         updates = []
@@ -2641,7 +2672,7 @@ class SQLEntityCollection(SQLCollectionBase):
                 An optional transaction.  If present, the connection is left
                 uncommitted."""
         if transaction is None:
-            transaction = SQLTransaction(self.container.dbapi, self.dbc)
+            transaction = SQLTransaction(self.container, self.connection)
         try:
             transaction.begin()
             fk_mapping = self.container.fk_table[self.entity_set.name]
@@ -2747,7 +2778,7 @@ class SQLEntityCollection(SQLCollectionBase):
                 "Attempt to update non-existent entity: " +
                 str(entity.get_location()))
         if transaction is None:
-            transaction = SQLTransaction(self.container.dbapi, self.dbc)
+            transaction = SQLTransaction(self.container, self.connection)
         query = ['UPDATE ', self.table_name, ' SET ']
         params = self.container.ParamsClass()
         updates = []
@@ -2821,7 +2852,7 @@ class SQLEntityCollection(SQLCollectionBase):
                 An optional transaction.  If present, the connection is left
                 uncommitted."""
         if transaction is None:
-            transaction = SQLTransaction(self.container.dbapi, self.dbc)
+            transaction = SQLTransaction(self.container, self.connection)
         query = ['UPDATE ', self.table_name, ' SET ']
         params = self.container.ParamsClass()
         updates = []
@@ -2933,7 +2964,7 @@ class SQLEntityCollection(SQLCollectionBase):
     def create_table(self):
         """Executes the SQL statement :py:meth:`create_table_query`"""
         query, params = self.create_table_query()
-        transaction = SQLTransaction(self.container.dbapi, self.dbc)
+        transaction = SQLTransaction(self.container, self.connection)
         try:
             transaction.begin()
             logging.info("%s; %s", query, unicode(params.params))
@@ -2952,7 +2983,7 @@ class SQLEntityCollection(SQLCollectionBase):
     def drop_table(self):
         """Executes the SQL statement :py:meth:`drop_table_query`"""
         query = self.drop_table_query()
-        transaction = SQLTransaction(self.container.dbapi, self.dbc)
+        transaction = SQLTransaction(self.container, self.connection)
         try:
             transaction.begin()
             logging.info("%s;", query)
@@ -3144,7 +3175,7 @@ class SQLForeignKeyCollection(SQLNavigationCollection):
             return ''
 
     def insert_entity(self, entity):
-        transaction = SQLTransaction(self.container.dbapi, self.dbc)
+        transaction = SQLTransaction(self.container, self.connection)
         try:
             # Because of the nature of the relationships we are used
             # for, *entity* can be inserted into the base collection
@@ -3258,7 +3289,7 @@ class SQLReverseKeyCollection(SQLNavigationCollection):
             return ''
 
     def insert_entity(self, entity):
-        transaction = SQLTransaction(self.container.dbapi, self.dbc)
+        transaction = SQLTransaction(self.container, self.connection)
         fk_values = []
         for k, v in self.from_entity.KeyDict().items():
             fk_values.append(
@@ -3295,7 +3326,7 @@ class SQLReverseKeyCollection(SQLNavigationCollection):
                 "Can't delete required link from association set %s" %
                 self.aset_name)
         if transaction is None:
-            transaction = SQLTransaction(self.container.dbapi, self.dbc)
+            transaction = SQLTransaction(self.container, self.connection)
         try:
             transaction.begin()
             self.keyCollection.clear_links(
@@ -3431,11 +3462,11 @@ class SQLAssociationCollection(SQLNavigationCollection):
         relationship called Customers_Groups, the resulting join looks
         something like this (when the from_entity is a Customer)::
 
-        SELECT ... FROM Groups
-        INNER JOIN Customers_Groups ON
-            Groups.GroupID = Customers_Groups.Groups_MemberOf_GroupID
-        ...
-        WHERE Customers_Groups.Customers_Members_CustomerID = ?;
+            SELECT ... FROM Groups
+            INNER JOIN Customers_Groups ON
+                Groups.GroupID = Customers_Groups.Groups_MemberOf_GroupID
+            ...
+            WHERE Customers_Groups.Customers_Members_CustomerID = ?;
 
         The value of the CustomerID key property in from_entity is
         passed as a parameter when executing the expression."""
@@ -3470,17 +3501,17 @@ class SQLAssociationCollection(SQLNavigationCollection):
 
         To illustrate, if Customers have a 1-1 relationship with
         PrimaryContacts through a Customers_PrimaryContacts association
-        set then the expression grows an additional join:
+        set then the expression grows an additional join::
 
-        SELECT ... FROM PrimaryContacts
-        INNER JOIN Customers_PrimaryContacts ON
-            PrimaryContacts.ContactID =
-                Customers_PrimaryContacts.PrimaryContacts_Contact_ContactID
-        INNER JOIN Customers AS nav1 ON
-            Customers_PrimaryContacts.Customers_Customer_CustmerID =
-                Customers.CustomerID
-        ...
-        WHERE Customers_PrimaryContacts.Customers_Customer_CustomerID = ?;
+            SELECT ... FROM PrimaryContacts
+            INNER JOIN Customers_PrimaryContacts ON
+                PrimaryContacts.ContactID =
+                    Customers_PrimaryContacts.PrimaryContacts_Contact_ContactID
+            INNER JOIN Customers AS nav1 ON
+                Customers_PrimaryContacts.Customers_Customer_CustmerID =
+                    Customers.CustomerID
+            ...
+            WHERE Customers_PrimaryContacts.Customers_Customer_CustomerID = ?;
 
         This is a cumbersome query to join two entities that are
         supposed to have a 1-1 relationship, which is one of the reasons
@@ -3567,7 +3598,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
         model. This will only be an issue in non-transactional
         systems."""
         if transaction is None:
-            transaction = SQLTransaction(self.container.dbapi, self.dbc)
+            transaction = SQLTransaction(self.container, self.connection)
         try:
             transaction.begin()
             with self.entity_set.OpenCollection() as baseCollection:
@@ -3588,7 +3619,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
 
     def insert_link(self, entity, transaction=None):
         if transaction is None:
-            transaction = SQLTransaction(self.container.dbapi, self.dbc)
+            transaction = SQLTransaction(self.container, self.connection)
         query = ['INSERT INTO ', self.atable_name, ' (']
         params = self.container.ParamsClass()
         value_names = []
@@ -3639,7 +3670,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
     def replace_link(self, entity, transaction=None):
         if self.from_entity[self.from_nav_name].isCollection:
             if transaction is None:
-                transaction = SQLTransaction(self.container.dbapi, self.dbc)
+                transaction = SQLTransaction(self.container, self.connection)
             try:
                 transaction.begin()
                 self.clear_links(transaction)
@@ -3681,7 +3712,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
         This method is also re-used for simple deletion of the link in
         this case as the link is in the auxiliary table itself."""
         if transaction is None:
-            transaction = SQLTransaction(self.container.dbapi, self.dbc)
+            transaction = SQLTransaction(self.container, self.connection)
         query = ['DELETE FROM ', self.atable_name]
         params = self.container.ParamsClass()
         # we suppress the filter check on the where clause
@@ -3712,7 +3743,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
                 An optional transaction.  If present, the connection is left
                 uncommitted."""
         if transaction is None:
-            transaction = SQLTransaction(self.container.dbapi, self.dbc)
+            transaction = SQLTransaction(self.container, self.connection)
         query = ['DELETE FROM ', self.atable_name]
         params = self.container.ParamsClass()
         # we suppress the filter check on the where clause
@@ -3844,12 +3875,12 @@ class SQLAssociationCollection(SQLNavigationCollection):
     @classmethod
     def create_table(cls, container, aset_name):
         """Executes the SQL statement :py:meth:`create_table_query`"""
-        dbc = container.acquire_connection(
+        connection = container.acquire_connection(
             SQL_TIMEOUT)        #: a connection to the database
-        if dbc is None:
+        if connection is None:
             raise DatabaseBusy(
                 "Failed to acquire connection after %is" % SQL_TIMEOUT)
-        transaction = SQLTransaction(container.dbapi, dbc)
+        transaction = SQLTransaction(container, connection)
         try:
             transaction.begin()
             query, params = cls.create_table_query(container, aset_name)
@@ -3860,8 +3891,8 @@ class SQLAssociationCollection(SQLNavigationCollection):
             transaction.rollback(e)
         finally:
             transaction.close()
-            if dbc is not None:
-                container.release_connection(dbc)
+            if connection is not None:
+                container.release_connection(connection)
 
     @classmethod
     def drop_table_query(cls, container, aset_name):
@@ -3874,12 +3905,12 @@ class SQLAssociationCollection(SQLNavigationCollection):
     @classmethod
     def drop_table(cls, container, aset_name):
         """Executes the SQL statement :py:meth:`drop_table_query`"""
-        dbc = container.acquire_connection(
+        connection = container.acquire_connection(
             SQL_TIMEOUT)        #: a connection to the database
-        if dbc is None:
+        if connection is None:
             raise DatabaseBusy(
                 "Failed to acquire connection after %is" % SQL_TIMEOUT)
-        transaction = SQLTransaction(container.dbapi, dbc)
+        transaction = SQLTransaction(container, connection)
         try:
             transaction.begin()
             query = cls.drop_table_query(container, aset_name)
@@ -3890,8 +3921,8 @@ class SQLAssociationCollection(SQLNavigationCollection):
             transaction.rollback(e)
         finally:
             transaction.close()
-            if dbc is not None:
-                container.release_connection(dbc)
+            if connection is not None:
+                container.release_connection(connection)
 
 
 class DummyLock(object):
@@ -3911,18 +3942,18 @@ class DummyLock(object):
         pass
 
 
-class SQLConnectionLock(object):
+class SQLConnection(object):
 
-    """An object used to wrap a lock object.
+    """An object used to wrap the connection.
 
-    lock_class
-            An object to use as the lock."""
-
-    def __init__(self, lock_class):
+    Used in the connection pools to keep track of which thread owns the
+    connections, the depth of the lock and when the connection was last
+    modified (acquired or released)."""
+    def __init__(self):
         self.thread = None
         self.thread_id = None
-        self.lock = lock_class()
         self.locked = 0
+        self.last_seen = 0
         self.dbc = None
 
 
@@ -3972,6 +4003,18 @@ class SQLEntityContainer(object):
         Note: all names are quoted using :py:meth:`quote_identifier`
         before appearing in SQL statements.
 
+    max_idle (optional)
+        The maximum number of seconds idle database connections should
+        be kept open before they are cleaned by the
+        :meth:`pool_cleaner`. The default is None which means that the
+        pool_cleaner never runs. Any other value causes a separate
+        thread to be created to run the pool cleaner passing the value
+        of the parameter each time. The frequency of calling the
+        pool_cleaner method is calculated by dividing max_idle by 5, but
+        it never runs more than once per minute.  For example, a setting
+        of 3600 (1 hour) will result in a pool cleaner call every 12
+        minutes.
+
     This class is designed to work with diamond inheritance and super.
     All derived classes must call __init__ through super and pass all
     unused keyword arguments.  For example::
@@ -3981,14 +4024,8 @@ class SQLEntityContainer(object):
                         super(MyDBContainer,self).__init__(**kwargs)
                         # do something with myDBConfig...."""
 
-    def __init__(
-            self,
-            container,
-            dbapi,
-            streamstore=None,
-            max_connections=10,
-            field_name_joiner=u"_",
-            **kwargs):
+    def __init__(self, container, dbapi, streamstore=None, max_connections=10,
+                 field_name_joiner=u"_", max_idle=None, **kwargs):
         if kwargs:
             logging.debug(
                 "Unabsorbed kwargs in SQLEntityContainer constructor")
@@ -4011,10 +4048,11 @@ class SQLEntityContainer(object):
             self.clocker = threading.RLock
             self.cpool_max = max_connections
         self.cpool_lock = threading.Condition()
-        self.cpool_closing = False
         self.cpool_locked = {}
         self.cpool_unlocked = {}
-        self.cpool_dead = []
+        self.cpool_idle = []
+        self.cpool_size = 0
+        self.closing = threading.Event()
         # set up the parameter style
         if self.dbapi.paramstyle == "qmark":
             self.ParamsClass = QMarkParams
@@ -4124,6 +4162,14 @@ class SQLEntityContainer(object):
             for kc in (u'fkA', u'fkB', u"pk"):
                 source_path = (aSet.name, aSet.name, kc)
                 self.mangled_names[source_path] = self.mangle_name(source_path)
+        # start the pool cleaner thread if required
+        if max_idle is not None:
+            t = threading.Thread(
+                target=self._run_pool_cleaner, kwargs={'max_idle': max_idle})
+            t.setDaemon(True)
+            t.start()
+            logging.info("Starting pool_cleaner with max_idle=%f" %
+                         float(max_idle))
 
     def mangle_name(self, source_path):
         """Mangles a source path into a quoted SQL name
@@ -4468,10 +4514,13 @@ class SQLEntityContainer(object):
 
     def acquire_connection(self, timeout=None):
         # block on the module for threadsafety==0 case
-        thread_id = threading.current_thread().ident
+        thread = threading.current_thread()
+        thread_id = thread.ident
         now = start = time.time()
+        cpool_item = None
+        close_flag = False
         with self.cpool_lock:
-            if self.cpool_closing:
+            if self.closing.is_set():
                 # don't open connections when we are trying to close them
                 return None
             while not self.module_lock.acquire(False):
@@ -4483,44 +4532,41 @@ class SQLEntityContainer(object):
                         "module lock", thread_id)
                     return None
             # we have the module lock
-            if thread_id in self.cpool_locked:
+            cpool_item = self.cpool_locked.get(thread_id, None)
+            if cpool_item:
                 # our thread_id is in the locked table
-                cpool_lock = self.cpool_locked[thread_id]
-                if cpool_lock.lock.acquire(False):
-                    cpool_lock.locked += 1
-                    return cpool_lock.dbc
-                else:
-                    logging.warn(
-                        "Thread[%i] moved a database connection to the "
-                        "dead pool", thread_id)
-                    self.cpool_dead.append(cpool_lock)
-                    del self.cpool_locked[thread_id]
-            while True:
+                cpool_item.locked += 1
+                cpool_item.last_seen = now
+            while cpool_item is None:
                 if thread_id in self.cpool_unlocked:
                     # take the connection that last belonged to us
-                    cpool_lock = self.cpool_unlocked[thread_id]
+                    cpool_item = self.cpool_unlocked[thread_id]
                     del self.cpool_unlocked[thread_id]
-                elif (len(self.cpool_unlocked) + len(self.cpool_locked) <
-                      self.cpool_max):
+                    logging.debug("Thread[%i] re-acquiring connection",
+                                  thread_id)
+                elif (self.cpool_idle):
+                    # take a connection from an expired thread
+                    cpool_item = self.cpool_idle.pop()
+                elif self.cpool_size < self.cpool_max:
                     # Add a new connection
-                    cpool_lock = SQLConnectionLock(self.clocker)
-                    cpool_lock.dbc = self.open()
+                    cpool_item = SQLConnection()
+                    # do the actual open outside of the cpool lock
+                    self.cpool_size += 1
                 elif self.cpool_unlocked:
                     # take a connection that doesn't belong to us, popped at
                     # random
-                    oldThreadId, cpool_lock = self.cpool_unlocked.popitem()
+                    old_thread_id, cpool_item = self.cpool_unlocked.popitem()
                     if self.dbapi.threadsafety > 1:
                         logging.debug(
                             "Thread[%i] recycled database connection from "
-                            "Thread[%i]", thread_id, oldThreadId)
+                            "Thread[%i]", thread_id, old_thread_id)
                     else:
                         logging.debug(
                             "Thread[%i] closed an unused database connection "
-                            "(max connections reached)", oldThreadId)
+                            "(max connections reached)", old_thread_id)
                         # is it ok to close a connection from a different
-                        # thread?  Perhaps
-                        self.close_connection(cpool_lock.dbc)
-                        cpool_lock.dbc = self.open()
+                        # thread?  Yes: we require it!
+                        close_flag = True
                 else:
                     now = time.time()
                     if timeout is not None and now > start + timeout:
@@ -4536,86 +4582,165 @@ class SQLEntityContainer(object):
                         "Thread[%i] resuming search for database connection",
                         thread_id)
                     continue
-                cpool_lock.lock.acquire()
-                cpool_lock.locked += 1
-                cpool_lock.thread = threading.current_thread()
-                cpool_lock.thread_id = thread_id
-                self.cpool_locked[thread_id] = cpool_lock
-                return cpool_lock.dbc
+                cpool_item.locked += 1
+                cpool_item.thread = thread
+                cpool_item.thread_id = thread_id
+                cpool_item.last_seen = time.time()
+                self.cpool_locked[thread_id] = cpool_item
+        if cpool_item:
+            if close_flag:
+                self.close_connection(cpool_item.dbc)
+                cpool_item.dbc = None
+            if cpool_item.dbc is None:
+                cpool_item.dbc = self.open()
+            return cpool_item
         # we are defeated, no database connection for the caller
         # release lock on the module as there is no connection to release
         self.module_lock.release()
         return None
 
-    def release_connection(self, c):
+    def release_connection(self, release_item):
         thread_id = threading.current_thread().ident
+        close_flag = False
         with self.cpool_lock:
-            # we have exclusive use of the cPool members
-            if thread_id in self.cpool_locked:
-                cpool_lock = self.cpool_locked[thread_id]
-                if cpool_lock.dbc is c:
-                    cpool_lock.lock.release()
+            # we have exclusive use of the cpool members
+            cpool_item = self.cpool_locked.get(thread_id, None)
+            if cpool_item:
+                if cpool_item is release_item:
                     self.module_lock.release()
-                    cpool_lock.locked -= 1
-                    if not cpool_lock.locked:
+                    cpool_item.locked -= 1
+                    cpool_item.last_seen = time.time()
+                    if not cpool_item.locked:
                         del self.cpool_locked[thread_id]
-                        self.cpool_unlocked[thread_id] = cpool_lock
+                        self.cpool_unlocked[thread_id] = cpool_item
                         self.cpool_lock.notify()
                     return
-            logging.error(
-                "Thread[%i] attempting to release a database connection "
-                "it didn't acquire", thread_id)
             # it seems likely that some other thread is going to leave a
             # locked connection now, let's try and find it to correct
             # the situation
-            bad_thread, bad_lock = None, None
-            for tid, cpool_lock in self.cpool_locked.iteritems():
-                if cpool_lock.dbc is c:
+            bad_thread, bad_item = None, None
+            for tid, cpool_item in self.cpool_locked.iteritems():
+                if cpool_item is release_item:
                     bad_thread = tid
-                    bad_lock = cpool_lock
+                    bad_item = cpool_item
                     break
-            if bad_lock is not None:
-                bad_lock.lock.release()
+            if bad_item is not None:
                 self.module_lock.release()
-                bad_lock.locked -= 1
-                if not bad_lock.locked:
+                bad_item.locked -= 1
+                bad_item.last_seen = time.time()
+                if not bad_item.locked:
                     del self.cpool_locked[bad_thread]
-                    self.cpool_unlocked[bad_lock.thread_id] = bad_lock
+                    self.cpool_unlocked[bad_item.thread_id] = bad_item
                     self.cpool_lock.notify()
-                    logging.warn(
-                        "Thread[%i] released database connection acquired by "
-                        "Thread[%i]", thread_id, bad_thread)
+                    logging.error(
+                        "Thread[%i] released database connection originally "
+                        "acquired by Thread[%i]", thread_id, bad_thread)
                 return
             # this is getting frustrating, exactly which connection does
             # this thread think it is trying to release?
-            # Check the dead pool just in case
-            idead = None
-            for i in xrange(len(self.cpool_dead)):
-                cpool_lock = self.cpool_dead[i]
-                if cpool_lock.dbc is c:
-                    idead = i
+            # Check the idle pool just in case
+            bad_item = None
+            for i in xrange(len(self.cpool_idle)):
+                cpool_item = self.cpool_idle[i]
+                if cpool_item is release_item:
+                    bad_item = cpool_item
+                    del self.cpool_idle[i]
+                    self.cpool_size -= 1
                     break
-            if idead is not None:
-                bad_lock = self.cpool_dead[idead]
-                bad_lock.lock.release()
-                self.module_lock.release()
-                bad_lock.locked -= 1
-                logging.warn(
-                    "Thread[%i] successfully released a database connection "
-                    "from the dead pool", thread_id)
-                if not bad_lock.locked:
-                    # no need to notify other threads as we close this
-                    # connection for safety
-                    self.close_connection(bad_lock.dbc)
-                    del self.cpool_dead[idead]
-                    logging.warn(
-                        "Thread[%i] removed a database connection from the "
-                        "dead pool", thread_id)
-                return
+            if bad_item is not None:
+                # items in the idle pool are already unlocked
+                logging.error(
+                    "Thread[%i] released a database connection from the "
+                    "idle pool: closing for safety", thread_id)
+                close_flag = True
             # ok, this really is an error!
             logging.error(
                 "Thread[%i] attempted to unlock un unknown database "
-                "connection: %s", thread_id, repr(c))
+                "connection: %s", thread_id, repr(release_item))
+        if close_flag:
+            self.close_connection(release_item.dbc)
+
+    def connection_stats(self):
+        """Return information about the connection pool
+
+        Returns a triple of:
+
+        nlocked
+            the number of connections in use by all threads.
+
+        nunlocked
+            the number of connections waiting
+
+        nidle
+            the number of dead connections
+
+        Connections are placed in the 'dead pool' when unexpected lock
+        failures occur or if they are locked and the owning thread is
+        detected to have terminated without releasing them."""
+        with self.cpool_lock:
+            # we have exclusive use of the cpool members
+            return (len(self.cpool_locked), len(self.cpool_unlocked),
+                    len(self.cpool_idle))
+
+    def _run_pool_cleaner(self, max_idle=SQL_TIMEOUT*10.0):
+        run_time = max_idle/5.0
+        if run_time < 60.0:
+            run_time = 60.0
+        while not self.closing.is_set():
+            self.closing.wait(run_time)
+            self.pool_cleaner(max_idle)
+
+    def pool_cleaner(self, max_idle=SQL_TIMEOUT*10.0):
+        """Cleans up the connection pool
+
+        max_idle (float)
+            Optional number of seconds beyond which an idle connection
+            is closed.  Defaults to 10 times the
+            :data:`SQL_TIMEOUT`."""
+        now = time.time()
+        old_time = now - max_idle
+        to_close = []
+        with self.cpool_lock:
+            locked_list = self.cpool_locked.values()
+            for cpool_item in locked_list:
+                if not cpool_item.thread.isAlive():
+                    logging.error(
+                        "Thread[%i] failed to release database connection "
+                        "before terminating", cpool_item.thread_id)
+                    del self.cpool_locked[cpool_item.thread_id]
+                    to_close.append(cpool_item.dbc)
+            unlocked_list = self.cpool_unlocked.values()
+            for cpool_item in unlocked_list:
+                if not cpool_item.thread.isAlive():
+                    logging.debug(
+                        "pool_cleaner moving database connection to idle "
+                        "after Thread[%i] terminated",
+                        cpool_item.thread_id)
+                    del self.cpool_unlocked[cpool_item.thread_id]
+                    cpool_item.thread_id = None
+                    cpool_item.thread = None
+                    self.cpool_idle.append(cpool_item)
+                elif (cpool_item.last_seen < old_time and
+                        self.dbapi.threadsafety <= 1):
+                    logging.debug(
+                        "pool_cleaner removing database connection "
+                        "after Thread[%i] timed out",
+                        cpool_item.thread_id)
+                    del self.cpool_unlocked[cpool_item.thread_id]
+                    self.cpool_size -= 1
+                    to_close.append(cpool_item.dbc)
+            i = len(self.cpool_idle)
+            while i:
+                i = i - 1
+                cpool_item = self.cpool_idle[i]
+                if cpool_item.last_seen < old_time:
+                    logging.info("pool_cleaner removed idle connection")
+                    to_close.append(cpool_item.dbc)
+                    del self.cpool_idle[i]
+                    self.cpool_size -= 1
+        for dbc in to_close:
+            if dbc is not None:
+                self.close_connection(dbc)
 
     def open(self):
         """Creates and returns a new connection object.
@@ -4669,53 +4794,63 @@ class SQLEntityContainer(object):
         Any locks we fail to acquire in the timeout are ignored and
         the connections are left open for the python garbage
         collector to dispose of."""
+        thread_id = threading.current_thread().ident
+        to_close = []
+        self.closing.set()
         with self.cpool_lock:
-            self.cpool_closing = True
-            while self.cpool_unlocked:
-                thread_id, cpool_lock = self.cpool_unlocked.popitem()
-                # we don't bother to acquire the lock
-                self.close_connection(cpool_lock.dbc)
-            while self.cpool_locked:
-                # trickier, these are in use
-                thread_id, cpool_lock = self.cpool_locked.popitem()
-                no_wait = False
-                while True:
-                    if cpool_lock.lock.acquire(False):
-                        self.close_connection(cpool_lock.dbc)
-                        break
-                    elif cpool_lock.thread.isAlive():
-                        if no_wait:
-                            break
-                        else:
-                            self.break_connection(cpool_lock.dbc)
-                            logging.warn(
-                                "Waiting to break database connection "
-                                "acquired by Thread[%i]", thread_id)
-                            self.cpool_lock.wait(timeout)
-                            no_wait = True
+            nlocked = None
+            while True:
+                while self.cpool_idle:
+                    cpool_item = self.cpool_idle.pop()
+                    logging.error(
+                        "Thread[%i] failed to release database connection "
+                        "before terminating", cpool_item.thread_id)
+                    to_close.append(cpool_item.dbc)
+                while self.cpool_unlocked:
+                    unlocked_id, cpool_item = self.cpool_unlocked.popitem()
+                    to_close.append(cpool_item.dbc)
+                locked_list = self.cpool_locked.values()
+                for cpool_item in locked_list:
+                    if cpool_item.thread_id == thread_id:
+                        logging.error(
+                            "Thread[%i] failed to release database connection "
+                            "before closing container", cpool_item.thread_id)
+                        del self.cpool_locked[cpool_item.thread_id]
+                        to_close.append(cpool_item.dbc)
+                    elif not cpool_item.thread.isAlive():
+                        logging.error(
+                            "Thread[%i] failed to release database connection "
+                            "before terminating", cpool_item.thread_id)
+                        del self.cpool_locked[cpool_item.thread_id]
+                        to_close.append(cpool_item.dbc)
                     else:
-                        # This connection will never be released properly
-                        self.close_connection(cpool_lock.dbc)
-            while self.cpool_dead:
-                cpool_lock = self.cpool_dead.pop()
-                no_wait = False
-                while True:
-                    if cpool_lock.lock.acquire(False):
-                        self.close_connection(cpool_lock.dbc)
-                        break
-                    elif cpool_lock.thread.isAlive():
-                        if no_wait:
-                            break
-                        else:
-                            self.break_connection(cpool_lock.dbc)
-                            logging.warn(
-                                "Waiting to break a database connection from "
-                                "the dead pool")
-                            self.cpool_lock.wait(timeout)
-                            no_wait = True
-                    else:
-                        # This connection will never be released properly
-                        self.close_connection(cpool_lock.dbc)
+                        # thread is alive, try and interrupt it if it is
+                        # stuck in a slow query
+                        self.break_connection(cpool_item.dbc)
+                if self.cpool_locked and (nlocked is None or
+                                          nlocked > len(self.cpool_locked)):
+                    # if this is the first time around the loop, or...
+                    # if the size of the locked pool is actually
+                    # shrinking, wait for locked connections to be
+                    # released
+                    nlocked = len(self.cpool_locked)
+                    logging.warn(
+                        "Waiting to break unreleased database connections")
+                    self.cpool_lock.wait(timeout)
+                    continue
+                # we're not getting anywhere, force-close these
+                # connections
+                locked_list = self.cpool_locked.values()
+                for cpool_item in locked_list:
+                    logging.error(
+                        "Thread[%i] failed to release database connection: "
+                        "forcing it to close", cpool_item.thread_id)
+                    del self.cpool_locked[cpool_item.thread_id]
+                    to_close.append(cpool_item.dbc)
+                break
+        for dbc in to_close:
+            if dbc is not None:
+                self.close_connection(dbc)
 
     def __del__(self):
         self.close()

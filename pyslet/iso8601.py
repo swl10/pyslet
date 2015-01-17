@@ -1498,7 +1498,7 @@ class Time(PEP8Compatibility):
 
         Constructs a new :py:class:`Time` instance from an existing time
         but with the time zone specified.  The time zone of the existing
-        time is ignored.  Pass *zdirection*=None to strip the zone
+        time is ignored.  Pass *zdirection*\=None to strip the zone
         information completely."""
         zdirection = kwargs.get('zDirection', zdirection)
         zhour = kwargs.get('zHour', zhour)

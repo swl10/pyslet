@@ -90,8 +90,9 @@ class MockConnection(object):
 
     nOpen = 0
 
-    def __init__(self, **kwargs):
+    def __init__(self, bad=False, **kwargs):
         self.args = kwargs
+        self.bad = bad
 
     def close(self):
         pass
@@ -103,7 +104,10 @@ class MockConnection(object):
         pass
 
     def cursor(self):
-        return MockCursor()
+        if self.bad:
+            raise MockAPI.OperationalError('Mock database fail')
+        else:
+            return MockCursor()
 
 
 class MockAPI(object):
@@ -112,6 +116,9 @@ class MockAPI(object):
         self.threadsafety = threadsafety
 
     Error = sqlds.SQLError
+
+    class OperationalError(sqlds.SQLError):
+        pass
 
     paramstyle = 'qmark'
 
@@ -125,23 +132,29 @@ class MockContainer(sqlds.SQLEntityContainer):
         super(MockContainer, self).__init__(**kwargs)
         self.acquired = None
         self.acquired2 = None
+        self.bad_count = 0
 
     def open(self):
-        return self.dbapi.connect()
+        bad = self.bad_count > 0
+        if bad:
+            self.bad_count -= 1
+        return self.dbapi.connect(bad=bad)
 
 
 def mock_runner(container):
     # a simple, short-lived thread to see if we can acquire a
     # connection, wait 1 seconds
     connection = container.acquire_connection(1)
-    container.acquired = connection
+    if connection:
+        container.acquired = connection.dbc
     if connection is not None:
         container.release_connection(connection)
 
 
 def mock_runner2(container):
     connection = container.acquire_connection(1)
-    container.acquired2 = connection
+    if connection:
+        container.acquired2 = connection.dbc
     if connection is not None:
         t = threading.Thread(target=mock_runner, args=(container,))
         t.start()
@@ -185,11 +198,8 @@ class ThreadTests(unittest.TestCase):
         t = threading.Thread(target=mock_runner, args=(container,))
         t.start()
         t.join()
-        self.assertTrue(
-            isinstance(
-                container.acquired,
-                MockConnection),
-            "thread should have acquired the connection")
+        self.assertTrue(isinstance(container.acquired, MockConnection),
+                        "thread should have acquired the connection")
         cmatch = container.acquired
         c1 = container.acquire_connection()
         self.assertFalse(
@@ -225,6 +235,23 @@ class ThreadTests(unittest.TestCase):
         self.assertFalse(
             container.acquired is cmatch,
             "shared connection objects not allowed at level 0")
+        # get the connection stats, should be a single connection
+        nlocked, nunlocked, nidle = container.connection_stats()
+        self.assertTrue(nlocked == 0)
+        self.assertTrue(nunlocked == 1)
+        self.assertTrue(nidle == 0)
+        # clean up the idle connection
+        container.pool_cleaner()
+        # should our connection to the idle pool
+        nlocked, nunlocked, nidle = container.connection_stats()
+        self.assertTrue(nlocked == 0)
+        self.assertTrue(nunlocked == 0)
+        self.assertTrue(nidle == 1)
+        container.pool_cleaner(max_idle=0)
+        nlocked, nunlocked, nidle = container.connection_stats()
+        self.assertTrue(nlocked == 0)
+        self.assertTrue(nunlocked == 0)
+        self.assertTrue(nidle == 0)
 
     def test_level1(self):
         # we ask for 2 connections and should get them
@@ -237,17 +264,11 @@ class ThreadTests(unittest.TestCase):
         t = threading.Thread(target=mock_runner, args=(container,))
         t.start()
         t.join()
-        self.assertTrue(
-            isinstance(
-                container.acquired,
-                MockConnection),
-            "thread should have acquired the connection")
+        self.assertTrue(isinstance(container.acquired, MockConnection),
+                        "thread should have acquired the connection")
         c1 = container.acquire_connection()
-        self.assertTrue(
-            isinstance(
-                container.acquired,
-                MockConnection),
-            "we should have acquired a connection")
+        self.assertTrue(isinstance(container.acquired, MockConnection),
+                        "we should have acquired a connection")
         container.acquired = None
         t = threading.Thread(target=mock_runner, args=(container,))
         t.start()
@@ -292,11 +313,9 @@ class ThreadTests(unittest.TestCase):
                                   max_connections=5)
         self.assertTrue(container.cpool_max == 5, "Expected 5 connections")
         c1 = container.acquire_connection()
-        self.assertTrue(
-            isinstance(
-                c1,
-                MockConnection),
-            "we should have acquired a connection")
+        self.assertTrue(hasattr(c1, 'dbc'))
+        self.assertTrue(isinstance(c1.dbc, MockConnection),
+                        "we should have acquired a connection")
         cmatch = c1
         container.acquired = None
         t = threading.Thread(target=mock_runner, args=(container,))
@@ -344,6 +363,24 @@ class ThreadTests(unittest.TestCase):
             t.join()
         # success criteria?  that we survived
         pass
+
+    def test_retry(self):
+        dbapi = MockAPI(1)
+        for i in xrange(5):
+            container = MockContainer(container=self.container, dbapi=dbapi,
+                                      max_connections=5)
+            container.bad_count = i
+            c = container.acquire_connection()
+            t = sqlds.SQLTransaction(container, c)
+            try:
+                t.begin()
+                if i >= 3:
+                    self.fail("Expected error after %i OperationalErrors" % i)
+            except sqlds.SQLError:
+                if i < 3:
+                    self.fail("Missing retries with %i OperationalErrors" % i)
+            t.close()
+            container.release_connection(c)
 
 
 class SQLDSTests(unittest.TestCase):
