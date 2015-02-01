@@ -1,9 +1,10 @@
 #! /usr/bin/env python
 
 import sys
+import weather_config as config
 
 if __name__ == '__main__':
-    password = sys.argv[1]
+    password = config.DB_PASSWORD
     sql_password = password.replace("'", "''")
     print "DROP DATABASE weather;"
     print "CREATE DATABASE weather;"

@@ -1176,15 +1176,27 @@ class WSGIDataApp(WSGIApp):
         is assumed to be relative to the settings_file.
 
     source_type ('sqlite')
-        The type of data source to create.  The default (and only)
-        supported value at the time of writing is sqlite though
-        additional source types will be added in due course.
+        The type of data source to create.  The default value
+        is sqlite.  A value of 'mysql' select's Pyslet's mysqldbds
+        module instead.
 
     sqlite_path ('database.sqlite3')
         URI of the database file.  The file is assumed to be relative to
         the private_files directory, though an absolute path may be
         given.
 
+    dbhost ('localhost')
+        For mysql databases, the hostname to connect to.
+        
+    dname (None)
+        The name of the database to connect to.
+    
+    dbuser (None)
+        The user name to connect to the database with.
+    
+    dbpassword (None)
+        The password to use in conjunction with dbuser
+        
     keynum ('0')
         The identification number of the key to use when storing
         encrypted data in the container.
@@ -1306,10 +1318,20 @@ class WSGIDataApp(WSGIApp):
                         'sqlite_path', 'database.sqlite3')
                     sqlite_path = cls.resolve_setup_path(
                         sqlite_path, private=True)
+            elif source_type == 'mysql':
+                dbhost = settings.setdefault('dbhost', 'localhost')
+                dbname = settings.setdefault('dbname', None)
+                dbuser = settings.setdefault('dbuser', None)
+                dbpassword = settings.setdefault('dbpassword', None)
         if source_type == 'sqlite':
             from pyslet.odata2.sqlds import SQLiteEntityContainer
             cls.data_source = SQLiteEntityContainer(
                 file_path=sqlite_path, container=cls.container)
+        elif source_type == 'mysql':
+            from pyslet.mysqldbds import MySQLEntityContainer
+            cls.data_source = MySQLEntityContainer(
+                host=dbhost, user=dbuser, passwd=dbpassword, db=dbname,
+                container=cls.container)
         else:
             raise ValueError("Unknown data source type: %s" % source_type)
         if isinstance(cls.data_source, SQLEntityContainer):
@@ -1379,7 +1401,7 @@ class WSGIDataApp(WSGIApp):
         if cipher == 'plaintext':
             cipher_class = AppCipher
         elif cipher == 'aes':
-            cipher_class = AESCipher
+            cipher_class = AESAppCipher
         else:
             # danger, raise an error
             raise RuntimeError("Unknown cipher: %s" % cipher)
@@ -1401,6 +1423,22 @@ class PlainTextCipher(object):
 
     def decrypt(self, data):
         return data
+
+
+class AESCipher(object):
+
+    def __init__(self, key):
+        self.key = sha256(key).digest()
+
+    def encrypt(self, data):
+        iv = Random.new().read(AES.block_size)
+        cipher = AES.new(self.key, AES.MODE_CFB, iv)
+        return iv + cipher.encrypt(data)
+
+    def decrypt(self, data):
+        iv = data[:AES.block_size]
+        cipher = AES.new(self.key, AES.MODE_CFB, iv)
+        return cipher.decrypt(data[AES.block_size:])
 
 
 class AppCipher(object):
@@ -1634,22 +1672,6 @@ class AppCipher(object):
         except TypeError:
             raise ValueError
         return key_num, data
-
-
-class AESCipher(object):
-
-    def __init__(self, key):
-        self.key = sha256(key).digest()
-
-    def encrypt(self, data):
-        iv = Random.new().read(AES.block_size)
-        cipher = AES.new(self.key, AES.MODE_CFB, iv)
-        return iv + cipher.encrypt(data)
-
-    def decrypt(self, data):
-        iv = data[:AES.block_size]
-        cipher = AES.new(self.key, AES.MODE_CFB, iv)
-        return cipher.decrypt(data[AES.block_size:])
 
 
 class AESAppCipher(AppCipher):

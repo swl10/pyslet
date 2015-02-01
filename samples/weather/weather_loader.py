@@ -4,7 +4,7 @@ import logging
 import os.path
 
 import weather
-import config
+import weather_config as config
 
 logging.basicConfig(filename=config.LOG_FILE, level=config.LOG_LEVEL)
 doc = weather.load_metadata()
