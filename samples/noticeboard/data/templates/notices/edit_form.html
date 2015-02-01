@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Notice{% endblock %}
+
+{% block content %}
+<p>Update Notice</p>
+
+<form method="POST" action="edit_action">
+
+    <p>Title<br/>
+    <input type="hidden" name="id" value={{ id_attr|safe }} />
+    <input type="text" name="title" size="70"
+        value={{ title_attr|safe }} /></p>
+
+    <p>Description<br/>
+    <textarea id="description" name="description" rows="5"
+        cols="70">{{ description }}</textarea></p>
+    
+    <p><input type='submit' name="action" value="Update" />
+    <input type="hidden" name="csrftoken" value='{{ csrftoken }}' />
+    <input type="submit" value="Cancel" 
+        onclick="window.location='view'; return false;" /></p>
+
+</form>
+{% endblock %}
+
+

@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<edmx:Edmx Version="1.0" xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx"
+    xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata">
+    <edmx:DataServices m:DataServiceVersion="2.0">
+        <Schema Namespace="NBSchema" xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
+            <EntityContainer Name="NBDatabase" m:IsDefaultEntityContainer="true">
+                <EntitySet Name="AppKeys" EntityType="NBSchema.AppKey"/>
+                <EntitySet Name="Silos" EntityType="NBSchema.Silo"/>
+                <EntitySet Name="Consumers" EntityType="NBSchema.Consumer"/>
+                <EntitySet Name="Nonces" EntityType="NBSchema.Nonce"/>
+                <EntitySet Name="Contexts" EntityType="NBSchema.Context"/>
+                <EntitySet Name="Users" EntityType="NBSchema.User"/>
+                <EntitySet Name="Resources" EntityType="NBSchema.Resource"/>
+                <EntitySet Name="Visits" EntityType="NBSchema.Visit"/>
+                <EntitySet Name="Sessions" EntityType="NBSchema.Session"/>
+                <EntitySet Name="Notices" EntityType="NBSchema.Notice"/>
+                <EntitySet Name="Owners" EntityType="NBSchema.Owner"/>
+                <AssociationSet Name="Silos_Consumers" Association="NBSchema.Silo_Consumer">
+                    <End Role="Silo" EntitySet="Silos"/>
+                    <End Role="Consumer" EntitySet="Consumers"/>
+                </AssociationSet>
+                <AssociationSet Name="Resources_Consumers" Association="NBSchema.Resource_Consumer">
+                    <End Role="Resource" EntitySet="Resources"/>
+                    <End Role="Consumer" EntitySet="Consumers"/>
+                </AssociationSet>
+                <AssociationSet Name="Resources_Contexts" Association="NBSchema.Resource_Context">
+                    <End Role="Resource" EntitySet="Resources"/>
+                    <End Role="Context" EntitySet="Contexts"/>
+                </AssociationSet>
+                <AssociationSet Name="Users_Consumers" Association="NBSchema.User_Consumer">
+                    <End Role="User" EntitySet="Users"/>
+                    <End Role="Consumer" EntitySet="Consumers"/>
+                </AssociationSet>
+                <AssociationSet Name="Contexts_Consumers" Association="NBSchema.Context_Consumer">
+                    <End Role="Context" EntitySet="Contexts"/>
+                    <End Role="Consumer" EntitySet="Consumers"/>
+                </AssociationSet>
+                <AssociationSet Name="Visits_Resources" Association="NBSchema.Visit_Resource">
+                    <End Role="Visit" EntitySet="Visits"/>
+                    <End Role="Resource" EntitySet="Resources"/>
+                </AssociationSet>
+                <AssociationSet Name="Visits_Users" Association="NBSchema.Visit_User">
+                    <End Role="Visit" EntitySet="Visits"/>
+                    <End Role="User" EntitySet="Users"/>
+                </AssociationSet>
+                <AssociationSet Name="Visits_Sessions" Association="NBSchema.Visit_Session">
+                    <End Role="Visit" EntitySet="Visits"/>
+                    <End Role="Session" EntitySet="Sessions"/>
+                </AssociationSet>
+                <AssociationSet Name="Notices_Contexts" Association="NBSchema.Notice_Context">
+                    <End Role="Notice" EntitySet="Notices"/>
+                    <End Role="Context" EntitySet="Contexts"/>
+                </AssociationSet>
+                <AssociationSet Name="Notices_Users" Association="NBSchema.Notice_User">
+                    <End Role="Notice" EntitySet="Notices"/>
+                    <End Role="User" EntitySet="Users"/>
+                </AssociationSet>
+                <AssociationSet Name="Silos_Owners" Association="NBSchema.Silo_Owner">
+                    <End Role="Silo" EntitySet="Silos"/>
+                    <End Role="Owner" EntitySet="Owners"/>
+                </AssociationSet>
+                <AssociationSet Name="Owners_Sessions" Association="NBSchema.Owner_Session">
+                    <End Role="Session" EntitySet="Sessions"/>
+                    <End Role="Owner" EntitySet="Owners"/>
+                </AssociationSet>
+            </EntityContainer>
+            <EntityType Name="AppKey">
+                <Key>
+                    <PropertyRef Name="KeyNum"/>
+                </Key>
+                <Property Name="KeyNum" Nullable="false" Type="Edm.Int32"/>
+                <Property Name="KeyString" Nullable="false"
+                    Type="Edm.String" MaxLength="256" Unicode="false"/>
+                <Property Name="Expires" Nullable="false"
+                    Type="Edm.DateTime" Precision="0"/>
+            </EntityType>
+            <EntityType Name="Silo">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int64" Nullable="false"/>
+                <Property Name="Slug" Type="Edm.String" Nullable="false" MaxLength="64"
+                    Unicode="false"/>
+                <NavigationProperty Name="Consumers" Relationship="NBSchema.Silo_Consumer"
+                    FromRole="Silo" ToRole="Consumer"/>
+                <NavigationProperty Name="Owner" Relationship="NBSchema.Silo_Owner"
+                    FromRole="Silo" ToRole="Owner"/>
+            </EntityType>
+            <EntityType Name="Consumer">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int64" Nullable="false"/>
+                <Property Name="Handle" Type="Edm.String"
+                    Nullable="false" MaxLength="64" Unicode="true"/>
+                <Property Name="Key" Type="Edm.String" Nullable="false"
+                    MaxLength="256" Unicode="false"/>
+                <Property Name="Secret" Type="Edm.String"
+                    Nullable="false" MaxLength="256" Unicode="false"/>
+                <NavigationProperty Name="Silo" Relationship="NBSchema.Silo_Consumer"
+                    FromRole="Consumer" ToRole="Silo"/>
+                <NavigationProperty Name="Contexts" Relationship="NBSchema.Context_Consumer"
+                    FromRole="Consumer" ToRole="Context"/>
+                <NavigationProperty Name="Resources" Relationship="NBSchema.Resource_Consumer"
+                    FromRole="Consumer" ToRole="Resource"/>
+                <NavigationProperty Name="Users" Relationship="NBSchema.User_Consumer"
+                    FromRole="Consumer" ToRole="User"/>
+            </EntityType>
+            <EntityType Name="Nonce">
+                <Key>
+                    <PropertyRef Name="Hash"/>
+                </Key>
+                <Property Name="Hash" Type="Edm.String" Nullable="false" MaxLength="64"
+                    Unicode="false"/>
+                <Property Name="LastSeen" Type="Edm.DateTime" Nullable="false" Precision="0"/>
+            </EntityType>
+            <EntityType Name="Context">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int64" Nullable="false"/>
+                <Property Name="ContextID" Type="Edm.String" Nullable="false" MaxLength="256"
+                    Unicode="false"/>
+                <Property Name="Title" Type="Edm.String" Nullable="true" Unicode="true"
+                    MaxLength="256"/>
+                <Property Name="Label" Type="Edm.String" Nullable="true" Unicode="true"
+                    MaxLength="64"/>
+                <Property Name="Types" Type="Edm.String" Nullable="true"
+                    Unicode="false" MaxLength="1024"/>
+                <NavigationProperty Name="Consumer" Relationship="NBSchema.Context_Consumer"
+                    FromRole="Context" ToRole="Consumer"/>
+                <NavigationProperty Name="Resources" Relationship="NBSchema.Resource_Context"
+                    FromRole="Context" ToRole="Resource"/>
+                <NavigationProperty Name="Notices" Relationship="NBSchema.Notice_Context"
+                    FromRole="Context" ToRole="Notice"/>
+            </EntityType>
+            <EntityType Name="Resource">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int64" Nullable="false"/>
+                <Property Name="LinkID" Type="Edm.String" Nullable="false" MaxLength="256"
+                    Unicode="false"/>
+                <Property Name="Title" Type="Edm.String" Nullable="true" Unicode="true"
+                    MaxLength="256"/>
+                <Property Name="Description" Type="Edm.String" Nullable="true" Unicode="true"
+                    MaxLength="512"/>
+                <NavigationProperty Name="Consumer" Relationship="NBSchema.Resource_Consumer"
+                    FromRole="Resource" ToRole="Consumer"/>
+                <NavigationProperty Name="Context" Relationship="NBSchema.Resource_Context"
+                    FromRole="Resource" ToRole="Context"/>
+                <NavigationProperty Name="Visits" Relationship="NBSchema.Visit_Resource"
+                    FromRole="Resource" ToRole="Visit"/>
+            </EntityType>
+            <EntityType Name="User">
+                <Key>
+                    <PropertyRef Name="Key"/>
+                </Key>
+                <Property Name="Key" Type="Edm.Int64" Nullable="false"/>
+                <Property Name="UserID" Type="Edm.String" Nullable="false" MaxLength="256"
+                    Unicode="false"/>
+                <Property Name="GivenName" Type="Edm.String" Nullable="true" MaxLength="64"
+                    Unicode="true"/>
+                <Property Name="FamilyName" Type="Edm.String" Nullable="true" MaxLength="64"
+                    Unicode="true"/>
+                <Property Name="FullName" Type="Edm.String" Nullable="true" MaxLength="256"
+                    Unicode="true"/>
+                <Property Name="Email" Type="Edm.String" Nullable="true" MaxLength="256"
+                    Unicode="false"/>
+                <NavigationProperty Name="Consumer" Relationship="NBSchema.User_Consumer"
+                    FromRole="User" ToRole="Consumer"/>
+                <NavigationProperty Name="Visit" Relationship="NBSchema.Visit_User" FromRole="User"
+                    ToRole="Visit"/>
+                <NavigationProperty Name="Notices" Relationship="NBSchema.Notice_User"
+                    FromRole="User" ToRole="Notice"/>
+            </EntityType>
+            <EntityType Name="Visit">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Permissions" Type="Edm.Int64" Nullable="false"/>
+                <NavigationProperty Name="Resource" Relationship="NBSchema.Visit_Resource"
+                    FromRole="Visit" ToRole="Resource"/>
+                <NavigationProperty Name="User" Relationship="NBSchema.Visit_User" FromRole="Visit"
+                    ToRole="User"/>
+                <NavigationProperty Name="Session" Relationship="NBSchema.Visit_Session"
+                    FromRole="Visit" ToRole="Session"/>
+            </EntityType>
+            <EntityType Name="Session">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Established" Type="Edm.Boolean" Nullable="false"/>
+                <Property Name="UserKey" Type="Edm.String" Nullable="false" MaxLength="64"
+                    Unicode="false"/>
+                <Property Name="ServerKey" Type="Edm.String"
+                    Nullable="false" MaxLength="64" Unicode="false"/>
+                <Property Name="FirstSeen" Type="Edm.DateTime"
+                    Nullable="false"/>
+                <Property Name="LastSeen" Type="Edm.DateTime"
+                    Nullable="false"/>
+                <Property Name="UserAgent" Type="Edm.String"
+                    Nullable="true" MaxLength="256" Unicode="false"/>
+                <NavigationProperty Name="Visits" Relationship="NBSchema.Visit_Session"
+                    FromRole="Session" ToRole="Visit"/>
+                <NavigationProperty Name="Owner" Relationship="NBSchema.Owner_Session"
+                    FromRole="Session" ToRole="Owner"/>
+            </EntityType>
+            <EntityType Name="Notice">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int64" Nullable="false"/>
+                <Property Name="Title" Type="Edm.String" MaxLength="64" Nullable="false"
+                    Unicode="true"/>
+                <Property Name="Description" Type="Edm.String" MaxLength="256" Nullable="true"
+                    Unicode="true"/>
+                <Property Name="Created" Type="Edm.DateTime" Precision="0"/>
+                <Property Name="Updated" Type="Edm.DateTime" Precision="0"/>
+                <NavigationProperty Name="Context" Relationship="NBSchema.Notice_Context"
+                    FromRole="Notice" ToRole="Context"/>
+                <NavigationProperty Name="User" Relationship="NBSchema.Notice_User"
+                    FromRole="Notice" ToRole="User"/>
+            </EntityType>
+            <EntityType Name="Owner">
+                <Key>
+                    <PropertyRef Name="Key"/>
+                </Key>
+                <Property Name="Key" Type="Edm.Int64" Nullable="false"/>
+                <Property Name="IDType" Type="Edm.String" Nullable="false" MaxLength="32"
+                    Unicode="false"/>
+                <Property Name="ID" Type="Edm.String" Nullable="false" MaxLength="256"
+                    Unicode="false"/>
+                <Property Name="GivenName" Type="Edm.String" Nullable="true" MaxLength="64"
+                    Unicode="true"/>
+                <Property Name="FamilyName" Type="Edm.String" Nullable="true" MaxLength="64"
+                    Unicode="true"/>
+                <Property Name="FullName" Type="Edm.String" Nullable="true" MaxLength="256"
+                    Unicode="true"/>
+                <Property Name="Email" Type="Edm.String" Nullable="true" MaxLength="256"
+                    Unicode="false"/>
+                <NavigationProperty Name="Silo" Relationship="NBSchema.Silo_Owner"
+                    FromRole="Owner" ToRole="Silo"/>
+                <NavigationProperty Name="Session" Relationship="NBSchema.Owner_Session"
+                    FromRole="Owner" ToRole="Session"/>
+            </EntityType>
+            <Association Name="Silo_Consumer">
+                <End Role="Silo" Type="NBSchema.Silo" Multiplicity="1"/>
+                <End Role="Consumer" Type="NBSchema.Consumer" Multiplicity="*"/>
+            </Association>
+            <Association Name="Resource_Consumer">
+                <End Role="Resource" Type="NBSchema.Resource" Multiplicity="*"/>
+                <End Role="Consumer" Type="NBSchema.Consumer" Multiplicity="1"/>
+            </Association>
+            <Association Name="Resource_Context">
+                <End Role="Resource" Type="NBSchema.Resource" Multiplicity="*"/>
+                <End Role="Context" Type="NBSchema.Context" Multiplicity="0..1"/>
+            </Association>
+            <Association Name="User_Consumer">
+                <End Role="User" Type="NBSchema.User" Multiplicity="*"/>
+                <End Role="Consumer" Type="NBSchema.Consumer" Multiplicity="1"/>
+            </Association>
+            <Association Name="Context_Consumer">
+                <End Role="Context" Type="NBSchema.Context" Multiplicity="*"/>
+                <End Role="Consumer" Type="NBSchema.Consumer" Multiplicity="1"/>
+            </Association>
+            <Association Name="Visit_Resource">
+                <End Role="Visit" Type="NBSchema.Visit" Multiplicity="*"/>
+                <End Role="Resource" Type="NBSchema.Resource" Multiplicity="1"/>
+            </Association>
+            <Association Name="Visit_User">
+                <End Role="Visit" Type="NBSchema.Visit" Multiplicity="*"/>
+                <End Role="User" Type="NBSchema.User" Multiplicity="0..1"/>
+            </Association>
+            <Association Name="Visit_Session">
+                <End Role="Visit" Type="NBSchema.Visit" Multiplicity="*"/>
+                <End Role="Session" Type="NBSchema.Session" Multiplicity="0..1"/>
+            </Association>
+            <Association Name="Notice_Context">
+                <End Role="Notice" Type="NBSchema.Notice" Multiplicity="*"/>
+                <End Role="Context" Type="NBSchema.Context" Multiplicity="1"/>
+            </Association>
+            <Association Name="Notice_User">
+                <End Role="Notice" Type="NBSchema.Notice" Multiplicity="*"/>
+                <End Role="User" Type="NBSchema.User" Multiplicity="1"/>
+            </Association>
+            <Association Name="Silo_Owner">
+                <End Role="Silo" Type="NBSchema.Silo" Multiplicity="1"/>
+                <End Role="Owner" Type="NBSchema.Owner" Multiplicity="0..1"/>
+            </Association>
+            <Association Name="Owner_Session">
+                <End Role="Owner" Type="NBSchema.Owner" Multiplicity="0..1"/>
+                <End Role="Session" Type="NBSchema.Session" Multiplicity="*"/>
+            </Association>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

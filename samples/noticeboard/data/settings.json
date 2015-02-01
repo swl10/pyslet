@@ -1,0 +1,15 @@
+{
+"WSGIApp": {
+    "static": "static",
+    "private": "private"
+    },
+"WSGIDataApp": {
+    "keynum": 0,
+    "secret": "secret",
+    "metadata": "private/metadata.xml"
+    },
+"MultiTenantTPApp": {
+    "google_client_id": "YOUR_CLIENT_ID",
+    "google_client_secret": "YOUR_CLIENT_SECRET"
+    }
+}

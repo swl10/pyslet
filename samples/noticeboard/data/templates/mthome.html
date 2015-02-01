@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}About LTI-ADS for Python{% endblock %}
+
+{% if google_sso %}
+{% block head %}
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js">
+  </script>
+  <script
+     src="https://apis.google.com/js/client:platform.js?onload=start"
+     async defer> </script>
+{% endblock %}
+{% endif %}
+
+{% block band %}
+<div class="band">
+{% if got_user %}
+<form action="logout" method="GET">
+<p>
+{{ user_name }} : <button type="submit">Logout</button>
+</p>
+</form>
+{% else %}
+<p>Login below</p>
+{% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>LTI-ADS (for Python)</h1>
+
+{% if logout %}
+<p class="hidden" id="logout">You have been logged out.</p>
+{% endif %}
+
+<p>This is a simple example of an LTI tool provider written in Python.</p>
+
+{% if not got_user %}
+
+{% if google_sso %}
+<div id="signinButton">
+  <span class="g-signin"
+    data-scope="email"
+    data-clientid={{ gclient_id_attr|safe }}
+    data-redirecturi="postmessage"
+    data-accesstype="offline"
+    data-cookiepolicy="single_host_origin"
+    data-callback="signInCallback">
+  </span>
+</div>
+<div id="result"></div>
+
+<script>
+{% if logout %}
+function signInCallback(authResult) {
+    if (authResult['code']) {
+        $('#signinButton').attr('style', 'display: none');
+        gapi.auth.signOut();
+    } else if (authResult['error']) {
+        // special handling of user_signed_out
+        if (authResult['error'] == 'user_signed_out') {
+            // Send the logout to the server
+            $.ajax({
+                type: 'POST',
+                url: 'gclient_action',
+                // contentType: 'application/octet-stream; charset=utf-8',
+                success: function(result) {
+                    document.getElementById("logout").style.display = "block";
+                    window.location.replace('./');
+                },
+                data: {
+                    csrftoken: '{{ csrftoken }}',
+                    code: 'logout'
+                }
+            });
+        }
+    }
+}
+{% else %}
+function signInCallback(authResult) {
+    if (authResult['code']) {
+
+        // Hide the sign-in button now that the user is authorized, for example:
+        $('#signinButton').attr('style', 'display: none');
+        // Send the code to the server
+        $.ajax({
+            type: 'POST',
+            url: 'gclient_action',
+            // contentType: 'application/octet-stream; charset=utf-8',
+            success: function(result) {
+                // Go off to the consumers page
+                window.location.replace('consumers/');
+            },
+            data: {
+                csrftoken: '{{ csrftoken }}',
+                code: authResult['code']
+            }
+        });
+    } else if (authResult['error']) {
+        if (authResult['error'] != 'user_signed_out') {
+            console.log('There was an error: ' + authResult['error']);
+        }
+    }
+}
+{% endif %}
+</script>
+
+{% else %}
+<p>No login methods configured.</p>
+{% endif %}
+
+{% else %}
+<p>Review your configured <a href="consumers/">Consumers</a></p>
+{% endif %}
+
+{% endblock %}

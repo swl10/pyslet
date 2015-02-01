@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Consumer{% endblock %}
+
+{% block band %}
+<div class="band">
+<form action="../logout" method="POST">
+<p>
+{{ owner.FullName.value }} : <button type="submit">Logout</button>
+<input type="hidden" name="csrftoken" value='{{ csrftoken }}' />
+</p>
+</form>
+</div>
+{% endblock %}
+
+{% block content %}
+<h3>Delete LTI Consumer</h3>
+<p>For silo {{ silo.Slug.value }}</h3>
+
+<p>Are you sure you want to delete the following consumer?</p>
+
+<form method="POST" action="del_action">
+<table>
+    <tr>
+        <th>Handle:</th>
+        <td>{{ consumer.Handle.value }}</td>
+    </tr>
+    <tr>
+        <th>Key:</th>
+        <td>{{ consumer.Key.value }}</td>
+    </tr>    
+</table>
+<p>All linked resources, courses, users and visits will be deleted.</p>
+<p>
+    <input type="hidden" name="cid" value='{{ consumer.ID.value }}' />
+    <input type="hidden" name="csrftoken" value='{{ csrftoken }}' />
+    <input type="submit" value="Cancel"
+        onclick="window.location='./'; return false;" />
+    <input type="submit" value="OK"/>
+</p>
+</form>
+{% endblock %}

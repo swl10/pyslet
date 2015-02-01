@@ -13,7 +13,7 @@
                     <PropertyRef Name="Path"/>
                 </Key>
                 <Property Name="Path" Type="Edm.String" Nullable="false"
-                    MaxLength="256" FixedLength="false" Unicode="True"/>
+                    MaxLength="256" FixedLength="false" Unicode="true"/>
                 <Property Name="Count" Type="Edm.Int32" Nullable="false"
                     ConcurrencyMode="Fixed"/>
             </EntityType>            

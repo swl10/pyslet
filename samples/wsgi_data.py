@@ -8,7 +8,7 @@ from pyslet.wsgi import WSGIDataApp
 
 class MyApp(WSGIDataApp):
 
-    private_files = "samples/wsgi_data"
+    settings_file = 'samples/wsgi_data/settings.json'
 
     def init_dispatcher(self):
         super(MyApp, self).init_dispatcher()

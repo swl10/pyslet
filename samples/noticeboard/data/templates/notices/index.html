@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Noticeboard{% endblock %}
+
+{% block content %}
+
+{% if notices %}
+
+<p>(<a title="New Notice" href="add">Create New Notice</a>)</p>
+
+<table style="width: 100%" id="notices">
+    <tr><th style="width: 70%">Notice</th><th>Last Updated</th><th>Actions</th></tr>
+{% for ad in notices %}
+    <tr>
+        <td><span class="title">{{ ad.title }}</span><br />
+            <span class="description">{{ ad.description }}</span><br />
+            <span class="owner">{{ ad.owner }}</span></td>
+        <td class="datetime">{{ ad.updated }}</td><td>{% if ad.can_edit %}<a
+            title="Edit" href={{ ad.edit_link_attr|safe }}>edit</a>
+            {% endif %}{% if ad.can_delete %}<a title="Delete"
+            href={{ ad.delete_link_attr|safe }}>delete</a>{% endif %}</td>
+    </tr>
+{% endfor %}                    
+</table>
+<script>
+var table = document.getElementById("notices");
+for (var i = 0, row; row = table.rows[i]; i++) {
+   //iterate through rows
+   for (var j = 0, col; col = row.cells[j]; j++) {
+     if (col.className == "datetime") {
+        d = new Date(Number(col.innerHTML))
+        col.innerHTML = d
+     }
+   }  
+}
+</script>
+
+{% else %}
+    <p>No notices have been posted for <em>{{ course_name }}</em> (<a
+        title="New Notice" href="add">Create Notice</a>)</p>
+{% endif %}
+
+{% endblock %}
+
+
+

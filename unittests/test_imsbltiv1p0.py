@@ -1,8 +1,11 @@
 #! /usr/bin/env python
 
 import logging
+import optparse
 import time
+import shutil
 import StringIO
+import tempfile
 import unittest
 
 try:
@@ -811,6 +814,46 @@ class BLTIProviderTests(unittest.TestCase):
     def test_launch(self):
         tp = lti.BLTIToolProvider()
         tp.load_from_file(StringIO.StringIO(EXAMPLE_CONSUMERS))
+
+
+class ToolProviderAppTests(unittest.TestCase):
+
+    def setUp(self):        # noqa
+        self.d = tempfile.mkdtemp('.d', 'pyslet-test_blti-')
+
+    def tearDown(self):     # noqa
+        shutil.rmtree(self.d)
+
+    def test_create_silo_option(self):
+
+        class TPApp(lti.ToolProviderApp):
+            private_files = self.d
+        p = optparse.OptionParser()
+        TPApp.add_options(p)
+        options, args = p.parse_args(['-m'])
+        # setup should succeed with default metadata
+        TPApp.setup(options=options, args=args)
+        # in memory database created, no silos
+        with TPApp.container['Silos'].OpenCollection() as collection:
+            self.assertTrue(len(collection) == 0)
+
+        class TPApp(lti.ToolProviderApp):
+            private_files = self.d
+        p = optparse.OptionParser()
+        TPApp.add_options(p)
+        options, args = p.parse_args(['-m', '--create_silo'])
+        TPApp.setup(options=options, args=args)
+        # in memory database created, with default silo
+        with TPApp.container['Silos'].OpenCollection() as collection:
+            self.assertTrue(len(collection) == 1)
+            silo = collection.values()[0]
+            self.assertTrue(silo['Slug'].value == 'testing')
+        with silo['Consumers'].OpenCollection() as collection:
+            self.assertTrue(len(collection) == 1)
+            consumer = collection.values()[0]
+            tc = lti.ToolConsumer(consumer, TPApp.new_app_cipher())
+            self.assertTrue(tc.key == '12345', tc.key)
+            self.assertTrue(tc.secret == 'secret', tc.secret)
 
 
 if __name__ == "__main__":

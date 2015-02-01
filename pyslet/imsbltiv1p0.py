@@ -364,6 +364,7 @@ class ToolConsumer(object):
         self.cipher = cipher
         #: the consumer key
         self.key = entity['Key'].value
+        #: the consumer secret
         self.secret = self.cipher.decrypt(
             self.entity['Secret'].value).decode('utf-8')
 
@@ -843,7 +844,21 @@ class ToolProviderSession(wsgi.Session):
 
 class ToolProviderApp(wsgi.SessionApp):
 
-    """Represents WSGI applications that provide LTI Tools"""
+    """Represents WSGI applications that provide LTI Tools
+
+    The key 'ToolProviderApp' is reserved for settings defined by this
+    class in the settings file. The defined settings are:
+
+    silo ('testing')
+        The name of a default silo to create when the --create_silo
+        option is used.
+
+    key ('12345')
+        The default consumer key created when --create_silo is used.
+
+    secret ('secret')
+        The consumer secret of the default consumer created when
+        --create_silo is used."""
 
     #: We have our own context class
     ContextClass = ToolProviderContext
@@ -852,14 +867,44 @@ class ToolProviderApp(wsgi.SessionApp):
     SessionClass = ToolProviderSession
 
     @classmethod
+    def add_options(cls, parser):
+        """Adds the following options:
+
+        --create_silo       create default silo and consumer"""
+        super(ToolProviderApp, cls).add_options(parser)
+        parser.add_option(
+            "--create_silo", dest="create_silo", action="store_true",
+            default=False, help="Create default silo and consumer")
+
+    @classmethod
     def setup(cls, options=None, args=None, **kwargs):
-        if not os.path.isabs(cls.metadata_file) and not cls.private_files:
-            # fix up a default metadata file if none is present
-            mdir = os.path.split(os.path.abspath(__file__))[0]
-            cls.metadata_file = os.path.abspath(
-                os.path.join(mdir, 'imsbltiv1p0_metadata.xml'))
         super(ToolProviderApp, cls).setup(options, args, **kwargs)
-        cls.settings.setdefault('ToolProviderApp', {})
+        tp_settings = cls.settings.setdefault('ToolProviderApp', {})
+        silo_name = tp_settings.setdefault('silo', 'testing')
+        key = tp_settings.setdefault('key', '12345')
+        secret = tp_settings.setdefault('secret', 'secret')
+        if options and options.create_silo:
+            # we need to create the default silo
+            with cls.container['Silos'].OpenCollection() as collection:
+                silo = collection.new_entity()
+                silo['Slug'].set_from_value(silo_name)
+                collection.insert_entity(silo)
+            cipher = cls.new_app_cipher()
+            with silo['Consumers'].OpenCollection() as collection:
+                consumer = ToolConsumer.new_from_values(
+                    collection.new_entity(), cipher, 'default', key=key,
+                    secret=secret)
+                collection.insert_entity(consumer.entity)
+
+    @classmethod
+    def load_default_metadata(cls):
+        mdir = os.path.split(os.path.abspath(__file__))[0]
+        metadata_file = os.path.abspath(
+            os.path.join(mdir, 'imsbltiv1p0_metadata.xml'))
+        metadata = edmx.Document()
+        with open(metadata_file, 'rb') as f:
+            metadata.Read(f)
+        return metadata
 
     def __init__(self, **kwargs):
         super(ToolProviderApp, self).__init__()
@@ -878,27 +923,6 @@ class ToolProviderApp(wsgi.SessionApp):
         wsgi.SessionApp.init_dispatcher(self)
         self.set_method('/launch', self.lti_launch)
         self.set_method('/resource/*', self.resource_page)
-
-    @classmethod
-    def init_test_data(cls, cipher):
-        """Creates a consumer for testing
-
-        Only call this method when debugging your tool.  It creates a
-        Silo with a single default consumer which has consumer key
-        '12345' and secret 'secret'.  These are the default values used
-        in the `IMS LTI Test Page`_
-
-        ..  _IMS LTI Test Page:
-            http://www.imsglobal.org/developers/LTI/test/v1p1/lms.php"""
-        with cls.container['Silos'].OpenCollection() as collection:
-            silo = collection.new_entity()
-            silo['Slug'].set_from_value('testing')
-            collection.insert_entity(silo)
-        with silo['Consumers'].OpenCollection() as collection:
-            consumer = ToolConsumer.new_from_values(
-                collection.new_entity(), cipher, 'default', key='12345',
-                secret='secret')
-            collection.insert_entity(consumer.entity)
 
     def set_launch_group(self, context):
         """Sets the group in the context from the launch parameters"""

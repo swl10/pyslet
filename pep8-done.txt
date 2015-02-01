@@ -18,6 +18,8 @@ unittests/test_http_server.py
 pyslet/imsbltiv1p0.py
 unittests/test_imsbltiv1p0.py
 pyslet/iso8601.py
+pyslet/mysqldbds.py
+unittests/test_mysqldbds.py
 pyslet/odata2/metadata.py
 pyslet/odata2/memds.py
 unittests/test_odata2_csdl.py
@@ -35,12 +37,14 @@ pyslet/urn.py
 unittests/test_urn.py
 pyslet/wsgi.py
 unittests/test_wsgi.py
+pyslet/wsgi_django.py
+unittests/test_wsgi_django.py
 pyslet/xml20081126/parser.py
 samples/fsodata.py
 samples/odatadiff.py
 samples/odatadoc.py
 samples/noticeboard/noticeboard.py
-samples/noticeboard/test_noticeboard.py
+samples/noticeboard/mtnoticeboard.py
 samples/weather/config.py
 samples/weather/create_config.py
 samples/weather/create_db.py

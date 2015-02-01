@@ -1,6 +1,10 @@
-<html>
-<head><title>Cookie Warning</title></head>
-<body>
+{% extends "base.html" %}
+
+{% block title %}Cookie Warning{% endblock %}
+
+{% block content %}
+<h1>LTI-Noticeboard (for Python)</h1>
+
 <div id="framed">
     <form id="wlaunch" action={{ ctest_attr|safe }} method="GET"
             target="_blank" name="autosubmit">
@@ -17,16 +21,7 @@
 </div>
 <hr/ >
 <div id="info">
-    <p>This website requires cookies to be enabled so that it can
-    remember you during your visit. Use of cookies improves security but
-    can raise concerns over privacy.  Cookies appear to be blocked by
-    your browser or you may have requested that they be removed.</p>
-
-    <p>Instructions on how to enable cookies and manage privacy settings
-    are typically specific to each device or browser.</p>
-
-    <p>For technical information about cookies see <a
-    href="http://en.wikipedia.org/wiki/HTTP_cookie">Wikipedia</a>.</p>    
+    {% include "djangoapp/cinfo.html" %}
 </div>
 <script>
 window.onload = function(){
@@ -39,5 +34,5 @@ window.onload = function(){
     };
 }
 </script>
-</body>
-</html>
+{% endblock %}
+

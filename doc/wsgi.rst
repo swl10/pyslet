@@ -47,9 +47,9 @@ The lifecycle of a script that runs your application can be summed up:
 1.  Define your WSGIApp sub-class
 
 2.  Set the values of any class attributes that are specific to a
-    particular runtime environment.  For example, you might want to set
-    paths to directories for storing :attr:`WSGIApp.private_files` and
-    reading :attr:`WSGIApp.static_files` and so on.
+    particular runtime environment.  For example, you'll probably want
+    to set the path to the :attr:`WSGIApp.settings_file` where you can
+    provide other runtime configuration options.
      
 3.  Configure the class by calling the :meth:`WSGIApp.setup`
     *class* method.
@@ -64,21 +64,16 @@ Here's an example::
     #   Runtime configuration directives
     #
     
-    #: directory for private data
-    PRIVATE_FILES = '/var/www/data'
-    
-    #: directory for static HTML, images, CSS etc.
-    STATIC_FILES = '/var/www/html'
+    #: path to settings file
+    SETTINGS_FILE = '/var/www/wsgi/data/settings.json'
     
     #   Step 1: define the WSGIApp sub-class
     class MyApp(WSGIApp):
         """Your class definitions here"""
-        pass
-    
-    #   Step 2: set class attributes to configured values    
-    MyApp.private_files = PRIVATE_FILES
-    MyApp.status_files = STATIC_FILES
-    
+
+        #   Step 2: set class attributes to configured values    
+        settings_file = SETTINGS_FILE
+        
     #   Step 3: call setup to configure the application
     MyApp.setup()
     
@@ -117,9 +112,9 @@ behaviour simply be calling the main class method::
     if __name__ == "__main__":
         MyApp.main()
 
-This simple file is available in the samples directory.  You can invoke
-your script from the command line, --help can be used to look at what
-options are available::
+This simple example is available in the samples directory.  You can
+invoke your script from the command line, --help can be used to look at
+what options are available::
 
     $ python samples/wsgi_basic.py --help
     Usage: wsgi_basic.py [options]
@@ -133,17 +128,25 @@ options are available::
       --private=PRIVATE     Path to the directory for data files
       --settings=SETTINGS   Path to the settings file
     
-You can then start a simple interactive server on port 8081 and hit
-it from your web browser.  Your session might look like this::
+You could start a simple interactive server on port 8081 and hit
+it from your web browser with the following command::
     
     $ python samples/wsgi_basic.py -ivvp8081
     INFO:pyslet.wsgi:Starting MyApp server on port 8081
     cmd: INFO:pyslet.wsgi:HTTP server on port 8081 running
     1.0.0.127.in-addr.arpa - - [11/Dec/2014 23:49:54] "GET / HTTP/1.1" 200 78
-
     cmd: stop
 
 Typing 'stop' at the cmd prompt in interactive mode exits the server. 
+Anything other than stop is evaluated as a python expression in the
+context of a method on your application object which allows you to
+interrogate you application while it is running::
+
+    cmd: self
+    <__main__.MyApp object at 0x1004c2b50>
+    cmd: self.settings
+    {'WSGIApp': {'interactive': True, 'static': None, 'port': 8081, 'private': None, 'level': 20}}
+
 If you include -vvv on the launch you'll get full debugging information
 including all WSGI environment information and all application output
 logged to the terminal.
@@ -182,29 +185,37 @@ Most applications will need to read from or write data to some type of
 data store.  Pyslet exposes its own data access layer to web
 applications, for details of the data access layer see the OData section.
 
-To include associate a data container with your application simply
-derive your application from :class:`WSGIDataApp` instead of the more
-basic WSGIApp.
+To associate a data container with your application simply derive your
+application from :class:`WSGIDataApp` instead of the more basic WSGIApp.
 
 You'll need to supply a metadata XML document describing your data
 schema and information about the data source in the settings file.
 
 The minimum required to get an application working with a sqlite3 database
-would be to define a private_files directory to point to the location
-of a directory with the following layout::
+would be to a directory with the following layout::
 
-    .
-    wsgidataapp/
-    wsgidataapp/metadata.xml
-    wsgidataapp/database.sqlite3
+    settings.json
+    metadata.xml
+    data/
 
-If this directory was /var/www/wsgi/data then your source could then be::
+The settings.json file would contain::
+
+    {
+    "WSGIApp": {
+        "private": "data"
+        },
+    "WSGIDataApp": {
+        "metadata": "metadata.xml"
+        }
+    }
+    
+If the settings file is in samples/wsgi_data your source might look this::
 
     from pyslet.wsgi import WSGIDataApp
 
     class MyApp(WSGIDataApp):
 
-        private_files = '/var/www/wsgi/data'
+        settings_file = 'samples/wsgi_data/settings.json'
 
         # method definitions as before
         
@@ -233,7 +244,7 @@ Session Management
 ------------------
 
 The :class:`WSGIDataApp` is further extended by :class:`SessionApp` to
-cover the common use of case of needing to track information across
+cover the common use case of needing to track information across
 multiple requests from the same user session.
 
 The approach taken requires server side storage (typically in the form
@@ -347,6 +358,11 @@ The action method that processes the form looks like this::
             context.session.entity['UserName'].set_from_value(user_name)
             context.session.touch()
         return self.redirect_page(context, context.get_app_root())
+
+A sample application containing this code is provided and can again be
+run from the command line::
+
+    $ python samples/wsgi_session.py --create_tables -ivvp8081
 
 
 Problems with Cookies

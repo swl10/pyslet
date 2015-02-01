@@ -24,7 +24,7 @@ import pyslet.odata2.metadata as edmx
 import pyslet.odata2.sqlds as sql
 import pyslet.wsgi as wsgi
 
-from pyslet.rfc2396 import URI
+from pyslet.rfc2396 import URI, FileURL
 
 
 def suite(prefix='test'):
@@ -46,6 +46,9 @@ STATIC_FILES = os.path.join(
 
 PRIVATE_FILES = os.path.join(
     os.path.join(os.path.split(__file__)[0], 'data_wsgi'), 'data')
+
+SETTINGS_FILE = os.path.join(
+    os.path.join(os.path.split(__file__)[0], 'data_wsgi'), 'settings.json')
 
 
 class MockRequest(object):
@@ -535,6 +538,10 @@ class MockLogging(object):
         # don't need to output mocked logging
         pass
 
+    def debug(self, msg, *args, **kwargs):
+        # don't need to output mocked logging
+        pass
+
 
 class AppTests(unittest.TestCase):
 
@@ -678,6 +685,13 @@ class AppTests(unittest.TestCase):
         self.assertTrue(StaticApp.static_files ==
                         os.path.abspath(STATIC_FILES))
 
+        class StaticApp(wsgi.WSGIApp):
+            settings_file = os.path.abspath(SETTINGS_FILE)
+        options, args = p.parse_args([])
+        StaticApp.setup(options=options, args=args)
+        self.assertTrue(StaticApp.static_files ==
+                        os.path.abspath(STATIC_FILES))
+
     def test_private_option(self):
         class PrivateApp(wsgi.WSGIApp):
             pass
@@ -688,6 +702,12 @@ class AppTests(unittest.TestCase):
         PrivateApp.setup(options=options, args=args)
         # check setting value, no override, base setting
         self.assertTrue(PrivateApp.private_files is None)
+        try:
+            PrivateApp.resolve_setup_path('folder', private=True)
+            self.fail("relative path requires private path")
+        except RuntimeError:
+            pass
+        path = PrivateApp.resolve_setup_path('file:///folder', private=True)
 
         class PrivateApp(wsgi.WSGIApp):
             pass
@@ -696,10 +716,19 @@ class AppTests(unittest.TestCase):
         PrivateApp.setup(options=options, args=args)
         self.assertTrue(PrivateApp.private_files ==
                         os.path.abspath(PRIVATE_FILES))
+        path = PrivateApp.resolve_setup_path('folder', private=True)
+        self.assertTrue(
+            path == os.path.abspath(os.path.join(PRIVATE_FILES, 'folder')))
+
+        class PrivateApp(wsgi.WSGIApp):
+            settings_file = os.path.abspath(SETTINGS_FILE)
+        options, args = p.parse_args([])
+        PrivateApp.setup(options=options, args=args)
+        self.assertTrue(PrivateApp.private_files ==
+                        os.path.abspath(PRIVATE_FILES))
 
     def test_settings_option(self):
-        path = os.path.join(os.path.split(__file__)[0],
-                            'data_wsgi', 'settings.json')
+        path = SETTINGS_FILE
 
         class SettingsApp(wsgi.WSGIApp):
             pass
@@ -710,6 +739,7 @@ class AppTests(unittest.TestCase):
         SettingsApp.setup(options=options, args=args)
         # check setting value, base setting is None
         self.assertTrue(SettingsApp.settings_file is None)
+        self.assertTrue(SettingsApp.base is None)
 
         class SettingsApp(wsgi.WSGIApp):
             pass
@@ -717,10 +747,12 @@ class AppTests(unittest.TestCase):
         self.assertTrue(options.settings == path)
         SettingsApp.setup(options=options, args=args)
         self.assertTrue(SettingsApp.settings_file == os.path.abspath(path))
+        self.assertTrue(isinstance(SettingsApp.base, FileURL))
+        self.assertTrue(SettingsApp.base.get_pathname() ==
+                        SettingsApp.settings_file)
 
     def test_settings_file(self):
-        path = os.path.join(os.path.split(__file__)[0],
-                            'data_wsgi', 'settings.json')
+        path = SETTINGS_FILE
 
         class SettingsApp(wsgi.WSGIApp):
             pass
@@ -732,6 +764,8 @@ class AppTests(unittest.TestCase):
         self.assertTrue(SettingsApp.settings['WSGIApp']['port'] == 8080)
         self.assertTrue(SettingsApp.settings['WSGIApp']['interactive'] is
                         False)
+        self.assertTrue(SettingsApp.settings['WSGIApp']['static'] is None)
+        self.assertTrue(SettingsApp.settings['WSGIApp']['private'] is None)
 
         class SettingsApp(wsgi.WSGIApp):
             pass
@@ -741,6 +775,13 @@ class AppTests(unittest.TestCase):
         self.assertTrue(SettingsApp.settings['WSGIApp']['level'] == 20)
         self.assertTrue(SettingsApp.settings['WSGIApp']['port'] == 8081)
         self.assertTrue(SettingsApp.settings['WSGIApp']['interactive'] is True)
+        self.assertTrue(SettingsApp.settings['WSGIApp']['static'] == "static")
+        self.assertTrue(SettingsApp.settings['WSGIApp']['private'] ==
+                        "data")
+        self.assertTrue(SettingsApp.static_files ==
+                        os.path.abspath(STATIC_FILES))
+        self.assertTrue(SettingsApp.private_files ==
+                        os.path.abspath(PRIVATE_FILES))
         # now check that the command line overrides them
         path2 = os.path.join(os.path.split(__file__)[0],
                              'data_wsgi', 'settings2.json')
@@ -750,11 +791,21 @@ class AppTests(unittest.TestCase):
         SettingsApp.settings_file = path2
         p = optparse.OptionParser()
         SettingsApp.add_options(p)
-        options, args = p.parse_args(['-v', '--port=8082', '--interactive'])
+        options, args = p.parse_args(
+            ['-v', '--port=8082', '--interactive',
+             '--static=%s' % STATIC_FILES, '--private=%s' % PRIVATE_FILES])
         SettingsApp.setup(options=options, args=args)
         self.assertTrue(SettingsApp.settings['WSGIApp']['level'] == 30)
         self.assertTrue(SettingsApp.settings['WSGIApp']['port'] == 8082)
         self.assertTrue(SettingsApp.settings['WSGIApp']['interactive'] is True)
+        # settings file values are not modified to reflect overrides as
+        # they are only used during startup
+        self.assertTrue(SettingsApp.settings['WSGIApp']['static'] is None)
+        self.assertTrue(SettingsApp.settings['WSGIApp']['private'] is None)
+        self.assertTrue(SettingsApp.static_files ==
+                        os.path.abspath(STATIC_FILES))
+        self.assertTrue(SettingsApp.private_files ==
+                        os.path.abspath(PRIVATE_FILES))
 
     def test_set_method(self):
         class App(wsgi.WSGIApp):
@@ -1167,10 +1218,16 @@ class WSGIDataAppTests(unittest.TestCase):
 
     def setUp(self):        # noqa
         self.d = tempfile.mkdtemp('.d', 'pyslet-test_wsgi-')
-        self.data_dir = os.path.join(self.d, 'wsgidataapp')
+        self.data_dir = os.path.join(self.d, 'data')
         os.mkdir(self.data_dir)
-        self.default_path = os.path.join(self.data_dir, 'metadata.xml')
+        # write out the settings
+        settings = {'WSGIDataApp': {'metadata': 'data/metadata.xml'}}
+        settings = json.dumps(settings).encode('utf-8')
+        self.settings_path = os.path.join(self.d, 'settings.json')
+        with open(self.settings_path, 'wb') as f:
+            f.write(settings)
         # put the metadata file in the default place
+        self.default_path = os.path.join(self.data_dir, 'metadata.xml')
         with open(self.default_path, 'wb') as f:
             f.write(self.DUMMY_SCHEMA)
         self.db_path = os.path.join(self.data_dir, 'database.sqlite3')
@@ -1183,11 +1240,8 @@ class WSGIDataAppTests(unittest.TestCase):
         cases:
         rel class attribute, private_files, option: OK, override
         """
-        # put the metadata file in the default place
-        with open(self.default_path, 'wb') as f:
-            f.write(self.DUMMY_SCHEMA)
-        custom_path = os.path.join(self.data_dir, 'myschema.xml')
         # put the metadata file in a custom place
+        custom_path = os.path.join(self.data_dir, 'myschema.xml')
         with open(custom_path, 'wb') as f:
             f.write(self.DUMMY_SCHEMA)
 
@@ -1199,35 +1253,14 @@ class WSGIDataAppTests(unittest.TestCase):
         # setup should fail
         try:
             MetadataApp.setup(options=options, args=args)
-            self.fail("private_files or metadata required")
+            self.fail("settings_file + metadata path required")
         except RuntimeError:
             pass
         self.assertFalse(os.path.exists(self.db_path))
 
         class MetadataApp(wsgi.WSGIDataApp):
-            private_files = self.d
-        p = optparse.OptionParser()
-        MetadataApp.add_options(p)
-        options, args = p.parse_args([])
-        MetadataApp.setup(options=options, args=args)
-        # don't create tables by default
-        self.assertFalse(os.path.exists(self.db_path))
-        # remove the default metadata file
-        os.remove(self.default_path)
-
-        class MetadataApp(wsgi.WSGIDataApp):
-            private_files = self.d
-            metadata_file = 'myschema.xml'
-        p = optparse.OptionParser()
-        MetadataApp.add_options(p)
-        options, args = p.parse_args([])
-        MetadataApp.setup(options=options, args=args)
-        # don't create tables by default
-        self.assertFalse(os.path.exists(self.db_path))
-
-        class MetadataApp(wsgi.WSGIDataApp):
-            private_files = self.d
-            metadata_file = os.path.abspath(custom_path)
+            settings_file = self.settings_path
+            private_files = self.data_dir
         p = optparse.OptionParser()
         MetadataApp.add_options(p)
         options, args = p.parse_args([])
@@ -1237,7 +1270,8 @@ class WSGIDataAppTests(unittest.TestCase):
 
     def test_s_option(self):
         class SApp(wsgi.WSGIDataApp):
-            private_files = self.d
+            settings_file = self.settings_path
+            private_files = self.data_dir
         p = optparse.OptionParser()
         SApp.add_options(p)
         options, args = p.parse_args([])
@@ -1261,7 +1295,8 @@ class WSGIDataAppTests(unittest.TestCase):
         self.assertFalse(os.path.exists(self.db_path))
 
         class SApp(wsgi.WSGIDataApp):
-            private_files = self.d
+            settings_file = self.settings_path
+            private_files = self.data_dir
         p = optparse.OptionParser()
         SApp.add_options(p)
         options, args = p.parse_args(['--sqlout', '--create_tables'])
@@ -1278,7 +1313,8 @@ class WSGIDataAppTests(unittest.TestCase):
 
     def test_create_option(self):
         class CreateApp(wsgi.WSGIDataApp):
-            private_files = self.d
+            settings_file = self.settings_path
+            private_files = self.data_dir
         p = optparse.OptionParser()
         CreateApp.add_options(p)
         options, args = p.parse_args([])
@@ -1296,7 +1332,8 @@ class WSGIDataAppTests(unittest.TestCase):
                 pass
 
         class CreateApp(wsgi.WSGIDataApp):
-            private_files = self.d
+            settings_file = self.settings_path
+            private_files = self.data_dir
         p = optparse.OptionParser()
         CreateApp.add_options(p)
         options, args = p.parse_args(['--create_tables'])
@@ -1315,7 +1352,8 @@ class WSGIDataAppTests(unittest.TestCase):
         os.remove(self.db_path)
 
         class CreateApp(wsgi.WSGIDataApp):
-            private_files = self.d
+            settings_file = self.settings_path
+            private_files = self.data_dir
         p = optparse.OptionParser()
         CreateApp.add_options(p)
         options, args = p.parse_args(['--memory'])
@@ -1431,11 +1469,9 @@ class AppCipherTests(unittest.TestCase):
 class SessionTests(unittest.TestCase):
 
     def setUp(self):        # noqa
-        self.d = os.path.abspath(
-            os.path.join(os.path.split(__file__)[0], 'data_wsgi', 'data'))
 
-        class TestSessionApp(wsgi.WSGIDataApp):
-            private_files = self.d
+        class TestSessionApp(wsgi.SessionApp):
+            settings_file = os.path.abspath(SETTINGS_FILE)
         p = optparse.OptionParser()
         TestSessionApp.add_options(p)
         options, args = p.parse_args(['--memory'])
@@ -1498,10 +1534,7 @@ class SessionTests(unittest.TestCase):
 
 class TestSessionApp(wsgi.SessionApp):
 
-    private_files = os.path.abspath(
-        os.path.join(
-            os.path.join(os.path.split(__file__)[0], 'data_wsgi'),
-            'data'))
+    settings_file = os.path.abspath(SETTINGS_FILE)
 
     def init_dispatcher(self):
         wsgi.SessionApp.init_dispatcher(self)
@@ -1518,9 +1551,9 @@ class TestSessionApp(wsgi.SessionApp):
 class FullAppTests(unittest.TestCase):
 
     def setUp(self):    # noqa
+
         class FullApp(TestSessionApp):
             pass
-
         p = optparse.OptionParser()
         FullApp.add_options(p)
         options, args = p.parse_args(['--memory'])

@@ -199,8 +199,6 @@ Writing your first LTI tool is easy::
         (options, args) = parser.parse_args()
         lti.ToolProviderApp.setup(options, args)
         app = lti.ToolProviderApp()
-        # add a default consumer for testing!
-        lti.ToolProviderApp.init_test_data(app.app_cipher)
         app.run_server()
 
 Save this script as mytool.py and run it from the command line like
@@ -214,16 +212,17 @@ Python's builtin options parsing feature to set up the tool class before
 creating an instance (the WSGI callable object) and running a basic WSGI
 server using Python's builtin wsgiref module.
 
-Try running your application with the -m option to use an in-memory
-SQLite data store.
+Try running your application with the -m and --create_silo options to
+use an in-memory SQLite data store and a default consumer.
 
     $ python mytool.py -m
 
 The script may print a warning message to the console warning you that
 the in-memory database does not support multiple connections, it then
 just sits waiting for connections on the default port, 8080.  The
-init_test_data method creates a simple consumer with key '12345'
-and secret 'secret'.  The launch URL for your running tool is::
+default consumer has key '12345' and secret 'secret' (these can be
+changed using a configuration file!).  The launch URL for your running
+tool is::
 
     http://localhost:8080/launch
 

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}LTI Consumers{% endblock %}
+
+{% block band %}
+<div class="band">
+<form action="../logout" method="POST">
+<p>
+{{ user_name }} : <button type="submit">Logout</button>
+<input type="hidden" name="csrftoken" value='{{ csrftoken }}' />
+</p>
+</form>
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Configure LTI Consumers</h1>
+<p>For silo {{ silo.Slug.value }}</p>
+
+{% if duplicate_key  %}
+<p class="error">Error: the specified consumer key is already in use!</p>
+{% endif %}
+
+<p>Your account defines a data silo: a tool provider could potentially
+share data across all consumers of the tool.  The silo defines the
+maximum scope of this sharing.</p>
+
+<p>A consumer represents a <em>single</em> consumer of the data in a
+silo.  You must use multiple consumers if the same data silo is to be
+exposed to two different systems.  For example, a University might have
+two faculties each running their own instance of the Moodle learning
+management system.  Each Moodle instance must be assigned its own
+consumer.</p>
+
+<h2>Consumers</h2>
+
+<script>
+function toggleSecrets(obj) {
+    var t = "show secrets";
+    var secrets = document.getElementsByName('secrets');
+    for (var i = 0; i < secrets.length; i++) {
+        var s = secrets[i];
+        if (s.className == "hidepass") {
+            s.className = "showpass";
+            t = "hide secrets";
+        }
+        else {
+            s.className = "hidepass";
+        }
+    }
+    obj.innerHTML = t
+}
+</script>
+<table>
+    <tr><th>Handle</th><th>Consumer Key</th><th>Consumer Secret</th>
+        <th>Actions</th></tr>
+{% for c in consumers %}
+    <tr>
+        <td>{{ c.consumer.entity.Handle.value }}</td>
+        <td>{{ c.consumer.entity.Key.value }}</td>
+        <td><span name="secrets" class="hidepass">{{ c.consumer.secret }}</span></td>
+        <td><a href={{ c.cedit_link|safe }}>Edit</a>
+            <a href={{ c.cdel_link|safe }}>Delete</a></td>
+    </tr>    
+{% endfor %}                    
+</table>
+<p><button type="button" name="show_secrets"
+    onclick="toggleSecrets(this)">show secrets</button></p>
+    
+<h3>Add Consumer</h3>
+<form method="POST" action="add_action">
+<table>
+    <tr>
+        <th>Handle:</th>
+        <td><input name="handle" type="text"
+            placeholder='lms.example.com' size="64"/></td>
+    </tr>
+    <tr>
+        <th>Key:</th>
+        <td><input name="key" type="text"
+            placeholder='leave blank to auto-generate' size="50"/></td>
+    </tr>    
+    <tr>
+        <th>Secret:</th>
+        <td><input name="secret" type="text"
+            placeholder='leave blank to auto-generate' size="50"/>
+    </tr>
+</table>
+<p>
+    <input type="hidden" name="csrftoken" value='{{ csrftoken }}' />
+    <input type="reset" value="Clear"/>
+    <input type="submit" value="Add"/>
+</p>
+</form>
+{% endblock %}

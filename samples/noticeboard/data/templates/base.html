@@ -1,0 +1,28 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+ "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+  <head>
+   <title>{% block title %}LTI-Noticeboard{% endblock %}</title>
+   {% block head %}{% endblock %}
+   <link href={{ css_attr|safe }} rel="stylesheet" type="text/css" />
+   <link href={{ favicon_attr|safe }} rel="icon"
+       type="image/vnd.microsoft.icon" />
+  </head>
+<body>
+
+{% block band %}
+{% endblock %}
+
+<div class="page">
+{% block content %}
+{% endblock %}
+</div>
+
+<hr />
+<div class="footer">
+<p>LTI-Noticeboard was written using  <a href="http://www.pyslet.org/"
+target="_blank">Pyslet</a> and the <a href="http://www.python.org/"
+target="_blank">Python&#xae;</a> programming language.</p>
+</div>
+</body>
+</html>

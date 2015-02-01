@@ -28,6 +28,7 @@ else:
                     'pyslet.qtiv2',
                     'pyslet.odata2'],
           package_data={'pyslet': ['imsbltiv1p0_metadata.xml',
+                                   'wsgi_metadata.xml',
                                    'unicode5_blocks.pck',
                                    'unicode5_catogories.pck'],
                         'pyslet.odata2': ['streamstore.xml']},

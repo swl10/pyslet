@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Notice{% endblock %}
+
+{% block content %}
+<p>Delete Notice</p>
+
+<form method="POST" action="delete_action">
+
+    <p>Are you sure want to delete this ad?
+    <input type="hidden" name="id" value={{ id_attr|safe }} /></p>
+    
+    <p><span class="title">{{ title }}</span><br />
+       <span class="description">{{ description }}</span></p>
+    
+    <p><input type='submit' name="action" value="Delete" />
+    <input type="hidden" name="csrftoken" value='{{ csrftoken }}' />
+    <input type="submit" value="Cancel" 
+        onclick="window.location='view'; return false;" /></p>
+
+</form>
+{% endblock %}
+
+

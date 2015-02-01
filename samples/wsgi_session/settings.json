@@ -1,0 +1,8 @@
+{
+"WSGIApp": {
+    "private": "./"
+    },
+"WSGIDataApp": {
+    "metadata": "metadata.xml"
+    }
+}

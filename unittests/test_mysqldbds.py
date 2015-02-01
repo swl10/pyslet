@@ -3,7 +3,6 @@
 import unittest
 import logging
 
-import pyslet.odata2.sqlds as sqlds
 import pyslet.mysqldbds as mysql
 
 from test_odata2_core import DataServiceRegressionTests

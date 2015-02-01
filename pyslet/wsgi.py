@@ -38,7 +38,7 @@ import pyslet.odata2.metadata as edmx
 import pyslet.xml20081126.structures as xml
 
 from pyslet.odata2.sqlds import SQLEntityContainer
-from pyslet.rfc2396 import URI
+from pyslet.rfc2396 import URI, FileURL
 
 import logging
 logger = logging.getLogger('pyslet.wsgi')
@@ -510,11 +510,33 @@ class WSGIApp(DispatchNode):
         you to interact with the running server.  When False, run_server
         will run forever and can only be killed by an application
         request that sets :attr:`stop` to True or by an external signal
-        that kills the process."""
+        that kills the process.
+
+    static (None)
+        A URL to the static files (not a local file path).  This will
+        normally be an absolute path or a relative path.  Relative paths
+        are relative to the settings file in which the setting is
+        defined. As URL syntax is used you must use the '/' as a path
+        separator and add proper URL-escaping.  On Windows, UNC paths
+        can be specified by putting the host name in the authority
+        section of the URL.
+
+    private (None)
+        A URL to the private files.  Interpreted as per the 'static'
+        setting above."""
 
     #: the class settings loaded from :attr:`settings_file` by
     #: :meth:`setup`
     settings = None
+
+    #: the base URI of this class, set from the path to the settings
+    #: file itself.  This is a :class:`pyslet.rfc2396.FileURL` instance.
+    base = None
+
+    #: the base URI of this class' private files.  This is set from the
+    #: :attr:`private_files` member and is a
+    #: :class:`pyslet.rfc2396.FileURL` instance
+    private_base = None
 
     content_type = {
         'ico': params.MediaType('image', 'vnd.microsoft.icon'),
@@ -645,6 +667,7 @@ class WSGIApp(DispatchNode):
             cls.settings_file = os.path.abspath(options.settings)
         cls.settings = {}
         if cls.settings_file:
+            cls.base = URI.from_path(cls.settings_file)
             if os.path.isfile(cls.settings_file):
                 with open(cls.settings_file, 'rb') as f:
                     cls.settings = json.load(f)
@@ -664,9 +687,43 @@ class WSGIApp(DispatchNode):
             settings['interactive'] = options.interactive
         else:
             settings.setdefault('interactive', False)
+        url = settings.setdefault('static', None)
+        if cls.static_files is None and url:
+            cls.static_files = cls.resolve_setup_path(url)
+        url = settings.setdefault('private', None)
+        if cls.private_files is None and url:
+            cls.private_files = cls.resolve_setup_path(url)
+        if cls.private_files:
+            cls.private_base = URI.from_path(
+                os.path.join(cls.private_files, ''))
         # this logging line forces the root logger to be initialised
         # with the default level as a catch all
-        logging.info("WSGIApp setup complete for %s", cls.__name__)
+        logging.debug("Logging configured for %s", cls.__name__)
+
+    @classmethod
+    def resolve_setup_path(cls, path, private=False):
+        """Resolves a settings-relative path
+
+        path
+            The relative URI of a file or directory.
+
+        private (False)
+            Resolve relative to the private files directory
+
+        Returns path as a system file path after resolving relative to
+        the settings file location or to the private files location as
+        indicated by the private flag.  If the required location is not
+        set then path must be an absolute file URL (starting with, e.g.,
+        file:///). On Windows systems the authority component of the URL
+        may be used to specify the host name for a UNC path."""
+        url = URI.from_octets(path)
+        if private and cls.private_base:
+            url = url.resolve(cls.private_base)
+        elif not private and cls.base:
+            url = url.resolve(cls.base)
+        if not url.is_absolute() and not isinstance(url, FileURL):
+            raise RuntimeError("Can't resolve setup path %s" % path)
+        return url.get_pathname()
 
     def __init__(self):
         # keyword arguments end here, no more super after WSGIApp
@@ -948,8 +1005,8 @@ class WSGIApp(DispatchNode):
             A string containing the HTML page data.  This may be a
             unicode or binary string.
 
-        The Content-Type headers is set to text/html (with an explicit
-        charset if data is unicode string).  The status is *not* set and
+        The Content-Type header is set to text/html (with an explicit
+        charset if data is a unicode string).  The status is *not* set and
         must have been set before calling this method."""
         if isinstance(data, unicode):
             data = data.encode('utf-8')
@@ -1088,11 +1145,15 @@ class WSGIApp(DispatchNode):
         if self.settings['WSGIApp']['interactive']:
             # loop around getting commands
             while not self.stop:
-                cmd = raw_input('cmd: ').lower()
-                if cmd == 'stop':
+                cmd = raw_input('cmd: ')
+                if cmd.lower() == 'stop':
                     self.stop = True
                 elif cmd:
-                    print "Unrecognized command: %s" % cmd
+                    try:
+                        print eval(cmd)
+                    except Exception as err:
+                        print "Error: %s " % str(err)
+                    # print "Unrecognized command: %s" % cmd
             sys.exit()
         else:
             t.join()
@@ -1110,15 +1171,19 @@ class WSGIDataApp(WSGIApp):
         default, the default container is used.  For future
         compatibility you should not depend on using this option.
 
+    metadata (None)
+        URI of the metadata file containing the data schema.  The file
+        is assumed to be relative to the settings_file.
+
     source_type ('sqlite')
         The type of data source to create.  The default (and only)
         supported value at the time of writing is sqlite though
         additional source types will be added in due course.
 
     sqlite_path ('database.sqlite3')
-        The name of the database file.  The file is assumed to be
-        relative to the private_files/wsgidataapp directory, though an
-        absolute path may be given.
+        URI of the database file.  The file is assumed to be relative to
+        the private_files directory, though an absolute path may be
+        given.
 
     keynum ('0')
         The identification number of the key to use when storing
@@ -1167,8 +1232,8 @@ class WSGIDataApp(WSGIApp):
         --create_tables     create tables in the database
 
         -m. --memory        Use an in-memory SQLite database.  Overrides
-                            any source_type setting value.  Implies
-                            --create_tables"""
+                            any source_type and encryption setting
+                            values .  Implies --create_tables"""
         super(WSGIDataApp, cls).add_options(parser)
         parser.add_option(
             "-s", "--sqlout", dest="sqlout", action="store_true",
@@ -1179,12 +1244,6 @@ class WSGIDataApp(WSGIApp):
         parser.add_option(
             "-m", "--memory", dest="in_memory", action="store_true",
             default=False, help="Use in-memory sqlite database")
-
-    metadata_file = 'metadata.xml'
-    """The name of the metadata file.
-
-    The file is assumed to be relative to the private_files/wsgidataapp
-    directory, though an absolute path may be given."""
 
     #: the metadata document for the underlying data service
     metadata = None
@@ -1202,32 +1261,26 @@ class WSGIDataApp(WSGIApp):
     def setup(cls, options=None, args=None, **kwargs):
         """Adds database initialisation
 
-        Loads the :attr:`metadata_file` and the :attr:`metadata`
-        document.  Creates the :attr:`data_source` according to the
-        configured :attr:`settings` (creating the tables only if
-        requested in the command line options).  Finally sets the
-        :attr:`container` to the entity container for the application.
+        Loads the :attr:`metadata` document.  Creates the
+        :attr:`data_source` according to the configured :attr:`settings`
+        (creating the tables only if requested in the command line
+        options).  Finally sets the :attr:`container` to the entity
+        container for the application.
 
         If the -s or --sqlout option is given in options then the data
         source's create table script is output to standard output and
         sys.exit(0) is used to terminate the process."""
         super(WSGIDataApp, cls).setup(options, args, **kwargs)
         settings = cls.settings.setdefault('WSGIDataApp', {})
-        if cls.metadata_file:
-            if not os.path.isabs(cls.metadata_file):
-                if cls.private_files:
-                    cls.metadata_file = os.path.join(cls.private_files,
-                                                     'wsgidataapp',
-                                                     cls.metadata_file)
-                else:
-                    # must be absolute, could be in the options
-                    cls.metadata_file = None
-        if not cls.metadata_file:
-            raise RuntimeError("No path to metadata")
-        # load the metadata document for our data layer
-        cls.metadata = edmx.Document()
-        with open(cls.metadata_file, 'rb') as f:
-            cls.metadata.Read(f)
+        metadata_file = settings.setdefault('metadata', None)
+        if metadata_file:
+            metadata_file = cls.resolve_setup_path(metadata_file)
+            # load the metadata document for our data layer
+            cls.metadata = edmx.Document()
+            with open(metadata_file, 'rb') as f:
+                cls.metadata.Read(f)
+        else:
+            cls.metadata = cls.load_default_metadata()
         container_name = settings.setdefault('container', None)
         if container_name:
             cls.container = cls.metadata.root.DataServices[container_name]
@@ -1249,14 +1302,10 @@ class WSGIDataApp(WSGIApp):
                     # use an in-memory database
                     sqlite_path = ':memory:'
                 else:
-                    sqlite_path = settings.setdefault('sqlite_path',
-                                                      'database.sqlite3')
-                    if not os.path.isabs(sqlite_path):
-                        if cls.private_files:
-                            sqlite_path = os.path.join(
-                                cls.private_files, 'wsgidataapp', sqlite_path)
-                        else:
-                            raise RuntimeError("No path to sqlite database")
+                    sqlite_path = settings.setdefault(
+                        'sqlite_path', 'database.sqlite3')
+                    sqlite_path = cls.resolve_setup_path(
+                        sqlite_path, private=True)
         if source_type == 'sqlite':
             from pyslet.odata2.sqlds import SQLiteEntityContainer
             cls.data_source = SQLiteEntityContainer(
@@ -1279,6 +1328,10 @@ class WSGIDataApp(WSGIApp):
             settings.setdefault('secret', None)
             settings.setdefault('cipher', 'aes')
         settings.setdefault('when', None)
+
+    @classmethod
+    def load_default_metadata(cls):
+        raise RuntimeError("No path to metadata")
 
     @classmethod
     def new_app_cipher(cls):
@@ -1316,8 +1369,7 @@ class WSGIDataApp(WSGIApp):
         Expires (DateTime)
             The UTC time at which this secret will expire.  After this
             time a newer key should be used for encrypting data though
-            this key may of course still be used for decrypting existing
-            data."""
+            this key may of course still be used for decrypting data."""
         keynum = cls.settings['WSGIDataApp']['keynum']
         secret = cls.settings['WSGIDataApp']['secret']
         cipher = cls.settings['WSGIDataApp']['cipher']
@@ -1445,10 +1497,16 @@ class AppCipher(object):
             A fully specified :class:`pyslet.iso8601.TimePoint` at which
             point the new key will come into effect.
 
+        Many organizations have a policy of changing keys on a routine
+        basis, for example, to ensure that people who have had temporary
+        access to the key only have temporary access to the data it
+        protects.  This method makes it easier to implement such a
+        policy for applications that use the AppCipher class.
+
         The existing key is encrypted with the new key and a record is
-        written to the :attr:`key_set` using the *existing* key number,
-        the encrypted key string and the *when* time, which is treated
-        as an expiry time in this context.
+        written to the :attr:`key_set` to record the *existing* key
+        number, the encrypted key string and the *when* time, which is
+        treated as an expiry time in this context.
 
         This procedure ensures that strings encrypted with an old key
         can always be decrypted because the value of the old key can be
@@ -1474,16 +1532,22 @@ class AppCipher(object):
             a load balanced set of application servers can be cycled on
             a schedule to ensure continuous running).
 
-        The purpose of changing the key of an application is to reduce
-        the risk from key exposure.  Long-life keys increase this risk.
-
         Following a key change the entity container will still contain
-        data encrypted with old keys, which are assumed to be at an
-        increased risk of exposure.  There are two strategies for
-        dealing with this, you could routinely update encrypted data by
-        decrypting and re-encrypting in response to certain events or
-        you could write a script that iterates through the encrypted
-        data fields forcing an update.
+        data encrypted with old keys and the architecture is such that
+        compromise of a key is sufficient to read all encrypted data
+        with that key and all previous keys.  Therefore, changing the
+        key only protects new data.
+
+        In situations where policy dictates a key change it might make
+        sense to add a facility to the application for re-encrypting
+        data in the data store by going through a
+        read-decrypt/encrypt-write cycle with each protected data field.
+        Of course, the old key could still be used to decrypt this
+        information from archived backups of the data store.
+        Alternatively, if the protected data is itself subject to change
+        on a routine basis you may simply rely on the natural turnover
+        of data in the application.  The strategy you choose will depend
+        on your application.
 
         The :attr:`MAX_AGE` attribute determines the maximum number of
         keys that can be in use in the data set simultaneously.
@@ -1807,7 +1871,6 @@ class SessionContext(WSGIContext):
 
 
 class SessionApp(WSGIDataApp):
-
     """Extends WSGIDataApp to include session handling.
 
     These sessions require support for cookies. The SessionApp class
@@ -1861,6 +1924,16 @@ class SessionApp(WSGIDataApp):
         session_set = settings.setdefault('session_set', 'Sessions')
         cls._session_set = cls.container[session_set]
         settings.setdefault('cookie_test_age', 8640000)
+
+    @classmethod
+    def load_default_metadata(cls):
+        mdir = os.path.split(os.path.abspath(__file__))[0]
+        metadata_file = os.path.abspath(
+            os.path.join(mdir, 'wsgi_metadata.xml'))
+        metadata = edmx.Document()
+        with open(metadata_file, 'rb') as f:
+            metadata.Read(f)
+        return metadata
 
     #: The name of our CSRF token
     csrf_token = None

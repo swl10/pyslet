@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Consumer{% endblock %}
+
+{% block band %}
+<div class="band">
+<form action="../logout" method="POST">
+<p>
+{{ owner.FullName.value }} : <button type="submit">Logout</button>
+<input type="hidden" name="csrftoken" value='{{ csrftoken }}' />
+</p>
+</form>
+</div>
+{% endblock %}
+
+{% block content %}
+<h3>Edit LTI Consumer</h3>
+<p>For silo {{ silo.Slug.value }}</h3>
+
+<form method="POST" action="edit_action">
+<script>
+function toggleSecret(obj) {
+    var s = document.getElementById('secret');
+    if (s.type == "text") {
+        s.type = "password";
+        obj.innerHTML = "show typing";
+    }
+    else {
+        s.type = "text";
+        obj.innerHTML = "hide typing";
+    }
+}
+</script>
+<table>
+    <tr>
+        <th>Handle:</th>
+        <td>{{ consumer.entity.Handle.value }}</td>
+    </tr>
+    <tr>
+        <th>Key:</th>
+        <td><input name="key" type="text"
+            value='{{ consumer.entity.Key.value }}' size="64"/></td>
+    </tr>    
+    <tr>
+        <th>Secret:</th>
+        <td><input id="secret" type="password" name="secret"
+                value='{{ consumer.secret }}' size="50"/>
+            <button type="button" name="show_secret"
+                onclick="toggleSecret(this)">show typing</button></td>
+    </tr>
+</table>
+<p>
+    <input type="hidden" name="cid" value='{{ consumer.entity.ID.value }}' />
+    <input type="hidden" name="csrftoken" value='{{ csrftoken }}' />
+    <input type="submit" value="Cancel"
+        onclick="window.location='./'; return false;" />
+    <input type="submit" value="OK"/>
+</p>
+</form>
+{% endblock %}

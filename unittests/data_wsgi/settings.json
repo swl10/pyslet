@@ -2,6 +2,8 @@
 "WSGIApp": {
     "level" : 20,
     "port" : 8081,
-    "interactive" : true
+    "interactive" : true,
+    "static" : "static",
+    "private" : "data"
     }
 }
