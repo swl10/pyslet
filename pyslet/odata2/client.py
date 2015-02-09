@@ -936,10 +936,26 @@ class Client(app.Client):
         if serviceRoot is not None:
             self.LoadService(serviceRoot)
 
-    def LoadService(self, serviceRoot):
+    def LoadService(self, serviceRoot, metadata=None):
         """Configures this client to use the service at *serviceRoot*
 
-        *serviceRoot* is a string or :py:class:`pyslet.rfc2396.URI` instance."""
+        serviceRoot
+            A string or :py:class:`pyslet.rfc2396.URI` instance.
+        
+        metadata (None)
+            A :py:class:`pyslet.rfc2396.URI` instance pointing to the
+            metadata file.  This is usually derived automatically by
+            adding $metadata to the service root but some services have
+            inconsistent metadata models.  You can download a copy,
+            modify the model and use a local copy this way instead,
+            e.g., by passing something like::
+                
+                URI.from_path('metadata.xml')
+            
+            If you use a local copy you must add an xml:base attribute
+            to the root element indicating the true location of the
+            $metadata file as the client uses this information to match
+            feeds with the metadata model."""
         if isinstance(serviceRoot, uri.URI):
             self.serviceRoot = serviceRoot
         else:
@@ -967,7 +983,8 @@ class Client(app.Client):
         self.pathPrefix = self.serviceRoot.abs_path
         if self.pathPrefix[-1] == u"/":
             self.pathPrefix = self.pathPrefix[:-1]
-        metadata = uri.URI.from_octets('$metadata').resolve(serviceRoot)
+        if metadata is None:
+            metadata = uri.URI.from_octets('$metadata').resolve(serviceRoot)
         doc = edmx.Document(baseURI=metadata, reqManager=self)
         defaultContainer = None
         try:
