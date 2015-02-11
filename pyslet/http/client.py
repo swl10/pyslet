@@ -627,6 +627,7 @@ class Connection(object):
             nbytes = len(data)
             self.recv_buffer.append(data)
             self.recv_buffer_size += nbytes
+            logging.debug("Read buffer size: %i" % self.recv_buffer_size)
         else:
             logging.debug("%s: closing connection after recv returned no "
                           "data on ready to read socket", self.host)
@@ -670,7 +671,7 @@ class Connection(object):
                     self.recv_buffer = []
                     self.recv_buffer_size = 0
                 if lines:
-                    logging.debug("Response Headers: %s", repr(lines))
+                    # logging.debug("Response Headers: %s", repr(lines))
                     self.response.recv(lines)
             elif recv_needs == messages.Message.RECV_LINE:
                 # scan for CRLF, consolidate first
@@ -692,55 +693,45 @@ class Connection(object):
                     self.recv_buffer = []
                     self.recv_buffer_size = 0
                 if line:
-                    logging.debug("Response Header: %s", repr(line))
+                    # logging.debug("Response Header: %s", repr(line))
                     self.response.recv(line)
+            elif recv_needs == messages.Message.RECV_ALL:
+                # As many as possible please
+                logging.debug("Response reading until connection closes")
+                if self.recv_buffer_size > 0:
+                    data = self.recv_buffer[0]
+                    self.recv_buffer = self.recv_buffer[1:]
+                    self.recv_buffer_size -= len(data)
+                    # logging.debug("Response Data: %s", repr(data))
+                    self.response.recv(data)
+                else:
+                    # recv_buffer is empty but we still want more
+                    break
             elif recv_needs == 0:
                 # we're blocked
                 logging.debug("Response blocked on write")
                 self.response.recv(None)
-            else:
-                nbytes = int(recv_needs)
-                if nbytes < 0:
-                    # As many as possible please
-                    logging.debug("Response reading until connection closes")
-                    if self.recv_buffer_size > 0:
-                        bytes = string.join(self.recv_buffer, '')
-                        self.recv_buffer = []
-                        self.recv_buffer_size = 0
-                    else:
-                        # recv_buffer is empty but we still want more
-                        break
-                elif self.recv_buffer_size < nbytes:
+            elif recv_needs > 0:
+                if self.recv_buffer_size:
                     logging.debug("Response waiting for %s bytes",
-                                  str(nbytes - self.recv_buffer_size))
+                                  str(recv_needs - self.recv_buffer_size))
+                    data = self.recv_buffer[0]
+                    if len(data) <= recv_needs:
+                        self.recv_buffer = self.recv_buffer[1:]
+                        self.recv_buffer_size -= len(data)
+                    else:
+                        # we only want part of the data
+                        self.recv_buffer[0] = data[recv_needs:]
+                        self.recv_buffer_size -= recv_needs
+                        data = data[:recv_needs]
+                    # logging.debug("Response Data: %s", repr(data))
+                    self.response.recv(data)
+                else:
                     # We can't satisfy the response
                     break
-                else:
-                    got_bytes = 0
-                    buff_pos = 0
-                    while got_bytes < nbytes:
-                        data = self.recv_buffer[buff_pos]
-                        if got_bytes + len(data) < nbytes:
-                            buff_pos += 1
-                            got_bytes += len(data)
-                            continue
-                        elif got_bytes + len(data) == nbytes:
-                            bytes = string.join(
-                                self.recv_buffer[0:buff_pos + 1], '')
-                            self.recv_buffer = self.recv_buffer[buff_pos + 1:]
-                            break
-                        else:
-                            # Tricky case, only some of this string is needed
-                            bytes = string.join(
-                                self.recv_buffer[0:buff_pos] +
-                                [data[0:nbytes - got_bytes]], '')
-                            self.recv_buffer = (
-                                [data[nbytes - got_bytes:]] +
-                                self.recv_buffer[buff_pos + 1:])
-                            break
-                    self.recv_buffer_size = self.recv_buffer_size - len(bytes)
-                logging.debug("Response Data: %s", repr(bytes))
-                self.response.recv(bytes)
+            else:
+                raise RuntimeError("Unexpected recv mode: %s" %
+                                   repr(recv_needs))
         return (False, False, False)
 
     def new_socket(self):

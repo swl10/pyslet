@@ -756,7 +756,7 @@ class Message(PEP8Compatibility, object):
                     self.transferPos += len(data)
                     if self.transferlength:
                         extra = self.transferPos - self.transferlength
-                        if extra:
+                        if extra > 0:
                             logging.warn("%i bytes of spurious data in "
                                          "http Message.recv in %s",
                                          extra,

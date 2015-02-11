@@ -941,7 +941,7 @@ class Client(app.Client):
 
         serviceRoot
             A string or :py:class:`pyslet.rfc2396.URI` instance.
-        
+
         metadata (None)
             A :py:class:`pyslet.rfc2396.URI` instance pointing to the
             metadata file.  This is usually derived automatically by
@@ -949,9 +949,9 @@ class Client(app.Client):
             inconsistent metadata models.  You can download a copy,
             modify the model and use a local copy this way instead,
             e.g., by passing something like::
-                
+
                 URI.from_path('metadata.xml')
-            
+
             If you use a local copy you must add an xml:base attribute
             to the root element indicating the true location of the
             $metadata file as the client uses this information to match

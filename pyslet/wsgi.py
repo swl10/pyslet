@@ -1187,16 +1187,16 @@ class WSGIDataApp(WSGIApp):
 
     dbhost ('localhost')
         For mysql databases, the hostname to connect to.
-        
+
     dname (None)
         The name of the database to connect to.
-    
+
     dbuser (None)
         The user name to connect to the database with.
-    
+
     dbpassword (None)
         The password to use in conjunction with dbuser
-        
+
     keynum ('0')
         The identification number of the key to use when storing
         encrypted data in the container.

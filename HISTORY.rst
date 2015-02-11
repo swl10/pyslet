@@ -124,6 +124,17 @@ Added a new module to make it easier to write WSGI-based applications.
 Re-factored the existing Basic LTI module to use the new oauthlib
 and Pyslet's own OData-inspired data access layer.
 
+#24 ESA Sentinel mission compatibility
+
+Added the capability to override the metadata used by a server to deal
+with validation issues in some OData services.  (Sample code with
+working schema for ESA feeds to follow.)
+
+#26 HTTP client eats memory when downloading large unchunked files
+
+Fixed the download buffer which was failing to write out data until an
+entire chunk (or the entire download) was complete.
+
 
 Untracked enhancements:
 
