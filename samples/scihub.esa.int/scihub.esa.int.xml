@@ -1,0 +1,120 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<edmx:Edmx Version="1.0" xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx">
+    <edmx:DataServices m:DataServiceVersion="1.0"
+        xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata">
+        <Schema Namespace="DHuS" xmlns="http://schemas.microsoft.com/ado/2008/09/edm">
+            <EntityType Name="Node" m:HasStream="true">
+                <Key>
+                    <PropertyRef Name="Id"/>
+                </Key>
+                <Property Name="Id" Type="Edm.String" Nullable="false"/>
+                <Property Name="Name" Type="Edm.String" m:FC_TargetPath="SyndicationTitle"/>
+                <Property Name="ContentType" Type="Edm.String"/>
+                <Property Name="ContentLength" Type="Edm.Int64"/>
+                <Property Name="ChildrenNumber" Type="Edm.Int64"/>
+                <Property Name="Value" Type="Edm.String"/>
+                <NavigationProperty Name="Nodes" Relationship="DHuS.Node_Node" FromRole="Node_Node"
+                    ToRole="Node_Nodes"/>
+                <NavigationProperty Name="Attributes" Relationship="DHuS.Node_Attribute"
+                    FromRole="Attribute_Node" ToRole="Node_Attributes"/>
+            </EntityType>
+            <EntityType Name="Attribute" m:HasStream="true">
+                <Key>
+                    <PropertyRef Name="Id"/>
+                </Key>
+                <Property Name="Id" Type="Edm.String" Nullable="false"/>
+                <Property Name="Name" Type="Edm.String" m:FC_TargetPath="SyndicationTitle"/>
+                <Property Name="ContentType" Type="Edm.String"/>
+                <Property Name="ContentLength" Type="Edm.Int64"/>
+                <Property Name="Value" Type="Edm.String"/>
+            </EntityType>
+            <EntityType Name="Product" m:HasStream="true">
+                <Key>
+                    <PropertyRef Name="Id"/>
+                </Key>
+                <Property Name="Id" Type="Edm.String" Nullable="false"/>
+                <Property Name="Name" Type="Edm.String" m:FC_TargetPath="SyndicationTitle"/>
+                <Property Name="ContentType" Type="Edm.String"/>
+                <Property Name="ContentLength" Type="Edm.Int64"/>
+                <Property Name="ChildrenNumber" Type="Edm.Int64"/>
+                <Property Name="Value" Type="Edm.String"/>
+                <Property Name="CreationDate" Type="Edm.DateTime" Nullable="false"/>
+                <Property Name="IngestionDate" Type="Edm.DateTime"
+                    m:FC_TargetPath="SyndicationUpdated"/>
+                <Property Name="EvictionDate" Type="Edm.DateTime"/>
+                <Property Name="ContentDate" Type="DHuS.TimeRange"/>
+                <Property Name="ContentGeometry" Type="Edm.String"/>
+                <Property Name="Metalink" Type="Edm.String"/>
+                <NavigationProperty Name="Nodes" Relationship="DHuS.Node_Node" FromRole="Node_Node"
+                    ToRole="Node_Nodes"/>
+                <NavigationProperty Name="Attributes" Relationship="DHuS.Node_Attribute"
+                    FromRole="Attribute_Node" ToRole="Node_Attributes"/>
+                <NavigationProperty Name="Products" Relationship="DHuS.Product_Product"
+                    FromRole="Product_Product" ToRole="Product_Products"/>
+            </EntityType>
+            <EntityType Name="Collection">
+                <Key>
+                    <PropertyRef Name="Name"/>
+                </Key>
+                <Property Name="Name" Type="Edm.String" Nullable="false"
+                    m:FC_TargetPath="SyndicationTitle"/>
+                <Property Name="Description" Type="Edm.String"/>
+                <NavigationProperty Name="Products" Relationship="DHuS.Collection_Product"
+                    FromRole="Product_Collections" ToRole="Collection_Products"/>
+                <NavigationProperty Name="Collections" Relationship="DHuS.Collection_Collection"
+                    FromRole="Collection_Parent" ToRole="Collection_Collections"/>
+            </EntityType>
+            <ComplexType Name="TimeRange">
+                <Property Name="Start" Type="Edm.DateTime"/>
+                <Property Name="End" Type="Edm.DateTime"/>
+            </ComplexType>
+            <Association Name="Collection_Product">
+                <End Type="DHuS.Product" Multiplicity="*" Role="Collection_Products"/>
+                <End Type="DHuS.Collection" Multiplicity="*" Role="Product_Collections"/>
+            </Association>
+            <Association Name="Node_Node">
+                <End Type="DHuS.Node" Multiplicity="*" Role="Node_Nodes"/>
+                <End Type="DHuS.Node" Multiplicity="0..1" Role="Node_Node"/>
+            </Association>
+            <Association Name="Node_Attribute">
+                <End Type="DHuS.Attribute" Multiplicity="*" Role="Node_Attributes"/>
+                <End Type="DHuS.Node" Multiplicity="1" Role="Attribute_Node"/>
+            </Association>
+            <Association Name="Product_Product">
+                <End Type="DHuS.Product" Multiplicity="*" Role="Product_Products"/>
+                <End Type="DHuS.Product" Multiplicity="0..1" Role="Product_Product"/>
+            </Association>
+            <Association Name="Collection_Collection">
+                <End Type="DHuS.Collection" Multiplicity="*" Role="Collection_Collections"/>
+                <End Type="DHuS.Collection" Multiplicity="0..1" Role="Collection_Parent"/>
+            </Association>
+            <EntityContainer Name="DHuSData" m:IsDefaultEntityContainer="true">
+                <EntitySet Name="Nodes" EntityType="DHuS.Node"/>
+                <EntitySet Name="Attributes" EntityType="DHuS.Attribute"/>
+                <EntitySet Name="Products" EntityType="DHuS.Product"/>
+                <EntitySet Name="Collections" EntityType="DHuS.Collection"/>
+                <AssociationSet Name="Collection_Product" Association="DHuS.Collection_Product">
+                    <End EntitySet="Collections" Role="Product_Collections"/>
+                    <End EntitySet="Products" Role="Collection_Products"/>
+                </AssociationSet>
+                <AssociationSet Name="Node_Attribute" Association="DHuS.Node_Attribute">
+                    <End EntitySet="Attributes" Role="Node_Attributes"/>
+                    <End EntitySet="Nodes" Role="Attribute_Node"/>
+                </AssociationSet>
+                <AssociationSet Name="Node_Node" Association="DHuS.Node_Node">
+                    <End EntitySet="Nodes" Role="Node_Nodes"/>
+                    <End EntitySet="Nodes" Role="Node_Node"/>
+                </AssociationSet>
+                <AssociationSet Name="Product_Product" Association="DHuS.Product_Product">
+                    <End EntitySet="Products" Role="Product_Products"/>
+                    <End EntitySet="Products" Role="Product_Product"/>
+                </AssociationSet>
+                <AssociationSet Name="Collection_Collection"
+                    Association="DHuS.Collection_Collection">
+                    <End EntitySet="Collections" Role="Collection_Collections"/>
+                    <End EntitySet="Collections" Role="Collection_Parent"/>
+                </AssociationSet>
+            </EntityContainer>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

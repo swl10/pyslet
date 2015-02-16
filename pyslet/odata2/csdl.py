@@ -4913,7 +4913,7 @@ class AssociationSetEnd(CSDLElement):
             logging.error(
                 "Entity set %s has more than one unbound principal "
                 "changing multiplicity from 0..1 to * and "
-                "dropping mutliplicity of %s to 0..1.  Continuing...",
+                "dropping multiplicity of %s to 0..1.  Continuing...",
                 self.entity_set.name, self.otherEnd.name)
             self.associationEnd.multiplicity = Multiplicity.Many
             self.otherEnd.associationEnd.multiplicity = Multiplicity.ZeroToOne
@@ -4923,7 +4923,7 @@ class AssociationSetEnd(CSDLElement):
         else:
             logging.error(
                 "Entity set %s has more than one unbound principal\n"
-                "dropping mutliplicity of %s to 0..1.  Continuing",
+                "dropping multiplicity of %s to 0..1.  Continuing",
                 self.entity_set.name, self.otherEnd.name)
             self.otherEnd.associationEnd.multiplicity = Multiplicity.ZeroToOne
 
