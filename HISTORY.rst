@@ -137,11 +137,10 @@ entire chunk (or the entire download) was complete.
 
 #29 https connections fail on POST after remote server hangup
 
-Partial mitigation here with an agressive 2s window in which to start
-sending a follow-up request on an already-open https socket.  As
-currently implemented, this is a crude solution and the bug remains open
-for a more robust solution based around use of the Expect header in
-HTTP/1.1.
+Partial mitigation with an agressive 2s window in which to start sending
+a follow-up request when pipelining through https.  This is a crude
+solution and the bug remains open for a more robust solution based
+around use of the Expect header in HTTP/1.1.
 
 #30 HTTP client cleanup thread
 

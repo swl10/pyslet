@@ -32,12 +32,8 @@ Classes
     
 The :class:`ToolProviderApp` class is a mini-web framework in itself
 which makes writing LTI tools much easier.  The framework does *not*
-include a page templating language, the sample Noticeboard application
-was written using the `Django templating language`_ but it should be
-compatible with other approaches.
-
-..  _Django templating language:
-    https://docs.djangoproject.com/en/1.7/ref/templates/api/
+include a page templating language but it should be easy to integrate
+with your templating system of choice.
 
 Instances of ToolProviderApp are callable objects that support the WSGI
 protocol for ease of integration into a wide variety of deployment

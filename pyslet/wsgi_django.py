@@ -34,12 +34,10 @@ class DjangoApp(wsgi.WSGIApp):
     template-based versions of the :meth:`ctest_page` and
     :meth:`cfail_page` methods.
 
-    This class does not support the full Django stack, so if you want to
-    use Django's session handling and/or data storage backend you will
-    have to forego Pyslet's WSGI framework and just use Django directly.
-    Of course, Pyslet contains lots of other useful modules which are
-    perfectly compatible with the Django framework.
-
+    This class does not make your application a Django application, it
+    simply requires the django module to be installed so that the
+    templating language can be used by Pyslet's framework.
+    
     You can understand more about using Django's template language
     from the `The Django template language: For Python programmers`__.
 
