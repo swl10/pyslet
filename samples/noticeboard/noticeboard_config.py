@@ -11,3 +11,6 @@ LOG_FILE = None
 
 # The logging level
 LOG_LEVEL = logging.INFO
+
+# The settings file
+SETTINGS_FILE = 'data/settings.json'

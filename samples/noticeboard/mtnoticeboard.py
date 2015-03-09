@@ -3,6 +3,9 @@
 import json
 import logging
 import os.path
+import ssl
+import string
+import sys
 import urllib
 
 from oauthlib import oauth2
@@ -54,6 +57,19 @@ class MultiTenantTPApp(lti.ToolProviderApp):
     #: We have our own NoticeBoard-specific Session class
     SessionClass = MultiTenantSession
 
+    #: The path to the certificate files
+    cert_file = None
+
+    @classmethod
+    def add_options(cls, parser):
+        """Adds the following options:
+
+        --google_certs       refresh the google certificates"""
+        super(MultiTenantTPApp, cls).add_options(parser)
+        parser.add_option(
+            "--google_certs", dest="google_certs", action="store_true",
+            default=False, help="Download Google API certificates and exit")
+
     @classmethod
     def setup(cls, options=None, args=None, **kwargs):
         """Adds multi-tenant initialisation"""
@@ -61,6 +77,19 @@ class MultiTenantTPApp(lti.ToolProviderApp):
         mt_settings = cls.settings.setdefault('MultiTenantTPApp', {})
         mt_settings.setdefault('google_client_id', '')
         mt_settings.setdefault('google_client_secret', '')
+        cert_url = mt_settings.setdefault('google_certs', 'google_certs.pem')
+        cls.cert_file = cls.resolve_setup_path(cert_url)
+        if options and options.google_certs:
+            # update the certs_file and exit
+            certs = []
+            for s in ('https://accounts.google.com',
+                      'https://www.googleapis.com', ):
+                url = URI.from_octets(s)
+                certs.append(ssl.get_server_certificate(url.get_addr(),
+                             ssl_version=ssl.PROTOCOL_TLSv1))
+            with open(cls.cert_file, 'wb') as f:
+                f.write(string.join(certs, ''))
+            sys.exit(0)
 
     def __init__(self):
         super(MultiTenantTPApp, self).__init__()
@@ -68,7 +97,7 @@ class MultiTenantTPApp(lti.ToolProviderApp):
         self.google_id = mt_settings['google_client_id']
         self.google_secret = mt_settings['google_client_secret']
         # TODO: add configuration of certificates!
-        self.http = http.Client()
+        self.http = http.Client(ca_certs=self.cert_file)
 
     def init_dispatcher(self):
         super(MultiTenantTPApp, self).init_dispatcher()
@@ -225,7 +254,7 @@ class MultiTenantTPApp(lti.ToolProviderApp):
         else:
             page_context['google_sso'] = False
         page_context[self.csrf_token] = context.session.sid()
-        data = self.render_template(context, 'home.html', page_context)
+        data = self.render_template(context, 'mthome.html', page_context)
         context.set_status(200)
         return self.html_response(context, data)
 

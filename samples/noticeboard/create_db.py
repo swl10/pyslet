@@ -1,12 +1,13 @@
 #! /usr/bin/env python
 
-import base64
+import json
 import os
 import sys
 
 if __name__ == '__main__':
     input = sys.argv[1]
-    settings = json.load(input)
+    with open(input, 'rb') as f:
+        settings = json.load(f)
     password = settings['WSGIDataApp']['dbpassword']
     sql_password = password.replace("'", "''")
     print "DROP DATABASE noticeboard;"
