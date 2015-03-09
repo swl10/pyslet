@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 
-import sys
 import weather_config as config
 
 if __name__ == '__main__':
