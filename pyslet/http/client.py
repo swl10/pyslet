@@ -524,8 +524,12 @@ class Connection(object):
         except ssl.SSLError as err:
             if (err.args[0] == ssl.SSL_ERROR_WANT_READ or
                     err.args[0] == ssl.SSL_ERROR_WANT_WRITE):
-                # blocked on SSL read, OK
-                return
+                # blocked on SSL read, when did we last read or write?
+                # we can only guess the server's keep alive timeout,
+                # Apache defaults to 5s, anything more than 2s and we'll
+                # recycle the socket.
+                if self.last_rw + 2 > time.time():
+                    return
             else:
                 logging.warn("socket.recv raised %s", str(err))
         except IOError as err:
@@ -842,6 +846,20 @@ class Client(PEP8Compatibility, object):
         before assuming that the server is no longer responding.
         Defaults to None, no timeout.
 
+    max_inactive (None)
+        The maximum time to keep a connection inactive before
+        terminating it.  By default, HTTP connections are kept open when
+        the protocol allows.  These idle connections are kept in a pool
+        and can be reused by any thread.  This is useful for web-service
+        type use cases (for which Pyslet has been optimised) but it is
+        poor practice to keep these connections open indefinitely and
+        anyway, most servers will hang up after a fairly short period of
+        time anyway.
+
+        If not None, this setting causes a cleanup thread to be created
+        that calls the :meth:`idle_cleanup` method periodically passing
+        this setting value as its argument.
+
     ca_certs
         The file name of a certificate file to use when checking SSL
         connections.  For more information see
@@ -884,7 +902,8 @@ class Client(PEP8Compatibility, object):
     ConnectionClass = Connection
     SecureConnectionClass = SecureConnection
 
-    def __init__(self, max_connections=100, ca_certs=None, timeout=None):
+    def __init__(self, max_connections=100, ca_certs=None, timeout=None,
+                 max_inactive=None):
         PEP8Compatibility.__init__(self)
         self.managerLock = threading.Condition()
         # the id of the next connection object we'll create
@@ -900,7 +919,7 @@ class Client(PEP8Compatibility, object):
         # connection id
         self.cIdleList = {}
         # A dict of idle connections keyed on connection id (for keeping count)
-        self.closing = False                    # True if we are closing
+        self.closing = threading.Event()    # set if we are closing
         # maximum number of connections to manage (set only on construction)
         self.max_connections = max_connections
         # maximum wait time on connections
@@ -916,6 +935,15 @@ class Client(PEP8Compatibility, object):
         derived from the installed version of Pyslet, e.g.::
 
             pyslet 0.5.20140727 (http.client.Client)"""
+        # start the connection cleaner thread if required
+        if max_inactive is not None:
+            t = threading.Thread(
+                target=self._run_cleanup,
+                kwargs={'max_inactive': max_inactive})
+            t.setDaemon(True)
+            t.start()
+            logging.info("Starting cleaner thread with max_inactive=%f" %
+                         float(max_inactive))
 
     def set_cookie_store(self, cookie_store):
         self.cookie_store = cookie_store
@@ -946,7 +974,7 @@ class Client(PEP8Compatibility, object):
             thread_id, request.scheme, request.hostname, request.port)
         target = (request.scheme, request.hostname, request.port)
         with self.managerLock:
-            if self.closing:
+            if self.closing.is_set():
                 raise ConnectionClosed
             while True:
                 # Step 1: search for an active connection to the same
@@ -1148,6 +1176,14 @@ class Client(PEP8Compatibility, object):
         self.queue_request(request, timeout)
         self.thread_loop(timeout)
 
+    def _run_cleanup(self, max_inactive=15):
+        # run this thread at most once per second
+        if max_inactive < 1:
+            max_inactive = 1
+        while not self.closing.is_set():
+            self.closing.wait(max_inactive)
+            self.idle_cleanup(max_inactive)
+
     def idle_cleanup(self, max_inactive=15):
         """Cleans up any idle connections that have been inactive for
         more than *max_inactive* seconds."""
@@ -1210,7 +1246,7 @@ class Client(PEP8Compatibility, object):
         Active connections are killed, idle connections are closed."""
         while True:
             with self.managerLock:
-                self.closing = True
+                self.closing.set()
                 if len(self.cActiveThreadTargets) + len(self.cIdleList) == 0:
                     break
             self.active_cleanup(0)

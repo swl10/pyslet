@@ -126,14 +126,27 @@ and Pyslet's own OData-inspired data access layer.
 
 #24 ESA Sentinel mission compatibility
 
-Added the capability to override the metadata used by a server to deal
-with validation issues in some OData services.  (Sample code with
-working schema for ESA feeds to follow.)
+Added the capability to override the metadata used by an OData server to
+deal with validation issues in some services.  Clients can now also be
+created from an offline copy of the service root document.
 
 #26 HTTP client eats memory when downloading large unchunked files
 
 Fixed the download buffer which was failing to write out data until an
 entire chunk (or the entire download) was complete.
+
+#29 https connections fail on POST after remote server hangup
+
+Partial mitigation here with an agressive 2s window in which to start
+sending a follow-up request on an already-open https socket.  As
+currently implemented, this is a crude solution and the bug remains open
+for a more robust solution based around use of the Expect header in
+HTTP/1.1.
+
+#30 HTTP client cleanup thread
+
+Added an optional parameter to the HTTP client constructor that creates
+a cleanup thread to close down idle connections periodically.
 
 
 Untracked enhancements:
@@ -153,6 +166,7 @@ the DAL.
 
 Reworked sample code for the weather data server, included example
 driver files for mod_wsgi
+
 
 Other fixes:
 

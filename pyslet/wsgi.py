@@ -1411,7 +1411,7 @@ class WSGIDataApp(WSGIApp):
             return None
 
     def __init__(self, **kwargs):
-        super(WSGIDataApp, self).__init__()
+        super(WSGIDataApp, self).__init__(**kwargs)
         #: the application's cipher, a :class:`AppCipher` instance.
         self.app_cipher = self.new_app_cipher()
 

@@ -940,7 +940,11 @@ class Client(app.Client):
         """Configures this client to use the service at *serviceRoot*
 
         serviceRoot
-            A string or :py:class:`pyslet.rfc2396.URI` instance.
+            A string or :py:class:`pyslet.rfc2396.URI` instance.  The
+            URI may now point to a local file though this must have an
+            xml:base attribute to point to the true location of the
+            service as calls to the feeds themselves require the use of
+            http(s).
 
         metadata (None)
             A :py:class:`pyslet.rfc2396.URI` instance pointing to the
@@ -960,14 +964,18 @@ class Client(app.Client):
             self.serviceRoot = serviceRoot
         else:
             self.serviceRoot = uri.URI.from_octets(serviceRoot)
-        request = http.ClientRequest(str(self.serviceRoot))
-        request.set_header('Accept', 'application/atomsvc+xml')
-        self.process_request(request)
-        if request.status != 200:
-            raise UnexpectedHTTPResponse(
-                "%i %s" % (request.status, request.response.reason))
         doc = core.Document(baseURI=self.serviceRoot)
-        doc.Read(request.res_body)
+        if isinstance(self.serviceRoot, uri.FileURL):
+            # load the service root from a file instead
+            doc.Read()            
+        else:
+            request = http.ClientRequest(str(self.serviceRoot))
+            request.set_header('Accept', 'application/atomsvc+xml')
+            self.process_request(request)
+            if request.status != 200:
+                raise UnexpectedHTTPResponse(
+                    "%i %s" % (request.status, request.response.reason))
+            doc.Read(request.res_body)
         if isinstance(doc.root, app.Service):
             self.service = doc.root
             self.serviceRoot = uri.URI.from_octets(doc.root.ResolveBase())
@@ -984,7 +992,8 @@ class Client(app.Client):
         if self.pathPrefix[-1] == u"/":
             self.pathPrefix = self.pathPrefix[:-1]
         if metadata is None:
-            metadata = uri.URI.from_octets('$metadata').resolve(serviceRoot)
+            metadata = uri.URI.from_octets('$metadata').resolve(
+                self.serviceRoot)
         doc = edmx.Document(baseURI=metadata, reqManager=self)
         defaultContainer = None
         try:
