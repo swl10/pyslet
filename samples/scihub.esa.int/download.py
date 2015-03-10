@@ -23,9 +23,9 @@ CERTIFICATE = 'scihub.esa.int.crt'
 
 
 def get_cert():
+    c = Client()
     url = URI.from_octets(SERVICE)
-    output = ssl.get_server_certificate(
-        url.get_addr(), ssl_version=ssl.PROTOCOL_TLSv1)
+    output = c.get_server_certificate_chain(url)
     with open(CERTIFICATE, 'wb') as f:
         f.write(output)
 

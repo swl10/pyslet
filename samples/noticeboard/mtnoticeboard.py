@@ -3,7 +3,6 @@
 import json
 import logging
 import os.path
-import ssl
 import string
 import sys
 import urllib
@@ -81,12 +80,12 @@ class MultiTenantTPApp(lti.ToolProviderApp):
         cls.cert_file = cls.resolve_setup_path(cert_url)
         if options and options.google_certs:
             # update the certs_file and exit
+            c = http.Client()
             certs = []
             for s in ('https://accounts.google.com',
                       'https://www.googleapis.com', ):
                 url = URI.from_octets(s)
-                certs.append(ssl.get_server_certificate(url.get_addr(),
-                             ssl_version=ssl.PROTOCOL_TLSv1))
+                certs.append(c.get_server_certificate_chain(url))
             with open(cls.cert_file, 'wb') as f:
                 f.write(string.join(certs, ''))
             sys.exit(0)

@@ -1,17 +1,25 @@
 #! /usr/bin/env python
 
-import unittest
+import errno
 import logging
+import os.path
+import select
+import shutil
+import socket
 import threading
+import time
 import random
+import unittest
 from StringIO import StringIO
-
-import pyslet.http.messages as messages
-import pyslet.http.server as server
-from test_http_server import MockSocketBase, MockTime
+from tempfile import mkdtemp
 
 import pyslet.http.client as http
-from pyslet.http.client import *       # noqa
+import pyslet.http.messages as messages
+import pyslet.http.params as params
+import pyslet.http.server as server
+import pyslet.rfc2396 as uri
+
+from test_http_server import MockSocketBase, MockTime
 
 
 TEST_DATA_DIR = os.path.join(
@@ -118,7 +126,7 @@ class MockSocket(MockSocketBase):
                           str(e))
 
 
-class MockConnectionWrapper(Connection):
+class MockConnectionWrapper(http.Connection):
 
     SocketClass = MockSocket
 
@@ -141,12 +149,12 @@ class MockConnectionWrapper(Connection):
                 self.socketSelect = self.SocketClass.wrap_select
 
 
-class MockClientWrapper(Client):
+class MockClientWrapper(http.Client):
 
     ConnectionClass = MockConnectionWrapper
 
     def __init__(self, mock_server, **kwargs):
-        Client.__init__(self, **kwargs)
+        http.Client.__init__(self, **kwargs)
         self.socketSelect = self.ConnectionClass.SocketClass.wrap_select
         self.mock_server = mock_server
 
@@ -164,8 +172,8 @@ class ClientRequestTests(unittest.TestCase):
         MockTime.now = time.time()
 
     def test_retries(self):
-        request = ClientRequest("http://www.domain1.com/", max_retries=10,
-                                min_retry_time=4)
+        request = http.ClientRequest("http://www.domain1.com/", max_retries=10,
+                                     min_retry_time=4)
         self.assertTrue(request.max_retries == 10)
         self.assertTrue(request.nretries == 0)
         self.assertTrue(request.retry_time == 0)
@@ -212,7 +220,7 @@ class ClientTests(unittest.TestCase):
 
             If the abs_path is not present in the URL, it MUST be given
             as "/" when used as a Request-URI for a resource"""
-        request = ClientRequest("http://www.example.com/")
+        request = http.ClientRequest("http://www.example.com/")
         request.start_sending()
         request_line = request.send_start()
         self.assertTrue(request_line.startswith("GET / HTTP/1."), request_line)
@@ -366,9 +374,9 @@ class ClientTests(unittest.TestCase):
             raise ValueError("run_manager: bad host in connect")
 
     def test_manager(self):
-        request1 = ClientRequest("http://www.domain1.com/")
+        request1 = http.ClientRequest("http://www.domain1.com/")
         self.assertTrue(request1.method == "GET")
-        request2 = ClientRequest("http://www.domain2.com/", "HEAD")
+        request2 = http.ClientRequest("http://www.domain2.com/", "HEAD")
         self.assertTrue(request2.method == "HEAD")
         self.client.queue_request(request1)
         self.client.queue_request(request2)
@@ -408,11 +416,11 @@ class ClientTests(unittest.TestCase):
             If a client will wait for a 100 (Continue) response before
             sending the request body, it MUST send an Expect
             request-header field with the "100-continue" expectation."""
-        request1 = ClientRequest(
+        request1 = http.ClientRequest(
             "http://www.domain1.com/file", method="PUT",
             entity_body=TEST_BODY)
         self.assertTrue(request1.method == "PUT")
-        request2 = ClientRequest(
+        request2 = http.ClientRequest(
             "http://www.domain1.com/file2", method="PUT",
             entity_body=TEST_BODY)
         request2.set_expect_continue()
@@ -449,7 +457,7 @@ class ClientTests(unittest.TestCase):
         # the redirect?
 
     def test_streamed_put(self):
-        request = ClientRequest(
+        request = http.ClientRequest(
             "http://www.domain1.com/file2",
             "PUT",
             entity_body=StringIO("123456\r\n\r\n"))
@@ -464,7 +472,7 @@ class ClientTests(unittest.TestCase):
             response.reason)
         self.assertTrue(
             request.res_body == "", "Data in response: %s" % request.res_body)
-        request = ClientRequest(
+        request = http.ClientRequest(
             "http://www.domain1.com/file",
             "PUT",
             entity_body=StringIO("123456\r\n\r\n"))
@@ -482,7 +490,7 @@ class ClientTests(unittest.TestCase):
 
     def test_streamed_get(self):
         buff = StringIO()
-        request = ClientRequest(
+        request = http.ClientRequest(
             "http://www.domain1.com/", "GET", entity_body=None, res_body=buff)
         self.client.process_request(request)
         response = request.response
@@ -500,7 +508,7 @@ class ClientTests(unittest.TestCase):
     def domain3_thread_oneshot(self):
         time.sleep(1)
         logging.debug("domain3_thread_oneshot starting...")
-        request = ClientRequest("http://www.domain3.com/index.txt")
+        request = http.ClientRequest("http://www.domain3.com/index.txt")
         try:
             self.client.process_request(request)
         except messages.HTTPException as err:
@@ -509,7 +517,7 @@ class ClientTests(unittest.TestCase):
     def domain4_thread_oneshot(self):
         time.sleep(1)
         logging.debug("domain4_thread_oneshot starting...")
-        request = ClientRequest("http://www.domain4.com/index.txt")
+        request = http.ClientRequest("http://www.domain4.com/index.txt")
         try:
             self.client.process_request(request)
         except messages.HTTPException as err:
@@ -541,7 +549,7 @@ class ClientTests(unittest.TestCase):
             Client software SHOULD reopen the transport connection and
             retransmit the aborted sequence of requests without user
             interaction so long as the request sequence is idempotent"""
-        request = ClientRequest("http://www.domain5.com/unreliable")
+        request = http.ClientRequest("http://www.domain5.com/unreliable")
         # this request will timeout the first time before any data
         # has been sent to the client, it should retry and succeed
         self.client.process_request(request)
@@ -556,8 +564,8 @@ class ClientTests(unittest.TestCase):
         self.assertTrue(
             response.entity_body.getvalue() == TEST_STRING,
             "Body in response: %i" % response.status)
-        request = ClientRequest("http://www.domain6.com/unreliable",
-                                min_retry_time=0.1)
+        request = http.ClientRequest("http://www.domain6.com/unreliable",
+                                     min_retry_time=0.1)
         # this request will always fail with a broken server
         self.client.process_request(request)
         response = request.response
@@ -568,8 +576,8 @@ class ClientTests(unittest.TestCase):
 
             Non-idempotent methods or sequences MUST NOT be
             automatically retried."""
-        request = ClientRequest("http://www.domain5.com/unreliable",
-                                method="POST", entity_body="Hello")
+        request = http.ClientRequest("http://www.domain5.com/unreliable",
+                                     method="POST", entity_body="Hello")
         # this request will timeout the first time before any data
         # has been sent to the client, it should retry and fail!
         self.client.process_request(request)
@@ -577,15 +585,16 @@ class ClientTests(unittest.TestCase):
         self.assertTrue(response.status is None, "No response")
 
     def test_async_error(self):
-        request = ClientRequest("http://www.domain7.com/", min_retry_time=0.1)
+        request = http.ClientRequest(
+            "http://www.domain7.com/", min_retry_time=0.1)
         self.client.process_request(request)
         response = request.response
         self.assertTrue(response.status == 200)
         self.client.idle_cleanup(0)
 
     def test_post_after_shutdown(self):
-        request = ClientRequest("http://www.domain8.com/",
-                                method="POST", entity_body="Hello")
+        request = http.ClientRequest("http://www.domain8.com/",
+                                     method="POST", entity_body="Hello")
         self.client.process_request(request)
         response = request.response
         self.assertTrue(response.status == 200)
@@ -595,8 +604,8 @@ class ClientTests(unittest.TestCase):
         # re-establish the connection.  A fail is likely though because
         # the method is POST which we won't resend if the data was
         # partially sent.
-        request = ClientRequest("http://www.domain8.com/",
-                                method="POST", entity_body="Hello")
+        request = http.ClientRequest("http://www.domain8.com/",
+                                     method="POST", entity_body="Hello")
         self.client.process_request(request)
         response = request.response
         self.assertTrue(response.status == 200)
@@ -634,7 +643,7 @@ class LegacyServerTests(unittest.TestCase):
         self.server = server.Server(port=self.port, app=self.legacy_app,
                                     protocol=params.HTTP_1p0)
         self.server.timeout = 0.5
-        self.client = Client()
+        self.client = http.Client()
 
     def tearDown(self):     # noqa
         self.client.close()
@@ -665,7 +674,7 @@ class LegacyServerTests(unittest.TestCase):
                 start_response("204 Updated", [])
                 return []
             else:
-                start_resonse("500 Unexpected", [])
+                start_response("500 Unexpected", [])
                 return []
         else:
             start_response("404 Not Fond", [])
@@ -680,7 +689,8 @@ class LegacyServerTests(unittest.TestCase):
             HTTP/1.1 compliant"""
         t = threading.Thread(target=self.run_legacy, args=(2,))
         t.start()
-        request = ClientRequest("http://localhost:%i/nochunked" % self.port)
+        request = http.ClientRequest(
+            "http://localhost:%i/nochunked" % self.port)
         self.assertTrue(request.protocol == params.HTTP_1p1)
         # start off optimistic about keep_alive
         self.assertTrue(request.keep_alive)
@@ -693,8 +703,9 @@ class LegacyServerTests(unittest.TestCase):
         data = "How long is a piece of string?"
         bodytext = server.Pipe(rblocking=False, timeout=10)
         bodytext.write(data)
-        request = ClientRequest("http://localhost:%i/nochunked" % self.port,
-                                "PUT", entity_body=bodytext)
+        request = http.ClientRequest(
+            "http://localhost:%i/nochunked" % self.port,
+            "PUT", entity_body=bodytext)
         # we should now know that the server is 1.0, so we expect an
         # error when trying to send an unbounded entity without
         # content-length
@@ -715,8 +726,9 @@ class LegacyServerTests(unittest.TestCase):
         t = threading.Thread(target=self.run_legacy, args=(1,))
         t.start()
         data = "How long is a piece of string?"
-        request = ClientRequest("http://localhost:%i/nochunked" % self.port,
-                                "PUT", entity_body=data)
+        request = http.ClientRequest(
+            "http://localhost:%i/nochunked" % self.port,
+            "PUT", entity_body=data)
         # we don't know that the server is 1.0, let's clip the timeout
         # on the wait for 100-Continue, 6s on the client is about right,
         # will translate to 1s on the wait for continue timeout
@@ -728,9 +740,18 @@ class LegacyServerTests(unittest.TestCase):
 
 class SecureTests(unittest.TestCase):
 
+    def setUp(self):        # noqa
+        self.cwd = os.getcwd()
+        self.d = mkdtemp('.d', 'pyslet-test_https-')
+        os.chdir(self.d)
+
+    def tearDown(self):     # noqa
+        os.chdir(self.cwd)
+        shutil.rmtree(self.d, True)
+
     def test_google_insecure(self):
-        client = Client()
-        request = ClientRequest("https://code.google.com/p/qtimigration/")
+        client = http.Client()
+        request = http.ClientRequest("https://code.google.com/p/qtimigration/")
         try:
             client.process_request(request)
         except messages.HTTPException as err:
@@ -738,17 +759,17 @@ class SecureTests(unittest.TestCase):
         client.close()
 
     def test_google_secure(self):
-        client = Client(
+        client = http.Client(
             ca_certs=os.path.join(TEST_DATA_DIR, "ca_certs.txt"))
-        request = ClientRequest("https://code.google.com/p/qtimigration/")
+        request = http.ClientRequest("https://code.google.com/p/qtimigration/")
         try:
             client.process_request(request)
         except messages.HTTPException as err:
             logging.error(err)
         client.close()
-        client = Client(
+        client = http.Client(
             ca_certs=os.path.join(TEST_DATA_DIR, "no_certs.txt"))
-        request = ClientRequest("https://code.google.com/p/qtimigration/")
+        request = http.ClientRequest("https://code.google.com/p/qtimigration/")
         try:
             client.process_request(request)
             if request.status != 0:
@@ -760,8 +781,35 @@ class SecureTests(unittest.TestCase):
             logging.error(str(err))
         client.close()
 
+    def test_chain(self):
+        try:
+            from OpenSSL import SSL     # noqa
+        except ImportError:
+            logging.warning(
+                "Skipping chain test (install pyOpenSSL to activate test)")
+            return
+        client = http.Client()
+        try:
+            client.get_server_certificate_chain(
+                uri.URI.from_octets("http://www.pyslet.org/"))
+            self.fail("Can't get certificate chain from http URL")
+        except ValueError:
+            pass
+        chain = client.get_server_certificate_chain(
+            uri.URI.from_octets("https://code.google.com/p/qtimigration/"))
+        fpath = os.path.join(self.d, 'ca_certs.txt')
+        with open(fpath, 'wb') as f:
+            f.write(chain)
+        client = http.Client(ca_certs=fpath)
+        request = http.ClientRequest("https://code.google.com/p/qtimigration/")
+        try:
+            client.process_request(request)
+        except messages.HTTPException as err:
+            logging.error(err)
+        client.close()
+
 
 if __name__ == '__main__':
     logging.basicConfig(
-        level=logging.DEBUG, format="[%(thread)d] %(levelname)s %(message)s")
+        level=logging.INFO, format="[%(thread)d] %(levelname)s %(message)s")
     unittest.main()

@@ -37,7 +37,7 @@ class DjangoApp(wsgi.WSGIApp):
     This class does not make your application a Django application, it
     simply requires the django module to be installed so that the
     templating language can be used by Pyslet's framework.
-    
+
     You can understand more about using Django's template language
     from the `The Django template language: For Python programmers`__.
 

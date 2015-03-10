@@ -13,6 +13,12 @@ import errno
 import os
 import random
 
+try:
+    import OpenSSL
+    from OpenSSL import SSL, crypto
+except ImportError:
+    OpenSSL = None
+
 import pyslet.info as info
 import pyslet.rfc2396 as uri
 from pyslet.pep8 import PEP8Compatibility
@@ -947,6 +953,74 @@ class Client(PEP8Compatibility, object):
 
     def set_cookie_store(self, cookie_store):
         self.cookie_store = cookie_store
+
+    def get_server_certificate_chain(self, url, method=None, options=None):
+        """Returns the certificate chain for an https URL
+
+        url
+            A :class:`~pyslet.rfc2396.URI` instance.  This must use the
+            https scheme or ValueError will be raised.
+
+        method (SSL.TLSv1_METHOD)
+            The SSL method to use, one of the constants from the
+            pyOpenSSL module.
+
+        options (None)
+            The SSL options to use, as defined by the pyOpenSSL module.
+            For example, SSL.OP_NO_SSLv2.
+
+        This method requires pyOpenSSL to be installed, if it isn't then
+        a RuntimeError is raised.
+
+        The address and port is extracted from the URL and interrogated
+        for its certificate chain.  No validation is performed.  The
+        result is a string containing the concatenated PEM format
+        certificate files.  This string is equivalent to the output of
+        the following UNIX command::
+
+            echo | openssl s_client -showcerts -connect host:port 2>&1 |
+                sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p'
+
+        The purpose of this method is to provide something like the
+        ssh-style trust whereby you can download the chain the first
+        time you connect, store it to a file and then use that file for
+        the ca_certs argument for SSL validation in future.
+
+        If the site certificate changes to one that doesn't validate to
+        a certificate in the same chain then the SSL connection will
+        fail.
+
+        As this method does no validation there is no protection against
+        a man-in-the-middle attack when you use this method.  You should
+        only use this method when you trust the machine and connection
+        you are using or when you have some other way to independently
+        verify that the certificate chain is good."""
+        if OpenSSL is None:
+            raise RuntimeError(
+                "get_server_certificate_chain requires pyOpenSSL")
+        if method is None:
+            method = SSL.TLSv1_METHOD
+        if not isinstance(url, uri.URI) or not url.scheme.lower() == 'https':
+            raise ValueError(str(url))
+        addr = url.get_addr()
+        context = SSL.Context(method)
+        if options is not None:
+            context.set_options(options)
+        sock = socket.socket()
+        connection = SSL.Connection(context, sock)
+        connection.connect(addr)
+        connection.do_handshake()
+        chain = connection.get_peer_cert_chain()
+        output = []
+        for cert in chain:
+            if not output:
+                if cert.get_subject().commonName != addr[0].lower():
+                    logging.warning("Certificate common name: %s",
+                                    cert.get_subject().commonName)
+            output.append(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
+        connection.shutdown()
+        connection.close()
+        return string.join(output, '')
 
     def queue_request(self, request, timeout=None):
         """Starts processing an HTTP *request*
