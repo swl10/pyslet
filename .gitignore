@@ -21,6 +21,8 @@ htmlcov
 
 # misc
 local
+samples/noticeboard/data/google_certs.pem
+samples/scihub.esa.int/scihub.esa.int.crt
 unittests/pyslet
 samples/pyslet
 samples/noticeboard/pyslet
