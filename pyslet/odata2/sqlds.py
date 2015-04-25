@@ -4852,9 +4852,6 @@ class SQLEntityContainer(object):
             if dbc is not None:
                 self.close_connection(dbc)
 
-    def __del__(self):
-        self.close()
-
     def quote_identifier(self, identifier):
         """Given an *identifier* returns a safely quoted form of it.
 
