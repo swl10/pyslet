@@ -148,7 +148,7 @@ class Precision(object):
     Complete = 7  # : constant for complete representations
 
 
-class Date(object):
+class Date(PEP8Compatibility):
 
     """A class for representing ISO dates.
 
@@ -220,6 +220,7 @@ class Date(object):
     def __init__(self, src=None, base=None, century=None, decade=None,
                  year=None, month=None, day=None, week=None, weekday=None,
                  ordinal_day=None, absolute_day=None, **kwargs):
+        PEP8Compatibility.__init__(self)
         ordinal_day = kwargs.get('ordinalDay', ordinal_day)
         absolute_day = kwargs.get('absoluteDay', absolute_day)
         if src is None:
