@@ -147,6 +147,24 @@ around use of the Expect header in HTTP/1.1.
 Added an optional parameter to the HTTP client constructor that creates
 a cleanup thread to close down idle connections periodically.
 
+#31 Removed reliance on Host header in wsgi app class
+
+There are a number of ways an application can be attacked using a forged
+Host header, wsgi now ignores the Host header and uses a new setting for
+the preferred scheme//host:port.
+
+#32 get_certificate_chain
+
+Implemented a function to create a complete certificate chain. 
+Implemented using pyOpenSSL with a lot of help from `this article`__
+
+..  __: http://blog.san-ss.com.ar/2012/05/validating-ssl-certificate-in-python.html
+
+#33 Fixed exception: 'NoneType' object has no attribute 'current_thread'
+on exit
+
+Caused by an overly ambitious __del__ method in SQLEntityContainer.
+
 
 Untracked enhancements:
 

@@ -228,7 +228,22 @@ class ContextTests(unittest.TestCase):
         context = wsgi.WSGIContext(req.environ, req.start_response)
         root = context.get_app_root()
         self.assertTrue(isinstance(root, URI))
+        # default to SERVER_NAME
         self.assertTrue(str(root) == 'http://localhost/')
+        req = MockRequest()
+        req.environ['HTTP_HOST'] = "www.evil.com"
+        context = wsgi.WSGIContext(req.environ, req.start_response)
+        root = context.get_app_root()
+        self.assertTrue(isinstance(root, URI))
+        # check that we ignore Host header and default to SERVER_NAME
+        self.assertTrue(str(root) == 'http://localhost/')
+        req = MockRequest()
+        req.environ['HTTP_HOST'] = "www.evil.com"
+        context = wsgi.WSGIContext(req.environ, req.start_response)
+        root = context.get_app_root("https://www.good.com:8443")
+        self.assertTrue(isinstance(root, URI))
+        # authority passed as a parameter always takes precedence
+        self.assertTrue(str(root) == 'https://www.good.com:8443/')
         # test https
         req = MockRequest(secure=True, port=443)
         context = wsgi.WSGIContext(req.environ, req.start_response)
@@ -244,12 +259,6 @@ class ContextTests(unittest.TestCase):
         context = wsgi.WSGIContext(req.environ, req.start_response)
         root = context.get_app_root()
         self.assertTrue(str(root) == 'https://localhost:8443/')
-        # check that host header trumps everything
-        req = MockRequest(port=8080)
-        req.environ['HTTP_HOST'] = "www.example.com"
-        context = wsgi.WSGIContext(req.environ, req.start_response)
-        root = context.get_app_root()
-        self.assertTrue(str(root) == 'http://www.example.com/')
         # check that the path is ignored (four ways)
         req = MockRequest(path="/script.py/index.html")
         context = wsgi.WSGIContext(req.environ, req.start_response)
@@ -288,11 +297,10 @@ class ContextTests(unittest.TestCase):
         context = wsgi.WSGIContext(req.environ, req.start_response)
         url = context.get_url()
         self.assertTrue(str(url) == 'https://localhost:8443/')
-        # check that host header trumps everything
+        # check that authority trumps the port
         req = MockRequest(port=8080)
-        req.environ['HTTP_HOST'] = "www.example.com"
         context = wsgi.WSGIContext(req.environ, req.start_response)
-        url = context.get_url()
+        url = context.get_url("http://www.example.com")
         self.assertTrue(str(url) == 'http://www.example.com/')
         # now check the path, with empty SCRIPT_NAME
         req = MockRequest(path="/script.py/index.html")
@@ -761,6 +769,8 @@ class AppTests(unittest.TestCase):
         self.assertTrue("WSGIApp" in SettingsApp.settings)
         self.assertTrue("level" in SettingsApp.settings['WSGIApp'])
         self.assertTrue(SettingsApp.settings['WSGIApp']['level'] is None)
+        self.assertTrue(SettingsApp.settings['WSGIApp']['authority'] ==
+                        "http://localhost:8080")
         self.assertTrue(SettingsApp.settings['WSGIApp']['port'] == 8080)
         self.assertTrue(SettingsApp.settings['WSGIApp']['interactive'] is
                         False)
@@ -773,6 +783,8 @@ class AppTests(unittest.TestCase):
         SettingsApp.settings_file = path
         SettingsApp.setup()
         self.assertTrue(SettingsApp.settings['WSGIApp']['level'] == 20)
+        self.assertTrue(SettingsApp.settings['WSGIApp']['authority'] ==
+                        "https://www.example.com:8443")
         self.assertTrue(SettingsApp.settings['WSGIApp']['port'] == 8081)
         self.assertTrue(SettingsApp.settings['WSGIApp']['interactive'] is True)
         self.assertTrue(SettingsApp.settings['WSGIApp']['static'] == "static")

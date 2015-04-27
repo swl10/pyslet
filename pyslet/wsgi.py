@@ -202,8 +202,14 @@ class WSGIContext(object):
         return self.start_response_method(
             "%i %s" % (self.status, self.status_message), self.headers)
 
-    def get_app_root(self):
+    def get_app_root(self, authority=None):
         """Returns the root of this application
+
+        authority
+            The URL scheme and authority (including optional port) that
+            should be used instead of the information obtained from the
+            WSGI environment (e.g., the SERVER_NAME and SERVER_PORT
+            variables).
 
         The result is a :class:`pyslet.rfc2396.URI` instance, It is
         calculated from the environment in the same way as
@@ -228,8 +234,11 @@ class WSGIContext(object):
 
         for the above example.  This is preferable to using absolute
         paths which would strip away the SCRIPT_NAME prefix when used."""
-        url = [self.environ['wsgi.url_scheme'], '://']
-        url.append(self._get_authority())
+        if authority:
+            url = [authority]
+        else:
+            url = [self.environ['wsgi.url_scheme'], '://']
+            url.append(self._get_authority())
         script = urllib.quote(self.environ.get('SCRIPT_NAME', ''))
         url.append(script)
         # we always add the slash, that's our root URL
@@ -237,12 +246,16 @@ class WSGIContext(object):
             url.append('/')
         return URI.from_octets(string.join(url, ''))
 
-    def get_url(self):
+    def get_url(self, authority=None):
         """Returns the URL used in the request
+
+        authority
+            See :meth:`get_app_root`
 
         The result is a :class:`pyslet.rfc2396.URI` instance, It is
         calculated from the environment using the algorithm described in
-        URL Reconstruction section of the WSGI specification.
+        URL Reconstruction section of the WSGI specification except
+        that it ignores the Host header for security reasons.
 
         Unlike the result of :meth:`get_app_root` it *doesn't*
         necessarily end with a trailing slash.  So if you have a script
@@ -261,8 +274,11 @@ class WSGIContext(object):
         This causes particular pain in OData services which frequently
         respond on the service script's URL without a slash but generate
         incorrect relative links to the contained feeds as a result."""
-        url = [self.environ['wsgi.url_scheme'], '://']
-        url.append(self._get_authority())
+        if authority:
+            url = [authority]
+        else:
+            url = [self.environ['wsgi.url_scheme'], '://']
+            url.append(self._get_authority())
         url.append(urllib.quote(self.environ.get('SCRIPT_NAME', '')))
         url.append(urllib.quote(self.environ.get('PATH_INFO', '')))
         query = self.environ.get('QUERY_STRING', '')
@@ -272,17 +288,14 @@ class WSGIContext(object):
 
     def _get_authority(self):
         sflag = (self.environ['wsgi.url_scheme'] == 'https')
-        if self.environ.get('HTTP_HOST'):
-            return self.environ['HTTP_HOST']
-        else:
-            authority = self.environ['SERVER_NAME']
-            port = self.environ['SERVER_PORT']
-            if sflag:
-                if port != '443':
-                    return "%s:%s" % (authority, port)
-            elif port != '80':
+        authority = self.environ['SERVER_NAME']
+        port = self.environ['SERVER_PORT']
+        if sflag:
+            if port != '443':
                 return "%s:%s" % (authority, port)
-            return authority
+        elif port != '80':
+            return "%s:%s" % (authority, port)
+        return authority
 
     def get_query(self):
         """Returns a dictionary of query parameters
@@ -501,6 +514,18 @@ class WSGIApp(DispatchNode):
         between 0 (NOTSET) and 50 (CRITICAL).  For more information see
         python's logging module.
 
+    authority ("http://localhost")
+        The canonical URL scheme, host (and port if required) for the
+        application.  This value is passed to
+        :meth:`WSGIContext.get_url` and similar methods and is used in
+        preference to the SERVER_NAME and SEVER_PORT to construct
+        absolute URLs returned or recorded by the application.  Note
+        that the Host header is always ignored to prevent related
+        `security attacks`__.
+
+        ..  __:
+            http://www.skeletonscribe.net/2013/05/practical-http-host-header-attacks.html
+
     port (8080)
         The port number used by :meth:`run_server`
 
@@ -679,6 +704,7 @@ class WSGIApp(DispatchNode):
         level = settings.setdefault('level', None)
         if level is not None:
             logging.basicConfig(level=settings['level'])
+        settings.setdefault('authority', "http://localhost:8080")
         if options and options.port is not None:
             settings['port'] = int(options.port)
         else:
