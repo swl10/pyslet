@@ -32,8 +32,8 @@
             <EntityType Name="Note">
                 <Key><PropertyRef Name="ID"></PropertyRef></Key>
                 <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
-                <Property Name="StartDate" Type="DateTime" Nullable="false" Precision="0"/>
-                <Property Name="EndDate" Type="DateTime" Nullable="false" Precision="0"/>
+                <Property Name="StartDate" Type="Edm.DateTime" Nullable="false" Precision="0"/>
+                <Property Name="EndDate" Type="Edm.DateTime" Nullable="false" Precision="0"/>
                 <Property Name="Details" Type="Edm.String" MaxLength="1024" Nullable="false" FixedLength="false"/>
                 <NavigationProperty Name="DataPoints" Relationship="WeatherSchema.DataPointNote"
                     FromRole="Note" ToRole="DataPoint"/>
