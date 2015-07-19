@@ -954,7 +954,8 @@ class Client(PEP8Compatibility, object):
     def set_cookie_store(self, cookie_store):
         self.cookie_store = cookie_store
 
-    def get_server_certificate_chain(self, url, method=None, options=None):
+    @classmethod
+    def get_server_certificate_chain(cls, url, method=None, options=None):
         """Returns the certificate chain for an https URL
 
         url

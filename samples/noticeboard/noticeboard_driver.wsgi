@@ -7,6 +7,6 @@ from mtnoticeboard import MTNoticeBoard
 import noticeboard_config as config
 
 logging.basicConfig(filename=config.LOG_FILE, level=config.LOG_LEVEL)
-MTNoticeBoard.settings_file = config.SETTINGS.FILE
+MTNoticeBoard.settings_file = config.SETTINGS_FILE
 MTNoticeBoard.setup()
 application = MTNoticeBoard()

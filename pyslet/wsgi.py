@@ -1014,7 +1014,7 @@ class WSGIApp(DispatchNode):
                            str(params.FullDate.from_unix_time(finfo.st_mtime)))
         context.start_response()
         bleft = finfo.st_size
-        with open(target_path) as f:
+        with open(target_path, 'rb') as f:
             while bleft:
                 chunk_size = min(bleft, self.MAX_CHUNK)
                 chunk = f.read(chunk_size)
