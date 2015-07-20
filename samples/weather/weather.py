@@ -121,7 +121,7 @@ def load_data_from_file(weather_data, f, year, month, day):
     with weather_data.OpenCollection() as collection:
         while True:
             line = f.readline()
-            if len(line) == 0:
+            if len(line) == 0 or line.startswith('Date unknown.'):
                 break
             elif line[0] == '#':
                 continue
@@ -296,7 +296,8 @@ def run_weather_server(weather_app=None):
     server.serve_forever()
 
 
-def run_weather_loader(container=None, max_load=30):
+def run_weather_loader(container=None, max_load=30,
+                       not_before="19950630T000000"):
     """Monitors the DTG website for new values
 
     container
@@ -323,6 +324,7 @@ def run_weather_loader(container=None, max_load=30):
     client = http.Client()
     weather_data = container['DataPoints']
     dtg = "http://www.cl.cam.ac.uk/research/dtg/weather/daily-text.cgi?%s"
+    not_before_point = iso.TimePoint.from_str(not_before)
     with weather_data.OpenCollection() as collection:
         collection.set_orderby(
             core.CommonExpression.OrderByFromString('TimePoint desc'))
@@ -331,8 +333,10 @@ def run_weather_loader(container=None, max_load=30):
         last_point = list(collection.iterpage())
         if last_point:
             last_point = last_point[0]['TimePoint'].value
+            if last_point < not_before_point:
+                last_point = not_before_point
         else:
-            last_point = iso.TimePoint.from_str("19950630T000000Z")
+            last_point = not_before_point
         next_day = last_point.date
         n_loaded = 0
         while n_loaded < max_load:
