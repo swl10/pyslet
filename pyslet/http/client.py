@@ -813,7 +813,6 @@ class SecureConnection(Connection):
                         self.socket, ca_certs=self.ca_certs,
                         cert_reqs=ssl.CERT_REQUIRED if
                         self.ca_certs is not None else ssl.CERT_NONE)
-                    # self.socket_ssl=socket.ssl(self.socket)
                     self.socketTransport = self.socket
                     self.socket.setblocking(False)
                     self.socket = socket_ssl
