@@ -3949,6 +3949,7 @@ class SQLConnection(object):
     Used in the connection pools to keep track of which thread owns the
     connections, the depth of the lock and when the connection was last
     modified (acquired or released)."""
+
     def __init__(self):
         self.thread = None
         self.thread_id = None
@@ -4682,15 +4683,15 @@ class SQLEntityContainer(object):
             return (len(self.cpool_locked), len(self.cpool_unlocked),
                     len(self.cpool_idle))
 
-    def _run_pool_cleaner(self, max_idle=SQL_TIMEOUT*10.0):
-        run_time = max_idle/5.0
+    def _run_pool_cleaner(self, max_idle=SQL_TIMEOUT * 10.0):
+        run_time = max_idle / 5.0
         if run_time < 60.0:
             run_time = 60.0
         while not self.closing.is_set():
             self.closing.wait(run_time)
             self.pool_cleaner(max_idle)
 
-    def pool_cleaner(self, max_idle=SQL_TIMEOUT*10.0):
+    def pool_cleaner(self, max_idle=SQL_TIMEOUT * 10.0):
         """Cleans up the connection pool
 
         max_idle (float)

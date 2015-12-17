@@ -226,7 +226,7 @@ class InlineMixin(FlowMixin):
     pass
 
 
-def ValidateLinkType(self, value):
+def ValidateLinkType(value):
     """Link types may not contain white space characters
     ::
 
@@ -420,7 +420,7 @@ class CoreAttrsMixin(object):
               style       %StyleSheet;   #IMPLIED  -- associated style info --
               title       %Text;         #IMPLIED  -- advisory title --"
               >"""
-    ID = 'id'
+    ID = (xmlns.NO_NAMESPACE, 'id')
     XMLATTR_class = 'styleClass'  # re-mapped to avoid python reserved word
     XMLATTR_style = 'style'
     XMLATTR_title = 'title'

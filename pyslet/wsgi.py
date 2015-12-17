@@ -1919,6 +1919,7 @@ class SessionContext(WSGIContext):
 
 
 class SessionApp(WSGIDataApp):
+
     """Extends WSGIDataApp to include session handling.
 
     These sessions require support for cookies. The SessionApp class

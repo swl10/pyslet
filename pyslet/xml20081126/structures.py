@@ -486,9 +486,6 @@ class Document(Node):
             # Read from this stream, ignore baseURI
             if isinstance(src, XMLEntity):
                 self.ReadFromEntity(src)
-                if src.location is not None and self.baseURI is None:
-                    # take our baseURI from the entity
-                    self.baseURI = self.SetBase(src.location)
             else:
                 self.ReadFromStream(src)
         elif self.baseURI is None:
@@ -506,6 +503,9 @@ class Document(Node):
         self.data = []
         parser = self.XMLParser(e)
         parser.parse_document(self)
+        if e.location is not None:
+            # update our baseURI from the entity
+            self.SetBase(e.location)
 
     def Create(self, dst=None, **args):
         """Creates the Document.
@@ -1021,11 +1021,20 @@ class XMLDeclaration(XMLTextDeclaration):
 
 class ElementType(object):
 
-    Empty = 0               #: Content type constant for EMPTY
-    Any = 1             #: Content type constant for ANY
-    Mixed = 2               #: Content type constant for mixed content
-    ElementContent = 3  # : Content type constant for element content
-    SGMLCDATA = 4           #: Additional content type constant for SGML CDATA
+    Empty = 0
+    #: Content type constant for EMPTY
+    
+    Any = 1
+    #: Content type constant for ANY
+    
+    Mixed = 2
+    #: Content type constant for mixed content
+    
+    ElementContent = 3
+    #: Content type constant for element content
+    
+    SGMLCDATA = 4
+    #: Additional content type constant for SGML CDATA
 
     def __init__(self):
         """An object for representing element type definitions."""
@@ -2935,9 +2944,8 @@ class XMLEntity(object):
         the data and defaults to UTF-8.  This parameter is only used if the
         charset cannot be read successfully from the HTTP response headers."""
         self.encoding = encoding
-        newLocation = src.get_header("Location")
-        if newLocation:
-            self.location = uri.URI.from_octets(newLocation.strip())
+        # update the entity's location with the last URL used to retrieve it
+        self.location = src.request.url
         mtype = src.get_content_type()
         if mtype is None:
             # We'll attempt to do this with xml and utf8

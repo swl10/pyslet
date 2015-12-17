@@ -1008,6 +1008,10 @@ class Pipe(io.RawIOBase):
             self.wstate += 1
             self.lock.notify_all()
         super(Pipe, self).close()
+        # if someone is waiting for a reader - wake them as the reader
+        # will never come
+        if self.rflag is not None:
+            self.rflag.set()
 
     def readable(self):
         return True
@@ -1085,16 +1089,21 @@ class Pipe(io.RawIOBase):
             return wlen
 
     def set_rflag(self, rflag):
-        """Sets the Event triggered when a reader is detected.
+        """Sets an Event triggered when a reader is detected.
 
         rflag
             An Event instance from the threading module.
 
         The event will be set each time the Pipe is read.  The flag may
-        be cleared at any time by the caller but a convenience it will
-        always be cleared when :py:meth:`canwrite` returns 0."""
+        be cleared at any time by the caller but as a convenience it
+        will always be cleared when :py:meth:`canwrite` returns 0.
+
+        If the pipe is closed then the even is set as a warning that the
+        pipe will never be read.  (The next call to write will fail.)"""
         with self.lock:
             self.rflag = rflag
+            if self.closed:
+                self.rflag.set()
 
     def write_wait(self, timeout=None):
         """Waits for the pipe to become writable or raises IOError

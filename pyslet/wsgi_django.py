@@ -12,6 +12,7 @@ import pyslet.wsgi as wsgi
 
 
 class DjangoApp(wsgi.WSGIApp):
+
     """Extends WSGIApp to include Django_ template support.
 
     ..  _Django:    https://www.djangoproject.com/

@@ -1059,6 +1059,25 @@ class HeaderTests(unittest.TestCase):
         except ProtocolError:
             pass
 
+    def test_upgrade(self):
+        """From RFC2616:
+
+            the upgrade keyword MUST be supplied within a Connection
+            header field (section 14.10) whenever Upgrade is present in
+            an HTTP/1.1 message"""
+        req = Request()
+        req.set_header("Upgrade", "HTTP/2.0, SHTTP/1.3, IRC/6.9, RTA/x11")
+        protocols = req.get_upgrade()
+        self.assertTrue(isinstance(protocols, list))
+        self.assertTrue(len(protocols) == 4)
+        for p in protocols:
+            self.assertTrue(isinstance(p, params.ProductToken))
+        req = Request()
+        req.set_upgrade([params.ProductToken("HTTP", "2.0"),
+                         params.ProductToken("SHTTP", "1.3")])
+        self.assertTrue(req.get_header("Upgrade") == "HTTP/2.0, SHTTP/1.3")
+        self.assertTrue("upgrade" in req.get_connection())
+
 
 if __name__ == '__main__':
     logging.basicConfig(

@@ -351,7 +351,8 @@ class Message(PEP8Compatibility, object):
     #: server.
     MAX_READAHEAD = 16 * io.DEFAULT_BUFFER_SIZE
 
-    def __init__(self, entity_body=None, protocol=params.HTTP_1p1):
+    def __init__(self, entity_body=None, protocol=params.HTTP_1p1,
+                 send_stream=None, recv_stream=None):
         #: the lock used to protect multi-threaded access
         PEP8Compatibility.__init__(self)
         self.lock = threading.RLock()
@@ -377,6 +378,8 @@ class Message(PEP8Compatibility, object):
         #: by default we'll keep the connection alive
         self.keep_alive = True
         self.body_started = False
+        self.send_stream = send_stream
+        self.recv_stream = recv_stream
 
     def set_protocol(self, version):
         """Sets the protocol
@@ -1124,7 +1127,8 @@ class Message(PEP8Compatibility, object):
     def get_connection(self):
         """Returns a set of connection tokens from the Connection header
 
-        If no Connection header was present an empty set is returned."""
+        If no Connection header was present an empty set is returned.
+        All tokens are returned as lower case."""
         field_value = self.get_header("Connection")
         if field_value:
             hp = HeaderParser(field_value)
@@ -1397,6 +1401,32 @@ class Message(PEP8Compatibility, object):
                             string.join(map(str, field_value), ", "))
         else:
             self.set_header("Transfer-Encoding", None)
+
+    def get_upgrade(self):
+        field_value = self.get_header("Upgrade")
+        if field_value:
+            hp = HeaderParser(field_value)
+            return hp.require_product_token_list()
+        else:
+            return []
+
+    def set_upgrade(self, protocols):
+        """Sets the "Upgrade" header, replacing any existing value.
+
+        protocols
+            An iterable list of :py:class:`params.ProductToken` instances.
+
+        In addition to setting the upgrade header this method ensures
+        that "upgrade" is present in the Connection header."""
+        if protocols:
+            self.set_header(
+                "Upgrade", string.join(map(str, protocols), ", "))
+            connection = self.get_connection()
+            if "upgrade" not in connection:
+                connection.add("upgrade")
+                self.set_connection(connection)
+        else:
+            self.set_header("Connection", None)
 
     def get_host(self):
         return self.get_header("Host")
@@ -2867,6 +2897,24 @@ class HeaderParser(params.ParameterParser):
             raise grammar.BadSyntax(
                 "Expected digits or * for instance-length")
         return ContentRange(first_byte, last_byte, total_len)
+
+    def require_product_token_list(self):
+        """Parses a list of product tokens
+
+        Returns a list of :py:class:`params.ProductToken` instances.  If
+        no tokens were found then an empty list is returned."""
+        items = []
+        while self.the_word:
+            self.parse_sp()
+            pt = self.parse_production(self.require_product_token)
+            if pt is not None:
+                items.append(pt)
+                self.parse_sp()
+                if not self.parse_separator(','):
+                    break
+            elif not self.parse_separator(','):
+                break
+        return items
 
 
 class HTTPException(Exception):

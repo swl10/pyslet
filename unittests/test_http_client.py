@@ -349,6 +349,29 @@ class ClientTests(unittest.TestCase):
             sock.mock_shutdown(socket.SHUT_RDWR)
             break
 
+    def run_domain9(self, sock):
+        while True:
+            # simulates a server that supports upgrade to happy
+            req = sock.recv_request()
+            if req is None:
+                break
+            connection = req.get_connection()
+            if "upgrade" in connection:
+                response = messages.Response(req)
+                response.set_status(101)
+                response.set_upgrade([params.ProductToken("happy")])
+                sock.send_response(response)
+                logging.debug("Switching to happy protocol")
+                input = sock.send_pipe.readmatch()
+                sock.recv_pipe.write(input)
+                sock.recv_pipe.write_eof()
+            else:
+                response = messages.Response(req)
+                response.set_status(400, "Test failed for domain9")
+                sock.send_response(response)
+            sock.mock_shutdown(socket.SHUT_RDWR)
+            break
+
     def run_manager(self, host, port, sock):
         # read some data from sock, and post a response
         if host == "www.domain1.com" and port == 80:
@@ -369,6 +392,8 @@ class ClientTests(unittest.TestCase):
             self.run_domain7(sock)
         elif host == "www.domain8.com" and port == 80:
             self.run_domain8(sock)
+        elif host == "www.domain9.com" and port == 80:
+            self.run_domain9(sock)
         else:
             # connection error
             raise ValueError("run_manager: bad host in connect")
@@ -635,6 +660,25 @@ class ClientTests(unittest.TestCase):
             t = threads.pop()
             t.join()
 
+    def upgrade_request(self, request):
+        self.client.process_request(request)
+
+    def test_upgrade(self):
+        request = http.ClientRequest("http://www.domain9.com/socket")
+        request.set_upgrade([params.ProductToken("happy")])
+        self.client.process_request(request)
+        self.assertTrue(request.status == 101)
+        try:
+            self.assertTrue(isinstance(request.send_pipe, server.Pipe))
+            self.assertTrue(isinstance(request.recv_pipe, server.Pipe))
+            request.send_pipe.write('hello\r\n')
+            request.send_pipe.write_eof()
+            output = request.recv_pipe.read()
+            self.assertTrue(output == 'hello\r\n',
+                            "Failed echo test on upgrade: %s" % str(output))
+        finally:
+            request.recv_pipe.close()
+
 
 class LegacyServerTests(unittest.TestCase):
 
@@ -811,5 +855,5 @@ class SecureTests(unittest.TestCase):
 
 if __name__ == '__main__':
     logging.basicConfig(
-        level=logging.INFO, format="[%(thread)d] %(levelname)s %(message)s")
+        level=logging.DEBUG, format="[%(thread)d] %(levelname)s %(message)s")
     unittest.main()

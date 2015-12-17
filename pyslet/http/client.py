@@ -23,11 +23,12 @@ import pyslet.info as info
 import pyslet.rfc2396 as uri
 from pyslet.pep8 import PEP8Compatibility
 
-import grammar
-import params
-import messages
 import auth
 import cookie
+import grammar
+import messages
+import params
+import server as pipe
 
 
 class RequestManagerBusy(messages.HTTPException):
@@ -117,8 +118,15 @@ class Connection(object):
     # mode constant: waiting to disconnect
     CLOSE_WAIT = 3
 
+    # mode constant: waiting to upgrade the connection
+    REQ_UPGRADE_WAITING = 4
+
+    # mode constant: tunnelling this connection
+    TUNNELLING = 5
+
     # a mapping to make debugging messages easier to read
-    MODE_STRINGS = {0: "Ready", 1: "Waiting", 2: "Sending", 3: "Closing"}
+    MODE_STRINGS = {0: "Ready", 1: "Waiting", 2: "Sending", 3: "Closing",
+                    4: "Upgrading"}
 
     def __init__(self, manager, scheme, hostname, port, timeout=None):
         #: the RequestManager that owns this connection
@@ -310,6 +318,8 @@ class Connection(object):
                         logging.debug("send_body blocked "
                                       "waiting for message body")
                         # continue on to the response section
+                    elif "upgrade" in self.request.get_connection():
+                        self.request_mode = self.REQ_UPGRADE_WAITING
                     else:
                         # Buffer is empty, request is exhausted, we're
                         # done with it! we might want to tell the
@@ -319,6 +329,15 @@ class Connection(object):
                         self.request.disconnect(self.sent_bytes)
                         self.request = None
                         self.request_mode = self.REQ_READY
+                elif self.request_mode == self.REQ_UPGRADE_WAITING:
+                    # empty buffer and we're waiting for a 101 response
+                    # to switch protocols
+                    if self.request.status:
+                        # a failed upgrade - we're done
+                        self.request.disconnect(self.sent_bytes)
+                        self.request = None
+                        self.request_mode = self.REQ_READY
+                    logging.debug("waiting for connection upgrade")
                 # This section deals with the response cycle, we only
                 # get here once the buffer is empty or we're blocked on
                 # sending.
@@ -365,13 +384,16 @@ class Connection(object):
                 wbusy = False
                 break
             else:
-                # no request or response, we're idle
+                # no request or response, we're idle or tunnelling
+                rbusy = False
+                wbusy = False
                 if self.request_mode == self.CLOSE_WAIT:
                     # clean up if necessary
                     self.close()
+                elif self.request_mode == self.TUNNELLING:
+                    # don't deactivate the connection
+                    break
                 self.manager._deactivate_connection(self)
-                rbusy = False
-                wbusy = False
                 break
         if (rbusy or wbusy) and (tbusy is None or tbusy > self.timeout):
             # waiting for i/o, make sure the timeout is capped
@@ -406,6 +428,187 @@ class Connection(object):
                 self.request_mode == self.REQ_BODY_WAITING):
             self.request_mode = self.REQ_BODY_SENDING
 
+    def switch_protocols(self, request):
+        """Instructs the connection to switch protocols
+
+        If a request had a "Connection: upgrade" header then the
+        connection will wait after sending the request in
+        REQ_UPGRADE_WAITING mode until instructed to switch protocols
+        (or the request gets some other response)."""
+        logging.debug("101 Switching protocols...")
+        if (request is self.request and
+                self.request_mode == self.REQ_UPGRADE_WAITING):
+            # remove this connection from it's manager
+            self.manager._upgrade_connection(self)
+            # we will not send any future requests, requeue them
+            for r in self.request_queue:
+                self.manager.queue_request(r, self.timeout)
+            self.request_queue = []
+            # the response queue should be empty!
+            self.response_queue = []
+            # we're done with the manager
+            self.manager = None
+            # set up some pipes for the connection
+            request.send_pipe = pipe.Pipe(
+                10 * io.DEFAULT_BUFFER_SIZE, rblocking=False,
+                timeout=self.timeout, name="%s:Sending" % self.host)
+            request.recv_pipe = pipe.Pipe(
+                10 * io.DEFAULT_BUFFER_SIZE, wblocking=False,
+                timeout=self.timeout, name="%s:Receiving" % self.host)
+            # spawn the threads that will drive the data flow
+            send_t = threading.Thread(target=self._send_tunnel,
+                                      args=(request, ))
+            recv_t = threading.Thread(target=self._recv_tunnel,
+                                      args=(request, ))
+            send_t.start()
+            recv_t.start()
+            # we've finished with the HTTP part of this connection
+            self.request.disconnect(self.sent_bytes)
+            # but reconnect for the tunnel phase to allow closing
+            self.request.connection = self
+            self.request = None
+            self.request_mode = self.TUNNELLING
+
+    def _send_tunnel(self, request):
+        self.thread_id = threading.current_thread().ident
+        while True:
+            if self.send_buffer:
+                rbusy, wbusy = self._send_request_data()
+                if rbusy or wbusy:
+                    if (self.last_rw is not None and
+                            self.timeout is not None and
+                            self.last_rw + self.timeout < time.time()):
+                        # assume we're dead in the water
+                        raise IOError(
+                            errno.ETIMEDOUT,
+                            os.strerror(errno.ETIMEDOUT),
+                            "pyslet.http.client.Connection")
+                    # wait on the socket
+                    try:
+                        readers = []
+                        if rbusy:
+                            readers.append(self.socket_file)
+                        writers = []
+                        if wbusy:
+                            writers.append(self.socket_file)
+                        logging.debug("_send_tunnel waiting for select: "
+                                      "readers=%s, writers=%s, timeout=%f",
+                                      repr(readers), repr(writers),
+                                      self.timeout)
+                        r, w, e = self.socketSelect(readers, writers, [],
+                                                    self.timeout)
+                    except select.error, err:
+                        logging.error("Socket error from select: %s", str(err))
+            else:
+                # not waiting for i/o, re-fill the send buffer
+                data = request.send_pipe.read(io.DEFAULT_BUFFER_SIZE)
+                if data:
+                    logging.debug("Sending to %s: \n%s", self.host, data)
+                    self.send_buffer.append(data)
+                    self.buffered_bytes += len(data)
+                elif data is None:
+                    # we're blocked, wait forever
+                    try:
+                        request.send_pipe.read_wait()
+                    except IOError as err:
+                        # closed pipe = forced EOF
+                        break
+                else:
+                    # EOF
+                    break
+        request.send_pipe.close()
+        request.send_pipe = None
+        # at this point the recv_tunnel is probably stuck waiting
+        # forever for data to arrive from the server (or for the server
+        # to hang up).  The correct behaviour is that the client should
+        # read what it wants from request.recv_pipe and then close the
+        # pipe to indicate that it is finished with it.  As a result
+        # we need to wait for the pipe to close.
+        rflag = threading.Event()
+        while not request.recv_pipe.closed:
+            # we'll go around this loop once per read until the
+            # pipe is closed
+            rflag.clear()
+            request.recv_pipe.set_rflag(rflag)
+            logging.debug("_send_tunnel waiting for recv_pipe close")
+            rflag.wait()
+        # closing the connection will close the pipes and interrupt
+        # any hanging recv or select call.
+        self.close()
+
+    def _recv_tunnel(self, request):
+        # start monitoring both read & write, in case we're SSL
+        readers = [self.socket_file]
+        writers = [self.socket_file]
+        while True:
+            # wait until we can write to the pipe
+            try:
+                request.recv_pipe.write_wait()
+            except IOError as err:
+                # closed pipe or we already wrote the EOF
+                break
+            if self.recv_buffer:
+                data = self.recv_buffer[0]
+                nbytes = request.recv_pipe.write(data)
+                if nbytes is None:
+                    # shouldn't happen, as we waited until writable
+                    pass
+                elif nbytes < len(data):
+                    # couldn't write all the data, trim the recv_buffer
+                    self.recv_buffer[0] = self.recv_buffer[0][nbytes:]
+                else:
+                    self.recv_buffer = self.recv_buffer[1:]
+                continue
+            # empty recv_buffer, wait for the socket to be ready
+            try:
+                logging.debug("_recv_tunnel waiting for select: "
+                              "readers=%s, writers=%s, timeout=None",
+                              repr(readers), repr(writers))
+                r, w, e = self.socketSelect(readers, writers, [], None)
+            except select.error, err:
+                logging.error("Socket error from select: %s", str(err))
+            try:
+                data = None
+                data = self.socket.recv(io.DEFAULT_BUFFER_SIZE)
+            except ssl.SSLError as err:
+                if err.args[0] == ssl.SSL_ERROR_WANT_READ:
+                    # we're blocked on recv (only)
+                    readers = [self.socket_file]
+                    writers = []
+                elif err.args[0] == ssl.SSL_ERROR_WANT_WRITE:
+                    # we're blocked on send, really this can happen!
+                    readers = []
+                    writers = [self.socket_file]
+                else:
+                    # we're going to swallow this error, log it
+                    logging.error("socket.recv raised %s", str(err))
+                    data = None
+            except IOError as err:
+                if not r and err.errno == errno.EAGAIN:
+                    # we're blocked on recv, select did not return a reader
+                    readers = [self.socket_file]
+                    writers = []
+                    continue
+                # We can't truly tell if the server hung-up except by
+                # getting an error here so this error could be fairly benign.
+                logging.warn("socket.recv raised %s", str(err))
+                data = None
+            logging.debug("Reading from %s: \n%s", self.host, repr(data))
+            if data:
+                self.last_rw = time.time()
+                nbytes = len(data)
+                self.recv_buffer.append(data)
+                self.recv_buffer_size += nbytes
+                logging.debug("Read buffer size: %i" % self.recv_buffer_size)
+            elif r:
+                logging.debug("%s: closing connection after recv returned no "
+                              "data on ready to read socket", self.host)
+                request.recv_pipe.write_eof()
+                break
+            else:
+                readers = [self.socket_file]
+                writers = []
+
     def close(self, err=None):
         """Closes this connection nicelly, optionally logging the
         exception *err*
@@ -416,6 +619,11 @@ class Connection(object):
 
         Finally, the socket is closed and all internal structures are
         reset ready to reconnect when the next request is queued."""
+        if (self.thread_id and
+                self.thread_id != threading.current_thread().ident):
+            # closing from a thread other than the one we expect: kill
+            self.kill()
+            return
         if err:
             logging.error(
                 "%s: closing connection after error %s", self.host, str(err))
@@ -1153,6 +1361,24 @@ class Client(PEP8Compatibility, object):
                     del self.cActiveThreads[connection.thread_id]
             connection.thread_id = None
 
+    def _upgrade_connection(self, connection):
+        # Removes connection from the active pool
+        #
+        # Called following a negotiated connection upgrade.  The
+        # connection is taken out of the pool system completely.  The
+        # implementation is similar to deactivation.
+        thread_target = connection.thread_target_key()
+        with self.managerLock:
+            if thread_target in self.cActiveThreadTargets:
+                del self.cActiveThreadTargets[thread_target]
+            if connection.thread_id in self.cActiveThreads:
+                if connection.id in self.cActiveThreads[connection.thread_id]:
+                    del self.cActiveThreads[
+                        connection.thread_id][connection.id]
+                if not self.cActiveThreads[connection.thread_id]:
+                    del self.cActiveThreads[connection.thread_id]
+            connection.thread_id = None
+
     def _delete_idle_connection(self, connection):
         if connection.id in self.cIdleList:
             target = connection.target_key()
@@ -1500,6 +1726,10 @@ class ClientRequest(messages.Request):
         # looping with the same broken credentials. to set the
         # Authorization header and
         self.tried_credentials = None
+        #: the send pipe to use on upgraded connections
+        self.send_pipe = None
+        #: the recv pipe to use on upgraded connections
+        self.recv_pipe = None
 
     def set_url(self, url):
         """Sets the URL for this request
@@ -1672,10 +1902,17 @@ class ClientRequest(messages.Request):
                 our send_body method.  We need to tell it not to
                 wait any more!"""
                 if self.connection:
-                    self.connection.continue_sending(self)
-                # We're not finished though, wait for the final response
-                # to be sent. No need to reset as the 100 response
-                # should not have a body
+                    if (self.response.status == 101 and
+                            "upgrade" in self.get_connection()):
+                        self.connection.switch_protocols(self)
+                        # We're not finished - the request will now be
+                        # bound to this connection until it closes
+                        self.response.keep_alive = True
+                    else:
+                        self.connection.continue_sending(self)
+                        # We're not finished though, wait for the final
+                        # response to be sent. No need to reset as the
+                        # 100 response should not have a body
             elif self.connection:
                 # The response was received before the connection
                 # finished with us
@@ -1794,6 +2031,6 @@ class ClientResponse(messages.Response):
 
     def finished(self):
         self.request.response_finished()
-        if self.status >= 100 and self.status <= 199:
-            # Re-read this response, we're not done!
+        if self.status >= 100 and self.status <= 199 and self.status != 101:
+            # Re-read this response, we may not be done!
             self.start_receiving()

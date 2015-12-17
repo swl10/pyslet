@@ -967,7 +967,7 @@ class Client(app.Client):
         doc = core.Document(baseURI=self.serviceRoot)
         if isinstance(self.serviceRoot, uri.FileURL):
             # load the service root from a file instead
-            doc.Read()            
+            doc.Read()
         else:
             request = http.ClientRequest(str(self.serviceRoot))
             request.set_header('Accept', 'application/atomsvc+xml')
