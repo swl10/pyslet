@@ -705,7 +705,7 @@ class BinaryExpression(CommonExpression):
                 # one of the operands is null => False
                 result.set_from_value(False)
             return result
-        elif typeCode in (edm.SimpleType.String, edm.SimpleType.DateTime, edm.SimpleType.Guid):
+        elif typeCode in (edm.SimpleType.String, edm.SimpleType.DateTime, edm.SimpleType.DateTimeOffset, edm.SimpleType.Guid):
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
             result.set_from_value(relation(lValue.value, rValue.value))
             return result
@@ -771,7 +771,7 @@ class BinaryExpression(CommonExpression):
                 result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
                 result.set_from_value(lValue.value == rValue.value)
                 return result
-            elif typeCode in (edm.SimpleType.String, edm.SimpleType.DateTime, edm.SimpleType.Guid, edm.SimpleType.Binary):
+            elif typeCode in (edm.SimpleType.String, edm.SimpleType.DateTime, edm.SimpleType.DateTimeOffset, edm.SimpleType.Guid, edm.SimpleType.Binary):
                 result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
                 result.set_from_value(lValue.value == rValue.value)
                 return result
