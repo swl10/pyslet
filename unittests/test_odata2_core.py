@@ -405,6 +405,10 @@ class CommonExpressionTests(unittest.TestCase):
 
         The eqExpression SHOULD NOT be supported for any other EDM
         Primitive types.
+        
+        [Given that the previous statement is not a requirement it is
+        acceptable to extend these relations to include
+        Edm.DateTimeOffset as per the OData v3 specification.]
 
         ...a data service SHOULD follow the binary numeric promotion
         rules defined in Unary [sic] Numeric Promotions...
@@ -444,6 +448,14 @@ class CommonExpressionTests(unittest.TestCase):
         self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common(
             "datetime'2013-08-30T18:49' eq datetime'2013-08-30T18:49:01'")
+        self.assertTrue(value.value is False, "Expected False")
+        value = self.evaluate_common(
+            "datetimeoffset'2013-08-30T18:49:00Z' eq "
+            "datetimeoffset'2013-08-30T19:49:00+01:00'")
+        self.assertTrue(value.value is True, "Expected True")
+        value = self.evaluate_common(
+            "datetimeoffset'2013-08-30T18:49:00Z' eq "
+            "datetimeoffset'2013-08-30T18:49:00+01:00'")
         self.assertTrue(value.value is False, "Expected False")
         value = self.evaluate_common(
             "guid'b3afeebc-9658-4699-9d9c-1df551fd6814' eq "
@@ -488,6 +500,14 @@ class CommonExpressionTests(unittest.TestCase):
         self.assertTrue(value.value is False, "Expected False")
         value = self.evaluate_common(
             "datetime'2013-08-30T18:49' ne datetime'2013-08-30T18:49:01'")
+        self.assertTrue(value.value is True, "Expected True")
+        value = self.evaluate_common(
+            "datetimeoffset'2013-08-30T18:49:00Z' ne "
+            "datetimeoffset'2013-08-30T19:49:00+01:00'")
+        self.assertTrue(value.value is False, "Expected False")
+        value = self.evaluate_common(
+            "datetimeoffset'2013-08-30T18:49:00Z' ne "
+            "datetimeoffset'2013-08-30T18:49:00+01:00'")
         self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common(
             "guid'b3afeebc-9658-4699-9d9c-1df551fd6814' ne "
@@ -555,6 +575,14 @@ class CommonExpressionTests(unittest.TestCase):
             "datetime'2013-08-30T18:49' lt datetime'2013-08-30T18:49:01'")
         self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common(
+            "datetimeoffset'2013-08-30T18:49:00Z' lt "
+            "datetimeoffset'2013-08-30T19:50:00+01:00'")
+        self.assertTrue(value.value is True, "Expected True")
+        value = self.evaluate_common(
+            "datetimeoffset'2013-08-30T18:49:00Z' lt "
+            "datetimeoffset'2013-08-30T18:49:00+01:00'")
+        self.assertTrue(value.value is False, "Expected False")
+        value = self.evaluate_common(
             "guid'b3afeebc-9658-4699-9d9c-1df551fd6814' lt "
             "guid'b3afeebc-9658-4699-9d9c-1df551fd6814'")
         self.assertTrue(value.value is False, "Expected False")
@@ -584,6 +612,10 @@ class CommonExpressionTests(unittest.TestCase):
         value = self.evaluate_common(
             "datetime'2013-08-30T18:49' le datetime'2013-08-30T18:49:00'")
         self.assertTrue(value.value is True, "Expected True")
+        value = self.evaluate_common(
+            "datetimeoffset'2013-08-30T18:49:00Z' le "
+            "datetimeoffset'2013-08-30T19:49:00+01:00'")
+        self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common("2 le null")
         self.assertTrue(value.value is False, "Expected False")
         value = self.evaluate_common("null le null")
@@ -599,6 +631,10 @@ class CommonExpressionTests(unittest.TestCase):
         value = self.evaluate_common(
             "datetime'2013-08-30T18:49' gt datetime'2013-08-30T18:49:00'")
         self.assertTrue(value.value is False, "Expected False")
+        value = self.evaluate_common(
+            "datetimeoffset'2013-08-30T18:49:00Z' gt "
+            "datetimeoffset'2013-08-30T18:49:00+01:00'")
+        self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common("2 gt null")
         self.assertTrue(value.value is False, "Expected False")
         value = self.evaluate_common("null gt null")
@@ -613,6 +649,10 @@ class CommonExpressionTests(unittest.TestCase):
         self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common(
             "datetime'2013-08-30T18:49' ge datetime'2013-08-30T18:49:00'")
+        self.assertTrue(value.value is True, "Expected True")
+        value = self.evaluate_common(
+            "datetimeoffset'2013-08-30T18:49:00Z' ge "
+            "datetimeoffset'2013-08-30T19:49:00+01:00'")
         self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common("2 ge null")
         self.assertTrue(value.value is False, "Expected False")
