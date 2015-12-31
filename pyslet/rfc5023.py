@@ -17,10 +17,12 @@ import sys
 import io
 import traceback
 
-import pyslet.xmlnames20091208 as xmlns
-from pyslet import rfc4287 as atom
 import pyslet.http.client as http
+import pyslet.http.messages as messages
+import pyslet.pep8 as pep8
 import pyslet.rfc2396 as uri
+import pyslet.rfc4287 as atom
+import pyslet.xmlnames20091208 as xmlns
 
 
 #: The namespace to use for Atom Publishing Protocol elements
@@ -37,11 +39,11 @@ APP_MIMETYPES = {
 }
 
 
-def ParseYesNo(src):
+def parse_yes_no(src):
     return src.strip().lower() == 'yes'
 
 
-def FormatYesNo(value):
+def format_yes_no(value):
     if value:
         return 'yes'
     else:
@@ -73,7 +75,7 @@ class Categories(APPElement):
     XMLNAME = (APP_NAMESPACE, 'categories')
 
     XMLATTR_href = ('href', uri.URI.from_octets, str)
-    XMLATTR_fixed = ('fixed', ParseYesNo, FormatYesNo)
+    XMLATTR_fixed = ('fixed', parse_yes_no, format_yes_no)
     XMLATTR_scheme = 'scheme'
     XMLCONTENT = xmlns.ElementContent
 
@@ -91,7 +93,7 @@ class Categories(APPElement):
         #: the list of categories, instances of
         #: :py:class:~pyslet.rfc4287.Category
 
-    def GetChildren(self):
+    def GetChildren(self):  # noqa
         for child in self.Category:
             yield child
         for child in APPElement.GetChildren(self):
@@ -110,7 +112,7 @@ class Service(APPElement):
         APPElement.__init__(self, parent)
         self.Workspace = []		#: a list of :py:class:`Workspace` instances
 
-    def GetChildren(self):
+    def GetChildren(self):  # noqa
         for child in APPElement.GetChildren(self):
             yield child
         for child in self.Workspace:
@@ -128,7 +130,7 @@ class Workspace(APPElement):
         self.Title = None			#: the title of this workspace
         self.Collection = []		#: a list of :py:class:`Collection`
 
-    def GetChildren(self):
+    def GetChildren(self):  # noqa
         for child in APPElement.GetChildren(self):
             yield child
         if self.Title:
@@ -158,7 +160,7 @@ class Collection(APPElement):
         # : list of :py:class:`Categories` that can be applied to
         # : members of the collection
 
-    def GetChildren(self):
+    def GetChildren(self):  # noqa
         for child in APPElement.GetChildren(self):
             yield child
         if self.Title:
@@ -168,7 +170,11 @@ class Collection(APPElement):
         for child in self.Categories:
             yield child
 
-    def GetFeedURL(self):
+    @pep8.renamed_method
+    def GetFeedURL(self):   # noqa
+        pass
+
+    def get_feed_url(self):
         """Returns a fully resolved URL for the collection (feed)."""
         return self.ResolveURI(self.href)
 
@@ -184,7 +190,7 @@ class Document(atom.AtomDocument):
         atom.AtomDocument.__init__(self, **args)
         self.defaultNS = APP_NAMESPACE
 
-    def ValidateMimeType(self, mimetype):
+    def ValidateMimeType(self, mimetype):   # noqa
         """Checks *mimetype* against the APP or Atom specifications."""
         return (mimetype in APP_MIMETYPES or
                 atom.AtomDocument.ValidateMimeType(self, mimetype))
@@ -267,7 +273,8 @@ class Client(http.Client):
         # if there is no Accept header, add one
         if not request.has_header('Accept'):
             request.set_header('Accept', string.join(
-                (atom.ATOM_MIMETYPE, ATOMSVC_MIMETYPE, ATOMCAT_MIMETYPE), ','), True)
+                (atom.ATOM_MIMETYPE, ATOMSVC_MIMETYPE, ATOMCAT_MIMETYPE),
+                ','), True)
         super(Client, self).queue_request(request, timeout)
 
 
@@ -280,16 +287,16 @@ class InputWrapper(io.RawIOBase):
     a wsgi input stream.
 
     The object will buffer the input stream and claim to be seekable for
-    the first *seekSize* bytes.  Once the stream has been advanced
-    beyond *seekSize* bytes the stream will raise IOError if seek is
+    the first *seek_size* bytes.  Once the stream has been advanced
+    beyond *seek_size* bytes the stream will raise IOError if seek is
     called.
 
     *environ* is the environment dictionary
 
-    *seekSize* specifies the size of the seekable buffer, it defaults
+    *seek_size* specifies the size of the seekable buffer, it defaults
     to io.DEFAULT_BUFFER_SIZE"""
 
-    def __init__(self, environ, seekSize=io.DEFAULT_BUFFER_SIZE):
+    def __init__(self, environ, seek_size=io.DEFAULT_BUFFER_SIZE):
         super(InputWrapper, self).__init__()
         self.input_stream = environ['wsgi.input']
         if ('HTTP_TRANSFER_ENCODING' in environ and
@@ -299,20 +306,20 @@ class InputWrapper(io.RawIOBase):
             self.inputLength = None
         elif ("CONTENT_LENGTH" in environ and environ['CONTENT_LENGTH']):
             self.inputLength = int(environ['CONTENT_LENGTH'])
-            if self.inputLength < seekSize:
+            if self.inputLength < seek_size:
                 # we can buffer the entire stream
-                seekSize = self.inputLength
+                seek_size = self.inputLength
         else:
             # read until EOF
             self.inputLength = None
         self.pos = 0
         self.buffer = None
         self.buffSize = 0
-        if seekSize > 0:
+        if seek_size > 0:
             self.buffer = StringIO.StringIO()
             # now fill the buffer
-            while self.buffSize < seekSize:
-                data = self.input_stream.read(seekSize - self.buffSize)
+            while self.buffSize < seek_size:
+                data = self.input_stream.read(seek_size - self.buffSize)
                 if len(data) == 0:
                     # we ran out of data
                     self.input_stream = None
@@ -337,46 +344,47 @@ class InputWrapper(io.RawIOBase):
             self.pos += len(data)
             n = n - len(data)
         if n and self.input_stream is not None:
-            if self.inputLength is not None and self.pos + n > self.inputLength:
+            if self.inputLength is not None and \
+                    self.pos + n > self.inputLength:
                 # application should not attempt to read past the
                 # CONTENT_LENGTH
                 n = self.inputLength - self.pos
-            iData = self.input_stream.read(n)
-            if len(iData) == 0:
+            idata = self.input_stream.read(n)
+            if len(idata) == 0:
                 self.input_stream = None
             else:
-                self.pos += len(iData)
+                self.pos += len(idata)
                 if data:
-                    data = data + iData
+                    data = data + idata
                 else:
-                    data = iData
+                    data = idata
         return data
 
     def seek(self, offset, whence=io.SEEK_SET):
         if self.pos > self.buffSize:
             raise IOError("InputWrapper seek buffer exceeded")
         if whence == io.SEEK_SET:
-            newPos = offset
+            new_pos = offset
         elif whence == io.SEEK_CUR:
-            newPos = self.pos + offset
+            new_pos = self.pos + offset
         elif whence == io.SEEK_END:
             if self.inputLength is None:
-                raise IOError(
-                    "InputWrapper can't seek from end of stream (CONTENT_LENGTH unknown)""")
-            newPos = self.inputLength + offset
+                raise IOError("InputWrapper can't seek from end of stream "
+                              "(CONTENT_LENGTH unknown)""")
+            new_pos = self.inputLength + offset
         else:
             raise IOError("Unknown seek mode (%i)" % whence)
-        if newPos < 0:
-            raise IOError(
-                "InputWrapper: attempt to set the stream position to a negative value")
-        if newPos == self.pos:
+        if new_pos < 0:
+            raise IOError("InputWrapper: attempt to set the stream position "
+                          "to a negative value")
+        if new_pos == self.pos:
             return
-        if newPos <= self.buffSize:
-            self.buffer.seek(newPos)
+        if new_pos <= self.buffSize:
+            self.buffer.seek(new_pos)
         else:
             # we need to read and discard some bytes
-            while newPos > self.pos:
-                n = newPos - self.pos
+            while new_pos > self.pos:
+                n = new_pos - self.pos
                 if n > io.DEFAULT_BUFFER_SIZE:
                     n = io.DEFAULT_BUFFER_SIZE
                 data = self.read(n)
@@ -384,8 +392,8 @@ class InputWrapper(io.RawIOBase):
                     break
                 else:
                     self.pos += len(data)
-        # newPos may be beyond the end of the input stream, that's OK
-        self.pos = newPos
+        # new_pos may be beyond the end of the input stream, that's OK
+        self.pos = new_pos
 
     def seekable(self):
         """A bit cheeky here, we are initially seekable."""
@@ -443,7 +451,8 @@ class InputWrapper(io.RawIOBase):
     def readlines(self, hint=-1):
         """Read and return a list of lines from the stream.
 
-        No more lines will be read if the total size (in bytes/characters) of all lines so far exceeds hint."""
+        No more lines will be read if the total size (in
+        bytes/characters) of all lines so far exceeds hint."""
         total = 0
         lines = []
         for line in self:
@@ -452,15 +461,6 @@ class InputWrapper(io.RawIOBase):
             if hint >= 0 and total > hint:
                 break
         return lines
-
-    def iterblocks(self, maxSize=io.DEFAULT_BUFFER_SIZE):
-        """Returns an iterable of blocks of maximum size *maxSize*"""
-        while True:
-            data = self.read(io.DEFAULT_BUFFER_SIZE)
-            if data:
-                yield data
-            else:
-                break
 
     def tell(self):
         return self.pos
@@ -484,55 +484,61 @@ class InputWrapper(io.RawIOBase):
                 yield line
 
 
-class Server(object):
+class Server(pep8.PEP8Compatibility):
 
-    def __init__(self, serviceRoot='http://localhost/'):
-        if not isinstance(serviceRoot, uri.URI):
-            self.serviceRoot = uri.URI.from_octets(serviceRoot).canonicalize()
+    def __init__(self, service_root='http://localhost/', **kwargs):
+        pep8.PEP8Compatibility.__init__(self)
+        service_root = kwargs.get('serviceRoot', service_root)
+        if not isinstance(service_root, uri.URI):
             #: the canonical URL of the service root
+            self.serviceRoot = uri.URI.from_octets(service_root).canonicalize()
         else:
-            self.serviceRoot = serviceRoot.canonicalize()
-        self.serviceDoc = Document(root=Service, baseURI=self.serviceRoot)
+            self.serviceRoot = service_root.canonicalize()
         #: the :py:class:`Service` instance that describes this service.
+        self.serviceDoc = Document(root=Service, baseURI=self.serviceRoot)
         self.service = self.serviceDoc.root
         # make the base explicit in the document
         self.service.SetBase(str(self.serviceRoot))
-        # :	set this to True to expose python tracebacks in 500 responses, defaults to False
+        #: set this to True to expose python tracebacks in 500
+        #: responses, defaults to False
         self.debugMode = False
 
     def __call__(self, environ, start_response):
         """wsgi interface for calling instances of this Atom server object.
 
-        We add an additional optional parameter *responseHeaders*"""
-        responseHeaders = []
-        if environ['SCRIPT_NAME'] + environ['PATH_INFO'] == self.serviceRoot.abs_path:
+        We add an additional optional parameter *response_headers*"""
+        response_headers = []
+        if environ['SCRIPT_NAME'] + environ['PATH_INFO'] == \
+                self.serviceRoot.abs_path:
             data = unicode(self.serviceDoc).encode('utf-8')
-            responseHeaders.append(("Content-Type", ATOMSVC_MIMETYPE))
-            responseHeaders.append(("Content-Length", str(len(data))))
-            start_response("200 Ok", responseHeaders)
+            response_headers.append(("Content-Type", ATOMSVC_MIMETYPE))
+            response_headers.append(("Content-Length", str(len(data))))
+            start_response("200 Ok", response_headers)
             return [data]
         else:
             return self.HandleMissing(environ, start_response)
 
-    def HandleMissing(self, environ, start_response):
-        responseHeaders = []
-        data = "This server supports the Atom Publishing Protocol\r\nFor service information see: %s" % str(
-            self.serviceRoot)
-        responseHeaders.append(("Content-Length", str(len(data))))
-        responseHeaders.append(("Content-Type", 'text/plain'))
-        start_response("404 Not found", responseHeaders)
+    def handle_missing(self, environ, start_response):
+        response_headers = []
+        data = "This server supports the Atom Publishing Protocol\r\n"\
+            "For service information see: %s" % str(self.serviceRoot)
+        response_headers.append(("Content-Length", str(len(data))))
+        response_headers.append(("Content-Type", 'text/plain'))
+        start_response("404 Not found", response_headers)
         return [data]
 
-    def HandleError(self, environ, start_response, code=500):
-        """Designed to be called by an otherwise uncaught exception.  Generates a 500 response by default."""
-        responseHeaders = []
-        cData = StringIO.StringIO()
+    def handle_error(self, environ, start_response, code=500):
+        """Designed to be called by an otherwise uncaught exception.
+
+        Generates a 500 response by default."""
+        response_headers = []
+        cdata = StringIO.StringIO()
         if self.debugMode:
-            traceback.print_exception(*sys.exc_info(), file=cData)
+            traceback.print_exception(*sys.exc_info(), file=cdata)
         else:
-            cData.write(
-                "Sorry, there was an internal error while processing this request")
-        responseHeaders.append(("Content-Type", 'text/plain'))
-        responseHeaders.append(("Content-Length", str(len(cData.getvalue()))))
-        start_response("%i Unexpected error" % code, responseHeaders)
-        return [cData.getvalue()]
+            cdata.write("Sorry, there was an internal error "
+                        "while processing this request")
+        response_headers.append(("Content-Type", 'text/plain'))
+        response_headers.append(("Content-Length", str(len(cdata.getvalue()))))
+        start_response("%i Unexpected error" % code, response_headers)
+        return [cdata.getvalue()]

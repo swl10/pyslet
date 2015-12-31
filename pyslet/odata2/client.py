@@ -983,7 +983,7 @@ class Client(app.Client):
             self.model = None
             for w in self.service.Workspace:
                 for f in w.Collection:
-                    url = f.GetFeedURL()
+                    url = f.get_feed_url()
                     if f.Title:
                         self.feeds[f.Title.GetValue()] = url
         else:

@@ -184,7 +184,7 @@ class RenamedFunction(object):
 
 
 def renamed_function(func):
-    """Provides a decorator for an single renamed function.
+    """Provides a decorator for a single renamed function.
 
     Intended usage::
 

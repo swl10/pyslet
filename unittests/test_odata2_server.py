@@ -900,7 +900,7 @@ class ServerTests(unittest.TestCase):
         s = Server()
         s.debugMode = True
         request = MockRequest('/')
-        request.Send(s)
+        request.send(s)
         self.assertTrue(request.responseCode == 200,
                         "No DataServiceVersion:\n\n" + request.wfile.getvalue())
         self.assertTrue('DATASERVICEVERSION' in request.responseHeaders,
@@ -911,7 +911,7 @@ class ServerTests(unittest.TestCase):
             major == 2 and minor == 0, "No version should return 2.0")
         request = MockRequest('/')
         request.set_header('DataServiceVersion', "1.0; old request")
-        request.Send(s)
+        request.send(s)
         self.assertTrue(request.responseCode == 200,
                         "Version 1.0 request:\n\n" + request.wfile.getvalue())
         major, minor, ua = core.ParseDataServiceVersion(
@@ -920,7 +920,7 @@ class ServerTests(unittest.TestCase):
             major == 1 and minor == 0, "Version 1.0 request should return 1.0 response")
         request = MockRequest('/')
         request.set_header('DataServiceVersion', "2.0; current request")
-        request.Send(s)
+        request.send(s)
         self.assertTrue(request.responseCode == 200)
         major, minor, ua = core.ParseDataServiceVersion(
             request.responseHeaders['DATASERVICEVERSION'])
@@ -929,7 +929,7 @@ class ServerTests(unittest.TestCase):
         # Should be OK
         request = MockRequest('/')
         request.set_header('DataServiceVersion', "2.1; future request")
-        request.Send(s)
+        request.send(s)
         self.assertTrue(request.responseCode == 400,
                         "Version mismatch error response: %i" % request.responseCode)
         doc = core.Document()
@@ -945,7 +945,7 @@ class ServerTests(unittest.TestCase):
         request = MockRequest('/')
         request.set_header('DataServiceVersion', "2.1; future request")
         request.set_header('Accept', "application/json")
-        request.Send(s)
+        request.send(s)
         self.assertTrue(
             request.responseCode == 400, "Version mismatch error response")
         self.assertTrue(request.responseHeaders[
@@ -961,7 +961,7 @@ class ServerTests(unittest.TestCase):
         request = MockRequest('/')
         request.set_header('DataServiceVersion', "1.0; old request")
         request.set_header('MaxDataServiceVersion', "1.0; old max")
-        request.Send(s)
+        request.send(s)
         self.assertTrue(request.responseCode == 200)
         major, minor, ua = core.ParseDataServiceVersion(
             request.responseHeaders['DATASERVICEVERSION'])
@@ -970,7 +970,7 @@ class ServerTests(unittest.TestCase):
         request = MockRequest('/')
         request.set_header('DataServiceVersion', "1.0; old request")
         request.set_header('MaxDataServiceVersion', "2.0; current max")
-        request.Send(s)
+        request.send(s)
         self.assertTrue(request.responseCode == 200)
         major, minor, ua = core.ParseDataServiceVersion(
             request.responseHeaders['DATASERVICEVERSION'])
@@ -979,7 +979,7 @@ class ServerTests(unittest.TestCase):
         request = MockRequest('/')
         request.set_header('DataServiceVersion', "1.0; old request")
         request.set_header('MaxDataServiceVersion', "2.1; future max")
-        request.Send(s)
+        request.send(s)
         self.assertTrue(request.responseCode == 200)
         major, minor, ua = core.ParseDataServiceVersion(
             request.responseHeaders['DATASERVICEVERSION'])
@@ -990,7 +990,7 @@ class ServerTests(unittest.TestCase):
         """The resource identified by [the service root] ... MUST be an AtomPub Service Document"""
         s = Server()
         request = MockRequest('/')
-        request.Send(s)
+        request.send(s)
         self.assertTrue(request.responseCode == 200)
         doc = app.Document()
         doc.Read(request.wfile.getvalue())
@@ -1989,12 +1989,12 @@ class SampleServerTests(unittest.TestCase):
         JSON Service Documents MUST be identified using the
         "application/json" media type."""
         request = MockRequest('/service.svc')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 307)
         self.assertTrue(request.responseHeaders[
                         'LOCATION'] == 'http://host/service.svc/', "Expected redirect")
         request = MockRequest('/service.svc/')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(
             request.responseCode == 200, "Service root response: %i" % request.responseCode)
         self.assertTrue(request.responseHeaders[
@@ -2022,7 +2022,7 @@ class SampleServerTests(unittest.TestCase):
             self.assertTrue(r in feeds, "Missing feed: %s" % r)
         request = MockRequest('/service.svc/')
         request.set_header('Accept', "application/json")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(
             request.responseCode == 200, "Service root response: %i" % request.responseCode)
         self.assertTrue(request.responseHeaders[
@@ -2041,8 +2041,8 @@ class SampleServerTests(unittest.TestCase):
         """EntitySet names MAY be directly followed by open and close parenthesis."""
         request1 = MockRequest('/service.svc/Customers')
         request2 = MockRequest('/service.svc/Customers()')
-        request1.Send(self.svc)
-        request2.Send(self.svc)
+        request1.send(self.svc)
+        request2.send(self.svc)
         self.assertTrue(request1.responseCode == 200)
         self.assertTrue(request2.responseCode == 200)
         doc1 = app.Document()
@@ -2062,15 +2062,15 @@ class SampleServerTests(unittest.TestCase):
         EntityContainer.  Witness the error from
         http://services.odata.org/OData/OData.svc/DemoService.Products"""
         request = MockRequest('/service.svc/Content')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 404,
                         "Unqualified entity set from non-default container")
         request = MockRequest('/service.svc/ExtraEntities.Content')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(
             request.responseCode == 200, "Qualified entity set from non-default container")
         request = MockRequest('/service.svc/SampleEntities.Customers')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(
             request.responseCode == 404, "Qualified entity set from default container")
 
@@ -2084,18 +2084,18 @@ class SampleServerTests(unittest.TestCase):
         this value MUST be the name of a declared property defined on
         ComplexType CT1."""
         request = MockRequest("/service.svc/Customers('ALFKI')/CompanyName")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         # Add test case of a property on a sub-type perhaps?
         request = MockRequest("/service.svc/Customers('ALFKI')/Title")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 404)
         request = MockRequest("/service.svc/Customers('ALFKI')/Address/Street")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/Address/ZipCode")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 404)
 
     def testCaseComplexProperty(self):
@@ -2107,7 +2107,7 @@ class SampleServerTests(unittest.TestCase):
         CT1, this value MUST be the name of a declared property on CT1 which
         represents a ComplexType instance."""
         request = MockRequest("/service.svc/Customers('ALFKI')/Address")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         # TODO: sample data doesn't have any nested Complex properties
 
@@ -2120,14 +2120,14 @@ class SampleServerTests(unittest.TestCase):
         after the entityNavProperty. If additional segments exist, the URI MUST
         be treated as invalid"""
         request = MockRequest("/service.svc/Customers('ALFKI')/Orders")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         request = MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/$links/Orders/dummy")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 400)
 
     def testCaseKeyPredicateSingle(self):
@@ -2136,8 +2136,8 @@ class SampleServerTests(unittest.TestCase):
         property value>" syntax"""
         request1 = MockRequest("/service.svc/Customers('ALFKI')")
         request2 = MockRequest("/service.svc/Customers(CustomerID='ALFKI')")
-        request1.Send(self.svc)
-        request2.Send(self.svc)
+        request1.send(self.svc)
+        request2.send(self.svc)
         self.assertTrue(request1.responseCode == 200)
         self.assertTrue(request2.responseCode == 200)
         self.assertTrue(request1.wfile.getvalue() ==
@@ -2156,7 +2156,7 @@ class SampleServerTests(unittest.TestCase):
         of the EntityType's subtypes within the specified EntitySet
         specified in the last URI segment."""
         request = MockRequest('/service.svc/Customers')
-        request.Send(self.svc)
+        request.send(self.svc)
         doc = app.Document()
         doc.Read(request.wfile.getvalue())
         self.assertTrue(
@@ -2166,7 +2166,7 @@ class SampleServerTests(unittest.TestCase):
         #	the serviceOperation-collEt rule can be substituted for the
         #	first occurrence of an entitySet rule in the Resource Path
         request = MockRequest("/service.svc/CustomersByCity?city='Chunton'")
-        request.Send(self.svc)
+        request.send(self.svc)
         doc = app.Document()
         doc.Read(request.wfile.getvalue())
         self.assertTrue(
@@ -2177,15 +2177,15 @@ class SampleServerTests(unittest.TestCase):
         #	specified, the this URI (and any URI created by appending additional path segments)
         #	MUST be treated as identifying a non-existent resource.
         request = MockRequest("/service.svc/Prospects")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 404)
         request = MockRequest("/service.svc/Prospects/$count")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 404)
         # all system query options are valid
         request = MockRequest(
             "/service.svc/Customers?$expand=Orders&$filter=substringof(CompanyName,%20'bikes')&$orderby=CompanyName%20asc&$top=2&$skip=3&$skiptoken='Contoso','AKFNU'&$inlinecount=allpages&$select=CustomerID,CompanyName,Orders&$format=xml")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
 
     def testCaseURI2(self):
@@ -2200,7 +2200,7 @@ class SampleServerTests(unittest.TestCase):
         appending additional path segments) MUST represent a resource
         that does not exist in the data model"""
         request = MockRequest("/service.svc/Customers('ALFKI')")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -2208,19 +2208,19 @@ class SampleServerTests(unittest.TestCase):
                         "Expected a single Entry, found %s" % doc.root.__class__.__name__)
         self.assertTrue(doc.root['CustomerID'] == 'ALFKI', "Bad CustomerID")
         request = MockRequest("/service.svc/Customers('ALFKJ')")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 404)
         request = MockRequest("/service.svc/Customers('ALFKJ')/Address")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 404)
         # $orderby, $skip, $top, $skiptoken, $inlinecount all banned
         baseURI = "/service.svc/Customers('ALFKI')?$expand=Orders&$filter=substringof(CompanyName,%20'bikes')&$select=CustomerID,CompanyName,Orders&$format=xml"
         request = MockRequest(baseURI)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         for x in ["$orderby=CompanyName%20asc", "$skip=3", "$top=2", "$skiptoken='Contoso','AKFNU'", "$inlinecount=allpages"]:
             request = MockRequest(baseURI + "&" + x)
-            request.Send(self.svc)
+            request.send(self.svc)
             self.assertTrue(request.responseCode == 400, "URI2 with %s" % x)
 
     def testCaseURI3(self):
@@ -2229,7 +2229,7 @@ class SampleServerTests(unittest.TestCase):
         MUST identify an instance of a ComplexType on the specified
         EntityType instance."""
         request = MockRequest("/service.svc/Customers('ALFKI')/Address")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -2241,11 +2241,11 @@ class SampleServerTests(unittest.TestCase):
         # $expand, $orderby, $skip, $top, $skiptoken, $inlinecount and $select all banned
         baseURI = "/service.svc/Customers('ALFKI')/Address?$filter=substringof(CompanyName,%20'bikes')&$format=xml"
         request = MockRequest(baseURI)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         for x in ["$expand=Orders", "$orderby=CompanyName%20asc", "$skip=3", "$top=2", "$skiptoken='Contoso','AKFNU'", "$inlinecount=allpages", "$select=CustomerID,CompanyName,Orders"]:
             request = MockRequest(baseURI + "&" + x)
-            request.Send(self.svc)
+            request.send(self.svc)
             self.assertTrue(request.responseCode == 400, "URI3 with %s" % x)
 
     def testCaseURI4(self):
@@ -2255,7 +2255,7 @@ class SampleServerTests(unittest.TestCase):
         EntityType of the entity whose EntityKey value is specified by
         the keyPredicate and is within the specified EntitySet."""
         request = MockRequest("/service.svc/Customers('ALFKI')/Address/Street")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -2265,19 +2265,19 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(value.value == 'Mill Road', "Bad street")
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/Address/Street/$value")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(
             request.wfile.getvalue() == 'Mill Road', "Bad street $vaue")
         baseURI = "/service.svc/Customers('ALFKI')/Address/Street?$format=xml"
         request = MockRequest(baseURI)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         for x in ["$expand=Orders", "$orderby=CompanyName%20asc", "$filter=substringof(CompanyName,%20'bikes')",
                   "$skip=3", "$top=2", "$skiptoken='Contoso','AKFNU'", "$inlinecount=allpages",
                   "$select=CustomerID,CompanyName,Orders"]:
             request = MockRequest(baseURI + "&" + x)
-            request.Send(self.svc)
+            request.send(self.svc)
             self.assertTrue(request.responseCode == 400, "URI4 with %s" % x)
 
     def testCaseURI5(self):
@@ -2287,7 +2287,7 @@ class SampleServerTests(unittest.TestCase):
         EntityType instance (identified with EntityKey equal to the
         specified key predicate) within the specified EntitySet"""
         request = MockRequest("/service.svc/Customers('ALFKI')/CompanyName")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -2297,19 +2297,19 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(value.value == 'Example Inc', "Bad company")
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/CompanyName/$value")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(
             request.wfile.getvalue() == 'Example Inc', "Bad company $vaue")
         baseURI = "/service.svc/Customers('ALFKI')/CompanyName?$format=xml"
         request = MockRequest(baseURI)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         for x in ["$expand=Orders", "$orderby=CompanyName%20asc", "$filter=substringof(CompanyName,%20'bikes')",
                   "$skip=3", "$top=2", "$skiptoken='Contoso','AKFNU'", "$inlinecount=allpages",
                   "$select=CustomerID,CompanyName,Orders"]:
             request = MockRequest(baseURI + "&" + x)
-            request.Send(self.svc)
+            request.send(self.svc)
             self.assertTrue(request.responseCode == 400, "URI5 with %s" % x)
         """Any media type is a valid value for [the MimeType] attribute.
 		If this attribute is present on a property definition, then any
@@ -2318,7 +2318,7 @@ class SampleServerTests(unittest.TestCase):
 		response body."""
         request = MockRequest(
             "/service.svc/ExtraEntities.BitsAndPieces(1)/Details/$value")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(
             request.responseHeaders['CONTENT-TYPE'] == "application/x-details")
@@ -2332,7 +2332,7 @@ class SampleServerTests(unittest.TestCase):
         is reached via the specified NavigationProperty on the entity
         identified by the EntitySet name and key predicate specified."""
         request = MockRequest("/service.svc/Customers('ALFKI')/Orders")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -2343,18 +2343,18 @@ class SampleServerTests(unittest.TestCase):
         # TODO: navigation property pointing to a single Entity (Note 1)
 #		baseURI="/service.svc/Customers('ALFKI')/Orders?$expand=Orders&$filter=substringof(CompanyName,%20'bikes')&$format=xml&$select=CustomerID,CompanyName,Orders"
 #		request=MockRequest(baseURI)
-#		request.Send(self.svc)
+#		request.send(self.svc)
 #		self.assertTrue(request.responseCode==200)
 #		for x in ["$orderby=CompanyName%20asc",
 #			"$skip=3","$top=2","$skiptoken='Contoso','AKFNU'","$inlinecount=allpages"]:
 #			request=MockRequest(baseURI+"&"+x)
-#			request.Send(self.svc)
+#			request.send(self.svc)
 #			self.assertTrue(request.responseCode==400,"UR6 with %s"%x)
         # all system query options are valid when the navigation property
         # identifies a set of entities (Note 2)
         request = MockRequest(
             "/service.svc/Customers?$expand=Orders&$filter=substringof(CompanyName,%20'bikes')&$orderby=CompanyName%20asc&$top=2&$skip=3&$skiptoken='Contoso','AKFNU'&$inlinecount=allpages&$select=CustomerID,CompanyName,Orders&$format=xml")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
 
     def testCaseURI7(self):
@@ -2365,7 +2365,7 @@ class SampleServerTests(unittest.TestCase):
         predicate specified) to all other entities that can be reached
         via the Navigation Property"""
         request = MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -2376,7 +2376,7 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/$links/Orders?$inlinecount=allpages&$top=1")
         request.set_header('Accept', "application/json")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(
             request.responseHeaders['CONTENT-TYPE'] == "application/json")
         obj = json.loads(request.wfile.getvalue())
@@ -2399,7 +2399,7 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
         request.set_header('Accept', "application/json")
         request.set_header('MaxDataServiceVersion', "1.0; old max")
-        request.Send(self.svc)
+        request.send(self.svc)
         obj = json.loads(request.wfile.getvalue())
         self.assertTrue(type(obj) == DictType and len(
             obj) == 1 and "d" in obj, "JSON object is security wrapped")
@@ -2409,7 +2409,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(len(obj) == 2, "2 links in response")
         # end of json tests
         request = MockRequest("/service.svc/Orders(1)/$links/Customer")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -2419,14 +2419,14 @@ class SampleServerTests(unittest.TestCase):
         ) == "http://host/service.svc/Customers('ALFKI')", "Bad Customer link")
         baseURI = "/service.svc/Customers('ALFKI')/$links/Orders?$format=xml&$skip=3&$top=2&$skiptoken='Contoso','AKFNU'&$inlinecount=allpages"
         request = MockRequest(baseURI)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         for x in ["$expand=Orders",
                   "$filter=substringof(CompanyName,%20'bikes')",
                   "$orderby=CompanyName%20asc",
                   "$select=CustomerID,CompanyName,Orders"]:
             request = MockRequest(baseURI + "&" + x)
-            request.Send(self.svc)
+            request.send(self.svc)
             self.assertTrue(request.responseCode == 400, "URI7 with %s" % x)
 
     def testCaseURI8(self):
@@ -2440,7 +2440,7 @@ class SampleServerTests(unittest.TestCase):
         represented using a conceptual schema definition language
         (CSDL), as specified in [MC-CSDL], for the data service."""
         request = MockRequest("/service.svc/$metadata")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = edmx.Document()
         doc.Read(request.wfile.getvalue())
@@ -2458,7 +2458,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(version == "2.0", "Expected data service version 2.0")
         baseURI = "/service.svc/$metadata?"
         request = MockRequest(baseURI)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         for x in ["$expand=Orders",
                   "$filter=substringof(CompanyName,%20'bikes')",
@@ -2470,7 +2470,7 @@ class SampleServerTests(unittest.TestCase):
                   "$inlinecount=allpages",
                   "$select=CustomerID,CompanyName,Orders"]:
             request = MockRequest(baseURI + x)
-            request.Send(self.svc)
+            request.send(self.svc)
             self.assertTrue(request.responseCode == 400, "URI8 with %s" % x)
 
     def testCaseURI9(self):
@@ -2482,11 +2482,11 @@ class SampleServerTests(unittest.TestCase):
         Request, it must return a 4xx response code in the response to
         any Batch Request sent to it."""
         request = MockRequest("/service.svc/$batch")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 404)
         baseURI = "/service.svc/$batch?"
         request = MockRequest(baseURI)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 404)
         for x in ["$expand=Orders",
                   "$filter=substringof(CompanyName,%20'bikes')",
@@ -2498,7 +2498,7 @@ class SampleServerTests(unittest.TestCase):
                   "$inlinecount=allpages",
                   "$select=CustomerID,CompanyName,Orders"]:
             request = MockRequest(baseURI + x)
-            request.Send(self.svc)
+            request.send(self.svc)
             self.assertTrue(request.responseCode == 400, "URI9 with %s" % x)
 
     def testCaseURI10(self):
@@ -2516,14 +2516,14 @@ class SampleServerTests(unittest.TestCase):
         # TODO, an actual function that does something that returns a single
         # entity
         request = MockRequest("/service.svc/LastCustomerByLine?line=1")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         request = MockRequest("/service.svc/FirstCustomerByLine?line=1")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 404)
         baseURI = "/service.svc/LastCustomerByLine?line=1&$format=xml"
         request = MockRequest(baseURI)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         for x in ["$expand=Orders",
                   "$filter=substringof(CompanyName,%20'bikes')",
@@ -2534,7 +2534,7 @@ class SampleServerTests(unittest.TestCase):
                   "$inlinecount=allpages",
                   "$select=CustomerID,CompanyName,Orders"]:
             request = MockRequest(baseURI + "&" + x)
-            request.Send(self.svc)
+            request.send(self.svc)
             self.assertTrue(request.responseCode == 400, "URI10 with %s" % x)
         # TODO, a function import that uses a method other than GET
 
@@ -2553,7 +2553,7 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest(
             "/service.svc/ShippedAddressByDate?date=datetime'2013-08-02T00:00'")
         request.set_header('Accept', "application/json")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         #	check json output
         self.assertTrue(
@@ -2582,7 +2582,7 @@ class SampleServerTests(unittest.TestCase):
             "/service.svc/ShippedAddressByDate?date=datetime'2013-08-02T00:00'")
         request.set_header('Accept', "application/json")
         request.set_header('MaxDataServiceVersion', "1.0; old max")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(
             request.responseHeaders['CONTENT-TYPE'] == "application/json")
@@ -2596,11 +2596,11 @@ class SampleServerTests(unittest.TestCase):
         #	End of JSON tests
         request = MockRequest(
             "/service.svc/PendingAddressByDate?date=datetime'2013-08-02T00:00'")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 404)
         baseURI = "/service.svc/ShippedAddressByDate?date=datetime'2013-08-02T00:00'&$format=xml"
         request = MockRequest(baseURI)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         for x in ["$expand=Orders",
                   "$filter=substringof(CompanyName,%20'bikes')",
@@ -2611,7 +2611,7 @@ class SampleServerTests(unittest.TestCase):
                   "$inlinecount=allpages",
                   "$select=CustomerID,CompanyName,Orders"]:
             request = MockRequest(baseURI + "&" + x)
-            request.Send(self.svc)
+            request.send(self.svc)
             self.assertTrue(request.responseCode == 400, "URI11 with %s" % x)
 
     def testCaseURI12(self):
@@ -2627,14 +2627,14 @@ class SampleServerTests(unittest.TestCase):
         # TODO, an actual function that does something that returns a single
         # entity
         request = MockRequest("/service.svc/LastShippedByLine?line=1")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         request = MockRequest("/service.svc/FirstShippedByLine?line=1")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 404)
         baseURI = "/service.svc/LastShippedByLine?line=1&$format=xml"
         request = MockRequest(baseURI)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         for x in ["$expand=Orders",
                   "$filter=substringof(CompanyName,%20'bikes')",
@@ -2645,7 +2645,7 @@ class SampleServerTests(unittest.TestCase):
                   "$inlinecount=allpages",
                   "$select=CustomerID,CompanyName,Orders"]:
             request = MockRequest(baseURI + "&" + x)
-            request.Send(self.svc)
+            request.send(self.svc)
             self.assertTrue(request.responseCode == 400, "URI12 with %s" % x)
 
     def testCaseURI13(self):
@@ -2661,7 +2661,7 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest(
             "/service.svc/ShippedCustomerNamesByDate?date=datetime'2013-08-02T00:00'")
         request.set_header('Accept', "application/json")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         #	check json version 2 ouptput
         self.assertTrue(
@@ -2683,7 +2683,7 @@ class SampleServerTests(unittest.TestCase):
             "/service.svc/ShippedCustomerNamesByDate?date=datetime'2013-08-02T00:00'")
         request.set_header('Accept', "application/json")
         request.set_header('MaxDataServiceVersion', "1.0; old max")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(
             request.responseHeaders['CONTENT-TYPE'] == "application/json")
@@ -2697,11 +2697,11 @@ class SampleServerTests(unittest.TestCase):
         #	End of JSON tests
         request = MockRequest(
             "/service.svc/PendingCustomerNamesByDate?date=datetime'2013-08-02T00:00'")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 404)
         baseURI = "/service.svc/ShippedCustomerNamesByDate?date=datetime'2013-08-02T00:00'&$format=xml"
         request = MockRequest(baseURI)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         for x in ["$expand=Orders",
                   "$filter=substringof(CompanyName,%20'bikes')",
@@ -2712,7 +2712,7 @@ class SampleServerTests(unittest.TestCase):
                   "$inlinecount=allpages",
                   "$select=CustomerID,CompanyName,Orders"]:
             request = MockRequest(baseURI + "&" + x)
-            request.Send(self.svc)
+            request.send(self.svc)
             self.assertTrue(request.responseCode == 400, "URI13 with %s" % x)
 
     def testCaseURI14(self):
@@ -2732,18 +2732,18 @@ class SampleServerTests(unittest.TestCase):
         # TODO, an actual function that does something that returns a single
         # entity
         request = MockRequest("/service.svc/LastCustomerNameByLine?line=1")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         request = MockRequest(
             "/service.svc/LastCustomerNameByLine/$value?line=1")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         request = MockRequest("/service.svc/FirstCustomerNameByLine?line=1")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 404)
         baseURI = "/service.svc/LastCustomerNameByLine?line=1&$format=xml"
         request = MockRequest(baseURI)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         for x in ["$expand=Orders",
                   "$filter=substringof(CompanyName,%20'bikes')",
@@ -2754,7 +2754,7 @@ class SampleServerTests(unittest.TestCase):
                   "$inlinecount=allpages",
                   "$select=CustomerID,CompanyName,Orders"]:
             request = MockRequest(baseURI + "&" + x)
-            request.Send(self.svc)
+            request.send(self.svc)
             self.assertTrue(request.responseCode == 400, "URI14 with %s" % x)
 
     def testCaseURI15(self):
@@ -2764,20 +2764,20 @@ class SampleServerTests(unittest.TestCase):
         or any of the EntityType's subtypes within the specified
         EntitySet specified in the last URI segment"""
         request = MockRequest('/service.svc/Customers/$count')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(
             request.wfile.getvalue() == "91", "Sample server has 91 Customers")
         baseURI = "/service.svc/Customers/$count?$expand=Orders&$filter=substringof(CompanyName,%20'bikes')&$orderby=CompanyName%20asc&$skip=3&$top=2"
         request = MockRequest(baseURI)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         for x in ["$format=xml",
                   "$skiptoken='Contoso','AKFNU'",
                   "$inlinecount=allpages",
                   "$select=CustomerID,CompanyName,Orders"]:
             request = MockRequest(baseURI + "&" + x)
-            request.Send(self.svc)
+            request.send(self.svc)
             self.assertTrue(request.responseCode == 400, "URI15 with %s" % x)
 
     def testCaseURI16(self):
@@ -2788,16 +2788,16 @@ class SampleServerTests(unittest.TestCase):
         EntitySet specified in the URI, where key EntityKey is equal to
         the value of the keyPredicate specified."""
         request = MockRequest("/service.svc/Customers('ALFKI')/$count")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(
             request.wfile.getvalue() == "1", "the count value SHOULD always equal one")
         request = MockRequest("/service.svc/Customers('ALFKJ')/$count")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 404)
         baseURI = "/service.svc/Customers('ALFKI')/$count?$expand=Orders&$filter=substringof(CompanyName,%20'bikes')"
         request = MockRequest(baseURI)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         for x in ["$format=xml",
                   "$orderby=CompanyName%20asc",
@@ -2807,7 +2807,7 @@ class SampleServerTests(unittest.TestCase):
                   "$inlinecount=allpages",
                   "$select=CustomerID,CompanyName,Orders"]:
             request = MockRequest(baseURI + "&" + x)
-            request.Send(self.svc)
+            request.send(self.svc)
             self.assertTrue(request.responseCode == 400, "URI16 with %s" % x)
 
     def testCaseURI17(self):
@@ -2818,11 +2818,11 @@ class SampleServerTests(unittest.TestCase):
         entity identified MUST be annotated with the "HasStream"
         attribute."""
         request = MockRequest("/service.svc/Documents(301)/$value")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         baseURI = "/service.svc/Documents(301)/$value?$format=application/octet-stream"
         request = MockRequest(baseURI)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         for x in ["$expand=Orders",
                   "$filter=substringof(CompanyName,%20'bikes')",
@@ -2833,18 +2833,18 @@ class SampleServerTests(unittest.TestCase):
                   "$inlinecount=allpages",
                   "$select=CustomerID,CompanyName,Orders"]:
             request = MockRequest(baseURI + "&" + x)
-            request.Send(self.svc)
+            request.send(self.svc)
             self.assertTrue(request.responseCode == 400, "URI17 with %s" % x)
 
     def testCaseQueryOptions(self):
         """If a data service does not support a System Query Option, it
         MUST reject any requests which contain the unsupported option"""
         request = MockRequest("/service.svc/Documents(301)?$unsupported=1")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 400)
         request = MockRequest(
             "/service.svc/Documents(301)?$filter=true%20nand%20false")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 400)
         """A data service URI with more than one query option present
 		MUST be evaluated as if the query options were applied to the
@@ -2863,7 +2863,7 @@ class SampleServerTests(unittest.TestCase):
         sub type thereof, represented by the prior NavigationProperty in
         the expandClause."""
         request = MockRequest("/service.svc/Customers?$expand=Orders")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -2893,7 +2893,7 @@ class SampleServerTests(unittest.TestCase):
         #	Test json format
         request = MockRequest("/service.svc/Customers?$expand=Orders")
         request.set_header('Accept', "application/json")
-        request.Send(self.svc)
+        request.send(self.svc)
         obj = json.loads(request.wfile.getvalue())
         self.assertTrue(type(obj) == DictType and len(
             obj) == 1 and "d" in obj, "JSON object is security wrapped")
@@ -2914,7 +2914,7 @@ class SampleServerTests(unittest.TestCase):
                 self.assertTrue(
                     len(orders["results"]) == 0, "Expected no inline content for Orders link")
         request = MockRequest("/service.svc/Orders(1)?$expand=Customer")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -2932,7 +2932,7 @@ class SampleServerTests(unittest.TestCase):
         #	Test json format
         request = MockRequest("/service.svc/Orders(1)?$expand=Customer")
         request.set_header('Accept', "application/json")
-        request.Send(self.svc)
+        request.send(self.svc)
         obj = json.loads(request.wfile.getvalue())
         self.assertTrue(type(obj) == DictType and len(
             obj) == 1 and "d" in obj, "JSON object is security wrapped")
@@ -2945,7 +2945,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(type(customer) == DictType, "Single object result")
         self.assertTrue(customer["CustomerID"] == 'ALFKI', "Matching customer")
         request = MockRequest("/service.svc/Orders(4)?$expand=Customer")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -2966,7 +2966,7 @@ class SampleServerTests(unittest.TestCase):
         #	Test json format
         request = MockRequest("/service.svc/Orders(4)?$expand=Customer")
         request.set_header('Accept', "application/json")
-        request.Send(self.svc)
+        request.send(self.svc)
         obj = json.loads(request.wfile.getvalue())
         self.assertTrue(type(obj) == DictType and len(
             obj) == 1 and "d" in obj, "JSON object is security wrapped")
@@ -2975,13 +2975,13 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(customer is None, "null json response")
         # test a property we can't expand!
         request = MockRequest("/service.svc/Customers?$expand=Address")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 400)
 
     def testCaseFilter(self):
         request = MockRequest(
             "/service.svc/Orders?$filter=ShippedDate%20lt%20datetime'2013-08-05T00:00'")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3004,7 +3004,7 @@ class SampleServerTests(unittest.TestCase):
         used in the response MUST be "application/xml"	"""
         request = MockRequest("/service.svc/Orders?$format=xml")
         request.set_header('Accept', "application/json")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(
             request.responseHeaders['CONTENT-TYPE'] == "application/xml")
@@ -3015,13 +3015,13 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(len(doc.root.Entry) == 4, "Expected 4 Orders")
         request = MockRequest("/service.svc/Orders?$format=atom")
         request.set_header('Accept', "application/xml")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(
             request.responseHeaders['CONTENT-TYPE'] == "application/atom+xml")
         request = MockRequest("/service.svc/Orders(1)?$format=json")
         request.set_header('Accept', "application/xml")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(
             request.responseHeaders['CONTENT-TYPE'] == "application/json")
@@ -3053,7 +3053,7 @@ class SampleServerTests(unittest.TestCase):
         If the expression includes the optional desc clause, the
         entities MUST be returned in descending order."""
         request = MockRequest("/service.svc/Orders?$orderby=ShippedDate")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3069,7 +3069,7 @@ class SampleServerTests(unittest.TestCase):
             lastTime = currTime
         request = MockRequest(
             "/service.svc/Orders?$orderby=ShippedDate,OrderID%20desc")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3094,7 +3094,7 @@ class SampleServerTests(unittest.TestCase):
         order SHOULD be obtained by sorting the entities based on their
         EntityKey values."""
         request = MockRequest("/service.svc/Orders?$orderby=ShippedDate")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3103,7 +3103,7 @@ class SampleServerTests(unittest.TestCase):
         thirdID = doc.root.Entry[2]['OrderID'].value
         request = MockRequest(
             "/service.svc/Orders?$orderby=ShippedDate&$skip=2")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3111,7 +3111,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(
             thirdID == doc.root.Entry[0]['OrderID'].value, "Skipped first 2")
         request = MockRequest("/service.svc/Orders?$skip=0")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3128,7 +3128,7 @@ class SampleServerTests(unittest.TestCase):
         order SHOULD be obtained by sorting the entities based on their
         EntityKey values."""
         request = MockRequest("/service.svc/Orders?$orderby=ShippedDate")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3137,7 +3137,7 @@ class SampleServerTests(unittest.TestCase):
         firstID = doc.root.Entry[0]['OrderID'].value
         request = MockRequest(
             "/service.svc/Orders?$orderby=ShippedDate&$top=2")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3145,7 +3145,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(
             firstID == doc.root.Entry[0]['OrderID'].value, "First one correct")
         request = MockRequest("/service.svc/Orders?$top=4")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3155,7 +3155,7 @@ class SampleServerTests(unittest.TestCase):
             self.assertTrue(currID > lastID, "OrderID increasing")
             lastID = currID
         request = MockRequest("/service.svc/Orders?$top=0")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3174,7 +3174,7 @@ class SampleServerTests(unittest.TestCase):
         If a value of "none" is specified, the data service MUST NOT
         include the count in the response."""
         request = MockRequest("/service.svc/Orders?$inlinecount=allpages")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3182,7 +3182,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(
             doc.root.Count.GetValue() == 4, "Expected count of 4 Orders")
         request = MockRequest("/service.svc/Orders?$inlinecount=none")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3190,7 +3190,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(doc.root.Count is None, "Expected no count")
         request = MockRequest(
             "/service.svc/Orders?$top=2&$inlinecount=allpages")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3199,7 +3199,7 @@ class SampleServerTests(unittest.TestCase):
             doc.root.Count.GetValue() == 4, "Expected count of 4 Orders")
         request = MockRequest(
             "/service.svc/Orders?$top=2&$inlinecount=somepages")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 400)
 
     def testCaseSelectClause1(self):
@@ -3209,13 +3209,13 @@ class SampleServerTests(unittest.TestCase):
         Resource Path section of the URI."""
         request = MockRequest(
             "/service.svc/Customers?$select=CustomerID,CompanyName,Address")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         request = MockRequest("/service.svc/Customers?$select=*")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         request = MockRequest("/service.svc/Customers?$select=ShippedDate")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 400)
 
     def testCaseSelectClause2(self):
@@ -3225,11 +3225,11 @@ class SampleServerTests(unittest.TestCase):
         prior navigation property in the selectClause."""
         request = MockRequest(
             "/service.svc/Orders?$select=Customer/CompanyName")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         request = MockRequest(
             "/service.svc/Orders?$select=Customer/ShippedDate")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 400)
 
     def testCaseSelectClause3(self):
@@ -3265,7 +3265,7 @@ class SampleServerTests(unittest.TestCase):
         the last path segment in the request URI MUST be included in the
         response."""
         request = MockRequest("/service.svc/Customers?$select=*")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         # TODO
 
@@ -3276,7 +3276,7 @@ class SampleServerTests(unittest.TestCase):
         included in the response."""
         request = MockRequest(
             "/service.svc/Customers?$select=CustomerID,Orders/*&$expand=Orders/OrderLine")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         # TODO
 
@@ -3287,7 +3287,7 @@ class SampleServerTests(unittest.TestCase):
         navigation property MUST be represented as deferred content"""
         request = MockRequest(
             "/service.svc/Customers?$select=CustomerID,Orders")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         # TODO
 
@@ -3301,7 +3301,7 @@ class SampleServerTests(unittest.TestCase):
         selectedItem MUST also be included in the response."""
         request = MockRequest(
             "/service.svc/Customers?$select=CustomerID,Orders&$expand=Orders/OrderLine")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         # TODO
 
@@ -3330,7 +3330,7 @@ class SampleServerTests(unittest.TestCase):
         to be "text"
         """
         request = MockRequest("/service.svc/Employees('1')")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3357,7 +3357,7 @@ class SampleServerTests(unittest.TestCase):
                 "/service.svc/Customers('ALFKI')/Orders"
         ]:
             request = MockRequest(u)
-            request.Send(self.svc)
+            request.send(self.svc)
             self.assertTrue(
                 request.responseCode == 200, "misc URI failed (path): %s" % u)
 
@@ -3380,7 +3380,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', core.ODATA_RELATED_ENTRY_TYPE)
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 201)
         # We expect a location header
         self.assertTrue(request.responseHeaders[
@@ -3413,7 +3413,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', core.ODATA_RELATED_ENTRY_TYPE)
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 201)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3425,7 +3425,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(
             newCustomer['Address']['Street'].value == u"58 Contoso St")
         request = MockRequest("/service.svc/Customers('ASDFG')/Orders")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3461,7 +3461,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Length', str(len(data)))
         request.set_header('Accept', "application/json")
         request.rfile.write(data)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 201)
         # We expect a location header
         self.assertTrue(request.responseHeaders[
@@ -3496,7 +3496,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Length', str(len(data)))
         request.set_header('Accept', "application/json")
         request.rfile.write(data)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 201)
         obj = json.loads(request.wfile.getvalue())
         self.assertTrue(type(obj) == DictType and len(
@@ -3511,7 +3511,7 @@ class SampleServerTests(unittest.TestCase):
             newCustomer['Address']['Street'].value == u"58 Contoso St")
         request = MockRequest("/service.svc/Customers('ASDFG')/Orders")
         request.set_header('Accept', "application/json")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         obj = json.loads(request.wfile.getvalue())
         self.assertTrue(type(obj) == DictType and len(
@@ -3541,12 +3541,12 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', 'application/xml')
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(
             len(request.wfile.getvalue()) == 0, "empty response body expected")
         request = MockRequest("/service.svc/Customers('ALFKI')/Orders")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
         doc.Read(request.wfile.getvalue())
@@ -3569,14 +3569,14 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', 'application/json')
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(
             len(request.wfile.getvalue()) == 0, "empty response body expected")
         # let's just test the links themselves
         request = MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
         request.set_header('Accept', 'application/json')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         obj = json.loads(request.wfile.getvalue())
         self.assertTrue(type(obj) == DictType and len(
@@ -3598,7 +3598,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Length', str(len(data)))
         request.set_header('Slug', 'War and Peace')
         request.rfile.write(data)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 201)
         # We expect a location header
         location = request.responseHeaders['LOCATION']
@@ -3629,7 +3629,7 @@ class SampleServerTests(unittest.TestCase):
             newDocument['Author'].value, "Empty string is a pass - we are reading from Atom")
         docID = newDocument['DocumentID'].value
         request = MockRequest("/service.svc/Documents(%i)/$value" % docID)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(
             request.responseHeaders['CONTENT-TYPE'] == "text/x-tolstoy")
@@ -3637,7 +3637,7 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseRetrieveEntitySet(self):
         request = MockRequest('/service.svc/Customers')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -3655,7 +3655,7 @@ class SampleServerTests(unittest.TestCase):
     def testCaseRetrieveEntitySetJSON(self):
         request = MockRequest('/service.svc/Customers')
         request.set_header('Accept', 'application/json')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -3677,7 +3677,7 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest('/service.svc/Customers')
         request.set_header('DataServiceVersion', "1.0; old request")
         request.set_header('Accept', 'application/json')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/json")
@@ -3694,7 +3694,7 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseRetrieveEntity(self):
         request = MockRequest("/service.svc/Customers('ALFKI')")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -3711,7 +3711,7 @@ class SampleServerTests(unittest.TestCase):
     def testCaseRetrieveEntityJSON(self):
         request = MockRequest("/service.svc/Customers('ALFKI')")
         request.set_header('Accept', 'application/json')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -3731,7 +3731,7 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest("/service.svc/Customers('ALFKI')")
         request.set_header('DataServiceVersion', "1.0; old request")
         request.set_header('Accept', 'application/json')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "1.0;"), "DataServiceVersion 1.0 expected")
@@ -3752,7 +3752,7 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseRetrieveComplexType(self):
         request = MockRequest("/service.svc/Customers('ALFKI')/Address")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -3771,7 +3771,7 @@ class SampleServerTests(unittest.TestCase):
     def testCaseRetrieveComplexTypeJSON(self):
         request = MockRequest("/service.svc/Customers('ALFKI')/Address")
         request.set_header('Accept', 'application/json')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -3794,7 +3794,7 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest("/service.svc/Customers('ALFKI')/Address")
         request.set_header('DataServiceVersion', "1.0; old request")
         request.set_header('Accept', 'application/json')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "1.0;"), "DataServiceVersion 1.0 expected")
@@ -3814,7 +3814,7 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseRetrievePrimitiveProperty(self):
         request = MockRequest("/service.svc/Customers('ALFKI')/CompanyName")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -3832,7 +3832,7 @@ class SampleServerTests(unittest.TestCase):
     def testCaseRetrievePrimitivePropertyJSON(self):
         request = MockRequest("/service.svc/Customers('ALFKI')/CompanyName")
         request.set_header('Accept', 'application/json')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -3854,7 +3854,7 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest("/service.svc/Customers('ALFKI')/CompanyName")
         request.set_header('DataServiceVersion', "1.0; old request")
         request.set_header('Accept', 'application/json')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "1.0;"), "DataServiceVersion 1.0 expected")
@@ -3874,7 +3874,7 @@ class SampleServerTests(unittest.TestCase):
     def testCaseRetrieveValue(self):
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/CompanyName/$value")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -3887,7 +3887,7 @@ class SampleServerTests(unittest.TestCase):
         # check media type customisation
         request = MockRequest(
             "/service.svc/ExtraEntities.BitsAndPieces(1)/Details/$value")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -3897,7 +3897,7 @@ class SampleServerTests(unittest.TestCase):
             request.wfile.getvalue() == 'blahblah', "Bad details $value")
         # check that binary values are received as raw values
         request = MockRequest("/service.svc/Customers('ALFKI')/Version/$value")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -3911,12 +3911,12 @@ class SampleServerTests(unittest.TestCase):
         # A $value request for a property that is NULL SHOULD result in a 404
         # Not Found. response.
         request = MockRequest("/service.svc/Customers('XX%3D00')/Version/$value")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 404)
 
     def testCaseRetrieveMetadata(self):
         request = MockRequest("/service.svc/$metadata")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -3936,7 +3936,7 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseRetrieveServiceDocument(self):
         request = MockRequest("/service.svc/")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -3950,7 +3950,7 @@ class SampleServerTests(unittest.TestCase):
     def testCaseRetrieveServiceDocumentJSON(self):
         request = MockRequest("/service.svc/")
         request.set_header('Accept', 'application/json')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -3969,7 +3969,7 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseRetrieveLink(self):
         request = MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -3982,7 +3982,7 @@ class SampleServerTests(unittest.TestCase):
                         "Expected Links from $links request, found %s" % doc.root.__class__.__name__)
         self.assertTrue(len(doc.root.URI) == 2, "Sample customer has 2 orders")
         request = MockRequest("/service.svc/Orders(1)/$links/Customer")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -3999,7 +3999,7 @@ class SampleServerTests(unittest.TestCase):
     def testCaseRetrieveLinkJSON(self):
         request = MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
         request.set_header('Accept', 'application/json')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4018,7 +4018,7 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest("/service.svc/Customers('ALFKI')/$links/Orders")
         request.set_header('DataServiceVersion', "1.0; old request")
         request.set_header('Accept', 'application/json')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "1.0;"), "DataServiceVersion 1.0 expected")
@@ -4034,7 +4034,7 @@ class SampleServerTests(unittest.TestCase):
         # Now the single link use case: one format for both versions
         request = MockRequest("/service.svc/Orders(1)/$links/Customer")
         request.set_header('Accept', 'application/json')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4051,7 +4051,7 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseRetrieveCount(self):
         request = MockRequest('/service.svc/Customers/$count')
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4063,7 +4063,7 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseRetrieveMediaResource(self):
         request = MockRequest("/service.svc/Documents(301)/$value")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
         self.assertTrue(messages.MediaRange.from_str("text/plain ; charset=iso-8859-1").match_media_type(
@@ -4085,7 +4085,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', core.ODATA_RELATED_ENTRY_TYPE)
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4111,7 +4111,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', core.ODATA_RELATED_ENTRY_TYPE)
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4137,7 +4137,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', "application/json")
         request.set_header('Content-Length', str(len(jsonData)))
         request.rfile.write(jsonData)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4162,7 +4162,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', "application/json")
         request.set_header('Content-Length', str(len(jsonData)))
         request.rfile.write(jsonData.encode('utf-8'))
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4190,7 +4190,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', "application/xml")
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4215,7 +4215,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', "application/json")
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(str(data))
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4243,7 +4243,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', "application/xml")
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4269,7 +4269,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', "application/json")
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(str(data))
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4291,7 +4291,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', "text/plain")
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4310,7 +4310,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', "text/plain; charset=utf-8")
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         with customers.OpenCollection() as collection:
             customer = collection['ALFKI']
@@ -4333,7 +4333,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', "application/xml")
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4362,7 +4362,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', "application/json")
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4385,7 +4385,7 @@ class SampleServerTests(unittest.TestCase):
         request.set_header('Content-Type', "text/x-tolstoy")
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(data)
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4411,7 +4411,7 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseDeleteEntity(self):
         request = MockRequest("/service.svc/Customers('ALFKI')", "DELETE")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4434,7 +4434,7 @@ class SampleServerTests(unittest.TestCase):
     def testCaseDeleteLink1(self):
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/$links/Orders(1)", "DELETE")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4460,7 +4460,7 @@ class SampleServerTests(unittest.TestCase):
     def testCaseDeleteLink2(self):
         request = MockRequest(
             "/service.svc/Orders(1)/$links/Customer", "DELETE")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4486,7 +4486,7 @@ class SampleServerTests(unittest.TestCase):
     def testCaseDeleteValue(self):
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/Address/Street", "DELETE")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
         self.assertTrue(request.responseHeaders['DATASERVICEVERSION'].startswith(
             "2.0;"), "DataServiceVersion 2.0 expected")
@@ -4500,7 +4500,7 @@ class SampleServerTests(unittest.TestCase):
         # now try and delete a non-nullable value
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/CompanyName", "DELETE")
-        request.Send(self.svc)
+        request.send(self.svc)
         self.assertTrue(request.responseCode == 400)
         with customers.OpenCollection() as collection:
             customer = collection['ALFKI']

@@ -33,6 +33,8 @@ pyslet/rfc2396.py
 unittests/test_rfc2396.py
 pyslet/rfc2616.py
 pyslet/rfc2617.py
+pyslet/rfc5023.py
+unittests/test_rfc5023.py
 pyslet/urn.py
 unittests/test_urn.py
 pyslet/wsgi.py
