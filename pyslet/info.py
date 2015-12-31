@@ -6,7 +6,7 @@ name = "pyslet"
 copyright = u"\xA92008-2014, Steve Lay"
 
 major_version = "0.5"
-build_date = "20150719"
+build_date = "20151231"
 version = "%s.%s" % (major_version, build_date)
 
 title = (
