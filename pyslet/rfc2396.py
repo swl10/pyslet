@@ -1146,12 +1146,12 @@ class URI(PEP8Compatibility):
         name of the virtual file system.  If the path is flagged as
         being a UNC path and it has a non-empty machine name then
         ValueError is raised. """
-        host = path.fsName
+        host = path.fs_name
         segments = []
         if not path.isabs():
             path = path.abspath()
         drive, head = path.splitdrive()
-        unc_flag = path.IsUNC()
+        unc_flag = path.is_unc()
         while head:
             new_head, tail = head.split()
             if new_head == head:
@@ -1364,7 +1364,7 @@ class FileURL(ServerBasedURL):
         ignored."""
         decode = lambda s: unicode(unescape_data(s), 'utf-8')
         if self.host:
-            fs = vfs.GetFileSystemByName(self.host)
+            fs = vfs.get_file_system_by_name(self.host)
             if fs is None:
                 if vfs.defaultFS.supports_unc:
                     fs = vfs.defaultNS

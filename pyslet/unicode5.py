@@ -1,153 +1,186 @@
 #! /usr/bin/env python
 """Utilities to aid interaction with the unicode database"""
 
-from sys import maxunicode
-from pickle import dump, load
-from urllib import urlopen
-import types
-import string
+import logging
 import os.path
 
-from pyslet.pep8 import PEP8Compatibility
+from sys import maxunicode
+from pickle import dump, load
 
-CHINESE_TEST = u'\u82f1\u56fd'
+from .py2 import byte, character, join_bytes, ul
+from .py2 import force_text, is_text, is_unicode, to_text
+from .py2 import dict_values, range3, suffix, UnicodeMixin
+from .py2 import py2
+from .pep8 import PEP8Compatibility
+
 
 UCDDatabaseURL = "http://www.unicode.org/Public/UNIDATA/UnicodeData.txt"
 UCDBlockDatabaseURL = "http://www.unicode.org/Public/UNIDATA/Blocks.txt"
 UCDCategories = {}
 UCDBlocks = {}
 
-CATEGORY_FILE = "unicode5_catogories.pck"
-BLOCK_FILE = "unicode5_blocks.pck"
+CATEGORY_FILE = "unicode5_catogories%s.pck" % suffix
+BLOCK_FILE = "unicode5_blocks%s.pck" % suffix
 
 
-MagicTable = {
-    '\x00\x00\xfe\xff': 'utf_32_be',			# UCS-4, big-endian machine (1234 order)
-    # UCS-4, little-endian machine (4321 order)
-    '\xff\xfe\x00\x00': 'utf_32_le',
-    '\x00\x00\xff\xfe': 'utf_32',			# UCS-4, unusual octet order (2143)
-    '\xfe\xff\x00\x00': 'utf_32',			# UCS-4, unusual octet order (3412)
-    '\xfe\xff\x2a\x2a': 'utf_16_be',			# UTF-16, big-endian
-    '\xff\xfe\x2a\x2a': 'utf_16_le',			# UTF-16, little-endian
+MAGIC_TABLE = {
+    # UCS-4, big-endian machine (1234 order)
+    b'\x00\x00\xfe\xff': 'utf_32_be',
+    # UCS-4, little-endian (4321 order)
+    b'\xff\xfe\x00\x00': 'utf_32_le',
+    # UCS-4, unusual octet order (2143)
+    b'\x00\x00\xff\xfe': 'utf_32',
+    # UCS-4, unusual octet order (3412)
+    b'\xfe\xff\x00\x00': 'utf_32',
+    # UTF-16, big-endian
+    b'\xfe\xff\x2a\x2a': 'utf_16_be',
+    # UTF-16, little-endian
+    b'\xff\xfe\x2a\x2a': 'utf_16_le',
     # UCS-4 or other encoding with a big-endian 32-bit code unit
-    '\x00\x00\x00\x2a': 'utf_32_be',
+    b'\x00\x00\x00\x2a': 'utf_32_be',
     # UCS-4 or other encoding with a little-endian 32-bit code unit
-    '\x2a\x00\x00\x00': 'utf_32_le',
+    b'\x2a\x00\x00\x00': 'utf_32_le',
     # UCS-4 or other encoding with an unusual 32-bit code unit
-    '\x00\x00\x2a\x00': 'utf_32_le',
+    b'\x00\x00\x2a\x00': 'utf_32_le',
     # UCS-4 or other encoding with an unusual 32-bit code unit
-    '\x00\x2a\x00\x00': 'utf_32_le',
+    b'\x00\x2a\x00\x00': 'utf_32_le',
     # UTF-16BE or big-endian ISO-10646-UCS-2 or other encoding with a
     # 16-bit code unit
-    '\x00\x2a\x00\x2a': 'utf_16_be',
+    b'\x00\x2a\x00\x2a': 'utf_16_be',
     # UTF-16LE or little-endian ISO-10646-UCS-2 or other encoding with a
     # 16-bit code unit
-    '\x2a\x00\x2a\x00': 'utf_16_le',
-    '\x2a\x2a\x2a\x2a': 'utf_8'				# UTF-8, ISO 646, ASCII or similar
+    b'\x2a\x00\x2a\x00': 'utf_16_le',
+    # UTF-8, ISO 646, ASCII or similar
+    b'\x2a\x2a\x2a\x2a': 'utf_8'
 }
 
 
-def DetectEncoding(magic):
-    """Given a raw string of bytes this function looks at (up to) four
-    bytes and returns a best guess at the unicode encoding being used
-    for the data."""
-    if magic[0:3] == '\xef\xbb\xbf':
+def detect_encoding(magic):
+    """Detects text encoding
+
+    magic
+        A string of bytes
+
+    Given a byte string this function looks at (up to) four bytes and
+    returns a best guess at the unicode encoding being used for the
+    data.
+
+    It returns a string suitable for passing to Python's native decode
+    method, e.g., 'utf-8'.  The default is 'utf-8', an encoding which
+    will also work if the data is plain ASCII."""
+    if magic[0:3] == b'\xef\xbb\xbf':
         # catch this odd one first
         return 'utf_8_sig'
     # now we're only interested in a handful of values
-    keepers = "\x00\xfe\xff"
+    keepers = b"\x00\xfe\xff"
     key = []
-    for i in xrange(4):
+    for i in range3(4):
         # star - as good as any
         if i >= len(magic):
-            key.append('\x2a')
+            key.append(byte(0x2A))
         elif magic[i] in keepers:
             key.append(magic[i])
         else:
-            key.append('\x2A')
-    key = string.join(key, '')
-    if key in MagicTable:
-        return MagicTable[key]
+            key.append(byte(0x2A))
+    key = join_bytes(key)
+    if key in MAGIC_TABLE:
+        return MAGIC_TABLE[key]
     else:
         return None
 
 
-class CharClass:
-
+class CharClass(UnicodeMixin):
     """Represents a class of unicode characters.
 
-    A class of characters is represented internally by a list of character ranges
-    that define the class.  This is efficient because most character classes are
-    defined in blocks of characters.
+    A class of characters is represented internally by a list of
+    character ranges that define the class.  This is efficient because
+    most character classes are defined in blocks of characters.
 
-    For the constructor, String arguments add all characters in the string to
-    the class.  For example, CharClass('abcxyz') creates a class comprising two
-    ranges: a-c and x-z.
+    For the constructor, multiple arguments can be provided.
 
-    Tuple/List arguments can be used to pass pairs of characters that define
-    a range.  For example, CharClass(('a','z')) creates a class comprising the
-    letters a-z.
+    String arguments add all characters in the string to the class.  For
+    example, CharClass('abcxyz') creates a class comprising two ranges:
+    a-c and x-z.
+
+    Tuple/List arguments can be used to pass pairs of characters that
+    define a range.  For example, CharClass(('a','z')) creates a class
+    comprising the letters a-z.
 
     Instances of CharClass can also be used in the constructor to add an
-    existing class."""
+    existing class.
+
+    Instances support Python's repr function::
+
+        >>> c = CharClass('abcxyz')
+        >>> print repr(c)
+        CharClass((u'a',u'c'), (u'x',u'z'))
+
+    The string representation of a CharClass is a python regular
+    expression suitable for matching a single character from the
+    CharClass::
+
+        >>> print str(c)
+        [a-cx-z]
+
+    """
 
     @classmethod
-    def UCDCategory(cls, category):
+    def ucd_category(cls, category):
         """Returns the character class representing the Unicode category.
 
-        You must not modify the returned instance, if you want to derive a
-        character class from one of the standard Unicode categories then you
-        should create a copy by passing the result of this class method to the
-        CharClass constructor, e.g. to create a class of all general controls
-        and the space character::
+        You must *not* modify the returned instance, if you want to
+        derive a character class from one of the standard Unicode
+        categories then you should create a copy by passing the result
+        of this class method to the CharClass constructor, e.g. to
+        create a class of all general controls and the space character::
 
-                c=CharClass(CharClass.UCDCategory(u"Cc"))
-                c.AddChar(u" ")"""
+                c=CharClass(CharClass.ucd_category(u"Cc"))
+                c.add_char(u" ")"""
         global UCDCategories
         if not UCDCategories:
             # The category table is empty, so we need to load it
-            LoadCategoryTable()
+            load_category_table()
         return UCDCategories[category]
 
     @classmethod
-    def UCDBlock(cls, blockName):
+    def ucd_block(cls, block_name):
         """Returns the character class representing the Unicode block.
 
-        You must not modify the returned instance, if you want to derive a
-        character class from one of the standard Unicode blocks then you
-        should create a copy by passing the result of this class method to the
-        CharClass constructor, e.g. to create a class combining all Basic Latin characters
-        and those in the Latin-1 Supplement::
+        You must not modify the returned instance, if you want to derive
+        a character class from one of the standard Unicode blocks then
+        you should create a copy by passing the result of this class
+        method to the CharClass constructor, e.g. to create a class
+        combining all Basic Latin characters and those in the Latin-1
+        Supplement::
 
-                c=CharClass(CharClass.UCDBlock(u"Basic Latin"))
-                c.AddClass(CharClass.UCDBlock(u"Latin-1 Supplement")"""
+            c=CharClass(CharClass.ucd_block(u"Basic Latin"))
+            c.add_class(CharClass.ucd_block(u"Latin-1 Supplement")"""
         global UCDBlocks
         if not UCDBlocks:
             # The block table is empty, so we need to load it
-            LoadBlockTable()
-        return UCDBlocks[_NormalizeBlockName(blockName)]
+            load_block_table()
+        return UCDBlocks[_normalize_block_name(block_name)]
 
     def __init__(self, *args):
         self.ranges = []
         for arg in args:
-            if type(arg) in types.StringTypes:
+            if is_text(arg):
                 # Each character in the string is put in the class
                 for c in arg:
-                    self.AddChar(c)
-            elif type(arg) in (types.TupleType, types.ListType):
-                self.AddRange(arg[0], arg[1])
+                    self.add_char(c)
+            elif type(arg) in (tuple, list):
+                self.add_range(arg[0], arg[1])
             elif isinstance(arg, CharClass):
-                self.AddClass(arg)
+                self.add_class(arg)
             else:
                 raise ValueError
 
     def __repr__(self):
-        """Create a representation of the class suitable for pasting into python code"""
         result = ['CharClass(']
-        firstRange = True
+        first_range = True
         for r in self.ranges:
-            if firstRange:
-                firstRange = False
+            if first_range:
+                first_range = False
             else:
                 result.append(', ')
             if r[0] == r[1]:
@@ -159,59 +192,66 @@ class CharClass:
                 result.append(repr(r[1]))
                 result.append(')')
         result.append(')')
-        return string.join(result, '')
+        return ''.join(result)
 
-    _SetControls = {
-        u"\x07": "\\a",
-        u"\x08": "\\b",
-        u"\x09": "\\t",
-        u"\x0A": "\\n",
-        u"\x0B": "\\v",
-        u"\x0C": "\\f",
-        u"\x0D": "\\r"	}
+    _set_controls = {
+        ul("\x07"): ul("\\a"),
+        ul("\x08"): ul("\\b"),
+        ul("\x09"): ul("\\t"),
+        ul("\x0A"): ul("\\n"),
+        ul("\x0B"): ul("\\v"),
+        ul("\x0C"): ul("\\f"),
+        ul("\x0D"): ul("\\r")}
 
-    def _SetEscape(self, c):
+    _set_escapes = ul("-\\]")
+    _backslash = ul("\\")
+
+    def _set_escape(self, c):
         """Escapes characters for inclusion in a set, i.e., -, \,  and ]"""
-        if c in u"-\\]":
-            return u"\\" + c
+        if c in self._set_escapes:
+            return self._backslash + c
         else:
-            return self._SetControls.get(c, c)
+            return self._set_controls.get(c, c)
 
-    _ReControls = {
-        u"\x07": "\\a",
-        u"\x09": "\\t",
-        u"\x0A": "\\n",
-        u"\x0B": "\\v",
-        u"\x0C": "\\f",
-        u"\x0D": "\\r"	}
+    _re_controls = {
+        ul("\x07"): ul("\\a"),
+        ul("\x09"): ul("\\t"),
+        ul("\x0A"): ul("\\n"),
+        ul("\x0B"): ul("\\v"),
+        ul("\x0C"): ul("\\f"),
+        ul("\x0D"): ul("\\r")}
 
-    def _ReEscape(self, c):
-        """Escapes characters for inclusion in a regular expression outside a set"""
-        if c in u".^$*+?{}\\[]|()":
-            return u"\\" + c
+    _re_escapes = ul(".^$*+?{}\\[]|()")
+
+    def _re_escape(self, c):
+        """Escapes characters for inclusion in a regular expression
+        outside a set"""
+        if c in self._re_escapes:
+            return self._backslash + c
         else:
-            return self._ReControls.get(c, c)
+            return self._re_controls.get(c, c)
+
+    _empty_range = ul("[^\\x00-%s]") % character(maxunicode)
 
     def __unicode__(self):
-        """Returns a Python regular expression representing this range."""
         result = []
         if len(self.ranges) == 0:
             # we generally try and avoid representing maxunicode in a range
             # by using negation.  However, in the case of an empty range
             # we have no choice.
-            return u"[^\\x00-%s]" % unichr(maxunicode)
-        elif self.ranges[-1][1] == unichr(maxunicode):
+            return self._empty_range
+        elif self.ranges[-1][1] == character(maxunicode):
             # to avoid maxunicode we negate this range
             neg = CharClass(self)
-            neg.Negate()
-            result = unicode(neg)
+            neg.negate()
+            result = to_text(neg)
             if result[0] == "[":
                 return "[^%s]" % result[1:-1]
             elif result[0] == "\\":
                 # we may not need the escape
                 if result == "\\]":
                     return "[^\\]]"
-                elif result in self._ReControls.values():
+                elif result in dict_values(self._re_controls):
                     return "[^%s]" % result
                 else:
                     return "[^%s]" % result[1]
@@ -221,11 +261,11 @@ class CharClass:
             r = self.ranges[0]
             if r[0] == r[1]:
                 # a single character
-                return self._ReEscape(r[0])
-        addCaret = False
+                return self._re_escape(r[0])
+        add_caret = False
         for r in self.ranges:
             if r[0] == "^":
-                addCaret = True
+                add_caret = True
                 r0 = u"_"
             else:
                 r0 = r[0]
@@ -233,32 +273,32 @@ class CharClass:
                 continue
             elif r0 == r[1]:
                 # just a singleton
-                result.append(self._SetEscape(r0))
+                result.append(self._set_escape(r0))
             elif ord(r0) + 1 == ord(r[1]):
                 # a dumb range, remove the hyphen
                 result.append(
-                    "%s%s" % (self._SetEscape(r0), self._SetEscape(r[1])))
+                    "%s%s" % (self._set_escape(r0), self._set_escape(r[1])))
             else:
                 result.append("%s-%s" %
-                              (self._SetEscape(r0), self._SetEscape(r[1])))
-        if addCaret:
+                              (self._set_escape(r0), self._set_escape(r[1])))
+        if add_caret:
             result.append(u'^')
-        return u"[%s]" % string.join(result, u"")
+        return u"[%s]" % u"".join(result)
 
-    def FormatRe(self):
-        """Create a representation of the class suitable for putting in [] in a
-        python regular expression"""
-        pyCharSet = []
+    def format_re(self):
+        """Create a representation of the class suitable for putting in
+        [] in a python regular expression"""
+        py_charset = []
         for a, z in self.ranges:
-            pyCharSet.append(self.FormatReChar(a))
+            py_charset.append(self.format_re_char(a))
             if a == z:
                 continue
             if ord(z) > ord(a) + 1:
-                pyCharSet.append('-')
-            pyCharSet.append(self.FormatReChar(z))
-        return string.join(pyCharSet, '')
+                py_charset.append('-')
+            py_charset.append(self.format_re_char(z))
+        return ''.join(py_charset)
 
-    def FormatReChar(self, c):
+    def format_re_char(self, c):
         if c in "-]\\":
             # prepen a backslash
             return "\\" + c
@@ -269,219 +309,239 @@ class CharClass:
         """Compares two character classes for equality."""
         return self.ranges == other.ranges
 
-    def AddRange(self, a, z):
+    def add_range(self, a, z):
         """Adds a range of characters from a to z to the class"""
+        # our implementation assumes that codepoint is used in
+        # comparisons
+        a = force_text(a)
+        z = force_text(z)
         if z < a:
             x = z
             z = a
             a = x
-        a = unicode(a)
-        z = unicode(z)
         if self.ranges:
-            matchA, indexA = self.BisectionSearch(a, 0, len(self.ranges) - 1)
-            matchZ, indexZ = self.BisectionSearch(z, 0, len(self.ranges) - 1)
-            if matchA:
-                if matchZ:
+            match_a, index_a = self._bisection_search(a, 0,
+                                                      len(self.ranges) - 1)
+            match_z, index_z = self._bisection_search(z, 0,
+                                                      len(self.ranges) - 1)
+            if match_a:
+                if match_z:
                     # Both ends of the new range are already matched
-                    if indexA == indexZ:
+                    if index_a == index_z:
                         # Nothing to do
                         return
                     else:
-                        # We need to join the ranges from indexA to and
-                        # including indexZ
-                        self.ranges[
-                            indexA:indexZ + 1] = [[self.ranges[indexA][0], self.ranges[indexZ][1]]]
+                        # We need to join the ranges from index_a to and
+                        # including index_z
+                        self.ranges[index_a:index_z + 1] = [
+                            [self.ranges[index_a][0], self.ranges[index_z][1]]]
                 else:
-                    # Note that at this point, indexZ must be > indexA
-                    # We need to join the ranges from indexA up to but *not* including indexZ
-                    # extending the last range to include z
-                    self.ranges[indexA:indexZ] = [[self.ranges[indexA][0], z]]
-            elif matchZ:
-                # We need to join the ranges from indexA up to and including indexZ
-                # extending the first range to include a (works even if
-                # indexA==indexZ)
-                self.ranges[indexA:indexZ + 1] = [[a, self.ranges[indexZ][1]]]
+                    # Note that at this point, index_z must be > index_a
+                    # We need to join the ranges from index_a up to but
+                    # *not* including index_z extending the last range to
+                    # include z
+                    self.ranges[
+                        index_a:index_z] = [[self.ranges[index_a][0], z]]
+            elif match_z:
+                # We need to join the ranges from index_a up to and
+                # including index_z extending the first range to include
+                # a (works even if index_a==index_z)
+                self.ranges[
+                    index_a:index_z + 1] = [[a, self.ranges[index_z][1]]]
             else:
-                # We need to join the ranges from indexA to indexZ-1, extending them to include
-                # a and z respectively.  Note that if indexA==indexZ then no ranges are joined
-                # and the slice assignment simply inserts a new range.
-                self.ranges[indexA:indexZ] = [[a, z]]
-            self.Merge(indexA)
+                # We need to join the ranges from index_a to index_z-1,
+                # extending them to include a and z respectively.  Note
+                # that if index_a==index_z then no ranges are joined and
+                # the slice assignment simply inserts a new range.
+                self.ranges[index_a:index_z] = [[a, z]]
+            self._merge(index_a)
         else:
             self.ranges = [[a, z]]
 
-    def SubtractRange(self, a, z):
+    def subtract_range(self, a, z):
         """Subtracts a range of characters from the character class"""
+        a = force_text(a)
+        z = force_text(z)
         if z < a:
             x = z
             z = a
             a = x
-        a = unicode(a)
-        z = unicode(z)
         if self.ranges:
-            matchA, indexA = self.BisectionSearch(a, 0, len(self.ranges) - 1)
-            matchZ, indexZ = self.BisectionSearch(z, 0, len(self.ranges) - 1)
-            if matchA:
-                if matchZ:
+            match_a, index_a = self._bisection_search(a, 0,
+                                                      len(self.ranges) - 1)
+            match_z, index_z = self._bisection_search(z, 0,
+                                                      len(self.ranges) - 1)
+            if match_a:
+                if match_z:
                     # Both ends of the new range are matched
-                    if indexA == indexZ:
+                    if index_a == index_z:
                         # a-z is entirely within a single range
-                        A, Z = self.ranges[indexA]
-                        if ord(A) == ord(Z) or (ord(A) == ord(a) and ord(Z) == ord(z)):
-                            # This is either a singleton range, so a==z must be true too!
-                            # or we have an exact range match
-                            del self.ranges[indexA]
-                        elif ord(A) == ord(a):
+                        rlower, rupper = self.ranges[index_a]
+                        if ord(rlower) == ord(rupper) or (
+                                ord(rlower) == ord(a) and
+                                ord(rupper) == ord(z)):
+                            # This is either a singleton range, so a==z
+                            # must be true too! or we have an exact
+                            # range match
+                            del self.ranges[index_a]
+                        elif ord(rlower) == ord(a):
                             # Remove the left portion of the range
-                            self.ranges[indexA][0] = unichr(ord(z) + 1)
-                        elif ord(Z) == ord(z):
+                            self.ranges[index_a][0] = character(ord(z) + 1)
+                        elif ord(rupper) == ord(z):
                             # Remove the right portion of the range
-                            self.ranges[indexA][1] = unichr(ord(a) - 1)
+                            self.ranges[index_a][1] = character(ord(a) - 1)
                         else:
                             # We need to split this range
-                            self.ranges[indexA][1] = unichr(ord(a) - 1)
+                            self.ranges[index_a][1] = character(ord(a) - 1)
                             self.ranges.insert(
-                                indexA + 1, [unichr(ord(z) + 1), Z])
+                                index_a + 1,
+                                [character(ord(z) + 1), rupper])
                     else:
-                        # We need to trim indexA and indexZ and remove all
+                        # We need to trim index_a and index_z and remove all
                         # ranges between
-                        A, Z = self.ranges[indexA]
-                        if ord(A) == ord(Z) or ord(a) == ord(A):
+                        rlower, rupper = self.ranges[index_a]
+                        if ord(rlower) == ord(rupper) or ord(a) == ord(rlower):
                             # remove this entire range
-                            snipA = indexA
+                            snip_a = index_a
                         else:
                             # Remove the right portion of the range
-                            self.ranges[indexA][1] = unichr(ord(a) - 1)
-                            snipA = indexA + 1
-                        A, Z = self.ranges[indexZ]
-                        if ord(A) == ord(Z) or ord(z) == ord(Z):
+                            self.ranges[index_a][1] = character(ord(a) - 1)
+                            snip_a = index_a + 1
+                        rlower, rupper = self.ranges[index_z]
+                        if ord(rlower) == ord(rupper) or ord(z) == ord(rupper):
                             # remove this entire range
-                            snipZ = indexZ + 1
+                            snip_z = index_z + 1
                         else:
                             # Remove the left portion of the range
-                            self.ranges[indexZ][0] = unichr(ord(z) + 1)
-                            snipZ = indexZ
-                        if snipZ >= snipA:
-                            del self.ranges[snipA:snipZ]
+                            self.ranges[index_z][0] = character(ord(z) + 1)
+                            snip_z = index_z
+                        if snip_z >= snip_a:
+                            del self.ranges[snip_a:snip_z]
                 else:
-                    # We need to trim indexA and delete up to, but not
-                    # including, indexZ
-                    A, Z = self.ranges[indexA]
-                    if ord(A) == ord(Z) or ord(a) == ord(A):
-                        snip = indexA
+                    # We need to trim index_a and delete up to, but not
+                    # including, index_z
+                    rlower, rupper = self.ranges[index_a]
+                    if ord(rlower) == ord(rupper) or ord(a) == ord(rlower):
+                        snip = index_a
                     else:
-                        self.ranges[indexA][1] = unichr(ord(a) - 1)
-                        snip = indexA + 1
-                    del self.ranges[snip:indexZ]
-            elif matchZ:
-                # We need to trim indexZ and delete to the left up to and
-                # including indexA
-                A, Z = self.ranges[indexZ]
-                if ord(A) == ord(Z) or ord(z) == ord(Z):
-                    snip = indexZ + 1
+                        self.ranges[index_a][1] = character(ord(a) - 1)
+                        snip = index_a + 1
+                    del self.ranges[snip:index_z]
+            elif match_z:
+                # We need to trim index_z and delete to the left up to and
+                # including index_a
+                rlower, rupper = self.ranges[index_z]
+                if ord(rlower) == ord(rupper) or ord(z) == ord(rupper):
+                    snip = index_z + 1
                 else:
-                    self.ranges[indexZ][0] = unichr(ord(z) + 1)
-                    snip = indexZ
-                del self.ranges[indexA:snip]
+                    self.ranges[index_z][0] = character(ord(z) + 1)
+                    snip = index_z
+                del self.ranges[index_a:snip]
             else:
-                # We need to remove the ranges from indexA to indexZ-1. Note that if
-                # indexA==indexZ then no ranges are removed
-                del self.ranges[indexA:indexZ]
+                # We need to remove the ranges from index_a to index_z-1.
+                # Note that if index_a==index_z then no ranges are removed
+                del self.ranges[index_a:index_z]
 
-    def AddChar(self, c):
+    def add_char(self, c):
         """Adds a single character to the character class"""
-        c = unicode(c)
+        c = force_text(c)
         if self.ranges:
-            match, index = self.BisectionSearch(c, 0, len(self.ranges) - 1)
+            match, index = self._bisection_search(c, 0, len(self.ranges) - 1)
             if not match:
                 self.ranges.insert(index, [c, c])
-                self.Merge(index)
+                self._merge(index)
         else:
             self.ranges = [[c, c]]
 
-    def SubtractChar(self, c):
+    def subtract_char(self, c):
         """Subtracts a single character from the character class"""
-        c = unicode(c)
+        c = force_text(c)
         if self.ranges:
-            match, index = self.BisectionSearch(c, 0, len(self.ranges) - 1)
+            match, index = self._bisection_search(c, 0, len(self.ranges) - 1)
             if match:
                 a, z = self.ranges[index]
                 if ord(a) == ord(z):
                     # This is a singleton range
                     del self.ranges[index]
                 elif ord(a) == ord(c):
-                    self.ranges[index][0] = unichr(ord(a) + 1)
+                    self.ranges[index][0] = character(ord(a) + 1)
                 elif ord(z) == ord(c):
-                    self.ranges[index][1] = unichr(ord(z) - 1)
+                    self.ranges[index][1] = character(ord(z) - 1)
                 else:
                     # We need to split this range
-                    self.ranges[index][1] = unichr(ord(c) - 1)
-                    self.ranges.insert(index + 1, [unichr(ord(c) + 1), z])
+                    self.ranges[index][1] = character(ord(c) - 1)
+                    self.ranges.insert(index + 1,
+                                       [character(ord(c) + 1), z])
 
-    def AddClass(self, c):
-        """Adds all the characters in c to the character class (union operation)"""
+    def add_class(self, c):
+        """Adds all the characters in c to the character class
+
+        This is effectively a union operation."""
         if self.ranges:
             for r in c.ranges:
-                self.AddRange(r[0], r[1])
+                self.add_range(r[0], r[1])
         else:
             # take a short cut here, if we have no ranges yet just copy them
             for r in c.ranges:
                 self.ranges.append(r)
 
-    def SubtractClass(self, c):
+    def subtract_class(self, c):
         """Subtracts all the characters in c from the character class"""
         for r in c.ranges:
-            self.SubtractRange(r[0], r[1])
+            self.subtract_range(r[0], r[1])
 
-    def Negate(self):
+    def negate(self):
         """Negates this character class"""
-        max = CharClass([unichr(0), unichr(maxunicode)])
-        max.SubtractClass(self)
+        max = CharClass([character(0), character(maxunicode)])
+        max.subtract_class(self)
         self.ranges = max.ranges
 
-    def Merge(self, index):
-        """Used internally to merge the range at index with its neighbours if possible"""
+    def _merge(self, index):
+        """Used internally to merge the range at index with its
+        neighbours if possible"""
         a, z = self.ranges[index]
-        indexA = indexZ = index
-        if indexA > 0:
-            ap = self.ranges[indexA - 1][1]
+        index_a = index_z = index
+        if index_a > 0:
+            ap = self.ranges[index_a - 1][1]
             if ord(ap) >= ord(a) - 1:
                 # Left merge
-                indexA = indexA - 1
-        elif indexZ < len(self.ranges) - 1:
-            zn = self.ranges[indexZ + 1][0]
+                index_a = index_a - 1
+        elif index_z < len(self.ranges) - 1:
+            zn = self.ranges[index_z + 1][0]
             if ord(zn) <= ord(z) + 1:
                 # Right merge
-                indexZ = indexZ + 1
-        if indexA != indexZ:
+                index_z = index_z + 1
+        if index_a != index_z:
             # Do the merge
             self.ranges[
-                indexA:indexZ + 1] = [[self.ranges[indexA][0], self.ranges[indexZ][1]]]
+                index_a:index_z + 1] = [[self.ranges[index_a][0],
+                                         self.ranges[index_z][1]]]
 
-    def Test(self, c):
-        """Test a unicode character, return True if the character is in the class.
+    def test(self, c):
+        """Test a unicode character.
 
-        If c is None False is returned."""
+        Returns True if the character is in the class.
+
+        If c is None, False is returned."""
         if c is None:
             return False
         elif self.ranges:
-            match, index = self.BisectionSearch(c, 0, len(self.ranges) - 1)
+            match, index = self._bisection_search(c, 0, len(self.ranges) - 1)
             return match
         else:
             return False
 
-    def BisectionSearch(self, c, rmin, rmax):
-        """Performs a recursive bisection search on the character class for c.
+    def _bisection_search(self, c, rmin, rmax):
+        """Performs a recursive bisection search for c.
 
-        c is the character to search for
-        rmin and rmax define a slice on the list of ranges in which to search
+        c is the character to search for rmin and rmax define a slice on
+        the list of ranges in which to search
 
-        The result is a tuple comprising a flag indicating if c is in the part
-        of the class being searched and an integer index of the range into which c
-        falls or, if c was not found, then it is the index at which a new range
-        (containing only c) should be inserted."""
-        # print self.ranges
-        # print "Searching in %i,%i"%(rmin,rmax)
+        The result is a tuple comprising a flag indicating if c is in
+        the part of the class being searched and an integer index of the
+        range into which c falls or, if c was not found, then it is the
+        index at which a new range (containing only c) should be
+        inserted."""
         if rmin == rmax:
             # is c in this range
             if c > self.ranges[rmin][1]:
@@ -493,304 +553,581 @@ class CharClass:
         else:
             rtry = (rmin + rmax) // 2
             if c <= self.ranges[rtry][1]:
-                return self.BisectionSearch(c, rmin, rtry)
+                return self._bisection_search(c, rmin, rtry)
             else:
-                return self.BisectionSearch(c, rtry + 1, rmax)
+                return self._bisection_search(c, rtry + 1, rmax)
 
 
-def LoadCategoryTable():
+def load_category_table():
     """Loads the category table from a resource file."""
     global UCDCategories
-    f = file(os.path.join(os.path.dirname(__file__), CATEGORY_FILE), 'r')
+    f = open(os.path.join(os.path.dirname(__file__), CATEGORY_FILE), 'rb')
     UCDCategories = load(f)
     f.close()
 
 
-def _GetCatClass(catName):
+def _get_cat_class(cat_name):
     global UCDCategories
-    if catName in UCDCategories:
-        return UCDCategories[catName]
+    if cat_name in UCDCategories:
+        return UCDCategories[cat_name]
     else:
         cat = CharClass()
-        UCDCategories[catName] = cat
+        UCDCategories[cat_name] = cat
         return cat
 
 
-def ParseCategoryTable():
+def parse_category_table():
     global UCDCategories
     UCDCategories = {}
-    nextCode = 0
+    next_code = 0
     mark = None
-    markMajorCategory = None
-    markMinorCategory = None
-    nMajorCat = _GetCatClass(u'C')
-    nMinorCat = _GetCatClass(u'Cn')
-    for line in urlopen(UCDDatabaseURL).readlines():
+    mark_major_category = None
+    mark_minor_category = None
+    n_major_cat = _get_cat_class(u'C')
+    n_minor_cat = _get_cat_class(u'Cn')
+    for line in py2.urlopen(UCDDatabaseURL).readlines():
         # disregard any comments
+        line = to_text(line)
         line = line.split('#')[0]
         if not line:
             continue
         fields = line.split(';')
-        codePoint = int(fields[0], 16)
-        assert codePoint >= nextCode, "Unicode database error: code points went backwards: at %08X" % codePoint
-        if codePoint > maxunicode:
-            print "Warning: category table limited by narrow python build"
+        code_point = int(fields[0], 16)
+        assert code_point >= next_code, \
+            "Unicode database error: code points went backwards: at %08X" % \
+            code_point
+        if code_point > maxunicode:
+            logging.warning(
+                "Warning: category table limited by narrow python build")
             break
         category = fields[2].strip()
         assert len(category) == 2, "Unexpected category field"
-        majorCategory = _GetCatClass(category[0])
-        minorCategory = _GetCatClass(category)
-        charName = fields[1].strip()
+        major_category = _get_cat_class(category[0])
+        minor_category = _get_cat_class(category)
+        char_name = fields[1].strip()
         if mark is None:
-            if charName[0] == '<' and charName[-6:] == "First>":
-                mark = codePoint
-                markMajorCategory = majorCategory
-                markMinorCategory = minorCategory
+            if char_name[0] == '<' and char_name[-6:] == "First>":
+                mark = code_point
+                mark_major_category = major_category
+                mark_minor_category = minor_category
             else:
-                majorCategory.AddChar(unichr(codePoint))
-                minorCategory.AddChar(unichr(codePoint))
-            if codePoint > nextCode:
+                major_category.add_char(character(code_point))
+                minor_category.add_char(character(code_point))
+            if code_point > next_code:
                 # we have skipped a load of code-points
-                nMajorCat.AddRange(unichr(nextCode), unichr(codePoint - 1))
-                nMinorCat.AddRange(unichr(nextCode), unichr(codePoint - 1))
+                n_major_cat.add_range(character(next_code),
+                                      character(code_point - 1))
+                n_minor_cat.add_range(character(next_code),
+                                      character(code_point - 1))
         else:
             # end a marked range
-            assert minorCategory == markMinorCategory, "Unicode character range end-points with non-matching general categories"
-            markMajorCategory.AddRange(unichr(mark), unichr(codePoint))
-            markMinorCategory.AddRange(unichr(mark), unichr(codePoint))
+            assert minor_category == mark_minor_category, \
+                "Unicode character range end-points with non-matching "\
+                "general categories"
+            mark_major_category.add_range(character(mark),
+                                          character(code_point))
+            mark_minor_category.add_range(character(mark),
+                                          character(code_point))
             mark = None
-            markMajorCategory = None
-            markMinorCategory = None
-        nextCode = codePoint + 1
+            mark_major_category = None
+            mark_minor_category = None
+        next_code = code_point + 1
     # when we finally exit from this loop we should not be in a marked range
-    assert mark is None, "Unicode database ended during character range definition: %08X-?" % mark
-    f = file(os.path.join(os.path.dirname(__file__), CATEGORY_FILE), 'w')
+    assert mark is None, \
+        "Unicode database ended during character range definition: %08X-?" % \
+        mark
+    f = open(os.path.join(os.path.dirname(__file__), CATEGORY_FILE), 'wb')
     dump(UCDCategories, f)
     f.close()
 
 
-def LoadBlockTable():
+def load_block_table():
     """Loads the block table from a resource file."""
     global UCDBlocks
-    f = file(os.path.join(os.path.dirname(__file__), BLOCK_FILE), 'r')
+    f = open(os.path.join(os.path.dirname(__file__), BLOCK_FILE), 'rb')
     UCDBlocks = load(f)
     f.close()
 
 
-def _NormalizeBlockName(blockName):
+def _normalize_block_name(block_name):
     """Implements Unicode name normalization for block names.
 
     Removes white space, '-', '_' and forces lower case."""
-    blockName = string.join(blockName.split(), '')
-    blockName = blockName.replace('-', '')
-    return blockName.replace('_', '').lower()
+    block_name = ''.join(block_name.split())
+    block_name = block_name.replace('-', '')
+    return block_name.replace('_', '').lower()
 
 
-def ParseBlockTable():
+def parse_block_table():
     global UCDBlocks
     UCDBlocks = {}
-    narrowWarning = False
-    for line in urlopen(UCDBlockDatabaseURL).readlines():
+    narrow_warning = False
+    for line in py2.urlopen(UCDBlockDatabaseURL).readlines():
+        line = to_text(line)
         line = line.split('#')[0].strip()
         if not line:
             continue
         fields = line.split(';')
-        codePoints = fields[0].strip().split('..')
-        codePoint0 = int(codePoints[0], 16)
-        codePoint1 = int(codePoints[1], 16)
+        code_points = fields[0].strip().split('..')
+        code_point0 = int(code_points[0], 16)
+        code_point1 = int(code_points[1], 16)
         # the Unicode standard tells us to remove -, _ and any whitespace
         # before case-ignore comparison
-        blockName = _NormalizeBlockName(fields[1])
-        if codePoint0 > maxunicode:
-            if not narrowWarning:
-                print "Warning: block table limited by narrow python build"
-            narrowWarning = True
+        block_name = _normalize_block_name(fields[1])
+        if code_point0 > maxunicode:
+            if not narrow_warning:
+                logging.warning(
+                    "Warning: block table limited by narrow python build")
+            narrow_warning = True
             continue
-        elif codePoint1 > maxunicode:
-            codePoint1 = maxunicode
-            if not narrowWarning:
-                print "Warning: block table limited by narrow python build"
-            narrowWarning = True
-        UCDBlocks[blockName] = CharClass(
-            (unichr(codePoint0), unichr(codePoint1)))
-    f = file(os.path.join(os.path.dirname(__file__), BLOCK_FILE), 'w')
+        elif code_point1 > maxunicode:
+            code_point1 = maxunicode
+            if not narrow_warning:
+                logging.warning(
+                    "Warning: block table limited by narrow python build")
+            narrow_warning = True
+        UCDBlocks[block_name] = CharClass(
+            (character(code_point0), character(code_point1)))
+    f = open(os.path.join(os.path.dirname(__file__), BLOCK_FILE), 'wb')
     dump(UCDBlocks, f)
     f.close()
 
 
-class BasicParser(PEP8Compatibility):
+class ParserError(ValueError):
+    """Exception raised by :class:`BasicParser`
 
-    """An abstract class for parsing unicode strings."""
+    production
+        The name of the production being parsed
+
+    parser
+        The :class:`BasicParser` instance raising the error (optional)
+
+    ParserError is a subclass of ValueError."""
+
+    def __init__(self, production, parser=None):
+        self.production = production
+        if parser:
+            #: the position of the parser when the error was raised
+            self.pos = parser.pos
+            #: up to 40 characters/bytes to the left of pos
+            self.left = parser.src[max(0, self.pos - 40):self.pos]
+            #: up to 40 characters/bytes to the right of pos
+            self.right = parser.src[self.pos:self.pos + 40]
+            if production:
+                msg = "ParserError: expected %s at [%i]" % (production,
+                                                            self.pos)
+            else:
+                msg = "ParserError: at [%i]" % self.pos
+        else:
+            self.pos = None
+            self.left = None
+            self.right = None
+            if production:
+                msg = "ParserError: expected %s" % production
+            else:
+                msg = "ParserError"
+        ValueError.__init__(self, msg)
+
+
+class BasicParser(PEP8Compatibility):
+    """An abstract class for parsing character strings or binary data
+
+    source
+        Can be either a string of characters or a string of bytes.
+
+    BasicParser instances can parse either characters or bytes but not
+    both simultaneously, you must choose on construction by passing an
+    appropriate str (Python 2: unicode), bytes or bytearray object.
+
+    Binary mode is suitable for parsing data described in terms of
+    OCTETS, such as many IETF and internet standards.  When passing
+    string literals to parsing methods in binary mode use the binary
+    string literal form::
+
+        parser.match(b':')
+
+    Methods that return the parsed data in its original form will also
+    return bytes objects in binary mode.
+
+    Methods are named according to the type of operation they perform.
+
+        match\_*
+            Returns a boolean True or False depending on whether or not
+            a syntax production is matched at the current location. The
+            state of the parser is unchanged.  This type of method is
+            only used for very simple productions, e.g.,
+            :meth:`match_digit`.
+
+        parse\_*
+            Attempts to parse a syntax element returning an appropriate
+            object as the result or None if the production is not
+            present. The position of the parser is only changed if the
+            element was parsed successfully.  This type of method is
+            intended for fairly simple productions, e.g.,
+            :meth:`parse_integer`. More complex productions are
+            implemented using require_\* methods but the general
+            :meth:`parse_production` can be used to enable more complex
+            look-ahead scenarios.
+
+        require\_*
+            Parses a syntax production, returning an appropriate object
+            as the result.  If the production is not matched a
+            :class:`ParserError` is raised.
+
+            On success, the position of the parser points to the first
+            character after the parsed production ready to continue
+            parsing.  On failure, the parser is positioned at the
+            point at which the exception was raised.
+
+            When deriving your own sub-classes you will normally use the
+            require\_* pattern to extend the parser.
+
+    Compatibility note: if you are attempting to use the same source for
+    both Python 2 and 3 then you may not be able to rely on the parser
+    mode::
+
+        >>> from pyslet.unicode5 import BasicParser
+        >>> p = BasicParser("hello")
+        >>> p.raw
+
+    The above interpreter session will print True in Python 2 and False
+    in Python 3.  This is just another manifestation of the changes to
+    string handling between the two releases.  If you are dealing with
+    ASCII data you can ignore the issue, otherwise you should consider
+    using one of the various techniques for forcing strings to be
+    interpreted as unicode when running in Python 2.  The most important
+    thing is consistency between the type of object you pass to the
+    constructor and those that you pass to the various parsing
+    methods.  You may find the :func:`pyslet.py2.ul` and/or
+    :func:`pyslet.py2.u8` functions useful for forcing text mode."""
 
     def __init__(self, source):
         PEP8Compatibility.__init__(self)
-        self.raw = type(source) is not types.UnicodeType
-        """Indicates if source is being parsed raw (as OCTETS or plain ASCII
-		characters, or as Unicode characters.  This may affect the
-		interpretation of some productions."""
-        self.src = source		#: the string being parsed
-        self.pos = -1			#: the position of the current character
+        self.raw = not is_unicode(source)
+        """True if parser is working in binary mode."""
+        self.src = source       #: the string being parsed
+        self.pos = -1           #: the position of the current character
         self.the_char = None
-        """The current character or None if the parser is positioned outside the
-		src string."""
+        """The current character or None if the parser is positioned
+        outside the src string.
+
+        In binary mode this will be a byte, which is an integer in
+        Python 3 but a character in Python 2.  In text mode it is
+        a (unicode) character."""
+        self.last_error = None
         self.next_char()
 
-    def setpos(self, newPos):
-        """Sets the position of the parser to *newPos*"""
-        self.pos = newPos - 1
+    def setpos(self, new_pos):
+        """Sets the position of the parser to *new_pos*
+
+        Useful for saving the parser state and returning later::
+
+            save_pos = parser.pos
+            #
+            # do some look-ahead parsing
+            #
+            parser.setpos(save_pos)
+        """
+        self.pos = new_pos - 1
         self.next_char()
 
     def next_char(self):
-        """Points the parser at the next character, updating *pos* and *the_char*."""
+        """Points the parser at the next character.
+
+        Updates *pos* and *the_char*."""
         self.pos += 1
         if self.pos >= 0 and self.pos < len(self.src):
             self.the_char = self.src[self.pos]
         else:
             self.the_char = None
 
-    def peek(self, nChars):
-        """Returns a string consisting of the next *nChars* characters.
+    def parser_error(self, production=None):
+        """Raises an error encountered by the parser
 
-        If there are less than nChars remaining then a shorter string is returned."""
-        return self.src[self.pos:self.pos + nChars]
+        See :class:`ParserError` for details.
+
+        If production is None then the previous error is re-raised. If
+        multiple errors have been raised previously the one with the
+        most advanced parser position is used.  This is useful in
+        situations where there are multiple alternative productions,
+        none of which can be successfully parsed.  It allows parser
+        methods to catch the exception from the last possible choice and
+        raise an error relating to the closest previous match.  For
+        example::
+
+            def require_abc(self):
+                result = p.parse_production(p.require_a)
+                if result is None:
+                    result = p.parse_production(p.require_b)
+                if result is None:
+                    result = p.parse_production(p.require_c)
+                if result is None:
+                    # will raise the most advanced error raised during
+                    # the three previous methods
+                    p.parser_error()
+                else:
+                    return result
+
+        See :meth:`parse_production` for more details on this pattern.
+
+        The position of the parser is always set to the position of the
+        error raised."""
+        if production:
+            e = ParserError(production, self)
+        elif self.last_error is not None and self.pos <= self.last_error.pos:
+            e = self.last_error
+        else:
+            e = ParserError('', self)
+        if self.last_error is None or e.pos > self.last_error.pos:
+            self.last_error = e
+        if e.pos != self.pos:
+            self.setpos(e.pos)
+        raise e
 
     def require_production(self, result, production=None):
-        """Returns *result* if not None or raises ValueError.
+        """Returns *result* if not None or raises ParserError.
 
-        *	production can be used to customize the error message."""
+            result
+                The result of a parse_* type method.
+
+            production
+                Optional string used to customise the error message.
+
+        This method is intended to be used as a conversion function
+        allowing any parse_* method to be converted into a require_*
+        method.  E.g.::
+
+            p = BasicParser("hello")
+            num = p.require_production(p.parse_integer(), "Number")
+
+            ParserError: Expected Number at [0]"""
         if result is None:
-            if production is None:
-                raise ValueError("Error at ...%s" % self.peek(10))
-            else:
-                raise ValueError("Expected %s at ...%s" %
-                                 (production, self.peek(10)))
+            self.parser_error(production)
         else:
             return result
 
-    def parse_production(self, require_method, *args):
-        """Executes the bound method *require_method* passing *args*.
-
-        If successful the result of the method is returned.  If
-        ValueError is raised, the exception is caught, the parser
-        rewound and None is returned."""
-        savepos = self.pos
-        try:
-            return require_method(*args)
-        except ValueError:
-            self.setpos(savepos)
-            return None
-
     def require_production_end(self, result, production=None):
-        """Returns *result* if not None and parsing is complete or raises ValueError.
+        """Returns *result* if not None and parsing is complete.
 
-        *	production can be used to customize the error message."""
+        This method is similar to :meth:`require_production` except that
+        it enforces the constraint that the entire source must have been
+        parsed.  Essentially, it just calls :meth:`require_end` before
+        returning *result*."""
         result = self.require_production(result, production)
         self.require_end(production)
         return result
 
-    def match(self, matchString):
-        """Returns true if *matchString* is at the current position"""
+    def parse_production(self, require_method, *args, **kwargs):
+        """Executes the bound method *require_method*.
+
+            require_method
+                A bound method that will be called with \*args
+
+            args
+                The positional arguments to pass to require_method
+
+            kwargs
+                The keyword arguments to pass to require_method
+
+        This method is intended to be used as a conversion function
+        allowing any require_* method to be converted into a parse_*
+        method for the purposes of look-ahead.
+
+        If successful the result of the method is returned.  If any
+        ValueError (including :class:`ParserError`) is raised, the
+        exception is caught, the parser rewound and None is returned."""
+        savepos = self.pos
+        try:
+            return require_method(*args, **kwargs)
+        except ValueError:
+            self.setpos(savepos)
+            return None
+
+    def peek(self, nchars):
+        """Returns the next *nchars* characters or bytes.
+
+        If there are less than nchars remaining then a shorter string is
+        returned."""
+        return self.src[self.pos:self.pos + nchars]
+
+    def match_end(self):
+        """True if all of :attr:`src` has been parsed"""
+        return self.the_char is None
+
+    def require_end(self, production='end'):
+        """Tests that all of :attr:`src` has been parsed
+
+        There is no return result."""
+        if self.the_char is not None:
+            self.parser_error(production)
+
+    def match(self, match_string):
+        """Returns true if *match_string* is at the current position"""
         if self.the_char is None:
             return False
         else:
-            return self.src[self.pos:self.pos + len(matchString)] == matchString
+            return self.src[self.pos:self.pos +
+                            len(match_string)] == match_string
 
-    def parse(self, matchString):
-        """Returns *matchString* if *matchString* is at the current position.
+    def parse(self, match_string):
+        """Parses *match_string*
 
-        Advances the parser to the first character after matchString.  Returns
-        an *empty string* otherwise"""
-        if self.match(matchString):
-            self.setpos(self.pos + len(matchString))
-            return matchString
+        Returns *match_string* or None if it cannot be parsed."""
+        if self.match(match_string):
+            self.setpos(self.pos + len(match_string))
+            return match_string
         else:
-            return ''
+            return None
 
-    def parse_until(self, matchString):
-        """Returns all characters up until the first instance of *matchString*.
+    def require(self, match_string, production=None):
+        """Parses and requires *match_string*
 
-        Advances the parser to the first character *of* matchString.  If
-        matchString is not found (or is None) then all the remaining
-        characters in the source are parsed."""
-        if matchString is None:
-            matchPos = -1
+        match_string
+            The string to be parsed
+
+        production
+            Optional name of production, defaults to match_string itself.
+
+        For consistency, returns match_string on success."""
+        if not self.parse(match_string):
+            if production is None:
+                if self.raw:
+                    production = repr(match_string)
+                    if py2 and production and production[0] in "\"'":
+                        production = "b" + production
+                else:
+                    production = match_string
+
+            self.parser_error(production)
         else:
-            matchPos = self.src.find(matchString, self.pos)
-        if matchPos == -1:
+            return match_string
+
+    def match_insensitive(self, lower_string):
+        """Returns true if *lower_string* is matched (ignoring case).
+
+        *lower_string* must already be a lower-cased string."""
+        if self.the_char is None:
+            return False
+        else:
+            return self.src[self.pos:self.pos +
+                            len(lower_string)].lower() == lower_string
+
+    def parse_insensitive(self, lower_string):
+        """Parses *lower_string* ignoring case in the source.
+
+        lower_string
+            Must be a lower-cased string
+
+        Advances the parser to the first character after lower_string.
+        Returns the matched string which may differ in case from
+        lower_string."""
+        if self.match_insensitive(lower_string):
+            return_string = self.src[self.pos:self.pos + len(lower_string)]
+            self.setpos(self.pos + len(lower_string))
+            return return_string
+        else:
+            return None
+
+    def parse_until(self, match_string):
+        """Parses up to but not including *match_string*.
+
+        Advances the parser to the first character *of* match_string.
+        If match_string is not found (or is None) then all the remaining
+        characters in the source are parsed.
+
+        Returns the parsed text, even if empty.  Never returns None."""
+        if match_string is None:
+            match_pos = -1
+        else:
+            match_pos = self.src.find(match_string, self.pos)
+        if match_pos == -1:
             result = self.src[self.pos:]
             self.setpos(len(self.src))
         else:
-            result = self.src[self.pos:matchPos]
-            self.setpos(matchPos)
+            result = self.src[self.pos:match_pos]
+            self.setpos(match_pos)
         return result
 
-    def require(self, matchString, production=None):
-        """Parses *matchString* or raises ValueError.
-
-        *	production can be used to customize the error message."""
-        if not self.parse(matchString):
-            tail = "%s, found %s" % (
-                repr(matchString), repr(self.peek(len(matchString))))
-            if production is None:
-                raise ValueError("Expected %s" % tail)
-            else:
-                raise ValueError("%s: expected %s" % (production, tail))
-
-    def MatchOne(self, matchChars):
-        """Returns true if one of *matchChars* is at the current position"""
+    def match_one(self, match_chars):
+        """Returns true if one of *match_chars* is at the current position"""
         if self.the_char is None:
             return False
         else:
-            return self.the_char in matchChars
+            return self.the_char in match_chars
 
-    def parse_one(self, matchChars):
-        """Parses one of *matchChars*.  Returns the character or None if no match is found."""
-        if self.MatchOne(matchChars):
+    def parse_one(self, match_chars):
+        """Parses one of *match_chars*.
+
+        match_chars
+            A *string* of characters or bytes
+
+        Returns the character (or byte) or None if no match is found.
+
+        Warning: in binary mode, this method will return a single byte
+        value, the type of which will differ in Python 2.  In Python 3,
+        bytes are integers, in Python 2 they are binary strings of
+        length 1.  You can use the function :func:`py2.byte` to help
+        ensure your source works on both platforms, for example::
+
+            from .py2 import byte
+            c = parser.parse_one(b"+-")
+            if c == byte(b"+"):
+                # do plus thing...
+            elif c:
+                # must be minus...
+            else:
+                # do something else...
+        """
+        if self.match_one(match_chars):
             result = self.the_char
             self.next_char()
             return result
         else:
             return None
 
-    def MatchInsensitive(self, lowerString):
-        """Returns true if *lowerString* is at the current position (ignoring case).
+    u_digits = ul("0123456789")
+    b_digits = b"0123456789"
 
-        *lowerString* must be a lower-cased string."""
-        if self.the_char is None:
-            return False
+    def match_digit(self):
+        """Returns true if the current character is a digit
+
+        Only ASCII digits are considered, in binary mode byte values
+        0x30 to 0x39 are matched."""
+        if self.raw:
+            return self.match_one(self.b_digits)
         else:
-            return self.src[self.pos:self.pos + len(lowerString)].lower() == lowerString
+            return self.match_one(self.u_digits)
 
-    def parse_insensitive(self, lowerString):
-        """Returns *lowerString* if *lowerString* is at the current position (ignoring case).
+    def parse_digit(self):
+        """Parses a digit character.
 
-        Advances the parser to the first character after matchString.  Returns
-        an *empty string* otherwise.  *lowerString& must be a lower-cased
-        string."""
-        if self.MatchInsensitive(lowerString):
-            self.setpos(self.pos + len(lowerString))
-            return lowerString
+        Returns the digit character/byte, or None if no digit is found.
+        Like :meth:`match_digit` only ASCII digits are parsed."""
+        if self.raw:
+            return self.parse_one(self.b_digits)
         else:
-            return ''
-
-    def MatchDigit(self):
-        """Returns true if the current character is a digit"""
-        return self.MatchOne("0123456789")
-
-    def ParseDigit(self):
-        """Parses a digit character.  Returns the digit, or None if no digit is found."""
-        return self.parse_one("0123456789")
+            return self.parse_one(self.u_digits)
 
     def parse_digits(self, min, max=None):
-        """Parses min digits, and up to max digits, returning the string of digits.
+        """Parses a string of digits
 
-        If *max* is None then there is no maximum.
+        min
+            The minimum number of digits to parse.  There is a special
+            cases where min=0, in this case an empty string may be
+            returned.
 
-        If min digits can't be parsed then None is returned."""
+        max (default None)
+            The maximum number of digits to parse, or None there is no
+            maximum.
+
+        Returns the string of digits or None if no digits can be parsed.
+        Like :meth:`parse_digit`, only ASCII digits are considered."""
+        if min < 0 or (max is not None and min > max):
+            raise ValueError("min must be > 0")
         savepos = self.pos
         result = []
         while max is None or len(result) < max:
-            d = self.ParseDigit()
+            d = self.parse_digit()
             if d is None:
                 break
             else:
@@ -798,64 +1135,95 @@ class BasicParser(PEP8Compatibility):
         if len(result) < min:
             self.setpos(savepos)
             return None
-        return string.join(result, '')
+        if self.raw:
+            return join_bytes(result)
+        else:
+            return ul('').join(result)
 
-    def parse_integer(self, min=None, max=None, maxDigits=None):
-        """Parses an integer (or long) with value between min and max, returning the integer.
+    def parse_integer(self, min=None, max=None, max_digits=None):
+        """Parses an integer (or long).
 
-        *	*min* can be None to indicate no lower limit
+        min (optional, defaults to None)
+            A lower bound on the acceptable integer value, the
+            result will always be >= min on success
 
-        *	*max* can be None to indicate no upper limit
+        max (optional, defaults to None)
+            An upper bound on the acceptable integer value, the
+            result will always be <= max on success
 
-        *	*maxDigits* sets a limit on the number of digits
+        max_digits (optional, defaults to None)
+            The limit on the number of digits, i.e., the field width.
 
-        If a suitable integer can't be parsed then None is returned."""
+        If a suitable integer can't be parsed then None is returned.
+        This method only processes ASCII digits.
+
+        Warning: in Python 2 the result may be of type long."""
+        if min is None:
+            min = 0
+        if min < 0 or (max is not None and max < min):
+            raise ValueError("0 <= min <= max required")
         savepos = self.pos
-        d = self.parse_digits(1, maxDigits)
+        d = self.parse_digits(1, max_digits)
         if d is None:
             return None
         else:
             d = int(d)
-            if (min is not None and d < min) or (max is not None and d > max):
+            if d < min or (max is not None and d > max):
                 self.setpos(savepos)
                 return None
             return d
 
-    def MatchHexDigit(self):
-        """Returns true if the current character is a hex-digit"""
-        return self.MatchOne("0123456789ABCDEFabcdef")
+    u_hex_digits = ul("0123456789abcdefABCDEF")
+    b_hex_digits = b"0123456789abcdefABCDEF"
 
-    def ParseHexDigit(self):
-        """Parses a hex-digit character.  Returns the digit, or None if no digit is found."""
-        return self.parse_one("0123456789ABCDEFabcdef")
+    def match_hex_digit(self):
+        """Returns true if the current character is a hex-digit
+
+        Only ASCII digits are considered, letters can be either upper or
+        lower case.  In binary mode byte values 0x30 to 0x39, 0x41-0x46
+        and 0x61-0x66 are matched."""
+        if self.raw:
+            return self.match_one(self.b_hex_digits)
+        else:
+            return self.match_one(self.u_hex_digits)
+
+    def parse_hex_digit(self):
+        """Parses a hex-digit.
+
+        Returns the digit, or None if no digit is found.  See
+        :meth:`match_hex_digit` for which characters/bytes are
+        considered hex-digits."""
+        if self.raw:
+            return self.parse_one(self.b_hex_digits)
+        else:
+            return self.parse_one(self.u_hex_digits)
 
     def parse_hex_digits(self, min, max=None):
-        """Parses min hex digits, and up to max hex digits, returning the string of hex digits.
+        """Parses a string of hex-digits
 
-        If *max* is None then there is no maximum.
+        min
+            The minimum number of hex-digits to parse.  There is a
+            special cases where min=0, in this case an empty string may
+            be returned.
 
-        If min digits can't be parsed then None is returned."""
+        max (default None)
+            The maximum number of hex-digits to parse, or None there is
+            no maximum.
+
+        Returns the string of hex-digits or None if no digits can be
+        parsed. See :meth:`match_hex_digit` for which characters/bytes
+        are considered hex-digits."""
+        if min < 0 or (max is not None and min > max):
+            raise ValueError("min must be > 0")
         savepos = self.pos
-        result = []
-        while max is None or len(result) < max:
-            d = self.ParseHexDigit()
+        rlen = 0
+        while max is None or rlen < max:
+            d = self.parse_hex_digit()
             if d is None:
                 break
             else:
-                result.append(d)
-        if len(result) < min:
+                rlen += 1
+        if rlen < min:
             self.setpos(savepos)
             return None
-        return string.join(result, '')
-
-    def MatchEnd(self):
-        return self.the_char is None
-
-    def require_end(self, production=None):
-        if self.the_char is not None:
-            if production:
-                tail = " after %s" % production
-            else:
-                tail = ""
-            raise ValueError("Spurious data%s, found %s" %
-                             (tail, repr(self.peek(10))))
+        return self.src[savepos:savepos + rlen]

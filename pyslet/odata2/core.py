@@ -12,7 +12,7 @@ import warnings
 import io
 from types import *
 
-from pyslet.unicode5 import CharClass, DetectEncoding
+from pyslet.unicode5 import CharClass, detect_encoding
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
@@ -1362,7 +1362,7 @@ class Parser(edm.Parser):
                             name = None
                             self.setpos(savepos)
                             pass
-                    # if name is None and (self.MatchOne(",)") or self.MatchEnd()):
+                    # if name is None and (self.match_one(",)") or self.match_end()):
                     # indicates the end of this common expression
                     if name is None:
                         while leftOp is not None:
@@ -1582,24 +1582,24 @@ class Parser(edm.Parser):
         a letter and continue with a letter, number or underscore."""
         if self.SimpleIdentifierStartClass is None:
             self.SimpleIdentifierStartClass = CharClass(
-                CharClass.UCDCategory(u"L"))
-            self.SimpleIdentifierStartClass.AddClass(
-                CharClass.UCDCategory(u"Nl"))
+                CharClass.ucd_category(u"L"))
+            self.SimpleIdentifierStartClass.add_class(
+                CharClass.ucd_category(u"Nl"))
         if self.SimpleIdentifierClass is None:
             self.SimpleIdentifierClass = CharClass(
                 self.SimpleIdentifierStartClass)
             for c in ['Nd', 'Mn', 'Mc', 'Pc', 'Cf']:
-                self.SimpleIdentifierClass.AddClass(CharClass.UCDCategory(c))
+                self.SimpleIdentifierClass.add_class(CharClass.ucd_category(c))
         savepos = self.pos
         result = []
         while True:
             # each segment must start with a start character
-            if self.the_char is None or not self.SimpleIdentifierStartClass.Test(self.the_char):
+            if self.the_char is None or not self.SimpleIdentifierStartClass.test(self.the_char):
                 self.setpos(savepos)
                 return None
             result.append(self.the_char)
             self.next_char()
-            while self.the_char is not None and self.SimpleIdentifierClass.Test(self.the_char):
+            while self.the_char is not None and self.SimpleIdentifierClass.test(self.the_char):
                 result.append(self.the_char)
                 self.next_char()
             if not self.parse('.'):
@@ -1615,7 +1615,7 @@ class Parser(edm.Parser):
             while True:
                 startPos = self.pos
                 while not self.parse("'"):
-                    if self.MatchEnd():
+                    if self.match_end():
                         raise ValueError(
                             "Unterminated quote in literal string")
                     self.next_char()
@@ -1655,7 +1655,7 @@ class Parser(edm.Parser):
             return edm.EDMValue.NewSimpleValue(None)
         elif name is None and self.match("'"):
             return self.ParseStringURILiteral()
-        elif name is None and self.MatchOne('-.0123456789'):
+        elif name is None and self.match_one('-.0123456789'):
             # one of the number forms (perhaps)
             num = self.ParseNumericLiteral()
             if num is None:

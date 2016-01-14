@@ -19,7 +19,7 @@ import pyslet.http.messages as messages
 import pyslet.rfc2396 as uri
 import pyslet.xml20081126.structures as xml
 import pyslet.html40_19991224 as html
-from pyslet.unicode5 import DetectEncoding
+from pyslet.unicode5 import detect_encoding
 import csdl as edm
 import core as core
 import metadata as edmx
@@ -1124,7 +1124,7 @@ class Server(app.Server):
         unicodeInput = None
         if encoding is None:
             # read a line, at most 4 bytes
-            encoding = DetectEncoding(input.readline(4))
+            encoding = detect_encoding(input.readline(4))
             if encoding is None:
                 encoding = 'iso-8859-1'
             input.seek(0)

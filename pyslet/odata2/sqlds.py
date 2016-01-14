@@ -514,7 +514,7 @@ class SQLCollectionBase(core.EntityCollection):
                     p.require_production(p.ParseURILiteral()))
                 p.ParseWSP()
                 if not p.parse(','):
-                    if p.MatchEnd():
+                    if p.match_end():
                         break
                     else:
                         raise core.InvalidSystemQueryOption(

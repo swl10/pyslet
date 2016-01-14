@@ -4,9 +4,15 @@
 import sys
 import logging
 import io
-import types
 import zipfile
 from wsgiref.simple_server import ServerHandler
+
+from pyslet.py2 import is_text
+
+
+py26 = sys.hexversion < 0x02070000
+"""If you must know whether or not you are running under Python 2.6
+then you can check using this flag,which is True in that case."""
 
 
 def finish_content(self):
@@ -23,7 +29,7 @@ def is_zipfile(filename):
     # patched to accept a file that is already open we use the
     # _EndRecData method directly, we're all grown-ups here
     try:
-        if isinstance(filename, (types.StringTypes)):
+        if is_text(filename):
             fpin = open(filename, "rb")
             endrec = zipfile._EndRecData(fpin)
             fpin.close()
@@ -36,7 +42,7 @@ def is_zipfile(filename):
     return False
 
 
-if sys.hexversion < 0x02070000:
+if py26:
     logging.info("Adding missing constants to py26.io")
     io.SEEK_SET = 0
     io.SEEK_CUR = 1
@@ -52,7 +58,3 @@ if sys.hexversion < 0x02070000:
 
     logging.info("Patching zipfile.is_zipfile for open files")
     zipfile.is_zipfile = is_zipfile
-
-    py26 = True
-else:
-    py26 = False

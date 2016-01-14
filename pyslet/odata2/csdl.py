@@ -624,7 +624,7 @@ class Parser(xsi.BasicParser):
         #   binaryLiteral = hexDigPair
         #   hexDigPair = 2*HEXDIG [hexDigPair]"""
         output = []
-        hexStr = self.parse_hex_digits(0)
+        hexStr = self.parse_hex_digits(1)
         if hexStr is None:
             return ''
         if len(hexStr) % 2:

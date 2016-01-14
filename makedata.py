@@ -4,5 +4,5 @@
 import pyslet.unicode5 as unicode5
 
 if __name__ == "__main__":
-	unicode5.ParseCategoryTable()
-	unicode5.ParseBlockTable()
+	unicode5.parse_category_table()
+	unicode5.parse_block_table()

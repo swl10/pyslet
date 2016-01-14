@@ -3434,10 +3434,10 @@ class XMLParser(PEP8Compatibility):
         Returns the encoding name as a string or None if no valid
         encoding name start character was found."""
         name = []
-        if xml.EncNameStartCharClass.Test(self.the_char):
+        if xml.EncNameStartCharClass.test(self.the_char):
             name.append(self.the_char)
             self.next_char()
-            while xml.EncNameCharClass.Test(self.the_char):
+            while xml.EncNameCharClass.test(self.the_char):
                 name.append(self.the_char)
                 self.next_char()
         if name:

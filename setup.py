@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
+import logging
 import sys
 import pyslet.info
 
 if sys.hexversion < 0x02060000:
-    print "pyslet requires Python Version 2.6 (or greater)"
+    logging.error("pyslet requires Python Version 2.6 (or greater)")
 else:
     try:
         from setuptools import setup

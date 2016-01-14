@@ -1,32 +1,24 @@
 Compatibility
 =============
 
+.. toctree::
+   :hidden:
+
+   py26
+   py2
+   pep8
+
+
 Pyslet requires Python 2.6 or Python 2.7, with Python 2.7 being
 preferred.
 
 Python 2.6
 ~~~~~~~~~~
 
-When run under Python 2.6 Pyslet will patch the following
-modules to make them more compatible with Python 2.7 code.
+When run under Python 2.6 Pyslet will patch some modules to make them
+more compatible with Python 2.7 code.  For details see:
 
-zipfile
-    Patches is_zipfile to add support for passing open files which is
-    allowed under Python 2.7 but not under 2.6.
-    
-wsgiref.simple_server
-    Modifies the behaviour of the WSGI server when procssing HEAD requests
-    so that Content-Length headers are not stripped.  There is an issue
-    in Python 2.6 that causes HEAD requests to return a Content-Length of
-    0 if the WSGI application does not return any data.  The behaviour
-    changed in Python 2.7 to be more as expected.
-
-io
-    Benign addition of the SEEK_* constants as defined in Python 2.7.
-
-This patching is done at run time by the pyslet.py26 module and will
-affect any script that uses Pyslet. It does not modify your Python
-installation!
+:doc:`py26`
 
 Earlier versions of Python 2.6 have typically been built with a version
 of sqlite3 that does not support validation of foreign key constraints,
@@ -50,17 +42,30 @@ Python 3
 ~~~~~~~~
 
 Pyslet is not currently compatible with Python 3, though some work has
-been towards a Python 3 version and the unittests are regularly run with
-the -3 flag to check for issues.  Try running your own code that uses
-Pyslet with python options -3Wd to expose any issues that you are likely
-to need to fix on any future transition.
+been done towards a Python 3 version and the unittests are regularly run
+with the -3 flag to check for issues.  Try running your own code that
+uses Pyslet with python options -3Wd to expose any issues that you are
+likely to need to fix on any future transition.
+
+Work has now started on porting the core modules to be compatible with
+Python 3.3 (Pyslet may require use of the 'u' on unicode strings for
+some time so compatibility with Python 3 versions earlier than 3.3 is
+unlikely).  Rather than just fix up the existing code using a module
+like six Pyslet now includes it's own module containing compatibility
+definitions that target the particular idioms I've used in the package.
+
+:doc:`py2`
+
 
 PEP-8
 ~~~~~
 
 The code is not currently PEP-8 compliant but it is slowly being
 refactored for compliance as modules are touched during development. 
-Where critical methods are renamed from CamelCase to PEP-8 compliant
+Where critical, methods are renamed from CamelCase to PEP-8 compliant
 lower_case_form then the old names are defined as wrappers which raise
 deprecation warnings.
 
+For more information see:
+
+:doc:`pep8`

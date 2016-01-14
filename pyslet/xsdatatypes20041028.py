@@ -708,19 +708,19 @@ class RegularExpressionError(Exception):
 
 sClass = CharClass(u'\x09', u'\x0A', u'\x0D', u' ')
 SClass = CharClass(sClass)
-SClass.Negate()
+SClass.negate()
 iClass = CharClass(LetterCharClass, u'_', u':')
 IClass = CharClass(iClass)
-IClass.Negate()
+IClass.negate()
 CClass = CharClass(NameCharClass)
-CClass.Negate()
-dClass = CharClass.UCDCategory('Nd')
+CClass.negate()
+dClass = CharClass.ucd_category('Nd')
 DClass = CharClass(dClass)
-DClass.Negate()
-WClass = CharClass(CharClass.UCDCategory(
-    'P'), CharClass.UCDCategory('Z'), CharClass.UCDCategory('C'))
+DClass.negate()
+WClass = CharClass(CharClass.ucd_category(
+    'P'), CharClass.ucd_category('Z'), CharClass.ucd_category('C'))
 wClass = CharClass(WClass)
-wClass.Negate()
+wClass.negate()
 
 
 class RegularExpressionParser(BasicParser):
@@ -757,13 +757,13 @@ class RegularExpressionParser(BasicParser):
     def ParseBranch(self):
         """Returns a unicode string representing this piece as a python regular expression."""
         result = []
-        while self.IsChar() or self.MatchOne(u".\\[("):
+        while self.IsChar() or self.match_one(u".\\[("):
             result.append(self.ParsePiece())
         return string.join(result, '')
 
     def ParsePiece(self):
         result = self.ParseAtom()
-        if self.MatchOne("?*+{"):
+        if self.match_one("?*+{"):
             n, m = self.ParseQuantifier()
             if n == 0:
                 if m is None:
@@ -825,7 +825,7 @@ class RegularExpressionParser(BasicParser):
         m = None
         if self.the_char == u",":
             self.next_char()
-            if self.MatchOne(u"0123456789"):
+            if self.match_one(u"0123456789"):
                 m = self.ParseQuantExact()
                 if n > m:
                     raise RegularExpressionError(
@@ -838,7 +838,7 @@ class RegularExpressionParser(BasicParser):
         """Returns an integer."""
         result = 0
         nDigits = 0
-        while self.MatchOne(u"0123456789"):
+        while self.match_one(u"0123456789"):
             result = result * 10 + ord(self.the_char) - 0x30
             self.next_char()
             nDigits += 1
@@ -913,7 +913,7 @@ class RegularExpressionParser(BasicParser):
         if self.the_char == u"-":
             self.next_char()
             subClass = self.ParseCharClassExpr()
-            cClass.SubtractClass(subClass)
+            cClass.subtract_class(subClass)
         return cClass
 
     def ParsePosCharGroup(self):
@@ -928,7 +928,7 @@ class RegularExpressionParser(BasicParser):
                     # a subtraction
                     break
                 elif self.match(u"-]") or self.match(u"--["):
-                    cClass.AddChar(u"-")
+                    cClass.add_char(u"-")
                     self.next_char()
                     break
                 else:
@@ -936,14 +936,14 @@ class RegularExpressionParser(BasicParser):
                     raise RegularExpressionError(
                         "hyphen must be first or last character in posCharGroup [%i]" % self.pos)
             try:
-                cClass.AddClass(self.ParseCharRange())
+                cClass.add_class(self.ParseCharRange())
                 nRanges += 1
                 continue
             except RegularExpressionError:
                 self.setpos(savepos)
                 pass
             try:
-                cClass.AddClass(self.ParseCharClassEsc())
+                cClass.add_class(self.ParseCharClassEsc())
                 nRanges += 1
                 continue
             except RegularExpressionError:
@@ -962,7 +962,7 @@ class RegularExpressionParser(BasicParser):
             # we have a negative range
             self.next_char()
             cClass = self.ParsePosCharGroup()
-            cClass.Negate()
+            cClass.negate()
             return cClass
         else:
             raise RegularExpressionError(
@@ -979,7 +979,7 @@ class RegularExpressionParser(BasicParser):
         if self.the_char == u"-":
             self.next_char()
             subClass = self.ParseCharClassExpr()
-            cClass.SubtractClass(subClass)
+            cClass.subtract_class(subClass)
             return cClass
         else:
             raise RegularExpressionError("Expected - at [%i]" % self.pos)
@@ -1097,7 +1097,7 @@ class RegularExpressionParser(BasicParser):
             cClass = CharClass(self.ParseCharProp())
             if self.the_char == '}':
                 self.next_char()
-                cClass.Negate()
+                cClass.negate()
                 return cClass
         raise RegularExpressionError("Expected \\P{...} at [%i]" % self.pos)
 
@@ -1159,7 +1159,7 @@ class RegularExpressionParser(BasicParser):
             if self.the_char is not None and (cat + self.the_char) in self.Categories:
                 cat = cat + self.the_char
                 self.next_char()
-            return CharClass.UCDCategory(cat)
+            return CharClass.ucd_category(cat)
         else:
             raise RegularExpressionError(
                 "Expected category name [%i]" % self.pos)
@@ -1173,13 +1173,13 @@ class RegularExpressionParser(BasicParser):
     def ParseIsBlock(self):
         """Returns a CharClass corresponding to one of the Unicode blocks."""
         block = []
-        while self.IsBlockClass.Test(self.the_char):
+        while self.IsBlockClass.test(self.the_char):
             block.append(self.the_char)
             self.next_char()
         block = string.join(block, '')
         if block.startswith("Is"):
             try:
-                return CharClass.UCDBlock(block[2:])
+                return CharClass.ucd_block(block[2:])
             except KeyError:
                 raise RegularExpressionError(
                     "Invalid IsBlock name: %s" % block[2:])

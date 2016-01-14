@@ -470,7 +470,7 @@ class ProductToken(object):
             # parse an item
             vitem = []
             modifier = []
-            while not p.match(".") and not p.MatchEnd():
+            while not p.match(".") and not p.match_end():
                 num = p.parse_integer()
                 if num is None:
                     if not vitem:

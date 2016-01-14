@@ -461,9 +461,9 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
             for c in t1:
-                self.assertTrue(cClass.Test(c), "%s not in %s" % (repr(c), b))
+                self.assertTrue(cClass.test(c), "%s not in %s" % (repr(c), b))
             for c in t2:
-                self.assertFalse(cClass.Test(c), "%s in %s" % (repr(c), b))
+                self.assertFalse(cClass.test(c), "%s in %s" % (repr(c), b))
 
     def testCharClassExpr(self):
         """::
@@ -483,9 +483,9 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
             for c in t1:
-                self.assertTrue(cClass.Test(c), "%s not in %s" % (repr(c), b))
+                self.assertTrue(cClass.test(c), "%s not in %s" % (repr(c), b))
             for c in t2:
-                self.assertFalse(cClass.Test(c), "%s in %s" % (repr(c), b))
+                self.assertFalse(cClass.test(c), "%s in %s" % (repr(c), b))
 
     def testCharGroup(self):
         """::
@@ -505,9 +505,9 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
             for c in t1:
-                self.assertTrue(cClass.Test(c), "%s not in %s" % (repr(c), b))
+                self.assertTrue(cClass.test(c), "%s not in %s" % (repr(c), b))
             for c in t2:
-                self.assertFalse(cClass.Test(c), "%s in %s" % (repr(c), b))
+                self.assertFalse(cClass.test(c), "%s in %s" % (repr(c), b))
 
     def testPosCharGroup(self):
         """::
@@ -518,7 +518,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
         for i in xrange(256):
             c = unichr(i)
             self.assertTrue(
-                cClass.Test(c) == (c in test), "Bad test on character: %s" % repr(c))
+                cClass.test(c) == (c in test), "Bad test on character: %s" % repr(c))
         # The - character is a valid character range only at the beginning or
         # end of a positive character group
         p = RegularExpressionParser(u"-a-c")
@@ -541,7 +541,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
         for i in xrange(256):
             c = unichr(i)
             self.assertTrue(
-                cClass.Test(c) != (c in test), "Bad test on character: %s" % repr(c))
+                cClass.test(c) != (c in test), "Bad test on character: %s" % repr(c))
         p = RegularExpressionParser(u"^-a-c")
         cClass = p.ParseNegCharGroup()
         p = RegularExpressionParser(u"^a-c-]")
@@ -574,9 +574,9 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
             for c in t1:
-                self.assertTrue(cClass.Test(c), "%s not in %s" % (repr(c), b))
+                self.assertTrue(cClass.test(c), "%s not in %s" % (repr(c), b))
             for c in t2:
-                self.assertFalse(cClass.Test(c), "%s in %s" % (repr(c), b))
+                self.assertFalse(cClass.test(c), "%s in %s" % (repr(c), b))
 
     def testCharRange(self):
         """::
@@ -611,9 +611,9 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
             for c in t1:
-                self.assertTrue(cClass.Test(c), "%s not in %s" % (repr(c), b))
+                self.assertTrue(cClass.test(c), "%s not in %s" % (repr(c), b))
             for c in t2:
-                self.assertFalse(cClass.Test(c), "%s in %s" % (repr(c), b))
+                self.assertFalse(cClass.test(c), "%s in %s" % (repr(c), b))
         p = RegularExpressionParser("c-a")
         try:
             cClass = p.ParseSERange()
@@ -680,9 +680,9 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
             for c in t1:
-                self.assertTrue(cClass.Test(c), "%s not in %s" % (repr(c), b))
+                self.assertTrue(cClass.test(c), "%s not in %s" % (repr(c), b))
             for c in t2:
-                self.assertFalse(cClass.Test(c), "%s in %s" % (repr(c), b))
+                self.assertFalse(cClass.test(c), "%s in %s" % (repr(c), b))
 
     def testCaseSingleCharEsc(self):
         """::
@@ -736,9 +736,9 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
             for c in t1:
-                self.assertTrue(cClass.Test(c), "%s not in %s" % (repr(c), b))
+                self.assertTrue(cClass.test(c), "%s not in %s" % (repr(c), b))
             for c in t2:
-                self.assertFalse(cClass.Test(c), "%s in %s" % (repr(c), b))
+                self.assertFalse(cClass.test(c), "%s in %s" % (repr(c), b))
 
     def testCaseComplEsc(self):
         """::
@@ -755,9 +755,9 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
             for c in t1:
-                self.assertTrue(cClass.Test(c), "%s not in %s" % (repr(c), b))
+                self.assertTrue(cClass.test(c), "%s not in %s" % (repr(c), b))
             for c in t2:
-                self.assertFalse(cClass.Test(c), "%s in %s" % (repr(c), b))
+                self.assertFalse(cClass.test(c), "%s in %s" % (repr(c), b))
 
     def testCaseCharProp(self):
         """::
@@ -777,9 +777,9 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
             for c in t1:
-                self.assertTrue(cClass.Test(c), "%s not in %s" % (repr(c), b))
+                self.assertTrue(cClass.test(c), "%s not in %s" % (repr(c), b))
             for c in t2:
-                self.assertFalse(cClass.Test(c), "%s in %s" % (repr(c), b))
+                self.assertFalse(cClass.test(c), "%s in %s" % (repr(c), b))
 
     def testCaseIsCategory(self):
         """::
@@ -820,9 +820,9 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
             for c in t1:
-                self.assertTrue(cClass.Test(c), "%s not in %s" % (repr(c), b))
+                self.assertTrue(cClass.test(c), "%s not in %s" % (repr(c), b))
             for c in t2:
-                self.assertFalse(cClass.Test(c), "%s in %s" % (repr(c), b))
+                self.assertFalse(cClass.test(c), "%s in %s" % (repr(c), b))
 
     def testCaseIsBlock(self):
         """::
@@ -840,9 +840,9 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
             for c in t1:
-                self.assertTrue(cClass.Test(c), "%s not in %s" % (repr(c), b))
+                self.assertTrue(cClass.test(c), "%s not in %s" % (repr(c), b))
             for c in t2:
-                self.assertFalse(cClass.Test(c), "%s in Is%s" % (repr(c), b))
+                self.assertFalse(cClass.test(c), "%s in Is%s" % (repr(c), b))
         p = RegularExpressionParser(u"IsNumberFoams")
         try:
             cClass = p.ParseIsBlock()
@@ -871,13 +871,13 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             t1, t2 = tests[c]
             for c1 in t1:
                 self.assertTrue(
-                    cClass1.Test(c1), "%s not in \\%s" % (repr(c1), c))
+                    cClass1.test(c1), "%s not in \\%s" % (repr(c1), c))
                 self.assertFalse(
-                    cClass2.Test(c1), "%s in \\%s" % (repr(c1), c.upper()))
+                    cClass2.test(c1), "%s in \\%s" % (repr(c1), c.upper()))
             for c2 in t2:
                 self.assertFalse(
-                    cClass1.Test(c2), "%s in \\%s" % (repr(c2), c))
-                self.assertTrue(cClass2.Test(c2), "%s in \\%s" %
+                    cClass1.test(c2), "%s in \\%s" % (repr(c2), c))
+                self.assertTrue(cClass2.test(c2), "%s in \\%s" %
                                 (repr(c2), c.upper()))
         p = RegularExpressionParser(u"\\x")
         try:
@@ -892,15 +892,15 @@ class XSRegularExpressionParserTests(unittest.TestCase):
         p = RegularExpressionParser(u".*")
         cClass = p.ParseWildcardEsc()
         self.assertTrue(p.pos == 1)
-        self.assertFalse(cClass.Test(u"\x0A"), "Line feed in .")
-        self.assertFalse(cClass.Test(u"\x0D"), "Carriage return in .")
+        self.assertFalse(cClass.test(u"\x0A"), "Line feed in .")
+        self.assertFalse(cClass.test(u"\x0D"), "Carriage return in .")
         for i in xrange(100):
             # do a few random tests
             j = random.randint(0, maxunicode)
             if j in (10, 13):
                 continue
             self.assertTrue(
-                cClass.Test(unichr(j)), "Random char not in . unichr(%04X)" % j)
+                cClass.test(unichr(j)), "Random char not in . unichr(%04X)" % j)
         p = RegularExpressionParser(u"x")
         try:
             cClass = p.ParseWildcardEsc()

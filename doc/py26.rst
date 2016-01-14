@@ -1,0 +1,29 @@
+Python 2.6 Compatibility
+========================
+
+.. py:module:: pyslet.py26
+
+When imported, this module modifies a number of standard modules.  This
+patching is done at run time by the pyslet.py26 module and will affect
+any script that uses Pyslet. It does not modify your Python installation!
+
+
+io
+    Benign addition of the SEEK_* constants as defined in Python 2.7.
+
+wsgiref.simple_server
+    Modifies the behaviour of the WSGI server when procssing HEAD requests
+    so that Content-Length headers are not stripped.  There is an issue
+    in Python 2.6 that causes HEAD requests to return a Content-Length of
+    0 if the WSGI application does not return any data.  The behaviour
+    changed in Python 2.7 to be more as expected.
+
+zipfile
+    Patches is_zipfile to add support for passing open files which is
+    allowed under Python 2.7 but not under 2.6.
+    
+
+Module Reference
+----------------
+
+..	autodata::	py26

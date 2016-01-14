@@ -672,7 +672,7 @@ def IsDiscouraged(c):
 
     Note that this test is currently limited to the range of unicode characters
     available in the narrow python build."""
-    return DiscouragedCharClass.Test(c)
+    return DiscouragedCharClass.test(c)
 
 
 def is_s(c):
@@ -786,7 +786,7 @@ def IsNameStartChar(c):
         else:
             return c == u"_"
     else:
-        return NameStartCharClass.Test(c)
+        return NameStartCharClass.test(c)
 
 NameCharClass = CharClass(
     NameStartCharClass,
@@ -821,7 +821,7 @@ def IsNameChar(c):
             else:
                 return c == u"_"
         else:
-            return NameCharClass.Test(c)
+            return NameCharClass.test(c)
     return False
 
 
@@ -852,7 +852,7 @@ PubidCharClass = CharClass(u' ', u'\x0d', u'\x0a', (u'0', u'9'), (u'A', u'Z'),
 
 def IsPubidChar(c):
     """Tests if the character *c* matches production for [13] PubidChar."""
-    return PubidCharClass.Test(c)
+    return PubidCharClass.test(c)
 
 
 def EscapeCDSect(src):
@@ -3404,7 +3404,7 @@ BaseCharClass = CharClass((u'A', u'Z'), (u'a', u'z'), (u'\xc0', u'\xd6'),
 
 def IsBaseChar(c):
     """Tests if the character *c* matches production [85] BaseChar."""
-    return BaseCharClass.Test(c)
+    return BaseCharClass.test(c)
 
 
 def IsIdeographic(c):
@@ -3467,7 +3467,7 @@ CombiningCharClass = CharClass((u'\u0300', u'\u0345'), (u'\u0360', u'\u0361'),
 
 def IsCombiningChar(c):
     """Tests if the character *c* matches production [87] CombiningChar."""
-    return CombiningCharClass.Test(c)
+    return CombiningCharClass.test(c)
 
 DigitClass = CharClass((u'0', u'9'), (u'\u0660', u'\u0669'),
                        (u'\u06f0', u'\u06f9'), (u'\u0966',
@@ -3483,7 +3483,7 @@ DigitClass = CharClass((u'0', u'9'), (u'\u0660', u'\u0669'),
 
 def is_digit(c):
     """Tests if the character *c* matches production [88] Digit."""
-    return DigitClass.Test(c)
+    return DigitClass.test(c)
 
 
 @renamed_function
@@ -3510,7 +3510,7 @@ ExtenderClass = CharClass(
 
 def IsExtender(c):
     """Tests if the character *c* matches production [89] Extender."""
-    return ExtenderClass.Test(c)
+    return ExtenderClass.test(c)
 
 
 EncNameStartCharClass = CharClass((u'A', u'Z'), (u'a', u'z'))
@@ -3568,7 +3568,7 @@ def ParseXMLClass(classDefStr):
             if a > maxunicode:
                 print "Warning: character outside narrow python build (%X)" % a
             else:
-                c.AddChar(unichr(a))
+                c.add_char(unichr(a))
         elif len(rangeDef) == 2:
             a, b = rangeDef
             if a > maxunicode:
@@ -3576,9 +3576,9 @@ def ParseXMLClass(classDefStr):
             elif b > maxunicode:
                 print "Warning: character range truncated due to narrow python build (%X-%X)" % (a, b)
                 b = maxunicode
-                c.AddRange(unichr(a), unichr(b))
+                c.add_range(unichr(a), unichr(b))
             else:
-                c.AddRange(unichr(a), unichr(b))
+                c.add_range(unichr(a), unichr(b))
     print repr(c)
 
 

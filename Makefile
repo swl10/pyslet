@@ -3,6 +3,8 @@
 help:
 	@echo "clean-build - remove build artifacts"
 	@echo "clean-pyc - remove Python file artifacts"
+	@echo "clean-docs - remove docs"
+	@echo "clean-cov - remove coverage report"
 	@echo "test - run tests with the default Python"
 	@echo "test27 - run tests with python2.7"
 	@echo "test3 - run tests with default python and "-3 -Wd -W module -t" options
@@ -12,8 +14,9 @@ help:
 	@echo "pep8s - PEP-8 compliance statistics using pep8"
 	@echo "flake8 - PEP-8 compliance check using flake8"
 	@echo "flake8s - PEP-8 compliance statistics using flake8"
-
-clean: clean-build clean-pyc
+	@echo "coverage - run coverage to check test coverage"
+	 
+clean: clean-build clean-pyc clean-docs clean-cov
 	
 clean-pyc:
 	find . -name '*.pyc' -exec rm -f {} +
@@ -22,6 +25,12 @@ clean-build:
 	rm -fr build/
 	rm -fr dist/
 	rm -fr *.egg-info
+
+clean-docs:
+	rm -fr htmldocs/
+
+clean-cov:
+	rm -fr htmlcov/
 
 test:
 	python unittests/test.py
@@ -60,4 +69,9 @@ flake8:
 
 flake8s: flake8
 	flake8 --statistics -qq pyslet
+
+coverage:
+	coverage run unittests/test.py
+	coverage html
+	open htmlcov/index.html
 	

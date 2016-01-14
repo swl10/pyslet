@@ -21,7 +21,6 @@ Contents
 * :ref:`modindex`
 * :ref:`search`
 
-
 .. include:: ../README.rst
 
 

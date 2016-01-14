@@ -330,7 +330,7 @@ class OctetParser(BasicParser):
         ambiguous at this point."""
         ctext = []
         while self.the_char is not None:
-            if self.MatchOne("()\\"):
+            if self.match_one("()\\"):
                 break
             else:
                 t = self.parse_onetext(unfold)
@@ -390,7 +390,7 @@ class OctetParser(BasicParser):
         ambiguous at this point."""
         qdtext = []
         while self.the_char is not None:
-            if self.MatchOne("\\" + DQUOTE):
+            if self.match_one("\\" + DQUOTE):
                 break
             else:
                 t = self.parse_onetext(unfold)
