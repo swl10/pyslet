@@ -71,7 +71,7 @@ flake8s: flake8
 	flake8 --statistics -qq pyslet
 
 coverage:
-	coverage run unittests/test.py
+	coverage run --source pyslet unittests/test.py
 	coverage html
 	open htmlcov/index.html
 	

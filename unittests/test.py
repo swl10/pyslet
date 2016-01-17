@@ -57,9 +57,8 @@ if py2:
 if py2:
     import test_imsqtiv2p1
     all_tests.addTest(test_imsqtiv2p1.suite())
-if py2:
-    import test_iso8601
-    all_tests.addTest(test_iso8601.suite())
+import test_iso8601
+all_tests.addTest(test_iso8601.suite())
 if py2:
     import test_odata2_core
     all_tests.addTest(test_odata2_core.suite())
@@ -91,9 +90,6 @@ all_tests.addTest(test_py26.suite())
 if py2:
     import test_qml420
     all_tests.addTest(test_qml420.suite())
-if py2:
-    import test_rfc2234
-    all_tests.addTest(test_rfc2234.suite())
 if py2:
     import test_rfc2396
     all_tests.addTest(test_rfc2396.suite())

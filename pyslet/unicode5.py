@@ -7,7 +7,7 @@ import os.path
 from sys import maxunicode
 from pickle import dump, load
 
-from .py2 import byte, character, join_bytes, ul
+from .py2 import byte, byte_value, character, join_bytes, ul
 from .py2 import force_text, is_text, is_unicode, to_text
 from .py2 import dict_values, range3, suffix, UnicodeMixin
 from .py2 import py2
@@ -1107,6 +1107,21 @@ class BasicParser(PEP8Compatibility):
             return self.parse_one(self.b_digits)
         else:
             return self.parse_one(self.u_digits)
+
+    def parse_digit_value(self):
+        """Parses a single digit value.
+
+        Returns the digit value, or None if no digit is found.
+        Like :meth:`match_digit` only ASCII digits are parsed."""
+        if self.raw:
+            result = self.parse_one(self.b_digits)
+            if result is not None:
+                result = byte_value(result) - 0x30
+        else:
+            result = self.parse_one(self.u_digits)
+            if result is not None:
+                result = ord(result) - 0x30
+        return result
 
     def parse_digits(self, min, max=None):
         """Parses a string of digits

@@ -29,27 +29,19 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."""
 
-import string
 import time as pytime
 import warnings
 
 from math import modf, floor
 
+from pyslet.py2 import range3, is_text, UnicodeMixin, CmpMixin
 from pyslet.pep8 import PEP8Compatibility
-from pyslet.rfc2234 import RFC2234CoreParser, is_digit
+from pyslet.unicode5 import BasicParser
 
 
 class DateTimeError(Exception):
     pass
 
-
-class TimeZoneSyntaxError(DateTimeError):
-
-    def __init__(self, zone_str):
-        self.zone_str = zone_str
-
-    def __repr__(self):
-        return 'Syntax error in ISO time zone : ' + self.zone_str
 
 MONTH_SIZES = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
 MONTH_SIZES_LEAPYEAR = (31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
@@ -100,7 +92,10 @@ def week_count(year):
 
 
 def get_local_zone():
-    # returns the number of minutes ahead of UTC we are
+    """Returns the number of minutes ahead of UTC we are
+
+    This is calculated by comparing the return result of the time
+    module's gmtime and localtime methods."""
     t = pytime.time()
     utc_tuple = pytime.gmtime(t)
     utc_date = Date.from_struct_time(utc_tuple)
@@ -122,38 +117,35 @@ def get_local_zone():
 
 
 class Truncation(object):
-
     """Defines constants to use when formatting to truncated forms."""
-    No = 0      #: constant for no truncation
-    Century = 1  # : constant for truncating to century
-    Decade = 2  # : constant for truncating to decade
+    No = 0          #: constant for no truncation
+    Century = 1     #: constant for truncating to century
+    Decade = 2      #: constant for truncating to decade
     Year = 3        #: constant for truncating to year
     Month = 4       #: constant for truncating to month
     Week = 5        #: constant for truncating to week
     Hour = 6        #: constant for truncating to hour
-    Minute = 7  # : constant for truncating to minute
+    Minute = 7      #: constant for truncating to minute
 
-NoTruncation = Truncation.No  # : a synonym for Truncation.No
+NoTruncation = Truncation.No    #: a synonym for Truncation.No
 
 
 class Precision(object):
-
     """Defines constants for representing reduced precision."""
-    Century = 1  # : constant for century precision
+    Century = 1     #: constant for century precision
     Year = 2        #: constant for year precision
     Month = 3       #: constant for month precision
     Week = 4        #: constant for week precision
     Hour = 5        #: constant for hour precision
-    Minute = 6  # : constant for minute precision
-    Complete = 7  # : constant for complete representations
+    Minute = 6      #: constant for minute precision
+    Complete = 7    #: constant for complete representations
 
 
-class Date(PEP8Compatibility):
+class Date(PEP8Compatibility, CmpMixin, UnicodeMixin):
 
     """A class for representing ISO dates.
 
-    Values can be represent dates with reduced precision, for
-    example::
+    Values can represent dates with reduced precision, for example::
 
         Date(century=20,year=13,month=12)
 
@@ -209,13 +201,12 @@ class Date(PEP8Compatibility):
     Date objects are immutable and so can be used as the keys in
     dictionaries provided they all share the same precision.
 
-    Some older functions did allow modification but these have been
-    deprecated.  Use python -Wd to force warnings from these unsafe
-    methods.
+    Some older functions did allow modification but these no raise an
+    error with an appropriate suggested refactoring.
 
-    Instances can be converted directly to strings or unicode strings
-    using the default, extended calendar format.  Other formats are
-    supported through format specific methods."""
+    Instances can be converted directly to strings using the default,
+    extended calendar format.  Other formats are supported through
+    format specific methods."""
 
     def __init__(self, src=None, base=None, century=None, decade=None,
                  year=None, month=None, day=None, week=None, weekday=None,
@@ -242,9 +233,15 @@ class Date(PEP8Compatibility):
                 self.year = 1
                 #: the month, 1..12 (for dates stored in calendar form)
                 self.month = 1
-                #: the week (for dates stored in week form)
                 self.week = None
-                #: the day, 1..31 (or 1..7 when :py:attr:`week` is not None)
+                """the week (for dates stored in week form)
+
+                Fully specified dates are always stored in calendar form
+                but instances can represent reduced precision dates in
+                week format, e.g., 2016-W01.  In these cases,
+                :attr:`day` and :attr:`month` will be None and the week
+                will be recorded instead."""
+                #: the day, 1..31
                 self.day = 1
             else:
                 self._set_from_calendar_day(century, year, month, day, base)
@@ -338,17 +335,17 @@ class Date(PEP8Compatibility):
                     self.day = day
                     if (self.month < base_month or
                             (self.month == base_month and
-                             self.day < base_day)):
+                             self.day is not None and self.day < base_day)):
                         self._add_year()
             else:
                 self.year = year
                 self.month = month
                 self.day = day
                 if (self.year < base_year or
-                        (self.year == base_year and
+                        (self.year == base_year and self.month is not None and
                          (self.month < base_month or
                           (self.month == base_month and
-                           self.day < base_day)))):
+                           self.day is not None and self.day < base_day)))):
                     self._add_century()
         else:
             self.century = century
@@ -380,48 +377,42 @@ class Date(PEP8Compatibility):
         return (self.century, self.year, self.month, self.day)
 
     def _set_from_ordinal_day(self, century, year, ordinal_day, base=None):
-        if ordinal_day is None:
-            self._set_from_calendar_day(century, year, None, None, base)
-        else:
-            self.week = None
-            if century is None:
-                if base is None or not base.complete():
-                    raise DateTimeError("truncated date with no base")
-                else:
-                    baseCentury, base_year, baseOrdinalDay = \
-                        base.get_ordinal_day()
-                self.century = baseCentury
-                if year is None:
-                    # Truncation level==2
-                    self.year = base_year
-                    if ordinal_day is None:
-                        raise ValueError
-                    else:
-                        self.day = ordinal_day
-                        if self.day < baseOrdinalDay:
-                            self._add_year()
-                else:
-                    self.year = year
-                    self.day = ordinal_day
-                    if (self.year < base_year or
-                            (self.year == base_year and
-                             self.day < baseOrdinalDay)):
-                        self._add_century()
+        self.week = None
+        if century is None:
+            if base is None or not base.complete():
+                raise DateTimeError("truncated date with no base")
             else:
-                self.century = century
+                baseCentury, base_year, baseOrdinalDay = \
+                    base.get_ordinal_day()
+            self.century = baseCentury
+            if year is None:
+                # Truncation level==2
+                self.year = base_year
+                self.day = ordinal_day
+                if self.day < baseOrdinalDay:
+                    self._add_year()
+            else:
                 self.year = year
                 self.day = ordinal_day
-            if self.leap_year():
-                msizes = MONTH_SIZES_LEAPYEAR
+                if (self.year < base_year or
+                        (self.year == base_year and
+                         self.day < baseOrdinalDay)):
+                    self._add_century()
+        else:
+            self.century = century
+            self.year = year
+            self.day = ordinal_day
+        if self.leap_year():
+            msizes = MONTH_SIZES_LEAPYEAR
+        else:
+            msizes = MONTH_SIZES
+        self.month = 1
+        for m in msizes:
+            if self.day > m:
+                self.day = self.day - m
+                self.month = self.month + 1
             else:
-                msizes = MONTH_SIZES
-            self.month = 1
-            for m in msizes:
-                if self.day > m:
-                    self.day = self.day - m
-                    self.month = self.month + 1
-                else:
-                    break
+                break
 
     def get_ordinal_day(self):
         """Returns a tuple of (century,year,ordinal_day)"""
@@ -473,17 +464,15 @@ class Date(PEP8Compatibility):
                     self.year = baseDecade * 10 + base_year
                     if week is None:
                         self.week = baseWeek
-                        if weekday is None:
-                            raise ValueError
-                        else:
-                            self.day = weekday
-                            if self.day < base_weekday:
-                                self._add_week()
+                        self.day = weekday
+                        if self.day is not None and self.day < base_weekday:
+                            self._add_week()
                     else:
                         self.week = week
                         self.day = weekday
                         if (self.week < baseWeek or
                                 (self.week == baseWeek and
+                                 self.day is not None and
                                  self.day < base_weekday)):
                             self._add_year()
                 else:
@@ -494,6 +483,7 @@ class Date(PEP8Compatibility):
                             (self.year == base_year and
                              (self.week < baseWeek or
                               (self.week == baseWeek and
+                               self.day is not None and
                                self.day < base_weekday)))):
                         self.year += (baseDecade + 1) * 10
                     else:
@@ -506,8 +496,8 @@ class Date(PEP8Compatibility):
                 if (self.year < base_year or
                         (self.year == base_year and
                          (self.week < baseWeek or
-                          (self.week == baseWeek and self.day < base_weekday)
-                          ))):
+                          (self.week == baseWeek and self.day is not None and
+                           self.day < base_weekday)))):
                     self._add_century()
         else:
             self.century = century
@@ -631,32 +621,89 @@ class Date(PEP8Compatibility):
     def offset(self, centuries=0, years=0, months=0, weeks=0, days=0):
         """Adds an offset
 
-        Constructs a :py:class:`Date` from the current date + a given
-        offset"""
-        d = self
-        if days or weeks:
-            base_day = self.get_absolute_day()
-            base_day += days + 7 * weeks
-            d = type(self)(absolute_day=base_day)
-        if months or years or centuries:
-            day = self.day
-            month = d.month + months
-            if month > 12:
-                years += (month - 1) // 12
-                month = (month - 1) % 12 + 1
-            year = d.year + years
-            if year > 99:
-                centuries += year // 100
+        Constructs a :py:class:`Date` from the given date + a given
+        offset.
+
+        There are significant limitations on this method to avoid
+        ambiguous outcomes such as adding 1 year to a leap day such as
+        2016-02-29.
+
+        A fully specified date can be offset by days or weeks, in the
+        latter case all weeks have 7 days so this is always unambiguous.
+
+        Dates known only to week precision can only be offset by weeks.
+
+        Dates with month precision can be offset by months, years or
+        centuries because every year has exactly the same number of
+        months.  The concept of February next year is always meaningful
+        (unlike the meaning of 29th Feb next year or the similarly
+        problematic week 53 next year).
+
+        Dates with year precision can be offset by years or centuries
+        and, for completeness, dates with century precision can only be
+        offset by centuries."""
+        precision = self.get_precision()
+        if precision == Precision.Complete:
+            if not months and not years and not centuries:
+                base_day = self.get_absolute_day()
+                base_day += days + 7 * weeks
+                return type(self)(absolute_day=base_day)
+            else:
+                raise DateTimeError("offset incompatible with complete date")
+        elif precision == Precision.Week:
+            if not days and not months and not years and not centuries:
+                week = self.week + weeks
+                # years don't have regular numbers of weeks
+                year = self.year + 100 * self.century
+                while True:
+                    if week < 1:
+                        year = year - 1
+                        max_week = week_count(year)
+                        week = week + max_week
+                    else:
+                        max_week = week_count(year)
+                        if week > max_week:
+                            week = week - max_week
+                            year += 1
+                        else:
+                            break
+                century = year // 100
                 year = year % 100
-            century = d.century + centuries
-            return type(self)(century=century, year=year, month=month, day=day)
-        else:
-            return d
+                decade = year // 10
+                year = year % 10
+                return type(self)(century=century, decade=decade, year=year,
+                                  week=week)
+            else:
+                raise DateTimeError("offset incompatible with week precision")
+        elif precision == Precision.Month:
+            if not days and not weeks:
+                month = self.month + months
+                if month > 12 or month < 1:
+                    years += (month - 1) // 12
+                    month = (month - 1) % 12 + 1
+                year = self.year + years
+                if year > 99 or year < 0:
+                    centuries += year // 100
+                    year = year % 100
+                century = self.century + centuries
+                return type(self)(century=century, year=year, month=month)
+            else:
+                raise DateTimeError("offset incompatible with month precision")
+        elif precision == Precision.Year:
+            if not days and not weeks and not months:
+                year = self.year + years
+                if year > 99 or year < 0:
+                    centuries += year // 100
+                    year = year % 100
+                century = self.century + centuries
+                return type(self)(century=century, year=year)
+            else:
+                raise DateTimeError("offset incompatible with year precision")
 
     @classmethod
     def from_str(cls, src, base=None):
         """Parses a :py:class:`Date` instance from a *src* string."""
-        if isinstance(src, (unicode, str)):
+        if is_text(src):
             p = ISO8601Parser(src)
             d, dFormat = p.parse_date_format(base)
         else:
@@ -672,27 +719,24 @@ class Date(PEP8Compatibility):
 
                         d,f=Date.from_string_format("1969-07-20")
                         # f is set to "YYYY-MM-DD". """
-        if isinstance(src, (unicode, str)):
+        if is_text(src):
             p = ISO8601Parser(src)
             return p.parse_date_format(base)
         else:
             raise TypeError
 
-    def __str__(self):
-        return str(self.get_calendar_string())
-
     def __unicode__(self):
-        return unicode(self.get_calendar_string())
+        return self.get_calendar_string()
 
     def __repr__(self):
         if self.week is None:
-            return "Date(century=%s,year=%s,month=%s,day=%s)" % (
+            return "Date(century=%s, year=%s, month=%s, day=%s)" % (
                 str(self.century), str(self.year), str(self.month),
                 str(self.day))
         else:
-            return "Date(century=%s,decade=%s,year=%s,week=%s,weekday=%s)" % (
+            return "Date(century=%s, decade=%s, year=%s, week=%s)" % (
                 str(self.century), str(self.year // 10), str(self.year % 10),
-                str(self.week), str(self.day))
+                str(self.week))
 
     def get_calendar_string(self, basic=False, truncation=NoTruncation):
         """Formats this date using calendar form, for example 1969-07-20
@@ -721,14 +765,14 @@ class Date(PEP8Compatibility):
                         if truncation == NoTruncation:
                             return "%02i" % self.century
                         else:
-                            raise ValueError
+                            raise DateTimeError("More precision required")
                 else:
                     if truncation == NoTruncation:
                         return "%02i%02i" % (self.century, self.year)
                     elif truncation == Truncation.Century:
                         return "-%02i" % self.year
                     else:
-                        raise ValueError
+                        raise DateTimeError("More precision required")
             else:
                 if truncation == NoTruncation:
                     return "%02i%02i-%02i" % (self.century,
@@ -742,7 +786,7 @@ class Date(PEP8Compatibility):
                 elif truncation == Truncation.Year:
                     return "--%02i" % self.month
                 else:
-                    raise ValueError
+                    raise DateTimeError("More precision required")
         else:
             if truncation == NoTruncation:
                 if basic:
@@ -766,7 +810,7 @@ class Date(PEP8Compatibility):
             elif truncation == Truncation.Month:
                 return "---%02i" % self.day
             else:
-                raise ValueError
+                raise DateTimeError("Truncation error")
 
     def get_ordinal_string(self, basic=False, truncation=NoTruncation):
         """Formats this date using ordinal form, for example 1969-201
@@ -801,7 +845,7 @@ class Date(PEP8Compatibility):
             elif truncation == Truncation.Year:
                 return "-%03i" % ordinal_day
             else:
-                raise ValueError
+                raise DateTimeError("Truncation error")
 
     def get_week_string(self, basic=False, truncation=NoTruncation):
         """Formats this date using week form, for example 1969-W29-7
@@ -842,7 +886,7 @@ class Date(PEP8Compatibility):
                 elif truncation == Truncation.Year:
                     return "-W%02i" % week
                 else:
-                    raise ValueError
+                    raise DateTimeError("Truncation error")
         else:
             if truncation == NoTruncation:
                 if basic:
@@ -872,7 +916,7 @@ class Date(PEP8Compatibility):
             elif truncation == Truncation.Week:
                 return "-W-%i" % day
             else:
-                raise ValueError
+                raise DateTimeError("Truncation error")
 
     @classmethod
     def from_julian(cls, year, month, day):
@@ -1004,159 +1048,180 @@ class Date(PEP8Compatibility):
     def __hash__(self):
         return hash((self.century, self.year, self.month, self.week, self.day))
 
-    def __cmp__(self, other):
+    def _check_comparison(self, other):
         if not isinstance(other, Date):
             raise TypeError
         if self.get_precision() != other.get_precision():
             raise ValueError(
                 "Incompatible precision for comparison: " + str(other))
-        result = cmp(self.century, other.century)
-        if not result:
-            result = cmp(self.year, other.year)
-            if not result:
+
+    def __eq__(self, other):
+        self._check_comparison(other)
+        return self.century == other.century and \
+            self.year == other.year and \
+            self.month == other.month and \
+            self.week == other.week and \
+            self.day == other.day
+
+    def __lt__(self, other):
+        self._check_comparison(other)
+        if self.century == other.century:
+            if self.year == other.year:
                 if self.month is not None:
-                    result = cmp(self.month, other.month)
-                    if not result:
-                        result = cmp(self.day, other.day)
+                    if self.month == other.month:
+                        return self.day is not None and self.day < other.day
+                    else:
+                        return self.month < other.month
                 elif self.week is not None:
-                    result = cmp(self.week, other.week)
-        return result
+                    if self.week == other.week:
+                        return self.day is not None and self.day < other.day
+                    else:
+                        return self.week < other.week
+                else:
+                    return False
+            return self.year is not None and self.year < other.year
+        else:
+            return self.century < other.century
+
+    def __le__(self, other):
+        self._check_comparison(other)
+        if self.century == other.century:
+            if self.year == other.year:
+                if self.month is not None:
+                    if self.month == other.month:
+                        return self.day is not None and self.day <= other.day
+                    else:
+                        return self.month < other.month
+                elif self.week is not None:
+                    if self.week == other.week:
+                        return self.day is not None and self.day <= other.day
+                    else:
+                        return self.week < other.week
+                else:
+                    return False
+            else:
+                return self.year is not None and self.year < other.year
+        else:
+            return self.century < other.century
+
+#     def __cmp__(self, other):
+#         if not isinstance(other, Date):
+#             raise TypeError
+#         if self.get_precision() != other.get_precision():
+#             raise ValueError(
+#                 "Incompatible precision for comparison: " + str(other))
+#         result = cmp(self.century, other.century)
+#         if not result:
+#             result = cmp(self.year, other.year)
+#             if not result:
+#                 if self.month is not None:
+#                     result = cmp(self.month, other.month)
+#                     if not result:
+#                         result = cmp(self.day, other.day)
+#                 elif self.week is not None:
+#                     result = cmp(self.week, other.week)
+#         return result
 
     def set_from_date(self, src):
-        warnings.warn(
-            "Date.set_from_date is deprecated, use Date(src) instead",
-            DeprecationWarning, stacklevel=2)
-        self.century = src.century
-        self.year = src.year
-        self.month = src.month
-        self.week = src.week
-        self.day = src.day
+        raise DateTimeError(
+            "Date is now immutable: \n"
+            "Replace d.set_from_date(src) with: d = src")
 
     def set_origin(self):
-        warnings.warn(
-            "Date.set_origin is deprecated, use Date.Origin() instead",
-            DeprecationWarning, stacklevel=2)
-        self.century = 0
-        self.year = self.month = self.day = 1
-        self.week = None
+        raise DateTimeError(
+            "Date is now immutable: \n"
+            "Replace d.set_origin() with: d = Date()")
 
     def set_absolute_day(self, abs_day):
-        warnings.warn(
-            "Date.set_absolute_day is deprecated, use "
-            "Date(absolute_day=###) instead", DeprecationWarning,
-            stacklevel=2)
-        self._set_from_absolute_day(abs_day)
-        self._check_date()
+        raise DateTimeError(
+            "Date is now immutable: \n"
+            "Replace d.set_absolute_day(x) with d = Date(absolute_day=x)")
 
     def set_calendar_day(self, century, year, month, day, base=None):
-        warnings.warn(
-            "Date.set_calendar_day is deprecated, use "
-            "Date(century=##, year=##,...etc ) instead",
-            DeprecationWarning, stacklevel=2)
-        self._set_from_calendar_day(century, year, month, day, base)
-        self._check_date()
+        raise DateTimeError(
+            "Date is now immutable: \n"
+            "Replace d.set_calendar_day(century=cc, year=yy, month=mm, "
+            "day=dd, base=base) with\n"
+            "d = Date(century=cc, year=yy, month=mm, day=dd, base=base)")
 
     def set_ordinal_day(self, century, year, ordinal_day, base=None, **kwargs):
-        ordinal_day = kwargs.get('ordinalDay', ordinal_day)
-        warnings.warn(
-            "Date.set_ordinal_day is deprecated, use "
-            "Date(century=##, year=##, ordinal_day=##,...etc ) instead",
-            DeprecationWarning, stacklevel=2)
-        self._set_from_ordinal_day(century, year, ordinal_day, base)
-        self._check_date()
+        raise DateTimeError(
+            "Date is now immutable: \n"
+            "Replace d.set_ordinal_day(century=cc, year=yy, ordinal_day=dd, "
+            "base=base) with\n"
+            "d = Date(century=cc, year=yy, ordinal_day=dd, base=base)")
 
     def set_week_day(self, century, decade, year, week, weekday, base=None):
-        warnings.warn(
-            "Date.set_week_day is deprecated, use "
-            "Date(century=##, decade=##, year=##, week=##,...etc ) instead",
-            DeprecationWarning, stacklevel=2)
-        self._set_from_week_day(century, decade, year, week, weekday, base)
-        self._check_date()
+        raise DateTimeError(
+            "Date is now immutable: \n"
+            "Replace d.set_week_day(century=cc, decade=dd, year=yy, "
+            "week=ww, weekday=dd, base=base) with\n"
+            "d = Date(century=cc, decade=dd, year=yy, week=ww, weekday=dd, "
+            "base=base)")
 
     def set_time_tuple(self, t):
-        warnings.warn(
-            "Date.set_time_tuple is deprecated, use "
-            "Date.from_struct_time(t) instead", DeprecationWarning,
-            stacklevel=2)
-        self._set_from_calendar_day(t[0] // 100, t[0] % 100, t[1], t[2])
-        self._check_date()
+        raise DateTimeError(
+            "Date is now immutable: \n"
+            "Replace d.set_time_tuple(t) with\n"
+            "d = Date.from_struct_time(t)")
 
     def get_time_tuple(self, t):
-        warnings.warn(
-            "Date.get_time_tuple is deprecated, use "
-            "Date.update_struct_time(t) instead", DeprecationWarning,
-            stacklevel=2)
-        self.update_struct_time(t)
+        raise DateTimeError(
+            "Date.get_time_tuple no longer supported: \n"
+            "Replace d.get_time_tuple(t) with\n"
+            "st = [0] * 9\n"
+            "d.update_struct_time(st)")
 
     def set_from_string(self, date_str, base=None):
-        warnings.warn(
-            "Date.set_from_string is deprecated, use "
-            "Date.from_str(<string>[, base]) instead", DeprecationWarning,
-            stacklevel=2)
-        if isinstance(date_str, (unicode, str)):
-            p = ISO8601Parser(date_str)
-            d, f = p.parse_date_format(base)
-            self.set_from_date(d)
-            return f
-        else:
-            raise TypeError
+        raise DateTimeError(
+            "Date is now immutable: \n"
+            "Replace d.set_from_string(s, base) with\n"
+            "d = Date.from_str(s, base)")
 
     def now(self):
-        warnings.warn(
-            "Date.now is deprecated, use Date.from_now() instead",
-            DeprecationWarning, stacklevel=2)
-        t = pytime.localtime(pytime.time())
-        self._set_from_calendar_day(t[0] // 100, t[0] % 100, t[1], t[2])
-        self._check_date()
+        raise DateTimeError(
+            "Date is now immutable: \n"
+            "Replace d.now() with\n"
+            "d = Date.from_now()")
 
     def set_julian_day(self, year, month, day):
-        warnings.warn(
-            "Date.set_julian_day is deprecated, use "
-            "Date.from_julian() instead", DeprecationWarning, stacklevel=2)
-        if year % 4:
-            msizes = MONTH_SIZES
-        else:
-            msizes = MONTH_SIZES_LEAPYEAR
-        year -= 1
-        for m in msizes[:month - 1]:
-            day += m
-        self._set_from_absolute_day((year // 4) + (year * 365) + day - 2)
+        raise DateTimeError(
+            "Date is now immutable: \n"
+            "Replace d.set_julian_day(yy, mm, dd) with\n"
+            "d = Date.from_julian(yy, mm, dd)")
 
     def add_century(self):
-        warnings.warn(
-            "Date.add_century is deprecated, use offset(centuries=1) instead",
-            DeprecationWarning, stacklevel=2)
-        self._add_century()
+        raise DateTimeError(
+            "Date is now immutable: \n"
+            "Replace d.add_century() with\n"
+            "d = d.offset(centuries=1) # precision restrictions apply")
 
     def add_year(self):
-        warnings.warn(
-            "Date.add_year is deprecated, use offset(base,years=1) instead",
-            DeprecationWarning, stacklevel=2)
-        self._add_year()
+        raise DateTimeError(
+            "Date is now immutable: \n"
+            "Replace d.add_year() with\n"
+            "d = d.offset(years=1) # precision restrictions apply")
 
     def add_month(self):
-        warnings.warn(
-            "Date.add_month is deprecated, use offset(base,months=1) instead",
-            DeprecationWarning, stacklevel=2)
-        self._add_month()
+        raise DateTimeError(
+            "Date is now immutable: \n"
+            "Replace d.add_month() with\n"
+            "d = d.offset(months=1) # precision restrictions apply")
 
     def add_week(self):
-        warnings.warn(
-            "Date.add_week is deprecated, use "
-            "Date.offset(base,weeks=1) instead", DeprecationWarning,
-            stacklevel=2)
-        self._add_week()
+        raise DateTimeError(
+            "Date is now immutable: \n"
+            "Replace d.add_week() with\n"
+            "d = d.offset(weeks=1) # precision restrictions apply")
 
     def add_days(self, days):
-        warnings.warn(
-            "Date.add_days is deprecated, use offset(base,days=##) instead",
-            DeprecationWarning, stacklevel=2)
-        if days:
-            self._set_from_absolute_day(self.get_absolute_day() + days)
+        raise DateTimeError(
+            "Date is now immutable: \n"
+            "Replace d.add_days(dd) with\n"
+            "d = d.offset(days=dd)")
 
 
-class Time(PEP8Compatibility):
-
+class Time(PEP8Compatibility, UnicodeMixin, CmpMixin):
     """A class for representing ISO times
 
     Values can represent times with reduced precision, for example::
@@ -1170,28 +1235,29 @@ class Time(PEP8Compatibility):
 
         Time(hour=20, minute=17, second=40)
 
-    To indicate UTC (Zulu time) by providing a zone direction of 0::
+    Indicate UTC (Zulu time) by providing a zone direction of 0::
 
         Time(hour=20, minute=17, second=40, zdirection=0)
 
     To indicate a UTC offset provide additional values for hours (and
-    optionally minutes)::
+    optionally minutes) with 1 or -1 for zdirection to indicate the
+    direction of the shift.  1 indicates a more Easterly timezone, -1
+    indicates a more Westerly zone::
 
         Time(hour=15, minute=17, second=40, zdirection=-1, zhour=5,
              zminute=0)
 
     A UTC offset of 0 hours and minutes results in a value that compares
     as equal to the corresponding Zulu time but is formatted using an
-    explicit offset by str() or unicode() rather than using the
-    canonical "Z" form.
+    explicit offset by str() rather than using the canonical "Z" form.
 
     You may also specify a total number of seconds past midnight (no
     zone):
 
         Time(total_seconds=73060)
 
-    If total_seconds overflows an error is raised.  To create a time from
-    an arbitrary number of seconds and catch overflow use offset
+    If total_seconds overflows an error is raised.  To create a time
+    from an arbitrary number of seconds and catch overflow use offset
     instead::
 
         Time(total_seconds=159460)
@@ -1598,7 +1664,7 @@ class Time(PEP8Compatibility):
         representation, truncated forms are returned as the earliest
         time on or after *base* and may have overflowed.  See
         :py:meth:`from_string_format` for more."""
-        if isinstance(src, (unicode, str)):
+        if is_text(src):
             p = ISO8601Parser(src)
             t, overflow, f = p.parse_time_format(base)
             return t
@@ -1609,7 +1675,7 @@ class Time(PEP8Compatibility):
         """Constructs a :py:class:`Time` instance from an existing time
         but with the time zone parsed from *zone_str*.  The time zone of
         the existing time is ignored."""
-        if isinstance(zone_str, (unicode, str)):
+        if is_text(zone_str):
             p = ISO8601Parser(zone_str)
             zdirection, zhour, zminute, format = p.parse_time_zone_format()
             return self.with_zone(
@@ -1623,7 +1689,7 @@ class Time(PEP8Compatibility):
         the existing time is ignored.
 
         Returns a tuple of: (<Time instance>,format)"""
-        if isinstance(zone_str, (unicode, str)):
+        if is_text(zone_str):
             p = ISO8601Parser(zone_str)
             zdirection, zhour, zminute, format = p.parse_time_zone_format()
             return self.with_zone(
@@ -1641,17 +1707,14 @@ class Time(PEP8Compatibility):
         overflow is 0 or 1 indicating whether or not a truncated form
         overflowed and format is a string representation of the format
         parsed, e.g., "hhmmss"."""
-        if isinstance(src, (unicode, str)):
+        if is_text(src):
             p = ISO8601Parser(src)
             return p.parse_time_format(base)
         else:
             raise TypeError
 
-    def __str__(self):
-        return str(self.get_string())
-
     def __unicode__(self):
-        return unicode(self.get_string())
+        return self.get_string()
 
     def __repr__(self):
         return ("Time(hour=%s, minute=%s, second=%s, zdirection=%s, "
@@ -1937,7 +2000,7 @@ class Time(PEP8Compatibility):
         return hash((self.hour, self.minute, self.second,
                      self.get_zone_offset()))
 
-    def __cmp__(self, other):
+    def _check_compare(self, other):
         if not isinstance(other, Time):
             raise TypeError
         if self.get_precision() != other.get_precision():
@@ -1947,12 +2010,50 @@ class Time(PEP8Compatibility):
         other_zdir = other.get_zone_offset()
         if zdir != other_zdir:
             raise ValueError("Incompatible zone for comparison: " + str(other))
-        result = cmp(self.hour, other.hour)
-        if not result:
-            result = cmp(self.minute, other.minute)
-            if not result:
-                result = cmp(self.second, other.second)
-        return result
+
+    def __eq__(self, other):
+        self._check_compare(other)
+        return self.hour == other.hour and \
+            self.minute == other.minute and \
+            self.second == other.second
+
+    def __lt__(self, other):
+        self._check_compare(other)
+        if self.hour == other.hour:
+            if self.minute == other.minute:
+                return self.second is not None and self.second < other.second
+            else:
+                return self.minute is not None and self.minute < other.minute
+        else:
+            return self.hour < other.hour
+
+    def __le__(self, other):
+        self._check_compare(other)
+        if self.hour == other.hour:
+            if self.minute == other.minute:
+                return self.second is not None and self.second <= other.second
+            else:
+                return self.minute is not None and self.minute <= other.minute
+        else:
+            return self.hour < other.hour
+
+#     def __cmp__(self, other):
+#         if not isinstance(other, Time):
+#             raise TypeError
+#         if self.get_precision() != other.get_precision():
+#             raise ValueError(
+#                 "Incompatible precision for comparison: " + str(other))
+#         zdir = self.get_zone_offset()
+#         other_zdir = other.get_zone_offset()
+#         if zdir != other_zdir:
+#             raise ValueError("Incompatible zone for comparison: " +
+#                              str(other))
+#         result = cmp(self.hour, other.hour)
+#         if not result:
+#             result = cmp(self.minute, other.minute)
+#             if not result:
+#                 result = cmp(self.second, other.second)
+#         return result
 
     def set_origin(self):
         warnings.warn(
@@ -2058,22 +2159,17 @@ class Time(PEP8Compatibility):
         self.set_from_time(t)
 
     def set_from_string(self, src, base=None):
-        warnings.warn(
-            "Time.set_from_string is deprecated, use "
-            "Time.from_str(src[,base]) instead", DeprecationWarning,
-            stacklevel=2)
-        if isinstance(src, (unicode, str)):
-            p = ISO8601Parser(src)
-            return p.parse_time(self, base)
-        else:
-            raise TypeError
+        raise DateTimeError(
+            "Time is now immutable: \n"
+            "Replace t.set_from_string(src, base) with\n"
+            "t = Time.from_str(src, base)")
 
     def set_zone_from_string(self, zone_str):
         warnings.warn(
             "Time.set_zone_from_string is deprecated, use "
             "Time.with_zone_string(t, zone_str) instead", DeprecationWarning,
             stacklevel=2)
-        if isinstance(zone_str, (unicode, str)):
+        if is_text(zone_str):
             p = ISO8601Parser(zone_str)
             return p.parse_time_zone(self)
         else:
@@ -2111,7 +2207,7 @@ class Time(PEP8Compatibility):
         return overflow
 
 
-class TimePoint(PEP8Compatibility):
+class TimePoint(PEP8Compatibility, UnicodeMixin, CmpMixin):
 
     """A class for representing ISO timepoints
 
@@ -2244,7 +2340,7 @@ class TimePoint(PEP8Compatibility):
     def from_str(cls, src, base=None, tdesignators="T"):
         """Constructs a TimePoint from a string representation.
         Truncated forms are parsed with reference to *base*."""
-        if isinstance(src, (unicode, str)):
+        if is_text(src):
             p = ISO8601Parser(src)
             tp, f = p.parse_time_point_format(base, tdesignators)
             return tp
@@ -2263,17 +2359,14 @@ class TimePoint(PEP8Compatibility):
             tp, f = TimePoint.from_string_format("1969-07-20T20:40:17")
             # f is set to "YYYY-MM-DDTmm:hh:ss"."""
         tdesignators = kwargs.get('tDesignators', tdesignators)
-        if isinstance(src, (unicode, str)):
+        if is_text(src):
             p = ISO8601Parser(src)
             return p.parse_time_point_format(base, tdesignators)
         else:
             raise TypeError
 
-    def __str__(self):
-        return str(self.get_calendar_string())
-
     def __unicode__(self):
-        return unicode(self.get_calendar_string())
+        return self.get_calendar_string()
 
     def __repr__(self):
         return "TimePoint(date=%s,time=%s)" % (
@@ -2440,7 +2533,7 @@ class TimePoint(PEP8Compatibility):
             # no zone, or Zulu time
             return hash((self.date, self.time))
 
-    def __cmp__(self, other):
+    def _check_comparison(self, other):
         if not isinstance(other, TimePoint):
             other = type(self)(other)
         # we need to follow the rules for comparing times
@@ -2454,10 +2547,44 @@ class TimePoint(PEP8Compatibility):
                 raise ValueError("Can't compare zone: " + str(other))
             # we need to change the timezone of other to match ours
             other = other.shift_zone(*self.time.get_zone3())
-        result = cmp(self.date, other.date)
-        if not result:
-            result = cmp(self.time, other.time)
-        return result
+        return other
+
+    def __eq__(self, other):
+        other = self._check_comparison(other)
+        return self.date == other.date and self.time == other.time
+
+    def __lt__(self, other):
+        other = self._check_comparison(other)
+        if self.date == other.date:
+            return self.time < other.time
+        else:
+            return self.date < other.date
+
+    def __le__(self, other):
+        other = self._check_comparison(other)
+        if self.date == other.date:
+            return self.time <= other.time
+        else:
+            return self.date < other.date
+
+#     def __cmp__(self, other):
+#         if not isinstance(other, TimePoint):
+#             other = type(self)(other)
+#         # we need to follow the rules for comparing times
+#         if self.time.get_precision() != other.time.get_precision():
+#             raise ValueError(
+#                 "Incompatible precision for comparison: " + str(other))
+#         z1 = self.time.get_zone_offset()
+#         z2 = other.time.get_zone_offset()
+#         if z1 != z2:
+#             if z1 is None or z2 is None:
+#                 raise ValueError("Can't compare zone: " + str(other))
+#             # we need to change the timezone of other to match ours
+#             other = other.shift_zone(*self.time.get_zone3())
+#         result = cmp(self.date, other.date)
+#         if not result:
+#             result = cmp(self.time, other.time)
+#         return result
 
     def set_origin(self):
         warnings.warn(
@@ -2509,17 +2636,10 @@ class TimePoint(PEP8Compatibility):
                       time=Time(hour=hour, minute=minute, second=second)))
 
     def set_from_string(self, time_point_str, base=None):
-        warnings.warn(
-            "TimePoint.set_from_string is deprecated, use "
-            "TimePoint.from_str(src[, base]) instead", DeprecationWarning,
-            stacklevel=2)
-        if isinstance(time_point_str, (unicode, str)):
-            p = ISO8601Parser(time_point_str)
-            tp, f = p.parse_time_point_format(base)
-            self.date = Date(tp.date)
-            self.time = Time(tp.time)
-        else:
-            raise TypeError
+        raise DateTimeError(
+            "TimePoint is now immutable: \n"
+            "Replace tp.set_from_string(src, base) with\n"
+            "tp = TimePoint.from_str(src, base)")
 
     def set_zone(self, zdirection, hour_offset=None, minute_offset=None,
                  **kwargs):
@@ -2606,7 +2726,7 @@ class Duration(PEP8Compatibility):
 
     def __init__(self, value=None):
         PEP8Compatibility.__init__(self)
-        if isinstance(value, (unicode, str)):
+        if is_text(value):
             self.set_from_string(value)
         elif isinstance(value, Duration):
             self.set_from_duration(value)
@@ -2653,7 +2773,7 @@ class Duration(PEP8Compatibility):
             return self.weeks
 
     def set_from_string(self, duration_str):
-        if isinstance(duration_str, (unicode, str)):
+        if is_text(duration_str):
             p = ISO8601Parser(duration_str)
             return p.parse_duration(self)
         else:
@@ -2696,8 +2816,8 @@ class Duration(PEP8Compatibility):
                 else:
                     components[i] = str(value)
                 components[i] = components[i] + "YMDHMS"[i]
-            date_part = string.join(components[0:3], '')
-            time_part = string.join(components[3:], '')
+            date_part = ''.join(components[0:3])
+            time_part = ''.join(components[3:])
             if time_part:
                 return 'P' + date_part + 'T' + time_part
             else:
@@ -2880,7 +3000,14 @@ ExtendedTimeFormats = {
 }
 
 
-class ISO8601Parser(RFC2234CoreParser):
+class ISO8601Parser(BasicParser):
+
+    def __init__(self, src):
+        if is_text(src):
+            super(ISO8601Parser, self).__init__(src)
+        else:
+            raise DateTimeError(
+                "iso8601 requires character source, not binary data")
 
     def parse_time_point_format(self, base=None, tdesignators="T"):
         d, df = self.parse_date_format(base)
@@ -2903,51 +3030,30 @@ class ISO8601Parser(RFC2234CoreParser):
         return TimePoint(date=d, time=t), df + tdesignator + tf
 
     def parse_time_point(self, time_point, base=None, tdesignators="T"):
-        warnings.warn(
-            "ISO8601Parser.parse_time_point is deprecated, "
-            "use parse_time_point_format instead", DeprecationWarning,
-            stacklevel=2)
-        date, dateFormat = self.parse_date_format(base)
-        time_point.date = date
-        if not time_point.date.complete():
-            raise DateTimeError(
-                "incomplete date in time point %s" % str(time_point.date))
-        if self.the_char not in tdesignators:
-            raise DateTimeError(
-                "time-point requires time %s..." % str(time_point.date))
-        tdesignator = self.the_char
-        t, overflow, timeFormat = self.parse_time_format(None, tdesignators)
-        time_point.time = t
-        # check that dateFormat and timeFormat are compatible, i.e., both
-        # either basic or extended
-        if not ((ExtendedTimeFormats.get(timeFormat) and
-                 ExtendedDateFormats.get(dateFormat)) or
-                (BasicTimeFormats.get(timeFormat) and
-                 BasicDateFormats.get(dateFormat))):
-            raise DateTimeError(
-                "inconsistent use of basic/extended form in time point "
-                "%s%s%s" % (dateFormat, tdesignator, timeFormat))
-        return dateFormat + tdesignator + timeFormat
+        raise DateTimeError(
+            "ISO8601Parser.parse_time_point no longer supported\n"
+            "Replace: tformat = p.parse_time_point(d, base, 'T') with:\n"
+            "         d, tformat = p.parse_time_point_format(base, 'T')")
 
     def parse_date_format(self, base=None):
         """Returns a tuple of (:py:class:`Date`, string).
 
         The second item in the tuple is a string representing the format
         parsed."""
-        if is_digit(self.the_char):
-            v1 = self.ParseDIGIT()
-            v1 = v1 * 10 + self.ParseDIGIT()
-            if is_digit(self.the_char):
-                v2 = self.ParseDIGIT()
-                v2 = v2 * 10 + self.ParseDIGIT()
-                if is_digit(self.the_char):
-                    v3 = self.ParseDIGIT()
-                    if is_digit(self.the_char):
-                        v3 = v3 * 10 + self.ParseDIGIT()
-                        if is_digit(self.the_char):
-                            v4 = self.ParseDIGIT()
-                            if is_digit(self.the_char):
-                                v4 = v4 * 10 + self.ParseDIGIT()
+        if self.match_digit():
+            v1 = self.require_digit_value()
+            v1 = v1 * 10 + self.require_digit_value()
+            if self.match_digit():
+                v2 = self.require_digit_value()
+                v2 = v2 * 10 + self.require_digit_value()
+                if self.match_digit():
+                    v3 = self.require_digit_value()
+                    if self.match_digit():
+                        v3 = v3 * 10 + self.require_digit_value()
+                        if self.match_digit():
+                            v4 = self.require_digit_value()
+                            if self.match_digit():
+                                v4 = v4 * 10 + self.require_digit_value()
                                 return (Date(century=v1, year=v2, month=v3,
                                              day=v4, base=base), "YYYYMMDD")
                             else:
@@ -2962,17 +3068,17 @@ class ISO8601Parser(RFC2234CoreParser):
                                      base=base), "YYDDD")
                 elif self.the_char == "-":
                     self.next_char()
-                    if is_digit(self.the_char):
-                        v3 = self.ParseDIGIT()
-                        v3 = v3 * 10 + self.ParseDIGIT()
-                        if is_digit(self.the_char):
-                            v3 = v3 * 10 + self.ParseDIGIT()
+                    if self.match_digit():
+                        v3 = self.require_digit_value()
+                        v3 = v3 * 10 + self.require_digit_value()
+                        if self.match_digit():
+                            v3 = v3 * 10 + self.require_digit_value()
                             return (Date(century=v1, year=v2, ordinal_day=v3,
                                          base=base), "YYYY-DDD")
                         elif self.the_char == "-":
                             self.next_char()
-                            v4 = self.ParseDIGIT()
-                            v4 = v4 * 10 + self.ParseDIGIT()
+                            v4 = self.require_digit_value()
+                            v4 = v4 * 10 + self.require_digit_value()
                             return (Date(century=v1, year=v2, month=v3,
                                          day=v4, base=base), "YYYY-MM-DD")
                         else:
@@ -2980,11 +3086,11 @@ class ISO8601Parser(RFC2234CoreParser):
                                          base=base), "YYYY-MM")
                     elif self.the_char == "W":
                         self.next_char()
-                        v3 = self.ParseDIGIT()
-                        v3 = v3 * 10 + self.ParseDIGIT()
+                        v3 = self.require_digit_value()
+                        v3 = v3 * 10 + self.require_digit_value()
                         if self.the_char == "-":
                             self.next_char()
-                            v4 = self.ParseDIGIT()
+                            v4 = self.require_digit_value()
                             return (Date(century=v1, decade=v2 // 10,
                                          year=v2 % 10, week=v3, weekday=v4,
                                          base=base), "YYYY-Www-D")
@@ -2996,10 +3102,10 @@ class ISO8601Parser(RFC2234CoreParser):
                         self.BadSyntax("expected digit or W in ISO date")
                 elif self.the_char == "W":
                     self.next_char()
-                    v3 = self.ParseDIGIT()
-                    v3 = v3 * 10 + self.ParseDIGIT()
-                    if is_digit(self.the_char):
-                        v4 = self.ParseDIGIT()
+                    v3 = self.require_digit_value()
+                    v3 = v3 * 10 + self.require_digit_value()
+                    if self.match_digit():
+                        v4 = self.require_digit_value()
                         return Date(
                             century=v1, decade=v2 // 10, year=v2 %
                             10, week=v3, weekday=v4, base=base), "YYYYWwwD"
@@ -3010,18 +3116,18 @@ class ISO8601Parser(RFC2234CoreParser):
                     return Date(century=v1, year=v2, base=base), "YYYY"
             elif self.the_char == "-":
                 self.next_char()
-                if is_digit(self.the_char):
+                if self.match_digit():
                     """YY-DDD, YY-MM-DD"""
-                    v2 = self.ParseDIGIT()
-                    v2 = v2 * 10 + self.ParseDIGIT()
-                    if is_digit(self.the_char):
-                        v2 = v2 * 10 + self.ParseDIGIT()
+                    v2 = self.require_digit_value()
+                    v2 = v2 * 10 + self.require_digit_value()
+                    if self.match_digit():
+                        v2 = v2 * 10 + self.require_digit_value()
                         return Date(
                             year=v1, ordinal_day=v2, base=base), "YY-DDD"
                     elif self.the_char == "-":
                         self.next_char()
-                        v3 = self.ParseDIGIT()
-                        v3 = v3 * 10 + self.ParseDIGIT()
+                        v3 = self.require_digit_value()
+                        v3 = v3 * 10 + self.require_digit_value()
                         return Date(
                             year=v1, month=v2, day=v3, base=base), "YY-MM-DD"
                     else:
@@ -3029,11 +3135,11 @@ class ISO8601Parser(RFC2234CoreParser):
                             "expected digit or hyphen in ISO date")
                 elif self.the_char == "W":
                     self.next_char()
-                    v2 = self.ParseDIGIT()
-                    v2 = v2 * 10 + self.ParseDIGIT()
+                    v2 = self.require_digit_value()
+                    v2 = v2 * 10 + self.require_digit_value()
                     if self.the_char == "-":
                         self.next_char()
-                        v3 = self.ParseDIGIT()
+                        v3 = self.require_digit_value()
                         return Date(
                             decade=v1 // 10, year=v1 %
                             10, week=v2, weekday=v3, base=base), "YY-Www-D"
@@ -3045,10 +3151,10 @@ class ISO8601Parser(RFC2234CoreParser):
                     self.BadSyntax("expected digit or W in ISO date")
             elif self.the_char == "W":
                 self.next_char()
-                v2 = self.ParseDIGIT()
-                v2 = v2 * 10 + self.ParseDIGIT()
-                if is_digit(self.the_char):
-                    v3 = self.ParseDIGIT()
+                v2 = self.require_digit_value()
+                v2 = v2 * 10 + self.require_digit_value()
+                if self.match_digit():
+                    v3 = self.require_digit_value()
                     return Date(
                         decade=v1 // 10, year=v1 %
                         10, week=v2, weekday=v3, base=base), "YYWwwD"
@@ -3060,88 +3166,88 @@ class ISO8601Parser(RFC2234CoreParser):
                 return Date(century=v1, base=base), "YY"
         elif self.the_char == "-":
             self.next_char()
-            if is_digit(self.the_char):
-                v1 = self.ParseDIGIT()
-                if is_digit(self.the_char):
-                    v1 = v1 * 10 + self.ParseDIGIT()
-                    if is_digit(self.the_char):
-                        v2 = self.ParseDIGIT()
-                        if is_digit(self.the_char):
-                            v2 = v2 * 10 + self.ParseDIGIT()
+            if self.match_digit():
+                v1 = self.require_digit_value()
+                if self.match_digit():
+                    v1 = v1 * 10 + self.require_digit_value()
+                    if self.match_digit():
+                        v2 = self.require_digit_value()
+                        if self.match_digit():
+                            v2 = v2 * 10 + self.require_digit_value()
                             return Date(year=v1, month=v2, base=base), "-YYMM"
                         else:
                             return Date(
                                 ordinal_day=v1 * 10 + v2, base=base), "-DDD"
                     elif self.the_char == "-":
                         self.next_char()
-                        v2 = self.ParseDIGIT()
-                        v2 = v2 * 10 + self.ParseDIGIT()
+                        v2 = self.require_digit_value()
+                        v2 = v2 * 10 + self.require_digit_value()
                         return Date(year=v1, month=v2, base=base), "-YY-MM"
                     else:
                         return Date(year=v1, base=base), "-YY"
                 elif self.the_char == "-":
                     self.next_char()
-                    self.ParseTerminal("W")
-                    v2 = self.ParseDIGIT()
-                    v2 = v2 * 10 + self.ParseDIGIT()
+                    self.require("W")
+                    v2 = self.require_digit_value()
+                    v2 = v2 * 10 + self.require_digit_value()
                     if self.the_char == "-":
                         self.next_char()
-                        v3 = self.ParseDIGIT()
+                        v3 = self.require_digit_value()
                         return (Date(year=v1, week=v2, weekday=v3, base=base),
                                 "-Y-Www-D")
                     else:
                         return Date(year=v1, week=v2, base=base), "-Y-Www"
                 elif self.the_char == "W":
                     self.next_char()
-                    v2 = self.ParseDIGIT()
-                    v2 = v2 * 10 + self.ParseDIGIT()
-                    if is_digit(self.the_char):
-                        v3 = self.ParseDIGIT()
+                    v2 = self.require_digit_value()
+                    v2 = v2 * 10 + self.require_digit_value()
+                    if self.match_digit():
+                        v3 = self.require_digit_value()
                         return Date(
                             year=v1, week=v2, weekday=v3, base=base), "-YWwwD"
                     else:
                         return Date(year=v1, week=v2, base=base), "-YWww"
             elif self.the_char == "-":
                 self.next_char()
-                if is_digit(self.the_char):
-                    v1 = self.ParseDIGIT()
-                    v1 = v1 * 10 + self.ParseDIGIT()
-                    if is_digit(self.the_char):
-                        v2 = self.ParseDIGIT()
-                        v2 = v2 * 10 + self.ParseDIGIT()
+                if self.match_digit():
+                    v1 = self.require_digit_value()
+                    v1 = v1 * 10 + self.require_digit_value()
+                    if self.match_digit():
+                        v2 = self.require_digit_value()
+                        v2 = v2 * 10 + self.require_digit_value()
                         return Date(month=v1, day=v2, base=base), "--MMDD"
                     elif self.the_char == "-":
                         self.next_char()
-                        v2 = self.ParseDIGIT()
-                        v2 = v2 * 10 + self.ParseDIGIT()
+                        v2 = self.require_digit_value()
+                        v2 = v2 * 10 + self.require_digit_value()
                         return Date(month=v1, day=v2, base=base), "--MM-DD"
                     else:
                         return Date(month=v1, base=base), "--MM"
                 elif self.the_char == "-":
                     self.next_char()
-                    v1 = self.ParseDIGIT()
-                    v1 = v1 * 10 + self.ParseDIGIT()
+                    v1 = self.require_digit_value()
+                    v1 = v1 * 10 + self.require_digit_value()
                     return Date(day=v1, base=base), "---DD"
                 else:
                     self.BadSyntax(
                         "expected digit or hyphen in truncated ISO date")
             elif self.the_char == "W":
                 self.next_char()
-                if is_digit(self.the_char):
-                    v1 = self.ParseDIGIT()
-                    v1 = v1 * 10 + self.ParseDIGIT()
-                    if is_digit(self.the_char):
-                        v2 = self.ParseDIGIT()
+                if self.match_digit():
+                    v1 = self.require_digit_value()
+                    v1 = v1 * 10 + self.require_digit_value()
+                    if self.match_digit():
+                        v2 = self.require_digit_value()
                         return Date(week=v1, weekday=v2, base=base), "-WwwD"
                     elif self.the_char == "-":
                         self.next_char()
-                        v2 = self.ParseDIGIT()
+                        v2 = self.require_digit_value()
                         return Date(week=v1, weekday=v2, base=base), "-Www-D"
                     else:
                         return Date(week=v1, base=base), "-Www"
                 elif self.the_char == "-":
                     self.next_char()
-                    v1 = self.ParseDIGIT()
+                    v1 = self.require_digit_value()
                     return Date(weekday=v1, base=base), "-W-D"
                 else:
                     self.BadSyntax(
@@ -3153,240 +3259,10 @@ class ISO8601Parser(RFC2234CoreParser):
             self.BadSyntax("expected digit or hyphen in ISO date")
 
     def parse_date(self, date, base=None):
-        warnings.warn(
-            "ISO8601Parser.parse_date is deprecated, use parse_date_format "
-            "instead", DeprecationWarning, stacklevel=2)
-        if is_digit(self.the_char):
-            v1 = self.ParseDIGIT()
-            v1 = v1 * 10 + self.ParseDIGIT()
-            if is_digit(self.the_char):
-                v2 = self.ParseDIGIT()
-                v2 = v2 * 10 + self.ParseDIGIT()
-                if is_digit(self.the_char):
-                    v3 = self.ParseDIGIT()
-                    if is_digit(self.the_char):
-                        v3 = v3 * 10 + self.ParseDIGIT()
-                        if is_digit(self.the_char):
-                            v4 = self.ParseDIGIT()
-                            if is_digit(self.the_char):
-                                v4 = v4 * 10 + self.ParseDIGIT()
-                                date.set_calendar_day(v1, v2, v3, v4, base)
-                                return "YYYYMMDD"
-                            else:
-                                date.set_ordinal_day(v1, v2, v3 * 10 + v4,
-                                                     base)
-                                return "YYYYDDD"
-                        else:
-                            date.set_calendar_day(None, v1, v2, v3, base)
-                            return "YYMMDD"
-                    else:
-                        date.set_ordinal_day(None, v1, v2 * 10 + v3, base)
-                        return "YYDDD"
-                elif self.the_char == "-":
-                    self.next_char()
-                    if is_digit(self.the_char):
-                        v3 = self.ParseDIGIT()
-                        v3 = v3 * 10 + self.ParseDIGIT()
-                        if is_digit(self.the_char):
-                            v3 = v3 * 10 + self.ParseDIGIT()
-                            date.set_ordinal_day(v1, v2, v3, base)
-                            return "YYYY-DDD"
-                        elif self.the_char == "-":
-                            self.next_char()
-                            v4 = self.ParseDIGIT()
-                            v4 = v4 * 10 + self.ParseDIGIT()
-                            date.set_calendar_day(v1, v2, v3, v4, base)
-                            return "YYYY-MM-DD"
-                        else:
-                            date.set_calendar_day(v1, v2, v3, None, base)
-                            return "YYYY-MM"
-                    elif self.the_char == "W":
-                        self.next_char()
-                        v3 = self.ParseDIGIT()
-                        v3 = v3 * 10 + self.ParseDIGIT()
-                        if self.the_char == "-":
-                            self.next_char()
-                            v4 = self.ParseDIGIT()
-                            date.set_week_day(
-                                v1, v2 // 10, v2 % 10, v3, v4, base)
-                            return "YYYY-Www-D"
-                        else:
-                            date.set_week_day(
-                                v1, v2 // 10, v2 % 10, v3, None, base)
-                            return "YYYY-Www"
-                    else:
-                        self.BadSyntax("expected digit or W in ISO date")
-                elif self.the_char == "W":
-                    self.next_char()
-                    v3 = self.ParseDIGIT()
-                    v3 = v3 * 10 + self.ParseDIGIT()
-                    if is_digit(self.the_char):
-                        v4 = self.ParseDIGIT()
-                        date.set_week_day(v1, v2 // 10, v2 % 10, v3, v4, base)
-                        return "YYYYWwwD"
-                    else:
-                        date.set_week_day(v1, v2 // 10, v2 % 10, v3, None,
-                                          base)
-                        return "YYYYWww"""
-                else:
-                    date.set_calendar_day(v1, v2, None, None, base)
-                    return "YYYY"
-            elif self.the_char == "-":
-                self.next_char()
-                if is_digit(self.the_char):
-                    """YY-DDD, YY-MM-DD"""
-                    v2 = self.ParseDIGIT()
-                    v2 = v2 * 10 + self.ParseDIGIT()
-                    if is_digit(self.the_char):
-                        v2 = v2 * 10 + self.ParseDIGIT()
-                        date.set_ordinal_day(None, v1, v2, base)
-                        return "YY-DDD"
-                    elif self.the_char == "-":
-                        self.next_char()
-                        v3 = self.ParseDIGIT()
-                        v3 = v3 * 10 + self.ParseDIGIT()
-                        date.set_calendar_day(None, v1, v2, v3, base)
-                        return "YY-MM-DD"
-                    else:
-                        self.BadSyntax(
-                            "expected digit or hyphen in ISO date")
-                elif self.the_char == "W":
-                    self.next_char()
-                    v2 = self.ParseDIGIT()
-                    v2 = v2 * 10 + self.ParseDIGIT()
-                    if self.the_char == "-":
-                        self.next_char()
-                        v3 = self.ParseDIGIT()
-                        date.set_week_day(None, v1 // 10, v1 % 10, v2, v3,
-                                          base)
-                        return "YY-Www-D"
-                    else:
-                        date.set_week_day(
-                            None, v1 // 10, v1 % 10, v2, None, base)
-                        return "YY-Www"
-                else:
-                    self.BadSyntax("expected digit or W in ISO date")
-            elif self.the_char == "W":
-                self.next_char()
-                v2 = self.ParseDIGIT()
-                v2 = v2 * 10 + self.ParseDIGIT()
-                if is_digit(self.the_char):
-                    v3 = self.ParseDIGIT()
-                    date.set_week_day(None, v1 // 10, v1 % 10, v2, v3, base)
-                    return "YYWwwD"
-                else:
-                    date.set_week_day(None, v1 // 10, v1 % 10, v2, None, base)
-                    return "YYWww"
-            else:
-                date.set_calendar_day(v1, None, None, None, base)
-                return "YY"
-        elif self.the_char == "-":
-            self.next_char()
-            if is_digit(self.the_char):
-                v1 = self.ParseDIGIT()
-                if is_digit(self.the_char):
-                    v1 = v1 * 10 + self.ParseDIGIT()
-                    if is_digit(self.the_char):
-                        v2 = self.ParseDIGIT()
-                        if is_digit(self.the_char):
-                            v2 = v2 * 10 + self.ParseDIGIT()
-                            date.set_calendar_day(None, v1, v2, None, base)
-                            return "-YYMM"
-                        else:
-                            date.set_ordinal_day(None, None, v1 * 10 + v2,
-                                                 base)
-                            return "-DDD"
-                    elif self.the_char == "-":
-                        self.next_char()
-                        v2 = self.ParseDIGIT()
-                        v2 = v2 * 10 + self.ParseDIGIT()
-                        date.set_calendar_day(None, v1, v2, None, base)
-                        return "-YY-MM"
-                    else:
-                        date.set_calendar_day(None, v1, None, None, base)
-                        return "-YY"
-                elif self.the_char == "-":
-                    self.next_char()
-                    self.ParseTerminal("W")
-                    v2 = self.ParseDIGIT()
-                    v2 = v2 * 10 + self.ParseDIGIT()
-                    if self.the_char == "-":
-                        self.next_char()
-                        v3 = self.ParseDIGIT()
-                        date.set_week_day(None, None, v1, v2, v3, base)
-                        return "-Y-Www-D"
-                    else:
-                        date.set_week_day(None, None, v1, v2, None, base)
-                        return "-Y-Www"
-                elif self.the_char == "W":
-                    self.next_char()
-                    v2 = self.ParseDIGIT()
-                    v2 = v2 * 10 + self.ParseDIGIT()
-                    if is_digit(self.the_char):
-                        v3 = self.ParseDIGIT()
-                        date.set_week_day(None, None, v1, v2, v3, base)
-                        return "-YWwwD"
-                    else:
-                        date.set_week_day(None, None, v1, v2, None, base)
-                        return "-YWww"
-            elif self.the_char == "-":
-                self.next_char()
-                if is_digit(self.the_char):
-                    v1 = self.ParseDIGIT()
-                    v1 = v1 * 10 + self.ParseDIGIT()
-                    if is_digit(self.the_char):
-                        v2 = self.ParseDIGIT()
-                        v2 = v2 * 10 + self.ParseDIGIT()
-                        date.set_calendar_day(None, None, v1, v2, base)
-                        return "--MMDD"
-                    elif self.the_char == "-":
-                        self.next_char()
-                        v2 = self.ParseDIGIT()
-                        v2 = v2 * 10 + self.ParseDIGIT()
-                        date.set_calendar_day(None, None, v1, v2, base)
-                        return "--MM-DD"
-                    else:
-                        date.set_calendar_day(None, None, v1, None, base)
-                        return "--MM"
-                elif self.the_char == "-":
-                    self.next_char()
-                    v1 = self.ParseDIGIT()
-                    v1 = v1 * 10 + self.ParseDIGIT()
-                    date.set_calendar_day(None, None, None, v1, base)
-                    return "---DD"
-                else:
-                    self.BadSyntax(
-                        "expected digit or hyphen in truncated ISO date")
-            elif self.the_char == "W":
-                self.next_char()
-                if is_digit(self.the_char):
-                    v1 = self.ParseDIGIT()
-                    v1 = v1 * 10 + self.ParseDIGIT()
-                    if is_digit(self.the_char):
-                        v2 = self.ParseDIGIT()
-                        date.set_week_day(None, None, None, v1, v2, base)
-                        return "-WwwD"
-                    elif self.the_char == "-":
-                        self.next_char()
-                        v2 = self.ParseDIGIT()
-                        date.set_week_day(None, None, None, v1, v2, base)
-                        return "-Www-D"
-                    else:
-                        date.set_week_day(None, None, None, v1, None, base)
-                        return "-Www"
-                elif self.the_char == "-":
-                    self.next_char()
-                    v1 = self.ParseDIGIT()
-                    date.set_week_day(None, None, None, None, v1, base)
-                    return "-W-D"
-                else:
-                    self.BadSyntax(
-                        "expected digit or hyphen in truncated ISO date")
-            else:
-                self.BadSyntax(
-                    "expected digit, hyphen or W in truncated ISO date")
-        else:
-            self.BadSyntax("expected digit or hyphen in ISO date")
+        raise DateTimeError(
+            "ISO8601Parser.parse_date no longer supported\n"
+            "Replace: dformat = p.parse_date(d, base) with:\n"
+            "         d, tformat = p.parse_date_format(base)")
 
     def parse_time_format(self, base=None, tdesignators="T"):
         if self.the_char in tdesignators:
@@ -3394,15 +3270,15 @@ class ISO8601Parser(RFC2234CoreParser):
             tdesignator = 1
         else:
             tdesignator = 0
-        if is_digit(self.the_char):
-            v1 = self.ParseDIGIT()
-            v1 = v1 * 10 + self.ParseDIGIT()
-            if is_digit(self.the_char):
-                v2 = self.ParseDIGIT()
-                v2 = v2 * 10 + self.ParseDIGIT()
-                if is_digit(self.the_char):
-                    v3 = self.ParseDIGIT()
-                    v3 = v3 * 10 + self.ParseDIGIT()
+        if self.match_digit():
+            v1 = self.require_digit_value()
+            v1 = v1 * 10 + self.require_digit_value()
+            if self.match_digit():
+                v2 = self.require_digit_value()
+                v2 = v2 * 10 + self.require_digit_value()
+                if self.match_digit():
+                    v3 = self.require_digit_value()
+                    v3 = v3 * 10 + self.require_digit_value()
                     if self.the_char == "." or self.the_char == ",":
                         point = self.the_char
                         v3 = float(v3) + self.parse_fraction()
@@ -3426,12 +3302,12 @@ class ISO8601Parser(RFC2234CoreParser):
                 tformat = "hh%sh" % point
             elif self.the_char == ":":
                 self.next_char()
-                v2 = self.ParseDIGIT()
-                v2 = v2 * 10 + self.ParseDIGIT()
+                v2 = self.require_digit_value()
+                v2 = v2 * 10 + self.require_digit_value()
                 if self.the_char == ":":
                     self.next_char()
-                    v3 = self.ParseDIGIT()
-                    v3 = v3 * 10 + self.ParseDIGIT()
+                    v3 = self.require_digit_value()
+                    v3 = v3 * 10 + self.require_digit_value()
                     if self.the_char == "." or self.the_char == ",":
                         point = self.the_char
                         v3 = float(v3) + self.parse_fraction()
@@ -3455,12 +3331,12 @@ class ISO8601Parser(RFC2234CoreParser):
             if tdesignator:
                 self.BadSyntax("time designator T before truncated time")
             self.next_char()
-            if is_digit(self.the_char):
-                v1 = self.ParseDIGIT()
-                v1 = v1 * 10 + self.ParseDIGIT()
-                if is_digit(self.the_char):
-                    v2 = self.ParseDIGIT()
-                    v2 = v2 * 10 + self.ParseDIGIT()
+            if self.match_digit():
+                v1 = self.require_digit_value()
+                v1 = v1 * 10 + self.require_digit_value()
+                if self.match_digit():
+                    v2 = self.require_digit_value()
+                    v2 = v2 * 10 + self.require_digit_value()
                     if self.the_char == "." or self.the_char == ",":
                         point = self.the_char
                         v2 = float(v2) + self.parse_fraction()
@@ -3476,8 +3352,8 @@ class ISO8601Parser(RFC2234CoreParser):
                     tformat = "-mm%sm" % point
                 elif self.the_char == ":":
                     self.next_char()
-                    v2 = self.ParseDIGIT()
-                    v2 = v2 * 10 + self.ParseDIGIT()
+                    v2 = self.require_digit_value()
+                    v2 = v2 * 10 + self.require_digit_value()
                     if self.the_char == "." or self.the_char == ",":
                         point = self.the_char
                         v2 = float(v2) + self.parse_fraction()
@@ -3491,8 +3367,8 @@ class ISO8601Parser(RFC2234CoreParser):
                     tformat = "-mm"
             elif self.the_char == "-":
                 self.next_char()
-                v1 = self.ParseDIGIT()
-                v1 = v1 * 10 + self.ParseDIGIT()
+                v1 = self.require_digit_value()
+                v1 = v1 * 10 + self.require_digit_value()
                 if self.the_char == "." or self.the_char == ",":
                     point = self.the_char
                     v1 = float(v1) + self.parse_fraction()
@@ -3537,17 +3413,17 @@ class ISO8601Parser(RFC2234CoreParser):
             else:
                 v1 = -1
             self.next_char()
-            v2 = self.ParseDIGIT()
-            v2 = v2 * 10 + self.ParseDIGIT()
-            if is_digit(self.the_char):
-                v3 = self.ParseDIGIT()
-                v3 = v3 * 10 + self.ParseDIGIT()
+            v2 = self.require_digit_value()
+            v2 = v2 * 10 + self.require_digit_value()
+            if self.match_digit():
+                v3 = self.require_digit_value()
+                v3 = v3 * 10 + self.require_digit_value()
                 zdirection, zhour, zminute = v1, v2, v3
                 format = "+hhmm"
             elif self.the_char == ":":
                 self.next_char()
-                v3 = self.ParseDIGIT()
-                v3 = v3 * 10 + self.ParseDIGIT()
+                v3 = self.require_digit_value()
+                v3 = v3 * 10 + self.require_digit_value()
                 zdirection, zhour, zminute = v1, v2, v3
                 format = "+hh:mm"
             else:
@@ -3556,163 +3432,17 @@ class ISO8601Parser(RFC2234CoreParser):
         return zdirection, zhour, zminute, format
 
     def parse_time(self, t, tbase=None, tdesignators="T"):
-        warnings.warn("ISO8601Parser.parse_time is deprecated, use "
-                      "parse_time_format instead", DeprecationWarning,
-                      stacklevel=2)
-        if self.the_char in tdesignators:
-            self.next_char()
-            tdesignator = 1
-        else:
-            tdesignator = 0
-        if is_digit(self.the_char):
-            v1 = self.ParseDIGIT()
-            v1 = v1 * 10 + self.ParseDIGIT()
-            if is_digit(self.the_char):
-                v2 = self.ParseDIGIT()
-                v2 = v2 * 10 + self.ParseDIGIT()
-                if is_digit(self.the_char):
-                    v3 = self.ParseDIGIT()
-                    v3 = v3 * 10 + self.ParseDIGIT()
-                    if self.the_char == "." or self.the_char == ",":
-                        point = self.the_char
-                        v3 = float(v3) + self.parse_fraction()
-                        t.set_time(v1, v2, v3)
-                        tformat = "hhmmss%ss" % point
-                    else:
-                        t.set_time(v1, v2, v3)
-                        tformat = "hhmmss"
-                elif self.the_char == "." or self.the_char == ",":
-                    point = self.the_char
-                    v2 = float(v2) + self.parse_fraction()
-                    t.set_time(v1, v2, None)
-                    tformat = "hhmm%sm" % point
-                else:
-                    t.set_time(v1, v2, None)
-                    tformat = "hhmm"
-            elif self.the_char == "." or self.the_char == ",":
-                point = self.the_char
-                v1 = float(v1) + self.parse_fraction()
-                t.set_time(v1, None, None)
-                tformat = "hh%sh" % point
-            elif self.the_char == ":":
-                self.next_char()
-                v2 = self.ParseDIGIT()
-                v2 = v2 * 10 + self.ParseDIGIT()
-                if self.the_char == ":":
-                    self.next_char()
-                    v3 = self.ParseDIGIT()
-                    v3 = v3 * 10 + self.ParseDIGIT()
-                    if self.the_char == "." or self.the_char == ",":
-                        point = self.the_char
-                        v3 = float(v3) + self.parse_fraction()
-                        t.set_time(v1, v2, v3)
-                        tformat = "hh:mm:ss%ss" % point
-                    else:
-                        t.set_time(v1, v2, v3)
-                        tformat = "hh:mm:ss"
-                elif self.the_char == "," or self.the_char == ".":
-                    point = self.the_char
-                    v2 = float(v2) + self.parse_fraction()
-                    t.set_time(v1, v2, None)
-                    tformat = "hh:mm%sm" % point
-                else:
-                    t.set_time(v1, v2, None)
-                    tformat = "hh:mm"
-            else:
-                t.set_time(v1, None, None)
-                tformat = "hh"
-        elif self.the_char == "-":
-            if tdesignator:
-                self.BadSyntax("time designator before truncated time")
-            self.next_char()
-            if is_digit(self.the_char):
-                v1 = self.ParseDIGIT()
-                v1 = v1 * 10 + self.ParseDIGIT()
-                if is_digit(self.the_char):
-                    v2 = self.ParseDIGIT()
-                    v2 = v2 * 10 + self.ParseDIGIT()
-                    if self.the_char == "." or self.the_char == ",":
-                        point = self.the_char
-                        v2 = float(v2) + self.parse_fraction()
-                        t.set_time(None, v1, v2, tbase)
-                        tformat = "-mmss%ss" % point
-                    else:
-                        t.set_time(None, v1, v2, tbase)
-                        tformat = "-mmss"
-                elif self.the_char == "." or self.the_char == ",":
-                    point = self.the_char
-                    v1 = float(v1) + self.parse_fraction()
-                    t.set_time(None, v1, None, tbase)
-                    tformat = "-mm%sm" % point
-                elif self.the_char == ":":
-                    self.next_char()
-                    v2 = self.ParseDIGIT()
-                    v2 = v2 * 10 + self.ParseDIGIT()
-                    if self.the_char == "." or self.the_char == ",":
-                        point = self.the_char
-                        v2 = float(v2) + self.parse_fraction()
-                        t.set_time(None, v1, v2, tbase)
-                        tformat = "-mm:ss%ss" % point
-                    else:
-                        t.set_time(None, v1, v2, tbase)
-                        tformat = "-mm:ss"
-                else:
-                    t.set_time(None, v1, None, tbase)
-                    tformat = "-mm"
-            elif self.the_char == "-":
-                self.next_char()
-                v1 = self.ParseDIGIT()
-                v1 = v1 * 10 + self.ParseDIGIT()
-                if self.the_char == "." or self.the_char == ",":
-                    point = self.the_char
-                    v1 = float(v1) + self.parse_fraction()
-                    t.set_time(None, None, v1, tbase)
-                    tformat = "--ss%ss" % point
-                else:
-                    t.set_time(None, None, v1, tbase)
-                    tformat = "--ss"
-            else:
-                self.BadSyntax("expected digit or hyphen in truncated Time")
-            # truncated forms cannot don't take timezones, return early
-            return tformat
-        else:
-            self.BadSyntax("expected digit of hyphen in Time")
-        if self.the_char is not None and self.the_char in "Z+-":
-            tformat += self.parse_time_zone(t)
-            if (not (BasicTimeFormats.get(tformat) or
-                     ExtendedTimeFormats.get(tformat))):
-                raise DateTimeError(
-                    "inconsistent use of extended/basic format in time zone")
-        return tformat
+        raise DateTimeError(
+            "ISO8601Parser.parse_time no longer supported\n"
+            "Replace: tformat = p.parse_time(t, base, 'T') with:\n"
+            "         t, tformat = p.parse_time_format(base, 'T')")
 
     def parse_time_zone(self, t):
-        if self.the_char == "Z":
-            self.next_char()
-            t.set_zone(0)
-            format = 'Z'
-        elif self.the_char == "+" or self.the_char == "-":
-            if self.the_char == "+":
-                v1 = +1
-            else:
-                v1 = -1
-            self.next_char()
-            v2 = self.ParseDIGIT()
-            v2 = v2 * 10 + self.ParseDIGIT()
-            if is_digit(self.the_char):
-                v3 = self.ParseDIGIT()
-                v3 = v3 * 10 + self.ParseDIGIT()
-                t.set_zone(v1, v2, v3)
-                format = "+hhmm"
-            elif self.the_char == ":":
-                self.next_char()
-                v3 = self.ParseDIGIT()
-                v3 = v3 * 10 + self.ParseDIGIT()
-                t.set_zone(v1, v2, v3)
-                format = "+hh:mm"
-            else:
-                t.set_zone(v1, v2, None)
-                format = "+hh"
-        return format
+        raise DateTimeError(
+            "ISO8601Parser.parse_time_zone no longer supported\n"
+            "Replace: zformat = p.parse_time_zone(t) with:\n"
+            "         zd, zh, zm, zformat = p.parse_time_zone_format()\n"
+            "         t = t.with_zone(zd, zh, zm)")
 
     def parse_duration_value(self, allow_fraction=True):
         """Returns a tuple of (value, formatString) or (None,None).
@@ -3720,7 +3450,7 @@ class ISO8601Parser(RFC2234CoreParser):
         formatString is one of "n", "n.n" or "n,n".
 
         If allow_fraction is False then a fractional format raises an error."""
-        value = self.ParseDIGITRepeat()
+        value = self.parse_integer()
         if value is None:
             return None, None
         if self.the_char in ".,":
@@ -3746,7 +3476,7 @@ class ISO8601Parser(RFC2234CoreParser):
             format.append(vformat + "W")
             self.next_char()
             d.set_week_duration(value)
-            return string.join(format, '')
+            return ''.join(format)
         if value is not None and self.the_char == 'Y':
             format.append(vformat + "Y")
             self.next_char()
@@ -3819,13 +3549,13 @@ class ISO8601Parser(RFC2234CoreParser):
         # Now deal with partial precision, higher order components
         # default to 0
         def_value = None
-        for i in xrange(5, -1, -1):
+        for i in range3(5, -1, -1):
             # loop backwards through the values
             if values[i] is None:
                 values[i] = def_value
             else:
                 def_value = 0
-        format = string.join(format, '')
+        format = ''.join(format)
         years, months, days, hours, minutes, seconds = values
         d.set_calender_duration(years, months, days, hours, minutes, seconds)
         return format
@@ -3836,12 +3566,16 @@ class ISO8601Parser(RFC2234CoreParser):
         self.next_char()
         f = 0
         fmag = 1
-        while is_digit(self.the_char):
-            f = f * 10 + self.ParseDIGIT()
+        while self.match_digit():
+            f = f * 10 + self.require_digit_value()
             fmag *= 10
         if fmag == 1:
             self.BadSyntax("expected decimal digit")
         return float(f) / float(fmag)
+
+    def require_digit_value(self):
+        return self.require_production(self.parse_digit_value(),
+                                       "expected DIGIT")
 
 
 EPOCH = TimePoint.from_struct_time(pytime.gmtime(0)).with_zone(zdirection=0)

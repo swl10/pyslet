@@ -197,7 +197,7 @@ Iterable Fixes
 
 Python 3 made a number of changes to the way objects are iterated.
 
-..  function::  range(*args)
+..  function::  range3(*args)
 
     Uses Python 3 range semantics, maps to xrange in Python 2.
 
@@ -211,6 +211,14 @@ Python 3 made a number of changes to the way objects are iterated.
 
     Returns an iterable object representing the values in the dictionary
     *d*.
+
+
+Comparisons
+-----------
+
+..	autoclass:: CmpMixin
+	:members:
+	:show-inheritance:
 
 
 Misc Fixes

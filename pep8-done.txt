@@ -18,6 +18,7 @@ unittests/test_http_server.py
 pyslet/imsbltiv1p0.py
 unittests/test_imsbltiv1p0.py
 pyslet/iso8601.py
+unittests/test_iso8601.py
 pyslet/mysqldbds.py
 unittests/test_mysqldbds.py
 pyslet/odata2/metadata.py

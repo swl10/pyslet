@@ -30,6 +30,8 @@ Supporting Constants
 ..	autoclass:: Truncation
 	:members:
 
+..	autodata:: NoTruncation
+
 ..	autoclass:: Precision
 	:members:
 
@@ -43,3 +45,4 @@ Utility Functions
 
 ..	autofunction::	week_count
 
+..  autofunction::  get_local_zone

@@ -81,6 +81,8 @@ if py2:
         else:
             raise TypeError('Expectected character or int')
 
+    byte_value = ord
+
     join_bytes = b''.join
 
     range3 = xrange
@@ -161,6 +163,8 @@ else:
         else:
             raise TypeError('Expectected character or int')
 
+    byte_value = int
+
     join_bytes = bytes
 
     range3 = range
@@ -192,3 +196,28 @@ class UnicodeMixin(object):
     else:
         def __str__(self):      # noqa
             return self.__unicode__()
+
+
+class CmpMixin(object):
+    """Mixin class for handling comparisons
+
+    For compatibility with Python 2's __cmp__ method this class defines
+    an implementation of __eq__, __lt__ and __le__ that are redirected
+    to __cmp__.  These are the minimum methods required for Python's
+    rich comparisons.
+
+    In Python 2 it also provides an implementation of __ne__ that simply
+    inverts the result of __eq__.  (This is not required in Python 3.)"""
+
+    def __eq__(self, other):
+        return self.__cmp__(other) == 0
+
+    def __lt__(self, other):
+        return self.__cmp__(other) < 0
+
+    def __le__(self, other):
+        return self.__cmp__(other) <= 0
+
+    if py2:
+        def __ne__(self, other):    # noqa
+            return not self.__eq__(other)

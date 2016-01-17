@@ -139,6 +139,10 @@ class Python2Tests(unittest.TestCase):
             self.fail("py2.byte(negative)")
         except ValueError:
             pass
+        # now test byte value...
+        self.assertTrue(py2.byte_value(py2.byte(0)) == 0)
+        self.assertTrue(py2.byte_value(py2.byte(0x30)) == 0x30)
+        self.assertTrue(py2.byte_value(py2.byte(0xFF)) == 0xFF)
 
     def test_str(self):
         class X(py2.UnicodeMixin):
@@ -162,6 +166,41 @@ class Python2Tests(unittest.TestCase):
         except UnicodeEncodeError:
             # This is acceptable if the string can't be converted
             pass
+
+    def test_cmp(self):
+        class X(py2.CmpMixin):
+            def __init__(self, data):
+                self.data = data
+
+            def __lt__(self, other):
+                return self.data < other.data
+
+            def __eq__(self, other):
+                return self.data == other.data
+
+            def __le__(self, other):
+                return self.data <= other.data
+
+        # call __eq__
+        self.assertTrue(X(1) == X(1))
+        self.assertFalse(X(1) == X(2))
+        # call __ne__
+        self.assertFalse(X(1) != X(1))
+        self.assertTrue(X(1) != X(2))
+        # call __lt__
+        self.assertFalse(X(1) < X(1))
+        self.assertTrue(X(1) < X(2))
+        # call __le__
+        self.assertTrue(X(1) <= X(1))
+        self.assertTrue(X(1) <= X(2))
+        self.assertFalse(X(2) <= X(1))
+        # call __gt__
+        self.assertFalse(X(1) > X(1))
+        self.assertTrue(X(2) > X(1))
+        # call __ge__
+        self.assertTrue(X(1) >= X(1))
+        self.assertTrue(X(2) >= X(1))
+        self.assertFalse(X(1) >= X(2))
 
     def test_literals(self):
         data1 = "hello"

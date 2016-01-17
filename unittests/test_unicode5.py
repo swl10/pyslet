@@ -604,6 +604,27 @@ class ParserTests(unittest.TestCase):
         p.next_char()
         self.assertTrue(p.parse_digit() is None)
 
+    def test_parse_digit_value(self):
+        p = unicode5.BasicParser(ul("2p"))
+        self.assertTrue(p.parse_digit_value() == 2)
+        self.assertTrue(p.pos == 1)
+        self.assertTrue(p.parse_digit_value() is None)
+        p.next_char()
+        self.assertTrue(p.parse_digit_value() is None)
+        # test Arabic digits, should not parse!
+        p = unicode5.BasicParser(
+            u8(b'\xd9\xa0\xd9\xa1\xd9\xa2\xd9\xa3\xd9\xa4\xd9\xa5'
+               b'\xd9\xa6\xd9\xa7\xd9\xa8\xd9\xa9'))
+        for i in range3(10):
+            self.assertTrue(p.parse_digit_value() is None)
+            p.next_char()
+        # test binary forms
+        p = unicode5.BasicParser(b"2p")
+        self.assertTrue(p.parse_digit_value() == 2)
+        self.assertTrue(p.parse_digit_value() is None)
+        p.next_char()
+        self.assertTrue(p.parse_digit_value() is None)
+
     def test_parse_digits(self):
         p = unicode5.BasicParser(ul("23p"))
         # min value of 0
