@@ -228,6 +228,22 @@ class MockSocket(MockSocketBase):
         return response
 
 
+class UnboundServer(Server):
+
+    def server_bind(self):
+        # do nothing
+        if self.allow_reuse_address:
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        logging.info("Skipping bind on: %s" % repr(self.server_address))
+        # the default implementation updates server_address from the socket
+        self.server_address = (socket.gethostbyname(self.server_address[0]),
+                               self.server_address[1])
+
+    def server_activate(self):
+        # do nothing
+        logging.info("Skipping listen on: %s" % repr(self.server_address))
+
+
 class ServerTests(unittest.TestCase):
 
     def setUp(self):        # noqa
@@ -246,7 +262,7 @@ class ServerTests(unittest.TestCase):
 
     def test_simple(self):
         # we must pass the port (to the left?)
-        s = Server(port=self.port)
+        s = UnboundServer(port=self.port)
         self.assertTrue(isinstance(s, SocketServer.TCPServer))
         # check some attributes
         self.assertTrue(s.address_family == socket.AF_INET)
@@ -279,7 +295,7 @@ class ServerTests(unittest.TestCase):
             A server which receives an entity-body with a
             transfer-coding it does not understand SHOULD return 501
             (Unimplemented), and close the connection"""
-        s = Server(port=self.port)
+        s = UnboundServer(port=self.port)
         sock = MockSocket()
         t = threading.Thread(target=self.run_request, args=(s, sock))
         t.start()
@@ -320,7 +336,7 @@ class ServerTests(unittest.TestCase):
         """RFC2616:
 
         A server MUST NOT send transfer-codings to an HTTP/1.0 client"""
-        s = Server(port=self.port, app=self.multidata_app)
+        s = UnboundServer(port=self.port, app=self.multidata_app)
         sock = MockSocket()
         t = threading.Thread(target=self.run_request, args=(s, sock))
         t.start()
@@ -352,7 +368,7 @@ class ServerTests(unittest.TestCase):
 
     def test_chunked(self):
         """Contrast test, we expect chunked for HTTP/1.1"""
-        s = Server(port=self.port, app=self.multidata_app)
+        s = UnboundServer(port=self.port, app=self.multidata_app)
         sock = MockSocket()
         t = threading.Thread(target=self.run_request, args=(s, sock))
         t.start()
@@ -397,7 +413,7 @@ class ServerTests(unittest.TestCase):
 
             In the interest of robustness, servers SHOULD ignore any
             empty line(s) received where a Request-Line is expected."""
-        s = Server(port=self.port)
+        s = UnboundServer(port=self.port)
         sock = MockSocket()
         t = threading.Thread(target=self.run_request, args=(s, sock))
         t.start()
@@ -450,7 +466,7 @@ class ServerTests(unittest.TestCase):
             server, the response MUST be a 400 (Bad Request) error
             message"""
         # the default server is 127.0.0.1
-        s = Server(port=self.port, app=self.host_app)
+        s = UnboundServer(port=self.port, app=self.host_app)
         sock = MockSocket()
         t = threading.Thread(target=self.run_request, args=(s, sock))
         t.start()
@@ -523,7 +539,7 @@ class ServerTests(unittest.TestCase):
 
             An origin server that sends a 100 (Continue) response MUST
             ultimately send a final status code"""
-        s = Server(port=self.port, app=self.continue_app)
+        s = UnboundServer(port=self.port, app=self.continue_app)
         sock = MockSocket()
         t = threading.Thread(target=self.run_request, args=(s, sock))
         t.start()
@@ -573,7 +589,7 @@ class ServerTests(unittest.TestCase):
 
         If a 1.0 client sends an Expect: 100-Continue we assume that the
         first rule trumps and you will get a 100 response after all."""
-        s = Server(port=self.port, app=self.continue_app)
+        s = UnboundServer(port=self.port, app=self.continue_app)
         sock = MockSocket()
         t = threading.Thread(target=self.run_request, args=(s, sock))
         t.start()
@@ -594,7 +610,7 @@ class Legacy(unittest.TestCase):
 
     def setUp(self):        # noqa
         self.port = random.randint(1111, 9999)
-        self.s = Server(port=self.port, protocol=params.HTTP_1p0)
+        self.s = UnboundServer(port=self.port, protocol=params.HTTP_1p0)
 
     def run_request(self, sock):
         # automatically calls the handle method
@@ -951,5 +967,5 @@ class PipeTests(unittest.TestCase):
 
 if __name__ == '__main__':
     logging.basicConfig(
-        level=logging.DEBUG, format="[%(thread)d] %(levelname)s %(message)s")
+        level=logging.INFO, format="[%(thread)d] %(levelname)s %(message)s")
     unittest.main()
