@@ -183,7 +183,8 @@ class ClientCollection(core.EntityCollection):
             raise edm.EntityExists(str(entity.get_location()))
         if self.is_medialink_collection():
             # insert a blank stream and then update
-            mle = self.new_stream(src=StringIO())
+            mle = self.new_stream(src=StringIO(),
+                                  sinfo=core.StreamInfo(size=0))
             entity.set_key(mle.key())
             # 2-way merge
             mle.merge(entity)
@@ -419,6 +420,8 @@ class ClientCollection(core.EntityCollection):
             raise ExpectedMediaLinkCollection
         if sinfo is None:
             sinfo = core.StreamInfo()
+        if sinfo.size is not None and sinfo.size == 0:
+            src = b''
         request = http.ClientRequest(
             str(self.baseURI), 'POST', entity_body=src)
         request.set_content_type(sinfo.type)
