@@ -44,6 +44,8 @@ if py2:
             return arg
         return arg.decode('latin-1')
 
+    empty_text = unicode("")
+
     def is_text(arg):
         return isinstance(arg, types.StringTypes)
 
@@ -60,7 +62,19 @@ if py2:
     def is_unicode(arg):
         return isinstance(arg, unicode)
 
-    character = unichr
+    def character(arg):
+        if isinstance(arg, str):
+            if len(arg) == 1:
+                return unichr(ord(arg[0]))
+            else:
+                raise ValueError('Expected single character')
+        else:
+            return unichr(arg)
+
+    def force_bytes(arg):
+        if isinstance(arg, unicode):
+            return arg.encode('ascii')
+        return arg
 
     def byte(arg):
         if isinstance(arg, str):
@@ -68,12 +82,18 @@ if py2:
                 return arg
             else:
                 raise ValueError('Expected single character')
+        elif isinstance(arg, types.UnicodeType):
+            if len(arg) == 1:
+                arg = ord(arg)
+                # fall through to int tests
+            else:
+                raise ValueError('Expected single character')
         elif isinstance(arg, bytearray):
             if len(arg) == 1:
                 return chr(arg[0])
             else:
                 raise ValueError('Expected single byte')
-        elif isinstance(arg, (int, long)):
+        if isinstance(arg, (int, long)):
             if arg >= 0 and arg <= 255:
                 return chr(arg)
             else:
@@ -123,6 +143,8 @@ else:
         else:
             raise TypeError
 
+    empty_text = ""
+
     def is_text(arg):
         return isinstance(arg, str)
 
@@ -143,6 +165,11 @@ else:
         return isinstance(arg, str)
 
     character = chr
+
+    def force_bytes(arg):
+        if isinstance(arg, str):
+            return arg.encode('ascii')
+        return arg
 
     def byte(arg):
         if isinstance(arg, str):
@@ -178,6 +205,7 @@ else:
 
 
 class UnicodeMixin(object):
+
     """Mixin class to handle string formatting
 
     For classes that need to define a __unicode__ method of their own
@@ -199,6 +227,7 @@ class UnicodeMixin(object):
 
 
 class CmpMixin(object):
+
     """Mixin class for handling comparisons
 
     For compatibility with Python 2's __cmp__ method this class defines

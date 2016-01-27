@@ -1,107 +1,277 @@
 #! /usr/bin/env python
 """This module implements the URI specification defined in RFC 2396"""
-import string
-import os
-import os.path
-import sys
-import warnings
 
-from types import UnicodeType
+import warnings
 
 import pyslet.vfs as vfs
 
-from pyslet.pep8 import renamed_function, PEP8Compatibility
+from .unicode5 import CharClass
+from .py2 import py2, byte, byte_value, join_bytes, ul, range3, CmpMixin
+from .py2 import is_unicode, character, empty_text, to_text, is_text
+from .pep8 import renamed_function, PEP8Compatibility
 
 
 class URIException(Exception):
+
+    """Base class for URI-related exceptions"""
     pass
 
 
 class URIRelativeError(URIException):
+
+    """Exceptions raised while resolve relative URI"""
     pass
 
 
-def is_up_alpha(c):
-    return c and (ord(c) >= 0x41 and ord(c) <= 0x5A)
+path_sep = ul('/')
+"""Constant for "/" character."""
+
+upalpha = CharClass(('A', 'Z'))
+
+is_upalpha = upalpha.test
+"""Tests production: upalpha"""
+
+lowalpha = CharClass(('a', 'z'))
+
+is_lowalpha = lowalpha.test
+"""Tests production: lowalpha"""
+
+alpha = CharClass(upalpha, lowalpha)
+
+is_alpha = alpha.test
+"""Tests production: alpha"""
+
+digit = CharClass(('0', '9'))
+
+is_digit = digit.test
+"""Tests production: digit"""
+
+alphanum = CharClass(upalpha, lowalpha, digit)
+
+is_alphanum = alphanum.test
+"""Tests production: alphanum"""
+
+reserved_1738 = CharClass(";/?:@&=")
+
+is_reserved_1738 = reserved_1738.test
+"""Tests production: reserved
+
+The reserved characters are::
+
+    ";" | "/" | "?" | ":" | "@" | "&" | "="
+
+This function enables parsing according to the earlier RFC1738."""
+
+reserved_2396 = CharClass(";/?:@&=+$,")
+
+is_reserved_2396 = reserved_2396.test
+"""Tests production: reserved
+
+The reserved characters are::
+
+    ";" | "/" | "?" | ":" | "@" | "&" | "=" | "+" | "$" | ","
+
+This function enables strict parsing according to RFC2396, for general
+use you should use :func:`is_reserved` which takes into consideration
+the update in RFC2732 to accommodate IPv6 literals."""
+
+reserved = CharClass(";/?:@&=+$,[]")
+
+is_reserved = reserved.test
+"""Tests production: reserved
+
+The reserved characters are::
+
+    ";" | "/" | "?" | ":" | "@" | "&" | "=" | "+" | "$" | "," | "[" | "]"
+
+This function uses the larger reserved set defined by the update in
+RFC2732.  The additional reserved characters are "[" and "]" which were
+not originally part of the character set allowed in URI by RFC2396."""
+
+safe_1738 = CharClass("$-_.+")
+
+is_safe_1738 = safe_1738.test
+"""Test production: safe (RFC 1738 only)
+
+The safe characters are::
+
+    "$" | "-" | "_" | "." | "+"
+"""
+
+extra_1738 = CharClass("!*'(),")
+is_extra_1738 = extra_1738.test
+"""Test production: safe (RFC 1738 only)
+
+The safe characters are::
+
+    "!" | "*" | "'" | "(" | ")" | ","
+"""
+
+unreserved_1738 = CharClass(alphanum, safe_1738, extra_1738)
+is_unreserved_1738 = unreserved_1738.test
+"""Tests production: unreserved
+
+Tests the definition of unreserved from the earlier RFC1738.  The
+following characters were considered 'safe' in RFC1738 (and so are
+unreserved there) but were later classified as reserved in RFC2396::
+
+    "$" | "+" | ","
+
+The "~" is considered unreserved in RFC2396 but is neither reserved nor
+unreserved in RFC1738 and so therefore must be escaped for compatibility
+with early URL parsing systems."""
+
+mark = CharClass("-_.!~*'()")
+
+is_mark = mark.test
+"""Tests production: mark
+
+The mark characters are::
+
+    "-" | "_" | "." | "!" | "~" | "*" | "'" | "(" | ")"
+"""
+
+unreserved = CharClass(alphanum, mark)
+is_unreserved = unreserved.test
+"""Tests production: unreserved
+
+Despite the name, some characters are neither reserved nor unreserved."""
 
 
-def is_low_alpha(c):
-    return c and (ord(c) >= 0x61 and ord(c) <= 0x7A)
+allowed_1738 = CharClass(reserved_1738, unreserved_1738)
 
+is_allowed_1738 = allowed_1738.test
+"""Convenience function for testing allowed characters
 
-def is_alpha(c):
-    return is_up_alpha(c) or is_low_alpha(c)
+Returns True if c is a character allowed in a URI according to the older
+definitions in RFC1738, False otherwise. A character is allowed
+(unescaped) in a URI if it is either reserved or unreserved."""
 
+allowed_2396 = CharClass(reserved_2396, unreserved)
+is_allowed_2396 = allowed_2396.test
+"""Convenience function for testing allowed characters
 
-def is_digit(c):
-    return c and (ord(c) >= 0x30 and ord(c) <= 0x39)
+Returns True if c is a character allowed in a URI according to the
+stricter definitions in RFC2396, False otherwise. A character is allowed
+(unescaped) in a URI if it is either reserved or unreserved."""
 
+allowed = CharClass(reserved, unreserved)
+is_allowed = allowed.test
+"""Convenience function for testing allowed characters
 
-def is_alpha_num(c):
-    return is_up_alpha(c) or is_low_alpha(c) or is_digit(c)
+Returns True if c is a character allowed in a URI according to the
+looser definitions of RFC2732, False otherwise. A character is allowed
+(unescaped) in a URI if it is either reserved or unreserved."""
 
+hex_char = CharClass(digit, ('a', 'f'), ('A', 'F'))
 
-def is_reserved(c):
-    # ;/?:@&=+$,
-    return c and ord(c) in (0x3B, 0x2F, 0x3F, 0x3A, 0x40, 0x26, 0x3D,
-                            0x2B, 0x24, 0x2C)
+is_hex = hex_char.test
+"""Tests production: hex
 
+Accepts upper or lower case forms."""
 
-def is_unreserved(c):
-    return is_alpha_num(c) or is_mark(c)
+control = CharClass((character(0), character(0x1f)), character(0x7f))
 
-
-def is_mark(c):
-    # -_.!~*'()
-    return c and ord(c) in (0x2D, 0x5F, 0x2E, 0x21, 0x7E, 0x2A,
-                            0x27, 0x28, 0x29)
-
-
-def is_hex(c):
-    return c and (is_digit(c) or
-                  (ord(c) >= 0x41 and ord(c) <= 0x46) or
-                  (ord(c) >= 0x61 and ord(c) <= 0x66))
-
-
-def is_control(c):
-    return c and (ord(c) < 0x20 or ord(c) == 0x7F)
+is_control = control.test
+"""Tests production: control"""
 
 
 def is_space(c):
-    return c and ord(c) == 0x20
+    """Tests production: space"""
+    return c is not None and ord(c) == 0x20
+
+delims = CharClass('<>#%"')
+is_delims = delims.test
+"""Tests production: delims
+
+The delims characters are::
+
+    "<" | ">" | "#" | "%" | <">
+"""
+
+unwise_2396 = CharClass("{}|\^[]`")
+is_unwise_2396 = unwise_2396.test
+"""Tests production: unwise
+
+The unwise characters are::
+
+    "{" | "}" | "|" | "\" | "^" | "[" | "]" | "`"
+
+This function enables strict parsing according to RFC2396, the
+definition of unwise characters was updated in RFC2732 to exclude "["
+and "]"."""
+
+unwise = CharClass("{}|\^`")
+
+is_unwise = unwise.test
+"""Tests production: unwise
+
+The unwise characters are::
+
+    "{" | "}" | "|" | "\" | "^" | "`"
+
+This function uses the smaller unwise set defined by the update in
+RFC2732.  The characters "[" and "]" were removed from this set
+in order to support IPv6 literals.
+
+This function is provided for completeness and is not used
+internally for parsing URLs."""
+
+scheme_char = CharClass(alphanum, "+-.")
+_is_scheme_char = scheme_char.test
 
 
-def is_delims(c):
-    return c and ord(c) in (0x3C, 0x3E, 0x23, 0x25, 0x22)
+authority_reserved = CharClass(";:@?/")
+is_authority_reserved = authority_reserved.test
+"""Convenience function for parsing production authority
+
+Quoting the specification of production authority:
+
+    Within the authority component, the characters ";", ":", "@",
+    "?", and "/" are reserved"""
 
 
-def is_unwise(c):
-    return c and ord(c) in (0x7B, 0x7D, 0x7C, 0x5C, 0x5E, 0x5B, 0x5D, 0x60)
-
-
-def is_scheme_char(c):
-    return is_alpha_num(c) or (c and ord(c) in (0x2B, 0x2D, 0x2E))
-
-
-def is_authority_reserved(c):
-    return (c and ord(c) in (0x3B, 0x3A, 0x40, 0x3F, 0x2F))
-
-
-def parse_uric(source, pos=0):
-    """Returns the number of URI characters in source
+def parse_uric(source, pos=0, allowed_test=is_allowed):
+    """Returns the number of URI characters in a source string
 
     source
-        A source string
+        A source string (of characters)
 
     pos
-        The place at which to start parsing (defaults to 0)"""
+        The place at which to start parsing (defaults to 0)
+
+    allowed_test
+        Defaults to :func:`is_allowed`
+
+        Test function indicating if a character is allowed unencoded in
+        a URI.  For stricter RFC2396 compliant parsing you may also pass
+        :func:`is_allowed_2396` or :func:`is_allowed_1738`.
+
+        For information, RFC2396 added "~" to the range of allowed
+        characters and RFC2732 added "[" and "]" to support IPv6
+        literals.
+
+    This function can be used to scan a string of characters for a
+    URI, for example::
+
+        x = "http://www.pyslet.org/ is great"
+        url = x[:parse_uric(x, 0)]
+
+    It does not check the validity of the URI against the specification.
+    The purpose is to allow a URI to be extracted from some source text.
+    It assumes that all characters that must be encoded in URI *are*
+    encoded, so characters outside the ASCII character set automatically
+    terminate the URI as do any unescaped characters outside the allowed
+    set (defined by the *allowed_test*).  See :func:`encode_unicode_uri`
+    for details of how to create an appropriate source string in
+    contexts where non-ASCII characters may be present."""
     uric = 0
     mode = None
     while pos < len(source):
         c = source[pos]
         pos += 1
         if mode is None:
-            if is_reserved(c) or is_unreserved(c):
+            if allowed_test(c):
                 uric += 1
             elif ord(c) == 0x25:  # % escape
                 mode = '%'
@@ -126,12 +296,12 @@ def ParseURIC(source, pos=0):      # noqa
     pass
 
 
-def parse_scheme(octets):
+def _parse_scheme(octets):
     pos = 0
     scheme = None
     while pos < len(octets):
         c = octets[pos]
-        if (pos and is_scheme_char(c)) or is_alpha(c):
+        if (pos and _is_scheme_char(c)) or is_alpha(c):
             pos += 1
         else:
             if ord(c) == 0x3A:
@@ -141,21 +311,47 @@ def parse_scheme(octets):
     return scheme
 
 
-def canonicalize_data(source, unreserved_test=is_unreserved):
+def canonicalize_data(source, unreserved_test=is_unreserved,
+                      allowed_test=is_allowed):
     """Returns the canonical form of *source* string.
-
-    unreserved_test
-        A function with the same signature as :func:`is_unreserved`,
-        which it defaults to.  By providing a different function you can
-        control which characters will have their escapes removed.
 
     The canonical form is the same string but any unreserved characters
     represented as hex escapes in source are unencoded and any unescaped
     characters that are neither reserved nor unreserved are escaped.
 
+    source
+        A string of characters.  Characters must be in the US ASCII
+        range.  Use :func:`encode_unicode_uri` first if necessary. Will
+        raise UnicodeEncodeError if non-ASCII characters are encountered.
+
+    unreserved_test
+        A function with the same signature as :func:`is_unreserved`,
+        which it defaults to.  By providing a different function you can
+        control which characters will have their escapes removed.  It
+        does not affect which unescaped characters are escaped.
+
+        To give an example, by default the '.' is unreserved so the
+        sequence %2E will be removed when canonicalizing the source.
+        However, if the specific part of the URL scheme you are dealing
+        with applies some reserved purpose to '.' then *source* may
+        contain both encoded and unencoded versions to disambiguate its
+        usage.  In this case you would want to remove '.' from the
+        definition of unreserved to prevent it being unescaped.
+
+        If you don't want any escapes removed, simply pass::
+
+            lambda x: False
+
+    allowed_test
+        Defaults to :func:`is_allowed`
+
+        See :func:`parse_uric` for more information.
+
     All hex escapes are promoted to upper case."""
     result = []
     pos = 0
+    # force a unicode encoding error if necessary
+    source.encode('ascii')
     while pos < len(source):
         c = source[pos]
         if c == "%":
@@ -166,13 +362,13 @@ def canonicalize_data(source, unreserved_test=is_unreserved):
             else:
                 result.append("%%%02X" % ord(c))
             pos += 3
-        elif not (is_unreserved(c) or is_reserved(c)):
+        elif not allowed_test(c):
             result.append("%%%02X" % ord(c))
             pos += 1
         else:
             result.append(c)
             pos += 1
-    return string.join(result, '')
+    return ''.join(result)
 
 
 @renamed_function
@@ -180,29 +376,98 @@ def CanonicalizeData(source):      # noqa
     pass
 
 
-def escape_data(source, reserved_test=is_reserved):
+def escape_data(source, reserved_test=is_reserved, allowed_test=is_allowed):
     """Performs URI escaping on source
 
+    Returns the escaped *character* string.
+
     source
-        The input string
+        The input string.  This can be a binary or character string. For
+        character strings all characters must be in the US ASCII range.
+        Use :func:`encode_unicode_uri` first if necessary. Will raise
+        UnicodeEncodeError if non-ASCII characters are encountered. For
+        binary strings there is no constraint on the range of allowable
+        octets.
+
+        ..  note::
+            In Python 2 the ASCII character constraint is only applied
+            when *source* is of type unicode.
 
     reserved_test
         Default :func:`is_reserved`, the function to test if a character
         should be escaped.  This function should take a single character
         as an argument and return True if the character must be escaped.
         Characters for which this function returns False will still be
-        escaped if they are neither unreserved nor reserved characters.
+        escaped if they are not allowed to appear unescaped in URI (see
+        *allowed_test* below).
 
-    Returns the escaped string."""
+        Quoting from RFC2396:
+
+            Characters in the "reserved" set are not reserved in all
+            contexts. The set of characters actually reserved within any
+            given URI component is defined by that component. In
+            general, a character is reserved if the semantics of the URI
+            changes if the character is replaced with its escaped
+            US-ASCII encoding.
+
+        Therefore, you may want to reduce the set of characters that are
+        escaped based on the target component for the data.  Different
+        rules apply to a path component compared with, for example, the
+        query string.  A number of alternative test functions are
+        provided to assist with escaping an alternative set of
+        characters.
+
+        For example, suppose you want to ensure that your data is
+        escaped to the rules of the earlier RFC1738.  In that
+        specification, a fore-runner of RFC2396, the "~" was not
+        classifed as a valid URL character and required escaping.  It
+        was later added to the mark category enabling it to appear
+        unescaped.  To ensure that this character is escaped for
+        compatibility with older systems you might do this when escaping
+        data with a path component (where '~' is often used)::
+
+            path_component = uri.escape_data(
+                dir_name, reserved_test=uri.is_reserved_1738)
+
+        In addition to escaping "~", the above will also leave "$", "+"
+        and "," unescaped as they were classified as 'extra' characters
+        in RFC1738 and were not reserved.
+
+    allowed_test
+        Defaults to :func:`is_allowed`
+
+        See :func:`parse_uric` for more information.
+
+        By default there is no difference between RFC2396 and RFC2732 in
+        operation as in RFC2732 "[" and "]" are legal URI characters
+        *but* they are also in the default reserved set so will be
+        escaped anyway.  In RFC2396 they were escaped on the basis of
+        not being allowed.
+
+        The difference comes if you are using a reduced set of reserved
+        characters.  For example::
+
+            >>> print uri.escape_data("[file].txt")
+            %5Bfile%5D.txt
+            >>> print uri.escape_data(
+                    "[file].txt", reserved_test=uri.is_path_segment_reserved)
+            [file].txt
+            >>> print uri.escape_data(
+                    "[file].txt", reserved_test=uri.is_path_segment_reserved,
+                    allowed_test=uri.is_allowed_2396)
+            %5Bfile%5D.txt"""
+    # force a unicode encoding error if necessary
+    if is_unicode(source):
+        source = source.encode('ascii')
     result = []
-    for c in source:
-        if reserved_test(c) or not (is_unreserved(c) or is_reserved(c)):
-            # short-circuit boolean means we don't evaluate is_reserved
-            # twice in default case
+    for b in source:
+        # b is a byte value but our tests are character tests
+        c = character(b)
+        if reserved_test(c) or not allowed_test(c):
             result.append("%%%02X" % ord(c))
         else:
             result.append(c)
-    return string.join(result, '')
+    return ''.join(result)
 
 
 @renamed_function
@@ -216,12 +481,17 @@ def unescape_data(source):
     source
         The URI-encoded string
 
-    Returns the string with escape characters removed.  The string is
-    still a binary string of octets, this function does remove any
-    character encoding that may apply."""
+    Removes escape sequences.  The string is returned as a *binary*
+    string of octets, not a string of characters. Escape sequences such
+    as %E9 will result in the byte value 233 and not the character \xe9.
+
+    The character encoding that applies may depend on the context and it
+    cannot always be assumed to be UTF-8 (though in most cases that will
+    be the correct way to interpret the result)."""
     data = []
     mode = None
     pos = 0
+    source.encode('ascii')
     while pos < len(source):
         c = source[pos]
         pos += 1
@@ -229,22 +499,23 @@ def unescape_data(source):
             if ord(c) == 0x25:
                 mode = '%'
             else:
-                data.append(c)
+                data.append(byte(c))
         elif mode == '%':
             if is_hex(c):
                 mode = c
             else:
-                data.append('%')
-                data.append(c)
+                data.append(byte('%'))
+                data.append(byte(c))
                 mode = None
         else:
             if is_hex(c):
-                data.append(chr(int(mode + c, 16)))
+                data.append(byte(int(mode + c, 16)))
             else:
-                data.append('%')
-                data.append(mode)
+                data.append(byte('%'))
+                data.append(byte(mode))
+                data.append(byte(c))
             mode = None
-    return string.join(data, '')
+    return join_bytes(data)
 
 
 @renamed_function
@@ -253,121 +524,127 @@ def UnescapeData(source):      # noqa
 
 
 def split_server(authority):
-    userinfo = None
-    host = None
-    port = None
-    if authority is not None:
-        if authority:
-            mode = None
-            pos = 0
-            while True:
-                if pos < len(authority):
-                    c = authority[pos]
-                else:
-                    c = None
-                if mode is None:
-                    if c is None:
-                        host = authority
-                        break
-                    elif ord(c) == 0x40:
-                        userinfo = authority[:pos]
-                        mode = 'h'
-                        hstart = pos + 1
-                    elif ord(c) == 0x3A:
-                        # could be in userinfo or start of port
-                        host = authority[:pos]
-                        mode = 'p'
-                        pstart = pos + 1
-                    pos += 1
-                elif mode == 'h':
-                    if c is None:
-                        host = authority[hstart:]
-                        break
-                    elif ord(c) == 0x3A:
-                        host = authority[hstart:pos]
-                        mode = 'p'
-                        pstart = pos + 1
-                    pos += 1
-                elif mode == 'p':
-                    if c is None:
-                        port = authority[pstart:]
-                        break
-                    elif ord(c) == 0x40 and userinfo is None:
-                        # must have been username:pass@
-                        userinfo = authority[:pos]
-                        host = None
-                        mode = 'h'
-                        hstart = pos + 1
-                    elif not is_digit(c):
-                        if userinfo is None:
-                            # probably username:pass...
-                            host = None
-                            mode = 'u'
-                        else:
-                            # userinfo@host:123XX - bad port, stop parsing
-                            port = authority[pstart:pos]
-                            break
-                    pos += 1
-                elif mode == 'u':
-                    # username:pass...
-                    if c is None:
-                        userinfo = authority
-                        host = ''
-                        break
-                    elif ord(c) == 0x40:
-                        userinfo = authority[:pos]
-                        mode = 'h'
-                        hstart = pos + 1
-                    pos += 1
-        else:
-            host = ''
+    """Splits an authority component
+
+    authority
+        A character string containing the authority component of a URI.
+
+    Returns a triple of::
+
+        (userinfo, host, port)
+
+    There is no parsing of the individual components which may or may
+    not be syntactically valid according to the specification.  The
+    userinfo is defined as anything up to the "@" symbol or None if
+    there is no "@".  The port is defined as any digit-string (possibly
+    empty) after the last ":" character or None if there is no ":" or if
+    there is non-empty string containing anything other than a digit
+    after the last ":".
+
+    The return values are always character strings (or None).  There is
+    no unescaping or other parsing of the values."""
+    if authority is None:
+        return None, None, None
+    ulen = authority.find('@')
+    if ulen < 0:
+        userinfo = None
+        hstart = 0
+    else:
+        userinfo = authority[:ulen]
+        hstart = ulen + 1
+    # the port will be on the right hand side, after a colon
+    plen = authority.rfind(':')
+    if plen < ulen:
+        # not found, or in userinfo
+        plen = -1
+    if plen > -1:
+        # possible port
+        hstop = plen
+        port = authority[plen + 1:]
+        for pchar in port:
+            if not is_digit(pchar):
+                plen = -1
+                break
+    if plen > -1:
+        hstop = plen
+    else:
+        port = None
+        hstop = len(authority)
+    # everything else is the host
+    host = authority[hstart:hstop]
     return userinfo, host, port
 
 
-def is_path_segment_reserved(c):
-    return (c and ord(c) in (0x2F, 0x3B, 0x3D, 0x3F))
+path_segment_reserved = CharClass("/;=?")
+is_path_segment_reserved = path_segment_reserved.test
+"""Convenience function for escaping path segments
+
+From RFC2396:
+
+    Within a path segment, the characters "/", ";", "=", and "?" are
+    reserved."""
 
 
 def split_path(path, abs_path=True):
-    segments = []
+    """Splits a URI-encoded path into path segments
+
+    path
+        A character string containing the path component of a URI. If
+        path is None we treat as for an empty string.
+
+    abs_path
+        A flag (defaults to True) indicating whether or not the
+        path is relative or absolute.  This flag only affects
+        the handling of the empty path.  An empty absolute path
+        is treated as if it were '/' and returns a list containing
+        a single empty path segment whereas an empty relative
+        path returns a list with no path segments, in other words,
+        an empty list.
+
+    The return result is always a list of character strings split from
+    *path*.  It will only end in an empty path segment if the path ends
+    with a slash."""
     if path:
-        pos = 0
         if abs_path:
-            seg_start = None
+            if ord(path[0]) != 0x2F:
+                raise ValueError("Abs path must be empty or start with /")
+            return path.split("/")[1:]
         else:
-            seg_start = 0
-        while True:
-            if pos < len(path):
-                c = path[pos]
-                if ord(c) == 0x2F:
-                    if seg_start is not None:
-                        segments.append(path[seg_start:pos])
-                    seg_start = pos + 1
-                pos += 1
-            else:
-                if seg_start is not None:
-                    segments.append(path[seg_start:pos])
-                break
+            return path.split("/")
     elif not abs_path:
         # relative paths always have an empty segment
-        segments.append('')
-    return segments
+        return ['']
+    else:
+        return []
 
 
-def split_abs_path(abs_path):
-    return split_path(abs_path, True)
+split_abs_path = split_path
+"""Provided for backwards compatibility
+
+Equivalent to::
+
+    split_path(abs_path, True)"""
 
 
 def split_rel_path(rel_path):
+    """Provided for backwards compatibility
+
+    Equivalent to::
+
+        split_path(abs_path, False)"""
     return split_path(rel_path, False)
 
 
 def normalize_segments(path_segments):
-    """Normalizes a list of path_segments, as returned by Split*Path methods.
+    """Normalizes a list of path_segments
+
+    path_segments
+        A list of character strings representing path segments, for
+        example, as returned by :func:`split_path`.
 
     Normalizing follows the rules for resolving relative URI paths, './'
-    and trailing '.' are removed, 'seg/../' and trailing seg/.. are
-    also removed."""
+    and trailing '.' are removed, 'seg/../' and trailing seg/.. are also
+    removed."""
     i = 0
     while i < len(path_segments):
         if path_segments[i] == '.':
@@ -396,7 +673,7 @@ def NormalizeSegments(path_segments):     # noqa
     pass
 
 
-def relativize_segments(path_segments, base_segments):
+def _relativize_segments(path_segments, base_segments):
     result = []
     pos = 0
     while pos < len(base_segments):
@@ -416,17 +693,17 @@ def relativize_segments(path_segments, base_segments):
         return result
 
 
-def make_rel_path_abs(abs_path, base_path):
+def _make_rel_path_abs(abs_path, base_path):
     """Return abs_path relative to base_path"""
     path_segments = split_abs_path(abs_path)
     normalize_segments(path_segments)
     base_segments = split_abs_path(base_path)
     normalize_segments(base_segments)
-    result = relativize_segments(path_segments, base_segments)
-    return string.join(result, '/')
+    result = _relativize_segments(path_segments, base_segments)
+    return path_sep.join(result)
 
 
-def make_rel_path_rel(rel_path, base_rel_path):
+def _make_rel_path_rel(rel_path, base_rel_path):
     """Return rel_path relative to base_rel_path"""
     path_segments = split_rel_path(rel_path)
     normalize_segments(path_segments)
@@ -446,7 +723,9 @@ def make_rel_path_rel(rel_path, base_rel_path):
         else:
             break
     if j > i:
-        i = j
+        # e.g., c/d relative to ../a/b - not allowed
+        # there is no R such that c/d = ../a/b [*] R
+        raise URIRelativeError("%s [/] %s" % (rel_path, base_rel_path))
     if i:
         # we have leading '..' components, add a common path prefix and
         # re-normalize
@@ -454,44 +733,24 @@ def make_rel_path_rel(rel_path, base_rel_path):
         normalize_segments(path_segments)
         base_segments = ['x'] * i + base_segments
         normalize_segments(base_segments)
-    result = relativize_segments(path_segments, base_segments)
-    return string.join(result, '/')
+    result = _relativize_segments(path_segments, base_segments)
+    return path_sep.join(result)
 
 
 def split_path_segment(segment):
-    pchar = ''
-    params = []
-    pos = 0
-    mode = None
-    while True:
-        if pos < len(segment):
-            c = segment[pos]
-        else:
-            c = None
-        if mode is None:
-            if c is None:
-                pchar = segment
-                break
-            elif ord(c) == 0x3B:
-                mode = ';'
-                pchar = segment[:pos]
-                pstart = pos + 1
-            pos += 1
-        elif mode == ';':
-            if c is None:
-                params.append(segment[pstart:])
-                break
-            elif ord(c) == 0x3B:
-                params.append(segment[pstart:pos])
-                pstart = pos + 1
-            pos += 1
-    return pchar, params
+    params = segment.split(';')
+    return params[0], params[1:]
 
 
-def is_query_reserved(c):
-    #: adds comma to is_reserved
-    return (c and ord(c) in (0x3B, 0x2F, 0x3F, 0x3A, 0x40, 0x26, 0x3D,
-                             0x2B, 0x2C, 0x24))
+query_reserved = CharClass(";/?:@&=+,$")
+
+is_query_reserved = query_reserved.test
+"""Convenience function for escaping query strings
+
+From RFC2396:
+
+    Within a query component, the characters ";", "/", "?", ":", "@",
+    "&", "=", "+", ",", and "$" are reserved"""
 
 
 @renamed_function
@@ -502,18 +761,27 @@ def IsQueryReserved(c):     # noqa
 def encode_unicode_uri(usrc):
     """Extracts a URI octet-string from a unicode string.
 
-    The encoding algorithm used is the same as the one adopted by HTML:
-    utf-8 and then %-escape. This is not part of the RFC standard which
-    only defines the behaviour for streams of octets but it is in line
-    with the approach adopted by the later IRI spec."""
+    usrc
+        A character string
+
+    Returns a character string with any characters outside the US-ASCII
+    range replaced by URI-escaped UTF-8 sequences.  This is not a
+    general escaping method.  All other characters are ignored,
+    including non-URI characters like space.  It is assumed that any
+    (other) characters requiring escaping are already escaped.
+
+    The encoding algorithm used is the same as the one adopted by HTML.
+    This is not part of the RFC standard which only defines the
+    behaviour for streams of octets but it is in line with the approach
+    adopted by the later IRI spec."""
     octets = []
     for c in usrc:
         if ord(c) > 0x7F:
-            octets = octets + map(lambda x: "%%%2X" %
-                                  ord(x), c.encode('UTF-8'))
+            octets = octets + list(map(lambda x: "%%%2X" %
+                                       byte_value(x), c.encode('UTF-8')))
         else:
             octets.append(chr(ord(c)))
-    return string.join(octets, '')
+    return empty_text.join(octets)
 
 
 @renamed_function
@@ -521,56 +789,226 @@ def EncodeUnicodeURI(usrc):     # noqa
     pass
 
 
-class URI(PEP8Compatibility):
+class URI(CmpMixin, PEP8Compatibility):
 
     r"""Class to represent URI References
 
-        You won't normally instantiate a URI directly as it represents a
-        less powerful generic URI.  This class is designed to be
-        overridden by scheme-specific implementations.  Use the class
-        method :meth:`from_octets` to create instances.
+    You won't normally instantiate a URI directly as it represents a
+    generic URI.  This class is designed to be overridden by
+    scheme-specific implementations.  Use the class method
+    :meth:`from_octets` to create instances.
 
-        Unless otherwise stated, all attributes use binary strings
-        comprised of octets (bytes) which are defined as URI
-        'characters' in the specification.  They are typically
-        represented by their corresponding characters in the US ASCII
-        character set.
+    If you are creating your own derived classes call the parent
+    contstructor to populate the attributes defined here from the URI's
+    string representation passing a character string representing the
+    octets of the URI.  (For backwards compatibility a binary string
+    will be accepted provided it can be decoded as US ASCII characters.)
+    You can override the scheme-specific part of the parsing by defining
+    your own implementation of :meth:`parse_scheme_specific_part`.
 
-        URIs can be converted to strings (of bytes) using str but not
-        unicode strings (see below).  The string form is used in
-        comparisons.
+    It is an error if the octets string contains characters that are not
+    allowed in a URI.
 
-        The reason for this restriction is best illustrated with an
-        example:
+    ..  note::
 
-        The URI %E8%8B%B1%E5%9B%BD.xml is a UTF-8 and URL-encoded path
-        segment using the Chinese word for United Kingdom.  When we
-        remove the URL-encoding we get the string
-        '\\xe8\\x8b\\xb1\\xe5\\x9b\\xbd.xml' which must be interpreted
-        with utf-8 to get the intended path segment value:
-        u'\\u82f1\\u56fd.xml'. However, if the URL was marked as being a
-        unicode string of characters then this second stage would not be
-        carried out and the result would be the unicode string
-        u'\\xe8\\x8b\\xb1\\xe5\\x9b\\xbd', which is a meaningless string
-        of 6 characters taken from the European Latin-1 character
-        set."""
+        The following details have changed significantly following
+        updates in 0.5.20160123 to introduce support for Python 3.
+        Although the character/byte/octet descriptions have changed the
+        actual affect on running code is minimal when running under
+        Python 2.
+
+    Unless otherwise stated, all attributes are character strings that
+    encode the 'octets' in each component of the URI.  These atrributes
+    retain the %-escaping.  To obtain the actual data use
+    :func:`unescape_data` to obtain the original octets (as a byte
+    string).  The specification does not specify any particular encoding
+    for interpreting these octets, indeed in some types of URI these
+    binary components may have no character-based interpretation.
+
+    For example, the URI "%E8%8B%B1%E5%9B%BD.xml" is a character string
+    that represents a UTF-8 and URL-encoded path
+    segment using the Chinese word for United Kingdom.  To obtain the
+    correct unicode path segment you would first use
+    :func:`unescape_data` to obtain the binary string of bytes and then
+    decode with UTF-8::
+
+        >>> src = "%E8%8B%B1%E5%9B%BD.xml"
+        >>> uri.unescape_data(src).decode('utf-8')
+        u'\\u82f1\\u56fd.xml'
+
+    URI can be converted to strings but the result is a character
+    string that retains any %-encoding.  Therefore, these character
+    strings always use the restricted character set defined by the
+    specification (a subset of US ASCII) and, in Python 2, can be freely
+    converted between the str and unicode types.
+
+    URI are immutable and can be compared and used as keys in
+    dictionaries.  Two URI compare equal if their *canonical* forms
+    are identical.  See :meth:`canonicalize` for more information."""
+
+    @classmethod
+    def from_octets(cls, octets, strict=False):
+        """Creates an instance of :class:`URI` from a string
+
+        ..  note::
+
+            This method was changed in Pyslet 0.5.20160123 to introduce
+            support for Python 3. It now takes either type of string but
+            a character string is now *preferred*.
+
+        This is the main method you should use for creating instances.
+        It uses the URI's scheme to determine the appropriate subclass
+        to create.  See :meth:`register` for more information.
+
+        octets
+            A string of characters that represents the URI's octets.  If
+            a binary string is passed it is assumed to be US ASCII and
+            converted to a character string.
+
+        strict (defaults to False)
+            If the character string contains characters outside of the
+            US ASCII character range then :func:`encode_unicode_uri` is
+            called before the string is used to create the instance.
+            You can turn off this behaviour (to enable strict
+            URI-parsing) by passing strict=True
+
+        Pyslet manages the importing and registering of the following
+        URI schemes using it's own classes: http, https, file and urn.
+        Additional modules are loaded and schemes registered 'on demand'
+        when instances of the corresponding URI are first created."""
+        if is_unicode(octets):
+            if not strict:
+                octets = encode_unicode_uri(octets)
+        else:
+            octets = octets.decode('ascii')
+        scheme = _parse_scheme(octets)
+        if scheme is not None:
+            scheme = scheme.lower()
+            c = cls.scheme_class.get(scheme, None)
+            if c is None:
+                _load_uri_class(scheme)
+                c = cls.scheme_class.get(scheme, URI)
+        else:
+            c = URI
+        return c(octets)
+
+    #: A dictionary mapping lower-case URI schemes onto the special
+    #: classes used to represent them
+    scheme_class = {}
+
+    @classmethod
+    def register(cls, scheme, uri_class):
+        """Registers a class to represent a scheme
+
+        scheme
+            A string representing a URI scheme, e.g., 'http'.  The
+            string is converted to lower-case before it is registered.
+
+        uri_class
+            A class derived from URI that is used to represent URI
+            from scheme
+
+        If a class has already been registered for the scheme it is
+        replaced.  The mapping is kept in the :attr:`scheme_class`
+        dictionary."""
+        cls.scheme_class[scheme.lower()] = uri_class
+
+    @classmethod
+    def from_virtual_path(cls, path):
+        """Converts a virtual file path into a :class:`URI` instance
+
+        path
+            A :class:`pyslet.vfs.VirtualFilePath` instance representing
+            a file path in a virtual file system.  The path is always
+            made absolute before being converted to a :class:`FileURL`.
+
+        The authority (host name) in the resulting URL is usually left
+        blank except when running under Windows, in which case the URL
+        is constructed according to the recommendations in this `blog
+        post`__.  In other words, UNC paths are mapped to both the
+        network location and path components of the resulting file URL.
+
+        ..  __:
+            http://blogs.msdn.com/b/ie/archive/2006/12/06/file-uris-in-windows.aspx
+
+        For named virtual file systems (i.e., those that don't map
+        directly to the functions in Python's built-in os and os.path
+        modules) the file system name is used for the authority.  (If
+        path is from a named virutal file system and is a UNC path then
+        URIException is raised.)"""
+        host = path.fs_name
+        segments = []
+        dirlike = path.is_dirlike()
+        # check if the resulting URL should end in a slash, abspath will
+        # normalise away this distinction
+        path = path.abspath()
+        drive, head = path.splitdrive()
+        unc_flag = path.is_unc()
+        while head:
+            new_head, tail = head.split()
+            if new_head == head:
+                # We are unable to split any more from head
+                if unc_flag and segments:
+                    # This is the unusual case of the UNC path, first
+                    # segment is machine
+                    if host:
+                        raise URIException("UNC hosts cannot be specified in "
+                                           "named file systems.")
+                    host = str(segments[0])
+                    del segments[0]
+                break
+            else:
+                segments[0:0] = [tail]
+                head = new_head
+        if drive:
+            segments[0:0] = [drive]
+        if dirlike:
+            # add back the trailing slash
+            segments.append(path.empty)
+        # At this point we need to convert to octets
+        if host:
+            host = escape_data(host, is_authority_reserved)
+        for i in range3(len(segments)):
+            # we always use utf-8 in URL path segments to make URLs
+            # portable, but in Windows we're supposed to use the system
+            # code page (non portable).
+            s = to_text(segments[i]).encode('utf-8')
+            segments[i] = escape_data(s, is_path_segment_reserved)
+        return FileURL(ul('file://%s/%s') % (host, path_sep.join(segments)))
+
+    @classmethod
+    def from_path(cls, path):
+        """Converts a local file path into a :class:`URI` instance.
+
+        path
+            A file path string.
+
+        Uses *path* to create an instance of :class:`pyslet.vfs.OSFilePath`,
+        see :meth:`from_virtual_path` for more info."""
+        return cls.from_virtual_path(vfs.OSFilePath(path))
 
     def __init__(self, octets):
         PEP8Compatibility.__init__(self)
+        if isinstance(octets, bytes):
+            octets = octets.decode('ascii')
+        self._canonical_octets = None
         uri_len = parse_uric(octets)
-        #: The octet string representing this URI
+        #: The character string representing this URI's octets
         self.octets = octets[0:uri_len]
         #: The fragment string that was appended to the URI or None if
         #: no fragment was given.
         self.fragment = None
         if uri_len < len(octets):
             if ord(octets[uri_len]) == 0x23:
-                self.fragment = octets[uri_len + 1:]
-            else:
-                raise URIException(
-                    "URI incompletely parsed from octets: %s" % octets)
+                frag_start = uri_len + 1
+                frag_len = parse_uric(octets, frag_start)
+                self.fragment = octets[frag_start:frag_start + frag_len]
+                uri_len = frag_start + frag_len
+        if uri_len < len(octets):
+            raise URIException("URI incompletely parsed from octets: %s" %
+                               octets)
         #: The URI scheme, if present
-        self.scheme = parse_scheme(self.octets)
+        self.scheme = _parse_scheme(self.octets)
         #: The scheme specific part of the URI
         self.scheme_specific_part = None
         #: None if the URI is hierarchical, otherwise the same as
@@ -593,9 +1031,73 @@ class URI(PEP8Compatibility):
             self.parse_scheme_specific_part()
         else:
             self.opaque_part = None
-            self.parse_relative_uri()
+            self._parse_relative_uri()
+
+    if py2:
+        def __str__(self):      # noqa
+            return self.__unicode__().encode('ascii')
+    else:
+        def __str__(self):      # noqa
+            return self.__unicode__()
+
+    def __unicode__(self):
+        if self.fragment is not None:
+            return self.octets + '#' + self.fragment
+        else:
+            return self.octets
+
+    def __hash__(self):
+        return hash(self._pre_cmp(None))
+
+    def _pre_cmp(self, other):
+        if self._canonical_octets is None:
+            self._canonical_octets = str(self.canonicalize())
+        if other is not None:
+            if not isinstance(other, URI):
+                other = URI.from_octets(other)
+            if other._canonical_octets is None:
+                other._canonical_octets = str(other.canonicalize())
+            return self._canonical_octets, other._canonical_octets
+        else:
+            return self._canonical_octets, None
+
+    def __eq__(self, other):
+        a, b = self._pre_cmp(other)
+        return a == b
+
+    def __lt__(self, other):
+        a, b = self._pre_cmp(other)
+        return a < b
+
+    def __gt__(self, other):
+        a, b = self._pre_cmp(other)
+        return a > b
+
+    def __le__(self, other):
+        a, b = self._pre_cmp(other)
+        return a <= b
+
+    def __ge__(self, other):
+        a, b = self._pre_cmp(other)
+        return a >= b
 
     def parse_scheme_specific_part(self):
+        """Parses the scheme specific part of the URI
+
+        Parses the scheme specific part of the URI from
+        :attr:`scheme_specific_part`. This attribute is set by the
+        constructor, the role of this method is to parse this attribute
+        and set any scheme-specific attribute values.
+
+        This method should overridden by derived classes if they use a
+        format other than the hierarchical URI format described in
+        RFC2396.
+
+        The default implementation implements the generic parsing of
+        hierarchical URI setting the following attribute values:
+        :attr:`authority`, :attr:`abs_path` and :attr:`query`.  If the
+        URI is not of a hierarchical type then :attr:`opaque_part` is
+        set instead.  Unset attributes have the value None."""
         pos = 0
         mode = ':'
         self.opaque_part = self.authority = self.abs_path = self.query = None
@@ -665,7 +1167,7 @@ class URI(PEP8Compatibility):
                     break
                 pos += 1
 
-    def parse_relative_uri(self):
+    def _parse_relative_uri(self):
         pos = 0
         self.authority = self.abs_path = self.rel_path = self.query = None
         mode = None
@@ -751,42 +1253,44 @@ class URI(PEP8Compatibility):
                     break
                 pos += 1
 
-    def get_file_name(self):
-        """Returns the file name associated with this resource or None if the
-        URL scheme does not have the concept.  By default the file name is
-        extracted from the last component of the path. Note the subtle
-        difference between returning None and returning an empty string
-        (indicating that the URI represents a directory-like object)."""
-        if self.abs_path:
-            segments = split_abs_path(self.abs_path)
-        elif self.rel_path:
-            segments = split_rel_path(self.rel_path)
+    def canonicalize(self):
+        """Returns a canonical form of this URI
+
+        For unknown schemes we simply convert the scheme to lower case
+        so that, for example, X-scheme:data becomes x-scheme:data.
+
+        Derived classes should apply their own transformation rules."""
+        new_uri = []
+        if self.scheme is not None:
+            new_uri.append(self.scheme.lower())
+            new_uri.append(':')
+            new_uri.append(self.scheme_specific_part)
         else:
-            segments = []
-        file_name = None
-        # we loop around until we have a non-empty file_name
-        while file_name is None:
-            if segments:
-                file_name = segments.pop()
-            else:
-                break
-        if file_name is not None:
-            file_name = unicode(unescape_data(file_name), 'utf-8')
-            return file_name
-        else:
-            return None
+            # we don't need to look inside the URI
+            new_uri.append(self.octets)
+        if self.fragment:
+            new_uri.append('#')
+            new_uri.append(self.fragment)
+        return URI.from_octets(''.join(new_uri))
 
     def get_canonical_root(self):
         """Returns a new URI comprised of the scheme and authority only.
 
-        Only valid for absolute URIs."""
+        Only valid for absolute URI, returns None otherwise.
+
+        The canonical root does not include a trailing slash.  The
+        canonical root is used to define the domain of a resource, often
+        for security purposes.
+
+        If the URI is non-hierarchical then the just the scheme is
+        returned."""
         if self.is_absolute():
             canonical_uri = self.canonicalize()
             result = [canonical_uri.scheme, ':']
             if canonical_uri.authority is not None:
                 result.append('//')
                 result.append(canonical_uri.authority)
-            return URI.from_octets(string.join(result, ''))
+            return URI.from_octets(''.join(result))
         else:
             return None
 
@@ -813,9 +1317,9 @@ class URI(PEP8Compatibility):
 
         If the base URI is also relative then the result is a relative
         URI, otherwise the result is an absolute URI.  The RFC does not
-        actually go into the procedure for combining relative URIs but
-        if B is an absolute URI and R1 and R2 are relative URIs then
-        using the resolve operator::
+        actually go into the procedure for combining relative URI but
+        if B is an absolute URI and R1 and R2 are relative URI then
+        using the resolve operator ([*], see above)::
 
                 U1 = B [*] R1
                 U2 = U1 [*] R2
@@ -827,9 +1331,9 @@ class URI(PEP8Compatibility):
                 U2 = B [*] ( R1 [*] R2 )
 
         For this to work it must be possible to use the resolve operator
-        to combine two relative URIs to make a third, which is what we
+        to combine two relative URI to make a third, which is what we
         allow here."""
-        if isinstance(base, (str, unicode)):
+        if is_text(base):
             base = URI.from_octets(base)
         if current_doc_ref is None:
             current_doc_ref = base
@@ -853,14 +1357,14 @@ class URI(PEP8Compatibility):
                     segments = split_abs_path(base.abs_path)[:-1]
                     segments = segments + split_rel_path(self.rel_path)
                     normalize_segments(segments)
-                    abs_path = '/' + string.join(segments, '/')
+                    abs_path = '/' + '/'.join(segments)
                     rel_path = None
                 else:
                     segments = split_rel_path(base.rel_path)[:-1]
                     segments = segments + split_rel_path(self.rel_path)
                     normalize_segments(segments)
                     abs_path = None
-                    rel_path = string.join(segments, '/')
+                    rel_path = '/'.join(segments)
                     if rel_path == '':
                         # degenerate case, as we are relative we won't prefix
                         # with /
@@ -889,7 +1393,7 @@ class URI(PEP8Compatibility):
         if self.fragment is not None:
             result.append('#')
             result.append(self.fragment)
-        return URI.from_octets(string.join(result, ''))
+        return URI.from_octets(''.join(result))
 
     def relative(self, base):
         """Calculates a URI expressed relative to *base*.
@@ -907,7 +1411,7 @@ class URI(PEP8Compatibility):
             R3 = R1 [*] R2
             R3 [/] R1 = R2
 
-        There are some significant restrictions, URIs are classified by
+        There are some significant restrictions, URI are classified by
         how specified they are with:
 
             absolute URI > authority > absolute path > relative path
@@ -946,7 +1450,7 @@ class URI(PEP8Compatibility):
         if self.opaque_part is not None:
             # This is not a hierarchical URI so we can ignore base
             return URI.from_octets(str(self))
-        if isinstance(base, (str, unicode)):
+        if is_text(base):
             base = URI.from_octets(base)
         if self.scheme is None:
             if base.scheme is not None:
@@ -976,13 +1480,13 @@ class URI(PEP8Compatibility):
                     # two relative paths, calculate self relative to base
                     # we add a common leading segment to re-use the abs_path
                     # routine
-                    rel_path = make_rel_path_rel(self.rel_path, base.rel_path)
+                    rel_path = _make_rel_path_rel(self.rel_path, base.rel_path)
             elif base.abs_path is None:
                 return URI.from_octets(str(self))
             else:
                 # two absolute paths, calculate self relative to base
                 abs_path = None
-                rel_path = make_rel_path_abs(self.abs_path, base.abs_path)
+                rel_path = _make_rel_path_abs(self.abs_path, base.abs_path)
                 # todo: /a/b relative to /c/d really should be '/a/b'
                 # and not ../a/b in particular, drive letters look wrong
                 # in relative paths: ../C:/Program%20Files/
@@ -1000,41 +1504,16 @@ class URI(PEP8Compatibility):
         if self.fragment is not None:
             result.append('#')
             result.append(self.fragment)
-        return URI.from_octets(string.join(result, ''))
-
-    def __str__(self):
-        if self.fragment is not None:
-            return self.octets + '#' + self.fragment
-        else:
-            return self.octets
-
-    def __cmp__(self, other_uri):
-        if not isinstance(other_uri, URI):
-            other_uri = URI.from_octets(other_uri)
-        return cmp(str(self.canonicalize()), str(other_uri.canonicalize()))
-
-    def canonicalize(self):
-        """Returns a canonical form of this URI
-
-        For unknown schemes we simply convert the scheme to lower case
-        so that, for example, X-scheme:data becomes x-scheme:data.
-
-        Derived classes should apply their own transformation rules."""
-        new_uri = []
-        if self.scheme is not None:
-            new_uri.append(self.scheme.lower())
-            new_uri.append(':')
-            new_uri.append(self.scheme_specific_part)
-        else:
-            # we don't need to look inside the URI
-            new_uri.append(self.octets)
-        if self.fragment:
-            new_uri.append('#')
-            new_uri.append(self.fragment)
-        return URI.from_octets(string.join(new_uri, ''))
+        return URI.from_octets(''.join(result))
 
     def match(self, other_uri):
-        """Compares this URI against other_uri returning True if they match."""
+        """Compares this URI with another
+
+        other_uri
+            Another URI instance.
+
+        Returns True if the canonical representations of the URIs
+        match."""
         return str(self.canonicalize()) == str(other_uri.canonicalize())
 
     def is_absolute(self):
@@ -1043,142 +1522,35 @@ class URI(PEP8Compatibility):
         An absolute URI is fully specified with a scheme, e.g., 'http'."""
         return self.scheme is not None
 
-    #: A dictionary mapping lower-case URI schemes onto the special
-    #: classes used to represent them
-    scheme_class = {}
+    def get_file_name(self):
+        """Gets the file name associated with this resource
 
-    @classmethod
-    def register(cls, scheme, uri_class):
-        """Registers a class to represent a scheme
+        Returns None if the URI scheme does not have the concept.  By
+        default the file name is extracted from the last component of
+        the path. Note the subtle difference between returning None and
+        returning an empty string (indicating that the URI represents a
+        directory-like object).
 
-        scheme
-            A string representing a URI scheme, e.g., 'http'.  The
-            string is converted to lower-case before it is registered.
-
-        uri_class
-            A class derived from URI that is used to represent URI
-            from scheme
-
-        If a class has already been registered for the scheme it is
-        replaced."""
-        cls.scheme_class[scheme.lower()] = uri_class
-
-    @classmethod
-    def from_octets(cls, octets):
-        """Creates an instance of :class:`URI` from a string
-
-        octets
-            A string of bytes that represents the URI.  If a unicode
-            string is passed it is converted to a string of bytes
-            (octets) using :func:`encode_unicode_uri` first."""
-        if isinstance(octets, unicode):
-            octets = encode_unicode_uri(octets)
-        scheme = parse_scheme(octets)
-        if scheme is not None:
-            scheme = scheme.lower()
-            c = cls.scheme_class.get(scheme, None)
-            if c is None:
-                _load_uri_class(scheme)
-                c = cls.scheme_class.get(scheme, URI)
+        The return result is always a character string.  The file name
+        is assumed to have been encoded into octets using UTF-8."""
+        if self.abs_path:
+            segments = split_abs_path(self.abs_path)
+        elif self.rel_path:
+            segments = split_rel_path(self.rel_path)
         else:
-            c = URI
-        return c(octets)
-
-    @classmethod
-    def from_path(cls, path):
-        """Converts a local file path into a :class:`URI` instance.
-
-        path
-            A file path string.  If the path is not absolute it is made
-            absolute by resolving it relative to the current working
-            directory before converting it to a URI.
-
-        Under Windows, the URL is constructed according to the
-        recommendations in this blog post:
-        http://blogs.msdn.com/b/ie/archive/2006/12/06/file-uris-in-windows.aspx
-        In other words, UNC paths are mapped to both the network
-        location and path components of the resulting file URL."""
-        host = ''
-        segments = []
-        if not os.path.isabs(path):
-            path = os.path.join(os.getcwd(), path)
-        drive, head = os.path.splitdrive(path)
-        while head:
-            new_head, tail = os.path.split(head)
-            if new_head == head:
-                # We are unable to split any more from head
+            segments = []
+        file_name = None
+        # we loop around until we have a non-empty file_name
+        while file_name is None:
+            if segments:
+                file_name = segments.pop()
+            else:
                 break
-            else:
-                segments[0:0] = [tail]
-                if new_head == '\\\\':
-                    # This is the unusual case of the UNC path, first
-                    # segment is machine
-                    host = segments[0]
-                    del segments[0]
-                    break
-                head = new_head
-        if drive:
-            segments[0:0] = [drive]
-        # At this point we need to convert to octets
-        c = sys.getfilesystemencoding()
-        if type(host) is UnicodeType:
-            host = escape_data(host.encode(c), is_authority_reserved)
-        for i in xrange(len(segments)):
-            # we always use utf-8 in URL path segments to make URLs portable
-            if type(segments[i]) is UnicodeType:
-                segments[i] = escape_data(
-                    segments[i].encode('utf-8'), is_path_segment_reserved)
-            else:
-                segments[i] = escape_data(
-                    unicode(segments[i], c).encode('utf-8'),
-                    is_path_segment_reserved)
-        return FileURL('file://%s/%s' % (host, string.join(segments, '/')))
-
-    @classmethod
-    def from_virtual_path(cls, path):
-        """Converts a virtual file path into a :class:`URI` instance
-
-        path
-            A :class:`pyslet.vfs.FilePath` instance representing
-            a file path in a virtual file system.
-
-        The authority (host name) in the resulting URL is set from the
-        name of the virtual file system.  If the path is flagged as
-        being a UNC path and it has a non-empty machine name then
-        ValueError is raised. """
-        host = path.fs_name
-        segments = []
-        if not path.isabs():
-            path = path.abspath()
-        drive, head = path.splitdrive()
-        unc_flag = path.is_unc()
-        while head:
-            new_head, tail = head.split()
-            if new_head == head:
-                # We are unable to split any more from head
-                if unc_flag and segments:
-                    # This is the unusual case of the UNC path, first
-                    # segment is machine
-                    if host:
-                        raise ValueError("UNC hosts cannot be specified in "
-                                         "named file systems.")
-                    host = str(segments[0])
-                    del segments[0]
-                break
-            else:
-                segments[0:0] = [tail]
-                head = new_head
-        if drive:
-            segments[0:0] = [drive]
-        # At this point we need to convert to octets
-        if host:
-            host = escape_data(host, is_authority_reserved)
-        for i in xrange(len(segments)):
-            # we always use utf-8 in URL path segments to make URLs
-            # portable
-            segments[i] = escape_data(unicode(segments[i]).encode('utf-8'),
-                                      is_path_segment_reserved)
-        return FileURL('file://%s/%s' % (host, string.join(segments, '/')))
+        if file_name is not None:
+            file_name = unescape_data(file_name).decode('utf-8')
+            return file_name
+        else:
+            return None
 
 
 class URIFactoryClass(PEP8Compatibility):
@@ -1237,7 +1609,7 @@ class URIFactoryClass(PEP8Compatibility):
 
 class ServerBasedURL(URI):
 
-    """Represents server-based URIs
+    """Represents server-based URI
 
     A server-based URI is one of the form::
 
@@ -1299,7 +1671,7 @@ class ServerBasedURL(URI):
         if self.fragment is not None:
             new_uri.append('#')
             new_uri.append(self.fragment)
-        return URI.from_octets(string.join(new_uri, ''))
+        return URI.from_octets(''.join(new_uri))
 
 
 class FileURL(ServerBasedURL):
@@ -1326,28 +1698,19 @@ class FileURL(ServerBasedURL):
             There are some libraries (notably sax) that will fail when
             passed files opened using unicode paths.  The force8bit flag
             can be used to force get_pathname to return a byte string
-            encoded using the native file system encoding."""
-        c = sys.getfilesystemencoding()
-        if os.path.supports_unicode_filenames and not force8bit:
-            decode = lambda s: unicode(unescape_data(s), 'utf-8')
+            encoded using the native file system encoding.
+
+        If the URL does not represent a path in the native file system
+        then URIException is raised."""
+        path = self.get_virtual_file_path()
+        if isinstance(path, vfs.OSFilePath):
+            if force8bit:
+                return path.to_bytes()
+            else:
+                return path.path
         else:
-            decode = lambda s: unicode(unescape_data(s), 'utf-8').encode(c)
-        if self.host and hasattr(os.path, 'splitunc'):
-            unc_root = decode('\\\\%s' % self.host)
-        else:
-            unc_root = decode('')
-        segments = split_abs_path(self.abs_path)
-        # ignore parameters in file system
-        path = string.join(map(decode, segments), os.sep)
-        if unc_root:
-            # If we have a UNC root then we will have an absolute path
-            path = string.join((unc_root, path), os.sep)
-        elif not os.path.isabs(path):
-            # Otherwise, prepend the sep if we're not absolute (most
-            # likely UNIX) Note that drive designations do not need a
-            # prefix
-            path = string.join(('', path), os.sep)
-        return path
+            # this resource is not in the local file system
+            raise URIException("Non local file path")
 
     def get_virtual_file_path(self):
         """Returns a virtual file path corresponding to this URL
@@ -1356,18 +1719,18 @@ class FileURL(ServerBasedURL):
 
         The host component of the URL is used to determine which virtual
         file system the file belongs to.  If there is no virtual file
-        system matching the URL's host and the default virtual file
-        system support UNC paths (i.e., is Windows) the host will be
-        placed in the machine portion of the UNC path.
+        system matching the URL's host and the native file system
+        support UNC paths (i.e., is Windows) the host will be placed in
+        the machine portion of the UNC path.
 
         Path parameters e.g., /dir/file;lang=en in the URL are
         ignored."""
-        decode = lambda s: unicode(unescape_data(s), 'utf-8')
+        decode = lambda s: unescape_data(s).decode('utf-8')
         if self.host:
             fs = vfs.get_file_system_by_name(self.host)
             if fs is None:
-                if vfs.defaultFS.supports_unc:
-                    fs = vfs.defaultNS
+                if vfs.OSFilePath.supports_unc:
+                    fs = vfs.OSFilePath
                     unc_root = decode('\\\\%s' % self.host)
                 else:
                     raise ValueError(
@@ -1375,21 +1738,21 @@ class FileURL(ServerBasedURL):
             else:
                 unc_root = decode('')
         else:
-            fs = vfs.defaultFS
+            fs = vfs.OSFilePath
             unc_root = decode('')
         segments = split_abs_path(self.abs_path)
         # ignore parameters in file system
-        path = string.join(map(decode, segments), fs.sep)
+        path = fs.sep.join(map(decode, segments))
         if unc_root:
             # If we have a UNC root then we will have an absolute path
-            vpath = fs(string.join((unc_root, path), fs.sep))
+            vpath = fs(fs.sep.join((unc_root, path)))
         else:
             vpath = fs(path)
             if not vpath.isabs():
                 # Prepend the sep if we're not absolute (most likely
                 # UNIX) because it is only drive designations that do
                 # not need a prefix
-                vpath = fs(string.join(('', path), fs.sep))
+                vpath = fs(fs.sep.join(('', path)))
         return vpath
 
 
@@ -1406,9 +1769,9 @@ def _load_uri_class(scheme):
     # reasons) so we wrap this functionality into a function that is
     # called only if we find a URI with a scheme we don't understand
     if scheme in ('http', 'https'):
-        import http.params      # noqa
+        import pyslet.http.params      # noqa
     elif scheme == ('urn'):
-        import urn              # noqa
+        import pyslet.urn              # noqa
     else:
         # unknown scheme, map it to URI itself to prevent repeated
         # look-ups

@@ -90,6 +90,7 @@ def detect_encoding(magic):
 
 
 class CharClass(UnicodeMixin):
+
     """Represents a class of unicode characters.
 
     A class of characters is represented internally by a list of
@@ -506,7 +507,7 @@ class CharClass(UnicodeMixin):
             if ord(ap) >= ord(a) - 1:
                 # Left merge
                 index_a = index_a - 1
-        elif index_z < len(self.ranges) - 1:
+        if index_z < len(self.ranges) - 1:
             zn = self.ranges[index_z + 1][0]
             if ord(zn) <= ord(z) + 1:
                 # Right merge
@@ -694,6 +695,7 @@ def parse_block_table():
 
 
 class ParserError(ValueError):
+
     """Exception raised by :class:`BasicParser`
 
     production
@@ -730,6 +732,7 @@ class ParserError(ValueError):
 
 
 class BasicParser(PEP8Compatibility):
+
     """An abstract class for parsing character strings or binary data
 
     source
@@ -765,7 +768,7 @@ class BasicParser(PEP8Compatibility):
             element was parsed successfully.  This type of method is
             intended for fairly simple productions, e.g.,
             :meth:`parse_integer`. More complex productions are
-            implemented using require_\* methods but the general
+            implemented using require\_* methods but the general
             :meth:`parse_production` can be used to enable more complex
             look-ahead scenarios.
 

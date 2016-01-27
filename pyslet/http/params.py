@@ -6,6 +6,8 @@ import types
 import pyslet.iso8601 as iso
 import pyslet.rfc2396 as uri
 
+from pyslet.py2 import range3
+
 from pyslet.http.grammar import *       # noqa
 
 
@@ -354,7 +356,8 @@ class MediaType(object):
         self.type = type
         self.subtype = subtype
         self.parameters = parameters
-        self._hp = map(lambda x: (x[0], x[1][1]), self.parameters.items())
+        self._hp = list(map(lambda x: (x[0], x[1][1]),
+                            self.parameters.items()))
         self._hp.sort()
 
     @classmethod
@@ -623,7 +626,7 @@ class LanguageTag(object):
             lang.partial_match(("en","us","tex")==False"""
         if len(range) > len(self._tag):
             return False
-        for i in xrange(len(range)):
+        for i in range3(len(range)):
             if self._tag[i] != range[i]:
                 return False
         return True
@@ -1000,9 +1003,9 @@ class ParameterParser(WordParser):
         return EntityTag(tag, w)
 
 
-for i in xrange(len(ParameterParser.wkday)):
+for i in range3(len(ParameterParser.wkday)):
     ParameterParser._wkdayTable[ParameterParser.wkday[i].lower()] = i
-for i in xrange(len(ParameterParser.weekday)):
+for i in range3(len(ParameterParser.weekday)):
     ParameterParser._wkdayTable[ParameterParser.weekday[i].lower()] = i
-for i in xrange(len(ParameterParser.month)):
+for i in range3(len(ParameterParser.month)):
     ParameterParser._monthTable[ParameterParser.month[i].lower()] = i

@@ -17,6 +17,7 @@ def suite():
         unittest.makeSuite(MemFilePathTests, 'test'),
         unittest.makeSuite(BinarySystemTests, 'test'),
         unittest.makeSuite(DriveSystemTests, 'test'),
+        unittest.makeSuite(UNCSystemTests, 'test'),
         unittest.makeSuite(OSFilePathTests, 'test')
     ))
 
@@ -114,11 +115,6 @@ class VirtualFilePathTests(unittest.TestCase):
         class DummyUNC(vfs.VirtualFilePath):
             supports_unc = True
         path = DummyUNC()
-        try:
-            path.is_unc()
-            self.fail("abstract is_unc")
-        except NotImplementedError:
-            pass
 
 
 class GeneralFilePathTests(object):
@@ -157,6 +153,24 @@ class GeneralFilePathTests(object):
         self.assertTrue(path.to_bytes() == ul('Caf\xe9').encode(
             sys.getfilesystemencoding()), "convert to binary string")
         self.assertTrue(to_text(path) == ul('Caf\xe9'), "convert to text")
+        # create a path with a trailing sep
+        hello = self.fs.path_str('hello') + self.fs.sep
+        path = self.fs(hello)
+        self.assertFalse(path.is_empty(), "Trailing slash non empty")
+        self.assertFalse(path.is_single_component(),
+                         "trailing slash is a single component")
+        self.assertTrue(path.is_dirlike(), "trailing slash diretory like")
+        self.assertFalse(path.is_root(), "trailing slash not the root")
+        self.assertTrue(to_text(path) == ul(hello), "convert to text")
+        # create a path with a trailing sep and current dir indicator
+        hello = self.fs.path_str('hello') + self.fs.sep + self.fs.curdir
+        path = self.fs(hello)
+        self.assertFalse(path.is_empty(), "Trailing dot-slash non empty")
+        self.assertFalse(path.is_single_component(),
+                         "trailing dot-slash is a single component")
+        self.assertTrue(path.is_dirlike(), "trailing dot-slash diretory like")
+        self.assertFalse(path.is_root(), "trailing dot-slash not the root")
+        self.assertTrue(to_text(path) == ul(hello), "convert to text")
         # bad argument types raise TypeError
         try:
             path = self.fs(45)
@@ -496,7 +510,7 @@ class MemFilePathTests(GeneralFilePathTests, unittest.TestCase):
         self.fs = vfs.MemFilePath
 
     def test_fs_data(self):
-        self.assertTrue(self.fs.fs_name == "pyslet.memfs")
+        self.assertTrue(self.fs.fs_name == "memfs.pyslet.org")
         self.assertTrue(self.fs.supports_unicode_filenames)
         self.assertFalse(self.fs.supports_unc)
         self.assertFalse(self.fs.supports_drives)
@@ -555,7 +569,7 @@ class MemFilePathTests(GeneralFilePathTests, unittest.TestCase):
 
 class BinarySystem(vfs.MemFilePath):
 
-    fs_name = "pyslet.binfs"
+    fs_name = "binfs.pyslet.org"
     supports_unicode_filenames = False
     sep = b"/"
     curdir = b"."
@@ -575,7 +589,7 @@ class BinarySystemTests(GeneralFilePathTests, unittest.TestCase):
         self.fs = BinarySystem
 
     def test_fs_data(self):
-        self.assertTrue(self.fs.fs_name == "pyslet.binfs")
+        self.assertTrue(self.fs.fs_name == "binfs.pyslet.org")
         self.assertFalse(self.fs.supports_unicode_filenames)
 
     def test_getcwd(self):
@@ -617,7 +631,7 @@ class BinarySystemTests(GeneralFilePathTests, unittest.TestCase):
 
 class DriveSystem(vfs.MemFilePath):
 
-    fs_name = "pyslet.drivefs"
+    fs_name = "drivefs.pyslet.org"
     supports_drives = True
     sep = ul("\\")
 
@@ -633,7 +647,7 @@ class DriveSystemTests(GeneralFilePathTests, unittest.TestCase):
         self.fs._wd = DriveSystem("C:\\home")
 
     def test_fs_data(self):
-        self.assertTrue(self.fs.fs_name == "pyslet.drivefs")
+        self.assertTrue(self.fs.fs_name == "drivefs.pyslet.org")
         self.assertTrue(self.fs.supports_drives)
         self.assertTrue(self.fs.sep == ul("\\"))
         self.assertTrue(isinstance(self.fs.sep, type(ul(""))))
@@ -643,12 +657,114 @@ class DriveSystemTests(GeneralFilePathTests, unittest.TestCase):
         self.assertTrue(isinstance(wd, self.fs))
         self.assertTrue(isinstance(wd, vfs.VirtualFilePath))
         self.assertTrue(to_text(wd) == ul('C:\\home'))
+        # the current drive letter is used to make a path absolute
+        path = self.fs(ul('\\home'))
+        self.assertTrue(path.isabs(), "Missing path letter still absolute")
+        apath = path.abspath()
+        self.assertTrue(apath != path, "Path should change for abspath")
+        self.assertTrue(apath.splitdrive()[0] == ul('C:'))
+        # check that the drive is not absolute
+        self.assertFalse(apath.splitdrive()[0].isabs())
 
     def test_getcroot(self):
         wd = self.fs.getcroot()
         self.assertTrue(isinstance(wd, self.fs))
         self.assertTrue(isinstance(wd, vfs.VirtualFilePath))
         self.assertTrue(to_text(wd) == ul('C:\\'))
+
+    def test_constructor(self):
+        self.run_constructor()
+
+    def test_join(self):
+        self.run_join()
+
+    def test_split(self):
+        self.run_split()
+
+    def test_split_ext(self):
+        self.run_split_ext()
+
+    def test_abs(self):
+        self.run_abs()
+        self.run_realpath()
+        self.run_normpath()
+
+    def test_dirs(self):
+        self.run_dirs()
+
+
+class UNCSystem(vfs.MemFilePath):
+
+    fs_name = "uncfs.pyslet.org"
+    supports_drives = False
+    supports_unc = True
+    sep = ul("\\")
+
+    # must override these to prevent mixed instances
+    _wd = None
+    _fsdir = {}
+
+
+class UNCSystemTests(GeneralFilePathTests, unittest.TestCase):
+
+    def setUp(self):    # noqa
+        self.fs = UNCSystem
+        self.fs._wd = UNCSystem("\\home")
+
+    def test_fs_data(self):
+        self.assertTrue(self.fs.fs_name == "uncfs.pyslet.org")
+        self.assertTrue(self.fs.supports_unc)
+        self.assertTrue(self.fs.sep == ul("\\"))
+        self.assertTrue(isinstance(self.fs.sep, type(ul(""))))
+
+    def test_getcwd(self):
+        wd = self.fs.getcwd()
+        self.assertTrue(isinstance(wd, self.fs))
+        self.assertTrue(isinstance(wd, vfs.VirtualFilePath))
+        self.assertTrue(to_text(wd) == ul('\\home'))
+
+    def test_getcroot(self):
+        wd = self.fs.getcroot()
+        self.assertTrue(isinstance(wd, self.fs))
+        self.assertTrue(isinstance(wd, vfs.VirtualFilePath))
+        self.assertTrue(to_text(wd) == ul('\\'))
+
+    def test_unc(self):
+        d = self.fs("\\home")
+        unc, path = d.splitunc()
+        self.assertTrue(unc == self.fs(''), "Not a UNC path")
+        self.assertTrue(path == d)
+        d = self.fs("\\\\host\\mount\\dir")
+        self.assertTrue(d.is_unc())
+        unc, path = d.splitunc()
+        self.assertTrue(unc == self.fs("\\\\host\\mount"),
+                        "UNC mount: %s" % unc)
+        self.assertTrue(path == self.fs("\\dir"))
+        self.assertFalse(path.is_unc())
+        self.assertTrue(path.isabs())
+        self.assertTrue(unc.is_unc())
+        # can we split the mount from the host? should be able to
+        host, mount = unc.split()
+        self.assertTrue(host == self.fs("\\\\host"))
+        self.assertFalse(host.is_unc())
+        self.assertTrue(host.isabs())
+        self.assertTrue(mount == self.fs("mount"))
+        self.assertFalse(mount.is_unc())
+        self.assertFalse(mount.isabs())
+        slash, hostname = host.split()
+        self.assertTrue(slash == self.fs("\\\\"), slash)
+        self.assertFalse(slash.is_unc())
+        self.assertTrue(slash.isabs())
+        self.assertTrue(hostname == self.fs("host"))
+        self.assertFalse(hostname.is_unc())
+        self.assertFalse(hostname.isabs())
+        slash_head, slash_tail = slash.split()
+        self.assertTrue(slash_head == self.fs("\\\\"))
+        self.assertFalse(slash_head.is_unc())
+        self.assertTrue(slash_head.isabs())
+        self.assertTrue(slash_tail == self.fs(""))
+        self.assertFalse(slash_tail.is_unc())
+        self.assertFalse(slash_tail.isabs())
 
     def test_constructor(self):
         self.run_constructor()

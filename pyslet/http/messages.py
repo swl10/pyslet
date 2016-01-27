@@ -15,6 +15,7 @@ from StringIO import StringIO
 
 import pyslet.rfc2396 as uri
 from pyslet.pep8 import PEP8Compatibility
+from pyslet.py2 import force_bytes
 
 import grammar
 import params
@@ -1040,6 +1041,8 @@ class Message(PEP8Compatibility, object):
 
         append_mode==False (Default)
                 *field_value* replaces the existing value."""
+        field_name = force_bytes(field_name)
+        field_value = force_bytes(field_value)
         with self.lock:
             fieldname_key = field_name.lower()
             if field_value is None:
@@ -1520,8 +1523,9 @@ class Request(Message):
     def get_start(self):
         """Returns the start line"""
         with self.lock:
-            return "%s %s %s" % (self.method, self.request_uri,
-                                 str(self.protocol))
+            return b"%s %s %s" % (force_bytes(self.method),
+                                  force_bytes(self.request_uri),
+                                  force_bytes(str(self.protocol)))
 
     def is_idempotent(self):
         """Returns True if this is an idempotent request"""

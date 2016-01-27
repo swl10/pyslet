@@ -13,3 +13,21 @@ system can be easily repointed at some other implementation.
 ..	autoclass:: VirtualFilePath
 	:members:
 	:show-inheritance:
+
+
+Accessing the Local File System
+-------------------------------
+
+..  autoclass:: OSFilePath
+	:members:
+	:show-inheritance:
+
+
+Misc Definitions
+----------------
+
+..  autoclass:: ZipHooks
+	:members:
+	:show-inheritance:
+
+

@@ -3,7 +3,6 @@
 
 import warnings
 import logging
-import string
 import sys
 
 
@@ -78,7 +77,7 @@ def make_attr_name(name):
                 result.append(l1.lower())
         else:
             result.append(l1)
-        result = string.join(result, '')
+        result = ''.join(result)
     return result
 
 

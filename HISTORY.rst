@@ -6,8 +6,8 @@ being made to methods and class attributes with each release.  There is
 a module, pyslet.pep8, which contains a compatibility class for
 remapping missing class attribute names to their new forms and
 generating deprecation warnings, run your code with "python -Wd" to
-force these warnings to appear.  If/When Pyslet makes the transition to
-Python 3 the old names will go away completely. 
+force these warnings to appear.  As Pyslet makes the transition to
+Python 3 some of the old names will go away completely. 
  
 It is still possible that some previously documented names could now
 fail (module level functions, function arguments, etc.) but I've tried
@@ -41,7 +41,7 @@ Not sure which version you are using?  Try::
     print version
 
 
-Version 0.6.2015XXXX
+Version 0.6.2016XXXX
 --------------------
 
 Summary of New Features:
@@ -166,6 +166,33 @@ on exit
 Caused by an overly ambitious __del__ method in SQLEntityContainer.
 
 
+#34 Fixed missing Edm prefix in OData sample code
+#35 Fixed missing import in rfc5023 (atom protocol) module
+#36 Fixed incorrect error messages in OData $filter queries
+#37 Extended comparison operators in OData to include DateTimeOffset values
+
+All thanks to @ianwj5int for spotting
+
+#38 Python 3 compatibility work
+
+I have started revising modules to support Python 3.  This is not yet
+production ready but it is a small impact on existing modules.  I have
+done my best to maintain compatibility, in practice code should continue
+to work with no changes required.
+
+The most likely failure mode is that you may find a unicode string in
+Python 2 where you expected a plain str.  This can have a knock-on
+effect of promoting data to unicode, e.g., through formatting
+operations.  In general the returned types of methods are just being
+clarified and unicode values are returned only where they may have been
+returned previously anyway.  However, in the case of the URI attributes
+in the rfc2396 module the types have changed from str to unicode in this
+release.
+
+This is work in progress but the impact is likely to be minimal
+at this stage.
+
+    
 Untracked enhancements:
 
 Added a new module to support HTTP cookies.  The HTTP/OData client can

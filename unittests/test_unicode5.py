@@ -58,6 +58,10 @@ class CharClassTests(unittest.TestCase):
         self.assertTrue(self.class_test(c) == 'abcxyz')
         cc = unicode5.CharClass(c)
         self.assertTrue(self.class_test(cc) == 'abcxyz')
+        c = unicode5.CharClass(('a', 'c'), ('e', 'g'), 'd')
+        self.assertTrue(
+            len(c.ranges) == 1, "Missing range optimization: %s"
+            % repr(c.ranges))
 
     def test_complex_constructors(self):
         init_tests = [

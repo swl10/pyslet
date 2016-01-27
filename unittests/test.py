@@ -90,9 +90,8 @@ all_tests.addTest(test_py26.suite())
 if py2:
     import test_qml420
     all_tests.addTest(test_qml420.suite())
-if py2:
-    import test_rfc2396
-    all_tests.addTest(test_rfc2396.suite())
+import test_rfc2396
+all_tests.addTest(test_rfc2396.suite())
 if py2:
     import test_rfc4287
     all_tests.addTest(test_rfc4287.suite())

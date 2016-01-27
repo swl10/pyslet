@@ -84,6 +84,10 @@ class Python2Tests(unittest.TestCase):
             self.assertTrue(u"['hello']" == py2.to_text(xdata))
         else:
             self.assertTrue("['hello']" == py2.to_text(xdata))
+        # check the empty text constant:
+        self.assertTrue(isinstance(py2.empty_text, type(u"")))
+        self.assertFalse(py2.empty_text)
+        self.assertTrue(len(py2.empty_text) == 0)
 
     def test_character(self):
         self.assertTrue(py2.character(0x2A) == "\x2A")
@@ -93,6 +97,10 @@ class Python2Tests(unittest.TestCase):
             self.assertFalse(isinstance(py2.character(0x2A), type("")))
         else:
             self.assertTrue(isinstance(py2.character(0x2A), type("")))
+        # character must also be able to convert bytes, even if they
+        # have values outside the ASCII range
+        self.assertTrue(py2.character(py2.byte(0x2A)) == "\x2A")
+        self.assertTrue(py2.character(py2.byte(0xe9)) == py2.ul("\xE9"))
 
     def test_byte(self):
         # bytes are different in the two versions
@@ -107,12 +115,18 @@ class Python2Tests(unittest.TestCase):
             self.assertTrue(py2.byte('*') == '\x2A')
             self.assertTrue(py2.byte('\xe9') == '\xe9')
             self.assertTrue(py2.byte(b'\xe9') == '\xe9')
-            try:
-                py2.byte(u'\xe9')
-                self.fail("py2.byte(unicode)")
-            except TypeError:
-                pass
+            self.assertTrue(py2.byte(u'\xe9') == '\xe9')
             self.assertTrue(py2.byte(bytearray(b'\xe9')) == '\xe9')
+            try:
+                py2.byte(u'\u82f1')
+                self.fail("py2.byte(wide char)")
+            except ValueError:
+                pass
+            try:
+                py2.byte('\u82f1')
+                self.fail("py2.byte(wide char, missing u)")
+            except ValueError:
+                pass
             self.assertTrue(isinstance(py2.byte('*'), type('*')))
             self.assertFalse(isinstance(py2.byte('*'), type(u'*')))
         else:
@@ -143,6 +157,18 @@ class Python2Tests(unittest.TestCase):
         self.assertTrue(py2.byte_value(py2.byte(0)) == 0)
         self.assertTrue(py2.byte_value(py2.byte(0x30)) == 0x30)
         self.assertTrue(py2.byte_value(py2.byte(0xFF)) == 0xFF)
+        # force bytes
+        self.assertTrue(py2.force_bytes("Hello") == b"Hello")
+        self.assertTrue(isinstance(py2.force_bytes("Hello"), bytes))
+        self.assertTrue(py2.force_bytes(b"Hello") == b"Hello")
+        self.assertTrue(isinstance(py2.force_bytes(b"Hello"), bytes))
+        self.assertTrue(py2.force_bytes(u"Hello") == b"Hello")
+        self.assertTrue(isinstance(py2.force_bytes(u"Hello"), bytes))
+        try:
+            py2.force_bytes(py2.ul('Caf\xe9'))
+            self.fail("force_bytes with high-bit character")
+        except UnicodeEncodeError:
+            pass
 
     def test_str(self):
         class X(py2.UnicodeMixin):

@@ -1,15 +1,18 @@
 #! /usr/bin/env python
 
-import unittest
 import logging
 import os
 import os.path
-import string
 import sys
-from types import UnicodeType, StringType
+import unittest
 
 import pyslet.vfs as vfs
 import pyslet.rfc2396 as uri
+
+from pyslet.py2 import py2, range3, dict_keys
+from pyslet.py2 import character, ul, u8, is_unicode, to_text
+
+from test_vfs import DriveSystem, UNCSystem
 
 
 def suite():
@@ -23,21 +26,24 @@ def suite():
 
 SERVER_EXAMPLES = {
     # if there is no authority then it is safe to parse
-    None:
-    (None, None, None),
+    None: (None, None, None),
     # empty string is a speical case and is treated as empty host
-        '':
-    (None, '', None),
-    '@host.com':
-    ('', 'host.com', None),
-    'host.com':
-    (None, 'host.com', None),
-    'foo:@host.com':
-    ('foo:', 'host.com', None),
-    'myname@host.dom':
-    ('myname', 'host.dom', None),
-    'user:pass@host.com:443':
-    ('user:pass', 'host.com', '443')
+    '': (None, '', None),
+    '@host.com': ('', 'host.com', None),
+    'host.com': (None, 'host.com', None),
+    'foo:@host.com': ('foo:', 'host.com', None),
+    'myname@host.dom': ('myname', 'host.dom', None),
+    'user:pass@host.com:443': ('user:pass', 'host.com', '443'),
+    # IPv6 examples
+    '[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]:80':
+    (None, '[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]', '80'),
+    '[1080:0:0:0:8:800:200C:417A]':
+    (None, '[1080:0:0:0:8:800:200C:417A]', None),
+    '[3ffe:2a00:100:7031::1]': (None, '[3ffe:2a00:100:7031::1]', None),
+    '[1080::8:800:200C:417A]': (None, '[1080::8:800:200C:417A]', None),
+    '[::192.9.5.5]': (None, '[::192.9.5.5]', None),
+    '[::FFFF:129.144.52.38]:80': (None, '[::FFFF:129.144.52.38]', '80'),
+    '[2010:836B:4179::836B:4179]': (None, '[2010:836B:4179::836B:4179]', None)
     }
 
 
@@ -57,82 +63,93 @@ class RFC2396Tests(unittest.TestCase):
         """
         # UPALPHA = <any US-ASCII uppercase letter "A".."Z">
         upalpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        for i in xrange(0, 256):
-            c = chr(i)
+        for i in range3(0, 256):
+            c = character(i)
             self.assertTrue(
-                uri.is_up_alpha(c) == (c in upalpha),
-                "is_up_alpha(chr(%i))" % i)
+                uri.is_upalpha(c) == (c in upalpha),
+                "is_upalpha(chr(%i))" % i)
         lowalpha = "abcdefghijklmnopqrstuvwxyz"
-        for i in xrange(0, 256):
-            c = chr(i)
-            self.assertTrue(uri.is_low_alpha(c) == (c in lowalpha),
-                            "is_low_alpha(chr(%i))" % i)
+        for i in range3(0, 256):
+            c = character(i)
+            self.assertTrue(uri.is_lowalpha(c) == (c in lowalpha),
+                            "is_lowalpha(chr(%i))" % i)
         alpha = upalpha + lowalpha
-        for i in xrange(0, 256):
-            c = chr(i)
+        for i in range3(0, 256):
+            c = character(i)
             self.assertTrue(uri.is_alpha(c) == (c in alpha),
                             "is_alpha(chr(%i))" % i)
         digit = "0123456789"
-        for i in xrange(0, 256):
-            c = chr(i)
+        for i in range3(0, 256):
+            c = character(i)
             self.assertTrue(uri.is_digit(c) == (c in digit),
                             "is_digit(chr(%i))" % i)
         alphanum = alpha + digit
-        for i in xrange(0, 256):
-            c = chr(i)
-            self.assertTrue(uri.is_alpha_num(c) == (c in alphanum),
-                            "is_alpha_num(chr(%i))" % i)
+        for i in range3(0, 256):
+            c = character(i)
+            self.assertTrue(uri.is_alphanum(c) == (c in alphanum),
+                            "is_alphanum(chr(%i))" % i)
         reserved = ";/?:@&=+$,"
-        for i in xrange(0, 256):
-            c = chr(i)
+        for i in range3(0, 256):
+            c = character(i)
+            self.assertTrue(uri.is_reserved_2396(c) == (c in reserved),
+                            "is_reserved_2396(chr(%i))" % i)
+        reserved = ";/?:@&=+$,[]"
+        for i in range3(0, 256):
+            c = character(i)
             self.assertTrue(uri.is_reserved(c) == (c in reserved),
                             "is_reserved(chr(%i))" % i)
         mark = "-_.!~*'()"
-        for i in xrange(0, 256):
-            c = chr(i)
+        for i in range3(0, 256):
+            c = character(i)
             self.assertTrue(uri.is_mark(c) == (c in mark),
                             "is_mark(chr(%i))" % i)
         unreserved = alphanum + mark
-        for i in xrange(0, 256):
-            c = chr(i)
+        for i in range3(0, 256):
+            c = character(i)
             self.assertTrue(uri.is_unreserved(c) == (c in unreserved),
                             "is_unreserved(chr(%i))" % i)
         control = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D"\
             "\x0E\x0F\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1A\x1B\x1C"\
             "\x1D\x1E\x1F\x7F"
-        for i in xrange(0, 256):
-            c = chr(i)
+        for i in range3(0, 256):
+            c = character(i)
             self.assertTrue(
                 uri.is_control(c) == (c in control), "is_control(chr(%i))" % i)
         space = " "
-        for i in xrange(0, 256):
-            c = chr(i)
+        for i in range3(0, 256):
+            c = character(i)
             self.assertTrue(uri.is_space(c) == (c in space),
                             "is_space(chr(%i))" % i)
         delims = "<>#%\""
-        for i in xrange(0, 256):
-            c = chr(i)
+        for i in range3(0, 256):
+            c = character(i)
             self.assertTrue(
                 uri.is_delims(c) == (c in delims), "is_delims(chr(%i))" % i)
-        unwise = "{}|\\^[]`"
-        for i in xrange(0, 256):
-            c = chr(i)
+        unwise_2396 = "{}|\\^[]`"
+        for i in range3(0, 256):
+            c = character(i)
+            self.assertTrue(
+                uri.is_unwise_2396(c) == (c in unwise_2396),
+                "is_unwise_2396(chr(%i))" % i)
+        unwise = "{}|\\^`"
+        for i in range3(0, 256):
+            c = character(i)
             self.assertTrue(
                 uri.is_unwise(c) == (c in unwise), "is_unwise(chr(%i))" % i)
         authority_reserved = ";:@?/"
-        for i in xrange(0, 256):
-            c = chr(i)
+        for i in range3(0, 256):
+            c = character(i)
             self.assertTrue(uri.is_authority_reserved(c) == (
                 c in authority_reserved), "is_authority_reserved(chr(%i))" % i)
         path_segment_reserved = "/;=?"
-        for i in xrange(0, 256):
-            c = chr(i)
+        for i in range3(0, 256):
+            c = character(i)
             self.assertTrue(uri.is_path_segment_reserved(c) ==
                             (c in path_segment_reserved),
                             "is_path_segment_reserved(chr(%i))" % i)
         query_reserved = ";/?:@&=+,$"
-        for i in xrange(0, 256):
-            c = chr(i)
+        for i in range3(0, 256):
+            c = character(i)
             self.assertTrue(uri.is_query_reserved(c) == (c in query_reserved),
                             "is_query_reserved(chr(%i))" % i)
 
@@ -143,7 +160,43 @@ class RFC2396Tests(unittest.TestCase):
         self.assertTrue(uri.parse_uric('"w">') == 0, "double-quote in URI")
         self.assertTrue(uri.parse_uric('Caf%E9 ') == 6, "uc hex")
         self.assertTrue(uri.parse_uric('Caf%e9 ') == 6, "lc hex")
+        self.assertTrue(uri.parse_uric('Caf%hay ') == 3, "partial hex 1")
+        self.assertTrue(uri.parse_uric('Caf%eh ') == 3, "partial hex 2")
         self.assertTrue(uri.parse_uric('index#frag') == 5, "fragment in URI")
+        self.assertTrue(uri.parse_uric('http://[::192.9.5.5]/ipng') == 25,
+                        "unescaped IPv6 address in URI")
+        self.assertTrue(uri.parse_uric('http://[::192.9.5.5]/ipng',
+                                       allowed_test=uri.is_allowed_2396) == 7,
+                        "unescaped IPv6 address in URI")
+
+    def test_canonicalize_data(self):
+        try:
+            uri.canonicalize_data(ul('Caf\xe9'))
+            self.fail("non-ASCII character for canonicalisation")
+        except UnicodeEncodeError:
+            pass
+        self.assertTrue(uri.canonicalize_data(
+            "%2D%5F%2e%21%7e%2A%27%28%29%41%5a%61%7A%30%39") ==
+            "-_.!~*'()AZaz09", "unreserved characters are unescaped")
+        self.assertTrue(
+            uri.canonicalize_data('"<[one #word\x09or two\r\n]>"',
+                                  allowed_test=uri.is_allowed_2396) ==
+            '%22%3C%5Bone%20%23word%09or%20two%0D%0A%5D%3E%22',
+            "escape chars neither unreserved nor reserved (rfc2396)")
+        self.assertTrue(
+            uri.canonicalize_data('"<[one #word\x09or two\r\n]>"') ==
+            '%22%3C[one%20%23word%09or%20two%0D%0A]%3E%22',
+            "escape chars neither unreserved nor reserved")
+        # passing is_alphanum effectively causes 'marks' to stay as-is
+        self.assertTrue(uri.canonicalize_data(
+            "%2D%5F%2e%21%7e%2A%27%28%29%41%5a%61%7A%30%39", uri.is_alphanum)
+            == "%2D%5F%2E%21%7E%2A%27%28%29AZaz09",
+            "(only) unreserved characters are unescaped")
+        # passing lambda: x:False effectively causes everything to stay as-is
+        self.assertTrue(uri.canonicalize_data(
+            "%2D%5F%2e%21%7e%2A%27%28%29%41%5a%61%7A%30%39", lambda x: False)
+            == "%2D%5F%2E%21%7E%2A%27%28%29%41%5A%61%7A%30%39",
+            "no characters are unescaped")
 
     def test_escape(self):
         data = "\t\n\r !\"#$%&'()*+,-./0123456789:;<=>?@"\
@@ -157,22 +210,60 @@ class RFC2396Tests(unittest.TestCase):
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E%5F%60"\
             "abcdefghijklmnopqrstuvwxyz%7B%7C%7D%7E"
         escaped_min = "%09%0A%0D%20!%22%23$%25&'()*+,-./0123456789:;%3C=%3E?@"\
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60"\
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ[%5C]%5E_%60"\
+            "abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"
+        escaped_min_2396 = "%09%0A%0D%20!%22%23$%25&'()*+,-./0123456789:;%3C"\
+            "=%3E?@ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60"\
             "abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"
         self.compare_strings(
             escaped_normal, uri.escape_data(data), "Normal escaping")
         self.compare_strings(escaped_max, uri.escape_data(data,
-                             lambda x: not uri.is_alpha_num(x)),
+                             lambda x: not uri.is_alphanum(x)),
                              "Max escaping")
         self.compare_strings(
             escaped_min, uri.escape_data(data, lambda x: False),
             "Min escaping")
-        self.compare_strings(data,
-                             uri.unescape_data(uri.escape_data(data)),
-                             "Round-trip escaping")
+        self.compare_strings(
+            escaped_min_2396, uri.escape_data(
+                data, lambda x: False, allowed_test=uri.is_allowed_2396),
+            "Min escaping")
+        self.compare_strings(
+            data, uri.unescape_data(uri.escape_data(data)).decode('ascii'),
+            "Round-trip escaping")
+        try:
+            uri.escape_data(ul('Caf\xe9'))
+            self.fail("non-ASCII character for escaping")
+        except UnicodeEncodeError:
+            pass
+        # byte strings can contain any data, no UTF-8 encoding is done
+        self.assertTrue(uri.escape_data(b'Caf\xe9') == "Caf%E9")
+
+    def test_unescape(self):
+        data = "%3CC%00a%20f%0d%0a%E9%3e"
+        expected = b"\x3c\x43\x00\x61\x20\x66\x0d\x0a\xe9\x3e"
+        result = uri.unescape_data(data)
+        self.assertTrue(result == expected, "unescaped data: "+repr(result))
+        self.assertTrue(isinstance(result, bytes), "binary return type")
+        # test forced unicode version
+        data = ul(data)
+        result = uri.unescape_data(data)
+        self.assertTrue(result == expected, "unescaped data (u)")
+        self.assertTrue(isinstance(result, bytes), "binary return type (u)")
+        # now catch attempts to unescape non-ASCII data
+        data = ul("%3CC%00a%20f%0d%0a\xe9%3e")
+        try:
+            uri.unescape_data(data)
+            self.fail("Non-ASCII data to unescape")
+        except UnicodeEncodeError:
+            pass
+        # some bad examples
+        data = "Caf%hay"
+        self.assertTrue(uri.unescape_data(data) == b"Caf%hay", "partial hex 1")
+        data = "Caf%eh"
+        self.assertTrue(uri.unescape_data(data) == b"Caf%eh", "partial hex 2")
 
     def compare_strings(self, expected, found, label="Test"):
-        for i in xrange(len(expected)):
+        for i in range3(len(expected)):
             if i >= len(found):
                 self.fail("%s truncation failure:\n%s... expected %s" %
                           (label, found[0:i], expected[i]))
@@ -190,10 +281,16 @@ class RFC2396Tests(unittest.TestCase):
         # an abs_path cannot be an empty string so treat this the same as None
         segments = uri.split_abs_path('')
         self.assertTrue(segments == [])
-        # if there is an abs_path there is always at least one segment, so '/'
-        # is a single empty segment
+        # if there is an abs_path there is always at least one segment,
+        # so '/' is a single empty segment
         segments = uri.split_abs_path('/')
         self.assertTrue(segments == [''])
+        # And obviously an abs_path starts with a /
+        try:
+            segments = uri.split_abs_path('a')
+            self.fail("non-slash abs path")
+        except ValueError:
+            pass
         # we don't decode when splitting, segments can contain params
         segments = uri.split_abs_path('/Caf%e9/Nero;LHR.T2/Table4/')
         self.assertTrue(segments == ['Caf%e9', 'Nero;LHR.T2', 'Table4', ''])
@@ -218,12 +315,11 @@ class RFC2396Tests(unittest.TestCase):
         self.assertTrue(pchar == 'Nero' and params == ['LHR.T2', 'curr=%a3'])
 
     def test_server(self):
-        keys = SERVER_EXAMPLES.keys()
-        for k in keys:
+        for k in dict_keys(SERVER_EXAMPLES):
             userinfo, host, port = uri.split_server(k)
             userinfo2, host2, port2 = SERVER_EXAMPLES[k]
-            self.assertTrue(
-                userinfo == userinfo2, "%s found userinfo %s" % (k, userinfo2))
+            self.assertTrue(userinfo == userinfo2, "%s found userinfo %s" %
+                            (repr(k), repr(userinfo2)))
             self.assertTrue(host == host2, "%s found host %s" % (k, host2))
             self.assertTrue(port == port2, "%s found port %s" % (k, port2))
 
@@ -300,6 +396,10 @@ REL_EXAMPLES = {
     '../../g': ('http://a/g', None, None, None, '../../g', None, None),
     '../../g?': ('http://a/g?', None, None, None, '../../g', '', None),
     '../../?': ('http://a/?', None, None, None, '../../', '', None),
+    # add a couple of missing cases
+    'd;p/e': ('http://a/b/c/d;p/e', None, None, None, 'd;p/e', None, None),
+    '/b/c/d;p/e': ('http://a/b/c/d;p/e', None, None, '/b/c/d;p/e', None,
+                   None, None),
 }
 
 
@@ -309,29 +409,72 @@ class URITests(unittest.TestCase):
         u = uri.URI(SIMPLE_EXAMPLE)
         self.assertTrue(isinstance(u, uri.URI))
         self.assertTrue(str(u) == SIMPLE_EXAMPLE)
+        self.assertTrue(is_unicode(u.octets),
+                        "octets must be a character string")
+        if py2:
+            self.assertTrue(to_text(u) == SIMPLE_EXAMPLE)
         try:
             u = uri.URI(LIST_EXAMPLE)
             # we don't support this type of thing any more
             # self.assertTrue(str(u)==SIMPLE_EXAMPLE,"Simple from list")
         except uri.URIException:
             pass
-        u = uri.URI.from_octets(u'\u82f1\u56fd.xml')
+        u = uri.URI.from_octets(u8(b'\xe8\x8b\xb1\xe5\x9b\xbd.xml'))
         self.assertTrue(
             str(u) == '%E8%8B%B1%E5%9B%BD.xml', "Unicode example: %s" % str(u))
-        self.assertTrue(type(u.octets) is StringType, "octest must be string")
+        self.assertTrue(is_unicode(u.octets),
+                        "octets must be a character string")
+        try:
+            u = uri.URI.from_octets(u8(b'\xe8\x8b\xb1\xe5\x9b\xbd.xml'),
+                                    strict=True)
+            self.fail("strict mode requires %-encoding")
+        except uri.URIException:
+            pass
+        # binary string must be US-ASCII clean
+        try:
+            u = uri.URI.from_octets(b'Caf\xe9')
+            self.fail("binary string must be US-ASCII")
+        except UnicodeDecodeError:
+            pass
+        # but URI-encoded is OK even if it is binary
+        u = uri.URI.from_octets(b'Caf%E9')
+        self.assertTrue(is_unicode(u.octets),
+                        "octets must be a character string")
 
     def test_compare(self):
-        u1 = uri.URI(SIMPLE_EXAMPLE)
-        u2 = uri.URI(SIMPLE_EXAMPLE)
+        u1 = uri.URI("x-HTTP://www.example.com/")
+        u2 = uri.URI("x-http://www.example.com/")
         self.assertTrue(
             u1.match(u2) and u2.match(u1), "Equal URIs fail to match")
+        self.assertTrue(u1 == u2, "Equal URIs compare equal")
+        self.assertFalse(u1 != u2, "Equal URIs compare not equal")
+        self.assertTrue(u1 <= u2, "Equal URIs sort less-equal")
+        self.assertTrue(u1 >= u2, "Equal URIs sort greater-equal")
+        self.assertFalse(u1 < u2, "Equal URIs sort less than")
+        self.assertFalse(u1 > u2, "Equal URIs sort greater than")
+        self.assertTrue(hash(u1) == hash(u2), "Equal URIs, equal hash")
         u2 = uri.URI('hello.xml')
         self.assertFalse(
             u1.match(u2) or u2.match(u1), "Mismatched URIs do match")
-        u1 = uri.URI("HTTP://www.example.com/")
-        u2 = uri.URI("http://www.example.com/")
-        self.assertTrue(
-            u1.match(u2) and u2.match(u1), "Equal URIs fail to match")
+        u1 = uri.URI("x-HTTP://www.example.com/")
+        u2 = uri.URI("x-http://www2.example.com/")
+        self.assertFalse(
+            u1.match(u2) or u2.match(u1), "Equal URIs fail to match")
+        self.assertFalse(u1 == u2, "Unequal URIs compare equal")
+        self.assertTrue(u1 != u2, "Unequal URIs compare not-equal")
+        self.assertTrue(u1 <= u2, "Unequal URIs sort less-equal")
+        self.assertFalse(u1 >= u2, "Unequal URIs sort greater-equal")
+        self.assertTrue(u1 < u2, "Unequal URIs sort less than")
+        self.assertFalse(u1 > u2, "Unequal URIs sort greater than")
+        self.assertFalse(hash(u1) == hash(u2), "Unequal URIs, Unequal hash")
+        # check comparison against strings
+        u2 = "x-http://www3.example.com/"
+        self.assertFalse(u1 == u2, "Unequal URIs compare equal")
+        self.assertTrue(u1 != u2, "Unequal URIs compare not-equal")
+        self.assertTrue(u1 <= u2, "Unequal URIs sort less-equal")
+        self.assertFalse(u1 >= u2, "Unequal URIs sort greater-equal")
+        self.assertTrue(u1 < u2, "Unequal URIs sort less than")
+        self.assertFalse(u1 > u2, "Unequal URIs sort greater than")
 
     def test_scheme(self):
         u = uri.URI(SIMPLE_EXAMPLE)
@@ -342,6 +485,30 @@ class URITests(unittest.TestCase):
         self.assertFalse(u.is_absolute(), "Relative test")
         self.assertTrue(u.scheme is None, "relative scheme")
         self.assertTrue(u.scheme_specific_part is None)
+        u = uri.URI("x-pyslet:")
+        self.assertTrue(u.is_absolute(), "Relative test")
+        self.assertTrue(u.scheme == 'x-pyslet', "scheme only scheme")
+        self.assertTrue(u.scheme_specific_part == '')
+        # missing authority
+        u = uri.URI("x-pyslet:/just/a/path")
+        self.assertTrue(u.is_absolute(), "Relative test")
+        self.assertTrue(u.abs_path == "/just/a/path", "abs path only")
+        # missing abs path
+        u = uri.URI("x-pyslet://host?just-a-query")
+        self.assertTrue(u.is_absolute(), "Relative test")
+        self.assertTrue(u.abs_path is None, "abs path only")
+        self.assertTrue(u.query == "just-a-query", "abs path only")
+        self.assertTrue(str(u) == "x-pyslet://host?just-a-query")
+        # relative authority
+        u = uri.URI("//host/just/a/path")
+        self.assertFalse(u.is_absolute(), "Relative test")
+        self.assertTrue(u.abs_path == "/just/a/path", "abs path only")
+        # relative missing abs path
+        u = uri.URI("//host?just-a-query")
+        self.assertFalse(u.is_absolute(), "Relative test")
+        self.assertTrue(u.abs_path is None, "no abs path")
+        self.assertTrue(u.query == "just-a-query", "abs path only")
+        self.assertTrue(str(u) == "//host?just-a-query")
 
     def test_fragment(self):
         u = uri.URI(SIMPLE_EXAMPLE)
@@ -352,8 +519,7 @@ class URITests(unittest.TestCase):
         self.assertTrue(u.fragment == 'Related', 'fragment')
 
     def test_absolute_examples(self):
-        keys = ABS_EXAMPLES.keys()
-        for k in keys:
+        for k in dict_keys(ABS_EXAMPLES):
             logging.info("Testing absolute: %s", k)
             u = uri.URI(k)
             scheme, opaque_part, authority, abs_path, query, fName = \
@@ -372,11 +538,10 @@ class URITests(unittest.TestCase):
                             "%s found file name %s" % (k, u.get_file_name()))
 
     def test_relative_examples(self):
-        keys = REL_EXAMPLES.keys()
         base = uri.URI(REL_BASE)
         current = uri.URI(REL_CURRENT)
         relatives = {}
-        for k in keys:
+        for k in dict_keys(REL_EXAMPLES):
             logging.info("Testing relative: %s", k)
             u = uri.URI(k)
             resolved, scheme, authority, abs_path, rel_path, query, \
@@ -398,9 +563,9 @@ class URITests(unittest.TestCase):
             self.assertTrue(resolved == resolution,
                             "%s [*] %s = %s ; found %s" %
                             (str(base), k, resolved, resolution))
-        for r in relatives.keys():
+        for r in dict_keys(relatives):
             logging.info("Testing %s [/] %s = ( %s )", r, str(base),
-                         string.join(relatives[r], ' | '))
+                         ' | '.join(relatives[r]))
             u = uri.URI(r)
             # this check removes the 'current document' case
             if not u.is_absolute():
@@ -413,16 +578,15 @@ class URITests(unittest.TestCase):
                     no_match = False
                     break
             self.assertFalse(no_match, "%s [/] %s = ( %s ) ; found %s" %
-                             (r, str(base), string.join(relatives[r], ' | '),
+                             (r, str(base), ' | '.join(relatives[r]),
                               relative))
 
     def test_relative_join_examples(self):
-        keys = REL_EXAMPLES.keys()
         base1 = uri.URI(REL_BASE1)
         base2 = uri.URI(REL_BASE2)
         current = uri.URI(REL_CURRENT)
         relatives = {}
-        for k in keys:
+        for k in dict_keys(REL_EXAMPLES):
             u = uri.URI(k)
             if not u.octets:  # don't test same document cases
                 continue
@@ -451,9 +615,9 @@ class URITests(unittest.TestCase):
             self.assertTrue(resolved == resolution2,
                             "%s [*] ( %s [*] %s ) = %s ; found %s" %
                             (str(base1), str(base2), k, resolved, resolution2))
-        for r in relatives.keys():
+        for r in dict_keys(relatives):
             logging.info("Testing: %s [/] %s = ( %s )", r,
-                         str(base2), string.join(relatives[r], ' | '))
+                         str(base2), ' | '.join(relatives[r]))
             u = uri.URI(r)
             # this check removes the 'current document' case
             if u.octets == 'current.doc':
@@ -467,6 +631,46 @@ class URITests(unittest.TestCase):
                     break
             self.assertFalse(no_match, "%s [/] %s = ( %s ); found %s" %
                              (r, str(base2), repr(relatives[r]), relative))
+        # catch a couple of odd cases not in the standard examples
+        #   U = B [*] R1 [*] R2
+        #   R3 = R1 [*] R2
+        #   R1 = ../a/b
+        #   R2 = ../../c/d
+        #   If B = /p/q/r/s, B [*] R1 = /p/q/a/b
+        #   So U = /p/q/a/b [*] ../../c/d = /p/c/d
+        #   So /p/c/d = /p/q/r/s [*] R3
+        #   R3 = /p/c/d [/] /p/q/r/s
+        #   R3 = ../../c/d
+        r1 = uri.URI('../a/b')
+        r2 = uri.URI('../../c/d')
+        r3 = uri.URI('../../c/d')
+        self.assertTrue(str(r2.resolve(r1)) == str(r3))
+        # therefore it is possible for a (relative) base to start '..'
+        self.assertTrue(str(r3.relative(r1)) == str(r2))
+        # but it should never be possible for the base to have more '..'
+        # than the URL it resolves to, so check that raises an error
+        try:
+            rx = uri.URI('c/d').relative(r1)
+            self.fail("c/d relative to ../a/b = " + str(rx))
+        except uri.URIException as e:
+            logging.info("Too many parents: %s", str(e))
+
+    def test_canonicalize(self):
+        u = uri.URI('X-Pyslet:50%2f50')
+        u2 = u.canonicalize()
+        self.assertTrue(str(u2) == 'x-pyslet:50%2f50')
+        self.assertTrue(str(u2.get_canonical_root()) == 'x-pyslet:')
+        u = uri.URI('X-Pyslet:50%2f50#Frag')
+        u2 = u.canonicalize()
+        self.assertTrue(str(u2) == 'x-pyslet:50%2f50#Frag')
+        self.assertTrue(str(u.get_canonical_root()) == 'x-pyslet:')
+        u = uri.URI("x-pyslet://host/path")
+        self.assertTrue(str(u.get_canonical_root()) == 'x-pyslet://host')
+        u = uri.URI("x-pyslet:/path")
+        self.assertTrue(str(u.get_canonical_root()) == 'x-pyslet:')
+        u = uri.URI("/path")
+        self.assertTrue(u.get_canonical_root() is None)
+
 
 FILE_EXAMPLE = "file://vms.host.edu/disk$user/my/notes/note12345.txt"
 
@@ -489,7 +693,7 @@ class FileURLTests(unittest.TestCase):
         self.assertTrue(str(u) == 'file:///', 'Default file')
 
     def test_pathnames(self):
-        force_8bit = type(self.data_path) is StringType
+        force_8bit = isinstance(self.data_path, bytes)
         base = uri.URI.from_path(self.data_path)
         self.assertTrue(base.get_pathname(force_8bit) == self.data_path,
                         "Expected %s found %s" %
@@ -498,24 +702,25 @@ class FileURLTests(unittest.TestCase):
             self.visit_method(dirpath, filenames)
 
     def test_unicode_pathnames(self):
-        if type(self.data_path) is StringType:
+        if isinstance(self.data_path, bytes):
             c = sys.getfilesystemencoding()
-            data_path = unicode(self.data_path, c)
+            data_path = self.data_path.encode(c)
         else:
             data_path = self.data_path
         base = uri.URI.from_path(data_path)
         if os.path.supports_unicode_filenames:
             data_path2 = base.get_pathname()
-            self.assertTrue(type(data_path2) is UnicodeType,
+            self.assertTrue(is_unicode(data_path2),
                             "Expected get_pathname to return unicode")
             self.assertTrue(data_path2 == data_path,
-                            u"Expected %s found %s" % (data_path, data_path2))
+                            ul("Expected %s found %s") %
+                            (data_path, data_path2))
             # os.path.walk(data_path,self.visit_method,None)
             for dirpath, dirnames, filenames in os.walk(data_path):
                 self.visit_method(dirpath, filenames)
         else:
             data_path2 = base.get_pathname()
-            self.assertTrue(type(data_path2) is StringType,
+            self.assertTrue(isinstance(data_path2, bytes),
                             "Expected get_pathname to return string")
             logging.warn("os.path.supports_unicode_filenames is False "
                          "(skipped unicode path tests)")
@@ -529,7 +734,7 @@ class FileURLTests(unittest.TestCase):
                              "by %s encoding", c)
                 continue
             join_match = os.path.join(dirname, name)
-            if type(name) is UnicodeType:
+            if is_unicode(name):
                 seg_name = uri.escape_data(
                     name.encode('utf-8'), uri.is_path_segment_reserved)
             else:
@@ -538,7 +743,7 @@ class FileURLTests(unittest.TestCase):
             u = u.resolve(d)
             self.assertTrue(isinstance(u, uri.FileURL))
             joined = u.get_pathname()
-            if type(join_match) is StringType and type(joined) is UnicodeType:
+            if isinstance(join_match, bytes) and is_unicode(joined):
                 # if we're walking in 8-bit mode we need to downgrade to
                 # compare
                 joined = joined.encode(c)
@@ -555,6 +760,12 @@ class VirtualFileURLTests(unittest.TestCase):
         self.data_path = self.vfs(__file__).split()[0].join('data_rfc2396')
         if not self.data_path.isabs():
             self.data_path = self.vfs.getcwd().join(self.data_path)
+        # change the working directory to our data directory
+        wd = self.vfs(__file__).split()[0]
+        wd.chdir()
+
+    def tearDown(self):     # noqa
+        self.cwd.chdir()
 
     def test_constructor(self):
         u = uri.URI.from_octets(FILE_EXAMPLE)
@@ -571,17 +782,55 @@ class VirtualFileURLTests(unittest.TestCase):
                         (self.data_path, base.get_virtual_file_path()))
         for dirpath, dirnames, filenames in self.data_path.walk():
             self.visit_method(dirpath, filenames)
+        # now try creating a URI from a relative URI, forces it to be abs
+        path = uri.URI.from_virtual_path(self.vfs('data_rfc2396'))
+        self.assertTrue(path.get_virtual_file_path() == self.data_path,
+                        "Expected %s found %s" %
+                        (self.data_path, path.get_virtual_file_path()))
+        # now use an alternate file system
+        f = vfs.MemFilePath("/dir/file.txt")
+        path = uri.URI.from_virtual_path(f)
+        self.assertTrue(str(path) == "file://memfs.pyslet.org/dir/file.txt")
+        self.assertTrue(path.get_virtual_file_path() == f,
+                        "Expected %s found %s" %
+                        (f, path.get_virtual_file_path()))
+
+    def test_unc(self):
+        f = UNCSystem("\\dir\\file.txt")
+        path = uri.URI.from_virtual_path(f)
+        self.assertTrue(str(path) == "file://uncfs.pyslet.org/dir/file.txt")
+        f = UNCSystem("\\\\host\\mount\\path")
+        try:
+            path = uri.URI.from_virtual_path(f)
+            self.fail("UNC path in named file system")
+        except uri.URIException:
+            pass
+
+        class UNCSystemUnamed(UNCSystem):
+            fs_name = ''
+
+        f = UNCSystemUnamed("\\\\host\\mount\\path")
+        path = uri.URI.from_virtual_path(f)
+        self.assertTrue(str(path) == "file://host/mount/path")
+
+    def test_drives(self):
+        wd = DriveSystem("C:\\home")
+        wd.chdir()
+        f = DriveSystem("\\dir\\file.txt")
+        path = uri.URI.from_virtual_path(f)
+        self.assertTrue(str(path) ==
+                        "file://drivefs.pyslet.org/C:/dir/file.txt", str(path))
 
     def visit_method(self, dirname, names):
         # Make d a directory like path by adding an empty component at the end
         d = uri.URI.from_virtual_path(dirname.join(dirname.curdir))
         for name in names:
-            if unicode(name).startswith('??'):
+            if to_text(name).startswith('??'):
                 logging.warn("8-bit path tests limited to ASCII file names")
                 continue
             join_match = dirname.join(name)
             seg_name = uri.escape_data(
-                unicode(name).encode('utf-8'), uri.is_path_segment_reserved)
+                to_text(name).encode('utf-8'), uri.is_path_segment_reserved)
             u = uri.URI(seg_name)
             u = u.resolve(d)
             self.assertTrue(isinstance(u, uri.FileURL))

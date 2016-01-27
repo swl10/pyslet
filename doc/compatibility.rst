@@ -56,6 +56,17 @@ definitions that target the particular idioms I've used in the package.
 
 :doc:`py2`
 
+Although the package can't be built for distribution or installed using
+setup.py, if you include the source locally you can successfully import
+the following modules in Python 3 (in addition to compatibility modules
+described elsewhere on this page)::
+
+    pyslet.info
+    pyslet.iso8601
+    pyslet.rfc2396
+    pyslet.unicode5
+    pyslet.vfs
+
 
 PEP-8
 ~~~~~

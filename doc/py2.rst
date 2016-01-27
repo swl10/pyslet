@@ -120,9 +120,17 @@ six.u respectvely.
 Compatibility comes with a cost, if you only need to support Python 3.3
 and higher (while retaining compatibility with Python 2) then you should
 use the first form and ignore these literal functions in performance
-critical code.
+critical code.  If you want more compatibility then define all string
+literals ahead of time, e.g., at module level.  One common case is
+provided for with the following constant::
+
+..  data:: empty_text
         
-        
+    An empty character string.  Frequently used as an object to join
+    character strings::
+    
+        py2.empty_text.join(my_strings)
+
 ..  function::  is_text(arg)
 
     Returns True if *arg* is text and False otherwise.  In Python 3 this
@@ -138,7 +146,7 @@ critical code.
     simply checks that arg is of type str, in Python 2 this allows
     either string type but always returns a unicode string.  No codec
     is used so this has the side effect of ensuring that only ASCII
-    strings will be acceptable in Python 2.
+    compatible str instances will be acceptable in Python 2.
 
 
 ..  function::  to_text(arg)
@@ -147,7 +155,7 @@ critical code.
     always returns a unicode string.  In Python 3, this function is
     almost identical to the built-in *str* except that it takes binary
     data that can be interpreted as ascii and converts it to text.  In
-    otherwords::
+    other words::
     
         to_text(b"hello") == "hello"
     
@@ -155,6 +163,10 @@ critical code.
     in Python 2::
     
         str(b"hello") == "hello"  
+
+    arg need not be a string, this function will cause an arbitrary
+    object's __str__ (or __unicode__ in Python 2) method to be
+    evaluated.  
 
 
 ..  function::  is_unicode(arg)
@@ -168,9 +180,20 @@ critical code.
 
 ..  function::  character(codepoint)
 
-    Given an integer codepoint returns a single unicode character.
+    Given an integer codepoint returns a single unicode character.  You
+    can also pass a single byte value (defined as the type returned by
+    indexing a binary string).  Bear in mind that in Python 2 this is a
+    single-character string, not an integer.  See :func:`byte` for how
+    to create byte values dynamically.
 
 
+..  function::  force_bytes(arg)
+
+    Given either a binary string or a character string, returns a binary
+    string of bytes.  If arg is a character string then it is encoded
+    with the 'ascii' codec.
+
+    
 ..  function::  byte(value)
 
     Given either an integer value in the range 0..255, a
@@ -179,6 +202,14 @@ critical code.
     that value.  This is one of the main differences between Python 2
     and 3.  In Python 2 bytes are characters and in Python 3 they're
     integers.
+
+
+..  function::  byte_value(b)
+
+    Given a value such as would be returned by :func:`byte` or by
+    indexing a binary string, returns the corresponding integer value. 
+    In Python 3 this a no-op but in Python 2 it maps to the builtin
+    function ord.
 
 
 ..  function::  join_bytes(arg)

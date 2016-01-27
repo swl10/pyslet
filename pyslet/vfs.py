@@ -17,6 +17,7 @@ from .py2 import py2, dict_keys, range3, builtins
 
 
 class VirtualFilePath(object):
+
     """Abstract class representing a virtual file system
 
     Instances represent paths within a file system.  You can't create an
@@ -265,7 +266,12 @@ class VirtualFilePath(object):
         if pos >= 0:
             head_path = tail.path[0:pos]
             if head_path:
-                head = self.__class__(drive.path + head_path)
+                # handle special case for UNC
+                if not drive and self.supports_unc and head_path == self.sep:
+                    # include the following separator
+                    head = self.__class__(self.sep + self.sep)
+                else:
+                    head = self.__class__(drive.path + head_path)
             else:
                 # don't return an empty head if sep is in the path
                 head = self.__class__(drive.path + self.sep)
@@ -299,12 +305,38 @@ class VirtualFilePath(object):
         Returns a tuple of two instances (drive, tail) where drive is
         either a drive specification or is empty.
 
-        Default implementation returns an empty drive and the current
-        instance for tail."""
+        Default implementation uses the :attr:`drive_sep` to determine
+        if the first path component is a drive."""
         if self.supports_drives:
             if len(self.path) > 1 and self.path[1:2] == self.drive_sep:
                 return self.__class__(self.path[:2]), \
                     self.__class__(self.path[2:])
+        return self.__class__(), self
+
+    def splitunc(self):
+        """Splits a UNC path
+
+        Returns a tuple of two instances (mount, path) where mount is an
+        instance representing the UNC mount point or an instance
+        representing the empty path if this isn't a UNC path.
+
+        Default implementation checks for a double separator at the
+        start of the path and at least one more separator."""
+        if self.supports_unc:
+            if self.path.startswith(self.sep + self.sep):
+                host_start = 2 * len(self.sep)
+                host_end = self.path.find(self.sep, host_start)
+                if host_end > host_start:
+                    mount_start = host_end + 1
+                    mount_end = self.path.find(self.sep, mount_start)
+                    if mount_end > mount_start:
+                        # //host/mount/path
+                        return self.__class__(self.path[:mount_end]), \
+                            self.__class__(self.path[mount_end:])
+                    else:
+                        # //host/mount - return an empty path
+                        return self, self.__class__()
+                # else just //host, returned as *path*
         return self.__class__(), self
 
     def abspath(self):
@@ -350,7 +382,7 @@ class VirtualFilePath(object):
                         i = i + 1
                     elif par:
                         # x/.. becomes '.'
-                        components[i-1:i+1] = [self.curdir]
+                        components[i - 1:i + 1] = [self.curdir]
                         i = i - 1
                     else:
                         # /.. goes to /
@@ -387,9 +419,13 @@ class VirtualFilePath(object):
         """Returns True if this path is a UNC path.
 
         UNC paths contain a host designation, a path cannot contain a
-        drive specification and also be a UNC path."""
+        drive specification and also be a UNC path.
+
+        Default implementation calls :meth:`splitunc` and returns True
+        if the unc component is non-empty."""
         if self.supports_unc:
-            raise NotImplementedError
+            unc, rest = self.splitunc()
+            return not unc.is_empty()
         else:
             return False
 
@@ -415,7 +451,8 @@ class VirtualFilePath(object):
 
         E.g., test that the path ends in a slash (last component is
         empty)."""
-        return self.path.endswith(self.sep)
+        return self.path.endswith(self.sep) or \
+            self.path.endswith(self.sep + self.curdir)
 
     def is_root(self):
         """Returns True if this is a root path.
@@ -649,13 +686,13 @@ class MemFile(object):
 
 class MemFilePath(VirtualFilePath):
 
-    fs_name = "pyslet.memfs"
-    """Set to pyslet.memfs
+    fs_name = "memfs.pyslet.org"
+    """Set to memfs.pyslet.org
 
     This class is registered when the module is loaded enabling
     URLs of the form::
 
-        file://pyslet.memfs/dir/file.ext"""
+        file://memfs.pyslet.org/dir/file.ext"""
 
     supports_unicode_filenames = True
     """File names are treated as character (unicode) strings."""
@@ -684,6 +721,13 @@ class MemFilePath(VirtualFilePath):
         if cls._wd is None:
             cls._wd = cls('/')
         return cls._wd
+
+    def chdir(self):
+        """Sets the current working directory"""
+        if self.isabs():
+            self.__class__._wd = self
+        else:
+            self.__class__._wd = self.abspath()
 
     @classmethod
     def mkdtemp(cls, suffix="", prefix=""):
@@ -867,13 +911,64 @@ class MemFilePath(VirtualFilePath):
 
 class OSFilePath(VirtualFilePath):
 
+    """A concrete implementation mapping to Python's os modules
+
+    In most cases the methods map straightforwardly to functions in os
+    and os.path."""
+
     fs_name = ""
-    sep = os.sep
-    curdir = os.curdir
-    pardir = os.pardir
+    """An empty string.
+
+    The file system name affects the way URIs are interpreted, an empty
+    string is consistent with the use of file:/// to reference the
+    local file system."""
+
     supports_unicode_filenames = os.path.supports_unicode_filenames
+    """Copied from os.path
+
+    That means you won't know ahead of time whether paths are expected
+    as binary or unicode strings.  In most cases it won't matter as the
+    methods will convert as appropriate but it does affect the type of
+    the static path constants defined below."""
+
     supports_unc = hasattr(os.path, 'splitunc')
+    """Automatically determined from os.path
+
+    Tests if os.path has defined splitunc."""
+
+    supports_drives = not (os.sep in os.path.join("C:", "foo"))
+    """Automatically determined
+
+    The method chosen is straight out of the documentation for os.path.
+    We join the segments "C:" and "foo" and check to see if the result
+    contains the path separator or not."""
+
+    #: as returned by sys.getfilesystemencoding()
     codec = sys.getfilesystemencoding()
+
+    #: copied from os.sep
+    sep = os.sep
+
+    #: copied from os.curdir
+    curdir = os.curdir
+
+    #: copied from os.pardir
+    pardir = os.pardir
+
+    #: copied from os.extsep
+    ext = os.extsep
+
+    drive_sep = ul(":") if os.path.supports_unicode_filenames else b":"
+    """always set to ':'
+
+    Correctly set to either binary or character string depending on the
+    setting of :attr:`supports_unicode_filenames`."""
+
+    empty = ul("") if os.path.supports_unicode_filenames else b""
+    """Set to the empty string
+
+    Uses either a binary or character string depending on the setting of
+    :attr:`supports_unicode_filenames`."""
 
     @classmethod
     def getcwd(cls):
@@ -904,6 +999,13 @@ class OSFilePath(VirtualFilePath):
         drive, path = os.path.splitdrive(self.path)
         return OSFilePath(drive), OSFilePath(path)
 
+    def splitunc(self):
+        if self.supports_unc:
+            unc, path = os.path.splitunc(self.path)
+            return OSFilePath(unc), OSFilePath(path)
+        else:
+            return None, self
+
     def abspath(self):
         return OSFilePath(os.path.abspath(self.path))
 
@@ -916,31 +1018,11 @@ class OSFilePath(VirtualFilePath):
     def normcase(self):
         return OSFilePath(os.path.normcase(self.path))
 
-    def is_unc(self):
-        if self.supports_unc:
-            unc, rest = os.path.splitunc(self.path)
-            return len(unc) > 0
-        else:
-            return False
-
     def is_single_component(self):
-        return not (os.sep in self.path)
+        return not (self.sep in self.path)
 
     def is_empty(self):
         return not len(self.path)
-
-    def is_dirlike(self):
-        return self.path and self.path[-1] == os.sep
-
-    def is_root(self):
-        drive, tail = os.path.splitdrive(self.path)
-        if tail:
-            for c in tail:
-                if c != os.sep:
-                    return False
-            return True
-        else:
-            return False
 
     def isabs(self):
         return os.path.isabs(self.path)
@@ -952,7 +1034,6 @@ class OSFilePath(VirtualFilePath):
         return os.path.exists(self.path)
 
     def isfile(self):
-        """True if this is a regular file in the file system."""
         return os.path.isfile(self.path)
 
     def isdir(self):
@@ -968,14 +1049,12 @@ class OSFilePath(VirtualFilePath):
             shutil.copy(self.path, dst.path)
 
     def move(self, dst):
-        """Moves a file to dst path like Python's os.rename."""
         if not isinstance(dst, self.__class__):
             raise ValueError("Can't move across file system implementations")
         else:
             os.rename(self.path, dst.path)
 
     def remove(self):
-        """Removes a file."""
         os.remove(self.path)
 
     def listdir(self):
@@ -1018,13 +1097,38 @@ def open_hook(path, *params):
 
 
 class ZipHooks(object):
+
+    """Context manager for compatibility with zipfile
+
+    The zipfile module allows you to write either a string or the
+    contents of a named file to a zip archive.  This class
+    monkey-patches the builtin open function and os.stat with versions
+    that support :class:`VirtualFilePath` objects allowing us to copy
+    the contents of a virtual represented file path directly to a zip
+    archive without having to load it into memory first.
+
+    For more information on this approach see this `blog post`__.
+
+    ..  __:
+        http://swl10.blogspot.co.uk/2012/12/writing-stream-to-zipfile-in-python.html
+
+    This implementation uses a lock on the class attributes to ensure
+    thread safety.
+
+    As currently implemented, Pyslet does not contain a full
+    implementation of :class:`VirtualFilePath` so this class is provided
+    in readiness for a more comprehensive implementation based on
+    :class:`pyslet.blockstore.StreamStore`."""
     hookCount = 0
+    lock = threading.RLock()
 
     def __init__(self):
-        if not ZipHooks.hookCount:
-            os.stat = stat_hook
-            builtins.open = open_hook
-        ZipHooks.hookCount += 1
+        with self.lock:
+            if not ZipHooks.hookCount:
+                os.stat = stat_hook
+                builtins.open = open_hook
+            ZipHooks.hookCount += 1
+            self.hooked = True
 
     def __enter__(self):
         return self
@@ -1033,11 +1137,15 @@ class ZipHooks(object):
         self.unhook()
 
     def unhook(self):
-        ZipHooks.hookCount -= 1
-        if not ZipHooks.hookCount:
-            os.stat = stat_pass
-            builtins.open = open_pass
-
+        with self.lock:
+            if self.hooked:
+                ZipHooks.hookCount -= 1
+                if not ZipHooks.hookCount:
+                    os.stat = stat_pass
+                    builtins.open = open_pass
+                self.hooked = False
+            else:
+                raise RuntimeError("ZipHooks already unhooked")
 
 fsRegister = {}
 
@@ -1051,3 +1159,4 @@ def get_file_system_by_name(fs_name):
 
 defaultFS = OSFilePath
 register_file_system(OSFilePath)
+register_file_system(MemFilePath)

@@ -7,6 +7,8 @@ import string
 import pyslet.rfc2396 as uri
 import pyslet.urn as urn
 
+from pyslet.py2 import is_unicode
+
 
 def suite():
     return unittest.TestSuite((
@@ -30,8 +32,8 @@ class URNTests(unittest.TestCase):
         u = urn.URN(nid="foo", nss="a123,456")
         self.assertTrue(isinstance(u, urn.URN))
         self.assertTrue(str(u) == "urn:foo:a123,456")
-        self.assertTrue(isinstance(u.nid, str))
-        self.assertTrue(isinstance(u.nss, str))
+        self.assertTrue(is_unicode(u.nid))
+        self.assertTrue(is_unicode(u.nss))
         u = uri.URI.from_octets('urn:foo:a123,456')
         self.assertTrue(isinstance(u, urn.URN))
         self.assertTrue(str(u) == 'urn:foo:a123,456')

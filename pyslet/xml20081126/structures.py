@@ -1023,16 +1023,16 @@ class ElementType(object):
 
     Empty = 0
     #: Content type constant for EMPTY
-    
+
     Any = 1
     #: Content type constant for ANY
-    
+
     Mixed = 2
     #: Content type constant for mixed content
-    
+
     ElementContent = 3
     #: Content type constant for element content
-    
+
     SGMLCDATA = 4
     #: Additional content type constant for SGML CDATA
 

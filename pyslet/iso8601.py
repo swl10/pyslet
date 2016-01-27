@@ -117,6 +117,7 @@ def get_local_zone():
 
 
 class Truncation(object):
+
     """Defines constants to use when formatting to truncated forms."""
     No = 0          #: constant for no truncation
     Century = 1     #: constant for truncating to century
@@ -131,6 +132,7 @@ NoTruncation = Truncation.No    #: a synonym for Truncation.No
 
 
 class Precision(object):
+
     """Defines constants for representing reduced precision."""
     Century = 1     #: constant for century precision
     Year = 2        #: constant for year precision
@@ -1222,6 +1224,7 @@ class Date(PEP8Compatibility, CmpMixin, UnicodeMixin):
 
 
 class Time(PEP8Compatibility, UnicodeMixin, CmpMixin):
+
     """A class for representing ISO times
 
     Values can represent times with reduced precision, for example::
@@ -2570,7 +2573,7 @@ class TimePoint(PEP8Compatibility, UnicodeMixin, CmpMixin):
 #     def __cmp__(self, other):
 #         if not isinstance(other, TimePoint):
 #             other = type(self)(other)
-#         # we need to follow the rules for comparing times
+# we need to follow the rules for comparing times
 #         if self.time.get_precision() != other.time.get_precision():
 #             raise ValueError(
 #                 "Incompatible precision for comparison: " + str(other))
@@ -2579,7 +2582,7 @@ class TimePoint(PEP8Compatibility, UnicodeMixin, CmpMixin):
 #         if z1 != z2:
 #             if z1 is None or z2 is None:
 #                 raise ValueError("Can't compare zone: " + str(other))
-#             # we need to change the timezone of other to match ours
+# we need to change the timezone of other to match ours
 #             other = other.shift_zone(*self.time.get_zone3())
 #         result = cmp(self.date, other.date)
 #         if not result:

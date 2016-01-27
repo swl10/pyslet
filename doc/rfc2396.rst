@@ -3,10 +3,15 @@ Uniform Resource Identifiers (RFC2396)
 
 .. py:module:: pyslet.rfc2396
 
-This module defines functions and classes for working with URIs as defined by
-RFC2396: http://www.ietf.org/rfc/rfc2396.txt
+This module defines functions and classes for working with URI as
+defined by RFC2396: http://www.ietf.org/rfc/rfc2396.txt
 
-In addition to parsing and formating URI from strings of octets, this module also supports computing and resolving relative URI.  To do this we define two notaional operators.
+In keeping with usage in the specification we use URI in both the
+singular and plural sense.
+
+In addition to parsing and formating URI from strings, this module also
+supports computing and resolving relative URI.  To do this we define two
+notional operators.
 
 The resolve operator::
 
@@ -20,21 +25,25 @@ The relative operator::
 
 calcualtes the relative URI 'R' formed by expressing 'U' relative to 'B'.
 
-Clearly the Relative operator defines the reverse of the resolve operator, however note that in some cases several different values of R can resolve to the same URL with a common base URI.
+The Relative operator defines the reverse of the resolve operator,
+however note that in some cases several different values of R can
+resolve to the same URL with a common base URI.
 
 
 Creating URI Instances
 ----------------------
 
-..	data:: URIFactory
-	
-	An instance of :class:`URIFactoryClass` that can be used for creating :class:`URI` instances.
-
-..	autoclass:: URIFactoryClass
-	:members:
-	:show-inheritance:
-
-..	autofunction:: encode_unicode_uri
+To create URI use the :meth:`URI.from_octets` class method.  This method
+takes both character and binary strings though in first case the string
+must contain only ASCII characters and in the latter only bytes that
+represent ASCII characters.  The following function can help convert
+general character strings to a suitable format but it is not a full
+implementation of the IRI specification, in particular it does not
+encode delimiters (such as space) and it does not deal intelligently
+with unicode domain names (these must be converted to their ASCII URI
+forms first).
+ 
+..  autofunction::  encode_unicode_uri
 
 
 URI
@@ -45,4 +54,120 @@ URI
 	:show-inheritance:
 
 ..	automethod:: URI.__str__
+
+
+Canonicalization and Escaping
+-----------------------------
+
+..	autofunction::	canonicalize_data
+
+..	autofunction::	escape_data
+
+..	autofunction::	unescape_data
+
+..  autodata::      path_sep
+
+
+Basic Syntax
+------------
+
+RFC2396 defines a number of character classes (see
+:class:`pyslet.unicode5.CharClass`) to assist with the parsing of URI. 
+
+The bound test method of each class is exposed for convenience (you
+don't need to pass an instance).  These pseudo-functions therefore all
+take a single character as an argument and return True if the character
+matches the class.  They will also accept None and return False in that
+case.
+
+..	autofunction::	is_upalpha
+
+..	autofunction::	is_lowalpha
+
+..	autofunction::	is_alpha
+
+..	autofunction::	is_digit
+
+..	autofunction::	is_alphanum
+
+..	autofunction::	is_reserved
+
+..	autofunction::	is_reserved_2396
+
+..	autofunction::	is_reserved_1738
+
+..	autofunction::	is_unreserved
+
+..	autofunction::	is_unreserved_1738
+
+..	autofunction::	is_safe_1738
+
+..	autofunction::	is_extra_1738
+
+..	autofunction::	is_mark
+
+..	autofunction::	is_allowed
+
+..	autofunction::	is_allowed_2396
+
+..	autofunction::	is_allowed_1738
+
+..	autofunction::	is_hex
+
+..	autofunction::	is_control
+
+..	autofunction::	is_space
+
+..	autofunction::	is_delims
+
+..	autofunction::	is_unwise
+
+..	autofunction::	is_unwise_2396
+
+..	autofunction::	is_authority_reserved
+
+..	autofunction::	is_query_reserved
+
+
+Some fragments of URI parsing are exposed for reuse by other modules.
+
+..	autofunction::	parse_uric
+
+..	autofunction::	split_server
+
+..	autofunction::	split_path
+
+..	autofunction::	split_abs_path
+
+..	autofunction::	split_rel_path
+
+..  autofunction::  normalize_segments
+
+
+Exceptions
+----------
+
+..	autoclass:: URIException
+	:members:
+	:show-inheritance:
+
+
+..	autoclass:: URIRelativeError
+	:members:
+	:show-inheritance:
+
+
+Legacy
+------
+
+The following definitions are provided for backwards compatibility only.
+
+..	data:: URIFactory
+	
+	An instance of :class:`URIFactoryClass` that can be used for
+	creating :class:`URI` instances.
+
+..	autoclass:: URIFactoryClass
+	:members:
+	:show-inheritance:
 
