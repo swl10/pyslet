@@ -2242,7 +2242,8 @@ class ODataURI:
                     '$%s cannot be used with this form of URI' %
                     SystemQueryOption.EncodeValue(p))
 
-    def SplitSegment(self, segment):
+    @classmethod
+    def SplitSegment(cls, segment):
         """Splits a string segment into a unicode name and a keyPredicate dictionary."""
         segment = uri.unescape_data(segment).decode('utf-8')
         if segment.startswith('$'):

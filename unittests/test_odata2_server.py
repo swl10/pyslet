@@ -2008,7 +2008,7 @@ class SampleServerTests(unittest.TestCase):
         #	a data service MUST represent each EntitySet ...as an
         #	<app:collection> element
         self.assertTrue(
-            len(doc.root.Workspace[0].Collection) == 7, "Sample service has 7 entity sets")
+            len(doc.root.Workspace[0].Collection) == 9, "Sample service has 9 entity sets")
         #	The URI identifying the EntitySet MUST be used as the value
         #	of the "href" attribute of the <app:collection> element
         feeds = set()
@@ -2033,7 +2033,7 @@ class SampleServerTests(unittest.TestCase):
         obj = obj["d"]
         self.assertTrue("EntitySets" in obj)
         self.assertTrue(type(obj["EntitySets"]) == ListType)
-        self.assertTrue(len(obj["EntitySets"]) == 7)
+        self.assertTrue(len(obj["EntitySets"]) == 9)
         for c in obj["EntitySets"]:
             self.assertTrue(type(c) == UnicodeType)
 
@@ -3634,7 +3634,71 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(
             request.responseHeaders['CONTENT-TYPE'] == "text/x-tolstoy")
         self.assertTrue(request.wfile.getvalue() == data)
-
+        # now try the same thing without the slug mapping to the title
+        request = MockRequest("/service.svc/XDocuments", "POST")
+        request.set_header('Content-Type', "text/x-tolstoy")
+        request.set_header('Content-Length', str(len(data)))
+        # set the slug to hint at the desired key
+        request.set_header('Slug', "1805")
+        request.rfile.write(data)
+        request.send(self.svc)
+        self.assertTrue(request.responseCode == 201)
+        # We expect a location header
+        location = request.responseHeaders['LOCATION']
+        self.assertTrue(
+            location.startswith(u"http://host/service.svc/XDocuments("))
+        doc = core.Document()
+        doc.Read(request.wfile.getvalue())
+        self.assertTrue(isinstance(doc.root, core.Entry),
+                        "Expected a single Entry, found %s" %
+                        doc.root.__class__.__name__)
+        newDocument = core.Entity(
+            self.ds['SampleModel.SampleEntities.XDocuments'])
+        newDocument.exists = True
+        doc.root.GetValue(newDocument)
+        self.assertTrue(newDocument['DocumentID'].value == 1805,
+                        "Slug used for key")
+        request = MockRequest("%s/$value" % location)
+        request.send(self.svc)
+        self.assertTrue(request.responseCode == 200)
+        self.assertTrue(
+            request.responseHeaders['CONTENT-TYPE'] == "text/x-tolstoy")
+        self.assertTrue(request.wfile.getvalue() == data)        
+        #
+        # now try an alternative with a composite key
+        request = MockRequest("/service.svc/XYDocuments", "POST")
+        request.set_header('Content-Type', "text/x-tolstoy")
+        request.set_header('Content-Length', str(len(data)))
+        # set the slug to hint at the desired key
+        request.set_header('Slug',
+                           "(DocumentIDX=1805,DocumentIDY='War and Peace')")
+        request.rfile.write(data)
+        request.send(self.svc)
+        self.assertTrue(request.responseCode == 201)
+        # We expect a location header
+        location = request.responseHeaders['LOCATION']
+        self.assertTrue(
+            location.startswith(u"http://host/service.svc/XYDocuments("))
+        doc = core.Document()
+        doc.Read(request.wfile.getvalue())
+        self.assertTrue(isinstance(doc.root, core.Entry),
+                        "Expected a single Entry, found %s" %
+                        doc.root.__class__.__name__)
+        newDocument = core.Entity(
+            self.ds['SampleModel.SampleEntities.XYDocuments'])
+        newDocument.exists = True
+        doc.root.GetValue(newDocument)
+        self.assertTrue(newDocument['DocumentIDX'].value == 1805,
+                        "Slug used for key X")
+        self.assertTrue(newDocument['DocumentIDY'].value == u"War and Peace",
+                        "Slug used for key Y")
+        request = MockRequest("%s/$value" % location)
+        request.send(self.svc)
+        self.assertTrue(request.responseCode == 200)
+        self.assertTrue(
+            request.responseHeaders['CONTENT-TYPE'] == "text/x-tolstoy")
+        self.assertTrue(request.wfile.getvalue() == data)        
+        
     def testCaseRetrieveEntitySet(self):
         request = MockRequest('/service.svc/Customers')
         request.send(self.svc)

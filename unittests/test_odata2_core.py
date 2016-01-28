@@ -5318,12 +5318,51 @@ class DataServiceRegressionTests(unittest.TestCase):
             e2 = coll[e.key()]
             self.assertTrue(e2['title'].value == 'The quick fox')
             
+    def runtest_composite_slug(self):
+        streams = self.ds[
+            'RegressionModel.RegressionContainer.XYStreams']
+        fox = 'The quick brown fox jumped over the lazy dog'
+        cafe = u'I like going to the Caf\xe9'.encode('utf-8')
+        with streams.OpenCollection() as coll:
+            fin = StringIO(fox)
+            e1 = coll.new_stream(fin)
+            # successful call results in an entity that exists
+            self.assertTrue(e1.exists)
+            self.assertTrue(len(coll) == 1)
+            fout = StringIO()
+            sinfo = coll.read_stream(e1.key(), fout)
+            self.assertTrue(isinstance(sinfo, StreamInfo))
+            self.assertTrue(fout.getvalue() == fox,"Read back: "+fout.getvalue())
+            self.assertTrue(sinfo.type == params.APPLICATION_OCTETSTREAM)
+            self.assertTrue(sinfo.size == len(fox))
+            self.assertTrue(isinstance(sinfo.modified, iso.TimePoint))
+            self.assertTrue(sinfo.md5 == hashlib.md5(fox).digest())
+            # now try inserting with complex key
+            fah = (3,'Fox & Hounds')
+            fin.seek(0)
+            e2 = coll.new_stream(fin, key=fah)
+            self.assertTrue(len(coll) == 2)
+            self.assertTrue(e2.key() == fah)
+            # alternative read form with no stream to copy to
+            sinfo = coll.read_stream(e2.key())
+            # we can update a stream by using an existing key
+            fin = StringIO(cafe + fox)
+            sinfo = StreamInfo(type=params.PLAIN_TEXT,
+                               size=len(cafe))
+            # the size prevents reading to the end of the stream
+            coll.update_stream(fin, key=fah, sinfo=sinfo)
+            sinfo = coll.read_stream(fah)
+            self.assertTrue(sinfo.type == params.PLAIN_TEXT)
+            self.assertTrue(sinfo.size == len(cafe))
+            self.assertTrue(sinfo.md5 == hashlib.md5(cafe).digest())
+
     def run_combined(self):
         """Runs all individual tests combined into one
 
         Useful for expensive setUp/tearDown"""
         self.runtest_autokey()
         self.runtest_mediaresource()
+        self.runtest_composite_slug()
         self.runtest_all_types()
         self.runtest_complex_types()
         self.runtest_only_key()

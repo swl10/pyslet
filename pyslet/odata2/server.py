@@ -212,7 +212,7 @@ class Server(app.Server):
         According to RC3875_ the PATHINFO CGI variable contains an
         unencoded path string.  That means that reserved characters
         escaped in the original URL will be unescaped in PATHINFO.  This
-        cases problems in OData because the path component of the URL
+        causes problems in OData because the path component of the URL
         may contain arbitrary strings (as keys).  Unfortunately there is
         no other CGI variable that communicates the original requested
         URL, so we are stuck with interpreting PATHINFO.  In fact, the
@@ -236,7 +236,7 @@ class Server(app.Server):
 
             Fortunately it never really worked that way in practice
             anyway and the more recent specs use quote doubling
-            'O''Toole' which is much more robust.  This enable us to
+            'O''Toole' which is much more robust.  This enables us to
             determine if we are in a quoted string or not simply by
             counting, and hence deal with issue 1.
 
@@ -249,7 +249,7 @@ class Server(app.Server):
             if qmode:
                 # we need to quote reserved characters
                 if uri.is_path_segment_reserved(c) or not (
-                        uri.is_unreserved(c) or uri.is_reserved):
+                        uri.is_unreserved(c) or uri.is_reserved(c)):
                     result.append("%%%02X" % ord(c))
                 else:
                     result.append(c)
@@ -784,7 +784,19 @@ class Server(app.Server):
                     input = app.InputWrapper(environ)
                     if "HTTP_SLUG" in environ:
                         slug = app.Slug(environ["HTTP_SLUG"])
-                        key = resource.entity_set.extract_key(slug)
+                        # if the slug is a bracketed string treat it
+                        # as the key predicate
+                        key = None
+                        kp = slug.slug.strip()
+                        if kp and kp[0] == '(' and kp[-1] == ')':
+                            try:
+                                name, kp = core.ODataURI.SplitSegment(kp)
+                                # kp is a dictionary for the entity key
+                                key = resource.entity_set.GetKey(kp)
+                            except ValueError:
+                                pass
+                        if not key:
+                            key = resource.entity_set.extract_key(slug.slug)                        
                     else:
                         slug = key = None
                     entity = resource.new_stream(input, sinfo=sinfo, key=key)

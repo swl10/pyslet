@@ -247,7 +247,7 @@ class Slug(object):
         return unicode(self.__str__())
 
     def __repr__(self):
-        return "Slig(%s)" % repr(self.slug)
+        return "Slug(%s)" % repr(self.slug)
 
     def __cmp__(self, other):
         """Slugs are compared case sensitive."""

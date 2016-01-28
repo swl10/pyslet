@@ -122,6 +122,7 @@
                     <End Role="ManyX" EntitySet="Many2ManyRv1s"/>
                 </AssociationSet>
                 <EntitySet Name="Streams" EntityType="RegressionModel.Stream"/>
+                <EntitySet Name="XYStreams" EntityType="RegressionModel.XYStream"/>
             </EntityContainer>
             <EntityType Name="AutoKeyInt32">
                 <Key>
@@ -624,6 +625,15 @@
                     <PropertyRef Name="slug"/>
                 </Key>
                 <Property Name="slug" Type="Edm.String" Nullable="false" MaxLength="32" FixedLength="false"/>
+                <Property Name="title" Type="Edm.String" Nullable="true" MaxLength="255" FixedLength="false"/>
+            </EntityType>
+            <EntityType Name="XYStream" m:HasStream="true">
+                <Key>
+                    <PropertyRef Name="slugX"/>
+                    <PropertyRef Name="slugY"/>
+                </Key>
+                <Property Name="slugX" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="slugY" Type="Edm.String" Nullable="false" MaxLength="32" FixedLength="false"/>
                 <Property Name="title" Type="Edm.String" Nullable="true" MaxLength="255" FixedLength="false"/>
             </EntityType>
          </Schema>

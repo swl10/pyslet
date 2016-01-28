@@ -16,6 +16,8 @@ import pyslet.xml20081126.structures as xml
 import pyslet.rfc4287 as atom
 import pyslet.rfc5023 as app
 
+from pyslet.py2 import is_text
+
 import core
 import csdl as edm
 import metadata as edmx
@@ -429,7 +431,13 @@ class ClientCollection(core.EntityCollection):
             request.set_content_length(sinfo.size)
         if sinfo.modified is not None:
             request.set_last_modified(params.FullDate(src=sinfo.modified))
-        if key:
+        if isinstance(key, tuple):
+            # composite key
+            request.set_header(
+                "Slug",
+                core.ODataURI.FormatKeyDict(self.entity_set.key_dict(key)))
+        else:
+            # single string is sent 'as is'
             request.set_header("Slug", str(app.Slug(unicode(key))))
         self.client.process_request(request)
         if request.status == 201:

@@ -803,11 +803,13 @@ class SQLCollectionBase(core.EntityCollection):
                 "%s=%s" %
                 (c, params.add_param(self.container.prepare_sql_value(v))))
             query.append(' WHERE ')
+            where = []
             for k, kv in e.KeyDict().items():
-                query.append(
+                where.append(
                     '%s=%s' %
                     (self.container.mangled_names[(self.entity_set.name, k)],
                      params.add_param(self.container.prepare_sql_value(kv))))
+            query.append(' AND '.join(where))
             query = string.join(query, '')
             logging.info("%s; %s", query, unicode(params.params))
             transaction.execute(query, params)
@@ -1979,11 +1981,13 @@ class SQLEntityCollection(SQLCollectionBase):
                 "%s=%s" %
                 (c, params.add_param(self.container.prepare_sql_value(v))))
             query.append(' WHERE ')
+            where = []
             for k, kv in e.KeyDict().items():
-                query.append(
+                where.append(
                     '%s=%s' %
                     (self.container.mangled_names[(self.entity_set.name, k)],
                      params.add_param(self.container.prepare_sql_value(kv))))
+            query.append(' AND '.join(where))
             query = string.join(query, '')
             logging.info("%s; %s", query, unicode(params.params))
             transaction.execute(query, params)

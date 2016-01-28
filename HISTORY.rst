@@ -158,7 +158,8 @@ the preferred scheme//host:port.
 Implemented a function to create a complete certificate chain. 
 Implemented using pyOpenSSL with a lot of help from `this article`__
 
-..  __: http://blog.san-ss.com.ar/2012/05/validating-ssl-certificate-in-python.html
+..  __:
+    http://blog.san-ss.com.ar/2012/05/validating-ssl-certificate-in-python.html
 
 #33 Fixed exception: 'NoneType' object has no attribute 'current_thread'
 on exit
@@ -191,6 +192,14 @@ release.
 
 This is work in progress but the impact is likely to be minimal
 at this stage.
+
+#40 & #41 Composite keys and Slug headers
+
+Key hints were not working properly between the OData client and server
+implementations, and were not working at all when the key was composite.
+It is now possible to pass the formatted entity key predicate (including
+the brackets) as a Slug to the OData server and it will attempt to parse
+it and use that key where allowed by the underlying data layer.
 
     
 Untracked enhancements:
@@ -251,6 +260,12 @@ databases were not working correctly in multi-threaded environments.
 
 Fixed XML parser bug, ID elements in namespaced documents were not
 being handled properly. 
+
+Fixed bug in the OData server when handling non-URI characters in entity
+keys
+
+Fixed a bug with composite key handling in media streams when using the
+SQL layer 
 
 
 Version 0.5.20140801
