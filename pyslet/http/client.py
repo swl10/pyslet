@@ -584,7 +584,7 @@ class Connection(object):
                     logging.error("socket.recv raised %s", str(err))
                     data = None
             except IOError as err:
-                if not r and err.errno == errno.EAGAIN:
+                if not r and messages.io_blocked(err):
                     # we're blocked on recv, select did not return a reader
                     readers = [self.socket_file]
                     writers = []
@@ -747,7 +747,7 @@ class Connection(object):
             else:
                 logging.warn("socket.recv raised %s", str(err))
         except IOError as err:
-            if err.errno == errno.EAGAIN:
+            if messages.io_blocked(err):
                 # we're blocked on recv
                 return
             else:
@@ -784,7 +784,7 @@ class Connection(object):
                     logging.error("socket.recv raised %s", str(err))
                     data = None
             except IOError as err:
-                if err.errno == errno.EAGAIN:
+                if messages.io_blocked(err):
                     # we're blocked on send
                     return (False, True)
                 # stop everything
@@ -833,7 +833,7 @@ class Connection(object):
                 logging.error("socket.recv raised %s", str(err))
                 data = None
         except IOError as err:
-            if err.errno == errno.EAGAIN:
+            if messages.io_blocked(err):
                 # we're blocked on recv
                 return (False, True, False)
             # We can't truly tell if the server hung-up except by

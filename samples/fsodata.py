@@ -21,7 +21,7 @@ SERVICE_PORT = 8081
 SERVICE_ROOT = "http://localhost:%i/" % SERVICE_PORT
 
 #: the base path of our exposed file system
-BASE_PATH = os.path.realpath(os.path.abspath("local/fsodata"))
+BASE_PATH = os.path.realpath(os.path.abspath("fsodata_root"))
 
 #: a mapping from .ext to mime type
 EXTENSION_MAP = {

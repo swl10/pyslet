@@ -23,6 +23,26 @@ import auth
 import cookie
 
 
+if hasattr(errno, 'WSAEWOULDBLOCK'):
+    _blockers = set((errno.EAGAIN, errno.EWOULDBLOCK, errno.WSAEWOULDBLOCK))
+else:
+    _blockers = set((errno.EAGAIN, errno.EWOULDBLOCK))
+
+
+def io_blocked(err):
+    return err.errno in _blockers
+
+
+if hasattr(errno, 'WSAETIMEDOUT'):
+    _timeouts = set((errno.ETIMEDOUT, errno.WSAETIMEDOUT))
+else:
+    _timeouts = set((errno.ETIMEDOUT, ))
+
+
+def io_timedout(err):
+    return err.errno in _timeouts
+
+
 class BufferedEntityWrapper(io.RawIOBase):
 
     """A buffered wrapper for file-like objects.
@@ -788,7 +808,7 @@ class Message(PEP8Compatibility, object):
                     self.transferbody.flush()
                     self.transfermode = None
                 except IOError as e:
-                    if e.errno == errno.EAGAIN:
+                    if io_blocked(e):
                         self.transfermode = self.BLOCKED_MODE
                     else:
                         raise
@@ -871,7 +891,7 @@ class Message(PEP8Compatibility, object):
                 self.transferbody.flush()
                 self.transfermode = None
             except IOError as e:
-                if e.errno == errno.EAGAIN:
+                if io_blocked(e):
                     self.transfermode = self.BLOCKED_MODE
                 else:
                     raise

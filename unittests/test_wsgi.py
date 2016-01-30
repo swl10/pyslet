@@ -1342,6 +1342,8 @@ class WSGIDataAppTests(unittest.TestCase):
                 self.fail("No tables expected")
             except sql.SQLError:
                 pass
+        CreateApp.data_source.close()
+        os.remove(self.db_path)
 
         class CreateApp(wsgi.WSGIDataApp):
             settings_file = self.settings_path
@@ -1361,6 +1363,8 @@ class WSGIDataAppTests(unittest.TestCase):
             except sql.SQLError:
                 self.fail("Tables expected")
         # remove database for the next test...
+        # close the data source, can't just remove the database file
+        CreateApp.data_source.close()
         os.remove(self.db_path)
 
         class CreateApp(wsgi.WSGIDataApp):

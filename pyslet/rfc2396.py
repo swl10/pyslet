@@ -1725,24 +1725,27 @@ class FileURL(ServerBasedURL):
 
         Path parameters e.g., /dir/file;lang=en in the URL are
         ignored."""
-        decode = lambda s: unescape_data(s).decode('utf-8')
+
+        # decode = lambda s: unescape_data(s).decode('utf-8')
         if self.host:
             fs = vfs.get_file_system_by_name(self.host)
             if fs is None:
                 if vfs.OSFilePath.supports_unc:
                     fs = vfs.OSFilePath
-                    unc_root = decode('\\\\%s' % self.host)
+                    unc_root = fs.sep + fs.sep + \
+                        fs.path_str(unescape_data(self.host))
                 else:
                     raise ValueError(
                         "Unrecognized host in file URL: %s" % self.host)
             else:
-                unc_root = decode('')
+                unc_root = fs.empty
         else:
             fs = vfs.OSFilePath
-            unc_root = decode('')
+            unc_root = fs.empty
         segments = split_abs_path(self.abs_path)
         # ignore parameters in file system
-        path = fs.sep.join(map(decode, segments))
+        path = fs.sep.join(
+            map(lambda s: fs.path_str(unescape_data(s)), segments))
         if unc_root:
             # If we have a UNC root then we will have an absolute path
             vpath = fs(fs.sep.join((unc_root, path)))

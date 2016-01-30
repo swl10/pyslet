@@ -201,6 +201,10 @@ It is now possible to pass the formatted entity key predicate (including
 the brackets) as a Slug to the OData server and it will attempt to parse
 it and use that key where allowed by the underlying data layer.
 
+#43 Fixes for Python running on Windows
+
+Work in progress
+
     
 Untracked enhancements:
 

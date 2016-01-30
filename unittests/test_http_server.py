@@ -316,7 +316,7 @@ class ServerTests(unittest.TestCase):
             sock.send_pipe.read_wait(5)
         except IOError as e:
             # this must not be a timeout!
-            self.assertFalse(e.errno == errno.ETIMEDOUT)
+            self.assertFalse(messages.io_timedout(e))
         except ValueError:
             # raised by BufferedWriter when it has been closed
             pass
@@ -356,7 +356,7 @@ class ServerTests(unittest.TestCase):
             sock.send_pipe.read_wait(5)
         except IOError as e:
             # this must not be a timeout!
-            self.assertFalse(e.errno == errno.ETIMEDOUT)
+            self.assertFalse(messages.io_timedout(e))
         except ValueError:
             # raised by BufferedWriter when it has been closed
             pass
@@ -697,7 +697,7 @@ class PipeTests(unittest.TestCase):
             rresult = p.read(1)
             self.fail("blocked read returned %s" % repr(rresult))
         except IOError as e:
-            self.assertTrue(e.errno == errno.ETIMEDOUT)
+            self.assertTrue(messages.io_timedout(e))
         p.write("123")
         # should not block!
         rresult = p.read(5)
@@ -709,7 +709,7 @@ class PipeTests(unittest.TestCase):
             wresult = p.write("extra")
             self.fail("blocked write returned %s" % repr(wresult))
         except IOError as e:
-            self.assertTrue(e.errno == errno.ETIMEDOUT)
+            self.assertTrue(messages.io_timedout(e))
         try:
             # should block for 1 second
             logging.debug("flush waiting for 1s timeout...")
@@ -813,7 +813,7 @@ class PipeTests(unittest.TestCase):
             wresult = p.write("extra")
             self.fail("blocked write returned %s" % repr(wresult))
         except IOError as e:
-            self.assertTrue(e.errno == errno.ETIMEDOUT)
+            self.assertTrue(messages.io_timedout(e))
 
     def test_wnblocking(self):
         p = Pipe(timeout=1, bsize=10, wblocking=False)
@@ -834,7 +834,7 @@ class PipeTests(unittest.TestCase):
             rresult = p.read(1)
             self.fail("blocked read returned %s" % repr(rresult))
         except IOError as e:
-            self.assertTrue(e.errno == errno.ETIMEDOUT)
+            self.assertTrue(messages.io_timedout(e))
         p.write("1234567890")
         try:
             # should not block!
@@ -859,7 +859,7 @@ class PipeTests(unittest.TestCase):
             p.write_wait(timeout=1)
             self.fail("wait should time out")
         except IOError as e:
-            self.assertTrue(e.errno == errno.ETIMEDOUT)
+            self.assertTrue(messages.io_timedout(e))
         t = threading.Thread(target=self.wwait_runner, args=(p,))
         t.start()
         time.sleep(0)
@@ -881,7 +881,7 @@ class PipeTests(unittest.TestCase):
             p.read_wait(timeout=1)
             self.fail("wait should time out")
         except IOError as e:
-            self.assertTrue(e.errno == errno.ETIMEDOUT)
+            self.assertTrue(messages.io_timedout(e))
         t = threading.Thread(target=self.rwait_runner, args=(p,))
         t.start()
         time.sleep(0)
@@ -909,7 +909,7 @@ class PipeTests(unittest.TestCase):
             data = p.readall()
             self.fail("blocked readall returned: %s" % data)
         except IOError as e:
-            self.assertTrue(e.errno == errno.ETIMEDOUT)
+            self.assertTrue(messages.io_timedout(e))
 
     def test_nbreadmatch(self):
         p = Pipe(timeout=1, bsize=10, rblocking=False)
@@ -949,7 +949,7 @@ class PipeTests(unittest.TestCase):
             p.readmatch()
             self.fail("blocking readmatch")
         except IOError as e:
-            self.assertTrue(e.errno == errno.ETIMEDOUT)
+            self.assertTrue(messages.io_timedout(e))
         p.write("\r")
         p.write("\nabc")
         self.assertTrue(p.readmatch() == "123\r\n")

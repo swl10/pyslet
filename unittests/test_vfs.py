@@ -2,7 +2,6 @@
 
 import logging
 import os
-import sys
 import unittest
 import zipfile
 
@@ -150,8 +149,8 @@ class GeneralFilePathTests(object):
         self.assertTrue(to_text(path) == hello_world)
         self.assertTrue(str(path) == str(hello_world))
         path = self.fs(ul('Caf\xe9'))
-        self.assertTrue(path.to_bytes() == ul('Caf\xe9').encode(
-            sys.getfilesystemencoding()), "convert to binary string")
+        self.assertTrue(path.to_bytes() == ul('Caf\xe9').encode(path.codec),
+                        "convert to binary string")
         self.assertTrue(to_text(path) == ul('Caf\xe9'), "convert to text")
         # create a path with a trailing sep
         hello = self.fs.path_str('hello') + self.fs.sep

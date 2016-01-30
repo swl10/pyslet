@@ -736,7 +736,7 @@ class FileURLTests(unittest.TestCase):
             join_match = os.path.join(dirname, name)
             if is_unicode(name):
                 seg_name = uri.escape_data(
-                    name.encode('utf-8'), uri.is_path_segment_reserved)
+                    name.encode(c), uri.is_path_segment_reserved)
             else:
                 seg_name = uri.escape_data(name, uri.is_path_segment_reserved)
             u = uri.URI(seg_name)
@@ -825,12 +825,13 @@ class VirtualFileURLTests(unittest.TestCase):
         # Make d a directory like path by adding an empty component at the end
         d = uri.URI.from_virtual_path(dirname.join(dirname.curdir))
         for name in names:
-            if to_text(name).startswith('??'):
+            if to_text(name).startswith('??') or \
+                    name.to_bytes().startswith(b'??'):
                 logging.warn("8-bit path tests limited to ASCII file names")
                 continue
             join_match = dirname.join(name)
             seg_name = uri.escape_data(
-                to_text(name).encode('utf-8'), uri.is_path_segment_reserved)
+                to_text(name).encode(name.codec), uri.is_path_segment_reserved)
             u = uri.URI(seg_name)
             u = u.resolve(d)
             self.assertTrue(isinstance(u, uri.FileURL))

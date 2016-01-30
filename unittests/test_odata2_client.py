@@ -243,14 +243,16 @@ class LoggingHandler(WSGIRequestHandler):
         logging.info(format, *args)
 
 regressionServerApp = None
-
+regressionTestsDone = False
 
 def runRegressionServer():
     server = make_server(
         '', HTTP_PORT, regressionServerApp, handler_class=LoggingHandler)
-    logging.info("Serving HTTP on port %i..." % HTTP_PORT)
-    # Respond to requests until process is killed
-    server.serve_forever()
+    server.timeout = 10
+    logging.info("Serving HTTP on port %i... (timeout %s)", HTTP_PORT,
+                 repr(server.timeout))
+    while not regressionTestsDone:
+        server.handle_request()
 
 
 class RegressionTests(DataServiceRegressionTests):
@@ -274,7 +276,9 @@ class RegressionTests(DataServiceRegressionTests):
         self.ds = self.client.model.DataServices
 
     def tearDown(self):
+        global regressionTestsDone
         DataServiceRegressionTests.tearDown(self)
+        regressionTestsDone = True
 
     def testCaseAllTests(self):
         self.run_combined()

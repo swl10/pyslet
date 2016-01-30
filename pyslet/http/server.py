@@ -722,6 +722,22 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                 start_response("400 Bad Request", [])
                 return []
 
+    def get_request(self):
+        """Adds logging of socket errors on connect
+
+        The default implementations simply swallows socket errors making
+        it hard to see why calls like handle_request have simply
+        returned without actually doing anything."""
+        try:
+            return SocketServer.TCPServer.get_request(self)
+        except socket.error as e:
+            logging.errror("Server socket error %s", repr(e))
+            raise
+
+    def handle_timeout(self):
+        """Adds logging for timeouts during handle_request"""
+        logging.error("HTTP Server timeout: %s" % repr(self.timeout))
+
 
 class ServerRequest(messages.Request):
 

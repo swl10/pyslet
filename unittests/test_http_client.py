@@ -100,7 +100,7 @@ class MockSocket(MockSocketBase):
                 else:
                     raise ValueError("unexpected recv_mode!")
         except IOError as e:
-            if e.errno == errno.ETIMEDOUT:
+            if messages.io_timedout(e):
                 logging.debug("mock socket timed out while reading request")
                 request = None
             else:
@@ -303,16 +303,16 @@ class ClientTests(unittest.TestCase):
         while True:
             if self.error_count > 1:
                 # generate an error on the socket for the client
-                sock.io_error = socket.error(errno.ENOLINK,
-                                             os.strerror(errno.ENOLINK))
+                sock.io_error = socket.error(errno.EINTR,
+                                             os.strerror(errno.EINTR))
                 self.error_count -= 1
                 break
             elif self.error_count:
                 req = sock.recv_request()
                 if req is None:
                     break
-                sock.io_error = socket.error(errno.ENOLINK,
-                                             os.strerror(errno.ENOLINK))
+                sock.io_error = socket.error(errno.EINTR,
+                                             os.strerror(errno.EINTR))
                 self.error_count -= 1
                 sock.close()
                 break
@@ -686,7 +686,8 @@ class LegacyServerTests(unittest.TestCase):
         self.port = random.randint(1111, 9999)
         self.server = server.Server(port=self.port, app=self.legacy_app,
                                     protocol=params.HTTP_1p0)
-        self.server.timeout = 0.5
+        # We need to give time to prevent handle_request doing nothing
+        self.server.timeout = 10
         self.client = http.Client()
 
     def tearDown(self):     # noqa
