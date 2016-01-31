@@ -34,11 +34,11 @@ Creating URI Instances
 ----------------------
 
 To create URI use the :meth:`URI.from_octets` class method.  This method
-takes both character and binary strings though in first case the string
-must contain only ASCII characters and in the latter only bytes that
-represent ASCII characters.  The following function can help convert
-general character strings to a suitable format but it is not a full
-implementation of the IRI specification, in particular it does not
+takes both character and binary strings though in the first case the
+string must contain only ASCII characters and in the latter only bytes
+that represent ASCII characters.  The following function can help
+convert general character strings to a suitable format but it is not a
+full implementation of the IRI specification, in particular it does not
 encode delimiters (such as space) and it does not deal intelligently
 with unicode domain names (these must be converted to their ASCII URI
 forms first).
@@ -53,7 +53,13 @@ URI
 	:members:
 	:show-inheritance:
 
-..	automethod:: URI.__str__
+..  autoclass:: ServerBasedURL
+	:members:
+	:show-inheritance:
+
+..  autoclass:: FileURL
+	:members:
+	:show-inheritance:
 
 
 Canonicalization and Escaping

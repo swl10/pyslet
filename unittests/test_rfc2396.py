@@ -701,6 +701,56 @@ class FileURLTests(unittest.TestCase):
         for dirpath, dirnames, filenames in os.walk(self.data_path):
             self.visit_method(dirpath, filenames)
 
+    def test_unicode_relatives(self):
+        """The idea of this test to ensure that UTF-8 relative paths
+        work even if the underlying file system uses a different
+        encoding."""
+        class LatinSystem(vfs.MemFilePath):
+
+            fs_name = "latinfs.pyslet.org"
+            codec = "latin-1"
+            # must override these to prevent mixed instances
+            _wd = None
+            _fsdir = {}
+
+        # need to register this file system to enable us to obtain
+        # instances from FileURLs.
+        vfs.register_file_system(LatinSystem)
+        upath = ul(b"Caf\xe9")
+        fpath = LatinSystem(LatinSystem.sep + upath)
+        furl = uri.URI.from_virtual_path(fpath)
+        # the native file system encoding is not UTF-8 so we might
+        # expect the file name in the URL to be latin-1 encoded but
+        # this would be madness as relative URLs would be completely
+        # messed up and non-portable between systems (and we need
+        # them to work in Pyslet).
+        self.assertTrue(to_text(furl) ==
+                        ul("file://latinfs.pyslet.org/Caf%C3%A9"))
+        result = furl.get_file_name()
+        self.assertTrue(result == upath, "file name in URL: %s" % repr(result))
+        # This is an absolute URL in a file system with a known non-UTF8
+        # path encoding so we should be able to transform to a locally
+        # portable URL containing the native system encoding instead
+        # this is a concession to working on Windows
+        result = furl.to_local_text()
+        self.assertTrue(result == ul("file://latinfs.pyslet.org/Caf%E9"),
+                        result)
+        # now lets go back to the virtual file system to check there too
+        result = furl.get_virtual_file_path()
+        self.assertTrue(to_text(result) == ul(b"/Caf\xe9"))
+        # here's the rub, we expect the resolution of relative URI to
+        # work portably
+        file_url = uri.URI.from_octets("Caf%C3%A9.txt").resolve(furl)
+        self.assertTrue(to_text(file_url) ==
+                        ul("file://latinfs.pyslet.org/Caf%C3%A9.txt"))
+        result = file_url.get_file_name()
+        self.assertTrue(result == upath + ul(".txt"),
+                        "relative file name in URL: %s" % repr(result))
+        self.assertTrue(file_url.to_local_text() ==
+                        ul("file://latinfs.pyslet.org/Caf%E9.txt"))
+        result = file_url.get_virtual_file_path()
+        self.assertTrue(to_text(result) == ul(b"/Caf\xe9.txt"), result)
+
     def test_unicode_pathnames(self):
         if isinstance(self.data_path, bytes):
             c = sys.getfilesystemencoding()
