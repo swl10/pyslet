@@ -285,8 +285,7 @@ class ContentPackageTests(unittest.TestCase):
         doc.Read()
         self.assertTrue(doc.root.xmlname == 'tag' and
                         doc.root.GetValue() == u"Unicode Test: \u82f1\u56fd")
-        cp2 = ContentPackage(
-            TEST_DATA_DIR.join(encode(u'\u82f1\u56fd', 'utf-8')))
+        cp2 = ContentPackage(TEST_DATA_DIR.join(u'\u82f1\u56fd'))
         self.assertTrue(
             cp2.GetPackageName() == u'\u82f1\u56fd', "Unicode package name test")
 

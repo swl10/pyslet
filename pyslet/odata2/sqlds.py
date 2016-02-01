@@ -4725,7 +4725,7 @@ class SQLEntityContainer(object):
                     cpool_item.thread_id = None
                     cpool_item.thread = None
                     self.cpool_idle.append(cpool_item)
-                elif (cpool_item.last_seen < old_time and
+                elif (cpool_item.last_seen <= old_time and
                         self.dbapi.threadsafety <= 1):
                     logging.debug(
                         "pool_cleaner removing database connection "
@@ -4738,7 +4738,7 @@ class SQLEntityContainer(object):
             while i:
                 i = i - 1
                 cpool_item = self.cpool_idle[i]
-                if cpool_item.last_seen < old_time:
+                if cpool_item.last_seen <= old_time:
                     logging.info("pool_cleaner removed idle connection")
                     to_close.append(cpool_item.dbc)
                     del self.cpool_idle[i]

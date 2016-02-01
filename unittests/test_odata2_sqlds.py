@@ -242,7 +242,7 @@ class ThreadTests(unittest.TestCase):
         self.assertTrue(nidle == 0)
         # clean up the idle connection
         container.pool_cleaner()
-        # should our connection to the idle pool
+        # should move our connection to the idle pool
         nlocked, nunlocked, nidle = container.connection_stats()
         self.assertTrue(nlocked == 0)
         self.assertTrue(nunlocked == 0)
@@ -251,7 +251,7 @@ class ThreadTests(unittest.TestCase):
         nlocked, nunlocked, nidle = container.connection_stats()
         self.assertTrue(nlocked == 0)
         self.assertTrue(nunlocked == 0)
-        self.assertTrue(nidle == 0)
+        self.assertTrue(nidle == 0, nidle)
 
     def test_level1(self):
         # we ask for 2 connections and should get them

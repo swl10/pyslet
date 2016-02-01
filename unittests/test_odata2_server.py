@@ -184,9 +184,6 @@ def load_tests(loader, tests, pattern):
     # return suite('tes')
 
 
-iso.pytime = MockTime
-
-
 TEST_DATA_DIR = os.path.join(
     os.path.split(os.path.abspath(__file__))[0], 'data_odatav2')
 
@@ -1661,6 +1658,9 @@ class SampleServerTests(unittest.TestCase):
 
         Two Document Entity Type instances exist, one with EntityKey value 300
         and the other with EntityKey value 301."""
+        # freeze the clock during these tests
+        iso.pytime = MockTime
+        MockTime.now = time.time()
         self.sampleServerData = FilePath(
             FilePath(__file__).abspath().split()[0], 'data_odatav2', 'sample_server')
         self.svc = Server('http://host/service.svc')
@@ -1754,7 +1754,7 @@ class SampleServerTests(unittest.TestCase):
             return customers['ALFKI']['CompanyName']
 
     def tearDown(self):
-        pass
+        iso.pytime = time
 
     def testCaseEntityTypeFromAtomEntry(self):
         customers = self.ds['SampleModel.SampleEntities.Customers']

@@ -922,29 +922,33 @@ class AppTests(unittest.TestCase):
         self.assertTrue(req.status.startswith('404 '))
 
     def test_file_response(self):
+        # calculate length of public.txt dynamically
+        # allows us to check out with CRLF
+        pub_path = os.path.join(STATIC_FILES, 'res', 'public.txt')
+        pub_len = os.stat(pub_path).st_size
+
         class App(wsgi.WSGIApp):
 
             def file_page(self, context):
                 context.set_status(200)
                 context.add_header('Content-Type', 'text/plain')
-                return self.file_response(
-                    context, os.path.join(STATIC_FILES, 'res', 'public.txt'))
+                return self.file_response(context, pub_path)
 
             def missing_page(self, context):
                 context.set_status(404)
                 context.add_header('Content-Type', 'text/plain')
-                return self.file_response(
-                    context, os.path.join(STATIC_FILES, 'res', 'public.txt'))
+                return self.file_response(context, pub_path)
+
         App.setup()
         app = App()
         app.set_method('/*', app.file_page)
         app.set_method('/missing', app.missing_page)
         req = MockRequest(path="/index.htm")
         req.call_app(app.call_wrapper)
-        self.assertTrue(req.status.startswith('200 '))
-        self.assertTrue(req.headers['content-length'] == ['11'])
+        self.assertTrue(req.status.startswith('200 '), req.status)
+        self.assertTrue(req.headers['content-length'] == [str(pub_len)])
         self.assertTrue('last-modified' in req.headers)
-        self.assertTrue(req.output.getvalue() == 'Hello mum!\n')
+        self.assertTrue(req.output.getvalue().strip() == 'Hello mum!')
         # check that we can still control the status
         req = MockRequest(path="/missing")
         req.call_app(app.call_wrapper)

@@ -2138,6 +2138,10 @@ class TestSessionState(SessionState):
             dt = self.t
             self.t = time.time()
             dt = self.t - dt
+            if dt == 0.0:
+                # add a small time anyway
+                dt = 0.000001
+                self.t = self.t + dt
         else:
             self.t = time.time()
             dt = 0.0

@@ -3324,7 +3324,7 @@ class BasicAssessmentTests(unittest.TestCase):
             pass
         saveKey = state.key
         htmlDiv = state.BeginSession(state.key)
-        self.assertFalse(saveKey == state.key, "No key change.")
+        self.assertFalse(saveKey == state.key, "No key change: %s" % state.key)
         logging.debug(htmlDiv)
         # we should be able to read the the current test part
         self.assertTrue(
