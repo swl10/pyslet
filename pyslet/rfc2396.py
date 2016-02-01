@@ -1527,13 +1527,8 @@ class URI(CmpMixin, PEP8Compatibility):
         An absolute URI is fully specified with a scheme, e.g., 'http'."""
         return self.scheme is not None
 
-    def get_file_name(self, codec='utf-8'):
+    def get_file_name(self):
         """Gets the file name associated with this resource
-
-        codec
-            The file name is assumed to have been encoded into octets
-            using UTF-8 by default though you can override this
-            behaviour by passing a codec explicitly.
 
         Returns None if the URI scheme does not have the concept.  By
         default the file name is extracted from the last component of
@@ -1556,7 +1551,7 @@ class URI(CmpMixin, PEP8Compatibility):
             else:
                 break
         if file_name is not None:
-            file_name = unescape_data(file_name).decode(codec)
+            file_name = unescape_data(file_name).decode('utf-8')
             return file_name
         else:
             return None

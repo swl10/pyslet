@@ -41,7 +41,7 @@ Not sure which version you are using?  Try::
     print version
 
 
-Version 0.6.2016XXXX
+Version 0.6.201602XX
 --------------------
 
 Summary of New Features:
@@ -203,7 +203,11 @@ it and use that key where allowed by the underlying data layer.
 
 #43 Fixes for Python running on Windows
 
-Work in progress
+The only substantive changes required were to the way we check for io
+failures when IOError is raised and the way we handle URI containing
+non-ASCII characters.  Some of the unit tests were also affected due to
+issues with timing, including the reduced precision of time.time() on
+Windows-based systems.
 
     
 Untracked enhancements:
