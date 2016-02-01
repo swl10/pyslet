@@ -189,13 +189,14 @@ class RFC2396Tests(unittest.TestCase):
             "escape chars neither unreserved nor reserved")
         # passing is_alphanum effectively causes 'marks' to stay as-is
         self.assertTrue(uri.canonicalize_data(
-            "%2D%5F%2e%21%7e%2A%27%28%29%41%5a%61%7A%30%39", uri.is_alphanum)
-            == "%2D%5F%2E%21%7E%2A%27%28%29AZaz09",
+            "%2D%5F%2e%21%7e%2A%27%28%29%41%5a%61%7A%30%39",
+            uri.is_alphanum) == "%2D%5F%2E%21%7E%2A%27%28%29AZaz09",
             "(only) unreserved characters are unescaped")
         # passing lambda: x:False effectively causes everything to stay as-is
         self.assertTrue(uri.canonicalize_data(
-            "%2D%5F%2e%21%7e%2A%27%28%29%41%5a%61%7A%30%39", lambda x: False)
-            == "%2D%5F%2E%21%7E%2A%27%28%29%41%5A%61%7A%30%39",
+            "%2D%5F%2e%21%7e%2A%27%28%29%41%5a%61%7A%30%39",
+            lambda x: False) ==
+            "%2D%5F%2E%21%7E%2A%27%28%29%41%5A%61%7A%30%39",
             "no characters are unescaped")
 
     def test_escape(self):

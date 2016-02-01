@@ -107,9 +107,11 @@ if py2:
 
     range3 = xrange
 
-    dict_keys = lambda x: x.iterkeys()
+    def dict_keys(d):
+        return d.iterkeys()
 
-    dict_values = lambda x: x.itervalues()
+    def dict_values(d):
+        return d.itervalues()
 
     import __builtin__ as builtins
 
@@ -196,8 +198,11 @@ else:
 
     range3 = range
 
-    dict_keys = lambda x: x.keys()
-    dict_values = lambda x: x.values()
+    def dict_keys(d):
+        return d.keys()
+
+    def dict_values(d):
+        return d.values()
 
     import builtins     # noqa : unused import
 

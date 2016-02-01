@@ -1070,7 +1070,8 @@ class OSFilePath(VirtualFilePath):
         os.makedirs(self.path)
 
     def walk(self):
-        wrap = lambda x: OSFilePath(x)
+        def wrap(fname):
+            return OSFilePath(fname)
         for dirpath, dirnames, filenames in os.walk(self.path):
             yield wrap(dirpath), map(wrap, dirnames), map(wrap, filenames)
 

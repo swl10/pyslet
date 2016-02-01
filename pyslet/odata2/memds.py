@@ -6,16 +6,17 @@ import hashlib
 import threading
 import logging
 from StringIO import StringIO
-try:
-    from cStringIO import StringIO as RStringIO
-except ImportError:
-    RStringIO = StringIO
-WStringIO = RStringIO
 
 import pyslet.odata2.csdl as edm
 import pyslet.odata2.core as odata
 import pyslet.http.params as params
 import pyslet.iso8601 as iso
+
+try:
+    from cStringIO import StringIO as RStringIO
+except ImportError:
+    RStringIO = StringIO
+WStringIO = RStringIO
 
 
 class InMemoryEntityStore(object):

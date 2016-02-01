@@ -1,13 +1,6 @@
 #! /usr/bin/env python
 """Creates an OData service from weather data"""
 
-# SAMPLE_DIR='small-sample'
-SAMPLE_DIR = 'daily-text'
-SAMPLE_DB = 'weather.db'
-
-SERVICE_PORT = 8080
-SERVICE_ROOT = "http://localhost:%i/" % SERVICE_PORT
-
 import logging
 import threading
 import time
@@ -25,6 +18,14 @@ from pyslet.odata2.server import ReadOnlyServer
 from pyslet.odata2.sqlds import SQLiteEntityContainer
 from pyslet.odata2.memds import InMemoryEntityContainer
 import pyslet.http.client as http
+
+
+# SAMPLE_DIR='small-sample'
+SAMPLE_DIR = 'daily-text'
+SAMPLE_DB = 'weather.db'
+
+SERVICE_PORT = 8080
+SERVICE_ROOT = "http://localhost:%i/" % SERVICE_PORT
 
 
 def load_metadata(path=os.path.join(os.path.split(__file__)[0],

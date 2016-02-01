@@ -1600,8 +1600,8 @@ class Time(PEP8Compatibility, UnicodeMixin, CmpMixin):
             raise DateTimeError("Can't shift time to unspecified zone")
         # start by calculating the time shift
         new_offset = zdirection * \
-            ((0 if zhour is None else zhour)
-             * 60 + (0 if zminute is None else zminute))
+            ((0 if zhour is None else zhour) * 60 +
+             (0 if zminute is None else zminute))
         zshift = new_offset - self.get_zone_offset()
         second = self.second
         if self.second is None:
