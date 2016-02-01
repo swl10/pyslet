@@ -41,7 +41,7 @@ Not sure which version you are using?  Try::
     print version
 
 
-Version 0.6.201602XX
+Version 0.6.20160201
 --------------------
 
 Summary of New Features:

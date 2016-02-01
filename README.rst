@@ -2,12 +2,11 @@ Welcome to Pyslet
 =================
 
 ..  note::
-    You are reading the latest development version of the documentation
-    which corresponds to the master branch of the source on GitHub.  The
-    last release on PyPi was pyslet-0.5.20140801 and the corresponding
-    documentation is here__
+    You are reading documentation for the pyslet-0.6.20160201 release of
+    Pyslet to PyPi. The latest version, corresponding to the GitHub
+    master is available here__
     
-    ..  __: http://pyslet.readthedocs.org/en/pyslet-0.5.20140801/
+    ..  __: http://pyslet.readthedocs.org/en/latest/
 
 Pyslet_ is a Python package for Standards in Learning Education and
 Training (LET). It implements a number of LET-specific standards,
@@ -74,14 +73,12 @@ OData service which can be found at http://odata.pyslet.org/weather
 
 What's next?
 
-*   Proper Media stream support in the OData SQL storage model (now
-    complete in master)
+*   MySQL shim for the OData SQL storage model (90% complete and
+    functional)
 
-*   MySQL shim for the OData SQL storage model (90% complete in master
-    and functional)
+*   Improved support for LTI to take it beyond 'basic' (60% complete)
 
-*   Improved support for LTI to take it beyond 'basic' (10% complete in
-    master)
+*   Python 3 support (10% complete)
 
 I'm also slowly transforming the code for better PEP-8 compliance as
 reported by the fantastic flake8_.  For important information about how
