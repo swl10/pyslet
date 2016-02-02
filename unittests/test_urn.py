@@ -2,12 +2,11 @@
 
 import unittest
 import logging
-import string
 
 import pyslet.rfc2396 as uri
 import pyslet.urn as urn
 
-from pyslet.py2 import is_unicode
+from pyslet.py2 import ul, u8, character, is_unicode, range3, dict_items
 
 
 def suite():
@@ -62,59 +61,59 @@ class URNTests(unittest.TestCase):
             <let-num> ::= <upper> | <lower> | <number>
             <let-num-hyp> ::= <upper> | <lower> | <number> | "-"
         """
-        for i in xrange(0x00, 0x2D):
-            self.assertFalse(urn.is_upper(chr(i)))
-            self.assertFalse(urn.is_lower(chr(i)))
-            self.assertFalse(urn.is_number(chr(i)))
-            self.assertFalse(urn.is_letnum(chr(i)))
-            self.assertFalse(urn.is_letnumhyp(chr(i)))
-        self.assertFalse(urn.is_upper(chr(0x2D)))
-        self.assertFalse(urn.is_lower(chr(0x2D)))
-        self.assertFalse(urn.is_number(chr(0x2D)))
-        self.assertFalse(urn.is_letnum(chr(0x2D)))
-        self.assertTrue(urn.is_letnumhyp(chr(0x2D)))
-        for i in xrange(0x2E, 0x30):
-            self.assertFalse(urn.is_upper(chr(i)))
-            self.assertFalse(urn.is_lower(chr(i)))
-            self.assertFalse(urn.is_number(chr(i)))
-            self.assertFalse(urn.is_letnum(chr(i)))
-            self.assertFalse(urn.is_letnumhyp(chr(i)))
-        for i in xrange(0x30, 0x3A):
-            self.assertFalse(urn.is_upper(chr(i)))
-            self.assertFalse(urn.is_lower(chr(i)))
-            self.assertTrue(urn.is_number(chr(i)))
-            self.assertTrue(urn.is_letnum(chr(i)))
-            self.assertTrue(urn.is_letnumhyp(chr(i)))
-        for i in xrange(0x3A, 0x41):
-            self.assertFalse(urn.is_upper(chr(i)))
-            self.assertFalse(urn.is_lower(chr(i)))
-            self.assertFalse(urn.is_number(chr(i)))
-            self.assertFalse(urn.is_letnum(chr(i)))
-            self.assertFalse(urn.is_letnumhyp(chr(i)))
-        for i in xrange(0x41, 0x5B):
-            self.assertTrue(urn.is_upper(chr(i)))
-            self.assertFalse(urn.is_lower(chr(i)))
-            self.assertFalse(urn.is_number(chr(i)))
-            self.assertTrue(urn.is_letnum(chr(i)))
-            self.assertTrue(urn.is_letnumhyp(chr(i)))
-        for i in xrange(0x5B, 0x61):
-            self.assertFalse(urn.is_upper(chr(i)))
-            self.assertFalse(urn.is_lower(chr(i)))
-            self.assertFalse(urn.is_number(chr(i)))
-            self.assertFalse(urn.is_letnum(chr(i)))
-            self.assertFalse(urn.is_letnumhyp(chr(i)))
-        for i in xrange(0x61, 0x7B):
-            self.assertFalse(urn.is_upper(chr(i)))
-            self.assertTrue(urn.is_lower(chr(i)))
-            self.assertFalse(urn.is_number(chr(i)))
-            self.assertTrue(urn.is_letnum(chr(i)))
-            self.assertTrue(urn.is_letnumhyp(chr(i)))
-        for i in xrange(0x7B, 0xFF):
-            self.assertFalse(urn.is_upper(chr(i)))
-            self.assertFalse(urn.is_lower(chr(i)))
-            self.assertFalse(urn.is_number(chr(i)))
-            self.assertFalse(urn.is_letnum(chr(i)))
-            self.assertFalse(urn.is_letnumhyp(chr(i)))
+        for i in range3(0x00, 0x2D):
+            self.assertFalse(urn.is_upper(character(i)))
+            self.assertFalse(urn.is_lower(character(i)))
+            self.assertFalse(urn.is_number(character(i)))
+            self.assertFalse(urn.is_letnum(character(i)))
+            self.assertFalse(urn.is_letnumhyp(character(i)))
+        self.assertFalse(urn.is_upper(character(0x2D)))
+        self.assertFalse(urn.is_lower(character(0x2D)))
+        self.assertFalse(urn.is_number(character(0x2D)))
+        self.assertFalse(urn.is_letnum(character(0x2D)))
+        self.assertTrue(urn.is_letnumhyp(character(0x2D)))
+        for i in range3(0x2E, 0x30):
+            self.assertFalse(urn.is_upper(character(i)))
+            self.assertFalse(urn.is_lower(character(i)))
+            self.assertFalse(urn.is_number(character(i)))
+            self.assertFalse(urn.is_letnum(character(i)))
+            self.assertFalse(urn.is_letnumhyp(character(i)))
+        for i in range3(0x30, 0x3A):
+            self.assertFalse(urn.is_upper(character(i)))
+            self.assertFalse(urn.is_lower(character(i)))
+            self.assertTrue(urn.is_number(character(i)))
+            self.assertTrue(urn.is_letnum(character(i)))
+            self.assertTrue(urn.is_letnumhyp(character(i)))
+        for i in range3(0x3A, 0x41):
+            self.assertFalse(urn.is_upper(character(i)))
+            self.assertFalse(urn.is_lower(character(i)))
+            self.assertFalse(urn.is_number(character(i)))
+            self.assertFalse(urn.is_letnum(character(i)))
+            self.assertFalse(urn.is_letnumhyp(character(i)))
+        for i in range3(0x41, 0x5B):
+            self.assertTrue(urn.is_upper(character(i)))
+            self.assertFalse(urn.is_lower(character(i)))
+            self.assertFalse(urn.is_number(character(i)))
+            self.assertTrue(urn.is_letnum(character(i)))
+            self.assertTrue(urn.is_letnumhyp(character(i)))
+        for i in range3(0x5B, 0x61):
+            self.assertFalse(urn.is_upper(character(i)))
+            self.assertFalse(urn.is_lower(character(i)))
+            self.assertFalse(urn.is_number(character(i)))
+            self.assertFalse(urn.is_letnum(character(i)))
+            self.assertFalse(urn.is_letnumhyp(character(i)))
+        for i in range3(0x61, 0x7B):
+            self.assertFalse(urn.is_upper(character(i)))
+            self.assertTrue(urn.is_lower(character(i)))
+            self.assertFalse(urn.is_number(character(i)))
+            self.assertTrue(urn.is_letnum(character(i)))
+            self.assertTrue(urn.is_letnumhyp(character(i)))
+        for i in range3(0x7B, 0xFF):
+            self.assertFalse(urn.is_upper(character(i)))
+            self.assertFalse(urn.is_lower(character(i)))
+            self.assertFalse(urn.is_number(character(i)))
+            self.assertFalse(urn.is_letnum(character(i)))
+            self.assertFalse(urn.is_letnumhyp(character(i)))
 
     def test_nid(self):
         """Syntax for nid::
@@ -135,7 +134,7 @@ class URNTests(unittest.TestCase):
         for nid in positive:
             try:
                 u = urn.URN(nid=nid, nss="bar")
-            except ValueError:
+            except uri.URIException:
                 self.fail("POSTIVE nid test: %s" % nid)
             self.assertTrue(u.nid == nid, "case preserved")
             uparsed = uri.URI.from_octets('urn:%s:bar' % nid)
@@ -166,145 +165,145 @@ class URNTests(unittest.TestCase):
             try:
                 u = urn.URN(nid=nid, nss="bar")
                 self.fail("NEGATIVE nid test: %s" % nid)
-            except ValueError:
+            except uri.URIException:
                 pass
             try:
                 u = uri.URI.from_octets('urn:%s:bar' % nid)
                 self.fail("NEGATIVE nid parse test: %s" % nid)
-            except ValueError:
+            except uri.URIException:
                 pass
 
     def test_trans(self):
         # controls
-        for i in xrange(0x00, 0x21):
-            self.assertFalse(urn.is_reserved(chr(i)))
-            self.assertFalse(urn.is_other(chr(i)))
-            self.assertFalse(urn.is_hex(chr(i)))
-            self.assertFalse(urn.is_trans(chr(i)))
+        for i in range3(0x00, 0x21):
+            self.assertFalse(urn.is_reserved(character(i)))
+            self.assertFalse(urn.is_other(character(i)))
+            self.assertFalse(urn.is_hex(character(i)))
+            self.assertFalse(urn.is_trans(character(i)))
         # !
-        self.assertFalse(urn.is_reserved(chr(0x21)))
-        self.assertTrue(urn.is_other(chr(0x21)))
-        self.assertFalse(urn.is_hex(chr(0x21)))
-        self.assertTrue(urn.is_trans(chr(0x21)))
+        self.assertFalse(urn.is_reserved(character(0x21)))
+        self.assertTrue(urn.is_other(character(0x21)))
+        self.assertFalse(urn.is_hex(character(0x21)))
+        self.assertTrue(urn.is_trans(character(0x21)))
         # "
-        self.assertFalse(urn.is_reserved(chr(0x22)))
-        self.assertFalse(urn.is_other(chr(0x22)))
-        self.assertFalse(urn.is_hex(chr(0x22)))
-        self.assertFalse(urn.is_trans(chr(0x22)))
+        self.assertFalse(urn.is_reserved(character(0x22)))
+        self.assertFalse(urn.is_other(character(0x22)))
+        self.assertFalse(urn.is_hex(character(0x22)))
+        self.assertFalse(urn.is_trans(character(0x22)))
         # #
-        self.assertTrue(urn.is_reserved(chr(0x23)))
-        self.assertFalse(urn.is_other(chr(0x23)))
-        self.assertFalse(urn.is_hex(chr(0x23)))
-        self.assertTrue(urn.is_trans(chr(0x23)))
+        self.assertTrue(urn.is_reserved(character(0x23)))
+        self.assertFalse(urn.is_other(character(0x23)))
+        self.assertFalse(urn.is_hex(character(0x23)))
+        self.assertTrue(urn.is_trans(character(0x23)))
         # $
-        self.assertFalse(urn.is_reserved(chr(0x24)))
-        self.assertTrue(urn.is_other(chr(0x24)))
-        self.assertFalse(urn.is_hex(chr(0x24)))
-        self.assertTrue(urn.is_trans(chr(0x24)))
+        self.assertFalse(urn.is_reserved(character(0x24)))
+        self.assertTrue(urn.is_other(character(0x24)))
+        self.assertFalse(urn.is_hex(character(0x24)))
+        self.assertTrue(urn.is_trans(character(0x24)))
         # %
-        self.assertTrue(urn.is_reserved(chr(0x25)))
-        self.assertFalse(urn.is_other(chr(0x25)))
-        self.assertFalse(urn.is_hex(chr(0x25)))
-        self.assertTrue(urn.is_trans(chr(0x25)))
+        self.assertTrue(urn.is_reserved(character(0x25)))
+        self.assertFalse(urn.is_other(character(0x25)))
+        self.assertFalse(urn.is_hex(character(0x25)))
+        self.assertTrue(urn.is_trans(character(0x25)))
         # &
-        self.assertFalse(urn.is_reserved(chr(0x26)))
-        self.assertFalse(urn.is_other(chr(0x26)))
-        self.assertFalse(urn.is_hex(chr(0x26)))
-        self.assertFalse(urn.is_trans(chr(0x26)))
+        self.assertFalse(urn.is_reserved(character(0x26)))
+        self.assertFalse(urn.is_other(character(0x26)))
+        self.assertFalse(urn.is_hex(character(0x26)))
+        self.assertFalse(urn.is_trans(character(0x26)))
         # ' ( ) * + , - .
-        for i in xrange(0x27, 0x2F):
-            self.assertFalse(urn.is_reserved(chr(i)))
-            self.assertTrue(urn.is_other(chr(i)))
-            self.assertFalse(urn.is_hex(chr(i)))
-            self.assertTrue(urn.is_trans(chr(i)))
+        for i in range3(0x27, 0x2F):
+            self.assertFalse(urn.is_reserved(character(i)))
+            self.assertTrue(urn.is_other(character(i)))
+            self.assertFalse(urn.is_hex(character(i)))
+            self.assertTrue(urn.is_trans(character(i)))
         # /
-        self.assertTrue(urn.is_reserved(chr(0x2F)))
-        self.assertFalse(urn.is_other(chr(0x2F)))
-        self.assertFalse(urn.is_hex(chr(0x2F)))
-        self.assertTrue(urn.is_trans(chr(0x2F)))
+        self.assertTrue(urn.is_reserved(character(0x2F)))
+        self.assertFalse(urn.is_other(character(0x2F)))
+        self.assertFalse(urn.is_hex(character(0x2F)))
+        self.assertTrue(urn.is_trans(character(0x2F)))
         # digits
-        for i in xrange(0x30, 0x3A):
-            self.assertFalse(urn.is_reserved(chr(i)))
-            self.assertFalse(urn.is_other(chr(i)))
-            self.assertTrue(urn.is_hex(chr(i)))
-            self.assertTrue(urn.is_trans(chr(i)))
+        for i in range3(0x30, 0x3A):
+            self.assertFalse(urn.is_reserved(character(i)))
+            self.assertFalse(urn.is_other(character(i)))
+            self.assertTrue(urn.is_hex(character(i)))
+            self.assertTrue(urn.is_trans(character(i)))
         # : ;
-        for i in xrange(0x3A, 0x3C):
-            self.assertFalse(urn.is_reserved(chr(i)))
-            self.assertTrue(urn.is_other(chr(i)))
-            self.assertFalse(urn.is_hex(chr(i)))
-            self.assertTrue(urn.is_trans(chr(i)))
+        for i in range3(0x3A, 0x3C):
+            self.assertFalse(urn.is_reserved(character(i)))
+            self.assertTrue(urn.is_other(character(i)))
+            self.assertFalse(urn.is_hex(character(i)))
+            self.assertTrue(urn.is_trans(character(i)))
         # <
-        self.assertFalse(urn.is_reserved(chr(0x3C)))
-        self.assertFalse(urn.is_other(chr(0x3C)))
-        self.assertFalse(urn.is_hex(chr(0x3C)))
-        self.assertFalse(urn.is_trans(chr(0x3C)))
+        self.assertFalse(urn.is_reserved(character(0x3C)))
+        self.assertFalse(urn.is_other(character(0x3C)))
+        self.assertFalse(urn.is_hex(character(0x3C)))
+        self.assertFalse(urn.is_trans(character(0x3C)))
         # =
-        self.assertFalse(urn.is_reserved(chr(0x3D)))
-        self.assertTrue(urn.is_other(chr(0x3D)))
-        self.assertFalse(urn.is_hex(chr(0x3D)))
-        self.assertTrue(urn.is_trans(chr(0x3D)))
+        self.assertFalse(urn.is_reserved(character(0x3D)))
+        self.assertTrue(urn.is_other(character(0x3D)))
+        self.assertFalse(urn.is_hex(character(0x3D)))
+        self.assertTrue(urn.is_trans(character(0x3D)))
         # >
-        self.assertFalse(urn.is_reserved(chr(0x3E)))
-        self.assertFalse(urn.is_other(chr(0x3E)))
-        self.assertFalse(urn.is_hex(chr(0x3E)))
-        self.assertFalse(urn.is_trans(chr(0x3E)))
+        self.assertFalse(urn.is_reserved(character(0x3E)))
+        self.assertFalse(urn.is_other(character(0x3E)))
+        self.assertFalse(urn.is_hex(character(0x3E)))
+        self.assertFalse(urn.is_trans(character(0x3E)))
         # ?
-        self.assertTrue(urn.is_reserved(chr(0x3F)))
-        self.assertFalse(urn.is_other(chr(0x3F)))
-        self.assertFalse(urn.is_hex(chr(0x3F)))
-        self.assertTrue(urn.is_trans(chr(0x3F)))
+        self.assertTrue(urn.is_reserved(character(0x3F)))
+        self.assertFalse(urn.is_other(character(0x3F)))
+        self.assertFalse(urn.is_hex(character(0x3F)))
+        self.assertTrue(urn.is_trans(character(0x3F)))
         # @
-        self.assertFalse(urn.is_reserved(chr(0x40)))
-        self.assertTrue(urn.is_other(chr(0x40)))
-        self.assertFalse(urn.is_hex(chr(0x40)))
-        self.assertTrue(urn.is_trans(chr(0x40)))
+        self.assertFalse(urn.is_reserved(character(0x40)))
+        self.assertTrue(urn.is_other(character(0x40)))
+        self.assertFalse(urn.is_hex(character(0x40)))
+        self.assertTrue(urn.is_trans(character(0x40)))
         # A-F
-        for i in xrange(0x41, 0x47):
-            self.assertFalse(urn.is_reserved(chr(i)))
-            self.assertFalse(urn.is_other(chr(i)))
-            self.assertTrue(urn.is_hex(chr(i)))
-            self.assertTrue(urn.is_trans(chr(i)))
+        for i in range3(0x41, 0x47):
+            self.assertFalse(urn.is_reserved(character(i)))
+            self.assertFalse(urn.is_other(character(i)))
+            self.assertTrue(urn.is_hex(character(i)))
+            self.assertTrue(urn.is_trans(character(i)))
         # G-Z
-        for i in xrange(0x47, 0x5B):
-            self.assertFalse(urn.is_reserved(chr(i)))
-            self.assertFalse(urn.is_other(chr(i)))
-            self.assertFalse(urn.is_hex(chr(i)))
-            self.assertTrue(urn.is_trans(chr(i)))
+        for i in range3(0x47, 0x5B):
+            self.assertFalse(urn.is_reserved(character(i)))
+            self.assertFalse(urn.is_other(character(i)))
+            self.assertFalse(urn.is_hex(character(i)))
+            self.assertTrue(urn.is_trans(character(i)))
         # [ \ ] ^
-        for i in xrange(0x5B, 0x5F):
-            self.assertFalse(urn.is_reserved(chr(i)))
-            self.assertFalse(urn.is_other(chr(i)))
-            self.assertFalse(urn.is_hex(chr(i)))
-            self.assertFalse(urn.is_trans(chr(i)))
+        for i in range3(0x5B, 0x5F):
+            self.assertFalse(urn.is_reserved(character(i)))
+            self.assertFalse(urn.is_other(character(i)))
+            self.assertFalse(urn.is_hex(character(i)))
+            self.assertFalse(urn.is_trans(character(i)))
         # _
-        self.assertFalse(urn.is_reserved(chr(0x5F)))
-        self.assertTrue(urn.is_other(chr(0x5F)))
-        self.assertFalse(urn.is_hex(chr(0x5F)))
-        self.assertTrue(urn.is_trans(chr(0x5F)))
+        self.assertFalse(urn.is_reserved(character(0x5F)))
+        self.assertTrue(urn.is_other(character(0x5F)))
+        self.assertFalse(urn.is_hex(character(0x5F)))
+        self.assertTrue(urn.is_trans(character(0x5F)))
         # `
-        self.assertFalse(urn.is_reserved(chr(0x60)))
-        self.assertFalse(urn.is_other(chr(0x60)))
-        self.assertFalse(urn.is_hex(chr(0x60)))
-        self.assertFalse(urn.is_trans(chr(0x60)))
+        self.assertFalse(urn.is_reserved(character(0x60)))
+        self.assertFalse(urn.is_other(character(0x60)))
+        self.assertFalse(urn.is_hex(character(0x60)))
+        self.assertFalse(urn.is_trans(character(0x60)))
         # a-f
-        for i in xrange(0x61, 0x67):
-            self.assertFalse(urn.is_reserved(chr(i)))
-            self.assertFalse(urn.is_other(chr(i)))
-            self.assertTrue(urn.is_hex(chr(i)))
-            self.assertTrue(urn.is_trans(chr(i)))
+        for i in range3(0x61, 0x67):
+            self.assertFalse(urn.is_reserved(character(i)))
+            self.assertFalse(urn.is_other(character(i)))
+            self.assertTrue(urn.is_hex(character(i)))
+            self.assertTrue(urn.is_trans(character(i)))
         # g-z
-        for i in xrange(0x67, 0x7B):
-            self.assertFalse(urn.is_reserved(chr(i)))
-            self.assertFalse(urn.is_other(chr(i)))
-            self.assertFalse(urn.is_hex(chr(i)))
-            self.assertTrue(urn.is_trans(chr(i)))
+        for i in range3(0x67, 0x7B):
+            self.assertFalse(urn.is_reserved(character(i)))
+            self.assertFalse(urn.is_other(character(i)))
+            self.assertFalse(urn.is_hex(character(i)))
+            self.assertTrue(urn.is_trans(character(i)))
         # { | } ~ control and 8-bit characters
-        for i in xrange(0x7B, 0xFF):
-            self.assertFalse(urn.is_reserved(chr(i)))
-            self.assertFalse(urn.is_other(chr(i)))
-            self.assertFalse(urn.is_hex(chr(i)))
-            self.assertFalse(urn.is_trans(chr(i)))
+        for i in range3(0x7B, 0xFF):
+            self.assertFalse(urn.is_reserved(character(i)))
+            self.assertFalse(urn.is_other(character(i)))
+            self.assertFalse(urn.is_hex(character(i)))
+            self.assertFalse(urn.is_trans(character(i)))
 
     def test_nss(self):
         """Syntax for URN char::
@@ -333,19 +332,19 @@ class URNTests(unittest.TestCase):
         In addition, octet 0 (0 hex) should NEVER be used, in either
         unencoded or %-encoded form."""
         trans_tests = {
-            u'\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f\x10'
-            '\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f '
-            '!"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\'
-            ']^_`abcdefghijklmnopqrstuvwxyz{|}~\x7f':
+            ul('\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f\x10'
+               '\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f '
+               '!"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\'
+               ']^_`abcdefghijklmnopqrstuvwxyz{|}~\x7f'):
             '%01%02%03%04%05%06%07%08%09%0A%0B%0C%0D%0E%0F%10'
             '%11%12%13%14%15%16%17%18%19%1A%1B%1C%1D%1E%1F%20'
             '!%22%23$%25%26\'()*+,-.%2F0123456789:;%3C=%3E%3F@ABCDEFGHIJKLMN'
             'OPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D'
             '%7E%7F',
-            u'\u82f1\u56fd': '%E8%8B%B1%E5%9B%BD',
-            u'Caf\xe9': 'Caf%C3%A9'
+            u8(b'\xe8\x8b\xb1\xe5\x9b\xbd'): '%E8%8B%B1%E5%9B%BD',
+            ul('Caf\xe9'): 'Caf%C3%A9'
             }
-        for src, dst in trans_tests.items():
+        for src, dst in dict_items(trans_tests):
             self.assertTrue(
                 urn.translate_to_urnchar(src) == dst,
                 "%s -> \n%s, expected \n%s" %
@@ -353,11 +352,10 @@ class URNTests(unittest.TestCase):
                  repr(urn.translate_to_urnchar(src)),
                  repr(dst)))
             self.assertTrue(
-                urn.translate_from_urnchar(dst).decode('utf-8') == src,
+                urn.translate_from_urnchar(dst) == src,
                 "%s -> \n%s, expected \n%s" %
                 (repr(dst),
-                 repr(urn.translate_from_urnchar(dst).decode('utf-8')),
-                 repr(src)))
+                 repr(urn.translate_from_urnchar(dst)), repr(src)))
             u = urn.URN(nid='foo', nss=dst)
             self.assertTrue(u.nss == dst)
             u = uri.URI.from_octets('urn:foo:%s' % dst)
@@ -384,15 +382,15 @@ class URNTests(unittest.TestCase):
         src = "urn:path:.steve/file%2Ename/easy_come%2Feasy_go"
         u = uri.URI.from_octets(src)
         path = u.nss.replace('.', 'users/')
-        path = map(urn.translate_from_urnchar, path.split('/'))
+        path = [urn.translate_from_urnchar(s) for s in path.split('/')]
         self.assertTrue(path == [
             'users', 'steve', 'file.name', 'easy_come/easy_go'],
             "Parsed: %s" % repr(path))
         path = path[1:]
         # / is always reserved so we don't need to call this out
-        path = map(lambda x: urn.translate_to_urnchar(x, dot), path)
+        path = [urn.translate_to_urnchar(x, dot) for x in path]
         # add the newly reserved characters after translation...
-        path = '.' + string.join(path, '/')
+        path = '.' + '/'.join(path)
         u2 = urn.URN(nid='path', nss=path)
         self.assertTrue(u == u2)
         self.assertTrue(str(u) == str(u2))
@@ -416,9 +414,9 @@ class URNTests(unittest.TestCase):
             'urn:foo:bar|wrong',
             'urn:foo:bar}wrong',
             'urn:foo:bar~wrong',
-            'urn:foo:bar\x7fwrong',
-            'urn:foo:bar\x9fwrong',
-            'urn:foo:bar\xff']
+            ul('urn:foo:bar\x7fwrong'),
+            ul(b'urn:foo:bar\x9fwrong'),
+            ul(b'urn:foo:bar\xff')]
         for src in tests:
             dst = urn.parse_urn(src)
             self.assertTrue(dst == 'urn:foo:bar', "parse_urn(%s) == %s" %

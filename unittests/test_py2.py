@@ -101,6 +101,9 @@ class Python2Tests(unittest.TestCase):
         # have values outside the ASCII range
         self.assertTrue(py2.character(py2.byte(0x2A)) == "\x2A")
         self.assertTrue(py2.character(py2.byte(0xe9)) == py2.ul("\xE9"))
+        self.assertTrue(py2.join_characters(list(u"Caf\xe9")) ==
+                        u"Caf\xe9")
+        self.assertTrue(py2.join_characters([u"Caf\xe9"]) == u"Caf\xe9")
 
     def test_byte(self):
         # bytes are different in the two versions
@@ -328,6 +331,24 @@ class Python2Tests(unittest.TestCase):
             self.assertFalse(i in py2.dict_keys(d))
         self.assertFalse("one" in py2.dict_values(d))
         self.assertTrue("one" in py2.dict_keys(d))
+        self.assertTrue(("one", 1) in py2.dict_items(d))
+        self.assertFalse((1, "one") in py2.dict_items(d))
+        # finally, these functions return iterable objects, not lists
+        try:
+            py2.dict_keys(d)[0]
+            self.fail("dict_keys can be indexed")
+        except TypeError:
+            pass
+        try:
+            py2.dict_values(d)[0]
+            self.fail("dict_values can be indexed")
+        except TypeError:
+            pass
+        try:
+            py2.dict_items(d)[0]
+            self.fail("dict_items can be indexed")
+        except TypeError:
+            pass
 
     def test_builtins(self):
         self.assertTrue(isinstance(py2.builtins, types.ModuleType))

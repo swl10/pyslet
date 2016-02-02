@@ -71,6 +71,8 @@ if py2:
         else:
             return unichr(arg)
 
+    join_characters = unicode('').join
+
     def force_bytes(arg):
         if isinstance(arg, unicode):
             return arg.encode('ascii')
@@ -112,6 +114,9 @@ if py2:
 
     def dict_values(d):
         return d.itervalues()
+
+    def dict_items(d):
+        return d.iteritems()
 
     import __builtin__ as builtins
 
@@ -168,6 +173,8 @@ else:
 
     character = chr
 
+    join_characters = ''.join
+
     def force_bytes(arg):
         if isinstance(arg, str):
             return arg.encode('ascii')
@@ -203,6 +210,9 @@ else:
 
     def dict_values(d):
         return d.values()
+
+    def dict_items(d):
+        return d.items()
 
     import builtins     # noqa : unused import
 

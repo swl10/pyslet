@@ -4,10 +4,10 @@ Welcome to Pyslet
 ..  note::
     You are reading the latest development version of the documentation
     which corresponds to the master branch of the source on GitHub.  The
-    last release on PyPi was pyslet-0.5.20140801 and the corresponding
+    last release on PyPi was pyslet-0.6.20160201 and the corresponding
     documentation is here__
     
-    ..  __: http://pyslet.readthedocs.org/en/pyslet-0.5.20140801/
+    ..  __: http://pyslet.readthedocs.org/en/pyslet-0.6.20160201/
 
 Pyslet_ is a Python package for Standards in Learning Education and
 Training (LET). It implements a number of LET-specific standards,
@@ -61,6 +61,14 @@ running the following command inside the package::
 
     python setup.py install
 
+Windows users should note that when downloading a zipped archive of the
+distribution some unittests may fail due to the ambiguity in character
+encoding file names in zip archives.  This is not an issue with Pyslet
+itself but an issue with some of the test data in the unittests folder.
+If you use Git (or GitHub desktop) to checkout the master instead then
+the unittests should work, please report any errors as the continuous
+build system does not catch Windows-specific bugs.
+
 
 Current Status & Road Map
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -74,14 +82,12 @@ OData service which can be found at http://odata.pyslet.org/weather
 
 What's next?
 
-*   Proper Media stream support in the OData SQL storage model (now
-    complete in master)
+*   MySQL shim for the OData SQL storage model (90% complete and
+    functional)
 
-*   MySQL shim for the OData SQL storage model (90% complete in master
-    and functional)
+*   Improved support for LTI to take it beyond 'basic' (60% complete)
 
-*   Improved support for LTI to take it beyond 'basic' (10% complete in
-    master)
+*   Python 3 support (10% complete)
 
 I'm also slowly transforming the code for better PEP-8 compliance as
 reported by the fantastic flake8_.  For important information about how

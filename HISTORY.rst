@@ -31,9 +31,10 @@ Version Numbering
 Pyslet version numbers use the check-in date as their last component so
 you can always tell if one build is newer than another.  At the moment
 there is only one actively maintained branch of the code: version '0".
-Changes are reported against the versions released to PyPi.  'XX' at the
-end of the version indicates changes that have not yet been released to
-PyPi but have been committed to the master branch (with tests passing).
+Changes are reported against the versions released to PyPi.  The main
+version number increases with each PyPi release.  Starting with version
+0.7 changes are documented in order of build date to make it easier to
+see what is changing in the master branch on GitHub.
 
 Not sure which version you are using?  Try::
 
@@ -41,7 +42,15 @@ Not sure which version you are using?  Try::
     print version
 
 
-Version 0.6.201602XX
+Version 0.7
+-----------
+
+Build 20160202:
+
+#38 urn module now works in Python 3
+
+
+Version 0.6.20160201
 --------------------
 
 Summary of New Features:

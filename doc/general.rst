@@ -18,6 +18,7 @@ Contents:
    xsdatatypes20041028
    html40_19991224
    rfc2396
+   urn
    rfc4287
    rfc5023
    iso8601

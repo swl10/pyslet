@@ -1,61 +1,64 @@
 #! /usr/bin/env python
 """This module implements the URN specification defined in RFC 2141"""
 
-import string
-
 import pyslet.rfc2396 as uri
 
-
-def is_upper(c):
-    """Returns True if c matches upper"""
-    return c and ord(c) >= 0x41 and ord(c) <= 0x5A
-
-
-def is_lower(c):
-    """Returns True if c matches lower"""
-    return c and ord(c) >= 0x61 and ord(c) <= 0x7A
+from pyslet.unicode5 import CharClass
+from pyslet.py2 import join_characters, is_unicode
+from pyslet.py2 import byte, byte_value, join_bytes
 
 
-def is_number(c):
-    """Returns True if c matches number"""
-    return c and ord(c) >= 0x30 and ord(c) <= 0x39
+is_upper = uri.is_upalpha
+"""Returns True if c matches upper"""
+
+is_lower = uri.is_lowalpha
+"""Returns True if c matches lower"""
+
+is_number = uri.is_digit
+"""Returns True if c matches number"""
+
+is_letnum = uri.is_alphanum
+"""Returns True if c matches letnum"""
+
+letnumhyp = CharClass(uri.alphanum, '-')
+
+is_letnumhyp = letnumhyp.test
+"""Returns True if c matches letnumhyp"""
+
+reserved = CharClass("%/?#")
+
+is_reserved = reserved.test
+"""Returns True if c matches reserved
+
+The reserved characters are::
+
+    "%" | "/" | "?" | "#"
+"""
+
+other = CharClass("()+,-.:=@;$_!*'")
+
+is_other = other.test
+"""Returns True if c matches other
+
+The other characters are::
+
+    "(" | ")" | "+" | "," | "-" | "." | ":" | "=" | "@" | ";" | "$" |
+    "_" | "!" | "*" | "'"
+"""
+
+trans = CharClass(uri.alphanum, other, reserved)
+
+is_trans = trans.test
+"""Returns True if c matches trans
+
+Note that translated characters include reserved characters, even though
+they should normally be escaped (and in the case of '%' MUST be
+escaped).  The effect is that URNs consist of runs of characters that
+match the production for trans."""
 
 
-def is_letnum(c):
-    """Returns True if c matches letnum"""
-    return c and (is_upper(c) or is_lower(c) or is_number(c))
-
-
-def is_letnumhyp(c):
-    """Returns True if c matches letnumhyp"""
-    return c and (is_upper(c) or is_lower(c) or is_number(c) or ord(c) == 0x2D)
-
-
-def is_trans(c):
-    """Returns True if c matches trans
-
-    Note that translated characters include reserved characters, even
-    though they should normally be escaped (and in the case of '%' MUST
-    be escaped).  The effect is that URNs consist of runs of characters
-    that match the production for trans."""
-    return c and (is_upper(c) or is_lower(c) or is_number(c) or
-                  is_other(c) or is_reserved(c))
-
-
-def is_hex(c):
-    """Returns True if c matches hex"""
-    return c and (is_number(c) or (ord(c) >= 0x41 and ord(c) <= 0x46) or
-                  (ord(c) >= 0x61 and ord(c) <= 0x66))
-
-
-def is_other(c):
-    """Returns True if c matches other"""
-    return c and c in "()+,-.:=@;$_!*'"
-
-
-def is_reserved(c):
-    """Returns True if c matches reserved"""
-    return c and c in "%/?#"
+is_hex = uri.is_hex
+"""Returns True if c matches hex"""
 
 
 def translate_to_urnchar(src, reserved_test=is_reserved):
@@ -63,7 +66,8 @@ def translate_to_urnchar(src, reserved_test=is_reserved):
 
     src
         A binary or unicode string.  In the latter case the string is
-        encoded with utf-8 before being translated.
+        encoded with utf-8 as part of being translated, in the former
+        case it must be a valid UTF-8 string of bytes.
 
     reserved_test
         A function that tests if a character is reserved.  It defaults
@@ -79,17 +83,18 @@ def translate_to_urnchar(src, reserved_test=is_reserved):
     The result is a URI-encode string suitable for adding to the
     namespace-specific part of a URN."""
     result = []
-    if isinstance(src, unicode):
-        src = src.encode('utf-8')
+    if not is_unicode(src):
+        src = src.decode('utf-8')
     for c in src:
         if reserved_test(c) or is_reserved(c) or not is_trans(c):
             if ord(c):
-                result.append('%%%02X' % ord(c))
+                for b in c.encode('utf-8'):
+                    result.append('%%%02X' % byte_value(b))
             else:
                 raise ValueError("Zero byte in URN")
         else:
             result.append(c)
-    return string.join(result, '')
+    return join_characters(result)
 
 
 def translate_from_urnchar(src):
@@ -99,36 +104,41 @@ def translate_from_urnchar(src):
     will also check for the illegal 0-byte and raise an error if one is
     encountered.
 
-    Returns a binary string without %-escapes.  To convert to a human
-    readable string you should decode using utf-8."""
+    Returns a character string *without* %-escapes.  As part of the
+    conversion the implicit UTF-8 encoding is removed."""
     result = []
     pos = 0
+    zbyte = byte(0)
     while pos < len(src):
         c = src[pos]
         if c == "%":
             escape = src[pos + 1:pos + 3]
-            c = chr(int(escape, 16))
+            c = byte(int(escape, 16))
             pos += 3
         elif is_trans(c):
+            c = byte(c)
             pos += 1
         else:
             raise ValueError("Illegal character in URN: %s" % repr(c))
-        if ord(c):
+        if c != zbyte:
             result.append(c)
         else:
             raise ValueError("Zero byte in URN")
-    return string.join(result, '')
+    return join_bytes(result).decode('utf-8')
 
 
 def parse_urn(src):
     """Parses a run of URN characters from a string
 
     src
-        A binary string containing URN characters
+        A character string containing URN characters.  Will accept
+        binary strings encoding ASCII characters (only).
 
     returns the src up to, but not including, the first character that
-    fails to match the production for URN char."""
+    fails to match the production for URN char (as a character string)."""
     pos = 0
+    if isinstance(src, bytes):
+        src = src.decode('ascii')
     while pos < len(src):
         c = src[pos]
         if is_trans(c):
@@ -146,10 +156,11 @@ class URN(uri.URI):
 
     There are two forms of constructor, the first uses a single
     positional argument and matches the constructor for the base URI
-    class.
+    class.  This enables URNs to be created automatically from
+    :meth:`~pyslet.rfc2396.URI.from_octets`.
 
     octets
-        A binary string containing the URN
+        A character string containing the URN
 
     The second form of constructor allows you to construct a URN from a
     namespace identifier and a namespace-specific string, both values
@@ -162,8 +173,9 @@ class URN(uri.URI):
         The namespace-specific string, encoded appropriately for
         inclusion in a URN.
 
-    ValueError is raised if the arguments are not in the correct format
-    for a URN."""
+    ValueError is raised if the arguments are not passed correctly,
+    :class:`~pyslet.rfc2396.URIException` is raised if there a problem
+    parsing or creating the URN itself."""
 
     def __init__(self, octets=None, nid=None, nss=None):
         #: the namespace identifier for this URN
@@ -195,12 +207,13 @@ class URN(uri.URI):
                     pos += 1
                     continue
                 else:
-                    raise ValueError("Expected NID in URN: %s" %
-                                     self.opaque_part)
+                    raise uri.URIException("Expected NID in URN: %s" %
+                                           self.opaque_part)
             elif mode == 1:
                 if is_letnumhyp(c):
                     if pos > 31:
-                        raise ValueError("NID in URN exceeds maximum length")
+                        raise uri.URIException(
+                            "NID in URN exceeds maximum length")
                     pos += 1
                     continue
                 elif c == ':':
@@ -210,19 +223,19 @@ class URN(uri.URI):
                     cpos = pos
                     continue
                 else:
-                    raise ValueError("Expected ':' in URN")
+                    raise uri.URIException("Expected ':' in URN")
             elif mode == 2:
                 if is_trans(c):
                     pos += 1
                     continue
                 elif c is not None:
-                    raise ValueError("Unexpected data in URN: %s" %
-                                     self.opaque_part)
+                    raise uri.URIException("Unexpected data in URN: %s" %
+                                           self.opaque_part)
                 else:
                     self.nss = self.opaque_part[cpos:]
                     break
         if self.nid.lower() == "urn":
-            raise ValueError("NID value of 'urn' is not allowed in URN")
+            raise uri.URIException("NID value of 'urn' is not allowed in URN")
 
     def canonicalize(self):
         return uri.URI.from_octets(
