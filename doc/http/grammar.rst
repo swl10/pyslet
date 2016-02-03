@@ -3,12 +3,43 @@ HTTP Grammar
 
 .. py:module:: pyslet.http.grammar
 
+Using the Grammar
+~~~~~~~~~~~~~~~~~
+
+The functions and data definitions above are exposed to enable normative
+use in other modules but use of the grammar is typically through use of
+a parser.  There are two types of parser, an OctetParser that is used
+for parsing raw strings (or octets, represented by bytes in Python) such
+as those obtained from the HTTP connection itself and a WordParser that
+tokenizes the input string first and then provides a higher-level
+word-based parser.
+
+
+..	autoclass:: OctetParser
+	:members:
+	:show-inheritance:
+
+
+..	autoclass:: WordParser
+	:members:
+	:show-inheritance:
+
+
+Basic Syntax
+~~~~~~~~~~~~
+
 This section defines functions for handling basic elements of the HTTP
 grammar, refer to Section 2.2 of RFC2616 for details.
 
-The HTTP protocol only deals with octets but as a convenience, and due
-to the blurring of octet and character strings in Python 2.x we process
-characters as if they were octets.
+The HTTP protocol only deals with octets so the following functions take
+a single byte as an argument and return True if the byte matches the
+production and False otherwise.  As a convenience they all accept None
+as an argument and will return False.
+
+A byte is defined as the type returned by indexing a binary string and
+is therefore an integer in the range 0..255 in Python 3 and a single
+character string in Python 2.
+
      
 ..	autofunction:: is_octet
 
@@ -26,6 +57,15 @@ characters as if they were octets.
 
 ..	autofunction:: is_ctl
 
+..	autofunction:: is_separator
+
+..	autofunction:: is_hex
+
+
+The following constants are defined to speed up comparisons, in each
+case they are the byte (see above) corresponding to the syntax elements
+defined in the specification.
+
 ..	autodata::CR
 
 ..	autodata::LF
@@ -36,46 +76,35 @@ characters as if they were octets.
 
 ..	autodata::DQUOTE
 
+
+The following binary string constant is defined for completeness:
+
 ..	autodata::CRLF
 
-LWS and TEXT productions are handled by :py:class:`OctetParser`
+There are no special definitions for LWS and TEXT, these productions are
+handled by :py:class:`OctetParser`
 
-..	autofunction:: is_hex
+The following functions operate on binary strings.  Note that in Python
+2 a byte is also a binary string (of length 1) but in Python 3 a byte is
+not a valid string.  Use :func:`pyslet.py2.byte_to_bstr` if you need to
+create a binary string from a single byte.
 
 ..	autofunction:: is_hexdigits
 
 ..	autofunction:: check_token
 
-..	autodata::SEPARATORS
-
-..	autofunction:: is_separator
-
 ..	autofunction:: decode_quoted_string
 
 ..	autofunction:: quote_string
 
+
+Misc Functions
+~~~~~~~~~~~~~~
+
 ..	autofunction:: format_parameters
 
 
-Using the Grammar
-~~~~~~~~~~~~~~~~~
-
-The functions and data definitions above are exposed to enable normative
-use in other modules but use of the grammar is typically through use of
-a parser.  There are two types of parser, an OctetParser that is used
-for parsing raw strings (or octets) such as those obtained from the HTTP
-connection itself and a WordParser that tokenizes the input string first
-and then provides a higher-level word-based parser.
-
-
-..	autoclass:: OctetParser
-	:members:
-	:show-inheritance:
-
-
-..	autoclass:: WordParser
-	:members:
-	:show-inheritance:
-
+Exceptions
+~~~~~~~~~~
 
 ..	autoclass:: BadSyntax

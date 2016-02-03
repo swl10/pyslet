@@ -731,9 +731,100 @@ class ParserError(ValueError):
         ValueError.__init__(self, msg)
 
 
-class BasicParser(PEP8Compatibility):
+class ParserMixin(object):
+    """A mix-in class for parsing
 
-    """An abstract class for parsing character strings or binary data
+    These methods help establish a common pattern across parsers by
+    providing a conversion between look-ahead and non-look ahead style
+    parsing methods.
+
+    Derived classes must define the following.
+
+        parser_error
+            a method for raising an error detected during parsing that
+            takes an optional character string describing the production
+            being parsed.
+
+        match_end
+            a method for determining if the parser has consumed all
+            the input.
+
+        pos
+            an attribute containing the current position
+
+        setpos
+            a method for setting *pos* from a previously saved value."""
+
+    def require_production(self, result, production=None):
+        """Returns *result* if not None or raises ParserError.
+
+            result
+                The result of a parse_* type method.
+
+            production
+                Optional string used to customise the error message.
+
+        This method is intended to be used as a conversion function
+        allowing any parse_* method to be converted into a require_*
+        method.  E.g.::
+
+            p = BasicParser("hello")
+            num = p.require_production(p.parse_integer(), "Number")
+
+            ParserError: Expected Number at [0]"""
+        if result is None:
+            self.parser_error(production)
+        else:
+            return result
+
+    def parse_production(self, require_method, *args, **kwargs):
+        """Executes the bound method *require_method*.
+
+            require_method
+                A bound method that will be called with \*args
+
+            args
+                The positional arguments to pass to require_method
+
+            kwargs
+                The keyword arguments to pass to require_method
+
+        This method is intended to be used as a conversion function
+        allowing any require_* method to be converted into a parse_*
+        method for the purposes of look-ahead.
+
+        If successful the result of the method is returned.  If any
+        ValueError (including :class:`ParserError`) is raised, the
+        exception is caught, the parser rewound and None is returned."""
+        savepos = self.pos
+        try:
+            return require_method(*args, **kwargs)
+        except ValueError:
+            self.setpos(savepos)
+            return None
+
+    def require_end(self, production='end'):
+        """Tests that the parser has consumed all the source
+
+        There is no return result."""
+        if not self.match_end():
+            self.parser_error(production)
+
+    def require_production_end(self, result, production=None):
+        """Returns *result* if not None and parsing is complete.
+
+        This method is similar to :meth:`require_production` except that
+        it enforces the constraint that the entire source must have been
+        parsed.  Essentially, it just calls :meth:`require_end` before
+        returning *result*."""
+        result = self.require_production(result, production)
+        self.require_end(production)
+        return result
+
+
+class BasicParser(ParserMixin, PEP8Compatibility):
+
+    """A base class for parsing character strings or binary data
 
     source
         Can be either a string of characters or a string of bytes.
@@ -887,65 +978,6 @@ class BasicParser(PEP8Compatibility):
             self.setpos(e.pos)
         raise e
 
-    def require_production(self, result, production=None):
-        """Returns *result* if not None or raises ParserError.
-
-            result
-                The result of a parse_* type method.
-
-            production
-                Optional string used to customise the error message.
-
-        This method is intended to be used as a conversion function
-        allowing any parse_* method to be converted into a require_*
-        method.  E.g.::
-
-            p = BasicParser("hello")
-            num = p.require_production(p.parse_integer(), "Number")
-
-            ParserError: Expected Number at [0]"""
-        if result is None:
-            self.parser_error(production)
-        else:
-            return result
-
-    def require_production_end(self, result, production=None):
-        """Returns *result* if not None and parsing is complete.
-
-        This method is similar to :meth:`require_production` except that
-        it enforces the constraint that the entire source must have been
-        parsed.  Essentially, it just calls :meth:`require_end` before
-        returning *result*."""
-        result = self.require_production(result, production)
-        self.require_end(production)
-        return result
-
-    def parse_production(self, require_method, *args, **kwargs):
-        """Executes the bound method *require_method*.
-
-            require_method
-                A bound method that will be called with \*args
-
-            args
-                The positional arguments to pass to require_method
-
-            kwargs
-                The keyword arguments to pass to require_method
-
-        This method is intended to be used as a conversion function
-        allowing any require_* method to be converted into a parse_*
-        method for the purposes of look-ahead.
-
-        If successful the result of the method is returned.  If any
-        ValueError (including :class:`ParserError`) is raised, the
-        exception is caught, the parser rewound and None is returned."""
-        savepos = self.pos
-        try:
-            return require_method(*args, **kwargs)
-        except ValueError:
-            self.setpos(savepos)
-            return None
-
     def peek(self, nchars):
         """Returns the next *nchars* characters or bytes.
 
@@ -956,13 +988,6 @@ class BasicParser(PEP8Compatibility):
     def match_end(self):
         """True if all of :attr:`src` has been parsed"""
         return self.the_char is None
-
-    def require_end(self, production='end'):
-        """Tests that all of :attr:`src` has been parsed
-
-        There is no return result."""
-        if self.the_char is not None:
-            self.parser_error(production)
 
     def match(self, match_string):
         """Returns true if *match_string* is at the current position"""
@@ -1052,7 +1077,11 @@ class BasicParser(PEP8Compatibility):
         return result
 
     def match_one(self, match_chars):
-        """Returns true if one of *match_chars* is at the current position"""
+        """Returns true if one of *match_chars* is at the current position.
+
+        The 'in' operator is used to test match_chars so this can be a
+        list or tuple of characters (or bytes), it does not have to be
+        string."""
         if self.the_char is None:
             return False
         else:
@@ -1062,7 +1091,7 @@ class BasicParser(PEP8Compatibility):
         """Parses one of *match_chars*.
 
         match_chars
-            A *string* of characters or bytes
+            A *string* (list or tuple) of characters or bytes
 
         Returns the character (or byte) or None if no match is found.
 
@@ -1076,7 +1105,7 @@ class BasicParser(PEP8Compatibility):
             c = parser.parse_one(b"+-")
             if c == byte(b"+"):
                 # do plus thing...
-            elif c:
+            elif c is not None:
                 # must be minus...
             else:
                 # do something else...

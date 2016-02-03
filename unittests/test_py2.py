@@ -111,9 +111,25 @@ class Python2Tests(unittest.TestCase):
             self.assertTrue(py2.byte(0x2A) == '\x2A')
             self.assertTrue(isinstance(py2.byte(0x2A), type('*')))
             self.assertFalse(isinstance(py2.byte(0x2A), type(u'*')))
+            self.assertFalse(py2.is_byte(0x82F1))
+            self.assertFalse(py2.is_byte(256))
+            self.assertTrue(py2.is_byte('\x2A'))
+            self.assertTrue(py2.is_byte(b'\x2A'))
+            self.assertFalse(py2.is_byte(u'\x2A'))
+            self.assertFalse(py2.is_byte(u'**'))
+            self.assertTrue(py2.is_byte('**'[0]))
+            self.assertFalse(py2.is_byte(u'**'[0]))
         else:
             self.assertTrue(py2.byte(0x2A) == 0x2A)
             self.assertTrue(isinstance(py2.byte(0x2A), int))
+            self.assertTrue(py2.is_byte(0x2A))
+            self.assertFalse(py2.is_byte(0x82F1))
+            self.assertFalse(py2.is_byte('\x2A'))
+            self.assertFalse(py2.is_byte(b'\x2A'))
+            self.assertFalse(py2.is_byte('**'[0]))
+        self.assertFalse(py2.is_byte('**'))
+        self.assertFalse(py2.is_byte(b'**'))
+        self.assertTrue(py2.is_byte(b'**'[0]))
         if sys.version_info[0] < 3:
             self.assertTrue(py2.byte('*') == '\x2A')
             self.assertTrue(py2.byte('\xe9') == '\xe9')
@@ -144,8 +160,17 @@ class Python2Tests(unittest.TestCase):
             except ValueError:
                 pass
             self.assertTrue(isinstance(py2.byte('*'), int))
+        # test joining iterables of byte
         data = b"hello"
         self.assertTrue(py2.join_bytes(list(data)) == data)
+        # test byte_to_bstr
+        data = py2.byte(0x40)
+        self.assertTrue(py2.byte_to_bstr(data) == b'@')
+        self.assertTrue(isinstance(py2.byte_to_bstr(data), bytes))
+        for i in py2.range3(256):
+            b = py2.byte(i)
+            self.assertTrue(py2.byte_to_bstr(b)[0] == b)
+        # Now move on to exception handling
         try:
             py2.byte(256)
             self.fail("py2.byte(large)")

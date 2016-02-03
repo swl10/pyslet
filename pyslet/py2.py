@@ -78,6 +78,9 @@ if py2:
             return arg.encode('ascii')
         return arg
 
+    def is_byte(arg):
+        return isinstance(arg, bytes) and len(arg) == 1
+
     def byte(arg):
         if isinstance(arg, str):
             if len(arg) == 1:
@@ -106,6 +109,9 @@ if py2:
     byte_value = ord
 
     join_bytes = b''.join
+
+    def byte_to_bstr(arg):
+        return arg
 
     range3 = xrange
 
@@ -180,6 +186,9 @@ else:
             return arg.encode('ascii')
         return arg
 
+    def is_byte(arg):
+        return isinstance(arg, int) and 0 <= arg <= 255
+
     def byte(arg):
         if isinstance(arg, str):
             if len(arg) == 1:
@@ -202,6 +211,9 @@ else:
     byte_value = int
 
     join_bytes = bytes
+
+    def byte_to_bstr(arg):
+        return bytes([arg])
 
     range3 = range
 

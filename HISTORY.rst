@@ -45,7 +45,9 @@ Not sure which version you are using?  Try::
 Version 0.7
 -----------
 
-Build 20160202:
+Build 20160203:
+
+#38 http.grammar module now works in Python 3
 
 #38 urn module now works in Python 3
 

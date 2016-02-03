@@ -24,9 +24,8 @@ if py2:
 if py2:
     import test_http_cookie
     all_tests.addTest(test_http_cookie.suite())
-if py2:
-    import test_http_grammar
-    all_tests.addTest(test_http_grammar.suite())
+import test_http_grammar
+all_tests.addTest(test_http_grammar.suite())
 if py2:
     import test_http_messages
     all_tests.addTest(test_http_messages.suite())
@@ -103,9 +102,8 @@ if py2:
     all_tests.addTest(test_rtf_1p6.suite())
 import test_unicode5
 all_tests.addTest(test_unicode5.suite())
-if py2:
-    import test_urn
-    all_tests.addTest(test_urn.suite())
+import test_urn
+all_tests.addTest(test_urn.suite())
 import test_vfs
 all_tests.addTest(test_vfs.suite())
 if py2:

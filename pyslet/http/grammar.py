@@ -1,85 +1,92 @@
 #! /usr/bin/env python
 
-import string
-from pyslet.unicode5 import BasicParser
+from pyslet.unicode5 import BasicParser, ParserMixin
+from pyslet.py2 import byte, byte_value, is_byte, byte_to_bstr, join_bytes
+from pyslet.py2 import is_unicode, dict_keys
 
 
-def is_octet(c):
-    """Returns True if a character matches the production for OCTET."""
-    return ord(c) < 256
+def is_octet(b):
+    """Returns True if a byte matches the production for OCTET."""
+    return b is not None and byte_value(b) < 256
 
 
-def is_char(c):
-    """Returns True if a character matches the production for CHAR."""
-    return ord(c) < 128
+def is_char(b):
+    """Returns True if a byte matches the production for CHAR."""
+    return b is not None and byte_value(b) < 128
 
 
-def is_upalpha(c):
-    """Returns True if a character matches the production for UPALPHA."""
-    return ord('A') <= ord(c) and ord(c) <= ord('Z')
+def is_upalpha(b):
+    """Returns True if a byte matches the production for UPALPHA."""
+    return b is not None and 65 <= byte_value(b) <= 90
 
 
-def is_loalpha(c):
-    """Returns True if a character matches the production for LOALPHA."""
-    return ord('a') <= ord(c) and ord(c) <= ord('z')
+def is_loalpha(b):
+    """Returns True if a byte matches the production for LOALPHA."""
+    return b is not None and 97 <= byte_value(b) <= 122
 
 
-def is_alpha(c):
-    """Returns True if a character matches the production for ALPHA."""
-    return is_upalpha(c) or is_loalpha(c)
+def is_alpha(b):
+    """Returns True if a byte matches the production for ALPHA."""
+    return is_upalpha(b) or is_loalpha(b)
 
 
-def is_digit(c):
-    """Returns True if a character matches the production for DIGIT."""
-    return ord('0') <= ord(c) and ord(c) <= ord('9')
+def is_digit(b):
+    """Returns True if a byte matches the production for DIGIT."""
+    return b is not None and 48 <= byte_value(b) <= 57
 
 
 def is_digits(src):
-    """Returns True if all characters match the production for DIGIT.
+    """Returns True if all bytes match the production for DIGIT.
 
     Empty strings return False"""
     if src:
-        for c in src:
-            if not is_digit(c):
+        for b in src:
+            if not is_digit(b):
                 return False
         return True
     else:
         return False
 
 
-def is_ctl(c):
-    """Returns True if a character matches the production for CTL."""
-    return ord(c) < 32 or ord(c) == 127
+def is_ctl(b):
+    """Returns True if a byte matches the production for CTL."""
+    return b is not None and (byte_value(b) < 32 or byte_value(b) == 127)
 
 
 #: octet 13 (carriage return)
-CR = chr(13)
+CR = byte(13)
 
 #: octet 10 (linefeed)
-LF = chr(10)
+LF = byte(10)
 
 #: octet 32 (space)
-SP = chr(32)
+SP = byte(32)
 
 #: octet 9 (horizontal tab)
-HT = chr(9)
+HT = byte(9)
 
 # : octet 34 (double quote)
-DQUOTE = chr(34)
+DQUOTE = byte(34)
 
 #: the string consisting of CR followed by LF
-CRLF = CR + LF
+CRLF = join_bytes([CR, LF])
+
+#: defined for ease of testing separators
+BACKSLASH = byte(0x5C)
+COMMA = byte(',')
+SEMICOLON = byte(';')
+EQUALS = byte('=')
+COPEN = byte(b'(')
 
 
-def is_hex(c):
-    """Returns True if a characters matches the production for HEX."""
-    return (is_digit(c) or
-            (ord('A') <= ord(c) and ord(c) <= ord('F')) or
-            (ord('a') <= ord(c) and ord(c) <= ord('f')))
+def is_hex(b):
+    """Returns True if a byte matches the production for HEX."""
+    return (b is not None and is_digit(b) or (65 <= byte_value(b) <= 70) or
+            (97 <= byte_value(b) <= 102))
 
 
 def is_hexdigits(src):
-    """Returns True if all characters match the production for HEX.
+    """Returns True if all bytes match the production for HEX.
 
     Empty strings return False"""
     if src:
@@ -91,44 +98,51 @@ def is_hexdigits(src):
         return False
 
 
+SEPARATORS = set('()<>@,;:\\"/[]?={} \t'.encode('ascii'))
+
+
+def is_separator(b):
+    """Returns True if a byte is a separator"""
+    return b in SEPARATORS
+
+
 def check_token(t):
-    """Raises ValueError if *t* is *not* a valid token"""
-    for c in t:
-        if c in SEPARATORS:
+    """Raises ValueError if *t* is *not* a valid token
+
+    t
+        A binary string, will also accept a single byte."""
+    if not isinstance(t, bytes):
+        # single byte
+        t = [t]
+    for b in t:
+        if b in SEPARATORS:
             raise ValueError("Separator found in token: %s" % t)
-        elif is_ctl(c) or not is_char(c):
+        elif is_ctl(b) or not is_char(b):
             raise ValueError("Non-ASCII or CTL found in token: %s" % t)
-
-
-SEPARATORS = set('()<>@,;:\\"/[]?={} \t')
-"""A set consisting of all the HTTP separator characters.  For example::
-
-    if c in SEPARATORS:
-        # do something"""
-
-
-def is_separator(c):
-    """Returns True if a character is a separator"""
-    return c in SEPARATORS
 
 
 def decode_quoted_string(qstring):
     """Decodes a quoted string, returning the unencoded string.
 
-    Surrounding double quotes are removed and quoted characters
-    (characters preceded by \\) are unescaped."""
+    Surrounding double quotes are removed and quoted bytes, bytes
+    preceded by $5C (backslash), are unescaped.
+
+    The return value is a binary string.  In most cases you will want to
+    decode it using the latin-1 (iso-8859-1) codec as that was the
+    original intention of RFC2616 but in practice anything outside US
+    ASCII is likely to be non-portable."""
     qstring = qstring[1:-1]
-    if qstring.find('\\') >= 0:
+    if qstring.find(b'\\') >= 0:
         # skip the loop if we don't have any escape sequences
         qbuff = []
         escape = False
-        for c in qstring:
-            if not escape and c == '\\':
+        for b in qstring:
+            if not escape and b == BACKSLASH:
                 escape = True
                 continue
-            qbuff.append(c)
+            qbuff.append(b)
             escape = False
-        return string.join(qbuff, '')
+        return join_bytes(qbuff)
     else:
         return qstring
 
@@ -136,59 +150,64 @@ def decode_quoted_string(qstring):
 def quote_string(s, force=True):
     """Places a string in double quotes, returning the quoted string.
 
+    force
+        Always quote the string, defaults to True.  If False then valid
+        tokens are not quoted but returned as-is.
+
     This is the reverse of :py:func:`decode_quoted_string`.  Note that
     only the double quote, \\ and CTL characters other than SP and HT
-    are quoted in the output.
-
-    If *force* is False then valid tokens are *not* quoted."""
-    qstring = ['"']
-    for c in s:
-        if c in '\\"' or (is_ctl(c) and c not in SP + HT):
-            qstring.append('\\' + c)
+    are quoted in the output."""
+    qstring = [DQUOTE]
+    for b in s:
+        if b in (BACKSLASH, DQUOTE) or (is_ctl(b) and b not in (SP, HT)):
+            qstring.append(BACKSLASH)
+            qstring.append(b)
             force = True
-        elif is_ctl(c) or is_separator(c):
+        elif is_ctl(b) or is_separator(b):
             force = True
-            qstring.append(c)
+            qstring.append(b)
         else:
-            qstring.append(c)
+            qstring.append(b)
     if force:
-        qstring.append('"')
+        qstring.append(DQUOTE)
     else:
         del qstring[0]
-    return string.join(qstring, '')
+    return join_bytes(qstring)
 
 
 def format_parameters(parameters):
     """Formats a dictionary of parameters
 
     This function is suitable for formatting parameter dictionaries
-    parsed by :py:meth:`WordParser.parse_parameters`.
+    parsed by :py:meth:`WordParser.parse_parameters`.  These
+    dictionaries are key/value pairs of binary strings.
 
     Parameter values are quoted only if their values require it, that
     is, only if their values are *not* valid tokens."""
-    keys = parameters.keys()
-    keys.sort()
+    keys = sorted(dict_keys(parameters))
     format = []
     for k in keys:
-        format.append('; ')
+        format.append(b'; ')
         p, v = parameters[k]
         format.append(p)
-        format.append('=')
+        format.append(b'=')
         format.append(quote_string(v, force=False))
-    return string.join(format, '')
-
-
-class BadSyntax(ValueError):
-
-    """Raised when a syntax error is encountered by the parsers
-
-    This is just a trivial sub-class of the built-in ValueError."""
-    pass
+    return join_bytes(format)
 
 
 class OctetParser(BasicParser):
+    """A special purpose parser for parsing HTTP productions
 
-    """A special purpose parser for parsing HTTP productions."""
+    Strictly speaking, HTTP operates only on bytes so the parser is
+    always set to binary mode.  However, as a concession to the various
+    normative references to HTTP in other specifications where character
+    strings are parsed they will be accepted provided they only contain
+    US ASCII characters."""
+
+    def __init__(self, source):
+        if is_unicode(source):
+            source = source.encode('ascii')
+        super(OctetParser, self).__init__(source)
 
     def parse_lws(self):
         """Parses a single instance of the production LWS
@@ -198,33 +217,44 @@ class OctetParser(BasicParser):
         savepos = self.pos
         lws = []
         if self.parse(CRLF):
-            lws.append(CRLF)
+            lws += [CR, LF]
         splen = 0
         while True:
-            c = self.parse_one(SP + HT)
-            if c is None:
+            b = self.parse_one((SP, HT))
+            if b is None:
                 break
             else:
-                lws.append(c)
+                lws.append(b)
                 splen += 1
         if lws and splen:
-            return string.join(lws, '')
+            return join_bytes(lws)
         self.setpos(savepos)
         return None
 
     def parse_onetext(self, unfold=False):
         """Parses a single TEXT instance.
 
-        Parses a single character or run of LWS matching the production
-        TEXT.  The return value is the matching character, LWS string or
-        None if no TEXT was found.
+        unfold
+            Pass True to replace folding LWS with a single SP. Defaults
+            to False.
 
-        If *unfold* is True then any folding LWS is replaced with a
-        single SP.  It defaults to False"""
+        Parses a single byte or run of LWS matching the production TEXT.
+        The return value is either:
+
+            1   a single byte of TEXT (*not* a binary string) excluding
+                the LWS characters
+
+            2   a binary string of LWS
+
+            3   None if no TEXT was found
+
+        You may find the utility function :func:`pyslet.py2.is_byte`
+        useful to distinguish cases 1 and 2 correctly in both Python 2
+        and Python 3."""
         lws = self.parse_lws()
         if lws:
             if unfold and lws[:2] == CRLF:
-                return SP
+                return byte_to_bstr(SP)
             else:
                 return lws
         elif is_octet(self.the_char) and not is_ctl(self.the_char):
@@ -237,21 +267,25 @@ class OctetParser(BasicParser):
     def parse_text(self, unfold=False):
         """Parses TEXT
 
-        Parses a run of characters matching the production TEXT.  The
-        return value is the matching TEXT string (including any LWS) or
-        None if no TEXT was found.
+        unfold
+            Pass True to replace folding LWS with a single SP. Defaults
+            to False.
 
-        If *unfold* is True then any folding LWS is replaced with a
-        single SP.  It defaults to False"""
+        Parses a run of characters matching the production TEXT.  The
+        return value is the matching TEXT as a binary string (including
+        any LWS) or None if no TEXT was found."""
         text = []
         while self.the_char is not None:
             t = self.parse_onetext(unfold)
             if t is not None:
-                text.append(t)
+                if is_byte(t):
+                    text.append(t)
+                else:
+                    text += list(t)
             else:
                 break
         if text:
-            return string.join(text, '')
+            return join_bytes(text)
         else:
             return None
 
@@ -259,8 +293,8 @@ class OctetParser(BasicParser):
         """Parses a token.
 
         Parses a single instance of the production token.  The return
-        value is the matching token string or None if no token was
-        found."""
+        value is the matching token as a binary string or None if no
+        token was found."""
         token = []
         while self.the_char is not None:
             if is_ctl(self.the_char) or is_separator(self.the_char):
@@ -269,111 +303,116 @@ class OctetParser(BasicParser):
                 token.append(self.the_char)
                 self.next_char()
         if token:
-            return string.join(token, '')
+            return join_bytes(token)
         else:
             return None
 
     def parse_comment(self, unfold=False):
         """Parses a comment.
 
-        Parses a single instance of the production comment.  The return
-        value is the entire matching comment string (including the
-        brackets, quoted pairs and any nested comments) or None if no
-        comment was found.
+        unfold
+            Pass True to replace folding LWS with a single SP. Defaults
+            to False.
 
-        If *unfold* is True then any folding LWS is replaced with a
-        single SP.  It defaults to False"""
-        if not self.parse("("):
+        Parses a single instance of the production comment.  The return
+        value is the entire matching comment as a binary string
+        (including the brackets, quoted pairs and any nested comments)
+        or None if no comment was found."""
+        if not self.parse(b"("):
             return None
-        comment = ["("]
+        comment = [b"("]
         depth = 1
         while self.the_char is not None:
-            if self.parse(")"):
-                comment.append(")")
+            if self.parse(b")"):
+                comment.append(b")")
                 depth -= 1
                 if depth < 1:
                     break
-            elif self.parse("("):
-                comment.append("(")
+            elif self.parse(b"("):
+                comment.append(b"(")
                 depth += 1
-            elif self.match("\\"):
+            elif self.match(b"\\"):
                 qp = self.parse_quoted_pair()
                 if qp:
                     comment.append(qp)
                 else:
-                    raise ValueError(
-                        "Expected quoted pair: %s..." % self.peek(5))
+                    self.parser_error("quoted pair")
             else:
                 ctext = self.parse_ctext(unfold)
                 if ctext:
                     comment.append(ctext)
                 else:
                     break
-        comment = string.join(comment, '')
         if depth:
-            raise ValueError("Unclosed comment: %s" % comment)
+            self.parser_error("comment close")
         else:
-            return comment
+            return b''.join(comment)
 
     def parse_ctext(self, unfold=False):
         """Parses ctext.
 
+        unfold
+            Pass True to replace folding LWS with a single SP. Defaults
+            to False.
+
         Parses a run of characters matching the production ctext.  The
-        return value is the matching ctext string (including any LWS) or
-        None if no ctext was found.
+        return value is the matching ctext as a binary string (including
+        any LWS) or None if no ctext was found.
 
-        If *unfold* is True then any folding LWS is replaced with a
-        single SP.  It defaults to False
+        The original text of RFC2616 is ambiguous in the definition of
+        ctext but the later errata_ corrected this to exclude the
+        backslash byte ($5C) so we stop if we encounter one.
 
-        Although the production for ctext would include the backslash
-        character we stop if we encounter one as the grammar is
-        ambiguous at this point."""
+        .. _errata: https://www.rfc-editor.org/errata_search.php?rfc=2616
+        """
         ctext = []
         while self.the_char is not None:
-            if self.match_one("()\\"):
+            if self.match_one(b"()\\"):
                 break
             else:
                 t = self.parse_onetext(unfold)
-                if t is None:
-                    break
+                if t is not None:
+                    if is_byte(t):
+                        ctext.append(t)
+                    else:
+                        ctext += list(t)
                 else:
-                    ctext.append(t)
+                    break
         if ctext:
-            return string.join(ctext, '')
+            return join_bytes(ctext)
         else:
             return None
 
     def parse_quoted_string(self, unfold=False):
         """Parses a quoted-string.
 
+        unfold
+            Pass True to replace folding LWS with a single SP. Defaults
+            to False.
+
         Parses a single instance of the production quoted-string.  The
         return value is the entire matching string (including the quotes
-        and any quoted pairs) or None if no quoted-string was found.
-
-        If *unfold* is True then any folding LWS is replaced with a
-        single SP.  It defaults to False"""
-        if not self.parse(DQUOTE):
+        and any quoted pairs) or None if no quoted-string was found."""
+        if not self.parse(b'"'):
             return None
-        qs = [DQUOTE]
+        qs = [b'"']
         while self.the_char is not None:
-            if self.parse(DQUOTE):
-                qs.append(DQUOTE)
+            if self.parse(b'"'):
+                qs.append(b'"')
                 break
-            elif self.match("\\"):
+            elif self.match(b"\\"):
                 qp = self.parse_quoted_pair()
                 if qp:
                     qs.append(qp)
                 else:
-                    raise ValueError(
-                        "Expected quoted pair: %s..." % self.peek(5))
+                    self.parser_error("quoted pair")
             else:
                 qdtext = self.parse_qdtext(unfold)
                 if qdtext:
                     qs.append(qdtext)
                 else:
-                    raise BadSyntax("Expected closing <\">: %s%s..." %
-                                    (string.join(qs, ''), self.peek(5)))
-        return string.join(qs, '')
+                    self.parser_error('<">')
+        return b''.join(qs)
 
     def parse_qdtext(self, unfold=False):
         """Parses qdtext.
@@ -386,33 +425,36 @@ class OctetParser(BasicParser):
         single SP.  It defaults to False
 
         Although the production for qdtext would include the backslash
-        character we stop if we encounter one as the grammar is
-        ambiguous at this point."""
+        character we stop if we encounter one, following the RFC2616
+        errata_ instead."""
         qdtext = []
         while self.the_char is not None:
-            if self.match_one("\\" + DQUOTE):
+            if self.match_one(b'"\\'):
                 break
             else:
                 t = self.parse_onetext(unfold)
-                if t is None:
-                    break
+                if t is not None:
+                    if is_byte(t):
+                        qdtext.append(t)
+                    else:
+                        qdtext += list(t)
                 else:
-                    qdtext.append(t)
+                    break
         if qdtext:
-            return string.join(qdtext, '')
+            return join_bytes(qdtext)
         else:
             return None
 
     def parse_quoted_pair(self):
         """Parses a single quoted-pair.
 
-        The return value is the matching string including the backslash
-        so it will always be of length 2 or None if no quoted-pair was
-        found."""
+        The return value is the matching binary string including the
+        backslash so it will always be of length 2 or None if no
+        quoted-pair was found."""
         savepos = self.pos
-        if self.parse("\\"):
+        if self.parse(b"\\"):
             if is_char(self.the_char):
-                qdpair = "\\" + self.the_char
+                qdpair = b"\\" + byte_to_bstr(self.the_char)
                 self.next_char()
                 return qdpair
             else:
@@ -420,70 +462,122 @@ class OctetParser(BasicParser):
         return None
 
 
-class WordParser(object):
+class BadSyntax(ValueError):
+    """Raised by the :class:`WordParser`
 
+    Whenever a syntax error is encountered by the parsers.  Note that
+    tokenization errors are raised separately during construction itself.
+
+    production
+        The name of the production being parsed.  (Defaults to an empty
+        string.)
+
+    parser
+        The :class:`WordParser` instance raising the error (optional)
+
+    BadSyntax is a subclass of ValueError."""
+
+    def __init__(self, production='', parser=None):
+        self.production = production
+        if parser:
+            #: the position of the parser when the error was raised
+            if parser.match_end():
+                self.pos = len(parser.source)
+            else:
+                self.pos = parser.word_pos[parser.pos]
+            #: up to 40 characters/bytes to the left of pos
+            self.left = parser.source[max(0, self.pos - 40):self.pos]
+            #: up to 40 characters/bytes to the right of pos
+            self.right = parser.source[self.pos:self.pos + 40]
+            if production:
+                msg = "SyntaxError: expected %s at [%i]" % (production,
+                                                            self.pos)
+            else:
+                msg = "SyntaxError: at [%i]" % self.pos
+        else:
+            self.pos = None
+            self.left = None
+            self.right = None
+            if production:
+                msg = "SyntaxError: expected %s" % production
+            else:
+                msg = "SyntaxError"
+        ValueError.__init__(self, msg)
+
+
+class WordParser(ParserMixin):
     """A word-level parser and tokeniser for the HTTP grammar.
 
-    *source* is the string to be parsed into words.  It will normally be
-    valid TEXT but it can contain control characters if they are escaped
-    as part of a comment or quoted string.
+    source
+        The binary string to be parsed into words.  It will normally be
+        valid TEXT but it can contain control characters if they are
+        escaped as part of a comment or quoted string.  For
+        compatibility, character strings are accepted provided they only
+        contain US ASCII characters
 
-    LWS is unfolded automatically.  By default the parser ignores spaces
-    according to the rules for implied LWS in the specification and
-    neither SP nor HT will be stored in the word list.  If you set
-    *ignore_sp* to False then LWS is not ignored and each run of LWS is
-    returned as a single SP in the word list.
+    ingore_sp (defaults to True)
+        LWS is unfolded automatically.  By default the parser ignores
+        spaces according to the rules for implied LWS in the
+        specification and neither SP nor HT will be stored in the word
+        list.  If you set *ignore_sp* to False then LWS is not ignored
+        and each run of LWS is returned as a single SP in the word list.
 
-    If the source contains a CRLF (or any other non-TEXT character) that
-    is not part of a folding or escape sequence it raises ValueError
+    The source is parsed completely into words on construction using
+    :class:`OctetParser`. If the source contains a CRLF (or any other
+    non-TEXT bytes) that is not part of a folding or escape sequence it
+    raises :class:`~pyslet.unicode5.ParserError`.
 
-    The resulting words may be a token, a single separator character, a
-    comment or a quoted string.  To determine the type of word, look at
-    the first character.
+    For the purposes of this parser, a word may be either a single byte
+    (in which case it is a separator or SP, note that HT is never stored
+    in the word list) or a binary string, in which case it is a token, a
+    comment or a quoted string.  Warning: in Python 2 a single byte is
+    indistinguishable from a binary string of length 1.
 
-    *   '(' means the word is a comment, surrounded by '(' and ')'
-
-    *   a double quote means the word is an encoded quoted string (use
-        py:func:`decode_quoted_string` to decode it)
-
-    *   other separator chars are just themselves and only appear as
-        single character strings.  (HT is never returned.)
-
-    *   Any other character indicates a token.
-
-    Methods of the form require\_\* raise :py:class:`BadSyntax` if the
-    production is not found."""
+    Methods follow the same pattern as that described in the related
+    :class:`pyslet.unicode5.BasicParser` using match\_, parse\_ and
+    require\_ naming conventions.  It also includes the
+    :class:`pyslet.unicode5.ParseMixin` class to enable the convenience
+    methods for converting between look-ahead and non-look-ahead parsing
+    modes."""
 
     def __init__(self, source, ignore_sp=True):
+        self.source = source
         self.words = []
+        self.word_pos = []
         #: a pointer to the current word in the list
         self.pos = 0
         #: the current word or None
         self.the_word = None
+        self.last_error = None
         self._init_parser(source, ignore_sp)
 
     def _init_parser(self, source, ignore_sp=True):
         p = OctetParser(source)
         while p.the_char is not None:
             sp = False
+            word_pos = p.pos
             while p.parse_lws():
                 if not ignore_sp:
                     sp = True
             if sp:
                 self.words.append(SP)
+                self.word_pos.append(word_pos)
+                word_pos = p.pos
             if is_separator(p.the_char):
-                if p.the_char == "(":
+                if p.the_char == COPEN:
                     self.words.append(p.parse_comment(True))
                 elif p.the_char == DQUOTE:
                     self.words.append(p.parse_quoted_string(True))
                 else:
                     self.words.append(p.the_char)
                     p.next_char()
+                self.word_pos.append(word_pos)
             elif p.the_char is None:
                 break
             else:
                 self.words.append(p.require_production(p.parse_token(),
                                                        "TEXT"))
+                self.word_pos.append(word_pos)
         self.pos = 0
         if self.words:
             self.the_word = self.words[0]
@@ -512,6 +606,38 @@ class WordParser(object):
         else:
             self.the_word = None
 
+    def parser_error(self, production=None):
+        """Raises an error encountered by the parser
+
+        See :class:`BadSyntax` for details.
+
+        If production is None then the previous error is re-raised. If
+        multiple errors have been raised previously the one with the
+        most advanced parser position is used.  The operation is similar
+        to :meth:`pyslet.unicode5.BasicParser.parser_error`.
+
+        To improve the quality of error messages an internal record of
+        the starting position of each word is kept (within the original
+        source).
+
+        The position of the parser is always set to the position of the
+        error raised."""
+        if production:
+            e = BadSyntax(production, self)
+        elif self.last_error is not None and self.pos <= self.last_error.pos:
+            e = self.last_error
+        else:
+            e = BadSyntax('', self)
+        if self.last_error is None or e.pos > self.last_error.pos:
+            self.last_error = e
+        if e.pos != self.pos:
+            self.setpos(e.pos)
+        raise e
+
+    def match_end(self):
+        """True if all of :attr:`words` have been parsed"""
+        return self.the_word is None
+
     def peek(self):
         """Returns the next word
 
@@ -520,76 +646,6 @@ class WordParser(object):
             return self.the_word
         else:
             return ""
-
-    def syntax_error(self, expected):
-        """Raises :py:class:`BadSyntax`.
-
-        expected
-            a descriptive string indicating the expected production."""
-        if self.the_word:
-            raise BadSyntax("Expected %s, found %s" %
-                            (expected, repr(self.the_word)))
-        else:
-            raise BadSyntax("Expected %s" % expected)
-
-    def require_production(self, result, production=None):
-        """Returns *result* if *result* is not None
-
-        If result is None, raises BadSyntax.
-
-        production
-            can be used to customize the error message with the name of
-            the expected production."""
-        if result is None:
-            if production is None:
-                raise BadSyntax("Error at ...%s" % self.peek())
-            else:
-                raise BadSyntax("Expected %s at ...%s" %
-                                (production, self.peek()))
-        else:
-            return result
-
-    def parse_production(self, require_method, *args):
-        """Executes the bound method *require_method* passing *args*.
-
-        If successful the result of the method is returned.  If
-        BadSyntax is raised, the exception is caught, the parser rewound
-        and None is returned."""
-        savepos = self.pos
-        try:
-            return require_method(*args)
-        except BadSyntax:
-            self.setpos(savepos)
-            return None
-
-    def require_production_end(self, result, production=None):
-        """Checks for a required production and the end of the word list
-
-        Returns *result* if *result* is not None and parsing is now
-        complete, otherwise raises BadSyntax.
-
-        production
-            can be used to customize the error message with the name of
-            the expected production."""
-        result = self.require_production(result, production)
-        self.require_end(production)
-        return result
-
-    def require_end(self, production=None):
-        """Checks for the end of the word list
-
-        If the parser is not at the end of the word list
-        :py:class:`BadSyntax` is raised.
-
-        production
-            can be used to customize the error message with the name of
-            the production being parsed."""
-        if self.the_word:
-            if production:
-                raise BadSyntax("Spurious data after %s: found %s" %
-                                (production, repr(self.the_word)))
-            else:
-                raise BadSyntax("Spurious data: %s" % repr(self.the_word))
 
     def parse_word(self):
         """Parses any word from the list
@@ -606,7 +662,9 @@ class WordParser(object):
 
     def is_token(self):
         """Returns True if the current word is a token"""
-        return self.the_word and self.the_word[0] not in SEPARATORS
+        # words are never empty!
+        return isinstance(self.the_word, bytes) and \
+            self.the_word[0] not in SEPARATORS
 
     def parse_token(self):
         """Parses a token from the list of words
@@ -631,14 +689,14 @@ class WordParser(object):
 
         Returns the list or [] if no tokens were found.  Lists are
         defined by RFC2616 as being comma-separated.  Note that empty
-        items are ignored, so string such as "x,,y" return just ["x",
+        items are ignored, so strings such as "x,,y" return just ["x",
         "y"]."""
         result = []
         while self.the_word:
             token = self.parse_token()
             if token:
                 result.append(token)
-            elif self.parse_separator(','):
+            elif self.parse_separator(COMMA):
                 continue
             else:
                 break
@@ -652,7 +710,7 @@ class WordParser(object):
             "token"."""
         token = self.parse_token()
         if token is None:
-            self.syntax_error(expected)
+            self.parser_error(expected)
         else:
             return token
 
@@ -677,7 +735,7 @@ class WordParser(object):
             "integer"."""
         result = self.parse_integer()
         if result is None:
-            self.syntax_error(expected)
+            self.parser_error(expected)
         else:
             return result
 
@@ -702,7 +760,7 @@ class WordParser(object):
             "hex integer"."""
         result = self.parse_hexinteger()
         if result is None:
-            self.syntax_error(expected)
+            self.parser_error(expected)
         else:
             return result
 
@@ -729,11 +787,11 @@ class WordParser(object):
         if self.the_word == sep:
             self.parse_word()
         else:
-            self.syntax_error(expected)
+            self.parser_error(expected)
 
     def is_quoted_string(self):
         """Returns True if the current word is a quoted string."""
-        return self.the_word and self.the_word[0] == DQUOTE
+        return isinstance(self.the_word, bytes) and self.the_word[0] == DQUOTE
 
     def parse_quoted_string(self):
         """Parses a quoted string from the list of words.
@@ -779,13 +837,16 @@ class WordParser(object):
         definitions. The key in the dictionary is the parameter name
         (converted to lower case if parameters are being dealt with case
         insensitively) and the value is a 2-item tuple of (name, value)
-        always preserving the original case of the parameter name."""
+        always preserving the original case of the parameter name.
+
+        Returns the parameters dictionary as the result.  The method
+        always succeeds as parameter lists can be empty."""
         self.parse_sp()
         while self.the_word:
             savepos = self.pos
             try:
                 self.parse_sp()
-                self.require_separator(';')
+                self.require_separator(SEMICOLON)
                 self.parse_sp()
                 param_name = self.require_token("parameter")
                 if not case_sensitive:
@@ -796,7 +857,7 @@ class WordParser(object):
                     raise BadSyntax
                 if ignore_allsp:
                     self.parse_sp()
-                self.require_separator('=', "parameter")
+                self.require_separator(EQUALS, "parameter")
                 if ignore_allsp:
                     self.parse_sp()
                 if self.is_token():
@@ -804,13 +865,14 @@ class WordParser(object):
                 elif self.is_quoted_string():
                     param_value = self.parse_quoted_string()
                 else:
-                    self.syntax_error("parameter value")
+                    self.parser_error("parameter value")
                 parameters[param_key] = (param_name, param_value)
             except BadSyntax:
                 self.setpos(savepos)
                 break
+        return parameters
 
-    def parse_remainder(self, sep=''):
+    def parse_remainder(self, sep=b''):
         """Parses the rest of the words
 
         The result is a single string representing the remaining words
@@ -819,8 +881,8 @@ class WordParser(object):
         Returns an empty string if the parser is at the end of the word
         list."""
         if self.the_word:
-            result = string.join(self.words[self.pos:], sep)
+            result = sep.join(self.words[self.pos:])
         else:
-            result = ''
+            result = b''
         self.setpos(len(self.words))
         return result
