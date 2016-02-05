@@ -131,6 +131,12 @@ provided for with the following constant::
     
         py2.empty_text.join(my_strings)
 
+
+..  function::  is_string(org)
+
+    Returns True if *arg* is either a character or binary string.
+
+    
 ..  function::  is_text(arg)
 
     Returns True if *arg* is text and False otherwise.  In Python 3 this
@@ -215,7 +221,33 @@ provided for with the following constant::
 ..  function::  join_bytes(arg)
 
     Given an arg that iterates to yield bytes, returns a bytes object
-    containing those bytes.
+    containing those bytes.  It is important not to confuse this
+    operation with the more common joining of binary strings.  No
+    function is provided for that as the following construct works
+    as expected in both Python 2 and Python 3::
+    
+        b''.join(bstr_list)
+    
+    The usage of join_bytes can best be illustrated by the following two
+    interpreter sessions.
+
+    Python 2.7.10::
+
+        >>> from pyslet.py2 import join_bytes
+        >>> join_bytes(list(b'abc'))
+        'abc'
+        >>> b''.join(list(b'abc'))
+        'abc'
+
+    Python 3.5.1::
+
+        >>> from pyslet.py2 import join_bytes
+        >>> join_bytes(list(b'abc'))
+        b'abc'
+        >>> b''.join(list(b'abc'))
+        Traceback (most recent call last):
+          File "<stdin>", line 1, in <module>
+        TypeError: sequence item 0: expected a bytes-like object, int found
 
 
 ..	autoclass:: UnicodeMixin
@@ -246,6 +278,10 @@ Python 3 made a number of changes to the way objects are iterated.
 
 Comparisons
 -----------
+
+..	autoclass:: SortableMixin
+	:members:
+	:show-inheritance:
 
 ..	autoclass:: CmpMixin
 	:members:

@@ -3,6 +3,9 @@
 import unittest
 import logging
 
+import pyslet.http.grammar as grammar
+
+from pyslet.py2 import byte, ul
 from pyslet.http.params import *       # noqa
 
 
@@ -120,7 +123,7 @@ class ProtocolParameterTests(unittest.TestCase):
             timestamp_822 = FullDate.from_http_str(
                 "Mon, 06 Nov 1994 08:49:37 GMT")
             self.fail("Weekday mismatch passed")
-        except BadSyntax:
+        except grammar.BadSyntax:
             pass
         timestamp_822 = FullDate.from_http_str(
             "Sun, 06 Nov 1994 08:49:37 GMT")
@@ -130,40 +133,41 @@ class ProtocolParameterTests(unittest.TestCase):
 
     def test_transfer_encoding(self):
         te = TransferEncoding()
-        self.assertTrue(te.token == "chunked", "Default not chunked")
+        self.assertTrue(te.token == b"chunked", "Default not chunked")
         self.assertTrue(
             len(te.parameters) == 0, "Default has extension parameters")
         te = TransferEncoding.from_str("Extension ; x=1 ; y = 2")
-        self.assertTrue(te.token == "extension", "Token not case insensitive")
+        self.assertTrue(te.token == b"extension", "Token not case insensitive")
         self.assertTrue(len(te.parameters) == 2, "No of extension parameters")
         self.assertTrue(
-            te.parameters == {'x': ('x', '1'), 'y': ('y', '2')},
+            te.parameters == {b'x': (b'x', b'1'), b'y': (b'y', b'2')},
             "Extension parameters: %s" % repr(te.parameters))
         self.assertTrue(str(te) == "extension; x=1; y=2", "te output")
         te = TransferEncoding.from_str("Bob; a=4")
-        self.assertTrue(te.token == "bob", "Token not case insensitive")
+        self.assertTrue(te.token == b"bob", "Token not case insensitive")
         self.assertTrue(len(te.parameters) == 1, "No of extension parameters")
         self.assertTrue(
-            te.parameters == {'a': ('a', '4')},
+            te.parameters == {b'a': (b'a', b'4')},
             "Single extension parameters: %s" % repr(te.parameters))
         try:
             te = TransferEncoding.from_str("chunked ; x=1 ; y = 2")
             self.fail("chunked with spurious parameters")
-        except BadSyntax:
+        except grammar.BadSyntax:
             pass
         parameters = {}
         ParameterParser("; x=1 ; y = 2").parse_parameters(parameters)
-        te = TransferEncoding("chunked", parameters)
+        te = TransferEncoding(b"chunked", parameters)
         self.assertTrue(
             len(te.parameters) == 0, "Overparsing of chunked with parameters")
         te = TransferEncoding.from_str("chunkie ; z = 3 ")
-        self.assertTrue(te.parameters == {'z': ('z', '3')},
+        self.assertTrue(te.parameters == {b'z': (b'z', b'3')},
                         "chunkie parameters")
         telist = TransferEncoding.list_from_str("chunkie; z=3, ,gzip, chunked")
         self.assertTrue(len(telist) == 3)
-        self.assertTrue(telist[0] == te, repr(map(str, telist)))
-        self.assertTrue(telist[1] == "gzip", repr(map(str, telist)))
-        self.assertTrue(telist[2] == "chunked", repr(map(str, telist)))
+        self.assertTrue(telist[0] == te, repr([str(i) for i in telist]))
+        self.assertTrue(telist[1] == b"gzip", repr([str(i) for i in telist]))
+        self.assertTrue(telist[2] == b"chunked",
+                        repr([str(i) for i in telist]))
 
     def test_chunk(self):
         chunk = Chunk()
@@ -175,7 +179,7 @@ class ProtocolParameterTests(unittest.TestCase):
         self.assertTrue(len(chunk.extensions) == 2,
                         "Default x-params %s" % repr(chunk.extensions))
         self.assertTrue(
-            chunk.extensions == {'x': ('x', '1'), 'y': ('y', 'abcd')})
+            chunk.extensions == {b'x': (b'x', b'1'), b'y': (b'y', b'abcd')})
         self.assertTrue(str(chunk) == "ABCD; x=1; y=abcd", repr(str(chunk)))
 
     def test_media_type(self):
@@ -187,27 +191,27 @@ class ProtocolParameterTests(unittest.TestCase):
         try:
             mtype = MediaType.from_str(' application / octet-stream ')
             self.fail("Space between type and sub-type")
-        except BadSyntax:
+        except grammar.BadSyntax:
             pass
         try:
             mtype = MediaType.from_str(' application/octet-stream ')
-        except BadSyntax:
+        except grammar.BadSyntax:
             self.fail("No space between type and sub-type")
         try:
             mtype = MediaType.from_str(
                 ' application/octet-stream ; Charset = "en-US"')
             self.fail("Space between param and value")
-        except BadSyntax:
+        except grammar.BadSyntax:
             pass
         try:
             mtype = MediaType.from_str(
                 ' application/octet-stream ; Charset="en-US" ; x=1')
-        except BadSyntax:
+        except grammar.BadSyntax:
             self.fail("No space between param and value")
-        self.assertTrue(mtype.type == 'application', "Media type")
-        self.assertTrue(mtype.subtype == 'octet-stream', "Media sub-type")
-        self.assertTrue(mtype['charset'] == 'en-US')
-        self.assertTrue(mtype['x'] == '1')
+        self.assertTrue(mtype.type == b'application', "Media type")
+        self.assertTrue(mtype.subtype == b'octet-stream', "Media sub-type")
+        self.assertTrue(mtype['charset'] == b'en-US')
+        self.assertTrue(mtype['x'] == b'1')
         try:
             mtype['y']
             self.fail("unparsed parameter in __getitem__")
@@ -222,27 +226,28 @@ class ProtocolParameterTests(unittest.TestCase):
         self.assertTrue(ptoken.version is None)
         p = ParameterParser('http/2616; x=1')
         ptoken = p.parse_production(p.require_product_token)
-        self.assertTrue(
-            p.the_word == ";", "ParseProductToken result: %s" % p.the_word)
-        self.assertTrue(ptoken.token == "http", "Product token")
-        self.assertTrue(ptoken.version == "2616", "Product token version")
+        self.assertTrue(p.the_word == byte(";"),
+                        "ParseProductToken result: %s" % p.the_word)
+        self.assertTrue(ptoken.token == b"http", "Product token")
+        self.assertTrue(ptoken.version == b"2616", "Product token version")
         try:
             ptoken = ProductToken.from_str('http/2616; x=1')
             self.fail("Spurious data test")
-        except BadSyntax:
+        except grammar.BadSyntax:
             pass
         ptokens = ProductToken.list_from_str(
             "CERN-LineMode/2.15 libwww/2.17b3")
         self.assertTrue(len(ptokens) == 2)
-        self.assertTrue(ptokens[0].version == "2.15")
-        self.assertTrue(ptokens[1].version == "2.17b3")
+        self.assertTrue(ptokens[0].version == b"2.15")
+        self.assertTrue(ptokens[1].version == b"2.17b3")
         self.assertTrue(
             ProductToken.explode("2.17b3") == (
-                (2,), (17, "b", 3)), "Complex explode: %s" %
-            repr(
-                ProductToken.explode("2.17b3")))
-        self.assertTrue(ProductToken.explode("2.b3") == ((2,), (-1, "b", 3)))
-        self.assertTrue(ProductToken.explode(".b3") == ((), (-1, "b", 3)))
+                (2, b"~"), (17, b"b", 3, b"~")), "Complex explode: %s" %
+            repr(ProductToken.explode("2.17b3")))
+        self.assertTrue(ProductToken.explode("2.b3") ==
+                        ((2, b"~"), (-1, b"b", 3, b"~")))
+        self.assertTrue(ProductToken.explode(".b3") ==
+                        ((), (-1, b"b", 3, b"~")))
         self.assertTrue(
             ProductToken("Apache", "0.8.4") < ProductToken("Apache", "0.8.30"))
         self.assertTrue(
@@ -287,27 +292,27 @@ class ProtocolParameterTests(unittest.TestCase):
 
     def test_language_tag(self):
         lang = LanguageTag("EN")
-        self.assertTrue(lang.primary == 'EN', "Primary tag")
+        self.assertTrue(lang.primary == b'EN', "Primary tag")
         self.assertTrue(len(lang.subtags) == 0, "Sub-tags")
         self.assertTrue(str(lang) == "EN")
         lang = LanguageTag("x", "pig", "latin")
-        self.assertTrue(lang.primary == 'x', "Primary tag")
+        self.assertTrue(lang.primary == b'x', "Primary tag")
         self.assertTrue(len(lang.subtags) == 2, "Sub-tags")
         self.assertTrue(str(lang) == "x-pig-latin")
         try:
             # White space is not allowed within the tag
             lang = LanguageTag.from_str(' en - us ')
             self.fail("Space between primary tag and sub-tags")
-        except BadSyntax:
+        except grammar.BadSyntax:
             pass
         try:
             lang = LanguageTag.from_str(' en-us ')
-        except BadSyntax:
+        except grammar.BadSyntax:
             self.fail("No space between primary tag and sub-tags")
         lang = LanguageTag.from_str('en-US')
-        self.assertTrue(lang.primary == 'en', "Primary tag")
+        self.assertTrue(lang.primary == b'en', "Primary tag")
         self.assertTrue(
-            lang.subtags == ('US',), "Sub-tags: %s" % repr(lang.subtags))
+            lang.subtags == (b'US',), "Sub-tags: %s" % repr(lang.subtags))
         self.assertTrue(str(lang) == 'en-US')
         # all tags are case-insensitive
         self.assertTrue(lang == "en-US", "Naked string comparison")
@@ -339,21 +344,20 @@ class ProtocolParameterTests(unittest.TestCase):
         self.assertTrue(etag.tag, "ETag constructor tag not None")
         etag = EntityTag.from_str('W/"hello"')
         self.assertTrue(etag.weak, "Failed to parse weak tag")
-        self.assertTrue(etag.tag == "hello", "Failed to parse ETag value")
+        self.assertTrue(etag.tag == b"hello", "Failed to parse ETag value")
         etag = EntityTag.from_str('w/ "h\\"ello"')
         self.assertTrue(
             etag.weak, "Failed to parse weak tag with lower case 'w'")
         self.assertTrue(
-            etag.tag == 'h"ello',
+            etag.tag == b'h"ello',
             "Failed to unpick quoted pair from ETag value; found %s" %
-            repr(
-                etag.tag))
+            repr(etag.tag))
         etag = EntityTag.from_str('"hello"')
         self.assertFalse(etag.weak, "Failed to parse strong tag")
-        self.assertTrue(etag.tag == "hello", "Failed to parse ETag value")
-        etag = EntityTag.from_str(u'"hello"')
+        self.assertTrue(etag.tag == b"hello", "Failed to parse ETag value")
+        etag = EntityTag.from_str(ul('"hello"'))
         self.assertFalse(etag.weak, "Failed to parse strong tag")
-        self.assertTrue(etag.tag == "hello", "Failed to parse ETag value")
+        self.assertTrue(etag.tag == b"hello", "Failed to parse ETag value")
 
 
 if __name__ == '__main__':

@@ -1824,7 +1824,7 @@ class Response(Message):
     def recv_start(self, line):
         # Read the status line
         pstatus = params.ParameterParser(line[:-2], ignore_sp=False)
-        self.protocol = pstatus.parse_http_version()
+        self.protocol = pstatus.parse_production(pstatus.require_http_version)
         pstatus.parse_sp()
         if pstatus.is_integer():
             self.status = pstatus.parse_integer()
@@ -1996,22 +1996,17 @@ class Response(Message):
 
 
 class MediaRange(params.MediaType):
-
     """Represents an HTTP media-range.
 
-    The built-in str function can be used to format instances according
-    to the grammar defined in the specification.
-
-    Instances are immutable, they define comparison methods and a hash
-    implementation to allow them to be used as keys in dictionaries.
     Quoting from the specification:
 
         "Media ranges can be overridden by more specific media ranges or
         specific media types. If more than one media range applies to a
         given type, the most specific reference has precedence."
 
-    In other words, the following media ranges would be sorted in the
-    order shown:
+    We override the base class ordering so that MediaRange instances
+    sort according to these rules.  The following media ranges would be
+    sorted in the order shown:
 
     1.  image/png
     2.  image/\*
@@ -2023,8 +2018,7 @@ class MediaRange(params.MediaType):
     If we have two rules with identical precedence then we sort them
     alphabetically by type; sub-type and ultimately alphabetically by
     parameters"""
-
-    def __init__(self, type="*", subtype="*", parameters={}):
+    def __init__(self, type=b"*", subtype=b"*", parameters={}):
         super(MediaRange, self).__init__(type, subtype, parameters)
 
     @classmethod
@@ -2038,34 +2032,15 @@ class MediaRange(params.MediaType):
         return mr
 
     def __repr__(self):
-        return ("MediaType(%s,%s,%s)" % (repr(self.type),
-                                         repr(self.subtype),
-                                         repr(self.parameters)))
+        return ("MediaType(%s, %s, %s)" % (repr(self.type),
+                                           repr(self.subtype),
+                                           repr(self.parameters)))
 
-    def __cmp__(self, other):
-        result = self._cmp_types(self.type, other.type)
-        if result:
-            return result
-        result = self._cmp_types(self.subtype, other.subtype)
-        if result:
-            return result
-        # more parameters means higher precedence
-        result = -cmp(len(self.parameters), len(other.parameters))
-        if result:
-            return result
-        return cmp(self.parameters, other.parameters)
-
-    def _cmp_types(self, atype, btype):
-        if atype == '*':
-            if btype == '*':
-                return 0
-            else:
-                return 1
-        else:
-            if btype == '*':
-                return -1
-            else:
-                return cmp(atype.lower(), btype.lower())
+    def sortkey(self):
+        t = b'~' if self.type == b'*' else self.type
+        st = b'~' if self.subtype == b'*' else self.subtype
+        # parameters sort before no parameters
+        return (t, st, -len(self._hp), self._hp)
 
     def match_media_type(self, mtype):
         """Tests whether a media-type matches this range.
@@ -2114,7 +2089,7 @@ class MediaRange(params.MediaType):
 MULTIPART_BYTERANGES_RANGE = MediaRange("multipart", "byteranges")
 
 
-class AcceptItem(MediaRange):
+class AcceptItem(object):
 
     """Represents a single item in an Accept header
 

@@ -192,7 +192,7 @@ def format_parameters(parameters):
         format.append(p)
         format.append(b'=')
         format.append(quote_string(v, force=False))
-    return join_bytes(format)
+    return b''.join(format)
 
 
 class OctetParser(BasicParser):
@@ -594,7 +594,7 @@ class WordParser(ParserMixin):
                 try:
                         # parse a token/sub-token combination
                         token=wp.require_token()
-                        wp.require_separator('/')
+                        wp.require_separator(byte('/'))
                         subtoken=wp.require_token()
                         return token,subtoken
                 except BadSyntax:
@@ -781,6 +781,9 @@ class WordParser(ParserMixin):
 
     def require_separator(self, sep, expected=None):
         """Parses *sep* or raises :py:class:`BadSyntax`
+
+        sep
+            A separtor byte (not a binary string).
 
         expected
             can be set to the name of the expected object"""

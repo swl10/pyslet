@@ -798,11 +798,8 @@ class DateTests(unittest.TestCase):
         self.assertTrue(
             iso.Date.from_str("19") < iso.Date.from_str("20"),
             "inequality with century precision")
-        try:
-            iso.Date.from_str("1969-W29") == iso.Date.from_str("1969-07")
-            self.fail("precision mismatch")
-        except ValueError:
-            pass
+        self.assertFalse(iso.Date.from_str("1969-W29") ==
+                         iso.Date.from_str("1969-07"))
 
     def test_get_calendar_strings(self):
         """get_calendar_string tests"""
@@ -1591,21 +1588,12 @@ class TimeTests(unittest.TestCase):
         self.assertTrue(iso.Time.from_str("201740Z") >
                         iso.Time.from_str("201739-00"),
                         "inequality with non matching zone and overflow")
-        try:
-            iso.Time.from_str("201740") == iso.Time.from_str("2017")
-            self.fail("precision mismatch")
-        except ValueError:
-            pass
-        try:
-            iso.Time.from_str("201740Z") == iso.Time.from_str("201740")
-            self.fail("zone unspecified mismatch")
-        except ValueError:
-            pass
-        try:
-            iso.Time.from_str("201740+00") == iso.Time.from_str("211740+01")
-            self.fail("zone specified mismatch")
-        except ValueError:
-            pass
+        self.assertFalse(iso.Time.from_str("201740") ==
+                         iso.Time.from_str("2017"))
+        self.assertFalse(iso.Time.from_str("201740Z") ==
+                         iso.Time.from_str("201740"))
+        self.assertFalse(iso.Time.from_str("201740+00") ==
+                         iso.Time.from_str("211740+01"))
 
     def test_now(self):
         # A very weak test, how do we know the real time?
@@ -1741,17 +1729,13 @@ class TimePointTests(unittest.TestCase):
         self.assertTrue(iso.TimePoint.from_str("19690720T201740Z") <
                         iso.TimePoint.from_str("19690720T201740-01"),
                         "inequality with non matching zone and overflow")
+        self.assertFalse(iso.TimePoint.from_str("19690720T201740") ==
+                         iso.TimePoint.from_str("19690720T2017"))
         try:
-            iso.TimePoint.from_str(
-                "19690720T201740") == iso.TimePoint.from_str("19690720T2017")
-            self.fail("precision mismatch")
-        except ValueError:
-            pass
-        try:
-            iso.TimePoint.from_str("19690720T201740Z") == \
+            iso.TimePoint.from_str("19690720T201740Z") < \
                 iso.TimePoint.from_str("19690720T201740")
             self.fail("zone unspecified mismatch")
-        except ValueError:
+        except TypeError:
             pass
 
     def test_hash(self):

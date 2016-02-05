@@ -6,12 +6,12 @@ HTTP Grammar
 Using the Grammar
 ~~~~~~~~~~~~~~~~~
 
-The functions and data definitions above are exposed to enable normative
-use in other modules but use of the grammar is typically through use of
-a parser.  There are two types of parser, an OctetParser that is used
-for parsing raw strings (or octets, represented by bytes in Python) such
-as those obtained from the HTTP connection itself and a WordParser that
-tokenizes the input string first and then provides a higher-level
+The functions and data definitions here are exposed to enable normative
+use in other modules.  Use of the grammar itself is typically through
+use of a parser.  There are two types of parser, an OctetParser that is
+used for parsing raw strings (or octets, represented by bytes in Python)
+such as those obtained from the HTTP connection itself and a WordParser
+that tokenizes the input string first and then provides a higher-level
 word-based parser.
 
 

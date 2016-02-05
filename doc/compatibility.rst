@@ -57,15 +57,26 @@ definitions that target the particular idioms I've used in the package.
 :doc:`py2`
 
 Although the package can't be built for distribution or installed using
-setup.py, if you include the source locally you can successfully import
-the following modules in Python 3 (in addition to compatibility modules
-described elsewhere on this page)::
+pip or setup.py (yet), if you use the source distribution you can
+successfully import the following modules in Python 3 (in addition to
+the compatibility modules described elsewhere on this page)::
 
+    pyslet.http.grammar
+    pyslet.http.params
     pyslet.info
     pyslet.iso8601
     pyslet.rfc2396
     pyslet.unicode5
+    pyslet.urn
     pyslet.vfs
+
+The unittest script (and the tox configuration) has been modified to
+enable Python3 compatibility to be checked with::
+
+    tox -e py35
+    
+shoud now succeed if you have Python 3.5 and tox installed on your
+system.
 
 
 PEP-8

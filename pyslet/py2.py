@@ -46,8 +46,10 @@ if py2:
 
     empty_text = unicode("")
 
-    def is_text(arg):
+    def is_string(arg):
         return isinstance(arg, types.StringTypes)
+
+    is_text = is_string
 
     def force_text(arg):
         if isinstance(arg, str):
@@ -158,6 +160,9 @@ else:
 
     empty_text = ""
 
+    def is_string(arg):
+        return isinstance(arg, (str, bytes))
+
     def is_text(arg):
         return isinstance(arg, str)
 
@@ -232,7 +237,6 @@ else:
 
 
 class UnicodeMixin(object):
-
     """Mixin class to handle string formatting
 
     For classes that need to define a __unicode__ method of their own
@@ -253,14 +257,111 @@ class UnicodeMixin(object):
             return self.__unicode__()
 
 
-class CmpMixin(object):
+class SortableMixin(object):
+    """Mixin class for handling comparisons
 
+    Utility class for helping provide comparisons that are compatible
+    with Python 2 and Python 3.  Classes must define a method
+    :meth:`sortkey` which returns a sortable key value representing the
+    instance.
+
+    Derived classes may optionally override the classmethod :meth:`otherkey`
+    to provide an ordering against other object types.
+
+    This mixin then adds implementations for all of the comparison
+    methods: __eq__, __ne__, __lt__, __le__, __gt__, __ge__."""
+
+    def sortkey(self):
+        """Returns a value to use as a key for sorting.
+
+        By default returns NotImplemented.  This value causes the
+        comparison functions to also return NotImplemented."""
+        return NotImplemented
+
+    def otherkey(self, other):
+        """Returns a value to use as a key for sorting
+
+        The difference between this method and :meth:`sortkey` is that
+        this method takes an arbitrary object and either returns the key
+        to use when comparising with this instance or NotImplemented if
+        the sorting is not supported.
+
+        You don't have to override this implementation, by default it
+        returns other.sortkey() if *other* is an instance of the same
+        class as *self*, otherwise it returns NotImplemented."""
+        if isinstance(other, self.__class__):
+            return other.sortkey()
+        else:
+            return NotImplemented
+
+    def __eq__(self, other):
+        a = self.sortkey()
+        b = self.otherkey(other)
+        if NotImplemented in (a, b):
+            return NotImplemented
+        else:
+            return a == b
+
+    def __ne__(self, other):
+        a = self.sortkey()
+        b = self.otherkey(other)
+        if NotImplemented in (a, b):
+            return NotImplemented
+        else:
+            return a != b
+
+    def __lt__(self, other):
+        a = self.sortkey()
+        b = self.otherkey(other)
+        if NotImplemented in (a, b):
+            if py2:
+                raise TypeError("unorderable types: %s < %s" %
+                                (repr(self), repr(other)))
+            return NotImplemented
+        else:
+            return a < b
+
+    def __le__(self, other):
+        a = self.sortkey()
+        b = self.otherkey(other)
+        if NotImplemented in (a, b):
+            if py2:
+                raise TypeError("unorderable types: %s <= %s" %
+                                (repr(self), repr(other)))
+            return NotImplemented
+        else:
+            return a <= b
+
+    def __gt__(self, other):
+        a = self.sortkey()
+        b = self.otherkey(other)
+        if NotImplemented in (a, b):
+            if py2:
+                raise TypeError("unorderable types: %s > %s" %
+                                (repr(self), repr(other)))
+            return NotImplemented
+        else:
+            return a > b
+
+    def __ge__(self, other):
+        a = self.sortkey()
+        b = self.otherkey(other)
+        if NotImplemented in (a, b):
+            if py2:
+                raise TypeError("unorderable types: %s >= %s" %
+                                (repr(self), repr(other)))
+            return NotImplemented
+        else:
+            return a >= b
+
+
+class CmpMixin(object):
     """Mixin class for handling comparisons
 
     For compatibility with Python 2's __cmp__ method this class defines
-    an implementation of __eq__, __lt__ and __le__ that are redirected
-    to __cmp__.  These are the minimum methods required for Python's
-    rich comparisons.
+    an implementation of __eq__, __lt__, __le__, __gt__, __ge__ that are
+    redirected to __cmp__.  These are the minimum methods required for
+    Python's rich comparisons.
 
     In Python 2 it also provides an implementation of __ne__ that simply
     inverts the result of __eq__.  (This is not required in Python 3.)"""
@@ -273,6 +374,12 @@ class CmpMixin(object):
 
     def __le__(self, other):
         return self.__cmp__(other) <= 0
+
+    def __gt__(self, other):
+        return self.__cmp__(other) > 0
+
+    def __ge__(self, other):
+        return self.__cmp__(other) >= 0
 
     if py2:
         def __ne__(self, other):    # noqa

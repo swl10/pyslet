@@ -45,11 +45,21 @@ Not sure which version you are using?  Try::
 Version 0.7
 -----------
 
-Build 20160203:
+Build 20160205:
 
-#38 http.grammar module now works in Python 3
+#38 Python 3 compatibility work
 
-#38 urn module now works in Python 3
+http.params module now works in Python 3
+http.grammar module now works in Python 3
+urn module now works in Python 3
+
+Added SortableMixin to emulate Python 3 TypeErrors in comparisons and to
+simplify implementation of comparison/hash operators in custom classes.
+As a result, some Time/TimePoint comparisons which used to raise
+ValueError (e.g., due to incompatible precision) now return False for ==
+and != operators and raise TypeError for inequalities (<, >, etc). 
+OData is unaffected as OData time values of the same EDM type are always
+comparable.
 
 
 Version 0.6.20160201

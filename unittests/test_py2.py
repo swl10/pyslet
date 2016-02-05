@@ -33,6 +33,10 @@ class Python2Tests(unittest.TestCase):
         udata = u"hello"
         bdata = b"hello"
         xdata = ['hello']
+        self.assertTrue(py2.is_string(data))
+        self.assertTrue(py2.is_string(udata))
+        self.assertTrue(py2.is_string(bdata))
+        self.assertFalse(py2.is_string(xdata))
         self.assertTrue(py2.is_text(data))
         self.assertTrue(py2.is_text(udata))
         if sys.version_info[0] < 3:
@@ -226,14 +230,13 @@ class Python2Tests(unittest.TestCase):
             def __init__(self, data):
                 self.data = data
 
-            def __lt__(self, other):
-                return self.data < other.data
-
-            def __eq__(self, other):
-                return self.data == other.data
-
-            def __le__(self, other):
-                return self.data <= other.data
+            def __cmp__(self, other):
+                if self.data < other.data:
+                    return -1
+                elif self.data == other.data:
+                    return 0
+                else:
+                    return 1
 
         # call __eq__
         self.assertTrue(X(1) == X(1))
@@ -255,6 +258,103 @@ class Python2Tests(unittest.TestCase):
         self.assertTrue(X(1) >= X(1))
         self.assertTrue(X(2) >= X(1))
         self.assertFalse(X(1) >= X(2))
+
+    def test_key_simple(self):
+        class X(py2.SortableMixin):
+            def __init__(self, data):
+                self.data = data
+
+            def sortkey(self):
+                return self.data
+
+        # call __eq__
+        self.assertTrue(X(1) == X(1))
+        self.assertFalse(X(1) == X(2))
+        # call __ne__
+        self.assertFalse(X(1) != X(1))
+        self.assertTrue(X(1) != X(2))
+        # call __lt__
+        self.assertFalse(X(1) < X(1))
+        self.assertTrue(X(1) < X(2))
+        # call __le__
+        self.assertTrue(X(1) <= X(1))
+        self.assertTrue(X(1) <= X(2))
+        self.assertFalse(X(2) <= X(1))
+        # call __gt__
+        self.assertFalse(X(1) > X(1))
+        self.assertTrue(X(2) > X(1))
+        # call __ge__
+        self.assertTrue(X(1) >= X(1))
+        self.assertTrue(X(2) >= X(1))
+        self.assertFalse(X(1) >= X(2))
+        # can't compare different types
+        # Python 2 and 3 return False if __eq__ returns NotImplemented
+        self.assertFalse(X(1) == 1)
+        # and hence True...
+        self.assertTrue(X(1) != 1)
+        try:
+            # falls back to object ids in Python 2
+            X(1) < 2 or X(1) > 2
+            self.fail("unorderable types: TypeError")
+        except TypeError:
+            pass
+        try:
+            # falls back to object ids in Python 2
+            X(1) <= 2 or X(1) >= 2
+            self.fail("unorderable types: TypeError")
+        except TypeError:
+            pass
+
+    def test_key_other(self):
+        class X(py2.SortableMixin):
+            def __init__(self, data):
+                self.data = data
+
+            def otherkey(self, other):
+                if isinstance(other, X):
+                    return other.data
+                elif isinstance(other, int):
+                    return other
+                else:
+                    return NotImplemented
+
+            def sortkey(self):
+                return self.data
+
+        # call __eq__
+        self.assertTrue(X(1) == X(1))
+        self.assertTrue(X(1) == 1)
+        self.assertFalse(X(1) == X(2))
+        self.assertFalse(X(1) == 2)
+        # call __ne__
+        self.assertFalse(X(1) != X(1))
+        self.assertFalse(X(1) != 1)
+        self.assertTrue(X(1) != X(2))
+        self.assertTrue(X(1) != 2)
+        # call __lt__
+        self.assertFalse(X(1) < X(1))
+        self.assertFalse(X(1) < 1)
+        self.assertTrue(X(1) < X(2))
+        self.assertTrue(X(1) < 2)
+        # call __le__
+        self.assertTrue(X(1) <= X(1))
+        self.assertTrue(X(1) <= 1)
+        self.assertTrue(X(1) <= X(2))
+        self.assertTrue(X(1) <= 2)
+        self.assertFalse(X(2) <= X(1))
+        self.assertFalse(X(2) <= 1)
+        # call __gt__
+        self.assertFalse(X(1) > X(1))
+        self.assertFalse(X(1) > 1)
+        self.assertTrue(X(2) > X(1))
+        self.assertTrue(X(2) > 1)
+        # call __ge__
+        self.assertTrue(X(1) >= X(1))
+        self.assertTrue(X(1) >= 1)
+        self.assertTrue(X(2) >= X(1))
+        self.assertTrue(X(2) >= 1)
+        self.assertFalse(X(1) >= X(2))
+        self.assertFalse(X(1) >= 2)
 
     def test_literals(self):
         data1 = "hello"
