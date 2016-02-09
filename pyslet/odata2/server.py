@@ -711,7 +711,7 @@ class Server(app.Server):
                             if "CONTENT_TYPE" in environ:
                                 sinfo.type = params.MediaType.from_str(
                                     environ["CONTENT_TYPE"])
-                            input = app.InputWrapper(environ)
+                            input = messages.WSGIInputWrapper(environ)
                             with resource.entity_set.OpenCollection() as coll:
                                 coll.update_stream(input,
                                                    resource.key(),
@@ -781,7 +781,7 @@ class Server(app.Server):
                     if "HTTP_LAST_MODIFIED" in environ:
                         sinfo.modified = params.FullDate.from_http_str(
                             environ["HTTP_LAST_MODIFIED"])
-                    input = app.InputWrapper(environ)
+                    input = messages.WSGIInputWrapper(environ)
                     if "HTTP_SLUG" in environ:
                         slug = app.Slug(environ["HTTP_SLUG"])
                         # if the slug is a bracketed string treat it
@@ -1132,7 +1132,7 @@ class Server(app.Server):
                         atomFlag = False
                         break
             encoding = requestType.parameters.get('charset', (None, None))[1]
-        input = app.InputWrapper(environ)
+        input = messages.WSGIInputWrapper(environ)
         unicodeInput = None
         if encoding is None:
             # read a line, at most 4 bytes
@@ -1346,7 +1346,7 @@ class Server(app.Server):
             raise core.InvalidData(
                 "Unable to parse property value from request "
                 "body (found <%s>)" % str(requestType))
-        data = app.InputWrapper(environ).read()
+        data = messages.WSGIInputWrapper(environ).read()
         if requestType.type == "text":
             encoding = requestType.parameters.get('charset', (None, None))[1]
             if encoding is None:

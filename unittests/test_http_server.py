@@ -1,25 +1,33 @@
 #! /usr/bin/env python
 
-import unittest
-import logging
+import errno
 import io
-import socket
-import SocketServer
+import logging
+import os
 import random
 import select
+import socket
+import threading
+import time
+import unittest
 
-import pyslet.rfc5023 as app
-from pyslet.http.server import *       # noqa
+import pyslet.http.messages as messages
+
+from pyslet.streams import Pipe, io_timedout
+from pyslet.py2 import range3
+
+import pyslet.http.params as params
+# rely on server to import socketserver module
+import pyslet.http.server as server
 
 
 def suite():
     return unittest.TestSuite((
         unittest.makeSuite(ServerTests, 'test'),
-        unittest.makeSuite(PipeTests, 'test'),
     ))
 
 
-TEST_BODY = "The quick brown fox jumped over the lazy dog."
+TEST_BODY = b"The quick brown fox jumped over the lazy dog."
 
 
 class MockTime:
@@ -212,8 +220,8 @@ class MockSocket(MockSocketBase):
                 response.recv(self.send_pipe.readmatch())
             elif mode == messages.Message.RECV_HEADERS:
                 lines = []
-                last_line = ''
-                while last_line != '\r\n':
+                last_line = b''
+                while last_line != b'\r\n':
                     last_line = self.send_pipe.readmatch()
                     lines.append(last_line)
                 response.recv(lines)
@@ -228,7 +236,7 @@ class MockSocket(MockSocketBase):
         return response
 
 
-class UnboundServer(Server):
+class UnboundServer(server.Server):
 
     def server_bind(self):
         # do nothing
@@ -263,7 +271,7 @@ class ServerTests(unittest.TestCase):
     def test_simple(self):
         # we must pass the port (to the left?)
         s = UnboundServer(port=self.port)
-        self.assertTrue(isinstance(s, SocketServer.TCPServer))
+        self.assertTrue(isinstance(s, server.socketserver.TCPServer))
         # check some attributes
         self.assertTrue(s.address_family == socket.AF_INET)
         self.assertTrue(s.server_address == ('127.0.0.1', self.port),
@@ -276,7 +284,7 @@ class ServerTests(unittest.TestCase):
         t = threading.Thread(target=self.run_request, args=(s, sock))
         t.start()
         # write of str will not block on an empty pipe
-        sock.recv_wbuffer.write("GET / HTTP/1.0\r\n\r\n")
+        sock.recv_wbuffer.write(b"GET / HTTP/1.0\r\n\r\n")
         sock.recv_wbuffer.flush()
         sock.recv_pipe.write_eof()
         # with no application bound we expect default wsgi handling
@@ -284,10 +292,11 @@ class ServerTests(unittest.TestCase):
         # read a fairly large chunk of response data
         response = sock.send_rbuffer.readline()
         logging.debug("test_simple: response\r\n%s", response)
-        self.assertTrue(response.startswith("HTTP/1.1 404 "))
+        self.assertTrue(response.startswith(b"HTTP/1.1 404 "))
         sock.close()
         # now join our handler as it must exit
         t.join()
+        s.server_close()
 
     def test_transfer_encoding(self):
         """RFC2616:
@@ -300,37 +309,38 @@ class ServerTests(unittest.TestCase):
         t = threading.Thread(target=self.run_request, args=(s, sock))
         t.start()
         # write of str will not block on an empty pipe
-        sock.recv_wbuffer.write("POST / HTTP/1.1\r\n"
-                                "Transfer-Encoding: unknown, chunked\r\n\r\n")
+        sock.recv_wbuffer.write(b"POST / HTTP/1.1\r\n"
+                                b"Transfer-Encoding: unknown, chunked\r\n\r\n")
         # force the data into the pipe (won't flush the Pipe itself)
         sock.recv_wbuffer.flush()
         sock.send_pipe.read_wait(5)
         response = sock.send_rbuffer.read()
         self.assertTrue(response is not None, "response still blocked")
         logging.debug("test_transfer_encoding: response\r\n%s", response)
-        self.assertTrue(response.startswith("HTTP/1.1 501 "))
+        self.assertTrue(response.startswith(b"HTTP/1.1 501 "))
         # let's try and send another request, should fail
         try:
-            sock.recv_wbuffer.write("GET / HTTP/1.1\r\n\r\n")
+            sock.recv_wbuffer.write(b"GET / HTTP/1.1\r\n\r\n")
             sock.recv_wbuffer.flush()
             sock.send_pipe.read_wait(5)
         except IOError as e:
             # this must not be a timeout!
-            self.assertFalse(messages.io_timedout(e))
+            self.assertFalse(io_timedout(e))
         except ValueError:
             # raised by BufferedWriter when it has been closed
             pass
         # now join our handler as it must exit
         sock.close()
         t.join()
+        s.server_close()
 
     def multidata_app(self, environ, start_response):
         # the point of this app is to generate data of unknown
         # length forcing chunked encoding where possible
         start_response("200 OK", [])
-        for i in xrange(random.randint(2, 10)):
-            yield "Hello"
-        yield "xyz"
+        for i in range3(random.randint(2, 10)):
+            yield b"Hello"
+        yield b"xyz"
 
     def test_nochunked(self):
         """RFC2616:
@@ -341,22 +351,22 @@ class ServerTests(unittest.TestCase):
         t = threading.Thread(target=self.run_request, args=(s, sock))
         t.start()
         # write of str will not block on an empty pipe
-        sock.recv_wbuffer.write("GET /a HTTP/1.0\r\n\r\n")
+        sock.recv_wbuffer.write(b"GET /a HTTP/1.0\r\n\r\n")
         # force the data into the pipe (won't flush the Pipe itself)
         sock.recv_wbuffer.flush()
-        response = sock.send_pipe.readmatch("xyz")
+        response = sock.send_pipe.readmatch(b"xyz")
         self.assertTrue(response is not None, "response still blocked")
         logging.debug("test_nochunked: response\r\n%s", response)
-        self.assertTrue(response.startswith("HTTP/1.1 200 "))
-        self.assertFalse("chunked" in response.lower(), "No chunked")
+        self.assertTrue(response.startswith(b"HTTP/1.1 200 "))
+        self.assertFalse(b"chunked" in response.lower(), "No chunked")
         # it should close the connection...
         try:
-            sock.recv_wbuffer.write("GET /b HTTP/1.0\r\n\r\n")
+            sock.recv_wbuffer.write(b"GET /b HTTP/1.0\r\n\r\n")
             sock.recv_wbuffer.flush()
             sock.send_pipe.read_wait(5)
         except IOError as e:
             # this must not be a timeout!
-            self.assertFalse(messages.io_timedout(e))
+            self.assertFalse(io_timedout(e))
         except ValueError:
             # raised by BufferedWriter when it has been closed
             pass
@@ -365,6 +375,7 @@ class ServerTests(unittest.TestCase):
         logging.debug("test_nochunked: waiting for handler...")
         t.join()
         logging.debug("test_nochunked: end of test")
+        s.server_close()
 
     def test_chunked(self):
         """Contrast test, we expect chunked for HTTP/1.1"""
@@ -373,20 +384,20 @@ class ServerTests(unittest.TestCase):
         t = threading.Thread(target=self.run_request, args=(s, sock))
         t.start()
         # write of str will not block on an empty pipe
-        sock.recv_wbuffer.write("GET /a HTTP/1.1\r\n\r\n")
+        sock.recv_wbuffer.write(b"GET /a HTTP/1.1\r\n\r\n")
         # force the data into the pipe (won't flush the Pipe itself)
         sock.recv_wbuffer.flush()
-        response = sock.send_pipe.readmatch("0\r\n\r\n")
+        response = sock.send_pipe.readmatch(b"0\r\n\r\n")
         self.assertTrue(response is not None, "response still blocked")
         logging.debug("test_chunked: response\r\n%s", response)
-        self.assertTrue(response.startswith("HTTP/1.1 200 "))
-        self.assertTrue("chunked" in response.lower(), "Expected chunked")
+        self.assertTrue(response.startswith(b"HTTP/1.1 200 "))
+        self.assertTrue(b"chunked" in response.lower(), "Expected chunked")
         # it should not close the connection...
         try:
-            sock.recv_wbuffer.write("GET /b HTTP/1.1\r\n\r\n")
+            sock.recv_wbuffer.write(b"GET /b HTTP/1.1\r\n\r\n")
             sock.recv_wbuffer.flush()
             sock.send_pipe.read_wait(5)
-            response = sock.send_pipe.readmatch("0\r\n\r\n")
+            response = sock.send_pipe.readmatch(b"0\r\n\r\n")
         except ValueError:
             # raised by BufferedWriter when it has been closed
             self.fail("Expected keep-alive")
@@ -395,6 +406,7 @@ class ServerTests(unittest.TestCase):
         # now join our handler as it must exit
         sock.close()
         t.join()
+        s.server_close()
 
     def test_trailers(self):
         """RFC 2616:
@@ -418,28 +430,29 @@ class ServerTests(unittest.TestCase):
         t = threading.Thread(target=self.run_request, args=(s, sock))
         t.start()
         # start with an empty line, should be ignored
-        sock.recv_wbuffer.write("\r\n")
+        sock.recv_wbuffer.write(b"\r\n")
         sock.recv_wbuffer.flush()
         # now send a request
-        sock.recv_wbuffer.write("POST /form.cgi HTTP/1.1\r\n")
-        sock.recv_wbuffer.write("Content-length: 3\r\n\r\n")
+        sock.recv_wbuffer.write(b"POST /form.cgi HTTP/1.1\r\n")
+        sock.recv_wbuffer.write(b"Content-length: 3\r\n\r\n")
         # buggy HTTP/1.0 form with trailing CRLF after POST data
-        sock.recv_wbuffer.write("a=b\r\n")
+        sock.recv_wbuffer.write(b"a=b\r\n")
         sock.recv_wbuffer.flush()
-        response = sock.send_pipe.readmatch('\r\n\r\n')
+        response = sock.send_pipe.readmatch(b'\r\n\r\n')
         self.assertTrue(response is not None, "response still blocked")
         logging.debug("test_emptylines: response1\r\n%s", response)
-        self.assertTrue(response.startswith("HTTP/1.1 404 "))
+        self.assertTrue(response.startswith(b"HTTP/1.1 404 "))
         # should be good for the next request
-        sock.recv_wbuffer.write("GET /page.htm HTTP/1.1\r\n\r\n")
+        sock.recv_wbuffer.write(b"GET /page.htm HTTP/1.1\r\n\r\n")
         sock.recv_wbuffer.flush()
-        response = sock.send_pipe.readmatch('\r\n\r\n')
+        response = sock.send_pipe.readmatch(b'\r\n\r\n')
         self.assertTrue(response is not None, "response still blocked")
         logging.debug("test_emptylines: response2\r\n%s", response)
-        self.assertTrue(response.startswith("HTTP/1.1 404 "))
+        self.assertTrue(response.startswith(b"HTTP/1.1 404 "))
         sock.mock_shutdown(socket.SHUT_RDWR)
         # now join our handler as it must exit
         t.join()
+        s.server_close()
 
     def host_app(self, environ, start_response):
         server_name = environ.get('HTTP_HOST', None)
@@ -506,11 +519,12 @@ class ServerTests(unittest.TestCase):
         sock.mock_shutdown(socket.SHUT_RDWR)
         sock.close()
         t.join()
+        s.server_close()
 
     def continue_app(self, environ, start_response):
         path = environ.get('PATH_INFO', None)
         if path == "/wait":
-            input = app.InputWrapper(environ)
+            input = messages.WSGIInputWrapper(environ)
             # read and discard all the data
             input.read()
             start_response("200 Success", [])
@@ -579,6 +593,7 @@ class ServerTests(unittest.TestCase):
         sock.mock_shutdown(socket.SHUT_RDWR)
         sock.close()
         t.join()
+        s.server_close()
 
     def test_continue10(self):
         """RFC2616:
@@ -604,6 +619,7 @@ class ServerTests(unittest.TestCase):
         response = sock.receive_response(request)
         self.assertTrue(response.status == 200)
         self.assertTrue(response.keep_alive)
+        s.server_close()
 
 
 class Legacy(unittest.TestCase):
@@ -611,6 +627,9 @@ class Legacy(unittest.TestCase):
     def setUp(self):        # noqa
         self.port = random.randint(1111, 9999)
         self.s = UnboundServer(port=self.port, protocol=params.HTTP_1p0)
+
+    def tearDown(self):     # noqa
+        self.s.server_close()
 
     def run_request(self, sock):
         # automatically calls the handle method
@@ -631,341 +650,7 @@ class Legacy(unittest.TestCase):
         pass
 
 
-class PipeTests(unittest.TestCase):
-
-    def test_simple(self):
-        p = Pipe()
-        # default constructor
-        self.assertTrue(isinstance(p, io.RawIOBase))
-        self.assertFalse(p.closed)
-        try:
-            p.fileno()
-            self.fail("fileno should raise IOError")
-        except IOError:
-            pass
-        self.assertFalse(p.isatty())
-        self.assertTrue(p.readable())
-        self.assertFalse(p.seekable())
-        self.assertTrue(p.writable())
-        # now for our custom attributes
-        self.assertTrue(p.readblocking())
-        self.assertTrue(p.writeblocking())
-        self.assertTrue(p.canwrite() == io.DEFAULT_BUFFER_SIZE)
-        self.assertFalse(p.canread())
-        # now try a quick read and write test
-        data = "The quick brown fox jumped over the lazy dog"
-        wlen = p.write(data)
-        self.assertTrue(wlen == len(data))
-        self.assertTrue(p.canwrite() == io.DEFAULT_BUFFER_SIZE - len(data))
-        self.assertTrue(p.canread())
-        self.assertTrue(p.read(3) == data[:3])
-        self.assertTrue(p.canwrite() == io.DEFAULT_BUFFER_SIZE - len(data) + 3)
-        self.assertTrue(p.canread())
-        # now deal with EOF conditions
-        p.write_eof()
-        try:
-            p.write("extra")
-            self.fail("write past EOF")
-        except IOError:
-            pass
-        try:
-            p.canwrite()
-            self.fail("canwrite called past EOF")
-        except IOError:
-            pass
-        self.assertTrue(p.canread(), "But can still read")
-        self.assertFalse(p.closed)
-        self.assertTrue(p.readall() == data[3:])
-        self.assertTrue(p.canread(), "Can still read")
-        self.assertTrue(p.read(3) == '')
-        self.assertTrue(len(p.read()) == 0)
-        self.assertTrue(len(p.readall()) == 0)
-        p.close()
-        self.assertTrue(p.closed)
-        try:
-            p.canread()
-            self.fail("canread called on closed pipe")
-        except IOError:
-            pass
-
-    def test_blocking(self):
-        p = Pipe(timeout=1, bsize=10)
-        self.assertTrue(p.readblocking())
-        self.assertTrue(p.writeblocking())
-        try:
-            # should block for 1 second and then timeout
-            rresult = p.read(1)
-            self.fail("blocked read returned %s" % repr(rresult))
-        except IOError as e:
-            self.assertTrue(messages.io_timedout(e))
-        p.write("123")
-        # should not block!
-        rresult = p.read(5)
-        self.assertTrue(rresult == "123")
-        # should not block, just!
-        p.write(bytearray("1234567890"))
-        try:
-            # should block for 1 second
-            wresult = p.write("extra")
-            self.fail("blocked write returned %s" % repr(wresult))
-        except IOError as e:
-            self.assertTrue(messages.io_timedout(e))
-        try:
-            # should block for 1 second
-            logging.debug("flush waiting for 1s timeout...")
-            p.flush()
-            self.fail("blocked flush returned")
-        except IOError as e:
-            logging.debug("flush caught 1s timeout; %s", str(e))
-
-    def wrunner(self, p):
-        # write some data to the pipe p
-        time.sleep(1)
-        p.write("1234567890")
-
-    def test_rblocking(self):
-        p = Pipe(timeout=15)
-        t = threading.Thread(target=self.wrunner, args=(p,))
-        t.start()
-        try:
-            # should block until the other thread writes
-            rresult = p.read(1)
-            self.assertTrue(rresult == "1")
-        except IOError as e:
-            self.fail("Timeout on mutlithreaded pipe; %s" % str(e))
-
-    def rrunner(self, p):
-        # read some data from the pipe p
-        time.sleep(1)
-        p.read(1)
-
-    def rallrunner(self, p):
-        # read all the data from p until there is no more
-        time.sleep(1)
-        logging.debug("rallrunner: calling readall")
-        p.readall()
-
-    def test_rdetect(self):
-        p = Pipe(timeout=15, bsize=10)
-        rflag = threading.Event()
-        # set a read event
-        p.set_rflag(rflag)
-        self.assertFalse(rflag.is_set())
-        t = threading.Thread(target=self.rrunner, args=(p,))
-        t.start()
-        # the runner will issue a read call, should trigger the event
-        rflag.wait(5.0)
-        self.assertTrue(rflag.is_set())
-        # write 10 bytes, thread should terminate
-        p.write("1234567890")
-        t.join()
-        # one byte read, write another byte
-        p.write("A")
-        # buffer should now be full at this point...
-        self.assertFalse(p.canwrite())
-        self.assertFalse(rflag.is_set())
-        # the next call to read should set the flag again
-        p.read(1)
-        self.assertTrue(rflag.is_set())
-
-    def test_wblocking(self):
-        p = Pipe(timeout=15, bsize=10)
-        t = threading.Thread(target=self.rrunner, args=(p,))
-        p.write("1234567890")
-        data = "extra"
-        t.start()
-        try:
-            # should block until the other thread reads
-            wresult = p.write(bytearray(data))
-            # and should then write at most 1 byte
-            self.assertTrue(wresult == 1, repr(wresult))
-        except IOError as e:
-            self.fail("Timeout on mutlithreaded pipe; %s" % str(e))
-        t = threading.Thread(target=self.rallrunner, args=(p,))
-        t.start()
-        try:
-            # should block until all data has been read
-            logging.debug("flush waiting...")
-            p.flush()
-            logging.debug("flush complete")
-            self.assertTrue(p.canwrite() == 10, "empty after flush")
-        except IOError as e:
-            self.fail("flush timeout on mutlithreaded pipe; %s" % str(e))
-        # put the other thread out of its misery
-        p.write_eof()
-        logging.debug("eof written, joining rallrunner")
-        t.join()
-
-    def test_rnblocking(self):
-        p = Pipe(timeout=1, bsize=10, rblocking=False)
-        self.assertFalse(p.readblocking())
-        self.assertTrue(p.writeblocking())
-        try:
-            # should not block
-            rresult = p.read(1)
-            self.assertTrue(rresult is None)
-        except IOError as e:
-            self.fail("Timeout on non-blocking read; %s" % str(e))
-        # write should still block
-        p.write("1234567890")
-        try:
-            # should block for 1 second
-            wresult = p.write("extra")
-            self.fail("blocked write returned %s" % repr(wresult))
-        except IOError as e:
-            self.assertTrue(messages.io_timedout(e))
-
-    def test_wnblocking(self):
-        p = Pipe(timeout=1, bsize=10, wblocking=False)
-        self.assertTrue(p.readblocking())
-        self.assertFalse(p.writeblocking())
-        p.write("1234567890")
-        data = "extra"
-        try:
-            # should not block
-            wresult = p.write(data)
-            self.assertTrue(wresult is None, repr(wresult))
-        except IOError as e:
-            self.fail("Timeout on non-blocking write; %s" % str(e))
-        # read all the data to empty the buffer
-        self.assertTrue(len(p.read(10)) == 10, "in our case, True!")
-        try:
-            # should block for 1 second and then timeout
-            rresult = p.read(1)
-            self.fail("blocked read returned %s" % repr(rresult))
-        except IOError as e:
-            self.assertTrue(messages.io_timedout(e))
-        p.write("1234567890")
-        try:
-            # should not block!
-            p.flush()
-            self.fail("non-blocking flush returned with data")
-        except io.BlockingIOError:
-            pass
-        except IOError as e:
-            self.fail("non-blocking flush timed out; %s" % str(e))
-
-    def wwait_runner(self, p):
-        time.sleep(1)
-        p.read(1)
-
-    def test_wwait(self):
-        p = Pipe(timeout=1, bsize=10, wblocking=False)
-        p.write("1234567890")
-        data = "extra"
-        wresult = p.write(data)
-        self.assertTrue(wresult is None, "write blocked")
-        try:
-            p.write_wait(timeout=1)
-            self.fail("wait should time out")
-        except IOError as e:
-            self.assertTrue(messages.io_timedout(e))
-        t = threading.Thread(target=self.wwait_runner, args=(p,))
-        t.start()
-        time.sleep(0)
-        try:
-            p.write_wait(timeout=5)
-            pass
-        except IOError:
-            self.fail("write_wait error on multi-threaded read; %s" % str(e))
-
-    def rwait_runner(self, p):
-        time.sleep(1)
-        p.write("1234567890")
-
-    def test_rwait(self):
-        p = Pipe(timeout=1, bsize=10, rblocking=False)
-        rresult = p.read(1)
-        self.assertTrue(rresult is None, "read blocked")
-        try:
-            p.read_wait(timeout=1)
-            self.fail("wait should time out")
-        except IOError as e:
-            self.assertTrue(messages.io_timedout(e))
-        t = threading.Thread(target=self.rwait_runner, args=(p,))
-        t.start()
-        time.sleep(0)
-        try:
-            p.read_wait(timeout=5)
-            pass
-        except IOError as e:
-            self.fail("read_wait error on multi-threaded write; %s" % str(e))
-
-    def test_eof(self):
-        p = Pipe(timeout=1, bsize=10)
-        p.write("123")
-        self.assertTrue(p.canread())
-        p.read(3)
-        self.assertFalse(p.canread())
-        p.write_eof()
-        self.assertTrue(p.canread())
-        self.assertTrue(p.read(3) == '')
-
-    def test_readall(self):
-        p = Pipe(timeout=1, bsize=10, rblocking=False)
-        p.write("123")
-        # readall should block and timeout
-        try:
-            data = p.readall()
-            self.fail("blocked readall returned: %s" % data)
-        except IOError as e:
-            self.assertTrue(messages.io_timedout(e))
-
-    def test_nbreadmatch(self):
-        p = Pipe(timeout=1, bsize=10, rblocking=False)
-        p.write("12")
-        p.write("3\r\n")
-        self.assertTrue(p.readmatch() == "123\r\n")
-        # now check behaviour when no line is present
-        p.write("1")
-        p.write("2")
-        p.write("3")
-        self.assertTrue(p.readmatch() is None, "non-blocking readmatch")
-        p.write("\r")
-        self.assertTrue(p.readmatch() is None, "non-blocking partial match")
-        p.write("\nabc")
-        self.assertTrue(p.readmatch() == "123\r\n")
-        # now check for buffer size exceeded
-        p.write("\r3\n4\r56\n")
-        try:
-            p.readmatch()
-            self.fail("non-blocking full buffer")
-        except IOError as e:
-            self.assertTrue(e.errno == errno.ENOBUFS)
-        # now add an EOF and it should change the result
-        p.write_eof()
-        self.assertTrue(p.readmatch() == '')
-
-    def test_breadmatch(self):
-        p = Pipe(timeout=1, bsize=10, rblocking=True)
-        p.write("12")
-        p.write("3\r\n")
-        self.assertTrue(p.readmatch() == "123\r\n")
-        # now check behaviour when no line is present
-        p.write("1")
-        p.write("2")
-        p.write("3")
-        try:
-            p.readmatch()
-            self.fail("blocking readmatch")
-        except IOError as e:
-            self.assertTrue(messages.io_timedout(e))
-        p.write("\r")
-        p.write("\nabc")
-        self.assertTrue(p.readmatch() == "123\r\n")
-        # now check for buffer size exceeded
-        p.write("\r3\n4\r56\n")
-        try:
-            p.readmatch()
-            self.fail("blocking full buffer")
-        except IOError as e:
-            self.assertTrue(e.errno == errno.ENOBUFS)
-        # now add an EOF and it should change the result
-        p.write_eof()
-        self.assertTrue(p.readmatch() == '')
-
-
 if __name__ == '__main__':
     logging.basicConfig(
-        level=logging.INFO, format="[%(thread)d] %(levelname)s %(message)s")
+        level=logging.DEBUG, format="[%(thread)d] %(levelname)s %(message)s")
     unittest.main()

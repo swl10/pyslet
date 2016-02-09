@@ -105,7 +105,7 @@ class GenericParserTests(unittest.TestCase):
                         repr(p.words))
         # token
         try:
-            check_token(b"Hi")
+            self.assertTrue(check_token(b"Hi") == "Hi")
         except ValueError:
             self.fail("check_token(b'Hi')")
         for t in word_testresult:
@@ -128,13 +128,13 @@ class GenericParserTests(unittest.TestCase):
 
     def test_token_list(self):
         p = WordParser(" a ")
-        self.assertTrue(p.parse_tokenlist() == [b"a"], "Expected [b'a']")
+        self.assertTrue(p.parse_tokenlist() == ["a"], "Expected ['a']")
         self.assertFalse(p.the_word, "Expected no more words")
         self.assertFalse(p.is_token(), "Expected no token")
         p = WordParser(" a , b,c ,d,,efg")
         result = p.parse_tokenlist()
         self.assertTrue(
-            result == [b"a", b"b", b"c", b"d", b"efg"],
+            result == ["a", "b", "c", "d", "efg"],
             "Bad token list: %s" % repr(result))
         self.assertFalse(p.the_word, "Expected no more words")
         self.assertFalse(p.is_token(), "Expected no token")
@@ -151,9 +151,9 @@ class GenericParserTests(unittest.TestCase):
         p.parse_parameters(parameters)
         self.assertTrue(
             parameters == {
-                b'x': (b'X', b'1'),
-                b'y': (b'y', b'2'),
-                b'zoo': (b'Zoo', b';A="Three"')},
+                'x': ('X', b'1'),
+                'y': ('y', b'2'),
+                'zoo': ('Zoo', b';A="Three"')},
             "Paremters: %s" % repr(parameters))
         try:
             parameters = {}
@@ -165,22 +165,22 @@ class GenericParserTests(unittest.TestCase):
             pass
         parameters = {}
         p = WordParser(b' ;X=1 ;q=2;Zoo=";A=\\"Three\\""')
-        p.parse_parameters(parameters, qmode=b"q")
+        p.parse_parameters(parameters, qmode="q")
         self.assertTrue(
-            parameters == {b'x': (b'X', b'1')},
+            parameters == {'x': ('X', b'1')},
             "Paremters: %s" % repr(parameters))
         parameters = {}
         p.parse_parameters(parameters)
         self.assertTrue(
-            parameters == {b'q': (b'q', b'2'), b'zoo':
-                           (b'Zoo', b';A="Three"')},
+            parameters == {'q': ('q', b'2'), 'zoo':
+                           ('Zoo', b';A="Three"')},
             "Paremters: %s" % repr(parameters))
         parameters = {}
         p = WordParser(b' ;X=1 ;y=2;Zoo=";A=\\"Three\\""')
         p.parse_parameters(parameters, case_sensitive=True)
         self.assertTrue(
-            parameters == {b'X': (b'X', b'1'), b'y': (b'y', b'2'),
-                           b'Zoo': (b'Zoo', b';A="Three"')},
+            parameters == {'X': ('X', b'1'), 'y': ('y', b'2'),
+                           'Zoo': ('Zoo', b';A="Three"')},
             "Paremters: %s" % repr(parameters))
 
     def test_crlf(self):

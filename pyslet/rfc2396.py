@@ -3,12 +3,12 @@
 
 import warnings
 
-import pyslet.vfs as vfs
+from . import vfs
 
 from .unicode5 import CharClass
+from .pep8 import renamed_function, PEP8Compatibility
 from .py2 import py2, byte, byte_value, join_bytes, ul, range3, CmpMixin
 from .py2 import is_unicode, character, empty_text, to_text, is_text
-from .pep8 import renamed_function, PEP8Compatibility
 
 
 class URIException(Exception):

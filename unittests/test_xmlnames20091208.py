@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+import io
 import unittest
 
 
@@ -70,7 +71,7 @@ class XMLNSDocumentTests(unittest.TestCase):
     def testCaseReadString(self):
         """Test the reading of the XMLNSDocument from a supplied stream"""
         d = XMLNSDocument()
-        d.Read(src=StringIO(EXAMPLE_1))
+        d.Read(src=io.BytesIO(EXAMPLE_1))
         root = d.root
         self.assertTrue(isinstance(root, XMLNSElement))
         self.assertTrue(
@@ -91,8 +92,8 @@ class XMLNSDocumentTests(unittest.TestCase):
 	</createTag>
 </createTag>"""
         d = XMLExampleDocument()
-        d.Read(src=StringIO(CREATE_2_XML))
-        dst = StringIO()
+        d.Read(src=io.BytesIO(CREATE_2_XML))
+        dst = io.BytesIO()
         d.ResetPrefixMap(True)
         d.Create(dst=dst)
         # print
@@ -109,14 +110,14 @@ class XMLNSDocumentTests(unittest.TestCase):
         ATTR_XML_ALT = """<?xml version="1.0" encoding="UTF-8"?>
 <createTag xmlns="http://www.example.com" xmlns:test="http://www.example.com/attributes" test:test="Hello"/>"""
         d = XMLNSDocument()
-        d.Read(src=StringIO(ATTR_XML))
-        dst = StringIO()
+        d.Read(src=io.BytesIO(ATTR_XML))
+        dst = io.BytesIO()
         d.Create(dst=dst)
         self.assertTrue(dst.getvalue() == ATTR_XML, "Simple NS attribute: \nWanted:\n%s\n\nGot:\n%s" % (
             repr(ATTR_XML), repr(dst.getvalue())))
         d.ResetPrefixMap(True)
         d.MakePrefix("http://www.example.com/attributes", 'test')
-        dst = StringIO()
+        dst = io.BytesIO()
         d.Create(dst=dst)
         self.assertTrue(dst.getvalue() == ATTR_XML_ALT, "Simple NS attribute, preferred prefix: \nWanted:\n%s\n\nGot:\n%s" % (
             repr(ATTR_XML_ALT), repr(dst.getvalue())))

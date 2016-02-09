@@ -6,10 +6,11 @@ import logging
 import threading
 import os.path
 
-import pyslet.iso8601 as iso
+from .. import iso8601 as iso
+from ..py2 import is_unicode, dict_values
 
-import grammar
-import params
+from . import grammar
+from . import params
 
 
 def is_cookie_octet(c):
@@ -101,7 +102,7 @@ def split_domain(domain_str, allow_wildcard=False):
     """Splits a domain string
 
     domain_str
-        A unicode string, or a UTF-8 encoded binary string.
+        A character string, or a UTF-8 encoded binary string.
 
     allow_wildcard (Default: False)
         Allows the use of a single '*' character as a domain label for
@@ -112,11 +113,11 @@ def split_domain(domain_str, allow_wildcard=False):
 
         >>> split_domain('example.COM')
         >>> ['example', 'com']
-        >>> split_domain(u'\u98df\u72ee.com.cn')
+        >>> split_domain(u'\\u98df\\u72ee.com.cn')
         >>> ['xn--85x722f', 'com', 'cn']
 
     Raises ValueError if domain_str is not valid."""
-    if isinstance(domain_str, unicode):
+    if is_unicode(domain_str):
         domain_str = domain_str.encode('utf-8')
     domain = domain_str.split('.')
     result = []
@@ -1053,7 +1054,7 @@ class CookieStore(object):
                 host_match = (dpos == len(host))
                 # all cookies in dnode should be considered
                 expired = []
-                for c in dnode.cookies.values():
+                for c in dict_values(dnode.cookies):
                     if c.expired(now):
                         expired.append(c)
                         continue
@@ -1099,10 +1100,10 @@ class CookieStore(object):
             if now is None:
                 now = time.time()
             old_node = dnode
-            for dnode in old_node.nodes.values():
+            for dnode in dict_values(old_node.nodes):
                 # all cookies in dnode should be considered
                 expired = []
-                for c in dnode.cookies.values():
+                for c in dict_values(dnode.cookies):
                     if c.expired(now):
                         expired.append(c)
                         continue
@@ -1127,10 +1128,10 @@ class CookieStore(object):
             if now is None:
                 now = time.time()
             old_node = dnode
-            for dnode in old_node.nodes.values():
+            for dnode in dict_values(old_node.nodes):
                 # all cookies in dnode should be considered
                 expired = []
-                for c in dnode.cookies.values():
+                for c in dict_values(dnode.cookies):
                     if c.expired(now) or not c.is_persistent():
                         expired.append(c)
                         continue
@@ -1168,7 +1169,7 @@ class CookieStore(object):
                             if old_node.public_depth < 1:
                                 old_node.public_depth = 1
                             # mark everthing at this level public
-                            for child in old_node.nodes.values():
+                            for child in dict_values(old_node.nodes):
                                 if not child.private:
                                     child.public = True
                         else:
@@ -1186,7 +1187,7 @@ class CookieStore(object):
                         dnode.public = True
                     if d == '*':
                         # mark all children public too
-                        for child in old_node.nodes.values():
+                        for child in dict_values(old_node.nodes):
                             if not child.private:
                                 child.public = True
                 dcount -= 1
@@ -1220,7 +1221,7 @@ class CookieStore(object):
                             # excepted and hence private
                             old_node.public_depth = 0
                             # mark everthing at this level private
-                            for child in old_node.nodes.values():
+                            for child in dict_values(old_node.nodes):
                                 child.private = True
                                 child.public = False
                         else:
@@ -1240,7 +1241,7 @@ class CookieStore(object):
                     dnode.public = False
                     if d == '*':
                         # mark all children public too
-                        for child in old_node.nodes.values():
+                        for child in dict_values(old_node.nodes):
                             child.private = True
                             child.public = False
                 dcount -= 1
@@ -1264,7 +1265,7 @@ class CookieStore(object):
             A flag to force an overwrite of an existing file at fpath,
             by default, if fpath already exists this method returns
             without doing anything."""
-        import client as http
+        from . import client as http
         if not os.path.exists(fpath):
             c = http.Client()
             request = http.ClientRequest(src)
@@ -1412,9 +1413,8 @@ class CookieStore(object):
             return None
         matched.reverse()
         if u_labels:
-            matched = map(
-                lambda x: x[4:].decode('punycode') if
-                is_a_label(x) else x.decode('utf-8'), matched)
+            matched = [u[4:].decode('punycode') if is_a_label(u) else
+                       u.decode('utf-8') for u in matched]
         return string.join(matched, '.')
 
     def check_public_suffix(self, domain_str, match_str):
@@ -1426,7 +1426,7 @@ class CookieStore(object):
         results are logged at ERROR level.  Used for testing the public
         suffixes loaded with :meth:`set_public_list`."""
         matched = self.get_registered_domain(
-            domain_str, isinstance(match_str, unicode))
+            domain_str, is_unicode(match_str))
         if matched is None:
             if match_str is None:
                 return True
@@ -1448,7 +1448,7 @@ class CookieStore(object):
         dnode.public = src_node.public
         dnode.private = src_node.private
         dnode.public_depth = src_node.public_depth
-        for src_child in src_node.nodes.values():
+        for src_child in dict_values(src_node.nodes):
             child = self._copy_node(src_child)
             dnode.nodes[child.name] = child
         return dnode

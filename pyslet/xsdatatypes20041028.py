@@ -7,6 +7,7 @@ from sys import maxunicode, float_info
 from re import compile
 from types import *
 
+from .py2 import character
 import pyslet.iso8601 as iso8601
 from pyslet.xml20081126.structures import IsValidName, LetterCharClass, NameCharClass
 from pyslet.unicode5 import CharClass, BasicParser
@@ -100,7 +101,7 @@ def _RoundDigits(digits):
             elif digits[pos] == u"9":
                 digits[pos] = u"0"
             else:
-                digits[pos] = unichr(ord(digits[pos]) + 1)
+                digits[pos] = character(ord(digits[pos]) + 1)
                 # rounding done
                 break
             pos = pos - 1
@@ -647,7 +648,7 @@ def WhiteSpaceReplace(value):
     output = []
     for c in value:
         if c in u"\x09\x0A\x0D":
-            output.append(unichr(0x20))
+            output.append(character(0x20))
         else:
             output.append(c)
     return string.join(output, '')
@@ -663,7 +664,7 @@ def WhiteSpaceCollapse(value):
             gotSpace = True
         else:
             if output and gotSpace:
-                output.append(unichr(0x20))
+                output.append(character(0x20))
                 gotSpace = False
             output.append(c)
     return string.join(output, '')
@@ -1050,9 +1051,9 @@ class RegularExpressionParser(BasicParser):
         return cClass
 
     SingleCharEscapes = {
-        u'n': unichr(0x0A),
-        u'r': unichr(0x0D),
-        u't': unichr(0x09),
+        u'n': character(0x0A),
+        u'r': character(0x0D),
+        u't': character(0x09),
         u'\\': u'\\',
         u'|': u'|',
         u'.': u'.',
@@ -1215,9 +1216,9 @@ class RegularExpressionParser(BasicParser):
             raise RegularExpressionError("Expected '\\' at [%i]" % self.pos)
 
     DotClass = CharClass(
-        (unichr(0), unichr(9)),
-        (unichr(11), unichr(12)),
-        (unichr(14), unichr(maxunicode)))
+        (character(0), character(9)),
+        (character(11), character(12)),
+        (character(14), character(maxunicode)))
 
     def ParseWildcardEsc(self):
         """Returns a CharClass corresponding to the wildcard '.' character if parsed."""

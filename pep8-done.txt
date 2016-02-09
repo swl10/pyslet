@@ -39,6 +39,8 @@ pyslet/rfc2616.py
 pyslet/rfc2617.py
 pyslet/rfc5023.py
 unittests/test_rfc5023.py
+pyslet/streams.py
+unittests/test_streams.py
 pyslet/unicode5.py
 unittests/test_unicode5.py
 pyslet/urn.py

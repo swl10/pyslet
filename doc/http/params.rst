@@ -41,6 +41,10 @@ also provided, including inequalities where a logical ordering exists.
 	:members:
 	:show-inheritance:
 
+..	autoclass:: SortableParameter
+	:members:
+	:show-inheritance:
+
 ..	autoclass:: HTTPVersion
 	:members:
 	:show-inheritance:

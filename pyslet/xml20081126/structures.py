@@ -1,25 +1,30 @@
 #! /usr/bin/env python
 
 import codecs
+import io
 import logging
 import os
 import os.path
 import random
 import string
 import types
-import urlparse
 import warnings
 
 from copy import copy
-from StringIO import StringIO
 from sys import maxunicode
 from types import *
 
 import pyslet.rfc2396 as uri
 import pyslet.http.client as http
 
-from pyslet.pep8 import renamed_method, renamed_function
-from pyslet.unicode5 import CharClass
+from ..py2 import py2
+from ..pep8 import renamed_method, renamed_function
+from ..unicode5 import CharClass
+
+if py2:
+    import urlparse
+else:
+    import urllib.parse as urlparse
 
 
 xml_base = 'xml:base'
@@ -343,13 +348,13 @@ class Document(Node):
 
     def __str__(self):
         """Returns the XML document as a string"""
-        s = StringIO()
+        s = io.BytesIO()
         self.WriteXML(s, EscapeCharData7)
         return str(s.getvalue())
 
     def __unicode__(self):
         """Returns the XML document as a unicode string"""
-        s = StringIO()
+        s = io.BytesIO()
         self.WriteXML(s, EscapeCharData)
         return unicode(s.getvalue())
 
@@ -527,7 +532,7 @@ class Document(Node):
             fdir, fname = os.path.split(fPath)
             if not os.path.isdir(fdir):
                 os.makedirs(fdir)
-            f = codecs.open(fPath, 'wb', 'utf-8')
+            f = open(fPath, 'wb')
             try:
                 self.WriteXML(f)
             finally:
@@ -546,7 +551,7 @@ class Document(Node):
 
     def WriteXML(self, writer, escapeFunction=EscapeCharData, tab='\t'):
         for s in self.GenerateXML(escapeFunction, tab):
-            writer.write(s)
+            writer.write(s.encode('utf-8'))
 
     def Update(self, **args):
         """Updates the Document.
@@ -560,7 +565,7 @@ class Document(Node):
             fPath = self.baseURI.get_pathname()
             if not os.path.isfile(fPath):
                 raise XMLMissingResourceError(fPath)
-            f = codecs.open(fPath, 'wb', 'utf-8')
+            f = open(fPath, 'wb')
             try:
                 self.WriteXML(f)
             finally:
@@ -1431,7 +1436,7 @@ class Element(Node):
             else:
                 x = getattr(self, attrName, None)
                 if type(x) in (ListType, DictType):
-                    print "Problem setting %s in %s: single value will overwrite List or Dict" % (repr(name), repr(self.__class__.__name__))
+                    logging.error("Problem setting %s in %s: single value will overwrite List or Dict", repr(name), repr(self.__class__.__name__))
                     # print self.GetDocument()
                 if value is None:
                     setattr(self, attrName, None)
@@ -1669,7 +1674,7 @@ class Element(Node):
             if name:
                 child.SetXMLName(name)
             return child
-        except TypeError, e:
+        except TypeError as e:
             import traceback
             logging.error("Error creating XML element: %s", e)
             traceback.print_exc()
@@ -2085,13 +2090,13 @@ class Element(Node):
         but this isn't enough to guarantee success.  We will still get an encoding
         error if non-ascii characters have been used in markup names as such files
         cannot be encoded in US-ASCII."""
-        s = StringIO()
+        s = io.BytesIO()
         self.WriteXML(s, EscapeCharData7, root=True)
         return str(s.getvalue())
 
     def __unicode__(self):
         """Returns the XML element as a unicode string"""
-        s = StringIO()
+        s = io.BytesIO()
         self.WriteXML(s, EscapeCharData, root=True)
         return unicode(s.getvalue())
 
@@ -2353,15 +2358,10 @@ class Element(Node):
         except StopIteration:
             yield u'%s<%s%s/>' % (ws, self.xmlname, attributes)
 
-    def WriteXML(
-            self,
-            writer,
-            escapeFunction=EscapeCharData,
-            indent='',
-            tab='\t',
-            root=False):
+    def WriteXML(self, writer, escapeFunction=EscapeCharData, indent='',
+                 tab='\t', root=False):
         for s in self.GenerateXML(escapeFunction, indent, tab, root):
-            writer.write(s)
+            writer.write(s.encode('utf-8'))
 
 
 class XMLContentParticle(object):
@@ -2837,7 +2837,7 @@ class XMLEntity(object):
         self.encoding = 'utf-8'     #: a white lie to ensure that all entities have an encoding
         self.dataSource = None
         self.chunk = XMLEntity.ChunkSize
-        self.charSource = StringIO(src)
+        self.charSource = io.StringIO(src)
         self.basePos = self.charSource.tell()
         self.reset()
 
@@ -2853,7 +2853,7 @@ class XMLEntity(object):
         unicode reader object to parse the string instead of making a copy of it
         in memory."""
         self.encoding = encoding
-        self.dataSource = StringIO(src)
+        self.dataSource = io.BytesIO(src)
         if self.encoding is None:
             self.AutoDetectEncoding(self.dataSource)
         self.chunk = 1
@@ -2924,7 +2924,7 @@ class XMLEntity(object):
                         self.encoding = respEncoding[1].lower()
                 # print "...reading %s stream with
                 # charset=%s"%(self.mimetype,self.encoding)
-                srcFile = StringIO(req.res_body)
+                srcFile = io.BytesIO(req.res_body)
                 if self.encoding is None:
                     self.AutoDetectEncoding(srcFile)
                 self.OpenFile(srcFile, self.encoding)
@@ -2961,7 +2961,7 @@ class XMLEntity(object):
                 self.encoding = respEncoding[1].lower()
         # print "...reading %s stream with
         # charset=%s"%(self.mimetype,self.encoding)
-        self.OpenFile(StringIO(src.request.res_body), self.encoding)
+        self.OpenFile(io.BytesIO(src.request.res_body), self.encoding)
 
     def reset(self):
         """Resets an open entity, causing it to return to the first character in the entity."""
@@ -3566,20 +3566,20 @@ def ParseXMLClass(classDefStr):
         if len(rangeDef) == 1:
             a = rangeDef[0]
             if a > maxunicode:
-                print "Warning: character outside narrow python build (%X)" % a
+                logging.warn("Warning: character outside narrow python build (%X)", a)
             else:
                 c.add_char(unichr(a))
         elif len(rangeDef) == 2:
             a, b = rangeDef
             if a > maxunicode:
-                print "Warning: character range outside narrow python build (%X-%X)" % (a, b)
+                logging.warn("Warning: character range outside narrow python build (%X-%X)", a, b)
             elif b > maxunicode:
-                print "Warning: character range truncated due to narrow python build (%X-%X)" % (a, b)
+                logging.warn("Warning: character range truncated due to narrow python build (%X-%X)", a, b)
                 b = maxunicode
                 c.add_range(unichr(a), unichr(b))
             else:
                 c.add_range(unichr(a), unichr(b))
-    print repr(c)
+    logging.debug("ParseXMLClass: %s", repr(c))
 
 
 def OptionalAppend(itemList, newItem):

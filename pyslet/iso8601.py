@@ -34,9 +34,9 @@ import warnings
 
 from math import modf, floor
 
-from pyslet.py2 import range3, is_string, is_text, UnicodeMixin, SortableMixin
-from pyslet.pep8 import PEP8Compatibility
-from pyslet.unicode5 import BasicParser
+from .pep8 import PEP8Compatibility
+from .py2 import range3, is_string, is_text, UnicodeMixin, SortableMixin
+from .unicode5 import BasicParser
 
 
 class DateTimeError(Exception):

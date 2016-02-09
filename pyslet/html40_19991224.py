@@ -1,11 +1,16 @@
 #! /usr/bin/env python
 
+from .py2 import py2
 import pyslet.xml20081126.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.rfc2396 as uri
 
-import htmlentitydefs
+if py2:
+    from htmlentitydefs import name2codepoint
+else:
+    from html.entities import name2codepoint
+    
 import string
 import itertools
 from types import *
@@ -1242,8 +1247,8 @@ class A(AttrsMixin, SpecialMixin, InlineContainer):
     XMLATTR_href = ('href', DecodeURI, EncodeURI)
     XMLATTR_hreflang = ('hrefLang', xsi.DecodeName, xsi.EncodeName)
     XMLATTR_target = 'target'
-    XMLATTR_rel = ('rel', ValidateLinkType, None, ListType)
-    XMLATTR_rev = ('rev', ValidateLinkType, None, ListType)
+    XMLATTR_rel = ('rel', ValidateLinkType, None, list)
+    XMLATTR_rev = ('rev', ValidateLinkType, None, list)
     XMLATTR_accesskey = 'accessKey'
     XMLATTR_shape = ('shape', Shape.DecodeLowerValue, Shape.EncodeValue)
     XMLATTR_coords = ('coords', Coords, Coords.__unicode__)
@@ -1369,8 +1374,8 @@ class Link(AttrsMixin, HeadMiscMixin, XHTMLElement):
     XMLATTR_href = ('href', DecodeURI, EncodeURI)
     XMLATTR_hreflang = ('hrefLang', xsi.DecodeName, xsi.EncodeName)
     XMLATTR_type = 'type'
-    XMLATTR_rel = ('rel', ValidateLinkType, None, ListType)
-    XMLATTR_rev = ('rev', ValidateLinkType, None, ListType)
+    XMLATTR_rel = ('rel', ValidateLinkType, None, list)
+    XMLATTR_rev = ('rev', ValidateLinkType, None, list)
     XMLATTR_media = ('media', MediaDesc, MediaDesc.__unicode__)
     XMLCONTENT = xmlns.ElementType.Empty
 
@@ -2651,7 +2656,7 @@ class HTMLParser(xmlns.XMLNSParser):
         """A flag that indicates if the parser is in xml mode."""
 
     def lookup_predefined_entity(self, name):
-        codepoint = htmlentitydefs.name2codepoint.get(name, None)
+        codepoint = name2codepoint.get(name, None)
         if codepoint is None:
             return None
         else:

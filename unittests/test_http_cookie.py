@@ -14,6 +14,8 @@ import pyslet.http.params as params
 import pyslet.http.messages as messages
 import pyslet.http.cookie as cookie
 
+from pyslet.py2 import range3, u8, ul
+
 from test_http_client import MockClientWrapper, MockConnectionWrapper,\
     MockSocket
 
@@ -352,73 +354,73 @@ class CookieTests(unittest.TestCase):
         self.assertTrue('en-US' in clist['lang'])
 
     def test_syntax(self):
-        for i in xrange(0, 0x21):
+        for i in range3(0, 0x21):
             self.assertFalse(cookie.is_cookie_octet(chr(i)))
         self.assertTrue(cookie.is_cookie_octet(chr(0x21)))
         self.assertFalse(cookie.is_cookie_octet(chr(0x22)))
-        for i in xrange(0x23, 0x2C):
+        for i in range3(0x23, 0x2C):
             self.assertTrue(cookie.is_cookie_octet(chr(i)))
         self.assertFalse(cookie.is_cookie_octet(chr(0x2C)))
-        for i in xrange(0x2D, 0x3B):
+        for i in range3(0x2D, 0x3B):
             self.assertTrue(cookie.is_cookie_octet(chr(i)))
         self.assertFalse(cookie.is_cookie_octet(chr(0x3B)))
-        for i in xrange(0x3C, 0x5C):
+        for i in range3(0x3C, 0x5C):
             self.assertTrue(cookie.is_cookie_octet(chr(i)))
         self.assertFalse(cookie.is_cookie_octet(chr(0x5C)))
-        for i in xrange(0x5D, 0x7F):
+        for i in range3(0x5D, 0x7F):
             self.assertTrue(cookie.is_cookie_octet(chr(i)))
-        for i in xrange(0x7F, 0x100):
+        for i in range3(0x7F, 0x100):
             self.assertFalse(cookie.is_cookie_octet(chr(i)))
 
     def test_date_tokens(self):
-        for i in xrange(0, 0x09):
+        for i in range3(0, 0x09):
             self.assertFalse(cookie.is_delimiter(chr(i)))
             self.assertTrue(cookie.is_non_delimiter(chr(i)))
             self.assertTrue(cookie.is_non_digit(chr(i)))
         self.assertTrue(cookie.is_delimiter(chr(0x09)))
         self.assertFalse(cookie.is_non_delimiter(chr(0x09)))
         self.assertTrue(cookie.is_non_digit(chr(0x09)))
-        for i in xrange(0x0A, 0x20):
+        for i in range3(0x0A, 0x20):
             self.assertFalse(cookie.is_delimiter(chr(i)))
             self.assertTrue(cookie.is_non_delimiter(chr(i)))
             self.assertTrue(cookie.is_non_digit(chr(i)))
-        for i in xrange(0x20, 0x30):
+        for i in range3(0x20, 0x30):
             self.assertTrue(cookie.is_delimiter(chr(i)))
             self.assertFalse(cookie.is_non_delimiter(chr(i)))
             self.assertTrue(cookie.is_non_digit(chr(i)))
-        for i in xrange(0x30, 0x3A):
+        for i in range3(0x30, 0x3A):
             self.assertFalse(cookie.is_delimiter(chr(i)))
             self.assertTrue(cookie.is_non_delimiter(chr(i)))
             self.assertFalse(cookie.is_non_digit(chr(i)))
         self.assertFalse(cookie.is_delimiter(chr(0x3A)))
         self.assertTrue(cookie.is_non_delimiter(chr(0x3A)))
         self.assertTrue(cookie.is_non_digit(chr(0x3A)))
-        for i in xrange(0x3B, 0x41):
+        for i in range3(0x3B, 0x41):
             self.assertTrue(cookie.is_delimiter(chr(i)))
             self.assertFalse(cookie.is_non_delimiter(chr(i)))
             self.assertTrue(cookie.is_non_digit(chr(i)))
-        for i in xrange(0x41, 0x5B):
+        for i in range3(0x41, 0x5B):
             self.assertFalse(cookie.is_delimiter(chr(i)))
             self.assertTrue(cookie.is_non_delimiter(chr(i)))
             self.assertTrue(cookie.is_non_digit(chr(i)))
-        for i in xrange(0x5B, 0x61):
+        for i in range3(0x5B, 0x61):
             self.assertTrue(cookie.is_delimiter(chr(i)))
             self.assertFalse(cookie.is_non_delimiter(chr(i)))
             self.assertTrue(cookie.is_non_digit(chr(i)))
-        for i in xrange(0x61, 0x7B):
+        for i in range3(0x61, 0x7B):
             self.assertFalse(cookie.is_delimiter(chr(i)))
             self.assertTrue(cookie.is_non_delimiter(chr(i)))
             self.assertTrue(cookie.is_non_digit(chr(i)))
-        for i in xrange(0x7B, 0x7F):
+        for i in range3(0x7B, 0x7F):
             self.assertTrue(cookie.is_delimiter(chr(i)))
             self.assertFalse(cookie.is_non_delimiter(chr(i)))
             self.assertTrue(cookie.is_non_digit(chr(i)))
-        for i in xrange(0x7F, 0x100):
+        for i in range3(0x7F, 0x100):
             self.assertFalse(cookie.is_delimiter(chr(i)))
             self.assertTrue(cookie.is_non_delimiter(chr(i)))
             self.assertTrue(cookie.is_non_digit(chr(i)))
         src = []
-        for i in xrange(0, 0x100):
+        for i in range3(0, 0x100):
             src.append(chr(i))
         p = cookie.CookieParser(string.join(src, ''))
         tokens = p.parse_cookie_date_tokens()
@@ -619,21 +621,21 @@ class DomainTests(unittest.TestCase):
         """Splits a domain into appropriate labels"""
         # check unicode support
         self.assertTrue(
-            cookie.split_domain(u'\u516c\u53f8.cn') ==
+            cookie.split_domain(u8(b'\xe5\x85\xac\xe5\x8f\xb8.cn')) ==
             ['xn--55qx5d', 'cn'])
         self.assertTrue(
-            cookie.split_domain(u'\u516c\u53f8.CN') ==
+            cookie.split_domain(u8(b'\xe5\x85\xac\xe5\x8f\xb8.CN')) ==
             ['xn--55qx5d', 'cn'])
         # assume strings are utf-8 encoded
         self.assertTrue(
-            cookie.split_domain('\xe5\x85\xac\xe5\x8f\xb8.CN') ==
+            cookie.split_domain(b'\xe5\x85\xac\xe5\x8f\xb8.CN') ==
             ['xn--55qx5d', 'cn'])
         # but encode labels can pass through both forms...
         self.assertTrue(
-            cookie.split_domain(u'xn--55qx5d.CN') ==
+            cookie.split_domain(ul('xn--55qx5d.CN')) ==
             ['xn--55qx5d', 'cn'])
         self.assertTrue(
-            cookie.split_domain('xn--55qx5d.CN') ==
+            cookie.split_domain(b'xn--55qx5d.CN') ==
             ['xn--55qx5d', 'cn'])
         try:
             cookie.split_domain('*.xn--55qx5d.CN')
@@ -796,12 +798,12 @@ com
         specifies a scope for the cookie that would include the origin
         server"""
         cs = cookie.CookieStore()
-        cs.set_public_list(u"""// public suffix list
+        cs.set_public_list(ul("""// public suffix list
 // accept domain cookies within the following...
 !example.com
 !example2.com
 !example3.com
-!example4.com""", tld_depth=100)
+!example4.com"""), tld_depth=100)
         c = cookie.Cookie('SID', '31d4d96e407aad42', domain='example.com')
         cs.set_cookie(uri.URI.from_octets('http://test.example.com/'), c)
         self.assertTrue(len(cs.search(
@@ -1565,20 +1567,26 @@ def test_publicsuffix():
     cs.check_public_suffix('test.k12.ak.us', 'test.k12.ak.us')
     cs.check_public_suffix('www.test.k12.ak.us', 'test.k12.ak.us')
     # IDN labels.
-    cs.check_public_suffix(u'\u98df\u72ee.com.cn', u'\u98df\u72ee.com.cn')
-    cs.check_public_suffix(u'\u98df\u72ee.\u516c\u53f8.cn',
-                           u'\u98df\u72ee.\u516c\u53f8.cn')
-    cs.check_public_suffix(u'www.\u98df\u72ee.\u516c\u53f8.cn',
-                           u'\u98df\u72ee.\u516c\u53f8.cn')
-    cs.check_public_suffix(u'shishi.\u516c\u53f8.cn',
-                           u'shishi.\u516c\u53f8.cn')
-    cs.check_public_suffix(u'\u516c\u53f8.cn', None)
-    cs.check_public_suffix(u'\u98df\u72ee.\u4e2d\u56fd',
-                           u'\u98df\u72ee.\u4e2d\u56fd')
-    cs.check_public_suffix(u'www.\u98df\u72ee.\u4e2d\u56fd',
-                           u'\u98df\u72ee.\u4e2d\u56fd')
-    cs.check_public_suffix(u'shishi.\u4e2d\u56fd', u'shishi.\u4e2d\u56fd')
-    cs.check_public_suffix(u'\u4e2d\u56fd', None)
+    cs.check_public_suffix(u8(b'\xe9\xa3\x9f\xe7\x8b\xae.com.cn'),
+                           u8(b'\xe9\xa3\x9f\xe7\x8b\xae.com.cn'))
+    cs.check_public_suffix(
+        u8(b'\xe9\xa3\x9f\xe7\x8b\xae.\xe5\x85\xac\xe5\x8f\xb8.cn'),
+        u8(b'\xe9\xa3\x9f\xe7\x8b\xae.\xe5\x85\xac\xe5\x8f\xb8.cn'))
+    cs.check_public_suffix(
+        u8(b'www.\xe9\xa3\x9f\xe7\x8b\xae.\xe5\x85\xac\xe5\x8f\xb8.cn'),
+        u8(b'www.\xe9\xa3\x9f\xe7\x8b\xae.\xe5\x85\xac\xe5\x8f\xb8.cn'))
+    cs.check_public_suffix(u8(b'shishi.\xe5\x85\xac\xe5\x8f\xb8.cn'),
+                           u8(b'shishi.\xe5\x85\xac\xe5\x8f\xb8.cn'))
+    cs.check_public_suffix(u8(b'\xe5\x85\xac\xe5\x8f\xb8.cn'), None)
+    cs.check_public_suffix(
+        u8(b'\xe9\xa3\x9f\xe7\x8b\xae.\xe4\xb8\xad\xe5\x9b\xbd'),
+        u8(b'\xe9\xa3\x9f\xe7\x8b\xae.\xe4\xb8\xad\xe5\x9b\xbd'))
+    cs.check_public_suffix(
+        u8(b'www.\xe9\xa3\x9f\xe7\x8b\xae.\xe4\xb8\xad\xe5\x9b\xbd'),
+        u8(b'\xe9\xa3\x9f\xe7\x8b\xae.\xe4\xb8\xad\xe5\x9b\xbd'))
+    cs.check_public_suffix(u8(b'shishi.\xe4\xb8\xad\xe5\x9b\xbd'),
+                           u8(b'shishi.\xe4\xb8\xad\xe5\x9b\xbd'))
+    cs.check_public_suffix(u8(b'\xe4\xb8\xad\xe5\x9b\xbd'), None)
     # Same as above, but punycoded.
     cs.check_public_suffix('xn--85x722f.com.cn', 'xn--85x722f.com.cn')
     cs.check_public_suffix('xn--85x722f.xn--55qx5d.cn',

@@ -61,7 +61,7 @@ class XMLNSElementContainerMixin:
             return 'xml'
         elif ns is None:
             # Attributes with no namespace
-            print "Deprecation warning: None for ns"
+            logging.error("Deprecation warning: None for ns")
             import traceback
             traceback.print_stack()
             return ''
@@ -209,7 +209,7 @@ class XMLNSElement(XMLNSElementContainerMixin, Element):
         Element's SetAttribute/GetAttribute(s) implementation is used."""
         ns, aname = name
         if ns is None:
-            print "Deprecation warning: None for ns"
+            logging.error("Deprecation warning: None for ns")
             import traceback
             traceback.print_stack()
             return "XMLATTR_" + aname
@@ -304,7 +304,7 @@ class XMLNSElement(XMLNSElementContainerMixin, Element):
         keys.sort()
         for a in keys:
             if type(a) in types.StringTypes:
-                print "Deprecation warning: found attribute with no namespace in NSElement, %s(%s)" % (self.__class__.__name__, a)
+                logging.error("Deprecation warning: found attribute with no namespace in NSElement, %s(%s)", self.__class__.__name__, a)
                 aname = a
                 prefix = ''
             else:
@@ -370,7 +370,7 @@ class XMLNSElement(XMLNSElementContainerMixin, Element):
                             for s in child.GenerateXML(escapeFunction, indent, tab):
                                 yield s
                         except TypeError:
-                            print "Problem with %s: child was %s" % (self.__class__.__name__, repr(child))
+                            logging.error("Problem with %s: child was %s", self.__class__.__name__, repr(child))
                             raise
                     try:
                         child = children.next()
@@ -610,7 +610,7 @@ def MapClassElements(classMap, scope, nsAliasTable=None):
     An element class with XMLNAME=('http://www.example.com/schema-v3','data') would then
     be used by the parser to represent the <data> element in the v1, v2 and v3 schema
     variants."""
-    if type(scope) is not DictType:
+    if not isinstance(scope, dict):
         scope = scope.__dict__
     names = scope.keys()
     for name in names:

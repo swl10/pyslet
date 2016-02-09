@@ -76,6 +76,42 @@ defined in the specification.
 
 ..	autodata::DQUOTE
 
+And similarly, these byte constants are not defined in the grammar but
+are useful for comparisons.  Again they are the byte representing these
+separators and will have a different type in Python 2 and 3.
+
+..	autodata::LEFT_PARENTHESIS
+
+..	autodata::RIGHT_PARENTHESIS
+
+..	autodata::LESSTHAN_SIGN
+
+..	autodata::GREATERTHAN_SIGN
+
+..	autodata::COMMERCIAL_AT
+
+..	autodata::COMMA
+
+..	autodata::SEMICOLON
+
+..	autodata::COLON
+
+..	autodata::REVERSE_SOLIDUS
+
+..	autodata::SOLIDUS
+
+..	autodata::LEFT_SQUARE_BRACKET
+
+..	autodata::RIGHT_SQUARE_BRACKET
+
+..	autodata::QUESTION_MARK
+
+..	autodata::EQUALS_SIGN
+
+..	autodata::LEFT_CURLY_BRACKET
+
+..	autodata::RIGHT_CURLY_BRACKET
+
 
 The following binary string constant is defined for completeness:
 

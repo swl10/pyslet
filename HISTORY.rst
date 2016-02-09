@@ -45,13 +45,16 @@ Not sure which version you are using?  Try::
 Version 0.7
 -----------
 
-Build 20160205:
+Build 20160209:
 
 #38 Python 3 compatibility work
 
-http.params module now works in Python 3
-http.grammar module now works in Python 3
+http sub-package: auth, client, messages, params and grammar modules now
+work in Python 3
+
 urn module now works in Python 3
+
+Untracked changes:
 
 Added SortableMixin to emulate Python 3 TypeErrors in comparisons and to
 simplify implementation of comparison/hash operators in custom classes.
@@ -60,6 +63,12 @@ ValueError (e.g., due to incompatible precision) now return False for ==
 and != operators and raise TypeError for inequalities (<, >, etc). 
 OData is unaffected as OData time values of the same EDM type are always
 comparable.
+
+Re-factored previously undocumented stream classes into their own
+module, in particular the Pipe implementation used for inter-thread
+communication.  Adding documentation for them.
+
+Re-factored the WSGI InputWrapper from rfc5023 into the http modules.
 
 
 Version 0.6.20160201

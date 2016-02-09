@@ -1,17 +1,16 @@
 #! /usr/bin/env python
 
+import errno
+import io
 import logging
-import string
-import time
+import os
+import random
 import socket
 import ssl
 import select
-import types
 import threading
-import io
-import errno
-import os
-import random
+import time
+import traceback
 
 try:
     import OpenSSL
@@ -19,16 +18,14 @@ try:
 except ImportError:
     OpenSSL = None
 
-import pyslet.info as info
-import pyslet.rfc2396 as uri
-from pyslet.pep8 import PEP8Compatibility
+from .. import info
+from .. import rfc2396 as uri
 
-import auth
-import cookie
-import grammar
-import messages
-import params
-import server as pipe
+from ..py2 import is_string, dict_values, range3, SortableMixin
+from ..pep8 import PEP8Compatibility
+from ..streams import io_blocked, Pipe
+
+from . import auth, cookie, grammar, messages, params
 
 
 class RequestManagerBusy(messages.HTTPException):
@@ -58,7 +55,7 @@ current version of the Pyslet library.  E.g.::
     pyslet-0.5.20120801"""
 
 
-class Connection(object):
+class Connection(SortableMixin):
 
     """Represents an HTTP connection.
 
@@ -189,10 +186,8 @@ class Connection(object):
     def target_key(self):
         return (self.scheme, self.host, self.port)
 
-    def __cmp__(self, other):
-        if not isinstance(other, Connection):
-            raise TypeError
-        return cmp(self.last_active, other.last_active)
+    def sortkey(self):
+        return self.last_active
 
     def __repr__(self):
         return "Connection(%s,%i)" % (self.host, self.port)
@@ -288,9 +283,9 @@ class Connection(object):
                         wait_time = (self.continue_waitmax -
                                      (time.time() - self.continue_waitstart))
                         if (wait_time < 0):
-                            logging.warn("%s timeout while waiting for "
-                                         "100-Continue response",
-                                         self.host)
+                            logging.warning("%s timeout while waiting for "
+                                            "100-Continue response",
+                                            self.host)
                             self.request_mode = self.REQ_BODY_SENDING
                             # change of mode, restart the loop
                             continue
@@ -449,10 +444,10 @@ class Connection(object):
             # we're done with the manager
             self.manager = None
             # set up some pipes for the connection
-            request.send_pipe = pipe.Pipe(
+            request.send_pipe = Pipe(
                 10 * io.DEFAULT_BUFFER_SIZE, rblocking=False,
                 timeout=self.timeout, name="%s:Sending" % self.host)
-            request.recv_pipe = pipe.Pipe(
+            request.recv_pipe = Pipe(
                 10 * io.DEFAULT_BUFFER_SIZE, wblocking=False,
                 timeout=self.timeout, name="%s:Receiving" % self.host)
             # spawn the threads that will drive the data flow
@@ -497,7 +492,7 @@ class Connection(object):
                                       self.timeout)
                         r, w, e = self.socketSelect(readers, writers, [],
                                                     self.timeout)
-                    except select.error, err:
+                    except select.error as err:
                         logging.error("Socket error from select: %s", str(err))
             else:
                 # not waiting for i/o, re-fill the send buffer
@@ -565,7 +560,7 @@ class Connection(object):
                               "readers=%s, writers=%s, timeout=None",
                               repr(readers), repr(writers))
                 r, w, e = self.socketSelect(readers, writers, [], None)
-            except select.error, err:
+            except select.error as err:
                 logging.error("Socket error from select: %s", str(err))
             try:
                 data = None
@@ -584,14 +579,14 @@ class Connection(object):
                     logging.error("socket.recv raised %s", str(err))
                     data = None
             except IOError as err:
-                if not r and messages.io_blocked(err):
+                if not r and io_blocked(err):
                     # we're blocked on recv, select did not return a reader
                     readers = [self.socket_file]
                     writers = []
                     continue
                 # We can't truly tell if the server hung-up except by
                 # getting an error here so this error could be fairly benign.
-                logging.warn("socket.recv raised %s", str(err))
+                logging.warning("socket.recv raised %s", str(err))
                 data = None
             logging.debug("Reading from %s: \n%s", self.host, repr(data))
             if data:
@@ -627,6 +622,7 @@ class Connection(object):
         if err:
             logging.error(
                 "%s: closing connection after error %s", self.host, str(err))
+            logging.debug(traceback.format_exc())
         else:
             logging.debug("%s: closing connection", self.host)
         if self.request:
@@ -647,7 +643,8 @@ class Connection(object):
                 # terminated by an error or before we read the response
                 if response.request.can_retry():
                     # resend this request
-                    logging.warn("retrying %s", response.request.get_start())
+                    logging.warning("retrying %s",
+                                    response.request.get_start())
                     self.queue_request(response.request)
                     continue
                 else:
@@ -687,7 +684,7 @@ class Connection(object):
             logging.debug("Killing connection to %s", self.host)
             if not self.closed and self.socket:
                 try:
-                    logging.warn(
+                    logging.warning(
                         "Connection.kill forcing socket shutdown for %s",
                         self.host)
                     self.socket.shutdown(socket.SHUT_RDWR)
@@ -745,13 +742,13 @@ class Connection(object):
                 if self.last_rw + 2 > time.time():
                     return
             else:
-                logging.warn("socket.recv raised %s", str(err))
+                logging.warning("socket.recv raised %s", str(err))
         except IOError as err:
-            if messages.io_blocked(err):
+            if io_blocked(err):
                 # we're blocked on recv
                 return
             else:
-                logging.warn("socket.recv raised %s", str(err))
+                logging.warning("socket.recv raised %s", str(err))
         if data:
             logging.error("Unexpected data in _check_socket: %s: \n%s",
                           self.host, repr(data))
@@ -784,7 +781,7 @@ class Connection(object):
                     logging.error("socket.recv raised %s", str(err))
                     data = None
             except IOError as err:
-                if messages.io_blocked(err):
+                if io_blocked(err):
                     # we're blocked on send
                     return (False, True)
                 # stop everything
@@ -833,12 +830,12 @@ class Connection(object):
                 logging.error("socket.recv raised %s", str(err))
                 data = None
         except IOError as err:
-            if messages.io_blocked(err):
+            if io_blocked(err):
                 # we're blocked on recv
                 return (False, True, False)
             # We can't truly tell if the server hung-up except by
             # getting an error here so this error could be fairly benign.
-            logging.warn("socket.recv raised %s", str(err))
+            logging.warning("socket.recv raised %s", str(err))
             data = None
         logging.debug("Reading from %s: \n%s", self.host, repr(data))
         if data:
@@ -860,7 +857,7 @@ class Connection(object):
                 return (True, False, False)
             elif recv_needs == messages.Message.RECV_HEADERS:
                 # scan for CRLF, consolidate first
-                data = string.join(self.recv_buffer, '')
+                data = b''.join(self.recv_buffer)
                 pos = data.find(grammar.CRLF)
                 if pos == 0:
                     # just a blank line, no headers
@@ -872,9 +869,8 @@ class Connection(object):
                     # pos can't be 0 now...
                 if pos > 0:
                     # split the data into lines
-                    lines = map(
-                        lambda x: x + grammar.CRLF,
-                        data[0:pos + 2].split(grammar.CRLF))
+                    lines = [l + grammar.CRLF for l in
+                             data[0:pos + 2].split(grammar.CRLF)]
                     data = data[pos + 4:]
                 elif err:
                     self.close(err)
@@ -893,7 +889,7 @@ class Connection(object):
                     self.response.recv(lines)
             elif recv_needs == messages.Message.RECV_LINE:
                 # scan for CRLF, consolidate first
-                data = string.join(self.recv_buffer, '')
+                data = b''.join(self.recv_buffer)
                 pos = data.find(grammar.CRLF)
                 if pos >= 0:
                     line = data[0:pos + 2]
@@ -973,7 +969,7 @@ class Connection(object):
                         snew = None
                     continue
                 break
-        except socket.gaierror, e:
+        except socket.gaierror as e:
             snew = None
             raise messages.HTTPException(
                 "failed to connect to %s (%s)" % (self.host, e[1]))
@@ -1024,11 +1020,13 @@ class SecureConnection(Connection):
                     self.socketTransport = self.socket
                     self.socket.setblocking(False)
                     self.socket = socket_ssl
+                    # turn off blocking mode from SSLSocket
+                    self.socket.setblocking(False)
                     logging.info(
                         "Connected to %s with %s, %s, key length %i",
                         self.host, *self.socket.cipher())
         except IOError as e:
-            logging.warn(str(e))
+            logging.warning(str(e))
             raise messages.HTTPException(
                 "failed to build secure connection to %s" % self.host)
 
@@ -1228,7 +1226,7 @@ class Client(PEP8Compatibility, object):
             output.append(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
         connection.shutdown()
         connection.close()
-        return string.join(output, '')
+        return b''.join(output)
 
     def queue_request(self, request, timeout=None):
         """Starts processing an HTTP *request*
@@ -1267,7 +1265,7 @@ class Client(PEP8Compatibility, object):
                 # Step 2: search for an idle connection to the same
                 # target and bind it to our thread
                 elif target in self.cIdleTargets:
-                    cidle = self.cIdleTargets[target].values()
+                    cidle = list(dict_values(self.cIdleTargets[target]))
                     cidle.sort()
                     # take the youngest connection
                     connection = cidle[-1]
@@ -1281,7 +1279,7 @@ class Client(PEP8Compatibility, object):
                     break
                 # Step 4: delete the oldest idle connection and go round again
                 elif len(self.cIdleList):
-                    cidle = self.cIdleList.values()
+                    cidle = list(dict_values(self.cIdleList))
                     cidle.sort()
                     connection = cidle[0]
                     self._delete_idle_connection(connection)
@@ -1289,12 +1287,12 @@ class Client(PEP8Compatibility, object):
                 else:
                     now = time.time()
                     if timeout == 0:
-                        logging.warn(
+                        logging.warning(
                             "non-blocking call to queue_request failed to "
                             "obtain an HTTP connection")
                         raise RequestManagerBusy
                     elif timeout is not None and now > start + timeout:
-                        logging.warn(
+                        logging.warning(
                             "queue_request timed out while waiting for "
                             "an HTTP connection")
                         raise RequestManagerBusy
@@ -1424,7 +1422,8 @@ class Client(PEP8Compatibility, object):
         returns False."""
         thread_id = threading.current_thread().ident
         with self.managerLock:
-            connections = self.cActiveThreads.get(thread_id, {}).values()
+            connections = list(
+                dict_values(self.cActiveThreads.get(thread_id, {})))
         if not connections:
             return False
         readers = []
@@ -1454,7 +1453,7 @@ class Client(PEP8Compatibility, object):
                               "readers=%s, writers=%s, timeout=%f",
                               repr(readers), repr(writers), timeout)
                 r, w, e = self.socketSelect(readers, writers, [], wait_time)
-            except select.error, err:
+            except select.error as err:
                 logging.error("Socket error from select: %s", str(err))
         elif wait_time is not None:
             # not waiting for i/o, let time pass
@@ -1490,7 +1489,7 @@ class Client(PEP8Compatibility, object):
         clist = []
         now = time.time()
         with self.managerLock:
-            for connection in self.cIdleList.values():
+            for connection in list(dict_values(self.cIdleList)):
                 if connection.last_active < now - max_inactive:
                     clist.append(connection)
                     del self.cIdleList[connection.id]
@@ -1522,7 +1521,8 @@ class Client(PEP8Compatibility, object):
         now = time.time()
         with self.managerLock:
             for thread_id in self.cActiveThreads:
-                for connection in self.cActiveThreads[thread_id].values():
+                for connection in list(
+                        dict_values(self.cActiveThreads[thread_id])):
                     if connection.last_active < now - max_inactive:
                         # remove this connection from the active lists
                         del self.cActiveThreads[thread_id][connection.id]
@@ -1572,7 +1572,7 @@ class Client(PEP8Compatibility, object):
         as it is possible that two threads may independently call the
         method with the same credentials."""
         with self.managerLock:
-            for i in xrange(len(self.credentials)):
+            for i in range3(len(self.credentials)):
                 if self.credentials[i] is credentials:
                     del self.credentials[i]
 
@@ -1695,14 +1695,14 @@ class ClientRequest(messages.Request):
         self.set_url(url)
         # copy over the keyword arguments
         self.method = method
-        if type(protocol) in types.StringTypes:
+        if is_string(protocol):
             self.protocol = params.HTTPVersion.from_str(protocol)
         elif isinstance(protocol, params.HTTPVersion):
             self.protocol = protocol
         else:
             raise TypeError("illegal value for protocol")
         #: the response body received (only used if not streaming)
-        self.res_body = ''
+        self.res_body = b''
         if res_body is not None:
             # assume that the res_body is a stream like object
             self.res_bodystream = res_body
@@ -1881,7 +1881,7 @@ class ClientRequest(messages.Request):
                     cookie_list = self.response.get_set_cookie()
                 except ValueError as e:
                     # ignore these cookies
-                    logging.warn("Ignoring cookies after %s", str(e))
+                    logging.warning("Ignoring cookies after %s", str(e))
                     cookie_list = None
                 if cookie_list:
                     for icookie in cookie_list:
@@ -1890,8 +1890,8 @@ class ClientRequest(messages.Request):
                                 self.url, icookie)
                             logging.info("Stored cookie: %s", str(icookie))
                         except cookie.CookieError as e:
-                            logging.warn("Error setting cookie %s: %s",
-                                         icookie.name, str(e))
+                            logging.warning("Error setting cookie %s: %s",
+                                            icookie.name, str(e))
             if self.res_bodystream:
                 self.res_bodystream.flush()
             else:

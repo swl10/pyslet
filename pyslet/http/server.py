@@ -1,25 +1,30 @@
 #! /usr/bin/env python
 
-from pyslet.py26 import *       # noqa
-
-import io
-import os
 import errno
-import threading
-import time
+import io
 import logging
-import SocketServer
-import Queue
+import os
 import select
 import socket
 import ssl
-import string
+import threading
+import time
 
-import pyslet.rfc2396 as uri
+from .. import rfc2396 as uri
+from ..py2 import py2, dict_items
+from ..py26 import *       # noqa
+from ..streams import Pipe
 
-import pyslet.http.grammar as grammar
-import pyslet.http.messages as messages
-import pyslet.http.params as params
+from . import grammar, messages, params
+
+if py2:
+    import Queue as queue
+    import SocketServer as socketserver
+    from threading import _Event as EventClass
+else:
+    import queue
+    import socketserver
+    from threading import Event as EventClass
 
 
 #: For useful information on HTTP header size limits see:
@@ -42,7 +47,7 @@ def cascading_wait(timeout, *events):
     wait_event.wait(timeout)
 
 
-class CascadingEvent(threading._Event):
+class CascadingEvent(EventClass):
 
     def __init__(self):
         super(CascadingEvent, self).__init__()
@@ -63,7 +68,7 @@ class CascadingEvent(threading._Event):
             e.set()
 
 
-def split_socket(s, buffstr='', timeout=None,
+def split_socket(s, buffstr=b'', timeout=None,
                  maxline=MAX_HEADER_LINE,
                  maxlines=MAX_HEADER_SIZE):
     """Function to help reading from non-blocking sockets.
@@ -104,7 +109,7 @@ def split_socket(s, buffstr='', timeout=None,
         # scan up to the next CRLF in buffer
         try:
             end = buffer.index(grammar.CRLF, rpos)
-            line = str(buffer[rpos:end + 2])
+            line = bytes(buffer[rpos:end + 2])
             if len(line) > maxline:
                 raise messages.HTTPException(
                     "max line length exceeded: %s..." + line[0:64])
@@ -112,7 +117,7 @@ def split_socket(s, buffstr='', timeout=None,
             rpos = end + 2
             if line == grammar.CRLF:
                 # that was the last line
-                return lines, str(buffer[rpos:])
+                return lines, bytes(buffer[rpos:])
             else:
                 # read another line
                 continue
@@ -127,7 +132,7 @@ def split_socket(s, buffstr='', timeout=None,
         buffer = buffer + data
 
 
-def split_socket1(s, buffstr='', timeout=None, maxline=MAX_HEADER_LINE):
+def split_socket1(s, buffstr=b'', timeout=None, maxline=MAX_HEADER_LINE):
     """Function to help reading from non-blocking sockets.
 
     s
@@ -151,18 +156,18 @@ def split_socket1(s, buffstr='', timeout=None, maxline=MAX_HEADER_LINE):
     socket after the blank line.  It is always a string, but may be
     empty.
 
-    If the other end of the socket has closed before a line was sent
-    then the first item is None and the second is any data read from the
-    socket before it was closed."""
+    If the other end of the socket has closed before a complete line was
+    sent then the first item is None and the second is any data read
+    from the socket before it was closed."""
     buffer = bytearray(buffstr)
     rpos = 0
     while True:
         # scan up to the next CRLF in buffer
         try:
             end = buffer.index(grammar.CRLF, rpos)
-            line = str(buffer[rpos:end + 2])
+            line = bytes(buffer[rpos:end + 2])
             rpos = end + 2
-            return line, str(buffer[rpos:])
+            return line, bytes(buffer[rpos:])
         except ValueError:
             # not found, fill the buffer with data
             pass
@@ -171,7 +176,7 @@ def split_socket1(s, buffstr='', timeout=None, maxline=MAX_HEADER_LINE):
                                 buffer[0:64])
         data = read_socket(s, maxline - len(buffer), timeout=timeout)
         if not data:
-            return None, str(buffer)
+            return None, bytes(buffer)
         buffer = buffer + data
 
 
@@ -205,7 +210,7 @@ def read_socket(s, nbytes, timeout=None):
     try:
         data = s.recv(nbytes)
         # if data is empty the other end has hung up
-        if data == '' and nbytes > 0:
+        if data == b'' and nbytes > 0:
             return None
         return data
     except socket.error:
@@ -258,7 +263,7 @@ def write_socket(s, data, timeout=None):
             return None
 
 
-class Connection(SocketServer.BaseRequestHandler):
+class Connection(socketserver.BaseRequestHandler):
 
     def handle(self):
         self.server.handle_connection(self)
@@ -266,7 +271,7 @@ class Connection(SocketServer.BaseRequestHandler):
     def begin(self):
         # a FIFO queue of responses
         self.request.setblocking(False)
-        self.responseq = Queue.Queue()
+        self.responseq = queue.Queue()
         self.finished = threading.Event()
 
     def handle_requests(self):
@@ -280,7 +285,7 @@ class Connection(SocketServer.BaseRequestHandler):
                 rflag = CascadingEvent()
                 request.recv_pipe.set_rflag(rflag)
                 request.start_receiving()
-                buffstr = ''
+                buffstr = b''
                 timeout = self.server.idle_timeout
                 send_continue = False
                 send_continue_start = 0
@@ -405,7 +410,7 @@ class Connection(SocketServer.BaseRequestHandler):
                     self.responseq.put(response)
                     response.set_status(400)
                     response.clear_keep_alive()
-                    txt = str(e)
+                    txt = str(e).encode('iso8859-1')
                     response.set_content_type(params.PLAIN_TEXT)
                     response.set_content_length(len(txt))
                     response.write_response(txt)
@@ -416,15 +421,15 @@ class Connection(SocketServer.BaseRequestHandler):
                     self.responseq.put(response)
                     response.set_status(501)
                     response.clear_keep_alive()
-                    txt = str(e)
+                    txt = str(e).encode('iso8859-1')
                     response.set_content_type(params.PLAIN_TEXT)
                     response.set_content_length(len(txt))
                     response.write_response(txt)
                     self.finished.set()
                 except IOError as e:
                     if request.method:
-                        logging.warn("Unexpected EOM: %s; %s",
-                                     request.get_start(), str(e))
+                        logging.warning("Unexpected EOM: %s; %s",
+                                        request.get_start(), str(e))
                     else:
                         # client may have hung up
                         logging.debug("timed out waiting for request")
@@ -439,7 +444,9 @@ class Connection(SocketServer.BaseRequestHandler):
                     self.responseq.put(response)
                     response.set_status(500)
                     response.clear_keep_alive()
-                    txt = str(e)
+                    txt = str(e).encode('iso8859-1')
+                    # import traceback
+                    # txt = traceback.format_exc().encode('iso-8859-1')
                     logging.error("%s: %s", response.request.get_start(), txt)
                     response.set_content_type(params.PLAIN_TEXT)
                     response.set_content_length(len(txt))
@@ -503,8 +510,8 @@ class Connection(SocketServer.BaseRequestHandler):
                                      str(response.protocol), "100 Continue")
                         # Fake this response, as the app may already be
                         # setting the status, headers etc...
-                        data = "%s %s\r\n\r\n" % (str(response.protocol),
-                                                  "100 Continue")
+                        data = b"%s %s\r\n\r\n" % (
+                            response.protocol.to_bytes(), b"100 Continue")
                         write_socket(self.request, data,
                                      self.server.connection_timeout)
                         # now wait again until we're actually ready to send
@@ -555,7 +562,7 @@ class Connection(SocketServer.BaseRequestHandler):
                         # end of body, close the response pipe
                         response.close()
                         break
-        except Queue.Empty:
+        except queue.Empty:
             # timeout waiting for a response object
             logging.error("HTTPServer: responseq timeout "
                           "(may indicate a stuck connection)")
@@ -574,7 +581,7 @@ class Connection(SocketServer.BaseRequestHandler):
                      self.server.connection_timeout)
 
 
-class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+class Server(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
     """HTTP Server
 
@@ -646,7 +653,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
         self.port = port
         #: whether or not we are serving using https
         self.https = False
-        SocketServer.TCPServer.__init__(
+        socketserver.TCPServer.__init__(
             self, (self.host, self.port), Connection)
         if keyfile is not None:
             # This must be an HTTPS server
@@ -729,7 +736,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
         it hard to see why calls like handle_request have simply
         returned without actually doing anything."""
         try:
-            return SocketServer.TCPServer.get_request(self)
+            return socketserver.TCPServer.get_request(self)
         except socket.error as e:
             logging.errror("Server socket error %s", repr(e))
             raise
@@ -760,10 +767,16 @@ class ServerRequest(messages.Request):
         self.extract_authority()
         with self.lock:
             url = uri.URI.from_octets(self.request_uri)
+            try:
+                path_info = uri.unescape_data(url.abs_path).decode('utf-8')
+            except UnicodeDecodeError:
+                # ok, not UTF-8 then, try iso-8859-1
+                path_info = uri.unescape_data(
+                    url.abs_path).decode('iso-8859-1')
             environ = {
                 'REQUEST_METHOD': self.method,
                 'SCRIPT_NAME': '',
-                'PATH_INFO': uri.unescape_data(url.abs_path),
+                'PATH_INFO': path_info,
                 'QUERY_STRING': url.query,
                 'SERVER_NAME': self.connection.server.host,
                 'SERVER_PORT': str(self.connection.server.port),
@@ -785,9 +798,10 @@ class ServerRequest(messages.Request):
             content_length = self.get_header('Content-Length')
             if content_length is not None:
                 environ['CONTENT_LENGTH'] = content_length
-            for hname, hvalue in self.headers.iteritems():
-                hname = hname.replace("-", "_")
-                environ['HTTP_' + hname.upper()] = hvalue[1]
+            for hname, hvalue in dict_items(self.headers):
+                hname = hname.replace(b"-", b"_").decode('iso-8859-1')
+                environ['HTTP_' + hname.upper()] = hvalue[1].decode(
+                    'iso-8859-1')
         # now launch the application in a separate thread
         response = ServerResponse(
             request=self, protocol=self.connection.server.protocol)
@@ -826,6 +840,9 @@ class ServerResponse(messages.Response):
             # length is unknown, probably a generator function
             datalen = None
         for item in data:
+            if not isinstance(item, bytes):
+                logging.error("WSGI application yielded non bytes: %s",
+                              repr(item))
             if datalen == 1:
                 # this is all the data, set the body_len
                 self.body_len = len(item)
@@ -880,8 +897,9 @@ class ServerResponse(messages.Response):
             data = input.read1(io.DEFAULT_BUFFER_SIZE)
             if data:
                 if spool_count < io.DEFAULT_BUFFER_SIZE:
-                    logging.warn("wsgi application discarded %i bytes of data",
-                                 len(data))
+                    logging.warning(
+                        "wsgi application discarded %i bytes of data",
+                        len(data))
                     logging.debug("discarding data: \n%s", data)
                 spool_count += len(data)
             else:
@@ -895,7 +913,7 @@ class ServerResponse(messages.Response):
             else:
                 self.status = 0
             pstatus.parse_sp()
-            self.reason = pstatus.parse_remainder()
+            self.reason = pstatus.parse_remainder().decode('iso-8859-1')
             for name, value in response_headers:
                 self.set_header(name, value)
         return self.write_response
@@ -915,530 +933,3 @@ class ServerResponse(messages.Response):
 
     def close(self):
         self.send_pipe.close()
-
-
-class Pipe(io.RawIOBase):
-
-    """Buffered pipe for inter-thread communication
-
-    The purpose of this class is to provide a thread-safe buffer to use
-    for communicating between two parts of an application that support
-    non-blocking io while reducing to a minimum the amount of
-    byte-copying that takes place.
-
-    Essentially, write calls with immutable byte strings are simply
-    cached without copying (and always succeed) enabling them to be
-    passed directly through to the corresponding read operation in
-    streaming situations.  However, to improve flow control a canwrite
-    method is provided to help writers moderate the amount of data that
-    has to be held in the buffer::
-
-        # data producer thread
-        while busy:
-            wmax = p.canwrite()
-            if wmax:
-                data = get_at_most_max_bytes(wmax)
-                p.write(data)
-            else:
-                # do something else while the pipe is blocked
-                spin_the_beach_ball()
-
-    bsize
-        The buffer size, this is used as a guide only.  When writing
-        immutable bytes objects to the pipe the buffer size may be
-        exceeded as these can simply be cached and returned directly to
-        the reader more efficiently than slicing them up just to adhere
-        to the buffer size.  However, if the buffer already contains
-        bsize bytes all calls to write will block or return None.
-        Defaults to io.DEFAULT_BUFFER_SIZE.
-
-    rblocking
-        Controls the blocking behaviour of the read end of this pipe.
-        True indicates reads may block waiting for data, False that they
-        will not and read may return None.  Defaults to True.
-
-    wblocking
-        Controls the blocking behaviour of the write end of the this
-        pipe. True indicates writes may block waiting for data, False
-        that they will not and write may return None.  Defaults to True.
-
-    timeout
-        The number of seconds before a blocked read or write operation
-        will timeout.  Defaults to None, which indicates 'wait forever'.
-        A value of 0 is not the same as placing both ends of the pipe in
-        non-blocking mode (though the effect may be similar).
-
-    name
-        An optional name to use for this pipe, the name is used when
-        raising errors and when logging"""
-
-    def __init__(self, bsize=io.DEFAULT_BUFFER_SIZE,
-                 rblocking=True, wblocking=True, timeout=None,
-                 name=None):
-        #: the name of the pipe
-        self.name = name
-        # the maximum buffer size, used for flow control, this
-        # is not a hard limit
-        self.max = bsize
-        # buffered strings of bytes
-        self.buffer = []
-        # the total size of all strings in the buffer
-        self.bsize = 0
-        # offset into self.buffer[0]
-        self.rpos = 0
-        # eof indicator
-        self._eof = False
-        self.rblocking = rblocking
-        # an Event that flags the arrival of a reader
-        self.rflag = None
-        self.wblocking = wblocking
-        # timeout duration
-        self.timeout = timeout
-        # lock for multi-threading
-        self.lock = threading.Condition()
-        # state values used for monitoring changes
-        self.wstate = 0
-        self.rstate = 0
-        super(Pipe, self).__init__()
-
-    def __repr__(self):
-        if self.name:
-            return self.name
-        else:
-            return super(Pipe, self).__repr__()
-
-    def close(self):
-        # throw away all data
-        logging.debug("Pipe.close %s", repr(self))
-        # logging.debug(string.join(traceback.format_stack()))
-        with self.lock:
-            if self.buffer:
-                logging.warn("Pipe.close for %s discarded non-empty buffer",
-                             repr(self))
-            self.buffer = []
-            self.bsize = 0
-            self.rpos = 0
-            self._eof = True
-            # kill anyone waiting
-            self.rstate += 1
-            self.wstate += 1
-            self.lock.notify_all()
-        super(Pipe, self).close()
-        # if someone is waiting for a reader - wake them as the reader
-        # will never come
-        if self.rflag is not None:
-            self.rflag.set()
-
-    def readable(self):
-        return True
-
-    def writable(self):
-        return True
-
-    def readblocking(self):
-        return self.rblocking
-
-    def set_readblocking(self, blocking=True):
-        with self.lock:
-            self.rblocking = blocking
-
-    def writeblocking(self):
-        return self.wblocking
-
-    def set_writeblocking(self, blocking=True):
-        with self.lock:
-            self.wblocking = blocking
-
-    def wait(self, timeout, method):
-        if timeout is not None:
-            tstart = time.time()
-        with self.lock:
-            while not method():
-                if timeout is None:
-                    twait = None
-                else:
-                    twait = (tstart + timeout) - time.time()
-                    if twait < 0:
-                        logging.warn("Pipe.wait timedout on %s", repr(self))
-                        raise IOError(errno.ETIMEDOUT,
-                                      os.strerror(errno.ETIMEDOUT),
-                                      "pyslet.http.server.Pipe.wait")
-                logging.debug("Pipe.wait waiting for %s", repr(self))
-                self.lock.wait(twait)
-
-    def empty(self):
-        """Returns True if the buffer is currently empty"""
-        with self.lock:
-            if self.buffer:
-                return False
-            else:
-                return True
-
-    def buffered(self):
-        """Returns the number of buffered bytes in the Pipe"""
-        with self.lock:
-            return self.bsize - self.rpos
-
-    def canwrite(self):
-        """Returns the number of bytes that can be written.
-
-        This value is the number of bytes that can be written in a
-        single non-blocking call to write.  0 indicates that the pipe's
-        buffer is full.  A call to write may accept more than this but
-        *the next* call to write will always accept at least this many.
-
-        This class is fully multithreaded so in situations where there
-        are multiple threads writing this call is of limited use.
-
-        If called on a pipe that has had the EOF mark written then
-        IOError is raised."""
-        with self.lock:
-            if self.closed or self._eof:
-                raise IOError(
-                    errno.EPIPE,
-                    "canwrite: can't write past EOF on Pipe object")
-            wlen = self.max - self.bsize + self.rpos
-            if wlen <= 0:
-                wlen = 0
-                if self.rflag is not None:
-                    self.rflag.clear()
-            return wlen
-
-    def set_rflag(self, rflag):
-        """Sets an Event triggered when a reader is detected.
-
-        rflag
-            An Event instance from the threading module.
-
-        The event will be set each time the Pipe is read.  The flag may
-        be cleared at any time by the caller but as a convenience it
-        will always be cleared when :py:meth:`canwrite` returns 0.
-
-        If the pipe is closed then the even is set as a warning that the
-        pipe will never be read.  (The next call to write will fail.)"""
-        with self.lock:
-            self.rflag = rflag
-            if self.closed:
-                self.rflag.set()
-
-    def write_wait(self, timeout=None):
-        """Waits for the pipe to become writable or raises IOError
-
-        timeout
-            Defaults to None: wait forever.  Otherwise the maximum
-            number of seconds to wait for."""
-        self.wait(timeout, self.canwrite)
-
-    def flush_wait(self, timeout=None):
-        """Waits for the pipe to become empty or raises IOError
-
-        timeout
-            Defaults to None: wait forever.  Otherwise the maximum
-            number of seconds to wait for."""
-        self.wait(timeout, self.empty)
-
-    def canread(self):
-        """Returns True if the next call to read will not block.
-
-        False indicates that the pipe's buffer is empty and that a call
-        to read will block.
-
-        Note that if the buffer is empty but the EOF signal has been
-        given with :py:meth:`write_eof` then canread returns True! The
-        next call to read will not block but return an empty string
-        indicating EOF.
-
-        This class is fully multithreaded so in the unlikely situation
-        where there are multiple threads reading this call is of limited
-        use."""
-        with self.lock:
-            if self.closed:
-                raise IOError(
-                    errno.EPIPE, "can't read from a closed Pipe object")
-            if self.buffer or self._eof:
-                return True
-            else:
-                return False
-
-    def read_wait(self, timeout=None):
-        """Waits for the pipe to become readable or raises IOError
-
-        timeout
-            Defaults to None: wait forever.  Otherwise the maximum
-            number of seconds to wait for."""
-        self.wait(timeout, self.canread)
-
-    def write(self, b):
-        """writes data to the pipe
-
-        The implementation varies depending on the type of b.  If b is
-        an immutable bytes object then it is accepted even if this
-        overfills the internal buffer (as it is not actually copied).
-        If b is a bytearray then data is copied, up to the maximum
-        buffer size."""
-        if self.timeout is not None:
-            tstart = time.time()
-        with self.lock:
-            if self.closed or self._eof:
-                raise IOError(errno.EPIPE,
-                              "write: can't write past EOF on Pipe object")
-            if isinstance(b, memoryview):
-                # catch memory view objects here
-                b = b.tobytes()
-            wlen = self.max - self.bsize + self.rpos
-            while wlen <= 0:
-                # block on write or return None
-                if self.wblocking:
-                    if self.timeout is None:
-                        twait = None
-                    else:
-                        twait = (tstart + self.timeout) - time.time()
-                        if twait < 0:
-                            logging.warn("Pipe.write timed out for %s",
-                                         repr(self))
-                            raise IOError(errno.ETIMEDOUT,
-                                          os.strerror(errno.ETIMEDOUT),
-                                          "pyslet.http.server.Pipe.write")
-                    logging.debug("Pipe.write waiting for %s", repr(self))
-                    self.lock.wait(twait)
-                    # check for eof again!
-                    if self.closed or self._eof:
-                        raise IOError(errno.EPIPE,
-                                      "write: EOF or pipe closed after wait")
-                    # recalculate the writable space
-                    wlen = self.max - self.bsize + self.rpos
-                else:
-                    return None
-            if isinstance(b, bytes):
-                nbytes = len(b)
-                if nbytes:
-                    self.buffer.append(b)
-                    self.bsize += nbytes
-                    self.wstate += 1
-                    self.lock.notify_all()
-                return nbytes
-            elif isinstance(b, bytearray):
-                nbytes = len(b)
-                if nbytes > wlen:
-                    nbytes = wlen
-                    # partial copy, creates transient bytearray :(
-                    self.buffer.append(bytes(b[:nbytes]))
-                else:
-                    self.buffer.append(bytes(b))
-                self.bsize += nbytes
-                self.wstate += 1
-                self.lock.notify_all()
-                return nbytes
-            else:
-                raise TypeError(repr(type(b)))
-
-    def write_eof(self):
-        with self.lock:
-            self._eof = True
-            self.wstate += 1
-            self.lock.notify_all()
-
-    def flush(self):
-        if self.timeout is not None:
-            tstart = time.time()
-        with self.lock:
-            blen = self.bsize - self.rpos
-            while self.buffer:
-                if self.wblocking:
-                    if self.timeout is None:
-                        twait = None
-                    else:
-                        new_blen = self.bsize - self.rpos
-                        if new_blen < blen:
-                            # making progress, restart the clock
-                            blen = new_blen
-                            tstart = time.time()
-                        twait = (tstart + self.timeout) - time.time()
-                        if twait < 0:
-                            logging.warn("Pipe.flush timed out for %s",
-                                         repr(self))
-                            logging.debug("Pipe.flush found stuck data: %s",
-                                          repr(self.buffer))
-                            raise IOError(errno.ETIMEDOUT,
-                                          os.strerror(errno.ETIMEDOUT),
-                                          "pyslet.http.server.Pipe.flush")
-                    logging.debug("Pipe.flush waiting for %s", repr(self))
-                    self.lock.wait(twait)
-                else:
-                    raise io.BlockingIOError(
-                        errno.EWOULDBLOCK,
-                        "Pipe.flush write blocked on %s" % repr(self))
-
-    def readall(self):
-        """Overridden to take care of non-blocking behaviour.
-
-        Warning: readall always blocks until it has read EOF, regardless
-        of the rblocking status of the Pipe.
-
-        The problem is that, if the Pipe is set for non-blocking reads
-        then we seem to have the choice of returning a partial read (and
-        failing to signal that some of the data is still in the pipe) or
-        raising an error and losing the partially read data.
-
-        Perhaps ideally we'd return None indicating that we are blocked
-        from reading the entire stream but this isn't listed as a
-        possible return result for io.RawIOBase.readall and it would be
-        tricky to implement anyway as we still need to deal with
-        partially read data.
-
-        Ultimately the safe choices are raise an error if called on a
-        non-blocking Pipe or simply block.  We do the latter on the
-        basis that anyone calling readall clearly intends to wait.
-
-        For a deep discussion of the issues around non-blocking behaviour
-        see http://bugs.python.org/issue13322"""
-        data = []
-        with self.lock:
-            save_rblocking = self.rblocking
-            try:
-                self.rblocking = True
-                while True:
-                    part = self.read(io.DEFAULT_BUFFER_SIZE)
-                    if not part:
-                        # end of stream
-                        return string.join(data, '')
-                    else:
-                        data.append(part)
-            finally:
-                self.rlocking = save_rblocking
-
-    def _consolidate_buffer(self):
-        with self.lock:
-            if self.buffer:
-                if self.rpos:
-                    self.buffer[0] = self.buffer[0][self.rpos:]
-                    self.rpos = 0
-                self.buffer = [string.join(self.buffer, '')]
-
-    def readmatch(self, match=grammar.CRLF):
-        with self.lock:
-            pos = -1
-            while pos < 0:
-                if self.buffer:
-                    # take care of a special case first
-                    pos = self.buffer[0].find(match, self.rpos)
-                    if pos < 0:
-                        # otherwise consolidate the buffer
-                        self._consolidate_buffer()
-                        pos = self.buffer[0].find(match)  # rpos is now 0
-                if pos >= 0:
-                    src = self.buffer[0]
-                    result = src[self.rpos:pos + len(match)]
-                    self.rpos += len(result)
-                    if self.rpos >= len(src):
-                        # discard src
-                        self.buffer = self.buffer[1:]
-                        self.bsize = self.bsize - len(src)
-                        self.rpos = 0
-                    self.rstate += 1
-                    # success, set the reader flag
-                    if self.rflag is not None:
-                        self.rflag.set()
-                    self.lock.notify_all()
-                    return result
-                else:
-                    if self._eof:
-                        return ''
-                    # not found, should we block?
-                    if self.canwrite():
-                        # no match, but the buffer is not full so
-                        # set the reader flag to indicate that we
-                        # are now waiting to accept data.
-                        if self.rflag is not None:
-                            self.rflag.set()
-                        if self.rblocking:
-                            # we wait for something to happen on the
-                            # Pipe hopefully a write operation!
-                            cstate = self.wstate
-                            logging.debug("Pipe.readmatch waiting for %s",
-                                          repr(self))
-                            self.lock.wait(self.timeout)
-                            if self.wstate == cstate:
-                                logging.warn(
-                                    "Pipe.readmatch timed out for %s",
-                                    repr(self))
-                                raise IOError(
-                                    errno.ETIMEDOUT,
-                                    os.strerror(errno.ETIMEDOUT),
-                                    "pyslet.http.server.Pipe.readmatch")
-                            # go round the loop again
-                        else:
-                            # non-blocking readmatch returns None
-                            return None
-                    else:
-                        # we can't write so no point in waiting
-                        raise IOError(errno.ENOBUFS,
-                                      os.strerror(errno.ENOBUFS),
-                                      "pyslet.http.server.Pipe.readmatch")
-
-    def read(self, nbytes=-1):
-        if nbytes < 0:
-            return self.readall()
-        else:
-            with self.lock:
-                if self.buffer and self.rpos == 0:
-                    # take care of one special case
-                    src = self.buffer[0]
-                    if len(src) <= nbytes:
-                        self.buffer = self.buffer[1:]
-                        self.bsize = self.bsize - len(src)
-                        self.rstate += 1
-                        # successful read
-                        if self.rflag is not None:
-                            self.rflag.set()
-                        self.lock.notify_all()
-                        return src
-                b = bytearray(nbytes)
-                nbytes = self.readinto(b)
-                if nbytes is None:
-                    return None
-                else:
-                    return str(b[:nbytes])
-
-    def readinto(self, b):
-        if self.timeout is not None:
-            tstart = time.time()
-        with self.lock:
-            nbytes = len(b)
-            # we're now reading
-            if self.rflag is not None:
-                self.rflag.set()
-            while not self.buffer:
-                if self._eof:
-                    return 0
-                elif self.rblocking:
-                    if self.timeout is None:
-                        twait = None
-                    else:
-                        twait = (tstart + self.timeout) - time.time()
-                        if twait < 0:
-                            logging.warn("Pipe.read timed out for %s",
-                                         repr(self))
-                            raise IOError(errno.ETIMEDOUT,
-                                          os.strerror(errno.ETIMEDOUT),
-                                          "pyslet.http.server.Pipe.read")
-                    logging.debug("Pipe.read waiting for %s", repr(self))
-                    self.lock.wait(twait)
-                else:
-                    return None
-            src = self.buffer[0]
-            rlen = len(src) - self.rpos
-            if rlen < nbytes:
-                nbytes = rlen
-            if nbytes:
-                b[:nbytes] = src[self.rpos:self.rpos + nbytes]
-                self.rpos += nbytes
-            if self.rpos >= len(src):
-                # discard src
-                self.buffer = self.buffer[1:]
-                self.bsize = self.bsize - len(src)
-                self.rpos = 0
-            if nbytes:
-                self.rstate += 1
-                self.lock.notify_all()
-            return nbytes

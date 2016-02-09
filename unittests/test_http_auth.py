@@ -17,7 +17,7 @@ def suite():
     ))
 
 
-TEST_STRING = "The quick brown fox jumped over the lazy dog"
+TEST_STRING = b"The quick brown fox jumped over the lazy dog"
 
 
 class HTTP2617Tests(unittest.TestCase):
@@ -82,11 +82,11 @@ class HTTP2617Tests(unittest.TestCase):
         self.assertTrue(c.scheme == "Basic", "Challenge scheme: %s" % c.scheme)
         self.assertTrue(c.protectionSpace is None,
                         "Challenge protection space: %s" % c.protectionSpace)
-        self.assertTrue(c["realm"] == "Default",
+        self.assertTrue(c["realm"] == b"Default",
                         "Initial challenge realm: %s" % c["realm"])
         c = BasicChallenge.from_str('Basic realm="Firewall"')
         self.assertTrue(
-            c["realm"] == "Firewall", "Parsed realm: %s" % c["realm"])
+            c["realm"] == b"Firewall", "Parsed realm: %s" % c["realm"])
         self.assertTrue(str(c) == 'Basic realm="Firewall"',
                         "Format challenge: %s" % repr(str(c)))
 
@@ -107,9 +107,9 @@ class HTTP2617Tests(unittest.TestCase):
 
     def test_basicpaths(self):
         c = BasicCredentials()
-        self.assertTrue(len(c.pathPrefixes) == 0, "No prefixes initially")
+        self.assertTrue(len(c.path_prefixes) == 0, "No prefixes initially")
         c.add_success_path("/website/private/document")
-        self.assertTrue(len(c.pathPrefixes) == 1, "One path")
+        self.assertTrue(len(c.path_prefixes) == 1, "One path")
         self.assertTrue(c.test_path("/website/private/document"),
                         "Simple match")
         self.assertTrue(c.test_path("/website/private/undocument"),
@@ -119,7 +119,7 @@ class HTTP2617Tests(unittest.TestCase):
         self.assertFalse(c.test_path("/website/private"),
                          "Simple match doesn't extend to parent")
         c.add_success_path("/website/private2/document2")
-        self.assertTrue(len(c.pathPrefixes) == 2, "Two paths, no common root")
+        self.assertTrue(len(c.path_prefixes) == 2, "Two paths, no common root")
         self.assertTrue(
             c.test_path("/website/private/document"), "Simple match")
         self.assertTrue(
@@ -128,10 +128,10 @@ class HTTP2617Tests(unittest.TestCase):
                          "Simple match doesn't apply to parent")
         c.add_success_path("/internal/~user/secrets")
         self.assertTrue(
-            len(c.pathPrefixes) == 3, "Three paths, no common root")
+            len(c.path_prefixes) == 3, "Three paths, no common root")
         c.add_success_path("/website/private")
         self.assertTrue(
-            len(c.pathPrefixes) == 2, "Reduced to two paths with common root")
+            len(c.path_prefixes) == 2, "Reduced to two paths with common root")
         self.assertTrue(
             c.test_path("/website/private/document"), "Simple match")
         self.assertTrue(
@@ -140,7 +140,7 @@ class HTTP2617Tests(unittest.TestCase):
                          "Simple match doesn't apply to parent "
                          "(without redirect)")
         c.add_success_path("/website")
-        self.assertTrue(len(c.pathPrefixes) == 1,
+        self.assertTrue(len(c.path_prefixes) == 1,
                         "Reduced to one path with common root (no slash)")
         self.assertTrue(
             c.test_path("/website/private/document"), "Simple match")
@@ -162,7 +162,7 @@ class HTTP2617Tests(unittest.TestCase):
                         "Status in response1: %i" % response1.status)
         self.assertTrue(response1.reason == "Who are you?",
                         "Reason in response1: %s" % response1.reason)
-        self.assertTrue(request1.res_body == '',
+        self.assertTrue(request1.res_body == b'',
                         "Data in response1: %s" % request1.res_body)
         challenges = response1.get_www_authenticate()
         self.assertTrue(len(challenges) == 1 and isinstance(

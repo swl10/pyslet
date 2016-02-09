@@ -23,4 +23,5 @@ Contents:
    rfc5023
    iso8601
    unicode5
+   streams
    vfs

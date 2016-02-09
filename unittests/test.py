@@ -15,25 +15,21 @@ if py2:
 if py2:
     import test_html40_19991224
     all_tests.addTest(test_html40_19991224.suite())
-if py2:
-    import test_http_auth
-    all_tests.addTest(test_http_auth.suite())
-if py2:
-    import test_http_client
-    all_tests.addTest(test_http_client.suite())
+import test_http_auth
+all_tests.addTest(test_http_auth.suite())
+import test_http_client
+all_tests.addTest(test_http_client.suite())
 if py2:
     import test_http_cookie
     all_tests.addTest(test_http_cookie.suite())
 import test_http_grammar
 all_tests.addTest(test_http_grammar.suite())
-if py2:
-    import test_http_messages
-    all_tests.addTest(test_http_messages.suite())
+import test_http_messages
+all_tests.addTest(test_http_messages.suite())
 import test_http_params
 all_tests.addTest(test_http_params.suite())
-if py2:
-    import test_http_server
-    all_tests.addTest(test_http_server.suite())
+import test_http_server
+all_tests.addTest(test_http_server.suite())
 if py2:
     import test_imsbltiv1p0
     all_tests.addTest(test_imsbltiv1p0.suite())
@@ -99,6 +95,8 @@ if py2:
 if py2:
     import test_rtf_1p6
     all_tests.addTest(test_rtf_1p6.suite())
+import test_streams
+all_tests.addTest(test_streams.suite())
 import test_unicode5
 all_tests.addTest(test_unicode5.suite())
 import test_urn

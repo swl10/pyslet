@@ -1,8 +1,8 @@
 #! /usr/bin/env python
 
-from pyslet.unicode5 import BasicParser, ParserMixin
-from pyslet.py2 import byte, byte_value, is_byte, byte_to_bstr, join_bytes
-from pyslet.py2 import is_unicode, dict_keys
+from ..py2 import byte, byte_value, is_byte, byte_to_bstr, join_bytes
+from ..py2 import is_unicode, dict_keys
+from ..unicode5 import BasicParser, ParserMixin
 
 
 def is_octet(b):
@@ -71,13 +71,6 @@ DQUOTE = byte(34)
 #: the string consisting of CR followed by LF
 CRLF = join_bytes([CR, LF])
 
-#: defined for ease of testing separators
-BACKSLASH = byte(0x5C)
-COMMA = byte(',')
-SEMICOLON = byte(';')
-EQUALS = byte('=')
-COPEN = byte(b'(')
-
 
 def is_hex(b):
     """Returns True if a byte matches the production for HEX."""
@@ -100,6 +93,23 @@ def is_hexdigits(src):
 
 SEPARATORS = set('()<>@,;:\\"/[]?={} \t'.encode('ascii'))
 
+LEFT_PARENTHESIS = byte('(')        #: Left Parenthesis "("
+RIGHT_PARENTHESIS = byte(')')       #: Right Parentheses "("
+LESSTHAN_SIGN = byte('<')           #: Less-than Sign "<"
+GREATERTHAN_SIGN = byte('>')        #: Greater-than Sign ">"
+COMMERCIAL_AT = byte('@')           #: Commercial At "@"
+COMMA = byte(',')                   #: Comma ","
+SEMICOLON = byte(';')               #: Semicolon ";"
+COLON = byte(':')                   #: Colon ":"
+REVERSE_SOLIDUS = byte(0x5C)        #: Reverse solidus "\"
+SOLIDUS = byte('/')                 #: Solidus "/"
+LEFT_SQUARE_BRACKET = byte('[')     #: Left square bracket "["
+RIGHT_SQUARE_BRACKET = byte(']')    #: Right square bracket "["
+QUESTION_MARK = byte('?')           #: Question mark "?"
+EQUALS_SIGN = byte('=')             #: Equals sign "="
+LEFT_CURLY_BRACKET = byte('{')      #: Left curly bracket "{"
+RIGHT_CURLY_BRACKET = byte('}')     #: Right curly bracket "}"
+
 
 def is_separator(b):
     """Returns True if a byte is a separator"""
@@ -110,15 +120,18 @@ def check_token(t):
     """Raises ValueError if *t* is *not* a valid token
 
     t
-        A binary string, will also accept a single byte."""
+        A binary string, will also accept a single byte.
+
+    Returns a *character* string representing the token on success."""
     if not isinstance(t, bytes):
         # single byte
-        t = [t]
+        t = bytes((t, ))
     for b in t:
         if b in SEPARATORS:
             raise ValueError("Separator found in token: %s" % t)
         elif is_ctl(b) or not is_char(b):
             raise ValueError("Non-ASCII or CTL found in token: %s" % t)
+    return t.decode('iso-8859-1')
 
 
 def decode_quoted_string(qstring):
@@ -137,7 +150,7 @@ def decode_quoted_string(qstring):
         qbuff = []
         escape = False
         for b in qstring:
-            if not escape and b == BACKSLASH:
+            if not escape and b == REVERSE_SOLIDUS:
                 escape = True
                 continue
             qbuff.append(b)
@@ -159,8 +172,8 @@ def quote_string(s, force=True):
     are quoted in the output."""
     qstring = [DQUOTE]
     for b in s:
-        if b in (BACKSLASH, DQUOTE) or (is_ctl(b) and b not in (SP, HT)):
-            qstring.append(BACKSLASH)
+        if b in (REVERSE_SOLIDUS, DQUOTE) or (is_ctl(b) and b not in (SP, HT)):
+            qstring.append(REVERSE_SOLIDUS)
             qstring.append(b)
             force = True
         elif is_ctl(b) or is_separator(b):
@@ -180,7 +193,8 @@ def format_parameters(parameters):
 
     This function is suitable for formatting parameter dictionaries
     parsed by :py:meth:`WordParser.parse_parameters`.  These
-    dictionaries are key/value pairs of binary strings.
+    dictionaries are key/value pairs where the keys are *character*
+    strings and the values are *binary* strings.
 
     Parameter values are quoted only if their values require it, that
     is, only if their values are *not* valid tokens."""
@@ -189,7 +203,7 @@ def format_parameters(parameters):
     for k in keys:
         format.append(b'; ')
         p, v = parameters[k]
-        format.append(p)
+        format.append(p.encode('ascii'))
         format.append(b'=')
         format.append(quote_string(v, force=False))
     return b''.join(format)
@@ -202,7 +216,7 @@ class OctetParser(BasicParser):
     always set to binary mode.  However, as a concession to the various
     normative references to HTTP in other specifications where character
     strings are parsed they will be accepted provided they only contain
-    US ASCII characters."""
+    *US ASCII* characters."""
 
     def __init__(self, source):
         if is_unicode(source):
@@ -564,7 +578,7 @@ class WordParser(ParserMixin):
                 self.word_pos.append(word_pos)
                 word_pos = p.pos
             if is_separator(p.the_char):
-                if p.the_char == COPEN:
+                if p.the_char == LEFT_PARENTHESIS:
                     self.words.append(p.parse_comment(True))
                 elif p.the_char == DQUOTE:
                     self.words.append(p.parse_quoted_string(True))
@@ -669,7 +683,10 @@ class WordParser(ParserMixin):
     def parse_token(self):
         """Parses a token from the list of words
 
-        Returns the token or None if the next word was not a token."""
+        Returns the token or None if the next word was not a token.  The
+        return value is a binary string.  This is consistent with the
+        use of this method for parsing tokens in contexts where a token
+        or a quoted string may be present."""
         if self.is_token():
             return self.parse_word()
         else:
@@ -678,9 +695,10 @@ class WordParser(ParserMixin):
     def parse_tokenlower(self):
         """Returns a lower-cased token parsed from the word list
 
-        Returns None if the next word was not a token."""
+        Returns None if the next word was not a token.  Unlike
+        :meth:`parse_token` the result is a *character* string."""
         if self.is_token():
-            return self.parse_word().lower()
+            return self.parse_word().lower().decode('ascii')
         else:
             return None
 
@@ -690,12 +708,14 @@ class WordParser(ParserMixin):
         Returns the list or [] if no tokens were found.  Lists are
         defined by RFC2616 as being comma-separated.  Note that empty
         items are ignored, so strings such as "x,,y" return just ["x",
-        "y"]."""
+        "y"].
+
+        The list of tokens is returned as a list of character strings."""
         result = []
         while self.the_word:
             token = self.parse_token()
             if token:
-                result.append(token)
+                result.append(token.decode('ascii'))
             elif self.parse_separator(COMMA):
                 continue
             else:
@@ -843,7 +863,13 @@ class WordParser(ParserMixin):
         always preserving the original case of the parameter name.
 
         Returns the parameters dictionary as the result.  The method
-        always succeeds as parameter lists can be empty."""
+        always succeeds as parameter lists can be empty.
+
+        Compatibility warning: parameter names must be tokens and are
+        therefore converted to *character* strings.  Parameter values,
+        on the other hand, may be quoted strings containing characters
+        from unknown character sets and are therefore always represented
+        as binary strings."""
         self.parse_sp()
         while self.the_word:
             savepos = self.pos
@@ -851,7 +877,8 @@ class WordParser(ParserMixin):
                 self.parse_sp()
                 self.require_separator(SEMICOLON)
                 self.parse_sp()
-                param_name = self.require_token("parameter")
+                param_name = self.require_token(
+                    "parameter").decode('iso-8859-1')
                 if not case_sensitive:
                     param_key = param_name.lower()
                 else:
@@ -860,7 +887,7 @@ class WordParser(ParserMixin):
                     raise BadSyntax
                 if ignore_allsp:
                     self.parse_sp()
-                self.require_separator(EQUALS, "parameter")
+                self.require_separator(EQUALS_SIGN, "parameter")
                 if ignore_allsp:
                     self.parse_sp()
                 if self.is_token():
@@ -884,7 +911,8 @@ class WordParser(ParserMixin):
         Returns an empty string if the parser is at the end of the word
         list."""
         if self.the_word:
-            result = sep.join(self.words[self.pos:])
+            result = sep.join(w if isinstance(w, bytes) else byte_to_bstr(w)
+                              for w in self.words[self.pos:])
         else:
             result = b''
         self.setpos(len(self.words))

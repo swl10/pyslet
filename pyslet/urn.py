@@ -1,11 +1,11 @@
 #! /usr/bin/env python
 """This module implements the URN specification defined in RFC 2141"""
 
-import pyslet.rfc2396 as uri
+from . import rfc2396 as uri
 
-from pyslet.unicode5 import CharClass
-from pyslet.py2 import join_characters, is_unicode
-from pyslet.py2 import byte, byte_value, join_bytes
+from .unicode5 import CharClass
+from .py2 import join_characters, is_unicode
+from .py2 import byte, byte_value, join_bytes
 
 
 is_upper = uri.is_upalpha

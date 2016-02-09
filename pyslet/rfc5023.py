@@ -12,13 +12,11 @@ xml:lang attribute [W3C.REC-xml-20040204], Section 2.12
 """
 
 import string
-import StringIO
 import sys
 import io
 import traceback
 
 import pyslet.http.client as http
-import pyslet.http.messages as messages
 import pyslet.pep8 as pep8
 import pyslet.rfc2396 as uri
 import pyslet.rfc4287 as atom
@@ -278,212 +276,6 @@ class Client(http.Client):
         super(Client, self).queue_request(request, timeout)
 
 
-class InputWrapper(io.RawIOBase):
-
-    """A class suitable for wrapping the input object.
-
-    The purpose of the class is to behave in a more file like way, so
-    that applications can ignore the fact they are dealing with
-    a wsgi input stream.
-
-    The object will buffer the input stream and claim to be seekable for
-    the first *seek_size* bytes.  Once the stream has been advanced
-    beyond *seek_size* bytes the stream will raise IOError if seek is
-    called.
-
-    *environ* is the environment dictionary
-
-    *seek_size* specifies the size of the seekable buffer, it defaults
-    to io.DEFAULT_BUFFER_SIZE"""
-
-    def __init__(self, environ, seek_size=io.DEFAULT_BUFFER_SIZE):
-        super(InputWrapper, self).__init__()
-        self.input_stream = environ['wsgi.input']
-        if ('HTTP_TRANSFER_ENCODING' in environ and
-                environ['HTTP_TRANSFER_ENCODING'].lower() != 'identity'):
-            self.input_stream = messages.ChunkedReader(self.input_stream)
-            # ignore the content length
-            self.inputLength = None
-        elif ("CONTENT_LENGTH" in environ and environ['CONTENT_LENGTH']):
-            self.inputLength = int(environ['CONTENT_LENGTH'])
-            if self.inputLength < seek_size:
-                # we can buffer the entire stream
-                seek_size = self.inputLength
-        else:
-            # read until EOF
-            self.inputLength = None
-        self.pos = 0
-        self.buffer = None
-        self.buffSize = 0
-        if seek_size > 0:
-            self.buffer = StringIO.StringIO()
-            # now fill the buffer
-            while self.buffSize < seek_size:
-                data = self.input_stream.read(seek_size - self.buffSize)
-                if len(data) == 0:
-                    # we ran out of data
-                    self.input_stream = None
-                    break
-                self.buffer.write(data)
-                self.buffSize = self.buffer.tell()
-            # now reset the buffer ready for reading
-            self.buffer.seek(0)
-
-    def read(self, n=-1):
-        """This is the heart of our wrapper.
-
-        We read bytes first from the buffer and, when exhausted, from
-        the input_stream itself."""
-        if self.closed:
-            raise IOError("InputWrapper was closed")
-        if n == -1:
-            return self.readall()
-        data = ''
-        if n and self.pos < self.buffSize:
-            data = self.buffer.read(n)
-            self.pos += len(data)
-            n = n - len(data)
-        if n and self.input_stream is not None:
-            if self.inputLength is not None and \
-                    self.pos + n > self.inputLength:
-                # application should not attempt to read past the
-                # CONTENT_LENGTH
-                n = self.inputLength - self.pos
-            idata = self.input_stream.read(n)
-            if len(idata) == 0:
-                self.input_stream = None
-            else:
-                self.pos += len(idata)
-                if data:
-                    data = data + idata
-                else:
-                    data = idata
-        return data
-
-    def seek(self, offset, whence=io.SEEK_SET):
-        if self.pos > self.buffSize:
-            raise IOError("InputWrapper seek buffer exceeded")
-        if whence == io.SEEK_SET:
-            new_pos = offset
-        elif whence == io.SEEK_CUR:
-            new_pos = self.pos + offset
-        elif whence == io.SEEK_END:
-            if self.inputLength is None:
-                raise IOError("InputWrapper can't seek from end of stream "
-                              "(CONTENT_LENGTH unknown)""")
-            new_pos = self.inputLength + offset
-        else:
-            raise IOError("Unknown seek mode (%i)" % whence)
-        if new_pos < 0:
-            raise IOError("InputWrapper: attempt to set the stream position "
-                          "to a negative value")
-        if new_pos == self.pos:
-            return
-        if new_pos <= self.buffSize:
-            self.buffer.seek(new_pos)
-        else:
-            # we need to read and discard some bytes
-            while new_pos > self.pos:
-                n = new_pos - self.pos
-                if n > io.DEFAULT_BUFFER_SIZE:
-                    n = io.DEFAULT_BUFFER_SIZE
-                data = self.read(n)
-                if len(data) == 0:
-                    break
-                else:
-                    self.pos += len(data)
-        # new_pos may be beyond the end of the input stream, that's OK
-        self.pos = new_pos
-
-    def seekable(self):
-        """A bit cheeky here, we are initially seekable."""
-        if self.pos > self.buffSize:
-            return False
-        else:
-            return True
-
-    def fileno(self):
-        raise IOError("InputWrapper has no fileno")
-
-    def flush(self):
-        pass
-
-    def isatty(self):
-        return False
-
-    def readable(self):
-        return True
-
-    def readall(self):
-        result = []
-        while True:
-            data = self.read(io.DEFAULT_BUFFER_SIZE)
-            if data:
-                result.append(data)
-            else:
-                break
-        return string.join(result, '')
-
-    def readinto(self, b):
-        n = len(b)
-        data = self.read(n)
-        i = 0
-        for d in data:
-            b[i] = ord(d)
-            i = i + 1
-        return len(data)
-
-    def readline(self, limit=-1):
-        """Read and return one line from the stream.
-
-        If limit is specified, at most limit bytes will be read.  The
-        line terminator is always b'\n' for binary files."""
-        line = []
-        while limit < 0 or len(line) < limit:
-            b = self.read(1)
-            if len(b) == 0:
-                break
-            line.append(b)
-            if b == '\n':
-                break
-        return string.join(line, '')
-
-    def readlines(self, hint=-1):
-        """Read and return a list of lines from the stream.
-
-        No more lines will be read if the total size (in
-        bytes/characters) of all lines so far exceeds hint."""
-        total = 0
-        lines = []
-        for line in self:
-            total = total + len(line)
-            lines.append(line)
-            if hint >= 0 and total > hint:
-                break
-        return lines
-
-    def tell(self):
-        return self.pos
-
-    def truncate(self, size=None):
-        raise IOError("InputWrapper cannot be truncated")
-
-    def writable(self):
-        return False
-
-    def write(self, b):
-        raise IOError("InputWrapper is not writable")
-
-    def writelines(self):
-        raise IOError("InputWrapper is not writable")
-
-    def __iter__(self):
-        while True:
-            line = self.readline()
-            if line:
-                yield line
-
-
 class Server(pep8.PEP8Compatibility):
 
     def __init__(self, service_root='http://localhost/', **kwargs):
@@ -532,7 +324,7 @@ class Server(pep8.PEP8Compatibility):
 
         Generates a 500 response by default."""
         response_headers = []
-        cdata = StringIO.StringIO()
+        cdata = io.BytesIO()
         if self.debugMode:
             traceback.print_exception(*sys.exc_info(), file=cdata)
         else:

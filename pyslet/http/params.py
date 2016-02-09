@@ -1,15 +1,17 @@
 #! /usr/bin/env python
 
-import pyslet.iso8601 as iso
-import pyslet.rfc2396 as uri
+import logging
 
-from pyslet.py2 import py2, range3, dict_items, SortableMixin, is_string
-from pyslet.py2 import byte, join_bytes, is_unicode, force_bytes
+from .. import iso8601 as iso
+from .. import rfc2396 as uri
 
-from pyslet.unicode5 import BasicParser
+from ..py2 import py2, range3, dict_items, SortableMixin
+from ..py2 import is_string, is_text, force_text
+from ..py2 import byte, is_unicode
+from ..unicode5 import BasicParser
 
-from pyslet.http.grammar import WordParser, COMMA, is_digits, quote_string
-from pyslet.http.grammar import format_parameters
+from .grammar import WordParser, COMMA, is_digits, quote_string
+from .grammar import format_parameters
 
 
 class Parameter(object):
@@ -17,6 +19,9 @@ class Parameter(object):
 
     Provides conversion to strings based on the :meth:`to_bytes` method.
     In Python 2, also provides conversion to the unicode string type.
+    In Python 3, implements __bytes__ to enable use of bytes(parameter)
+    which becomes portable as in Python 2 __str__ is mapped to to_bytes
+    too.
 
     The HTTP grammar and the parsers and classes that implement it all
     use binary strings but usage of byte values outside those of the US
@@ -24,9 +29,45 @@ class Parameter(object):
     systems.
 
     When required, Pyslet converts to character strings using the
-    ISO-8859-1 (or latin-1) codec.  This ensures that the conversions
-    never generate unicode decoding erros and is consistent with the
-    text of RFC2616."""
+    ISO-8859-1 codec.  This ensures that the conversions never generate
+    unicode decoding erros and is consistent with the text of RFC2616.
+
+    As the purpose of these modules is to provide a way to use HTTP
+    constructs in other contexts too, parameters use *character* strings
+    where possible.  Therefore, if an attribute must represent a token
+    then it is converted to a character string and *must* therefore be
+    compared using character strings and not binary strings.  For
+    example, see the type and subtype attributes of :class:`MediaType`.
+    Similarly where tokens are passed as arguments to constructors these
+    must also be character strings.
+
+    Where an attribute may be, or may contain, a value that would be
+    represented as a quoted string in the protocol then it is stored as
+    a binary string.  You need to take particular care with parameter
+    lists as the parameter names are tokens so are character strings but
+    the parameter values are binary strings.  The distinction is lost in
+    Python 2 but the following code snippet will behave unexpectedly in
+    Python 3 so for future compatibility it is better to make usage
+    explicit now::
+
+        Python 2.7
+        >>> from pyslet.http.params import MediaType
+        >>> t = MediaType.from_str("text/plain; charset=utf-8")
+        >>> "Yes" if t["charset"] == 'utf-8' else "No"
+        'Yes'
+        >>> "Yes" if t["charset"] == b'utf-8' else "No"
+        'Yes'
+
+        Python 3.5
+        >>> from pyslet.http.params import MediaType
+        >>> t = MediaType.from_str("text/plain; charset=utf-8")
+        >>> "Yes" if t["charset"] == 'utf-8' else "No"
+        'No'
+        >>> "Yes" if t["charset"] == b'utf-8' else "No"
+        'Yes'
+
+    Such values *may* be set using character strings, in which case
+    ISO-8859-1 is used to encode them."""
 
     @classmethod
     def bstr(cls, arg):
@@ -38,17 +79,23 @@ class Parameter(object):
 
     @classmethod
     def bparameters(cls, parameters):
-        """Returns a new dict of binary strings"""
+        """Ensures parameter values are binary strings"""
         result = {}
+        warn = False
         for k, v in dict_items(parameters):
-            if is_unicode(k):
-                k = k.encode('latin1')
+            if not is_text(k):
+                warn = True
+                k = k.decode('ascii')
             n, v = v
-            if is_unicode(n):
-                n = n.encode('latin1')
+            if not is_text(n):
+                warn = True
+                n = n.decode('ascii')
             if is_unicode(v):
-                v = v.encode('latin1')
+                v = v.encode('iso-8859-1')
             result[k] = (n, v)
+        if warn:
+            logging.warn("Parameter names should be character strings: %s" %
+                         repr(parameters))
         return result
 
     def to_bytes(self):
@@ -56,20 +103,61 @@ class Parameter(object):
 
         This method should be used in preference to str for
         compatibility with Python 3."""
-        raise NotImplemented
+        raise NotImplementedError
 
     if py2:
         def __str__(self):  # noqa
             return self.to_bytes()
 
         def __unicode__(self):  # noqa
-            return self.to_bytes().decode('latin1')
+            return self.to_bytes().decode('iso-8859-1')
     else:
         def __str__(self):  # noqa
-            return self.to_bytes().decode('latin1')
+            return self.to_bytes().decode('iso-8859-1')
+
+        def __bytes__(self):    # noqa
+            return self.to_bytes()
 
 
-class HTTPVersion(SortableMixin, Parameter):
+class SortableParameter(SortableMixin, Parameter):
+    """Base class for sortable parameters
+
+    Inherits from :class:`~pyslet.py2.SortableMixin` allowing sorting to
+    be implemented using a class-specific sortkey method implementation.
+
+    A __hash__ implementation that calls sortkey is also provided to
+    enable instances to be used as dictionary keys."""
+
+    def otherkey(self, other):
+        """Overridden to provide comparison with strings.
+
+        If other is of either character or binary string types then
+        it is passed to the classmethod from_str which is assumed
+        to return a new instance of the same class as *self* which
+        can then be compared by the return value of sortkey.
+
+        This enables comparisons such as the following::
+
+            >>> t = MediaType.from_str("text/plain")
+            >>> t == "text/plain"
+            True
+            >>> t > "image/png"
+            True
+            >>> t < "video/mp4"
+            True
+        """
+        if isinstance(other, self.__class__):
+            return other.sortkey()
+        elif is_string(other):
+            return self.from_str(other).sortkey()
+        else:
+            return NotImplemented
+
+    def __hash__(self):
+        return hash(self.sortkey())
+
+
+class HTTPVersion(SortableParameter):
     """Represents the HTTP Version.
 
     major
@@ -114,17 +202,6 @@ class HTTPVersion(SortableMixin, Parameter):
 
     def sortkey(self):
         return (self.major, self.minor)
-
-    def otherkey(self, other):
-        if isinstance(other, self.__class__):
-            return other.sortkey()
-        elif is_string(other):
-            return self.from_str(other).sortkey()
-        else:
-            return NotImplemented
-
-    def __hash__(self):
-        return hash(self.sortkey())
 
 
 #: A constant representing HTTP/1.1
@@ -263,7 +340,7 @@ class FullDate(Parameter, iso.TimePoint):
             hour, minute, second)
 
 
-class TransferEncoding(SortableMixin, Parameter):
+class TransferEncoding(SortableParameter):
     """Represents an HTTP transfer-encoding.
 
     token
@@ -275,13 +352,13 @@ class TransferEncoding(SortableMixin, Parameter):
 
     When sorted, the order in which parameters were parsed is ignored.
     Instances are supported first by token and then by alphabetical
-    parameter name, value pairs."""
+    parameter name/value pairs."""
 
-    def __init__(self, token=b"chunked", parameters={}):
-        token = self.bstr(token).lower()
-        if token == b"chunked":
+    def __init__(self, token="chunked", parameters={}):
+        token = token.lower()
+        if token == "chunked":
             #: the lower-cased transfer-encoding token (defaults to "chunked")
-            self.token = b"chunked"
+            self.token = "chunked"
             #: declared extension parameters
             self.parameters = {}
         else:
@@ -320,24 +397,13 @@ class TransferEncoding(SortableMixin, Parameter):
         return telist
 
     def to_bytes(self):
-        return self.token + format_parameters(self.parameters)
+        return self.token.encode('ascii') + format_parameters(self.parameters)
 
     def sortkey(self):
         return (self.token, self._hp)
 
-    def otherkey(self, other):
-        if isinstance(other, self.__class__):
-            return other.sortkey()
-        elif is_string(other):
-            return self.from_str(other).sortkey()
-        else:
-            return NotImplemented
 
-    def __hash__(self):
-        return hash(self.sortkey())
-
-
-class Chunk(SortableMixin, Parameter):
+class Chunk(SortableParameter):
     """Represents an HTTP chunk header
 
     size
@@ -379,19 +445,8 @@ class Chunk(SortableMixin, Parameter):
     def sortkey(self):
         return (self.size, self._cx)
 
-    def otherkey(self, other):
-        if isinstance(other, self.__class__):
-            return other.sortkey()
-        elif is_string(other):
-            return self.from_str(other).sortkey()
-        else:
-            return NotImplemented
 
-    def __hash__(self):
-        return hash(self.sortkey())
-
-
-class MediaType(SortableMixin, Parameter):
+class MediaType(SortableParameter):
     """Represents an HTTP media-type.
 
     The built-in str function can be used to format instances according
@@ -409,17 +464,17 @@ class MediaType(SortableMixin, Parameter):
         media type's parameters.
 
     Instances are immutable and support parameter value access by
-    lower-case key, returning the corresponding value or raising
-    KeyError.  E.g., mtype['charset']
+    lower-case key (as a *character* string), returning the
+    corresponding value or raising KeyError.  E.g., mtype['charset']
 
     Instances also define comparison methods and a hash implementation.
     Media-types are compared by (lower case) type, subtype and ultimately
     parameters."""
 
-    def __init__(self, type=b"application", subtype=b"octet-stream",
+    def __init__(self, type="application", subtype="octet-stream",
                  parameters={}):
-        self.type = self.bstr(type)
-        self.subtype = self.bstr(subtype)
+        self.type = type
+        self.subtype = subtype
         if parameters:
             self.parameters = self.bparameters(parameters)
         else:
@@ -441,7 +496,7 @@ class MediaType(SortableMixin, Parameter):
         return mt
 
     def to_bytes(self):
-        return (b''.join([self.type, b'/', self.subtype]) +
+        return (''.join((self.type, '/', self.subtype)).encode('ascii') +
                 format_parameters(self.parameters))
 
     def __repr__(self):
@@ -450,8 +505,6 @@ class MediaType(SortableMixin, Parameter):
                                           repr(self.parameters))
 
     def __getitem__(self, key):
-        if is_unicode(key):
-            key = key.encode('latin1')
         if key in self.parameters:
             return self.parameters[key][1]
         else:
@@ -461,26 +514,15 @@ class MediaType(SortableMixin, Parameter):
     def sortkey(self):
         return (self.type.lower(), self.subtype.lower(), self._hp)
 
-    def otherkey(self, other):
-        if isinstance(other, self.__class__):
-            return other.sortkey()
-        elif is_string(other):
-            return self.from_str(other).sortkey()
-        else:
-            return NotImplemented
-
-    def __hash__(self):
-        return hash(self.sortkey())
-
 
 #: A predefined constant for application/octet-stream
-APPLICATION_OCTETSTREAM = MediaType(b'application', b'octet-stream')
+APPLICATION_OCTETSTREAM = MediaType('application', 'octet-stream')
 
 #: A predefined constant for text/plain
-PLAIN_TEXT = MediaType(b'text', b'plain')
+PLAIN_TEXT = MediaType('text', 'plain')
 
 
-class ProductToken(SortableMixin, Parameter):
+class ProductToken(SortableParameter):
     """Represents an HTTP product token.
 
     The comparison operations use a more interesting sort than plain
@@ -502,9 +544,9 @@ class ProductToken(SortableMixin, Parameter):
 
     def __init__(self, token=None, version=None):
         #: the product's token
-        self.token = self.bstr(token)
+        self.token = token
         #: the product's version
-        self.version = self.bstr(version)
+        self.version = version
         if self.version is not None:
             # explode the version string
             self._version = self.explode(self.version)
@@ -531,12 +573,12 @@ class ProductToken(SortableMixin, Parameter):
         Note that a missing leading numeric component is treated as -1
         to force "a3" to sort before "0a3"."""
         exploded = []
-        p = BasicParser(force_bytes(version))
+        p = BasicParser(force_text(version))
         while p.the_char is not None:
             # parse an item
             vitem = []
             modifier = []
-            while not p.match(b".") and not p.match_end():
+            while not p.match(".") and not p.match_end():
                 num = p.parse_integer()
                 if num is None:
                     if not vitem:
@@ -545,16 +587,16 @@ class ProductToken(SortableMixin, Parameter):
                     p.next_char()
                 else:
                     if modifier:
-                        vitem.append(join_bytes(modifier))
+                        vitem.append("".join(modifier))
                         modifier = []
                     vitem.append(num)
             if modifier:
-                vitem.append(join_bytes(modifier))
+                vitem.append("".join(modifier))
             elif vitem:
                 # forces 1.0 > 1.0b
-                vitem.append(b'~')
+                vitem.append('~')
             exploded.append(tuple(vitem))
-            p.parse(b".")
+            p.parse(".")
         return tuple(exploded)
 
     @classmethod
@@ -583,9 +625,9 @@ class ProductToken(SortableMixin, Parameter):
 
     def to_bytes(self):
         if self.version is None:
-            return self.token
+            return self.token.encode('ascii')
         else:
-            return b''.join((self.token, b'/', self.version))
+            return ''.join((self.token, '/', self.version)).encode('ascii')
 
     def __repr__(self):
         return "ProductToken(%s, %s)" % (repr(self.token), repr(self.version))
@@ -593,19 +635,8 @@ class ProductToken(SortableMixin, Parameter):
     def sortkey(self):
         return (self.token, self._version)
 
-    def otherkey(self, other):
-        if isinstance(other, self.__class__):
-            return other.sortkey()
-        elif is_string(other):
-            return self.from_str(other).sortkey()
-        else:
-            return NotImplemented
 
-    def __hash__(self):
-        return hash(self.sortkey())
-
-
-class LanguageTag(SortableMixin, Parameter):
+class LanguageTag(SortableParameter):
     """Represents an HTTP language-tag.
 
     Language tags are compared by lower casing all components and then
@@ -613,8 +644,8 @@ class LanguageTag(SortableMixin, Parameter):
     before en-US."""
 
     def __init__(self, primary, *subtags):
-        self.primary = self.bstr(primary)
-        self.subtags = tuple([self.bstr(t) for t in subtags])
+        self.primary = primary
+        self.subtags = tuple(subtags)
         tags = [primary.lower()]
         for sub in subtags:
             tags.append(sub.lower())
@@ -675,29 +706,18 @@ class LanguageTag(SortableMixin, Parameter):
         return tags
 
     def to_bytes(self):
-        return b'-'.join([self.primary] + list(self.subtags))
+        return '-'.join([self.primary] + list(self.subtags)).encode('ascii')
 
     def __repr__(self):
         return (
-            "LanguageTag(%s)" % b','.join(
+            "LanguageTag(%s)" % ','.join(
                 [repr(tag) for tag in [self.primary] + list(self.subtags)]))
 
     def sortkey(self):
         return self._tag
 
-    def otherkey(self, other):
-        if isinstance(other, self.__class__):
-            return other.sortkey()
-        elif is_string(other):
-            return self.from_str(other).sortkey()
-        else:
-            return NotImplemented
 
-    def __hash__(self):
-        return hash(self.sortkey())
-
-
-class EntityTag(SortableMixin, Parameter):
+class EntityTag(SortableParameter):
     """Represents an HTTP entity-tag.
 
     tag
@@ -736,17 +756,6 @@ class EntityTag(SortableMixin, Parameter):
 
     def sortkey(self):
         return (self.tag, self.weak)
-
-    def otherkey(self, other):
-        if isinstance(other, self.__class__):
-            return other.sortkey()
-        elif is_string(other):
-            return self.from_str(other).sortkey()
-        else:
-            return NotImplemented
-
-    def __hash__(self):
-        return hash(self.sortkey())
 
 
 SLASH = byte('/')
@@ -893,8 +902,9 @@ class ParameterParser(WordParser):
     def require_transfer_encoding(self):
         """Parses a :py:class:`TransferEncoding` instance"""
         self.parse_sp()
-        token = self.require_token("transfer-encoding").lower()
-        if token != b"chunked":
+        token = self.require_token(
+            "transfer-encoding").lower().decode('iso-8859-1')
+        if token != "chunked":
             parameters = {}
             self.parse_parameters(parameters)
             return TransferEncoding(token, parameters)
@@ -914,9 +924,9 @@ class ParameterParser(WordParser):
     def require_media_type(self):
         """Parses a :py:class:`MediaType` instance."""
         self.parse_sp()
-        type = self.require_token("media-type").lower()
+        type = self.require_token("media-type").lower().decode('ascii')
         self.require_separator(SLASH, "media-type")
-        subtype = self.require_token("media-subtype").lower()
+        subtype = self.require_token("media-subtype").lower().decode('ascii')
         self.parse_sp()
         parameters = {}
         self.parse_parameters(parameters, ignore_allsp=False)
@@ -927,10 +937,10 @@ class ParameterParser(WordParser):
 
         Raises BadSyntax if no product token was found."""
         self.parse_sp()
-        token = self.require_token("product token")
+        token = self.require_token("product token").decode('ascii')
         self.parse_sp()
         if self.parse_separator(SLASH):
-            version = self.require_token("product-version")
+            version = self.require_token("product-version").decode('ascii')
         else:
             version = None
         return ProductToken(token, version)
@@ -964,7 +974,8 @@ class ParameterParser(WordParser):
         instance.  Raises BadSyntax if no language tag was
         found."""
         self.parse_sp()
-        tag = self.require_token("languaget-tag").split(b'-')
+        tag = [t.decode('ascii') for t in
+               self.require_token("languaget-tag").split(b'-')]
         self.parse_sp()
         return LanguageTag(tag[0], *tag[1:])
 

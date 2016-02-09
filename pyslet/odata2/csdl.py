@@ -3565,7 +3565,7 @@ class TypeRef(object):
                     (SimpleType.EncodeValue(self.simpleTypeCode),
                      repr(value)))
         else:
-            raise NotImplemented("Parameter value of non-primitive type")
+            raise NotImplementedError("Parameter value of non-primitive type")
         return result
 
 

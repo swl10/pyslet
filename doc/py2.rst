@@ -250,6 +250,17 @@ provided for with the following constant::
         TypeError: sequence item 0: expected a bytes-like object, int found
 
 
+..  function::  byte_to_bstr(arg)
+
+    Given a single byte, returns a bytes object of length 1 containing
+    that byte.  This is a more efficient way of writing::
+    
+        join_bytes([arg])
+
+    In Python 2 this is a no-operation but in Python 3 it is effectively
+    the same as the above.
+    
+    
 ..	autoclass:: UnicodeMixin
 	:members:
 	:show-inheritance:

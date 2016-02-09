@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import errno
+import io
 import logging
 import os.path
 import select
@@ -10,7 +11,7 @@ import threading
 import time
 import random
 import unittest
-from StringIO import StringIO
+
 from tempfile import mkdtemp
 
 import pyslet.http.client as http
@@ -19,15 +20,18 @@ import pyslet.http.params as params
 import pyslet.http.server as server
 import pyslet.rfc2396 as uri
 
+from pyslet.py2 import range3
+from pyslet.streams import Pipe, io_timedout
+
 from test_http_server import MockSocketBase, MockTime
 
 
 TEST_DATA_DIR = os.path.join(
     os.path.split(os.path.abspath(__file__))[0], 'data_rfc2616')
 
-TEST_STRING = "The quick brown fox jumped over the lazy dog"
+TEST_STRING = b"The quick brown fox jumped over the lazy dog"
 
-TEST_BODY = "123456\r\n\r\n"
+TEST_BODY = b"123456\r\n\r\n"
 
 
 def suite():
@@ -63,7 +67,7 @@ class MockSocket(MockSocketBase):
                 mode = request.recv_mode()
                 if mode == messages.Message.RECV_LINE:
                     line = self.send_pipe.readmatch()
-                    if line == '':
+                    if line == b'':
                         if request.method is None:
                             # EOF, no more requests
                             return None
@@ -74,8 +78,8 @@ class MockSocket(MockSocketBase):
                     request.recv(line)
                 elif mode == messages.Message.RECV_HEADERS:
                     lines = []
-                    last_line = ''
-                    while last_line != '\r\n':
+                    last_line = b''
+                    while last_line != b'\r\n':
                         last_line = self.send_pipe.readmatch()
                         lines.append(last_line)
                     request.recv(lines)
@@ -84,7 +88,7 @@ class MockSocket(MockSocketBase):
                     break
                 elif mode > 0:
                     data = self.send_pipe.read(mode)
-                    if data == '':
+                    if data == b'':
                         # EOF, unexpected
                         raise messages.HTTPException(
                             "Unexpected EOF in mock socket")
@@ -92,7 +96,7 @@ class MockSocket(MockSocketBase):
                         request.recv(data)
                 elif mode == messages.Message.RECV_ALL:
                     data = self.send_pipe.read()
-                    if data == '':
+                    if data == b'':
                         # EOF, expected
                         break
                     else:
@@ -100,7 +104,7 @@ class MockSocket(MockSocketBase):
                 else:
                     raise ValueError("unexpected recv_mode!")
         except IOError as e:
-            if messages.io_timedout(e):
+            if io_timedout(e):
                 logging.debug("mock socket timed out while reading request")
                 request = None
             else:
@@ -108,11 +112,11 @@ class MockSocket(MockSocketBase):
         return request
 
     def send_continue(self):
-        self.recv_pipe.write("HTTP/1.1 100 Go on then!\r\n\r\n")
+        self.recv_pipe.write(b"HTTP/1.1 100 Go on then!\r\n\r\n")
 
     def send_response(self, response):
-        response.start_sending()
         try:
+            response.start_sending()
             self.recv_pipe.write(response.send_start())
             self.recv_pipe.write(response.send_header())
             while True:
@@ -124,6 +128,10 @@ class MockSocket(MockSocketBase):
         except IOError as e:
             logging.debug("mock socket error while sending response: %s",
                           str(e))
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise
 
 
 class MockConnectionWrapper(http.Connection):
@@ -189,7 +197,7 @@ class ClientRequestTests(unittest.TestCase):
             (49.0, 75.0),   # 10+52 +-13
             (73.0, 115.0),  # 10+84 +-21
             (112.0, 180.0)]  # 10+136 +-34
-        for i in xrange(10):
+        for i in range3(10):
             # simulate a failed send
             request.connect(None, 0)
             request.disconnect(1)
@@ -223,7 +231,8 @@ class ClientTests(unittest.TestCase):
         request = http.ClientRequest("http://www.example.com/")
         request.start_sending()
         request_line = request.send_start()
-        self.assertTrue(request_line.startswith("GET / HTTP/1."), request_line)
+        self.assertTrue(request_line.startswith(b"GET / HTTP/1."),
+                        request_line)
 
     def run_domain1(self, sock):
         while True:
@@ -239,7 +248,7 @@ class ClientTests(unittest.TestCase):
                 response.set_status(200, "You got it!")
             elif req.method == "PUT":
                 # check the request body
-                response = messages.Response(req, entity_body='')
+                response = messages.Response(req, entity_body=b'')
                 if req.entity_body.getvalue() != TEST_BODY:
                     response.set_status(400, "PUT failed for domain1")
                     logging.debug("run_domain1: PUT %s" %
@@ -374,6 +383,7 @@ class ClientTests(unittest.TestCase):
 
     def run_manager(self, host, port, sock):
         # read some data from sock, and post a response
+        logging.debug('run_manager: %s, %i' % (host, port))
         if host == "www.domain1.com" and port == 80:
             self.run_domain1(sock)
         elif host == "www.domain2.com" and port == 80:
@@ -432,7 +442,7 @@ class ClientTests(unittest.TestCase):
             response2.status)
         self.assertTrue(response2.reason == "You got it!",
                         "Reason in response2: %s" % response2.reason)
-        self.assertTrue(request2.res_body == "",
+        self.assertTrue(request2.res_body == b"",
                         "Data in response2: %s" % request2.res_body)
 
     def test_continue(self):
@@ -452,7 +462,7 @@ class ClientTests(unittest.TestCase):
         self.client.queue_request(request1)
         self.assertTrue(request1.get_header('Expect') is None)
         self.client.queue_request(request2)
-        self.assertTrue(request2.get_header('Expect') == "100-continue")
+        self.assertTrue(request2.get_header('Expect') == b"100-continue")
         # thread_loop will process the queue until it blocks for more
         # than the timeout (default, forever)
         self.client.thread_loop(timeout=5)
@@ -465,7 +475,7 @@ class ClientTests(unittest.TestCase):
             response1.reason == "OK",
             "Reason in response1: %s" %
             response1.reason)
-        self.assertTrue(request1.res_body == '',
+        self.assertTrue(request1.res_body == b'',
                         "Data in response1: %s" % request1.res_body)
         response2 = request2.response
         self.assertTrue(
@@ -476,7 +486,7 @@ class ClientTests(unittest.TestCase):
             response2.reason == "OK",
             "Reason in response2: %s" %
             response2.reason)
-        self.assertTrue(request2.res_body == "",
+        self.assertTrue(request2.res_body == b"",
                         "Data in response2: %s" % request2.res_body)
         # How do we test that response2 held back from sending the data before
         # the redirect?
@@ -485,7 +495,7 @@ class ClientTests(unittest.TestCase):
         request = http.ClientRequest(
             "http://www.domain1.com/file2",
             "PUT",
-            entity_body=StringIO("123456\r\n\r\n"))
+            entity_body=io.BytesIO(b"123456\r\n\r\n"))
         request.set_expect_continue()
         self.client.process_request(request)
         response = request.response
@@ -496,11 +506,11 @@ class ClientTests(unittest.TestCase):
             "Reason in response: %s" %
             response.reason)
         self.assertTrue(
-            request.res_body == "", "Data in response: %s" % request.res_body)
+            request.res_body == b"", "Data in response: %s" % request.res_body)
         request = http.ClientRequest(
             "http://www.domain1.com/file",
             "PUT",
-            entity_body=StringIO("123456\r\n\r\n"))
+            entity_body=io.BytesIO(b"123456\r\n\r\n"))
         request.set_content_length(10)
         self.client.process_request(request)
         response = request.response
@@ -511,10 +521,10 @@ class ClientTests(unittest.TestCase):
             "Reason in response: %s" %
             response.reason)
         self.assertTrue(
-            request.res_body == "", "Data in response: %s" % request.res_body)
+            request.res_body == b"", "Data in response: %s" % request.res_body)
 
     def test_streamed_get(self):
-        buff = StringIO()
+        buff = io.BytesIO()
         request = http.ClientRequest(
             "http://www.domain1.com/", "GET", entity_body=None, res_body=buff)
         self.client.process_request(request)
@@ -526,9 +536,9 @@ class ClientTests(unittest.TestCase):
             "Data in response: %s" %
             request.res_body)
         self.assertTrue(
-            request.res_body == "",
+            request.res_body == b"",
             "Data in streamed response: %s" %
-            request.res_body)
+            repr(request.res_body))
 
     def domain3_thread_oneshot(self):
         time.sleep(1)
@@ -550,10 +560,10 @@ class ClientTests(unittest.TestCase):
 
     def test_multiget(self):
         threads = []
-        for i in xrange(10):
+        for i in range3(10):
             threads.append(
                 threading.Thread(target=self.domain3_thread_oneshot))
-        for i in xrange(10):
+        for i in range3(10):
             threads.append(
                 threading.Thread(target=self.domain4_thread_oneshot))
         for t in threads:
@@ -602,7 +612,7 @@ class ClientTests(unittest.TestCase):
             Non-idempotent methods or sequences MUST NOT be
             automatically retried."""
         request = http.ClientRequest("http://www.domain5.com/unreliable",
-                                     method="POST", entity_body="Hello")
+                                     method="POST", entity_body=b"Hello")
         # this request will timeout the first time before any data
         # has been sent to the client, it should retry and fail!
         self.client.process_request(request)
@@ -619,7 +629,7 @@ class ClientTests(unittest.TestCase):
 
     def test_post_after_shutdown(self):
         request = http.ClientRequest("http://www.domain8.com/",
-                                     method="POST", entity_body="Hello")
+                                     method="POST", entity_body=b"Hello")
         self.client.process_request(request)
         response = request.response
         self.assertTrue(response.status == 200)
@@ -630,17 +640,17 @@ class ClientTests(unittest.TestCase):
         # the method is POST which we won't resend if the data was
         # partially sent.
         request = http.ClientRequest("http://www.domain8.com/",
-                                     method="POST", entity_body="Hello")
+                                     method="POST", entity_body=b"Hello")
         self.client.process_request(request)
         response = request.response
         self.assertTrue(response.status == 200)
 
     def test_kill(self):
         threads = []
-        for i in xrange(10):
+        for i in range3(10):
             threads.append(
                 threading.Thread(target=self.domain3_thread_oneshot))
-        for i in xrange(10):
+        for i in range3(10):
             threads.append(
                 threading.Thread(target=self.domain4_thread_oneshot))
         for t in threads:
@@ -669,12 +679,12 @@ class ClientTests(unittest.TestCase):
         self.client.process_request(request)
         self.assertTrue(request.status == 101)
         try:
-            self.assertTrue(isinstance(request.send_pipe, server.Pipe))
-            self.assertTrue(isinstance(request.recv_pipe, server.Pipe))
-            request.send_pipe.write('hello\r\n')
+            self.assertTrue(isinstance(request.send_pipe, Pipe))
+            self.assertTrue(isinstance(request.recv_pipe, Pipe))
+            request.send_pipe.write(b'hello\r\n')
             request.send_pipe.write_eof()
             output = request.recv_pipe.read()
-            self.assertTrue(output == 'hello\r\n',
+            self.assertTrue(output == b'hello\r\n',
                             "Failed echo test on upgrade: %s" % str(output))
         finally:
             request.recv_pipe.close()
@@ -692,6 +702,7 @@ class LegacyServerTests(unittest.TestCase):
 
     def tearDown(self):     # noqa
         self.client.close()
+        self.server.server_close()
 
     def run_legacy(self, nrequests):
         while nrequests:
@@ -713,7 +724,7 @@ class LegacyServerTests(unittest.TestCase):
             if method == "GET":
                 # just return some data
                 start_response("200 OK", [])
-                return ["Got it!"]
+                return [b"Got it!"]
             elif method == "PUT":
                 environ['wsgi.input'].read(content_length)
                 start_response("204 Updated", [])
@@ -745,8 +756,8 @@ class LegacyServerTests(unittest.TestCase):
         # legacy server closes the connection
         self.assertFalse(request.response.keep_alive)
         # now try and make a call which would normally default to chunked
-        data = "How long is a piece of string?"
-        bodytext = server.Pipe(rblocking=False, timeout=10)
+        data = b"How long is a piece of string?"
+        bodytext = Pipe(rblocking=False, timeout=10)
         bodytext.write(data)
         request = http.ClientRequest(
             "http://localhost:%i/nochunked" % self.port,
@@ -770,7 +781,7 @@ class LegacyServerTests(unittest.TestCase):
             indefinite period before sending the request body."""
         t = threading.Thread(target=self.run_legacy, args=(1,))
         t.start()
-        data = "How long is a piece of string?"
+        data = b"How long is a piece of string?"
         request = http.ClientRequest(
             "http://localhost:%i/nochunked" % self.port,
             "PUT", entity_body=data)
