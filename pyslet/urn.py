@@ -3,9 +3,13 @@
 
 from . import rfc2396 as uri
 
+from .py2 import (
+    byte,
+    byte_value,
+    is_unicode,
+    join_bytes,
+    join_characters)
 from .unicode5 import CharClass
-from .py2 import join_characters, is_unicode
-from .py2 import byte, byte_value, join_bytes
 
 
 is_upper = uri.is_upalpha

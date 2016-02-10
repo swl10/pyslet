@@ -7,8 +7,15 @@ from sys import maxunicode
 
 import pyslet.unicode5 as unicode5
 
-from pyslet.py2 import byte, character, is_text, join_bytes, u8, ul
-from pyslet.py2 import py2, range3
+from pyslet.py2 import (
+    byte,
+    character,
+    is_text,
+    join_bytes,
+    py2,
+    range3,
+    u8,
+    ul)
 
 
 MAX_CHAR = 0x10FFFF

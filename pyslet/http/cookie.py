@@ -1,28 +1,35 @@
 #! /usr/bin/env python
 
 import time
-import string
 import logging
 import threading
 import os.path
 
 from .. import iso8601 as iso
-from ..py2 import is_unicode, dict_values
+from ..py2 import (
+    byte,
+    byte_value,
+    dict_values,
+    is_unicode,
+    join_bytes)
 
 from . import grammar
 from . import params
 
 
-def is_cookie_octet(c):
-    """Tests a character against production coookie_octet"""
-    if c is not None and ord(c) > 0x20 and ord(c) < 0x7F:
-        return c not in '",;\\'
+def is_cookie_octet(b):
+    """Tests a byte against production coookie_octet"""
+    if b is not None:
+        return 0x20 < byte_value(b) < 0x7F and b not in b'",;\\'
     else:
         return False
 
+HYPHEN = byte('-')
+FULL_STOP = byte('.')
+
 
 def is_ldh_label(label):
-    """Tests a string against the definition of LDH label
+    """Tests a binary string against the definition of LDH label
 
     LDH Label is defined in RFC5890_ as being the classic label syntax
     defined in RFC1034_ and updated in RFC1123_.  To cut a long story
@@ -48,10 +55,10 @@ def is_ldh_label(label):
     trailing_hyphen = False
     if not label or len(label) > 63:
         return False
-    for c in label:
-        if (grammar.is_alpha(c) or grammar.is_digit(c) or
-                (allow_hyphen and c == '-')):
-            trailing_hyphen = (c == '-')
+    for b in label:
+        if (grammar.is_alpha(b) or grammar.is_digit(b) or
+                (allow_hyphen and b == HYPHEN)):
+            trailing_hyphen = (b == HYPHEN)
             allow_hyphen = True
         else:
             return False
@@ -59,7 +66,7 @@ def is_ldh_label(label):
 
 
 def is_rldh_label(label):
-    """Tests a string against the definition or R-LDH label
+    """Tests a binary string against the definition of R-LDH label
 
     As defined by RFC5890_
 
@@ -73,11 +80,11 @@ def is_rldh_label(label):
 
     Therefore you can test for a NR-LDH label simply by using the *not*
     operator."""
-    return is_ldh_label(label) and label[2:4] == '--'
+    return is_ldh_label(label) and label[2:4] == b'--'
 
 
 def is_a_label(label):
-    """Test a string against the definition of A-label.
+    """Test a binary string against the definition of A-label.
 
     As defined by RFC5890_
 
@@ -95,7 +102,7 @@ def is_a_label(label):
     decode properly when passed to the punycode algorithm and (b) even
     if it does decode it may result in a string that is not actually a
     valid U-Label."""
-    return is_ldh_label(label) and label[:4].lower() == 'xn--'
+    return is_ldh_label(label) and label[:4].lower() == b'xn--'
 
 
 def split_domain(domain_str, allow_wildcard=False):
@@ -108,8 +115,8 @@ def split_domain(domain_str, allow_wildcard=False):
         Allows the use of a single '*' character as a domain label for
         the purposes of parsing wildcard domain definitions.
 
-    Returns a list of lower cased *ASCII* labels, converting U-Labels to
-    ACE form (xn--) in the process.  For example::
+    Returns a list of lower cased *ASCII* labels as character strings,
+    converting U-Labels to ACE form (xn--) in the process.  For example::
 
         >>> split_domain('example.COM')
         >>> ['example', 'com']
@@ -119,23 +126,23 @@ def split_domain(domain_str, allow_wildcard=False):
     Raises ValueError if domain_str is not valid."""
     if is_unicode(domain_str):
         domain_str = domain_str.encode('utf-8')
-    domain = domain_str.split('.')
+    domain = domain_str.split(b'.')
     result = []
     for label in domain:
         if is_ldh_label(label):
             result.append(label.lower())
-        elif allow_wildcard and label == '*':
-            result.append('*')
+        elif allow_wildcard and label == b'*':
+            result.append(b'*')
         else:
             # some high-bit values
             try:
-                alabel = "xn--%s" % label.decode('utf-8').encode('punycode')
+                alabel = b"xn--%s" % label.decode('utf-8').encode('punycode')
                 if not is_ldh_label(alabel):
                     raise ValueError("bad label in domain: %s" % domain_str)
             except UnicodeError:
                 raise ValueError("bad label in domain: %s" % repr(domain_str))
             result.append(alabel.lower())
-    return result
+    return [r.decode('ascii') for r in result]
 
 
 def domain_in_domain(subdomain, domain):
@@ -163,57 +170,74 @@ def domain_in_domain(subdomain, domain):
         return False
 
 
-def is_delimiter(c):
+def encode_domain(domain, allow_wildcard=False):
+    """Returns domain correctly encoded as a binary string
+
+    domain
+        A binary or character string containing a representation of a
+        domain using either U-Labels or ACE form for non-ASCII
+        characters.
+
+    allow_wildcard (Default: False)
+        Allows the use of a single '*' character as a domain label for
+        the purposes of encoding wildcard domain definitions.
+
+    The result is a character string containing only ASCII encoded
+    characters."""
+    return '.'.join(split_domain(domain, allow_wildcard))
+
+
+def is_delimiter(b):
     """Tests a character against the production delimiter
 
     This production is from the weaker section 5 syntax of RFC6265."""
-    if c:
-        c = ord(c)
-        return (c == 0x09 or
-                (c >= 0x20 and c <= 0x2F) or (c >= 0x3B and c <= 0x40) or
-                (c >= 0x5B and c <= 0x60) or (c >= 0x7B and c <= 0x7E))
+    if b is not None:
+        b = byte_value(b)
+        return (b == 0x09 or
+                (0x20 <= b <= 0x2F) or (0x3B <= b <= 0x40) or
+                (0x5B <= b <= 0x60) or (0x7B <= b <= 0x7E))
     else:
         return False
 
 
-def is_non_delimiter(c):
+def is_non_delimiter(b):
     """Tests a character against the production non-delimiter
 
     The result differs from using *not is_delimiter* only in the
     handling of None which will return False when passed to either
     function."""
-    if c:
-        return not is_delimiter(c)
+    if b is not None:
+        return not is_delimiter(b)
     else:
         return False
 
 
-def is_non_digit(c):
+def is_non_digit(b):
     """Tests a character against the production non-digit."""
-    if c:
-        return not grammar.is_digit(c)
+    if b is not None:
+        return not grammar.is_digit(b)
     else:
         return False
 
 
 def split_year(year_str):
-    """Parses a year from a string
+    """Parses a year from a binary string
 
     Uses the generous rules in section 5.1 and returns a year value,
     adjusted using the 2-digit year algorithm documented there.
 
     If a year value can't be found ValueError is raised."""
     digits = []
-    for c in year_str:
-        if grammar.is_digit(c):
-            digits.append(c)
+    for b in year_str:
+        if grammar.is_digit(b):
+            digits.append(b)
             if len(digits) > 4:
                 raise ValueError("Can't read year from %s" % year_str)
         else:
             break
     if len(digits) < 2:
         raise ValueError("Can't read year from %s" % year_str)
-    year = int(string.join(digits, ''))
+    year = int(join_bytes(digits))
     if year > 69 and year < 100:
         year += 1900
     elif year < 70:
@@ -222,18 +246,18 @@ def split_year(year_str):
 
 
 MONTHS = {
-    "jan": 1,
-    "feb": 2,
-    "mar": 3,
-    "apr": 4,
-    "may": 5,
-    "jun": 6,
-    "jul": 7,
-    "aug": 8,
-    "sep": 9,
-    "oct": 10,
-    "nov": 11,
-    "dec": 12}
+    b"jan": 1,
+    b"feb": 2,
+    b"mar": 3,
+    b"apr": 4,
+    b"may": 5,
+    b"jun": 6,
+    b"jul": 7,
+    b"aug": 8,
+    b"sep": 9,
+    b"oct": 10,
+    b"nov": 11,
+    b"dec": 12}
 
 
 def split_month(month_str):
@@ -250,25 +274,25 @@ def split_month(month_str):
 
 
 def split_day_of_month(dom_str):
-    """Parses a day-of-month from a string
+    """Parses a day-of-month from a binary string
 
     Users the generous rules in section 5.1 and returns a single integer
     or raises ValueError if a valid day of month can't be found."""
     digits = []
-    for c in dom_str:
-        if grammar.is_digit(c):
-            digits.append(c)
+    for b in dom_str:
+        if grammar.is_digit(b):
+            digits.append(b)
             if len(digits) > 2:
                 raise ValueError("Can't read day-of-month from %s" % dom_str)
         else:
             break
     if len(digits) < 1:
         raise ValueError("Can't read day-of-month from %s" % dom_str)
-    return int(string.join(digits, ''))
+    return int(join_bytes(digits))
 
 
 def split_time(time_str):
-    """Parses a time from a string
+    """Parses a time from a binary string
 
     Users the generous rules in section 5.1 and returns a triple
     of hours, minutes, seconds.  These values are unchecked!
@@ -276,20 +300,20 @@ def split_time(time_str):
     If the time can't be found ValueError is raised."""
     components = []
     digits = []
-    for c in time_str:
-        if grammar.is_digit(c):
-            digits.append(c)
+    for b in time_str:
+        if grammar.is_digit(b):
+            digits.append(b)
             if len(digits) > 2:
                 raise ValueError("Can't read time from %s" % time_str)
         else:
             if len(digits) < 1:
                 raise ValueError("Missing time-value in %s" % time_str)
-            components.append(int(string.join(digits, '')))
+            components.append(int(join_bytes(digits)))
             digits = []
-            if len(components) == 3 or c != ':':
+            if len(components) == 3 or b != grammar.COLON:
                 break
     if digits:
-        components.append(int(string.join(digits, '')))
+        components.append(int(join_bytes(digits)))
     if (len(components) != 3):
         raise ValueError("Can't read time from %s" % time_str)
     return tuple(components)
@@ -302,7 +326,6 @@ class CookieError(ValueError):
 
 
 class CookieParser(grammar.OctetParser):
-
     """General purpose class for parsing RFC6265_ productions
 
     Unlike the basic syntax functions these methods allow a longer
@@ -330,7 +353,7 @@ class CookieParser(grammar.OctetParser):
             name, value = self.require_name_value_pair()
         except ValueError:
             name, value = None, None
-        if self.parse(';'):
+        if self.parse(b';'):
             attrs = self.parse_until(None)
         else:
             attrs = None
@@ -340,14 +363,14 @@ class CookieParser(grammar.OctetParser):
         expires = max_age = domain = path = None
         secure = http_only = False
         while attrs is not None:
-            pos = attrs.find(';')
+            pos = attrs.find(b';')
             if pos < 0:
                 av = attrs
                 attrs = None
             else:
                 av = attrs[:pos]
                 attrs = attrs[pos + 1:]
-            pos = av.find('=')
+            pos = av.find(b'=')
             if pos < 0:
                 aname = av
                 avalue = ''
@@ -355,13 +378,13 @@ class CookieParser(grammar.OctetParser):
                 aname = av[:pos].strip()
                 avalue = av[pos + 1:].strip()
             aname_lower = aname.lower()
-            if aname_lower == "expires":
+            if aname_lower == b"expires":
                 p = CookieParser(avalue)
                 expires = p.require_cookie_date()
-            elif aname_lower == "max-age":
-                if avalue and avalue[0] == '-':
+            elif aname_lower == b"max-age":
+                if avalue and avalue[0] == HYPHEN:
                     if len(avalue) == 1:
-                        avalue = "0"
+                        avalue = b"0"
                     else:
                         for c in avalue[1:]:
                             if not grammar.is_digit(c):
@@ -374,18 +397,19 @@ class CookieParser(grammar.OctetParser):
                             break
                 if avalue:
                     max_age = int(avalue)
-            elif aname_lower == 'domain':
+            elif aname_lower == b'domain':
                 if avalue:
-                    if avalue[0] == '.':
+                    if avalue[0] == FULL_STOP:
                         domain = avalue[1:].lower()
                     else:
                         domain = avalue.lower()
-            elif aname_lower == "path":
-                if avalue and avalue[0] == '/':
-                    path = avalue
-            elif aname_lower == "secure":
+                    domain = Cookie.cstr(domain)
+            elif aname_lower == b"path":
+                if avalue and avalue[0] == grammar.SOLIDUS:
+                    path = Cookie.cstr(avalue)
+            elif aname_lower == b"secure":
                 secure = True
-            elif aname_lower == "httponly":
+            elif aname_lower == b"httponly":
                 http_only = True
         return Cookie(name, value, expires=expires, max_age=max_age,
                       domain=domain, path=path, secure=secure,
@@ -401,7 +425,8 @@ class CookieParser(grammar.OctetParser):
         cookies in the cookie string and the values are either strings
         or, in the case of multiply defined names, sets of strings.  We
         use sets as the specification makes it clear that you should not
-        rely on the order of such definitions."""
+        rely on the order of such definitions.  All strings (including
+        cookie names) are binary strings."""
         while True:
             # loop around in case of double folds, this is the
             # difference between OWS and LWS
@@ -424,13 +449,13 @@ class CookieParser(grammar.OctetParser):
                 else:
                     cookie_list[name] = value
                 savepos = self.pos
-                if self.parse(';'):
+                if self.parse(b';'):
                     # bit generous here, accept multiple spaces
                     if strict:
-                        self.require(' ')
+                        self.require(b' ')
                     else:
                         while self.the_char is not None:
-                            if not self.parse_one(' \t'):
+                            if not self.parse_one(b' \t'):
                                 break
                     continue
                 else:
@@ -448,34 +473,36 @@ class CookieParser(grammar.OctetParser):
         expires = max_age = domain = path = None
         secure = http_only = False
         extensions = []
-        while self.parse(';'):
+        while self.parse(b';'):
             # we just parsed a ';' which must be followed by SP
-            if not self.parse(' '):
+            if not self.parse(b' '):
                 self.setpos(self.pos - 1)
                 break
-            if self.parse_insensitive('expires='):
+            if self.parse_insensitive(b'expires='):
                 sane_date = self.parse_sane_cookie_date()
-                if ((self.the_char is None or self.the_char == ';') and
+                if ((self.the_char is None or
+                        self.the_char == grammar.SEMICOLON) and
                         sane_date is not None):
                     expires = sane_date
                     continue
-            elif self.parse_insensitive('max-age='):
+            elif self.parse_insensitive(b'max-age='):
                 digits = self.parse_digits(min=1)
                 if digits and digits[0] != '0':
                     max_age = int(digits)
                     continue
-            elif self.parse_insensitive('domain='):
-                domain = self.parse_until(';')
+            elif self.parse_insensitive(b'domain='):
+                domain = self.parse_until(b';')
+                domain = Cookie.cstr(domain)
                 continue
-            elif self.parse_insensitive('path='):
-                path = self.parse_until(';')
+            elif self.parse_insensitive(b'path='):
+                path = Cookie.cstr(self.parse_until(b';'))
                 continue
-            elif self.parse_insensitive('secure'):
-                if self.the_char is None or self.the_char == ';':
+            elif self.parse_insensitive(b'secure'):
+                if self.the_char is None or self.the_char == grammar.SEMICOLON:
                     secure = True
                     continue
-            elif self.parse_insensitive('httponly'):
-                if self.the_char is None or self.the_char == ';':
+            elif self.parse_insensitive(b'httponly'):
+                if self.the_char is None or self.the_char == grammar.SEMICOLON:
                     http_only = True
                     continue
             # extension
@@ -490,8 +517,8 @@ class CookieParser(grammar.OctetParser):
 
         Parsed according to the looser section 5 syntax so will allow
         almost anything as a name and value provided it has an '='."""
-        nvpair = self.parse_until(';')
-        pos = nvpair.find('=')
+        nvpair = self.parse_until(b';')
+        pos = nvpair.find(b'=')
         if pos < 0:
             raise ValueError("Expected '=' in name-value-pair: %s" % nvpair)
         name = nvpair[:pos].strip()
@@ -505,7 +532,7 @@ class CookieParser(grammar.OctetParser):
         accept valid tokens as names, the '=' is required and the value
         must be parseable with :meth:`require_cookie_value`."""
         name = self.require_production(self.parse_token())
-        self.require('=')
+        self.require(b'=')
         value = self.require_cookie_value()
         return name, value
 
@@ -520,15 +547,15 @@ class CookieParser(grammar.OctetParser):
             return result
 
     def require_cookie_value(self):
-        """Returns a cookie-value string.
+        """Returns a cookie-value (binary) string.
 
         Parsed according to the stricter section 4 syntax so will not
         allow whitespace, comma, semicolon or backslash characters and
-        will only allows double-quote when it is used to complete
+        will only allow double-quote when it is used to completely
         "enclose" the value, in which case the double-quotes are still
         considered to be part of the value string."""
         value = []
-        if self.parse('"'):
+        if self.parse(b'"'):
             dqflag = True
         else:
             dqflag = False
@@ -536,10 +563,12 @@ class CookieParser(grammar.OctetParser):
             value.append(self.the_char)
             self.next_char()
         if dqflag:
-            self.require('"')
-            value = '"%s"' % string.join(value, '')
+            self.require(b'"')
+            value[0:0] = (grammar.DQUOTE, )
+            value.append(grammar.DQUOTE)
+            value = join_bytes(value)
         else:
-            value = string.join(value, '')
+            value = join_bytes(value)
         return value
 
     def parse_cookie_av(self):
@@ -553,13 +582,13 @@ class CookieParser(grammar.OctetParser):
         It never returns None, if nothing is found it returns an empty
         string instead."""
         av = []
-        while self.the_char is not None and self.the_char != ';':
+        while self.the_char is not None and self.the_char != grammar.SEMICOLON:
             if grammar.is_ctl(self.the_char):
                 break
             else:
                 av.append(self.the_char)
                 self.next_char()
-        return string.join(av, '')
+        return join_bytes(av)
 
     def parse_sane_cookie_date(self):
         """Parses the sane-cookie-date production.
@@ -567,8 +596,8 @@ class CookieParser(grammar.OctetParser):
         This is the stricter syntax defined in section 4.  The returns
         result is a :class:`~params.FullDate` instance."""
         savepos = self.pos
-        date_str = self.parse_until('GMT')
-        date_str = date_str + self.parse('GMT')
+        date_str = self.parse_until(b'GMT')
+        date_str = date_str + self.parse(b'GMT')
         try:
             return params.FullDate.from_http_str(date_str)
         except ValueError:
@@ -590,7 +619,7 @@ class CookieParser(grammar.OctetParser):
             while is_non_delimiter(self.the_char):
                 token.append(self.the_char)
                 self.next_char()
-            token_list.append(string.join(token, ''))
+            token_list.append(join_bytes(token))
             while is_delimiter(self.the_char):
                 self.next_char()
         return token_list
@@ -645,26 +674,26 @@ class CookieParser(grammar.OctetParser):
                 except ValueError:
                     pass
         if not time_str:
-            logging.warn("No time found in %s", string.join(token_list))
+            logging.warning("No time found in %s", b''.join(token_list))
             return None
         if not dom_str:
-            logging.warn(
-                "No day of month found in %s", string.join(token_list))
+            logging.warning(
+                "No day of month found in %s", b''.join(token_list))
             return None
         if not month_str:
-            logging.warn("No month found in %s", string.join(token_list))
+            logging.warning("No month found in %s", b''.join(token_list))
             return None
         if not year_str:
-            logging.warn("No year found in %s", string.join(token_list))
+            logging.warning("No year found in %s", b''.join(token_list))
             return None
         if day < 1 or day > 31:
-            logging.warn("Bad day found in %s", string.join(token_list))
+            logging.warning("Bad day found in %s", b''.join(token_list))
             return None
         if year < 1601:
-            logging.warn("Cookie too old: %s", string.join(token_list))
+            logging.warning("Cookie too old: %s", b''.join(token_list))
             return None
         if hour > 23 or minute > 59 or second > 59:
-            logging.warn("Bad time found in: %s", string.join(token_list))
+            logging.warning("Bad time found in: %s", b''.join(token_list))
             return None
         century = year // 100
         year = year % 100
@@ -675,28 +704,33 @@ class CookieParser(grammar.OctetParser):
                 time=iso.Time(hour=hour, minute=minute, second=second,
                               zdirection=0))
         except iso.DateTimeError:
-            logging.warn("Bad cookie date: %s", string.join(token_list))
+            logging.warning("Bad cookie date: %s", b''.join(token_list))
             return None
 
 
-class Cookie(object):
-
+class Cookie(params.Parameter):
     """Represents the definition of a cookie
 
+    Where binary strings are required, character strings will be
+    accepted and converted using UTF-8 but non-ASCII characters are
+    *not* portable and should be avoided.
+
     name
-        The name of the cookie
+        The name of the cookie as a binary string.
 
     value
-        The value of the cookie
+        The value of the cookie as a binary string.
 
     path (optional)
-        A string: the path of the cookie.  If None then the 'directory'
-        of the page that returned the cookie will be used by the client.
+        A character string containing the path of the cookie.  If None
+        then the 'directory' of the page that returned the cookie will
+        be used by the client.
 
     domain (optional)
-        A string: the domain of the cookie.  If None then the host name
-        of the server that returned the cookie will be used by the
-        client and the cookie will be treated as 'host only'.
+        A character string containing the domain of the cookie.  If None
+        then the host name of the server that returned the cookie will
+        be used by the client and the cookie will be treated as 'host
+        only'.
 
     expires (optional)
         An :class:`~pyslet.iso8601.TimePoint` instance.  If None then the
@@ -717,21 +751,19 @@ class Cookie(object):
         protocol.  Recommended value: True!
 
     extensions
-        A list strings containing attribute extensions.  The strings
-        should be of the form name=value but this is not enforced.
+        A list of binary strings containing attribute extensions.  The
+        strings should be of the form name=value but this is not
+        enforced.
 
     Instances can be converted to strings using the builtin str function
-    and the output that results is a valid Set-Cookie header value.
-
-    """
-
+    and the output that results is a valid Set-Cookie header value."""
     def __init__(self, name, value, path=None, domain=None, expires=None,
                  max_age=None, secure=False, http_only=False, extensions=None):
         now = time.time()
         #: the cookie's name
-        self.name = name
+        self.name = self.bstr(name)
         #: the cookie's name
-        self.value = value
+        self.value = self.bstr(value)
         #: the cookie's path
         self.path = path
         if domain:
@@ -774,25 +806,69 @@ class Cookie(object):
         #: instead.
         self.expires = expires
         #: the list of extensions
-        self.extensions = extensions
+        if extensions:
+            self.extensions = [self.bstr(e) for e in extensions]
+        else:
+            self.extensions = None
 
-    def __str__(self):
-        components = ["%s=%s" % (self.name, self.value)]
+    @classmethod
+    def bstr(cls, arg):
+        """Overridden to use UTF-8 for binary encoding of arguments
+
+        This method is used to convert arguments provided in
+        constructors to the binary strings required by some attributes.
+        The default implementation uses ISO-8859-1 in keeping with the
+        general HTTP specification (although no encoding is portable
+        across a wide range of browser and server implementations).
+
+        We override it here for Cookies because the cookie specification
+        hints that UTF-8 would be an appropriate choice for displaying
+        binary information found in cookies."""
+        if is_unicode(arg):
+            return arg.encode('utf-8')
+        else:
+            return arg
+
+    @classmethod
+    def cstr(cls, value):
+        """Used to interpret binary strings in cookies
+
+        This method can be used as a default way of interpreting binary
+        information found in cookies.  It tries to decode using UTF-8
+        but, if that fails, it reverts to the default HTTP encoding of
+        ISO-8859-1.  It is used sparingly, in most cases binary values
+        are left uninterpreted but attributes such as the path and
+        domain must be interpreted in relation to components of the URL
+        and URLs use characters.
+
+        For clarity, a domain name containing non-ASCII characters
+        (U-labels) that has simply been UTF-8 encoded will be converted
+        back to the original form (with U-labels) whereas the same
+        domain correctly encoded in ACE format (xn--) will be unchanged
+        by this decoding."""
+        try:
+            return value.decode('utf-8')
+        except UnicodeDecodeError:
+            return value.decode('iso-8859-1')
+
+    def to_bytes(self):
+        components = [b"%s=%s" % (self.name, self.value)]
         if self.path:
-            components.append("Path=%s" % self.path)
+            components.append(b"Path=%s" % self.path.encode('ascii'))
         if self.domain:
-            components.append("Domain=%s" % self.domain)
+            components.append(b"Domain=%s" %
+                              encode_domain(self.domain).encode('ascii'))
         if self.expires is not None:
-            components.append("Expires=%s" % str(self.expires))
+            components.append(b"Expires=%s" % bytes(self.expires))
         if self.max_age is not None:
-            components.append("Max-Age=%s" % str(self.max_age))
+            components.append(b"Max-Age=%s" % bytes(self.max_age))
         if self.secure:
-            components.append("Secure")
+            components.append(b"Secure")
         if self.http_only:
-            components.append("HttpOnly")
+            components.append(b"HttpOnly")
         if self.extensions:
             components = components + self.extensions
-        return string.join(components, '; ')
+        return b'; '.join(components)
 
     @classmethod
     def from_str(cls, src):
@@ -876,21 +952,21 @@ class Section4Cookie(Cookie):
         if self.extensions:
             attrs = set()
             if self.domain:
-                attrs.add('domain')
+                attrs.add(b'domain')
             if self.path:
-                attrs.add('path')
+                attrs.add(b'path')
             if self.max_age is not None:
-                attrs.add('max_age')
+                attrs.add(b'max_age')
             if self.expires is not None:
-                attrs.add('expires')
+                attrs.add(b'expires')
             if self.secure:
-                attrs.add('secure')
+                attrs.add(b'secure')
             if self.http_only:
-                attrs.add('httponly')
+                attrs.add(b'httponly')
             for ext in self.extensions:
                 if not ext:
                     continue
-                ext = ext.split('=')[0].lower()
+                ext = ext.split(b'=')[0].lower()
                 if ext:
                     if ext in attrs:
                         raise CookieError("Duplicate attribute: %s" % ext)
@@ -988,7 +1064,7 @@ class CookieStore(object):
             if url.abs_path and url.abs_path[0] == '/':
                 path = url.abs_path.split('/')
                 if len(path) > 2:
-                    c.path = string.join(path[:-1], '/')
+                    c.path = '/'.join(path[:-1])
                 else:
                     c.path = '/'
             else:
@@ -1321,8 +1397,8 @@ class CookieStore(object):
                 else:
                     self.add_public_suffix(line)
             except ValueError:
-                logging.warn("Ignoring bad rule in black_list: %s",
-                             line)
+                logging.warning("Ignoring bad rule in black_list: %s",
+                                line)
 
     def test_public_domain(self, domain_str):
         """Test if a domain is public
@@ -1415,7 +1491,7 @@ class CookieStore(object):
         if u_labels:
             matched = [u[4:].decode('punycode') if is_a_label(u) else
                        u.decode('utf-8') for u in matched]
-        return string.join(matched, '.')
+        return '.'.join(matched)
 
     def check_public_suffix(self, domain_str, match_str):
         """See Public Suffix Test Data for details.

@@ -9,8 +9,15 @@ import unittest
 import pyslet.vfs as vfs
 import pyslet.rfc2396 as uri
 
-from pyslet.py2 import py2, range3, dict_keys
-from pyslet.py2 import character, ul, u8, is_unicode, to_text
+from pyslet.py2 import (
+    character,
+    dict_keys,
+    is_unicode,
+    py2,
+    range3,
+    to_text,
+    u8,
+    ul)
 
 from test_vfs import DriveSystem, UNCSystem
 

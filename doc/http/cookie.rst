@@ -141,6 +141,10 @@ Date and Time
 Basic Syntax
 ++++++++++++
 
+These functions follow the pattern of behaviour defined in the
+:doc:`grammar` module, taking a *byte* as an argument.  They will all
+return False if the argument is None.
+
 ..	autofunction:: is_delimiter
 
 ..	autofunction:: is_non_delimiter
@@ -156,6 +160,8 @@ Domain Name Syntax
 ..	autofunction:: domain_in_domain
 
 ..	autofunction:: split_domain
+
+..  autofunction:: encode_domain
 
 ..	autofunction:: is_ldh_label
 

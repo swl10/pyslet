@@ -19,9 +19,8 @@ import test_http_auth
 all_tests.addTest(test_http_auth.suite())
 import test_http_client
 all_tests.addTest(test_http_client.suite())
-if py2:
-    import test_http_cookie
-    all_tests.addTest(test_http_cookie.suite())
+import test_http_cookie
+all_tests.addTest(test_http_cookie.suite())
 import test_http_grammar
 all_tests.addTest(test_http_grammar.suite())
 import test_http_messages

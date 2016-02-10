@@ -11,9 +11,17 @@ import sys
 import tempfile
 import threading
 
-from .py2 import is_unicode, is_text, to_text, ul
-from .py2 import byte, join_bytes
-from .py2 import py2, dict_keys, range3, builtins
+from .py2 import (
+    builtins,
+    byte,
+    dict_keys,
+    is_unicode,
+    is_text,
+    join_bytes,
+    py2,
+    range3,
+    to_text,
+    ul)
 
 
 class VirtualFilePath(object):

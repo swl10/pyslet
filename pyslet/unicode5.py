@@ -7,10 +7,21 @@ import os.path
 from sys import maxunicode
 from pickle import dump, load
 
-from .py2 import byte, byte_value, character, join_bytes, ul
-from .py2 import force_text, is_text, is_unicode, to_text
-from .py2 import dict_values, range3, suffix, UnicodeMixin
-from .py2 import py2
+from .py2 import (
+    byte,
+    byte_value,
+    character,
+    dict_values,
+    force_text,
+    is_text,
+    is_unicode,
+    join_bytes,
+    py2,
+    range3,
+    suffix,
+    to_text,
+    ul,
+    UnicodeMixin)
 from .pep8 import PEP8Compatibility
 
 

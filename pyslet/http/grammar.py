@@ -1,7 +1,13 @@
 #! /usr/bin/env python
 
-from ..py2 import byte, byte_value, is_byte, byte_to_bstr, join_bytes
-from ..py2 import is_unicode, dict_keys
+from ..py2 import (
+    byte,
+    byte_to_bstr,
+    byte_value,
+    dict_keys,
+    is_byte,
+    is_unicode,
+    join_bytes)
 from ..unicode5 import BasicParser, ParserMixin
 
 

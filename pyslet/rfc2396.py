@@ -5,10 +5,21 @@ import warnings
 
 from . import vfs
 
-from .unicode5 import CharClass
 from .pep8 import renamed_function, PEP8Compatibility
-from .py2 import py2, byte, byte_value, join_bytes, ul, range3, CmpMixin
-from .py2 import is_unicode, character, empty_text, to_text, is_text
+from .py2 import (
+    byte,
+    byte_value,
+    character,
+    CmpMixin,
+    empty_text,
+    is_text,
+    is_unicode,
+    join_bytes,
+    py2,
+    range3,
+    to_text,
+    ul)
+from .unicode5 import CharClass
 
 
 class URIException(Exception):

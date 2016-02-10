@@ -3,7 +3,6 @@
 import unittest
 import logging
 import time
-import string
 import os.path
 
 import pyslet.rfc2396 as uri
@@ -14,7 +13,7 @@ import pyslet.http.params as params
 import pyslet.http.messages as messages
 import pyslet.http.cookie as cookie
 
-from pyslet.py2 import range3, u8, ul
+from pyslet.py2 import range3, u8, ul, byte, join_bytes
 
 from test_http_client import MockClientWrapper, MockConnectionWrapper,\
     MockSocket
@@ -30,14 +29,14 @@ def suite():
     ))
 
 
-TEST_STRING = "The quick fudge brownie jumped over the lazy cookie box"
+TEST_STRING = b"The quick fudge brownie jumped over the lazy cookie box"
 
 
 class MockCookieSocket(MockSocket):
 
     def send_continue(self):
-        self.recv_pipe.write("HTTP/1.1 100 Go on then!\r\n"
-                             "Set-Cookie: SID=Status100\r\n\r\n")
+        self.recv_pipe.write(b"HTTP/1.1 100 Go on then!\r\n"
+                             b"Set-Cookie: SID=Status100\r\n\r\n")
 
 
 class MockCookieConnectionWrapper(MockConnectionWrapper):
@@ -54,8 +53,8 @@ class CookieTests(unittest.TestCase):
 
     def test_constructor(self):
         c = cookie.Cookie('SID', '31d4d96e407aad42')
-        self.assertTrue(c.name == 'SID')
-        self.assertTrue(c.value == '31d4d96e407aad42')
+        self.assertTrue(c.name == b'SID')
+        self.assertTrue(c.value == b'31d4d96e407aad42')
         self.assertTrue(c.path is None)
         self.assertTrue(c.domain is None)
         self.assertFalse(c.secure)
@@ -66,16 +65,16 @@ class CookieTests(unittest.TestCase):
         self.assertTrue(c.creation_time <= time.time())
         self.assertTrue(c.access_time is not None)
         self.assertTrue(c.access_time == c.creation_time)
-        c = cookie.Cookie('SID', '31d4d96e407aad42', path="/",
+        c = cookie.Cookie(b'SID', b'31d4d96e407aad42', path="/",
                           domain="example.com")
-        self.assertTrue(c.name == 'SID')
-        self.assertTrue(c.value == '31d4d96e407aad42')
+        self.assertTrue(c.name == b'SID')
+        self.assertTrue(c.value == b'31d4d96e407aad42')
         self.assertTrue(c.path == '/')
         self.assertTrue(c.domain == 'example.com')
         c = cookie.Cookie('SID', '31d4d96e407aad42', path="/", secure=True,
                           http_only=True, max_age=300)
-        self.assertTrue(c.name == 'SID')
-        self.assertTrue(c.value == '31d4d96e407aad42')
+        self.assertTrue(c.name == b'SID')
+        self.assertTrue(c.value == b'31d4d96e407aad42')
         self.assertTrue(c.path == '/')
         self.assertTrue(c.domain is None)
         self.assertTrue(c.secure)
@@ -180,7 +179,7 @@ class CookieTests(unittest.TestCase):
         self.assertTrue(c.max_age is None)
         p = cookie.CookieParser("SID=31d4d96e407aad42; max-age=-10")
         c = p.require_set_cookie_string()
-        self.assertTrue(c.max_age == -10)
+        self.assertTrue(c.max_age == -10, repr(c.max_age))
         # multiple values, last is used
         p = cookie.CookieParser(
             "SID=31d4d96e407aad42; max-age=5; httpOnly; max-age=6")
@@ -198,7 +197,7 @@ class CookieTests(unittest.TestCase):
         # leading %x2E (".") character.
         p = cookie.CookieParser("SID=31d4d96e407aad42; domain=.Example.COM")
         c = p.require_set_cookie_string()
-        self.assertTrue(c.domain == "example.com")
+        self.assertTrue(c.domain == "example.com", repr(c.domain))
         # check last domain used
         p = cookie.CookieParser(
             "SID=31d4d96e407aad42; domain=.Example.COM; max-age=300; "
@@ -233,29 +232,29 @@ class CookieTests(unittest.TestCase):
         while p.the_char is not None:
             result.append(p.require_cookie_value())
             p.next_char()
-        self.assertTrue(result == ['a', 'b', 'c', 'd', 'e', 'fg', '"hi"'],
-                        repr(result))
+        self.assertTrue(result == [b'a', b'b', b'c', b'd', b'e', b'fg',
+                                   b'"hi"'], repr(result))
         p = cookie.CookieParser('SID=31d4d96e407aad42')
         name, value = p.parse_cookie_pair()
-        self.assertTrue(name == "SID")
-        self.assertTrue(value == "31d4d96e407aad42")
+        self.assertTrue(name == b"SID")
+        self.assertTrue(value == b"31d4d96e407aad42")
         # check preservation of quote
         p = cookie.CookieParser('SID="31d4d96e407aad42"')
         name, value = p.parse_cookie_pair()
-        self.assertTrue(name == "SID")
-        self.assertTrue(value == "\"31d4d96e407aad42\"")
+        self.assertTrue(name == b"SID")
+        self.assertTrue(value == b"\"31d4d96e407aad42\"")
         p = cookie.CookieParser('a \tb;c\'d,e"\\"')
         result = []
         while p.the_char is not None:
             result.append(p.parse_cookie_av())
             p.next_char()
-        self.assertTrue(result == ['a ', 'b', 'c\'d,e"\\"'])
+        self.assertTrue(result == [b'a ', b'b', b'c\'d,e"\\"'])
         # simple example
         p = cookie.CookieParser('SID=31d4d96e407aad42')
         c = p.require_set_cookie_string(strict=True)
         self.assertTrue(isinstance(c, cookie.Cookie))
-        self.assertTrue(c.name == "SID")
-        self.assertTrue(c.value == "31d4d96e407aad42")
+        self.assertTrue(c.name == b"SID")
+        self.assertTrue(c.value == b"31d4d96e407aad42")
         self.assertTrue(c.expires is None)
         self.assertTrue(c.max_age is None)
         self.assertTrue(c.domain is None)
@@ -268,16 +267,16 @@ class CookieTests(unittest.TestCase):
             'domain=example.com; max-age=1000; '
             'expires=Fri, 14 Nov 2014 20:32:39 GMT; lang=en-US; trailer')
         c = p.require_set_cookie_string(strict=True)
-        self.assertTrue(c.name == "SID")
-        self.assertTrue(c.value == '"31d4d96e407aad42"')
+        self.assertTrue(c.name == b"SID")
+        self.assertTrue(c.value == b'"31d4d96e407aad42"')
         self.assertTrue(c.expires ==
                         iso.TimePoint.from_str('2014-11-14T20:32:39Z'))
         self.assertTrue(c.max_age == 1000)
         self.assertTrue(c.domain == 'example.com')
-        self.assertTrue(c.path == '/')
+        self.assertTrue(c.path == '/', repr(c.path))
         self.assertTrue(c.secure is True)
         self.assertTrue(c.http_only is True)
-        self.assertTrue(c.extensions == ['lang=en-US', 'trailer'])
+        self.assertTrue(c.extensions == [b'lang=en-US', b'trailer'])
 
     def test_parser1(self):
         p = cookie.CookieParser(' SID = 31d4d96e407aad42 ')
@@ -285,8 +284,8 @@ class CookieTests(unittest.TestCase):
         self.assertTrue(isinstance(c, cookie.Cookie))
         # Remove any leading or trailing WSP characters from the name
         # string and the value string.
-        self.assertTrue(c.name == "SID")
-        self.assertTrue(c.value == "31d4d96e407aad42")
+        self.assertTrue(c.name == b"SID")
+        self.assertTrue(c.value == b"31d4d96e407aad42")
         p = cookie.CookieParser('SID = "31d4d96e407aad42')
         try:
             c = p.require_set_cookie_string(strict=True)
@@ -296,8 +295,8 @@ class CookieTests(unittest.TestCase):
         p = cookie.CookieParser('SID=3,4 ;x=1')
         c = p.require_set_cookie_string()
         self.assertTrue(isinstance(c, cookie.Cookie))
-        self.assertTrue(c.name == "SID")
-        self.assertTrue(c.value == "3,4")
+        self.assertTrue(c.name == b"SID")
+        self.assertTrue(c.value == b"3,4")
         # If the name-value-pair string lacks a %x3D ("=") character,
         # ignore the set-cookie-string entirely.
         p = cookie.CookieParser('SID34;x=1')
@@ -326,10 +325,10 @@ class CookieTests(unittest.TestCase):
         clist = p.require_cookie_string()
         # results in a dictionary of cookies
         self.assertTrue(len(clist) == 2)
-        self.assertTrue('SID' in clist)
-        self.assertTrue(clist['SID'] == '31d4d96e407aad42')
-        self.assertTrue('lang' in clist)
-        self.assertTrue(clist['lang'] == '"en-US"')
+        self.assertTrue(b'SID' in clist)
+        self.assertTrue(clist[b'SID'] == b'31d4d96e407aad42')
+        self.assertTrue(b'lang' in clist)
+        self.assertTrue(clist[b'lang'] == b'"en-US"')
         # check the parser consumed the last OWS
         self.assertTrue(p.the_char is None)
         p = cookie.CookieParser('SID=31d4d96e407aad42;  lang="en-US"')
@@ -344,192 +343,192 @@ class CookieTests(unittest.TestCase):
         p = cookie.CookieParser('lang=en-GB; SID=31d4d96e407aad42; lang=en-US')
         clist = p.require_cookie_string()
         self.assertTrue(len(clist) == 2)
-        self.assertTrue('SID' in clist)
-        self.assertTrue('lang' in clist)
+        self.assertTrue(b'SID' in clist)
+        self.assertTrue(b'lang' in clist)
         # we insist that multiple values are returned as sets to ensure
         # that servers cannot rely upon the serialization order
-        self.assertTrue(isinstance(clist['lang'], set))
-        self.assertTrue(len(clist['lang']) == 2)
-        self.assertTrue('en-GB' in clist['lang'])
-        self.assertTrue('en-US' in clist['lang'])
+        self.assertTrue(isinstance(clist[b'lang'], set))
+        self.assertTrue(len(clist[b'lang']) == 2)
+        self.assertTrue(b'en-GB' in clist[b'lang'])
+        self.assertTrue(b'en-US' in clist[b'lang'])
 
     def test_syntax(self):
         for i in range3(0, 0x21):
-            self.assertFalse(cookie.is_cookie_octet(chr(i)))
-        self.assertTrue(cookie.is_cookie_octet(chr(0x21)))
-        self.assertFalse(cookie.is_cookie_octet(chr(0x22)))
+            self.assertFalse(cookie.is_cookie_octet(byte(i)))
+        self.assertTrue(cookie.is_cookie_octet(byte(0x21)))
+        self.assertFalse(cookie.is_cookie_octet(byte(0x22)))
         for i in range3(0x23, 0x2C):
-            self.assertTrue(cookie.is_cookie_octet(chr(i)))
-        self.assertFalse(cookie.is_cookie_octet(chr(0x2C)))
+            self.assertTrue(cookie.is_cookie_octet(byte(i)))
+        self.assertFalse(cookie.is_cookie_octet(byte(0x2C)))
         for i in range3(0x2D, 0x3B):
-            self.assertTrue(cookie.is_cookie_octet(chr(i)))
-        self.assertFalse(cookie.is_cookie_octet(chr(0x3B)))
+            self.assertTrue(cookie.is_cookie_octet(byte(i)))
+        self.assertFalse(cookie.is_cookie_octet(byte(0x3B)))
         for i in range3(0x3C, 0x5C):
-            self.assertTrue(cookie.is_cookie_octet(chr(i)))
-        self.assertFalse(cookie.is_cookie_octet(chr(0x5C)))
+            self.assertTrue(cookie.is_cookie_octet(byte(i)))
+        self.assertFalse(cookie.is_cookie_octet(byte(0x5C)))
         for i in range3(0x5D, 0x7F):
-            self.assertTrue(cookie.is_cookie_octet(chr(i)))
+            self.assertTrue(cookie.is_cookie_octet(byte(i)))
         for i in range3(0x7F, 0x100):
-            self.assertFalse(cookie.is_cookie_octet(chr(i)))
+            self.assertFalse(cookie.is_cookie_octet(byte(i)))
 
     def test_date_tokens(self):
         for i in range3(0, 0x09):
-            self.assertFalse(cookie.is_delimiter(chr(i)))
-            self.assertTrue(cookie.is_non_delimiter(chr(i)))
-            self.assertTrue(cookie.is_non_digit(chr(i)))
-        self.assertTrue(cookie.is_delimiter(chr(0x09)))
-        self.assertFalse(cookie.is_non_delimiter(chr(0x09)))
-        self.assertTrue(cookie.is_non_digit(chr(0x09)))
+            self.assertFalse(cookie.is_delimiter(byte(i)))
+            self.assertTrue(cookie.is_non_delimiter(byte(i)))
+            self.assertTrue(cookie.is_non_digit(byte(i)))
+        self.assertTrue(cookie.is_delimiter(byte(0x09)))
+        self.assertFalse(cookie.is_non_delimiter(byte(0x09)))
+        self.assertTrue(cookie.is_non_digit(byte(0x09)))
         for i in range3(0x0A, 0x20):
-            self.assertFalse(cookie.is_delimiter(chr(i)))
-            self.assertTrue(cookie.is_non_delimiter(chr(i)))
-            self.assertTrue(cookie.is_non_digit(chr(i)))
+            self.assertFalse(cookie.is_delimiter(byte(i)))
+            self.assertTrue(cookie.is_non_delimiter(byte(i)))
+            self.assertTrue(cookie.is_non_digit(byte(i)))
         for i in range3(0x20, 0x30):
-            self.assertTrue(cookie.is_delimiter(chr(i)))
-            self.assertFalse(cookie.is_non_delimiter(chr(i)))
-            self.assertTrue(cookie.is_non_digit(chr(i)))
+            self.assertTrue(cookie.is_delimiter(byte(i)))
+            self.assertFalse(cookie.is_non_delimiter(byte(i)))
+            self.assertTrue(cookie.is_non_digit(byte(i)))
         for i in range3(0x30, 0x3A):
-            self.assertFalse(cookie.is_delimiter(chr(i)))
-            self.assertTrue(cookie.is_non_delimiter(chr(i)))
-            self.assertFalse(cookie.is_non_digit(chr(i)))
-        self.assertFalse(cookie.is_delimiter(chr(0x3A)))
-        self.assertTrue(cookie.is_non_delimiter(chr(0x3A)))
-        self.assertTrue(cookie.is_non_digit(chr(0x3A)))
+            self.assertFalse(cookie.is_delimiter(byte(i)))
+            self.assertTrue(cookie.is_non_delimiter(byte(i)))
+            self.assertFalse(cookie.is_non_digit(byte(i)))
+        self.assertFalse(cookie.is_delimiter(byte(0x3A)))
+        self.assertTrue(cookie.is_non_delimiter(byte(0x3A)))
+        self.assertTrue(cookie.is_non_digit(byte(0x3A)))
         for i in range3(0x3B, 0x41):
-            self.assertTrue(cookie.is_delimiter(chr(i)))
-            self.assertFalse(cookie.is_non_delimiter(chr(i)))
-            self.assertTrue(cookie.is_non_digit(chr(i)))
+            self.assertTrue(cookie.is_delimiter(byte(i)))
+            self.assertFalse(cookie.is_non_delimiter(byte(i)))
+            self.assertTrue(cookie.is_non_digit(byte(i)))
         for i in range3(0x41, 0x5B):
-            self.assertFalse(cookie.is_delimiter(chr(i)))
-            self.assertTrue(cookie.is_non_delimiter(chr(i)))
-            self.assertTrue(cookie.is_non_digit(chr(i)))
+            self.assertFalse(cookie.is_delimiter(byte(i)))
+            self.assertTrue(cookie.is_non_delimiter(byte(i)))
+            self.assertTrue(cookie.is_non_digit(byte(i)))
         for i in range3(0x5B, 0x61):
-            self.assertTrue(cookie.is_delimiter(chr(i)))
-            self.assertFalse(cookie.is_non_delimiter(chr(i)))
-            self.assertTrue(cookie.is_non_digit(chr(i)))
+            self.assertTrue(cookie.is_delimiter(byte(i)))
+            self.assertFalse(cookie.is_non_delimiter(byte(i)))
+            self.assertTrue(cookie.is_non_digit(byte(i)))
         for i in range3(0x61, 0x7B):
-            self.assertFalse(cookie.is_delimiter(chr(i)))
-            self.assertTrue(cookie.is_non_delimiter(chr(i)))
-            self.assertTrue(cookie.is_non_digit(chr(i)))
+            self.assertFalse(cookie.is_delimiter(byte(i)))
+            self.assertTrue(cookie.is_non_delimiter(byte(i)))
+            self.assertTrue(cookie.is_non_digit(byte(i)))
         for i in range3(0x7B, 0x7F):
-            self.assertTrue(cookie.is_delimiter(chr(i)))
-            self.assertFalse(cookie.is_non_delimiter(chr(i)))
-            self.assertTrue(cookie.is_non_digit(chr(i)))
+            self.assertTrue(cookie.is_delimiter(byte(i)))
+            self.assertFalse(cookie.is_non_delimiter(byte(i)))
+            self.assertTrue(cookie.is_non_digit(byte(i)))
         for i in range3(0x7F, 0x100):
-            self.assertFalse(cookie.is_delimiter(chr(i)))
-            self.assertTrue(cookie.is_non_delimiter(chr(i)))
-            self.assertTrue(cookie.is_non_digit(chr(i)))
+            self.assertFalse(cookie.is_delimiter(byte(i)))
+            self.assertTrue(cookie.is_non_delimiter(byte(i)))
+            self.assertTrue(cookie.is_non_digit(byte(i)))
         src = []
         for i in range3(0, 0x100):
-            src.append(chr(i))
-        p = cookie.CookieParser(string.join(src, ''))
+            src.append(byte(i))
+        p = cookie.CookieParser(join_bytes(src))
         tokens = p.parse_cookie_date_tokens()
         self.assertTrue(tokens == [
-            "\x00\x01\x02\x03\x04\x05\x06\x07\x08",
-            "\x0A\x0B\x0C\x0D\x0E\x0F\x10\x11\x12\x13\x14\x15\x16\x17\x18"
-            "\x19\x1A\x1B\x1C\x1D\x1E\x1F",
-            "0123456789:",
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-            "abcdefghijklmnopqrstuvwxyz",
-            "\x7f\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d"
-            "\x8e\x8f\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c"
-            "\x9d\x9e\x9f\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab"
-            "\xac\xad\xae\xaf\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba"
-            "\xbb\xbc\xbd\xbe\xbf\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9"
-            "\xca\xcb\xcc\xcd\xce\xcf\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8"
-            "\xd9\xda\xdb\xdc\xdd\xde\xdf\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7"
-            "\xe8\xe9\xea\xeb\xec\xed\xee\xef\xf0\xf1\xf2\xf3\xf4\xf5\xf6"
-            "\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff"], repr(tokens))
+            b"\x00\x01\x02\x03\x04\x05\x06\x07\x08",
+            b"\x0A\x0B\x0C\x0D\x0E\x0F\x10\x11\x12\x13\x14\x15\x16\x17\x18"
+            b"\x19\x1A\x1B\x1C\x1D\x1E\x1F",
+            b"0123456789:",
+            b"ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+            b"abcdefghijklmnopqrstuvwxyz",
+            b"\x7f\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d"
+            b"\x8e\x8f\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c"
+            b"\x9d\x9e\x9f\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab"
+            b"\xac\xad\xae\xaf\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba"
+            b"\xbb\xbc\xbd\xbe\xbf\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9"
+            b"\xca\xcb\xcc\xcd\xce\xcf\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8"
+            b"\xd9\xda\xdb\xdc\xdd\xde\xdf\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7"
+            b"\xe8\xe9\xea\xeb\xec\xed\xee\xef\xf0\xf1\xf2\xf3\xf4\xf5\xf6"
+            b"\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff"], repr(tokens))
 
     def test_time(self):
-        h, m, s = cookie.split_time("0:0:0pm\r\n")
+        h, m, s = cookie.split_time(b"0:0:0pm\r\n")
         self.assertTrue(h == 0)
         self.assertTrue(m == 0)
         self.assertTrue(s == 0)
-        h, m, s = cookie.split_time("99:9:09pm\r\n")
+        h, m, s = cookie.split_time(b"99:9:09pm\r\n")
         self.assertTrue(h == 99)
         self.assertTrue(m == 9)
         self.assertTrue(s == 9)
         # too many digits, raises an error
         try:
-            h, m, s = cookie.split_time("12:34:005pm\r\n")
+            h, m, s = cookie.split_time(b"12:34:005pm\r\n")
             self.fail("3DIGIT fails to match time-field")
         except ValueError:
             pass
         # no seconds raises an error
         try:
-            h, m, s = cookie.split_time("12:34pm\r\n")
+            h, m, s = cookie.split_time(b"12:34pm\r\n")
             self.fail("Missing seconds fails to match time-field")
         except ValueError:
             pass
 
     def test_year(self):
-        y = cookie.split_year("94AD\r\n")
+        y = cookie.split_year(b"94AD\r\n")
         self.assertTrue(y == 1994)
-        y = cookie.split_year("1994AD\r\n")
+        y = cookie.split_year(b"1994AD\r\n")
         self.assertTrue(y == 1994)
-        y = cookie.split_year("054ad\r\n")
+        y = cookie.split_year(b"054ad\r\n")
         self.assertTrue(y == 2054)
         try:
-            y = cookie.split_year("5ad\r\n")
+            y = cookie.split_year(b"5ad\r\n")
             self.fail("DIGIT fails to match year")
         except ValueError:
             pass
         try:
-            y = cookie.split_year("10005ad\r\n")
+            y = cookie.split_year(b"10005ad\r\n")
             self.fail("5DIGIT fails to match year")
         except ValueError:
             pass
 
     def test_dom(self):
-        d = cookie.split_day_of_month("1st\r\n")
+        d = cookie.split_day_of_month(b"1st\r\n")
         self.assertTrue(d == 1)
-        d = cookie.split_day_of_month("55th\r\n")
+        d = cookie.split_day_of_month(b"55th\r\n")
         self.assertTrue(d == 55)
-        d = cookie.split_day_of_month("00th\r\n")
+        d = cookie.split_day_of_month(b"00th\r\n")
         self.assertTrue(d == 0)
         try:
-            d = cookie.split_day_of_month("101st\r\n")
+            d = cookie.split_day_of_month(b"101st\r\n")
             self.fail("3DIGIT fails to match day of month")
         except ValueError:
             pass
 
     def test_month(self):
-        m = cookie.split_month("january")
+        m = cookie.split_month(b"january")
         self.assertTrue(m == 1)
-        m = cookie.split_month("febuary\r\n")
+        m = cookie.split_month(b"febuary\r\n")
         self.assertTrue(m == 2)
-        m = cookie.split_month("february")
+        m = cookie.split_month(b"february")
         self.assertTrue(m == 2)
-        m = cookie.split_month("mar")
+        m = cookie.split_month(b"mar")
         self.assertTrue(m == 3)
-        m = cookie.split_month("Mars")
+        m = cookie.split_month(b"Mars")
         self.assertTrue(m == 3)
-        m = cookie.split_month("Apricot\r\n")
+        m = cookie.split_month(b"Apricot\r\n")
         self.assertTrue(m == 4)
-        m = cookie.split_month("MAY")
+        m = cookie.split_month(b"MAY")
         self.assertTrue(m == 5)
-        m = cookie.split_month("June")
+        m = cookie.split_month(b"June")
         self.assertTrue(m == 6)
-        m = cookie.split_month("Juliet")
+        m = cookie.split_month(b"Juliet")
         self.assertTrue(m == 7)
-        m = cookie.split_month("Augustus")
+        m = cookie.split_month(b"Augustus")
         self.assertTrue(m == 8)
-        m = cookie.split_month("sep7\r\n")
+        m = cookie.split_month(b"sep7\r\n")
         self.assertTrue(m == 9)
-        m = cookie.split_month("octopus")
+        m = cookie.split_month(b"octopus")
         self.assertTrue(m == 10)
-        m = cookie.split_month("NOV5th\r\n")
+        m = cookie.split_month(b"NOV5th\r\n")
         self.assertTrue(m == 11)
-        m = cookie.split_month("Decimal")
+        m = cookie.split_month(b"Decimal")
         self.assertTrue(m == 12)
         try:
-            m = cookie.split_month("Avril")
+            m = cookie.split_month(b"Avril")
             self.fail("unrecognized month")
         except ValueError:
             pass
         try:
-            m = cookie.split_month("12")
+            m = cookie.split_month(b"12")
             self.fail("unrecognized month")
         except ValueError:
             pass
@@ -576,46 +575,47 @@ class DomainTests(unittest.TestCase):
 
         <label> ::= <letter> [ [ <ldh-str> ] <let-dig> ]
         <ldh-str> ::= <let-dig-hyp> | <let-dig-hyp> <ldh-str>"""
-        self.assertTrue(cookie.is_ldh_label("ab-2"))
-        self.assertTrue(cookie.is_ldh_label("ab--cde"))
+        self.assertTrue(cookie.is_ldh_label(b"ab-2"))
+        self.assertTrue(cookie.is_ldh_label(b"ab--cde"))
         # can be 63 chars long
         self.assertTrue(cookie.is_ldh_label(
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZ-0123456789abcdefghijklmnopqrstuvwxyz"))
+            b"ABCDEFGHIJKLMNOPQRSTUVWXYZ-0123456789"
+            b"abcdefghijklmnopqrstuvwxyz"))
         # can't be 64 chars long
         self.assertFalse(cookie.is_ldh_label(
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZ--0123456789"
-            "abcdefghijklmnopqrstuvwxyz"))
+            b"ABCDEFGHIJKLMNOPQRSTUVWXYZ--0123456789"
+            b"abcdefghijklmnopqrstuvwxyz"))
         # labels can now start with a number!
-        self.assertTrue(cookie.is_ldh_label("131"))
+        self.assertTrue(cookie.is_ldh_label(b"131"))
         # or be a number
-        self.assertTrue(cookie.is_ldh_label("4ab"))
+        self.assertTrue(cookie.is_ldh_label(b"4ab"))
         # can't start with a or a hyphen
-        self.assertFalse(cookie.is_ldh_label("-ab"))
+        self.assertFalse(cookie.is_ldh_label(b"-ab"))
         # or end with a hypen
-        self.assertFalse(cookie.is_ldh_label("cde-"))
+        self.assertFalse(cookie.is_ldh_label(b"cde-"))
         # the label cannot contain a ','
-        self.assertFalse(cookie.is_ldh_label("cd.ef"))
+        self.assertFalse(cookie.is_ldh_label(b"cd.ef"))
         # the label cannot contain or '_'
-        self.assertFalse(cookie.is_ldh_label("cd_ef"))
+        self.assertFalse(cookie.is_ldh_label(b"cd_ef"))
         # empty strings are not valid labels
-        self.assertFalse(cookie.is_ldh_label(""))
+        self.assertFalse(cookie.is_ldh_label(b""))
 
     def test_rldh_label(self):
         """R-LDH rules:
 
         Reserved LDH labels... have the property that they contain "--"
         in the third and fourth characters"""
-        self.assertTrue(cookie.is_rldh_label("ab--cde"))
-        self.assertFalse(cookie.is_rldh_label("abc--de"))
-        self.assertFalse(cookie.is_rldh_label("a--bcde"))
+        self.assertTrue(cookie.is_rldh_label(b"ab--cde"))
+        self.assertFalse(cookie.is_rldh_label(b"abc--de"))
+        self.assertFalse(cookie.is_rldh_label(b"a--bcde"))
 
     def test_a_label(self):
         """A-label rule: xn--"""
-        self.assertTrue(cookie.is_a_label("xn--ab"))
-        self.assertTrue(cookie.is_a_label("XN--ab"))
-        self.assertTrue(cookie.is_a_label("Xn--ab"))
-        self.assertFalse(cookie.is_a_label("ab--xn--ab"))
-        self.assertTrue(cookie.is_a_label('xn--fiqs8s'))
+        self.assertTrue(cookie.is_a_label(b"xn--ab"))
+        self.assertTrue(cookie.is_a_label(b"XN--ab"))
+        self.assertTrue(cookie.is_a_label(b"Xn--ab"))
+        self.assertFalse(cookie.is_a_label(b"ab--xn--ab"))
+        self.assertTrue(cookie.is_a_label(b'xn--fiqs8s'))
 
     def test_split_domain(self):
         """Splits a domain into appropriate labels"""
@@ -664,15 +664,15 @@ class HeaderTests(unittest.TestCase):
         # should be a dictionary containing a single cookie
         self.assertTrue(isinstance(cookies, dict))
         self.assertTrue(len(cookies) == 1)
-        self.assertTrue("SID" in cookies)
-        self.assertTrue(cookies["SID"] == '31d4d96e407aad42')
+        self.assertTrue(b"SID" in cookies)
+        self.assertTrue(cookies[b"SID"] == b'31d4d96e407aad42')
         cookies = request.get_header('Cookie')
-        self.assertTrue(cookies == 'SID=31d4d96e407aad42')
+        self.assertTrue(cookies == b'SID=31d4d96e407aad42')
         # set_cookie replaces value
         request.set_cookie([cookie.Cookie('lang', 'en-US')])
         cookies = request.get_cookie()
         self.assertTrue(len(cookies) == 1)
-        self.assertTrue("lang" in cookies)
+        self.assertTrue(b"lang" in cookies)
         # None removes value
         request.set_cookie(None)
         cookies = request.get_cookie()
@@ -684,10 +684,10 @@ class HeaderTests(unittest.TestCase):
                             cookie.Cookie('lang', 'en-US')])
         cookies = request.get_cookie()
         self.assertTrue(len(cookies) == 2)
-        self.assertTrue("lang" in cookies)
-        self.assertTrue("SID" in cookies)
+        self.assertTrue(b"lang" in cookies)
+        self.assertTrue(b"SID" in cookies)
         cookies = request.get_header('Cookie')
-        self.assertTrue(cookies == 'SID=31d4d96e407aad42; lang=en-US')
+        self.assertTrue(cookies == b'SID=31d4d96e407aad42; lang=en-US')
 
     def test_response_folding(self):
         """Folding test:
@@ -906,7 +906,7 @@ com
         clist = cs.search(
             uri.URI.from_octets('http://test.example.com/images/logo.gif'))
         self.assertTrue(len(clist) == 1)
-        self.assertTrue(clist[0].value == 'new_value')
+        self.assertTrue(clist[0].value == b'new_value')
         clist = cs.search(
             uri.URI.from_octets('http://test.example.com/home.htm'))
         # doesn't match the path
@@ -989,8 +989,8 @@ com
         cs.end_session()
         clist = cs.search(url)
         self.assertTrue(len(clist) == 1)
-        self.assertTrue(clist[0].name == 'lang')
-        self.assertTrue(clist[0].value == 'long-life')
+        self.assertTrue(clist[0].name == b'lang')
+        self.assertTrue(clist[0].value == b'long-life')
 
     def test_expire_cookies(self):
         """The user agent MUST evict all expired cookies from the cookie
@@ -1031,9 +1031,9 @@ com
         cs.set_cookie(url, c)
         clist = cs.search(url)
         self.assertTrue(len(clist) == 3)
-        self.assertTrue(clist[0].value == "s2")
-        self.assertTrue(clist[1].value == "s1")
-        self.assertTrue(clist[2].value == "s3")
+        self.assertTrue(clist[0].value == b"s2")
+        self.assertTrue(clist[1].value == b"s1")
+        self.assertTrue(clist[2].value == b"s3")
 
 
 class ClientTests(unittest.TestCase):
@@ -1113,7 +1113,8 @@ class ClientTests(unittest.TestCase):
             elif req.request_uri == "/checkCookie":
                 cookies = req.get_cookie()
                 # returns a dictionary of cookies or an empty dictionary
-                if 'SID' in cookies and cookies['SID'] == '31d4d96e407aad42':
+                if b'SID' in cookies and cookies[b'SID'] == \
+                        b'31d4d96e407aad42':
                     response.set_status(200, "Cookie checked")
                 else:
                     response.set_status(400, "Missing cookie")
@@ -1129,16 +1130,16 @@ class ClientTests(unittest.TestCase):
                 cookies = req.get_cookie()
                 # returns a dictionary of cookies
                 if (len(cookies) == 2 and
-                        cookies.get('SID', 'x') == '31d4d96e407aad42' and
-                        cookies.get('lang', 'x') == 'en-US'):
+                        cookies.get(b'SID', b'x') == b'31d4d96e407aad42' and
+                        cookies.get(b'lang', b'x') == b'en-US'):
                     response.set_status(200, "Cookies checked")
                 else:
                     response.set_status(400, "Missing cookie(s)")
             elif req.request_uri == '/counter':
                 cookies = req.get_cookie()
                 if (self.cookie_count == 0 or
-                        (cookies and cookies.get('count', 'x') ==
-                         str(self.cookie_count))):
+                        (cookies and cookies.get(b'count', b'x') ==
+                         str(self.cookie_count).encode('ascii'))):
                     self.cookie_count += 1
                     response.set_set_cookie(
                         cookie.Cookie('count', str(self.cookie_count)))
@@ -1164,7 +1165,7 @@ class ClientTests(unittest.TestCase):
                 response.set_status(200, "Site cookie set")
             elif req.request_uri == "/checkSiteCookie":
                 cookies = req.get_cookie()
-                if 'wwwonly' in cookies and cookies['wwwonly'] == 'domain':
+                if b'wwwonly' in cookies and cookies[b'wwwonly'] == b'domain':
                     response.set_status(200, "Cookie checked")
                 else:
                     response.set_status(400, "Missing cookie")
@@ -1179,7 +1180,7 @@ class ClientTests(unittest.TestCase):
                 response.set_status(200, "Domain cookie set")
             elif req.request_uri == '/checkDomain3Cookie':
                 cookies = req.get_cookie()
-                if 'public' in cookies and cookies['public'] == 'domain':
+                if b'public' in cookies and cookies[b'public'] == b'domain':
                     response.set_status(200, "Cookie checked")
                 else:
                     response.set_status(400, "Missing cookie")
@@ -1189,7 +1190,7 @@ class ClientTests(unittest.TestCase):
                 response.set_status(200, "Site cookie set")
             else:
                 response = messages.Response(req)
-                response.set_status(400, "Test failed for domain1")
+                response.set_status(400, "Test failed for domain1: %s")
             sock.send_response(response)
 
     def test_simple(self):
@@ -1288,8 +1289,8 @@ class ClientTests(unittest.TestCase):
         cookies = self.cs.search(
             uri.URI.from_octets('http://www.domain1.com/'))
         self.assertTrue(len(cookies) == 1)
-        self.assertTrue(cookies[0].name == "SID")
-        self.assertTrue(cookies[0].value == "Status100")
+        self.assertTrue(cookies[0].name == b"SID")
+        self.assertTrue(cookies[0].value == b"Status100")
         # Check status 200
         request = http.ClientRequest("http://www.domain1.com/status200")
         self.client.process_request(request)
@@ -1302,8 +1303,8 @@ class ClientTests(unittest.TestCase):
         cookies = self.cs.search(
             uri.URI.from_octets('http://www.domain1.com/'))
         self.assertTrue(len(cookies) == 1)
-        self.assertTrue(cookies[0].name == "SID")
-        self.assertTrue(cookies[0].value == "31d4d96e407aad42")
+        self.assertTrue(cookies[0].name == b"SID")
+        self.assertTrue(cookies[0].value == b"31d4d96e407aad42")
         # Check status 3xx
         request = http.ClientRequest("http://www.domain1.com/redirect")
         self.client.process_request(request)
@@ -1316,8 +1317,8 @@ class ClientTests(unittest.TestCase):
         cookies = self.cs.search(
             uri.URI.from_octets('http://www.domain1.com/'))
         self.assertTrue(len(cookies) == 1)
-        self.assertTrue(cookies[0].name == "SID")
-        self.assertTrue(cookies[0].value == "Status300")
+        self.assertTrue(cookies[0].name == b"SID")
+        self.assertTrue(cookies[0].value == b"Status300")
         # Check status 4xx
         request = http.ClientRequest("http://www.domain1.com/status403")
         self.client.process_request(request)
@@ -1330,8 +1331,8 @@ class ClientTests(unittest.TestCase):
         cookies = self.cs.search(
             uri.URI.from_octets('http://www.domain1.com/'))
         self.assertTrue(len(cookies) == 1)
-        self.assertTrue(cookies[0].name == "SID")
-        self.assertTrue(cookies[0].value == "GoAway")
+        self.assertTrue(cookies[0].name == b"SID")
+        self.assertTrue(cookies[0].value == b"GoAway")
         # Check status 5xx
         request = http.ClientRequest("http://www.domain1.com/status500")
         self.client.process_request(request)
@@ -1344,8 +1345,8 @@ class ClientTests(unittest.TestCase):
         cookies = self.cs.search(
             uri.URI.from_octets('http://www.domain1.com/'))
         self.assertTrue(len(cookies) == 1)
-        self.assertTrue(cookies[0].name == "SID")
-        self.assertTrue(cookies[0].value == "DaisyDaisy")
+        self.assertTrue(cookies[0].name == b"SID")
+        self.assertTrue(cookies[0].value == b"DaisyDaisy")
 
     def test_site_cookie(self):
         """subdomain test...

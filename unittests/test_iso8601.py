@@ -8,8 +8,7 @@ import unittest
 
 import pyslet.iso8601 as iso
 
-from pyslet.py2 import ul, to_text, is_unicode
-from pyslet.py2 import range3
+from pyslet.py2 import is_unicode, range3, to_text, ul
 
 
 def suite():

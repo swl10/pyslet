@@ -5,9 +5,16 @@ import logging
 from .. import iso8601 as iso
 from .. import rfc2396 as uri
 
-from ..py2 import py2, range3, dict_items, SortableMixin
-from ..py2 import is_string, is_text, force_text
-from ..py2 import byte, is_unicode
+from ..py2 import (
+    byte,
+    dict_items,
+    force_text,
+    is_string,
+    is_text,
+    is_unicode,
+    py2,
+    range3,
+    SortableMixin)
 from ..unicode5 import BasicParser
 
 from .grammar import WordParser, COMMA, is_digits, quote_string

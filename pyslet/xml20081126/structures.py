@@ -17,8 +17,8 @@ from types import *
 import pyslet.rfc2396 as uri
 import pyslet.http.client as http
 
-from ..py2 import py2
 from ..pep8 import renamed_method, renamed_function
+from ..py2 import py2
 from ..unicode5 import CharClass
 
 if py2:

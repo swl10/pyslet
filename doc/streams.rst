@@ -7,9 +7,9 @@ Streams
 Utility Functions
 -----------------
 
-..	autofunction:: is_blocked
+..	autofunction:: io_blocked
 
-..	autofunction:: is_timedout
+..	autofunction:: io_timedout
 
 
 Stream Classes

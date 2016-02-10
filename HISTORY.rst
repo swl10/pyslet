@@ -45,6 +45,16 @@ Not sure which version you are using?  Try::
 Version 0.7
 -----------
 
+Build 20160210:
+
+#38 Python 3 compatibility work
+
+http sub-package.  All tests now passing, including cookie module.
+Overall, Python 3 support in this sub-package should be considered alpha
+standard.  It is likely that some further fix-ups will needed once the
+higher-level modules are also converted.
+
+
 Build 20160209:
 
 #38 Python 3 compatibility work

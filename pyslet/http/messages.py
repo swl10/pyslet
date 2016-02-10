@@ -1598,7 +1598,7 @@ class Request(Message):
             method = start_items[0].upper()
             grammar.check_token(method)
             self.method = method.decode('iso-8859-1')
-            self.request_uri = start_items[1]
+            self.request_uri = start_items[1].decode('iso-8859-1')
             self.protocol = params.HTTPVersion.from_str(start_items[2])
         except ValueError:
             raise ProtocolError("Badly formed Request-line: %s" % line)
@@ -1668,7 +1668,7 @@ class Request(Message):
             raise ValueError(
                 "request URI cannot be relative: %s" % self.request_uri)
         else:
-            self.request_uri = b"/"
+            self.request_uri = "/"
         if url.query is not None:
             self.request_uri = self.request_uri + '?' + url.query
         return authority
@@ -1763,7 +1763,7 @@ class Request(Message):
         else:
             self.set_header(
                 'Cookie',
-                "; ".join("%s=%s" % (c.name, c.value) for c in cookie_list))
+                b"; ".join(b"%s=%s" % (c.name, c.value) for c in cookie_list))
 
 
 class Response(Message):
