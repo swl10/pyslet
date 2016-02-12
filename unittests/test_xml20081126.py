@@ -180,7 +180,7 @@ class XML20081126Tests(unittest.TestCase):
         classMap = {}
         MapClassElements(classMap, Elements)
         self.assertTrue(
-            type(classMap['mixed']) is types.TypeType, "class type not declared")
+            issubclass(classMap['mixed'], Element), "class type not declared")
         self.assertFalse(
             hasattr(classMap, 'bad'), "class type declared by mistake")
 

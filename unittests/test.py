@@ -76,6 +76,8 @@ if py2:
 if py2:
     import test_odata2_sqlds
     all_tests.addTest(test_odata2_sqlds.suite())
+import test_pep8
+all_tests.addTest(test_pep8.suite())
 import test_py2
 all_tests.addTest(test_py2.suite())
 import test_py26

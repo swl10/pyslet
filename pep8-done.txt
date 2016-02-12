@@ -29,6 +29,7 @@ unittests/test_odata2_memds.py
 pyslet/odata2/sqlds.py
 unittests/test_odata2_sqlds.py
 pyslet/pep8.py
+unittests/test_pep8.py
 pyslet/py26.py
 unittests/test_py26.py
 pyslet/py2.py

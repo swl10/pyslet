@@ -44,6 +44,23 @@ def is_zipfile(filename):
 
 
 if py26:
+    def get_method_function(methodlike):
+        if isinstance(methodlike, classmethod):
+            # second arg just needs to be any type
+            return methodlike.__get__(None, type).im_func
+        elif isinstance(methodlike, staticmethod):
+            return methodlike.__get__(None, type)
+        else:
+            return methodlike
+else:
+    def get_method_function(methodlike):
+        if isinstance(methodlike, (classmethod, staticmethod)):
+            return methodlike.__func__
+        else:
+            return methodlike
+
+
+if py26:
     logging.info("Adding missing constants to py26.io")
     io.SEEK_SET = 0
     io.SEEK_CUR = 1

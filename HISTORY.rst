@@ -45,7 +45,19 @@ Not sure which version you are using?  Try::
 Version 0.7
 -----------
 
-Build 20160210:
+Build 20160212:
+
+#3 PEP-8 driven refactoring (ongoing)
+
+Added a new metaclass-based solution to enable method renaming while
+maintaining support for derived classes that override using the old
+names.  Crazy I know, but it works.
+
+This commit has experimentally renamed GetChildren in the xml classes
+to get_children by way of a test.  This creates significant warnings
+when run with Python -Wd and will drag on speed so recommend waiting
+for the follow-up change where this change will be propagated.
+
 
 #38 Python 3 compatibility work
 

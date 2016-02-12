@@ -17,7 +17,7 @@ from types import *
 import pyslet.rfc2396 as uri
 import pyslet.http.client as http
 
-from ..pep8 import renamed_method, renamed_function
+from ..pep8 import renamed_method, renamed_function, old_method, MigratedClass
 from ..py2 import py2
 from ..unicode5 import CharClass
 
@@ -211,7 +211,7 @@ def EscapeCharData7(src, quote=False):
     return string.join(dst, '')
 
 
-class Node(object):
+class Node(MigratedClass):
 
     def __init__(self, parent):
         """Base class for Element and Document shared attributes.
@@ -223,7 +223,8 @@ class Node(object):
         as a sentinel to simplify traversal of the hierarchy and is set to
         None."""
 
-    def GetChildren(self):
+    @old_method('GetChildren')
+    def get_children(self):
         """Returns an iterator over this object's children."""
         raise NotImplementedError
 
@@ -3533,7 +3534,7 @@ def MapClassElements(classMap, scope):
     names = scope.keys()
     for name in names:
         obj = scope[name]
-        if type(obj) in (ClassType, TypeType) and issubclass(obj, Element):
+        if issubclass(type(obj), type) and issubclass(obj, Element):
             if hasattr(obj, 'XMLNAME'):
                 if obj.XMLNAME in classMap:
                     raise DuplicateXMLNAME(

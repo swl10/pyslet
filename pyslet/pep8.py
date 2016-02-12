@@ -1,9 +1,14 @@
 #! /usr/bin/env python
 """Module for PEP-8 compatibility"""
 
-import warnings
+import inspect
 import logging
 import sys
+import types
+import warnings
+
+from .py2 import dict_values, py2
+from .py26 import get_method_function
 
 
 def make_attr_name(name):
@@ -79,6 +84,127 @@ def make_attr_name(name):
             result.append(l1)
         result = ''.join(result)
     return result
+
+
+class MigratedMetaclass(type):
+
+    def __new__(cls, name, bases, dct):
+        # firstly, search the bases for renamed methods and check if we
+        # have provided overrides
+        all_bases = set()
+        for base in bases:
+            for b in inspect.getmro(base):
+                all_bases.add(b)
+        # the odd thing is, it doesn't matter which order we look at the
+        # bases in, we have to deal with any overrides.  This means we
+        # don't have to worry about merging the results of getmro.
+        for base in all_bases:
+            for m in dict_values(base.__dict__):
+                im = get_method_function(m)
+                if hasattr(im, 'old_method'):
+                    # have we provided an updated definition?
+                    if im.old_method.__name__ in dct:
+                        override = dct[im.old_method.__name__]
+                        if type(m) != type(override):
+                            raise TypeError(
+                                "%s.%s incorrect method type for override "
+                                "%s.%s" % (name, im.__name__, base.__name__,
+                                           im.old_method.__name__))
+                        # check the new name too
+                        if im.__name__ in dct:
+                            raise TypeError(
+                                "%s.%s collides with renamed %s.%s" % (
+                                    name, im.__name__, base.__name__,
+                                    im.old_method.__name__))
+                        # rename the method
+                        dct[im.__name__] = override
+                        # remove the old definition
+                        del dct[im.old_method.__name__]
+                        # Manually patch in something as-if @old_method
+                        # had been used here too, that needs a name
+                        # change, which will make debugging a little
+                        # easier too
+                        sm = get_method_function(override)
+                        sm.__name__ = im.__name__
+                        # This is a bit opaque, but the effect is to
+                        # adorn sm with a newly created old_method, we
+                        # already have something assigned to the new
+                        # name.  The rest of the puzzle will be put in
+                        # place below...
+                        old_method(im.old_method.__name__)(sm)
+        # the second part of the metaclass is for class authors who were
+        # expecting us (and overrides patched above)... search our
+        # dictionary for renamed methods and add the old names pointing
+        # to the special logging wrappers before the class is created
+        patched_methods = []
+        for m in list(dict_values(dct)):
+            im = get_method_function(m)
+            if hasattr(im, 'old_method'):
+                patched_methods.append(im)
+                if isinstance(m, (classmethod, staticmethod)):
+                    # I want a new class/staticmethod that wraps old_method
+                    dct[im.old_method.__name__] = type(m)(im.old_method)
+                else:
+                    dct[m.old_method.__name__] = im.old_method
+        migrated_class = super(MigratedMetaclass, cls).__new__(
+            cls, name, bases, dct)
+        # to improve to warnings for static overrides, tell these
+        # methods where they were originally defined, we have to do this
+        # as they won't receive any type of object when called.
+        for im in patched_methods:
+            im.base = migrated_class
+        return migrated_class
+
+
+if py2:
+    class MigratedClass(object):
+        __metaclass__ = MigratedMetaclass
+else:
+    MigratedClass = types.new_class("MigratedClass", (object, ),
+                                    {'metaclass': MigratedMetaclass})
+
+
+class DeprecatedMethod(object):
+
+    """Represents a renamed method
+
+    func
+        A function object"""
+
+    def __init__(self, new_func, old_name):
+        self.old_name = old_name
+        self.new_func = new_func
+        self.new_name = new_func.__name__
+        self.warned = False
+
+    def call(self, *args, **kwargs):
+        if not self.warned:
+            cname = self.new_func.base.__name__
+            warnings.warn(
+                "%s.%s is deprecated, use, %s instead" %
+                (cname, self.old_name, self.new_name),
+                DeprecationWarning, stacklevel=3)
+            self.warned = True
+        return self.new_func(*args, **kwargs)
+
+
+def old_method(name):
+
+    def custom_renamed_method(func):
+        func_renamed = DeprecatedMethod(func, name)
+
+        def call_renamed(*args, **kwargs):
+            return func_renamed.call(*args, **kwargs)
+
+        # here's the clever bit, add the old method as an attribute to
+        # the func being defined.
+        call_renamed.__name__ = name
+        func.old_method = call_renamed
+        func.old_method.__doc__ = "Deprecated equivalent to "\
+            ":meth:`%s`" % func.__name__
+        return func
+
+    return custom_renamed_method
 
 
 class RenamedMethod(object):
@@ -277,7 +403,7 @@ class PEP8Compatibility(object):
         resolution have failed so it has a minimal impact on scripts
         that use the new PEP-8 compatible names.
 
-        Warning: the hasattr method will call this method so you can't
+        Warning: the hasattr function will call this method so you can't
         use hasattr to test if a camelCase name is defined when the
         equivalent camel_case does exist as it will return True!
 

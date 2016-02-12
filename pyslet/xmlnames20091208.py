@@ -615,7 +615,7 @@ def MapClassElements(classMap, scope, nsAliasTable=None):
     names = scope.keys()
     for name in names:
         obj = scope[name]
-        if type(obj) in (ClassType, TypeType) and issubclass(obj, XMLNSElement):
+        if issubclass(type(obj), type) and issubclass(obj, XMLNSElement):
             if hasattr(obj, 'XMLNAME'):
                 if obj.XMLNAME in classMap:
                     raise DuplicateXMLNAME("%s and %s have matching XMLNAMEs" % (
