@@ -52,7 +52,8 @@ if maxunicode < 0x10FFFF:
         (character(0xFDD0), character(0xFDEF)))
 else:
     discouraged = CharClass(
-        ('\x7f', '\x84'), ('\x86', '\x9f'),
+        (character(0x7F), character(0x84)),
+        (character(0x86), character(0x9F)),
         (character(0xFDD0), character(0xFDEF)),
         (character(0x0001FFFE), character(0x0001FFFF)),
         (character(0x0002FFFE), character(0x0002FFFF)),
