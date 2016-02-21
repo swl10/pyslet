@@ -45,7 +45,7 @@ Not sure which version you are using?  Try::
 Version 0.7
 -----------
 
-Build 20160212:
+Build 20160221:
 
 #3 PEP-8 driven refactoring (ongoing)
 
@@ -53,11 +53,11 @@ Added a new metaclass-based solution to enable method renaming while
 maintaining support for derived classes that override using the old
 names.  Crazy I know, but it works.
 
-This commit has experimentally renamed GetChildren in the xml classes
-to get_children by way of a test.  This creates significant warnings
-when run with Python -Wd and will drag on speed so recommend waiting
-for the follow-up change where this change will be propagated.
+Refactored xml sub-package, including renaming it.  The old name is
+supported through a small compatibility module.
 
+You can get ready for the new names using -Wd option in Python which
+will warn you if you are using old-style names in your own scripts.
 
 #38 Python 3 compatibility work
 
@@ -65,6 +65,12 @@ http sub-package.  All tests now passing, including cookie module.
 Overall, Python 3 support in this sub-package should be considered alpha
 standard.  It is likely that some further fix-ups will needed once the
 higher-level modules are also converted.
+
+xml sub-package.  All tests now passing, though namespaces are not yet
+migrated and rely on the automated method renames (see #3 above) which
+will result in deprecation warnings and a slight performance impact. You
+may wish to wait before upgrading until that module is also converted
+(coming soon).
 
 
 Build 20160209:

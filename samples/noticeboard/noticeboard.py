@@ -8,7 +8,7 @@ import time
 from optparse import OptionParser
 
 import pyslet.imsbltiv1p0 as lti
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 import pyslet.odata2.core as odata
 import pyslet.wsgi as wsgi
 

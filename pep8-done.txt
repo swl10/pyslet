@@ -52,7 +52,10 @@ pyslet/wsgi.py
 unittests/test_wsgi.py
 pyslet/wsgi_django.py
 unittests/test_wsgi_django.py
-pyslet/xml20081126/parser.py
+pyslet/xml/parser.py
+unittests/test_xml_parser.py
+pyslet/xml/structures.py
+unittests/test_xml_structures.py
 samples/fsodata.py
 samples/odatadiff.py
 samples/odatadoc.py

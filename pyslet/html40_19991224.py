@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 from .py2 import py2
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.rfc2396 as uri
@@ -2676,7 +2676,7 @@ class HTMLParser(xmlns.XMLNSParser):
             self.sgmlOmittag = True
             self.sgmlContent = True
             self.dontCheckWellFormedness = True
-        self.entity.KeepEncoding()
+        self.entity.keep_encoding()
         # we inline parse_misc to capture all the white space
         s = []
         while True:
@@ -2724,7 +2724,7 @@ class XHTMLDocument(xmlns.XMLNSDocument):
     Although HTML documents are not always represented using XML they can be,
     and therefore we base our implementation on the
     :class:`pyslet.xmlnames20091208.XMLNSDocument` class - a namespace-aware
-    variant of the basic :class:`pyslet.xml20081126.XMLDocument` class."""
+    variant of the basic :class:`pyslet.xml.Document` class."""
 
     classMap = {}
     """Data member used to store a mapping from element names to the classes
@@ -2745,7 +2745,7 @@ class XHTMLDocument(xmlns.XMLNSDocument):
         parser is used instead.
 
         You won't normally need to call this method as it is invoked automatically
-        when you call :meth:`pyslet.xml20081126.XMLDocument.Read`.
+        when you call :meth:`pyslet.xml.Document.Read`.
 
         The result is always a proper element hierarchy rooted in an HTML node,
         even if no tags are present at all the parser will construct an HTML

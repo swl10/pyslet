@@ -3,7 +3,7 @@
 import unittest
 import decimal
 
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 
 from pyslet.odata2.csdl import *    # noqa
 

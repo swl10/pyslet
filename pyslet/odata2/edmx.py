@@ -5,7 +5,7 @@ http://msdn.microsoft.com/en-us/library/dd541284(v=prot.10)"""
 
 import itertools
 
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.rfc2396 as uri
 import pyslet.odata2.csdl as edm

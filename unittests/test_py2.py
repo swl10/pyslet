@@ -89,9 +89,9 @@ class Python2Tests(unittest.TestCase):
         else:
             self.assertTrue("['hello']" == py2.to_text(xdata))
         # check the empty text constant:
-        self.assertTrue(isinstance(py2.empty_text, type(u"")))
-        self.assertFalse(py2.empty_text)
-        self.assertTrue(len(py2.empty_text) == 0)
+        self.assertTrue(isinstance(py2.uempty, type(u"")))
+        self.assertFalse(py2.uempty)
+        self.assertTrue(len(py2.uempty) == 0)
 
     def test_character(self):
         self.assertTrue(py2.character(0x2A) == "\x2A")

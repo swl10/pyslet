@@ -21,7 +21,8 @@ from .py2 import (
     suffix,
     to_text,
     ul,
-    UnicodeMixin)
+    UnicodeMixin,
+    urlopen)
 from .pep8 import PEP8Compatibility
 
 
@@ -175,6 +176,7 @@ class CharClass(UnicodeMixin):
 
     def __init__(self, *args):
         self.ranges = []
+        self._clear_cache()
         for arg in args:
             if is_text(arg):
                 # Each character in the string is put in the class
@@ -369,6 +371,7 @@ class CharClass(UnicodeMixin):
             self._merge(index_a)
         else:
             self.ranges = [[a, z]]
+        self._clear_cache()
 
     def subtract_range(self, a, z):
         """Subtracts a range of characters from the character class"""
@@ -453,6 +456,7 @@ class CharClass(UnicodeMixin):
                 # We need to remove the ranges from index_a to index_z-1.
                 # Note that if index_a==index_z then no ranges are removed
                 del self.ranges[index_a:index_z]
+        self._clear_cache()
 
     def add_char(self, c):
         """Adds a single character to the character class"""
@@ -464,6 +468,7 @@ class CharClass(UnicodeMixin):
                 self._merge(index)
         else:
             self.ranges = [[c, c]]
+        self._clear_cache()
 
     def subtract_char(self, c):
         """Subtracts a single character from the character class"""
@@ -484,6 +489,7 @@ class CharClass(UnicodeMixin):
                     self.ranges[index][1] = character(ord(c) - 1)
                     self.ranges.insert(index + 1,
                                        [character(ord(c) + 1), z])
+        self._clear_cache()
 
     def add_class(self, c):
         """Adds all the characters in c to the character class
@@ -496,17 +502,20 @@ class CharClass(UnicodeMixin):
             # take a short cut here, if we have no ranges yet just copy them
             for r in c.ranges:
                 self.ranges.append(r)
+        self._clear_cache()
 
     def subtract_class(self, c):
         """Subtracts all the characters in c from the character class"""
         for r in c.ranges:
             self.subtract_range(r[0], r[1])
+        self._clear_cache()
 
     def negate(self):
         """Negates this character class"""
         max = CharClass([character(0), character(maxunicode)])
         max.subtract_class(self)
         self.ranges = max.ranges
+        self._clear_cache()
 
     def _merge(self, index):
         """Used internally to merge the range at index with its
@@ -529,16 +538,96 @@ class CharClass(UnicodeMixin):
                 index_a:index_z + 1] = [[self.ranges[index_a][0],
                                          self.ranges[index_z][1]]]
 
+    def _clear_cache(self):
+        self._block_cache = [None] * 256
+
     def test(self, c):
         """Test a unicode character.
 
         Returns True if the character is in the class.
 
-        If c is None, False is returned."""
+        If c is None, False is returned.
+
+        This function uses an internal cache to speed up tests of
+        complex classes.  Test results are cached in 256 character
+        blocks.  The cache does not require a lock to make this method
+        thread-safe (a lock would have a significant performance
+        penalty) as it uses a simple python list.  The worst case race
+        condition would result in two separate threads calculating the
+        same block simultaneously and assigning it the same slot in the
+        cache but python's list object is thread-safe under assignment
+        (and the two calculated blocks will be identical) so this is not
+        an issue.
+
+        Why does this matter?  This function is called a lot,
+        particularly when parsing XML.  When parsing a tag the parser
+        will repeatedly test each character to determine if it is a
+        valid name character and the definition of name character is
+        complex.  Here are some illustrative figures calculated using
+        cProfile for a typical 1MB XML file which calls test 142198
+        times: with no cache 0.42s spent in test, with the cache 0.11s
+        spent."""
         if c is None:
             return False
         elif self.ranges:
-            match, index = self._bisection_search(c, 0, len(self.ranges) - 1)
+            cv = ord(c)
+            block_num = cv >> 8
+            try:
+                block = self._block_cache[block_num]
+                if block is None:
+                    block = bytearray(256)
+                    ccode = block_num * 256
+                    match, index = self._bisection_search(
+                        character(ccode), 0, len(self.ranges) - 1)
+                    # match == True means we're in the indexed range
+                    # match == False means indexed range is after us
+                    block[0] = match
+                    if index < len(self.ranges):
+                        rmatch = self.ranges[index]
+                        cmin = ord(rmatch[0])
+                        cmax = ord(rmatch[1])
+                    else:
+                        rmatch = False
+                    for i in range3(1, 256):
+                        ccode += 1
+                        if match:
+                            # have we left this range?
+                            if ccode > cmax:
+                                index += 1
+                                if index < len(self.ranges):
+                                    rmatch = self.ranges[index]
+                                    cmin = ord(rmatch[0])
+                                    cmax = ord(rmatch[1])
+                                else:
+                                    rmatch = None
+                                match = False
+                            else:
+                                block[i] = True
+                                continue
+                        # have we entered this range
+                        if rmatch and ccode >= cmin:
+                            block[i] = True
+                            match = True
+                    self._block_cache[block_num] = block
+                block_pos = cv & 0xFF
+                if block[block_pos]:
+                    return True
+                else:
+                    return False
+            except IndexError:
+                # deal with wide Unicode characters using standard search
+                match, index = self._bisection_search(
+                    c, 0, len(self.ranges) - 1)
+                return match
+        else:
+            return False
+
+    def test_slow(self, c):
+        if c is None:
+            return False
+        elif self.ranges:
+            match, index = self._bisection_search(
+                c, 0, len(self.ranges) - 1)
             return match
         else:
             return False
@@ -597,7 +686,7 @@ def parse_category_table():
     mark_minor_category = None
     n_major_cat = _get_cat_class(u'C')
     n_minor_cat = _get_cat_class(u'Cn')
-    for line in py2.urlopen(UCDDatabaseURL).readlines():
+    for line in urlopen(UCDDatabaseURL).readlines():
         # disregard any comments
         line = to_text(line)
         line = line.split('#')[0]
@@ -674,7 +763,7 @@ def parse_block_table():
     global UCDBlocks
     UCDBlocks = {}
     narrow_warning = False
-    for line in py2.urlopen(UCDBlockDatabaseURL).readlines():
+    for line in urlopen(UCDBlockDatabaseURL).readlines():
         line = to_text(line)
         line = line.split('#')[0].strip()
         if not line:

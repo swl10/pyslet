@@ -19,7 +19,7 @@ import pyslet.odata2.core as odata
 import pyslet.odata2.metadata as edmx
 import pyslet.odata2.sqlds as sql
 import pyslet.wsgi as wsgi
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 
 from pyslet.pep8 import renamed_method
 from pyslet.rfc2396 import URI

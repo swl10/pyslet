@@ -35,7 +35,7 @@ import pyslet.iso8601 as iso
 import pyslet.odata2.core as odata
 import pyslet.odata2.csdl as edm
 import pyslet.odata2.metadata as edmx
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 
 from pyslet.odata2.sqlds import SQLEntityContainer
 from pyslet.rfc2396 import URI, FileURL

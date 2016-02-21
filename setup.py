@@ -24,7 +24,7 @@ else:
           url=pyslet.info.home,
           packages=['pyslet',
                     'pyslet.http',
-                    'pyslet.xml20081126',
+                    'pyslet.xml',
                     'pyslet.qtiv1',
                     'pyslet.qtiv2',
                     'pyslet.odata2'],

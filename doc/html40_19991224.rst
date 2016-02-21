@@ -7,8 +7,9 @@ This module defines functions and classes for working with HTML documents.  The
 version of the standard implemented is, loosely speaking, the HTML 4.0.1
 Specification: http://www.w3.org/TR/html401/
 
-This module contains code that can help parse HTML documents into classes based
-on the basic :mod:`xml20081126` XML module, acting as a gateway to XHTML.
+This module contains code that can help parse HTML documents into
+classes based on the basic :mod:`xml` sub-package, acting as a gateway
+to XHTML.
 
 This module also exposes a number of internal functions typically defined
 privately in HTML parser implementations which make it easier to reuse concepts

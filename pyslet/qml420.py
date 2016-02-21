@@ -5,7 +5,7 @@ References:
 
 """
 
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 import pyslet.xsdatatypes20041028 as xsi
 import string
 import itertools
@@ -836,7 +836,7 @@ class QMLDocument(xml.Document):
 
         This method is used by the XML parser.  The class object is looked up in
         :py:attr:`classMap`, if no specialized class is found then the general
-        :py:class:`pyslet.xml20081126.Element` class is returned."""
+        :py:class:`pyslet.xml.structures.Element` class is returned."""
         return QMLDocument.classMap.get(name, QMLDocument.classMap.get(None, xml.Element))
 
 

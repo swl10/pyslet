@@ -8,7 +8,8 @@ from pyslet import pep8
 
 def suite():
     return unittest.TestSuite((
-        unittest.makeSuite(RenameTests, 'test')
+        unittest.makeSuite(MethodTests, 'test'),
+        unittest.makeSuite(FunctionTests, 'test')
     ))
 
 
@@ -29,7 +30,7 @@ class Base(pep8.MigratedClass):
         return "Base.new_static_method"
 
 
-class RenameTests(unittest.TestCase):
+class MethodTests(unittest.TestCase):
 
     def test_base(self):
         # firstly, let's check that the Base class is working
@@ -87,6 +88,20 @@ class RenameTests(unittest.TestCase):
         self.assertTrue(NoTreble.new_class_method() ==
                         "Base.new_class_method, NoTreble.OldClassMethod")
 
+    def test_derived_new(self):
+        class NoTreble(Base):
+
+            @classmethod
+            def new_class_method(cls):
+                return "NoTreble.new_class_method"
+
+        # we expect to be able to call the new method by both old and
+        # new names.
+        self.assertTrue(NoTreble.new_class_method() ==
+                        "NoTreble.new_class_method")
+        self.assertTrue(NoTreble.OldClassMethod() ==
+                        "NoTreble.new_class_method")
+
     def test_static(self):
         class NoStatic(Base):
 
@@ -126,6 +141,16 @@ class RenameTests(unittest.TestCase):
                         "Base.new_method, NoTreble.OldMethod")
         self.assertTrue(i.new_method() ==
                         "Base.new_method, NoTreble.OldMethod")
+
+    def test_derived_instance_new(self):
+        class NoTreble(Base):
+
+            def new_method(self):
+                return "NoTreble.new_method"
+
+        i = NoTreble()
+        self.assertTrue(i.new_method() == "NoTreble.new_method")
+        self.assertTrue(i.OldMethod() == "NoTreble.new_method")
 
     def test_double_derived(self):
         class NoTreble(Base):
@@ -214,6 +239,19 @@ class RenameTests(unittest.TestCase):
             self.fail("Bad override of class method")
         except TypeError:
             pass
+
+
+@pep8.old_function('OldFunction')
+def new_function():
+    return "new_function"
+
+
+class FunctionTests(unittest.TestCase):
+
+    def test_basic(self):
+        self.assertTrue(new_function() == "new_function")
+        # OldFunction is defined by decorator, flake8 doesn't spot this
+        self.assertTrue(OldFunction() == "new_function")    # noqa
 
 
 if __name__ == "__main__":

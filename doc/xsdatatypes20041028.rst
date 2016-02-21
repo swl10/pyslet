@@ -12,7 +12,7 @@ specification.
 
 The result is typically a pair of DecodeX and EncodeX functions that are used to
 define custom attribute handling in classes that are derived from
-:py:class:`xml20081126.structures.XMLElement`.  For example::
+:py:class:`~pyslet.xml.structures.Element`.  For example::
 
 	import xsdatatypes20041028 as xsi
 	

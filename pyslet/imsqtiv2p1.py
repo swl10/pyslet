@@ -2,7 +2,7 @@
 """This module implements the QTI 2.1 specification defined by IMS GLC
 """
 
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsdatatypes
 import pyslet.html40_19991224 as html

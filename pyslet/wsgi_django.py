@@ -7,7 +7,7 @@ from django.conf import settings
 from django.template.loader import get_template
 from django.template import Context
 
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 import pyslet.wsgi as wsgi
 
 

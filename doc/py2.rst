@@ -121,16 +121,25 @@ Compatibility comes with a cost, if you only need to support Python 3.3
 and higher (while retaining compatibility with Python 2) then you should
 use the first form and ignore these literal functions in performance
 critical code.  If you want more compatibility then define all string
-literals ahead of time, e.g., at module level.  One common case is
-provided for with the following constant::
+literals ahead of time, e.g., at module level.
 
-..  data:: empty_text
-        
-    An empty character string.  Frequently used as an object to join
-    character strings::
-    
-        py2.empty_text.join(my_strings)
+Character Constants
+~~~~~~~~~~~~~~~~~~~
 
+These constants are provided to define common character strings (forcing
+the unicode type in Python 2).
+
+..  data:: uempty
+
+The empty string.
+
+..  data:: uspace
+
+Single space character, character(0x20).
+
+
+Text Functions
+~~~~~~~~~~~~~~
 
 ..  function::  is_string(org)
 
@@ -175,6 +184,11 @@ provided for with the following constant::
     evaluated.  
 
 
+..	autoclass:: UnicodeMixin
+	:members:
+	:show-inheritance:
+
+
 ..  function::  is_unicode(arg)
 
     Returns True if *arg* is unicode text and False otherwise.  In
@@ -192,6 +206,19 @@ provided for with the following constant::
     single-character string, not an integer.  See :func:`byte` for how
     to create byte values dynamically.
 
+
+..  function::  join_characters(iterable)
+
+    Convenience function for concatenating an iterable of characters (or
+    character strings).  In Python 3 this is just::
+
+        ''.join
+
+    In Python 2 it ensures the result is a unicode string.
+
+
+Bytes
+~~~~~
 
 ..  function::  force_bytes(arg)
 
@@ -260,11 +287,6 @@ provided for with the following constant::
     In Python 2 this is a no-operation but in Python 3 it is effectively
     the same as the above.
     
-    
-..	autoclass:: UnicodeMixin
-	:members:
-	:show-inheritance:
-
 
 Iterable Fixes 
 --------------

@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 
 from pyslet.wsgi import SessionApp, session_decorator
 

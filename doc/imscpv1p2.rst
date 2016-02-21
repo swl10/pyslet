@@ -85,7 +85,7 @@ dependency safe \*Class attributes::
 This line creates a new resource element as a child of the (required) Resources element.
 
 At the end of the script the :py:class:`ManifestDocument` is updated on the disk
-using the inherited :py:meth:`~pyslet.xml20081126.structures.Document.Update`
+using the inherited :py:meth:`~pyslet.xml.structures.Document.Update`
 method.  The package can then be exported to the zip file format.
 
 Reference

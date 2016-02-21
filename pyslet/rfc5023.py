@@ -54,7 +54,7 @@ class APPElement(xmlns.XMLNSElement):
 
     All APP elements can have xml:base, xml:lang and/or xml:space attributes.
     These are handled by the base
-    :py:class:`~pyslet.xml20081126.structures.Element` base class."""
+    :py:class:`~pyslet.xml.structures.Element` base class."""
     pass
 
 

@@ -22,7 +22,7 @@ import random
 from types import BooleanType, FloatType, StringTypes, StringType, UnicodeType, BooleanType, IntType, LongType, TupleType, DictType
 
 from pyslet.pep8 import PEP8Compatibility, renamed_method, redirected_method
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.rfc2396 as uri
 import pyslet.xsdatatypes20041028 as xsi
@@ -455,7 +455,8 @@ class NameTableMixin(DictionaryLike):
         for value in self.nameTable.itervalues():
             if isinstance(value, NameTableMixim):
                 result = result + len(value)
-
+        return result
+        
     def _SplitKey(self, key):
         sKey = key.split(".")
         pathLen = 1
@@ -624,15 +625,15 @@ class Parser(xsi.BasicParser):
         #   binaryLiteral = hexDigPair
         #   hexDigPair = 2*HEXDIG [hexDigPair]"""
         output = []
-        hexStr = self.parse_hex_digits(1)
-        if hexStr is None:
+        hex_str = self.parse_hex_digits(1)
+        if hex_str is None:
             return ''
-        if len(hexStr) % 2:
+        if len(hex_str) % 2:
             raise ValueError(
-                "Trailing nibble in binary literal: '%s'" % hexStr[-1])
+                "Trailing nibble in binary literal: '%s'" % hex_str[-1])
         i = 0
-        while i < len(hexStr):
-            output.append(chr(int(hexStr[i:i + 2], 16)))
+        while i < len(hex_str):
+            output.append(chr(int(hex_str[i:i + 2], 16)))
             i = i + 2
         return string.join(output, '')
 

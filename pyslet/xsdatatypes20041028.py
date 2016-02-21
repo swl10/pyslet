@@ -9,7 +9,8 @@ from types import *
 
 from .py2 import character
 import pyslet.iso8601 as iso8601
-from pyslet.xml20081126.structures import IsValidName, LetterCharClass, NameCharClass
+from pyslet.xml.structures import IsValidName, name_char
+from pyslet.xml.parser import letter
 from pyslet.unicode5 import CharClass, BasicParser
 
 XMLSCHEMA_NAMESPACE = "http://www.w3.org/2001/XMLSchema-instance"
@@ -710,10 +711,10 @@ class RegularExpressionError(Exception):
 sClass = CharClass(u'\x09', u'\x0A', u'\x0D', u' ')
 SClass = CharClass(sClass)
 SClass.negate()
-iClass = CharClass(LetterCharClass, u'_', u':')
+iClass = CharClass(letter, u'_', u':')
 IClass = CharClass(iClass)
 IClass.negate()
-CClass = CharClass(NameCharClass)
+CClass = CharClass(name_char)
 CClass.negate()
 dClass = CharClass.ucd_category('Nd')
 DClass = CharClass(dClass)
@@ -758,7 +759,7 @@ class RegularExpressionParser(BasicParser):
     def ParseBranch(self):
         """Returns a unicode string representing this piece as a python regular expression."""
         result = []
-        while self.IsChar() or self.match_one(u".\\[("):
+        while self.is_char() or self.match_one(u".\\[("):
             result.append(self.ParsePiece())
         return string.join(result, '')
 
@@ -849,7 +850,7 @@ class RegularExpressionParser(BasicParser):
 
     def ParseAtom(self):
         """Returns a unicode string representing this atom as a python regular expression."""
-        if self.IsChar():
+        if self.is_char():
             result = self._REEscape(self.the_char)
             self.next_char()
         elif self.the_char == "(":
@@ -864,7 +865,7 @@ class RegularExpressionParser(BasicParser):
             result = unicode(cClass)
         return result
 
-    def IsChar(self, c=None):
+    def is_char(self, c=None):
         """The definition of this function is designed to be conservative with
         respect to the specification, which is clearly in error around
         production [10] as the prose and the BNF do not match.  It appears that
@@ -1192,7 +1193,7 @@ class RegularExpressionParser(BasicParser):
         'S': SClass,
         'i': iClass,
         'I': IClass,
-        'c': NameCharClass,
+        'c': name_char,
         'C': CClass,
         'd': dClass,
         'D': DClass,

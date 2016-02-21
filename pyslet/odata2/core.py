@@ -13,7 +13,7 @@ import io
 from types import *
 
 from pyslet.unicode5 import CharClass, detect_encoding
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.rfc2396 as uri
@@ -3082,7 +3082,7 @@ class Property(ODataElement):
         """Gets an appropriately typed value for the property.
 
         Overloads the basic
-        :py:meth:`~pyslet.xml20081126.structures.Element.GetValue`
+        :py:meth:`~pyslet.xml.structures.Element.GetValue`
         implementation to transform the value into an
         :py:class:`pyslet.mc_csdl.EDMValue` instance.
 

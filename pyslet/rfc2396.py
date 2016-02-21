@@ -11,13 +11,13 @@ from .py2 import (
     byte_value,
     character,
     CmpMixin,
-    empty_text,
     is_text,
     is_unicode,
     join_bytes,
     py2,
     range3,
     to_text,
+    uempty,
     ul)
 from .unicode5 import CharClass
 
@@ -792,7 +792,7 @@ def encode_unicode_uri(usrc):
                                        byte_value(x), c.encode('UTF-8')))
         else:
             octets.append(chr(ord(c)))
-    return empty_text.join(octets)
+    return uempty.join(octets)
 
 
 @renamed_function

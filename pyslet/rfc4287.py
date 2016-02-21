@@ -21,7 +21,7 @@ import itertools
 import pyslet.info
 import pyslet.iso8601 as iso8601
 import pyslet.html40_19991224 as html
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 import pyslet.xmlnames20091208 as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.rfc2396 as uri
@@ -38,13 +38,13 @@ class AtomElement(xmlns.XMLNSElement):
     """Base class for all APP elements.
 
     All atom elements can have xml:base and xml:lang attributes, these are
-    handled by the :py:class:`~pyslet.xml20081126.structures.Element` base
+    handled by the :py:class:`~pyslet.xml.structures.Element` base
     class.
 
-    See :py:meth:`~pyslet.xml20081126.structures.Element.GetLang` and
-    :py:meth:`~pyslet.xml20081126.structures.Element.SetLang`,
-    :py:meth:`~pyslet.xml20081126.structures.Element.GetBase` and
-    :py:meth:`~pyslet.xml20081126.structures.Element.SetBase`"""
+    See :py:meth:`~pyslet.xml.structures.Element.GetLang` and
+    :py:meth:`~pyslet.xml.structures.Element.SetLang`,
+    :py:meth:`~pyslet.xml.structures.Element.GetBase` and
+    :py:meth:`~pyslet.xml.structures.Element.SetBase`"""
     pass
 
 
@@ -79,7 +79,7 @@ class Text(AtomElement):
         """Sets the value of the element.  *type* must be a value from the :py:class:`TextType` enumeration
 
         Overloads the basic
-        :py:meth:`~pyslet.xml20081126.structures.Element.SetValue`
+        :py:meth:`~pyslet.xml.structures.Element.SetValue`
         implementation, adding an additional *type* attribute to enable the
         value to be set to either a plain TextType.text, TextType.html or
         TextType.xhtml value.  In the case of an xhtml type, *value* is parsed
@@ -118,7 +118,7 @@ class Text(AtomElement):
         """Gets a single unicode string representing the value of the element.
 
         Overloads the basic
-        :py:meth:`~pyslet.xml20081126.structures.Element.GetValue`
+        :py:meth:`~pyslet.xml.structures.Element.GetValue`
         implementation to add support for text of type xhtml.
 
         When getting the value of TextType.xhtml text the child div element is
@@ -186,11 +186,11 @@ class Date(AtomElement):
         self.date = iso8601.TimePoint()
 
     def GetValue(self):
-        """Overrides :py:meth:`~pyslet.xml20081126.structures.Element.GetValue`, returning a :py:class:`pyslet.iso8601.TimePoint` instance."""
+        """Overrides :py:meth:`~pyslet.xml.structures.Element.GetValue`, returning a :py:class:`pyslet.iso8601.TimePoint` instance."""
         return self.date
 
     def SetValue(self, value):
-        """Overrides :py:meth:`~pyslet.xml20081126.structures.Element.SetValue`, enabling the value to be set from a :py:class:`pyslet.iso8601.TimePoint` instance.
+        """Overrides :py:meth:`~pyslet.xml.structures.Element.SetValue`, enabling the value to be set from a :py:class:`pyslet.iso8601.TimePoint` instance.
 
         If *value* is a string the behaviour is unchanged, if *value* is a
         TimePoint instance then it is formatted using the extended format of ISO
@@ -254,11 +254,11 @@ class Icon(AtomElement):
         self.uri = None
 
     def GetValue(self):
-        """Overrides :py:meth:`~pyslet.xml20081126.structures.Element.GetValue`, returning a :py:class:`pyslet.rfc2396.URI` instance."""
+        """Overrides :py:meth:`~pyslet.xml.structures.Element.GetValue`, returning a :py:class:`pyslet.rfc2396.URI` instance."""
         return self.uri
 
     def SetValue(self, value):
-        """Overrides :py:meth:`~pyslet.xml20081126.structures.Element.SetValue`, enabling the value to be set from a :py:class:`pyslet.rfc2396.URI` instance.
+        """Overrides :py:meth:`~pyslet.xml.structures.Element.SetValue`, enabling the value to be set from a :py:class:`pyslet.rfc2396.URI` instance.
 
         If *value* is a string it is used to set the element's content,
         :py:meth:`content_changed` is then called to update the value of
@@ -424,7 +424,7 @@ class Entity(AtomElement):
 		
 		Note that we qualify the class name used to represent the id to avoid
 		confusion with the existing 'id' attribute in
-		:py:class:`~pyslet.xml20081126.structures.Element`."""
+		:py:class:`~pyslet.xml.structures.Element`."""
         self.Author = []		#: atomAuthor
         self.Category = []  # : atomCategory
         self.Contributor = []  # : atomContributor

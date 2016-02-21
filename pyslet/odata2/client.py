@@ -12,7 +12,7 @@ import pyslet.rfc2396 as uri
 import pyslet.http.client as http
 import pyslet.http.params as params
 import pyslet.http.messages as messages
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 import pyslet.rfc4287 as atom
 import pyslet.rfc5023 as app
 
@@ -100,9 +100,9 @@ class ClientCollection(core.EntityCollection):
     def __init__(self, client, baseURI=None, **kwargs):
         super(ClientCollection, self).__init__(**kwargs)
         if baseURI is None:
-            self.baseURI = self.entity_set.get_location()
+            self.base_uri = self.entity_set.get_location()
         else:
-            self.baseURI = baseURI
+            self.base_uri = baseURI
         self.client = client
 
 #     def new_entity(self, autoKey=False):
@@ -197,7 +197,7 @@ class ClientCollection(core.EntityCollection):
             doc = core.Document(root=core.Entry(None, entity))
             data = str(doc)
             request = http.ClientRequest(
-                str(self.baseURI), 'POST', entity_body=data)
+                str(self.base_uri), 'POST', entity_body=data)
             request.set_content_type(
                 params.MediaType.from_str(core.ODATA_RELATED_ENTRY_TYPE))
             self.client.process_request(request)
@@ -215,7 +215,7 @@ class ClientCollection(core.EntityCollection):
 
     def __len__(self):
         # use $count
-        feedURL = self.baseURI
+        feedURL = self.base_uri
         sysQueryOptions = {}
         if self.filter is not None:
             sysQueryOptions[
@@ -237,7 +237,7 @@ class ClientCollection(core.EntityCollection):
                 "%i %s" % (request.status, request.response.reason))
 
     def entity_generator(self):
-        feedURL = self.baseURI
+        feedURL = self.base_uri
         sysQueryOptions = {}
         if self.filter is not None:
             sysQueryOptions[
@@ -297,7 +297,7 @@ class ClientCollection(core.EntityCollection):
         self.skiptoken = skiptoken  # opaque in the client implementation
 
     def iterpage(self, set_next=False):
-        feedURL = self.baseURI
+        feedURL = self.base_uri
         sysQueryOptions = {}
         if self.filter is not None:
             sysQueryOptions[
@@ -365,9 +365,9 @@ class ClientCollection(core.EntityCollection):
             sysQueryOptions[core.SystemQueryOption.filter] = "%s and %s" % (
                 core.ODataURI.key_dict_to_query(self.entity_set.key_dict(key)),
                 unicode(self.filter))
-            entityURL = str(self.baseURI)
+            entityURL = str(self.base_uri)
         else:
-            entityURL = (str(self.baseURI) +
+            entityURL = (str(self.base_uri) +
                          core.ODataURI.FormatKeyDict(self.entity_set.GetKeyDict(key)))
         if self.expand is not None:
             sysQueryOptions[
@@ -425,7 +425,7 @@ class ClientCollection(core.EntityCollection):
         if sinfo.size is not None and sinfo.size == 0:
             src = b''
         request = http.ClientRequest(
-            str(self.baseURI), 'POST', entity_body=src)
+            str(self.base_uri), 'POST', entity_body=src)
         request.set_content_type(sinfo.type)
         if sinfo.size is not None:
             request.set_content_length(sinfo.size)
@@ -459,7 +459,7 @@ class ClientCollection(core.EntityCollection):
         collection."""
         if not self.is_medialink_collection():
             raise ExpectedMediaLinkCollection
-        streamURL = str(self.baseURI) + core.ODataURI.FormatKeyDict(
+        streamURL = str(self.base_uri) + core.ODataURI.FormatKeyDict(
             self.entity_set.GetKeyDict(key)) + "/$value"
         if sinfo is None:
             sinfo = core.StreamInfo()
@@ -480,7 +480,7 @@ class ClientCollection(core.EntityCollection):
         """Reads a media resource"""
         if not self.is_medialink_collection():
             raise ExpectedMediaLinkCollection
-        streamURL = str(self.baseURI) + core.ODataURI.FormatKeyDict(
+        streamURL = str(self.base_uri) + core.ODataURI.FormatKeyDict(
             self.entity_set.GetKeyDict(key)) + "/$value"
         if out is None:
             request = http.ClientRequest(streamURL, 'HEAD')
@@ -509,7 +509,7 @@ class ClientCollection(core.EntityCollection):
         """Creates a generator for a media resource."""
         if not self.is_medialink_collection():
             raise ExpectedMediaLinkCollection
-        streamURL = str(self.baseURI) + core.ODataURI.FormatKeyDict(
+        streamURL = str(self.base_uri) + core.ODataURI.FormatKeyDict(
             self.entity_set.GetKeyDict(key)) + "/$value"
         swrapper = EntityStream(self)
         request = http.ClientRequest(streamURL, 'GET', res_body=swrapper)
@@ -708,7 +708,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             return super(NavigationCollection, self).__len__()
         else:
             # This is clumsy as we grab the entity itself
-            entityURL = str(self.baseURI)
+            entityURL = str(self.base_uri)
             sysQueryOptions = {}
             if self.filter is not None:
                 sysQueryOptions[
@@ -744,7 +744,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
         else:
             # The baseURI points to a single entity already, we must not add
             # the key
-            entityURL = str(self.baseURI)
+            entityURL = str(self.base_uri)
             sysQueryOptions = {}
             if self.filter is not None:
                 sysQueryOptions[
@@ -786,7 +786,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
         else:
             # The baseURI points to a single entity already, we must not add
             # the key
-            entityURL = str(self.baseURI)
+            entityURL = str(self.base_uri)
             sysQueryOptions = {}
             if self.filter is not None:
                 sysQueryOptions[
@@ -835,7 +835,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
         if not entity.exists:
             raise edm.NonExistentEntity(str(entity.get_location()))
         if not self.isCollection:
-            request = http.ClientRequest(str(self.baseURI), 'GET')
+            request = http.ClientRequest(str(self.base_uri), 'GET')
             self.client.process_request(request)
             if request.status == 200:
                 # this collection is not empty, which will be an error

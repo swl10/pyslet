@@ -850,10 +850,10 @@ class Message(PEP8Compatibility, object):
                     if self.transferlength:
                         extra = self.transferPos - self.transferlength
                         if extra > 0:
-                            logging.warn("%i bytes of spurious data in "
-                                         "http Message.recv in %s",
-                                         extra,
-                                         str(self.get_content_type()))
+                            logging.warning("%i bytes of spurious data in "
+                                            "http Message.recv in %s",
+                                            extra,
+                                            str(self.get_content_type()))
                             self.recv_buffer = data[:-extra]
                         else:
                             self.recv_buffer = data
@@ -1055,8 +1055,8 @@ class Message(PEP8Compatibility, object):
             # length in practice so we should normally be OK.
             ctokens = self.get_connection()
             if "close" not in ctokens:
-                logging.warn("multipart/byteranges message with implicit "
-                             "content-length will terminate connection")
+                logging.warning("multipart/byteranges message with implicit "
+                                "content-length will terminate connection")
             self.clear_keep_alive()
             # but to make sure we don't massively over-read we do track
             # the boundary
@@ -1581,7 +1581,8 @@ class Request(Message):
                     self.entity_body, self.MAX_READAHEAD)
                 if self.entity_body.length is not None:
                     # small enough to be buffered, try again
-                    logging.warn("Request buffered to send to HTTP/1.0 server")
+                    logging.warning(
+                        "Request buffered to send to HTTP/1.0 server")
                     self.body_len = self.entity_body.length
                     super(Request, self).send_transferlength()
                 else:

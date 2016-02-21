@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.html40_19991224 as html
 import pyslet.imsqtiv2p1 as qtiv2

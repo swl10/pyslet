@@ -14,7 +14,7 @@ import pyslet.rfc2617 as auth
 import pyslet.http.client as http
 import pyslet.odata2.csdl as edm
 import pyslet.odata2.metadata as edmx
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 
 
 def fetch_url(url, username=None, password=None):

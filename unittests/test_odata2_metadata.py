@@ -4,7 +4,7 @@ import logging
 import unittest
 import os
 
-import pyslet.xml20081126.structures as xml
+import pyslet.xml.structures as xml
 import pyslet.rfc2396 as uri
 
 import pyslet.odata2.csdl as edm

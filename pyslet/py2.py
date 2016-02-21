@@ -44,8 +44,6 @@ if py2:
             return arg
         return arg.decode('latin-1')
 
-    empty_text = unicode("")
-
     def is_string(arg):
         return isinstance(arg, types.StringTypes)
 
@@ -74,6 +72,10 @@ if py2:
             return unichr(arg)
 
     join_characters = unicode('').join
+
+    uempty = unicode('')
+
+    uspace = unicode(' ')
 
     def force_bytes(arg):
         if isinstance(arg, unicode):
@@ -158,8 +160,6 @@ else:
         else:
             raise TypeError
 
-    empty_text = ""
-
     def is_string(arg):
         return isinstance(arg, (str, bytes))
 
@@ -185,6 +185,10 @@ else:
     character = chr
 
     join_characters = ''.join
+
+    uempty = ''
+
+    uspace = ' '
 
     def force_bytes(arg):
         if isinstance(arg, str):
@@ -243,15 +247,20 @@ class UnicodeMixin(object):
     this class is used to ensure that the correct behaviour exists
     in Python versions 2 and 3.
 
-    The mixin class implements __str__ based on your existing
-    __unicode__ implementation.  In python 2, the output is encoded
-    using the default system encoding.  This may well generate errors but
-    that seems more appropriate as it will catch cases where the *str*
-    function has been used instead of :py:func:`to_text`."""
+    The mixin class implements __str__ based on your existing (required)
+    __unicode__ or (optional) __bytes__ implementation.  In python 2,
+    the output of __unicode__ is encoded using the default system
+    encoding if no __bytes__ implementation is provided.  This may well
+    generate errors but that seems more appropriate as it will catch
+    cases where the *str* function has been used instead of
+    :py:func:`to_text`."""
 
     if py2:
         def __str__(self):      # noqa
-            return self.__unicode__().encode(_sys_codec)
+            if hasattr(self, '__bytes__'):
+                return self.__bytes__()
+            else:
+                return self.__unicode__().encode(_sys_codec)
     else:
         def __str__(self):      # noqa
             return self.__unicode__()

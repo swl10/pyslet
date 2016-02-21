@@ -132,6 +132,15 @@ class MigratedMetaclass(type):
                         # name.  The rest of the puzzle will be put in
                         # place below...
                         old_method(im.old_method.__name__)(sm)
+                    elif im.__name__ in dct:
+                        # new code, provides an override, manually
+                        # provide an old method wrapper, this reduces
+                        # the burden on derived classes and allows us to
+                        # rely on a base class to indicate if such
+                        # mappings are required.
+                        override = dct[im.__name__]
+                        sm = get_method_function(override)
+                        old_method(im.old_method.__name__)(sm)
         # the second part of the metaclass is for class authors who were
         # expecting us (and overrides patched above)... search our
         # dictionary for renamed methods and add the old names pointing
@@ -282,7 +291,6 @@ def redirected_method(name):
 
 
 class RenamedFunction(object):
-
     """Represents a renamed function
 
     func
@@ -353,6 +361,61 @@ def redirected_function(name):
         return call_renamed
 
     return custom_renamed_method
+
+
+class DeprecatedFunction(object):
+    """Represents a renamed function
+
+    new_func
+        A function object
+
+    old_name
+        The old name"""
+
+    def __init__(self, new_func, old_name):
+        self.old_name = old_name
+        self.new_func = new_func
+        self.new_name = new_func.__name__
+        self.module = new_func.__module__
+        self.warned = False
+
+    def call(self, *args, **kwargs):
+        if not self.warned:
+            warnings.warn(
+                "%s.%s is deprecated, use, %s instead" %
+                (self.module, self.old_name, self.new_name),
+                DeprecationWarning, stacklevel=3)
+            self.warned = True
+        return self.new_func(*args, **kwargs)
+
+
+def old_function(name):
+    """Provides a factory decorator for a renamed function
+
+    Intended usage::
+
+        @old_function('OldFunction')
+        def new_function(....):
+            # implementation here
+
+    The old function is created using a wrapper that issues a
+    deprecation warning and is added to the global scope in which the
+    new function is being defined."""
+
+    def custom_renamed_function(func):
+        func_renamed = DeprecatedFunction(func, name)
+
+        def call_renamed(*args, **kwargs):
+            return func_renamed.call(*args, **kwargs)
+
+        call_renamed.__name__ = name
+        func.old_function = call_renamed
+        func.old_function.__doc__ = "Deprecated equivalent to "\
+            ":func:`%s`" % func.__name__
+        func.__globals__[name] = call_renamed
+        return func
+
+    return custom_renamed_function
 
 
 class PEP8AmbiguousNameError(Exception):

@@ -1,7 +1,12 @@
 #! /usr/bin/env python
 
-from pyslet.xml20081126.structures import *
-from pyslet.xml20081126.parser import *
+import string
+import types
+
+from types import StringTypes
+
+from pyslet.xml.structures import *
+from pyslet.xml.parser import *
 
 XML_NAMESPACE = u"http://www.w3.org/XML/1998/namespace"
 XMLNS_NAMESPACE = u"http://www.w3.org/2000/xmlns/"
@@ -150,8 +155,9 @@ class XMLNSElementContainerMixin:
             ei = ei.parent
         return prefixMap
 
-    def WriteNSAttributes(self, attributes, escapeFunction=EscapeCharData, root=False):
+    def WriteNSAttributes(self, attributes, escape_function=EscapeCharData, root=False, **kws):
         """Adds strings representing any namespace attributes"""
+        escape_function = kws.get('escapeFunction', escape_function)
         nsAttributes = []
         if root:
             prefixMap = self.GetPrefixMap()
@@ -162,10 +168,10 @@ class XMLNSElementContainerMixin:
         for prefix in prefixList:
             if prefix:
                 nsAttributes.append(
-                    u'xmlns:%s=%s' % (prefix, escapeFunction(prefixMap[prefix], True)))
+                    u'xmlns:%s=%s' % (prefix, escape_function(prefixMap[prefix], True)))
             else:
                 nsAttributes.append(
-                    u'xmlns=%s' % escapeFunction(prefixMap[prefix], True))
+                    u'xmlns=%s' % escape_function(prefixMap[prefix], True))
         attributes[0:0] = nsAttributes
 
 
@@ -201,7 +207,8 @@ class XMLNSElement(XMLNSElementContainerMixin, Element):
         and so must be looked up using this method."""
         return self._attrs.get(name, None)
 
-    def MangleAttributeName(self, name):
+    @classmethod
+    def MangleAttributeName(cls, name):
         """Returns a mangled attribute name, used when setting ns-aware attributes.
 
         Custom setters are enabled only for attributes with no namespace. For
@@ -218,7 +225,8 @@ class XMLNSElement(XMLNSElementContainerMixin, Element):
         else:
             return None
 
-    def UnmangleAttributeName(self, mName):
+    @classmethod
+    def UnmangleAttributeName(cls, mName):
         """Returns an unmangled attribute name, used when getting attributes.
 
         If mName is not a mangled name, None is returned."""
@@ -259,7 +267,8 @@ class XMLNSElement(XMLNSElementContainerMixin, Element):
     def IsValidName(self, value):
         return IsValidNCName(value)
 
-    def SortNames(self, nameList):
+    @staticmethod
+    def SortNames(nameList):
         nameList.sort(key=AttributeNameKey)
 
     def GetBase(self):
@@ -293,12 +302,13 @@ class XMLNSElement(XMLNSElementContainerMixin, Element):
         """Checks child to ensure it satisfies ##other w.r.t. the given ns"""
         return isinstance(child, XMLNSElement) and child.ns != ns
 
-    def WriteXMLAttributes(self, attributes, escapeFunction=EscapeCharData, root=False):
+    def WriteXMLAttributes(self, attributes, escape_function=EscapeCharData, root=False, **kws):
         """Adds strings representing the element's attributes
 
         attributes is a list of unicode strings.  Attributes should be appended
         as strings of the form 'name="value"' with values escaped appropriately
         for XML output."""
+        escape_function = kws.get('escapeFunction', escape_function)
         attrs = self.GetAttributes()
         keys = attrs.keys()
         keys.sort()
@@ -315,11 +325,12 @@ class XMLNSElement(XMLNSElementContainerMixin, Element):
             if prefix:
                 prefix = prefix + ':'
             attributes.append(
-                u'%s%s=%s' % (prefix, aname, escapeFunction(attrs[a], True)))
+                u'%s%s=%s' % (prefix, aname, escape_function(attrs[a], True)))
         self.WriteNSAttributes(
-            attributes, escapeFunction=EscapeCharData, root=root)
+            attributes, escape_function=EscapeCharData, root=root)
 
-    def GenerateXML(self, escapeFunction=EscapeCharData, indent='', tab='\t', root=False):
+    def GenerateXML(self, escape_function=EscapeCharData, indent='', tab='\t', root=False, **kws):
+        escape_function = kws.get('escapeFunction', escape_function)
         if tab:
             ws = '\n' + indent
             indent = indent + tab
@@ -340,7 +351,7 @@ class XMLNSElement(XMLNSElementContainerMixin, Element):
             prefix = ''
         if prefix:
             prefix = prefix + ':'
-        self.WriteXMLAttributes(attributes, escapeFunction, root=root)
+        self.WriteXMLAttributes(attributes, escape_function, root=root)
         if attributes:
             attributes[0:0] = ['']
             attributes = string.join(attributes, ' ')
@@ -362,12 +373,12 @@ class XMLNSElement(XMLNSElementContainerMixin, Element):
                     if type(child) in types.StringTypes:
                         # We force encoding of carriage return as these are
                         # subject to removal
-                        yield escapeFunction(child)
+                        yield escape_function(child)
                         # if we have character data content skip closing ws
                         ws = ''
                     else:
                         try:
-                            for s in child.GenerateXML(escapeFunction, indent, tab):
+                            for s in child.GenerateXML(escape_function, indent, tab):
                                 yield s
                         except TypeError:
                             logging.error("Problem with %s: child was %s", self.__class__.__name__, repr(child))
@@ -438,7 +449,7 @@ class XMLNSParser(XMLParser):
                 return (XMLNS_NAMESPACE, '')
             elif useDefault:
                 nsURI = nsDefs.get('', None)
-                if nsURI is None and context:
+                if nsURI is None and context is not None:
                     nsURI = context.GetNS('')
                 return (nsURI, qname)
             else:
@@ -451,7 +462,7 @@ class XMLNSParser(XMLParser):
                 return (XMLNS_NAMESPACE, local)
             else:
                 nsURI = nsDefs.get(nsprefix, None)
-                if nsURI is None and context:
+                if nsURI is None and context is not None:
                     nsURI = context.GetNS(nsprefix)
                 return (nsURI, local)
         else:

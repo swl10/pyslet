@@ -436,11 +436,11 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             u"ABC.ABC\\ABC?123* !\"+#$%(&\',)-/:|;<={>@^}_`~[\xa3\xa0\xf7]")
         while p.the_char is not None:
             for c in "ABC":
-                self.assertTrue(p.IsChar(), "Defaulted character +ve test")
-                self.assertFalse(p.IsChar("."), "Specified character -ve test")
+                self.assertTrue(p.is_char(), "Defaulted character +ve test")
+                self.assertFalse(p.is_char("."), "Specified character -ve test")
                 p.next_char()
-            self.assertFalse(p.IsChar(), "Defaulted character -ve test")
-            self.assertTrue(p.IsChar("A"), "Specified character +ve test")
+            self.assertFalse(p.is_char(), "Defaulted character -ve test")
+            self.assertTrue(p.is_char("A"), "Specified character +ve test")
             p.next_char()
 
     def testCharClass(self):

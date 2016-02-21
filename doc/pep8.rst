@@ -58,7 +58,7 @@ PEP-8 Compatibility
         def new_class_method(cls):
             return "Found it!"
 
-    And similarly for staticmethod
+    And similarly for staticmethod::
     
         @staticmethod
         @pep8.old_method('OldStaticMethod')
