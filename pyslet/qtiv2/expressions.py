@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import pyslet.xml.structures as xml
-import pyslet.xmlnames20091208 as xmlns
+import pyslet.xml.namespace as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.qtiv2.core as core
 import pyslet.qtiv2.variables as variables
@@ -110,14 +110,14 @@ class BaseValue(Expression):
         'baseType',
         variables.BaseType.DecodeLowerValue,
         variables.BaseType.EncodeValue)
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
     def __init__(self, parent):
         Expression.__init__(self, parent)
         self.baseType = variables.BaseType.string
 
     def Evaluate(self, state):
-        return variables.SingleValue.NewValue(self.baseType, self.GetValue())
+        return variables.SingleValue.NewValue(self.baseType, self.get_value())
 
 
 class Variable(Expression):
@@ -134,7 +134,7 @@ class Variable(Expression):
     XMLATTR_identifier = ('identifier', core.ValidateIdentifier, lambda x: x)
     XMLATTR_weightIdentifier = (
         'weightIdentifier', core.ValidateIdentifier, lambda x: x)
-    XMLCONTENT = xmlns.XMLEmpty
+    XMLCONTENT = xml.XMLEmpty
 
     def __init__(self, parent):
         Expression.__init__(self, parent)
@@ -159,7 +159,7 @@ class Default(Expression):
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'default')
     XMLATTR_identifier = ('identifier', core.ValidateIdentifier, lambda x: x)
-    XMLCONTENT = xmlns.XMLEmpty
+    XMLCONTENT = xml.XMLEmpty
 
     def __init__(self, parent):
         Expression.__init__(self, parent)
@@ -185,7 +185,7 @@ class Correct(Expression):
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'correct')
     XMLATTR_identifier = ('identifier', core.ValidateIdentifier, lambda x: x)
-    XMLCONTENT = xmlns.XMLEmpty
+    XMLCONTENT = xml.XMLEmpty
 
     def __init__(self, parent):
         Expression.__init__(self, parent)
@@ -219,7 +219,7 @@ class MapResponse(Expression):
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'mapResponse')
     XMLATTR_identifier = ('identifier', core.ValidateIdentifier, lambda x: x)
-    XMLCONTENT = xmlns.XMLEmpty
+    XMLCONTENT = xml.XMLEmpty
 
     def __init__(self, parent):
         Expression.__init__(self, parent)
@@ -254,7 +254,7 @@ class MapResponsePoint(Expression):
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'mapResponsePoint')
     XMLATTR_identifier = ('identifier', core.ValidateIdentifier, lambda x: x)
-    XMLCONTENT = xmlns.XMLEmpty
+    XMLCONTENT = xml.XMLEmpty
 
     def __init__(self, parent):
         Expression.__init__(self, parent)
@@ -295,7 +295,7 @@ class Null(Expression):
 
             <xsd:complexType name="null.Type"/>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'null')
-    XMLCONTENT = xmlns.XMLEmpty
+    XMLCONTENT = xml.XMLEmpty
 
     def Evaluate(self, state):
         return variables.Value()
@@ -315,7 +315,7 @@ class RandomInteger(Expression):
     XMLATTR_min = 'min'
     XMLATTR_max = 'max'
     XMLATTR_step = 'step'
-    XMLCONTENT = xmlns.XMLEmpty
+    XMLCONTENT = xml.XMLEmpty
 
     def __init__(self, parent):
         Expression.__init__(self, parent)
@@ -349,7 +349,7 @@ class RandomFloat(Expression):
     XMLNAME = (core.IMSQTI_NAMESPACE, 'randomFloat')
     XMLATTR_min = 'min'
     XMLATTR_max = 'max'
-    XMLCONTENT = xmlns.XMLEmpty
+    XMLCONTENT = xml.XMLEmpty
 
     def __init__(self, parent):
         Expression.__init__(self, parent)
@@ -367,13 +367,13 @@ class RandomFloat(Expression):
 class NOperator(Expression):
 
     """An abstract class to help implement operators which take multiple sub-expressions."""
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         Expression.__init__(self, parent)
         self.Expression = []
 
-    def GetChildren(self):
+    def get_children(self):
         return iter(self.Expression)
 
     def EvaluateChildren(self, state):
@@ -386,13 +386,13 @@ class NOperator(Expression):
 class UnaryOperator(Expression):
 
     """An abstract class to help implement unary operators."""
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         Expression.__init__(self, parent)
         self.Expression = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Expression:
             yield self.Expression
 
@@ -440,7 +440,7 @@ class Multiple(NOperator):
                     "Ordered or Record values not allowed in Mutiple")
         # finally we have a matching list of input values
         result = variables.MultipleContainer(baseType)
-        result.SetValue(vInput)
+        result.set_value(vInput)
         return result
 
 
@@ -485,7 +485,7 @@ class Ordered(NOperator):
                     "Multiple or Record values not allowed in Ordered")
         # finally we have a matching list of input values
         result = variables.OrderedContainer(baseType)
-        result.SetValue(vInput)
+        result.set_value(vInput)
         return result
 
 
@@ -575,7 +575,7 @@ class Index(UnaryOperator):
                     raise core.ProcessingError(
                         "Index requires n>0, found %i" % self.n)
                 elif self.n <= len(value.value):
-                    result.SetValue(value.value[self.n - 1])
+                    result.set_value(value.value[self.n - 1])
             return result
         else:
             # wrong cardinality
@@ -642,12 +642,12 @@ class Random(UnaryOperator):
             result = variables.SingleValue.NewValue(value.baseType)
             if value:
                 # randomly pick one of these values
-                result.SetValue(random.choice(value.value))
+                result.set_value(random.choice(value.value))
             return result
         elif value.Cardinality() == variables.Cardinality.multiple:
             result = variables.SingleValue.NewValue(value.baseType)
             if value:
-                result.SetValue(random.choice(list(value.GetValues())))
+                result.set_value(random.choice(list(value.GetValues())))
             return result
         elif value.Cardinality() is None:
             return variables.SingleValue()
@@ -763,7 +763,7 @@ class Delete(NOperator):
             for v in containerValue.GetValues():
                 if singleValue.value != v:
                     vResult.append(v)
-            result.SetValue(vResult)
+            result.set_value(vResult)
             return result
         else:
             return result

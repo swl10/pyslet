@@ -178,7 +178,7 @@ class ThreadTests(unittest.TestCase):
         self.doc = edmx.Document()
         md_path = TEST_DATA_DIR.join('sample_server', 'metadata.xml')
         with md_path.open('rb') as f:
-            self.doc.Read(f)
+            self.doc.read(f)
         self.container = self.doc.root.DataServices[
             "SampleModel.SampleEntities"]
 
@@ -391,7 +391,7 @@ class SQLDSTests(unittest.TestCase):
         self.doc = edmx.Document()
         md_path = TEST_DATA_DIR.join('sample_server', 'metadata.xml')
         with md_path.open('rb') as f:
-            self.doc.Read(f)
+            self.doc.read(f)
         self.schema = self.doc.root.DataServices['SampleModel']
         self.container = self.doc.root.DataServices[
             "SampleModel.SampleEntities"]
@@ -771,7 +771,7 @@ class AutoFieldTests(unittest.TestCase):
         self.doc = edmx.Document()
         md_path = TEST_DATA_DIR.join('sqlds', 'custom.xml')
         with md_path.open('rb') as f:
-            self.doc.Read(f)
+            self.doc.read(f)
         self.schema = self.doc.root.DataServices['CustomModel']
         self.container = self.doc.root.DataServices[
             "CustomModel.FileContainer"]

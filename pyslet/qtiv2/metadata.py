@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
-import pyslet.xmlnames20091208 as xmlns
+import pyslet.xml.structures as xml
+import pyslet.xml.namespace as xmlns
 
 import pyslet.qtiv2.core as core
 
@@ -25,7 +26,7 @@ class QTIMetadata(core.QTIElement):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'qtiMetadata')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
@@ -39,7 +40,7 @@ class QTIMetadata(core.QTIElement):
         self.ToolVersion = None
         self.ToolVendor = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.ItemTemplate:
             yield self.ItemTemplate
         if self.TimeDependent:
@@ -58,7 +59,7 @@ class QTIMetadata(core.QTIElement):
             yield self.ToolVersion
         if self.ToolVendor:
             yield self.ToolVendor
-        for child in core.QTIElement.GetChildren(self):
+        for child in core.QTIElement.get_children(self):
             yield child
 
 

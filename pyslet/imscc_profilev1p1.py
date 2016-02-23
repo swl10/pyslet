@@ -4,7 +4,7 @@
 from types import StringTypes
 import string
 
-import pyslet.xmlnames20091208 as xmlns
+import pyslet.xml.namespace as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.imscpv1p2 as imscp
 import pyslet.imscc_profilev1p0 as v1p0
@@ -79,14 +79,14 @@ class ManifestDocument(xmlns.XMLNSDocument):
         """"""
         xmlns.XMLNSDocument.__init__(self, **args)
         self.defaultNS = IMSCC_CP_NAMESPACE
-        self.MakePrefix(xsi.XMLSCHEMA_NAMESPACE, 'xsi')
-        self.MakePrefix(IMSCC_LOMMANIFEST_NAMESPACE, 'lomimscc')
-        self.MakePrefix(IMSCC_LOMRESOURCE_NAMESPACE, 'lom')
+        self.make_prefix(xsi.XMLSCHEMA_NAMESPACE, 'xsi')
+        self.make_prefix(IMSCC_LOMMANIFEST_NAMESPACE, 'lomimscc')
+        self.make_prefix(IMSCC_LOMRESOURCE_NAMESPACE, 'lom')
         schemaLocation = [IMSCC_CP_NAMESPACE, IMSCC_CP_SCHEMALOCATION,
                           IMSCC_LOMMANIFEST_NAMESPACE, IMSCC_LOMMANIFEST_SCHEMALOCATION,
                           IMSCC_LOMRESOURCE_NAMESPACE, IMSCC_LOMRESOURCE_SCHEMALOCATION]
         if isinstance(self.root, imscp.CPElement):
-            self.root.SetAttribute(
+            self.root.set_attribute(
                 (xsi.XMLSCHEMA_NAMESPACE, 'schemaLocation'), string.join(schemaLocation, ' '))
 
     def get_element_class(self, name):
@@ -94,9 +94,9 @@ class ManifestDocument(xmlns.XMLNSDocument):
             name, ManifestDocument.classMap.get((name[0], None), xmlns.XMLNSElement))
         return eClass
 
-xmlns.MapClassElements(ManifestDocument.classMap, globals())
-# xmlns.MapClassElements(ManifestDocument.classMap,imsmd)
-# xmlns.MapClassElements(ManifestDocument.classMap,imsqti)
+xmlns.map_class_elements(ManifestDocument.classMap, globals())
+# xmlns.map_class_elements(ManifestDocument.classMap,imsmd)
+# xmlns.map_class_elements(ManifestDocument.classMap,imsqti)
 # Add other supported metadata schemas in here
 
 

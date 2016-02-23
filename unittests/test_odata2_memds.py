@@ -33,7 +33,7 @@ class MemDSTests(unittest.TestCase):
         self.doc = edmx.Document()
         mdpath = TEST_DATA_DIR.join('sample_server', 'metadata.xml')
         with mdpath.open('rb') as f:
-            self.doc.Read(f)
+            self.doc.read(f)
         self.schema = self.doc.root.DataServices['SampleModel']
         self.containerDef = self.doc.root.DataServices[
             "SampleModel.SampleEntities"]

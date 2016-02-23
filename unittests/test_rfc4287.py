@@ -102,10 +102,10 @@ class AtomElementTests(unittest.TestCase):
         self.assertTrue(e.parent is None, 'empty parent on construction')
         self.assertTrue(e.xmlname == None, 'element name on construction')
         self.assertTrue(
-            e.GetBase() is None, "xml:base present on construction")
+            e.get_base() is None, "xml:base present on construction")
         self.assertTrue(
-            e.GetLang() is None, "xml:lang present on construction")
-        attrs = e.GetAttributes()
+            e.get_lang() is None, "xml:lang present on construction")
+        attrs = e.get_attributes()
         self.assertTrue(
             len(attrs.keys()) == 0, "Attributes present on construction")
         e2 = AtomElement(e)
@@ -113,25 +113,25 @@ class AtomElementTests(unittest.TestCase):
 
     def testCaseGetSet(self):
         e = AtomElement(None)
-        e.SetBase("http://www.example.com/")
+        e.set_base("http://www.example.com/")
         self.assertTrue(
-            e.GetBase() == "http://www.example.com/", "Get/Set example xml:base value")
-        e.SetLang("en-US")
+            e.get_base() == "http://www.example.com/", "Get/Set example xml:base value")
+        e.set_lang("en-US")
         self.assertTrue(
-            e.GetLang() == "en-US", "Get/Set example xml:lang value")
-        attrs = e.GetAttributes()
+            e.get_lang() == "en-US", "Get/Set example xml:lang value")
+        attrs = e.get_attributes()
         self.assertTrue(len(attrs.keys()) == 2, "Two attributes expected")
         self.assertTrue(attrs[(xmlns.XML_NAMESPACE, 'base')]
                         == "http://www.example.com/", "Base attribute")
         self.assertTrue(
             attrs[(xmlns.XML_NAMESPACE, 'lang')] == "en-US", "Lang attribute")
-        e.SetBase(None)
-        attrs = e.GetAttributes()
-        self.assertTrue(e.GetBase() is None, "Get/Set empty xml:base value")
+        e.set_base(None)
+        attrs = e.get_attributes()
+        self.assertTrue(e.get_base() is None, "Get/Set empty xml:base value")
         self.assertTrue(len(attrs.keys()) == 1, "One attribute expected")
-        e.SetLang(None)
-        attrs = e.GetAttributes()
-        self.assertTrue(e.GetLang() is None, "Get/Set empty xml:lang value")
+        e.set_lang(None)
+        attrs = e.get_attributes()
+        self.assertTrue(e.get_lang() is None, "Get/Set empty xml:lang value")
         self.assertTrue(len(attrs.keys()) == 0, "No attributes expected")
 
 
@@ -152,26 +152,26 @@ class AtomTextTests(unittest.TestCase):
         self.assertTrue(
             isinstance(text, AtomElement), "Text not an AtomElement")
         self.assertTrue(
-            text.GetBase() is None, "xml:base present on construction")
+            text.get_base() is None, "xml:base present on construction")
         self.assertTrue(
-            text.GetLang() is None, "xml:lang present on construction")
-        attrs = text.GetAttributes()
+            text.get_lang() is None, "xml:lang present on construction")
+        attrs = text.get_attributes()
         self.assertTrue(
             len(attrs.keys()) == 1, "Attributes present on construction")
         self.assertTrue(
-            text.GetValue() == '', "Content present on construction")
+            text.get_value() == '', "Content present on construction")
 
     def testCaseStringValue(self):
         text = Text(None)
-        text.SetValue("Some text")
+        text.set_value("Some text")
         self.assertTrue(
-            text.GetValue() == "Some text", "String constructor data")
+            text.get_value() == "Some text", "String constructor data")
         self.assertTrue(
             text.type == TextType.text, "Default text type not 'text' on construction")
         text = Text(None)
-        text.SetValue("Some other text", TextType.xhtml)
-        self.assertTrue(text.GetValue() == 'Some other text',
-                        "String constructor data: found %s" % text.GetValue())
+        text.set_value("Some other text", TextType.xhtml)
+        self.assertTrue(text.get_value() == 'Some other text',
+                        "String constructor data: found %s" % text.get_value())
         self.assertTrue(
             text.type == TextType.xhtml, "Override text type on construction")
 
@@ -181,15 +181,15 @@ class AtomTextTests(unittest.TestCase):
         is not provided, Atom Processors MUST behave as though it were
         present with a value of "text"."""
         text = Text(None)
-        attrs = text.GetAttributes()
+        attrs = text.get_attributes()
         self.assertTrue(text.type == TextType.text and attrs[
                         (xmlns.NO_NAMESPACE, 'type')] == "text", "Default text type not 'text' on construction")
-        text.SetValue('<p>Hello', TextType.html)
+        text.set_value('<p>Hello', TextType.html)
         self.assertTrue(text.type == TextType.html, "html text type failed")
-        text.SetValue('<p>Hello</p>', TextType.xhtml)
+        text.set_value('<p>Hello</p>', TextType.xhtml)
         self.assertTrue(text.type == TextType.xhtml, "xhtml text type failed")
         try:
-            text.SetValue('Hello\\par ', 'rtf')
+            text.set_value('Hello\\par ', 'rtf')
             self.fail("rtf text type failed to raise error")
         except ValueError:
             pass
@@ -213,10 +213,10 @@ class PersonTests(unittest.TestCase):
         self.assertTrue(
             isinstance(person, AtomElement), "Person not an AtomElement")
         self.assertTrue(
-            person.GetBase() is None, "xml:base present on construction")
+            person.get_base() is None, "xml:base present on construction")
         self.assertTrue(
-            person.GetLang() is None, "xml:lang present on construction")
-        attrs = person.GetAttributes()
+            person.get_lang() is None, "xml:lang present on construction")
+        attrs = person.get_attributes()
         self.assertTrue(
             len(attrs.keys()) == 0, "Attributes present on construction")
         self.assertTrue(isinstance(person.Name, Name), "Name on construction")
@@ -244,14 +244,14 @@ class AtomDateTests(unittest.TestCase):
         self.assertTrue(
             isinstance(date, AtomElement), "Date not an AtomElement")
         self.assertTrue(
-            date.GetBase() is None, "xml:base present on construction")
+            date.get_base() is None, "xml:base present on construction")
         self.assertTrue(
-            date.GetLang() is None, "xml:lang present on construction")
-        attrs = date.GetAttributes()
+            date.get_lang() is None, "xml:lang present on construction")
+        attrs = date.get_attributes()
         self.assertTrue(
             len(attrs.keys()) == 0, "Attributes present on construction")
         self.assertTrue(
-            isinstance(date.GetValue(), iso8601.TimePoint), "Value not a TimePoint")
+            isinstance(date.get_value(), iso8601.TimePoint), "Value not a TimePoint")
 
 
 class FeedTests(unittest.TestCase):
@@ -268,67 +268,67 @@ class FeedTests(unittest.TestCase):
             isinstance(feed, AtomElement), "Feed not an AtomElement")
         self.assertTrue(feed.xmlname == "feed", "Feed XML name")
         self.assertTrue(
-            feed.GetBase() is None, "xml:base present on construction")
+            feed.get_base() is None, "xml:base present on construction")
         self.assertTrue(
-            feed.GetLang() is None, "xml:lang present on construction")
+            feed.get_lang() is None, "xml:lang present on construction")
         self.assertTrue(len(feed.Entry) == 0, "Non-empty feed on construction")
-        attrs = feed.GetAttributes()
+        attrs = feed.get_attributes()
         self.assertTrue(
             len(attrs.keys()) == 0, "Attributes present on construction")
 
     def testCaseReadXML(self):
         doc = AtomDocument()
-        doc.Read(src=StringIO(EXAMPLE_1))
+        doc.read(src=StringIO(EXAMPLE_1))
         feed = doc.root
         self.assertTrue(isinstance(feed, Feed), "Example 1 not a feed")
         title = feed.Title
-        self.assertTrue(isinstance(title, Text) and title.GetValue(
+        self.assertTrue(isinstance(title, Text) and title.get_value(
         ) == "Example Feed", "Example 1 title: " + str(title))
         link = feed.Link[0]
         self.assertTrue(isinstance(link, Link) and link.href ==
                         "http://example.org/", "Example 1 link")
         updated = feed.Updated
-        self.assertTrue(isinstance(updated.GetValue(), iso8601.TimePoint) and updated.GetValue(
-        ) == iso8601.TimePoint.from_str("2003-12-13T18:30:02Z"), "Example 1 updated: found %s" % updated.GetValue())
+        self.assertTrue(isinstance(updated.get_value(), iso8601.TimePoint) and updated.get_value(
+        ) == iso8601.TimePoint.from_str("2003-12-13T18:30:02Z"), "Example 1 updated: found %s" % updated.get_value())
         author = feed.Author[0]
         self.assertTrue(isinstance(
-            author, Person) and author.Name.GetValue() == "John Doe", "Example 1 author")
-        self.assertTrue(isinstance(feed.AtomId, AtomId) and feed.AtomId.GetValue() == "urn:uuid:60a76c80-d399-11d9-b93C-0003939e0af6",
+            author, Person) and author.Name.get_value() == "John Doe", "Example 1 author")
+        self.assertTrue(isinstance(feed.AtomId, AtomId) and feed.AtomId.get_value() == "urn:uuid:60a76c80-d399-11d9-b93C-0003939e0af6",
                         "Example 1 id")
         entries = feed.Entry
         self.assertTrue(
             len(entries) == 1, "Example 1: wrong number of entries (%i)" % len(entries))
         entry = entries[0]
         title = entry.Title
-        self.assertTrue(isinstance(title, Text) and title.GetValue(
+        self.assertTrue(isinstance(title, Text) and title.get_value(
         ) == "Atom-Powered Robots Run Amok", "Example 1 entry title")
         link = entry.Link[0]
         self.assertTrue(isinstance(link, Link) and link.href ==
                         "http://example.org/2003/12/13/atom03", "Example 1 entry link")
-        self.assertTrue(isinstance(entry.AtomId, AtomId) and entry.AtomId.GetValue() == "urn:uuid:1225c695-cfb8-4ebb-aaaa-80da344efa6a",
+        self.assertTrue(isinstance(entry.AtomId, AtomId) and entry.AtomId.get_value() == "urn:uuid:1225c695-cfb8-4ebb-aaaa-80da344efa6a",
                         "Example 1 entry id")
         updated = entry.Updated
-        self.assertTrue(isinstance(updated, Date) and updated.GetValue(
+        self.assertTrue(isinstance(updated, Date) and updated.get_value(
         ) == iso8601.TimePoint.from_str("2003-12-13T18:30:02Z"), "Example 1 entry updated")
         summary = entry.Summary
-        self.assertTrue(isinstance(summary, Text) and summary.GetValue(
+        self.assertTrue(isinstance(summary, Text) and summary.get_value(
         ) == "Some text.", "Example 1 entry summary")
-        doc.Read(src=StringIO(EXAMPLE_2))
+        doc.read(src=StringIO(EXAMPLE_2))
         feed = doc.root
         subtitle = feed.Subtitle
         self.assertTrue(isinstance(subtitle, Subtitle) and subtitle.type == TextType.html
-                        and subtitle.GetValue().strip() == "A <em>lot</em> of effort went into making this effortless", "Example 2 subtitle")
+                        and subtitle.get_value().strip() == "A <em>lot</em> of effort went into making this effortless", "Example 2 subtitle")
         links = feed.Link
         self.assertTrue(links[0].rel == "alternate" and links[0].type == "text/html" and links[0].hreflang == "en" and
                         links[0].href == "http://example.org/", "Example 2, link 0 attributes")
         self.assertTrue(links[1].rel == "self" and links[1].type == "application/atom+xml" and links[1].hreflang is None and
                         links[1].href == "http://example.org/feed.atom", "Example 2, link 1 attributes")
         rights = feed.Rights
-        self.assertTrue(isinstance(rights, Rights) and rights.GetValue(
+        self.assertTrue(isinstance(rights, Rights) and rights.get_value(
         ) == "Copyright (c) 2003, Mark Pilgrim", "Example 2, rights")
         generator = feed.Generator
         self.assertTrue(isinstance(generator, Generator) and generator.uri == "http://www.example.com/" and
-                        generator.version == "1.0" and generator.GetValue().strip() == "Example Toolkit", "Example 2, generator")
+                        generator.version == "1.0" and generator.get_value().strip() == "Example Toolkit", "Example 2, generator")
 
         """ <entry>
 			<title>Atom draft-07 snapshot</title>
@@ -401,10 +401,10 @@ class EntryTests(unittest.TestCase):
         self.assertTrue(
             isinstance(entry, AtomElement), "Entry not an AtomElement")
         self.assertTrue(
-            entry.GetBase() is None, "xml:base present on construction")
+            entry.get_base() is None, "xml:base present on construction")
         self.assertTrue(
-            entry.GetLang() is None, "xml:lang present on construction")
-        attrs = entry.GetAttributes()
+            entry.get_lang() is None, "xml:lang present on construction")
+        attrs = entry.get_attributes()
         self.assertTrue(
             len(attrs.keys()) == 0, "Attributes present on construction")
 

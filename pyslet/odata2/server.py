@@ -162,8 +162,8 @@ class Server(app.Server):
         if self.pathPrefix[-1] == '/':
             self.pathPrefix = self.pathPrefix[:-1]
         # : a single workspace that contains all collections
-        self.ws = self.service.ChildElement(app.Workspace)
-        self.ws.ChildElement(atom.Title).SetValue("Default")
+        self.ws = self.service.add_child(app.Workspace)
+        self.ws.add_child(atom.Title).set_value("Default")
         #: a :py:class:`metadata.Edmx` instance; the model for the service
         self.model = None
         #: the maximum number of entities to return per request
@@ -182,11 +182,11 @@ class Server(app.Server):
         else:
             raise TypeError("Edmx document or instance required for model")
         # update the base URI of the metadata document to identify this service
-        doc.SetBase(self.serviceRoot)
+        doc.set_base(self.serviceRoot)
         if self.model:
             # get rid of the old model
             for c in self.ws.Collection:
-                c.DetachFromDocument()
+                c.detach_from_doc()
                 c.parent = None
             self.ws.Collection = []
         for s in model.DataServices.Schema:
@@ -198,9 +198,9 @@ class Server(app.Server):
                 # define one feed for each entity set, prefixed with the name
                 # of the entity set
                 for es in container.EntitySet:
-                    feed = self.ws.ChildElement(app.Collection)
+                    feed = self.ws.add_child(app.Collection)
                     feed.href = prefix + es.name
-                    feed.ChildElement(atom.Title).SetValue(prefix + es.name)
+                    feed.add_child(atom.Title).set_value(prefix + es.name)
                     # update the locations following SetBase above
                     es.set_location()
         self.model = model
@@ -302,12 +302,12 @@ class Server(app.Server):
                 # redirect
                 location = str(self.serviceRoot)
                 r = html.HTML(None)
-                r.Head.Title.SetValue('Redirect')
-                div = r.Body.ChildElement(html.Div)
-                div.AddData(u"Moved to: ")
-                anchor = div.ChildElement(html.A)
+                r.Head.Title.set_value('Redirect')
+                div = r.Body.add_child(html.Div)
+                div.add_data(u"Moved to: ")
+                anchor = div.add_child(html.A)
                 anchor.href = self.serviceRoot
-                anchor.SetValue(location)
+                anchor.set_value(location)
                 responseType = self.ContentNegotiation(
                     request, environ, self.RedirectTypes)
                 if responseType is None:
@@ -383,8 +383,8 @@ class Server(app.Server):
         """Generates ODataError, typically as the result of a bad request."""
         response_headers = []
         e = core.Error(None)
-        e.ChildElement(core.Code).SetValue(subCode)
-        e.ChildElement(core.Message).SetValue(message)
+        e.add_child(core.Code).set_value(subCode)
+        e.add_child(core.Message).set_value(message)
         responseType = self.ContentNegotiation(
             request, environ, self.ErrorTypes)
         if responseType is None:
@@ -988,7 +988,7 @@ class Server(app.Server):
 
     def ReturnMetadata(
             self, request, environ, start_response, response_headers):
-        doc = self.model.GetDocument()
+        doc = self.model.get_document()
         responseType = self.ContentNegotiation(
             request, environ, self.MetadataTypes)
         if responseType is None:
@@ -1028,8 +1028,8 @@ class Server(app.Server):
         else:
             doc = core.Document(root=core.Links)
             for e in entities.itervalues():
-                child = doc.root.ChildElement(core.URI)
-                child.SetValue(str(self.serviceRoot) + "%s(%s)" %
+                child = doc.root.add_child(core.URI)
+                child.set_value(str(self.serviceRoot) + "%s(%s)" %
                                (e.entity_set.name, repr(e.key())))
             data = str(doc)
         response_headers.append(("Content-Type", str(responseType)))
@@ -1042,7 +1042,7 @@ class Server(app.Server):
         if isinstance(input, core.Document):
             if isinstance(input.root, core.URI):
                 return self.GetResourceFromURI(
-                    uri.URI.from_octets(input.root.GetValue()))
+                    uri.URI.from_octets(input.root.get_value()))
             else:
                 raise core.InvalidData(
                     "Unable to parse link from request body (found <%s>)" %
@@ -1074,7 +1074,7 @@ class Server(app.Server):
             data = str('{"d":%s}' % entity.link_json())
         else:
             doc = core.Document(root=core.URI)
-            doc.root.SetValue(str(entity.get_location()))
+            doc.root.set_value(str(entity.get_location()))
             data = str(doc)
         response_headers.append(("Content-Type", str(responseType)))
         response_headers.append(("Content-Length", str(len(data))))
@@ -1109,7 +1109,7 @@ class Server(app.Server):
             f = core.Feed(None, entities)
             doc = core.Document(root=f)
             f.collection = entities
-            f.SetBase(str(self.serviceRoot))
+            f.set_base(str(self.serviceRoot))
             data = str(doc)
         response_headers.append(("Content-Type", str(responseType)))
         response_headers.append(("Content-Length", str(len(data))))
@@ -1162,7 +1162,7 @@ class Server(app.Server):
         if atomFlag:
             # read atom file
             doc = core.Document()
-            doc.Read(src=xml.XMLEntity(src=input, encoding=encoding))
+            doc.read(src=xml.XMLEntity(src=input, encoding=encoding))
             return doc
         else:
             if unicodeInput is None:
@@ -1177,7 +1177,7 @@ class Server(app.Server):
         if isinstance(input, core.Document):
             if isinstance(input.root, core.Entry):
                 # we have an entry, which is a relief!
-                input.root.GetValue(entity, self.GetResourceFromURI, True)
+                input.root.get_value(entity, self.GetResourceFromURI, True)
             else:
                 raise core.InvalidData(
                     "Unable to parse atom Entry from request "
@@ -1207,8 +1207,8 @@ class Server(app.Server):
         else:
             doc = core.Document(root=core.Entry)
             e = doc.root
-            e.SetBase(str(self.serviceRoot))
-            e.SetValue(entity)
+            e.set_base(str(self.serviceRoot))
+            e.set_value(entity)
             data = str(doc)
         response_headers.append(("Content-Type", str(responseType)))
         response_headers.append(("Content-Length", str(len(data))))
@@ -1257,7 +1257,7 @@ class Server(app.Server):
         input = self.ReadXMLOrJSON(environ)
         if isinstance(input, core.Document):
             if isinstance(input.root, core.Property):
-                input.root.GetValue(value)
+                input.root.get_value(value)
             else:
                 raise core.InvalidData(
                     "Unable to parse property from request body (found <%s>)" %
@@ -1302,9 +1302,9 @@ class Server(app.Server):
                     data = '{"d":{%s}}' % core.EntityPropertyInJSON(value)
         else:
             e = core.Property(None)
-            e.SetXMLName((core.ODATA_DATASERVICES_NAMESPACE, value.pDef.name))
+            e.set_xmlname((core.ODATA_DATASERVICES_NAMESPACE, value.pDef.name))
             doc = core.Document(root=e)
-            e.SetValue(value)
+            e.set_value(value)
             data = str(doc)
         response_headers.append(("Content-Type", str(responseType)))
         response_headers.append(("Content-Length", str(len(data))))
@@ -1415,13 +1415,13 @@ class Server(app.Server):
                 collection.GenerateCollectionInJSON(request.version))
         else:
             e = core.Collection(None)
-            e.SetXMLName((core.ODATA_METADATA_NAMESPACE, collection.name))
+            e.set_xmlname((core.ODATA_METADATA_NAMESPACE, collection.name))
             doc = core.Document(root=e)
             for value in collection:
-                p = e.ChildElement(core.Property)
-                p.SetXMLName((core.ODATA_DATASERVICES_NAMESPACE,
+                p = e.add_child(core.Property)
+                p.set_xmlname((core.ODATA_DATASERVICES_NAMESPACE,
                               value.pDef.name))
-                p.SetValue(value)
+                p.set_value(value)
             data = str(doc)
         response_headers.append(("Content-Type", str(responseType)))
         response_headers.append(("Content-Length", str(len(data))))

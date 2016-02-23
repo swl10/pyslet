@@ -45,6 +45,32 @@ Not sure which version you are using?  Try::
 Version 0.7
 -----------
 
+Build 20160223:
+
+#3 PEP-8 driven refactoring (ongoing)
+
+Refactored the xml namespace module into the xml sub-package.
+
+Removed any in-package deprecation warnings caused by method renaming
+in xml sub-package.
+
+Updated and completed move to new decorators for method renames. 
+Modified metaclass to surpress inherited documentation for renamed
+methods.  This was causing legacy names to be documented for all
+sub-classes and not just the class using the @old_method decorator.
+
+#38 Python 3 compatibility work (ongoing)
+
+Added namespace module in xml sub-package to list of Python 3 compatible
+modules.
+
+Untracked fixes:
+
+Use of nested generators was triggering future warnings in Python 3,
+refactored to catch StopIteration as per:
+https://www.python.org/dev/peps/pep-0479/
+
+
 Build 20160221:
 
 #3 PEP-8 driven refactoring (ongoing)
@@ -63,8 +89,8 @@ will warn you if you are using old-style names in your own scripts.
 
 http sub-package.  All tests now passing, including cookie module.
 Overall, Python 3 support in this sub-package should be considered alpha
-standard.  It is likely that some further fix-ups will needed once the
-higher-level modules are also converted.
+standard.  It is likely that some further fix-ups will be needed once
+the higher-level modules are also converted.
 
 xml sub-package.  All tests now passing, though namespaces are not yet
 migrated and rely on the automated method renames (see #3 above) which

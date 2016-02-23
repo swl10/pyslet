@@ -2,7 +2,7 @@
 
 from .py2 import py2
 import pyslet.xml.structures as xml
-import pyslet.xmlnames20091208 as xmlns
+import pyslet.xml.namespace as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.rfc2396 as uri
 
@@ -160,11 +160,11 @@ class XHTMLMixin(object):
 class XHTMLElement(XHTMLMixin, xmlns.XMLNSElement):
 
     """A base class for XHTML elements."""
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
     def AddToCPResource(self, cp, resource, beenThere):
         """See :py:meth:`pyslet.imsqtiv2p1.QTIElement.AddToCPResource`  """
-        for child in self.GetChildren():
+        for child in self.get_children():
             if hasattr(child, 'AddToCPResource'):
                 child.AddToCPResource(cp, resource, beenThere)
 
@@ -180,23 +180,23 @@ class XHTMLElement(XHTMLMixin, xmlns.XMLNSElement):
         # the default implementation creates a node under parent if our name is
         # in the profile
         if self.xmlname in profile:
-            newChild = parent.ChildElement(self.__class__)
+            newChild = parent.add_child(self.__class__)
             alist = profile[self.xmlname]
-            attrs = self.GetAttributes()
+            attrs = self.get_attributes()
             for aname in attrs.keys():
                 ns, name = aname
                 if ns is None and name in alist:
                     # this one is included
-                    newChild.SetAttribute(aname, attrs[aname])
-            for child in self.GetChildren():
+                    newChild.set_attribute(aname, attrs[aname])
+            for child in self.get_children():
                 if type(child) in StringTypes:
-                    newChild.AddData(child)
+                    newChild.add_data(child)
                 else:
                     child.RenderHTML(newChild, profile, arg)
 
     def RenderText(self):
         output = []
-        for child in self.GetChildren():
+        for child in self.get_children():
             if type(child) in StringTypes:
                 output.append(child)
             else:
@@ -538,18 +538,18 @@ class InlineContainer(XHTMLElement):
     """Base class for elements with content models consisting of inline elements
     ::
     <!ELEMENT XXXX - - (%inline;)*>"""
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """Implements omittag by returning None if stag_class is anything other than None (PCDATA), inline."""
         if stag_class is None or issubclass(stag_class, InlineMixin) or not issubclass(stag_class, XHTMLMixin):
             return stag_class
         else:
             return None
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if issubclass(childClass, InlineMixin) or not issubclass(childClass, XHTMLMixin):
-            return super(XHTMLElement, self).ChildElement(childClass, name)
+            return super(XHTMLElement, self).add_child(childClass, name)
         else:
             raise XHTMLValidityError(
                 "%s in %s" % (childClass.__name__, self.__class__.__name__))
@@ -723,7 +723,7 @@ class BaseFont(SpecialMixin, XHTMLElement):
     XMLATTR_size = 'size'
     XMLATTR_color = ('color', Color, Color.__unicode__)
     XMLATTR_face = 'face'
-    XMLCONTENT = xmlns.ElementType.Empty
+    XMLCONTENT = xml.ElementType.Empty
 
     def __init__(self, parent):
         super(BaseFont, self).__init__(parent)
@@ -773,7 +773,7 @@ class Br(CoreAttrsMixin, SpecialMixin, XHTMLElement):
               >"""
     XMLNAME = (XHTML_NAMESPACE, 'br')
     XMLATTR_clear = ('clear', Clear.DecodeLowerValue, Clear.EncodeValue)
-    XMLCONTENT = xmlns.ElementType.Empty
+    XMLCONTENT = xml.ElementType.Empty
 
 
 class Body(AttrsMixin, BodyColorsMixin, XHTMLElement):
@@ -793,9 +793,9 @@ class Body(AttrsMixin, BodyColorsMixin, XHTMLElement):
     XMLATTR_onload = 'onLoad'
     XMLATTR_onunload = 'onUnload'
     XMLATTR_background = ('background', DecodeURI, EncodeURI)
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """Handled omitted tags"""
         if stag_class is None:
             # data in Body implies DIV
@@ -815,9 +815,9 @@ class Body(AttrsMixin, BodyColorsMixin, XHTMLElement):
             raise XHTMLValidityError(
                 "%s in %s" % (stag_class.__name__, self.__class__.__name__))
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if issubclass(childClass, (BlockMixin, Script, Ins, Del)) or not issubclass(childClass, XHTMLMixin):
-            return super(XHTMLElement, self).ChildElement(childClass, name)
+            return super(XHTMLElement, self).add_child(childClass, name)
         else:
             raise XHTMLValidityError(
                 "%s in %s" % (childClass.__name__, self.__class__.__name__))
@@ -832,37 +832,37 @@ class Address(AttrsMixin, BlockMixin, InlineContainer):
               %attrs;                              -- %coreattrs, %i18n, %events --
               >"""
     XMLNAME = (XHTML_NAMESPACE, 'address')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """We add P to our inline container."""
         if stag_class is P:
             return stag_class
         else:
-            return super(Address, self).GetChildClass(stag_class)
+            return super(Address, self).get_child_class(stag_class)
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if childClass is P:
             return P(self, name)
         else:
-            return super(XHTMLElement, self).ChildElement(childClass, name)
+            return super(XHTMLElement, self).add_child(childClass, name)
 
 
 class FlowContainer(XHTMLElement):
 
     """Abstract class for all HTML elements that contain %flow;"""
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """If we get something other than, PCDATA, a flow or unknown element, assume end"""
         if stag_class is None or issubclass(stag_class, FlowMixin) or not issubclass(stag_class, XHTMLMixin):
             return stag_class
         else:
             return None
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if issubclass(childClass, FlowMixin) or not issubclass(childClass, XHTMLMixin):
-            return super(XHTMLElement, self).ChildElement(childClass, name)
+            return super(XHTMLElement, self).add_child(childClass, name)
         else:
             raise XHTMLValidityError(
                 "%s in %s" % (childClass.__name__, self.__class__.__name__))
@@ -872,7 +872,7 @@ class FlowContainer(XHTMLElement):
 
         We suppress pretty printing if we have any non-trivial data children or
         if we have any inline child elements."""
-        for child in self.GetChildren():
+        for child in self.get_children():
             if type(child) in StringTypes:
                 for c in child:
                     if not xml.is_s(c):
@@ -1260,9 +1260,9 @@ class A(AttrsMixin, SpecialMixin, InlineContainer):
 class BlockContainer(XHTMLElement):
 
     """Abstract class for all HTML elements that contain just %block;"""
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """If we get inline data in this context we force it to wrap in DIV"""
         if stag_class is None or issubclass(stag_class, InlineMixin):
             return Div
@@ -1271,9 +1271,9 @@ class BlockContainer(XHTMLElement):
         else:
             return None
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if issubclass(childClass, BlockMixin) or not issubclass(childClass, XHTMLMixin):
-            return super(XHTMLElement, self).ChildElement(childClass, name)
+            return super(XHTMLElement, self).add_child(childClass, name)
         else:
             raise XHTMLValidityError(
                 "%s in %s" % (childClass.__name__, self.__class__.__name__))
@@ -1296,18 +1296,18 @@ class Map(AttrsMixin, SpecialMixin, BlockContainer):
         super(Map, self).__init__(parent)
         self.name = ''
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """We add Area to our allowed content model."""
         if stag_class is Area:
             return Area
         else:
-            return super(Map, self).GetChildClass(stag_class)
+            return super(Map, self).get_child_class(stag_class)
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if childClass is Area:
             return Area(self, name)
         else:
-            return super(Map, self).ChildElement(childClass, name)
+            return super(Map, self).add_child(childClass, name)
 
 
 class NoHRef(NamedBoolean):
@@ -1346,7 +1346,7 @@ class Area(AttrsMixin, XHTMLElement):
     XMLATTR_accesskey = 'accessKey'
     XMLATTR_onfocus = 'onFocus'
     XMLATTR_onblur = 'onBlur'
-    XMLCONTENT = xmlns.ElementType.Empty
+    XMLCONTENT = xml.ElementType.Empty
 
     def __init__(self, parent):
         super(Area, self).__init__(parent)
@@ -1377,7 +1377,7 @@ class Link(AttrsMixin, HeadMiscMixin, XHTMLElement):
     XMLATTR_rel = ('rel', ValidateLinkType, None, list)
     XMLATTR_rev = ('rev', ValidateLinkType, None, list)
     XMLATTR_media = ('media', MediaDesc, MediaDesc.__unicode__)
-    XMLCONTENT = xmlns.ElementType.Empty
+    XMLCONTENT = xml.ElementType.Empty
 
 
 class MultiLength(LengthType):
@@ -1556,7 +1556,7 @@ class Img(AttrsMixin, SpecialMixin, XHTMLElement):
     XMLATTR_border = ('border', xsi.DecodeInteger, xsi.EncodeInteger)
     XMLATTR_border = ('hspace', xsi.DecodeInteger, xsi.EncodeInteger)
     XMLATTR_border = ('vspace', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLCONTENT = xmlns.ElementType.Empty
+    XMLCONTENT = xml.ElementType.Empty
 
     def __init__(self, parent):
         XHTMLElement.__init__(self, parent)
@@ -1569,9 +1569,9 @@ class Img(AttrsMixin, SpecialMixin, XHTMLElement):
             if f is None:
                 f = cp.FileCopy(resource, self.src)
                 beenThere[str(self.src)] = f
-            newSrc = f.ResolveURI(f.href)
+            newSrc = f.resolve_uri(f.href)
             # Finally, we need change our src attribute
-            self.src = self.RelativeURI(newSrc)
+            self.src = self.relative_uri(newSrc)
 
 
 #
@@ -1582,7 +1582,7 @@ class Img(AttrsMixin, SpecialMixin, XHTMLElement):
 class HR(BlockMixin, XHTMLElement):
     # <!ELEMENT HR - O EMPTY -- horizontal rule -->
     XMLNAME = (XHTML_NAMESPACE, 'hr')
-    XMLCONTENT = xmlns.ElementType.Empty
+    XMLCONTENT = xml.ElementType.Empty
 
 
 class Ins(AttrsMixin, FlowContainer):
@@ -1600,7 +1600,7 @@ class Ins(AttrsMixin, FlowContainer):
     XMLNAME = (XHTML_NAMESPACE, 'ins')
     XMLATTR_cite = ('cite', DecodeURI, EncodeURI)
     XMLATTR_datetime = ('dateTime', xsi.DecodeDateTime, xsi.EncodeDateTime)
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class Del(FlowContainer):
@@ -1616,13 +1616,13 @@ class Del(FlowContainer):
       >"""
     XMLNAME = (XHTML_NAMESPACE, 'del')
     XMLATTR_datetime = ('dateTime', xsi.DecodeDateTime, xsi.EncodeDateTime)
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class List(BlockMixin, XHTMLElement):
     # <!ENTITY % list "UL | OL">
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """If we get raw data in this context we assume an LI even though STag is compulsory."""
         if stag_class is None or issubclass(stag_class, FlowMixin):
             return LI
@@ -1637,9 +1637,9 @@ class List(BlockMixin, XHTMLElement):
 class Blockquote(BlockMixin, XHTMLElement):
     # <!ELEMENT BLOCKQUOTE - - (%block;|SCRIPT)+ -- long quotation -->
     XMLNAME = (XHTML_NAMESPACE, 'blockquote')
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """If we get raw data in this context we assume a P to move closer to strict DTD
         (loose DTD allows any flow so raw data would be OK)."""
         if stag_class is None:
@@ -1657,40 +1657,40 @@ class Heading(BlockMixin, InlineContainer):
 
 class H1(Heading):
     XMLNAME = (XHTML_NAMESPACE, 'h1')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class H2(Heading):
     XMLNAME = (XHTML_NAMESPACE, 'h2')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class H3(Heading):
     XMLNAME = (XHTML_NAMESPACE, 'h3')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class H4(Heading):
     XMLNAME = (XHTML_NAMESPACE, 'h4')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class H5(Heading):
     XMLNAME = (XHTML_NAMESPACE, 'h5')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class H6(Heading):
     XMLNAME = (XHTML_NAMESPACE, 'h6')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class P(BlockMixin, InlineContainer):
     # <!ELEMENT P - O (%inline;)*            -- paragraph -->
     XMLNAME = (XHTML_NAMESPACE, 'p')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """End tag can be omitted."""
         if stag_class and issubclass(stag_class, InlineMixin):
             return stag_class
@@ -1702,7 +1702,7 @@ class Pre(BlockMixin, InlineContainer):
     # <!ENTITY % pre.exclusion "IMG|OBJECT|BIG|SMALL|SUB|SUP">
     # <!ELEMENT PRE - - (%inline;)* -(%pre.exclusion;) -- preformatted text -->
     XMLNAME = (XHTML_NAMESPACE, 'pre')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
     def PrettyPrint(self):
         return False
@@ -1711,7 +1711,7 @@ class Pre(BlockMixin, InlineContainer):
 class Q(SpecialMixin, InlineContainer):
     # <!ELEMENT Q - - (%inline;)*            -- short inline quotation -->
     XMLNAME = (XHTML_NAMESPACE, 'q')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 # List Elements
@@ -1719,9 +1719,9 @@ class Q(SpecialMixin, InlineContainer):
 class DL(BlockMixin, XHTMLElement):
     # <!ELEMENT DL - - (DT|DD)+              -- definition list -->
     XMLNAME = (XHTML_NAMESPACE, 'dl')
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """If we get raw data in this context we assume a DD"""
         if stag_class is None:
             return DD
@@ -1734,9 +1734,9 @@ class DL(BlockMixin, XHTMLElement):
 class DT(InlineContainer):
     # <!ELEMENT DT - O (%inline;)*           -- definition term -->
     XMLNAME = (XHTML_NAMESPACE, 'dt')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """End tag can be omitted."""
         if stag_class and issubclass(stag_class, InlineMixin):
             return stag_class
@@ -1747,25 +1747,25 @@ class DT(InlineContainer):
 class DD(FlowContainer):
     # <!ELEMENT DD - O (%flow;)*             -- definition description -->
     XMLNAME = (XHTML_NAMESPACE, 'dd')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class OL(List):
     # <!ELEMENT OL - - (LI)+                 -- ordered list -->
     XMLNAME = (XHTML_NAMESPACE, 'ol')
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
 
 class UL(List):
     # <!ELEMENT UL - - (LI)+                 -- ordered list -->
     XMLNAME = (XHTML_NAMESPACE, 'ul')
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
 
 class LI(FlowContainer):
     # <!ELEMENT LI - O (%flow;)*             -- list item -->
     XMLNAME = (XHTML_NAMESPACE, 'li')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 # Form Elements
@@ -1811,7 +1811,7 @@ class Form(AttrsMixin, BlockMixin, BlockContainer):
     XMLATTR_enctype = 'enctype'
     XMLATTR_accept = 'accept'
     XMLATTR_name = 'name'
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
     def __init__(self, parent):
         BlockContainer.__init__(self, parent)
@@ -1834,7 +1834,7 @@ class Label(FormCtrlMixin, InlineContainer):
       >
     """
     XMLNAME = (XHTML_NAMESPACE, 'label')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class InputType(xsi.Enumeration):
@@ -1935,7 +1935,7 @@ class Input(FormCtrlMixin, AttrsMixin, XHTMLElement):
     XMLATTR_onchange = 'onchange'
     XMLATTR_accept = 'accept'
 
-    XMLCONTENT = xmlns.ElementType.Empty
+    XMLCONTENT = xml.ElementType.Empty
 
     def __init__(self, parent):
         XHTMLElement.__init__(self, parent)
@@ -1961,7 +1961,7 @@ class Select(AttrsMixin, FormCtrlMixin, XHTMLElement):
       >
     """
     XMLNAME = (XHTML_NAMESPACE, 'select')
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
     def __init__(self, parent):
         XHTMLElement.__init__(self, parent)
@@ -1977,7 +1977,7 @@ class Select(AttrsMixin, FormCtrlMixin, XHTMLElement):
         self.options.append(child)
         return child
 
-    def GetChildren(self):
+    def get_children(self):
         return iter(self.options)
 
 
@@ -1994,14 +1994,14 @@ class OptGroup(AttrsMixin, XHTMLElement):
     """
     XMLNAME = (XHTML_NAMESPACE, 'optgroup')
     XMLATTR_label = 'label'
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
     def __init__(self, parent):
         XHTMLElement.__init__(self, parent)
         self.label = ''
         self.Option = []
 
-    def GetChildren(self):
+    def get_children(self):
         return iter(self.Option)
 
 
@@ -2019,7 +2019,7 @@ class Option(XHTMLElement):
       >
     """
     XMLNAME = (XHTML_NAMESPACE, 'option')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class TextArea(FormCtrlMixin, XHTMLElement):
@@ -2044,7 +2044,7 @@ class TextArea(FormCtrlMixin, XHTMLElement):
       >
     """
     XMLNAME = (XHTML_NAMESPACE, 'textarea')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class FieldSet(AttrsMixin, BlockMixin, FlowContainer):
@@ -2057,28 +2057,28 @@ class FieldSet(AttrsMixin, BlockMixin, FlowContainer):
       >
     """
     XMLNAME = (XHTML_NAMESPACE, 'fieldset')
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
     def __init__(self, parent):
         FlowContainer.__init__(self, parent)
         self.Legend = Legend(self)
 
-    def GetChildren(self):
+    def get_children(self):
         yield self.Legend
-        for child in FlowContainer.GetChildren(self):
+        for child in FlowContainer.get_children(self):
             yield child
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         if stag_class is not None and issubclass(stag_class, Legend):
             return stag_class
         else:
-            return FlowContainer.GetChildClass(self, stag_class)
+            return FlowContainer.get_child_class(self, stag_class)
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if issubclass(childClass, Legend):
-            return super(XHTMLElement, self).ChildElement(childClass, name)
+            return super(XHTMLElement, self).add_child(childClass, name)
         else:
-            return FlowContainer.ChildElement(self, childClass, name)
+            return FlowContainer.add_child(self, childClass, name)
 
 
 class Legend(InlineContainer):
@@ -2093,7 +2093,7 @@ class Legend(InlineContainer):
       >
     """
     XMLNAME = (XHTML_NAMESPACE, 'legend')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class ButtonType(xsi.Enumeration):
@@ -2136,7 +2136,7 @@ class Button(AttrsMixin, FormCtrlMixin, FlowContainer):
     XMLATTR_accesskey = ('accesskey', DecodeCharacter, None)
     XMLATTR_onfocus = 'onfocus'
     XMLATTR_onblur = 'onblur'
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
     def __init__(self, parent):
         FlowContainer.__init__(self, parent)
@@ -2190,12 +2190,12 @@ class Object(AttrsMixin, SpecialMixin, HeadMiscMixin, XHTMLElement):
     XMLATTR_usemap = ('usemap', DecodeURI, EncodeURI)
     XMLATTR_name = 'name'
     XMLATTR_tabindex = ('tabindex', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """stag_class should not be None"""
         if stag_class is None:
-            raise XHTMLError("Object: Unexpected None in GetChildClass")
+            raise XHTMLError("Object: Unexpected None in get_child_class")
         elif issubclass(stag_class, (Param, FlowMixin)) or not issubclass(stag_class, XHTMLElement):
             return stag_class
         else:
@@ -2207,14 +2207,14 @@ class Object(AttrsMixin, SpecialMixin, HeadMiscMixin, XHTMLElement):
             if f is None:
                 f = cp.FileCopy(resource, self.data)
                 beenThere[str(self.data)] = f
-            newData = f.ResolveURI(f.href)
-            self.data = self.RelativeURI(newData)
+            newData = f.resolve_uri(f.href)
+            self.data = self.relative_uri(newData)
 
 
 class Param(XHTMLElement):
     # <!ELEMENT PARAM - O EMPTY              -- named property value -->
     XMLNAME = (XHTML_NAMESPACE, 'param')
-    XMLCONTENT = xmlns.ElementType.Empty
+    XMLCONTENT = xml.ElementType.Empty
 
 # Table Elements
 
@@ -2222,9 +2222,9 @@ class Param(XHTMLElement):
 class Table(BlockMixin, XHTMLElement):
     # <!ELEMENT TABLE - - (CAPTION?, (COL*|COLGROUP*), THEAD?, TFOOT?, TBODY+)>
     XMLNAME = (XHTML_NAMESPACE, 'table')
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """PCDATA triggers the TBody"""
         if stag_class is None or issubclass(stag_class, TR):
             return TBody
@@ -2237,12 +2237,12 @@ class Table(BlockMixin, XHTMLElement):
 class Caption(InlineContainer):
     # <!ELEMENT CAPTION  - - (%inline;)*     -- table caption -->
     XMLNAME = (XHTML_NAMESPACE, 'caption')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class TRContainer(XHTMLElement):
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """PCDATA or TH|TD trigger TR"""
         if stag_class is None or issubclass(stag_class, (TH, TD)):
             return TR
@@ -2255,27 +2255,27 @@ class TRContainer(XHTMLElement):
 class THead(TRContainer):
     # <!ELEMENT THEAD    - O (TR)+           -- table header -->
     XMLNAME = (XHTML_NAMESPACE, 'thead')
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
 
 class TFoot(TRContainer):
     # <!ELEMENT TFOOT    - O (TR)+           -- table footer -->
     XMLNAME = (XHTML_NAMESPACE, 'tfoot')
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
 
 class TBody(TRContainer):
     # <!ELEMENT TBODY    O O (TR)+           -- table body -->
     XMLNAME = (XHTML_NAMESPACE, 'tbody')
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
 
 class ColGroup(XHTMLElement):
     # <!ELEMENT COLGROUP - O (COL)*          -- table column group -->
     XMLNAME = (XHTML_NAMESPACE, 'colgroup')
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """PCDATA in ColGroup ends the ColGroup"""
         if stag_class is None:
             return None
@@ -2288,15 +2288,15 @@ class ColGroup(XHTMLElement):
 class Col(BlockMixin, XHTMLElement):
     # <!ELEMENT COL      - O EMPTY           -- table column -->
     XMLNAME = (XHTML_NAMESPACE, 'col')
-    XMLCONTENT = xmlns.ElementType.Empty
+    XMLCONTENT = xml.ElementType.Empty
 
 
 class TR(XHTMLElement):
     # <!ELEMENT TR       - O (TH|TD)+        -- table row -->
     XMLNAME = (XHTML_NAMESPACE, 'tr')
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """PCDATA in TR starts a TD"""
         if stag_class is None:
             return TD
@@ -2309,13 +2309,13 @@ class TR(XHTMLElement):
 class TH(FlowContainer):
     # <!ELEMENT (TH|TD)  - O (%flow;)*       -- table header cell, table data cell-->
     XMLNAME = (XHTML_NAMESPACE, 'th')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class TD(FlowContainer):
     # <!ELEMENT (TH|TD)  - O (%flow;)*       -- table header cell, table data cell-->
     XMLNAME = (XHTML_NAMESPACE, 'td')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 # Link Element
@@ -2348,14 +2348,14 @@ class Frameset(FrameElement):
       >
     """
     XMLNAME = (XHTML_NAMESPACE, 'frameset')
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
     def __init__(self, parent):
         FrameElement.__init__(self, parent)
         self.FrameElement = []
         self.NoFrames = None
 
-    def GetChildren(self):
+    def get_children(self):
         for child in self.FrameElement:
             yield child
         if self.NoFrames:
@@ -2381,7 +2381,7 @@ class Frame(FrameElement):
       >
     """
     XMLNAME = (XHTML_NAMESPACE, 'frame')
-    XMLCONTENT = xmlns.ElementType.Empty
+    XMLCONTENT = xml.ElementType.Empty
 
 
 class IFrame(SpecialMixin, FlowContainer):
@@ -2405,7 +2405,7 @@ class IFrame(SpecialMixin, FlowContainer):
       >
     """
     XMLNAME = (XHTML_NAMESPACE, 'iframe')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class NoFrames(FlowContainer):
@@ -2429,9 +2429,9 @@ class NoFrames(FlowContainer):
         FlowContainer.__init__(self, parent)
         self.Body = None
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """In a FRAMESET document, any element in NOFRAMES introduces Body"""
-        if self.FindParent(Frameset):
+        if self.find_parent(Frameset):
             return Body
         else:
             return stag_class
@@ -2440,11 +2440,11 @@ class NoFrames(FlowContainer):
             else:
                 return None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Body:
             yield Body
         else:
-            for child in FlowContainer.GetChildren(self):
+            for child in FlowContainer.get_children(self):
                 yield child
 
 
@@ -2471,7 +2471,7 @@ class Head(I18nMixin, XHTMLElement):
     """
     XMLNAME = (XHTML_NAMESPACE, 'head')
     XMLATTR_profile = ('profile', DecodeURI, EncodeURI)
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
     def __init__(self, parent):
         XHTMLElement.__init__(self, parent)
@@ -2479,7 +2479,7 @@ class Head(I18nMixin, XHTMLElement):
         self.Base = None
         self.HeadMiscMixin = []
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         if stag_class is None:
             # PCDATA in Head indicates end of Head, start of Body
             return None
@@ -2490,13 +2490,13 @@ class Head(I18nMixin, XHTMLElement):
             # anything else terminates HEAD
             return None
 
-    def GetChildren(self):
+    def get_children(self):
         yield self.Title
         if self.Base:
             yield self.Base
         for child in itertools.chain(
                 self.HeadMiscMixin,
-                XHTMLElement.GetChildren(self)):
+                XHTMLElement.get_children(self)):
             yield child
 
     def RenderText(self):
@@ -2511,7 +2511,7 @@ class Title(I18nMixin, HeadContentMixin, XHTMLElement):
     <!ATTLIST TITLE %i18n>
     """
     XMLNAME = (XHTML_NAMESPACE, 'title')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
 
 class Meta(I18nMixin, HeadMiscMixin, XHTMLElement):
@@ -2528,7 +2528,7 @@ class Meta(I18nMixin, HeadMiscMixin, XHTMLElement):
       >
     """
     XMLNAME = (XHTML_NAMESPACE, 'meta')
-    XMLCONTENT = xmlns.ElementType.Empty
+    XMLCONTENT = xml.ElementType.Empty
 
 
 class Base(HeadContentMixin, XHTMLElement):
@@ -2542,7 +2542,7 @@ class Base(HeadContentMixin, XHTMLElement):
     """
     XMLNAME = (XHTML_NAMESPACE, 'base')
     XMLATTR_base = ('base', DecodeURI, EncodeURI)
-    XMLCONTENT = xmlns.ElementType.Empty
+    XMLCONTENT = xml.ElementType.Empty
 
 
 class Style(I18nMixin, HeadMiscMixin, XHTMLElement):
@@ -2561,8 +2561,8 @@ class Style(I18nMixin, HeadMiscMixin, XHTMLElement):
     XMLATTR_type = 'type'
     XMLATTR_media = 'media'
     XMLATTR_title = 'title'
-    XMLCONTENT = xmlns.XMLMixedContent
-    SGMLCONTENT = xmlns.SGMLCDATA
+    XMLCONTENT = xml.XMLMixedContent
+    SGMLCONTENT = xml.SGMLCDATA
 
     def __init__(self, parent):
         XHTMLElement.__init__(self, parent)
@@ -2584,8 +2584,8 @@ class Script(SpecialMixin, HeadMiscMixin, XHTMLElement):
       >
     """
     XMLNAME = (XHTML_NAMESPACE, 'script')
-    XMLCONTENT = xmlns.XMLMixedContent
-    SGMLCONTENT = xmlns.SGMLCDATA
+    XMLCONTENT = xml.XMLMixedContent
+    SGMLCONTENT = xml.SGMLCDATA
 
 
 class NoScript(BlockMixin, FlowContainer):
@@ -2599,14 +2599,14 @@ class NoScript(BlockMixin, FlowContainer):
       >
     """
     XMLNAME = (XHTML_NAMESPACE, 'noscript')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
-    def ChildElement(self, childClass, name=None):
-        if self.FindParent(Head) and issubclass(childClass, (Link, Style, Meta)):
+    def add_child(self, childClass, name=None):
+        if self.find_parent(Head) and issubclass(childClass, (Link, Style, Meta)):
             # HTML5 compatibility, bypass normal FlowContainer handling.
-            return super(XHTMLElement, self).ChildElement(childClass, name)
+            return super(XHTMLElement, self).add_child(childClass, name)
         else:
-            return FlowContainer.ChildElement(self, childClass, name)
+            return FlowContainer.add_child(self, childClass, name)
 
 
 # Document Body
@@ -2626,14 +2626,14 @@ class HTML(I18nMixin, XHTMLElement):
               >
     """
     XMLNAME = (XHTML_NAMESPACE, 'html')
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
     def __init__(self, parent):
         XHTMLElement.__init__(self, parent)
         self.Head = Head(self)
         self.Body = Body(self)
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """Overridden to ensure we always return either HEAD or BODY, we can accommodate any tag!"""
         if stag_class and issubclass(stag_class, (Head, HeadContentMixin, Style, Meta, Link)):
             # possibly missing STag for HEAD; we leave out Script
@@ -2643,7 +2643,7 @@ class HTML(I18nMixin, XHTMLElement):
             # body by default
             return Body
 
-    def GetChildren(self):
+    def get_children(self):
         yield self.Head
         yield self.Body
 
@@ -2723,7 +2723,7 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 
     Although HTML documents are not always represented using XML they can be,
     and therefore we base our implementation on the
-    :class:`pyslet.xmlnames20091208.XMLNSDocument` class - a namespace-aware
+    :class:`pyslet.xml.namespace.XMLNSDocument` class - a namespace-aware
     variant of the basic :class:`pyslet.xml.Document` class."""
 
     classMap = {}
@@ -2731,7 +2731,7 @@ class XHTMLDocument(xmlns.XMLNSDocument):
 	used to represent them.  This mapping is initialized when the module is
 	loaded."""
 
-    DefaultNS = XHTML_NAMESPACE  # : the default namespace for HTML elements
+    default_ns = XHTML_NAMESPACE  # : the default namespace for HTML elements
 
     def __init__(self, **args):
         xmlns.XMLNSDocument.__init__(self, **args)
@@ -2745,7 +2745,7 @@ class XHTMLDocument(xmlns.XMLNSDocument):
         parser is used instead.
 
         You won't normally need to call this method as it is invoked automatically
-        when you call :meth:`pyslet.xml.Document.Read`.
+        when you call :meth:`pyslet.xml.Document.read`.
 
         The result is always a proper element hierarchy rooted in an HTML node,
         even if no tags are present at all the parser will construct an HTML
@@ -2756,7 +2756,7 @@ class XHTMLDocument(xmlns.XMLNSDocument):
         else:
             raise XHTMLMimeTypeError(entity.mimetype)
 
-    def GetChildClass(self, stag_class):
+    def get_child_class(self, stag_class):
         """Always returns HTML."""
         return HTML
 
@@ -2767,7 +2767,7 @@ class XHTMLDocument(xmlns.XMLNSDocument):
             eClass = XHTMLDocument.classMap.get(lcName, xmlns.XMLNSElement)
         return eClass
 
-xmlns.MapClassElements(XHTMLDocument.classMap, globals())
+xmlns.map_class_elements(XHTMLDocument.classMap, globals())
 
 
 """sgmlOmittag Feature:

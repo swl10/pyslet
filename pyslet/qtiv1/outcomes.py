@@ -41,8 +41,8 @@ class OutcomesProcessing(common.QTICommentContainer):
         self.MapOutput = []
         self.OutcomesFeedbackTest = []
 
-    def GetChildren(self):
-        for child in common.QTICommentContainer.GetChildren():
+    def get_children(self):
+        for child in common.QTICommentContainer.get_children():
             yield child
         yield self.Outcomes
         for child in itertools.chain(
@@ -123,8 +123,8 @@ class ObjectsCondition(common.QTICommentContainer):
         self.MapInput = []
         self.ObjectsCondExtension = None
 
-    def GetChildren(self):
-        for child in common.QTICommentContainer.GetChildren(self):
+    def get_children(self):
+        for child in common.QTICommentContainer.get_children(self):
             yield child
         if self.OutcomesOperator:
             yield self.OutcomesOperator
@@ -208,7 +208,7 @@ class OutcomesFeedbackTest(core.QTIElement):
         self.TestVariable = TestVariable(self)
         self.DisplayFeedback = []
 
-    def GetChildren(self):
+    def get_children(self):
         yield self.TestVariable
         for child in self.DisplayFeedback:
             yield child
@@ -262,7 +262,7 @@ class AndObjects(OutcomesOperator):
         OutcomesOperator.__init__(self, parent)
         self.OutcomesOperator = []
 
-    def GetChildren(self):
+    def get_children(self):
         return iter(self.OutcomesOperator)
 
 
@@ -281,7 +281,7 @@ class OrObjects(OutcomesOperator):
         OutcomesOperator.__init__(self, parent)
         self.OutcomesOperator = []
 
-    def GetChildren(self):
+    def get_children(self):
         return iter(self.OutcomesOperator)
 
 
@@ -300,7 +300,7 @@ class NotObjects(OutcomesOperator):
         OutcomesOperator.__init__(self, parent)
         self.OutcomesOperator = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.OutcomesOperator:
             yield self.OutcomesOperator
 
@@ -320,7 +320,7 @@ class TestVariable(core.QTIElement):
         core.QTIElement.__init__(self, parent)
         self.OutcomesTest = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.OutcomesTest:
             yield self.OutcomesTest
 

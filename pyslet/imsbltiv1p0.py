@@ -21,7 +21,7 @@ import pyslet.odata2.sqlds as sql
 import pyslet.wsgi as wsgi
 import pyslet.xml.structures as xml
 
-from pyslet.pep8 import renamed_method
+from pyslet.pep8 import MigratedClass, old_method
 from pyslet.rfc2396 import URI
 from pyslet.urn import URN
 
@@ -306,7 +306,7 @@ def load_metadata():
     mdir = os.path.split(os.path.abspath(__file__))[0]
     metadata = edmx.Document()
     with open(os.path.join(mdir, 'imsbltiv1p0_metadata.xml'), 'rb') as f:
-        metadata.Read(f)
+        metadata.read(f)
     return metadata
 
 
@@ -619,7 +619,7 @@ class ToolConsumer(object):
         return user
 
 
-class ToolProvider(oauth.RequestValidator):
+class ToolProvider(oauth.RequestValidator, MigratedClass):
 
     """An LTI tool provider object
 
@@ -708,6 +708,7 @@ class ToolProvider(oauth.RequestValidator):
         with self.consumers.OpenCollection() as collection:
             return ToolConsumer(collection[wsgi.key60(key)], self.cipher)
 
+    @old_method('Launch')
     def launch(self, command, url, headers, body_string):
         """Checks a launch request for authorization
 
@@ -903,7 +904,7 @@ class ToolProviderApp(wsgi.SessionApp):
             os.path.join(mdir, 'imsbltiv1p0_metadata.xml'))
         metadata = edmx.Document()
         with open(metadata_file, 'rb') as f:
-            metadata.Read(f)
+            metadata.read(f)
         return metadata
 
     def __init__(self, **kwargs):
@@ -1213,9 +1214,9 @@ class ToolProviderApp(wsgi.SessionApp):
 </html>"""
         self.load_visit(context)
         params = {'user':
-                  xml.EscapeCharData7(self.get_user_display_name(context)),
+                  xml.escape_char_data7(self.get_user_display_name(context)),
                   'title':
-                  xml.EscapeCharData7(self.get_resource_title(context))
+                  xml.escape_char_data7(self.get_resource_title(context))
                   }
         data = page % params
         context.set_status(200)
@@ -1265,10 +1266,7 @@ class BLTIToolProvider(ToolProvider):
         ToolProvider.__init__(self, self.container['Consumers'],
                               self.container['Nonces'], cipher)
 
-    @renamed_method
-    def GenerateKey(self, key_length=128):   # noqa
-        pass
-
+    @old_method('GenerateKey')
     def generate_key(self, key_length=128):
         """Generates a new key
 
@@ -1298,10 +1296,7 @@ class BLTIToolProvider(ToolProvider):
                 key.append(string.join(four, ''))
         return string.join(key, '.')
 
-    @renamed_method
-    def NewConsumer(self, key=None):    # noqa
-        pass
-
+    @old_method('NewConsumer')
     def new_consumer(self, key=None, secret=None):
         """Creates a new BLTIConsumer instance
 
@@ -1325,10 +1320,7 @@ class BLTIToolProvider(ToolProvider):
             raise BLTIDuplicateKeyError(key)
         return key, secret
 
-    @renamed_method
-    def LoadFromFile(self, f):  # noqa
-        pass
-
+    @old_method('LoadFromFile')
     def load_from_file(self, f):
         """Loads the list of trusted consumers
 
@@ -1352,10 +1344,7 @@ class BLTIToolProvider(ToolProvider):
                 except KeyError:
                     self.new_consumer(fields[0], fields[1])
 
-    @renamed_method
-    def SaveToFile(self, f):    # noqa
-        pass
-
+    @old_method('SaveToFile')
     def save_to_file(self, f):
         """Saves the list of trusted consumers
 
@@ -1372,7 +1361,3 @@ class BLTIToolProvider(ToolProvider):
             keys.sort()
             for key in keys:
                 f.write("%s %s\n" % (key, consumers[key]))
-
-    @renamed_method
-    def Launch(self, command, url, headers, query_string):  # noqa
-        pass

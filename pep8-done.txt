@@ -21,10 +21,10 @@ pyslet/iso8601.py
 unittests/test_iso8601.py
 pyslet/mysqldbds.py
 unittests/test_mysqldbds.py
-pyslet/odata2/metadata.py
-pyslet/odata2/memds.py
 unittests/test_odata2_csdl.py
 unittests/test_odata2_edmx.py
+pyslet/odata2/metadata.py
+pyslet/odata2/memds.py
 unittests/test_odata2_memds.py
 pyslet/odata2/sqlds.py
 unittests/test_odata2_sqlds.py
@@ -52,6 +52,8 @@ pyslet/wsgi.py
 unittests/test_wsgi.py
 pyslet/wsgi_django.py
 unittests/test_wsgi_django.py
+pyslet/xml/namespace.py
+unittests/test_xml_namespace.py
 pyslet/xml/parser.py
 unittests/test_xml_parser.py
 pyslet/xml/structures.py

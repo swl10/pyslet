@@ -3,7 +3,7 @@
 """
 
 import pyslet.xml.structures as xml
-import pyslet.xmlnames20091208 as xmlns
+import pyslet.xml.namespace as xmlns
 import pyslet.xsdatatypes20041028 as xsdatatypes
 import pyslet.html40_19991224 as html
 import pyslet.rfc2396 as uri
@@ -59,7 +59,7 @@ class RubricBlock(html.BlockMixin, content.BodyElement):
     XMLNAME = (core.IMSQTI_NAMESPACE, 'rubricBlock')
     XMLATTR_view = (
         'view', core.View.DecodeLowerValue, core.View.EncodeValue, types.DictType)
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         content.BodyElement.__init__(self, parent)
@@ -75,9 +75,9 @@ class RubricBlock(html.BlockMixin, content.BodyElement):
             raise ValueError("illegal value for view: %s" % view)
 
     # need to constrain content to html.BlockMixin
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if issubclass(childClass, html.BlockMixin):
-            return content.BodyElement.ChildElement(self, childClass, name)
+            return content.BodyElement.add_child(self, childClass, name)
         else:
             # This child cannot go in here
             raise core.QTIValidityError(
@@ -115,7 +115,7 @@ class QTIModalFeedback(content.FlowContainerMixin, core.QTIElement):
         'showHide', core.ShowHide.DecodeLowerValue, core.ShowHide.EncodeValue)
     XMLATTR_identifier = ('identifier', core.ValidateIdentifier, lambda x: x)
     XMLATTR_title = 'title'
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
@@ -124,24 +124,24 @@ class QTIModalFeedback(content.FlowContainerMixin, core.QTIElement):
         self.identifier = None
         self.title = None
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if issubclass(childClass, html.FlowMixin):
-            return core.QTIElement.ChildElement(self, childClass, name)
+            return core.QTIElement.add_child(self, childClass, name)
         else:
             # This child cannot go in here
             raise core.QTIValidityError(
                 "%s in %s" % (repr(name), self.__class__.__name__))
 
 
-xmlns.MapClassElements(core.QTIDocument.classMap, globals())
-xmlns.MapClassElements(core.QTIDocument.classMap, variables)
-xmlns.MapClassElements(core.QTIDocument.classMap, processing)
-xmlns.MapClassElements(core.QTIDocument.classMap, content)
-xmlns.MapClassElements(core.QTIDocument.classMap, interactions)
-xmlns.MapClassElements(core.QTIDocument.classMap, items)
-xmlns.MapClassElements(core.QTIDocument.classMap, tests)
-xmlns.MapClassElements(core.QTIDocument.classMap, expressions)
-xmlns.MapClassElements(core.QTIDocument.classMap, md)
+xmlns.map_class_elements(core.QTIDocument.classMap, globals())
+xmlns.map_class_elements(core.QTIDocument.classMap, variables)
+xmlns.map_class_elements(core.QTIDocument.classMap, processing)
+xmlns.map_class_elements(core.QTIDocument.classMap, content)
+xmlns.map_class_elements(core.QTIDocument.classMap, interactions)
+xmlns.map_class_elements(core.QTIDocument.classMap, items)
+xmlns.map_class_elements(core.QTIDocument.classMap, tests)
+xmlns.map_class_elements(core.QTIDocument.classMap, expressions)
+xmlns.map_class_elements(core.QTIDocument.classMap, md)
 # also add in the profile of HTML but with the namespace rewritten to ours
 for name in QTI_HTMLProfile:
     eClass = html.XHTMLDocument.classMap.get(

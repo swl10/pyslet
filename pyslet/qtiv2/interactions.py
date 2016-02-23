@@ -1,7 +1,8 @@
 #! /usr/bin/env python
 
-import pyslet.xmlnames20091208 as xmlns
+import pyslet.xml.namespace as xmlns
 import pyslet.html40_19991224 as html
+import pyslet.xml.structures as xml
 import pyslet.xsdatatypes20041028 as xsi
 
 import pyslet.qtiv2.core as core
@@ -43,13 +44,13 @@ class BlockInteraction(html.BlockMixin, Interaction):
                             <xsd:element ref="prompt" minOccurs="0" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         Interaction.__init__(self, parent)
         self.Prompt = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Prompt:
             yield self.Prompt
 
@@ -65,21 +66,21 @@ class Prompt(content.BodyElement):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'prompt')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
     def __init__(self, parent):
         content.BodyElement.__init__(self, parent)
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if issubclass(childClass, html.InlineMixin):
-            return content.BodyElement.ChildElement(self, childClass, name)
+            return content.BodyElement.add_child(self, childClass, name)
         else:
             # This child cannot go in here
             raise core.QTIValidityError(
                 "%s in %s" % (childClass.__name__, self.__class__.__name__))
 
     def RenderHTML(self, parent, profile, itemState):
-        htmlP = parent.ChildElement(html.P)
+        htmlP = parent.add_child(html.P)
         htmlP.styleClass = "prompt"
         self.RenderHTMLChildren(htmlP, profile, itemState)
 
@@ -162,14 +163,14 @@ class ChoiceInteraction(BlockInteraction):
         self.minChoices = None
         self.SimpleChoice = []
 
-    def GetChildren(self):
-        for child in itertools.chain(BlockInteraction.GetChildren(self), self.SimpleChoice):
+    def get_children(self):
+        for child in itertools.chain(BlockInteraction.get_children(self), self.SimpleChoice):
             yield child
 
     def RenderHTML(self, parent, profile, itemState):
-        htmlDiv = parent.ChildElement(html.Div)
+        htmlDiv = parent.add_child(html.Div)
         htmlDiv.styleClass = "choiceInteraction"
-        for child in self.GetChildren():
+        for child in self.get_children():
             child.RenderHTML(htmlDiv, profile, itemState)
 
 
@@ -209,16 +210,16 @@ class OrderInteraction(BlockInteraction):
         self.orientation = None
         self.SimpleChoice = []
 
-    def GetChildren(self):
+    def get_children(self):
         for child in itertools.chain(
-                BlockInteraction.GetChildren(self),
+                BlockInteraction.get_children(self),
                 self.SimpleChoice):
             yield child
 
     def RenderHTML(self, parent, profile, itemState):
-        htmlDiv = parent.ChildElement(html.Div)
+        htmlDiv = parent.add_child(html.Div)
         htmlDiv.styleClass = "orderInteraction"
-        for child in self.GetChildren():
+        for child in self.get_children():
             child.RenderHTML(htmlDiv, profile, itemState)
 
 
@@ -233,11 +234,11 @@ class SimpleChoice(content.FlowContainerMixin, Choice):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'simpleChoice')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if issubclass(childClass, html.FlowMixin):
-            return Choice.ChildElement(self, childClass, name)
+            return Choice.add_child(self, childClass, name)
         else:
             # This child cannot go in here
             raise core.QTIValidityError(
@@ -245,12 +246,12 @@ class SimpleChoice(content.FlowContainerMixin, Choice):
 
     def RenderHTML(self, parent, profile, itemState):
         # what type of choice are we?
-        interaction = self.FindParent(Interaction)
+        interaction = self.find_parent(Interaction)
         if isinstance(interaction, ChoiceInteraction):
             # represented as a DL with DD for each choice
-            htmlDiv = parent.ChildElement(html.Div)
+            htmlDiv = parent.add_child(html.Div)
             htmlDiv.styleClass = 'simpleChoice'
-            htmlInput = htmlDiv.ChildElement(html.Input)
+            htmlInput = htmlDiv.add_child(html.Input)
             sName = interaction.responseIdentifier + ".SAVED"
             if sName in itemState:
                 v = itemState[sName]
@@ -310,16 +311,16 @@ class AssociateInteraction(BlockInteraction):
         self.minAssociations = None
         self.SimpleAssociableChoice = []
 
-    def GetChildren(self):
+    def get_children(self):
         for child in itertools.chain(
-                BlockInteraction.GetChildren(self),
+                BlockInteraction.get_children(self),
                 self.SimpleAssociableChoice):
             yield child
 
     def RenderHTML(self, parent, profile, itemState):
-        htmlDiv = parent.ChildElement(html.Div)
+        htmlDiv = parent.add_child(html.Div)
         htmlDiv.styleClass = "associateInteraction"
-        for child in self.GetChildren():
+        for child in self.get_children():
             child.RenderHTML(htmlDiv, profile, itemState)
 
 
@@ -356,16 +357,16 @@ class MatchInteraction(BlockInteraction):
         self.minAssociations = None
         self.SimpleMatchSet = []
 
-    def GetChildren(self):
+    def get_children(self):
         for child in itertools.chain(
-                BlockInteraction.GetChildren(self),
+                BlockInteraction.get_children(self),
                 self.SimpleMatchSet):
             yield child
 
     def RenderHTML(self, parent, profile, itemState):
-        htmlDiv = parent.ChildElement(html.Div)
+        htmlDiv = parent.add_child(html.Div)
         htmlDiv.styleClass = "matchInteraction"
-        for child in self.GetChildren():
+        for child in self.get_children():
             child.RenderHTML(htmlDiv, profile, itemState)
 
 
@@ -388,16 +389,16 @@ class SimpleAssociableChoice(content.FlowContainerMixin, AssociableChoice):
     XMLNAME = (core.IMSQTI_NAMESPACE, 'simpleAssociableChoice')
     XMLATTR_matchMax = ('matchMax', xsi.DecodeInteger, xsi.EncodeInteger)
     XMLATTR_matchMin = ('matchMin', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
     def __init__(self, parent):
         AssociableChoice.__init__(self, parent)
         self.matchMax = None
         self.matchMin = None
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if issubclass(childClass, html.FlowMixin):
-            return Choice.ChildElement(self, childClass, name)
+            return Choice.add_child(self, childClass, name)
         else:
             # This child cannot go in here
             raise core.QTIValidityError(
@@ -415,13 +416,13 @@ class SimpleMatchSet(core.QTIElement):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'simpleMatchSet')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
         self.SimpleAssociableChoice = []
 
-    def GetChildren(self):
+    def get_children(self):
         for child in self.SimpleAssociableChoice:
             yield child
 
@@ -451,26 +452,26 @@ class GapMatchInteraction(BlockInteraction):
         self.shuffle = False
         self.GapChoice = []
 
-    def GetChildren(self):
+    def get_children(self):
         for child in itertools.chain(
-                BlockInteraction.GetChildren(self),
+                BlockInteraction.get_children(self),
                 self.GapChoice):
             yield child
-        for child in content.BodyElement.GetChildren(self):
+        for child in content.BodyElement.get_children(self):
             yield child
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if issubclass(childClass, (Prompt, GapChoice, html.BlockMixin)):
-            return BlockInteraction.ChildElement(self, childClass, name)
+            return BlockInteraction.add_child(self, childClass, name)
         else:
             # This child cannot go in here
             raise core.QTIValidityError(
                 "%s in %s" % (repr(name), self.__class__.__name__))
 
     def RenderHTML(self, parent, profile, itemState):
-        htmlDiv = parent.ChildElement(html.Div)
+        htmlDiv = parent.add_child(html.Div)
         htmlDiv.styleClass = "gapMatchInteraction"
-        for child in self.GetChildren():
+        for child in self.get_children():
             child.RenderHTML(htmlDiv, profile, itemState)
 
 
@@ -485,7 +486,7 @@ class Gap(html.InlineMixin, AssociableChoice):
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'gap')
     XMLATTR_required = ('required', xsi.DecodeBoolean, xsi.EncodeBoolean)
-    XMLCONTENT = xmlns.XMLEmpty
+    XMLCONTENT = xml.XMLEmpty
 
     def __init__(self, parent):
         AssociableChoice.__init__(self, parent)
@@ -523,11 +524,11 @@ class GapText(GapChoice):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'gapText')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if issubclass(childClass, content.PrintedVariable):
-            return GapChoice.ChildElement(self, childClass, name)
+            return GapChoice.add_child(self, childClass, name)
         else:
             # This child cannot go in here
             raise core.QTIValidityError(
@@ -551,7 +552,7 @@ class GapImg(GapChoice):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'gapImg')
     XMLATTR_objectLabel = 'objectLabel'
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         GapChoice.__init__(self, parent)
@@ -559,7 +560,7 @@ class GapImg(GapChoice):
         self.Object = html.Object(self)
         content.FixHTMLNamespace(self.Object)
 
-    def GetChildren(self):
+    def get_children(self):
         yield self.Object
 
 
@@ -582,7 +583,7 @@ class InlineChoiceInteraction(InlineInteraction):
     XMLNAME = (core.IMSQTI_NAMESPACE, 'inlineChoiceInteraction')
     XMLATTR_shuffle = ('shuffle', xsi.DecodeBoolean, xsi.EncodeBoolean)
     XMLATTR_required = ('required', xsi.DecodeBoolean, xsi.EncodeBoolean)
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         InlineInteraction.__init__(self, parent)
@@ -590,7 +591,7 @@ class InlineChoiceInteraction(InlineInteraction):
         self.required = False
         self.InlineChoice = []
 
-    def GetChildren(self):
+    def get_children(self):
         for child in self.InlineChoice:
             yield child
 
@@ -606,11 +607,11 @@ class InlineChoice(Choice):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'inlineChoice')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if issubclass(childClass, content.PrintedVariable):
-            return Choice.ChildElement(self, childClass, name)
+            return Choice.add_child(self, childClass, name)
         else:
             # This child cannot go in here
             raise core.QTIValidityError(
@@ -651,7 +652,7 @@ class TextEntryInteraction(StringInteractionMixin, InlineInteraction):
     """A textEntry interaction is an inlineInteraction that obtains a simple
     piece of text from the candidate."""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'textEntryInteraction')
-    XMLCONTENT = xmlns.XMLEmpty
+    XMLCONTENT = xml.XMLEmpty
 
     def __init__(self, parent):
         InlineInteraction.__init__(self, parent)
@@ -746,9 +747,9 @@ class HottextInteraction(BlockInteraction):
         self.maxChoices = 1
         self.minChoices = None
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if issubclass(childClass, (Prompt, html.BlockMixin)):
-            return BlockInteraction.ChildElement(self, childClass, name)
+            return BlockInteraction.add_child(self, childClass, name)
         else:
             # This child cannot go in here
             raise core.QTIValidityError(
@@ -766,11 +767,11 @@ class Hottext(html.FlowMixin, Choice):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'hottext')
-    XMLCONTENT = xmlns.XMLMixedContent
+    XMLCONTENT = xml.XMLMixedContent
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if issubclass(childClass, html.InlineMixin):
-            return Choice.ChildElement(self, childClass, name)
+            return Choice.add_child(self, childClass, name)
         else:
             # This child cannot go in here
             raise core.QTIValidityError(
@@ -808,7 +809,7 @@ class HotspotChoice(HotspotMixin, Choice):
                     <xsd:attributeGroup ref="hotspot.AttrGroup"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'hotspotChoice')
-    XMLCONTENT = xmlns.XMLEmpty
+    XMLCONTENT = xml.XMLEmpty
 
     def __init__(self, parent):
         Choice.__init__(self, parent)
@@ -829,7 +830,7 @@ class AssociableHotspot(HotspotMixin, AssociableChoice):
     XMLNAME = (core.IMSQTI_NAMESPACE, 'associableHotspot')
     XMLATTR_matchMax = ('matchMax', xsi.DecodeInteger, xsi.EncodeInteger)
     XMLATTR_matchMin = ('matchMin', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLCONTENT = xmlns.XMLEmpty
+    XMLCONTENT = xml.XMLEmpty
 
     def __init__(self, parent):
         AssociableChoice.__init__(self, parent)
@@ -855,8 +856,8 @@ class GraphicInteraction(BlockInteraction):
         self.Object = html.Object(self)
         content.FixHTMLNamespace(self.Object)
 
-    def GetChildren(self):
-        for child in BlockInteraction.GetChildren(self):
+    def get_children(self):
+        for child in BlockInteraction.get_children(self):
             yield child
         yield self.Object
 
@@ -888,9 +889,9 @@ class HotspotInteraction(GraphicInteraction):
         self.minChoices = None
         self.HotspotChoice = []
 
-    def GetChildren(self):
+    def get_children(self):
         return itertools.chain(
-            GraphicInteraction.GetChildren(self),
+            GraphicInteraction.get_children(self),
             self.HotspotChoice)
 
 

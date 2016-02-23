@@ -120,7 +120,7 @@ class QMLDocumentTests(unittest.TestCase):
 
     def testCaseExample1(self):
         doc = QMLDocument()
-        doc.Read(src=StringIO(EXAMPLE_1))
+        doc.read(src=StringIO(EXAMPLE_1))
         root = doc.root
         self.assertTrue(isinstance(root, QMLQuestion))
         self.assertTrue(root.xmlname == 'QUESTION')
@@ -133,11 +133,11 @@ class QMLDocumentTests(unittest.TestCase):
 
     def testCaseExample2(self):
         doc = QMLDocument()
-        doc.Read(src=StringIO(EXAMPLE_2))
+        doc.read(src=StringIO(EXAMPLE_2))
         root = doc.root
         self.assertTrue(isinstance(root, QML))
         self.assertTrue(root.xmlname == 'QML')
-        # self.assertTrue(root.QTIComment.GetValue()=='Example2')
+        # self.assertTrue(root.QTIComment.get_value()=='Example2')
         # objects=doc.root.objectList
         #self.assertTrue(len(objects)==1 and isinstance(objects[0],QTIItem))
         # self.assertTrue(len(root.objectList)==1)

@@ -30,17 +30,17 @@ def fetch_url(url, username=None, password=None):
         cred.protectionSpace = url.get_canonical_root()
         mgr.add_credentials(cred)
     doc = edmx.Document(baseURI=url, reqManager=mgr)
-    doc.Read()
+    doc.read()
     mgr.close()
-    if not doc.root.GetBase():
-        doc.root.SetBase(url)
+    if not doc.root.get_base():
+        doc.root.set_base(url)
     return doc
 
 
 def load_file(filename):
     doc = edmx.Document()
     with open(filename, 'rb') as f:
-        doc.Read(f)
+        doc.read(f)
     return doc
 
 
@@ -61,15 +61,15 @@ def write_doc(doc, template, out):
     ds = doc.root.DataServices
     if len(ds.Schema) != 1:
         logging.warn("Documenting the first Schema tag only")
-    params['namespace'] = xml.EscapeCharData7(ds.Schema[0].name)
+    params['namespace'] = xml.escape_char_data7(ds.Schema[0].name)
     sdoc = ds.Schema[0].Documentation
     if sdoc is not None:
         if sdoc.Summary is not None:
-            params['summary'] = "%s" % xml.EscapeCharData7(
-                sdoc.Summary.GetValue())
+            params['summary'] = "%s" % xml.escape_char_data7(
+                sdoc.Summary.get_value())
         if sdoc.LongDescription is not None:
-            params['description'] = "%s" % xml.EscapeCharData7(
-                sdoc.LongDescription.GetValue())
+            params['description'] = "%s" % xml.escape_char_data7(
+                sdoc.LongDescription.get_value())
     tables = []
     dl_items = []
     index_items = []
@@ -84,13 +84,13 @@ def write_doc(doc, template, out):
         for esn in es_list:
             es = ec[esn]
             dl_items.append('<dt><a href=%s>%s</a></dt>' %
-                            (xml.EscapeCharData7("#" + es.name, True),
-                             xml.EscapeCharData7(es.name)))
+                            (xml.escape_char_data7("#" + es.name, True),
+                             xml.escape_char_data7(es.name)))
             index_items.append((es.name, es.name, "entity set"))
             if es.Documentation is not None:
                 if es.Documentation.Summary is not None:
-                    dl_items.append('<dd>%s</dd>' % xml.EscapeCharData7(
-                        es.Documentation.Summary.GetValue()))
+                    dl_items.append('<dd>%s</dd>' % xml.escape_char_data7(
+                        es.Documentation.Summary.get_value()))
             tables.append(es_table(es, index_items))
     params['entity_list'] = string.join(dl_items, '\n')
     params['tables'] = string.join(tables, "\n\n")
@@ -99,11 +99,11 @@ def write_doc(doc, template, out):
     cname = ''
     for name, link, note in index_items:
         if name != cname:
-            index_dl.append('<dt>%s</dt>' % xml.EscapeCharData7(name))
+            index_dl.append('<dt>%s</dt>' % xml.escape_char_data7(name))
             cname = name
         index_dl.append('<dd><a href=%s>%s</a></dd>' %
-                        (xml.EscapeCharData7("#" + link, True),
-                         xml.EscapeCharData7(note)))
+                        (xml.escape_char_data7("#" + link, True),
+                         xml.escape_char_data7(note)))
     params['index'] = string.join(index_dl, '\n')
     out.write(data % params)
     return 0
@@ -124,7 +124,7 @@ def es_table(es, index_items):
     <tbody>%(body)s</tbody>
 </table>"""
     params = {
-        'anchor': xml.EscapeCharData7(es.name, True),
+        'anchor': xml.escape_char_data7(es.name, True),
         'title': '',
         'summary': '',
         'description': '',
@@ -132,20 +132,20 @@ def es_table(es, index_items):
     tb = []
     type = es.entityType
     if type.has_stream():
-        params['title'] = (xml.EscapeCharData7(es.name) +
+        params['title'] = (xml.escape_char_data7(es.name) +
                            " <em>(Media Resource)</em>")
     else:
-        params['title'] = xml.EscapeCharData7(es.name)
+        params['title'] = xml.escape_char_data7(es.name)
     typedoc = type.Documentation
     if typedoc is not None:
         if typedoc.Summary is not None:
             params['summary'] = (
                 '<p class="summary">%s</p>' %
-                xml.EscapeCharData7(typedoc.Summary.GetValue()))
+                xml.escape_char_data7(typedoc.Summary.get_value()))
         if typedoc.LongDescription is not None:
             params['description'] = (
                 '<p class="description">%s</p>' %
-                xml.EscapeCharData7(typedoc.LongDescription.GetValue()))
+                xml.escape_char_data7(typedoc.LongDescription.get_value()))
     for p in type.Property:
         if p.name in es.keys:
             tr = ['<tr class="key">']
@@ -154,18 +154,18 @@ def es_table(es, index_items):
         link = '%s.%s' % (es.name, p.name)
         tr.append("<td><a id=%s>%s</a></td>" % (
             xml.EscapeCharData(link, True),
-            xml.EscapeCharData7(p.name)))
+            xml.escape_char_data7(p.name)))
         index_items.append((p.name, link, "property of %s" % es.name))
-        tr.append("<td>%s</td>" % xml.EscapeCharData7(p.type))
+        tr.append("<td>%s</td>" % xml.escape_char_data7(p.type))
         tr.append("<td>%s</td>" % ("Optional" if p.nullable else "Required"))
         summary = description = ""
         if p.Documentation is not None:
             if p.Documentation.Summary:
-                summary = p.Documentation.Summary.GetValue()
+                summary = p.Documentation.Summary.get_value()
             if p.Documentation.LongDescription:
-                description = p.Documentation.LongDescription.GetValue()
-        tr.append("<td>%s</td>" % xml.EscapeCharData7(summary))
-        tr.append("<td>%s</td>" % xml.EscapeCharData7(description))
+                description = p.Documentation.LongDescription.get_value()
+        tr.append("<td>%s</td>" % xml.escape_char_data7(summary))
+        tr.append("<td>%s</td>" % xml.escape_char_data7(description))
         tr.append("</tr>")
         tb.append(string.join(tr, ''))
     for np in type.NavigationProperty:
@@ -173,21 +173,21 @@ def es_table(es, index_items):
         link = '%s.%s' % (es.name, np.name)
         tr.append("<td><a id=%s>%s</a></td>" % (
             xml.EscapeCharData(link, True),
-            xml.EscapeCharData7(np.name)))
+            xml.escape_char_data7(np.name)))
         index_items.append((np.name, link, "navigation property of %s" %
                             es.name))
         tr.append("<td><em>%s</em></td>" %
-                  xml.EscapeCharData7(es.NavigationTarget(np.name).name))
+                  xml.escape_char_data7(es.NavigationTarget(np.name).name))
         tr.append("<td>%s</td>" %
                   edm.EncodeMultiplicity(np.to_end.multiplicity))
         summary = description = ""
         if np.Documentation is not None:
             if np.Documentation.Summary:
-                summary = np.Documentation.Summary.GetValue()
+                summary = np.Documentation.Summary.get_value()
             if np.Documentation.LongDescription:
-                description = np.Documentation.LongDescription.GetValue()
-        tr.append("<td>%s</td>" % xml.EscapeCharData7(summary))
-        tr.append("<td>%s</td>" % xml.EscapeCharData7(description))
+                description = np.Documentation.LongDescription.get_value()
+        tr.append("<td>%s</td>" % xml.escape_char_data7(summary))
+        tr.append("<td>%s</td>" % xml.escape_char_data7(description))
         tr.append("</tr>")
         tb.append(string.join(tr, ''))
 

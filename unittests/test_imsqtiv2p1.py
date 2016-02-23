@@ -51,10 +51,10 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(v.value is None, "Value should be None")
         self.assertTrue(
             v.baseType is variables.BaseType.string, "NULL value with known type.")
-        v.SetValue("x")
+        v.set_value("x")
         self.assertTrue(not v.IsNull(), "Null test with value")
         self.assertTrue(v, "Null zero/false test on creation.")
-        v.SetValue(None)
+        v.set_value(None)
         self.assertTrue(v.IsNull(), "Null test with Non value")
         self.assertFalse(v, "Null zero/false test with Non value.")
         self.assertTrue(
@@ -68,18 +68,18 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(
             v.baseType is variables.BaseType.identifier, "baseType on creation")
         for vIn in ('name', 'goodName'):
-            v.SetValue(vIn)
+            v.set_value(vIn)
             self.assertTrue(
                 type(v.value) is types.UnicodeType, "Value type on set")
             self.assertTrue(v.value == vIn, "Good strings")
         for vIn in ('1', '.Name'):
             try:
-                v.SetValue(vIn)
+                v.set_value(vIn)
                 self.fail("Error string: %s" % vIn)
             except ValueError:
                 pass
         try:
-            v.SetValue(".Name", False)
+            v.set_value(".Name", False)
         except ValueError:
             self.fail("Bad name with nameCheck=False")
 
@@ -90,14 +90,14 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(
             v.baseType is variables.BaseType.boolean, "baseType on creation")
         for vIn in ('true', '1', True, 1, 2L):
-            v.SetValue(vIn)
+            v.set_value(vIn)
             self.assertTrue(v.value is True, "True values")
         for vIn in ('false', '0', False, 0, 0L):
-            v.SetValue(vIn)
+            v.set_value(vIn)
             self.assertTrue(v.value is False, "False values")
         for vIn in ('True', 'Yes', "FALSE", "2", 3.14):
             try:
-                v.SetValue(vIn)
+                v.set_value(vIn)
                 self.fail("Error string: %s" % repr(vIn))
             except ValueError:
                 pass
@@ -109,13 +109,13 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(
             v.baseType is variables.BaseType.integer, "baseType on creation")
         for vIn in ('1', '-2', 3, 4L, '+0'):
-            v.SetValue(vIn)
+            v.set_value(vIn)
             self.assertTrue(
                 type(v.value) is types.IntType, "Value type on set: %s" % repr(type(v.value)))
             self.assertTrue(v.value == int(vIn), "Good strings")
         for vIn in ('1.3', 'pi', 3.14, '2+2'):
             try:
-                v.SetValue(vIn)
+                v.set_value(vIn)
                 self.fail("Error string: %s" % vIn)
             except ValueError:
                 pass
@@ -128,13 +128,13 @@ class ValueTests(unittest.TestCase):
             self.assertTrue(v.value is None, "Value should be None")
             self.assertTrue(v.baseType is t, "baseType on creation")
             for vIn in ('1', '-2', 3.141, 4.0, '2.', '+2', '1E4'):
-                v.SetValue(vIn)
+                v.set_value(vIn)
                 self.assertTrue(
                     type(v.value) is types.FloatType, "Value type on set: %s" % repr(type(v.value)))
                 self.assertTrue(v.value == float(vIn), "Good strings")
             for vIn in (' 1.3', 'pi', '.', '1E', '1.3 ', '2+2'):
                 try:
-                    v.SetValue(vIn)
+                    v.set_value(vIn)
                     self.fail("Error string: %s" % repr(vIn))
                 except ValueError:
                     pass
@@ -146,16 +146,16 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(
             v.baseType is variables.BaseType.string, "baseType on creation")
         # Empty containers and empty strings are always treated as NULL values.
-        v.SetValue('')
+        v.set_value('')
         self.assertTrue(v.IsNull(), "Null test with empty string.")
         for vIn in ('1', '-2', '2.', '+2', u'Hello', "Bye"):
-            v.SetValue(vIn)
+            v.set_value(vIn)
             self.assertTrue(type(v.value) is types.UnicodeType,
                             "Value type on set: %s" % repr(type(v.value)))
             self.assertTrue(v.value == vIn, "Good strings")
         for vIn in (3.141, 4.0, 1):
             try:
-                v.SetValue(vIn)
+                v.set_value(vIn)
                 self.fail("Error string: %s" % repr(vIn))
             except ValueError:
                 pass
@@ -167,7 +167,7 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(
             v.baseType is variables.BaseType.point, "baseType on creation")
         for vIn in ('1 2', '4 -2', (3, 4), [-1, 4L], '+0 -0'):
-            v.SetValue(vIn)
+            v.set_value(vIn)
             self.assertTrue(type(v.value) is types.TupleType,
                             "Value type on set: %s" % repr(type(v.value)))
             self.assertTrue(len(v.value) == 2, "Good strings")
@@ -175,7 +175,7 @@ class ValueTests(unittest.TestCase):
                 v.value[0]) == types.IntType, "Good point! %s" % repr(v.value))
         for vIn in ('1.3 1', 'pi', 3, '2+2', (1, 2, 3), {1: True, 2: True}):
             try:
-                v.SetValue(vIn)
+                v.set_value(vIn)
                 self.fail("Error string: %s" % vIn)
             except ValueError:
                 pass
@@ -189,7 +189,7 @@ class ValueTests(unittest.TestCase):
             self.assertTrue(v.value is None, "Value should be None")
             self.assertTrue(v.baseType is t, "baseType on creation")
             for vIn in (('nameB', 'nameA'), "goodName badName", ["A", "B"]):
-                v.SetValue(vIn)
+                v.set_value(vIn)
                 self.assertTrue(
                     type(v.value) is types.TupleType, "Value type on set")
                 self.assertTrue(len(v.value) == 2, "Good identifiers")
@@ -202,16 +202,16 @@ class ValueTests(unittest.TestCase):
                     dpPass = True
             for vIn in ('1 2', '.NameA .NameB', (1, "A"), ["a", "b", "c"]):
                 try:
-                    v.SetValue(vIn)
+                    v.set_value(vIn)
                     self.fail("Error string: %s" % vIn)
                 except ValueError:
                     pass
             try:
-                v.SetValue((".NameA", ".NameB"), False)
+                v.set_value((".NameA", ".NameB"), False)
             except ValueError:
                 self.fail("nameCheck=False parsing from tuple")
             try:
-                v.SetValue(".NameA .NameB", False)
+                v.set_value(".NameA .NameB", False)
                 self.fail("nameCheck=False parsing from string")
             except ValueError:
                 pass
@@ -227,18 +227,18 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(v.value is None, "Value should be None")
         self.assertTrue(
             v.baseType is variables.BaseType.identifier, "baseType forced on creation")
-        v.SetValue([], variables.BaseType.string)
+        v.set_value([], variables.BaseType.string)
         self.assertTrue(v.IsNull(), "Null test on empty list.")
         self.assertTrue(v.value is None, "Value should be None")
         self.assertTrue(
             v.baseType == variables.BaseType.string, "baseType is unknown on empty list")
-        v.SetValue([None], None)
+        v.set_value([None], None)
         self.assertTrue(
             v.IsNull(), "Null test on list with a single NULL value.")
         self.assertTrue(v.value is None, "Value should be None")
         self.assertTrue(
             v.baseType is variables.BaseType.string, "baseType inherited when unspecified")
-        v.SetValue(["A", "B", None], variables.BaseType.identifier)
+        v.set_value(["A", "B", None], variables.BaseType.identifier)
         self.assertFalse(v.IsNull(), "Null test on non-empty list.")
         self.assertTrue(
             type(v.value) == types.ListType, "Value should be a list")
@@ -247,10 +247,10 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(
             len(v.value) == 2, "NULL value should be ignored by SetValue")
         self.assertTrue(v.value[1] == u"B", "value on set")
-        v.SetValue((u"C", u"D"), variables.BaseType.string)
+        v.set_value((u"C", u"D"), variables.BaseType.string)
         self.assertTrue(v.value[1] == u"D", "set from tuple")
         try:
-            v.SetValue(["A", 3], variables.BaseType.string)
+            v.set_value(["A", 3], variables.BaseType.string)
             self.fail("No error on mixed type values")
         except ValueError:
             pass
@@ -265,18 +265,18 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(v.value is None, "Value should be None")
         self.assertTrue(
             v.baseType is variables.BaseType.identifier, "baseType forced on creation")
-        v.SetValue([])
+        v.set_value([])
         self.assertTrue(v.IsNull(), "Null test on empty list.")
         self.assertTrue(v.value is None, "Value should be None")
         self.assertTrue(
             v.baseType is variables.BaseType.identifier, "baseType inherited when unspecified")
-        v.SetValue([None], variables.BaseType.string)
+        v.set_value([None], variables.BaseType.string)
         self.assertTrue(
             v.IsNull(), "Null test on list with a single NULL value.")
         self.assertTrue(v.value is None, "Value should be None")
         self.assertTrue(v.baseType is variables.BaseType.string,
                         "baseType is known, NULL value in list")
-        v.SetValue(["A", "A", None, "B"], variables.BaseType.identifier)
+        v.set_value(["A", "A", None, "B"], variables.BaseType.identifier)
         self.assertFalse(v.IsNull(), "Null test on non-empty list.")
         self.assertTrue(
             type(v.value) == types.DictType, "Value should be a dictionary")
@@ -285,10 +285,10 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(len(v.value.keys()) == 2,
                         "NULL value should be ignored by SetValue: %s" % repr(v.value))
         self.assertTrue(v.value[u'A'] == 2, "frequency of value on set")
-        v.SetValue((u"C", u"D"), variables.BaseType.string)
+        v.set_value((u"C", u"D"), variables.BaseType.string)
         self.assertTrue(v.value[u"D"] == 1, "set from tuple")
         try:
-            v.SetValue(["A", 3.14, "B"], variables.BaseType.string)
+            v.set_value(["A", 3.14, "B"], variables.BaseType.string)
             self.fail("No error on mixed type values")
         except ValueError:
             pass
@@ -299,18 +299,18 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(v.value is None, "Value should be None")
         self.assertTrue(
             v.baseType is None, "baseType is unknown for record containers")
-        v.SetValue({})
+        v.set_value({})
         self.assertTrue(v.IsNull(), "Null test on empty list.")
         self.assertTrue(v.value is None, "Value should be None")
         self.assertTrue(
             v.baseType is None, "baseType is unknown for record containers")
-        v.SetValue({'x': None})
+        v.set_value({'x': None})
         self.assertTrue(
             v.IsNull(), "Null test on list with a single NULL value.")
         self.assertTrue(v.value is None, "Value should be None")
         self.assertTrue(
             v.baseType is None, "baseType is unknown for record containers")
-        v.SetValue({
+        v.set_value({
             u'x': variables.IdentifierValue(u"Hello"),
             u'y': None,
             u'pi': variables.FloatValue(3.14159)
@@ -384,7 +384,7 @@ class VariableTests(unittest.TestCase):
     <responseDeclaration identifier="RESPONSE_ENULL" cardinality="single" baseType="string"/>
 </assessmentItem>"""
         doc = core.QTIDocument()
-        doc.Read(src=StringIO(SAMPLE))
+        doc.read(src=StringIO(SAMPLE))
         rd = doc.root.ResponseDeclaration[0].GetDefaultValue()
         self.assertTrue(
             isinstance(rd, variables.Value), "Default value not a Value")
@@ -441,7 +441,7 @@ class VariableTests(unittest.TestCase):
     <responseDeclaration identifier="RESPONSE_C" cardinality="single" baseType="string"/>
 </assessmentItem>"""
         doc = core.QTIDocument()
-        doc.Read(src=StringIO(SAMPLE))
+        doc.read(src=StringIO(SAMPLE))
         rc = doc.root.ResponseDeclaration[0].GetCorrectValue()
         self.assertTrue(
             isinstance(rc, variables.Value), "Correct value not a Value")
@@ -485,7 +485,7 @@ class VariableTests(unittest.TestCase):
     </responseDeclaration>
 </assessmentItem>"""
         doc = core.QTIDocument()
-        doc.Read(src=StringIO(SAMPLE))
+        doc.read(src=StringIO(SAMPLE))
         mapping = doc.root.ResponseDeclaration[0].Mapping
         self.assertTrue(mapping.baseType is variables.BaseType.identifier,
                         "Base type of mapping auto-discovered")
@@ -499,14 +499,14 @@ class VariableTests(unittest.TestCase):
                 "ABDD": 11.0,
                 "": 0.0}.items():
             value = variables.MultipleContainer(mapping.baseType)
-            value.SetValue(iter(v))
+            value.set_value(iter(v))
             mValue = mapping.MapValue(value)
             self.assertTrue(
                 isinstance(mValue, variables.FloatValue), "MapValue response type")
             self.assertTrue(
                 mValue.value == mv, "Mapping failed for multiple %s, returned %.1f" % (v, mValue.value))
             value = variables.OrderedContainer(mapping.baseType)
-            value.SetValue(iter(v))
+            value.set_value(iter(v))
             mValue = mapping.MapValue(value)
             self.assertTrue(
                 mValue.value == mv, "Mapping failed for ordered %s, returned %.1f" % (v, mValue.value))
@@ -528,7 +528,7 @@ class VariableTests(unittest.TestCase):
     </responseDeclaration>
 </assessmentItem>"""
         doc = core.QTIDocument()
-        doc.Read(src=StringIO(SAMPLE))
+        doc.read(src=StringIO(SAMPLE))
         mapping = doc.root.ResponseDeclaration[0].AreaMapping
         for v, mv in {
                 ((12, 13),): 8.0,
@@ -542,14 +542,14 @@ class VariableTests(unittest.TestCase):
                 ((12, 13), (12, 8), (42, 9), (42, 8),): 11.0,
                 (): 0.0}.items():
             value = variables.MultipleContainer(variables.BaseType.point)
-            value.SetValue(iter(v))
+            value.set_value(iter(v))
             mValue = mapping.MapValue(value, 50, 50)
             self.assertTrue(
                 isinstance(mValue, variables.FloatValue), "MapValue response type")
             self.assertTrue(
                 mValue.value == mv, "AreaMapping failed for multiple %s, returned %.1f" % (v, mValue.value))
             value = variables.OrderedContainer(variables.BaseType.point)
-            value.SetValue(iter(v))
+            value.set_value(iter(v))
             mValue = mapping.MapValue(value, 50, 50)
             self.assertTrue(
                 mValue.value == mv, "Mapping failed for ordered %s, returned %.1f" % (v, mValue.value))
@@ -586,7 +586,7 @@ class VariableTests(unittest.TestCase):
     </outcomeDeclaration>
 </assessmentItem>"""
         doc = core.QTIDocument()
-        doc.Read(src=StringIO(SAMPLE))
+        doc.read(src=StringIO(SAMPLE))
         matchTable = doc.root.OutcomeDeclaration[0].LookupTable
         interpolationTable = doc.root.OutcomeDeclaration[1].LookupTable
         self.assertTrue(matchTable.baseType is variables.BaseType.identifier,
@@ -639,7 +639,7 @@ class VariableTests(unittest.TestCase):
     identifier="TestCase" title="Test Case" adaptive="false" timeDependent="false">
 </assessmentItem>"""
         doc = core.QTIDocument()
-        doc.Read(src=StringIO(SAMPLE))
+        doc.read(src=StringIO(SAMPLE))
         sessionState = variables.ItemSessionState(doc.root)
         self.assertTrue(
             sessionState.item == doc.root, "Session State item pointer")
@@ -706,7 +706,7 @@ class VariableTests(unittest.TestCase):
     </templateDeclaration>
 </assessmentItem>"""
         doc = core.QTIDocument()
-        doc.Read(src=StringIO(SAMPLE))
+        doc.read(src=StringIO(SAMPLE))
         sessionState = variables.ItemSessionState(doc.root)
         self.assertTrue(len(
             sessionState) == 15, "6 defined + 3 built-in variables + 1 correct + 5 defaults")
@@ -771,11 +771,11 @@ class VariableTests(unittest.TestCase):
         value = sessionState['RESPONSE']
         self.assertTrue(
             value.value == u"A", "RESPONSE set to default at start of first attempt")
-        value.SetValue(u"B")
+        value.set_value(u"B")
         value = sessionState['completionStatus']
         self.assertTrue(value.value == u"unknown",
                         "completionStatus set to unknown at start of first attempt: %s" % value.value)
-        value.SetValue("completed")
+        value.set_value("completed")
         sessionState.EndAttempt()
         sessionState.BeginAttempt()
         value = sessionState['numAttempts']
@@ -798,7 +798,7 @@ class VariableTests(unittest.TestCase):
 	</testPart>
 </assessmentTest>"""
         doc = core.QTIDocument()
-        doc.Read(src=StringIO(SAMPLE))
+        doc.read(src=StringIO(SAMPLE))
         form = tests.TestForm(doc.root)
         sessionState = variables.TestSessionState(form)
         self.assertTrue(
@@ -900,7 +900,7 @@ class ResponseProcessingTests(unittest.TestCase):
     </responseProcessing>
 </assessmentItem>"""
         self.doc = core.QTIDocument()
-        self.doc.Read(src=StringIO(SAMPLE))
+        self.doc.read(src=StringIO(SAMPLE))
         self.sessionState = variables.ItemSessionState(self.doc.root)
         self.sessionState.BeginSession()
 
@@ -965,9 +965,9 @@ class ResponseProcessingTests(unittest.TestCase):
     def testCaseError(self):
         rule = processing.SetOutcomeValue(None)
         rule.identifier = "RESPONSE"
-        v = rule.ChildElement(expressions.BaseValue)
+        v = rule.add_child(expressions.BaseValue)
         v.baseType = variables.BaseType.identifier
-        v.AddData("A")
+        v.add_data("A")
         try:
             rule.Run(self.sessionState)
             self.fail("<setOutcomeValue> sets RESPONSE")
@@ -1047,7 +1047,7 @@ class TemplateProcessingTests(unittest.TestCase):
     </templateProcessing>
 </assessmentItem>"""
         self.doc = core.QTIDocument()
-        self.doc.Read(src=StringIO(SAMPLE))
+        self.doc.read(src=StringIO(SAMPLE))
         self.sessionState = variables.ItemSessionState(self.doc.root)
 
     def tearDown(self):
@@ -1120,9 +1120,9 @@ class TemplateProcessingTests(unittest.TestCase):
     def testCaseSetTemplateValue(self):
         rule = processing.SetTemplateValue(None)
         rule.identifier = "RESPONSE"
-        v = rule.ChildElement(expressions.BaseValue)
+        v = rule.add_child(expressions.BaseValue)
         v.baseType = variables.BaseType.identifier
-        v.AddData("A")
+        v.add_data("A")
         try:
             rule.Run(self.sessionState)
             self.fail("<setTemplateValue> sets RESPONSE")
@@ -1140,9 +1140,9 @@ class TemplateProcessingTests(unittest.TestCase):
     def testCaseSetCorrectResponse(self):
         rule = processing.SetCorrectResponse(None)
         rule.identifier = "GRADE"
-        v = rule.ChildElement(expressions.BaseValue)
+        v = rule.add_child(expressions.BaseValue)
         v.baseType = variables.BaseType.identifier
-        v.AddData("A")
+        v.add_data("A")
         try:
             rule.Run(self.sessionState)
             self.fail("<setCorrectResponse> sets GRADE")
@@ -1160,9 +1160,9 @@ class TemplateProcessingTests(unittest.TestCase):
     def testCaseSetDefaultValue(self):
         rule = processing.SetDefaultValue(None)
         rule.identifier = "TESTCASE"
-        v = rule.ChildElement(expressions.BaseValue)
+        v = rule.add_child(expressions.BaseValue)
         v.baseType = variables.BaseType.identifier
-        v.AddData("A")
+        v.add_data("A")
         try:
             rule.Run(self.sessionState)
             self.fail("<setDefaultValue> sets TESTCASE")
@@ -1230,7 +1230,7 @@ class ExpressionTests(unittest.TestCase):
     </templateDeclaration>
 </assessmentItem>"""
         self.doc = core.QTIDocument()
-        self.doc.Read(src=StringIO(SAMPLE))
+        self.doc.read(src=StringIO(SAMPLE))
         self.sessionState = variables.ItemSessionState(self.doc.root)
         self.sessionState.BeginSession()
         self.sessionState.BeginAttempt()
@@ -1241,7 +1241,7 @@ class ExpressionTests(unittest.TestCase):
     def testCaseBaseValue(self):
         e = expressions.BaseValue(None)
         e.baseType = variables.BaseType.point
-        e.AddData("3 1")
+        e.add_data("3 1")
         e.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
@@ -1414,14 +1414,14 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is None, "Multiple with unknown base type")
         # check that sub-expressions with NULL values are ignored
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.integer
-        v1.AddData("1")
+        v1.add_data("1")
         v1.content_changed()
-        v2 = e.ChildElement(expressions.Null)
-        v3 = e.ChildElement(expressions.BaseValue)
+        v2 = e.add_child(expressions.Null)
+        v3 = e.add_child(expressions.BaseValue)
         v3.baseType = variables.BaseType.integer
-        v3.AddData("3")
+        v3.add_data("3")
         v3.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
@@ -1430,18 +1430,18 @@ class ExpressionTests(unittest.TestCase):
             value.baseType == variables.BaseType.integer, "Multiple base type")
         self.assertTrue(
             value.value == {1: 1, 3: 1}, "Multiple value: %s" % repr(value.value))
-        v4 = e.ChildElement(expressions.Multiple)
-        v4_1 = v4.ChildElement(expressions.BaseValue)
+        v4 = e.add_child(expressions.Multiple)
+        v4_1 = v4.add_child(expressions.BaseValue)
         v4_1.baseType = variables.BaseType.integer
-        v4_1.AddData("3")
+        v4_1.add_data("3")
         v4_1.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == {1: 1, 3: 2}, "Multiple in Multiple value: %s" % repr(value.value))
         # check that mixed base types raise an error
-        v5 = e.ChildElement(expressions.BaseValue)
+        v5 = e.add_child(expressions.BaseValue)
         v5.baseType = variables.BaseType.float
-        v5.AddData("3.1")
+        v5.add_data("3.1")
         v5.content_changed()
         try:
             value = e.Evaluate(self.sessionState)
@@ -1458,14 +1458,14 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is None, "Ordered with unknown base type")
         # check that sub-expressions with NULL values are ignored
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.integer
-        v1.AddData("1")
+        v1.add_data("1")
         v1.content_changed()
-        v2 = e.ChildElement(expressions.Null)
-        v3 = e.ChildElement(expressions.BaseValue)
+        v2 = e.add_child(expressions.Null)
+        v3 = e.add_child(expressions.BaseValue)
         v3.baseType = variables.BaseType.integer
-        v3.AddData("3")
+        v3.add_data("3")
         v3.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
@@ -1474,18 +1474,18 @@ class ExpressionTests(unittest.TestCase):
             value.baseType == variables.BaseType.integer, "Ordered base type")
         self.assertTrue(
             value.value == [1, 3], "Ordered value: %s" % repr(value.value))
-        v4 = e.ChildElement(expressions.Ordered)
-        v4_1 = v4.ChildElement(expressions.BaseValue)
+        v4 = e.add_child(expressions.Ordered)
+        v4_1 = v4.add_child(expressions.BaseValue)
         v4_1.baseType = variables.BaseType.integer
-        v4_1.AddData("3")
+        v4_1.add_data("3")
         v4_1.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == [1, 3, 3], "Ordered in Ordered value: %s" % repr(value.value))
         # check that mixed base types raise an error
-        v5 = e.ChildElement(expressions.BaseValue)
+        v5 = e.add_child(expressions.BaseValue)
         v5.baseType = variables.BaseType.float
-        v5.AddData("3.1")
+        v5.add_data("3.1")
         v5.content_changed()
         try:
             value = e.Evaluate(self.sessionState)
@@ -1496,32 +1496,32 @@ class ExpressionTests(unittest.TestCase):
     def testCaseContainerSize(self):
         e = expressions.ContainerSize(None)
         # check the null case
-        eo = e.ChildElement(expressions.Ordered)
+        eo = e.add_child(expressions.Ordered)
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             isinstance(value, variables.IntegerValue), "ContainerSize type")
         self.assertTrue(value.value == 0, "ContainerSize of NULL value")
         for i in xrange(5):
-            v = eo.ChildElement(expressions.BaseValue)
+            v = eo.add_child(expressions.BaseValue)
             v.baseType = variables.BaseType.integer
-            v.AddData("1")
+            v.add_data("1")
             v.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == 5, "ContainerSize of ordered value")
         e = expressions.ContainerSize(None)
-        em = e.ChildElement(expressions.Multiple)
+        em = e.add_child(expressions.Multiple)
         for i in xrange(6):
-            v = em.ChildElement(expressions.BaseValue)
+            v = em.add_child(expressions.BaseValue)
             v.baseType = variables.BaseType.integer
-            v.AddData(str(i // 2))
+            v.add_data(str(i // 2))
             v.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == 6, "ContainerSize of multiple value")
         # check that single values raise an error
         e = expressions.ContainerSize(None)
-        es = e.ChildElement(expressions.BaseValue)
+        es = e.add_child(expressions.BaseValue)
         es.baseType = variables.BaseType.integer
-        es.AddData("3")
+        es.add_data("3")
         es.content_changed()
         try:
             value = e.Evaluate(self.sessionState)
@@ -1531,7 +1531,7 @@ class ExpressionTests(unittest.TestCase):
 
     def testCaseIsNull(self):
         e = expressions.IsNull(None)
-        e.ChildElement(expressions.Null)
+        e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             isinstance(value, variables.BooleanValue), "IsNull type")
@@ -1539,9 +1539,9 @@ class ExpressionTests(unittest.TestCase):
             value.value == True, "IsNull value (on Null): %s" % repr(value.value))
         self.assertTrue(value, "IsNull evaluates to True")
         e = expressions.IsNull(None)
-        b = e.ChildElement(expressions.BaseValue)
+        b = e.add_child(expressions.BaseValue)
         b.baseType = variables.BaseType.boolean
-        b.AddData("true")
+        b.add_data("true")
         b.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
@@ -1552,15 +1552,15 @@ class ExpressionTests(unittest.TestCase):
         # Note that empty containers and empty strings are both treated as
         # NULL.
         e = expressions.IsNull(None)
-        b = e.ChildElement(expressions.BaseValue)
+        b = e.add_child(expressions.BaseValue)
         b.baseType = variables.BaseType.string
-        b.AddData("")
+        b.add_data("")
         b.content_changed()
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == True, "IsNull value (empty string): %s" % repr(value.value))
         e = expressions.IsNull(None)
-        b = e.ChildElement(expressions.Multiple)
+        b = e.add_child(expressions.Multiple)
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == True, "IsNull value (empty container): %s" % repr(value.value))
@@ -1568,7 +1568,7 @@ class ExpressionTests(unittest.TestCase):
     def testCaseIndex(self):
         e = expressions.Index(None)
         e.n = 2
-        v = e.ChildElement(expressions.Variable)
+        v = e.add_child(expressions.Variable)
         v.identifier = 'RESPONSE3'
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
@@ -1598,7 +1598,7 @@ class ExpressionTests(unittest.TestCase):
         try:
             e = expressions.Index(None)
             e.n = 1
-            v = e.ChildElement(expressions.Variable)
+            v = e.add_child(expressions.Variable)
             v.identifier = 'RESPONSE'
             value = e.Evaluate(self.sessionState)
             self.fail("Index of single value")
@@ -1608,7 +1608,7 @@ class ExpressionTests(unittest.TestCase):
     def testCaseFieldValue(self):
         e = expressions.FieldValue(None)
         e.fieldIdentifier = "unknown"
-        v = e.ChildElement(expressions.Variable)
+        v = e.add_child(expressions.Variable)
         v.identifier = 'RESPONSE4'
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.baseType is None, "fieldValue type on unknown")
@@ -1628,7 +1628,7 @@ class ExpressionTests(unittest.TestCase):
         try:
             e = expressions.FieldValue(None)
             e.fieldIdentifier = "fieldA"
-            v = e.ChildElement(expressions.Variable)
+            v = e.add_child(expressions.Variable)
             v.identifier = 'RESPONSE'
             value = e.Evaluate(self.sessionState)
             self.fail("fieldValue of single value")
@@ -1637,7 +1637,7 @@ class ExpressionTests(unittest.TestCase):
 
     def testCaseRandom(self):
         e = expressions.Random(None)
-        em = e.ChildElement(expressions.Null)
+        em = e.add_child(expressions.Null)
         # check the null case
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "Random(NULL) is NULL")
@@ -1645,16 +1645,16 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.Cardinality() == variables.Cardinality.single, "Random(NULL) base type")
         e = expressions.Random(None)
-        em = e.ChildElement(expressions.Multiple)
+        em = e.add_child(expressions.Multiple)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "Random(empty multiple container) is NULL")
         self.assertTrue(value.baseType is None, "Random(NULL) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "Random(NULL) cardinality, found %s" %
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         for i in (2, 5, 8, 11, 8):
-            v = em.ChildElement(expressions.BaseValue)
+            v = em.add_child(expressions.BaseValue)
             v.baseType = variables.BaseType.integer
-            v.AddData(str(i))
+            v.add_data(str(i))
         gotValue = {}
         for i in xrange(100):
             value = e.Evaluate(self.sessionState)
@@ -1675,16 +1675,16 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(gotValue[8] > gotValue[
                             i], "Multiple element frequency test! %s" % repr(gotValue))
         e = expressions.Random(None)
-        eo = e.ChildElement(expressions.Ordered)
+        eo = e.add_child(expressions.Ordered)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "Random(empty ordered container) is NULL")
         self.assertTrue(value.baseType is None, "Random(NULL) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "Random(NULL) cardinality, found %s" %
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         for i in ("A", "B", "C", "D", "B"):
-            v = eo.ChildElement(expressions.BaseValue)
+            v = eo.add_child(expressions.BaseValue)
             v.baseType = variables.BaseType.identifier
-            v.AddData(i)
+            v.add_data(i)
         gotValue = {}
         for i in xrange(200):
             value = e.Evaluate(self.sessionState)
@@ -1701,7 +1701,7 @@ class ExpressionTests(unittest.TestCase):
                         "B"] > 51, "Ordered element frequency test, F(51; n,p) <= 0.0001; F('B')=%i" % gotValue["B"])
         try:
             e = expressions.Random(None)
-            er = e.ChildElement(expressions.Variable)
+            er = e.add_child(expressions.Variable)
             er.identifier = 'RESPONSE4'
             value = e.Evaluate(self.sessionState)
             self.fail("Random(Record)")
@@ -1709,9 +1709,9 @@ class ExpressionTests(unittest.TestCase):
             pass
         try:
             e = expressions.Random(None)
-            v = e.ChildElement(expressions.BaseValue)
+            v = e.add_child(expressions.BaseValue)
             v.baseType = variables.BaseType.identifier
-            v.AddData("FAIL")
+            v.add_data("FAIL")
             value = e.Evaluate(self.sessionState)
             self.fail("Random(single)")
         except core.ProcessingError:
@@ -1719,8 +1719,8 @@ class ExpressionTests(unittest.TestCase):
 
     def testCaseMember(self):
         e = expressions.Member(None)
-        v1 = e.ChildElement(expressions.Null)
-        v2 = e.ChildElement(expressions.Variable)
+        v1 = e.add_child(expressions.Null)
+        v2 = e.add_child(expressions.Variable)
         v2.identifier = 'RESPONSE3'
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "Member(Null,RESPONSE3) is NULL")
@@ -1729,10 +1729,10 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "Member(NULL) cardinality, found %s" %
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.Member(None)
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.identifier
-        v1.AddData("B")
-        v2 = e.ChildElement(expressions.Null)
+        v1.add_data("B")
+        v2 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "Member('B',NULL) is NULL")
         self.assertTrue(
@@ -1740,8 +1740,8 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "Member('B',NULL) cardinality, found %s" %
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.Member(None)
-        v1 = e.ChildElement(expressions.Null)
-        v2 = e.ChildElement(expressions.Null)
+        v1 = e.add_child(expressions.Null)
+        v2 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "Member(NULL,NULL) is NULL")
         self.assertTrue(
@@ -1750,9 +1750,9 @@ class ExpressionTests(unittest.TestCase):
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         try:
             e = expressions.Member(None)
-            v1 = e.ChildElement(expressions.Variable)
+            v1 = e.add_child(expressions.Variable)
             v1.identifier = 'RESPONSE3'
-            v2 = e.ChildElement(expressions.Variable)
+            v2 = e.add_child(expressions.Variable)
             v2.identifier = 'RESPONSE3'
             value = e.Evaluate(self.sessionState)
             self.fail("Member(RESPONSE3,RESPONSE3)")
@@ -1760,45 +1760,45 @@ class ExpressionTests(unittest.TestCase):
             pass
         try:
             e = expressions.Member(None)
-            v1 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.BaseValue)
             v1.baseType = variables.BaseType.identifier
-            v1.AddData("B")
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1.add_data("B")
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.identifier
-            v2.AddData("B")
+            v2.add_data("B")
             value = e.Evaluate(self.sessionState)
             self.fail("Member('B','B')")
         except core.ProcessingError:
             pass
         try:
             e = expressions.Member(None)
-            v1 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.BaseValue)
             v1.baseType = variables.BaseType.duration
-            v1.AddData("3.14")
-            v2 = e.ChildElement(expressions.Ordered)
-            v21 = v2.ChildElement(expressions.BaseValue)
+            v1.add_data("3.14")
+            v2 = e.add_child(expressions.Ordered)
+            v21 = v2.add_child(expressions.BaseValue)
             v21.baseType = variables.BaseType.duration
-            v21.AddData("3.14")
+            v21.add_data("3.14")
             value = e.Evaluate(self.sessionState)
             self.fail("Member(duration,Ordered(duration))")
         except core.ProcessingError:
             pass
         e = expressions.Member(None)
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.identifier
-        v1.AddData("B")
-        v2 = e.ChildElement(expressions.Variable)
+        v1.add_data("B")
+        v2 = e.add_child(expressions.Variable)
         v2.identifier = 'RESPONSE3'
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == True, "Member('B',RESPONSE3)")
-        v1.SetValue("D")
+        v1.set_value("D")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "Member('D',RESPONSE3)")
 
     def testCaseDelete(self):
         e = expressions.Delete(None)
-        v1 = e.ChildElement(expressions.Null)
-        v2 = e.ChildElement(expressions.Variable)
+        v1 = e.add_child(expressions.Null)
+        v2 = e.add_child(expressions.Variable)
         v2.identifier = 'RESPONSE3'
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "Delete(Null,RESPONSE3) is NULL")
@@ -1807,10 +1807,10 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(value.Cardinality() == variables.Cardinality.ordered,
                         "Delete(NULL,RESPONSE3) cardinality, found %s" % variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.Delete(None)
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.identifier
-        v1.AddData("B")
-        v2 = e.ChildElement(expressions.Null)
+        v1.add_data("B")
+        v2 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "Delete('B',NULL) is NULL")
         self.assertTrue(
@@ -1820,8 +1820,8 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(value.Cardinality() == None, "Delete('B',NULL) cardinality, found %s" %
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.Delete(None)
-        v1 = e.ChildElement(expressions.Null)
-        v2 = e.ChildElement(expressions.Null)
+        v1 = e.add_child(expressions.Null)
+        v2 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "Delete(NULL,NULL) is NULL")
         self.assertTrue(
@@ -1831,9 +1831,9 @@ class ExpressionTests(unittest.TestCase):
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         try:
             e = expressions.Delete(None)
-            v1 = e.ChildElement(expressions.Variable)
+            v1 = e.add_child(expressions.Variable)
             v1.identifier = 'RESPONSE3'
-            v2 = e.ChildElement(expressions.Variable)
+            v2 = e.add_child(expressions.Variable)
             v2.identifier = 'RESPONSE3'
             value = e.Evaluate(self.sessionState)
             self.fail("Delete(RESPONSE3,RESPONSE3)")
@@ -1841,34 +1841,34 @@ class ExpressionTests(unittest.TestCase):
             pass
         try:
             e = expressions.Delete(None)
-            v1 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.BaseValue)
             v1.baseType = variables.BaseType.identifier
-            v1.AddData("B")
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1.add_data("B")
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.identifier
-            v2.AddData("B")
+            v2.add_data("B")
             value = e.Evaluate(self.sessionState)
             self.fail("Delete('B','B')")
         except core.ProcessingError:
             pass
         try:
             e = expressions.Delete(None)
-            v1 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.BaseValue)
             v1.baseType = variables.BaseType.duration
-            v1.AddData("3.14")
-            v2 = e.ChildElement(expressions.Ordered)
-            v21 = v2.ChildElement(expressions.BaseValue)
+            v1.add_data("3.14")
+            v2 = e.add_child(expressions.Ordered)
+            v21 = v2.add_child(expressions.BaseValue)
             v21.baseType = variables.BaseType.duration
-            v21.AddData("3.14")
+            v21.add_data("3.14")
             value = e.Evaluate(self.sessionState)
             self.fail("Delete(duration,Ordered(duration))")
         except core.ProcessingError:
             pass
         e = expressions.Delete(None)
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.identifier
-        v1.AddData("B")
-        v2 = e.ChildElement(expressions.Variable)
+        v1.add_data("B")
+        v2 = e.add_child(expressions.Variable)
         v2.identifier = 'RESPONSE3'
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
@@ -1876,19 +1876,19 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(value.Cardinality() == variables.Cardinality.ordered,
                         "Delete('B',RESPONSE3) cardinality, found %s" % variables.Cardinality.EncodeValue(value.Cardinality()))
         self.assertTrue(value.value == ["A", "C"], "Delete('B',RESPONSE3)")
-        v1.SetValue("D")
+        v1.set_value("D")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == ["A", "B", "C"], "Delete('D',RESPONSE3)")
         e = expressions.Delete(None)
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.identifier
-        v1.AddData("B")
-        v2 = e.ChildElement(expressions.Multiple)
+        v1.add_data("B")
+        v2 = e.add_child(expressions.Multiple)
         for i in ("A", "B", "C", "B", "A"):
-            v21 = v2.ChildElement(expressions.BaseValue)
+            v21 = v2.add_child(expressions.BaseValue)
             v21.baseType = variables.BaseType.identifier
-            v21.AddData(i)
+            v21.add_data(i)
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.Cardinality() == variables.Cardinality.multiple,
                         "Delete('B',{'A','B','C','D'}) cardinality, found %s" % variables.Cardinality.EncodeValue(value.Cardinality()))
@@ -1897,8 +1897,8 @@ class ExpressionTests(unittest.TestCase):
 
     def testCaseContains(self):
         e = expressions.Contains(None)
-        v1 = e.ChildElement(expressions.Null)
-        v2 = e.ChildElement(expressions.Variable)
+        v1 = e.add_child(expressions.Null)
+        v2 = e.add_child(expressions.Variable)
         v2.identifier = 'RESPONSE3'
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "Contains(Null,RESPONSE3) is NULL")
@@ -1907,9 +1907,9 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "Contains(NULL) cardinality, found %s" %
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.Contains(None)
-        v1 = e.ChildElement(expressions.Variable)
+        v1 = e.add_child(expressions.Variable)
         v1.identifier = 'RESPONSE3'
-        v2 = e.ChildElement(expressions.Null)
+        v2 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "Contains(RESPONSE3,NULL) is NULL")
         self.assertTrue(
@@ -1917,8 +1917,8 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "Contains(RESPONSE3,NULL) cardinality, found %s" %
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.Contains(None)
-        v1 = e.ChildElement(expressions.Null)
-        v2 = e.ChildElement(expressions.Null)
+        v1 = e.add_child(expressions.Null)
+        v2 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "Contains(NULL,NULL) is NULL")
         self.assertTrue(
@@ -1926,16 +1926,16 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "Contains(NULL,NULL) cardinality, found %s" %
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.Contains(None)
-        v1 = e.ChildElement(expressions.Variable)
+        v1 = e.add_child(expressions.Variable)
         v1.identifier = 'RESPONSE3'
-        v2 = e.ChildElement(expressions.Variable)
+        v2 = e.add_child(expressions.Variable)
         v2.identifier = 'RESPONSE3'
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == True, "Contains(RESPONSE3,RESPONSE3)")
         try:
             e = expressions.Contains(None)
-            v1 = e.ChildElement(expressions.Multiple)
-            v2 = e.ChildElement(expressions.Variable)
+            v1 = e.add_child(expressions.Multiple)
+            v2 = e.add_child(expressions.Variable)
             v2.identifier = 'RESPONSE3'
             value = e.Evaluate(self.sessionState)
             self.fail("Contains(Multiple,RESPONSE3)")
@@ -1943,67 +1943,67 @@ class ExpressionTests(unittest.TestCase):
             pass
         try:
             e = expressions.Contains(None)
-            v1 = e.ChildElement(expressions.Ordered)
-            v11 = v1.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.Ordered)
+            v11 = v1.add_child(expressions.BaseValue)
             v11.baseType = variables.BaseType.duration
-            v11.AddData("3.14")
-            v2 = e.ChildElement(expressions.Ordered)
-            v21 = v2.ChildElement(expressions.BaseValue)
+            v11.add_data("3.14")
+            v2 = e.add_child(expressions.Ordered)
+            v21 = v2.add_child(expressions.BaseValue)
             v21.baseType = variables.BaseType.duration
-            v21.AddData("3.14")
+            v21.add_data("3.14")
             value = e.Evaluate(self.sessionState)
             self.fail("Contains(Ordered(duration),Ordered(duration))")
         except core.ProcessingError:
             pass
         e = expressions.Contains(None)
-        v1 = e.ChildElement(expressions.Ordered)
-        v11 = v1.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.Ordered)
+        v11 = v1.add_child(expressions.BaseValue)
         v11.baseType = variables.BaseType.identifier
-        v11.AddData("C")
-        v12 = v1.ChildElement(expressions.BaseValue)
+        v11.add_data("C")
+        v12 = v1.add_child(expressions.BaseValue)
         v12.baseType = variables.BaseType.identifier
-        v12.AddData("A")
-        v2 = e.ChildElement(expressions.Variable)
+        v12.add_data("A")
+        v2 = e.add_child(expressions.Variable)
         v2.identifier = 'RESPONSE3'
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "Contains(('C','A'),RESPONSE3)")
         e = expressions.Contains(None)
-        v1 = e.ChildElement(expressions.Multiple)
-        v11 = v1.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.Multiple)
+        v11 = v1.add_child(expressions.BaseValue)
         v11.baseType = variables.BaseType.identifier
-        v11.AddData("C")
-        v12 = v1.ChildElement(expressions.BaseValue)
+        v11.add_data("C")
+        v12 = v1.add_child(expressions.BaseValue)
         v12.baseType = variables.BaseType.identifier
-        v12.AddData("C")
-        v13 = v1.ChildElement(expressions.BaseValue)
+        v12.add_data("C")
+        v13 = v1.add_child(expressions.BaseValue)
         v13.baseType = variables.BaseType.identifier
-        v13.AddData("A")
-        v2 = e.ChildElement(expressions.Multiple)
-        v21 = v2.ChildElement(expressions.BaseValue)
+        v13.add_data("A")
+        v2 = e.add_child(expressions.Multiple)
+        v21 = v2.add_child(expressions.BaseValue)
         v21.baseType = variables.BaseType.identifier
-        v21.AddData("A")
-        v22 = v2.ChildElement(expressions.BaseValue)
+        v21.add_data("A")
+        v22 = v2.add_child(expressions.BaseValue)
         v22.baseType = variables.BaseType.identifier
-        v22.AddData("B")
-        v23 = v2.ChildElement(expressions.BaseValue)
+        v22.add_data("B")
+        v23 = v2.add_child(expressions.BaseValue)
         v23.baseType = variables.BaseType.identifier
-        v23.AddData("C")
+        v23.add_data("C")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == False, "Contains(('C','C','A'),('A','B','C')")
-        v24 = v2.ChildElement(expressions.BaseValue)
+        v24 = v2.add_child(expressions.BaseValue)
         v24.baseType = variables.BaseType.identifier
-        v24.AddData("C")
+        v24.add_data("C")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == True, "Contains(('C','C','A'),('A','B','C','C')")
 
     def testCaseSubstring(self):
         e = expressions.SubString(None)
-        v1 = e.ChildElement(expressions.Null)
-        v2 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.Null)
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.string
-        v2.AddData("Shell")
+        v2.add_data("Shell")
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "substring(Null,'Shell') is NULL")
         self.assertTrue(
@@ -2011,15 +2011,15 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "substring(Null,'Shell') cardinality, found %s" %
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.SubString(None)
-        v2 = e.ChildElement(expressions.BaseValue)
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.string
-        v2.AddData("Shell")
-        v1 = e.ChildElement(expressions.Null)
+        v2.add_data("Shell")
+        v1 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "substring('Shell',NULL) is NULL")
         e = expressions.SubString(None)
-        v1 = e.ChildElement(expressions.Null)
-        v2 = e.ChildElement(expressions.Null)
+        v1 = e.add_child(expressions.Null)
+        v2 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "substring(NULL,NULL) is NULL")
         self.assertTrue(
@@ -2027,12 +2027,12 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "substring(NULL,NULL) cardinality, found %s" %
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.SubString(None)
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.string
-        v1.AddData("Hell")
-        v2 = e.ChildElement(expressions.BaseValue)
+        v1.add_data("Hell")
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.string
-        v2.AddData("Shell")
+        v2.add_data("Shell")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "substring('Hell','Shell')")
         e.caseSensitive = False
@@ -2040,12 +2040,12 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(value.value == True, "substring('Hell','Shell')")
         try:
             e = expressions.SubString(None)
-            v1 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.BaseValue)
             v1.baseType = variables.BaseType.identifier
-            v1.AddData("hell")
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1.add_data("hell")
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.identifier
-            v2.AddData("Shell")
+            v2.add_data("Shell")
             value = e.Evaluate(self.sessionState)
             self.fail("substring(identifier,identifier)")
         except core.ProcessingError:
@@ -2053,7 +2053,7 @@ class ExpressionTests(unittest.TestCase):
 
     def testCaseNot(self):
         e = expressions.Not(None)
-        v = e.ChildElement(expressions.Null)
+        v = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "not(Null) is NULL")
         self.assertTrue(
@@ -2061,22 +2061,22 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "not(Null) cardinality, found %s" %
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.Not(None)
-        v = e.ChildElement(expressions.BaseValue)
+        v = e.add_child(expressions.BaseValue)
         v.baseType = variables.BaseType.boolean
-        v.AddData("true")
+        v.add_data("true")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value, "not(true) not null")
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "not(true) base type")
         self.assertTrue(value.value == False, "not(true) value")
-        v.SetValue("false")
+        v.set_value("false")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == True, "not(false) value")
         try:
             e = expressions.Not(None)
-            v = e.ChildElement(expressions.BaseValue)
+            v = e.add_child(expressions.BaseValue)
             v.baseType = variables.BaseType.string
-            v.AddData("true")
+            v.add_data("true")
             value = e.Evaluate(self.sessionState)
             self.fail("not(string)")
         except core.ProcessingError:
@@ -2084,7 +2084,7 @@ class ExpressionTests(unittest.TestCase):
 
     def testCaseAnd(self):
         e = expressions.And(None)
-        v = e.ChildElement(expressions.Null)
+        v = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "and(Null) is NULL")
         self.assertTrue(
@@ -2092,38 +2092,38 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "and(Null) cardinality, found %s" %
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.And(None)
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.boolean
-        v1.AddData("true")
+        v1.add_data("true")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value, "and(true) not null")
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "and(true) base type")
         self.assertTrue(value.value == True, "and(true) value")
-        v1.SetValue("false")
+        v1.set_value("false")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "and(false) value")
-        v2 = e.ChildElement(expressions.BaseValue)
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.boolean
-        v2.AddData("true")
+        v2.add_data("true")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "and(false,true) value")
-        v2.SetValue("false")
+        v2.set_value("false")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "and(false,false) value")
-        v1.SetValue("true")
-        v2.SetValue("true")
+        v1.set_value("true")
+        v2.set_value("true")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == True, "and(true,true) value")
-        v3 = e.ChildElement(expressions.Null)
+        v3 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "and(true,true,NULL) is NULL")
-        v2.SetValue("false")
+        v2.set_value("false")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "and(true,false,NULL) is False")
-        v4 = e.ChildElement(expressions.BaseValue)
+        v4 = e.add_child(expressions.BaseValue)
         v4.baseType = variables.BaseType.string
-        v4.AddData("true")
+        v4.add_data("true")
         try:
             value = e.Evaluate(self.sessionState)
             self.fail("and(true,false,NULL,string)")
@@ -2132,7 +2132,7 @@ class ExpressionTests(unittest.TestCase):
 
     def testCaseOr(self):
         e = expressions.Or(None)
-        v = e.ChildElement(expressions.Null)
+        v = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "or(Null) is NULL")
         self.assertTrue(
@@ -2140,41 +2140,41 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "or(Null) cardinality, found %s" %
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.Or(None)
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.boolean
-        v1.AddData("true")
+        v1.add_data("true")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value, "or(true) not null")
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "or(true) base type")
         self.assertTrue(value.value == True, "or(true) value")
-        v1.SetValue("false")
+        v1.set_value("false")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "or(false) value")
-        v2 = e.ChildElement(expressions.BaseValue)
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.boolean
-        v2.AddData("true")
+        v2.add_data("true")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == True, "or(false,true) value")
-        v2.SetValue("false")
+        v2.set_value("false")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "or(false,false) value")
-        v1.SetValue("true")
-        v2.SetValue("true")
+        v1.set_value("true")
+        v2.set_value("true")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == True, "or(true,true) value")
-        v3 = e.ChildElement(expressions.Null)
+        v3 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == True, "or(true,true,NULL) value")
-        v2.SetValue("false")
+        v2.set_value("false")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == True, "or(true,false,NULL) value")
-        v1.SetValue("false")
+        v1.set_value("false")
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "or(false,false,NULL) is NULL")
-        v4 = e.ChildElement(expressions.BaseValue)
+        v4 = e.add_child(expressions.BaseValue)
         v4.baseType = variables.BaseType.string
-        v4.AddData("true")
+        v4.add_data("true")
         try:
             value = e.Evaluate(self.sessionState)
             self.fail("and(false,false,NULL,string)")
@@ -2185,7 +2185,7 @@ class ExpressionTests(unittest.TestCase):
         e = expressions.AnyN(None)
         e.min = "1"
         e.max = "2"
-        v = e.ChildElement(expressions.Null)
+        v = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "anyN(Null) is NULL")
         self.assertTrue(
@@ -2195,49 +2195,49 @@ class ExpressionTests(unittest.TestCase):
         e = expressions.AnyN(None)
         e.min = "1"
         e.max = "2"
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.boolean
-        v1.AddData("true")
+        v1.add_data("true")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value, "anyN(true) not null")
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "anyN(true) base type")
         self.assertTrue(value.value == True, "anyN(true) value")
-        v1.SetValue("false")
+        v1.set_value("false")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "anyN(false) value")
-        v2 = e.ChildElement(expressions.BaseValue)
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.boolean
-        v2.AddData("true")
+        v2.add_data("true")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == True, "anyN(false,true) value")
-        v2.SetValue("false")
+        v2.set_value("false")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "anyN(false,false) value")
-        v1.SetValue("true")
-        v2.SetValue("true")
+        v1.set_value("true")
+        v2.set_value("true")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == True, "anyN(true,true) value")
-        v3 = e.ChildElement(expressions.BaseValue)
+        v3 = e.add_child(expressions.BaseValue)
         v3.baseType = variables.BaseType.boolean
-        v3.AddData("true")
+        v3.add_data("true")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "anyN(true,true,true) value")
-        v3.SetValue("false")
+        v3.set_value("false")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == True, "anyN(true,true,false) value")
-        v4 = e.ChildElement(expressions.Null)
+        v4 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "or(true,true,false,NULL) value")
-        v2.SetValue("false")
+        v2.set_value("false")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == True, "or(true,false,false,NULL) value")
-        v1.SetValue("false")
+        v1.set_value("false")
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "or(false,false,false,NULL) value")
-        v5 = e.ChildElement(expressions.BaseValue)
+        v5 = e.add_child(expressions.BaseValue)
         v5.baseType = variables.BaseType.string
-        v5.AddData("true")
+        v5.add_data("true")
         try:
             value = e.Evaluate(self.sessionState)
             self.fail("anyN(false,false,false,NULL,string)")
@@ -2246,8 +2246,8 @@ class ExpressionTests(unittest.TestCase):
 
     def testCaseMatch(self):
         e = expressions.Match(None)
-        v1 = e.ChildElement(expressions.Null)
-        v2 = e.ChildElement(expressions.Null)
+        v1 = e.add_child(expressions.Null)
+        v2 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "match(Null,Null) is NULL")
         self.assertTrue(
@@ -2255,91 +2255,91 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "match(Null) cardinality, found %s" %
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.Match(None)
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.identifier
-        v1.AddData("A")
-        v2 = e.ChildElement(expressions.Null)
+        v1.add_data("A")
+        v2 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "match(Null,Null) is NULL")
         e = expressions.Match(None)
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.identifier
-        v1.AddData("A")
-        v2 = e.ChildElement(expressions.BaseValue)
+        v1.add_data("A")
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.identifier
-        v2.AddData("A")
+        v2.add_data("A")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == True, "match(A,A)")
-        v2.SetValue("B")
+        v2.set_value("B")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "match(A,B)")
         e = expressions.Match(None)
-        v1 = e.ChildElement(expressions.Ordered)
-        v11 = v1.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.Ordered)
+        v11 = v1.add_child(expressions.BaseValue)
         v11.baseType = variables.BaseType.identifier
-        v11.AddData("A")
-        v12 = v1.ChildElement(expressions.BaseValue)
+        v11.add_data("A")
+        v12 = v1.add_child(expressions.BaseValue)
         v12.baseType = variables.BaseType.identifier
-        v12.AddData("B")
-        v2 = e.ChildElement(expressions.Ordered)
-        v21 = v2.ChildElement(expressions.BaseValue)
+        v12.add_data("B")
+        v2 = e.add_child(expressions.Ordered)
+        v21 = v2.add_child(expressions.BaseValue)
         v21.baseType = variables.BaseType.identifier
-        v21.AddData("A")
-        v22 = v2.ChildElement(expressions.BaseValue)
+        v21.add_data("A")
+        v22 = v2.add_child(expressions.BaseValue)
         v22.baseType = variables.BaseType.identifier
-        v22.AddData("A")
+        v22.add_data("A")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "match([A,B],[A,A])")
-        v22.SetValue("B")
+        v22.set_value("B")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == True, "match([A,B],[A,B])")
         e = expressions.Match(None)
-        v1 = e.ChildElement(expressions.Multiple)
-        v11 = v1.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.Multiple)
+        v11 = v1.add_child(expressions.BaseValue)
         v11.baseType = variables.BaseType.identifier
-        v11.AddData("A")
-        v12 = v1.ChildElement(expressions.BaseValue)
+        v11.add_data("A")
+        v12 = v1.add_child(expressions.BaseValue)
         v12.baseType = variables.BaseType.identifier
-        v12.AddData("B")
-        v2 = e.ChildElement(expressions.Multiple)
-        v21 = v2.ChildElement(expressions.BaseValue)
+        v12.add_data("B")
+        v2 = e.add_child(expressions.Multiple)
+        v21 = v2.add_child(expressions.BaseValue)
         v21.baseType = variables.BaseType.identifier
-        v21.AddData("B")
-        v22 = v2.ChildElement(expressions.BaseValue)
+        v21.add_data("B")
+        v22 = v2.add_child(expressions.BaseValue)
         v22.baseType = variables.BaseType.identifier
-        v22.AddData("A")
+        v22.add_data("A")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == True, "match({A,B},{B,A})")
-        v22.SetValue("B")
+        v22.set_value("B")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "match({A,B},{B,B})")
         try:
             e = expressions.Match(None)
-            v1 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.BaseValue)
             v1.baseType = variables.BaseType.identifier
-            v1.AddData("A")
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1.add_data("A")
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.string
-            v2.AddData("A")
+            v2.add_data("A")
             value = e.Evaluate(self.sessionState)
             self.fail("match(string,identifier)")
         except core.ProcessingError:
             pass
         try:
             e = expressions.Match(None)
-            v1 = e.ChildElement(expressions.Multiple)
-            v2 = e.ChildElement(expressions.Ordered)
+            v1 = e.add_child(expressions.Multiple)
+            v2 = e.add_child(expressions.Ordered)
             value = e.Evaluate(self.sessionState)
         except core.ProcessingError:
             pass
         try:
             e = expressions.Match(None)
-            v1 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.BaseValue)
             v1.baseType = variables.BaseType.duration
-            v1.AddData("3.14159")
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1.add_data("3.14159")
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.duration
-            v2.AddData("3.14159")
+            v2.add_data("3.14159")
             value = e.Evaluate(self.sessionState)
             self.fail("match(duration,duration)")
         except core.ProcessingError:
@@ -2348,10 +2348,10 @@ class ExpressionTests(unittest.TestCase):
     def testCaseStringMatch(self):
         e = expressions.StringMatch(None)
         e.caseSensitive = True
-        v1 = e.ChildElement(expressions.Null)
-        v2 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.Null)
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.string
-        v2.AddData("Shell")
+        v2.add_data("Shell")
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "stringMatch(Null,'Shell') is NULL")
         self.assertTrue(
@@ -2360,16 +2360,16 @@ class ExpressionTests(unittest.TestCase):
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.StringMatch(None)
         e.caseSensitive = True
-        v2 = e.ChildElement(expressions.BaseValue)
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.string
-        v2.AddData("Shell")
-        v1 = e.ChildElement(expressions.Null)
+        v2.add_data("Shell")
+        v1 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "stringMatch('Shell',NULL) is NULL")
         e = expressions.StringMatch(None)
         e.caseSensitive = True
-        v1 = e.ChildElement(expressions.Null)
-        v2 = e.ChildElement(expressions.Null)
+        v1 = e.add_child(expressions.Null)
+        v2 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "stringMatch(NULL,NULL) is NULL")
         self.assertTrue(
@@ -2378,12 +2378,12 @@ class ExpressionTests(unittest.TestCase):
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.StringMatch(None)
         e.caseSensitive = True
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.string
-        v1.AddData("Hell")
-        v2 = e.ChildElement(expressions.BaseValue)
+        v1.add_data("Hell")
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.string
-        v2.AddData("Shell")
+        v2.add_data("Shell")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "stringMatch('Hell','Shell')")
         e.caseSensitive = False
@@ -2394,7 +2394,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.value == True, "stringMatch('Hell','Shell') - substring")
         e.substring = False
-        v2.SetValue("hell")
+        v2.set_value("hell")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == True, "stringMatch('Hell','hell') - case insensitive")
@@ -2404,12 +2404,12 @@ class ExpressionTests(unittest.TestCase):
             value.value == False, "stringMatch('Hell','hell') - case sensitive")
         try:
             e = expressions.StringMatch(None)
-            v1 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.BaseValue)
             v1.baseType = variables.BaseType.identifier
-            v1.AddData("hell")
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1.add_data("hell")
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.identifier
-            v2.AddData("Shell")
+            v2.add_data("Shell")
             value = e.Evaluate(self.sessionState)
             self.fail("stringMatch(identifier,identifier)")
         except core.ProcessingError:
@@ -2418,7 +2418,7 @@ class ExpressionTests(unittest.TestCase):
     def testCasePatternMatch(self):
         e = expressions.PatternMatch(None)
         e.pattern = "\\s*[\\p{Lu}-[ABC]]+\\s*"
-        v = e.ChildElement(expressions.Null)
+        v = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "patternMatch(Null) is NULL")
         self.assertTrue(
@@ -2427,9 +2427,9 @@ class ExpressionTests(unittest.TestCase):
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.PatternMatch(None)
         e.pattern = "\\s*[\\p{Lu}-[DEG]]+\\s*"
-        v = e.ChildElement(expressions.BaseValue)
+        v = e.add_child(expressions.BaseValue)
         v.baseType = variables.BaseType.string
-        v.AddData(u"  CAF\xc9\t")
+        v.add_data(u"  CAF\xc9\t")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value, "patternMatch(u'  CAF\xc9\t') is NULL")
         self.assertTrue(value.baseType is variables.BaseType.boolean,
@@ -2438,9 +2438,9 @@ class ExpressionTests(unittest.TestCase):
             value.value == True, "patternMatch(u'  CAF\xc9\t') is True")
         e = expressions.PatternMatch(None)
         e.pattern = "\\s*[\\p{Lu}-[CDE]]+\\s*"
-        v = e.ChildElement(expressions.BaseValue)
+        v = e.add_child(expressions.BaseValue)
         v.baseType = variables.BaseType.string
-        v.AddData(u"  CAF\xc9\t")
+        v.add_data(u"  CAF\xc9\t")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value, "patternMatch(u'  CAF\xc9\t') is NULL")
         self.assertTrue(
@@ -2448,9 +2448,9 @@ class ExpressionTests(unittest.TestCase):
         try:
             e = expressions.PatternMatch(None)
             e.pattern = "\\s*[\\p{Lu}-[ABCD]]+\\s*"
-            v = e.ChildElement(expressions.BaseValue)
+            v = e.add_child(expressions.BaseValue)
             v.baseType = variables.BaseType.identifier
-            v.AddData(u"CAF\xc9")
+            v.add_data(u"CAF\xc9")
             value = e.Evaluate(self.sessionState)
             self.fail("patternMatch(identifier)")
         except core.ProcessingError:
@@ -2459,10 +2459,10 @@ class ExpressionTests(unittest.TestCase):
     def testCaseEqual(self):
         e = expressions.Equal(None)
         e.toleranceMode = expressions.ToleranceMode.exact
-        v1 = e.ChildElement(expressions.Null)
-        v2 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.Null)
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.float
-        v2.AddData("3.14")
+        v2.add_data("3.14")
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "equal(Null,3.14) is NULL")
         self.assertTrue(
@@ -2472,17 +2472,17 @@ class ExpressionTests(unittest.TestCase):
         # --
         e = expressions.Equal(None)
         e.toleranceMode = expressions.ToleranceMode.exact
-        v2 = e.ChildElement(expressions.BaseValue)
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.float
-        v2.AddData("3.14")
-        v1 = e.ChildElement(expressions.Null)
+        v2.add_data("3.14")
+        v1 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "equal(3.14, Null) is NULL")
         # --
         e = expressions.Equal(None)
         e.toleranceMode = expressions.ToleranceMode.exact
-        v1 = e.ChildElement(expressions.Null)
-        v2 = e.ChildElement(expressions.Null)
+        v1 = e.add_child(expressions.Null)
+        v2 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "equal(NULL,NULL) is NULL")
         self.assertTrue(
@@ -2492,15 +2492,15 @@ class ExpressionTests(unittest.TestCase):
         # --
         e = expressions.Equal(None)
         e.toleranceMode = expressions.ToleranceMode.exact
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.integer
-        v1.AddData("3")
-        v2 = e.ChildElement(expressions.BaseValue)
+        v1.add_data("3")
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.float
-        v2.AddData("3.0")
+        v2.add_data("3.0")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == True, "equal(3,3.0)")
-        v2.SetValue("3.14")
+        v2.set_value("3.14")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == False, "equal(3,3.14)")
         e.toleranceMode = expressions.ToleranceMode.absolute
@@ -2530,12 +2530,12 @@ class ExpressionTests(unittest.TestCase):
         try:
             e = expressions.Equal(None)
             e.toleranceMode = expressions.ToleranceMode.exact
-            v1 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.BaseValue)
             v1.baseType = variables.BaseType.identifier
-            v1.AddData("three")
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1.add_data("three")
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.identifier
-            v2.AddData("pi")
+            v2.add_data("pi")
             value = e.Evaluate(self.sessionState)
             self.fail("equal(identifier,identifier)")
         except core.ProcessingError:
@@ -2545,10 +2545,10 @@ class ExpressionTests(unittest.TestCase):
         e = expressions.EqualRounded(None)
         e.roundingMode = expressions.RoundingMode.significantFigures
         e.figures = "1"
-        v1 = e.ChildElement(expressions.Null)
-        v2 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.Null)
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.float
-        v2.AddData("3.14")
+        v2.add_data("3.14")
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "equalRounded(Null,3.14) is NULL")
         self.assertTrue(
@@ -2559,18 +2559,18 @@ class ExpressionTests(unittest.TestCase):
         e = expressions.EqualRounded(None)
         e.roundingMode = expressions.RoundingMode.significantFigures
         e.figures = "1"
-        v2 = e.ChildElement(expressions.BaseValue)
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.float
-        v2.AddData("3.14")
-        v1 = e.ChildElement(expressions.Null)
+        v2.add_data("3.14")
+        v1 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "equalRounded(3.14, Null) is NULL")
         # --
         e = expressions.EqualRounded(None)
         e.roundingMode = expressions.RoundingMode.significantFigures
         e.figures = "1"
-        v1 = e.ChildElement(expressions.Null)
-        v2 = e.ChildElement(expressions.Null)
+        v1 = e.add_child(expressions.Null)
+        v2 = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "equalRounded(NULL,NULL) is NULL")
         self.assertTrue(
@@ -2581,12 +2581,12 @@ class ExpressionTests(unittest.TestCase):
         e = expressions.EqualRounded(None)
         e.roundingMode = expressions.RoundingMode.significantFigures
         e.figures = "2"
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.integer
-        v1.AddData("3")
-        v2 = e.ChildElement(expressions.BaseValue)
+        v1.add_data("3")
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.float
-        v2.AddData("3.14")
+        v2.add_data("3.14")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == False, "equalRounded(3,3.14) to 2 sig fig")
@@ -2599,7 +2599,7 @@ class ExpressionTests(unittest.TestCase):
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == False, "equalRounded(3,3.14) to 2 decimal places")
-        v2.SetValue("3.0001")
+        v2.set_value("3.0001")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == True, "equalRounded(3,3.0001) to 2 decimal places")
@@ -2611,12 +2611,12 @@ class ExpressionTests(unittest.TestCase):
         e = expressions.EqualRounded(None)
         e.roundingMode = expressions.RoundingMode.decimalPlaces
         e.figures = "4"
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.float
-        v1.AddData("3.14159")
-        v2 = e.ChildElement(expressions.BaseValue)
+        v1.add_data("3.14159")
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.float
-        v2.AddData("3.1416")
+        v2.add_data("3.1416")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == True, "equalRounded(3.1416,3.14159) to 4 decimal places")
@@ -2632,12 +2632,12 @@ class ExpressionTests(unittest.TestCase):
             e = expressions.EqualRounded(None)
             e.roundingMode = expressions.RoundingMode.decimalPlaces
             e.figures = "2"
-            v1 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.BaseValue)
             v1.baseType = variables.BaseType.identifier
-            v1.AddData("three")
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1.add_data("three")
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.identifier
-            v2.AddData("pi")
+            v2.add_data("pi")
             value = e.Evaluate(self.sessionState)
             self.fail("equalRounded(identifier,identifier)")
         except core.ProcessingError:
@@ -2647,7 +2647,7 @@ class ExpressionTests(unittest.TestCase):
         e = expressions.Inside(None)
         e.shape = core.Shape.default
         # by default coords is an empty list, which is OK for default test
-        v = e.ChildElement(expressions.Null)
+        v = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "inside(Null) is NULL")
         self.assertTrue(
@@ -2656,9 +2656,9 @@ class ExpressionTests(unittest.TestCase):
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         e = expressions.Inside(None)
         e.shape = core.Shape.default
-        v = e.ChildElement(expressions.BaseValue)
+        v = e.add_child(expressions.BaseValue)
         v.baseType = variables.BaseType.point
-        v.AddData(u"10 10")
+        v.add_data(u"10 10")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value, "inside(u'10 10', default) is not NULL")
         self.assertTrue(
@@ -2705,18 +2705,18 @@ class ExpressionTests(unittest.TestCase):
         e = expressions.Inside(None)
         e.shape = core.Shape.circle
         e.coords = html.Coords(u"10,10,5")
-        eo = e.ChildElement(expressions.Ordered)
+        eo = e.add_child(expressions.Ordered)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "inside(Ordered()) is NULL")
-        v = eo.ChildElement(expressions.BaseValue)
+        v = eo.add_child(expressions.BaseValue)
         v.baseType = variables.BaseType.point
-        v.SetValue("5 5")
+        v.set_value("5 5")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == False, "inside(ordered('5 5')), circle(10,10,5)) is False")
-        v = eo.ChildElement(expressions.BaseValue)
+        v = eo.add_child(expressions.BaseValue)
         v.baseType = variables.BaseType.point
-        v.SetValue("10 10")
+        v.set_value("10 10")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == True, "inside(ordered('5 5','10 10')), circle(10,10,5)) is True")
@@ -2724,18 +2724,18 @@ class ExpressionTests(unittest.TestCase):
         e = expressions.Inside(None)
         e.shape = core.Shape.circle
         e.coords = html.Coords(u"10,10,5")
-        em = e.ChildElement(expressions.Multiple)
+        em = e.add_child(expressions.Multiple)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "inside(Multiple()) is NULL")
-        v = em.ChildElement(expressions.BaseValue)
+        v = em.add_child(expressions.BaseValue)
         v.baseType = variables.BaseType.point
-        v.SetValue("5 5")
+        v.set_value("5 5")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == False, "inside(multiple('5 5')), circle(10,10,5)) is False")
-        v = em.ChildElement(expressions.BaseValue)
+        v = em.add_child(expressions.BaseValue)
         v.baseType = variables.BaseType.point
-        v.SetValue("10 10")
+        v.set_value("10 10")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(
             value.value == True, "inside(multiple('5 5','10 10')), circle(10,10,5)) is True")
@@ -2743,9 +2743,9 @@ class ExpressionTests(unittest.TestCase):
             e = expressions.Inside(None)
             e.shape = core.Shape.circle
             e.coords = html.Coords(u"10,10,5")
-            v = e.ChildElement(expressions.BaseValue)
+            v = e.add_child(expressions.BaseValue)
             v.baseType = variables.BaseType.string
-            v.AddData(u"10 10")
+            v.add_data(u"10 10")
             value = e.Evaluate(self.sessionState)
             self.fail("inside(identifier)")
         except core.ProcessingError:
@@ -2762,10 +2762,10 @@ class ExpressionTests(unittest.TestCase):
         for etype in tests.keys():
             expected = tests[etype]
             e = etype(None)
-            v1 = e.ChildElement(expressions.Null)
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.Null)
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.float
-            v2.AddData("3.14")
+            v2.add_data("3.14")
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<inequality>(Null,3.14) is NULL")
             self.assertTrue(
@@ -2774,16 +2774,16 @@ class ExpressionTests(unittest.TestCase):
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
             e = etype(None)
-            v2 = e.ChildElement(expressions.BaseValue)
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.float
-            v2.AddData("3.14")
-            v1 = e.ChildElement(expressions.Null)
+            v2.add_data("3.14")
+            v1 = e.add_child(expressions.Null)
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<inequality>(3.14, Null) is NULL")
             # --
             e = etype(None)
-            v1 = e.ChildElement(expressions.Null)
-            v2 = e.ChildElement(expressions.Null)
+            v1 = e.add_child(expressions.Null)
+            v2 = e.add_child(expressions.Null)
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<inequality>(NULL,NULL) is NULL")
             self.assertTrue(
@@ -2792,28 +2792,28 @@ class ExpressionTests(unittest.TestCase):
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
             e = etype(None)
-            v1 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.BaseValue)
             v1.baseType = variables.BaseType.integer
-            v1.AddData("3")
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1.add_data("3")
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.float
-            v2.AddData("3.0")
+            v2.add_data("3.0")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(value.value == expected[0], "<inequality>(3,3.0)")
-            v2.SetValue("3.14")
+            v2.set_value("3.14")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(value.value == expected[1], "<inequality>(3,3.14)")
-            v1.SetValue("4")
+            v1.set_value("4")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(value.value == expected[2], "<inequality>(4,3.14)")
             try:
                 e = etype(None)
-                v1 = e.ChildElement(expressions.BaseValue)
+                v1 = e.add_child(expressions.BaseValue)
                 v1.baseType = variables.BaseType.identifier
-                v1.AddData("three")
-                v2 = e.ChildElement(expressions.BaseValue)
+                v1.add_data("three")
+                v2 = e.add_child(expressions.BaseValue)
                 v2.baseType = variables.BaseType.identifier
-                v2.AddData("pi")
+                v2.add_data("pi")
                 value = e.Evaluate(self.sessionState)
                 self.fail("<inequality>(identifier,identifier)")
             except core.ProcessingError:
@@ -2828,10 +2828,10 @@ class ExpressionTests(unittest.TestCase):
         for etype in tests.keys():
             expected = tests[etype]
             e = etype(None)
-            v1 = e.ChildElement(expressions.Null)
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.Null)
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.duration
-            v2.AddData("3.14")
+            v2.add_data("3.14")
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<durInequality>(Null,3.14) is NULL")
             self.assertTrue(
@@ -2840,16 +2840,16 @@ class ExpressionTests(unittest.TestCase):
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
             e = etype(None)
-            v2 = e.ChildElement(expressions.BaseValue)
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.duration
-            v2.AddData("3.14")
-            v1 = e.ChildElement(expressions.Null)
+            v2.add_data("3.14")
+            v1 = e.add_child(expressions.Null)
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<durInequality>(3.14, Null) is NULL")
             # --
             e = etype(None)
-            v1 = e.ChildElement(expressions.Null)
-            v2 = e.ChildElement(expressions.Null)
+            v1 = e.add_child(expressions.Null)
+            v2 = e.add_child(expressions.Null)
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<durInequality>(NULL,NULL) is NULL")
             self.assertTrue(
@@ -2858,31 +2858,31 @@ class ExpressionTests(unittest.TestCase):
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
             e = etype(None)
-            v1 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.BaseValue)
             v1.baseType = variables.BaseType.duration
-            v1.AddData("3")
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1.add_data("3")
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.duration
-            v2.AddData("3.0")
+            v2.add_data("3.0")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(
                 value.value == expected[0], "<durInequality>(3,3.0)")
-            v2.SetValue("3.14")
+            v2.set_value("3.14")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(
                 value.value == expected[1], "<durInequality>(3,3.14)")
-            v1.SetValue("4")
+            v1.set_value("4")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(
                 value.value == expected[2], "<durInequality>(4,3.14)")
             try:
                 e = etype(None)
-                v1 = e.ChildElement(expressions.BaseValue)
+                v1 = e.add_child(expressions.BaseValue)
                 v1.baseType = variables.BaseType.float
-                v1.AddData("3")
-                v2 = e.ChildElement(expressions.BaseValue)
+                v1.add_data("3")
+                v2 = e.add_child(expressions.BaseValue)
                 v2.baseType = variables.BaseType.float
-                v2.AddData("3.14")
+                v2.add_data("3.14")
                 value = e.Evaluate(self.sessionState)
                 self.fail("<durInequality>(float,float)")
             except core.ProcessingError:
@@ -2897,10 +2897,10 @@ class ExpressionTests(unittest.TestCase):
         for etype in tests.keys():
             expected = tests[etype]
             e = etype(None)
-            v1 = e.ChildElement(expressions.Null)
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.Null)
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.float
-            v2.AddData("3.14")
+            v2.add_data("3.14")
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<mathMulti>(Null,3.14) is NULL")
             self.assertTrue(
@@ -2909,16 +2909,16 @@ class ExpressionTests(unittest.TestCase):
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
             e = etype(None)
-            v2 = e.ChildElement(expressions.BaseValue)
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.float
-            v2.AddData("3.14")
-            v1 = e.ChildElement(expressions.Null)
+            v2.add_data("3.14")
+            v1 = e.add_child(expressions.Null)
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<mathMulti>(3.14, Null) is NULL")
             # --
             e = etype(None)
-            v1 = e.ChildElement(expressions.Null)
-            v2 = e.ChildElement(expressions.Null)
+            v1 = e.add_child(expressions.Null)
+            v2 = e.add_child(expressions.Null)
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<mathMulti>(NULL,NULL) is NULL")
             self.assertTrue(
@@ -2927,43 +2927,43 @@ class ExpressionTests(unittest.TestCase):
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
             e = etype(None)
-            v1 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.BaseValue)
             v1.baseType = variables.BaseType.integer
-            v1.AddData("3")
+            v1.add_data("3")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(value.value == expected[4], "<mathMulti>(3)")
             self.assertTrue(
                 value.baseType is variables.BaseType.integer, "<mathMulti>(3) base type")
-            v2 = e.ChildElement(expressions.BaseValue)
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.float
-            v2.AddData("3.0")
+            v2.add_data("3.0")
             value = e.Evaluate(self.sessionState)
             self.assertTrue("%.5f" % value.value == "%.5f" %
                             expected[0], "<mathMulti>(3,3.0)")
             self.assertTrue(
                 value.baseType is variables.BaseType.float, "<mathMulti>(3,3.0) base type")
-            v2.SetValue("3.14")
+            v2.set_value("3.14")
             value = e.Evaluate(self.sessionState)
             self.assertTrue("%.5f" % value.value == "%.5f" %
                             expected[1], "<mathMulti>(3,3.14)")
-            v1.SetValue("4")
+            v1.set_value("4")
             value = e.Evaluate(self.sessionState)
             self.assertTrue("%.5f" % value.value == "%.5f" %
                             expected[2], "<mathMulti>(4,3.14)")
-            v3 = e.ChildElement(expressions.BaseValue)
+            v3 = e.add_child(expressions.BaseValue)
             v3.baseType = variables.BaseType.float
-            v3.AddData("-10")
+            v3.add_data("-10")
             value = e.Evaluate(self.sessionState)
             self.assertTrue("%.5f" % value.value == "%.5f" % expected[3], "<mathMulti>(4,3.14,-10), expected %s, found %s" %
                             (repr(expected[3]), repr(value.value)))
             try:
                 e = etype(None)
-                v1 = e.ChildElement(expressions.BaseValue)
+                v1 = e.add_child(expressions.BaseValue)
                 v1.baseType = variables.BaseType.duration
-                v1.AddData("3")
-                v2 = e.ChildElement(expressions.BaseValue)
+                v1.add_data("3")
+                v2 = e.add_child(expressions.BaseValue)
                 v2.baseType = variables.BaseType.identifier
-                v2.AddData("pi")
+                v2.add_data("pi")
                 value = e.Evaluate(self.sessionState)
                 self.fail("<mathMulti>(duration,identifier)")
             except core.ProcessingError:
@@ -2979,10 +2979,10 @@ class ExpressionTests(unittest.TestCase):
         for etype in tests.keys():
             expected = tests[etype]
             e = etype(None)
-            v1 = e.ChildElement(expressions.Null)
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.Null)
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.float
-            v2.AddData("3.14")
+            v2.add_data("3.14")
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<mathBinary>(Null,3.14) is NULL")
             self.assertTrue(
@@ -2991,65 +2991,65 @@ class ExpressionTests(unittest.TestCase):
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
             e = etype(None)
-            v2 = e.ChildElement(expressions.BaseValue)
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.float
-            v2.AddData("3.14")
-            v1 = e.ChildElement(expressions.Null)
+            v2.add_data("3.14")
+            v1 = e.add_child(expressions.Null)
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<mathBinary>(3.14, Null) is NULL")
             # --
             e = etype(None)
-            v1 = e.ChildElement(expressions.Null)
-            v2 = e.ChildElement(expressions.Null)
+            v1 = e.add_child(expressions.Null)
+            v2 = e.add_child(expressions.Null)
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<mathBinary>(NULL,NULL) is NULL")
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<mathBinary>(NULL,NULL) cardinality, found %s" %
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
             e = etype(None)
-            v1 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.BaseValue)
             v1.baseType = variables.BaseType.integer
-            v1.AddData("3")
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1.add_data("3")
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.float
-            v2.AddData("3.0")
+            v2.add_data("3.0")
             value = e.Evaluate(self.sessionState)
             self.assertTrue("%.4f" % value.value == "%.4f" %
                             expected[0], "<mathBinary>(3,3.0)")
             self.assertTrue(
                 value.baseType is variables.BaseType.float, "<mathBinary>(3,3.0) base type")
-            v2.SetValue("3.14")
+            v2.set_value("3.14")
             value = e.Evaluate(self.sessionState)
             self.assertTrue("%.4f" % value.value == "%.4f" % expected[1], "<mathBinary>(3,3.14), expected %s, found %s" %
                             (repr(expected[1]), repr(value.value)))
-            v1.SetValue("4")
+            v1.set_value("4")
             value = e.Evaluate(self.sessionState)
             self.assertTrue("%.4f" % value.value == "%.4f" %
                             expected[2], "<mathBinary>(4,3.14)")
-            v2.SetValue("-3.14")
+            v2.set_value("-3.14")
             value = e.Evaluate(self.sessionState)
             self.assertTrue("%.4f" % value.value == "%.4f" %
                             expected[3], "<mathBinary>(4,-3.14)")
             try:
                 e = etype(None)
-                v1 = e.ChildElement(expressions.BaseValue)
+                v1 = e.add_child(expressions.BaseValue)
                 v1.baseType = variables.BaseType.duration
-                v1.AddData("3")
-                v2 = e.ChildElement(expressions.BaseValue)
+                v1.add_data("3")
+                v2 = e.add_child(expressions.BaseValue)
                 v2.baseType = variables.BaseType.identifier
-                v2.AddData("pi")
+                v2.add_data("pi")
                 value = e.Evaluate(self.sessionState)
                 self.fail("<mathBinary>(duration,identifier)")
             except core.ProcessingError:
                 pass
         # check the integer subtraction return base type case
         e = expressions.Subtract(None)
-        v1 = e.ChildElement(expressions.BaseValue)
+        v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.integer
-        v1.AddData("3")
-        v2 = e.ChildElement(expressions.BaseValue)
+        v1.add_data("3")
+        v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.integer
-        v2.AddData("-1")
+        v2.add_data("-1")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == 4, "Subtrace(3,-1)")
         self.assertTrue(
@@ -3064,10 +3064,10 @@ class ExpressionTests(unittest.TestCase):
         for etype in tests.keys():
             expected = tests[etype]
             e = etype(None)
-            v1 = e.ChildElement(expressions.Null)
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.Null)
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.integer
-            v2.AddData("3")
+            v2.add_data("3")
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<integerBinary>(Null,3) is NULL")
             self.assertTrue(
@@ -3076,18 +3076,18 @@ class ExpressionTests(unittest.TestCase):
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
             e = etype(None)
-            v2 = e.ChildElement(expressions.BaseValue)
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.integer
-            v2.AddData("3")
-            v1 = e.ChildElement(expressions.Null)
+            v2.add_data("3")
+            v1 = e.add_child(expressions.Null)
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<integerBinary>(3, Null) is NULL")
             self.assertTrue(
                 value.baseType is variables.BaseType.integer, "<integerBinary>(3,Null) base type")
             # --
             e = etype(None)
-            v1 = e.ChildElement(expressions.Null)
-            v2 = e.ChildElement(expressions.Null)
+            v1 = e.add_child(expressions.Null)
+            v2 = e.add_child(expressions.Null)
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<integerBinary>(NULL,NULL) is NULL")
             self.assertTrue(
@@ -3096,37 +3096,37 @@ class ExpressionTests(unittest.TestCase):
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
             e = etype(None)
-            v1 = e.ChildElement(expressions.BaseValue)
+            v1 = e.add_child(expressions.BaseValue)
             v1.baseType = variables.BaseType.integer
-            v1.AddData("3")
-            v2 = e.ChildElement(expressions.BaseValue)
+            v1.add_data("3")
+            v2 = e.add_child(expressions.BaseValue)
             v2.baseType = variables.BaseType.integer
-            v2.AddData("2")
+            v2.add_data("2")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(value.value == expected[0], "<integerBinary>(3,2)")
-            v2.SetValue("3")
+            v2.set_value("3")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(value.value == expected[1], "<integerBinary>(3,3)")
-            v1.SetValue("2")
+            v1.set_value("2")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(value.value == expected[2], "<integerBinary>(2,3)")
-            v1.SetValue("-2")
-            v2.SetValue("-3")
+            v1.set_value("-2")
+            v2.set_value("-3")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(
                 value.value == expected[3], "<integerBinary>(-2,-3)")
-            v2.SetValue("3")
+            v2.set_value("3")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(
                 value.value == expected[4], "<integerBinary>(-2,3)")
             try:
                 e = etype(None)
-                v1 = e.ChildElement(expressions.BaseValue)
+                v1 = e.add_child(expressions.BaseValue)
                 v1.baseType = variables.BaseType.float
-                v1.AddData("3.0")
-                v2 = e.ChildElement(expressions.BaseValue)
+                v1.add_data("3.0")
+                v2 = e.add_child(expressions.BaseValue)
                 v2.baseType = variables.BaseType.float
-                v2.AddData("3.14")
+                v2.add_data("3.14")
                 value = e.Evaluate(self.sessionState)
                 self.fail("<integerBinary>(float,float)")
             except core.ProcessingError:
@@ -3141,7 +3141,7 @@ class ExpressionTests(unittest.TestCase):
         for etype in tests.keys():
             expected = tests[etype]
             e = etype(None)
-            v = e.ChildElement(expressions.Null)
+            v = e.add_child(expressions.Null)
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<floatToInteger>(Null) is NULL")
             self.assertTrue(
@@ -3150,41 +3150,41 @@ class ExpressionTests(unittest.TestCase):
                             variables.Cardinality.EncodeValue(value.Cardinality()))
             # --
             e = etype(None)
-            v = e.ChildElement(expressions.BaseValue)
+            v = e.add_child(expressions.BaseValue)
             v.baseType = variables.BaseType.float
-            v.AddData("6.49")
+            v.add_data("6.49")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(value, "<floatToInteger>(6.49)")
             self.assertTrue(
                 value.baseType is variables.BaseType.integer, "<floatToInteger>(6.49) base type")
             self.assertTrue(
                 value.value == expected[0], "<floatToInteger>(6.49)")
-            v.SetValue("-6.49")
+            v.set_value("-6.49")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(
                 value.value == expected[1], "<floatToInteger>(-6.49)")
-            v.SetValue("6.5")
+            v.set_value("6.5")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(
                 value.value == expected[2], "<floatToInteger>(6.5)")
-            v.SetValue("-6.5")
+            v.set_value("-6.5")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(
                 value.value == expected[3], "<floatToInteger>(-6.5)")
-            v.SetValue("6.51")
+            v.set_value("6.51")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(
                 value.value == expected[4], "<floatToInteger>(6.51)")
-            v.SetValue("-6.51")
+            v.set_value("-6.51")
             value = e.Evaluate(self.sessionState)
             self.assertTrue(
                 value.value == expected[5], "<floatToInteger>(-6.51)")
             # --
             try:
                 e = etype(None)
-                v = e.ChildElement(expressions.BaseValue)
+                v = e.add_child(expressions.BaseValue)
                 v.baseType = variables.BaseType.integer
-                v.AddData("3")
+                v.add_data("3")
                 value = e.Evaluate(self.sessionState)
                 self.fail("<floatToInteger>(integer)")
             except core.ProcessingError:
@@ -3192,7 +3192,7 @@ class ExpressionTests(unittest.TestCase):
 
     def testCaseIntegerToFloat(self):
         e = expressions.IntegerToFloat(None)
-        v = e.ChildElement(expressions.Null)
+        v = e.add_child(expressions.Null)
         value = e.Evaluate(self.sessionState)
         self.assertFalse(value, "<integerToFloat>(Null) is NULL")
         self.assertTrue(
@@ -3201,26 +3201,26 @@ class ExpressionTests(unittest.TestCase):
                         variables.Cardinality.EncodeValue(value.Cardinality()))
         # --
         e = expressions.IntegerToFloat(None)
-        v = e.ChildElement(expressions.BaseValue)
+        v = e.add_child(expressions.BaseValue)
         v.baseType = variables.BaseType.integer
-        v.AddData("6")
+        v.add_data("6")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value, "<integerToFloat>(6)")
         self.assertTrue(
             value.baseType is variables.BaseType.float, "<integerToFloat>(6) base type")
         self.assertTrue(value.value == 6.0, "<integerToFloat>(6)")
-        v.SetValue("0")
+        v.set_value("0")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == 0.0, "<integerToFloat>(0)")
-        v.SetValue("-6")
+        v.set_value("-6")
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.value == -6.0, "<integerToFloat>(-6)")
         # --
         try:
             e = expressions.IntegerToFloat(None)
-            v = e.ChildElement(expressions.BaseValue)
+            v = e.add_child(expressions.BaseValue)
             v.baseType = variables.BaseType.float
-            v.AddData("3.0")
+            v.add_data("3.0")
             value = e.Evaluate(self.sessionState)
             self.fail("<integerToFloat>(float)")
         except core.ProcessingError:
@@ -3228,10 +3228,10 @@ class ExpressionTests(unittest.TestCase):
 
     def testCaseCustomOperator(self):
         e = expressions.CustomOperator(None)
-        e.SetAttribute(u"class", u"math")
+        e.set_attribute(u"class", u"math")
         e.customClass = "math"
         e.definition = "http://www.example.com/math/sin"
-        v = e.ChildElement(expressions.Null)
+        v = e.add_child(expressions.Null)
         try:
             value = e.Evaluate(self.sessionState)
         except core.ProcessingError:
@@ -3282,7 +3282,7 @@ class BasicAssessmentTests(unittest.TestCase):
             os.path.split(__file__)[0], 'data_imsqtiv2p1')
         os.chdir(self.dataPath)
         self.doc = core.QTIDocument(baseURI="basic/assessment.xml")
-        self.doc.Read()
+        self.doc.read()
 
     def tearDown(self):
         os.chdir(self.cwd)
@@ -3314,7 +3314,7 @@ class BasicAssessmentTests(unittest.TestCase):
 
     def testCaseLinearIndividual(self):
         doc = core.QTIDocument(baseURI="basic/linearIndividualPart.xml")
-        doc.Read()
+        doc.read()
         form = tests.TestForm(doc.root)
         state = variables.TestSessionState(form)
         try:
@@ -3341,9 +3341,9 @@ class BasicAssessmentTests(unittest.TestCase):
         # Now let's make some checks on the output
         self.assertTrue(
             isinstance(htmlDiv, html.Div), "output is an html <div>")
-        formList = list(htmlDiv.FindChildrenDepthFirst(html.Form))
+        formList = list(htmlDiv.find_children_depth_first(html.Form))
         self.assertTrue(len(formList) == 1, "only one form in the html <div>")
-        inputList = list(htmlDiv.FindChildrenDepthFirst(html.Input))
+        inputList = list(htmlDiv.find_children_depth_first(html.Input))
         self.assertTrue(len(inputList) == 4, "<input> list length")
         for i in inputList:
             self.assertTrue(
@@ -3353,7 +3353,7 @@ class BasicAssessmentTests(unittest.TestCase):
             self.assertTrue(i.value in (
                 "A", "B", "C", "D"), "<input> must have the value of a choice identifier")
             self.assertTrue(i.checked is False, "Button's initially unchecked")
-        buttonList = list(htmlDiv.FindChildrenDepthFirst(html.Button))
+        buttonList = list(htmlDiv.find_children_depth_first(html.Button))
         self.assertTrue(len(buttonList) == 2, "<button> list length")
         for i in buttonList:
             self.assertTrue(
@@ -3384,7 +3384,7 @@ class BasicAssessmentTests(unittest.TestCase):
         self.assertTrue(
             state["Q1.RESPONSE.SAVED"].value == "C", "Saved response not recorded")
         self.assertFalse(saveKey == state.key, "Key change on save")
-        inputList = list(htmlDiv.FindChildrenDepthFirst(html.Input))
+        inputList = list(htmlDiv.find_children_depth_first(html.Input))
         for i in inputList:
             self.assertTrue(
                 i.checked is (i.value == "C"), "Saved value is checked")
@@ -3415,7 +3415,7 @@ class BasicAssessmentTests(unittest.TestCase):
             state["Q1.duration"].value > 2.0, "Duration of question 1 should now be 2s")
         self.assertTrue(
             state["PartI.duration"].value > 2.0, "Duration of test part")
-        inputList = list(htmlDiv.FindChildrenDepthFirst(html.Input))
+        inputList = list(htmlDiv.find_children_depth_first(html.Input))
         self.assertTrue(len(inputList) == 5, "<input> list length")
         for i in inputList:
             self.assertTrue(
@@ -3453,7 +3453,7 @@ class MultiPartAssessmentTests(unittest.TestCase):
             os.path.split(__file__)[0], 'data_imsqtiv2p1')
         os.chdir(self.dataPath)
         self.doc = core.QTIDocument(baseURI="basic/multiPart.xml")
-        self.doc.Read()
+        self.doc.read()
 
     def tearDown(self):
         os.chdir(self.cwd)
@@ -3558,7 +3558,7 @@ class ErrorAssessmentTests(unittest.TestCase):
 
     def SelectionErrorTest(self, fName):
         self.doc = core.QTIDocument(baseURI=fName)
-        self.doc.Read()
+        self.doc.read()
         try:
             f = tests.TestForm(self.doc.root)
             self.fail("%s failed to raise SelectionError" % fName)
@@ -3574,7 +3574,7 @@ class QTIDocumentTests(unittest.TestCase):
 
     def testCaseExample1(self):
         doc = core.QTIDocument()
-        doc.Read(src=StringIO(EXAMPLE_1))
+        doc.read(src=StringIO(EXAMPLE_1))
         root = doc.root
         self.assertTrue(isinstance(root, items.AssessmentItem))
         self.assertTrue(
@@ -3582,7 +3582,7 @@ class QTIDocumentTests(unittest.TestCase):
 
     def testCaseExample2(self):
         doc = core.QTIDocument()
-        doc.Read(src=StringIO(EXAMPLE_2))
+        doc.read(src=StringIO(EXAMPLE_2))
         vardefs = doc.root.declarations
         self.assertTrue(len(vardefs.keys()) == 2)
         self.assertTrue(

@@ -33,7 +33,7 @@ def load_metadata(path=os.path.join(os.path.split(__file__)[0],
     """Loads the metadata file from the current directory."""
     doc = edmx.Document()
     with open(path, 'rb') as f:
-        doc.Read(f)
+        doc.read(f)
     return doc
 
 

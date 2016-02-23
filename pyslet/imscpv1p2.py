@@ -2,7 +2,8 @@
 """This module implements the IMS CP 1.2 specification defined by IMS GLC
 """
 
-import pyslet.xmlnames20091208 as xmlns
+import pyslet.xml.structures as xml
+import pyslet.xml.namespace as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.imsmdv1p2p1 as imsmd
 import pyslet.imsqtiv2p1 as imsqti
@@ -117,7 +118,7 @@ class Metadata(CPElement):
 
     """Represents the Metadata element."""
     XMLNAME = (IMSCP_NAMESPACE, 'metadata')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     #: the default class to represent the schema element
     SchemaClass = Schema
@@ -131,12 +132,12 @@ class Metadata(CPElement):
         #: the optional schemaversion element
         self.SchemaVersion = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Schema:
             yield self.Schema
         if self.SchemaVersion:
             yield self.SchemaVersion
-        for child in CPElement.GetChildren(self):
+        for child in CPElement.get_children(self):
             yield child
 
 
@@ -150,7 +151,7 @@ class Organizations(CPElement):
 
     """Represents the organizations element."""
     XMLNAME = (IMSCP_NAMESPACE, 'organizations')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     #: the default class to represent the organization element
     OrganizationClass = Organization
@@ -160,8 +161,8 @@ class Organizations(CPElement):
         #: a list of organization elements
         self.Organization = []
 
-    def GetChildren(self):
-        return itertools.chain(self.Organization, CPElement.GetChildren(self))
+    def get_children(self):
+        return itertools.chain(self.Organization, CPElement.get_children(self))
 
 
 class File(CPElement):
@@ -182,7 +183,7 @@ class File(CPElement):
         Otherwise, this function calculates an absolute path to the file and
         then calls the content package's :py:meth:`ContentPackage.PackagePath`
         method."""
-        url = self.ResolveURI(self.href)
+        url = self.resolve_uri(self.href)
         if not isinstance(url, uri.FileURL):
             return None
         return cp.PackagePath(url.get_virtual_file_path())
@@ -207,7 +208,7 @@ class Resource(CPElement):
     ID = (xmlns.NO_NAMESPACE, "identifier")
     XMLATTR_href = ('href', uri.URI.from_octets, str)
     XMLATTR_type = 'type'
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     #: the default class to represent the metadata element
     MetadataClass = Metadata
@@ -236,11 +237,11 @@ class Resource(CPElement):
         matching href, then None is returned."""
         href = self.href
         if href:
-            href = self.ResolveURI(href)
+            href = self.resolve_uri(href)
             for f in self.File:
                 fHREF = f.href
                 if fHREF:
-                    fHREF = f.ResolveURI(fHREF)
+                    fHREF = f.resolve_uri(fHREF)
                     if href.match(fHREF):
                         return f
         return None
@@ -250,27 +251,27 @@ class Resource(CPElement):
 
         The File must already exist and be associated with the resource."""
         # We resolve and recalculate just in case xml:base lurks on this file
-        href = self.RelativeURI(f.ResolveURI(f.href))
+        href = self.relative_uri(f.resolve_uri(f.href))
         self.href = href
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Metadata:
             yield self.Metadata
         for child in itertools.chain(
                 self.File,
                 self.Dependency,
-                CPElement.GetChildren(self)):
+                CPElement.get_children(self)):
             yield child
 
     def DeleteFile(self, f):
         index = self.File.index(f)
-        f.DetachFromDocument()
+        f.detach_from_doc()
         f.parent = None
         del self.File[index]
 
     def DeleteDependency(self, d):
         index = self.Dependency.index(d)
-        d.DetachFromDocument()
+        d.detach_from_doc()
         d.parent = None
         del self.Dependency[index]
 
@@ -279,7 +280,7 @@ class Resources(CPElement):
 
     """Represents the resources element."""
     XMLNAME = (IMSCP_NAMESPACE, 'resources')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     #: the default class to represent the resource element
     ResourceClass = Resource
@@ -289,8 +290,8 @@ class Resources(CPElement):
         #: the list of resources in the manifest
         self.Resource = []
 
-    def GetChildren(self):
-        return itertools.chain(self.Resource, CPElement.GetChildren(self))
+    def get_children(self):
+        return itertools.chain(self.Resource, CPElement.get_children(self))
 
 
 class Manifest(CPElement):
@@ -298,7 +299,7 @@ class Manifest(CPElement):
     """Represents the manifest element, the root element of the imsmanifest file."""
     ID = (xmlns.NO_NAMESPACE, "identifier")
     XMLNAME = (IMSCP_NAMESPACE, 'manifest')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     #: the default class to represent the metadata element
     MetadataClass = Metadata
@@ -320,7 +321,7 @@ class Manifest(CPElement):
         #: a list of child manifest elements
         self.Manifest = []
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Metadata:
             yield self.Metadata
         if self.Organizations:
@@ -329,7 +330,7 @@ class Manifest(CPElement):
             yield self.Resources
         for child in itertools.chain(
                 self.Manifest,
-                CPElement.GetChildren(self)):
+                CPElement.get_children(self)):
             yield child
 
 Manifest.ManifestClass = Manifest
@@ -339,11 +340,11 @@ class ManifestDocument(xmlns.XMLNSDocument):
 
     """Represents the imsmanifest.xml file itself.
 
-    Buildong on :py:class:`pyslet.xmlnames20091208.XMLNSDocument` this class is used
+    Buildong on :py:class:`pyslet.xml.namespace.XMLNSDocument` this class is used
     for parsing and writing manifest files.
 
     The constructor defines three additional prefixes using
-    :py:meth:`~pyslet.xmlnames20091208.XMLNSDocument.MakePrefix`, mapping xsi
+    :py:meth:`~pyslet.xml.namespace.XMLNSDocument.make_prefix`, mapping xsi
     onto XML schema, imsmd onto the IMS LRM namespace and imsqti onto the IMS
     QTI 2.1 namespace.  It also adds a schemaLocation attribute.  The elements
     defined by the :py:mod:`pyslet.imsmdv1p2p1` and :py:mod:`pyslet.imsqtiv2p1`
@@ -356,29 +357,29 @@ class ManifestDocument(xmlns.XMLNSDocument):
         xmlns.XMLNSDocument.__init__(self, **args)
         #: the default namespace is set to :py:const:`IMSCP_NAMESPACE`
         self.defaultNS = IMSCP_NAMESPACE
-        self.MakePrefix(xsi.XMLSCHEMA_NAMESPACE, 'xsi')
-        self.MakePrefix(imsmd.IMSLRM_NAMESPACE, 'imsmd')
-        self.MakePrefix(imsqti.core.IMSQTI_NAMESPACE, 'imsqti')
+        self.make_prefix(xsi.XMLSCHEMA_NAMESPACE, 'xsi')
+        self.make_prefix(imsmd.IMSLRM_NAMESPACE, 'imsmd')
+        self.make_prefix(imsqti.core.IMSQTI_NAMESPACE, 'imsqti')
         schemaLocation = [IMSCP_NAMESPACE, IMSCP_SCHEMALOCATION,
                           imsmd.IMSLRM_NAMESPACE, imsmd.IMSLRM_SCHEMALOCATION,
                           imsqti.core.IMSQTI_NAMESPACE, imsqti.core.IMSQTI_SCHEMALOCATION]
         if isinstance(self.root, CPElement):
-            self.root.SetAttribute(
+            self.root.set_attribute(
                 (xsi.XMLSCHEMA_NAMESPACE, 'schemaLocation'), string.join(schemaLocation, ' '))
 
     def get_element_class(self, name):
-        """Overrides :py:meth:`pyslet.xmlnames20091208.XMLNSDocument.get_element_class` to look up name.
+        """Overrides :py:meth:`pyslet.xml.namespace.XMLNSDocument.get_element_class` to look up name.
 
         The class contains a mapping from (namespace,element name) pairs to
         class objects representing the elements.  Any element not in the class
-        map returns :py:meth:`~pyslet.xmlnames20091208.XMLNSElement` instead."""
+        map returns :py:meth:`~pyslet.xml.namespace.XMLNSElement` instead."""
         eClass = ManifestDocument.classMap.get(
             name, ManifestDocument.classMap.get((name[0], None), xmlns.XMLNSElement))
         return eClass
 
-xmlns.MapClassElements(ManifestDocument.classMap, globals())
-xmlns.MapClassElements(ManifestDocument.classMap, imsmd)
-xmlns.MapClassElements(ManifestDocument.classMap, qtimd)
+xmlns.map_class_elements(ManifestDocument.classMap, globals())
+xmlns.map_class_elements(ManifestDocument.classMap, imsmd)
+xmlns.map_class_elements(ManifestDocument.classMap, qtimd)
 # Add other supported metadata schemas in here
 
 
@@ -451,19 +452,19 @@ class ContentPackage:
                 """The :py:class:`ManifestDocument` object representing the imsmanifest.xml file.
 				
 				The file is read (or created) on construction."""
-                self.manifest.Read()
+                self.manifest.read()
                 if not isinstance(self.manifest.root, Manifest):
                     raise CPManifestError("%s not a manifest file, found %s::%s " %
                                           (mPath, self.manifest.root.ns, self.manifest.root.xmlname))
             else:
                 self.manifest = self.ManifestDocumentClass(root=Manifest,
                                                            baseURI=str(uri.URI.from_virtual_path(mPath)))
-                self.manifest.root.SetID(self.manifest.GetUniqueID('manifest'))
-                md = self.manifest.root.ChildElement(
+                self.manifest.root.set_id(self.manifest.get_unique_id('manifest'))
+                md = self.manifest.root.add_child(
                     self.manifest.root.MetadataClass)
-                md.ChildElement(md.SchemaClass).SetValue("IMS Content")
-                md.ChildElement(md.SchemaVersionClass).SetValue("1.2")
-                self.manifest.Create()
+                md.add_child(md.SchemaClass).set_value("IMS Content")
+                md.add_child(md.SchemaVersionClass).set_value("1.2")
+                self.manifest.create()
             self.SetIgnoreFiles(IGNOREFILES_RE)
             self.fileTable = {}
             """The fileTable is a dictionary that maps package relative file
@@ -749,14 +750,14 @@ class ContentPackage:
         file iteself will raise :py:class:`CPFilePathError`.
 
         The :py:attr:`fileTable` is updated automatically by this method."""
-        fURL = resource.ResolveURI(href)
+        fURL = resource.resolve_uri(href)
         if not isinstance(fURL, uri.FileURL):
             # Not a local file
-            f = resource.ChildElement(resource.FileClass)
+            f = resource.add_child(resource.FileClass)
             f.href = href
         else:
             if href.is_absolute():
-                href = uri.URIFactory.relative(href, resource.ResolveBase())
+                href = uri.URIFactory.relative(href, resource.resolve_base())
             fullPath = fURL.get_virtual_file_path()
             head, tail = fullPath.split()
             if self.IgnoreFile(unicode(tail)):
@@ -766,7 +767,7 @@ class ContentPackage:
                 raise CPFilePathError(url.path)
             # normalise the case ready to put in the file table
             rel_path = rel_path.normcase()
-            f = resource.ChildElement(resource.FileClass)
+            f = resource.add_child(resource.FileClass)
             f.href = href
             if not rel_path in self.fileTable:
                 self.fileTable[rel_path] = [f]
@@ -790,7 +791,7 @@ class ContentPackage:
         if fStart is None:
             basePath = self.dPath
         else:
-            url = fStart.ResolveURI(fStart.href)
+            url = fStart.resolve_uri(fStart.href)
             if not isinstance(url, uri.FileURL):
                 basePath = self.dPath
             else:
@@ -802,7 +803,7 @@ class ContentPackage:
         newSrc = uri.URI.from_virtual_path(newSrcPath)
         # Turn this file path into a relative URL in the context of the new
         # resource
-        href = resource.RelativeURI(newSrc)
+        href = resource.relative_uri(newSrc)
         f = self.File(resource, href)
         dName, fName = newSrcPath.split()
         if not dName.isdir():
@@ -827,7 +828,7 @@ class ContentPackage:
         :py:class:`CPProtocolError` is raised if the indicated file is not in
         the local file system."""
         baser = self
-        baseURI = self.manifest.GetBase()
+        baseURI = self.manifest.get_base()
         base = uri.URI.from_octets(baseURI)
         fURL = uri.URI.from_octets(href).resolve(base)
         if not isinstance(fURL, uri.FileURL):

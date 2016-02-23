@@ -120,16 +120,16 @@ class QTIDocumentTests(unittest.TestCase):
 
     def testCaseExample1(self):
         doc = QTIDocument()
-        doc.Read(src=StringIO(EXAMPLE_1))
+        doc.read(src=StringIO(EXAMPLE_1))
         root = doc.root
         self.assertTrue(isinstance(root, QuesTestInterop))
         self.assertTrue(root.xmlname == 'questestinterop')
 
     def testCaseExample2(self):
         doc = QTIDocument()
-        doc.Read(src=StringIO(EXAMPLE_2))
+        doc.read(src=StringIO(EXAMPLE_2))
         root = doc.root
-        self.assertTrue(root.QTIComment.GetValue() == 'Example2')
+        self.assertTrue(root.QTIComment.get_value() == 'Example2')
         objects = doc.root.ObjectMixin
         self.assertTrue(len(objects) == 1 and isinstance(objects[0], Item))
         self.assertTrue(len(root.ObjectMixin) == 1)
@@ -152,7 +152,7 @@ class QTIV2ConversionTests(unittest.TestCase):
             logging.warn(
                 "QTI v1 to v2 migration tests skipped: vobject required")
             return
-        self.cp.manifest.root.SetID('outputv2')
+        self.cp.manifest.root.set_id('outputv2')
         dPath = os.path.join(self.dataPath, 'input')
         fList = []
         for f in os.listdir(dPath):
@@ -165,7 +165,7 @@ class QTIV2ConversionTests(unittest.TestCase):
         for f in fList:
             doc = QTIDocument(
                 baseURI=str(uri.URI.from_path(os.path.join(dPath, f))))
-            doc.Read()
+            doc.read()
             doc.MigrateV2(self.cp)
         # Having migrated everything in the input folder, we now check our CP
         # against the output
@@ -188,7 +188,7 @@ class QTIV2ConversionTests(unittest.TestCase):
             self.fail("File lists:\n  %s" % string.join(diagnosis, '\n  '))
         logging.debug(str(self.cp.manifest))
         logging.debug(str(cp2.manifest))
-        output = self.cp.manifest.DiffString(cp2.manifest)
+        output = self.cp.manifest.diff_string(cp2.manifest)
         self.assertTrue(
             self.cp.manifest.root == cp2.manifest.root, "Manifests differ:\n%s" % output)
         checkFiles = {}
@@ -199,13 +199,13 @@ class QTIV2ConversionTests(unittest.TestCase):
                 fPath = f.PackagePath(cp2)
                 qtiDoc = qtiv2.core.QTIDocument(
                     baseURI=str(uri.URI.from_virtual_path(self.cp.dPath.join(fPath))))
-                qtiDoc.Read()
+                qtiDoc.read()
                 # print str(qtiDoc)
                 qtiDoc2 = qtiv2.core.QTIDocument(
                     baseURI=str(uri.URI.from_virtual_path(cp2.dPath.join(fPath))))
-                qtiDoc2.Read()
+                qtiDoc2.read()
                 # print str(qtiDoc2)
-                output = qtiDoc.DiffString(qtiDoc2)
+                output = qtiDoc.diff_string(qtiDoc2)
                 result = (qtiDoc.root == qtiDoc2.root)
                 if not result and output is None:
                     # This should not happen
@@ -224,10 +224,10 @@ class QTIV2ConversionTests(unittest.TestCase):
                 if fAbsPath.splitext()[1].lower() == '.xml':
                     # Two xml files, compare with simple XMLElement
                     doc = xml.Document(baseURI=baseURI)
-                    doc.Read()
+                    doc.read()
                     doc2 = xml.Document(baseURI=baseURI2)
-                    doc2.Read()
-                    output = doc.DiffString(doc2)
+                    doc2.read()
+                    output = doc.diff_string(doc2)
                     result = (doc.root == doc2.root)
                     if not result and output is None:
                         # This should not happen

@@ -33,9 +33,9 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
     def new_page_context(self, context):
         page_context = super(NoticeBoard, self).new_page_context(context)
         app_root = str(context.get_app_root())
-        page_context['css_attr'] = xml.EscapeCharData7(
+        page_context['css_attr'] = xml.escape_char_data7(
             app_root + 'css/base.css', True)
-        page_context['favicon_attr'] = xml.EscapeCharData7(
+        page_context['favicon_attr'] = xml.escape_char_data7(
             app_root + 'images/favicon.ico', True)
         return page_context
 
@@ -103,7 +103,7 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
     def add_page(self, context):
         self.load_visit(context)
         page_context = self.new_page_context(context)
-        page_context['title_attr'] = xml.EscapeCharData7('', True)
+        page_context['title_attr'] = xml.escape_char_data7('', True)
         page_context['description'] = ''
         page_context[self.csrf_token] = context.session.sid()
         data = self.render_template(context, 'notices/add_form.html',
@@ -156,9 +156,9 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
                 if not (context.user and context.user == user):
                     # only the owner can edit their post
                     raise wsgi.PageNotAuthorized
-                page_context['id_attr'] = xml.EscapeCharData7(
+                page_context['id_attr'] = xml.escape_char_data7(
                     odata.FormatURILiteral(entity['ID']), True)
-                page_context['title_attr'] = xml.EscapeCharData7(
+                page_context['title_attr'] = xml.escape_char_data7(
                     entity['Title'].value, True)
                 page_context['description'] = entity['Description'].value
                 page_context[self.csrf_token] = context.session.sid()
@@ -221,7 +221,7 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
                         not (context.permissions & self.WRITE_PERMISSION)):
                     # only the owner or user with write permissions can delete
                     raise wsgi.PageNotAuthorized
-                page_context['id_attr'] = xml.EscapeCharData7(
+                page_context['id_attr'] = xml.escape_char_data7(
                     odata.FormatURILiteral(entity['ID']), True)
                 page_context['title'] = entity['Title'].value
                 page_context['description'] = entity['Description'].value

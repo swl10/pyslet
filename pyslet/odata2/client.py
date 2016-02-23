@@ -162,12 +162,12 @@ class ClientCollection(core.EntityCollection):
         debugMsg = None
         if request.res_body:
             doc = core.Document()
-            doc.Read(src=request.res_body)
+            doc.read(src=request.res_body)
             if isinstance(doc.root, core.Error):
                 errorMsg = "%s: %s" % (
-                    doc.root.Code.GetValue(), doc.root.Message.GetValue())
+                    doc.root.Code.get_value(), doc.root.Message.get_value())
                 if doc.root.InnerError is not None:
-                    debugMsg = doc.root.InnerError.GetValue()
+                    debugMsg = doc.root.InnerError.get_value()
             else:
                 errorMsg = request.response.reason
         else:
@@ -204,9 +204,9 @@ class ClientCollection(core.EntityCollection):
             if request.status == 201:
                 # success, read the entity back from the response
                 doc = core.Document()
-                doc.Read(request.res_body)
+                doc.read(request.res_body)
                 entity.exists = True
-                doc.root.GetValue(entity)
+                doc.root.get_value(entity)
                 # so which bindings got handled?  Assume all of them
                 for k, dv in entity.NavigationItems():
                     dv.bindings = []
@@ -265,13 +265,13 @@ class ClientCollection(core.EntityCollection):
                 raise UnexpectedHTTPResponse(
                     "%i %s" % (request.status, request.response.reason))
             doc = core.Document(baseURI=feedURL)
-            doc.Read(request.res_body)
+            doc.read(request.res_body)
             if isinstance(doc.root, atom.Feed):
                 if len(doc.root.Entry):
                     for e in doc.root.Entry:
                         entity = core.Entity(self.entity_set)
                         entity.exists = True
-                        e.GetValue(entity)
+                        e.get_value(entity)
                         yield entity
                 else:
                     break
@@ -280,7 +280,7 @@ class ClientCollection(core.EntityCollection):
             feedURL = None
             for link in doc.root.Link:
                 if link.rel == "next":
-                    feedURL = link.ResolveURI(link.href)
+                    feedURL = link.resolve_uri(link.href)
                     break
             if feedURL is None:
                 break
@@ -330,18 +330,18 @@ class ClientCollection(core.EntityCollection):
             raise UnexpectedHTTPResponse(
                 "%i %s" % (request.status, request.response.reason))
         doc = core.Document(baseURI=feedURL)
-        doc.Read(request.res_body)
+        doc.read(request.res_body)
         if isinstance(doc.root, atom.Feed):
             if len(doc.root.Entry):
                 for e in doc.root.Entry:
                     entity = core.Entity(self.entity_set)
                     entity.exists = True
-                    e.GetValue(entity)
+                    e.get_value(entity)
                     yield entity
             feedURL = self.nextSkiptoken = None
             for link in doc.root.Link:
                 if link.rel == "next":
-                    feedURL = link.ResolveURI(link.href)
+                    feedURL = link.resolve_uri(link.href)
                     break
             if feedURL is not None:
                 # extract the skiptoken from this link
@@ -392,11 +392,11 @@ class ClientCollection(core.EntityCollection):
             raise UnexpectedHTTPResponse(
                 "%i %s" % (request.status, request.response.reason))
         doc = core.Document(baseURI=entityURL)
-        doc.Read(request.res_body)
+        doc.read(request.res_body)
         if isinstance(doc.root, atom.Entry):
             entity = core.Entity(self.entity_set)
             entity.exists = True
-            doc.root.GetValue(entity)
+            doc.root.get_value(entity)
             return entity
         elif isinstance(doc.root, atom.Feed):
             nresults = len(doc.root.Entry)
@@ -406,7 +406,7 @@ class ClientCollection(core.EntityCollection):
                 e = doc.root.Entry[0]
                 entity = core.Entity(self.entity_set)
                 entity.exists = True
-                e.GetValue(entity)
+                e.get_value(entity)
                 return entity
             else:
                 raise UnexpectedHTTPResponse("%i entities returned from %s" %
@@ -443,10 +443,10 @@ class ClientCollection(core.EntityCollection):
         if request.status == 201:
             # success, read the entity back from the response
             doc = core.Document()
-            doc.Read(request.res_body)
+            doc.read(request.res_body)
             entity = self.new_entity()
             entity.exists = True
-            doc.root.GetValue(entity)
+            doc.root.get_value(entity)
             return entity
         else:
             self.RaiseError(request)
@@ -598,7 +598,7 @@ class EntityCollection(ClientCollection, core.EntityCollection):
         if not entity.exists:
             raise edm.NonExistentEntity(str(entity.get_location()))
         doc = core.Document(root=core.Entry)
-        doc.root.SetValue(entity, True)
+        doc.root.set_value(entity, True)
         data = str(doc)
         request = http.ClientRequest(
             str(entity.get_location()), 'PUT', entity_body=data)
@@ -728,11 +728,11 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 raise UnexpectedHTTPResponse(
                     "%i %s" % (request.status, request.response.reason))
             doc = core.Document(baseURI=entityURL)
-            doc.Read(request.res_body)
+            doc.read(request.res_body)
             if isinstance(doc.root, atom.Entry):
                 entity = core.Entity(self.entity_set)
                 entity.exists = True
-                doc.root.GetValue(entity)
+                doc.root.get_value(entity)
                 return 1
             else:
                 raise core.InvalidEntryDocument(str(entityURL))
@@ -771,11 +771,11 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 raise UnexpectedHTTPResponse(
                     "%i %s" % (request.status, request.response.reason))
             doc = core.Document(baseURI=entityURL)
-            doc.Read(request.res_body)
+            doc.read(request.res_body)
             if isinstance(doc.root, atom.Entry):
                 entity = core.Entity(self.entity_set)
                 entity.exists = True
-                doc.root.GetValue(entity)
+                doc.root.get_value(entity)
                 yield entity
             else:
                 raise core.InvalidEntryDocument(str(entityURL))
@@ -813,11 +813,11 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 raise UnexpectedHTTPResponse(
                     "%i %s" % (request.status, request.response.reason))
             doc = core.Document(baseURI=entityURL)
-            doc.Read(request.res_body)
+            doc.read(request.res_body)
             if isinstance(doc.root, atom.Entry):
                 entity = core.Entity(self.entity_set)
                 entity.exists = True
-                doc.root.GetValue(entity)
+                doc.root.get_value(entity)
                 if entity.key() == key:
                     return entity
                 else:
@@ -843,9 +843,9 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 # a no-op
                 existingEntity = self.new_entity()
                 doc = core.Document()
-                doc.Read(request.res_body)
+                doc.read(request.res_body)
                 existingEntity.exists = True
-                doc.root.GetValue(existingEntity)
+                doc.root.get_value(existingEntity)
                 if existingEntity.key() == entity.key():
                     return
                 else:
@@ -856,7 +856,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 # some type of error
                 self.RaiseError(request)
             doc = core.Document(root=core.URI)
-            doc.root.SetValue(str(entity.get_location()))
+            doc.root.set_value(str(entity.get_location()))
             data = str(doc)
             request = http.ClientRequest(
                 str(self.linksURI), 'PUT', entity_body=data)
@@ -869,7 +869,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 self.RaiseError(request)
         else:
             doc = core.Document(root=core.URI)
-            doc.root.SetValue(str(entity.get_location()))
+            doc.root.set_value(str(entity.get_location()))
             data = str(doc)
             request = http.ClientRequest(
                 str(self.linksURI), 'POST', entity_body=data)
@@ -891,7 +891,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             if not isinstance(entity, edm.Entity) or entity.entity_set is not self.entity_set:
                 raise TypeError
             doc = core.Document(root=core.URI)
-            doc.root.SetValue(str(entity.get_location()))
+            doc.root.set_value(str(entity.get_location()))
             data = str(doc)
             request = http.ClientRequest(
                 str(self.linksURI), 'PUT', entity_body=data)
@@ -978,7 +978,7 @@ class Client(app.Client):
         doc = core.Document(baseURI=self.serviceRoot)
         if isinstance(self.serviceRoot, uri.FileURL):
             # load the service root from a file instead
-            doc.Read()
+            doc.read()
         else:
             request = http.ClientRequest(str(self.serviceRoot))
             request.set_header('Accept', 'application/atomsvc+xml')
@@ -986,17 +986,17 @@ class Client(app.Client):
             if request.status != 200:
                 raise UnexpectedHTTPResponse(
                     "%i %s" % (request.status, request.response.reason))
-            doc.Read(request.res_body)
+            doc.read(request.res_body)
         if isinstance(doc.root, app.Service):
             self.service = doc.root
-            self.serviceRoot = uri.URI.from_octets(doc.root.ResolveBase())
+            self.serviceRoot = uri.URI.from_octets(doc.root.resolve_base())
             self.feeds = {}
             self.model = None
             for w in self.service.Workspace:
                 for f in w.Collection:
                     url = f.get_feed_url()
                     if f.Title:
-                        self.feeds[f.Title.GetValue()] = url
+                        self.feeds[f.Title.get_value()] = url
         else:
             raise InvalidServiceDocument(str(serviceRoot))
         self.pathPrefix = self.serviceRoot.abs_path
@@ -1008,7 +1008,7 @@ class Client(app.Client):
         doc = edmx.Document(baseURI=metadata, reqManager=self)
         defaultContainer = None
         try:
-            doc.Read()
+            doc.read()
             if isinstance(doc.root, edmx.Edmx):
                 self.model = doc.root
                 for s in self.model.DataServices.Schema:

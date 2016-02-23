@@ -2370,7 +2370,7 @@ class XMLParser(PEP8Compatibility):
 
         The default implementation simply compares *name* with
         :py:meth:`~pyslet.xml.structures.Element.GetXMLName`"""
-        return element.GetXMLName() == name
+        return element.get_xmlname() == name
 
     def check_expected_particle(self, name):
         """Checks the validity of element name in the current context.
@@ -2403,11 +2403,10 @@ class XMLParser(PEP8Compatibility):
         Returns information suitable for starting the element in the
         current context.
 
-        If there is no
-        :py:class:`~pyslet.xml.structures.Document` instance yet
-        this method assumes that it is being called for the root element
-        and selects an appropriate class based on the contents of the
-        prolog and/or *name*.
+        If there is no :py:class:`~pyslet.xml.structures.Document`
+        instance yet this method assumes that it is being called for the
+        root element and selects an appropriate class based on the
+        contents of the prolog and/or *name*.
 
         When using the :py:attr:`sgmlOmittag` option *name* may be None
         indicating that the method should return information about the
@@ -2446,7 +2445,7 @@ class XMLParser(PEP8Compatibility):
                     stag_class = self.doc.get_element_class(name)
             else:
                 stag_class = None
-            element_class = context.GetChildClass(stag_class)
+            element_class = context.get_child_class(stag_class)
             if element_class is not stag_class:
                 return element_class, None, True
             else:
@@ -2592,7 +2591,7 @@ class XMLParser(PEP8Compatibility):
                     elif self.the_char == '[':
                         self.parse_required_literal('[CDATA[')
                         # can CDATA sections imply missing markup?
-                        if self.sgmlOmittag and not self.element.IsMixed():
+                        if self.sgmlOmittag and not self.element.is_mixed():
                             # CDATA can only be put in elements that can
                             # contain data!
                             self.buff_text(xml.CDATA_START)
@@ -2624,7 +2623,7 @@ class XMLParser(PEP8Compatibility):
                     break
             elif self.the_char == '&':
                 # Reference
-                if self.sgmlOmittag and not self.element.IsMixed():
+                if self.sgmlOmittag and not self.element.is_mixed():
                     # we step in before resolving the reference, just in
                     # case this reference results in white space that is
                     # supposed to be the first data character after the

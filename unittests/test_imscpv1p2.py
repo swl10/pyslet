@@ -116,7 +116,7 @@ class CPDocumentTests(unittest.TestCase):
 
     def testCaseExample1(self):
         doc = ManifestDocument()
-        doc.Read(src=StringIO(EXAMPLE_1))
+        doc.read(src=StringIO(EXAMPLE_1))
         root = doc.root
         self.assertTrue(isinstance(root, Manifest))
         self.assertTrue(
@@ -125,26 +125,26 @@ class CPDocumentTests(unittest.TestCase):
 
     def testCaseExample2(self):
         doc = ManifestDocument()
-        doc.Read(src=StringIO(EXAMPLE_2))
+        doc.read(src=StringIO(EXAMPLE_2))
         resources = doc.root.Resources
         self.assertTrue(
             len(resources.Resource) == 1 and isinstance(resources.Resource[0], Resource))
-        manifest = doc.GetElementByID("MANIFEST-QTI-1")
+        manifest = doc.get_element_by_id("MANIFEST-QTI-1")
         self.assertTrue(
             doc.root is manifest and isinstance(manifest, Manifest))
-        resource = doc.GetElementByID("choice")
+        resource = doc.get_element_by_id("choice")
         self.assertTrue(resource is resources.Resource[0])
 
     def testCaseSetID(self):
         doc = ManifestDocument()
-        doc.Read(src=StringIO(EXAMPLE_1))
-        manifest = doc.GetElementByID("test")
+        doc.read(src=StringIO(EXAMPLE_1))
+        manifest = doc.get_element_by_id("test")
         self.assertTrue(doc.root is manifest)
-        manifest.SetID("manifest")
+        manifest.set_id("manifest")
         self.assertTrue(
-            doc.GetElementByID("test") is None, "Old identifier still declared")
+            doc.get_element_by_id("test") is None, "Old identifier still declared")
         self.assertTrue(
-            doc.GetElementByID("manifest") is manifest, "New identifier not declared")
+            doc.get_element_by_id("manifest") is manifest, "New identifier not declared")
 
 
 class CPManifestTests(unittest.TestCase):
@@ -171,16 +171,16 @@ class CPResourcesTests(unittest.TestCase):
         doc = ManifestDocument(root=Manifest)
         resources = doc.root.Resources
         try:
-            resource = resources.ChildElement(resources.ResourceClass)
-            resource.SetID('resource#1')
+            resource = resources.add_child(resources.ResourceClass)
+            resource.set_id('resource#1')
             resource.type = 'imsqti_item_xmlv2p1'
             self.fail("Invalid Name for resource identifier")
-        except xmlns.XMLIDValueError:
+        except xml.XMLIDValueError:
             pass
-        resource.SetID('resource_1')
+        resource.set_id('resource_1')
         resource.type = 'imsqti_item_xmlv2p1'
         self.assertTrue(isinstance(resource, Resource))
-        self.assertTrue(doc.GetElementByID('resource_1') is resource)
+        self.assertTrue(doc.get_element_by_id('resource_1') is resource)
         self.assertTrue(
             len(resources.Resource) == 1 and resources.Resource[0] is resource)
 
@@ -195,18 +195,18 @@ class CPResourceTests(unittest.TestCase):
 
     def testCaseNewFile(self):
         doc = ManifestDocument()
-        doc.Read(src=StringIO(EXAMPLE_2))
-        r = doc.GetElementByID('choice')
+        doc.read(src=StringIO(EXAMPLE_2))
+        r = doc.get_element_by_id('choice')
         index = len(r.File)
-        f = r.ChildElement(r.FileClass)
-        f.SetAttribute('href', 'Extra.txt')
+        f = r.add_child(r.FileClass)
+        f.set_attribute('href', 'Extra.txt')
         self.assertTrue(isinstance(f, File))
         self.assertTrue(len(r.File) == index + 1 and r.File[index] is f)
 
     def testCaseDeleteFile(self):
         doc = ManifestDocument()
-        doc.Read(src=StringIO(EXAMPLE_2))
-        r = doc.GetElementByID('choice')
+        doc.read(src=StringIO(EXAMPLE_2))
+        r = doc.get_element_by_id('choice')
         index = len(r.File)
         f = r.File[0]
         f1 = r.File[1]
@@ -242,7 +242,7 @@ class ContentPackageTests(unittest.TestCase):
             cp.GetPackageName() == 'imscp', "Default package name is not empty string")
         # Ensure the temporary directory is cleaned up
         self.dList.append(cp.dPath)
-        url = uri.URI.from_octets(cp.manifest.GetBase())
+        url = uri.URI.from_octets(cp.manifest.get_base())
         self.assertTrue(isinstance(cp.manifest, xmlns.XMLNSDocument) and isinstance(
             cp.manifest.root, Manifest), "Constructor must create manifest")
         self.assertTrue(
@@ -250,7 +250,7 @@ class ContentPackageTests(unittest.TestCase):
         self.assertTrue(isinstance(cp.manifest.root, Manifest),
                         "Constructor must create manifest element")
         id = cp.manifest.root.id
-        self.assertTrue(cp.manifest.GetElementByID(
+        self.assertTrue(cp.manifest.get_element_by_id(
             id) is cp.manifest.root, "Manifest identifief not declared")
         self.assertTrue(
             url.get_virtual_file_path().isfile(), "Constructor must create manifest file")
@@ -281,10 +281,10 @@ class ContentPackageTests(unittest.TestCase):
         f = r.File[0]
         self.assertTrue(isinstance(f, File) and str(
             f.href) == "%E8%8B%B1%E5%9B%BD.xml", "File path")
-        doc = xmlns.Document(baseURI=f.ResolveURI(f.href))
-        doc.Read()
+        doc = xmlns.Document(baseURI=f.resolve_uri(f.href))
+        doc.read()
         self.assertTrue(doc.root.xmlname == 'tag' and
-                        doc.root.GetValue() == u"Unicode Test: \u82f1\u56fd")
+                        doc.root.get_value() == u"Unicode Test: \u82f1\u56fd")
         cp2 = ContentPackage(TEST_DATA_DIR.join(u'\u82f1\u56fd'))
         self.assertTrue(
             cp2.GetPackageName() == u'\u82f1\u56fd', "Unicode package name test")
@@ -299,10 +299,10 @@ class ContentPackageTests(unittest.TestCase):
             cp.GetPackageName() == 'package_1', "Zip extension not removed for name")
         resources = cp.manifest.root.Resources
         f = resources.Resource[0].File[0]
-        doc = xmlns.Document(baseURI=f.ResolveURI(f.href))
-        doc.Read()
+        doc = xmlns.Document(baseURI=f.resolve_uri(f.href))
+        doc.read()
         self.assertTrue(doc.root.xmlname == 'tag' and
-                        doc.root.GetValue() == u"Unicode Test: \u82f1\u56fd")
+                        doc.root.get_value() == u"Unicode Test: \u82f1\u56fd")
 
     def testCaseZipWrite(self):
         cp = ContentPackage(TEST_DATA_DIR.join('package_1.zip'))
@@ -312,10 +312,10 @@ class ContentPackageTests(unittest.TestCase):
         self.dList.append(cp2.dPath)
         resources = cp2.manifest.root.Resources
         f = resources.Resource[0].File[0]
-        doc = xmlns.Document(baseURI=f.ResolveURI(f.href))
-        doc.Read()
+        doc = xmlns.Document(baseURI=f.resolve_uri(f.href))
+        doc.read()
         self.assertTrue(doc.root.xmlname == 'tag' and
-                        doc.root.GetValue() == u"Unicode Test: \u82f1\u56fd")
+                        doc.root.get_value() == u"Unicode Test: \u82f1\u56fd")
 
     def testCaseFileTable(self):
         cp = ContentPackage(TEST_DATA_DIR.join('package_3'))
@@ -343,8 +343,8 @@ class ContentPackageTests(unittest.TestCase):
         cp.ExportToPIF('package_3.zip')
         cp2 = ContentPackage('package_3.zip')
         self.dList.append(cp2.dPath)
-        r1 = cp2.manifest.GetElementByID('test1')
-        r2 = cp2.manifest.GetElementByID('test2')
+        r1 = cp2.manifest.get_element_by_id('test1')
+        r2 = cp2.manifest.get_element_by_id('test2')
         r1Len = len(r1.File)
         r2Len = len(r2.File)
         cp2.DeleteFile('file_1.xml')

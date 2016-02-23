@@ -129,38 +129,38 @@ class LRMEducationalTests(unittest.TestCase):
         That means that we need method in lists of LangStrings that allow us to add language-tagged
         text to an existing list of langstrings."""
         edu = LOMEducational(None)
-        description = edu.ChildElement(Description)
-        hello = description.ChildElement(description.LangStringClass)
-        hello.SetValue("Hello")
-        hello.SetLang('en-GB')
-        ciao = description.ChildElement(description.LangStringClass)
-        ciao.SetValue("Ciao")
-        ciao.SetLang('it')
+        description = edu.add_child(Description)
+        hello = description.add_child(description.LangStringClass)
+        hello.set_value("Hello")
+        hello.set_lang('en-GB')
+        ciao = description.add_child(description.LangStringClass)
+        ciao.set_value("Ciao")
+        ciao.set_lang('it')
         helloTest = description.GetLangString('en')
-        self.assertTrue(helloTest.GetValue() == 'Hello')
+        self.assertTrue(helloTest.get_value() == 'Hello')
         ciaoTest = description.GetLangString('it')
-        self.assertTrue(ciaoTest.GetValue() == 'Ciao')
+        self.assertTrue(ciaoTest.get_value() == 'Ciao')
         ciaoTest = description.GetLangString('it-IT')
-        self.assertTrue(ciaoTest.GetValue() == 'Ciao')
+        self.assertTrue(ciaoTest.get_value() == 'Ciao')
         description.AddString('en', 'World')
         helloTest = description.GetLangString('en')
-        self.assertTrue(helloTest.GetValue() == 'Hello; World')
+        self.assertTrue(helloTest.get_value() == 'Hello; World')
         bonjour = description.AddString('fr', 'Bonjour')
         bonjourTest = description.GetLangString('fr')
-        self.assertTrue(bonjourTest.GetValue() == 'Bonjour')
+        self.assertTrue(bonjourTest.get_value() == 'Bonjour')
         unknown = description.AddString(None, 'Hi')
         unknownTest = description.GetLangString(None)
-        self.assertTrue(unknownTest.GetValue() == 'Hi')
+        self.assertTrue(unknownTest.get_value() == 'Hi')
 
 
 class LRMDocumentTests(unittest.TestCase):
 
     def testCaseExample1(self):
         doc = imscp.ManifestDocument()
-        doc.Read(src=StringIO(EXAMPLE_1))
-        r = doc.GetElementByID('choice')
+        doc.read(src=StringIO(EXAMPLE_1))
+        r = doc.get_element_by_id('choice')
         self.assertTrue(
-            isinstance(list(r.Metadata.GetChildren())[0], LOM), "LOM")
+            isinstance(list(r.Metadata.get_children())[0], LOM), "LOM")
 
 if __name__ == "__main__":
     unittest.main()

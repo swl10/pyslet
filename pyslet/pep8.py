@@ -3,7 +3,6 @@
 
 import inspect
 import logging
-import sys
 import types
 import warnings
 
@@ -131,7 +130,7 @@ class MigratedMetaclass(type):
                         # already have something assigned to the new
                         # name.  The rest of the puzzle will be put in
                         # place below...
-                        old_method(im.old_method.__name__)(sm)
+                        old_method(im.old_method.__name__, doc=False)(sm)
                     elif im.__name__ in dct:
                         # new code, provides an override, manually
                         # provide an old method wrapper, this reduces
@@ -140,7 +139,7 @@ class MigratedMetaclass(type):
                         # mappings are required.
                         override = dct[im.__name__]
                         sm = get_method_function(override)
-                        old_method(im.old_method.__name__)(sm)
+                        old_method(im.old_method.__name__, doc=False)(sm)
         # the second part of the metaclass is for class authors who were
         # expecting us (and overrides patched above)... search our
         # dictionary for renamed methods and add the old names pointing
@@ -197,7 +196,7 @@ class DeprecatedMethod(object):
         return self.new_func(*args, **kwargs)
 
 
-def old_method(name):
+def old_method(name, doc=True):
 
     def custom_renamed_method(func):
         func_renamed = DeprecatedMethod(func, name)
@@ -209,156 +208,10 @@ def old_method(name):
         # the func being defined.
         call_renamed.__name__ = name
         func.old_method = call_renamed
-        func.old_method.__doc__ = "Deprecated equivalent to "\
-            ":meth:`%s`" % func.__name__
+        if doc:
+            func.old_method.__doc__ = "Deprecated equivalent to "\
+                ":meth:`%s`" % func.__name__
         return func
-
-    return custom_renamed_method
-
-
-class RenamedMethod(object):
-
-    """Represents a renamed method
-
-    func
-        A function object"""
-
-    def __init__(self, func, new_name=None):
-        self.old_name = func.__name__
-        if new_name is None:
-            self.new_name = make_attr_name(self.old_name)
-        else:
-            self.new_name = new_name
-        self.warned = False
-
-    def target(self, obj):
-        if not self.warned:
-            if isinstance(obj, type):
-                cname = obj.__name__
-            else:
-                cname = obj.__class__.__name__
-            warnings.warn(
-                "%s.%s is deprecated, use, %s instead" %
-                (cname, self.old_name, self.new_name),
-                DeprecationWarning, stacklevel=3)
-            self.warned = True
-        return getattr(obj, self.new_name)
-
-
-def renamed_method(func):
-    """Provides a decorator for an single renamed method.
-
-    Intended usage::
-
-        class X(object):
-
-            @renamed_method
-            def MyMethod(self,....): pass       # noqa
-
-            def my_method(self,....):
-                # implementation goes here"""
-
-    func_renamed = RenamedMethod(func)
-
-    def call_renamed(obj, *args, **kwargs):
-        return func_renamed.target(obj)(*args, **kwargs)
-
-    return call_renamed
-
-
-def redirected_method(name):
-    """Provides a factory decorator for a custom renamed method.
-
-    Intended usage::
-
-        class X(object):
-
-            @redirected_method('new_method')
-            def MyMethod(self,....): pass       # noqa
-
-            def new_method(self,....):
-                # implementation goes here"""
-
-    def custom_renamed_method(func):
-        func_renamed = RenamedMethod(func, name)
-
-        def call_renamed(obj, *args, **kwargs):
-            return func_renamed.target(obj)(*args, **kwargs)
-
-        return call_renamed
-
-    return custom_renamed_method
-
-
-class RenamedFunction(object):
-    """Represents a renamed function
-
-    func
-        A function object"""
-
-    def __init__(self, func, new_func=None):
-        self.module = func.__module__
-        self.old_name = func.__name__
-        if new_func is None:
-            self.new_func = getattr(sys.modules[func.__module__],
-                                    make_attr_name(self.old_name))
-        else:
-            self.new_func = new_func
-        self.warned = False
-
-    def target(self):
-        if not self.warned:
-            warnings.warn(
-                "%s.%s is deprecated, use, %s instead" %
-                (self.module, self.old_name, self.new_func.__name__),
-                DeprecationWarning, stacklevel=3)
-            self.warned = True
-        return self.new_func
-
-
-def renamed_function(func):
-    """Provides a decorator for a single renamed function.
-
-    Intended usage::
-
-        @renamed_function
-        def MyFunc(self,....): pass     # noqa
-
-        def my_func(self,....):
-            # implementation goes here
-
-    IMPORTANT: note that the new function must be defined before the
-    renamed function."""
-
-    func_renamed = RenamedFunction(func)
-
-    def call_renamed(*args, **kwargs):
-        return func_renamed.target()(*args, **kwargs)
-
-    return call_renamed
-
-
-def redirected_function(name):
-    """Provides a factory decorator for a custom renamed function.
-
-    Intended usage::
-
-        def new_function(self,....):
-            # implementation goes here
-
-        @redirected_function(new_function)
-        def MyFunction(self,....): pass     # noqa
-
-    IMPORTANT: note that the new function must be defined before the
-    redirected function."""
-
-    def custom_renamed_method(func):
-        func_renamed = RenamedMethod(func, name)
-
-        def call_renamed(obj, *args, **kwargs):
-            return func_renamed.target(obj)(*args, **kwargs)
-
-        return call_renamed
 
     return custom_renamed_method
 
@@ -446,12 +299,13 @@ def check_class(cls):
         _pep8_class_dict[cls] = True
 
 
-class PEP8Compatibility(object):
+class PEP8Compatibility(MigratedClass):
 
     _pep8_dict = {}
 
     def __init__(self):
-        check_class(self.__class__)
+        # check_class(self.__class__)
+        pass
 
     def __getattr__(self, name):
         """Retries name in pep8_style

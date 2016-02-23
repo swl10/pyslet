@@ -1114,7 +1114,7 @@ class WSGIApp(DispatchNode):
 <head><title>Redirect</title></head>
 <body>
     <p>Please <a href=%s>click here</a> if not redirected automatically</p>
-</body></html>""" % xml.EscapeCharData7(str(location), True)
+</body></html>""" % xml.escape_char_data7(str(location), True)
         context.add_header("Location", str(location))
         context.add_header("Content-Type", "text/html")
         context.add_header("Content-Length", str(len(data)))
@@ -1316,7 +1316,7 @@ class WSGIDataApp(WSGIApp):
             # load the metadata document for our data layer
             cls.metadata = edmx.Document()
             with open(metadata_file, 'rb') as f:
-                cls.metadata.Read(f)
+                cls.metadata.read(f)
         else:
             cls.metadata = cls.load_default_metadata()
         container_name = settings.setdefault('container', None)
@@ -1981,7 +1981,7 @@ class SessionApp(WSGIDataApp):
             os.path.join(mdir, 'wsgi_metadata.xml'))
         metadata = edmx.Document()
         with open(metadata_file, 'rb') as f:
-            metadata.Read(f)
+            metadata.read(f)
         return metadata
 
     #: The name of our CSRF token
@@ -2195,7 +2195,7 @@ class SessionApp(WSGIDataApp):
     <body>
     <p>Cookie test failed: try opening in a <a href=%s
     target="_blank" id="wlaunch">new window</a></p></body>
-</html>""" % xml.EscapeCharData7(str(target_url), True)
+</html>""" % xml.escape_char_data7(str(target_url), True)
         context.set_status(200)
         return self.html_response(context, data)
 

@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import pyslet.xml.structures as xml
-import pyslet.xmlnames20091208 as xmlns
+import pyslet.xml.namespace as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.html40_19991224 as html
 
@@ -43,7 +43,7 @@ class AssessmentTest(core.QTIElement, core.DeclarationContainer):
     XMLATTR_title = 'title'
     XMLATTR_toolName = 'toolName'
     XMLATTR_toolVersion = 'toolVersion'
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
@@ -60,7 +60,7 @@ class AssessmentTest(core.QTIElement, core.DeclarationContainer):
         # : a dictionary of testPart, assessmentSection and assessmentItemRef keyed on identifier
         self.parts = {}
 
-    def GetChildren(self):
+    def get_children(self):
         for d in self.OutcomeDeclaration:
             yield d
         if self.TimeLimits:
@@ -189,7 +189,7 @@ class TestPart(core.QTIElement):
         'submissionMode',
         SubmissionMode.DecodeValue,
         SubmissionMode.EncodeValue)
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
@@ -203,7 +203,7 @@ class TestPart(core.QTIElement):
         self.AssessmentSection = []
         self.TestFeedback = []
 
-    def GetChildren(self):
+    def get_children(self):
         for c in self.PreCondition:
             yield c
         for c in self.BranchRule:
@@ -218,7 +218,7 @@ class TestPart(core.QTIElement):
             yield c
 
     def content_changed(self):
-        test = self.FindParent(AssessmentTest)
+        test = self.find_parent(AssessmentTest)
         if test:
             test.RegisterPart(self)
 
@@ -236,7 +236,7 @@ class TestPart(core.QTIElement):
         then None is returned.  *state* is a
         :py:class:`variables.TestSessionState` instance used to evaluate the
         branch rule expressions."""
-        test = self.FindParent(AssessmentTest)
+        test = self.find_parent(AssessmentTest)
         for r in self.BranchRule:
             if r.Evaluate(state):
                 try:
@@ -275,7 +275,7 @@ class Selection(core.QTIElement):
     XMLATTR_select = ('select', xsi.DecodeInteger, xsi.EncodeInteger)
     XMLATTR_withReplacement = (
         'withReplacement', xsi.DecodeBoolean, xsi.EncodeBoolean)
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
@@ -301,7 +301,7 @@ class Ordering(core.QTIElement):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'ordering')
     XMLATTR_shuffle = ('shuffle', xsi.DecodeBoolean, xsi.EncodeBoolean)
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
@@ -341,7 +341,7 @@ class SectionPart(core.QTIElement):
         self.ItemSessionControl = None
         self.TimeLimits = None
 
-    def GetChildren(self):
+    def get_children(self):
         for c in self.PreCondition:
             yield c
         for c in self.BranchRule:
@@ -352,15 +352,15 @@ class SectionPart(core.QTIElement):
             yield self.TimeLimits
 
     def content_changed(self):
-        test = self.FindParent(AssessmentTest)
+        test = self.find_parent(AssessmentTest)
         if test:
             test.RegisterPart(self)
 
     def CheckPreConditions(self, state):
         """Returns True if this item or section's pre-conditions are satisfied
         or if there are no pre-conditions in effect."""
-        test = self.FindParent(AssessmentTest)
-        testPart = self.FindParent(TestPart)
+        test = self.find_parent(AssessmentTest)
+        testPart = self.find_parent(TestPart)
         if testPart.navigationMode != NavigationMode.linear:
             return None
         for c in self.PreCondition:
@@ -374,8 +374,8 @@ class SectionPart(core.QTIElement):
         in effect then None is returned.  *state* is a
         :py:class:`variables.TestSessionState` instance used to evaluate the
         branch rule expressions."""
-        test = self.FindParent(AssessmentTest)
-        testPart = self.FindParent(TestPart)
+        test = self.find_parent(AssessmentTest)
+        testPart = self.find_parent(TestPart)
         if testPart.navigationMode != NavigationMode.linear:
             return None
         for r in self.BranchRule:
@@ -389,7 +389,7 @@ class SectionPart(core.QTIElement):
                         raise core.ProcessingError(
                             "Target of section or item branch rule is not a section or item: %s" %
                             r.target)
-                    if target.FindParent(TestPart) is not testPart:
+                    if target.find_parent(TestPart) is not testPart:
                         raise core.ProcessingError(
                             "Target or section or item branch rule is not in the same testPart: %s" %
                             r.target)
@@ -426,7 +426,7 @@ class AssessmentSection(SectionPart):
     XMLATTR_visible = ('visible', xsi.DecodeBoolean, xsi.EncodeBoolean)
     XMLATTR_keepTogether = (
         'keepTogether', xsi.DecodeBoolean, xsi.EncodeBoolean)
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         SectionPart.__init__(self, parent)
@@ -438,8 +438,8 @@ class AssessmentSection(SectionPart):
         self.RubricBlock = []
         self.SectionPart = []
 
-    def GetChildren(self):
-        for c in SectionPart.GetChildren(self):
+    def get_children(self):
+        for c in SectionPart.get_children(self):
             yield c
         if self.Selection:
             yield self.Selection
@@ -477,7 +477,7 @@ class AssessmentItemRef(SectionPart):
     XMLNAME = (core.IMSQTI_NAMESPACE, 'assessmentItemRef')
     XMLATTR_href = ('href', html.DecodeURI, html.EncodeURI)
     XMLATTR_category = ('category', None, None, types.ListType)
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         SectionPart.__init__(self, parent)
@@ -488,8 +488,8 @@ class AssessmentItemRef(SectionPart):
         self.Weight = []
         self.TemplateDefault = []
 
-    def GetChildren(self):
-        for c in SectionPart.GetChildren(self):
+    def get_children(self):
+        for c in SectionPart.get_children(self):
             yield c
         for c in self.VariableMapping:
             yield c
@@ -502,9 +502,9 @@ class AssessmentItemRef(SectionPart):
         """Returns the AssessmentItem referred to by this reference."""
         if self.item is None:
             if self.href:
-                itemLocation = self.ResolveURI(self.href)
+                itemLocation = self.resolve_uri(self.href)
                 doc = core.QTIDocument(baseURI=itemLocation)
-                doc.Read()
+                doc.read()
                 if isinstance(doc.root, items.AssessmentItem):
                     self.item = doc.root
         return self.item

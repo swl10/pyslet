@@ -66,9 +66,9 @@ class Assessment(common.QTICommentContainer):
         self.SectionMixin.append(child)
         return child
 
-    def GetChildren(self):
+    def get_children(self):
         for child in itertools.chain(
-                QTIComment.GetChildren(self),
+                QTIComment.get_children(self),
                 self.QTIMetadata,
                 self.Objectives,
                 self.AssessmentControl,
@@ -162,9 +162,9 @@ class AssessFeedback(common.QTICommentContainer, common.ContentMixin):
         self.ident = None
         self.title = None
 
-    def GetChildren(self):
+    def get_children(self):
         return itertools.chain(
-            common.QTICommentContainer.GetChildren(self),
+            common.QTICommentContainer.get_children(self),
             common.ContentMixin.GetContentChildren(self))
 
     def ContentMixin(self, childClass):

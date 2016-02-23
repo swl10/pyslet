@@ -88,7 +88,7 @@ class CSDLTests(unittest.TestCase):
                         "No Annotations elements allowed on construction")
         self.assertTrue(len(s.ValueTerm) == 0,
                         "No ValueTerm elements allowed on construction")
-        e = s.ChildElement(EntityType)
+        e = s.add_child(EntityType)
         e.name = "TestType"
         s.content_changed()
         self.assertTrue(
@@ -99,14 +99,14 @@ class CSDLTests(unittest.TestCase):
         self.assertTrue(
             isinstance(et, CSDLElement), "EntityType not a CSDLelement")
         self.assertTrue(et.name == "Default", "Default name")
-        et.SetAttribute('Name', "NewName")
+        et.set_attribute('Name', "NewName")
         self.assertTrue(et.name == "NewName", "Name attribute setter")
         self.assertTrue(et.baseType is None, "Default baseType")
-        et.SetAttribute('BaseType', "ParentClass")
+        et.set_attribute('BaseType', "ParentClass")
         self.assertTrue(
             et.baseType == "ParentClass", "BaseType attribute setter")
         self.assertTrue(et.abstract is False, "Default abstract")
-        et.SetAttribute('Abstract', "true")
+        et.set_attribute('Abstract', "true")
         self.assertTrue(et.abstract is True, "Abstract attribute setter")
         self.assertTrue(et.Documentation is None,
                         "No Documentation elements allowed on construction")
@@ -126,23 +126,23 @@ class CSDLTests(unittest.TestCase):
         self.assertTrue(
             isinstance(p, CSDLElement), "Property not a CSDLelement")
         self.assertTrue(p.name == "Default", "Default name")
-        p.SetAttribute('Name', "NewName")
+        p.set_attribute('Name', "NewName")
         self.assertTrue(p.name == "NewName", "Name attribute setter")
         self.assertTrue(p.type == "Edm.String", "Default type")
-        p.SetAttribute('Type', "Edm.Int32")
+        p.set_attribute('Type', "Edm.Int32")
         self.assertTrue(p.type == "Edm.Int32", "Type attribute setter")
         self.assertTrue(p.TypeRef is None, "No TypeRef child on construction")
         self.assertTrue(p.nullable is True, "Default nullable value")
-        p.SetAttribute('Nullable', "false")
+        p.set_attribute('Nullable', "false")
         self.assertTrue(p.nullable is False, "Nullable attribute setter")
         self.assertTrue(p.defaultValue is None, "DefaultValue on construction")
-        p.SetAttribute('DefaultValue', "5")
+        p.set_attribute('DefaultValue', "5")
         self.assertTrue(p.defaultValue == "5", "DefaultValue attribute setter")
         self.assertTrue(p.maxLength is None, "MaxLength on construction")
-        p.SetAttribute('MaxLength', "5")
+        p.set_attribute('MaxLength', "5")
         self.assertTrue(p.maxLength == 5, "MaxLength attribute setter")
         self.assertTrue(p.fixedLength is None, "FixedLength on construction")
-        p.SetAttribute('FixedLength', "false")
+        p.set_attribute('FixedLength', "false")
         self.assertTrue(p.fixedLength is False, "FixedLength attribute setter")
         self.assertTrue(p.precision is None, "Precision on construction")
         self.assertTrue(p.scale is None, "Scale on construction")
@@ -193,11 +193,11 @@ class CSDLTests(unittest.TestCase):
             isinstance(ct, CSDLElement), "ComplexType not a CSDLElement")
         self.assertTrue(ct.name == "Default", "Default name")
         self.assertTrue(ct.baseType is None, "Default baseType")
-        ct.SetAttribute('BaseType', "ParentClass")
+        ct.set_attribute('BaseType', "ParentClass")
         self.assertTrue(
             ct.baseType == "ParentClass", "BaseType attribute setter")
         self.assertTrue(ct.abstract is False, "Default abstract")
-        ct.SetAttribute('Abstract', "true")
+        ct.set_attribute('Abstract', "true")
         self.assertTrue(ct.abstract is True, "Abstract attribute setter")
         self.assertTrue(ct.Documentation is None,
                         "No Documentation elements allowed on construction")
@@ -213,7 +213,7 @@ class CSDLTests(unittest.TestCase):
         self.assertTrue(
             isinstance(a, CSDLElement), "Association not a CSDLElement")
         self.assertTrue(a.name == "Default", "Default name")
-        a.SetAttribute('Name', "NewName")
+        a.set_attribute('Name', "NewName")
         self.assertTrue(
             a.name == "NewName", "Name attribute setter: %s" % repr(a.name))
         self.assertTrue(a.Documentation is None,
@@ -233,17 +233,17 @@ class CSDLTests(unittest.TestCase):
         self.assertTrue(
             isinstance(e, CSDLElement), "AssociationEnd not a CSDLElement")
         self.assertTrue(e.type is None, "Default type")
-        e.SetAttribute('Type', "MySchema.Person")
+        e.set_attribute('Type', "MySchema.Person")
         self.assertTrue(e.type == "MySchema.Person", "Type attribute setter")
         self.assertTrue(e.name is None, "Default role")
-        e.SetAttribute('Role', "Source")
+        e.set_attribute('Role', "Source")
         self.assertTrue(e.name == "Source", "Role attribute setter")
         self.assertTrue(
             e.multiplicity == Multiplicity.One, "Default Multiplicity")
-        e.SetAttribute('Multiplicity', "0..1")
+        e.set_attribute('Multiplicity', "0..1")
         self.assertTrue(e.multiplicity == Multiplicity.ZeroToOne,
                         "Multiplicity attribute setter")
-        e.SetAttribute('Multiplicity', "*")
+        e.set_attribute('Multiplicity', "*")
         self.assertTrue(e.multiplicity == Multiplicity.Many,
                         "Multiplicity attribute setter")
         self.assertTrue(e.Documentation is None,
@@ -286,7 +286,7 @@ class CSDLTests(unittest.TestCase):
     </Association>
 </Schema>"""
         doc = Document()
-        doc.Read(src=min_nav_schema)
+        doc.read(src=min_nav_schema)
         scope = NameTableMixin()
         scope.Declare(doc.root)
         doc.root.UpdateTypeRefs(scope)
@@ -307,13 +307,13 @@ class CSDLTests(unittest.TestCase):
             isinstance(f, CSDLElement), "FunctionImport not a CSDLElement")
         # FunctionImport MUST have a Name attribute defined
         self.assertTrue(f.name == "Default", "Default name")
-        f.SetAttribute('Name', "annualCustomerSales")
+        f.set_attribute('Name', "annualCustomerSales")
         self.assertTrue(
             f.name == "annualCustomerSales",
             "Name attribute setter: %s" % repr(f.name))
         # Name attribute is of type SimpleIdentifier
         try:
-            f.SetAttribute('Name', "bad-name")
+            f.set_attribute('Name', "bad-name")
             self.fail("bad-name accepted")
         except ValueError:
             pass
@@ -342,7 +342,7 @@ class CSDLTests(unittest.TestCase):
     </EntityType>
 </Schema>"""
         doc = Document()
-        doc.Read(src=min_func_schema)
+        doc.read(src=min_func_schema)
         scope = NameTableMixin()
         scope.Declare(doc.root)
         doc.root.UpdateTypeRefs(scope)
@@ -526,7 +526,7 @@ class EntityTests(unittest.TestCase):
     </EntityType>
 </Schema>"""
         doc = Document()
-        doc.Read(src=min_es_schema)
+        doc.read(src=min_es_schema)
         scope = NameTableMixin()
         scope.Declare(doc.root)
         doc.root.UpdateTypeRefs(scope)

@@ -14,7 +14,7 @@ from types import *
 
 from pyslet.unicode5 import CharClass, detect_encoding
 import pyslet.xml.structures as xml
-import pyslet.xmlnames20091208 as xmlns
+import pyslet.xml.namespace as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.rfc2396 as uri
 import pyslet.http.grammar as grammar
@@ -3067,7 +3067,10 @@ class Property(ODataElement):
         self.edmValue = None
 
     def GetSimpleType(self):
-        type = self.GetNSAttribute((ODATA_METADATA_NAMESPACE, 'type'))
+        try:
+            type = self.get_attribute((ODATA_METADATA_NAMESPACE, 'type'))
+        except KeyError:
+            type = None
         if type:
             try:
                 type = edm.SimpleType.DecodeLowerValue(type.lower())
@@ -3078,21 +3081,24 @@ class Property(ODataElement):
         else:
             return None
 
-    def GetValue(self, value=None):
+    def get_value(self, value=None):
         """Gets an appropriately typed value for the property.
 
         Overloads the basic
-        :py:meth:`~pyslet.xml.structures.Element.GetValue`
+        :py:meth:`~pyslet.xml.structures.Element.get_value`
         implementation to transform the value into an
         :py:class:`pyslet.mc_csdl.EDMValue` instance.
 
         An optional :py:class:`pyslet.mc_csdl.EDMValue` can be passed,
         if present the instance's value is updated with the value of
         this Property element."""
-        null = self.GetNSAttribute((ODATA_METADATA_NAMESPACE, 'null'))
-        null = (null and null.lower() == "true")
+        try:
+            null = self.get_attribute((ODATA_METADATA_NAMESPACE, 'null'))
+            null = (null and null.lower() == "true")
+        except KeyError:
+            null = False
         if value is None:
-            entry = self.FindParent(Entry)
+            entry = self.find_parent(Entry)
             if entry and entry.entityType:
                 propertyDef = entry.entityType.get(self.xmlname, None)
             else:
@@ -3101,7 +3107,7 @@ class Property(ODataElement):
                 value = propertyDef()
             else:
                 # picks up top-level properties only!
-                pList = list(self.FindChildrenBreadthFirst(Property, False))
+                pList = list(self.find_children_breadth_first(Property, False))
                 if pList:
                     # we have a complex type with no definition
                     value = edm.Complex()
@@ -3118,18 +3124,18 @@ class Property(ODataElement):
             if null:
                 value.value = None
             else:
-                value.SetFromLiteral(ODataElement.GetValue(self))
+                value.SetFromLiteral(ODataElement.get_value(self))
         else:
             # you can't have a null complex value BTW
-            for child in self.GetChildren():
+            for child in self.get_children():
                 if isinstance(child, Property):
                     if child.xmlname in value:
-                        child.GetValue(value[child.xmlname])
+                        child.get_value(value[child.xmlname])
                     else:
-                        value.AddProperty(child.xmlname, child.GetValue())
+                        value.AddProperty(child.xmlname, child.get_value())
         return value
 
-    def SetValue(self, value):
+    def set_value(self, value):
         """Sets the value of the property
 
         The null property is updated as appropriate.
@@ -3142,30 +3148,30 @@ class Property(ODataElement):
         if isinstance(value, edm.SimpleValue):
             if self.parent is None:
                 # If we have no parent then we set the type attribute
-                self.SetAttribute(
+                self.set_attribute(
                     (ODATA_METADATA_NAMESPACE,
                      'type'),
                     edm.SimpleType.EncodeValue(
                         value.typeCode))
             if value:
-                ODataElement.SetValue(self, unicode(value))
+                ODataElement.set_value(self, unicode(value))
             else:
-                self.SetAttribute((ODATA_METADATA_NAMESPACE, 'null'), "true")
+                self.set_attribute((ODATA_METADATA_NAMESPACE, 'null'), "true")
         elif isinstance(value, edm.Complex):
             if value.type_def:
-                self.SetAttribute(
+                self.set_attribute(
                     (ODATA_METADATA_NAMESPACE, 'type'), value.type_def.name)
             else:
                 raise ValueError(
                     "Complex-valued properties must have a defined type")
             # loop through our children and set them from this value
             for key, v in value.iteritems():
-                child = self.ChildElement(
+                child = self.add_child(
                     self.__class__, (ODATA_DATASERVICES_NAMESPACE, key))
-                child.SetValue(v)
+                child.set_value(v)
         elif value is None:
             # this is a special case, meaning Null
-            self.SetAttribute((ODATA_METADATA_NAMESPACE, 'null'), "true")
+            self.set_attribute((ODATA_METADATA_NAMESPACE, 'null'), "true")
         else:
             raise TypeError("Expected EDMValue instance")
 
@@ -3182,10 +3188,10 @@ class Properties(ODataElement):
         ODataElement.__init__(self, parent)
         self.Property = []
 
-    def GetChildren(self):
+    def get_children(self):
         return itertools.chain(
             self.Property,
-            ODataElement.GetChildren(self))
+            ODataElement.get_children(self))
 
 
 class Collection(ODataElement):
@@ -3197,10 +3203,10 @@ class Collection(ODataElement):
         ODataElement.__init__(self, parent)
         self.Property = []
 
-    def GetChildren(self):
+    def get_children(self):
         return itertools.chain(
             self.Property,
-            ODataElement.GetChildren(self))
+            ODataElement.get_children(self))
 
 
 class Content(atom.Content):
@@ -3213,8 +3219,8 @@ class Content(atom.Content):
         #: the optional properties element containing the entry's property values
         self.Properties = None
 
-    def GetChildren(self):
-        for child in atom.Content.GetChildren(self):
+    def get_children(self):
+        for child in atom.Content.get_children(self):
             yield child
         if self.Properties:
             yield self.Properties
@@ -3230,27 +3236,27 @@ class Feed(atom.Feed):
         self.collection = collection
         if self.collection is not None:
             location = str(self.collection.get_location())
-            self.AtomId.SetValue(location)
-            self.Title.SetValue(self.collection.get_title())
-            link = self.ChildElement(self.LinkClass)
+            self.AtomId.set_value(location)
+            self.Title.set_value(self.collection.get_title())
+            link = self.add_child(self.LinkClass)
             link.href = location
             link.rel = "self"
         self.Count = None
 
-    def GetChildren(self):
+    def get_children(self):
         """Overridden to add generation of entries dynamically from :py:attr:`collection`.
 
         The collection's
         :py:meth:`pyslet.mc_csdl.EntityCollection.iterpage` method is
         used to iterate over the entities."""
-        for child in super(Feed, self).GetChildren():
+        for child in super(Feed, self).get_children():
             yield child
         if self.Count:
             yield self.Count
         if self.collection is not None:
             if self.collection.inlinecount:
                 count = Count(self)
-                count.SetValue(len(self.collection))
+                count.set_value(len(self.collection))
                 yield count
             for entity in self.collection.iterpage():
                 yield Entry(self, entity)
@@ -3268,7 +3274,7 @@ class Feed(atom.Feed):
         Our children do not have XML IDs"""
         return
 
-    def DetachFromDocument(self, doc=None):
+    def detach_from_doc(self, doc=None):
         """Overridden to prevent unnecessary iterations through the set of children.
 
         Our children do not have XML IDs"""
@@ -3286,12 +3292,12 @@ class Inline(ODataElement):
         self.Feed = None
         self.Entry = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Feed:
             yield self.Feed
         if self.Entry:
             yield self.Entry
-        for child in super(Inline, self).GetChildren():
+        for child in super(Inline, self).get_children():
             yield child
 
 
@@ -3300,11 +3306,11 @@ class Count(ODataElement):
     """Implements inlinecount handling."""
     XMLNAME = (ODATA_METADATA_NAMESPACE, 'count')
 
-    def SetValue(self, new_value):
-        super(Count, self).SetValue(str(new_value))
+    def set_value(self, new_value):
+        super(Count, self).set_value(str(new_value))
 
-    def GetValue(self):
-        return int(super(Count, self).GetValue())
+    def get_value(self):
+        return int(super(Count, self).get_value())
 
 
 class Link(atom.Link):
@@ -3316,24 +3322,24 @@ class Link(atom.Link):
         super(Link, self).__init__(parent)
         self.Inline = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Inline:
             yield self.Inline
-        for child in super(Link, self).GetChildren():
+        for child in super(Link, self).get_children():
             yield child
 
     def Expand(self, expansion):
         """Expands this element based on expansion."""
-        inline = self.ChildElement(Inline)
+        inline = self.add_child(Inline)
         if isinstance(expansion, Entity):
             # it is hard to calculate the id
-            entry = inline.ChildElement(Entry)
-            entry.SetValue(expansion)
+            entry = inline.add_child(Entry)
+            entry.set_value(expansion)
         elif expansion:
             # we only add the feed if it is non-empty
-            feed = inline.ChildElement(Feed)
+            feed = inline.add_child(Feed)
             feed.collection = expansion
-            feed.ChildElement(atom.AtomId).SetValue(self.href)
+            feed.add_child(atom.AtomId).set_value(self.href)
 
     def LoadExpansion(self, deferred, exists=True):
         """Given a :py:class:`csdl.DeferredProperty` instance, adds an expansion if one is present in the link"""
@@ -3343,14 +3349,14 @@ class Link(atom.Link):
                 if self.Inline.Entry is not None:
                     entity = collection.new_entity()
                     entity.exists = exists
-                    self.Inline.Entry.GetValue(entity)
+                    self.Inline.Entry.get_value(entity)
                     entries = [entity]
                 elif self.Inline.Feed is not None:
                     entries = []
-                    for entry in self.Inline.Feed.FindChildrenDepthFirst(Entry, subMatch=False):
+                    for entry in self.Inline.Feed.find_children_depth_first(Entry, subMatch=False):
                         entity = collection.new_entity()
                         entity.exists = exists
-                        entry.GetValue(entity)
+                        entry.get_value(entity)
                         entries.append(entity)
                 deferred.SetExpansion(
                     ExpandedEntityCollection(
@@ -3383,24 +3389,24 @@ class Entry(atom.Entry):
         self.etag = None
         self._properties = {}
         if entity is not None:
-            self.SetValue(entity)
+            self.set_value(entity)
 
     def reset(self):
         if self.Properties:
-            self.Properties.DetachFromParent()
+            self.Properties.detach_from_parent()
             self.Properties = None
         self.etag = None
         self._properties = {}
         super(Entry, self).reset()
 
-    def GetChildren(self):
+    def get_children(self):
         """Replaces the implementation in atom.Entry completed so that
         we can put the content last.  You never know, it is possible
         that someone will parse the metadata and properties and decide
         they don't want the content element and close the connection.
         The other way around might be annoying for large media
         resources."""
-        for child in atom.Entity.GetChildren(self):
+        for child in atom.Entity.get_children(self):
             yield child
         if self.Published:
             yield self.Published
@@ -3429,7 +3435,7 @@ class Entry(atom.Entry):
 
         Returns the value of the property with *key* as a
         `pyslet.mc_csdl.EDMValue` instance."""
-        return self._properties[key].GetValue()
+        return self._properties[key].get_value()
 
     def __setitem__(self, key, value):
         """Enables :py:class:`Entry` to be suffixed with, e.g., ['PropertyName'] to set property values.
@@ -3437,25 +3443,25 @@ class Entry(atom.Entry):
         Sets the property *key* to *value*.  See
         :py:meth:`Property.SetValue` for more information."""
         if key in self._properties:
-            p = self._properties[key].SetValue(value)
+            p = self._properties[key].set_value(value)
         else:
             if self.Properties is None:
-                ps = self.ChildElement(
-                    self.ContentClass).ChildElement(Properties)
+                ps = self.add_child(
+                    self.ContentClass).add_child(Properties)
             else:
                 ps = self.Properties
-            p = ps.ChildElement(
+            p = ps.add_child(
                 ps.PropertyClass, (ODATA_DATASERVICES_NAMESPACE, key))
-            p.SetValue(value)
+            p.set_value(value)
             self._properties[key] = p
 
     def ResolveTargetPath(self, targetPath, prefix, ns):
-        doc = self.GetDocument()
+        doc = self.get_document()
         targetElement = self
         for ename in targetPath:
             newTargetElement = None
-            for eTest in targetElement.GetChildren():
-                if eTest.GetXMLName() == ename:
+            for eTest in targetElement.get_children():
+                if eTest.get_xmlname() == ename:
                     newTargetElement = eTest
                     break
             if newTargetElement is None:
@@ -3465,14 +3471,14 @@ class Entry(atom.Entry):
                     eClass = doc.get_element_class(ename)
                 if eClass is None:
                     eClass = Document.get_element_class(ename)
-                newTargetElement = targetElement.ChildElement(eClass, ename)
-                if ename[0] == ns and newTargetElement.GetPrefix(ename[0]) is None:
+                newTargetElement = targetElement.add_child(eClass, ename)
+                if ename[0] == ns and newTargetElement.get_prefix(ename[0]) is None:
                     # No prefix exists for this namespace, make one
-                    newTargetElement.MakePrefix(ns, prefix)
+                    newTargetElement.make_prefix(ns, prefix)
             targetElement = newTargetElement
         return targetElement
 
-    def GetValue(self, entity, entity_resolver=None, for_update=False):
+    def get_value(self, entity, entity_resolver=None, for_update=False):
         """Update *entity* to reflect the value of this Entry.
 
         *entity* must be an :py:class:`pyslet.mc_csdl.Entity`
@@ -3495,7 +3501,7 @@ class Entry(atom.Entry):
                 prefix, ns = propertyDef.get_fc_ns_prefix()
                 targetElement = self.ResolveTargetPath(targetPath, prefix, ns)
                 if isinstance(targetElement, atom.Date):
-                    dtOffset = targetElement.GetValue()
+                    dtOffset = targetElement.get_value()
                     if isinstance(v, edm.DateTimeOffsetValue):
                         v.set_from_value(dtOffset)
                     elif isinstance(v, edm.DateTimeValue):
@@ -3510,7 +3516,7 @@ class Entry(atom.Entry):
                     # now we need to grab the actual value, only interested in
                     # data
                     data = []
-                    for child in targetElement.GetChildren():
+                    for child in targetElement.get_children():
                         if type(child) in StringTypes:
                             data.append(child)
                     v.SetFromLiteral(string.join(data, ''))
@@ -3518,7 +3524,7 @@ class Entry(atom.Entry):
             else:
                 # and watch out for unselected properties
                 if k in self._properties:
-                    self._properties[k].GetValue(v)
+                    self._properties[k].get_value(v)
                     selected.add(k)
                 else:
                     # Property is not selected!
@@ -3542,21 +3548,21 @@ class Entry(atom.Entry):
                 if link.Inline is not None:
                     with targetSet.OpenCollection() as collection:
                         if entity.IsEntityCollection(navProperty):
-                            for entry in link.Inline.Feed.FindChildrenDepthFirst(Entry, subMatch=False):
+                            for entry in link.Inline.Feed.find_children_depth_first(Entry, subMatch=False):
                                 # create a new entity from the target entity
                                 # set
                                 targetEntity = collection.new_entity()
-                                entry.GetValue(targetEntity, entity_resolver)
+                                entry.get_value(targetEntity, entity_resolver)
                                 entity[navProperty].BindEntity(targetEntity)
                         elif link.Inline.Entry is not None:
                             targetEntity = collection.new_entity()
-                            link.Inline.Entry.GetValue(
+                            link.Inline.Entry.get_value(
                                 targetEntity, entity_resolver)
                             entity[navProperty].BindEntity(targetEntity)
                 elif entity_resolver is not None:
                     #   this is the tricky bit, we need to resolve
                     #   the URI to an entity key
-                    href = link.ResolveURI(link.href)
+                    href = link.resolve_uri(link.href)
                     if not href.is_absolute():
                         #   we'll assume that the base URI is the
                         #   location of this entity once it is
@@ -3587,7 +3593,7 @@ class Entry(atom.Entry):
                 if entity_resolver is not None:
                     #   this is the tricky bit, we need to resolve
                     #   the URI to an entity key
-                    href = link.ResolveURI(link.href)
+                    href = link.resolve_uri(link.href)
                     if not href.is_absolute():
                         #   we'll assume that the base URI is the location of this entity
                         #   Witness this thread:
@@ -3616,7 +3622,7 @@ class Entry(atom.Entry):
                 link.LoadExpansion(entity[navProperty])
         return entity
 
-    def SetValue(self, entity, for_update=False):
+    def set_value(self, entity, for_update=False):
         """Sets the value of this Entry to represent *entity*, a :py:class:`pyslet.mc_csdl.Entity` instance."""
         # start with a reset
         self.reset()
@@ -3624,7 +3630,7 @@ class Entry(atom.Entry):
         self.etag = entity.ETag()
         # Now set the new property values, starting with entity-type level feed customisation
         # seems odd that there can only be one of these but, hey...
-        cat = self.ChildElement(atom.Category)
+        cat = self.add_child(atom.Category)
         cat.term = entity.type_def.GetFQName()
         cat.scheme = ODATA_SCHEME
         targetPath = entity.type_def.get_target_path()
@@ -3642,36 +3648,36 @@ class Entry(atom.Entry):
                         break
                 if isinstance(targetElement, atom.Date) and v:
                     if isinstance(v, edm.DateTimeOffsetValue):
-                        targetElement.SetValue(unicode(v))
+                        targetElement.set_value(unicode(v))
                     elif isinstance(v, edm.DateTimeValue):
                         # assume UTC
                         dtOffset = v.value.with_zone(zdirection=0)
-                        targetElement.SetValue(unicode(dtOffset))
+                        targetElement.set_value(unicode(dtOffset))
                     elif isinstance(v, edm.StringValue):
                         try:
                             dtOffset = iso8601.TimePoint.from_str(v.value)
                             if dtOffset.get_zone()[0] is None:
                                 dtOffset = dtOffset.with_zone(zdirection=0)
-                            targetElement.SetValue(unicode(dtOffset))
+                            targetElement.set_value(unicode(dtOffset))
                         except iso8601.DateTimeError:
                             # do nothing
                             pass
                 elif isinstance(v, edm.SimpleValue) and v:
-                    targetElement.AddData(unicode(v))
+                    targetElement.add_data(unicode(v))
         # now do the links
         location = str(entity.get_location())
-        self.ChildElement(atom.AtomId).SetValue(location)
+        self.add_child(atom.AtomId).set_value(location)
         if entity.exists and not for_update:
-            link = self.ChildElement(self.LinkClass)
+            link = self.add_child(self.LinkClass)
             link.href = location
             link.rel = "edit"
             if mediaLinkResource:
-                link = self.ChildElement(self.LinkClass)
+                link = self.add_child(self.LinkClass)
                 link.href = location + "/$value"
                 link.rel = "edit-media"
                 if self.etag:
                     s = "" if entity.ETagIsStrong() else "W/"
-                    link.SetAttribute(
+                    link.set_attribute(
                         (ODATA_METADATA_NAMESPACE,
                          'etag'),
                         s +
@@ -3682,7 +3688,7 @@ class Entry(atom.Entry):
                                     self.etag),
                                 ',')))
             for navProperty, navValue in entity.NavigationItems():
-                link = self.ChildElement(self.LinkClass)
+                link = self.add_child(self.LinkClass)
                 link.href = location + '/' + navProperty
                 link.rel = ODATA_RELATED + navProperty
                 link.title = navProperty
@@ -3717,7 +3723,7 @@ class Entry(atom.Entry):
                 else:
                     href = str(
                         targetSet.get_location()) + ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
-                link = self.ChildElement(self.LinkClass)
+                link = self.add_child(self.LinkClass)
                 link.rel = ODATA_RELATED + k
                 link.title = k
                 link.href = href
@@ -3740,12 +3746,12 @@ class Entry(atom.Entry):
                         href = str(
                             targetSet.get_location()) + ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
                     if href:
-                        link = self.ChildElement(self.LinkClass)
+                        link = self.add_child(self.LinkClass)
                         link.rel = ODATA_RELATED + k
                         link.title = k
                         link.href = href
                 if feed:
-                    link = self.ChildElement(self.LinkClass)
+                    link = self.add_child(self.LinkClass)
                     link.rel = ODATA_RELATED + k
                     link.title = k
                     link.href = location + '/' + k
@@ -3764,13 +3770,13 @@ class Entry(atom.Entry):
                         link.Expand(feed[0])
         # Now set the new property values in the properties element
         if mediaLinkResource:
-            self.ChildElement(Properties)
+            self.add_child(Properties)
             # and populate the content element itself
-            content = self.ChildElement(Content)
-            content.SetAttribute('src', location + "/$value")
+            content = self.add_child(Content)
+            content.set_attribute('src', location + "/$value")
             content.type = str(entity.get_content_type())
         else:
-            self.ChildElement(Content).ChildElement(Properties)
+            self.add_child(Content).add_child(Properties)
         for k, v in entity.data_items():
             # catch property-level feed customisation here
             propertyDef = entity.type_def[k]
@@ -3790,22 +3796,22 @@ class Entry(atom.Entry):
     def SetFCValue(self, targetElement, v):
         if isinstance(targetElement, atom.Date) and v:
             if isinstance(v, edm.DateTimeOffsetValue):
-                targetElement.SetValue(unicode(v))
+                targetElement.set_value(unicode(v))
             elif isinstance(v, edm.DateTimeValue):
                 # assume UTC
                 dtOffset = v.value.with_zone(zdirection=0)
-                targetElement.SetValue(unicode(dtOffset))
+                targetElement.set_value(unicode(dtOffset))
             elif isinstance(v, edm.StringValue):
                 try:
                     dtOffset = iso8601.TimePoint.from_str(v.value)
                     if dtOffset.get_zone()[0] is None:
                         dtOffset = dtOffset.with_zone(zdirection=0)
-                    targetElement.SetValue(unicode(dtOffset))
+                    targetElement.set_value(unicode(dtOffset))
                 except iso8601.DateTimeError:
                     # do nothing
                     pass
         elif isinstance(v, edm.SimpleValue) and v:
-            targetElement.AddData(unicode(v))
+            targetElement.add_data(unicode(v))
 
 
 class URI(ODataElement):
@@ -3823,15 +3829,15 @@ class Links(ODataElement):
         ODataElement.__init__(self, parent)
         self.URI = []
 
-    def GetChildren(self):
+    def get_children(self):
         return itertools.chain(
             self.URI,
-            ODataElement.GetChildren(self))
+            ODataElement.get_children(self))
 
 
 class Error(ODataElement):
     XMLNAME = (ODATA_METADATA_NAMESPACE, 'error')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         ODataElement.__init__(self, parent)
@@ -3839,7 +3845,7 @@ class Error(ODataElement):
         self.Message = Message(self)
         self.InnerError = None
 
-    def GetChildren(self):
+    def get_children(self):
         yield self.Code
         yield self.Message
         if self.InnerError:
@@ -3847,10 +3853,10 @@ class Error(ODataElement):
 
     def GenerateStdErrorJSON(self):
         yield '{"error":{"code":%s,"message":%s' % (
-            json.dumps(self.Code.GetValue()),
-            json.dumps(self.Message.GetValue()))
+            json.dumps(self.Code.get_value()),
+            json.dumps(self.Message.get_value()))
         if self.InnerError:
-            yield ',"innererror":%s' % json.dumps(self.InnerError.GetValue())
+            yield ',"innererror":%s' % json.dumps(self.InnerError.get_value())
         yield '}}'
 
 
@@ -3873,8 +3879,8 @@ class Document(app.Document):
 
     def __init__(self, **args):
         app.Document.__init__(self, **args)
-        self.MakePrefix(ODATA_METADATA_NAMESPACE, 'm')
-        self.MakePrefix(ODATA_DATASERVICES_NAMESPACE, 'd')
+        self.make_prefix(ODATA_METADATA_NAMESPACE, 'm')
+        self.make_prefix(ODATA_DATASERVICES_NAMESPACE, 'd')
 
     @classmethod
     def get_element_class(cls, name):
@@ -3891,4 +3897,4 @@ class Document(app.Document):
                 result = app.Document.get_element_class(name)
         return result
 
-xmlns.MapClassElements(Document.classMap, globals())
+xmlns.map_class_elements(Document.classMap, globals())

@@ -86,7 +86,7 @@ float:
 identifier:
 	represented by python's (unicode) string.  The type is effectively just the
 	NCName from the XML namespace specification.  See
-	:py:func:`pyslet.xmlnames20091208.IsValidNCName`.
+	:py:func:`pyslet.xml.namespace.IsValidNCName`.
 	
 	..	autofunction:: ValidateIdentifier
 

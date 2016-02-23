@@ -155,7 +155,7 @@ class DjangoApp(wsgi.WSGIApp):
 
             <a href={{ location|safe }}>click here</a>"""
         c = self.new_page_context(context)
-        c['location_attr'] = xml.EscapeCharData7(str(location), True)
+        c['location_attr'] = xml.escape_char_data7(str(location), True)
         data = self.render_template(context, 'djangoapp/redirect.html', c)
         context.add_header("Location", str(location))
         context.add_header("Content-Type", "text/html")
@@ -178,7 +178,7 @@ class DjangoApp(wsgi.WSGIApp):
         context.set_status(code)
         c = self.new_page_context(context)
         c["code"] = str(code)
-        c["msg"] = xml.EscapeCharData7(context.status_message)
+        c["msg"] = xml.escape_char_data7(context.status_message)
         data = self.render_template(context, 'djangoapp/error.html', c)
         return self.html_response(context, data)
 
@@ -201,9 +201,9 @@ class DjangoApp(wsgi.WSGIApp):
         session id respectively and must be submitted as hidden values
         on the form."""
         c = self.new_page_context(context)
-        c['ctest_attr'] = xml.EscapeCharData7(target_url, True)
-        c['return_attr'] = xml.EscapeCharData7(return_url, True)
-        c['sid_attr'] = xml.EscapeCharData7(sid, True)
+        c['ctest_attr'] = xml.escape_char_data7(target_url, True)
+        c['return_attr'] = xml.escape_char_data7(return_url, True)
+        c['sid_attr'] = xml.escape_char_data7(sid, True)
         data = self.render_template(context, 'djangoapp/ctest.html', c)
         context.set_status(200)
         return self.html_response(context, data)

@@ -185,7 +185,7 @@ class ClientTests(unittest.TestCase):
 # 		self.assertTrue(e['DiscontinuedDate'] is None,"DiscontinuedDate NULL test")
 # 		for link in e.Link:
 # 			if link.title=="Category":
-# 				eCat=c.RetrieveEntry(link.ResolveURI(link.href))
+# 				eCat=c.RetrieveEntry(link.resolve_uri(link.href))
 #
 # 	def tesxCaseReadWrite(self):
 # 		c=Client(ODATA_SAMPLE_READWRITE)
@@ -193,14 +193,14 @@ class ClientTests(unittest.TestCase):
 # 		entries=c.RetrieveEntries(fURL)
 # 		catID=None
 # 		for e in entries:
-# 			if e.Title.GetValue()=='Electronics':
-# 				catID=e.AtomId.GetValue()
+# 			if e.Title.get_value()=='Electronics':
+# 				catID=e.AtomId.get_value()
 # 		fURL=c.feedTitles['Products']
 # 		e=Entry(None)
 # 		now=iso.TimePoint()
 # 		now.now_utc()
-# 		e.Title.SetValue("Pyslet Python Package")
-# 		e.ChildElement(atom.Summary).SetValue("Python package for Standards in Learning, Education and Training")
+# 		e.Title.set_value("Pyslet Python Package")
+# 		e.add_child(atom.Summary).set_value("Python package for Standards in Learning, Education and Training")
 # 		e['ID']=100
 # 		e['ReleaseDate']=now.get_calendar_string()
 # 		e['Rating']=5
@@ -217,7 +217,7 @@ class ClientTests(unittest.TestCase):
 # 		self.assertTrue(eResult['DiscontinuedDate'] is None,"DiscontinuedDate NULL test on POST")
 # 		for link in eResult.Link:
 # 			if link.title=="Category":
-# 				eCat=c.RetrieveEntry(link.ResolveURI(link.href))
+# 				eCat=c.RetrieveEntry(link.resolve_uri(link.href))
 # 				self.assertTrue(eCat['Name']=='Electronics')
 #
 # 	def tesxCaseMetadata(self):
@@ -263,7 +263,7 @@ class RegressionTests(DataServiceRegressionTests):
         self.container = InMemoryEntityContainer(
             self.ds['RegressionModel.RegressionContainer'])
         regressionServerApp = Server("http://localhost:%i/" % HTTP_PORT)
-        regressionServerApp.SetModel(self.ds.GetDocument())
+        regressionServerApp.SetModel(self.ds.get_document())
         t = threading.Thread(target=runRegressionServer)
         t.setDaemon(True)
         t.start()

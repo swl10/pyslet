@@ -1106,8 +1106,8 @@ class AppTests(unittest.TestCase):
         self.assertFalse('last-modified' in req.headers)
         doc = html.XHTMLDocument()
         req.output.seek(0)
-        doc.Read(req.output)
-        links = list(doc.root.FindChildrenDepthFirst(html.A))
+        doc.read(req.output)
+        links = list(doc.root.find_children_depth_first(html.A))
         self.assertTrue(len(links) == 1)
         link = links[0]
         self.assertTrue(link.href == 'http://www.pyslet.org/')
@@ -1416,7 +1416,7 @@ class AppCipherTests(unittest.TestCase):
     </edmx:DataServices>
 </edmx:Edmx>"""
         self.doc = edmx.Document()
-        self.doc.Read(src=key_schema)
+        self.doc.read(src=key_schema)
         self.container = self.doc.root.DataServices["KeySchema.KeyDatabase"]
         # self.memcontainer = InMemoryEntityContainer(self.container)
         self.dbcontainer = sql.SQLiteEntityContainer(
@@ -1638,9 +1638,9 @@ class FullAppTests(unittest.TestCase):
         # can we check the content?
         doc = html.XHTMLDocument()
         req.output.seek(0)
-        doc.Read(req.output)
+        doc.read(req.output)
         # there should be a form called 'wlaunch'
-        form = doc.GetElementByID('wlaunch')
+        form = doc.get_element_by_id('wlaunch')
         if isinstance(form, html.Form):
             self.assertTrue(form.action is not None)
             target = form.action
@@ -1648,7 +1648,7 @@ class FullAppTests(unittest.TestCase):
             self.assertTrue(isinstance(target, params.HTTPURL))
             # get the input fields
             query = {}
-            for input in form.FindChildrenDepthFirst(html.Input):
+            for input in form.find_children_depth_first(html.Input):
                 if input.name in ("return", "sid", "submit"):
                     query[input.name] = str(input.value)
             query = urllib.urlencode(query)
@@ -1715,13 +1715,13 @@ class FullAppTests(unittest.TestCase):
         self.assertTrue(req.status.startswith('200 '))
         doc = html.XHTMLDocument()
         req.output.seek(0)
-        doc.Read(req.output)
-        form = doc.GetElementByID('wlaunch')
+        doc.read(req.output)
+        form = doc.get_element_by_id('wlaunch')
         if isinstance(form, html.Form):
             target = form.action
             # get the input fields
             query = {}
-            for input in form.FindChildrenDepthFirst(html.Input):
+            for input in form.find_children_depth_first(html.Input):
                 if input.name in ("return", "sid", "submit"):
                     query[input.name] = str(input.value)
             query = urllib.urlencode(query)
@@ -1771,14 +1771,14 @@ class FullAppTests(unittest.TestCase):
         # can we check the content?
         doc = html.XHTMLDocument()
         req.output.seek(0)
-        doc.Read(req.output)
+        doc.read(req.output)
         # there might be a form called 'wlaunch'
-        form = doc.GetElementByID('wlaunch')
+        form = doc.get_element_by_id('wlaunch')
         if isinstance(form, html.Form):
             target = form.action
             # get the input fields
             query = {}
-            for input in form.FindChildrenDepthFirst(html.Input):
+            for input in form.find_children_depth_first(html.Input):
                 if input.name in ("return", "sid", "submit"):
                     query[input.name] = str(input.value)
             query = urllib.urlencode(query)

@@ -60,9 +60,9 @@ class Section(core.ObjectMixin, core.SectionMixin, common.QTICommentContainer):
         self.QTIReference = None
         self.SectionItemMixin = []
 
-    def GetChildren(self):
+    def get_children(self):
         for child in itertools.chain(
-                core.QTIComment.GetChildren(self),
+                core.QTIComment.get_children(self),
                 self.QTIMetadata,
                 self.Objectives,
                 self.SectionControl,
@@ -177,9 +177,9 @@ class SectionFeedback(common.QTICommentContainer, common.ContentMixin):
         self.ident = None
         self.title = None
 
-    def GetChildren(self):
+    def get_children(self):
         return itertools.chain(
-            common.QTICommentContainer.GetChildren(self),
+            common.QTICommentContainer.get_children(self),
             common.ContentMixin.GetContentChildren(self))
 
     def ContentMixin(self, childClass):

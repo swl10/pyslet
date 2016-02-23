@@ -255,7 +255,7 @@ class MySQLStreamStore(blockstore.StreamStore):
         doc = edmx.Document()
         with file(os.path.join(os.path.dirname(__file__),
                                'odata2', 'streamstore.xml'), 'r') as f:
-            doc.Read(f)
+            doc.read(f)
         return doc.root.DataServices['StreamStoreSchema.Container']
 
     def __init__(self, db, dpath=None, **kwargs):

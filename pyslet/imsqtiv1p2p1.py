@@ -45,8 +45,8 @@ class QuesTestInterop(QTICommentContainer):
         self.Assessment = None
         self.ObjectMixin = []
 
-    def GetChildren(self):
-        for child in QTICommentContainer.GetChildren(self):
+    def get_children(self):
+        for child in QTICommentContainer.get_children(self):
             yield child
         if self.ObjectBank:
             yield self.ObjectBank
@@ -86,10 +86,10 @@ class QuesTestInterop(QTICommentContainer):
                 # Add this comment to this object's metdata description
                 doc, lom, log = output[0]
                 general = lom.LOMGeneral()
-                description = general.ChildElement(general.DescriptionClass)
-                descriptionString = description.ChildElement(
+                description = general.add_child(general.DescriptionClass)
+                descriptionString = description.add_child(
                     description.LangStringClass)
-                descriptionString.SetValue(self.QTIComment.GetValue())
+                descriptionString.set_value(self.QTIComment.get_value())
         return output
 
 
@@ -212,18 +212,18 @@ class QTIDocument(xml.Document):
                         annotation = metadata.LOMAnnotation()
                         annotationMsg = string.join(log, ';\n')
                         logging.info(annotationMsg)
-                        description = annotation.ChildElement(
+                        description = annotation.add_child(
                             imsmd.Description)
-                        description.ChildElement(
-                            description.LangStringClass).SetValue(annotationMsg)
+                        description.add_child(
+                            description.LangStringClass).set_value(annotationMsg)
                     r = doc.AddToContentPackage(cp, metadata, dName)
                     newResults.append((doc, metadata, log, r))
-                cp.manifest.Update()
+                cp.manifest.update()
             return newResults
         else:
             return []
 
-xml.MapClassElements(QTIDocument.classMap, globals())
+xml.map_class_elements(QTIDocument.classMap, globals())
 
 
 try:

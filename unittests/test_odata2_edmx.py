@@ -62,7 +62,7 @@ class EDMXTests(unittest.TestCase):
             f = uri.URI.from_path(os.path.join(dpath, fName))
             doc = edmx.Document(baseURI=f)
             try:
-                doc.Read()
+                doc.read()
                 doc.validate()
             except (edm.ModelError, edm.DuplicateName), e:
                 self.fail("%s is valid but raised "
@@ -77,7 +77,7 @@ class EDMXTests(unittest.TestCase):
             f = uri.URI.from_path(os.path.join(dpath, fName))
             doc = edmx.Document(baseURI=f)
             try:
-                doc.Read()
+                doc.read()
                 doc.validate()
                 self.fail("%s is invalid but did not raise "
                           "InvalidMetadataDocument" % fName)

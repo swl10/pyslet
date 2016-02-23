@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import pyslet.xml.structures as xml
-import pyslet.xmlnames20091208 as xmlns
+import pyslet.xml.namespace as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.html40_19991224 as html
 
@@ -61,7 +61,7 @@ def ValidateIdentifier(value, prefix='_'):
     too, but the prefix string used can be overridden."""
     if value:
         goodName = []
-        if not xmlns.IsNameStartChar(value[0]):
+        if not xml.is_name_start_char(value[0]):
             goodName.append(prefix)
         elif value[0] == ':':
             # Previous versions of the migrate script didn't catch this problem
@@ -71,7 +71,7 @@ def ValidateIdentifier(value, prefix='_'):
         for c in value:
             if c == ':':
                 goodName.append('-')
-            elif xmlns.IsNameChar(c):
+            elif xml.is_name_char(c):
                 goodName.append(c)
             else:
                 goodName.append('_')
@@ -327,7 +327,7 @@ class QTIElement(xmlns.XMLNSElement):
         references by playing dumb about our children.  HTML doesn't actually
         know anything about QTI even though QTI wants to define children for
         some XHTML elements so we pass the call only to "CP-Aware" elements."""
-        for child in self.GetChildren():
+        for child in self.get_children():
             if hasattr(child, 'AddToCPResource'):
                 child.AddToCPResource(cp, resource, beenThere)
 
@@ -341,9 +341,9 @@ class QTIDocument(xmlns.XMLNSDocument):
 
     def __init__(self, **args):
         xmlns.XMLNSDocument.__init__(self, defaultNS=IMSQTI_NAMESPACE, **args)
-        self.MakePrefix(xsi.XMLSCHEMA_NAMESPACE, 'xsi')
+        self.make_prefix(xsi.XMLSCHEMA_NAMESPACE, 'xsi')
         if isinstance(self.root, QTIElement):
-            self.root.SetAttribute(
+            self.root.set_attribute(
                 (xsi.XMLSCHEMA_NAMESPACE,
                  'schemaLocation'),
                 IMSQTI_NAMESPACE +
@@ -364,7 +364,7 @@ class QTIDocument(xmlns.XMLNSDocument):
         # entry point
         resource = self.root.AddToContentPackage(cp, metadata, dName)
         # Finish by writing out the document to the new baseURI
-        self.Create()
+        self.create()
         return resource
 
 
@@ -396,6 +396,6 @@ def GetTemplateRef(value):
     the value does not look like a template variable reference."""
     if value.startswith('{') and value.endswith('}'):
         idValue = value[1:-1]
-        if xsi.IsValidNCName(idValue):
+        if xsi.is_valid_ncname(idValue):
             return idValue
     return None

@@ -23,7 +23,7 @@ def load_metadata():
 	"""Loads the metadata file from the current directory."""
 	doc=edmx.Document()
 	with open('MemCacheSchema.xml','rb') as f:
-		doc.Read(f)
+		doc.read(f)
 	return doc
 
 

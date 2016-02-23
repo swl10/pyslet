@@ -530,7 +530,7 @@ class QMLQuestion(QMLElement):
         self.QMLAnswer = None
         self.QMLOutcome = []
 
-    def GetChildren(self):
+    def get_children(self):
         for child in itertools.chain(
                 self.QMLTag,
                 self.QMLComment,
@@ -562,15 +562,15 @@ class QMLTag(QMLElement):
         self.name = None
         self.value = None
 
-    def GetValue(self):
+    def get_value(self):
         return self.value
 
-    def SetValue(self, value):
+    def set_value(self, value):
         self.value = value
 
     def GotChildren(self):
         # called when all children have been parsed
-        self.value = ParseNameString(QMLElement.GetValue(self))
+        self.value = ParseNameString(QMLElement.get_value(self))
 
 
 class QMLComment(QMLElement):
@@ -717,7 +717,7 @@ class QMLAnswer(QMLElement):
         self.maxResponse = None
         self.QMLAnswerThing = []
 
-    def GetChildren(self):
+    def get_children(self):
         for child in self.QMLAnswerThing:
             yield child
 
@@ -750,7 +750,7 @@ class QMLChoice(QMLAnswerThing):
         self.QMLOption = []
         self.QMLContent = QMLContent(self)
 
-    def GetChildren(self):
+    def get_children(self):
         for child in self.QMLOption:
             yield child
         yield self.QMLContent
@@ -809,7 +809,7 @@ class QMLOutcome(QMLElement):
         self.QMLCondition = QMLCondition(self)
         self.QMLContent = QMLContent(self)
 
-    def GetChildren(self):
+    def get_children(self):
         yield self.QMLCondition
         yield self.QMLContent
 
@@ -840,4 +840,4 @@ class QMLDocument(xml.Document):
         return QMLDocument.classMap.get(name, QMLDocument.classMap.get(None, xml.Element))
 
 
-xml.MapClassElements(QMLDocument.classMap, globals())
+xml.map_class_elements(QMLDocument.classMap, globals())

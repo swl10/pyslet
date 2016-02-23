@@ -180,7 +180,7 @@ class ODataTests(BlockStoreCommon):
         path = os.path.join(DATA_DIR, 'blockstore.xml')
         self.doc = edmx.Document()
         with open(path, 'rb') as f:
-            self.doc.Read(f)
+            self.doc.read(f)
         self.cdef = self.doc.root.DataServices['BlockSchema.BlockContainer']
         self.container = InMemoryEntityContainer(self.cdef)
 
@@ -218,7 +218,7 @@ class LockingTests(unittest.TestCase):
         path = os.path.join(DATA_DIR, 'blockstore.xml')
         self.doc = edmx.Document()
         with open(path, 'rb') as f:
-            self.doc.Read(f)
+            self.doc.read(f)
         self.cdef = self.doc.root.DataServices['BlockSchema.BlockContainer']
         self.container = InMemoryEntityContainer(self.cdef)
         self.mt_lock = threading.Lock()
@@ -315,7 +315,7 @@ class StreamStoreTests(unittest.TestCase):
         path = os.path.join(DATA_DIR, 'blockstore.xml')
         self.doc = edmx.Document()
         with open(path, 'rb') as f:
-            self.doc.Read(f)
+            self.doc.read(f)
         self.cdef = self.doc.root.DataServices['BlockSchema.BlockContainer']
         self.container = InMemoryEntityContainer(self.cdef)
         self.mt_lock = threading.Lock()
@@ -468,7 +468,7 @@ class RandomStreamTests(unittest.TestCase):
         path = os.path.join(DATA_DIR, 'blockstore.xml')
         self.doc = edmx.Document()
         with open(path, 'rb') as f:
-            self.doc.Read(f)
+            self.doc.read(f)
         self.cdef = self.doc.root.DataServices['BlockSchema.BlockContainer']
         self.block_size = random.randint(5, 100)
         logging.info("File block size: %i", self.block_size)

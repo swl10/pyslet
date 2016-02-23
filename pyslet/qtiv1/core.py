@@ -31,10 +31,10 @@ def MakeValidName(name):
     with '_' too."""
     if name:
         goodName = []
-        if not xml.IsNameStartChar(name[0]):
+        if not xml.is_name_start_char(name[0]):
             goodName.append(u'_')
         for c in name:
-            if xml.IsNameChar(c):
+            if xml.is_name_char(c):
                 goodName.append(c)
             else:
                 goodName.append(u'_')

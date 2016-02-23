@@ -21,9 +21,9 @@ import datetime
 import random
 from types import BooleanType, FloatType, StringTypes, StringType, UnicodeType, BooleanType, IntType, LongType, TupleType, DictType
 
-from pyslet.pep8 import PEP8Compatibility, renamed_method, redirected_method
+from pyslet.pep8 import PEP8Compatibility, old_method
 import pyslet.xml.structures as xml
-import pyslet.xmlnames20091208 as xmlns
+import pyslet.xml.namespace as xmlns
 import pyslet.rfc2396 as uri
 import pyslet.xsdatatypes20041028 as xsi
 from pyslet.vfs import OSFilePath
@@ -2848,6 +2848,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         in the metadata model."""
         return self.entity_set.GetFQName()
 
+    @old_method('SetExpand')
     def set_expand(self, expand, select=None):
         """Sets the expand and select query options for this collection.
 
@@ -2875,10 +2876,6 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         self.select = select
         self.lastEntity = None
 
-    @redirected_method('set_expand')
-    def Expand(self, expand, select=None):   # noqa
-        pass
-
     def SelectKeys(self):
         """Sets the select rule to select the key property/properties only.
 
@@ -2904,15 +2901,12 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
                 e.Expand(self.expand, self.select)
             yield e
 
+    @old_method('Filter')
     def set_filter(self, filter):   # noqa
         """Sets the filter object for this collection, see :py:meth:`check_filter`."""
         self.filter = filter
         self.set_page(None)
         self.lastEntity = None
-
-    @redirected_method('set_filter')
-    def Filter(self, filter):   # noqa
-        pass
 
     def filter_entities(self, entityIterable):
         """Utility method for data providers.
@@ -2945,6 +2939,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         else:
             raise NotImplementedError("Collection does not support filtering")
 
+    @old_method('OrderBy')
     def set_orderby(self, orderby):
         """Sets the orderby rules for this collection.
 
@@ -2953,10 +2948,6 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
                 ( an order object as used by :py:meth:`calculate_order_key` , 1 | -1 )"""
         self.orderby = orderby
         self.set_page(None)
-
-    @redirected_method('set_orderby')
-    def OrderBy(self, orderby):  # noqa
-        pass
 
     def calculate_order_key(self, entity, orderObject):
         """Given an entity and an order object returns the key used to
@@ -3491,14 +3482,14 @@ class Documentation(CSDLElement):
 
     """Used to document elements in the metadata model"""
     XMLNAME = (EDM_NAMESPACE, 'Documentation')
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
         self.Summary = None
         self.LongDescription = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Summary:
             yield self.Summary
         if self.LongDescription:
@@ -3509,14 +3500,14 @@ class Summary(CSDLElement):
 
     """Used to document elements in the metadata model"""
     XMLNAME = (EDM_NAMESPACE, 'Summary')
-    XMLCONTENT = xmlns.ElementType.Mixed
+    XMLCONTENT = xml.ElementType.Mixed
 
 
 class LongDescription(CSDLElement):
 
     """Used to document elements in the metadata model"""
     XMLNAME = (EDM_NAMESPACE, 'LongDescription')
-    XMLCONTENT = xmlns.ElementType.Mixed
+    XMLCONTENT = xml.ElementType.Mixed
 
 
 class TypeRef(object):
@@ -3698,13 +3689,13 @@ class Property(CSDLElement):
         self.TypeAnnotation = []
         self.ValueAnnotation = []
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Documentation:
             yield self.Documentation
         for child in itertools.chain(
                 self.TypeAnnotation,
                 self.ValueAnnotation,
-                CSDLElement.GetChildren(self)):
+                CSDLElement.get_children(self)):
             yield child
 
     def UpdateTypeRefs(self, scope, stopOnErrors=False):
@@ -3770,13 +3761,13 @@ class NavigationProperty(CSDLElement):
         self.TypeAnnotation = []
         self.ValueAnnotation = []
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Documentation:
             yield self.Documentation
         for child in itertools.chain(
                 self.TypeAnnotation,
                 self.ValueAnnotation,
-                CSDLElement.GetChildren(self)):
+                CSDLElement.get_children(self)):
             yield child
 
     def UpdateTypeRefs(self, scope, stopOnErrors=False):
@@ -3816,7 +3807,7 @@ class Key(CSDLElement):
         #: a list of :py:class:`PropertyRef`
         self.PropertyRef = []
 
-    def GetChildren(self):
+    def get_children(self):
         for child in self.PropertyRef:
             yield child
 
@@ -3843,7 +3834,7 @@ class PropertyRef(CSDLElement):
         """Sets :py:attr:`property`"""
         self.property = None
         try:
-            type_def = self.FindParent(EntityType)
+            type_def = self.find_parent(EntityType)
             if type_def is None:
                 raise KeyError(
                     "PropertyRef %s has no parent EntityType" % self.name)
@@ -3889,14 +3880,14 @@ class Type(NameTableMixin, CSDLElement):
         self.TypeAnnotation = []
         self.ValueAnnotation = []
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Documentation:
             yield self.Documentation
         for child in itertools.chain(
                 self.Property,
                 self.TypeAnnotation,
                 self.ValueAnnotation,
-                CSDLElement.GetChildren(self)):
+                CSDLElement.get_children(self)):
             yield child
 
     def content_changed(self):
@@ -3909,7 +3900,7 @@ class Type(NameTableMixin, CSDLElement):
 
     def GetFQName(self):
         """Returns the full name of this type, including the schema namespace prefix."""
-        schema = self.FindParent(Schema)
+        schema = self.find_parent(Schema)
         if schema is None:
             return self.name
         else:
@@ -3922,7 +3913,7 @@ class EntityType(Type):
     of :py:class:`Entity`"""
 
     XMLNAME = (EDM_NAMESPACE, 'EntityType')
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
     def __init__(self, parent):
         Type.__init__(self, parent)
@@ -3931,7 +3922,7 @@ class EntityType(Type):
         # : a list of :py:class:`NavigationProperty`
         self.NavigationProperty = []
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Documentation:
             yield self.Documentation
         if self.Key:
@@ -3941,7 +3932,7 @@ class EntityType(Type):
                 self.NavigationProperty,
                 self.TypeAnnotation,
                 self.ValueAnnotation,
-                CSDLElement.GetChildren(self)):
+                CSDLElement.get_children(self)):
             yield child
 
     def content_changed(self):
@@ -4104,7 +4095,7 @@ class Association(NameTableMixin, CSDLElement):
 
     @classmethod
     def get_element_class(cls, name):
-        if xmlns.NSEqualNames((EDM_NAMESPACE, 'End'), name, EDM_NAMESPACE_ALIASES):
+        if xmlns.match_expanded_names((EDM_NAMESPACE, 'End'), name, EDM_NAMESPACE_ALIASES):
             return AssociationEnd
         else:
             return None
@@ -4113,7 +4104,7 @@ class Association(NameTableMixin, CSDLElement):
         for ae in self.AssociationEnd:
             self.Declare(ae)
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Documentation:
             yield self.Documentation
         for child in self.AssociationEnd:
@@ -4123,12 +4114,12 @@ class Association(NameTableMixin, CSDLElement):
         for child in itertools.chain(
                 self.TypeAnnotation,
                 self.ValueAnnotation,
-                CSDLElement.GetChildren(self)):
+                CSDLElement.get_children(self)):
             yield child
 
     def GetFQName(self):
         """Returns the full name of this association, including the schema namespace prefix."""
-        schema = self.FindParent(Schema)
+        schema = self.find_parent(Schema)
         if schema is None:
             return self.name
         else:
@@ -4194,12 +4185,12 @@ class AssociationEnd(CSDLElement):
     def __hash__(self):
         return hash(self.GetQualifiedName())
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Documentation:
             yield self.Documentation
         if self.OnDelete:
             yield self.OnDelete
-        for child in CSDLElement.GetChildren(self):
+        for child in CSDLElement.get_children(self):
             yield child
 
     def UpdateTypeRefs(self, scope, stopOnErrors=False):
@@ -4234,7 +4225,7 @@ class EntityContainer(NameTableMixin, CSDLElement):
     XMLNAME = (EDM_NAMESPACE, 'EntityContainer')
     XMLATTR_Name = ('name', ValidateSimpleIdentifier, None)
     XMLATTR_Extends = 'extends'
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
@@ -4253,7 +4244,7 @@ class EntityContainer(NameTableMixin, CSDLElement):
         self.TypeAnnotation = []
         self.ValueAnnotation = []
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Documentation:
             yield self.Documentation
         for child in itertools.chain(
@@ -4262,7 +4253,7 @@ class EntityContainer(NameTableMixin, CSDLElement):
                 self.FunctionImport,
                 self.TypeAnnotation,
                 self.ValueAnnotation,
-                CSDLElement.GetChildren(self)):
+                CSDLElement.get_children(self)):
             yield child
 
     def content_changed(self):
@@ -4285,7 +4276,7 @@ class EntityContainer(NameTableMixin, CSDLElement):
 
     def add_auto_aset(self, association_set):
         self._AssociationSet.append(association_set)
-        scope = self.FindParent(Schema)
+        scope = self.find_parent(Schema)
         if scope:
             scope = scope.parent
         if scope:
@@ -4308,7 +4299,7 @@ class EntitySet(CSDLElement):
     XMLNAME = (EDM_NAMESPACE, 'EntitySet')
     XMLATTR_Name = ('name', ValidateSimpleIdentifier, None)
     XMLATTR_EntityType = 'entityTypeName'
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
 # EntityCollectionClass=EntityCollection  #: the class to use for
 # representing entity collections
@@ -4404,19 +4395,13 @@ class EntitySet(CSDLElement):
         name.append(self.name)
         return string.join(name, '.')
 
-    @renamed_method
-    def GetLocation(self):       # noqa
-        pass
-
+    @old_method('GetLocation')
     def get_location(self):
         """Returns a :py:class:`pyslet.rfc2396.URI` instance
         representing the location for this entity set."""
         return self.location
 
-    @renamed_method
-    def SetLocation(self):       # noqa
-        pass
-
+    @old_method('SetLocation')
     def set_location(self):
         """Sets the location of this entity set by resolving a relative
         path consisting of::
@@ -4428,24 +4413,24 @@ class EntitySet(CSDLElement):
         parent elements or by the original base URI used to load the
         metadata model.  If no base URI can be found then the location
         remains expressed in relative terms."""
-        container = self.FindParent(EntityContainer)
+        container = self.find_parent(EntityContainer)
         if container:
             path = container.name + '.' + self.name
         else:
             path = self.name
-        self.location = self.ResolveURI(path)
+        self.location = self.resolve_uri(path)
 
     def content_changed(self):
         super(EntitySet, self).content_changed()
         self.set_location()
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Documentation:
             yield self.Documentation
         for child in itertools.chain(
                 self.TypeAnnotation,
                 self.ValueAnnotation,
-                CSDLElement.GetChildren(self)):
+                CSDLElement.get_children(self)):
             yield child
 
     def UpdateSetRefs(self, scope, stopOnErrors=False):
@@ -4480,7 +4465,7 @@ class EntitySet(CSDLElement):
             aset_end.drop_principal()
 
     def UpdateNavigation(self):
-        container = self.FindParent(EntityContainer)
+        container = self.find_parent(EntityContainer)
         if container and self.entityType:
             # first loop deals with ambiguous navigation properties
             for np in self.entityType.NavigationProperty:
@@ -4509,10 +4494,10 @@ class EntitySet(CSDLElement):
                 association_set.name = as_name
                 association_set.associationName = \
                     np.to_end.parent.GetFQName()
-                from_end = association_set.ChildElement(AssociationSetEnd)
+                from_end = association_set.add_child(AssociationSetEnd)
                 from_end.name = np.from_end.name
                 from_end.entitySetName = self.name
-                to_end = association_set.ChildElement(AssociationSetEnd)
+                to_end = association_set.add_child(AssociationSetEnd)
                 to_end.name = np.to_end.name
                 to_end.entitySetName = np.to_end.entityType.name
                 # add the auto-generated set to the container
@@ -4789,7 +4774,7 @@ class AssociationSet(CSDLElement):
     XMLNAME = (EDM_NAMESPACE, 'AssociationSet')
     XMLATTR_Name = ('name', ValidateSimpleIdentifier, None)
     XMLATTR_Association = 'associationName'
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
@@ -4808,19 +4793,19 @@ class AssociationSet(CSDLElement):
 
     @classmethod
     def get_element_class(cls, name):
-        if xmlns.NSEqualNames((EDM_NAMESPACE, 'End'), name, EDM_NAMESPACE_ALIASES):
+        if xmlns.match_expanded_names((EDM_NAMESPACE, 'End'), name, EDM_NAMESPACE_ALIASES):
             return AssociationSetEnd
         else:
             return None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Documentation:
             yield self.Documentation
         for child in itertools.chain(
                 self.AssociationSetEnd,
                 self.TypeAnnotation,
                 self.ValueAnnotation,
-                CSDLElement.GetChildren(self)):
+                CSDLElement.get_children(self)):
             yield child
 
     def UpdateSetRefs(self, scope, stopOnErrors=False):
@@ -4858,7 +4843,7 @@ class AssociationSetEnd(CSDLElement):
     # XMLNAME=(EDM_NAMESPACE,'End')
     XMLATTR_Role = 'name'
     XMLATTR_EntitySet = 'entitySetName'
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
@@ -4903,10 +4888,10 @@ class AssociationSetEnd(CSDLElement):
         else:
             raise TypeError
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Documentation:
             yield self.Documentation
-        for child in CSDLElement.GetChildren(self):
+        for child in CSDLElement.get_children(self):
             yield child
 
     def drop_principal(self):
@@ -4931,7 +4916,7 @@ class AssociationSetEnd(CSDLElement):
     def UpdateSetRefs(self, scope, stopOnErrors=False):
         try:
             self.entity_set = self.otherEnd = self.associationEnd = None
-            container = self.FindParent(EntityContainer)
+            container = self.find_parent(EntityContainer)
             if container:
                 self.entity_set = container[self.entitySetName]
             if not isinstance(self.entity_set, EntitySet):
@@ -4985,7 +4970,7 @@ class FunctionImport(NameTableMixin, CSDLElement):
     XMLATTR_ReturnType = 'returnType'
     XMLATTR_EntitySet = 'entitySetName'
 
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
@@ -5011,7 +4996,7 @@ class FunctionImport(NameTableMixin, CSDLElement):
         self.TypeAnnotation = []
         self.ValueAnnotation = []
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Documentation:
             yield self.Documentation
         for child in itertools.chain(
@@ -5019,7 +5004,7 @@ class FunctionImport(NameTableMixin, CSDLElement):
                 self.Parameter,
                 self.TypeAnnotation,
                 self.ValueAnnotation,
-                CSDLElement.GetChildren(self)):
+                CSDLElement.get_children(self)):
             yield child
 
     def content_changed(self):
@@ -5033,7 +5018,7 @@ class FunctionImport(NameTableMixin, CSDLElement):
             self.entity_set = None
             self.returnTypeRef = TypeRef(self.returnType, scope)
             if self.entitySetName:
-                container = self.FindParent(EntityContainer)
+                container = self.find_parent(EntityContainer)
                 if container:
                     self.entity_set = container[self.entitySetName]
                 if not isinstance(self.entity_set, EntitySet):
@@ -5072,18 +5057,12 @@ class FunctionImport(NameTableMixin, CSDLElement):
         # Parameter element names inside a FunctionImport MUST NOT
         # collide - checked during the initial parse
 
-    @renamed_method
-    def IsCollection(self):
-        pass
-
+    @old_method('IsCollection')
     def is_collection(self):
         """Returns True if the return type is a collection."""
         return self.returnTypeRef.collection
 
-    @renamed_method
-    def IsEntityCollection(self):
-        pass
-
+    @old_method('IsEntityCollection')
     def is_entity_collection(self):
         """Returns True if the return type is a collection of entities."""
         return self.entity_set is not None and self.returnTypeRef.collection
@@ -5147,7 +5126,7 @@ class Parameter(CSDLElement):
     XMLATTR_MaxLength = ('maxLength', DecodeMaxLength, EncodeMaxLength)
     XMLATTR_Precision = 'precision'
     XMLATTR_Scale = 'scale'
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
@@ -5170,13 +5149,13 @@ class Parameter(CSDLElement):
         self.TypeAnnotation = []
         self.ValueAnnotation = []
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Documentation:
             yield self.Documentation
         for child in itertools.chain(
                 self.TypeAnnotation,
                 self.ValueAnnotation,
-                CSDLElement.GetChildren(self)):
+                CSDLElement.get_children(self)):
             yield child
 
     def UpdateSetRefs(self, scope, stopOnErrors=False):
@@ -5212,7 +5191,7 @@ class Schema(NameTableMixin, CSDLElement):
     XMLNAME = (EDM_NAMESPACE, 'Schema')
     XMLATTR_Namespace = 'name'
     XMLATTR_Alias = 'alias'
-    XMLCONTENT = xmlns.ElementType.ElementContent
+    XMLCONTENT = xml.ElementType.ElementContent
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
@@ -5234,7 +5213,7 @@ class Schema(NameTableMixin, CSDLElement):
         self.Annotations = []
         self.ValueTerm = []
 
-    def GetChildren(self):
+    def get_children(self):
         return itertools.chain(
             self.EntityType,
             self.ComplexType,
@@ -5244,7 +5223,7 @@ class Schema(NameTableMixin, CSDLElement):
             self.Using,
             self.Annotations,
             self.ValueTerm,
-            CSDLElement.GetChildren(self))
+            CSDLElement.get_children(self))
 
     def content_changed(self):
         for t in self.EntityType + self.ComplexType + self.Association + self.Function + self.EntityContainer:
@@ -5273,13 +5252,13 @@ class Document(xmlns.XMLNSDocument):
     def __init__(self, **args):
         xmlns.XMLNSDocument.__init__(self, **args)
         self.defaultNS = EDM_NAMESPACE
-        self.MakePrefix(EDM_NAMESPACE, 'edm')
+        self.make_prefix(EDM_NAMESPACE, 'edm')
 
     @classmethod
     def get_element_class(cls, name):
-        """Overrides :py:meth:`pyslet.xmlnames20091208.XMLNSDocument.get_element_class` to look up name."""
+        """Overrides :py:meth:`pyslet.xml.namespace.XMLNSDocument.get_element_class` to look up name."""
         eClass = Document.classMap.get(
             name, Document.classMap.get((name[0], None), xmlns.XMLNSElement))
         return eClass
 
-xmlns.MapClassElements(Document.classMap, globals(), NAMESPACE_ALIASES)
+xmlns.map_class_elements(Document.classMap, globals(), NAMESPACE_ALIASES)

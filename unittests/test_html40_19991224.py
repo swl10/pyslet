@@ -253,24 +253,24 @@ class ParserTests(unittest.TestCase):
         doc = p.parse_document(XHTMLDocument())
         self.assertTrue(
             isinstance(doc, XHTMLDocument), "Type of document parsed")
-        fragment = list(doc.root.Body.GetChildren())
+        fragment = list(doc.root.Body.get_children())
         self.assertTrue(len(fragment) == 1, "Expected a single child")
         self.assertTrue(
             isinstance(fragment[0], Div), "Expected a single Div child")
-        fragment = list(fragment[0].GetChildren())
+        fragment = list(fragment[0].get_children())
         self.assertTrue(
             fragment[0] == 'Preamble\n', "Preamble: %s" % repr(fragment[0]))
         tag = fragment[1]
         self.assertTrue(isinstance(tag, P), "P Tag: %s" % repr(tag))
-        children = list(tag.GetChildren())
+        children = list(tag.get_children())
         self.assertTrue(
             children[0] == u'Hello\xA0', "nbsp: %s" % repr(children[0]))
         self.assertTrue(
             isinstance(children[1], B), "B Tag: %s" % repr(children[1]))
-        self.assertTrue(children[1].GetValue() == "World!")
+        self.assertTrue(children[1].get_value() == "World!")
         tag = fragment[2]
         self.assertTrue(isinstance(tag, P), "P Tag: %s" % repr(tag))
-        self.assertTrue(tag.GetValue() == "Pleased to meet you.")
+        self.assertTrue(tag.get_value() == "Pleased to meet you.")
 
 if __name__ == "__main__":
     unittest.main()

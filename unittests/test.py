@@ -107,13 +107,12 @@ all_tests.addTest(test_vfs.suite())
 if py2:
     import test_wsgi
     all_tests.addTest(test_wsgi.suite())
-import test_xml_structures
-all_tests.addTest(test_xml_structures.suite())
+import test_xml_namespace
+all_tests.addTest(test_xml_namespace.suite())
 import test_xml_parser
 all_tests.addTest(test_xml_parser.suite())
-if py2:
-    import test_xmlnames20091208
-    all_tests.addTest(test_xmlnames20091208.suite())
+import test_xml_structures
+all_tests.addTest(test_xml_structures.suite())
 if py2:
     import test_xsdatatypes20041028
     all_tests.addTest(test_xsdatatypes20041028.suite())

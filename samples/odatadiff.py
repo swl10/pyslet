@@ -30,17 +30,17 @@ def fetch_url(url, username=None, password=None):
         cred.protectionSpace = url.get_canonical_root()
         mgr.add_credentials(cred)
     doc = edmx.Document(baseURI=url, reqManager=mgr)
-    doc.Read()
+    doc.read()
     mgr.close()
-    if not doc.root.GetBase():
-        doc.root.SetBase(url)
+    if not doc.root.get_base():
+        doc.root.set_base(url)
     return doc
 
 
 def load_file(filename):
     doc = edmx.Document()
     with open(filename, 'rb') as f:
-        doc.Read(f)
+        doc.read(f)
     return doc
 
 
@@ -49,7 +49,7 @@ def save_file(doc, filename):
     with io.FileIO(filename, "w") as f:
         with io.BufferedWriter(f) as bf:
             with io.TextIOWrapper(bf, encoding="utf-8") as tf:
-                doc.Create(tf)
+                doc.create(tf)
 
 
 def splitlists(old_list, new_list):
@@ -218,7 +218,7 @@ if __name__ == '__main__':
             old_doc = load_file(args[0])
             if options.url is None:
                 # use the base of old_doc
-                url = old_doc.root.GetBase()
+                url = old_doc.root.get_base()
                 if url is None:
                     sys.exit("xml:base undefined, try again with -s SERVICE")
                 new_doc = fetch_url(url, username, password)

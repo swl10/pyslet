@@ -57,7 +57,7 @@ file when our script starts up.  Here's the source code::
 		"""Loads the metadata file from the current directory."""
 		doc=edmx.Document()
 		with open('MemCacheSchema.xml','rb') as f:
-			doc.Read(f)
+			doc.read(f)
 		return doc
 
 The metadata module contains a Document object and the definitions of

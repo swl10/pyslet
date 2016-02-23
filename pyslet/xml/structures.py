@@ -1662,7 +1662,7 @@ class Element(Node):
 
     @old_method('IsValidName')
     def is_valid_name(self, value):
-        """Retunrs True if a character string is a valid NAME
+        """Returns True if a character string is a valid NAME
 
         This test can be done standalone using the module function of
         the same name (this implementation defaults to using that
@@ -1727,22 +1727,31 @@ class Element(Node):
         children = self.get_children()
         # If there are no children there is nothing to do, so we don't catch
         # StopIteration.
-        first_child = next(children)
+        try:
+            first_child = next(children)
+        except StopIteration:
+            return
         e = self
         while isinstance(e, Element):
             spc = e.get_space()
             if spc is not None:
                 if spc == 'preserve':
                     yield first_child
-                    while True:
-                        yield next(children)
-                    # will raise StopIteration and terminate method
+                    try:
+                        while True:
+                            yield next(children)
+                        # will raise StopIteration and terminate method
+                    except StopIteration:
+                        return
                 else:
                     break
             if hasattr(e.__class__, 'SGMLCDATA'):
                 yield first_child
-                while True:
-                    yield next(children)
+                try:
+                    while True:
+                        yield next(children)
+                except StopIteration:
+                    return
             e = e.parent
         try:
             ichild = next(children)
@@ -2030,7 +2039,7 @@ class Element(Node):
             for child in self.get_children():
                 if isinstance(child, Element) and (
                         sub_match or not isinstance(child, child_class)):
-                    for c in child.FindChildrenBreadthFirst(
+                    for c in child.find_children_breadth_first(
                             child_class, max_depth):
                         yield c
 

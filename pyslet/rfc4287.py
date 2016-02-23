@@ -22,7 +22,7 @@ import pyslet.info
 import pyslet.iso8601 as iso8601
 import pyslet.html40_19991224 as html
 import pyslet.xml.structures as xml
-import pyslet.xmlnames20091208 as xmlns
+import pyslet.xml.namespace as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.rfc2396 as uri
 
@@ -75,7 +75,7 @@ class Text(AtomElement):
         AtomElement.__init__(self, parent)
         self.type = TextType.text
 
-    def SetValue(self, value, type=TextType.text):
+    def set_value(self, value, type=TextType.text):
         """Sets the value of the element.  *type* must be a value from the :py:class:`TextType` enumeration
 
         Overloads the basic
@@ -88,49 +88,49 @@ class Text(AtomElement):
         of the content the value can be given without the enclosing div, in
         which case it is generated automatically."""
         if type == TextType.text or type == TextType.html:
-            AtomElement.SetValue(self, value)
+            AtomElement.set_value(self, value)
             self.type = type
         elif type == TextType.xhtml:
             e = xml.XMLEntity(value)
-            doc = html.XHTMLDocument(baseURI=self.ResolveBase())
-            doc.ReadFromEntity(e)
-            div = list(doc.root.Body.GetChildren())
+            doc = html.XHTMLDocument(baseURI=self.resolve_base())
+            doc.read_from_entity(e)
+            div = list(doc.root.Body.get_children())
             if len(div) == 1 and isinstance(div[0], html.Div):
                 div = div[0]
                 # We remove our existing content
-                self.SetValue(None)
+                self.set_value(None)
                 # And do a deep copy of the div instead
-                newDiv = div.Copy(self)
+                newDiv = div.deepcopy(self)
             else:
-                newDiv = self.ChildElement(html.Div)
+                newDiv = self.add_child(html.Div)
                 for divChild in div:
                     if isinstance(divChild, xml.Element):
-                        divChild.Copy(newDiv)
+                        divChild.deepcopy(newDiv)
                     else:
-                        newDiv.AddData(divChild)
-            newDiv.MakePrefix(html.XHTML_NAMESPACE, '')
+                        newDiv.add_data(divChild)
+            newDiv.make_prefix(html.XHTML_NAMESPACE, '')
             self.type = type
         else:
             raise ValueError(
                 "Expected text or html identifiers, found %s" % str(type))
 
-    def GetValue(self):
+    def get_value(self):
         """Gets a single unicode string representing the value of the element.
 
         Overloads the basic
-        :py:meth:`~pyslet.xml.structures.Element.GetValue`
+        :py:meth:`~pyslet.xml.structures.Element.get_value`
         implementation to add support for text of type xhtml.
 
         When getting the value of TextType.xhtml text the child div element is
         not returned as it is not considered to be part of the content."""
         if self.type == TextType.text or self.type == TextType.html:
-            return AtomElement.GetValue(self)
+            return AtomElement.get_value(self)
         elif self.type == TextType.xhtml:
             # concatenate all children, but should be just a single div
             result = []
-            valueChildren = list(self.GetChildren())
+            valueChildren = list(self.get_children())
             if len(valueChildren) and isinstance(valueChildren[0], html.Div):
-                valueChildren = list(valueChildren[0].GetChildren())
+                valueChildren = list(valueChildren[0].get_children())
             for c in valueChildren:
                 result.append(unicode(c))
             return string.join(result, '')
@@ -185,11 +185,11 @@ class Date(AtomElement):
         #: a :py:class:`~pyslet.iso8601.TimePoint` instance representing this date
         self.date = iso8601.TimePoint()
 
-    def GetValue(self):
-        """Overrides :py:meth:`~pyslet.xml.structures.Element.GetValue`, returning a :py:class:`pyslet.iso8601.TimePoint` instance."""
+    def get_value(self):
+        """Overrides :py:meth:`~pyslet.xml.structures.Element.get_value`, returning a :py:class:`pyslet.iso8601.TimePoint` instance."""
         return self.date
 
-    def SetValue(self, value):
+    def set_value(self, value):
         """Overrides :py:meth:`~pyslet.xml.structures.Element.SetValue`, enabling the value to be set from a :py:class:`pyslet.iso8601.TimePoint` instance.
 
         If *value* is a string the behaviour is unchanged, if *value* is a
@@ -197,14 +197,14 @@ class Date(AtomElement):
         8601 in accordance with the requirements of the Atom specification."""
         if isinstance(value, iso8601.TimePoint):
             self.date = value
-            AtomElement.SetValue(self, value.get_calendar_string())
+            AtomElement.set_value(self, value.get_calendar_string())
         else:
-            AtomElement.SetValue(self, value)
+            AtomElement.set_value(self, value)
             self.content_changed()
 
     def content_changed(self):
         """Re-reads the value of the element and sets :py:attr:`date` accordingly."""
-        self.date = iso8601.TimePoint.from_str(AtomElement.GetValue(self))
+        self.date = iso8601.TimePoint.from_str(AtomElement.get_value(self))
 
 
 class Updated(Date):
@@ -253,11 +253,11 @@ class Icon(AtomElement):
         #: a :py:class:`~pyslet.rfc2396.URI` instance representing the URI of the icon
         self.uri = None
 
-    def GetValue(self):
-        """Overrides :py:meth:`~pyslet.xml.structures.Element.GetValue`, returning a :py:class:`pyslet.rfc2396.URI` instance."""
+    def get_value(self):
+        """Overrides :py:meth:`~pyslet.xml.structures.Element.get_value`, returning a :py:class:`pyslet.rfc2396.URI` instance."""
         return self.uri
 
-    def SetValue(self, value):
+    def set_value(self, value):
         """Overrides :py:meth:`~pyslet.xml.structures.Element.SetValue`, enabling the value to be set from a :py:class:`pyslet.rfc2396.URI` instance.
 
         If *value* is a string it is used to set the element's content,
@@ -267,14 +267,14 @@ class Icon(AtomElement):
         element's content."""
         if isinstance(value, uri.URI):
             self.uri = value
-            AtomElement.SetValue(self, str(value))
+            AtomElement.set_value(self, str(value))
         else:
-            AtomElement.SetValue(self, value)
+            AtomElement.set_value(self, value)
             self.content_changed()
 
     def content_changed(self):
         """Re-reads the value of the element and sets :py:attr:`uri` accordingly."""
-        self.uri = uri.URI.from_octets(AtomElement.GetValue(self))
+        self.uri = uri.URI.from_octets(AtomElement.get_value(self))
 
 
 class Logo(Icon):
@@ -300,7 +300,7 @@ class Generator(AtomElement):
         """Sets this generator to a default representation of this Pyslet module."""
         self.uri = uri.URI.from_octets(pyslet.info.home)
         self.version = pyslet.info.version
-        self.SetValue(pyslet.info.title)
+        self.set_value(pyslet.info.title)
 
 
 def DecodeContentType(src):
@@ -331,16 +331,16 @@ class Content(Text):
         Text.__init__(self, parent)
         self.src = None			#: link to remote content
 
-    def GetValue(self):
+    def get_value(self):
         """Gets a single unicode string representing the value of the element.
 
         Overloads the basic
-        :py:meth:`~Text.GetValue`, if :py:attr:`type` is a media type rather
+        :py:meth:`~Text.get_value`, if :py:attr:`type` is a media type rather
         than one of the text types then a ValueError is raised."""
         if type(self.type) in types.StringTypes:
             raise ValueError("Can't get value of non-text content")
         else:
-            Text.GetValue(self)
+            Text.get_value(self)
 
 
 class URI(AtomElement):
@@ -367,14 +367,14 @@ class Person(AtomElement):
         self.URI = None
         self.Email = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Name:
             yield self.Name
         if self.URI:
             yield self.URI
         if self.Email:
             yield self.Email
-        for child in AtomElement.GetChildren(self):
+        for child in AtomElement.get_children(self):
             yield child
 
 
@@ -441,17 +441,17 @@ class Entity(AtomElement):
         self.Contributor = []
         self.Link = []
         if self.Rights:
-            self.Rights.DetachFromParent()
+            self.Rights.detach_from_parent()
             self.Rights = None
         if self.Title:
-            self.Title.DetachFromParent()
+            self.Title.detach_from_parent()
             self.Title = None
         if self.Updated:
-            self.Updated.DetachFromParent()
+            self.Updated.detach_from_parent()
             self.Updated = None
         super(Entity, self).reset()
 
-    def GetChildren(self):
+    def get_children(self):
         if self.AtomId:
             yield self.AtomId
         if self.Title:
@@ -465,7 +465,7 @@ class Entity(AtomElement):
                 self.Author,
                 self.Contributor,
                 self.Category,
-                AtomElement.GetChildren(self)):
+                AtomElement.get_children(self)):
             yield child
 
 
@@ -484,8 +484,8 @@ class Source(Entity):
         self.Logo = None			#: atomLogo
         self.Subtitle = None		#: atomSubtitle
 
-    def GetChildren(self):
-        for child in Entity.GetChildren(self):
+    def get_children(self):
+        for child in Entity.get_children(self):
             yield child
         if self.Generator:
             yield self.Generator
@@ -514,12 +514,12 @@ class Feed(Source):
         self.Title = self.TitleClass(self)
         self.Updated = self.UpdatedClass(self)
         now = iso8601.TimePoint.from_now_utc()
-        self.Updated.SetValue(now)
+        self.Updated.set_value(now)
         self.Entry = []		#: atomEntry
 
-    def GetChildren(self):
+    def get_children(self):
         for child in itertools.chain(
-                Source.GetChildren(self),
+                Source.get_children(self),
                 self.Entry):
             yield child
 
@@ -540,7 +540,7 @@ class Entry(Entity):
         self.Title = self.TitleClass(self)
         self.Updated = self.UpdatedClass(self)
         now = iso8601.TimePoint.from_now_utc()
-        self.Updated.SetValue(now)
+        self.Updated.set_value(now)
         self.Content = None
         self.Published = None
         self.Source = None
@@ -552,23 +552,23 @@ class Entry(Entity):
             self.Content.DetatchFromParent()
             self.Content = None
         if self.Published:
-            self.Published.DetachFromParent()
+            self.Published.detach_from_parent()
             self.Published = None
         if self.Source:
-            self.Source.DetachFromParent()
+            self.Source.detach_from_parent()
             self.Source = None
         if self.Summary:
-            self.Summary.DetachFromParent()
+            self.Summary.detach_from_parent()
             self.Summary = None
         super(Entry, self).reset()
         # Parent reset removes 'optional' Title and Updated elements
         self.Title = self.TitleClass(self)
         self.Updated = self.UpdatedClass(self)
         now = iso8601.TimePoint.from_now_utc()
-        self.Updated.SetValue(now)
+        self.Updated.set_value(now)
 
-    def GetChildren(self):
-        for child in Entity.GetChildren(self):
+    def get_children(self):
+        for child in Entity.get_children(self):
             yield child
         if self.Content:
             yield self.Content
@@ -583,7 +583,7 @@ class Entry(Entity):
 class AtomDocument(xmlns.XMLNSDocument):
     classMap = {}
 
-    DefaultNS = ATOM_NAMESPACE
+    default_ns = ATOM_NAMESPACE
 
     def __init__(self, **args):
         """"""
@@ -593,4 +593,4 @@ class AtomDocument(xmlns.XMLNSDocument):
     def get_element_class(cls, name):
         return AtomDocument.classMap.get(name, AtomDocument.classMap.get((name[0], None), xmlns.XMLNSElement))
 
-xmlns.MapClassElements(AtomDocument.classMap, globals())
+xmlns.map_class_elements(AtomDocument.classMap, globals())

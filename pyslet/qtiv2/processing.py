@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import pyslet.xml.structures as xml
-import pyslet.xmlnames20091208 as xmlns
+import pyslet.xml.namespace as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 
 import pyslet.qtiv2.core as core
@@ -29,7 +29,7 @@ class ResponseProcessing(core.QTIElement):
     XMLNAME = (core.IMSQTI_NAMESPACE, 'responseProcessing')
     XMLATTR_template = 'template'
     XMLATTR_templateLocation = 'templateLocation'
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
@@ -37,10 +37,10 @@ class ResponseProcessing(core.QTIElement):
         self.templateLocation = None
         self.ResponseRule = []
 
-    def GetChildren(self):
+    def get_children(self):
         return itertools.chain(
             self.ResponseRule,
-            core.QTIElement.GetChildren(self))
+            core.QTIElement.get_children(self))
 
     def Run(self, state):
         """Runs response processing using the values in *state*.
@@ -81,7 +81,7 @@ class ResponseCondition(ResponseRule):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'responseCondition')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         ResponseRule.__init__(self, parent)
@@ -89,7 +89,7 @@ class ResponseCondition(ResponseRule):
         self.ResponseElseIf = []
         self.ResponseElse = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.ResponseIf:
             yield self.ResponseIf
         for child in self.ResponseElseIf:
@@ -121,14 +121,14 @@ class ResponseIf(core.QTIElement):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'responseIf')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
         self.Expression = None
         self.ResponseRule = []
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Expression:
             yield self.Expression
         for child in self.ResponseRule:
@@ -163,13 +163,13 @@ class ResponseElse(core.QTIElement):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'responseElse')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
         self.ResponseRule = []
 
-    def GetChildren(self):
+    def get_children(self):
         return iter(self.ResponseRule)
 
     def Run(self, state):
@@ -208,14 +208,14 @@ class SetOutcomeValue(ResponseRule):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'setOutcomeValue')
     XMLATTR_identifier = 'identifier'
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         ResponseRule.__init__(self, parent)
         self.identifier = ''
         self.Expression = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Expression:
             yield self.Expression
 
@@ -244,7 +244,7 @@ class ExitResponse(ResponseRule):
 
             <xsd:complexType name="exitResponse.Type"/>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'exitResponse')
-    XMLCONTENT = xmlns.XMLEmpty
+    XMLCONTENT = xml.XMLEmpty
 
     def Run(self, state):
         raise StopProcessing
@@ -266,16 +266,16 @@ class TemplateProcessing(core.QTIElement):
                     <xsd:group ref="templateProcessing.ContentGroup"/>
             </xsd:complexType>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'templateProcessing')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
         self.TemplateRule = []
 
-    def GetChildren(self):
+    def get_children(self):
         return itertools.chain(
             self.TemplateRule,
-            core.QTIElement.GetChildren(self))
+            core.QTIElement.get_children(self))
 
     def Run(self, state):
         """Runs template processing rules using the values in *state*.
@@ -316,7 +316,7 @@ class TemplateCondition(TemplateRule):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'templateCondition')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         TemplateRule.__init__(self, parent)
@@ -324,7 +324,7 @@ class TemplateCondition(TemplateRule):
         self.TemplateElseIf = []
         self.TemplateElse = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.TemplateIf:
             yield self.TemplateIf
         for child in self.TemplateElseIf:
@@ -356,14 +356,14 @@ class TemplateIf(core.QTIElement):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'templateIf')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
         self.Expression = None
         self.TemplateRule = []
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Expression:
             yield self.Expression
         for child in self.TemplateRule:
@@ -398,13 +398,13 @@ class TemplateElse(core.QTIElement):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'templateElse')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
         self.TemplateRule = []
 
-    def GetChildren(self):
+    def get_children(self):
         return iter(self.TemplateRule)
 
     def Run(self, state):
@@ -443,14 +443,14 @@ class SetTemplateValue(TemplateRule):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'setTemplateValue')
     XMLATTR_identifier = 'identifier'
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         TemplateRule.__init__(self, parent)
         self.identifier = ''
         self.Expression = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Expression:
             yield self.Expression
 
@@ -482,14 +482,14 @@ class SetCorrectResponse(TemplateRule):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'setCorrectResponse')
     XMLATTR_identifier = 'identifier'
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         TemplateRule.__init__(self, parent)
         self.identifier = ''
         self.Expression = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Expression:
             yield self.Expression
 
@@ -526,14 +526,14 @@ class SetDefaultValue(TemplateRule):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'setDefaultValue')
     XMLATTR_identifier = 'identifier'
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         TemplateRule.__init__(self, parent)
         self.identifier = ''
         self.Expression = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Expression:
             yield self.Expression
 
@@ -561,7 +561,7 @@ class ExitTemplate(TemplateRule):
 
             <xsd:complexType name="exitTemplate.Type"/>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'exitTemplate')
-    XMLCONTENT = xmlns.XMLEmpty
+    XMLCONTENT = xml.XMLEmpty
 
     def Run(self, state):
         raise StopProcessing
@@ -573,10 +573,10 @@ class TestPartCondition(core.QTIElement):
         core.QTIElement.__init__(self, parent)
         self.Expression = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Expression:
             yield self.Expression
-        for child in core.QTIElement.GetChildren(self):
+        for child in core.QTIElement.get_children(self):
             yield child
 
     def Evaluate(self, state):
@@ -606,7 +606,7 @@ class PreCondition(TestPartCondition):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'preCondition')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         TestPartCondition.__init__(self, parent)
@@ -629,7 +629,7 @@ class BranchRule(TestPartCondition):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'branchRule')
     XMLATTR_target = 'target'
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         TestPartCondition.__init__(self, parent)
@@ -652,17 +652,17 @@ class TemplateDefault(core.QTIElement):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'templateDefault')
     XMLATTR_templateIdentifier = 'templateIdentifier'
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
         self.templateIdentifier = None
         self.Expression = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.Expression:
             yield self.Expression
-        for child in core.QTIElement.GetChildren(self):
+        for child in core.QTIElement.get_children(self):
             yield child
 
     def Run(self, itemState, testState):

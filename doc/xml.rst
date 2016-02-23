@@ -10,6 +10,7 @@ version of the standard implemented is the Extensible Markup Language
 
     xml/introduction
     xml/structures
+    xml/namespace
     xml/parser
 
 

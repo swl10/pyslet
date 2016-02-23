@@ -5,7 +5,7 @@ import warnings
 
 from . import vfs
 
-from .pep8 import renamed_function, PEP8Compatibility
+from .pep8 import old_function, PEP8Compatibility
 from .py2 import (
     byte,
     byte_value,
@@ -242,6 +242,7 @@ Quoting the specification of production authority:
     "?", and "/" are reserved"""
 
 
+@old_function('ParseURIC')
 def parse_uric(source, pos=0, allowed_test=is_allowed):
     """Returns the number of URI characters in a source string
 
@@ -302,11 +303,6 @@ def parse_uric(source, pos=0, allowed_test=is_allowed):
     return uric
 
 
-@renamed_function
-def ParseURIC(source, pos=0):      # noqa
-    pass
-
-
 def _parse_scheme(octets):
     pos = 0
     scheme = None
@@ -322,6 +318,7 @@ def _parse_scheme(octets):
     return scheme
 
 
+@old_function('CanonicalizeData')
 def canonicalize_data(source, unreserved_test=is_unreserved,
                       allowed_test=is_allowed):
     """Returns the canonical form of *source* string.
@@ -382,11 +379,7 @@ def canonicalize_data(source, unreserved_test=is_unreserved,
     return ''.join(result)
 
 
-@renamed_function
-def CanonicalizeData(source):      # noqa
-    pass
-
-
+@old_function('EscapeData')
 def escape_data(source, reserved_test=is_reserved, allowed_test=is_allowed):
     """Performs URI escaping on source
 
@@ -481,11 +474,7 @@ def escape_data(source, reserved_test=is_reserved, allowed_test=is_allowed):
     return ''.join(result)
 
 
-@renamed_function
-def EscapeData(source, reserved_test=is_reserved):      # noqa
-    pass
-
-
+@old_function('UnescapeData')
 def unescape_data(source):
     """Performs URI unescaping
 
@@ -527,11 +516,6 @@ def unescape_data(source):
                 data.append(byte(c))
             mode = None
     return join_bytes(data)
-
-
-@renamed_function
-def UnescapeData(source):      # noqa
-    pass
 
 
 def split_server(authority):
@@ -646,6 +630,7 @@ def split_rel_path(rel_path):
     return split_path(rel_path, False)
 
 
+@old_function('NormalizeSegments')
 def normalize_segments(path_segments):
     """Normalizes a list of path_segments
 
@@ -677,11 +662,6 @@ def normalize_segments(path_segments):
     if path_segments and path_segments[-1] == '..':
         # special case of trailing '..' gets an extra slash for consistency
         path_segments.append('')
-
-
-@renamed_function
-def NormalizeSegments(path_segments):     # noqa
-    pass
 
 
 def _relativize_segments(path_segments, base_segments):
@@ -755,7 +735,12 @@ def split_path_segment(segment):
 
 query_reserved = CharClass(";/?:@&=+,$")
 
-is_query_reserved = query_reserved.test
+
+@old_function('IsQueryReserved')
+def is_query_reserved(c):
+    return query_reserved.test(c)
+
+is_query_reserved = query_reserved.test     # noqa (old_function in use)
 """Convenience function for escaping query strings
 
 From RFC2396:
@@ -764,11 +749,7 @@ From RFC2396:
     "&", "=", "+", ",", and "$" are reserved"""
 
 
-@renamed_function
-def IsQueryReserved(c):     # noqa
-    pass
-
-
+@old_function('EncodeUnicodeURI')
 def encode_unicode_uri(usrc):
     """Extracts a URI octet-string from a unicode string.
 
@@ -793,11 +774,6 @@ def encode_unicode_uri(usrc):
         else:
             octets.append(chr(ord(c)))
     return uempty.join(octets)
-
-
-@renamed_function
-def EncodeUnicodeURI(usrc):     # noqa
-    pass
 
 
 class URI(CmpMixin, PEP8Compatibility):

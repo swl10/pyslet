@@ -5557,7 +5557,7 @@ class SQLiteStreamStore(blockstore.StreamStore):
         doc = edmx.Document()
         with file(os.path.join(os.path.dirname(__file__),
                                'streamstore.xml'), 'r') as f:
-            doc.Read(f)
+            doc.read(f)
         return doc.root.DataServices['StreamStoreSchema.Container']
 
     def __init__(self, file_path, dpath=None):

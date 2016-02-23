@@ -121,7 +121,7 @@ class MultiTenantTPApp(lti.ToolProviderApp):
             page_context['got_user'] = False
             if self.google_id:
                 page_context['google_sso'] = True
-                page_context['gclient_id_attr'] = xml.EscapeCharData7(
+                page_context['gclient_id_attr'] = xml.escape_char_data7(
                     self.google_id, True)
                 page_context[self.csrf_token] = context.session.sid()
             else:
@@ -248,7 +248,7 @@ class MultiTenantTPApp(lti.ToolProviderApp):
         page_context['got_user'] = False
         if self.google_id:
             page_context['google_sso'] = True
-            page_context['gclient_id_attr'] = xml.EscapeCharData7(
+            page_context['gclient_id_attr'] = xml.escape_char_data7(
                 self.google_id, True)
         else:
             page_context['google_sso'] = False
@@ -284,14 +284,14 @@ class MultiTenantTPApp(lti.ToolProviderApp):
                     {'cid':
                      odata.ODataURI.FormatLiteral(consumer.entity['ID'])})
                 citem['consumer'] = consumer
-                citem['cedit_link'] = xml.EscapeCharData7(
+                citem['cedit_link'] = xml.escape_char_data7(
                     'edit?' + query, True)
-                citem['cdel_link'] = xml.EscapeCharData7(
+                citem['cdel_link'] = xml.escape_char_data7(
                     'del?' + query, True)
                 consumer_list.append(citem)
             query = urllib.urlencode(
                 {'silo': odata.ODataURI.FormatLiteral(silo['ID'])})
-            page_context['cadd_link'] = xml.EscapeCharData7(
+            page_context['cadd_link'] = xml.escape_char_data7(
                 'add?' + query, True)
         page_context['consumers'] = consumer_list
         page_context[self.csrf_token] = context.session.sid()
@@ -348,7 +348,7 @@ class MultiTenantTPApp(lti.ToolProviderApp):
             except KeyError:
                 raise wsgi.PageNotAuthorized
         page_context['consumer'] = consumer
-        page_context['cid_attr'] = xml.EscapeCharData7(str(cid), True)
+        page_context['cid_attr'] = xml.escape_char_data7(str(cid), True)
         page_context[self.csrf_token] = context.session.sid()
         data = self.render_template(context, 'consumers/edit_form.html',
                                     page_context)

@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import pyslet.xml.structures as xml
-import pyslet.xmlnames20091208 as xmlns
+import pyslet.xml.namespace as xmlns
 import pyslet.xsdatatypes20041028 as xsi
 import pyslet.html40_19991224 as html
 import pyslet.rfc2396 as uri
@@ -48,7 +48,7 @@ class AssessmentItem(core.QTIElement, core.DeclarationContainer):
     XMLATTR_timeDependent = (
         'timeDependent', xsi.DecodeBoolean, xsi.EncodeBoolean)
     XMLATTR_title = 'title'
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
@@ -68,7 +68,7 @@ class AssessmentItem(core.QTIElement, core.DeclarationContainer):
         self.QTIModalFeedback = []
         self.metadata = metadata.QTIMetadata(None)
 
-    def GetChildren(self):
+    def get_children(self):
         for d in self.ResponseDeclaration:
             yield d
         for d in self.OutcomeDeclaration:
@@ -108,23 +108,23 @@ class AssessmentItem(core.QTIElement, core.DeclarationContainer):
                 htmlParent, content.HTMLProfile, itemState)
         else:
             if htmlParent:
-                htmlDiv = htmlParent.ChildElement(html.Div)
+                htmlDiv = htmlParent.add_child(html.Div)
             else:
                 htmlDiv = html.Div(None)
         return htmlDiv
 
     def AddToContentPackage(self, cp, lom, dName=None):
         """Adds a resource and associated files to the content package."""
-        resourceID = cp.manifest.GetUniqueID(self.identifier)
-        resource = cp.manifest.root.Resources.ChildElement(
+        resourceID = cp.manifest.get_unique_id(self.identifier)
+        resource = cp.manifest.root.Resources.add_child(
             cp.manifest.root.Resources.ResourceClass)
-        resource.SetID(resourceID)
+        resource.set_id(resourceID)
         resource.type = core.IMSQTI_ITEM_RESOURCETYPE
-        resourceMetadata = resource.ChildElement(resource.MetadataClass)
+        resourceMetadata = resource.add_child(resource.MetadataClass)
         # resourceMetadata.AdoptChild(lom)
-        # resourceMetadata.AdoptChild(self.metadata.Copy())
-        lom.Copy(resourceMetadata)
-        self.metadata.Copy(resourceMetadata)
+        # resourceMetadata.AdoptChild(self.metadata.deepcopy())
+        lom.deepcopy(resourceMetadata)
+        self.metadata.deepcopy(resourceMetadata)
         # Security alert: we're leaning heavily on ValidateIdentifier assuming
         # it returns a good file name
         fPath = (core.ValidateIdentifier(resourceID) +
@@ -137,15 +137,15 @@ class AssessmentItem(core.QTIElement, core.DeclarationContainer):
         base = uri.URI.from_virtual_path(fullPath)
         if isinstance(self.parent, xml.Document):
             # we are the root so we change the document base
-            self.parent.SetBase(base)
+            self.parent.set_base(base)
         else:
-            self.SetBase(base)
+            self.set_base(base)
         # Turn this file path into a relative URL in the context of the new
         # resource
-        href = resource.RelativeURI(base)
+        href = resource.relative_uri(base)
         f = cp.File(resource, href)
         resource.SetEntryPoint(f)
-        for child in self.GetChildren():
+        for child in self.get_children():
             if isinstance(child, core.QTIElement):
                 child.AddToCPResource(cp, resource, {})
         return resource

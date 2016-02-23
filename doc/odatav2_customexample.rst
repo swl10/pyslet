@@ -183,7 +183,7 @@ called on script start-up::
         """Loads the metadata file from the script directory."""
         doc = edmx.Document()
         with open(path, 'rb') as f:
-            doc.Read(f)
+            doc.read(f)
         # next step is to bind our model to it
         container = doc.root.DataServices['FSSchema.FS']
         container['Files'].bind(FSCollection)

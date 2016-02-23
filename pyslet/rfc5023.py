@@ -20,7 +20,8 @@ import pyslet.http.client as http
 import pyslet.pep8 as pep8
 import pyslet.rfc2396 as uri
 import pyslet.rfc4287 as atom
-import pyslet.xmlnames20091208 as xmlns
+import pyslet.xml.structures as xml
+import pyslet.xml.namespace as xmlns
 
 
 #: The namespace to use for Atom Publishing Protocol elements
@@ -75,7 +76,7 @@ class Categories(APPElement):
     XMLATTR_href = ('href', uri.URI.from_octets, str)
     XMLATTR_fixed = ('fixed', parse_yes_no, format_yes_no)
     XMLATTR_scheme = 'scheme'
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         APPElement.__init__(self, parent)
@@ -91,10 +92,10 @@ class Categories(APPElement):
         #: the list of categories, instances of
         #: :py:class:~pyslet.rfc4287.Category
 
-    def GetChildren(self):  # noqa
+    def get_children(self):  # noqa
         for child in self.Category:
             yield child
-        for child in APPElement.GetChildren(self):
+        for child in APPElement.get_children(self):
             yield child
 
 
@@ -104,14 +105,14 @@ class Service(APPElement):
 
     Associated with one or more Workspaces."""
     XMLNAME = (APP_NAMESPACE, 'service')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         APPElement.__init__(self, parent)
         self.Workspace = []		#: a list of :py:class:`Workspace` instances
 
-    def GetChildren(self):  # noqa
-        for child in APPElement.GetChildren(self):
+    def get_children(self):  # noqa
+        for child in APPElement.get_children(self):
             yield child
         for child in self.Workspace:
             yield child
@@ -121,15 +122,15 @@ class Workspace(APPElement):
 
     """Workspaces are server-defined groups of Collections."""
     XMLNAME = (APP_NAMESPACE, 'workspace')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         APPElement.__init__(self, parent)
         self.Title = None			#: the title of this workspace
         self.Collection = []		#: a list of :py:class:`Collection`
 
-    def GetChildren(self):  # noqa
-        for child in APPElement.GetChildren(self):
+    def get_children(self):  # noqa
+        for child in APPElement.get_children(self):
             yield child
         if self.Title:
             yield self.Title
@@ -141,7 +142,7 @@ class Collection(APPElement):
 
     """Describes a collection (feed)."""
     XMLNAME = (APP_NAMESPACE, 'collection')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
     XMLATTR_href = ('href', uri.URI.from_octets, str)
 
@@ -158,8 +159,8 @@ class Collection(APPElement):
         # : list of :py:class:`Categories` that can be applied to
         # : members of the collection
 
-    def GetChildren(self):  # noqa
-        for child in APPElement.GetChildren(self):
+    def get_children(self):  # noqa
+        for child in APPElement.get_children(self):
             yield child
         if self.Title:
             yield self.Title
@@ -168,13 +169,10 @@ class Collection(APPElement):
         for child in self.Categories:
             yield child
 
-    @pep8.renamed_method
-    def GetFeedURL(self):   # noqa
-        pass
-
+    @pep8.old_method('GetFeedURL')
     def get_feed_url(self):
         """Returns a fully resolved URL for the collection (feed)."""
-        return self.ResolveURI(self.href)
+        return self.resolve_uri(self.href)
 
 
 class Document(atom.AtomDocument):
@@ -207,7 +205,7 @@ class Document(atom.AtomDocument):
         else:
             return atom.AtomDocument.get_element_class(name)
 
-xmlns.MapClassElements(Document.classMap, globals())
+xmlns.map_class_elements(Document.classMap, globals())
 
 
 class Slug(object):
@@ -290,7 +288,7 @@ class Server(pep8.PEP8Compatibility):
         self.serviceDoc = Document(root=Service, baseURI=self.serviceRoot)
         self.service = self.serviceDoc.root
         # make the base explicit in the document
-        self.service.SetBase(str(self.serviceRoot))
+        self.service.set_base(str(self.serviceRoot))
         #: set this to True to expose python tracebacks in 500
         #: responses, defaults to False
         self.debugMode = False

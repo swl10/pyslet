@@ -1931,7 +1931,7 @@ class DataServiceRegressionTests(unittest.TestCase):
         doc = edmx.Document()
         md_path = self.regressionData.join('regression.xml')
         with md_path.open('rb') as f:
-            doc.Read(f)
+            doc.read(f)
         self.ds = doc.root.DataServices
 
     def tearDown(self):     # noqa

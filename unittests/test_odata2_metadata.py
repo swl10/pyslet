@@ -37,7 +37,7 @@ class EDMXTests(unittest.TestCase):
             logging.debug("testing valid metadata file %s", fName)
             f = uri.URI.from_path(os.path.join(dpath, fName))
             doc = edmx.Document(baseURI=f)
-            doc.Read()
+            doc.read()
             try:
                 doc.validate()
             except edm.InvalidMetadataDocument, e:
@@ -52,7 +52,7 @@ class EDMXTests(unittest.TestCase):
             logging.debug("testing invalid metadata file %s", fName)
             f = uri.URI.from_path(os.path.join(dpath, fName))
             doc = edmx.Document(baseURI=f)
-            doc.Read()
+            doc.read()
             try:
                 doc.validate()
                 self.fail("%s is invalid but did not raise "

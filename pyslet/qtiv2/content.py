@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import pyslet.xml.structures as xml
-import pyslet.xmlnames20091208 as xmlns
+import pyslet.xml.namespace as xmlns
 import pyslet.html40_19991224 as html
 
 import pyslet.qtiv2.core as core
@@ -47,9 +47,9 @@ class BodyElement(core.QTIElement):
 
     def RenderHTMLChildren(self, parent, profile, itemState):
         """Renders this element's children to an external document represented by the *parent* node"""
-        for child in self.GetChildren():
+        for child in self.get_children():
             if type(child) in StringTypes:
-                parent.AddData(child)
+                parent.add_data(child)
             else:
                 child.RenderHTML(parent, profile, itemState)
 
@@ -137,8 +137,8 @@ def FixHTMLNamespace(e):
     if e.ns == html.XHTML_NAMESPACE:
         name = (core.IMSQTI_NAMESPACE, e.xmlname.lower())
         if name in core.QTIDocument.classMap:
-            e.SetXMLName(name)
-    for e in e.GetChildren():
+            e.set_xmlname(name)
+    for e in e.get_children():
         if type(e) in StringTypes:
             continue
         FixHTMLNamespace(e)
@@ -160,11 +160,11 @@ class ItemBody(BodyElement):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'itemBody')
-    XMLCONTENT = xmlns.ElementContent
+    XMLCONTENT = xml.ElementContent
 
-    def ChildElement(self, childClass, name=None):
+    def add_child(self, childClass, name=None):
         if issubclass(childClass, html.BlockMixin):
-            return BodyElement.ChildElement(self, childClass, name)
+            return BodyElement.add_child(self, childClass, name)
         else:
             raise core.QTIValidityError(
                 "%s (%s) in %s" %
@@ -177,7 +177,7 @@ class ItemBody(BodyElement):
         Div with class set to "itemBody".  Unlike other such method *parent* may
         by None, in which case a new parentless Div is created."""
         if parent:
-            htmlDiv = parent.ChildElement(html.Div)
+            htmlDiv = parent.add_child(html.Div)
         else:
             htmlDiv = html.Div(None)
         htmlDiv.styleClass = "itemBody"
@@ -194,7 +194,7 @@ class FlowContainerMixin:
         This is similar to the algorithm we use in HTML flow containers,
         suppressing pretty printing if we have inline elements (ignoring
         non-trivial data).  This could be refactored in future."""
-        for child in self.GetChildren():
+        for child in self.get_children():
             if type(child) in StringTypes:
                 for c in child:
                     if not xml.is_s(c):

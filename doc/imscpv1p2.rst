@@ -46,7 +46,7 @@ files are not added::
 				return
 			resHREF=URI.from_path(resFile)
 			srcDir,srcFile=os.path.split(resFile)
-			r=pkg.manifest.root.Resources.ChildElement(pkg.manifest.root.Resources.ResourceClass)
+			r=pkg.manifest.root.Resources.add_child(pkg.manifest.root.Resources.ResourceClass)
 			r.href=str(resHREF.relative(URI.from_path(os.path.join(srcDir,'imsmanifest.xml'))))
 			r.type=='webcontent'
 			for dirpath,dirnames,filenames in os.walk(srcDir):
@@ -66,7 +66,7 @@ files are not added::
 			if os.path.exists(pkgFile):
 				if raw_input("Are you sure you want to overwrite %s? (y/n) "%pkgFile).lower()!='y':
 					return
-			pkg.manifest.Update()
+			pkg.manifest.update()
 			pkg.ExportToPIF(pkgFile)
 		finally:
 			pkg.Close()
@@ -80,7 +80,7 @@ Note the use of the try:... finally: construct to ensure that the
 Note also the correct way to create elements within the manifest, using the
 dependency safe \*Class attributes::
 
-	r=pkg.manifest.root.Resources.ChildElement(pkg.manifest.root.Resources.ResourceClass)
+	r=pkg.manifest.root.Resources.add_child(pkg.manifest.root.Resources.ResourceClass)
 
 This line creates a new resource element as a child of the (required) Resources element.
 

@@ -858,14 +858,14 @@ class ServerTests(unittest.TestCase):
         doc = edmx.Document()
         mdPath = self.sampleServerData.join('metadata.xml')
         with mdPath.open('rb') as f:
-            doc.Read(f)
+            doc.read(f)
         return doc
 
     def testCaseConstructor(self):
         s = Server()
         self.assertTrue(len(s.service.Workspace) == 1,
                         "Service not returning a single Workspace child")
-        self.assertTrue(s.service.Workspace[0].Title.GetValue(
+        self.assertTrue(s.service.Workspace[0].Title.get_value(
         ) == "Default", "Service not returning a single Workspace child")
         self.assertTrue(
             len(s.service.Workspace[0].Collection) == 0, "Workspace not empty")
@@ -930,13 +930,13 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(request.responseCode == 400,
                         "Version mismatch error response: %i" % request.responseCode)
         doc = core.Document()
-        doc.Read(src=request.wfile.getvalue())
+        doc.read(src=request.wfile.getvalue())
         error = doc.root
         self.assertTrue(
             isinstance(error, core.Error), "Expected an error instance")
         self.assertTrue(
-            error.Code.GetValue() == "DataServiceVersionMismatch", "Error code")
-        self.assertTrue(error.Message.GetValue(
+            error.Code.get_value() == "DataServiceVersionMismatch", "Error code")
+        self.assertTrue(error.Message.get_value(
         ) == "Maximum supported protocol version: 2.0", "Error message")
         self.assertTrue(error.InnerError is None, "No inner error")
         request = MockRequest('/')
@@ -990,7 +990,7 @@ class ServerTests(unittest.TestCase):
         request.send(s)
         self.assertTrue(request.responseCode == 200)
         doc = app.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(
             isinstance(doc.root, app.Service), "Service root not an app.Service")
         # An empty server has no workspaces
@@ -998,8 +998,8 @@ class ServerTests(unittest.TestCase):
             len(doc.root.Workspace) == 1, "Empty server = 1 workspace")
         self.assertTrue(
             len(doc.root.Workspace[0].Collection) == 0, "Empty Server = no collections")
-        self.assertTrue(doc.root.GetBase() == str(
-            s.serviceRoot), "Non-matching service root: base=%s, root=%s" % (repr(doc.root.GetBase()), repr(str(s.serviceRoot))))
+        self.assertTrue(doc.root.get_base() == str(
+            s.serviceRoot), "Non-matching service root: base=%s, root=%s" % (repr(doc.root.get_base()), repr(str(s.serviceRoot))))
 
     def testCaseModel(self):
         """With a simple OData server we set the model manually"""
@@ -1027,11 +1027,11 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(entry.Content.type == "application/xml")
         # The <atom:content> element MUST also contain one <m:properties> child
         # element
-        children = list(entry.Content.GetChildren())
+        children = list(entry.Content.get_children())
         self.assertTrue(len(children) == 1, "one child element")
         self.assertTrue(
             isinstance(children[0], core.Properties), "child is properties element")
-        children = list(entry.FindChildrenDepthFirst(atom.Link))
+        children = list(entry.find_children_depth_first(atom.Link))
         links = {}
         navigation = list(customer.NavigationKeys())
         for child in children:
@@ -1075,7 +1075,7 @@ class ServerTests(unittest.TestCase):
         #	attribute of the <atom:link> element must represent the URI
         #	of the entity to be linked to.
         entry = core.Entry(None, customer)
-        children = list(entry.FindChildrenDepthFirst(atom.Link))
+        children = list(entry.find_children_depth_first(atom.Link))
         self.assertTrue(len(children) == 3, "Three links present links")
         links = {}
         deepLinks = {}
@@ -1112,7 +1112,7 @@ class ServerTests(unittest.TestCase):
         order['OrderID'].set_from_value(1)
         order.exists = True
         entry = core.Entry(None, order)
-        children = list(entry.FindChildrenDepthFirst(atom.Link))
+        children = list(entry.find_children_depth_first(atom.Link))
         links = {}
         navigation = list(order.NavigationKeys())
         for child in children:
@@ -1140,8 +1140,8 @@ class ServerTests(unittest.TestCase):
         employee['Address']['City'].set_from_value('Chunton')
         employee.exists = True
         entry = core.Entry(None, employee)
-        properties = list(entry.Content.GetChildren())[0]
-        pList = list(properties.GetChildren())
+        properties = list(entry.Content.get_children())[0]
+        pList = list(properties.get_children())
         #		Each child element representing a property MUST be
         #		defined in the data service namespace... and the
         #		element name must be the same as the property it
@@ -1165,10 +1165,10 @@ class ServerTests(unittest.TestCase):
         #	metadata document, then the properties with custom mappings
         #	must be represented as directed by the mappings information
         gotLocation = False
-        for child in entry.GetChildren():
-            if child.GetXMLName() == ("http://www.example.com", "Location"):
+        for child in entry.get_children():
+            if child.get_xmlname() == ("http://www.example.com", "Location"):
                 self.assertTrue(
-                    child.GetValue() == "Chunton", "City not mapped to location")
+                    child.get_value() == "Chunton", "City not mapped to location")
                 gotLocation = True
         self.assertTrue(gotLocation, "Missing custom feed mapping")
         #		If the Entity Type instance being represented was
@@ -1180,14 +1180,14 @@ class ServerTests(unittest.TestCase):
         #		element.
         employee.Expand({}, {'Address': None})
         entry = core.Entry(None, employee)
-        properties = list(list(entry.Content.GetChildren())[0].GetChildren())
+        properties = list(list(entry.Content.get_children())[0].get_children())
         self.assertTrue(len(properties) == 1, "A single property selected")
         employee['EmployeeName'].set_from_value(None)
         entry = core.Entry(None, employee)
         #	If the property of an Entity Type instance ...includes
         #	Customizable Feed annotations ... and has a value of null,
         #	then the element ... can be present and MUST be empty.
-        self.assertTrue(entry.Title.GetValue() == "", "Empty title element")
+        self.assertTrue(entry.Title.get_value() == "", "Empty title element")
         #
         #	End of employee tests
         #
@@ -1206,23 +1206,23 @@ class ServerTests(unittest.TestCase):
         #		the <m:properties> element... the <m:properties>
         #		element MUST be a direct child of the <atom:entry>
         #		element
-        children = list(entry.FindChildrenDepthFirst(core.Properties))
+        children = list(entry.find_children_depth_first(core.Properties))
         self.assertTrue(len(children) == 1, "one properties element")
         self.assertTrue(
             children[0].parent is entry, "properties is a direct child of *the* entry")
-        children = list(entry.FindChildrenDepthFirst(atom.Content))
+        children = list(entry.find_children_depth_first(atom.Content))
         self.assertTrue(len(children) == 1, "one content element")
         self.assertTrue(entry.Content is not None,"content is child of entry")
         self.assertTrue(str(entry.Content.src) == "Documents(1801)/$value")
         self.assertTrue(entry.Content.type == "text/x-tolstoy")
-        children = list(entry.FindChildrenDepthFirst(atom.Link))
+        children = list(entry.find_children_depth_first(atom.Link))
         links = set()
         for child in children:
             links.add(child.rel)
             if child.rel == "edit-media":
                 self.assertTrue(
                     child.href == "Documents(1801)/$value", "edit-media link")
-                self.assertTrue(child.GetAttribute(
+                self.assertTrue(child.get_attribute(
                     (core.ODATA_METADATA_NAMESPACE, "etag")) == "W/\"X'%s'\"" % h.hexdigest().upper())
             if child.rel == "edit":
                 #	[the edit link] MUST have an atom:href attribute
@@ -1449,14 +1449,14 @@ class ServerTests(unittest.TestCase):
         feed = core.Feed(None, customersSet.OpenCollection())
         # The <atom:id> element MUST contain the URI that identifies the
         # EntitySet
-        self.assertTrue(feed.AtomId.GetValue() == "Customers")
+        self.assertTrue(feed.AtomId.get_value() == "Customers")
         #	The <atom:title> element can contain the name of the
         #	EntitySet represented by the parent <atom:feed> element...
         #	The set name can be qualified with the name of the EDM
         #	namespace in which it is defined
         self.assertTrue(
-            feed.Title.GetValue() == "SampleModel.SampleEntities.Customers")
-        children = list(feed.FindChildrenDepthFirst(atom.Link, maxDepth=1))
+            feed.Title.get_value() == "SampleModel.SampleEntities.Customers")
+        children = list(feed.find_children_depth_first(atom.Link, maxDepth=1))
         links = set()
         for child in children:
             links.add(child.rel)
@@ -1470,7 +1470,7 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(
             len(feed.Entry) == 0, "Feed uses generator instead of static array of entries")
         nEntries = 0
-        for child in feed.GetChildren():
+        for child in feed.get_children():
             if isinstance(child, atom.Entry):
                 nEntries += 1
         self.assertTrue(nEntries == 4, "4 entries generated by the feed")
@@ -1482,13 +1482,13 @@ class ServerTests(unittest.TestCase):
         #	[with inlinecount the response] MUST include the count of
         #	the number of entities in the collection of entities
         count = None
-        for child in feed.GetChildren():
+        for child in feed.get_children():
             if isinstance(child, core.Count):
                 #	The count value included in the result MUST be
                 #	enclosed in an <m:count> element
                 #	The <m:count> element MUST be a direct child
                 #	element of the <feed> element
-                count = child.GetValue()
+                count = child.get_value()
                 self.assertTrue(count == 4, "4 total size of collection")
             if isinstance(child, atom.Entry):
                 # ...and MUST occur before any <atom:entry> elements in
@@ -1496,7 +1496,7 @@ class ServerTests(unittest.TestCase):
                 self.assertFalse(count is None, "count after Entry")
                 nEntries += 1
         self.assertTrue(nEntries == 2, "2 entries for partial feed")
-        children = list(feed.FindChildrenDepthFirst(atom.Link))
+        children = list(feed.find_children_depth_first(atom.Link))
         links = set()
         #	if the server does not include an <atom:entry> element as a
         #	child element of the <atom:feed> element for every entity
@@ -1516,8 +1516,8 @@ class ServerTests(unittest.TestCase):
         #	EntitySet, then the <atom:title> element can contain the
         #	name of the NavigationProperty instead of the name of the
         #	EntitySet identified by the property
-        self.assertTrue(feed.AtomId.GetValue() == "Customers('ALFKI')/Orders")
-        self.assertTrue(feed.Title.GetValue() == "Orders")
+        self.assertTrue(feed.AtomId.get_value() == "Customers('ALFKI')/Orders")
+        self.assertTrue(feed.Title.get_value() == "Orders")
 
     def testCaseEntitySetAsJSON(self):
         doc = self.load_metadata()
@@ -1668,7 +1668,7 @@ class SampleServerTests(unittest.TestCase):
         doc = edmx.Document()
         mdPath = self.sampleServerData.join('metadata.xml')
         with mdPath.open('rb') as f:
-            doc.Read(f)
+            doc.read(f)
         self.ds = doc.root.DataServices
         self.svc.SetModel(doc)
         self.container = memds.InMemoryEntityContainer(
@@ -1767,7 +1767,7 @@ class SampleServerTests(unittest.TestCase):
             entry.entityType == None, "Ensure there is no relation to the model here")
         newCustomer = core.Entity(customers)
         newCustomer.exists = True
-        entry.GetValue(newCustomer)
+        entry.get_value(newCustomer)
         self.assertTrue(
             newCustomer['CustomerID'].value == "X", "Check customer ID")
         self.assertTrue(
@@ -1786,7 +1786,7 @@ class SampleServerTests(unittest.TestCase):
         entry = core.Entry(None, customer)
         newCustomer = core.Entity(customers)
         newCustomer.exists = False
-        entry.GetValue(newCustomer, lambda x: self.svc.GetResourceFromURI(x))
+        entry.get_value(newCustomer, lambda x: self.svc.GetResourceFromURI(x))
         # now we need to check the bindings, which is a little hard to do
         # without looking inside the box
         self.assertTrue(
@@ -1816,7 +1816,7 @@ class SampleServerTests(unittest.TestCase):
         entry = core.Entry(None, employee)
         self.assertTrue(
             entry.entityType == None, "Ensure there is no relation to the model here")
-        newEmployee = entry.GetValue(core.Entity(employees))
+        newEmployee = entry.get_value(core.Entity(employees))
         self.assertTrue(
             newEmployee['EmployeeID'].value == "12345", "Check employee ID")
         self.assertTrue(
@@ -1837,7 +1837,7 @@ class SampleServerTests(unittest.TestCase):
         entry = core.Entry(None, document)
         self.assertTrue(
             entry.entityType == None, "Ensure there is no relation to the model here")
-        newDocument = entry.GetValue(core.Entity(documents))
+        newDocument = entry.get_value(core.Entity(documents))
         self.assertTrue(
             newDocument['DocumentID'].value == 1801, "Check document ID")
         self.assertTrue(
@@ -2000,7 +2000,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request.responseHeaders[
                         'CONTENT-TYPE'] == 'application/atomsvc+xml', "Expected application/atomsvc+xml")
         doc = app.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(
             isinstance(doc.root, app.Service), "Service root not an app.Service")
         self.assertTrue(
@@ -2016,7 +2016,7 @@ class SampleServerTests(unittest.TestCase):
             #	The name of the EntitySet can be used as the value of
             #	the <atom:title>... child element of the
             #	<app:collection> element
-            self.assertTrue(c.Title.GetValue() == c.href)
+            self.assertTrue(c.Title.get_value() == c.href)
             feeds.add(str(c.href))
         for r in ("Customers", "Orders", "OrderLines", "Employees", "Documents", "ExtraEntities.Content", "ExtraEntities.BitsAndPieces"):
             self.assertTrue(r in feeds, "Missing feed: %s" % r)
@@ -2046,10 +2046,10 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request1.responseCode == 200)
         self.assertTrue(request2.responseCode == 200)
         doc1 = app.Document()
-        doc1.Read(request1.wfile.getvalue())
+        doc1.read(request1.wfile.getvalue())
         doc2 = app.Document()
-        doc2.Read(request2.wfile.getvalue())
-        output = doc1.DiffString(doc2)
+        doc2.read(request2.wfile.getvalue())
+        output = doc1.diff_string(doc2)
         self.assertTrue(request1.wfile.getvalue() == request2.wfile.getvalue(
         ), "Mismatched responses with (): \n%s" % (output))
 
@@ -2158,7 +2158,7 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest('/service.svc/Customers')
         request.send(self.svc)
         doc = app.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(
             isinstance(doc.root, atom.Feed), "Expected atom.Feed from /Customers")
         self.assertTrue(
@@ -2168,7 +2168,7 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest("/service.svc/CustomersByCity?city='Chunton'")
         request.send(self.svc)
         doc = app.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(
             isinstance(doc.root, atom.Feed), "Expected atom.Feed from /CustomersByCity")
         self.assertTrue(
@@ -2203,7 +2203,7 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, core.Entry),
                         "Expected a single Entry, found %s" % doc.root.__class__.__name__)
         self.assertTrue(doc.root['CustomerID'] == 'ALFKI', "Bad CustomerID")
@@ -2232,10 +2232,10 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, core.Property),
                         "Expected a single Property, found %s" % doc.root.__class__.__name__)
-        value = doc.root.GetValue()
+        value = doc.root.get_value()
         self.assertTrue(
             value['Street'] == 'Mill Road', "Bad street in address")
         # $expand, $orderby, $skip, $top, $skiptoken, $inlinecount and $select all banned
@@ -2258,10 +2258,10 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, core.Property),
                         "Expected a single Property, found %s" % doc.root.__class__.__name__)
-        value = doc.root.GetValue()
+        value = doc.root.get_value()
         self.assertTrue(value.value == 'Mill Road', "Bad street")
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/Address/Street/$value")
@@ -2290,10 +2290,10 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, core.Property),
                         "Expected a single Property, found %s" % doc.root.__class__.__name__)
-        value = doc.root.GetValue()
+        value = doc.root.get_value()
         self.assertTrue(value.value == 'Example Inc', "Bad company")
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/CompanyName/$value")
@@ -2335,7 +2335,7 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, atom.Feed),
                         "Expected atom.Feed from navigation property Orders")
         self.assertTrue(
@@ -2368,7 +2368,7 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, core.Links),
                         "Expected Links from $links request, found %s" % doc.root.__class__.__name__)
         self.assertTrue(len(doc.root.URI) == 2, "Sample customer has 2 orders")
@@ -2412,10 +2412,10 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(
             isinstance(doc.root, core.URI), "Expected URI from $links request")
-        self.assertTrue(doc.root.GetValue(
+        self.assertTrue(doc.root.get_value(
         ) == "http://host/service.svc/Customers('ALFKI')", "Bad Customer link")
         baseURI = "/service.svc/Customers('ALFKI')/$links/Orders?$format=xml&$skip=3&$top=2&$skiptoken='Contoso','AKFNU'&$inlinecount=allpages"
         request = MockRequest(baseURI)
@@ -2443,7 +2443,7 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = edmx.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, edmx.Edmx),
                         "Expected Edmx from $metadata request, found %s" % doc.root.__class__.__name__)
         version = doc.validate()
@@ -2452,7 +2452,7 @@ class SampleServerTests(unittest.TestCase):
         # include exactly one occurrence of this attribute.
         # Any media type (see [IANA-MMT] ) is a valid value for this attribute.
         pType = doc.root.DataServices["SampleModel.BitsAndPieces.Details"]
-        mtype = params.MediaType.from_str(pType.GetAttribute(core.MIME_TYPE))
+        mtype = params.MediaType.from_str(pType.get_attribute(core.MIME_TYPE))
         self.assertTrue(
             mtype == "application/x-details", "Expected x-details MimeType")
         self.assertTrue(version == "2.0", "Expected data service version 2.0")
@@ -2866,12 +2866,12 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, atom.Feed),
                         "Expected atom.Feed from /Customers?$expand=Orders")
         for e in doc.root.Entry:
             linkURI, linkInline = None, None
-            for link in e.FindChildrenDepthFirst(core.Link):
+            for link in e.find_children_depth_first(core.Link):
                 if link.title == "Orders":
                     linkURI = link.href
                     linkInline = link.Inline
@@ -2917,11 +2917,11 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, atom.Entry),
                         "Expected atom.Entry from /Orders(1)?$expand=Customer")
         linkURI, linkInline = None, None
-        for link in doc.root.FindChildrenDepthFirst(core.Link):
+        for link in doc.root.find_children_depth_first(core.Link):
             if link.title == "Customer":
                 linkURI = link.href
                 linkInline = link.Inline
@@ -2948,11 +2948,11 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, atom.Entry),
                         "Expected atom.Entry from /Orders(4)?$expand=Customer")
         linkURI, linkInline = None, None
-        for link in doc.root.FindChildrenDepthFirst(core.Link):
+        for link in doc.root.find_children_depth_first(core.Link):
             if link.title == "Customer":
                 linkURI = link.href
                 linkInline = link.Inline
@@ -2984,7 +2984,7 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(
             isinstance(doc.root, atom.Feed), "Expected atom.Feed from /Orders?$filter=...")
         self.assertTrue(
@@ -3009,7 +3009,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(
             request.responseHeaders['CONTENT-TYPE'] == "application/xml")
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(
             isinstance(doc.root, atom.Feed), "Expected atom.Feed from /Orders?$format=xml")
         self.assertTrue(len(doc.root.Entry) == 4, "Expected 4 Orders")
@@ -3056,7 +3056,7 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, atom.Feed),
                         "Expected atom.Feed from /Orders?$orderby=...")
         self.assertTrue(len(doc.root.Entry) == 4, "Expected 4 Orders")
@@ -3072,7 +3072,7 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         lastTime = iso8601.TimePoint.from_str("19000101T000000")
         lastID = 10000
         failFlag = True
@@ -3097,7 +3097,7 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(len(doc.root.Entry) == 4, "Expected 4 Orders")
         # grab the third ID
         thirdID = doc.root.Entry[2]['OrderID'].value
@@ -3106,7 +3106,7 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(len(doc.root.Entry) == 2, "Expected 2 Orders")
         self.assertTrue(
             thirdID == doc.root.Entry[0]['OrderID'].value, "Skipped first 2")
@@ -3114,7 +3114,7 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         lastID = -1
         for e in doc.root.Entry:
             currID = int(e['OrderID'].value)
@@ -3131,7 +3131,7 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(len(doc.root.Entry) == 4, "Expected 4 Orders")
         # grab the first ID
         firstID = doc.root.Entry[0]['OrderID'].value
@@ -3140,7 +3140,7 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(len(doc.root.Entry) == 2, "Expected 2 Orders")
         self.assertTrue(
             firstID == doc.root.Entry[0]['OrderID'].value, "First one correct")
@@ -3148,7 +3148,7 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         lastID = -1
         for e in doc.root.Entry:
             currID = int(e['OrderID'].value)
@@ -3158,7 +3158,7 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(len(doc.root.Entry) == 0, "Expected 0 Orders")
 
     def testCaseInlineCount(self):
@@ -3177,15 +3177,15 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(len(doc.root.Entry) == 4, "Expected 4 Orders")
         self.assertTrue(
-            doc.root.Count.GetValue() == 4, "Expected count of 4 Orders")
+            doc.root.Count.get_value() == 4, "Expected count of 4 Orders")
         request = MockRequest("/service.svc/Orders?$inlinecount=none")
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(len(doc.root.Entry) == 4, "Expected 4 Orders")
         self.assertTrue(doc.root.Count is None, "Expected no count")
         request = MockRequest(
@@ -3193,10 +3193,10 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(len(doc.root.Entry) == 2, "Expected 2 Orders")
         self.assertTrue(
-            doc.root.Count.GetValue() == 4, "Expected count of 4 Orders")
+            doc.root.Count.get_value() == 4, "Expected count of 4 Orders")
         request = MockRequest(
             "/service.svc/Orders?$top=2&$inlinecount=somepages")
         request.send(self.svc)
@@ -3333,20 +3333,20 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, core.Entry),
                         "Expected a single Entry, found %s" % doc.root.__class__.__name__)
         self.assertTrue(
             doc.root.Title.type == atom.TextType.text, "title is text")
         self.assertTrue(
-            doc.root.Title.GetValue() == "Joe Bloggs", "title is employee name")
+            doc.root.Title.get_value() == "Joe Bloggs", "title is employee name")
         # Now let's go looking for the Location element...
         nLocation = 0
-        for e in doc.root.GetChildren():
-            if e.GetXMLName() == (u"http://www.example.com", u"Location"):
+        for e in doc.root.get_children():
+            if e.get_xmlname() == (u"http://www.example.com", u"Location"):
                 nLocation += 1
                 self.assertTrue(
-                    e.GetValue() == "Chunton", "Location is employee city name")
+                    e.get_value() == "Chunton", "Location is employee city name")
         self.assertTrue(
             nLocation == 1, "Expected 1 and only 1 Location: %i" % nLocation)
 
@@ -3388,13 +3388,13 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request.responseHeaders[
                         'CONTENT-TYPE'] == params.MediaType.from_str("application/atom+xml"))
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, core.Entry),
                         "Expected a single Entry, found %s" % doc.root.__class__.__name__)
         newCustomer = core.Entity(
             self.ds['SampleModel.SampleEntities.Customers'])
         newCustomer.exists = True
-        doc.root.GetValue(newCustomer)
+        doc.root.get_value(newCustomer)
         self.assertTrue(newCustomer['CustomerID'].value == u"STEVE")
         self.assertTrue(newCustomer['CompanyName'].value == u"Steve's Inc")
         self.assertTrue(newCustomer['Address']['City'].value == u"Cambridge")
@@ -3416,11 +3416,11 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 201)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         newCustomer = core.Entity(
             self.ds['SampleModel.SampleEntities.Customers'])
         newCustomer.exists = True
-        doc.root.GetValue(newCustomer)
+        doc.root.get_value(newCustomer)
         self.assertTrue(newCustomer['CustomerID'].value == u"ASDFG")
         self.assertTrue(
             newCustomer['Address']['Street'].value == u"58 Contoso St")
@@ -3428,7 +3428,7 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, atom.Feed),
                         "Expected atom.Feed from navigation property Orders")
         self.assertTrue(
@@ -3437,7 +3437,7 @@ class SampleServerTests(unittest.TestCase):
         for entry in doc.root.Entry:
             order = core.Entity(self.ds['SampleModel.SampleEntities.Orders'])
             order.exists = True
-            entry.GetValue(order)
+            entry.get_value(order)
             orderKeys.add(order['OrderID'].value)
         self.assertTrue(3 in orderKeys, "New entity bound to order 3")
         self.assertTrue(4 in orderKeys, "New entity bound to order 4")
@@ -3536,7 +3536,7 @@ class SampleServerTests(unittest.TestCase):
         doc = core.Document(root=core.URI)
         orders = self.ds['SampleModel.SampleEntities.Orders'].OpenCollection()
         order = orders[4]
-        doc.root.SetValue(str(order.get_location()))
+        doc.root.set_value(str(order.get_location()))
         data = str(doc)
         request.set_header('Content-Type', 'application/xml')
         request.set_header('Content-Length', str(len(data)))
@@ -3549,13 +3549,13 @@ class SampleServerTests(unittest.TestCase):
         request.send(self.svc)
         self.assertTrue(request.responseCode == 200)
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(len(doc.root.Entry) == 3, "Customer now has 3 orders")
         orderKeys = set()
         for entry in doc.root.Entry:
             order = core.Entity(self.ds['SampleModel.SampleEntities.Orders'])
             order.exists = True
-            entry.GetValue(order)
+            entry.get_value(order)
             orderKeys.add(order['OrderID'].value)
         self.assertTrue(4 in orderKeys, "Customer now bound to order 4")
 
@@ -3613,13 +3613,13 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(request.responseHeaders[
                         'ETAG'] == "W/\"X'%s'\"" % h.hexdigest().upper(), "ETag value")
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, core.Entry),
                         "Expected a single Entry, found %s" % doc.root.__class__.__name__)
         newDocument = core.Entity(
             self.ds['SampleModel.SampleEntities.Documents'])
         newDocument.exists = True
-        doc.root.GetValue(newDocument)
+        doc.root.get_value(newDocument)
         # version should match the etag
         self.assertTrue(
             newDocument['Version'].value == h.digest(), 'Version calculation')
@@ -3648,14 +3648,14 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(
             location.startswith(u"http://host/service.svc/XDocuments("))
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, core.Entry),
                         "Expected a single Entry, found %s" %
                         doc.root.__class__.__name__)
         newDocument = core.Entity(
             self.ds['SampleModel.SampleEntities.XDocuments'])
         newDocument.exists = True
-        doc.root.GetValue(newDocument)
+        doc.root.get_value(newDocument)
         self.assertTrue(newDocument['DocumentID'].value == 1805,
                         "Slug used for key")
         request = MockRequest("%s/$value" % location)
@@ -3680,14 +3680,14 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(
             location.startswith(u"http://host/service.svc/XYDocuments("))
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, core.Entry),
                         "Expected a single Entry, found %s" %
                         doc.root.__class__.__name__)
         newDocument = core.Entity(
             self.ds['SampleModel.SampleEntities.XYDocuments'])
         newDocument.exists = True
-        doc.root.GetValue(newDocument)
+        doc.root.get_value(newDocument)
         self.assertTrue(newDocument['DocumentIDX'].value == 1805,
                         "Slug used for key X")
         self.assertTrue(newDocument['DocumentIDY'].value == u"War and Peace",
@@ -3710,7 +3710,7 @@ class SampleServerTests(unittest.TestCase):
         # Entity set can't have an ETag
         self.assertFalse("ETAG" in request.responseHeaders, "Entity set ETag")
         doc = app.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(
             isinstance(doc.root, atom.Feed), "Expected atom.Feed from /Customers")
         self.assertTrue(
@@ -3767,7 +3767,7 @@ class SampleServerTests(unittest.TestCase):
         # Customer does have a version field for optimistic concurrency control
         self.assertTrue("ETAG" in request.responseHeaders, "Entity set ETag")
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, core.Entry),
                         "Expected a single Entry, found %s" % doc.root.__class__.__name__)
         self.assertTrue(doc.root['CustomerID'] == 'ALFKI', "Bad CustomerID")
@@ -3825,10 +3825,10 @@ class SampleServerTests(unittest.TestCase):
         # Customer does have a version field for optimistic concurrency control
         self.assertTrue("ETAG" in request.responseHeaders, "Entity set ETag")
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, core.Property),
                         "Expected a single Property, found %s" % doc.root.__class__.__name__)
-        value = doc.root.GetValue()
+        value = doc.root.get_value()
         self.assertTrue(
             value['Street'] == 'Mill Road', "Bad street in address")
 
@@ -3887,10 +3887,10 @@ class SampleServerTests(unittest.TestCase):
         # Customer does have a version field for optimistic concurrency control
         self.assertTrue("ETAG" in request.responseHeaders, "Entity set ETag")
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, core.Property),
                         "Expected a single Property, found %s" % doc.root.__class__.__name__)
-        value = doc.root.GetValue()
+        value = doc.root.get_value()
         self.assertTrue(value.value == 'Example Inc', "Bad company")
 
     def testCaseRetrievePrimitivePropertyJSON(self):
@@ -3987,7 +3987,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/xml")
         doc = edmx.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, edmx.Edmx),
                         "Expected Edmx from $metadata request, found %s" % doc.root.__class__.__name__)
         version = doc.validate()
@@ -4007,7 +4007,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(params.MediaType.from_str(
             request.responseHeaders['CONTENT-TYPE']) == "application/atomsvc+xml")
         doc = app.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, app.Service),
                         "Expected atom service document, found %s" % doc.root.__class__.__name__)
 
@@ -4041,7 +4041,7 @@ class SampleServerTests(unittest.TestCase):
             request.responseHeaders['CONTENT-TYPE']) == "application/xml")
         self.assertFalse("ETAG" in request.responseHeaders, "Entity set ETag")
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(doc.root, core.Links),
                         "Expected Links from $links request, found %s" % doc.root.__class__.__name__)
         self.assertTrue(len(doc.root.URI) == 2, "Sample customer has 2 orders")
@@ -4054,10 +4054,10 @@ class SampleServerTests(unittest.TestCase):
             request.responseHeaders['CONTENT-TYPE']) == "application/xml")
         self.assertFalse("ETAG" in request.responseHeaders, "Entity set ETag")
         doc = core.Document()
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         self.assertTrue(isinstance(
             doc.root, core.URI), "Expected URI from $links request, found %s" % doc.root.__class__.__name__)
-        self.assertTrue(doc.root.GetValue(
+        self.assertTrue(doc.root.get_value(
         ) == "http://host/service.svc/Customers('ALFKI')", "Bad customer link")
 
     def testCaseRetrieveLinkJSON(self):
@@ -4144,7 +4144,7 @@ class SampleServerTests(unittest.TestCase):
         customer['CompanyName'].set_from_value("Example Inc Updated")
         request = MockRequest("/service.svc/Customers('ALFKI')", "PUT")
         doc = core.Document(root=core.Entry)
-        doc.root.SetValue(customer, True)
+        doc.root.set_value(customer, True)
         data = str(doc)
         request.set_header('Content-Type', core.ODATA_RELATED_ENTRY_TYPE)
         request.set_header('Content-Length', str(len(data)))
@@ -4170,7 +4170,7 @@ class SampleServerTests(unittest.TestCase):
         order['Customer'].BindEntity(customer)
         request = MockRequest("/service.svc/Orders(3)", "PUT")
         doc = core.Document(root=core.Entry)
-        doc.root.SetValue(order, True)
+        doc.root.set_value(order, True)
         data = str(doc)
         request.set_header('Content-Type', core.ODATA_RELATED_ENTRY_TYPE)
         request.set_header('Content-Length', str(len(data)))
@@ -4248,8 +4248,8 @@ class SampleServerTests(unittest.TestCase):
         customer['Address']['Street'].set_from_value("High Street")
         request = MockRequest("/service.svc/Customers('ALFKI')/Address", "PUT")
         doc = core.Document(root=core.Property)
-        doc.root.SetXMLName((core.ODATA_DATASERVICES_NAMESPACE, 'Address'))
-        doc.root.SetValue(customer['Address'])
+        doc.root.set_xmlname((core.ODATA_DATASERVICES_NAMESPACE, 'Address'))
+        doc.root.set_value(customer['Address'])
         data = str(doc)
         request.set_header('Content-Type', "application/xml")
         request.set_header('Content-Length', str(len(data)))
@@ -4301,8 +4301,8 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/CompanyName", "PUT")
         doc = core.Document(root=core.Property)
-        doc.root.SetXMLName((core.ODATA_DATASERVICES_NAMESPACE, 'CompanyName'))
-        doc.root.SetValue(customer['CompanyName'])
+        doc.root.set_xmlname((core.ODATA_DATASERVICES_NAMESPACE, 'CompanyName'))
+        doc.root.set_value(customer['CompanyName'])
         data = str(doc)
         request.set_header('Content-Type', "application/xml")
         request.set_header('Content-Length', str(len(data)))
@@ -4392,7 +4392,7 @@ class SampleServerTests(unittest.TestCase):
             customer = collection['ALFKI']
         request = MockRequest("/service.svc/Orders(3)/$links/Customer", "PUT")
         doc = core.Document(root=core.URI)
-        doc.root.SetValue(str(customer.get_location()))
+        doc.root.set_value(str(customer.get_location()))
         data = str(doc)
         request.set_header('Content-Type', "application/xml")
         request.set_header('Content-Length', str(len(data)))

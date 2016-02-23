@@ -31,9 +31,9 @@ class SelectionOrdering(common.QTICommentContainer):
         self.Selection = []
         self.Order = None
 
-    def GetChildren(self):
+    def get_children(self):
         for child in itertools.chain(
-                common.QTICommentContainer.GetChildren(self),
+                common.QTICommentContainer.get_children(self),
                 self.SequenceParameter,
                 self.Selection):
             yield child
@@ -76,7 +76,7 @@ class Selection(core.QTIElement):
         self.SelectionMetadata = None
         self.SelectionChildMixin = None
 
-    def GetChildren(self):
+    def get_children(self):
         if self.SourceBankRef:
             yield self.SourceBankRef
         if self.SelectionNumber:
@@ -165,7 +165,7 @@ class OrSelection(SelectionOperator, SelectionChildMixin):
         SelectionOperator.__init__(self, parent)
         self.SelectionOperator = []
 
-    def GetChildren(self, parent):
+    def get_children(self, parent):
         return iter(self.SelectionOperator)
 
 
@@ -185,7 +185,7 @@ class AndSelection(SelectionOperator, SelectionChildMixin):
         SelectionOperator.__init__(self, parent)
         self.SelectionOperator = []
 
-    def GetChildren(self, parent):
+    def get_children(self, parent):
         return iter(self.SelectionOperator)
 
 
@@ -204,7 +204,7 @@ class NotSelection(SelectionOperator, SelectionChildMixin):
         SelectionOperator.__init__(self, parent)
         self.SelectionOperator = None
 
-    def GetChildren(self, parent):
+    def get_children(self, parent):
         if self.SelectionOperator:
             yield self.SelectionOperator
 

@@ -194,12 +194,12 @@ class APPElementTests(unittest.TestCase):
         e = app.APPElement(None)
         self.assertTrue(e.xmlname is None, 'element name on construction')
         self.assertTrue(
-            e.GetBase() is None, "xml:base present on construction")
+            e.get_base() is None, "xml:base present on construction")
         self.assertTrue(
-            e.GetLang() is None, "xml:lang present on construction")
+            e.get_lang() is None, "xml:lang present on construction")
         self.assertTrue(
-            e.GetSpace() is None, "xml:space present on construction")
-        attrs = e.GetAttributes()
+            e.get_space() is None, "xml:space present on construction")
+        attrs = e.get_attributes()
         self.assertTrue(
             len(attrs.keys()) == 0, "Attributes present on construction")
 
@@ -212,12 +212,12 @@ class CategoriesTests(unittest.TestCase):
         self.assertTrue(
             e.xmlname == "categories", 'element name on construction')
         self.assertTrue(
-            e.GetBase() is None, "xml:base present on construction")
+            e.get_base() is None, "xml:base present on construction")
         self.assertTrue(
-            e.GetLang() is None, "xml:lang present on construction")
+            e.get_lang() is None, "xml:lang present on construction")
         self.assertTrue(
-            e.GetSpace() is None, "xml:space present on construction")
-        attrs = e.GetAttributes()
+            e.get_space() is None, "xml:space present on construction")
+        attrs = e.get_attributes()
         self.assertTrue(
             len(attrs.keys()) == 0, "Attributes present on construction")
         self.assertTrue(e.href is None, "href present on construction")
@@ -235,7 +235,7 @@ class CollectionTests(unittest.TestCase):
             isinstance(c, app.APPElement), "Collection not an APPElement")
         self.assertTrue(c.xmlname == "collection", "Collection XML name")
         self.assertTrue(c.href is None, "HREF present on construction")
-        attrs = c.GetAttributes()
+        attrs = c.get_attributes()
         self.assertTrue(
             len(attrs.keys()) == 0, "Attributes present on construction")
         self.assertTrue(c.Title is None, "Title present on construction")
@@ -252,7 +252,7 @@ class WorkspaceTests(unittest.TestCase):
         self.assertTrue(
             isinstance(ws, app.APPElement), "Workspace not an APPElement")
         self.assertTrue(ws.xmlname == "workspace", "Workspace XML name")
-        attrs = ws.GetAttributes()
+        attrs = ws.get_attributes()
         self.assertTrue(
             len(attrs.keys()) == 0, "Attributes present on construction")
         self.assertTrue(ws.Title is None, "Title present on construction")
@@ -268,7 +268,7 @@ class ServiceTests(unittest.TestCase):
         self.assertTrue(
             isinstance(svc, app.APPElement), "Service not an APPElement")
         self.assertTrue(svc.xmlname == "service", "Service XML name")
-        attrs = svc.GetAttributes()
+        attrs = svc.get_attributes()
         self.assertTrue(
             len(attrs.keys()) == 0, "Attributes present on construction")
         workspaces = svc.Workspace
@@ -277,7 +277,7 @@ class ServiceTests(unittest.TestCase):
 
     def test_read_xml(self):
         doc = app.Document()
-        doc.Read(src=StringIO.StringIO(SVC_EXAMPLE_1))
+        doc.read(src=StringIO.StringIO(SVC_EXAMPLE_1))
         svc = doc.root
         self.assertTrue(isinstance(svc, app.Service),
                         "Example 1 not a service")
@@ -285,7 +285,7 @@ class ServiceTests(unittest.TestCase):
         self.assertTrue(len(wspace) == 2, "Example 1 has no workspaces")
         ws = wspace[0]
         title = ws.Title
-        self.assertTrue(isinstance(title, atom.Text) and title.GetValue(
+        self.assertTrue(isinstance(title, atom.Text) and title.get_value(
         ) == "Main Site", "Example 1, workspace 1 title")
         collections = ws.Collection
         self.assertTrue(
@@ -296,7 +296,7 @@ class ServiceTests(unittest.TestCase):
                         "Collection type or href")
         title = c.Title
         self.assertTrue(isinstance(title, atom.Text) and
-                        title.GetValue() == "My Blog Entries",
+                        title.get_value() == "My Blog Entries",
                         "Collection title")
         cats = c.Categories[0]
         self.assertTrue(isinstance(cats, app.Categories) and
@@ -304,8 +304,8 @@ class ServiceTests(unittest.TestCase):
                         "Collection categories")
         accepts = collections[1].Accept
         self.assertTrue(len(accepts) == 3 and
-                        accepts[0].GetValue() == "image/png" and
-                        accepts[2].GetValue() == "image/gif",
+                        accepts[0].get_value() == "image/png" and
+                        accepts[2].get_value() == "image/gif",
                         "Collection accepts")
         cats = wspace[1].Collection[0].Categories[0]
         self.assertTrue(cats.fixed, "Collection categories fixed")
@@ -331,13 +331,13 @@ class ClientTests(unittest.TestCase):
     def test_app_get(self):
         doc = app.Document(baseURI='http://localhost:%i/service' % HTTP_PORT)
         client = app.Client()
-        doc.Read(reqManager=client)
+        doc.read(reqManager=client)
         svc = doc.root
         self.assertTrue(isinstance(svc, app.Service), "GET /service")
         for ws in svc.Workspace:
             for c in ws.Collection:
                 feed_doc = app.Document(baseURI=c.get_feed_url())
-                feed_doc.Read(reqManager=client)
+                feed_doc.read(reqManager=client)
                 feed = feed_doc.root
                 self.assertTrue(isinstance(feed, atom.Feed),
                                 "Collection not a feed for %s" % c.Title)
@@ -428,50 +428,50 @@ class ServerTests(unittest.TestCase):
         cdata = request.wfile.getvalue()
         self.assertTrue(len(cdata) == clen, "Content-Length mismatch")
         doc = app.Document(baseURI="http://localhost/service")
-        doc.Read(cdata)
+        doc.read(cdata)
         svc = doc.root
         self.assertTrue(isinstance(svc, app.Service), "Server: GET /service")
         self.assertTrue(len(svc.Workspace) == 0, "Server: no workspaces")
 
     def test_workspace(self):
         s = app.Server("http://localhost/service")
-        ws = s.service.ChildElement(app.Workspace)
-        title = ws.ChildElement(atom.Title)
+        ws = s.service.add_child(app.Workspace)
+        title = ws.add_child(atom.Title)
         title_text = "Some work space while others space work"
-        title.SetValue(title_text)
+        title.set_value(title_text)
         request = MockRequest('/service')
         request.send(s)
         doc = app.Document(baseURI="http://localhost/service")
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         svc = doc.root
         self.assertTrue(len(svc.Workspace) == 1, "Server: one workspace")
-        self.assertTrue(svc.Workspace[0].Title.GetValue() == title_text,
+        self.assertTrue(svc.Workspace[0].Title.get_value() == title_text,
                         "Server: one workspace title")
 
     def test_collection(self):
         s = app.Server("http://localhost/service")
-        ws = s.service.ChildElement(app.Workspace)
-        title = ws.ChildElement(atom.Title)
+        ws = s.service.add_child(app.Workspace)
+        title = ws.add_child(atom.Title)
         title_text = "Collections"
-        title.SetValue(title_text)
-        c1 = ws.ChildElement(app.Collection)
-        c1.ChildElement(atom.Title).SetValue("Collection 1")
+        title.set_value(title_text)
+        c1 = ws.add_child(app.Collection)
+        c1.add_child(atom.Title).set_value("Collection 1")
         c1.href = "c1"
-        c2 = ws.ChildElement(app.Collection)
-        c2.ChildElement(atom.Title).SetValue("Collection 2")
+        c2 = ws.add_child(app.Collection)
+        c2.add_child(atom.Title).set_value("Collection 2")
         c2.href = "/etc/c2"
         request = MockRequest('/service')
         request.send(s)
         doc = app.Document(baseURI="http://localhost/service")
-        doc.Read(request.wfile.getvalue())
+        doc.read(request.wfile.getvalue())
         svc = doc.root
         self.assertTrue(len(svc.Workspace[0].Collection) == 2,
                         "Server: two collections")
         c2_result = svc.Workspace[0].Collection[1]
         self.assertTrue(
-            c2_result.Title.GetValue() == "Collection 2",
+            c2_result.Title.get_value() == "Collection 2",
             "Server: two collections title")
-        self.assertTrue(c2_result.ResolveURI(c2_result.href) ==
+        self.assertTrue(c2_result.resolve_uri(c2_result.href) ==
                         "http://localhost/etc/c2", "Server: collection href")
 
 
