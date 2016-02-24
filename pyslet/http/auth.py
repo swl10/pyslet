@@ -9,6 +9,7 @@ from .params import Parameter, ParameterParser
 
 
 class Challenge(Parameter):
+
     """Represents an HTTP authentication challenge.
 
     Instances are created from a scheme and a variable length list of
@@ -120,6 +121,7 @@ class Challenge(Parameter):
 
 
 class BasicChallenge(Challenge):
+
     """Represents an HTTP Basic authentication challenge."""
 
     def __init__(self, *params):
@@ -127,6 +129,7 @@ class BasicChallenge(Challenge):
 
 
 class Credentials(Parameter):
+
     """An abstract class that represents a set of HTTP authentication
     credentials.
 

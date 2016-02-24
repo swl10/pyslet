@@ -58,6 +58,8 @@ pyslet/xml/parser.py
 unittests/test_xml_parser.py
 pyslet/xml/structures.py
 unittests/test_xml_structures.py
+pyslet/xsdatatypes20041028.py
+unittests/test_xsdatatypes20041028.py
 samples/fsodata.py
 samples/odatadiff.py
 samples/odatadoc.py

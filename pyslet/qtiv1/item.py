@@ -1586,7 +1586,8 @@ class RenderFIB(RenderThing):
         self.labels = []
 
     def content_changed(self):
-        self.labels = list(self.find_children_depth_first(ResponseLabel, False))
+        self.labels = list(
+            self.find_children_depth_first(ResponseLabel, False))
 
     def MixedModel(self):
         """Indicates whether or not this FIB uses a mixed model or not.

@@ -796,7 +796,7 @@ class Server(app.Server):
                             except ValueError:
                                 pass
                         if not key:
-                            key = resource.entity_set.extract_key(slug.slug)                        
+                            key = resource.entity_set.extract_key(slug.slug)
                     else:
                         slug = key = None
                     entity = resource.new_stream(input, sinfo=sinfo, key=key)
@@ -1030,7 +1030,7 @@ class Server(app.Server):
             for e in entities.itervalues():
                 child = doc.root.add_child(core.URI)
                 child.set_value(str(self.serviceRoot) + "%s(%s)" %
-                               (e.entity_set.name, repr(e.key())))
+                                (e.entity_set.name, repr(e.key())))
             data = str(doc)
         response_headers.append(("Content-Type", str(responseType)))
         response_headers.append(("Content-Length", str(len(data))))
@@ -1420,7 +1420,7 @@ class Server(app.Server):
             for value in collection:
                 p = e.add_child(core.Property)
                 p.set_xmlname((core.ODATA_DATASERVICES_NAMESPACE,
-                              value.pDef.name))
+                               value.pDef.name))
                 p.set_value(value)
             data = str(doc)
         response_headers.append(("Content-Type", str(responseType)))

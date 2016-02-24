@@ -35,11 +35,13 @@ from ..unicode5 import CharClass
 
 
 class XMLError(Exception):
+
     """Base class for all exceptions raised by this module."""
     pass
 
 
 class DuplicateXMLNAME(XMLError):
+
     """Raised by :py:func:`map_class_elements`
 
     Indicates an attempt to declare two classes with the same XML
@@ -48,21 +50,25 @@ class DuplicateXMLNAME(XMLError):
 
 
 class XMLAttributeSetter(XMLError):
+
     """Raised when a badly formed attribute mapping is found."""
     pass
 
 
 class XMLMissingResourceError(XMLError):
+
     """Raised when an entity cannot be found (e.g., missing file)"""
     pass
 
 
 class XMLMissingLocationError(XMLError):
+
     """Raised when on create, read or update when base_uri is None"""
     pass
 
 
 class XMLMixedContentError(XMLError):
+
     """Raised by :meth:`Element.get_value`
 
     Indicates unexpected element children."""
@@ -70,6 +76,7 @@ class XMLMixedContentError(XMLError):
 
 
 class XMLParentError(XMLError):
+
     """Raised by :meth:`Element.attach_to_parent`
 
     Indicates that the element was not an orphan."""
@@ -77,6 +84,7 @@ class XMLParentError(XMLError):
 
 
 class XMLUnexpectedHTTPResponse(XMLError):
+
     """Raised by :meth:`Document.open_uri`
 
     The message contains the response code and status message received
@@ -85,6 +93,7 @@ class XMLUnexpectedHTTPResponse(XMLError):
 
 
 class XMLUnsupportedSchemeError(XMLError):
+
     """:attr:`Document.base_uri` has an unsupported scheme
 
     Currently only file, http and https schemes are supported for open
@@ -94,6 +103,7 @@ class XMLUnsupportedSchemeError(XMLError):
 
 
 class XMLValidityError(XMLError):
+
     """Base class for all validation errors
 
     Raised when a document or content model violates a validity
@@ -105,11 +115,13 @@ class XMLValidityError(XMLError):
 
 
 class XMLIDClashError(XMLValidityError):
+
     """A validity error caused by two elements with the same ID"""
     pass
 
 
 class XMLIDValueError(XMLValidityError):
+
     """A validity error caused by an element with an invalid ID
 
     ID attribute must satisfy the production for NAME."""
@@ -117,6 +129,7 @@ class XMLIDValueError(XMLValidityError):
 
 
 class XMLUnknownChild(XMLError):
+
     """Raised by :meth:`Element.remove_child`
 
     Indicates that the child being removed was not found in the
@@ -365,6 +378,7 @@ _xml_space = 'xml:space'
 
 
 class Node(UnicodeMixin, MigratedClass):
+
     """Base class for Element and Document shared attributes.
 
     XML documents are defined hierarchicaly, each element has a parent
@@ -514,6 +528,7 @@ class Node(UnicodeMixin, MigratedClass):
 
 
 class Document(Node):
+
     """Base class for all XML documents.
 
     With no arguments, a new Document is created with no base URI or
@@ -961,6 +976,7 @@ class Document(Node):
 
 
 class XMLDTD(MigratedClass):
+
     """An object that models a document type declaration.
 
     The document type declaration acts as a container for the entity,
@@ -1111,6 +1127,7 @@ class XMLTextDeclaration(object):
 
 
 class XMLDeclaration(XMLTextDeclaration):
+
     """Represents a full XML declaration.
 
     Unlike the parent class, :py:class:`XMLTextDeclaration`, the version
@@ -1124,6 +1141,7 @@ class XMLDeclaration(XMLTextDeclaration):
 
 
 class ElementType(object):
+
     """Represents element type definitions."""
 
     #: Content type constant for EMPTY
@@ -1199,6 +1217,7 @@ SGMLCDATA = ElementType.SGMLCDATA
 
 
 class Element(Node):
+
     """Base class that represents all XML elements.
 
     This class is usually used only as a default to represent elements
@@ -2833,6 +2852,7 @@ class XMLContentParticle(object):
 
 
 class XMLNameParticle(XMLContentParticle):
+
     """Represents a content particle for a named element"""
 
     def __init__(self):
@@ -2875,6 +2895,7 @@ class XMLNameParticle(XMLContentParticle):
 
 
 class XMLChoiceList(XMLContentParticle):
+
     """Represents a choice list of content particles in the grammar"""
 
     def __init__(self):
@@ -2916,6 +2937,7 @@ class XMLChoiceList(XMLContentParticle):
 
 
 class XMLSequenceList(XMLContentParticle):
+
     """Represents a sequence list of content particles in the grammar"""
 
     def __init__(self):
@@ -2974,6 +2996,7 @@ class XMLSequenceList(XMLContentParticle):
 
 
 class XMLAttributeDefinition(object):
+
     """Represents an Attribute declaration
 
     There is no special functionality provided by this class, instances
@@ -3058,6 +3081,7 @@ class XMLAttributeDefinition(object):
 
 
 class XMLEntity(MigratedClass):
+
     """Represents an XML entity.
 
     This object serves two purposes, it acts as both the object used to
@@ -3439,7 +3463,7 @@ class XMLEntity(MigratedClass):
         b'\3c\x3f\x78\x6D': ('utf_8', 0, False),
         # EBCDIC (in some flavor)
         b'\4c\x6f\xa7\x94': ('cp500', 0, False)
-        }
+    }
 
     def auto_detect_encoding(self, src_file):
         """Auto-detects the character encoding
@@ -3473,7 +3497,7 @@ class XMLEntity(MigratedClass):
         # for compatibility with some older XML documents
         'cn-big5': ('big5', False),
         'cn-gb2312': ('gb2312', False)
-        }
+    }
 
     def change_encoding(self, encoding):
         """Changes the character encoding used for this entity.
@@ -3560,6 +3584,7 @@ class XMLEntity(MigratedClass):
 
 
 class XMLDeclaredEntity(XMLEntity):
+
     """Abstract class representing a declared entitiy.
 
     name
@@ -3618,6 +3643,7 @@ class XMLDeclaredEntity(XMLEntity):
 
 
 class XMLGeneralEntity(XMLDeclaredEntity):
+
     """Represents a general entity.
 
     name
@@ -3640,6 +3666,7 @@ class XMLGeneralEntity(XMLDeclaredEntity):
 
 
 class XMLParameterEntity(XMLDeclaredEntity):
+
     """Represents a parameter entity.
 
     name
@@ -3676,6 +3703,7 @@ class XMLParameterEntity(XMLDeclaredEntity):
 
 
 class XMLExternalID(object):
+
     """Represents external references to entities.
 
     public
@@ -3711,6 +3739,7 @@ class XMLExternalID(object):
 
 
 class XMLNotation(object):
+
     """Represents an XML Notation defined in Section 4.7
 
     name

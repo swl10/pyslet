@@ -217,6 +217,7 @@ def old_method(name, doc=True):
 
 
 class DeprecatedFunction(object):
+
     """Represents a renamed function
 
     new_func

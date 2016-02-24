@@ -241,6 +241,7 @@ else:
 
 
 class UnicodeMixin(object):
+
     """Mixin class to handle string formatting
 
     For classes that need to define a __unicode__ method of their own
@@ -267,6 +268,7 @@ class UnicodeMixin(object):
 
 
 class SortableMixin(object):
+
     """Mixin class for handling comparisons
 
     Utility class for helping provide comparisons that are compatible
@@ -365,6 +367,7 @@ class SortableMixin(object):
 
 
 class CmpMixin(object):
+
     """Mixin class for handling comparisons
 
     For compatibility with Python 2's __cmp__ method this class defines

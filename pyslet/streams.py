@@ -48,6 +48,7 @@ def io_timedout(err):
 
 
 class BufferedStreamWrapper(io.RawIOBase):
+
     """A buffered wrapper for file-like objects.
 
     src
@@ -160,6 +161,7 @@ class BufferedStreamWrapper(io.RawIOBase):
 
 
 class Pipe(io.RawIOBase):
+
     """Buffered pipe for inter-thread communication
 
     The purpose of this class is to provide a thread-safe buffer to use

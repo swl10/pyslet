@@ -511,11 +511,20 @@ class CharClass(UnicodeMixin):
         self._clear_cache()
 
     def negate(self):
-        """Negates this character class"""
+        """Negates this character class
+
+        As a convenience returns the object as the result enabling
+        this method to be used in construction, e.g.::
+
+            c = CharClass('\x0a\x0d').negate()
+
+        Results in the class of all characters *except* line feed and
+        carriage return."""
         max = CharClass([character(0), character(maxunicode)])
         max.subtract_class(self)
         self.ranges = max.ranges
         self._clear_cache()
+        return self
 
     def _merge(self, index):
         """Used internally to merge the range at index with its
@@ -832,6 +841,7 @@ class ParserError(ValueError):
 
 
 class ParserMixin(object):
+
     """A mix-in class for parsing
 
     These methods help establish a common pattern across parsers by

@@ -7,4 +7,3 @@ warnings.warn(
     DeprecationWarning, stacklevel=3)
 
 from pyslet.xml.namespace import *
-

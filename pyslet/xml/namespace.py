@@ -37,6 +37,7 @@ NO_NAMESPACE = "~"
 
 
 class XMLNSError(XMLFatalError):
+
     """Raised when an illegal QName is found."""
     pass
 
@@ -64,6 +65,7 @@ def attr_name_key(aname):
 
 
 class NSNode(Node):
+
     """Base class for NSElement and Document shared attributes.
 
     This class adds a number of method for managing the mapping between
@@ -252,6 +254,7 @@ _xmlns_space = (XML_NAMESPACE, 'space')
 
 
 class NSElement(NSNode, Element):
+
     """Element class used for namespace-aware elements.
 
     Namespace aware elements have special handling for elements that
@@ -571,6 +574,7 @@ XMLNSDocument = NSDocument
 
 
 class XMLNSParser(XMLParser):
+
     """A special parser for parsing documents that may use namespaces."""
 
     _nsdoc_class_table = {}

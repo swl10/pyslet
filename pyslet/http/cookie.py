@@ -326,6 +326,7 @@ class CookieError(ValueError):
 
 
 class CookieParser(grammar.OctetParser):
+
     """General purpose class for parsing RFC6265_ productions
 
     Unlike the basic syntax functions these methods allow a longer
@@ -709,6 +710,7 @@ class CookieParser(grammar.OctetParser):
 
 
 class Cookie(params.Parameter):
+
     """Represents the definition of a cookie
 
     Where binary strings are required, character strings will be
@@ -757,6 +759,7 @@ class Cookie(params.Parameter):
 
     Instances can be converted to strings using the builtin str function
     and the output that results is a valid Set-Cookie header value."""
+
     def __init__(self, name, value, path=None, domain=None, expires=None,
                  max_age=None, secure=False, http_only=False, extensions=None):
         now = time.time()

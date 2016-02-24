@@ -185,6 +185,7 @@ class ChunkedReader(io.RawIOBase):
 
 
 class WSGIInputWrapper(io.RawIOBase):
+
     """A class suitable for wrapping the WSGI input object.
 
     environ
@@ -393,6 +394,7 @@ class WSGIInputWrapper(io.RawIOBase):
 
 
 class Message(PEP8Compatibility, object):
+
     """An abstract class to represent an HTTP message.
 
     The methods of this class are thread safe, using a :py:attr:`lock`
@@ -2068,6 +2070,7 @@ class Response(Message):
 
 
 class MediaRange(params.MediaType):
+
     """Represents an HTTP media-range.
 
     Quoting from the specification:
@@ -2090,6 +2093,7 @@ class MediaRange(params.MediaType):
     If we have two rules with identical precedence then we sort them
     alphabetically by type; sub-type and ultimately alphabetically by
     parameters"""
+
     def __init__(self, type="*", subtype="*", parameters={}):
         super(MediaRange, self).__init__(type, subtype, parameters)
 
@@ -2162,6 +2166,7 @@ MULTIPART_BYTERANGES_RANGE = MediaRange("multipart", "byteranges")
 
 
 class AcceptItem(params.SortableParameter):
+
     """Represents a single item in an Accept header
 
     Accept items are sorted by their media ranges.  Equal media ranges
@@ -2263,6 +2268,7 @@ class AcceptList(object):
 
 
 class AcceptToken(params.SortableParameter):
+
     """Represents a single item in a token-based Accept-* header
 
     AcceptToken items are sorted by their token, with wild cards sorting
@@ -2305,6 +2311,7 @@ class AcceptToken(params.SortableParameter):
 
 
 class AcceptTokenList(params.Parameter):
+
     """Represents the value of a token-based Accept-* header
 
     Instances are immutable, they are constructed from one or more
@@ -2367,6 +2374,7 @@ class AcceptTokenList(params.Parameter):
 
 
 class AcceptCharsetItem(AcceptToken):
+
     """Represents a single item in an Accept-Charset header"""
     pass
 
@@ -2438,6 +2446,7 @@ class AcceptEncodingList(AcceptTokenList):
 
 
 class AcceptLanguageItem(AcceptToken):
+
     """Represents a single item in an Accept-Language header."""
 
     def __init__(self, token="*", qvalue=1.0):
@@ -2483,6 +2492,7 @@ class AcceptLanguageList(AcceptTokenList):
 
 
 class AcceptRanges(params.SortableParameter):
+
     """Represents the value of an Accept-Ranges response header.
 
     Instances are immutable, they are constructed from a list of string
@@ -2534,6 +2544,7 @@ class AcceptRanges(params.SortableParameter):
 
 
 class Allow(params.SortableParameter):
+
     """Represents the value of an Allow entity header.
 
     Instances are immutable, they are constructed from
@@ -2575,6 +2586,7 @@ class Allow(params.SortableParameter):
 
 
 class CacheControl(params.Parameter):
+
     """Represents the value of a Cache-Control general header.
 
     Instances are immutable, they are constructed from a list of
@@ -2629,12 +2641,12 @@ class CacheControl(params.Parameter):
             elif isinstance(v, tuple):
                 result.append(b"%s=%s" % (
                               d, grammar.quote_string(
-                                b", ".join(str(s).encode('ascii')
-                                           for s in v))))
+                                  b", ".join(str(s).encode('ascii')
+                                             for s in v))))
             else:
                 result.append(b"%s=%s" % (
                               d, grammar.quote_string(
-                                str(v).encode('ascii'), force=False)))
+                                  str(v).encode('ascii'), force=False)))
         return b", ".join(result)
 
     def __len__(self):
@@ -2741,6 +2753,7 @@ class ContentRange(object):
 
 
 class HeaderParser(params.ParameterParser):
+
     """A special parser for parsing HTTP headers from TEXT
 
     In keeping with RFC2616 all parsing is done on binary strings.  See

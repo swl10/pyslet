@@ -17,16 +17,19 @@ from . import structures as xml
 
 
 class XMLFatalError(xml.XMLError):
+
     """Raised by a fatal error in the parser."""
     pass
 
 
 class XMLWellFormedError(XMLFatalError):
+
     """Raised by when a well-formedness error is encountered."""
     pass
 
 
 class XMLForbiddenEntityReference(XMLFatalError):
+
     """Raised when a forbidden entity reference is encountered."""
     pass
 
@@ -448,6 +451,7 @@ def register_doc_class(doc_class, root_name, public_id=None, system_id=None):
 
 
 class ContentParticleCursor(object):
+
     """Used to traverse an element's content model.
 
     The cursor records its position within the content model by
@@ -560,6 +564,7 @@ class ContentParticleCursor(object):
 
 
 class XMLParser(PEP8Compatibility):
+
     """An XMLParser object
 
     entity

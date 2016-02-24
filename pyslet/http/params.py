@@ -22,6 +22,7 @@ from .grammar import format_parameters
 
 
 class Parameter(object):
+
     """Abstract base class for HTTP Parameters
 
     Provides conversion to strings based on the :meth:`to_bytes` method.
@@ -127,6 +128,7 @@ class Parameter(object):
 
 
 class SortableParameter(SortableMixin, Parameter):
+
     """Base class for sortable parameters
 
     Inherits from :class:`~pyslet.py2.SortableMixin` allowing sorting to
@@ -165,6 +167,7 @@ class SortableParameter(SortableMixin, Parameter):
 
 
 class HTTPVersion(SortableParameter):
+
     """Represents the HTTP Version.
 
     major
@@ -219,6 +222,7 @@ HTTP_1p0 = HTTPVersion(1, 0)
 
 
 class HTTPURL(uri.ServerBasedURL):
+
     """Represents http URLs"""
 
     #: the default HTTP port
@@ -269,6 +273,7 @@ uri.URI.register('http', HTTPURL)
 
 
 class HTTPSURL(HTTPURL):
+
     """Represents https URLs"""
 
     #: the default HTTPS port
@@ -282,6 +287,7 @@ uri.URI.register('https', HTTPSURL)
 
 
 class FullDate(Parameter, iso.TimePoint):
+
     """A special sub-class for HTTP-formatted dates
 
     We extend the basic ISO :class:`~pyslet.iso8601.TimePoint`,
@@ -348,6 +354,7 @@ class FullDate(Parameter, iso.TimePoint):
 
 
 class TransferEncoding(SortableParameter):
+
     """Represents an HTTP transfer-encoding.
 
     token
@@ -411,6 +418,7 @@ class TransferEncoding(SortableParameter):
 
 
 class Chunk(SortableParameter):
+
     """Represents an HTTP chunk header
 
     size
@@ -454,6 +462,7 @@ class Chunk(SortableParameter):
 
 
 class MediaType(SortableParameter):
+
     """Represents an HTTP media-type.
 
     The built-in str function can be used to format instances according
@@ -530,6 +539,7 @@ PLAIN_TEXT = MediaType('text', 'plain')
 
 
 class ProductToken(SortableParameter):
+
     """Represents an HTTP product token.
 
     The comparison operations use a more interesting sort than plain
@@ -644,6 +654,7 @@ class ProductToken(SortableParameter):
 
 
 class LanguageTag(SortableParameter):
+
     """Represents an HTTP language-tag.
 
     Language tags are compared by lower casing all components and then
@@ -725,6 +736,7 @@ class LanguageTag(SortableParameter):
 
 
 class EntityTag(SortableParameter):
+
     """Represents an HTTP entity-tag.
 
     tag
@@ -770,6 +782,7 @@ COLON = byte(':')
 
 
 class ParameterParser(WordParser):
+
     """An extended parser for parameter values
 
     This parser defines attributes for dealing with English date names

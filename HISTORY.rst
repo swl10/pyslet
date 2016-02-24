@@ -45,9 +45,13 @@ Not sure which version you are using?  Try::
 Version 0.7
 -----------
 
-Build 20160223:
+Build 20160224:
 
 #3 PEP-8 driven refactoring (ongoing)
+
+Refactored the xsdatatypes module - work in progress, will trigger
+Deprecation warnings for changes to Enumeration class and renaming of
+Decode/Encode functions.
 
 Refactored the xml namespace module into the xml sub-package.
 

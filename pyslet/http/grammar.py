@@ -216,6 +216,7 @@ def format_parameters(parameters):
 
 
 class OctetParser(BasicParser):
+
     """A special purpose parser for parsing HTTP productions
 
     Strictly speaking, HTTP operates only on bytes so the parser is
@@ -483,6 +484,7 @@ class OctetParser(BasicParser):
 
 
 class BadSyntax(ValueError):
+
     """Raised by the :class:`WordParser`
 
     Whenever a syntax error is encountered by the parsers.  Note that
@@ -526,6 +528,7 @@ class BadSyntax(ValueError):
 
 
 class WordParser(ParserMixin):
+
     """A word-level parser and tokeniser for the HTTP grammar.
 
     source

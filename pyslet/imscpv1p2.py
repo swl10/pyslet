@@ -459,7 +459,8 @@ class ContentPackage:
             else:
                 self.manifest = self.ManifestDocumentClass(root=Manifest,
                                                            baseURI=str(uri.URI.from_virtual_path(mPath)))
-                self.manifest.root.set_id(self.manifest.get_unique_id('manifest'))
+                self.manifest.root.set_id(
+                    self.manifest.get_unique_id('manifest'))
                 md = self.manifest.root.add_child(
                     self.manifest.root.MetadataClass)
                 md.add_child(md.SchemaClass).set_value("IMS Content")

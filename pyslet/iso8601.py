@@ -35,7 +35,13 @@ import warnings
 from math import modf, floor
 
 from .pep8 import PEP8Compatibility
-from .py2 import range3, is_string, is_text, UnicodeMixin, SortableMixin
+from .py2 import (
+    is_string,
+    is_text,
+    range3,
+    SortableMixin,
+    to_text,
+    UnicodeMixin)
 from .unicode5 import BasicParser
 
 
@@ -144,6 +150,7 @@ class Precision(object):
 
 
 class Date(PEP8Compatibility, SortableMixin, UnicodeMixin):
+
     """A class for representing ISO dates.
 
     Values can represent dates with reduced precision, for example::
@@ -2583,7 +2590,7 @@ class TimePoint(PEP8Compatibility, UnicodeMixin, SortableMixin):
         return self.set_from_time_point(t)
 
 
-class Duration(PEP8Compatibility):
+class Duration(UnicodeMixin, PEP8Compatibility):
 
     """A class for representing ISO durations"""
 
@@ -2597,6 +2604,9 @@ class Duration(PEP8Compatibility):
             self.set_zero()
         else:
             raise TypeError
+
+    def __unicode__(self):
+        return to_text(self.get_string())
 
     def set_zero(self):
         self.years = 0
@@ -2686,7 +2696,7 @@ class Duration(PEP8Compatibility):
             else:
                 return 'P' + date_part
         else:
-            pass
+            raise NotImplementedError
 
     def set_from_duration(self, src):
         self.years = src.years

@@ -212,7 +212,8 @@ class CCTestCase(unittest.TestCase):
                 # And hence all associated content dependencies in lao must be to
                 # the single acr in this list.
                 for d in laoResource.Dependency:
-                    acr = self.cc.cp.manifest.get_element_by_id(d.identifierref)
+                    acr = self.cc.cp.manifest.get_element_by_id(
+                        d.identifierref)
                     if acr is None:
                         print d.identifierref
                         print self.cc.cp.manifest.root

@@ -456,7 +456,7 @@ class NameTableMixin(DictionaryLike):
             if isinstance(value, NameTableMixim):
                 result = result + len(value)
         return result
-        
+
     def _SplitKey(self, key):
         sKey = key.split(".")
         pathLen = 1

@@ -10,7 +10,7 @@ if py2:
     from htmlentitydefs import name2codepoint
 else:
     from html.entities import name2codepoint
-    
+
 import string
 import itertools
 from types import *

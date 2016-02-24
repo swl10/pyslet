@@ -25,3 +25,6 @@ Parsing Text and Binary Data
 	:members:
 	:show-inheritance:
 
+..	autoclass:: ParserError
+	:members:
+	:show-inheritance:
